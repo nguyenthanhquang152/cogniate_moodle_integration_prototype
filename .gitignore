@@ -1,0 +1,15 @@
+.DS_Store
+**/.DS_Store
+node_modules/
+dist/
+build/
+coverage/
+.env
+.env.*
+!.env.example
+*.log
+.research_cache/
+.data/
+playwright-report/
+test-results/
+.tmp/
