@@ -78,13 +78,29 @@ describe('T1 web services', () => {
     expect((err as MoodleWsError).errorcode).toBe('invalidtoken');
   });
 
-  it('H4 the QA oracle token belongs to another user and has the oracle functions', async () => {
+  // The approved oracle service has no core_webservice_get_site_info, so this test does not use it.
+  // Moodle checks "function in the token's service" before it checks parameters: a call with no parameters
+  // gives accessexception if the function is not in the service, and invalidparameter (or a result) if it is.
+  // No call below writes data: core_course_update_courses without `courses` fails parameter validation.
+  it('H4 the QA oracle token can call every oracle function; the product token cannot call the oracle-only ones', async () => {
     const s = seed();
-    const oracle = await callWs<SiteInfo>(s.oracleToken, 'core_webservice_get_site_info');
-    const product = await callWs<SiteInfo>(s.productToken, 'core_webservice_get_site_info');
-    expect(oracle.userid).not.toBe(product.userid);
-    const names = oracle.functions.map((f) => f.name);
-    for (const fn of ORACLE_WS_FUNCTIONS) expect(names, fn).toContain(fn);
+    const errorOf = (token: string, fn: string) =>
+      callWs(token, fn, {}).then(
+        () => null,
+        (e: unknown) => e,
+      );
+    for (const fn of ORACLE_WS_FUNCTIONS) {
+      const err = await errorOf(s.oracleToken, fn);
+      if (err !== null) {
+        expect(err, fn).toBeInstanceOf(MoodleWsError);
+        expect((err as MoodleWsError).errorcode, `${fn} must be in the oracle service`).not.toBe('accessexception');
+      }
+    }
+    for (const fn of ORACLE_ONLY_FUNCTIONS) {
+      const err = await errorOf(s.productToken, fn);
+      expect(err, fn).toBeInstanceOf(MoodleWsError);
+      expect((err as MoodleWsError).errorcode, `${fn} must not be in the product service`).toBe('accessexception');
+    }
   });
 });
 

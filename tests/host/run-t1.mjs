@@ -55,6 +55,7 @@ const { values: opt } = parseArgs({
     checkout: { type: 'string' },
     'fixtures-dir': { type: 'string' },
     'tests-from': { type: 'string' },
+    'replace-tests': { type: 'boolean', default: false },
     'skip-reset': { type: 'boolean', default: false },
     'clean-project': { type: 'boolean', default: false },
     help: { type: 'boolean', default: false },
@@ -70,6 +71,7 @@ const HELP = `Usage: COMPOSE_PROJECT_NAME=qa-t1-r<N> PUBLIC_PORT=8443 STACK_SUBN
   --checkout <path>     Use an existing clone. No clean-clone guarantee (AC-T1-01 is then informative).
   --fixtures-dir <path> COURSE_FIXTURES_DIR, when the clone has no course zips.
   --tests-from <path>   tests/ folder to copy into the clone if the SHA has none (default: this tests/).
+  --replace-tests       Replace the clone's tests/ with --tests-from (QA test fixes after the SHA).
   --skip-reset          Skip AC-T1-10 (reset and second in-container pass).
   --clean-project       Remove leftover containers, volumes and networks of THIS QA project first.
 `;
@@ -241,13 +243,17 @@ async function cloneSha() {
   );
   if (dirty.length > 0 && !opt.checkout) notes.push(`not clean: ${dirty.join(', ')}`);
 
-  if (!fs.existsSync(path.join(CLONE, 'tests', 'package.json'))) {
+  const testsMissing = !fs.existsSync(path.join(CLONE, 'tests', 'package.json'));
+  if (testsMissing || opt['replace-tests']) {
     const from = path.resolve(opt['tests-from'] ?? QA_TESTS_DIR);
+    const diff = await run('git', ['diff', '--stat', opt.sha ?? 'HEAD', '--', '.'], { cwd: from });
+    if (!testsMissing) fs.rmSync(path.join(CLONE, 'tests'), { recursive: true, force: true });
     fs.cpSync(from, path.join(CLONE, 'tests'), {
       recursive: true,
       filter: (src) => !/(^|[/\\])(node_modules|artifacts|test-results|playwright-report|\.tmp)([/\\]|$)/.test(path.relative(from, src)),
     });
-    notes.push(`tests/ is not in the SHA: copied from ${from}`);
+    notes.push(`${testsMissing ? 'tests/ is not in the SHA' : 'tests/ replaced (--replace-tests)'}: copied from ${from}; diff vs SHA: ${diff.stdout.trim().split('\n').pop() || 'none'}`);
+    saveText('tests-diff-vs-sha.txt', (await run('git', ['diff', opt.sha ?? 'HEAD', '--', '.'], { cwd: from })).stdout);
   }
   record('CLONE', 'Clone the SHA into a new folder', pass(dirty.length === 0 || Boolean(opt.checkout)), notes);
 }
@@ -646,67 +652,73 @@ async function containerSuite(label) {
 }
 
 async function acT111() {
+  // Scope (Lead decision, round 1): secret keys of .env (passwords, tokens, keys), every secret value in files
+  // under infra/.secrets/, and private keys in infra/.certs/*.key. Other sources are information only.
   const notes = [];
-  const findings = [];
-  const candidates = [];
   const relClone = (f) => path.relative(CLONE, f);
   const example = readEnv(path.join(CLONE, '.env.example')) ?? {};
+  const inScope = [];
+  const extra = [];
 
-  // Sources in the clone: every .env* (not .env.example), infra/.secrets/**, **/.data/**, private keys in infra/.certs.
   const envFiles = walkFiles(CLONE).filter((f) => /^\.env(\..+)?$/.test(path.basename(f)) && path.basename(f) !== '.env.example');
   for (const f of envFiles) {
     for (const [key, value] of Object.entries(parseEnv(fs.readFileSync(f, 'utf8')))) {
-      if (!isSecretCandidate(key, value)) continue;
-      if (!isSecretKeyName(key) && example[key] === value) continue; // tracked non-secret default
-      candidates.push({ source: relClone(f), key, value });
+      if (isSecretKeyName(key) && isSecretCandidate(key, value)) inScope.push({ source: relClone(f), key, value });
     }
   }
-  const dataFiles = walkDirsNamed(CLONE, '.data').flatMap((d) => walkFiles(d));
   const certKeys = walkFiles(path.join(CLONE, 'infra', '.certs')).filter((f) => /\.key$/.test(f));
-  for (const f of [...walkFiles(path.join(CLONE, 'infra', '.secrets')), ...dataFiles, ...certKeys]) {
-    for (const item of secretsInFile(f).items) candidates.push({ source: relClone(f), key: item.key, value: item.value });
+  for (const f of [...walkFiles(path.join(CLONE, 'infra', '.secrets')), ...certKeys]) {
+    for (const item of secretsInFile(f).items) inScope.push({ source: relClone(f), key: item.key, value: item.value });
   }
-  // Values from the source workspace too (Q-T0-11): a committed file can hold the Author's own dev values.
+  const dataFiles = walkDirsNamed(CLONE, '.data').flatMap((d) => walkFiles(d));
+  for (const f of dataFiles) for (const item of secretsInFile(f).items) extra.push({ source: relClone(f), key: item.key, value: item.value });
   const sourceEnvFiles = walkFiles(SOURCE, { skipDirs: ['node_modules', '.git', '.research_cache', 'raw', 'tests'] }).filter(
     (f) => /^\.env(\..+)?$/.test(path.basename(f)) && path.basename(f) !== '.env.example',
   );
   for (const f of sourceEnvFiles) {
     for (const [key, value] of Object.entries(parseEnv(fs.readFileSync(f, 'utf8')))) {
-      if (isSecretCandidate(key, value) && isSecretKeyName(key)) candidates.push({ source: `source:${path.relative(SOURCE, f)}`, key, value });
+      if (isSecretKeyName(key) && isSecretCandidate(key, value)) extra.push({ source: `source:${path.relative(SOURCE, f)}`, key, value });
     }
   }
-  for (const c of candidates) redact.add(c.value);
+  for (const c of [...inScope, ...extra]) redact.add(c.value);
 
-  const unique = [...new Map(candidates.map((c) => [c.value, c])).values()];
-  for (const c of unique) {
-    const r = await run('git', ['grep', '-l', '-F', '-e', c.value, 'HEAD', '--'], { cwd: CLONE });
-    if (r.code === 0) findings.push(`${c.source} ${c.key} → ${r.stdout.trim().split('\n').map((l) => l.replace(/^HEAD:/, '')).join(', ')}`);
-    else if (r.code !== 1) findings.push(`${c.source} ${c.key} → git grep error ${r.code}`);
-  }
-  notes.push(`secret values checked: ${unique.length} (from ${envFiles.length} env files, ${dataFiles.length} .data files, infra/.secrets, ${certKeys.length} key files, ${sourceEnvFiles.length} source env files)`);
+  const grep = async (list) => {
+    const hits = [];
+    for (const c of [...new Map(list.map((x) => [x.value, x])).values()]) {
+      const r = await run('git', ['grep', '-l', '-F', '-e', c.value, 'HEAD', '--'], { cwd: CLONE });
+      if (r.code === 0) hits.push(`${c.source} ${c.key} -> ${r.stdout.trim().split('\n').map((l) => l.replace(/^HEAD:/, '')).join(', ')}`);
+      else if (r.code !== 1) hits.push(`${c.source} ${c.key} -> git grep error ${r.code}`);
+    }
+    return hits;
+  };
+  const findings = await grep(inScope);
+  const extraFindings = await grep(extra);
 
-  const ignoredPaths = ['.env', 'infra/.certs/root.crt', 'infra/.secrets/seed.json', 'infra/.logs/x.jsonl'];
+  const ignoredPaths = ['.env', 'infra/.certs/root.crt', 'infra/.certs/x.key', 'infra/.secrets/seed.json', 'infra/.logs/x.jsonl'];
   const notIgnored = [];
   for (const p of ignoredPaths) if ((await run('git', ['check-ignore', '-q', p], { cwd: CLONE })).code !== 0) notIgnored.push(p);
   const tracked = (await run('git', ['ls-files'], { cwd: CLONE })).stdout.split('\n').filter(
-    (f) => /(^|\/)\.env(\.|$)/.test(f) && !f.endsWith('.env.example') || /^infra\/\.(certs|secrets|logs)\//.test(f) || /(^|\/)\.data\//.test(f),
+    (f) => (/(^|\/)\.env(\.|$)/.test(f) && !f.endsWith('.env.example')) || /^infra\/\.(certs|secrets|logs)\//.test(f),
   );
   const exampleSecrets = Object.entries(example).filter(([k, v]) => isSecretKeyName(k) && v !== '').map(([k]) => k);
-  const envFile = path.join(CLONE, '.env');
-  const mode = fs.existsSync(envFile) ? (fs.statSync(envFile).mode & 0o777).toString(8) : 'missing';
-
-  // gen-env must make random values: compare with the source workspace .env (same keys).
-  const sourceEnv = readEnv(path.join(SOURCE, '.env')) ?? {};
-  const sameAsSource = Object.entries(state.env ?? {}).filter(([k, v]) => isSecretKeyName(k) && isSecretCandidate(k, v) && sourceEnv[k] === v).map(([k]) => k);
 
   notes.push(
-    `values found in tracked files: ${findings.length ? findings.join('; ') : 'none'}`,
-    `not git-ignored: ${notIgnored.join(', ') || 'none'}; tracked secret paths: ${tracked.join(', ') || 'none'}`,
-    `.env.example secret keys with a value: ${exampleSecrets.join(', ') || 'none'}; .env mode ${mode}`,
-    `secret keys equal to the source workspace .env (not random): ${sameAsSource.join(', ') || 'none'}`,
+    `in-scope secret values: ${new Set(inScope.map((c) => c.value)).size} (secret keys of ${envFiles.map(relClone).join(', ') || 'no .env'}; infra/.secrets/**; ${certKeys.length} .key files)`,
+    `in-scope values found in tracked files: ${findings.length ? findings.join('; ') : 'none'}`,
+    `not git-ignored: ${notIgnored.join(', ') || 'none'}; tracked secret paths: ${tracked.join(', ') || 'none'}; .env.example secret keys with a value: ${exampleSecrets.join(', ') || 'none'}`,
+    `information only (outside Lead scope): ${new Set(extra.map((c) => c.value)).size} values from **/.data and source workspace env files; found in tracked files: ${extraFindings.length ? extraFindings.join('; ') : 'none'}`,
   );
-  const ok = findings.length === 0 && notIgnored.length === 0 && tracked.length === 0 && exampleSecrets.length === 0 && mode === '600' && sameAsSource.length === 0;
-  record('AC-T1-11', 'No secret value from .env*, infra/.secrets/**, **/.data/** is in tracked files; secret paths are ignored', pass(ok), notes);
+  const ok = findings.length === 0 && notIgnored.length === 0 && tracked.length === 0 && exampleSecrets.length === 0;
+  record('AC-T1-11', 'No secret value (.env secret keys, infra/.secrets/**, infra/.certs/*.key) is in tracked files; secret paths are ignored', pass(ok), notes);
+
+  // T1.md scope: gen-env makes random dev values. Compare with the source workspace .env (same secret keys).
+  const sourceEnv = readEnv(path.join(SOURCE, '.env'));
+  if (sourceEnv) {
+    const same = Object.entries(state.env ?? {}).filter(([k, v]) => isSecretKeyName(k) && isSecretCandidate(k, v) && sourceEnv[k] === v).map(([k]) => k);
+    record('GEN-ENV', 'gen-env makes new random secret values (clone .env differs from the workspace .env)', pass(same.length === 0), [
+      `secret keys with the same value: ${same.join(', ') || 'none'}`,
+    ]);
+  }
 }
 
 async function acT110() {

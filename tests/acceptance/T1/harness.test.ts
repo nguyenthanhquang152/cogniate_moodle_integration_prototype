@@ -71,8 +71,15 @@ describe('T1 JSON logs (H7)', () => {
       const log = readLog(service);
       expect(log.badLines, 'lines that are not JSON objects').toEqual([]);
       expect(log.entries.length).toBeGreaterThan(0);
+      // H7 (Lead): every line has the fields ts, level, service, event, trace_id. List all gaps by event.
+      const gaps = new Map<string, number>();
+      for (const { entry } of log.entries) {
+        for (const field of REQUIRED_LOG_FIELDS) {
+          if (!(field in entry)) gaps.set(`${String(entry.event)} without ${field}`, (gaps.get(`${String(entry.event)} without ${field}`) ?? 0) + 1);
+        }
+      }
+      expect([...gaps].map(([k, n]) => `${k} x${n}`), 'log lines with a missing field').toEqual([]);
       for (const { line, entry } of log.entries) {
-        for (const field of REQUIRED_LOG_FIELDS) expect(entry, `line ${line} field ${field}`).toHaveProperty(field);
         expect(Number.isNaN(Date.parse(String(entry.ts))), `line ${line} ts is a date`).toBe(false);
         expect(typeof entry.level, `line ${line} level`).toBe('string');
         expect(entry.service, `line ${line} service`).toBe(service);
