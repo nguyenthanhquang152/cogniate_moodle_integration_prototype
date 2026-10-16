@@ -5,8 +5,8 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 | # | Task | Title | Owner | Status | Round | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | — | T1-spike | Moodle dev environment spike | Author | done | — | Unreviewed. Facts in `infra/moodle/SPIKE-NOTES.md`. |
-| 0 | T0 | Architecture, contracts, task specs, rea decision | Architect | verifying | 2 | R1: A 2 BLOCKER + 6 MAJOR, B 5 MAJOR, QA PASS + 12 MAJOR. R2 commit b06aa8a. |
-| 1 | T1 | Monorepo skeleton + local HTTPS stack (Moodle 5.2) | Author | verifying | 1 | wip bc530a7; QA tests 39b3450; QA run at ef9faeb (port 8443). |
+| 0 | T0 | Architecture, contracts, task specs, rea decision | Architect | **done** | 3 | A APPROVE (R2), B APPROVE (R3), QA PASS (R3). Deferred: A-T0-22/23 NITs, B-T0-26 NIT, Q-T0-43 (→ T2a H14), Q-T0-44 NIT. |
+| 1 | T1 | Monorepo skeleton + local HTTPS stack (Moodle 5.2) | Author | fixing | 2 | R1: QA PASS 13/13 (3 MINOR), A 1 MAJOR (CA name constraint), B 2 MAJOR (lint on ignored files, stale volumes). |
 | 2 | T5-spike | Player de-risk: frames, CSP, SCORM API, HTML signals | Author | in_progress | — | Unreviewed. `apps/player-spike/`. |
 | 3 | T2 | LTI core: platforms, keys/JWKS, OIDC launch, ltik, `/api/idtoken` | Author | planned | — | |
 | 4 | T3a | Services the app needs: service keys, token client, deep-linking response, AGS scores | Author | planned | — | |

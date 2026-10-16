@@ -383,3 +383,31 @@ T1.md now folds in the hooks with more detail. Before the T1 round-2 run, QA upd
 - H8: the new text mounts only `root.crt` and `stack.crt` of `infra/.certs`. QA checks that both files are read-only and that no `*.key` file is visible, instead of checking the whole folder. Finding Q-T1-01 is re-judged against this text in T1 round 2.
 - AC-T1-13: also run `npm run stack:node-reach-check`.
 - AC-T1-11: the `git check-ignore` list adds `infra/.data/` and `.tmp/`.
+
+## Round 3
+
+Verdict: PASS
+Round: 3
+
+Date: 2026-10-16. Input: commits `10887ce` and `5fcd723` (T2 split into T2a/T2b, T4b into T4b1/T4b2, score-sync recipes, minor fixes).
+
+Q-T0-39 (MAJOR) is resolved. Each sync state now has a fixed recipe with a black-box oracle:
+
+| State | AC | Recipe and oracle |
+| --- | --- | --- |
+| `conflict` | AC-T5-31 | Score with `timestamp` = now + 10 min (SERVICE-AUTH-V1), `stack:restart -- lti-service`, then complete → row `conflict`, `tries` stays 1 for 2 min, `lastError` names `PLATFORM_CONFLICT`, Moodle shows 10. |
+| `failed` + Resend | AC-T5-32 | Own activity in `COGNIATE-DEV-102`; unenrol in the Moodle UI, then complete → `failed` at once (`PLATFORM_REJECTED_REQUEST`); re-enrol, Resend → `pending`, `tries = 0`, then `sent`. |
+| Teacher override | AC-T5-33 | Override to 50, better result → `sent`, Moodle keeps 50; after refresh `gradebookDiffers: true`. |
+
+App contract §10 and ADR-010 rule 8 now say that an override alone gives no 409. AC-T6-14 uses the three rows.
+
+The round-2 MINOR and NIT findings Q-T0-33 to Q-T0-42 are resolved as `review-response-T0.md` says. I checked each one in the new text: T1.md H7 and AC-T1-11, T2b AC-T2-21 and AC-T2-30, T2a H14, local-stack §3 (start command, `profile`, `qa_platform_hit`, URL mapping), and T9 AC-T9-01.
+
+New findings:
+
+| Id | Severity | Where | Problem | Fix |
+| --- | --- | --- | --- | --- |
+| Q-T0-43 | MINOR | tasks README §3 "Knob tests"; local-stack §3 `test:acceptance` step (1) | The knob procedure runs `stack:restart -- <service> --env K=V`, then `test:acceptance`. Step (1) of `test:acceptance` runs `STACK_PROFILE=acceptance npm run stack:up`, and "only the changed services restart". If that restart recreates the service from the plain compose config, the knob is gone before the knob test runs. | State that step (1) keeps the knob env of a service that `stack:restart --env` started, or that QA restarts with the knob after step (1). QA's knob guard skips a knob test whose knob is not active, and the runner reports that test as not run (not as PASS). |
+| Q-T0-44 | NIT | `tasks/T5b.md` AC-T5-32 | "Resend of the AC-T5-31 `conflict` row within its 10 min" couples two ACs by time. | Say "run AC-T5-32 right after AC-T5-31" in the AC. QA orders them like this. |
+
+QA test layout follows the split: `tests/acceptance/T2a/` and `tests/acceptance/T2b/`, one test per AC id. The negative matrix is in its own folder.

@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 2
+Verdict: APPROVE
+Round: 3
 
 # T0 design review — Reviewer-B (lens: "Can a human team own it?")
 
@@ -359,3 +359,27 @@ What I checked:
   - LTI contract §5 and app contract §12: "Every event: … `trace_id`" does not say where a lifecycle event gets its id. Add the Lead's rule ("one boot trace id per process for events without a request"), and fix T1 H7 `trace_id?` as the Lead said.
   - LTI contract §5 lists `service_started {version, knobs}`, but the T1 code logs `port`, `public_url`, `node`. Choose one field set. If the Lead accepts B-T1-04, write "every request except container health checks" for `http_request`.
   - Tasks README §3: `BUILD_RUNNER_FAIL_AT` is a string knob, but the T1 knob registry accepts whole numbers only. Note that T8 extends the registry type.
+
+---
+
+## Round 3
+
+Round 3 verdict: **APPROVE**. No open BLOCKER or MAJOR finding from Reviewer-B.
+
+Input: commit `10887ce` compared with `dadd9de`, and the Round 3 table of `review-response-T0.md`. Scope (Lead): B-T0-21, the round-2 MINORs and NIT, and the size and clarity of the new task files.
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| B-T0-21 | **Resolved** | AC counts: T2a 17 (plus the merged AC-T2-17 line), T2b 13, T4b1 9, T4b2 17, T5a 18, T5b 13. No task has more than 18 ACs. "Depends on" lists technical dependencies (T2a: T1; T4a: T1; T3b: T2a + T2b; T4b1: T3b + T4a; T4b2: T3a + T4b1). The one-Author order and the dependency list are both in tasks README §1. The DAG (README §7) matches, except B-T0-26. H6 is in T2b, which runs right after T2a. That is acceptable: T2b is small and owns only the profile and the negative matrix. |
+| B-T0-22 | Resolved | ADR-008 lists the real `shared` modules (`config`, `knobs`, `logger`, `server`, `errors`, `outbound`, `crypto`), with the "new module needs a reason" rule. The root-script list has both reach checks. |
+| B-T0-23 | Resolved | `/healthz` and `service_started` show `profile` and the allowlist (both contracts). local-stack §3 has the `test:acceptance` steps (start, run, restore, also on failure, and the killed-run case). AC-T7-13 checks `"profile": "default"`. |
+| B-T0-24 | Resolved | AC-T5-31 (`conflict`: future `timestamp` + restart) and AC-T5-32 (`failed`: unenrol, then Resend) are fixed recipes in a separate course. AC-T5-33 has one expected result for a teacher override (`sent` + `gradebookDiffers`). AC-T6-14 uses these three rows. |
+| B-T0-25 | Resolved | Curl wording ("only `STACK_SUBNET` cut out") in T1 and local-stack; ADR-002 task names; boot trace id in both contracts and security §11; `service_started` fields match the T1 code; string-knob note; the `GET /healthz` log exception (Lead decision B-T1-04) in both contracts and security. |
+
+New task files: T2b and T4b1 have a clear goal, scope, "Out" list and setup line. T4b2's setup starts from the T4b1 state. Each is about one review session.
+
+### B-T0-26 — NIT — T3a says it needs only T2a, but its setup needs the T2b profile
+
+- **Location:** `tasks/T3a.md` "Depends on: T2a" and "Setup: T2b setup (`STACK_PROFILE=acceptance` …)"; AC-T3-16 ("zero sink hits"); README §7 dotted arrow "T2a → T3a: needs T2a only"; tasks README §1.
+- **Problem:** The `evil.test` sink and the `acceptance` profile come from T2b. A second Author who starts T3a after T2a only cannot run its setup or AC-T3-16.
+- **Suggested fix:** Write "Depends on: T2a (code); T2b (`acceptance` profile for the setup and AC-T3-16)". Change the dotted arrow text, or remove it. This does not change the one-Author order.
