@@ -1,0 +1,277 @@
+# Data model and state machines
+
+Status: T0 round 2. Storage choice: [ADR-006](adr/ADR-006-storage.md).
+
+Each service has its own SQLite file. Every LTI service row has `tool_account_id` (directly or through its parent). Every Cogniate app row has `library_id` (directly or through its parent). Repository functions take the tenant id as a required argument.
+
+In memory only (lost on restart, no harm): platform access tokens (per platform and scope set), the score timestamp clock (per platform, line item, user), platform JWKS cache.
+
+## 1. LTI service (`lti.db`)
+
+```mermaid
+erDiagram
+    TOOL_ACCOUNT ||--|| TOOL_KEY : signs_with
+    TOOL_ACCOUNT ||--o{ PLATFORM : has
+    TOOL_ACCOUNT ||--o{ REGISTRATION_SESSION : starts
+    PLATFORM ||--o{ DEPLOYMENT : has
+    PLATFORM ||--o{ OIDC_STATE : login
+    PLATFORM ||--o{ LAUNCH : receives
+    PLATFORM ||--o{ SERVICE_KEY : scopes
+
+    TOOL_ACCOUNT {
+      string id PK "for example cogniate"
+      string name
+      string api_key_hash
+      string launch_url
+      string deep_linking_url
+      string registration_url
+    }
+    TOOL_KEY {
+      string kid PK
+      string tool_account_id FK
+      json public_jwk
+      blob private_jwk_encrypted
+    }
+    PLATFORM {
+      string id PK
+      string tool_account_id FK
+      string issuer
+      string client_id
+      string name
+      string auth_endpoint
+      string token_endpoint
+      string jwks_url
+      string product_family_code
+      bool active
+    }
+    DEPLOYMENT {
+      string platform_id FK
+      string deployment_id
+    }
+    REGISTRATION_SESSION {
+      string id PK
+      string tool_account_id FK
+      string openid_configuration_url
+      blob registration_token_encrypted
+      json platform_configuration
+      string operation "new or update"
+      string existing_platform_id
+      string privacy_level
+      json passthrough_params
+      string status "open or completed"
+      datetime expires_at
+    }
+    OIDC_STATE {
+      string state_hash PK
+      string platform_id FK
+      string nonce
+      string target_link_uri
+      datetime expires_at
+      datetime used_at
+    }
+    LAUNCH {
+      string id PK
+      string platform_id FK
+      string deployment_id
+      string message_type
+      json claims
+      string ltik_hash
+      datetime expires_at
+    }
+    SERVICE_KEY {
+      string key_hash PK
+      string platform_id FK
+      string deployment_id
+      string context_id
+      string resource_link_id
+      json ags_claim
+      json nrps_claim
+      datetime revoked_at
+    }
+```
+
+Unique keys:
+
+| Table | Unique key |
+| --- | --- |
+| `platform` | (`tool_account_id`, `issuer`, `client_id`) |
+| `deployment` | (`platform_id`, `deployment_id`) |
+| `service_key` | (`platform_id`, `deployment_id`, `context_id`, `resource_link_id`). Later launches return the same key and refresh the claims. |
+| `tool_key` | one row per tool account in the prototype (rotation is optional) |
+
+Login and launch URLs carry the tool account (`/lti/login/{toolAccountId}`), so lookups never cross accounts.
+
+## 2. Cogniate app (`cogniate.db`)
+
+```mermaid
+erDiagram
+    LIBRARY ||--o{ APP_USER : has
+    LIBRARY ||--o{ COURSE : owns
+    LIBRARY ||--o{ CONNECTION : owns
+    COURSE ||--o{ COURSE_VERSION : has
+    PACKAGE ||--o{ COURSE_VERSION : stores
+    CONNECTION ||--o{ PUBLICATION : offers
+    COURSE ||--o{ PUBLICATION : is_offered
+    CONNECTION ||--o{ PICKER_SESSION : picks
+    CONNECTION ||--o{ RESOURCE_LINK : has
+    PUBLICATION ||--o{ RESOURCE_LINK : placed_as
+    RESOURCE_LINK ||--o{ ATTEMPT : tracks
+    ATTEMPT ||--o{ PLAY_SESSION : runs
+    ATTEMPT ||--o{ SCORE_SYNC : sends
+
+    COURSE_VERSION {
+      string id PK
+      string course_id FK
+      int version
+      string format "scorm12 or html"
+      string package_id FK
+      json validation_report
+      json tracking_profile
+    }
+    PACKAGE {
+      string id PK "random, in the /pkg URL"
+      string sha256
+      int total_bytes
+      int file_count
+      string storage_path
+    }
+    CONNECTION {
+      string id PK
+      string library_id FK
+      string site_url
+      string method "dynamic or manual"
+      string status "pending, registered, connected, disabled"
+      string lti_platform_id "unique"
+      string ref_token_hash
+      datetime ref_expires_at
+    }
+    PUBLICATION {
+      string id PK
+      string connection_id FK
+      string course_id FK
+      string current_version_id FK
+      string status "available or withdrawn"
+    }
+    PICKER_SESSION {
+      string id PK "random, in the /tool/picker URL"
+      string connection_id FK
+      blob ltik_encrypted
+      datetime expires_at
+      datetime used_at
+    }
+    HANDOFF {
+      string ltik_hash PK "one use of /tool/launch or /tool/deep-link"
+      datetime used_at
+    }
+    RESOURCE_LINK {
+      string id PK
+      string connection_id FK
+      string publication_id FK
+      string deployment_id
+      string context_id
+      string resource_link_id
+      string line_item_id
+      blob service_key_encrypted
+    }
+    ATTEMPT {
+      string id PK
+      string resource_link_id FK
+      string user_sub
+      string course_version_id FK
+      bool preview
+      json cmi_or_progress
+      int last_seq
+      string outcome
+      int score_given
+      int score_maximum
+    }
+    PLAY_SESSION {
+      string id PK "random, in the /play URL"
+      string attempt_id FK
+      string runtime_token_hash
+      string session_id
+      string roles
+      string return_url
+      datetime expires_at
+    }
+    SCORE_SYNC {
+      string id PK
+      string attempt_id FK
+      json payload
+      string status
+      int tries
+      datetime created_at
+      datetime next_try_at
+      string last_error
+    }
+```
+
+Unique keys and rules:
+
+| Table | Rule |
+| --- | --- |
+| `connection` | `lti_platform_id` unique. A platform belongs to one connection only. |
+| `publication` | (`connection_id`, `course_id`) unique |
+| `resource_link` | (`connection_id`, `deployment_id`, `context_id`, `resource_link_id`) unique. `publication_id` comes from the **signed** `launch.target`. If a later signed launch names another publication of the same connection (the teacher selected new content for the activity), the row is updated and the event `resource_link_rebound` is logged. |
+| `attempt` | One row per (`resource_link_id`, `user_sub`, `course_version_id`). A launch continues the newest attempt if it is `in_progress`. Otherwise it uses the publication's current version (new row, or the existing row of that version). |
+| `handoff` | Insert fails if the ltik was used before → error page `HANDOFF_USED`. |
+| `play_session` | No ltik. Commits use the runtime token. Score sync uses the service key. |
+
+`tracking_profile` (made at upload, kept per version):
+
+```json
+{
+  "format": "html",
+  "launchPath": "index.html",
+  "pages": ["index", "lesson-ai-web-sprint"],
+  "menuPage": "index",
+  "questionIds": ["01M2M36Y89M9KPPZENF1ZW4AWJ"],
+  "masteryScore": 70,
+  "minDwellMs": 10000
+}
+```
+
+## 3. State machines
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> pending: create
+    pending --> registered: registration complete or manual values saved
+    registered --> connected: first valid launch from this platform
+    pending --> disabled: disconnect
+    registered --> disabled: disconnect
+    connected --> disabled: disconnect
+```
+
+Connection. The portal shows "Link expired" when `pending` and `ref_expires_at` is past (derived, not stored).
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> not_started
+    not_started --> in_progress: first commit
+    in_progress --> completed: final, no mastery
+    in_progress --> passed: final, score >= mastery
+    in_progress --> failed: final, score < mastery
+    failed --> passed: better result
+```
+
+Attempt outcome. The attempt keeps its best outcome. The portal shows the best outcome of the learner on that activity.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> pending
+    pending --> sent: 204
+    pending --> pending: retry
+    pending --> conflict: 409 from Moodle
+    pending --> failed: 24 h of retries, or 400 or 404
+    pending --> superseded: a better row exists
+    failed --> pending: Resend
+    conflict --> pending: Resend
+```
+
+Score sync. Retry times: 5 s, 30 s, 2 min, 10 min, 30 min, then every 1 h until 24 h after `created_at` (ADR-010).
+
+Publication: `available` ⇄ `withdrawn`. "Linked" and "In use" come from `stats`.
