@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cogniate for Moodle: high-level technical specification</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Public+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --paper: #F6F7F9;
+  --surface: #FFFFFF;
+  --ink: #18202A;
+  --ink-2: #4B5563;
+  --ink-3: #6B7380;
+  --line: #D5DAE1;
+  --band: #EDF0F4;
+  --code-bg: #EEF1F5;
+
+  /* One colour per system, used identically in prose, tables and diagrams */
+  --cg: #4338CA;  --cg-tint: #ECEBFD;   /* Cogniate platform */
+  --cx: #0E7C76;  --cx-tint: #E2F3F1;   /* Integration connector (new) */
+  --mc: #B45309;  --mc-tint: #FCEFE1;   /* MoodleCloud */
+  --sh: #7A3E9D;  --sh-tint: #F3E9F9;   /* Self or partner hosted Moodle */
+  --alert: #B42318; --alert-tint: #FDECEA;
+  --ok: #1F7A3A;  --ok-tint: #E6F4EA;
+
+  --sans: "Public Sans", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #151A21; --surface: #1B2129; --ink: #E6EAF0; --ink-2: #AEB6C2; --ink-3: #8A93A0;
+    --line: #2E3642; --band: #202833; --code-bg: #202833;
+    --cg: #9D96F5; --cg-tint: #25223F; --cx: #4CC7BD; --cx-tint: #12302E;
+    --mc: #F2A05A; --mc-tint: #3A2615; --sh: #C995E6; --sh-tint: #2F2039;
+    --alert: #F28B82; --alert-tint: #3A1E1C; --ok: #7BD394; --ok-tint: #17301F;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #151A21; --surface: #1B2129; --ink: #E6EAF0; --ink-2: #AEB6C2; --ink-3: #8A93A0;
+  --line: #2E3642; --band: #202833; --code-bg: #202833;
+  --cg: #9D96F5; --cg-tint: #25223F; --cx: #4CC7BD; --cx-tint: #12302E;
+  --mc: #F2A05A; --mc-tint: #3A2615; --sh: #C995E6; --sh-tint: #2F2039;
+  --alert: #F28B82; --alert-tint: #3A1E1C; --ok: #7BD394; --ok-tint: #17301F;
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 16px); scroll-behavior: smooth; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--sans); font-size: 17px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+}
+a { color: var(--ink); text-decoration-color: var(--ink-3); text-underline-offset: 2px; }
+a:hover { text-decoration-color: var(--ink); }
+a:focus-visible, summary:focus-visible { outline: 2px solid var(--cg); outline-offset: 2px; border-radius: 2px; }
+
+.page {
+  display: grid; grid-template-columns: 208px minmax(0, 1fr); gap: 44px;
+  max-width: 1460px; margin: 0 auto; padding: 48px 32px 96px;
+}
+@media (max-width: 1040px) { .page { grid-template-columns: minmax(0, 1fr); gap: 24px; padding: 28px 18px 72px; } }
+
+/* Table of contents */
+.toc { position: sticky; top: 24px; align-self: start; max-height: calc(100vh - 48px); overflow-y: auto; font-size: 0.875rem; line-height: 1.45; }
+.toc p { margin: 0 0 0.75rem; font-weight: 700; color: var(--ink); }
+.toc ol { list-style: none; margin: 0; padding: 0; counter-reset: toc; }
+.toc li { counter-increment: toc; }
+.toc a { display: grid; grid-template-columns: 1.9em 1fr; padding: 0.3rem 0; text-decoration: none; color: var(--ink-2); }
+.toc a::before { content: counter(toc); color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.toc a:hover { color: var(--ink); }
+.toc .legend { margin-top: 1.75rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+.toc .legend span { display: flex; align-items: center; gap: 0.55rem; margin: 0.35rem 0; color: var(--ink-2); }
+.toc .legend i { width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid; flex: none; }
+@media (max-width: 1040px) {
+  .toc { position: static; max-height: none; border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.1rem; background: var(--surface); }
+  .toc ol { columns: 2; column-gap: 1.5rem; }
+  .toc .legend { display: none; }
+}
+@media (max-width: 560px) { .toc ol { columns: 1; } }
+
+main { min-width: 0; }
+.prose > p, .prose > ul, .prose > ol, .prose > h3, .prose > h4, .prose > .note, .prose > .finding { max-width: 74ch; }
+
+/* Header */
+.doc-head { padding-bottom: 2.25rem; margin-bottom: 2.75rem; border-bottom: 1px solid var(--line); }
+.doc-head .kind { font-size: 0.95rem; color: var(--ink-2); margin: 0 0 0.9rem; font-weight: 500; }
+h1 { font-size: clamp(2rem, 4.2vw, 3.05rem); line-height: 1.08; letter-spacing: -0.025em; font-weight: 800; margin: 0 0 1.1rem; max-width: 24ch; text-wrap: balance; }
+.lede { font-size: 1.2rem; line-height: 1.5; color: var(--ink-2); max-width: 60ch; margin: 0 0 2rem; }
+.doc-control { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); margin: 0; overflow: hidden; }
+.doc-control div { padding: 0.8rem 1rem; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.doc-control div:nth-child(3n) { border-right: 0; }
+.doc-control div:nth-last-child(-n+3) { border-bottom: 0; }
+.doc-control dt { font-size: 0.8rem; color: var(--ink-3); margin: 0 0 0.15rem; }
+.doc-control dd { margin: 0; font-size: 0.95rem; font-weight: 600; }
+@media (max-width: 700px) {
+  .doc-control { grid-template-columns: 1fr 1fr; }
+  .doc-control div { border-right: 1px solid var(--line) !important; border-bottom: 1px solid var(--line) !important; }
+  .doc-control div:nth-child(2n) { border-right: 0 !important; }
+}
+
+/* Sections */
+section { margin: 0 0 4.25rem; }
+h2 { font-size: 1.75rem; line-height: 1.2; letter-spacing: -0.015em; font-weight: 800; margin: 0 0 1.25rem; display: flex; gap: 0.75rem; align-items: baseline; }
+h2 .n { color: var(--ink-3); font-weight: 600; font-variant-numeric: tabular-nums; min-width: 1.6em; }
+h3 { font-size: 1.22rem; line-height: 1.3; font-weight: 700; margin: 2.5rem 0 0.75rem; letter-spacing: -0.005em; }
+h4 { font-size: 1rem; font-weight: 700; margin: 1.75rem 0 0.5rem; }
+p { margin: 0 0 1rem; }
+ul, ol { padding-left: 1.3rem; margin: 0 0 1rem; }
+li { margin: 0.3rem 0; }
+strong { font-weight: 700; }
+
+code, .mono { font-family: var(--mono); font-size: 0.86em; }
+:not(pre) > code { background: var(--code-bg); padding: 0.08em 0.35em; border-radius: 4px; overflow-wrap: anywhere; }
+pre { font-family: var(--mono); font-size: 0.82rem; line-height: 1.55; background: var(--code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 1rem 1.15rem; overflow-x: auto; margin: 0 0 1.5rem; max-width: 100%; }
+pre .c { color: var(--ink-3); }
+
+/* System chips: the colour-coding device */
+.sys { font-weight: 600; padding: 0.04em 0.45em; border-radius: 4px; white-space: nowrap; font-size: 0.94em; }
+.sys.cg { background: var(--cg-tint); color: var(--cg); }
+.sys.cx { background: var(--cx-tint); color: var(--cx); }
+.sys.mc { background: var(--mc-tint); color: var(--mc); }
+.sys.sh { background: var(--sh-tint); color: var(--sh); }
+
+.tag { display: inline-block; font-size: 0.78rem; font-weight: 600; border: 1px solid var(--line); border-radius: 999px; padding: 0.02em 0.6em; color: var(--ink-2); vertical-align: 0.1em; white-space: nowrap; }
+.tag.warn { border-color: var(--mc); color: var(--mc); }
+
+/* Callouts */
+.finding { border-left: 6px solid var(--alert); background: var(--alert-tint); padding: 1.2rem 1.5rem 0.4rem; border-radius: 0 8px 8px 0; margin: 0 0 1.75rem; }
+.finding h3 { margin: 0 0 0.5rem; font-size: 1.15rem; color: var(--alert); }
+.finding p { color: var(--ink); }
+.note { border-left: 4px solid var(--line); background: var(--surface); padding: 0.9rem 1.2rem 0.2rem; border-radius: 0 8px 8px 0; margin: 0 0 1.5rem; }
+.note.assume { border-left-color: var(--mc); }
+.note h4 { margin: 0 0 0.35rem; }
+
+/* Tables */
+.table-wrap { overflow-x: auto; margin: 0 0 1.75rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; line-height: 1.5; }
+caption { caption-side: top; text-align: left; font-size: 0.85rem; color: var(--ink-2); padding: 0.7rem 1rem 0.2rem; }
+th, td { text-align: left; vertical-align: top; padding: 0.62rem 0.9rem; border-bottom: 1px solid var(--line); }
+thead th { background: var(--band); font-weight: 700; font-size: 0.84rem; color: var(--ink); white-space: nowrap; }
+tbody tr:last-child td, tbody tr:last-child th { border-bottom: 0; }
+tbody th { font-weight: 600; }
+td code, th code { font-size: 0.8rem; }
+.yes { color: var(--ok); font-weight: 700; }
+.no { color: var(--alert); font-weight: 700; }
+.part { color: var(--mc); font-weight: 700; }
+.nowrap { white-space: nowrap; }
+
+/* Figures */
+.fig { margin: 1.5rem 0 2.25rem; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 1.1rem 1.1rem 0.9rem; }
+.fig-scroll { overflow-x: auto; }
+.fig svg { display: block; width: 100%; height: auto; min-width: 920px; }
+.fig.narrow svg { min-width: 860px; }
+.fig figcaption { font-size: 0.88rem; color: var(--ink-2); margin-top: 0.8rem; max-width: 90ch; }
+.fig figcaption b { color: var(--ink); }
+
+/* SVG diagram styles */
+svg text { font-family: var(--sans); }
+.zone { stroke-width: 1.5; }
+.z-cg { fill: var(--cg-tint); stroke: var(--cg); }
+.z-cx { fill: var(--cx-tint); stroke: var(--cx); }
+.z-mc { fill: var(--mc-tint); stroke: var(--mc); }
+.z-sh { fill: var(--sh-tint); stroke: var(--sh); }
+.z-ok { fill: var(--ok-tint); stroke: var(--ok); }
+.z-bad { fill: var(--alert-tint); stroke: var(--alert); }
+.z-n { fill: var(--surface); stroke: var(--line); }
+.zt { font-size: 15px; font-weight: 800; fill: var(--ink); }
+.zs { font-size: 12px; fill: var(--ink-2); }
+.bx { fill: var(--surface); stroke: var(--line); stroke-width: 1; }
+.bx.k-cg { stroke: var(--cg); stroke-width: 2; }
+.bx.k-cx { stroke: var(--cx); stroke-width: 2; }
+.bx.k-sh { stroke: var(--sh); stroke-width: 2; }
+.bt { font-size: 13px; font-weight: 700; fill: var(--ink); }
+.bs { font-size: 11.5px; fill: var(--ink-2); }
+.edge { stroke: var(--ink-2); stroke-width: 1.5; fill: none; }
+.edge.async { stroke-dasharray: 6 4; }
+.ah { fill: var(--ink-2); }
+.lbl { font-size: 11px; fill: var(--ink-2); font-weight: 500; paint-order: stroke; stroke: var(--surface); stroke-width: 5px; stroke-linejoin: round; }
+.lbl.band { stroke: var(--band); font-weight: 700; fill: var(--ink); }
+.lbl.onb { stroke: var(--band); }
+.lg { font-size: 12px; fill: var(--ink-2); }
+.life { stroke: var(--line); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.bandr { fill: var(--band); }
+.pt { font-size: 13px; font-weight: 700; fill: var(--ink); }
+.ps { font-size: 11px; fill: var(--ink-2); }
+.st { font-size: 12.5px; font-weight: 700; fill: var(--ink); }
+
+/* Print */
+@media print {
+  body { background: #fff; font-size: 11pt; }
+  .page { display: block; padding: 0; max-width: none; }
+  .toc { display: none; }
+  .fig, .table-wrap, pre { break-inside: avoid; }
+  .fig svg { min-width: 0; }
+  section { margin-bottom: 2rem; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+<nav class="toc" aria-label="Contents">
+  <p>Contents</p>
+  <ol>
+    <li><a href="#summary">Executive summary</a></li>
+    <li><a href="#cogniate">Cogniate platform analysis</a></li>
+    <li><a href="#moodlecloud">MoodleCloud constraints</a></li>
+    <li><a href="#approach">Solution approach</a></li>
+    <li><a href="#architecture">System architecture</a></li>
+    <li><a href="#components">Component specifications</a></li>
+    <li><a href="#interfaces">Integration interfaces</a></li>
+    <li><a href="#data">Data model and mapping</a></li>
+    <li><a href="#flows">Key flows</a></li>
+    <li><a href="#security">Security and privacy</a></li>
+    <li><a href="#nfr">Non-functional requirements</a></li>
+    <li><a href="#compat">Compatibility matrix</a></li>
+    <li><a href="#roadmap">Delivery roadmap</a></li>
+    <li><a href="#risks">Risks and mitigations</a></li>
+    <li><a href="#questions">Open questions</a></li>
+    <li><a href="#refs">References</a></li>
+  </ol>
+  <div class="legend" aria-hidden="true">
+    <span><i style="background:var(--cg-tint);border-color:var(--cg)"></i>Cogniate platform</span>
+    <span><i style="background:var(--cx-tint);border-color:var(--cx)"></i>Integration connector</span>
+    <span><i style="background:var(--mc-tint);border-color:var(--mc)"></i>MoodleCloud</span>
+    <span><i style="background:var(--sh-tint);border-color:var(--sh)"></i>Self-hosted Moodle</span>
+  </div>
+</nav>
+
+<main>
+<header class="doc-head">
+  <p class="kind">High-level technical specification</p>
+  <h1>Cogniate for Moodle: importing Cogniate courses into MoodleCloud</h1>
+  <p class="lede">How the Cogniate Moodle Plugin, a Cogniate-hosted integration connector and Cogniate's REST APIs work together to bring AI-authored courses into MoodleCloud and self-hosted Moodle sites.</p>
+  <dl class="doc-control">
+    <div><dt>Document</dt><dd>COG-MDL-HLS-001</dd></div>
+    <div><dt>Version</dt><dd>0.9, draft for review</dd></div>
+    <div><dt>Date</dt><dd>5 October 2026</dd></div>
+    <div><dt>Prepared by</dt><dd>Office of the CTO</dd></div>
+    <div><dt>Audience</dt><dd>Product, engineering, partners</dd></div>
+    <div><dt>Status</dt><dd>API contract to be confirmed</dd></div>
+  </dl>
+</header>
+
+<!-- 1 -->
+<section id="summary" class="prose">
+  <h2><span class="n">1</span>Executive summary</h2>
+  <p>The goal is to let a Moodle administrator bring courses authored in <span class="sys cg">Cogniate</span> into a Moodle workspace, with <span class="sys mc">MoodleCloud</span> as the primary target, using Cogniate's REST APIs as the source of truth for course content.</p>
+
+  <div class="finding" role="note">
+    <h3>MoodleCloud does not allow plugins to be installed</h3>
+    <p>Moodle's own MoodleCloud FAQ states that plugin installation is not permitted on MoodleCloud plans, so that all sites stay simple and stable. Plugins are only possible on Moodle LMS or Moodle Workplace hosted by Moodle or a certified partner, or self-hosted. A design that relies on a plugin alone cannot reach MoodleCloud customers.</p>
+    <p>This specification therefore keeps the Cogniate Moodle Plugin for sites that allow plugins, and moves the MoodleCloud integration into a Cogniate-hosted <span class="sys cx">Integration connector</span> that uses only features every MoodleCloud site already has: web services, course restore and LTI 1.3 Advantage.</p>
+  </div>
+
+  <p>The recommended solution is one transformation engine with three ways into Moodle. All three are driven from the same admin console inside the Cogniate app, and all three use the same course model so a course looks and behaves the same whichever route it takes.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Channel</th><th>Runs on</th><th>What the Moodle administrator gets</th></tr></thead>
+      <tbody>
+        <tr><th>Package import</th><td><span class="sys mc">MoodleCloud</span>, any Moodle</td><td>A native, editable Moodle course (sections, Page, Book, Quiz, H5P, SCORM) delivered as a backup package built by a real Moodle instance. The admin restores it in one guided step.</td></tr>
+        <tr><th>Live link</th><td><span class="sys mc">MoodleCloud</span>, any Moodle</td><td>Cogniate registered as an LTI 1.3 Advantage tool. Teachers pick Cogniate modules with Deep Linking; content stays live, updates with Knowledge DNA, and scores return to the Moodle gradebook.</td></tr>
+        <tr><th>Cogniate Moodle Plugin</th><td><span class="sys sh">Self or partner hosted</span></td><td><code>local_cogniate</code> adds a catalog, import wizard and automatic sync inside Moodle, with no manual restore step.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p>The plugin's PHP code is reused inside the connector: a headless Moodle (the Build Runner) runs the plugin to write the course natively and then uses Moodle's own backup engine to produce the package that MoodleCloud restores. That gives MoodleCloud customers the same import quality as plugin customers, from one tested codebase.</p>
+  <p>Phase 1 (package import plus plugin core) is estimated at ten weeks after a three-week discovery phase that confirms the Cogniate API contract. Live link and automatic sync follow in phases 2 and 3 (section 13).</p>
+</section>
+
+<!-- 2 -->
+<section id="cogniate" class="prose">
+  <h2><span class="n">2</span>Cogniate platform analysis</h2>
+  <p>Cogniate positions itself as an AI-native enterprise course co-authoring platform that takes an organisation from course concept to deployable course in under an hour. Its assistant, Lyra, builds a course either from a prompt describing the audience and goal, or from source material such as SOPs, instructions for use, release notes and long manuals. Lyra produces a course architecture rather than slides: modules, dependencies, prerequisites, assessments and regional variants.</p>
+  <p>Three platform capabilities matter most for integration. <strong>Knowledge DNA</strong> links every module to its source, prerequisites and regional variant, so a course updates when its underlying SOP changes. The <strong>Rules-Based Governance Engine</strong> checks instructional quality, brand language and compliance before anything ships. And <strong>omnichannel publishing</strong> targets any LMS with SCORM, xAPI or native Cogniate output, plus a marketplace, analytics dashboards, white-label branding and audit data (completion, version history, source traceability).</p>
+
+  <h3>Plans and export formats</h3>
+  <div class="table-wrap">
+    <table>
+      <caption>Source: cogniate.ai/pricing, retrieved 5 October 2026</caption>
+      <thead><tr><th>Plan</th><th>Exports listed</th><th>Relevance to this integration</th></tr></thead>
+      <tbody>
+        <tr><th>Free</th><td>SCORM 1.2</td><td>One course, up to seven lessons; watermarked. Package import only.</td></tr>
+        <tr><th>Creator</th><td>SCORM 1.2</td><td>Ten courses. Package import only.</td></tr>
+        <tr><th>Pro Creator</th><td>SCORM 1.2 and 2004, xAPI, HTML5, LTI 1.3</td><td>First tier with LTI 1.3, so the first tier eligible for live link. Version branching.</td></tr>
+        <tr><th>Team</th><td>Not itemised</td><td>Real-time co-authoring and role permissions. Exports assumed equal to Pro Creator <span class="tag warn">Assumption</span></td></tr>
+        <tr><th>Agency</th><td>Not itemised</td><td>Multi-tenant client workspaces. The connector must map many workspaces to many Moodle sites.</td></tr>
+        <tr><th>Enterprise</th><td>Not itemised</td><td>SSO/SAML 2.0, SCIM, data residency, GDPR, HIPAA, SOC 2 Type II posture. Drives regional deployment and security controls.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>What the platform means for the integration design</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Cogniate capability</th><th>Design consequence</th></tr></thead>
+      <tbody>
+        <tr><th>Knowledge DNA keeps courses current</th><td>Every import is pinned to a course version. Changes arrive as events. Live link shows updates immediately; package and plugin imports use the update policy in section 9.4.</td></tr>
+        <tr><th>Regional variants and languages</th><td>The admin picks variant and language at import. Both are part of the course's Moodle identifier so different variants can live side by side.</td></tr>
+        <tr><th>Governance engine</th><td>Only approved, published versions are ever exposed to Moodle. Drafts are never importable.</td></tr>
+        <tr><th>Exports vary by plan</th><td>The connector reads plan entitlements before offering a channel; live link appears only when LTI 1.3 is included.</td></tr>
+        <tr><th>Interactive components</th><td>Moodle core has no direct equivalent for many of them. Map to H5P where a content type fits, otherwise package that lesson as SCORM 2004.</td></tr>
+        <tr><th>Agency and Enterprise tenancy</th><td>The connector is multi-tenant with strict isolation, and is deployable per region for data residency.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note assume">
+    <h4>No public Cogniate API documentation was found</h4>
+    <p>The public site lists LMS publishing and export formats but no developer documentation. Section 7.1 defines the API contract this integration needs. It is a proposal and must be confirmed with Cogniate engineering during Phase 0.</p>
+  </div>
+</section>
+
+<!-- 3 -->
+<section id="moodlecloud" class="prose">
+  <h2><span class="n">3</span>MoodleCloud constraints</h2>
+  <p>MoodleCloud is Moodle HQ's ready-to-use hosting for individuals and small organisations. Every site runs the same pre-configured Moodle, which is what makes it cheap and low-maintenance, and also what limits integration options.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Constraint</th><th>Evidence</th><th>Design consequence</th></tr></thead>
+      <tbody>
+        <tr><th>Custom plugins cannot be installed</th><td>MoodleCloud FAQ on moodle.com</td><td>All MoodleCloud logic must run outside Moodle, in the connector.</td></tr>
+        <tr><th>All sites share the same features; settings fixed in <code>config.php</code> are not changed on request</th><td>Moodle HQ reply on moodle.org forums</td><td>Rely only on settings an administrator can switch on in the UI.</td></tr>
+        <tr><th>Web services with the REST protocol are available</th><td>Moodle HQ reply on moodle.org forums</td><td>Use a token-scoped external service for provisioning, staging and verification. Confirm on the customer's plan during onboarding.</td></tr>
+        <tr><th>Core web services create courses and categories but have no general function for creating activities</th><td>Moodle core API; noted by third-party integrators</td><td>Course content cannot be written call by call. Deliver content as a backup package or as LTI links.</td></tr>
+        <tr><th>LTI 1.1 and LTI 1.3 Advantage are supported</th><td>MoodleCloud knowledge base</td><td>Live link channel with Deep Linking and grade return.</td></tr>
+        <tr><th>Course backup and restore are core features</th><td>Moodle core</td><td>Package import channel. Plan storage and upload limits apply, so large video is streamed rather than packaged.</td></tr>
+        <tr><th>Sites track a current stable Moodle release</th><td>MoodleCloud practice <span class="tag warn">Verify</span></td><td>Backups restore only into the same or a newer release, so the Build Runner must match or trail the target site's release.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>The practical result: a fully hands-off import of native content into MoodleCloud is not possible with core features alone. The design reduces it to one guided restore step per course version, or zero steps when the customer chooses live link.</p>
+</section>
+
+<!-- 4 -->
+<section id="approach" class="prose">
+  <h2><span class="n">4</span>Solution approach</h2>
+  <p>The three channels are complementary rather than competing. The decision matrix below is what the admin console shows (in plain language) when an administrator connects a site.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Capability</th><th>Package import</th><th>Live link (LTI 1.3)</th><th>Cogniate Moodle Plugin</th></tr></thead>
+      <tbody>
+        <tr><th>Works on MoodleCloud</th><td class="yes">Yes</td><td class="yes">Yes</td><td class="no">No, unless Moodle HQ adds it</td></tr>
+        <tr><th>Content is native and editable in Moodle</th><td class="yes">Yes</td><td class="no">No, rendered by Cogniate</td><td class="yes">Yes</td></tr>
+        <tr><th>Picks up Knowledge DNA updates</th><td class="part">New version, admin restores</td><td class="yes">Immediately</td><td class="yes">Automatic, policy-controlled</td></tr>
+        <tr><th>Admin steps in Moodle</th><td>One restore per course version</td><td>Register tool once; teachers pick content</td><td>None after setup</td></tr>
+        <tr><th>Grades and completion</th><td>Moodle native</td><td>Scores via Assignment and Grade Services</td><td>Moodle native</td></tr>
+        <tr><th>Usable offline in the Moodle app</th><td class="part">Mostly (Page, Book, Quiz)</td><td class="no">No</td><td class="part">Mostly</td></tr>
+        <tr><th>Learner analytics in Cogniate</th><td class="part">Optional report pull</td><td class="yes">Yes (xAPI and scores)</td><td class="part">Optional</td></tr>
+        <tr><th>Cogniate plan needed</th><td>Any plan with API access</td><td>LTI 1.3 entitlement (Pro Creator and above)</td><td>Any plan with API access</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Recommended defaults: use <strong>package import</strong> for compliance and onboarding courses that must be auditable and editable inside Moodle, and <strong>live link</strong> for courses whose source material changes often. Plugin customers get both behaviours without the manual step.</p>
+  <p>A fourth, commercial track runs alongside engineering and is not on the critical path: publish <code>local_cogniate</code> in the Moodle Plugins Directory, apply to the Moodle Certified Integrations programme, and open a conversation with the MoodleCloud team about inclusion in their curated plugin set. Nothing in this design depends on that outcome.</p>
+</section>
+
+<!-- 5 -->
+<section id="architecture" class="prose">
+  <h2><span class="n">5</span>System architecture</h2>
+  <p>Figure 1 shows how the systems connect. Colours match the system chips used throughout this document. Solid lines are requests and API calls; dashed lines are events or file transfers.</p>
+
+  <figure class="fig">
+    <div class="fig-scroll">
+    <svg viewBox="0 0 1192 668" role="img" aria-labelledby="f1t f1d">
+      <title id="f1t">Figure 1: System architecture of Cogniate for Moodle</title>
+      <desc id="f1d">Three zones. The Cogniate platform on the left exposes a REST API, webhooks and a content runtime. The integration connector in the centre transforms courses, builds backup packages with a headless Moodle, calls Moodle web services and acts as an LTI 1.3 gateway. On the right, a MoodleCloud site receives packages through course restore and live content through its External tool, while a self-hosted Moodle runs the Cogniate Moodle Plugin, which calls the connector's Integration API.</desc>
+      <defs>
+        <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+      </defs>
+
+      <!-- Legend -->
+      <rect x="16" y="22" width="14" height="14" rx="3" class="zone z-cg"/><text x="38" y="34" class="lg">Cogniate platform (existing)</text>
+      <rect x="226" y="22" width="14" height="14" rx="3" class="zone z-cx"/><text x="248" y="34" class="lg">Integration connector (new)</text>
+      <rect x="436" y="22" width="14" height="14" rx="3" class="zone z-mc"/><text x="458" y="34" class="lg">MoodleCloud</text>
+      <rect x="556" y="22" width="14" height="14" rx="3" class="zone z-sh"/><text x="578" y="34" class="lg">Self-hosted Moodle</text>
+      <line x1="716" y1="29" x2="748" y2="29" class="edge"/><text x="756" y="34" class="lg">Request or API call</text>
+      <line x1="896" y1="29" x2="928" y2="29" class="edge async"/><text x="936" y="34" class="lg">Event or file transfer</text>
+
+      <!-- Zone: Cogniate -->
+      <rect x="16" y="56" width="280" height="554" rx="10" class="zone z-cg"/>
+      <text x="32" y="80" class="zt">Cogniate platform</text>
+      <text x="32" y="97" class="zs">SaaS at app.cogniate.ai</text>
+      <rect x="32" y="108" width="248" height="52" rx="6" class="bx"/><text x="44" y="129" class="bt">Lyra authoring + course editor</text><text x="44" y="146" class="bs">From prompt or source documents</text>
+      <rect x="32" y="170" width="248" height="52" rx="6" class="bx"/><text x="44" y="191" class="bt">Knowledge DNA</text><text x="44" y="208" class="bs">Versions, variants, source links</text>
+      <rect x="32" y="232" width="248" height="52" rx="6" class="bx"/><text x="44" y="253" class="bt">Governance engine</text><text x="44" y="270" class="bs">Approval gate before publishing</text>
+      <rect x="32" y="294" width="248" height="52" rx="6" class="bx"/><text x="44" y="315" class="bt">Export engine</text><text x="44" y="332" class="bs">SCORM 1.2/2004, xAPI, HTML5, LTI 1.3</text>
+      <rect x="32" y="356" width="248" height="52" rx="6" class="bx k-cg"/><text x="44" y="377" class="bt">REST API v1</text><text x="44" y="394" class="bs">OAuth 2.0, JSON (contract in 7.1)</text>
+      <rect x="32" y="418" width="248" height="52" rx="6" class="bx"/><text x="44" y="439" class="bt">Webhook emitter</text><text x="44" y="456" class="bs">course.published, course.updated</text>
+      <rect x="32" y="480" width="248" height="52" rx="6" class="bx"/><text x="44" y="501" class="bt">Content runtime</text><text x="44" y="518" class="bs">LTI launch target, xAPI analytics</text>
+      <rect x="32" y="542" width="248" height="52" rx="6" class="bx"/><text x="44" y="563" class="bt">Identity</text><text x="44" y="580" class="bs">SSO/SAML 2.0, SCIM (Enterprise)</text>
+
+      <!-- Zone: Connector -->
+      <rect x="396" y="56" width="360" height="554" rx="10" class="zone z-cx"/>
+      <text x="412" y="80" class="zt">Cogniate integration connector</text>
+      <text x="412" y="97" class="zs">New, multi-tenant, hosted per region by Cogniate</text>
+      <rect x="412" y="108" width="328" height="52" rx="6" class="bx"/><text x="424" y="129" class="bt">Moodle web services client</text><text x="424" y="146" class="bs">Provision, stage packages, verify, report</text>
+      <rect x="412" y="170" width="158" height="52" rx="6" class="bx"/><text x="424" y="191" class="bt">Build Runner</text><text x="424" y="208" class="bs">Headless Moodle</text>
+      <rect x="582" y="170" width="158" height="52" rx="6" class="bx"/><text x="594" y="191" class="bt">Package store</text><text x="594" y="208" class="bs">S3, signed URLs</text>
+      <rect x="412" y="232" width="328" height="52" rx="6" class="bx"/><text x="424" y="253" class="bt">Job orchestrator + queue</text><text x="424" y="270" class="bs">State machine, retries, idempotency</text>
+      <rect x="412" y="294" width="328" height="52" rx="6" class="bx"/><text x="424" y="315" class="bt">Admin console</text><text x="424" y="332" class="bs">Connect sites, choose courses, track jobs</text>
+      <rect x="412" y="356" width="328" height="52" rx="6" class="bx k-cx"/><text x="424" y="377" class="bt">Course Transformer + Integration API</text><text x="424" y="394" class="bs">Moodle course model for runner and plugin</text>
+      <rect x="412" y="418" width="328" height="52" rx="6" class="bx"/><text x="424" y="439" class="bt">Webhook receiver</text><text x="424" y="456" class="bs">HMAC verification, de-duplication</text>
+      <rect x="412" y="480" width="328" height="52" rx="6" class="bx"/><text x="424" y="501" class="bt">LTI 1.3 gateway</text><text x="424" y="518" class="bs">OIDC, Deep Linking, AGS, NRPS, JWKS</text>
+      <rect x="412" y="542" width="328" height="52" rx="6" class="bx"/><text x="424" y="563" class="bt">Site registry + secrets vault</text><text x="424" y="580" class="bs">Tokens and keys encrypted with KMS</text>
+
+      <!-- Zone: MoodleCloud -->
+      <rect x="856" y="56" width="320" height="332" rx="10" class="zone z-mc"/>
+      <text x="872" y="80" class="zt">MoodleCloud site</text>
+      <text x="872" y="97" class="zs">Core features only, no plugins</text>
+      <rect x="872" y="108" width="288" height="52" rx="6" class="bx"/><text x="884" y="129" class="bt">Web services (REST)</text><text x="884" y="146" class="bs">Integration user, whitelisted functions</text>
+      <rect x="872" y="170" width="288" height="52" rx="6" class="bx"/><text x="884" y="191" class="bt">Course restore</text><text x="884" y="208" class="bs">Backup package (.mbz), one guided step</text>
+      <rect x="872" y="232" width="288" height="52" rx="6" class="bx"/><text x="884" y="253" class="bt">External tool (LTI 1.3)</text><text x="884" y="270" class="bs">Site-level Cogniate tool</text>
+      <rect x="872" y="294" width="288" height="76" rx="6" class="bx"/><text x="884" y="315" class="bt">Imported course</text><text x="884" y="332" class="bs">Sections with Page, Book, Quiz, H5P,</text><text x="884" y="348" class="bs">SCORM and LTI resource links</text>
+
+      <!-- Zone: Self-hosted -->
+      <rect x="856" y="410" width="320" height="200" rx="10" class="zone z-sh"/>
+      <text x="872" y="434" class="zt">Self-hosted Moodle LMS</text>
+      <text x="872" y="451" class="zs">Own or partner hosting, plugins allowed</text>
+      <rect x="872" y="462" width="288" height="52" rx="6" class="bx k-sh"/><text x="884" y="483" class="bt">Cogniate Moodle Plugin</text><text x="884" y="500" class="bs">local_cogniate: catalog, import, sync</text>
+      <rect x="872" y="526" width="288" height="52" rx="6" class="bx"/><text x="884" y="547" class="bt">Moodle core APIs</text><text x="884" y="564" class="bs">Course, modules, files, questions, tasks</text>
+
+      <!-- Edges: Cogniate to connector -->
+      <path d="M280,382 H412" class="edge" marker-start="url(#a1)" marker-end="url(#a1)"/>
+      <text x="346" y="374" text-anchor="middle" class="lbl">REST + OAuth 2.0</text>
+      <path d="M280,444 H412" class="edge async" marker-end="url(#a1)"/>
+      <text x="346" y="436" text-anchor="middle" class="lbl">Signed webhooks</text>
+      <path d="M280,506 H412" class="edge" marker-start="url(#a1)" marker-end="url(#a1)"/>
+      <text x="346" y="498" text-anchor="middle" class="lbl">Launch, results</text>
+
+      <!-- Edges: connector to MoodleCloud -->
+      <path d="M740,134 H872" class="edge" marker-start="url(#a1)" marker-end="url(#a1)"/>
+      <text x="806" y="126" text-anchor="middle" class="lbl">WS REST + token</text>
+      <path d="M740,196 H872" class="edge async" marker-end="url(#a1)"/>
+      <text x="806" y="188" text-anchor="middle" class="lbl">.mbz package</text>
+      <path d="M740,506 H790 V258 H872" class="edge" marker-start="url(#a1)" marker-end="url(#a1)"/>
+      <text x="831" y="250" text-anchor="middle" class="lbl">LTI 1.3</text>
+
+      <!-- Edge: plugin to connector -->
+      <path d="M872,488 H822 V640 H576 V610" class="edge" marker-start="url(#a1)" marker-end="url(#a1)"/>
+      <text x="699" y="632" text-anchor="middle" class="lbl">Integration API (plugin mode)</text>
+    </svg>
+    </div>
+    <figcaption><b>Figure 1.</b> System architecture. The connector is the only new hosted service. MoodleCloud is reached through three standard doors (web services, course restore and the External tool), while self-hosted sites run the Cogniate Moodle Plugin, which talks to the connector's Integration API rather than to Cogniate directly.</figcaption>
+  </figure>
+
+  <h3>How the parts work together</h3>
+  <p><span class="sys cg">Cogniate platform</span> stays the system of record for content. Authors create and approve courses there; the governance engine decides what is published; the REST API and webhooks expose published versions; the content runtime renders lessons for live-link learners and records xAPI analytics.</p>
+  <p><span class="sys cx">Integration connector</span> is the new service. It pulls a published course through the REST API, converts it into a Moodle course model, and then delivers it by the channel the admin chose. For package import it hands the model to the Build Runner, a disposable container running vanilla Moodle at the target release with <code>local_cogniate</code> installed, which writes the course natively and backs it up to <code>.mbz</code>. For live link it acts as the LTI 1.3 tool that MoodleCloud launches. It also serves the Integration API that plugin sites call.</p>
+  <p><span class="sys mc">MoodleCloud</span> needs nothing beyond standard administration: an external service and token for the connector, an External tool registration for live link, and the Restore page for packages.</p>
+  <p><span class="sys sh">Self-hosted Moodle</span> runs the Cogniate Moodle Plugin, which fetches the same Moodle course model from the Integration API and writes it with core APIs, so no restore step is needed.</p>
+
+  <h3>Architecture decisions</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th class="nowrap">Ref</th><th>Decision</th><th>Rationale</th></tr></thead>
+      <tbody>
+        <tr><th>AD-1</th><td>The connector is a Cogniate-hosted, multi-tenant service, not customer-hosted software.</td><td>MoodleCloud customers have no servers. A hosted service also lets mapping fixes ship without customer upgrades.</td></tr>
+        <tr><th>AD-2</th><td>Backup packages are produced by real Moodle (the Build Runner), never hand-assembled.</td><td>The <code>.mbz</code> format is internal and changes between releases. Moodle's own backup engine guarantees a package that restores correctly.</td></tr>
+        <tr><th>AD-3</th><td>Mapping logic lives in the connector; the plugin is a thin writer that consumes the Moodle course model.</td><td>One transformation for every channel. Plugin releases are slow to reach customer sites, so keeping logic server-side reduces version drift.</td></tr>
+        <tr><th>AD-4</th><td>The plugin's writer code is the same code the Build Runner executes.</td><td>Package import and plugin import produce identical courses, tested once.</td></tr>
+        <tr><th>AD-5</th><td>A canonical Moodle course model sits between Cogniate and Moodle.</td><td>Isolates Cogniate API changes from Moodle writers and leaves room for future targets such as IMS Common Cartridge for other LMSs.</td></tr>
+        <tr><th>AD-6</th><td>Webhooks are treated as hints; scheduled reconciliation guarantees convergence.</td><td>Webhooks can be lost or blocked by customer firewalls. An <code>updated_since</code> pull closes the gap.</td></tr>
+        <tr><th>AD-7</th><td>Sync never deletes learner-facing items; it hides and versions them.</td><td>Protects quiz attempts, grades and audit evidence.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 6 -->
+<section id="components" class="prose">
+  <h2><span class="n">6</span>Component specifications</h2>
+
+  <h3>6.1 Integration connector</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Component</th><th>Responsibility</th><th>Proposed technology</th></tr></thead>
+      <tbody>
+        <tr><th>Admin console</th><td>Inside the Cogniate app: connect a Moodle site, choose courses, variant, language and channel, follow job progress, download packages, see fidelity reports.</td><td>React, embedded in the Cogniate web app</td></tr>
+        <tr><th>Connector API</th><td>Back end for the console; tenant isolation; entitlement checks against the Cogniate plan.</td><td>Node.js 22 LTS, TypeScript, NestJS</td></tr>
+        <tr><th>Job orchestrator</th><td>Runs the import state machine (figure 5) with idempotency keys, exponential backoff, dead-letter queue and per-tenant concurrency limits.</td><td>BullMQ on Redis, or AWS SQS with Step Functions</td></tr>
+        <tr><th>Course Transformer + Integration API</th><td>Fetches the manifest and assets, validates and sanitises them, produces the Moodle course model for a given Moodle release, and serves it to the Build Runner and to plugin sites.</td><td>TypeScript, JSON Schema validation, HTML allowlist sanitiser</td></tr>
+        <tr><th>Build Runner</th><td>Disposable container with vanilla Moodle at the target release plus <code>local_cogniate</code>. Runs the plugin's CLI to write the course, then <code>backup_controller</code> to produce <code>.mbz</code>. Destroyed after each job.</td><td>Docker image per supported Moodle release, PHP 8.3, PostgreSQL; Kubernetes Jobs or ECS tasks</td></tr>
+        <tr><th>Package store</th><td>Encrypted packages and fidelity reports; short-lived signed download URLs; automatic deletion after 30 days.</td><td>S3 with SSE-KMS and lifecycle rules</td></tr>
+        <tr><th>Moodle web services client</th><td>Calls only whitelisted functions (section 7.4), records each site's Moodle release, respects rate limits, never logs tokens.</td><td>HTTPS, REST protocol, JSON responses</td></tr>
+        <tr><th>LTI 1.3 gateway</th><td>Tool side of LTI Advantage: OIDC login, launch validation, Deep Linking, Assignment and Grade Services, optional Names and Role Provisioning, JWKS with key rotation, dynamic registration.</td><td>A maintained LTI 1.3 library such as ltijs; 1EdTech certification</td></tr>
+        <tr><th>Webhook receiver</th><td>Verifies signatures and timestamps, de-duplicates by event id, enqueues work, acknowledges within two seconds.</td><td>Same service, separate scaling group</td></tr>
+        <tr><th>Site registry + secrets vault</th><td>Moodle sites, tokens, LTI keys and plugin credentials, encrypted with envelope encryption; expiry and rotation reminders.</td><td>PostgreSQL 16, AWS KMS or Secrets Manager</td></tr>
+        <tr><th>Observability</th><td>Trace id from console click to every Moodle call; job dashboards; alerting on failure rate.</td><td>OpenTelemetry to the existing Cogniate monitoring stack</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>If Cogniate already operates as an LTI 1.3 tool (Pro Creator lists LTI 1.3 export), the gateway reuses that launch capability and adds Deep Linking catalog and grade return around it rather than duplicating it. Phase 0 confirms which parts exist.</p>
+
+  <h3>6.2 Cogniate Moodle Plugin (<code>local_cogniate</code>)</h3>
+  <p>A local plugin is the right plugin type: it adds site-wide integration behaviour without being an activity itself. It installs on self-hosted Moodle, Moodle Official Hosting and partner-hosted sites, and is also the code the Build Runner runs. It never calls Cogniate directly; it talks to the connector's Integration API with credentials issued when the admin connects the site in the console.</p>
+
+<pre><code>local/cogniate/
+├── version.php                 <span class="c">component, requires 4.5 LTS, supported range 4.5–5.3</span>
+├── settings.php                <span class="c">connection, defaults, sync policy</span>
+├── index.php                   <span class="c">catalog browser</span>
+├── import.php                  <span class="c">import wizard (category, variant, language, mode)</span>
+├── webhook.php                 <span class="c">signed event endpoint, NO_MOODLE_COOKIES</span>
+├── db/
+│   ├── install.xml  upgrade.php
+│   ├── access.php              <span class="c">capabilities</span>
+│   ├── tasks.php               <span class="c">scheduled tasks</span>
+│   ├── services.php            <span class="c">AJAX functions for the UI</span>
+│   └── hooks.php               <span class="c">navigation hooks</span>
+├── classes/
+│   ├── api/integration_client.php      <span class="c">\core\http_client, OAuth 2.0 client credentials</span>
+│   ├── model/course_model.php          <span class="c">typed reader for the Moodle course model</span>
+│   ├── writer/course_writer.php        <span class="c">course, sections, ordering, visibility</span>
+│   ├── writer/activity/{page,book,label,quiz,h5p,scorm,lti}_writer.php
+│   ├── writer/question_writer.php      <span class="c">Moodle XML import into the right bank</span>
+│   ├── writer/file_writer.php          <span class="c">File API, embedded or streamed media</span>
+│   ├── writer/rules_writer.php         <span class="c">completion and restrict-access conditions</span>
+│   ├── sync/sync_manager.php           <span class="c">item-level diff and apply (section 9.4)</span>
+│   ├── task/{import_course,process_event,reconcile,cleanup}.php
+│   ├── external/{get_catalog,get_job_status}.php
+│   ├── event/{course_imported,course_synced,import_failed}.php
+│   ├── form/import_form.php
+│   ├── output/  privacy/provider.php
+├── cli/build_backup.php        <span class="c">used by the Build Runner: write model, back up to .mbz</span>
+├── cli/import.php              <span class="c">operator import from the command line</span>
+├── templates/*.mustache   amd/src/*.js   lang/en/local_cogniate.php
+└── tests/                      <span class="c">PHPUnit, Behat, fixtures of real course models</span></code></pre>
+
+  <h4>Moodle APIs used</h4>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Concern</th><th>Moodle API</th></tr></thead>
+      <tbody>
+        <tr><th>Course and sections</th><td><code>create_course()</code>, <code>course_create_section()</code>, course format API</td></tr>
+        <tr><th>Activities</th><td><code>add_moduleinfo()</code> and <code>update_moduleinfo()</code> from <code>course/modlib.php</code>, so every activity is created exactly as the UI would create it</td></tr>
+        <tr><th>Files and media</th><td>File API (<code>get_file_storage()</code>), module file areas, draft areas</td></tr>
+        <tr><th>Questions</th><td>Question bank API and <code>qformat_xml</code>. From Moodle 5.0 question banks live in <code>mod_qbank</code> instances; on 4.5 they are course-context categories. The question writer handles both.</td></tr>
+        <tr><th>Rules</th><td>Completion API and Availability API (restrict access by completion or grade)</td></tr>
+        <tr><th>HTTP</th><td><code>\core\http_client</code>, which honours the site's blocked-host and proxy settings</td></tr>
+        <tr><th>Secrets</th><td><code>admin_setting_encryptedpassword</code> and <code>\core\encryption</code> for the client secret and webhook secret</td></tr>
+        <tr><th>Background work</th><td>Task API: ad hoc tasks for imports and events, scheduled tasks for reconciliation and clean-up</td></tr>
+        <tr><th>Backup</th><td><code>backup_controller</code> (Build Runner), <code>restore_controller</code> (optional import of packages Cogniate supplies)</td></tr>
+        <tr><th>User interface</th><td>Output API, Mustache templates, ES modules, modal forms; Moodle app support is out of scope for the admin pages</td></tr>
+        <tr><th>Audit and privacy</th><td>Events API; Privacy API provider declaring stored user ids and the external Cogniate location</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>Capabilities</h4>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Capability</th><th>Context</th><th>Default roles</th><th>Allows</th></tr></thead>
+      <tbody>
+        <tr><td><code>local/cogniate:viewcatalog</code></td><td>Category</td><td>Manager, course creator, editing teacher</td><td>Browsing courses entitled to the connected workspace</td></tr>
+        <tr><td><code>local/cogniate:import</code></td><td>Category</td><td>Manager, course creator</td><td>Starting an import into that category</td></tr>
+        <tr><td><code>local/cogniate:sync</code></td><td>Course</td><td>Manager, editing teacher</td><td>Reviewing and applying updates to an imported course</td></tr>
+        <tr><td><code>local/cogniate:manageconnection</code></td><td>System</td><td>Manager</td><td>Viewing connection status and re-running reconciliation (settings also require <code>moodle/site:config</code>)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>Settings</h4>
+  <p>Integration API URL; client id; client secret (encrypted); webhook signing secret (encrypted); default target category; default import mode (native or native with SCORM for interactive lessons); media handling (embed in course or stream from Cogniate); sync policy (manual, notify, or apply safe changes automatically); maximum package size.</p>
+
+  <h4>Background tasks</h4>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Task</th><th>Type</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td><code>task\import_course</code></td><td>Ad hoc</td><td>Fetch model, write course hidden, verify, reveal, report result to the connector</td></tr>
+        <tr><td><code>task\process_event</code></td><td>Ad hoc</td><td>Handle a verified event from <code>webhook.php</code> (new version, retirement)</td></tr>
+        <tr><td><code>task\reconcile</code></td><td>Scheduled, hourly</td><td>Pull the event feed since the last cursor, so missed webhooks never matter</td></tr>
+        <tr><td><code>task\cleanup</code></td><td>Scheduled, daily</td><td>Remove expired staging files and old job records</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>6.3 Course Transformer and the Moodle course model</h3>
+  <p>The transformer is the single place where Cogniate concepts become Moodle concepts. Its output, the Moodle course model, is a release-aware JSON document: it already says which activity type, which question bank style and which file handling to use for the target Moodle release. Writers only execute it.</p>
+
+  <figure class="fig narrow">
+    <div class="fig-scroll">
+    <svg viewBox="0 0 1140 240" role="img" aria-labelledby="f2t f2d">
+      <title id="f2t">Figure 2: One transformation engine, four delivery adapters</title>
+      <desc id="f2d">A Cogniate manifest is validated and normalised, converted to a Moodle course model, and then delivered by four adapters: a native writer for the plugin on self-hosted Moodle, a backup builder for MoodleCloud restore, an LTI link set for the External tool, and a provisioning plan executed through Moodle web services.</desc>
+      <defs>
+        <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+      </defs>
+      <rect x="12" y="91" width="190" height="56" rx="6" class="zone z-cg"/><text x="24" y="114" class="bt">Cogniate manifest</text><text x="24" y="132" class="bs">JSON per course version</text>
+      <rect x="236" y="91" width="190" height="56" rx="6" class="bx"/><text x="248" y="114" class="bt">Validate + normalise</text><text x="248" y="132" class="bs">Schema, sanitise, hash</text>
+      <rect x="460" y="91" width="190" height="56" rx="6" class="zone z-cx"/><text x="472" y="114" class="bt">Moodle course model</text><text x="472" y="132" class="bs">Sections, activities, rules</text>
+
+      <path d="M202,119 H236" class="edge" marker-end="url(#a2)"/>
+      <path d="M426,119 H460" class="edge" marker-end="url(#a2)"/>
+      <path d="M650,119 H670 V32 H690" class="edge" marker-end="url(#a2)"/>
+      <path d="M650,119 H670 V90 H690" class="edge" marker-end="url(#a2)"/>
+      <path d="M650,119 H670 V148 H690" class="edge" marker-end="url(#a2)"/>
+      <path d="M650,119 H670 V206 H690" class="edge" marker-end="url(#a2)"/>
+
+      <rect x="690" y="8" width="200" height="48" rx="6" class="bx"/><text x="702" y="28" class="bt">Native writer</text><text x="702" y="45" class="bs">Core APIs, inside Moodle</text>
+      <rect x="690" y="66" width="200" height="48" rx="6" class="bx"/><text x="702" y="86" class="bt">Backup builder</text><text x="702" y="103" class="bs">Same writer, then .mbz</text>
+      <rect x="690" y="124" width="200" height="48" rx="6" class="bx"/><text x="702" y="144" class="bt">LTI link set</text><text x="702" y="161" class="bs">Deep Linking content items</text>
+      <rect x="690" y="182" width="200" height="48" rx="6" class="bx"/><text x="702" y="202" class="bt">Provisioning plan</text><text x="702" y="219" class="bs">Web service call list</text>
+
+      <path d="M890,32 H924" class="edge" marker-end="url(#a2)"/>
+      <path d="M890,90 H924" class="edge async" marker-end="url(#a2)"/>
+      <path d="M890,148 H924" class="edge" marker-end="url(#a2)"/>
+      <path d="M890,206 H924" class="edge" marker-end="url(#a2)"/>
+
+      <rect x="924" y="8" width="204" height="48" rx="6" class="zone z-sh"/><text x="936" y="28" class="bt">Self-hosted Moodle</text><text x="936" y="45" class="bs">via Cogniate Moodle Plugin</text>
+      <rect x="924" y="66" width="204" height="48" rx="6" class="zone z-mc"/><text x="936" y="86" class="bt">MoodleCloud</text><text x="936" y="103" class="bs">via course restore</text>
+      <rect x="924" y="124" width="204" height="48" rx="6" class="zone z-mc"/><text x="936" y="144" class="bt">MoodleCloud</text><text x="936" y="161" class="bs">via External tool (LTI)</text>
+      <rect x="924" y="182" width="204" height="48" rx="6" class="bx"/><text x="936" y="202" class="bt">Any Moodle site</text><text x="936" y="219" class="bs">Categories, shells, enrolments</text>
+    </svg>
+    </div>
+    <figcaption><b>Figure 2.</b> The native writer and the backup builder are the same PHP code from <code>local_cogniate</code>; the backup builder simply runs it inside the Build Runner and adds a backup step. Live link and provisioning work on self-hosted sites too.</figcaption>
+  </figure>
+</section>
+
+<!-- 7 -->
+<section id="interfaces" class="prose">
+  <h2><span class="n">7</span>Integration interfaces</h2>
+
+  <h3>7.1 Cogniate REST API (required contract) <span class="tag warn">Proposal</span></h3>
+  <p>Conventions: OAuth 2.0 client credentials per tenant with tokens valid for at most one hour; scopes <code>catalog.read</code>, <code>content.read</code>, <code>exports.write</code>, <code>lti.launch</code>, <code>webhooks.manage</code>; URL versioning (<code>/v1</code>); cursor pagination; <code>ETag</code> and <code>If-None-Match</code>; <code>429</code> with <code>Retry-After</code>; <code>Idempotency-Key</code> on every POST; UTC ISO 8601 timestamps; RFC 9457 problem details for errors.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>POST</td><td><code>/oauth/token</code></td><td>Access token for the tenant's client credentials</td></tr>
+        <tr><td>GET</td><td><code>/v1/entitlements</code></td><td>Plan features: export formats, LTI, seat and course limits</td></tr>
+        <tr><td>GET</td><td><code>/v1/workspaces/{ws}/courses?status=published&amp;updated_since=&amp;cursor=</code></td><td>Catalog of published courses</td></tr>
+        <tr><td>GET</td><td><code>/v1/courses/{courseId}</code></td><td>Metadata, versions, variants, languages</td></tr>
+        <tr><td>GET</td><td><code>/v1/courses/{courseId}/versions/{versionId}/manifest?variant=&amp;lang=</code></td><td>Structured course manifest (section 8.1)</td></tr>
+        <tr><td>GET</td><td><code>/v1/assets/{assetId}</code></td><td>Redirect to a signed CDN URL valid for 15 minutes</td></tr>
+        <tr><td>POST</td><td><code>/v1/courses/{courseId}/exports</code></td><td>SCORM 2004 or cmi5 package for an interactive lesson or a whole course</td></tr>
+        <tr><td>GET</td><td><code>/v1/exports/{exportId}</code></td><td>Export status and download URL</td></tr>
+        <tr><td>POST</td><td><code>/v1/lti/launch-sessions</code></td><td>Runtime session for a pseudonymous learner (live link)</td></tr>
+        <tr><td>POST</td><td><code>/v1/webhook-subscriptions</code></td><td>Register the connector's endpoint and signing secret</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>7.2 Integration API (plugin to connector)</h3>
+  <p>Plugin sites authenticate with client credentials issued in the console. Responses are release-aware: the plugin sends its Moodle release and plugin version on every call.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Method</th><th>Path</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>GET</td><td><code>/moodle/v1/catalog?updated_since=&amp;cursor=</code></td><td>Courses this site may import</td></tr>
+        <tr><td>GET</td><td><code>/moodle/v1/courses/{courseId}/model?version=&amp;variant=&amp;lang=&amp;release=</code></td><td>Moodle course model for this site's release</td></tr>
+        <tr><td>GET</td><td><code>/moodle/v1/assets/{assetId}</code></td><td>Signed redirect for files to embed</td></tr>
+        <tr><td>GET</td><td><code>/moodle/v1/events?cursor=</code></td><td>Event feed for reconciliation</td></tr>
+        <tr><td>POST</td><td><code>/moodle/v1/sites/{siteId}/reports</code></td><td>Import result, fidelity report and item map</td></tr>
+        <tr><td>POST</td><td><code>/moodle/v1/sites/{siteId}/heartbeat</code></td><td>Plugin version and Moodle release, for support and compatibility warnings</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>7.3 Webhooks</h3>
+  <p>Events: <code>course.published</code>, <code>course.version.approved</code>, <code>course.updated</code>, <code>course.retired</code>, <code>export.completed</code> and, for live link, <code>attempt.completed</code>. Delivery is at least once, retried with backoff for 24 hours; receivers de-duplicate by event id. The connector relays relevant events to plugin sites using the same format and its own signing secret.</p>
+<pre><code>POST /hooks/cogniate                       <span class="c">connector; plugin sites use /local/cogniate/webhook.php</span>
+Cogniate-Signature: t=1791190462,v1=9c4e…   <span class="c">HMAC-SHA256 over "t.body", 5-minute window</span>
+Content-Type: application/json
+
+{
+  "id": "evt_01J9ZK7M2Q",
+  "type": "course.updated",
+  "createdAt": "2026-10-05T08:14:22Z",
+  "workspaceId": "ws_42",
+  "data": {
+    "courseId": "crs_8f2c",
+    "versionId": "ver_51a",
+    "version": "1.5.0",
+    "changedItems": ["les_01", "asm_01"]
+  }
+}</code></pre>
+
+  <h3>7.4 Moodle web services used on MoodleCloud</h3>
+  <p>The connector uses a dedicated external service named "Cogniate integration" containing only these functions. Anything not listed is out of reach of the token.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Function</th><th>Used for</th></tr></thead>
+      <tbody>
+        <tr><td><code>core_webservice_get_site_info</code></td><td>Validating the token; reading the Moodle release and the functions available</td></tr>
+        <tr><td><code>core_course_get_categories</code>, <code>core_course_create_categories</code></td><td>Finding or creating the target category</td></tr>
+        <tr><td><code>core_course_get_courses_by_field</code></td><td>Finding an imported course by its id number after restore</td></tr>
+        <tr><td><code>core_course_get_contents</code></td><td>Verifying sections and activities against the item map</td></tr>
+        <tr><td><code>core_course_update_courses</code></td><td>Making a verified course visible, setting dates</td></tr>
+        <tr><td><code>webservice/upload.php</code>, <code>core_user_add_user_private_files</code></td><td>Staging a package in the restoring admin's private files (option B below)</td></tr>
+        <tr><td><code>enrol_manual_enrol_users</code>, <code>core_user_get_users_by_field</code></td><td>Optional enrolment provisioning</td></tr>
+        <tr><td><code>core_completion_get_activities_completion_status</code>, <code>gradereport_user_get_grade_items</code></td><td>Optional analytics return, only with the customer's consent</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h4>MoodleCloud administrator setup</h4>
+  <ol>
+    <li>In Site administration, enable web services and the REST protocol.</li>
+    <li>Create the external service "Cogniate integration" with the functions above, restricted to authorised users.</li>
+    <li>Choose how packages arrive. Option A (recommended): a dedicated account <code>cogniate.integration</code> with a Manager role on the target category; packages reach the admin as a signed download link with a direct link to the Restore page. Option B (fewer clicks): the token is issued to the admin who performs restores, so packages are staged straight into their private files.</li>
+    <li>Create the token with an IP restriction to the connector's published egress addresses and a valid-until date.</li>
+    <li>Paste the site URL and token into the admin console. The connector confirms access with <code>core_webservice_get_site_info</code>.</li>
+    <li>For live link, register the Cogniate tool under External tool, Manage tools, using the dynamic registration URL shown in the console.</li>
+  </ol>
+
+  <h3>7.5 LTI 1.3 Advantage</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Side</th><th>Endpoint or service</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><th>Tool (connector)</th><td>OIDC login initiation, launch, Deep Linking return, JWKS, dynamic registration</td><td>Keys rotated every 90 days with overlap</td></tr>
+        <tr><th>Platform (Moodle)</th><td><code>/mod/lti/auth.php</code>, <code>/mod/lti/token.php</code>, <code>/mod/lti/certs.php</code></td><td>Standard Moodle endpoints, read from registration</td></tr>
+        <tr><th>Services</th><td>Deep Linking (one or many items), Assignment and Grade Services, Names and Role Provisioning</td><td>Roster service off by default for privacy</td></tr>
+        <tr><th>Privacy</th><td>Share name and email: never, by default</td><td>Learners are identified by the pseudonymous LTI subject id</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 8 -->
+<section id="data" class="prose">
+  <h2><span class="n">8</span>Data model and mapping</h2>
+
+  <h3>8.1 Cogniate course manifest <span class="tag warn">Proposal</span></h3>
+  <p>The manifest describes a course version structurally, not as a rendered package. It is what makes native Moodle content possible.</p>
+<pre><code>{
+  "course": {
+    "id": "crs_8f2c", "versionId": "ver_51a", "version": "1.5.0",
+    "title": "Clinical sales onboarding",
+    "summaryHtml": "&lt;p&gt;…&lt;/p&gt;",
+    "language": "en-GB", "variant": "EU",
+    "brand": { "logoAssetId": "ast_logo", "primaryColor": "#1F4FD8" },
+    "outcomes": [{ "id": "out_1", "text": "Explain the device's indications for use" }],
+    "modules": [{
+      "id": "mod_01", "title": "Product fundamentals", "order": 1, "prerequisites": [],
+      "lessons": [
+        { "id": "les_01", "type": "content", "title": "What the device does",
+          "blocks": [
+            { "type": "richtext", "html": "&lt;p&gt;…&lt;/p&gt;" },
+            { "type": "image", "assetId": "ast_9", "alt": "Device cross-section" },
+            { "type": "video", "assetId": "ast_10", "delivery": "stream" }
+          ],
+          "sourceRefs": ["src_sop_112#p4"], "contentHash": "sha256:…" },
+        { "id": "les_02", "type": "interactive", "component": "flip-cards",
+          "fallback": { "format": "scorm2004", "exportScope": "lesson" } },
+        { "id": "asm_01", "type": "assessment", "passPercent": 80, "attempts": 3,
+          "questions": [{ "id": "q_1", "type": "multichoice", "single": true,
+                          "stemHtml": "…", "options": [ … ], "feedbackHtml": "…" }] }
+      ]
+    }]
+  }
+}</code></pre>
+
+  <h3>8.2 Mapping Cogniate to Moodle</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Cogniate</th><th>Moodle (package import and plugin)</th><th>Notes</th></tr></thead>
+      <tbody>
+        <tr><th>Workspace</th><td>Course category</td><td>Admin chooses the root category</td></tr>
+        <tr><th>Course version, variant, language</th><td>Course</td><td>Course language forced to the Cogniate language</td></tr>
+        <tr><th>Summary and outcomes</th><td>Course summary</td><td>Outcomes rendered as a list; competencies optional on self-hosted sites</td></tr>
+        <tr><th>Brand logo</th><td>Course image</td><td>Theme changes are out of scope; branding stays inside content</td></tr>
+        <tr><th>Module</th><td>Course section (topics format)</td><td>Moodle 5.1 removes the section limit</td></tr>
+        <tr><th>Content lesson, single screen</th><td>Page</td><td>Rich text, images, media</td></tr>
+        <tr><th>Content lesson, multi-part</th><td>Book with one chapter per part</td><td>Keeps navigation inside one activity</td></tr>
+        <tr><th>Interactive component</th><td>H5P activity where a content type matches; otherwise SCORM 2004</td><td>Fidelity report states which route each lesson took</td></tr>
+        <tr><th>Assessment</th><td>Quiz plus questions in the course's question bank</td><td>Multiple choice, true/false, matching, short answer, drag and drop into text; anything else falls back to SCORM</td></tr>
+        <tr><th>Pass mark and attempts</th><td>Quiz grade to pass, attempts allowed, completion on passing grade</td><td></td></tr>
+        <tr><th>Prerequisites</th><td>Activity completion and restrict access conditions</td><td>Reproduces Lyra's sequencing</td></tr>
+        <tr><th>Image and document assets</th><td>Files in the activity's file area</td><td>Alt text required by the transformer</td></tr>
+        <tr><th>Video assets</th><td>Streamed from Cogniate's CDN by default; embedded on request</td><td>Keeps packages within MoodleCloud storage limits</td></tr>
+        <tr><th>Source references (Knowledge DNA)</th><td>Item map, plus an optional "Sources" section for auditors</td><td></td></tr>
+        <tr><th>Live-linked lesson</th><td>External tool activity with a Deep Linking resource link</td><td>Grade item created through line items</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>8.3 Identifiers and idempotency</h3>
+  <p>Course id number: <code>cogniate:{courseId}:{variant}:{lang}</code>. Short name: <code>{courseCode}-{variant}-{lang}-v{major.minor}</code>. Every activity carries <code>cogniate:{itemId}</code> in its id number, so the connector and plugin can find it again after restore or sync. Each item also stores a SHA-256 hash of its normalised content; an unchanged hash means no write. Every import job has an idempotency key of tenant, site, course, version, variant, language and channel, so a retried request never creates a duplicate course.</p>
+
+  <h3>8.4 Connector data store</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Table</th><th>Key fields</th></tr></thead>
+      <tbody>
+        <tr><td><code>tenants</code></td><td>workspace id, plan entitlements, region</td></tr>
+        <tr><td><code>moodle_sites</code></td><td>tenant, URL, type (MoodleCloud or plugin), Moodle release, token reference, status</td></tr>
+        <tr><td><code>lti_registrations</code></td><td>site, issuer, client id, deployment id, platform JWKS URL, token URL, tool key id</td></tr>
+        <tr><td><code>course_links</code></td><td>site, Cogniate course, version, variant, language, Moodle course id, channel, status</td></tr>
+        <tr><td><code>item_map</code></td><td>course link, Cogniate item id, Moodle section or module id, content hash</td></tr>
+        <tr><td><code>jobs</code>, <code>job_events</code></td><td>idempotency key, state, attempts, last error, trace id, timings</td></tr>
+        <tr><td><code>webhook_inbox</code></td><td>event id (unique), type, received at, processed at</td></tr>
+        <tr><td><code>audit_log</code></td><td>actor, tenant, site, action, target, outcome, time</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Every row carries the tenant id, enforced with PostgreSQL row-level security.</p>
+
+  <h3>8.5 Plugin tables</h3>
+  <p><code>local_cogniate_links</code> (one row per imported course: Cogniate ids, version, variant, language, Moodle course id, mode, sync policy, status), <code>local_cogniate_items</code> (item map with content hashes) and <code>local_cogniate_events</code> (received events awaiting processing).</p>
+</section>
+
+<!-- 9 -->
+<section id="flows" class="prose">
+  <h2><span class="n">9</span>Key flows</h2>
+
+  <h3>9.1 Package import into MoodleCloud</h3>
+  <figure class="fig">
+    <div class="fig-scroll">
+    <svg viewBox="0 0 1140 768" role="img" aria-labelledby="f3t f3d">
+      <title id="f3t">Figure 3: Sequence for package import into MoodleCloud</title>
+      <desc id="f3d">The Moodle admin chooses a course in the console. The orchestrator checks the MoodleCloud site, fetches the published manifest from Cogniate, transforms it and sends a build job to the Build Runner, which writes the course natively and backs it up. The package is staged for the admin, who restores it in one guided step; the orchestrator verifies the result and records the mapping.</desc>
+      <defs>
+        <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+      </defs>
+      <!-- participants -->
+      <rect x="15" y="10" width="160" height="48" rx="6" class="zone z-n"/><text x="95" y="31" text-anchor="middle" class="pt">Moodle admin</text><text x="95" y="48" text-anchor="middle" class="ps">Person</text>
+      <rect x="205" y="10" width="160" height="48" rx="6" class="zone z-cx"/><text x="285" y="31" text-anchor="middle" class="pt">Admin console</text><text x="285" y="48" text-anchor="middle" class="ps">Connector</text>
+      <rect x="395" y="10" width="160" height="48" rx="6" class="zone z-cx"/><text x="475" y="31" text-anchor="middle" class="pt">Job orchestrator</text><text x="475" y="48" text-anchor="middle" class="ps">Connector</text>
+      <rect x="585" y="10" width="160" height="48" rx="6" class="zone z-cg"/><text x="665" y="31" text-anchor="middle" class="pt">REST API</text><text x="665" y="48" text-anchor="middle" class="ps">Cogniate</text>
+      <rect x="775" y="10" width="160" height="48" rx="6" class="zone z-cx"/><text x="855" y="31" text-anchor="middle" class="pt">Build Runner</text><text x="855" y="48" text-anchor="middle" class="ps">Connector</text>
+      <rect x="965" y="10" width="160" height="48" rx="6" class="zone z-mc"/><text x="1045" y="31" text-anchor="middle" class="pt">MoodleCloud site</text><text x="1045" y="48" text-anchor="middle" class="ps">Moodle</text>
+      <!-- lifelines -->
+      <line x1="95" y1="58" x2="95" y2="760" class="life"/>
+      <line x1="285" y1="58" x2="285" y2="760" class="life"/>
+      <line x1="475" y1="58" x2="475" y2="760" class="life"/>
+      <line x1="665" y1="58" x2="665" y2="760" class="life"/>
+      <line x1="855" y1="58" x2="855" y2="760" class="life"/>
+      <line x1="1045" y1="58" x2="1045" y2="760" class="life"/>
+      <!-- messages -->
+      <path d="M95,96 H285" class="edge" marker-end="url(#a3)"/><text x="190" y="89" text-anchor="middle" class="lbl">1. Choose course, version, site</text>
+      <path d="M285,136 H475" class="edge" marker-end="url(#a3)"/><text x="380" y="129" text-anchor="middle" class="lbl">2. Create import job</text>
+      <path d="M475,176 H1045" class="edge" marker-end="url(#a3)"/><text x="760" y="169" text-anchor="middle" class="lbl">3. core_webservice_get_site_info</text>
+      <path d="M1045,216 H475" class="edge async" marker-end="url(#a3)"/><text x="760" y="209" text-anchor="middle" class="lbl">4. Release, user, allowed functions</text>
+      <path d="M475,256 H665" class="edge" marker-end="url(#a3)"/><text x="570" y="249" text-anchor="middle" class="lbl">5. GET published manifest</text>
+      <path d="M665,296 H475" class="edge async" marker-end="url(#a3)"/><text x="570" y="289" text-anchor="middle" class="lbl">6. Manifest + asset URLs</text>
+      <path d="M475,330 H525 V354 H475" class="edge" marker-end="url(#a3)"/><text x="533" y="338" class="lbl">7. Transform to</text><text x="533" y="352" class="lbl">Moodle course model</text>
+      <path d="M475,396 H855" class="edge" marker-end="url(#a3)"/><text x="665" y="389" text-anchor="middle" class="lbl">8. Build job: model + target release</text>
+      <path d="M855,430 H905 V454 H855" class="edge" marker-end="url(#a3)"/><text x="913" y="438" class="lbl">9. Write natively,</text><text x="913" y="452" class="lbl">back up to .mbz</text>
+      <path d="M855,496 H475" class="edge async" marker-end="url(#a3)"/><text x="665" y="489" text-anchor="middle" class="lbl">10. .mbz, checksum, item map</text>
+      <path d="M475,536 H1045" class="edge async" marker-end="url(#a3)"/><text x="760" y="529" text-anchor="middle" class="lbl">11. Stage package for the admin (option A or B)</text>
+      <path d="M475,576 H285" class="edge async" marker-end="url(#a3)"/><text x="380" y="569" text-anchor="middle" class="lbl">12. Awaiting restore</text>
+      <path d="M285,616 H95" class="edge async" marker-end="url(#a3)"/><text x="190" y="609" text-anchor="middle" class="lbl">13. Notify with restore link</text>
+      <path d="M95,656 H1045" class="edge" marker-end="url(#a3)"/><text x="570" y="649" text-anchor="middle" class="lbl">14. Restore package in one guided step (course arrives hidden)</text>
+      <path d="M475,696 H1045" class="edge" marker-end="url(#a3)"/><text x="760" y="689" text-anchor="middle" class="lbl">15. Verify contents, then make visible</text>
+      <path d="M475,736 H285" class="edge async" marker-end="url(#a3)"/><text x="380" y="729" text-anchor="middle" class="lbl">16. Completed, mapping saved</text>
+    </svg>
+    </div>
+    <figcaption><b>Figure 3.</b> Package import. The Build Runner's Moodle release is chosen in step 8 from the release reported in step 4, never newer than the target site. If verification in step 15 finds a mismatch, the course stays hidden and the job fails with a readable report.</figcaption>
+  </figure>
+
+  <h3>9.2 Live link with LTI 1.3 Deep Linking and grade return</h3>
+  <figure class="fig">
+    <div class="fig-scroll">
+    <svg viewBox="0 0 1140 716" role="img" aria-labelledby="f4t f4d">
+      <title id="f4t">Figure 4: Sequence for live link through LTI 1.3</title>
+      <desc id="f4d">A teacher adds a Cogniate External tool activity and selects content through Deep Linking; the gateway returns resource links and line items to Moodle. Later each learner launches the activity, the gateway creates a Cogniate runtime session, Cogniate reports completion and score, and the gateway posts the score to Moodle through Assignment and Grade Services.</desc>
+      <defs>
+        <marker id="a4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+      </defs>
+      <rect x="8" y="68" width="1124" height="342" rx="8" class="bandr"/>
+      <rect x="8" y="424" width="1124" height="284" rx="8" class="bandr"/>
+      <rect x="20" y="10" width="200" height="48" rx="6" class="zone z-n"/><text x="120" y="31" text-anchor="middle" class="pt">Browser</text><text x="120" y="48" text-anchor="middle" class="ps">Teacher or learner</text>
+      <rect x="320" y="10" width="200" height="48" rx="6" class="zone z-mc"/><text x="420" y="31" text-anchor="middle" class="pt">MoodleCloud site</text><text x="420" y="48" text-anchor="middle" class="ps">LTI platform</text>
+      <rect x="620" y="10" width="200" height="48" rx="6" class="zone z-cx"/><text x="720" y="31" text-anchor="middle" class="pt">LTI 1.3 gateway</text><text x="720" y="48" text-anchor="middle" class="ps">Connector</text>
+      <rect x="910" y="10" width="200" height="48" rx="6" class="zone z-cg"/><text x="1010" y="31" text-anchor="middle" class="pt">Content runtime + API</text><text x="1010" y="48" text-anchor="middle" class="ps">Cogniate</text>
+      <line x1="120" y1="58" x2="120" y2="708" class="life"/>
+      <line x1="420" y1="58" x2="420" y2="708" class="life"/>
+      <line x1="720" y1="58" x2="720" y2="708" class="life"/>
+      <line x1="1010" y1="58" x2="1010" y2="708" class="life"/>
+      <text x="20" y="88" class="lbl band">Deep Linking: a teacher places content, once</text>
+      <text x="20" y="444" class="lbl band">Launch and grade return: every learner attempt</text>
+
+      <path d="M120,112 H420" class="edge" marker-end="url(#a4)"/><text x="270" y="105" text-anchor="middle" class="lbl onb">1. Add Cogniate activity, Select content</text>
+      <path d="M420,152 H720" class="edge" marker-end="url(#a4)"/><text x="570" y="145" text-anchor="middle" class="lbl onb">2. OIDC login initiation</text>
+      <path d="M720,192 H420" class="edge async" marker-end="url(#a4)"/><text x="570" y="185" text-anchor="middle" class="lbl onb">3. Auth request (state, nonce)</text>
+      <path d="M420,232 H720" class="edge" marker-end="url(#a4)"/><text x="570" y="225" text-anchor="middle" class="lbl onb">4. id_token: LtiDeepLinkingRequest</text>
+      <path d="M720,272 H1010" class="edge" marker-end="url(#a4)"/><text x="865" y="265" text-anchor="middle" class="lbl onb">5. List entitled modules</text>
+      <path d="M720,312 H120" class="edge async" marker-end="url(#a4)"/><text x="570" y="305" text-anchor="middle" class="lbl onb">6. Content picker</text>
+      <path d="M120,352 H720" class="edge" marker-end="url(#a4)"/><text x="270" y="345" text-anchor="middle" class="lbl onb">7. Teacher picks modules</text>
+      <path d="M720,392 H420" class="edge" marker-end="url(#a4)"/><text x="570" y="385" text-anchor="middle" class="lbl onb">8. LtiDeepLinkingResponse (links + line items)</text>
+
+      <path d="M120,476 H420" class="edge" marker-end="url(#a4)"/><text x="270" y="469" text-anchor="middle" class="lbl onb">9. Learner opens activity</text>
+      <path d="M420,516 H720" class="edge" marker-end="url(#a4)"/><text x="570" y="509" text-anchor="middle" class="lbl onb">10. LtiResourceLinkRequest (after OIDC)</text>
+      <path d="M720,556 H1010" class="edge" marker-end="url(#a4)"/><text x="865" y="549" text-anchor="middle" class="lbl onb">11. Create launch session</text>
+      <path d="M1010,596 H120" class="edge async" marker-end="url(#a4)"/><text x="565" y="589" text-anchor="middle" class="lbl onb">12. Module rendered in the browser</text>
+      <path d="M1010,636 H720" class="edge async" marker-end="url(#a4)"/><text x="865" y="629" text-anchor="middle" class="lbl onb">13. Completion + score (xAPI)</text>
+      <path d="M720,676 H420" class="edge" marker-end="url(#a4)"/><text x="570" y="669" text-anchor="middle" class="lbl onb">14. Score posted to the line item (AGS)</text>
+    </svg>
+    </div>
+    <figcaption><b>Figure 4.</b> Live link. The gateway obtains an access token from <code>/mod/lti/token.php</code> before step 14. Content changes approved in Cogniate appear at the next launch without any action in Moodle.</figcaption>
+  </figure>
+
+  <h3>9.3 Import job states</h3>
+  <figure class="fig narrow">
+    <div class="fig-scroll">
+    <svg viewBox="0 0 1140 196" role="img" aria-labelledby="f5t f5d">
+      <title id="f5t">Figure 5: Import job state machine</title>
+      <desc id="f5d">Jobs move from Queued through Fetching, Transforming, Building, Delivering, Awaiting restore (MoodleCloud package import only) and Verifying to Completed. Errors in any working state lead to Failed, which retries with backoff from Queued.</desc>
+      <defs>
+        <marker id="a5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+      </defs>
+      <rect x="12" y="24" width="118" height="52" rx="26" class="zone z-n"/><text x="71" y="55" text-anchor="middle" class="st">Queued</text>
+      <rect x="152" y="24" width="118" height="52" rx="26" class="zone z-cx"/><text x="211" y="55" text-anchor="middle" class="st">Fetching</text>
+      <rect x="292" y="24" width="118" height="52" rx="26" class="zone z-cx"/><text x="351" y="55" text-anchor="middle" class="st">Transforming</text>
+      <rect x="432" y="24" width="118" height="52" rx="26" class="zone z-cx"/><text x="491" y="55" text-anchor="middle" class="st">Building</text>
+      <rect x="572" y="24" width="118" height="52" rx="26" class="zone z-cx"/><text x="631" y="55" text-anchor="middle" class="st">Delivering</text>
+      <rect x="712" y="24" width="118" height="52" rx="26" class="zone z-mc"/><text x="771" y="47" text-anchor="middle" class="st" style="font-size:11.5px">Awaiting restore</text><text x="771" y="64" text-anchor="middle" class="ps">MoodleCloud only</text>
+      <rect x="852" y="24" width="118" height="52" rx="26" class="zone z-cx"/><text x="911" y="55" text-anchor="middle" class="st">Verifying</text>
+      <rect x="992" y="24" width="118" height="52" rx="26" class="zone z-ok"/><text x="1051" y="55" text-anchor="middle" class="st">Completed</text>
+      <path d="M130,50 H152" class="edge" marker-end="url(#a5)"/>
+      <path d="M270,50 H292" class="edge" marker-end="url(#a5)"/>
+      <path d="M410,50 H432" class="edge" marker-end="url(#a5)"/>
+      <path d="M550,50 H572" class="edge" marker-end="url(#a5)"/>
+      <path d="M690,50 H712" class="edge" marker-end="url(#a5)"/>
+      <path d="M830,50 H852" class="edge" marker-end="url(#a5)"/>
+      <path d="M970,50 H992" class="edge" marker-end="url(#a5)"/>
+      <path d="M211,76 V106 M351,76 V106 M491,76 V106 M631,76 V106 M911,76 V106 M211,106 H911" class="edge async"/>
+      <path d="M570,106 V138" class="edge async" marker-end="url(#a5)"/>
+      <text x="580" y="126" class="lbl">On error</text>
+      <rect x="500" y="138" width="140" height="44" rx="22" class="zone z-bad"/><text x="570" y="165" text-anchor="middle" class="st">Failed</text>
+      <path d="M500,160 H71 V76" class="edge" marker-end="url(#a5)"/>
+      <text x="285" y="152" text-anchor="middle" class="lbl">Retry with backoff, up to 5 times</text>
+      <text x="652" y="165" class="lbl">Retries exhausted: admin alerted, partial output discarded</text>
+    </svg>
+    </div>
+    <figcaption><b>Figure 5.</b> Import job states. Plugin imports and live-link setup skip "Awaiting restore". Courses are always created hidden, so a failure never leaves a half-built course visible to learners.</figcaption>
+  </figure>
+
+  <h3>9.4 Updates when Knowledge DNA changes a course</h3>
+  <p>A <code>course.updated</code> event (or the hourly reconciliation) tells the connector a new approved version exists. The connector computes an item-level diff using content hashes and applies the policy below. Live link needs no action.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Change</th><th>Live link</th><th>Package import (MoodleCloud)</th><th>Cogniate Moodle Plugin</th></tr></thead>
+      <tbody>
+        <tr><th>Text or media correction</th><td>Live at next launch</td><td>New package; admin restores into the existing course only if it has no learner activity, otherwise as a new course version</td><td>Activity updated in place</td></tr>
+        <tr><th>New lesson or module</th><td>Live if the course-level link is used; otherwise the teacher adds it</td><td>New package</td><td>Section or activity added</td></tr>
+        <tr><th>Assessment change</th><td>New attempts use the new version</td><td>New course version recommended</td><td>New question versions; quiz slots set to always use the latest version, so only new attempts change</td></tr>
+        <tr><th>Lesson removed</th><td>Hidden by the runtime</td><td>Absent from the new package</td><td>Activity hidden, never deleted</td></tr>
+        <tr><th>Course retired</th><td>Launches show a retirement notice</td><td>Flag and notice in the console</td><td>Course hidden, admin notified</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 10 -->
+<section id="security" class="prose">
+  <h2><span class="n">10</span>Security, privacy and compliance</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Area</th><th>Controls</th></tr></thead>
+      <tbody>
+        <tr><th>Cogniate API access</th><td>Client credentials per tenant, least-privilege scopes, tokens of one hour or less; secrets in KMS (connector) and encrypted configuration (plugin)</td></tr>
+        <tr><th>Moodle web services</th><td>Dedicated external service with a function whitelist, least-privilege account, IP restriction to connector egress addresses, token expiry with a reminder 30 days before, tokens never logged</td></tr>
+        <tr><th>LTI 1.3</th><td>RS256-signed messages; validate issuer, audience, deployment id, nonce and state; single-use nonces; JWKS rotation every 90 days; five-minute clock skew</td></tr>
+        <tr><th>Webhooks</th><td>HMAC-SHA256 over timestamp and body, five-minute replay window, de-duplication by event id</td></tr>
+        <tr><th>Content safety</th><td>HTML allowlist sanitising in the transformer (no scripts or inline event handlers); iframe allowlist for Cogniate's CDN and approved video hosts; Moodle's own text cleaning still applies on display</td></tr>
+        <tr><th>Transport and storage</th><td>TLS 1.2 or later; signed URLs valid for 15 minutes; packages encrypted at rest and deleted after 30 days</td></tr>
+        <tr><th>Tenant isolation</th><td>Tenant id on every row with row-level security; per-tenant encryption context; per-tenant rate limits</td></tr>
+        <tr><th>Personal data</th><td>No learner data inside packages. Live link uses pseudonymous ids by default. Analytics return is opt-in. The plugin implements the Privacy API. Data processing agreement covers the connector; EU and US regions for Enterprise data residency.</td></tr>
+        <tr><th>Supply chain</th><td>SBOM for every container image, dependency scanning, signed images; the plugin passes moodle-plugin-ci (coding style, PHPDoc, PHPUnit, Behat, Mustache and JavaScript linting) before every release</td></tr>
+        <tr><th>Audit</th><td>Every connection, import, sync and token use is logged with actor, tenant, site, course and version, aligning with Cogniate's audit-ready positioning and SOC 2 posture</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 11 -->
+<section id="nfr" class="prose">
+  <h2><span class="n">11</span>Non-functional requirements</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Quality</th><th>Target</th></tr></thead>
+      <tbody>
+        <tr><th>Import speed</th><td>95th percentile under 5 minutes to build a 50-lesson package without embedded video; under 2 minutes for a plugin import of the same course</td></tr>
+        <tr><th>Throughput</th><td>50 concurrent builds per region at launch, scaling horizontally</td></tr>
+        <tr><th>Availability</th><td>Connector 99.9% monthly; LTI gateway 99.95%, since learners depend on it at launch time</td></tr>
+        <tr><th>Reliability</th><td>At-least-once job execution with idempotent steps; no partially imported course is ever visible</td></tr>
+        <tr><th>Scale</th><td>Design for 10,000 connected Moodle sites and one million LTI launches per day; revisit after pilot data</td></tr>
+        <tr><th>Package size</th><td>Warning at 200 MB; video streamed by default; very large courses split per module</td></tr>
+        <tr><th>Fidelity</th><td>At least 95% of lessons imported natively for a typical course; every fallback named in the fidelity report</td></tr>
+        <tr><th>Accessibility</th><td>Imported content and console meet WCAG 2.2 AA; heading structure preserved; alt text mandatory</td></tr>
+        <tr><th>Localisation</th><td>All plugin strings in language packs; course language set from Cogniate; multilingual variants imported as separate courses by default</td></tr>
+        <tr><th>Maintainability</th><td>One plugin branch for Moodle 4.5 LTS to 5.3 LTS; CI matrix across releases and databases; contract tests between connector and Cogniate API</td></tr>
+        <tr><th>Observability</th><td>Trace id across console, connector and Moodle calls; alert when job failure rate exceeds 2% over 15 minutes</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 12 -->
+<section id="compat" class="prose">
+  <h2><span class="n">12</span>Compatibility matrix</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Moodle release</th><th>Status in October 2026</th><th>PHP</th><th>Plugin</th><th>Notes for the writer</th></tr></thead>
+      <tbody>
+        <tr><th>4.5 LTS</th><td>Supported LTS</td><td>8.1 to 8.3</td><td class="yes">Yes</td><td>Question categories in course context</td></tr>
+        <tr><th>5.0</th><td>Supported</td><td>8.2 to 8.4</td><td class="yes">Yes</td><td>Question banks become <code>mod_qbank</code> instances</td></tr>
+        <tr><th>5.1</th><td>Supported</td><td>8.2 to 8.4</td><td class="yes">Yes</td><td>Code moves under <code>public/</code>; unlimited sections</td></tr>
+        <tr><th>5.2</th><td>Current stable (April 2026)</td><td>8.3 to 8.4</td><td class="yes">Yes</td><td></td></tr>
+        <tr><th>5.3 LTS</th><td>Upcoming</td><td>8.3 to 8.4</td><td class="part">Within 4 weeks of release</td><td>Build Runner image added on release day</td></tr>
+        <tr><th>MoodleCloud</th><td>Current stable, managed by Moodle HQ</td><td>Managed</td><td class="no">Not installable</td><td>Package import and live link only</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>Databases: every database supported by the given Moodle release; CI runs on PostgreSQL and MySQL or MariaDB.</p>
+</section>
+
+<!-- 13 -->
+<section id="roadmap" class="prose">
+  <h2><span class="n">13</span>Delivery roadmap</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Phase</th><th>Duration</th><th>Scope</th><th>Exit criteria</th></tr></thead>
+      <tbody>
+        <tr><th>0. Discovery and contract</th><td class="nowrap">3 weeks</td><td>API contract workshop with Cogniate; manifest schema v1; MoodleCloud trial site to confirm web services, restore limits and LTI; threat model</td><td>Signed-off contract; a hand-built sample <code>.mbz</code> restored on MoodleCloud</td></tr>
+        <tr><th>1. Package import and plugin core</th><td class="nowrap">10 weeks</td><td>Connector core, transformer, Build Runner for 5.x, web services client, admin console; <code>local_cogniate</code> catalog and import with Page, Book, Quiz and SCORM fallback</td><td>Three pilot courses imported into MoodleCloud and a self-hosted site; fidelity of 95% or better</td></tr>
+        <tr><th>2. Live link</th><td class="nowrap">6 weeks</td><td>LTI gateway, Deep Linking, grade return, dynamic registration, analytics return</td><td>1EdTech LTI Advantage certification tests passed; pilot customer live</td></tr>
+        <tr><th>3. Sync and scale</th><td class="nowrap">6 to 8 weeks</td><td>Webhooks and reconciliation, item-level sync in the plugin, versioned packages, H5P mappings, variants and languages, EU region</td><td>General availability</td></tr>
+        <tr><th>4. Distribution</th><td>Ongoing</td><td>Moodle Plugins Directory submission, Certified Integration application, MoodleCloud inclusion discussion</td><td>Plugin approved in the directory</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h3>Team</h3>
+  <p>One solution architect and tech lead; two Moodle PHP developers; two TypeScript back-end developers; one front-end developer for the console; one QA automation engineer (PHPUnit, Behat, Playwright); half a DevOps engineer; a security reviewer at each phase gate; and a product owner from Cogniate.</p>
+</section>
+
+<!-- 14 -->
+<section id="risks" class="prose">
+  <h2><span class="n">14</span>Risks and mitigations</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Risk</th><th>Impact</th><th>Mitigation</th></tr></thead>
+      <tbody>
+        <tr><th>MoodleCloud never accepts the plugin</th><td>Low</td><td>The design does not depend on it; the connector serves MoodleCloud.</td></tr>
+        <tr><th>Cogniate API missing or different from the proposal</th><td>High</td><td>Phase 0 contract; consumer-driven contract tests; transformer isolates changes.</td></tr>
+        <tr><th>Backup package incompatible with the target release</th><td>High</td><td>Build Runner image per release, chosen from the site's reported release; nightly restore tests against every supported release.</td></tr>
+        <tr><th>MoodleCloud storage or upload limits</th><td>Medium</td><td>Stream video; size check before build; split per module.</td></tr>
+        <tr><th>Admins find the restore step confusing</th><td>Medium</td><td>Guided console steps with a direct Restore link; option B staging; live link as zero-step alternative.</td></tr>
+        <tr><th>Interactive components lose fidelity</th><td>Medium</td><td>H5P mappings for common components; SCORM 2004 fallback; fidelity report per import.</td></tr>
+        <tr><th>Sync damages learner records</th><td>High</td><td>Never delete; question versioning; new course version when learners are active.</td></tr>
+        <tr><th>Token leakage</th><td>High</td><td>Function whitelist, IP restriction, expiry, KMS, no logging, rotation reminders.</td></tr>
+        <tr><th>Moodle API changes across 5.x</th><td>Medium</td><td>Writer abstraction per concern; CI across 4.5 to 5.3; follow developer update notes each release.</td></tr>
+        <tr><th>Plugin directory review takes longer than planned</th><td>Low</td><td>Follow Moodle coding guidelines from day one; submit early in phase 3.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- 15 -->
+<section id="questions" class="prose">
+  <h2><span class="n">15</span>Open questions and assumptions</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Question for Cogniate</th><th>Why it matters</th></tr></thead>
+      <tbody>
+        <tr><td>Is there a partner REST API today, and what are its authentication model and rate limits?</td><td>Determines Phase 0 scope and whether section 7.1 is new work for Cogniate.</td></tr>
+        <tr><td>Can course structure be retrieved as structured JSON, not only as SCORM?</td><td>Native Moodle content depends on it; without it, imports fall back to SCORM per module.</td></tr>
+        <tr><td>Does the existing LTI 1.3 support include Deep Linking, grade return, roster and dynamic registration?</td><td>Sets the size of the LTI gateway work.</td></tr>
+        <tr><td>Are webhooks available, and which events exist?</td><td>Affects sync latency; reconciliation works either way.</td></tr>
+        <tr><td>Does importing into Moodle count as publishing or exporting for plan limits?</td><td>Drives entitlement checks and pricing.</td></tr>
+        <tr><td>Which interactive components should map to which H5P content types?</td><td>Fidelity of interactive lessons.</td></tr>
+        <tr><td>Which regions must Enterprise data residency cover?</td><td>Connector deployment topology.</td></tr>
+        <tr><td>Should regional variants and languages import as separate courses or one multilingual course?</td><td>Course identity and admin experience.</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><strong>Assumptions.</strong> Cogniate exposes or will build the API in section 7.1. The customer's MoodleCloud plan allows web services, course restore and External tool registration, which onboarding verifies. MoodleCloud runs a supported 5.x release.</p>
+</section>
+
+<!-- 16 -->
+<section id="refs" class="prose">
+  <h2><span class="n">16</span>References</h2>
+  <ul>
+    <li><a href="https://www.cogniate.ai/">Cogniate home page</a>: product positioning, Lyra, Knowledge DNA, governance engine, publishing formats</li>
+    <li><a href="https://www.cogniate.ai/pricing/">Cogniate pricing</a>: plans and export formats by tier</li>
+    <li><a href="https://moodle.com/products/moodlecloud/">MoodleCloud product page and FAQ</a>: plugin installation not allowed on MoodleCloud</li>
+    <li><a href="https://support.moodle.com/support/solutions/articles/80000836687-moodlecloud-lti-support">MoodleCloud LTI support</a>: LTI 1.1 and LTI 1.3 Advantage available</li>
+    <li><a href="https://moodle.org/mod/forum/discuss.php?d=399387">moodle.org forum</a>: REST API available on MoodleCloud</li>
+    <li><a href="https://moodle.org/mod/forum/discuss.php?d=449433">moodle.org forum</a>: MoodleCloud sites share the same pre-configured features</li>
+    <li><a href="https://docs.moodle.org/en/Web_services">Moodle documentation: Web services</a></li>
+    <li><a href="https://docs.moodle.org/en/PHP">Moodle documentation: PHP versions per release</a></li>
+    <li><a href="https://moodledev.io/docs">Moodle developer documentation</a>: release dates and developer updates</li>
+    <li><a href="https://pypi.org/project/moodle-mcp-bridge/">moodle-mcp-bridge</a>: third-party note that core web services lack activity creation</li>
+  </ul>
+  <p style="color:var(--ink-2);font-size:0.9rem">Facts about MoodleCloud, Moodle releases and Cogniate were checked against these sources on 5 October 2026. Items marked as a proposal, assumption or to verify need confirmation before build.</p>
+</section>
+</main>
+</div>
+</body>
+</html>
