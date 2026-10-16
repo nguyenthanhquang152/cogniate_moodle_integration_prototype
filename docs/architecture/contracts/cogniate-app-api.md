@@ -335,7 +335,7 @@ Web services functions the app needs: `core_webservice_get_site_info`, `core_cou
 
 ## 12. Log events
 
-Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `event`, `trace_id`. Files: `infra/.logs/cogniate-app.jsonl`, `infra/.logs/cogniate-content.jsonl`. No secret in any field.
+Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `event`, `trace_id` (lifecycle events: the per-process boot trace id). Files: `infra/.logs/cogniate-app.jsonl`, `infra/.logs/cogniate-content.jsonl`. No secret in any field.
 
 | Event | Level | Fields |
 | --- | --- | --- |

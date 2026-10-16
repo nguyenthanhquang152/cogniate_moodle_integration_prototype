@@ -180,7 +180,7 @@ All outbound HTTP of both services goes through one client in `packages/shared`:
 
 | Secret | Made by | Stored | Production |
 | --- | --- | --- | --- |
-| Dev CA key and leaf key | `gen-env` (`openssl`) before containers start | `infra/.certs/` (git-ignored, kept by `stack:reset`) | Public CA |
+| Dev CA key and leaf key | `gen-env` (`openssl`) before containers start; CA with Name Constraints `permitted DNS:test`, life ≤ 1 year | `infra/.certs/` (git-ignored, kept by `stack:reset`; `ca.key` never mounted in a container) | Public CA |
 | Tool RSA key | LTI service bootstrap | `tool_key`, private part AES-256-GCM with `LTI_MASTER_KEY` | KMS, 90-day rotation |
 | API key | bootstrap, printed once | SHA-256 hash; the app reads `infra/.secrets/lti-api-key.<account>` at each use | Secret manager |
 | ltik | launch, 32 random bytes | hash only, 24 h | same |
@@ -194,6 +194,6 @@ All outbound HTTP of both services goes through one client in `packages/shared`:
 ## 11. Privacy and logs
 
 - Default privacy level `anonymous`: no `name` and no `email` claims. Learners are shown as "Learner {sub} @ {host}".
-- Logs are JSON lines in `infra/.logs/<service>.jsonl` and on stdout. Every event has `ts`, `level`, `service`, `event`, `trace_id`.
+- Logs are JSON lines in `infra/.logs/<service>.jsonl` and on stdout. Every event has `ts`, `level`, `service`, `event`, `trace_id`. Lifecycle events with no request (`service_started`, `test_knob_active`, `service_stopping`) use one boot trace id per process.
 - Trace ids: the app sends `X-Trace-Id` to the LTI service. The LTI service reuses a valid incoming id (`^[A-Za-z0-9-]{16,64}$`), else makes one. The score sync worker makes one per sync row.
 - The logger redacts: `ltik`, `id_token`, `JWT`, `registration_token`, `client_assertion`, `access_token`, `Authorization`, cookies, `ref`, runtime tokens, service keys, and the `ltik` query in URLs.

@@ -30,9 +30,9 @@ Option C.
 
 - Names: `moodle.test`, `lti.cogniate.test`, `app.cogniate.test`, `content.cogniate-content.test`, as Docker network aliases on the proxy.
 - Every public URL comes from `PUBLIC_MOODLE_URL`, `PUBLIC_LTI_URL`, `PUBLIC_APP_URL`, `PUBLIC_CONTENT_URL`. No URL literal in code. `PUBLIC_PORT` changes all four.
-- TLS: `gen-env` makes a dev CA and one leaf certificate (SAN = the four names) with `openssl`, before any container starts. They live in `infra/.certs/`, and `stack:reset` keeps them. Caddy loads the static files (no `tls internal`). So Moodle, Node and the browser always trust the same CA, also on the first run and after a reset.
+- TLS: `gen-env` makes a dev CA (Name Constraints `permitted DNS:test`, life ≤ 1 year) and one leaf certificate (SAN = the four names) with `openssl`, before any container starts. The name constraint limits the harm if a human trusts the root and `ca.key` leaks. They live in `infra/.certs/`, and `stack:reset` keeps them. Caddy loads the static files (no `tls internal`). So Moodle, Node and the browser always trust the same CA, also on the first run and after a reset.
 - Trust: Moodle through `moodleorgca.crt`; Node through `NODE_EXTRA_CA_CERTS`; e2e Chromium through NSS; a human through `npm run demo:browser` (a throwaway Chrome profile that maps the names and accepts only our leaf).
-- Moodle: `SITE_URL = PUBLIC_MOODLE_URL`, `SSLPROXY=true`. Dev-only curl change: remove `172.16.0.0/12` from blocked hosts, allow port 443.
+- Moodle: `SITE_URL = PUBLIC_MOODLE_URL`, `SSLPROXY=true`. Dev-only curl change: cut only `STACK_SUBNET` out of the default blocked hosts; allow port 443 only (plus `PUBLIC_PORT`).
 - Fallbacks: local-stack §4. F1 keeps HTTPS (Node TLS proxy, same certificates). F3 (http, same-site) needs a Lead decision and changes the ACs listed there.
 
 **Cookies:** security §3. One state cookie per login (`__Host-`, `Secure`, `HttpOnly`, `SameSite=None`, `Partitioned`). No cookies on tool pages after the launch, and none on the content origin.

@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 1
+Round: 2
 
 # T0 design review — Reviewer-B (lens: "Can a human team own it?")
 
@@ -245,3 +245,117 @@ Scope: everything under `docs/architecture/` (README, ADR-001 to ADR-010, two co
 - **Location:** `contracts/cogniate-app-api.md` §6 `POST /lti/register` (`"<library name> – Cogniate"`); 6 uses in the tasks.
 - **Problem:** People type a hyphen, so text matches in tests and searches in Moodle fail.
 - **Suggested fix:** Use an ASCII hyphen or brackets: "Cogniate (Thanh's Library)".
+
+---
+
+## Round 2
+
+Round 2 verdict: **CHANGES_REQUESTED** (one new MAJOR: B-T0-21).
+
+Input: commit `b06aa8a` (`docs/architecture/**`) and `docs/architecture/review-response-T0.md`, compared with my round-1 findings above. I did not read `reviewer-a.md` before I finished this section.
+
+What I checked:
+
+- I read every rewritten file in my lens.
+- I counted the ACs in each task.
+- I searched all architecture docs for old terms and paths (`HTML tracker`, `/lti/*` on the app host, en dash, `linked`/`in_use`/`expired` states, `TTL_SECONDS=5`).
+- A script checked that every log event named in an AC exists in a contract "Log events" table. Result: all events are defined.
+- A script measured sentence length: the README has 0 sentences over 25 words, and `local-stack.md` has 0.
+
+| Severity (round 2, new) | Count | Ids |
+| --- | --- | --- |
+| BLOCKER | 0 | — |
+| MAJOR | 1 | B-T0-21 |
+| MINOR | 3 | B-T0-22, B-T0-23, B-T0-24 |
+| NIT | 1 | B-T0-25 |
+
+### Round-1 findings: verification
+
+| Id | Sev. | Status | Evidence |
+| --- | --- | --- | --- |
+| B-T0-01 | MAJOR | **Resolved** | ADR-005 option C. The CA and leaf are made by `gen-env` and kept on reset. `local-stack.md` §4 has the F1 to F3 table, the list of ACs that change under F3, and "the Lead decides". Four `PUBLIC_*_URL` values are used in all contracts and ACs. |
+| B-T0-02 | MAJOR | **Resolved** | `demo` and `demo:browser` (T1, built and working), `demo:prepare` (T7, AC-T7-15), the command table (`infra/README.md`), AC-T9-01 (≤ 10 min for a new person). |
+| B-T0-03 | MAJOR | **Resolved, with a follow-up** | T3, T4 and T5 are split, and there is a T5-spike. README §7 has the DAG with the critical path. T7 has a bug-fix time-box and may start API-first after T5a. But T2 grew to 30 ACs, and T4b has 24: see B-T0-21. |
+| B-T0-04 | MAJOR | **Resolved** | LTI contract §5 and app contract §12 have event tables. Every outbound call writes one `outbound_*` event. The `evil.test` sink and the three-oracle rule are in tasks README §2. QA tools are listed. Every AC event is defined (checked by script). |
+| B-T0-05 | MAJOR | **Resolved** | T3c AC-T3-27 runs the MIT `ltiaas` SDK as a black box in a container. ADR-003 has the narrow claim, and contract §8 has the differences table. |
+| B-T0-06 | MINOR | Resolved | CA before containers (built in T1). The app reads the API key at each use (security §10). AC-T1-13 exists, and the reach check passes on the live stack. |
+| B-T0-07 | MINOR | Resolved | Course shell → T8. Caches in memory (ADR-006). No ltik in the play session (T4b design note). One signing key. Publication states are `available`/`withdrawn`, and "Linked", "In use" and "Link expired" are derived labels, defined in one place each. "Download SCORM package" → T6. |
+| B-T0-08 | MINOR | Resolved | Tool pages are `/tool/*`. No app-host `/lti/` path remains. |
+| B-T0-09 | MINOR | Resolved | The glossary has a "Moodle label" column and the new terms. Only "HTML runtime" is used for the component. |
+| B-T0-10 | MINOR | Resolved | README is 180 lines: an overview with a "what the plan proves" table, the DAG and links. Detail is in four files. WARNING is used only for data risks (security.md, two uses). |
+| B-T0-11 | MINOR | Resolved | Error pages show the code, trace id and an action line. `X-Trace-Id` propagates. `launch_check_failed {check, code}` exists. Resend exists. One small gap: see B-T0-25. |
+| B-T0-12 | MINOR | Resolved, with a follow-up | One knob table and AC-T7-13. Hidden overrides are still possible: B-T1-05 (unregistered keys) and B-T0-23 (acceptance profile). |
+| B-T0-13 | MINOR | Resolved | `moodle-steps.json`, AC-T6-12, AC-T7-14. |
+| B-T0-14 | MINOR | Resolved | `COURSE_FIXTURES_DIR` and `fixtures:check` (built in T1). Q15 stays open for humans. |
+| B-T0-15 | MINOR | Resolved | `npm run dev:web` in ADR-008 and T5a, on the real app origin. |
+| B-T0-16 | MINOR | Resolved, with a follow-up | ADR-008 has the service folders and the `content-host` import fence. The "shared = exactly four modules" rule already disagrees with T1: B-T0-22. |
+| B-T0-17 to B-T0-20 | NIT | Resolved | T2 references contract §1.2. One JWT rule (`exp − iat = 330 ± 1`). "Images already pulled" is in AC-T1-02, AC-T7-01 and AC-T8-02. The tool name is `Cogniate (<library>)`. |
+
+### B-T0-21 — MAJOR — T2 is now the largest task (30 ACs), and T4b still has 24
+
+- **Location:** `tasks/T2.md`, `tasks/T4b.md`; `tasks/README.md` §1; README §7.
+- **Problem:** The round-1 split fixed T3, T4 and T5, but T2 grew from 17 to 30 ACs, and T4b has 24. Each mixes concerns with different risks, and T2 is the first coded task on the critical path after the spike.
+- **Evidence:**
+  - AC counts: T1 13, **T2 30** (AC-T2-17 merged), T3a 14, T3b 7, T3c 6, T4a 6, **T4b 24**, T5a 18, T5b 12, T6 14, T7 15.
+  - **T2 holds four concerns:**
+    1. LTI core: SQLite, keys, JWKS, auth, platforms API, login, launch, ltik, ID token.
+    2. A matrix of 10 negative launch checks with a QA-signed platform (AC-T2-20 to AC-T2-28, AC-T2-30).
+    3. The SSRF-guarded outbound client.
+    4. A new compose profile `acceptance` with a sink host, a static `qa-platform.test` host, a **second** leaf certificate and allowlist entries (H6).
+  - Item 4 is infrastructure work of the T1 kind (certificates, compose, proxy), not LTI work.
+  - **T4b holds two flows with different risks:**
+    - Connect + publish: dynamic registration in Moodle's iframe, manual registration, refused "update" (AC-T4-07 to -10, -30, -12, -14).
+    - Picker + launch handoff + embedded launch + rebinding + five tool-page security ACs (AC-T4-15 to -29, -31, -32).
+  - The charter allows three review rounds for each task. A task with 24 to 30 ACs and a large QA harness is the one most likely to reach round 3.
+  - Also, `T2.md` says "Depends on: T1, T5-spike done", and `T3b.md` says "Depends on: T3a". Neither is a technical dependency: T2 does not use the spike, and T3b needs only T2. So the spike's half-day time-box can block T2 for no technical reason.
+- **Suggested fix:**
+  1. Move H6 (the `acceptance` profile, the sink, `qa-platform.test`, the second leaf, the allowlist) into T1 round 2 or a small infra task "T1b". The same scripts and the same Author already own certificates and profiles there.
+  2. Split T2:
+     - **T2a**: core and happy path (AC-T2-01 to -08, -12 to -16, -18, -19, -29, -31). Implement all 12 checks and unit-test them here.
+     - **T2b**: the black-box negative matrix with the QA platform (AC-T2-09 to -11, -20 to -28, -30).
+     - T3a depends on T2a only, so T2b leaves the critical path. It must PASS before T7.
+  3. Split T4b into **T4b1** (connect + publish, 7 ACs) and **T4b2** (picker, launch, tool-page security, 17 ACs).
+  4. Write only technical dependencies in "Depends on". T2 depends on T1, and T3b on T2. Keep the one-Author order in tasks README §1. T5a still depends on the T5-spike note.
+  5. T5a (18 ACs) is fine as it is. The spec already says that the Lead re-checks its size if the spike chooses our own SCORM subset.
+
+### B-T0-22 — MINOR — ADR-008 limits `packages/shared` to four modules that T1 does not have
+
+- **Location:** `adr/ADR-008-repo-layout-and-stack.md` Layout ("exactly four modules: errors, http-client (SSRF guard), crypto, logger"); `tasks/T1.md` Scope (LC-T1-02 `loadPublicUrls()`, H3 `KNOB_REGISTRY` in `packages/shared/src/knobs.ts`).
+- **Problem:** The approved T1 deltas put the public-URL config, the knob registry and the startup helpers into `shared`, so the "exactly four" rule is false on day one. A rule that the code breaks from the start teaches people to ignore the rule.
+- **Evidence:** The T1 code (`bc530a7`) has `config.ts`, `knobs.ts`, `logger.ts`, `service.ts` and `http.ts` (inbound server helpers; B-T1-06). ADR-008 does not name config or knobs. ADR-008 "Root scripts" also misses `stack:moodle-reach-check` and `stack:node-reach-check`, which T1 has.
+- **Suggested fix:** List the real modules in ADR-008, one line each: `config` (public URLs), `knobs` (registry), `logger`, `errors`, `server` (inbound helpers, startup), `outbound` (SSRF-guarded client, T2), `crypto`. Keep the rule "a new module needs a reason in the done report". Add the two reach-check scripts to the root-script list.
+
+### B-T0-23 — MINOR — The `acceptance` profile changes service config, but no check can see it
+
+- **Location:** `local-stack.md` §3 (`acceptance` profile: "Both names are added to `OUTBOUND_PRIVATE_HOST_ALLOWLIST` in this profile only"); `tasks/README.md` §3 ("No other knob exists"), §4; `tasks/T7.md` AC-T7-13.
+- **Problem:** In the `acceptance` profile, the services run with a wider outbound allowlist (`evil.test`, `qa-platform.test`). But `/healthz` shows only registered knobs, so a stack that still runs in this mode shows `knobs: []`, and AC-T7-13 passes.
+- **Evidence:**
+  - The allowlist is an env value of `lti-service` and `cogniate-app`, not a registered knob.
+  - The docs do not say how `npm run test:acceptance` moves the running stack into and out of this mode. T1's `test:acceptance` only starts the `e2e` container.
+  - After an acceptance run, a developer who then runs `npm run demo` may demo a stack that allows `evil.test`.
+- **Suggested fix:**
+  1. Report the mode in `/healthz` and in `service_started`, for example `"profile": "acceptance"` and the active allowlist entries.
+  2. AC-T7-13 also checks `profile: "default"`.
+  3. In `local-stack.md` §3, write the steps of `test:acceptance` (start with the override, run, restore), and say what is left when a run stops halfway.
+
+### B-T0-24 — MINOR — No deterministic recipe makes `conflict` and `failed` rows, so three ACs may have no input
+
+- **Location:** `tasks/T5b.md` AC-T5-31, AC-T5-32; `tasks/T6.md` AC-T6-14; `adr/ADR-010…` rule 8; app contract §10.
+- **Problem:** AC-T5-31 accepts either outcome ("The row becomes `sent` or `conflict` … If `conflict`: …"), so it cannot fail on its main point. AC-T6-14 needs "a `conflict` row (from AC-T5-31)", and AC-T5-32 needs a `conflict` or `failed` row.
+- **Evidence:**
+  - ADR-010 says that a 409 "also happens after a teacher override". Moodle returns 409 only when the stored grade time is the same as or newer than our `timestamp`. Our timestamp is "now", which is after the override, so Moodle may answer 204.
+  - In that case, AC-T5-31 gives `sent` (Moodle keeps the override 50), AC-T6-14 has no row to test, and the portal shows "Sent" next to a gradebook value of 50 with no explanation.
+  - A `failed` row needs 24 h of retries, or a `400`/`404`, and no AC says how to get either.
+- **Suggested fix:**
+  1. Check Moodle 5.2.4's answer once now (score after an override). Then write **one** expected result in AC-T5-31.
+  2. Give QA a fixed recipe for each state. Example for `conflict`: post a score through the API with `timestamp = now + 1 h` (the documented `timestamp` addition), run `stack:restart -- lti-service` (this clears the in-memory clock), then let the learner complete. Example for `failed`: unenrol the learner in the Moodle UI before completion, so Moodle answers `400`.
+  3. If a `sent` score does not change the gradebook, the results view shows "Moodle keeps a teacher grade" after "Refresh from Moodle".
+
+### B-T0-25 — NIT — Small leftovers
+
+- **Location and fix:**
+  - `tasks/T1.md` Scope, `adr/ADR-005…`, `local-stack.md` §2 say "blocked hosts = default minus `172.16.0.0/12`". The T1 code removes only the stack subnet, which is safer. Write "default minus the stack subnet" (see B-T1-09).
+  - `adr/ADR-002…` Consequences: "The T2 and T3 specs" → "T2 and T3a".
+  - LTI contract §5 and app contract §12: "Every event: … `trace_id`" does not say where a lifecycle event gets its id. Add the Lead's rule ("one boot trace id per process for events without a request"), and fix T1 H7 `trace_id?` as the Lead said.
+  - LTI contract §5 lists `service_started {version, knobs}`, but the T1 code logs `port`, `public_url`, `node`. Choose one field set. If the Lead accepts B-T1-04, write "every request except container health checks" for `http_request`.
+  - Tasks README §3: `BUILD_RUNNER_FAIL_AT` is a string knob, but the T1 knob registry accepts whole numbers only. Note that T8 extends the registry type.

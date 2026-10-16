@@ -1,7 +1,11 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # Reviewer-A: T0 design review (lens: "Is it right and is it safe?")
+
+History: the round 1 verdict was CHANGES_REQUESTED (findings below). The round 2 verdict is APPROVE (section "Round 2" at the end).
+
+## Round 1
 
 Scope: everything under `docs/architecture/` (README, ADR-001 to ADR-010, both contracts, rea-evaluation, open-questions, tasks T1 to T8).
 
@@ -354,3 +358,100 @@ Evidence is from the Moodle 5.2.4 source unless stated.
   - `mod/lti` has no `lti_storage_target`.
   - "Receive a grade" completion runs on a grade update, and a grade of 0 counts as received.
 - **The package.** The SCO finds `parent.API`, probes for 301, keeps navigation in the frame, writes only the elements in README §6c, and calls `LMSFinish` itself. The HTML export has the markup that ADR-004 needs: `body[data-lesson-id]`, `[data-cog-quiz]`, and radio inputs with `data-cog-correct`.
+
+---
+
+## Round 2
+
+Verdict (round 2): APPROVE
+
+Input: commit `b06aa8a` (`docs/architecture/**`) and `docs/architecture/review-response-T0.md`. I compared it with my round 1 findings above. I checked the new text, the new ACs and, where relevant, the Moodle 5.2.4 source again. I did not read `reviewer-b.md`.
+
+Round 2 counts: 0 BLOCKER, 0 MAJOR, 3 MINOR, 2 NIT (A-T0-19 to A-T0-23). All 8 BLOCKER/MAJOR findings of round 1 are resolved.
+
+### Verification of the round 1 BLOCKER and MAJOR findings
+
+| Id | Status | Evidence (new text and ACs) |
+| --- | --- | --- |
+| A-T0-01 | Resolved | `security.md` §5: `/pkg/*` sends `frame-ancestors {PUBLIC_CONTENT_URL} {PUBLIC_APP_URL}`, `/rt/*` sends `{PUBLIC_APP_URL}`, and `/play/*` sends `frame-src {PUBLIC_CONTENT_URL}`. AC-T5-01 asserts the value. AC-T5-04 (`CogniateSCORM.available`) and AC-T5-09 (runtime reads `body[data-lesson-id]`) prove that the package script runs. |
+| A-T0-02 | Resolved | `security.md` §5 and §6: tool pages send `Referrer-Policy: same-origin`, and the strict `Origin` rule stays. This matches my Chrome 155 test (`same-origin` sends the real origin). AC-T4-08 tests a real click. AC-T4-22 tests `evil.test`, `null` and no `Origin`, with no state change. |
+| A-T0-03 | Resolved (item 2 changed; accepted) | `security.md` §4: single-use handoff (`HANDOFF_USED`), publication from the signed `launch.target`, resource link key (connection, deployment, context, resource link), and a re-check on the picker POST. ACs: AC-T4-23 (tampered `resource`), AC-T4-24 (replay), AC-T4-26 (picker), AC-T4-27 (withdrawn). |
+| A-T0-04 | Resolved | `security.md` §2.1 and §2.2, contract §2, ADR-009: login, launch, keys and register paths all carry `{toolAccountId}`. I found no protocol URL without the account in `docs/architecture/`. AC-T2-18 registers the same pair under `qa-second`. |
+| A-T0-05 | Resolved | `security.md` §2.5 and contract §3.8: `operation` comes from the verified registration token (`scope = reg-update`, `sub = type id`, as in `startltiadvregistration.php`). An update needs `updatePlatformId = existingPlatformId` in the same account, else `409 REGISTRATION_UPDATE_NOT_ALLOWED` and nothing is sent to Moodle. The app allows only its own connection. `connection.lti_platform_id` is unique. ACs: AC-T3-25, AC-T3-26, AC-T4-30 (Thanh's tool unchanged). |
+| A-T0-06 | Resolved (330 s accepted) | `security.md` §2.3: `iat = now − 30 s`, `exp = now + 300 s`, no `nbf`. AC-T3-08 asserts `exp − iat = 330 ± 1` and `iat ≤ now − 25 s`. T3a has the fake-clock unit test. The 60 s inbound skew is now written down as a deliberate difference from spec §10. |
+| A-T0-07 | Resolved | `security.md` §5 has `frame-ancestors`, `form-action` and `Referrer-Policy` per page, with no `X-Frame-Options` on framed pages. Embedded launches get `/play/{playId}/embedded`. ACs: AC-T4-21, AC-T4-31. See also A-T0-20 and A-T0-22. |
+| A-T0-08 | Resolved | `security.md` §2.4 and contract §4: the platform JWKS is fetched through the guarded client with `createLocalJWKSet`, and the auth, token and JWKS URLs must be on the issuer origin (`PLATFORM_URL_NOT_ON_ISSUER_ORIGIN`). AC-T2-29 tests the origin rule. AC-T2-21 proves that the guarded client is used (an `outbound_request` event on refetch). See also A-T0-19. |
+
+Decisions on the two "resolved in a changed way" items:
+
+- **A-T0-03 item 2 (rebind): accepted.**
+  - The signed `target_link_uri` comes from the activity URL in Moodle's database (`lti_get_launch_data`, `locallib.php:531`). Check 12 makes the login value equal the claim, so a learner cannot change it by editing the login form.
+  - So only an editing teacher can change the target, with "Select content". Blocking that would break a normal action. Another connection or a withdrawn publication still gets the error page.
+  - There is one follow-up for attempts after a rebind: A-T0-21.
+- **`exp − iat = 330 s`: accepted.** It is exactly the fix that I asked for: `iat` 30 s in the past and `exp` 300 s ahead. Moodle checks only `iat ≤ now` and `exp > now` (php-jwt). Neither Deep Linking 2.0 nor RFC 7523 sets a maximum lifetime.
+
+Spot checks of round 1 MINOR items:
+
+- A-T0-09: ADR-010 rules 5 and 8–10 compare with the best pending, sent or conflict row, supersede only lower pending rows, map 409 to `conflict`, retry for 24 h, and add Resend.
+- A-T0-12: `PLATFORM_ERROR`, and the help text is chosen after the signature check.
+- A-T0-13: the differences table D1–D12 matches the LTIAAS facts that I found. The scores GET now has `prev`, `first` and `last`.
+- A-T0-15: the `LMSFinish` rule matches Moodle (`scorm_12.js:624-629`; `scorm/masteryoverride` default 1, `settings.php:115`). Error 201 is used for unknown elements. Session time is added once per session.
+
+Residual risk, accepted: a person can still send someone an **unused** `/tool/launch?ltik=` URL. The first person to open it gets the attempt (session fixation before the first use). This is part of the ltik-in-URL model. It needs social engineering, and the only result is that the attacker gets credit for the victim's work. No change is needed for the prototype.
+
+### A-T0-19 — MINOR — The SSRF guard does not say that the checked IP is the IP that the connection uses
+
+- **Location:** `security.md` §9; `tasks/T2.md` scope and self-check (SSRF guard unit tests).
+- **Problem:** The rule "blocked after DNS resolution" lets the code resolve once to check the IP and once more to connect. A DNS rebinding answer then passes the check and reaches an internal IP.
+- **Evidence:**
+  - §9 has no rule about the connection IP, and no list of blocked ranges.
+  - The T2 tests are "private IP blocked, allowlist works, redirect not followed". None of them covers a name that resolves to a public IP first and to a private IP later.
+  - Node `fetch` (undici) resolves the name again when it connects, unless a custom `connect.lookup` is set.
+  - The platform URLs come from tenants (manual registration) and from browsers (`openid_configuration`).
+- **Fix:**
+  - Do the IP check inside the lookup that the connection uses (an undici `Agent` with `connect: { lookup }`), so no second lookup happens.
+  - List the blocked ranges:
+    - IPv4: `0.0.0.0/8`, `10/8`, `100.64/10`, `127/8`, `169.254/16`, `172.16/12`, `192.168/16`, multicast and broadcast.
+    - IPv6: `::1`, `::/128`, `fc00::/7`, `fe80::/10`, and IPv4-mapped `::ffff:0:0/96`.
+  - Use one allowlist per service: the LTI service needs only the Moodle host, and the app needs only the LTI host.
+  - Add a unit test with a fake resolver that answers a public IP first and a private IP second.
+
+### A-T0-20 — MINOR — Some error pages that Moodle frames use `frame-ancestors 'none'`, so the user sees a blocked frame instead of the error code
+
+- **Location:** `security.md` §5, row "LTI service error pages" ("or `'none'` if the platform is unknown"), and the `/tool/register` error pages.
+- **Problem:** Some errors happen inside a Moodle iframe before any platform or connection is known. Those pages cannot render, so the code, the trace id and the next action are not visible.
+- **Evidence:**
+  - Every `/lti/register/{toolAccountId}` error (`INVALID_OPENID_CONFIGURATION`, `ISSUER_MISMATCH`, `FETCH_FAILED`) shows in Moodle's registration iframe (`tool_configure_controller.js:130`). At that time no platform exists.
+  - `INVALID_STATE` can show in the Deep Linking iframe after the 10 min state expired, when the record is gone.
+  - `/tool/register` can get an unknown `ref`.
+  - This conflicts with the rule "Every HTML error page shows: the code, the trace id, and one line with the next action" (`security.md` §2.2).
+- **Fix:**
+  - Error pages with no form and no state-changing button cannot be used for clickjacking. So let them be framed by any https origin (`frame-ancestors https:`).
+  - Keep the strict values for pages that have actions.
+  - Add an AC: an `ISSUER_MISMATCH` registration shows its code inside Moodle's frame.
+
+### A-T0-21 — MINOR — After a rebind, a learner can continue the old course
+
+- **Location:** `data-model.md` §2 (rule for `attempt`); `flows.md` §6c; `security.md` §4 "Binding"; `tasks/T4b.md` AC-T4-25.
+- **Problem:** After a teacher selects new content, a learner with an in-progress attempt is still sent to the **old** course. That attempt's rows then show under the new publication's results.
+- **Evidence:**
+  - The attempt key is (`resource_link_id`, `user_sub`, `course_version_id`).
+  - The rule says: "A launch continues the newest attempt if it is `in_progress`. Otherwise it uses the publication's current version". This rule does not check that the attempt's version belongs to the course of the link's current publication.
+  - In the AC-T4-25 case (SCORM → HTML), a learner who started SCORM continues SCORM. Their score still goes to the same line item.
+- **Fix:**
+  - Continue an in-progress attempt only if its course version belongs to the course of the resource link's current publication. Otherwise start a new attempt on the current version of the new publication.
+  - Show result rows by the course of the attempt.
+  - Add the in-progress case to AC-T4-25.
+
+### A-T0-22 — NIT — `documentTarget = frame` is not an embedded launch
+
+- **Location:** `security.md` §4, row "Embedded launch"; `contracts/cogniate-app-api.md` §6, `GET /tool/launch`.
+- **Problem:** Moodle sends `frame` for the "Existing window" container (`LTI_LAUNCH_CONTAINER_REPLACE_MOODLE_WINDOW`, `mod/lti/locallib.php:595-596`). That is a top-level launch. So the "Open in a new window" page only adds one click there.
+- **Fix:** Show `/play/{playId}/embedded` only for `iframe`.
+
+### A-T0-23 — NIT — The score clock in memory can cause a 409 after a restart of the LTI service
+
+- **Location:** `contracts/lti-service-api.md` §3.6 ("(memory)"); ADR-006.
+- **Problem:** The clock is lost on a restart. If several scores for one (line item, user) were sent within the same second before the restart, the next timestamp can be at or before the one that Moodle stored. Moodle then returns 409, and our row becomes `conflict` and needs a Resend.
+- **Evidence:** QA restarts `lti-service` for knobs (`stack:restart`). AC-T3-13 sends two scores within one second.
+- **Fix:** At start, set the clock floor to the start time + 2 s. Or write this case down in the QA rules.

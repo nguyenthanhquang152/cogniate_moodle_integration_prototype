@@ -350,7 +350,7 @@ All URLs are https. An account sees only its own platforms. Another account may 
 
 ## 5. Log events
 
-Every event: `ts`, `level`, `service: "lti-service"`, `event`, `trace_id`. No secret in any field. File: `infra/.logs/lti-service.jsonl`.
+Every event: `ts`, `level`, `service: "lti-service"`, `event`, `trace_id` (lifecycle events: the per-process boot trace id). No secret in any field. File: `infra/.logs/lti-service.jsonl`.
 
 | Event | Level | Fields | When |
 | --- | --- | --- | --- |

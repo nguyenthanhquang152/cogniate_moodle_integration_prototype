@@ -271,3 +271,115 @@ Each test title starts with its AC id, for example `AC-T2-09 replay gives INVALI
 | H13 | `npm run moodle:cron` (fallback only) | T7 risk note |
 
 Not needed: a SCORM fast-forward hook. The completion gate is 10 s of visible time plus a scroll to the end on one lesson page. The 10.7 MB video is not part of the gate. A real 11 s wait per run is deterministic and costs about 2 min per full suite.
+
+## Round 2
+
+Verdict: PASS
+Round: 2
+
+Date: 2026-10-16. Input: commit `b06aa8a` (`docs/architecture/tasks/README.md`, T1 and the new task files T5-spike, T2, T3a, T3b, T3c, T4a, T4b, T5a, T5b, T6, T7, T8, T9, `review-response-T0.md`, `security.md`, `local-stack.md`, both contracts). I did not read Author code.
+
+Verdict reason: all 12 round-1 MAJOR findings are resolved. The new and moved ACs have a black-box oracle, except the items below. The one new MAJOR (Q-T0-39) concerns T5b and T6 only. It does not block T2, T3a, T3b or T4a/T4b. It must close before T5b goes to verification.
+
+| Severity (round 2, new) | Count |
+| --- | --- |
+| BLOCKER | 0 |
+| MAJOR | 1 |
+| MINOR | 7 |
+| NIT | 2 |
+
+### R2.1 Round-1 MAJOR findings
+
+| Id | Status | How it is resolved, and the evidence |
+| --- | --- | --- |
+| Q-T0-01 | Resolved | Charter §3a, T1 H1. Proven in the T1 round-1 run: QA stack `qa-t1-r1` on 8443 and `172.29.0.0/16`, next to the Author's stack (`docs/reviews/T1/qa.md`). |
+| Q-T0-02 | Resolved | T1 H2 `seed.json` (`cogniate-seed/1`); later keys `lti.apiKeyFiles`, `ltiSeed` (T2), `portal.users` (T4a). |
+| Q-T0-03 | Resolved | Knob table and the "first call < 10 s, 401 at TTL + 3 s" procedure (tasks README §3). The host-side part of the procedure is in Q-T0-37. |
+| Q-T0-04 | Resolved | T1 H4. Proven in T1 round 1: the oracle token calls all 6 functions. |
+| Q-T0-05 | Resolved | `ResultRow.scoreSyncs`, `attempts`, `best`, preview rows (app contract §5). AC-T5-11, -12, -13, -20 now use these fields. |
+| Q-T0-06 | Resolved | Check → code map and run order (security §2.2); AC-T2-20 to -27; `qa-platform.test` (local-stack §3). Two oracle gaps remain: Q-T0-35, Q-T0-36. |
+| Q-T0-07 | Resolved | The URL rule compares every query parameter (contract §3.4); AC-T3-23 (same course, other tool, with and without `type_id`). |
+| Q-T0-08 | Resolved | AC-T4-22 (tool-page `Origin`), AC-T4-28 and AC-T6-13 (XSS), AC-T4-29 (tenant matrix, unknown `playId`). |
+| Q-T0-09 | Resolved | T1 H7 (log files mounted read-only; proven in T1 round 1); event tables in LTI contract §5 and app contract §12; `evil.test` sink logs `sink_hit`. |
+| Q-T0-10 | Resolved | Charter §1, T1 H8. Proven in T1 round 1 (canary file test). |
+| Q-T0-11 | Resolved | AC-T1-11 names every secret path. SPIKE-NOTES §0 has no secrets now. The T1 round-1 clone had `infra/.logs/` git-ignored. The AC text has a new problem: Q-T0-34. |
+| Q-T0-12 | Resolved | T7 Scenario B step 5 reopens Thanh's picker after B3; AC-T7-08. |
+
+The round-1 MINOR and NIT items are resolved as `review-response-T0.md` says. I spot-checked Q-T0-15, -19, -20, -21, -24, -25, -28 and -30 in the new ACs: all are present.
+
+### R2.2 New findings
+
+#### Q-T0-39 MAJOR: no deterministic way to make a `conflict` or `failed` score-sync row
+
+- Where: `tasks/T5b.md` AC-T5-31, AC-T5-32; `tasks/T6.md` AC-T6-14; app contract §10 (`409 PLATFORM_CONFLICT` → `conflict`, "for example a teacher override").
+- Problem: AC-T6-14 needs "a `conflict` row (from AC-T5-31)", and AC-T5-32 needs "a `conflict` or `failed` row". The specified flow most likely never makes either row.
+- Evidence: Moodle 5.2.4 returns 409 only when the stored grade `timemodified` ≥ the score `timestamp` in seconds (`mod/lti/service/gradebookservices/classes/local/resources/scores.php:196-198`, read in round 1). A teacher override at time T, then our score at T' > T (the service sends `max(now, last + 1 s)`), gives 200. Moodle keeps the override, and the row is `sent`. AC-T5-31 allows `sent`, so it passes. But AC-T6-14 has no input then, and AC-T5-32 has no recipe for `failed` (24 h of retries, or a 400 from Moodle).
+- Fix: name one recipe per state in the ACs.
+  - `failed`: after the launch, unenrol the learner in the Moodle UI (Participants), or add `enrol_manual_unenrol_users` to the QA oracle. Then complete → Moodle `400` ("Incorrect score received", user not gradable) → `failed` at once.
+  - `conflict`: QA posts a score for the learner through the LTI API with `timestamp` = now + 10 min (contract §3.6 addition). Then `npm run stack:restart -- lti-service` (this clears the in-memory score clock). The learner completes → our timestamp < Moodle `timemodified` → 409 → `conflict`.
+  - Also correct the app contract §10 example: a teacher override alone does not cause a 409.
+
+#### Q-T0-33 MINOR: T1.md H7 says `trace_id` is optional
+
+- Where: `tasks/T1.md` H7 (`{ts, level, service, event, trace_id?, ...}`).
+- Problem: security §11, LTI contract §5, app contract §12 and the Lead decision (lifecycle events use a boot trace id) all say every event has `trace_id`.
+- Fix: change `trace_id?` to `trace_id`. The QA H7 test stays as it is.
+
+#### Q-T0-34 MINOR: AC-T1-11 text is not testable literally
+
+- Where: `tasks/T1.md` AC-T1-11 ("`git grep` for every value in those files finds nothing").
+- Problem: `infra/.logs/*.jsonl`, `seed.json` and `.tmp/` hold public values (`info`, `/healthz`, `cg_teacher`, URLs) that are in tracked docs. The AC fails for a correct product.
+- Evidence: the Lead's round-1 decision scoped the check to secret values (secret keys of `.env`, secret values under `infra/.secrets/`, `infra/.certs/*.key`). The T1 round-1 run used that scope and passed.
+- Fix: write the Lead scope into AC-T1-11. Keep the `git check-ignore` list as it is.
+
+#### Q-T0-35 MINOR: AC-T2-21 depends on the JWKS cache and the refetch limit
+
+- Where: `tasks/T2.md` AC-T2-21; security §2.2 check 6 ("one refetch, at most once per minute"); contract §4 (10 min cache).
+- Problem: whether the unknown-`kid` token causes a fetch depends on when the platform JWKS was last fetched. If an earlier test fetched it less than 60 s before, the correct service makes no fetch, and "the log shows one JWKS refetch" fails.
+- Fix: add the precondition and a second step. (1) Post the unknown-`kid` token at least 61 s after the last JWKS fetch for that platform → `INVALID_SIGNATURE` and exactly one `outbound_request {host: qa-platform.test}` with the trace id of that response. (2) A second unknown-`kid` post within 60 s → `INVALID_SIGNATURE` and no new `outbound_request`. This also tests the limit.
+
+#### Q-T0-36 MINOR: AC-T2-30 "every JWKS fetch" has no independent count
+
+- Where: `tasks/T2.md` AC-T2-30; contract §5 (`outbound_request {host, method, status, ms}`, no path); local-stack §3 (`qa-platform.test` is a static host without a hit log).
+- Problem: the only record of a JWKS fetch is the `outbound_request` event itself. So "every fetch has one event" cannot fail.
+- Fix: `qa-platform.test` logs `qa_platform_hit {method, path}` to `infra/.logs/qa-platform.jsonl`, like the sink. QA then checks: hits on the JWKS path = `outbound_request {host: qa-platform.test}` events, in the T2 run. For Moodle, keep the weaker form ("each JWKS fetch that the service logs has `host` = issuer host").
+
+#### Q-T0-37 MINOR: `test:acceptance` does not pass arguments or `QA_*` env into the container
+
+- Where: `tasks/T1.md` H8, tasks README §3 (knobs).
+- Problem: a knob test needs `stack:restart` (host), then only the knob tests in the container, then a restore. Tests in the `e2e` container cannot restart services. The spec does not say that `npm run test:acceptance` forwards arguments or env, so QA cannot select one task or one test.
+- Fix (hook H14): `npm run test:acceptance -- <args>` forwards `<args>` to `npm --prefix tests run acceptance -- <args>`, and the container gets every `QA_*` env variable of the caller. Until then, QA tests select themselves from `/healthz` `knobs`: a knob test runs only when its knob is active, and every other test skips when any knob is active.
+
+#### Q-T0-38 MINOR: the `acceptance` profile has no start command and no visible marker
+
+- Where: `tasks/T2.md` "Setup … with the `acceptance` profile"; tasks README §4; local-stack §3; T7 (must run without it).
+- Problem: T2 setup says "with the acceptance profile" but names no command for `stack:up` with it. The allowlist entries for `qa-platform.test` and `evil.test` exist "in this profile only", but nothing shows whether they are active. A T2 negative can then pass or fail for the wrong reason (for example `outbound_blocked {private_ip}` instead of a sink hit), and T7 cannot prove that the profile is off.
+- Fix: name the command (for example `STACK_PROFILE=acceptance npm run stack:up`), and add `"profile": "default" | "acceptance"` to every `/healthz`. AC-T7-13 then also checks `"profile": "default"`.
+
+#### Q-T0-40 MINOR: AC-T9-01 needs a human with a GUI browser
+
+- Where: `tasks/T9.md` AC-T9-01.
+- Problem: "a person who did not build the stack … in their browser in ≤ 10 minutes" uses `npm run demo:browser`, which opens a Chrome window. QA cannot judge "unclear steps" the way a new human can, and it does not drive desktop Chrome.
+- Fix: the Lead names a human (or accepts a QA run). QA can time the command part in a fresh clone and check the two pages with Playwright and `--host-resolver-rules`. The qa.md row then says which part a human did.
+
+#### Q-T0-41 NIT: HTML error pages have no stable markers
+
+- Where: security §2.2 ("Every HTML error page shows: the code, the trace id, and one line with the next action"), app contract §6.
+- Problem: QA must find the code and the trace id in free text. The `X-Trace-Id` header exists (contract §1.4), but the page text format is not fixed.
+- Fix: put `data-error-code` and `data-trace-id` attributes on the page's main element. Until then, QA asserts the page text contains the code and the `X-Trace-Id` header value.
+
+#### Q-T0-42 NIT: `qa-platform.test` URL mapping and run-time files are not stated
+
+- Where: local-stack §3.
+- Problem: QA assumes `https://qa-platform.test/<path>` serves `tests/fixtures/qa-platform/<path>`, with `.json` as `application/json`. QA also writes the JWKS there at run time, so that no test private key goes into git.
+- Fix: state both in local-stack §3. QA git-ignores the generated files.
+
+### R2.3 Effect on the T1 tests (QA work, round 2 of T1)
+
+T1.md now folds in the hooks with more detail. Before the T1 round-2 run, QA updates its tests:
+
+- H2: `seed.json` mode 600, `format = "cogniate-seed/1"`, and the WS services shape (`service`, `username`, `userid`, `token`, `functions`).
+- H7: also check `cogniate-content.jsonl`.
+- H8: the new text mounts only `root.crt` and `stack.crt` of `infra/.certs`. QA checks that both files are read-only and that no `*.key` file is visible, instead of checking the whole folder. Finding Q-T1-01 is re-judged against this text in T1 round 2.
+- AC-T1-13: also run `npm run stack:node-reach-check`.
+- AC-T1-11: the `git check-ignore` list adds `infra/.data/` and `.tmp/`.

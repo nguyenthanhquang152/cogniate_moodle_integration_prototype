@@ -49,10 +49,10 @@ Site check: `moodle.test` and `cogniate.test` are different sites. So the stack 
 | --- | --- |
 | Ports | Only the proxy publishes `127.0.0.1:${PUBLIC_PORT:-443}`. If `PUBLIC_PORT` is not 443, every URL gets `:PORT`, and seed adds the port to Moodle `curlsecurityallowedport`. |
 | DNS | Docker network aliases on the proxy. We do not use `*.localhost`: Chromium and musl map it to loopback (spike §6). |
-| TLS | `gen-env` makes a dev CA and one leaf certificate (SAN = the four names) with `openssl`, **before** any container starts. Files in `infra/.certs/` (git-ignored). `stack:reset` keeps them. Caddy loads the static leaf (no `tls internal`). |
+| TLS | `gen-env` makes a dev CA (Name Constraints `permitted DNS:test`, life ≤ 1 year) and one leaf certificate (SAN = the four names) with `openssl`, **before** any container starts. Files in `infra/.certs/` (git-ignored). `stack:reset` keeps them. Caddy loads the static leaf (no `tls internal`). |
 | Trust | Moodle: `$CFG->dataroot/moodleorgca.crt` = Alpine CA bundle + root (Moodle reads it first). Node: `NODE_EXTRA_CA_CERTS`. e2e Chromium: NSS database. Human: `npm run demo:browser` (accepts only our leaf) or a manual keychain trust. |
 | Moodle | `SITE_URL = PUBLIC_MOODLE_URL`, `SSLPROXY=true`. So `MoodleSession` is `Secure`. |
-| Moodle dev-only | `curlsecurityblockedhosts` = default list minus `172.16.0.0/12` (the compose subnet). `curlsecurityallowedport` = `443`. `noemailever=1`. MoodleCloud does not need these: production tool URLs are public https on 443. |
+| Moodle dev-only | `curlsecurityblockedhosts` = the Moodle default list with only `STACK_SUBNET` cut out (`172.16.0.0/12` is split around it; every other default entry stays). `curlsecurityallowedport` = `443` only (plus `PUBLIC_PORT` if it is not 443; port 80 is removed). Inside the subnet only the proxy listens on 443, so Moodle can reach only the proxy. `noemailever=1`. MoodleCloud does not need these: production tool URLs are public https on 443. |
 | Node | `node:24-alpine` containers, repo mounted, `node --watch`. Unit tests run on the host. |
 | State | All state is in the checkout: `.env`, `infra/.certs/`, `infra/.secrets/` (incl. `seed.json`), `infra/.logs/`, `infra/.data/`, `.tmp/`. Plus Docker volumes named after `COMPOSE_PROJECT_NAME`. |
 | Second stack | `COMPOSE_PROJECT_NAME`, `PUBLIC_PORT`, `STACK_SUBNET` let QA run a clean clone next to the Author's stack (charter §3a). |
@@ -101,6 +101,6 @@ Source: `infra/moodle/SPIKE-NOTES.md`.
 | Dynamic registration: new tool PENDING, embed, preconfigured only; choice page if the domain exists. (§5b) | Wizard shows Activate + edit. The service and app handle "update". |
 | `lti_add_type` from CLI works. (§5a) | T2 dev seed without UI. |
 | AGS score → gradebook 80/100. NRPS without name or email. (§5d) | ADR-010 mapping. Privacy default works. |
-| Moodle curl blocks private IPs and allows ports 80/443. (§6) | Dev-only allowlist change. Production needs public https on 443. |
+| Moodle curl blocks private IPs and allows ports 80/443. (§6) | Dev-only change: only `STACK_SUBNET` is cut out of the block list, only port 443 allowed. Production needs public https on 443. |
 | `MoodleSession` is `SameSite=Lax`, fixed in code; `auth.php` re-posts. (§7) | Our cookies handle only our side. |
 | Native SCORM upload and `.mbz` backup work; restore elsewhere not verified. (§8) | Native channel stays stretch. |
