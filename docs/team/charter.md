@@ -10,8 +10,8 @@ The product owner gave six roles. The Lead added one role (Lead) and made four r
 | --- | --- | --- | --- | --- |
 | ★ **Lead** (orchestrator) | Opus 5.5, xhigh | The main Claude Code session. One instance. | `docs/team/**`, git commits, task briefs | Write product code or tests. Mark a task done without QA PASS and two reviews. |
 | **Architect** | Opus 5.5, xhigh | Dedicated Architect instance. | `docs/architecture/**` | Write product code. Review its own design as a reviewer. |
-| **Author** | Opus 5.5, xhigh | Dedicated Author instance. Same instance for all tasks. | `services/**`, `apps/**`, `packages/**`, `infra/**`, unit tests next to the code, root build files | Edit `tests/acceptance/**`, `tests/e2e/**` or review files. Declare its own work "verified". |
-| **QA** (independent) | Opus 5.5, xhigh | Dedicated QA instance. Never the Author, Docs or a Reviewer. | `tests/acceptance/**`, `tests/e2e/**`, `docs/reviews/<task>/qa.md` | Edit product code. Read the Author's notes before it writes the tests (★ tests come from the acceptance criteria, not from the code). |
+| **Author** | Opus 5.5, xhigh | Dedicated Author instance. Same instance for all tasks. | `services/**`, `apps/**`, `packages/**`, `infra/**`, unit tests next to the code, root build files | Edit `tests/**` or review files. Declare its own work "verified". |
+| **QA** (independent) | Opus 5.5, xhigh | Dedicated QA instance. Never the Author, Docs or a Reviewer. | `tests/**` (a separate npm project, not a root workspace), `docs/reviews/<task>/qa.md` | Edit product code. Read the Author's notes before it writes the tests (★ tests come from the acceptance criteria, not from the code). |
 | **Docs** | Opus 5.5, xhigh | Dedicated Docs instance. | `README.md`, `docs/guides/**`, `docs/human_review/**` | Document a behaviour that QA did not verify. |
 | **Reviewer-A** | Opus 5.5, xhigh | Dedicated instance. | `docs/reviews/<task>/reviewer-a.md` | Read Reviewer-B's file before it submits its own (★ blind review). |
 | **Reviewer-B** | Opus 5.5, xhigh | Dedicated instance. Independent of Reviewer-A. | `docs/reviews/<task>/reviewer-b.md` | Read Reviewer-A's file before it submits its own (★ blind review). |
@@ -98,6 +98,13 @@ sequenceDiagram
 `planned → in_progress → self_checked → verifying → (fixing → verifying)* → done | escalated`
 
 Board: `docs/team/board.md`. Only the Lead edits the board.
+
+## 3a. Verification runs (clean environment)
+
+- Before each verification round, the Lead commits the Author's work as `T<n> (wip, round <r>)` and gives the commit SHA to QA.
+- QA clones that SHA into a new folder outside the repo and runs there. All state (`.env`, `infra/.secrets`, `infra/.certs`, data, logs) stays inside that checkout.
+- QA runs its own stack with its own `COMPOSE_PROJECT_NAME` (for example `qa-t1-r1`), `PUBLIC_PORT` (for example `8443`) and `STACK_SUBNET`. So the Author's stack can stay up.
+- While QA and the reviewers verify task N, the Author may start task N+1 only in files that task N does not touch. Fixes for task N have priority. The Lead commits by path.
 
 ## 4. Definition of done (per task)
 
