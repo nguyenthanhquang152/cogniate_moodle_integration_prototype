@@ -47,6 +47,6 @@ export async function startService(
     servers.push(server);
     loggers.push(logger);
   }
-  if (options.handleSignals ?? true) closeOnSignal(servers, loggers[0]);
+  if (options.handleSignals ?? true) closeOnSignal(servers, loggers);
   return servers;
 }

@@ -70,6 +70,12 @@ if ($options['help'] || !isset($profiles[$options['profile']])) {
 }
 $p = $profiles[$options['profile']];
 
+// Dev guard (A-T1-02): the QA oracle has the manager archetype. Make it only on a local dev site (.test host).
+$wwwhost = (string) parse_url($CFG->wwwroot, PHP_URL_HOST);
+if ($options['profile'] === 'qa_oracle' && !preg_match('/\.test$/', $wwwhost)) {
+    cli_error("Refused: the QA oracle is dev/test only, and the wwwroot host '$wwwhost' does not end in .test.");
+}
+
 \core\session\manager::set_user(get_admin());
 
 // 1. Web services and the REST protocol.
@@ -121,9 +127,16 @@ if (!$service) {
     $now = time();
     $serviceid = $DB->insert_record('external_services', (object) [
         'name' => $p['service']['name'], 'shortname' => $p['service']['shortname'], 'enabled' => 1,
-        'restrictedusers' => 1, 'downloadfiles' => 1, 'uploadfiles' => 1, 'timecreated' => $now, 'timemodified' => $now,
+        'restrictedusers' => 1, 'downloadfiles' => 0, 'uploadfiles' => 0, 'timecreated' => $now, 'timemodified' => $now,
     ]);
     $service = $DB->get_record('external_services', ['id' => $serviceid], '*', MUST_EXIST);
+}
+// No file download or upload through the token (A-T1-02): webservice/pluginfile.php checks only this flag.
+// Also fixes services made by an older seed.
+if ((int) $service->downloadfiles !== 0 || (int) $service->uploadfiles !== 0 || (int) $service->enabled !== 1 || (int) $service->restrictedusers !== 1) {
+    $DB->update_record('external_services', (object) ['id' => $service->id, 'downloadfiles' => 0, 'uploadfiles' => 0,
+        'enabled' => 1, 'restrictedusers' => 1, 'timemodified' => time()]);
+    $service = $DB->get_record('external_services', ['id' => $service->id], '*', MUST_EXIST);
 }
 foreach ($p['functions'] as $fn) {
     if (!$DB->record_exists('external_functions', ['name' => $fn])) {

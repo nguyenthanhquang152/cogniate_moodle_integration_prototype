@@ -17,5 +17,7 @@ if [[ ! -f "$REPO_ROOT/tests/package-lock.json" ]]; then
 fi
 require_env
 require_running proxy
+warn_knobs
+prepare_e2e
 dc --profile test run --rm --build e2e sh -c \
   'npm ci --prefix tests --no-audit --no-fund && npm --prefix tests run "$0" -- "$@"' "$suite" "$@"

@@ -3,8 +3,8 @@
 #   npm run stack:restart -- <service> --env KEY=VALUE [--env KEY2=VALUE2]   set knobs for <service>
 #   npm run stack:restart -- <service>                                     restore the defaults
 # The overrides live in .tmp/compose.knobs.yaml (all later compose commands use it) until you restore the
-# defaults or run stack:reset. Registered knobs (packages/shared/src/knobs.ts) with a non-default value are
-# reported by the service: test_knob_active log line + "knobs" in /healthz. Other keys work but are not reported.
+# defaults or run stack:reset. Only registered knobs of that service are accepted (packages/shared/src/knobs.ts,
+# A-T1-05): so /healthz and the test_knob_active log line always show every override.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 require_env
@@ -30,11 +30,15 @@ import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 const [file, svc, registryPath, ...pairs] = process.argv.slice(2);
 const { KNOB_REGISTRY } = await import(pathToFileURL(registryPath).href);
+const valid = Object.entries(KNOB_REGISTRY).filter(([, k]) => k.service === svc).map(([n]) => n);
 for (const kv of pairs) {
   const name = kv.slice(0, kv.indexOf('='));
   const spec = KNOB_REGISTRY[name];
-  if (!spec) console.error(`WARNING: ${name} is not a registered knob; ${svc} will not report it in /healthz.`);
-  else if (spec.service !== svc) console.error(`WARNING: ${name} is a knob of ${spec.service}, not of ${svc}.`);
+  if (!spec || spec.service !== svc) {
+    console.error(`${name} is not a registered knob of ${svc}. Valid knobs of ${svc}: ${valid.join(', ') || '(none)'}.`);
+    console.error('Knobs are registered in packages/shared/src/knobs.ts (KNOB_REGISTRY).');
+    process.exit(2);
+  }
 }
 const doc = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : { services: {} };
 if (pairs.length === 0) {

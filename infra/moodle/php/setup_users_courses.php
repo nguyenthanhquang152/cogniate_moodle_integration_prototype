@@ -1,7 +1,8 @@
 <?php
 // Test users and courses for the stack. Idempotent: users and courses are found by username / shortname.
 //  - users cg_teacher, cg_student, cg_student2 (manual auth). Passwords: JSON object on stdin
-//    {"cg_teacher":"..","cg_student":"..","cg_student2":".."}; a rerun sets them again from .env.
+//    {"admin":"..","cg_teacher":"..","cg_student":"..","cg_student2":".."}; every run sets them again from .env.
+//    The admin user is made by the Moodle image at install; seed resets its password too (B-T1-02).
 //  - courses COGNIATE-DEV-101 and COGNIATE-DEV-102 with completion tracking on (site setting too).
 //  - the same enrolments in both: cg_teacher = editingteacher, students = student (manual enrolment).
 // Output: progress on stderr; one JSON line on stdout:
@@ -25,7 +26,7 @@ $courses = [
 ];
 
 $passwords = json_decode((string) stream_get_contents(STDIN), true);
-foreach (array_keys($users) as $username) {
+foreach (array_merge(['admin'], array_keys($users)) as $username) {
     if (!is_array($passwords) || empty($passwords[$username]) || !is_string($passwords[$username])) {
         cli_error("Missing password for $username on stdin (JSON object).");
     }
@@ -33,6 +34,7 @@ foreach (array_keys($users) as $username) {
 
 \core\session\manager::set_user(get_admin());
 set_config('enablecompletion', 1);
+update_internal_user_password(get_admin(), $passwords['admin']);
 
 $records = [];
 foreach ($users as $username => [$first, $last]) {

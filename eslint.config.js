@@ -1,23 +1,19 @@
 // ESLint flat config for every workspace. Run: npm run lint
+// B-T1-01: every git-ignored path is ignored here too (.gitignore is read, not copied by hand), so local data
+// such as extracted course packages in **/.data/ or .tmp/ never breaks npm run check.
+import { includeIgnoreFile } from '@eslint/compat';
 import js from '@eslint/js';
 import globals from 'globals';
+import { fileURLToPath } from 'node:url';
 import tseslint from 'typescript-eslint';
 
+const gitignore = fileURLToPath(new URL('.gitignore', import.meta.url));
+
 export default tseslint.config(
+  includeIgnoreFile(gitignore, '.gitignore'),
   {
     ignores: [
-      '**/node_modules/**',
-      '**/dist/**',
-      '**/coverage/**',
-      'playwright-report/**',
-      'test-results/**',
       'docs/**',
-      '.research_cache/**',
-      'infra/.certs/**',
-      'infra/.secrets/**',
-      'infra/.data/**',
-      'infra/.logs/**',
-      '.tmp/**',
       // QA owns tests/** as a separate npm project with its own tooling.
       'tests/**',
     ],

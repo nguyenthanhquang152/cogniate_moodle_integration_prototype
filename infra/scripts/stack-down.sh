@@ -2,4 +2,5 @@
 # Stop the stack. Keep the data volumes (Moodle site, database, CA).
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
+require_docker
 dc --profile test down --remove-orphans

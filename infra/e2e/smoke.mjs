@@ -1,21 +1,16 @@
 // Author smoke check for T1 (not a QA test). Run in the e2e container:
 //   infra/scripts/e2e-run.sh node infra/e2e/smoke.mjs
 // It proves: Chromium trusts the stack CA (no ignoreHTTPSErrors), Moodle login works, and the
-// MoodleSession cookie flags. It reads the password from /repo/.env (the repo is mounted).
+// MoodleSession cookie flags. It reads the password from infra/.secrets/seed.json (read-only in the container).
 import { readFileSync } from 'node:fs';
 import { chromium } from '@playwright/test';
 
-const env = Object.fromEntries(
-  readFileSync('/repo/.env', 'utf8')
-    .split('\n')
-    .filter((line) => /^[A-Z0-9_]+=/.test(line))
-    .map((line) => [line.slice(0, line.indexOf('=')), line.slice(line.indexOf('=') + 1)]),
-);
+const seed = JSON.parse(readFileSync('/repo/infra/.secrets/seed.json', 'utf8'));
 const moodle = process.env.PUBLIC_MOODLE_URL;
 if (!moodle) throw new Error('PUBLIC_MOODLE_URL is not set (run it with infra/scripts/e2e-run.sh)');
 const username = process.argv[2] ?? 'cg_teacher';
-const password = env[{ admin: 'MOODLE_ADMIN_PASSWORD', cg_teacher: 'MOODLE_TEACHER_PASSWORD', cg_student: 'MOODLE_STUDENT_PASSWORD', cg_student2: 'MOODLE_STUDENT2_PASSWORD' }[username]];
-if (!password) throw new Error(`No password in .env for ${username}`);
+const password = seed.moodle?.users?.[username]?.password;
+if (!password) throw new Error(`No password in seed.json for ${username} (run npm run seed)`);
 
 const browser = await chromium.launch();
 try {

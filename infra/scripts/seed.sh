@@ -10,6 +10,7 @@ source "$(dirname "$0")/lib.sh"
 require_env
 require_running moodle
 require_running proxy
+warn_knobs
 P=/opt/cogniate/php
 SECRETS="$INFRA_DIR/.secrets"
 start=$(date +%s)
@@ -23,10 +24,10 @@ dc exec -T moodle sh -c 'set -e; test -s /certs/root.crt
 echo "2. Dev network settings"
 mphp $P/setup_dev_network.php --subnet="$STACK_SUBNET" --publicport="$PUBLIC_PORT"
 
-echo "3. Users, courses, enrolments"
+echo "3. Users (admin password from .env too), courses, enrolments"
 # Passwords go on stdin, not on the command line.
-moodle_json="$(printf '{"cg_teacher":"%s","cg_student":"%s","cg_student2":"%s"}' \
-  "$MOODLE_TEACHER_PASSWORD" "$MOODLE_STUDENT_PASSWORD" "$MOODLE_STUDENT2_PASSWORD" \
+moodle_json="$(printf '{"admin":"%s","cg_teacher":"%s","cg_student":"%s","cg_student2":"%s"}' \
+  "$MOODLE_ADMIN_PASSWORD" "$MOODLE_TEACHER_PASSWORD" "$MOODLE_STUDENT_PASSWORD" "$MOODLE_STUDENT2_PASSWORD" \
   | mphp $P/setup_users_courses.php)"
 
 echo "4. Web services (product + QA oracle)"

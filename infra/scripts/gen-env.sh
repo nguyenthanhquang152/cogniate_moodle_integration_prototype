@@ -24,6 +24,17 @@ port="$PUBLIC_PORT"
 suffix=""; [[ "$port" == 443 ]] || suffix=":$port"
 created=no; [[ -f "$ENV_FILE" ]] || created=yes
 
+# B-T1-02: new secrets do not match an old database. Postgres reads its password only on the first start.
+if [[ "$created" == yes ]] && command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+  old="$(docker volume ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" | tr '\n' ' ')"
+  if [[ -n "${old// /}" ]]; then
+    echo "This checkout has no .env, but project '$COMPOSE_PROJECT_NAME' still has Docker volumes: $old" >&2
+    echo "A new .env would have new passwords that do not match the old database." >&2
+    echo "Fix: restore the old .env, or delete the old data with: npm run stack:reset" >&2
+    exit 1
+  fi
+fi
+
 umask 077
 tmp="$ENV_FILE.tmp.$$"
 {
@@ -46,5 +57,8 @@ tmp="$ENV_FILE.tmp.$$"
 chmod 600 "$tmp"
 mv "$tmp" "$ENV_FILE"
 if [[ "$created" == yes ]]; then echo "Wrote $ENV_FILE (mode 600)"; else echo "Updated $ENV_FILE (secrets kept)"; fi
+
+# Public part only (no secrets), for the e2e container: it is mounted there as /repo/.env (A-T1-03).
+write_public_env
 
 "$INFRA_DIR/scripts/gen-certs.sh"

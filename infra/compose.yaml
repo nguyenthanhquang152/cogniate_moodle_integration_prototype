@@ -15,7 +15,7 @@ x-public-urls: &public-urls
 x-node-service: &node-service
   image: node:24.22.0-alpine3.24
   init: true
-  user: node
+  user: "${HOST_UID:-1000}:${HOST_GID:-1000}"   # host user (lib.sh), so infra/.logs can stay mode 700
   restart: unless-stopped
   depends_on:
     proxy:
@@ -33,7 +33,7 @@ networks:
   default:
     ipam:
       config:
-        - subnet: ${STACK_SUBNET:-172.28.0.0/16}   # must be inside 172.16.0.0/12 (unblocked in Moodle by seed)
+        - subnet: ${STACK_SUBNET:-172.28.0.0/16}   # seed cuts only this subnet out of Moodle's blocked hosts
 
 services:
   proxy:
@@ -114,8 +114,8 @@ services:
       test: ["CMD-SHELL", "curl -fsS -o /dev/null -H \"Host: $${SITE_URL#https://}\" http://127.0.0.1:8080/login/index.php"]
       interval: 5s
       timeout: 10s
-      retries: 120
-      start_period: 30s
+      retries: 48          # about 4 min in total; a first install takes about 30 s (B-T1-02)
+      start_period: 20s
     restart: unless-stopped
 
   lti-service:
@@ -130,9 +130,10 @@ services:
       <<: *public-urls
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4100/healthz"]
-      interval: 3s
+      interval: 10s
       timeout: 3s
-      retries: 40
+      retries: 12
+      start_period: 5s
 
   cogniate-app:
     <<: *node-service
@@ -147,15 +148,16 @@ services:
       <<: *public-urls
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4200/healthz && wget -q -O /dev/null http://127.0.0.1:4201/healthz"]
-      interval: 3s
+      interval: 10s
       timeout: 3s
-      retries: 40
+      retries: 12
+      start_period: 5s
 
   # QA runner. Not started by stack:up. Use npm run test:acceptance / test:e2e (infra/scripts/e2e-run.sh).
   e2e:
     profiles: ["test"]
     build: ./e2e
-    image: cogniate-stack-e2e:1.56.0
+    image: ${COMPOSE_PROJECT_NAME:-cogniate-stack}-e2e:1.56.0   # one image per project (Q-T1-03)
     working_dir: /repo
     entrypoint: ["/bin/sh", "/repo/infra/e2e/entrypoint.sh"]
     environment:
@@ -166,17 +168,24 @@ services:
     depends_on:
       proxy:
         condition: service_healthy
-    # The repo is read-write (test results, tests/node_modules). On top of it: infra/.certs is an empty
-    # tmpfs with only the PUBLIC certificates, so the CA and leaf keys are not visible; .secrets and .logs are read-only.
-    tmpfs:
-      - /repo/infra/.certs
+    # A-T1-03, H8: the repo is READ-ONLY. On top of it:
+    #  - /repo/.env is the public part of .env only (.tmp/public.env): no secret is visible.
+    #  - infra/.certs is .tmp/public-certs: a copy of the PUBLIC certificates only (no ca.key, no stack.key), read-only.
+    #  - infra/.secrets and infra/.logs are read-only.
+    #  - writable: only QA's output folders (git-ignored in tests/.gitignore) and the tests/node_modules volume.
+    #    infra/scripts/qa-suite.sh and e2e-run.sh create these folders before the run.
     volumes:
-      - ..:/repo
-      - ./.certs/root.crt:/repo/infra/.certs/root.crt:ro
-      - ./.certs/stack.crt:/repo/infra/.certs/stack.crt:ro
+      - ..:/repo:ro
+      - ../.tmp/public.env:/repo/.env:ro
+      - ../.tmp/public-certs:/repo/infra/.certs:ro
       - ./.certs/root.crt:/certs/root.crt:ro
       - ./.secrets:/repo/infra/.secrets:ro
       - ./.logs:/repo/infra/.logs:ro
+      - ../tests/acceptance/artifacts:/repo/tests/acceptance/artifacts
+      - ../tests/e2e/artifacts:/repo/tests/e2e/artifacts
+      - ../tests/test-results:/repo/tests/test-results
+      - ../tests/playwright-report:/repo/tests/playwright-report
+      - ../tests/.tmp:/repo/tests/.tmp
       # Linux install of the QA project (npm ci --prefix tests). A volume, so it never replaces the host's
       # tests/node_modules (macOS native binaries of esbuild/rollup).
       - e2e_tests_node_modules:/repo/tests/node_modules

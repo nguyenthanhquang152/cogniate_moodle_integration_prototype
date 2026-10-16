@@ -35,6 +35,10 @@ COMPOSE_PROJECT_NAME="${COMPOSE_PROJECT_NAME:-cogniate-stack}"
 STACK_SUBNET="${STACK_SUBNET:-172.28.0.0/16}"
 PUBLIC_PORT="${PUBLIC_PORT:-443}"
 export COMPOSE_PROJECT_NAME STACK_SUBNET PUBLIC_PORT
+# The Node containers run as the host user, so they can write infra/.logs (mode 700) on Linux too (A-T1-07).
+HOST_UID="$(id -u)"; HOST_GID="$(id -g)"
+export HOST_UID HOST_GID
+PUBLIC_ENV_FILE="$REPO_ROOT/.tmp/public.env"
 
 if ! [[ "$COMPOSE_PROJECT_NAME" =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
   echo "COMPOSE_PROJECT_NAME must be lower case letters, digits, '-' or '_', got '$COMPOSE_PROJECT_NAME'" >&2
@@ -85,7 +89,16 @@ require_env() {
   done
 }
 
+require_docker() {
+  if ! command -v docker >/dev/null 2>&1; then echo "Docker is not installed. Install Docker Desktop, then run the command again." >&2; exit 1; fi
+  if ! docker info >/dev/null 2>&1; then
+    echo "Docker is not running. Start Docker Desktop, wait until it is ready, then run the command again." >&2
+    exit 1
+  fi
+}
+
 require_running() {
+  require_docker
   local svc="$1" cid status
   cid="$(dc ps -q "$svc" 2>/dev/null || true)"
   status="$( [[ -n "$cid" ]] && docker inspect -f '{{.State.Health.Status}}' "$cid" 2>/dev/null || echo missing)"
@@ -93,6 +106,62 @@ require_running() {
     echo "Service '$svc' is not healthy (status: $status). Run: npm run stack:up" >&2
     exit 1
   fi
+}
+
+# The public port must be free, or held by this project's own proxy (B-T1-03).
+check_public_port() {
+  if dc port proxy "$PUBLIC_PORT" >/dev/null 2>&1; then return 0; fi
+  if (exec 3<>"/dev/tcp/127.0.0.1/$PUBLIC_PORT") 2>/dev/null; then
+    echo "Port $PUBLIC_PORT on 127.0.0.1 is busy (another program or another stack uses it)." >&2
+    echo "Fix: stop that program, or set another port: edit PUBLIC_PORT in .env (for example 8443)," >&2
+    echo "     run npm run gen-env, then npm run stack:up. Every URL then ends in :<port>." >&2
+    exit 1
+  fi
+}
+
+# Print a CAUTION line while test knobs are active (A-T1-05, B-T1-05).
+warn_knobs() {
+  [[ -f "$KNOBS_FILE" ]] || return 0
+  local svcs
+  svcs="$(node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));for(const [s,v] of Object.entries(d.services||{}))console.log(s+": "+Object.keys(v.environment||{}).join(", "))' "$KNOBS_FILE" 2>/dev/null || echo "?")"
+  echo "CAUTION: test knobs are active (.tmp/compose.knobs.yaml):" >&2
+  echo "$svcs" | sed 's/^/  /' >&2
+  echo "  Restore the defaults with: npm run stack:restart -- <service>" >&2
+}
+
+# Last log lines of every service that is not healthy (B-T1-02).
+show_unhealthy_logs() {
+  local svc cid status
+  for svc in $(dc config --services); do
+    cid="$(dc ps -q "$svc" 2>/dev/null || true)"
+    status="$( [[ -n "$cid" ]] && docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$cid" 2>/dev/null || echo missing)"
+    if [[ "$status" != healthy ]]; then
+      echo "--- $svc is $status. Last log lines:" >&2
+      dc logs --no-log-prefix --tail 20 "$svc" >&2 2>/dev/null || true
+    fi
+  done
+}
+
+# The public section of .env (no secrets), for the e2e container (A-T1-03).
+write_public_env() {
+  mkdir -p "$(dirname "$PUBLIC_ENV_FILE")"
+  { echo "# Public part of .env (no secrets). Made by infra/scripts; mounted as /repo/.env in the e2e container."
+    sed -n '/^# --- public config/,$p' "$ENV_FILE" | grep -E '^[A-Z_]+='; } > "$PUBLIC_ENV_FILE.tmp"
+  mv "$PUBLIC_ENV_FILE.tmp" "$PUBLIC_ENV_FILE"
+}
+
+# Mount points of the e2e container (compose.yaml): QA's git-ignored output folders and the public .env.
+prepare_e2e() {
+  local d
+  for d in tests/acceptance/artifacts tests/e2e/artifacts tests/test-results tests/playwright-report tests/.tmp tests/node_modules; do
+    mkdir -p "$REPO_ROOT/$d"
+  done
+  write_public_env
+  # Public certificates only, for /repo/infra/.certs in the e2e container (read-only, no keys).
+  mkdir -p "$REPO_ROOT/.tmp/public-certs"
+  find "$REPO_ROOT/.tmp/public-certs" -mindepth 1 -delete
+  cp "$CERTS_DIR/root.crt" "$CERTS_DIR/stack.crt" "$REPO_ROOT/.tmp/public-certs/"
+  chmod 644 "$REPO_ROOT/.tmp/public-certs/"*.crt
 }
 
 print_urls() {

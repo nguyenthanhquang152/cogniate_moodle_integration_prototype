@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { Knob } from './knobs.ts';
 import type { Logger } from './logger.ts';
+import { redactPath } from './logger.ts';
 
 /** Error body shape used by every Cogniate HTTP API: { status, error, details: { message, description } }. */
 export interface ErrorBody {
@@ -47,7 +48,9 @@ export interface HealthServerOptions {
 
 /**
  * A minimal server: GET|HEAD /healthz -> 200 {"status":"ok","service":<name>,"knobs":[...]}. Other requests -> 404.
- * It logs one http_request line per request {method, path (no query), status, ms, trace_id}.
+ * It logs one http_request line per request {method, path, status, ms, trace_id}. The path has no query string,
+ * and token-like segments are redacted (redactPath). /healthz requests are logged at debug level only, so the
+ * container health checks do not fill the logs (B-T1-04).
  * Placeholder for T1. T2 and T4 replace it with the real service.
  */
 export function createHealthServer(service: string, options: HealthServerOptions = {}): Server {
@@ -58,8 +61,9 @@ export function createHealthServer(service: string, options: HealthServerOptions
     const path = new URL(req.url ?? '/', 'http://placeholder').pathname;
     res.setHeader('x-trace-id', traceId);
     res.on('finish', () => {
-      options.logger?.info('http_request', {
-        trace_id: traceId, method: req.method, path, status: res.statusCode, ms: Math.round(performance.now() - started),
+      const level = path === '/healthz' ? 'debug' : 'info';
+      options.logger?.log(level, 'http_request', {
+        trace_id: traceId, method: req.method, path: redactPath(path), status: res.statusCode, ms: Math.round(performance.now() - started),
       });
     });
     if ((req.method === 'GET' || req.method === 'HEAD') && path === '/healthz') {
@@ -82,10 +86,10 @@ export function listen(server: Server, port: number, host: string): Promise<Addr
   });
 }
 
-/** Close the servers on SIGTERM / SIGINT (docker stop, Ctrl+C). */
-export function closeOnSignal(servers: Server[], logger?: Logger): void {
+/** Close the servers on SIGTERM / SIGINT (docker stop, Ctrl+C). Each logger gets one service_stopping line. */
+export function closeOnSignal(servers: Server[], loggers: Logger[] = []): void {
   const stop = (signal: string): void => {
-    logger?.info('service_stopping', { signal });
+    for (const logger of loggers) logger.info('service_stopping', { signal });
     for (const s of servers) s.close();
     setTimeout(() => process.exit(0), 2000).unref();
   };

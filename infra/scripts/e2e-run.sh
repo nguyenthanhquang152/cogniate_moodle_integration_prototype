@@ -7,4 +7,6 @@ source "$(dirname "$0")/lib.sh"
 require_env
 require_running proxy
 if [[ ! -d "$REPO_ROOT/node_modules/@playwright/test" ]]; then echo "Run npm ci first." >&2; exit 1; fi
+warn_knobs
+prepare_e2e
 dc --profile test run --rm --build e2e "$@"

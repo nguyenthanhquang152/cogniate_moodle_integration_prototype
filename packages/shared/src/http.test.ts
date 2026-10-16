@@ -43,17 +43,33 @@ describe('createHealthServer', () => {
     expect((await fetch(`${base}/healthz`, { method: 'POST' })).status).toBe(404);
   });
 
-  it('logs http_request without the query string and keeps a valid caller trace id', async () => {
+  it('logs http_request with a redacted path and keeps a valid caller trace id', async () => {
     const lines: string[] = [];
-    const logger = createLogger({ service: 'demo-service', write: (l) => lines.push(l) });
+    const logger = createLogger({ service: 'demo-service', write: (l) => lines.push(l), level: 'info' });
     const base = await start('demo-service', { logger });
-    const res = await fetch(`${base}/healthz?ltik=secret-value`, { headers: { 'x-trace-id': 'trace-12345678' } });
+    const res = await fetch(`${base}/rt/Abc123_def456-ghi789XYZ/x?ltik=secret-value`, { headers: { 'x-trace-id': 'trace-12345678' } });
     expect(res.headers.get('x-trace-id')).toBe('trace-12345678');
     await new Promise((r) => setTimeout(r, 20));
     const row = JSON.parse(lines[0] ?? '{}');
-    expect(row).toMatchObject({ service: 'demo-service', event: 'http_request', trace_id: 'trace-12345678', method: 'GET', path: '/healthz', status: 200 });
+    expect(row).toMatchObject({ service: 'demo-service', event: 'http_request', trace_id: 'trace-12345678', method: 'GET', path: '/rt/:redacted/x', status: 404 });
     expect(typeof row.ms).toBe('number');
     expect(lines.join('')).not.toContain('secret-value');
+    expect(lines.join('')).not.toContain('Abc123_def456');
+  });
+
+  it('logs /healthz only at debug level (health checks do not fill the logs)', async () => {
+    const info: string[] = [];
+    const debug: string[] = [];
+    server = createHealthServer('demo-service', { logger: createLogger({ service: 'd', write: (l) => info.push(l), level: 'info' }) });
+    const a = await listen(server, 0, '127.0.0.1');
+    await fetch(`http://127.0.0.1:${a.port}/healthz`);
+    server.close();
+    server = createHealthServer('demo-service', { logger: createLogger({ service: 'd', write: (l) => debug.push(l), level: 'debug' }) });
+    const b = await listen(server, 0, '127.0.0.1');
+    await fetch(`http://127.0.0.1:${b.port}/healthz`);
+    await new Promise((r) => setTimeout(r, 20));
+    expect(info).toEqual([]);
+    expect(JSON.parse(debug[0] ?? '{}')).toMatchObject({ level: 'debug', event: 'http_request', path: '/healthz' });
   });
 
   it('makes a new trace id when the header is not safe', async () => {
