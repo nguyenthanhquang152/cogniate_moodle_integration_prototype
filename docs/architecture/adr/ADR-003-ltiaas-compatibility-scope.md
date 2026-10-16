@@ -12,7 +12,7 @@ The LTI service must be API-compatible with the public LTIAAS API (inputs §3). 
 
 | Endpoint | Auth | Scope | Task |
 | --- | --- | --- | --- |
-| `GET /api/idtoken` (`raw=true`) | LTIK-AUTH-V2 | In | T2 |
+| `GET /api/idtoken` (`raw=true`) | LTIK-AUTH-V2 | In | T2a |
 | `POST /api/deeplinking` | LTIK-AUTH-V2 | In | T3a |
 | `POST /api/deeplinking/form` | LTIK-AUTH-V2 | In | T3c |
 | `POST /api/deeplinking/message` | LTIK-AUTH-V2 | Alias of `/api/deeplinking` (no public doc has this path; the alias does no harm) | T3c |
@@ -20,7 +20,7 @@ The LTI service must be API-compatible with the public LTIAAS API (inputs §3). 
 | `POST /api/lineitems`, `PUT` and `DELETE /api/lineitems/:id` | LTIK-AUTH-V2, SERVICE-AUTH-V1 | In | T3c |
 | `GET /api/memberships` | LTIK-AUTH-V2, SERVICE-AUTH-V1 | In (the app does not use it) | T3c |
 | `GET /api/registrations/:id`, `POST /api/registrations/:id/complete` | Bearer | In. **Paths are ours** (the public page shows only the parameter). | T3b |
-| `GET`, `POST /api/platforms`, `GET`, `PATCH /api/platforms/:id` | Bearer | In. **Paths are ours.** Fields follow the public Platform object. | T2 |
+| `GET`, `POST /api/platforms`, `GET`, `PATCH /api/platforms/:id` | Bearer | In. **Paths are ours.** Fields follow the public Platform object. | T2a |
 | `DELETE /api/platforms/:id` | Bearer | In. Path is ours. | T3c |
 | OAuth2 access token and refresh | Bearer | Stub `501` | T3c |
 | Dashboard, account subdomains, billing | — | Out | — |
@@ -64,6 +64,6 @@ The full table is in [contract §8](../contracts/lti-service-api.md): account se
 
 ## Consequences
 
-- QA tests every promise black-box (T2, T3a, T3b, T3c), plus the independent-client test.
+- QA tests every promise black-box (T2a, T2b, T3a, T3b, T3c), plus the independent-client test.
 - LTIAAS-only features (OAuth for Canvas, dashboard) are not there.
 - If LTIAAS changes its public API, we do not follow automatically. A human decides (Q1).

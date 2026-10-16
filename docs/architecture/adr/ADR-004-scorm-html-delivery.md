@@ -61,4 +61,4 @@ Facts from the packages (read in full; flows §6c, §6d):
 - The HTML runtime depends on "Cogniate HTML export markup v1" (Q7).
 - Scores computed in the browser can be forged (security §7, Q8).
 - Multi-SCO and SCORM 2004 packages are rejected at upload.
-- The T5-spike runs before T2, so a bad surprise in the player shows early.
+- The T5-spike runs before T2a, so a bad surprise in the player shows early.

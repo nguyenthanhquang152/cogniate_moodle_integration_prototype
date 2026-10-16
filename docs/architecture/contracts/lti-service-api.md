@@ -10,8 +10,8 @@ Base URL: `PUBLIC_LTI_URL` (dev `https://lti.cogniate.test`).
 
 | Endpoint | Task |
 | --- | --- |
-| `GET|POST /lti/login/{toolAccountId}`, `POST /lti/launch/{toolAccountId}`, `GET /lti/keys/{toolAccountId}`, `GET /healthz` | T2 |
-| `GET /api/idtoken`, platforms `GET`, `POST`, `GET /:id`, `PATCH /:id` | T2 |
+| `GET|POST /lti/login/{toolAccountId}`, `POST /lti/launch/{toolAccountId}`, `GET /lti/keys/{toolAccountId}`, `GET /healthz` | T2a |
+| `GET /api/idtoken`, platforms `GET`, `POST`, `GET /:id`, `PATCH /:id` | T2a |
 | `POST /api/deeplinking`, `GET /api/lineitems`, `GET /api/lineitems/:id`, `GET` and `POST /api/lineitems/:id/scores`, service keys | T3a |
 | `GET /lti/register/{toolAccountId}`, `GET /api/registrations/:id`, `POST /api/registrations/:id/complete` | T3b |
 | `POST /api/deeplinking/form`, `POST /api/deeplinking/message`, `POST /api/lineitems`, `PUT` and `DELETE /api/lineitems/:id`, `GET /api/memberships`, `DELETE /api/platforms/:id`, OAuth2 stubs | T3c |
@@ -101,7 +101,7 @@ HTML pages of the protocol endpoints use the codes in [`../security.md`](../secu
 
 ## 2. Protocol endpoints (Moodle and the browser)
 
-### 2.1 `GET|POST /lti/login/{toolAccountId}` — OIDC login initiation (T2)
+### 2.1 `GET|POST /lti/login/{toolAccountId}` — OIDC login initiation (T2a)
 
 Input: `iss`, `login_hint`, `target_link_uri` (required); `lti_message_hint`, `client_id`, `lti_deployment_id`. Rules: security §2.1.
 
@@ -115,7 +115,7 @@ Cache-Control: no-store
 Referrer-Policy: no-referrer
 ```
 
-### 2.2 `POST /lti/launch/{toolAccountId}` — redirect URI (T2)
+### 2.2 `POST /lti/launch/{toolAccountId}` — redirect URI (T2a)
 
 Input: `id_token`, `state` (or `error`, `error_description`, `state`). Rules and error codes: security §2.2.
 
@@ -130,7 +130,7 @@ A `ltik` parameter inside `target_link_uri` is dropped. Headers: `Referrer-Polic
 
 `GET /lti/launch/{toolAccountId}` → `405`.
 
-### 2.3 `GET /lti/keys/{toolAccountId}` — tool JWKS (T2)
+### 2.3 `GET /lti/keys/{toolAccountId}` — tool JWKS (T2a)
 
 `200 application/json`, `Cache-Control: public, max-age=300`:
 
@@ -153,13 +153,13 @@ Steps: fetch the configuration with the guarded client (with `Authorization: Bea
 
 ### 2.5 `GET /healthz` (T1)
 
-`200 {"status":"ok","service":"lti-service","knobs":[]}`. `knobs` lists active test knobs (`tasks/README.md`).
+`200 {"status":"ok","service":"lti-service","profile":"default","knobs":[]}`. `knobs` lists active test knobs (`tasks/README.md`). `profile` is `acceptance` in that compose profile (local-stack §3).
 
 ---
 
 ## 3. API endpoints
 
-### 3.1 `GET /api/idtoken` — LTIK-AUTH-V2 (T2)
+### 3.1 `GET /api/idtoken` — LTIK-AUTH-V2 (T2a)
 
 Query: `raw=true` gives the validated raw claims.
 
@@ -279,7 +279,7 @@ Write operations need the AGS `lineitem` scope. With only `lineitem.readonly`: `
 | `comment` | optional |
 | `timestamp` (addition) | optional ISO 8601 |
 
-The service sends `application/vnd.ims.lis.v1.score+json` with `timestamp` ≥ last + 1 s per (platform, line item, user) (memory). `204` on success. Platform 409 → `409 PLATFORM_CONFLICT`.
+The service sends `application/vnd.ims.lis.v1.score+json` with `timestamp` ≥ last + 1 s per (platform, line item, user). The clock is in memory; at start its floor is the start time + 2 s, so scores sent just before a restart do not cause a 409 after it. A `timestamp` in the request is used as given (QA uses this to make a `conflict`, AC-T5-31). `204` on success. Platform 409 → `409 PLATFORM_CONFLICT`.
 
 `GET /api/lineitems/:lineItemId/scores` — query `userId`, `limit`, `url`. Platform call: AGS results. `200 { "scores": [ { "id", "userId", "scoreOf", "timestamp", "resultScore", "resultMaximum", "comment" } ], "next"?, "prev"?, "first"?, "last"? }`.
 
@@ -326,10 +326,10 @@ Platform: `id`, `url` (issuer), `clientId`, `name`, `authenticationEndpoint`, `a
 
 | Method and path | Task | Request | Success |
 | --- | --- | --- | --- |
-| `GET /api/platforms` | T2 | query `id`, `url`, `clientId` | `200 { "platforms": [...] }` |
-| `POST /api/platforms` | T2 | `url`, `clientId`, `name`, `authenticationEndpoint`, `accesstokenEndpoint`, `authConfig`, `deploymentIds` (≥ 1), `active?` | `201`. `409 PLATFORM_ALREADY_EXISTS`. `400 PLATFORM_URL_NOT_ON_ISSUER_ORIGIN`. |
-| `GET /api/platforms/:id` | T2 | — | `200`, `404 UNREGISTERED_PLATFORM` |
-| `PATCH /api/platforms/:id` | T2 | `name`, `active`, `deploymentIds` | `200` |
+| `GET /api/platforms` | T2a | query `id`, `url`, `clientId` | `200 { "platforms": [...] }` |
+| `POST /api/platforms` | T2a | `url`, `clientId`, `name`, `authenticationEndpoint`, `accesstokenEndpoint`, `authConfig`, `deploymentIds` (≥ 1), `active?` | `201`. `409 PLATFORM_ALREADY_EXISTS`. `400 PLATFORM_URL_NOT_ON_ISSUER_ORIGIN`. |
+| `GET /api/platforms/:id` | T2a | — | `200`, `404 UNREGISTERED_PLATFORM` |
+| `PATCH /api/platforms/:id` | T2a | `name`, `active`, `deploymentIds` | `200` |
 | `DELETE /api/platforms/:id` | T3c | — | `204`. Revokes its ltiks and service keys. |
 
 All URLs are https. An account sees only its own platforms. Another account may register the same issuer + client id; that record is never used for launches of the first account, because login URLs carry the account.
@@ -354,7 +354,7 @@ Every event: `ts`, `level`, `service: "lti-service"`, `event`, `trace_id` (lifec
 
 | Event | Level | Fields | When |
 | --- | --- | --- | --- |
-| `service_started` | info | `version`, `knobs` | start |
+| `service_started` | info | `node`, `port`, `public_url`, `profile`, `outbound_allowlist`, `knobs` | start |
 | `test_knob_active` | warn | `name`, `value` | start, per knob |
 | `http_request` | info | `method`, `path` (no query), `status`, `ms` | every request |
 | `outbound_request` | info | `host`, `method`, `status`, `ms` | every outbound call that was sent |

@@ -4,19 +4,23 @@ Status: T0 round 2. Task DAG: [`../README.md`](../README.md) §7.
 
 ## 1. Task list
 
-Order for one Author: T1 → T5-spike → T2 → T3a → T3b → T4a → T4b → T5a → T5b → T6 → T7 → T3c → T8. T9 (Docs) starts after T7.
+Order for one Author: T1 → T5-spike → T2a → T2b → T3a → T3b → T4a → T4b1 → T4b2 → T5a → T5b → T6 → T7 → T3c → T8. T9 (Docs) starts after T7.
+
+Technical dependencies ("Depends on" in each file) are fewer: T2a and T4a need only T1; T2b needs T2a; T3a needs T2a; T3b needs T2a and T2b; T4b1 needs T3b and T4a; T4b2 needs T3a and T4b1; T5a needs T4b2 and the T5-spike note.
 
 | Task | Title | Reviewed | AC ids |
 | --- | --- | --- | --- |
 | [T1](T1.md) | Monorepo skeleton and local HTTPS stack (in build) | yes | AC-T1-01 to AC-T1-13 |
 | [T5-spike](T5-spike.md) | Player spike: real package in the real frames, API object choice | no (like T1-spike) | — (exit questions S1 to S7) |
-| [T2](T2.md) | LTI service core: platforms, keys, OIDC launch, ltik, ID token | yes | AC-T2-01 to AC-T2-31 |
+| [T2a](T2a.md) | LTI service core: platforms, keys, OIDC launch (all 12 checks, unit-tested), ltik, ID token | yes | AC-T2-01 to -08, -12 to -16, -18, -19, -29, -31 |
+| [T2b](T2b.md) | Negative launch matrix (QA-signed tokens) and the `acceptance` profile | yes | AC-T2-09 to -11, -20 to -28, -30 |
 | [T3a](T3a.md) | LTI services that the app needs: service keys, token client, Deep Linking response, scores, line item reads | yes | AC-T3-06 to -08, -10 to -14, -16 to -18, -22 to -24 |
-| [T3b](T3b.md) | Dynamic registration, incl. "update existing tool" | yes | AC-T3-01 to -05, -25, -26 |
+| [T3b](T3b.md) | Dynamic registration, incl. "update existing tool" | yes | AC-T3-01 to -05, -25, -26, -28 |
 | [T4a](T4a.md) | Mock session, courses, upload, package inspector | yes | AC-T4-01 to -06 |
-| [T4b](T4b.md) | Connections, publications, picker, launch handoff, tool page security | yes | AC-T4-07 to -10, -12, -14 to -21, -22 to -32 |
+| [T4b1](T4b1.md) | Connections and publications (connect + publish) | yes | AC-T4-07 to -10, -12, -14, -30, -33, -34 |
+| [T4b2](T4b2.md) | Picker, launch handoff, player shell, tool page security | yes | AC-T4-15 to -29, -31, -32 |
 | [T5a](T5a.md) | Content host, SCORM 1.2 runtime, tracking, score sync, results | yes | AC-T5-01 to -08, -12, -13, -15 to -17, -20 to -24 |
-| [T5b](T5b.md) | HTML runtime, retry and conflict, Resend, results refresh | yes | AC-T5-09 to -11, -14, -18, -19, -27 to -32 |
+| [T5b](T5b.md) | HTML runtime, retry and conflict, Resend, results refresh | yes | AC-T5-09 to -11, -14, -18, -19, -27 to -33 |
 | [T6](T6.md) | Portal UI | yes | AC-T6-01 to AC-T6-14 |
 | [T7](T7.md) | Full E2E in real Moodle | yes | AC-T7-01 to AC-T7-15 |
 | [T3c](T3c.md) | Compatibility-only endpoints and the independent-client test | yes | AC-T3-09, -15, -19 to -21, -27 |
@@ -58,18 +62,20 @@ Mechanism (T1): `npm run stack:restart -- <service> --env KNOB=value` restarts o
 | `PICKER_TTL_SECONDS` | cogniate-app | 3600 | 20 | AC-T4-20 | POST the picker at TTL + 3 s → 410. |
 | `PLAY_TTL_SECONDS` | cogniate-app | 86400 | 20 | AC-T5-15 | Commit at TTL + 3 s → `410 RUNTIME_EXPIRED`. |
 | `BUILD_RUNNER_HOLD` | cogniate-app | 0 | 1 | AC-T8-03 | The build pauses before teardown until the flag file is removed. |
-| `BUILD_RUNNER_FAIL_AT` | cogniate-app | "" | `backup` | AC-T8-07 | The build fails at that step. |
+| `BUILD_RUNNER_FAIL_AT` | cogniate-app | "" | `backup` | AC-T8-07 | The build fails at that step. (A string knob: T8 extends the T1 registry, which accepts whole numbers only.) |
 
-No other knob exists. T7 checks that every `/healthz` shows `"knobs": []` (AC-T7-13).
+No other knob exists. T7 checks that every `/healthz` shows `"knobs": []` and `"profile": "default"` (AC-T7-13).
+
+Knob tests: QA runs `npm run stack:restart -- <service> --env K=V` on the host, then `npm run test:acceptance -- <select the knob test>` (H14 forwards the arguments and the `QA_*` env), then `npm run stack:restart -- <service>`.
 
 ## 4. Profiles and helper hosts
 
 | Profile | Adds | From |
 | --- | --- | --- |
 | `test` | `e2e` container | T1 |
-| `acceptance` | `evil.test` sink (logs `sink_hit` to `infra/.logs/sink.jsonl`) and `qa-platform.test` static host (files from `tests/fixtures/qa-platform/`, QA-owned), second leaf certificate, allowlist entries | T2 |
+| `acceptance` | `evil.test` sink (`sink_hit` → `infra/.logs/sink.jsonl`) and `qa-platform.test` static host (`tests/fixtures/qa-platform/`, QA-owned; `qa_platform_hit` → `infra/.logs/qa-platform.jsonl`), second leaf certificate, allowlist entries, `profile: "acceptance"` in `/healthz`. Start: `STACK_PROFILE=acceptance npm run stack:up`. | T2b |
 
-`npm run test:acceptance` starts the stack with the `acceptance` profile. `npm run test:e2e` does not.
+`npm run test:acceptance` starts the stack with the `acceptance` profile and restores the default at the end (local-stack §3). `npm run test:e2e` does not use it.
 
 ## 5. Fixtures
 

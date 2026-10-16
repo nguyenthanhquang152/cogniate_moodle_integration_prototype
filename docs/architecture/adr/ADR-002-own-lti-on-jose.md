@@ -36,7 +36,7 @@ Option B.
 
 ## Consequences
 
-- More code. The T2 and T3 specs list each check as an acceptance criterion, and Reviewer-A maps them to the specs.
+- More code. The T2a, T2b and T3a specs list each check as an acceptance criterion, and Reviewer-A maps them to the specs.
 - No MongoDB.
 - 1EdTech certification is a later production item.
 - The Author does not read the `ltijs` source (clean-room process, ADR-001).

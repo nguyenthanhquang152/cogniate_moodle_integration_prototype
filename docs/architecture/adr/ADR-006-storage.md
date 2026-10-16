@@ -24,7 +24,7 @@ Option A.
 - Repository modules are the only code that touches SQL. Every tenant-owned query takes the tenant id as a required argument.
 - WAL mode, `foreign_keys=ON`, `busy_timeout=5000`.
 - Secrets in rows: AES-256-GCM with the service master key. Tokens: SHA-256 hashes.
-- **In memory, not in tables:** platform access tokens, the score timestamp clock, the platform JWKS cache. A restart only loses a cache. After a restart, the next score timestamp is already later than the last one in practice, and a Moodle `409` is handled as `conflict` (ADR-010).
+- **In memory, not in tables:** platform access tokens, the score timestamp clock, the platform JWKS cache. A restart only loses a cache. After a restart, the score clock floor is the start time + 2 s, so the next timestamp is later than any sent before the restart; a Moodle `409` is handled as `conflict` (ADR-010).
 - Package store: `data/packages/{packageId}/...` (extracted) and `data/uploads/{sha256}.zip` (original, for download and the native channel). `packageId` is random. No dedupe.
 
 ## Consequences

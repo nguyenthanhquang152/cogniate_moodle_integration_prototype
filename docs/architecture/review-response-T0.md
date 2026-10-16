@@ -98,3 +98,41 @@ New ids: AC-T2-18 to -31; AC-T3-23 to -27; AC-T4-22 to -32; AC-T5-20 to -24, -27
 ## Rejected
 
 None. A-T0-03 item 2 and B-T0-18 are resolved in a changed way (reasons above).
+
+## Round 3
+
+Inputs: the `## Round 2` sections of the three reviews (commit dadd9de) and the Lead's round-3 decisions.
+
+| Id | Sev. | Resolution |
+| --- | --- | --- |
+| A-T0-19 | MINOR | Done. Security §9: the IP check runs in the lookup of the connection (undici `connect.lookup`, no second lookup); blocked IPv4 and IPv6 ranges listed (CGNAT, link-local and metadata, multicast, NAT64, IPv4-mapped); one allowlist per service. T2a self-check adds the fake-resolver test (public IP first, private IP second). |
+| A-T0-20 | MINOR | Done. Error pages have no form and no action, so they use `frame-ancestors https:; form-action 'none'` (security §2.2, §5); strict values stay for pages with actions. AC-T3-28 (error page visible in Moodle's registration frame), AC-T4-33 (unknown `ref` page in the frame), AC-T4-21 (launch error page headers). |
+| A-T0-21 | MINOR | Done. Chosen rule: continue an in-progress attempt only if its course version belongs to the course of the resource link's current publication; otherwise a new attempt on that publication's current version; the old attempt stays and shows under its own course (security §4, data-model §2, flows §6c). AC-T4-25 has the in-progress case. |
+| A-T0-22 | NIT | Done. Only `documentTarget = iframe` gets the embedded page; `frame` and `window` open the player (security §4, app §6, flows §6c, AC-T4-31). |
+| A-T0-23 | NIT | Done. Score clock floor at start = start time + 2 s (LTI contract §3.6, ADR-006). |
+| B-T0-21 | MAJOR | Done (Lead decision). T2 → T2a (core, all 12 checks unit-tested, 17 ACs) and T2b (negative matrix + `acceptance` profile with `qa-platform.test`, sink, second leaf; 13 ACs, right after T2a). T4b → T4b1 (connect + publish, 9 ACs) and T4b2 (picker, launch, tool-page security, 17 ACs). "Depends on" lists only technical dependencies (T2a: T1; T3b: T2a, T2b). DAG in README §7, list in tasks README §1. AC ids unchanged. |
+| B-T0-22 | MINOR | Done. ADR-008 lists the real `packages/shared` modules (`config`, `knobs`, `logger`, `server`, `errors`, `outbound`, `crypto`) with the rule "a new module needs a reason in the done report", and the reach-check scripts in the root-script list. |
+| B-T0-23 | MINOR | Done. `/healthz` and `service_started` show `profile` and the active allowlist (both contracts, local-stack §3); the `test:acceptance` steps (start, run, restore, interrupted case) in local-stack §3; AC-T7-13 also checks `profile: "default"`. |
+| B-T0-24 | MINOR | Done, as Q-T0-39. |
+| B-T0-25 | NIT | Done: curl wording (round-2 Lead fix), ADR-002 task names, boot trace id, `service_started` fields aligned with the T1 code plus `profile`, `BUILD_RUNNER_FAIL_AT` string-knob note. Not done: the `http_request` health-check exception, because it depends on the Lead's decision on B-T1-04. |
+| Q-T0-33 | MINOR | Already done in the round-2 Lead fix (T1 H7: every event has `trace_id`, boot trace id for lifecycle events). |
+| Q-T0-34 | MINOR | Done. AC-T1-11 greps only secret values (secret `.env` entries, passwords and tokens in `infra/.secrets/`, `infra/.certs/*.key`). Wording only. |
+| Q-T0-35 | MINOR | Done. AC-T2-21 has the ≥ 61 s precondition and a second post within 60 s with no new fetch (T2b). |
+| Q-T0-36 | MINOR | Done. `qa-platform.test` logs `qa_platform_hit {method, path}`; AC-T2-30 compares the hit count on the JWKS path with the `outbound_request` count (T2b, local-stack §3). |
+| Q-T0-37 | MINOR | Done. H14 in T2a: `test:acceptance -- <args>` forwards arguments and the caller's `QA_*` env; knob-test procedure in tasks README §3. |
+| Q-T0-38 | MINOR | Done. Start command `STACK_PROFILE=acceptance npm run stack:up` and `profile` in `/healthz` (T2b, local-stack §3, tasks README §4). |
+| Q-T0-39 | MAJOR | Done. Checked in Moodle 5.2.4: `save_grade_item` stores our `timestamp` as the grade time, and `update_raw_grade` does not change an overridden final grade. Recipes: `conflict` = score with `timestamp` now + 10 min, `stack:restart -- lti-service`, then complete (AC-T5-31); `failed` = unenrol, then complete → 400 (AC-T5-32, with Resend after re-enrolment); teacher override = `sent` + `gradebookDiffers` (new AC-T5-33). App contract §5, §10 and ADR-010 rule 8 corrected. AC-T6-14 uses the three rows. |
+| Q-T0-40 | MINOR | Done. AC-T9-01 is marked "human check"; the Lead names the person or accepts a QA run; qa.md says which part a human did. |
+| Q-T0-41 | NIT | Done. Error pages carry `data-error-code` and `data-trace-id` (security §2.2; AC-T2-30, AC-T4-32, AC-T4-33). |
+| Q-T0-42 | NIT | Done. URL mapping, MIME type and run-time JWKS files of `qa-platform.test` in local-stack §3. |
+
+Round-3 AC changes:
+
+| Change | ACs |
+| --- | --- |
+| T2 split | T2a: AC-T2-01 to -08, -12 to -16, -18, -19, -29, -31. T2b: AC-T2-09 to -11, -20 to -28, -30. |
+| T4b split | T4b1: AC-T4-07 to -10, -12, -14, -30, and new AC-T4-33, AC-T4-34. T4b2: AC-T4-15 to -29, -31, -32. |
+| New | AC-T3-28 (T3b), AC-T4-33, AC-T4-34 (T4b1), AC-T5-33 (T5b). |
+| Changed meaning | AC-T5-31 (now the `conflict` recipe; the teacher override moved to AC-T5-33), AC-T5-32 (now the `failed` recipe + Resend), AC-T4-21, AC-T4-22, AC-T4-28, AC-T4-29 (register-page parts moved to AC-T4-33, AC-T4-34), AC-T4-25 (in-progress case), AC-T4-31 (`frame` opens directly), AC-T2-21, AC-T2-30, AC-T7-13. |
+
+Rejected: none.

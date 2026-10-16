@@ -30,13 +30,25 @@ apps/
   portal/                    React + Vite + Tailwind (static build)
   player/                    browser TS: shell script, SCORM 1.2 runtime, HTML runtime (Vite library build)
 packages/
-  shared/                    exactly four modules: errors, http-client (SSRF guard), crypto, logger (redaction)
+  shared/                    modules listed below (a new module needs a reason in the done report)
   tracking/                  pure functions: CMI rules, Moodle LMSFinish rule, outcome, AGS mapping, HTML progress rules
   package-inspector/         zip checks, manifest parsing, HTML profile
 infra/                       compose, proxy, Moodle provisioning, scripts (Author)
 tests/                       QA only: own package.json and lock file, Playwright and Vitest configs, fixtures
 docs/
 ```
+
+`packages/shared` modules:
+
+| Module | Content | From |
+| --- | --- | --- |
+| `config` | `loadPublicUrls()` and env parsing | T1 |
+| `knobs` | test knob registry (whole-number values; T8 adds string values for `BUILD_RUNNER_FAIL_AT`) | T1 |
+| `logger` | JSON lines, redaction, boot trace id | T1 |
+| `server` | inbound HTTP helpers and service startup (T1 files `service.ts`, `http.ts`) | T1 |
+| `errors` | error shape and codes | T2a |
+| `outbound` | SSRF-guarded client (security §9) | T2a |
+| `crypto` | AES-256-GCM, token hashing | T2a |
 
 Import rules (ESLint `no-restricted-imports`):
 
@@ -66,7 +78,7 @@ Import rules (ESLint `no-restricted-imports`):
 
 ### Root scripts (the set grows by task)
 
-`check` (lint + typecheck + unit tests), `build`, `gen-env`, `stack:up`, `stack:down`, `stack:reset`, `stack:restart`, `stack:logs`, `seed`, `demo`, `demo:browser`, `fixtures:check`, `test:acceptance`, `test:e2e` (T1); `seed:lti-manual` (T2); `dev:web` (T5a); `seed:lti-activity` (T4b); `demo:prepare`, `moodle:cron` (T7).
+`check` (lint + typecheck + unit tests), `build`, `gen-env`, `stack:up`, `stack:down`, `stack:reset`, `stack:restart`, `stack:logs`, `stack:moodle-reach-check`, `stack:node-reach-check`, `seed`, `demo`, `demo:browser`, `fixtures:check`, `test:acceptance`, `test:e2e` (T1); `seed:lti-manual` and argument forwarding of `test:acceptance` (T2a); `STACK_PROFILE=acceptance` (T2b); `seed:lti-activity`, optional `stack:snapshot`/`stack:restore` (T4b2); `dev:web` (T5a); `demo:prepare`, `moodle:cron` (T7); `test:compat` (T3c).
 
 ## Consequences
 

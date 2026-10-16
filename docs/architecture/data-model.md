@@ -213,7 +213,7 @@ Unique keys and rules:
 | `connection` | `lti_platform_id` unique. A platform belongs to one connection only. |
 | `publication` | (`connection_id`, `course_id`) unique |
 | `resource_link` | (`connection_id`, `deployment_id`, `context_id`, `resource_link_id`) unique. `publication_id` comes from the **signed** `launch.target`. If a later signed launch names another publication of the same connection (the teacher selected new content for the activity), the row is updated and the event `resource_link_rebound` is logged. |
-| `attempt` | One row per (`resource_link_id`, `user_sub`, `course_version_id`). A launch continues the newest attempt if it is `in_progress`. Otherwise it uses the publication's current version (new row, or the existing row of that version). |
+| `attempt` | One row per (`resource_link_id`, `user_sub`, `course_version_id`). A launch continues the newest attempt if it is `in_progress` **and** its course version belongs to the course of the resource link's current publication. Otherwise it uses the current version of that publication (new row, or the existing row of that version). After a rebind, an old in-progress attempt stays as it is and shows under its own course's publication. |
 | `handoff` | Insert fails if the ltik was used before → error page `HANDOFF_USED`. |
 | `play_session` | No ltik. Commits use the runtime token. Score sync uses the service key. |
 

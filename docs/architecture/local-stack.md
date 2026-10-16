@@ -63,9 +63,11 @@ Site check: `moodle.test` and `cogniate.test` are different sites. So the stack 
 | --- | --- | --- |
 | default | proxy, postgres, moodle, lti-service, cogniate-app | everything, T7 |
 | `test` | `e2e` container | `test:acceptance`, `test:e2e` |
-| `acceptance` (from T2) | `sink` (alias `evil.test`): answers 200 to every request and logs `sink_hit {host, method, path}` to `infra/.logs/sink.jsonl`. `qa-platform.test`: static files from `tests/fixtures/qa-platform/` (QA-owned JWKS and pages). Both names get a **second** leaf certificate (`infra/.certs/qa.crt`, SAN `evil.test`, `qa-platform.test`, signed by the same dev CA), so the T1 leaf does not change. Both names are added to `OUTBOUND_PRIVATE_HOST_ALLOWLIST` in this profile only. | T2 to T5 acceptance runs |
+| `acceptance` (from T2b; start: `STACK_PROFILE=acceptance npm run stack:up`) | `sink` (alias `evil.test`): answers 200 to every request and logs `sink_hit {host, method, path}` to `infra/.logs/sink.jsonl`. `qa-platform.test`: `https://qa-platform.test/<path>` serves `tests/fixtures/qa-platform/<path>` (`.json` as `application/json`), and logs `qa_platform_hit {method, path}` to `infra/.logs/qa-platform.jsonl`. QA writes its JWKS there at run time and git-ignores the generated files (no test private key in git). Both names get a second leaf certificate (`infra/.certs/qa.crt`, SAN `evil.test`, `qa-platform.test`, signed by the same dev CA), so the T1 leaf does not change. Both names are added to `OUTBOUND_PRIVATE_HOST_ALLOWLIST` of both services in this profile only. `/healthz` and `service_started` show `"profile": "acceptance"` and the active allowlist. | T2b to T5b acceptance runs |
 
-T7 runs without the `acceptance` profile and with no test knobs.
+`npm run test:acceptance -- <args>` does these steps: (1) `STACK_PROFILE=acceptance npm run stack:up` (only the changed services restart); (2) run the QA suite in `e2e` with `<args>` and the caller's `QA_*` env (H14); (3) `npm run stack:up` without `STACK_PROFILE` to restore the default, also when the suite fails. If a run is killed between (1) and (3), the profile stays on: `/healthz` shows `"profile": "acceptance"`, and step (3) by hand restores the default.
+
+T7 runs with `"profile": "default"` and no test knobs (AC-T7-13).
 
 ## 4. Fallbacks
 
@@ -99,7 +101,7 @@ Source: `infra/moodle/SPIKE-NOTES.md`.
 | Issuer = wwwroot. Deployment id = tool type id. Login sends `client_id` and `lti_deployment_id`. (§5a, §5d) | Login checks `iss` + `client_id` + deployment. |
 | `id_token` `exp = iat + 60 s`. (§5d) | 60 s skew. Validate at once. |
 | Dynamic registration: new tool PENDING, embed, preconfigured only; choice page if the domain exists. (§5b) | Wizard shows Activate + edit. The service and app handle "update". |
-| `lti_add_type` from CLI works. (§5a) | T2 dev seed without UI. |
+| `lti_add_type` from CLI works. (§5a) | T2a dev seed without UI. |
 | AGS score → gradebook 80/100. NRPS without name or email. (§5d) | ADR-010 mapping. Privacy default works. |
 | Moodle curl blocks private IPs and allows ports 80/443. (§6) | Dev-only change: only `STACK_SUBNET` is cut out of the block list, only port 443 allowed. Production needs public https on 443. |
 | `MoodleSession` is `SameSite=Lax`, fixed in code; `auth.php` re-posts. (§7) | Our cookies handle only our side. |

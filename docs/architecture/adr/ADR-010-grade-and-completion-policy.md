@@ -8,7 +8,7 @@ Moodle 5.2 facts (`mod/lti/service/gradebookservices/classes/local/resources/sco
 
 - A score needs `userId`, `timestamp`, `activityProgress`, `gradingProgress`. The user must be gradable in the course.
 - If `gradingProgress` is not `FullyGraded`, Moodle sets `scoreGiven` to null: a "Pending" message **clears** the grade.
-- If the stored grade time is the same or newer than `timestamp` (seconds), Moodle returns `409`. This also happens after a teacher override.
+- If the stored grade time is the same or newer than `timestamp` (seconds), Moodle returns `409`. Moodle stores our `timestamp` as the grade time (`save_grade_item`). A teacher override alone does not cause a 409: Moodle accepts the later score and keeps the overridden final grade (`grade_item::update_raw_grade`).
 - A deep-linking `lineItem` with `scoreMaximum` becomes a grade item with that maximum.
 - "Receive a grade" completion runs on the grade update. A grade of 0 counts as received.
 - Moodle's own SCORM player, on `LMSFinish`: `not attempted` → `completed`; then, in normal mode with credit, a set raw score and a mastery score decide `passed` or `failed`.
@@ -32,7 +32,7 @@ DataCamp sends 100/100 when the learner completes.
 5. **Best result wins, never lower.** A new score sync row is made when an attempt reaches a final outcome and its `scoreGiven / scoreMaximum` is higher than the best value of **every** row of that learner and activity that is `pending`, `sent` or `conflict` (the first final outcome always makes a row). A new row marks older `pending` rows with a **lower** value as `superseded`. So an outage can never let a lower result replace a better pending one.
 6. **Learners only.** If the launch roles have no Learner role (teacher preview), the attempt is a preview: no row.
 7. **Timestamps**: the LTI service sets them, ≥ 1 s apart per (platform, line item, user).
-8. **409 = `conflict`.** No automatic retry. The portal says: "Moodle has a newer grade, for example a teacher override." A teacher override stays in Moodle.
+8. **409 = `conflict`.** No automatic retry. The portal says: "Moodle has a grade with a newer time." A teacher override is a different case: the sync is `sent`, Moodle keeps the override, and after "Refresh from Moodle" the portal says "Moodle keeps another grade, for example a teacher override" (`gradebookDiffers`).
 9. **Retries**: 5 s, 30 s, 2 min, 10 min, 30 min, then every 1 h until 24 h after the row was made; then `failed`. Auth is `SERVICE-AUTH-V1`, so retries work after the ltik expires.
 10. **Resend**: a Cogniate user can resend a `failed` or `conflict` row (`POST /app-api/score-syncs/:id/resend`).
 11. **Versions**: an attempt keeps its course version. The best result counts across all attempts of the learner on that activity.

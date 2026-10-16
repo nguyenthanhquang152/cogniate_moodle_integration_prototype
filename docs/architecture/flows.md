@@ -134,10 +134,10 @@ sequenceDiagram
     M->>LTI: POST /lti/launch/cogniate (id_token LtiResourceLinkRequest)
     LTI-->>APP: 303 /tool/launch?resource=pub_..&ltik=..
     APP->>LTI: GET /api/idtoken
-    APP->>APP: handoff single use. Publication from the SIGNED launch.target (URL param ignored).<br/>Resource link by (connection, deployment, context, resource link).<br/>Attempt: continue in-progress attempt, else new attempt on current version.
-    alt presentation.documentTarget is iframe or frame
+    APP->>APP: handoff single use. Publication from the SIGNED launch.target (URL param ignored).<br/>Resource link by (connection, deployment, context, resource link).<br/>Attempt: continue an in-progress attempt of the same course, else new attempt on the current version.
+    alt presentation.documentTarget is iframe
       APP-->>L: 303 /play/{playId}/embedded: "Open in a new window" button
-    else window
+    else window or frame
       APP-->>L: 303 /play/{playId}
     end
     L->>APP: GET /play/{playId}: shell + runtime iframe

@@ -134,7 +134,7 @@ flowchart TB
 | Deep Linking, AGS, dynamic and manual registration on Moodle 5.2 | AC-T3-01 to AC-T3-14, AC-T3-25, AC-T4-08, AC-T4-10, AC-T7-02, AC-T7-08 | planned |
 | LTIAAS-compatible API (narrow claim, ADR-003) | AC-T3-27 (independent client), T3a and T3c endpoint ACs | planned |
 | Portal: Integrations → Moodle → Connect, Publish, Results | AC-T6-01 to AC-T6-14, AC-T7-06 | planned |
-| Tenant isolation | AC-T2-18, AC-T4-16, AC-T4-29, AC-T7-08, AC-T7-09 | planned |
+| Tenant isolation | AC-T2-18, AC-T4-16, AC-T4-29, AC-T4-34, AC-T7-08, AC-T7-09 | planned |
 | Untrusted content isolation | AC-T4-05, AC-T5-01, AC-T5-03, AC-T5-17 | planned |
 | Full E2E on a real Moodle 5.2 | AC-T7-01, AC-T7-11 | planned |
 | A new person can run it | AC-T9-01 | planned |
@@ -148,12 +148,14 @@ Specs: [`tasks/`](tasks/). QA rules and test knobs: [`tasks/README.md`](tasks/RE
 ```mermaid
 flowchart LR
     T1[T1 stack] ==> S5[T5-spike player]
-    S5 ==> T2[T2 LTI core]
-    T2 ==> T3a[T3a services for the app]
+    S5 ==> T2a[T2a LTI core]
+    T2a ==> T2b[T2b negative launch matrix]
+    T2b ==> T3a[T3a services for the app]
     T3a ==> T3b[T3b dynamic registration]
     T3b ==> T4a[T4a upload + inspector]
-    T4a ==> T4b[T4b connections, picker, launch]
-    T4b ==> T5a[T5a SCORM runtime + score sync]
+    T4a ==> T4b1[T4b1 connect + publish]
+    T4b1 ==> T4b2[T4b2 picker, launch, tool-page security]
+    T4b2 ==> T5a[T5a SCORM runtime + score sync]
     T5a ==> T5b[T5b HTML runtime + retry]
     T5b ==> T6[T6 portal UI]
     T6 ==> T7[T7 E2E]
@@ -161,10 +163,12 @@ flowchart LR
     T3c ==> T8[T8 stretch]
     T7 --> T9[T9 docs]
     T1 -. "needs only T1" .-> T4a
+    T1 -. "needs only T1" .-> T2a
+    T2a -. "needs T2a only" .-> T3a
     S5 -. "decision note" .-> T5a
 ```
 
-Thick arrows = the order for one Author. Dotted arrows = real dependencies that allow parallel work: T4a needs only T1, so a second Author could build it next to T2. T5a uses the T5-spike decision note.
+Thick arrows = the order for one Author. Dotted arrows = real dependencies that allow parallel work: T2a and T4a need only T1, T3a needs only T2a, and T5a uses the T5-spike decision note. T2b runs right after T2a in the one-Author order, because it proves the launch security.
 
 ## 8. Simplified versus production
 

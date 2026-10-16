@@ -51,7 +51,7 @@ Other launch cases:
 | The form has `error` (Moodle sends `invalid_scope`, `unauthorized_client`, `access_denied` this way) and no `id_token` | The state is used up. Page `PLATFORM_ERROR` shows the OIDC code. |
 | `STATE_COOKIE_MISSING` | The service checks the signature (checks 4 and 6) only to choose the help text. It never continues the launch. Resource link: "Your browser blocked a cookie in an embedded frame. Ask your Moodle admin to set the Cogniate tool to open in a new window." Deep linking: "Your browser blocks cookies in Moodle's content dialog. Use Chrome, Edge or Firefox, or allow cookies for this site." Otherwise: "Start again from Moodle." |
 
-Every HTML error page shows: the code, the trace id, and one line with the next action.
+Every HTML error page shows: the code, the trace id, and one line with the next action. Its main element has `data-error-code` and `data-trace-id`. Error pages have no form and no state-changing button, so they may be framed by any https origin (§5); this keeps them visible in Moodle's frames before a platform is known.
 
 After all checks pass, the service stores the launch, makes the ltik, deletes the state cookie, logs `launch_accepted {platform_id, message_type}`, and redirects (303) to the tool. It copies the query of `target_link_uri` and adds `ltik` (LTIAAS behaviour). The tool must **not** trust the copied query (section 4).
 
@@ -110,8 +110,9 @@ NOTE: Deep Linking always runs in Moodle's modal iframe (`amd/src/contentitem.js
 | Single use | The first `GET /tool/launch` or `GET /tool/deep-link` with a ltik stores `hash(ltik)`. A second request with the same ltik shows `HANDOFF_USED` (409). |
 | Signed target | The publication comes from the `resource` query of the **signed** `launch.target` (from `GET /api/idtoken`). The `resource` query of the app URL is ignored. |
 | Binding | Resource link key: (connection, `deployment_id`, `context_id`, `resource_link_id`). If a later signed target names another publication of the same connection, the teacher changed the activity: the row is updated (`resource_link_rebound`). A publication of another connection, or a withdrawn one, gives the "not available" page. |
+| Attempt after a rebind | A launch continues an in-progress attempt only if the attempt's course version belongs to the course of the resource link's **current** publication. Otherwise it starts a new attempt on that publication's current version. The old attempt stays as it is (no score) and shows under the results of its own course's publication. |
 | Picker POST | The app checks again that the posted publication belongs to the picker's connection and is not withdrawn. |
-| Embedded launch | If `launch.presentation.documentTarget` is `iframe` or `frame`, the app shows `/play/{playId}/embedded` with an "Open in a new window" button instead of the player. |
+| Embedded launch | If `launch.presentation.documentTarget` is `iframe`, the app shows `/play/{playId}/embedded` with an "Open in a new window" button instead of the player. `frame` (Moodle "Existing window") and `window` are top-level and open the player directly. |
 
 ## 5. Page headers
 
@@ -119,10 +120,10 @@ NOTE: Deep Linking always runs in Moodle's modal iframe (`amd/src/contentitem.js
 
 | Response | `Content-Security-Policy` (main parts) | `Referrer-Policy` |
 | --- | --- | --- |
-| LTI service error pages | `default-src 'none'; style-src 'self'; frame-ancestors {issuer}` (or `'none'` if the platform is unknown) | `same-origin` |
+| LTI service error pages | `default-src 'none'; style-src 'self'; frame-ancestors https:; form-action 'none'` (no form, no action: safe to frame, and visible before a platform is known) | `same-origin` |
 | LTI service 302 / 303 | — | `no-referrer` |
 | `/tool/launch`, `/tool/deep-link` 303 | — | `no-referrer` |
-| `/tool/launch`, `/tool/deep-link` error pages | `frame-ancestors {issuer}; form-action 'none'` | `same-origin` |
+| All `/tool/*` error pages (launch, deep link, picker, register) | `frame-ancestors https:; form-action 'none'` (no form, no action) | `same-origin` |
 | `GET /tool/register` | `frame-ancestors {site}; form-action 'self'; script-src 'nonce-…'` | `same-origin` |
 | `POST /tool/register` result | `frame-ancestors {site}; form-action 'none'; script-src 'nonce-…'` | `same-origin` |
 | `GET /tool/picker/{id}` | `frame-ancestors {issuer}; form-action 'self'` | `same-origin` |
@@ -170,10 +171,14 @@ WARNING: Google Fonts in the HTML export send learner IP addresses to Google (Q9
 
 ## 9. Outbound requests (SSRF guard)
 
-All outbound HTTP of both services goes through one client in `packages/shared`:
+All outbound HTTP of both services goes through one client in `packages/shared` (`outbound`):
 
 - https only. No redirects. Timeout 5 s. Response limit 1 MB.
-- Private, loopback and link-local IPs are blocked after DNS resolution, except hosts in `OUTBOUND_PRIVATE_HOST_ALLOWLIST`. Default profile: `moodle.test`, `lti.cogniate.test`. Acceptance profile adds `qa-platform.test` and `evil.test` (so that a missing rule shows up as a sink hit). Production: empty.
+- The IP check runs **inside the lookup that the connection uses** (an undici `Agent` with `connect: { lookup }`). There is no second lookup, so a DNS answer that changes between check and connect (DNS rebinding) cannot reach a blocked IP. Every address of the answer is checked.
+- Blocked ranges:
+  - IPv4: `0.0.0.0/8`, `10.0.0.0/8`, `100.64.0.0/10` (CGNAT), `127.0.0.0/8`, `169.254.0.0/16` (link-local, incl. the `169.254.169.254` metadata address), `172.16.0.0/12`, `192.0.0.0/24`, `192.168.0.0/16`, `198.18.0.0/15`, `224.0.0.0/4` (multicast), `240.0.0.0/4`, `255.255.255.255/32`.
+  - IPv6: `::/128`, `::1/128`, `fc00::/7`, `fe80::/10`, `ff00::/8`, `64:ff9b::/96` (NAT64), and IPv4-mapped `::ffff:0:0/96` (the mapped IPv4 address is checked against the IPv4 list).
+- Allowlist per service (`OUTBOUND_PRIVATE_HOST_ALLOWLIST`, a host name list; the host may resolve to a blocked range): LTI service: the Moodle host. Cogniate app: the LTI service host. The `acceptance` profile adds `qa-platform.test` and `evil.test` to both (so that a missing rule shows up as a sink hit). Production: empty.
 - Every call logs exactly one event: `outbound_request {host, method, status, ms}` or `outbound_blocked {host, reason}`. `reason` is one of `not_https`, `private_ip`, `redirect`, `timeout`, `too_large`, `dns_error`.
 
 ## 10. Keys and secrets

@@ -1,6 +1,6 @@
 # T5a: Content host, SCORM 1.2 runtime, tracking, score sync, results
 
-Owner: Author. Depends on: T4b, T5-spike note. Contract: [`../contracts/cogniate-app-api.md`](../contracts/cogniate-app-api.md) §5 (results GET), §6 (`/play`), §7, §8, §10, §12. Decisions: ADR-004, ADR-010. Security §5, §7.
+Owner: Author. Depends on: T4b2, T5-spike note. Contract: [`../contracts/cogniate-app-api.md`](../contracts/cogniate-app-api.md) §5 (results GET), §6 (`/play`), §7, §8, §10, §12. Decisions: ADR-004, ADR-010. Security §5, §7.
 
 ## Goal
 
@@ -28,7 +28,7 @@ Out: HTML runtime, results refresh, Resend, full retry schedule (T5b). Portal re
 
 ## Acceptance criteria
 
-Setup: T4b state; activities "Cogniate SCORM" (SCORM course) and "Cogniate HTML" (HTML course) in `COGNIATE-DEV-101`, deep-linked, completion "Receive a grade". Non-`*.test` hosts are blocked in the browser.
+Setup: T4b2 state; activities "Cogniate SCORM" (SCORM course) and "Cogniate HTML" (HTML course) in `COGNIATE-DEV-101`, deep-linked, completion "Receive a grade". Non-`*.test` hosts are blocked in the browser.
 
 Content origin:
 

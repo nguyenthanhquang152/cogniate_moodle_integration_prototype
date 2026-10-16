@@ -1,6 +1,6 @@
 # T3a: LTI services that the app needs — service keys, token client, Deep Linking response, scores, line item reads
 
-Owner: Author. Depends on: T2. Contract: [`../contracts/lti-service-api.md`](../contracts/lti-service-api.md) §0 (T3a rows), §3.2 (`/api/deeplinking`), §3.3, §3.4, §3.5 (GET rows), §3.6, §4, §5. Security §2.3, §8, §9. Decision: ADR-010.
+Owner: Author. Depends on: T2a (in the one-Author order it runs after T2b). Contract: [`../contracts/lti-service-api.md`](../contracts/lti-service-api.md) §0 (T3a rows), §3.2 (`/api/deeplinking`), §3.3, §3.4, §3.5 (GET rows), §3.6, §4, §5. Security §2.3, §8, §9. Decision: ADR-010.
 
 ## Goal
 
@@ -27,7 +27,7 @@ Out: `/api/deeplinking/form`, `/message`, line item writes, NRPS, platform DELET
 
 ## Acceptance criteria
 
-Setup: T2 setup (`acceptance` profile, `seed:lti-manual`).
+Setup: T2b setup (`STACK_PROFILE=acceptance`, `seed:lti-manual`).
 
 Deep Linking:
 

@@ -1,6 +1,6 @@
 # T4a: Mock session, courses, upload and package inspector
 
-Owner: Author. Depends on: T1 only (it can run in parallel with T2 if a second Author exists). Contract: [`../contracts/cogniate-app-api.md`](../contracts/cogniate-app-api.md) §1, §2, §3. Security §6, §7.
+Owner: Author. Depends on: T1 only (it can run in parallel with T2a if a second Author exists). Contract: [`../contracts/cogniate-app-api.md`](../contracts/cogniate-app-api.md) §1, §2, §3. Security §6, §7.
 
 ## Goal
 
@@ -14,7 +14,7 @@ In:
 - `packages/package-inspector`: zip checks, manifest parsing, HTML profile, report values (contract §3).
 - Seed: libraries "Thanh's Library" and "QA Library B" and their users; passwords in `.env` and `seed.json` (key `portal.users`).
 
-Out: connections, publications, tool pages (T4b). Download (T6).
+Out: connections, publications, tool pages (T4b1, T4b2). Download (T6).
 
 ## Design notes
 

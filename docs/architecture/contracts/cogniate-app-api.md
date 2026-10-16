@@ -14,7 +14,8 @@ NOTE: This is our design for a stand-in. It is not a Cogniate API (spec §7.1). 
 | Part | Task |
 | --- | --- |
 | §2 session, §3 courses and versions (upload, inspector) | T4a |
-| §4 connections, §5 publications (without results), §6 tool pages, `/play` shell | T4b |
+| §4 connections, §5 publications (without results), §6 `/tool/register` | T4b1 |
+| §6 `/tool/launch`, `/tool/deep-link`, `/tool/picker/*`, `/play` shell | T4b2 |
 | §7 content host, §8 SCORM runtime, §5 results GET, §10 score sync | T5a |
 | §9 HTML runtime, results refresh, Resend, retry schedule | T5b |
 | §3 download `kind=original` | T6 |
@@ -31,6 +32,7 @@ NOTE: This is our design for a stand-in. It is not a Cogniate API (spec §7.1). 
 - Every query is limited to the session user's library. A resource of another library gives `404 NOT_FOUND`, for reads and writes.
 - The app reads the LTI API key from `infra/.secrets/lti-api-key.cogniate` at each use, and sends `X-Trace-Id` to the LTI service.
 - All untrusted text is escaped on output (security §7).
+- `GET {PUBLIC_APP_URL}/healthz` → `200 {"status":"ok","service":"cogniate-app","profile":"default","knobs":[]}`. `profile` is `acceptance` in that compose profile (local-stack §3).
 
 ## 2. Session (mock login) — T4a
 
@@ -110,7 +112,7 @@ Rejected upload: `422`, `details.message = "PACKAGE_REJECTED"`, `details.reasons
 | `LAUNCH_FILE_MISSING` | SCO `href` not in the zip |
 | `NO_ENTRY_PAGE` | HTML package without `index.html` |
 
-## 4. Connections — T4b
+## 4. Connections — T4b1
 
 ```json
 {
@@ -135,7 +137,7 @@ Rejected upload: `422`, `details.message = "PACKAGE_REJECTED"`, `details.reasons
 
 The first valid launch from the platform sets `connected` and `lastLaunchAt`.
 
-## 5. Publications — T4b (results: T5a, T5b)
+## 5. Publications — T4b1 (results: T5a, T5b)
 
 ```json
 {
@@ -172,15 +174,15 @@ ResultRow (one per learner per activity; preview attempts are rows with `preview
 }
 ```
 
-`scoreSyncs` lists every row, oldest first. `gradebook` is `null` until a refresh.
+`scoreSyncs` lists every row, oldest first. `gradebook` is `null` until a refresh. After a refresh, if `gradebook.resultScore / resultMaximum` differs from `best.scoreGiven / scoreMaximum` while the last sync is `sent`, the row has `gradebookDiffers: true`, and the portal shows "Moodle keeps another grade, for example a teacher override".
 
-## 6. Tool pages and player shell — T4b
+## 6. Tool pages and player shell — T4b1 (`/tool/register`), T4b2 (the others)
 
 Server-rendered HTML. No cookies. Headers per page: security §5. Every error page shows the code, the trace id and one action line. Log events: §12.
 
 | Method and path | Input | Result |
 | --- | --- | --- |
-| `GET /tool/launch` | `ltik` | Handoff (security §4): single use (`409 HANDOFF_USED`); `GET /api/idtoken`; publication from the signed `launch.target` (`resource`); resource link upsert by (connection, deployment, context, resource link) with `lineItemId` and service key; attempt (data-model §2); play session. `303 /play/{playId}`, or `303 /play/{playId}/embedded` when `documentTarget` is `iframe` or `frame`. Errors: `401` page (bad ltik), `404` page "This course is not available" (`PUBLICATION_NOT_IN_CONNECTION`, `UNKNOWN_PLATFORM`), `410` page "This course is no longer available" (`PUBLICATION_WITHDRAWN`). No attempt on error. |
+| `GET /tool/launch` | `ltik` | Handoff (security §4): single use (`409 HANDOFF_USED`); `GET /api/idtoken`; publication from the signed `launch.target` (`resource`); resource link upsert by (connection, deployment, context, resource link) with `lineItemId` and service key; attempt (data-model §2, incl. the rule after a rebind); play session. `303 /play/{playId}`, or `303 /play/{playId}/embedded` when `documentTarget` is `iframe` (`frame` and `window` open the player directly). Errors: `401` page (bad ltik), `404` page "This course is not available" (`PUBLICATION_NOT_IN_CONNECTION`, `UNKNOWN_PLATFORM`), `410` page "This course is no longer available" (`PUBLICATION_WITHDRAWN`). No attempt on error. |
 | `GET /tool/deep-link` | `ltik` | Single use. Needs `LtiDeepLinkingRequest` and a role that ends with `#Instructor`, `#ContentDeveloper` or `#Administrator`. Picker session (`PICKER_TTL_SECONDS`, default 1 h) with the ltik encrypted. `303 /tool/picker/{pickerId}`. Else `403` page. |
 | `GET /tool/picker/{pickerId}` | — | Radio list (single select) of the connection's `available` publications: title, format badge ("SCORM 1.2" / "HTML"), version. |
 | `POST /tool/picker/{pickerId}` | form `publicationId` (exactly one) | Checks: picker not used and not expired (`410`), `Origin` (403), publication of this connection and `available` (`400 PUBLICATION_NOT_AVAILABLE`, no deep-linking call). Calls `POST /api/deeplinking` with one item (flows §6b). Page with a hidden form (`JWT`, action = `target`) and a nonce script that submits it. Marks the picker used. |
@@ -201,7 +203,7 @@ Play session: `PLAY_TTL_SECONDS` (default 24 h). It holds a runtime token (hash)
 | `GET /rt/{runtimeToken}/state` | `200` RuntimeState |
 | `POST /rt/{runtimeToken}/commit` | `200 { accepted: true, outcome, scoreGiven?, scoreMaximum? }`. `application/json` or `text/plain` (`sendBeacon`). |
 | `GET /_rt/assets/*` | Runtime JS and CSS |
-| `GET /healthz` | `200 {"status":"ok","service":"cogniate-content","knobs":[]}` |
+| `GET /healthz` | `200 {"status":"ok","service":"cogniate-content","profile":"default","knobs":[]}` |
 
 No cookies. No CORS headers.
 
@@ -317,7 +319,7 @@ Sends `POST /api/lineitems/{encodeURIComponent(lineItemId)}/scores` with `SERVIC
 | Answer | Row status |
 | --- | --- |
 | `204` | `sent` |
-| `409 PLATFORM_CONFLICT` | `conflict` (no retry; "Moodle has a newer grade, for example a teacher override") |
+| `409 PLATFORM_CONFLICT` | `conflict` (no retry; "Moodle has a grade with a newer time"). A teacher override alone does **not** cause a 409: Moodle 5.2.4 accepts the score and keeps the override (`scores.php` compares times; `grade_item::update_raw_grade` does not change an overridden final grade). |
 | `400`, `404` (`PLATFORM_REJECTED_REQUEST`) | `failed` at once, `lastError` = description |
 | `401`, `5xx`, `502`, `504`, network error | retry: 5 s, 30 s, 2 min, 10 min, 30 min, then every 1 h until 24 h after `createdAt`, then `failed` |
 
@@ -339,7 +341,8 @@ Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `e
 
 | Event | Level | Fields |
 | --- | --- | --- |
-| `service_started`, `service_stopping` | info | `version`, `knobs` |
+| `service_started` | info | `node`, `port`, `public_url`, `profile`, `outbound_allowlist`, `knobs` |
+| `service_stopping` | info | — |
 | `test_knob_active` | warn | `name`, `value` |
 | `http_request` | info | `method`, `path` (no query, no capability ids: `/play/:id`), `status`, `ms` |
 | `outbound_request` | info | `host`, `method`, `status`, `ms` (every call to the LTI service or Moodle) |
