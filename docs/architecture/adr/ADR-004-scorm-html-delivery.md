@@ -1,6 +1,6 @@
 # ADR-004: SCORM 1.2 and HTML courses run in the Cogniate player behind LTI
 
-Status: Accepted (round 2; the SCORM API object is decided by the T5-spike). Date: 2026-10-16.
+Status: Accepted (round 2; updated with the T5-spike facts, `apps/player-spike/SPIKE-NOTES.md`, commit 07e8a45). Date: 2026-10-16.
 
 ## Context
 
@@ -35,14 +35,15 @@ Facts from the packages (read in full; flows §6c, §6d):
 
 - The runtime page (`/rt/{runtimeToken}`) and the package files (`/pkg/{packageId}/...`) are on the same content origin, so the SCO finds `parent.API`.
 - CSP on package files: `frame-ancestors {PUBLIC_CONTENT_URL} {PUBLIC_APP_URL}`. CSP checks every ancestor, and the shell on the app origin is the top ancestor. With only the content origin, the browser blocks every package page (found in review A-T0-01).
-- API object: the **T5-spike** decides between `scorm-again` (MIT, no dependencies) and our own subset. It loads the real package in the real nested frames with the real headers and proves the `301` probe, `LMSFinish` and the commit transport. The behaviour is fixed in the app contract §8 either way.
+- API object: **our own SCORM 1.2 subset** (T5-spike decision). `scorm-again` 3.4.6 returns `401` (not `201`) for unknown elements and still accepts get, set and commit after `LMSFinish`; both differ from SCORM 1.2, Moodle and app contract §8. We need our own transport anyway, and the subset is about 50 times smaller (spike: 3 KB gzip against 34 KB). `scorm-again` may stay as an optional test oracle.
 - One runtime page load = one SCORM session. The runtime frame stays loaded while the SCO moves between its pages.
-- Transport: `LMSCommit` and `LMSFinish` send `POST /rt/{runtimeToken}/commit` (`fetch` with `keepalive`). `pagehide` sends `unload` with `navigator.sendBeacon`.
+- Transport (verified in Chromium): `LMSCommit` and `LMSFinish` send `POST /rt/{runtimeToken}/commit` with `fetch` (`keepalive: true`, JSON, same origin). `pagehide` sends **one** `navigator.sendBeacon` with `event: unload` (no extra `fetch`: both arrive and make duplicates). No `postMessage` to the shell for state (it is lost when the window closes). Arrival order is not `seq` order, so the server orders by `seq`.
+- After `LMSFinish` the API answers `101` to every call (app contract §8). Moodle's own player allows `LMSInitialize` again; the spike showed that this makes the package send a second `finish`, so we do not copy it.
 - The server applies the Moodle `LMSFinish` status rule, adds session time once per session, and derives the outcome (ADR-010).
 
 **HTML: option C.**
 
-- The HTML runtime frames the package entry page on the same origin and attaches listeners to the child document on each `load`.
+- The HTML runtime frames the package entry page on the same origin and attaches listeners to each child document as soon as it is parsed (`readyState` is `interactive` or `complete`; poll and also listen for `load`). It does **not** wait for the `load` event: a hanging external host (S3 images, Google fonts) blocks `load` forever (T5-spike, verified).
 - Rules (same as the SCORM package):
   - A page is seen after `minDwellMs` (10 s) of visible time and a scroll to the end (24 px slack, or the page is shorter than the viewport).
   - The menu page (`index`, when there is more than one page) is seen on visit.
@@ -51,7 +52,7 @@ Facts from the packages (read in full; flows §6c, §6d):
 - It removes `target` and `rel` from internal `.html` links.
 - It reports raw progress. The server computes the outcome from the tracking profile of the attempt's version.
 
-**Frames:** runtime iframe `sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"`, `allow="autoplay; fullscreen"`. The inner package iframe gets the same `allow` value, because permission delegation stops at each frame. `allow-modals` is on, because the HTML export uses `alert()` or `confirm()` once.
+**Frames:** runtime iframe `sandbox="allow-scripts allow-same-origin"`, `allow="autoplay; fullscreen"` (security §7). The inner package iframe needs no `allow`, because it is same-origin with the runtime. Full screen in the package works with this setting (spike S6).
 
 **Versions:** each attempt keeps its course version. A new version is used only for new attempts (spec §9.4: "New attempts use the new version"). An in-progress attempt continues on its version.
 
@@ -61,4 +62,5 @@ Facts from the packages (read in full; flows §6c, §6d):
 - The HTML runtime depends on "Cogniate HTML export markup v1" (Q7).
 - Scores computed in the browser can be forged (security §7, Q8).
 - Multi-SCO and SCORM 2004 packages are rejected at upload.
-- The T5-spike runs before T2a, so a bad surprise in the player shows early.
+- The T5-spike ran before T2a. Its code in `apps/player-spike/` is reference only; production code goes into `apps/player/` (T5a).
+- Not proven by the spike: video playback (the export has no visible video), Firefox and Safari, a real user closing a real window, mobile browsers (README §6).

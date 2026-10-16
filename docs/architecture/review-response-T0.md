@@ -136,3 +136,18 @@ Round-3 AC changes:
 | Changed meaning | AC-T5-31 (now the `conflict` recipe; the teacher override moved to AC-T5-33), AC-T5-32 (now the `failed` recipe + Resend), AC-T4-21, AC-T4-22, AC-T4-28, AC-T4-29 (register-page parts moved to AC-T4-33, AC-T4-34), AC-T4-25 (in-progress case), AC-T4-31 (`frame` opens directly), AC-T2-21, AC-T2-30, AC-T7-13. |
 
 Rejected: none.
+
+## After round 3: T5-spike facts (commit 07e8a45)
+
+The T5-spike (`apps/player-spike/SPIKE-NOTES.md`) verified the player design in Chromium. Changes, with AC ids kept:
+
+| Topic | Change | Files and ACs |
+| --- | --- | --- |
+| SCORM API object | Our own SCORM 1.2 subset; `scorm-again` only as an optional test oracle (it gives `401` for unknown elements and accepts calls after `LMSFinish`). | ADR-004, ADR-008, app contract §8, T5a scope |
+| Sandbox | Runtime iframe `sandbox="allow-scripts allow-same-origin"` (`allow-same-origin` is required). `allow-forms`, `allow-popups`, `allow-modals` dropped for these exports. This supersedes the `allow-modals` part of A-T0-18. | security §7, ADR-004, AC-T5-03 |
+| Permissions | `allow="autoplay; fullscreen"` on the runtime iframe only; the same-origin inner iframe needs none (supersedes the inner-iframe part of A-T0-18). No `Permissions-Policy` on the shell. | security §7, ADR-004, AC-T5-03 |
+| Transport | `fetch` keepalive for `commit` and `finish`, one `sendBeacon` on `pagehide`, no `postMessage` for state; server orders by `seq`; `total_time` uses the largest `session_time` per session. | app contract §7, ADR-004, AC-T5-22, new AC-T5-34, AC-T5-35, log event `commit_accepted` |
+| After `LMSFinish` | Keep `101`; no re-initialize (Moodle's rule makes the package send a second `finish`). | app contract §8, ADR-004, AC-T5-34 |
+| HTML runtime | Attach when the child document is parsed, not on `load` (a hanging external host blocks `load`). | app contract §9, ADR-004, flows §6d, T5b, new AC-T5-36 |
+| Not proven | Video playback, Firefox and Safari, a real window close by a person, mobile browsers. | README §6 |
+| Code location | `apps/player-spike/` is reference only; production code in `apps/player/`. | ADR-004, ADR-008, T5a |

@@ -139,7 +139,7 @@ flowchart TB
 | Full E2E on a real Moodle 5.2 | AC-T7-01, AC-T7-11 | planned |
 | A new person can run it | AC-T9-01 | planned |
 | Native `.mbz` channel, course shell | T8 | stretch |
-| **Not proven** | Teacher Deep Linking in Safari (Q16). MoodleCloud (Q5). Load and scale. 1EdTech certification. | — |
+| **Not proven** | Teacher Deep Linking in Safari (Q16). MoodleCloud (Q5). Player in Firefox and Safari, video playback (the export has no visible video), a real person closing a real window, mobile browsers (T5-spike). Load and scale. 1EdTech certification. | — |
 
 ## 7. Task plan
 

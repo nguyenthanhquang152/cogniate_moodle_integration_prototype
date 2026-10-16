@@ -1,6 +1,8 @@
 # T5-spike: Player spike — real SCORM package in the real frames
 
-Owner: Author. Time-box: half a day. Not reviewed (like T1-spike). Depends on: T1. Output: `apps/player/SPIKE-NOTES.md` (decision note) and throwaway code that T5a may keep or delete.
+Owner: Author. Time-box: half a day. Not reviewed (like T1-spike). Depends on: T1. Output: `apps/player-spike/SPIKE-NOTES.md` (the Lead moved it there from `apps/player/`) and throwaway code that T5a may keep or delete.
+
+**Status: done** (commit 07e8a45). Decisions folded into ADR-004, security §7, app contract §7–§9, T5a and T5b: own SCORM 1.2 subset; sandbox `allow-scripts allow-same-origin`; `allow` on the runtime iframe only; `fetch` keepalive + one `sendBeacon`; `101` after `LMSFinish`; HTML runtime attaches when the document is parsed. Not verified: video playback, Firefox and Safari, a real window close by a person, mobile.
 
 ## Goal
 

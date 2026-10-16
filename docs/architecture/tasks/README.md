@@ -19,8 +19,8 @@ Technical dependencies ("Depends on" in each file) are fewer: T2a and T4a need o
 | [T4a](T4a.md) | Mock session, courses, upload, package inspector | yes | AC-T4-01 to -06 |
 | [T4b1](T4b1.md) | Connections and publications (connect + publish) | yes | AC-T4-07 to -10, -12, -14, -30, -33, -34 |
 | [T4b2](T4b2.md) | Picker, launch handoff, player shell, tool page security | yes | AC-T4-15 to -29, -31, -32 |
-| [T5a](T5a.md) | Content host, SCORM 1.2 runtime, tracking, score sync, results | yes | AC-T5-01 to -08, -12, -13, -15 to -17, -20 to -24 |
-| [T5b](T5b.md) | HTML runtime, retry and conflict, Resend, results refresh | yes | AC-T5-09 to -11, -14, -18, -19, -27 to -33 |
+| [T5a](T5a.md) | Content host, SCORM 1.2 runtime, tracking, score sync, results | yes | AC-T5-01 to -08, -12, -13, -15 to -17, -20 to -24, -34, -35 |
+| [T5b](T5b.md) | HTML runtime, retry and conflict, Resend, results refresh | yes | AC-T5-09 to -11, -14, -18, -19, -27 to -33, -36 |
 | [T6](T6.md) | Portal UI | yes | AC-T6-01 to AC-T6-14 |
 | [T7](T7.md) | Full E2E in real Moodle | yes | AC-T7-01 to AC-T7-15 |
 | [T3c](T3c.md) | Compatibility-only endpoints and the independent-client test | yes | AC-T3-09, -15, -19 to -21, -27 |
@@ -45,7 +45,8 @@ QA writes tests from the task specs and contracts only (charter §1). It does no
 Determinism rules:
 
 - `retries: 0`, `workers: 1`. Unique names per run (for example `QA DL <runId>`).
-- Block every host that is not `*.test` in all browser contexts and record the blocked URLs (the packages load S3 images and Google fonts).
+- Block every host that is not `*.test` in all browser contexts and record the blocked URLs (the packages load S3 images and Google fonts). AC-T5-36 makes them hang instead. Use `waitUntil: 'domcontentloaded'` when hosts hang.
+- Requests sent while a page closes are not seen by `page.route()`: check them in the service logs.
 - Poll with the deadlines in the ACs. Fixed waits only for the 11 s dwell and the TTL tests.
 - Use the visible labels of Moodle 5.2.4. Record every difference from the task text.
 - Do not use the package helper `window.CogniateSCORM.markLessonComplete` in an AC path.

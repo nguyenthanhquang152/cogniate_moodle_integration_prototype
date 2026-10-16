@@ -29,6 +29,7 @@ services/
 apps/
   portal/                    React + Vite + Tailwind (static build)
   player/                    browser TS: shell script, SCORM 1.2 runtime, HTML runtime (Vite library build)
+  player-spike/              T5-spike throwaway code and SPIKE-NOTES.md (reference only; not built, not shipped)
 packages/
   shared/                    modules listed below (a new module needs a reason in the done report)
   tracking/                  pure functions: CMI rules, Moodle LMSFinish rule, outcome, AGS mapping, HTML progress rules
@@ -66,7 +67,7 @@ Import rules (ESLint `no-restricted-imports`):
 | Validation | Zod 4 | Types and runtime checks |
 | JWT | `jose` 6 (no remote fetch) | ADR-002 |
 | Zip / XML / HTML | `yauzl`, `fast-xml-parser` (entities off), `parse5` | Safe parsing |
-| SCORM API object | `scorm-again` or our own subset (T5-spike decides) | ADR-004 |
+| SCORM API object | Our own SCORM 1.2 subset in `apps/player` (T5-spike decision; `scorm-again` only as an optional test oracle) | ADR-004 |
 | Unit tests | Vitest (host) | One runner, jsdom for player code |
 | Acceptance and E2E | `@playwright/test` **1.56.0 exactly**, in the `mcr.microsoft.com/playwright:v1.56.0-noble` image | Must match the browsers in the image |
 | Portal | React 19, Vite, Tailwind 4, shadcn-style components, React Router | Same stack as the dev portal |

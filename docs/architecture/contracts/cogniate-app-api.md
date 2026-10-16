@@ -236,7 +236,9 @@ Commit bodies:
 
 `event`: `commit`, `finish`, `unload` (SCORM); `progress`, `unload` (HTML).
 
-Check order: (1) token valid and not expired (`404`, `410 RUNTIME_EXPIRED`); (2) `sessionId` of this play session; (3) `seq` > last accepted `seq` of the session (`409 STALE_SEQUENCE`); (4) value rules below (`400 INVALID_CMI` or `INVALID_PROGRESS`, `details.field`); (5) store, derive the outcome, maybe make a score sync. A commit after `finish` in the same session is accepted for storage (the package may still write), but it never lowers the attempt outcome. Log: `commit_rejected {code, field}`.
+Transport (T5-spike, verified in Chromium): `commit`, `finish` and `progress` use `fetch` with `keepalive: true` and `application/json`. `pagehide` sends **one** `navigator.sendBeacon` (`text/plain`) with `event: unload`, and no extra `fetch`. The runtime does not send state by `postMessage`. Bodies stay under 60 KB (browser limit for keepalive and beacon bodies is about 64 KB). Requests can arrive out of `seq` order; the runtime's `unload` can arrive before the package's last `pagehide` commits.
+
+Check order: (1) token valid and not expired (`404`, `410 RUNTIME_EXPIRED`); (2) `sessionId` of this play session; (3) `seq` > last accepted `seq` of the session (`409 STALE_SEQUENCE`); (4) value rules below (`400 INVALID_CMI` or `INVALID_PROGRESS`, `details.field`); (5) store, derive the outcome, maybe make a score sync. A commit after `finish` or `unload` in the same session is accepted for storage if its `seq` is higher, but it never lowers the attempt outcome. Log: `commit_rejected {code, field}`.
 
 | Element | Rule |
 | --- | --- |
@@ -253,12 +255,12 @@ Check order: (1) token valid and not expired (`404`, `410 RUNTIME_EXPIRED`); (2)
 Moodle rules that the server applies (as `mod/scorm/datamodels/scorm_12.js` does):
 
 - On `finish`: if `lesson_status` is `not attempted`, it becomes `completed`. Then, in `normal` mode with `credit`, if a mastery score exists and `score.raw` is set, the status becomes `passed` (raw ≥ mastery) or `failed`, whatever it was before (Moodle `StoreData` with its default `masteryoverride`).
-- `session_time` is added to `total_time` once per `sessionId` (on the first `finish` or `unload` of that session).
+- `total_time` = the `total_time` before the session + the **largest** `session_time` seen in that session (the package's session time grows inside a session). So arrival order, stale commits and the duplicate `unload` after `finish` do not change the sum, and each session counts once.
 - Next session `entry`: `resume` if the last `exit` was `suspend`, else `""`. First session: `ab-initio`.
 
 ## 8. SCORM 1.2 runtime (`window.API`) — T5a
 
-One runtime page load = one session. The T5-spike decides between `scorm-again` and our own subset; the behaviour below is fixed either way.
+One runtime page load = one session. The API object is **our own subset** (T5-spike decision, ADR-004). After `LMSFinish` every call answers `101`, and `LMSInitialize` is not allowed again in the same page load (Moodle allows it; the spike showed that the package then sends a second `finish`).
 
 | Call | Before `LMSInitialize` | Session open | After `LMSFinish` |
 | --- | --- | --- | --- |
@@ -306,7 +308,7 @@ Depends on the "Cogniate HTML export markup v1" (Q7):
 | `input[data-cog-correct="true" | "false"]` inside it | one option; `true` = correct |
 | `a[href$=".html"]` without a scheme | internal link: the runtime removes `target` and `rel` |
 
-Rules: ADR-004 "HTML: option C". The runtime does not change package bytes.
+Rules: ADR-004 "HTML: option C". The runtime does not change package bytes. It attaches to each child document when `readyState` is `interactive` or `complete` (poll and `load`), never only on `load`, because a hanging external host blocks `load`.
 
 ## 10. Score sync worker — T5a (retry schedule and Resend: T5b)
 
@@ -356,6 +358,7 @@ Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `e
 | `resource_link_rebound` | info | `resource_link_id`, `from_publication`, `to_publication` |
 | `picker_rejected` | warn | `reason`: `used`, `expired`, `publication_not_available` |
 | `registration_confirm_rejected` | warn | `code` |
+| `commit_accepted` | info | `session_id`, `seq`, `event` |
 | `commit_rejected` | warn | `code`, `field` |
 | `outcome_changed` | info | `attempt_id`, `outcome` |
 | `score_sync` | info | `sync_id`, `status`, `tries` |

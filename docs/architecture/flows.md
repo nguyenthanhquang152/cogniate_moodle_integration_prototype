@@ -183,7 +183,7 @@ sequenceDiagram
     participant APP as Content host
     RT->>APP: GET /rt/{runtimeToken}/state (profile of the attempt's version, saved progress, lastSeq)
     RT->>PG: load /pkg/{packageId}/index.html
-    loop each page load
+    loop each page (attach when the document is parsed, not on load)
       RT->>PG: attach listeners to contentDocument
       RT->>RT: seen = 10 s visible + scroll to end. Menu page = seen on visit.
       RT->>RT: answer = first [data-cog-correct] value per question

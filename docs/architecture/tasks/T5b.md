@@ -8,7 +8,7 @@ The HTML course is tracked like the SCORM course. Score syncs survive Moodle out
 
 ## Scope
 
-In: HTML runtime (contract §9, ADR-004); HTML progress rules in `packages/tracking`; full retry schedule (24 h); `conflict` state; `POST /app-api/score-syncs/:id/resend`; `POST /app-api/publications/:id/results/refresh`.
+In: HTML runtime (contract §9, ADR-004; attach to each child document when it is parsed, not on `load`); HTML progress rules in `packages/tracking`; full retry schedule (24 h); `conflict` state; `POST /app-api/score-syncs/:id/resend`; `POST /app-api/publications/:id/results/refresh`.
 
 Out: portal UI (T6).
 
@@ -19,6 +19,7 @@ Recipes: AC-T5-31 makes a `conflict` row and AC-T5-32 makes a `failed` row in a 
 Setup: T5a state.
 
 - **AC-T5-09** HTML pass: `cg_student` in "Cogniate HTML": menu page, lesson page ≥ 11 s and scroll to the end, correct option. The runtime can read `body[data-lesson-id]` of the child page (`frame.evaluate`). Within 60 s Moodle shows 100 and completion done; row `best.outcome=passed`, one sync `sent`.
+- **AC-T5-36** Hanging hosts: QA makes every non-`*.test` request hang (no answer, not blocked). `cg_student` completes "Cogniate HTML" as in AC-T5-09 → the same result (`passed`, 100 in Moodle) within the same deadline. (A runtime that waits for the iframe `load` event records nothing here.) Tip: in the HTML export some copies of the lesson link are hidden; a DOM `a.click()` works.
 - **AC-T5-10** The HTML package bytes are not changed: for **every** file in the zip, SHA-256 of `GET /pkg/<id>/<path>` = SHA-256 of the zip entry.
 - **AC-T5-11** Incomplete: `cg_student2` opens "Cogniate HTML", sees only the menu page, closes the window → no grade in Moodle; row `in_progress`, `scoreSyncs: []`.
 - **AC-T5-27** HTML fail: `cg_student2` (new run) picks a wrong option and finishes the pages → Moodle 0; row `failed`, one sync `sent`.
