@@ -10,13 +10,14 @@ require_once($CFG->libdir . '/clilib.php');
 require_once($CFG->dirroot . '/mod/lti/locallib.php');
 
 [$options] = cli_get_params([
-    'name' => 'Cogniate (dev)',
+    'name' => 'Cogniate (seed)',
     'toolbase' => (string) getenv('PUBLIC_LTI_URL'), // From .env through compose.
-    'launchpath' => '/lti/launch',
-    'loginpath' => '/lti/login',
+    // LTI service paths of the tool account (contract §2.1-2.3).
+    'launchpath' => '/lti/launch/cogniate',
+    'loginpath' => '/lti/login/cogniate',
     'jwkspath' => '/lti/keys/cogniate',
-    'deeplinkpath' => '/lti/launch',
-    'redirectpaths' => '/lti/launch',   // Comma-separated.
+    'deeplinkpath' => '/lti/launch/cogniate',
+    'redirectpaths' => '/lti/launch/cogniate',   // Comma-separated.
     'coursevisible' => '2',             // 0 no, 1 preconfigured list, 2 also in the activity chooser.
     'launchcontainer' => '4',           // 2 embed, 3 embed without blocks, 4 new window.
     'sendname' => '0',                  // Privacy default: do not share name / email (spec COG-MDL-HLS-001).

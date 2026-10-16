@@ -127,7 +127,19 @@ services:
       NODE_EXTRA_CA_CERTS: /certs/root.crt
       LTI_MASTER_KEY: ${LTI_MASTER_KEY:?run npm run gen-env}
       LOG_DIR: /logs
+      DATA_DIR: /data                          # lti.db (ADR-006); host: infra/.data/lti-service (stack:reset deletes it)
+      STACK_PROFILE: ${STACK_PROFILE:-default}
+      # Hosts that may resolve to private addresses (security §9). The T2b acceptance profile adds its test hosts.
+      OUTBOUND_PRIVATE_HOST_ALLOWLIST: moodle.test
       <<: *public-urls
+    volumes:
+      - ../package.json:/repo/package.json:ro
+      - ../node_modules:/repo/node_modules:ro
+      - ../packages:/repo/packages:ro
+      - ../services:/repo/services:ro
+      - ./.certs/root.crt:/certs/root.crt:ro
+      - ./.logs:/logs
+      - ./.data/lti-service:/data
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4100/healthz"]
       interval: 10s
@@ -145,6 +157,7 @@ services:
       NODE_EXTRA_CA_CERTS: /certs/root.crt
       APP_MASTER_KEY: ${APP_MASTER_KEY:?run npm run gen-env}
       LOG_DIR: /logs
+      STACK_PROFILE: ${STACK_PROFILE:-default}
       <<: *public-urls
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4200/healthz && wget -q -O /dev/null http://127.0.0.1:4201/healthz"]

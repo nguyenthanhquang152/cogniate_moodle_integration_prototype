@@ -5,7 +5,7 @@ import { createHealthServer } from '@cogniate/shared';
 export const APP_SERVICE_NAME = 'cogniate-app';
 export const CONTENT_SERVICE_NAME = 'cogniate-content';
 
-type Deps = { logger?: Logger; knobs?: Knob[] };
+type Deps = { logger?: Logger; knobs?: Knob[]; profile?: string };
 
 /**
  * T1 placeholder. Two listeners in one process:

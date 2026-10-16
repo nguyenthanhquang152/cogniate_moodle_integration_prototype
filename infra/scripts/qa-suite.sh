@@ -19,5 +19,6 @@ require_env
 require_running proxy
 warn_knobs
 prepare_e2e
-dc --profile test run --rm --build e2e sh -c \
+qa_env_args
+dc --profile test run --rm --build "${QA_ENV_ARGS[@]+"${QA_ENV_ARGS[@]}"}" e2e sh -c \
   'npm ci --prefix tests --no-audit --no-fund && npm --prefix tests run "$0" -- "$@"' "$suite" "$@"

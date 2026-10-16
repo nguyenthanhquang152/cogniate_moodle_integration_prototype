@@ -119,6 +119,20 @@ check_public_port() {
   fi
 }
 
+# A-T1-09: the containers of a compose project carry the label working_dir. Stop if the project of this shell
+# belongs to ANOTHER checkout (same COMPOSE_PROJECT_NAME), so no command here touches its data.
+require_own_project() {
+  local dirs other
+  dirs="$(docker ps -a --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" \
+    --format '{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null | sort -u)"
+  other="$(grep -vx -- "$INFRA_DIR" <<< "$dirs" | grep -v '^$' || true)"
+  if [[ -n "$other" ]]; then
+    echo "Project '$COMPOSE_PROJECT_NAME' belongs to another checkout: $other" >&2
+    echo "Set COMPOSE_PROJECT_NAME to a new name for this checkout (and PUBLIC_PORT, STACK_SUBNET if both run at once)." >&2
+    exit 1
+  fi
+}
+
 # Print a CAUTION line while test knobs are active (A-T1-05, B-T1-05).
 warn_knobs() {
   [[ -f "$KNOBS_FILE" ]] || return 0
@@ -162,6 +176,16 @@ prepare_e2e() {
   find "$REPO_ROOT/.tmp/public-certs" -mindepth 1 -delete
   cp "$CERTS_DIR/root.crt" "$CERTS_DIR/stack.crt" "$REPO_ROOT/.tmp/public-certs/"
   chmod 644 "$REPO_ROOT/.tmp/public-certs/"*.crt
+}
+
+# H14: "-e NAME" for every QA_* variable of the caller, so the e2e container gets them (name only: the value is
+# taken from this environment and never appears on a command line). Fills the array QA_ENV_ARGS.
+qa_env_args() {
+  QA_ENV_ARGS=()
+  local name
+  while IFS= read -r name; do
+    [[ -n "$name" ]] && QA_ENV_ARGS+=(-e "$name")
+  done < <(compgen -e | grep -E '^QA_[A-Za-z0-9_]*$' || true)
 }
 
 print_urls() {

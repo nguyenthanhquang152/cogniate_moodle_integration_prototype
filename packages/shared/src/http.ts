@@ -31,6 +31,8 @@ export function sendJson(res: ServerResponse, status: number, body: unknown): vo
 export interface HealthBody {
   status: 'ok';
   service: string;
+  /** Compose profile: "default" or "acceptance" (local-stack §3). */
+  profile: string;
   knobs: Knob[];
 }
 
@@ -44,6 +46,7 @@ export function traceIdFrom(req: IncomingMessage): string {
 export interface HealthServerOptions {
   logger?: Logger;
   knobs?: Knob[];
+  profile?: string;
 }
 
 /**
@@ -55,6 +58,7 @@ export interface HealthServerOptions {
  */
 export function createHealthServer(service: string, options: HealthServerOptions = {}): Server {
   const knobs = options.knobs ?? [];
+  const profile = options.profile ?? 'default';
   return createServer((req: IncomingMessage, res: ServerResponse) => {
     const started = performance.now();
     const traceId = traceIdFrom(req);
@@ -67,7 +71,7 @@ export function createHealthServer(service: string, options: HealthServerOptions
       });
     });
     if ((req.method === 'GET' || req.method === 'HEAD') && path === '/healthz') {
-      const body: HealthBody = { status: 'ok', service, knobs };
+      const body: HealthBody = { status: 'ok', service, profile, knobs };
       sendJson(res, 200, body);
       return;
     }

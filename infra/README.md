@@ -34,14 +34,16 @@ All commands run from the repo root.
 | --- | --- | --- | --- |
 | `npm run gen-env` | First run, or after you change `PUBLIC_PORT`. `stack:up` runs it for you. | nothing | Existing secrets. It adds missing secrets, writes the four URLs, and makes `infra/.certs/` if missing. |
 | `npm run stack:up` | Start the stack. It waits until every service is healthy. | nothing | everything |
-| `npm run seed` | After `stack:up`. You can run it again at any time (idempotent). | nothing | everything. It updates Moodle settings, users, courses and tokens, and rewrites `infra/.secrets/seed.json`. |
+| `npm run seed` | After `stack:up`. You can run it again at any time (idempotent). | nothing | everything. It updates Moodle settings, users, courses and tokens, makes the LTI tool accounts `cogniate` and `qa-second` (API keys in `infra/.secrets/lti-api-key.<account>`), and rewrites `infra/.secrets/seed.json` (other keys, such as `ltiSeed`, are kept). |
+| `npm run seed:lti-manual` | After `seed`: a launchable dev setup without UI. Idempotent. | nothing | everything. Makes the Moodle tool "Cogniate (seed)", the activities "Seed activity" (101) and "Seed activity 102" (102), registers the platform in the LTI service (`POST /api/platforms`; a deleted platform is made again), and writes `ltiSeed` to `seed.json`. |
+| `npm run lti:bootstrap -w services/lti-service -- --account <id> --name <name> [--rotate-api-key] [--rotate-signing-key]` | Make or update one LTI tool account (contract §7). | nothing (a rotated key replaces the old key) | everything. A new or rotated API key is printed once and written to `infra/.secrets/lti-api-key.<account>` (mode 600). |
 | `npm run demo` | One command for a human demo: `npm ci` (if needed), gen-env, build, stack:up, seed. | nothing | everything |
 | `npm run demo:browser` | Look at the stack in Chrome without any change to your Mac. | nothing | A throwaway profile in `.tmp/demo-browser-profile` (delete it any time). |
 | `npm run stack:down` | Stop the containers. | containers | volumes (Moodle site, database), `.env`, certificates, `infra/.secrets`, `infra/.logs` |
-| `npm run stack:reset` | Start again with an empty Moodle site. Then run `stack:up` and `seed`. | volumes (Moodle site, database), `infra/.secrets/seed.json`, `infra/.logs/`, `infra/.data/backups/`, test knobs | `.env` (same passwords), `infra/.certs/` (same CA), `infra/.data/fixtures/` |
+| `npm run stack:reset` | Start again with an empty Moodle site and an empty LTI service. Then run `stack:up`, `seed` and `seed:lti-manual`. | volumes (Moodle site, database), the LTI service database (`infra/.data/lti-service/`), `infra/.secrets/seed.json`, `infra/.secrets/lti-api-key.*`, `infra/.logs/`, `infra/.data/backups/`, test knobs | `.env` (same passwords), `infra/.certs/` (same CA), `infra/.data/fixtures/`. It refuses a project that belongs to another checkout, and without `.env` it needs an explicit `COMPOSE_PROJECT_NAME`. |
 | `npm run stack:restart -- <service> [--env K=V ...]` | Restart one service with test knobs (registered knobs only). Without `--env`, the defaults come back. | The knobs of that service (when you restore the defaults) | everything else |
 | `npm run stack:logs [-- <service>...]` | Follow the container logs. | nothing | everything |
-| `npm run stack:moodle-reach-check` | Check that Moodle's own HTTP client reaches the LTI service (curl security + CA), and that four other targets stay BLOCKED (metadata IP, port 80, the database port, another Docker range). Exit 1 if one is ALLOWED. | nothing | everything |
+| `npm run stack:moodle-reach-check` | Check that Moodle's own HTTP client reaches the LTI service (curl security + CA), and that seven other targets stay BLOCKED. Host rule (https, port 443): metadata IP, loopback, `10.0.0.0/8`, the Docker Desktop host, another Docker range. Port rule: port 80, the database port. Exit 1 if one is ALLOWED. | nothing | everything |
 | `npm run stack:node-reach-check` | Check that `lti-service` and `cogniate-app` reach Moodle over HTTPS (Node trusts the CA). | nothing | everything |
 | `npm run fixtures:check` | Check the two course zips (they are not in git). | nothing | everything |
 | `npm run test:acceptance` / `npm run test:e2e` | Run the QA suites in the e2e container. | `tests/node_modules` (`npm ci`) | everything else |
@@ -133,7 +135,9 @@ Mode 600 and git-ignored. Format `cogniate-seed/1`. Later tasks add keys. They d
       "product":   { "service": "cogniate_integration", "username": "cogniate_integration", "userid": 3, "token": "<32 hex>", "functions": ["..."] },
       "qa_oracle": { "service": "cogniate_qa_oracle",   "username": "cogniate_qa_oracle",   "userid": 7, "token": "<32 hex>", "functions": ["..."] }
     }
-  }
+  },
+  "lti": { "apiKeyFiles": { "cogniate": "infra/.secrets/lti-api-key.cogniate", "qa-second": "infra/.secrets/lti-api-key.qa-second" } },
+  "ltiSeed": { "typeId": 1, "clientId": "<Moodle client id>", "deploymentId": "1", "cmids": { "COGNIATE-DEV-101": 3, "COGNIATE-DEV-102": 4 }, "platformId": "plt_..." }
 }
 ```
 
@@ -155,6 +159,11 @@ Stable key paths (later tasks only add keys):
 | `moodle.ws.product.token` | string | permanent REST token (32 hex) |
 | `moodle.ws.product.functions` | string[] | the 9 function names |
 | `moodle.ws.qa_oracle.service`, `.username`, `.userid`, `.token`, `.functions` | as above | `cogniate_qa_oracle`, its user, token and 6 function names |
+| `lti.apiKeyFiles.<account>` | string | repo-relative path of the API key file of the LTI tool account (`cogniate`, `qa-second`); the file holds one line `ltis_…` |
+| `ltiSeed.typeId` | number | Moodle tool type id of "Cogniate (seed)" (written by `seed:lti-manual`) |
+| `ltiSeed.clientId`, `ltiSeed.deploymentId` | string | Moodle client id and deployment id (= type id) of that tool |
+| `ltiSeed.cmids.<course shortname>` | number | course module id of "Seed activity" (`COGNIATE-DEV-101`) and "Seed activity 102" (`COGNIATE-DEV-102`) |
+| `ltiSeed.platformId` | string | id of the platform in the LTI service (`plt_…`) |
 
 ## QA hooks
 
@@ -165,7 +174,20 @@ Stable key paths (later tasks only add keys):
 | Test knobs | See "Test knobs" below. |
 | Logs | `infra/.logs/<service>.jsonl` (`lti-service`, `cogniate-app`, `cogniate-content`), mode 700 (the Node services run as the host user). One JSON object per line: `{ts, level, service, event, trace_id, ...}`. Every line has `trace_id`: request lines use the request trace id (or the caller's `x-trace-id`); lifecycle lines use one boot trace id per process (`boot-<12 hex>`). T1 events: `service_started`, `test_knob_active`, `http_request {method, path, status, ms}`, `service_stopping` (one per listener). `/healthz` requests are logged only at `LOG_LEVEL=debug` (default `info`), so the health checks do not fill the files. Paths have no query string, and token-like path segments show as `:redacted`. Secret keys (any spelling, any depth) and secret-looking values (JWT, `Bearer`, `ltik=`) are redacted. Kept across restarts. `stack:reset` deletes them. |
 | e2e container | Image `<project>-e2e:1.56.0` (Playwright 1.56.0). Repo at `/repo`, **read-only**. `/repo/.env` is the public part of `.env` only (`.tmp/public.env`: project, subnet, port, the four URLs; no secret). `infra/.secrets` and `infra/.logs` are read-only. `infra/.certs` shows only `root.crt` and `stack.crt` (no keys). Writable: `tests/acceptance/artifacts`, `tests/e2e/artifacts`, `tests/test-results`, `tests/playwright-report`, `tests/.tmp`, and `/repo/tests/node_modules` (a Docker volume with the Linux install, so it does not replace the host's `tests/node_modules`). `NODE_EXTRA_CA_CERTS=/certs/root.crt`. Chromium trusts the CA through NSS. The four `PUBLIC_*_URL` variables are set. |
-| QA suites | `tests/` is a separate npm project owned by QA (with `tests/package-lock.json`). `npm run test:acceptance` runs `npm ci --prefix tests && npm --prefix tests run acceptance` in the e2e container. `test:e2e` runs the `e2e` script the same way. If `tests/package.json` is missing, the command stops with a message. |
+| QA suites | `tests/` is a separate npm project owned by QA (with `tests/package-lock.json`). `npm run test:acceptance -- <args>` runs `npm ci --prefix tests && npm --prefix tests run acceptance -- <args>` in the e2e container. `test:e2e` runs the `e2e` script the same way. If `tests/package.json` is missing, the command stops with a message. |
+| QA env (H14) | Every `QA_*` variable of the caller reaches the e2e container (name only on the command line; the value comes from the environment), for `test:acceptance`, `test:e2e` and `infra/scripts/e2e-run.sh`. |
+| Knobs and `stack:up` | A knob set with `stack:restart --env` stays active through a later `stack:up` (the override file is part of every compose command), until `stack:restart -- <service>` without `--env` or `stack:reset` (Q-T0-43). |
+
+## LTI service
+
+| Item | Value |
+| --- | --- |
+| Code | `services/lti-service` (Fastify, `jose`, Zod, `node:sqlite`). Contract: `docs/architecture/contracts/lti-service-api.md`. |
+| Database | `infra/.data/lti-service/lti.db` (SQLite, plain SQL migrations in `src/db/migrations/` at start). `stack:reset` deletes it. |
+| Tool keys | One RSA 2048 key per tool account (RS256). The private JWK is encrypted with `LTI_MASTER_KEY` (AES-256-GCM). Public keys: `{PUBLIC_LTI_URL}/lti/keys/<account>`. |
+| Outbound calls | Only through the guarded client in `packages/shared/src/outbound.ts` (https only, no redirects, 5 s, 1 MB, private IPs blocked inside the connection lookup). Allowlist: `OUTBOUND_PRIVATE_HOST_ALLOWLIST=moodle.test` (compose). Every call logs `outbound_request` or `outbound_blocked`. |
+| Moodle URLs for a manual tool | Login `{PUBLIC_LTI_URL}/lti/login/cogniate`, redirect and tool URL `{PUBLIC_LTI_URL}/lti/launch/cogniate`, keyset `{PUBLIC_LTI_URL}/lti/keys/cogniate`. |
+| Author smoke check | `infra/scripts/e2e-run.sh node infra/e2e/lti-launch-smoke.mjs [cg_student] [--via=view|launch]`: a real Moodle launch of "Seed activity", then `GET /api/idtoken` (prints no secret). |
 
 ## Test knobs
 

@@ -1,9 +1,9 @@
 // Write infra/.secrets/seed.json (mode 600) from the seed step results (stdin) and .env (process.env).
 // Format "cogniate-seed/1" is documented in infra/README.md ("seed.json"). Later tasks ADD keys; they do not
-// rename or remove keys.
-// stdin: {"moodle": <setup_users_courses.php JSON>, "ws": {"product": <...>, "qa_oracle": <...>}}
+// rename or remove keys. Keys that other steps write (for example ltiSeed from seed:lti-manual) are kept.
+// stdin: {"moodle": <setup_users_courses.php JSON>, "ws": {"product": <...>, "qa_oracle": <...>}, "lti": {"apiKeyFiles": {...}}}
 // Usage (by seed.sh): node infra/scripts/seed-json.mjs <out-file>
-import { chmodSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 
 const out = process.argv[2];
 if (!out) throw new Error('usage: seed-json.mjs <out-file>');
@@ -35,7 +35,9 @@ const ws = (key) => {
   return { service: w.service, username: w.username, userid: w.userid, token: w.token, functions: w.functions };
 };
 
+const previous = existsSync(out) ? JSON.parse(readFileSync(out, 'utf8')) : {};
 const seed = {
+  ...previous,
   format: 'cogniate-seed/1',
   generatedAt: new Date().toISOString(),
   urls: { moodle: need('PUBLIC_MOODLE_URL'), lti: need('PUBLIC_LTI_URL'), app: need('PUBLIC_APP_URL'), content: need('PUBLIC_CONTENT_URL') },
@@ -44,6 +46,7 @@ const seed = {
     courses,
     ws: { product: ws('product'), qa_oracle: ws('qa_oracle') },
   },
+  ...(input.lti ? { lti: { ...(previous.lti ?? {}), ...input.lti } } : {}),
 };
 const tmp = `${out}.tmp`;
 writeFileSync(tmp, `${JSON.stringify(seed, null, 2)}\n`, { mode: 0o600 });

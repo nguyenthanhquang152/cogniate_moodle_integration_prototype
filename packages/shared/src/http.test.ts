@@ -22,7 +22,7 @@ describe('createHealthServer', () => {
     const res = await fetch(`${base}/healthz`);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('application/json');
-    expect(await res.json()).toEqual({ status: 'ok', service: 'demo-service', knobs: [] });
+    expect(await res.json()).toEqual({ status: 'ok', service: 'demo-service', profile: 'default', knobs: [] });
   });
 
   it('lists active knobs', async () => {

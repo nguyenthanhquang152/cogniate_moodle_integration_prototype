@@ -25,12 +25,20 @@ suffix=""; [[ "$port" == 443 ]] || suffix=":$port"
 created=no; [[ -f "$ENV_FILE" ]] || created=yes
 
 # B-T1-02: new secrets do not match an old database. Postgres reads its password only on the first start.
-if [[ "$created" == yes ]] && command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
+# B-T1-12: a NEW .env needs Docker, so this check can run. (Updating an existing .env works without Docker.)
+if [[ "$created" == yes ]]; then
+  if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+    echo "Start Docker first: gen-env checks for old stack data before it makes a new .env." >&2
+    exit 1
+  fi
+  require_own_project   # A-T1-09: never suggest a reset of another checkout's stack
   old="$(docker volume ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" | tr '\n' ' ')"
   if [[ -n "${old// /}" ]]; then
     echo "This checkout has no .env, but project '$COMPOSE_PROJECT_NAME' still has Docker volumes: $old" >&2
     echo "A new .env would have new passwords that do not match the old database." >&2
-    echo "Fix: restore the old .env, or delete the old data with: npm run stack:reset" >&2
+    echo "If these volumes belong to another checkout: set COMPOSE_PROJECT_NAME to a new name for this checkout." >&2
+    echo "If they are this checkout's old data: restore the old .env, or delete the data with:" >&2
+    echo "  COMPOSE_PROJECT_NAME=$COMPOSE_PROJECT_NAME npm run stack:reset" >&2
     exit 1
   fi
 fi

@@ -1,0 +1,124 @@
+import type { IncomingMessage, Server, ServerResponse } from 'node:http';
+import type { RequestOptions } from 'node:https';
+import { createServer, request as httpRequest } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { afterEach, describe, expect, it } from 'vitest';
+import { createLogger } from './logger.ts';
+import type { OutboundOptions, Resolver } from './outbound.ts';
+import { OutboundError, createOutboundClient, isBlockedAddress, parseAllowlist } from './outbound.ts';
+
+// The client always builds https requests. The tests swap the transport for plain http to a local server, but keep
+// the guarded lookup: the connection goes to whatever address the guarded lookup returned.
+let server: Server | undefined;
+let hits: string[] = [];
+afterEach(() => { server?.close(); server = undefined; hits = []; });
+
+async function startServer(handler: (req: IncomingMessage, res: ServerResponse) => void): Promise<number> {
+  server = createServer((req, res) => { hits.push(req.url ?? ''); handler(req, res); });
+  await new Promise<void>((r) => server!.listen(0, '127.0.0.1', () => r()));
+  return (server.address() as AddressInfo).port;
+}
+
+function client(port: number, extra: Partial<OutboundOptions> = {}) {
+  const lines: Array<Record<string, unknown>> = [];
+  const logger = createLogger({ service: 'test', write: (l) => lines.push(JSON.parse(l) as Record<string, unknown>), level: 'debug' });
+  const viaHttp = (opts: RequestOptions, cb: (res: IncomingMessage) => void) =>
+    httpRequest({ ...opts, protocol: 'http:', port }, cb);
+  const c = createOutboundClient({ logger, requestImpl: viaHttp, timeoutMs: 1000, ...extra });
+  return { c, lines, events: () => lines.filter((l) => String(l.event).startsWith('outbound_')) };
+}
+
+const resolveTo = (...addresses: string[]): Resolver => async () => addresses.map((a) => ({ address: a, family: a.includes(':') ? 6 : 4 }));
+
+describe('isBlockedAddress', () => {
+  it.each([
+    '0.1.2.3', '10.1.2.3', '100.64.0.1', '100.127.255.255', '127.0.0.1', '169.254.169.254', '172.16.0.1', '172.31.255.255',
+    '192.0.0.8', '192.168.1.1', '198.18.0.1', '198.19.255.255', '224.0.0.1', '239.1.1.1', '240.0.0.1', '255.255.255.255',
+    '::', '::1', 'fc00::1', 'fd12:3456::1', 'fe80::1', 'ff02::1', '64:ff9b::1.2.3.4', '::ffff:127.0.0.1', '::ffff:10.0.0.1', '::ffff:a9fe:a9fe',
+  ])('blocks %s', (ip) => expect(isBlockedAddress(ip)).toBe(true));
+
+  it.each(['8.8.8.8', '1.1.1.1', '100.63.255.255', '172.15.255.255', '172.32.0.1', '198.20.0.1', '2001:4860:4860::8888', '::ffff:8.8.8.8'])(
+    'allows %s', (ip) => expect(isBlockedAddress(ip)).toBe(false));
+
+  it('blocks text that is not an IP address', () => expect(isBlockedAddress('moodle.test')).toBe(true));
+});
+
+describe('createOutboundClient', () => {
+  it('refuses http and logs one outbound_blocked event, without a request', async () => {
+    const port = await startServer((_q, s) => s.end('x'));
+    const { c, events } = client(port);
+    await expect(c.request('http://example.test/x')).rejects.toMatchObject({ reason: 'not_https' });
+    expect(hits).toEqual([]);
+    expect(events()).toEqual([expect.objectContaining({ event: 'outbound_blocked', host: 'example.test', reason: 'not_https' })]);
+  });
+
+  it('blocks a host that resolves to a private address (no connection)', async () => {
+    const port = await startServer((_q, s) => s.end('x'));
+    const { c, events } = client(port, { resolver: resolveTo('127.0.0.1') });
+    await expect(c.request('https://jwks.example/keys')).rejects.toMatchObject({ reason: 'private_ip' });
+    expect(hits).toEqual([]);
+    expect(events()).toHaveLength(1);
+  });
+
+  it('blocks when ANY address of the answer is private: public first, private second (DNS rebinding)', async () => {
+    const port = await startServer((_q, s) => s.end('x'));
+    const { c } = client(port, { resolver: resolveTo('8.8.8.8', '127.0.0.1') });
+    await expect(c.request('https://rebind.example/keys')).rejects.toMatchObject({ reason: 'private_ip' });
+    expect(hits).toEqual([]);
+  });
+
+  it('lets an allowlisted host resolve to a private address, uses that address for the connection, and logs outbound_request', async () => {
+    const port = await startServer((_q, s) => { s.setHeader('content-type', 'application/json'); s.end('{"keys":[]}'); });
+    const { c, events } = client(port, { resolver: resolveTo('127.0.0.1'), allowlist: parseAllowlist(' Moodle.Test , other.test') });
+    const res = await c.request('https://moodle.test/mod/lti/certs.php', { traceId: 'trace-0123456789abcdef' });
+    expect(res.status).toBe(200);
+    expect(res.json()).toEqual({ keys: [] });
+    expect(hits).toEqual(['/mod/lti/certs.php']);
+    expect(events()).toEqual([expect.objectContaining({ event: 'outbound_request', host: 'moodle.test', method: 'GET', status: 200, trace_id: 'trace-0123456789abcdef' })]);
+  });
+
+  it('blocks a private IP literal without a DNS lookup', async () => {
+    let asked = 0;
+    const { c } = client(1, { resolver: async () => { asked += 1; return []; } });
+    await expect(c.request('https://169.254.169.254/latest/meta-data')).rejects.toMatchObject({ reason: 'private_ip' });
+    await expect(c.request('https://[::1]/x')).rejects.toMatchObject({ reason: 'private_ip' });
+    expect(asked).toBe(0);
+  });
+
+  it('does not follow a redirect', async () => {
+    const port = await startServer((q, s) => { if (q.url === '/start') { s.statusCode = 302; s.setHeader('location', '/target'); } s.end(); });
+    const { c, events } = client(port, { resolver: resolveTo('127.0.0.1'), allowlist: ['moodle.test'] });
+    await expect(c.request('https://moodle.test/start')).rejects.toMatchObject({ reason: 'redirect' });
+    expect(hits).toEqual(['/start']);
+    expect(events()).toEqual([expect.objectContaining({ event: 'outbound_blocked', reason: 'redirect' })]);
+  });
+
+  it('stops a response over the size limit', async () => {
+    const port = await startServer((_q, s) => s.end('x'.repeat(5000)));
+    const { c } = client(port, { resolver: resolveTo('127.0.0.1'), allowlist: ['moodle.test'], maxBytes: 1024 });
+    await expect(c.request('https://moodle.test/big')).rejects.toMatchObject({ reason: 'too_large' });
+  });
+
+  it('times out', async () => {
+    const port = await startServer(() => { /* never answers */ });
+    const { c, events } = client(port, { resolver: resolveTo('127.0.0.1'), allowlist: ['moodle.test'], timeoutMs: 150 });
+    await expect(c.request('https://moodle.test/slow')).rejects.toMatchObject({ reason: 'timeout' });
+    expect(events()).toHaveLength(1);
+  });
+
+  it('reports a DNS error', async () => {
+    const { c } = client(1, { resolver: async () => { throw new Error('NXDOMAIN'); } });
+    const err = await c.request('https://nowhere.example/x').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(OutboundError);
+    expect((err as OutboundError).reason).toBe('dns_error');
+  });
+
+  it('retries a GET once on a network error, never a POST', async () => {
+    const { c, events } = client(9, { resolver: resolveTo('127.0.0.1'), allowlist: ['moodle.test'] }); // port 9: nothing listens
+    await expect(c.request('https://moodle.test/x')).rejects.toMatchObject({ reason: 'network_error' });
+    expect(events()).toHaveLength(2);
+    const post = client(9, { resolver: resolveTo('127.0.0.1'), allowlist: ['moodle.test'] });
+    await expect(post.c.request('https://moodle.test/x', { method: 'POST', body: 'a=1' })).rejects.toMatchObject({ reason: 'network_error' });
+    expect(post.events()).toHaveLength(1);
+  });
+});

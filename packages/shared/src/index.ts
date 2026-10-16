@@ -5,6 +5,8 @@ export type { ErrorBody, HealthBody, HealthServerOptions } from './http.ts';
 export { KNOB_REGISTRY, knobValue, readServiceKnobs } from './knobs.ts';
 export type { Knob, KnobName, KnobSpec, ServiceKnobs } from './knobs.ts';
 export { BOOT_TRACE_ID, createLogger, redact, redactPath, redactString } from './logger.ts';
+export { OutboundError, createOutboundClient, isBlockedAddress, parseAllowlist } from './outbound.ts';
+export type { OutboundBlockReason, OutboundClient, OutboundOptions, OutboundRequest, OutboundResponse, ResolvedAddress, Resolver } from './outbound.ts';
 export type { LogLevel, LogLine, Logger, LoggerOptions } from './logger.ts';
 export { startService } from './service.ts';
 export type { ServiceListener, StartOptions } from './service.ts';

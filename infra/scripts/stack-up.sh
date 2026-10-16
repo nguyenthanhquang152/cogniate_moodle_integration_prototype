@@ -9,8 +9,8 @@ source "$(dirname "$0")/lib.sh"   # load the new .env
 require_env
 warn_knobs
 check_public_port
-mkdir -p "$INFRA_DIR/.secrets" "$INFRA_DIR/.data/fixtures" "$INFRA_DIR/.data/backups" "$LOGS_DIR"
-chmod 700 "$INFRA_DIR/.secrets" "$LOGS_DIR"   # the Node services run as the host user (HOST_UID)
+mkdir -p "$INFRA_DIR/.secrets" "$INFRA_DIR/.data/fixtures" "$INFRA_DIR/.data/backups" "$INFRA_DIR/.data/lti-service" "$LOGS_DIR"
+chmod 700 "$INFRA_DIR/.secrets" "$LOGS_DIR" "$INFRA_DIR/.data/lti-service"   # the Node services run as the host user (HOST_UID)
 
 # The certificate files are bind-mounted one by one. A container keeps the old file after gen-certs replaces
 # it, so recreate the containers when the certificates changed since the last start.

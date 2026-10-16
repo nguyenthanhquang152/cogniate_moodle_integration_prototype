@@ -9,8 +9,8 @@ describe('cogniate-app placeholder', () => {
     const a = await listen(app, 0, '127.0.0.1');
     const c = await listen(content, 0, '127.0.0.1');
     try {
-      expect(await (await fetch(`http://127.0.0.1:${a.port}/healthz`)).json()).toEqual({ status: 'ok', service: 'cogniate-app', knobs: [] });
-      expect(await (await fetch(`http://127.0.0.1:${c.port}/healthz`)).json()).toEqual({ status: 'ok', service: 'cogniate-content', knobs: [] });
+      expect(await (await fetch(`http://127.0.0.1:${a.port}/healthz`)).json()).toEqual({ status: 'ok', service: 'cogniate-app', profile: 'default', knobs: [] });
+      expect(await (await fetch(`http://127.0.0.1:${c.port}/healthz`)).json()).toEqual({ status: 'ok', service: 'cogniate-content', profile: 'default', knobs: [] });
     } finally {
       app.close();
       content.close();
