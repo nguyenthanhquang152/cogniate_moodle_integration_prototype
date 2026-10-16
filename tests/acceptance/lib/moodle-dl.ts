@@ -100,7 +100,16 @@ export interface ManualTool {
  * Site administration > Plugins > Activity modules > External tool > Manage tools > "configure a tool manually",
  * with the values of the cogniate account (ADR-009 manual values). Returns the type id and the client id.
  */
-export async function createManualTool(page: Page, admin: MoodleUser, name: string): Promise<ManualTool> {
+export interface ManualToolOptions {
+  /** "Supports Deep Linking" with the content selection URL (ADR-009 manual values). Default false. */
+  deepLinking?: boolean;
+  /** "Accept grades from the tool": '1' always, '2' delegate to teacher (ADR-009). Default '1'. */
+  acceptGrades?: '1' | '2';
+  /** IMS LTI Names and Role Provisioning on. Default false. */
+  memberships?: boolean;
+}
+
+export async function createManualTool(page: Page, admin: MoodleUser, name: string, opts: ManualToolOptions = {}): Promise<ManualTool> {
   await moodleLogin(page, urls.moodle, admin.username, admin.password);
   await page.goto(`${urls.moodle}/mod/lti/toolconfigure.php`);
   await page.getByRole('link', { name: /configure a tool manually/i }).click();
@@ -120,7 +129,12 @@ export async function createManualTool(page: Page, admin: MoodleUser, name: stri
   await page.locator('#id_ltiservice_gradesynchronization').selectOption('2');
   await page.locator('#id_lti_sendname').selectOption('0');
   await page.locator('#id_lti_sendemailaddr').selectOption('0');
-  await page.locator('#id_lti_acceptgrades').selectOption('1');
+  await page.locator('#id_lti_acceptgrades').selectOption(opts.acceptGrades ?? '1');
+  if (opts.deepLinking) {
+    await page.locator('#id_lti_contentitem').check();
+    await page.locator('#id_lti_toolurl_ContentItemSelectionRequest').fill(`${lti}/lti/launch/${ACCOUNT}`);
+  }
+  if (opts.memberships) await page.locator('#id_ltiservice_memberships').selectOption('1');
   await Promise.all([page.waitForURL(/toolconfigure\.php/, { timeout: 30_000 }), page.locator('#id_submitbutton').click()]);
 
   // Find the new tool: mod/lti/templates/tool_card.mustache renders <div class="tool-card" data-type-id="{{id}}">.

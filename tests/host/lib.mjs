@@ -375,7 +375,7 @@ export function secretsInFile(file) {
 
 // ---------------------------------------------------------------- test reports
 
-const ID_RE = /\b(AC-T\d+-\d+|LC-T\d+-\d+|H\d+)\b/;
+const ID_RE = /\b(AC-T\d+-\d+|LC-T\d+-\d+|H\d+|SETUP-T\w+)\b/;
 
 /** Per-test results from Vitest JSON and Playwright JSON reports: { id, title, status }[]. */
 export function readTestReports(dir) {

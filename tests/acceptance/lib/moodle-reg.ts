@@ -24,6 +24,8 @@ export interface HeldRegistration {
   /** True if Moodle showed the "update or register new" page first. */
   sawChoice: boolean;
   frame: Frame;
+  /** The app's answer for the frame URL (hold: false only): status, headers, body. */
+  response?: { status: number; headers: Record<string, string>; body: string };
   release: () => Promise<void>;
 }
 
@@ -40,20 +42,29 @@ export async function startRegistration(
   registrationUrl: string,
   choice: RegistrationChoice = 'new',
   timeoutMs = 45_000,
+  { hold = true }: { hold?: boolean } = {},
 ): Promise<HeldRegistration> {
   let toolUrl: string | undefined;
+  let response: HeldRegistration['response'];
   const matcher = (u: URL) => u.href.startsWith(TOOL_REGISTER);
   const handler = async (route: Route) => {
     toolUrl ??= route.request().url();
     return route.fulfill({ status: 200, contentType: 'text/html', body: '<p id="qa-hold">QA holds this registration.</p>' });
   };
-  await context.route(matcher, handler);
+  // hold: false → the real app page loads in Moodle's frame; QA records its answer.
+  const onResponse = async (r: import('@playwright/test').Response) => {
+    if (toolUrl || !r.url().startsWith(TOOL_REGISTER) || r.request().method() !== 'GET') return;
+    toolUrl = r.url();
+    response = { status: r.status(), headers: await r.allHeaders(), body: await r.text().catch(() => '') };
+  };
+  if (hold) await context.route(matcher, handler);
+  else context.on('response', onResponse);
   await page.locator('#tool-url').fill(registrationUrl);
   await page.locator('#tool-create-button').click();
 
   const deadline = Date.now() + timeoutMs;
   let sawChoice = false;
-  while (!toolUrl && Date.now() < deadline) {
+  while ((!toolUrl || (!hold && !response)) && Date.now() < deadline) {
     const reg = page.frames().find((f) => /startltiadvregistration\.php/.test(f.url()));
     if (reg && !sawChoice) {
       const buttons = reg.locator('button[data-href*="startltiadvregistration.php"]');
@@ -65,12 +76,21 @@ export async function startRegistration(
     }
     await page.waitForTimeout(250);
   }
-  if (!toolUrl) {
-    await context.unroute(matcher, handler);
+  const release = async () => {
+    if (hold) await context.unroute(matcher, handler);
+    else context.off('response', onResponse);
+  };
+  if (!toolUrl || (!hold && !response)) {
+    await release();
     throw new Error(`Moodle's registration frame did not reach ${TOOL_REGISTER} within ${timeoutMs} ms`);
   }
-  const frame = page.frames().find((f) => f.url().startsWith(TOOL_REGISTER));
+  let frame = page.frames().find((f) => f.url().startsWith(TOOL_REGISTER));
+  for (let i = 0; !frame && i < 40; i++) {
+    await page.waitForTimeout(250);
+    frame = page.frames().find((f) => f.url().startsWith(TOOL_REGISTER));
+  }
   if (!frame) throw new Error('no frame at the app registration URL');
+  if (!hold) await frame.waitForLoadState('load');
   const q = new URL(toolUrl).searchParams;
   return {
     toolUrl,
@@ -78,7 +98,8 @@ export async function startRegistration(
     ref: q.get('ref'),
     sawChoice,
     frame,
-    release: () => context.unroute(matcher, handler),
+    response,
+    release,
   };
 }
 
@@ -132,4 +153,66 @@ export async function toolSettings(page: Page, typeId: number): Promise<ToolSett
     clientId: await value('#id_lti_clientid_disabled'),
     pending,
   };
+}
+
+/** All type ids of tool cards with this exact name. */
+export async function toolTypeIds(page: Page, name: string): Promise<number[]> {
+  await page.goto(`${urls.moodle}/mod/lti/toolconfigure.php`);
+  await page.locator('#tool-list-container .tool-card').first().waitFor({ timeout: 15_000 }).catch(() => undefined);
+  return page.evaluate((n) => {
+    return Array.from(document.querySelectorAll('.tool-card'))
+      .filter((c) => (c.querySelector('.tool-card-header, h4, .name')?.textContent ?? c.textContent ?? '').includes(n))
+      .map((c) => Number(c.getAttribute('data-type-id')));
+  }, name);
+}
+
+export interface ToolDetails {
+  platformId: string;
+  clientId: string;
+  deploymentId: string;
+  publicKeysetUrl: string;
+  accessTokenUrl: string;
+  authRequestUrl: string;
+}
+
+/** The six "Tool configuration details" values that the admin sends back (tool card data attributes). */
+export async function toolDetails(page: Page, typeId: number): Promise<ToolDetails> {
+  await page.goto(`${urls.moodle}/mod/lti/toolconfigure.php`);
+  const card = page.locator(`.tool-card[data-type-id="${typeId}"]`);
+  await card.waitFor({ timeout: 15_000 });
+  const a = async (n: string) => (await card.getAttribute(n)) ?? '';
+  return {
+    platformId: await a('data-platformid'),
+    clientId: await a('data-clientid'),
+    deploymentId: await a('data-deploymentid'),
+    publicKeysetUrl: await a('data-publickeyseturl'),
+    accessTokenUrl: await a('data-accesstokenurl'),
+    authRequestUrl: await a('data-authrequesturl'),
+  };
+}
+
+/**
+ * Checks an app error page that Moodle's registration frame shows (T4b1 AC-T4-09, -30, -33): code and trace markers,
+ * error pages use `frame-ancestors https:` (security §5), and the frame really displays it (not blocked).
+ */
+export async function frameErrorProblems(held: HeldRegistration, code: string, test: string): Promise<string[]> {
+  const { checkErrorPage } = await import('./lti');
+  if (!held.response) return ['no app response recorded for the frame'];
+  const problems = checkErrorPage(held.response, code, { statuses: [400, 403, 404, 409, 410], test, endpoint: 'tool' });
+  const csp = held.response.headers['content-security-policy'] ?? '';
+  if (!/frame-ancestors[^;]*\bhttps:/.test(csp)) problems.push(`CSP frame-ancestors is not "https:" (${csp || 'no CSP'})`);
+  const visible = await held.frame.locator(`[data-error-code="${code}"]`).isVisible().catch(() => false);
+  if (!visible) problems.push('the frame does not display the error page');
+  return problems;
+}
+
+/** After a real "Connect" click: the registration dialog closes by itself and the tool list is shown again. */
+export async function waitForDialogClosed(page: Page, timeoutMs = 20_000): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const open = page.frames().some((f) => f.url().startsWith(TOOL_REGISTER) || /startltiadvregistration\.php/.test(f.url()));
+    if (!open) return true;
+    await page.waitForTimeout(250);
+  }
+  return false;
 }
