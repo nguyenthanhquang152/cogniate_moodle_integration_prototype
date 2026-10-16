@@ -1,0 +1,44 @@
+{
+  "name": "cogniate-moodle-lti-prototype",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.11"
+  },
+  "workspaces": [
+    "packages/*",
+    "services/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "check": "npm run lint && npm run typecheck && npm run test:unit",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck --workspaces --if-present",
+    "test:unit": "vitest run",
+    "build": "npm run build --workspaces --if-present",
+    "gen-env": "bash infra/scripts/gen-env.sh",
+    "stack:up": "bash infra/scripts/stack-up.sh",
+    "stack:down": "bash infra/scripts/stack-down.sh",
+    "stack:reset": "bash infra/scripts/stack-reset.sh",
+    "stack:restart": "bash infra/scripts/stack-restart.sh",
+    "stack:logs": "bash infra/scripts/stack-logs.sh",
+    "seed": "bash infra/scripts/seed.sh",
+    "stack:moodle-reach-check": "bash infra/scripts/moodle-reach-check.sh",
+    "stack:node-reach-check": "bash infra/scripts/node-reach-check.sh",
+    "fixtures:check": "bash infra/scripts/fixtures-check.sh",
+    "demo": "bash infra/scripts/demo.sh",
+    "demo:browser": "bash infra/scripts/demo-browser.sh",
+    "test:acceptance": "bash infra/scripts/qa-suite.sh acceptance",
+    "test:e2e": "bash infra/scripts/qa-suite.sh e2e"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.56.0",
+    "@types/node": "24.19.2",
+    "eslint": "10.12.0",
+    "globals": "17.13.0",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.2",
+    "vitest": "5.0.5"
+  }
+}

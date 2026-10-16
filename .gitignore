@@ -13,3 +13,10 @@ coverage/
 playwright-report/
 test-results/
 .tmp/
+# Local stack (infra/compose.yaml): CA root export, generated tokens, fixtures and backups
+infra/.certs/
+infra/.secrets/
+infra/.data/
+infra/.logs/
+# Course fixtures are not committed (Lead decision, B-T0-14). Check them with npm run fixtures:check.
+docs/raw/data/courses/*.zip

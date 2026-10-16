@@ -1,0 +1,187 @@
+# Local production-like stack (README §10, ADR-005). Use the npm scripts at the repo root:
+#   npm run stack:up | seed | stack:down | stack:reset | stack:logs | test:acceptance | test:e2e
+# Only the proxy publishes a port: 127.0.0.1:${PUBLIC_PORT}. Everything comes from ../.env (npm run gen-env):
+# secrets, PUBLIC_PORT and the four PUBLIC_*_URL values. Certificates: infra/.certs/ (gen-env, before start).
+# Project name: COMPOSE_PROJECT_NAME (default cogniate-stack, set by infra/scripts/lib.sh). Volume names use it.
+# All other state is inside the checkout: .env, infra/.certs, infra/.secrets, infra/.logs, infra/.data, .tmp.
+name: cogniate-stack
+
+x-public-urls: &public-urls
+  PUBLIC_MOODLE_URL: ${PUBLIC_MOODLE_URL:?run npm run gen-env}
+  PUBLIC_LTI_URL: ${PUBLIC_LTI_URL:?run npm run gen-env}
+  PUBLIC_APP_URL: ${PUBLIC_APP_URL:?run npm run gen-env}
+  PUBLIC_CONTENT_URL: ${PUBLIC_CONTENT_URL:?run npm run gen-env}
+
+x-node-service: &node-service
+  image: node:24.22.0-alpine3.24
+  init: true
+  user: node
+  restart: unless-stopped
+  depends_on:
+    proxy:
+      condition: service_healthy
+  # Only the code the service runs. Not the whole repo: .env, infra/.certs (keys) and infra/.secrets stay out.
+  volumes:
+    - ../package.json:/repo/package.json:ro
+    - ../node_modules:/repo/node_modules:ro
+    - ../packages:/repo/packages:ro
+    - ../services:/repo/services:ro
+    - ./.certs/root.crt:/certs/root.crt:ro   # CA certificate only
+    - ./.logs:/logs                          # <service>.jsonl (QA hook H7)
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${STACK_SUBNET:-172.28.0.0/16}   # must be inside 172.16.0.0/12 (unblocked in Moodle by seed)
+
+services:
+  proxy:
+    image: caddy:2.11.7-alpine
+    environment:
+      <<: *public-urls
+      PUBLIC_PORT: ${PUBLIC_PORT:?run npm run gen-env}
+    ports:
+      - "127.0.0.1:${PUBLIC_PORT:?run npm run gen-env}:${PUBLIC_PORT}"
+    volumes:
+      - ./proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./.certs/stack.crt:/certs/stack.crt:ro   # leaf certificate (SAN = the four names)
+      - ./.certs/stack.key:/certs/stack.key:ro   # leaf key; the CA key is never mounted
+    networks:
+      default:
+        aliases:
+          - moodle.test
+          - lti.cogniate.test
+          - app.cogniate.test
+          - content.cogniate-content.test
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2019/config/"]
+      interval: 2s
+      timeout: 3s
+      retries: 60
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: moodle
+      POSTGRES_USER: moodle
+      POSTGRES_PASSWORD: ${DB_PASS:?run npm run gen-env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U moodle -d moodle"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+    restart: unless-stopped
+
+  moodle:
+    image: erseco/alpine-moodle:v5.2.4
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *public-urls
+      SITE_URL: ${PUBLIC_MOODLE_URL:?run npm run gen-env}
+      SSLPROXY: "true"            # TLS ends at the proxy. Moodle builds https URLs and Secure cookies.
+      REVERSEPROXY: "false"
+      DB_TYPE: pgsql
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_NAME: moodle
+      DB_USER: moodle
+      DB_PASS: ${DB_PASS:?run npm run gen-env}
+      MOODLE_USERNAME: admin
+      MOODLE_PASSWORD: ${MOODLE_ADMIN_PASSWORD:?run npm run gen-env}
+      MOODLE_EMAIL: admin@example.invalid
+      MOODLE_SITENAME: Cogniate_Dev_Moodle
+      MOODLE_LANGUAGE: en
+      SMTP_HOST: 127.0.0.1        # no mail in dev; seed also sets noemailever=1
+      SMTP_PORT: "25"
+      SMTP_USER: ""
+      SMTP_PASSWORD: ""
+      DEBUG: "false"
+      AUTO_UPDATE_MOODLE: "true"
+    volumes:
+      - moodledata:/var/www/moodledata
+      - ./moodle/php:/opt/cogniate/php:ro            # provisioning PHP CLI scripts
+      - ./.certs/root.crt:/certs/root.crt:ro         # CA certificate, copied into moodledata by seed
+      - ./.data/fixtures:/opt/cogniate/fixtures:ro   # untrusted course zips (infra/scripts/stage-fixture.sh)
+      - ./.data/backups:/opt/cogniate/backups        # .mbz output (infra/scripts/moodle-backup.sh)
+    # Port 8080 is NOT published. The proxy reaches it on the compose network.
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS -o /dev/null -H \"Host: $${SITE_URL#https://}\" http://127.0.0.1:8080/login/index.php"]
+      interval: 5s
+      timeout: 10s
+      retries: 120
+      start_period: 30s
+    restart: unless-stopped
+
+  lti-service:
+    <<: *node-service
+    working_dir: /repo/services/lti-service
+    command: ["node", "--watch", "src/main.ts"]
+    environment:
+      PORT: "4100"
+      NODE_EXTRA_CA_CERTS: /certs/root.crt
+      LTI_MASTER_KEY: ${LTI_MASTER_KEY:?run npm run gen-env}
+      LOG_DIR: /logs
+      <<: *public-urls
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4100/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  cogniate-app:
+    <<: *node-service
+    working_dir: /repo/services/cogniate-app
+    command: ["node", "--watch", "src/main.ts"]
+    environment:
+      PORT: "4200"
+      CONTENT_PORT: "4201"
+      NODE_EXTRA_CA_CERTS: /certs/root.crt
+      APP_MASTER_KEY: ${APP_MASTER_KEY:?run npm run gen-env}
+      LOG_DIR: /logs
+      <<: *public-urls
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4200/healthz && wget -q -O /dev/null http://127.0.0.1:4201/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  # QA runner. Not started by stack:up. Use npm run test:acceptance / test:e2e (infra/scripts/e2e-run.sh).
+  e2e:
+    profiles: ["test"]
+    build: ./e2e
+    image: cogniate-stack-e2e:1.56.0
+    working_dir: /repo
+    entrypoint: ["/bin/sh", "/repo/infra/e2e/entrypoint.sh"]
+    environment:
+      <<: *public-urls
+      NODE_EXTRA_CA_CERTS: /certs/root.crt    # Node side (Playwright request fixture, test code)
+      CI: "1"
+    shm_size: "1gb"
+    depends_on:
+      proxy:
+        condition: service_healthy
+    # The repo is read-write (test results, tests/node_modules). On top of it: infra/.certs is an empty
+    # tmpfs with only the PUBLIC certificates, so the CA and leaf keys are not visible; .secrets and .logs are read-only.
+    tmpfs:
+      - /repo/infra/.certs
+    volumes:
+      - ..:/repo
+      - ./.certs/root.crt:/repo/infra/.certs/root.crt:ro
+      - ./.certs/stack.crt:/repo/infra/.certs/stack.crt:ro
+      - ./.certs/root.crt:/certs/root.crt:ro
+      - ./.secrets:/repo/infra/.secrets:ro
+      - ./.logs:/repo/infra/.logs:ro
+      # Linux install of the QA project (npm ci --prefix tests). A volume, so it never replaces the host's
+      # tests/node_modules (macOS native binaries of esbuild/rollup).
+      - e2e_tests_node_modules:/repo/tests/node_modules
+
+volumes:
+  e2e_tests_node_modules:
+  pgdata:
+  moodledata:

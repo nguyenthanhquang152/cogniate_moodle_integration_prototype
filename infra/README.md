@@ -1,0 +1,200 @@
+# Local stack (infra)
+
+The local stack is a copy of production in Docker: Moodle 5.2.4 behind TLS, four host names on three sites, and the two Node services. Design: `docs/architecture/README.md` §10 and ADR-005.
+
+| Host name (`.env`) | Container | Site (for cookies) |
+| --- | --- | --- |
+| `PUBLIC_MOODLE_URL` = `https://moodle.test` | `moodle:8080` (Moodle 5.2.4, PostgreSQL 16) | `moodle.test` |
+| `PUBLIC_LTI_URL` = `https://lti.cogniate.test` | `lti-service:4100` | `cogniate.test` |
+| `PUBLIC_APP_URL` = `https://app.cogniate.test` | `cogniate-app:4200` | `cogniate.test` |
+| `PUBLIC_CONTENT_URL` = `https://content.cogniate-content.test` | `cogniate-app:4201` | `cogniate-content.test` |
+
+Only the proxy (Caddy) publishes a port: `127.0.0.1:443`. Moodle 8080 and PostgreSQL 5432 are not published.
+
+## Requirements
+
+- Docker Desktop (about 4 GB free memory is enough), Node 24, npm, `openssl`, `bash`.
+- Images (pulled by the first `stack:up`): `erseco/alpine-moodle:v5.2.4`, `postgres:16-alpine`, `caddy:2.11.7-alpine`, `node:24.22.0-alpine3.24`. The test image `cogniate-stack-e2e:1.56.0` is built from `mcr.microsoft.com/playwright:v1.56.0-noble`.
+
+## Quick start
+
+```sh
+npm ci
+npm run demo            # gen-env, build, stack:up, seed. Prints the URLs and user names.
+npm run demo:browser    # opens a throwaway Chrome profile that can reach the stack
+```
+
+The passwords are in `.env` and in `infra/.secrets/seed.json`.
+
+## Commands
+
+All commands run from the repo root.
+
+| Command | When to use it | Deletes | Keeps |
+| --- | --- | --- | --- |
+| `npm run gen-env` | First run, or after you change `PUBLIC_PORT`. `stack:up` runs it for you. | nothing | Existing secrets. It adds missing secrets, writes the four URLs, and makes `infra/.certs/` if missing. |
+| `npm run stack:up` | Start the stack. It waits until every service is healthy. | nothing | everything |
+| `npm run seed` | After `stack:up`. You can run it again at any time (idempotent). | nothing | everything. It updates Moodle settings, users, courses and tokens, and rewrites `infra/.secrets/seed.json`. |
+| `npm run demo` | One command for a human demo: `npm ci` (if needed), gen-env, build, stack:up, seed. | nothing | everything |
+| `npm run demo:browser` | Look at the stack in Chrome without any change to your Mac. | nothing | A throwaway profile in `.tmp/demo-browser-profile` (delete it any time). |
+| `npm run stack:down` | Stop the containers. | containers | volumes (Moodle site, database), `.env`, certificates, `infra/.secrets`, `infra/.logs` |
+| `npm run stack:reset` | Start again with an empty Moodle site. Then run `stack:up` and `seed`. | volumes (Moodle site, database), `infra/.secrets/seed.json`, `infra/.logs/`, `infra/.data/backups/`, test knobs | `.env` (same passwords), `infra/.certs/` (same CA), `infra/.data/fixtures/` |
+| `npm run stack:restart -- <service> [--env K=V ...]` | Restart one service with test knobs. Without `--env`, the defaults come back. | The knobs of that service (when you restore the defaults) | everything else |
+| `npm run stack:logs [-- <service>...]` | Follow the container logs. | nothing | everything |
+| `npm run stack:moodle-reach-check` | Check that Moodle's own HTTP client reaches the LTI service (curl security + CA). | nothing | everything |
+| `npm run stack:node-reach-check` | Check that `lti-service` and `cogniate-app` reach Moodle over HTTPS (Node trusts the CA). | nothing | everything |
+| `npm run fixtures:check` | Check the two course zips (they are not in git). | nothing | everything |
+| `npm run test:acceptance` / `npm run test:e2e` | Run the QA suites in the e2e container. | `tests/node_modules` (`npm ci`) | everything else |
+| `npm run check` | Lint, type check and unit tests (on the host). | nothing | everything |
+
+Advanced helpers in `infra/scripts/`:
+
+- `moodle-php.sh <script|-r code>`: run PHP in the Moodle container as `nobody`.
+- `moodle-cfg.sh --name=X [--set=Y]`: read or set a Moodle setting with `admin/cli/cfg.php`.
+- `e2e-run.sh <command>`: run a command in the e2e container. Example: `infra/scripts/e2e-run.sh node infra/e2e/smoke.mjs`.
+- `stage-fixture.sh <zip> <name.zip>`: copy a zip to `infra/.data/fixtures/` for Moodle.
+- `moodle-backup.sh <courseid> [--nousers]`: make an `.mbz` in `infra/.data/backups/`.
+
+## Configuration
+
+- `.env` (made by `npm run gen-env`, mode 600, git-ignored) has two parts:
+  - Generated secrets: database password, Moodle passwords, and master keys.
+  - Public config: `PUBLIC_PORT` and the four `PUBLIC_*_URL` values.
+- The four URLs are the only source of public URLs. Compose passes them to every container. Code reads them with `loadPublicUrls()` from `@cogniate/shared`. Do not write URL literals in code.
+- To change the port: set `PUBLIC_PORT=8443` in `.env`, run `npm run gen-env`, then `npm run stack:up`. Every URL then ends in `:8443`, and seed adds the port to Moodle's allowed ports.
+- Optional variables (not in `.env` by default):
+  - `COMPOSE_PROJECT_NAME`: default `cogniate-stack`. Use another name for a second checkout (for example a QA clone). Volume names use it.
+  - `STACK_SUBNET`: default `172.28.0.0/16`.
+  - `COURSE_FIXTURES_DIR`: default `docs/raw/data/courses`.
+
+All state is inside the checkout: `.env`, `infra/.certs/`, `infra/.secrets/`, `infra/.logs/`, `infra/.data/`, `.tmp/`. The only exception is the Docker volumes `<project>_pgdata` and `<project>_moodledata`.
+
+## TLS and trust
+
+`npm run gen-env` runs `infra/scripts/gen-certs.sh` before any container starts:
+
+| File | What | Who uses it |
+| --- | --- | --- |
+| `infra/.certs/ca.key` | Dev CA private key (mode 600) | Only `gen-certs.sh`. It is never mounted into a container. |
+| `infra/.certs/root.crt` | Dev CA certificate (10 years) | Moodle (`seed` writes `moodledata/moodleorgca.crt` = Alpine CA bundle + this root), Node (`NODE_EXTRA_CA_CERTS=/certs/root.crt`), Playwright Chromium (NSS database, `infra/e2e/entrypoint.sh`) |
+| `infra/.certs/stack.crt`, `stack.key` | One leaf certificate, SAN = the four host names, 397 days | The proxy only |
+
+`stack:reset` does not delete `infra/.certs/`. `gen-certs.sh` makes a new leaf only if the leaf is missing, expires in less than 30 days, or does not match the names or the CA. To start a new CA, delete `infra/.certs/` and run `npm run gen-env`.
+
+In the e2e container, only the browser (NSS) and Node trust the CA. `curl` does not, so `curl https://moodle.test` fails and `curl --cacert /certs/root.crt https://moodle.test` works.
+
+## Your own browser
+
+`npm run demo:browser` starts Chrome with a new profile in `.tmp/demo-browser-profile`. It uses two flags:
+
+- `--host-resolver-rules="MAP *.test 127.0.0.1, MAP *.cogniate-content.test 127.0.0.1"`: the stack names resolve to 127.0.0.1 in this browser only.
+- `--ignore-certificate-errors-spki-list=<hash of the stack leaf key>`: this browser accepts only our leaf certificate. Other certificate errors still show.
+
+Nothing changes on your Mac. Set `CHROME_BIN=/path/to/chrome` if Chrome is not in `/Applications`.
+
+For your daily browser (optional, not needed for tests):
+
+1. Add `127.0.0.1 moodle.test lti.cogniate.test app.cogniate.test content.cogniate-content.test` to `/etc/hosts`.
+2. Trust `infra/.certs/root.crt` in the login keychain.
+
+CAUTION: If you trust the root in your keychain, every certificate signed by `infra/.certs/ca.key` is trusted on your Mac. Keep `ca.key` private. Remove the trust when you finish.
+
+## Moodle provisioning (`npm run seed`)
+
+| Item | Value |
+| --- | --- |
+| Users | `admin` (from the image, password `MOODLE_ADMIN_PASSWORD`), `cg_teacher`, `cg_student`, `cg_student2` (manual auth) |
+| Courses | `COGNIATE-DEV-101` and `COGNIATE-DEV-102`, completion tracking on. In both: `cg_teacher` = editingteacher, `cg_student` and `cg_student2` = student. |
+| Product WS service | `cogniate_integration`, user `cogniate_integration`, 9 functions: `core_webservice_get_site_info`, `core_course_create_courses`, `core_course_get_courses_by_field`, `core_course_get_contents`, `core_course_get_categories`, `core_course_create_categories`, `enrol_manual_enrol_users`, `core_user_create_users`, `core_user_get_users_by_field` |
+| QA oracle WS service | `cogniate_qa_oracle`. **Dev/test only. Never configure it on a real site.** User `cogniate_qa_oracle`, role = manager archetype + `webservice/rest:use`. Functions: `gradereport_user_get_grade_items`, `core_completion_get_activities_completion_status`, `core_enrol_get_enrolled_users`, `core_course_get_contents`, `core_course_get_courses_by_field`, `core_course_update_courses` |
+| CA trust | `moodledata/moodleorgca.crt` = Alpine CA bundle + `root.crt` |
+| Dev-only network settings | `curlsecurityblockedhosts` = Moodle default minus `172.16.0.0/12`. `curlsecurityallowedport` = `443` (+ `PUBLIC_PORT`). `noemailever` = 1. MoodleCloud does not need these settings. |
+
+### `infra/.secrets/seed.json`
+
+Mode 600 and git-ignored. Format `cogniate-seed/1`. Later tasks add keys. They do not rename or remove keys.
+
+```json
+{
+  "format": "cogniate-seed/1",
+  "generatedAt": "2026-10-16T13:20:00.000Z",
+  "urls": { "moodle": "https://moodle.test", "lti": "https://lti.cogniate.test", "app": "https://app.cogniate.test", "content": "https://content.cogniate-content.test" },
+  "moodle": {
+    "users": {
+      "admin":       { "username": "admin",       "password": "<from .env>", "id": 2 },
+      "cg_teacher":  { "username": "cg_teacher",  "password": "<from .env>", "id": 4 },
+      "cg_student":  { "username": "cg_student",  "password": "<from .env>", "id": 5 },
+      "cg_student2": { "username": "cg_student2", "password": "<from .env>", "id": 6 }
+    },
+    "courses": { "COGNIATE-DEV-101": 2, "COGNIATE-DEV-102": 3 },
+    "ws": {
+      "product":   { "service": "cogniate_integration", "username": "cogniate_integration", "userid": 3, "token": "<32 hex>", "functions": ["..."] },
+      "qa_oracle": { "service": "cogniate_qa_oracle",   "username": "cogniate_qa_oracle",   "userid": 7, "token": "<32 hex>", "functions": ["..."] }
+    }
+  }
+}
+```
+
+The ids are examples. Always read them from the file.
+
+Stable key paths (later tasks only add keys):
+
+| Key path | Type | Value |
+| --- | --- | --- |
+| `format` | string | `cogniate-seed/1` |
+| `generatedAt` | string | ISO 8601 time of the last seed |
+| `urls.moodle`, `urls.lti`, `urls.app`, `urls.content` | string | the four `PUBLIC_*_URL` values |
+| `moodle.users.<username>.username` | string | `admin`, `cg_teacher`, `cg_student`, `cg_student2` (the key is the user name) |
+| `moodle.users.<username>.password` | string | password from `.env` |
+| `moodle.users.<username>.id` | number | Moodle user id |
+| `moodle.courses.<shortname>` | number | course id, for `COGNIATE-DEV-101` and `COGNIATE-DEV-102` |
+| `moodle.ws.product.service` | string | `cogniate_integration` |
+| `moodle.ws.product.username`, `.userid` | string, number | `cogniate_integration` and its id |
+| `moodle.ws.product.token` | string | permanent REST token (32 hex) |
+| `moodle.ws.product.functions` | string[] | the 9 function names |
+| `moodle.ws.qa_oracle.service`, `.username`, `.userid`, `.token`, `.functions` | as above | `cogniate_qa_oracle`, its user, token and 6 function names |
+
+## QA hooks
+
+| Hook | How |
+| --- | --- |
+| Separate checkout (parallel stack) | Clone into a new folder. On the first command set the identity, for example `COMPOSE_PROJECT_NAME=qa-t1-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 npm run stack:up`. `gen-env` saves the three values in that checkout's `.env`; later commands need no variables. A shell value that differs from `.env` stops the command (so it never touches the other stack). Containers, volumes and the network get the project name as prefix. Two stacks run at the same time if their `PUBLIC_PORT` and `STACK_SUBNET` differ. Each checkout has its own CA. |
+| Seed data | `infra/.secrets/seed.json` (above) |
+| Test knobs | See "Test knobs" below. |
+| Logs | `infra/.logs/<service>.jsonl` (`lti-service`, `cogniate-app`, `cogniate-content`). One JSON object per line: `{ts, level, service, event, trace_id?, ...}`. T1 events: `service_started`, `test_knob_active`, `http_request {method, path, status, ms, trace_id}`, `service_stopping`. Kept across restarts. `stack:reset` deletes them. |
+| e2e container | Playwright 1.56.0. Repo at `/repo` (read-write). `infra/.secrets` and `infra/.logs` are read-only. `infra/.certs` shows only `root.crt` and `stack.crt` (no keys). `/repo/tests/node_modules` is a Docker volume (Linux install), so it does not replace the host's `tests/node_modules`. `NODE_EXTRA_CA_CERTS=/certs/root.crt`. Chromium trusts the CA through NSS. The four `PUBLIC_*_URL` variables are set. |
+| QA suites | `tests/` is a separate npm project owned by QA (with `tests/package-lock.json`). `npm run test:acceptance` runs `npm ci --prefix tests && npm --prefix tests run acceptance` in the e2e container. `test:e2e` runs the `e2e` script the same way. If `tests/package.json` is missing, the command stops with a message. |
+
+## Test knobs
+
+The registry is `KNOB_REGISTRY` in `packages/shared/src/knobs.ts`. Later tasks add knobs there and nowhere else.
+
+| Knob | Service | Default | Range | Used by |
+| --- | --- | --- | --- | --- |
+| `LTIK_TTL_SECONDS` | `lti-service` | `86400` (24 h, contract) | 1 to 2,592,000 | ltik lifetime (T2, AC-T2-07) |
+| `REF_TTL_SECONDS` | `cogniate-app` | `86400` (24 h, contract `cogniate-app-api.md`) | 1 to 2,592,000 | registration URL `ref` token lifetime (T4, AC-T4-09) |
+
+- Set: `npm run stack:restart -- lti-service --env LTIK_TTL_SECONDS=5`.
+- Restore the defaults: `npm run stack:restart -- lti-service` (no `--env`).
+- Active knob = env value set and different from the default. At start, the service logs one `test_knob_active {name, value}` line per active knob. `GET /healthz` returns `"knobs":[{"name":"LTIK_TTL_SECONDS","value":"5"}]`. With the defaults, `"knobs":[]`. `value` is the string you set.
+- Every listener of a process reports the knobs of its compose service. So `cogniate-content` (same process as `cogniate-app`) also lists `REF_TTL_SECONDS`.
+- A value that is not a whole number in the range stops the service. `stack:restart` then prints the error and the restore command.
+- A key that is not in the registry is passed on to the service with a warning, and it is not reported.
+- The overrides are kept in `.tmp/compose.knobs.yaml` until you restore the defaults or run `stack:reset`.
+
+## Course fixtures
+
+The two Cogniate exports are not in git. Their SHA-256 values are in `infra/fixtures/courses.sha256`. `npm run fixtures:check` compares the files in `COURSE_FIXTURES_DIR` (default `docs/raw/data/courses`). If a file is missing, it prints how to get it. Treat the zips as untrusted data: `stage-fixture.sh` copies a zip into an emptied folder that is mounted read-only in Moodle.
+
+## Troubleshooting
+
+- CAUTION for browser tests: on the Moodle login page, `core/togglesensitive` (setting `loginpasswordtoggle`, default on) re-creates the password field when its JavaScript starts. A value typed before that is lost, and the login fails with "Your login info may be incorrect" (about 1 run in 3 in Playwright). Wait for `.toggle-sensitive-wrapper #password` before you type. `infra/e2e/smoke.mjs` shows the pattern.
+
+- `PUBLIC_* ... expected ...`: you changed `PUBLIC_PORT`. Run `npm run gen-env`.
+- `Service 'moodle' is not healthy`: run `npm run stack:logs -- moodle`. A first start takes about 30 s.
+- Port 443 is busy: set `PUBLIC_PORT` (see Configuration).
+- On Docker Desktop, `lsof` shows the Docker process on `*:443`. A connection from another machine still fails, because Docker forwards only `127.0.0.1:443` to the proxy.
+
+## History
+
+T1-spike (2026-10-16): `infra/moodle/SPIKE-NOTES.md` has the spike facts and evidence. That stack ran on `http://localhost:8080` with a socat sidecar. T1 replaced it with this HTTPS stack, so the spike commands in those notes no longer exist.

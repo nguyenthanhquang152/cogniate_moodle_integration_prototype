@@ -1,0 +1,37 @@
+# TLS proxy for the local stack (README §10, ADR-005).
+# Certificates are static files made by npm run gen-env (infra/scripts/gen-certs.sh): one leaf with
+# SAN = the four host names, signed by the dev CA. Caddy makes no certificates itself.
+# Site addresses come from the PUBLIC_*_URL values in .env, so a PUBLIC_PORT change needs no edit here.
+{
+	auto_https off
+	admin 127.0.0.1:2019
+}
+
+(stack_tls) {
+	tls /certs/stack.crt /certs/stack.key
+	header -Server
+}
+
+{$PUBLIC_MOODLE_URL} {
+	import stack_tls
+	reverse_proxy moodle:8080 {
+		# The Moodle image's nginx passes this as SERVER_PORT. Moodle compares it with the wwwroot port,
+		# so a PUBLIC_PORT other than 443 needs it (else: redirect loop).
+		header_up X-Forwarded-Port {$PUBLIC_PORT}
+	}
+}
+
+{$PUBLIC_LTI_URL} {
+	import stack_tls
+	reverse_proxy lti-service:4100
+}
+
+{$PUBLIC_APP_URL} {
+	import stack_tls
+	reverse_proxy cogniate-app:4200
+}
+
+{$PUBLIC_CONTENT_URL} {
+	import stack_tls
+	reverse_proxy cogniate-app:4201
+}

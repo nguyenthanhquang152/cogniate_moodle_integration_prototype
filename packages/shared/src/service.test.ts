@@ -1,0 +1,42 @@
+import { mkdtempSync, readFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { createHealthServer } from './http.ts';
+import { startService } from './service.ts';
+
+describe('startService', () => {
+  it('logs service_started and test_knob_active for its own active knobs only, and serves them', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'cg-svc-'));
+    const env = {
+      PUBLIC_MOODLE_URL: 'https://moodle.test', PUBLIC_LTI_URL: 'https://lti.cogniate.test',
+      PUBLIC_APP_URL: 'https://app.cogniate.test', PUBLIC_CONTENT_URL: 'https://content.cogniate-content.test',
+      LOG_DIR: dir, LTIK_TTL_SECONDS: '5', REF_TTL_SECONDS: '9',
+    };
+    const [server] = await startService('lti-service',
+      [{ name: 'demo', port: 0, publicUrl: (u) => u.lti, build: (deps) => createHealthServer('demo', deps) }],
+      { env, handleSignals: false, write: () => undefined });
+    try {
+      const addr = server?.address();
+      const port = typeof addr === 'object' && addr ? addr.port : 0;
+      const body = (await (await fetch(`http://127.0.0.1:${port}/healthz`)).json()) as { knobs: unknown };
+      expect(body.knobs).toEqual([{ name: 'LTIK_TTL_SECONDS', value: '5' }]);
+      await new Promise((r) => setTimeout(r, 50));
+      const events = readFileSync(join(dir, 'demo.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+      expect(events[0]).toMatchObject({ level: 'warn', event: 'test_knob_active', name: 'LTIK_TTL_SECONDS', value: '5' });
+      expect(events[1]).toMatchObject({ event: 'service_started', public_url: 'https://lti.cogniate.test' });
+    } finally {
+      server?.close();
+    }
+  });
+
+  it('refuses to start without the public URLs', async () => {
+    await expect(startService('lti-service', [], { env: {}, handleSignals: false })).rejects.toThrow(/PUBLIC_MOODLE_URL is not set/);
+  });
+
+  it('refuses to start with a bad knob value', async () => {
+    const env = { PUBLIC_MOODLE_URL: 'https://moodle.test', PUBLIC_LTI_URL: 'https://lti.cogniate.test',
+      PUBLIC_APP_URL: 'https://app.cogniate.test', PUBLIC_CONTENT_URL: 'https://content.cogniate-content.test', LTIK_TTL_SECONDS: 'soon' };
+    await expect(startService('lti-service', [], { env, handleSignals: false })).rejects.toThrow(/LTIK_TTL_SECONDS must be a whole number/);
+  });
+});
