@@ -10,6 +10,9 @@ Owner: QA. This is a separate npm project, not a root workspace (charter §1). T
 | `acceptance/T1/*.test.ts` | Vitest API tests (run in the `e2e` container) |
 | `acceptance/T1/*.spec.ts` | Playwright browser tests (run in the `e2e` container) |
 | `host/run-t1.mjs` | Host runner for T1: clone, Docker checks, reset, then the in-container suite. Node built-ins only. |
+| `host/core.mjs`, `host/run-t2.mjs` | Shared runner core (T2 onward) and the T2a/T2b runner (ltiSeed reruns, knob pass, reset pass). |
+| `acceptance/T2a/`, `acceptance/T2b/` | T2a (LTI core) and T2b (negative launch matrix, `qa-platform.test`, sink). One test per AC id. |
+| `fixtures/qa-platform/` | Static files of `qa-platform.test`. Tests write `jwks-*.json` here at run time (git-ignored; no private key on disk). |
 | `e2e/` | T7 scenarios (later) |
 
 Each test title starts with its id: `AC-Tn-NN` (task spec), `LC-T1-NN` (Lead-approved change, not yet in T1.md) or `Hn` (test hook).
@@ -32,7 +35,8 @@ From the repo root of a checkout with a running stack: `npm run test:acceptance`
 
 | Env variable | Use |
 | --- | --- |
-| `QA_TASK=T1` | Run one task folder only |
+| `QA_TASK=T1` or `QA_TASK=T2a,T2b` | Run these task folders only (H14 forwards `QA_*` env into `e2e`) |
+| `QA_GREP=AC-T2-07` | Run only tests whose title matches (Vitest `testNamePattern`, Playwright `grep`) |
 | `QA_IGNORE_HTTPS_ERRORS=1` | ADR-005 fallback for Chromium. qa.md must say when it is used. |
 | `QA_REPO_ROOT`, `QA_CERTS_DIR`, `QA_SECRETS_DIR`, `QA_LOGS_DIR`, `QA_ENV_FILE` | Change the default paths (`<repo>/infra/.certs`, `.secrets`, `.logs`, `<repo>/.env`) |
 
@@ -47,3 +51,7 @@ From the repo root of a checkout with a running stack: `npm run test:acceptance`
 ## seed.json reader
 
 The Lead fixed the content of `infra/.secrets/seed.json`, not the key names. So `acceptance/lib/seed.ts` (and `host/lib.mjs`) find items by shape: a user is an object with `username`, `password` and `id`; a course id is a `COGNIATE-DEV-10x` key or a `{ shortname, id }` object; a WS token is a 32-character hex string, and the oracle token has `oracle` in its key path.
+
+## Test knobs
+
+Tests in `e2e` cannot restart services. The host runner restarts a service with a knob (`npm run stack:restart -- <service> --env K=V`), runs the suite again, and restores the default. Each test decides from `/healthz` (`acceptance/lib/knobs.ts`): a test titled `… [knob NAME=value] …` runs only when that knob is active, and every other test skips when any knob is active. A host pass that expects a knob test fails if the test did not run.

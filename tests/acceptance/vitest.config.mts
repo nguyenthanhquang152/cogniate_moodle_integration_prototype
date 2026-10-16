@@ -15,6 +15,8 @@ export default defineConfig({
     hookTimeout: 60_000,
     fileParallelism: false,
     setupFiles: ['acceptance/setup/knob-guard.ts'],
+    // A QA_GREP selection may match no API test; the host runner checks that the expected AC ids ran.
+    passWithNoTests: true,
     reporters: ['default', 'json'],
     outputFile: { json: 'acceptance/artifacts/vitest-results.json' },
   },
