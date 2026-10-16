@@ -47,7 +47,7 @@ Dynamic registration request (built by the LTI service at `complete`; URLs from 
 
 **"Update existing tool":** the service reports `operation` and `existingPlatformId` (security §2.5). The app allows an update only for the same connection. In every other case it tells the admin "Go back in Moodle and choose Register as a new tool", and nothing is sent to Moodle. A platform belongs to one connection only.
 
-Manual values (shown in the portal; URLs from `PUBLIC_LTI_URL`, account `cogniate`):
+Manual values (shown in the portal; URLs from `PUBLIC_LTI_URL`, account `cogniate`). The API returns them with stable keys, in the order of app contract §4.1:
 
 | Moodle field | Value |
 | --- | --- |
@@ -64,7 +64,8 @@ Manual values (shown in the portal; URLs from `PUBLIC_LTI_URL`, account `cogniat
 | Default launch container | New window |
 | IMS LTI Assignment and Grade Services | Use this service for grade sync and column management |
 | IMS LTI Names and Role Provisioning | Use this service to retrieve members' information as per privacy settings |
-| Share launcher's name / email | Never / Never |
+| Share launcher's name with tool | Never |
+| Share launcher's email with tool | Never |
 | Accept grades from the tool | Delegate to teacher |
 
 The admin sends back: Platform ID (issuer), Client ID, Deployment ID, Public keyset URL, Access token URL, Authentication request URL. The last three must be on the issuer origin.

@@ -131,11 +131,36 @@ Rejected upload: `422`, `details.message = "PACKAGE_REJECTED"`, `details.reasons
 | `POST /app-api/connections` | `{ "name", "siteUrl" (https origin), "method" }` | `201`. Dynamic: `registrationUrl` (ref valid `REF_TTL_SECONDS`, default 24 h, single use). |
 | `GET /app-api/connections/:id` | — | `200` |
 | `POST /app-api/connections/:id/registration-url` | — | `200 { registrationUrl, expiresAt }`. The old ref stops working. Only when `pending`. |
-| `GET /app-api/connections/:id/tool-configuration` | — | `200 [{ "field", "value" }]` = the manual values of ADR-009 |
+| `GET /app-api/connections/:id/tool-configuration` | — | `200 [{ "key", "label", "value" }]`: exactly the 16 rows of §4.1, in that order |
 | `PUT /app-api/connections/:id/platform` | `{ issuer, clientId, deploymentId, authenticationEndpoint, accessTokenEndpoint, jwksUrl }` (https; issuer origin = `siteUrl`; endpoints on the issuer origin) | `200` `registered` (calls `POST /api/platforms`). `422 INVALID_PLATFORM_VALUES` with `details.fields`. |
 | `DELETE /app-api/connections/:id` | — | `204`, `disabled` (calls `PATCH /api/platforms/:id {active:false}`) |
 
 The first valid launch from the platform sets `connected` and `lastLaunchAt`.
+
+### 4.1 Tool configuration rows (manual registration)
+
+`key` is stable (portal T6 and E2E T7 use it). `label` is the Moodle 5.2.4 form label (human text, may change). URLs come from `PUBLIC_LTI_URL`; the tool account is `cogniate`.
+
+| # | `key` | `label` | `value` |
+| --- | --- | --- | --- |
+| 1 | `tool_name` | Tool name | `Cogniate (<library name>)` |
+| 2 | `tool_url` | Tool URL | `{PUBLIC_LTI_URL}/lti/launch/cogniate` |
+| 3 | `lti_version` | LTI version | `LTI 1.3` |
+| 4 | `public_key_type` | Public key type | `Keyset URL` |
+| 5 | `public_keyset_url` | Public keyset | `{PUBLIC_LTI_URL}/lti/keys/cogniate` |
+| 6 | `initiate_login_url` | Initiate login URL | `{PUBLIC_LTI_URL}/lti/login/cogniate` |
+| 7 | `redirection_uris` | Redirection URI(s) | `{PUBLIC_LTI_URL}/lti/launch/cogniate` |
+| 8 | `deep_linking` | Supports Deep Linking (Content-Item Message) | `Yes` |
+| 9 | `content_selection_url` | Content Selection URL | `{PUBLIC_LTI_URL}/lti/launch/cogniate` |
+| 10 | `tool_configuration_usage` | Tool configuration usage | `Show in activity chooser and as a preconfigured tool` |
+| 11 | `launch_container` | Default launch container | `New window` |
+| 12 | `ags` | IMS LTI Assignment and Grade Services | `Use this service for grade sync and column management` |
+| 13 | `nrps` | IMS LTI Names and Role Provisioning | `Use this service to retrieve members' information as per privacy settings` |
+| 14 | `share_name` | Share launcher's name with tool | `Never` |
+| 15 | `share_email` | Share launcher's email with tool | `Never` |
+| 16 | `accept_grades` | Accept grades from the tool | `Delegate to teacher` |
+
+The six values back from Moodle use the fixed keys of `PUT .../platform`: `issuer`, `clientId`, `deploymentId`, `authenticationEndpoint`, `accessTokenEndpoint`, `jwksUrl`.
 
 ## 5. Publications — T4b1 (results: T5a, T5b)
 
