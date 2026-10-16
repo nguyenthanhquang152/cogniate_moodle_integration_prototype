@@ -164,11 +164,11 @@ flowchart LR
     T7 --> T9[T9 docs]
     T1 -. "needs only T1" .-> T4a
     T1 -. "needs only T1" .-> T2a
-    T2a -. "needs T2a only" .-> T3a
+    T2a -. "code needs T2a; tests need T2b" .-> T3a
     S5 -. "decision note" .-> T5a
 ```
 
-Thick arrows = the order for one Author. Dotted arrows = real dependencies that allow parallel work: T2a and T4a need only T1, T3a needs only T2a, and T5a uses the T5-spike decision note. T2b runs right after T2a in the one-Author order, because it proves the launch security.
+Thick arrows = the order for one Author. Dotted arrows = real dependencies that allow parallel work: T2a and T4a need only T1, T3a's code needs only T2a (its acceptance tests need the T2b profile), and T5a uses the T5-spike decision note. T2b runs right after T2a in the one-Author order, because it proves the launch security.
 
 ## 8. Simplified versus production
 

@@ -1,6 +1,6 @@
 # T3a: LTI services that the app needs — service keys, token client, Deep Linking response, scores, line item reads
 
-Owner: Author. Depends on: T2a (in the one-Author order it runs after T2b). Contract: [`../contracts/lti-service-api.md`](../contracts/lti-service-api.md) §0 (T3a rows), §3.2 (`/api/deeplinking`), §3.3, §3.4, §3.5 (GET rows), §3.6, §4, §5. Security §2.3, §8, §9. Decision: ADR-010.
+Owner: Author. Depends on: T2a, and T2b for its acceptance tests (the `acceptance` profile with `qa-platform.test` and the `evil.test` sink, used by AC-T3-10 and AC-T3-16; B-T0-26). Contract: [`../contracts/lti-service-api.md`](../contracts/lti-service-api.md) §0 (T3a rows), §3.2 (`/api/deeplinking`), §3.3, §3.4, §3.5 (GET rows), §3.6, §4, §5. Security §2.3, §8, §9. Decision: ADR-010.
 
 ## Goal
 
@@ -34,7 +34,7 @@ Deep Linking:
 - **AC-T3-06** `cg_teacher`: `COGNIATE-DEV-101` → Add an activity → "Cogniate (seed)" → Select content. The frame reaches `{PUBLIC_APP_URL}/tool/deep-link?ltik=<v>`. `GET /api/idtoken` → `launch.type=LtiDeepLinkingRequest`, `services.deepLinking.available=true`, `launch.deepLinkingSettings.acceptTypes` has `ltiResourceLink`, no `launch.resourceLink`.
 - **AC-T3-07** `POST /api/deeplinking` with one `ltiResourceLink` (`title "QA DL <runId>"`, `url {PUBLIC_LTI_URL}/lti/launch/cogniate?resource=qa-dl`, `lineItem {scoreMaximum:100,label:"QA DL <runId>"}`) → `200 {message, target}`, `target` = Moodle `contentitem_return.php`. QA posts `message` as `JWT` to `target` in the frame. The activity form gets the name. After save, the course has the activity and the gradebook has the item with maximum 100.
 - **AC-T3-08** The JWT, verified with `/lti/keys/cogniate`, has `iss` = client id, `aud` = `PUBLIC_MOODLE_URL`, `message_type = LtiDeepLinkingResponse`, `version = 1.3.0`, `deployment_id`, `nonce`, `content_items` deep-equal to the request items, `exp − iat = 330 ± 1`, and `iat ≤ now − 25 s` at the time of the response.
-- **AC-T3-10** Content item `url` on `https://evil.test` → `400 INVALID_CONTENT_ITEM`. Two items when `acceptMultiple` is false → `400 INVALID_CONTENT_ITEM`. A resource-link ltik → `403 SERVICE_NOT_AVAILABLE`.
+- **AC-T3-10** Content item `url` on `https://evil.test` → `400 INVALID_CONTENT_ITEM`. Two items when `acceptMultiple` is false → `400 INVALID_CONTENT_ITEM`: Moodle 5.2.4 always sends `accept_multiple = true` (`mod/lti/locallib.php:1057`, used by `contentitem.php:61` and `auth.php:141`), so QA tests this case with a deep-linking launch of the QA platform on `qa-platform.test` (T2b profile) whose `deep_linking_settings.accept_multiple` is `false`, not with Moodle. A resource-link ltik → `403 SERVICE_NOT_AVAILABLE`.
 
 Service keys and scores:
 
@@ -47,7 +47,7 @@ Service keys and scores:
 - **AC-T3-17** Score for `cg_teacher` → `400 PLATFORM_REJECTED_REQUEST`. Score for a user id that is not in the course → `400 PLATFORM_REJECTED_REQUEST`.
 - **AC-T3-18** A service key with the `qa-second` API key → `401 INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER`. `SERVICE-AUTH-V1` on `/api/idtoken` → `401 INVALID_AUTHORIZATION_HEADER`.
 - **AC-T3-22** Two score posts within 60 s: the log has at most one `platform_token {cache:"miss"}` for them, and the second post has `cache:"hit"`.
-- **AC-T3-24** Every platform call in AC-T3-12 to AC-T3-14 has exactly one `outbound_request` event (`host` = Moodle host) with the trace id of that API response.
+- **AC-T3-24** For each API response in AC-T3-12 to AC-T3-14, the number of `outbound_request` events (`host` = Moodle host) with that response's trace id = 1 (the AGS call) + the number of `platform_token {cache:"miss"}` events with the same trace id (a cache miss adds one token request).
 
 ## Self-check
 

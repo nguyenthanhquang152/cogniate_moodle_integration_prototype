@@ -6,7 +6,7 @@ Status: T0 round 2. Task DAG: [`../README.md`](../README.md) §7.
 
 Order for one Author: T1 → T5-spike → T2a → T2b → T3a → T3b → T4a → T4b1 → T4b2 → T5a → T5b → T6 → T7 → T3c → T8. T9 (Docs) starts after T7.
 
-Technical dependencies ("Depends on" in each file) are fewer: T2a and T4a need only T1; T2b needs T2a; T3a needs T2a; T3b needs T2a and T2b; T4b1 needs T3b and T4a; T4b2 needs T3a and T4b1; T5a needs T4b2 and the T5-spike note.
+Technical dependencies ("Depends on" in each file) are fewer: T2a and T4a need only T1; T2b needs T2a; T3a needs T2a for its code and T2b for its acceptance tests (`qa-platform.test`, sink); T3b needs T2a and T2b; T4b1 needs T3b and T4a; T4b2 needs T3a and T4b1; T5a needs T4b2 and the T5-spike note.
 
 | Task | Title | Reviewed | AC ids |
 | --- | --- | --- | --- |
