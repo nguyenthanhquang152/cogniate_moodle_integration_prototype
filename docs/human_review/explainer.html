@@ -1,0 +1,808 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cogniate × Moodle prototype: explainer</title>
+<!--
+  One self-contained file. No CDN, no web font, no network request. Open it from disk.
+  Content: the JSON block with id "pack-data" at the end of the body. Edit content there only.
+  docs/human_review/flows.md is made from that block: node docs/human_review/tools/build-md.mjs
+-->
+<style>
+  :root {
+    --bg: hsl(252 20% 5%);
+    --fg: hsl(0 0% 98%);
+    --card: #16161d;
+    --card-border: hsl(240 15% 20%);
+    --primary: hsl(270 70% 65%);
+    --primary-muted: hsl(270 50% 45%);
+    --secondary: hsl(240 15% 16%);
+    --muted: hsl(240 10% 25%);
+    --muted-fg: hsl(0 0% 65%);
+    --side-bg: hsl(240 25% 8%);
+    --side-border: hsl(240 15% 15%);
+    --nav-active: hsl(259 15% 24%);
+    --input: hsl(240 15% 18%);
+    --ok: hsl(140 50% 45%);
+    --warn: hsl(35 70% 55%);
+    --bad: hsl(0 72% 51%);
+    --radius: .75rem;
+    --grad-button: linear-gradient(to right, #b78bf9, #7444bb);
+    --grad-primary: linear-gradient(135deg, hsl(240 26% 14%) 0%, hsl(258 27% 26%) 35%, hsl(240 29% 20%) 100%);
+    --grad-logo: linear-gradient(to right, #f5db92, #b88bf8);
+    --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, .4);
+    --shadow-button: 0 4px 15px -2px rgba(168, 85, 247, .3);
+    --font: "DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--font); }
+  a { color: var(--primary); }
+  code { font: .86em var(--mono); background: var(--secondary); border-radius: .35rem; padding: .05em .35em; }
+  button, input, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+  .app { display: grid; grid-template-columns: 232px 1fr; min-height: 100vh; }
+  .side { background: var(--side-bg); border-right: 1px solid var(--side-border); padding: 22px 14px; display: flex; flex-direction: column; gap: 6px; position: sticky; top: 0; height: 100vh; }
+  .logo { font-weight: 700; font-size: 1.25rem; padding: 0 10px 18px; }
+  .logo span { background: var(--grad-logo); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .nav { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; background: none; border: 0; border-radius: .6rem; padding: 9px 12px; color: hsl(0 0% 85%); cursor: pointer; }
+  .nav:hover { background: hsl(240 15% 12%); }
+  .nav[aria-selected="true"] { background: var(--nav-active); color: #fff; }
+  .nav .n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: .75rem; background: var(--secondary); color: var(--muted-fg); }
+  .nav[aria-selected="true"] .n { background: var(--primary); color: #fff; }
+  .stamp { margin-top: auto; font-size: .78rem; color: var(--muted-fg); padding: 0 10px; }
+
+  main { padding: 28px 36px 60px; max-width: 1180px; width: 100%; min-width: 0; }
+  .top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 22px; }
+  .top h1 { margin: 0; font-size: 1.7rem; letter-spacing: -.01em; }
+  .top p { margin: 4px 0 0; color: var(--muted-fg); }
+  .draft { flex: none; border: 1px solid var(--warn); color: var(--warn); border-radius: 999px; padding: 4px 12px; font-size: .82rem; white-space: nowrap; }
+
+  .card { background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius); padding: 20px 22px; box-shadow: var(--shadow-card); }
+  .card h2 { margin: 0 0 10px; font-size: 1.12rem; }
+  .card h3 { margin: 0 0 6px; font-size: 1rem; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .stack { display: grid; gap: 16px; }
+  .muted { color: var(--muted-fg); }
+  .hero { background: var(--grad-primary); }
+
+  .btn { border: 1px solid var(--card-border); background: var(--secondary); border-radius: 999px; padding: 7px 16px; cursor: pointer; }
+  .btn:hover { border-color: var(--primary); }
+  .btn.main { background: var(--grad-button); border: 0; box-shadow: var(--shadow-button); color: #fff; font-weight: 600; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .pills { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+  .pill { border: 1px solid var(--card-border); background: transparent; border-radius: 999px; padding: 6px 14px; cursor: pointer; color: hsl(0 0% 85%); }
+  .pill[aria-pressed="true"] { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  .badge { display: inline-block; border-radius: 999px; padding: 2px 10px; font-size: .78rem; font-weight: 600; border: 1px solid; white-space: nowrap; }
+  .b-ok { color: var(--ok); border-color: var(--ok); }
+  .b-warn { color: var(--warn); border-color: var(--warn); }
+  .b-plan { color: var(--primary); border-color: var(--primary-muted); }
+  .b-bad { color: hsl(0 80% 66%); border-color: var(--bad); }
+  .proof { margin: 12px 0 0; font-size: .9rem; color: var(--muted-fg); }
+  .chip { display: inline-block; background: var(--secondary); border-radius: 999px; padding: 2px 10px; font-size: .85rem; margin: 0 6px 6px 0; }
+
+  /* Start */
+  .path { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  .path li { display: grid; grid-template-columns: 34px 1fr auto auto; gap: 12px; align-items: center; background: var(--secondary); border-radius: .6rem; padding: 10px 12px; }
+  .path .num { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--grad-button); font-weight: 700; }
+  .path .time { color: var(--muted-fg); font-size: .9rem; }
+
+  /* Story stepper */
+  .stepper { display: flex; align-items: center; margin: 4px 0 18px; }
+  .stepper .dot { flex: none; width: 44px; height: 44px; border-radius: 50%; border: 2px solid var(--card-border); background: var(--card); cursor: pointer; font-weight: 700; }
+  .stepper .dot[aria-current="step"] { background: var(--grad-button); border-color: transparent; box-shadow: var(--shadow-button); }
+  .stepper .line { flex: 1; height: 2px; background: var(--card-border); }
+  .stepper .lab { display: block; font-size: .78rem; color: var(--muted-fg); margin-top: 6px; text-align: center; }
+  .stepper .cell { display: flex; flex-direction: column; align-items: center; width: 92px; }
+
+  /* Flows */
+  .diagram { overflow-x: auto; }
+  .diagram svg { display: block; width: 100%; min-width: 560px; height: auto; margin: 0 auto; }
+  .detailrow { display: flex; gap: 16px; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; border-top: 1px solid var(--card-border); margin-top: 14px; padding-top: 14px; }
+  .detail { display: grid; grid-template-columns: 30px 1fr; gap: 12px; flex: 1; min-width: 280px; }
+  .detail .sn { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--primary); }
+  .detail .who { font-size: .85rem; color: var(--muted-fg); }
+  .detail p { margin: 4px 0 0; }
+  svg .head rect { fill: var(--card); stroke: var(--card-border); }
+  svg .head.person rect { fill: hsl(270 40% 16%); stroke: var(--primary-muted); }
+  svg .head text { fill: var(--fg); font: 600 13.5px var(--font); }
+  svg .life { stroke: var(--card-border); stroke-dasharray: 4 5; }
+  svg .step { cursor: pointer; }
+  svg .step line, svg .step path { stroke: hsl(0 0% 60%); stroke-width: 1.6; fill: none; }
+  svg .step.reply line { stroke-dasharray: 6 4; }
+  svg .step text { fill: hsl(0 0% 82%); font: 13px var(--font); }
+  svg .step circle { fill: var(--secondary); stroke: var(--card-border); }
+  svg .step .no { fill: var(--fg); font: 700 11px var(--font); }
+  svg .step.on line, svg .step.on path { stroke: var(--primary); stroke-width: 2.4; }
+  svg .step.on text { fill: #fff; font-weight: 700; }
+  svg .step.on circle { fill: var(--primary); stroke: var(--primary); }
+  svg .hit { stroke: transparent !important; stroke-width: 22 !important; }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
+  .steps button { display: grid; grid-template-columns: 26px 1fr; gap: 10px; width: 100%; text-align: left; background: transparent; border: 1px solid transparent; border-radius: .6rem; padding: 8px 10px; cursor: pointer; }
+  .steps button:hover { background: var(--secondary); }
+  .steps button[aria-current="step"] { background: var(--secondary); border-color: var(--primary-muted); }
+  .steps .sn { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: .75rem; font-weight: 700; background: var(--muted); }
+  .steps button[aria-current="step"] .sn { background: var(--primary); }
+  .steps .who { font-size: .8rem; color: var(--muted-fg); }
+  .steps .det { display: block; margin-top: 2px; color: hsl(0 0% 80%); font-size: .9rem; }
+
+  /* Proven */
+  .tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  .tile { text-align: left; background: var(--card); border: 1px solid var(--card-border); border-radius: var(--radius); padding: 14px 16px; cursor: pointer; }
+  .tile[aria-pressed="true"] { border-color: var(--primary); box-shadow: var(--shadow-button); }
+  .tile b { display: block; font-size: 1.6rem; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--card-border); }
+  th { font-size: .82rem; color: var(--muted-fg); font-weight: 600; }
+
+  /* Decisions */
+  .dgroup { margin: 22px 0 10px; font-size: 1.05rem; }
+  .dec { display: grid; gap: 10px; }
+  .dec .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: .85rem; color: var(--muted-fg); }
+  .dec .id { font-weight: 700; color: var(--fg); background: var(--secondary); border-radius: .4rem; padding: 1px 8px; }
+  .dec .q { font-weight: 600; margin: 0; }
+  .rec { border-left: 3px solid var(--primary); background: hsl(270 30% 12%); border-radius: 0 .5rem .5rem 0; padding: 8px 12px; margin: 0; }
+  .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+  .choices label { border: 1px solid var(--card-border); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: .9rem; }
+  .choices input { accent-color: var(--primary); margin: 0 6px 0 0; }
+  .choices label:has(input:checked) { border-color: var(--primary); background: hsl(270 30% 16%); }
+  textarea, input[type="text"] { width: 100%; background: var(--input); border: 1px solid var(--card-border); border-radius: .5rem; padding: 8px 10px; }
+  textarea { min-height: 54px; resize: vertical; }
+  .bar { position: sticky; bottom: 0; margin-top: 18px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: var(--side-bg); border: 1px solid var(--card-border); border-radius: var(--radius); padding: 12px 16px; }
+  #copyOut { margin-top: 10px; min-height: 180px; font: .85rem var(--mono); }
+
+  [hidden] { display: none !important; }
+  @media (max-width: 900px) {
+    .app { grid-template-columns: 1fr; }
+    .side { position: static; height: auto; flex-direction: row; flex-wrap: wrap; padding: 10px; }
+    .logo { padding: 6px 10px; width: 100%; }
+    #nav { display: flex; flex-wrap: wrap; gap: 4px; }
+    .nav { width: auto; }
+    .stamp { width: 100%; margin-top: 6px; }
+    main { padding: 18px; }
+    .top { flex-wrap: wrap; }
+    .grid2, .steps, .tiles { grid-template-columns: 1fr; }
+    .stepper .cell { width: 64px; }
+  }
+</style>
+</head>
+<body>
+<noscript><p style="padding:20px">This page needs JavaScript. The same content is in the Markdown files in this folder.</p></noscript>
+<div class="app">
+  <nav class="side" aria-label="Sections">
+    <div class="logo"><span>Cogniate</span> × Moodle</div>
+    <div id="nav" role="tablist" aria-orientation="vertical"></div>
+    <div class="stamp" id="stamp"></div>
+  </nav>
+  <main>
+    <header class="top">
+      <div>
+        <h1 id="title"></h1>
+        <p id="subtitle"></p>
+      </div>
+      <span class="draft" id="draft"></span>
+    </header>
+    <section id="tab-start" role="tabpanel" hidden></section>
+    <section id="tab-story" role="tabpanel" hidden></section>
+    <section id="tab-flows" role="tabpanel" hidden></section>
+    <section id="tab-proven" role="tabpanel" hidden></section>
+    <section id="tab-decisions" role="tabpanel" hidden></section>
+  </main>
+</div>
+
+<script type="application/json" id="pack-data">
+{
+  "meta": {
+    "title": "Cogniate × Moodle prototype",
+    "subtitle": "Publish Cogniate courses (SCORM 1.2 and HTML) to Moodle with LTI 1.3.",
+    "source": "dc70851",
+    "date": "2026-10-16",
+    "draft": "Draft shell: results come after task T7",
+    "resultsNote": "QA has not tested the full flows yet. Task T7 (the full end-to-end test on Moodle 5.2) gives the results. Until then, every flow shows “Planned, not tested yet”."
+  },
+  "start": {
+    "intro": [
+      "This page explains the prototype in about 15 minutes.",
+      "A Cogniate user publishes a course. A Moodle teacher adds it to a Moodle course. A learner does the course, and the score goes to the Moodle gradebook.",
+      "We need your answers to some questions. Use the Decisions tab."
+    ],
+    "path": [
+      { "title": "START-HERE (one page)", "time": "3 min", "file": "START-HERE.md", "ready": false },
+      { "title": "Video, optional", "time": "4 min", "file": "video/explainer-en.mp4", "ready": false },
+      { "title": "Story and Flows (this page)", "time": "8 min", "tab": "story", "ready": true },
+      { "title": "Proven / not proven (this page)", "time": "5 min", "tab": "proven", "ready": true },
+      { "title": "Decisions needed (this page)", "time": "10 min", "tab": "decisions", "ready": true }
+    ],
+    "howTo": [
+      "Click a section on the left.",
+      "In Story and Flows, use the left and right arrow keys to move between steps.",
+      "Your answers stay in this browser only.",
+      "Click “Copy my answers” and send the text to the Lead."
+    ]
+  },
+  "actors": {
+    "cu": { "name": "Cogniate user", "kind": "person" },
+    "ma": { "name": "Moodle admin", "kind": "person" },
+    "t": { "name": "Teacher", "kind": "person" },
+    "l": { "name": "Learner", "kind": "person" },
+    "cog": { "name": "Cogniate app", "kind": "system" },
+    "m": { "name": "Moodle", "kind": "system" },
+    "lti": { "name": "LTI service", "kind": "system" }
+  },
+  "terms": [
+    ["Cogniate app", "Our stand-in for the Cogniate platform: the portal, the tool pages and the course player."],
+    ["LTI service", "Our service that does all LTI 1.3 work with Moodle. Its API has the same shape as the public LTIAAS API."],
+    ["Connection", "The link between one Cogniate library and one Moodle site."],
+    ["Publication", "One course that is available to one connection."],
+    ["Content picker", "The Cogniate page where a teacher selects a course. Moodle calls it “Select content”."]
+  ],
+  "story": [
+    {
+      "title": "Connect",
+      "who": ["Cogniate user", "Moodle admin"],
+      "where": "Cogniate portal, then Moodle site administration",
+      "text": [
+        "The Cogniate user starts the connection in the portal.",
+        "The Moodle admin pastes one URL in Moodle and clicks Connect.",
+        "Then the admin activates the Cogniate tool in Moodle."
+      ],
+      "flows": ["connect"],
+      "proof": { "status": "planned", "ids": ["AC-T7-02", "AC-T7-14"] }
+    },
+    {
+      "title": "Publish",
+      "who": ["Cogniate user"],
+      "where": "Cogniate portal",
+      "text": [
+        "The Cogniate user uploads a SCORM 1.2 course and an HTML course.",
+        "The Cogniate app checks each package.",
+        "The user publishes each course to the Moodle connection. The app copies nothing into Moodle."
+      ],
+      "flows": ["publish"],
+      "proof": { "status": "planned", "ids": ["AC-T7-03"] }
+    },
+    {
+      "title": "Add to a course",
+      "who": ["Teacher"],
+      "where": "A Moodle course page",
+      "text": [
+        "The teacher adds an activity and opens the Cogniate content picker.",
+        "The teacher selects one course.",
+        "Moodle makes the activity, with a grade item of max 100."
+      ],
+      "flows": ["deeplink"],
+      "proof": { "status": "planned", "ids": ["AC-T7-03", "AC-T7-08"] }
+    },
+    {
+      "title": "Learn",
+      "who": ["Learner"],
+      "where": "Moodle, then a new window with the Cogniate player",
+      "text": [
+        "The learner opens the activity in Moodle.",
+        "The course opens in the Cogniate player, in a new window.",
+        "The player records the progress and the quiz answer."
+      ],
+      "flows": ["scorm", "html"],
+      "proof": { "status": "planned", "ids": ["AC-T7-07"] }
+    },
+    {
+      "title": "Grades",
+      "who": ["Teacher", "Cogniate user"],
+      "where": "Moodle gradebook and Cogniate portal",
+      "text": [
+        "When the learner completes the course, the Cogniate app sends the score to Moodle.",
+        "The score and the completion show in the Moodle gradebook.",
+        "The portal shows the same result."
+      ],
+      "flows": ["scorm", "html"],
+      "proof": { "status": "planned", "ids": ["AC-T7-04", "AC-T7-05", "AC-T7-06"] }
+    }
+  ],
+  "flows": [
+    {
+      "id": "connect",
+      "ref": "6a",
+      "title": "Connect a Moodle site",
+      "summary": "A Cogniate user and a Moodle admin connect one Moodle site to one Cogniate library. This is the default method (dynamic registration). A manual method is the fallback.",
+      "actors": ["cu", "cog", "ma", "m", "lti"],
+      "steps": [
+        { "from": "cu", "to": "cog", "label": "Connect", "detail": "In the portal, the Cogniate user opens Integrations > Moodle > Connect. The user types the Moodle site URL and a name." },
+        { "from": "cog", "to": "cu", "reply": true, "label": "Registration URL", "detail": "The portal shows a registration URL. The user gives this URL to the Moodle admin." },
+        { "from": "ma", "to": "m", "label": "Add LTI Advantage", "detail": "In Moodle, the admin opens Manage tools, pastes the URL and clicks Add LTI Advantage." },
+        { "from": "m", "to": "lti", "label": "Start registration", "detail": "Moodle opens the URL. The LTI service reads the Moodle settings from Moodle." },
+        { "from": "cog", "to": "ma", "reply": true, "label": "Confirm page", "detail": "The Cogniate app shows a confirm page: the Moodle site, the library and the privacy setting." },
+        { "from": "ma", "to": "cog", "label": "Click Connect", "detail": "The admin clicks Connect." },
+        { "from": "lti", "to": "m", "label": "Register the tool", "detail": "The LTI service registers the Cogniate tool in Moodle. Moodle returns the client ID and the deployment ID." },
+        { "from": "ma", "to": "m", "label": "Activate, New window", "detail": "Moodle adds the tool as pending. The admin activates it and sets the launch container to New window." }
+      ],
+      "proof": { "status": "planned", "ids": ["AC-T7-02", "AC-T7-14"] }
+    },
+    {
+      "id": "publish",
+      "ref": "6e",
+      "title": "Upload and publish a course",
+      "summary": "A Cogniate user uploads a course package and makes the course available to one Moodle connection. Publish does not copy the course into Moodle.",
+      "actors": ["cu", "cog"],
+      "steps": [
+        { "from": "cu", "to": "cog", "label": "Upload package", "detail": "The Cogniate user uploads a course package: a SCORM 1.2 zip or an HTML zip." },
+        { "from": "cog", "to": "cog", "label": "Check package", "detail": "The Cogniate app checks the package and makes a course version. The app treats every package as untrusted data." },
+        { "from": "cog", "to": "cu", "reply": true, "label": "Course version", "detail": "The portal shows the course and its version." },
+        { "from": "cu", "to": "cog", "label": "Publish to Moodle", "detail": "The user opens the course and clicks Publish to Moodle. Then the user selects the connection and the version." },
+        { "from": "cog", "to": "cog", "label": "Make available", "detail": "The app makes the course available to that connection only. The app copies nothing into Moodle." },
+        { "from": "cog", "to": "cu", "reply": true, "label": "Available in Moodle", "detail": "The portal shows “Available in Moodle”, with the next step for teachers." }
+      ],
+      "proof": { "status": "planned", "ids": ["AC-T7-03"] }
+    },
+    {
+      "id": "deeplink",
+      "ref": "6b",
+      "title": "Teacher adds a course (Deep Linking)",
+      "summary": "A teacher adds one Cogniate course to a Moodle course. Moodle makes a normal activity with a grade item.",
+      "actors": ["t", "m", "lti", "cog"],
+      "steps": [
+        { "from": "t", "to": "m", "label": "Select content", "detail": "In a Moodle course, the teacher adds an activity, selects Cogniate and clicks Select content." },
+        { "from": "m", "to": "lti", "label": "Signed launch", "detail": "Moodle sends a signed LTI 1.3 launch (a Deep Linking request) to the LTI service." },
+        { "from": "lti", "to": "lti", "label": "Check launch", "detail": "The LTI service checks the launch: signature, state, nonce and claims." },
+        { "from": "lti", "to": "cog", "label": "Hand over", "detail": "The LTI service sends the teacher to the Cogniate app with a short-lived launch token." },
+        { "from": "cog", "to": "t", "reply": true, "label": "Content picker", "detail": "The app shows the content picker. It lists only the courses that are published to this connection." },
+        { "from": "t", "to": "cog", "label": "Select one course", "detail": "The teacher selects one course." },
+        { "from": "cog", "to": "m", "label": "Signed content item", "detail": "The app returns the course to Moodle as one content item. The LTI service signs it." },
+        { "from": "t", "to": "m", "label": "Set completion, save", "detail": "Moodle fills the activity form, with a grade of max 100. The teacher sets completion to Receive a grade and saves." }
+      ],
+      "proof": { "status": "planned", "ids": ["AC-T7-03", "AC-T7-08"] }
+    },
+    {
+      "id": "scorm",
+      "ref": "6c",
+      "title": "Learner does a SCORM 1.2 course",
+      "summary": "A learner opens the activity in Moodle and does the SCORM 1.2 course in the Cogniate player. The score goes to the Moodle gradebook.",
+      "actors": ["l", "m", "lti", "cog"],
+      "steps": [
+        { "from": "l", "to": "m", "label": "Open activity", "detail": "The learner opens the Cogniate activity in Moodle." },
+        { "from": "m", "to": "lti", "label": "Signed launch", "detail": "Moodle sends a signed LTI 1.3 launch. The LTI service checks it." },
+        { "from": "lti", "to": "cog", "label": "Hand over", "detail": "The LTI service sends the learner to the Cogniate app with a short-lived launch token." },
+        { "from": "cog", "to": "l", "reply": true, "label": "Player, new window", "detail": "The course opens in the Cogniate player, in a new window. The course runs on a separate content site." },
+        { "from": "l", "to": "cog", "label": "Do the course", "detail": "The learner reads the pages and answers the question. The SCORM package reports progress and score to our SCORM 1.2 runtime." },
+        { "from": "cog", "to": "cog", "label": "Final result", "detail": "At the end, the result is passed or failed, with a score from 0 to 100. The pass mark is 70. The best result counts (decision Q4)." },
+        { "from": "cog", "to": "lti", "label": "Send score", "detail": "The Cogniate app sends the score to the LTI service (score sync)." },
+        { "from": "lti", "to": "m", "label": "Gradebook", "detail": "The LTI service sends the score to the Moodle gradebook (LTI Assignment and Grade Services)." }
+      ],
+      "proof": { "status": "planned", "ids": ["AC-T5-07", "AC-T5-08", "AC-T7-04", "AC-T7-05", "AC-T7-07"] }
+    },
+    {
+      "id": "html",
+      "ref": "6d",
+      "title": "Learner does an HTML course",
+      "summary": "The same launch as the SCORM flow. The HTML export does not record progress. So our HTML runtime watches the pages and calculates the result.",
+      "actors": ["l", "m", "lti", "cog"],
+      "steps": [
+        { "from": "l", "to": "m", "label": "Open activity", "detail": "The learner opens the Cogniate activity in Moodle." },
+        { "from": "m", "to": "lti", "label": "Signed launch", "detail": "Moodle sends a signed LTI 1.3 launch. The LTI service checks it." },
+        { "from": "lti", "to": "cog", "label": "Hand over", "detail": "The LTI service sends the learner to the Cogniate app with a short-lived launch token." },
+        { "from": "cog", "to": "l", "reply": true, "label": "Player, new window", "detail": "The HTML course opens in the Cogniate player, in a new window." },
+        { "from": "l", "to": "cog", "label": "Read and answer", "detail": "The learner reads each page and answers the question." },
+        { "from": "cog", "to": "cog", "label": "Page seen", "detail": "Our HTML runtime marks a page as seen after 10 seconds on screen and a scroll to the end." },
+        { "from": "cog", "to": "cog", "label": "Complete, score", "detail": "The course is complete when the learner sees all pages and answers all questions. Score = correct answers / questions × 100. The pass mark is 70." },
+        { "from": "cog", "to": "lti", "label": "Send score", "detail": "The Cogniate app sends the score to the LTI service (score sync)." },
+        { "from": "lti", "to": "m", "label": "Gradebook", "detail": "The LTI service sends the score to the Moodle gradebook (LTI Assignment and Grade Services)." }
+      ],
+      "proof": { "status": "planned", "ids": ["AC-T5-09", "AC-T5-27", "AC-T7-04", "AC-T7-05"] }
+    }
+  ],
+  "proven": [
+    { "claim": "The local stack starts: Moodle 5.2.4 behind HTTPS and the Cogniate services. Start and seed take 31 seconds (images pulled).", "status": "qa", "ids": ["AC-T1-02", "AC-T1-03", "AC-T1-04"], "evidence": "docs/reviews/T1/qa.md" },
+    { "claim": "A reset gives an empty Moodle site. The passwords and the certificate authority stay the same.", "status": "qa", "ids": ["AC-T1-10"], "evidence": "docs/reviews/T1/qa.md" },
+    { "claim": "No generated secret is in a file that git tracks.", "status": "qa", "ids": ["AC-T1-11"], "evidence": "docs/reviews/T1/qa.md" },
+    { "claim": "npm run demo:browser opens the stack in a separate Chrome profile.", "status": "author", "ids": ["LC-T1-04"], "evidence": "docs/reviews/T1/qa.md" },
+    { "claim": "SCORM 1.2 course through LTI 1.3 to the Moodle gradebook", "status": "planned", "ids": ["AC-T5-07", "AC-T5-08", "AC-T7-03", "AC-T7-04", "AC-T7-05"] },
+    { "claim": "HTML course through LTI 1.3 to the Moodle gradebook", "status": "planned", "ids": ["AC-T5-09", "AC-T5-27", "AC-T7-04", "AC-T7-05"] },
+    { "claim": "LTI 1.3 security: state, nonce, signature, claims", "status": "planned", "ids": ["AC-T2-08 to AC-T2-15", "AC-T2-20 to AC-T2-29"] },
+    { "claim": "Deep Linking, grades (AGS), dynamic and manual registration on Moodle 5.2", "status": "planned", "ids": ["AC-T3-01 to AC-T3-14", "AC-T3-25", "AC-T4-08", "AC-T4-10", "AC-T7-02", "AC-T7-08"] },
+    { "claim": "API with the same shape as the public LTIAAS API (narrow claim, ADR-003)", "status": "planned", "ids": ["AC-T3-27"] },
+    { "claim": "Portal: Integrations > Moodle > Connect, Publish, Results", "status": "planned", "ids": ["AC-T6-01 to AC-T6-14", "AC-T7-06"] },
+    { "claim": "One library cannot see the data of another library (tenant isolation)", "status": "planned", "ids": ["AC-T2-18", "AC-T4-16", "AC-T4-29", "AC-T4-34", "AC-T7-08", "AC-T7-09"] },
+    { "claim": "Course content cannot attack the portal (content isolation)", "status": "planned", "ids": ["AC-T4-05", "AC-T5-01", "AC-T5-03", "AC-T5-17"] },
+    { "claim": "Full end-to-end test on a real Moodle 5.2", "status": "planned", "ids": ["AC-T7-01", "AC-T7-11"] },
+    { "claim": "A new person can run the stack in 10 minutes", "status": "planned", "ids": ["AC-T9-01"] },
+    { "claim": "Native .mbz channel and empty Moodle course shell (stretch task T8, decision Q12)", "status": "planned", "ids": ["T8"] },
+    { "claim": "A teacher on Safari can add Cogniate content", "status": "not", "ids": ["Q16"] },
+    { "claim": "It works on MoodleCloud", "status": "not", "ids": ["Q5"] },
+    { "claim": "Load and scale", "status": "not", "ids": ["no test planned"] },
+    { "claim": "1EdTech LTI Advantage certification", "status": "not", "ids": ["no test planned"] }
+  ],
+  "decisionGroups": [
+    { "id": "now", "title": "Now: prototype and hand-over" },
+    { "id": "pilot", "title": "Before the pilot" },
+    { "id": "prod", "title": "Before production" }
+  ],
+  "decisions": [
+    { "id": "HR-1", "group": "now", "area": "Hand-over", "who": "Product team", "question": "Do we keep the Vietnamese version of the video? An agent translated it, and a computer voice reads it (machine-translated, please check).", "recommendation": "Keep it only if one Vietnamese team member watches it and says that it is clear. Otherwise drop it.", "blocks": "The Vietnamese video" },
+    { "id": "HR-2", "group": "now", "area": "Hand-over", "who": "Product team (one member)", "question": "Can a new person start the stack with the guides in 10 minutes?", "recommendation": "One team member tries it with docs/guides/run-the-stack.md and reports each unclear step. QA times the commands separately.", "blocks": "AC-T9-01, the human run test" },
+    { "id": "Q12", "group": "now", "area": "Scope", "who": "Product owner", "question": "Do we need the native channel (.mbz restore, task T8) now?", "recommendation": "No. Keep LTI as the main path. Do T8 only if a customer needs editable native courses on MoodleCloud. The “Download SCORM package” button is enough for a manual upload today.", "blocks": "Start of T8" },
+    { "id": "Q15", "group": "now", "area": "Repo", "who": "Lead and product owner", "question": "Where do the two course zips (24 MB) go: in git, in Git LFS, or outside git?", "recommendation": "Outside normal git: Git LFS or a documented download. Until then, use COURSE_FIXTURES_DIR and npm run fixtures:check.", "blocks": "QA runs in a clean clone, hand-over" },
+    { "id": "Q1", "group": "pilot", "area": "Legal", "who": "Legal", "question": "Is our clean-room process acceptable? May QA use the MIT LTIAAS Python SDK as a test-only client? How may we describe the result?", "recommendation": "Yes to the process and to test-only use of the SDK. Use only the narrow claim in ADR-003. Do not use “LTIAAS” in product names. Check the LTI® mark and plan 1EdTech certification.", "blocks": "External claims, start of T3c" },
+    { "id": "Q2", "group": "pilot", "area": "Product", "who": "Product", "question": "Does the course open in a new window, or inside the Moodle page?", "recommendation": "New window. A course inside the Moodle page fails in browsers that block third-party cookies. DataCamp also uses a new window.", "blocks": "Admin guide text" },
+    { "id": "Q3", "group": "pilot", "area": "Privacy", "who": "Product and Legal (DPO)", "question": "Do we share the learner name and email with Cogniate? DataCamp shares both.", "recommendation": "No, by default. Moodle sends only an anonymous LTI user ID. Add an opt-in per connection later, with a data processing agreement.", "blocks": "Learner names in the portal" },
+    { "id": "Q4", "group": "pilot", "area": "Product", "who": "Product", "question": "Does Moodle show the best result or the latest result? Which score does a completion-only course give?", "recommendation": "The best result. Never lower a grade. A completion-only course gives 100/100.", "blocks": "The grade rule (ADR-010)" },
+    { "id": "Q5", "group": "pilot", "area": "MoodleCloud", "who": "Product owner", "question": "Do we test on a real MoodleCloud site: registration, activation, grades, web services and restore size?", "recommendation": "Yes, one test on a MoodleCloud trial site. A human must make the account, because the agents may not sign up.", "blocks": "The claim “works on MoodleCloud”" },
+    { "id": "Q7", "group": "pilot", "area": "Cogniate exporter", "who": "Cogniate engineering", "question": "Will the HTML export keep the markup that our HTML runtime reads? Can the exporter add a real completion signal?", "recommendation": "Yes. Freeze the markup as “Cogniate HTML export markup v1”. Better: the exporter adds a small adapter that sends progress, like scorm-api.js.", "blocks": "Stable HTML results" },
+    { "id": "Q9", "group": "pilot", "area": "Content", "who": "Cogniate engineering and DPO", "question": "The packages load images from the Cogniate production storage, and the HTML export loads Google Fonts. What do we do?", "recommendation": "Ask the exporter to put all assets and fonts into the package. Google Fonts sends learner IP addresses to Google (GDPR risk).", "blocks": "Offline use, privacy" },
+    { "id": "Q13", "group": "pilot", "area": "Product", "who": "Product", "question": "When a course gets a new version, do the Moodle activities of that course show the new version at once?", "recommendation": "Yes (live link). Later, if customers ask, let a teacher keep an activity on one version.", "blocks": "Publish UI" },
+    { "id": "Q16", "group": "pilot", "area": "Product and security", "who": "Product and a security reviewer", "question": "In Safari, a teacher may not be able to add Cogniate content. What do we tell teachers? Learner launches are not affected.", "recommendation": "For the pilot: teachers use Chrome, Edge or Firefox to add content. Before general release, choose: accept the limit, a special mode after a security review, or ask Moodle HQ for support.", "blocks": "Teacher browser support statement" },
+    { "id": "Q6", "group": "prod", "area": "Pricing", "who": "Product and Sales", "question": "Which Cogniate plans get “Publish to Moodle (LTI)”? Does a publication count as an export?", "recommendation": "Pro Creator and above. One publication per course per Moodle site counts as one export.", "blocks": "Plan checks (not built)" },
+    { "id": "Q8", "group": "prod", "area": "Assessment", "who": "Product", "question": "The browser calculates the score, and the correct answer is in the page. Is that acceptable?", "recommendation": "Yes for completion-type courses. No for graded or certified tests: calculate the score on the server before you sell graded courses.", "blocks": "Graded-course offer" },
+    { "id": "Q10", "group": "prod", "area": "Security", "who": "CTO", "question": "Do we buy a separate domain for course content, with one subdomain per customer?", "recommendation": "Yes, before production. Course content on the same site can attack the portal.", "blocks": "Production deployment" },
+    { "id": "Q11", "group": "prod", "area": "Operations", "who": "CTO", "question": "Who runs the LTI service, in which region, with which SLA and key management?", "recommendation": "The same cloud and region as Cogniate. Keys in a KMS, with rotation every 90 days. Target: 99.95 % uptime.", "blocks": "Production deployment" },
+    { "id": "Q14", "group": "prod", "area": "Cogniate API", "who": "Cogniate engineering", "question": "Who defines the real Cogniate API that replaces our mock app?", "recommendation": "A Phase 0 contract workshop with Cogniate engineering. Our mock contract is an input.", "blocks": "Production integration" }
+  ]
+}
+</script>
+
+<script>
+(() => {
+  'use strict';
+  const D = JSON.parse(document.getElementById('pack-data').textContent);
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const KEY = 'cogniate-pack-answers:' + D.meta.source;
+  const STATUS = {
+    qa: ['Proven by QA', 'b-ok'],
+    author: ['Author check only', 'b-warn'],
+    planned: ['Planned, not tested yet', 'b-plan'],
+    not: ['Not proven', 'b-bad'],
+  };
+  const TABS = [['start', 'Start'], ['story', 'Story'], ['flows', 'Flows'], ['proven', 'Proven'], ['decisions', 'Decisions']];
+  const state = { tab: 'start', story: 0, flow: D.flows[0].id, step: 0, filter: 'all', timer: null };
+
+  // ---------- helpers ----------
+  function h(tag, attrs, ...kids) {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (k === 'class') e.className = v;
+      else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+      else if (v === true) e.setAttribute(k, '');
+      else if (v !== false && v != null) e.setAttribute(k, v);
+    }
+    for (const kid of kids.flat(Infinity)) {
+      if (kid == null || kid === false) continue;
+      e.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+    }
+    return e;
+  }
+  function s(tag, attrs, ...kids) {
+    const e = document.createElementNS(SVG_NS, tag);
+    for (const [k, v] of Object.entries(attrs || {})) e.setAttribute(k, v);
+    for (const kid of kids.flat()) e.append(kid instanceof Node ? kid : document.createTextNode(String(kid)));
+    return e;
+  }
+  const badge = (st) => h('span', { class: 'badge ' + STATUS[st][1] }, STATUS[st][0]);
+  const idList = (ids) => ids.map((id, i) => [i ? ', ' : '', h('code', {}, id)]);
+  function proofLine(p) {
+    return h('p', { class: 'proof' }, badge(p.status), ' ',
+      p.status === 'planned' ? ['Planned proof: ', idList(p.ids), '. Result: after T7.'] : ['Evidence: ', idList(p.ids), '.']);
+  }
+  const flowById = (id) => D.flows.find((f) => f.id === id) || D.flows[0];
+  const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
+
+  // ---------- frame ----------
+  document.title = D.meta.title + ': explainer';
+  document.getElementById('title').textContent = D.meta.title;
+  document.getElementById('subtitle').textContent = D.meta.subtitle;
+  document.getElementById('draft').textContent = D.meta.draft;
+  document.getElementById('stamp').textContent = 'Source: commit ' + D.meta.source + ', ' + D.meta.date + '. Content comes from the repo docs.';
+  const nav = document.getElementById('nav');
+  TABS.forEach(([id, label], i) => nav.append(
+    h('button', { class: 'nav', role: 'tab', id: 'nav-' + id, 'aria-controls': 'tab-' + id, onclick: () => go(id) },
+      h('span', { class: 'n' }, i + 1), label)));
+
+  // ---------- routing (#tab/a/b) ----------
+  // Route at once (no wait for the async hashchange event). Back and Forward still work.
+  function go(...parts) {
+    const hash = '#' + parts.filter((p) => p != null && p !== '').join('/');
+    if (hash !== location.hash) history.pushState(null, '', hash);
+    route();
+  }
+  function route() {
+    const [tab, a, b] = decodeURIComponent(location.hash.slice(1)).split('/');
+    state.tab = TABS.some(([id]) => id === tab) ? tab : 'start';
+    if (state.tab === 'story') state.story = clamp((parseInt(a, 10) || 1) - 1, 0, D.story.length - 1);
+    if (state.tab === 'flows') {
+      const f = flowById(a);
+      if (f.id !== state.flow) { state.flow = f.id; drawFlow(); }
+      state.step = clamp((parseInt(b, 10) || 1) - 1, 0, f.steps.length - 1);
+    } else stopPlay();
+    for (const [id] of TABS) {
+      document.getElementById('tab-' + id).hidden = id !== state.tab;
+      document.getElementById('nav-' + id).setAttribute('aria-selected', String(id === state.tab));
+    }
+    if (state.tab === 'story') updateStory();
+    if (state.tab === 'flows') updateFlowStep();
+  }
+  window.addEventListener('hashchange', route);
+  window.addEventListener('popstate', route);
+  document.addEventListener('keydown', (ev) => {
+    if (/^(INPUT|TEXTAREA|SELECT)$/.test(ev.target.tagName)) return;
+    const d = ev.key === 'ArrowRight' ? 1 : ev.key === 'ArrowLeft' ? -1 : 0;
+    if (!d) return;
+    if (state.tab === 'story') { ev.preventDefault(); go('story', clamp(state.story + d, 0, D.story.length - 1) + 1); }
+    if (state.tab === 'flows') { ev.preventDefault(); stopPlay(); go('flows', state.flow, clamp(state.step + d, 0, flowById(state.flow).steps.length - 1) + 1); }
+  });
+
+  // ---------- Start ----------
+  (function renderStart() {
+    const el = document.getElementById('tab-start');
+    const path = h('ol', { class: 'path' }, D.start.path.map((p, i) => h('li', {},
+      h('span', { class: 'num' }, i + 1),
+      h('span', {}, p.title, p.file ? [' ', h('code', {}, p.file)] : null),
+      h('span', { class: 'time' }, p.time),
+      p.tab ? h('button', { class: 'btn', onclick: () => go(p.tab) }, 'Open')
+        : h('span', { class: 'badge ' + (p.ready ? 'b-ok' : 'b-plan') }, p.ready ? 'Ready' : 'After T7'))));
+    el.append(h('div', { class: 'stack' },
+      h('div', { class: 'card hero' }, h('h2', {}, 'What this is'), D.start.intro.map((t) => h('p', {}, t))),
+      h('div', { class: 'grid2' },
+        h('div', { class: 'card' }, h('h2', {}, 'Your 30-minute path'), path),
+        h('div', { class: 'stack' },
+          h('div', { class: 'card' }, h('h2', {}, 'How to use this page'), h('ul', {}, D.start.howTo.map((t) => h('li', {}, t)))),
+          h('div', { class: 'card' }, h('h2', {}, 'Status'), h('p', {}, D.meta.resultsNote)))),
+      h('div', { class: 'card' }, h('h2', {}, 'Words we use'),
+        h('table', {}, h('tbody', {}, D.terms.map(([t, m]) => h('tr', {}, h('th', { scope: 'row' }, t), h('td', {}, m))))))));
+  })();
+
+  // ---------- Story ----------
+  const storyEl = document.getElementById('tab-story');
+  const stepper = h('div', { class: 'stepper', role: 'list' });
+  D.story.forEach((st, i) => {
+    if (i) stepper.append(h('span', { class: 'line', 'aria-hidden': 'true' }));
+    stepper.append(h('div', { class: 'cell', role: 'listitem' },
+      h('button', { class: 'dot', 'aria-label': 'Step ' + (i + 1) + ': ' + st.title, onclick: () => go('story', i + 1) }, i + 1),
+      h('span', { class: 'lab' }, st.title)));
+  });
+  const storyCard = h('div', { class: 'card' });
+  const prevS = h('button', { class: 'btn', onclick: () => go('story', state.story) }, '← Previous');
+  const nextS = h('button', { class: 'btn main', onclick: () => go('story', state.story + 2) }, 'Next →');
+  storyEl.append(h('div', { class: 'card hero', style: 'margin-bottom:16px' },
+    h('h2', {}, 'The story in five steps'), h('p', { class: 'muted' }, 'This is the design. QA tests the full story in task T7.'), stepper),
+    storyCard, h('div', { class: 'row', style: 'margin-top:14px' }, prevS, nextS));
+  function updateStory() {
+    const st = D.story[state.story];
+    stepper.querySelectorAll('.dot').forEach((b, i) => { if (i === state.story) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current'); });
+    storyCard.replaceChildren(...[
+      h('h2', {}, (state.story + 1) + '. ' + st.title),
+      h('div', {}, st.who.map((w) => h('span', { class: 'chip' }, w))),
+      h('p', { class: 'muted' }, 'Where: ' + st.where),
+      st.text.map((t) => h('p', {}, t)),
+      h('div', { class: 'row' }, st.flows.map((id) => h('button', { class: 'btn', onclick: () => go('flows', id, 1) }, 'See the flow: ' + flowById(id).title))),
+      proofLine(st.proof)].flat());
+    prevS.disabled = state.story === 0;
+    nextS.disabled = state.story === D.story.length - 1;
+  }
+
+  // ---------- Flows ----------
+  const flowsEl = document.getElementById('tab-flows');
+  const flowPills = h('div', { class: 'pills', role: 'group', 'aria-label': 'Flows' },
+    D.flows.map((f) => h('button', { class: 'pill', 'data-flow': f.id, onclick: () => { stopPlay(); go('flows', f.id, 1); } }, f.title)));
+  const flowHead = h('div', { class: 'card hero', style: 'margin-bottom:16px' });
+  const diagram = h('div', { class: 'diagram' });
+  const detail = h('div', { class: 'detail', 'aria-live': 'polite' });
+  const stepsList = h('ol', { class: 'steps' });
+  const playBtn = h('button', { class: 'btn main', onclick: togglePlay }, 'Play');
+  const prevF = h('button', { class: 'btn', onclick: () => { stopPlay(); go('flows', state.flow, state.step); } }, '← Back');
+  const nextF = h('button', { class: 'btn', onclick: () => { stopPlay(); go('flows', state.flow, state.step + 2); } }, 'Next →');
+  flowsEl.append(flowPills, flowHead,
+    h('div', { class: 'card' }, diagram, h('div', { class: 'detailrow' }, detail, h('div', { class: 'row' }, prevF, playBtn, nextF))),
+    h('div', { class: 'card', style: 'margin-top:16px' }, h('h2', {}, 'All steps'), stepsList));
+
+  function drawFlow() {
+    const f = flowById(state.flow);
+    flowPills.querySelectorAll('.pill').forEach((p) => p.setAttribute('aria-pressed', String(p.dataset.flow === f.id)));
+    flowHead.replaceChildren(h('h2', {}, f.title), h('p', {}, f.summary), proofLine(f.proof),
+      h('p', { class: 'proof' }, 'Full technical diagram: ', h('a', { href: '../architecture/flows.md' }, 'docs/architecture/flows.md'), ', section ' + f.ref + '.'));
+    diagram.replaceChildren(seqSvg(f));
+    stepsList.replaceChildren(...f.steps.map((st, i) => h('li', {},
+      h('button', { 'data-i': i, onclick: () => { stopPlay(); go('flows', f.id, i + 1); } },
+        h('span', { class: 'sn' }, i + 1),
+        h('span', {}, h('strong', {}, st.label), h('span', { class: 'who' }, ' · ' + who(st)),
+          h('span', { class: 'det' }, st.detail))))));
+  }
+  const who = (st) => D.actors[st.from].name + (st.from === st.to ? '' : ' → ' + D.actors[st.to].name);
+  function updateFlowStep() {
+    const f = flowById(state.flow);
+    flowPills.querySelectorAll('.pill').forEach((p) => p.setAttribute('aria-pressed', String(p.dataset.flow === f.id)));
+    diagram.querySelectorAll('.step').forEach((g) => {
+      const on = Number(g.dataset.i) === state.step;
+      g.classList.toggle('on', on);
+      g.querySelectorAll('[marker-end]').forEach((el) => el.setAttribute('marker-end', on ? 'url(#ahOn)' : 'url(#ah)'));
+    });
+    stepsList.querySelectorAll('button').forEach((b) => {
+      if (Number(b.dataset.i) === state.step) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+    });
+    const st = f.steps[state.step];
+    detail.replaceChildren(
+      h('span', { class: 'sn' }, state.step + 1),
+      h('div', {},
+        h('div', {}, h('strong', {}, st.label), h('span', { class: 'who' }, ' · ' + who(st) + ' · step ' + (state.step + 1) + ' of ' + f.steps.length)),
+        h('p', {}, st.detail)));
+    prevF.disabled = state.step === 0;
+    nextF.disabled = state.step === f.steps.length - 1;
+  }
+  function seqSvg(f) {
+    const colW = 190, padX = 16, top = 12, headH = 44, rowH = 52;
+    const n = f.actors.length;
+    const offset = (colW * Math.max(n, 3) - colW * n) / 2;
+    // Room for self-arrow labels on the last column.
+    const last = f.actors[n - 1];
+    const selfLabels = f.steps.filter((st) => st.from === last && st.to === last).map((st) => st.label.length);
+    const extraRight = selfLabels.length && offset === 0 ? Math.max(0, 50 + Math.max(...selfLabels) * 7.2 - colW / 2) : 0;
+    const W = padX * 2 + colW * Math.max(n, 3) + extraRight;
+    const x = (key) => padX + offset + colW * f.actors.indexOf(key) + colW / 2;
+    const firstY = top + headH + 34;
+    const H = firstY + rowH * f.steps.length;
+    const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Sequence diagram: ' + f.title });
+    svg.style.maxWidth = Math.round(W * 1.15) + 'px';
+    svg.append(s('defs', {},
+      s('marker', { id: 'ah', viewBox: '0 0 10 10', refX: '9', refY: '5', markerWidth: '7', markerHeight: '7', orient: 'auto-start-reverse' },
+        s('path', { d: 'M0,0 L10,5 L0,10 z', fill: 'hsl(0 0% 60%)' })),
+      s('marker', { id: 'ahOn', viewBox: '0 0 10 10', refX: '9', refY: '5', markerWidth: '7', markerHeight: '7', orient: 'auto-start-reverse' },
+        s('path', { d: 'M0,0 L10,5 L0,10 z', fill: 'hsl(270 70% 65%)' }))));
+    for (const key of f.actors) {
+      const a = D.actors[key];
+      svg.append(s('line', { class: 'life', x1: x(key), y1: top + headH, x2: x(key), y2: H - 8 }));
+      svg.append(s('g', { class: 'head ' + a.kind },
+        s('rect', { x: x(key) - 80, y: top, width: 160, height: headH, rx: 10 }),
+        s('text', { x: x(key), y: top + headH / 2 + 4.5, 'text-anchor': 'middle' }, a.name)));
+    }
+    f.steps.forEach((st, i) => {
+      const y = firstY + i * rowH;
+      const g = s('g', { class: 'step' + (st.reply ? ' reply' : ''), 'data-i': i });
+      g.append(s('title', {}, (i + 1) + '. ' + st.label + ': ' + st.detail));
+      g.addEventListener('click', () => { stopPlay(); go('flows', f.id, i + 1); });
+      const x1 = x(st.from);
+      if (st.from === st.to) {
+        const d = `M${x1 + 4},${y - 10} h34 v20 h-30`;
+        g.append(s('path', { class: 'hit', d }), s('path', { d, 'marker-end': 'url(#ah)' }));
+        g.append(s('circle', { cx: x1 - 16, cy: y, r: 10 }), s('text', { class: 'no', x: x1 - 16, y: y + 4, 'text-anchor': 'middle' }, i + 1));
+        g.append(s('text', { x: x1 + 46, y: y + 4 }, st.label));
+      } else {
+        const x2 = x(st.to), dir = x2 > x1 ? 1 : -1;
+        const lx1 = x1 + dir * 28, lx2 = x2 - dir * 3;
+        g.append(s('line', { class: 'hit', x1: lx1, y1: y, x2: lx2, y2: y }), s('line', { x1: lx1, y1: y, x2: lx2, y2: y, 'marker-end': 'url(#ah)' }));
+        g.append(s('circle', { cx: x1 + dir * 15, cy: y, r: 10 }), s('text', { class: 'no', x: x1 + dir * 15, y: y + 4, 'text-anchor': 'middle' }, i + 1));
+        g.append(s('text', { x: (lx1 + lx2) / 2, y: y - 8, 'text-anchor': 'middle' }, st.label));
+      }
+      svg.append(g);
+    });
+    return svg;
+  }
+
+  function togglePlay() { if (state.timer) stopPlay(); else startPlay(); }
+  function startPlay() {
+    const f = flowById(state.flow);
+    if (state.step >= f.steps.length - 1) go('flows', f.id, 1);
+    playBtn.textContent = 'Pause';
+    state.timer = setInterval(() => {
+      const ff = flowById(state.flow);
+      if (state.step >= ff.steps.length - 1) { stopPlay(); return; }
+      go('flows', ff.id, state.step + 2);
+    }, 3500);
+  }
+  function stopPlay() { if (state.timer) clearInterval(state.timer); state.timer = null; playBtn.textContent = 'Play'; }
+
+  // ---------- Proven ----------
+  (function renderProven() {
+    const el = document.getElementById('tab-proven');
+    const order = ['qa', 'author', 'planned', 'not'];
+    const tiles = h('div', { class: 'tiles', role: 'group', 'aria-label': 'Filter by status' });
+    const tbody = h('tbody');
+    const note = h('p', { class: 'muted' });
+    function draw() {
+      tiles.querySelectorAll('.tile').forEach((t) => t.setAttribute('aria-pressed', String(t.dataset.st === state.filter)));
+      const rows = D.proven.filter((r) => state.filter === 'all' || r.status === state.filter);
+      tbody.replaceChildren(...rows.map((r) => h('tr', {},
+        h('td', {}, r.claim), h('td', {}, badge(r.status)),
+        h('td', {}, idList(r.ids), r.evidence ? [h('br'), h('span', { class: 'muted' }, r.evidence)] : null))));
+      note.textContent = state.filter === 'all' ? 'Showing all ' + rows.length + ' rows. Click a box to filter.' : 'Showing ' + rows.length + ' rows. Click the box again to show all.';
+    }
+    for (const st of order) {
+      const count = D.proven.filter((r) => r.status === st).length;
+      tiles.append(h('button', { class: 'tile', 'data-st': st, onclick: () => { state.filter = state.filter === st ? 'all' : st; draw(); } },
+        h('b', {}, count), badge(st)));
+    }
+    el.append(h('div', { class: 'card hero', style: 'margin-bottom:16px' }, h('h2', {}, 'Proven / not proven'),
+      h('p', {}, 'Each row is one claim. “Proven by QA” means that an independent QA test passed. “Author check only” means that only the builder checked it.'),
+      h('p', { class: 'muted' }, D.meta.resultsNote)),
+      tiles, note,
+      h('div', { class: 'card' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Claim'), h('th', {}, 'Status'), h('th', {}, 'Proof'))), tbody)));
+    draw();
+  })();
+
+  // ---------- Decisions ----------
+  (function renderDecisions() {
+    const el = document.getElementById('tab-decisions');
+    let store = { name: '', a: {} };
+    try { store = Object.assign(store, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { /* storage blocked: answers stay in memory */ }
+    const CHOICES = [['accept', 'Accept our recommendation'], ['change', 'Change it'], ['unsure', 'Not sure, let us talk']];
+    const count = h('span', { class: 'muted' });
+    const msg = h('span', { class: 'muted', role: 'status' });
+    const out = h('textarea', { id: 'copyOut', readonly: true, hidden: true, 'aria-label': 'Your answers as text' });
+    function save() {
+      try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* ignore */ }
+      const done = D.decisions.filter((d) => store.a[d.id] && store.a[d.id].choice).length;
+      count.textContent = done + ' of ' + D.decisions.length + ' answered';
+    }
+    const name = h('input', { type: 'text', id: 'yourName', value: store.name, placeholder: 'Your name', oninput: (e) => { store.name = e.target.value; save(); } });
+    el.append(h('div', { class: 'card hero' }, h('h2', {}, 'Decisions needed'),
+      h('p', {}, 'Only a human can answer these questions. Each question has our recommendation. The prototype uses the recommendation until you decide.'),
+      h('p', { class: 'muted' }, 'Draft list from docs/architecture/open-questions.md. The groups are a proposal by Docs.'),
+      h('label', { for: 'yourName' }, 'Your name'), name));
+    for (const g of D.decisionGroups) {
+      const items = D.decisions.filter((d) => d.group === g.id);
+      el.append(h('h2', { class: 'dgroup' }, g.title + ' (' + items.length + ')'));
+      const list = h('div', { class: 'stack' });
+      for (const d of items) {
+        const cur = store.a[d.id] || {};
+        list.append(h('article', { class: 'card dec', id: 'dec-' + d.id },
+          h('div', { class: 'meta' }, h('span', { class: 'id' }, d.id), d.area, ' · Who decides: ' + d.who),
+          h('p', { class: 'q' }, d.question),
+          h('p', { class: 'rec' }, h('strong', {}, 'Our recommendation: '), d.recommendation),
+          h('p', { class: 'muted', style: 'margin:0' }, 'It blocks: ' + d.blocks),
+          h('div', { class: 'choices', role: 'radiogroup', 'aria-label': 'Your answer to ' + d.id },
+            CHOICES.map(([v, label]) => h('label', {},
+              h('input', { type: 'radio', name: 'c-' + d.id, value: v, checked: cur.choice === v,
+                onchange: () => { store.a[d.id] = Object.assign(store.a[d.id] || {}, { choice: v }); save(); } }), label))),
+          h('textarea', { 'aria-label': 'Note for ' + d.id, placeholder: 'Your answer or note (optional)',
+            oninput: (e) => { store.a[d.id] = Object.assign(store.a[d.id] || {}, { note: e.target.value }); save(); } }, cur.note || '')));
+      }
+      el.append(list);
+    }
+    function answersText() {
+      const lines = ['Cogniate × Moodle prototype: answers to "Decisions needed"',
+        'From: ' + (store.name.trim() || '(no name)'),
+        'Date: ' + new Date().toISOString().slice(0, 10),
+        'Pack: commit ' + D.meta.source + ' (' + D.meta.date + ')', ''];
+      const open = [];
+      for (const g of D.decisionGroups) {
+        lines.push('[' + g.title + ']');
+        for (const d of D.decisions.filter((x) => x.group === g.id)) {
+          const a = store.a[d.id] || {};
+          const note = (a.note || '').trim();
+          if (!a.choice && !note) { open.push(d.id); continue; }
+          const label = { accept: 'ACCEPT our recommendation', change: 'CHANGE', unsure: 'NOT SURE, let us talk' }[a.choice] || 'NO CHOICE';
+          lines.push(d.id + ' (' + d.area + '): ' + label + (note ? '. Note: ' + note.replace(/\s+/g, ' ') : ''));
+        }
+        lines.push('');
+      }
+      lines.push('Not answered: ' + (open.length ? open.join(', ') : 'none'));
+      return lines.join('\n');
+    }
+    async function copy() {
+      const text = answersText();
+      out.value = text;
+      out.hidden = false;
+      let ok = false;
+      try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {
+        out.select();
+        try { ok = document.execCommand('copy'); } catch (e2) { ok = false; }
+      }
+      msg.textContent = ok ? 'Copied. Paste the text in a message to the Lead.' : 'This browser blocks copy. Select the text below and copy it.';
+    }
+    function clearAll() {
+      if (!confirm('Delete all your answers on this page?')) return;
+      store = { name: '', a: {} };
+      save();
+      location.reload();
+    }
+    el.append(h('div', { class: 'bar' },
+      h('button', { class: 'btn main', id: 'copyBtn', onclick: copy }, 'Copy my answers'),
+      h('button', { class: 'btn', onclick: clearAll }, 'Clear'), count, msg), out);
+    save();
+  })();
+
+  drawFlow();
+  route();
+})();
+</script>
+</body>
+</html>
