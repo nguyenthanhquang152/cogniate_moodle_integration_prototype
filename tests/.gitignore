@@ -7,3 +7,4 @@ playwright-report/
 .tmp/
 fixtures/qa-platform/jwks-*.json
 fixtures/courses/
+fixtures/qa-platform/openid-*.json

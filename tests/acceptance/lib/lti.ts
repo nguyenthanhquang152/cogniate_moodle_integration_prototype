@@ -140,7 +140,7 @@ export function capturedSecrets(): { kind: string; value: string }[] {
 
 export interface ErrorPage {
   test: string;
-  endpoint: 'login' | 'launch';
+  endpoint: 'login' | 'launch' | 'register';
   status: number;
   code: string;
   traceId: string;
@@ -217,7 +217,7 @@ const header = (h: PageResponse['headers'], name: string) => {
 export function checkErrorPage(
   res: PageResponse,
   code: string,
-  { statuses = [400, 401], test, endpoint }: { statuses?: number[]; test: string; endpoint: 'login' | 'launch' },
+  { statuses = [400, 401], test, endpoint }: { statuses?: number[]; test: string; endpoint: 'login' | 'launch' | 'register' },
 ): string[] {
   const problems: string[] = [];
   const traceId = header(res.headers, 'x-trace-id') ?? '';
