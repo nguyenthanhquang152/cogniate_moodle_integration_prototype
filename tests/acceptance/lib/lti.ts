@@ -220,14 +220,18 @@ export function checkErrorPage(
   { statuses = [400, 401], test, endpoint }: { statuses?: number[]; test: string; endpoint: 'login' | 'launch' | 'register' | 'tool' },
 ): string[] {
   const problems: string[] = [];
-  const traceId = header(res.headers, 'x-trace-id') ?? '';
+  const headerTrace = header(res.headers, 'x-trace-id') ?? '';
   const pageCode = attr(res.body, 'data-error-code');
   const pageTrace = attr(res.body, 'data-trace-id');
+  // LTI service pages: every response has X-Trace-Id (contract §1.4). App tool pages: the page carries the trace id;
+  // a header, if present, must be the same.
+  const traceId = headerTrace || (endpoint === 'tool' ? pageTrace ?? '' : '');
   if (!statuses.includes(res.status)) problems.push(`status ${res.status}, want ${statuses.join(' or ')}`);
   if (header(res.headers, 'location')) problems.push(`has a Location header (${header(res.headers, 'location')})`);
   if (pageCode !== code) problems.push(`data-error-code = ${pageCode ?? 'missing'}, want ${code}`);
-  if (!traceId) problems.push('no X-Trace-Id header');
-  if (pageTrace !== traceId) problems.push(`data-trace-id = ${pageTrace ?? 'missing'}, X-Trace-Id = ${traceId || 'missing'}`);
+  if (!pageTrace) problems.push('no data-trace-id');
+  if (endpoint !== 'tool' && !headerTrace) problems.push('no X-Trace-Id header');
+  if (headerTrace && pageTrace !== headerTrace) problems.push(`data-trace-id = ${pageTrace ?? 'missing'}, X-Trace-Id = ${headerTrace}`);
   recordErrorPage({ test, endpoint, status: res.status, code: pageCode ?? '', traceId, pageShowsTraceId: Boolean(traceId) && res.body.includes(traceId) });
   return problems;
 }
@@ -272,3 +276,8 @@ export function loadState(task: string): Record<string, unknown> {
 }
 
 export const DL_CLAIM = 'https://purl.imsglobal.org/spec/lti-dl/claim/';
+
+/** Trace id of an error page: X-Trace-Id if present, else the data-trace-id of the page. */
+export function pageTraceId(res: PageResponse): string {
+  return header(res.headers, 'x-trace-id') ?? attr(res.body, 'data-trace-id') ?? '';
+}

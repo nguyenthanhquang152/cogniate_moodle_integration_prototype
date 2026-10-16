@@ -164,3 +164,122 @@ export async function addToolActivity(page: Page, teacher: MoodleUser, courseId:
   if (!cmid) throw new Error(`activity "${name}" not found after save`);
   return cmid;
 }
+
+// ---------------------------------------------------------------- the real app picker (T4b2 onward)
+
+export interface PageAnswer {
+  url: string;
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+}
+
+export interface OpenPicker {
+  page: Page;
+  frame: import('@playwright/test').Frame;
+  pickerUrl: string;
+  pickerGet: PageAnswer;
+}
+
+/** Teacher: modedit "Add an activity → <tool>" → Select content; waits for the app picker in Moodle's frame. */
+export async function openPicker(
+  context: BrowserContext,
+  teacher: MoodleUser,
+  courseId: number,
+  typeId: number,
+  timeoutMs = 45_000,
+  { updateCmid }: { updateCmid?: number } = {},
+): Promise<OpenPicker> {
+  const page = await context.newPage();
+  await moodleLogin(page, urls.moodle, teacher.username, teacher.password);
+  let pickerGet: PageAnswer | undefined;
+  const onResponse = async (r: import('@playwright/test').Response) => {
+    if (pickerGet || r.request().method() !== 'GET' || !r.url().startsWith(`${urls.app}/tool/picker/`)) return;
+    pickerGet = { url: r.url(), status: r.status(), headers: await r.allHeaders(), body: await r.text().catch(() => '') };
+  };
+  context.on('response', onResponse);
+  try {
+    await page.goto(
+      updateCmid
+        ? `${urls.moodle}/course/modedit.php?update=${updateCmid}&return=0`
+        : `${urls.moodle}/course/modedit.php?add=lti&type=${typeId}&course=${courseId}&section=0&return=0`,
+    );
+    await page.locator('#id_selectcontent').click();
+    const deadline = Date.now() + timeoutMs;
+    let frame = page.frames().find((f) => f.url().startsWith(`${urls.app}/tool/picker/`));
+    while ((!frame || !pickerGet) && Date.now() < deadline) {
+      await page.waitForTimeout(250);
+      frame = page.frames().find((f) => f.url().startsWith(`${urls.app}/tool/picker/`));
+    }
+    if (!frame || !pickerGet) throw new Error(`the picker did not open in Moodle's frame within ${timeoutMs} ms`);
+    await frame.waitForLoadState('load');
+    return { page, frame, pickerUrl: frame.url(), pickerGet };
+  } finally {
+    context.off('response', onResponse);
+  }
+}
+
+export interface PickerOption {
+  value: string;
+  type: string;
+  label: string;
+  row: string;
+}
+
+/** The picker's choices: input type, value, label text and the text of its row (badges). */
+export async function pickerOptions(frame: import('@playwright/test').Frame): Promise<PickerOption[]> {
+  return frame.evaluate(() =>
+    Array.from(document.querySelectorAll('input[name="publicationId"]')).map((el) => {
+      const input = el as HTMLInputElement;
+      const label = input.closest('label') ?? (input.id ? document.querySelector(`label[for="${input.id}"]`) : null);
+      const row = input.closest('li, tr, .option, .card, div') ?? input.parentElement;
+      return { value: input.value, type: input.type, label: (label?.textContent ?? '').replace(/\s+/g, ' ').trim(), row: (row?.textContent ?? '').replace(/\s+/g, ' ').trim() };
+    }),
+  );
+}
+
+/** Picks the option whose label contains `title`, submits, and waits until Moodle's form gets the name. */
+export async function submitPicker(open: OpenPicker, title: string, { forceValue }: { forceValue?: string } = {}): Promise<{ pickerPost: PageAnswer; nameAfter: string }> {
+  const { page, frame } = open;
+  let pickerPost: PageAnswer | undefined;
+  const onResponse = async (r: import('@playwright/test').Response) => {
+    if (pickerPost || r.request().method() !== 'POST' || !r.url().startsWith(open.pickerUrl.split('?')[0])) return;
+    pickerPost = { url: r.url(), status: r.status(), headers: await r.allHeaders(), body: await r.text().catch(() => '') };
+  };
+  page.context().on('response', onResponse);
+  try {
+    const options = await pickerOptions(frame);
+    const target = options.find((o) => o.label.includes(title) || o.row.includes(title));
+    if (!target) throw new Error(`no picker option for "${title}" (options: ${options.map((o) => o.label).join(' | ')})`);
+    await frame.locator(`input[name="publicationId"][value="${target.value}"]`).check();
+    if (forceValue) {
+      // "Real page, edited form value" (AC-T4-26): the browser sends another publication id.
+      await frame.evaluate(([v, f]) => {
+        const input = document.querySelector(`input[name="publicationId"][value="${v}"]`) as HTMLInputElement;
+        input.value = f;
+      }, [target.value, forceValue]);
+    }
+    await frame.locator('form button[type="submit"], form input[type="submit"]').first().click();
+    const deadline = Date.now() + 30_000;
+    let nameAfter = '';
+    while (Date.now() < deadline) {
+      nameAfter = await page.locator('#id_name').inputValue().catch(() => '');
+      if (pickerPost && (pickerPost.status !== 200 || nameAfter)) break;
+      await page.waitForTimeout(250);
+    }
+    if (!pickerPost) throw new Error('no answer to the picker POST');
+    return { pickerPost, nameAfter };
+  } finally {
+    page.context().off('response', onResponse);
+  }
+}
+
+/** Saves the open activity form ("Save and return to course") and returns the new cmid. */
+export async function saveActivity(page: Page, courseId: number, name?: string): Promise<number> {
+  if (name !== undefined) await page.locator('#id_name').fill(name);
+  const finalName = await page.locator('#id_name').inputValue();
+  await Promise.all([page.waitForURL(/\/course\/view\.php/, { timeout: 30_000 }), page.locator('#id_submitbutton2').click()]);
+  const cmid = await cmidByName(courseId, finalName);
+  if (!cmid) throw new Error(`activity "${finalName}" not found after save`);
+  return cmid;
+}

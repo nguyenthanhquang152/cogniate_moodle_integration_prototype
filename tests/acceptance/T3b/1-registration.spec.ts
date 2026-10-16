@@ -39,7 +39,8 @@ test.describe.serial('T3b new dynamic registration', () => {
     expect(at.searchParams.get('ref')).toBe('qa123');
     expect(at.searchParams.has('registration_token')).toBe(false);
     expect(at.searchParams.has('openid_configuration')).toBe(false);
-    test.info().annotations.push({ type: 'choice page', description: held.sawChoice ? 'Moodle asked; QA chose "register as new"' : 'not shown' });
+    // T3b NOTE: the seed tool uses the same domain, so Moodle always shows the choice page; QA chose "register as new".
+    expect(held.sawChoice, 'Moodle showed the choice page').toBe(true);
   });
 
   test('AC-T3-02 GET /api/registrations/<id> describes Moodle and a new, anonymous registration', async () => {

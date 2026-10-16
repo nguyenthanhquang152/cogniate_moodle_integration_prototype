@@ -93,7 +93,7 @@ test.describe.serial('T3b negative cases', () => {
       await choose.catch(() => undefined);
       const headers = await res.allHeaders();
       const body = await res.text();
-      expect(checkErrorPage({ status: res.status(), headers, body }, 'UNKNOWN_TOOL_ACCOUNT', { statuses: [400, 404], test: 'AC-T3-28', endpoint: 'register' })).toEqual([]);
+      expect(checkErrorPage({ status: res.status(), headers, body }, 'UNKNOWN_TOOL_ACCOUNT', { statuses: [404], test: 'AC-T3-28', endpoint: 'register' })).toEqual([]);
       expect(headers['content-security-policy'] ?? '', 'CSP').toMatch(/frame-ancestors[^;]*\bhttps:/);
       const frame = page.frames().find((f) => f.url().startsWith(target));
       expect(frame, 'the error page loaded in a frame').toBeDefined();

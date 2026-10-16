@@ -216,3 +216,27 @@ export async function waitForDialogClosed(page: Page, timeoutMs = 20_000): Promi
   }
   return false;
 }
+
+/** Manage tools: click "Activate" on a Pending tool and wait until it is no longer Pending. */
+export async function activateTool(page: Page, typeId: number): Promise<void> {
+  await page.goto(`${urls.moodle}/mod/lti/toolconfigure.php`);
+  const card = page.locator(`.tool-card[data-type-id="${typeId}"]`);
+  await card.waitFor({ timeout: 15_000 });
+  const activate = card.locator('a.activate');
+  if (await activate.count()) {
+    await activate.click();
+    await page.waitForFunction((id) => !document.querySelector(`.tool-card[data-type-id="${id}"] a.activate`), typeId, { timeout: 20_000 });
+  }
+}
+
+/** Edit a tool: "Tool configuration usage" (lti_coursevisible) and "Default launch container" (lti_launchcontainer). */
+export async function setToolOptions(page: Page, typeId: number, { coursevisible, launchcontainer }: { coursevisible?: '0' | '1' | '2'; launchcontainer?: '2' | '3' | '4' | '5' }): Promise<void> {
+  await page.goto(`${urls.moodle}/mod/lti/toolconfigure.php`);
+  const sesskey = await page.evaluate(() => (window as unknown as { M?: { cfg?: { sesskey?: string } } }).M?.cfg?.sesskey ?? '');
+  await page.goto(`${urls.moodle}/mod/lti/typessettings.php?action=update&id=${typeId}&sesskey=${sesskey}`);
+  const expand = page.locator('a.collapseexpand');
+  if (await expand.count()) await expand.first().click();
+  if (coursevisible) await page.locator('#id_lti_coursevisible').selectOption(coursevisible);
+  if (launchcontainer) await page.locator('#id_lti_launchcontainer').selectOption(launchcontainer);
+  await Promise.all([page.waitForURL(/toolconfigure\.php/, { timeout: 30_000 }), page.locator('#id_submitbutton').click()]);
+}

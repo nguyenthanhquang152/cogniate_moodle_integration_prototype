@@ -6,7 +6,7 @@ import type { BrowserContext, Page } from '@playwright/test';
 import { APP, appApi, QA_B, signIn, THANH } from '../lib/app';
 import { publicUrls } from '../lib/env';
 import { httpsRequest } from '../lib/https';
-import { ACCOUNT, loadState, waitForEvent } from '../lib/lti';
+import { ACCOUNT, loadState, pageTraceId, waitForEvent } from '../lib/lti';
 import { newStackContext } from '../lib/moodle-launch';
 import { frameErrorProblems, openManageTools, startRegistration, TOOL_REGISTER } from '../lib/moodle-reg';
 import { expect, test } from '../lib/pw';
@@ -87,7 +87,7 @@ test.describe.serial('T4b1 security', () => {
       if (origin) headers.origin = origin;
       const res = await httpsRequest(TOOL_REGISTER, { method: 'POST', headers, body: form });
       expect(res.status, label).toBe(403);
-      const trace = String(res.headers['x-trace-id'] ?? '');
+      const trace = pageTraceId(res);
       const ev = await waitForEvent('cogniate-app', (e) => e.event === 'csrf_rejected' && e.trace_id === trace);
       expect(ev, `${label}: csrf_rejected with trace id ${trace}`).toBeDefined();
     }

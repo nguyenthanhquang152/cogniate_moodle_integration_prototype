@@ -20,6 +20,10 @@ export interface LaunchCapture {
   launch?: { status: number; headers: Record<string, string>; setCookies: string[]; location: string };
   /** Time (ms) when the 303 of the launch arrived. */
   launchAt?: number;
+  /** The app's first GET /tool/launch answer (T4b2: 303 to /play, or an error page). */
+  toolLaunch?: { url: string; status: number; headers: Record<string, string>; body: string };
+  /** The app's first GET /play/… answer. */
+  play?: { url: string; status: number; headers: Record<string, string>; body: string };
   /** First 4xx/5xx page from the login or launch URL (untilError mode or a failed launch). */
   errorPage?: { endpoint: 'login' | 'launch'; status: number; headers: Record<string, string>; body: string };
   finalUrl?: string;
@@ -46,7 +50,12 @@ export async function launchActivity(
   context: BrowserContext,
   user: MoodleUser,
   cmid: number,
-  { hold = false, untilError = false, timeoutMs = 10_000 }: { hold?: boolean; untilError?: boolean; timeoutMs?: number } = {},
+  {
+    hold = false,
+    untilError = false,
+    until = `${urls.app}/tool/launch`,
+    timeoutMs = 10_000,
+  }: { hold?: boolean; untilError?: boolean; until?: string; timeoutMs?: number } = {},
 ): Promise<LaunchCapture> {
   const cap: LaunchCapture = { user: user.username, startedAt: 0 };
   const page = await context.newPage();
@@ -60,6 +69,9 @@ export async function launchActivity(
       const all = await res.headersArray();
       cap.login = { status, location: res.headers().location ?? '', setCookies: all.filter((h) => h.name.toLowerCase() === 'set-cookie').map((h) => h.value) };
     }
+    const keep = async () => ({ url, status, headers: await res.allHeaders(), body: status === 303 ? '' : await res.text().catch(() => '') });
+    if (url.startsWith(`${urls.app}/tool/launch`) && req.method() === 'GET' && !cap.toolLaunch) cap.toolLaunch = await keep();
+    if (url.startsWith(`${urls.app}/play/`) && req.method() === 'GET' && !cap.play) cap.play = await keep();
     if ((url.startsWith(LOGIN_URL) || url.startsWith(LAUNCH_URL)) && status >= 400 && !cap.errorPage) {
       cap.errorPage = {
         endpoint: url.startsWith(LOGIN_URL) ? 'login' : 'launch',
@@ -118,10 +130,10 @@ export async function launchActivity(
       while (!cap.errorPage && !cap.launchAt && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
       cap.finalUrl = popup.url();
     } else {
-      await popup.waitForURL((u) => u.href.startsWith(`${urls.app}/tool/launch`), { timeout: timeoutMs, waitUntil: 'commit' });
+      await popup.waitForURL((u) => u.href.startsWith(until), { timeout: timeoutMs, waitUntil: 'commit' });
       cap.msToFinal = Date.now() - cap.startedAt;
       cap.finalUrl = popup.url();
-      cap.ltik = new URL(cap.finalUrl).searchParams.get('ltik');
+      cap.ltik = new URL(cap.toolLaunch?.url ?? cap.finalUrl).searchParams.get('ltik');
       recordSecret('ltik', cap.ltik ?? undefined);
     }
   } finally {

@@ -1,5 +1,5 @@
 // T4b1: connect Moodle (dynamic and manual) with the real app pages inside Moodle's registration frame.
-// Source: tasks/T4b1.md AC-T4-07, -08, -10, -30; contract cogniate-app-api.md §4, §6 (/tool/register); ADR-009;
+// Source: tasks/T4b1.md AC-T4-07, -08, -10, -30; contract cogniate-app-api.md §4, §4.1 (tool-configuration rows), §6 (/tool/register); ADR-009;
 // security §2.5. Order matters (serial): -08 registers Thanh's tool, -30 tries to "update" it from library B.
 import type { BrowserContext, Page } from '@playwright/test';
 import { appApi, QA_B, type Session, signIn, THANH } from '../lib/app';
@@ -98,28 +98,29 @@ test.describe.serial('T4b1 connect', () => {
     const created = await appApi<Connection>('POST', '/app-api/connections', { cookie: b.cookie, body: { name: 'Dev Moodle B', siteUrl: urls.moodle, method: 'manual' } });
     expect(created.status, created.body).toBe(201);
     const id = created.json.id;
-    const cfg = await appApi<{ field: string; value: string }[]>('GET', `/app-api/connections/${id}/tool-configuration`, { cookie: b.cookie });
+    const cfg = await appApi<{ key: string; label: string; value: string }[]>('GET', `/app-api/connections/${id}/tool-configuration`, { cookie: b.cookie });
     expect(cfg.status, cfg.body).toBe(200);
     const lti = urls.lti;
-    const expected: [RegExp, string][] = [
-      [/tool name/i, B_TOOL],
-      [/^tool url/i, `${lti}/lti/launch/${ACCOUNT}`],
-      [/lti version/i, 'LTI 1.3'],
-      [/public key type/i, 'Keyset URL'],
-      [/public keyset/i, `${lti}/lti/keys/${ACCOUNT}`],
-      [/initiate login/i, `${lti}/lti/login/${ACCOUNT}`],
-      [/redirection uri/i, `${lti}/lti/launch/${ACCOUNT}`],
-      [/deep linking/i, 'Yes'],
-      [/content selection/i, `${lti}/lti/launch/${ACCOUNT}`],
-      [/configuration usage/i, 'Show in activity chooser and as a preconfigured tool'],
-      [/launch container/i, 'New window'],
-      [/assignment and grade/i, 'Use this service for grade sync and column management'],
-      [/names and role/i, "Use this service to retrieve members' information as per privacy settings"],
-      [/accept grades/i, 'Delegate to teacher'],
-    ];
-    const missing = expected.filter(([field, value]) => !cfg.json.some((e) => field.test(e.field) && e.value === value)).map(([f, v]) => `${f.source} = ${v}`);
-    expect(missing, `tool-configuration rows: ${JSON.stringify(cfg.json)}`).toEqual([]);
-    expect(cfg.json.some((e) => /share/i.test(e.field) && /never/i.test(e.value)), 'share name / email Never').toBe(true);
+    // App contract §4.1: exactly these 16 rows, in this order.
+    const expected = [
+      ['tool_name', 'Tool name', B_TOOL],
+      ['tool_url', 'Tool URL', `${lti}/lti/launch/${ACCOUNT}`],
+      ['lti_version', 'LTI version', 'LTI 1.3'],
+      ['public_key_type', 'Public key type', 'Keyset URL'],
+      ['public_keyset_url', 'Public keyset', `${lti}/lti/keys/${ACCOUNT}`],
+      ['initiate_login_url', 'Initiate login URL', `${lti}/lti/login/${ACCOUNT}`],
+      ['redirection_uris', 'Redirection URI(s)', `${lti}/lti/launch/${ACCOUNT}`],
+      ['deep_linking', 'Supports Deep Linking (Content-Item Message)', 'Yes'],
+      ['content_selection_url', 'Content Selection URL', `${lti}/lti/launch/${ACCOUNT}`],
+      ['tool_configuration_usage', 'Tool configuration usage', 'Show in activity chooser and as a preconfigured tool'],
+      ['launch_container', 'Default launch container', 'New window'],
+      ['ags', 'IMS LTI Assignment and Grade Services', 'Use this service for grade sync and column management'],
+      ['nrps', 'IMS LTI Names and Role Provisioning', "Use this service to retrieve members' information as per privacy settings"],
+      ['share_name', "Share launcher's name with tool", 'Never'],
+      ['share_email', "Share launcher's email with tool", 'Never'],
+      ['accept_grades', 'Accept grades from the tool', 'Delegate to teacher'],
+    ].map(([key, label, value]) => ({ key, label, value }));
+    expect(cfg.json.map((r) => ({ key: r.key, label: r.label, value: r.value }))).toEqual(expected);
 
     const tool = await createManualTool(page, seed().users.admin, B_TOOL, { deepLinking: true, acceptGrades: '2', memberships: true });
     bManualTypeId = tool.typeId;
