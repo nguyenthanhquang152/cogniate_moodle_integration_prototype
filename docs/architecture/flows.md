@@ -20,8 +20,9 @@ sequenceDiagram
     P->>APP: POST /app-api/connections {method: dynamic}
     APP-->>P: connection pending + registrationUrl /lti/register/cogniate?ref={refToken}
     MA->>M: Manage tools > paste URL > Add LTI Advantage
-    alt a tool with domain lti.cogniate.test exists
+    alt a tool with the LTI service domain exists (always in our stack, in production for a 2nd library or a re-connect)
       M-->>MA: choice page: update a tool, or register as new
+      MA->>M: register as new (or update only for a re-connect of the same library)
     end
     M->>LTI: (iframe) GET /lti/register/cogniate?ref=..&openid_configuration=..&registration_token=..
     LTI->>M: GET openid-configuration (guarded client)
@@ -47,6 +48,7 @@ sequenceDiagram
 - The `ref` token binds the Moodle registration to one connection. The confirm page needs no Cogniate cookie (it runs in a cross-site iframe).
 - Moodle fixes `launchcontainer=3` (embed) and `coursevisible=1` for a dynamic registration, also for an update. So the admin always does the two edits after it. Until then, launches are embedded and get the embed notice page (6c, step 8).
 - The tool name in Moodle is `Cogniate (<library name>)`, ASCII only.
+- Moodle shows the choice page whenever a tool with the same domain exists. In our stack the seeded tool "Cogniate (seed)" has that domain, so every dynamic registration sees it. In production, the first library on a site does not see it, but a second library or a re-connect does. The admin chooses "register as new" ("update" only to re-connect the same library; any other update is refused, security §2.5).
 
 ### 6a-2. Manual registration (DataCamp model)
 

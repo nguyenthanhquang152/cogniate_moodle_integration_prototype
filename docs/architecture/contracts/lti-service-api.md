@@ -149,7 +149,7 @@ The active key (and, if rotation is used, retired keys for 30 days). Never `d`, 
 | `privacyLevel` | no | `public`, `name_only`, `email_only`, `anonymous` (default `anonymous`) |
 | any other | no | Passed through to the tool (for example `ref`) |
 
-Steps: fetch the configuration with the guarded client (with `Authorization: Bearer <registration_token>` if present); apply security §2.4; read `operation` from the token (security §2.5); store a registration session (expires with the token, ≤ 1 h); `303` to `{registrationUrl}?registrationId={id}&{passthrough}`. Failure: `400` HTML page (`INVALID_OPENID_CONFIGURATION`, `ISSUER_MISMATCH`, `FETCH_FAILED`).
+Steps: fetch the configuration with the guarded client (with `Authorization: Bearer <registration_token>` if present); apply security §2.4; read `operation` from the token (security §2.5); store a registration session (expires with the token, ≤ 1 h); `303` to `{registrationUrl}?registrationId={id}&{passthrough}`. Failure: `404` HTML page `UNKNOWN_TOOL_ACCOUNT` for an unknown `{toolAccountId}`; `400` HTML page (`INVALID_OPENID_CONFIGURATION`, `ISSUER_MISMATCH`, `FETCH_FAILED`) otherwise.
 
 ### 2.5 `GET /healthz` (T1)
 

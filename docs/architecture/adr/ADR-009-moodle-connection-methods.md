@@ -74,5 +74,5 @@ The wizard steps (both methods) are kept as data in the portal (T6), so that T7 
 ## Consequences
 
 - After a dynamic registration (new or update) the admin does: Activate, then edit "Tool configuration usage" and "Default launch container". The status stays `registered` until the first launch.
-- Two libraries can connect the same Moodle site. Each gets its own tool and client id. The second admin must choose "Register as a new tool"; the wizard says so.
+- Two libraries can connect the same Moodle site. Each gets its own tool and client id. Moodle shows the choice page to every registration after the first one on a site (same domain), so the second admin must choose "Register as a new tool"; the wizard says so in every case. In our dev stack the seed tool has the same domain, so every dynamic registration sees the choice page.
 - MoodleCloud support for dynamic registration on every plan is not verified (Q5).
