@@ -356,7 +356,7 @@ Every event: `ts`, `level`, `service: "lti-service"`, `event`, `trace_id` (lifec
 | --- | --- | --- | --- |
 | `service_started` | info | `node`, `port`, `public_url`, `profile`, `outbound_allowlist`, `knobs` | start |
 | `test_knob_active` | warn | `name`, `value` | start, per knob |
-| `http_request` | info | `method`, `path` (no query), `status`, `ms` | every request |
+| `http_request` | info | `method`, `path` (no query), `status`, `ms` | every request except `GET /healthz` (not in the JSON log file; stdout may keep it at `debug`, B-T1-04) |
 | `outbound_request` | info | `host`, `method`, `status`, `ms` | every outbound call that was sent |
 | `outbound_blocked` | warn | `host`, `reason` | every outbound call that the guard stopped |
 | `login_rejected` | warn | `code` | login failure |

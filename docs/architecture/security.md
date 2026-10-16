@@ -199,6 +199,6 @@ All outbound HTTP of both services goes through one client in `packages/shared` 
 ## 11. Privacy and logs
 
 - Default privacy level `anonymous`: no `name` and no `email` claims. Learners are shown as "Learner {sub} @ {host}".
-- Logs are JSON lines in `infra/.logs/<service>.jsonl` and on stdout. Every event has `ts`, `level`, `service`, `event`, `trace_id`. Lifecycle events with no request (`service_started`, `test_knob_active`, `service_stopping`) use one boot trace id per process.
+- Logs are JSON lines in `infra/.logs/<service>.jsonl` and on stdout. Every event has `ts`, `level`, `service`, `event`, `trace_id`. Lifecycle events with no request (`service_started`, `test_knob_active`, `service_stopping`) use one boot trace id per process. `GET /healthz` requests are not written to the JSON log files (stdout may keep them at `debug` level) (Lead decision B-T1-04).
 - Trace ids: the app sends `X-Trace-Id` to the LTI service. The LTI service reuses a valid incoming id (`^[A-Za-z0-9-]{16,64}$`), else makes one. The score sync worker makes one per sync row.
 - The logger redacts: `ltik`, `id_token`, `JWT`, `registration_token`, `client_assertion`, `access_token`, `Authorization`, cookies, `ref`, runtime tokens, service keys, and the `ltik` query in URLs.

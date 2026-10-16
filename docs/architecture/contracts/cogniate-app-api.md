@@ -344,7 +344,7 @@ Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `e
 | `service_started` | info | `node`, `port`, `public_url`, `profile`, `outbound_allowlist`, `knobs` |
 | `service_stopping` | info | — |
 | `test_knob_active` | warn | `name`, `value` |
-| `http_request` | info | `method`, `path` (no query, no capability ids: `/play/:id`), `status`, `ms` |
+| `http_request` | info | `method`, `path` (no query, no capability ids: `/play/:id`), `status`, `ms`. Every request except `GET /healthz` (not in the JSON log file; stdout may keep it at `debug`, B-T1-04). |
 | `outbound_request` | info | `host`, `method`, `status`, `ms` (every call to the LTI service or Moodle) |
 | `outbound_blocked` | warn | `host`, `reason` |
 | `csrf_rejected` | warn | `origin` |
