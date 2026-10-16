@@ -1,0 +1,7 @@
+node_modules/
+acceptance/artifacts/
+e2e/artifacts/
+host/artifacts/
+test-results/
+playwright-report/
+.tmp/

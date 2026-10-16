@@ -1,0 +1,24 @@
+{
+  "name": "cogniate-qa-tests",
+  "version": "0.0.0",
+  "private": true,
+  "description": "QA-owned black-box acceptance and E2E tests. A separate npm project, not a root workspace.",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "acceptance": "sh -c 'npm run acceptance:api; a=$?; npm run acceptance:ui; b=$?; exit $((a | b))'",
+    "acceptance:api": "vitest run --config acceptance/vitest.config.mts",
+    "acceptance:ui": "QA_SUITE=acceptance playwright test",
+    "e2e": "QA_SUITE=e2e playwright test --pass-with-no-tests",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "host:t1": "node host/run-t1.mjs"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.0",
+    "@types/node": "22.20.5",
+    "jose": "6.2.12",
+    "typescript": "5.9.3",
+    "vitest": "3.2.7"
+  }
+}
