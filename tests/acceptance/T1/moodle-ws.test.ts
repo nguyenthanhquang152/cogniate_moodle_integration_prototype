@@ -1,5 +1,6 @@
 // T1 in-container: Moodle web services, seed data, courses and enrolments.
 // Source: T1.md AC-T1-06, AC-T1-08, AC-T1-10 (course set), AC-T1-12 (no duplicates); hooks H2 (seed.json), H4 (oracle).
+import fs from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { publicUrls } from '../lib/env';
 import {
@@ -40,6 +41,38 @@ describe('T1 seed data (H2)', () => {
     expect(new Set(MOODLE_USERNAMES.map((n) => s.users[n].id)).size).toBe(MOODLE_USERNAMES.length);
     expect(s.courses['COGNIATE-DEV-101']).not.toBe(s.courses['COGNIATE-DEV-102']);
     expect(s.productToken).not.toBe(s.oracleToken);
+  });
+
+  it('H2 seed.json is mode 600, format cogniate-seed/1, has the four URLs and both WS service records', () => {
+    const s = seed();
+    expect((fs.statSync(s.file).mode & 0o777).toString(8), 'seed.json mode').toBe('600');
+    const raw = JSON.parse(fs.readFileSync(s.file, 'utf8')) as Record<string, unknown>;
+    expect(raw.format).toBe('cogniate-seed/1');
+    const text = JSON.stringify(raw);
+    for (const url of Object.values(urls)) expect(text, `URL ${url}`).toContain(JSON.stringify(url).slice(1, -1));
+    // T1.md H2: WS services (product and QA oracle) with service, username, userid, token, functions.
+    const services: Record<string, unknown>[] = [];
+    const walk = (n: unknown): void => {
+      if (Array.isArray(n)) n.forEach(walk);
+      else if (n && typeof n === 'object') {
+        const o = n as Record<string, unknown>;
+        if (typeof o.service === 'string' && typeof o.token === 'string') services.push(o);
+        Object.values(o).forEach(walk);
+      }
+    };
+    walk(raw);
+    const byName = (needle: RegExp) => services.filter((o) => needle.test(String(o.service)));
+    for (const [label, rows, token] of [
+      ['product', byName(/^cogniate_integration$/), s.productToken],
+      ['oracle', byName(/^cogniate_qa_oracle$/), s.oracleToken],
+    ] as const) {
+      expect(rows, `${label} WS service record`).toHaveLength(1);
+      const o = rows[0];
+      expect(typeof o.username === 'string' && o.username !== '', `${label} username`).toBe(true);
+      expect(Number.isInteger(o.userid), `${label} userid`).toBe(true);
+      expect(o.token, `${label} token = the one the reader found`).toBe(token);
+      expect(Array.isArray(o.functions) && (o.functions as unknown[]).length > 0, `${label} functions`).toBe(true);
+    }
   });
 
   it('H2 seed.json user ids of cg_teacher, cg_student and cg_student2 match Moodle', async () => {

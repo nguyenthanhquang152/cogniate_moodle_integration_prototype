@@ -187,7 +187,10 @@ export function readSeed(file) {
         const cid = toInt(v) ?? (v && typeof v === 'object' ? (toInt(v.id) ?? toInt(v.courseid)) : null);
         if (cid !== null) courses[k] = cid;
       }
-      if (typeof v === 'string' && /^[0-9a-f]{32}$/.test(v) && !/pass/i.test(k)) tokens.push({ path: [...at, k].join('.'), value: v });
+      if (typeof v === 'string' && /^[0-9a-f]{32}$/.test(v) && !/pass/i.test(k)) {
+        // T1.md H2: tokens sit in { service, username, userid, token, functions }; classify by `service` first.
+        tokens.push({ path: typeof node.service === 'string' ? `service:${node.service}` : [...at, k].join('.'), value: v });
+      }
       walk(v, [...at, k]);
     }
   };

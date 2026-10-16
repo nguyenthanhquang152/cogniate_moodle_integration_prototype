@@ -1,5 +1,6 @@
 // T1 in-container: the test harness hooks that QA needs.
-// Source: hooks H7 (JSON logs) and H8 (e2e mounts, NODE_EXTRA_CA_CERTS); Lead-approved change LC-T1-02 (PUBLIC_*_URL).
+// Source: T1.md (round 2 text) H7 (JSON logs, trace id on every event, one boot trace id per process),
+// H8 (e2e mounts, no key files visible, NODE_EXTRA_CA_CERTS); LC-T1-02 (PUBLIC_*_URL).
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -11,17 +12,32 @@ import { CERTS_DIR, ENV_FILE, LOGS_DIR, SECRETS_DIR } from '../lib/paths';
 
 const urls = publicUrls();
 const sha256 = (file: string) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+const LIFECYCLE_EVENTS = new Set(['service_started', 'test_knob_active', 'service_stopping']);
+
+/** Folders where the e2e container can see certificate files: infra/.certs and the NODE_EXTRA_CA_CERTS folder. */
+function certFolders(): string[] {
+  const dirs = [CERTS_DIR];
+  if (process.env.NODE_EXTRA_CA_CERTS) dirs.push(path.dirname(process.env.NODE_EXTRA_CA_CERTS));
+  return [...new Set(dirs)].filter((d) => fs.existsSync(d));
+}
 
 describe('T1 harness (H8)', () => {
-  it('H8 NODE_EXTRA_CA_CERTS is set and is the same file content as infra/.certs/root.crt', () => {
+  it('H8 NODE_EXTRA_CA_CERTS is set to a CA certificate; it equals infra/.certs/root.crt where both are visible', () => {
     const extra = process.env.NODE_EXTRA_CA_CERTS;
     expect(extra, 'NODE_EXTRA_CA_CERTS').toBeTruthy();
     expect(fs.existsSync(extra!), `${extra} exists`).toBe(true);
-    expect(fs.existsSync(ROOT_CA_FILE), `${ROOT_CA_FILE} exists`).toBe(true);
-    expect(sha256(extra!)).toBe(sha256(ROOT_CA_FILE));
+    expect(new crypto.X509Certificate(fs.readFileSync(extra!)).ca, 'NODE_EXTRA_CA_CERTS is a CA certificate').toBe(true);
+    if (fs.existsSync(ROOT_CA_FILE)) expect(sha256(extra!)).toBe(sha256(ROOT_CA_FILE));
   });
 
-  for (const dir of [CERTS_DIR, SECRETS_DIR, LOGS_DIR]) {
+  it('H8 ca.key, stack.key and every other *.key file are not visible in the e2e container', () => {
+    const visible = certFolders().flatMap((d) =>
+      fs.readdirSync(d).filter((f) => f.endsWith('.key') || f === 'ca.key' || f === 'stack.key').map((f) => path.join(d, f)),
+    );
+    expect(visible, 'key files visible in e2e').toEqual([]);
+  });
+
+  for (const dir of [SECRETS_DIR, LOGS_DIR]) {
     it(`H8 ${path.basename(dir)} is mounted and read-only in the e2e container`, () => {
       expect(fs.existsSync(dir), `${dir} exists`).toBe(true);
       const probe = path.join(dir, `.qa-ro-probe-${process.pid}`);
@@ -42,7 +58,7 @@ describe('T1 harness (H8)', () => {
 });
 
 describe('T1 public URLs (LC-T1-02)', () => {
-  it('LC-T1-02 .env has PUBLIC_MOODLE_URL, PUBLIC_LTI_URL, PUBLIC_APP_URL, PUBLIC_CONTENT_URL as https origins', () => {
+  it('LC-T1-02 .env has PUBLIC_MOODLE_URL, PUBLIC_LTI_URL, PUBLIC_APP_URL, PUBLIC_CONTENT_URL as https origins with distinct hosts', () => {
     const env = readEnvFile();
     expect(env, `${ENV_FILE} readable`).not.toBeNull();
     const hosts = new Set<string>();
@@ -63,22 +79,22 @@ describe('T1 JSON logs (H7)', () => {
   const services = [
     { service: 'lti-service', url: urls.lti },
     { service: 'cogniate-app', url: urls.app },
+    { service: 'cogniate-content', url: urls.content },
   ];
 
   for (const { service } of services) {
-    it(`H7 ${service}.jsonl: every line is JSON with ts, level, service, event, trace_id; it has service_started`, () => {
+    it(`H7 ${service}.jsonl: every line is JSON with ts, level, service, event and a non-empty trace_id; it has service_started`, () => {
       expect(fs.existsSync(logFile(service)), logFile(service)).toBe(true);
       const log = readLog(service);
       expect(log.badLines, 'lines that are not JSON objects').toEqual([]);
       expect(log.entries.length).toBeGreaterThan(0);
-      // H7 (Lead): every line has the fields ts, level, service, event, trace_id. List all gaps by event.
       const gaps = new Map<string, number>();
+      const note = (k: string) => gaps.set(k, (gaps.get(k) ?? 0) + 1);
       for (const { entry } of log.entries) {
-        for (const field of REQUIRED_LOG_FIELDS) {
-          if (!(field in entry)) gaps.set(`${String(entry.event)} without ${field}`, (gaps.get(`${String(entry.event)} without ${field}`) ?? 0) + 1);
-        }
+        for (const field of REQUIRED_LOG_FIELDS) if (!(field in entry)) note(`${String(entry.event)} without ${field}`);
+        if ('trace_id' in entry && (typeof entry.trace_id !== 'string' || entry.trace_id === '')) note(`${String(entry.event)} with empty trace_id`);
       }
-      expect([...gaps].map(([k, n]) => `${k} x${n}`), 'log lines with a missing field').toEqual([]);
+      expect([...gaps].map(([k, n]) => `${k} x${n}`), 'log lines with a missing or empty field').toEqual([]);
       for (const { line, entry } of log.entries) {
         expect(Number.isNaN(Date.parse(String(entry.ts))), `line ${line} ts is a date`).toBe(false);
         expect(typeof entry.level, `line ${line} level`).toBe('string');
@@ -86,6 +102,20 @@ describe('T1 JSON logs (H7)', () => {
         expect(typeof entry.event, `line ${line} event`).toBe('string');
       }
       expect(log.entries.some((e) => e.entry.event === 'service_started')).toBe(true);
+    });
+
+    it(`H7 ${service}.jsonl: all lifecycle lines of one process share one boot trace id`, () => {
+      // A process = the lines from one service_started to the next one (the file is kept across restarts).
+      const log = readLog(service);
+      const problems: string[] = [];
+      let boot: string | undefined;
+      for (const { line, entry } of log.entries) {
+        if (entry.event === 'service_started') boot = String(entry.trace_id);
+        else if (LIFECYCLE_EVENTS.has(String(entry.event)) && boot !== undefined && String(entry.trace_id) !== boot) {
+          problems.push(`line ${line} ${String(entry.event)} has a trace id that is not the boot trace id of its process`);
+        }
+      }
+      expect(problems).toEqual([]);
     });
   }
 

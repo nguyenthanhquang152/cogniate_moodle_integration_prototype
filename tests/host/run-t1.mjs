@@ -111,7 +111,7 @@ const T1_SERVICES = ['proxy', 'postgres', 'moodle', 'lti-service', 'cogniate-app
 const URL_KEYS = ['PUBLIC_MOODLE_URL', 'PUBLIC_LTI_URL', 'PUBLIC_APP_URL', 'PUBLIC_CONTENT_URL'];
 const README_COMMANDS = [
   'demo', 'demo:browser', 'gen-env', 'stack:up', 'stack:down', 'stack:reset', 'stack:logs', 'stack:restart',
-  'seed', 'stack:moodle-reach-check', 'fixtures:check', 'test:acceptance', 'test:e2e',
+  'seed', 'stack:moodle-reach-check', 'stack:node-reach-check', 'fixtures:check', 'test:acceptance', 'test:e2e',
 ];
 
 // ---------------------------------------------------------------- state and recording
@@ -387,8 +387,18 @@ async function genEnv() {
     const good = leaves.filter(
       (l) => names.every((n) => n && (l.cert.subjectAltName ?? '').includes(`DNS:${n}`)) && l.cert.checkIssued(root) && l.cert.verify(root.publicKey),
     );
-    certOk = root.ca && good.length >= 1 && before.containers.length === 0;
+    const lifeDays = (Date.parse(root.validTo) - Date.parse(root.validFrom)) / 86_400_000;
+    const leafOk = good.every((l) => Date.parse(l.cert.validTo) <= Date.parse(root.validTo));
+    const nc = await run('openssl', ['x509', '-in', path.join(certsDir, 'root.crt'), '-noout', '-text']);
+    const ncBlock = nc.stdout.split('\n').slice(nc.stdout.split('\n').findIndex((l) => /X509v3 Name Constraints/.test(l)));
+    const ncCritical = /X509v3 Name Constraints:\s*critical/.test(nc.stdout);
+    const ncEnd = ncBlock.findIndex((l, i) => i > 0 && /^\s*(X509v3 |Signature Algorithm)/.test(l));
+    const ncEntries = ncBlock.slice(1, ncEnd < 0 ? undefined : ncEnd).map((l) => l.trim()).filter(Boolean);
+    const ncOk = ncCritical && JSON.stringify(ncEntries) === JSON.stringify(['Permitted:', 'DNS:test']);
+    certOk = root.ca && good.length >= 1 && before.containers.length === 0 && lifeDays <= 366 && leafOk && ncOk;
     certNotes.push(
+      `CA life ${lifeDays.toFixed(1)} days (<= 366); leaf notAfter <= CA notAfter: ${leafOk}`,
+      `Name Constraints critical: ${ncCritical}; entries: ${ncEntries.join(' ') || 'none'} (want "Permitted: DNS:test" only)`,
       `root.crt CA=${root.ca}; leaf certs: ${leaves.map((l) => l.file).join(', ') || 'none'}; leaf with all 4 SANs signed by root: ${good.map((l) => l.file).join(', ') || 'none'}`,
       `project containers after gen-env: ${before.containers.length} (must be 0: certs come before containers)`,
     );
@@ -482,9 +492,47 @@ async function acT105() {
   } catch {
     // reported below
   }
+  // The script may also print negative cases (blocked targets). Their format is not specified: keep them as evidence.
+  const other = r.stdout.split('\n').map((l) => l.trim()).filter((l) => l && !(match && l.includes(match[0])) && !l.startsWith('>'));
   record('AC-T1-05', "stack:moodle-reach-check prints the JSON body of Moodle's download_file_content(<lti>/healthz)", pass(r.code === 0 && body?.service === 'lti-service'), [
     `exit ${r.code}; JSON found: ${match ? match[0] : 'none'}`,
+    `other output (negative cases, information): ${other.slice(0, 12).join(' | ') || 'none'}`,
   ], [r.log]);
+}
+
+// T1.md scope (A-T1-06): blocked hosts = Moodle default with only STACK_SUBNET cut out of 172.16.0.0/12;
+// allowed ports = 443 only, plus PUBLIC_PORT if it is not 443. Read with the read-only Moodle CLI (QA rules).
+const MOODLE_BLOCKED_DEFAULT = ['127.0.0.0/8', '192.168.0.0/16', '10.0.0.0/8', '172.16.0.0/12', '0.0.0.0', 'localhost', '169.254.169.254', '0000::1'];
+
+function ipv4Interval(cidr) {
+  const [ip, len] = cidr.split('/');
+  const n = ip.split('.').reduce((a, o) => ((a << 8) + Number(o)) >>> 0, 0);
+  const size = 2 ** (32 - Number(len ?? 32));
+  const start = Math.floor(n / size) * size;
+  return [start, start + size - 1];
+}
+
+async function curlRule() {
+  const moodle = await serviceContainer(PROJECT, 'moodle');
+  const cfg = async (name) =>
+    (await exec(`moodle-cfg-${name}`, 'docker', ['exec', moodle, 'php', '/var/www/html/admin/cli/cfg.php', `--name=${name}`])).stdout.trim();
+  const ports = (await cfg('curlsecurityallowedport')).split(/[\s,]+/).filter(Boolean).sort();
+  const blocked = (await cfg('curlsecurityblockedhosts')).split(/[\s,]+/).filter(Boolean);
+  const wantPorts = [...new Set(['443', PUBLIC_PORT])].sort();
+  const notes = [`allowed ports: ${ports.join(', ')} (want ${wantPorts.join(', ')})`, `blocked hosts: ${blocked.join(', ')}`];
+  const missingDefaults = MOODLE_BLOCKED_DEFAULT.filter((d) => d !== '172.16.0.0/12' && !blocked.includes(d));
+  // 172.16.0.0/12 minus STACK_SUBNET must be covered exactly by the 172.16-31 entries.
+  const [lo, hi] = ipv4Interval('172.16.0.0/12');
+  const [sLo, sHi] = ipv4Interval(STACK_SUBNET);
+  const parts = blocked.filter((b) => /^\d+\.\d+\.\d+\.\d+(\/\d+)?$/.test(b)).map(ipv4Interval).filter(([a, b]) => b >= lo && a <= hi);
+  const overlapsSubnet = parts.some(([a, b]) => a <= sHi && b >= sLo);
+  const covered = (x) => parts.some(([a, b]) => a <= x && x <= b);
+  // Check every /24 start in 172.16.0.0/12 (the subnet is at least a /24).
+  let gaps = 0;
+  for (let x = lo; x <= hi; x += 256) if (!(x >= sLo && x <= sHi) && !covered(x)) gaps++;
+  notes.push(`missing default entries: ${missingDefaults.join(', ') || 'none'}; entries overlap STACK_SUBNET: ${overlapsSubnet}; uncovered /24 blocks of 172.16.0.0/12 outside the subnet: ${gaps}`);
+  const ok = JSON.stringify(ports) === JSON.stringify(wantPorts) && missingDefaults.length === 0 && !overlapsSubnet && gaps === 0 && !blocked.includes('172.16.0.0/12');
+  record('CURL', `Moodle curl rule: ports ${wantPorts.join('+')} only; default blocked list with only ${STACK_SUBNET} cut out`, pass(ok), notes);
 }
 
 async function acT113(label) {
@@ -505,7 +553,10 @@ async function acT113(label) {
     if (!/"status":200\b/.test(out)) ok = false;
     notes.push(`${service}: ${out || tail(r.stderr)}`);
   }
-  record('AC-T1-13', `fetch('${state.urls.moodle}/login/index.php') from lti-service and cogniate-app returns 200 (${label})`, pass(ok), notes);
+  const reach = await npm(`node-reach-check-${label.replace(/\s+/g, '-')}`, ['run', 'stack:node-reach-check'], { timeoutMs: 120_000 });
+  const scriptOk = reach.code === 0 && (reach.stdout.match(/\b200\b/g) ?? []).length >= 2;
+  notes.push(`npm run stack:node-reach-check: exit ${reach.code}; "200" printed ${(reach.stdout.match(/\b200\b/g) ?? []).length} times`);
+  record('AC-T1-13', `fetch('${state.urls.moodle}/login/index.php') from lti-service and cogniate-app returns 200 (${label})`, pass(ok && scriptOk), notes, [reach.log]);
 }
 
 async function h2Login(label) {
@@ -694,7 +745,7 @@ async function acT111() {
   const findings = await grep(inScope);
   const extraFindings = await grep(extra);
 
-  const ignoredPaths = ['.env', 'infra/.certs/root.crt', 'infra/.certs/x.key', 'infra/.secrets/seed.json', 'infra/.logs/x.jsonl'];
+  const ignoredPaths = ['.env', '.env.local', 'infra/.certs/root.crt', 'infra/.certs/ca.key', 'infra/.secrets/seed.json', 'infra/.logs/x.jsonl', 'infra/.data/x', '.tmp/x'];
   const notIgnored = [];
   for (const p of ignoredPaths) if ((await run('git', ['check-ignore', '-q', p], { cwd: CLONE })).code !== 0) notIgnored.push(p);
   const tracked = (await run('git', ['ls-files'], { cwd: CLONE })).stdout.split('\n').filter(
@@ -865,6 +916,7 @@ async function main() {
       return;
     }
     await acT105();
+    await curlRule();
     await acT113('first run');
     await h2Login('first run');
     await acT112Host();

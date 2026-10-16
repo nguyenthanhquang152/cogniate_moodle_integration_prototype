@@ -2,7 +2,9 @@
 // So this reader finds the items by shape, and the key names live only here:
 // - a Moodle user  = an object with string `username`, string `password` and integer `id`
 // - a course id    = a key COGNIATE-DEV-10x with an integer (or { id }) value, or an object { shortname, id }
-// - a WS token     = a 32-char lowercase hex string; the QA oracle token has "oracle" in its key path
+// - a WS token     = a 32-char lowercase hex string. T1.md H2 puts it in a WS service object
+//                    { service, username, userid, token, functions }: the oracle token is the one whose `service`
+//                    contains "oracle". Without a `service` field, the key path must contain "oracle".
 // Error messages name the missing items, never the values.
 import fs from 'node:fs';
 import { SEED_FILE } from './paths';
@@ -70,7 +72,9 @@ export function loadSeed(file = SEED_FILE): Seed {
         if (courseId !== null) courses.set(key, courseId);
       }
       if (typeof value === 'string' && WS_TOKEN.test(value) && !/pass/i.test(key)) {
-        tokens.push({ path: [...at, key].join('.'), value });
+        // Classify by the sibling `service` name when there is one, else by the key path.
+        const label = typeof node.service === 'string' ? `service:${node.service}` : [...at, key].join('.');
+        tokens.push({ path: label, value });
       }
       walk(value, [...at, key]);
     }
