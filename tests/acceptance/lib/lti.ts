@@ -256,3 +256,19 @@ export const CHECK_OF_CODE: Record<string, string[]> = {
   INVALID_TARGET_LINK_URI: ['12'],
   PLATFORM_ERROR: ['oidc_error'],
 };
+
+// ---------------------------------------------------------------- state shared by the spec files of one task run
+
+export function saveState(task: string, patch: Record<string, unknown>): Record<string, unknown> {
+  const file = path.join(artifactsDir('acceptance'), `state-${task}.json`);
+  const next = { ...loadState(task), ...patch };
+  fs.writeFileSync(file, JSON.stringify(next, null, 2));
+  return next;
+}
+
+export function loadState(task: string): Record<string, unknown> {
+  const file = path.join(artifactsDir('acceptance'), `state-${task}.json`);
+  return fs.existsSync(file) ? (JSON.parse(fs.readFileSync(file, 'utf8')) as Record<string, unknown>) : {};
+}
+
+export const DL_CLAIM = 'https://purl.imsglobal.org/spec/lti-dl/claim/';

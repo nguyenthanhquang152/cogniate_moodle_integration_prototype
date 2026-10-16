@@ -118,3 +118,22 @@ export const ORACLE_WS_FUNCTIONS = [
 export const ORACLE_ONLY_FUNCTIONS = ORACLE_WS_FUNCTIONS.filter(
   (f) => !(PRODUCT_WS_FUNCTIONS as readonly string[]).includes(f),
 );
+
+export interface GradeItem {
+  id: number;
+  itemname: string | null;
+  itemtype: string;
+  itemmodule: string | null;
+  cmid?: number;
+  graderaw: number | null;
+  grademax: number;
+}
+
+/** Grade items of one user in one course (QA oracle `gradereport_user_get_grade_items`). */
+export async function gradeItems(oracleToken: string, courseId: number, userId: number): Promise<GradeItem[]> {
+  const res = await callWs<{ usergrades: { userid: number; gradeitems: GradeItem[] }[] }>(oracleToken, 'gradereport_user_get_grade_items', {
+    courseid: courseId,
+    userid: userId,
+  });
+  return res.usergrades.find((u) => u.userid === userId)?.gradeitems ?? [];
+}

@@ -161,3 +161,33 @@ export async function postLaunch(fields: Record<string, string>, cookie?: string
   const res = await httpsRequest(url, { method: 'POST', headers, body });
   return { status: res.status, location: String(res.headers.location ?? ''), body: res.body, traceId: String(res.headers['x-trace-id'] ?? ''), headers: res.headers };
 }
+
+/** Valid deep-linking claims for a QA launch (Deep Linking 2.0). `acceptMultiple` is the only setting tests change. */
+export function deepLinkingClaims(p: Pick<QaPlatform, 'clientId'>, login: QaLogin, acceptMultiple: boolean): Record<string, unknown> {
+  const base = resourceLinkClaims(p, login);
+  delete base[`${LTI_CLAIM}resource_link`];
+  return {
+    ...base,
+    [`${LTI_CLAIM}message_type`]: 'LtiDeepLinkingRequest',
+    [`${LTI_CLAIM}roles`]: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor'],
+    'https://purl.imsglobal.org/spec/lti-dl/claim/deep_linking_settings': {
+      deep_link_return_url: `${QA_ISSUER}/dl-return`,
+      accept_types: ['ltiResourceLink'],
+      accept_presentation_document_targets: ['window'],
+      accept_multiple: acceptMultiple,
+      auto_create: false,
+    },
+  };
+}
+
+/** A successful QA launch: returns the ltik from the 303 Location (or throws). */
+export async function qaLaunchLtik(p: QaPlatform, claims: (login: QaLogin) => Record<string, unknown>, target = `${LAUNCH_URL}?resource=qa`): Promise<string> {
+  const login = await qaLogin(p, target);
+  if (login.status !== 302) throw new Error(`QA login failed: HTTP ${login.status}`);
+  const token = await signRs256(claims(login), p.privateKey, p.kid);
+  const res = await postLaunch({ id_token: token, state: login.state }, login.cookie);
+  const ltik = res.location ? new URL(res.location).searchParams.get('ltik') : null;
+  if (res.status !== 303 || !ltik) throw new Error(`QA launch failed: HTTP ${res.status} ${res.body.slice(0, 200)}`);
+  recordSecret('ltik', ltik);
+  return ltik;
+}
