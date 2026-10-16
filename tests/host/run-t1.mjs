@@ -56,6 +56,7 @@ const { values: opt } = parseArgs({
     'fixtures-dir': { type: 'string' },
     'tests-from': { type: 'string' },
     'replace-tests': { type: 'boolean', default: false },
+    'only-task-folders': { type: 'string' },
     'skip-reset': { type: 'boolean', default: false },
     'clean-project': { type: 'boolean', default: false },
     help: { type: 'boolean', default: false },
@@ -72,6 +73,7 @@ const HELP = `Usage: COMPOSE_PROJECT_NAME=qa-t1-r<N> PUBLIC_PORT=8443 STACK_SUBN
   --fixtures-dir <path> COURSE_FIXTURES_DIR, when the clone has no course zips.
   --tests-from <path>   tests/ folder to copy into the clone if the SHA has none (default: this tests/).
   --replace-tests       Replace the clone's tests/ with --tests-from (QA test fixes after the SHA).
+  --only-task-folders <list>  Keep only these tests/acceptance task folders in the clone (for example T1).
   --skip-reset          Skip AC-T1-10 (reset and second in-container pass).
   --clean-project       Remove leftover containers, volumes and networks of THIS QA project first.
 `;
@@ -254,6 +256,13 @@ async function cloneSha() {
     });
     notes.push(`${testsMissing ? 'tests/ is not in the SHA' : 'tests/ replaced (--replace-tests)'}: copied from ${from}; diff vs SHA: ${diff.stdout.trim().split('\n').pop() || 'none'}`);
     saveText('tests-diff-vs-sha.txt', (await run('git', ['diff', opt.sha ?? 'HEAD', '--', '.'], { cwd: from })).stdout);
+  }
+  if (opt['only-task-folders']) {
+    const keep = new Set(opt['only-task-folders'].split(',').map((t) => t.trim()));
+    const acc = path.join(CLONE, 'tests', 'acceptance');
+    const removed = fs.readdirSync(acc, { withFileTypes: true }).filter((d) => d.isDirectory() && /^T\d/.test(d.name) && !keep.has(d.name)).map((d) => d.name);
+    for (const d of removed) fs.rmSync(path.join(acc, d), { recursive: true, force: true });
+    notes.push(`task folders kept: ${[...keep].join(', ')}; removed: ${removed.join(', ') || 'none'}`);
   }
   record('CLONE', 'Clone the SHA into a new folder', pass(dirty.length === 0 || Boolean(opt.checkout)), notes);
 }
@@ -493,7 +502,7 @@ async function acT105() {
     // reported below
   }
   // The script may also print negative cases (blocked targets). Their format is not specified: keep them as evidence.
-  const other = r.stdout.split('\n').map((l) => l.trim()).filter((l) => l && !(match && l.includes(match[0])) && !l.startsWith('>'));
+  const other = `${r.stdout}\n${r.stderr}`.split('\n').map((l) => l.trim()).filter((l) => l && !(match && l.includes(match[0])) && !l.startsWith('>'));
   record('AC-T1-05', "stack:moodle-reach-check prints the JSON body of Moodle's download_file_content(<lti>/healthz)", pass(r.code === 0 && body?.service === 'lti-service'), [
     `exit ${r.code}; JSON found: ${match ? match[0] : 'none'}`,
     `other output (negative cases, information): ${other.slice(0, 12).join(' | ') || 'none'}`,
@@ -694,6 +703,8 @@ async function containerSuite(label) {
   const r = await npm(`test-acceptance-${label}`, ['run', 'test:acceptance'], { timeoutMs: 1_800_000 });
   const dest = path.join(ART, `container-${label}`);
   if (fs.existsSync(artifacts)) fs.cpSync(artifacts, dest, { recursive: true });
+  // Keep the service logs of this pass: stack:reset deletes them later.
+  for (const f of walkFiles(path.join(CLONE, 'infra', '.logs'))) saveText(path.join(`container-${label}`, 'service-logs', path.basename(f)), fs.readFileSync(f, 'utf8'));
   const tests = fs.existsSync(dest) ? readTestReports(dest) : [];
   record('SUITE', `In-container suite (npm run test:acceptance, ${label}): exit 0`, pass(r.code === 0 && tests.length > 0), [
     `exit ${r.code}; tests reported: ${tests.length}; failed: ${tests.filter((t) => t.status === 'FAIL').length}`,

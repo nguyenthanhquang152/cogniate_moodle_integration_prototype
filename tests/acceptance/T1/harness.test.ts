@@ -105,17 +105,29 @@ describe('T1 JSON logs (H7)', () => {
     });
 
     it(`H7 ${service}.jsonl: all lifecycle lines of one process share one boot trace id`, () => {
-      // A process = the lines from one service_started to the next one (the file is kept across restarts).
+      // The spec does not fix the order of lifecycle lines (test_knob_active can come before service_started, and a
+      // stopping process can write after a new one started). So the rule is checked without order:
+      // - each process start (service_started) has its own boot trace id;
+      // - every test_knob_active and service_stopping line carries the boot trace id of some service_started line;
+      // - one boot trace id has at most one service_stopping line.
       const log = readLog(service);
+      const lifecycle = log.entries.filter((e) => LIFECYCLE_EVENTS.has(String(e.entry.event)));
+      const starts = lifecycle.filter((e) => e.entry.event === 'service_started');
+      const bootIds = starts.map((e) => String(e.entry.trace_id));
       const problems: string[] = [];
-      let boot: string | undefined;
-      for (const { line, entry } of log.entries) {
-        if (entry.event === 'service_started') boot = String(entry.trace_id);
-        else if (LIFECYCLE_EVENTS.has(String(entry.event)) && boot !== undefined && String(entry.trace_id) !== boot) {
-          problems.push(`line ${line} ${String(entry.event)} has a trace id that is not the boot trace id of its process`);
-        }
+      const seen = new Map<string, number>();
+      for (const id of bootIds) seen.set(id, (seen.get(id) ?? 0) + 1);
+      for (const [id, n] of seen) if (n > 1) problems.push(`boot trace id ${id} is on ${n} service_started lines`);
+      const stops = new Map<string, number>();
+      for (const { line, entry } of lifecycle) {
+        if (entry.event === 'service_started') continue;
+        const id = String(entry.trace_id);
+        if (!seen.has(id)) problems.push(`line ${line} ${String(entry.event)} trace_id ${id} is not the boot trace id of any service_started line`);
+        if (entry.event === 'service_stopping') stops.set(id, (stops.get(id) ?? 0) + 1);
       }
-      expect(problems).toEqual([]);
+      for (const [id, n] of stops) if (n > 1) problems.push(`boot trace id ${id} is on ${n} service_stopping lines`);
+      const summary = lifecycle.map(({ line, entry }) => `${line}:${String(entry.event)}:${String(entry.trace_id)}`).join(' ');
+      expect(problems, `lifecycle lines: ${summary}`).toEqual([]);
     });
   }
 

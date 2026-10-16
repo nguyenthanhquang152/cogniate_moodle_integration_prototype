@@ -5,12 +5,15 @@ import { defineConfig, devices } from '@playwright/test';
 import { artifactsDir } from './acceptance/lib/paths';
 
 const suite = process.env.QA_SUITE === 'e2e' ? 'e2e' : 'acceptance';
-const task = process.env.QA_TASK;
+// QA_TASK: one task folder or a comma list (T2a,T2b). QA_GREP: a title pattern. H14 forwards both into e2e.
+const tasks = (process.env.QA_TASK ?? '').split(',').map((t) => t.trim()).filter(Boolean);
+const grep = process.env.QA_GREP ? new RegExp(process.env.QA_GREP) : undefined;
 const out = artifactsDir(suite);
 
 export default defineConfig({
   testDir: suite === 'e2e' ? './e2e' : './acceptance',
-  testMatch: suite === 'acceptance' && task ? `${task}/**/*.spec.ts` : '**/*.spec.ts',
+  testMatch: suite === 'acceptance' && tasks.length ? tasks.map((t) => `${t}/**/*.spec.ts`) : '**/*.spec.ts',
+  grep,
   outputDir: path.join(out, 'playwright'),
   timeout: 120_000,
   expect: { timeout: 15_000 },

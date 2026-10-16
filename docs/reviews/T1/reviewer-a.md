@@ -1,7 +1,11 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # Reviewer-A: T1 review (lens: "Is it right and is it safe?")
+
+History: the round 1 verdict was CHANGES_REQUESTED (findings below). The round 2 verdict is APPROVE (section "Round 2" at the end).
+
+## Round 1
 
 Scope: `git diff cfe30c1 bc530a7` (67 files), checked against `docs/architecture/tasks/T1.md` and `docs/architecture/local-stack.md` as they are in the working tree.
 
@@ -169,3 +173,62 @@ Counts: 0 BLOCKER, 1 MAJOR, 5 MINOR, 1 NIT.
   - Users, courses, enrolments, roles, services and tokens are found again by name, so a rerun makes no duplicates.
   - `setup_dev_network.php` computes from the defaults each time, so its result does not grow with reruns.
 - **Demo browser.** `demo:browser` changes nothing on the Mac. It accepts only the SPKI of our leaf, in a throwaway profile.
+
+---
+
+## Round 2
+
+Verdict (round 2): APPROVE
+
+Input: `git diff bc530a7 b82382b -- . ':!docs' ':!tests'` (28 files).
+
+Method:
+
+- I made read-only checks on the running `cogniate-stack`: `openssl` on the certificates, file modes, `docker inspect`, `docker compose config` (I printed the e2e volumes only, no environment values), read-only PHP in the Moodle container (no file left there), and a scan of the logs.
+- I made one independent test of the name constraint with my own throwaway CA in a temp folder. I did not use the real `ca.key`.
+- I did not touch the `qa-*` projects. I did not read `reviewer-b.md` or `qa.md`.
+
+Round 2 counts: 0 BLOCKER, 0 MAJOR, 2 MINOR (A-T1-08, A-T1-09). The only MAJOR of round 1 (A-T1-01) is resolved.
+
+### Verification of the round 1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-T1-01 (MAJOR) | Resolved | The live `root.crt` has `X509v3 Name Constraints: critical, Permitted: DNS:test`, `CA:TRUE, pathlen:0`, and is valid 2026-10-16 to 2027-10-16 (1 year). The leaf ends 2027-01-14 (90 days, before the CA). The host name is gone from the CN. My throwaway CA with the same extension: `moodle.test` → `OK`, `example.com` → `permitted subtree violation`. An old CA is replaced with a CAUTION message. `stack:up` force-recreates the containers when the certificate hash changes, so the single-file bind mounts do not keep the old files. |
+| A-T1-02 (MINOR) | Partly resolved; deferral accepted | Live: both `cogniate_integration` and `cogniate_qa_oracle` have `downloadfiles=0` and `uploadfiles=0`, `restrictedusers=1`, and one token each. Reruns fix older rows. `--profile=qa_oracle` stops unless the wwwroot host ends in `.test`. Deferred: a least-privilege oracle role, removal of `createtoken` (still in the product role, live), and list sync. **I accept these as MINOR.** The file path was the real gap, and it is closed. The oracle's extra capabilities can now be used only through its six functions on a `.test` site. `createtoken` needs the service user's password, which is random and never stored. |
+| A-T1-03 (MINOR) | Resolved; deferral accepted | In the resolved config, `/repo` is `ro`, `/repo/.env` = `.tmp/public.env` (`ro`, public keys only, mode 644), and `/repo/infra/.certs` = `.tmp/public-certs` (`ro`, `root.crt` and `stack.crt` only). Only QA's output folders and the `node_modules` volume are writable. The container environment has no secret. **I accept deferring `--ignore-scripts` as MINOR.** The repo, `.git/hooks` and the secrets are now out of reach. What is left is network access and read access to `seed.json`, which is QA's own data. |
+| A-T1-04 (MINOR) | Resolved | `logger.ts` normalises key names (case, `_`, `-`), redacts at any depth (up to 6), redacts keys that end in `token`, `secret`, `password`, `key`, `assertion` or `cookie`, and masks JWT, `Bearer`/`LTIK-AUTH-V2`/`SERVICE-AUTH-V1`, `ltik=`/`token=` and `ltis_` values in strings. `http_request.path` goes through `redactPath` (segments of 20 or more characters become `:redacted`). Error objects keep only name and message. Live scan: 0 hits for 13 secret values. Every line has `trace_id`. `/healthz` is logged at debug level only. NOTE: T2 and T4 must use `redactPath` in their own request logs too. |
+| A-T1-05 (MINOR) | Resolved; deferral accepted | `stack-restart.sh` exits with code 2 for a key that is not a registered knob of that service. This happens before it writes the knob file or restarts anything, so `NODE_TLS_REJECT_UNAUTHORIZED=0` cannot be set. `warn_knobs` prints a CAUTION in `stack:up`, `seed`, `qa-suite.sh` and `e2e-run.sh`. **I accept deferring the T7 pre-check.** AC-T7-13 is in the T7 spec. |
+| A-T1-06 (MINOR) | Spec text fixed; the check is weak | T1.md, local-stack.md and the compose comment now describe the real rule (only `STACK_SUBNET` cut out; port 443 only). The new negative checks cannot detect a host list that is too wide: see A-T1-08. |
+| A-T1-07 (NIT) | Resolved | `infra/.logs` has mode 700. The Node containers run as the host user (`501:20` live), and logging works. |
+
+No other regressions in my lens:
+
+- Still exactly one published port.
+- `ca.key` is mounted in no container.
+- TLS still verifies for all hosts.
+- The admin password comes from `.env` on stdin.
+- The new `gen-env` guard stops new secrets from being used with old volumes.
+
+### A-T1-08 — MINOR — The negative reach checks test only the port rule, not the host block list
+
+- **Location:** `infra/moodle/php/reach_check.php:46-51`.
+- **Problem:** All four negative URLs use a port that is not allowed (`http://169.254.169.254/` is port 80, as are `http://<host>:80/` and `http://172.17.0.1/`; the fourth is `http://postgres:5432/`). The port rule blocks all of them. So the check still passes if the host list is opened too wide, for example if all of `172.16.0.0/12` or `169.254.169.254` is removed.
+- **Evidence:**
+  - `curl_security_helper::url_is_blocked()` returns `host_is_blocked(...) || port_is_blocked(...)` (`lib/classes/files/curl_security_helper.php:116-118`).
+  - Today the host list itself is correct. A live `url_is_blocked` check (rule only, no request sent) gives BLOCKED for `https://169.254.169.254/`, `https://172.17.0.1/`, `https://127.0.0.1/`, `https://10.0.0.1/` and `https://192.168.65.254/`, and ALLOWED for `https://lti.cogniate.test/`.
+- **Fix:**
+  - Use `https://` (port 443) for the host cases: `https://169.254.169.254/`, `https://<another Docker range IP>/`, `https://127.0.0.1/`, `https://10.0.0.1/`, `https://192.168.65.254/` (Docker Desktop host).
+  - Keep one port case (`http://<host>:80/`) and the database case for the port rule.
+
+### A-T1-09 — MINOR — Without `.env`, `gen-env` points to `stack:reset`, and `stack:reset` can delete another checkout's stack
+
+- **Location:** `infra/scripts/gen-env.sh` (new guard: "Fix: … delete the old data with: npm run stack:reset"); `infra/scripts/stack-reset.sh` (new label-based path); `infra/scripts/lib.sh:34` (default `COMPOSE_PROJECT_NAME=cogniate-stack`).
+- **Problem:** A fresh clone has no `.env`. If the user forgets to set `COMPOSE_PROJECT_NAME`, it uses the default `cogniate-stack`. Then `gen-env` finds the volumes of the **other** checkout and tells the user to run `stack:reset`, which deletes that checkout's containers, volumes and network by label.
+- **Evidence:**
+  - The lib.sh guard ("a shell value that differs from `.env` is an error") does nothing when `.env` is missing.
+  - The containers have the label `com.docker.compose.project.working_dir` (live: `…/cogniate_moodle_integration_prototype/infra`), but neither script checks it.
+  - The data is dev data and can be rebuilt by `seed`, but manual demo content and the other team member's work are lost.
+- **Fix:**
+  - In `gen-env` and `stack:reset`, read the `working_dir` label of the project's containers. If it is not this checkout's `infra` folder, stop with the message: "Project `<name>` belongs to `<dir>`. Set `COMPOSE_PROJECT_NAME` to a new name." Do not suggest `stack:reset` in that case.
+  - Without `.env`, make `stack:reset` require an explicit `COMPOSE_PROJECT_NAME`.

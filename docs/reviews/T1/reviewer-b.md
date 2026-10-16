@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # T1 review — Reviewer-B (lens: "Can a human team own it?")
 
@@ -158,3 +158,42 @@ What I ran (read-only for the live stacks):
 - **Location:** `infra/README.md` Requirements and Quick start; `infra/scripts/demo.sh`, `demo-browser.sh`.
 - **Problem:** A new developer does not know that the first `stack:up` downloads about 2.3 GB, or that the first test run builds a 3.6 GB e2e image. After `npm run demo`, they must open `.env` or `seed.json` to find a password.
 - **Suggested fix:** Add a "First run" line with the measured times (download, first Moodle install of about 31 s, seed). Add `npm run demo:users`, which prints the user and password table from `seed.json` (dev-only values). Also write in the README that the host `node_modules` is mounted into Alpine, so service runtime dependencies must be pure JavaScript.
+
+---
+
+## Round 2
+
+Round 2 verdict: **APPROVE**. No open BLOCKER or MAJOR finding from Reviewer-B.
+
+Input: `git diff bc530a7 b82382b -- . ':!docs' ':!tests'` (28 files) and the Author's fix claims.
+
+How I checked:
+
+- `npm run check` in the main checkout (HEAD `b82382b`). Result: pass, 7 test files, 38 tests. NOTE: the ignored `apps/player-spike/.data/` folder is no longer there. So I proved the fix in a clean export instead.
+- Clean export of `b82382b` in `/tmp`, then `npm ci`. I added broken files in five git-ignored places and ran `npm run check` again.
+- Failure probes in the same export, with a fake `docker` command first in `PATH`. It records every call and never reaches the real Docker, so the Author's stack and `qa-t1-r2` were not touched. One real listener held `127.0.0.1:9443` for the busy-port case.
+- Read-only look at the live `infra/.logs/lti-service.jsonl`.
+
+### Round-1 findings: verification
+
+| Id | Sev. | Status | Evidence |
+| --- | --- | --- | --- |
+| B-T1-01 | MAJOR | **Resolved** | ESLint loads `.gitignore` (`includeIgnoreFile`), and Vitest uses an allow-list (`*/src/**/*.test.ts`, excludes `**/.data/**`, `**/.tmp/**`). Probe: a syntax error in `x/.data/bad.js` and in `packages/shared/.data/bad.js`, a type error in `packages/shared/src/.data/bad.ts`, a failing test in `packages/shared/src/.data/bad.test.ts`, and a syntax error in `.tmp/bad.js` → `npm run check` exits 0 (38 tests). |
+| B-T1-02 | MAJOR | **Resolved** (one small gap: B-T1-12) | Probe "no `.env` + volumes `rb-probe_pgdata`, `rb-probe_moodledata`": `stack:up` stops at once with "This checkout has no .env, but project 'rb-probe' still has Docker volumes … Fix: restore the old .env, or … npm run stack:reset". `.env` is not written, and `compose up` is not called. Seed now sends the admin password (`seed.sh` step 3). `stack:up` waits ≤ 300 s, prints the last 20 log lines of each unhealthy service, and names `stack:reset`. `stack:reset` works without `.env` (removes the project by its Docker labels). |
+| B-T1-03 | MINOR | Resolved for Docker down and busy port; the rest is deferred | Docker down: `stack:up` and `seed` print "Docker is not running. Start Docker Desktop …", with no `compose up`. Busy port: "Port 9443 on 127.0.0.1 is busy … edit PUBLIC_PORT in .env …", before any container starts. The project's own proxy on the port is allowed (`dc port proxy`). Deferred: subnet preflight and `stack:doctor`. |
+| B-T1-04 | MINOR | Resolved | `/healthz` is logged at `debug`. `LOG_LEVEL` (default `info`) filters it. The live `lti-service.jsonl` has 0 `/healthz` lines. `service_started` has `trace_id: "boot-…"` (Lead rule). |
+| B-T1-05 | MINOR | Resolved | `stack:restart -- lti-service --env NODE_OPTIONS=…` → "NODE_OPTIONS is not a registered knob of lti-service. Valid knobs of lti-service: LTIK_TTL_SECONDS." A registered knob for the wrong service is also refused. `compose up` is not called in either case. `stack:up` and `seed` print a CAUTION while `.tmp/compose.knobs.yaml` has knobs. |
+| B-T1-06 | MINOR | Partly resolved; the rest is deferred | `service_stopping` is now logged for each listener. `debug()` and `LOG_LEVEL` exist. Deferred: the file renames. ADR-008 (T0 round 3) already maps `http.ts` and `service.ts` to the `server` module. |
+| B-T1-07, B-T1-08 | MINOR | Not an Author item | These findings are about QA-owned files. The Lead kept QA's H7 `trace_id` rule. The Lead routes the rest to QA. They do not block T1. |
+| B-T1-09 | NIT | Partly resolved | `.env.example` and the `STACK_SUBNET` text are now correct. Open: `infra/README.md` Configuration still says "Optional variables (not in `.env` by default)" for `COMPOSE_PROJECT_NAME` and `STACK_SUBNET`, but `gen-env.sh` writes both (lines 49–50). `lib.sh` still checks only the CIDR syntax. |
+| B-T1-10 | NIT | Deferred | Host names are in several places. |
+| B-T1-11 | NIT | Deferred | First-run times and `demo:users`. |
+
+**Deferrals:** I accept all of them. The Docker-down and busy-port messages cover the common cases. Subnet overlap happens only with parallel stacks, and the README documents it. The renames fit naturally into T2a, when the `outbound` module comes: please make `outbound.ts` a new file, not part of `http.ts`. AC-T9-01 (T9) covers the first-run guidance. The Lead lists B-T1-03 (rest), B-T1-06 (renames), B-T1-09 (rest), B-T1-10 and B-T1-11 in `docs/human_review/deferred.md`.
+
+### B-T1-12 — MINOR — `npm run demo` (or `gen-env`) with Docker stopped skips the old-volume guard
+
+- **Location:** `infra/scripts/gen-env.sh` (the guard runs only when `docker info` succeeds); `infra/scripts/demo.sh` (it runs `gen-env.sh` before `stack-up.sh`).
+- **Problem:** If Docker is not running, `gen-env` writes a new `.env` without the volume check. When Docker runs again, `.env` exists, so the guard never runs, and the old B-T1-02 failure comes back (now after ≤ 300 s, with logs and a hint).
+- **Evidence:** Probe with Docker "down" and no `.env`: `bash infra/scripts/gen-env.sh` → "Wrote …/.env (mode 600)". `demo.sh` lines 8–10 run `gen-env.sh`, then `build`, then `stack-up.sh`, so `require_docker` in `stack-up.sh` comes too late.
+- **Suggested fix:** Call `require_docker` at the start of `demo.sh`. In `gen-env.sh`, refuse to make a **new** `.env` when Docker is not reachable ("Start Docker first, so gen-env can check for old data"). Updating an existing `.env` can stay possible without Docker.

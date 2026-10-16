@@ -5,3 +5,4 @@ host/artifacts/
 test-results/
 playwright-report/
 .tmp/
+fixtures/qa-platform/jwks-*.json

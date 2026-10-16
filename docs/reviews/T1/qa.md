@@ -103,3 +103,68 @@ The Lead should commit these test changes (`tests/**`) before round 2.
 - `npm run demo:browser` (LC-T1-04): not verified by QA.
 - A human browser on the host (`/etc/hosts` or `--host-resolver-rules`): not tested. The E2E path needs nothing on the host.
 - Chromium only. T1 has no Safari-specific criterion.
+
+## Round 2
+
+Verdict: PASS
+Round: 2
+
+| Item | Value |
+| --- | --- |
+| SHA | `b82382bd5ad066aae82eabfd68ea08996e33e2b6` ("T1 (wip, round 2): fixes for A-T1-01, B-T1-01/02 and 9 minors") |
+| Tests used | `279903a` (in the SHA) plus one QA fix in `tests/acceptance/T1/harness.test.ts` and runner changes (see "QA-side changes"). Only the T1 task folder was in the clone (`--only-task-folders T1`). Diff: `E2/tests-diff-vs-sha.txt` |
+| Runner | `COMPOSE_PROJECT_NAME=qa-t1-r2 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 COURSE_FIXTURES_DIR=<repo>/docs/raw/data/courses node tests/host/run-t1.mjs --sha b82382b… --replace-tests --only-task-folders T1` |
+| Isolation | QA stack next to the Author's stack (`cogniate-stack` on 443). No Author container stopped or restarted. At the end: 0 containers, 0 volumes, 0 networks of `qa-t1-r2`. |
+| Evidence root | `E2` = `tests/host/artifacts/qa-t1-r2-b82382bd-2026-10-16T16-09-23-370Z/` (git-ignored, secrets redacted). Run 1 of this round: `tests/host/artifacts/qa-t1-r2-b82382bd-2026-10-16T16-06-24-025Z/`. |
+| In-container suite | 39 tests in pass 1 and 39 in pass 2 (after `stack:reset`): all PASS. |
+
+### R2.1 Results per acceptance criterion
+
+| AC | Result | What QA saw | Evidence |
+| --- | --- | --- | --- |
+| AC-T1-01 | PASS | Fresh clone: `npm ci` and `npm run check` exit 0. A failing canary file in `tests/` does not break the check. | `E2/cmd/03…`, `04…`, `06…` |
+| AC-T1-02 | PASS | `stack:up` + `seed` exit 0 in 31 s (images pulled before); the four URLs are printed. | `E2/cmd/14…`, `15…` |
+| AC-T1-03 | PASS | 200 with `form#login`; TLS verifies with `root.crt` (Node and curl); public roots only → Node error, curl exit 60. | `E2/container-pass1/vitest-results.json` |
+| AC-T1-04 | PASS | Three `/healthz`: 200 JSON, `status: "ok"`, service names, `knobs: []`. | same |
+| AC-T1-05 | PASS | Prints `{"status":"ok","service":"lti-service","knobs":[]}`. On stderr the script also shows four blocked targets: `169.254.169.254`, `lti.cogniate.test:80`, `postgres:5432`, `172.17.0.1`. | `E2/cmd/16-moodle-reach-check.log` |
+| AC-T1-06 | PASS | Release 5.2.x, `siteurl` = `https://moodle.test:8443`, the 9 functions, no oracle-only function; unknown token → `invalidtoken`. | vitest results |
+| AC-T1-07 | PASS | `cg_teacher` signs in; `MoodleSession` `Secure=true`; a wrong password is refused. | `E2/container-pass1/playwright/T1-moodle-login-*/` |
+| AC-T1-08 | PASS | Both courses once, `enablecompletion=1`, correct roles. | vitest results |
+| AC-T1-09 | PASS | One binding: `proxy 127.0.0.1:8443->8443/tcp`. | `E2/summary.json` |
+| AC-T1-10 | PASS | Marker course gone after reset + up + seed (34 s); only the site course, 101 and 102; `root.crt` (same CA fingerprint) and `.env` kept; four logins with the same passwords; pass 2 all PASS. | `E2/cmd/27…`–`29…`, `E2/container-pass2/` |
+| AC-T1-11 | PASS | 15 secret values (round-2 wording: secret `.env` entries, passwords and tokens in `infra/.secrets/`, `infra/.certs/*.key`): none in tracked files. Every listed path is git-ignored, incl. `infra/.data/` and `.tmp/`. `.env.example` secret keys are empty. | `E2/summary.json` |
+| AC-T1-12 | PASS | Three seeds (seed, seed, demo): `seed.json` unchanged; one token per (user, service); each service once; one enrolment per user. | `E2/cmd/19…`, `20…`, `E2/container-pass1/playwright/T1-moodle-admin-*/` |
+| AC-T1-13 | PASS | First run and after reset: `fetch` → 200 in lti-service and cogniate-app; `npm run stack:node-reach-check` exit 0 with two 200 results. | `E2/cmd/17…`, `18…`, `30…`, `31…` |
+
+| Change or hook | Result | Evidence |
+| --- | --- | --- |
+| LC-T1-01 CA and leaf | PASS: CA life 365 days, critical Name Constraints with only `Permitted: DNS:test`, leaf `stack.crt` (four SANs) does not outlive the CA, made before any container; `root.crt` kept by reset. | `E2/summary.json`, vitest results |
+| LC-T1-02 public URLs | PASS | vitest results |
+| LC-T1-03 `npm run demo` | PASS | `E2/cmd/20-demo.log` |
+| LC-T1-04 `npm run demo:browser` | **Not verified by QA** (Lead decision). The script exists. | `E2/cmd/21…` |
+| LC-T1-05 command table | PASS (14 commands, incl. `stack:node-reach-check`) | `E2/summary.json` |
+| LC-T1-06 `fixtures:check` | PASS | `E2/cmd/07…`–`10…` |
+| Curl rule (T1 scope, A-T1-06) | PASS: allowed ports exactly `443, 8443`; blocked hosts = the Moodle 5.2.4 default list, with `172.16.0.0/12` split into `172.16.0.0/13`, `172.24.0.0/14`, `172.28.0.0/16`, `172.30.0.0/15` (only `172.29.0.0/16` cut out). Read with `admin/cli/cfg.php` (read-only). | `E2/cmd/*moodle-cfg*` |
+| H1, H2, H3, H4 | PASS (H2 now also checks mode 600, `cogniate-seed/1`, both WS service records) | `E2/summary.json`, vitest results |
+| H7 | PASS: every line of the three logs has a non-empty `trace_id`; lifecycle lines carry their process's boot trace id. | vitest results, `E2/container-pass1/service-logs/` |
+| H8 | PASS: no `*.key` visible in `e2e`; `.secrets` and `.logs` read-only; `NODE_EXTRA_CA_CERTS` = `root.crt`. | vitest results |
+
+### R2.2 Status of the round-1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| Q-T1-01 MINOR (`infra/.certs` writable in e2e) | Closed. Judged against the round-2 H8 text (only `root.crt` and `stack.crt`; no key visible): no key file is visible, and the secrets and logs mounts are read-only. | H8 tests in `E2/container-pass1/vitest-results.json` |
+| Q-T1-02 MINOR (lifecycle lines without `trace_id`) | Closed. Every lifecycle line has the boot trace id, for example `test_knob_active` and `service_started` both `boot-406e4258d6f8`. | `E2/container-pass1/service-logs/lti-service.jsonl` lines 3–4 |
+| Q-T1-03 MINOR (e2e image name) | Closed. The image is `qa-t1-r2-e2e:1.56.0`. | `E2/cmd/26-test-acceptance-pass1.log` |
+| Q-T1-04 NIT (missing `moodle/user:update` on the product token) | Open, unchanged. Moodle still shows it. No T1 impact; check in T4. | `E2/container-pass1/playwright/T1-moodle-admin-*/manage-tokens.png` |
+
+No new findings against the product.
+
+### R2.3 QA-side changes in this round
+
+- Run 1 of this round (`…16-06-24-025Z`) failed only the H7 boot-trace-id tests in pass 1, after the knob restarts. The cause was the QA test: it assumed that a process's lifecycle lines start with `service_started`. The product writes `test_knob_active` just before `service_started`, with the same boot trace id. T1.md does not fix the order. The test now checks the rule without order: every `test_knob_active` and `service_stopping` line carries the boot trace id of some `service_started` line, and each boot id has at most one start and one stop. The failure message now lists every lifecycle line.
+- The runner keeps a copy of the service logs after each in-container pass (`container-<pass>/service-logs/`), because `stack:reset` deletes them.
+- The runner can keep only some task folders in the clone (`--only-task-folders`), so that unfinished tests of later tasks do not run in a T1 round.
+- The AC-T1-05 note in this run read only stdout; the reach-check negative cases are on stderr (the evidence file has both). The runner now reads both.
+
+The Lead should commit the QA changes in `tests/**` (H7 test, runner) with the next commit.
