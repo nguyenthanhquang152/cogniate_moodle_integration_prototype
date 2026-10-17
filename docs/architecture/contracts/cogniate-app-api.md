@@ -32,7 +32,7 @@ NOTE: This is our design for a stand-in. It is not a Cogniate API (spec §7.1). 
 - Every query is limited to the session user's library. A resource of another library gives `404 NOT_FOUND`, for reads and writes.
 - The app reads the LTI API key from `infra/.secrets/lti-api-key.cogniate` at each use, and sends `X-Trace-Id` to the LTI service.
 - All untrusted text is escaped on output (security §7).
-- `GET {PUBLIC_APP_URL}/healthz` → `200 {"status":"ok","service":"cogniate-app","profile":"default","knobs":[]}`. `profile` is `acceptance` in that compose profile (local-stack §3).
+- `GET {PUBLIC_APP_URL}/healthz` → `200 {"status":"ok","service":"cogniate-app","profile":"default","outbound_allowlist":["lti.cogniate.test"],"knobs":[]}`. `profile` is `acceptance` in that compose profile (local-stack §3), and `outbound_allowlist` then also has `qa-platform.test` and `evil.test`.
 
 ## 2. Session (mock login) — T4a
 
@@ -252,7 +252,7 @@ Play session: `PLAY_TTL_SECONDS` (default 24 h). It holds a runtime token (hash)
 | `GET /rt/{runtimeToken}/state` | `200` RuntimeState |
 | `POST /rt/{runtimeToken}/commit` | `200 { accepted: true, outcome, scoreGiven?, scoreMaximum? }`. `application/json` or `text/plain` (`sendBeacon`). |
 | `GET /_rt/assets/*` | Runtime JS and CSS |
-| `GET /healthz` | `200 {"status":"ok","service":"cogniate-content","profile":"default","knobs":[]}` |
+| `GET /healthz` | `200 {"status":"ok","service":"cogniate-content","profile":"default","outbound_allowlist":[...],"knobs":[]}` (same process as the app, same allowlist) |
 
 No cookies. No CORS headers.
 

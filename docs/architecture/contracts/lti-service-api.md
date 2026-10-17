@@ -153,7 +153,7 @@ Steps: fetch the configuration with the guarded client (with `Authorization: Bea
 
 ### 2.5 `GET /healthz` (T1)
 
-`200 {"status":"ok","service":"lti-service","profile":"default","knobs":[]}`. `knobs` lists active test knobs (`tasks/README.md`). `profile` is `acceptance` in that compose profile (local-stack §3).
+`200 {"status":"ok","service":"lti-service","profile":"default","outbound_allowlist":["moodle.test"],"knobs":[]}`. `knobs` lists active test knobs (`tasks/README.md`). `profile` is `acceptance` in that compose profile (local-stack §3), and `outbound_allowlist` then also has `qa-platform.test` and `evil.test`.
 
 ---
 
