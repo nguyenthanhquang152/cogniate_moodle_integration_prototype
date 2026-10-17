@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // QA host runner for T2a, T2b and T3a (black-box, from tasks/T2a.md, T2b.md, T3a.md). Node built-ins only.
-// T3a runs in the same pass A: its setup is the T2b setup (acceptance profile, seed:lti-manual).
+// T3a and T3b run in the same pass A: their setup is the T2b setup (acceptance profile, seed:lti-manual). File order
+// puts T3a before T3b (AC-T3-29 and AC-T3-30 use the T3a line item and service key).
 //
 //   COMPOSE_PROJECT_NAME=qa-t2-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 \
 //     node tests/host/run-t2.mjs --sha <commit> [--tasks T2a,T2b] [--replace-tests --only-task-folders T2a,T2b]
@@ -26,6 +27,7 @@ const EXPECT = {
   T2a: ['AC-T2-01', 'AC-T2-02', 'AC-T2-03', 'AC-T2-04', 'AC-T2-05', 'AC-T2-06', 'AC-T2-08', 'AC-T2-12', 'AC-T2-13', 'AC-T2-14', 'AC-T2-15', 'AC-T2-16', 'AC-T2-18', 'AC-T2-19', 'AC-T2-29', 'AC-T2-31'],
   T2b: ['AC-T2-09', 'AC-T2-10', 'AC-T2-11', 'AC-T2-20', 'AC-T2-21', 'AC-T2-22', 'AC-T2-23', 'AC-T2-24', 'AC-T2-25', 'AC-T2-26', 'AC-T2-27', 'AC-T2-28', 'AC-T2-30', 'AC-T2-32'],
   T3a: ['AC-T3-06', 'AC-T3-07', 'AC-T3-08', 'AC-T3-10', 'AC-T3-11', 'AC-T3-12', 'AC-T3-13', 'AC-T3-14', 'AC-T3-16', 'AC-T3-17', 'AC-T3-18', 'AC-T3-22', 'AC-T3-23', 'AC-T3-24'],
+  T3b: ['AC-T3-01', 'AC-T3-02', 'AC-T3-03', 'AC-T3-04', 'AC-T3-05', 'AC-T3-25', 'AC-T3-26', 'AC-T3-28', 'AC-T3-29', 'AC-T3-30'],
 };
 
 function ltiSeedOf() {
@@ -120,7 +122,7 @@ async function ac31AfterReset() {
 
 await r.main(async () => {
   if (!(await setup())) return;
-  if (TASKS.includes('T2a') || TASKS.includes('T2b') || TASKS.includes('T3a')) {
+  if (TASKS.some((t) => ['T2a', 'T2b', 'T3a', 'T3b'].includes(t))) {
     if (!(await ac31First())) return;
   }
   await passA();
