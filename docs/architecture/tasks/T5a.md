@@ -23,6 +23,7 @@ Out: HTML runtime, results refresh, Resend, full retry schedule (T5b). Portal re
 ## Design notes
 
 - The runtime page loads `/_rt/assets/runtime.js`. It reads `/rt/{token}/state`, defines the API, then sets the package iframe `src`.
+- A-T4a-07: package-derived ids (question ids, page keys) are used only as `Map` keys or in null-prototype objects (`Object.create(null)`). A key such as `toString` passes app contract §3.3, so a plain `{}` lookup would be wrong.
 - The runtime must not wait for S3 or Google hosts.
 - QA notes from the spike: Playwright `page.route()` does not see requests sent while a page closes (use the logs); with hanging hosts use `waitUntil: 'domcontentloaded'`.
 - Score sync rows are made in the same transaction as the attempt update.

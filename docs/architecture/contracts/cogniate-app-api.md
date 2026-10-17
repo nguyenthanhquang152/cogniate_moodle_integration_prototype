@@ -92,7 +92,14 @@ Report rules: `fileCount` counts files (not folders). `totalBytes` = sum of unco
 
 ### 3.2 Reject codes
 
-Rejected upload: `422`, `details.message = "PACKAGE_REJECTED"`, `details.reasons = [{ "code", "path"?, "detail" }]`, and `details.action` = one sentence with the next action for the user (for example "Export the course again as SCORM 1.2 with one SCO."). Other app API errors may also carry `details.action`. Nothing stays in the package store. Log: `package_rejected {codes}`.
+Rejected upload: `422`, `details.message = "PACKAGE_REJECTED"`, `details.reasons = [{ "code", "title", "action", "path"?, "detail" }]` (`title` = a short plain-language name of the problem, `action` = what to do about this reason), and `details.action` = one sentence with the overall next action for the user (for example "Export the course again as SCORM 1.2 with one SCO."). Other app API errors may also carry `details.action`. Nothing stays in the package store.
+
+```json
+{ "status": 422, "error": "Unprocessable Content",
+  "details": { "message": "PACKAGE_REJECTED", "description": "The package was rejected.",
+    "action": "Fix the package and upload it again.",
+    "reasons": [ { "code": "PATH_TRAVERSAL", "title": "Unsafe file path", "action": "Export the course again; file paths must stay inside the package.", "path": "../evil.html", "detail": "The path has a .. segment." } ] } }
+``` Log: `package_rejected {codes}`.
 
 | Code | Meaning |
 | --- | --- |
@@ -103,7 +110,7 @@ Rejected upload: `422`, `details.message = "PACKAGE_REJECTED"`, `details.reasons
 | `PATH_TRAVERSAL` | A `..` segment anywhere in the path (also `a/../../x`) |
 | `ABSOLUTE_PATH` | Starts with `/`, `\` or a drive letter |
 | `SYMLINK_ENTRY` | Symbolic link |
-| `INVALID_ENTRY_NAME` | NUL or control characters, or a backslash |
+| `INVALID_ENTRY_NAME` | A file or folder name at any depth has NUL or control characters, a backslash, bidi controls (U+200E, U+200F, U+202A–U+202E, U+2066–U+2069), or zero-width or invisible characters (U+00AD, U+200B–U+200D, U+2060, U+FEFF) |
 | `DUPLICATE_ENTRY` | Same after NFC and case folding |
 | `MANIFEST_INVALID_XML` | Manifest does not parse |
 | `MANIFEST_DTD_FORBIDDEN` | Manifest has `<!DOCTYPE` or `<!ENTITY` |
@@ -402,7 +409,7 @@ Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `e
 | `picker_rejected` | warn | `reason`: `used`, `expired`, `publication_not_available` |
 | `registration_confirm_rejected` | warn | `code` |
 | `commit_accepted` | info | `session_id`, `seq`, `event` |
-| `internal_error` | error | `method`, `path` (no query, no capability ids), `error_name`. No error message with data and no stack trace in the JSON file (stdout may print the stack at `debug`). The response is `500 INTERNAL_ERROR` with the trace id. |
+| `internal_error` | error | `method`, `path` (no query, no capability ids), `error` (the error class name only, for example `TypeError`). No error message with data and no stack trace in the JSON file (stdout may print the stack at `debug`). The response is `500 INTERNAL_ERROR` with the trace id. |
 | `commit_rejected` | warn | `code`, `field` |
 | `outcome_changed` | info | `attempt_id`, `outcome` |
 | `score_sync` | info | `sync_id`, `status`, `tries` |

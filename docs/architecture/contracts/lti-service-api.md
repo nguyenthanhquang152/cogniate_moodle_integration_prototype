@@ -367,6 +367,7 @@ Every event: `ts`, `level`, `service: "lti-service"`, `event`, `trace_id` (lifec
 | `registration_started` | info | `registration_id`, `operation` | §2.4 |
 | `registration_completed` | info | `platform_id`, `operation` | §3.8 success |
 | `registration_rejected` | warn | `code` | §2.4 or §3.8 failure |
+| `internal_error` | error | `method`, `path` (no query), `error` (the error class name only) | a bug; response `500 INTERNAL_ERROR` with the trace id. No error message with data and no stack trace in the JSON file. |
 | `service_stopping` | info | — | stop |
 
 ## 6. Data retention (prototype)
