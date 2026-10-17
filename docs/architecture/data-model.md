@@ -274,4 +274,4 @@ stateDiagram-v2
 
 Score sync. Retry times: 5 s, 30 s, 2 min, 10 min, 30 min, then every 1 h until 24 h after `created_at` (ADR-010).
 
-Publication: `available` ⇄ `withdrawn`. "Linked" and "In use" come from `stats`.
+Publication: `available` ⇄ `withdrawn`. "Selected in Moodle" and "In use" come from `stats`.

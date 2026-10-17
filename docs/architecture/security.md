@@ -206,7 +206,7 @@ All outbound HTTP of both services goes through one client in `packages/shared` 
 | Platform access token | Moodle `token.php` | memory only | same |
 | Registration token | Moodle | encrypted, ≤ 1 h | same |
 | `ref` token | app, 32 random bytes | hash, 24 h, single use | same |
-| Runtime token | play session, 32 random bytes | hash, 24 h | same |
+| Runtime token | HMAC of the play id with `APP_MASTER_KEY` (base64url) | SHA-256 hash only, 24 h | same |
 | Master keys | `gen-env` | `.env` (git-ignored) | KMS |
 
 ## 11. Privacy and logs

@@ -214,7 +214,7 @@ sequenceDiagram
     P-->>CU: "Available in Moodle. Teachers: Add an activity > Cogniate (Thanh's Library) > Select content."
 ```
 
-The portal shows "Linked" when `stats.activities > 0` and "In use" when `stats.learners > 0`. "Withdraw" hides the course from the picker. Existing activities then show "This course is no longer available". An empty Moodle course through web services (course shell) is stretch (T8).
+The portal shows "Selected in Moodle" when `stats.activities > 0` (a pick counts even if the teacher then cancels the activity form; Moodle does not tell us) and "In use" when `stats.learners > 0`. "Withdraw" hides the course from the picker. Existing activities then show "This course is no longer available". An empty Moodle course through web services (course shell) is stretch (T8).
 
 ## 6f. Native channel (stretch, T8)
 
