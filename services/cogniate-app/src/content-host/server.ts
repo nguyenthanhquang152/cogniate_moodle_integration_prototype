@@ -6,6 +6,6 @@ import { createHealthServer } from '@cogniate/shared';
 
 export const CONTENT_SERVICE_NAME = 'cogniate-content';
 
-export function buildContentServer(deps: { logger?: Logger; knobs?: Knob[]; profile?: string } = {}): Server {
+export function buildContentServer(deps: { logger?: Logger; knobs?: Knob[]; profile?: string; outboundAllowlist?: string[] } = {}): Server {
   return createHealthServer(CONTENT_SERVICE_NAME, deps);
 }

@@ -34,6 +34,8 @@ export interface HealthBody {
   /** Compose profile: "default" or "acceptance" (local-stack §3). */
   profile: string;
   knobs: Knob[];
+  /** Active OUTBOUND_PRIVATE_HOST_ALLOWLIST of the service (T2b: the acceptance profile adds its QA hosts). */
+  outbound_allowlist: string[];
 }
 
 /** Use the caller's x-trace-id if it is a safe token, else make a new one. */
@@ -47,6 +49,7 @@ export interface HealthServerOptions {
   logger?: Logger;
   knobs?: Knob[];
   profile?: string;
+  outboundAllowlist?: string[];
 }
 
 /**
@@ -59,6 +62,7 @@ export interface HealthServerOptions {
 export function createHealthServer(service: string, options: HealthServerOptions = {}): Server {
   const knobs = options.knobs ?? [];
   const profile = options.profile ?? 'default';
+  const outboundAllowlist = options.outboundAllowlist ?? [];
   return createServer((req: IncomingMessage, res: ServerResponse) => {
     const started = performance.now();
     const traceId = traceIdFrom(req);
@@ -71,7 +75,7 @@ export function createHealthServer(service: string, options: HealthServerOptions
       });
     });
     if ((req.method === 'GET' || req.method === 'HEAD') && path === '/healthz') {
-      const body: HealthBody = { status: 'ok', service, profile, knobs };
+      const body: HealthBody = { status: 'ok', service, profile, knobs, outbound_allowlist: outboundAllowlist };
       sendJson(res, 200, body);
       return;
     }

@@ -22,7 +22,7 @@ export const KNOB_REGISTRY = {
     default: 86_400,
     min: 1,
     max: 30 * 86_400,
-    description: 'ltik lifetime in seconds. Contract: 24 h (lti-service-api, T2). AC-T2-07 uses 5.',
+    description: 'ltik lifetime in seconds. Contract: 24 h (lti-service-api, T2). AC-T2-07 uses 20.',
   },
   REF_TTL_SECONDS: {
     service: 'cogniate-app',

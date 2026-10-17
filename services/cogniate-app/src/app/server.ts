@@ -34,6 +34,8 @@ export interface AppApiDeps {
   store: StorePaths;
   profile: string;
   knobs: Knob[];
+  /** Active outbound allowlist, shown in /healthz (T2b). */
+  outboundAllowlist?: string[];
   now?: () => number;
   /** Package limits (security §7). Tests make them smaller. */
   limits?: Partial<Limits>;
@@ -83,7 +85,9 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
   });
   app.setNotFoundHandler((_req, reply) => reply.code(404).send(apiErrorBody(404, 'NOT_FOUND', 'Unknown route.')));
 
-  app.get('/healthz', async () => ({ status: 'ok', service: 'cogniate-app', profile: deps.profile, knobs: deps.knobs }));
+  app.get('/healthz', async () => ({
+    status: 'ok', service: 'cogniate-app', profile: deps.profile, knobs: deps.knobs, outbound_allowlist: deps.outboundAllowlist ?? [],
+  }));
 
   // Portal API. The hooks of this scope run only for its routes, before the body is read.
   await app.register(async (api) => {

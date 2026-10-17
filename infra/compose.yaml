@@ -129,8 +129,9 @@ services:
       LOG_DIR: /logs
       DATA_DIR: /data                          # lti.db (ADR-006); host: infra/.data/lti-service (stack:reset deletes it)
       STACK_PROFILE: ${STACK_PROFILE:-default}
-      # Hosts that may resolve to private addresses (security §9). The T2b acceptance profile adds its test hosts.
-      OUTBOUND_PRIVATE_HOST_ALLOWLIST: moodle.test
+      # Hosts that may resolve to private addresses (security §9). The acceptance profile adds ",qa-platform.test,evil.test"
+      # (ACCEPTANCE_ALLOWLIST_EXTRA, set by infra/scripts/lib.sh from the saved stack profile).
+      OUTBOUND_PRIVATE_HOST_ALLOWLIST: moodle.test${ACCEPTANCE_ALLOWLIST_EXTRA:-}
       <<: *public-urls
     volumes:
       - ../package.json:/repo/package.json:ro
@@ -159,6 +160,8 @@ services:
       LOG_DIR: /logs
       DATA_DIR: /data                          # cogniate.db, packages/, uploads/ (ADR-006); host: infra/.data/cogniate-app
       STACK_PROFILE: ${STACK_PROFILE:-default}
+      # Security §9: the app may call the LTI service host (private address behind the proxy); acceptance adds QA hosts.
+      OUTBOUND_PRIVATE_HOST_ALLOWLIST: lti.cogniate.test${ACCEPTANCE_ALLOWLIST_EXTRA:-}
       <<: *public-urls
     volumes:
       - ../package.json:/repo/package.json:ro
@@ -174,6 +177,67 @@ services:
       timeout: 3s
       retries: 12
       start_period: 5s
+
+  # ---- Acceptance profile only (T2b, local-stack §3). Start: STACK_PROFILE=acceptance npm run stack:up.
+  # Test helper hosts with their own network alias and their own leaf certificate (qa.crt), so the proxy and the
+  # T1 leaf do not change. Code: infra/qa-hosts/qa-hosts.mjs. Health checks use plain HTTP :8080 (never logged as hits).
+  sink:
+    image: node:24.22.0-alpine3.24
+    profiles: ["acceptance"]
+    init: true
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart: unless-stopped
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0   # :443 as the host user
+    working_dir: /qa-hosts
+    command: ["node", "qa-hosts.mjs", "--mode=sink", "--name=sink"]
+    environment:
+      LOG_DIR: /logs                           # sink_hit {host, method, path} -> infra/.logs/sink.jsonl
+    volumes:
+      - ./qa-hosts:/qa-hosts:ro
+      - ./.certs/qa.crt:/certs/qa.crt:ro
+      - ./.certs/qa.key:/certs/qa.key:ro
+      - ./.logs:/logs
+    networks:
+      default:
+        aliases:
+          - evil.test
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 3s
+
+  qa-platform:
+    image: node:24.22.0-alpine3.24
+    profiles: ["acceptance"]
+    init: true
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart: unless-stopped
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    working_dir: /qa-hosts
+    command: ["node", "qa-hosts.mjs", "--mode=static", "--name=qa-platform", "--root=/fixtures"]
+    environment:
+      LOG_DIR: /logs                           # qa_platform_hit {method, path, status} -> infra/.logs/qa-platform.jsonl
+    volumes:
+      - ./qa-hosts:/qa-hosts:ro
+      - ./.certs/qa.crt:/certs/qa.crt:ro
+      - ./.certs/qa.key:/certs/qa.key:ro
+      - ./.logs:/logs
+      # QA writes its JWKS here at run time (git-ignored by QA). QA_PLATFORM_DIR: another folder, relative to infra/.
+      - ${QA_PLATFORM_DIR:-../tests/fixtures/qa-platform}:/fixtures:ro
+    networks:
+      default:
+        aliases:
+          - qa-platform.test
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 3s
 
   # QA runner. Not started by stack:up. Use npm run test:acceptance / test:e2e (infra/scripts/e2e-run.sh).
   e2e:
@@ -208,6 +272,8 @@ services:
       - ../tests/test-results:/repo/tests/test-results
       - ../tests/playwright-report:/repo/tests/playwright-report
       - ../tests/.tmp:/repo/tests/.tmp
+      # T2b: QA writes the qa-platform.test files (its JWKS) here; the qa-platform service serves them.
+      - ${QA_PLATFORM_DIR:-../tests/fixtures/qa-platform}:/repo/tests/fixtures/qa-platform
       # Linux install of the QA project (npm ci --prefix tests). A volume, so it never replaces the host's
       # tests/node_modules (macOS native binaries of esbuild/rollup).
       - e2e_tests_node_modules:/repo/tests/node_modules

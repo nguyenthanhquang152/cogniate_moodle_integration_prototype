@@ -1,7 +1,7 @@
 import { randomBytes } from 'node:crypto';
 import formbody from '@fastify/formbody';
 import type { Knob, Logger, PublicUrls } from '@cogniate/shared';
-import { redactPath } from '@cogniate/shared';
+import { ApiError, apiErrorBody, redactPath } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -16,7 +16,7 @@ import type { PlatformKeys } from '../lti/jwks.ts';
 import { handleLaunch } from '../lti/launch.ts';
 import { initiateLogin } from '../lti/login.ts';
 import { authenticate } from './auth.ts';
-import { ApiError, ERROR_PAGE_HEADERS, apiErrorBody, renderErrorPage } from './errors.ts';
+import { ERROR_PAGE_HEADERS, renderErrorPage } from './errors.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -32,6 +32,8 @@ export interface AppDeps {
   ltikTtlSeconds: number;
   profile: string;
   knobs: Knob[];
+  /** Active outbound allowlist, shown in /healthz (T2b). */
+  outboundAllowlist?: readonly string[];
   now?: () => number;
 }
 
@@ -69,7 +71,7 @@ const PlatformQuery = z.object({ id: z.string().optional(), url: z.string().opti
 function invalid(error: z.ZodError): ApiError {
   const issue = error.issues[0];
   const field = issue && issue.path.length ? issue.path.join('.') : 'body';
-  return new ApiError(400, 'INVALID_REQUEST', `Invalid field: ${field}.`);
+  return new ApiError('INVALID_REQUEST', `Invalid field: ${field}.`);
 }
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
@@ -92,15 +94,16 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   });
 
   app.setErrorHandler((err: Error & { statusCode?: number; code?: string }, req, reply) => {
-    if (err instanceof ApiError) return reply.code(err.status).send(apiErrorBody(err.status, err.code, err.description));
+    if (err instanceof ApiError) return reply.code(err.status).send(err.body());
+    // 413 keeps the INVALID_REQUEST code (contract §1.4: max 256 KB).
     if (err.code === 'FST_ERR_CTP_BODY_TOO_LARGE') return reply.code(413).send(apiErrorBody(413, 'INVALID_REQUEST', 'Body is larger than 256 KB.'));
     if (err.statusCode && err.statusCode >= 400 && err.statusCode < 500) {
-      return reply.code(400).send(apiErrorBody(400, 'INVALID_REQUEST', 'The request could not be read.'));
+      return reply.code(400).send(new ApiError('INVALID_REQUEST', 'The request could not be read.').body());
     }
     log.error('internal_error', { trace_id: req.traceId, error: err.name });
-    return reply.code(500).send(apiErrorBody(500, 'INTERNAL_ERROR', `Internal error. Trace id: ${req.traceId}`));
+    return reply.code(500).send(new ApiError('INTERNAL_ERROR', `Internal error. Trace id: ${req.traceId}`).body());
   });
-  app.setNotFoundHandler((_req, reply) => reply.code(404).send(apiErrorBody(404, 'NOT_FOUND', 'Unknown route.')));
+  app.setNotFoundHandler((_req, reply) => reply.code(404).send(new ApiError('NOT_FOUND', 'Unknown route.').body()));
 
   const errorPage = (reply: FastifyReply, req: FastifyRequest, code: ProtocolErrorCode, opts: { help?: string; detail?: string; status?: number } = {}) =>
     reply.code(opts.status ?? PROTOCOL_ERRORS[code].status).headers(ERROR_PAGE_HEADERS)
@@ -110,11 +113,13 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     authenticate(deps.db, req.headers.authorization, schemes, now(), (scheme, code) => log.warn('api_auth_failed', { trace_id: req.traceId, scheme, code }));
 
   // ---------------------------------------------------------------- health (contract §2.5)
-  app.get('/healthz', async () => ({ status: 'ok', service: 'lti-service', profile: deps.profile, knobs: deps.knobs }));
+  app.get('/healthz', async () => ({
+    status: 'ok', service: 'lti-service', profile: deps.profile, knobs: deps.knobs, outbound_allowlist: deps.outboundAllowlist ?? [],
+  }));
 
   // ---------------------------------------------------------------- tool JWKS (contract §2.3)
   app.get<{ Params: { account: string } }>('/lti/keys/:account', async (req, reply) => {
-    if (!getAccount(deps.db, req.params.account)) throw new ApiError(404, 'NOT_FOUND', 'Unknown tool account.');
+    if (!getAccount(deps.db, req.params.account)) throw new ApiError('NOT_FOUND', 'Unknown tool account.');
     return reply.header('cache-control', 'public, max-age=300').send({ keys: publicJwks(deps.db, req.params.account, now()) });
   });
 
@@ -123,7 +128,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const params = (req.method === 'GET' ? req.query : req.body) as Record<string, unknown> | undefined;
     const result = initiateLogin(deps.db, deps.urls, req.params.account, params ?? {}, now());
     if (!result.ok) {
-      log.warn('login_rejected', { trace_id: req.traceId, code: result.code });
+      log.warn('login_rejected', { trace_id: req.traceId, code: result.code, detail: result.detail });
       return errorPage(reply, req, result.code);
     }
     return reply.code(302).headers({ location: result.location, 'set-cookie': result.setCookie, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }).send();
@@ -137,7 +142,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const result = await handleLaunch({ db: deps.db, urls: deps.urls, keys: deps.keys, ltikTtlSeconds: deps.ltikTtlSeconds, now },
       req.params.account, form, req.headers.cookie, req.traceId);
     if (!result.ok) {
-      log.warn('launch_check_failed', { trace_id: req.traceId, check: result.check, code: result.code });
+      log.warn('launch_check_failed', { trace_id: req.traceId, check: result.check, code: result.code, detail: result.detail });
       if (result.clearCookie) reply.header('set-cookie', result.clearCookie);
       return errorPage(reply, req, result.code, {
         ...(result.help ? { help: result.help } : {}),
@@ -156,8 +161,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.get<{ Querystring: { raw?: string } }>('/api/idtoken', async (req) => {
     const { account, launch } = auth(req, ['ltik']);
     const platform = getPlatform(deps.db, account.id, launch!.platformId);
-    if (!platform) throw new ApiError(401, 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER', 'Invalid or expired ltik.');
-    if (!platform.active) throw new ApiError(403, 'PLATFORM_NOT_ACTIVE', 'The platform is not active.');
+    if (!platform) throw new ApiError('INVALID_LTIK_AUTH_AUTHORIZATION_HEADER', 'Invalid or expired ltik.');
+    if (!platform.active) throw new ApiError('PLATFORM_NOT_ACTIVE', 'The platform is not active.');
     return req.query.raw === 'true' ? launch!.claims : toIdToken(launch!, platform);
   });
 
@@ -182,14 +187,14 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     const parsed = PlatformCreate.safeParse(req.body ?? {});
     if (!parsed.success) throw invalid(parsed.error);
     const b = parsed.data;
-    if (b.authConfig.method !== 'JWK_SET') throw new ApiError(400, 'UNSUPPORTED_AUTH_METHOD', 'Only authConfig.method JWK_SET is supported.');
+    if (b.authConfig.method !== 'JWK_SET') throw new ApiError('UNSUPPORTED_AUTH_METHOD', 'Only authConfig.method JWK_SET is supported.');
     for (const [field, value] of [['url', b.url], ['authenticationEndpoint', b.authenticationEndpoint], ['accesstokenEndpoint', b.accesstokenEndpoint], ['authConfig.key', b.authConfig.key]] as const) {
-      if (!isHttpsUrl(value)) throw new ApiError(400, 'INVALID_REQUEST', `Invalid field: ${field} must be an https URL.`);
+      if (!isHttpsUrl(value)) throw new ApiError('INVALID_REQUEST', `Invalid field: ${field} must be an https URL.`);
     }
     // Security §2.4: every platform endpoint is on the issuer origin (Moodle: auth.php, token.php, certs.php).
     const origin = new URL(b.url).origin;
     for (const [field, value] of [['authenticationEndpoint', b.authenticationEndpoint], ['accesstokenEndpoint', b.accesstokenEndpoint], ['authConfig.key', b.authConfig.key]] as const) {
-      if (new URL(value).origin !== origin) throw new ApiError(400, 'PLATFORM_URL_NOT_ON_ISSUER_ORIGIN', `${field} is not on the issuer origin.`);
+      if (new URL(value).origin !== origin) throw new ApiError('PLATFORM_URL_NOT_ON_ISSUER_ORIGIN', `${field} is not on the issuer origin.`);
     }
     try {
       const p = createPlatform(deps.db, account.id, {
@@ -198,7 +203,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       });
       return reply.code(201).send(platformView(p));
     } catch (err) {
-      if (err instanceof PlatformExistsError) throw new ApiError(409, 'PLATFORM_ALREADY_EXISTS', 'A platform with this issuer and client id exists.');
+      if (err instanceof PlatformExistsError) throw new ApiError('PLATFORM_ALREADY_EXISTS', 'A platform with this issuer and client id exists.');
       throw err;
     }
   });
@@ -206,7 +211,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.get<{ Params: { id: string } }>('/api/platforms/:id', async (req) => {
     const { account } = auth(req, ['bearer']);
     const p = getPlatform(deps.db, account.id, req.params.id);
-    if (!p) throw new ApiError(404, 'UNREGISTERED_PLATFORM', 'Unknown platform id.');
+    if (!p) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
     return platformView(p);
   });
 
@@ -216,7 +221,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     if (!parsed.success) throw invalid(parsed.error);
     const patch = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined)) as { name?: string; active?: boolean; deploymentIds?: string[] };
     const p = updatePlatform(deps.db, account.id, req.params.id, patch);
-    if (!p) throw new ApiError(404, 'UNREGISTERED_PLATFORM', 'Unknown platform id.');
+    if (!p) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
     return platformView(p);
   });
 

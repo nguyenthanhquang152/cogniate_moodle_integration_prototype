@@ -20,7 +20,9 @@ await startService(APP_SERVICE_NAME, [
     port: portFromEnv('PORT', 4200),
     publicUrl: (u) => u.app,
     build: async (deps) => {
-      const app = await buildAppApi({ db, urls: deps.urls, logger: deps.logger, store, profile: deps.profile, knobs: deps.knobs });
+      const app = await buildAppApi({
+        db, urls: deps.urls, logger: deps.logger, store, profile: deps.profile, knobs: deps.knobs, outboundAllowlist: deps.outboundAllowlist,
+      });
       await app.ready();
       return app.server;
     },

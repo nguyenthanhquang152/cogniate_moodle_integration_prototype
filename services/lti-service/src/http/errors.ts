@@ -1,24 +1,4 @@
-import { STATUS_CODES } from 'node:http';
-import type { ErrorBody } from '@cogniate/shared';
-
-/** An API error with a stable code (contract §1.3). */
-export class ApiError extends Error {
-  readonly status: number;
-  readonly code: string;
-  readonly description: string;
-  constructor(status: number, code: string, description: string) {
-    super(code);
-    this.name = 'ApiError';
-    this.status = status;
-    this.code = code;
-    this.description = description;
-  }
-}
-
-/** { status, error: <HTTP reason phrase>, details: { message: <code>, description } }. Never a token or a stack. */
-export function apiErrorBody(status: number, code: string, description: string): ErrorBody {
-  return { status, error: STATUS_CODES[status] ?? 'Error', details: { message: code, description } };
-}
+// Protocol error pages (security §2.2). API errors (JSON) use ApiError and the typed code list in @cogniate/shared.
 
 export function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
@@ -36,7 +16,10 @@ export const ERROR_PAGE_HEADERS: Record<string, string> = {
   'x-content-type-options': 'nosniff',
 };
 
-/** Error page: the code, the trace id and one action line; <main data-error-code data-trace-id> (security §2.2). */
+/**
+ * Error page (security §2.2): the code, the trace id and one action line. <main data-error-code data-trace-id>,
+ * and the next-action sentence is in <p data-error-action>.
+ */
 export function renderErrorPage(code: string, traceId: string, action: string, detail?: string): string {
   const c = escapeHtml(code);
   const t = escapeHtml(traceId);
@@ -48,7 +31,7 @@ export function renderErrorPage(code: string, traceId: string, action: string, d
   <main data-error-code="${c}" data-trace-id="${t}">
     <h1>The launch did not work</h1>
     <p>Error code: <code>${c}</code></p>${extra}
-    <p>${escapeHtml(action)}</p>
+    <p data-error-action>${escapeHtml(action)}</p>
     <p>Trace id: <code>${t}</code></p>
   </main>
 </body>

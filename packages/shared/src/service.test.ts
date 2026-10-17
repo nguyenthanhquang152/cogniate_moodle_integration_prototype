@@ -11,7 +11,8 @@ describe('startService', () => {
     const env = {
       PUBLIC_MOODLE_URL: 'https://moodle.test', PUBLIC_LTI_URL: 'https://lti.cogniate.test',
       PUBLIC_APP_URL: 'https://app.cogniate.test', PUBLIC_CONTENT_URL: 'https://content.cogniate-content.test',
-      LOG_DIR: dir, LTIK_TTL_SECONDS: '5', REF_TTL_SECONDS: '9',
+      LOG_DIR: dir, LTIK_TTL_SECONDS: '5', REF_TTL_SECONDS: '9', STACK_PROFILE: 'acceptance',
+      OUTBOUND_PRIVATE_HOST_ALLOWLIST: 'moodle.test,qa-platform.test,evil.test',
     };
     const [server] = await startService('lti-service',
       [{ name: 'demo', port: 0, publicUrl: (u) => u.lti, build: (deps) => createHealthServer('demo', deps) }],
@@ -19,12 +20,17 @@ describe('startService', () => {
     try {
       const addr = server?.address();
       const port = typeof addr === 'object' && addr ? addr.port : 0;
-      const body = (await (await fetch(`http://127.0.0.1:${port}/healthz`)).json()) as { knobs: unknown };
+      const body = (await (await fetch(`http://127.0.0.1:${port}/healthz`)).json()) as Record<string, unknown>;
       expect(body.knobs).toEqual([{ name: 'LTIK_TTL_SECONDS', value: '5' }]);
+      // T2b: the profile and the active allowlist in /healthz and service_started.
+      expect(body.profile).toBe('acceptance');
+      expect(body.outbound_allowlist).toEqual(['moodle.test', 'qa-platform.test', 'evil.test']);
       await new Promise((r) => setTimeout(r, 50));
       const events = readFileSync(join(dir, 'demo.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
       expect(events[0]).toMatchObject({ level: 'warn', event: 'test_knob_active', name: 'LTIK_TTL_SECONDS', value: '5' });
-      expect(events[1]).toMatchObject({ event: 'service_started', public_url: 'https://lti.cogniate.test' });
+      expect(events[1]).toMatchObject({
+        event: 'service_started', public_url: 'https://lti.cogniate.test', profile: 'acceptance', outbound_allowlist: ['moodle.test', 'qa-platform.test', 'evil.test'],
+      });
     } finally {
       server?.close();
     }

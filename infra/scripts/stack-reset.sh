@@ -11,7 +11,7 @@ source "$(dirname "$0")/lib.sh"
 require_docker
 require_own_project   # A-T1-09: never delete another checkout's stack
 if [[ -f "$ENV_FILE" ]]; then
-  dc --profile test down -v --remove-orphans
+  dc --profile test --profile acceptance down -v --remove-orphans
 else
   # Without .env the project name must be given on purpose (the default could name another checkout's stack).
   if [[ -z "${_shell_COMPOSE_PROJECT_NAME:-}" ]]; then
@@ -25,6 +25,6 @@ else
   echo "No .env: removed project '$COMPOSE_PROJECT_NAME' by its Docker labels."
 fi
 rm -f "$INFRA_DIR/.secrets/seed.json" "$INFRA_DIR/.secrets/moodle-ws.json" "$INFRA_DIR/.secrets"/lti-api-key.* "$KNOBS_FILE" \
-  "$REPO_ROOT/.tmp/certs-in-use.$COMPOSE_PROJECT_NAME.sha256"
+  "$REPO_ROOT/.tmp/certs-in-use.$COMPOSE_PROJECT_NAME.sha256" "$REPO_ROOT/.tmp/qa-certs-in-use.$COMPOSE_PROJECT_NAME.sha256" "$PROFILE_FILE"
 rm -rf "$INFRA_DIR/.data/backups" "$INFRA_DIR/.data/lti-service" "$INFRA_DIR/.data/cogniate-app" "$LOGS_DIR"
 echo "Stack data deleted. Kept: .env, infra/.certs/, infra/.data/fixtures/. Next: npm run stack:up && npm run seed"

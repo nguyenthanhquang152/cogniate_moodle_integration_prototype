@@ -23,8 +23,9 @@ done
 key_file="$INFRA_DIR/.secrets/lti-api-key.$account"
 if [[ "$ensure" == yes && ! -s "$key_file" ]]; then pass+=(--rotate-api-key); fi
 out="$(dc exec -T lti-service node src/cli/bootstrap.ts "${pass[@]}")"
-api_key="$(node -e 'const o=JSON.parse(process.argv[1]); process.stdout.write(o.apiKey ?? "")' "$out")"
-summary="$(node -e 'const o=JSON.parse(process.argv[1]); console.log(`account=${o.account} created=${o.created} kid=${o.kid}`)' "$out")"
+# A-T2a-05: the CLI output (it can hold the new API key) goes to node on stdin, never on a command line (ps).
+api_key="$(printf '%s' "$out" | node -e 'const o=JSON.parse(require("fs").readFileSync(0, "utf8")); process.stdout.write(o.apiKey ?? "")')"
+summary="$(printf '%s' "$out" | node -e 'const o=JSON.parse(require("fs").readFileSync(0, "utf8")); console.log(`account=${o.account} created=${o.created} kid=${o.kid}`)')"
 if [[ -n "$api_key" ]]; then
   mkdir -p "$INFRA_DIR/.secrets"; chmod 700 "$INFRA_DIR/.secrets"
   ( umask 077; printf '%s\n' "$api_key" > "$key_file.tmp" ); mv "$key_file.tmp" "$key_file"

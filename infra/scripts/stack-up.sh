@@ -1,12 +1,25 @@
 #!/usr/bin/env bash
 # Start the stack and wait until every service is healthy (at most 300 s). Then print the four URLs.
 # It runs gen-env first (makes or updates .env and the certificates), so the CA exists before any container.
+# Profile (local-stack §3): STACK_PROFILE=acceptance npm run stack:up adds the sink (evil.test) and qa-platform.test
+# and their allowlist entries; npm run stack:up (no STACK_PROFILE) restores the default. Only changed services restart.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 require_docker
 "$INFRA_DIR/scripts/gen-env.sh"
 source "$(dirname "$0")/lib.sh"   # load the new .env
 require_env
+profile="${REQUESTED_PROFILE:-default}"
+case "$profile" in default|acceptance) ;; *) echo "STACK_PROFILE must be default or acceptance, got '$profile'" >&2; exit 2 ;; esac
+apply_profile "$profile"
+mkdir -p "$(dirname "$PROFILE_FILE")"; echo "$profile" > "$PROFILE_FILE"
+if [[ "$profile" == acceptance ]]; then
+  for f in qa.crt qa.key; do [[ -s "$CERTS_DIR/$f" ]] || { echo "Missing infra/.certs/$f. Run: npm run gen-env" >&2; exit 1; }; done
+  [[ -n "${QA_PLATFORM_DIR:-}" ]] || mkdir -p "$REPO_ROOT/tests/fixtures/qa-platform"
+elif [[ -n "$(dc --profile acceptance ps -aq sink qa-platform 2>/dev/null)" ]]; then
+  echo "Profile default: removing the acceptance hosts (sink, qa-platform)."
+  dc --profile acceptance rm -s -f sink qa-platform >/dev/null
+fi
 warn_knobs
 check_public_port
 mkdir -p "$INFRA_DIR/.secrets" "$INFRA_DIR/.data/fixtures" "$INFRA_DIR/.data/backups" "$INFRA_DIR/.data/lti-service" "$INFRA_DIR/.data/cogniate-app" "$LOGS_DIR"
@@ -30,5 +43,14 @@ if ! dc up -d --wait --wait-timeout 300 "${recreate[@]+"${recreate[@]}"}"; then
   exit 1
 fi
 mkdir -p "$(dirname "$certs_seen_file")"; echo "$certs_now" > "$certs_seen_file"
-echo "Stack healthy in $(( $(date +%s) - start )) s. Next: npm run seed"
+# The acceptance hosts read qa.crt: recreate them (only them) when it changed since their last start.
+if [[ "$profile" == acceptance ]]; then
+  qa_now="$(openssl dgst -sha256 < "$CERTS_DIR/qa.crt" | awk '{print $NF}')"
+  qa_seen_file="$REPO_ROOT/.tmp/qa-certs-in-use.$COMPOSE_PROJECT_NAME.sha256"
+  if [[ -f "$qa_seen_file" && "$(cat "$qa_seen_file")" != "$qa_now" ]]; then
+    dc up -d --no-deps --force-recreate --wait --wait-timeout 120 sink qa-platform
+  fi
+  echo "$qa_now" > "$qa_seen_file"
+fi
+echo "Stack healthy in $(( $(date +%s) - start )) s (profile: $profile). Next: npm run seed"
 print_urls

@@ -145,7 +145,8 @@ describe('OIDC login (/lti/login/:account)', () => {
     expect(res.statusCode).toBe(status);
     expect(res.headers.location).toBeUndefined();
     expect(res.body).toContain(`data-error-code="${code}"`);
-    expect(h.lines.some((l) => l.event === 'login_rejected' && l.code === code)).toBe(true);
+    expect(h.lines.some((l) => l.event === 'login_rejected' && l.code === code && typeof l.detail === 'string' && l.detail !== '')).toBe(true);
+    expect(res.body).toMatch(/<p data-error-action>[^<]+<\/p>/);
   });
 
   it('404 UNKNOWN_TOOL_ACCOUNT and PLATFORM_NOT_ACTIVE', async () => {
@@ -191,7 +192,11 @@ describe('launch (/lti/launch/:account)', () => {
     expect(replay.body).toContain('data-error-code="INVALID_STATE"');
     expect(replay.body).toContain(`data-trace-id="${trace}"`);
     expect(replay.headers['content-security-policy']).toBe("default-src 'none'; style-src 'self'; frame-ancestors https:; form-action 'none'");
-    expect(h.lines).toContainEqual(expect.objectContaining({ event: 'launch_check_failed', check: '1', code: 'INVALID_STATE', trace_id: trace }));
+    expect(h.lines).toContainEqual(expect.objectContaining({ event: 'launch_check_failed', check: '1', code: 'INVALID_STATE', detail: 'state_unknown_used_or_expired', trace_id: trace }));
+    expect(replay.body).toMatch(/<p data-error-action>[^<]+<\/p>/);
+    // No token, state or ltik in any log line.
+    expect(JSON.stringify(h.lines)).not.toContain(idToken);
+    expect(JSON.stringify(h.lines)).not.toContain(state);
   });
 
   it('no cookie: STATE_COOKIE_MISSING with the resource-link help text; the state is used up', async () => {
@@ -212,7 +217,7 @@ describe('launch (/lti/launch/:account)', () => {
     expect(res.statusCode).toBe(400);
     expect(res.body).toContain('data-error-code="PLATFORM_ERROR"');
     expect(res.body).toContain('access_denied');
-    expect(h.lines).toContainEqual(expect.objectContaining({ event: 'launch_check_failed', check: 'oidc_error', code: 'PLATFORM_ERROR' }));
+    expect(h.lines).toContainEqual(expect.objectContaining({ event: 'launch_check_failed', check: 'oidc_error', code: 'PLATFORM_ERROR', detail: 'error=access_denied' }));
     expect((await postLaunch(h, { error: 'access_denied', state }, cookie)).body).toContain('INVALID_STATE');
   });
 
@@ -289,9 +294,9 @@ describe('cross-cutting', () => {
     expect((await h.app.inject({ url: '/healthz', headers: { 'x-trace-id': 'short' } })).headers['x-trace-id']).toMatch(/^[0-9a-f]{32}$/);
   });
 
-  it('health has status, service, profile and knobs', async () => {
+  it('health has status, service, profile, knobs and the outbound allowlist', async () => {
     const h = await harness();
-    expect((await h.app.inject('/healthz')).json()).toEqual({ status: 'ok', service: 'lti-service', profile: 'default', knobs: [] });
+    expect((await h.app.inject('/healthz')).json()).toEqual({ status: 'ok', service: 'lti-service', profile: 'default', knobs: [], outbound_allowlist: [] });
   });
 
   it('unknown routes use the error shape', async () => {

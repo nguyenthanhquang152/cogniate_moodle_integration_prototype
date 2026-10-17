@@ -10,4 +10,8 @@ if [[ ! -d "$REPO_ROOT/node_modules/@playwright/test" ]]; then echo "Run npm ci 
 warn_knobs
 prepare_e2e
 qa_env_args
-dc --profile test run --rm --build "${QA_ENV_ARGS[@]+"${QA_ENV_ARGS[@]}"}" e2e "$@"
+# Named container, removed on exit: without a TTY, docker compose run does not stop it on Ctrl+C.
+run_name="${COMPOSE_PROJECT_NAME}-e2e-run-$$"
+trap 'docker rm -f "$run_name" >/dev/null 2>&1 || true' EXIT
+trap 'exit 130' INT TERM
+dc --profile test run --rm --name "$run_name" --build "${QA_ENV_ARGS[@]+"${QA_ENV_ARGS[@]}"}" e2e "$@"

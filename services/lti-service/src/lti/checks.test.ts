@@ -177,3 +177,55 @@ describe('check 12: target_link_uri', () => {
   it('fails when the state record itself holds a foreign target', () =>
     expectFail(() => check12Target(moodleClaims({ [CLAIM.targetLinkUri]: `${LAUNCH}x` }), { ...state, targetLinkUri: `${LAUNCH}x` }, URLS, 'cogniate'), '12', 'INVALID_TARGET_LINK_URI'));
 });
+
+describe('safe detail reasons (contract §5, B-T2a-03)', () => {
+  const now = 1_700_000_000_000;
+  const s = now / 1000;
+  const detailOf = (fn: () => unknown): string => {
+    try {
+      fn();
+    } catch (err) {
+      expect(err).toBeInstanceOf(LaunchCheckError);
+      return (err as LaunchCheckError).detail;
+    }
+    throw new Error('expected a LaunchCheckError');
+  };
+  const b64 = (o: unknown) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const payload = b64(moodleClaims());
+
+  it.each<[string, () => unknown, string]>([
+    ['alg=none (empty signature)', () => check4Token(`${b64({ alg: 'none', kid: 'k1' })}.${payload}.`), 'alg=none'],
+    ['alg=HS256', () => check4Token(`${b64({ alg: 'HS256', kid: 'k1' })}.${payload}.c2ln`), 'alg=HS256'],
+    ['a strange alg value is not echoed', () => check4Token(`${b64({ alg: '<script>alert(1)</script>', kid: 'k' })}.${payload}.c2ln`), 'alg=other'],
+    ['no kid', () => check4Token(`${b64({ alg: 'RS256' })}.${payload}.c2ln`), 'kid_missing'],
+    ['not a JWS', () => check4Token('abc'), 'not_compact_jws'],
+    ['no id_token', () => check4Token(undefined), 'id_token_missing'],
+    ['iss', () => check5IssuerAudience(moodleClaims({ iss: 'https://evil.test' }), platform), 'iss_mismatch'],
+    ['aud', () => check5IssuerAudience(moodleClaims({ aud: 'other' }), platform), 'aud_mismatch'],
+    ['two aud, no azp', () => check5IssuerAudience(moodleClaims({ aud: [CLIENT_ID, 'other'], azp: undefined }), platform), 'azp_missing'],
+    ['one aud, other azp (A-T2a-03)', () => check5IssuerAudience(moodleClaims({ aud: CLIENT_ID, azp: 'other' }), platform), 'azp_mismatch'],
+    ['expired 73 s', () => check7Time({ iat: s - 200, exp: s - 73 }, now), 'skew_s=73'],
+    ['iat in the future', () => check7Time({ iat: s + 90, exp: s + 200 }, now), 'iat_future_s=90'],
+    ['no exp', () => check7Time({ iat: s }, now), 'exp_iat_missing'],
+    ['nonce', () => check8Nonce({ nonce: 'x' }, state), 'nonce_mismatch'],
+    ['deployment', () => check9Deployment({ [CLAIM.deploymentId]: '999' }, platform), 'deployment_unknown'],
+    ['version', () => check10Message({ [CLAIM.version]: '1.1', [CLAIM.messageType]: 'LtiResourceLinkRequest' }), 'version=1.1'],
+    ['message type', () => check10Message({ [CLAIM.version]: '1.3.0', [CLAIM.messageType]: 'LtiSubmissionReviewRequest' }), 'message_type=LtiSubmissionReviewRequest'],
+    ['no resource_link', () => check11Claims(moodleClaims({ [CLAIM.resourceLink]: undefined }), 'LtiResourceLinkRequest'), 'missing=resource_link'],
+    ['no sub', () => check11Claims(moodleClaims({ sub: undefined }), 'LtiResourceLinkRequest'), 'missing=sub'],
+    ['target differs from login', () => check12Target(moodleClaims({ [CLAIM.targetLinkUri]: `${LAUNCH}?resource=other` }), state, URLS, 'cogniate'), 'target_differs_from_login'],
+    ['cookie missing', () => check2Cookie(undefined, 'st', 'abcdef0123'), 'cookie_missing'],
+  ])('%s → %s', (_n, fn, detail) => {
+    const d = detailOf(fn);
+    expect(d).toBe(detail);
+    expect(d).toMatch(/^[a-z_]+(=[A-Za-z0-9_.-]{1,40})?$/);
+  });
+
+  it('check 6 maps a key failure to its reason', async () => {
+    const key = await makeKey('k1');
+    const other = await makeKey('k2');
+    const keys = createPlatformKeys(fakeOutbound(() => [key.publicJwk]));
+    const err = await check6Signature(keys, await sign(other, moodleClaims()), platform, 't').catch((e: unknown) => e);
+    expect(err).toMatchObject({ check: '6', code: 'INVALID_SIGNATURE', detail: 'kid_unknown' });
+  });
+});

@@ -53,6 +53,27 @@ if ! [[ "$PUBLIC_PORT" =~ ^[0-9]+$ ]] || (( PUBLIC_PORT < 1 || PUBLIC_PORT > 655
   exit 1
 fi
 
+# Stack profile (local-stack §3): "default" or "acceptance". Only stack-up.sh changes it (STACK_PROFILE in the shell)
+# and saves it in .tmp/stack-profile.<project>. Every other command uses the saved value, so a restart, a seed or a
+# QA run never switches the profile by mistake. The profile sets COMPOSE_PROFILES (the sink and qa-platform services)
+# and ACCEPTANCE_ALLOWLIST_EXTRA (the QA hosts in OUTBOUND_PRIVATE_HOST_ALLOWLIST of both services, compose.yaml).
+REQUESTED_PROFILE="${REQUESTED_PROFILE-${STACK_PROFILE-}}"   # kept when stack-up.sh sources this file again
+PROFILE_FILE="$REPO_ROOT/.tmp/stack-profile.$COMPOSE_PROJECT_NAME"
+saved_profile() {
+  local p; p="$(cat "$PROFILE_FILE" 2>/dev/null || true)"
+  if [[ "$p" == acceptance ]]; then echo acceptance; else echo default; fi
+}
+apply_profile() {
+  STACK_PROFILE="$1"
+  if [[ "$STACK_PROFILE" == acceptance ]]; then
+    COMPOSE_PROFILES=acceptance; ACCEPTANCE_ALLOWLIST_EXTRA=",qa-platform.test,evil.test"
+  else
+    COMPOSE_PROFILES=""; ACCEPTANCE_ALLOWLIST_EXTRA=""
+  fi
+  export STACK_PROFILE COMPOSE_PROFILES ACCEPTANCE_ALLOWLIST_EXTRA
+}
+apply_profile "$(saved_profile)"
+
 # docker compose for this stack: project $COMPOSE_PROJECT_NAME, env from the repo root .env,
 # plus the test-knob override file if stack:restart made one.
 dc() {
@@ -170,11 +191,14 @@ prepare_e2e() {
   for d in tests/acceptance/artifacts tests/e2e/artifacts tests/test-results tests/playwright-report tests/.tmp tests/node_modules; do
     mkdir -p "$REPO_ROOT/$d"
   done
+  # T2b: QA's qa-platform.test files (writable in e2e, served read-only by qa-platform). Another folder: QA_PLATFORM_DIR.
+  [[ -n "${QA_PLATFORM_DIR:-}" ]] || mkdir -p "$REPO_ROOT/tests/fixtures/qa-platform"
   write_public_env
   # Public certificates only, for /repo/infra/.certs in the e2e container (read-only, no keys).
   mkdir -p "$REPO_ROOT/.tmp/public-certs"
   find "$REPO_ROOT/.tmp/public-certs" -mindepth 1 -delete
   cp "$CERTS_DIR/root.crt" "$CERTS_DIR/stack.crt" "$REPO_ROOT/.tmp/public-certs/"
+  [[ -s "$CERTS_DIR/qa.crt" ]] && cp "$CERTS_DIR/qa.crt" "$REPO_ROOT/.tmp/public-certs/"
   chmod 644 "$REPO_ROOT/.tmp/public-certs/"*.crt
 }
 
@@ -189,6 +213,9 @@ qa_env_args() {
 }
 
 print_urls() {
+  if [[ "$STACK_PROFILE" == acceptance ]]; then
+    echo "Profile:  acceptance (evil.test sink, qa-platform.test). Back to default: npm run stack:up"
+  fi
   echo "Moodle:   ${PUBLIC_MOODLE_URL:-?}"
   echo "LTI:      ${PUBLIC_LTI_URL:-?}"
   echo "App:      ${PUBLIC_APP_URL:-?}"

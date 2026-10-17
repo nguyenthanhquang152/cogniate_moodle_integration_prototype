@@ -1,9 +1,10 @@
+import type { ApiErrorCode } from '@cogniate/shared';
+import { ApiError } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import type { ToolAccount } from '../store/accounts.ts';
 import { findAccountByApiKey } from '../store/accounts.ts';
 import type { LaunchRecord } from '../store/launches.ts';
 import { findLaunchByLtik } from '../store/launches.ts';
-import { ApiError } from './errors.ts';
 
 export type Scheme = 'ltik' | 'service' | 'bearer';
 
@@ -37,20 +38,14 @@ export interface AuthResult {
   launch: LaunchRecord | null;
 }
 
-const DESCRIPTIONS: Record<string, string> = {
-  INVALID_AUTHORIZATION_HEADER: 'Missing or unsupported Authorization header for this endpoint.',
-  INVALID_LTIK_AUTH_AUTHORIZATION_HEADER: 'Invalid or expired ltik.',
-  INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER: 'Invalid service key.',
-};
-
 /**
  * Resolve the header for an endpoint that accepts `accepted` schemes. Throws ApiError 401 with the contract code.
  * onFail logs api_auth_failed {scheme, code}.
  */
 export function authenticate(db: Db, header: string | undefined, accepted: Scheme[], now: number, onFail: (scheme: string, code: string) => void): AuthResult {
-  const reject = (scheme: string, code: keyof typeof DESCRIPTIONS, description?: string): never => {
+  const reject = (scheme: string, code: Extract<ApiErrorCode, `INVALID_${string}AUTHORIZATION_HEADER`>, description?: string): never => {
     onFail(scheme, code);
-    throw new ApiError(401, code, description ?? DESCRIPTIONS[code]!);
+    throw new ApiError(code, description);
   };
   const parsed = parseAuthorization(header);
   if ('error' in parsed) {

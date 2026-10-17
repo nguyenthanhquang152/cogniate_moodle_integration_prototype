@@ -35,6 +35,8 @@ describe('isBlockedAddress', () => {
     '0.1.2.3', '10.1.2.3', '100.64.0.1', '100.127.255.255', '127.0.0.1', '169.254.169.254', '172.16.0.1', '172.31.255.255',
     '192.0.0.8', '192.168.1.1', '198.18.0.1', '198.19.255.255', '224.0.0.1', '239.1.1.1', '240.0.0.1', '255.255.255.255',
     '::', '::1', 'fc00::1', 'fd12:3456::1', 'fe80::1', 'ff02::1', '64:ff9b::1.2.3.4', '::ffff:127.0.0.1', '::ffff:10.0.0.1', '::ffff:a9fe:a9fe',
+    // A-T2a-04 (defence in depth): IPv4-compatible, 6to4, old site-local.
+    '::127.0.0.1', '::7f00:1', '::8.8.8.8', '2002:7f00:1::1', 'fec0::1',
   ])('blocks %s', (ip) => expect(isBlockedAddress(ip)).toBe(true));
 
   it.each(['8.8.8.8', '1.1.1.1', '100.63.255.255', '172.15.255.255', '172.32.0.1', '198.20.0.1', '2001:4860:4860::8888', '::ffff:8.8.8.8'])(
@@ -104,6 +106,35 @@ describe('createOutboundClient', () => {
     const { c, events } = client(port, { resolver: resolveTo('127.0.0.1'), allowlist: ['moodle.test'], timeoutMs: 150 });
     await expect(c.request('https://moodle.test/slow')).rejects.toMatchObject({ reason: 'timeout' });
     expect(events()).toHaveLength(1);
+  });
+
+  // A-T2a-01: one event per attempt. The attempt must not log a second, false event (timeout or network_error)
+  // after it ended with a refused redirect or an oversize answer. Wait longer than the timeout to see it.
+  const settle = () => new Promise((r) => setTimeout(r, 350));
+  it.each([
+    ['redirect', (_q: IncomingMessage, s: ServerResponse) => { s.statusCode = 302; s.setHeader('location', '/x'); s.end(); }],
+    ['too_large (declared length)', (_q: IncomingMessage, s: ServerResponse) => { s.setHeader('content-length', '5000'); s.end('x'.repeat(5000)); }],
+    ['too_large (streamed body)', (_q: IncomingMessage, s: ServerResponse) => { s.write('x'.repeat(3000)); setTimeout(() => s.end('y'), 1000); }],
+  ])('exactly one event after %s, also after the timeout has passed', async (label, handler) => {
+    const port = await startServer(handler);
+    const { c, events } = client(port, { resolver: resolveTo('127.0.0.1'), allowlist: ['moodle.test'], maxBytes: 1024, timeoutMs: 150 });
+    await expect(c.request('https://moodle.test/x')).rejects.toBeInstanceOf(OutboundError);
+    await settle();
+    expect(events().map((e) => `${String(e.event)}:${String(e.reason)}`), label).toEqual([`outbound_blocked:${label.split(' ')[0]}`]);
+  });
+
+  it('exactly one event after a timeout and after a success', async () => {
+    const slow = await startServer(() => { /* never answers */ });
+    const a = client(slow, { resolver: resolveTo('127.0.0.1'), allowlist: ['moodle.test'], timeoutMs: 100 });
+    await expect(a.c.request('https://moodle.test/slow')).rejects.toMatchObject({ reason: 'timeout' });
+    await settle();
+    expect(a.events()).toHaveLength(1);
+    server?.close();
+    const ok = await startServer((_q, s) => s.end('ok'));
+    const b = client(ok, { resolver: resolveTo('127.0.0.1'), allowlist: ['moodle.test'], timeoutMs: 100 });
+    await b.c.request('https://moodle.test/ok');
+    await settle();
+    expect(b.events().map((e) => e.event)).toEqual(['outbound_request']);
   });
 
   it('reports a DNS error', async () => {

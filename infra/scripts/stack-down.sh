@@ -3,4 +3,4 @@
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 require_docker
-dc --profile test down --remove-orphans
+dc --profile test --profile acceptance down --remove-orphans

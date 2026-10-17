@@ -35,7 +35,7 @@ describe('health', () => {
   it('GET /healthz', async () => {
     t = await testApp();
     const res = await t.app.inject({ method: 'GET', url: '/healthz' });
-    expect(res.json()).toEqual({ status: 'ok', service: 'cogniate-app', profile: 'default', knobs: [] });
+    expect(res.json()).toEqual({ status: 'ok', service: 'cogniate-app', profile: 'default', knobs: [], outbound_allowlist: [] });
     expect(t.logs.find((l) => l.event === 'http_request')?.level).toBe('debug');
   });
 });

@@ -5,13 +5,15 @@
  *    that changes between check and connect (DNS rebinding) cannot reach a blocked address. Every address of
  *    the answer is checked; one blocked address blocks the call.
  *  - Hosts in the allowlist may resolve to blocked ranges (dev: the Moodle host behind the stack proxy).
- *  - Each request that is sent or stopped logs exactly one event: outbound_request {host, method, status, ms}
- *    or outbound_blocked {host, reason}.
+ *  - Every attempt logs exactly one event (security §9): outbound_request {host, method, status, ms} when an HTTP
+ *    response was accepted, else outbound_blocked {host, method, reason}. The first terminal outcome of an attempt
+ *    wins: it clears the timer and logs; later socket events of the same attempt log nothing (A-T2a-01).
+ *  - Own https.Agent: no global agent and no environment proxy, so the guarded lookup always sees the target host.
  */
 import { lookup as dnsLookup } from 'node:dns';
 import type { ClientRequest, IncomingHttpHeaders, IncomingMessage } from 'node:http';
 import type { RequestOptions } from 'node:https';
-import { request as httpsRequest } from 'node:https';
+import { Agent as HttpsAgent, request as httpsRequest } from 'node:https';
 import { isIP } from 'node:net';
 import type { LookupFunction } from 'node:net';
 import type { Logger } from './logger.ts';
@@ -36,6 +38,8 @@ const V4_BLOCKED: ReadonlyArray<readonly [string, number]> = [
 ];
 const V6_BLOCKED: ReadonlyArray<readonly [string, number]> = [
   ['::', 128], ['::1', 128], ['fc00::', 7], ['fe80::', 10], ['ff00::', 8], ['64:ff9b::', 96],
+  // Defence in depth beyond the security §9 list (A-T2a-04): IPv4-compatible ::a.b.c.d, 6to4, old site-local.
+  ['::', 96], ['2002::', 16], ['fec0::', 10],
 ];
 
 function v4ToInt(ip: string): number {
@@ -140,7 +144,8 @@ export function createOutboundClient(options: OutboundOptions): OutboundClient {
   const timeoutMs = options.timeoutMs ?? 5000;
   const maxBytes = options.maxBytes ?? 1024 * 1024;
   const resolver = options.resolver ?? systemResolver;
-  const requestImpl = options.requestImpl ?? ((opts, cb) => httpsRequest(opts, cb));
+  const agent = new HttpsAgent({ keepAlive: true, maxSockets: 16 });
+  const requestImpl = options.requestImpl ?? ((opts, cb) => httpsRequest({ ...opts, agent }, cb));
   const log = options.logger;
 
   /** The lookup that the connection uses. It checks every address of the answer. */
@@ -175,22 +180,30 @@ export function createOutboundClient(options: OutboundOptions): OutboundClient {
 
     return new Promise<OutboundResponse>((resolve, reject) => {
       let settled = false;
-      const fail = (err: OutboundError) => { if (!settled) { settled = true; reject(err); } };
+      /** The first terminal outcome of this attempt: clear the timer, log ONE event, reject. Later calls do nothing. */
+      const fail = (reason: OutboundBlockReason, message: string): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        reject(blocked(reason, message));
+      };
       const headers: Record<string, string> = { ...(req.headers ?? {}) };
       if (req.body !== undefined) headers['content-length'] = String(Buffer.byteLength(req.body));
       const r = requestImpl({
         protocol: 'https:', hostname: literal, port: url.port || 443, path: `${url.pathname}${url.search}`,
         method, headers, lookup: guardedLookup(allowed), servername: isIP(literal) ? undefined : literal,
       }, (res) => {
+        if (settled) { res.destroy(); return; }
         const status = res.statusCode ?? 0;
-        if (status >= 300 && status < 400) { res.destroy(); return fail(blocked('redirect', `redirect ${status} refused`)); }
+        // fail() before destroy(): the socket error that destroy() causes then finds the attempt settled.
+        if (status >= 300 && status < 400) { fail('redirect', `redirect ${status} refused`); res.destroy(); return; }
         const declared = Number(res.headers['content-length'] ?? '0');
-        if (declared > maxBytes) { res.destroy(); return fail(blocked('too_large', 'response too large')); }
+        if (declared > maxBytes) { fail('too_large', 'response too large'); res.destroy(); return; }
         const chunks: Buffer[] = [];
         let size = 0;
         res.on('data', (chunk: Buffer) => {
           size += chunk.length;
-          if (size > maxBytes) { res.destroy(); fail(blocked('too_large', 'response too large')); return; }
+          if (size > maxBytes) { fail('too_large', 'response too large'); res.destroy(); return; }
           chunks.push(chunk);
         });
         res.on('end', () => {
@@ -201,13 +214,13 @@ export function createOutboundClient(options: OutboundOptions): OutboundClient {
           const body = Buffer.concat(chunks);
           resolve({ status, headers: res.headers, body, text: () => body.toString('utf8'), json: () => JSON.parse(body.toString('utf8')) as unknown });
         });
-        res.on('error', () => fail(blocked('network_error', 'response error')));
+        res.on('error', () => fail('network_error', 'response error'));
       });
-      const timer = setTimeout(() => { r.destroy(); fail(blocked('timeout', `no answer in ${timeoutMs} ms`)); }, timeoutMs);
+      // Request callbacks are always asynchronous, so `timer` exists before fail() or 'end' can run.
+      const timer = setTimeout(() => { fail('timeout', `no answer in ${timeoutMs} ms`); r.destroy(); }, timeoutMs);
       r.on('error', (err: NodeJS.ErrnoException & { reason?: OutboundBlockReason }) => {
-        clearTimeout(timer);
-        if (err.code === BLOCKED_CODE && err.reason) fail(blocked(err.reason, err.message));
-        else fail(blocked('network_error', err.code ?? 'network error'));
+        if (err.code === BLOCKED_CODE && err.reason) fail(err.reason, err.message);
+        else fail('network_error', err.code ?? 'network error');
       });
       if (req.body !== undefined) r.write(req.body);
       r.end();

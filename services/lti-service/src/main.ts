@@ -16,6 +16,7 @@ const db = openDb(join(config.dataDir, 'lti.db'));
 const outbound = createOutboundClient({ logger, allowlist: config.outboundAllowlist });
 const app = await buildApp({
   db, urls: config.urls, logger, keys: createPlatformKeys(outbound), ltikTtlSeconds: config.ltikTtlSeconds, profile: config.profile, knobs,
+  outboundAllowlist: outbound.allowlist,
 });
 await app.listen({ port: config.port, host: '0.0.0.0' });
 logger.info('service_started', {

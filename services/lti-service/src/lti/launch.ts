@@ -7,7 +7,7 @@ import { getPlatform, setProductFamilyCode } from '../store/platforms.ts';
 import { createLaunch } from '../store/launches.ts';
 import type { Claims } from './checks.ts';
 import {
-  CLAIM, LaunchCheckError, check10Message, check11Claims, check12Target, check1And3State, check2Cookie, check4Token,
+  CLAIM, LaunchCheckError, safeWord, check10Message, check11Claims, check12Target, check1And3State, check2Cookie, check4Token,
   check5IssuerAudience, check6Signature, check7Time, check8Nonce, check9Deployment, stateCookieName,
 } from './checks.ts';
 import type { ProtocolErrorCode } from './codes.ts';
@@ -57,13 +57,13 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
   const stateHash = typeof state === 'string' && state !== '' ? sha256Hex(state) : null;
   try {
     const account = getAccount(deps.db, accountId);
-    if (!account) throw new LaunchCheckError('1', 'INVALID_STATE', 'unknown tool account');
+    if (!account) throw new LaunchCheckError('1', 'INVALID_STATE', 'unknown_tool_account');
     // Checks 1 and 3 (state found and used up in one statement).
     const rec = check1And3State(deps.db, accountId, state, stateHash, now);
     const clearCookie = clearCookieFor(rec.stateHash);
     // OIDC error answer (Moodle: invalid_scope, unauthorized_client, access_denied ...): the state is used up.
     if (form.id_token === undefined && typeof form.error === 'string') {
-      return { ok: false, check: 'oidc_error', code: 'PLATFORM_ERROR', detail: 'platform sent an OIDC error', oidcError: form.error.slice(0, 64), clearCookie };
+      return { ok: false, check: 'oidc_error', code: 'PLATFORM_ERROR', detail: `error=${safeWord(form.error)}`, oidcError: form.error.slice(0, 64), clearCookie };
     }
     const platform = getPlatform(deps.db, accountId, rec.platformId);
     // Check 2.
@@ -71,12 +71,12 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
       check2Cookie(cookieHeader, state as string, rec.stateHash);
     } catch (err) {
       if (err instanceof LaunchCheckError && err.code === 'STATE_COOKIE_MISSING') {
-        return { ok: false, check: err.check, code: err.code, detail: err.message, help: await cookieHelp(deps, form.id_token, platform, traceId) };
+        return { ok: false, check: err.check, code: err.code, detail: err.detail, help: await cookieHelp(deps, form.id_token, platform, traceId) };
       }
       throw err;
     }
-    if (!platform) throw new LaunchCheckError('1', 'INVALID_STATE', 'platform of the state is gone');
-    if (!platform.active) throw new LaunchCheckError('platform_active', 'PLATFORM_NOT_ACTIVE', 'platform is not active');
+    if (!platform) throw new LaunchCheckError('1', 'INVALID_STATE', 'platform_deleted');
+    if (!platform.active) throw new LaunchCheckError('platform_active', 'PLATFORM_NOT_ACTIVE', 'platform_inactive');
     // Checks 4 to 12.
     const { claims } = check4Token(form.id_token);
     check5IssuerAudience(claims, platform);
@@ -96,7 +96,7 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
     return { ok: true, location: toolRedirect(toolUrl, claims[CLAIM.targetLinkUri] as string, ltik), clearCookie, platformId: platform.id, messageType };
   } catch (err) {
     if (err instanceof LaunchCheckError) {
-      return { ok: false, check: err.check, code: err.code, detail: err.message, ...(stateHash ? { clearCookie: clearCookieFor(stateHash) } : {}) };
+      return { ok: false, check: err.check, code: err.code, detail: err.detail, ...(stateHash ? { clearCookie: clearCookieFor(stateHash) } : {}) };
     }
     throw err;
   }
