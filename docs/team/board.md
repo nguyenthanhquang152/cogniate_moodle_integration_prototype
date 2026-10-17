@@ -10,8 +10,8 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 | 2 | T5-spike | Player de-risk: frames, CSP, SCORM API, HTML signals | Author | **done** | — | Unreviewed. 07e8a45. Own SCORM 1.2 subset; frame-ancestors {content} {app}; sandbox allow-scripts allow-same-origin. |
 | 3 | T2a | LTI core: platforms, keys/JWKS, OIDC launch, ltik, `/api/idtoken` | Author | **done** | 1 | QA PASS 16/16 (a2a5aa3), A APPROVE, B APPROVE. MINORs carried into T2b: A-T2a-01/02, B-T2a-01..04. |
 | 3b | T2b | Negative launch checks, qa-platform.test, acceptance profile | Author | **done** | 1 | QA PASS 29/29 T2a+T2b (1fa011d), A APPROVE, B APPROVE. A-T2b-01 (single-flight JWKS) + B-T2b-01/02 → T3a. |
-| 4 | T3a | Services the app needs: service keys, token client, deep-linking response, AGS scores | Author | verifying | 1 | A APPROVE, B APPROVE; QA combined T3 run at 6f03a80 (qa-t3-r1). |
-| 5 | T3b | Dynamic registration incl. "update existing tool" | Author | verifying | 1 | A APPROVE, B APPROVE; QA combined T3 run at 6f03a80. Side items → T4b1. |
+| 4 | T3a | Services the app needs: service keys, token client, deep-linking response, AGS scores | Author | **done** | 1 | QA PASS 14/14 + T2 regression (6f03a80), A APPROVE, B APPROVE. A-T3a-01 fixed in T3b. |
+| 5 | T3b | Dynamic registration incl. "update existing tool" | Author | **done** | 1 | QA PASS 10/10 incl. AC-T3-29/30 (6f03a80), A APPROVE, B APPROVE. |
 | 6 | T4a | Upload + package inspector | Author | **done** | 3 | R3: QA PASS (93884d8), A APPROVE, B APPROVE. Deferred: A-T4a-04 (→ T6/T8), B-T4a-01 (→ T3a). |
 | 7 | T4b1 | Connect + publish | Author | verifying | 2 | R2 0fc5e33: A APPROVE, B APPROVE; QA after T3 run. Residual risk R1 accepted. |
 | 7b | T4b2 | Picker, launch handoff, security | Author | verifying | 1 | wip 4c6a04d; A + B reviewing; QA after T4b1. |

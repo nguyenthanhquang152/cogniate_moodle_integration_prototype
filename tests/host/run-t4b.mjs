@@ -21,7 +21,7 @@ const ZIPS = [
   { name: 'Build Your First Website with AI_ The Zero-to-Hero Micro-Sprint-scorm-v2.zip', sha256: 'a685744e5fd9de21c203c3b2f47916ef1079532196ed870df89a00ab8ee76df7' },
   { name: 'Build Your First Website with AI_ The Zero-to-Hero Micro-Sprint-html.zip', sha256: '9f04d3abd65f85e362b2dca5207cc4b86ffa286e4b1a73923c157b69321f3f6d' },
 ];
-const T4B1 = ['AC-T4-07', 'AC-T4-08', 'AC-T4-09', 'AC-T4-10', 'AC-T4-30', 'AC-T4-12', 'AC-T4-14', 'AC-T4-33', 'AC-T4-34'];
+const T4B1 = ['AC-T4-07', 'AC-T4-08', 'AC-T4-09', 'AC-T4-10', 'AC-T4-30', 'AC-T4-36', 'AC-T4-12', 'AC-T4-14', 'AC-T4-33', 'AC-T4-34'];
 const T4B2_PASS1 = ['AC-T4-15', 'AC-T4-16', 'AC-T4-26', 'AC-T4-17', 'AC-T4-24', 'AC-T4-23', 'AC-T4-25', 'AC-T4-27', 'AC-T4-19', 'AC-T4-20', 'AC-T4-31', 'AC-T4-22', 'AC-T4-28', 'AC-T4-29'];
 const LATE = ['AC-T4-18', 'AC-T4-21', 'AC-T4-32'];
 
@@ -33,10 +33,12 @@ async function setup() {
   if (r.state.abort) return false;
   const up = await r.npm('stack-up', ['run', 'stack:up'], { timeoutMs: 900_000 });
   const seed = up.code === 0 ? await r.npm('seed', ['run', 'seed'], { timeoutMs: 900_000 }) : null;
+  // AC-T4-36 (1) uses the dev seed tool "Cogniate (seed)" (seed.json ltiSeed).
+  const lti = seed?.code === 0 ? await r.npm('seed-lti-manual', ['run', 'seed:lti-manual'], { timeoutMs: 600_000 }) : null;
   r.loadStackFiles();
-  r.record('SETUP', 'npm ci, gen-env, stack:up, seed', r.pass(ci.code === 0 && gen.code === 0 && up.code === 0 && seed?.code === 0), [
-    `npm ci ${ci.code}, gen-env ${gen.code}, stack:up ${up.code}, seed ${seed?.code ?? 'not run'}`,
-  ], [ci.log, gen.log, up.log, seed?.log].filter(Boolean));
+  r.record('SETUP', 'npm ci, gen-env, stack:up, seed, seed:lti-manual', r.pass(ci.code === 0 && gen.code === 0 && up.code === 0 && seed?.code === 0 && lti?.code === 0), [
+    `npm ci ${ci.code}, gen-env ${gen.code}, stack:up ${up.code}, seed ${seed?.code ?? 'not run'}, seed:lti-manual ${lti?.code ?? 'not run'}`,
+  ], [ci.log, gen.log, up.log, seed?.log, lti?.log].filter(Boolean));
   await r.checkProject();
   if (r.state.abort || seed?.code !== 0) return false;
   const dest = path.join(r.CLONE, 'tests', 'fixtures', 'courses');

@@ -5,8 +5,10 @@
 // - QA stands in for the app page {PUBLIC_APP_URL}/tool/deep-link (T3a design note). Playwright routes do not see the
 //   redirected GET to that page (the 303 of /lti/launch), so QA routes the id_token POST that Moodle's auth.php page
 //   sends to /lti/launch (a new navigation in the frame), sends it itself from Node with the state cookie of the
-//   login, reads the ltik from the 303 Location, calls the LTI API, and answers with a page that posts the signed
-//   JWT to Moodle's return URL. The browser never opens the app page.
+//   login, reads the ltik from the 303 Location, calls the LTI API, and fulfils the POST with a short QA page. Then the
+//   modedit page posts the signed JWT into Moodle's dialog iframe (target "contentitem-page-iframe"). Why from the
+//   parent: a document made by route.fulfill cannot navigate a frame to another origin (checked in the e2e image), and
+//   a same-origin POST carries Moodle's SameSite=Lax session cookie. The browser never opens the app page.
 // - Manual tool form: mod/lti/typessettings.php (field names from mod/lti/edit_form.php).
 import type { BrowserContext, Page, Response, Route } from '@playwright/test';
 import { publicUrls } from './env';
@@ -43,6 +45,8 @@ export async function deepLinkActivity(
   await moodleLogin(page, urls.moodle, teacher.username, teacher.password);
   let run: Omit<DeepLinkRun, 'nameAfter' | 'saved'> | undefined;
   let launchProblem = '';
+  let pendingReturn: { target: string; jwt: string } | undefined;
+  let returned = false;
   const loginCookies: string[] = [];
   const onResponse = async (r: Response) => {
     if (!r.url().startsWith(LOGIN_URL) || r.status() < 300 || r.status() >= 400) return;
@@ -77,11 +81,8 @@ export async function deepLinkActivity(
       return route.fulfill({ status: 200, contentType: 'text/html', body: `<p>QA: /api/deeplinking gave HTTP ${dl.status}</p>` });
     }
     recordSecret('id_token', dl.json.message);
-    return route.fulfill({
-      status: 200,
-      contentType: 'text/html',
-      body: `<form id="qa" method="post" action="${esc(dl.json.target)}"><input type="hidden" name="JWT" value="${esc(dl.json.message)}"></form><script>document.getElementById('qa').submit()</script>`,
-    });
+    pendingReturn = { target: dl.json.target, jwt: dl.json.message };
+    return route.fulfill({ status: 200, contentType: 'text/html', body: '<p>QA: the deep-linking response is ready.</p>' });
   };
   context.on('response', onResponse);
   await context.route(matcher, handler);
@@ -92,6 +93,24 @@ export async function deepLinkActivity(
     const deadline = Date.now() + timeoutMs;
     let nameAfter = '';
     while (Date.now() < deadline) {
+      if (pendingReturn && !returned) {
+        // The modedit page (a real Moodle document) posts the JWT into Moodle's dialog iframe, as Moodle's own form
+        // does (contentitem.mustache: target="contentitem-page-iframe"). Same origin, so the session cookie goes with it.
+        returned = true;
+        await page.evaluate(({ target, jwt }) => {
+          const f = document.createElement('form');
+          f.method = 'post';
+          f.action = target;
+          f.target = 'contentitem-page-iframe';
+          const i = document.createElement('input');
+          i.type = 'hidden';
+          i.name = 'JWT';
+          i.value = jwt;
+          f.appendChild(i);
+          document.body.appendChild(f);
+          f.submit();
+        }, pendingReturn);
+      }
       nameAfter = await page.locator('#id_name').inputValue().catch(() => '');
       if (launchProblem || (run && (nameAfter === title || run.dl.status !== 200))) break;
       await page.waitForTimeout(250);
@@ -181,10 +200,18 @@ export async function addToolActivity(page: Page, teacher: MoodleUser, courseId:
   await moodleLogin(page, urls.moodle, teacher.username, teacher.password);
   await page.goto(`${urls.moodle}/course/modedit.php?add=lti&typeid=${typeId}&course=${courseId}&section=0&return=0`);
   await page.locator('#id_name').fill(name);
+  // The grade fields sit in collapsed sections of the activity form: expand all, then fill (or set when still hidden).
+  const expand = page.locator('a.collapseexpand');
+  if (await expand.count()) await expand.first().click().catch(() => undefined);
   const accept = page.locator('#id_instructorchoiceacceptgrades');
-  if ((await accept.count()) && !(await accept.isChecked())) await accept.check();
+  if ((await accept.count()) && !(await accept.isChecked())) {
+    await accept.check({ timeout: 5_000 }).catch(() => accept.evaluate((el) => { (el as HTMLInputElement).checked = true; el.dispatchEvent(new Event('change', { bubbles: true })); }));
+  }
   const max = page.locator('#id_grade_modgrade_point');
-  if (await max.count()) await max.fill('100');
+  if (await max.count()) {
+    if (await max.isVisible()) await max.fill('100');
+    else await max.evaluate((el) => { (el as HTMLInputElement).value = '100'; el.dispatchEvent(new Event('change', { bubbles: true })); });
+  }
   await Promise.all([page.waitForURL(/\/course\/view\.php/, { timeout: 30_000 }), page.locator('#id_submitbutton2').click()]);
   const cmid = await cmidByName(courseId, name);
   if (!cmid) throw new Error(`activity "${name}" not found after save`);

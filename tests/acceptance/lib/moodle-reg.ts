@@ -6,9 +6,9 @@
 // - tool_card.mustache: <div class="tool-card" data-type-id="…">; a Pending tool has a.activate.
 // QA stands in for {PUBLIC_APP_URL}/tool/register (T3b scope): a route holds the frame there, the test drives the API,
 // and the test then puts the close page (the `html` of /complete) into the frame.
-// - startltiadvregistration.php answers with an HTTP 302 to the tool URL (header("Location: …")). Playwright routes do
-//   not see redirected requests, so in hold mode QA fetches that page itself (route.fetch, no redirect, with the
-//   context cookies) and turns the 302 into a script navigation, which the /tool/register route then holds.
+// - startltiadvregistration.php answers 302 to the registration URL (the LTI service), which answers 303 to
+//   {app}/tool/register. Playwright routes do not see redirected requests, so in hold mode QA follows the chain itself,
+//   and the Manage tools page then points the registration iframe at the app URL (a new navigation, held by the route).
 import type { BrowserContext, Frame, Page, Route } from '@playwright/test';
 import { publicUrls } from './env';
 import { moodleLogin } from './moodle-ui';
@@ -60,12 +60,23 @@ export async function startRegistration(
     toolUrl = r.url();
     response = { status: r.status(), headers: await r.allHeaders(), body: await r.text().catch(() => '') };
   };
+  let pendingToolUrl = '';
+  let sentToTool = false;
   const startMatcher = (u: URL) => u.href.startsWith(`${urls.moodle}/mod/lti/startltiadvregistration.php`);
   const startHandler = async (route: Route) => {
-    const res = await route.fetch({ maxRedirects: 0 });
-    const location = res.headers()['location'] ?? '';
-    if (res.status() >= 300 && res.status() < 400 && location.startsWith(TOOL_REGISTER)) {
-      return route.fulfill({ status: 200, contentType: 'text/html', body: `<script>location.replace(${JSON.stringify(location)})</script>` });
+    // Moodle answers 302 to the LTI service's register URL, which answers 303 to {app}/tool/register. Redirect hops are
+    // not routed, so QA follows the chain itself (route.fetch, no redirect, context cookies); the loop below then
+    // points the iframe at the app URL from the parent page.
+    let res = await route.fetch({ maxRedirects: 0 });
+    for (let hop = 0; hop < 5; hop++) {
+      const location = res.headers()['location'] ?? '';
+      if (res.status() < 300 || res.status() >= 400 || !location) break;
+      const next = new URL(location, res.url()).toString();
+      if (next.startsWith(TOOL_REGISTER)) {
+        pendingToolUrl = next;
+        return route.fulfill({ status: 200, contentType: 'text/html', body: '<p>QA: the registration continues.</p>' });
+      }
+      res = await route.fetch({ url: next, method: 'GET', maxRedirects: 0 });
     }
     return route.fulfill({ response: res });
   };
@@ -79,6 +90,15 @@ export async function startRegistration(
   const deadline = Date.now() + timeoutMs;
   let sawChoice = false;
   while ((!toolUrl || (!hold && !response)) && Date.now() < deadline) {
+    if (pendingToolUrl && !sentToTool) {
+      // The Manage tools page (a real document) points the registration iframe at the app URL: a new navigation, so
+      // the /tool/register route holds it (a fulfilled page cannot navigate to another origin).
+      sentToTool = true;
+      await page.evaluate((url) => {
+        const f = Array.from(document.querySelectorAll('iframe')).find((i) => (i.getAttribute('src') ?? '').includes('startltiadvregistration.php'));
+        if (f) f.src = url;
+      }, pendingToolUrl);
+    }
     const reg = page.frames().find((f) => /startltiadvregistration\.php/.test(f.url()));
     if (reg && !sawChoice) {
       const buttons = reg.locator('button[data-href*="startltiadvregistration.php"]');
