@@ -175,8 +175,9 @@ describe('T2a seed hooks', () => {
       const sections = await callWs<{ modules: { id: number; name: string; modname: string }[] }[]>(seed().oracleToken, 'core_course_get_contents', {
         courseid: seed().courses[shortname as 'COGNIATE-DEV-101'],
       });
-      const mod = sections.flatMap((sec) => sec.modules).find((m) => m.id === s.cmids[shortname]);
-      expect(mod, `${shortname} cmid ${s.cmids[shortname]}`).toBeDefined();
+      const all = sections.flatMap((sec) => sec.modules);
+      const mod = all.find((m) => m.id === s.cmids[shortname]);
+      expect(mod, `${shortname} cmid ${s.cmids[shortname]}; modules seen by the QA oracle: ${all.map((m) => `${m.id}:${m.modname}:${m.name}`).join(', ') || 'none'}`).toBeDefined();
       expect(mod!.modname).toBe('lti');
       expect(mod!.name).toBe(name);
     }

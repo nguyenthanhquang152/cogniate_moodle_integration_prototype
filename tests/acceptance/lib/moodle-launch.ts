@@ -45,6 +45,8 @@ export async function newStackContext(browser: Browser): Promise<BrowserContext>
 /**
  * Open an LTI activity as a Moodle user. With `hold: true`, QA keeps the id_token POST: the browser gets a QA page
  * instead, and the state stays unused for later tests.
+ * Note: Playwright routes see only the first URL of a redirect chain, so QA cannot hold the GET to Moodle auth.php
+ * that follows the 302 of the tool login. To act "between login and launch", hold the id_token POST instead.
  */
 export async function launchActivity(
   context: BrowserContext,

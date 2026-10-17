@@ -4,6 +4,14 @@ import type { Page } from '@playwright/test';
 
 export async function moodleLogin(page: Page, moodleUrl: string, username: string, password: string): Promise<void> {
   await page.goto(`${moodleUrl}/login/index.php`);
+  // A context that is already signed in gets "You are already logged in as …, Log out?" instead of the form.
+  if ((await page.locator('#username').count()) === 0) {
+    const logout = page.getByRole('button', { name: 'Log out' });
+    if (await logout.count()) {
+      await Promise.all([page.waitForLoadState('load'), logout.first().click()]);
+      await page.goto(`${moodleUrl}/login/index.php`);
+    }
+  }
   // Moodle JS (core/togglesensitive) re-renders the password field after load. A value typed before
   // that is lost. So wait for the wrapper first (Lead hint, round 1).
   await page.locator('.toggle-sensitive-wrapper #password').waitFor({ state: 'visible' });

@@ -204,8 +204,17 @@ ${extraHelp}`;
         recursive: true,
         filter: (src) => !/(^|[/\\])(node_modules|artifacts|test-results|playwright-report|\.tmp)([/\\]|$)/.test(path.relative(from, src)),
       });
-      notes.push(`${testsMissing ? 'tests/ is not in the SHA' : 'tests/ replaced (--replace-tests)'}: copied from ${from}; diff vs SHA: ${diff.stdout.trim().split('\n').pop() || 'none'}`);
-      saveText('tests-diff-vs-sha.txt', (await run('git', ['diff', opt.sha ?? 'HEAD', '--', '.'], { cwd: from })).stdout);
+      // git diff does not show new (untracked) files, so list them too.
+      const untracked = (await run('git', ['ls-files', '--others', '--exclude-standard', '--', '.'], { cwd: from })).stdout
+        .split('\n')
+        .filter((f) => f && !/(^|\/)(artifacts|node_modules|test-results|playwright-report)\//.test(f));
+      notes.push(
+        `${testsMissing ? 'tests/ is not in the SHA' : 'tests/ replaced (--replace-tests)'}: copied from ${from}; diff vs SHA: ${diff.stdout.trim().split('\n').pop() || 'none'}; new files not in the SHA: ${untracked.length ? untracked.join(', ') : 'none'}`,
+      );
+      saveText(
+        'tests-diff-vs-sha.txt',
+        `${(await run('git', ['diff', opt.sha ?? 'HEAD', '--', '.'], { cwd: from })).stdout}\n# New files (not in the SHA, copied as they are):\n${untracked.map((f) => `#   ${f}`).join('\n') || '#   none'}\n`,
+      );
     }
     if (opt['only-task-folders']) {
       const keep = new Set(opt['only-task-folders'].split(',').map((t) => t.trim()));
@@ -277,9 +286,10 @@ ${extraHelp}`;
    * One in-container run: `npm run test:acceptance` with QA_* env (H14). `expectIds` = AC ids that must have run
    * (a skipped or missing one is a FAIL "not run", for example a knob test whose knob was lost).
    */
-  async function containerSuite(label, { env = {}, expectIds = [] } = {}) {
+  async function containerSuite(label, { env = {}, expectIds = [], fresh = true } = {}) {
     const artifacts = path.join(CLONE, 'tests', 'acceptance', 'artifacts');
-    fs.rmSync(artifacts, { recursive: true, force: true });
+    // fresh: false keeps the state files of earlier passes (tasks whose specs share state across passes, e.g. T4b).
+    if (fresh) fs.rmSync(artifacts, { recursive: true, force: true });
     const r = await npm(`test-acceptance-${label}`, ['run', 'test:acceptance'], { env: { ...STACK_ENV, ...env }, timeoutMs: 2_400_000 });
     const dest = path.join(ART, `container-${label}`);
     if (fs.existsSync(artifacts)) fs.cpSync(artifacts, dest, { recursive: true });

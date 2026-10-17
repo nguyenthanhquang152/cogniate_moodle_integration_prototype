@@ -64,7 +64,12 @@ async function ac31First() {
 }
 
 async function passA() {
-  await r.containerSuite('passA', { env: { QA_TASK: TASKS.join(',') }, expectIds: TASKS.flatMap((t) => EXPECT[t] ?? []) });
+  const { tests } = await r.containerSuite('passA', { env: { QA_TASK: TASKS.join(',') }, expectIds: TASKS.flatMap((t) => EXPECT[t] ?? []) });
+  // H14 (T2a scope): npm run test:acceptance forwards the caller's QA_* env, so only the selected task folders ran.
+  const others = tests.filter((t) => !/^AC-T2-/.test(t.id));
+  r.record('H14', `npm run test:acceptance forwards QA_TASK=${TASKS.join(',')} into the e2e container (only those tests ran)`, r.pass(tests.length > 0 && others.length === 0), [
+    `tests reported: ${tests.length}; outside ${TASKS.join(',')}: ${others.length}${others.length ? ` (${others.slice(0, 5).map((t) => t.id).join(', ')}…)` : ''}`,
+  ]);
   if (TASKS.includes('T2b')) {
     const lti = await r.healthz(r.state.urls.lti);
     const app = await r.healthz(r.state.urls.app);
@@ -84,7 +89,9 @@ async function knobPass() {
     `exit ${on.code}; /healthz ${JSON.stringify(active.last)}`,
   ], [on.log]);
   try {
-    await r.containerSuite('knob', { env: { QA_TASK: 'T2a', QA_GREP: 'AC-T2-07' }, expectIds: ['AC-T2-07'] });
+    const { tests } = await r.containerSuite('knob', { env: { QA_TASK: 'T2a', QA_GREP: 'AC-T2-07' }, expectIds: ['AC-T2-07'] });
+    const ran = tests.filter((t) => t.status !== 'SKIP').map((t) => t.id);
+    r.record('H14', 'QA_GREP=AC-T2-07 is forwarded (the knob pass ran only AC-T2-07)', r.pass(ran.length > 0 && ran.every((id) => id === 'AC-T2-07')), [`ran: ${ran.join(', ') || 'none'}`]);
   } finally {
     const off = await r.npm('restart-lti-default', ['run', 'stack:restart', '--', 'lti-service'], { timeoutMs: 300_000 });
     const cleared = await r.waitHealth(r.state.urls.lti, (b) => Array.isArray(b.knobs) && b.knobs.length === 0);

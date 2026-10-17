@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import type { BrowserContext } from '@playwright/test';
 import { publicUrls } from '../lib/env';
 import { httpsRequest } from '../lib/https';
-import { ACCOUNT, apiKey, auth, errorCode, hasErrorShape, LAUNCH_URL, LTI_CLAIM, ltiApi, ltiSeed, SECOND_ACCOUNT, SEED_TARGET } from '../lib/lti';
+import { ACCOUNT, apiKey, auth, checkErrorPage, errorCode, hasErrorShape, LAUNCH_URL, LTI_CLAIM, ltiApi, ltiSeed, SECOND_ACCOUNT, SEED_TARGET } from '../lib/lti';
 import { type LaunchCapture, launchActivity, newStackContext } from '../lib/moodle-launch';
 import { expect, test } from '../lib/pw';
 import { seed } from '../lib/seed';
@@ -27,7 +27,9 @@ interface IdToken {
   services: { deepLinking: { available: boolean } };
 }
 
-test.describe.serial('T2a happy path (Seed activity, cg_student)', () => {
+// Default mode, not serial: if one AC fails, Playwright starts a new worker and runs beforeAll again,
+// so the other ACs still get a verdict (no skip chain).
+test.describe('T2a happy path (Seed activity, cg_student)', () => {
   let context: BrowserContext;
   let first: LaunchCapture;
   let second: LaunchCapture;
@@ -108,13 +110,15 @@ test.describe.serial('T2a happy path (Seed activity, cg_student)', () => {
     expect(a.get('nonce')).not.toBe(b.get('nonce'));
   });
 
-  test('AC-T2-19 the 303 from /lti/launch/cogniate has no-referrer, no-store and clears the state cookie; GET → 405', async () => {
+  test('AC-T2-19 the 303 from /lti/launch/cogniate has no-referrer, no-store and clears the state cookie; GET → 405 METHOD_NOT_ALLOWED page with Allow: POST', async () => {
     expect(first.launch?.status).toBe(303);
     expect(first.launch!.headers['referrer-policy']).toBe('no-referrer');
     expect(first.launch!.headers['cache-control']).toMatch(/no-store/);
     const cleared = first.launch!.setCookies.find((c) => c.startsWith('__Host-lti_state_') && /max-age=0/i.test(c));
     expect(cleared, `Set-Cookie: ${first.launch!.setCookies.join(' | ')}`).toBeDefined();
-    expect((await httpsRequest(LAUNCH_URL)).status).toBe(405);
+    const get = await httpsRequest(LAUNCH_URL);
+    expect(checkErrorPage(get, 'METHOD_NOT_ALLOWED', { statuses: [405], test: 'AC-T2-19', endpoint: 'launch' })).toEqual([]);
+    expect(String(get.headers.allow ?? 'missing').trim(), 'Allow header').toBe('POST');
   });
 
   test('AC-T2-06 /api/idtoken header errors: account mismatch, bad ltik, no colon, wrong schemes', async () => {

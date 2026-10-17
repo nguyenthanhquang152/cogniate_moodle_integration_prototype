@@ -183,6 +183,7 @@ export function readSeed(file) {
     }
     if (typeof node.shortname === 'string' && id !== null) courses[node.shortname] = id;
     for (const [k, v] of Object.entries(node)) {
+      if (k === 'ltiSeed' || k === 'cmids') continue; // ltiSeed.cmids uses course shortnames as keys for activity ids
       if (COURSE_SHORTNAMES.includes(k)) {
         const cid = toInt(v) ?? (v && typeof v === 'object' ? (toInt(v.id) ?? toInt(v.courseid)) : null);
         if (cid !== null) courses[k] = cid;
