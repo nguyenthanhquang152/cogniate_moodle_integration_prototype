@@ -1,5 +1,6 @@
 // Moodle 5.2.4 UI flows for Deep Linking and manual tools (T3a onward).
-// - "Add an activity → <tool>" opens course/modedit.php?add=lti&type=<typeId>&course=<id>; QA opens that URL directly
+// - "Add an activity → <tool>" opens course/modedit.php?add=lti&typeid=<typeId>&course=<id> (Moodle 5.2.4 chooser link,
+//   mod/lti/lib.php: `typeid`; with `type` Moodle refuses: "manual creation of tools … no longer supported"); QA opens it directly
 //   (the chooser UI is covered in T7). "Select content" is button #id_selectcontent (mod/lti/mod_form.php).
 // - QA stands in for the app page {PUBLIC_APP_URL}/tool/deep-link (T3a design note). Playwright routes do not see the
 //   redirected GET to that page (the 303 of /lti/launch), so QA routes the id_token POST that Moodle's auth.php page
