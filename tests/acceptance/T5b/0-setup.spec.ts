@@ -1,9 +1,7 @@
 // T5b setup. tasks/T5b.md: "Setup: T5a state" (the T5a pass of the same run made it: lib/t5.ts state "T5").
-// Attempts and the best-result rule are per learner and activity (ADR-010 rule 5, data-model §2), and there are two
-// Moodle learners. So QA adds its own activities, one per T5b scenario that needs a fresh attempt (lib/t5.ts ACT):
-// "QA HTML hang" (AC-T5-36), "QA HTML first answer" (AC-T5-28), "QA HTML dwell" (AC-T5-29), "QA HTML retry" (AC-T5-14),
-// "QA HTML conflict" (AC-T5-31), "QA SCORM outage" (AC-T5-30), "QA SCORM override" (AC-T5-33). "Cogniate HTML 102" is
-// made by AC-T5-32 itself. Each activity has completion "Receive a grade", like the T5a activities.
+// "Fresh activity per AC" (tasks README §2, d7a88ec): the ACs that need a learner with no earlier state use their own
+// activity `Cogniate <SCORM|HTML> <AC id>` (the same publication deep-linked again): AC-T5-36, -28, -29, -14, -31 (HTML),
+// AC-T5-30, -33 (SCORM). "Cogniate HTML 102" is made by AC-T5-32 itself. Each activity has completion "Receive a grade".
 import { newStackContext } from '../lib/moodle-launch';
 import { expect, test } from '../lib/pw';
 import { seed } from '../lib/seed';

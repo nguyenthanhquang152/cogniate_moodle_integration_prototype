@@ -2,7 +2,7 @@
 // visible + scroll to the end; menu page seen on visit; first answer stands; complete = all pages seen and all
 // questions answered); ADR-010 (only final outcomes are sent).
 // AC-T5-11 then AC-T5-27: cg_student2 in "Cogniate HTML" (serial: the "new run" continues the in-progress attempt).
-// AC-T5-28 and AC-T5-29: cg_student in QA's activities "QA HTML first answer" and "QA HTML dwell" (fresh attempts).
+// AC-T5-28 and AC-T5-29: cg_student in their own activities "Cogniate HTML AC-T5-28" and "Cogniate HTML AC-T5-29".
 import type { BrowserContext } from '@playwright/test';
 import { newStackContext } from '../lib/moodle-launch';
 import { expect, test } from '../lib/pw';

@@ -1,7 +1,7 @@
 // T5b: the HTML runtime with the real HTML package. Source: tasks/T5b.md AC-T5-09, AC-T5-36, AC-T5-10; contract
 // cogniate-app-api.md §7 (content host), §9 (HTML runtime markup); ADR-004 "HTML: option C" (attach when the child
 // document is parsed, not on load; no change of package bytes); ADR-010 (mapping).
-// AC-T5-36 uses QA's activity "QA HTML hang" (a fresh attempt for cg_student after AC-T5-09).
+// AC-T5-36 uses its own activity "Cogniate HTML AC-T5-36" (tasks/T5b.md).
 import crypto from 'node:crypto';
 import { courseZipCopy } from '../lib/course-fixtures';
 import { httpsRequest } from '../lib/https';

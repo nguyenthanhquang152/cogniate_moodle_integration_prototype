@@ -19,6 +19,7 @@
     "host:t5": "node host/run-t5.mjs"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.10.2",
     "@playwright/test": "1.56.0",
     "@types/node": "22.20.5",
     "jose": "6.2.12",

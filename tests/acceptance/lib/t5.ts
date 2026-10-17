@@ -42,14 +42,15 @@ export const ACT = {
   blankA: 'QA Blank SCO',
   blankB: 'QA Blank SCO 2',
   rebind: 'Cogniate SCORM rebind',
-  // T5b (QA's own activities; T5b setup makes them, except "Cogniate HTML 102", which AC-T5-32 makes itself).
-  htmlHang: 'QA HTML hang',
-  htmlFirst: 'QA HTML first answer',
-  htmlDwell: 'QA HTML dwell',
-  htmlRetry: 'QA HTML retry',
-  htmlConflict: 'QA HTML conflict',
-  scormOutage: 'QA SCORM outage',
-  scormOverride: 'QA SCORM override',
+  // T5b: "fresh activity per AC" (tasks README §2, d7a88ec): `Cogniate <SCORM|HTML> <AC id>`. The T5b setup makes
+  // them; "Cogniate HTML 102" is made by AC-T5-32 itself.
+  htmlHang: 'Cogniate HTML AC-T5-36',
+  htmlFirst: 'Cogniate HTML AC-T5-28',
+  htmlDwell: 'Cogniate HTML AC-T5-29',
+  htmlRetry: 'Cogniate HTML AC-T5-14',
+  htmlConflict: 'Cogniate HTML AC-T5-31',
+  scormOutage: 'Cogniate SCORM AC-T5-30',
+  scormOverride: 'Cogniate SCORM AC-T5-33',
   html102: 'Cogniate HTML 102',
 } as const;
 
@@ -385,9 +386,8 @@ export function commitEvents(sessionId: string, sinceMs = 0): LogEntry[] {
 
 const COMMIT_KINDS = ['commit', 'finish', 'unload', 'progress'];
 /**
- * The commit event (commit, finish, unload, progress) of a commit_accepted line. Contract §12 lists the fields
- * `session_id, seq, event`, but `event` is already the event name of every line, so the Author must use another key.
- * QA takes the first other key whose name contains "event" and whose value is a commit kind (spec note to the Architect).
+ * The commit event (commit, finish, unload, progress) of a commit_accepted line: contract §12 field `commit_event`
+ * (d7a88ec). QA prefers a key with "event" in its name (commit_event), then any other field with a commit-kind value.
  */
 export function commitKind(e: LogEntry): string {
   const fields = Object.entries(e).filter(([k, v]) => k !== 'event' && typeof v === 'string' && COMMIT_KINDS.includes(v as string));

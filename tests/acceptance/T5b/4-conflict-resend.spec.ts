@@ -3,8 +3,7 @@
 // given; the clock restarts with the service); cogniate-app-api.md §5 (resend), §10 (409 → conflict, 400/404 → failed);
 // ADR-010 rules 8 and 10.
 // Serial: AC-T5-32 resends the AC-T5-31 conflict row within its 10 min, so it does that step first.
-// AC-T5-31 uses QA's activity "QA HTML conflict" (cg_student2 needs a fresh attempt there: after AC-T5-27 the attempt
-// in "Cogniate HTML" is final with a wrong first answer, which cannot change).
+// AC-T5-31 uses its own activity "Cogniate HTML AC-T5-31" (tasks/T5b.md).
 import type { BrowserContext } from '@playwright/test';
 import { hostAction } from '../lib/host-control';
 import { ACCOUNT, apiKey, auth, ltiApi, recordSecret } from '../lib/lti';

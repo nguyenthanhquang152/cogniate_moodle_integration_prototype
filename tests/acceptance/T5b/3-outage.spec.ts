@@ -2,8 +2,8 @@
 // (retry: 5 s, 30 s, 2 min, …), §5 (rows); ADR-010 rules 5 and 9 (best result, superseded; retries).
 // The host runner (tests/host/run-t5.mjs) runs "docker compose stop/start moodle" when the test asks (lib/host-control.ts).
 // Moodle is always started again in `finally`, so a failure here does not break the next tests.
-// AC-T5-14 uses QA's activity "QA HTML retry"; AC-T5-30 uses "QA SCORM outage": a failed/0 *final* commit after a pass
-// needs SCORM (in the HTML runtime the first answer stands, so an HTML attempt cannot report 0 after 100).
+// AC-T5-14 uses its own activity "Cogniate HTML AC-T5-14"; AC-T5-30 uses "Cogniate SCORM AC-T5-30" (SCORM: in the HTML
+// course the first answer stands, so a later fail is impossible; tasks/T5b.md).
 import type { BrowserContext } from '@playwright/test';
 import { hostAction } from '../lib/host-control';
 import { newStackContext } from '../lib/moodle-launch';

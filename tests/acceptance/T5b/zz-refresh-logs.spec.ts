@@ -1,27 +1,44 @@
 // T5b: results refresh and the log check over the whole T5 run. Runs last (file name order).
 // Source: tasks/T5b.md AC-T5-18, AC-T5-19; contract cogniate-app-api.md §5 (refresh: gradebook per row), §12 ("No
 // secret in any field").
-// AC-T5-18: "the rows of AC-T5-07 and AC-T5-08 have resultScore 100 and 0 (or the override value where AC-T5-33 ran)".
-// In this run AC-T5-23 raised cg_student2's "Cogniate SCORM" grade to 100, and AC-T5-33 ran on its own activity, so
-// QA expects 100 for cg_student2 when AC-T5-23 ran (spec note to the Architect).
+// AC-T5-18 (d7a88ec): every row's gradebook.resultScore equals the Moodle grade (QA oracle), resultMaximum 100.
+// Expected for "Cogniate SCORM": cg_student 100, cg_student2 100; for "Cogniate SCORM AC-T5-33": 50 with gradebookDiffers.
 import fs from 'node:fs';
 import { capturedSecrets } from '../lib/lti';
 import { logFile } from '../lib/logs';
 import { expect, test } from '../lib/pw';
 import { seed } from '../lib/seed';
-import { ACT, refreshResults, rowsFor, t5 } from '../lib/t5';
+import { ACT, course101, moodleShown, refreshResults, rowsFor, t5 } from '../lib/t5';
 
-test('AC-T5-18 Refresh from Moodle: the rows of AC-T5-07 and AC-T5-08 have gradebook.resultScore (100 and the current Moodle value) and resultMaximum 100', async () => {
-  test.setTimeout(120_000);
+test('AC-T5-18 Refresh from Moodle: every row of the SCORM publication has gradebook.resultScore = the Moodle grade (resultMaximum 100); Cogniate SCORM 100/100; AC-T5-33 activity 50 with gradebookDiffers', async () => {
+  test.setTimeout(180_000);
   const st = t5();
   const res = await refreshResults(String(st.scormPublicationId));
   expect(res.status, res.body.slice(0, 200)).toBe(200);
-  const r07 = rowsFor(res.rows, seed().users.cg_student, ACT.scorm)[0];
-  const r08 = rowsFor(res.rows, seed().users.cg_student2, ACT.scorm)[0];
-  expect(r07?.gradebook, JSON.stringify(r07)).toMatchObject({ resultScore: 100, resultMaximum: 100 });
-  const want08 = st.ran?.['AC-T5-23'] ? 100 : 0;
-  expect(r08?.gradebook, JSON.stringify(r08)).toMatchObject({ resultScore: want08, resultMaximum: 100 });
-  test.info().annotations.push({ type: 'expected', description: `cg_student 100; cg_student2 ${want08} (AC-T5-23 ran: ${Boolean(st.ran?.['AC-T5-23'])})` });
+  const learners = [seed().users.cg_student, seed().users.cg_student2];
+  const problems: string[] = [];
+  let checked = 0;
+  for (const row of res.rows.filter((r) => !r.preview)) {
+    const user = learners.find((u) => String(u.id) === row.learner.sub);
+    if (!user) continue;
+    const moodle = await moodleShown(course101(), user, row.activity.title);
+    const want = moodle?.shown ?? null;
+    const got = row.gradebook?.resultScore ?? null;
+    checked++;
+    if (got !== want) problems.push(`${user.username} / ${row.activity.title}: gradebook.resultScore ${got}, Moodle ${want}`);
+    if (want !== null && row.gradebook?.resultMaximum !== 100) problems.push(`${user.username} / ${row.activity.title}: resultMaximum ${row.gradebook?.resultMaximum}`);
+  }
+  expect(checked, 'learner rows checked').toBeGreaterThan(0);
+  const named = (u: (typeof learners)[number], title: string) => rowsFor(res.rows, u, title)[0];
+  expect(named(learners[0], ACT.scorm)?.gradebook?.resultScore, 'cg_student, Cogniate SCORM').toBe(100);
+  expect(named(learners[1], ACT.scorm)?.gradebook?.resultScore, 'cg_student2, Cogniate SCORM (AC-T5-23 raised it from 0)').toBe(100);
+  if (st.ran?.['AC-T5-33']) {
+    const o = named(learners[1], ACT.scormOverride);
+    expect(o?.gradebook?.resultScore, `cg_student2, ${ACT.scormOverride}`).toBe(50);
+    expect(o?.gradebookDiffers).toBe(true);
+  }
+  test.info().annotations.push({ type: 'rows', description: res.rows.map((r) => `${r.learner.sub}/${r.activity.title}: ${r.gradebook?.resultScore ?? 'null'}${r.gradebookDiffers ? ' (differs)' : ''}`).join('; ') });
+  expect(problems).toEqual([]);
 });
 
 test('AC-T5-19 cogniate-app.jsonl and cogniate-content.jsonl contain no runtime token, ltik or service key captured in this run', () => {

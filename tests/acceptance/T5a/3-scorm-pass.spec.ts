@@ -2,8 +2,8 @@
 // AC-T5-07, -34, -20, -12; contract cogniate-app-api.md §5 (results), §7 (commits after finish never lower the
 // outcome), §12; ADR-010 rules 4 and 5 (best result, never lower); data-model §2 (a launch after a final attempt on
 // the same version uses that attempt again, so the package calls LMSFinish at once).
-// Serial: AC-T5-34 uses the window of AC-T5-07; AC-T5-20 and AC-T5-12 come after AC-T5-07. All of them run before
-// AC-T5-24 (4-scorm-student2.spec.ts) publishes version 2.
+// QA run order (tasks/T5a.md, d7a88ec): AC-T5-07 → AC-T5-20 → AC-T5-34 → AC-T5-12 (serial). AC-T5-34 uses the window of
+// AC-T5-07, which stays open during AC-T5-20. All of them run before AC-T5-24 (4-scorm-student2.spec.ts) publishes v2.
 import type { BrowserContext } from '@playwright/test';
 import { moodleLogin } from '../lib/moodle-ui';
 import { newStackContext } from '../lib/moodle-launch';
@@ -92,6 +92,22 @@ test.describe.serial('T5a SCORM pass (cg_student, "Cogniate SCORM")', () => {
     markRan('AC-T5-07');
   });
 
+  test('AC-T5-20 cg_student opens "Cogniate SCORM" again (the package calls LMSFinish at once): no new sync, best still passed, Moodle still 100', async () => {
+    test.setTimeout(120_000);
+    // The AC-T5-07 window stays open: AC-T5-34 (next) goes back to the menu page in it.
+    const again = await openPlayer(context, user(), cmidOf(ACT.scorm));
+    const session = String((await runtimeState(again.token)).json?.sessionId ?? '');
+    const since = Date.now() - 2_000;
+    const finish = await waitForCommit(session, 'finish', since, 30_000);
+    expect(finish, 'the package sent a finish in the new session (it calls LMSFinish at once on a finished attempt)').toBeDefined();
+    await again.popup.waitForTimeout(3_000); // a sync row would be made in the same transaction as the attempt update
+    const row = rowsFor(await results(pub()), user(), ACT.scorm)[0];
+    expect(row?.scoreSyncs, 'no new scoreSyncs entry').toHaveLength(1);
+    expect(row?.best?.outcome).toBe('passed');
+    expect(await moodleGrade(course101(), user(), ACT.scorm)).toBe(100);
+    await again.popup.close({ runBeforeUnload: true });
+  });
+
   test('AC-T5-34 after the end, back to the menu page in the same window: no second finish, no new commit (at most one unload), outcome stays passed', async () => {
     test.setTimeout(120_000);
     expect(passWindow, 'the AC-T5-07 window').toBeDefined();
@@ -110,22 +126,7 @@ test.describe.serial('T5a SCORM pass (cg_student, "Cogniate SCORM")', () => {
     const row = rowsFor(await results(pub()), user(), ACT.scorm)[0];
     expect(row?.best?.outcome).toBe('passed');
     expect(row?.scoreSyncs).toHaveLength(1);
-  });
-
-  test('AC-T5-20 cg_student opens "Cogniate SCORM" again (the package calls LMSFinish at once): no new sync, best still passed, Moodle still 100', async () => {
-    test.setTimeout(120_000);
-    await passWindow?.popup.close({ runBeforeUnload: true }).catch(() => undefined);
-    const again = await openPlayer(context, user(), cmidOf(ACT.scorm));
-    const session = String((await runtimeState(again.token)).json?.sessionId ?? '');
-    const since = Date.now() - 2_000;
-    const finish = await waitForCommit(session, 'finish', since, 30_000);
-    expect(finish, 'the package sent a finish in the new session (it calls LMSFinish at once on a finished attempt)').toBeDefined();
-    await again.popup.waitForTimeout(3_000); // a sync row would be made in the same transaction as the attempt update
-    const row = rowsFor(await results(pub()), user(), ACT.scorm)[0];
-    expect(row?.scoreSyncs, 'no new scoreSyncs entry').toHaveLength(1);
-    expect(row?.best?.outcome).toBe('passed');
-    expect(await moodleGrade(course101(), user(), ACT.scorm)).toBe(100);
-    await again.popup.close({ runBeforeUnload: true });
+    await passWindow!.popup.close({ runBeforeUnload: true });
   });
 
   test('AC-T5-12 after AC-T5-07: a commit failed/0 with seq = lastSeq + 1 from the runtime frame → 200; no new sync; Moodle still 100', async () => {
