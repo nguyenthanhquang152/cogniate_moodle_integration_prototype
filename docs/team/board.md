@@ -12,7 +12,7 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 | 3b | T2b | Negative launch checks, qa-platform.test, acceptance profile | Author | in_progress | 1 | + T2a side items, shared migration runner, data-error-action. |
 | 4 | T3a | Services the app needs: service keys, token client, deep-linking response, AGS scores | Author | planned | — | |
 | 5 | T3b | Dynamic registration incl. "update existing tool" | Author | planned | — | |
-| 6 | T4a | Upload + package inspector | Author | verifying | 3 | R3 (73dccec): A APPROVE, B APPROVE; QA run at 93884d8. R2: QA FAIL only on U+0007 code (Q-T4a-02). |
+| 6 | T4a | Upload + package inspector | Author | **done** | 3 | R3: QA PASS (93884d8), A APPROVE, B APPROVE. Deferred: A-T4a-04 (→ T6/T8), B-T4a-01 (→ T3a). |
 | 7 | T4b1 | Connect + publish | Author | planned | — | |
 | 7b | T4b2 | Picker, launch handoff, security | Author | planned | — | |
 | 8 | T5a | Content host, SCORM runtime, score sync | Author | planned | — | |

@@ -144,3 +144,44 @@ Counts: 0 BLOCKER, 0 MAJOR, 1 MINOR, 1 NIT. Q-T4a-01 is closed.
 ### QA-side changes in round 2
 
 - I added the probe in `tests/acceptance/T4a/rejects.test.ts`, which is not an AC. It records the answer for U+202E and U+200B file names and never fails the suite.
+
+## Round 3
+
+Verdict: PASS
+Round: 3
+
+| Item | Value |
+| --- | --- |
+| SHA | `93884d82edd93b277b47e8edf1d4af2981f4aee8` (T4a round-3 code `73dccec` plus QA tests with the `&#7;` case; between the two, only the reviewers' files changed) |
+| Spec | `tasks/T4a.md` at `265c96d`, contract §3.2 at `c9570b5` (`INVALID_ENTRY_NAME` names the bidi and invisible characters) |
+| Tests used | The tests of the SHA as they are (no `--replace-tests`) |
+| Scope | Full `run-t4a.mjs`: AC-T4-01 to AC-T4-06, AC-T4-35, and the probe that is not an AC |
+| Date | 2026-10-17 |
+| Runner | `COMPOSE_PROJECT_NAME=qa-t4a-r3 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 COURSE_FIXTURES_DIR=<repo>/docs/raw/data/courses node tests/host/run-t4a.mjs --sha 93884d8…` |
+| Clean environment | Before the run there were 0 QA containers, volumes and networks. New clone `~/cogniate-qa-runs/qa-t4a-r3-93884d82-2026-10-17T06-07-13-588Z`. |
+| Isolation | The Author's stack was not touched. After the run: 0 QA containers, 0 volumes, 0 networks. |
+| Evidence root | `E3` = `tests/host/artifacts/qa-t4a-r3-93884d82-2026-10-17T06-07-13-588Z/`. An earlier run at `73dccec` with `--replace-tests` (same tests) also passed: `tests/host/artifacts/qa-t4a-r3-73dccecc-2026-10-17T01-58-04-329Z/`. |
+
+Pass A: 7 tests ran, 0 failed. The rejects pass: 2 tests ran, 0 failed. Folders in `/data/packages`: 4 before and 4 after. `find` found no `evil.html` or `abs.html`.
+
+### Results per acceptance criterion
+
+| AC | Result | What QA saw | Evidence |
+| --- | --- | --- | --- |
+| AC-T4-01, -02, -04, -06 | PASS | Same as rounds 1 and 2. | `E3/container-passA/vitest-results.json` |
+| AC-T4-03 | PASS | The report values are correct. `masteryScore=50` with SCORM gives 400 `MASTERY_SCORE_NOT_ALLOWED`, and no new version is stored. | same |
+| AC-T4-05 | PASS | All 16 crafted zips give 422 with the AC's code and a non-empty `details.action`. The store count is the same, and `find` found nothing. | `E3/container-rejects/vitest-results.json`, `E3/cmd/09…`, `11…`, `12…` |
+| AC-T4-35 | PASS | These cases give `INVALID_PACKAGE_IDENTIFIER` with `details.action`: the 129-character id, `__proto__`, `bad key.html`, and the U+0085 title. The U+0007 title (raw) and the `&#7;` title each give `MANIFEST_INVALID_XML` ("The manifest has a character that XML 1.0 does not allow."). No version is stored, and the store count is the same. | `E3/cmd/10-test-acceptance-rejects.log` (line "AC-T4-35 answers") |
+
+Probe (not an AC): U+202E and U+200B in a file name each give 422 `INVALID_ENTRY_NAME` with `details.action`. This agrees with contract §3.2 at `c9570b5`.
+
+### Findings, round 3
+
+Counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.
+
+- Q-T4a-02 is closed: U+0007, raw or as `&#7;`, gives `MANIFEST_INVALID_XML`.
+- Q-T4a-03 is closed: contract §3.2 names the bidi and invisible characters, and the product agrees.
+
+### Not covered (unchanged)
+
+The items of section 4 (round 1) stay outside the ACs, for example `nosniff` on every response. The bidi and invisible-character rule is now in the contract but has no AC. The probe covers only two of its characters.
