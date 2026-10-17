@@ -4,9 +4,9 @@ export type NameCheck =
   | { ok: true; path: string; isDir: boolean }
   | { ok: false; code: RejectCode; detail: string };
 
-// NUL, C0 controls, DEL and C1 controls.
+// NUL, C0 controls, DEL and C1 controls; also zero-width and bidi controls, which make a name look different (A-T4a-03).
 // eslint-disable-next-line no-control-regex
-const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
+const CONTROL = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/;
 const DRIVE = /^[A-Za-z]:/;
 const MAX_NAME_CHARS = 1024;
 const MAX_SEGMENT_BYTES = 255;
@@ -18,7 +18,7 @@ const MAX_SEGMENT_BYTES = 255;
  */
 export function checkEntryName(name: string): NameCheck {
   if (name === '') return { ok: false, code: 'INVALID_ENTRY_NAME', detail: 'The entry name is empty.' };
-  if (CONTROL.test(name)) return { ok: false, code: 'INVALID_ENTRY_NAME', detail: 'The entry name has a NUL or control character.' };
+  if (CONTROL.test(name)) return { ok: false, code: 'INVALID_ENTRY_NAME', detail: 'The entry name has a NUL, control, zero-width or bidi character.' };
   if (name.startsWith('/') || name.startsWith('\\') || DRIVE.test(name)) {
     return { ok: false, code: 'ABSOLUTE_PATH', detail: 'The entry name is an absolute path.' };
   }

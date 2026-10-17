@@ -2,7 +2,9 @@ import { stat } from 'node:fs/promises';
 import type { ZipFile } from 'yauzl';
 import type { Limits, RejectReason } from './codes.ts';
 import { DEFAULT_LIMITS, reasonPath } from './codes.ts';
+import type { HtmlScan } from './html.ts';
 import { cssUrls, externalHost, scanHtml } from './html.ts';
+import { MAX_PAGES, MAX_QUESTIONS, idProblem, pageKeyProblem, titleProblem } from './identifiers.ts';
 import { parseManifest, resolveHref } from './manifest.ts';
 import type { ZipFileEntry, ZipScan } from './zip.ts';
 import { ZipReadError, openZip, readEntries, readEntryBuffer, scanEntries } from './zip.ts';
@@ -98,6 +100,7 @@ function singleTopFolder(scan: ZipScan): string | null {
 const isHtml = (p: string): boolean => /\.html$/i.test(p);
 const isHtmlLike = (p: string): boolean => /\.html?$/i.test(p);
 const isCss = (p: string): boolean => /\.css$/i.test(p);
+const isSvg = (p: string): boolean => /\.svg$/i.test(p);
 const fileName = (p: string): string => p.slice(p.lastIndexOf('/') + 1);
 
 async function profile(zip: ZipFile, scan: ZipScan, limits: Limits, options: InspectOptions): Promise<InspectResult> {
@@ -123,6 +126,15 @@ async function profile(zip: ZipFile, scan: ZipScan, limits: Limits, options: Ins
     const parsed = parseManifest(await readEntryBuffer(zip, manifestFile));
     if (!parsed.ok) return reject({ code: parsed.code, path: manifestFile.path, detail: parsed.detail });
     const { manifest } = parsed;
+    // App contract §3.3: every identifier and title passes the rules before anything is stored.
+    for (const { field, value } of manifest.identifiers) {
+      const problem = value === null ? 'is missing' : idProblem(value);
+      if (problem) return reject({ code: 'INVALID_PACKAGE_IDENTIFIER', path: manifestFile.path, detail: `The ${field} ${problem}.` });
+    }
+    for (const { field, value } of manifest.titles) {
+      const problem = titleProblem(value);
+      if (problem) return reject({ code: 'INVALID_PACKAGE_IDENTIFIER', path: manifestFile.path, detail: `The ${field} ${problem}.` });
+    }
     if (manifest.scos.length > 1) {
       return reject({ code: 'MULTI_SCO_UNSUPPORTED', detail: `The manifest has ${manifest.scos.length} SCO resources. Only one is supported.` });
     }
@@ -137,28 +149,62 @@ async function profile(zip: ZipFile, scan: ZipScan, limits: Limits, options: Ins
     scorm = { schemaVersion: manifest.schemaVersion, identifier: manifest.identifier, title: manifest.title, masteryScore: manifest.masteryScore, scoCount: 1 };
   }
 
-  // Pages: the .html files directly in the root folder (the manifest folder or the entry folder), sorted by name.
+  // Pages: the .html files directly in the root folder (the manifest folder or the entry folder), sorted by file name.
   const pageFiles = scan.files
     .filter((f) => f.path.startsWith(root) && !f.path.slice(root.length).includes('/') && isHtml(f.path))
     .sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
-  const pages = pageFiles.map((f) => fileName(f.path).slice(0, -'.html'.length));
-  const menuPage = pages.length > 1 && pages.includes('index') ? 'index' : null;
+  if (pageFiles.length > MAX_PAGES) {
+    return reject({ code: 'INVALID_PACKAGE_IDENTIFIER', detail: `The package has ${pageFiles.length} pages. The limit is ${MAX_PAGES}.` });
+  }
 
-  // One pass over every HTML and CSS file: question ids (pages only) and external resource hosts (all files).
-  const questions = new Map<string, string[]>();
+  // One pass over every HTML, SVG and CSS file: page keys and question ids (pages), external hosts (all files).
+  const scans = new Map<string, HtmlScan>();
   const hosts = new Set<string>();
   for (const f of scan.files) {
-    const html = isHtmlLike(f.path);
-    if ((!html && !isCss(f.path)) || f.size > limits.maxTextBytes) continue;
+    const markup = isHtmlLike(f.path) || isSvg(f.path);
+    if ((!markup && !isCss(f.path)) || f.size > limits.maxTextBytes) continue;
     const source = (await readEntryBuffer(zip, f)).toString('utf8');
-    const urls = html ? scanHtml(source) : { questionIds: [], resourceUrls: cssUrls(source) };
-    questions.set(f.path, urls.questionIds);
-    for (const u of urls.resourceUrls) {
+    const result: HtmlScan = markup ? scanHtml(source) : { questionIds: [], lessonId: null, resourceUrls: cssUrls(source) };
+    scans.set(f.path, result);
+    for (const u of result.resourceUrls) {
       const host = externalHost(u);
       if (host) hosts.add(host);
     }
   }
-  const questionIds = [...new Set(pageFiles.flatMap((f) => questions.get(f.path) ?? []))];
+
+  // Page key = body[data-lesson-id], else the file name without .html (app contract §3.3). Keys are unique.
+  const pages: string[] = [];
+  const keyOfPath = new Map<string, string>();
+  const pathOfKey = new Map<string, string>();
+  for (const f of pageFiles) {
+    const lessonId = scans.get(f.path)?.lessonId ?? null;
+    const key = lessonId ?? fileName(f.path).slice(0, -'.html'.length);
+    const problem = pageKeyProblem(key);
+    if (problem) return reject({ code: 'INVALID_PACKAGE_IDENTIFIER', path: reasonPath(f.path), detail: `The page key ${problem}.` });
+    if (pathOfKey.has(key)) return reject({ code: 'INVALID_PACKAGE_IDENTIFIER', path: reasonPath(f.path), detail: 'The page key is the same as the key of another page.' });
+    pathOfKey.set(key, f.path);
+    keyOfPath.set(f.path, key);
+    pages.push(key);
+  }
+  const indexKey = keyOfPath.get(`${root}index.html`);
+  const menuPage = pages.length > 1 && indexKey !== undefined ? indexKey : null;
+
+  // Question ids: unique data-cog-quiz values in document order, pages sorted by file name.
+  const questionIds: string[] = [];
+  const seenQuestions = new Set<string>();
+  for (const f of pageFiles) {
+    for (const q of scans.get(f.path)?.questionIds ?? []) {
+      const problem = idProblem(q);
+      if (problem) return reject({ code: 'INVALID_PACKAGE_IDENTIFIER', path: reasonPath(f.path), detail: `A question id (data-cog-quiz) ${problem}.` });
+      if (!seenQuestions.has(q)) {
+        seenQuestions.add(q);
+        questionIds.push(q);
+      }
+    }
+  }
+  if (questionIds.length > MAX_QUESTIONS) {
+    return reject({ code: 'INVALID_PACKAGE_IDENTIFIER', detail: `The package has ${questionIds.length} question ids. The limit is ${MAX_QUESTIONS}.` });
+  }
   const externalHosts = [...hosts].sort();
 
   const masteryScore = format === 'scorm12'

@@ -8,10 +8,21 @@ const enc = (s: string) => Buffer.from(s, 'utf8');
 describe('parseManifest', () => {
   it('reads version, identifier, title, SCOs and mastery', () => {
     const r = parseManifest(enc(scormManifest({ mastery: '75.5', title: 'A &lt;b&gt; &#233;' })));
-    expect(r).toEqual({
+    expect(r).toMatchObject({
       ok: true,
       manifest: { schemaVersion: '1.2', identifier: 'com.example.test', title: 'A <b> é', masteryScore: 75.5, scos: [{ identifier: 'res-0', href: 'index.html' }] },
     });
+  });
+
+  it('collects every identifier and title for the identifier rules', () => {
+    const r = parseManifest(enc(scormManifest()));
+    expect(r.ok && r.manifest.identifiers).toEqual([
+      { field: 'manifest identifier', value: 'com.example.test' },
+      { field: 'organization identifier', value: 'org-1' },
+      { field: 'item identifier', value: 'item-1' },
+      { field: 'resource identifier', value: 'res-0' },
+    ]);
+    expect(r.ok && r.manifest.titles).toEqual([{ field: 'organization title', value: 'Test course' }, { field: 'item title', value: 'Item' }]);
   });
 
   it('a mastery score that is not 0-100 is null', () => {
@@ -67,6 +78,9 @@ describe('entry names', () => {
     expect(checkEntryName('./')).toMatchObject({ code: 'INVALID_ENTRY_NAME' });
     expect(checkEntryName(`${'x'.repeat(256)}.html`)).toMatchObject({ code: 'INVALID_ENTRY_NAME' });
     expect(checkEntryName('...html')).toMatchObject({ ok: true }); // three dots in a name are not a ".." segment
+    for (const bidi of ['gpj.\u202eexe.html', 'a\u200bb.html', 'a\u2066b.html', '\ufeffindex.html']) {
+      expect(checkEntryName(bidi)).toMatchObject({ code: 'INVALID_ENTRY_NAME' });
+    }
   });
 
   it('foldKey and decodeEntryName', () => {

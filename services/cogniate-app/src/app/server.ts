@@ -60,6 +60,10 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
     req.traceId = typeof given === 'string' && TRACE_ID.test(given) ? given : randomBytes(16).toString('hex');
     reply.header('x-trace-id', req.traceId);
   });
+  // A-T4a-05: no response of the app is sniffed as another type (JSON holds untrusted report text).
+  app.addHook('onSend', async (_req, reply) => {
+    reply.header('x-content-type-options', 'nosniff');
+  });
   app.addHook('onResponse', async (req, reply) => {
     // Route pattern (no ids, no query); a request without a route logs the redacted path.
     const path = req.routeOptions.url ?? redactPath(req.url.split('?')[0] ?? '/');

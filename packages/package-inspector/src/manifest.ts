@@ -13,6 +13,10 @@ export interface ScormManifest {
   title: string;
   masteryScore: number | null;
   scos: ScormSco[];
+  /** Every manifest, organization, item and resource identifier (null = attribute missing), for app contract §3.3. */
+  identifiers: Array<{ field: string; value: string | null }>;
+  /** Every organization and item <title> (trimmed), for app contract §3.3. */
+  titles: Array<{ field: string; value: string }>;
 }
 
 export type ManifestResult =
@@ -78,6 +82,7 @@ const text = (node: XNode | undefined): string => {
   const v = node?.['#text'];
   return typeof v === 'string' ? decodeXmlText(v).trim() : '';
 };
+const hasOwn = (node: XNode | undefined, key: string): boolean => node !== undefined && Object.prototype.hasOwnProperty.call(node, key);
 /** Attribute by local name, case-insensitive (adlcp:scormtype and adlcp:scormType both occur). */
 const attr = (node: XNode | undefined, name: string): string | null => {
   if (!node) return null;
@@ -139,6 +144,19 @@ export function parseManifest(bytes: Uint8Array): ManifestResult {
     scos.push({ identifier: attr(res, 'identifier') ?? '', href: href === null || href.trim() === '' ? null : href.trim() });
   }
 
+  // Identifiers and titles for the identifier rules (app contract §3.3). The inspector checks them.
+  const identifiers: ScormManifest['identifiers'] = [{ field: 'manifest identifier', value: attr(manifest, 'identifier') }];
+  const titles: ScormManifest['titles'] = [];
+  for (const o of orgList) {
+    identifiers.push({ field: 'organization identifier', value: attr(o, 'identifier') });
+    if (hasOwn(o, 'title')) titles.push({ field: 'organization title', value: text(first(o, 'title')) });
+    for (const item of walkItems(kids(o, 'item'))) {
+      identifiers.push({ field: 'item identifier', value: attr(item, 'identifier') });
+      if (hasOwn(item, 'title')) titles.push({ field: 'item title', value: text(first(item, 'title')) });
+    }
+  }
+  for (const res of kids(first(manifest, 'resources'), 'resource')) identifiers.push({ field: 'resource identifier', value: attr(res, 'identifier') });
+
   // Mastery score of the item that refers to the SCO (in the default organisation, else in any organisation).
   let masteryScore: number | null = null;
   const sco = scos[0];
@@ -160,6 +178,8 @@ export function parseManifest(bytes: Uint8Array): ManifestResult {
       title: text(first(org, 'title')),
       masteryScore,
       scos,
+      identifiers,
+      titles,
     },
   };
 }

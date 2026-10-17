@@ -31,8 +31,21 @@ describe('resource-host rule (contract §3: only URLs that load a resource)', ()
     `)).toEqual([]);
   });
 
-  it('reads question ids in document order', () => {
-    expect(scanHtml('<div data-cog-quiz="B"></div><section><div data-cog-quiz=" A "></div></section><div data-cog-quiz=""></div>').questionIds).toEqual(['B', 'A']);
+  it('reads question ids in document order (trimmed; the inspector checks the id rule) and body[data-lesson-id]', () => {
+    const scan = scanHtml('<body data-lesson-id=" L1 "><div data-cog-quiz="B"></div><section><div data-cog-quiz=" A "></div></section><div data-cog-quiz=""></div></body>');
+    expect(scan.questionIds).toEqual(['B', 'A', '']);
+    expect(scan.lessonId).toBe('L1');
+    expect(scanHtml('<p>x</p>').lessonId).toBeNull();
+  });
+
+  it('counts SVG href and xlink:href, <object data>, background and imagesrcset (A-T4a-02)', () => {
+    expect(hostsOf(`
+      <svg xmlns:xlink="http://www.w3.org/1999/xlink"><image xlink:href="https://svg1.example/a.png"/><use href="https://svg2.example/s.svg#i"/>
+        <filter><feImage href="https://svg3.example/f.png"/></filter><a href="https://svglink.example/">x</a></svg>
+      <object data="https://obj.example/x.swf"></object>
+      <table background="https://bg.example/t.png"></table>
+      <link rel="preload" as="image" imagesrcset="https://iss.example/1.png 1x, https://iss2.example/2.png 2x">
+    `)).toEqual(['bg.example', 'iss.example', 'iss2.example', 'obj.example', 'svg1.example', 'svg2.example', 'svg3.example']);
   });
 
   it('externalHost: lower case, protocol-relative and backslash forms; null for other schemes', () => {
@@ -40,6 +53,7 @@ describe('resource-host rule (contract §3: only URLs that load a resource)', ()
     expect(externalHost('//cdn.example/x')).toBe('cdn.example');
     expect(externalHost('https:\\\\cdn.example\\x')).toBe('cdn.example');
     expect(externalHost(' https://x.example ')).toBe('x.example');
+    expect(externalHost('ht\ttps://tab.exa\nmple/x')).toBe('tab.example');
     for (const v of ['data:x', 'blob:https://x.example/1', 'javascript:alert(1)', 'img/a.png', '/a.png', 'mailto:a@b.example', '']) {
       expect(externalHost(v)).toBeNull();
     }

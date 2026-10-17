@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import type { RejectCode } from './codes.ts';
-import { PackageRejectedError } from './codes.ts';
+import { PackageRejectedError, REJECT_CODES, REJECT_INFO } from './codes.ts';
 import { extractPackage } from './extract.ts';
 import { inspectPackage } from './inspect.ts';
 import type { TestEntry } from './testing.ts';
@@ -180,11 +180,85 @@ describe('reject codes (contract §3.2, AC-T4-05)', () => {
   });
 });
 
+describe('package identifiers (app contract §3.3, AC-T4-35)', () => {
+  const html = (body: string): TestEntry => ({ name: 'index.html', data: `<html><body>${body}</body></html>` });
+  const reasonOf = async (entries: TestEntry[]) => {
+    const r = await inspectPackage(writeTestZip(entries));
+    if (r.ok) throw new Error('expected a rejection');
+    return r.reasons[0]!;
+  };
+
+  it('a manifest identifier of 129 characters, or with a bad character, or missing', async () => {
+    const long = scormManifest().replace('identifier="com.example.test"', `identifier="${'a'.repeat(129)}"`);
+    expect(await reasonOf([INDEX, { name: 'imsmanifest.xml', data: long }])).toEqual({
+      code: 'INVALID_PACKAGE_IDENTIFIER', path: 'imsmanifest.xml', detail: 'The manifest identifier must have 1 to 128 characters.',
+    });
+    const ok128 = scormManifest().replace('identifier="com.example.test"', `identifier="${'a'.repeat(128)}"`);
+    expect((await inspectPackage(writeTestZip([INDEX, { name: 'imsmanifest.xml', data: ok128 }]))).ok).toBe(true);
+    const space = scormManifest().replace('identifier="item-1"', 'identifier="item 1"');
+    expect((await reasonOf([INDEX, { name: 'imsmanifest.xml', data: space }])).detail).toBe('The item identifier may contain only A-Z, a-z, 0-9, ".", "_", ":" and "-".');
+    const proto = scormManifest().replace('identifier="org-1"', 'identifier="Constructor"');
+    expect((await reasonOf([INDEX, { name: 'imsmanifest.xml', data: proto }])).detail).toBe('The organization identifier is a reserved name.');
+    const missing = scormManifest().replace('<resource identifier="res-0"', '<resource');
+    expect((await reasonOf([INDEX, { name: 'imsmanifest.xml', data: missing }])).detail).toBe('The resource identifier is missing.');
+  });
+
+  it('a manifest title with U+0007 (raw or &#7;), an empty title, a title over 255 characters', async () => {
+    for (const title of ['Bad\u0007title', 'Bad&#7;title', '   ', 'x'.repeat(256)]) {
+      const r = await reasonOf([INDEX, { name: 'imsmanifest.xml', data: scormManifest({ title }) }]);
+      expect(r.code, JSON.stringify(title)).toBe('INVALID_PACKAGE_IDENTIFIER');
+      expect(r.detail).toMatch(/^The organization title /);
+    }
+    const ok = await inspectPackage(writeTestZip([INDEX, { name: 'imsmanifest.xml', data: scormManifest({ title: `Tab\there ${'x'.repeat(240)}` }) }]));
+    expect(ok.ok).toBe(true);
+  });
+
+  it('data-cog-quiz="__proto__", an empty id, an id over 128 characters, a bad character', async () => {
+    for (const q of ['__proto__', 'PROTOTYPE', '', 'q'.repeat(129), 'a b', 'a/b']) {
+      const r = await reasonOf([html(`<div data-cog-quiz="${q}"></div>`)]);
+      expect(r, q).toMatchObject({ code: 'INVALID_PACKAGE_IDENTIFIER', path: 'index.html' });
+      expect(r.detail).toMatch(/^A question id \(data-cog-quiz\) /);
+    }
+  });
+
+  it('a page key "bad key" (file name with a space), a bad data-lesson-id, a duplicate key', async () => {
+    expect(await reasonOf([INDEX, { name: 'bad key.html', data: '<p>x</p>' }])).toEqual({
+      code: 'INVALID_PACKAGE_IDENTIFIER', path: 'bad key.html', detail: 'The page key may contain only A-Z, a-z, 0-9, ".", "_" and "-".',
+    });
+    expect((await reasonOf([html(''), { name: 'b.html', data: '<body data-lesson-id="__proto__"></body>' }])).detail).toBe('The page key is a reserved name.');
+    expect((await reasonOf([html(''), { name: `${'p'.repeat(65)}.html`, data: 'x' }])).detail).toBe('The page key must have 1 to 64 characters.');
+    expect((await reasonOf([html(''), { name: 'b.html', data: '<body data-lesson-id="index"></body>' }])).detail).toBe('The page key is the same as the key of another page.');
+  });
+
+  it('page key = data-lesson-id when present, else the file name; menu page = the key of index.html', async () => {
+    const r = await inspectPackage(writeTestZip([
+      { name: 'index.html', data: '<body data-lesson-id="home"></body>' },
+      { name: 'b.html', data: '<body><div data-cog-quiz="Q1"></div></body>' },
+    ]));
+    expect(r.ok && r.inspection.report.html).toEqual({ pages: ['b', 'home'], menuPage: 'home', questionIds: ['Q1'] });
+  });
+
+  it('more than 1,000 question ids, more than 500 pages', async () => {
+    const quizzes = Array.from({ length: 1001 }, (_, i) => `<div data-cog-quiz="q${i}"></div>`).join('');
+    expect((await reasonOf([html(quizzes)])).detail).toBe('The package has 1001 question ids. The limit is 1000.');
+    const pages = Array.from({ length: 500 }, (_, i) => ({ name: `p${i}.html`, data: 'x' }));
+    expect((await reasonOf([html(''), ...pages])).detail).toBe('The package has 501 pages. The limit is 500.');
+  });
+
+  it('every reject code has a title and an action sentence (B-T4a-02)', () => {
+    expect(Object.keys(REJECT_INFO).sort()).toEqual([...REJECT_CODES].sort());
+    for (const code of REJECT_CODES) {
+      expect(REJECT_INFO[code].title.length, code).toBeGreaterThan(5);
+      expect(REJECT_INFO[code].action, code).toMatch(/^[A-Z].*\.$/);
+    }
+  });
+});
+
 describe('detection and profile (contract §3.1)', () => {
   it('HTML in one top-level folder; pages sorted; questions unique in page order', async () => {
     const r = await inspectPackage(writeTestZip([
       { name: 'course/', data: '' },
-      { name: 'course/index.html', data: '<body data-lesson-id="L0"><div data-cog-quiz="Q2"></div></body>' },
+      { name: 'course/index.html', data: '<body data-lesson-id="index"><div data-cog-quiz="Q2"></div></body>' },
       { name: 'course/b-lesson.html', data: '<div data-cog-quiz="Q1"></div><div data-cog-quiz="Q2"></div><div data-cog-quiz="Q3"></div>' },
       { name: 'course/sub/deep.html', data: '<div data-cog-quiz="Q9"></div>' },
     ]));

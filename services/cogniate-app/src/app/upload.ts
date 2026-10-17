@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { Limits, RejectReason } from '@cogniate/package-inspector';
-import { PackageRejectedError, extractPackage, inspectPackage } from '@cogniate/package-inspector';
+import { PackageRejectedError, REJECT_INFO, extractPackage, inspectPackage } from '@cogniate/package-inspector';
 import type { Logger } from '@cogniate/shared';
 import { randomId, randomToken } from '@cogniate/shared';
 import type { FastifyRequest } from 'fastify';
@@ -28,9 +28,17 @@ export interface UploadDeps {
 
 const MASTERY = /^\d{1,3}(\.\d{1,2})?$/;
 
+/**
+ * 422 PACKAGE_REJECTED (contract §3.2). Each reason gets the title and the action of its code (REJECT_INFO), and
+ * details.action is the action of the first reason, so the portal shows them without its own text list.
+ */
 function rejected(log: Logger, traceId: string, reasons: RejectReason[]): ApiError {
   log.warn('package_rejected', { trace_id: traceId, codes: [...new Set(reasons.map((r) => r.code))] });
-  return new ApiError(422, 'PACKAGE_REJECTED', 'The package was rejected. See details.reasons.', { reasons });
+  const described = reasons.map((r) => ({ ...r, ...REJECT_INFO[r.code] }));
+  return new ApiError(422, 'PACKAGE_REJECTED', 'The package was rejected. See details.reasons.', {
+    reasons: described,
+    action: described[0]?.action ?? REJECT_INFO.ZIP_INVALID.action,
+  });
 }
 
 /** Read the multipart body: one file field `package` (streamed to `tmpFile`) and an optional `masteryScore`. */
@@ -83,6 +91,12 @@ export async function uploadVersion(req: FastifyRequest, course: Course, deps: U
     const result = await inspectPackage(tmpFile, { limits: deps.limits, ...(masteryScore === undefined ? {} : { masteryScore }) });
     if (!result.ok) throw rejected(deps.logger, req.traceId, result.reasons);
     const { inspection } = result;
+    if (inspection.format === 'scorm12' && masteryScore !== undefined) {
+      throw new ApiError(400, 'MASTERY_SCORE_NOT_ALLOWED', 'SCORM packages use the mastery score of their manifest.', {
+        field: 'masteryScore',
+        action: 'Upload the SCORM package without masteryScore. To change the mastery score, change it in the SCORM export.',
+      });
+    }
 
     const packageId = randomId('pkg_');
     pkgDir = join(deps.store.packages, packageId);

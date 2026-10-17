@@ -47,10 +47,12 @@ lti_json='{"apiKeyFiles":{"cogniate":"infra/.secrets/lti-api-key.cogniate","qa-s
 echo "6. Portal users (Cogniate app mock login)"
 : "${PORTAL_THANH_PASSWORD:?run npm run gen-env (it adds the PORTAL_* passwords to .env)}"
 : "${PORTAL_QAB_PASSWORD:?run npm run gen-env (it adds the PORTAL_* passwords to .env)}"
-# Passwords go on stdin, not on the command line. The CLI prints the users without passwords.
-# The format string is in single quotes, so the apostrophe of "Thanh's Library" comes in as the first %s.
-portal_json="$(printf '{"users":[{"email":"thanh@cogniate.test","name":"Thanh","role":"owner","library":"Thanh%ss Library","password":"%s"},{"email":"qa-b@cogniate.test","name":"QA B","role":"owner","library":"QA Library B","password":"%s"}]}' \
-  "'" "$PORTAL_THANH_PASSWORD" "$PORTAL_QAB_PASSWORD" \
+# Passwords go on stdin, not on the command line. node builds the JSON from the environment, so any password is
+# escaped correctly. The CLI prints the users without passwords.
+portal_json="$(node -e 'const e = process.env; process.stdout.write(JSON.stringify({ users: [
+    { email: "thanh@cogniate.test", name: "Thanh", role: "owner", library: "Thanh\u0027s Library", password: e.PORTAL_THANH_PASSWORD },
+    { email: "qa-b@cogniate.test", name: "QA B", role: "owner", library: "QA Library B", password: e.PORTAL_QAB_PASSWORD },
+  ] }))' \
   | dc exec -T cogniate-app node src/cli/seed-portal.ts)"
 
 echo "7. infra/.secrets/seed.json"

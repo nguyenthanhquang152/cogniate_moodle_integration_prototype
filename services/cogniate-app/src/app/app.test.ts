@@ -76,6 +76,8 @@ describe('session (AC-T4-01)', () => {
     expect(me.json().user.id).toMatch(/^usr_/);
     expect(me.json().library.id).toMatch(/^lib_/);
     expect(me.headers['cache-control']).toBe('no-store');
+    expect(me.headers['x-content-type-options']).toBe('nosniff');
+    expect((await t.app.inject({ method: 'GET', url: '/nope' })).headers['x-content-type-options']).toBe('nosniff');
   });
 
   it('DELETE /app-api/session ends the session and clears the cookie; a session ends after 8 h', async () => {
@@ -223,6 +225,9 @@ describe('upload', () => {
       const body = res.json();
       expect(body.details.message).toBe('PACKAGE_REJECTED');
       expect(body.details.reasons[0].code, code).toBe(code);
+      // B-T4a-02 / contract §3.2: details.action, and a title and an action in each reason.
+      expect(body.details.action, code).toMatch(/^[A-Z].{10,}\.$/);
+      expect(body.details.reasons[0]).toMatchObject({ title: expect.any(String), action: body.details.action });
     }
     expect(packageCount()).toBe(0);
     expect(readdirSync(t.store.tmp)).toEqual([]);
@@ -234,13 +239,38 @@ describe('upload', () => {
     expect(detail.versions).toEqual([]);
   });
 
+  it('masteryScore with a SCORM package: 400 MASTERY_SCORE_NOT_ALLOWED, nothing stored (AC-T4-03)', async () => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const course = await newCourse(cookie);
+    const scorm = makeZip([INDEX, { name: 'imsmanifest.xml', data: scormManifest() }]);
+    const res = await upload(cookie, course.id, scorm, { masteryScore: '50' });
+    expect(res.statusCode).toBe(400);
+    expect(res.json().details).toMatchObject({ message: 'MASTERY_SCORE_NOT_ALLOWED', description: 'SCORM packages use the mastery score of their manifest.', action: expect.any(String) });
+    expect(packageCount()).toBe(0);
+    expect(readdirSync(t.store.tmp)).toEqual([]);
+    expect((await t.app.inject({ method: 'GET', url: `/app-api/courses/${course.id}`, headers: { cookie } })).json().versions).toEqual([]);
+    expect((await upload(cookie, course.id, scorm)).statusCode).toBe(201); // without masteryScore it works
+  });
+
+  it('a package identifier that breaks the rules: 422 INVALID_PACKAGE_IDENTIFIER with details.action, nothing stored (AC-T4-35)', async () => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const course = await newCourse(cookie);
+    const res = await upload(cookie, course.id, makeZip([{ name: 'index.html', data: '<div data-cog-quiz="__proto__"></div>' }]));
+    expect(res.statusCode).toBe(422);
+    expect(res.json().details).toMatchObject({ message: 'PACKAGE_REJECTED', action: expect.any(String), reasons: [{ code: 'INVALID_PACKAGE_IDENTIFIER', path: 'index.html' }] });
+    expect(packageCount()).toBe(0);
+  });
+
   it('an upload over the limit is 422 ZIP_TOO_LARGE before any zip check', async () => {
     t = await testApp({ limits: { maxUploadBytes: 50_000 } });
     const cookie = await t.login(THANH);
     const course = await newCourse(cookie);
     const res = await upload(cookie, course.id, Buffer.alloc(60_000, 1));
     expect(res.statusCode).toBe(422);
-    expect(res.json().details.reasons).toEqual([{ code: 'ZIP_TOO_LARGE', detail: 'The upload is larger than 0.05 MB.' }]);
+    expect(res.json().details.reasons).toEqual([{ code: 'ZIP_TOO_LARGE', detail: 'The upload is larger than 0.05 MB.', title: 'The package is too large', action: expect.any(String) }]);
+    expect(res.json().details.action).toMatch(/200 MB/);
     expect(readdirSync(t.store.tmp)).toEqual([]);
   });
 

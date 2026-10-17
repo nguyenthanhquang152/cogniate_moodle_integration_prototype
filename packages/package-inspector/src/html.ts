@@ -5,11 +5,19 @@ type Node = DefaultTreeAdapterTypes.Node;
 type Element = DefaultTreeAdapterTypes.Element;
 
 export interface HtmlScan {
-  /** `data-cog-quiz` values in document order (not unique). */
+  /** `data-cog-quiz` values in document order (not unique, trimmed; may break the id rule: the caller checks). */
   questionIds: string[];
-  /** URLs that load a resource: src, srcset, poster, <link href>, <base href>, CSS url() and @import. */
+  /** `data-lesson-id` of the first <body>, or null (app contract §3.3: the page key when present). */
+  lessonId: string | null;
+  /**
+   * URLs that load a resource: src, srcset, imagesrcset, poster, data (<object>), background, <link href>,
+   * <base href>, SVG href / xlink:href (<image>, <use>, <feImage>), CSS url() and @import.
+   */
   resourceUrls: string[];
 }
+
+/** SVG elements whose href (or xlink:href) loads a resource. */
+const SVG_LOADING = new Set(['image', 'use', 'feimage']);
 
 const SPACE = /\s/;
 
@@ -59,7 +67,8 @@ export function cssUrls(css: string): string[] {
  * (data:, blob:, javascript:, ...). Browsers read `\` like `/` in these URLs, so `https:\\host` counts too.
  */
 export function externalHost(raw: string): string | null {
-  const v = raw.trim();
+  // Browsers remove ASCII tab and newline from URLs, so "ht<TAB>tps://x" loads from x.
+  const v = raw.replace(/[\t\n\r]/g, '').trim();
   if (!/^(?:https?:)?[\\/]{2}/i.test(v)) return null;
   try {
     const host = new URL(v.startsWith('//') || v.startsWith('\\\\') ? `https:${v}` : v).hostname.toLowerCase();
@@ -80,32 +89,42 @@ export function scanHtml(source: string): HtmlScan {
   const doc = parse(source);
   const questionIds: string[] = [];
   const resourceUrls: string[] = [];
+  let lessonId: string | null = null;
+  let bodySeen = false;
   // Iterative walk in document order (deep documents do not grow the call stack).
   const stack: Node[] = [doc];
   while (stack.length > 0) {
     const node = stack.pop()!;
     if ('tagName' in node) {
       const el = node as Element;
+      const tag = el.tagName.toLowerCase();
+      if (tag === 'body' && !bodySeen) {
+        bodySeen = true;
+        const lesson = el.attrs.find((a) => a.name === 'data-lesson-id');
+        if (lesson) lessonId = lesson.value.trim();
+      }
       for (const { name, value } of el.attrs) {
         if (name === 'data-cog-quiz') {
-          const id = value.trim();
-          if (id !== '') questionIds.push(id);
-        } else if (name === 'src' || name === 'poster') {
+          questionIds.push(value.trim());
+        } else if (name === 'src' || name === 'poster' || name === 'background') {
           resourceUrls.push(value);
-        } else if (name === 'srcset') {
+        } else if (name === 'srcset' || name === 'imagesrcset') {
           resourceUrls.push(...srcsetUrls(value));
-        } else if (name === 'href' && (el.tagName === 'link' || el.tagName === 'base')) {
+        } else if (name === 'data' && tag === 'object') {
+          resourceUrls.push(value);
+        } else if (name === 'href' && (tag === 'link' || tag === 'base' || SVG_LOADING.has(tag))) {
+          // parse5 gives xlink:href as name "href" with prefix "xlink".
           resourceUrls.push(value);
         } else if (name === 'style') {
           resourceUrls.push(...cssUrls(value));
         }
       }
-      if (el.tagName === 'style') resourceUrls.push(...cssUrls(textOf(el)));
+      if (tag === 'style') resourceUrls.push(...cssUrls(textOf(el)));
     }
     if ('childNodes' in node && node.nodeName !== 'template') {
       const children = node.childNodes;
       for (let i = children.length - 1; i >= 0; i -= 1) stack.push(children[i]!);
     }
   }
-  return { questionIds, resourceUrls };
+  return { questionIds, lessonId, resourceUrls };
 }
