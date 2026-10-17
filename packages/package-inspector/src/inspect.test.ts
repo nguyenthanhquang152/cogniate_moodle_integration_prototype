@@ -203,8 +203,14 @@ describe('package identifiers (app contract §3.3, AC-T4-35)', () => {
     expect((await reasonOf([INDEX, { name: 'imsmanifest.xml', data: missing }])).detail).toBe('The resource identifier is missing.');
   });
 
-  it('a manifest title with U+0007 (raw or &#7;), an empty title, a title over 255 characters', async () => {
-    for (const title of ['Bad\u0007title', 'Bad&#7;title', '   ', 'x'.repeat(256)]) {
+  it('a manifest title with U+0007 (raw or &#7;): MANIFEST_INVALID_XML, the first failing check (Q-T4a-02)', async () => {
+    for (const title of ['Bad\u0007title', 'Bad&#7;title']) {
+      expect((await reasonOf([INDEX, { name: 'imsmanifest.xml', data: scormManifest({ title }) }])).code, title).toBe('MANIFEST_INVALID_XML');
+    }
+  });
+
+  it('a manifest title with U+0085 (legal XML, a C1 control), an empty title, a title over 255 characters', async () => {
+    for (const title of ['Bad\u0085title', 'Bad&#x85;title', '   ', 'x'.repeat(256)]) {
       const r = await reasonOf([INDEX, { name: 'imsmanifest.xml', data: scormManifest({ title }) }]);
       expect(r.code, JSON.stringify(title)).toBe('INVALID_PACKAGE_IDENTIFIER');
       expect(r.detail).toMatch(/^The organization title /);
@@ -236,6 +242,16 @@ describe('package identifiers (app contract §3.3, AC-T4-35)', () => {
       { name: 'b.html', data: '<body><div data-cog-quiz="Q1"></div></body>' },
     ]));
     expect(r.ok && r.inspection.report.html).toEqual({ pages: ['b', 'home'], menuPage: 'home', questionIds: ['Q1'] });
+  });
+
+  it('Object.prototype names that pass the rules work as plain values (ids are kept in Map and Set, A-T4a-07)', async () => {
+    const r = await inspectPackage(writeTestZip([
+      { name: 'index.html', data: '<body data-lesson-id="hasOwnProperty"><div data-cog-quiz="toString"></div><div data-cog-quiz="valueOf"></div></body>' },
+      { name: 'toString.html', data: '<body><div data-cog-quiz="toString"></div></body>' },
+    ]));
+    expect(r.ok && r.inspection.report.html).toEqual({ pages: ['hasOwnProperty', 'toString'], menuPage: 'hasOwnProperty', questionIds: ['toString', 'valueOf'] });
+    const m = await inspectPackage(writeTestZip([INDEX, { name: 'imsmanifest.xml', data: scormManifest().replace('identifier="item-1"', 'identifier="toString"') }]));
+    expect(m.ok).toBe(true);
   });
 
   it('more than 1,000 question ids, more than 500 pages', async () => {

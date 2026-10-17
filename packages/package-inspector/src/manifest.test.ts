@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decodeXml, decodeXmlText, parseManifest, resolveHref } from './manifest.ts';
+import { decodeXml, decodeXmlText, hasIllegalXmlChar, parseManifest, resolveHref } from './manifest.ts';
 import { checkEntryName, decodeEntryName, foldKey } from './names.ts';
 import { scormManifest } from './testing.ts';
 
@@ -12,6 +12,21 @@ describe('parseManifest', () => {
       ok: true,
       manifest: { schemaVersion: '1.2', identifier: 'com.example.test', title: 'A <b> é', masteryScore: 75.5, scos: [{ identifier: 'res-0', href: 'index.html' }] },
     });
+  });
+
+  it('characters that XML 1.0 does not allow: MANIFEST_INVALID_XML before the identifier rules (Q-T4a-02)', () => {
+    for (const bad of ['\u0007', '&#7;', '&#x7;', '\u0000', '\u001f', '\ufffe', '\uffff', '&#xFFFE;', '&#xD800;', '&#0;']) {
+      const r = parseManifest(enc(scormManifest({ title: `Bad ${bad} title` })));
+      expect(r, JSON.stringify(bad)).toMatchObject({ ok: false, code: 'MANIFEST_INVALID_XML' });
+    }
+    // A lone surrogate in the file bytes (CESU ED A0 80) is not UTF-8: MANIFEST_INVALID_XML too.
+    const [head, tail] = scormManifest({ title: 'SPLIT' }).split('SPLIT');
+    expect(parseManifest(Buffer.concat([enc(head!), Buffer.from([0xed, 0xa0, 0x80]), enc(tail!)]))).toMatchObject({ ok: false, code: 'MANIFEST_INVALID_XML' });
+    // Legal XML 1.0: tab, LF, CR, U+0085 (C1, banned later by the title rule), astral characters.
+    expect(hasIllegalXmlChar('a\tb\nc\rd\u0085e\u{1F600}&#x85;&#x1F600;&#9;')).toBe(false);
+    expect(parseManifest(enc(scormManifest({ title: 'C1 \u0085 title' })))).toMatchObject({ ok: true });
+    // DOCTYPE still comes first.
+    expect(parseManifest(enc(`<!DOCTYPE m>${scormManifest({ title: '\u0007' })}`))).toMatchObject({ code: 'MANIFEST_DTD_FORBIDDEN' });
   });
 
   it('collects every identifier and title for the identifier rules', () => {
@@ -78,7 +93,8 @@ describe('entry names', () => {
     expect(checkEntryName('./')).toMatchObject({ code: 'INVALID_ENTRY_NAME' });
     expect(checkEntryName(`${'x'.repeat(256)}.html`)).toMatchObject({ code: 'INVALID_ENTRY_NAME' });
     expect(checkEntryName('...html')).toMatchObject({ ok: true }); // three dots in a name are not a ".." segment
-    for (const bidi of ['gpj.\u202eexe.html', 'a\u200bb.html', 'a\u2066b.html', '\ufeffindex.html']) {
+    for (const bidi of ['gpj.\u202eexe.html', 'a\u200bb.html', 'a\u2066b.html', '\ufeffindex.html', 'assets/a\u061cb.png', 'deep/er/a\u2028b.png',
+      'a\u2029b.html', 'a\u2060b.html', 'x/a\u2064b.css', 'a\u00adb.html', 'a\u180eb.html']) {
       expect(checkEntryName(bidi)).toMatchObject({ code: 'INVALID_ENTRY_NAME' });
     }
   });

@@ -40,6 +40,25 @@ export function decodeXml(bytes: Uint8Array): string | null {
   }
 }
 
+// XML 1.0 Char production: #x9 | #xA | #xD | [#x20-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF].
+const NOT_XML_CHAR = /[^\t\n\r\u0020-\ud7ff\ue000-\ufffd\u{10000}-\u{10ffff}]/u;
+const isXmlChar = (cp: number): boolean =>
+  cp === 0x9 || cp === 0xa || cp === 0xd || (cp >= 0x20 && cp <= 0xd7ff) || (cp >= 0xe000 && cp <= 0xfffd) || (cp >= 0x10000 && cp <= 0x10ffff);
+
+/**
+ * True if the text has a character that XML 1.0 does not allow, raw or as a character reference (Q-T4a-02):
+ * C0 controls except tab, LF and CR, U+FFFE, U+FFFF, lone surrogates. C1 controls such as U+0085 are legal XML.
+ */
+export function hasIllegalXmlChar(xml: string): boolean {
+  if (NOT_XML_CHAR.test(xml)) return true;
+  for (const m of xml.matchAll(/&#(x[0-9a-fA-F]+|[0-9]+);/g)) {
+    const ref = m[1]!;
+    const cp = ref[0] === 'x' ? Number.parseInt(ref.slice(1), 16) : Number.parseInt(ref, 10);
+    if (!isXmlChar(cp)) return true;
+  }
+  return false;
+}
+
 /** Only the five predefined XML entities and character references. No DTD entity is ever expanded. */
 export function decodeXmlText(value: string): string {
   return value.replace(/&(lt|gt|amp|quot|apos|#\d{1,7}|#x[0-9a-fA-F]{1,6});/g, (all, name: string) => {
@@ -108,6 +127,10 @@ export function parseManifest(bytes: Uint8Array): ManifestResult {
   if (xml === null) return { ok: false, code: 'MANIFEST_INVALID_XML', detail: 'The manifest is not valid UTF-8 or UTF-16 text.' };
   if (/<!DOCTYPE/i.test(xml) || /<!ENTITY/i.test(xml)) {
     return { ok: false, code: 'MANIFEST_DTD_FORBIDDEN', detail: 'The manifest has a <!DOCTYPE> or <!ENTITY> declaration.' };
+  }
+  // The first failing check gives the code: DTD, then XML 1.0 characters, then well-formedness, then the rest.
+  if (hasIllegalXmlChar(xml)) {
+    return { ok: false, code: 'MANIFEST_INVALID_XML', detail: 'The manifest has a character that XML 1.0 does not allow.' };
   }
   const valid = XMLValidator.validate(xml);
   if (valid !== true) {

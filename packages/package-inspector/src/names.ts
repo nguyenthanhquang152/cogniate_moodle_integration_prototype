@@ -4,9 +4,11 @@ export type NameCheck =
   | { ok: true; path: string; isDir: boolean }
   | { ok: false; code: RejectCode; detail: string };
 
-// NUL, C0 controls, DEL and C1 controls; also zero-width and bidi controls, which make a name look different (A-T4a-03).
+// NUL, C0 controls, DEL and C1 controls; also invisible, line-separator and bidi characters, which make a name look
+// different (A-T4a-03, A-T4a-06): soft hyphen, Arabic letter mark, Mongolian vowel separator, zero-width and bidi
+// marks, line and paragraph separators, word joiner and invisible operators, bidi isolates, BOM. Any folder depth.
 // eslint-disable-next-line no-control-regex
-const CONTROL = /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069\ufeff]/;
+const CONTROL = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u2028\u2029\u202a-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/;
 const DRIVE = /^[A-Za-z]:/;
 const MAX_NAME_CHARS = 1024;
 const MAX_SEGMENT_BYTES = 255;
