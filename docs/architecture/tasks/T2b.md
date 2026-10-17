@@ -29,7 +29,8 @@ Fix these in T2b (code owner: Author). QA checks the ones with an AC.
 | A-T2a-02 | If a JWKS refresh fails, keep using cached keys up to 24 h after the last good fetch instead of failing every launch. | security §2.4, contract §4, AC-T2-32 |
 | B-T2a-02 | One typed list of API error codes (contract §1.3) in `packages/shared` `errors`, used by every handler. | contract §1.3 |
 | B-T2a-03 | `launch_check_failed` gets a `detail` field with a safe reason (`skew_s=…`, `kid_unknown`, `jwks_fetch_failed`, …). | contract §5, AC-T2-30 |
-| B-T2a-04 | Migration checksum: stop at start if an applied migration file changed. | ADR-006 |
+| B-T2a-04 | Migration checksum: stop at start if an applied migration file changed. Use the shared migration runner (ADR-008 `migrations`). | ADR-006 |
+| T4a note | LTI service error pages also mark the next-action sentence with `data-error-action`. | security §2.2, AC-T2-30 |
 
 ## Acceptance criteria
 
@@ -48,7 +49,7 @@ Setup: T2a setup with `STACK_PROFILE=acceptance`. QA captures launch POSTs with 
 - **AC-T2-27** QA platform token whose `target_link_uri` differs from the login value → `INVALID_TARGET_LINK_URI` (check 12).
 - **AC-T2-28** A POST to `/lti/launch/cogniate` with `error=access_denied` and a valid `state` (no `id_token`) → page `PLATFORM_ERROR` showing `access_denied`. The same state later → `INVALID_STATE`.
 - **AC-T2-32** JWKS refresh failure: QA makes the QA platform JWKS fail (removes the file, so `qa-platform.test` answers 404) at least 61 s after the last fetch. (1) A QA token with an unknown `kid` → `INVALID_SIGNATURE`, `launch_check_failed {check: 6, detail: "jwks_fetch_failed"}`, and one `outbound_*` event for the failed fetch. (2) Then a QA token signed with the cached key → the launch is accepted. QA restores the file.
-- **AC-T2-30** Logs and markers: every error page of AC-T2-09 to AC-T2-28 has `data-error-code` and `data-trace-id`; the trace id is in a `launch_check_failed` or `login_rejected` event with the right `check`, `code` and a non-empty `detail` (B-T2a-03) that contains no token or key. In the whole T2b run, the number of `qa_platform_hit` lines on the JWKS path = the number of `outbound_request {host: "qa-platform.test"}` events. AC-T2-29 repeated in this profile gives zero `sink_hit`. The log contains none of the captured secrets of this run. `/healthz` shows `"profile": "acceptance"` during the run and `"default"` after `npm run test:acceptance` ends.
+- **AC-T2-30** Logs and markers: every error page of AC-T2-09 to AC-T2-28 has `data-error-code`, `data-trace-id` and a non-empty `data-error-action` element; the trace id is in a `launch_check_failed` or `login_rejected` event with the right `check`, `code` and a non-empty `detail` (B-T2a-03) that contains no token or key. In the whole T2b run, the number of `qa_platform_hit` lines on the JWKS path = the number of `outbound_request {host: "qa-platform.test"}` events. AC-T2-29 repeated in this profile gives zero `sink_hit`. The log contains none of the captured secrets of this run. `/healthz` shows `"profile": "acceptance"` during the run and `"default"` after `npm run test:acceptance` ends.
 
 ## Self-check
 

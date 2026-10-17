@@ -51,11 +51,11 @@ Seed: `thanh@cogniate.test` → "Thanh's Library"; `qa-b@cogniate.test` → "QA 
 | `GET /app-api/courses` | — | `200 { "courses": [Course] }` |
 | `POST /app-api/courses` | `{ "title", "summary"?, "variant"?: "default", "lang"?: "en" }` | `201` Course |
 | `GET /app-api/courses/:courseId` | — | `200` Course with `versions` |
-| `POST /app-api/courses/:courseId/versions` | `multipart/form-data`: `package` (zip ≤ 200 MB), `masteryScore`? (0–100, HTML only) | `201` CourseVersion |
+| `POST /app-api/courses/:courseId/versions` | `multipart/form-data`: `package` (zip ≤ 200 MB), `masteryScore`? (0–100, HTML only) | `201` CourseVersion. `masteryScore` with a SCORM package → `400 MASTERY_SCORE_NOT_ALLOWED` ("SCORM packages use the mastery score of their manifest"); nothing is stored. A value outside 0–100 → `400 INVALID_REQUEST`. |
 | `GET /app-api/courses/:courseId/versions/:versionId` | — | `200` CourseVersion |
 | `GET /app-api/courses/:courseId/versions/:versionId/download?kind=original` (T6) | — | `200 application/zip`, the uploaded bytes |
 
-Course: `{ id, title, summary, variant, lang, createdAt, latestVersion, publications: [{ id, connectionId, status }] }`.
+Course: `{ id, title, summary, variant, lang, createdAt, latestVersion, publications: [{ id, connectionId, status }] }`. `latestVersion` = `{ id, version, format, createdAt }` of the newest version, or `null` (only accepted versions are stored, so there is no status field).
 
 CourseVersion (values for the SCORM fixture):
 
@@ -76,7 +76,7 @@ CourseVersion (values for the SCORM fixture):
 
 HTML fixture: `format=html`, `totalBytes=12103306`, `fileCount=7`, `report.html = { "pages": ["index", "lesson-ai-web-sprint"], "menuPage": "index", "questionIds": ["01M2M36Y89M9KPPZENF1ZW4AWJ"] }`, `externalHosts = ["cogniate-prod-ai-course-creation.s3.ap-southeast-1.amazonaws.com", "fonts.gstatic.com"]`.
 
-Report rules: `fileCount` counts files (not folders). `totalBytes` = sum of uncompressed sizes. `externalHosts` = hosts of absolute URLs that **load** a resource: `src`, `srcset`, `poster`, `<link href>`, CSS `url()` and `@import`. Plain links and comments do not count.
+Report rules: `fileCount` counts files (not folders). `totalBytes` = sum of uncompressed sizes. `externalHosts` = hosts of absolute URLs that **load** a resource: `src`, `srcset`, `poster`, `<link href>`, `<base href>` (relative URLs then load from that host), CSS `url()` and `@import`. Plain links and comments do not count.
 
 ### 3.1 Detection and profile
 
@@ -203,12 +203,12 @@ ResultRow (one per learner per activity; preview attempts are rows with `preview
 
 ## 6. Tool pages and player shell — T4b1 (`/tool/register`), T4b2 (the others)
 
-Server-rendered HTML. No cookies. Headers per page: security §5. Every error page shows the code, the trace id and one action line. Log events: §12.
+Server-rendered HTML. No cookies. Headers per page: security §5. Every error page shows the code, the trace id and one action line, marked with `data-error-code`, `data-trace-id` and `data-error-action` (security §2.2). Log events: §12.
 
 | Method and path | Input | Result |
 | --- | --- | --- |
 | `GET /tool/launch` | `ltik` | Handoff (security §4): single use (`409 HANDOFF_USED`); `GET /api/idtoken`; publication from the signed `launch.target` (`resource`); resource link upsert by (connection, deployment, context, resource link) with `lineItemId` and service key; attempt (data-model §2, incl. the rule after a rebind); play session. `303 /play/{playId}`, or `303 /play/{playId}/embedded` when `documentTarget` is `iframe` (`frame` and `window` open the player directly). Errors: `401` page (bad ltik), `404` page "This course is not available" (`PUBLICATION_NOT_IN_CONNECTION`, `UNKNOWN_PLATFORM`), `410` page "This course is no longer available" (`PUBLICATION_WITHDRAWN`). No attempt on error. |
-| `GET /tool/deep-link` | `ltik` | Single use. Needs `LtiDeepLinkingRequest` and a role that ends with `#Instructor`, `#ContentDeveloper` or `#Administrator`. Picker session (`PICKER_TTL_SECONDS`, default 1 h) with the ltik encrypted. `303 /tool/picker/{pickerId}`. Else `403` page and `deep_link_rejected {reason}`. |
+| `GET /tool/deep-link` | `ltik` | Checks in this order: (1) single use (`409 HANDOFF_USED`, `handoff_rejected`); (2) `GET /api/idtoken` (`401` page, `deep_link_rejected {reason: invalid_ltik}`); (3) `launch.type` is `LtiDeepLinkingRequest` (`403` page, `not_deep_linking`); (4) a role that ends with `#Instructor`, `#ContentDeveloper` or `#Administrator` (`403` page, `role_not_allowed`). Then a picker session (`PICKER_TTL_SECONDS`, default 1 h) with the ltik encrypted, and `303 /tool/picker/{pickerId}`. |
 | `GET /tool/picker/{pickerId}` | — | Radio list (single select) of the connection's `available` publications: title, format badge ("SCORM 1.2" / "HTML"), version. |
 | `POST /tool/picker/{pickerId}` | form `publicationId` (exactly one) | Checks: picker not used and not expired (`410`), `Origin` (403), publication of this connection and `available` (`400 PUBLICATION_NOT_AVAILABLE`, no deep-linking call). Calls `POST /api/deeplinking` with one item (flows §6b). Page with a hidden form (`JWT`, action = `target`) and a nonce script that submits it. Marks the picker used. |
 | `GET /tool/register` | `registrationId`, `ref` | Checks `ref` (`pending`, not expired, not used). `GET /api/registrations/{id}`. Checks `url` origin = `siteUrl` origin (`SITE_MISMATCH`). If `operation = update` and `existingPlatformId` is not this connection's platform: page `UPDATE_NOT_ALLOWED` ("Go back in Moodle and choose Register as a new tool"). Else the confirm page: site URL, Moodle version, library, "Learners are anonymous: Moodle does not send names or emails." Button "Connect". Errors: `400` page `REF_INVALID`, `REF_EXPIRED`, `SITE_MISMATCH`. |

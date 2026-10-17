@@ -53,7 +53,7 @@ Other launch cases:
 | `GET` (or any method except `POST`) on `/lti/launch/{toolAccountId}` | `405` page `METHOD_NOT_ALLOWED`, header `Allow: POST`. |
 | `STATE_COOKIE_MISSING` | The service checks the signature (checks 4 and 6) only to choose the help text. It never continues the launch. Resource link: "Your browser blocked a cookie in an embedded frame. Ask your Moodle admin to set the Cogniate tool to open in a new window." Deep linking: "Your browser blocks cookies in Moodle's content dialog. Use Chrome, Edge or Firefox, or allow cookies for this site." Otherwise: "Start again from Moodle." |
 
-Every HTML error page shows: the code, the trace id, and one line with the next action. Its main element has `data-error-code` and `data-trace-id`. Error pages have no form and no state-changing button, so they may be framed by any https origin (§5); this keeps them visible in Moodle's frames before a platform is known.
+Every HTML error page shows: the code, the trace id, and one line with the next action. Its main element has `data-error-code` and `data-trace-id`, and the element with the next-action sentence has `data-error-action`. Error pages have no form and no state-changing button, so they may be framed by any https origin (§5); this keeps them visible in Moodle's frames before a platform is known.
 
 After all checks pass, the service stores the launch, makes the ltik, deletes the state cookie, logs `launch_accepted {platform_id, message_type}`, and redirects (303) to the tool. It copies the query of `target_link_uri` and adds `ltik` (LTIAAS behaviour). The tool must **not** trust the copied query (section 4).
 
