@@ -12,7 +12,8 @@ export interface ServiceListener {
   name: string;
   port: number;
   publicUrl: (urls: PublicUrls) => string;
-  build: (deps: { logger: Logger; knobs: Knob[]; knobValues: ServiceKnobs['values']; urls: PublicUrls; profile: string }) => Server;
+  /** Make the server (not listening yet). May be async, for example a Fastify app after ready(). */
+  build: (deps: { logger: Logger; knobs: Knob[]; knobValues: ServiceKnobs['values']; urls: PublicUrls; profile: string }) => Server | Promise<Server>;
 }
 
 export interface StartOptions {
@@ -42,7 +43,7 @@ export async function startService(
   for (const l of listeners) {
     const logger = createLogger({ service: l.name, dir: env.LOG_DIR, ...(options.write ? { write: options.write } : {}) });
     for (const knob of knobs) logger.warn('test_knob_active', { name: knob.name, value: knob.value });
-    const server = l.build({ logger, knobs, knobValues, urls, profile });
+    const server = await l.build({ logger, knobs, knobValues, urls, profile });
     const addr = await listen(server, l.port, '0.0.0.0');
     logger.info('service_started', { port: addr.port, public_url: l.publicUrl(urls), node: process.version, profile, knobs });
     servers.push(server);

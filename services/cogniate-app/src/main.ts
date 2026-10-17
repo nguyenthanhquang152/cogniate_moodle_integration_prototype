@@ -1,8 +1,29 @@
-// cogniate-app entry point: app listener (PUBLIC_APP_URL, :4200) and content listener (PUBLIC_CONTENT_URL, :4201).
+// cogniate-app entry point. One process, two listeners (ADR-005):
+//  - app:     PUBLIC_APP_URL     (proxy -> :4200): /app-api/*, later tool pages and the portal
+//  - content: PUBLIC_CONTENT_URL (proxy -> :4201): a different site, sets no cookies (T5a)
+import { join } from 'node:path';
 import { portFromEnv, startService } from '@cogniate/shared';
-import { APP_SERVICE_NAME, CONTENT_SERVICE_NAME, buildAppServer, buildContentServer } from './servers.ts';
+import { buildAppApi } from './app/server.ts';
+import { loadConfig } from './config.ts';
+import { CONTENT_SERVICE_NAME, buildContentServer } from './content-host/server.ts';
+import { openDb } from './domain/db.ts';
+import { prepareStore } from './domain/package-store.ts';
+
+const APP_SERVICE_NAME = 'cogniate-app';
+const config = loadConfig();
+const db = openDb(join(config.dataDir, 'cogniate.db'));
+const store = await prepareStore(config.dataDir);
 
 await startService(APP_SERVICE_NAME, [
-  { name: APP_SERVICE_NAME, port: portFromEnv('PORT', 4200), publicUrl: (u) => u.app, build: (deps) => buildAppServer(deps) },
+  {
+    name: APP_SERVICE_NAME,
+    port: portFromEnv('PORT', 4200),
+    publicUrl: (u) => u.app,
+    build: async (deps) => {
+      const app = await buildAppApi({ db, urls: deps.urls, logger: deps.logger, store, profile: deps.profile, knobs: deps.knobs });
+      await app.ready();
+      return app.server;
+    },
+  },
   { name: CONTENT_SERVICE_NAME, port: portFromEnv('CONTENT_PORT', 4201), publicUrl: (u) => u.content, build: (deps) => buildContentServer(deps) },
 ]);

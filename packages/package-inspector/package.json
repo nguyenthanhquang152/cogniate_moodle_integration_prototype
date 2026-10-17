@@ -1,0 +1,21 @@
+{
+  "name": "@cogniate/package-inspector",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./testing": "./src/testing.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/yauzl": "3.4.0"
+  },
+  "dependencies": {
+    "fast-xml-parser": "5.11.2",
+    "parse5": "8.0.1",
+    "yauzl": "3.4.0"
+  }
+}

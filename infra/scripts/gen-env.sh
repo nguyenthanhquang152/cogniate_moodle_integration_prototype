@@ -7,7 +7,8 @@
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 
-SECRETS=(DB_PASS MOODLE_ADMIN_PASSWORD MOODLE_TEACHER_PASSWORD MOODLE_STUDENT_PASSWORD MOODLE_STUDENT2_PASSWORD LTI_MASTER_KEY APP_MASTER_KEY)
+SECRETS=(DB_PASS MOODLE_ADMIN_PASSWORD MOODLE_TEACHER_PASSWORD MOODLE_STUDENT_PASSWORD MOODLE_STUDENT2_PASSWORD LTI_MASTER_KEY APP_MASTER_KEY
+  PORTAL_THANH_PASSWORD PORTAL_QAB_PASSWORD)   # PORTAL_*: mock login of the Cogniate app (T4a)
 hex() { openssl rand -hex "$1"; }
 # Moodle password policy: upper + lower + digit + non-alphanumeric, >= 8 chars.
 pw() { echo "Pw-$(hex 8)-Q$(( RANDOM % 90 + 10 ))"; }

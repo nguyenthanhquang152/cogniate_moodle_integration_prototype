@@ -31,6 +31,21 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
       eqeqeq: ['error', 'always'],
       'no-console': 'off',
+      // ADR-008: no code imports from tests/**.
+      'no-restricted-imports': ['error', { patterns: [{ group: ['**/tests/**'], message: 'Do not import from tests/** (QA only).' }] }],
+    },
+  },
+  {
+    // ADR-008 import fence: the untrusted content host imports only domain/attempts*, packages/tracking and packages/shared.
+    files: ['services/cogniate-app/src/content-host/**'],
+    rules: {
+      'no-restricted-imports': ['error', {
+        patterns: [
+          { group: ['../*', '!../domain', '../domain/*', '!../domain/attempts*'], message: 'content-host may import only ../domain/attempts*, @cogniate/tracking and @cogniate/shared (ADR-008).' },
+          { group: ['@cogniate/*', '!@cogniate/shared', '!@cogniate/tracking'], message: 'content-host may import only @cogniate/shared and @cogniate/tracking (ADR-008).' },
+          { group: ['**/tests/**'], message: 'Do not import from tests/** (QA only).' },
+        ],
+      }],
     },
   },
 );

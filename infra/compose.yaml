@@ -157,8 +157,17 @@ services:
       NODE_EXTRA_CA_CERTS: /certs/root.crt
       APP_MASTER_KEY: ${APP_MASTER_KEY:?run npm run gen-env}
       LOG_DIR: /logs
+      DATA_DIR: /data                          # cogniate.db, packages/, uploads/ (ADR-006); host: infra/.data/cogniate-app
       STACK_PROFILE: ${STACK_PROFILE:-default}
       <<: *public-urls
+    volumes:
+      - ../package.json:/repo/package.json:ro
+      - ../node_modules:/repo/node_modules:ro
+      - ../packages:/repo/packages:ro
+      - ../services:/repo/services:ro
+      - ./.certs/root.crt:/certs/root.crt:ro
+      - ./.logs:/logs
+      - ./.data/cogniate-app:/data
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4200/healthz && wget -q -O /dev/null http://127.0.0.1:4201/healthz"]
       interval: 10s

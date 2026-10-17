@@ -2,6 +2,7 @@ export { PUBLIC_URL_ENV, loadPublicUrls } from './config.ts';
 export type { PublicUrls } from './config.ts';
 export { closeOnSignal, createHealthServer, errorBody, listen, portFromEnv, sendJson, traceIdFrom } from './http.ts';
 export type { ErrorBody, HealthBody, HealthServerOptions } from './http.ts';
+export { decrypt, encrypt, randomId, randomToken, safeEqual, sha256Hex } from './crypto.ts';
 export { KNOB_REGISTRY, knobValue, readServiceKnobs } from './knobs.ts';
 export type { Knob, KnobName, KnobSpec, ServiceKnobs } from './knobs.ts';
 export { BOOT_TRACE_ID, createLogger, redact, redactPath, redactString } from './logger.ts';

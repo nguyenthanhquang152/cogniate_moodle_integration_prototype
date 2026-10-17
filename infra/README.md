@@ -34,13 +34,13 @@ All commands run from the repo root.
 | --- | --- | --- | --- |
 | `npm run gen-env` | First run, or after you change `PUBLIC_PORT`. `stack:up` runs it for you. | nothing | Existing secrets. It adds missing secrets, writes the four URLs, and makes `infra/.certs/` if missing. |
 | `npm run stack:up` | Start the stack. It waits until every service is healthy. | nothing | everything |
-| `npm run seed` | After `stack:up`. You can run it again at any time (idempotent). | nothing | everything. It updates Moodle settings, users, courses and tokens, makes the LTI tool accounts `cogniate` and `qa-second` (API keys in `infra/.secrets/lti-api-key.<account>`), and rewrites `infra/.secrets/seed.json` (other keys, such as `ltiSeed`, are kept). |
+| `npm run seed` | After `stack:up`. You can run it again at any time (idempotent). | nothing | everything. It updates Moodle settings, users, courses and tokens, makes the LTI tool accounts `cogniate` and `qa-second` (API keys in `infra/.secrets/lti-api-key.<account>`), makes the portal users of the Cogniate app (`thanh@cogniate.test`, `qa-b@cogniate.test`), and rewrites `infra/.secrets/seed.json` (other keys, such as `ltiSeed`, are kept). |
 | `npm run seed:lti-manual` | After `seed`: a launchable dev setup without UI. Idempotent. | nothing | everything. Makes the Moodle tool "Cogniate (seed)", the activities "Seed activity" (101) and "Seed activity 102" (102), registers the platform in the LTI service (`POST /api/platforms`; a deleted platform is made again), and writes `ltiSeed` to `seed.json`. |
 | `npm run lti:bootstrap -w services/lti-service -- --account <id> --name <name> [--rotate-api-key] [--rotate-signing-key]` | Make or update one LTI tool account (contract §7). | nothing (a rotated key replaces the old key) | everything. A new or rotated API key is printed once and written to `infra/.secrets/lti-api-key.<account>` (mode 600). |
 | `npm run demo` | One command for a human demo: `npm ci` (if needed), gen-env, build, stack:up, seed. | nothing | everything |
 | `npm run demo:browser` | Look at the stack in Chrome without any change to your Mac. | nothing | A throwaway profile in `.tmp/demo-browser-profile` (delete it any time). |
 | `npm run stack:down` | Stop the containers. | containers | volumes (Moodle site, database), `.env`, certificates, `infra/.secrets`, `infra/.logs` |
-| `npm run stack:reset` | Start again with an empty Moodle site and an empty LTI service. Then run `stack:up`, `seed` and `seed:lti-manual`. | volumes (Moodle site, database), the LTI service database (`infra/.data/lti-service/`), `infra/.secrets/seed.json`, `infra/.secrets/lti-api-key.*`, `infra/.logs/`, `infra/.data/backups/`, test knobs | `.env` (same passwords), `infra/.certs/` (same CA), `infra/.data/fixtures/`. It refuses a project that belongs to another checkout, and without `.env` it needs an explicit `COMPOSE_PROJECT_NAME`. |
+| `npm run stack:reset` | Start again with an empty Moodle site and an empty LTI service. Then run `stack:up`, `seed` and `seed:lti-manual`. | volumes (Moodle site, database), the LTI service database (`infra/.data/lti-service/`), the Cogniate app database and package store (`infra/.data/cogniate-app/`), `infra/.secrets/seed.json`, `infra/.secrets/lti-api-key.*`, `infra/.logs/`, `infra/.data/backups/`, test knobs | `.env` (same passwords), `infra/.certs/` (same CA), `infra/.data/fixtures/`. It refuses a project that belongs to another checkout, and without `.env` it needs an explicit `COMPOSE_PROJECT_NAME`. |
 | `npm run stack:restart -- <service> [--env K=V ...]` | Restart one service with test knobs (registered knobs only). Without `--env`, the defaults come back. | The knobs of that service (when you restore the defaults) | everything else |
 | `npm run stack:logs [-- <service>...]` | Follow the container logs. | nothing | everything |
 | `npm run stack:moodle-reach-check` | Check that Moodle's own HTTP client reaches the LTI service (curl security + CA), and that seven other targets stay BLOCKED. Host rule (https, port 443): metadata IP, loopback, `10.0.0.0/8`, the Docker Desktop host, another Docker range. Port rule: port 80, the database port. Exit 1 if one is ALLOWED. | nothing | everything |
@@ -113,6 +113,7 @@ CAUTION: A trusted root lets every certificate signed by `infra/.certs/ca.key` p
 | Dev-only network settings | `curlsecurityblockedhosts` = the Moodle default list with only `STACK_SUBNET` cut out (`172.16.0.0/12` is split around it; every other entry stays). `curlsecurityallowedport` = `443` (+ `PUBLIC_PORT`), so port 80 is closed. `noemailever` = 1. `stack:moodle-reach-check` proves the rules. MoodleCloud does not need these settings. |
 | WS file access | Both services have `downloadfiles = 0` and `uploadfiles = 0`: a token cannot read or upload files through `webservice/pluginfile.php`. |
 | Admin password | Seed sets the `admin` password from `.env` on every run. |
+| Portal users (Cogniate app, mock login) | `thanh@cogniate.test` in "Thanh's Library" (password `PORTAL_THANH_PASSWORD`) and `qa-b@cogniate.test` in "QA Library B" (password `PORTAL_QAB_PASSWORD`). Role `owner`. Seed runs `node src/cli/seed-portal.ts` in the `cogniate-app` container (passwords on stdin). A password changes only when `.env` changes; then the old sessions of that user end. |
 
 ### `infra/.secrets/seed.json`
 
@@ -137,7 +138,13 @@ Mode 600 and git-ignored. Format `cogniate-seed/1`. Later tasks add keys. They d
     }
   },
   "lti": { "apiKeyFiles": { "cogniate": "infra/.secrets/lti-api-key.cogniate", "qa-second": "infra/.secrets/lti-api-key.qa-second" } },
-  "ltiSeed": { "typeId": 1, "clientId": "<Moodle client id>", "deploymentId": "1", "cmids": { "COGNIATE-DEV-101": 3, "COGNIATE-DEV-102": 4 }, "platformId": "plt_..." }
+  "ltiSeed": { "typeId": 1, "clientId": "<Moodle client id>", "deploymentId": "1", "cmids": { "COGNIATE-DEV-101": 3, "COGNIATE-DEV-102": 4 }, "platformId": "plt_..." },
+  "portal": {
+    "users": {
+      "thanh@cogniate.test": { "email": "thanh@cogniate.test", "password": "<from .env>", "id": "usr_...", "name": "Thanh", "role": "owner", "library": { "id": "lib_...", "name": "Thanh's Library" } },
+      "qa-b@cogniate.test":  { "email": "qa-b@cogniate.test",  "password": "<from .env>", "id": "usr_...", "name": "QA B",  "role": "owner", "library": { "id": "lib_...", "name": "QA Library B" } }
+    }
+  }
 }
 ```
 
@@ -164,6 +171,10 @@ Stable key paths (later tasks only add keys):
 | `ltiSeed.clientId`, `ltiSeed.deploymentId` | string | Moodle client id and deployment id (= type id) of that tool |
 | `ltiSeed.cmids.<course shortname>` | number | course module id of "Seed activity" (`COGNIATE-DEV-101`) and "Seed activity 102" (`COGNIATE-DEV-102`) |
 | `ltiSeed.platformId` | string | id of the platform in the LTI service (`plt_…`) |
+| `portal.users.<email>.email` | string | `thanh@cogniate.test`, `qa-b@cogniate.test` (the key is the email, the login name of the Cogniate app) |
+| `portal.users.<email>.password` | string | password from `.env` (`PORTAL_THANH_PASSWORD`, `PORTAL_QAB_PASSWORD`) |
+| `portal.users.<email>.id`, `.name`, `.role` | string | user id (`usr_…`), display name, `owner` |
+| `portal.users.<email>.library.id`, `.library.name` | string | library id (`lib_…`) and name ("Thanh's Library", "QA Library B") |
 
 ## QA hooks
 
@@ -188,6 +199,17 @@ Stable key paths (later tasks only add keys):
 | Outbound calls | Only through the guarded client in `packages/shared/src/outbound.ts` (https only, no redirects, 5 s, 1 MB, private IPs blocked inside the connection lookup). Allowlist: `OUTBOUND_PRIVATE_HOST_ALLOWLIST=moodle.test` (compose). Every call logs `outbound_request` or `outbound_blocked`. |
 | Moodle URLs for a manual tool | Login `{PUBLIC_LTI_URL}/lti/login/cogniate`, redirect and tool URL `{PUBLIC_LTI_URL}/lti/launch/cogniate`, keyset `{PUBLIC_LTI_URL}/lti/keys/cogniate`. |
 | Author smoke check | `infra/scripts/e2e-run.sh node infra/e2e/lti-launch-smoke.mjs [cg_student] [--via=view|launch]`: a real Moodle launch of "Seed activity", then `GET /api/idtoken` (prints no secret). |
+
+## Cogniate app
+
+| Item | Value |
+| --- | --- |
+| Code | `services/cogniate-app` (Fastify, `@fastify/multipart`, Zod, `node:sqlite`) and `packages/package-inspector` (`yauzl`, `fast-xml-parser`, `parse5`). Contract: `docs/architecture/contracts/cogniate-app-api.md`. |
+| Data folder | `infra/.data/cogniate-app/` on the host = `/data` in the container (`DATA_DIR`). `stack:reset` deletes it. |
+| Database | `/data/cogniate.db` (SQLite). Plain SQL migrations in `src/domain/migrations/` at start. Each applied migration is stored with its SHA-256: if you edit an applied file, the service does not start (add a new file instead, or `stack:reset`). |
+| Package store | `/data/packages/<pkg_id>/` (extracted files), `/data/uploads/<sha256>.zip` (original upload), `/data/uploads/.tmp/` (uploads in progress; emptied at start). A rejected upload leaves nothing here. Count the packages: `docker compose -p <project> exec cogniate-app ls /data/packages \| wc -l` (the path is absolute: the working folder of the container is `/repo/services/cogniate-app`). |
+| Upload limits | Zip ≤ 200 MB (200,000,000 bytes), uncompressed ≤ 500 MB, ≤ 5,000 entries, ratio ≤ 100 per entry (security §7). |
+| Sign in by hand | `curl -si https://app.cogniate.test/app-api/session -H 'Origin: https://app.cogniate.test' -H 'Content-Type: application/json' -d '{"email":"thanh@cogniate.test","password":"<PORTAL_THANH_PASSWORD>"}'`. Every write needs `Origin: {PUBLIC_APP_URL}`. |
 
 ## Test knobs
 

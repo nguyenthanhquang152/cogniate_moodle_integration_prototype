@@ -5,13 +5,16 @@
 #  3. Users cg_teacher, cg_student, cg_student2; courses COGNIATE-DEV-101/102 with completion; enrolments
 #  4. REST web services: product service (9 functions) and the dev/test-only QA oracle service
 #  5. LTI tool accounts cogniate and qa-second (keys in infra/.secrets/lti-api-key.<account>)
-#  6. infra/.secrets/seed.json (mode 600): users + passwords + ids, course ids, WS tokens, LTI key files (format: infra/README.md)
+#  6. Cogniate app portal users (mock login): thanh@cogniate.test ("Thanh's Library"), qa-b@cogniate.test ("QA Library B")
+#  7. infra/.secrets/seed.json (mode 600): users + passwords + ids, course ids, WS tokens, LTI key files, portal users
+#     (format: infra/README.md)
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 require_env
 require_running moodle
 require_running proxy
 require_running lti-service
+require_running cogniate-app
 warn_knobs
 P=/opt/cogniate/php
 SECRETS="$INFRA_DIR/.secrets"
@@ -41,10 +44,19 @@ echo "5. LTI tool accounts"
 "$INFRA_DIR/scripts/lti-bootstrap.sh" --account qa-second --name "QA second (test account)" --ensure-key-file --quiet
 lti_json='{"apiKeyFiles":{"cogniate":"infra/.secrets/lti-api-key.cogniate","qa-second":"infra/.secrets/lti-api-key.qa-second"}}'
 
-echo "6. infra/.secrets/seed.json"
+echo "6. Portal users (Cogniate app mock login)"
+: "${PORTAL_THANH_PASSWORD:?run npm run gen-env (it adds the PORTAL_* passwords to .env)}"
+: "${PORTAL_QAB_PASSWORD:?run npm run gen-env (it adds the PORTAL_* passwords to .env)}"
+# Passwords go on stdin, not on the command line. The CLI prints the users without passwords.
+# The format string is in single quotes, so the apostrophe of "Thanh's Library" comes in as the first %s.
+portal_json="$(printf '{"users":[{"email":"thanh@cogniate.test","name":"Thanh","role":"owner","library":"Thanh%ss Library","password":"%s"},{"email":"qa-b@cogniate.test","name":"QA B","role":"owner","library":"QA Library B","password":"%s"}]}' \
+  "'" "$PORTAL_THANH_PASSWORD" "$PORTAL_QAB_PASSWORD" \
+  | dc exec -T cogniate-app node src/cli/seed-portal.ts)"
+
+echo "7. infra/.secrets/seed.json"
 mkdir -p "$SECRETS"; chmod 700 "$SECRETS"
 rm -f "$SECRETS/moodle-ws.json"   # replaced by seed.json
-printf '{"moodle":%s,"ws":{"product":%s,"qa_oracle":%s},"lti":%s}' "$moodle_json" "$product_json" "$oracle_json" "$lti_json" \
+printf '{"moodle":%s,"ws":{"product":%s,"qa_oracle":%s},"lti":%s,"portal":%s}' "$moodle_json" "$product_json" "$oracle_json" "$lti_json" "$portal_json" \
   | node "$INFRA_DIR/scripts/seed-json.mjs" "$SECRETS/seed.json"
 echo "   wrote infra/.secrets/seed.json (mode $(stat -f %Lp "$SECRETS/seed.json" 2>/dev/null || stat -c %a "$SECRETS/seed.json"))"
 
@@ -52,3 +64,4 @@ echo "Seed done in $(( $(date +%s) - start )) s."
 print_urls
 echo "Users:    admin, cg_teacher, cg_student, cg_student2 (passwords in .env and infra/.secrets/seed.json)"
 echo "Courses:  COGNIATE-DEV-101, COGNIATE-DEV-102"
+echo "Portal:   thanh@cogniate.test, qa-b@cogniate.test (passwords in .env and infra/.secrets/seed.json, key portal.users)"

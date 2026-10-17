@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # WARNING: deletes all stack data: Moodle site, database, the LTI service database (infra/.data/lti-service/),
+# the Cogniate app database and package store (infra/.data/cogniate-app/),
 # infra/.secrets/seed.json and the LTI API key files, infra/.logs/, infra/.data/backups/ and the test knobs
 # (.tmp/compose.knobs.yaml).
 # Keeps .env (same passwords), infra/.certs/ (same CA, so trust stays valid) and infra/.data/fixtures/.
@@ -25,5 +26,5 @@ else
 fi
 rm -f "$INFRA_DIR/.secrets/seed.json" "$INFRA_DIR/.secrets/moodle-ws.json" "$INFRA_DIR/.secrets"/lti-api-key.* "$KNOBS_FILE" \
   "$REPO_ROOT/.tmp/certs-in-use.$COMPOSE_PROJECT_NAME.sha256"
-rm -rf "$INFRA_DIR/.data/backups" "$INFRA_DIR/.data/lti-service" "$LOGS_DIR"
+rm -rf "$INFRA_DIR/.data/backups" "$INFRA_DIR/.data/lti-service" "$INFRA_DIR/.data/cogniate-app" "$LOGS_DIR"
 echo "Stack data deleted. Kept: .env, infra/.certs/, infra/.data/fixtures/. Next: npm run stack:up && npm run seed"

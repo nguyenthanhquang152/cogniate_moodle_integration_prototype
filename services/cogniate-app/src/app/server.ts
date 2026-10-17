@@ -1,0 +1,109 @@
+// The app listener (PUBLIC_APP_URL): /healthz and the portal API /app-api/* (contract cogniate-app-api §1-§3).
+// Tool pages and the portal SPA come in T4b and T6.
+import { randomBytes } from 'node:crypto';
+import multipart from '@fastify/multipart';
+import type { Limits } from '@cogniate/package-inspector';
+import { DEFAULT_LIMITS } from '@cogniate/package-inspector';
+import type { Knob, Logger, PublicUrls } from '@cogniate/shared';
+import { redactPath } from '@cogniate/shared';
+import Fastify from 'fastify';
+import type { FastifyInstance } from 'fastify';
+import type { Db } from '../domain/db.ts';
+import type { SignedIn } from '../domain/libraries.ts';
+import type { StorePaths } from '../domain/package-store.ts';
+import { registerCourseRoutes } from './courses.ts';
+import { ApiError, apiErrorBody } from './errors.ts';
+import { registerSessionRoutes, sessionOf } from './session.ts';
+
+declare module 'fastify' {
+  interface FastifyRequest {
+    traceId: string;
+    /** Set by the session hook on /app-api/* routes (null on the public route). */
+    auth: { token: string; signedIn: SignedIn } | null;
+  }
+  interface FastifyContextConfig {
+    /** The route needs no session (POST /app-api/session). */
+    public?: boolean;
+  }
+}
+
+export interface AppApiDeps {
+  db: Db;
+  urls: PublicUrls;
+  logger: Logger;
+  store: StorePaths;
+  profile: string;
+  knobs: Knob[];
+  now?: () => number;
+  /** Package limits (security §7). Tests make them smaller. */
+  limits?: Partial<Limits>;
+}
+
+const TRACE_ID = /^[A-Za-z0-9-]{16,64}$/;
+const WRITE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const JSON_BODY_LIMIT = 64 * 1024;
+
+export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
+  const now = deps.now ?? Date.now;
+  const log = deps.logger;
+  const limits: Limits = { ...DEFAULT_LIMITS, ...deps.limits };
+  const app = Fastify({ logger: false, bodyLimit: JSON_BODY_LIMIT, return503OnClosing: false });
+  await app.register(multipart, {
+    throwFileSizeLimit: true,
+    limits: { fileSize: limits.maxUploadBytes, files: 1, fields: 4, fieldSize: 1024, parts: 5, headerPairs: 100 },
+  });
+
+  app.decorateRequest('traceId', '');
+  app.decorateRequest('auth', null);
+  app.addHook('onRequest', async (req, reply) => {
+    const given = req.headers['x-trace-id'];
+    req.traceId = typeof given === 'string' && TRACE_ID.test(given) ? given : randomBytes(16).toString('hex');
+    reply.header('x-trace-id', req.traceId);
+  });
+  app.addHook('onResponse', async (req, reply) => {
+    // Route pattern (no ids, no query); a request without a route logs the redacted path.
+    const path = req.routeOptions.url ?? redactPath(req.url.split('?')[0] ?? '/');
+    log.log(path === '/healthz' ? 'debug' : 'info', 'http_request', {
+      trace_id: req.traceId, method: req.method, path, status: reply.statusCode, ms: Math.round(reply.elapsedTime),
+    });
+  });
+
+  app.setErrorHandler((err: Error & { statusCode?: number; code?: string }, req, reply) => {
+    if (err instanceof ApiError) return reply.code(err.status).send(apiErrorBody(err.status, err.code, err.description, err.extra));
+    if (err.code === 'FST_ERR_CTP_BODY_TOO_LARGE') return reply.code(413).send(apiErrorBody(413, 'INVALID_REQUEST', 'The JSON body is larger than 64 KB.'));
+    if (err.statusCode && err.statusCode >= 400 && err.statusCode < 500) {
+      return reply.code(400).send(apiErrorBody(400, 'INVALID_REQUEST', 'The request cannot be read.'));
+    }
+    log.error('internal_error', { trace_id: req.traceId, error: err.name });
+    return reply.code(500).send(apiErrorBody(500, 'INTERNAL_ERROR', `Internal error. Trace id: ${req.traceId}`));
+  });
+  app.setNotFoundHandler((_req, reply) => reply.code(404).send(apiErrorBody(404, 'NOT_FOUND', 'Unknown route.')));
+
+  app.get('/healthz', async () => ({ status: 'ok', service: 'cogniate-app', profile: deps.profile, knobs: deps.knobs }));
+
+  // Portal API. The hooks of this scope run only for its routes, before the body is read.
+  await app.register(async (api) => {
+    // CSRF (security §6): every write needs Origin = PUBLIC_APP_URL (also the login).
+    api.addHook('onRequest', async (req) => {
+      if (!WRITE_METHODS.has(req.method)) return;
+      const origin = req.headers.origin;
+      if (origin === deps.urls.app) return;
+      log.warn('csrf_rejected', { trace_id: req.traceId, origin: typeof origin === 'string' ? origin.slice(0, 200) : null });
+      throw new ApiError(403, 'ORIGIN_NOT_ALLOWED', 'This request must come from the Cogniate app.');
+    });
+    // Session (contract §1): every route except the public one needs the cookie.
+    api.addHook('onRequest', async (req) => {
+      if (req.routeOptions.config.public === true) return;
+      const found = sessionOf(deps.db, req.headers.cookie, now());
+      if (!found) throw new ApiError(401, 'NOT_SIGNED_IN', 'Sign in first.');
+      req.auth = found;
+    });
+    api.addHook('onSend', async (_req, reply) => {
+      reply.header('cache-control', 'no-store');
+    });
+    registerSessionRoutes(api, { db: deps.db, now });
+    registerCourseRoutes(api, { db: deps.db, logger: log, store: deps.store, limits, now });
+  }, { prefix: '/app-api' });
+
+  return app;
+}

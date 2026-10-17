@@ -1,7 +1,8 @@
 // Write infra/.secrets/seed.json (mode 600) from the seed step results (stdin) and .env (process.env).
 // Format "cogniate-seed/1" is documented in infra/README.md ("seed.json"). Later tasks ADD keys; they do not
 // rename or remove keys. Keys that other steps write (for example ltiSeed from seed:lti-manual) are kept.
-// stdin: {"moodle": <setup_users_courses.php JSON>, "ws": {"product": <...>, "qa_oracle": <...>}, "lti": {"apiKeyFiles": {...}}}
+// stdin: {"moodle": <setup_users_courses.php JSON>, "ws": {"product": <...>, "qa_oracle": <...>}, "lti": {"apiKeyFiles": {...}},
+//         "portal": <cogniate-app src/cli/seed-portal.ts JSON>}
 // Usage (by seed.sh): node infra/scripts/seed-json.mjs <out-file>
 import { chmodSync, existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 
@@ -35,6 +36,19 @@ const ws = (key) => {
   return { service: w.service, username: w.username, userid: w.userid, token: w.token, functions: w.functions };
 };
 
+// Portal users (T4a): key = email, like moodle.users (key = user name). Passwords come from .env.
+const portalPasswords = { 'thanh@cogniate.test': 'PORTAL_THANH_PASSWORD', 'qa-b@cogniate.test': 'PORTAL_QAB_PASSWORD' };
+let portal;
+if (input.portal) {
+  const portalUsers = {};
+  for (const [email, envName] of Object.entries(portalPasswords)) {
+    const u = input.portal.users?.[email];
+    if (!u?.id || !u.library?.id) throw new Error(`seed result has no portal user ${email}`);
+    portalUsers[email] = { email, password: need(envName), id: u.id, name: u.name, role: u.role, library: { id: u.library.id, name: u.library.name } };
+  }
+  portal = { users: portalUsers };
+}
+
 const previous = existsSync(out) ? JSON.parse(readFileSync(out, 'utf8')) : {};
 const seed = {
   ...previous,
@@ -47,6 +61,7 @@ const seed = {
     ws: { product: ws('product'), qa_oracle: ws('qa_oracle') },
   },
   ...(input.lti ? { lti: { ...(previous.lti ?? {}), ...input.lti } } : {}),
+  ...(portal ? { portal: { ...(previous.portal ?? {}), ...portal } } : {}),
 };
 const tmp = `${out}.tmp`;
 writeFileSync(tmp, `${JSON.stringify(seed, null, 2)}\n`, { mode: 0o600 });
