@@ -132,10 +132,23 @@ export function blankScoZip(): string {
 export async function setCompletionReceiveGrade(page: Page): Promise<void> {
   const expand = page.locator('a.collapseexpand');
   if (await expand.count()) await expand.first().click().catch(() => undefined);
-  await page.locator('#id_completion_2').check({ force: true });
-  await page.locator('#id_completionusegrade').check({ force: true });
-  const anyGrade = page.locator('#id_completionpassgrade_0');
-  if (await anyGrade.count()) await anyGrade.check({ force: true });
+  // A real click when the input is visible; else set it and fire "change", as Moodle's hideIf rules listen for it.
+  const tick = async (selector: string, required: boolean) => {
+    const input = page.locator(selector);
+    if (!(await input.count())) {
+      if (required) throw new Error(`activity form: no ${selector}`);
+      return;
+    }
+    await input.check({ force: true, timeout: 5_000 }).catch(() =>
+      input.evaluate((el) => {
+        (el as HTMLInputElement).checked = true;
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }),
+    );
+  };
+  await tick('#id_completion_2', true);
+  await tick('#id_completionusegrade', true);
+  await tick('#id_completionpassgrade_0', false);
 }
 
 /** Teacher: Add an activity → Thanh's tool → Select content → pick `courseTitle` → name, completion → save. */
