@@ -14,8 +14,10 @@ import type { LaunchRecord } from '../../store/launches.ts';
 import { createPlatform, updatePlatform } from '../../store/platforms.ts';
 import { findServiceKey } from '../../store/service-keys.ts';
 import { CLIENT_ID, ISSUER, LAUNCH, MASTER_KEY, URLS, capturingLogger } from '../../testkit.ts';
-import type { ApiCaller, CallerScheme } from './services.ts';
-import { registerServiceRoutes, serviceKeyForLaunch } from './services.ts';
+import { serviceKeyForLaunch } from '../../lti/service-keys.ts';
+import type { AuthResult, Scheme } from '../auth.ts';
+import type { RouteContext } from '../context.ts';
+import { registerServiceRoutes } from './services.ts';
 
 const LINE_ITEM = 'https://moodle.test/mod/lti/services.php/2/lineitems/7/lineitem?type_id=1';
 const AGS = { scope: [AGS_SCOPES.lineitemReadonly, AGS_SCOPES.score, AGS_SCOPES.resultReadonly], lineitems: 'https://moodle.test/mod/lti/services.php/2/lineitems?type_id=1', lineitem: LINE_ITEM };
@@ -51,17 +53,19 @@ async function setup() {
   const ags = createAgsClient({ outbound, tokens: createTokenClient({ db, masterKey: MASTER_KEY, outbound, logger, now }), clock: createScoreClock(now) });
   const account = getAccount(db, 'cogniate')!;
   // Fake auth: the test header names the caller. The real one is auth.ts (LTIK-AUTH-V2 / SERVICE-AUTH-V1).
-  const authenticate = (req: { headers: Record<string, unknown> }, schemes: CallerScheme[]): ApiCaller => {
+  const auth = (req: { headers: Record<string, unknown> }, schemes: Scheme[]): AuthResult => {
     const who = String(req.headers['x-test-caller']);
     if (who === 'service') {
       if (!schemes.includes('service')) throw new ApiError('INVALID_AUTHORIZATION_HEADER');
-      return { account, launch: null, serviceKey: { toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', contextId: '2', resourceLinkId: 'rl-3', agsClaim: AGS, nrpsClaim: null } };
+      return { scheme: 'service', account, launch: null, serviceKey: { toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', contextId: '2', resourceLinkId: 'rl-3', agsClaim: AGS, nrpsClaim: null } };
     }
-    return { account, launch: who === 'dl' ? dlLaunch : rlLaunch, serviceKey: null };
+    return { scheme: 'ltik', account, launch: who === 'dl' ? dlLaunch : rlLaunch, serviceKey: null };
   };
   const app = Fastify({ maxParamLength: 2048 });
+  app.decorateRequest('traceId', 'trace-test');
   app.setErrorHandler((err, _req, reply) => (err instanceof ApiError ? reply.code(err.status).send(err.body()) : reply.code(500).send({ error: String(err) })));
-  registerServiceRoutes(app, { db, urls: URLS, masterKey: MASTER_KEY, ags, now, authenticate });
+  const ctx = { db, urls: URLS, logger, masterKey: MASTER_KEY, ags, outbound, now, auth } as unknown as RouteContext;
+  registerServiceRoutes(app, ctx);
   return { db, platform, app, calls, answers, res, rlLaunch, dlLaunch };
 }
 

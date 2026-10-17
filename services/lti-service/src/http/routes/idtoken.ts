@@ -4,7 +4,7 @@ import { ApiError } from '../../api-errors.ts';
 import { toIdToken } from '../../lti/idtoken.ts';
 import { getPlatform } from '../../store/platforms.ts';
 import type { RouteContext } from '../context.ts';
-import { serviceKeyForLaunch } from './services.ts';
+import { serviceKeyForLaunch } from '../../lti/service-keys.ts';
 
 export function registerIdTokenRoutes(app: FastifyInstance, ctx: RouteContext): void {
   app.get<{ Querystring: { raw?: string } }>('/api/idtoken', async (req) => {

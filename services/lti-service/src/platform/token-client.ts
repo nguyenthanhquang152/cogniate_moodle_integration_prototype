@@ -7,9 +7,11 @@ import type { Db } from '../db/index.ts';
 import { signToolJwt } from '../lti/tool-jwt.ts';
 import type { Platform } from '../store/platforms.ts';
 import { ApiError } from '../api-errors.ts';
-import { badPlatformDataError, outboundFailureError } from './errors.ts';
+import { badPlatformDataError, outboundFailureError } from './error-mapping.ts';
 
 export const TOKEN_EARLY_EXPIRY_MS = 60_000;
+/** A token is cached at most 1 h, whatever expires_in the platform sends. */
+export const TOKEN_MAX_CACHE_S = 3600;
 const ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
 
 export interface TokenClientDeps {
@@ -50,7 +52,7 @@ export function createTokenClient(deps: TokenClientDeps): TokenClient {
       throw badPlatformDataError('token response is not JSON');
     }
     if (typeof data.access_token !== 'string' || data.access_token === '') throw badPlatformDataError('no access_token');
-    const lifeS = typeof data.expires_in === 'number' && data.expires_in > 0 ? data.expires_in : 3600;
+    const lifeS = Math.min(typeof data.expires_in === 'number' && data.expires_in > 0 ? data.expires_in : 3600, TOKEN_MAX_CACHE_S);
     cache.set(key, { token: data.access_token, expiresAt: now() + lifeS * 1000 });
     deps.logger.info('platform_token', { trace_id: traceId, platform_id: platform.id, cache: 'miss' });
     return data.access_token;

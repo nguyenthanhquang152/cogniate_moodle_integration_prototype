@@ -1,16 +1,14 @@
-// Platform errors -> API errors (contract §1.3). The description never holds a token; a platform message is short,
-// without control characters, and HTML-escaped.
+// Platform errors -> API errors (contract §1.3). The description never holds a token; a platform message is short
+// and without control characters. It is data, not HTML: pages and the portal escape it when they show it (B-T3a-03).
 import type { OutboundResponse } from '@cogniate/shared';
 import { OutboundError } from '@cogniate/shared';
 import { ApiError } from '../api-errors.ts';
-
-const escapeHtml = (v: string): string => v.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
 
 /** A short, safe text of a platform answer (at most 200 characters). */
 export function shortPlatformMessage(body: Buffer | string): string {
   // eslint-disable-next-line no-control-regex
   const text = (typeof body === 'string' ? body : body.toString('utf8')).replace(/[\u0000-\u001f\u007f-\u009f]+/g, ' ').replace(/\s+/g, ' ').trim();
-  return escapeHtml(text.length > 200 ? `${text.slice(0, 200)}...` : text);
+  return text.length > 200 ? `${text.slice(0, 200)}...` : text;
 }
 
 /** A platform HTTP answer that is not a success: 409 -> PLATFORM_CONFLICT, 400/404 -> PLATFORM_REJECTED_REQUEST, else PLATFORM_ERROR. */

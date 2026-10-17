@@ -1,0 +1,217 @@
+// Dynamic registration (contract §2.4, §3.8, security §2.4, §2.5, ADR-009):
+//   GET  /lti/register/:account               Moodle opens it in the registration frame (HTML errors, 303 to the app)
+//   GET  /api/registrations/:id               Bearer: the platform data, operation, existingPlatformId
+//   POST /api/registrations/:id/complete      Bearer: send the registration to the platform, store the platform
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { z } from 'zod';
+import { ApiError } from '../../api-errors.ts';
+import type { ProtocolErrorCode } from '../../lti/codes.ts';
+import { PlatformKeyError } from '../../lti/jwks.ts';
+import type { OpenIdConfiguration } from '../../lti/registration.ts';
+import {
+  PRIVACY_LEVELS, REGISTRATION_CLOSE_HTML, buildRegistrationRequest, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse, registrationView,
+} from '../../lti/registration.ts';
+import { badPlatformDataError, outboundFailureError, shortPlatformMessage } from '../../platform/error-mapping.ts';
+import { getAccount } from '../../store/accounts.ts';
+import type { Platform } from '../../store/platforms.ts';
+import { PlatformExistsError, applyRegistrationUpdate, createPlatform, findPlatformByDeployment, getPlatform, listPlatforms } from '../../store/platforms.ts';
+import type { PrivacyLevel, RegistrationOperation, RegistrationSession } from '../../store/registrations.ts';
+import {
+  claimRegistrationSession, completeRegistrationSession, createRegistrationSession, getRegistrationSession, releaseRegistrationSession,
+} from '../../store/registrations.ts';
+import type { RouteContext } from '../context.ts';
+import { invalid } from './platforms.ts';
+
+const HEADING = 'The registration did not work';
+const SESSION_MAX_MS = 3600 * 1000; // contract §2.4: expires with the token, at most 1 h
+const CLOCK_SKEW_S = 60;
+const RESERVED_QUERY = new Set(['openid_configuration', 'registration_token', 'privacyLevel']);
+
+const Privacy = z.enum(PRIVACY_LEVELS as [PrivacyLevel, ...PrivacyLevel[]]);
+
+const RegisterQuery = z.object({
+  openid_configuration: z.string().min(1).max(2048),
+  registration_token: z.string().min(1).max(8192).optional(),
+  privacyLevel: Privacy.optional(),
+}).catchall(z.unknown());
+
+const CompleteBody = z.object({
+  platformName: z.string().trim().min(1).max(255).optional(),
+  autoActivate: z.boolean().optional(),
+  messages: z.array(z.object({
+    type: z.string().min(1).max(64),
+    placements: z.array(z.string().min(1).max(64)).max(10).optional(),
+    label: z.string().min(1).max(255).optional(),
+    target_link_uri: z.string().min(1).max(2048).optional(),
+  })).max(10).optional(),
+  privacyLevel: Privacy.optional(),
+  updatePlatformId: z.string().min(1).max(64).optional(),
+});
+
+/** Read and check the platform configuration URL (security §2.4); a problem is a page code with a safe detail. */
+async function fetchConfiguration(ctx: RouteContext, url: string, token: string | undefined, traceId: string): Promise<OpenIdConfiguration | { code: ProtocolErrorCode; detail: string }> {
+  let res;
+  try {
+    res = await ctx.outbound.request(url, { traceId, headers: { accept: 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) } });
+  } catch {
+    return { code: 'FETCH_FAILED', detail: 'configuration_not_reached' }; // the outbound_blocked event has the reason
+  }
+  if (res.status !== 200) return { code: 'FETCH_FAILED', detail: `configuration_status=${res.status}` };
+  let body: unknown;
+  try {
+    body = res.json();
+  } catch {
+    return { code: 'INVALID_OPENID_CONFIGURATION', detail: 'not_json' };
+  }
+  return parseOpenIdConfiguration(url, body);
+}
+
+/** The operation from the registration token, verified with the platform JWKS (security §2.5). */
+async function readToken(ctx: RouteContext, token: string, config: OpenIdConfiguration, accountId: string, traceId: string, now: number)
+  : Promise<{ operation: RegistrationOperation; existingPlatformId: string | null; expiresAt: number } | { code: ProtocolErrorCode; detail: string }> {
+  let payload: Record<string, unknown>;
+  try {
+    const { payload: bytes } = await ctx.keys.verify(token, config.jwksUri, traceId);
+    payload = JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
+  } catch (err) {
+    if (err instanceof PlatformKeyError && (err.detail === 'jwks_unavailable' || err.detail === 'jwks_fetch_failed')) return { code: 'FETCH_FAILED', detail: err.detail };
+    return { code: 'INVALID_OPENID_CONFIGURATION', detail: 'registration_token_invalid' };
+  }
+  if (typeof payload.exp !== 'number' || payload.exp <= now / 1000 - CLOCK_SKEW_S) return { code: 'INVALID_OPENID_CONFIGURATION', detail: 'registration_token_expired' };
+  const op = operationFromToken(payload);
+  if (!op) return { code: 'INVALID_OPENID_CONFIGURATION', detail: 'registration_token_scope' };
+  const existing = op.typeId ? findPlatformByDeployment(ctx.db, accountId, config.issuer, op.typeId) : null;
+  return { operation: op.operation, existingPlatformId: existing?.id ?? null, expiresAt: Math.min(payload.exp * 1000, now + SESSION_MAX_MS) };
+}
+
+export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteContext): void {
+  const log = ctx.logger;
+
+  // ---------------------------------------------------------------- GET /lti/register/:account (contract §2.4)
+  app.get<{ Params: { account: string } }>('/lti/register/:account', async (req: FastifyRequest<{ Params: { account: string } }>, reply: FastifyReply) => {
+    const now = ctx.now();
+    const page = (code: ProtocolErrorCode, detail: string) => {
+      log.warn('registration_rejected', { trace_id: req.traceId, code, detail });
+      return ctx.errorPage(reply, req, code, { heading: HEADING });
+    };
+    const account = getAccount(ctx.db, req.params.account);
+    if (!account) return page('UNKNOWN_TOOL_ACCOUNT', 'unknown_tool_account');
+    const q = RegisterQuery.safeParse(req.query ?? {});
+    if (!q.success) return page('INVALID_REQUEST', `query=${q.error.issues[0]?.path.join('.') || 'query'}`);
+    const token = q.data.registration_token;
+    const config = await fetchConfiguration(ctx, q.data.openid_configuration, token, req.traceId);
+    if ('code' in config) return page(config.code, config.detail);
+
+    let operation: RegistrationOperation = 'new';
+    let existingPlatformId: string | null = null;
+    let expiresAt = now + SESSION_MAX_MS;
+    if (token) {
+      const t = await readToken(ctx, token, config, account.id, req.traceId, now);
+      if ('code' in t) return page(t.code, t.detail);
+      ({ operation, existingPlatformId, expiresAt } = t);
+    }
+    // Pass-through parameters (for example ref): strings only, never the token or the configuration URL.
+    const passthrough = Object.fromEntries(Object.entries(q.data)
+      .filter(([k, v]) => !RESERVED_QUERY.has(k) && typeof v === 'string' && k.length <= 64 && v.length <= 512).slice(0, 20)) as Record<string, string>;
+    const session = createRegistrationSession(ctx.db, ctx.masterKey, {
+      toolAccountId: account.id, openidConfigurationUrl: q.data.openid_configuration, registrationToken: token ?? null,
+      platformConfiguration: config.raw, operation, existingPlatformId, privacyLevel: q.data.privacyLevel ?? 'anonymous', passthrough, expiresAt,
+    }, now);
+    log.info('registration_started', { trace_id: req.traceId, registration_id: session.id, operation });
+    const location = new URL(account.registrationUrl);
+    location.searchParams.set('registrationId', session.id);
+    for (const [k, v] of Object.entries(passthrough)) location.searchParams.set(k, v);
+    return reply.code(303).headers({ location: location.href, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }).send();
+  });
+
+  const sessionOf = (accountId: string, id: string): RegistrationSession => {
+    const session = getRegistrationSession(ctx.db, ctx.masterKey, accountId, id, ctx.now());
+    if (!session) throw new ApiError('REGISTRATION_NOT_FOUND');
+    return session;
+  };
+  const configOf = (session: RegistrationSession): OpenIdConfiguration => {
+    const config = parseOpenIdConfiguration(session.openidConfigurationUrl, session.platformConfiguration);
+    if ('code' in config) throw new ApiError('REGISTRATION_NOT_FOUND'); // checked at start; cannot happen
+    return config;
+  };
+
+  // ---------------------------------------------------------------- GET /api/registrations/:id (contract §3.8)
+  app.get<{ Params: { id: string }; Querystring: { raw?: string } }>('/api/registrations/:id', async (req) => {
+    const { account } = ctx.auth(req, ['bearer']);
+    const session = sessionOf(account.id, req.params.id);
+    return registrationView(configOf(session), session, req.query.raw === 'true');
+  });
+
+  // ---------------------------------------------------------------- POST /api/registrations/:id/complete (contract §3.8)
+  app.post<{ Params: { id: string } }>('/api/registrations/:id/complete', async (req) => {
+    const { account } = ctx.auth(req, ['bearer']);
+    const body = CompleteBody.safeParse(req.body ?? {});
+    if (!body.success) throw invalid(body.error);
+    const session = sessionOf(account.id, req.params.id);
+    if (session.status !== 'open') throw new ApiError('REGISTRATION_ALREADY_COMPLETED');
+    const reject = (err: ApiError): never => {
+      log.warn('registration_rejected', { trace_id: req.traceId, code: err.code });
+      throw err;
+    };
+    // Security §2.5: an update only of this account's platform, named by the caller. Nothing is sent to Moodle otherwise.
+    if (session.operation === 'update') {
+      const allowed = session.existingPlatformId !== null && body.data.updatePlatformId === session.existingPlatformId
+        && getPlatform(ctx.db, account.id, session.existingPlatformId) !== null;
+      if (!allowed) reject(new ApiError('REGISTRATION_UPDATE_NOT_ALLOWED', 'This registration updates a tool that is not this connection. Choose "Register as a new tool" in Moodle.'));
+    }
+    if (!claimRegistrationSession(ctx.db, account.id, session.id)) throw new ApiError('REGISTRATION_ALREADY_COMPLETED');
+    try {
+      const config = configOf(session);
+      const clientName = body.data.platformName ?? `${config.productFamilyCode || 'platform'} ${new URL(config.issuer).host}`;
+      const request = buildRegistrationRequest({
+        urls: ctx.urls, accountId: account.id, clientName, privacyLevel: body.data.privacyLevel ?? session.privacyLevel, ...(body.data.messages ? { messages: body.data.messages } : {}),
+      });
+      let res;
+      try {
+        res = await ctx.outbound.request(config.registrationEndpoint, {
+          method: 'POST', traceId: req.traceId, body: JSON.stringify(request),
+          headers: { 'content-type': 'application/json', accept: 'application/json', ...(session.registrationToken ? { authorization: `Bearer ${session.registrationToken}` } : {}) },
+        });
+      } catch (err) {
+        throw outboundFailureError(err);
+      }
+      // Contract §3.8: a platform refusal is 502 PLATFORM_ERROR with its code (Moodle: for example domain_targetlinkuri_mismatch).
+      if (res.status < 200 || res.status >= 300) throw new ApiError('PLATFORM_ERROR', `The platform rejected the registration (${res.status}): ${shortPlatformMessage(res.body)}`);
+      let answer: unknown;
+      try {
+        answer = res.json();
+      } catch {
+        throw badPlatformDataError('registration answer is not JSON');
+      }
+      const reg = parseRegistrationResponse(answer);
+      if (!reg) throw badPlatformDataError('registration answer without client_id or deployment_id');
+      const values = {
+        clientId: reg.clientId, name: clientName, authEndpoint: config.authorizationEndpoint, tokenEndpoint: config.tokenEndpoint, jwksUrl: config.jwksUri,
+        active: body.data.autoActivate ?? true, productFamilyCode: config.productFamilyCode || null, deploymentId: reg.deploymentId,
+      };
+      let platform: Platform | null;
+      if (session.operation === 'update') {
+        platform = applyRegistrationUpdate(ctx.db, account.id, session.existingPlatformId!, values);
+      } else {
+        try {
+          platform = createPlatform(ctx.db, account.id, {
+            issuer: config.issuer, clientId: values.clientId, name: values.name, authEndpoint: values.authEndpoint, tokenEndpoint: values.tokenEndpoint,
+            jwksUrl: values.jwksUrl, deploymentIds: [values.deploymentId], active: values.active, productFamilyCode: values.productFamilyCode,
+          });
+        } catch (err) {
+          if (!(err instanceof PlatformExistsError)) throw err;
+          const same = listPlatforms(ctx.db, account.id, { url: config.issuer, clientId: values.clientId })[0]!;
+          platform = applyRegistrationUpdate(ctx.db, account.id, same.id, values);
+        }
+      }
+      if (!platform) throw new ApiError('INTERNAL_ERROR', `Internal error. Trace id: ${req.traceId}`);
+      completeRegistrationSession(ctx.db, account.id, session.id, platform.id, ctx.now());
+      log.info('registration_completed', { trace_id: req.traceId, platform_id: platform.id, operation: session.operation });
+      return { html: REGISTRATION_CLOSE_HTML, platformId: platform.id };
+    } catch (err) {
+      releaseRegistrationSession(ctx.db, account.id, session.id);
+      if (err instanceof ApiError) reject(err);
+      throw err;
+    }
+  });
+}

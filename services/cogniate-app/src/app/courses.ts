@@ -4,7 +4,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { Course } from '../domain/courses.ts';
 import { createCourse, getCourse, getVersion, latestVersion, listCourses, listVersions } from '../domain/courses.ts';
-import { ApiError } from './errors.ts';
+import { ApiError } from './api-errors.ts';
 import type { UploadDeps } from './upload.ts';
 import { uploadVersion } from './upload.ts';
 import { courseJson, versionJson } from './views.ts';

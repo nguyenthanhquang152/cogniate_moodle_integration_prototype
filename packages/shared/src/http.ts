@@ -2,20 +2,10 @@ import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
+import { apiErrorBody } from './errors.ts';
 import type { Knob } from './knobs.ts';
 import type { Logger } from './logger.ts';
 import { redactPath } from './logger.ts';
-
-/** Error body shape used by every Cogniate HTTP API: { status, error, details: { message, description } }. */
-export interface ErrorBody {
-  status: number;
-  error: string;
-  details: { message: string; description: string };
-}
-
-export function errorBody(status: number, error: string, message: string, description: string): ErrorBody {
-  return { status, error, details: { message, description } };
-}
 
 export function sendJson(res: ServerResponse, status: number, body: unknown): void {
   const text = JSON.stringify(body);
@@ -88,7 +78,7 @@ export function createHealthServer(service: string, options: HealthServerOptions
       sendJson(res, 200, body);
       return;
     }
-    sendJson(res, 404, errorBody(404, 'Not Found', 'NOT_FOUND', `No route for ${req.method ?? 'GET'} ${path}`));
+    sendJson(res, 404, apiErrorBody(404, 'NOT_FOUND', `No route for ${req.method ?? 'GET'} ${path}`));
   });
 }
 

@@ -21,7 +21,7 @@ const outbound = createOutboundClient({ logger, allowlist: config.outboundAllowl
 const tokens = createTokenClient({ db, masterKey: config.masterKey, outbound, logger });
 const ags = createAgsClient({ outbound, tokens, clock: createScoreClock() });
 const app = await buildApp({
-  db, urls: config.urls, logger, keys: createPlatformKeys(outbound), ltikTtlSeconds: config.ltikTtlSeconds, masterKey: config.masterKey, ags,
+  db, urls: config.urls, logger, keys: createPlatformKeys(outbound), ltikTtlSeconds: config.ltikTtlSeconds, masterKey: config.masterKey, ags, outbound,
   profile: config.profile, knobs, outboundAllowlist: outbound.allowlist,
 });
 await app.listen({ port: config.port, host: '0.0.0.0' });

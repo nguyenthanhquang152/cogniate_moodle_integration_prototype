@@ -20,7 +20,7 @@ export const ERROR_PAGE_HEADERS: Record<string, string> = {
  * Error page (security §2.2): the code, the trace id and one action line. <main data-error-code data-trace-id>,
  * and the next-action sentence is in <p data-error-action>.
  */
-export function renderErrorPage(code: string, traceId: string, action: string, detail?: string): string {
+export function renderErrorPage(code: string, traceId: string, action: string, detail?: string, heading = 'The launch did not work'): string {
   const c = escapeHtml(code);
   const t = escapeHtml(traceId);
   const extra = detail ? `\n    <p>Moodle said: <code>${escapeHtml(detail)}</code></p>` : '';
@@ -29,7 +29,7 @@ export function renderErrorPage(code: string, traceId: string, action: string, d
 <head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Cogniate LTI: ${c}</title></head>
 <body>
   <main data-error-code="${c}" data-trace-id="${t}">
-    <h1>The launch did not work</h1>
+    <h1>${escapeHtml(heading)}</h1>
     <p>Error code: <code>${c}</code></p>${extra}
     <p data-error-action>${escapeHtml(action)}</p>
     <p>Trace id: <code>${t}</code></p>

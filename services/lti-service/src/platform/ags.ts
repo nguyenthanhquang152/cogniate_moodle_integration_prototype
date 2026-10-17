@@ -5,7 +5,7 @@ import type { OutboundClient, OutboundResponse } from '@cogniate/shared';
 import { ApiError } from '../api-errors.ts';
 import { agsBaseUrl, isAllowedServiceUrl, lineItemSubUrl, withQuery } from '../lti/service-url.ts';
 import type { Platform } from '../store/platforms.ts';
-import { badPlatformDataError, outboundFailureError, platformResponseError } from './errors.ts';
+import { badPlatformDataError, outboundFailureError, platformResponseError } from './error-mapping.ts';
 import type { PagingLinks } from './link-header.ts';
 import { parseLinkHeader } from './link-header.ts';
 import type { ScoreClock } from './score-clock.ts';
@@ -71,8 +71,11 @@ export interface ScoreInput {
 const invalid = (field: string, why: string) => new ApiError('INVALID_REQUEST', `Invalid field: ${field} ${why}.`);
 const ISO_8601 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
 
+/** Contract §3.6 (AC-T3-30): a client timestamp may be at most now + 15 min (later scores get 409 until then). */
+export const MAX_SCORE_TIMESTAMP_AHEAD_MS = 15 * 60_000;
+
 /** Score body rules (contract §3.6). `Initiated` is accepted as an alias of `Initialized`. */
-export function parseScore(body: unknown): ScoreInput {
+export function parseScore(body: unknown, nowMs: number = Date.now()): ScoreInput {
   if (body === null || typeof body !== 'object' || Array.isArray(body)) throw new ApiError('INVALID_REQUEST', 'The body must be a JSON object.');
   const b = body as Record<string, unknown>;
   if (typeof b.userId !== 'string' || b.userId === '' || b.userId.length > 255) throw invalid('userId', 'is required');
@@ -95,6 +98,7 @@ export function parseScore(body: unknown): ScoreInput {
   }
   if (b.timestamp !== undefined) {
     if (typeof b.timestamp !== 'string' || !ISO_8601.test(b.timestamp) || !Number.isFinite(Date.parse(b.timestamp))) throw invalid('timestamp', 'must be ISO 8601');
+    if (Date.parse(b.timestamp) > nowMs + MAX_SCORE_TIMESTAMP_AHEAD_MS) throw invalid('timestamp', 'must not be more than 15 min in the future');
     out.timestamp = b.timestamp;
   }
   return out;

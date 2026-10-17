@@ -3,7 +3,9 @@ export type ProtocolErrorCode =
   | 'UNKNOWN_TOOL_ACCOUNT' | 'UNKNOWN_PLATFORM' | 'PLATFORM_NOT_ACTIVE' | 'UNKNOWN_DEPLOYMENT' | 'INVALID_TARGET_LINK_URI'
   | 'INVALID_REQUEST' | 'INVALID_STATE' | 'STATE_COOKIE_MISSING' | 'INVALID_ID_TOKEN' | 'INVALID_ISSUER_OR_AUDIENCE'
   | 'INVALID_SIGNATURE' | 'TOKEN_EXPIRED' | 'INVALID_NONCE' | 'UNSUPPORTED_MESSAGE_TYPE' | 'MISSING_CLAIM' | 'PLATFORM_ERROR'
-  | 'METHOD_NOT_ALLOWED';
+  | 'METHOD_NOT_ALLOWED'
+  // Dynamic registration pages (contract §2.4, T3b)
+  | 'INVALID_OPENID_CONFIGURATION' | 'ISSUER_MISMATCH' | 'FETCH_FAILED';
 
 const RESTART = 'Start again from Moodle. If it happens again, give the trace id to your Cogniate admin.';
 
@@ -25,6 +27,9 @@ export const PROTOCOL_ERRORS: Record<ProtocolErrorCode, { status: number; action
   MISSING_CLAIM: { status: 400, action: RESTART },
   PLATFORM_ERROR: { status: 400, action: 'Moodle stopped the launch. Start again from Moodle, or ask your Moodle admin.' },
   METHOD_NOT_ALLOWED: { status: 405, action: 'Open the activity from Moodle.' },
+  INVALID_OPENID_CONFIGURATION: { status: 400, action: 'Moodle sent a registration that Cogniate cannot use. Start the registration again from Moodle. If it happens again, give the trace id to your Cogniate admin.' },
+  ISSUER_MISMATCH: { status: 400, action: 'The platform configuration is not from the site that started the registration. Start the registration again from Moodle (Site administration > Manage tools).' },
+  FETCH_FAILED: { status: 400, action: 'Cogniate could not read the platform configuration. Check that the Moodle site can be reached, then start the registration again.' },
 };
 
 /** Help texts for STATE_COOKIE_MISSING (security §2.2, "Other launch cases"). */

@@ -12,7 +12,7 @@ import type { Db } from '../domain/db.ts';
 import type { SignedIn } from '../domain/libraries.ts';
 import type { StorePaths } from '../domain/package-store.ts';
 import { registerCourseRoutes } from './courses.ts';
-import { ApiError, apiErrorBody } from './errors.ts';
+import { ApiError, apiErrorBody } from './api-errors.ts';
 import { registerSessionRoutes, sessionOf } from './session.ts';
 
 declare module 'fastify' {

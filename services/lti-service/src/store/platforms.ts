@@ -99,3 +99,30 @@ export function setProductFamilyCode(db: Db, platformId: string, code: string): 
 export function findLoginPlatforms(db: Db, accountId: string, issuer: string, clientId?: string): Platform[] {
   return listPlatforms(db, accountId, clientId === undefined ? { url: issuer } : { url: issuer, clientId });
 }
+
+/** The platform of the account with this issuer and deployment id (dynamic registration "update", security §2.5). */
+export function findPlatformByDeployment(db: Db, accountId: string, issuer: string, deploymentId: string): Platform | null {
+  const row = db.prepare(`SELECT p.* FROM platform p JOIN deployment d ON d.platform_id = p.id
+    WHERE p.tool_account_id = ? AND p.issuer = ? AND d.deployment_id = ? ORDER BY p.created_at LIMIT 1`).get(accountId, issuer, deploymentId) as PlatformRow | undefined;
+  return row ? toPlatform(db, row) : null;
+}
+
+/**
+ * Store the result of a dynamic registration "update" on the existing platform (contract §3.8): client id, endpoints,
+ * name, active, product family code; the deployment id is added. The platform keeps its id.
+ */
+export function applyRegistrationUpdate(
+  db: Db,
+  accountId: string,
+  id: string,
+  input: { clientId: string; name: string; authEndpoint: string; tokenEndpoint: string; jwksUrl: string; active: boolean; productFamilyCode: string | null; deploymentId: string },
+): Platform | null {
+  return transaction(db, () => {
+    if (!getPlatform(db, accountId, id)) return null;
+    db.prepare(`UPDATE platform SET client_id = ?, name = ?, auth_endpoint = ?, token_endpoint = ?, jwks_url = ?, active = ?,
+      product_family_code = COALESCE(?, product_family_code), updated_at = ? WHERE id = ? AND tool_account_id = ?`)
+      .run(input.clientId, input.name, input.authEndpoint, input.tokenEndpoint, input.jwksUrl, input.active ? 1 : 0, input.productFamilyCode, Date.now(), id, accountId);
+    db.prepare('INSERT OR IGNORE INTO deployment (platform_id, deployment_id) VALUES (?, ?)').run(id, input.deploymentId);
+    return getPlatform(db, accountId, id);
+  });
+}

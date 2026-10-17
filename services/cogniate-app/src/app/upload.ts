@@ -16,7 +16,7 @@ import type { Course, CourseVersion } from '../domain/courses.ts';
 import { addVersion } from '../domain/courses.ts';
 import type { Db } from '../domain/db.ts';
 import type { StorePaths } from '../domain/package-store.ts';
-import { ApiError } from './errors.ts';
+import { ApiError } from './api-errors.ts';
 import { REJECT_INFO } from './reject-info.ts';
 
 export interface UploadDeps {

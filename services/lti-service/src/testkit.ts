@@ -103,7 +103,7 @@ export async function harness(opts: { ltikTtlSeconds?: number } = {}): Promise<H
   const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(() => clock.now) });
   const app = await buildApp({
     db, urls: URLS, logger, keys: createPlatformKeys(outbound, () => clock.now), ltikTtlSeconds: opts.ltikTtlSeconds ?? 86400,
-    masterKey: MASTER_KEY, ags, profile: 'default', knobs: [], now: () => clock.now,
+    masterKey: MASTER_KEY, ags, outbound, profile: 'default', knobs: [], now: () => clock.now,
   });
   return { db, platform, apiKey: a.apiKey!, otherApiKey: b.apiKey!, key, outbound, lines, clock, app };
 }

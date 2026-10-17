@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { escapeHtml, renderErrorPage } from './errors.ts';
+import { escapeHtml, renderErrorPage } from './error-page.ts';
 
 describe('error pages (security §2.2)', () => {
   it('escapes everything and marks the main element and the action sentence', () => {

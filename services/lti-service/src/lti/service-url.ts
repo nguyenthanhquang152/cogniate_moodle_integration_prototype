@@ -5,10 +5,35 @@
 const isHttps = (u: URL): boolean => u.protocol === 'https:' && u.username === '' && u.password === '' && u.hash === '';
 
 /**
+ * A-T3a-01, contract §3.4 rule 4: the platform web server decodes the path (nginx: %2F -> /) and then resolves dot
+ * segments, so a path that LOOKS inside the claim path can reach another course. Refuse, before any outbound call, a raw
+ * path with %2F, %5C, %2E or %25 (any letter case), a backslash, or a "." / ".." segment (also after decoding).
+ */
+export function hasPathTrick(rawUrl: string): boolean {
+  const afterScheme = rawUrl.replace(/^[A-Za-z][A-Za-z0-9+.-]*:\/\/[^/?#]*/, '');
+  const path = afterScheme.split(/[?#]/, 1)[0] ?? '';
+  if (/%(2f|5c|2e|25)/i.test(path) || path.includes('\\')) return true;
+  let decoded = path;
+  for (let i = 0; i < 3; i += 1) {
+    if (decoded.split('/').some((seg) => seg === '.' || seg === '..')) return true;
+    let next: string;
+    try {
+      next = decodeURIComponent(decoded);
+    } catch {
+      return true; // a broken escape: refuse
+    }
+    if (next === decoded) break;
+    decoded = next;
+  }
+  return decoded.includes('\\') || decoded.split('/').some((seg) => seg === '.' || seg === '..');
+}
+
+/**
  * True if `candidate` is allowed for the claim URL (AGS `lineitems` or `lineitem`, NRPS `context_memberships_url`).
  * The path must equal the claim path or continue it after a "/" (so ".../lineitems" does not allow ".../lineitemsX").
  */
 export function isAllowedServiceUrl(candidate: string, claimUrl: string): boolean {
+  if (hasPathTrick(candidate)) return false;
   let c: URL;
   let base: URL;
   try {

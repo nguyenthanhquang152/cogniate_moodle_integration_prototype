@@ -6,7 +6,7 @@ import type { Db } from '../domain/db.ts';
 import { createSession, deleteSession, findSession, findUserByEmail, SESSION_TTL_SECONDS } from '../domain/libraries.ts';
 import type { SignedIn } from '../domain/libraries.ts';
 import { dummyHash, verifyPassword } from '../domain/passwords.ts';
-import { ApiError } from './errors.ts';
+import { ApiError } from './api-errors.ts';
 
 export const SESSION_COOKIE = '__Host-cog_session';
 const TOKEN = /^[A-Za-z0-9_-]{43}$/;

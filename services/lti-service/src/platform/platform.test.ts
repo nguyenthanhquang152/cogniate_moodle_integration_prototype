@@ -9,7 +9,7 @@ import { ensureToolKey } from '../store/tool-keys.ts';
 import { createPlatform } from '../store/platforms.ts';
 import { CLIENT_ID, ISSUER, MASTER_KEY, URLS, capturingLogger } from '../testkit.ts';
 import { AGS_SCOPES, createAgsClient, parseScore } from './ags.ts';
-import { outboundFailureError, platformResponseError, shortPlatformMessage } from './errors.ts';
+import { outboundFailureError, platformResponseError, shortPlatformMessage } from './error-mapping.ts';
 import { parseLinkHeader } from './link-header.ts';
 import { createScoreClock } from './score-clock.ts';
 import { createTokenClient } from './token-client.ts';
@@ -33,8 +33,8 @@ describe('platform error mapping (contract §1.3)', () => {
     expect([err.code, err.status]).toEqual([code, ours]);
   });
 
-  it('a rejected request shows a short, escaped platform message', () => {
-    expect(platformResponseError(res(400, 'No grade item\n<script>')).description).toBe('The platform answered 400: No grade item &lt;script&gt;');
+  it('a rejected request shows a short platform message without control characters (not HTML-escaped: JSON is data)', () => {
+    expect(platformResponseError(res(400, 'No grade item\n<b>grade < 0</b>')).description).toBe('The platform answered 400: No grade item <b>grade < 0</b>');
     expect(shortPlatformMessage('x'.repeat(300))).toHaveLength(203);
   });
 
@@ -76,6 +76,8 @@ describe('score body (contract §3.6)', () => {
     expect(parseScore({ userId: '5', activityProgress: 'Completed', gradingProgress: 'FullyGraded', scoreGiven: 87, scoreMaximum: 100 }))
       .toEqual({ userId: '5', activityProgress: 'Completed', gradingProgress: 'FullyGraded', scoreGiven: 87, scoreMaximum: 100 });
     expect(parseScore({ userId: '5', activityProgress: 'Initiated', gradingProgress: 'NotReady' }).activityProgress).toBe('Initialized');
+    const in10 = new Date(Date.now() + 10 * 60_000).toISOString(); // AC-T3-30: now + 10 min is allowed (AC-T5-31 conflict recipe)
+    expect(parseScore({ userId: '5', activityProgress: 'Completed', gradingProgress: 'FullyGraded', timestamp: in10 }).timestamp).toBe(in10);
   });
   it.each([
     [{ activityProgress: 'Completed', gradingProgress: 'FullyGraded' }, 'userId'],
@@ -85,6 +87,7 @@ describe('score body (contract §3.6)', () => {
     [{ userId: '5', activityProgress: 'Completed', gradingProgress: 'FullyGraded', scoreGiven: -1, scoreMaximum: 10 }, 'scoreGiven'],
     [{ userId: '5', activityProgress: 'Completed', gradingProgress: 'FullyGraded', scoreMaximum: 0 }, 'scoreMaximum'],
     [{ userId: '5', activityProgress: 'Completed', gradingProgress: 'FullyGraded', timestamp: 'yesterday' }, 'timestamp'],
+    [{ userId: '5', activityProgress: 'Completed', gradingProgress: 'FullyGraded', timestamp: new Date(Date.now() + 16 * 60_000).toISOString() }, 'timestamp'],
   ])('refuses %j (%s)', (body, field) => {
     expect(() => parseScore(body)).toThrow(ApiError);
     expect(() => parseScore(body)).toThrow(/INVALID_REQUEST/);

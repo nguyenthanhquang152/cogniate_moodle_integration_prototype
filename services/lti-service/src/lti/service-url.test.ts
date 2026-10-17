@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agsBaseUrl, isAllowedServiceUrl, lineItemSubUrl, withQuery } from './service-url.ts';
+import { agsBaseUrl, hasPathTrick, isAllowedServiceUrl, lineItemSubUrl, withQuery } from './service-url.ts';
 
 const LINEITEMS = 'https://moodle.test/mod/lti/services.php/2/lineitems?type_id=1';
 
@@ -23,6 +23,28 @@ describe('line item URL rule (contract §3.4, security §8)', () => {
     ['a fragment', 'https://moodle.test/mod/lti/services.php/2/lineitems/7/lineitem?type_id=1#x'],
     ['not a URL', 'lineitem-7'],
   ])('refuses %s', (_n, url) => expect(isAllowedServiceUrl(url, LINEITEMS)).toBe(false));
+
+  it.each([
+    ['%2F', 'https://moodle.test/mod/lti/services.php/2/lineitems/..%2F..%2F3/lineitems/9/lineitem?type_id=1'],
+    ['%2f (lower case)', 'https://moodle.test/mod/lti/services.php/2/lineitems/7%2flineitem?type_id=1'],
+    ['%5C', 'https://moodle.test/mod/lti/services.php/2/lineitems/..%5C..%5C3/lineitems/9/lineitem?type_id=1'],
+    ['%252F (double encoding)', 'https://moodle.test/mod/lti/services.php/2/lineitems/..%252F..%252F3/lineitems/9/lineitem?type_id=1'],
+    ['%255c (double encoding)', 'https://moodle.test/mod/lti/services.php/2/lineitems/x%255cy?type_id=1'],
+    ['a raw .. segment', 'https://moodle.test/mod/lti/services.php/2/lineitems/../../3/lineitems/9/lineitem?type_id=1'],
+    ['an encoded .. segment', 'https://moodle.test/mod/lti/services.php/2/lineitems/%2e%2e/%2E%2E/3/lineitems/9/lineitem?type_id=1'],
+    ['a . segment', 'https://moodle.test/mod/lti/services.php/2/lineitems/./7/lineitem?type_id=1'],
+    ['a raw backslash', 'https://moodle.test/mod/lti/services.php/2/lineitems/7\\lineitem?type_id=1'],
+    ['a broken escape', 'https://moodle.test/mod/lti/services.php/2/lineitems/7%E0%A4%A/lineitem?type_id=1'],
+    ['%2E inside a segment', 'https://moodle.test/mod/lti/services.php/2/lineitems/7%2Elineitem?type_id=1'],
+  ])('refuses a path trick (A-T3a-01): %s', (_n, url) => {
+    expect(hasPathTrick(url)).toBe(true);
+    expect(isAllowedServiceUrl(url, LINEITEMS)).toBe(false);
+  });
+
+  it('a normal Moodle line item URL is not a path trick; an encoded character in the query is fine', () => {
+    expect(hasPathTrick('https://moodle.test/mod/lti/services.php/2/lineitems/7/lineitem?type_id=1&x=%2F')).toBe(false);
+    expect(isAllowedServiceUrl('https://moodle.test/mod/lti/services.php/2/lineitems/7/lineitem?type_id=1&x=%2F', LINEITEMS)).toBe(true);
+  });
 
   it('agsBaseUrl prefers lineitems, else lineitem', () => {
     expect(agsBaseUrl({ lineitems: LINEITEMS, lineitem: 'x' })).toBe(LINEITEMS);
