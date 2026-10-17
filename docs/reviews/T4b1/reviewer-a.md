@@ -1,7 +1,11 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # Reviewer-A: T4b1 review (lens: "Is it right and is it safe?")
+
+History: the round 1 verdict was APPROVE (findings below). The round 2 verdict is APPROVE (section "Round 2" at the end).
+
+## Round 1
 
 Scope:
 
@@ -77,3 +81,34 @@ Counts: 0 BLOCKER, 0 MAJOR, 1 MINOR, 1 NIT.
 - **Problem:** `check()` accepts only a `pending` dynamic connection, and a pending connection has no `ltiPlatformId`. So `isUpdateAllowed` is always false for an update, and every "update" shows `UPDATE_NOT_ALLOWED`. `refreshPlatform` is unreachable.
 - **Evidence:** This is safe (it is the strictest outcome). But security §2.5 and app contract §6 describe an allowed update for "the platform of the same connection (a re-connect)".
 - **Fix (Architect):** Either remove the re-connect promise and `refreshPlatform`, or define how a `registered` connection gets a re-connect URL (a new ref for registered connections, valid only for `operation = update` of its own platform).
+
+---
+
+## Round 2
+
+Verdict (round 2): APPROVE
+
+Input: `git diff 1ec7cde 0fc5e33 -- . ':!docs' ':!tests'` and the new rules (security §2.6, app contract §4, commit `2cf7d33`). I did not read `reviewer-b.md`.
+
+Round 2 counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (A-T4b1-03).
+
+| Round 1 id | Status | Evidence |
+| --- | --- | --- |
+| A-T4b1-01 (MINOR) | Resolved | **Manual:** `PLATFORM_ALREADY_EXISTS` → `409 PLATFORM_IN_USE`, so there is no adoption, and only a platform created in this call is bound. If the bind then fails (`PlatformTakenError`), `deactivateOrphan` switches that new platform off. A repeat of the same successful PUT gives `200` and changes nothing. **Dynamic:** if `complete` returned a platform id and the bind fails (another connection holds it, or the connection is no longer pending, for example the two-tab case), `deactivateOrphan` sets the platform inactive only when **no** connection owns it, and logs `platform_orphan_deactivated`. An owned platform is never touched. No orphan scan at start: accepted, because it would switch off the seed and QA platforms. |
+| A-T4b1-02 (NIT) | Resolved | `check()` returns `UPDATE_NOT_ALLOWED` for every `operation = update`, and `refreshPlatform` and `isUpdateAllowed` are gone. Re-connect = delete the Moodle tool, disconnect, connect again (security §2.5). |
+| New: `lastError` | Safe | It stores only codes (`code`, `ltiCode`), the trace id and the time, and only for a pending connection. It is cleared on success. |
+
+**The Author's open edge.** Can library B adopt library A's orphan through a "new" registration that returns an existing platform? With a standard Moodle 5.2, no:
+
+- `startltiadvregistration.php` puts a **new** client id into every `scope = reg` token (`new_clientid()`, `random_string(15)`).
+- `openid-registration.php` creates the type with that id.
+- A reused token is refused: `registration_helper.php:381-385`, `token_already_used`, which the LTI service maps to `tool_may_exist` (no platform id comes back).
+- A retry after our own success finds the session completed (`409 REGISTRATION_ALREADY_COMPLETED`).
+
+So the LTI fallback "`PlatformExistsError` on `new` → update the existing platform" (B-T3b-02) is reached only when the **platform** returns a client id that we already have for the same issuer. Only a misbehaving Moodle can do that, in practice that site's own administrator, who controls the site's tools anyway. **Accepted as a residual risk**, with one hardening point (A-T4b1-03).
+
+### A-T4b1-03 — NIT — The B-T3b-02 fallback switches a deactivated orphan back on
+
+- **Location:** `services/lti-service/src/http/routes/registration.ts` (the `PlatformExistsError` branch → `applyRegistrationUpdate` with `active: autoActivate ?? true`).
+- **Problem:** On the edge above, the existing platform gets `active = true` again, also when the app had switched it off as an orphan. If no connection owns it, the app then binds it to the requesting library.
+- **Fix:** In that branch, keep the stored `active` value (never re-activate). Or answer `502 PLATFORM_ERROR` ("the platform returned the client id of an existing registration"), as A-T3b-02 suggested. Either one closes the edge, even for a misbehaving platform.

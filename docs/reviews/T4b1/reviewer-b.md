@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # T4b1 review — Reviewer-B (lens: "Can a human team own it?")
 
@@ -72,3 +72,20 @@ Scope: `git diff 6f03a80 1ec7cde -- . ':!docs' ':!tests'` (29 files). Spec: `tas
   - `escapeHtml` now has a copy in `services/lti-service/src/http/error-page.ts` and in `services/cogniate-app/src/tool-pages/page.ts`. Move it to the shared `server` module.
   - `domain/lti-client.ts` is a client of another service, not a repository. Use `src/clients/lti-client.ts`, or name "service clients" in the ADR-008 `domain/` row.
   - `createPlatform(body: Record<string, unknown>)` is the only untyped method, and the client casts each answer (`json as T`). A small zod parse of the fields that the app reads would catch contract drift between the two services early.
+
+---
+
+## Round 2
+
+Round 2 verdict: **APPROVE**.
+
+Input: `git diff 1ec7cde 0fc5e33 -- . ':!docs' ':!tests'` (17 files). `npm run check` (HEAD contains `0fc5e33`): pass, 33 test files, 452 tests.
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| B-T4b1-01 | **Resolved** | `registration_confirm_rejected` now logs `{code, …ltiErrorFields(err)}` (LTI status, code and reason; codes only). Migration `003_connection_last_error.sql` (commented: "codes only … cleared when the connection is registered") adds `last_error_code`, `last_error_lti_code`, `last_error_trace_id`, `last_error_at`. `connectionJson` returns `lastError {code, ltiCode, traceId, at}`. `connect.test.ts` grew by about 160 lines for these paths. |
+| B-T4b1-02 | **Resolved**, with two small text rests | One `escapeHtml` in `packages/shared/src/html.ts`, used by both services. One Pending-tool text, `pendingToolText()` in shared html, used by the app page and the LTI service description. The client moved to `src/clients/lti-client.ts`, with zod schemas for the answers. The done page heading is "Connected". |
+
+Rests (NIT, no new id, safe to defer):
+- The done page body still says "Done. Go back to Moodle and activate the tool.", without the "edit: Default launch container = New window" step.
+- `REGISTRATION_FAILED` still has no "give the trace id to your Cogniate contact" sentence. The page shows the trace id, and `lastError.traceId` now lets the portal show it.
