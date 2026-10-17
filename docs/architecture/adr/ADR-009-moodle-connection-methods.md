@@ -45,7 +45,7 @@ Dynamic registration request (built by the LTI service at `complete`; URLs from 
 
 **Default privacy: `anonymous`** (spec §7.5, §10; Q3).
 
-**"Update existing tool":** the service reports `operation` and `existingPlatformId` (security §2.5). The app allows an update only for the same connection. In every other case it tells the admin "Go back in Moodle and choose Register as a new tool", and nothing is sent to Moodle. A platform belongs to one connection only.
+**"Update existing tool":** the service reports `operation` and `existingPlatformId` (security §2.5). The app **refuses every update** in the prototype: a registration URL exists only for a `pending` connection, so the only updates that can reach it are attempts to overwrite another library's tool. It tells the admin "Go back in Moodle and choose Register as a new tool", and nothing is sent to Moodle. Re-connect = delete the old tool in Moodle, disconnect, connect again. A platform belongs to one connection only.
 
 Manual values (shown in the portal; URLs from `PUBLIC_LTI_URL`, account `cogniate`). The API returns them with stable keys, in the order of app contract §4.1:
 

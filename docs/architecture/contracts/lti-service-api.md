@@ -315,7 +315,7 @@ Query: `role` (a short name such as `Learner` or a full role URI, passed to NRPS
 | `autoActivate` | `true` (our platform `active`; Moodle still shows the tool as Pending) |
 | `messages` | `[{ "type": "LtiDeepLinkingRequest", "placements": ["ContentArea"] }]` |
 | `privacyLevel` | from §2.4, else `anonymous` |
-| `updatePlatformId` (addition) | required when `operation = update`; must equal `existingPlatformId` |
+| `updatePlatformId` (addition) | required when `operation = update`; must equal `existingPlatformId`. (The Cogniate app never sends it in the prototype; it refuses every update, security §2.5.) |
 
 The service sends the registration request of [ADR-009](../adr/ADR-009-moodle-connection-methods.md) with `Authorization: Bearer <registration_token>`, then stores or updates the platform (issuer, client id, endpoints, deployment id from the response). If a `new` registration returns a client id that this tool account already has for that issuer, the service updates that platform (same `platformId`) and logs `registration_completed {operation: "update"}` (Lead decision). `200 { "html": "<script>(window.opener || window.parent).postMessage({subject:'org.imsglobal.lti.close'}, '*');</script>", "platformId": "plt_..." }`.
 

@@ -17,7 +17,7 @@ Technical dependencies ("Depends on" in each file) are fewer: T2a and T4a need o
 | [T3a](T3a.md) | LTI services that the app needs: service keys, token client, Deep Linking response, scores, line item reads | yes | AC-T3-06 to -08, -10 to -14, -16 to -18, -22 to -24 |
 | [T3b](T3b.md) | Dynamic registration, incl. "update existing tool" | yes | AC-T3-01 to -05, -25, -26, -28 to -30 |
 | [T4a](T4a.md) | Mock session, courses, upload, package inspector | yes | AC-T4-01 to -06, -35 |
-| [T4b1](T4b1.md) | Connections and publications (connect + publish) | yes | AC-T4-07 to -10, -12, -14, -30, -33, -34 |
+| [T4b1](T4b1.md) | Connections and publications (connect + publish) | yes | AC-T4-07 to -10, -12, -14, -30, -33, -34, -36 |
 | [T4b2](T4b2.md) | Picker, launch handoff, player shell, tool page security | yes | AC-T4-15 to -29, -31, -32 |
 | [T5a](T5a.md) | Content host, SCORM 1.2 runtime, tracking, score sync, results | yes | AC-T5-01 to -08, -12, -13, -15 to -17, -20 to -24, -34, -35, -37 |
 | [T5b](T5b.md) | HTML runtime, retry and conflict, Resend, results refresh | yes | AC-T5-09 to -11, -14, -18, -19, -27 to -33, -36 |

@@ -87,7 +87,15 @@ Moodle shows a choice page when a tool with the same domain exists. If the admin
 - The LTI service reads the operation from the token (verified with the platform JWKS from the configuration) and finds the existing platform by (issuer, deployment id = type id).
 - `GET /api/registrations/:id` returns `operation` and `existingPlatformId`.
 - `complete` with `operation = update` needs `updatePlatformId` = `existingPlatformId`, and the platform must belong to the same tool account. Else `409 REGISTRATION_UPDATE_NOT_ALLOWED`, and the service sends **nothing** to Moodle.
-- The app allows an update only when `existingPlatformId` = the platform of the same connection (a re-connect). Otherwise it shows `UPDATE_NOT_ALLOWED` with the text "Go back in Moodle and choose Register as a new tool."
+- The app **never** allows an update in the prototype (Lead decision, A-T4b1-02): a registration URL exists only for a `pending` connection, so a connection with a platform cannot re-register. For `operation = update` the app always shows `UPDATE_NOT_ALLOWED` ("Go back in Moodle and choose Register as a new tool") and calls nothing. To re-connect a library, the admin deletes its tool in Moodle, the Cogniate user disconnects and connects again. The LTI service keeps `updatePlatformId` as an API feature for other tools.
+
+### 2.6 Platform ownership (A-T4b1-01)
+
+| Rule | Detail |
+| --- | --- |
+| No adoption | Manual connect (`PUT /app-api/connections/:id/platform`) binds only a platform that the LTI service **creates** in that call (`201`). A `409 PLATFORM_ALREADY_EXISTS` gives `409 PLATFORM_IN_USE` and changes nothing, unless that platform is already bound to the same connection (a repeat of the same call, `200`). So no library can take over the seed platform, another library's platform, or an orphan. |
+| Orphans are switched off | If the app gets a platform id from the LTI service (registration `complete` or manual create) and cannot bind it to the requesting connection, and no other connection owns it, the app sets it `active: false` at once and logs `platform_orphan_deactivated {platform_id}`. A disconnect also sets the platform `active: false`. |
+| Foreign platforms | Platforms that the app did not create for a connection (the dev seed platform, platforms made through the LTI API by other tools) are never adopted and never changed by the app. |
 
 ## 3. Cookies and launch container
 
