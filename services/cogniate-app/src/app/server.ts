@@ -1,6 +1,7 @@
 // The app listener (PUBLIC_APP_URL): /healthz and the portal API /app-api/* (contract cogniate-app-api §1-§3).
 // Tool pages and the portal SPA come in T4b and T6.
 import { randomBytes } from 'node:crypto';
+import formbody from '@fastify/formbody';
 import multipart from '@fastify/multipart';
 import type { Limits } from '@cogniate/package-inspector';
 import { DEFAULT_LIMITS } from '@cogniate/package-inspector';
@@ -10,8 +11,12 @@ import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import type { Db } from '../domain/db.ts';
 import type { SignedIn } from '../domain/libraries.ts';
+import type { LtiClient } from '../domain/lti-client.ts';
 import type { StorePaths } from '../domain/package-store.ts';
+import { registerRegisterPages } from '../tool-pages/register.ts';
+import { registerConnectionRoutes } from './connections.ts';
 import { registerCourseRoutes } from './courses.ts';
+import { registerPublicationRoutes } from './publications.ts';
 import { ApiError, apiErrorBody } from './api-errors.ts';
 import { registerSessionRoutes, sessionOf } from './session.ts';
 
@@ -39,6 +44,12 @@ export interface AppApiDeps {
   now?: () => number;
   /** Package limits (security §7). Tests make them smaller. */
   limits?: Partial<Limits>;
+  /** APP_MASTER_KEY (32 bytes): the stored copy of the registration ref (T4b1). */
+  masterKey: Buffer;
+  /** LTI service API client (T4b1). */
+  lti: LtiClient;
+  /** REF_TTL_SECONDS knob (default 86400): life of a registration URL. */
+  refTtlSeconds: number;
 }
 
 const TRACE_ID = /^[A-Za-z0-9-]{16,64}$/;
@@ -50,6 +61,7 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
   const log = deps.logger;
   const limits: Limits = { ...DEFAULT_LIMITS, ...deps.limits };
   const app = Fastify({ logger: false, bodyLimit: JSON_BODY_LIMIT, return503OnClosing: false });
+  await app.register(formbody, { bodyLimit: 8 * 1024 }); // /tool/register form
   await app.register(multipart, {
     throwFileSizeLimit: true,
     limits: { fileSize: limits.maxUploadBytes, files: 1, fields: 4, fieldSize: 1024, parts: 5, headerPairs: 100 },
@@ -111,7 +123,12 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
     });
     registerSessionRoutes(api, { db: deps.db, now });
     registerCourseRoutes(api, { db: deps.db, logger: log, store: deps.store, limits, now });
+    registerConnectionRoutes(api, { db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, refTtlSeconds: deps.refTtlSeconds, now });
+    registerPublicationRoutes(api, { db: deps.db, now });
   }, { prefix: '/app-api' });
+
+  // Tool pages (app contract §6): server-rendered, no cookies; their own headers and Origin rule.
+  registerRegisterPages(app, { db: deps.db, urls: deps.urls, logger: log, lti: deps.lti, masterKey: deps.masterKey, now });
 
   return app;
 }

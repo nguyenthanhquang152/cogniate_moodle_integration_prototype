@@ -7,6 +7,7 @@ import type { Platform } from '../../store/platforms.ts';
 import { PlatformExistsError, createPlatform, getPlatform, listPlatforms, updatePlatform } from '../../store/platforms.ts';
 import { activePublicKeyPem } from '../../store/tool-keys.ts';
 import type { RouteContext } from '../context.ts';
+import { invalid } from '../validation.ts';
 
 const PlatformCreate = z.object({
   url: z.string().min(1).max(2048),
@@ -27,12 +28,6 @@ const PlatformPatch = z.object({
 });
 
 const PlatformQuery = z.object({ id: z.string().optional(), url: z.string().optional(), clientId: z.string().optional() });
-
-export function invalid(error: z.ZodError): ApiError {
-  const issue = error.issues[0];
-  const field = issue && issue.path.length ? issue.path.join('.') : 'body';
-  return new ApiError('INVALID_REQUEST', `Invalid field: ${field}.`);
-}
 
 export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext): void {
   const view = (p: Platform) => ({

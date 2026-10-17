@@ -114,7 +114,7 @@ export interface OutboundOptions {
 }
 
 export interface OutboundRequest {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   headers?: Record<string, string>;
   body?: string;
   traceId?: string;

@@ -3,6 +3,7 @@
 // Auth (contract §1.2): deep linking = LTIK-AUTH-V2 only; line items and scores = LTIK-AUTH-V2 or SERVICE-AUTH-V1.
 // `:lineItemId` is a URL-encoded URL: buildApp sets maxParamLength 2048.
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
 import type { Db } from '../../db/index.ts';
 import { CLAIM } from '../../lti/checks.ts';
@@ -14,6 +15,7 @@ import type { Platform } from '../../store/platforms.ts';
 import { getPlatform } from '../../store/platforms.ts';
 import type { AuthResult } from '../auth.ts';
 import type { RouteContext } from '../context.ts';
+import { invalid } from '../validation.ts';
 
 type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj | null => (v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Obj) : null);
@@ -33,17 +35,14 @@ function agsContext(db: Db, caller: AuthResult, traceId: string): AgsContext {
   return { platform, agsClaim, traceId };
 }
 
-const optText = (q: Obj, name: string): string | undefined => {
-  const v = q[name];
-  if (v === undefined) return undefined;
-  if (typeof v !== 'string' || v === '' || v.length > 2048) throw new ApiError('INVALID_REQUEST', `Invalid field: ${name}.`);
-  return v;
-};
-const optLimit = (q: Obj): number | undefined => {
-  const v = optText(q, 'limit');
-  if (v === undefined) return undefined;
-  if (!/^[1-9]\d{0,5}$/.test(v)) throw new ApiError('INVALID_REQUEST', 'Invalid field: limit must be a whole number >= 1.');
-  return Number(v);
+const text = z.string().min(1).max(2048);
+const limit = z.string().regex(/^[1-9]\d{0,5}$/, 'a whole number >= 1').transform(Number);
+const LineItemsQuery = z.object({ resourceLinkId: text.optional(), resourceId: text.optional(), tag: text.optional(), limit: limit.optional(), url: text.optional() });
+const ScoresQuery = z.object({ userId: text.optional(), limit: limit.optional(), url: text.optional() });
+const parseQuery = <T extends z.ZodType>(schema: T, q: unknown): z.output<T> => {
+  const r = schema.safeParse(q ?? {});
+  if (!r.success) throw invalid(r.error);
+  return defined(r.data as Obj) as z.output<T>;
 };
 const defined = <T extends Obj>(o: T): T => Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
 
@@ -60,11 +59,7 @@ export function registerServiceRoutes(app: FastifyInstance, ctx: RouteContext): 
 
   app.get('/api/lineitems', async (req) => {
     const caller = ctx.auth(req, ['ltik', 'service']);
-    const q = (obj(req.query) ?? {}) as Obj;
-    const query = {
-      resourceLinkId: optText(q, 'resourceLinkId'), resourceId: optText(q, 'resourceId'), tag: optText(q, 'tag'), limit: optLimit(q), url: optText(q, 'url'),
-    };
-    return ctx.ags.listLineItems(agsContext(ctx.db, caller, traceOf(req)), defined(query));
+    return ctx.ags.listLineItems(agsContext(ctx.db, caller, traceOf(req)), parseQuery(LineItemsQuery, req.query));
   });
 
   app.get<ItemParams>('/api/lineitems/:lineItemId', async (req) => {
@@ -81,8 +76,6 @@ export function registerServiceRoutes(app: FastifyInstance, ctx: RouteContext): 
 
   app.get<ItemParams>('/api/lineitems/:lineItemId/scores', async (req) => {
     const caller = ctx.auth(req, ['ltik', 'service']);
-    const q = (obj(req.query) ?? {}) as Obj;
-    const query = { userId: optText(q, 'userId'), limit: optLimit(q), url: optText(q, 'url') };
-    return ctx.ags.getScores(agsContext(ctx.db, caller, traceOf(req)), req.params.lineItemId, defined(query));
+    return ctx.ags.getScores(agsContext(ctx.db, caller, traceOf(req)), req.params.lineItemId, parseQuery(ScoresQuery, req.query));
   });
 }

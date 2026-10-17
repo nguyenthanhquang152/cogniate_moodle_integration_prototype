@@ -70,5 +70,7 @@ export function releaseRegistrationSession(db: Db, accountId: string, id: string
 }
 
 export function completeRegistrationSession(db: Db, accountId: string, id: string, platformId: string, now: number): void {
-  db.prepare("UPDATE registration_session SET status = 'completed', platform_id = ?, completed_at = ? WHERE id = ? AND tool_account_id = ?").run(platformId, now, id, accountId);
+  // The registration token is single use: drop the encrypted copy (A-T3b-03).
+  db.prepare("UPDATE registration_session SET status = 'completed', platform_id = ?, completed_at = ?, registration_token_encrypted = NULL WHERE id = ? AND tool_account_id = ?")
+    .run(platformId, now, id, accountId);
 }

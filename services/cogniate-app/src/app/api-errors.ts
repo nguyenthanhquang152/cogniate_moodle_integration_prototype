@@ -21,12 +21,14 @@ export const APP_API_ERRORS = defineErrorTable({
   INVALID_PROGRESS: { status: 400, description: 'The progress report is not valid.' },
   PUBLICATION_NOT_AVAILABLE: { status: 400, description: 'The publication is not available.' },
   CONNECTION_NOT_READY: { status: 409, description: 'The connection is not ready.' },
+  CONNECTION_NOT_PENDING: { status: 409, description: 'The connection is not pending.' },
   VERSION_NOT_READY: { status: 409, description: 'The course version is not ready.' },
   STALE_SEQUENCE: { status: 409, description: 'The sequence number is not newer than the last one.' },
   SYNC_NOT_RESENDABLE: { status: 409, description: 'Only a failed or conflict score sync can be sent again.' },
   RUNTIME_EXPIRED: { status: 410, description: 'The runtime session expired.' },
   INVALID_PLATFORM_VALUES: { status: 422, description: 'The platform values are not valid.' },
   WS_TOKEN_INVALID: { status: 422, description: 'The web services token is not valid.' },
+  LTI_SERVICE_ERROR: { status: 502, description: 'The LTI service answered with an error.' },
 });
 
 export type AppApiErrorCode = keyof typeof APP_API_ERRORS;

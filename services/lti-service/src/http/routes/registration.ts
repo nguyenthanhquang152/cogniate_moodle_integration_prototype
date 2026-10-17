@@ -11,7 +11,7 @@ import type { OpenIdConfiguration } from '../../lti/registration.ts';
 import {
   PRIVACY_LEVELS, REGISTRATION_CLOSE_HTML, buildRegistrationRequest, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse, registrationView,
 } from '../../lti/registration.ts';
-import { badPlatformDataError, outboundFailureError, shortPlatformMessage } from '../../platform/error-mapping.ts';
+import { outboundFailureError, shortPlatformMessage } from '../../platform/error-mapping.ts';
 import { getAccount } from '../../store/accounts.ts';
 import type { Platform } from '../../store/platforms.ts';
 import { PlatformExistsError, applyRegistrationUpdate, createPlatform, findPlatformByDeployment, getPlatform, listPlatforms } from '../../store/platforms.ts';
@@ -20,9 +20,27 @@ import {
   claimRegistrationSession, completeRegistrationSession, createRegistrationSession, getRegistrationSession, releaseRegistrationSession,
 } from '../../store/registrations.ts';
 import type { RouteContext } from '../context.ts';
-import { invalid } from './platforms.ts';
+import { invalid } from '../validation.ts';
+import { isOwnLaunchTarget } from '../../lti/target.ts';
+import { OutboundError } from '@cogniate/shared';
 
 const HEADING = 'The registration did not work';
+
+/**
+ * B-T3b-01: the registration frame is read by the Moodle ADMIN who pasted the URL, so these pages have their own
+ * action line (one data-error-action each), not the launch texts written for learners and teachers.
+ */
+export const REGISTRATION_HELP: Partial<Record<ProtocolErrorCode, string>> = {
+  UNKNOWN_TOOL_ACCOUNT: 'This registration URL is not valid. Copy it again in Cogniate (Integrations > Moodle > Connect) and paste it in Moodle (Manage tools > Add LTI Advantage).',
+  INVALID_REQUEST: 'Start the registration again from Moodle (Site administration > Plugins > Activity modules > External tool > Manage tools).',
+  FETCH_FAILED: 'Cogniate cannot reach this Moodle site. The site must be reachable from the internet over https (port 443). Check the firewall, then start the registration again.',
+  INVALID_OPENID_CONFIGURATION: 'Moodle sent a registration that Cogniate cannot use. Start the registration again from Manage tools. If it happens again, give the trace id to your Cogniate contact.',
+  ISSUER_MISMATCH: 'The platform configuration is not from this Moodle site. Start the registration again from Manage tools on the site itself.',
+};
+
+/** A-T3b-01: the registration may have reached Moodle, but the result is unknown. No automatic clean-up. */
+export const TOOL_MAY_EXIST_TEXT = 'Moodle may have created a Pending Cogniate tool. Delete it in Site administration > Plugins > Activity modules > External tool > Manage tools, then start Connect again.';
+const toolMayExist = () => new ApiError('PLATFORM_ERROR', TOOL_MAY_EXIST_TEXT, { details: { reason: 'tool_may_exist' } });
 const SESSION_MAX_MS = 3600 * 1000; // contract §2.4: expires with the token, at most 1 h
 const CLOCK_SKEW_S = 60;
 const RESERVED_QUERY = new Set(['openid_configuration', 'registration_token', 'privacyLevel']);
@@ -92,7 +110,8 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     const now = ctx.now();
     const page = (code: ProtocolErrorCode, detail: string) => {
       log.warn('registration_rejected', { trace_id: req.traceId, code, detail });
-      return ctx.errorPage(reply, req, code, { heading: HEADING });
+      const help = REGISTRATION_HELP[code];
+      return ctx.errorPage(reply, req, code, { heading: HEADING, ...(help ? { help } : {}) });
     };
     const account = getAccount(ctx.db, req.params.account);
     if (!account) return page('UNKNOWN_TOOL_ACCOUNT', 'unknown_tool_account');
@@ -149,8 +168,9 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     if (!body.success) throw invalid(body.error);
     const session = sessionOf(account.id, req.params.id);
     if (session.status !== 'open') throw new ApiError('REGISTRATION_ALREADY_COMPLETED');
+    // Same fields as the page side (B-T3b-03): code and a safe detail.
     const reject = (err: ApiError): never => {
-      log.warn('registration_rejected', { trace_id: req.traceId, code: err.code });
+      log.warn('registration_rejected', { trace_id: req.traceId, code: err.code, detail: String(err.details.reason ?? err.code.toLowerCase()) });
       throw err;
     };
     // Security §2.5: an update only of this account's platform, named by the caller. Nothing is sent to Moodle otherwise.
@@ -158,6 +178,12 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       const allowed = session.existingPlatformId !== null && body.data.updatePlatformId === session.existingPlatformId
         && getPlatform(ctx.db, account.id, session.existingPlatformId) !== null;
       if (!allowed) reject(new ApiError('REGISTRATION_UPDATE_NOT_ALLOWED', 'This registration updates a tool that is not this connection. Choose "Register as a new tool" in Moodle.'));
+    }
+    // A-T3b-03: a message target must be our own launch URL for this account (Moodle only checks the domain).
+    for (const m of body.data.messages ?? []) {
+      if (m.target_link_uri !== undefined && !isOwnLaunchTarget(m.target_link_uri, ctx.urls, account.id)) {
+        throw new ApiError('INVALID_REQUEST', 'Invalid field: messages.target_link_uri must be the launch URL of this tool account.');
+      }
     }
     if (!claimRegistrationSession(ctx.db, account.id, session.id)) throw new ApiError('REGISTRATION_ALREADY_COMPLETED');
     try {
@@ -173,23 +199,28 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
           headers: { 'content-type': 'application/json', accept: 'application/json', ...(session.registrationToken ? { authorization: `Bearer ${session.registrationToken}` } : {}) },
         });
       } catch (err) {
+        // A timeout or a network error after the request left: Moodle may have created the tool (A-T3b-01).
+        if (err instanceof OutboundError && (err.reason === 'timeout' || err.reason === 'network_error')) throw toolMayExist();
         throw outboundFailureError(err);
       }
+      // A retry after such a failure: Moodle refuses the used token (401 token_already_used). A 5xx can come after the tool was saved.
+      if ((res.status === 401 && res.text().includes('token_already_used')) || res.status >= 500) throw toolMayExist();
       // Contract §3.8: a platform refusal is 502 PLATFORM_ERROR with its code (Moodle: for example domain_targetlinkuri_mismatch).
       if (res.status < 200 || res.status >= 300) throw new ApiError('PLATFORM_ERROR', `The platform rejected the registration (${res.status}): ${shortPlatformMessage(res.body)}`);
       let answer: unknown;
       try {
         answer = res.json();
       } catch {
-        throw badPlatformDataError('registration answer is not JSON');
+        throw toolMayExist(); // 2xx: Moodle saved something, but we cannot read what
       }
       const reg = parseRegistrationResponse(answer);
-      if (!reg) throw badPlatformDataError('registration answer without client_id or deployment_id');
+      if (!reg) throw toolMayExist();
       const values = {
         clientId: reg.clientId, name: clientName, authEndpoint: config.authorizationEndpoint, tokenEndpoint: config.tokenEndpoint, jwksUrl: config.jwksUri,
         active: body.data.autoActivate ?? true, productFamilyCode: config.productFamilyCode || null, deploymentId: reg.deploymentId,
       };
       let platform: Platform | null;
+      let operation: RegistrationOperation = session.operation;
       if (session.operation === 'update') {
         platform = applyRegistrationUpdate(ctx.db, account.id, session.existingPlatformId!, values);
       } else {
@@ -200,13 +231,18 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
           });
         } catch (err) {
           if (!(err instanceof PlatformExistsError)) throw err;
+          // B-T3b-02 (Lead decision): a "new" registration answered with a client id that this account already has for
+          // this issuer is the SAME Moodle tool (Moodle issues a new client id for every new tool, so only a re-sent or
+          // re-used registration gets here). The platform belongs to this account (security §2.5), so we update it and
+          // log operation "update".
           const same = listPlatforms(ctx.db, account.id, { url: config.issuer, clientId: values.clientId })[0]!;
           platform = applyRegistrationUpdate(ctx.db, account.id, same.id, values);
+          operation = 'update';
         }
       }
       if (!platform) throw new ApiError('INTERNAL_ERROR', `Internal error. Trace id: ${req.traceId}`);
       completeRegistrationSession(ctx.db, account.id, session.id, platform.id, ctx.now());
-      log.info('registration_completed', { trace_id: req.traceId, platform_id: platform.id, operation: session.operation });
+      log.info('registration_completed', { trace_id: req.traceId, platform_id: platform.id, operation });
       return { html: REGISTRATION_CLOSE_HTML, platformId: platform.id };
     } catch (err) {
       releaseRegistrationSession(ctx.db, account.id, session.id);

@@ -26,5 +26,5 @@ else
 fi
 rm -f "$INFRA_DIR/.secrets/seed.json" "$INFRA_DIR/.secrets/moodle-ws.json" "$INFRA_DIR/.secrets"/lti-api-key.* "$KNOBS_FILE" \
   "$REPO_ROOT/.tmp/certs-in-use.$COMPOSE_PROJECT_NAME.sha256" "$REPO_ROOT/.tmp/qa-certs-in-use.$COMPOSE_PROJECT_NAME.sha256" "$PROFILE_FILE"
-rm -rf "$INFRA_DIR/.data/backups" "$INFRA_DIR/.data/lti-service" "$INFRA_DIR/.data/cogniate-app" "$LOGS_DIR"
+rm -rf "$INFRA_DIR/.secrets/app" "$INFRA_DIR/.data/backups" "$INFRA_DIR/.data/lti-service" "$INFRA_DIR/.data/cogniate-app" "$LOGS_DIR"
 echo "Stack data deleted. Kept: .env, infra/.certs/, infra/.data/fixtures/. Next: npm run stack:up && npm run seed"

@@ -35,3 +35,12 @@ else
   echo "   $summary; API key unchanged (infra/.secrets/lti-api-key.$account)"
   [[ -s "$key_file" ]] || echo "   WARNING: the key file is missing. Rotate the key: add --rotate-api-key (or --ensure-key-file)." >&2
 fi
+# Least privilege (T4b1): cogniate-app sees only its own key, in infra/.secrets/app/ (compose mounts that folder
+# read-only). Keep the copy equal to the key file, also when the key did not change. Atomic: write, then rename.
+if [[ "$account" == cogniate && -s "$key_file" ]]; then
+  app_dir="$INFRA_DIR/.secrets/app"
+  mkdir -p "$app_dir"; chmod 700 "$app_dir"
+  if ! cmp -s "$key_file" "$app_dir/lti-api-key"; then
+    ( umask 077; cp "$key_file" "$app_dir/lti-api-key.tmp" ); mv "$app_dir/lti-api-key.tmp" "$app_dir/lti-api-key"
+  fi
+fi

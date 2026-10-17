@@ -28,7 +28,8 @@ async function setup() {
   const b = ensureAccount(db, { id: 'qa-second', name: 'QA second', appUrl: URLS.app });
   await ensureToolKey(db, MASTER_KEY, 'cogniate');
   const moodleKey = await makeKey('moodle-kid');
-  const state = { config: CONFIG as Record<string, unknown>, nextTypeId: 11, clientId: 'client-dyn-1', registrations: [] as Array<{ auth?: string; body: Record<string, unknown> }>, reject: null as null | number };
+  const state = { config: CONFIG as Record<string, unknown>, nextTypeId: 11, clientId: 'client-dyn-1', registrations: [] as Array<{ auth?: string; body: Record<string, unknown> }>, reject: null as null | number,
+    mode: null as null | 'timeout' | 'token_used' | 'server_error' | 'garbage' };
   const res = (status: number, body: unknown): OutboundResponse => {
     const buf = Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
     return { status, headers: {}, body: buf, text: () => buf.toString(), json: () => JSON.parse(buf.toString()) as unknown };
@@ -43,6 +44,10 @@ async function setup() {
       if (url === CONFIG.jwks_uri) return res(200, { keys: [moodleKey.publicJwk] });
       if (url === CONFIG.registration_endpoint) {
         state.registrations.push({ auth: req.headers?.authorization, body: JSON.parse(String(req.body)) as Record<string, unknown> });
+        if (state.mode === 'timeout') throw new OutboundError('timeout', 'moodle.test', 'slow');
+        if (state.mode === 'token_used') return res(401, 'token_already_used');
+        if (state.mode === 'server_error') return res(500, 'error');
+        if (state.mode === 'garbage') return res(200, 'not json');
         if (state.reject) return res(state.reject, 'domain_targetlinkuri_mismatch');
         return res(200, { client_id: state.clientId, [TOOL_CONFIG_CLAIM]: { deployment_id: String(state.nextTypeId) } });
       }
@@ -177,6 +182,58 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
     expect(r.json().details.description).toContain('domain_targetlinkuri_mismatch');
     s.state.reject = null;
     expect((await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: {} })).statusCode).toBe(200);
+  });
+
+  it('B-T3b-01: the pages speak to the Moodle admin; the "cannot reach Moodle" page names public https', async () => {
+    const s = await setup();
+    const unknown = await s.start(await s.regToken({ scope: 'reg', sub: 'x' }), {}, 'unknown');
+    expect(unknown.body).toMatch(/<p data-error-action>This registration URL is not valid\. Copy it again in Cogniate/);
+    const fetchFailed = await s.app.inject({ method: 'GET', url: `/lti/register/cogniate?openid_configuration=${encodeURIComponent('https://169.254.169.254/x')}` });
+    expect(fetchFailed.body).toContain('must be reachable from the internet over https (port 443)');
+    expect(fetchFailed.body.match(/data-error-action/g)).toHaveLength(1);
+  });
+
+  it.each([
+    ['a timeout', 'timeout'], ['Moodle 401 token_already_used (a retry)', 'token_used'], ['a Moodle 5xx', 'server_error'], ['an unreadable 2xx answer', 'garbage'],
+  ] as const)('A-T3b-01: %s -> PLATFORM_ERROR "tool may exist", logged; no automatic clean-up', async (_n, mode) => {
+    const s = await setup();
+    const id = idOf(String((await s.start(await s.regToken({ scope: 'reg', sub: 'c' }))).headers.location));
+    s.state.mode = mode;
+    const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: {} });
+    expect([r.statusCode, r.json().details.message, r.json().details.reason]).toEqual([502, 'PLATFORM_ERROR', 'tool_may_exist']);
+    expect(r.json().details.description).toContain('Moodle may have created a Pending Cogniate tool. Delete it in Site administration > Plugins > Activity modules > External tool > Manage tools');
+    expect(s.lines).toContainEqual(expect.objectContaining({ event: 'registration_rejected', code: 'PLATFORM_ERROR', detail: 'tool_may_exist' }));
+  });
+
+  it('a certain refusal (Moodle 400) is a normal PLATFORM_ERROR without the "tool may exist" reason', async () => {
+    const s = await setup();
+    const id = idOf(String((await s.start(await s.regToken({ scope: 'reg', sub: 'c' }))).headers.location));
+    s.state.reject = 400;
+    const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: {} });
+    expect(r.json().details.reason).toBeUndefined();
+  });
+
+  it('B-T3b-02: a "new" registration answered with a client id we have is an update of that platform (same id, new values, operation update)', async () => {
+    const s = await setup();
+    const first = idOf(String((await s.start(await s.regToken({ scope: 'reg', sub: 'c1' }))).headers.location));
+    const created = (await s.app.inject({ method: 'POST', url: `/api/registrations/${first}/complete`, headers: s.bearer(), payload: { platformName: 'Old name' } })).json().platformId;
+    s.state.nextTypeId = 12; // same client id, another deployment
+    const second = idOf(String((await s.start(await s.regToken({ scope: 'reg', sub: 'c2' }))).headers.location));
+    const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${second}/complete`, headers: s.bearer(), payload: { platformName: 'New name' } });
+    expect(r.json().platformId).toBe(created);
+    expect(getPlatform(s.db, 'cogniate', created)).toMatchObject({ name: 'New name', deploymentIds: ['11', '12'] });
+    expect(s.lines.filter((l) => l.event === 'registration_completed').map((l) => l.operation)).toEqual(['new', 'update']);
+  });
+
+  it('A-T3b-03: a message target of another account is refused; the stored token is dropped after completion', async () => {
+    const s = await setup();
+    const id = idOf(String((await s.start(await s.regToken({ scope: 'reg', sub: 'c' }))).headers.location));
+    const bad = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(),
+      payload: { messages: [{ type: 'LtiDeepLinkingRequest', target_link_uri: `${URLS.lti}/lti/launch/qa-second` }] } });
+    expect([bad.statusCode, bad.json().details.message]).toEqual([400, 'INVALID_REQUEST']);
+    expect(s.state.registrations).toEqual([]);
+    expect((await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: {} })).statusCode).toBe(200);
+    expect(s.db.prepare('SELECT registration_token_encrypted AS t FROM registration_session WHERE id = ?').get(id)?.t).toBeNull();
   });
 
   it('a session expires with the token (at most 1 h)', async () => {

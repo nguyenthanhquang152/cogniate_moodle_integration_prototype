@@ -162,6 +162,8 @@ services:
       STACK_PROFILE: ${ACTIVE_STACK_PROFILE:-default}   # set by infra/scripts/lib.sh from the saved profile
       # Security §9: the app may call the LTI service host (private address behind the proxy); acceptance adds QA hosts.
       OUTBOUND_PRIVATE_HOST_ALLOWLIST: lti.cogniate.test${ACCEPTANCE_ALLOWLIST_EXTRA:-}
+      # T4b1: the LTI service API key of the tool account "cogniate", read at each use (app contract §1).
+      LTI_API_KEY_FILE: /run/secrets/app/lti-api-key
       <<: *public-urls
     volumes:
       - ../package.json:/repo/package.json:ro
@@ -171,6 +173,10 @@ services:
       - ./.certs/root.crt:/certs/root.crt:ro
       - ./.logs:/logs
       - ./.data/cogniate-app:/data
+      # Least privilege: only the app's own key, read-only. A folder that holds only that file (lti-bootstrap.sh keeps the
+      # copy), not the file itself: a bind mount of a missing file makes a folder, and a replaced file (key rotation)
+      # would not be seen. seed.json and the other keys stay out of this container.
+      - ./.secrets/app:/run/secrets/app:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4200/healthz && wget -q -O /dev/null http://127.0.0.1:4201/healthz"]
       interval: 10s

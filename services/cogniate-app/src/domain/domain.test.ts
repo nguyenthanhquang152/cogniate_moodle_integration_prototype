@@ -25,7 +25,7 @@ describe('migrations (ADR-006)', () => {
   it('the real migrations apply to an empty database', () => {
     const db = openDb(':memory:');
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map((r) => r.name);
-    expect(tables).toEqual(['app_session', 'app_user', 'course', 'course_version', 'library', 'package', 'schema_migration']);
+    expect(tables).toEqual(['app_session', 'app_user', 'connection', 'course', 'course_version', 'library', 'package', 'publication', 'schema_migration']);
   });
 });
 
