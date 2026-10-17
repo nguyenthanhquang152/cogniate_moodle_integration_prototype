@@ -49,7 +49,7 @@ docs/
 | `server` | inbound HTTP helpers and service startup (T1 files `service.ts`, `http.ts`). `startService` accepts a sync or an async `build` function (T4a). | T1 |
 | `migrations` | SQLite migration runner with the checksum rule of ADR-006, and the transaction helper, used by both services | T4a (cogniate-app); lti-service moves to it in T2b |
 | `errors` | error shape and codes | T2a |
-| `outbound` | SSRF-guarded client (security §9) | T2a |
+| `outbound` | SSRF-guarded client (security §9); methods GET, POST, PUT, PATCH, DELETE | T2a (PATCH added in T4b1) |
 | `crypto` | AES-256-GCM, token hashing | T2a |
 
 Import rules (ESLint `no-restricted-imports`):

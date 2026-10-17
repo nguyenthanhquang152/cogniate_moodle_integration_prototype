@@ -317,7 +317,7 @@ Query: `role` (a short name such as `Learner` or a full role URI, passed to NRPS
 | `privacyLevel` | from §2.4, else `anonymous` |
 | `updatePlatformId` (addition) | required when `operation = update`; must equal `existingPlatformId` |
 
-The service sends the registration request of [ADR-009](../adr/ADR-009-moodle-connection-methods.md) with `Authorization: Bearer <registration_token>`, then stores or updates the platform (issuer, client id, endpoints, deployment id from the response). `200 { "html": "<script>(window.opener || window.parent).postMessage({subject:'org.imsglobal.lti.close'}, '*');</script>", "platformId": "plt_..." }`.
+The service sends the registration request of [ADR-009](../adr/ADR-009-moodle-connection-methods.md) with `Authorization: Bearer <registration_token>`, then stores or updates the platform (issuer, client id, endpoints, deployment id from the response). If a `new` registration returns a client id that this tool account already has for that issuer, the service updates that platform (same `platformId`) and logs `registration_completed {operation: "update"}` (Lead decision). `200 { "html": "<script>(window.opener || window.parent).postMessage({subject:'org.imsglobal.lti.close'}, '*');</script>", "platformId": "plt_..." }`.
 
 Errors: `401`, `404 REGISTRATION_NOT_FOUND`, `409 REGISTRATION_ALREADY_COMPLETED`, `409 REGISTRATION_UPDATE_NOT_ALLOWED` (nothing sent to Moodle), `502 PLATFORM_ERROR` (Moodle rejected; `description` has its code, for example `domain_targetlinkuri_mismatch`).
 
