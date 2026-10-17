@@ -199,4 +199,30 @@ describe('T4a package rejects', () => {
     console.log(`AC-T4-35 answers: ${seen.join(' | ')}`);
     expect(problems).toEqual([]);
   });
+
+  // Not an AC (Author note, T4a round 2: "bidi/zero-width file names are now rejected"). The contract (§3.2
+  // INVALID_ENTRY_NAME = NUL or control characters, or a backslash) does not name these format characters, so QA only
+  // records the answers for the report. This probe never fails the suite.
+  it('PROBE (not an AC) file names with U+202E (bidi override) and U+200B (zero width space): record the answer', { timeout: 120_000 }, async () => {
+    const s = await signIn(THANH);
+    const course = await createCourse(s, `QA probe names ${runId}`);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-probe-'));
+    const seenProbe: string[] = [];
+    try {
+      for (const [label, name] of [
+        ['U+202E', 'lesson\u202Elmth.html'],
+        ['U+200B', 'less\u200Bon.html'],
+      ] as const) {
+        const file = path.join(dir, `${label}.zip`);
+        fs.writeFileSync(file, zipBuffer([INDEX, { name, data: '<p>QA</p>' }]));
+        const res = await uploadVersion(s, course.id, file).catch((e: Error) => ({ status: 0, json: null, body: e.message }));
+        const details = (res.json as { details?: RejectDetails } | null)?.details;
+        seenProbe.push(`${label}: HTTP ${res.status} ${details?.message ?? ''} [${(details?.reasons ?? []).map((r) => r.code).join(', ')}] action ${typeof details?.action === 'string' && details.action ? 'yes' : 'no'}`);
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+    console.log(`PROBE file names: ${seenProbe.join(' | ')}`);
+    expect(seenProbe).toHaveLength(2);
+  });
 });

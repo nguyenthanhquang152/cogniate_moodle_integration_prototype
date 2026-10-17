@@ -1,7 +1,11 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # Reviewer-A: T4a review (lens: "Is it right and is it safe?")
+
+History: the round 1 verdict was APPROVE (findings below). The round 2 verdict is APPROVE (section "Round 2" at the end).
+
+## Round 1
 
 Scope:
 
@@ -106,3 +110,37 @@ Counts: 0 BLOCKER, 0 MAJOR, 1 MINOR, 4 NIT.
 - **Location:** `services/cogniate-app/src/app/server.ts:101-103` (`onSend` sets only `cache-control`).
 - **Problem:** Live, `GET /app-api/me` has no `nosniff`. JSON that holds untrusted report text should never be sniffed as another type. The T6 download of the original zip from the app origin must also send `Content-Disposition: attachment`.
 - **Fix:** Add `x-content-type-options: nosniff` in the same `onSend` hook. Put the attachment rule in T6.
+
+---
+
+## Round 2
+
+Verdict (round 2): APPROVE
+
+Input: `git diff 3ec5222 9edf5fd -- packages/package-inspector services/cogniate-app infra` (14 files). I ran 12 crafted zips through the real `inspectPackage` (temp folder, deleted afterwards) and made one live header check. I did not read `reviewer-b.md`.
+
+Round 2 counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 2 NIT (A-T4a-06, A-T4a-07).
+
+| Round 1 id | Status | Evidence |
+| --- | --- | --- |
+| A-T4a-01 (MINOR) | Resolved | `identifiers.ts`: question ids `^[A-Za-z0-9._:-]{1,128}$`, page keys `^[A-Za-z0-9._-]{1,64}$` and unique, `__proto__`, `prototype` and `constructor` reserved in any case, titles 1–255 characters with no C0 or C1. The rules apply to every manifest, organization, item and resource identifier and every title, before anything is stored. Tests: `data-cog-quiz="__proto__"` and `"__PROTO__"` → `INVALID_PACKAGE_IDENTIFIER`; a 129-character id → rejected; `data-lesson-id="constructor"` → rejected; two pages with one key → rejected; the fixture id still passes. No package value can reach an object key outside these rules. |
+| A-T4a-02 (NIT) | Resolved | One test page found all of these: SVG `image href`, `use xlink:href`, `feImage href`, `object data`, `table background`, `imagesrcset`, a tab inside `ht\ttps://`, and an `.svg` file with `xlink:href` (8 hosts). |
+| A-T4a-03 (NIT) | Resolved, one gap | U+200B–200F, U+202A–202E, U+2066–2069 and U+FEFF are rejected (`a‮b.html` → `INVALID_ENTRY_NAME`). See A-T4a-06. |
+| A-T4a-04 (NIT) | Not changed | Accepted as deferred to T6/T8 (download and delete). |
+| A-T4a-05 (NIT) | Resolved | Live: `x-content-type-options: nosniff` on `/app-api/me`. It is set in an app-level `onSend` hook, so every response gets it. |
+| Author question 2 | Resolved as I suggested | A `masteryScore` with a SCORM package gives `400 MASTERY_SCORE_NOT_ALLOWED`, after inspection and before extraction, so nothing is written. |
+
+No regressions in my lens. The new `REJECT_INFO` title and action text is fixed text. Package values appear only in `path` and `detail`, which never echo a rejected identifier value.
+
+### A-T4a-06 — NIT — The entry-name rule still allows a few invisible or bidi characters
+
+- **Location:** `packages/package-inspector/src/names.ts:9` (`CONTROL`).
+- **Problem:** These characters pass the name rule: U+061C (Arabic letter mark, a bidi control), U+2028 and U+2029 (line and paragraph separators), U+2060–U+2064 (word joiner, invisible operators), U+180E and U+00AD.
+- **Evidence:** In my tests, root `.html` files with them failed only through the page-key rule. A file in a subfolder (for example `assets/a؜b.png`) has no page key, so it passes.
+- **Fix:** Add `­؜᠎  ⁠-⁤` to `CONTROL`.
+
+### A-T4a-07 — NIT — `toString` and other `Object.prototype` names pass as question ids
+
+- **Location:** `packages/package-inspector/src/identifiers.ts` (`FORBIDDEN`).
+- **Problem:** `data-cog-quiz="toString"` passes. On a plain object, such a key hides the inherited method. This is harmless where code uses `Map` or `Object.create(null)`, as contract §3.3 requires.
+- **Fix:** Either add `hasOwnProperty`, `toString`, `valueOf`, `isPrototypeOf`, `propertyIsEnumerable`, `toLocaleString` and the `__*Getter__`/`__*Setter__` names to `FORBIDDEN`, or keep the list and let Reviewer-A check the `Map` rule in T5a.

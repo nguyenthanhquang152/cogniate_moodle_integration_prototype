@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # T4a review — Reviewer-B (lens: "Can a human team own it?")
 
@@ -87,3 +87,31 @@ Scope: `git diff c3746bb 3ec5222 -- . ':!docs' ':!tests'` (50 files). I read `pa
 - **Location:** `infra/scripts/seed.sh` step 6 (`printf '…"library":"Thanh%ss Library","password":"%s"…' "'" …`).
 - **Problem:** The apostrophe goes in as a separate `%s` argument, and the passwords go into a JSON string without escaping. The comment explains it, but a maintainer can break it easily. A future password with `"` or `\` would also make invalid JSON.
 - **Suggested fix:** Build the JSON with `node -e` from `process.env` (as `seed-lti-manual.sh` step 3 does), and pipe it to `seed-portal.ts`.
+
+---
+
+## Round 2
+
+Round 2 verdict: **APPROVE**. No open BLOCKER or MAJOR finding.
+
+Input: `git diff 3ec5222 9edf5fd -- packages/package-inspector services/cogniate-app infra` (14 files). `npm run check`: pass, 22 test files, 277 tests.
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| B-T4a-01 | Scheduled (accepted) | `tasks/T3a.md` design notes: "move the infra code that both services now duplicate into `packages/shared` … Do this before adding T3a code." |
+| B-T4a-02 | **Resolved** | `REJECT_INFO: Record<RejectCode, { title, action }>` in `codes.ts`. The `Record` type forces an entry for each code, also for the new `INVALID_PACKAGE_IDENTIFIER`. The actions are short STE sentences that a course creator can follow ("Export the course again as SCORM 1.2 with one SCO."). `upload.ts` adds `title` and `action` to each reason and sets `details.action` from the first reason. Contract §3.2 documents `details.action`. |
+| B-T4a-03 | Resolved in the contract, with one field mismatch (B-T4a-05) | App contract §12 now lists `internal_error`. |
+| B-T4a-04 | **Resolved** | `seed.sh` builds the portal-user JSON with `node -e` from `process.env` (`JSON.stringify`, `'` for the apostrophe). |
+
+**`identifiers.ts` readability:** Good. It has named limits (`MAX_ID_CHARS`, `MAX_PAGE_KEY_CHARS`, `MAX_TITLE_CHARS`, `MAX_QUESTIONS`, `MAX_PAGES`), three small functions (`idProblem`, `pageKeyProblem`, `titleProblem`) that return the reason or `null`, and a header that states the rule ("values from the package are untrusted …"). The value is never echoed in a reason. `inspect.ts` uses each function at one call site with a clear `detail` ("The page key must have 1 to 64 characters.").
+
+### B-T4a-05 — NIT — `internal_error` fields differ between the code and the contract, and §3.2 does not list the new reason fields
+
+- **Location:**
+  - Code: `services/cogniate-app/src/app/server.ts` line 81 and `services/lti-service/src/http/app.ts` line 100 (`{ trace_id, error: err.name }`).
+  - App contract §12 (`internal_error`: `method`, `path`, `error_name`).
+  - App contract §3.2 (`details.reasons = [{ "code", "path"?, "detail" }]`).
+- **Problem:**
+  - The contract names `method`, `path` and `error_name`, but both services log only `error`.
+  - The reasons now also carry `title` and `action`, but §3.2 does not show them. T6 needs them.
+- **Suggested fix:** Log `method`, `path` and `error_name` in both services, or change the contract to `error`. Add `title` and `action` to the reason shape in §3.2.
