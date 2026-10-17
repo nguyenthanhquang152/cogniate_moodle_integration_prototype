@@ -22,3 +22,15 @@ These decisions belong to people, not to the team of agents. Each has our recomm
 | Q14 | Cogniate API | Who defines the real Cogniate API (packages, courses, login) that replaces our mock app? | A Phase 0 contract workshop with Cogniate engineering (spec §13). Our mock contract is an input. | Cogniate engineering | Production integration |
 | Q15 | Repo | The two course zips (24 MB, untracked) are test fixtures. Commit them, use Git LFS, or keep them outside git? | Keep them outside normal git (Git LFS or a documented download). Until then: `COURSE_FIXTURES_DIR` and `npm run fixtures:check` (SHA-256 values in `infra/fixtures/courses.sha256`). A clean clone cannot run T4a and later without the files. | Lead + product owner | QA runs in a clean clone, hand-over |
 | Q16 | Product + Security | Moodle opens "Select content" (Deep Linking) only in an iframe. In Safari, our login cookie in that iframe can be blocked, so a teacher on Safari may not be able to add Cogniate content. Learner launches are not affected (new window). | For the pilot: tell teachers to use Chrome, Edge or Firefox to add content. Before general release, choose one: (a) accept the limit; (b) a reduced-binding mode only for deep-linking launches (single-use state + nonce, no cookie) after a security review; (c) ask Moodle HQ for LTI client-side storage support. | Product + Security reviewer | Teacher browser support statement |
+
+
+## Residual risks (accepted for the prototype)
+
+The Docs role copies this list into `docs/human_review/`. Each item was judged by a reviewer and accepted by the Lead. A human confirms before production.
+
+| # | Risk | Why accepted | Where |
+| --- | --- | --- | --- |
+| R1 | A "new" dynamic registration that returns the client id of an existing platform with no connection binds that platform to the new connection. | A standard Moodle cannot cause it (new client id per registration; a reused token gives `token_already_used`). Only a site admin with a modified Moodle could. | security §2.6 (T4b1, Reviewer-A) |
+| R2 | A person can send someone an unused `/tool/launch?ltik=` URL; the first person to open it gets the attempt (session fixation before first use). | Needs social engineering; the only gain is credit for the victim's work. Part of the ltik-in-URL model. | security §4 (T0 round 2, Reviewer-A) |
+| R3 | Scores are computed in the browser and can be forged with developer tools. | Accepted for completion-type courses only (Q8). | security §7 |
+| R4 | Teacher Deep Linking can fail in Safari (state cookie in Moodle's iframe). | Moodle 5.2 has no LTI client-side storage; Chromium and Firefox work (Q16). | security §3 |
