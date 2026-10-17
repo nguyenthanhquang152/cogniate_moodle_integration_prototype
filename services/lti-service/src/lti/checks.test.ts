@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { sha256Hex } from '../crypto.ts';
+import { sha256Hex } from '@cogniate/shared';
 import { openDb } from '../db/index.ts';
 import { ensureAccount } from '../store/accounts.ts';
 import type { Platform } from '../store/platforms.ts';

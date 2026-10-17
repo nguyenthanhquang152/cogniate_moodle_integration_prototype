@@ -1,5 +1,5 @@
 import type { PublicUrls } from '@cogniate/shared';
-import { randomToken, sha256Hex } from '../crypto.ts';
+import { randomToken, sha256Hex } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import { getAccount } from '../store/accounts.ts';
 import { findLoginPlatforms } from '../store/platforms.ts';

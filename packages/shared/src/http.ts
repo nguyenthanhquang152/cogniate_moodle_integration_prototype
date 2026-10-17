@@ -38,6 +38,15 @@ export interface HealthBody {
   outbound_allowlist: string[];
 }
 
+/** Value of one cookie in a Cookie header, or undefined (exact name match; the value is not decoded). */
+export function readCookie(header: string | undefined, name: string): string | undefined {
+  for (const part of (header ?? '').split(';')) {
+    const i = part.indexOf('=');
+    if (i > 0 && part.slice(0, i).trim() === name) return part.slice(i + 1).trim();
+  }
+  return undefined;
+}
+
 /** Use the caller's x-trace-id if it is a safe token, else make a new one. */
 export function traceIdFrom(req: IncomingMessage): string {
   const given = req.headers['x-trace-id'];

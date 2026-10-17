@@ -55,8 +55,10 @@ fi
 
 # Stack profile (local-stack §3): "default" or "acceptance". Only stack-up.sh changes it (STACK_PROFILE in the shell)
 # and saves it in .tmp/stack-profile.<project>. Every other command uses the saved value, so a restart, a seed or a
-# QA run never switches the profile by mistake. The profile sets COMPOSE_PROFILES (the sink and qa-platform services)
-# and ACCEPTANCE_ALLOWLIST_EXTRA (the QA hosts in OUTBOUND_PRIVATE_HOST_ALLOWLIST of both services, compose.yaml).
+# QA run never switches the profile by mistake. The effective profile is ACTIVE_STACK_PROFILE (compose.yaml gives it
+# to the services as STACK_PROFILE); it sets COMPOSE_PROFILES (the sink and qa-platform services) and
+# ACCEPTANCE_ALLOWLIST_EXTRA (the QA hosts in OUTBOUND_PRIVATE_HOST_ALLOWLIST of both services).
+# B-T2b-01: STACK_PROFILE itself is never set or exported here, so stack-up.sh sees only a real request.
 REQUESTED_PROFILE="${REQUESTED_PROFILE-${STACK_PROFILE-}}"   # kept when stack-up.sh sources this file again
 PROFILE_FILE="$REPO_ROOT/.tmp/stack-profile.$COMPOSE_PROJECT_NAME"
 saved_profile() {
@@ -64,13 +66,13 @@ saved_profile() {
   if [[ "$p" == acceptance ]]; then echo acceptance; else echo default; fi
 }
 apply_profile() {
-  STACK_PROFILE="$1"
-  if [[ "$STACK_PROFILE" == acceptance ]]; then
+  ACTIVE_STACK_PROFILE="$1"
+  if [[ "$ACTIVE_STACK_PROFILE" == acceptance ]]; then
     COMPOSE_PROFILES=acceptance; ACCEPTANCE_ALLOWLIST_EXTRA=",qa-platform.test,evil.test"
   else
     COMPOSE_PROFILES=""; ACCEPTANCE_ALLOWLIST_EXTRA=""
   fi
-  export STACK_PROFILE COMPOSE_PROFILES ACCEPTANCE_ALLOWLIST_EXTRA
+  export ACTIVE_STACK_PROFILE COMPOSE_PROFILES ACCEPTANCE_ALLOWLIST_EXTRA
 }
 apply_profile "$(saved_profile)"
 
@@ -154,8 +156,11 @@ require_own_project() {
   fi
 }
 
-# Print a CAUTION line while test knobs are active (A-T1-05, B-T1-05).
+# Print a CAUTION line while test knobs are active (A-T1-05, B-T1-05), or while the acceptance profile is on (A-T2b-02).
 warn_knobs() {
+  if [[ "$ACTIVE_STACK_PROFILE" == acceptance ]]; then
+    echo "CAUTION: the acceptance profile is on (evil.test sink, qa-platform.test). Back to default: npm run stack:up" >&2
+  fi
   [[ -f "$KNOBS_FILE" ]] || return 0
   local svcs
   svcs="$(node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));for(const [s,v] of Object.entries(d.services||{}))console.log(s+": "+Object.keys(v.environment||{}).join(", "))' "$KNOBS_FILE" 2>/dev/null || echo "?")"
@@ -213,8 +218,9 @@ qa_env_args() {
 }
 
 print_urls() {
-  if [[ "$STACK_PROFILE" == acceptance ]]; then
+  if [[ "$ACTIVE_STACK_PROFILE" == acceptance ]]; then
     echo "Profile:  acceptance (evil.test sink, qa-platform.test). Back to default: npm run stack:up"
+    [[ -z "${STACK_PROFILE:-}" ]] || echo "          STACK_PROFILE=$STACK_PROFILE is set in this shell: run 'unset STACK_PROFILE' first, or it starts acceptance again."
   fi
   echo "Moodle:   ${PUBLIC_MOODLE_URL:-?}"
   echo "LTI:      ${PUBLIC_LTI_URL:-?}"

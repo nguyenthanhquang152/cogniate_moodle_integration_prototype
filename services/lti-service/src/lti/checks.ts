@@ -5,9 +5,9 @@
  * (contract §5, B-T2a-03): never a token, a claim value or a key.
  */
 import type { PublicUrls } from '@cogniate/shared';
+import { readCookie, safeEqual } from '@cogniate/shared';
 import type { ProtectedHeaderParameters } from 'jose';
 import { decodeProtectedHeader } from 'jose';
-import { safeEqual } from '../crypto.ts';
 import type { Db } from '../db/index.ts';
 import type { Platform } from '../store/platforms.ts';
 import type { StateRecord } from '../store/states.ts';
@@ -64,13 +64,8 @@ export function stateCookieName(stateHash: string): string {
   return `__Host-lti_state_${stateHash.slice(0, 8)}`;
 }
 
-export function readCookie(header: string | undefined, name: string): string | undefined {
-  for (const part of (header ?? '').split(';')) {
-    const i = part.indexOf('=');
-    if (i > 0 && part.slice(0, i).trim() === name) return part.slice(i + 1).trim();
-  }
-  return undefined;
-}
+/** Re-exported for the tests and callers of this module (the helper lives in @cogniate/shared). */
+export { readCookie };
 
 /** Checks 1 and 3: the state exists for this account, is unused and not expired; it is marked used at once. */
 export function check1And3State(db: Db, accountId: string, state: unknown, stateHash: string | null, now: number): StateRecord {

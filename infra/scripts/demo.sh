@@ -8,7 +8,7 @@ cd "$REPO_ROOT"
 [[ -d node_modules ]] || npm ci --no-audit --no-fund
 "$INFRA_DIR/scripts/gen-env.sh"
 npm run --silent build
-"$INFRA_DIR/scripts/stack-up.sh"
+STACK_PROFILE=default "$INFRA_DIR/scripts/stack-up.sh"   # B-T2b-01: a demo always runs in the default profile
 "$INFRA_DIR/scripts/seed.sh"
 echo
 echo "Demo ready. Open it with: npm run demo:browser   (passwords: .env)"

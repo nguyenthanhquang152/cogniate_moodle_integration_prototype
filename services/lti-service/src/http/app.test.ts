@@ -315,3 +315,46 @@ describe('cross-cutting', () => {
     expect(h.lines.filter((l) => l.event === 'http_request').every((l) => typeof l.trace_id === 'string')).toBe(true);
   });
 });
+
+describe('T3a wiring: service keys and SERVICE-AUTH-V1 (contract §1.2, §3.3)', () => {
+  const AGS = {
+    scope: ['https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly', 'https://purl.imsglobal.org/spec/lti-ags/scope/score'],
+    lineitems: `${ISSUER}/mod/lti/services.php/2/lineitems?type_id=1`,
+    lineitem: `${ISSUER}/mod/lti/services.php/2/lineitems/7/lineitem?type_id=1`,
+  };
+  const ltikOf = (location: string) => new URL(location).searchParams.get('ltik')!;
+  const idtoken = async (h: Harness, ltik: string) =>
+    (await h.app.inject({ method: 'GET', url: '/api/idtoken', headers: { authorization: `LTIK-AUTH-V2 ${h.apiKey}:${ltik}` } })).json() as { services: Record<string, unknown> };
+
+  it('GET /api/idtoken gives the same serviceKey to two users of the same activity; none without AGS/NRPS', async () => {
+    const h = await harness();
+    const a = await launchOk(h, { [CLAIM.ags]: AGS, sub: '5' });
+    const b = await launchOk(h, { [CLAIM.ags]: AGS, sub: '6' });
+    const ka = (await idtoken(h, ltikOf(String(a.res.headers.location)))).services.serviceKey;
+    const kb = (await idtoken(h, ltikOf(String(b.res.headers.location)))).services.serviceKey;
+    expect(ka).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(kb).toBe(ka);
+    const plain = await launchOk(h);
+    expect((await idtoken(h, ltikOf(String(plain.res.headers.location)))).services.serviceKey).toBeUndefined();
+    expect(JSON.stringify(h.lines)).not.toContain(String(ka));
+  });
+
+  it('SERVICE-AUTH-V1: the key with another account API key -> 401 INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER; a good key reaches the platform call', async () => {
+    const h = await harness();
+    const a = await launchOk(h, { [CLAIM.ags]: AGS });
+    const key = String((await idtoken(h, ltikOf(String(a.res.headers.location)))).services.serviceKey);
+    const enc = encodeURIComponent(AGS.lineitem);
+    const other = await h.app.inject({ method: 'GET', url: `/api/lineitems/${enc}`, headers: { authorization: `SERVICE-AUTH-V1 ${h.otherApiKey}:${key}` } });
+    expect([other.statusCode, other.json().details.message]).toEqual([401, 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER']);
+    const bad = await h.app.inject({ method: 'GET', url: `/api/lineitems/${enc}`, headers: { authorization: `SERVICE-AUTH-V1 ${h.apiKey}:${'x'.repeat(43)}` } });
+    expect(bad.statusCode).toBe(401);
+    // A good key passes auth and the URL rule; the fake platform has no token endpoint, so the call ends at the platform.
+    const good = await h.app.inject({ method: 'GET', url: `/api/lineitems/${enc}`, headers: { authorization: `SERVICE-AUTH-V1 ${h.apiKey}:${key}` } });
+    expect(good.json().details.message).toBe('PLATFORM_ERROR');
+    // A foreign line item with a good key: 400 before any outbound call.
+    const before = h.outbound.calls.length;
+    const foreign = await h.app.inject({ method: 'GET', url: `/api/lineitems/${encodeURIComponent('https://evil.test/x')}`, headers: { authorization: `SERVICE-AUTH-V1 ${h.apiKey}:${key}` } });
+    expect([foreign.statusCode, foreign.json().details.message]).toEqual([400, 'INVALID_LINE_ITEM_ID']);
+    expect(h.outbound.calls.length).toBe(before);
+  });
+});

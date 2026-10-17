@@ -5,7 +5,7 @@ import multipart from '@fastify/multipart';
 import type { Limits } from '@cogniate/package-inspector';
 import { DEFAULT_LIMITS } from '@cogniate/package-inspector';
 import type { Knob, Logger, PublicUrls } from '@cogniate/shared';
-import { redactPath } from '@cogniate/shared';
+import { ApiErrorBase, redactPath } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import type { Db } from '../domain/db.ts';
@@ -75,15 +75,15 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
   });
 
   app.setErrorHandler((err: Error & { statusCode?: number; code?: string }, req, reply) => {
-    if (err instanceof ApiError) return reply.code(err.status).send(apiErrorBody(err.status, err.code, err.description, err.extra));
+    if (err instanceof ApiErrorBase) return reply.code(err.status).send(err.body());
     if (err.code === 'FST_ERR_CTP_BODY_TOO_LARGE') return reply.code(413).send(apiErrorBody(413, 'INVALID_REQUEST', 'The JSON body is larger than 64 KB.'));
     if (err.statusCode && err.statusCode >= 400 && err.statusCode < 500) {
-      return reply.code(400).send(apiErrorBody(400, 'INVALID_REQUEST', 'The request cannot be read.'));
+      return reply.code(400).send(new ApiError('INVALID_REQUEST', 'The request cannot be read.').body());
     }
     log.error('internal_error', { trace_id: req.traceId, error: err.name });
-    return reply.code(500).send(apiErrorBody(500, 'INTERNAL_ERROR', `Internal error. Trace id: ${req.traceId}`));
+    return reply.code(500).send(new ApiError('INTERNAL_ERROR', `Internal error. Trace id: ${req.traceId}`).body());
   });
-  app.setNotFoundHandler((_req, reply) => reply.code(404).send(apiErrorBody(404, 'NOT_FOUND', 'Unknown route.')));
+  app.setNotFoundHandler((_req, reply) => reply.code(404).send(new ApiError('NOT_FOUND', 'Unknown route.').body()));
 
   app.get('/healthz', async () => ({
     status: 'ok', service: 'cogniate-app', profile: deps.profile, knobs: deps.knobs, outbound_allowlist: deps.outboundAllowlist ?? [],
@@ -97,13 +97,13 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
       const origin = req.headers.origin;
       if (origin === deps.urls.app) return;
       log.warn('csrf_rejected', { trace_id: req.traceId, origin: typeof origin === 'string' ? origin.slice(0, 200) : null });
-      throw new ApiError(403, 'ORIGIN_NOT_ALLOWED', 'This request must come from the Cogniate app.');
+      throw new ApiError('ORIGIN_NOT_ALLOWED', 'This request must come from the Cogniate app.');
     });
     // Session (contract §1): every route except the public one needs the cookie.
     api.addHook('onRequest', async (req) => {
       if (req.routeOptions.config.public === true) return;
       const found = sessionOf(deps.db, req.headers.cookie, now());
-      if (!found) throw new ApiError(401, 'NOT_SIGNED_IN', 'Sign in first.');
+      if (!found) throw new ApiError('NOT_SIGNED_IN', 'Sign in first.');
       req.auth = found;
     });
     api.addHook('onSend', async (_req, reply) => {

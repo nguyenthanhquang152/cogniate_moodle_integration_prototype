@@ -12,8 +12,11 @@ function compact<T extends Obj>(o: T): T {
   return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== undefined)) as T;
 }
 
-/** GET /api/idtoken: the LTIAAS-shaped ID token (contract §3.1). serviceKey comes in T3a. */
-export function toIdToken(launch: LaunchRecord, platform: Platform): Obj {
+/**
+ * GET /api/idtoken: the LTIAAS-shaped ID token (contract §3.1). `serviceKey` (T3a, contract §3.3) is given by the
+ * caller when AGS or NRPS is available.
+ */
+export function toIdToken(launch: LaunchRecord, platform: Platform, serviceKey?: string): Obj {
   const c: Claims = launch.claims;
   const aud = c.aud;
   const clientId = s(c.azp) ?? (typeof aud === 'string' ? aud : Array.isArray(aud) ? s(aud[0]) : undefined);
@@ -56,6 +59,7 @@ export function toIdToken(launch: LaunchRecord, platform: Platform): Obj {
       deepLinking: { available: isDeepLinking },
       namesAndRoles: { available: obj(c[CLAIM.nrps]) !== undefined },
       assignmentAndGrades: compact({ available: ags !== undefined, lineItemId: ags ? s(ags.lineitem) : undefined }),
+      serviceKey,
     }),
   };
 }

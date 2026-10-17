@@ -1,5 +1,5 @@
 import type { PublicUrls } from '@cogniate/shared';
-import { sha256Hex } from '../crypto.ts';
+import { sha256Hex } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import { getAccount } from '../store/accounts.ts';
 import type { Platform } from '../store/platforms.ts';

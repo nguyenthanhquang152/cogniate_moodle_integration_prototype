@@ -7,7 +7,8 @@ import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { loadConfig } from '../config.ts';
 import { openDb } from '../db/index.ts';
-import { ensureAccount, ensureToolKey } from '../store/accounts.ts';
+import { ensureAccount } from '../store/accounts.ts';
+import { ensureToolKey } from '../store/tool-keys.ts';
 
 const { values } = parseArgs({
   options: {

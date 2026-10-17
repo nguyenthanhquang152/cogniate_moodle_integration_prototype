@@ -5,6 +5,9 @@ import { loadConfig } from './config.ts';
 import { openDb } from './db/index.ts';
 import { buildApp } from './http/app.ts';
 import { createPlatformKeys } from './lti/jwks.ts';
+import { createAgsClient } from './platform/ags.ts';
+import { createScoreClock } from './platform/score-clock.ts';
+import { createTokenClient } from './platform/token-client.ts';
 
 const SERVICE = 'lti-service';
 const config = loadConfig();
@@ -14,9 +17,12 @@ for (const knob of knobs) logger.warn('test_knob_active', { name: knob.name, val
 
 const db = openDb(join(config.dataDir, 'lti.db'));
 const outbound = createOutboundClient({ logger, allowlist: config.outboundAllowlist });
+// T3a: platform tokens (in memory, contract §4) and the score clock (in memory, floor = start + 2 s).
+const tokens = createTokenClient({ db, masterKey: config.masterKey, outbound, logger });
+const ags = createAgsClient({ outbound, tokens, clock: createScoreClock() });
 const app = await buildApp({
-  db, urls: config.urls, logger, keys: createPlatformKeys(outbound), ltikTtlSeconds: config.ltikTtlSeconds, profile: config.profile, knobs,
-  outboundAllowlist: outbound.allowlist,
+  db, urls: config.urls, logger, keys: createPlatformKeys(outbound), ltikTtlSeconds: config.ltikTtlSeconds, masterKey: config.masterKey, ags,
+  profile: config.profile, knobs, outboundAllowlist: outbound.allowlist,
 });
 await app.listen({ port: config.port, host: '0.0.0.0' });
 logger.info('service_started', {

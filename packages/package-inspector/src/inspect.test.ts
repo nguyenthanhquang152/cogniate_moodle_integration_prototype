@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { deflateRawSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import type { RejectCode } from './codes.ts';
-import { PackageRejectedError, REJECT_CODES, REJECT_INFO } from './codes.ts';
+import { PackageRejectedError } from './codes.ts';
 import { extractPackage } from './extract.ts';
 import { inspectPackage } from './inspect.ts';
 import type { TestEntry } from './testing.ts';
@@ -261,13 +261,6 @@ describe('package identifiers (app contract §3.3, AC-T4-35)', () => {
     expect((await reasonOf([html(''), ...pages])).detail).toBe('The package has 501 pages. The limit is 500.');
   });
 
-  it('every reject code has a title and an action sentence (B-T4a-02)', () => {
-    expect(Object.keys(REJECT_INFO).sort()).toEqual([...REJECT_CODES].sort());
-    for (const code of REJECT_CODES) {
-      expect(REJECT_INFO[code].title.length, code).toBeGreaterThan(5);
-      expect(REJECT_INFO[code].action, code).toMatch(/^[A-Z].*\.$/);
-    }
-  });
 });
 
 describe('detection and profile (contract §3.1)', () => {

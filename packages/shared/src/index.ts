@@ -1,10 +1,10 @@
 export { PUBLIC_URL_ENV, loadPublicUrls } from './config.ts';
 export type { PublicUrls } from './config.ts';
-export { closeOnSignal, createHealthServer, errorBody, listen, portFromEnv, sendJson, traceIdFrom } from './http.ts';
+export { closeOnSignal, createHealthServer, errorBody, listen, portFromEnv, readCookie, sendJson, traceIdFrom } from './http.ts';
 export type { ErrorBody, HealthBody, HealthServerOptions } from './http.ts';
 export { decrypt, encrypt, randomId, randomToken, safeEqual, sha256Hex } from './crypto.ts';
-export { API_ERRORS, ApiError, apiErrorBody } from './errors.ts';
-export type { ApiErrorBody, ApiErrorCode, ApiErrorSpec } from './errors.ts';
+export { ApiErrorBase, apiErrorBody, defineErrorTable } from './errors.ts';
+export type { ApiErrorBody, ApiErrorOptions, ApiErrorSpec, ApiErrorTable } from './errors.ts';
 export { KNOB_REGISTRY, knobValue, readServiceKnobs } from './knobs.ts';
 export type { Knob, KnobName, KnobSpec, ServiceKnobs } from './knobs.ts';
 export { BOOT_TRACE_ID, createLogger, redact, redactPath, redactString } from './logger.ts';

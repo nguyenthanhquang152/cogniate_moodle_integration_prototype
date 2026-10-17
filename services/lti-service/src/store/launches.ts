@@ -1,6 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import type { Db } from '../db/index.ts';
-import { randomToken, sha256Hex } from '../crypto.ts';
+import { randomToken, sha256Hex } from '@cogniate/shared';
 
 export interface LaunchRecord {
   id: string;

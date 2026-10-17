@@ -12,7 +12,11 @@ import { openDb } from './db/index.ts';
 import { buildApp } from './http/app.ts';
 import { CLAIM } from './lti/checks.ts';
 import { createPlatformKeys } from './lti/jwks.ts';
-import { ensureAccount, ensureToolKey } from './store/accounts.ts';
+import { createAgsClient } from './platform/ags.ts';
+import { createScoreClock } from './platform/score-clock.ts';
+import { createTokenClient } from './platform/token-client.ts';
+import { ensureAccount } from './store/accounts.ts';
+import { ensureToolKey } from './store/tool-keys.ts';
 import type { Platform } from './store/platforms.ts';
 import { createPlatform } from './store/platforms.ts';
 
@@ -95,9 +99,11 @@ export async function harness(opts: { ltikTtlSeconds?: number } = {}): Promise<H
   const outbound = fakeOutbound(() => [key.publicJwk]);
   const { logger, lines } = capturingLogger();
   const clock = { now: Date.now() };
+  const tokens = createTokenClient({ db, masterKey: MASTER_KEY, outbound, logger, now: () => clock.now });
+  const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(() => clock.now) });
   const app = await buildApp({
     db, urls: URLS, logger, keys: createPlatformKeys(outbound, () => clock.now), ltikTtlSeconds: opts.ltikTtlSeconds ?? 86400,
-    profile: 'default', knobs: [], now: () => clock.now,
+    masterKey: MASTER_KEY, ags, profile: 'default', knobs: [], now: () => clock.now,
   });
   return { db, platform, apiKey: a.apiKey!, otherApiKey: b.apiKey!, key, outbound, lines, clock, app };
 }

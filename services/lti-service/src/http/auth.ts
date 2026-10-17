@@ -1,10 +1,12 @@
-import type { ApiErrorCode } from '@cogniate/shared';
-import { ApiError } from '@cogniate/shared';
+import type { ApiErrorCode } from '../api-errors.ts';
+import { ApiError } from '../api-errors.ts';
 import type { Db } from '../db/index.ts';
 import type { ToolAccount } from '../store/accounts.ts';
 import { findAccountByApiKey } from '../store/accounts.ts';
 import type { LaunchRecord } from '../store/launches.ts';
 import { findLaunchByLtik } from '../store/launches.ts';
+import type { ServiceKeyRecord } from '../store/service-keys.ts';
+import { findServiceKey } from '../store/service-keys.ts';
 
 export type Scheme = 'ltik' | 'service' | 'bearer';
 
@@ -35,7 +37,10 @@ export function parseAuthorization(header: string | undefined): ParsedAuth {
 export interface AuthResult {
   scheme: Scheme;
   account: ToolAccount;
+  /** LTIK-AUTH-V2: the launch of the ltik. */
   launch: LaunchRecord | null;
+  /** SERVICE-AUTH-V1 (T3a): the service key record. */
+  serviceKey: ServiceKeyRecord | null;
 }
 
 /**
@@ -59,13 +64,14 @@ export function authenticate(db: Db, header: string | undefined, accepted: Schem
   const account = findAccountByApiKey(db, parsed.apiKey);
   if (parsed.scheme === 'bearer') {
     // ADR-003: a bad API key on Bearer endpoints uses INVALID_LTIK_AUTH_AUTHORIZATION_HEADER.
-    return account ? { scheme: 'bearer', account, launch: null } : reject('bearer', 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER', 'Invalid API key.');
+    return account ? { scheme: 'bearer', account, launch: null, serviceKey: null } : reject('bearer', 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER', 'Invalid API key.');
   }
   if (parsed.scheme === 'service') {
-    // T2a: no service keys exist yet (T3a), so every service key is invalid.
-    return reject('service', 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER');
+    // T3a: the service key must belong to the account of the API key and must not be revoked (security §8).
+    const serviceKey = account ? findServiceKey(db, account.id, parsed.credential ?? '') : null;
+    return account && serviceKey ? { scheme: 'service', account, launch: null, serviceKey } : reject('service', 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER');
   }
   if (!account) return reject('ltik', 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER');
   const launch = findLaunchByLtik(db, account.id, parsed.credential ?? '', now);
-  return launch ? { scheme: 'ltik', account, launch } : reject('ltik', 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER');
+  return launch ? { scheme: 'ltik', account, launch, serviceKey: null } : reject('ltik', 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER');
 }

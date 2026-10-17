@@ -29,6 +29,11 @@ describe('toIdToken', () => {
     expect(t.services).toMatchObject({ deepLinking: { available: true } });
   });
 
+  it('services.serviceKey only when the caller gives one (T3a, contract §3.3)', () => {
+    expect((toIdToken(launch(moodleClaims()), platform).services as Record<string, unknown>).serviceKey).toBeUndefined();
+    expect((toIdToken(launch(moodleClaims()), platform, 'k'.repeat(43)).services as Record<string, unknown>).serviceKey).toBe('k'.repeat(43));
+  });
+
   it('uses the registration name when the token has no tool_platform', () => {
     const t = toIdToken(launch(moodleClaims({ [CLAIM.toolPlatform]: undefined })), platform);
     expect(t.platform).toMatchObject({ name: 'Moodle seed', productFamilyCode: '' });

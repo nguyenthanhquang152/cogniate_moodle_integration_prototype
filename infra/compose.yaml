@@ -128,7 +128,7 @@ services:
       LTI_MASTER_KEY: ${LTI_MASTER_KEY:?run npm run gen-env}
       LOG_DIR: /logs
       DATA_DIR: /data                          # lti.db (ADR-006); host: infra/.data/lti-service (stack:reset deletes it)
-      STACK_PROFILE: ${STACK_PROFILE:-default}
+      STACK_PROFILE: ${ACTIVE_STACK_PROFILE:-default}   # set by infra/scripts/lib.sh from the saved profile
       # Hosts that may resolve to private addresses (security §9). The acceptance profile adds ",qa-platform.test,evil.test"
       # (ACCEPTANCE_ALLOWLIST_EXTRA, set by infra/scripts/lib.sh from the saved stack profile).
       OUTBOUND_PRIVATE_HOST_ALLOWLIST: moodle.test${ACCEPTANCE_ALLOWLIST_EXTRA:-}
@@ -159,7 +159,7 @@ services:
       APP_MASTER_KEY: ${APP_MASTER_KEY:?run npm run gen-env}
       LOG_DIR: /logs
       DATA_DIR: /data                          # cogniate.db, packages/, uploads/ (ADR-006); host: infra/.data/cogniate-app
-      STACK_PROFILE: ${STACK_PROFILE:-default}
+      STACK_PROFILE: ${ACTIVE_STACK_PROFILE:-default}   # set by infra/scripts/lib.sh from the saved profile
       # Security §9: the app may call the LTI service host (private address behind the proxy); acceptance adds QA hosts.
       OUTBOUND_PRIVATE_HOST_ALLOWLIST: lti.cogniate.test${ACCEPTANCE_ALLOWLIST_EXTRA:-}
       <<: *public-urls

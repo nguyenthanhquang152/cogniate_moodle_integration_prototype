@@ -19,7 +19,7 @@ const CourseCreate = z.object({
 type CourseParams = { Params: { courseId: string } };
 type VersionParams = { Params: { courseId: string; versionId: string } };
 
-const notFound = () => new ApiError(404, 'NOT_FOUND', 'The course or version does not exist in your library.');
+const notFound = () => new ApiError('NOT_FOUND', 'The course or version does not exist in your library.');
 
 export function registerCourseRoutes(api: FastifyInstance, deps: UploadDeps): void {
   const { db, now } = deps;
@@ -39,7 +39,7 @@ export function registerCourseRoutes(api: FastifyInstance, deps: UploadDeps): vo
     const body = CourseCreate.safeParse(req.body ?? {});
     if (!body.success) {
       const field = body.error.issues[0]?.path.join('.') || 'body';
-      throw new ApiError(400, 'INVALID_REQUEST', `Invalid field: ${field}.`, { field });
+      throw new ApiError('INVALID_REQUEST', `Invalid field: ${field}.`, { details: { field } });
     }
     const course = createCourse(db, libraryOf(req), {
       title: body.data.title, summary: body.data.summary ?? '', variant: body.data.variant ?? 'default', lang: body.data.lang ?? 'en',

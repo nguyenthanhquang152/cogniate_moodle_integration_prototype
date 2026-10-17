@@ -123,3 +123,45 @@ describe('JWKS refresh failure and the 24 h maximum age (security §2.4, AC-T2-3
     expect(await fails(await sign(k2, moodleClaims()))).toBe('kid_unknown');
   });
 });
+
+describe('single-flight JWKS fetch (A-T2b-01)', () => {
+  it('5 parallel launches on an empty cache: one fetch, all verify; a parallel unknown kid waits too', async () => {
+    const k1 = await makeKey('k1');
+    let fetches = 0;
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    const out: OutboundClient = {
+      allowlist: [],
+      async request() {
+        fetches += 1;
+        await gate; // the fetch is slow: the other launches arrive while it runs
+        const body = Buffer.from(JSON.stringify({ keys: [k1.publicJwk] }));
+        return { status: 200, headers: {}, body, text: () => body.toString(), json: () => JSON.parse(body.toString()) as unknown };
+      },
+    };
+    const keys = createPlatformKeys(out, () => 7_000_000);
+    const url = 'https://qa-platform.test/jwks.json';
+    const tokens = await Promise.all(Array.from({ length: 5 }, () => sign(k1, moodleClaims())));
+    const runs = tokens.map((t, i) => keys.verify(t, url, `trace-${i}`));
+    release();
+    await expect(Promise.all(runs)).resolves.toHaveLength(5);
+    expect(fetches).toBe(1);
+  });
+
+  it('a failing in-flight fetch: every waiting launch gets jwks_unavailable, still one fetch', async () => {
+    const k1 = await makeKey('k1');
+    let fetches = 0;
+    const out: OutboundClient = {
+      allowlist: [],
+      async request() {
+        fetches += 1;
+        await new Promise((r) => setTimeout(r, 20));
+        throw new OutboundError('timeout', 'qa-platform.test', 'slow');
+      },
+    };
+    const keys = createPlatformKeys(out, () => 7_000_000);
+    const results = await Promise.all(Array.from({ length: 3 }, async () => keys.verify(await sign(k1, moodleClaims()), 'https://qa-platform.test/j', 't').catch((e: PlatformKeyError) => e.detail)));
+    expect(results).toEqual(['jwks_unavailable', 'jwks_unavailable', 'jwks_unavailable']);
+    expect(fetches).toBe(1);
+  });
+});

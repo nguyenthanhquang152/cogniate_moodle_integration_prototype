@@ -1,5 +1,5 @@
 // Package inspector (ADR-008): zip checks, manifest parsing, HTML profile. Security §7, contract cogniate-app-api §3.
-export { DEFAULT_LIMITS, PackageRejectedError, REJECT_CODES, REJECT_INFO } from './codes.ts';
+export { DEFAULT_LIMITS, PackageRejectedError, REJECT_CODES } from './codes.ts';
 export type { Limits, RejectCode, RejectReason } from './codes.ts';
 export { extractPackage, safeTarget } from './extract.ts';
 export type { ExtractResult } from './extract.ts';

@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { Limits, RejectReason } from '@cogniate/package-inspector';
-import { PackageRejectedError, REJECT_INFO, extractPackage, inspectPackage } from '@cogniate/package-inspector';
+import { PackageRejectedError, extractPackage, inspectPackage } from '@cogniate/package-inspector';
 import type { Logger } from '@cogniate/shared';
 import { randomId, randomToken } from '@cogniate/shared';
 import type { FastifyRequest } from 'fastify';
@@ -17,6 +17,7 @@ import { addVersion } from '../domain/courses.ts';
 import type { Db } from '../domain/db.ts';
 import type { StorePaths } from '../domain/package-store.ts';
 import { ApiError } from './errors.ts';
+import { REJECT_INFO } from './reject-info.ts';
 
 export interface UploadDeps {
   db: Db;
@@ -35,15 +36,14 @@ const MASTERY = /^\d{1,3}(\.\d{1,2})?$/;
 function rejected(log: Logger, traceId: string, reasons: RejectReason[]): ApiError {
   log.warn('package_rejected', { trace_id: traceId, codes: [...new Set(reasons.map((r) => r.code))] });
   const described = reasons.map((r) => ({ ...r, ...REJECT_INFO[r.code] }));
-  return new ApiError(422, 'PACKAGE_REJECTED', 'The package was rejected. See details.reasons.', {
-    reasons: described,
-    action: described[0]?.action ?? REJECT_INFO.ZIP_INVALID.action,
+  return new ApiError('PACKAGE_REJECTED', undefined, {
+    details: { reasons: described, action: described[0]?.action ?? REJECT_INFO.ZIP_INVALID.action },
   });
 }
 
 /** Read the multipart body: one file field `package` (streamed to `tmpFile`) and an optional `masteryScore`. */
 async function receive(req: FastifyRequest, tmpFile: string, deps: UploadDeps): Promise<{ sha256: string; masteryScore: number | undefined }> {
-  if (!req.isMultipart()) throw new ApiError(400, 'INVALID_REQUEST', 'Send multipart/form-data with the file field "package".');
+  if (!req.isMultipart()) throw new ApiError('INVALID_REQUEST', 'Send multipart/form-data with the file field "package".');
   let sha256: string | undefined;
   let masteryRaw: string | undefined;
   try {
@@ -51,7 +51,7 @@ async function receive(req: FastifyRequest, tmpFile: string, deps: UploadDeps): 
       if (part.type === 'file') {
         if (part.fieldname !== 'package' || sha256 !== undefined) {
           part.file.resume();
-          throw new ApiError(400, 'INVALID_REQUEST', 'Send one file, in the field "package".');
+          throw new ApiError('INVALID_REQUEST', 'Send one file, in the field "package".');
         }
         const hash = createHash('sha256');
         const tap = new Transform({ transform(chunk: Buffer, _enc, cb) { hash.update(chunk); cb(null, chunk); } });
@@ -61,7 +61,7 @@ async function receive(req: FastifyRequest, tmpFile: string, deps: UploadDeps): 
       } else if (part.fieldname === 'masteryScore') {
         masteryRaw = String(part.value).trim();
       } else {
-        throw new ApiError(400, 'INVALID_REQUEST', 'Unknown form field. Send only "package" and "masteryScore".');
+        throw new ApiError('INVALID_REQUEST', 'Unknown form field. Send only "package" and "masteryScore".');
       }
     }
   } catch (err) {
@@ -70,14 +70,14 @@ async function receive(req: FastifyRequest, tmpFile: string, deps: UploadDeps): 
     if (code === 'FST_REQ_FILE_TOO_LARGE') {
       throw rejected(deps.logger, req.traceId, [{ code: 'ZIP_TOO_LARGE', detail: `The upload is larger than ${deps.limits.maxUploadBytes / 1_000_000} MB.` }]);
     }
-    throw new ApiError(400, 'INVALID_REQUEST', 'The multipart body cannot be read.');
+    throw new ApiError('INVALID_REQUEST', 'The multipart body cannot be read.');
   }
-  if (sha256 === undefined) throw new ApiError(400, 'INVALID_REQUEST', 'The file field "package" is missing.');
+  if (sha256 === undefined) throw new ApiError('INVALID_REQUEST', 'The file field "package" is missing.');
   let masteryScore: number | undefined;
   if (masteryRaw !== undefined && masteryRaw !== '') {
     masteryScore = Number(masteryRaw);
     if (!MASTERY.test(masteryRaw) || masteryScore > 100) {
-      throw new ApiError(400, 'INVALID_REQUEST', 'masteryScore must be a number from 0 to 100.', { field: 'masteryScore' });
+      throw new ApiError('INVALID_REQUEST', 'masteryScore must be a number from 0 to 100.', { details: { field: 'masteryScore' } });
     }
   }
   return { sha256, masteryScore };
@@ -92,9 +92,8 @@ export async function uploadVersion(req: FastifyRequest, course: Course, deps: U
     if (!result.ok) throw rejected(deps.logger, req.traceId, result.reasons);
     const { inspection } = result;
     if (inspection.format === 'scorm12' && masteryScore !== undefined) {
-      throw new ApiError(400, 'MASTERY_SCORE_NOT_ALLOWED', 'SCORM packages use the mastery score of their manifest.', {
-        field: 'masteryScore',
-        action: 'Upload the SCORM package without masteryScore. To change the mastery score, change it in the SCORM export.',
+      throw new ApiError('MASTERY_SCORE_NOT_ALLOWED', undefined, {
+        details: { field: 'masteryScore', action: 'Upload the SCORM package without masteryScore. To change the mastery score, change it in the SCORM export.' },
       });
     }
 
