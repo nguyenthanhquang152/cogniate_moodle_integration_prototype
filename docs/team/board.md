@@ -13,9 +13,9 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 | 4 | T3a | Services the app needs: service keys, token client, deep-linking response, AGS scores | Author | verifying | 1 | A APPROVE, B APPROVE; QA combined T3 run at 6f03a80 (qa-t3-r1). |
 | 5 | T3b | Dynamic registration incl. "update existing tool" | Author | verifying | 1 | A APPROVE, B APPROVE; QA combined T3 run at 6f03a80. Side items → T4b1. |
 | 6 | T4a | Upload + package inspector | Author | **done** | 3 | R3: QA PASS (93884d8), A APPROVE, B APPROVE. Deferred: A-T4a-04 (→ T6/T8), B-T4a-01 (→ T3a). |
-| 7 | T4b1 | Connect + publish | Author | verifying | 1 | wip 1ec7cde; A + B reviewing; QA after T3 run. |
-| 7b | T4b2 | Picker, launch handoff, security | Author | in_progress | 1 | Pipelined. QA tests ready. |
-| 8 | T5a | Content host, SCORM runtime, score sync | Author | planned | — | |
+| 7 | T4b1 | Connect + publish | Author | verifying | 2 | R2 0fc5e33: A APPROVE, B APPROVE; QA after T3 run. Residual risk R1 accepted. |
+| 7b | T4b2 | Picker, launch handoff, security | Author | verifying | 1 | wip 4c6a04d; A + B reviewing; QA after T4b1. |
+| 8 | T5a | Content host, SCORM runtime, score sync | Author | in_progress | 1 | Pipelined. QA tests ready. |
 | 9 | T5b | HTML runtime, conflict, Resend | Author | planned | — | |
 | 10 | T6 | Portal UI (dev-portal style) | Author | planned | — | |
 | 11 | T7 | Full E2E in real Moodle | QA + Author | planned | — | |
