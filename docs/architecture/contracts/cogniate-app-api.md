@@ -31,7 +31,7 @@ NOTE: This is our design for a stand-in. It is not a Cogniate API (spec §7.1). 
 - Every `/app-api/*` call except `POST /app-api/session` and `GET /app-api/play/:playId/status` needs the session cookie, else `401 NOT_SIGNED_IN`.
 - Every query is limited to the session user's library. A resource of another library gives `404 NOT_FOUND`, for reads and writes.
 - The app reads the LTI API key from `infra/.secrets/lti-api-key.cogniate` at each use, and sends `X-Trace-Id` to the LTI service.
-- If a call to the LTI service fails (5xx, timeout, `PLATFORM_*` error or an answer that does not match the contract), the app API answers `502 LTI_SERVICE_ERROR` with the trace id. A 4xx from the LTI service that the user can fix is mapped to the app's own 4xx code.
+- If a call to the LTI service fails (5xx, timeout, `PLATFORM_*` error), the app API answers `502 LTI_SERVICE_ERROR` with the trace id. If the LTI service answers but the body fails the app's schema for that endpoint, the app answers `502 INVALID_LTI_ANSWER`. A 4xx from the LTI service that the user can fix is mapped to the app's own 4xx code.
 - All untrusted text is escaped on output (security §7).
 - `GET {PUBLIC_APP_URL}/healthz` → `200 {"status":"ok","service":"cogniate-app","profile":"default","outbound_allowlist":["lti.cogniate.test"],"knobs":[]}`. `profile` is `acceptance` in that compose profile (local-stack §3), and `outbound_allowlist` then also has `qa-platform.test` and `evil.test`.
 
@@ -144,11 +144,12 @@ Check order: the zip and XML checks of §3.2 run first, and the first failing ch
   "id": "con_...", "name": "Dev Moodle", "siteUrl": "https://moodle.test", "method": "dynamic",
   "status": "pending",
   "registrationUrl": "https://lti.cogniate.test/lti/register/cogniate?ref=...", "registrationUrlExpiresAt": "...",
-  "platform": null, "createdAt": "...", "lastLaunchAt": null
+  "platform": null, "createdAt": "...", "lastLaunchAt": null,
+  "lastError": null
 }
 ```
 
-`status`: `pending`, `registered`, `connected`, `disabled`. "Link expired" is derived (`pending` and `registrationUrlExpiresAt` past). `platform` after registration: `{ id, issuer, clientId, deploymentIds, productFamilyCode }`.
+`lastError`: `null`, or `{ code, ltiCode, traceId, at }` of the last failed registration or manual connect (`code` = the app code, for example `REGISTRATION_FAILED`; `ltiCode` = the LTI service `details.message` if there was one, else `null`). It is cleared by the next success. The portal shows it (T6). `status`: `pending`, `registered`, `connected`, `disabled`. "Link expired" is derived (`pending` and `registrationUrlExpiresAt` past). `platform` after registration: `{ id, issuer, clientId, deploymentIds, productFamilyCode }`.
 
 | Method and path | Request | Success / errors |
 | --- | --- | --- |
@@ -410,6 +411,7 @@ Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `e
 | `deep_link_rejected` | warn | `reason`: `not_deep_linking` (the ltik is not a deep-linking launch), `role_not_allowed`, `invalid_ltik` |
 | `picker_rejected` | warn | `reason`: `used`, `expired`, `publication_not_available` |
 | `platform_orphan_deactivated` | warn | `platform_id` |
+| `platform_orphan_deactivate_failed` | error | `platform_id`, `error` (the LTI service code or the error class name) |
 | `registration_confirm_rejected` | warn | `code` (incl. `REGISTRATION_FAILED`, `MOODLE_TOOL_MAY_EXIST`, `UPDATE_NOT_ALLOWED`) |
 | `commit_accepted` | info | `session_id`, `seq`, `commit_event` (`commit`, `finish`, `unload` or `progress`; the field is not called `event`, because every log line already has `event`) |
 | `internal_error` | error | `method`, `path` (no query, no capability ids), `error` (the error class name only, for example `TypeError`). No error message with data and no stack trace in the JSON file (stdout may print the stack at `debug`). The response is `500 INTERNAL_ERROR` with the trace id. |

@@ -94,7 +94,7 @@ Moodle shows a choice page when a tool with the same domain exists. If the admin
 | Rule | Detail |
 | --- | --- |
 | No adoption | Manual connect (`PUT /app-api/connections/:id/platform`) binds only a platform that the LTI service **creates** in that call (`201`). A `409 PLATFORM_ALREADY_EXISTS` gives `409 PLATFORM_IN_USE` and changes nothing, unless that platform is already bound to the same connection (a repeat of the same call, `200`). So no library can take over the seed platform, another library's platform, or an orphan. |
-| Orphans are switched off | If the app gets a platform id from the LTI service (registration `complete` or manual create) and cannot bind it to the requesting connection, and no other connection owns it, the app sets it `active: false` at once and logs `platform_orphan_deactivated {platform_id}`. A disconnect also sets the platform `active: false`. |
+| Orphans are switched off | If the app gets a platform id from the LTI service (registration `complete` or manual create) and cannot bind it to the requesting connection, and no other connection owns it, the app sets it `active: false` at once and logs `platform_orphan_deactivated {platform_id}`. A disconnect also sets the platform `active: false`. If switching off fails, the app logs `platform_orphan_deactivate_failed`. There is **no** startup scan for orphans: it cannot tell orphans from the dev seed and QA platforms, which must stay active. |
 | Foreign platforms | Platforms that the app did not create for a connection (the dev seed platform, platforms made through the LTI API by other tools) are never adopted and never changed by the app. |
 
 ## 3. Cookies and launch container
