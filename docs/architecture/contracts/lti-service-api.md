@@ -345,7 +345,7 @@ All URLs are https. An account sees only its own platforms. Another account may 
 | Call | Detail |
 | --- | --- |
 | Access token | `POST {accesstokenEndpoint}`: `grant_type=client_credentials`, `client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer`, `client_assertion` (security §2.3), `scope`. Cached **in memory** per (platform, scope set) until 60 s before expiry. |
-| Platform JWKS | Guarded client + `createLocalJWKSet`, 10 min cache, refetch on unknown `kid` at most once per minute |
+| Platform JWKS | Guarded client + `createLocalJWKSet`, 10 min refresh age, refetch on unknown `kid` at most once per minute. On a failed refresh, cached keys stay usable up to 24 h after the last good fetch (security §2.4). |
 | Timeouts, redirects | 5 s. No redirects. One retry after `network_error` for GET only (two attempts, two events). |
 
 ## 5. Log events
@@ -360,7 +360,7 @@ Every event: `ts`, `level`, `service: "lti-service"`, `event`, `trace_id` (lifec
 | `outbound_request` | info | `host`, `method`, `status`, `ms` | every outbound attempt that got an accepted HTTP response |
 | `outbound_blocked` | warn | `host`, `method`, `reason` | every outbound attempt without an accepted response: policy `not_https`, `private_ip`, `redirect`, `too_large`; failure `dns_error`, `timeout`, `network_error` (security §9) |
 | `login_rejected` | warn | `code` | login failure |
-| `launch_check_failed` | warn | `check` (1–12, `oidc_error` or `platform_active`), `code` | launch failure |
+| `launch_check_failed` | warn | `check` (1–12, `oidc_error` or `platform_active`), `code`, `detail` | launch failure. `detail` is a short safe reason, never a token, claim value or key: for example `skew_s=73` (check 7), `kid_unknown`, `jwks_fetch_failed`, `jwks_unavailable` (check 6), `alg=HS256` (check 4), `missing=resource_link` (check 11). |
 | `launch_accepted` | info | `platform_id`, `message_type` | launch success |
 | `api_auth_failed` | warn | `scheme`, `code` | 401 on `/api/*` |
 | `platform_token` | info | `platform_id`, `cache` (`hit` or `miss`) | each token use |

@@ -21,6 +21,8 @@ Out: `/api/deeplinking/form`, `/message`, line item writes, NRPS, platform DELET
 
 ## Design notes
 
+- B-T2a-01 (from the T2a review): split `services/lti-service/src/http/app.ts` by route group (protocol, API, admin) before adding the T3a routes.
+
 - Scores URL = line item path + `/scores`, query kept (Moodle `?type_id=`).
 - Unit test with a fake clock 2 s ahead of "Moodle": the JWT `iat` is still in the past.
 - QA can stand in for the app pages: a Playwright `route` on `{PUBLIC_APP_URL}/tool/deep-link**` that reads the ltik, calls the API, and fulfils the request with its own form.

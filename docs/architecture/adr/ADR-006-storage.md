@@ -21,6 +21,7 @@ The LTI service (registrations, keys, launches) and the Cogniate app (courses, p
 Option A.
 
 - `data/lti.db` and `data/cogniate.db` in Docker volumes. Plain SQL migrations at start. No ORM. Portable SQL only.
+- Each applied migration is stored with its SHA-256. If an applied migration file changed, the service stops at start with a clear message (never edit an applied migration; add a new one).
 - Repository modules are the only code that touches SQL. Every tenant-owned query takes the tenant id as a required argument.
 - WAL mode, `foreign_keys=ON`, `busy_timeout=5000`.
 - Secrets in rows: AES-256-GCM with the service master key. Tokens: SHA-256 hashes.

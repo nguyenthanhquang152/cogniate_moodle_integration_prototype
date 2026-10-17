@@ -151,3 +151,10 @@ The T5-spike (`apps/player-spike/SPIKE-NOTES.md`) verified the player design in 
 | HTML runtime | Attach when the child document is parsed, not on `load` (a hanging external host blocks `load`). | app contract §9, ADR-004, flows §6d, T5b, new AC-T5-36 |
 | Not proven | Video playback, Firefox and Safari, a real window close by a person, mobile browsers. | README §6 |
 | Code location | `apps/player-spike/` is reference only; production code in `apps/player/`. | ADR-004, ADR-008, T5a |
+
+## Later spec changes (from task reviews)
+
+| Source | Change |
+| --- | --- |
+| T2a review | T2b gets side items A-T2a-01, A-T2a-02 (new AC-T2-32: JWKS refresh failure), B-T2a-02, B-T2a-03 (`detail` in `launch_check_failed`), B-T2a-04 (migration checksum, ADR-006). B-T2a-01 goes to T3a design notes. Q-T2a-01: `cmids` example fixed. |
+| QA T4b2 suite | AC-T4-25 split: T4b2 keeps the rebind launch; the in-progress attempt part moves to new AC-T5-37 (T5a). AC-T4-18, AC-T4-21, AC-T4-32 state the two-pass setup order (host `seed:lti-activity` between passes). New log event `deep_link_rejected {reason}` (app contract §12) for the AC-T4-20 `403` page, named in AC-T4-32. |
