@@ -1,5 +1,5 @@
-// The app listener (PUBLIC_APP_URL): /healthz and the portal API /app-api/* (contract cogniate-app-api §1-§3).
-// Tool pages and the portal SPA come in T4b and T6.
+// The app listener (PUBLIC_APP_URL): /healthz, the portal API /app-api/* (contract cogniate-app-api §1-§5), the tool
+// pages /tool/* and the player shell /play/* (§6). The portal SPA comes in T6.
 import { randomBytes } from 'node:crypto';
 import formbody from '@fastify/formbody';
 import multipart from '@fastify/multipart';
@@ -13,6 +13,9 @@ import type { Db } from '../domain/db.ts';
 import type { SignedIn } from '../domain/libraries.ts';
 import type { LtiClient } from '../clients/lti-client.ts';
 import type { StorePaths } from '../domain/package-store.ts';
+import { registerLaunchPages } from '../tool-pages/launch.ts';
+import { registerPickerPages } from '../tool-pages/picker.ts';
+import { registerPlayPages, registerPlayStatusRoute } from '../tool-pages/play.ts';
 import { registerRegisterPages } from '../tool-pages/register.ts';
 import { registerConnectionRoutes } from './connections.ts';
 import { registerCourseRoutes } from './courses.ts';
@@ -50,6 +53,10 @@ export interface AppApiDeps {
   lti: LtiClient;
   /** REF_TTL_SECONDS knob (default 86400): life of a registration URL. */
   refTtlSeconds: number;
+  /** PICKER_TTL_SECONDS knob (default 3600): life of a content picker session (T4b2). */
+  pickerTtlSeconds: number;
+  /** PLAY_TTL_SECONDS knob (default 86400): life of a play session (T4b2). */
+  playTtlSeconds: number;
 }
 
 const TRACE_ID = /^[A-Za-z0-9-]{16,64}$/;
@@ -61,7 +68,7 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
   const log = deps.logger;
   const limits: Limits = { ...DEFAULT_LIMITS, ...deps.limits };
   const app = Fastify({ logger: false, bodyLimit: JSON_BODY_LIMIT, return503OnClosing: false });
-  await app.register(formbody, { bodyLimit: 8 * 1024 }); // /tool/register form
+  await app.register(formbody, { bodyLimit: 8 * 1024 }); // /tool/register and /tool/picker forms
   await app.register(multipart, {
     throwFileSizeLimit: true,
     limits: { fileSize: limits.maxUploadBytes, files: 1, fields: 4, fieldSize: 1024, parts: 5, headerPairs: 100 },
@@ -125,10 +132,15 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
     registerCourseRoutes(api, { db: deps.db, logger: log, store: deps.store, limits, now });
     registerConnectionRoutes(api, { db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, refTtlSeconds: deps.refTtlSeconds, now });
     registerPublicationRoutes(api, { db: deps.db, now });
+    registerPlayStatusRoute(api, { db: deps.db, now });
   }, { prefix: '/app-api' });
 
   // Tool pages (app contract §6): server-rendered, no cookies; their own headers and Origin rule.
-  registerRegisterPages(app, { db: deps.db, urls: deps.urls, logger: log, lti: deps.lti, masterKey: deps.masterKey, now });
+  const pageDeps = { db: deps.db, urls: deps.urls, logger: log, lti: deps.lti, masterKey: deps.masterKey, now };
+  registerRegisterPages(app, pageDeps);
+  registerLaunchPages(app, { ...pageDeps, pickerTtlSeconds: deps.pickerTtlSeconds, playTtlSeconds: deps.playTtlSeconds });
+  registerPickerPages(app, pageDeps);
+  registerPlayPages(app, pageDeps);
 
   return app;
 }

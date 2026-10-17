@@ -10,7 +10,8 @@ import { buildAppApi } from './app/server.ts';
 import type { Db } from './domain/db.ts';
 import { openDb } from './domain/db.ts';
 import { ensureLibrary, upsertUser } from './domain/libraries.ts';
-import type { LtiClient, LtiPlatform, LtiRegistration } from './clients/lti-client.ts';
+import { randomBytes } from 'node:crypto';
+import type { ContentItem, LtiClient, LtiIdToken, LtiPlatform, LtiRegistration } from './clients/lti-client.ts';
 import { LtiServiceError } from './clients/lti-client.ts';
 import type { StorePaths } from './domain/package-store.ts';
 import { prepareStore } from './domain/package-store.ts';
@@ -36,12 +37,44 @@ export interface FakeLti {
   /** Make a registration session as GET /lti/register would (operation new or update). */
   addRegistration(over?: Partial<LtiRegistration>): string;
   failNext: { code: string; status: number; reason?: string } | null;
+  /** Launches behind ltiks (GET /api/idtoken). */
+  launches: Map<string, LtiIdToken>;
+  /** Store a launch as POST /lti/launch would and return its ltik. */
+  addLaunch(token: LtiIdToken): string;
+  /** POST /api/deeplinking calls: the ltik and the content items. */
+  deepLinks: Array<{ ltik: string; items: ContentItem[] }>;
+}
+
+export const LEARNER = 'http://purl.imsglobal.org/vocab/lis/v2/membership#Learner';
+export const INSTRUCTOR = 'http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor';
+export const DL_RETURN = `${TEST_URLS.moodle}/mod/lti/contentitem_return.php?course=2&id=1&sesskey=s`;
+
+/** An idtoken answer like the LTI service gives for Moodle (contract lti-service-api §3.1). */
+export function launchToken(o: {
+  platformId: string; type?: 'LtiResourceLinkRequest' | 'LtiDeepLinkingRequest'; target?: string; roles?: string[]; sub?: string;
+  contextId?: string; contextTitle?: string; resourceLinkId?: string; resourceLinkTitle?: string; documentTarget?: string; returnUrl?: string; deploymentId?: string;
+}): LtiIdToken {
+  const deepLinking = o.type === 'LtiDeepLinkingRequest';
+  return {
+    user: { id: o.sub ?? '5', roles: o.roles ?? [deepLinking ? INSTRUCTOR : LEARNER] },
+    platform: { id: o.platformId, url: TEST_URLS.moodle, deploymentId: o.deploymentId ?? '1' },
+    launch: {
+      type: o.type ?? 'LtiResourceLinkRequest',
+      target: o.target ?? `${TEST_URLS.lti}/lti/launch/cogniate`,
+      context: { id: o.contextId ?? '2', label: 'COGNIATE-DEV-101', title: o.contextTitle ?? 'Cogniate Dev 101' },
+      ...(deepLinking ? {} : { resourceLink: { id: o.resourceLinkId ?? '3', title: o.resourceLinkTitle ?? 'Cogniate SCORM' } }),
+      presentation: { documentTarget: o.documentTarget ?? 'window', returnUrl: o.returnUrl ?? `${TEST_URLS.moodle}/mod/lti/return.php?course=2&launch_container=4` },
+    },
+    services: deepLinking ? {} : { assignmentAndGrades: { available: true, lineItemId: `${TEST_URLS.moodle}/mod/lti/services.php/2/lineitems/7/lineitem?type_id=1` }, serviceKey: 's'.repeat(43) },
+  };
 }
 
 export function fakeLti(): FakeLti {
   const registrations = new Map<string, LtiRegistration & { completed?: boolean }>();
   const platforms = new Map<string, LtiPlatform>();
   const calls: string[] = [];
+  const launches = new Map<string, LtiIdToken>();
+  const deepLinks: Array<{ ltik: string; items: ContentItem[] }> = [];
   let seq = 0;
   const state: { failNext: FakeLti['failNext'] } = { failNext: null };
   const failIfAsked = () => {
@@ -77,9 +110,28 @@ export function fakeLti(): FakeLti {
     },
     async getPlatform(id) { calls.push(`GET platform ${id}`); const p = platforms.get(id); if (!p) throw new LtiServiceError(404, 'UNREGISTERED_PLATFORM', ''); return p; },
     async patchPlatform(id, body) { calls.push(`PATCH platform ${id} ${JSON.stringify(body)}`); const p = platforms.get(id)!; Object.assign(p, body); return p; },
+    async getIdToken(ltik) {
+      calls.push('GET idtoken'); failIfAsked();
+      const token = launches.get(ltik);
+      if (!token) throw new LtiServiceError(401, 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER', 'Invalid or expired ltik.');
+      return token;
+    },
+    async deepLinking(ltik, items) {
+      calls.push(`POST deeplinking ${JSON.stringify(items)}`); failIfAsked();
+      const token = launches.get(ltik);
+      if (!token) throw new LtiServiceError(401, 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER', '');
+      if (token.launch.type !== 'LtiDeepLinkingRequest') throw new LtiServiceError(403, 'SERVICE_NOT_AVAILABLE', '');
+      deepLinks.push({ ltik, items });
+      return { message: `header.${Buffer.from(JSON.stringify(items)).toString('base64url')}.sig`, target: DL_RETURN };
+    },
   };
   return {
-    client, registrations, platforms, calls,
+    client, registrations, platforms, calls, launches, deepLinks,
+    addLaunch(token) {
+      const ltik = randomBytes(32).toString('base64url');
+      launches.set(ltik, token);
+      return ltik;
+    },
     addRegistration(over = {}) {
       const id = `reg_${++seq}`;
       registrations.set(id, { url: TEST_URLS.moodle, familyCode: 'moodle', version: '5.2.4 (Build: 20261005)', supportedScopes: [], supportedMessages: [], privacyLevel: 'anonymous', operation: 'new', existingPlatformId: null, ...over });
@@ -104,7 +156,7 @@ export interface TestApp {
   writeHeaders: (cookie: string) => Record<string, string>;
 }
 
-export async function testApp(opts: { limits?: Partial<Limits>; refTtlSeconds?: number } = {}): Promise<TestApp> {
+export async function testApp(opts: { limits?: Partial<Limits>; refTtlSeconds?: number; pickerTtlSeconds?: number; playTtlSeconds?: number } = {}): Promise<TestApp> {
   const dataDir = mkdtempSync(join(tmpdir(), 'cogniate-app-'));
   const db = openDb(':memory:');
   const store = await prepareStore(dataDir);
@@ -119,6 +171,7 @@ export async function testApp(opts: { limits?: Partial<Limits>; refTtlSeconds?: 
   const app = await buildAppApi({
     db, urls: TEST_URLS, logger, store, profile: 'default', knobs: [], now: () => clock.now, ...(opts.limits ? { limits: opts.limits } : {}),
     masterKey: TEST_MASTER_KEY, lti: lti.client, refTtlSeconds: opts.refTtlSeconds ?? 86400,
+    pickerTtlSeconds: opts.pickerTtlSeconds ?? 3600, playTtlSeconds: opts.playTtlSeconds ?? 86400,
   });
   const login = async (user: { email: string; password: string }): Promise<string> => {
     const res = await app.inject({ method: 'POST', url: '/app-api/session', headers: { origin: TEST_URLS.app }, payload: { email: user.email, password: user.password } });

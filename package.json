@@ -24,6 +24,7 @@
     "stack:logs": "bash infra/scripts/stack-logs.sh",
     "seed": "bash infra/scripts/seed.sh",
     "seed:lti-manual": "bash infra/scripts/seed-lti-manual.sh",
+    "seed:lti-activity": "bash infra/scripts/seed-lti-activity.sh",
     "stack:moodle-reach-check": "bash infra/scripts/moodle-reach-check.sh",
     "stack:node-reach-check": "bash infra/scripts/node-reach-check.sh",
     "fixtures:check": "bash infra/scripts/fixtures-check.sh",

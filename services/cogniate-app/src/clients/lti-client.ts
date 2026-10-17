@@ -32,6 +32,33 @@ export type LtiPlatform = z.infer<typeof Platform>;
 
 const Completed = z.object({ platformId: z.string().min(1), html: z.string() });
 
+/** GET /api/idtoken (contract §3.1): only the fields that the app reads. Absent values are omitted by the service. */
+const IdToken = z.object({
+  user: z.object({ id: z.string().min(1), roles: z.array(z.string()) }),
+  platform: z.object({ id: z.string().min(1), url: z.string(), deploymentId: z.string().min(1) }),
+  launch: z.object({
+    type: z.string(),
+    target: z.string(),
+    context: z.object({ id: z.string(), label: z.string().optional(), title: z.string().optional() }).optional(),
+    resourceLink: z.object({ id: z.string(), title: z.string().optional() }).optional(),
+    presentation: z.object({ documentTarget: z.string().optional(), returnUrl: z.string().optional() }).optional(),
+  }),
+  services: z.object({
+    assignmentAndGrades: z.object({ available: z.boolean(), lineItemId: z.string().optional() }).optional(),
+    serviceKey: z.string().optional(),
+  }).optional(),
+});
+export type LtiIdToken = z.infer<typeof IdToken>;
+
+/** One Deep Linking content item (flows §6b: the app sends exactly this shape). */
+export interface ContentItem {
+  type: 'ltiResourceLink';
+  title: string;
+  url: string;
+  lineItem: { scoreMaximum: number; label: string; resourceId: string; tag: string };
+}
+const DeepLinkingAnswer = z.object({ message: z.string().min(1), target: z.string().min(1) });
+
 /** POST /api/platforms body (contract §3.9). */
 export interface NewPlatform {
   url: string;
@@ -77,18 +104,20 @@ export interface LtiClientDeps {
 export function createLtiClient(deps: LtiClientDeps) {
   const readKey = deps.readKey ?? ((f: string) => readFileSync(f, 'utf8').trim());
 
-  async function call<S extends z.ZodType>(schema: S, method: 'GET' | 'POST' | 'PATCH', path: string, traceId: string, body?: unknown): Promise<z.output<S>> {
+  /** `ltik` set: LTIK-AUTH-V2 (contract §1.2); else Bearer. */
+  async function call<S extends z.ZodType>(schema: S, method: 'GET' | 'POST' | 'PATCH', path: string, traceId: string, body?: unknown, ltik?: string): Promise<z.output<S>> {
     let key: string;
     try {
       key = readKey(deps.apiKeyFile);
     } catch {
       throw new LtiServiceError(0, 'NO_API_KEY', 'The LTI service API key file cannot be read. Run npm run seed.');
     }
+    const authorization = ltik === undefined ? `Bearer ${key}` : `LTIK-AUTH-V2 ${key}:${ltik}`;
     let res;
     try {
       res = await deps.outbound.request(`${deps.ltiUrl}${path}`, {
         method, traceId, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-        headers: { authorization: `Bearer ${key}`, 'x-trace-id': traceId, accept: 'application/json', ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
+        headers: { authorization, 'x-trace-id': traceId, accept: 'application/json', ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
       });
     } catch {
       throw new LtiServiceError(0, 'LTI_SERVICE_UNREACHABLE', 'The LTI service did not answer.');
@@ -117,6 +146,11 @@ export function createLtiClient(deps: LtiClientDeps) {
     createPlatform: (body: NewPlatform, traceId: string) => call(Platform, 'POST', '/api/platforms', traceId, body),
     getPlatform: (platformId: string, traceId: string) => call(Platform, 'GET', `/api/platforms/${id(platformId)}`, traceId),
     patchPlatform: (platformId: string, body: { active?: boolean; name?: string }, traceId: string) => call(Platform, 'PATCH', `/api/platforms/${id(platformId)}`, traceId, body),
+    /** The launch behind a ltik (T4b2 handoff). */
+    getIdToken: (ltik: string, traceId: string) => call(IdToken, 'GET', '/api/idtoken', traceId, undefined, ltik),
+    /** The signed Deep Linking response for one content item (flows §6b). */
+    deepLinking: (ltik: string, contentItems: ContentItem[], traceId: string) =>
+      call(DeepLinkingAnswer, 'POST', '/api/deeplinking', traceId, { contentItems }, ltik),
   };
 }
 

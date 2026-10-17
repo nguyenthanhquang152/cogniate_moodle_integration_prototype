@@ -226,6 +226,19 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
     expect(s.lines.filter((l) => l.event === 'registration_completed').map((l) => l.operation)).toEqual(['new', 'update']);
   });
 
+  it('A-T4b1-03: the B-T3b-02 path keeps a switched-off platform inactive (autoActivate does not switch it on again)', async () => {
+    const s = await setup();
+    const first = idOf(String((await s.start(await s.regToken({ scope: 'reg', sub: 'c1' }))).headers.location));
+    const created = (await s.app.inject({ method: 'POST', url: `/api/registrations/${first}/complete`, headers: s.bearer(), payload: {} })).json().platformId;
+    const off = await s.app.inject({ method: 'PATCH', url: `/api/platforms/${created}`, headers: s.bearer(), payload: { active: false } });
+    expect(off.statusCode).toBe(200);
+    s.state.nextTypeId = 12;
+    const second = idOf(String((await s.start(await s.regToken({ scope: 'reg', sub: 'c2' }))).headers.location));
+    const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${second}/complete`, headers: s.bearer(), payload: { autoActivate: true } });
+    expect(r.json().platformId).toBe(created);
+    expect(getPlatform(s.db, 'cogniate', created)!.active).toBe(false);
+  });
+
   it('A-T3b-03: a message target of another account is refused; the stored token is dropped after completion', async () => {
     const s = await setup();
     const id = idOf(String((await s.start(await s.regToken({ scope: 'reg', sub: 'c' }))).headers.location));

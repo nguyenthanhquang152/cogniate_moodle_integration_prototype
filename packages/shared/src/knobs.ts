@@ -31,6 +31,20 @@ export const KNOB_REGISTRY = {
     max: 30 * 86_400,
     description: 'Registration URL ref token lifetime in seconds. Contract: 24 h (cogniate-app-api, T4). AC-T4-09 uses 5.',
   },
+  PICKER_TTL_SECONDS: {
+    service: 'cogniate-app',
+    default: 3_600,
+    min: 1,
+    max: 86_400,
+    description: 'Content picker session lifetime in seconds. Contract: 1 h (cogniate-app-api §6, T4b2). AC-T4-20 uses 20.',
+  },
+  PLAY_TTL_SECONDS: {
+    service: 'cogniate-app',
+    default: 86_400,
+    min: 1,
+    max: 30 * 86_400,
+    description: 'Play session (player shell and runtime token) lifetime in seconds. Contract: 24 h (cogniate-app-api §6). AC-T5-15 uses 20.',
+  },
 } as const satisfies Record<string, KnobSpec>;
 
 export type KnobName = keyof typeof KNOB_REGISTRY;

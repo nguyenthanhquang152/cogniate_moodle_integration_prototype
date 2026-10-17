@@ -332,6 +332,21 @@ describe('/tool/register (app contract §6, security §5, §6)', () => {
     expect((await json('GET', `/app-api/connections/${b.id}`, qaB)).json()).toMatchObject({ status: 'pending', platform: null });
   });
 
+  it('A-T4b1-03: complete returns an existing switched-off platform -> REGISTRATION_FAILED; not bound, not changed', async () => {
+    t = await testApp();
+    const cookie = await t.login(QA_B);
+    const { id, ref } = await pending(cookie);
+    t.lti.platforms.set('plt_off', { id: 'plt_off', url: TEST_URLS.moodle, clientId: 'off-client', name: "Cogniate (Thanh's Library)", active: false, deploymentIds: ['4'], productFamilyCode: 'moodle' });
+    const orig = t.lti.client.completeRegistration;
+    t.lti.client.completeRegistration = async () => ({ platformId: 'plt_off', html: '' });
+    const r = await post(t.lti.addRegistration(), ref);
+    t.lti.client.completeRegistration = orig;
+    expect([r.statusCode, pageCode(r.body)]).toEqual([502, 'REGISTRATION_FAILED']);
+    expect((await json('GET', `/app-api/connections/${id}`, cookie)).json()).toMatchObject({ status: 'pending', platform: null, lastError: { code: 'REGISTRATION_FAILED', ltiCode: 'PLATFORM_NOT_ACTIVE' } });
+    expect(t.lti.platforms.get('plt_off')!.active).toBe(false);
+    expect(patches()).toEqual([]);
+  });
+
   it('B-T4b1-01: a failed Connect logs the LTI status and code and stores lastError; success clears it', async () => {
     t = await testApp();
     const cookie = await t.login(THANH);

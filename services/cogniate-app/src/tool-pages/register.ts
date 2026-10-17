@@ -128,7 +128,14 @@ export function registerRegisterPages(app: FastifyInstance, deps: RegisterPageDe
         platformName: toolName(connection.libraryName), privacyLevel: 'anonymous', autoActivate: true,
       }, req.traceId);
       platformId = done.platformId;
-      markRegistered(db, connection.id, platformInfo(await lti.getPlatform(done.platformId, req.traceId)), now());
+      const platform = await lti.getPlatform(done.platformId, req.traceId);
+      // A-T4b1-03: an inactive platform is an existing one that was switched off (for example a deactivated orphan,
+      // returned by the LTI service's "known client id" path). Never bind it, and leave it as it is.
+      if (!platform.active) {
+        platformId = null;
+        return fail(req, reply, { code: 'REGISTRATION_FAILED', connection, err: new LtiServiceError(200, 'PLATFORM_NOT_ACTIVE', '') });
+      }
+      markRegistered(db, connection.id, platformInfo(platform), now());
     } catch (err) {
       if (err instanceof LtiServiceError && err.reason === 'tool_may_exist') return fail(req, reply, { code: 'MOODLE_TOOL_MAY_EXIST', connection, err });
       if (!(err instanceof LtiServiceError) && !(err instanceof PlatformTakenError)) throw err;

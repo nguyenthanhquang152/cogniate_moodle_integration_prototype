@@ -114,6 +114,21 @@ export function markRegistered(db: Db, connectionId: string, platform: PlatformI
   if (Number(changed) !== 1) throw new PlatformTakenError('connection is not pending');
 }
 
+/**
+ * Security §8: at launch, platform.id -> connection -> library. Only a registered or connected connection takes
+ * launches (a disabled one does not).
+ */
+export function findLaunchConnection(db: Db, platformId: string): Connection | undefined {
+  const row = db.prepare("SELECT * FROM connection WHERE lti_platform_id = ? AND status IN ('registered', 'connected')").get(platformId);
+  return row ? toConnection(row) : undefined;
+}
+
+/** Data-model §3: the first valid launch from the platform sets `connected`; every launch sets lastLaunchAt. */
+export function markLaunched(db: Db, connectionId: string, now: number): void {
+  db.prepare(`UPDATE connection SET status = 'connected', last_launch_at = ?, updated_at = CASE WHEN status = 'connected' THEN updated_at ELSE ? END
+    WHERE id = ? AND status IN ('registered', 'connected')`).run(now, now, connectionId);
+}
+
 /** The connection that owns a platform (any library), or undefined: security §2.6 orphan rule. */
 export function platformOwner(db: Db, platformId: string): string | undefined {
   const row = db.prepare('SELECT id FROM connection WHERE lti_platform_id = ?').get(platformId);

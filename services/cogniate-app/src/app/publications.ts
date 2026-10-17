@@ -5,18 +5,20 @@ import { z } from 'zod';
 import { getConnection } from '../domain/connections.ts';
 import { getCourse, getVersion, latestVersion } from '../domain/courses.ts';
 import type { Db } from '../domain/db.ts';
+import { launchStats } from '../domain/launch.ts';
 import type { Publication } from '../domain/publications.ts';
 import { getPublication, listPublications, upsertPublication, withdrawPublication } from '../domain/publications.ts';
 import { ApiError } from './api-errors.ts';
 
 const iso = (ms: number): string => new Date(ms).toISOString();
 
-export function publicationJson(p: Publication) {
+export function publicationJson(db: Db, p: Publication) {
+  const { activities, learners } = launchStats(db, p);
   return {
     id: p.id, connectionId: p.connectionId, courseId: p.courseId, courseTitle: p.courseTitle, versionId: p.versionId, version: p.version,
     format: p.format, status: p.status,
-    // T5a fills the stats from attempts and score syncs.
-    stats: { activities: 0, learners: 0, inProgress: 0, completed: 0, passed: 0, failed: 0, lastScoreSync: null },
+    // T4b2: activities and learners. T5a fills the outcome counts and lastScoreSync from attempts and score syncs.
+    stats: { activities, learners, inProgress: 0, completed: 0, passed: 0, failed: 0, lastScoreSync: null },
     createdAt: iso(p.createdAt), updatedAt: iso(p.updatedAt),
   };
 }
@@ -46,25 +48,25 @@ export function registerPublicationRoutes(api: FastifyInstance, deps: { db: Db; 
     if (body.data.versionId !== undefined && !version) throw notFound('course version');
     if (!version) throw new ApiError('VERSION_NOT_READY', 'The course has no uploaded version yet.');
     const { publication, created } = upsertPublication(db, lib, { connectionId: connection.id, courseId: course.id, versionId: version.id }, now());
-    return reply.code(created ? 201 : 200).send(publicationJson(publication));
+    return reply.code(created ? 201 : 200).send(publicationJson(db, publication));
   });
 
   api.get('/publications', async (req) => {
     const q = PublicationQuery.safeParse(req.query ?? {});
     if (!q.success) throw new ApiError('INVALID_REQUEST', 'Invalid query.');
     const filter = Object.fromEntries(Object.entries(q.data).filter(([, v]) => v !== undefined)) as { connectionId?: string; courseId?: string };
-    return { publications: listPublications(db, libraryId(req), filter).map(publicationJson) };
+    return { publications: listPublications(db, libraryId(req), filter).map((x) => publicationJson(db, x)) };
   });
 
   api.get<IdParams>('/publications/:id', async (req) => {
     const p = getPublication(db, libraryId(req), req.params.id);
     if (!p) throw notFound('publication');
-    return publicationJson(p);
+    return publicationJson(db, p);
   });
 
   api.post<IdParams>('/publications/:id/withdraw', async (req) => {
     const p = withdrawPublication(db, libraryId(req), req.params.id, now());
     if (!p) throw notFound('publication');
-    return publicationJson(p);
+    return publicationJson(db, p);
   });
 }

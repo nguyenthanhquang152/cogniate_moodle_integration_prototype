@@ -235,8 +235,10 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
           // this issuer is the SAME Moodle tool (Moodle issues a new client id for every new tool, so only a re-sent or
           // re-used registration gets here). The platform belongs to this account (security §2.5), so we update it and
           // log operation "update".
+          // A-T4b1-03: keep the stored `active` value. A platform that was switched off (for example an orphan that the
+          // app deactivated) is never switched on again by this path.
           const same = listPlatforms(ctx.db, account.id, { url: config.issuer, clientId: values.clientId })[0]!;
-          platform = applyRegistrationUpdate(ctx.db, account.id, same.id, values);
+          platform = applyRegistrationUpdate(ctx.db, account.id, same.id, { ...values, active: same.active });
           operation = 'update';
         }
       }
