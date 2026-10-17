@@ -60,8 +60,11 @@ function copyFixtures() {
   return ok;
 }
 
+// The package store is /data/packages in the cogniate-app container (AC-T4-05 text since 2254792). `test -d` first:
+// in a pipe, a failed `ls` would still exit 0 and count 0 before and after (a false "same count").
+const STORE = '/data/packages';
 async function packageFolders(app) {
-  const res = await r.exec('package-store-count', 'docker', ['exec', app, 'sh', '-c', 'ls data/packages | wc -l']);
+  const res = await r.exec('package-store-count', 'docker', ['exec', app, 'sh', '-c', `test -d ${STORE} && find ${STORE} -mindepth 1 -maxdepth 1 -type d | wc -l`]);
   return { code: res.code, count: Number(res.stdout.trim()), log: res.log };
 }
 
@@ -81,7 +84,7 @@ async function ac05() {
   const found = find.stdout.split('\n').filter(Boolean);
   const ok = before.code === 0 && after.code === 0 && before.count === after.count && found.length === 0;
   r.record('AC-T4-05', 'After the crafted zips: the package store folder count is the same, and no evil.html or abs.html exists in the container', r.pass(ok), [
-    `ls data/packages | wc -l: before ${before.count} (exit ${before.code}), after ${after.count} (exit ${after.code})`,
+    `folders in ${STORE}: before ${before.count} (exit ${before.code}), after ${after.count} (exit ${after.code})`,
     `find: ${found.length ? found.join(', ') : 'nothing'}`,
   ], [before.log, after.log, find.log]);
 }

@@ -150,6 +150,18 @@ export interface ErrorPage {
   pageShowsCode?: boolean;
   /** The page has a <form> (security: error pages have no form and no state-changing button). */
   hasForm?: boolean;
+  /** Number of elements with `data-error-action` (security §2.2, 2254792: the next-action sentence). */
+  actionCount?: number;
+  /** Visible text of the first `data-error-action` element. */
+  actionText?: string;
+}
+
+/** Elements that carry `data-error-action`, with their visible text. */
+export function errorActions(html: string): string[] {
+  const out: string[] = [];
+  const re = /<([a-zA-Z][a-zA-Z0-9]*)\b[^>]*\bdata-error-action\b[^>]*>([\s\S]*?)<\/\1\s*>/g;
+  for (let m = re.exec(html); m; m = re.exec(html)) out.push(visibleText(m[2]).trim());
+  return out;
 }
 
 /** Visible text of an HTML page: no script or style content, no tags, entities of the code alphabet decoded. */
@@ -257,6 +269,8 @@ export function checkErrorPage(
     pageShowsTraceId: Boolean(traceId) && text.includes(traceId),
     pageShowsCode: Boolean(pageCode) && text.includes(pageCode!),
     hasForm: /<form\b/i.test(res.body),
+    actionCount: errorActions(res.body).length,
+    actionText: errorActions(res.body)[0] ?? '',
   });
   return problems;
 }

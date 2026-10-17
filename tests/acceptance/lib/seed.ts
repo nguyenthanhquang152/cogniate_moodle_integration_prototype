@@ -68,7 +68,8 @@ export function loadSeed(file = SEED_FILE): Seed {
     if (typeof node.shortname === 'string' && id !== null) courses.set(node.shortname, id);
     for (const [key, value] of Object.entries(node)) {
       // ltiSeed.cmids (T2a) uses the course shortnames as keys for activity ids, not course ids.
-      if (key === 'ltiSeed' || key === 'cmids') continue;
+      // `portal` (T4a: portal.users.<email> with library ids) holds no Moodle users, courses or WS tokens.
+      if (key === 'ltiSeed' || key === 'cmids' || key === 'portal') continue;
       if ((COURSE_SHORTNAMES as readonly string[]).includes(key)) {
         const courseId = toInt(value) ?? (isObject(value) ? (toInt(value.id) ?? toInt(value.courseid)) : null);
         if (courseId !== null) courses.set(key, courseId);

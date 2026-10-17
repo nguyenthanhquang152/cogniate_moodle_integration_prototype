@@ -52,7 +52,7 @@ test.describe.serial('T4b2 negative cases', () => {
     }
   });
 
-  test('AC-T4-20 /tool/deep-link with a student resource ltik → 403 page, deep_link_rejected {reason: role_not_allowed}; a POST to a used picker → 410', async ({ browser }) => {
+  test('AC-T4-20 /tool/deep-link with an unused student resource ltik → 403 page, deep_link_rejected {reason: not_deep_linking}; a POST to a used picker → 410', async ({ browser }) => {
     test.setTimeout(90_000);
     const st = t4b();
     const context = await newStackContext(browser);
@@ -66,7 +66,7 @@ test.describe.serial('T4b2 negative cases', () => {
       expect(checkErrorPage(dl, code, { statuses: [403], test: 'AC-T4-20', endpoint: 'tool' })).toEqual([]);
       const ev = await waitForEvent('cogniate-app', (e) => e.event === 'deep_link_rejected' && e.trace_id === pageTraceId(dl));
       expect(ev, `deep_link_rejected with the page trace id ${pageTraceId(dl)}`).toBeDefined();
-      expect(ev!.reason).toBe('role_not_allowed');
+      expect(ev!.reason, 'check order of app contract §6: message type before role').toBe('not_deep_linking');
     } finally {
       await context.close();
     }

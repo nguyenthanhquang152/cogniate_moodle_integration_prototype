@@ -71,6 +71,8 @@ test('AC-T2-30 profile, sink, error-page events, JWKS hit count and secrets over
   if (pages.length === 0) problems.push('no error pages were recorded (the T2b checks did not run)');
   for (const p of pages) {
     if (!p.code || !p.traceId || !p.pageShowsTraceId) problems.push(`${p.test} ${p.code || '?'}: data-error-code or data-trace-id missing`);
+    // 2254792: the next-action sentence is one non-empty data-error-action element (security §2.2).
+    if (p.actionCount !== 1 || !p.actionText) problems.push(`${p.test} ${p.code || '?'}: ${p.actionCount ?? 0} data-error-action elements (text "${p.actionText ?? ''}"), want one non-empty`);
     const event = await waitForEvent(
       'lti-service',
       (e) => e.trace_id === p.traceId && (e.event === 'launch_check_failed' || e.event === 'login_rejected'),

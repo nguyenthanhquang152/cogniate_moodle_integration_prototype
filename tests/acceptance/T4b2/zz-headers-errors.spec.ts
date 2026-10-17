@@ -9,7 +9,7 @@ import { t4b } from '../lib/t4b-state';
 
 const urls = publicUrls();
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-/** AC-T4-32 (c3746bb): the log event of each tool error page, by the AC that made the page. */
+/** AC-T4-32 (2254792): the log event of each tool error page, by the AC that made the page. */
 function expectedEvent(p: { test: string; status: number }): { event: string; reason?: string } | undefined {
   switch (p.test) {
     case 'AC-T4-18':
@@ -20,7 +20,7 @@ function expectedEvent(p: { test: string; status: number }): { event: string; re
     case 'AC-T4-26':
       return { event: 'picker_rejected' };
     case 'AC-T4-20':
-      return p.status === 403 ? { event: 'deep_link_rejected', reason: 'role_not_allowed' } : { event: 'picker_rejected' };
+      return p.status === 403 ? { event: 'deep_link_rejected', reason: 'not_deep_linking' } : { event: 'picker_rejected' };
     default:
       return undefined;
   }
@@ -55,7 +55,7 @@ test('AC-T4-21 headers of the picker, the picker POST result, /play, /play/…/e
   expect(problems).toEqual([]);
 });
 
-test('AC-T4-32 every tool page error shows its code and trace id (data-error-code, data-trace-id) and has no form; its trace id is in the matching log event', async () => {
+test('AC-T4-32 every tool page error shows its code, trace id and one action line (data-error-code, data-trace-id, data-error-action), has no form, and its trace id is in the matching log event', async () => {
   const pages = capturedErrorPages().filter((p) => p.endpoint === 'tool' && p.test.startsWith('AC-T4-'));
   const problems: string[] = [];
   for (const id of NAMED) if (!pages.some((p) => p.test === id)) problems.push(`${id}: no tool error page recorded (the AC did not run or failed early)`);
@@ -69,6 +69,7 @@ test('AC-T4-32 every tool page error shows its code and trace id (data-error-cod
     if (!p.pageShowsCode) problems.push(`${label}: the code is not in the visible text`);
     if (!p.pageShowsTraceId) problems.push(`${label}: the trace id is not in the visible text`);
     if (p.hasForm) problems.push(`${label}: the error page has a form`);
+    if (p.actionCount !== 1 || !p.actionText) problems.push(`${label}: ${p.actionCount ?? 0} data-error-action elements (text "${p.actionText ?? ''}"), want one non-empty`);
     const want = expectedEvent(p);
     const ev = await waitForEvent(
       'cogniate-app',
@@ -79,6 +80,5 @@ test('AC-T4-32 every tool page error shows its code and trace id (data-error-cod
     else if (want?.reason && ev.reason !== want.reason) problems.push(`${label}: ${want.event} reason ${String(ev.reason)}, want ${want.reason}`);
   }
   test.info().annotations.push({ type: 'pages', description: pages.map((p) => `${p.test}:${p.status}:${p.code}`).join(', ') });
-  test.info().annotations.push({ type: 'not checked', description: '"one action line": the contracts give no marker for it (spec note to the Architect)' });
   expect(problems).toEqual([]);
 });

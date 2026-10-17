@@ -1,5 +1,6 @@
-// T4a: mock session and the two real course packages. Source: tasks/T4a.md AC-T4-01, AC-T4-03, AC-T4-04;
-// contract cogniate-app-api.md §2, §3 (report rules), §3.1.
+// T4a: mock session and the two real course packages. Source: tasks/T4a.md AC-T4-01, AC-T4-03 (incl. the 2254792
+// text: masteryScore with a SCORM package → 400 MASTERY_SCORE_NOT_ALLOWED), AC-T4-04; contract cogniate-app-api.md
+// §2, §3 (report rules, POST …/versions), §3.1.
 import crypto from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { appApi, createCourse, portalUser, SESSION_COOKIE, signIn, THANH, uploadVersion } from '../lib/app';
@@ -59,6 +60,21 @@ describe('T4a uploads of the real packages', () => {
     expect(v.report.scorm?.scoCount).toBe(1);
     expect(v.report.externalHosts).toEqual([S3]);
     expect(v.trackingProfile.questionIds).toEqual([QUESTION]);
+  });
+
+  it('AC-T4-03 the same SCORM upload with masteryScore=50 → 400 MASTERY_SCORE_NOT_ALLOWED; no new version is stored', { timeout: 180_000 }, async () => {
+    const s = await signIn(THANH);
+    const course = await createCourse(s, `QA SCORM mastery ${runId}`);
+    const first = await uploadVersion(s, course.id, courseZipCopy('scorm'));
+    expect(first.status, first.body.slice(0, 300)).toBe(201);
+    const firstId = String((first.json as { id?: string }).id);
+    const res = await uploadVersion(s, course.id, courseZipCopy('scorm'), { fields: { masteryScore: '50' } });
+    expect(res.status, res.body.slice(0, 300)).toBe(400);
+    expect((res.json as { details?: { message?: string } } | null)?.details?.message).toBe('MASTERY_SCORE_NOT_ALLOWED');
+    const after = await appApi<{ versions?: unknown[]; latestVersion?: { id?: string } | null }>('GET', `/app-api/courses/${course.id}`, { cookie: s.cookie });
+    expect(after.status).toBe(200);
+    expect(after.json.versions ?? [], 'still one version').toHaveLength(1);
+    expect(after.json.latestVersion?.id, 'latestVersion is still the first upload').toBe(firstId);
   });
 
   it('AC-T4-04 the HTML zip → 201 with the exact report values', { timeout: 120_000 }, async () => {
