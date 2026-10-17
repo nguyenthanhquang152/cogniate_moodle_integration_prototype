@@ -45,6 +45,8 @@ QA writes tests from the task specs and contracts only (charter §1). It does no
 Determinism rules:
 
 - `retries: 0`, `workers: 1`. Unique names per run (for example `QA DL <runId>`).
+- Fresh activity per AC: an AC that needs a learner with no earlier state uses its **own** activity, made by deep-linking the same publication again (a new activity is a new resource link, so attempts and grades start empty). Name: `Cogniate <SCORM|HTML> <AC id>`, for example `Cogniate HTML AC-T5-28`. The AC says when it needs one.
+- ACs that share state list a "QA run order" line in their task file.
 - Block every host that is not `*.test` in all browser contexts and record the blocked URLs (the packages load S3 images and Google fonts). AC-T5-36 makes them hang instead. Use `waitUntil: 'domcontentloaded'` when hosts hang.
 - Requests sent while a page closes are not seen by `page.route()`: check them in the service logs.
 - Poll with the deadlines in the ACs. Fixed waits only for the 11 s dwell and the TTL tests.

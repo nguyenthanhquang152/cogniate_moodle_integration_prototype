@@ -408,7 +408,7 @@ Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `e
 | `deep_link_rejected` | warn | `reason`: `not_deep_linking` (the ltik is not a deep-linking launch), `role_not_allowed`, `invalid_ltik` |
 | `picker_rejected` | warn | `reason`: `used`, `expired`, `publication_not_available` |
 | `registration_confirm_rejected` | warn | `code` |
-| `commit_accepted` | info | `session_id`, `seq`, `event` |
+| `commit_accepted` | info | `session_id`, `seq`, `commit_event` (`commit`, `finish`, `unload` or `progress`; the field is not called `event`, because every log line already has `event`) |
 | `internal_error` | error | `method`, `path` (no query, no capability ids), `error` (the error class name only, for example `TypeError`). No error message with data and no stack trace in the JSON file (stdout may print the stack at `debug`). The response is `500 INTERNAL_ERROR` with the trace id. |
 | `commit_rejected` | warn | `code`, `field` |
 | `outcome_changed` | info | `attempt_id`, `outcome` |
