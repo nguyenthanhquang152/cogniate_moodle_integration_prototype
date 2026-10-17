@@ -85,7 +85,7 @@ export async function deepLinkActivity(
   context.on('response', onResponse);
   await context.route(matcher, handler);
   try {
-    await page.goto(`${urls.moodle}/course/modedit.php?add=lti&type=${typeId}&course=${courseId}&section=0&return=0`);
+    await page.goto(`${urls.moodle}/course/modedit.php?add=lti&typeid=${typeId}&course=${courseId}&section=0&return=0`);
     await page.locator('#id_selectcontent').click();
     const title = String(contentItems[0]?.title ?? '');
     const deadline = Date.now() + timeoutMs;
@@ -178,7 +178,7 @@ async function sesskey(page: Page): Promise<string> {
 /** Adds an activity with a tool type to a course (accept grades, maximum grade 100) and returns its cmid. */
 export async function addToolActivity(page: Page, teacher: MoodleUser, courseId: number, typeId: number, name: string): Promise<number> {
   await moodleLogin(page, urls.moodle, teacher.username, teacher.password);
-  await page.goto(`${urls.moodle}/course/modedit.php?add=lti&type=${typeId}&course=${courseId}&section=0&return=0`);
+  await page.goto(`${urls.moodle}/course/modedit.php?add=lti&typeid=${typeId}&course=${courseId}&section=0&return=0`);
   await page.locator('#id_name').fill(name);
   const accept = page.locator('#id_instructorchoiceacceptgrades');
   if ((await accept.count()) && !(await accept.isChecked())) await accept.check();
@@ -227,7 +227,7 @@ export async function openPicker(
     await page.goto(
       updateCmid
         ? `${urls.moodle}/course/modedit.php?update=${updateCmid}&return=0`
-        : `${urls.moodle}/course/modedit.php?add=lti&type=${typeId}&course=${courseId}&section=0&return=0`,
+        : `${urls.moodle}/course/modedit.php?add=lti&typeid=${typeId}&course=${courseId}&section=0&return=0`,
     );
     await page.locator('#id_selectcontent').click();
     const deadline = Date.now() + timeoutMs;

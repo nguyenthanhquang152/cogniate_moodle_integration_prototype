@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// QA host runner for T2a and T2b (black-box, from tasks/T2a.md and tasks/T2b.md). Node built-ins only.
+// QA host runner for T2a, T2b and T3a (black-box, from tasks/T2a.md, T2b.md, T3a.md). Node built-ins only.
+// T3a runs in the same pass A: its setup is the T2b setup (acceptance profile, seed:lti-manual).
 //
 //   COMPOSE_PROJECT_NAME=qa-t2-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 \
 //     node tests/host/run-t2.mjs --sha <commit> [--tasks T2a,T2b] [--replace-tests --only-task-folders T2a,T2b]
@@ -18,12 +19,13 @@ const r = createRunner({
   task: 'T2',
   defaultProject: 'qa-t2-r1',
   extraOptions: { tasks: { type: 'string', default: 'T2a,T2b' } },
-  extraHelp: '  --tasks <list>               Task folders to run (default T2a,T2b).\n',
+  extraHelp: '  --tasks <list>               Task folders to run (default T2a,T2b; T3a may be added).\n',
 });
 const TASKS = r.opt.tasks.split(',').map((t) => t.trim());
 const EXPECT = {
   T2a: ['AC-T2-01', 'AC-T2-02', 'AC-T2-03', 'AC-T2-04', 'AC-T2-05', 'AC-T2-06', 'AC-T2-08', 'AC-T2-12', 'AC-T2-13', 'AC-T2-14', 'AC-T2-15', 'AC-T2-16', 'AC-T2-18', 'AC-T2-19', 'AC-T2-29', 'AC-T2-31'],
   T2b: ['AC-T2-09', 'AC-T2-10', 'AC-T2-11', 'AC-T2-20', 'AC-T2-21', 'AC-T2-22', 'AC-T2-23', 'AC-T2-24', 'AC-T2-25', 'AC-T2-26', 'AC-T2-27', 'AC-T2-28', 'AC-T2-30', 'AC-T2-32'],
+  T3a: ['AC-T3-06', 'AC-T3-07', 'AC-T3-08', 'AC-T3-10', 'AC-T3-11', 'AC-T3-12', 'AC-T3-13', 'AC-T3-14', 'AC-T3-16', 'AC-T3-17', 'AC-T3-18', 'AC-T3-22', 'AC-T3-23', 'AC-T3-24'],
 };
 
 function ltiSeedOf() {
@@ -66,8 +68,10 @@ async function ac31First() {
 async function passA() {
   const { tests } = await r.containerSuite('passA', { env: { QA_TASK: TASKS.join(',') }, expectIds: TASKS.flatMap((t) => EXPECT[t] ?? []) });
   // H14 (T2a scope): npm run test:acceptance forwards the caller's QA_* env, so only the selected task folders ran.
-  // T2b also has the H6 control test (qa-platform.test serves run-time files), which is in scope.
-  const others = tests.filter((t) => !/^AC-T2-/.test(t.id) && !(TASKS.includes('T2b') && t.id === 'H6'));
+  // In scope: the AC ids of the selected tasks (AC-T2-*, AC-T3-*), SETUP-* tests, and T2b's control test H6.
+  const prefixes = [...new Set(TASKS.map((t) => t.match(/^T(\d+)/)?.[1]).filter(Boolean))];
+  const inScope = new RegExp(`^(AC-T(${prefixes.join('|')})-|SETUP-)`);
+  const others = tests.filter((t) => !inScope.test(t.id) && !(TASKS.includes('T2b') && t.id === 'H6'));
   r.record('H14', `npm run test:acceptance forwards QA_TASK=${TASKS.join(',')} into the e2e container (only those tests ran)`, r.pass(tests.length > 0 && others.length === 0), [
     `tests reported: ${tests.length}; outside ${TASKS.join(',')}: ${others.length}${others.length ? ` (${others.slice(0, 5).map((t) => t.id).join(', ')}…)` : ''}`,
   ]);
@@ -116,7 +120,7 @@ async function ac31AfterReset() {
 
 await r.main(async () => {
   if (!(await setup())) return;
-  if (TASKS.includes('T2a') || TASKS.includes('T2b')) {
+  if (TASKS.includes('T2a') || TASKS.includes('T2b') || TASKS.includes('T3a')) {
     if (!(await ac31First())) return;
   }
   await passA();

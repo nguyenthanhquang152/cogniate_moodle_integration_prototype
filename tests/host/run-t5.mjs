@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// QA host runner for T5a and T5b (black-box, from tasks/T5a.md and tasks/T5b.md). Node built-ins only.
+// QA host runner for T5a, T5b and T6 (black-box, from tasks/T5a.md, T5b.md, T6.md). Node built-ins only.
+// T6 reads the T5 result rows (AC-T6-08, AC-T6-14), so it runs after T5b on the same stack (--tasks T5a,T5b,T6).
 //
 //   COMPOSE_PROJECT_NAME=qa-t5a-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 \
 //   COURSE_FIXTURES_DIR=<repo>/docs/raw/data/courses node tests/host/run-t5.mjs --sha <commit> [--tasks T5a,T5b]
@@ -12,6 +13,8 @@
 //    the host actions that the tests ask for (tests/acceptance/lib/host-control.ts): "docker compose stop moodle",
 //    "docker compose start moodle" (AC-T5-14, -30) and "npm run stack:restart -- lti-service" (AC-T5-31). Only these
 //    three commands, only for this QA project.
+// 5. T6 pass (if selected): QA_TASK=T6 (fresh: false). With T6, setup runs `npm run build` before `stack:up`
+//    (tasks/T6.md: "after npm run build && npm run stack:up && npm run seed").
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -21,7 +24,7 @@ const r = createRunner({
   task: 'T5',
   defaultProject: 'qa-t5-r1',
   extraOptions: { tasks: { type: 'string', default: 'T5a,T5b' } },
-  extraHelp: '  --tasks <list>               Task folders to run (default T5a,T5b).\n',
+  extraHelp: '  --tasks <list>               Task folders to run (default T5a,T5b; add T6 for the portal UI).\n',
 });
 const TASKS = r.opt.tasks.split(',').map((t) => t.trim());
 const ZIPS = [
@@ -32,6 +35,7 @@ const EXPECT = {
   T5a: ['SETUP-T5a', 'AC-T5-01', 'AC-T5-02', 'AC-T5-03', 'AC-T5-04', 'AC-T5-05', 'AC-T5-06', 'AC-T5-21', 'AC-T5-22', 'AC-T5-07', 'AC-T5-34', 'AC-T5-20', 'AC-T5-12',
     'AC-T5-35', 'AC-T5-24', 'AC-T5-08', 'AC-T5-23', 'AC-T5-13', 'AC-T5-37', 'AC-T5-15', 'AC-T5-16', 'AC-T5-17'],
   T5b: ['SETUP-T5b', 'AC-T5-09', 'AC-T5-36', 'AC-T5-10', 'AC-T5-11', 'AC-T5-27', 'AC-T5-28', 'AC-T5-29', 'AC-T5-14', 'AC-T5-30', 'AC-T5-31', 'AC-T5-32', 'AC-T5-33', 'AC-T5-18', 'AC-T5-19'],
+  T6: ['SETUP-T6', 'AC-T6-01', 'AC-T6-02', 'AC-T6-03', 'AC-T6-04', 'AC-T6-05', 'AC-T6-06', 'AC-T6-07', 'AC-T6-08', 'AC-T6-09', 'AC-T6-10', 'AC-T6-11', 'AC-T6-12', 'AC-T6-13', 'AC-T6-14'],
 };
 
 async function setup() {
@@ -40,6 +44,8 @@ async function setup() {
   r.loadStackFiles();
   await r.composeNameGuard();
   if (r.state.abort) return false;
+  const build = TASKS.includes('T6') ? await r.npm('build', ['run', 'build'], { timeoutMs: 900_000 }) : { code: 0 };
+  if (build.code !== 0) r.record('BUILD', 'npm run build (T6)', 'FAIL', [`exit ${build.code}`], [build.log]);
   const up = await r.npm('stack-up', ['run', 'stack:up'], { timeoutMs: 900_000 });
   const seed = up.code === 0 ? await r.npm('seed', ['run', 'seed'], { timeoutMs: 900_000 }) : null;
   r.loadStackFiles();
@@ -147,4 +153,5 @@ await r.main(async () => {
     await knobPass();
   }
   if (TASKS.includes('T5b')) await passT5b();
+  if (TASKS.includes('T6')) await r.containerSuite('T6', { env: { QA_TASK: 'T6' }, expectIds: EXPECT.T6, fresh: false });
 });
