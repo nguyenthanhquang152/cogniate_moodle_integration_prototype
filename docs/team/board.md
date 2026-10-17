@@ -9,10 +9,10 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 | 1 | T1 | Monorepo skeleton + local HTTPS stack (Moodle 5.2) | Author | **done** | 2 | R2: QA PASS 13/13 + hooks, A APPROVE, B APPROVE. Deferred MINOR: A-T1-02 rest, A-T1-03, A-T1-05, A-T1-08, A-T1-09, B-T1-03 rest, B-T1-06..12, Q-T1-04 (→ T4). |
 | 2 | T5-spike | Player de-risk: frames, CSP, SCORM API, HTML signals | Author | **done** | — | Unreviewed. 07e8a45. Own SCORM 1.2 subset; frame-ancestors {content} {app}; sandbox allow-scripts allow-same-origin. |
 | 3 | T2a | LTI core: platforms, keys/JWKS, OIDC launch, ltik, `/api/idtoken` | Author | **done** | 1 | QA PASS 16/16 (a2a5aa3), A APPROVE, B APPROVE. MINORs carried into T2b: A-T2a-01/02, B-T2a-01..04. |
-| 3b | T2b | Negative launch checks, qa-platform.test, acceptance profile | Author | in_progress | 1 | Paused for T4a R2 fixes. + T2a side items, shared migration runner, data-error-action. |
+| 3b | T2b | Negative launch checks, qa-platform.test, acceptance profile | Author | in_progress | 1 | + T2a side items, shared migration runner, data-error-action. |
 | 4 | T3a | Services the app needs: service keys, token client, deep-linking response, AGS scores | Author | planned | — | |
 | 5 | T3b | Dynamic registration incl. "update existing tool" | Author | planned | — | |
-| 6 | T4a | Upload + package inspector | Author | fixing | 2 | R1: A APPROVE, B APPROVE, QA FAIL only on new AC-T4-03 (masteryScore 400). R2: masteryScore, id bounds (A-T4a-01), reject actions (B-T4a-02), nosniff. |
+| 6 | T4a | Upload + package inspector | Author | verifying | 3 | R3 (73dccec): A APPROVE, B APPROVE; QA run at 93884d8. R2: QA FAIL only on U+0007 code (Q-T4a-02). |
 | 7 | T4b1 | Connect + publish | Author | planned | — | |
 | 7b | T4b2 | Picker, launch handoff, security | Author | planned | — | |
 | 8 | T5a | Content host, SCORM runtime, score sync | Author | planned | — | |
