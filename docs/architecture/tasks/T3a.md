@@ -21,6 +21,7 @@ Out: `/api/deeplinking/form`, `/message`, line item writes, NRPS, platform DELET
 
 ## Design notes
 
+- B-T4a-01 (from the T4a review): move the infra code that both services now duplicate into `packages/shared` (ADR-008 modules): migration runner and transaction helper (`migrations`), `ApiError` (`errors`), crypto helpers (`crypto`), `readCookie` (`server`). Do this before adding T3a code.
 - B-T2a-01 (from the T2a review): split `services/lti-service/src/http/app.ts` by route group (protocol, API, admin) before adding the T3a routes.
 
 - Scores URL = line item path + `/scores`, query kept (Moodle `?type_id=`).

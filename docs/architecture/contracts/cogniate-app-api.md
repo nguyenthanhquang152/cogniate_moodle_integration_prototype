@@ -92,7 +92,7 @@ Report rules: `fileCount` counts files (not folders). `totalBytes` = sum of unco
 
 ### 3.2 Reject codes
 
-Rejected upload: `422`, `details.message = "PACKAGE_REJECTED"`, `details.reasons = [{ "code", "path"?, "detail" }]`. Nothing stays in the package store. Log: `package_rejected {codes}`.
+Rejected upload: `422`, `details.message = "PACKAGE_REJECTED"`, `details.reasons = [{ "code", "path"?, "detail" }]`, and `details.action` = one sentence with the next action for the user (for example "Export the course again as SCORM 1.2 with one SCO."). Other app API errors may also carry `details.action`. Nothing stays in the package store. Log: `package_rejected {codes}`.
 
 | Code | Meaning |
 | --- | --- |
@@ -111,6 +111,21 @@ Rejected upload: `422`, `details.message = "PACKAGE_REJECTED"`, `details.reasons
 | `MULTI_SCO_UNSUPPORTED` | More than one SCO |
 | `LAUNCH_FILE_MISSING` | SCO `href` not in the zip |
 | `NO_ENTRY_PAGE` | HTML package without `index.html` |
+| `INVALID_PACKAGE_IDENTIFIER` | A package-derived identifier or title breaks the rules of §3.3 (`path` = file, `detail` = which field) |
+
+### 3.3 Package-derived identifiers (A-T4a-01)
+
+Values that come from the package are untrusted. They must pass these rules before anything is stored; otherwise the upload is rejected with `INVALID_PACKAGE_IDENTIFIER`.
+
+| Value | Source | Rule |
+| --- | --- | --- |
+| Manifest, organization, item and resource identifiers | `imsmanifest.xml` | 1–128 characters, `^[A-Za-z0-9._:-]+$` |
+| Question ids | `data-cog-quiz` | 1–128 characters, `^[A-Za-z0-9._:-]+$`; at most 1,000 per package |
+| Page keys | `body[data-lesson-id]`, else the file name without `.html` | 1–64 characters, `^[A-Za-z0-9._-]+$`; at most 500 pages per package |
+| Titles | manifest `<title>` | 1–255 characters after trim; no control characters (U+0000–U+001F except tab, U+007F–U+009F); stored as text and always escaped on output |
+| Forbidden names | every id and page key, case-insensitive | `__proto__`, `prototype`, `constructor` |
+
+Code keeps id-keyed data in `Map` objects or objects made with `Object.create(null)`.
 
 ## 4. Connections — T4b1
 
@@ -385,6 +400,7 @@ Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `e
 | `picker_rejected` | warn | `reason`: `used`, `expired`, `publication_not_available` |
 | `registration_confirm_rejected` | warn | `code` |
 | `commit_accepted` | info | `session_id`, `seq`, `event` |
+| `internal_error` | error | `method`, `path` (no query, no capability ids), `error_name`. No error message with data and no stack trace in the JSON file (stdout may print the stack at `debug`). The response is `500 INTERNAL_ERROR` with the trace id. |
 | `commit_rejected` | warn | `code`, `field` |
 | `outcome_changed` | info | `attempt_id`, `outcome` |
 | `score_sync` | info | `sync_id`, `status`, `tries` |
