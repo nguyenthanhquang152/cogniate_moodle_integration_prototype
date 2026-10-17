@@ -22,7 +22,7 @@ import {
 import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
 import { isOwnLaunchTarget } from '../../lti/target.ts';
-import { OutboundError } from '@cogniate/shared';
+import { OutboundError, pendingToolText } from '@cogniate/shared';
 
 const HEADING = 'The registration did not work';
 
@@ -39,8 +39,8 @@ export const REGISTRATION_HELP: Partial<Record<ProtocolErrorCode, string>> = {
 };
 
 /** A-T3b-01: the registration may have reached Moodle, but the result is unknown. No automatic clean-up. */
-export const TOOL_MAY_EXIST_TEXT = 'Moodle may have created a Pending Cogniate tool. Delete it in Site administration > Plugins > Activity modules > External tool > Manage tools, then start Connect again.';
-const toolMayExist = () => new ApiError('PLATFORM_ERROR', TOOL_MAY_EXIST_TEXT, { details: { reason: 'tool_may_exist' } });
+// The same clean-up text as the app page MOODLE_TOOL_MAY_EXIST (B-T4b1-02), with the tool name that was sent to Moodle.
+const toolMayExist = (toolName: string) => new ApiError('PLATFORM_ERROR', pendingToolText(toolName), { details: { reason: 'tool_may_exist' } });
 const SESSION_MAX_MS = 3600 * 1000; // contract §2.4: expires with the token, at most 1 h
 const CLOCK_SKEW_S = 60;
 const RESERVED_QUERY = new Set(['openid_configuration', 'registration_token', 'privacyLevel']);
@@ -200,21 +200,21 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
         });
       } catch (err) {
         // A timeout or a network error after the request left: Moodle may have created the tool (A-T3b-01).
-        if (err instanceof OutboundError && (err.reason === 'timeout' || err.reason === 'network_error')) throw toolMayExist();
+        if (err instanceof OutboundError && (err.reason === 'timeout' || err.reason === 'network_error')) throw toolMayExist(clientName);
         throw outboundFailureError(err);
       }
       // A retry after such a failure: Moodle refuses the used token (401 token_already_used). A 5xx can come after the tool was saved.
-      if ((res.status === 401 && res.text().includes('token_already_used')) || res.status >= 500) throw toolMayExist();
+      if ((res.status === 401 && res.text().includes('token_already_used')) || res.status >= 500) throw toolMayExist(clientName);
       // Contract §3.8: a platform refusal is 502 PLATFORM_ERROR with its code (Moodle: for example domain_targetlinkuri_mismatch).
       if (res.status < 200 || res.status >= 300) throw new ApiError('PLATFORM_ERROR', `The platform rejected the registration (${res.status}): ${shortPlatformMessage(res.body)}`);
       let answer: unknown;
       try {
         answer = res.json();
       } catch {
-        throw toolMayExist(); // 2xx: Moodle saved something, but we cannot read what
+        throw toolMayExist(clientName); // 2xx: Moodle saved something, but we cannot read what
       }
       const reg = parseRegistrationResponse(answer);
-      if (!reg) throw toolMayExist();
+      if (!reg) throw toolMayExist(clientName);
       const values = {
         clientId: reg.clientId, name: clientName, authEndpoint: config.authorizationEndpoint, tokenEndpoint: config.tokenEndpoint, jwksUrl: config.jwksUri,
         active: body.data.autoActivate ?? true, productFamilyCode: config.productFamilyCode || null, deploymentId: reg.deploymentId,

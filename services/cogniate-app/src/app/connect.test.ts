@@ -1,6 +1,6 @@
 import { makeZip } from '@cogniate/package-inspector/testing';
 import { afterEach, describe, expect, it } from 'vitest';
-import { isUpdateAllowed } from '../tool-pages/register.ts';
+import { LtiServiceError } from '../clients/lti-client.ts';
 import { toolPageHeaders } from '../tool-pages/page.ts';
 import type { TestApp } from '../testkit.ts';
 import { QA_B, TEST_URLS, THANH, formBody, testApp } from '../testkit.ts';
@@ -23,6 +23,11 @@ async function course(cookie: string): Promise<string> {
 }
 
 const refOf = (registrationUrl: string) => new URL(registrationUrl).searchParams.get('ref')!;
+const manualValues = (clientId: string, deploymentId = '1') => ({
+  issuer: TEST_URLS.moodle, clientId, deploymentId, authenticationEndpoint: `${TEST_URLS.moodle}/mod/lti/auth.php`,
+  accessTokenEndpoint: `${TEST_URLS.moodle}/mod/lti/token.php`, jwksUrl: `${TEST_URLS.moodle}/mod/lti/certs.php`,
+});
+const patches = () => t.lti.calls.filter((x) => x.startsWith('PATCH platform'));
 const pageCode = (body: string) => /data-error-code="([A-Z_]+)"/.exec(body)?.[1];
 
 describe('connections (app contract §4)', () => {
@@ -87,6 +92,59 @@ describe('connections (app contract §4)', () => {
     expect((await json('DELETE', `/app-api/connections/${c.id}`, cookie)).statusCode).toBe(204);
     expect((await json('GET', `/app-api/connections/${c.id}`, cookie)).json().status).toBe('disabled');
     expect(t.lti.calls.some((x) => x.startsWith('PATCH platform') && x.includes('"active":false'))).toBe(true);
+  });
+
+  it('AC-T4-36 (1): the dev seed platform is never adopted -> 409 PLATFORM_IN_USE; the seed platform is not changed', async () => {
+    t = await testApp();
+    // The dev seed platform: made through the LTI API (seed:lti-manual), bound to no connection.
+    t.lti.platforms.set('plt_seed', { id: 'plt_seed', url: TEST_URLS.moodle, clientId: 'seed-client', name: 'Moodle (seed)', active: true, deploymentIds: ['2'], productFamilyCode: null });
+    const cookie = await t.login(QA_B);
+    const c = (await json('POST', '/app-api/connections', cookie, { name: 'B', siteUrl: TEST_URLS.moodle, method: 'manual' })).json();
+    const r = await json('PUT', `/app-api/connections/${c.id}/platform`, cookie, manualValues('seed-client', '2'));
+    expect([r.statusCode, r.json().details.message]).toEqual([409, 'PLATFORM_IN_USE']);
+    expect((await json('GET', `/app-api/connections/${c.id}`, cookie)).json()).toMatchObject({ status: 'pending', platform: null });
+    expect(t.lti.platforms.get('plt_seed')).toMatchObject({ active: true, name: 'Moodle (seed)' });
+    expect(patches()).toEqual([]);
+  });
+
+  it('AC-T4-36 (2), (3): another library\'s platform -> 409 PLATFORM_IN_USE, nothing changes; the own PUT again -> 200, same platform', async () => {
+    t = await testApp();
+    const thanh = await t.login(THANH);
+    const a = (await json('POST', '/app-api/connections', thanh, { name: 'A', siteUrl: TEST_URLS.moodle, method: 'manual' })).json();
+    expect((await json('PUT', `/app-api/connections/${a.id}/platform`, thanh, manualValues('thanh-client'))).statusCode).toBe(200);
+    const aBefore = (await json('GET', `/app-api/connections/${a.id}`, thanh)).json();
+    const qaB = await t.login(QA_B);
+    const b = (await json('POST', '/app-api/connections', qaB, { name: 'B', siteUrl: TEST_URLS.moodle, method: 'manual' })).json();
+    const taken = await json('PUT', `/app-api/connections/${b.id}/platform`, qaB, manualValues('thanh-client'));
+    expect([taken.statusCode, taken.json().details.message]).toEqual([409, 'PLATFORM_IN_USE']);
+    expect((await json('GET', `/app-api/connections/${a.id}`, thanh)).json()).toEqual(aBefore);
+    expect(t.lti.platforms.get(aBefore.platform.id)!.active).toBe(true);
+    const own = await json('PUT', `/app-api/connections/${b.id}/platform`, qaB, manualValues('b-client'));
+    const again = await json('PUT', `/app-api/connections/${b.id}/platform`, qaB, manualValues('b-client'));
+    expect([own.statusCode, again.statusCode, again.json().platform.id]).toEqual([200, 200, own.json().platform.id]);
+    expect(t.lti.calls.filter((x) => x.startsWith('POST platform') && x.includes('b-client'))).toHaveLength(1);
+    // Other values on a registered connection are not a repeat.
+    const other = await json('PUT', `/app-api/connections/${b.id}/platform`, qaB, manualValues('b-client-2'));
+    expect([other.statusCode, other.json().details.message]).toEqual([409, 'CONNECTION_NOT_PENDING']);
+    expect(patches()).toEqual([]);
+  });
+
+  it('security §2.6: a platform made in the PUT that cannot be bound is switched off (platform_orphan_deactivated)', async () => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const c = (await json('POST', '/app-api/connections', cookie, { name: 'M', siteUrl: TEST_URLS.moodle, method: 'manual' })).json();
+    // A second request registers the connection while the LTI service makes this platform.
+    const orig = t.lti.client.createPlatform;
+    t.lti.client.createPlatform = async (body, traceId) => {
+      const p = await orig(body, traceId);
+      t.db.prepare("UPDATE connection SET status = 'registered' WHERE id = ?").run(c.id);
+      return p;
+    };
+    const r = await json('PUT', `/app-api/connections/${c.id}/platform`, cookie, manualValues('race-client'));
+    expect([r.statusCode, r.json().details.message]).toEqual([409, 'CONNECTION_NOT_PENDING']);
+    const made = [...t.lti.platforms.values()].find((p) => p.clientId === 'race-client')!;
+    expect(made.active).toBe(false);
+    expect(t.logs).toContainEqual(expect.objectContaining({ event: 'platform_orphan_deactivated', platform_id: made.id }));
   });
 
   it('toolName is ASCII', () => {
@@ -199,19 +257,105 @@ describe('/tool/register (app contract §6, security §5, §6)', () => {
     t.lti.failNext = null;
     const lti = t.lti;
     const orig = lti.client.completeRegistration;
-    lti.client.completeRegistration = async () => { throw new (await import('../domain/lti-client.ts')).LtiServiceError(502, 'PLATFORM_ERROR', 'x', 'tool_may_exist'); };
+    lti.client.completeRegistration = async () => { throw new (await import('../clients/lti-client.ts')).LtiServiceError(502, 'PLATFORM_ERROR', 'x', 'tool_may_exist'); };
     const r = await post(reg, ref);
     lti.client.completeRegistration = orig;
     expect([r.statusCode, pageCode(r.body)]).toEqual([502, 'MOODLE_TOOL_MAY_EXIST']);
-    expect(r.body).toContain('Delete it in Site administration &gt; Plugins &gt; Activity modules &gt; External tool &gt; Manage tools, then start Connect again.');
+    expect(r.body).toContain('Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool &#39;Cogniate (Thanh&#39;s Library)&#39;, then connect again.');
     expect(t.logs).toContainEqual(expect.objectContaining({ event: 'registration_confirm_rejected', code: 'MOODLE_TOOL_MAY_EXIST' }));
   });
 
-  it('isUpdateAllowed and the header builder', () => {
-    expect(isUpdateAllowed({ operation: 'new', existingPlatformId: null }, { ltiPlatformId: null })).toBe(true);
-    expect(isUpdateAllowed({ operation: 'update', existingPlatformId: 'p1' }, { ltiPlatformId: 'p1' })).toBe(true);
-    expect(isUpdateAllowed({ operation: 'update', existingPlatformId: 'p1' }, { ltiPlatformId: null })).toBe(false);
-    expect(isUpdateAllowed({ operation: 'update', existingPlatformId: null }, { ltiPlatformId: null })).toBe(false);
+  it('the returned platform belongs to another connection -> REGISTRATION_FAILED; neither connection changes (app contract §6)', async () => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const a = await pending(cookie);
+    const first = t.lti.addRegistration();
+    expect((await post(first, a.ref)).statusCode).toBe(200);
+    const aBefore = (await json('GET', `/app-api/connections/${a.id}`, cookie)).json();
+    const b = await pending(cookie);
+    const second = t.lti.addRegistration();
+    // The LTI service answers with the platform that connection A already holds.
+    const orig = t.lti.client.completeRegistration;
+    t.lti.client.completeRegistration = async () => ({ platformId: aBefore.platform.id, html: '' });
+    const r = await post(second, b.ref);
+    t.lti.client.completeRegistration = orig;
+    expect([r.statusCode, pageCode(r.body)]).toEqual([502, 'REGISTRATION_FAILED']);
+    expect(r.body).toContain('The connection failed. Go back to Moodle and try again.');
+    expect((await json('GET', `/app-api/connections/${a.id}`, cookie)).json()).toEqual(aBefore);
+    expect((await json('GET', `/app-api/connections/${b.id}`, cookie)).json()).toMatchObject({ status: 'pending', platform: null });
+    expect(patches()).toEqual([]); // the platform of connection A is not switched off
+    expect(pageCode((await get(t.lti.addRegistration(), b.ref)).body)).toBeUndefined(); // the ref still works (confirm page)
+  });
+
+  it('PUT platform only for a pending manual connection (409 CONNECTION_NOT_PENDING)', async () => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const d = await pending(cookie);
+    const r = await json('PUT', `/app-api/connections/${d.id}/platform`, cookie, { issuer: TEST_URLS.moodle });
+    expect([r.statusCode, r.json().details.message]).toEqual([409, 'CONNECTION_NOT_PENDING']);
+  });
+
+  it('security §2.5 (A-T4b1-02): every update is refused, whatever existingPlatformId names; complete is never called', async () => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const { id, ref } = await pending(cookie);
+    for (const existingPlatformId of [null, 'plt_1', 'plt_seed']) {
+      const upd = t.lti.addRegistration({ operation: 'update', existingPlatformId });
+      expect(pageCode((await get(upd, ref)).body)).toBe('UPDATE_NOT_ALLOWED');
+      expect(pageCode((await post(upd, ref)).body)).toBe('UPDATE_NOT_ALLOWED');
+    }
+    expect(t.lti.calls.some((x) => x.startsWith('POST complete'))).toBe(false);
+    expect((await json('GET', `/app-api/connections/${id}`, cookie)).json()).toMatchObject({ status: 'pending', lastError: { code: 'UPDATE_NOT_ALLOWED', ltiCode: null } });
+  });
+
+  it('security §2.6: library A\'s orphan (a second confirm that lost the race) is switched off; library B cannot adopt it', async () => {
+    t = await testApp();
+    const thanh = await t.login(THANH);
+    const a = await pending(thanh);
+    // Another tab registers connection A while this confirm runs: the platform of this confirm is an orphan.
+    const orig = t.lti.client.completeRegistration;
+    t.lti.client.completeRegistration = async (regId, body, traceId) => {
+      const done = await orig(regId, body, traceId);
+      t.db.prepare("UPDATE connection SET status = 'registered', ref_token_hash = NULL WHERE id = ?").run(a.id);
+      return done;
+    };
+    const r = await post(t.lti.addRegistration(), a.ref);
+    t.lti.client.completeRegistration = orig;
+    expect([r.statusCode, pageCode(r.body)]).toEqual([502, 'REGISTRATION_FAILED']);
+    const orphan = [...t.lti.platforms.values()].at(-1)!;
+    expect(orphan.active).toBe(false);
+    expect(t.logs).toContainEqual(expect.objectContaining({ event: 'platform_orphan_deactivated', platform_id: orphan.id }));
+    const qaB = await t.login(QA_B);
+    const b = (await json('POST', '/app-api/connections', qaB, { name: 'B', siteUrl: TEST_URLS.moodle, method: 'manual' })).json();
+    const take = await json('PUT', `/app-api/connections/${b.id}/platform`, qaB, manualValues(orphan.clientId, orphan.deploymentIds[0]));
+    expect([take.statusCode, take.json().details.message]).toEqual([409, 'PLATFORM_IN_USE']);
+    expect((await json('GET', `/app-api/connections/${b.id}`, qaB)).json()).toMatchObject({ status: 'pending', platform: null });
+  });
+
+  it('B-T4b1-01: a failed Connect logs the LTI status and code and stores lastError; success clears it', async () => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const { id, ref } = await pending(cookie);
+    const reg = t.lti.addRegistration();
+    const orig = t.lti.client.completeRegistration;
+    t.lti.client.completeRegistration = async () => { throw new LtiServiceError(502, 'PLATFORM_ERROR', 'Moodle said no', null); };
+    const r = await post(reg, ref);
+    t.lti.client.completeRegistration = orig;
+    expect(pageCode(r.body)).toBe('REGISTRATION_FAILED');
+    const traceId = String(r.headers['x-trace-id']);
+    const line = t.logs.find((l) => l.event === 'registration_confirm_rejected' && l.trace_id === traceId);
+    expect(line).toMatchObject({ code: 'REGISTRATION_FAILED', lti_status: 502, lti_code: 'PLATFORM_ERROR', lti_reason: null });
+    expect(JSON.stringify(line)).not.toContain('Moodle said no');
+    expect((await json('GET', `/app-api/connections/${id}`, cookie)).json().lastError)
+      .toEqual({ code: 'REGISTRATION_FAILED', ltiCode: 'PLATFORM_ERROR', traceId, at: new Date(t.clock.now).toISOString() });
+    // No platform id came back, so nothing is switched off.
+    expect(patches()).toEqual([]);
+    const ok = await post(reg, ref);
+    expect(ok.body).toContain('<h1>Connected</h1>');
+    expect((await json('GET', `/app-api/connections/${id}`, cookie)).json()).toMatchObject({ status: 'registered', lastError: null });
+  });
+
+  it('the header builder', () => {
     expect(toolPageHeaders('register-result', { site: 'https://m.test', nonce: 'n' })['content-security-policy']).toContain("frame-ancestors https://m.test; form-action 'none'");
     expect(() => toolPageHeaders('register-form')).toThrow();
   });

@@ -1,10 +1,9 @@
 // Server-rendered tool pages (app contract §6): layout with the portal CSS tokens (ADR-008 "Look"), escaping of all
 // untrusted text (security §7), and the page headers of security §5. No page sets a cookie or X-Frame-Options.
 import { randomBytes } from 'node:crypto';
+import { escapeHtml } from '@cogniate/shared';
 
-export function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
-}
+export { escapeHtml };
 
 /** A fresh nonce for one response (script-src 'nonce-…'). */
 export const newNonce = (): string => randomBytes(18).toString('base64');

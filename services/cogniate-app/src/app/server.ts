@@ -11,7 +11,7 @@ import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
 import type { Db } from '../domain/db.ts';
 import type { SignedIn } from '../domain/libraries.ts';
-import type { LtiClient } from '../domain/lti-client.ts';
+import type { LtiClient } from '../clients/lti-client.ts';
 import type { StorePaths } from '../domain/package-store.ts';
 import { registerRegisterPages } from '../tool-pages/register.ts';
 import { registerConnectionRoutes } from './connections.ts';
@@ -123,7 +123,7 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
     });
     registerSessionRoutes(api, { db: deps.db, now });
     registerCourseRoutes(api, { db: deps.db, logger: log, store: deps.store, limits, now });
-    registerConnectionRoutes(api, { db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, refTtlSeconds: deps.refTtlSeconds, now });
+    registerConnectionRoutes(api, { db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, refTtlSeconds: deps.refTtlSeconds, now });
     registerPublicationRoutes(api, { db: deps.db, now });
   }, { prefix: '/app-api' });
 

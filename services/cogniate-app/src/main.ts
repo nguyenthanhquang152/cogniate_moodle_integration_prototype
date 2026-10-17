@@ -7,7 +7,7 @@ import { buildAppApi } from './app/server.ts';
 import { loadConfig } from './config.ts';
 import { CONTENT_SERVICE_NAME, buildContentServer } from './content-host/server.ts';
 import { openDb } from './domain/db.ts';
-import { createLtiClient } from './domain/lti-client.ts';
+import { createLtiClient } from './clients/lti-client.ts';
 import { prepareStore } from './domain/package-store.ts';
 
 const APP_SERVICE_NAME = 'cogniate-app';

@@ -1,8 +1,7 @@
 // Protocol error pages (security §2.2). API errors (JSON) use ApiError and the typed code list in @cogniate/shared.
+import { escapeHtml } from '@cogniate/shared';
 
-export function escapeHtml(value: string): string {
-  return value.replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]!);
-}
+export { escapeHtml };
 
 /**
  * Headers of every protocol error page (security §5): no form and no action, so any https origin may frame it

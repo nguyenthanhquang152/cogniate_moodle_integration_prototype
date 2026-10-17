@@ -10,8 +10,8 @@ import { buildAppApi } from './app/server.ts';
 import type { Db } from './domain/db.ts';
 import { openDb } from './domain/db.ts';
 import { ensureLibrary, upsertUser } from './domain/libraries.ts';
-import type { LtiClient, LtiPlatform, LtiRegistration } from './domain/lti-client.ts';
-import { LtiServiceError } from './domain/lti-client.ts';
+import type { LtiClient, LtiPlatform, LtiRegistration } from './clients/lti-client.ts';
+import { LtiServiceError } from './clients/lti-client.ts';
 import type { StorePaths } from './domain/package-store.ts';
 import { prepareStore } from './domain/package-store.ts';
 
@@ -59,9 +59,10 @@ export function fakeLti(): FakeLti {
       const r = registrations.get(id);
       if (!r) throw new LtiServiceError(404, 'REGISTRATION_NOT_FOUND', '');
       if (r.completed) throw new LtiServiceError(409, 'REGISTRATION_ALREADY_COMPLETED', '');
-      if (r.operation === 'update' && body.updatePlatformId !== r.existingPlatformId) throw new LtiServiceError(409, 'REGISTRATION_UPDATE_NOT_ALLOWED', '');
+      // The app never sends updatePlatformId (security §2.5), so the LTI service refuses every update.
+      if (r.operation === 'update') throw new LtiServiceError(409, 'REGISTRATION_UPDATE_NOT_ALLOWED', '');
       r.completed = true;
-      const id2 = r.operation === 'update' ? r.existingPlatformId! : `plt_${++seq}`;
+      const id2 = `plt_${++seq}`;
       platforms.set(id2, { id: id2, url: r.url, clientId: `client-${seq}`, name: body.platformName, active: true, deploymentIds: [String(seq)], productFamilyCode: 'moodle' });
       return { platformId: id2, html: '<script>close</script>' };
     },
@@ -75,7 +76,6 @@ export function fakeLti(): FakeLti {
       return p;
     },
     async getPlatform(id) { calls.push(`GET platform ${id}`); const p = platforms.get(id); if (!p) throw new LtiServiceError(404, 'UNREGISTERED_PLATFORM', ''); return p; },
-    async findPlatforms(q) { return [...platforms.values()].filter((p) => p.url === q.url && p.clientId === q.clientId); },
     async patchPlatform(id, body) { calls.push(`PATCH platform ${id} ${JSON.stringify(body)}`); const p = platforms.get(id)!; Object.assign(p, body); return p; },
   };
   return {

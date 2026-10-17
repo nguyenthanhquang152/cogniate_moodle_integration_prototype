@@ -2,14 +2,14 @@
 // registration frame (cross-site iframe): no cookies; the `ref` token is the authorization. The confirm page needs a
 // real click on "Connect"; the POST then completes the registration in the LTI service and closes Moodle's dialog.
 import type { Logger, PublicUrls } from '@cogniate/shared';
-import { sha256Hex } from '@cogniate/shared';
+import { pendingToolText, sha256Hex } from '@cogniate/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { platformInfo, toolName } from '../app/connections.ts';
+import { deactivateOrphan, platformInfo, toolName } from '../app/connections.ts';
+import type { LtiClient, LtiRegistration } from '../clients/lti-client.ts';
+import { LtiServiceError, ltiErrorFields } from '../clients/lti-client.ts';
 import type { Connection } from '../domain/connections.ts';
-import { PlatformTakenError, findByRefHash, markRegistered, refreshPlatform } from '../domain/connections.ts';
+import { PlatformTakenError, findByRefHash, markRegistered, recordConnectError } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
-import type { LtiClient, LtiRegistration } from '../domain/lti-client.ts';
-import { LtiServiceError } from '../domain/lti-client.ts';
 import { errorPage, escapeHtml, layout, newNonce, toolPageHeaders } from './page.ts';
 
 export interface RegisterPageDeps {
@@ -30,16 +30,17 @@ export const REGISTER_ERRORS: Record<RegisterErrorCode, { status: number; action
   SITE_MISMATCH: { status: 400, action: 'This registration link is for another Moodle site. Use the link on the Moodle site that the Cogniate connection names.' },
   UPDATE_NOT_ALLOWED: { status: 409, action: 'Go back in Moodle and choose Register as a new tool.' },
   ORIGIN_NOT_ALLOWED: { status: 403, action: 'Open the registration again from Moodle and press Connect on the Cogniate page.' },
-  REGISTRATION_FAILED: { status: 502, action: 'The registration did not finish. Start it again from Moodle. If it happens again, give the trace id to your Cogniate admin.' },
-  // A-T3b-01: the LTI service does not know if Moodle saved the tool. No automatic clean-up.
-  MOODLE_TOOL_MAY_EXIST: { status: 502, action: 'Moodle may have created a Pending Cogniate tool. Delete it in Site administration > Plugins > Activity modules > External tool > Manage tools, then start Connect again.' },
+  // App contract §6 texts. In both cases the connection stays pending and the ref still works until it expires.
+  REGISTRATION_FAILED: { status: 502, action: 'The connection failed. Go back to Moodle and try again.' },
+  // A-T3b-01: the LTI service does not know if Moodle saved the tool. No automatic clean-up. The shared text gets the tool name.
+  MOODLE_TOOL_MAY_EXIST: { status: 502, action: pendingToolText('<tool>') },
 };
 
-/** Security §2.5 / ADR-009: an "update" is allowed only for this connection's own platform (a re-connect). */
-export function isUpdateAllowed(registration: Pick<LtiRegistration, 'operation' | 'existingPlatformId'>, connection: Pick<Connection, 'ltiPlatformId'>): boolean {
-  if (registration.operation !== 'update') return true;
-  return registration.existingPlatformId !== null && registration.existingPlatformId === connection.ltiPlatformId;
-}
+/** Codes that are stored as the connection's lastError (the connection is known; B-T4b1-01). */
+const STORED_CODES = new Set<RegisterErrorCode>(['SITE_MISMATCH', 'UPDATE_NOT_ALLOWED', 'REGISTRATION_FAILED', 'MOODLE_TOOL_MAY_EXIST']);
+
+type Found = Connection & { libraryName: string };
+type Failure = { ok: false; code: RegisterErrorCode; connection?: Found; err?: unknown };
 
 const HEADING = 'Cogniate could not connect this Moodle site';
 const REF = /^[A-Za-z0-9_-]{43}$/;
@@ -49,39 +50,46 @@ type Form = { registrationId?: unknown; ref?: unknown };
 export function registerRegisterPages(app: FastifyInstance, deps: RegisterPageDeps): void {
   const { db, urls, logger: log, lti, now } = deps;
 
-  const fail = (req: FastifyRequest, reply: FastifyReply, code: RegisterErrorCode) => {
-    log.warn('registration_confirm_rejected', { trace_id: req.traceId, code });
-    return reply.code(REGISTER_ERRORS[code].status).headers(toolPageHeaders('error')).send(errorPage(HEADING, code, req.traceId, REGISTER_ERRORS[code].action));
+  /** The error page. B-T4b1-01: the log has the LTI status and code (codes only), and a known connection keeps lastError. */
+  const fail = (req: FastifyRequest, reply: FastifyReply, f: Omit<Failure, 'ok'>) => {
+    const { code, connection, err } = f;
+    log.warn('registration_confirm_rejected', { trace_id: req.traceId, code, ...ltiErrorFields(err) });
+    if (connection && STORED_CODES.has(code)) {
+      recordConnectError(db, connection.id, { code, ltiCode: err instanceof LtiServiceError ? err.code : null, traceId: req.traceId, at: now() });
+    }
+    const action = REGISTER_ERRORS[code].action.replace('<tool>', connection ? toolName(connection.libraryName) : 'Cogniate');
+    return reply.code(REGISTER_ERRORS[code].status).headers(toolPageHeaders('error')).send(errorPage(HEADING, code, req.traceId, action));
   };
 
-  /** ref -> pending connection that has not expired; registration -> same site; the update rule. */
+  /** ref -> pending connection that has not expired; registration -> same site; never an update (security §2.5). */
   async function check(req: FastifyRequest, registrationId: unknown, ref: unknown):
-    Promise<{ ok: true; connection: Connection & { libraryName: string }; registration: LtiRegistration } | { ok: false; code: RegisterErrorCode }> {
+    Promise<{ ok: true; connection: Found; registration: LtiRegistration } | Failure> {
     if (typeof ref !== 'string' || !REF.test(ref) || typeof registrationId !== 'string' || !/^[A-Za-z0-9_-]{1,64}$/.test(registrationId)) return { ok: false, code: 'REF_INVALID' };
     const connection = findByRefHash(db, sha256Hex(ref));
     if (!connection || connection.status !== 'pending' || connection.method !== 'dynamic') return { ok: false, code: 'REF_INVALID' };
-    if (connection.refExpiresAt === null || connection.refExpiresAt <= now()) return { ok: false, code: 'REF_EXPIRED' };
+    if (connection.refExpiresAt === null || connection.refExpiresAt <= now()) return { ok: false, code: 'REF_EXPIRED', connection };
     let registration: LtiRegistration;
     try {
       registration = await lti.getRegistration(registrationId, req.traceId);
     } catch (err) {
-      return { ok: false, code: err instanceof LtiServiceError && err.status === 404 ? 'REF_INVALID' : 'REGISTRATION_FAILED' };
+      return { ok: false, code: err instanceof LtiServiceError && err.status === 404 ? 'REF_INVALID' : 'REGISTRATION_FAILED', connection, err };
     }
     let site: string;
     try {
       site = new URL(registration.url).origin;
     } catch {
-      return { ok: false, code: 'SITE_MISMATCH' };
+      return { ok: false, code: 'SITE_MISMATCH', connection };
     }
-    if (site !== connection.siteUrl) return { ok: false, code: 'SITE_MISMATCH' };
-    if (!isUpdateAllowed(registration, connection)) return { ok: false, code: 'UPDATE_NOT_ALLOWED' };
+    if (site !== connection.siteUrl) return { ok: false, code: 'SITE_MISMATCH', connection };
+    // Security §2.5 (A-T4b1-02): the app never allows an update. Re-connect = delete the Moodle tool, disconnect, connect again.
+    if (registration.operation === 'update') return { ok: false, code: 'UPDATE_NOT_ALLOWED', connection };
     return { ok: true, connection, registration };
   }
 
   // ---------------------------------------------------------------- GET: the confirm page
   app.get<{ Querystring: Form }>('/tool/register', async (req, reply) => {
     const r = await check(req, req.query.registrationId, req.query.ref);
-    if (!r.ok) return fail(req, reply, r.code);
+    if (!r.ok) return fail(req, reply, r);
     const nonce = newNonce();
     const { connection, registration } = r;
     const body = `<main data-page="register-confirm">
@@ -108,29 +116,31 @@ export function registerRegisterPages(app: FastifyInstance, deps: RegisterPageDe
     const origin = req.headers.origin;
     if (origin !== urls.app) {
       log.warn('csrf_rejected', { trace_id: req.traceId, origin: typeof origin === 'string' ? origin.slice(0, 200) : null });
-      return fail(req, reply, 'ORIGIN_NOT_ALLOWED');
+      return fail(req, reply, { code: 'ORIGIN_NOT_ALLOWED' });
     }
     const form = (req.body ?? {}) as Form;
     const r = await check(req, form.registrationId, form.ref);
-    if (!r.ok) return fail(req, reply, r.code);
-    const { connection, registration } = r;
-    const update = registration.operation === 'update';
+    if (!r.ok) return fail(req, reply, r);
+    const { connection } = r;
+    let platformId: string | null = null;
     try {
       const done = await lti.completeRegistration(String(form.registrationId), {
         platformName: toolName(connection.libraryName), privacyLevel: 'anonymous', autoActivate: true,
-        ...(update ? { updatePlatformId: registration.existingPlatformId! } : {}),
       }, req.traceId);
-      const platform = platformInfo(await lti.getPlatform(done.platformId, req.traceId));
-      if (update) refreshPlatform(db, connection.id, platform, now());
-      else markRegistered(db, connection.id, platform, now());
+      platformId = done.platformId;
+      markRegistered(db, connection.id, platformInfo(await lti.getPlatform(done.platformId, req.traceId)), now());
     } catch (err) {
-      if (err instanceof LtiServiceError && err.reason === 'tool_may_exist') return fail(req, reply, 'MOODLE_TOOL_MAY_EXIST');
-      if (err instanceof LtiServiceError || err instanceof PlatformTakenError) return fail(req, reply, 'REGISTRATION_FAILED');
-      throw err;
+      if (err instanceof LtiServiceError && err.reason === 'tool_may_exist') return fail(req, reply, { code: 'MOODLE_TOOL_MAY_EXIST', connection, err });
+      if (!(err instanceof LtiServiceError) && !(err instanceof PlatformTakenError)) throw err;
+      // The LTI service made or returned a platform that this connection cannot take: if no connection owns it, it is
+      // an orphan and is switched off at once (security §2.6). The platform of another connection is not touched, and
+      // neither connection changes (app contract §6).
+      if (platformId !== null) await deactivateOrphan({ db, lti, logger: log }, platformId, req.traceId);
+      return fail(req, reply, { code: 'REGISTRATION_FAILED', connection, err });
     }
     const nonce = newNonce();
     const body = `<main data-page="register-done" data-connection-status="registered">
-  <h1>Done</h1>
+  <h1>Connected</h1>
   <p>Done. Go back to Moodle and activate the tool.</p>
 </main>`;
     const js = "(window.opener || window.parent).postMessage({subject:'org.imsglobal.lti.close'}, '*');";

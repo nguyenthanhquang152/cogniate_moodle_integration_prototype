@@ -22,6 +22,7 @@ export const APP_API_ERRORS = defineErrorTable({
   PUBLICATION_NOT_AVAILABLE: { status: 400, description: 'The publication is not available.' },
   CONNECTION_NOT_READY: { status: 409, description: 'The connection is not ready.' },
   CONNECTION_NOT_PENDING: { status: 409, description: 'The connection is not pending.' },
+  PLATFORM_IN_USE: { status: 409, description: 'This Moodle tool is already registered with Cogniate.' },
   VERSION_NOT_READY: { status: 409, description: 'The course version is not ready.' },
   STALE_SEQUENCE: { status: 409, description: 'The sequence number is not newer than the last one.' },
   SYNC_NOT_RESENDABLE: { status: 409, description: 'Only a failed or conflict score sync can be sent again.' },

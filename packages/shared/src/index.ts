@@ -2,6 +2,7 @@ export { PUBLIC_URL_ENV, loadPublicUrls } from './config.ts';
 export type { PublicUrls } from './config.ts';
 export { closeOnSignal, createHealthServer, listen, portFromEnv, readCookie, sendJson, traceIdFrom } from './http.ts';
 export type { HealthBody, HealthServerOptions } from './http.ts';
+export { escapeHtml, pendingToolText } from './html.ts';
 export { decrypt, encrypt, randomId, randomToken, safeEqual, sha256Hex } from './crypto.ts';
 export { ApiErrorBase, apiErrorBody, defineErrorTable } from './errors.ts';
 export type { ApiErrorBody, ApiErrorOptions, ApiErrorSpec, ApiErrorTable } from './errors.ts';

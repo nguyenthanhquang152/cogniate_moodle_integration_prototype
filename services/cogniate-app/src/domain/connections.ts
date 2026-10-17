@@ -15,6 +15,14 @@ export interface PlatformInfo {
   productFamilyCode: string | null;
 }
 
+/** The last failed connect attempt of a pending connection (B-T4b1-01). Codes only. */
+export interface ConnectError {
+  code: string;
+  ltiCode: string | null;
+  traceId: string;
+  at: number;
+}
+
 export interface Connection {
   id: string;
   libraryId: string;
@@ -30,6 +38,7 @@ export interface Connection {
   createdAt: number;
   updatedAt: number;
   lastLaunchAt: number | null;
+  lastError: ConnectError | null;
 }
 
 export interface RefToken {
@@ -49,6 +58,10 @@ const toConnection = (r: Record<string, unknown>): Connection => ({
   refTokenEncrypted: r.ref_token_encrypted === null ? null : (r.ref_token_encrypted as Uint8Array),
   refExpiresAt: r.ref_expires_at === null ? null : Number(r.ref_expires_at), createdAt: Number(r.created_at), updatedAt: Number(r.updated_at),
   lastLaunchAt: r.last_launch_at === null ? null : Number(r.last_launch_at),
+  lastError: r.last_error_code === null || r.last_error_code === undefined ? null : {
+    code: String(r.last_error_code), ltiCode: r.last_error_lti_code === null ? null : String(r.last_error_lti_code),
+    traceId: String(r.last_error_trace_id), at: Number(r.last_error_at),
+  },
 });
 
 export function createConnection(
@@ -95,14 +108,22 @@ export function markRegistered(db: Db, connectionId: string, platform: PlatformI
   const other = db.prepare('SELECT id FROM connection WHERE lti_platform_id = ? AND id <> ?').get(platform.id, connectionId);
   if (other) throw new PlatformTakenError('platform belongs to another connection');
   const changed = db.prepare(`UPDATE connection SET status = 'registered', lti_platform_id = ?, platform_json = ?, ref_token_hash = NULL,
-    ref_token_encrypted = NULL, ref_expires_at = NULL, updated_at = ? WHERE id = ? AND status = 'pending'`)
+    ref_token_encrypted = NULL, ref_expires_at = NULL, last_error_code = NULL, last_error_lti_code = NULL, last_error_trace_id = NULL,
+    last_error_at = NULL, updated_at = ? WHERE id = ? AND status = 'pending'`)
     .run(platform.id, JSON.stringify(platform), now, connectionId).changes;
   if (Number(changed) !== 1) throw new PlatformTakenError('connection is not pending');
 }
 
-/** Update the stored platform data (an allowed dynamic "update" of the same platform). */
-export function refreshPlatform(db: Db, connectionId: string, platform: PlatformInfo, now: number): void {
-  db.prepare('UPDATE connection SET platform_json = ?, updated_at = ? WHERE id = ? AND lti_platform_id = ?').run(JSON.stringify(platform), now, connectionId, platform.id);
+/** The connection that owns a platform (any library), or undefined: security §2.6 orphan rule. */
+export function platformOwner(db: Db, platformId: string): string | undefined {
+  const row = db.prepare('SELECT id FROM connection WHERE lti_platform_id = ?').get(platformId);
+  return row ? String(row.id) : undefined;
+}
+
+/** Store the last failed connect attempt (B-T4b1-01). Only a pending connection changes. */
+export function recordConnectError(db: Db, connectionId: string, error: ConnectError): void {
+  db.prepare(`UPDATE connection SET last_error_code = ?, last_error_lti_code = ?, last_error_trace_id = ?, last_error_at = ?
+    WHERE id = ? AND status = 'pending'`).run(error.code, error.ltiCode, error.traceId, error.at, connectionId);
 }
 
 export function disableConnection(db: Db, libraryId: string, id: string, now: number): void {

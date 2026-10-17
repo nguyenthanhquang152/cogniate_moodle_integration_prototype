@@ -201,7 +201,8 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
     s.state.mode = mode;
     const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: {} });
     expect([r.statusCode, r.json().details.message, r.json().details.reason]).toEqual([502, 'PLATFORM_ERROR', 'tool_may_exist']);
-    expect(r.json().details.description).toContain('Moodle may have created a Pending Cogniate tool. Delete it in Site administration > Plugins > Activity modules > External tool > Manage tools');
+    // B-T4b1-02: the same text as the app page, with the tool name that was sent to Moodle.
+    expect(r.json().details.description).toMatch(/^Moodle may have saved a Pending tool\. In Manage tools, delete the Pending tool '[^']+', then connect again\.$/);
     expect(s.lines).toContainEqual(expect.objectContaining({ event: 'registration_rejected', code: 'PLATFORM_ERROR', detail: 'tool_may_exist' }));
   });
 
