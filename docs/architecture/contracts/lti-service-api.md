@@ -128,7 +128,7 @@ Success `303 See Other`:
 
 A `ltik` parameter inside `target_link_uri` is dropped. Headers: `Referrer-Policy: no-referrer`, `Cache-Control: no-store`, state cookie `Max-Age=0`. The copied query is for compatibility only. Tools must read the signed `launch.target` instead.
 
-`GET /lti/launch/{toolAccountId}` → `405`.
+`GET /lti/launch/{toolAccountId}` (any method except `POST`) → `405` HTML page `METHOD_NOT_ALLOWED`, header `Allow: POST`.
 
 ### 2.3 `GET /lti/keys/{toolAccountId}` — tool JWKS (T2a)
 
@@ -346,7 +346,7 @@ All URLs are https. An account sees only its own platforms. Another account may 
 | --- | --- |
 | Access token | `POST {accesstokenEndpoint}`: `grant_type=client_credentials`, `client_assertion_type=urn:ietf:params:oauth:client-assertion-type:jwt-bearer`, `client_assertion` (security §2.3), `scope`. Cached **in memory** per (platform, scope set) until 60 s before expiry. |
 | Platform JWKS | Guarded client + `createLocalJWKSet`, 10 min cache, refetch on unknown `kid` at most once per minute |
-| Timeouts, redirects | 5 s. No redirects. One retry on network error for GET only. |
+| Timeouts, redirects | 5 s. No redirects. One retry after `network_error` for GET only (two attempts, two events). |
 
 ## 5. Log events
 
@@ -357,10 +357,10 @@ Every event: `ts`, `level`, `service: "lti-service"`, `event`, `trace_id` (lifec
 | `service_started` | info | `node`, `port`, `public_url`, `profile`, `outbound_allowlist`, `knobs` | start |
 | `test_knob_active` | warn | `name`, `value` | start, per knob |
 | `http_request` | info | `method`, `path` (no query), `status`, `ms` | every request except `GET /healthz` (not in the JSON log file; stdout may keep it at `debug`, B-T1-04) |
-| `outbound_request` | info | `host`, `method`, `status`, `ms` | every outbound call that was sent |
-| `outbound_blocked` | warn | `host`, `reason` | every outbound call that the guard stopped |
+| `outbound_request` | info | `host`, `method`, `status`, `ms` | every outbound attempt that got an accepted HTTP response |
+| `outbound_blocked` | warn | `host`, `method`, `reason` | every outbound attempt without an accepted response: policy `not_https`, `private_ip`, `redirect`, `too_large`; failure `dns_error`, `timeout`, `network_error` (security §9) |
 | `login_rejected` | warn | `code` | login failure |
-| `launch_check_failed` | warn | `check` (1–12 or `oidc_error`), `code` | launch failure |
+| `launch_check_failed` | warn | `check` (1–12, `oidc_error` or `platform_active`), `code` | launch failure |
 | `launch_accepted` | info | `platform_id`, `message_type` | launch success |
 | `api_auth_failed` | warn | `scheme`, `code` | 401 on `/api/*` |
 | `platform_token` | info | `platform_id`, `cache` (`hit` or `miss`) | each token use |

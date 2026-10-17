@@ -373,7 +373,7 @@ Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `e
 | `test_knob_active` | warn | `name`, `value` |
 | `http_request` | info | `method`, `path` (no query, no capability ids: `/play/:id`), `status`, `ms`. Every request except `GET /healthz` (not in the JSON log file; stdout may keep it at `debug`, B-T1-04). |
 | `outbound_request` | info | `host`, `method`, `status`, `ms` (every call to the LTI service or Moodle) |
-| `outbound_blocked` | warn | `host`, `reason` |
+| `outbound_blocked` | warn | `host`, `method`, `reason` (policy or failure reasons of security §9) |
 | `csrf_rejected` | warn | `origin` |
 | `package_accepted` | info | `version_id`, `format` |
 | `package_rejected` | warn | `codes` |

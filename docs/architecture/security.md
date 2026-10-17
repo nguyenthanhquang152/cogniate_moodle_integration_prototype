@@ -48,7 +48,9 @@ Other launch cases:
 
 | Case | Result |
 | --- | --- |
-| The form has `error` (Moodle sends `invalid_scope`, `unauthorized_client`, `access_denied` this way) and no `id_token` | The state is used up. Page `PLATFORM_ERROR` shows the OIDC code. |
+| The form has `error` (Moodle sends `invalid_scope`, `unauthorized_client`, `access_denied` this way) and no `id_token` | The state is used up. Page `PLATFORM_ERROR` shows the OIDC code. Log `check: "oidc_error"`. |
+| The platform was switched off between login and launch | Checked right after check 3 (the state is used up). Page `PLATFORM_NOT_ACTIVE`. Log `launch_check_failed {check: "platform_active", code: "PLATFORM_NOT_ACTIVE"}`. This is not one of the 12 checks. |
+| `GET` (or any method except `POST`) on `/lti/launch/{toolAccountId}` | `405` page `METHOD_NOT_ALLOWED`, header `Allow: POST`. |
 | `STATE_COOKIE_MISSING` | The service checks the signature (checks 4 and 6) only to choose the help text. It never continues the launch. Resource link: "Your browser blocked a cookie in an embedded frame. Ask your Moodle admin to set the Cogniate tool to open in a new window." Deep linking: "Your browser blocks cookies in Moodle's content dialog. Use Chrome, Edge or Firefox, or allow cookies for this site." Otherwise: "Start again from Moodle." |
 
 Every HTML error page shows: the code, the trace id, and one line with the next action. Its main element has `data-error-code` and `data-trace-id`. Error pages have no form and no state-changing button, so they may be framed by any https origin (§5); this keeps them visible in Moodle's frames before a platform is known.
@@ -174,12 +176,12 @@ WARNING: Google Fonts in the HTML export send learner IP addresses to Google (Q9
 All outbound HTTP of both services goes through one client in `packages/shared` (`outbound`):
 
 - https only. No redirects. Timeout 5 s. Response limit 1 MB.
-- The IP check runs **inside the lookup that the connection uses** (an undici `Agent` with `connect: { lookup }`). There is no second lookup, so a DNS answer that changes between check and connect (DNS rebinding) cannot reach a blocked IP. Every address of the answer is checked.
+- The IP check runs **inside the lookup that the connection uses**. Mechanism (library-neutral; T2a uses `node:https` with its own `lookup` option): the client gives the HTTPS request a `lookup` function that resolves the name once, checks **every** address of the answer, and hands only those checked addresses to the socket. No other lookup happens for that connection (no proxy, no second resolver), so a DNS answer that changes between check and connect (DNS rebinding) cannot reach a blocked IP. An IP literal in the URL is checked before the request. TLS still verifies the certificate against the host name (`servername` = host).
 - Blocked ranges:
   - IPv4: `0.0.0.0/8`, `10.0.0.0/8`, `100.64.0.0/10` (CGNAT), `127.0.0.0/8`, `169.254.0.0/16` (link-local, incl. the `169.254.169.254` metadata address), `172.16.0.0/12`, `192.0.0.0/24`, `192.168.0.0/16`, `198.18.0.0/15`, `224.0.0.0/4` (multicast), `240.0.0.0/4`, `255.255.255.255/32`.
   - IPv6: `::/128`, `::1/128`, `fc00::/7`, `fe80::/10`, `ff00::/8`, `64:ff9b::/96` (NAT64), and IPv4-mapped `::ffff:0:0/96` (the mapped IPv4 address is checked against the IPv4 list).
 - Allowlist per service (`OUTBOUND_PRIVATE_HOST_ALLOWLIST`, a host name list; the host may resolve to a blocked range): LTI service: the Moodle host. Cogniate app: the LTI service host. The `acceptance` profile adds `qa-platform.test` and `evil.test` to both (so that a missing rule shows up as a sink hit). Production: empty.
-- Every call logs exactly one event: `outbound_request {host, method, status, ms}` or `outbound_blocked {host, reason}`. `reason` is one of `not_https`, `private_ip`, `redirect`, `timeout`, `too_large`, `dns_error`.
+- Every attempt logs exactly one event. `outbound_request {host, method, status, ms}` = an HTTP response was accepted (any status that is not a redirect). `outbound_blocked {host, method, reason}` = no accepted response. Reasons: policy (the guard refused) `not_https`, `private_ip`, `redirect` (a 3xx is not followed), `too_large`; failure (after the guard allowed the call) `dns_error`, `timeout`, `network_error` (connection refused, reset or TLS error). A GET is retried once after `network_error`; the retry is a second attempt with its own event.
 
 ## 10. Keys and secrets
 
