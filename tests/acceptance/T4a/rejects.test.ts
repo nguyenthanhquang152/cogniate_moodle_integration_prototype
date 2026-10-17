@@ -1,5 +1,5 @@
 // T4a: every reject code of the package inspector, with zips that QA makes at run time (lib/zip.ts).
-// Source: tasks/T4a.md AC-T4-05, AC-T4-35 (4da1f95); contract cogniate-app-api.md §3.2 (details.action), §3.3
+// Source: tasks/T4a.md AC-T4-05, AC-T4-35 (265c96d); contract cogniate-app-api.md §3.2 (details.action), §3.3
 // (package-derived identifiers); security §7. AC-T4-35 runs after AC-T4-05 in this file (tests in a file run in
 // order) and also checks the details.action of every AC-T4-05 answer.
 // Host part (run-t4a.mjs): the package store folder count before and after this test is the same, and
@@ -95,7 +95,7 @@ const CASES: Case[] = [
 
 const SCORM_R1 = [{ id: 'r1', href: 'index.html', files: ['index.html'] }];
 
-/** AC-T4-35: one crafted package per identifier rule of contract §3.3. */
+/** AC-T4-35: one crafted package per identifier rule of contract §3.3, plus the XML-illegal title case. */
 const IDENTIFIER_CASES: Case[] = [
   {
     code: 'INVALID_PACKAGE_IDENTIFIER',
@@ -119,7 +119,13 @@ const IDENTIFIER_CASES: Case[] = [
   },
   {
     code: 'INVALID_PACKAGE_IDENTIFIER',
-    label: 'manifest title with U+0007',
+    label: 'manifest title with the C1 control U+0085 (valid XML 1.0, banned by §3.3)',
+    make: write([INDEX, { name: 'imsmanifest.xml', data: manifest({ resources: SCORM_R1, title: 'QA\u0085title' }) }]),
+  },
+  {
+    // 265c96d: U+0007 is illegal in XML 1.0, so the manifest does not parse; the first failing check gives the code.
+    code: 'MANIFEST_INVALID_XML',
+    label: 'manifest title with U+0007 (illegal in XML 1.0)',
     make: write([INDEX, { name: 'imsmanifest.xml', data: manifest({ resources: SCORM_R1, title: 'QA\u0007title' }) }]),
   },
 ];
@@ -157,7 +163,7 @@ describe('T4a package rejects', () => {
     expect(problems).toEqual([]);
   });
 
-  it('AC-T4-35 package identifiers (129-char id, __proto__ quiz id, page key with a space, title with U+0007) → 422 INVALID_PACKAGE_IDENTIFIER with details.action, nothing stored; every AC-T4-05 answer has details.action', { timeout: 300_000 }, async () => {
+  it('AC-T4-35 package identifiers (129-char id, __proto__ quiz id, page key with a space, title with U+0085) → 422 INVALID_PACKAGE_IDENTIFIER, title with U+0007 → MANIFEST_INVALID_XML; details.action, nothing stored; every AC-T4-05 answer has details.action', { timeout: 300_000 }, async () => {
     const s = await signIn(THANH);
     const course = await createCourse(s, `QA identifiers ${runId}`);
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-identifiers-'));
