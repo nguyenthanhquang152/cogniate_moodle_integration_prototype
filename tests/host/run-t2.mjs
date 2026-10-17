@@ -23,7 +23,7 @@ const r = createRunner({
 const TASKS = r.opt.tasks.split(',').map((t) => t.trim());
 const EXPECT = {
   T2a: ['AC-T2-01', 'AC-T2-02', 'AC-T2-03', 'AC-T2-04', 'AC-T2-05', 'AC-T2-06', 'AC-T2-08', 'AC-T2-12', 'AC-T2-13', 'AC-T2-14', 'AC-T2-15', 'AC-T2-16', 'AC-T2-18', 'AC-T2-19', 'AC-T2-29', 'AC-T2-31'],
-  T2b: ['AC-T2-09', 'AC-T2-10', 'AC-T2-11', 'AC-T2-20', 'AC-T2-21', 'AC-T2-22', 'AC-T2-23', 'AC-T2-24', 'AC-T2-25', 'AC-T2-26', 'AC-T2-27', 'AC-T2-28', 'AC-T2-30'],
+  T2b: ['AC-T2-09', 'AC-T2-10', 'AC-T2-11', 'AC-T2-20', 'AC-T2-21', 'AC-T2-22', 'AC-T2-23', 'AC-T2-24', 'AC-T2-25', 'AC-T2-26', 'AC-T2-27', 'AC-T2-28', 'AC-T2-30', 'AC-T2-32'],
 };
 
 function ltiSeedOf() {

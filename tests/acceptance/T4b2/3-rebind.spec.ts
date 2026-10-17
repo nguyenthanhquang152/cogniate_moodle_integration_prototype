@@ -1,12 +1,8 @@
-// T4b2: withdraw and rebind. Source: tasks/T4b2.md AC-T4-27, AC-T4-25; security §4 (binding, attempt after a rebind).
+// T4b2: withdraw and rebind. Source: tasks/T4b2.md AC-T4-27, AC-T4-25 (c3746bb: the T4b2 part only; the in-progress
+// attempt part is AC-T5-37 in T5a); security §4 (binding); contract cogniate-app-api.md §12 (resource_link_rebound).
 // AC-T4-27 runs first and publishes the SCORM course again, so that AC-T4-25 can launch it.
-//
-// AC-T4-25 note (reported to the Lead): "attempt in_progress" needs a runtime commit, and "shows under the SCORM
-// publication's results" needs the results API; both come in T5a. "A new attempt for cg_student2" has no T4b2 oracle
-// (no API shows attempt ids). This test checks what T4b2 can show: both learners get the HTML course after the rebind,
-// and resource_link_rebound is logged. The T5a suite checks the attempt parts.
 import { APP, appApi, signIn, THANH } from '../lib/app';
-import { checkErrorPage, eventsSince } from '../lib/lti';
+import { checkErrorPage, waitForEvent } from '../lib/lti';
 import { openPicker, submitPicker } from '../lib/moodle-dl';
 import { launchActivity, newStackContext } from '../lib/moodle-launch';
 import { expect, test } from '../lib/pw';
@@ -36,16 +32,12 @@ test.describe.serial('T4b2 withdraw and rebind', () => {
     }
   });
 
-  test('AC-T4-25 the teacher picks the HTML course for the SCORM activity: the next launches open the HTML course; resource_link_rebound', async ({ browser }) => {
+  test('AC-T4-25 the teacher picks the HTML course for the SCORM activity: the next cg_student launch opens the HTML course; resource_link_rebound', async ({ browser }) => {
     test.setTimeout(180_000);
     const st = t4b();
     const since = Date.now() - 1_000;
     const context = await newStackContext(browser);
     try {
-      const before = await launchActivity(context, seed().users.cg_student2, st.scormActivityCmid!, { until: PLAY, timeoutMs: 20_000 });
-      expect((await before.popup!.locator('body').innerText()).replace(/\s+/g, ' '), 'before: the SCORM course').toContain(st.thanhScorm!.title);
-      await before.popup!.close();
-
       const open = await openPicker(context, seed().users.cg_teacher, seed().courses['COGNIATE-DEV-101'], st.thanhTypeId!, 45_000, { updateCmid: st.scormActivityCmid });
       const { pickerPost } = await submitPicker(open, st.thanhHtml!.title);
       expect(pickerPost.status).toBe(200);
@@ -53,16 +45,13 @@ test.describe.serial('T4b2 withdraw and rebind', () => {
       await open.page.locator('#id_name').fill(st.scormActivityName!);
       await Promise.all([open.page.waitForURL(/\/course\/view\.php|\/mod\/lti\/view\.php/, { timeout: 30_000 }), open.page.locator('#id_submitbutton2').click()]);
 
-      for (const user of [seed().users.cg_student, seed().users.cg_student2]) {
-        const cap = await launchActivity(context, user, st.scormActivityCmid!, { until: PLAY, timeoutMs: 20_000 });
-        const text = (await cap.popup!.locator('body').innerText()).replace(/\s+/g, ' ');
-        expect(text, `${user.username}: the HTML course opens`).toContain(st.thanhHtml!.title);
-        await cap.popup!.close();
-      }
-      const rebound = eventsSince('cogniate-app', since, (e) => e.event === 'resource_link_rebound');
-      expect(rebound.length, 'resource_link_rebound logged').toBeGreaterThanOrEqual(1);
-      expect(rebound.some((e) => e.to_publication === st.thanhHtmlPublicationId), 'rebound to the HTML publication').toBe(true);
-      test.info().annotations.push({ type: 'not checked in T4b2', description: 'attempt in_progress, new attempt for cg_student2, SCORM results row (T5a)' });
+      const cap = await launchActivity(context, seed().users.cg_student, st.scormActivityCmid!, { until: PLAY, timeoutMs: 20_000 });
+      const text = (await cap.popup!.locator('body').innerText()).replace(/\s+/g, ' ');
+      expect(text, 'the shell shows the HTML course title').toContain(st.thanhHtml!.title);
+      await cap.popup!.close();
+      const rebound = await waitForEvent('cogniate-app', (e) => e.event === 'resource_link_rebound' && Date.parse(String(e.ts)) >= since && e.to_publication === st.thanhHtmlPublicationId);
+      expect(rebound, 'resource_link_rebound to the HTML publication').toBeDefined();
+      expect(rebound!.from_publication, 'rebound from the SCORM publication').toBe(st.thanhScormPublicationId);
     } finally {
       await context.close();
     }

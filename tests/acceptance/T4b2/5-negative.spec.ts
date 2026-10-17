@@ -1,16 +1,15 @@
 // T4b2 negative and security cases. Source: tasks/T4b2.md AC-T4-18, -20, -22, -26, -28, -29;
 // contract cogniate-app-api.md §6, §12; security §4, §6, §7 (output), §8.
-// AC-T4-18 needs the activity that the host runner makes with `npm run seed:lti-activity` (between passes): it is
-// named "QA foreign <runId>" and points at library B's publication. The runner selects AC-T4-18 in its second pass.
+// AC-T4-18 needs the activity that the host runner makes with `npm run seed:lti-activity` after pass 1 (T4b2.md setup
+// order): it is named "QA foreign" and points at library B's publication. The runner runs AC-T4-18 in pass 2.
 // AC-T4-20 has a knob part (PICKER_TTL_SECONDS=20): the host runner runs it in a knob pass.
 import crypto from 'node:crypto';
-import type { Route } from '@playwright/test';
 import { APP, appApi, QA_B, signIn } from '../lib/app';
 import { publicUrls } from '../lib/env';
 import { httpsRequest } from '../lib/https';
 import { checkErrorPage, eventsSince, hostIs, pageTraceId, waitForEvent } from '../lib/lti';
 import { cmidByName, openPicker, pickerOptions, saveActivity, submitPicker } from '../lib/moodle-dl';
-import { launchActivity, newStackContext } from '../lib/moodle-launch';
+import { launchActivity, launchToHandoff, newStackContext } from '../lib/moodle-launch';
 import { expect, test } from '../lib/pw';
 import { seed } from '../lib/seed';
 import { t4b } from '../lib/t4b-state';
@@ -35,7 +34,7 @@ test.describe.serial('T4b2 negative cases', () => {
   test('AC-T4-18 an activity under Thanh\'s tool that points at library B\'s publication → 404 "This course is not available"; no attempt', async ({ browser }) => {
     test.setTimeout(90_000);
     const st = t4b();
-    const cmid = await cmidByName(course101(), `QA foreign ${st.runId}`);
+    const cmid = await cmidByName(course101(), 'QA foreign');
     expect(cmid, 'the host runner made the activity with npm run seed:lti-activity').toBeDefined();
     const context = await newStackContext(browser);
     try {
@@ -53,18 +52,21 @@ test.describe.serial('T4b2 negative cases', () => {
     }
   });
 
-  test('AC-T4-20 /tool/deep-link with a student resource ltik → 403; a POST to a used picker → 410', async ({ browser }) => {
+  test('AC-T4-20 /tool/deep-link with a student resource ltik → 403 page, deep_link_rejected {reason: role_not_allowed}; a POST to a used picker → 410', async ({ browser }) => {
     test.setTimeout(90_000);
     const st = t4b();
     const context = await newStackContext(browser);
     try {
-      // An unused student ltik: QA holds the handoff to /tool/launch, so the app never sees it there.
-      await context.route((u) => u.href.startsWith(`${APP}/tool/launch`), (route: Route) => route.fulfill({ status: 200, contentType: 'text/html', body: '<p>QA holds</p>' }));
-      const cap = await launchActivity(context, seed().users.cg_student, st.scormActivityCmid!, { timeoutMs: 20_000 });
-      expect(cap.ltik ?? '').toMatch(/^[A-Za-z0-9_-]{43}$/);
-      const dl = await httpsRequest(`${APP}/tool/deep-link?ltik=${encodeURIComponent(cap.ltik!)}`);
-      expect(dl.status, dl.body.slice(0, 200)).toBe(403);
-      expect(dl.body).toMatch(/data-error-code="[^"]+"/);
+      // An unused student ltik: QA sends Moodle's id_token POST itself and reads the 303 Location, so the app never
+      // sees this ltik at /tool/launch (Playwright routes cannot hold the redirected GET).
+      const handoff = await launchToHandoff(context, seed().users.cg_student, st.scormActivityCmid!);
+      expect(handoff.ltik).toMatch(/^[A-Za-z0-9_-]{43}$/);
+      const dl = await httpsRequest(`${APP}/tool/deep-link?ltik=${encodeURIComponent(handoff.ltik)}`);
+      const code = dl.body.match(/data-error-code="([^"]+)"/)?.[1] ?? '?';
+      expect(checkErrorPage(dl, code, { statuses: [403], test: 'AC-T4-20', endpoint: 'tool' })).toEqual([]);
+      const ev = await waitForEvent('cogniate-app', (e) => e.event === 'deep_link_rejected' && e.trace_id === pageTraceId(dl));
+      expect(ev, `deep_link_rejected with the page trace id ${pageTraceId(dl)}`).toBeDefined();
+      expect(ev!.reason).toBe('role_not_allowed');
     } finally {
       await context.close();
     }

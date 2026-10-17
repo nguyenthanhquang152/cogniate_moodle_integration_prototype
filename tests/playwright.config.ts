@@ -36,5 +36,9 @@ export default defineConfig({
     video: 'off',
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
+    // Second guard for "block every non-*.test host" (tasks README §2): Playwright routes do not see redirected
+    // requests, so a redirect to an outside host would pass the route guards. With this rule Chromium cannot
+    // resolve any name outside *.test (checked in the e2e image: *.test loads, example.com and a redirect to it fail).
+    launchOptions: { args: ['--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE *.test'] },
   },
 });

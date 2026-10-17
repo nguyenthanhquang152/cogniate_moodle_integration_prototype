@@ -1,5 +1,6 @@
 // T2b negative launch matrix with tokens that QA signs (qa-platform.test, hook H6). Plain HTTPS, no browser.
-// Source: tasks/T2b.md AC-T2-20, -21, -24 to -28; security §2.2 (run order 1, 3, 2, 4..12; check → code).
+// Source: tasks/T2b.md AC-T2-20, -21, -24 to -28, -32; security §2.2 (run order 1, 3, 2, 4..12; check → code), §2.4
+// (JWKS refresh failure); contract lti-service-api.md §5 (launch_check_failed.detail).
 // Each case makes a fresh login (the state is single use) and posts a token with exactly one bad property.
 // A positive control first proves that a correct QA token is accepted, so each negative proves its own check.
 import crypto from 'node:crypto';
@@ -8,7 +9,7 @@ import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { publicUrls } from '../lib/env';
 import { httpsRequest } from '../lib/https';
-import { ACCOUNT, apiKey, checkErrorPage, eventsSince, hostIs, LTI_CLAIM, runStart } from '../lib/lti';
+import { ACCOUNT, apiKey, checkErrorPage, eventsSince, hostIs, LTI_CLAIM, runStart, waitForEvent } from '../lib/lti';
 import {
   hs256WithModulus,
   postLaunch,
@@ -146,5 +147,47 @@ describe('T2b QA platform launch checks', () => {
     await new Promise((r) => setTimeout(r, 1_500));
     expect(qaFetches().filter((e) => Date.parse(String(e.ts)) >= t2), 'no new outbound_request within 60 s').toEqual([]);
     expect(hits(t2), 'no new qa_platform_hit within 60 s').toEqual([]);
+  });
+
+  it('AC-T2-32 JWKS refresh failure (JWKS file removed, 404): unknown kid → INVALID_SIGNATURE, detail jwks_fetch_failed, one outbound_* event; the cached key still works', { timeout: 180_000 }, async () => {
+    // A fresh QA platform, so that its refetch limit and its JWKS file are its own (AC-T2-21 keeps its counts).
+    const q = await setupQaPlatform(apiKey(ACCOUNT), 't2b32');
+    const file = path.join(QA_FIXTURE_DIR, q.jwksFile);
+    const jwks = fs.readFileSync(file, 'utf8');
+    const launch = async (sign: (c: Record<string, unknown>) => Promise<string>) => {
+      const login = await qaLogin(q);
+      expect(login.status, `login: ${login.body.slice(0, 200)}`).toBe(302);
+      return postLaunch({ id_token: await sign(resourceLinkClaims(q, login)), state: login.state }, login.cookie);
+    };
+    try {
+      // The first launch fetches the JWKS and fills the cache.
+      const warm = await launch((c) => signRs256(c, q.privateKey, q.kid));
+      expect(warm.status, warm.body.slice(0, 300)).toBe(303);
+      const lastFetch = Date.now();
+      await new Promise((r) => setTimeout(r, Math.max(0, lastFetch + 61_000 - Date.now())));
+      fs.rmSync(file, { force: true });
+      const gone = await httpsRequest(`${QA_ISSUER}/${q.jwksFile}`);
+      expect(gone.status, 'qa-platform.test answers 404 for the removed JWKS file').toBe(404);
+
+      // (1) Unknown kid → one refresh attempt, which fails → INVALID_SIGNATURE, detail jwks_fetch_failed.
+      const since = Date.now() - 500;
+      const bad = await launch((c) => signRs256(c, q.strangerKey, q.strangerKid));
+      expect(checkErrorPage(page(bad), 'INVALID_SIGNATURE', { test: 'AC-T2-32', endpoint: 'launch' })).toEqual([]);
+      const ev = await waitForEvent('lti-service', (e) => e.event === 'launch_check_failed' && e.trace_id === bad.traceId);
+      expect(ev, `launch_check_failed with trace id ${bad.traceId}`).toBeDefined();
+      expect(String(ev!.check)).toBe('6');
+      expect(ev!.code).toBe('INVALID_SIGNATURE');
+      expect(ev!.detail).toBe('jwks_fetch_failed');
+      await new Promise((r) => setTimeout(r, 1_500)); // log lines arrive
+      const outbound = eventsSince('lti-service', since, (e) => /^outbound_/.test(String(e.event)) && hostIs(e, QA_HOST) && e.trace_id === bad.traceId);
+      expect(outbound.map((e) => `${String(e.event)} ${String(e.status ?? e.reason ?? '')}`), 'one outbound_* event for the failed fetch').toHaveLength(1);
+
+      // (2) A token signed with the cached key → the launch is accepted.
+      const good = await launch((c) => signRs256(c, q.privateKey, q.kid));
+      expect(good.status, good.body.slice(0, 300)).toBe(303);
+      expect(new URL(good.location).searchParams.get('ltik') ?? '').toMatch(/^[A-Za-z0-9_-]{43}$/);
+    } finally {
+      fs.writeFileSync(file, jwks); // QA restores the file
+    }
   });
 });

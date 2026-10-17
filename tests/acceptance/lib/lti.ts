@@ -144,7 +144,22 @@ export interface ErrorPage {
   status: number;
   code: string;
   traceId: string;
+  /** The trace id is in the visible text of the page (not only in an attribute). */
   pageShowsTraceId: boolean;
+  /** The code is in the visible text of the page (security §2.2: every error page shows the code and the trace id). */
+  pageShowsCode?: boolean;
+  /** The page has a <form> (security: error pages have no form and no state-changing button). */
+  hasForm?: boolean;
+}
+
+/** Visible text of an HTML page: no script or style content, no tags, entities of the code alphabet decoded. */
+export function visibleText(html: string): string {
+  return html
+    .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&#95;|&lowbar;/g, '_')
+    .replace(/\s+/g, ' ');
 }
 
 /** Remember an HTML error page. AC-T2-30 later matches it with its log event. */
@@ -232,7 +247,17 @@ export function checkErrorPage(
   if (!pageTrace) problems.push('no data-trace-id');
   if (endpoint !== 'tool' && !headerTrace) problems.push('no X-Trace-Id header');
   if (headerTrace && pageTrace !== headerTrace) problems.push(`data-trace-id = ${pageTrace ?? 'missing'}, X-Trace-Id = ${headerTrace}`);
-  recordErrorPage({ test, endpoint, status: res.status, code: pageCode ?? '', traceId, pageShowsTraceId: Boolean(traceId) && res.body.includes(traceId) });
+  const text = visibleText(res.body);
+  recordErrorPage({
+    test,
+    endpoint,
+    status: res.status,
+    code: pageCode ?? '',
+    traceId,
+    pageShowsTraceId: Boolean(traceId) && text.includes(traceId),
+    pageShowsCode: Boolean(pageCode) && text.includes(pageCode!),
+    hasForm: /<form\b/i.test(res.body),
+  });
   return problems;
 }
 

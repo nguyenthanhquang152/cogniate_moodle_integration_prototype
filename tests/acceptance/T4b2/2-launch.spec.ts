@@ -1,9 +1,8 @@
 // T4b2: learner and teacher launches, the single-use handoff, and the signed target.
 // Source: tasks/T4b2.md AC-T4-17, -24, -23, -19; contract cogniate-app-api.md §5, §6; security §4.
-import type { Route } from '@playwright/test';
 import { APP, appApi, signIn, THANH } from '../lib/app';
 import { checkErrorPage, eventsSince, pageTraceId, saveState, waitForEvent } from '../lib/lti';
-import { type LaunchCapture, launchActivity, newStackContext } from '../lib/moodle-launch';
+import { type LaunchCapture, launchActivity, launchToHandoff, newStackContext } from '../lib/moodle-launch';
 import { expect, test } from '../lib/pw';
 import { seed } from '../lib/seed';
 import { t4b } from '../lib/t4b-state';
@@ -65,15 +64,17 @@ test.describe.serial('T4b2 launches', () => {
     const st = t4b();
     const context = await newStackContext(browser);
     try {
-      const matcher = (u: URL) => u.href.startsWith(`${APP}/tool/launch`);
-      const handler = (route: Route) => {
-        const u = new URL(route.request().url());
-        u.searchParams.set('resource', String(st.thanhHtmlPublicationId));
-        return route.continue({ url: u.toString() });
-      };
-      await context.route(matcher, handler);
-      const cap = await launchActivity(context, seed().users.cg_student, st.scormActivityCmid!, { until: PLAY, timeoutMs: 20_000 });
-      const text = (await cap.popup!.locator('body').innerText()).replace(/\s+/g, ' ');
+      // QA intercepts the 303 itself (Playwright routes do not see the redirected GET /tool/launch): it sends Moodle's
+      // id_token POST from Node, changes `resource` in the Location, then opens that URL in the browser.
+      const handoff = await launchToHandoff(context, seed().users.cg_student, st.scormActivityCmid!);
+      const changed = new URL(handoff.location);
+      expect(`${changed.origin}${changed.pathname}`).toBe(`${APP}/tool/launch`);
+      expect(changed.searchParams.get('resource'), 'the 303 names the SCORM publication').not.toBe(String(st.thanhHtmlPublicationId));
+      changed.searchParams.set('resource', String(st.thanhHtmlPublicationId));
+      const page = await context.newPage();
+      await page.goto(changed.toString());
+      await page.waitForURL((u) => u.href.startsWith(PLAY), { timeout: 20_000 });
+      const text = (await page.locator('body').innerText()).replace(/\s+/g, ' ');
       expect(text, 'the SCORM course opens').toContain(st.thanhScorm!.title);
       expect(text, 'not the HTML course').not.toContain(st.thanhHtml!.title);
     } finally {

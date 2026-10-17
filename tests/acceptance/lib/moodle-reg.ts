@@ -6,6 +6,9 @@
 // - tool_card.mustache: <div class="tool-card" data-type-id="…">; a Pending tool has a.activate.
 // QA stands in for {PUBLIC_APP_URL}/tool/register (T3b scope): a route holds the frame there, the test drives the API,
 // and the test then puts the close page (the `html` of /complete) into the frame.
+// - startltiadvregistration.php answers with an HTTP 302 to the tool URL (header("Location: …")). Playwright routes do
+//   not see redirected requests, so in hold mode QA fetches that page itself (route.fetch, no redirect, with the
+//   context cookies) and turns the 302 into a script navigation, which the /tool/register route then holds.
 import type { BrowserContext, Frame, Page, Route } from '@playwright/test';
 import { publicUrls } from './env';
 import { moodleLogin } from './moodle-ui';
@@ -57,8 +60,19 @@ export async function startRegistration(
     toolUrl = r.url();
     response = { status: r.status(), headers: await r.allHeaders(), body: await r.text().catch(() => '') };
   };
-  if (hold) await context.route(matcher, handler);
-  else context.on('response', onResponse);
+  const startMatcher = (u: URL) => u.href.startsWith(`${urls.moodle}/mod/lti/startltiadvregistration.php`);
+  const startHandler = async (route: Route) => {
+    const res = await route.fetch({ maxRedirects: 0 });
+    const location = res.headers()['location'] ?? '';
+    if (res.status() >= 300 && res.status() < 400 && location.startsWith(TOOL_REGISTER)) {
+      return route.fulfill({ status: 200, contentType: 'text/html', body: `<script>location.replace(${JSON.stringify(location)})</script>` });
+    }
+    return route.fulfill({ response: res });
+  };
+  if (hold) {
+    await context.route(matcher, handler);
+    await context.route(startMatcher, startHandler);
+  } else context.on('response', onResponse);
   await page.locator('#tool-url').fill(registrationUrl);
   await page.locator('#tool-create-button').click();
 
@@ -77,8 +91,10 @@ export async function startRegistration(
     await page.waitForTimeout(250);
   }
   const release = async () => {
-    if (hold) await context.unroute(matcher, handler);
-    else context.off('response', onResponse);
+    if (hold) {
+      await context.unroute(matcher, handler);
+      await context.unroute(startMatcher, startHandler);
+    } else context.off('response', onResponse);
   };
   if (!toolUrl || (!hold && !response)) {
     await release();

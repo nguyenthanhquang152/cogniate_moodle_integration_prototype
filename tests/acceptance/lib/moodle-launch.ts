@@ -3,6 +3,7 @@
 // shows a link with target=_blank. launch.php posts the login form to the tool; auth.php posts id_token + state.
 import type { Browser, BrowserContext, Page, Request, Route } from '@playwright/test';
 import { hostnameOf, publicUrls } from './env';
+import { httpsRequest } from './https';
 import { LAUNCH_URL, LOGIN_URL, recordSecret } from './lti';
 import { moodleLogin } from './moodle-ui';
 import type { MoodleUser } from './seed';
@@ -145,6 +146,48 @@ export async function launchActivity(
     await page.close().catch(() => undefined);
   }
   return cap;
+}
+
+/** `name=value` pairs of the state cookies that the tool login set (from its `Set-Cookie` headers), for a Cookie header. */
+export function stateCookieHeader(setCookies: string[]): string {
+  return setCookies
+    .filter((c) => c.startsWith('__Host-lti_state_') && !/max-age=0/i.test(c))
+    .map((c) => c.split(';')[0])
+    .join('; ');
+}
+
+/**
+ * QA sends Moodle's id_token POST itself, from Node, with the state cookie of the login. No redirect is followed, so
+ * QA can read the `303` Location (`/tool/launch?…&ltik=`, `/tool/deep-link?ltik=`) and the app never sees it.
+ * Why: Playwright routes see only the first URL of a redirect chain, so a route on the 303 target never runs.
+ */
+export async function postLaunchFromNode(fields: { id_token: string; state: string }, cookie: string): Promise<FormPostResult> {
+  if (!cookie) throw new Error('no __Host-lti_state_ cookie from the tool login (Set-Cookie not captured)');
+  const res = await httpsRequest(LAUNCH_URL, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded', cookie, origin: urls.moodle, referer: `${urls.moodle}/` },
+    body: new URLSearchParams(fields).toString(),
+  });
+  const headers = Object.fromEntries(Object.entries(res.headers).map(([k, v]) => [k, Array.isArray(v) ? v.join(', ') : String(v ?? '')]));
+  return { status: res.status, headers, body: res.body, location: headers.location ?? '', traceId: headers['x-trace-id'] ?? '' };
+}
+
+export interface Handoff {
+  held: LaunchCapture;
+  launch: FormPostResult;
+  /** The 303 Location of the launch (the app URL with the ltik). The browser did not open it. */
+  location: string;
+  ltik: string;
+}
+
+/** A real Moodle launch up to the 303 of the LTI service; QA gets the handoff URL, and the app has not seen it. */
+export async function launchToHandoff(context: BrowserContext, user: MoodleUser, cmid: number): Promise<Handoff> {
+  const held = await launchActivity(context, user, cmid, { hold: true });
+  const launch = await postLaunchFromNode(held.post!, stateCookieHeader(held.login?.setCookies ?? []));
+  if (launch.status !== 303) throw new Error(`launch POST: HTTP ${launch.status}, ${launch.body.slice(0, 200)}`);
+  const ltik = new URL(launch.location).searchParams.get('ltik') ?? '';
+  recordSecret('ltik', ltik);
+  return { held, launch, location: launch.location, ltik };
 }
 
 export interface FormPostResult {

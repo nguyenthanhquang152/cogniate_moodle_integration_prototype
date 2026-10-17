@@ -26,6 +26,8 @@ import { QA_ISSUER } from '../lib/qa-platform';
 
 const urls = publicUrls();
 const T2B_PAGES = /^AC-T2-(09|1[0-5]|2[0-8])$/;
+/** A JWT or JWS part, an API key, a PEM block, or a 43-char random value (ltik, state, nonce). */
+const UNSAFE_DETAIL = /eyJ[A-Za-z0-9_-]{8,}|ltis_|-----BEGIN|(^|[^A-Za-z0-9_-])[A-Za-z0-9_-]{43}([^A-Za-z0-9_-]|$)/;
 
 test('AC-T2-30 profile, sink, error-page events, JWKS hit count and secrets over the T2b run', async () => {
   test.setTimeout(120_000);
@@ -65,6 +67,7 @@ test('AC-T2-30 profile, sink, error-page events, JWKS hit count and secrets over
 
   // 3. Every error page of AC-T2-09 to AC-T2-28: markers, and an event with the right check and code.
   const pages = capturedErrorPages().filter((p) => T2B_PAGES.test(p.test));
+  const secretValues = capturedSecrets().map((x) => x.value).filter((v) => v && v.length >= 8);
   if (pages.length === 0) problems.push('no error pages were recorded (the T2b checks did not run)');
   for (const p of pages) {
     if (!p.code || !p.traceId || !p.pageShowsTraceId) problems.push(`${p.test} ${p.code || '?'}: data-error-code or data-trace-id missing`);
@@ -80,6 +83,12 @@ test('AC-T2-30 profile, sink, error-page events, JWKS hit count and secrets over
     if (event.code !== p.code) problems.push(`${p.test}: event code ${String(event.code)}, page code ${p.code}`);
     if (event.event === 'launch_check_failed' && CHECK_OF_CODE[p.code] && !CHECK_OF_CODE[p.code].includes(String(event.check))) {
       problems.push(`${p.test} ${p.code}: check ${String(event.check)}, want ${CHECK_OF_CODE[p.code].join(' or ')}`);
+    }
+    // B-T2a-03 (c3746bb): launch_check_failed has a non-empty, safe `detail` (contract §5 lists it for this event only).
+    if (event.event === 'launch_check_failed') {
+      const detail = String(event.detail ?? '');
+      if (!detail) problems.push(`${p.test} ${p.code}: launch_check_failed has no detail`);
+      else if (UNSAFE_DETAIL.test(detail) || secretValues.some((v) => detail.includes(v))) problems.push(`${p.test} ${p.code}: detail contains a token or key`);
     }
     if (p.endpoint === 'login' && event.event !== 'login_rejected') problems.push(`${p.test}: login page but event ${String(event.event)}`);
   }

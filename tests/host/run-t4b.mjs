@@ -76,8 +76,8 @@ async function seedForeignActivity() {
     return false;
   }
   const url = `${r.state.urls.lti}/lti/launch/cogniate?resource=${st.bHtmlPublicationId}`;
-  const res = await r.npm('seed-lti-activity', ['run', 'seed:lti-activity', '--', '--type', String(st.thanhTypeId), '--course', 'COGNIATE-DEV-101', '--name', `QA foreign ${st.runId}`, '--url', url], { timeoutMs: 300_000 });
-  r.record('SEED', 'npm run seed:lti-activity: activity "QA foreign <runId>" under Thanh\'s tool pointing at library B\'s publication', r.pass(res.code === 0), [`exit ${res.code}`], [res.log]);
+  const res = await r.npm('seed-lti-activity', ['run', 'seed:lti-activity', '--', '--type', String(st.thanhTypeId), '--course', 'COGNIATE-DEV-101', '--name', 'QA foreign', '--url', url], { timeoutMs: 300_000 });
+  r.record('SEED', 'npm run seed:lti-activity: activity "QA foreign" under Thanh\'s tool pointing at library B\'s publication', r.pass(res.code === 0), [`exit ${res.code}`], [res.log]);
   return res.code === 0;
 }
 

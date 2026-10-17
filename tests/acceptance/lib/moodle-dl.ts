@@ -1,12 +1,16 @@
 // Moodle 5.2.4 UI flows for Deep Linking and manual tools (T3a onward).
 // - "Add an activity → <tool>" opens course/modedit.php?add=lti&type=<typeId>&course=<id>; QA opens that URL directly
 //   (the chooser UI is covered in T7). "Select content" is button #id_selectcontent (mod/lti/mod_form.php).
-// - QA stands in for the app page {PUBLIC_APP_URL}/tool/deep-link (T3a design note): a route reads the ltik, calls the
-//   LTI API, and returns a page that posts the signed JWT to Moodle's return URL.
+// - QA stands in for the app page {PUBLIC_APP_URL}/tool/deep-link (T3a design note). Playwright routes do not see the
+//   redirected GET to that page (the 303 of /lti/launch), so QA routes the id_token POST that Moodle's auth.php page
+//   sends to /lti/launch (a new navigation in the frame), sends it itself from Node with the state cookie of the
+//   login, reads the ltik from the 303 Location, calls the LTI API, and answers with a page that posts the signed
+//   JWT to Moodle's return URL. The browser never opens the app page.
 // - Manual tool form: mod/lti/typessettings.php (field names from mod/lti/edit_form.php).
-import type { BrowserContext, Page, Route } from '@playwright/test';
+import type { BrowserContext, Page, Response, Route } from '@playwright/test';
 import { publicUrls } from './env';
-import { ACCOUNT, apiKey, auth, type ApiResult, ltiApi, recordSecret } from './lti';
+import { ACCOUNT, apiKey, auth, type ApiResult, LAUNCH_URL, LOGIN_URL, ltiApi, recordSecret } from './lti';
+import { postLaunchFromNode, stateCookieHeader } from './moodle-launch';
 import { callWs } from './moodle-ws';
 import { moodleLogin } from './moodle-ui';
 import { type MoodleUser, seed } from './seed';
@@ -15,7 +19,7 @@ const urls = publicUrls();
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
 export interface DeepLinkRun {
-  /** URL of the deep-link page that Moodle's frame reached (with the ltik). */
+  /** The 303 Location of the deep-linking launch ({app}/tool/deep-link?ltik=…): the URL that Moodle's frame would open. */
   toolUrl: string;
   ltik: string;
   idtoken: ApiResult;
@@ -37,10 +41,29 @@ export async function deepLinkActivity(
   const page = await context.newPage();
   await moodleLogin(page, urls.moodle, teacher.username, teacher.password);
   let run: Omit<DeepLinkRun, 'nameAfter' | 'saved'> | undefined;
-  const matcher = (u: URL) => u.href.startsWith(`${urls.app}/tool/deep-link`);
+  let launchProblem = '';
+  const loginCookies: string[] = [];
+  const onResponse = async (r: Response) => {
+    if (!r.url().startsWith(LOGIN_URL) || r.status() < 300 || r.status() >= 400) return;
+    for (const h of await r.headersArray()) if (h.name.toLowerCase() === 'set-cookie') loginCookies.push(h.value);
+  };
+  const matcher = (u: URL) => u.href.startsWith(LAUNCH_URL);
   const handler = async (route: Route) => {
-    const toolUrl = route.request().url();
-    const ltik = new URL(toolUrl).searchParams.get('ltik') ?? '';
+    const req = route.request();
+    if (req.method() !== 'POST') return route.continue();
+    const form = new URLSearchParams(req.postData() ?? '');
+    const fields = { id_token: form.get('id_token') ?? '', state: form.get('state') ?? '' };
+    recordSecret('id_token', fields.id_token);
+    recordSecret('state', fields.state);
+    const until = Date.now() + 3_000;
+    while (!stateCookieHeader(loginCookies) && Date.now() < until) await new Promise((r) => setTimeout(r, 100));
+    const launch = await postLaunchFromNode(fields, stateCookieHeader(loginCookies)).catch((e: Error) => ({ status: 0, body: e.message, location: '' }));
+    const toolUrl = launch.location;
+    const ltik = toolUrl ? (new URL(toolUrl).searchParams.get('ltik') ?? '') : '';
+    if (launch.status !== 303 || !ltik) {
+      launchProblem = `the launch POST gave HTTP ${launch.status} (Location ${toolUrl || 'none'}): ${launch.body.slice(0, 200)}`;
+      return route.fulfill({ status: 200, contentType: 'text/html', body: `<p>QA: ${esc(launchProblem)}</p>` });
+    }
     recordSecret('ltik', ltik);
     const key = apiKey(ACCOUNT);
     const idtoken = await ltiApi('GET', '/api/idtoken', { authorization: auth.ltik(key, ltik) });
@@ -59,6 +82,7 @@ export async function deepLinkActivity(
       body: `<form id="qa" method="post" action="${esc(dl.json.target)}"><input type="hidden" name="JWT" value="${esc(dl.json.message)}"></form><script>document.getElementById('qa').submit()</script>`,
     });
   };
+  context.on('response', onResponse);
   await context.route(matcher, handler);
   try {
     await page.goto(`${urls.moodle}/course/modedit.php?add=lti&type=${typeId}&course=${courseId}&section=0&return=0`);
@@ -68,10 +92,10 @@ export async function deepLinkActivity(
     let nameAfter = '';
     while (Date.now() < deadline) {
       nameAfter = await page.locator('#id_name').inputValue().catch(() => '');
-      if (run && (nameAfter === title || run.dl.status !== 200)) break;
+      if (launchProblem || (run && (nameAfter === title || run.dl.status !== 200))) break;
       await page.waitForTimeout(250);
     }
-    if (!run) throw new Error(`Moodle's content frame did not reach ${urls.app}/tool/deep-link within ${timeoutMs} ms`);
+    if (!run) throw new Error(launchProblem || `Moodle's content frame did not send the id_token POST to ${LAUNCH_URL} within ${timeoutMs} ms`);
     let saved = false;
     if (save && nameAfter === title) {
       await Promise.all([page.waitForURL(/\/course\/view\.php/, { timeout: 30_000 }), page.locator('#id_submitbutton2').click()]);
@@ -79,6 +103,7 @@ export async function deepLinkActivity(
     }
     return { ...run, nameAfter, saved };
   } finally {
+    context.off('response', onResponse);
     await context.unroute(matcher, handler);
     await page.close().catch(() => undefined);
   }
