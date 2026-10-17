@@ -1,5 +1,7 @@
 // T4a: every reject code of the package inspector, with zips that QA makes at run time (lib/zip.ts).
-// Source: tasks/T4a.md AC-T4-05; contract cogniate-app-api.md §3.2; security §7.
+// Source: tasks/T4a.md AC-T4-05, AC-T4-35 (4da1f95); contract cogniate-app-api.md §3.2 (details.action), §3.3
+// (package-derived identifiers); security §7. AC-T4-35 runs after AC-T4-05 in this file (tests in a file run in
+// order) and also checks the details.action of every AC-T4-05 answer.
 // Host part (run-t4a.mjs): the package store folder count before and after this test is the same, and
 // `find / -name evil.html -o -name abs.html` in the cogniate-app container finds nothing.
 import crypto from 'node:crypto';
@@ -13,20 +15,30 @@ import { writeLargeZip, type ZipEntry, zipBuffer } from '../lib/zip';
 const runId = `${Date.now().toString(36)}${crypto.randomBytes(2).toString('hex')}`;
 const INDEX: ZipEntry = { name: 'index.html', data: '<!doctype html><html><body data-lesson-id="index"><p>QA</p></body></html>' };
 
-function manifest({ resources, schemaversion = '1.2', doctype = '', ns = 'http://www.adlnet.org/xsd/adlcp_rootv1p2', typeAttr = 'adlcp:scormtype' }: {
+function manifest({
+  resources,
+  schemaversion = '1.2',
+  doctype = '',
+  ns = 'http://www.adlnet.org/xsd/adlcp_rootv1p2',
+  typeAttr = 'adlcp:scormtype',
+  identifier = 'qa.manifest',
+  title = 'QA',
+}: {
   resources: { id: string; href: string; files: string[] }[];
   schemaversion?: string;
   doctype?: string;
   ns?: string;
   typeAttr?: string;
+  identifier?: string;
+  title?: string;
 }): string {
   const items = resources.map((r) => `<item identifier="i-${r.id}" identifierref="${r.id}"><title>QA ${r.id}</title></item>`).join('');
   const res = resources
     .map((r) => `<resource identifier="${r.id}" type="webcontent" ${typeAttr}="sco" href="${r.href}">${r.files.map((f) => `<file href="${f}"/>`).join('')}</resource>`)
     .join('');
-  return `<?xml version="1.0" encoding="UTF-8"?>\n${doctype}<manifest identifier="qa.manifest" version="1" xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2" xmlns:adlcp="${ns}">
+  return `<?xml version="1.0" encoding="UTF-8"?>\n${doctype}<manifest identifier="${identifier}" version="1" xmlns="http://www.imsproject.org/xsd/imscp_rootv1p1p2" xmlns:adlcp="${ns}">
 <metadata><schema>ADL SCORM</schema><schemaversion>${schemaversion}</schemaversion></metadata>
-<organizations default="org"><organization identifier="org"><title>QA</title>${items}</organization></organizations>
+<organizations default="org"><organization identifier="org"><title>${title}</title>${items}</organization></organizations>
 <resources>${res}</resources></manifest>`;
 }
 
@@ -81,6 +93,42 @@ const CASES: Case[] = [
   { code: 'ZIP_TOO_LARGE', label: '201 MB of random data', make: (file) => writeLargeZip(file, [INDEX], { name: 'random.bin', bytes: 201 * 1024 * 1024 }) },
 ];
 
+const SCORM_R1 = [{ id: 'r1', href: 'index.html', files: ['index.html'] }];
+
+/** AC-T4-35: one crafted package per identifier rule of contract §3.3. */
+const IDENTIFIER_CASES: Case[] = [
+  {
+    code: 'INVALID_PACKAGE_IDENTIFIER',
+    label: 'manifest identifier of 129 characters',
+    make: write([INDEX, { name: 'imsmanifest.xml', data: manifest({ resources: SCORM_R1, identifier: 'a'.repeat(129) }) }]),
+  },
+  {
+    code: 'INVALID_PACKAGE_IDENTIFIER',
+    label: 'data-cog-quiz="__proto__"',
+    make: write([
+      {
+        name: 'index.html',
+        data: '<!doctype html><html><body data-lesson-id="index"><div data-cog-quiz="__proto__"><input type="radio" name="q" data-cog-correct="true"><input type="radio" name="q" data-cog-correct="false"></div></body></html>',
+      },
+    ]),
+  },
+  {
+    code: 'INVALID_PACKAGE_IDENTIFIER',
+    label: 'page key "bad key" (file bad key.html, no data-lesson-id)',
+    make: write([INDEX, { name: 'bad key.html', data: '<!doctype html><html><body><p>QA</p></body></html>' }]),
+  },
+  {
+    code: 'INVALID_PACKAGE_IDENTIFIER',
+    label: 'manifest title with U+0007',
+    make: write([INDEX, { name: 'imsmanifest.xml', data: manifest({ resources: SCORM_R1, title: 'QA\u0007title' }) }]),
+  },
+];
+
+/** details.action of every AC-T4-05 answer (AC-T4-35 checks that each one is non-empty). */
+const actions05: { label: string; action: string }[] = [];
+
+type RejectDetails = { message?: string; action?: unknown; reasons?: { code?: string; path?: string; detail?: string }[] };
+
 describe('T4a package rejects', () => {
   it('AC-T4-05 every crafted zip → 422 PACKAGE_REJECTED with its reason code; the course gets no version', { timeout: 600_000 }, async () => {
     const s = await signIn(THANH);
@@ -92,8 +140,9 @@ describe('T4a package rejects', () => {
         const file = path.join(dir, `${String(i).padStart(2, '0')}-${c.code.toLowerCase()}.zip`);
         await c.make(file);
         const res = await uploadVersion(s, course.id, file, { timeoutMs: 300_000 });
-        const details = (res.json as { details?: { message?: string; reasons?: { code?: string }[] } } | null)?.details;
+        const details = (res.json as { details?: RejectDetails } | null)?.details;
         const codes = (details?.reasons ?? []).map((r) => String(r.code));
+        actions05.push({ label: c.label, action: typeof details?.action === 'string' ? details.action : '' });
         if (res.status !== 422 || details?.message !== 'PACKAGE_REJECTED' || !codes.includes(c.code)) {
           problems.push(`${c.label}: HTTP ${res.status}, message ${details?.message ?? '-'}, codes [${codes.join(', ')}], want 422 PACKAGE_REJECTED with ${c.code}`);
         }
@@ -105,6 +154,43 @@ describe('T4a package rejects', () => {
     const after = await appApi<{ versions?: unknown[]; latestVersion?: unknown }>('GET', `/app-api/courses/${course.id}`, { cookie: s.cookie });
     expect(after.status).toBe(200);
     expect(after.json.versions ?? [], 'no version was made').toHaveLength(0);
+    expect(problems).toEqual([]);
+  });
+
+  it('AC-T4-35 package identifiers (129-char id, __proto__ quiz id, page key with a space, title with U+0007) → 422 INVALID_PACKAGE_IDENTIFIER with details.action, nothing stored; every AC-T4-05 answer has details.action', { timeout: 300_000 }, async () => {
+    const s = await signIn(THANH);
+    const course = await createCourse(s, `QA identifiers ${runId}`);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-identifiers-'));
+    const problems: string[] = [];
+    const seen: string[] = [];
+    try {
+      for (const [i, c] of IDENTIFIER_CASES.entries()) {
+        const file = path.join(dir, `${String(i).padStart(2, '0')}-identifier.zip`);
+        await c.make(file);
+        const res = await uploadVersion(s, course.id, file);
+        const details = (res.json as { details?: RejectDetails } | null)?.details;
+        const reasons = details?.reasons ?? [];
+        const codes = reasons.map((r) => String(r.code));
+        const action = typeof details?.action === 'string' ? details.action.trim() : '';
+        seen.push(`${c.label}: ${res.status} [${reasons.map((r) => `${r.code}${r.path ? ` ${r.path}` : ''}${r.detail ? ` (${r.detail})` : ''}`).join('; ')}]`);
+        if (res.status !== 422 || details?.message !== 'PACKAGE_REJECTED' || !codes.includes(c.code)) {
+          problems.push(`${c.label}: HTTP ${res.status}, message ${details?.message ?? '-'}, codes [${codes.join(', ')}], want 422 PACKAGE_REJECTED with ${c.code}`);
+        }
+        if (!action) problems.push(`${c.label}: no details.action`);
+        fs.rmSync(file, { force: true });
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+    const after = await appApi<{ versions?: unknown[]; latestVersion?: unknown }>('GET', `/app-api/courses/${course.id}`, { cookie: s.cookie });
+    expect(after.status).toBe(200);
+    expect(after.json.versions ?? [], 'nothing stored: no version').toHaveLength(0);
+    expect(after.json.latestVersion ?? null, 'nothing stored: no latestVersion').toBeNull();
+
+    // "Every 422 of AC-T4-05 also has a non-empty details.action."
+    if (actions05.length !== CASES.length) problems.push(`AC-T4-05 answers recorded: ${actions05.length} of ${CASES.length} (run AC-T4-05 in the same pass)`);
+    for (const a of actions05) if (!a.action.trim()) problems.push(`AC-T4-05 ${a.label}: details.action is missing or empty`);
+    console.log(`AC-T4-35 answers: ${seen.join(' | ')}`);
     expect(problems).toEqual([]);
   });
 });

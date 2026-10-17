@@ -8,7 +8,7 @@
 // 1. setup: npm ci, gen-env, compose name guard, stack:up + seed, H1 check.
 // 2. Copy the two course zips (not in git) into the clone's tests/fixtures/courses/ (git-ignored), SHA-256 checked,
 //    so that the e2e container can read them.
-// 3. Pass A: QA_TASK=T4a, every AC except AC-T4-05.
+// 3. Pass A: QA_TASK=T4a, every AC except AC-T4-05 and AC-T4-35.
 // 4. AC-T4-05: count the package store folders (docker exec, read-only), run only AC-T4-05, count again, and run
 //    `find / -name evil.html -o -name abs.html` in the cogniate-app container. Both are named by the AC.
 import crypto from 'node:crypto';
@@ -75,7 +75,9 @@ async function ac05() {
     return;
   }
   const before = await packageFolders(app);
-  await r.containerSuite('rejects', { env: { QA_TASK: 'T4a', QA_GREP: 'AC-T4-05' }, expectIds: ['AC-T4-05'] });
+  // AC-T4-35 (4da1f95) runs in the same pass: it reads the details.action of the AC-T4-05 answers, and the store count
+  // around this pass covers its rejects too ("nothing stored").
+  await r.containerSuite('rejects', { env: { QA_TASK: 'T4a', QA_GREP: 'AC-T4-05|AC-T4-35' }, expectIds: ['AC-T4-05', 'AC-T4-35'] });
   const after = await packageFolders(app);
   const find = await r.exec('find-evil-files', 'docker', [
     'exec', app, 'sh', '-c',
@@ -87,13 +89,16 @@ async function ac05() {
     `folders in ${STORE}: before ${before.count} (exit ${before.code}), after ${after.count} (exit ${after.code})`,
     `find: ${found.length ? found.join(', ') : 'nothing'}`,
   ], [before.log, after.log, find.log]);
+  r.record('AC-T4-35', 'After the identifier rejects (same pass): the package store folder count is the same', r.pass(before.code === 0 && after.code === 0 && before.count === after.count), [
+    `folders in ${STORE}: before ${before.count}, after ${after.count}`,
+  ]);
 }
 
 await r.main(async () => {
   if (!(await setup())) return;
   if (!copyFixtures()) return;
   await r.containerSuite('passA', {
-    env: { QA_TASK: 'T4a', QA_GREP: '^(?!.*AC-T4-05)' },
+    env: { QA_TASK: 'T4a', QA_GREP: '^(?!.*(AC-T4-05|AC-T4-35))' },
     expectIds: ['AC-T4-01', 'AC-T4-02', 'AC-T4-03', 'AC-T4-04', 'AC-T4-06'],
   });
   await ac05();
