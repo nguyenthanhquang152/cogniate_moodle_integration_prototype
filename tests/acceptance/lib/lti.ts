@@ -128,7 +128,7 @@ const SECRETS_FILE = () => path.join(artifactsDir('acceptance'), 'captured-secre
 const ERRORS_FILE = () => path.join(artifactsDir('acceptance'), 'captured-error-pages.jsonl');
 
 /** Remember a secret value. AC-T2-16 later checks that no log contains it. The file stays in git-ignored artifacts. */
-export function recordSecret(kind: 'ltik' | 'id_token' | 'state' | 'api_key' | 'service_key' | 'nonce', value: string | undefined): void {
+export function recordSecret(kind: 'ltik' | 'id_token' | 'state' | 'api_key' | 'service_key' | 'nonce' | 'runtime_token', value: string | undefined): void {
   if (!value || value.length < 8) return;
   fs.appendFileSync(SECRETS_FILE(), `${JSON.stringify({ kind, value })}\n`);
 }

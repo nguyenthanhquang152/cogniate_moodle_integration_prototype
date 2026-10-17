@@ -32,6 +32,8 @@ export interface HttpOptions {
   body?: string | Buffer;
   /** Trust store. Default: the stack root CA only. */
   ca?: string | string[];
+  /** Send this request path as it is (no URL normalization of `../` or `%2e%2e/`), like `curl --path-as-is`. */
+  rawPath?: string;
   timeoutMs?: number;
 }
 
@@ -45,7 +47,7 @@ export function httpsRequest(url: string, opts: HttpOptions = {}): Promise<HttpR
         protocol: 'https:',
         hostname: u.hostname,
         port: u.port || 443,
-        path: `${u.pathname}${u.search}`,
+        path: opts.rawPath ?? `${u.pathname}${u.search}`,
         method: opts.method ?? 'GET',
         headers: opts.headers,
         ca: opts.ca ?? rootCaPem(),
