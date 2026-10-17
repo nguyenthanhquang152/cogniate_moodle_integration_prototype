@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # T4a review — Reviewer-B (lens: "Can a human team own it?")
 
@@ -115,3 +115,19 @@ Input: `git diff 3ec5222 9edf5fd -- packages/package-inspector services/cogniate
   - The contract names `method`, `path` and `error_name`, but both services log only `error`.
   - The reasons now also carry `title` and `action`, but §3.2 does not show them. T6 needs them.
 - **Suggested fix:** Log `method`, `path` and `error_name` in both services, or change the contract to `error`. Add `title` and `action` to the reason shape in §3.2.
+
+---
+
+## Round 3
+
+Round 3 verdict: **APPROVE**. No open finding from Reviewer-B above NIT.
+
+Input: `git diff 9edf5fd 73dccec -- packages/package-inspector` (4 files). `npm run check`: pass, 22 test files, 306 tests.
+
+- **B-T4a-05: resolved.** App contract §12 now names `internal_error {method, path, error}` (`error` = class name), and §3.2 shows the reason shape `{ code, title, action, path?, detail }`. NOTE: the code logs `error` and `trace_id`, but not yet `method` and `path`. This is a small gap and does not block; the T3a shared `errors` move (B-T4a-01) can add them.
+- **Readability of the new code: good.**
+  - `hasIllegalXmlChar` (`manifest.ts`) is named after the XML 1.0 Char rule, which is quoted in a comment.
+  - It checks raw characters (`NOT_XML_CHAR`) and character references (`isXmlChar`), and says which C1 characters are legal.
+  - `parseManifest` documents the check order: DTD, then XML 1.0 characters, then well-formedness.
+  - Tests cover raw and referenced illegal characters, a lone surrogate in the bytes, legal characters (tab, U+0085, astral), and "DOCTYPE still first".
+  - The new invisible characters in `INVALID_ENTRY_NAME` and the Map/Set-only test (`hasOwnProperty`, `toString`) have clear test names.

@@ -128,6 +128,12 @@ const IDENTIFIER_CASES: Case[] = [
     label: 'manifest title with U+0007 (illegal in XML 1.0)',
     make: write([INDEX, { name: 'imsmanifest.xml', data: manifest({ resources: SCORM_R1, title: 'QA\u0007title' }) }]),
   },
+  {
+    // The AC: "raw or as &#7;". A character reference to an XML-illegal character is also not well-formed.
+    code: 'MANIFEST_INVALID_XML',
+    label: 'manifest title with &#7; (character reference, illegal in XML 1.0)',
+    make: write([INDEX, { name: 'imsmanifest.xml', data: manifest({ resources: SCORM_R1, title: 'QA&#7;title' }) }]),
+  },
 ];
 
 /** details.action of every AC-T4-05 answer (AC-T4-35 checks that each one is non-empty). */
@@ -163,7 +169,7 @@ describe('T4a package rejects', () => {
     expect(problems).toEqual([]);
   });
 
-  it('AC-T4-35 package identifiers (129-char id, __proto__ quiz id, page key with a space, title with U+0085) → 422 INVALID_PACKAGE_IDENTIFIER, title with U+0007 → MANIFEST_INVALID_XML; details.action, nothing stored; every AC-T4-05 answer has details.action', { timeout: 300_000 }, async () => {
+  it('AC-T4-35 package identifiers (129-char id, __proto__ quiz id, page key with a space, title with U+0085) → 422 INVALID_PACKAGE_IDENTIFIER, title with U+0007 (raw or &#7;) → MANIFEST_INVALID_XML; details.action, nothing stored; every AC-T4-05 answer has details.action', { timeout: 300_000 }, async () => {
     const s = await signIn(THANH);
     const course = await createCourse(s, `QA identifiers ${runId}`);
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-identifiers-'));

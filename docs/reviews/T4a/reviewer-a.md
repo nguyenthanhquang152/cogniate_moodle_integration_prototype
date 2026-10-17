@@ -1,9 +1,9 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # Reviewer-A: T4a review (lens: "Is it right and is it safe?")
 
-History: the round 1 verdict was APPROVE (findings below). The round 2 verdict is APPROVE (section "Round 2" at the end).
+History: the round 1 verdict was APPROVE (findings below). The round 2 and round 3 verdicts are APPROVE (sections at the end).
 
 ## Round 1
 
@@ -144,3 +144,19 @@ No regressions in my lens. The new `REJECT_INFO` title and action text is fixed 
 - **Location:** `packages/package-inspector/src/identifiers.ts` (`FORBIDDEN`).
 - **Problem:** `data-cog-quiz="toString"` passes. On a plain object, such a key hides the inherited method. This is harmless where code uses `Map` or `Object.create(null)`, as contract §3.3 requires.
 - **Fix:** Either add `hasOwnProperty`, `toString`, `valueOf`, `isPrototypeOf`, `propertyIsEnumerable`, `toLocaleString` and the `__*Getter__`/`__*Setter__` names to `FORBIDDEN`, or keep the list and let Reviewer-A check the `Map` rule in T5a.
+
+---
+
+## Round 3
+
+Verdict (round 3): APPROVE
+
+Input: `git diff 9edf5fd 73dccec -- packages/package-inspector` (4 files). The package-inspector unit tests pass (56 of 56). I did not read `reviewer-b.md`.
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-T4a-06 (NIT) | Resolved | `names.ts` `CONTROL` now also has U+00AD, U+061C, U+180E, U+2028, U+2029 and U+2060–U+2064. The rule applies to every entry at any depth. The tests include `assets/a؜b.png` and `deep/er/a b.png`. |
+| A-T4a-07 (NIT) | Resolved (option 2) | Package-derived ids are kept in `Map` and `Set`. A test proves that `hasOwnProperty`, `toString` and `valueOf` work as plain page keys, question ids and item identifiers. In T5a, I will check that the commit and answer code also uses `Map` or `Object.create(null)`. |
+| New: XML 1.0 character check | Correct | `hasIllegalXmlChar` runs after the `<!DOCTYPE`/`<!ENTITY` rejection and before parsing. It rejects raw characters and character references outside the XML 1.0 `Char` production (C0 except tab, LF and CR; U+FFFE; U+FFFF; surrogates; `&#0;`), and C1 controls stay legal XML. The strict decoders already reject lone surrogate bytes, and a test covers `ED A0 80`. |
+
+No new findings.
