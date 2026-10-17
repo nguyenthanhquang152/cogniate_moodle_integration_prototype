@@ -120,3 +120,41 @@ export async function writeLargeZip(file: string, small: ZipEntry[], big: { name
     fs.closeSync(fd);
   }
 }
+
+/**
+ * Minimal zip reader (T5b AC-T5-10): the file entries of a zip from its central directory (STORE and DEFLATE).
+ * Directory entries (names ending with "/") are skipped. No ZIP64 (the course fixtures are small zips).
+ */
+export function readZip(file: string): { name: string; data: Buffer }[] {
+  const buf = fs.readFileSync(file);
+  let eocd = -1;
+  for (let i = buf.length - 22; i >= Math.max(0, buf.length - 22 - 0xffff); i--) {
+    if (buf.readUInt32LE(i) === 0x06054b50) {
+      eocd = i;
+      break;
+    }
+  }
+  if (eocd < 0) throw new Error(`${file}: no end of central directory`);
+  const count = buf.readUInt16LE(eocd + 10);
+  let p = buf.readUInt32LE(eocd + 16);
+  const out: { name: string; data: Buffer }[] = [];
+  for (let n = 0; n < count; n++) {
+    if (buf.readUInt32LE(p) !== 0x02014b50) throw new Error(`${file}: bad central directory entry ${n}`);
+    const method = buf.readUInt16LE(p + 10);
+    const csize = buf.readUInt32LE(p + 20);
+    const nameLen = buf.readUInt16LE(p + 28);
+    const extraLen = buf.readUInt16LE(p + 30);
+    const commentLen = buf.readUInt16LE(p + 32);
+    const local = buf.readUInt32LE(p + 42);
+    const name = buf.subarray(p + 46, p + 46 + nameLen).toString('utf8');
+    p += 46 + nameLen + extraLen + commentLen;
+    if (name.endsWith('/')) continue;
+    if (buf.readUInt32LE(local) !== 0x04034b50) throw new Error(`${file}: bad local header for ${name}`);
+    const start = local + 30 + buf.readUInt16LE(local + 26) + buf.readUInt16LE(local + 28);
+    const raw = buf.subarray(start, start + csize);
+    if (method === 0) out.push({ name, data: Buffer.from(raw) });
+    else if (method === 8) out.push({ name, data: zlib.inflateRawSync(raw) });
+    else throw new Error(`${file}: ${name} uses compression method ${method}`);
+  }
+  return out;
+}

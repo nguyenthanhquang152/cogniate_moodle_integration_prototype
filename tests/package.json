@@ -15,7 +15,8 @@
     "host:t1": "node host/run-t1.mjs",
     "host:t2": "node host/run-t2.mjs",
     "host:t4a": "node host/run-t4a.mjs",
-    "host:t4b": "node host/run-t4b.mjs"
+    "host:t4b": "node host/run-t4b.mjs",
+    "host:t5": "node host/run-t5.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.56.0",

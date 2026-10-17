@@ -127,6 +127,9 @@ export interface GradeItem {
   cmid?: number;
   graderaw: number | null;
   grademax: number;
+  /** The grade that Moodle shows (final grade, also after a teacher override), for example "50.00". */
+  gradeformatted?: string;
+  gradeisoverridden?: boolean;
 }
 
 /** Grade items of one user in one course (QA oracle `gradereport_user_get_grade_items`). */

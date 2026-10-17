@@ -24,6 +24,8 @@ export interface HttpResult {
   status: number;
   headers: IncomingHttpHeaders;
   body: string;
+  /** The body bytes (for binary files). */
+  raw?: Buffer;
 }
 
 export interface HttpOptions {
@@ -58,9 +60,10 @@ export function httpsRequest(url: string, opts: HttpOptions = {}): Promise<HttpR
       (res) => {
         const chunks: Buffer[] = [];
         res.on('data', (c: Buffer) => chunks.push(c));
-        res.on('end', () =>
-          resolve({ status: res.statusCode ?? 0, headers: res.headers, body: Buffer.concat(chunks).toString('utf8') }),
-        );
+        res.on('end', () => {
+          const raw = Buffer.concat(chunks);
+          resolve({ status: res.statusCode ?? 0, headers: res.headers, body: raw.toString('utf8'), raw });
+        });
         res.on('error', reject);
       },
     );

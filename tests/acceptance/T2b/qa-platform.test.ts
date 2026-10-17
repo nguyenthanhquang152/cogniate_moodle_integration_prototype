@@ -166,8 +166,9 @@ describe('T2b QA platform launch checks', () => {
       const lastFetch = Date.now();
       await new Promise((r) => setTimeout(r, Math.max(0, lastFetch + 61_000 - Date.now())));
       fs.rmSync(file, { force: true });
-      const gone = await httpsRequest(`${QA_ISSUER}/${q.jwksFile}`);
-      expect(gone.status, 'qa-platform.test answers 404 for the removed JWKS file').toBe(404);
+      // No probe of the JWKS path here: AC-T2-30 counts every qa_platform_hit on JWKS paths as a service fetch. The 404 is
+      // proven by the service's own outbound event below (status 404).
+      expect(fs.existsSync(file), 'the JWKS file is removed').toBe(false);
 
       // (1) Unknown kid → one refresh attempt, which fails → INVALID_SIGNATURE, detail jwks_fetch_failed.
       const since = Date.now() - 500;
@@ -181,6 +182,7 @@ describe('T2b QA platform launch checks', () => {
       await new Promise((r) => setTimeout(r, 1_500)); // log lines arrive
       const outbound = eventsSince('lti-service', since, (e) => /^outbound_/.test(String(e.event)) && hostIs(e, QA_HOST) && e.trace_id === bad.traceId);
       expect(outbound.map((e) => `${String(e.event)} ${String(e.status ?? e.reason ?? '')}`), 'one outbound_* event for the failed fetch').toHaveLength(1);
+      if (outbound[0]?.event === 'outbound_request') expect(String(outbound[0].status), 'qa-platform.test answered 404 for the removed file').toBe('404');
 
       // (2) A token signed with the cached key → the launch is accepted.
       const good = await launch((c) => signRs256(c, q.privateKey, q.kid));

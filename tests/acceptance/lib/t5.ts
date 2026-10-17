@@ -42,6 +42,15 @@ export const ACT = {
   blankA: 'QA Blank SCO',
   blankB: 'QA Blank SCO 2',
   rebind: 'Cogniate SCORM rebind',
+  // T5b (QA's own activities; T5b setup makes them, except "Cogniate HTML 102", which AC-T5-32 makes itself).
+  htmlHang: 'QA HTML hang',
+  htmlFirst: 'QA HTML first answer',
+  htmlDwell: 'QA HTML dwell',
+  htmlRetry: 'QA HTML retry',
+  htmlConflict: 'QA HTML conflict',
+  scormOutage: 'QA SCORM outage',
+  scormOverride: 'QA SCORM override',
+  html102: 'Cogniate HTML 102',
 } as const;
 
 // ---------------------------------------------------------------- state shared by the T5 spec files
@@ -69,6 +78,9 @@ export interface T5State {
   scormV2?: CourseRef;
   /** Which ACs ran (for the expected values of later ACs, e.g. AC-T5-18). */
   ran?: Record<string, boolean>;
+  /** AC-T5-31: the conflict row and the timestamp of QA's score (AC-T5-32 resends the row within 10 min). */
+  conflictSyncId?: string;
+  conflictScoreAt?: number;
 }
 
 export function t5(): Partial<T5State> {
@@ -365,10 +377,9 @@ const COMMIT_KINDS = ['commit', 'finish', 'unload', 'progress'];
  * QA takes the first other key whose name contains "event" and whose value is a commit kind (spec note to the Architect).
  */
 export function commitKind(e: LogEntry): string {
-  for (const [k, v] of Object.entries(e)) {
-    if (k !== 'event' && /event/i.test(k) && typeof v === 'string' && COMMIT_KINDS.includes(v)) return v;
-  }
-  return '';
+  const fields = Object.entries(e).filter(([k, v]) => k !== 'event' && typeof v === 'string' && COMMIT_KINDS.includes(v as string));
+  const named = fields.find(([k]) => /event/i.test(k)) ?? fields.find(([k]) => /kind|type|commit/i.test(k)) ?? fields[0];
+  return named ? String(named[1]) : '';
 }
 
 /** Waits for a commit_accepted line of this session with this commit kind. */
@@ -465,6 +476,15 @@ export async function waitForRow(
   }
 }
 
+/** The grade that Moodle shows for the activity (final grade: a teacher override counts), and the override flag. */
+export async function moodleShown(courseId: number, user: MoodleUser, itemName: string): Promise<{ shown: number | null; overridden: boolean; raw: number | null } | undefined> {
+  const items = await gradeItems(seed().oracleToken, courseId, user.id);
+  const item = items.find((i) => i.itemname === itemName);
+  if (!item) return undefined;
+  const shown = item.gradeformatted !== undefined && item.gradeformatted !== '-' && item.gradeformatted !== '' ? Number.parseFloat(item.gradeformatted) : null;
+  return { shown: Number.isNaN(shown) ? null : shown, overridden: Boolean(item.gradeisoverridden), raw: item.graderaw };
+}
+
 export async function moodleGrade(courseId: number, user: MoodleUser, itemName: string): Promise<number | null | undefined> {
   const items = await gradeItems(seed().oracleToken, courseId, user.id);
   const item = items.find((i) => i.itemname === itemName);
@@ -495,4 +515,77 @@ export async function waitForMoodle(
     if (ok || Date.now() > deadline) return { grade, completion };
     await new Promise((r) => setTimeout(r, 2_000));
   }
+}
+
+// ---------------------------------------------------------------- T5b: score syncs, hanging hosts, Moodle UI steps
+
+export async function resendSync(syncId: string): Promise<{ status: number; json: Record<string, unknown> | null; body: string }> {
+  const s = await thanhSession();
+  const res = await appApi<Record<string, unknown>>('POST', `/app-api/score-syncs/${encodeURIComponent(syncId)}/resend`, { cookie: s.cookie });
+  return { status: res.status, json: res.json, body: res.body };
+}
+
+export async function refreshResults(publicationId: string): Promise<{ status: number; rows: ResultRow[]; body: string }> {
+  const s = await thanhSession();
+  const res = await appApi<{ rows: ResultRow[] }>('POST', `/app-api/publications/${encodeURIComponent(publicationId)}/results/refresh`, { cookie: s.cookie });
+  return { status: res.status, rows: res.json?.rows ?? [], body: res.body };
+}
+
+/**
+ * A browser context in which every request to a host outside the stack and outside *.test hangs (no answer, not
+ * blocked): AC-T5-36. `hung` records the URLs. Call `release()` before closing the context.
+ */
+export async function newHangingContext(browser: import('@playwright/test').Browser): Promise<{ context: BrowserContext; hung: string[]; release: () => Promise<void> }> {
+  const stack = new Set(Object.values(urls).map((u) => new URL(u).hostname));
+  const context = await browser.newContext({ ignoreHTTPSErrors: process.env.QA_IGNORE_HTTPS_ERRORS === '1', viewport: { width: 1440, height: 900 } });
+  const hung: string[] = [];
+  await context.route('**/*', (route) => {
+    const u = new URL(route.request().url());
+    if (stack.has(u.hostname) || u.hostname.endsWith('.test')) return route.continue();
+    hung.push(`${u.origin}${u.pathname}`);
+    return new Promise<void>(() => undefined); // never answered
+  });
+  return { context, hung, release: () => context.unrouteAll({ behavior: 'ignoreErrors' }) };
+}
+
+/** Full name and email of a Moodle user in a course (QA oracle core_enrol_get_enrolled_users). */
+export async function enrolledUser(courseId: number, userId: number): Promise<{ fullname: string; email: string; roles: string[] } | undefined> {
+  const users = await callWs<{ id: number; fullname: string; email?: string; roles?: { shortname: string }[] }[]>(seed().oracleToken, 'core_enrol_get_enrolled_users', { courseid: courseId });
+  const u = users.find((x) => x.id === userId);
+  return u ? { fullname: u.fullname, email: u.email ?? '', roles: (u.roles ?? []).map((r) => r.shortname) } : undefined;
+}
+
+/** Moodle 5.2.4 Participants page: the row of the user (name link /user/view.php?id=<id>&course=…) → Unenrol → confirm. */
+export async function unenrolInUi(page: Page, courseId: number, userId: number): Promise<void> {
+  await page.goto(`${urls.moodle}/user/index.php?id=${courseId}&perpage=5000`);
+  const row = page.locator(`tr:has(a[href*="/user/view.php?id=${userId}&"])`).first();
+  await row.locator('[data-action="unenrol"]').first().click();
+  await page.locator('.modal.show [data-action="save"]').click();
+  await row.waitFor({ state: 'detached', timeout: 20_000 });
+}
+
+/** Moodle 5.2.4 Participants page → "Enrol users" (enrol_manual) → find by email → role Student → Enrol users. */
+export async function enrolInUi(page: Page, courseId: number, email: string): Promise<void> {
+  await page.goto(`${urls.moodle}/user/index.php?id=${courseId}&perpage=5000`);
+  await page.locator(".enrolusersbutton.enrol_manual_plugin [type='submit']").first().click();
+  const modal = page.locator('.modal.show');
+  const search = modal.locator('input[id^="form_autocomplete_input"]').first();
+  await search.fill(email);
+  await modal.locator('[role="option"]', { hasText: email }).first().click();
+  const role = modal.locator('#id_roletoassign');
+  if (await role.count()) await role.selectOption({ label: 'Student' });
+  await modal.locator('[data-action="save"]').click();
+  await modal.waitFor({ state: 'detached', timeout: 20_000 });
+}
+
+/** Moodle 5.2.4 grader report (cg_teacher): Edit mode on, type the grade into grade_<userid>_<itemid>, Save changes. */
+export async function overrideGradeInUi(page: Page, courseId: number, userId: number, itemId: number, value: string): Promise<void> {
+  await page.goto(`${urls.moodle}/grade/report/grader/index.php?id=${courseId}`);
+  const cell = page.locator(`#grade_${userId}_${itemId}`);
+  if (!(await cell.count())) {
+    await Promise.all([page.waitForLoadState('load'), page.locator('input[name="setmode"]').first().click()]);
+    await page.goto(`${urls.moodle}/grade/report/grader/index.php?id=${courseId}`);
+  }
+  await cell.fill(value);
+  await Promise.all([page.waitForLoadState('load'), page.locator('#gradersubmit').click()]);
 }

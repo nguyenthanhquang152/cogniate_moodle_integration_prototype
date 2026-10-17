@@ -66,7 +66,8 @@ async function ac31First() {
 async function passA() {
   const { tests } = await r.containerSuite('passA', { env: { QA_TASK: TASKS.join(',') }, expectIds: TASKS.flatMap((t) => EXPECT[t] ?? []) });
   // H14 (T2a scope): npm run test:acceptance forwards the caller's QA_* env, so only the selected task folders ran.
-  const others = tests.filter((t) => !/^AC-T2-/.test(t.id));
+  // T2b also has the H6 control test (qa-platform.test serves run-time files), which is in scope.
+  const others = tests.filter((t) => !/^AC-T2-/.test(t.id) && !(TASKS.includes('T2b') && t.id === 'H6'));
   r.record('H14', `npm run test:acceptance forwards QA_TASK=${TASKS.join(',')} into the e2e container (only those tests ran)`, r.pass(tests.length > 0 && others.length === 0), [
     `tests reported: ${tests.length}; outside ${TASKS.join(',')}: ${others.length}${others.length ? ` (${others.slice(0, 5).map((t) => t.id).join(', ')}…)` : ''}`,
   ]);
