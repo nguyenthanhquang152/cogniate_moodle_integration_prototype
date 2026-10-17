@@ -127,6 +127,8 @@ Values that come from the package are untrusted. They must pass these rules befo
 
 Code keeps id-keyed data in `Map` objects or objects made with `Object.create(null)`.
 
+Check order: the zip and XML checks of §3.2 run first, and the first failing check gives the code. So a character that XML 1.0 does not allow (for example U+0007, raw or as `&#7;`) gives `MANIFEST_INVALID_XML`. The §3.3 control-character rule then catches characters that are valid XML but banned here (C1 controls such as U+0085, and U+007F).
+
 ## 4. Connections — T4b1
 
 ```json
