@@ -247,7 +247,8 @@ The service takes the AGS claim (or NRPS claim) of the launch or service key. A 
 
 1. its origin = the origin of the claim URL (`lineitems`, or `context_memberships_url`),
 2. its path starts with the claim URL path, and
-3. every query parameter of the claim URL is present with the same value (Moodle: `type_id`).
+3. every query parameter of the claim URL is present with the same value (Moodle: `type_id`), and
+4. its raw path has no `%2F`, `%5C`, `%2E` or `%25` (any letter case), no backslash, and no `.` or `..` segment (A-T3a-01).
 
 Otherwise `400 INVALID_LINE_ITEM_ID` (or `INVALID_URL_PARAMETER`), and **no** outbound request is made. Scores URL = line item URL with `/scores` added to the path, before the query. Results use `/results`.
 
@@ -277,7 +278,7 @@ Write operations need the AGS `lineitem` scope. With only `lineitem.readonly`: `
 | `scoreGiven` | optional, ≥ 0, needs `scoreMaximum` |
 | `scoreMaximum` | > 0, required with `scoreGiven` |
 | `comment` | optional |
-| `timestamp` (addition) | optional ISO 8601 |
+| `timestamp` (addition) | optional ISO 8601, at most now + 15 min, else `400 INVALID_REQUEST` (field `timestamp`). The limit bounds how far a tool can push Moodle's grade time ahead (later scores get 409 until then). |
 
 The service sends `application/vnd.ims.lis.v1.score+json` with `timestamp` ≥ last + 1 s per (platform, line item, user). The clock is in memory; at start its floor is the start time + 2 s, so scores sent just before a restart do not cause a 409 after it. A `timestamp` in the request is used as given (QA uses this to make a `conflict`, AC-T5-31). `204` on success. Platform 409 → `409 PLATFORM_CONFLICT`.
 
