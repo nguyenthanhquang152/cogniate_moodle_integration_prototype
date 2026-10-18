@@ -63,7 +63,7 @@ test('A1-A2 AC-T7-02 AC-T7-14 Thanh connects "Dev Moodle" (Automatic); the Moodl
       await portalSignIn(portal, THANH);
       const connectionId = await startConnect(portal, CONNECTION_A, 'dynamic');
       saveState({ connectionA: connectionId });
-      await portal.getByRole('button', { name: 'Copy', exact: true }).first().click();
+      await portal.getByRole('button', { name: /^Copy/ }).first().click();
       return clipboard(portal);
     });
     expect(regUrl, 'the registration URL from the Copy button').toMatch(new RegExp(`^${urls.lti.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/lti/register/cogniate\\?ref=`));

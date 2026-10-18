@@ -303,6 +303,8 @@ export async function readToolDetails(page: Page, toolName: string): Promise<Rec
   await toolCard(page, toolName).getByTitle('View configuration details', { exact: true }).first().click();
   const modal = page.locator('.modal.show');
   await modal.getByText('Tool configuration details').first().waitFor();
+  // The dialog body is rendered after the dialog opens (a spinner first).
+  await expectCount(modal.locator('.modal-body li'), 6, 15_000);
   const items = await modal.locator('.modal-body li').evaluateAll((lis) =>
     lis.map((li) => {
       const label = (li.querySelector('strong')?.textContent ?? '').replace(/:\s*$/, '').trim();
@@ -311,6 +313,14 @@ export async function readToolDetails(page: Page, toolName: string): Promise<Rec
     }),
   );
   return Object.fromEntries(items);
+}
+
+async function expectCount(loc: Locator, min: number, timeoutMs: number): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  while ((await loc.count()) < min) {
+    if (Date.now() > deadline) throw new Error(`expected at least ${min} elements for ${loc}, found ${await loc.count()}`);
+    await new Promise((r) => setTimeout(r, 200));
+  }
 }
 
 export async function closeModal(page: Page): Promise<void> {
@@ -333,9 +343,14 @@ export async function ensureEditMode(page: Page, courseId: number): Promise<void
 /** "Add content" in the section → "Activity or resource" → the chooser → select `toolName` → "Add" → the activity form. */
 export async function addActivityFromChooser(page: Page, toolName: string, section = 'General'): Promise<{ chooserItems: string[] }> {
   const add = page.locator(`button[data-action="open-addingcontent"][aria-label="Insert content in section '${section}'"]`).first();
-  await add.click();
   const menu = page.locator('.dropdown-menu.show');
-  await menu.getByRole('button', { name: /Activity or resource/ }).or(menu.locator('[data-action="open-chooser"]')).first().click();
+  const item = menu.getByRole('button', { name: /Activity or resource/ }).or(menu.locator('[data-action="open-chooser"]')).first();
+  // The edit-mode user tour can start while the menu opens; ending it closes the menu. Then open the menu again.
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    await add.click();
+    if (await item.waitFor({ state: 'visible', timeout: 3_000 }).then(() => true, () => false)) break;
+  }
+  await item.click();
   const modal = page.locator('.modal.show');
   await modal.getByText('Add an activity or resource').first().waitFor();
   const option = modal.getByRole('menuitem', { name: toolName, exact: true }).first();
