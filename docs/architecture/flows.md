@@ -31,7 +31,7 @@ sequenceDiagram
     M->>APP: (iframe) GET /tool/register
     APP->>LTI: GET /api/registrations/{id} (Bearer)
     alt operation = update
-      APP-->>MA: page UPDATE_NOT_ALLOWED: "Go back and choose Register as a new tool"
+      APP-->>MA: page UPDATE_NOT_ALLOWED: "Go back and choose Register as a new external tool"
     else new
       APP-->>MA: confirm page (site, Moodle version, library, privacy)
       MA->>APP: POST /tool/register (Connect)

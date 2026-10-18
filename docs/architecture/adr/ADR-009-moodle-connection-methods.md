@@ -45,7 +45,7 @@ Dynamic registration request (built by the LTI service at `complete`; URLs from 
 
 **Default privacy: `anonymous`** (spec §7.5, §10; Q3).
 
-**"Update existing tool":** the service reports `operation` and `existingPlatformId` (security §2.5). The app **refuses every update** in the prototype: a registration URL exists only for a `pending` connection, so the only updates that can reach it are attempts to overwrite another library's tool. It tells the admin "Go back in Moodle and choose Register as a new tool", and nothing is sent to Moodle. Re-connect = delete the old tool in Moodle, disconnect, connect again. A platform belongs to one connection only.
+**"Update existing tool":** the service reports `operation` and `existingPlatformId` (security §2.5). The app **refuses every update** in the prototype: a registration URL exists only for a `pending` connection, so the only updates that can reach it are attempts to overwrite another library's tool. It tells the admin "Go back in Moodle and choose Register as a new external tool", and nothing is sent to Moodle. Re-connect = delete the old tool in Moodle, disconnect, connect again. A platform belongs to one connection only.
 
 Manual values (shown in the portal; URLs from `PUBLIC_LTI_URL`, account `cogniate`). The API returns them with stable keys, in the order of app contract §4.1:
 
@@ -75,5 +75,5 @@ The wizard steps (both methods) are kept as data in the portal (T6), so that T7 
 ## Consequences
 
 - After a dynamic registration (new or update) the admin does: Activate, then edit "Tool configuration usage" and "Default launch container". The status stays `registered` until the first launch.
-- Two libraries can connect the same Moodle site. Each gets its own tool and client id. Moodle shows the choice page to every registration after the first one on a site (same domain), so the second admin must choose "Register as a new tool"; the wizard says so in every case. In our dev stack the seed tool has the same domain, so every dynamic registration sees the choice page.
+- Two libraries can connect the same Moodle site. Each gets its own tool and client id. Moodle shows the choice page to every registration after the first one on a site (same domain), so the second admin must choose "Register as a new external tool"; the wizard says so in every case. In our dev stack the seed tool has the same domain, so every dynamic registration sees the choice page.
 - MoodleCloud support for dynamic registration on every plan is not verified (Q5).

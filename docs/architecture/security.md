@@ -87,7 +87,7 @@ Moodle shows a choice page when a tool with the same domain exists. If the admin
 - The LTI service reads the operation from the token (verified with the platform JWKS from the configuration) and finds the existing platform by (issuer, deployment id = type id).
 - `GET /api/registrations/:id` returns `operation` and `existingPlatformId`.
 - `complete` with `operation = update` needs `updatePlatformId` = `existingPlatformId`, and the platform must belong to the same tool account. Else `409 REGISTRATION_UPDATE_NOT_ALLOWED`, and the service sends **nothing** to Moodle.
-- The app **never** allows an update in the prototype (Lead decision, A-T4b1-02): a registration URL exists only for a `pending` connection, so a connection with a platform cannot re-register. For `operation = update` the app always shows `UPDATE_NOT_ALLOWED` ("Go back in Moodle and choose Register as a new tool") and calls nothing. To re-connect a library, the admin deletes its tool in Moodle, the Cogniate user disconnects and connects again. The LTI service keeps `updatePlatformId` as an API feature for other tools.
+- The app **never** allows an update in the prototype (Lead decision, A-T4b1-02): a registration URL exists only for a `pending` connection, so a connection with a platform cannot re-register. For `operation = update` the app always shows `UPDATE_NOT_ALLOWED` ("Go back in Moodle and choose Register as a new external tool") and calls nothing. To re-connect a library, the admin deletes its tool in Moodle, the Cogniate user disconnects and connects again. The LTI service keeps `updatePlatformId` as an API feature for other tools.
 
 ### 2.6 Platform ownership (A-T4b1-01)
 
