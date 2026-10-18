@@ -65,8 +65,8 @@ Mechanism (T1): `npm run stack:restart -- <service> --env KNOB=value` restarts o
 | `REF_TTL_SECONDS` | cogniate-app | 86400 | 20 | AC-T4-09 | Open the registration URL from Moodle at TTL + 3 s → `REF_EXPIRED`. |
 | `PICKER_TTL_SECONDS` | cogniate-app | 3600 | 20 | AC-T4-20 | POST the picker at TTL + 3 s → 410. |
 | `PLAY_TTL_SECONDS` | cogniate-app | 86400 | 20 | AC-T5-15 | Commit at TTL + 3 s → `410 RUNTIME_EXPIRED`. |
-| `BUILD_RUNNER_HOLD` | cogniate-app | 0 | 1 | AC-T8-03 | The build pauses before teardown until the flag file is removed. |
-| `BUILD_RUNNER_FAIL_AT` | cogniate-app | "" | `backup` | AC-T8-07 | The build fails at that step. (A string knob: T8 extends the T1 registry, which accepts whole numbers only.) |
+| `BUILD_RUNNER_HOLD` | cogniate-app (string knob) | "" | `1` | AC-T8-03 | The build pauses before teardown until the flag file is removed. |
+| `BUILD_RUNNER_FAIL_AT` | cogniate-app (string knob) | "" | `backup` | AC-T8-07 | The build fails at that step. |
 
 No other knob exists. T7 checks that every `/healthz` shows `"knobs": []` and `"profile": "default"` (AC-T7-13).
 

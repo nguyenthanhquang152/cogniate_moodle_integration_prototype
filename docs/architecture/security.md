@@ -193,7 +193,7 @@ All outbound HTTP of both services goes through one client in `packages/shared` 
 - Blocked ranges:
   - IPv4: `0.0.0.0/8`, `10.0.0.0/8`, `100.64.0.0/10` (CGNAT), `127.0.0.0/8`, `169.254.0.0/16` (link-local, incl. the `169.254.169.254` metadata address), `172.16.0.0/12`, `192.0.0.0/24`, `192.168.0.0/16`, `198.18.0.0/15`, `224.0.0.0/4` (multicast), `240.0.0.0/4`, `255.255.255.255/32`.
   - IPv6: `::/128`, `::1/128`, `::/96` (IPv4-compatible), `fc00::/7`, `fe80::/10`, `fec0::/10` (site-local), `ff00::/8`, `64:ff9b::/96` (NAT64), `2002::/16` (6to4), and IPv4-mapped `::ffff:0:0/96` (the mapped IPv4 address is checked against the IPv4 list).
-- Allowlist per service (`OUTBOUND_PRIVATE_HOST_ALLOWLIST`, a host name list; the host may resolve to a blocked range): LTI service: the Moodle host. Cogniate app: the LTI service host. The `acceptance` profile adds `qa-platform.test` and `evil.test` to both (so that a missing rule shows up as a sink hit). Production: empty.
+- Allowlist per service (`OUTBOUND_PRIVATE_HOST_ALLOWLIST`, a host name list; the host may resolve to a blocked range): LTI service: the Moodle host. Cogniate app: the LTI service host and the Moodle host (course shell web services, T8). The `acceptance` profile adds `qa-platform.test` and `evil.test` to both (so that a missing rule shows up as a sink hit). Production: empty.
 - Every attempt logs exactly one event. `outbound_request {host, method, status, ms}` = an HTTP response was accepted (any status that is not a redirect). `outbound_blocked {host, method, reason}` = no accepted response. Reasons: policy (the guard refused) `not_https`, `private_ip`, `redirect` (a 3xx is not followed), `too_large`; failure (after the guard allowed the call) `dns_error`, `timeout`, `network_error` (connection refused, reset or TLS error). A GET is retried once after `network_error`; the retry is a second attempt with its own event.
 
 ## 10. Keys and secrets
@@ -211,6 +211,16 @@ All outbound HTTP of both services goes through one client in `packages/shared` 
 | Runtime token | HMAC of the play id with `APP_MASTER_KEY` (base64url) | SHA-256 hash only, 24 h | same |
 | Play id, picker id | app, ≥ 128 random bits | SHA-256 hash only (A-T4b2-03); the raw id exists only in the URL and the handoff redirect | same |
 | Master keys | `gen-env` | `.env` (git-ignored) | KMS |
+
+## 10a. Build Runner (T8, stretch)
+
+| Rule | Detail |
+| --- | --- |
+| Where it runs | On the **host**, as a script. The app never gets the Docker socket. |
+| Interface | Files in `infra/.data/build-queue/`: the app writes only to `requests/`; it reads `status/` and `out/`, which are read-only for it. |
+| Isolation | Each build runs a throwaway Moodle + Postgres on an **internal** Docker network (no internet, no link to the main stack). |
+| Image | A derived image `cogniate-build-moodle:v5.2.4` with Moodle's PHP packages baked in, so a build needs no internet. |
+| Input | The SCORM zip is copied in read-only; the package is untrusted data like any upload. |
 
 ## 11. Privacy and logs
 

@@ -44,7 +44,7 @@ docs/
 | Module | Content | From |
 | --- | --- | --- |
 | `config` | `loadPublicUrls()` and env parsing | T1 |
-| `knobs` | test knob registry (whole-number values; T8 adds string values for `BUILD_RUNNER_FAIL_AT`) | T1 |
+| `knobs` | test knob registry (whole-number knobs; string knobs `BUILD_RUNNER_HOLD`, `BUILD_RUNNER_FAIL_AT` from T8) | T1 |
 | `logger` | JSON lines, redaction, boot trace id | T1 |
 | `server` | inbound HTTP helpers and service startup (T1 files `service.ts`, `http.ts`). `startService` accepts a sync or an async `build` function (T4a). | T1 |
 | `migrations` | SQLite migration runner with the checksum rule of ADR-006, and the transaction helper, used by both services | T4a (cogniate-app); lti-service moves to it in T2b |
