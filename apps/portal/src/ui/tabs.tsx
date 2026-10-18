@@ -47,9 +47,9 @@ export function Tabs({
             if (next === null) return;
             event.preventDefault();
             onValueChange(options[next]!);
-            ref.current
-              ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
-              [next]?.focus();
+            const tabs =
+              ref.current?.querySelectorAll<HTMLButtonElement>('[role="tab"]');
+            tabs?.[next]?.focus();
           }}
         >
           {item}

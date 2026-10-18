@@ -77,6 +77,7 @@ export function connectionStatus(connection: Connection): string {
     new Date(connection.registrationUrlExpiresAt).getTime() <= Date.now()
   )
     return "Link expired";
+  if (connection.registrationUrl) return "Waiting for Moodle";
   return "Pending";
 }
 export function ConnectionBadge({ connection }: { connection: Connection }) {

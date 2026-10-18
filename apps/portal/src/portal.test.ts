@@ -295,6 +295,16 @@ describe("Moodle connection wizard", () => {
     expect(
       connectionStatus({
         ...connection,
+        registrationUrl: "https://lti.example/register?ref=test",
+        registrationUrlExpiresAt: "2099-01-01",
+      }),
+    ).toBe("Waiting for Moodle");
+    expect(connectionStatus({ ...connection, status: "disabled" })).toBe(
+      "Disconnected",
+    );
+    expect(
+      connectionStatus({
+        ...connection,
         registrationUrlExpiresAt: "2000-01-01",
       }),
     ).toBe("Link expired");
