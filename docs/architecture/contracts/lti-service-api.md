@@ -256,6 +256,8 @@ Otherwise `400 INVALID_LINE_ITEM_ID` (or `INVALID_URL_PARAMETER`), and **no** ou
 
 Line item: `id` (URL, platform-set), `label` (required on write), `scoreMaximum` (> 0, required on write), `resourceLinkId`, `resourceId`, `tag`, `startDateTime`, `endDateTime`, `gradesReleased`.
 
+Empty optional metadata (AGS 2.0 §3.2.10–3.2.13): for `resourceLinkId`, `resourceId`, `tag`, `startDateTime` and `endDateTime`, "no value" may be absent, `""` or `null`. In a request, the service accepts all three as "no value". In a response, it passes the platform's form through unchanged, so a tool must treat absent, `""` and `null` the same.
+
 | Method and path | Task | Request | Success | Platform call |
 | --- | --- | --- | --- | --- |
 | `GET /api/lineitems` | T3a | query `resourceLinkId`, `resourceId`, `tag`, `limit` (≥ 1), `url` | `200 { lineItems, next?, prev?, first?, last? }` | `GET lineitems` (paging from `Link`; `url` replaces all other params; `resourceLinkId` → AGS `resource_link_id`) |
@@ -288,7 +290,7 @@ Scope: POST needs `score`, GET needs `result.readonly`. Else `403 SERVICE_NOT_AV
 
 ### 3.7 `GET /api/memberships` — LTIK-AUTH-V2 or SERVICE-AUTH-V1 (T3c)
 
-Query: `role` (a short name such as `Learner` or a full role URI, passed to NRPS as is), `limit`, `resourceLinkId` (→ NRPS `rlid`), `url` (rule §3.4). `200 { "id", "context": { "id", "label", "title" }, "members": [ { "userId", "roles", "status" } ], "next"? }`. `email`, `name`, `givenName`, `familyName`, `picture` only when the platform sends them. No NRPS claim → `403 SERVICE_NOT_AVAILABLE`.
+Query: `role` (a short name such as `Learner` or a full role URI, passed to NRPS as is), `limit`, `resourceLinkId` (→ NRPS `rlid`), `url` (rule §3.4). `200 { "id", "context": { "id", "label", "title" }, "members": [ { "userId", "roles", "status" } ], "next"? }`. The service **never** returns member personal fields (`email`, `name`, `givenName`, `familyName`, `picture`), even when the platform sends them: learners are anonymous by default (Q3, prototype). No NRPS claim → `403 SERVICE_NOT_AVAILABLE`.
 
 ### 3.8 Dynamic registration — Bearer (T3b)
 
@@ -337,7 +339,7 @@ All URLs are https. An account sees only its own platforms. Another account may 
 
 ### 3.10 OAuth2 stubs (T3c)
 
-`POST /api/oauth/:platformId/access_token` and `.../access_token/refresh` (our paths): `501 NOT_IMPLEMENTED`.
+`POST /api/oauth/:platformId/access_token` and `.../access_token/refresh` (our paths). Auth: `Bearer <API_KEY>` (ADR-003); a missing or wrong header gives the `401` of §1.3 first. With a valid key: always `501 NOT_IMPLEMENTED` (the platform id is not looked up).
 
 ---
 
@@ -402,3 +404,4 @@ A tool written against the public LTIAAS API works after two changes (base URL, 
 | D10 | Additions | — | `launch.deepLinkingSettings`, `deploymentIds`, `productFamilyCode`, `operation`, `existingPlatformId`, `updatePlatformId`, score `timestamp`, both `documentTarget` spellings |
 | D11 | OAuth2 endpoints | Documented | `501` stubs |
 | D12 | Tested LMS | Many | Moodle 5.2 only |
+| D13 | Member personal fields in `/api/memberships` | Returned when the LMS sends them | Never returned (anonymous by default, Q3) |
