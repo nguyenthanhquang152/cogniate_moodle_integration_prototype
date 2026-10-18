@@ -68,6 +68,7 @@ Authorization: Bearer <API_KEY>
 | 400 | `INVALID_LINE_ITEM_ID` | `:lineItemId` fails the URL rule (§3.4) |
 | 400 | `INVALID_URL_PARAMETER` | The `url` query fails the URL rule |
 | 400 | `INVALID_CONTENT_ITEM` | A content item breaks a rule (§3.2) |
+| 400 | `INVALID_DEEP_LINK_RETURN_URL` | The launch's `deep_link_return_url` is not https on the platform issuer origin (§3.2, A-T3c-01) |
 | 400 | `UNSUPPORTED_AUTH_METHOD` | Platform `authConfig.method` is not `JWK_SET` |
 | 400 | `PLATFORM_URL_NOT_ON_ISSUER_ORIGIN` | A platform endpoint is not on the issuer origin |
 | 401 | `INVALID_AUTHORIZATION_HEADER` | No header, unknown scheme, or a scheme that this endpoint does not accept |
@@ -234,6 +235,7 @@ Rules (`400 INVALID_CONTENT_ITEM`):
 - `ltiResourceLink.url`: if missing, the service sets `{PUBLIC_LTI_URL}/lti/launch/{toolAccountId}` (the only field it may add). If present, it must start with that value.
 - `lineItem.scoreMaximum` > 0. `custom` values are strings.
 - The JWT `content_items` equal the request items, plus only the default `url` above.
+- The launch's `deep_link_return_url` must be an https URL on the platform issuer origin; else `400 INVALID_DEEP_LINK_RETURN_URL` and no JWT is signed (all three deep-linking endpoints; A-T3c-01).
 - JWT claims: security §2.3.
 - Not a deep-linking launch → `403 SERVICE_NOT_AVAILABLE`.
 
@@ -372,6 +374,7 @@ Every event: `ts`, `level`, `service: "lti-service"`, `event`, `trace_id` (lifec
 | `registration_rejected` | warn | `code` | §2.4 or §3.8 failure |
 | `internal_error` | error | `method`, `path` (no query), `error` (the error class name only) | a bug; response `500 INTERNAL_ERROR` with the trace id. No error message with data and no stack trace in the JSON file. |
 | `retention_cleanup` | info | `table`, `deleted` | cleanup job (data-model §2.1) |
+| `platform_deleted` | info | `platform_id` | `DELETE /api/platforms/:id` succeeded |
 | `service_stopping` | info | — | stop |
 
 ## 6. Data retention (prototype)
