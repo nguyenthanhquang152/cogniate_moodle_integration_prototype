@@ -98,7 +98,7 @@ ${rows.map((p) => `    <label class="option" data-publication-id="${escapeHtml(p
     const body = `<main data-page="picker">
   <h1>Select a Cogniate course</h1>
   ${picker.contextTitle ? `<p class="muted">Moodle course: <span data-context-title>${escapeHtml(picker.contextTitle)}</span></p>` : ''}
-  <form method="post" action="/tool/picker/${escapeHtml(picker.id)}">
+  <form method="post" action="/tool/picker/${escapeHtml(req.params.pickerId)}">
   ${list}
   </form>
 </main>`;
@@ -119,19 +119,19 @@ ${rows.map((p) => `    <label class="option" data-publication-id="${escapeHtml(p
     const id = (req.body ?? {}).publicationId;
     const publication = typeof id === 'string' && PUBLICATION_ID.test(id) ? publicationOfConnection(db, picker.connectionId, id) : undefined;
     if (!publication || publication.status !== 'available') return fail(req, reply, 'PUBLICATION_NOT_AVAILABLE', 'publication_not_available');
-    if (!claimPicker(db, picker.id, publication.id, now())) return fail(req, reply, 'PICKER_USED', 'used');
+    if (!claimPicker(db, picker.key, publication.id, now())) return fail(req, reply, 'PICKER_USED', 'used');
     let answer: { message: string; target: string };
     try {
       answer = await lti.deepLinking(decrypt(masterKey, picker.ltikEncrypted), [contentItemFor(urls, publication)], req.traceId);
     } catch (err) {
-      releasePicker(db, picker.id); // nothing went to Moodle: the teacher may try again
+      releasePicker(db, picker.key); // nothing went to Moodle: the teacher may try again
       if (err instanceof LtiServiceError) return fail(req, reply, 'LTI_SERVICE_ERROR');
       throw err;
     }
     // The return URL is Moodle's (deep_link_return_url): https on the platform origin, else we do not post the JWT there.
     const returnOrigin = httpsOrigin(answer.target);
     if (returnOrigin !== picker.issuerOrigin) {
-      releasePicker(db, picker.id);
+      releasePicker(db, picker.key);
       return fail(req, reply, 'LTI_SERVICE_ERROR');
     }
     const nonce = newNonce();

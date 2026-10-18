@@ -57,6 +57,8 @@ export interface AppApiDeps {
   pickerTtlSeconds: number;
   /** PLAY_TTL_SECONDS knob (default 86400): life of a play session (T4b2). */
   playTtlSeconds: number;
+  /** apps/player build folder (the shell script /_player/shell.js, T5a). */
+  playerDir: string;
 }
 
 const TRACE_ID = /^[A-Za-z0-9-]{16,64}$/;
@@ -140,7 +142,7 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
   registerRegisterPages(app, pageDeps);
   registerLaunchPages(app, { ...pageDeps, pickerTtlSeconds: deps.pickerTtlSeconds, playTtlSeconds: deps.playTtlSeconds });
   registerPickerPages(app, pageDeps);
-  registerPlayPages(app, pageDeps);
+  registerPlayPages(app, { ...pageDeps, playerDir: deps.playerDir });
 
   return app;
 }

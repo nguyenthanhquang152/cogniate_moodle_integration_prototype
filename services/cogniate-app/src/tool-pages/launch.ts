@@ -2,7 +2,6 @@
 // The LTI service sends the browser here with a ltik (303). The app uses each ltik once, reads the launch with
 // GET /api/idtoken, and takes the publication only from the SIGNED launch.target. Then it sends the browser on with a
 // 303 and Referrer-Policy: no-referrer, so the final URL holds no ltik. No cookies.
-import { randomBytes } from 'node:crypto';
 import type { Logger, PublicUrls } from '@cogniate/shared';
 import { encrypt, randomId, sha256Hex } from '@cogniate/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -11,7 +10,8 @@ import { LtiServiceError } from '../clients/lti-client.ts';
 import { findLaunchConnection, markLaunched } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
-import { chooseAttempt, createPlaySession, publicationOfConnection, upsertResourceLink, useHandoff } from '../domain/launch.ts';
+import { chooseAttempt, createPlaySession } from '../domain/attempts.ts';
+import { publicationOfConnection, upsertResourceLink, useHandoff } from '../domain/launch.ts';
 import { createPicker, linkPickToResourceLink } from '../domain/pickers.ts';
 import { LTIK, hasStaffRole, httpsOrigin, publicationFromTarget, runtimeTokenFor, safeReturnUrl } from './launch-rules.ts';
 import { errorPage, handoffRedirectHeaders, toolPageHeaders } from './page.ts';
@@ -123,7 +123,7 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
       }
       const attempt = chooseAttempt(db, { resourceLinkId: link.id, userSub: token.user.id, courseId: publication.courseId, currentVersionId: publication.currentVersionId, preview }, t);
       createPlaySession(db, {
-        id: playId, attemptId: attempt.id, runtimeTokenHash: sha256Hex(runtimeTokenFor(masterKey, playId)), sessionId: randomBytes(16).toString('hex'),
+        id: playId, attemptId: attempt.id, runtimeTokenHash: sha256Hex(runtimeTokenFor(masterKey, playId)), sessionId: randomId('ses_'),
         roles: token.user.roles, returnUrl: safeReturnUrl(token.launch.presentation?.returnUrl, issuerOrigin), expiresAt: t + deps.playTtlSeconds * 1000,
       }, t);
       markLaunched(db, connection.id, t);

@@ -1,11 +1,9 @@
-// Launch data (data-model §2, security §4): the handoff (single use of a ltik), resource links, attempts and play
-// sessions. Repository: the only SQL for these tables. A launch finds its connection through the platform id, so these
-// functions take the connection id (and through it the library), never a session user.
-import type { PackageFormat, PackageReport } from '@cogniate/package-inspector';
+// Launch data (data-model §2, security §4): the handoff (single use of a ltik) and resource links. Attempts and play
+// sessions are in attempts.ts (the content host may import only domain/attempts*, ADR-008). Repository: the only SQL
+// for these tables. A launch finds its connection through the platform id, so these functions take the connection id
+// (and through it the library), never a session user.
 import { randomId } from '@cogniate/shared';
 import type { Db } from './db.ts';
-
-export type Outcome = 'not_started' | 'in_progress' | 'completed' | 'passed' | 'failed';
 
 /** Security §4 "single use": true for the first use of this ltik hash, false for every later one. */
 export function useHandoff(db: Db, ltikHash: string, now: number): boolean {
@@ -75,103 +73,6 @@ export function upsertResourceLink(db: Db, input: ResourceLinkInput, now: number
     service_key_encrypted = COALESCE(?, service_key_encrypted), updated_at = ? WHERE id = ?`)
     .run(input.publicationId, input.contextTitle, input.title, input.lineItemId, input.serviceKeyEncrypted, now, id);
   return { id, created: false, rebound: from === input.publicationId ? null : { from, to: input.publicationId } };
-}
-
-export interface Attempt {
-  id: string;
-  resourceLinkId: string;
-  userSub: string;
-  courseVersionId: string;
-  preview: boolean;
-  outcome: Outcome;
-  scoreGiven: number | null;
-  scoreMaximum: number | null;
-  created: boolean;
-}
-
-/**
- * Data-model §2 attempt rule (also after a rebind): continue the newest attempt only if it is in progress AND its
- * course version belongs to the course of the resource link's current publication. Otherwise use the current version.
- */
-export function continuesNewest(newest: { outcome: Outcome; courseId: string } | undefined, currentCourseId: string): boolean {
-  return newest !== undefined && newest.outcome === 'in_progress' && newest.courseId === currentCourseId;
-}
-
-const toAttempt = (r: Record<string, unknown>, created: boolean): Attempt => ({
-  id: String(r.id), resourceLinkId: String(r.resource_link_id), userSub: String(r.user_sub), courseVersionId: String(r.course_version_id),
-  preview: Number(r.preview) === 1, outcome: r.outcome as Outcome, scoreGiven: r.score_given === null ? null : Number(r.score_given),
-  scoreMaximum: r.score_maximum === null ? null : Number(r.score_maximum), created,
-});
-
-/** The attempt for this launch: the newest one (rule above), else the row of the current version (new if none). */
-export function chooseAttempt(
-  db: Db,
-  input: { resourceLinkId: string; userSub: string; courseId: string; currentVersionId: string; preview: boolean },
-  now: number,
-): Attempt {
-  const newest = db.prepare(`SELECT a.*, v.course_id AS course_id FROM attempt a JOIN course_version v ON v.id = a.course_version_id
-    WHERE a.resource_link_id = ? AND a.user_sub = ? ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1`).get(input.resourceLinkId, input.userSub);
-  if (newest && continuesNewest({ outcome: newest.outcome as Outcome, courseId: String(newest.course_id) }, input.courseId)) return toAttempt(newest, false);
-  const existing = db.prepare('SELECT * FROM attempt WHERE resource_link_id = ? AND user_sub = ? AND course_version_id = ?')
-    .get(input.resourceLinkId, input.userSub, input.currentVersionId);
-  if (existing) return toAttempt(existing, false);
-  const id = randomId('att_');
-  db.prepare(`INSERT INTO attempt (id, resource_link_id, user_sub, course_version_id, preview, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-    .run(id, input.resourceLinkId, input.userSub, input.currentVersionId, input.preview ? 1 : 0, now, now);
-  return toAttempt(db.prepare('SELECT * FROM attempt WHERE id = ?').get(id)!, true);
-}
-
-/** `id` = a new ply_ id from the caller (the runtime token is derived from it). */
-export function createPlaySession(
-  db: Db,
-  input: { id: string; attemptId: string; runtimeTokenHash: string; sessionId: string; roles: string[]; returnUrl: string | null; expiresAt: number },
-  now: number,
-): string {
-  const id = input.id;
-  db.prepare(`INSERT INTO play_session (id, attempt_id, runtime_token_hash, session_id, roles, return_url, created_at, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(id, input.attemptId, input.runtimeTokenHash, input.sessionId, JSON.stringify(input.roles), input.returnUrl, now, input.expiresAt);
-  return id;
-}
-
-/** What the player shell, the embedded page and the status API show. */
-export interface PlayView {
-  id: string;
-  attemptId: string;
-  returnUrl: string | null;
-  preview: boolean;
-  outcome: Outcome;
-  scoreGiven: number | null;
-  scoreMaximum: number | null;
-  courseTitle: string;
-  packageTitle: string | null;
-  format: PackageFormat;
-  activityTitle: string;
-  contextTitle: string;
-  issuerOrigin: string | null;
-}
-
-/** A play session that exists and has not expired (else undefined: 404). */
-export function getPlay(db: Db, playId: string, now: number): PlayView | undefined {
-  const r = db.prepare(`SELECT ps.id, ps.attempt_id, ps.return_url, a.preview, a.outcome, a.score_given, a.score_maximum, c.title AS course_title,
-      v.format, v.validation_report, rl.title AS activity_title, rl.context_title, con.platform_json
-    FROM play_session ps JOIN attempt a ON a.id = ps.attempt_id JOIN resource_link rl ON rl.id = a.resource_link_id
-    JOIN course_version v ON v.id = a.course_version_id JOIN course c ON c.id = v.course_id JOIN connection con ON con.id = rl.connection_id
-    WHERE ps.id = ? AND ps.expires_at > ?`).get(playId, now);
-  if (!r) return undefined;
-  const report = JSON.parse(String(r.validation_report)) as PackageReport;
-  let issuerOrigin: string | null;
-  try {
-    issuerOrigin = r.platform_json === null ? null : new URL((JSON.parse(String(r.platform_json)) as { issuer: string }).issuer).origin;
-  } catch {
-    issuerOrigin = null;
-  }
-  return {
-    id: String(r.id), attemptId: String(r.attempt_id), returnUrl: r.return_url === null ? null : String(r.return_url), preview: Number(r.preview) === 1,
-    outcome: r.outcome as Outcome, scoreGiven: r.score_given === null ? null : Number(r.score_given),
-    scoreMaximum: r.score_maximum === null ? null : Number(r.score_maximum), courseTitle: String(r.course_title),
-    packageTitle: report.scorm?.title ?? null, format: String(r.format) as PackageFormat, activityTitle: String(r.activity_title),
-    contextTitle: String(r.context_title), issuerOrigin,
-  };
 }
 
 /**

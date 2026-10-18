@@ -1,11 +1,13 @@
 // Content picker sessions (app contract §6, data-model §2): made by /tool/deep-link, used once by the picker POST.
-// The picker id in the URL is the capability; the ltik is stored only here, encrypted (T4b2 design note).
+// The picker id in the URL is the capability. A-T4b2-03: the table keeps only its SHA-256 (`key`), like every other
+// token, so a copy of the database cannot open a picker. The ltik is stored only here, encrypted (T4b2 design note).
 import type { PackageFormat, PackageReport } from '@cogniate/package-inspector';
-import { randomId } from '@cogniate/shared';
+import { randomId, sha256Hex } from '@cogniate/shared';
 import type { Db } from './db.ts';
 
 export interface PickerSession {
-  id: string;
+  /** SHA-256 hex of the picker id (the table key). The raw id is only in the URL. */
+  key: string;
   connectionId: string;
   ltikEncrypted: Uint8Array;
   issuerOrigin: string;
@@ -18,7 +20,7 @@ export interface PickerSession {
 }
 
 const toPicker = (r: Record<string, unknown>): PickerSession => ({
-  id: String(r.id), connectionId: String(r.connection_id), ltikEncrypted: r.ltik_encrypted as Uint8Array, issuerOrigin: String(r.issuer_origin),
+  key: String(r.id), connectionId: String(r.connection_id), ltikEncrypted: r.ltik_encrypted as Uint8Array, issuerOrigin: String(r.issuer_origin),
   deploymentId: String(r.deployment_id), contextId: String(r.context_id), contextTitle: String(r.context_title), createdAt: Number(r.created_at),
   expiresAt: Number(r.expires_at), usedAt: r.used_at === null ? null : Number(r.used_at),
 });
@@ -30,24 +32,25 @@ export function createPicker(
 ): string {
   const id = randomId('pck_');
   db.prepare(`INSERT INTO picker_session (id, connection_id, ltik_encrypted, issuer_origin, deployment_id, context_id, context_title, created_at, expires_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(id, input.connectionId, input.ltikEncrypted, input.issuerOrigin, input.deploymentId, input.contextId, input.contextTitle, now, input.expiresAt);
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(sha256Hex(id), input.connectionId, input.ltikEncrypted, input.issuerOrigin, input.deploymentId, input.contextId, input.contextTitle, now, input.expiresAt);
   return id;
 }
 
-export function getPicker(db: Db, id: string): PickerSession | undefined {
-  const r = db.prepare('SELECT * FROM picker_session WHERE id = ?').get(id);
+/** By the raw picker id from the URL (looked up by its hash). */
+export function getPicker(db: Db, pickerId: string): PickerSession | undefined {
+  const r = db.prepare('SELECT * FROM picker_session WHERE id = ?').get(sha256Hex(pickerId));
   return r ? toPicker(r) : undefined;
 }
 
-/** Claim the picker for one pick (atomic): false if it was used or expired in the meantime. */
-export function claimPicker(db: Db, id: string, publicationId: string, now: number): boolean {
+/** Claim the picker for one pick (atomic): false if it was used or expired in the meantime. `key` = PickerSession.key. */
+export function claimPicker(db: Db, key: string, publicationId: string, now: number): boolean {
   return Number(db.prepare('UPDATE picker_session SET used_at = ?, publication_id = ? WHERE id = ? AND used_at IS NULL AND expires_at > ?')
-    .run(now, publicationId, id, now).changes) === 1;
+    .run(now, publicationId, key, now).changes) === 1;
 }
 
 /** The Deep Linking call failed after the claim: the teacher may pick again. */
-export function releasePicker(db: Db, id: string): void {
-  db.prepare('UPDATE picker_session SET used_at = NULL, publication_id = NULL WHERE id = ?').run(id);
+export function releasePicker(db: Db, key: string): void {
+  db.prepare('UPDATE picker_session SET used_at = NULL, publication_id = NULL WHERE id = ?').run(key);
 }
 
 /**

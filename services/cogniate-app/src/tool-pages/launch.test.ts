@@ -1,7 +1,7 @@
 import { makeZip, scormManifest } from '@cogniate/package-inspector/testing';
 import { sha256Hex } from '@cogniate/shared';
 import { afterEach, describe, expect, it } from 'vitest';
-import { continuesNewest } from '../domain/launch.ts';
+import { continuesNewest } from '../domain/attempts.ts';
 import type { TestApp } from '../testkit.ts';
 import { DL_RETURN, INSTRUCTOR, LEARNER, QA_B, TEST_MASTER_KEY, TEST_URLS, THANH, formBody, launchToken, testApp } from '../testkit.ts';
 import { hasStaffRole, publicationFromTarget, runtimeTokenFor, safeReturnUrl } from './launch-rules.ts';
@@ -139,7 +139,7 @@ describe('/tool/launch (app contract §6, flows §6c)', () => {
     expect(shell.body).toContain(`<a href="${TEST_URLS.moodle}/mod/lti/return.php?course=2&amp;launch_container=4" rel="noopener noreferrer" data-back-to-moodle>Back to Moodle</a>`);
     const token = runtimeTokenFor(TEST_MASTER_KEY, playId);
     expect(shell.body).toContain(`src="${TEST_URLS.content}/rt/${token}" sandbox="allow-scripts allow-same-origin" allow="autoplay; fullscreen"`);
-    expect(t.db.prepare('SELECT runtime_token_hash AS h FROM play_session WHERE id = ?').get(playId)?.h).toBe(sha256Hex(token));
+    expect(t.db.prepare('SELECT runtime_token_hash AS h FROM play_session WHERE id = ?').get(sha256Hex(playId))?.h).toBe(sha256Hex(token));
     // The play session holds no ltik (T4b2 design note).
     expect(JSON.stringify(t.db.prepare('SELECT * FROM play_session').all())).not.toContain(ltik);
     const status = await get(`/app-api/play/${playId}/status`);
@@ -248,6 +248,21 @@ describe('/tool/launch (app contract §6, flows §6c)', () => {
     }
   });
 
+  it('A-T4b2-03: the database keeps only the SHA-256 of play ids and picker ids (raw ids only in URLs)', async () => {
+    const w = await world();
+    const playId = playIdOf((await launch(w.a.platformId, w.scorm)).res.headers.location);
+    const pickerId = await deepLink(w.a.platformId);
+    const dump = JSON.stringify([t.db.prepare('SELECT * FROM play_session').all(), t.db.prepare('SELECT * FROM picker_session').all()]);
+    expect(dump).not.toContain(playId);
+    expect(dump).not.toContain(pickerId);
+    expect(t.db.prepare('SELECT id FROM play_session').get()?.id).toBe(sha256Hex(playId));
+    expect(t.db.prepare('SELECT id FROM picker_session').get()?.id).toBe(sha256Hex(pickerId));
+    // The stored hash itself does not open anything.
+    expect((await get(`/play/${sha256Hex(playId)}`)).statusCode).toBe(404);
+    expect((await get(`/tool/picker/${sha256Hex(pickerId)}`)).statusCode).toBe(404);
+    expect((await get(`/play/${playId}`)).statusCode).toBe(200);
+  });
+
   it('AC-T4-29 and PLAY_TTL_SECONDS: unknown or expired play id -> 404 page and 404 status; library B gets 404 for Thanh\'s publication', async () => {
     const w = await world({ playTtlSeconds: 20 });
     const { res } = await launch(w.a.platformId, w.scorm);
@@ -350,7 +365,7 @@ describe('/tool/deep-link and /tool/picker (app contract §6, flows §6b)', () =
     }
     expect(events('csrf_rejected').map((l) => l.origin)).toEqual(['https://evil.test', 'null', null]);
     expect(t.lti.calls.some((c) => c.startsWith('POST deeplinking'))).toBe(false);
-    expect(t.db.prepare('SELECT used_at AS u FROM picker_session WHERE id = ?').get(id)?.u).toBeNull();
+    expect(t.db.prepare('SELECT used_at AS u FROM picker_session WHERE id = ?').get(sha256Hex(id))?.u).toBeNull();
   });
 
   it('a failed Deep Linking call -> 502 page; the picker is released and a retry works', async () => {
@@ -385,7 +400,8 @@ describe('tool page security (AC-T4-21, AC-T4-28, AC-T4-32)', () => {
       expect(r.headers['x-frame-options'], name).toBeUndefined();
       expect(r.headers['set-cookie'], name).toBeUndefined();
       const nonce = /script-src 'nonce-([^']+)'/.exec(String(r.headers['content-security-policy']))?.[1];
-      if (r.body.includes('<script')) expect(r.body, name).toContain(`<script nonce="${nonce}">`);
+      // Every script tag (inline or the shell module) carries the nonce of the page CSP.
+      for (const tag of r.body.match(/<script\b[^>]*>/g) ?? []) expect(tag, name).toContain(`nonce="${nonce}"`);
     }
   });
 

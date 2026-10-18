@@ -1,0 +1,18 @@
+{
+  "name": "@cogniate/player",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@cogniate/tracking": "*"
+  },
+  "devDependencies": {
+    "jsdom": "30.1.3",
+    "vite": "8.3.4"
+  }
+}

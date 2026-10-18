@@ -24,6 +24,12 @@ warn_knobs
 check_public_port
 mkdir -p "$INFRA_DIR/.secrets" "$INFRA_DIR/.secrets/app" "$INFRA_DIR/.data/fixtures" "$INFRA_DIR/.data/backups" "$INFRA_DIR/.data/lti-service" "$INFRA_DIR/.data/cogniate-app" "$LOGS_DIR"
 chmod 700 "$INFRA_DIR/.secrets" "$INFRA_DIR/.secrets/app" "$LOGS_DIR" "$INFRA_DIR/.data/lti-service" "$INFRA_DIR/.data/cogniate-app"   # the Node services run as the host user (HOST_UID)
+# T5a: cogniate-app serves the player build (apps/player/dist, mounted read-only). Build it once if it is missing;
+# npm run dev:web rebuilds it on every change.
+if [[ ! -s "$REPO_ROOT/apps/player/dist/runtime.js" ]]; then
+  echo "Building the player (apps/player/dist)."
+  (cd "$REPO_ROOT" && npm run -s build -w @cogniate/player >/dev/null)
+fi
 
 # The certificate files are bind-mounted one by one. A container keeps the old file after gen-certs replaces
 # it, so recreate the containers when the certificates changed since the last start.
