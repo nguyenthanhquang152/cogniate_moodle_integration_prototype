@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Run a QA suite in the e2e container (QA hook H8). QA owns tests/** as a separate npm project.
 #   npm run test:acceptance [-- <args>]  ->  npm ci --prefix tests && npm --prefix tests run acceptance -- <args>
-#   npm run test:e2e        [-- <args>]  ->  npm ci --prefix tests && npm --prefix tests run e2e -- <args>
+#   npm run test:e2e        [-- <args>]  ->  e2e:reset (T7), then npm ci --prefix tests && npm --prefix tests run e2e -- <args>
 # test:acceptance (local-stack §3): (1) STACK_PROFILE=acceptance stack:up, (2) the suite, (3) stack:up with the default
 # profile, also when the suite fails or is stopped with Ctrl+C. A run that is killed (SIGKILL) leaves the profile on;
 # /healthz then shows "profile": "acceptance", and npm run stack:up restores the default.
@@ -26,6 +26,11 @@ cleanup() {
   local rc=$?
   trap - EXIT INT TERM
   docker rm -f "$run_name" >/dev/null 2>&1 || true
+  if [[ "$suite" == e2e ]]; then
+    # AC-T7-13: at the end of the run every /healthz still shows the default profile and no knobs.
+    WAIT_SECONDS=20 "$INFRA_DIR/scripts/e2e-wait.sh" >/dev/null 2>&1 || { echo "WARNING: after the run the stack is not clean (profile or knobs, or Moodle login)." >&2; [[ $rc -ne 0 ]] || rc=1; }
+    echo "test:e2e: artifacts in tests/e2e/artifacts/"
+  fi
   if [[ "$suite" == acceptance ]]; then
     echo "test:acceptance: restoring the default profile (npm run stack:up)..."
     if ! STACK_PROFILE=default "$INFRA_DIR/scripts/stack-up.sh" >/dev/null; then
@@ -41,6 +46,16 @@ if [[ "$suite" == acceptance ]]; then
   echo "test:acceptance: starting the acceptance profile (STACK_PROFILE=acceptance npm run stack:up)..."
   STACK_PROFILE=acceptance "$INFRA_DIR/scripts/stack-up.sh"
   apply_profile acceptance
+fi
+if [[ "$suite" == e2e ]]; then
+  # T7: a clean stack (default profile, no knobs) for every run. E2E_RESET=0 skips the reset (debugging only).
+  if [[ "${E2E_RESET:-1}" != 0 ]]; then
+    "$INFRA_DIR/scripts/e2e-reset.sh"
+  else
+    echo "test:e2e: E2E_RESET=0, no reset (debugging only; AC-T7-01 needs the reset)."
+    "$INFRA_DIR/scripts/e2e-wait.sh"
+  fi
+  apply_profile default
 fi
 require_running proxy
 warn_knobs
