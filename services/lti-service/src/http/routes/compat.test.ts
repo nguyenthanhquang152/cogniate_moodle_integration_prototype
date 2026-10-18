@@ -67,13 +67,47 @@ describe('T3c compat routes with real API authorization', () => {
       if (suffix === '/form') expect(data.form).toContain('action="https://moodle.test/mod/lti/contentitem_return.php?course=2&amp;id=1"');
       else expect(data.target).toBe(RETURN);
     }
-    const form = deepLinkingForm({ target: '<>&"\'', message: '"><script>bad()</script>' });
+    const form = deepLinkingForm({ target: '<>&"\'', message: '\'&"><script>bad()</script>' });
     expect(form.match(/<form /g)).toHaveLength(1);
     expect(form.match(/<script>/g)).toHaveLength(1);
-    expect(form).toContain('&lt;&gt;&amp;&quot;');
-    expect(form).toContain('&quot;&gt;&lt;script&gt;bad()&lt;/script&gt;');
+    expect(form).toContain('action="&lt;&gt;&amp;&quot;&#39;"');
+    expect(form).toContain('value="&#39;&amp;&quot;&gt;&lt;script&gt;bad()&lt;/script&gt;"');
     expect(form).toMatch(/<script>document.getElementById\("lti_dl_submit"\).submit\(\)<\/script>$/);
     expect(calls).toEqual([]);
+  });
+
+  it.each([
+    'javascript:alert(document.domain)',
+    'data:text/html,<script>alert(1)</script>',
+    'http://moodle.test/return',
+    'https://evil.test/return',
+    'https://moodle.test:8443/return',
+    'https://moodle.test.evil.test/return',
+    'https://user:password@moodle.test/return',
+    `${RETURN}#fragment`,
+    '//moodle.test/return',
+    '/return',
+    '',
+  ])('all deep-link responses refuse the unsafe return URL %s', async (target) => {
+    const headers = auth({ [CLAIM.deepLinkingSettings]: { deep_link_return_url: target } }, 'LtiDeepLinkingRequest');
+    for (const suffix of ['', '/message', '/form']) {
+      const r = await h.app.inject({ method: 'POST', url: `/api/deeplinking${suffix}`, headers, payload: { contentItems: [{ type: 'ltiResourceLink' }] } });
+      expect([r.statusCode, r.json().details.message]).toEqual([400, 'INVALID_DEEP_LINK_RETURN_URL']);
+      expect(r.json()).not.toHaveProperty('message');
+      expect(r.json()).not.toHaveProperty('target');
+      expect(r.json()).not.toHaveProperty('form');
+      if (target) expect(r.body).not.toContain(target);
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('allows the issuer origin and escapes attribute text in its return URL', async () => {
+    const target = `${RETURN}&text="'><script>alert(1)</script>`;
+    const headers = auth({ [CLAIM.deepLinkingSettings]: { deep_link_return_url: target } }, 'LtiDeepLinkingRequest');
+    const r = await h.app.inject({ method: 'POST', url: '/api/deeplinking/form', headers, payload: { contentItems: [{ type: 'ltiResourceLink' }] } });
+    expect(r.statusCode).toBe(200);
+    expect(r.json().form).toContain('action="https://moodle.test/mod/lti/contentitem_return.php?course=2&amp;id=1&amp;text=&quot;&#39;&gt;&lt;script&gt;alert(1)&lt;/script&gt;"');
+    expect(r.json().form.match(/<script>/g)).toHaveLength(1);
   });
 
   it('both deep-link aliases reject resource launches, service auth and invalid content', async () => {
@@ -111,8 +145,8 @@ describe('T3c compat routes with real API authorization', () => {
     expect(new URLSearchParams(String(tokenCalls[0]!.req!.body)).get('scope')).toBe(AGS_SCOPES.lineitem);
   });
 
-  it('full line item updates accept empty optional metadata returned by an AGS platform', async () => {
-    const payload = { ...item, resourceId: '', tag: null, startDateTime: '', endDateTime: null, gradesReleased: false };
+  it.each(['', null])('full line item updates accept empty optional metadata with resourceLinkId %s', async (resourceLinkId) => {
+    const payload = { ...item, resourceLinkId, resourceId: '', tag: null, startDateTime: '', endDateTime: null, gradesReleased: false };
     const r = await h.app.inject({ method: 'PUT', url: `/api/lineitems/${enc(ITEM)}`, headers: auth(), payload });
     expect(r.statusCode).toBe(201);
     expect(JSON.parse(String(calls.at(-1)!.req!.body))).toEqual(payload);
@@ -211,8 +245,9 @@ describe('T3c compat routes with real API authorization', () => {
     h.db.prepare('INSERT INTO oidc_state VALUES (?, ?, ?, ?, ?, ?, NULL)').run('state-hash', 'cogniate', h.platform.id, 'nonce', LAUNCH, h.clock.now + 10000);
     const foreign = await h.app.inject({ method: 'DELETE', url: `/api/platforms/${h.platform.id}`, headers: { authorization: `Bearer ${h.otherApiKey}` } });
     expect([foreign.statusCode, foreign.json().details.message]).toEqual([404, 'UNREGISTERED_PLATFORM']);
+    expect(h.lines.filter((line) => line.event === 'platform_deleted')).toEqual([]);
     expect(getPlatform(h.db, 'cogniate', h.platform.id)).not.toBeNull();
-    const deleted = await h.app.inject({ method: 'DELETE', url: `/api/platforms/${h.platform.id}`, headers: { authorization: `Bearer ${h.apiKey}` } });
+    const deleted = await h.app.inject({ method: 'DELETE', url: `/api/platforms/${h.platform.id}`, headers: { authorization: `Bearer ${h.apiKey}`, 'x-trace-id': 'trace-compat-delete-1234' } });
     expect([deleted.statusCode, deleted.body]).toEqual([204, '']);
     for (const table of ['deployment', 'oidc_state', 'launch', 'service_key']) {
       expect(h.db.prepare(`SELECT COUNT(*) AS n FROM ${table} WHERE platform_id = ?`).get(h.platform.id)).toEqual({ n: 0 });
@@ -223,6 +258,9 @@ describe('T3c compat routes with real API authorization', () => {
     const revoked = await h.app.inject({ url: '/api/memberships', headers: service });
     expect([revoked.statusCode, revoked.json().details.message]).toEqual([401, 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER']);
     expect((await h.app.inject({ method: 'DELETE', url: `/api/platforms/${h.platform.id}`, headers: { authorization: `Bearer ${h.apiKey}` } })).statusCode).toBe(404);
+    expect(h.lines.filter((line) => line.event === 'platform_deleted')).toEqual([
+      expect.objectContaining({ level: 'info', platform_id: h.platform.id, trace_id: 'trace-compat-delete-1234' }),
+    ]);
   });
 
   it('inactive platforms stop compat calls and all new routes require their documented auth scheme', async () => {

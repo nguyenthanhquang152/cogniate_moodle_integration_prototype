@@ -7,6 +7,7 @@ import { ApiError } from '../api-errors.ts';
 import type { LaunchRecord } from '../store/launches.ts';
 import type { Platform } from '../store/platforms.ts';
 import { CLAIM } from './checks.ts';
+import { isHttpsUrl } from './platform-rules.ts';
 import { isOwnLaunchTarget, launchUri } from './target.ts';
 
 export const DL_CLAIM = {
@@ -76,6 +77,11 @@ export function deepLinkingResponse(
   if (launch.messageType !== 'LtiDeepLinkingRequest' || !isObj(settings) || typeof settings.deep_link_return_url !== 'string') {
     throw new ApiError('SERVICE_NOT_AVAILABLE', 'This launch is not a Deep Linking request.');
   }
+  // Check before signing: every alias returns this target, and /form uses it as the form action.
+  const target = settings.deep_link_return_url;
+  if (!isHttpsUrl(target) || new URL(target).origin !== new URL(platform.issuer).origin) {
+    throw new ApiError('INVALID_DEEP_LINK_RETURN_URL');
+  }
   const items = checkContentItems(body.contentItems, settings, urls, launch.toolAccountId);
   const options: DeepLinkingOptions = isObj(body.options) ? (body.options as DeepLinkingOptions) : {};
   const text = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v.slice(0, 2000) : undefined);
@@ -94,7 +100,7 @@ export function deepLinkingResponse(
     const t = text(value);
     if (t !== undefined) claims[claim] = t;
   }
-  return { claims, target: settings.deep_link_return_url };
+  return { claims, target };
 }
 
 /** Contract §3.2: all data stays inside escaped attributes; the submit script is fixed. */
