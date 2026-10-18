@@ -24,6 +24,8 @@ warn_knobs
 check_public_port
 mkdir -p "$INFRA_DIR/.secrets" "$INFRA_DIR/.secrets/app" "$INFRA_DIR/.data/fixtures" "$INFRA_DIR/.data/backups" "$INFRA_DIR/.data/lti-service" "$INFRA_DIR/.data/cogniate-app" "$LOGS_DIR"
 chmod 700 "$INFRA_DIR/.secrets" "$INFRA_DIR/.secrets/app" "$LOGS_DIR" "$INFRA_DIR/.data/lti-service" "$INFRA_DIR/.data/cogniate-app"   # the Node services run as the host user (HOST_UID)
+# T8: the Build Runner queue folders exist before compose mounts them (else Docker makes them as root).
+mkdir -p "$BUILD_QUEUE_DIR/requests" "$BUILD_QUEUE_DIR/status" "$BUILD_QUEUE_DIR/out" "$BUILD_QUEUE_DIR/hold"
 # cogniate-app serves the front-end builds (mounted read-only): the player (apps/player/dist, T5a) and the portal
 # (apps/portal/dist, T6). Build a missing one once; npm run dev:web rebuilds both on every change.
 if [[ ! -s "$REPO_ROOT/apps/player/dist/runtime.js" ]]; then
@@ -62,5 +64,6 @@ if [[ "$profile" == acceptance ]]; then
   fi
   echo "$qa_now" > "$qa_seen_file"
 fi
+start_build_runner
 echo "Stack healthy in $(( $(date +%s) - start )) s (profile: $profile). Next: npm run seed"
 print_urls

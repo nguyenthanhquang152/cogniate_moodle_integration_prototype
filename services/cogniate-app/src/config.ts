@@ -17,6 +17,8 @@ export interface AppConfig {
   ltiApiKeyFile: string;
   /** apps/player build (runtime.js, runtime.css, shell.js): PLAYER_DIR, default apps/player/dist. */
   playerDir: string;
+  /** T8: the Build Runner queue (BUILD_QUEUE_DIR, compose /build-queue): requests/ writable, status/ and out/ read-only. */
+  buildQueueDir: string;
 }
 
 function masterKeyFrom(raw: string | undefined): Buffer {
@@ -32,5 +34,6 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     masterKey: masterKeyFrom(env.APP_MASTER_KEY),
     ltiApiKeyFile: env.LTI_API_KEY_FILE && env.LTI_API_KEY_FILE !== '' ? env.LTI_API_KEY_FILE : '/run/secrets/app/lti-api-key',
     playerDir: env.PLAYER_DIR && env.PLAYER_DIR !== '' ? env.PLAYER_DIR : DEFAULT_PLAYER_DIR,
+    buildQueueDir: env.BUILD_QUEUE_DIR && env.BUILD_QUEUE_DIR !== '' ? env.BUILD_QUEUE_DIR : '/build-queue',
   };
 }

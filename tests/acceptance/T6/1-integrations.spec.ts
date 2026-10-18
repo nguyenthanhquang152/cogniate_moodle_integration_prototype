@@ -2,7 +2,7 @@
 // AC-T6-01, -02, -03, -10; look: docs/research/ui/dev-portal-integrations.png.
 import fs from 'node:fs';
 import path from 'node:path';
-import { APP, THANH } from '../lib/app';
+import { APP, appApi, signIn, THANH } from '../lib/app';
 import { loadState } from '../lib/lti';
 import { REPO_ROOT } from '../lib/paths';
 import { cardGrid, near, PORTAL_ROUTES, portalSignIn, recordRequests, rgb } from '../lib/portal';
@@ -12,7 +12,7 @@ import { t5 } from '../lib/t5';
 const MOODLE_CARD_TEXT = 'Export SCORM packages and sync course content with your Moodle LMS.';
 const PILLS = ['All', 'LMS Publishing', 'LLM/AI', 'Creative', 'Knowledge'];
 
-test('AC-T6-01 Thanh → Integrations: title, subtitle, five pills, ≥ 9 cards in 3 columns at 1440 px; the Moodle card text and an enabled "Connect"', async ({ page }) => {
+test('AC-T6-01 Thanh → Integrations: title, subtitle, five pills, ≥ 9 cards in 3 columns at 1440 px; the Moodle card text; the card state matches GET /app-api/connections (no connection: enabled "Connect"; else the badge of the newest, "Manage", "Connect another site", no "Connect")', async ({ page }) => {
   await portalSignIn(page, THANH);
   await page.goto(`${APP}${PORTAL_ROUTES.integrations}`);
   await expect(page.getByRole('heading', { name: 'Integrations', exact: true })).toBeVisible();
@@ -23,10 +23,31 @@ test('AC-T6-01 Thanh → Integrations: title, subtitle, five pills, ≥ 9 cards 
   expect(grid, 'the Moodle card is in a card grid').not.toBeNull();
   expect(grid!.count, `cards: ${grid!.cardTexts.join(' | ')}`).toBeGreaterThanOrEqual(9);
   expect(grid!.columns, 'columns in the first row').toBe(3);
-  const card = page.locator(':scope *', { hasText: MOODLE_CARD_TEXT }).filter({ has: page.getByRole('button', { name: 'Connect' }).or(page.getByRole('link', { name: 'Connect' })) }).last();
-  const connect = card.getByRole('button', { name: 'Connect' }).or(card.getByRole('link', { name: 'Connect' })).first();
-  await expect(connect, 'the Moodle card has "Connect"').toBeVisible();
-  await expect(connect).toBeEnabled();
+
+  const thanh = await signIn(THANH);
+  const list = await appApi<{ connections: { id: string; name: string; status: string; createdAt: string; registrationUrlExpiresAt?: string | null }[] }>('GET', '/app-api/connections', { cookie: thanh.cookie });
+  expect(list.status).toBe(200);
+  const conns = [...(list.json?.connections ?? [])].sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  // The smallest element that holds the card text and a Manage/Connect control.
+  const control = page.getByRole('button', { name: /^(Connect|Manage)$/ }).or(page.getByRole('link', { name: /^(Connect|Manage)$/ }));
+  const card = page.locator('div, article, section, li', { hasText: MOODLE_CARD_TEXT }).filter({ has: control }).last();
+  await expect(card, 'the Moodle card').toBeVisible();
+  const exactConnect = card.getByRole('button', { name: 'Connect', exact: true }).or(card.getByRole('link', { name: 'Connect', exact: true }));
+  if (conns.length === 0) {
+    await expect(exactConnect.first(), 'no connection: "Connect"').toBeVisible();
+    await expect(exactConnect.first()).toBeEnabled();
+    return;
+  }
+  const newest = conns[0];
+  await expect(card.getByRole('button', { name: 'Manage', exact: true }).or(card.getByRole('link', { name: 'Manage', exact: true })).first(), '"Manage"').toBeVisible();
+  await expect(card.getByText('Connect another site', { exact: true }).first(), '"Connect another site"').toBeVisible();
+  expect(await exactConnect.count(), 'with a connection: no "Connect"').toBe(0);
+  const expired = newest.status === 'pending' && newest.registrationUrlExpiresAt && Date.parse(newest.registrationUrlExpiresAt) < Date.now();
+  const label = newest.status === 'registered' ? 'Registered — activate in Moodle' : newest.status === 'connected' ? 'Connected' : expired ? 'Link expired' : null;
+  const cardText = (await card.innerText()).replace(/\s+/g, ' ');
+  test.info().annotations.push({ type: 'card state', description: `${conns.length} connections; newest "${newest.name}" status ${newest.status}; card text: ${cardText.slice(0, 300)}` });
+  if (label) await expect(card.getByText(label, { exact: true }).first(), `badge of the newest connection (${newest.status})`).toBeVisible();
+  else test.info().annotations.push({ type: 'spec gap', description: `tasks/T6.md gives no badge text for status ${newest.status} with a valid link; not checked` });
 });
 
 test('AC-T6-02 look: body background rgb(11,10,15), active pill rgb(166,103,228), DM Sans, cards 12 px radius; screenshot next to the reference', async ({ page }) => {

@@ -347,6 +347,23 @@ describe('/tool/register (app contract §6, security §5, §6)', () => {
     expect(patches()).toEqual([]);
   });
 
+  it('T6 round 2: lastError of MOODLE_TOOL_MAY_EXIST has the page action with the tool name', async () => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const { id, ref } = await pending(cookie);
+    const reg = t.lti.addRegistration();
+    const orig = t.lti.client.completeRegistration;
+    t.lti.client.completeRegistration = async () => { throw new LtiServiceError(502, 'PLATFORM_ERROR', 'x', 'tool_may_exist'); };
+    const page = await post(reg, ref);
+    t.lti.client.completeRegistration = orig;
+    const last = (await json('GET', `/app-api/connections/${id}`, cookie)).json().lastError;
+    expect(last).toMatchObject({ code: 'MOODLE_TOOL_MAY_EXIST', title: 'Cogniate could not connect this Moodle site' });
+    expect(last.action).toBe("Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool 'Cogniate (Thanh's Library)', then connect again.");
+    expect(page.body).toContain('Cogniate (Thanh&#39;s Library)'); // the page and the JSON share the text
+    const list = (await json('GET', '/app-api/connections', cookie)).json().connections[0].lastError;
+    expect(list.action).toBe(last.action);
+  });
+
   it('B-T4b1-01: a failed Connect logs the LTI status and code and stores lastError; success clears it', async () => {
     t = await testApp();
     const cookie = await t.login(THANH);
@@ -361,8 +378,11 @@ describe('/tool/register (app contract §6, security §5, §6)', () => {
     const line = t.logs.find((l) => l.event === 'registration_confirm_rejected' && l.trace_id === traceId);
     expect(line).toMatchObject({ code: 'REGISTRATION_FAILED', lti_status: 502, lti_code: 'PLATFORM_ERROR', lti_reason: null });
     expect(JSON.stringify(line)).not.toContain('Moodle said no');
-    expect((await json('GET', `/app-api/connections/${id}`, cookie)).json().lastError)
-      .toEqual({ code: 'REGISTRATION_FAILED', ltiCode: 'PLATFORM_ERROR', traceId, at: new Date(t.clock.now).toISOString() });
+    expect((await json('GET', `/app-api/connections/${id}`, cookie)).json().lastError).toEqual({
+      code: 'REGISTRATION_FAILED', ltiCode: 'PLATFORM_ERROR', traceId, at: new Date(t.clock.now).toISOString(),
+      // T6 round 2: the same title and action line as the register page (one text table).
+      title: 'Cogniate could not connect this Moodle site', action: 'The connection failed. Go back to Moodle and try again.',
+    });
     // No platform id came back, so nothing is switched off.
     expect(patches()).toEqual([]);
     const ok = await post(reg, ref);

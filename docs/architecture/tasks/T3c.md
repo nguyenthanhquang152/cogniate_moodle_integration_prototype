@@ -15,7 +15,7 @@ In:
 - `GET /api/memberships` (NRPS, `role` short name or URI, `limit`, `resourceLinkId`, `url`).
 - `DELETE /api/platforms/:id` (revokes ltiks and service keys).
 - OAuth2 stubs (`501`).
-- Compat container (Author, in `infra/`): compose profile `compat`, image `python:3.12-slim` with `ltiaas==0.0.4` pinned (MIT, PyPI), the stack CA in `REQUESTS_CA_BUNDLE`, the repo's `tests/compat/` mounted read-only. It runs `python /tests/compat/run.py`. Root script `npm run test:compat` starts it. The Author does not write or read that script.
+- Compat container (Author, in `infra/`): compose profile `compat`, image `python:3.12-slim` with `ltiaas==0.0.4` pinned (MIT, PyPI). Runner interface (see `infra/README.md`, "Compat runner"): it does **not** read `seed.json`; it gets only the `cogniate` API key, the stack CA (`REQUESTS_CA_BUNDLE`), the base URL, and an optional read-only `COMPAT_INPUT_FILE` (QA's captured launch values). The repo's `tests/compat/` is mounted read-only and it runs `python /tests/compat/run.py`. Root script `npm run test:compat` starts it. The Author does not write or read that script.
 - Fallback (if the SDK license or install fails): QA writes a small Python or Node client from the public endpoint names in our contract §0, and the Lead records the switch.
 
 ## Acceptance criteria

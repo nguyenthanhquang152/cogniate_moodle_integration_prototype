@@ -1,11 +1,12 @@
-// T3c compatibility endpoints. Protocol work stays in lti/; guarded service calls stay in platform/.
+// T3c: /api/deeplinking/form and /message (§3.2), line item POST/PUT/DELETE (§3.5),
+// /api/memberships (§3.7), and OAuth stubs (§3.10 of the LTI service contract).
+// Protocol work stays in lti/; guarded service calls stay in platform/.
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
 import { CLAIM } from '../../lti/checks.ts';
 import { deepLinkingForm } from '../../lti/deep-linking.ts';
 import type { LineItemInput } from '../../platform/ags.ts';
-import type { MembershipsQuery } from '../../platform/nrps.ts';
 import type { RouteContext } from '../context.ts';
 import { agsContext, claimObject, platformOf, signedDeepLink } from '../service-context.ts';
 import { invalid } from '../validation.ts';
@@ -13,7 +14,7 @@ import { invalid } from '../validation.ts';
 const text = z.string().min(1).max(2048);
 const LineItemBody = z.object({
   label: z.string().min(1).max(255).refine((s) => s.trim().length > 0), scoreMaximum: z.number().positive(),
-  resourceLinkId: text.optional(), resourceId: z.string().max(2048).nullable().optional(), tag: z.string().max(2048).nullable().optional(),
+  resourceLinkId: z.string().max(2048).nullable().optional(), resourceId: z.string().max(2048).nullable().optional(), tag: z.string().max(2048).nullable().optional(),
   startDateTime: z.iso.datetime({ offset: true }).or(z.literal('')).nullable().optional(), endDateTime: z.iso.datetime({ offset: true }).or(z.literal('')).nullable().optional(),
   gradesReleased: z.boolean().optional(),
 });
@@ -24,7 +25,7 @@ const MembershipsQuerySchema = z.object({
 const parseItem = (body: unknown): LineItemInput => {
   const parsed = LineItemBody.safeParse(body);
   if (!parsed.success) throw invalid(parsed.error);
-  return Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined)) as unknown as LineItemInput;
+  return parsed.data;
 };
 type ItemParams = { Params: { lineItemId: string } };
 
@@ -55,11 +56,10 @@ export function registerCompatRoutes(app: FastifyInstance, ctx: RouteContext): v
       if (parsed.error.issues.some((i) => i.path[0] === 'url')) throw new ApiError('INVALID_URL_PARAMETER');
       throw invalid(parsed.error);
     }
-    const query = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined)) as MembershipsQuery;
     return ctx.nrps.listMemberships({
       platform, traceId: req.traceId,
       nrpsClaim: caller.launch ? claimObject(caller.launch.claims[CLAIM.nrps]) : caller.serviceKey?.nrpsClaim ?? null,
-    }, query);
+    }, parsed.data);
   });
   for (const path of ['/api/oauth/:platformId/access_token', '/api/oauth/:platformId/access_token/refresh']) {
     app.post(path, async (req) => {

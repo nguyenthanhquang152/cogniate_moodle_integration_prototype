@@ -43,7 +43,7 @@ export function createNrpsClient(deps: { outbound: OutboundClient; tokens: Token
           headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.ims.lti-nrps.v2.membershipcontainer+json' },
         });
       } catch (err) { throw outboundFailureError(err); }
-      if (res.status < 200 || res.status >= 300) throw platformResponseError(res, false); // Roster errors must not echo personal data.
+      if (res.status < 200 || res.status >= 300) throw platformResponseError(res, { echoMessage: false }); // Roster errors must not echo personal data.
       let json: unknown;
       try { json = res.json(); } catch { throw badPlatformDataError('memberships are not JSON'); }
       const parsed = Memberships.safeParse(json);

@@ -1,5 +1,6 @@
 // Host actions that an AC names, asked for from the e2e container (T5b: AC-T5-14, -30 "docker compose stop/start
-// moodle", AC-T5-31 "npm run stack:restart -- lti-service"). Tests in the container cannot run docker. So a test
+// moodle", AC-T5-31 "npm run stack:restart -- lti-service"; T3c: AC-T3-27 "npm run test:compat", AC-T3-19
+// "npm run seed:lti-manual"). Tests in the container cannot run docker. So a test
 // writes a request file into the shared artifacts folder, and the host runner (tests/host/run-t5.mjs) runs only these
 // whitelisted commands for the QA project, then writes an answer file. Without the host runner the request times out.
 import crypto from 'node:crypto';
@@ -9,7 +10,7 @@ import { publicUrls } from './env';
 import { httpsRequest } from './https';
 import { artifactsDir } from './paths';
 
-export type HostAction = 'moodle-stop' | 'moodle-start' | 'lti-restart';
+export type HostAction = 'moodle-stop' | 'moodle-start' | 'lti-restart' | 'compat-run' | 'seed-lti-manual';
 
 export interface HostAnswer {
   action: HostAction;
@@ -17,28 +18,34 @@ export interface HostAnswer {
   code: number;
   startedAt: number;
   endedAt: number;
+  /** compat-run: the output file name in the control folder (stdout and stderr, redacted by the runner). */
+  out?: string;
 }
 
 export const CONTROL_DIR = () => path.join(artifactsDir('acceptance'), 'control');
 
-export async function hostAction(action: HostAction, timeoutMs = 240_000): Promise<HostAnswer> {
+/**
+ * `payload` goes into the request file (compat-run: `{ input: <file name in the control folder> }`). With
+ * `allowFail`, a non-zero exit is returned, not thrown (compat-run exits 1 when a check fails).
+ */
+export async function hostAction(action: HostAction, timeoutMs = 240_000, { payload = {}, allowFail = false }: { payload?: Record<string, unknown>; allowFail?: boolean } = {}): Promise<HostAnswer> {
   const dir = CONTROL_DIR();
   fs.mkdirSync(dir, { recursive: true });
   const id = `${Date.now()}-${crypto.randomBytes(3).toString('hex')}`;
-  fs.writeFileSync(path.join(dir, `req-${id}.json.tmp`), JSON.stringify({ id, action, at: Date.now() }));
+  fs.writeFileSync(path.join(dir, `req-${id}.json.tmp`), JSON.stringify({ id, action, at: Date.now(), ...payload }));
   fs.renameSync(path.join(dir, `req-${id}.json.tmp`), path.join(dir, `req-${id}.json`));
   const answerFile = path.join(dir, `ack-${id}.json`);
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     if (fs.existsSync(answerFile)) {
       const answer = JSON.parse(fs.readFileSync(answerFile, 'utf8')) as HostAnswer;
-      if (!answer.ok) throw new Error(`host action ${action} failed (exit ${answer.code})`);
+      if (!answer.ok && !allowFail) throw new Error(`host action ${action} failed (exit ${answer.code})`);
       if (action === 'moodle-start') await waitMoodleReady();
       return answer;
     }
     await new Promise((r) => setTimeout(r, 500));
   }
-  throw new Error(`no answer from the host runner for "${action}" within ${timeoutMs} ms (run the suite with tests/host/run-t5.mjs)`);
+  throw new Error(`no answer from the host runner for "${action}" within ${timeoutMs} ms (run the suite with tests/host/run-t5.mjs or run-t3c.mjs)`);
 }
 
 /**

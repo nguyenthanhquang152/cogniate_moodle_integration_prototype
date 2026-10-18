@@ -93,7 +93,7 @@ Report rules: `fileCount` counts files (not folders). `totalBytes` = sum of unco
 
 ### 3.2 Reject codes
 
-Rejected upload: `422`, `details.message = "PACKAGE_REJECTED"`, `details.reasons = [{ "code", "title", "action", "path"?, "detail" }]` (`title` = a short plain-language name of the problem, `action` = what to do about this reason), and `details.action` = one sentence with the overall next action for the user (for example "Export the course again as SCORM 1.2 with one SCO."). Other app API errors may also carry `details.action`. Nothing stays in the package store.
+Rejected upload: `422`, `details.message = "PACKAGE_REJECTED"`, `details.reasons = [{ "code", "title", "action", "path"?, "detail" }]` (`title` = a short plain-language name of the problem, `action` = what to do about this reason, `path` = the zip entry name that failed, always present for entry-level codes: `PATH_TRAVERSAL`, `ABSOLUTE_PATH`, `SYMLINK_ENTRY`, `INVALID_ENTRY_NAME`, `DUPLICATE_ENTRY`, `ZIP_BOMB`, `LAUNCH_FILE_MISSING`, and for `INVALID_PACKAGE_IDENTIFIER`), and `details.action` = one sentence with the overall next action for the user (for example "Export the course again as SCORM 1.2 with one SCO."). Other app API errors may also carry `details.action`. Nothing stays in the package store.
 
 ```json
 { "status": 422, "error": "Unprocessable Content",
@@ -149,7 +149,7 @@ Check order: the zip and XML checks of §3.2 run first, and the first failing ch
 }
 ```
 
-`lastError`: `null`, or `{ code, ltiCode, traceId, at }` of the last failed registration or manual connect (`code` = the app code, for example `REGISTRATION_FAILED`; `ltiCode` = the LTI service `details.message` if there was one, else `null`). It is cleared by the next success. The portal shows it (T6). `status`: `pending`, `registered`, `connected`, `disabled`. "Link expired" is derived (`pending` and `registrationUrlExpiresAt` past). `platform` after registration: `{ id, issuer, clientId, deploymentIds, productFamilyCode }`.
+`lastError`: `null`, or `{ code, title, action, ltiCode, traceId, at }` of the last failed registration or manual connect (`code` = the app code, for example `REGISTRATION_FAILED`; `title` and `action` = server-owned plain-language texts from the same table as the tool error pages; `ltiCode` = the LTI service `details.message` if there was one, else `null`). It is cleared by the next success. The portal shows it (T6). `status`: `pending`, `registered`, `connected`, `disabled`. "Link expired" is derived (`pending` and `registrationUrlExpiresAt` past). `platform` after registration: `{ id, issuer, clientId, deploymentIds, productFamilyCode }`.
 
 | Method and path | Request | Success / errors |
 | --- | --- | --- |
@@ -209,7 +209,7 @@ The six values back from Moodle use the fixed keys of `PUT .../platform`: `issue
 | `POST /app-api/publications/:id/withdraw` | — | `200` `withdrawn` |
 | `GET /app-api/publications/:id/results` (T5a) | — | `200 { rows: [ResultRow] }` |
 | `POST /app-api/publications/:id/results/refresh` (T5b) | — | `200 { rows }` after an AGS results read per row (`SERVICE-AUTH-V1`) |
-| `POST /app-api/score-syncs/:syncId/resend` (T5b) | — | `200`: the row goes back to `pending` with `tries = 0` and a new 24 h retry window. Only for `failed` or `conflict`, and never when an equal or better result for the same learner and activity is already `sent` or `pending`; else `409 SYNC_NOT_RESENDABLE`. |
+| `POST /app-api/score-syncs/:syncId/resend` (T5b) | — | `200`: the row goes back to `pending` with `tries = 0` and a new 24 h retry window. Only the learner's current **best** final result on that resource link is ever sent: Resend works only for a `failed` or `conflict` row whose score is that best result. A row whose score is lower than any existing final result of the learner on that resource link (whatever that result's sync status: `sent`, `pending`, `conflict`, `failed`, or a final attempt with no row) → `409 SYNC_NOT_RESENDABLE`. Any other status → `409 SYNC_NOT_RESENDABLE`. |
 
 ResultRow (one per learner per activity; preview attempts are rows with `preview: true`):
 

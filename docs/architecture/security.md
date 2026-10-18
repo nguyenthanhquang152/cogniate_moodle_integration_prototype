@@ -78,6 +78,7 @@ Signing key: one active RSA 2048 key per tool account, RS256, with `kid`. Rotati
 - `authenticationEndpoint`, `accesstokenEndpoint` and the JWKS URL must be https URLs on the **issuer origin**. Moodle puts `auth.php`, `token.php` and `certs.php` under wwwroot. Else: `400 PLATFORM_URL_NOT_ON_ISSUER_ORIGIN` at create.
 - The platform JWKS is fetched with the guarded client (section 9), not with the `jose` remote fetcher. The service builds the key set with `createLocalJWKSet` and caches it for 10 min (refresh age).
 - If a refresh fails (timeout, error status, bad JSON), the service keeps using the cached keys up to a **maximum age of 24 h** from the last good fetch, and logs the failed attempt. A token whose `kid` is in the cached set still verifies. A token with an unknown `kid` fails with `INVALID_SIGNATURE` (`detail: jwks_fetch_failed`). After 24 h without a good fetch, the cache is dropped and every launch of that platform fails with `INVALID_SIGNATURE` (`detail: jwks_unavailable`).
+- The deep-link return URL in a deep-linking launch must be https on the issuer origin; the LTI service refuses to sign a response for any other target (`400 INVALID_DEEP_LINK_RETURN_URL`, A-T3c-01), and the app checks it again (`RETURN_URL_MISMATCH`).
 - Dynamic registration: the `openid_configuration` URL goes through the guarded client. Its `issuer` must equal the origin of the configuration URL. All endpoint URLs in it must be on that origin.
 
 ### 2.5 Dynamic registration: "update existing tool"

@@ -13,7 +13,7 @@ describe('retention cleanup (data-model §2.1, A-T4b2-02)', () => {
       INSERT INTO course VALUES ('crs_1', 'lib_1', 'C', '', 'scorm', 'en', 0);
       INSERT INTO package VALUES ('pkg_1', 'lib_1', 'x', 1, 1, 'packages/pkg_1', 0);
       INSERT INTO course_version VALUES ('ver_1', 'crs_1', 1, 'scorm12', 'pkg_1', '{}', '{}', 0);
-      INSERT INTO publication VALUES ('pub_1', 'con_1', 'crs_1', 'ver_1', 'available', 0, 0);
+      INSERT INTO publication (id, connection_id, course_id, current_version_id, status, created_at, updated_at) VALUES ('pub_1', 'con_1', 'crs_1', 'ver_1', 'available', 0, 0);
       INSERT INTO resource_link (id, connection_id, publication_id, deployment_id, context_id, resource_link_id, context_title, title, created_at, updated_at)
         VALUES ('rl_1', 'con_1', 'pub_1', '1', '2', '3', 'c', 't', 0, 0);
       INSERT INTO attempt (id, resource_link_id, user_sub, course_version_id, preview, created_at, updated_at) VALUES ('att_1', 'rl_1', '5', 'ver_1', 0, 0, 0);`);

@@ -2,7 +2,23 @@
 // (lib/templates/loginform.mustache: form#login, #username, #password, #loginbtn, #loginerrormessage).
 import type { Page } from '@playwright/test';
 
+const toursHandled = new WeakSet<Page>();
+
+/**
+ * Moodle user tours (tool_usertours, data-flexitour) show on the first visit of some pages (for example the grader
+ * report) and put a backdrop over the page that takes the clicks. When a tour step is visible before an action,
+ * click its "End tour"/"Skip tour" button (data-role="end"), as a person would. Registered once per page.
+ */
+export async function endUserTours(page: Page): Promise<void> {
+  if (toursHandled.has(page)) return;
+  toursHandled.add(page);
+  await page.addLocatorHandler(page.locator('[data-flexitour="container"]').first(), async (tour) => {
+    await tour.locator('[data-role="end"]').first().click();
+  });
+}
+
 export async function moodleLogin(page: Page, moodleUrl: string, username: string, password: string): Promise<void> {
+  await endUserTours(page);
   await page.goto(`${moodleUrl}/login/index.php`);
   // A context that is already signed in gets "You are already logged in as …, Log out?" instead of the form.
   if ((await page.locator('#username').count()) === 0) {

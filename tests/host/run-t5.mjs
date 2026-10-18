@@ -13,7 +13,7 @@
 //    the host actions that the tests ask for (tests/acceptance/lib/host-control.ts): "docker compose stop moodle",
 //    "docker compose start moodle" (AC-T5-14, -30) and "npm run stack:restart -- lti-service" (AC-T5-31). Only these
 //    three commands, only for this QA project.
-// 5. T6 pass (if selected): QA_TASK=T6 (fresh: false). With T6, setup runs `npm run build` before `stack:up`
+// 5. T6 pass (if selected): QA_TASK=T6 (fresh: false), with the host channel (AC-T6-14 setup: lti-service restart). With T6, setup runs `npm run build` before `stack:up`
 //    (tasks/T6.md: "after npm run build && npm run stack:up && npm run seed").
 import crypto from 'node:crypto';
 import fs from 'node:fs';
@@ -145,13 +145,24 @@ async function passT5b() {
   }
 }
 
+async function passT6() {
+  // AC-T6-14 setup runs the AC-T5-31 recipe again (lti-service restart), so the host channel runs here too.
+  const stop = startHostControl();
+  try {
+    await r.containerSuite('T6', { env: { QA_TASK: 'T6' }, expectIds: EXPECT.T6, fresh: false });
+  } finally {
+    const log = stop();
+    r.record('HOSTCTL', 'Host actions asked for by the T6 tests (AC-T6-14 setup: stack:restart lti-service)', 'PASS', log.length ? log : ['none']);
+  }
+}
+
 await r.main(async () => {
   if (!(await setup())) return;
   if (!copyFixtures()) return;
   if (r.opt.only) {
     // Re-run only what is missing: SETUP-T5a makes the state these ACs need.
     const ids = r.opt.only.split(',').map((t) => t.trim()).filter(Boolean);
-    await r.containerSuite('focus', { env: { QA_TASK: 'T5a', QA_GREP: ['SETUP-T5a', ...ids].join('|') }, expectIds: ids });
+    await r.containerSuite('focus', { env: { QA_TASK: TASKS.filter((t) => t !== 'T6').join(','), QA_GREP: ['SETUP-T5a', ...ids].join('|') }, expectIds: ids });
     return;
   }
   if (TASKS.includes('T5a')) {
@@ -159,5 +170,5 @@ await r.main(async () => {
     await knobPass();
   }
   if (TASKS.includes('T5b')) await passT5b();
-  if (TASKS.includes('T6')) await r.containerSuite('T6', { env: { QA_TASK: 'T6' }, expectIds: EXPECT.T6, fresh: false });
+  if (TASKS.includes('T6')) await passT6();
 });

@@ -2,7 +2,7 @@
 // registration frame (cross-site iframe): no cookies; the `ref` token is the authorization. The confirm page needs a
 // real click on "Connect"; the POST then completes the registration in the LTI service and closes Moodle's dialog.
 import type { Logger, PublicUrls } from '@cogniate/shared';
-import { pendingToolText, sha256Hex } from '@cogniate/shared';
+import { sha256Hex } from '@cogniate/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { deactivateOrphan, platformInfo, toolName } from '../app/connections.ts';
 import type { LtiClient, LtiRegistration } from '../clients/lti-client.ts';
@@ -11,6 +11,8 @@ import type { Connection } from '../domain/connections.ts';
 import { PlatformTakenError, findByRefHash, markRegistered, recordConnectError } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { errorPage, escapeHtml, layout, newNonce, toolPageHeaders } from './page.ts';
+import type { RegisterErrorCode } from './register-texts.ts';
+import { REGISTER_ERRORS, REGISTER_HEADING, registerErrorText } from './register-texts.ts';
 
 export interface RegisterPageDeps {
   db: Db;
@@ -21,20 +23,8 @@ export interface RegisterPageDeps {
   now: () => number;
 }
 
-export type RegisterErrorCode = 'REF_INVALID' | 'REF_EXPIRED' | 'SITE_MISMATCH' | 'UPDATE_NOT_ALLOWED' | 'ORIGIN_NOT_ALLOWED' | 'REGISTRATION_FAILED' | 'MOODLE_TOOL_MAY_EXIST';
-
-/** Status and the one action line of each page (they speak to the Moodle admin who sees the frame). */
-export const REGISTER_ERRORS: Record<RegisterErrorCode, { status: number; action: string }> = {
-  REF_INVALID: { status: 400, action: 'This registration link is not valid or was already used. In Cogniate, open the connection and copy a new registration URL.' },
-  REF_EXPIRED: { status: 400, action: 'This registration link expired. In Cogniate, open the connection and make a new registration URL.' },
-  SITE_MISMATCH: { status: 400, action: 'This registration link is for another Moodle site. Use the link on the Moodle site that the Cogniate connection names.' },
-  UPDATE_NOT_ALLOWED: { status: 409, action: 'Go back in Moodle and choose Register as a new tool.' },
-  ORIGIN_NOT_ALLOWED: { status: 403, action: 'Open the registration again from Moodle and press Connect on the Cogniate page.' },
-  // App contract §6 texts. In both cases the connection stays pending and the ref still works until it expires.
-  REGISTRATION_FAILED: { status: 502, action: 'The connection failed. Go back to Moodle and try again.' },
-  // A-T3b-01: the LTI service does not know if Moodle saved the tool. No automatic clean-up. The shared text gets the tool name.
-  MOODLE_TOOL_MAY_EXIST: { status: 502, action: pendingToolText('<tool>') },
-};
+export { REGISTER_ERRORS, REGISTER_HEADING } from './register-texts.ts';
+export type { RegisterErrorCode } from './register-texts.ts';
 
 /** Codes that are stored as the connection's lastError (the connection is known; B-T4b1-01). */
 const STORED_CODES = new Set<RegisterErrorCode>(['SITE_MISMATCH', 'UPDATE_NOT_ALLOWED', 'REGISTRATION_FAILED', 'MOODLE_TOOL_MAY_EXIST']);
@@ -42,7 +32,6 @@ const STORED_CODES = new Set<RegisterErrorCode>(['SITE_MISMATCH', 'UPDATE_NOT_AL
 type Found = Connection & { libraryName: string };
 type Failure = { ok: false; code: RegisterErrorCode; connection?: Found; err?: unknown };
 
-const HEADING = 'Cogniate could not connect this Moodle site';
 const REF = /^[A-Za-z0-9_-]{43}$/;
 
 type Form = { registrationId?: unknown; ref?: unknown };
@@ -57,8 +46,8 @@ export function registerRegisterPages(app: FastifyInstance, deps: RegisterPageDe
     if (connection && STORED_CODES.has(code)) {
       recordConnectError(db, connection.id, { code, ltiCode: err instanceof LtiServiceError ? err.code : null, traceId: req.traceId, at: now() });
     }
-    const action = REGISTER_ERRORS[code].action.replace('<tool>', connection ? toolName(connection.libraryName) : 'Cogniate');
-    return reply.code(REGISTER_ERRORS[code].status).headers(toolPageHeaders('error')).send(errorPage(HEADING, code, req.traceId, action));
+    const action = registerErrorText(code, connection ? toolName(connection.libraryName) : 'Cogniate')?.action ?? REGISTER_ERRORS[code].action;
+    return reply.code(REGISTER_ERRORS[code].status).headers(toolPageHeaders('error')).send(errorPage(REGISTER_HEADING, code, req.traceId, action));
   };
 
   /** ref -> pending connection that has not expired; registration -> same site; never an update (security §2.5). */

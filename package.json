@@ -28,6 +28,7 @@
     "e2e:reset": "bash infra/scripts/e2e-reset.sh",
     "demo:prepare": "bash infra/scripts/demo-prepare.sh",
     "moodle:cron": "bash infra/scripts/moodle-cron.sh",
+    "build-runner": "bash infra/scripts/build-runner.sh watch",
     "stack:moodle-reach-check": "bash infra/scripts/moodle-reach-check.sh",
     "stack:node-reach-check": "bash infra/scripts/node-reach-check.sh",
     "fixtures:check": "bash infra/scripts/fixtures-check.sh",

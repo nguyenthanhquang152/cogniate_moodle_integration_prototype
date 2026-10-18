@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { BrowserContext, Page } from '@playwright/test';
-import { appApi, APP, signIn, THANH } from '../lib/app';
+import { appApi, APP, signIn, THANH, uploadVersion } from '../lib/app';
 import { courseZipCopy } from '../lib/course-fixtures';
 import { loadState, saveState } from '../lib/lti';
 import { newStackContext } from '../lib/moodle-launch';
@@ -51,7 +51,7 @@ test.describe.serial('T6 Courses (Thanh)', () => {
     await context?.close();
   });
 
-  test('AC-T6-06 upload on a slow network: a role="progressbar" with a growing aria-valuenow, then the report (SCORM 1.2, Mastery score 70, external hosts); a PATH_TRAVERSAL zip shows the plain-words reason and makes no version', async () => {
+  test('AC-T6-06 upload on a slow network: a role="progressbar" with a growing aria-valuenow, then the report (SCORM 1.2, Mastery score 70, external hosts); a PATH_TRAVERSAL zip shows the server reason title and path ../evil.html, and makes no version', async () => {
     test.setTimeout(300_000);
     const runId = Date.now().toString(36);
     const courseId = await newCourseInUi(page, `QA UI SCORM ${runId}`);
@@ -88,9 +88,18 @@ test.describe.serial('T6 Courses (Thanh)', () => {
     const evil = path.join(dir, 'traversal.zip');
     fs.writeFileSync(evil, zipBuffer([{ name: 'index.html', data: '<!doctype html><html><body data-lesson-id="index">QA</body></html>' }, { name: '../evil.html', data: 'qa' }]));
     const badId = await newCourseInUi(page, `QA UI traversal ${runId}`);
-    await chooseZip(page, evil);
-    await expect(page.getByText('The package has an unsafe file path: ../evil.html')).toBeVisible({ timeout: 60_000 });
+    // The server's reason for this zip (contract §3: details.reasons[] with title and path; nothing is stored).
     const thanh = await signIn(THANH);
+    const api = await uploadVersion(thanh, badId, evil);
+    const reasons = ((api.json?.details as { reasons?: { code: string; title?: string; path?: string }[] } | undefined)?.reasons ?? []);
+    const reason = reasons.find((r) => r.code === 'PATH_TRAVERSAL');
+    expect(api.status, api.body.slice(0, 300)).toBe(422);
+    expect(reason?.path, `server reason: ${JSON.stringify(reasons)}`).toBe('../evil.html');
+    expect(reason?.title, 'server reason title').toBeTruthy();
+    await chooseZip(page, evil);
+    await expect(page.getByText(String(reason!.title)).first(), 'the UI shows the server reason title').toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText('../evil.html').first(), 'the UI shows the reason path').toBeVisible();
+    test.info().annotations.push({ type: 'reject reason', description: `${reason!.code}: "${reason!.title}" path ${reason!.path}` });
     const course = await appApi<{ versions?: unknown[]; latestVersion?: unknown }>('GET', `/app-api/courses/${badId}`, { cookie: thanh.cookie });
     expect(course.json.versions ?? [], 'no version made').toHaveLength(0);
     expect(course.json.latestVersion ?? null).toBeNull();

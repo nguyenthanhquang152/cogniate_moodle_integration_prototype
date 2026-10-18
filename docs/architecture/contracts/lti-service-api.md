@@ -68,6 +68,7 @@ Authorization: Bearer <API_KEY>
 | 400 | `INVALID_LINE_ITEM_ID` | `:lineItemId` fails the URL rule (§3.4) |
 | 400 | `INVALID_URL_PARAMETER` | The `url` query fails the URL rule |
 | 400 | `INVALID_CONTENT_ITEM` | A content item breaks a rule (§3.2) |
+| 400 | `INVALID_DEEP_LINK_RETURN_URL` | The launch's `deep_link_return_url` is not https on the platform issuer origin (§3.2, A-T3c-01) |
 | 400 | `UNSUPPORTED_AUTH_METHOD` | Platform `authConfig.method` is not `JWK_SET` |
 | 400 | `PLATFORM_URL_NOT_ON_ISSUER_ORIGIN` | A platform endpoint is not on the issuer origin |
 | 401 | `INVALID_AUTHORIZATION_HEADER` | No header, unknown scheme, or a scheme that this endpoint does not accept |
@@ -234,6 +235,7 @@ Rules (`400 INVALID_CONTENT_ITEM`):
 - `ltiResourceLink.url`: if missing, the service sets `{PUBLIC_LTI_URL}/lti/launch/{toolAccountId}` (the only field it may add). If present, it must start with that value.
 - `lineItem.scoreMaximum` > 0. `custom` values are strings.
 - The JWT `content_items` equal the request items, plus only the default `url` above.
+- The launch's `deep_link_return_url` must be an https URL on the platform issuer origin; else `400 INVALID_DEEP_LINK_RETURN_URL` and no JWT is signed (all three deep-linking endpoints; A-T3c-01).
 - JWT claims: security §2.3.
 - Not a deep-linking launch → `403 SERVICE_NOT_AVAILABLE`.
 
@@ -255,6 +257,8 @@ Otherwise `400 INVALID_LINE_ITEM_ID` (or `INVALID_URL_PARAMETER`), and **no** ou
 ### 3.5 Line items — LTIK-AUTH-V2 or SERVICE-AUTH-V1
 
 Line item: `id` (URL, platform-set), `label` (required on write), `scoreMaximum` (> 0, required on write), `resourceLinkId`, `resourceId`, `tag`, `startDateTime`, `endDateTime`, `gradesReleased`.
+
+Empty optional metadata (AGS 2.0 §3.2.10–3.2.13): for `resourceLinkId`, `resourceId`, `tag`, `startDateTime` and `endDateTime`, "no value" may be absent, `""` or `null`. In a request, the service accepts all three as "no value". In a response, it passes the platform's form through unchanged, so a tool must treat absent, `""` and `null` the same.
 
 | Method and path | Task | Request | Success | Platform call |
 | --- | --- | --- | --- | --- |
@@ -288,7 +292,7 @@ Scope: POST needs `score`, GET needs `result.readonly`. Else `403 SERVICE_NOT_AV
 
 ### 3.7 `GET /api/memberships` — LTIK-AUTH-V2 or SERVICE-AUTH-V1 (T3c)
 
-Query: `role` (a short name such as `Learner` or a full role URI, passed to NRPS as is), `limit`, `resourceLinkId` (→ NRPS `rlid`), `url` (rule §3.4). `200 { "id", "context": { "id", "label", "title" }, "members": [ { "userId", "roles", "status" } ], "next"? }`. `email`, `name`, `givenName`, `familyName`, `picture` only when the platform sends them. No NRPS claim → `403 SERVICE_NOT_AVAILABLE`.
+Query: `role` (a short name such as `Learner` or a full role URI, passed to NRPS as is), `limit`, `resourceLinkId` (→ NRPS `rlid`), `url` (rule §3.4). `200 { "id", "context": { "id", "label", "title" }, "members": [ { "userId", "roles", "status" } ], "next"? }`. The service **never** returns member personal fields (`email`, `name`, `givenName`, `familyName`, `picture`), even when the platform sends them: learners are anonymous by default (Q3, prototype). No NRPS claim → `403 SERVICE_NOT_AVAILABLE`.
 
 ### 3.8 Dynamic registration — Bearer (T3b)
 
@@ -337,7 +341,7 @@ All URLs are https. An account sees only its own platforms. Another account may 
 
 ### 3.10 OAuth2 stubs (T3c)
 
-`POST /api/oauth/:platformId/access_token` and `.../access_token/refresh` (our paths): `501 NOT_IMPLEMENTED`.
+`POST /api/oauth/:platformId/access_token` and `.../access_token/refresh` (our paths). Auth: `Bearer <API_KEY>` (ADR-003); a missing or wrong header gives the `401` of §1.3 first. With a valid key: always `501 NOT_IMPLEMENTED` (the platform id is not looked up).
 
 ---
 
@@ -370,6 +374,7 @@ Every event: `ts`, `level`, `service: "lti-service"`, `event`, `trace_id` (lifec
 | `registration_rejected` | warn | `code` | §2.4 or §3.8 failure |
 | `internal_error` | error | `method`, `path` (no query), `error` (the error class name only) | a bug; response `500 INTERNAL_ERROR` with the trace id. No error message with data and no stack trace in the JSON file. |
 | `retention_cleanup` | info | `table`, `deleted` | cleanup job (data-model §2.1) |
+| `platform_deleted` | info | `platform_id` | `DELETE /api/platforms/:id` succeeded |
 | `service_stopping` | info | — | stop |
 
 ## 6. Data retention (prototype)
@@ -402,3 +407,4 @@ A tool written against the public LTIAAS API works after two changes (base URL, 
 | D10 | Additions | — | `launch.deepLinkingSettings`, `deploymentIds`, `productFamilyCode`, `operation`, `existingPlatformId`, `updatePlatformId`, score `timestamp`, both `documentTarget` spellings |
 | D11 | OAuth2 endpoints | Documented | `501` stubs |
 | D12 | Tested LMS | Many | Moodle 5.2 only |
+| D13 | Member personal fields in `/api/memberships` | Returned when the LMS sends them | Never returned (anonymous by default, Q3) |

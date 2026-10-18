@@ -15,7 +15,7 @@ export interface ServiceListener {
   publicUrl: (urls: PublicUrls) => string;
   /** Make the server (not listening yet). May be async, for example a Fastify app after ready(). */
   build: (deps: {
-    logger: Logger; knobs: Knob[]; knobValues: ServiceKnobs['values']; urls: PublicUrls; profile: string; outboundAllowlist: string[];
+    logger: Logger; knobs: Knob[]; knobValues: ServiceKnobs['values']; knobStrings: ServiceKnobs['strings']; urls: PublicUrls; profile: string; outboundAllowlist: string[];
   }) => Server | Promise<Server>;
 }
 
@@ -39,7 +39,7 @@ export async function startService(
 ): Promise<Server[]> {
   const env = options.env ?? process.env;
   const urls = loadPublicUrls(env);
-  const { values: knobValues, active: knobs } = readServiceKnobs(service, env);
+  const { values: knobValues, strings: knobStrings, active: knobs } = readServiceKnobs(service, env);
   const profile = env.STACK_PROFILE && env.STACK_PROFILE !== '' ? env.STACK_PROFILE : 'default';
   const outboundAllowlist = parseAllowlist(env.OUTBOUND_PRIVATE_HOST_ALLOWLIST);
   const servers: Server[] = [];
@@ -47,7 +47,7 @@ export async function startService(
   for (const l of listeners) {
     const logger = createLogger({ service: l.name, dir: env.LOG_DIR, ...(options.write ? { write: options.write } : {}) });
     for (const knob of knobs) logger.warn('test_knob_active', { name: knob.name, value: knob.value });
-    const server = await l.build({ logger, knobs, knobValues, urls, profile, outboundAllowlist });
+    const server = await l.build({ logger, knobs, knobValues, knobStrings, urls, profile, outboundAllowlist });
     const addr = await listen(server, l.port, '0.0.0.0');
     logger.info('service_started', { port: addr.port, public_url: l.publicUrl(urls), node: process.version, profile, outbound_allowlist: outboundAllowlist, knobs });
     servers.push(server);

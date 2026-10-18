@@ -50,6 +50,7 @@ All commands run from the repo root.
 | `npm run test:acceptance` / `npm run test:e2e` | Run the QA suites in the e2e container. `test:acceptance` switches to the acceptance profile first and restores the default at the end, also after a failure or Ctrl+C. `test:e2e` (T7) runs `e2e:reset` first (default profile, no knobs) and checks the clean state again at the end; artifacts go to `tests/e2e/artifacts/`. `E2E_RESET=0` skips the reset (debugging only). | `tests/node_modules` (`npm ci`); with `test:e2e` also all stack data (see `e2e:reset`) | everything else |
 | `npm run e2e:reset` | T7: a clean stack for the E2E suite and the demo, in about 1 min. Idempotent. It builds the player and the portal, runs `stack:reset`, `stack:up` (default profile, no knobs) and `seed`, then waits until every `/healthz` shows `"profile":"default"` and `"knobs":[]`, the portal page answers and the Moodle admin can log in. | everything that `stack:reset` deletes | what `stack:reset` keeps |
 | `npm run demo:prepare [-- --no-verify]` | T7: Scenario A by API and CLI, on a fresh `e2e:reset` (about 10 s): Thanh's dynamic connection "Dev Moodle" (registration and Connect without a browser), the tool activated ("Show in activity chooser", "New window"), both course zips uploaded and published, both activities in `COGNIATE-DEV-101` with grade 100 and completion "Receive a grade". Then `cg_teacher` opens both activities (a preview, no learner data). Prints the users and the activity URLs. It refuses a second run (run `e2e:reset` first). | nothing | everything |
+| `npm run build-runner` | T8 (stretch): the host-side Build Runner in the foreground (`stack:up` starts it in the background; log `infra/.logs/build-runner.log`). It takes build requests from `infra/.data/build-queue/requests/`, starts a throwaway Moodle in its own compose project `cogniate-build-<id>` (internal network, no internet, own Postgres, image `cogniate-build-moodle:v5.2.4` built once from `infra/build-runner/Dockerfile`), makes the hidden course with one SCORM activity, backs it up without users, writes the `.mbz` to `infra/.data/build-queue/out/` and removes the project and its volumes. Docker is used only here, never in a container: the app may only write requests and read status and `.mbz` files. Knobs `BUILD_RUNNER_HOLD=1` (wait before teardown until `infra/.data/build-queue/hold/<buildId>` is removed) and `BUILD_RUNNER_FAIL_AT=<step>` (`npm run stack:restart -- cogniate-app --env ...`). | the build projects it made | everything else |
 | `npm run moodle:cron` | T7 fallback (H13): run the Moodle cron once, for example when a report or the completion state waits for it. | nothing | everything |
 | `npm run check` | Lint, type check and unit tests (on the host). | nothing | everything |
 
@@ -206,6 +207,52 @@ Start: `STACK_PROFILE=acceptance npm run stack:up`. Stop: `npm run stack:up` (no
 | Both hosts | Code: `infra/qa-hosts/qa-hosts.mjs` (plain Node, no packages). Each container has its network alias and the `qa.crt` leaf. Log lines use the service format; paths have no query, and token-like segments show as `:redacted`. The health check uses plain HTTP `:8080` inside the container and is not logged. |
 | Allowlists | `OUTBOUND_PRIVATE_HOST_ALLOWLIST` of `lti-service` = `moodle.test,qa-platform.test,evil.test` and of `cogniate-app` = `lti.cogniate.test,qa-platform.test,evil.test` (default profile: without the two QA names). |
 | `/healthz` and `service_started` | `"profile": "acceptance"` and `"outbound_allowlist": [...]` (the active list). Example (default): `{"status":"ok","service":"lti-service","profile":"default","knobs":[],"outbound_allowlist":["moodle.test"]}`. |
+
+## SDK compatibility runner (T3c)
+
+QA owns `tests/compat/run.py`. Start the stack and seed it, then run `npm run test:compat`.
+The `compat` profile builds a Python 3.12 image with `ltiaas==0.0.4` and all runtime dependencies pinned in `infra/compat/requirements.txt`.
+The build checks the SDK version, MIT license metadata and dependency consistency.
+No SDK implementation is part of the product code.
+
+| Input | Host | Container |
+| --- | --- | --- |
+| QA script, read-only | `tests/compat/`; override with `COMPAT_TESTS_DIR` (relative paths start at `infra/`) | `/tests/compat/run.py` |
+| API key, read-only | `infra/.secrets/lti-api-key.cogniate` | `LTI_API_KEY_FILE=/run/secrets/lti-api-key.cogniate` |
+| Public CA, read-only | `infra/.certs/root.crt` | `REQUESTS_CA_BUNDLE=/certs/root.crt` |
+| Optional launch input, read-only | `COMPAT_INPUT_FILE` (relative paths start at the caller's folder) | `COMPAT_INPUT_FILE=/run/compat/input.json`; unset when no file is supplied |
+| Public URLs | The four `PUBLIC_*_URL` values in `.env` | The same variables |
+| QA options | Caller variables named `QA_*` | Passed by name; secret values stay off the command line |
+
+QA captures one real student launch and one real teacher Deep Linking launch before this command.
+It can write their inputs to a private, git-ignored file (mode 600), then pass its path:
+
+```sh
+COMPAT_INPUT_FILE=.tmp/compat-input.json npm run test:compat
+```
+
+Input JSON shape for the QA runner (replace the example strings with captured values):
+
+```json
+{
+  "studentLtik": "captured-student-ltik",
+  "teacherDeepLinkingLtik": "captured-teacher-deep-linking-ltik",
+  "expected": {
+    "userId": "student-lti-sub",
+    "platformUrl": "https://moodle.test:8443",
+    "contextId": "course-id"
+  },
+  "lineItemId": "https://moodle.test:8443/mod/lti/services.php/course/lineitems/item?type_id=tool"
+}
+```
+
+`lineItemId` is optional when QA gets it from the ID token. QA may add the other ids it needs.
+The harness must keep captured values out of logs. The container receives no `seed.json`, other account keys or app secrets.
+
+The command stops with one clear error line if the QA script is missing or the SDK image build fails.
+Before running the script, it checks `PUBLIC_LTI_URL/healthz` with the mounted CA and no redirects.
+A CA mismatch stops with one line: run `npm run gen-env` and `npm run stack:up` again.
+The certificate check never turns TLS verification off. QA's script exit status is returned unchanged.
 
 ## LTI service
 
