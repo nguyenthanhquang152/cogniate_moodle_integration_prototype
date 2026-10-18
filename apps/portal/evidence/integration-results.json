@@ -1,0 +1,118 @@
+{
+  "checkedAt": "2026-10-18T06:41:04.019Z",
+  "apiStatus": 200,
+  "rows": [
+    {
+      "learner": {
+        "sub": "4",
+        "label": "Learner 4 @ moodle.test:9443"
+      },
+      "activity": {
+        "resourceLinkId": "rl_bL_y7f2Ul2NwpKe6iYjtqw",
+        "contextTitle": "Cogniate Dev Course 101",
+        "title": "T6 real SCORM integration"
+      },
+      "preview": false,
+      "best": {
+        "attemptId": "att_4fbK_drhWHbT1zn_8EPPTg",
+        "outcome": "passed",
+        "scoreGiven": 100,
+        "scoreMaximum": 100
+      },
+      "attempts": [
+        {
+          "attemptId": "att_4fbK_drhWHbT1zn_8EPPTg",
+          "versionId": "ver_u_gOPtTlZ50Tfsmyt9BBpQ",
+          "outcome": "passed",
+          "scoreGiven": 100,
+          "scoreMaximum": 100,
+          "updatedAt": "2026-10-18T06:39:51.726Z"
+        }
+      ],
+      "scoreSyncs": [
+        {
+          "id": "sync_U1c5W3I9_s9tl9RVIPpz0w",
+          "status": "sent",
+          "tries": 1,
+          "scoreGiven": 100,
+          "scoreMaximum": 100,
+          "createdAt": "2026-10-18T06:39:49.638Z",
+          "sentAt": "2026-10-18T06:39:49.692Z",
+          "lastError": null
+        }
+      ],
+      "gradebook": null
+    },
+    {
+      "learner": {
+        "sub": "5",
+        "label": "Learner 5 @ moodle.test:9443"
+      },
+      "activity": {
+        "resourceLinkId": "rl_bL_y7f2Ul2NwpKe6iYjtqw",
+        "contextTitle": "Cogniate Dev Course 101",
+        "title": "T6 real SCORM integration"
+      },
+      "preview": false,
+      "best": {
+        "attemptId": "att_2tlPI809OWYrIk2WN8l4MA",
+        "outcome": "passed",
+        "scoreGiven": 100,
+        "scoreMaximum": 100
+      },
+      "attempts": [
+        {
+          "attemptId": "att_2tlPI809OWYrIk2WN8l4MA",
+          "versionId": "ver_u_gOPtTlZ50Tfsmyt9BBpQ",
+          "outcome": "passed",
+          "scoreGiven": 100,
+          "scoreMaximum": 100,
+          "updatedAt": "2026-10-18T06:40:20.613Z"
+        }
+      ],
+      "scoreSyncs": [
+        {
+          "id": "sync_dHg_3WizyaX6usxPJbBuWg",
+          "status": "sent",
+          "tries": 1,
+          "scoreGiven": 100,
+          "scoreMaximum": 100,
+          "createdAt": "2026-10-18T06:40:18.396Z",
+          "sentAt": "2026-10-18T06:40:18.460Z",
+          "lastError": null
+        }
+      ],
+      "gradebook": null
+    },
+    {
+      "learner": {
+        "sub": "3",
+        "label": "Learner 3 @ moodle.test:9443"
+      },
+      "activity": {
+        "resourceLinkId": "rl_bL_y7f2Ul2NwpKe6iYjtqw",
+        "contextTitle": "Cogniate Dev Course 101",
+        "title": "T6 real SCORM integration"
+      },
+      "preview": true,
+      "best": {
+        "attemptId": "att_QGPtR3LVTJOVBlsyhpR4MA",
+        "outcome": "passed",
+        "scoreGiven": 100,
+        "scoreMaximum": 100
+      },
+      "attempts": [
+        {
+          "attemptId": "att_QGPtR3LVTJOVBlsyhpR4MA",
+          "versionId": "ver_u_gOPtTlZ50Tfsmyt9BBpQ",
+          "outcome": "passed",
+          "scoreGiven": 100,
+          "scoreMaximum": 100,
+          "updatedAt": "2026-10-18T06:40:57.382Z"
+        }
+      ],
+      "scoreSyncs": [],
+      "gradebook": null
+    }
+  ]
+}

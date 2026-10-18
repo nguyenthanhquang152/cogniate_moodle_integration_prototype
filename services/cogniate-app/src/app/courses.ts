@@ -1,9 +1,12 @@
 // Courses and course versions (contract cogniate-app-api §3). Every lookup uses the session user's library:
 // a course of another library gives 404 NOT_FOUND, for reads and writes.
 import type { FastifyInstance, FastifyRequest } from 'fastify';
+import { open } from 'node:fs/promises';
+import { join } from 'node:path';
 import { z } from 'zod';
 import type { Course } from '../domain/courses.ts';
 import { createCourse, getCourse, getVersion, latestVersion, listCourses, listVersions } from '../domain/courses.ts';
+import { listPublications } from '../domain/publications.ts';
 import { ApiError } from './api-errors.ts';
 import type { UploadDeps } from './upload.ts';
 import { uploadVersion } from './upload.ts';
@@ -29,10 +32,15 @@ export function registerCourseRoutes(api: FastifyInstance, deps: UploadDeps): vo
     if (!course) throw notFound();
     return course;
   };
+  const withPublications = (course: Course, latest: ReturnType<typeof latestVersion>) => ({
+    ...courseJson(course, latest),
+    publications: listPublications(db, course.libraryId, { courseId: course.id })
+      .map(({ id, connectionId, status }) => ({ id, connectionId, status })),
+  });
 
   api.get('/courses', async (req) => {
     const lib = libraryOf(req);
-    return { courses: listCourses(db, lib).map((c) => courseJson(c, latestVersion(db, lib, c.id))) };
+    return { courses: listCourses(db, lib).map((c) => withPublications(c, latestVersion(db, lib, c.id))) };
   });
 
   api.post('/courses', async (req, reply) => {
@@ -50,7 +58,7 @@ export function registerCourseRoutes(api: FastifyInstance, deps: UploadDeps): vo
   api.get<CourseParams>('/courses/:courseId', async (req) => {
     const course = courseOf(req);
     const versions = listVersions(db, course.libraryId, course.id);
-    return { ...courseJson(course, versions.at(-1)), versions: versions.map(versionJson) };
+    return { ...withPublications(course, versions.at(-1)), versions: versions.map(versionJson) };
   });
 
   // The course is checked before the body is read, so a foreign course id costs no upload.
@@ -65,5 +73,22 @@ export function registerCourseRoutes(api: FastifyInstance, deps: UploadDeps): vo
     const version = getVersion(db, course.libraryId, course.id, req.params.versionId);
     if (!version) throw notFound();
     return versionJson(version);
+  });
+
+  api.get<VersionParams & { Querystring: { kind?: string } }>('/courses/:courseId/versions/:versionId/download', async (req, reply) => {
+    const course = courseOf(req);
+    const version = getVersion(db, course.libraryId, course.id, req.params.versionId);
+    if (!version) throw notFound();
+    if (req.query.kind !== 'original') throw new ApiError('INVALID_REQUEST', 'Use kind=original to download the uploaded zip.');
+    const pkg = db.prepare('SELECT sha256 FROM package WHERE id = ? AND library_id = ?').get(version.packageId, course.libraryId);
+    if (!pkg || typeof pkg.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(pkg.sha256)) throw notFound();
+    try {
+      const file = await open(join(deps.store.uploads, `${pkg.sha256}.zip`), 'r');
+      return reply.type('application/zip').header('content-disposition', `attachment; filename="course-v${version.version}.zip"`)
+        .send(file.createReadStream());
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') throw notFound();
+      throw error;
+    }
   });
 }

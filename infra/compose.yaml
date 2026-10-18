@@ -170,7 +170,7 @@ services:
       - ../node_modules:/repo/node_modules:ro
       - ../packages:/repo/packages:ro
       - ../services:/repo/services:ro
-      - ../apps:/repo/apps:ro                  # T5a: the player build apps/player/dist (runtime.js, runtime.css, shell.js)
+      - ../apps:/repo/apps:ro                  # Player and portal builds served on their public origins.
       - ./.certs/root.crt:/certs/root.crt:ro
       - ./.logs:/logs
       - ./.data/cogniate-app:/data

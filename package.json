@@ -16,7 +16,6 @@
     "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck --workspaces --if-present",
     "test:unit": "vitest run",
     "build": "npm run build --workspaces --if-present",
-    "dev:web": "npm run dev -w @cogniate/player",
     "gen-env": "bash infra/scripts/gen-env.sh",
     "stack:up": "bash infra/scripts/stack-up.sh",
     "stack:down": "bash infra/scripts/stack-down.sh",
@@ -35,7 +34,8 @@
     "demo": "bash infra/scripts/demo.sh",
     "demo:browser": "bash infra/scripts/demo-browser.sh",
     "test:acceptance": "bash infra/scripts/qa-suite.sh acceptance",
-    "test:e2e": "bash infra/scripts/qa-suite.sh e2e"
+    "test:e2e": "bash infra/scripts/qa-suite.sh e2e",
+    "dev:web": "node apps/portal/scripts/dev-web.mjs"
   },
   "devDependencies": {
     "@eslint/compat": "2.1.1",
