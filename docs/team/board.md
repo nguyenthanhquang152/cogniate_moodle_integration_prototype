@@ -15,7 +15,7 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 | 6 | T4a | Upload + package inspector | Author | **done** | 3 | R3: QA PASS (93884d8), A APPROVE, B APPROVE. Deferred: A-T4a-04 (→ T6/T8), B-T4a-01 (→ T3a). |
 | 7 | T4b1 | Connect + publish | Author | **done** | 2 | QA PASS (716a72c, incl. AC-T4-36), A APPROVE, B APPROVE. Residual risk R1 accepted. |
 | 7b | T4b2 | Picker, launch handoff, security | Author | **done** | 1 | QA PASS 17/17 (716a72c; AC-T4-22/23 live), A APPROVE, B APPROVE. MINOR follow-ups (B-T4b2-01/03, A-T4b2-02/04) in progress with T5b batch. |
-| 8 | T5a | Content host, SCORM runtime, score sync | Author | verifying | 1 | A APPROVE, B APPROVE; QA run (qa-t5a-r1) in progress. Review fixes landed in T5b. |
+| 8 | T5a | Content host, SCORM runtime, score sync | Author | **done** | 1 | QA PASS 21/21 black-box (e05aa29; real SCORM → 100 in Moodle), A APPROVE, B APPROVE. Review fixes landed in T5b. |
 | 9 | T5b | HTML runtime, conflict, Resend | Author | verifying | 1 | wip 64c101f (real HTML course → 100 in Moodle). A + B reviewing; QA after T5a. |
 | 10 | T6 | Portal UI (dev-portal style) | **Author-2 (Codex GPT-6-Astra xhigh)** | integrating | 1 | Built in ~25 min on feat/t6-portal-ui (4 commits; 490 tests, build, axe 0 on 9 screens, live registration). Now: merge main + wire real T5a results API (dispatch ctx_d8e98f56b217). Then QA + A + B. |
 | 11 | T7 | Full E2E in real Moodle | QA + Author | in_progress | 1 | Author: e2e:reset, test:e2e, demo:prepare, moodle:cron. QA: tests/e2e written. Needs T6 merged. |

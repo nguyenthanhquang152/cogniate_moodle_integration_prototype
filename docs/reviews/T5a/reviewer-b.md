@@ -71,7 +71,15 @@ Scope: `git diff 61bef65 de6a1bb -- . ':!docs' ':!tests'` (45 files). Spec: `tas
 
 ### B-T5a-04 — MINOR — Some unit-only ACs make claims that a unit test cannot prove
 
-(Completed after the test mapping below.)
+- **Location:** `services/cogniate-app/src/scorm-runtime.test.ts` (AC-T5-12 line 220, AC-T5-20 line 218, AC-T5-23 line 225, AC-T5-13 line 240); `src/testkit.ts` `FakeLti` (records `scores`, simulates `failNext`).
+- **Problem:** Part of each of these ACs is about **Moodle's** gradebook: AC-T5-12 "Moodle still 100", AC-T5-20 "Moodle still 100", AC-T5-23 "Moodle 100 for `cg_student2`", AC-T5-13 "no teacher grade in Moodle". The unit tests use the fake LTI client, so they prove the app side (which sync rows are made, what is posted) but not what Moodle stores.
+- **Evidence:**
+  - `t.lti.scores` and `t.lti.failNext` stand in for the LTI service and Moodle.
+  - Several assertions read the database directly (for example `t.db.prepare("SELECT status FROM score_sync …")`) instead of the results API that the AC names.
+  - This is fine for unit tests, but the AC evidence must come from somewhere else.
+- **Suggested fix:**
+  1. QA runs the Moodle part of these four ACs live (QA oracle `gradereport_user_get_grade_items` plus a grader-report screenshot), and qa.md says which part is unit evidence and which part is live.
+  2. In the unit tests, assert through `GET /app-api/publications/:id/results` (`best`, `scoreSyncs`) where the AC names it, rather than through SQL.
 
 ### B-T5a-05 — NIT — Small consistency points
 

@@ -10,7 +10,9 @@ import { t4b } from '../lib/t4b-state';
 const PLAY = `${APP}/play/`;
 const playIdOf = (cap: LaunchCapture) => new URL(cap.finalUrl ?? '').pathname.split('/')[2] ?? '';
 
-test.describe.serial('T4b2 launches', () => {
+// Default mode (file order, one worker), not serial: the tests share only the state file, so a failed AC does not
+// stop the next ones (AC-T4-24 reads the handoff URL that AC-T4-17 saves first).
+test.describe('T4b2 launches', () => {
   test('AC-T4-17 cg_student opens the activity: a new window ends at /play/<id> without ltik; the 303 has no-referrer; status not_started', async ({ browser }) => {
     test.setTimeout(90_000);
     const st = t4b();
@@ -27,6 +29,8 @@ test.describe.serial('T4b2 launches', () => {
       expect(text).toContain(st.thanhScorm!.title);
       expect(text).toContain('Back to Moodle');
       const playId = playIdOf(cap);
+      // Save the handoff URL first: AC-T4-24 needs it even if a later check of this test fails.
+      saveState('T4b', { firstToolLaunchUrl: cap.toolLaunch!.url, firstPlayId: playId, playHeaders: cap.play?.headers ?? {} });
       const status = await appApi<{ outcome: string; preview: boolean }>('GET', `/app-api/play/${playId}/status`);
       expect(status.status, status.body).toBe(200);
       expect(status.json.outcome).toBe('not_started');
@@ -34,7 +38,6 @@ test.describe.serial('T4b2 launches', () => {
       const thanh = await signIn(THANH);
       const pub = await appApi<{ stats: { learners: number } }>('GET', `/app-api/publications/${st.thanhScormPublicationId}`, { cookie: thanh.cookie });
       expect(pub.json.stats.learners).toBe(1);
-      saveState('T4b', { firstToolLaunchUrl: cap.toolLaunch!.url, firstPlayId: playId, playHeaders: cap.play?.headers ?? {} });
     } finally {
       await context.close();
     }
