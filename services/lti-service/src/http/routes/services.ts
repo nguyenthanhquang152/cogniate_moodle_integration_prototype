@@ -13,7 +13,11 @@ type Obj = Record<string, unknown>;
 const text = z.string().min(1).max(2048);
 const limit = z.string().regex(/^[1-9]\d{0,5}$/, 'a whole number >= 1').transform(Number);
 const LineItemsQuery = z.object({ resourceLinkId: text.optional(), resourceId: text.optional(), tag: text.optional(), limit: limit.optional(), url: text.optional() });
-const ScoresQuery = z.object({ userId: text.optional(), limit: limit.optional(), url: text.optional() });
+const ScoresQuery = z.object({ userId: text.optional(), user_id: text.optional(), limit: limit.optional(), url: text.optional() })
+  .refine((q) => q.userId === undefined || q.user_id === undefined || q.userId === q.user_id, {
+    path: ['user_id'], message: 'user_id must match userId when both are present',
+  })
+  .transform(({ user_id, ...q }) => ({ ...q, userId: q.userId ?? user_id }));
 const parseQuery = <T extends z.ZodType>(schema: T, q: unknown): z.output<T> => {
   const r = schema.safeParse(q ?? {});
   if (!r.success) throw invalid(r.error);

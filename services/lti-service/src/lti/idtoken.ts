@@ -59,6 +59,7 @@ export function toIdToken(launch: LaunchRecord, platform: Platform, serviceKey?:
       deepLinking: { available: isDeepLinking },
       namesAndRoles: { available: obj(c[CLAIM.nrps]) !== undefined },
       assignmentAndGrades: compact({ available: ags !== undefined, lineItemId: ags ? s(ags.lineitem) : undefined }),
+      outcomes: { available: false }, // LTI 1.1 Basic Outcomes is not supported; this is separate from AGS.
       serviceKey,
     }),
   };

@@ -36,7 +36,7 @@ export interface DeepLinkingOptions {
 /**
  * The checked content items (contract §3.2 rules). `settings` = the deep_linking_settings claim of the launch.
  * Rules: 1 to 20 items, exactly 1 if accept_multiple is false; type in accept_types; ltiResourceLink url = our launch
- * URL (set when missing); lineItem.scoreMaximum > 0; custom values are strings.
+ * URL (set when missing or null); lineItem.scoreMaximum > 0; custom values are strings.
  */
 export function checkContentItems(items: unknown, settings: Obj, urls: PublicUrls, accountId: string): Obj[] {
   if (!Array.isArray(items) || items.length < 1 || items.length > MAX_CONTENT_ITEMS) throw bad(null, `send 1 to ${MAX_CONTENT_ITEMS} content items`);
@@ -57,7 +57,7 @@ export function checkContentItems(items: unknown, settings: Obj, urls: PublicUrl
       }
     }
     if (type !== 'ltiResourceLink') return { ...item };
-    if (item.url === undefined) return { ...item, url: launchUri(urls, accountId) };
+    if (item.url === undefined || item.url === null) return { ...item, url: launchUri(urls, accountId) };
     if (!isOwnLaunchTarget(item.url, urls, accountId)) throw bad(i, `url must start with ${launchUri(urls, accountId)}`);
     return { ...item };
   });
