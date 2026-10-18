@@ -1,7 +1,11 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # T5b review: Reviewer-A (correctness and security)
+
+History: the round 1 verdict was APPROVE (2 MINOR, 2 NIT; below). The round 2 verdict is APPROVE (section "Round 2" at the end).
+
+## Round 1
 
 Scope: `git diff ef2d2c0 64c101f -- . ':!docs' ':!tests'` (29 files). Spec: `tasks/T5b.md`, ADR-004 ("HTML: option C"), ADR-010 rules 5 and 8–10, app contract §5, §7–§10, §12, security §5, §7. This round also covers the follow-ups A-T5a-01, -02 and -06.
 
@@ -92,3 +96,26 @@ Method:
 ## Counts
 
 0 BLOCKER, 0 MAJOR, 2 MINOR (A-T5b-01, -02), 2 NIT (A-T5b-03, -04). A-T5a-01, -03 and -06 are resolved. A-T5a-02 is partly resolved and continues as A-T5b-01. A-T5a-04 and -05 were not in this batch.
+
+## Round 2
+
+Scope: `git diff ba7e7bb 80f8581 -- . ':!docs' ':!tests'` (15 files). I read every changed file. I re-ran the A-T5b-01 probe on the Author's stack (read-only GET requests with large `Cookie` headers). The stack's database changed during my checks (a reset), so some probes hit an unknown package and got `404`. A `404` still proves that the request reached the app. I did not read `reviewer-b.md`.
+
+| Finding | Round 2 result |
+| --- | --- |
+| A-T5b-01 (MINOR) | **Resolved.** The global `servers { max_header_size 1MB }` is in the running proxy file. Live over HTTP/1.1, 5, 50 and 170 cookies of 4,000 characters give `200` (round 1: `431` from 10). Over HTTP/2, 5, 10 and 14 separate cookie fields (20–56 KB) reach the app (round 1: `GOAWAY` at 20 KB). curl itself refuses to send HTTP/2 header blocks above 60,000 bytes ("cumulative length … exceeds 60000"), so I accept the Author's Chromium result for 50–170 cookies. |
+| A-T5b-02 (MINOR) | **Resolved.** `syncDecision` counts every row that is not `superseded`, including `failed`, so a lower result never makes a new row. The new `resendDecision` refuses a `failed` or `conflict` row (`409 SYNC_NOT_RESENDABLE`, "Resend the better result instead") when any other row that is not superseded, or a final attempt, has a higher score. It also refuses when an equal row is `pending` or `sent`. Library scope and the atomic update did not change. Consequence for T6: when the best row is `failed`, later lower results send nothing, and only a Resend of the best row updates Moodle. The portal text must say so. |
+| A-T5b-03 (NIT) | **Resolved.** `play_session.last_cmi` (migration 008) keeps each session's last accepted CMI. A late SCORM body uses its own session's CMI, so it never uses another window's data and never double-counts `session_time`. |
+| A-T5b-04 (NIT) | **Resolved.** (a) The refresh uses only the entry with the learner's own `userId`; none means `null`. (b) Every error is logged as `gradebook_refresh_failed` (with `lti_status` and `lti_code`, or the error name), and the other rows go on. |
+| A-T5a-05 (NIT) | **Resolved.** The inspector reads `adlcp:datafromlms` with the existing safe manifest parser (`<!DOCTYPE` and `<!ENTITY` are refused) and drops values above 4,096 characters. The runtime returns it as the read-only `cmi.launch_data`. |
+
+New finding:
+
+### A-T5b-05: NIT: the "best final attempt" guard of Resend sorts with integer division
+
+- Location: `services/cogniate-app/src/domain/score-syncs.ts` `resendSync` (`ORDER BY score_given / score_maximum DESC`); `attempt.score_given` and `score_maximum` are `INTEGER` columns (migration 004).
+- Problem: SQLite divides two integers as integers, so all scores below the maximum sort as `0` (80/100 and 50/100 are equal). The query can therefore pick a lower attempt as `bestFinal`.
+- Impact: small. The row check (`others`) already refuses a lower row whenever the better result has a sync row. `bestFinal` matters only for a final attempt that has no row.
+- Fix: `ORDER BY CAST(score_given AS REAL) / score_maximum DESC`, or choose the best attempt in TypeScript with `ratio`.
+
+Round 2 counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (A-T5b-05). All round 1 findings are resolved.

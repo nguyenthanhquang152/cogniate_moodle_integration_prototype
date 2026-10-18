@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # T5b review — Reviewer-B (lens: "Can a human team own it?")
 
@@ -65,3 +65,19 @@ Scope: `git diff ef2d2c0 64c101f -- . ':!docs' ':!tests'` (29 files). Spec: `tas
   - `apps/player/src/html/tracker.ts` declares `TrackerProfile`, which repeats most of tracking's `HtmlProfile`. Use `Pick<HtmlProfile, 'pages' | 'menuPage' | 'questionIds' | 'minDwellMs'>`.
   - The "find the line item if it is missing" step (ADR-010 rule 1: `findLineItems` → `setLineItem`) is written twice: in the worker (`lineItemOf`) and in `app/results.ts` refresh. Use one helper.
   - `runtime-path.test.ts` has `it` blocks that cover several ACs ("AC-T5-07 / -20 / -12 / -08 / -23", "AC-T5-31 / -32"). One `it` per AC, or a `describe` per AC with shared setup, would show at once which AC broke and make the qa.md mapping easier.
+
+---
+
+## Round 2
+
+Round 2 verdict: **APPROVE**.
+
+Input: `git diff ba7e7bb 80f8581 -- . ':!docs' ':!tests'` (15 files).
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| B-T5b-01 | **Resolved**, with one rest | `app/results.ts` refresh: `scores.find((s) => s.userId === target.userSub)` with no fallback ("none means Moodle has no grade"). `gradebook_refresh_failed` logs `publication_id`, `resource_link_id`, `lti_status`, `lti_code` (contract §12), also for a non-LTI error. Rest (NIT, safe to defer): the refresh answer still does not list the rows that could not be read, so the portal shows the old value without a "could not read" hint. |
+| B-T5b-02 | **Resolved**, with one rest | `worker/line-item.ts` `resolveLineItem()` is the one ADR-010 rule 1 helper, used by the worker and by refresh. `TrackerProfile = Pick<HtmlProfile, …>`. The `outcome.ts` header lists every policy function (now also `resendDecision` and `htmlOutcome`), and says "Latest result instead of best changes improves, bestAttempt and syncDecision only". Rest: `package-inspector` keeps its own `DEFAULT_HTML_MASTERY` constant, and some tests still cover several ACs in one `it`. |
+
+A-T5b-02 (only the best final result is ever sent) is written once in `outcome.ts` (`resendDecision`, `syncDecision`), with tests in `tracking.test.ts`. That fits "one place for the grade policy".
+
