@@ -1,0 +1,90 @@
+{
+  "format": "cogniate-moodle-steps/1",
+  "moodleRelease": "5.2.4",
+  "dynamic": [
+    {
+      "id": "open-manage-tools",
+      "text": "Open Manage tools.",
+      "menuPath": [
+        "Site administration",
+        "Plugins",
+        "Activity modules",
+        "External tool",
+        "Manage tools"
+      ],
+      "labels": ["Manage tools"],
+      "optional": false
+    },
+    {
+      "id": "paste-registration-url",
+      "text": "Paste the registration URL into Tool URL. Select Add LTI Advantage.",
+      "menuPath": [],
+      "labels": ["Tool URL...", "Add LTI Advantage"],
+      "optional": false
+    },
+    {
+      "id": "register-new-tool",
+      "text": "If Moodle asks to update an existing tool or register a new one, choose Register as a new tool. Cogniate refuses an update. The Moodle button says Register as a new external tool.",
+      "menuPath": [],
+      "labels": ["Register as a new external tool", "Update"],
+      "optional": true
+    },
+    {
+      "id": "confirm-connection",
+      "text": "Check the site and library in the Cogniate dialog. Select Connect.",
+      "menuPath": [],
+      "labels": [],
+      "optional": false
+    },
+    {
+      "id": "activate-tool",
+      "text": "Return to Manage tools. Select Activate for the new Cogniate tool.",
+      "menuPath": ["Manage tools"],
+      "labels": ["Activate"],
+      "optional": false
+    }
+  ],
+  "manual": [
+    {
+      "id": "open-manage-tools-manual",
+      "text": "Open Manage tools.",
+      "menuPath": [
+        "Site administration",
+        "Plugins",
+        "Activity modules",
+        "External tool",
+        "Manage tools"
+      ],
+      "labels": ["Manage tools"],
+      "optional": false
+    },
+    {
+      "id": "configure-tool-manually",
+      "text": "Select configure a tool manually.",
+      "menuPath": [],
+      "labels": ["configure a tool manually"],
+      "optional": false
+    },
+    {
+      "id": "copy-tool-settings",
+      "text": "Enter the tool settings below. Select Save changes.",
+      "menuPath": [],
+      "labels": ["Tool name", "Tool URL", "LTI version", "Save changes"],
+      "optional": false
+    },
+    {
+      "id": "copy-moodle-values",
+      "text": "Open the tool's configuration details. Copy the six Moodle values into the form below.",
+      "menuPath": ["Manage tools"],
+      "labels": [
+        "Platform ID",
+        "Client ID",
+        "Deployment ID",
+        "Public keyset URL",
+        "Access token URL",
+        "Authentication request URL"
+      ],
+      "optional": false
+    }
+  ]
+}
