@@ -208,6 +208,52 @@ Start: `STACK_PROFILE=acceptance npm run stack:up`. Stop: `npm run stack:up` (no
 | Allowlists | `OUTBOUND_PRIVATE_HOST_ALLOWLIST` of `lti-service` = `moodle.test,qa-platform.test,evil.test` and of `cogniate-app` = `lti.cogniate.test,qa-platform.test,evil.test` (default profile: without the two QA names). |
 | `/healthz` and `service_started` | `"profile": "acceptance"` and `"outbound_allowlist": [...]` (the active list). Example (default): `{"status":"ok","service":"lti-service","profile":"default","knobs":[],"outbound_allowlist":["moodle.test"]}`. |
 
+## SDK compatibility runner (T3c)
+
+QA owns `tests/compat/run.py`. Start the stack and seed it, then run `npm run test:compat`.
+The `compat` profile builds a Python 3.12 image with `ltiaas==0.0.4` and all runtime dependencies pinned in `infra/compat/requirements.txt`.
+The build checks the SDK version, MIT license metadata and dependency consistency.
+No SDK implementation is part of the product code.
+
+| Input | Host | Container |
+| --- | --- | --- |
+| QA script, read-only | `tests/compat/`; override with `COMPAT_TESTS_DIR` (relative paths start at `infra/`) | `/tests/compat/run.py` |
+| API key, read-only | `infra/.secrets/lti-api-key.cogniate` | `LTI_API_KEY_FILE=/run/secrets/lti-api-key.cogniate` |
+| Public CA, read-only | `infra/.certs/root.crt` | `REQUESTS_CA_BUNDLE=/certs/root.crt` |
+| Optional launch input, read-only | `COMPAT_INPUT_FILE` (relative paths start at the caller's folder) | `COMPAT_INPUT_FILE=/run/compat/input.json`; unset when no file is supplied |
+| Public URLs | The four `PUBLIC_*_URL` values in `.env` | The same variables |
+| QA options | Caller variables named `QA_*` | Passed by name; secret values stay off the command line |
+
+QA captures one real student launch and one real teacher Deep Linking launch before this command.
+It can write their inputs to a private, git-ignored file (mode 600), then pass its path:
+
+```sh
+COMPAT_INPUT_FILE=.tmp/compat-input.json npm run test:compat
+```
+
+Input JSON shape for the QA runner (replace the example strings with captured values):
+
+```json
+{
+  "studentLtik": "captured-student-ltik",
+  "teacherDeepLinkingLtik": "captured-teacher-deep-linking-ltik",
+  "expected": {
+    "userId": "student-lti-sub",
+    "platformUrl": "https://moodle.test:8443",
+    "contextId": "course-id"
+  },
+  "lineItemId": "https://moodle.test:8443/mod/lti/services.php/course/lineitems/item?type_id=tool"
+}
+```
+
+`lineItemId` is optional when QA gets it from the ID token. QA may add the other ids it needs.
+The harness must keep captured values out of logs. The container receives no `seed.json`, other account keys or app secrets.
+
+The command stops with one clear error line if the QA script is missing or the SDK image build fails.
+Before running the script, it checks `PUBLIC_LTI_URL/healthz` with the mounted CA and no redirects.
+A CA mismatch stops with one line: run `npm run gen-env` and `npm run stack:up` again.
+The certificate check never turns TLS verification off. QA's script exit status is returned unchanged.
+
 ## LTI service
 
 | Item | Value |

@@ -4,6 +4,7 @@ import { API_ERRORS, ApiError } from './api-errors.ts';
 // Contract lti-service-api §1.3, copied from the table (HTTP, details.message). Update both together.
 const CONTRACT_1_3: Array<[number, string]> = [
   [400, 'INVALID_REQUEST'], [400, 'INVALID_LINE_ITEM_ID'], [400, 'INVALID_URL_PARAMETER'], [400, 'INVALID_CONTENT_ITEM'],
+  [400, 'INVALID_DEEP_LINK_RETURN_URL'], // T3c round 2; Architect must add this return URL rule to §3.2.
   [400, 'UNSUPPORTED_AUTH_METHOD'], [400, 'PLATFORM_URL_NOT_ON_ISSUER_ORIGIN'], [401, 'INVALID_AUTHORIZATION_HEADER'],
   [401, 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER'], [401, 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER'], [403, 'SERVICE_NOT_AVAILABLE'],
   [403, 'PLATFORM_NOT_ACTIVE'], [404, 'NOT_FOUND'], [404, 'UNREGISTERED_PLATFORM'], [404, 'REGISTRATION_NOT_FOUND'],

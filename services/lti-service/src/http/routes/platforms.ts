@@ -75,6 +75,7 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
   app.delete<{ Params: { id: string } }>('/api/platforms/:id', async (req, reply) => {
     const { account } = ctx.auth(req, ['bearer']);
     if (!deletePlatform(ctx.db, account.id, req.params.id)) throw new ApiError('UNREGISTERED_PLATFORM');
+    ctx.logger.info('platform_deleted', { trace_id: req.traceId, platform_id: req.params.id });
     return reply.code(204).send();
   });
 

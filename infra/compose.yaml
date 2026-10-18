@@ -262,7 +262,6 @@ services:
       <<: *public-urls
       REQUESTS_CA_BUNDLE: /certs/root.crt
       LTI_API_KEY_FILE: /run/secrets/lti-api-key.cogniate
-      SEED_FILE: /run/secrets/seed.json
     volumes:
       - type: bind
         source: ${COMPAT_TESTS_DIR:-../tests/compat}
@@ -270,8 +269,18 @@ services:
         read_only: true
         bind:
           create_host_path: false
-      - ./.certs/root.crt:/certs/root.crt:ro
-      - ./.secrets:/run/secrets:ro
+      - type: bind
+        source: ./.certs/root.crt
+        target: /certs/root.crt
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./.secrets/lti-api-key.cogniate
+        target: /run/secrets/lti-api-key.cogniate
+        read_only: true
+        bind:
+          create_host_path: false
     depends_on:
       proxy:
         condition: service_healthy

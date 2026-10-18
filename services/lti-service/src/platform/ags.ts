@@ -48,7 +48,7 @@ export interface LineItem {
 export interface LineItemInput {
   label: string;
   scoreMaximum: number;
-  resourceLinkId?: string;
+  resourceLinkId?: string | null;
   resourceId?: string | null;
   tag?: string | null;
   startDateTime?: string | null;
