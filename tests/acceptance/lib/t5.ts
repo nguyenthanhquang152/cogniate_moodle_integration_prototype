@@ -105,9 +105,9 @@ export function cmidOf(name: string): number {
 }
 
 export const course101 = () => seed().courses['COGNIATE-DEV-101'];
-/** The Moodle course of a QA activity: COGNIATE-DEV-102 for "Cogniate HTML 102", the A-T5b-02 and the AC-T6-14 activities. */
+/** The Moodle course of a QA activity: COGNIATE-DEV-102 for the A-T5b-02 activity and for names with "102" ("Cogniate HTML 102", the AC-T6-14 failed activity). */
 export const courseOf = (activityTitle: string): number =>
-  activityTitle === ACT.html102 || activityTitle === ACT.scorm102 || /AC-T6-14/.test(activityTitle) ? seed().courses['COGNIATE-DEV-102'] : course101();
+  activityTitle === ACT.scorm102 || /\b102\b/.test(activityTitle) ? seed().courses['COGNIATE-DEV-102'] : course101();
 
 // ---------------------------------------------------------------- setup helpers
 

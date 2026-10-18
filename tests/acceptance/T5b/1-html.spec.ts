@@ -91,9 +91,9 @@ test('AC-T5-10 the HTML package bytes are not changed: SHA-256 of GET /pkg/<id>/
 // T5b round 2 (Reviewer-A A-T5b-01, Lead request): the proxy drops Cookie to the content host (contract §7, security
 // §7), so a package that sets large cookies on the content origin must not block that origin. Round 1 evidence:
 // HTTP/1.1 10 × 4,000 characters → 431; HTTP/2 5 × 4,000 → GOAWAY. Two oracles: a Node HTTP/1.1 request with one
-// joined Cookie header (5 and 10 cookies), and Chromium (HTTP/2, separate cookie fields) with 10 cookies on the
-// content origin while cg_student opens "Cogniate HTML" again.
-test('AC-T5-10 (A-T5b-01) 5 and 10 cookies of 4,000 characters on the content origin: GET /pkg/<id>/index.html → 200 with the same bytes; in Chromium the runtime page and the package load (every content response < 400)', async ({ browser }) => {
+// joined Cookie header (5 and 10 cookies); a top-level Chromium request (HTTP/2) with 10 cookies; and the player in
+// Chromium with these cookies while cg_student opens "Cogniate HTML" again.
+test('AC-T5-10 (A-T5b-01) 5 and 10 cookies of 4,000 characters on the content origin: GET /pkg/<id>/index.html → 200 with the same bytes (Node HTTP/1.1; Chromium HTTP/2 top-level); the player loads in Chromium (every content response < 400)', async ({ browser }) => {
   test.setTimeout(180_000);
   const pkg = String(t5().html?.packageId ?? '');
   expect(pkg, 'T5 setup: the HTML packageId').toBeTruthy();
@@ -110,7 +110,27 @@ test('AC-T5-10 (A-T5b-01) 5 and 10 cookies of 4,000 characters on the content or
 
   const context = await newStackContext(browser);
   try {
-    await context.addCookies(Array.from({ length: 10 }, (_, i) => ({ name: `qa_big_${i}`, value, url: CONTENT })));
+    // SameSite=None; Secure: the content frames are cross-site inside the app page, so a Lax cookie is not sent there.
+    await context.addCookies(Array.from({ length: 10 }, (_, i) => ({ name: `qa_big_${i}`, value, url: CONTENT, sameSite: 'None' as const, secure: true })));
+
+    // Oracle 2: a top-level Chromium navigation (Chromium speaks HTTP/2 to the proxy; CDP gives the protocol).
+    const top = await context.newPage();
+    const cdp = await context.newCDPSession(top);
+    await cdp.send('Network.enable');
+    const protocols: string[] = [];
+    cdp.on('Network.responseReceived', (e: { response: { url: string; protocol?: string } }) => {
+      if (e.response.url.startsWith(`${CONTENT}/pkg/`)) protocols.push(String(e.response.protocol ?? ''));
+    });
+    const nav = await top.goto(`${CONTENT}/pkg/${pkg}/index.html`);
+    const navCookie = ((await nav?.request().allHeaders()) ?? {}).cookie ?? '';
+    test.info().annotations.push({ type: 'top-level', description: `HTTP ${nav?.status()}, protocol ${protocols.join(',') || '-'}, Cookie header ${navCookie.length} B` });
+    expect(navCookie.length, 'Chromium sent the 10 cookies (≥ 40,000 B)').toBeGreaterThanOrEqual(40_000);
+    expect(nav?.status(), 'top-level GET with 10 cookies').toBe(200);
+    expect(protocols[0], 'HTTP/2 to the content origin').toBe('h2');
+    expect(sha(await nav!.body()), 'same bytes as the zip entry').toBe(sha(index!.data));
+    await top.close();
+
+    // Oracle 3: the player (runtime page and package frame) loads with these cookies; every content response < 400.
     const seen: string[] = [];
     const bad: string[] = [];
     const cookieLengths: number[] = [];
@@ -139,8 +159,7 @@ test('AC-T5-10 (A-T5b-01) 5 and 10 cookies of 4,000 characters on the content or
     await player.popup.close({ runBeforeUnload: true }).catch(() => undefined);
     await Promise.all(pending);
     const sentMax = Math.max(0, ...cookieLengths);
-    test.info().annotations.push({ type: 'content responses', description: `${seen.length}: ${[...new Set(seen)].join(', ')}; largest Cookie header sent by Chromium: ${sentMax} B` });
-    expect(sentMax, 'Chromium sent the large cookies to the content origin').toBeGreaterThanOrEqual(40_000);
+    test.info().annotations.push({ type: 'player content responses', description: `${seen.length}: ${[...new Set(seen)].join(', ')}; largest Cookie header in the frames: ${sentMax} B (0 = Chromium did not send the cookies in the cross-site frames)` });
     expect(seen.some((x) => x.endsWith('/rt')), 'the runtime page answered').toBe(true);
     expect(seen.some((x) => x.endsWith('/pkg')), 'package files answered').toBe(true);
     expect(bad).toEqual([]);

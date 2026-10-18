@@ -3,6 +3,7 @@
 // QA Library B makes both connections (Thanh already has his connection from the T5 setup). Because Thanh's Moodle tool
 // exists, Moodle shows the "update or register new" choice page in AC-T6-04: QA follows the wizard's step and chooses
 // "register as new".
+import fs from 'node:fs';
 import type { BrowserContext, Page } from '@playwright/test';
 import { appApi, APP, QA_B, signIn } from '../lib/app';
 import { publicUrls } from '../lib/env';
@@ -15,12 +16,12 @@ import {
   clipboardText,
   hasInlineError,
   markNoReload,
-  moodleSteps,
+  MOODLE_STEPS_FILE,
   normText,
   PORTAL_ROUTES,
   portalSignIn,
   sixValueInput,
-  stepsOnScreen,
+  specMoodleSteps,
   TOOL_CONFIG_KEYS,
 } from '../lib/portal';
 import { expect, test } from '../lib/pw';
@@ -29,7 +30,6 @@ import { seed } from '../lib/seed';
 const urls = publicUrls();
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const REG_URL = new RegExp(`^${esc(urls.lti)}/lti/register/${ACCOUNT}\\?ref=[A-Za-z0-9_-]{43}$`);
-const CHOICE_TEXT = 'If Moodle asks to update an existing tool or register a new one, choose Register as a new tool (choose update only to reconnect this same library).';
 
 /** Wizard start: site URL, name, method; then the next step. */
 async function startWizard(page: Page, name: string, method: 'dynamic' | 'manual'): Promise<void> {
@@ -98,7 +98,7 @@ test.describe.serial('T6 Connect wizard (QA Library B)', () => {
     expect(await samePage(), 'the page was not reloaded').toBe(true);
   });
 
-  test('AC-T6-05 manual connect: the 16 rows of §4.1 in order (data-key, copy = value); http issuer or a JWKS URL on another origin → inline error; valid values → "Registered"', async ({ browser }) => {
+  test('AC-T6-05 manual connect: the 16 rows of §4.1 in order (data-key, copy = value); http issuer or a JWKS URL on another origin → inline error; valid values → "Registered"; the six inputs have name = the contract keys', async ({ browser }) => {
     test.setTimeout(240_000);
     const page = await context.newPage();
     await portalSignIn(page, QA_B);
@@ -133,6 +133,11 @@ test.describe.serial('T6 Connect wizard (QA Library B)', () => {
     } finally {
       await admin.close();
     }
+    // Stable hooks (tasks/T6.md): the six inputs for Moodle's values have name = the contract keys.
+    for (const key of ['issuer', 'clientId', 'deploymentId', 'authenticationEndpoint', 'accessTokenEndpoint', 'jwksUrl']) {
+      if ((await page.locator(`input[name="${key}"]`).count()) !== 1) problems.push(`no single input[name="${key}"]`);
+    }
+    expect(problems, 'six inputs by name').toEqual([]);
     const submit = async (values: Record<string, string>) => {
       for (const [k, v] of Object.entries(values)) await (await sixValueInput(page, k)).fill(v);
       const form = (await sixValueInput(page, 'issuer')).locator('xpath=ancestor::form[1]');
@@ -149,26 +154,38 @@ test.describe.serial('T6 Connect wizard (QA Library B)', () => {
     expect((await appApi<{ status: string }>('GET', `/app-api/connections/${conn!.id}`, { cookie: b.cookie })).json.status).toBe('registered');
   });
 
-  test('AC-T6-12 the wizard steps on screen are the steps of moodle-steps.json (count and text) for both methods; the dynamic steps have the "Register as a new tool" choice step', async () => {
+  test('AC-T6-12 moodle-steps.json equals the content of tasks/T6.md; the wizard shows the steps in order for both methods (data-step-id = id, text with {libraryName} replaced); choose-register-new is optional; edit-tool-settings follows activate-tool', async () => {
     test.setTimeout(120_000);
+    const problems: string[] = [];
+    const fileJson = JSON.parse(fs.readFileSync(MOODLE_STEPS_FILE, 'utf8')) as Record<string, unknown>;
+    expect(fileJson, 'apps/portal/src/connect/moodle-steps.json = the content in tasks/T6.md').toEqual(specMoodleSteps());
+
+    const b = await signIn(QA_B);
+    const me = await appApi<{ library: { name: string } }>('GET', '/app-api/me', { cookie: b.cookie });
+    const libraryName = String(me.json?.library?.name ?? '');
+    expect(libraryName, 'library name of QA_B').toBeTruthy();
     const page = await context.newPage();
     await portalSignIn(page, QA_B);
-    const problems: string[] = [];
     for (const method of ['dynamic', 'manual'] as const) {
-      const file = moodleSteps(method);
+      const file = (fileJson[method] ?? []) as { id: string; text: string; optional: boolean }[];
       await startWizard(page, `QA steps ${method} ${Date.now().toString(36)}`, method);
-      await page.waitForTimeout(1_000);
-      const screen = await stepsOnScreen(page);
-      if (screen.length !== file.length) problems.push(`${method}: ${screen.length} steps on screen, ${file.length} in moodle-steps.json`);
+      await expect.poll(() => page.locator('[data-step-id]').count(), { timeout: 15_000, message: `${method}: step elements` }).toBeGreaterThanOrEqual(file.length);
+      const screen = await page.locator('[data-step-id]').evaluateAll((els) => els.map((el) => ({ id: el.getAttribute('data-step-id'), text: (el.textContent ?? '').replace(/\s+/g, ' ').trim() })));
+      if (screen.length !== file.length) problems.push(`${method}: ${screen.length} step elements, ${file.length} in moodle-steps.json`);
       file.forEach((step, i) => {
-        if (!screen[i] || !normText(screen[i].text).includes(normText(step.text))) problems.push(`${method} step ${i + 1} (${step.id}): screen "${screen[i]?.text ?? '-'}" does not show "${step.text}"`);
-        if (screen[i]?.id && screen[i].id !== step.id) problems.push(`${method} step ${i + 1}: data-step-id ${screen[i].id}, file id ${step.id}`);
+        const want = normText(step.text.replace(/\{libraryName\}/g, libraryName));
+        if (screen[i]?.id !== step.id) problems.push(`${method} step ${i + 1}: data-step-id "${screen[i]?.id ?? '-'}", file id "${step.id}"`);
+        if (!screen[i] || !normText(screen[i].text).includes(want)) problems.push(`${method} step ${i + 1} (${step.id}): screen "${screen[i]?.text ?? '-'}" does not show "${want}"`);
       });
-      if (method === 'dynamic') {
-        if (!file.some((s) => normText(s.text).includes('Register as a new tool'))) problems.push('moodle-steps.json: no dynamic step with "Register as a new tool"');
-        if (!screen.some((s) => s.text.includes(CHOICE_TEXT))) problems.push(`the dynamic steps on screen do not contain: "${CHOICE_TEXT}"`);
-      }
+      test.info().annotations.push({ type: `${method} steps`, description: screen.map((x) => x.id).join(', ') });
     }
+    const dyn = (fileJson.dynamic ?? []) as { id: string; text: string; optional: boolean }[];
+    const choice = dyn.find((x) => x.id === 'choose-register-new');
+    if (!choice || choice.optional !== true || !choice.text.includes('Register as a new external tool')) problems.push(`choose-register-new: ${JSON.stringify(choice)}`);
+    const ids = dyn.map((x) => x.id);
+    if (ids.indexOf('edit-tool-settings') !== ids.indexOf('activate-tool') + 1 || ids.indexOf('activate-tool') < 0) problems.push(`dynamic order: ${ids.join(', ')}`);
+    const edit = dyn.find((x) => x.id === 'edit-tool-settings')?.text ?? '';
+    for (const label of ['Tool configuration usage', 'Show in activity chooser and as a preconfigured tool', 'Default launch container', 'New window']) if (!edit.includes(label)) problems.push(`edit-tool-settings text has no "${label}"`);
     expect(problems).toEqual([]);
   });
 });

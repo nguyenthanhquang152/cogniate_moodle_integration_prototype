@@ -145,6 +145,15 @@ export async function stepsOnScreen(page: Page): Promise<{ id: string | null; te
 
 export const normText = (s: string) => s.replace(/\s+/g, ' ').trim();
 
+/** The exact moodle-steps.json content that tasks/T6.md gives (the ```json block with "cogniate-moodle-steps/1"). */
+export function specMoodleSteps(): Record<string, unknown> {
+  const md = fs.readFileSync(path.join(REPO_ROOT, 'docs', 'architecture', 'tasks', 'T6.md'), 'utf8');
+  const blocks = [...md.matchAll(/```json\n([\s\S]*?)```/g)].map((m) => m[1]);
+  const block = blocks.find((b) => b.includes('cogniate-moodle-steps/1') && b.includes('edit-tool-settings'));
+  if (!block) throw new Error('tasks/T6.md: no full moodle-steps.json block');
+  return JSON.parse(block) as Record<string, unknown>;
+}
+
 // ---------------------------------------------------------------- forms and tables
 
 /** The input for one of the six Moodle values: name/id = contract key, data-key, then the label pattern. */
