@@ -23,7 +23,7 @@ Technical dependencies ("Depends on" in each file) are fewer: T2a and T4a need o
 | [T5b](T5b.md) | HTML runtime, retry and conflict, Resend, results refresh | yes | AC-T5-09 to -11, -14, -18, -19, -27 to -33, -36 |
 | [T6](T6.md) | Portal UI | yes | AC-T6-01 to AC-T6-14 |
 | [T7](T7.md) | Full E2E in real Moodle | yes | AC-T7-01 to AC-T7-15 |
-| [T3c](T3c.md) | Compatibility-only endpoints and the independent-client test | yes | AC-T3-09, -15, -19 to -21, -27 |
+| [T3c](T3c.md) | Compatibility-only endpoints and the independent-client test | yes | AC-T3-09, -15, -19 to -21, -27, -31 |
 | [T8](T8.md) | Stretch: native channel and course shell | yes | AC-T8-02 to AC-T8-10 |
 | [T9](T9.md) | Docs and human review pack (Docs role) | yes | AC-T9-01 to AC-T9-04 |
 

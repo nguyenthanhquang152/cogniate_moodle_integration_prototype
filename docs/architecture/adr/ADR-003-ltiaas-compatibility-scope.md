@@ -41,7 +41,7 @@ Protocol endpoints (`/lti/login/{id}`, `/lti/launch/{id}`, `/lti/keys/{id}`, `/l
 
 The exact claim, for all documents and for the product team:
 
-> The LTI service implements the listed endpoints with the paths, header schemes and field names of the public LTIAAS API reference, except the differences in contract §8. An independent client (the MIT `ltiaas` Python SDK, used as a test-only black box) passes our compatibility test for `idtoken`, deep linking, scores and memberships (AC-T3-27).
+> The LTI service implements the listed endpoints with the paths, header schemes and field names of the public LTIAAS API reference, except the differences in contract §8. An independent client (the MIT `ltiaas` Python SDK, used as a test-only black box) passes our compatibility test for `idtoken`, deep linking, scores and memberships (AC-T3-27), with line item ids passed URL-encoded as the reference requires (the SDK itself does not encode them, D15).
 
 Do not say "a copy of LTIAAS" or "works with any LTIAAS tool".
 

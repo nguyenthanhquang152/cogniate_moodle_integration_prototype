@@ -15,6 +15,7 @@ Base URL: `PUBLIC_LTI_URL` (dev `https://lti.cogniate.test`).
 | `POST /api/deeplinking`, `GET /api/lineitems`, `GET /api/lineitems/:id`, `GET` and `POST /api/lineitems/:id/scores`, service keys | T3a |
 | `GET /lti/register/{toolAccountId}`, `GET /api/registrations/:id`, `POST /api/registrations/:id/complete` | T3b |
 | `POST /api/deeplinking/form`, `POST /api/deeplinking/message`, `POST /api/lineitems`, `PUT` and `DELETE /api/lineitems/:id`, `GET /api/memberships`, `DELETE /api/platforms/:id`, OAuth2 stubs | T3c |
+| SDK tolerances (§1.4 leading `//`, §3.1 `services.outcomes`, §3.2 `url: null`, §3.6 `user_id`) | T3c round 3 |
 
 ---
 
@@ -95,6 +96,7 @@ HTML pages of the protocol endpoints use the codes in [`../security.md`](../secu
 
 - JSON: `Content-Type: application/json`, UTF-8, max 256 KB.
 - `:lineItemId` = the line item URL, encoded with `encodeURIComponent`.
+- A run of slashes at the very **start** of the request path is treated as one (`//api/idtoken` = `/api/idtoken`; the `ltiaas` SDK sends it). Nothing else in the path changes. This does not touch the line item URL rule (§3.4), which works on the decoded `:lineItemId` value, not on the request path; an encoded line item id has no raw `/`.
 - Times: ISO 8601 UTC with milliseconds.
 - Trace id: every response has `X-Trace-Id`. A valid incoming `X-Trace-Id` (`^[A-Za-z0-9-]{16,64}$`) is reused.
 
@@ -210,6 +212,7 @@ Query: `raw=true` gives the validated raw claims.
 | `services.namesAndRoles.available` | NRPS claim present |
 | `services.assignmentAndGrades.available`, `lineItemId` | AGS claim present; its `lineitem` |
 | `services.serviceKey` | when AGS or NRPS is available (T3a). Stable per (platform, deployment, context, resource link). |
+| `services.outcomes` (addition) | always `{ "available": false }`: we offer no LTI 1.1 Basic Outcomes API. Not in the public reference; added because the `ltiaas` SDK needs the key. Not mapped from AGS (AGS is `assignmentAndGrades`). |
 
 ### 3.2 Deep Linking — LTIK-AUTH-V2
 
@@ -232,7 +235,7 @@ Rules (`400 INVALID_CONTENT_ITEM`):
 
 - 1 to 20 items. If `acceptMultiple` is false, exactly 1.
 - `type` must be in `accept_types`.
-- `ltiResourceLink.url`: if missing, the service sets `{PUBLIC_LTI_URL}/lti/launch/{toolAccountId}` (the only field it may add). If present, it must start with that value.
+- `ltiResourceLink.url`: optional (Deep Linking 2.0). If missing or `null`, the service sets `{PUBLIC_LTI_URL}/lti/launch/{toolAccountId}` (the only field it may add; such a link has no `resource` query). If present, it must start with that value.
 - `lineItem.scoreMaximum` > 0. `custom` values are strings.
 - The JWT `content_items` equal the request items, plus only the default `url` above.
 - The launch's `deep_link_return_url` must be an https URL on the platform issuer origin; else `400 INVALID_DEEP_LINK_RETURN_URL` and no JWT is signed (all three deep-linking endpoints; A-T3c-01).
@@ -286,7 +289,7 @@ Write operations need the AGS `lineitem` scope. With only `lineitem.readonly`: `
 
 The service sends `application/vnd.ims.lis.v1.score+json` with `timestamp` ≥ last + 1 s per (platform, line item, user). The clock is in memory; at start its floor is the start time + 2 s, so scores sent just before a restart do not cause a 409 after it. A `timestamp` in the request is used as given (QA uses this to make a `conflict`, AC-T5-31). `204` on success. Platform 409 → `409 PLATFORM_CONFLICT`.
 
-`GET /api/lineitems/:lineItemId/scores` — query `userId`, `limit`, `url`. Platform call: AGS results. `200 { "scores": [ { "id", "userId", "scoreOf", "timestamp", "resultScore", "resultMaximum", "comment" } ], "next"?, "prev"?, "first"?, "last"? }`.
+`GET /api/lineitems/:lineItemId/scores` — query `userId` (alias `user_id`, as the `ltiaas` SDK sends it; both with different values → `400 INVALID_REQUEST`), `limit`, `url`. Platform call: AGS results. `200 { "scores": [ { "id", "userId", "scoreOf", "timestamp", "resultScore", "resultMaximum", "comment" } ], "next"?, "prev"?, "first"?, "last"? }`.
 
 Scope: POST needs `score`, GET needs `result.readonly`. Else `403 SERVICE_NOT_AVAILABLE`.
 
@@ -404,7 +407,9 @@ A tool written against the public LTIAAS API works after two changes (base URL, 
 | D7 | `authConfig.method` | `JWK_SET`, `JWK_KEY`, `RSA_KEY` | `JWK_SET` only |
 | D8 | `publicKey` in a platform | "Platform public key" | The tool public key for that platform |
 | D9 | `launch.resourceLink` | Marked required | Omitted for deep-linking launches |
-| D10 | Additions | — | `launch.deepLinkingSettings`, `deploymentIds`, `productFamilyCode`, `operation`, `existingPlatformId`, `updatePlatformId`, score `timestamp`, both `documentTarget` spellings |
+| D10 | Additions | — | `launch.deepLinkingSettings`, `services.outcomes` (`available: false`), `deploymentIds`, `productFamilyCode`, `operation`, `existingPlatformId`, `updatePlatformId`, score `timestamp`, both `documentTarget` spellings |
 | D11 | OAuth2 endpoints | Documented | `501` stubs |
 | D12 | Tested LMS | Many | Moodle 5.2 only |
 | D13 | Member personal fields in `/api/memberships` | Returned when the LMS sends them | Never returned (anonymous by default, Q3) |
+| D15 | Unencoded line item ids from the `ltiaas` 0.0.4 SDK | `lineItemID` is URL-encoded | We require the documented encoding. The SDK puts the raw line item URL (with `/` and its own `?type_id=…`) into the path; such a request does not match the route (`404 NOT_FOUND`). We do not accept it: the raw id cannot be told apart from our route and query, and a loose route would weaken the line item URL rule (§3.4, A-T3a-01). A client (or a test) passes the id already encoded, as the reference says. |
+| D14 | Tolerances for the `ltiaas` 0.0.4 SDK | — | Leading `//` in the path, `user_id` as an alias of `userId` on scores GET, a content item `url` of `null`. They widen what we accept; they change no answer for a request that already followed the reference. |
