@@ -10,7 +10,8 @@ import type { LtiClient } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import type { Db } from '../domain/db.ts';
 import type { DueSync } from '../domain/score-syncs.ts';
-import { dueSyncs, recordSend, setLineItem } from '../domain/score-syncs.ts';
+import { dueSyncs, recordSend } from '../domain/score-syncs.ts';
+import { resolveLineItem } from './line-item.ts';
 
 export interface ScoreSyncWorkerDeps {
   db: Db;
@@ -36,14 +37,6 @@ export function createScoreSyncWorker(deps: ScoreSyncWorkerDeps) {
   let again = false;
   let timer: NodeJS.Timeout | null = null;
 
-  async function lineItemOf(row: DueSync, serviceKey: string, traceId: string): Promise<string | null> {
-    if (row.lineItemId !== null) return row.lineItemId;
-    const items = await lti.findLineItems(serviceKey, row.platformResourceLinkId, traceId);
-    const found = items[0]?.id ?? null;
-    if (found !== null) setLineItem(db, row.resourceLinkId, found);
-    return found;
-  }
-
   async function send(row: DueSync): Promise<void> {
     const traceId = randomBytes(16).toString('hex');
     const tries = row.tries + 1;
@@ -52,7 +45,7 @@ export function createScoreSyncWorker(deps: ScoreSyncWorkerDeps) {
     try {
       if (row.serviceKeyEncrypted === null) throw new NoGradebookColumn();
       const serviceKey = decrypt(masterKey, row.serviceKeyEncrypted);
-      const lineItemId = await lineItemOf(row, serviceKey, traceId);
+      const lineItemId = await resolveLineItem({ db, lti }, row, serviceKey, traceId);
       if (lineItemId === null) throw new NoGradebookColumn();
       await lti.postScore(serviceKey, lineItemId, row.payload, traceId);
       answer = { http: 204 };

@@ -4,11 +4,12 @@
 import { decrypt } from '@cogniate/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { LtiClient } from '../clients/lti-client.ts';
-import { LtiServiceError, ltiErrorFields } from '../clients/lti-client.ts';
+import { LtiServiceError } from '../clients/lti-client.ts';
 import type { Db } from '../domain/db.ts';
 import { getPublication } from '../domain/publications.ts';
 import { publicationResults } from '../domain/results.ts';
-import { gradebookTargets, resendSync, saveGradebookRead, setLineItem, syncRow } from '../domain/score-syncs.ts';
+import { gradebookTargets, resendSync, saveGradebookRead, syncRow } from '../domain/score-syncs.ts';
+import { resolveLineItem } from '../worker/line-item.ts';
 import type { Logger } from '@cogniate/shared';
 import { ApiError } from './api-errors.ts';
 
@@ -36,25 +37,23 @@ export function registerResultRoutes(api: FastifyInstance, deps: ResultRouteDeps
   // One row per learner per activity, with best, attempts and every score sync (T5a, H5).
   api.get<IdParams>('/publications/:id/results', async (req) => ({ rows: publicationResults(db, publicationOf(req)) }));
 
-  // "Refresh from Moodle": one AGS results read per learner and activity; a failed read keeps the last value.
+  // "Refresh from Moodle": one AGS results read per learner and activity. A read that fails keeps the last value and
+  // logs gradebook_refresh_failed with the contract fields (B-T5b-01, A-T5b-04); the other rows go on.
   api.post<IdParams>('/publications/:id/results/refresh', async (req) => {
     const p = publicationOf(req);
     for (const target of gradebookTargets(db, p.connectionId, p.courseId)) {
       if (target.serviceKeyEncrypted === null) continue; // no AGS in the launch: no gradebook column
       try {
         const serviceKey = decrypt(masterKey, target.serviceKeyEncrypted);
-        let lineItemId = target.lineItemId;
-        if (lineItemId === null) {
-          lineItemId = (await lti.findLineItems(serviceKey, target.platformResourceLinkId, req.traceId))[0]?.id ?? null;
-          if (lineItemId !== null) setLineItem(db, target.resourceLinkId, lineItemId);
-        }
+        const lineItemId = await resolveLineItem({ db, lti }, target, serviceKey, req.traceId);
         if (lineItemId === null) continue;
         const scores = await lti.getResults(serviceKey, lineItemId, target.userSub, req.traceId);
-        const mine = scores.find((s) => s.userId === target.userSub) ?? scores[0];
+        // Only this learner's own result (by LTI user id), never another entry: none means Moodle has no grade.
+        const mine = scores.find((s) => s.userId === target.userSub);
         saveGradebookRead(db, target.resourceLinkId, target.userSub, { resultScore: mine?.resultScore ?? null, resultMaximum: mine?.resultMaximum ?? null }, now());
       } catch (err) {
-        if (!(err instanceof LtiServiceError)) throw err;
-        log.warn('gradebook_refresh_failed', { trace_id: req.traceId, ...ltiErrorFields(err) });
+        const fields = err instanceof LtiServiceError ? { lti_status: err.status, lti_code: err.code } : { lti_status: 0, lti_code: err instanceof Error ? err.name : 'Error' };
+        log.warn('gradebook_refresh_failed', { trace_id: req.traceId, publication_id: p.id, resource_link_id: target.resourceLinkId, ...fields });
       }
     }
     return { rows: publicationResults(db, p) };

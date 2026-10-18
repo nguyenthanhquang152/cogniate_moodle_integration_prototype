@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  agsScore, agsScoreBody, bestAttempt, checkScormCmi, syncResult, finishStatus, formatTimespan, improves, nextRetryAt, outcomeFromStatus, parseTimespan, playStatusText,
+  agsScore, agsScoreBody, bestAttempt, checkScormCmi, resendDecision, syncResult, finishStatus, formatTimespan, improves, nextRetryAt, outcomeFromStatus, parseTimespan, playStatusText,
   sessionMax, syncDecision, totalTime,
 } from './index.ts';
 import type { SyncRow } from './index.ts';
@@ -59,7 +59,9 @@ describe('best result (ADR-010 rule 5, data-model §3)', () => {
     expect(syncDecision({ scoreGiven: 0, scoreMaximum: 100 }, [row('a', 'sent', 100)]).create).toBe(false); // AC-T5-12
     expect(syncDecision({ scoreGiven: 100, scoreMaximum: 100 }, [row('a', 'sent', 0)]).create).toBe(true); // AC-T5-23
     expect(syncDecision({ scoreGiven: 50, scoreMaximum: 100 }, [row('a', 'conflict', 80)]).create).toBe(false);
-    expect(syncDecision({ scoreGiven: 50, scoreMaximum: 100 }, [row('a', 'failed', 80), row('b', 'superseded', 90)]).create).toBe(true);
+    // A-T5b-02: a better failed row also counts (it is resent instead); a superseded row does not.
+    expect(syncDecision({ scoreGiven: 50, scoreMaximum: 100 }, [row('a', 'failed', 80), row('b', 'superseded', 90)]).create).toBe(false);
+    expect(syncDecision({ scoreGiven: 50, scoreMaximum: 100 }, [row('b', 'superseded', 90)]).create).toBe(true);
   });
   it('older pending rows with a lower value are superseded', () => {
     expect(syncDecision({ scoreGiven: 90, scoreMaximum: 100 }, [row('a', 'pending', 40), row('b', 'sent', 30), row('c', 'pending', 95)]))
@@ -168,5 +170,24 @@ describe('grade policy in one place (B-T5a-01): syncResult and bestAttempt', () 
     expect(bestAttempt([a('not_started', null, 1), a('in_progress', null, 2), a('not_started', null, 3)])?.createdAt).toBe(2);
     expect(bestAttempt([a('not_started', null, 1), a('not_started', null, 3)])?.createdAt).toBe(3);
     expect(bestAttempt([])).toBeUndefined();
+  });
+});
+
+describe('resendDecision (ADR-010 rule 10, A-T5b-02: only the best result is ever sent)', () => {
+  const row = (id: string, status: SyncRow['status'], scoreGiven: number): SyncRow => ({ id, status, scoreGiven, scoreMaximum: 100 });
+  it('only failed or conflict rows', () => {
+    expect(resendDecision(row('a', 'sent', 100), [], null)).toEqual({ ok: false, reason: 'status' });
+    expect(resendDecision(row('a', 'pending', 100), [], null)).toEqual({ ok: false, reason: 'status' });
+    expect(resendDecision(row('a', 'failed', 100), [], null)).toEqual({ ok: true });
+    expect(resendDecision(row('a', 'conflict', 100), [], null)).toEqual({ ok: true });
+  });
+  it.each([['conflict'], ['failed'], ['sent'], ['pending']] as const)('a lower row is refused when the better row is %s', (status) => {
+    expect(resendDecision(row('low', 'failed', 50), [row('low', 'failed', 50), row('best', status, 100)], null)).toEqual({ ok: false, reason: 'not_best' });
+  });
+  it('a lower row is refused when a better final attempt exists (even without its row); a superseded row does not count', () => {
+    expect(resendDecision(row('low', 'conflict', 50), [], { scoreGiven: 100, scoreMaximum: 100 })).toEqual({ ok: false, reason: 'not_best' });
+    expect(resendDecision(row('a', 'failed', 100), [row('old', 'superseded', 100)], { scoreGiven: 100, scoreMaximum: 100 })).toEqual({ ok: true });
+    expect(resendDecision(row('a', 'failed', 100), [row('b', 'sent', 100)], null)).toEqual({ ok: false, reason: 'already_sent' });
+    expect(resendDecision(row('a', 'failed', 100), [row('b', 'failed', 100)], null)).toEqual({ ok: true });
   });
 });

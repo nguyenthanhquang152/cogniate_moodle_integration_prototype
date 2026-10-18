@@ -7,16 +7,12 @@
 //    first answer stands;
 //  - internal .html links lose `target` and `rel`, so the navigation stays in the frame.
 // Question ids come from the package (A-T4a-07): kept in a Map, reported as a null-prototype object.
-import type { HtmlProgress } from '@cogniate/tracking';
+import type { HtmlProfile, HtmlProgress } from '@cogniate/tracking';
 
 export const SCROLL_SLACK_PX = 24;
 
-export interface TrackerProfile {
-  pages: readonly string[];
-  menuPage: string | null;
-  questionIds: readonly string[];
-  minDwellMs: number;
-}
+/** The part of the HTML tracking profile that the tracker reads (B-T5b-02: the type comes from tracking). */
+export type TrackerProfile = Pick<HtmlProfile, 'pages' | 'menuPage' | 'questionIds' | 'minDwellMs'>;
 
 /** Page key: body[data-lesson-id], else the file name without .html. */
 export function pageKey(doc: Document, pathname: string): string {

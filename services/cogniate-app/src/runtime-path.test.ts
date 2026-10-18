@@ -533,3 +533,84 @@ describe('A-T5a-01 / -02 / -06: ordering, cookies, worker errors', () => {
     expect([rowOf('60').status, rowOf('60').tries, String(rowOf('60').last_error)]).toEqual(['failed', 1, expect.stringContaining('Internal error')]);
   });
 });
+
+describe('T5b round 2: only the best result is ever sent; strict refresh; late body of its own session', () => {
+  async function finalRow(w: Awaited<ReturnType<typeof world>>, sub: string, raw: string, fail: { status: number; code: string } | null) {
+    const worker = quietWorker();
+    const a = await launch(w.platformId, w.scorm, { sub });
+    await commit(a.token, 'finish', cmi({ status: Number(raw) >= 70 ? 'passed' : 'failed', raw }));
+    t.lti.failNext = fail;
+    await worker.kick();
+    return rowOf(sub);
+  }
+  const resend = (w: { thanh: string }, id: unknown) => json('POST', `/app-api/score-syncs/${String(id)}/resend`, w.thanh);
+
+  it('A-T5b-02: a lower failed row is not resent when the better row is conflict or failed (409 SYNC_NOT_RESENDABLE)', async () => {
+    const w = await world();
+    for (const [sub, betterFail] of [['70', { status: 409, code: 'PLATFORM_CONFLICT' }], ['71', { status: 400, code: 'PLATFORM_REJECTED_REQUEST' }]] as const) {
+      const low = await finalRow(w, sub, '50', { status: 400, code: 'PLATFORM_REJECTED_REQUEST' });
+      const best = await finalRow(w, sub, '100', betterFail);
+      expect([low.status, best.status]).toEqual(['failed', betterFail.status === 409 ? 'conflict' : 'failed']);
+      const r = await resend(w, low.id);
+      expect([r.statusCode, r.json().details.message, r.json().details.description]).toEqual([409, 'SYNC_NOT_RESENDABLE', 'This learner has a better result. Resend the better result instead.']);
+      expect((await resend(w, best.id)).statusCode).toBe(200); // the best one may be resent
+      await quietWorker().kick(); // send it now, so the next loop starts with no due row
+    }
+  });
+
+  it('A-T5b-02: after a better row failed, a lower new result makes no row (it would lower the grade in Moodle)', async () => {
+    const w = await world();
+    await finalRow(w, '72', '100', { status: 400, code: 'PLATFORM_REJECTED_REQUEST' });
+    const again = await launch(w.platformId, w.scorm, { sub: '72' });
+    await commit(again.token, 'finish', cmi({ status: 'failed', raw: '0' }));
+    expect(syncs().filter((r) => r.user_sub === '72').map((r) => [r.status, r.score_given])).toEqual([['failed', 100]]);
+  });
+
+  it('A-T5b-02: a resend is refused when a better final attempt exists, even without its own row', async () => {
+    const w = await world();
+    const low = await finalRow(w, '73', '50', { status: 400, code: 'PLATFORM_REJECTED_REQUEST' });
+    t.db.prepare("UPDATE attempt SET outcome = 'passed', score_given = 100, score_maximum = 100 WHERE user_sub = '73'").run(); // e.g. a row lost to a crash
+    expect((await resend(w, low.id)).statusCode).toBe(409);
+  });
+
+  it('B-T5b-01: refresh never stores another learner\'s value; failed reads are logged with the contract fields and the others go on', async () => {
+    const w = await world();
+    await finalRow(w, '80', '100', null);
+    await finalRow(w, '81', '100', null);
+    const lineItem = `${TEST_URLS.moodle}/mod/lti/services.php/2/lineitems/7/lineitem?type_id=1`;
+    // A platform that ignores the user filter: it answers with another learner's entry only.
+    const orig = t.lti.client.getResults;
+    t.lti.client.getResults = async (_k, _l, userId) => (userId === '80' ? [{ userId: '99', resultScore: 7, resultMaximum: 100 }] : [{ userId, resultScore: 100, resultMaximum: 100 }]);
+    const r = await json('POST', `/app-api/publications/${w.scorm}/results/refresh`, w.thanh);
+    const bySub = Object.fromEntries(r.json().rows.map((x: { learner: { sub: string } }) => [x.learner.sub, x]));
+    expect(bySub['80'].gradebook).toMatchObject({ resultScore: null });
+    expect(bySub['81'].gradebook).toMatchObject({ resultScore: 100 });
+    t.lti.client.getResults = async (_k, _l, userId) => {
+      if (userId === '80') throw new LtiServiceError(502, 'PLATFORM_ERROR', 'Moodle down');
+      return [{ userId, resultScore: 90, resultMaximum: 100 }];
+    };
+    const r2 = await json('POST', `/app-api/publications/${w.scorm}/results/refresh`, w.thanh);
+    t.lti.client.getResults = orig;
+    expect(r2.statusCode).toBe(200);
+    const rl = String(t.db.prepare('SELECT id FROM resource_link').get()!.id);
+    expect(t.logs).toContainEqual(expect.objectContaining({ event: 'gradebook_refresh_failed', publication_id: w.scorm, resource_link_id: rl, lti_status: 502, lti_code: 'PLATFORM_ERROR' }));
+    const after = Object.fromEntries(r2.json().rows.map((x: { learner: { sub: string } }) => [x.learner.sub, x]));
+    expect([after['80'].gradebook.resultScore, after['81'].gradebook.resultScore]).toEqual([null, 90]); // 80 keeps its last value
+    expect(lineItem).toContain('lineitems');
+  });
+
+  it('A-T5b-03: a late finish uses the CMI of its own session, not another open window of the same attempt', async () => {
+    const w = await world();
+    const s1 = await launch(w.platformId, w.scorm, { sub: '90' });
+    const s1State = await state(s1.token);
+    const post = (token: string, sessionId: string, event: string, seq: number, c: ReturnType<typeof cmi>) => content.inject({
+      method: 'POST', url: `/rt/${token}/commit`, headers: { 'content-type': 'application/json' }, payload: { kind: 'scorm12', event, sessionId, seq, cmi: c } });
+    await post(s1.token, s1State.sessionId, 'commit', 2, cmi({ status: 'not attempted' }));
+    const s2 = await launch(w.platformId, w.scorm, { sub: '90' });
+    await post(s2.token, (await state(s2.token)).sessionId, 'commit', 1, cmi({ status: 'incomplete', raw: '40' }));
+    // S1's finish (seq 1) arrives after its commit (seq 2): the rule runs on S1's data (no score -> completed 100),
+    // not on S2's score 40 (which would give failed 40).
+    const late = await post(s1.token, s1State.sessionId, 'finish', 1, cmi({ status: 'not attempted' }));
+    expect(late.json()).toMatchObject({ outcome: 'completed', scoreGiven: 100 });
+  });
+});

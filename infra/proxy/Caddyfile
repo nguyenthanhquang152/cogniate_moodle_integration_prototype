@@ -5,6 +5,12 @@
 {
 	auto_https off
 	admin 127.0.0.1:2019
+	servers {
+		# A-T5b-01: Caddy refuses large request headers BEFORE a site can strip them (about 20 KB over HTTP/2). Package
+		# scripts on the content origin can set many cookies (a browser keeps about 180 of 4 KB per host): accept up to
+		# 1 MB, so the content site below can drop them, and no package can block the content origin for all libraries.
+		max_header_size 1MB
+	}
 }
 
 (stack_tls) {

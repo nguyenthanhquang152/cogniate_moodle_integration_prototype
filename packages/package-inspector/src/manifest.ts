@@ -12,6 +12,8 @@ export interface ScormManifest {
   identifier: string;
   title: string;
   masteryScore: number | null;
+  /** adlcp:datafromlms of the SCO's item (cmi.launch_data, at most 4096 characters), else "" (A-T5a-05). */
+  launchData: string;
   scos: ScormSco[];
   /** Every manifest, organization, item and resource identifier (null = attribute missing), for app contract §3.3. */
   identifiers: Array<{ field: string; value: string | null }>;
@@ -182,6 +184,7 @@ export function parseManifest(bytes: Uint8Array): ManifestResult {
 
   // Mastery score of the item that refers to the SCO (in the default organisation, else in any organisation).
   let masteryScore: number | null = null;
+  let launchData = '';
   const sco = scos[0];
   if (sco) {
     const items = [...walkItems(kids(org, 'item')), ...orgList.filter((o) => o !== org).flatMap((o) => [...walkItems(kids(o, 'item'))])];
@@ -191,6 +194,8 @@ export function parseManifest(bytes: Uint8Array): ManifestResult {
       const n = Number(raw);
       if (n >= 0 && n <= 100) masteryScore = n;
     }
+    const data = item ? text(first(item, 'datafromlms')) : '';
+    if (data.length <= 4096) launchData = data;
   }
 
   return {
@@ -200,6 +205,7 @@ export function parseManifest(bytes: Uint8Array): ManifestResult {
       identifier: attr(manifest, 'identifier') ?? '',
       title: text(first(org, 'title')),
       masteryScore,
+      launchData,
       scos,
       identifiers,
       titles,

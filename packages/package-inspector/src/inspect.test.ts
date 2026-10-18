@@ -40,7 +40,7 @@ describe('fixtures (copied to a new temp folder)', () => {
       warnings: [{ code: 'EXTERNAL_ASSETS', detail: 'The package loads files from 1 external host.' }],
     });
     expect(trackingProfile).toEqual({
-      format: 'scorm12', launchPath: 'index.html', pages: ['index', 'lesson-ai-web-sprint'], menuPage: 'index', questionIds: [QUIZ], masteryScore: 70, minDwellMs: 10000,
+      format: 'scorm12', launchPath: 'index.html', pages: ['index', 'lesson-ai-web-sprint'], menuPage: 'index', questionIds: [QUIZ], masteryScore: 70, minDwellMs: 10000, launchData: '',
     });
   });
 

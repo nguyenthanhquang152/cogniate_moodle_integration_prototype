@@ -1,6 +1,7 @@
 // Score sync rows (app contract §10, ADR-010) for the worker. The rows are made by the commit transaction in
 // attempts.ts (best-result rule); this repository only reads the due rows and records each send.
-import type { SyncStatus } from '@cogniate/tracking';
+import type { SyncRow, SyncStatus } from '@cogniate/tracking';
+import { resendDecision } from '@cogniate/tracking';
 import type { Db } from './db.ts';
 
 export interface DueSync {
@@ -50,19 +51,27 @@ export type ResendResult = { ok: true } | { ok: false; reason: 'not_found' | 'no
 
 /**
  * Resend (app contract §5, ADR-010 rule 10): only a `failed` or `conflict` row, back to `pending` with tries = 0 and
- * a new 24 h retry window. ADR-010 rule 5 (never lower) also holds here: a row is not sent again when a `pending`
- * or `sent` row of the same learner and activity has an equal or higher score.
+ * a new 24 h retry window. Only the learner's best result is ever sent (A-T5b-02, tracking resendDecision): refused
+ * when another row that is not superseded, or a final attempt of that learner and activity, has a higher score.
  */
 export function resendSync(db: Db, libraryId: string, syncId: string, now: number): ResendResult {
-  const r = db.prepare(`SELECT s.status, s.resource_link_id, s.user_sub, s.score_given, s.score_maximum FROM score_sync s
+  const r = db.prepare(`SELECT s.id, s.status, s.resource_link_id, s.user_sub, s.score_given, s.score_maximum FROM score_sync s
     JOIN resource_link rl ON rl.id = s.resource_link_id JOIN connection con ON con.id = rl.connection_id
     WHERE s.id = ? AND con.library_id = ?`).get(syncId, libraryId);
   if (!r) return { ok: false, reason: 'not_found', description: 'The score sync does not exist in your library.' };
-  if (r.status !== 'failed' && r.status !== 'conflict') return { ok: false, reason: 'not_resendable', description: 'Only a failed or conflict score sync can be sent again.' };
-  const ratio = Number(r.score_given) / Number(r.score_maximum);
-  const better = db.prepare(`SELECT 1 FROM score_sync WHERE resource_link_id = ? AND user_sub = ? AND id <> ? AND status IN ('pending', 'sent')
-    AND score_given / score_maximum >= ? LIMIT 1`).get(String(r.resource_link_id), String(r.user_sub), syncId, ratio);
-  if (better) return { ok: false, reason: 'not_resendable', description: 'An equal or better result of this learner is already sent or pending.' };
+  const toRow = (x: Record<string, unknown>): SyncRow => ({ id: String(x.id), status: x.status as SyncStatus, scoreGiven: Number(x.score_given), scoreMaximum: Number(x.score_maximum) });
+  const others = db.prepare('SELECT id, status, score_given, score_maximum FROM score_sync WHERE resource_link_id = ? AND user_sub = ?')
+    .all(String(r.resource_link_id), String(r.user_sub)).map(toRow);
+  const best = db.prepare(`SELECT score_given, score_maximum FROM attempt WHERE resource_link_id = ? AND user_sub = ? AND preview = 0
+      AND outcome IN ('completed', 'passed', 'failed') AND score_given IS NOT NULL ORDER BY score_given / score_maximum DESC LIMIT 1`)
+    .get(String(r.resource_link_id), String(r.user_sub));
+  const decision = resendDecision(toRow(r), others, best ? { scoreGiven: Number(best.score_given), scoreMaximum: Number(best.score_maximum) } : null);
+  if (!decision.ok) {
+    const description = decision.reason === 'status' ? 'Only a failed or conflict score sync can be sent again.'
+      : decision.reason === 'not_best' ? 'This learner has a better result. Resend the better result instead.'
+        : 'An equal result of this learner is already sent or pending.';
+    return { ok: false, reason: 'not_resendable', description };
+  }
   db.prepare(`UPDATE score_sync SET status = 'pending', tries = 0, next_try_at = ?, last_error = NULL, resent_at = ?, updated_at = ? WHERE id = ?`).run(now, now, now, syncId);
   return { ok: true };
 }

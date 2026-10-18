@@ -186,7 +186,7 @@ export function runtimeState(db: Db, s: RuntimeSession): RuntimeState {
   const cmi = saved === null ? null : { ...saved, core: { ...saved.core, exit: '', session_time: '' } };
   return {
     ...base,
-    scorm: { cmi: { ...(cmi ?? {}), core: { ...(cmi?.core ?? {}), total_time: totalTime([s.archivedTimeCs, ...others]) } }, entry, masteryScore: s.profile.masteryScore, launchData: '', credit: credit(s.preview) },
+    scorm: { cmi: { ...(cmi ?? {}), core: { ...(cmi?.core ?? {}), total_time: totalTime([s.archivedTimeCs, ...others]) } }, entry, masteryScore: s.profile.masteryScore, launchData: s.profile.launchData ?? '', credit: credit(s.preview) },
     html: null,
   };
 }
@@ -250,19 +250,20 @@ export function applyCommit(db: Db, s: RuntimeSession, body: unknown, now: numbe
   if (typeof seq !== 'number' || !Number.isInteger(seq) || seq < 1) return { ok: false, status: 400, code: 'INVALID_REQUEST', field: 'seq' };
   const event = body.event as CommitEvent;
   return transaction(db, (): CommitResult => {
-    const current = db.prepare('SELECT last_seq, max_session_time_cs, finished_at FROM play_session WHERE id = ?').get(s.playKey)!;
+    const current = db.prepare('SELECT last_seq, max_session_time_cs, finished_at, last_cmi FROM play_session WHERE id = ?').get(s.playKey)!;
     const stale = seq <= Number(current.last_seq);
     if (stale && (event === 'commit' || event === 'progress')) return { ok: false, status: 409, code: 'STALE_SEQUENCE', field: 'seq' };
     const a = db.prepare('SELECT outcome, score_given, score_maximum, cmi_or_progress FROM attempt WHERE id = ?').get(s.attemptId)!;
     const saved = a.cmi_or_progress === null ? null : JSON.parse(String(a.cmi_or_progress));
-    // A late SCORM body keeps the stored CMI; with no stored CMI yet it is the only data there is.
-    const storedCmi = stale && s.format === 'scorm12' && saved !== null ? (saved as ScormCmi) : null;
+    // A late SCORM body keeps its session's last accepted CMI (A-T5b-03: never another window's data); with none yet,
+    // the body itself is the only data there is.
+    const storedCmi = stale && s.format === 'scorm12' && current.last_cmi !== null ? (JSON.parse(String(current.last_cmi)) as ScormCmi) : null;
     const r = s.format === 'scorm12' ? evaluateScorm(s, body, event, current.finished_at !== null, storedCmi) : evaluateHtml(s, body, saved);
     if (!r.ok) return { ok: false, status: 400, code: r.code, field: r.field };
 
     const sessionTime = s.format === 'scorm12' ? (r.stored as ScormCmi).core.session_time || undefined : undefined;
-    db.prepare(`UPDATE play_session SET last_seq = MAX(last_seq, ?), max_session_time_cs = ?, finished_at = COALESCE(finished_at, ?) WHERE id = ?`)
-      .run(seq, sessionMax(Number(current.max_session_time_cs), sessionTime), event === 'finish' ? now : null, s.playKey);
+    db.prepare(`UPDATE play_session SET last_seq = MAX(last_seq, ?), max_session_time_cs = ?, finished_at = COALESCE(finished_at, ?), last_cmi = ? WHERE id = ?`)
+      .run(seq, sessionMax(Number(current.max_session_time_cs), sessionTime), event === 'finish' ? now : null, s.format === 'scorm12' ? JSON.stringify(r.stored) : null, s.playKey);
     const before = { outcome: a.outcome as Outcome, score: a.score_given === null ? null : { scoreGiven: Number(a.score_given), scoreMaximum: Number(a.score_maximum) } };
     const best = improves(before, { outcome: r.outcome, score: r.score }) ? { outcome: r.outcome, score: r.score } : before;
     db.prepare(`UPDATE attempt SET cmi_or_progress = ?, last_seq = MAX(last_seq, ?), outcome = ?, score_given = ?, score_maximum = ?, updated_at = ? WHERE id = ?`)

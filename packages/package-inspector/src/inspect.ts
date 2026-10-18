@@ -32,6 +32,8 @@ export interface TrackingProfile {
   questionIds: string[];
   masteryScore: number | null;
   minDwellMs: number;
+  /** SCORM: the manifest adlcp:datafromlms (cmi.launch_data), else "" (A-T5a-05). Absent in versions made before T7. */
+  launchData?: string;
 }
 
 export interface Inspection {
@@ -118,6 +120,7 @@ async function profile(zip: ZipFile, scan: ZipScan, limits: Limits, options: Ins
 
   let entryPath = `${root}index.html`;
   let scorm: PackageReport['scorm'] = null;
+  let launchData = '';
   if (format === 'scorm12') {
     const manifestFile = byPath.get(`${root}imsmanifest.xml`)!;
     if (manifestFile.size > limits.maxManifestBytes) {
@@ -147,6 +150,7 @@ async function profile(zip: ZipFile, scan: ZipScan, limits: Limits, options: Ins
     }
     entryPath = resolved;
     scorm = { schemaVersion: manifest.schemaVersion, identifier: manifest.identifier, title: manifest.title, masteryScore: manifest.masteryScore, scoCount: 1 };
+    launchData = manifest.launchData;
   }
 
   // Pages: the .html files directly in the root folder (the manifest folder or the entry folder), sorted by file name.
@@ -226,6 +230,6 @@ async function profile(zip: ZipFile, scan: ZipScan, limits: Limits, options: Ins
     externalHosts,
     warnings,
   };
-  const trackingProfile: TrackingProfile = { format, launchPath: entryPath, pages, menuPage, questionIds, masteryScore, minDwellMs: MIN_DWELL_MS };
+  const trackingProfile: TrackingProfile = { format, launchPath: entryPath, pages, menuPage, questionIds, masteryScore, minDwellMs: MIN_DWELL_MS, ...(format === 'scorm12' ? { launchData } : {}) };
   return { ok: true, inspection: { format, report, trackingProfile } };
 }

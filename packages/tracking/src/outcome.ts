@@ -1,11 +1,14 @@
 // Grade policy (ADR-010) — the ONE place for it (B-T5a-01). Pure functions; the server and the worker call them.
 //   finishStatus      Moodle's LMSFinish rule (rule 3)
-//   outcomeFromStatus SCORM status -> outcome (htmlOutcome in html.ts for HTML courses)
+//   outcomeFromStatus SCORM status -> outcome; htmlOutcome (html.ts) does the same for HTML courses (score >= mastery)
 //   agsScore          outcome -> AGS score (rule 4: the mapping)
 //   improves          the attempt keeps its best outcome (never lower)
 //   bestAttempt       the best attempt of a learner and activity (results)
 //   syncDecision      when a score sync row is made; lower pending rows are superseded (rule 5)
+//   resendDecision    when a failed or conflict row may be sent again (rule 10, A-T5b-02)
 //   syncResult        a send answer -> row status and the next try (rules 8, 9)
+// Only the learner's best final result is ever sent (A-T5b-02): a lower result never goes to Moodle, whatever the
+// status of the better row (pending, sent, conflict or failed).
 // "Latest result instead of best" (ADR-010 consequence) changes improves, bestAttempt and syncDecision only.
 
 export type Outcome = 'not_started' | 'in_progress' | 'completed' | 'passed' | 'failed';
@@ -65,12 +68,12 @@ export type SyncStatus = 'pending' | 'sent' | 'conflict' | 'failed' | 'supersede
 export interface SyncRow { id: string; status: SyncStatus; scoreGiven: number; scoreMaximum: number }
 
 /**
- * ADR-010 rule 5 "best result wins, never lower": make a row only if the new score is higher than every `pending`,
- * `sent` or `conflict` row of that learner and activity (the first final result always makes one). The new row marks
- * older `pending` rows with a lower value as `superseded`.
+ * ADR-010 rule 5 "best result wins, never lower": make a row only if the new score is higher than every row of that
+ * learner and activity that is not `superseded` (A-T5b-02: also a `failed` one; the better result is resent instead).
+ * The first final result always makes one. The new row marks older `pending` rows with a lower value as `superseded`.
  */
 export function syncDecision(score: AgsScore, rows: readonly SyncRow[]): { create: boolean; supersede: string[] } {
-  const live = rows.filter((r) => r.status === 'pending' || r.status === 'sent' || r.status === 'conflict');
+  const live = rows.filter((r) => r.status !== 'superseded');
   const best = live.reduce((m, r) => Math.max(m, ratio(r)), -1);
   if (ratio(score) <= best) return { create: false, supersede: [] };
   return { create: true, supersede: rows.filter((r) => r.status === 'pending' && ratio(r) < ratio(score)).map((r) => r.id) };
@@ -108,4 +111,18 @@ export function syncResult(answer: SendAnswer, tries: number, retryFrom: number,
   if (h === 400 || h === 403 || h === 404) return { status: 'failed', nextTryAt: null };
   const next = nextRetryAt(retryFrom, tries, now);
   return next === null ? { status: 'failed', nextTryAt: null } : { status: 'pending', nextTryAt: next };
+}
+
+/**
+ * Resend (ADR-010 rule 10, A-T5b-02): only a `failed` or `conflict` row, and only the learner's best result. Refused
+ * when another row that is not superseded, or a final attempt, has a higher score (resend the better result instead),
+ * or when an equal row is already `pending` or `sent` (nothing to add).
+ */
+export function resendDecision(row: SyncRow, others: readonly SyncRow[], bestFinal: AgsScore | null): { ok: true } | { ok: false; reason: 'status' | 'not_best' | 'already_sent' } {
+  if (row.status !== 'failed' && row.status !== 'conflict') return { ok: false, reason: 'status' };
+  const mine = ratio(row);
+  const rest = others.filter((r) => r.id !== row.id && r.status !== 'superseded');
+  if (rest.some((r) => ratio(r) > mine) || (bestFinal !== null && ratio(bestFinal) > mine)) return { ok: false, reason: 'not_best' };
+  if (rest.some((r) => ratio(r) === mine && (r.status === 'pending' || r.status === 'sent'))) return { ok: false, reason: 'already_sent' };
+  return { ok: true };
 }
