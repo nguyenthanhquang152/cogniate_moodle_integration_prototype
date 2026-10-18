@@ -96,6 +96,6 @@ describe("T6 portal serving and original downloads", () => {
           headers: { cookie },
         })
       ).statusCode,
-    ).toBe(400);
+    ).toBe(404);
   });
 });

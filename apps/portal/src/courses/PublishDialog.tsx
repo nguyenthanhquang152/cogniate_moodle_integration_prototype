@@ -1,3 +1,5 @@
+import { Select } from "../ui/input.tsx";
+import { buttonVariants, Button } from "../ui/button.tsx";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { Link } from "react-router";
@@ -50,24 +52,27 @@ export function PublishDialog({
   }
   return (
     <Modal title="Publish to Moodle" onClose={onClose}>
-      <p className="muted">
+      <p className="text-muted-foreground">
         Make this course available in the Moodle content picker.
       </p>
-      <p className="publish-title">{course.title}</p>
+      <p className="font-semibold wrap-anywhere">{course.title}</p>
       <ErrorNotice error={loadError} />
       {!data && !loadError && <Loading />}
       {data && ready.length === 0 ? (
-        <div className="stack">
+        <div className="flex flex-col gap-5">
           <p>No Moodle connection is ready. Connect a site first.</p>
-          <Link to="/integrations/moodle/connect" className="button primary">
+          <Link
+            to="/integrations/moodle/connect"
+            className={buttonVariants({ variant: "primary", size: "default" })}
+          >
             Connect Moodle
           </Link>
         </div>
       ) : (
-        <form className="stack" onSubmit={submit}>
+        <form className="flex flex-col gap-5" onSubmit={submit}>
           <label>
             <span id="publish-connection-label">Moodle connection</span>
-            <select
+            <Select
               name="connectionId"
               aria-labelledby="publish-connection-label"
               required
@@ -79,11 +84,11 @@ export function PublishDialog({
                   {connection.name} · {connection.siteUrl}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             <span id="publish-version-label">Version</span>
-            <select
+            <Select
               name="versionId"
               aria-labelledby="publish-version-label"
               required
@@ -95,29 +100,25 @@ export function PublishDialog({
                   Version {version.version} · {formatName(version.format)}
                 </option>
               ))}
-            </select>
+            </Select>
           </label>
           {selectedVersion?.report?.scorm?.title && (
-            <p className="manifest-title">
+            <p className="wrap-anywhere">
               Package: {selectedVersion.report.scorm.title}
             </p>
           )}
           {versions.length === 0 && <p>Upload a package before you publish.</p>}
           <ErrorNotice error={error} />
-          <div className="actions">
-            <button
-              className="button primary"
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="primary"
               disabled={busy || ready.length === 0 || versions.length === 0}
             >
               {busy ? "Publishing…" : "Publish"}
-            </button>
-            <button
-              className="button secondary"
-              type="button"
-              onClick={onClose}
-            >
+            </Button>
+            <Button variant="secondary" type="button" onClick={onClose}>
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       )}

@@ -21,6 +21,8 @@ export interface Connection {
     productFamilyCode: string;
   } | null;
   lastError: {
+    title?: string;
+    action?: string;
     code: string;
     ltiCode: string | null;
     traceId: string;
@@ -131,8 +133,8 @@ export interface ResultRow {
   }[];
   scoreSyncs: ScoreSync[];
   gradebook: {
-    resultScore: number;
-    resultMaximum: number;
+    resultScore: number | null;
+    resultMaximum: number | null;
     readAt: string;
   } | null;
   gradebookDiffers?: boolean;

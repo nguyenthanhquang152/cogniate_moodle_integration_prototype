@@ -1,6 +1,11 @@
+import { Tabs } from "./ui/tabs.tsx";
+import { IntegrationLogo } from "./IntegrationLogo.tsx";
+import { useSession } from "./App.tsx";
+import { Card } from "./ui/card.tsx";
+import { Button, buttonVariants } from "./ui/button.tsx";
 import { useState } from "react";
 import { Link } from "react-router";
-import { ArrowUpRight, GraduationCap, Plus } from "lucide-react";
+import { ArrowUpRight, Plus } from "lucide-react";
 import { useApi } from "./hooks.ts";
 import type { Connection } from "./types.ts";
 import {
@@ -84,8 +89,9 @@ const integrations = [
     description:
       "Record and embed video lessons, walkthroughs, and screen captures with Loom.",
   },
-];
+] as const;
 export function Integrations() {
+  const session = useSession();
   const [filter, setFilter] = useState("All");
   const { data, error, loading, reload } = useApi<{
     connections: Connection[];
@@ -96,69 +102,69 @@ export function Integrations() {
   const newest = connections[0];
   return (
     <>
-      <div className="page-heading">
-        <p className="eyebrow">YOUR CONNECTED WORKSPACE</p>
+      <div className="mt-[26px] mb-[30px] [&_h1]:mt-[7px] [&_h1]:mb-2.5 [&_p:not(.eyebrow)]:text-muted-foreground">
+        <p className="eyebrow mb-[5px] text-[10px] font-semibold tracking-[0.15em] text-[#b3a4c6]">
+          YOUR CONNECTED WORKSPACE
+        </p>
         <h1 tabIndex={-1}>Integrations</h1>
         <p>Connect your favorite tools to your course library.</p>
       </div>
-      <div
-        className="filter-pills"
-        role="group"
-        aria-label="Integration categories"
-      >
-        {filters.map((item) => (
-          <button
-            key={item}
-            className={filter === item ? "active" : ""}
-            aria-pressed={filter === item}
-            onClick={() => setFilter(item)}
-          >
-            {item}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        id="integration-categories"
+        label="Integration categories"
+        options={filters}
+        value={filter}
+        onValueChange={setFilter}
+      />
       <ErrorNotice error={error} />
       {error ? (
-        <button className="text-button" onClick={reload}>
+        <Button variant="link" onClick={reload}>
           Try again
-        </button>
+        </Button>
       ) : null}
-      <div className="integration-grid grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div
+        role="tabpanel"
+        id="integration-categories-panel"
+        aria-labelledby={`integration-categories-${filters.indexOf(filter)}`}
+        tabIndex={0}
+        className="integration-grid grid gap-4 md:grid-cols-2 xl:grid-cols-3"
+      >
         {integrations
           .filter((item) => filter === "All" || item.category === filter)
           .map((item) => (
-            <article
-              className="integration-card"
+            <Card
+              as="article"
+              spacing="integration"
+              className="integration-card min-h-[198px] shadow-[0_2px_8px_#0000000d] [&_h2]:mt-[15px] [&_h2]:mb-[9px] [&_h2]:text-[14px] [&>p]:max-w-[300px] [&>p]:text-[12px] [&>p]:leading-[1.7] [&>p]:text-muted-foreground"
               key={item.name}
               aria-labelledby={`integration-${item.name.replaceAll(" ", "-")}`}
             >
-              <div className="card-top">
-                <span
-                  className={`integration-logo ${item.color}`}
-                  aria-hidden="true"
-                >
-                  {item.name === "Moodle" ? (
-                    <GraduationCap size={28} />
-                  ) : (
-                    item.mark
-                  )}
-                </span>
+              <div className="flex items-center justify-between gap-2.5">
+                <IntegrationLogo
+                  name={item.name}
+                  mark={item.mark}
+                  color={item.color}
+                />
                 {item.name !== "Moodle" ? (
                   <span title="Not part of this prototype">
-                    <button
-                      className="button compact secondary"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       disabled
                       aria-label={`Connect ${item.name} — Not part of this prototype`}
                     >
                       Connect
-                    </button>
+                    </Button>
                   </span>
                 ) : loading && !data ? (
                   <Loading />
                 ) : newest ? (
                   <Link
                     id="moodle-manage"
-                    className="button compact secondary"
+                    className={buttonVariants({
+                      variant: "secondary",
+                      size: "sm",
+                    })}
                     to={`/integrations/moodle/${newest.id}`}
                   >
                     Manage <ArrowUpRight size={14} aria-hidden="true" />
@@ -166,7 +172,10 @@ export function Integrations() {
                 ) : !error ? (
                   <Link
                     id="moodle-connect"
-                    className="button compact secondary"
+                    className={buttonVariants({
+                      variant: "secondary",
+                      size: "sm",
+                    })}
                     to="/integrations/moodle/connect"
                     state={{ opener: "moodle-connect" }}
                   >
@@ -179,7 +188,7 @@ export function Integrations() {
               </h2>
               <p>{item.description}</p>
               {item.name === "Moodle" && newest && (
-                <div className="card-connection">
+                <div className="mt-[15px] flex flex-col items-start gap-2.5 border-t border-[#ffffff12] pt-3 [&>a]:inline-flex [&>a]:items-center [&>a]:gap-1 [&>a]:text-[12px] [&>a]:text-[#d7b9ff] [&>a]:no-underline">
                   <ConnectionBadge connection={newest} />
                   <Link
                     id="moodle-connect-another"
@@ -189,13 +198,18 @@ export function Integrations() {
                     <Plus size={14} aria-hidden="true" />
                     Connect another site
                   </Link>
-                  <ConnectionError connection={newest} />
+                  <ConnectionError
+                    connection={newest}
+                    libraryName={session?.library.name}
+                  />
                 </div>
               )}
-            </article>
+            </Card>
           ))}
       </div>
-      <p className="integration-note">One library. Your tools, connected.</p>
+      <p className="mt-8 text-center text-[12px] text-[#a9a1b8]">
+        One library. Your tools, connected.
+      </p>
     </>
   );
 }
