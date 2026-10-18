@@ -11,6 +11,7 @@ import {
   PlatformTakenError, createConnection, disableConnection, getConnection, listConnections, markRegistered, platformOwner, replaceRef,
 } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
+import { registerErrorText } from '../tool-pages/register-texts.ts';
 import { ApiError } from './api-errors.ts';
 
 /** The tool account of the app in the LTI service (contract §4.1). */
@@ -42,7 +43,8 @@ export function toolName(libraryName: string): string {
   return `Cogniate (${ascii || 'Library'})`;
 }
 
-export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffer) {
+/** `libraryName` fills the tool name into a lastError action line. */
+export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffer, libraryName = '') {
   const showRef = c.status === 'pending' && c.method === 'dynamic' && c.refTokenEncrypted !== null;
   return {
     id: c.id, name: c.name, siteUrl: c.siteUrl, method: c.method, status: c.status,
@@ -50,7 +52,12 @@ export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffe
     registrationUrlExpiresAt: showRef ? iso(c.refExpiresAt) : null,
     platform: c.platform, createdAt: iso(c.createdAt), lastLaunchAt: iso(c.lastLaunchAt),
     // B-T4b1-01: the last failed connect attempt while pending (null after success).
-    lastError: c.lastError ? { code: c.lastError.code, ltiCode: c.lastError.ltiCode, traceId: c.lastError.traceId, at: iso(c.lastError.at) } : null,
+    lastError: c.lastError ? {
+      code: c.lastError.code, ltiCode: c.lastError.ltiCode, traceId: c.lastError.traceId, at: iso(c.lastError.at),
+      // The same title and action line as the register page of that code (one text table, register-texts.ts).
+      title: registerErrorText(c.lastError.code, toolName(libraryName))?.title ?? null,
+      action: registerErrorText(c.lastError.code, toolName(libraryName))?.action ?? null,
+    } : null,
   };
 }
 
@@ -144,7 +151,7 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
     throw err;
   };
 
-  api.get('/connections', async (req) => ({ connections: listConnections(db, libraryOf(req).id).map((c) => connectionJson(c, urls, masterKey)) }));
+  api.get('/connections', async (req) => ({ connections: listConnections(db, libraryOf(req).id).map((c) => connectionJson(c, urls, masterKey, libraryOf(req).name)) }));
 
   api.post('/connections', async (req, reply) => {
     const body = ConnectionCreate.safeParse(req.body ?? {});
@@ -154,10 +161,10 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
     }
     const ref = body.data.method === 'dynamic' ? newRef(masterKey, deps.refTtlSeconds, now()).stored : null;
     const c = createConnection(db, libraryOf(req).id, body.data, ref, now());
-    return reply.code(201).send(connectionJson(c, urls, masterKey));
+    return reply.code(201).send(connectionJson(c, urls, masterKey, libraryOf(req).name));
   });
 
-  api.get<IdParams>('/connections/:id', async (req) => connectionJson(connectionOf(req), urls, masterKey));
+  api.get<IdParams>('/connections/:id', async (req) => connectionJson(connectionOf(req), urls, masterKey, libraryOf(req).name));
 
   api.post<IdParams>('/connections/:id/registration-url', async (req) => {
     const c = connectionOf(req);
@@ -188,7 +195,7 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
       // A repeat of the call that registered this connection: 200 with its own platform, nothing changes (AC-T4-36 (3)).
       const own = c.platform;
       const repeat = c.status !== 'disabled' && own !== null && own.issuer === v.issuer && own.clientId === v.clientId && own.deploymentIds.includes(v.deploymentId);
-      if (repeat) return connectionJson(c, urls, masterKey);
+      if (repeat) return connectionJson(c, urls, masterKey, libraryOf(req).name);
       throw new ApiError('CONNECTION_NOT_PENDING', 'This connection already has a platform.');
     }
     const traceId = req.traceId;
@@ -217,7 +224,7 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
       await deactivateOrphan({ db, lti, logger }, platform.id, traceId);
       throw new ApiError('CONNECTION_NOT_PENDING', 'This connection already has a platform.');
     }
-    return connectionJson(getConnection(db, c.libraryId, c.id)!, urls, masterKey);
+    return connectionJson(getConnection(db, c.libraryId, c.id)!, urls, masterKey, libraryOf(req).name);
   });
 
   api.delete<IdParams>('/connections/:id', async (req, reply) => {
