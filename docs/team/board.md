@@ -13,8 +13,8 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 | 4 | T3a | Services the app needs: service keys, token client, deep-linking response, AGS scores | Author | **done** | 1 | QA PASS 14/14 + T2 regression (6f03a80), A APPROVE, B APPROVE. A-T3a-01 fixed in T3b. |
 | 5 | T3b | Dynamic registration incl. "update existing tool" | Author | **done** | 1 | QA PASS 10/10 incl. AC-T3-29/30 (6f03a80), A APPROVE, B APPROVE. |
 | 6 | T4a | Upload + package inspector | Author | **done** | 3 | R3: QA PASS (93884d8), A APPROVE, B APPROVE. Deferred: A-T4a-04 (→ T6/T8), B-T4a-01 (→ T3a). |
-| 7 | T4b1 | Connect + publish | Author | verifying | 2 | R2 0fc5e33: A APPROVE, B APPROVE; QA run at 716a72c (qa-t4b-r1) in progress. |
-| 7b | T4b2 | Picker, launch handoff, security | Author | verifying | 1 | A APPROVE, B APPROVE; QA run at 716a72c (qa-t4b-r1) in progress. MINORs → round-2 batch. |
+| 7 | T4b1 | Connect + publish | Author | **done** | 2 | QA PASS (716a72c, incl. AC-T4-36), A APPROVE, B APPROVE. Residual risk R1 accepted. |
+| 7b | T4b2 | Picker, launch handoff, security | Author | **done** | 1 | QA PASS 17/17 (716a72c; AC-T4-22/23 live), A APPROVE, B APPROVE. MINOR follow-ups (B-T4b2-01/03, A-T4b2-02/04) in progress with T5b batch. |
 | 8 | T5a | Content host, SCORM runtime, score sync | Author | verifying | 1 | wip de6a1bb (real SCORM course → 100 in Moodle gradebook). A + B reviewing; QA after T4b run. |
 | 9 | T5b | HTML runtime, conflict, Resend | Author | in_progress | 1 | After the T4b2 round-2 items. QA tests ready. |
 | 10 | T6 | Portal UI (dev-portal style) | **Author-2 (Codex GPT-6-Astra xhigh)** | in_progress | 1 | Orca run run_1d4c026ef9ba, dispatch ctx_fc98a946ec60; worktree ../cogniate_moodle_t6, branch feat/t6-portal-ui. Parallel to T5a. QA tests ready. |
