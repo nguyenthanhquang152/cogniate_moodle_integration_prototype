@@ -14,13 +14,15 @@ The goal of this prototype is LTI 1.3 publishing. The native channel and the cou
 
 - **"Download SCORM package"** (the original zip, with steps for "Add an activity → SCORM package") is in **T6**. It needs almost no work and helps MoodleCloud users now.
 - **Stretch task T8** (only after T7 passes, only if the Lead starts it):
-  - Build Runner: a separate compose project with the same Moodle image and its own Postgres, on an internal network. It makes a hidden course with one `mod_scorm` activity, runs `backup.php --nousers`, and copies the `.mbz` out.
+  - Build Runner (as built in T8): a script on the **host**; the app never gets the Docker socket. The app writes a request file to `infra/.data/build-queue/requests/`; the runner writes `status/` and `out/` (read-only for the app). Each build runs a throwaway Moodle and Postgres on an internal network (no internet) from the derived image `cogniate-build-moodle:v5.2.4` (Moodle's PHP packages baked in). It makes a hidden course with one `mod_scorm` activity, runs `backup.php --nousers`, and copies the `.mbz` out (security §10a).
   - Portal: build status, download, restore steps.
   - E2E stand-in for the manual restore: `admin/cli/restore_backup.php`.
   - **Course shell** through web services (`core_course_get_courses_by_field`, `core_course_create_courses`), with the web services token on the connection.
 - Not in T8: HTML as native activities, LTI activities inside the `.mbz`, automatic restore.
 
 ## Consequences
+
+- A cross-site restore clears the course idnumber (the Build Runner Moodle is always another site). The Build Runner therefore also puts `cogniate:{courseId}:{variant}:{lang}` into the course shortname, which survives the restore; checks use the shortname (AC-T8-05).
 
 - T1–T7 do not need the Build Runner, a web services client or a web services token.
 - If T8 is skipped, the human review pack says "native channel designed, not proven".

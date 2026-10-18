@@ -23,7 +23,7 @@ Technical dependencies ("Depends on" in each file) are fewer: T2a and T4a need o
 | [T5b](T5b.md) | HTML runtime, retry and conflict, Resend, results refresh | yes | AC-T5-09 to -11, -14, -18, -19, -27 to -33, -36 |
 | [T6](T6.md) | Portal UI | yes | AC-T6-01 to AC-T6-14 |
 | [T7](T7.md) | Full E2E in real Moodle | yes | AC-T7-01 to AC-T7-15 |
-| [T3c](T3c.md) | Compatibility-only endpoints and the independent-client test | yes | AC-T3-09, -15, -19 to -21, -27 |
+| [T3c](T3c.md) | Compatibility-only endpoints and the independent-client test | yes | AC-T3-09, -15, -19 to -21, -27, -31 |
 | [T8](T8.md) | Stretch: native channel and course shell | yes | AC-T8-02 to AC-T8-10 |
 | [T9](T9.md) | Docs and human review pack (Docs role) | yes | AC-T9-01 to AC-T9-04 |
 
@@ -65,10 +65,10 @@ Mechanism (T1): `npm run stack:restart -- <service> --env KNOB=value` restarts o
 | `REF_TTL_SECONDS` | cogniate-app | 86400 | 20 | AC-T4-09 | Open the registration URL from Moodle at TTL + 3 s → `REF_EXPIRED`. |
 | `PICKER_TTL_SECONDS` | cogniate-app | 3600 | 20 | AC-T4-20 | POST the picker at TTL + 3 s → 410. |
 | `PLAY_TTL_SECONDS` | cogniate-app | 86400 | 20 | AC-T5-15 | Commit at TTL + 3 s → `410 RUNTIME_EXPIRED`. |
-| `BUILD_RUNNER_HOLD` | cogniate-app | 0 | 1 | AC-T8-03 | The build pauses before teardown until the flag file is removed. |
-| `BUILD_RUNNER_FAIL_AT` | cogniate-app | "" | `backup` | AC-T8-07 | The build fails at that step. (A string knob: T8 extends the T1 registry, which accepts whole numbers only.) |
+| `BUILD_RUNNER_HOLD` | cogniate-app (number knob, 0–1) | 0 | 1 | AC-T8-03 | The build pauses before teardown until the flag file is removed. |
+| `BUILD_RUNNER_FAIL_AT` | cogniate-app (string knob: `""`, `start`, `course`, `scorm`, `backup`, `copy`) | "" | `backup` | AC-T8-07 | The build fails at that step. |
 
-No other knob exists. T7 checks that every `/healthz` shows `"knobs": []` and `"profile": "default"` (AC-T7-13).
+Ownership of the two Build Runner knobs: they are registered for `cogniate-app`; the app reads them from its env and passes them in each build request, and the host Build Runner (`infra/scripts/build-runner.sh`) applies them. No other knob exists. T7 checks that every `/healthz` shows `"knobs": []` and `"profile": "default"` (AC-T7-13).
 
 Knob tests: QA runs `npm run stack:restart -- <service> --env K=V` on the host, then `npm run test:acceptance -- <select the knob test>` (H14 forwards the arguments and the `QA_*` env), then `npm run stack:restart -- <service>`.
 

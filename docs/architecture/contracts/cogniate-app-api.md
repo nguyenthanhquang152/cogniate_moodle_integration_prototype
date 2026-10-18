@@ -33,7 +33,7 @@ NOTE: This is our design for a stand-in. It is not a Cogniate API (spec §7.1). 
 - The app reads the LTI API key from `infra/.secrets/lti-api-key.cogniate` at each use, and sends `X-Trace-Id` to the LTI service.
 - If a call to the LTI service fails (5xx, timeout, `PLATFORM_*` error), the app API answers `502 LTI_SERVICE_ERROR` with the trace id. If the LTI service answers but the body fails the app's schema for that endpoint, the app answers `502 INVALID_LTI_ANSWER`. A 4xx from the LTI service that the user can fix is mapped to the app's own 4xx code.
 - All untrusted text is escaped on output (security §7).
-- `GET {PUBLIC_APP_URL}/healthz` → `200 {"status":"ok","service":"cogniate-app","profile":"default","outbound_allowlist":["lti.cogniate.test"],"knobs":[]}`. `profile` is `acceptance` in that compose profile (local-stack §3), and `outbound_allowlist` then also has `qa-platform.test` and `evil.test`.
+- `GET {PUBLIC_APP_URL}/healthz` → `200 {"status":"ok","service":"cogniate-app","profile":"default","outbound_allowlist":["lti.cogniate.test","moodle.test"],"knobs":[]}`. `profile` is `acceptance` in that compose profile (local-stack §3), and `outbound_allowlist` then also has `qa-platform.test` and `evil.test`.
 
 ## 2. Session (mock login) — T4a
 
@@ -382,15 +382,28 @@ Sends `POST /api/lineitems/{encodeURIComponent(lineItemId)}/scores` with `SERVIC
 
 When rows are made: ADR-010.
 
-## 11. Stretch (T8): course shell and web services
+## 11. Stretch (T8): native `.mbz` and course shell
+
+Native `.mbz` (SCORM course versions only):
 
 | Method and path | Request | Success / errors |
 | --- | --- | --- |
-| `PUT /app-api/connections/:id/web-services` | `{ token }` | `200 { siteName, release, functions }` after `core_webservice_get_site_info`. `422 WS_TOKEN_INVALID` or `WS_FUNCTIONS_MISSING`. |
-| `POST /app-api/publications` with `createMoodleCourse: { categoryId? }` | — | Publication with `moodleCourse { id, idnumber, url }`, `shellStatus` (`created`, `exists`, `failed`) |
-| `GET .../versions/:versionId/download?kind=mbz`, `POST .../mbz` | — | T8 |
+| `POST /app-api/courses/:courseId/versions/:versionId/mbz` | — | `202` MbzBuild (`status: queued`). An HTML version → `422 MBZ_NOT_SUPPORTED`. |
+| `GET /app-api/courses/:courseId/versions/:versionId/mbz` | — | `200` MbzBuild of the newest build, or `404` if none |
+| `GET /app-api/courses/:courseId/versions/:versionId/download?kind=mbz` | — | `200 application/vnd.moodle.backup` when the newest build is `ready`; `404` until then |
 
-Web services functions the app needs: `core_webservice_get_site_info`, `core_course_get_courses_by_field`, `core_course_create_courses`. Shell: `idnumber = cogniate:{courseId}:{variant}:{lang}`, `visible = 0`.
+MbzBuild: `{ buildId, status, step, reason, bytes, createdAt, finishedAt, downloadUrl }`. `status`: `queued`, `running`, `ready`, `failed`. `step`: the current or failed step (for example `backup`). `reason`: plain text when `failed`, else `null`. `bytes` and `downloadUrl`: set when `ready`, else `null`.
+
+Course shell (web services):
+
+| Method and path | Request | Success / errors |
+| --- | --- | --- |
+| `PUT /app-api/connections/:id/web-services` | `{ token }` | `200 { siteName, release, functions }` after `core_webservice_get_site_info`. `422 WS_TOKEN_INVALID` or `WS_FUNCTIONS_MISSING`. Moodle unreachable or a Moodle error → `502 MOODLE_WS_ERROR`. |
+| `POST /app-api/publications` with `createMoodleCourse: { categoryId? }` | — | Publication with `moodleCourse { id, idnumber, url }`, `shellStatus` (`created`, `exists`, `failed`) and `shellError` (plain text when `failed`, else `null`) |
+
+Connection field `webServices`: `{ siteName, release }` after a successful `PUT .../web-services`, else `null`. The token is stored encrypted and never returned.
+
+Web services functions the app needs: `core_webservice_get_site_info`, `core_course_get_courses_by_field`, `core_course_create_courses`. Shell: `idnumber = cogniate:{courseId}:{variant}:{lang}`, `visible = 0`. The Moodle host is in the app's outbound allowlist for these calls (security §9).
 
 ## 12. Log events
 
