@@ -4,7 +4,7 @@
   "dynamic": [
     {
       "id": "open-manage-tools",
-      "text": "Open Manage tools.",
+      "text": "In Moodle, open Manage tools.",
       "menuPath": [
         "Site administration",
         "Plugins",
@@ -17,37 +17,81 @@
     },
     {
       "id": "paste-registration-url",
-      "text": "Paste the registration URL into Tool URL. Select Add LTI Advantage.",
-      "menuPath": [],
-      "labels": ["Tool URL...", "Add LTI Advantage"],
+      "text": "Paste the registration URL into the Tool URL field. Click Add LTI Advantage.",
+      "menuPath": [
+        "Site administration",
+        "Plugins",
+        "Activity modules",
+        "External tool",
+        "Manage tools"
+      ],
+      "labels": ["Add LTI Advantage"],
       "optional": false
     },
     {
-      "id": "register-new-tool",
-      "text": "If Moodle asks to update an existing tool or register a new one, choose Register as a new tool. Cogniate refuses an update. The Moodle button says Register as a new external tool.",
-      "menuPath": [],
-      "labels": ["Register as a new external tool", "Update"],
+      "id": "choose-register-new",
+      "text": "If Moodle asks to update an existing tool, click Register as a new external tool. Cogniate refuses an update.",
+      "menuPath": [
+        "Site administration",
+        "Plugins",
+        "Activity modules",
+        "External tool",
+        "Manage tools"
+      ],
+      "labels": ["Register as a new external tool"],
       "optional": true
     },
     {
-      "id": "confirm-connection",
-      "text": "Check the site and library in the Cogniate dialog. Select Connect.",
-      "menuPath": [],
+      "id": "confirm-connect",
+      "text": "In the Cogniate panel inside Moodle, check the site and the library. Click Connect. The panel closes.",
+      "menuPath": [
+        "Site administration",
+        "Plugins",
+        "Activity modules",
+        "External tool",
+        "Manage tools"
+      ],
       "labels": [],
       "optional": false
     },
     {
       "id": "activate-tool",
-      "text": "Return to Manage tools. Select Activate for the new Cogniate tool.",
-      "menuPath": ["Manage tools"],
-      "labels": ["Activate"],
+      "text": "Find the tool card \"Cogniate ({libraryName})\". It shows Pending. Click Activate.",
+      "menuPath": [
+        "Site administration",
+        "Plugins",
+        "Activity modules",
+        "External tool",
+        "Manage tools"
+      ],
+      "labels": ["Pending", "Activate"],
+      "optional": false
+    },
+    {
+      "id": "edit-tool-settings",
+      "text": "On the same tool card, click Edit. Set Tool configuration usage to \"Show in activity chooser and as a preconfigured tool\". Set Default launch container to \"New window\". Click Save changes.",
+      "menuPath": [
+        "Site administration",
+        "Plugins",
+        "Activity modules",
+        "External tool",
+        "Manage tools"
+      ],
+      "labels": [
+        "Edit",
+        "Tool configuration usage",
+        "Show in activity chooser and as a preconfigured tool",
+        "Default launch container",
+        "New window",
+        "Save changes"
+      ],
       "optional": false
     }
   ],
   "manual": [
     {
-      "id": "open-manage-tools-manual",
-      "text": "Open Manage tools.",
+      "id": "open-manage-tools",
+      "text": "In Moodle, open Manage tools.",
       "menuPath": [
         "Site administration",
         "Plugins",
@@ -59,24 +103,49 @@
       "optional": false
     },
     {
-      "id": "configure-tool-manually",
-      "text": "Select configure a tool manually.",
-      "menuPath": [],
+      "id": "open-manual-form",
+      "text": "Click configure a tool manually.",
+      "menuPath": [
+        "Site administration",
+        "Plugins",
+        "Activity modules",
+        "External tool",
+        "Manage tools"
+      ],
       "labels": ["configure a tool manually"],
       "optional": false
     },
     {
-      "id": "copy-tool-settings",
-      "text": "Enter the tool settings below. Select Save changes.",
-      "menuPath": [],
-      "labels": ["Tool name", "Tool URL", "LTI version", "Save changes"],
+      "id": "fill-tool-values",
+      "text": "Copy each value from Cogniate into the Moodle field with the same label. Click Save changes.",
+      "menuPath": [
+        "Site administration",
+        "Plugins",
+        "Activity modules",
+        "External tool",
+        "Manage tools"
+      ],
+      "labels": [
+        "Tool name",
+        "Tool URL",
+        "Default launch container",
+        "Save changes"
+      ],
       "optional": false
     },
     {
-      "id": "copy-moodle-values",
-      "text": "Open the tool's configuration details. Copy the six Moodle values into the form below.",
-      "menuPath": ["Manage tools"],
+      "id": "copy-configuration-details",
+      "text": "On the tool card \"Cogniate ({libraryName})\", click View configuration details. Copy the six values into Cogniate.",
+      "menuPath": [
+        "Site administration",
+        "Plugins",
+        "Activity modules",
+        "External tool",
+        "Manage tools"
+      ],
       "labels": [
+        "View configuration details",
+        "Tool configuration details",
         "Platform ID",
         "Client ID",
         "Deployment ID",

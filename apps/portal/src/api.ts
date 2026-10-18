@@ -9,7 +9,11 @@ export class ApiError extends Error {
     details: ErrorDetails,
     traceId: string | null = null,
   ) {
-    super(details.description || "The request failed. Try again.");
+    super(
+      details.description ||
+        details.message ||
+        "The request failed. Try again.",
+    );
     this.name = "ApiError";
     this.status = status;
     this.details = details;

@@ -1,7 +1,10 @@
+import { Badge } from "../ui/badge.tsx";
+import { Card } from "../ui/card.tsx";
+import { Button } from "../ui/button.tsx";
 import { useState } from "react";
 import { Link, useParams } from "react-router";
 import { ArrowLeft, RefreshCw } from "lucide-react";
-import { ApiError, api, idPath } from "../api.ts";
+import { api, idPath } from "../api.ts";
 import { useApi } from "../hooks.ts";
 import type {
   CourseVersion,
@@ -25,20 +28,6 @@ const syncNames: Record<string, string> = {
   conflict: "Conflict",
   superseded: "Superseded",
 };
-function actionError(reason: unknown, action: "Resend" | "Gradebook refresh") {
-  if (reason instanceof ApiError && [404, 501].includes(reason.status)) {
-    return new ApiError(
-      reason.status,
-      {
-        ...reason.details,
-        description: `${action} is not available yet. Your saved results have not changed.`,
-        action: "Try again when this feature is available.",
-      },
-      reason.traceId,
-    );
-  }
-  return reason;
-}
 export function syncError(error: ScoreSync["lastError"]): string {
   if (!error) return "";
   if (typeof error === "string") return error;
@@ -61,10 +50,6 @@ export function Results() {
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const [refreshed, setRefreshed] = useState<Map<string, ResultRow>>(new Map());
-  const unavailable =
-    results.error instanceof ApiError &&
-    [404, 501, 503].includes(results.error.status);
   async function refresh() {
     setBusy("refresh");
     setError(null);
@@ -75,10 +60,9 @@ export function Results() {
         { method: "POST" },
       );
       results.setData(response);
-      setRefreshed(new Map(response.rows.map((row) => [rowKey(row), row])));
       setMessage("Gradebook values refreshed from Moodle.");
     } catch (reason) {
-      setError(actionError(reason, "Gradebook refresh"));
+      setError(reason);
     } finally {
       setBusy(null);
     }
@@ -88,25 +72,26 @@ export function Results() {
     setError(null);
     setMessage("");
     try {
-      await api(`/score-syncs/${idPath(sync.id)}/resend`, { method: "POST" });
+      const updated = await api<ScoreSync>(
+        `/score-syncs/${idPath(sync.id)}/resend`,
+        { method: "POST" },
+      );
       results.setData(
         (current) =>
           current && {
             rows: current.rows.map((row) => ({
               ...row,
               scoreSyncs: row.scoreSyncs.map((s) =>
-                s.id === sync.id
-                  ? { ...s, status: "pending", tries: 0, lastError: null }
-                  : s,
+                s.id === sync.id ? updated : s,
               ),
             })),
           },
       );
       setMessage(
-        "Pending. The score will be sent again. Status updates every 5 seconds.",
+        `${syncNames[updated.status] ?? updated.status}. Status updates every 5 seconds.`,
       );
     } catch (reason) {
-      setError(actionError(reason, "Resend"));
+      setError(reason);
     } finally {
       setBusy(null);
     }
@@ -114,7 +99,7 @@ export function Results() {
   return (
     <>
       <Link
-        className="back-link"
+        className="inline-flex items-center gap-2 text-[12px] text-[#c9bdd9] no-underline"
         to={
           publication.data
             ? `/libraries/courses/${publication.data.courseId}`
@@ -124,9 +109,11 @@ export function Results() {
         <ArrowLeft size={16} aria-hidden="true" />
         Course
       </Link>
-      <div className="section-heading page-heading">
+      <div className="flex items-center justify-between gap-5 [&>div:first-child]:min-w-0 max-[720px]:flex-wrap max-[720px]:items-start mt-[26px] mb-[30px] [&_h1]:mt-[7px] [&_h1]:mb-2.5 [&_p:not(.eyebrow)]:text-muted-foreground">
         <div>
-          <p className="eyebrow">MOODLE PUBLICATION</p>
+          <p className="eyebrow mb-[5px] text-[10px] font-semibold tracking-[0.15em] text-[#b3a4c6]">
+            MOODLE PUBLICATION
+          </p>
           <h1 tabIndex={-1}>Results</h1>
           {publication.data && (
             <p>
@@ -136,8 +123,8 @@ export function Results() {
             </p>
           )}
         </div>
-        <button
-          className="button secondary"
+        <Button
+          variant="secondary"
           disabled={!!busy || !results.data}
           onClick={() => {
             void refresh();
@@ -145,28 +132,15 @@ export function Results() {
         >
           <RefreshCw size={16} aria-hidden="true" />
           {busy === "refresh" ? "Refreshing…" : "Refresh from Moodle"}
-        </button>
+        </Button>
       </div>
       {publication.data && <PackageTitle publication={publication.data} />}
       <ErrorNotice error={publication.error} />
       <ErrorNotice error={error} />
-      <p className="muted" role="status">
+      <p className="text-muted-foreground" role="status">
         {message}
       </p>
-      {unavailable ? (
-        <Empty>
-          <h2>Results are not available yet</h2>
-          <p>
-            The results service is not ready. Your course and publications are
-            saved.
-          </p>
-          <button className="button secondary" onClick={results.reload}>
-            Try again
-          </button>
-        </Empty>
-      ) : (
-        <ErrorNotice error={results.error} />
-      )}
+      <ErrorNotice error={results.error} />
       {!results.data && !results.error && <Loading />}
       {results.data?.rows.length === 0 && (
         <Empty>
@@ -175,9 +149,9 @@ export function Results() {
         </Empty>
       )}
       {!!results.data?.rows.length && (
-        <section className="panel results-panel">
-          <div className="table-scroll">
-            <table className="results-table">
+        <Card spacing="results">
+          <div className="overflow-x-auto">
+            <table className="results-table min-w-[850px] [&_caption]:pl-3 [&_th]:max-w-[240px] [&_td]:max-w-[240px] [&_th]:wrap-anywhere [&_td]:wrap-anywhere">
               <caption>
                 Learner results · Status updates every 5 seconds.
               </caption>
@@ -192,53 +166,30 @@ export function Results() {
                 </tr>
               </thead>
               <tbody>
-                {results.data.rows.map((row) => {
-                  const cached = refreshed.get(rowKey(row));
-                  const displayed = row.gradebook
-                    ? row
-                    : cached?.gradebook
-                      ? {
-                          ...row,
-                          gradebook: cached.gradebook,
-                          gradebookDiffers: gradeDiffers(row, cached.gradebook),
-                        }
-                      : row;
-                  return (
-                    <ResultTableRow
-                      row={displayed}
-                      key={rowKey(row)}
-                      busy={!!busy}
-                      onResend={(sync) => {
-                        void resend(sync);
-                      }}
-                    />
-                  );
-                })}
+                {results.data.rows.map((row) => (
+                  <ResultTableRow
+                    row={row}
+                    key={rowKey(row)}
+                    busy={!!busy}
+                    onResend={(sync) => {
+                      void resend(sync);
+                    }}
+                  />
+                ))}
               </tbody>
             </table>
           </div>
-        </section>
+        </Card>
       )}
     </>
   );
 }
 function rowKey(row: ResultRow): string {
-  return JSON.stringify([row.activity.resourceLinkId, row.learner.sub, row.preview]);
-}
-function gradeDiffers(
-  row: ResultRow,
-  grade: NonNullable<ResultRow["gradebook"]>,
-): boolean {
-  return (
-    row.scoreSyncs.at(-1)?.status === "sent" &&
-    row.best?.scoreGiven !== null &&
-    !!row.best?.scoreMaximum &&
-    grade.resultMaximum > 0 &&
-    Math.abs(
-      grade.resultScore / grade.resultMaximum -
-        row.best!.scoreGiven! / row.best!.scoreMaximum!,
-    ) > 0.000001
-  );
+  return JSON.stringify([
+    row.activity.resourceLinkId,
+    row.learner.sub,
+    row.preview,
+  ]);
 }
 export function ResultTableRow({
   row,
@@ -256,7 +207,7 @@ export function ResultTableRow({
     <tr>
       <th scope="row">
         {row.learner.label}
-        {row.preview && <span className="badge">Preview</span>}
+        {row.preview && <Badge>Preview</Badge>}
       </th>
       <td>
         {row.activity.title}
@@ -278,45 +229,62 @@ export function ResultTableRow({
         )}
       </td>
       <td>
-        <span
-          className={`badge ${latest?.status === "sent" ? "success" : latest?.status === "failed" || latest?.status === "conflict" ? "warning" : ""}`}
+        <Badge
+          variant={
+            latest?.status === "sent"
+              ? "success"
+              : latest?.status === "failed" || latest?.status === "conflict"
+                ? "warning"
+                : "default"
+          }
         >
           {row.preview
             ? "Preview — no grade sent"
-            : latest ? (syncNames[latest.status] ?? latest.status) : "Not sent"}
-        </span>
+            : latest
+              ? (syncNames[latest.status] ?? latest.status)
+              : "Not sent"}
+        </Badge>
         {latest?.status === "conflict" && (
-          <p className="sync-message">Moodle has a grade with a newer time</p>
+          <p className="mt-2.5 max-w-[220px] text-[12px] text-[#eed3aa]">
+            Moodle has a grade with a newer time
+          </p>
         )}
         {latest?.lastError && (
-          <p className="sync-message">{syncError(latest.lastError)}</p>
+          <p className="mt-2.5 max-w-[220px] text-[12px] text-[#eed3aa]">
+            {syncError(latest.lastError)}
+          </p>
         )}
       </td>
       <td>
         {row.gradebook
-          ? `${row.gradebook.resultScore} / ${row.gradebook.resultMaximum}`
-          : row.preview ? "Not applicable" : "Not refreshed"}
+          ? row.gradebook.resultScore === null
+            ? "No grade in Moodle"
+            : `${row.gradebook.resultScore} / ${row.gradebook.resultMaximum ?? "—"}`
+          : row.preview
+            ? "Not applicable"
+            : "Not refreshed"}
         {row.gradebook && (
           <small>Read {new Date(row.gradebook.readAt).toLocaleString()}</small>
         )}
         {row.gradebookDiffers && (
-          <p className="sync-message">
+          <p className="mt-2.5 max-w-[220px] text-[12px] text-[#eed3aa]">
             Moodle keeps another grade, for example a teacher override
           </p>
         )}
       </td>
       <td>
         {resendable && (
-          <button
-            className="button secondary compact"
+          <Button
+            variant="secondary"
+            size="sm"
             title="Send again"
             disabled={busy}
             onClick={() => onResend(latest)}
           >
             Resend
-          </button>
+          </Button>
         )}
-        <details className="sync-history">
+        <details className="mt-2.5 [&_ol]:pl-[17px] [&_li]:my-2.5">
           <summary>Sync history ({row.scoreSyncs.length})</summary>
           {row.scoreSyncs.length ? (
             <ol>
@@ -326,7 +294,7 @@ export function ResultTableRow({
                   {sync.scoreGiven} / {sync.scoreMaximum}
                   <small>
                     {new Date(sync.createdAt).toLocaleString()} · {sync.tries}{" "}
-                    tries
+                    {sync.tries === 1 ? "try" : "tries"}
                   </small>
                   {sync.sentAt && (
                     <small>Sent {new Date(sync.sentAt).toLocaleString()}</small>
@@ -339,7 +307,7 @@ export function ResultTableRow({
             <p>No score sync yet.</p>
           )}
         </details>
-        <details className="sync-history">
+        <details className="mt-2.5 [&_ol]:pl-[17px] [&_li]:my-2.5">
           <summary>Attempts ({row.attempts.length})</summary>
           <ol>
             {row.attempts.map((attempt) => (
@@ -363,6 +331,8 @@ function PackageTitle({ publication }: { publication: Publication }) {
     `/courses/${idPath(publication.courseId)}/versions/${idPath(publication.versionId)}`,
   );
   return data?.report?.scorm?.title ? (
-    <p className="manifest-title muted">Package: {data.report.scorm.title}</p>
+    <p className="wrap-anywhere text-muted-foreground">
+      Package: {data.report.scorm.title}
+    </p>
   ) : null;
 }

@@ -1,15 +1,20 @@
-import { useEffect, useRef, useState } from "react";
+import { Badge } from "./ui/badge.tsx";
+import { Card } from "./ui/card.tsx";
+import { Button } from "./ui/button.tsx";
+import { Notice } from "./ui/notice.tsx";
+import { useState } from "react";
 import type { ReactNode } from "react";
-import { Check, Copy, X } from "lucide-react";
+import { Check, Copy } from "lucide-react";
+import { pendingToolText } from "../../../packages/shared/src/html.ts";
 import { ApiError } from "./api.ts";
 import type { Connection } from "./types.ts";
 
 export function ErrorNotice({ error }: { error: unknown }) {
   if (!error) return null;
   const details = error instanceof ApiError ? error.details : null;
-  const action = details?.action ?? connectionErrors[details?.message ?? ""];
+  const action = details?.action;
   return (
-    <div className="notice error" role="alert">
+    <Notice variant="error" role="alert">
       <p>
         {error instanceof Error
           ? error.message
@@ -21,17 +26,11 @@ export function ErrorNotice({ error }: { error: unknown }) {
           {details.reasons.map((reason, index) => (
             <li key={index}>
               <strong>
-                {reason.code === "PATH_TRAVERSAL"
-                  ? `The package has an unsafe file path: ${reason.path}`
-                  : reason.title}
+                {reason.title}
+                {reason.path ? `: ${reason.path}` : ""}
               </strong>
               <p>{reason.action}</p>
-              <small>
-                {reason.code}
-                {reason.path && reason.code !== "PATH_TRAVERSAL"
-                  ? ` · ${reason.path}`
-                  : ""}
-              </small>
+              <small>{reason.code}</small>
             </li>
           ))}
         </ul>
@@ -40,38 +39,32 @@ export function ErrorNotice({ error }: { error: unknown }) {
       {error instanceof ApiError && error.traceId && (
         <small>Trace id: {error.traceId}</small>
       )}
-    </div>
+    </Notice>
   );
 }
-const connectionErrors: Record<string, string> = {
-  UPDATE_NOT_ALLOWED: "Go back in Moodle and choose Register as a new tool.",
-  REGISTRATION_FAILED:
-    "The connection failed. Go back to Moodle and try again.",
-  MOODLE_TOOL_MAY_EXIST:
-    "Moodle may have saved a Pending tool. Delete the Pending Cogniate tool in Manage tools, then connect again.",
-  SITE_MISMATCH:
-    "The Moodle site does not match this connection. Check the site URL.",
-  PLATFORM_IN_USE:
-    "This Moodle tool belongs to another connection. Register a new tool.",
-  INVALID_PLATFORM_VALUES: "Check the six Moodle values and try again.",
-  REF_EXPIRED: "The registration link expired. Make a new URL.",
-  LTI_SERVICE_ERROR: "The connection service is unavailable. Try again.",
-};
-export function ConnectionError({ connection }: { connection: Connection }) {
+export function ConnectionError({
+  connection,
+  libraryName,
+}: {
+  connection: Connection;
+  libraryName?: string;
+}) {
   const error = connection.lastError;
   if (!error) return null;
   return (
-    <div className="notice error" role="alert">
-      <p>
-        {connectionErrors[error.code] ??
-          "The connection failed. Check the Moodle settings and try again."}
-      </p>
+    <Notice variant="error" role="alert">
+      <p>{error.title ?? "The Moodle connection failed."}</p>
+      {error.action ? (
+        <p>{error.action}</p>
+      ) : error.code === "MOODLE_TOOL_MAY_EXIST" && libraryName ? (
+        <p>{pendingToolText(`Cogniate (${libraryName})`)}</p>
+      ) : null}
       <small>
         Code: {error.code}
         {error.ltiCode ? ` · ${error.ltiCode}` : ""}
       </small>
       <small>Trace id: {error.traceId}</small>
-    </div>
+    </Notice>
   );
 }
 export function connectionStatus(connection: Connection): string {
@@ -84,24 +77,24 @@ export function connectionStatus(connection: Connection): string {
     new Date(connection.registrationUrlExpiresAt).getTime() <= Date.now()
   )
     return "Link expired";
+  if (connection.registrationUrl) return "Waiting for Moodle";
   return "Pending";
 }
 export function ConnectionBadge({ connection }: { connection: Connection }) {
   return (
-    <span
-      className={`badge ${connection.status === "connected" ? "success" : ""}`}
-    >
+    <Badge variant={connection.status === "connected" ? "success" : "default"}>
       {connectionStatus(connection)}
-    </span>
+    </Badge>
   );
 }
 export function CopyButton({ value, label }: { value: string; label: string }) {
   const [status, setStatus] = useState("");
   return (
-    <span className="copy-control">
-      <button
+    <span className="inline-flex flex-col items-start gap-[5px]">
+      <Button
+        variant="secondary"
+        size="sm"
         type="button"
-        className="button secondary compact"
         aria-label={`Copy ${label}`}
         onClick={async () => {
           try {
@@ -118,8 +111,8 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
           <Copy size={15} aria-hidden="true" />
         )}
         Copy
-      </button>
-      <span className="copy-status" role="status">
+      </Button>
+      <span className="text-[11px] text-[#cbb7e6] empty:hidden" role="status">
         {status}
       </span>
     </span>
@@ -127,76 +120,23 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
 }
 export function Loading({ text = "Loading…" }: { text?: string }) {
   return (
-    <p role="status" className="muted">
+    <p role="status" className="text-muted-foreground">
       {text}
     </p>
   );
 }
 export function Empty({ children }: { children: ReactNode }) {
-  return <div className="empty panel">{children}</div>;
+  return (
+    <Card
+      as="div"
+      spacing="empty"
+      className="flex flex-col items-center gap-3.5 text-center text-muted-foreground [&_h2]:text-[#f5f0ff]"
+    >
+      {children}
+    </Card>
+  );
 }
 export const formatName = (format: string): string =>
   format === "scorm12" ? "SCORM 1.2" : "HTML";
-export function Modal({
-  title,
-  children,
-  onClose,
-}: {
-  title: string;
-  children: ReactNode;
-  onClose: () => void;
-}) {
-  const ref = useRef<HTMLDialogElement>(null);
-  const close = useRef(onClose);
-  close.current = onClose;
-  useEffect(() => {
-    const opener = document.activeElement;
-    const dialog = ref.current!;
-    dialog.showModal();
-    return () => {
-      dialog.close();
-      if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
-    };
-  }, []);
-  return (
-    <dialog
-      className="modal panel"
-      ref={ref}
-      aria-labelledby="modal-title"
-      onKeyDown={(event) => {
-        if (event.key !== "Tab") return;
-        const controls = Array.from(
-          event.currentTarget.querySelectorAll<HTMLElement>(
-            'a[href], button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex]:not([tabindex="-1"])',
-          ),
-        ).filter((element) => element.getClientRects().length > 0);
-        const first = controls[0];
-        const last = controls.at(-1);
-        if (event.shiftKey && document.activeElement === first) {
-          event.preventDefault();
-          last?.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-          event.preventDefault();
-          first?.focus();
-        }
-      }}
-      onCancel={(event) => {
-        event.preventDefault();
-        close.current();
-      }}
-    >
-      <div className="section-heading">
-        <h2 id="modal-title">{title}</h2>
-        <button
-          type="button"
-          className="icon-button"
-          aria-label="Close dialog"
-          onClick={onClose}
-        >
-          <X size={20} />
-        </button>
-      </div>
-      {children}
-    </dialog>
-  );
-}
+
+export { Dialog as Modal } from "./ui/dialog.tsx";

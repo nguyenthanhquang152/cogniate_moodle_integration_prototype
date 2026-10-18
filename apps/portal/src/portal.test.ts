@@ -2,6 +2,7 @@
 import { createElement as h } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -11,14 +12,19 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
-import {
-  CreateConnection,
-  ManualSetup,
-  MoodleSteps,
-} from "./connect/Connect.tsx";
+import { CreateConnection } from "./connect/CreateConnection.tsx";
+import { ManualSetup } from "./connect/ManualSetup.tsx";
+import { MoodleSteps } from "./connect/MoodleSteps.tsx";
+import { ConnectionReady } from "./connect/ConnectionStatus.tsx";
+import { readFileSync } from "node:fs";
 import steps from "./connect/moodle-steps.json";
 import { ApiError } from "./api.ts";
-import { CopyButton, ErrorNotice, connectionStatus } from "./ui.tsx";
+import {
+  CopyButton,
+  ErrorNotice,
+  ConnectionError,
+  connectionStatus,
+} from "./ui.tsx";
 import { App } from "./App.tsx";
 import { Integrations } from "./Integrations.tsx";
 import { NewCourse } from "./courses/Courses.tsx";
@@ -97,29 +103,69 @@ afterEach(() => {
 });
 
 describe("Moodle connection wizard", () => {
+  it("matches the exact task contract, including its only optional step", () => {
+    const spec = readFileSync("docs/architecture/tasks/T6.md", "utf8");
+    const block = spec.match(/```json\s*\n([\s\S]*?)\n\s*```/)!;
+    expect(steps).toEqual(JSON.parse(block[1]!));
+    expect(
+      [...steps.dynamic, ...steps.manual]
+        .filter((step) => step.optional)
+        .map((step) => step.id),
+    ).toEqual(["choose-register-new"]);
+    expect(steps.dynamic.at(-1)?.id).toBe("edit-tool-settings");
+  });
+  it("keeps the Moodle settings step visible after registration completes", () => {
+    const { container } = inRouter(
+      h(ConnectionReady, {
+        connection: { ...connection, method: "dynamic", status: "registered" },
+        libraryName: "Example <Library>",
+      }),
+    );
+    expect(
+      container.querySelector('[data-step-id="edit-tool-settings"]')
+        ?.textContent,
+    ).toContain('Set Default launch container to "New window"');
+    expect(
+      container.querySelector('[data-step-id="activate-tool"]')?.textContent,
+    ).toContain("Cogniate (Example <Library>)");
+  });
   it.each(["dynamic", "manual"] as const)(
     "renders the %s steps with stable IDs and exact text, in data order",
     (method) => {
-      const { container } = render(h(MoodleSteps, { method }));
+      const { container } = render(
+        h(MoodleSteps, { method, libraryName: "Example <Library>" }),
+      );
       const elements = [...container.querySelectorAll("[data-step-id]")];
       expect(steps.format).toBe("cogniate-moodle-steps/1");
       expect(
         elements.map((element) => element.getAttribute("data-step-id")),
       ).toEqual(steps[method].map((step) => step.id));
       elements.forEach((element, index) =>
-        expect(element.textContent).toContain(steps[method][index]!.text),
+        expect(element.textContent).toContain(
+          steps[method][index]!.text.replaceAll(
+            "{libraryName}",
+            "Example <Library>",
+          ),
+        ),
       );
       expect(
         steps.dynamic.some(
           (step) =>
-            step.optional && step.text.includes("Register as a new tool"),
+            step.optional &&
+            step.text.includes("Register as a new external tool"),
         ),
       ).toBe(true);
     },
   );
   it("rejects HTTP and foreign endpoint origins without sending a request", async () => {
     fetchMock.mockResolvedValue(json(toolRows));
-    render(h(ManualSetup, { connection, onRegistered: vi.fn() }));
+    render(
+      h(ManualSetup, {
+        connection,
+        libraryName: "Example",
+        onRegistered: vi.fn(),
+      }),
+    );
     await screen.findByText("tool_name");
     const user = userEvent.setup();
     await user.clear(screen.getByLabelText("Platform ID (issuer)"));
@@ -154,7 +200,11 @@ describe("Moodle connection wizard", () => {
     );
     const registered = vi.fn();
     const { container } = render(
-      h(ManualSetup, { connection, onRegistered: registered }),
+      h(ManualSetup, {
+        connection,
+        libraryName: "Example",
+        onRegistered: registered,
+      }),
     );
     await screen.findByText("tool_name");
     expect(
@@ -245,6 +295,16 @@ describe("Moodle connection wizard", () => {
     expect(
       connectionStatus({
         ...connection,
+        registrationUrl: "https://lti.example/register?ref=test",
+        registrationUrlExpiresAt: "2099-01-01",
+      }),
+    ).toBe("Waiting for Moodle");
+    expect(connectionStatus({ ...connection, status: "disabled" })).toBe(
+      "Disconnected",
+    );
+    expect(
+      connectionStatus({
+        ...connection,
         registrationUrlExpiresAt: "2000-01-01",
       }),
     ).toBe("Link expired");
@@ -259,6 +319,40 @@ describe("Moodle connection wizard", () => {
 });
 
 describe("portal forms and contract states", () => {
+  it("uses server connection text and only the shared pending-tool fallback", () => {
+    const error = {
+      code: "MOODLE_TOOL_MAY_EXIST",
+      ltiCode: null,
+      traceId: "trace-pending",
+      at: "2026-10-18",
+      title: "A server-owned title <b>literal</b>",
+      action: "Use this server-owned action.",
+    };
+    const { rerender, container } = render(
+      h(ConnectionError, {
+        connection: { ...connection, lastError: error },
+        libraryName: "Example",
+      }),
+    );
+    expect(screen.getByText(error.title)).toBeTruthy();
+    expect(screen.getByText(error.action)).toBeTruthy();
+    expect(container.querySelector("b")).toBeNull();
+    expect(screen.queryByText(/In Manage tools, delete/)).toBeNull();
+    rerender(
+      h(ConnectionError, {
+        connection: {
+          ...connection,
+          lastError: { ...error, title: undefined, action: undefined },
+        },
+        libraryName: "Example",
+      }),
+    );
+    expect(
+      screen.getByText(
+        "Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool 'Cogniate (Example)', then connect again.",
+      ),
+    ).toBeTruthy();
+  });
   it("shows nine cards, filters them, and shows the newest connection error", async () => {
     fetchMock.mockResolvedValue(
       json({
@@ -267,6 +361,9 @@ describe("portal forms and contract states", () => {
             ...connection,
             lastError: {
               code: "UPDATE_NOT_ALLOWED",
+              title: "Tool updates are refused.",
+              action:
+                "Go back in Moodle and choose Register as a new external tool.",
               traceId: "trace-1234",
               ltiCode: null,
               at: "2026-10-18",
@@ -279,12 +376,14 @@ describe("portal forms and contract states", () => {
     await screen.findByRole("link", { name: /Manage/ });
     expect(screen.getAllByRole("article")).toHaveLength(9);
     expect(
-      screen.getByText("Go back in Moodle and choose Register as a new tool."),
+      screen.getByText(
+        "Go back in Moodle and choose Register as a new external tool.",
+      ),
     ).toBeTruthy();
     expect(screen.getByText("Trace id: trace-1234")).toBeTruthy();
     await userEvent
       .setup()
-      .click(screen.getByRole("button", { name: "LMS Publishing" }));
+      .click(screen.getByRole("tab", { name: "LMS Publishing" }));
     expect(screen.getAllByRole("article")).toHaveLength(2);
     expect(
       screen.getByRole("link", { name: /Connect another site/ }),
@@ -319,9 +418,7 @@ describe("portal forms and contract states", () => {
         }),
       }),
     );
-    expect(
-      screen.getByText("The package has an unsafe file path: ../evil.html"),
-    ).toBeTruthy();
+    expect(screen.getByText("Unsafe file path: ../evil.html")).toBeTruthy();
     expect(
       screen.getByText("Fix the package and upload it again."),
     ).toBeTruthy();
@@ -380,17 +477,29 @@ describe("portal forms and contract states", () => {
       versionId: "ver_test",
     });
   });
-  it("shows an unavailable results state when T5 endpoints are missing", async () => {
-    fetchMock.mockResolvedValue(
-      json(
-        { details: { message: "NOT_FOUND", description: "Unknown route." } },
-        404,
-      ),
+  it("shows the server error when results are not found", async () => {
+    fetchMock.mockImplementation(async (path: string) =>
+      path.endsWith("/results")
+        ? json(
+            {
+              details: {
+                message: "NOT_FOUND",
+                description: "Publication not found in this library.",
+                action: "Choose a publication in this library.",
+              },
+            },
+            404,
+          )
+        : json({ courseId: "crs_test", versionId: "ver_test" }),
     );
     inRouter(h(Results));
     expect(
-      await screen.findByText("Results are not available yet"),
+      await screen.findByText("Publication not found in this library."),
     ).toBeTruthy();
+    expect(
+      screen.getByText("Choose a publication in this library."),
+    ).toBeTruthy();
+    expect(screen.queryByText(/not available yet/)).toBeNull();
   });
   it("shows conflict, all sync history, an override, and sends the latest failed sync", async () => {
     const row: ResultRow = {
@@ -470,40 +579,201 @@ describe("portal forms and contract states", () => {
 describe("T5 results integration", () => {
   const row: ResultRow = {
     learner: { sub: "5", label: "Learner 5 @ moodle.test" },
-    activity: { resourceLinkId: "rl_live", title: "SCORM course", contextTitle: "Moodle course" },
+    activity: {
+      resourceLinkId: "rl_live",
+      title: "SCORM course",
+      contextTitle: "Moodle course",
+    },
     preview: false,
-    best: { attemptId: "att_live", outcome: "passed", scoreGiven: 100, scoreMaximum: 100 },
-    attempts: [{ attemptId: "att_live", versionId: "ver_live", outcome: "passed", scoreGiven: 100, scoreMaximum: 100, updatedAt: "2026-10-18T00:00:00Z" }],
-    scoreSyncs: [{ id: "sync_live", status: "failed", tries: 1, scoreGiven: 100, scoreMaximum: 100, createdAt: "2026-10-18T00:00:00Z", sentAt: null, lastError: "AGS_USER_NOT_GRADABLE" }],
+    best: {
+      attemptId: "att_live",
+      outcome: "passed",
+      scoreGiven: 100,
+      scoreMaximum: 100,
+    },
+    attempts: [
+      {
+        attemptId: "att_live",
+        versionId: "ver_live",
+        outcome: "passed",
+        scoreGiven: 100,
+        scoreMaximum: 100,
+        updatedAt: "2026-10-18T00:00:00Z",
+      },
+    ],
+    scoreSyncs: [
+      {
+        id: "sync_live",
+        status: "failed",
+        tries: 1,
+        scoreGiven: 100,
+        scoreMaximum: 100,
+        createdAt: "2026-10-18T00:00:00Z",
+        sentAt: null,
+        lastError: "AGS_USER_NOT_GRADABLE",
+      },
+    ],
     gradebook: null,
   };
-  it.each([404, 501])("keeps saved results when Resend or Refresh returns %s", async (status) => {
-    fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
-      if (options?.method === "POST") return json({ details: { message: "NOT_FOUND", description: "Unknown route." } }, status);
-      if (path.endsWith("/results")) return json({ rows: [row] });
-      if (path.includes("/versions/")) return json({ report: { scorm: null } });
-      return json({ id: "pub_live", courseId: "crs_live", versionId: "ver_live", courseTitle: "SCORM course", format: "scorm12", version: 1 });
-    });
-    render(h(MemoryRouter, { initialEntries: ["/publications/pub_live/results"] },
-      h(Routes, null, h(Route, { path: "/publications/:publicationId/results", element: h(Results) })),
-    ));
+  it.each([404, 409, 501])(
+    "shows server errors and keeps saved results when Resend or Refresh returns %s",
+    async (status) => {
+      fetchMock.mockImplementation(
+        async (path: string, options?: RequestInit) => {
+          if (options?.method === "POST")
+            return json(
+              {
+                details: {
+                  message: status === 409 ? "SYNC_NOT_RESENDABLE" : "NOT_FOUND",
+                  description: "The server refused this action.",
+                  action: "Check the saved score in Moodle.",
+                  traceId: "trace-server-action",
+                },
+              },
+              status,
+            );
+          if (path.endsWith("/results")) return json({ rows: [row] });
+          if (path.includes("/versions/"))
+            return json({ report: { scorm: null } });
+          return json({
+            id: "pub_live",
+            courseId: "crs_live",
+            versionId: "ver_live",
+            courseTitle: "SCORM course",
+            format: "scorm12",
+            version: 1,
+          });
+        },
+      );
+      render(
+        h(
+          MemoryRouter,
+          { initialEntries: ["/publications/pub_live/results"] },
+          h(
+            Routes,
+            null,
+            h(Route, {
+              path: "/publications/:publicationId/results",
+              element: h(Results),
+            }),
+          ),
+        ),
+      );
+      await screen.findByText("Passed 100");
+      const user = userEvent.setup();
+      await user.click(screen.getByRole("button", { name: "Resend" }));
+      expect(
+        await screen.findByText("The server refused this action."),
+      ).toBeTruthy();
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/app-api/score-syncs/sync_live/resend",
+        expect.objectContaining({ method: "POST" }),
+      );
+      expect(screen.getByText("Passed 100")).toBeTruthy();
+      expect(screen.queryByText("Pending")).toBeNull();
+      expect(screen.getByText("Check the saved score in Moodle.")).toBeTruthy();
+      expect(screen.getByText("Trace id: trace-server-action")).toBeTruthy();
+      expect(screen.queryByText(/not available yet/)).toBeNull();
+      await user.click(
+        screen.getByRole("button", { name: "Refresh from Moodle" }),
+      );
+      expect(
+        await screen.findByText("The server refused this action."),
+      ).toBeTruthy();
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/app-api/publications/pub_live/results/refresh",
+        expect.objectContaining({ method: "POST" }),
+      );
+      expect(screen.getByText("Sync history (1)")).toBeTruthy();
+      expect(screen.getByText("Attempts (1)")).toBeTruthy();
+    },
+  );
+  it("uses the actual Resend response status and fields", async () => {
+    const sent = {
+      ...row.scoreSyncs[0]!,
+      status: "sent",
+      tries: 2,
+      sentAt: "2026-10-18T01:00:00Z",
+      lastError: null,
+    };
+    fetchMock.mockImplementation(
+      async (path: string, options?: RequestInit) => {
+        if (options?.method === "POST") return json(sent);
+        if (path.endsWith("/results")) return json({ rows: [row] });
+        return json({ courseId: "crs_live", versionId: "ver_live" });
+      },
+    );
+    inRouter(h(Results));
     await screen.findByText("Passed 100");
-    const user = userEvent.setup();
-    await user.click(screen.getByRole("button", { name: "Resend" }));
-    expect(await screen.findByText("Resend is not available yet. Your saved results have not changed.")).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledWith("/app-api/score-syncs/sync_live/resend", expect.objectContaining({ method: "POST" }));
-    expect(screen.getByText("Passed 100")).toBeTruthy();
+    await userEvent
+      .setup()
+      .click(screen.getByRole("button", { name: "Resend" }));
+    expect(
+      await screen.findByText("Sent. Status updates every 5 seconds."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Resend" })).toBeNull();
     expect(screen.queryByText("Pending")).toBeNull();
-    await user.click(screen.getByRole("button", { name: "Refresh from Moodle" }));
-    expect(await screen.findByText("Gradebook refresh is not available yet. Your saved results have not changed.")).toBeTruthy();
-    expect(fetchMock).toHaveBeenCalledWith("/app-api/publications/pub_live/results/refresh", expect.objectContaining({ method: "POST" }));
-    expect(screen.getByText("Sync history (1)")).toBeTruthy();
-    expect(screen.getByText("Attempts (1)")).toBeTruthy();
+    expect(screen.getByText(/2 tries/)).toBeTruthy();
+  });
+  it("keeps the server gradebook and differs flag authoritative across refresh and polling", async () => {
+    vi.useFakeTimers();
+    const sent = {
+      ...row,
+      scoreSyncs: [{ ...row.scoreSyncs[0]!, status: "sent" as const }],
+    };
+    const refreshed = {
+      ...sent,
+      gradebook: { resultScore: 20, resultMaximum: 100, readAt: "2026-10-18" },
+      gradebookDiffers: false,
+    };
+    fetchMock.mockImplementation(
+      async (path: string, options?: RequestInit) => {
+        if (options?.method === "POST") return json({ rows: [refreshed] });
+        if (path.endsWith("/results"))
+          return json({
+            rows: [{ ...sent, gradebook: null, gradebookDiffers: false }],
+          });
+        return json({ courseId: "crs_live", versionId: "ver_live" });
+      },
+    );
+    try {
+      await act(async () => {
+        inRouter(h(Results));
+      });
+      await act(async () => {
+        fireEvent.click(
+          screen.getByRole("button", { name: "Refresh from Moodle" }),
+        );
+      });
+      expect(screen.getByText("20 / 100")).toBeTruthy();
+      expect(screen.queryByText(/Moodle keeps another grade/)).toBeNull();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      expect(screen.getByText("Not refreshed")).toBeTruthy();
+      expect(screen.queryByText("20 / 100")).toBeNull();
+      expect(screen.queryByText(/Moodle keeps another grade/)).toBeNull();
+    } finally {
+      cleanup();
+      vi.useRealTimers();
+    }
   });
   it("shows preview results without a grade or a Resend action", () => {
-    render(h("table", null, h("tbody", null, h(ResultTableRow, {
-      row: { ...row, preview: true, scoreSyncs: [] }, busy: false, onResend: vi.fn(),
-    }))));
+    render(
+      h(
+        "table",
+        null,
+        h(
+          "tbody",
+          null,
+          h(ResultTableRow, {
+            row: { ...row, preview: true, scoreSyncs: [] },
+            busy: false,
+            onResend: vi.fn(),
+          }),
+        ),
+      ),
+    );
     expect(screen.getByText("Passed 100")).toBeTruthy();
     expect(screen.getByText("Preview — no grade sent")).toBeTruthy();
     expect(screen.getByText("Not applicable")).toBeTruthy();
