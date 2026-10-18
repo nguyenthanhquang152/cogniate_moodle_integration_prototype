@@ -15,8 +15,8 @@ models; a missing field gives a ValidationError that names the field).
 Inputs (no secrets on the command line, none in the output):
   - PUBLIC_LTI_URL (env): base URL of the LTI service.
   - API key file: env LTI_API_KEY_FILE (default /run/secrets/lti-api-key.cogniate).
-  - Input file (JSON, written by the QA harness before the run): env COMPAT_INPUT (or COMPAT_INPUT_FILE,
-    QA_COMPAT_INPUT), default /run/compat/input.json. Shape "qa-compat-input/1":
+  - Input file (JSON, written by the QA harness before the run): the first existing path of env COMPAT_INPUT,
+    COMPAT_INPUT_FILE, QA_COMPAT_INPUT and /run/compat/input.json. Shape "qa-compat-input/1":
       { "format": "qa-compat-input/1", "runId": "...",
         "studentLtik": "...", "deepLinkLtik": "...",
         "expect": { "userId": "5", "platformUrl": "https://moodle.test:8443", "contextId": "2",
@@ -61,9 +61,11 @@ def read_inputs() -> dict[str, Any]:
     if not api_key:
         fail_input(f"the API key file {key_file} is empty")
 
-    path = os.environ.get("COMPAT_INPUT") or os.environ.get("COMPAT_INPUT_FILE") or os.environ.get("QA_COMPAT_INPUT") or "/run/compat/input.json"
+    # The first of these paths that exists in the container (COMPAT_INPUT_FILE can also hold the host path).
+    candidates = [os.environ.get(k, "") for k in ("COMPAT_INPUT", "COMPAT_INPUT_FILE", "QA_COMPAT_INPUT")] + ["/run/compat/input.json"]
+    path = next((c for c in candidates if c and os.path.isfile(c)), "")
     data: dict[str, Any] = {}
-    if os.path.isfile(path):
+    if path:
         try:
             with open(path, encoding="utf-8") as fh:
                 data = json.load(fh)
@@ -203,16 +205,26 @@ def main() -> int:
             print(f"unvalidated id token keys: services={sorted((raw.get('services') or {}).keys())}", flush=True)
 
     # 2. Deep linking (cg_teacher deep-linking launch): one ltiResourceLink, as a form and as a message.
+    # No `url`: ltiaas 0.0.4 cannot serialize an HttpUrl field (its to_json uses o.__dict__, which a pydantic Url does
+    # not have), so a tool that uses this SDK sends `"url": null`. Contract §3.2: without a url the service sets
+    # {PUBLIC_LTI_URL}/lti/launch/{toolAccountId}.
     title = f"QA compat {run_id}"
-    item = LTIResourceLinkContentItem(title=title, url=f"{inputs['ltiUrl']}/lti/launch/cogniate")
+    item = LTIResourceLinkContentItem(title=title)
     got_form, form = run_step(report, "deep linking form", lambda: teacher.build_deep_linking_form([item], message="QA compat"))
     got_msg, msg = run_step(report, "deep linking message", lambda: teacher.build_deep_linking_form_components([item], message="QA compat"))
     if got_msg:
         try:
             claims = jwt_payload(msg.message)
             items = claims.get("https://purl.imsglobal.org/spec/lti-dl/claim/content_items") or []
-            ok = msg.target.startswith("https://") and len(items) == 1 and items[0].get("type") == "ltiResourceLink" and items[0].get("title") == title
-            report.check("deep linking message", ok, f"target {msg.target[:80]}; JWT content_items {json.dumps(items)[:300]}")
+            default_url = f"{inputs['ltiUrl']}/lti/launch/cogniate"
+            ok = (
+                msg.target.startswith("https://")
+                and len(items) == 1
+                and items[0].get("type") == "ltiResourceLink"
+                and items[0].get("title") == title
+                and str(items[0].get("url", "")).startswith(default_url)
+            )
+            report.check("deep linking message", ok, f"target {msg.target[:80]}; JWT content_items {json.dumps(items)[:300]} (url must start with {default_url})")
         except ValueError as err:
             report.check("deep linking message", False, f"message is not a JWT: {err}")
     if got_form:
@@ -254,7 +266,7 @@ def main() -> int:
         report.check("memberships", ok, f"context {members.context.id} (want {expect['contextId']}); members {ids} (must contain {want_ids}); with personal fields: {personal}")
 
     bad_calls = [c for c in report.calls if not 200 <= c["status"] < 300]
-    report.check("http", not bad_calls, f"{len(report.calls)} calls, not 2xx: {bad_calls}")
+    report.check("http", bool(report.calls) and not bad_calls, f"{len(report.calls)} calls, not 2xx: {bad_calls}")
     for call in report.calls:
         print(f"  {call['method']} {call['path']} → {call['status']}", flush=True)
 

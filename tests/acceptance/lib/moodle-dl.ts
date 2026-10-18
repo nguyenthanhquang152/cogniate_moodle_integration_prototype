@@ -152,6 +152,11 @@ export interface ManualToolOptions {
   acceptGrades?: '1' | '2';
   /** IMS LTI Names and Role Provisioning on. Default false. */
   memberships?: boolean;
+  /**
+   * IMS LTI Assignment and Grade Services (ltiservice_gradesynchronization): '1' = grade sync only (AGS scopes score,
+   * result.readonly, lineitem.readonly), '2' = grade sync and column management (adds lineitem). Default '2'.
+   */
+  gradeSync?: '1' | '2';
 }
 
 export async function createManualTool(page: Page, admin: MoodleUser, name: string, opts: ManualToolOptions = {}): Promise<ManualTool> {
@@ -171,7 +176,7 @@ export async function createManualTool(page: Page, admin: MoodleUser, name: stri
   await page.locator('#id_lti_redirectionuris').fill(`${lti}/lti/launch/${ACCOUNT}`);
   await page.locator('#id_lti_coursevisible').selectOption('2');
   await page.locator('#id_lti_launchcontainer').selectOption('4');
-  await page.locator('#id_ltiservice_gradesynchronization').selectOption('2');
+  await page.locator('#id_ltiservice_gradesynchronization').selectOption(opts.gradeSync ?? '2');
   await page.locator('#id_lti_sendname').selectOption('0');
   await page.locator('#id_lti_sendemailaddr').selectOption('0');
   await page.locator('#id_lti_acceptgrades').selectOption(opts.acceptGrades ?? '1');
