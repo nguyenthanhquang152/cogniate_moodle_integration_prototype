@@ -1,0 +1,198 @@
+{
+  "kind": "T6 author self-check; independent QA and reviews remain required",
+  "date": "2026-10-18",
+  "origin": "https://app.cogniate.test:9443",
+  "stack": "cogniate-codex",
+  "testRunner": "Playwright 1.56.0 with local Google Chrome",
+  "unitTests": {
+    "passed": 490,
+    "skipped": 5,
+    "files": 36
+  },
+  "portal": {
+    "tokens": {
+      "background": "rgb(11, 10, 15)",
+      "font": "\"DM Sans\", system-ui, sans-serif",
+      "pill": "rgb(166, 103, 228)",
+      "radius": "12px",
+      "grid": "361.328px 361.328px 361.344px"
+    },
+    "origins": [
+      "https://app.cogniate.test:9443"
+    ],
+    "copyMatches": true,
+    "dynamicCount": 5,
+    "manualRows": 16,
+    "errors": [],
+    "checks": [
+      {
+        "name": "integrations",
+        "violations": []
+      },
+      {
+        "name": "connect-create",
+        "violations": []
+      },
+      {
+        "name": "dynamic-wizard",
+        "violations": []
+      },
+      {
+        "name": "manual-wizard",
+        "violations": []
+      },
+      {
+        "name": "courses",
+        "violations": []
+      },
+      {
+        "name": "course-report",
+        "violations": []
+      }
+    ]
+  },
+  "dynamicRegistration": {
+    "registeredWithinMs": 4326
+  },
+  "publicationAndResults": {
+    "downloadMatches": true,
+    "focusReturned": true,
+    "eligibleConnections": [
+      "Choose a connection",
+      "Portal live check \u00b7 https://moodle.test:9443"
+    ],
+    "publishWithdrawRepublish": true,
+    "fixturePolling": true,
+    "loggedOut": 401,
+    "errors": [],
+    "checks": [
+      {
+        "name": "publish-dialog",
+        "violations": []
+      },
+      {
+        "name": "results-unavailable",
+        "violations": []
+      },
+      {
+        "name": "results-contract-fixture",
+        "violations": []
+      }
+    ]
+  },
+  "uploadsAndEscaping": {
+    "copiesMatch": true,
+    "rejectedVersions": 0,
+    "xssAbsent": true,
+    "htmlNoDownload": true,
+    "progress": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85,
+      86,
+      87,
+      88,
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      95,
+      96,
+      97,
+      98,
+      99,
+      100
+    ],
+    "wizardFocusReturned": true
+  },
+  "keyboard": {
+    "wizardKeyboardOnly": true,
+    "dialogTabFocusTrapped": true,
+    "escapeFocusReturned": true
+  }
+}
