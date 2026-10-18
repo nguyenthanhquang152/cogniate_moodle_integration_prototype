@@ -1,7 +1,7 @@
 // POST /api/deeplinking (contract §3.2, security §2.3): check the content items, then sign the Deep Linking response.
 // The JWT content_items equal the request items; the only field the service may add is the default ltiResourceLink url.
 import type { JWTPayload } from 'jose';
-import { randomToken } from '@cogniate/shared';
+import { escapeHtml, randomToken } from '@cogniate/shared';
 import type { PublicUrls } from '@cogniate/shared';
 import { ApiError } from '../api-errors.ts';
 import type { LaunchRecord } from '../store/launches.ts';
@@ -95,4 +95,9 @@ export function deepLinkingResponse(
     if (t !== undefined) claims[claim] = t;
   }
   return { claims, target: settings.deep_link_return_url };
+}
+
+/** Contract §3.2: all data stays inside escaped attributes; the submit script is fixed. */
+export function deepLinkingForm(response: { target: string; message: string }): string {
+  return `<form id="lti_dl_submit" style="display:none" action="${escapeHtml(response.target)}" method="POST"><input type="hidden" name="JWT" value="${escapeHtml(response.message)}"/></form><script>document.getElementById("lti_dl_submit").submit()</script>`;
 }

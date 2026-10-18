@@ -5,6 +5,7 @@ import { openDb } from '../../db/index.ts';
 import { createPlatformKeys } from '../../lti/jwks.ts';
 import { PLATFORM_CONFIG_CLAIM, TOOL_CONFIG_CLAIM } from '../../lti/registration.ts';
 import { createAgsClient } from '../../platform/ags.ts';
+import { createNrpsClient } from '../../platform/nrps.ts';
 import { createScoreClock } from '../../platform/score-clock.ts';
 import { createTokenClient } from '../../platform/token-client.ts';
 import { ensureAccount } from '../../store/accounts.ts';
@@ -59,7 +60,7 @@ async function setup() {
   const tokens = createTokenClient({ db, masterKey: MASTER_KEY, outbound, logger, now: () => clock.now });
   const app = await buildApp({
     db, urls: URLS, logger, keys: createPlatformKeys(outbound, () => clock.now), ltikTtlSeconds: 86400, masterKey: MASTER_KEY, outbound,
-    ags: createAgsClient({ outbound, tokens, clock: createScoreClock(() => clock.now) }), profile: 'default', knobs: [], now: () => clock.now,
+    ags: createAgsClient({ outbound, tokens, clock: createScoreClock(() => clock.now) }), nrps: createNrpsClient({ outbound, tokens }), profile: 'default', knobs: [], now: () => clock.now,
   });
   const regToken = (claims: Record<string, unknown>) => {
     const now = Math.floor(clock.now / 1000);

@@ -6,6 +6,7 @@ import { openDb } from './db/index.ts';
 import { buildApp } from './http/app.ts';
 import { createPlatformKeys } from './lti/jwks.ts';
 import { createAgsClient } from './platform/ags.ts';
+import { createNrpsClient } from './platform/nrps.ts';
 import { createScoreClock } from './platform/score-clock.ts';
 import { createTokenClient } from './platform/token-client.ts';
 import { cleanupExpired } from './store/retention.ts';
@@ -22,7 +23,7 @@ const outbound = createOutboundClient({ logger, allowlist: config.outboundAllowl
 const tokens = createTokenClient({ db, masterKey: config.masterKey, outbound, logger });
 const ags = createAgsClient({ outbound, tokens, clock: createScoreClock() });
 const app = await buildApp({
-  db, urls: config.urls, logger, keys: createPlatformKeys(outbound), ltikTtlSeconds: config.ltikTtlSeconds, masterKey: config.masterKey, ags, outbound,
+  db, urls: config.urls, logger, keys: createPlatformKeys(outbound), ltikTtlSeconds: config.ltikTtlSeconds, masterKey: config.masterKey, ags, nrps: createNrpsClient({ outbound, tokens }), outbound,
   profile: config.profile, knobs, outboundAllowlist: outbound.allowlist,
 });
 await app.listen({ port: config.port, host: '0.0.0.0' });

@@ -4,37 +4,12 @@
 // `:lineItemId` is a URL-encoded URL: buildApp sets maxParamLength 2048.
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { ApiError } from '../../api-errors.ts';
-import type { Db } from '../../db/index.ts';
-import { CLAIM } from '../../lti/checks.ts';
-import { deepLinkingResponse } from '../../lti/deep-linking.ts';
-import { signToolJwt } from '../../lti/tool-jwt.ts';
-import type { AgsContext } from '../../platform/ags.ts';
 import { parseScore } from '../../platform/ags.ts';
-import type { Platform } from '../../store/platforms.ts';
-import { getPlatform } from '../../store/platforms.ts';
-import type { AuthResult } from '../auth.ts';
 import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
+import { agsContext, signedDeepLink } from '../service-context.ts';
 
 type Obj = Record<string, unknown>;
-const obj = (v: unknown): Obj | null => (v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Obj) : null);
-
-/** The platform of the caller; an inactive or deleted platform stops the call (403 / 401). */
-function platformOf(db: Db, caller: AuthResult): Platform {
-  const platformId = caller.launch?.platformId ?? caller.serviceKey?.platformId;
-  const platform = platformId ? getPlatform(db, caller.account.id, platformId) : null;
-  if (!platform) throw new ApiError(caller.launch ? 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER' : 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER');
-  if (!platform.active) throw new ApiError('PLATFORM_NOT_ACTIVE');
-  return platform;
-}
-
-function agsContext(db: Db, caller: AuthResult, traceId: string): AgsContext {
-  const platform = platformOf(db, caller);
-  const agsClaim = caller.launch ? obj(caller.launch.claims[CLAIM.ags]) : caller.serviceKey?.agsClaim ?? null;
-  return { platform, agsClaim, traceId };
-}
-
 const text = z.string().min(1).max(2048);
 const limit = z.string().regex(/^[1-9]\d{0,5}$/, 'a whole number >= 1').transform(Number);
 const LineItemsQuery = z.object({ resourceLinkId: text.optional(), resourceId: text.optional(), tag: text.optional(), limit: limit.optional(), url: text.optional() });
@@ -51,10 +26,7 @@ export function registerServiceRoutes(app: FastifyInstance, ctx: RouteContext): 
   const traceOf = (req: FastifyRequest): string => req.traceId ?? '';
   app.post('/api/deeplinking', async (req) => {
     const caller = ctx.auth(req, ['ltik']);
-    const platform = platformOf(ctx.db, caller);
-    const { claims, target } = deepLinkingResponse(caller.launch!, platform, (obj(req.body) ?? {}) as Obj, ctx.urls);
-    const message = await signToolJwt(ctx.db, ctx.masterKey, caller.account.id, claims, ctx.now());
-    return { message, target };
+    return signedDeepLink(ctx, caller, req.body);
   });
 
   app.get('/api/lineitems', async (req) => {

@@ -1,0 +1,70 @@
+// T3c compatibility endpoints. Protocol work stays in lti/; guarded service calls stay in platform/.
+import type { FastifyInstance } from 'fastify';
+import { z } from 'zod';
+import { ApiError } from '../../api-errors.ts';
+import { CLAIM } from '../../lti/checks.ts';
+import { deepLinkingForm } from '../../lti/deep-linking.ts';
+import type { LineItemInput } from '../../platform/ags.ts';
+import type { MembershipsQuery } from '../../platform/nrps.ts';
+import type { RouteContext } from '../context.ts';
+import { agsContext, claimObject, platformOf, signedDeepLink } from '../service-context.ts';
+import { invalid } from '../validation.ts';
+
+const text = z.string().min(1).max(2048);
+const LineItemBody = z.object({
+  label: z.string().min(1).max(255).refine((s) => s.trim().length > 0), scoreMaximum: z.number().positive(),
+  resourceLinkId: text.optional(), resourceId: z.string().max(2048).nullable().optional(), tag: z.string().max(2048).nullable().optional(),
+  startDateTime: z.iso.datetime({ offset: true }).or(z.literal('')).nullable().optional(), endDateTime: z.iso.datetime({ offset: true }).or(z.literal('')).nullable().optional(),
+  gradesReleased: z.boolean().optional(),
+});
+const MembershipsQuerySchema = z.object({
+  role: text.optional(), limit: z.string().regex(/^[1-9]\d{0,5}$/).transform(Number).optional(),
+  resourceLinkId: text.optional(), url: z.string().max(2048).optional(),
+});
+const parseItem = (body: unknown): LineItemInput => {
+  const parsed = LineItemBody.safeParse(body);
+  if (!parsed.success) throw invalid(parsed.error);
+  return Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined)) as unknown as LineItemInput;
+};
+type ItemParams = { Params: { lineItemId: string } };
+
+export function registerCompatRoutes(app: FastifyInstance, ctx: RouteContext): void {
+  app.post('/api/deeplinking/message', async (req) => signedDeepLink(ctx, ctx.auth(req, ['ltik']), req.body));
+  app.post('/api/deeplinking/form', async (req) => {
+    const response = await signedDeepLink(ctx, ctx.auth(req, ['ltik']), req.body);
+    return { form: deepLinkingForm(response) };
+  });
+  app.post('/api/lineitems', async (req, reply) => {
+    const caller = ctx.auth(req, ['ltik', 'service']);
+    return reply.code(201).send(await ctx.ags.createLineItem(agsContext(ctx.db, caller, req.traceId), parseItem(req.body)));
+  });
+  app.put<ItemParams>('/api/lineitems/:lineItemId', async (req, reply) => {
+    const caller = ctx.auth(req, ['ltik', 'service']);
+    return reply.code(201).send(await ctx.ags.updateLineItem(agsContext(ctx.db, caller, req.traceId), req.params.lineItemId, parseItem(req.body)));
+  });
+  app.delete<ItemParams>('/api/lineitems/:lineItemId', async (req, reply) => {
+    const caller = ctx.auth(req, ['ltik', 'service']);
+    await ctx.ags.deleteLineItem(agsContext(ctx.db, caller, req.traceId), req.params.lineItemId);
+    return reply.code(204).send();
+  });
+  app.get('/api/memberships', async (req) => {
+    const caller = ctx.auth(req, ['ltik', 'service']);
+    const platform = platformOf(ctx.db, caller);
+    const parsed = MembershipsQuerySchema.safeParse(req.query ?? {});
+    if (!parsed.success) {
+      if (parsed.error.issues.some((i) => i.path[0] === 'url')) throw new ApiError('INVALID_URL_PARAMETER');
+      throw invalid(parsed.error);
+    }
+    const query = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined)) as MembershipsQuery;
+    return ctx.nrps.listMemberships({
+      platform, traceId: req.traceId,
+      nrpsClaim: caller.launch ? claimObject(caller.launch.claims[CLAIM.nrps]) : caller.serviceKey?.nrpsClaim ?? null,
+    }, query);
+  });
+  for (const path of ['/api/oauth/:platformId/access_token', '/api/oauth/:platformId/access_token/refresh']) {
+    app.post(path, async (req) => {
+      ctx.auth(req, ['bearer']);
+      throw new ApiError('NOT_IMPLEMENTED', `OAuth2 is not implemented. Trace id: ${req.traceId}`);
+    });
+  }
+}

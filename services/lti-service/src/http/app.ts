@@ -12,6 +12,7 @@ import type { Db } from '../db/index.ts';
 import { PROTOCOL_ERRORS } from '../lti/codes.ts';
 import type { PlatformKeys } from '../lti/jwks.ts';
 import type { AgsClient } from '../platform/ags.ts';
+import type { NrpsClient } from '../platform/nrps.ts';
 import { authenticate } from './auth.ts';
 import type { RouteContext } from './context.ts';
 import { ERROR_PAGE_HEADERS, renderErrorPage } from './error-page.ts';
@@ -19,6 +20,7 @@ import { registerIdTokenRoutes } from './routes/idtoken.ts';
 import { registerPlatformRoutes } from './routes/platforms.ts';
 import { registerRegistrationRoutes } from './routes/registration.ts';
 import { registerProtocolRoutes } from './routes/protocol.ts';
+import { registerCompatRoutes } from './routes/compat.ts';
 import { registerServiceRoutes } from './routes/services.ts';
 
 declare module 'fastify' {
@@ -37,6 +39,7 @@ export interface AppDeps {
   masterKey: Buffer;
   /** AGS client (platform token client + score clock), T3a. */
   ags: AgsClient;
+  nrps: NrpsClient;
   /** Guarded outbound client (dynamic registration, T3b). */
   outbound: OutboundClient;
   profile: string;
@@ -82,7 +85,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.setNotFoundHandler((_req, reply) => reply.code(404).send(new ApiError('NOT_FOUND', 'Unknown route.').body()));
 
   const ctx: RouteContext = {
-    db: deps.db, urls: deps.urls, logger: log, keys: deps.keys, ltikTtlSeconds: deps.ltikTtlSeconds, masterKey: deps.masterKey, ags: deps.ags, outbound: deps.outbound, now,
+    db: deps.db, urls: deps.urls, logger: log, keys: deps.keys, ltikTtlSeconds: deps.ltikTtlSeconds, masterKey: deps.masterKey, ags: deps.ags, nrps: deps.nrps, outbound: deps.outbound, now,
     auth: (req, schemes) => authenticate(deps.db, req.headers.authorization, schemes, now(),
       (scheme, code) => log.warn('api_auth_failed', { trace_id: req.traceId, scheme, code })),
     errorPage: (reply, req, code, opts = {}) =>
@@ -98,6 +101,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerProtocolRoutes(app, ctx);
   registerIdTokenRoutes(app, ctx);
   registerServiceRoutes(app, ctx);
+  registerCompatRoutes(app, ctx);
   registerPlatformRoutes(app, ctx);
   registerRegistrationRoutes(app, ctx);
   return app;

@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
 import { checkPlatformUrls } from '../../lti/platform-rules.ts';
 import type { Platform } from '../../store/platforms.ts';
-import { PlatformExistsError, createPlatform, getPlatform, listPlatforms, updatePlatform } from '../../store/platforms.ts';
+import { PlatformExistsError, createPlatform, deletePlatform, getPlatform, listPlatforms, updatePlatform } from '../../store/platforms.ts';
 import { activePublicKeyPem } from '../../store/tool-keys.ts';
 import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
@@ -70,6 +70,12 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
     const p = getPlatform(ctx.db, account.id, req.params.id);
     if (!p) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
     return view(p);
+  });
+
+  app.delete<{ Params: { id: string } }>('/api/platforms/:id', async (req, reply) => {
+    const { account } = ctx.auth(req, ['bearer']);
+    if (!deletePlatform(ctx.db, account.id, req.params.id)) throw new ApiError('UNREGISTERED_PLATFORM');
+    return reply.code(204).send();
   });
 
   app.patch<{ Params: { id: string } }>('/api/platforms/:id', async (req) => {

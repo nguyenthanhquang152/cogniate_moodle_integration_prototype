@@ -13,6 +13,7 @@ import { buildApp } from './http/app.ts';
 import { CLAIM } from './lti/checks.ts';
 import { createPlatformKeys } from './lti/jwks.ts';
 import { createAgsClient } from './platform/ags.ts';
+import { createNrpsClient } from './platform/nrps.ts';
 import { createScoreClock } from './platform/score-clock.ts';
 import { createTokenClient } from './platform/token-client.ts';
 import { ensureAccount } from './store/accounts.ts';
@@ -103,7 +104,7 @@ export async function harness(opts: { ltikTtlSeconds?: number } = {}): Promise<H
   const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(() => clock.now) });
   const app = await buildApp({
     db, urls: URLS, logger, keys: createPlatformKeys(outbound, () => clock.now), ltikTtlSeconds: opts.ltikTtlSeconds ?? 86400,
-    masterKey: MASTER_KEY, ags, outbound, profile: 'default', knobs: [], now: () => clock.now,
+    masterKey: MASTER_KEY, ags, nrps: createNrpsClient({ outbound, tokens }), outbound, profile: 'default', knobs: [], now: () => clock.now,
   });
   return { db, platform, apiKey: a.apiKey!, otherApiKey: b.apiKey!, key, outbound, lines, clock, app };
 }

@@ -126,3 +126,8 @@ export function applyRegistrationUpdate(
     return getPlatform(db, accountId, id);
   });
 }
+
+/** A single account-scoped delete cascades to states, launches, deployments and service keys. */
+export function deletePlatform(db: Db, accountId: string, id: string): boolean {
+  return db.prepare('DELETE FROM platform WHERE tool_account_id = ? AND id = ?').run(accountId, id).changes > 0;
+}

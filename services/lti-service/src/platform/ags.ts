@@ -45,6 +45,17 @@ export interface LineItem {
   gradesReleased?: boolean;
 }
 
+export interface LineItemInput {
+  label: string;
+  scoreMaximum: number;
+  resourceLinkId?: string;
+  resourceId?: string | null;
+  tag?: string | null;
+  startDateTime?: string | null;
+  endDateTime?: string | null;
+  gradesReleased?: boolean;
+}
+
 export interface ScoreResult {
   id?: string;
   userId?: string;
@@ -160,7 +171,7 @@ export interface AgsClientDeps {
 }
 
 export function createAgsClient(deps: AgsClientDeps) {
-  async function call(ctx: AgsContext, scope: string, url: string, init: { method?: 'GET' | 'POST'; accept: string; contentType?: string; body?: string }): Promise<OutboundResponse> {
+  async function call(ctx: AgsContext, scope: string, url: string, init: { method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; accept: string; contentType?: string; body?: string }): Promise<OutboundResponse> {
     const token = await deps.tokens.getToken(ctx.platform, [scope], ctx.traceId);
     let res: OutboundResponse;
     try {
@@ -195,6 +206,26 @@ export function createAgsClient(deps: AgsClientDeps) {
       const url = checkedUrl(ctx, lineItemId, 'INVALID_LINE_ITEM_ID');
       const scope = needScope(ctx, AGS_SCOPES.lineitemReadonly, AGS_SCOPES.lineitem);
       return toLineItem(jsonOf(await call(ctx, scope, url, { accept: MEDIA.lineItem })));
+    },
+
+    /** T3c: writes require lineitem, never lineitem.readonly (AGS §3.2). */
+    async createLineItem(ctx: AgsContext, item: LineItemInput): Promise<LineItem> {
+      if (typeof ctx.agsClaim?.lineitems !== 'string') throw new ApiError('SERVICE_NOT_AVAILABLE', 'The launch has no AGS line items URL.');
+      const url = checkedUrl(ctx, ctx.agsClaim.lineitems, 'INVALID_LINE_ITEM_ID');
+      const scope = needScope(ctx, AGS_SCOPES.lineitem);
+      return toLineItem(jsonOf(await call(ctx, scope, url, { method: 'POST', accept: MEDIA.lineItem, contentType: MEDIA.lineItem, body: JSON.stringify(item) })));
+    },
+
+    async updateLineItem(ctx: AgsContext, lineItemId: string, item: LineItemInput): Promise<LineItem> {
+      const url = checkedUrl(ctx, lineItemId, 'INVALID_LINE_ITEM_ID');
+      const scope = needScope(ctx, AGS_SCOPES.lineitem);
+      return toLineItem(jsonOf(await call(ctx, scope, url, { method: 'PUT', accept: MEDIA.lineItem, contentType: MEDIA.lineItem, body: JSON.stringify(item) })));
+    },
+
+    async deleteLineItem(ctx: AgsContext, lineItemId: string): Promise<void> {
+      const url = checkedUrl(ctx, lineItemId, 'INVALID_LINE_ITEM_ID');
+      const scope = needScope(ctx, AGS_SCOPES.lineitem);
+      await call(ctx, scope, url, { method: 'DELETE', accept: MEDIA.lineItem });
     },
 
     /** POST /api/lineitems/:lineItemId/scores. The timestamp comes from the score clock unless the request has one. */
