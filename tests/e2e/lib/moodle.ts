@@ -259,12 +259,12 @@ export interface ToolRow {
 }
 
 /**
- * "configure a tool manually", then each row into the Moodle field with the same label (select: the option with that
- * text; checkbox: "Yes" = on). Returns the differences between the shown labels/values and the Moodle form.
+ * On the form that "configure a tool manually" opens: each row into the Moodle field with the same label (select: the
+ * option with that text; checkbox: "Yes" = on), then Save changes. Returns the differences between the shown
+ * labels/values and the Moodle form.
  */
 export async function fillManualTool(page: Page, rows: ToolRow[]): Promise<string[]> {
   const diffs: string[] = [];
-  await clickAndNavigate(page, page.getByRole('link', { name: 'configure a tool manually', exact: true }));
   await page.getByLabel('Tool name', { exact: true }).waitFor();
   const expand = page.locator('a.collapseexpand');
   if ((await expand.count()) && /expand/i.test(await expand.first().innerText())) await expand.first().click();

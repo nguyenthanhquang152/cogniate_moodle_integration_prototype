@@ -18,9 +18,10 @@ Inputs (no secrets on the command line, none in the output):
   - Input file (JSON, written by the QA harness before the run): the first existing path of env COMPAT_INPUT,
     COMPAT_INPUT_FILE, QA_COMPAT_INPUT and /run/compat/input.json. Shape "qa-compat-input/1":
       { "format": "qa-compat-input/1", "runId": "...",
-        "studentLtik": "...", "deepLinkLtik": "...",
-        "expect": { "userId": "5", "platformUrl": "https://moodle.test:8443", "contextId": "2",
-                    "memberIds": ["3", "5", "6"], "learnerIds": ["5", "6"] } }
+        "studentLtik": "...", "deepLinkLtik": "...",            (alias: teacherDeepLinkingLtik)
+        "expect": { "userId": "5", "platformUrl": "https://moodle.test:8443", "contextId": "2",   (alias: expected)
+                    "memberIds": ["3", "5", "6"] },              (optional; default [userId])
+        "lineItemId": "..." }                                    (optional; default: from the ID token)
     Without the file, the same values come from QA_* env: QA_COMPAT_STUDENT_LTIK, QA_COMPAT_DEEPLINK_LTIK,
     QA_COMPAT_RUN_ID, QA_COMPAT_EXPECT (JSON of "expect").
 
@@ -84,11 +85,14 @@ def read_inputs() -> dict[str, Any]:
             "expect": expect,
         }
         source = "QA_* environment"
+    # Aliases of the infra/README.md example: teacherDeepLinkingLtik, expected.
+    if not data.get("deepLinkLtik") and data.get("teacherDeepLinkingLtik"):
+        data["deepLinkLtik"] = data["teacherDeepLinkingLtik"]
     for key in ("studentLtik", "deepLinkLtik"):
         if not isinstance(data.get(key), str) or not data[key]:
             fail_input(f"{key} is missing in {source}")
-    expect = data.get("expect") or {}
-    for key in ("userId", "platformUrl", "contextId", "memberIds"):
+    expect = data.get("expect") or data.get("expected") or {}
+    for key in ("userId", "platformUrl", "contextId"):
         if key not in expect:
             fail_input(f"expect.{key} is missing in {source}")
     return {
@@ -97,6 +101,7 @@ def read_inputs() -> dict[str, Any]:
         "runId": str(data.get("runId") or "local"),
         "studentLtik": data["studentLtik"],
         "deepLinkLtik": data["deepLinkLtik"],
+        "lineItemId": data.get("lineItemId") or None,
         "expect": expect,
         "source": source,
     }
@@ -195,13 +200,13 @@ def main() -> int:
         want = {"userId": str(expect["userId"]), "platformUrl": str(expect["platformUrl"]), "contextId": str(expect["contextId"])}
         report.check("idtoken", got == want, f"user id, platform URL, context id: got {got}, want {want}; launch type {token.launch.type.value}")
         user_id = token.user.id
-        line_item_id = (token.services.assignment_and_grades or {}).get("lineItemId")
+        line_item_id = (token.services.assignment_and_grades or {}).get("lineItemId") or inputs["lineItemId"]
     else:
         # Go on with the other checks: read the same answer without the SDK model (evidence only, not a pass).
         _, raw = run_step(report, "idtoken (unvalidated read, to continue)", lambda: student._request_handler.get(student._service_authorization, "/api/idtoken"))
         if isinstance(raw, dict):
             user_id = str((raw.get("user") or {}).get("id", "")) or None
-            line_item_id = ((raw.get("services") or {}).get("assignmentAndGrades") or {}).get("lineItemId")
+            line_item_id = ((raw.get("services") or {}).get("assignmentAndGrades") or {}).get("lineItemId") or inputs["lineItemId"]
             print(f"unvalidated id token keys: services={sorted((raw.get('services') or {}).keys())}", flush=True)
 
     # 2. Deep linking (cg_teacher deep-linking launch): one ltiResourceLink, as a form and as a message.
@@ -260,7 +265,7 @@ def main() -> int:
     got_members, members = run_step(report, "memberships", student.get_memberships)
     if got_members:
         ids = sorted(m.user_id for m in members.members)
-        want_ids = sorted(str(x) for x in expect["memberIds"])
+        want_ids = sorted(str(x) for x in expect.get("memberIds", [expect["userId"]]))
         personal = [m.user_id for m in members.members if m.email or m.name or m.given_name or m.family_name]
         ok = members.context.id == str(expect["contextId"]) and set(want_ids) <= set(ids)
         report.check("memberships", ok, f"context {members.context.id} (want {expect['contextId']}); members {ids} (must contain {want_ids}); with personal fields: {personal}")

@@ -1,10 +1,10 @@
 // T7 Scenario A: dynamic registration, both courses, both learners (tasks/T7.md A1–A6; AC-T7-02 to -07, -14).
 // Each step is one test. A step reads what earlier steps made from the run state (lib/e2e.ts), so a failed check does
 // not hide the later steps. Moodle labels: Moodle 5.2.4 as seen live (lib/moodle.ts header).
-import type { Page } from '@playwright/test';
 import { courseZipCopy } from '../acceptance/lib/course-fixtures';
 import { THANH } from '../acceptance/lib/app';
-import { captureLti, stateCookieHeader } from './lib/capture';
+import { captureLti } from './lib/capture';
+import { addCogniateActivity, checkLaunch, learnerRun } from './lib/flows';
 import {
   appendList,
   CONNECTION_A,
@@ -24,14 +24,10 @@ import {
   TOOL_A,
   urls,
   writeEvidence,
-  type LaunchRecord,
 } from './lib/e2e';
-import { doCourse, launchFromCourse, shellText } from './lib/learner';
 import {
   activateTool,
-  addActivityFromChooser,
   editToolSettings,
-  ensureEditMode,
   followMenuPath,
   graderReport,
   login,
@@ -39,18 +35,14 @@ import {
   missingLabels,
   moodlePage,
   NEW_WINDOW,
-  openSelectContent,
-  pickCourse,
   readToolSettings,
-  saveAndReturn,
-  setCompletionReceiveGrade,
   toolCard,
   USAGE_CHOOSER,
   waitRegistrationClosed,
   waitRegistrationFrame,
   type RegistrationFrame,
 } from './lib/moodle';
-import { cmidByName, completion, course101, grade, users } from './lib/oracle';
+import { completion, course101, grade, users } from './lib/oracle';
 import { cellUnder, clipboard, connectionOf, createCourseWithZip, portalSignIn, publicationBlockText, publicationOf, publishCourse, resultsApi, resultsRow, startConnect, stepsOnScreen } from './lib/portal';
 import { newContext, expect, test } from './lib/pw';
 import { classify, readSteps, type StepAction } from './lib/steps';
@@ -213,23 +205,6 @@ test('A3 Thanh uploads the SCORM zip and the HTML zip and publishes both to "Dev
   }
 });
 
-/** Teacher: Add content → Activity or resource → the tool → Select content → the course → completion → save. */
-async function addCogniateActivity(page: Page, courseId: number, toolName: string, title: string, pickerKey: string, testInfo: import('@playwright/test').TestInfo): Promise<number> {
-  await ensureEditMode(page, courseId);
-  const { chooserItems } = await addActivityFromChooser(page, toolName);
-  note(testInfo, 'chooser', `${pickerKey}: chooser lists ${chooserItems.filter((i) => i.startsWith('Cogniate')).join(', ')}`);
-  const picker = await openSelectContent(page);
-  saveState({ pickers: { [pickerKey]: picker.titles } });
-  await shot(page, `${pickerKey}-picker`, testInfo);
-  const name = await pickCourse(page, picker, title);
-  expect(name, 'Moodle fills the activity name from the picked course').toBe(title);
-  await setCompletionReceiveGrade(page);
-  await shot(page, `${pickerKey}-activity-form`, testInfo);
-  await saveAndReturn(page);
-  const cmid = need(await cmidByName(courseId, title), `the new activity "${title}"`);
-  return cmid;
-}
-
 test('A4 AC-T7-03 AC-T7-02 cg_teacher adds both courses in COGNIATE-DEV-101 (Add content → Activity or resource → Cogniate (Thanh\'s Library) → Select content → completion "Receive a grade"); the picker lists exactly Thanh\'s two courses; grade items of maximum 100; "Selected in Moodle"; the connection is connected', async ({ browser }, testInfo) => {
   test.setTimeout(300_000);
   const st = loadState();
@@ -286,57 +261,6 @@ test('A4 AC-T7-03 AC-T7-02 cg_teacher adds both courses in COGNIATE-DEV-101 (Add
     await ctx.close();
   }
 });
-
-/** One learner run of one activity: launch, AC-T7-07 facts, the course, the shell text and the Moodle grade (≤ 60 s). */
-async function learnerRun(
-  browserCtx: import('@playwright/test').BrowserContext,
-  user: 'cg_student' | 'cg_student2',
-  key: 'scorm' | 'html',
-  answer: 'correct' | 'wrong',
-  testInfo: import('@playwright/test').TestInfo,
-): Promise<{ launch: LaunchRecord; shell: string; latency: number | null; grade: number | null }> {
-  const act = need(loadState().activities?.[key], `activity ${key}`);
-  const u = users()[user];
-  const l = await launchFromCourse(browserCtx, u, act.courseId, act.name, `${user} ${key}`);
-  const rec: LaunchRecord = {
-    user,
-    activity: act.name,
-    finalUrl: l.playUrl,
-    topLevel: l.popup !== l.coursePage,
-    hasOpener: l.hasOpener,
-    msToPlay: l.msToPlay,
-  };
-  saveState({ launches: [...(loadState().launches ?? []), rec] });
-  await shot(l.popup, `${user}-${key}-player`, testInfo);
-  if (user === 'cg_student' && key === 'scorm' && !loadState().replay) {
-    const f = l.capture.forms[0];
-    if (f) saveState({ replay: { id_token: f.id_token, state: f.state, cookie: stateCookieHeader(l.capture.stateCookies), firstStatus: l.capture.launchStatuses[0] ?? 0 } });
-  }
-  await l.capture.stop();
-  await doCourse(l.popup, answer);
-  const t0 = Date.now();
-  const want = answer === 'correct' ? 100 : 0;
-  const [g] = await Promise.all([
-    pollUntil(() => grade(act.courseId, u, act), (v) => v?.raw !== null && v?.raw !== undefined && Math.abs(Number(v.raw) - want) < 0.001, 60_000, 1_000),
-    answer === 'correct' ? l.popup.getByText(SHELL_DONE_100).first().waitFor({ timeout: 90_000 }).catch(() => undefined) : l.popup.waitForTimeout(2_000),
-  ]);
-  const ok = g?.raw !== null && g?.raw !== undefined && Math.abs(Number(g.raw) - want) < 0.001;
-  const latency = ok ? Math.round((Date.now() - t0) / 100) / 10 : null;
-  // The shell polls the status every 5 s; let it show the final text for the evidence.
-  if (answer === 'wrong') await l.popup.waitForTimeout(6_000);
-  const shell = await shellText(l.popup);
-  saveState({ gradeLatency: { [`${user} ${key}`]: latency ?? -1 } });
-  await shot(l.popup, `${user}-${key}-done`, testInfo);
-  await l.popup.close({ runBeforeUnload: true }).catch(() => undefined);
-  return { launch: rec, shell, latency, grade: g?.raw ?? null };
-}
-
-function checkLaunch(rec: LaunchRecord): void {
-  // AC-T7-07: the launch ends at {PUBLIC_APP_URL}/play/... in a new top-level window; no ltik in the final URL.
-  expect.soft(rec.finalUrl, `${rec.user} ${rec.activity}: final URL`).toMatch(new RegExp(`^${urls.app.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/play/`));
-  expect.soft(rec.finalUrl, `${rec.user} ${rec.activity}: no ltik in the final URL`).not.toContain('ltik');
-  expect.soft(rec.topLevel && rec.hasOpener, `${rec.user} ${rec.activity}: a new top-level window opened from Moodle`).toBe(true);
-}
 
 test('A5 AC-T7-07 AC-T7-04 cg_student does the SCORM activity and the HTML activity (new window, correct option) → "Completed — score 100 sent to Moodle", grade 100 within 60 s', async ({ browser }, testInfo) => {
   test.setTimeout(360_000);
