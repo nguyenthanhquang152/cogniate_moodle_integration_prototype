@@ -103,7 +103,7 @@ export interface Publication {
 }
 export interface ScoreSync {
   id: string;
-  status: "pending" | "sent" | "failed" | "conflict";
+  status: "pending" | "sent" | "failed" | "conflict" | "superseded";
   tries: number;
   scoreGiven: number;
   scoreMaximum: number;

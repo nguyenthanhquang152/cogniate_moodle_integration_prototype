@@ -23,7 +23,22 @@ const syncNames: Record<string, string> = {
   sent: "Sent",
   failed: "Failed",
   conflict: "Conflict",
+  superseded: "Superseded",
 };
+function actionError(reason: unknown, action: "Resend" | "Gradebook refresh") {
+  if (reason instanceof ApiError && [404, 501].includes(reason.status)) {
+    return new ApiError(
+      reason.status,
+      {
+        ...reason.details,
+        description: `${action} is not available yet. Your saved results have not changed.`,
+        action: "Try again when this feature is available.",
+      },
+      reason.traceId,
+    );
+  }
+  return reason;
+}
 export function syncError(error: ScoreSync["lastError"]): string {
   if (!error) return "";
   if (typeof error === "string") return error;
@@ -63,7 +78,7 @@ export function Results() {
       setRefreshed(new Map(response.rows.map((row) => [rowKey(row), row])));
       setMessage("Gradebook values refreshed from Moodle.");
     } catch (reason) {
-      setError(reason);
+      setError(actionError(reason, "Gradebook refresh"));
     } finally {
       setBusy(null);
     }
@@ -91,7 +106,7 @@ export function Results() {
         "Pending. The score will be sent again. Status updates every 5 seconds.",
       );
     } catch (reason) {
-      setError(reason);
+      setError(actionError(reason, "Resend"));
     } finally {
       setBusy(null);
     }
@@ -135,7 +150,7 @@ export function Results() {
       {publication.data && <PackageTitle publication={publication.data} />}
       <ErrorNotice error={publication.error} />
       <ErrorNotice error={error} />
-      <p className="sr-only" role="status">
+      <p className="muted" role="status">
         {message}
       </p>
       {unavailable ? (
@@ -208,7 +223,7 @@ export function Results() {
   );
 }
 function rowKey(row: ResultRow): string {
-  return `${row.activity.resourceLinkId}:${row.learner.sub}:${row.preview}`;
+  return JSON.stringify([row.activity.resourceLinkId, row.learner.sub, row.preview]);
 }
 function gradeDiffers(
   row: ResultRow,
@@ -266,7 +281,9 @@ export function ResultTableRow({
         <span
           className={`badge ${latest?.status === "sent" ? "success" : latest?.status === "failed" || latest?.status === "conflict" ? "warning" : ""}`}
         >
-          {latest ? (syncNames[latest.status] ?? latest.status) : "Not sent"}
+          {row.preview
+            ? "Preview — no grade sent"
+            : latest ? (syncNames[latest.status] ?? latest.status) : "Not sent"}
         </span>
         {latest?.status === "conflict" && (
           <p className="sync-message">Moodle has a grade with a newer time</p>
@@ -278,7 +295,10 @@ export function ResultTableRow({
       <td>
         {row.gradebook
           ? `${row.gradebook.resultScore} / ${row.gradebook.resultMaximum}`
-          : "Not refreshed"}
+          : row.preview ? "Not applicable" : "Not refreshed"}
+        {row.gradebook && (
+          <small>Read {new Date(row.gradebook.readAt).toLocaleString()}</small>
+        )}
         {row.gradebookDiffers && (
           <p className="sync-message">
             Moodle keeps another grade, for example a teacher override
@@ -308,6 +328,9 @@ export function ResultTableRow({
                     {new Date(sync.createdAt).toLocaleString()} · {sync.tries}{" "}
                     tries
                   </small>
+                  {sync.sentAt && (
+                    <small>Sent {new Date(sync.sentAt).toLocaleString()}</small>
+                  )}
                   {sync.lastError && <p>{syncError(sync.lastError)}</p>}
                 </li>
               ))}

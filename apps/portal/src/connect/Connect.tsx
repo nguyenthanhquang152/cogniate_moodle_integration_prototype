@@ -397,8 +397,14 @@ function ConnectionSetup({ id }: { id: string }) {
         </section>
       ) : (
         <p className="notice">
-          This connection is disconnected. Connect another site to publish
-          courses again.
+          This connection is disconnected. Delete the old Cogniate tool in
+          Moodle before you connect again.
+        </p>
+      )}
+      {connection.status !== "disabled" && (
+        <p className="notice">
+          To reconnect, delete the old Cogniate tool in Moodle. Then disconnect
+          this connection and connect again. Cogniate refuses every tool update.
         </p>
       )}
       <div className="actions">

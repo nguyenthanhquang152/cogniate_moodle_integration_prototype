@@ -10,7 +10,7 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { MemoryRouter } from "react-router";
+import { MemoryRouter, Route, Routes } from "react-router";
 import {
   CreateConnection,
   ManualSetup,
@@ -464,6 +464,50 @@ describe("portal forms and contract states", () => {
     ).toHaveLength(2);
     await user.click(screen.getByRole("button", { name: "Resend" }));
     expect(resend).toHaveBeenCalledWith(row.scoreSyncs[1]);
+  });
+});
+
+describe("T5 results integration", () => {
+  const row: ResultRow = {
+    learner: { sub: "5", label: "Learner 5 @ moodle.test" },
+    activity: { resourceLinkId: "rl_live", title: "SCORM course", contextTitle: "Moodle course" },
+    preview: false,
+    best: { attemptId: "att_live", outcome: "passed", scoreGiven: 100, scoreMaximum: 100 },
+    attempts: [{ attemptId: "att_live", versionId: "ver_live", outcome: "passed", scoreGiven: 100, scoreMaximum: 100, updatedAt: "2026-10-18T00:00:00Z" }],
+    scoreSyncs: [{ id: "sync_live", status: "failed", tries: 1, scoreGiven: 100, scoreMaximum: 100, createdAt: "2026-10-18T00:00:00Z", sentAt: null, lastError: "AGS_USER_NOT_GRADABLE" }],
+    gradebook: null,
+  };
+  it.each([404, 501])("keeps saved results when Resend or Refresh returns %s", async (status) => {
+    fetchMock.mockImplementation(async (path: string, options?: RequestInit) => {
+      if (options?.method === "POST") return json({ details: { message: "NOT_FOUND", description: "Unknown route." } }, status);
+      if (path.endsWith("/results")) return json({ rows: [row] });
+      if (path.includes("/versions/")) return json({ report: { scorm: null } });
+      return json({ id: "pub_live", courseId: "crs_live", versionId: "ver_live", courseTitle: "SCORM course", format: "scorm12", version: 1 });
+    });
+    render(h(MemoryRouter, { initialEntries: ["/publications/pub_live/results"] },
+      h(Routes, null, h(Route, { path: "/publications/:publicationId/results", element: h(Results) })),
+    ));
+    await screen.findByText("Passed 100");
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Resend" }));
+    expect(await screen.findByText("Resend is not available yet. Your saved results have not changed.")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledWith("/app-api/score-syncs/sync_live/resend", expect.objectContaining({ method: "POST" }));
+    expect(screen.getByText("Passed 100")).toBeTruthy();
+    expect(screen.queryByText("Pending")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Refresh from Moodle" }));
+    expect(await screen.findByText("Gradebook refresh is not available yet. Your saved results have not changed.")).toBeTruthy();
+    expect(fetchMock).toHaveBeenCalledWith("/app-api/publications/pub_live/results/refresh", expect.objectContaining({ method: "POST" }));
+    expect(screen.getByText("Sync history (1)")).toBeTruthy();
+    expect(screen.getByText("Attempts (1)")).toBeTruthy();
+  });
+  it("shows preview results without a grade or a Resend action", () => {
+    render(h("table", null, h("tbody", null, h(ResultTableRow, {
+      row: { ...row, preview: true, scoreSyncs: [] }, busy: false, onResend: vi.fn(),
+    }))));
+    expect(screen.getByText("Passed 100")).toBeTruthy();
+    expect(screen.getByText("Preview — no grade sent")).toBeTruthy();
+    expect(screen.getByText("Not applicable")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Resend" })).toBeNull();
   });
 });
 

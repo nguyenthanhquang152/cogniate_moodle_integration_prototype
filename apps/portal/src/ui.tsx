@@ -7,6 +7,7 @@ import type { Connection } from "./types.ts";
 export function ErrorNotice({ error }: { error: unknown }) {
   if (!error) return null;
   const details = error instanceof ApiError ? error.details : null;
+  const action = details?.action ?? connectionErrors[details?.message ?? ""];
   return (
     <div className="notice error" role="alert">
       <p>
@@ -14,7 +15,7 @@ export function ErrorNotice({ error }: { error: unknown }) {
           ? error.message
           : "Something went wrong. Try again."}
       </p>
-      {details?.action && <p>{details.action}</p>}
+      {action && <p>{action}</p>}
       {details?.reasons && (
         <ul>
           {details.reasons.map((reason, index) => (

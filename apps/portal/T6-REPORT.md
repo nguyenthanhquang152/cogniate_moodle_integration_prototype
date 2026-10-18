@@ -1,5 +1,7 @@
 # T6 Author-2 report
 
+Integration follow-up: [T6-INTEGRATION-REPORT.md](T6-INTEGRATION-REPORT.md). It replaces the missing-T5 API and combined-build gaps below with current evidence.
+
 Date: 2026-10-18. Branch: `feat/t6-portal-ui`.
 
 The portal is implemented and self-checked. Independent QA and both reviews are still required. No push was made.

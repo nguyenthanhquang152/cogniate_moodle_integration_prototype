@@ -1,0 +1,41 @@
+{
+  "checkedAt": "2026-10-18T06:43:04.010Z",
+  "stack": "cogniate-codex",
+  "publicPort": 9443,
+  "subnet": "172.30.0.0/16",
+  "browser": "Chrome",
+  "results": {
+    "status": 200,
+    "learners": 2,
+    "passedScore": 100,
+    "sentSyncsPerLearner": 1,
+    "previewSyncs": 0,
+    "refreshStatus": 404
+  },
+  "manualConnect": {
+    "status": 409,
+    "errorCode": "PLATFORM_IN_USE",
+    "persistedLastError": null
+  },
+  "stats": {
+    "text": "Selected in Moodle\n1\nIn use\n2"
+  },
+  "axe": {
+    "results": [],
+    "manualManage": []
+  },
+  "moodleGrades": [
+    {
+      "username": "cg_student",
+      "sub": "4",
+      "finalGrade": 100,
+      "maximum": 100
+    },
+    {
+      "username": "cg_student2",
+      "sub": "5",
+      "finalGrade": 100,
+      "maximum": 100
+    }
+  ]
+}
