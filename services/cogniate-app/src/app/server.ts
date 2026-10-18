@@ -1,5 +1,5 @@
 // The app listener (PUBLIC_APP_URL): /healthz, the portal API /app-api/* (contract cogniate-app-api §1-§5), the tool
-// pages /tool/* and the player shell /play/* (§6). The portal SPA comes in T6.
+// pages /tool/*, the player shell /play/* (§6), and the built portal SPA.
 import { randomBytes } from 'node:crypto';
 import formbody from '@fastify/formbody';
 import multipart from '@fastify/multipart';
@@ -20,6 +20,7 @@ import { registerRegisterPages } from '../tool-pages/register.ts';
 import { registerConnectionRoutes } from './connections.ts';
 import { registerCourseRoutes } from './courses.ts';
 import { registerPublicationRoutes } from './publications.ts';
+import { registerPortal } from './portal.ts';
 import { ApiError, apiErrorBody } from './api-errors.ts';
 import { registerSessionRoutes, sessionOf } from './session.ts';
 
@@ -141,6 +142,7 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
   registerLaunchPages(app, { ...pageDeps, pickerTtlSeconds: deps.pickerTtlSeconds, playTtlSeconds: deps.playTtlSeconds });
   registerPickerPages(app, pageDeps);
   registerPlayPages(app, pageDeps);
+  registerPortal(app, { db: deps.db, now });
 
   return app;
 }

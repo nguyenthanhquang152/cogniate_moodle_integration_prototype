@@ -170,6 +170,8 @@ services:
       - ../node_modules:/repo/node_modules:ro
       - ../packages:/repo/packages:ro
       - ../services:/repo/services:ro
+      # T6: the app serves the portal build on PUBLIC_APP_URL.
+      - ../apps/portal/dist:/repo/apps/portal/dist:ro
       - ./.certs/root.crt:/certs/root.crt:ro
       - ./.logs:/logs
       - ./.data/cogniate-app:/data
