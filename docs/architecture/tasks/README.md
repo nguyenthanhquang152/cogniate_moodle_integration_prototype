@@ -51,6 +51,7 @@ Determinism rules:
 - Requests sent while a page closes are not seen by `page.route()`: check them in the service logs.
 - Poll with the deadlines in the ACs. Fixed waits only for the 11 s dwell and the TTL tests.
 - Use the visible labels of Moodle 5.2.4. Record every difference from the task text.
+- Moodle cleans activity names (`PARAM_TEXT` strips tags): a test that names an activity with markup must expect the cleaned text. Escaping tests use names that survive cleaning, such as `x < y & "z"`.
 - Do not use the package helper `window.CogniateSCORM.markLessonComplete` in an AC path.
 - Network negatives use three oracles together: the error code, zero hits on the `evil.test` sink, and no `outbound_request` or `outbound_blocked` event for that host.
 
