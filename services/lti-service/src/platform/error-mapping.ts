@@ -12,10 +12,10 @@ export function shortPlatformMessage(body: Buffer | string): string {
 }
 
 /** A platform HTTP answer that is not a success: 409 -> PLATFORM_CONFLICT, 400/404 -> PLATFORM_REJECTED_REQUEST, else PLATFORM_ERROR. */
-export function platformResponseError(res: OutboundResponse, includeMessage = true): ApiError {
+export function platformResponseError(res: OutboundResponse, { echoMessage = true }: { echoMessage?: boolean } = {}): ApiError {
   if (res.status === 409) return new ApiError('PLATFORM_CONFLICT', 'The platform answered 409: it has a newer value (for example a grade with a newer time).');
   if (res.status === 400 || res.status === 404) {
-    const msg = includeMessage ? shortPlatformMessage(res.body) : '';
+    const msg = echoMessage ? shortPlatformMessage(res.body) : '';
     return new ApiError('PLATFORM_REJECTED_REQUEST', `The platform answered ${res.status}${msg ? `: ${msg}` : '.'}`, { status: res.status });
   }
   return new ApiError('PLATFORM_ERROR', `The platform answered ${res.status}.`);

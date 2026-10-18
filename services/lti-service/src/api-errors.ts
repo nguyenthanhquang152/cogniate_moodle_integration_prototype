@@ -12,6 +12,7 @@ export const API_ERRORS = defineErrorTable({
   INVALID_LINE_ITEM_ID: { status: 400, description: 'The line item id does not match the line items URL of the launch.' },
   INVALID_URL_PARAMETER: { status: 400, description: 'The url parameter does not match the service URL of the launch.' },
   INVALID_CONTENT_ITEM: { status: 400, description: 'A content item is not valid.' },
+  INVALID_DEEP_LINK_RETURN_URL: { status: 400, description: 'The Deep Linking return URL must use https on the platform issuer origin, without user info or a fragment.' },
   UNSUPPORTED_AUTH_METHOD: { status: 400, description: 'Only authConfig.method JWK_SET is supported.' },
   PLATFORM_URL_NOT_ON_ISSUER_ORIGIN: { status: 400, description: 'A platform endpoint is not on the issuer origin.' },
   INVALID_AUTHORIZATION_HEADER: { status: 401, description: 'Missing or unsupported Authorization header for this endpoint.' },
