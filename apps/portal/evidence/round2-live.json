@@ -1,0 +1,81 @@
+{
+  "connectionId": "con_7Xk8qX-zy77Vdc7KMpoMBQ",
+  "registeredWithinMs": 4322,
+  "typeId": "3",
+  "dynamicStepIds": [
+    "open-manage-tools",
+    "paste-registration-url",
+    "choose-register-new",
+    "confirm-connect",
+    "activate-tool",
+    "edit-tool-settings"
+  ],
+  "settings": {
+    "usage": "Show in activity chooser and as a preconfigured tool",
+    "launchContainer": "New window",
+    "saved": true
+  },
+  "courseId": "crs_q-p7ydMz1N2BWqheGwMpow",
+  "courseTitle": "Build Your First Website with AI",
+  "publicationId": "pub_oJSp8cE-ejhv-R89Hgv06w",
+  "activityUrl": "https://moodle.test:9443/mod/lti/view.php?id=6",
+  "activityChooser": true,
+  "deepLinking": true,
+  "learnerNewWindow": true,
+  "playerOrigin": "https://app.cogniate.test:9443",
+  "enrollmentRestored": true,
+  "failedSync": {
+    "id": "sync_uFKTm925KVWGteXh7TI8ag",
+    "status": "failed",
+    "tries": 1,
+    "scoreGiven": 100,
+    "scoreMaximum": 100,
+    "createdAt": "2026-10-18T15:00:07.580Z",
+    "sentAt": null,
+    "lastError": "400 PLATFORM_REJECTED_REQUEST: The platform answered 400: []"
+  },
+  "failedAxe": [],
+  "resendHttpStatus": 200,
+  "resendReturnedStatus": "pending",
+  "sentSync": {
+    "id": "sync_uFKTm925KVWGteXh7TI8ag",
+    "status": "sent",
+    "tries": 1,
+    "scoreGiven": 100,
+    "scoreMaximum": 100,
+    "createdAt": "2026-10-18T15:00:07.580Z",
+    "sentAt": "2026-10-18T15:01:21.055Z",
+    "lastError": null
+  },
+  "best": {
+    "attemptId": "att_hSjf9yG06XsLraqdNsDVrA",
+    "outcome": "passed",
+    "scoreGiven": 100,
+    "scoreMaximum": 100
+  },
+  "gradebook": {
+    "resultScore": 100,
+    "resultMaximum": 100,
+    "readAt": "2026-10-18T15:01:25.863Z"
+  },
+  "gradebookDiffers": false,
+  "completion": "passed",
+  "score": 100,
+  "sentAxe": [],
+  "kind": "T6 round 2 author self-check; no mocked network responses",
+  "stack": {
+    "project": "cogniate-codex",
+    "port": 9443,
+    "subnet": "172.30.0.0/16",
+    "backendBase": "0d1e169",
+    "recreatedAfterBackendMerge": true
+  },
+  "failureMethod": "After the real learner launch, use the Moodle manual-enrol plugin API to unenrol cg_student2 from COGNIATE-DEV-102, complete the open real SCORM course, then restore the student enrolment before clicking Resend.",
+  "checkCommands": {
+    "command": "npm ci && npm run check && npm run build",
+    "passed": true,
+    "testFiles": 46,
+    "passedTests": 638,
+    "skippedTests": 5
+  }
+}

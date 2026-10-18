@@ -1,0 +1,67 @@
+{
+  "kind": "T6 round 2 author self-check; independent QA remains required",
+  "checkedAt": "2026-10-18T14:56:11.348Z",
+  "stack": "cogniate-codex",
+  "publicPort": 9443,
+  "subnet": "172.30.0.0/16",
+  "browser": "Chrome through Playwright 1.56.0",
+  "screens": [
+    {
+      "name": "integrations",
+      "violations": []
+    },
+    {
+      "name": "connect-create",
+      "violations": []
+    },
+    {
+      "name": "dynamic-wizard",
+      "violations": []
+    },
+    {
+      "name": "manual-wizard",
+      "violations": []
+    },
+    {
+      "name": "courses",
+      "violations": []
+    },
+    {
+      "name": "course-report",
+      "violations": []
+    },
+    {
+      "name": "publish-dialog",
+      "violations": []
+    },
+    {
+      "name": "results-not-found",
+      "violations": []
+    },
+    {
+      "name": "results-live",
+      "violations": []
+    }
+  ],
+  "tokens": {
+    "background": "rgb(11, 10, 15)",
+    "font": "\"DM Sans\", system-ui, sans-serif",
+    "pill": "rgb(166, 103, 228)",
+    "radius": "12px",
+    "grid": "361.328px 361.328px 361.344px"
+  },
+  "keyboard": {
+    "tabs": true,
+    "wizardEscape": true,
+    "dialog": true
+  },
+  "refreshWorks": true,
+  "visual": {
+    "width": 1440,
+    "height": 1183,
+    "afterWidth": 1440,
+    "afterHeight": 1183,
+    "changedPixels": 1003,
+    "totalPixels": 1703520
+  }
+}
