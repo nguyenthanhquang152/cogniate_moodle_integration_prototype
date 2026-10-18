@@ -51,14 +51,21 @@ test.describe('T5a negatives', () => {
       await otherContext.close();
     }
 
+    // Two valid commits, so that lastSeq ≥ 2 and both stale values are real sequence numbers (≥ 1).
     const s = await settledState(a.token);
-    const ok = await commitFromNode(a.token, scormCommit(s.sessionId, s.lastSeq + 1, 'commit'));
-    expect(ok.status, `a valid commit: ${ok.body.slice(0, 200)}`).toBe(200);
-    for (const seq of [s.lastSeq + 1, s.lastSeq]) {
+    for (const seq of [s.lastSeq + 1, s.lastSeq + 2]) {
+      const ok = await commitFromNode(a.token, scormCommit(s.sessionId, seq, 'commit'));
+      expect(ok.status, `a valid commit with seq ${seq}: ${ok.body.slice(0, 200)}`).toBe(200);
+    }
+    const last = s.lastSeq + 2;
+    for (const seq of [last, last - 1]) {
       const stale = await commitFromNode(a.token, scormCommit(s.sessionId, seq, 'commit'));
-      expect(stale.status, `seq ${seq} (lastSeq ${s.lastSeq + 1}): ${stale.body.slice(0, 200)}`).toBe(409);
+      expect(stale.status, `seq ${seq} (lastSeq ${last}): ${stale.body.slice(0, 200)}`).toBe(409);
       expect(code(stale.json)).toBe('STALE_SEQUENCE');
     }
+    // Observation (not an oracle): seq 0 is never a real sequence number (seqs start at 1).
+    const zero = await commitFromNode(a.token, scormCommit(s.sessionId, 0, 'commit'));
+    test.info().annotations.push({ type: 'seq 0', description: `HTTP ${zero.status} ${code(zero.json)} ${String((zero.json?.details as { field?: string } | undefined)?.field ?? '')}` });
   });
 
   test('AC-T5-15 [knob PLAY_TTL_SECONDS=20] a commit at TTL + 3 s → 410 RUNTIME_EXPIRED', async () => {

@@ -69,6 +69,7 @@ test.describe('T5a preview and rebind', () => {
     const before = rowsFor(await results(scormPub), s2, ACT.rebind)[0];
     expect(before?.attempts.map((a) => a.outcome), JSON.stringify(before)).toEqual(['in_progress']);
     const scormVersionId = before!.attempts[0].versionId;
+    test.info().annotations.push({ type: 'SCORM row before the rebind', description: JSON.stringify({ title: before?.activity.title, rl: before?.activity.resourceLinkId, attempts: before?.attempts.map((a) => `${a.versionId}:${a.outcome}`) }) });
 
     // cg_teacher selects the HTML course for this activity (Select content again).
     const open = await openPicker(context, seed().users.cg_teacher, course101(), Number(st.typeId), 45_000, { updateCmid: cmid });
@@ -83,15 +84,32 @@ test.describe('T5a preview and rebind', () => {
     const htmlState = (await runtimeState(next.token)).json;
     expect(htmlState?.format, 'the next launch opens the HTML course').toBe('html');
     expect(htmlState?.packageBaseUrl).toContain(String(st.html?.packageId));
+    // The HTML runtime (and its progress commits) is T5b scope; at T5a the launch itself makes the new attempt.
+    await packageFrame(next, 'index.html');
     await next.popup.close({ runBeforeUnload: true });
 
-    const htmlRow = rowsFor(await results(String(st.htmlPublicationId)), s2, ACT.rebind)[0];
-    const scormRow = rowsFor(await results(scormPub), s2, ACT.rebind)[0];
-    expect(htmlRow?.attempts.map((a) => a.versionId), JSON.stringify(htmlRow)).toContain(st.html?.versionId);
+    const htmlRows = await results(String(st.htmlPublicationId));
+    const scormRows = await results(scormPub);
+    const brief = (rows: typeof htmlRows) =>
+      rows
+        .filter((r) => r.learner.sub === String(s2.id))
+        .map((r) => ({ title: r.activity.title, rl: r.activity.resourceLinkId, preview: r.preview, attempts: r.attempts.map((a) => `${a.versionId}:${a.outcome}`) }));
+    test.info().annotations.push({
+      type: 'rows of cg_student2 after the rebind',
+      description: `HTML publication: ${JSON.stringify(brief(htmlRows))}; SCORM publication: ${JSON.stringify(brief(scormRows))}`.slice(0, 3000),
+    });
+    // Find the rows by the resource link (stable). The title can change with the re-selection: Moodle may set the name
+    // to the new course title after QA typed it (the content-item return runs after submitPicker returns).
+    const rl = before!.activity.resourceLinkId;
+    const byLink = (rows: typeof htmlRows) => rows.find((r) => r.learner.sub === String(s2.id) && r.activity.resourceLinkId === rl && !r.preview);
+    const htmlRow = byLink(htmlRows);
+    const scormRow = byLink(scormRows);
+    // "attempts[] shows both": the new HTML attempt is listed in a results row of the activity (the AC does not say under
+    // which publication), and the SCORM attempt stays in_progress, with no sync, under the SCORM publication.
+    const versions = new Set([...(htmlRow?.attempts ?? []), ...(scormRow?.attempts ?? [])].map((a) => a.versionId));
+    expect([...versions].sort(), `attempts of cg_student2 in "${ACT.rebind}" (both publications)`).toEqual([scormVersionId, String(st.html?.versionId)].sort());
     expect(scormRow?.attempts.find((a) => a.versionId === scormVersionId)?.outcome, JSON.stringify(scormRow)).toBe('in_progress');
     expect(scormRow?.scoreSyncs ?? []).toEqual([]);
-    const versions = new Set([...(htmlRow?.attempts ?? []), ...(scormRow?.attempts ?? [])].map((a) => a.versionId));
-    expect([...versions].sort(), 'attempts show both versions').toEqual([scormVersionId, String(st.html?.versionId)].sort());
     test.info().annotations.push({
       type: 'rows',
       description: `HTML publication row attempts: ${JSON.stringify(htmlRow?.attempts.map((a) => [a.versionId, a.outcome]))}; SCORM publication row attempts: ${JSON.stringify(scormRow?.attempts.map((a) => [a.versionId, a.outcome]))}`,

@@ -23,7 +23,7 @@ import { createRunner } from './core.mjs';
 const r = createRunner({
   task: 'T5',
   defaultProject: 'qa-t5-r1',
-  extraOptions: { tasks: { type: 'string', default: 'T5a,T5b' } },
+  extraOptions: { tasks: { type: 'string', default: 'T5a,T5b' }, only: { type: 'string', default: '' } },
   extraHelp: '  --tasks <list>               Task folders to run (default T5a,T5b; add T6 for the portal UI).\n',
 });
 const TASKS = r.opt.tasks.split(',').map((t) => t.trim());
@@ -148,6 +148,12 @@ async function passT5b() {
 await r.main(async () => {
   if (!(await setup())) return;
   if (!copyFixtures()) return;
+  if (r.opt.only) {
+    // Re-run only what is missing: SETUP-T5a makes the state these ACs need.
+    const ids = r.opt.only.split(',').map((t) => t.trim()).filter(Boolean);
+    await r.containerSuite('focus', { env: { QA_TASK: 'T5a', QA_GREP: ['SETUP-T5a', ...ids].join('|') }, expectIds: ids });
+    return;
+  }
   if (TASKS.includes('T5a')) {
     await r.containerSuite('T5a', { env: { QA_TASK: 'T5a' }, expectIds: EXPECT.T5a });
     await knobPass();

@@ -262,6 +262,26 @@ export async function apiReady(player: Pick<Player, 'runtime'>, timeoutMs = 15_0
   }
 }
 
+/**
+ * A new page load of the runtime page (= a new session). Waits until the old document is gone (a marker set before the
+ * reload has disappeared) and window.API exists in the new one; a plain waitForLoadState can still see the old page.
+ */
+export async function reloadRuntime(player: Pick<Player, 'runtime'>, timeoutMs = 20_000): Promise<void> {
+  await player.runtime.evaluate(() => {
+    (window as unknown as { __qaOldPage?: boolean }).__qaOldPage = true;
+    location.reload();
+  });
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const ready = await player.runtime
+      .evaluate(() => !(window as unknown as { __qaOldPage?: boolean }).__qaOldPage && typeof (window as unknown as { API?: { LMSInitialize?: unknown } }).API?.LMSInitialize === 'function')
+      .catch(() => false);
+    if (ready) return;
+    if (Date.now() > deadline) throw new Error(`the runtime page did not reload with window.API within ${timeoutMs} ms`);
+    await new Promise((r) => setTimeout(r, 250));
+  }
+}
+
 // ---------------------------------------------------------------- RuntimeState and commits
 
 export interface RuntimeState {

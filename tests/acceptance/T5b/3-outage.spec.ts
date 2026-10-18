@@ -16,6 +16,7 @@ import {
   course101,
   driveCourse,
   openPlayer,
+  reloadRuntime,
   rowsFor,
   results,
   savedSuspendData,
@@ -76,8 +77,7 @@ test.describe.serial('T5b Moodle outage', () => {
       expect(pending?.scoreSyncs.map((s) => `${s.status}:${s.scoreGiven}`), 'row 1 pending, 100').toContain('pending:100');
 
       // A new session (new page load of the runtime page; Moodle is down, so no new launch), then a failed/0 final commit.
-      await player.runtime.evaluate(() => location.reload());
-      await player.runtime.waitForLoadState('load');
+      await reloadRuntime(player);
       const state = await settledState(player.token);
       const core = { lesson_status: 'failed', score: { raw: '0', min: '0', max: '100' } };
       const c1 = await commitFromRuntime(player.runtime, player.token, scormCommit(state.sessionId, state.lastSeq + 1, 'commit', core, { suspend_data: savedSuspendData(state) }));

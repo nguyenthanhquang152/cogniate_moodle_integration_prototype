@@ -14,6 +14,7 @@ import {
   course101,
   openPlayer,
   type Player,
+  reloadRuntime,
   runtimeState,
   savedSuspendData,
   scormCalls,
@@ -72,9 +73,7 @@ test.describe('T5a blank SCO', () => {
       ]),
     );
     // A new page load of the runtime page = a new session.
-    await player.runtime.evaluate(() => location.reload());
-    await player.runtime.waitForLoadState('load');
-    await apiReady(player);
+    await reloadRuntime(player);
     const s2 = await scormCalls(player.runtime, [
       ['LMSInitialize', 'x'],
       ['LMSInitialize', ''],
