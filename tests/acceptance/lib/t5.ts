@@ -52,6 +52,8 @@ export const ACT = {
   scormOutage: 'Cogniate SCORM AC-T5-30',
   scormOverride: 'Cogniate SCORM AC-T5-33',
   html102: 'Cogniate HTML 102',
+  /** T5b round 2 (A-T5b-02): own SCORM activity in COGNIATE-DEV-102. */
+  scorm102: 'Cogniate SCORM A-T5b-02',
 } as const;
 
 // ---------------------------------------------------------------- state shared by the T5 spec files
@@ -103,6 +105,9 @@ export function cmidOf(name: string): number {
 }
 
 export const course101 = () => seed().courses['COGNIATE-DEV-101'];
+/** The Moodle course of a QA activity: COGNIATE-DEV-102 for "Cogniate HTML 102", the A-T5b-02 and the AC-T6-14 activities. */
+export const courseOf = (activityTitle: string): number =>
+  activityTitle === ACT.html102 || activityTitle === ACT.scorm102 || /AC-T6-14/.test(activityTitle) ? seed().courses['COGNIATE-DEV-102'] : course101();
 
 // ---------------------------------------------------------------- setup helpers
 
@@ -542,8 +547,17 @@ export async function waitForMoodle(
 ): Promise<{ grade: number | null | undefined; completion: number | undefined }> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
-    const grade = await moodleGrade(courseId, user, activityName);
-    const completion = cmid ? await completionState(courseId, user, cmid) : undefined;
+    let grade: number | null | undefined;
+    let completion: number | undefined;
+    try {
+      grade = await moodleGrade(courseId, user, activityName);
+      completion = cmid ? await completionState(courseId, user, cmid) : undefined;
+    } catch (err) {
+      // Moodle can still be starting after a host "moodle-start" (502 from the proxy): poll again until the deadline.
+      if (Date.now() > deadline) throw err;
+      await new Promise((r) => setTimeout(r, 2_000));
+      continue;
+    }
     const ok = grade !== null && grade !== undefined && Math.abs(Number(grade) - want) < 0.001 && (!cmid || (completion ?? 0) >= 1);
     if (ok || Date.now() > deadline) return { grade, completion };
     await new Promise((r) => setTimeout(r, 2_000));
@@ -616,8 +630,16 @@ export async function overrideGradeInUi(page: Page, courseId: number, userId: nu
   await page.goto(`${urls.moodle}/grade/report/grader/index.php?id=${courseId}`);
   const cell = page.locator(`#grade_${userId}_${itemId}`);
   if (!(await cell.count())) {
-    await Promise.all([page.waitForLoadState('load'), page.locator('input[name="setmode"]').first().click()]);
-    await page.goto(`${urls.moodle}/grade/report/grader/index.php?id=${courseId}`);
+    // The edit mode switch posts a form and Moodle redirects back to the report: wait for that page, do not goto
+    // while the navigation runs (net::ERR_ABORTED).
+    await page.locator('input[name="setmode"]').first().click();
+    try {
+      await cell.waitFor({ state: 'visible', timeout: 30_000 });
+    } catch {
+      await page.waitForLoadState('load');
+      await page.goto(`${urls.moodle}/grade/report/grader/index.php?id=${courseId}`);
+      await cell.waitFor({ state: 'visible', timeout: 30_000 });
+    }
   }
   await cell.fill(value);
   await Promise.all([page.waitForLoadState('load'), page.locator('#gradersubmit').click()]);

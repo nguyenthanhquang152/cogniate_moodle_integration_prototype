@@ -35,7 +35,7 @@ test.describe('T5a negatives', () => {
     await context?.close();
   });
 
-  test('AC-T5-15 token scope: token A reads attempt A only, token B reads B only, a random token → 404; a commit with seq ≤ lastSeq → 409 STALE_SEQUENCE', async ({ browser }) => {
+  test('AC-T5-15 token scope: token A reads attempt A only, token B reads B only, a random token → 404; a commit with 1 ≤ seq ≤ lastSeq → 409 STALE_SEQUENCE; seq 0 or 1.5 → 400 INVALID_REQUEST (field seq)', async ({ browser }) => {
     test.setTimeout(180_000);
     const a = await openPlayer(context, seed().users.cg_student, cmidOf(ACT.blankA));
     const otherContext = await newStackContext(browser);
@@ -63,9 +63,13 @@ test.describe('T5a negatives', () => {
       expect(stale.status, `seq ${seq} (lastSeq ${last}): ${stale.body.slice(0, 200)}`).toBe(409);
       expect(code(stale.json)).toBe('STALE_SEQUENCE');
     }
-    // Observation (not an oracle): seq 0 is never a real sequence number (seqs start at 1).
-    const zero = await commitFromNode(a.token, scormCommit(s.sessionId, 0, 'commit'));
-    test.info().annotations.push({ type: 'seq 0', description: `HTTP ${zero.status} ${code(zero.json)} ${String((zero.json?.details as { field?: string } | undefined)?.field ?? '')}` });
+    // seq starts at 1 (contract §7, Q-T5a-01): seq 0 or a non-integer fails the schema → 400 INVALID_REQUEST, field seq.
+    for (const seq of [0, 1.5]) {
+      const bad = await commitFromNode(a.token, scormCommit(s.sessionId, seq, 'commit'));
+      expect(bad.status, `seq ${seq}: ${bad.body.slice(0, 200)}`).toBe(400);
+      expect(code(bad.json), `seq ${seq}`).toBe('INVALID_REQUEST');
+      expect((bad.json?.details as { field?: string } | undefined)?.field, `seq ${seq}: details.field`).toBe('seq');
+    }
   });
 
   test('AC-T5-15 [knob PLAY_TTL_SECONDS=20] a commit at TTL + 3 s → 410 RUNTIME_EXPIRED', async () => {

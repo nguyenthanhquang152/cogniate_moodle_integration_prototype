@@ -9,7 +9,7 @@ import { logFile } from '../lib/logs';
 import { expect, test } from '../lib/pw';
 import { seed } from '../lib/seed';
 import { newStackContext } from '../lib/moodle-launch';
-import { ACT, addPickedActivity, course101, driveCourse, moodleGrade, moodleShown, openPlayer, packageFrame, refreshResults, rowsFor, runtimeState, saveT5, t5, waitForMoodle } from '../lib/t5';
+import { ACT, addPickedActivity, course101, courseOf, driveCourse, moodleGrade, moodleShown, openPlayer, packageFrame, refreshResults, rowsFor, runtimeState, saveT5, t5, waitForMoodle } from '../lib/t5';
 
 // B-T5b-01 (Reviewer-B): a scores[0] fallback could store another learner's grade. QA's own activity: cg_student has a
 // Moodle grade, cg_student2 has a row (in_progress) but no Moodle grade; after Refresh, cg_student2 must keep null.
@@ -42,12 +42,11 @@ test('AC-T5-18 (B-T5b-01) Refresh from Moodle never stores another learner\'s gr
     expect(rowB?.gradebook?.resultScore ?? null, "cg_student2: null, not cg_student's grade").toBeNull();
 
     // Every row of the HTML publication equals that learner's Moodle grade (the right course per activity).
-    const c102 = seed().courses['COGNIATE-DEV-102'];
     const problems: string[] = [];
     for (const row of res.rows.filter((r) => !r.preview)) {
       const user = [s1, s2].find((u) => String(u.id) === row.learner.sub);
       if (!user) continue;
-      const courseId = row.activity.title === ACT.html102 || /AC-T6-14/.test(row.activity.title) ? c102 : course101();
+      const courseId = courseOf(row.activity.title);
       const want = (await moodleShown(courseId, user, row.activity.title))?.shown ?? null;
       const got = row.gradebook?.resultScore ?? null;
       if (got !== want) problems.push(`${user.username} / ${row.activity.title}: gradebook ${got}, Moodle ${want}`);
@@ -70,7 +69,7 @@ test('AC-T5-18 Refresh from Moodle: every row of the SCORM publication has grade
   for (const row of res.rows.filter((r) => !r.preview)) {
     const user = learners.find((u) => String(u.id) === row.learner.sub);
     if (!user) continue;
-    const moodle = await moodleShown(course101(), user, row.activity.title);
+    const moodle = await moodleShown(courseOf(row.activity.title), user, row.activity.title);
     const want = moodle?.shown ?? null;
     const got = row.gradebook?.resultScore ?? null;
     checked++;
