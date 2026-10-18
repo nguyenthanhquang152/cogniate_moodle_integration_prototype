@@ -17,7 +17,7 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 | 7b | T4b2 | Picker, launch handoff, security | Author | **done** | 1 | QA PASS 17/17 (716a72c; AC-T4-22/23 live), A APPROVE, B APPROVE. MINOR follow-ups (B-T4b2-01/03, A-T4b2-02/04) in progress with T5b batch. |
 | 8 | T5a | Content host, SCORM runtime, score sync | Author | verifying | 1 | wip de6a1bb (real SCORM course → 100 in Moodle gradebook). A + B reviewing; QA after T4b run. |
 | 9 | T5b | HTML runtime, conflict, Resend | Author | in_progress | 1 | After the T4b2 round-2 items. QA tests ready. |
-| 10 | T6 | Portal UI (dev-portal style) | **Author-2 (Codex GPT-6-Astra xhigh)** | in_progress | 1 | Orca run run_1d4c026ef9ba, dispatch ctx_fc98a946ec60; worktree ../cogniate_moodle_t6, branch feat/t6-portal-ui. Parallel to T5a. QA tests ready. |
+| 10 | T6 | Portal UI (dev-portal style) | **Author-2 (Codex GPT-6-Astra xhigh)** | integrating | 1 | Built in ~25 min on feat/t6-portal-ui (4 commits; 490 tests, build, axe 0 on 9 screens, live registration). Now: merge main + wire real T5a results API (dispatch ctx_d8e98f56b217). Then QA + A + B. |
 | 11 | T7 | Full E2E in real Moodle | QA + Author | planned | — | |
 | 12 | T3c | Compat-only endpoints + LTIAAS SDK black-box test | Author | planned | — | Off the critical path. |
 | 13 | T8 | Native channel (.mbz) + course shell via WS — stretch | Author | planned | — | Human decision Q12. |
