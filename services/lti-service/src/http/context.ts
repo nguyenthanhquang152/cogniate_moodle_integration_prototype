@@ -5,6 +5,7 @@ import type { Db } from '../db/index.ts';
 import type { ProtocolErrorCode } from '../lti/codes.ts';
 import type { PlatformKeys } from '../lti/jwks.ts';
 import type { AgsClient } from '../platform/ags.ts';
+import type { NrpsClient } from '../platform/nrps.ts';
 import type { AuthResult, Scheme } from './auth.ts';
 
 export interface RouteContext {
@@ -15,6 +16,7 @@ export interface RouteContext {
   ltikTtlSeconds: number;
   masterKey: Buffer;
   ags: AgsClient;
+  nrps: NrpsClient;
   /** Guarded outbound client (security §9): dynamic registration calls (T3b). */
   outbound: OutboundClient;
   now: () => number;

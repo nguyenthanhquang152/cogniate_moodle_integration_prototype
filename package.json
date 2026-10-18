@@ -35,7 +35,8 @@
     "demo:browser": "bash infra/scripts/demo-browser.sh",
     "test:acceptance": "bash infra/scripts/qa-suite.sh acceptance",
     "test:e2e": "bash infra/scripts/qa-suite.sh e2e",
-    "dev:web": "node apps/portal/scripts/dev-web.mjs"
+    "dev:web": "node apps/portal/scripts/dev-web.mjs",
+    "test:compat": "bash infra/scripts/compat-run.sh"
   },
   "devDependencies": {
     "@eslint/compat": "2.1.1",
