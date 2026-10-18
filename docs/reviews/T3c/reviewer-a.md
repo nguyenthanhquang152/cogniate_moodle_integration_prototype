@@ -1,7 +1,11 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # T3c review: Reviewer-A (correctness and security)
+
+History: the round 1 verdict was APPROVE (1 MINOR, 1 NIT; below). The round 2 verdict is APPROVE (section "Round 2" at the end).
+
+## Round 1
 
 Scope: `git diff dc068e9^1 dc068e9 -- . ':!docs' ':!tests'` (19 files; built by Author-2, Codex). Spec: `tasks/T3c.md`, LTI contract §0 (T3c rows), §3.2 (`/form`, `/message`), §3.4, §3.5 (write rows), §3.7, §3.9 (DELETE), §3.10, §8; security §2, §8, §9; ADR-001, ADR-003.
 
@@ -71,3 +75,16 @@ Method:
 ## Counts
 
 0 BLOCKER, 0 MAJOR, 1 MINOR (A-T3c-01), 1 NIT (A-T3c-02).
+
+## Round 2
+
+Scope: `git diff 963cb5e^1 963cb5e -- . ':!docs' ':!tests'` (15 files). I read the guard, the error code, the tests, the compat Dockerfile, `requirements.txt`, `entrypoint.py`, the compose service and `compat-run.sh`. I made no live check, because the Author's running service is not rebuilt (see round 1). I did not read `reviewer-b.md`.
+
+| Finding | Round 2 result |
+| --- | --- |
+| A-T3c-01 (MINOR) | **Resolved.** The guard is in the shared builder `deepLinkingResponse` (`lti/deep-linking.ts`), before signing. `/api/deeplinking` (`services.ts`), `/message` and `/form` (`compat.ts`) all reach it through `signedDeepLink`. It needs `isHttpsUrl` (https, no user info, no fragment) and an origin equal to the platform issuer origin, else `400 INVALID_DEEP_LINK_RETURN_URL`. The test covers 11 unsafe values on all three paths: `javascript:`, `data:`, `http:`, another origin, another port, a look-alike host (`moodle.test.evil.test`), user info, a fragment, a scheme-relative URL, a relative path and an empty string. Each gives 400, no `message`, `target` or `form`, the bad value is not echoed, and there is no outbound call. A valid issuer-origin URL with `"'><script>` in its query is escaped in the `/form` `action`, with exactly one `<script>`. |
+| A-T3c-02 (NIT) | **Resolved.** The compat service mounts only `lti-api-key.cogniate` and the CA (both read-only, `create_host_path: false`), plus an optional read-only `COMPAT_INPUT_FILE` at `/run/compat/input.json`. There is no `seed.json`, and the whole `.secrets` folder is no longer mounted. The full dependency set of `ltiaas 0.0.4` is pinned by version in `requirements.txt` and installed wheel-only (`--only-binary=:all:`) with `pip check`. The entrypoint checks the CA with one health request, prints no credentials or traceback, and then `exec`s the QA runner. |
+
+Residual (accepted, no finding): the dependencies are pinned by version, not by hash, and the container still has internet access on the default network. Both are acceptable for a test-only container that holds one local dev key.
+
+Round 2 counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT. All round 1 findings are resolved.

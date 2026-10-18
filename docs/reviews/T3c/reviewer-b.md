@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # T3c review — Reviewer-B (lens: "Can a human team own it?")
 
@@ -70,3 +70,19 @@ Scope: `git diff dc068e9^1 dc068e9 -- . ':!docs' ':!tests'` (merge of the T3c br
   - `compat.ts` `parseItem` ends with `as unknown as LineItemInput`. Let the zod schema output that type (or use `satisfies`), so the compiler checks the fields.
   - `platformResponseError(res, false)` in `platform/nrps.ts` passes a bare boolean. Use a named option, for example `{ echoMessage: false }`, so the call says what it does.
   - `DELETE /api/platforms/:id` is a destructive admin action, but it logs no event except `http_request`. Log `platform_deleted {platform_id}` and add it to contract §5, so support can see who removed a platform and when.
+
+---
+
+## Round 2
+
+Round 2 verdict: **APPROVE**.
+
+Input: `git diff 963cb5e^1 963cb5e -- . ':!docs' ':!tests'` (15 files, Author-2 / Codex).
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| B-T3c-01 | **Resolved** | `compat-run.sh` checks first and prints one line for each case. Missing runner: "QA has not written tests/compat/run.py yet; ask QA or set COMPAT_TESTS_DIR …" (it resolves a relative `COMPAT_TESTS_DIR` the way compose does). Missing key: "run npm run seed first". Failed image build: "the SDK could not be installed; check Docker and PyPI access, or ask QA for the T3c fallback client". The new `infra/compat/entrypoint.py` checks `/healthz` with the stack CA before QA's script runs: an `SSLError` prints "the CA does not match the stack certificate; run npm run gen-env and npm run stack:up again", with no traceback and no credential. Compose mounts only `root.crt` and `lti-api-key.cogniate` (`create_host_path: false`); `seed.json` is no longer mounted. `requirements.txt` pins the full dependency set (binary wheels only, `pip check`). |
+| B-T3c-02 | **Resolved** | The `compat.ts` header lists the endpoints with contract §3.2, §3.5, §3.7 and §3.10. The `as unknown as` cast is gone. `platformResponseError(res, { echoMessage: false })`. `DELETE /api/platforms/:id` logs `platform_deleted {platform_id}`. |
+
+Rest (NIT, safe to defer): when the image build fails, the script prints the one-line message but deletes the captured build log (`trap 'rm -f "$build_log" …'`), so the pip error is lost. Print the last 20 lines of `$build_log` before the message, or keep the file and print its path.
+
