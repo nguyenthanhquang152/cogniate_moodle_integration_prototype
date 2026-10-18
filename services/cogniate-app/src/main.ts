@@ -3,13 +3,14 @@
 //  - content: PUBLIC_CONTENT_URL (proxy -> :4201): /pkg/*, /rt/*, /_rt/assets/*; a different site, no cookies (T5a)
 //  - worker:  sends score sync rows to the LTI service (T5a; started with the app listener)
 import { join } from 'node:path';
-import { createOutboundClient, knobValue, portFromEnv, startService } from '@cogniate/shared';
+import { createOutboundClient, knobValue, portFromEnv, startRetention, startService } from '@cogniate/shared';
 import { buildAppApi } from './app/server.ts';
 import { createLtiClient } from './clients/lti-client.ts';
 import { loadConfig } from './config.ts';
 import { CONTENT_SERVICE_NAME, buildContentServer } from './content-host/server.ts';
 import { openDb } from './domain/db.ts';
 import { prepareStore } from './domain/package-store.ts';
+import { cleanupExpired } from './domain/retention.ts';
 import type { ScoreSyncWorker } from './worker/score-sync.ts';
 import { createScoreSyncWorker } from './worker/score-sync.ts';
 
@@ -37,6 +38,8 @@ await startService(APP_SERVICE_NAME, [
       });
       worker = createScoreSyncWorker({ db, lti, logger: deps.logger, masterKey: config.masterKey, now: Date.now });
       worker.start();
+      // Retention (data-model §2.1): at start and every 10 min.
+      startRetention({ logger: deps.logger, run: () => cleanupExpired(db, Date.now()) });
       await app.ready();
       return app.server;
     },

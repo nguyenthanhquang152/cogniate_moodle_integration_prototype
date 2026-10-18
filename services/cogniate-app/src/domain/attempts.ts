@@ -123,6 +123,8 @@ export interface RuntimeSession {
   sessionId: string;
   lastSeq: number;
   maxSessionTimeCs: number;
+  /** Counted time of the attempt's deleted sessions (retention, migration 006). */
+  archivedTimeCs: number;
   entry: string | null;
   finishedAt: number | null;
   expiresAt: number;
@@ -142,13 +144,13 @@ export interface RuntimeSession {
 /** By token hash, expired or not (the caller answers 404 or 410). */
 export function findRuntimeSession(db: Db, runtimeTokenHash: string): RuntimeSession | undefined {
   const r = db.prepare(`SELECT ps.id AS play_id, ps.session_id, ps.last_seq, ps.max_session_time_cs, ps.entry, ps.finished_at, ps.expires_at,
-      a.id AS attempt_id, a.resource_link_id, a.user_sub, a.preview, a.outcome, a.score_given, a.score_maximum, a.cmi_or_progress,
+      a.id AS attempt_id, a.resource_link_id, a.user_sub, a.preview, a.outcome, a.score_given, a.score_maximum, a.cmi_or_progress, a.archived_session_time_cs,
       v.format, v.package_id, v.tracking_profile
     FROM play_session ps JOIN attempt a ON a.id = ps.attempt_id JOIN course_version v ON v.id = a.course_version_id
     WHERE ps.runtime_token_hash = ?`).get(runtimeTokenHash);
   if (!r) return undefined;
   return {
-    playKey: String(r.play_id), sessionId: String(r.session_id), lastSeq: Number(r.last_seq), maxSessionTimeCs: Number(r.max_session_time_cs),
+    playKey: String(r.play_id), sessionId: String(r.session_id), lastSeq: Number(r.last_seq), maxSessionTimeCs: Number(r.max_session_time_cs), archivedTimeCs: Number(r.archived_session_time_cs),
     entry: r.entry === null ? null : String(r.entry), finishedAt: r.finished_at === null ? null : Number(r.finished_at), expiresAt: Number(r.expires_at),
     attemptId: String(r.attempt_id), resourceLinkId: String(r.resource_link_id), userSub: String(r.user_sub), preview: Number(r.preview) === 1,
     outcome: r.outcome as Outcome, scoreGiven: r.score_given === null ? null : Number(r.score_given), scoreMaximum: r.score_maximum === null ? null : Number(r.score_maximum),
@@ -183,7 +185,7 @@ export function runtimeState(db: Db, s: RuntimeSession) {
   const cmi = saved === null ? null : { ...saved, core: { ...saved.core, exit: '', session_time: '' } };
   return {
     ...base,
-    scorm: { cmi: { ...(cmi ?? {}), core: { ...(cmi?.core ?? {}), total_time: totalTime(others) } }, entry, masteryScore: s.profile.masteryScore, launchData: '', credit: credit(s.preview) },
+    scorm: { cmi: { ...(cmi ?? {}), core: { ...(cmi?.core ?? {}), total_time: totalTime([s.archivedTimeCs, ...others]) } }, entry, masteryScore: s.profile.masteryScore, launchData: '', credit: credit(s.preview) },
     html: null,
   };
 }

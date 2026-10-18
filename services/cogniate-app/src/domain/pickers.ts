@@ -48,6 +48,11 @@ export function claimPicker(db: Db, key: string, publicationId: string, now: num
     .run(now, publicationId, key, now).changes) === 1;
 }
 
+/** A-T4b2-04: after a successful pick, drop the encrypted ltik (the column is NOT NULL, so an empty blob). */
+export function clearPickerLtik(db: Db, key: string): void {
+  db.prepare("UPDATE picker_session SET ltik_encrypted = X'' WHERE id = ?").run(key);
+}
+
 /** The Deep Linking call failed after the claim: the teacher may pick again. */
 export function releasePicker(db: Db, key: string): void {
   db.prepare('UPDATE picker_session SET used_at = NULL, publication_id = NULL WHERE id = ?').run(key);

@@ -4,7 +4,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { continuesNewest } from '../domain/attempts.ts';
 import type { TestApp } from '../testkit.ts';
 import { DL_RETURN, INSTRUCTOR, LEARNER, QA_B, TEST_MASTER_KEY, TEST_URLS, THANH, formBody, launchToken, testApp } from '../testkit.ts';
+import { LAUNCH_ERRORS } from './launch.ts';
 import { hasStaffRole, publicationFromTarget, runtimeTokenFor, safeReturnUrl } from './launch-rules.ts';
+import { PICKER_ERRORS } from './picker.ts';
 import { contentSecurityPolicy } from './page.ts';
 
 let t: TestApp;
@@ -374,6 +376,71 @@ describe('/tool/deep-link and /tool/picker (app contract §6, flows §6b)', () =
     t.lti.failNext = { status: 502, code: 'PLATFORM_ERROR' };
     expect(pageCode((await picker(id, w.scorm)).body)).toBe('LTI_SERVICE_ERROR');
     expect((await picker(id, w.scorm)).statusCode).toBe(200);
+  });
+});
+
+describe('B-T4b2-01 / -03, A-T4b2-04: every tool page error code logs one event with its trace id', () => {
+  it('AC-T4-32 table: each code of LAUNCH_ERRORS and PICKER_ERRORS -> page with an action line + exactly one event (LTI code kept)', async () => {
+    const w = await world({ pickerTtlSeconds: 20 });
+    const resourceLtik = () => t.lti.addLaunch(launchToken({ platformId: w.a.platformId, target: target(w.scorm) }));
+    const used = resourceLtik();
+    await get(`/tool/launch?ltik=${used}`);
+    const usedPicker = await deepLink(w.a.platformId);
+    await picker(usedPicker, w.scorm);
+    const cases: Array<[string, () => Promise<{ statusCode: number; body: string; headers: Record<string, unknown> }>, string, Record<string, unknown>?]> = [
+      ['INVALID_LTIK', () => get('/tool/launch?ltik=short'), 'launch_rejected', { reason: 'invalid_ltik' }],
+      ['HANDOFF_USED', () => get(`/tool/launch?ltik=${used}`), 'handoff_rejected'],
+      ['UNKNOWN_PLATFORM', async () => (await launch('plt_nobody', w.scorm)).res, 'launch_rejected', { reason: 'unknown_platform' }],
+      ['PUBLICATION_NOT_IN_CONNECTION', async () => (await launch(w.a.platformId, w.bPub)).res, 'launch_rejected', { reason: 'publication_not_in_connection' }],
+      ['NOT_DEEP_LINKING', () => get(`/tool/deep-link?ltik=${resourceLtik()}`), 'deep_link_rejected', { reason: 'not_deep_linking' }],
+      ['ROLE_NOT_ALLOWED', () => get(`/tool/deep-link?ltik=${t.lti.addLaunch(launchToken({ platformId: w.a.platformId, type: 'LtiDeepLinkingRequest', roles: [LEARNER] }))}`), 'deep_link_rejected', { reason: 'role_not_allowed' }],
+      ['LTI_SERVICE_ERROR', () => { t.lti.failNext = { status: 503, code: 'HTTP_503' }; return get(`/tool/launch?ltik=${resourceLtik()}`); }, 'launch_rejected', { reason: 'lti_service_error', lti_status: 503, lti_code: 'HTTP_503' }],
+      ['PICKER_NOT_FOUND', () => get('/tool/picker/pck_unknown'), 'picker_rejected', { reason: 'not_found' }],
+      ['PICKER_USED', () => picker(usedPicker, w.scorm), 'picker_rejected', { reason: 'used' }],
+      ['ORIGIN_NOT_ALLOWED', async () => picker(await deepLink(w.a.platformId), w.scorm, 'https://evil.test'), 'csrf_rejected'],
+      ['PUBLICATION_NOT_AVAILABLE', async () => picker(await deepLink(w.a.platformId), w.bPub), 'picker_rejected', { reason: 'publication_not_available' }],
+      ['LTI_SERVICE_ERROR', async () => { const id = await deepLink(w.a.platformId); t.lti.failNext = { status: 502, code: 'PLATFORM_ERROR' }; return picker(id, w.scorm); }, 'picker_rejected', { reason: 'lti_service_error', lti_status: 502, lti_code: 'PLATFORM_ERROR' }],
+      ['RETURN_URL_MISMATCH', async () => {
+        const id = await deepLink(w.a.platformId);
+        const orig = t.lti.client.deepLinking;
+        t.lti.client.deepLinking = async () => ({ message: 'jwt', target: 'https://evil.test/return' });
+        try { return await picker(id, w.scorm); } finally { t.lti.client.deepLinking = orig; }
+      }, 'picker_rejected', { reason: 'return_url_mismatch' }],
+      ['PUBLICATION_WITHDRAWN', async () => { await json('POST', `/app-api/publications/${w.scorm}/withdraw`, w.thanh); return (await launch(w.a.platformId, w.scorm)).res; }, 'launch_rejected', { reason: 'publication_withdrawn' }],
+      ['PICKER_EXPIRED', async () => { const id = await deepLink(w.a.platformId); t.clock.now += 23_000; return picker(id, w.html); }, 'picker_rejected', { reason: 'expired' }],
+    ];
+    const seen = new Set<string>();
+    for (const [code, run, event, fields] of cases) {
+      const r = await run();
+      const traceId = String(r.headers['x-trace-id']);
+      expect(pageCode(r.body), code).toBe(code);
+      expect(r.body, code).toMatch(/<p data-error-action>[^<]+<\/p>/);
+      expect(r.body, code).not.toContain('Try again in a minute');
+      const lines = t.logs.filter((l) => l.trace_id === traceId && l.event.endsWith('_rejected'));
+      expect(lines, code).toHaveLength(1);
+      expect(lines[0], code).toMatchObject({ event, ...(fields ?? {}) });
+      seen.add(code);
+    }
+    expect([...seen].sort()).toEqual([...new Set([...Object.keys(LAUNCH_ERRORS), ...Object.keys(PICKER_ERRORS)])].sort());
+  });
+
+  it('B-T4b2-03: a valid deep-linking ltik on /tool/launch -> INVALID_LTIK page, reason not_resource_link', async () => {
+    const w = await world();
+    const ltik = t.lti.addLaunch(launchToken({ platformId: w.a.platformId, type: 'LtiDeepLinkingRequest' }));
+    const r = await get(`/tool/launch?ltik=${ltik}`);
+    expect([r.statusCode, pageCode(r.body)]).toEqual([401, 'INVALID_LTIK']);
+    expect(events('launch_rejected', String(r.headers['x-trace-id']))).toEqual([expect.objectContaining({ reason: 'not_resource_link' })]);
+  });
+
+  it('A-T4b2-04: a used picker keeps no encrypted ltik; a failed Deep Linking call keeps it for the retry', async () => {
+    const w = await world();
+    const failed = await deepLink(w.a.platformId);
+    t.lti.failNext = { status: 502, code: 'PLATFORM_ERROR' };
+    await picker(failed, w.scorm);
+    const len = (id: string) => Number(t.db.prepare('SELECT length(ltik_encrypted) AS n FROM picker_session WHERE id = ?').get(sha256Hex(id))!.n);
+    expect(len(failed)).toBeGreaterThan(0);
+    expect((await picker(failed, w.scorm)).statusCode).toBe(200);
+    expect(len(failed)).toBe(0);
   });
 });
 

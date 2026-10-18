@@ -6,7 +6,7 @@ import type { Logger, PublicUrls } from '@cogniate/shared';
 import { encrypt, randomId, sha256Hex } from '@cogniate/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { LtiClient, LtiIdToken } from '../clients/lti-client.ts';
-import { LtiServiceError } from '../clients/lti-client.ts';
+import { LtiServiceError, ltiErrorFields } from '../clients/lti-client.ts';
 import { findLaunchConnection, markLaunched } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
@@ -45,7 +45,7 @@ export const LAUNCH_ERRORS: Record<LaunchErrorCode, { status: number; heading: s
   PUBLICATION_WITHDRAWN: { status: 410, heading: 'This course is no longer available', action: 'Cogniate withdrew this course from this Moodle site. Ask your teacher for help.' },
   NOT_DEEP_LINKING: { status: 403, heading: 'Cogniate could not open the course list', action: 'This launch cannot select content. In Moodle, use Select content in the activity settings.' },
   ROLE_NOT_ALLOWED: { status: 403, heading: 'Cogniate could not open the course list', action: 'Only a teacher can select a Cogniate course. Ask a teacher of this Moodle course.' },
-  LTI_SERVICE_ERROR: { status: 502, heading: OPEN_FAILED, action: 'Cogniate cannot reach its LTI service now. Try again in a minute. If it happens again, give the trace id to your Moodle administrator.' },
+  LTI_SERVICE_ERROR: { status: 502, heading: OPEN_FAILED, action: 'Cogniate could not read this launch. Open the activity again in Moodle. If it happens again, give the trace id to your Moodle administrator.' },
 };
 
 type LtikQuery = { Querystring: { ltik?: unknown } };
@@ -59,14 +59,15 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
   };
 
   /**
-   * Steps 1 and 2 of both handoffs: single use, then the launch from the LTI service. `onInvalid` logs the
-   * invalid_ltik reason of the caller's event. Returns the token, or the reply already sent.
+   * Steps 1 and 2 of both handoffs: single use, then the launch from the LTI service. `event` is the caller's
+   * rejection event (launch_rejected or deep_link_rejected); an LTI service failure keeps its status and code in the
+   * log (B-T4b2-01). Returns the token, or the reply already sent.
    */
-  async function handoff(req: FastifyRequest<LtikQuery>, reply: FastifyReply, onInvalid: () => void): Promise<{ ltik: string; token: LtiIdToken } | { sent: FastifyReply }> {
+  async function handoff(req: FastifyRequest<LtikQuery>, reply: FastifyReply, event: 'launch_rejected' | 'deep_link_rejected'): Promise<{ ltik: string; token: LtiIdToken } | { sent: FastifyReply }> {
     const ltik = req.query.ltik;
     // A malformed ltik was never used before, so it fails at step 2 (invalid_ltik) without a handoff row.
     if (typeof ltik !== 'string' || !LTIK.test(ltik)) {
-      onInvalid();
+      log.warn(event, { trace_id: req.traceId, reason: 'invalid_ltik' });
       return { sent: page(req, reply, 'INVALID_LTIK') };
     }
     if (!useHandoff(db, sha256Hex(ltik), now())) {
@@ -77,10 +78,13 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
       return { ltik, token: await lti.getIdToken(ltik, req.traceId) };
     } catch (err) {
       if (err instanceof LtiServiceError && err.status === 401) {
-        onInvalid();
+        log.warn(event, { trace_id: req.traceId, reason: 'invalid_ltik', ...ltiErrorFields(err) });
         return { sent: page(req, reply, 'INVALID_LTIK') };
       }
-      if (err instanceof LtiServiceError) return { sent: page(req, reply, 'LTI_SERVICE_ERROR') };
+      if (err instanceof LtiServiceError) {
+        log.warn(event, { trace_id: req.traceId, reason: 'lti_service_error', ...ltiErrorFields(err) });
+        return { sent: page(req, reply, 'LTI_SERVICE_ERROR') };
+      }
       throw err;
     }
   }
@@ -92,12 +96,13 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
       log.warn('launch_rejected', { trace_id: traceId, reason });
       return page(req, reply, code);
     };
-    const h = await handoff(req, reply, () => log.warn('launch_rejected', { trace_id: traceId, reason: 'invalid_ltik' }));
+    const h = await handoff(req, reply, 'launch_rejected');
     if ('sent' in h) return h.sent;
     const { token } = h;
     const { resourceLink, context } = token.launch;
-    // A deep-linking ltik (or a launch without a resource link) cannot start a course.
-    if (token.launch.type !== 'LtiResourceLinkRequest' || !resourceLink || !context) return reject('INVALID_LTIK', 'invalid_ltik');
+    // A valid deep-linking ltik (or a launch without a resource link) cannot start a course: same page as a bad ltik
+    // ("Open the activity again in Moodle"), but its own log reason (B-T4b2-03).
+    if (token.launch.type !== 'LtiResourceLinkRequest' || !resourceLink || !context) return reject('INVALID_LTIK', 'not_resource_link');
     // Security §8: platform.id -> connection -> library.
     const connection = findLaunchConnection(db, token.platform.id);
     const issuerOrigin = httpsOrigin(token.platform.url);
@@ -146,7 +151,7 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
       log.warn('deep_link_rejected', { trace_id: traceId, reason });
       return page(req, reply, code);
     };
-    const h = await handoff(req, reply, () => log.warn('deep_link_rejected', { trace_id: traceId, reason: 'invalid_ltik' }));
+    const h = await handoff(req, reply, 'deep_link_rejected');
     if ('sent' in h) return h.sent;
     const { ltik, token } = h;
     if (token.launch.type !== 'LtiDeepLinkingRequest') return reject('NOT_DEEP_LINKING', 'not_deep_linking');
