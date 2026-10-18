@@ -16,9 +16,9 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 | 7 | T4b1 | Connect + publish | Author | **done** | 2 | QA PASS (716a72c, incl. AC-T4-36), A APPROVE, B APPROVE. Residual risk R1 accepted. |
 | 7b | T4b2 | Picker, launch handoff, security | Author | **done** | 1 | QA PASS 17/17 (716a72c; AC-T4-22/23 live), A APPROVE, B APPROVE. MINOR follow-ups (B-T4b2-01/03, A-T4b2-02/04) in progress with T5b batch. |
 | 8 | T5a | Content host, SCORM runtime, score sync | Author | **done** | 1 | QA PASS 21/21 black-box (e05aa29; real SCORM → 100 in Moodle), A APPROVE, B APPROVE. Review fixes landed in T5b. |
-| 9 | T5b | HTML runtime, conflict, Resend | Author | fixing | 2 | R1: A APPROVE + A-T5b-01/02 must-fix, B APPROVE + B-T5b-01 must-fix; QA run in progress. R2 batch with the Author. |
-| 10 | T6 | Portal UI (dev-portal style) | **Author-2 (Codex)** | ready to merge | 1 | feat/t6-portal-ui integrated with main (1943ee8 + 886304f; 564 tests; live: real results API → Passed 100 rows). Merge into main when the Author's tree is clean; then QA + A + B. |
-| 11 | T7 | Full E2E in real Moodle | QA + Author | in_progress | 1 | Author: e2e:reset, test:e2e, demo:prepare, moodle:cron. QA: tests/e2e written. Needs T6 merged. |
+| 9 | T5b | HTML runtime, conflict, Resend | Author | verifying | 2 | R2 80f8581 (never lower, refresh by own id, 1 MB headers). A + B short R2 look; QA R1 run then R2 targeted at 7bf48b6. |
+| 10 | T6 | Portal UI (dev-portal style) | **Author-2 (Codex)** | verifying | 1 | Merged into main as 7bf48b6 (596 tests, build OK). A + B reviewing (cross-model); QA run at 7bf48b6 queued. |
+| 11 | T7 | Full E2E in real Moodle | QA + Author | in_progress | 1 | Harness part 1 committed (8b45d15). Author continues; QA tests/e2e ready. |
 | 12 | T3c | Compat-only endpoints + LTIAAS SDK black-box test | **Author-2 (Codex)** | in_progress | 1 | Dispatch ctx_360cc8e80ed7; worktree ../cogniate_moodle_t3c, branch feat/t3c-compat. QA writes tests/compat/run.py. |
 | 13 | T8 | Native channel (.mbz) + course shell via WS — stretch | Author | planned | — | Human decision Q12. |
 | 14 | T9 | Docs + human review pack | Docs | in_progress (drafts) | — | PLAN.md, run-the-stack guide, explainer.html shell, flows.md done as drafts; results after T7. |
