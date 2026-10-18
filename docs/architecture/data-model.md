@@ -153,7 +153,7 @@ erDiagram
       string status "available or withdrawn"
     }
     PICKER_SESSION {
-      string id PK "random, in the /tool/picker URL"
+      string id_hash PK "SHA-256 of the picker id; the raw id is only in the /tool/picker URL"
       string connection_id FK
       blob ltik_encrypted
       datetime expires_at
@@ -162,6 +162,7 @@ erDiagram
     HANDOFF {
       string ltik_hash PK "one use of /tool/launch or /tool/deep-link"
       datetime used_at
+      datetime expires_at
     }
     RESOURCE_LINK {
       string id PK
@@ -186,7 +187,7 @@ erDiagram
       int score_maximum
     }
     PLAY_SESSION {
-      string id PK "random, in the /play URL"
+      string id_hash PK "SHA-256 of the play id; the raw id is only in the /play URL"
       string attempt_id FK
       string runtime_token_hash
       string session_id
@@ -215,7 +216,23 @@ Unique keys and rules:
 | `resource_link` | (`connection_id`, `deployment_id`, `context_id`, `resource_link_id`) unique. `publication_id` comes from the **signed** `launch.target`. If a later signed launch names another publication of the same connection (the teacher selected new content for the activity), the row is updated and the event `resource_link_rebound` is logged. |
 | `attempt` | One row per (`resource_link_id`, `user_sub`, `course_version_id`). A launch continues the newest attempt if it is `in_progress` **and** its course version belongs to the course of the resource link's current publication. Otherwise it uses the current version of that publication (new row, or the existing row of that version). After a rebind, an old in-progress attempt stays as it is and shows under its own course's publication. |
 | `handoff` | Insert fails if the ltik was used before → error page `HANDOFF_USED`. |
-| `play_session` | No ltik. Commits use the runtime token. Score sync uses the service key. |
+| `play_session` | No ltik. Commits use the runtime token. Score sync uses the service key. Stored by `id_hash` only (A-T4b2-03). |
+| `picker_session` | Stored by `id_hash` only (A-T4b2-03). The ltik inside is encrypted. |
+
+### 2.1 Retention (A-T4b2-02)
+
+A cleanup job in each service runs at start and then every 10 min. It deletes rows that can never be used again and logs `retention_cleanup {table, deleted}` (info) when it deletes something.
+
+| Service | Table | Deleted when |
+| --- | --- | --- |
+| Cogniate app | `handoff` | `expires_at` (= `used_at` + 24 h, the ltik lifetime) is more than 24 h ago |
+| Cogniate app | `picker_session` | `expires_at` is more than 24 h ago |
+| Cogniate app | `play_session` | `expires_at` is more than 24 h ago |
+| LTI service | `oidc_state` | `expires_at` is past (10 min life) |
+| LTI service | `launch` | the ltik expired more than 24 h ago |
+| LTI service | `registration_session` | older than 24 h |
+
+Not deleted in the prototype: attempts, resource links, score syncs, publications, connections, platforms, service keys (they are the record of results).
 
 `tracking_profile` (made at upload, kept per version):
 

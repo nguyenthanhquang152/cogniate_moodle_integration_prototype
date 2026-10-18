@@ -369,11 +369,12 @@ Every event: `ts`, `level`, `service: "lti-service"`, `event`, `trace_id` (lifec
 | `registration_completed` | info | `platform_id`, `operation` | §3.8 success |
 | `registration_rejected` | warn | `code` | §2.4 or §3.8 failure |
 | `internal_error` | error | `method`, `path` (no query), `error` (the error class name only) | a bug; response `500 INTERNAL_ERROR` with the trace id. No error message with data and no stack trace in the JSON file. |
+| `retention_cleanup` | info | `table`, `deleted` | cleanup job (data-model §2.1) |
 | `service_stopping` | info | — | stop |
 
 ## 6. Data retention (prototype)
 
-OIDC state 10 min. Launch 24 h after the ltik expires. Service keys until the platform is deleted. Registration sessions 24 h.
+OIDC state 10 min. Launch 24 h after the ltik expires. Service keys until the platform is deleted. Registration sessions 24 h. A cleanup job deletes expired rows at start and every 10 min (data-model §2.1).
 
 ## 7. Bootstrap CLI
 

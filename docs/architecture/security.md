@@ -207,6 +207,7 @@ All outbound HTTP of both services goes through one client in `packages/shared` 
 | Registration token | Moodle | encrypted, ≤ 1 h | same |
 | `ref` token | app, 32 random bytes | hash, 24 h, single use | same |
 | Runtime token | HMAC of the play id with `APP_MASTER_KEY` (base64url) | SHA-256 hash only, 24 h | same |
+| Play id, picker id | app, ≥ 128 random bits | SHA-256 hash only (A-T4b2-03); the raw id exists only in the URL and the handoff redirect | same |
 | Master keys | `gen-env` | `.env` (git-ignored) | KMS |
 
 ## 11. Privacy and logs
