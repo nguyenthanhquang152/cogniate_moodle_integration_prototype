@@ -65,10 +65,10 @@ Mechanism (T1): `npm run stack:restart -- <service> --env KNOB=value` restarts o
 | `REF_TTL_SECONDS` | cogniate-app | 86400 | 20 | AC-T4-09 | Open the registration URL from Moodle at TTL + 3 s → `REF_EXPIRED`. |
 | `PICKER_TTL_SECONDS` | cogniate-app | 3600 | 20 | AC-T4-20 | POST the picker at TTL + 3 s → 410. |
 | `PLAY_TTL_SECONDS` | cogniate-app | 86400 | 20 | AC-T5-15 | Commit at TTL + 3 s → `410 RUNTIME_EXPIRED`. |
-| `BUILD_RUNNER_HOLD` | cogniate-app (string knob) | "" | `1` | AC-T8-03 | The build pauses before teardown until the flag file is removed. |
-| `BUILD_RUNNER_FAIL_AT` | cogniate-app (string knob) | "" | `backup` | AC-T8-07 | The build fails at that step. |
+| `BUILD_RUNNER_HOLD` | cogniate-app (number knob, 0–1) | 0 | 1 | AC-T8-03 | The build pauses before teardown until the flag file is removed. |
+| `BUILD_RUNNER_FAIL_AT` | cogniate-app (string knob: `""`, `start`, `course`, `scorm`, `backup`, `copy`) | "" | `backup` | AC-T8-07 | The build fails at that step. |
 
-No other knob exists. T7 checks that every `/healthz` shows `"knobs": []` and `"profile": "default"` (AC-T7-13).
+Ownership of the two Build Runner knobs: they are registered for `cogniate-app`; the app reads them from its env and passes them in each build request, and the host Build Runner (`infra/scripts/build-runner.sh`) applies them. No other knob exists. T7 checks that every `/healthz` shows `"knobs": []` and `"profile": "default"` (AC-T7-13).
 
 Knob tests: QA runs `npm run stack:restart -- <service> --env K=V` on the host, then `npm run test:acceptance -- <select the knob test>` (H14 forwards the arguments and the `QA_*` env), then `npm run stack:restart -- <service>`.
 
