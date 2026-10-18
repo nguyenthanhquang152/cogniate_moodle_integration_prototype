@@ -89,6 +89,80 @@ describe('T3c compat routes with real API authorization', () => {
     expect(calls).toEqual([]);
   });
 
+  const score = { userId: '5', activityProgress: 'Completed', gradingProgress: 'FullyGraded', scoreGiven: 87, scoreMaximum: 100, comment: null };
+  const itemOperations = [
+    { method: 'GET', suffix: '', status: 200, upstream: ITEM, payload: undefined, data: { id: ITEM, ...item } },
+    { method: 'PUT', suffix: '', status: 201, upstream: ITEM, payload: item, data: { id: ITEM, ...item } },
+    { method: 'DELETE', suffix: '', status: 204, upstream: ITEM, payload: undefined, data: '' },
+    { method: 'GET', suffix: '/scores', status: 200, upstream: ITEM.replace('/lineitem?', '/lineitem/results?'), payload: undefined, data: [{ userId: '5', resultScore: 87 }] },
+    { method: 'POST', suffix: '/scores', status: 204, upstream: ITEM.replace('/lineitem?', '/lineitem/scores?'), payload: score, data: '' },
+  ] as const;
+
+  it('accepts one or two encoding layers on every item route; null score comments are absent upstream', async () => {
+    const headers = auth();
+    const lowerEscapes = enc(ITEM).replace(/%[0-9A-F]{2}/g, (escape) => escape.toLowerCase());
+    for (const credential of [headers, await serviceAuth(headers)]) {
+      for (const id of [enc(ITEM), enc(enc(ITEM)), enc(lowerEscapes)]) {
+        for (const op of itemOperations) {
+          answer = () => response(op.status, op.data);
+          const r = await h.app.inject({ method: op.method, url: `//api/lineitems/${id}${op.suffix}`, headers: credential,
+            ...(op.payload === undefined ? {} : { payload: op.payload }) });
+          expect(r.statusCode, `${op.method} ${op.suffix} ${id}`).toBe(op.status);
+          expect(calls.at(-1)!.url).toBe(op.upstream);
+          if (op.method === 'POST') {
+            const body = JSON.parse(calls.at(-1)!.req!.body! as string);
+            expect(body).toMatchObject({ userId: '5', scoreGiven: 87, scoreMaximum: 100 });
+            expect(body).not.toHaveProperty('comment');
+          }
+        }
+      }
+    }
+  });
+
+  it('refuses double-encoded URL violations and triple-encoded ids on every item route, without outbound calls', async () => {
+    const headers = auth();
+    const badUrls = [
+      ...['%2F', '%2f', '%5C', '%2E', '%25', '%252F', '\\'].map((sep) => ITEM.replace('/7/lineitem', `/7${sep}other/lineitem`)),
+      ITEM.replace('/7/lineitem', '/../7/lineitem'), ITEM.replace('/7/lineitem', '/./7/lineitem'),
+      ITEM.replace('moodle.test', 'evil.test'), ITEM.replace('moodle.test', 'moodle.test:8443'),
+      ITEM.replace('/2/lineitems', '/3/lineitems'), ITEM.replace('type_id=1', 'type_id=2'),
+      ITEM.replace('?type_id=1', ''), `${ITEM}&type_id=2`,
+    ];
+    const ids = [...badUrls.map((url) => enc(enc(url))), enc(enc(enc(ITEM))), enc(`${enc(ITEM)}%ZZ`)];
+    for (const credential of [headers, await serviceAuth(headers)]) {
+      for (const id of ids) {
+        for (const op of itemOperations) {
+          const r = await h.app.inject({ method: op.method, url: `//api/lineitems/${id}${op.suffix}`, headers: credential,
+            ...(op.payload === undefined ? {} : { payload: op.payload }) });
+          expect([r.statusCode, r.json().details.message], `${op.method} ${op.suffix} ${id}`).toEqual([400, 'INVALID_LINE_ITEM_ID']);
+        }
+      }
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('does not decode another layer on paging url queries', async () => {
+    const headers = auth();
+    for (const path of [
+      `//api/lineitems?url=${enc(enc(BASE))}`,
+      `//api/lineitems/${enc(enc(ITEM))}/scores?url=${enc(enc(ITEM))}`,
+      `//api/memberships?url=${enc(enc(MEMBERS))}`,
+    ]) {
+      const r = await h.app.inject({ url: path, headers });
+      expect([r.statusCode, r.json().details.message]).toEqual([400, 'INVALID_URL_PARAMETER']);
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('still rejects non-string score comments', async () => {
+    const headers = auth();
+    for (const comment of [1, false, {}, []]) {
+      const r = await h.app.inject({ method: 'POST', url: `//api/lineitems/${enc(enc(ITEM))}/scores`, headers, payload: { ...score, comment } });
+      expect([r.statusCode, r.json().details.message]).toEqual([400, 'INVALID_REQUEST']);
+    }
+    expect(calls).toEqual([]);
+  });
+
   it('scores accept user_id and equal aliases for ltik and service auth, with unchanged query values', async () => {
     const headers = auth();
     const scores = [{ userId: 'user//5', resultScore: 92, resultMaximum: 100 }];
@@ -117,21 +191,25 @@ describe('T3c compat routes with real API authorization', () => {
     expect(calls).toEqual([]);
   });
 
-  it('all deep-link endpoints default missing and null resource URLs without changing other item fields', async () => {
+  it('all deep-link endpoints default missing/null resource URLs and null custom data', async () => {
     const headers = auth({ [CLAIM.deepLinkingSettings]: { deep_link_return_url: RETURN, accept_types: ['ltiResourceLink'] } }, 'LtiDeepLinkingRequest');
     for (const suffix of ['', '/message', '/form']) {
-      for (const urlField of [{}, { url: null }]) {
+      for (const urlField of [{}, { url: null }, { url: null, custom: null }]) {
         const contentItem = { type: 'ltiResourceLink', title: 'SDK resource', custom: { course: '5' }, lineItem: item, ...urlField };
         const r = await h.app.inject({ method: 'POST', url: `//api/deeplinking${suffix}`, headers, payload: { contentItems: [contentItem] } });
         expect(r.statusCode).toBe(200);
         const data = r.json();
         const jwt = suffix === '/form' ? /name="JWT" value="([^"]+)"/.exec(data.form)![1]! : data.message;
         const { payload } = await jwtVerify(jwt, createLocalJWKSet({ keys: publicJwks(h.db, 'cogniate') }), { issuer: CLIENT_ID, audience: ISSUER });
-        expect(payload[DL_CLAIM.contentItems]).toEqual([{ ...contentItem, url: LAUNCH }]);
+        expect(payload[DL_CLAIM.contentItems]).toEqual([{ ...contentItem, url: LAUNCH, custom: contentItem.custom ?? {} }]);
         expect(new URL((payload[DL_CLAIM.contentItems] as Array<{ url: string }>)[0]!.url).searchParams.has('resource')).toBe(false);
       }
       for (const url of ['', false, 0, 'https://evil.test/launch']) {
         const r = await h.app.inject({ method: 'POST', url: `/api/deeplinking${suffix}`, headers, payload: { contentItems: [{ type: 'ltiResourceLink', url }] } });
+        expect([r.statusCode, r.json().details.message]).toEqual([400, 'INVALID_CONTENT_ITEM']);
+      }
+      for (const custom of [[], 1, { course: 5 }]) {
+        const r = await h.app.inject({ method: 'POST', url: `/api/deeplinking${suffix}`, headers, payload: { contentItems: [{ type: 'ltiResourceLink', url: null, custom }] } });
         expect([r.statusCode, r.json().details.message]).toEqual([400, 'INVALID_CONTENT_ITEM']);
       }
     }

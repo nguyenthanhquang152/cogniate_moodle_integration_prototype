@@ -6,7 +6,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { parseScore } from '../../platform/ags.ts';
 import type { RouteContext } from '../context.ts';
-import { invalid } from '../validation.ts';
+import { decodeLineItemId, invalid } from '../validation.ts';
 import { agsContext, signedDeepLink } from '../service-context.ts';
 
 type Obj = Record<string, unknown>;
@@ -40,18 +40,18 @@ export function registerServiceRoutes(app: FastifyInstance, ctx: RouteContext): 
 
   app.get<ItemParams>('/api/lineitems/:lineItemId', async (req) => {
     const caller = ctx.auth(req, ['ltik', 'service']);
-    return ctx.ags.getLineItem(agsContext(ctx.db, caller, traceOf(req)), req.params.lineItemId);
+    return ctx.ags.getLineItem(agsContext(ctx.db, caller, traceOf(req)), decodeLineItemId(req.params.lineItemId));
   });
 
   app.post<ItemParams>('/api/lineitems/:lineItemId/scores', async (req, reply) => {
     const caller = ctx.auth(req, ['ltik', 'service']);
     const score = parseScore(req.body, ctx.now());
-    await ctx.ags.postScore(agsContext(ctx.db, caller, traceOf(req)), req.params.lineItemId, score);
+    await ctx.ags.postScore(agsContext(ctx.db, caller, traceOf(req)), decodeLineItemId(req.params.lineItemId), score);
     return reply.code(204).send();
   });
 
   app.get<ItemParams>('/api/lineitems/:lineItemId/scores', async (req) => {
     const caller = ctx.auth(req, ['ltik', 'service']);
-    return ctx.ags.getScores(agsContext(ctx.db, caller, traceOf(req)), req.params.lineItemId, parseQuery(ScoresQuery, req.query));
+    return ctx.ags.getScores(agsContext(ctx.db, caller, traceOf(req)), decodeLineItemId(req.params.lineItemId), parseQuery(ScoresQuery, req.query));
   });
 }

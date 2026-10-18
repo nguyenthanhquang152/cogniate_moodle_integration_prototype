@@ -1,5 +1,5 @@
 // POST /api/deeplinking (contract §3.2, security §2.3): check the content items, then sign the Deep Linking response.
-// The JWT content_items equal the request items; the only field the service may add is the default ltiResourceLink url.
+// The service defaults absent/null resource URLs and maps null custom data to an empty object.
 import type { JWTPayload } from 'jose';
 import { escapeHtml, randomToken } from '@cogniate/shared';
 import type { PublicUrls } from '@cogniate/shared';
@@ -42,8 +42,9 @@ export function checkContentItems(items: unknown, settings: Obj, urls: PublicUrl
   if (!Array.isArray(items) || items.length < 1 || items.length > MAX_CONTENT_ITEMS) throw bad(null, `send 1 to ${MAX_CONTENT_ITEMS} content items`);
   if (settings.accept_multiple === false && items.length !== 1) throw bad(null, 'the platform accepts exactly one content item (accept_multiple is false)');
   const accepted = Array.isArray(settings.accept_types) ? settings.accept_types.filter((t): t is string => typeof t === 'string') : [...CONTENT_ITEM_TYPES];
-  return items.map((item, i) => {
-    if (!isObj(item)) throw bad(i, 'must be an object');
+  return items.map((input, i) => {
+    if (!isObj(input)) throw bad(i, 'must be an object');
+    const item = input.custom === null ? { ...input, custom: {} } : input;
     const type = item.type;
     if (typeof type !== 'string' || !CONTENT_ITEM_TYPES.includes(type as (typeof CONTENT_ITEM_TYPES)[number])) throw bad(i, `type must be one of ${CONTENT_ITEM_TYPES.join(', ')}`);
     if (!accepted.includes(type)) throw bad(i, `the platform does not accept type ${type}`);
