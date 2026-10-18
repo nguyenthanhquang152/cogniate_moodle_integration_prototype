@@ -1,5 +1,5 @@
 // Test helpers for the cogniate-app unit tests (not used at run time).
-import { mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Limits } from '@cogniate/package-inspector';
@@ -11,6 +11,7 @@ import type { Db } from './domain/db.ts';
 import { openDb } from './domain/db.ts';
 import { ensureLibrary, upsertUser } from './domain/libraries.ts';
 import { randomBytes } from 'node:crypto';
+import type { MoodleWsClient } from './clients/moodle-ws.ts';
 import type { ContentItem, LtiClient, LtiIdToken, LtiPlatform, LtiRegistration } from './clients/lti-client.ts';
 import { LtiServiceError } from './clients/lti-client.ts';
 import type { StorePaths } from './domain/package-store.ts';
@@ -165,6 +166,13 @@ export function fakeLti(): FakeLti {
   };
 }
 
+/** The Build Runner queue of a test app (requests/, status/, out/). */
+export function queueDir(dataDir: string): string {
+  const dir = join(dataDir, 'build-queue');
+  for (const sub of ['requests', 'status', 'out']) mkdirSync(join(dir, sub), { recursive: true });
+  return dir;
+}
+
 export interface TestApp {
   app: FastifyInstance;
   db: Db;
@@ -179,7 +187,7 @@ export interface TestApp {
   writeHeaders: (cookie: string) => Record<string, string>;
 }
 
-export async function testApp(opts: { limits?: Partial<Limits>; refTtlSeconds?: number; pickerTtlSeconds?: number; playTtlSeconds?: number } = {}): Promise<TestApp> {
+export async function testApp(opts: { limits?: Partial<Limits>; refTtlSeconds?: number; pickerTtlSeconds?: number; playTtlSeconds?: number; buildKnobs?: { hold: boolean; failAt: string }; moodleWs?: MoodleWsClient } = {}): Promise<TestApp> {
   const dataDir = mkdtempSync(join(tmpdir(), 'cogniate-app-'));
   const db = openDb(':memory:');
   const store = await prepareStore(dataDir);
@@ -195,6 +203,7 @@ export async function testApp(opts: { limits?: Partial<Limits>; refTtlSeconds?: 
     db, urls: TEST_URLS, logger, store, profile: 'default', knobs: [], now: () => clock.now, ...(opts.limits ? { limits: opts.limits } : {}),
     masterKey: TEST_MASTER_KEY, lti: lti.client, refTtlSeconds: opts.refTtlSeconds ?? 86400,
     pickerTtlSeconds: opts.pickerTtlSeconds ?? 3600, playTtlSeconds: opts.playTtlSeconds ?? 86400, playerDir: join(dataDir, 'player'),
+    buildQueueDir: queueDir(dataDir), buildKnobs: opts.buildKnobs ?? { hold: false, failAt: '' }, ...(opts.moodleWs ? { moodleWs: opts.moodleWs } : {}),
   });
   const login = async (user: { email: string; password: string }): Promise<string> => {
     const res = await app.inject({ method: 'POST', url: '/app-api/session', headers: { origin: TEST_URLS.app }, payload: { email: user.email, password: user.password } });

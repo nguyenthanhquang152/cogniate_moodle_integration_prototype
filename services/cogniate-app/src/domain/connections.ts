@@ -39,6 +39,8 @@ export interface Connection {
   updatedAt: number;
   lastLaunchAt: number | null;
   lastError: ConnectError | null;
+  /** T8: a checked web services token exists (never the token itself). */
+  webServices: { siteName: string; release: string } | null;
 }
 
 export interface RefToken {
@@ -62,6 +64,7 @@ const toConnection = (r: Record<string, unknown>): Connection => ({
     code: String(r.last_error_code), ltiCode: r.last_error_lti_code === null ? null : String(r.last_error_lti_code),
     traceId: String(r.last_error_trace_id), at: Number(r.last_error_at),
   },
+  webServices: r.ws_token_encrypted === null || r.ws_token_encrypted === undefined ? null : { siteName: String(r.ws_site_name ?? ''), release: String(r.ws_release ?? '') },
 });
 
 export function createConnection(
@@ -144,4 +147,19 @@ export function recordConnectError(db: Db, connectionId: string, error: ConnectE
 export function disableConnection(db: Db, libraryId: string, id: string, now: number): void {
   db.prepare(`UPDATE connection SET status = 'disabled', ref_token_hash = NULL, ref_token_encrypted = NULL, ref_expires_at = NULL, updated_at = ?
     WHERE id = ? AND library_id = ?`).run(now, id, libraryId);
+}
+
+// ---------------------------------------------------------------- T8: web services token (course shell)
+
+/** Store the checked web services token (encrypted) and what Moodle told about itself. */
+export function setWebServices(db: Db, libraryId: string, id: string, ws: { tokenEncrypted: Uint8Array; siteName: string; release: string }, now: number): void {
+  db.prepare('UPDATE connection SET ws_token_encrypted = ?, ws_site_name = ?, ws_release = ?, updated_at = ? WHERE id = ? AND library_id = ?')
+    .run(ws.tokenEncrypted, ws.siteName, ws.release, now, id, libraryId);
+}
+
+/** The web services token of a connection (encrypted), or null when none was saved. */
+export function webServicesOf(db: Db, libraryId: string, id: string): { tokenEncrypted: Uint8Array; siteName: string; release: string } | null {
+  const r = db.prepare('SELECT ws_token_encrypted, ws_site_name, ws_release FROM connection WHERE id = ? AND library_id = ?').get(id, libraryId);
+  if (!r || r.ws_token_encrypted === null) return null;
+  return { tokenEncrypted: r.ws_token_encrypted as Uint8Array, siteName: String(r.ws_site_name ?? ''), release: String(r.ws_release ?? '') };
 }

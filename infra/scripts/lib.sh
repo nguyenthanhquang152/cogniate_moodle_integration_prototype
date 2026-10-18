@@ -227,3 +227,19 @@ print_urls() {
   echo "App:      ${PUBLIC_APP_URL:-?}"
   echo "Content:  ${PUBLIC_CONTENT_URL:-?}"
 }
+
+# ---- T8 Build Runner (host side; infra/scripts/build-runner.sh). The app container never gets the Docker socket.
+BUILD_QUEUE_DIR="$INFRA_DIR/.data/build-queue"
+BUILD_RUNNER_PID_FILE="$REPO_ROOT/.tmp/build-runner.${COMPOSE_PROJECT_NAME:-cogniate-stack}.pid"
+build_runner_running() { [[ -s "$BUILD_RUNNER_PID_FILE" ]] && kill -0 "$(cat "$BUILD_RUNNER_PID_FILE")" 2>/dev/null; }
+start_build_runner() {
+  mkdir -p "$BUILD_QUEUE_DIR/requests" "$BUILD_QUEUE_DIR/status" "$BUILD_QUEUE_DIR/out" "$BUILD_QUEUE_DIR/hold" "$LOGS_DIR" "$REPO_ROOT/.tmp"
+  if build_runner_running; then return 0; fi
+  nohup bash "$INFRA_DIR/scripts/build-runner.sh" watch >> "$LOGS_DIR/build-runner.log" 2>&1 &
+  echo $! > "$BUILD_RUNNER_PID_FILE"
+  echo "Build Runner started (host side, pid $(cat "$BUILD_RUNNER_PID_FILE"); log infra/.logs/build-runner.log)."
+}
+stop_build_runner() {
+  if build_runner_running; then kill "$(cat "$BUILD_RUNNER_PID_FILE")" 2>/dev/null || true; echo "Build Runner stopped."; fi
+  rm -f "$BUILD_RUNNER_PID_FILE"
+}

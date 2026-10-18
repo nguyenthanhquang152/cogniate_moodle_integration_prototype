@@ -29,7 +29,10 @@ export const APP_API_ERRORS = defineErrorTable({
   RUNTIME_EXPIRED: { status: 410, description: 'The runtime session expired.' },
   INVALID_PLATFORM_VALUES: { status: 422, description: 'The platform values are not valid.' },
   WS_TOKEN_INVALID: { status: 422, description: 'The web services token is not valid.' },
+  WS_FUNCTIONS_MISSING: { status: 422, description: 'The web services token cannot use every function that Cogniate needs.' },
+  MBZ_NOT_SUPPORTED: { status: 422, description: 'Only a SCORM 1.2 version can be built as a Moodle backup.' },
   LTI_SERVICE_ERROR: { status: 502, description: 'The LTI service answered with an error.' },
+  MOODLE_WS_ERROR: { status: 502, description: 'Moodle web services did not answer as expected.' },
 });
 
 export type AppApiErrorCode = keyof typeof APP_API_ERRORS;

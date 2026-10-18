@@ -51,6 +51,8 @@ export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffe
     registrationUrl: showRef ? registrationUrl(urls, decrypt(masterKey, c.refTokenEncrypted!)) : null,
     registrationUrlExpiresAt: showRef ? iso(c.refExpiresAt) : null,
     platform: c.platform, createdAt: iso(c.createdAt), lastLaunchAt: iso(c.lastLaunchAt),
+    // T8 course shell: set when a web services token was saved (the portal shows "Also create an empty Moodle course").
+    webServices: c.webServices,
     // B-T4b1-01: the last failed connect attempt while pending (null after success).
     lastError: c.lastError ? {
       code: c.lastError.code, ltiCode: c.lastError.ltiCode, traceId: c.lastError.traceId, at: iso(c.lastError.at),

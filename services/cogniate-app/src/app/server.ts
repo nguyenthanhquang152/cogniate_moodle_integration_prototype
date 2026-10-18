@@ -19,7 +19,10 @@ import { registerPlayPages, registerPlayStatusRoute } from '../tool-pages/play.t
 import { registerRegisterPages } from '../tool-pages/register.ts';
 import { registerConnectionRoutes } from './connections.ts';
 import { registerCourseRoutes } from './courses.ts';
+import type { MoodleWsClient } from '../clients/moodle-ws.ts';
+import { registerMbzRoutes } from './mbz.ts';
 import { registerPublicationRoutes } from './publications.ts';
+import { registerWebServiceRoutes } from './web-services.ts';
 import { registerResultRoutes } from './results.ts';
 import { registerPortal } from './portal.ts';
 import { ApiError, apiErrorBody } from './api-errors.ts';
@@ -63,6 +66,11 @@ export interface AppApiDeps {
   playerDir: string;
   /** Ask the score sync worker to send now (Resend, T5b). */
   kickSync?: () => void;
+  /** T8: the Build Runner queue folder (BUILD_QUEUE_DIR) and the knobs passed to each build request. */
+  buildQueueDir?: string;
+  buildKnobs?: { hold: boolean; failAt: string };
+  /** T8: Moodle web services client (course shell). */
+  moodleWs?: MoodleWsClient;
 }
 
 const TRACE_ID = /^[A-Za-z0-9-]{16,64}$/;
@@ -135,9 +143,11 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
       reply.header('cache-control', 'no-store');
     });
     registerSessionRoutes(api, { db: deps.db, now });
-    registerCourseRoutes(api, { db: deps.db, logger: log, store: deps.store, limits, now });
+    registerCourseRoutes(api, { db: deps.db, logger: log, store: deps.store, limits, now, ...(deps.buildQueueDir ? { buildQueueDir: deps.buildQueueDir } : {}) });
     registerConnectionRoutes(api, { db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, refTtlSeconds: deps.refTtlSeconds, now });
-    registerPublicationRoutes(api, { db: deps.db, now });
+    registerPublicationRoutes(api, { db: deps.db, now, masterKey: deps.masterKey, ...(deps.moodleWs ? { moodleWs: deps.moodleWs } : {}) });
+    if (deps.buildQueueDir) registerMbzRoutes(api, { db: deps.db, now, buildQueueDir: deps.buildQueueDir, buildKnobs: deps.buildKnobs ?? { hold: false, failAt: '' } });
+    if (deps.moodleWs) registerWebServiceRoutes(api, { db: deps.db, masterKey: deps.masterKey, moodleWs: deps.moodleWs, now });
     registerResultRoutes(api, { db: deps.db, lti: deps.lti, logger: log, masterKey: deps.masterKey, now, ...(deps.kickSync ? { kickSync: deps.kickSync } : {}) });
     registerPlayStatusRoute(api, { db: deps.db, now });
   }, { prefix: '/app-api' });

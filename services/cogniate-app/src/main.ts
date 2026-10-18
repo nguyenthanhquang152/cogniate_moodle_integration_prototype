@@ -3,9 +3,10 @@
 //  - content: PUBLIC_CONTENT_URL (proxy -> :4201): /pkg/*, /rt/*, /_rt/assets/*; a different site, no cookies (T5a)
 //  - worker:  sends score sync rows to the LTI service (T5a; started with the app listener)
 import { join } from 'node:path';
-import { createOutboundClient, knobValue, portFromEnv, startRetention, startService } from '@cogniate/shared';
+import { createOutboundClient, knobString, knobValue, portFromEnv, startRetention, startService } from '@cogniate/shared';
 import { buildAppApi } from './app/server.ts';
 import { createLtiClient } from './clients/lti-client.ts';
+import { createMoodleWsClient } from './clients/moodle-ws.ts';
 import { loadConfig } from './config.ts';
 import { CONTENT_SERVICE_NAME, buildContentServer } from './content-host/server.ts';
 import { openDb } from './domain/db.ts';
@@ -36,6 +37,10 @@ await startService(APP_SERVICE_NAME, [
         masterKey: config.masterKey, lti, refTtlSeconds: deps.knobValues.REF_TTL_SECONDS ?? knobValue('REF_TTL_SECONDS'),
         pickerTtlSeconds: deps.knobValues.PICKER_TTL_SECONDS ?? knobValue('PICKER_TTL_SECONDS'),
         playTtlSeconds: deps.knobValues.PLAY_TTL_SECONDS ?? knobValue('PLAY_TTL_SECONDS'), playerDir: config.playerDir, kickSync: () => void worker?.kick(),
+        // T8: builds go to the host-side Build Runner through its queue folder; the knobs travel in each request.
+        buildQueueDir: config.buildQueueDir,
+        buildKnobs: { hold: (deps.knobValues.BUILD_RUNNER_HOLD ?? knobValue('BUILD_RUNNER_HOLD')) === 1, failAt: deps.knobStrings.BUILD_RUNNER_FAIL_AT ?? knobString('BUILD_RUNNER_FAIL_AT') },
+        moodleWs: createMoodleWsClient({ outbound }),
       });
       worker.start();
       // Retention (data-model §2.1): at start and every 10 min.
