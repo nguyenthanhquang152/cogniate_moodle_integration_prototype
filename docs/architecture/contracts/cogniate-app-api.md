@@ -209,7 +209,7 @@ The six values back from Moodle use the fixed keys of `PUT .../platform`: `issue
 | `POST /app-api/publications/:id/withdraw` | — | `200` `withdrawn` |
 | `GET /app-api/publications/:id/results` (T5a) | — | `200 { rows: [ResultRow] }` |
 | `POST /app-api/publications/:id/results/refresh` (T5b) | — | `200 { rows }` after an AGS results read per row (`SERVICE-AUTH-V1`) |
-| `POST /app-api/score-syncs/:syncId/resend` (T5b) | — | `200` row back to `pending`, `tries = 0`. Only for `failed` or `conflict`. Else `409 SYNC_NOT_RESENDABLE`. |
+| `POST /app-api/score-syncs/:syncId/resend` (T5b) | — | `200`: the row goes back to `pending` with `tries = 0` and a new 24 h retry window. Only for `failed` or `conflict`, and never when an equal or better result for the same learner and activity is already `sent` or `pending`; else `409 SYNC_NOT_RESENDABLE`. |
 
 ResultRow (one per learner per activity; preview attempts are rows with `preview: true`):
 
@@ -292,7 +292,7 @@ Commit bodies:
 
 Transport (T5-spike, verified in Chromium): `commit`, `finish` and `progress` use `fetch` with `keepalive: true` and `application/json`. `pagehide` sends **one** `navigator.sendBeacon` (`text/plain`) with `event: unload`, and no extra `fetch`. The runtime does not send state by `postMessage`. Bodies stay under 60 KB (browser limit for keepalive and beacon bodies is about 64 KB). Requests can arrive out of `seq` order; the runtime's `unload` can arrive before the package's last `pagehide` commits.
 
-Check order: (1) token valid and not expired (`404`, `410 RUNTIME_EXPIRED`); (2) `sessionId` of this play session (else `400 INVALID_REQUEST`, `details.field = "sessionId"`); (3) `seq` > last accepted `seq` of the session (`409 STALE_SEQUENCE`); (4) value rules below (`400 INVALID_CMI` or `INVALID_PROGRESS`, `details.field`); (5) store, derive the outcome, maybe make a score sync. A commit after `finish` or `unload` in the same session is accepted for storage if its `seq` is higher, but it never lowers the attempt outcome. Log: `commit_rejected {code, field}`.
+Check order: (1) token valid and not expired (`404`, `410 RUNTIME_EXPIRED`); (2) `sessionId` of this play session (else `400 INVALID_REQUEST`, `details.field = "sessionId"`); (3) `seq` > last accepted `seq` of the session, else `409 STALE_SEQUENCE` — except a late `finish` or `unload`: a late `finish` closes the attempt with the Moodle `LMSFinish` rule; a late `unload` is accepted but never overwrites newer data; both are logged `commit_accepted {…, stale: true}`; (4) value rules below (`400 INVALID_CMI` or `INVALID_PROGRESS`, `details.field`); (5) store, derive the outcome, maybe make a score sync. A commit after `finish` or `unload` in the same session is accepted for storage if its `seq` is higher, but it never lowers the attempt outcome. Log: `commit_rejected {code, field}`.
 
 | Element | Rule |
 | --- | --- |
@@ -417,8 +417,9 @@ Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `e
 | `platform_orphan_deactivated` | warn | `platform_id` |
 | `platform_orphan_deactivate_failed` | error | `platform_id`, `error` (the LTI service code or the error class name) |
 | `registration_confirm_rejected` | warn | `code` (incl. `REGISTRATION_FAILED`, `MOODLE_TOOL_MAY_EXIST`, `UPDATE_NOT_ALLOWED`) |
-| `commit_accepted` | info | `session_id`, `seq`, `commit_event` (`commit`, `finish`, `unload` or `progress`; the field is not called `event`, because every log line already has `event`) |
+| `commit_accepted` | info | `session_id`, `seq`, `commit_event`, `stale` (true for a late `finish` or `unload`) (`commit`, `finish`, `unload` or `progress`; the field is not called `event`, because every log line already has `event`) |
 | `internal_error` | error | `method`, `path` (no query, no capability ids), `error` (the error class name only, for example `TypeError`). No error message with data and no stack trace in the JSON file (stdout may print the stack at `debug`). The response is `500 INTERNAL_ERROR` with the trace id. |
 | `commit_rejected` | warn | `code`, `field` |
 | `outcome_changed` | info | `attempt_id`, `outcome` |
 | `score_sync` | info | `sync_id`, `status`, `tries` |
+| `gradebook_refresh_failed` | warn | `publication_id`, `resource_link_id`, `lti_status`, `lti_code` (one per row that "Refresh from Moodle" could not read) |

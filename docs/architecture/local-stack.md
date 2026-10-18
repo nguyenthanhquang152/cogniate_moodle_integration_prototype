@@ -47,6 +47,7 @@ Site check: `moodle.test` and `cogniate.test` are different sites. So the stack 
 
 | Item | Rule |
 | --- | --- |
+| Content host | The proxy removes the `Cookie` request header on `PUBLIC_CONTENT_URL` (security §7). |
 | Ports | Only the proxy publishes `127.0.0.1:${PUBLIC_PORT:-443}`. If `PUBLIC_PORT` is not 443, every URL gets `:PORT`, and seed adds the port to Moodle `curlsecurityallowedport`. |
 | DNS | Docker network aliases on the proxy. We do not use `*.localhost`: Chromium and musl map it to loopback (spike §6). |
 | TLS | `gen-env` makes a dev CA (Name Constraints `permitted DNS:test`, life ≤ 1 year) and one leaf certificate (SAN = the four names) with `openssl`, **before** any container starts. Files in `infra/.certs/` (git-ignored). `stack:reset` keeps them. Caddy loads the static leaf (no `tls internal`). |

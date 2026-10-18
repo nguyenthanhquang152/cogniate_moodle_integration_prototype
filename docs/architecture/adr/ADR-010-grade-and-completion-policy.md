@@ -34,7 +34,7 @@ DataCamp sends 100/100 when the learner completes.
 7. **Timestamps**: the LTI service sets them, ≥ 1 s apart per (platform, line item, user).
 8. **409 = `conflict`.** No automatic retry. The portal says: "Moodle has a grade with a newer time." A teacher override is a different case: the sync is `sent`, Moodle keeps the override, and after "Refresh from Moodle" the portal says "Moodle keeps another grade, for example a teacher override" (`gradebookDiffers`).
 9. **Retries**: 5 s, 30 s, 2 min, 10 min, 30 min, then every 1 h until 24 h after the row was made; then `failed`. Auth is `SERVICE-AUTH-V1`, so retries work after the ltik expires.
-10. **Resend**: a Cogniate user can resend a `failed` or `conflict` row (`POST /app-api/score-syncs/:id/resend`).
+10. **Resend**: a Cogniate user can resend a `failed` or `conflict` row (`POST /app-api/score-syncs/:id/resend`), but not when an equal or better result for that learner and activity is already `sent` or `pending`. A resent row gets a new 24 h retry window.
 11. **Versions**: an attempt keeps its course version. The best result counts across all attempts of the learner on that activity.
 12. **Completion in Moodle**: the teacher sets "Receive a grade" on the activity. Our score makes Moodle mark it done.
 
