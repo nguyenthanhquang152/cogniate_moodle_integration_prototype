@@ -47,6 +47,8 @@ export interface FakeLti {
   scores: Array<{ serviceKey: string; lineItemId: string; body: Record<string, unknown> }>;
   /** Line items per Moodle resource link id (GET /api/lineitems?resourceLinkId=). */
   lineItems: Map<string, string[]>;
+  /** Moodle gradebook values per "<lineItemId> <userId>" (GET /api/lineitems/:id/scores, AGS results). */
+  gradebook: Map<string, { resultScore: number | null; resultMaximum: number }>;
 }
 
 export const LEARNER = 'http://purl.imsglobal.org/vocab/lis/v2/membership#Learner';
@@ -81,6 +83,7 @@ export function fakeLti(): FakeLti {
   const deepLinks: Array<{ ltik: string; items: ContentItem[] }> = [];
   const scores: FakeLti['scores'] = [];
   const lineItems = new Map<string, string[]>();
+  const gradebook: FakeLti['gradebook'] = new Map();
   let seq = 0;
   const state: { failNext: FakeLti['failNext'] } = { failNext: null };
   const failIfAsked = () => {
@@ -135,13 +138,18 @@ export function fakeLti(): FakeLti {
       scores.push({ serviceKey, lineItemId, body: body as Record<string, unknown> });
       return undefined;
     },
+    async getResults(_serviceKey, lineItemId, userId) {
+      calls.push(`GET results ${lineItemId} ${userId}`); failIfAsked();
+      const g = gradebook.get(`${lineItemId} ${userId}`);
+      return g ? [{ userId, resultScore: g.resultScore, resultMaximum: g.resultMaximum }] : [];
+    },
     async findLineItems(_serviceKey, resourceLinkId) {
       calls.push(`GET lineitems ${resourceLinkId}`); failIfAsked();
       return (lineItems.get(resourceLinkId) ?? []).map((id) => ({ id, resourceLinkId }));
     },
   };
   return {
-    client, registrations, platforms, calls, launches, deepLinks, scores, lineItems,
+    client, registrations, platforms, calls, launches, deepLinks, scores, lineItems, gradebook,
     addLaunch(token) {
       const ltik = randomBytes(32).toString('base64url');
       launches.set(ltik, token);

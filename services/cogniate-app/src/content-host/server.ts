@@ -12,7 +12,7 @@ import { apiErrorBody, redactPath, sha256Hex } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Db } from '../domain/attempts.ts';
-import { applyScormCommit, findRuntimeSession, packageStoragePath, runtimeState } from '../domain/attempts.ts';
+import { applyCommit, findRuntimeSession, packageStoragePath, runtimeState } from '../domain/attempts.ts';
 
 export const CONTENT_SERVICE_NAME = 'cogniate-content';
 
@@ -183,6 +183,8 @@ export async function buildContentApp(deps: ContentServerDeps): Promise<FastifyI
     if (typeof s === 'string') return reply.code(404).type('text/html; charset=utf-8').send(NOT_FOUND_HTML);
     return reply.code(200).headers({
       'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store',
+      // A-T5a-02: packages share this origin; each launch clears the cookies that a package script may have set.
+      'clear-site-data': '"cookies"',
       'content-security-policy': `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors ${urls.app}`,
     }).send(runtimePage());
   });
@@ -204,13 +206,12 @@ export async function buildContentApp(deps: ContentServerDeps): Promise<FastifyI
         body = undefined;
       }
     }
-    // HTML progress commits come with T5b.
-    const result = applyScormCommit(db, s, body, now());
+    const result = applyCommit(db, s, body, now());
     if (!result.ok) {
       log.warn('commit_rejected', { trace_id: req.traceId, code: result.code, field: result.field });
       return reply.code(result.status).send(apiErrorBody(result.status, result.code, `Commit not accepted (${result.field}).`, { field: result.field }));
     }
-    log.info('commit_accepted', { trace_id: req.traceId, session_id: s.sessionId, seq: result.seq, commit_event: result.event });
+    log.info('commit_accepted', { trace_id: req.traceId, session_id: s.sessionId, seq: result.seq, commit_event: result.event, ...(result.stale ? { stale: true } : {}) });
     if (result.syncId !== null) deps.onSyncCreated?.(result.syncId);
     return reply.code(200).header('cache-control', 'no-store').send({
       accepted: true, outcome: result.outcome, ...(result.scoreGiven !== null ? { scoreGiven: result.scoreGiven, scoreMaximum: result.scoreMaximum } : {}),

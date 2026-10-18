@@ -37,7 +37,7 @@ export const PICKER_ERRORS: Record<PickerErrorCode, { status: number; action: st
   PUBLICATION_NOT_AVAILABLE: { status: 400, action: 'This course is not available for this Moodle site. In Moodle, use Select content again and choose one available course.' },
   LTI_SERVICE_ERROR: { status: 502, action: `Cogniate could not send the course to Moodle. ${AGAIN} If it happens again, give the trace id to your Moodle administrator.` },
   // B-T4b2-01: Moodle's return URL is not on the Moodle site of the launch; a retry of the same answer cannot help.
-  RETURN_URL_MISMATCH: { status: 502, action: `${AGAIN} If it happens again, give the trace id to your Moodle administrator.` },
+  RETURN_URL_MISMATCH: { status: 502, action: 'Give the trace id to your Moodle administrator.' },
 };
 
 /** picker_rejected reasons (app contract §12; lti_service_error, return_url_mismatch, not_found: B-T4b2-01). */

@@ -9,9 +9,19 @@ export const INTERACTION_RESULTS = ['correct', 'wrong', 'unanticipated', 'neutra
 export const MAX_INTERACTIONS = 250;
 export const MAX_OBJECTIVES = 250;
 
+/** Length limits of contract §7 (also the player's LMSSetValue checks, B-T5a-02). */
+export const MAX_LOCATION = 255;
+export const MAX_SUSPEND_DATA = 4096;
+export const MAX_IDENTIFIER = 255;
+
 const DECIMAL = /^-?\d{1,10}(\.\d{1,10})?$/;
 const TIMESPAN = /^\d{2,4}:[0-5]\d:[0-5]\d(\.\d{1,2})?$/;
 const TIME = /^([01]\d|2[0-3]):[0-5]\d:[0-5]\d(\.\d{1,2})?$/;
+
+/** CMIDecimal, CMITimespan (`HH[HH]:MM:SS[.S[S]]`) and CMITime (`HH:MM:SS[.S[S]]`) of SCORM 1.2. */
+export const isDecimal = (v: string): boolean => DECIMAL.test(v);
+export const isTimespan = (v: string): boolean => TIMESPAN.test(v);
+export const isTime = (v: string): boolean => TIME.test(v);
 
 export interface ScormScore { raw: string; min: string; max: string }
 
@@ -81,16 +91,16 @@ function interaction(v: unknown, field: string): ScormInteraction {
   if (!isRecord(v)) throw new Bad(field);
   const ids = (name: string, sub: string) => list(v, name, `${field}.${name}`, MAX_INTERACTIONS).map((o, i) => {
     if (!isRecord(o)) throw new Bad(`${field}.${name}.${i}`);
-    return text(o, sub, `${field}.${name}.${i}.${sub}`, maxLen(255));
+    return text(o, sub, `${field}.${name}.${i}.${sub}`, maxLen(MAX_IDENTIFIER));
   });
   return {
-    id: text(v, 'id', `${field}.id`, maxLen(255)),
+    id: text(v, 'id', `${field}.id`, maxLen(MAX_IDENTIFIER)),
     objectives: ids('objectives', 'id').map((id) => ({ id })),
     time: text(v, 'time', `${field}.time`, (t) => t === '' || TIME.test(t)),
     type: text(v, 'type', `${field}.type`, (t) => t === '' || oneOf(INTERACTION_TYPES)(t)),
     correct_responses: ids('correct_responses', 'pattern').map((pattern) => ({ pattern })),
     weighting: text(v, 'weighting', `${field}.weighting`, (t) => t === '' || DECIMAL.test(t)),
-    student_response: text(v, 'student_response', `${field}.student_response`, maxLen(255)),
+    student_response: text(v, 'student_response', `${field}.student_response`, maxLen(MAX_IDENTIFIER)),
     result: text(v, 'result', `${field}.result`, (t) => t === '' || oneOf(INTERACTION_RESULTS)(t) || DECIMAL.test(t)),
     latency: text(v, 'latency', `${field}.latency`, (t) => t === '' || TIMESPAN.test(t)),
   };
@@ -99,7 +109,7 @@ function interaction(v: unknown, field: string): ScormInteraction {
 function objective(v: unknown, field: string): ScormObjective {
   if (!isRecord(v)) throw new Bad(field);
   return {
-    id: text(v, 'id', `${field}.id`, maxLen(255)),
+    id: text(v, 'id', `${field}.id`, maxLen(MAX_IDENTIFIER)),
     score: score(v, 'score', `${field}.score`),
     status: text(v, 'status', `${field}.status`, (t) => t === '' || oneOf(LESSON_STATUS)(t)),
   };
@@ -114,13 +124,13 @@ export function checkScormCmi(input: unknown): CmiCheck {
     const cmi: ScormCmi = {
       core: {
         lesson_status: text(core, 'lesson_status', 'cmi.core.lesson_status', (v) => v === '' || oneOf(LESSON_STATUS)(v)),
-        lesson_location: text(core, 'lesson_location', 'cmi.core.lesson_location', maxLen(255)),
+        lesson_location: text(core, 'lesson_location', 'cmi.core.lesson_location', maxLen(MAX_LOCATION)),
         score: score(core, 'score', 'cmi.core.score'),
         session_time: text(core, 'session_time', 'cmi.core.session_time', (v) => v === '' || TIMESPAN.test(v)),
         exit: text(core, 'exit', 'cmi.core.exit', oneOf(EXIT_VALUES)),
       },
-      suspend_data: text(input, 'suspend_data', 'cmi.suspend_data', maxLen(4096)),
-      comments: text(input, 'comments', 'cmi.comments', maxLen(4096)),
+      suspend_data: text(input, 'suspend_data', 'cmi.suspend_data', maxLen(MAX_SUSPEND_DATA)),
+      comments: text(input, 'comments', 'cmi.comments', maxLen(MAX_SUSPEND_DATA)),
       interactions: list(input, 'interactions', 'cmi.interactions', MAX_INTERACTIONS).map((v, i) => interaction(v, `cmi.interactions.${i}`)),
       objectives: list(input, 'objectives', 'cmi.objectives', MAX_OBJECTIVES).map((v, i) => objective(v, `cmi.objectives.${i}`)),
     };

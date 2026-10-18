@@ -1,21 +1,12 @@
 // The runtime page script (content origin, /_rt/assets/runtime.js). It reads /rt/{token}/state, defines window.API
 // (SCORM 1.2), then sets the package iframe src (T5a design note). The package frame is same-origin with this page,
-// so the SCO finds parent.API. The HTML runtime comes with T5b: for an HTML attempt this page only loads the package.
+// so the SCO finds parent.API. For an HTML attempt it tracks the package pages (src/html/tracker.ts, T5b).
+import type { HtmlProgress, RuntimeState, ScormCmi } from '@cogniate/tracking';
+import { createHtmlTracker, watchFrame } from '../html/tracker.ts';
 import type { Scorm12Api } from '../scorm12/api.ts';
 import { createScorm12Api } from '../scorm12/api.ts';
 import { flattenSaved, toCommitCmi } from '../scorm12/cmi-shape.ts';
-import { createTransport } from './transport.ts';
-
-interface RuntimeState {
-  format: 'scorm12' | 'html';
-  packageBaseUrl: string;
-  launchPath: string;
-  preview: boolean;
-  learner: { id: string; name: string };
-  sessionId: string;
-  lastSeq: number;
-  scorm: { cmi: Record<string, unknown> & { core?: { total_time?: string } }; entry: string; masteryScore: number | null; launchData: string; credit: 'credit' | 'no-credit' } | null;
-}
+import { commitBody, createTransport, progressBody } from './transport.ts';
 
 declare global {
   interface Window {
@@ -45,12 +36,14 @@ export async function startRuntime(win: Window): Promise<void> {
     return message('Cogniate cannot load this course now. Try again in a minute.');
   }
 
+  const transportDeps = {
+    url: `${base}/commit`, sessionId: state.sessionId, lastSeq: state.lastSeq,
+    fetch: (url: string, init: RequestInit) => win.fetch(url, init), sendBeacon: (url: string, data: string) => win.navigator.sendBeacon(url, data),
+  };
+  const frame = doc.getElementById('cogniate-package') as HTMLIFrameElement | null;
   if (state.format === 'scorm12' && state.scorm) {
     const scorm = state.scorm;
-    const transport = createTransport({
-      url: `${base}/commit`, sessionId: state.sessionId, lastSeq: state.lastSeq,
-      fetch: (url, init) => win.fetch(url, init), sendBeacon: (url, data) => win.navigator.sendBeacon(url, data),
-    });
+    const transport = createTransport<ScormCmi>(transportDeps, (event, seq, cmi) => commitBody(event, state.sessionId, seq, cmi));
     const runtime = createScorm12Api({
       saved: flattenSaved(scorm.cmi),
       readOnly: {
@@ -65,7 +58,12 @@ export async function startRuntime(win: Window): Promise<void> {
     win.addEventListener('pagehide', () => transport.unload(toCommitCmi(runtime.values())));
   }
 
-  const frame = doc.getElementById('cogniate-package') as HTMLIFrameElement | null;
+  if (state.format === 'html' && state.html && frame) {
+    const transport = createTransport<HtmlProgress>(transportDeps, (event, seq, p) => progressBody(event, state.sessionId, seq, p));
+    const tracker = createHtmlTracker({ profile: state.html.profile, saved: state.html.progress, onChange: (p) => transport.send('progress', p) });
+    watchFrame(frame, (w, d) => tracker.attach(w, d));
+    win.addEventListener('pagehide', () => transport.unload(tracker.progress()));
+  }
   if (frame) frame.src = `${state.packageBaseUrl}${state.launchPath.split('/').map(encodeURIComponent).join('/')}`;
 }
 

@@ -33,5 +33,11 @@
 
 {$PUBLIC_CONTENT_URL} {
 	import stack_tls
-	reverse_proxy cogniate-app:4201
+	reverse_proxy cogniate-app:4201 {
+		# A-T5a-02: the content origin uses no cookies, but package scripts can set some (allow-same-origin).
+		# Big cookies would make the content host answer 431 for every course: never forward them.
+		header_up -Cookie
+		# No response of the content origin sets a cookie (security §7).
+		header_down -Set-Cookie
+	}
 }

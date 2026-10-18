@@ -60,6 +60,7 @@ export interface ContentItem {
 const DeepLinkingAnswer = z.object({ message: z.string().min(1), target: z.string().min(1) });
 const NoContent = z.undefined();
 const LineItems = z.object({ lineItems: z.array(z.object({ id: z.string().min(1), resourceLinkId: z.string().optional() })) });
+const Results = z.object({ scores: z.array(z.object({ userId: z.string().optional(), resultScore: z.number().nullish(), resultMaximum: z.number().nullish() })) });
 
 /** POST /api/platforms body (contract §3.9). */
 export interface NewPlatform {
@@ -156,6 +157,9 @@ export function createLtiClient(deps: LtiClientDeps) {
     /** One AGS score (app contract §10), SERVICE-AUTH-V1: works after the ltik expired. 204 on success. */
     postScore: (serviceKey: string, lineItemId: string, body: object, traceId: string) =>
       call(NoContent, 'POST', `/api/lineitems/${id(lineItemId)}/scores`, traceId, body, undefined, serviceKey),
+    /** AGS results of one learner ("Refresh from Moodle", contract §3.6 GET .../scores), SERVICE-AUTH-V1. */
+    getResults: (serviceKey: string, lineItemId: string, userId: string, traceId: string) =>
+      call(Results, 'GET', `/api/lineitems/${id(lineItemId)}/scores?${new URLSearchParams({ userId })}`, traceId, undefined, undefined, serviceKey).then((r) => r.scores),
     /** The line items of a resource link (ADR-010 rule 1: used when the launch had no line item). */
     findLineItems: (serviceKey: string, resourceLinkId: string, traceId: string) =>
       call(LineItems, 'GET', `/api/lineitems?${new URLSearchParams({ resourceLinkId })}`, traceId, undefined, undefined, serviceKey).then((r) => r.lineItems),

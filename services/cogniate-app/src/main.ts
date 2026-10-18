@@ -30,13 +30,13 @@ await startService(APP_SERVICE_NAME, [
       // All calls to the LTI service go through the guarded client (security §9; allowlist: the LTI service host).
       const outbound = createOutboundClient({ logger: deps.logger, allowlist: deps.outboundAllowlist });
       const lti = createLtiClient({ outbound, ltiUrl: deps.urls.lti, apiKeyFile: config.ltiApiKeyFile });
+      worker = createScoreSyncWorker({ db, lti, logger: deps.logger, masterKey: config.masterKey, now: Date.now });
       const app = await buildAppApi({
         db, urls: deps.urls, logger: deps.logger, store, profile: deps.profile, knobs: deps.knobs, outboundAllowlist: deps.outboundAllowlist,
         masterKey: config.masterKey, lti, refTtlSeconds: deps.knobValues.REF_TTL_SECONDS ?? knobValue('REF_TTL_SECONDS'),
         pickerTtlSeconds: deps.knobValues.PICKER_TTL_SECONDS ?? knobValue('PICKER_TTL_SECONDS'),
-        playTtlSeconds: deps.knobValues.PLAY_TTL_SECONDS ?? knobValue('PLAY_TTL_SECONDS'), playerDir: config.playerDir,
+        playTtlSeconds: deps.knobValues.PLAY_TTL_SECONDS ?? knobValue('PLAY_TTL_SECONDS'), playerDir: config.playerDir, kickSync: () => void worker?.kick(),
       });
-      worker = createScoreSyncWorker({ db, lti, logger: deps.logger, masterKey: config.masterKey, now: Date.now });
       worker.start();
       // Retention (data-model §2.1): at start and every 10 min.
       startRetention({ logger: deps.logger, run: () => cleanupExpired(db, Date.now()) });

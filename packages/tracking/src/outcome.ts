@@ -1,4 +1,12 @@
-// Outcome, Moodle's LMSFinish rule and the AGS mapping (ADR-010, app contract §7, §10). Pure functions.
+// Grade policy (ADR-010) — the ONE place for it (B-T5a-01). Pure functions; the server and the worker call them.
+//   finishStatus      Moodle's LMSFinish rule (rule 3)
+//   outcomeFromStatus SCORM status -> outcome (htmlOutcome in html.ts for HTML courses)
+//   agsScore          outcome -> AGS score (rule 4: the mapping)
+//   improves          the attempt keeps its best outcome (never lower)
+//   bestAttempt       the best attempt of a learner and activity (results)
+//   syncDecision      when a score sync row is made; lower pending rows are superseded (rule 5)
+//   syncResult        a send answer -> row status and the next try (rules 8, 9)
+// "Latest result instead of best" (ADR-010 consequence) changes improves, bestAttempt and syncDecision only.
 
 export type Outcome = 'not_started' | 'in_progress' | 'completed' | 'passed' | 'failed';
 export type Credit = 'credit' | 'no-credit';
@@ -73,4 +81,31 @@ export function nextRetryAt(createdAt: number, tries: number, now: number): numb
   const steps = [5_000, 30_000, 120_000, 600_000, 1_800_000];
   const next = now + (steps[tries - 1] ?? 3_600_000);
   return next > createdAt + 24 * 3_600_000 ? null : next;
+}
+
+/** The best attempt: the final one with the highest score; else the newest in progress; else the newest. */
+export function bestAttempt<T extends { outcome: Outcome; scoreGiven: number | null; scoreMaximum: number | null; createdAt: number }>(attempts: readonly T[]): T | undefined {
+  const r = (a: T) => (a.scoreGiven === null || !a.scoreMaximum ? -1 : a.scoreGiven / a.scoreMaximum);
+  const newest = (list: readonly T[]) => list.reduce<T | undefined>((m, a) => (m === undefined || a.createdAt >= m.createdAt ? a : m), undefined);
+  const finals = attempts.filter((a) => isFinal(a.outcome));
+  if (finals.length > 0) return finals.reduce((m, a) => (r(a) > r(m) ? a : m));
+  return newest(attempts.filter((a) => a.outcome === 'in_progress')) ?? newest(attempts);
+}
+
+/** What happened to one send: an HTTP status of the LTI service (0 = no answer), or a local reason. */
+export type SendAnswer = { http: number } | { local: 'no_gradebook_column' | 'internal_error' };
+
+/**
+ * ADR-010 rules 8 and 9, app contract §10: 2xx -> sent; 409 -> conflict (no retry); 400, 403, 404, no gradebook
+ * column or a local error -> failed at once (a human can Resend); 401, 5xx, no answer -> retry at 5 s, 30 s,
+ * 2 min, 10 min, 30 min, then hourly, until 24 h after `retryFrom` (created or resent), then failed.
+ */
+export function syncResult(answer: SendAnswer, tries: number, retryFrom: number, now: number): { status: SyncStatus; nextTryAt: number | null } {
+  if ('local' in answer) return { status: 'failed', nextTryAt: null };
+  const h = answer.http;
+  if (h >= 200 && h < 300) return { status: 'sent', nextTryAt: null };
+  if (h === 409) return { status: 'conflict', nextTryAt: null };
+  if (h === 400 || h === 403 || h === 404) return { status: 'failed', nextTryAt: null };
+  const next = nextRetryAt(retryFrom, tries, now);
+  return next === null ? { status: 'failed', nextTryAt: null } : { status: 'pending', nextTryAt: next };
 }

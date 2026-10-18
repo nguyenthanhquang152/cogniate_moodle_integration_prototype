@@ -1,4 +1,4 @@
-// Integration tests of the T5a runtime path: launch (app) -> content host (/pkg, /rt) -> commit rules -> score sync worker
+// Integration tests of the runtime path (T5a SCORM, T5b HTML): launch (app) -> content host (/pkg, /rt) -> commit rules -> score sync worker
 // -> results. Outside src/content-host on purpose: the ADR-008 import fence of that folder also covers its files.
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { request } from 'node:http';
@@ -8,6 +8,7 @@ import { makeZip, scormManifest } from '@cogniate/package-inspector/testing';
 import type { LogLine } from '@cogniate/shared';
 import { createLogger, sha256Hex } from '@cogniate/shared';
 import type { FastifyInstance } from 'fastify';
+import { createHash } from 'node:crypto';
 import { afterEach, describe, expect, it } from 'vitest';
 import { LtiServiceError } from './clients/lti-client.ts';
 import { runtimeTokenFor } from './tool-pages/launch-rules.ts';
@@ -46,6 +47,13 @@ const scormFiles = (mastery = '70') => [
   { name: 'assets/ask-lyra/lyra.mp4', data: VIDEO },
 ];
 
+const HTML_Q = '01M2M36Y89M9KPPZENF1ZW4AWJ';
+const HTML_FILES = [
+  { name: 'index.html', data: '<html><body data-lesson-id="index"><a href="lesson.html">Lesson</a></body></html>' },
+  { name: 'lesson.html', data: `<html><body data-lesson-id="lesson"><div data-cog-quiz="${HTML_Q}"><input type="radio" data-cog-correct="true"><input type="radio" data-cog-correct="false"></div></body></html>` },
+  { name: 'assets/logo.png', data: Buffer.from([137, 80, 78, 71, 1, 2, 3]) },
+];
+
 async function world(opts: Parameters<typeof testApp>[0] = {}) {
   t = await testApp(opts);
   contentLogs = [];
@@ -62,7 +70,7 @@ async function world(opts: Parameters<typeof testApp>[0] = {}) {
     issuer: TEST_URLS.moodle, clientId: 'c1', deploymentId: '1', authenticationEndpoint: `${TEST_URLS.moodle}/a`, accessTokenEndpoint: `${TEST_URLS.moodle}/t`, jwksUrl: `${TEST_URLS.moodle}/k`,
   })).json().platform.id as string;
   const scormCourse = await course(thanh, 'SCORM course', scormFiles());
-  const htmlCourse = await course(thanh, 'HTML course', [{ name: 'index.html', data: '<html><body>h</body></html>' }]);
+  const htmlCourse = await course(thanh, 'HTML course', HTML_FILES);
   const scorm = (await json('POST', '/app-api/publications', thanh, { connectionId: c.id, courseId: scormCourse })).json().id as string;
   const html = (await json('POST', '/app-api/publications', thanh, { connectionId: c.id, courseId: htmlCourse })).json().id as string;
   return { thanh, platformId, scorm, html, scormCourse, connectionId: c.id as string };
@@ -330,5 +338,198 @@ describe('results and score sync (app contract §5, §10)', () => {
     await worker.kick();
     expect(t.db.prepare("SELECT status, last_error FROM score_sync WHERE user_sub = '15'").get()).toEqual({ status: 'failed', last_error: 'No gradebook column: the activity has no AGS line item.' });
     expect(LtiServiceError).toBeDefined();
+  });
+});
+
+// ---------------------------------------------------------------- T5b: HTML runtime, retry, conflict, Resend, refresh
+async function progress(token: string, event: 'progress' | 'unload', p: { seenPages: string[]; answers?: Record<string, string> }, beacon = false) {
+  const st = await state(token);
+  return content.inject({
+    method: 'POST', url: `/rt/${token}/commit`, headers: { 'content-type': beacon ? 'text/plain;charset=UTF-8' : 'application/json' },
+    payload: JSON.stringify({ kind: 'html', event, sessionId: st.sessionId, seq: st.lastSeq + 1, progress: { answers: {}, ...p } }),
+  });
+}
+const quietWorker = () => createScoreSyncWorker({ db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: () => undefined }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
+const rowOf = (sub: string) => t.db.prepare('SELECT * FROM score_sync WHERE user_sub = ? ORDER BY created_at DESC, rowid DESC').get(sub)!;
+
+describe('HTML runtime on the server (app contract §7, §9; T5b)', () => {
+  it('RuntimeState has the profile; progress commits: menu only -> in_progress; all pages + correct answer -> passed 100 (AC-T5-09, -11)', async () => {
+    const w = await world();
+    const a = await launch(w.platformId, w.html);
+    const st = await state(a.token);
+    expect(st).toMatchObject({ format: 'html', scorm: null, html: { profile: { pages: ['index', 'lesson'], menuPage: 'index', questionIds: [HTML_Q], masteryScore: 70 }, progress: { seenPages: [] } } });
+    expect((await progress(a.token, 'progress', { seenPages: ['index'] })).json()).toMatchObject({ outcome: 'in_progress' });
+    expect((await progress(a.token, 'unload', { seenPages: ['index'] }, true)).statusCode).toBe(200); // AC-T5-11: closed after the menu
+    expect(syncs()).toEqual([]);
+    const b = await launch(w.platformId, w.html);
+    expect((await state(b.token)).html.progress).toEqual({ seenPages: ['index'], answers: {} });
+    const done = await progress(b.token, 'progress', { seenPages: ['index', 'lesson'], answers: { [HTML_Q]: '1' } });
+    expect(done.json()).toEqual({ accepted: true, outcome: 'passed', scoreGiven: 100, scoreMaximum: 100 });
+    expect(syncs().map((r) => [r.status, r.score_given])).toEqual([['pending', 100]]);
+    expect(contentLogs.filter((l) => l.event === 'commit_accepted').map((l) => l.commit_event)).toEqual(['progress', 'unload', 'progress']);
+  });
+
+  it('AC-T5-27 / -28: a wrong first answer fails with 0 and cannot be changed later (400 INVALID_PROGRESS)', async () => {
+    const w = await world();
+    const a = await launch(w.platformId, w.html, { sub: '6' });
+    await progress(a.token, 'progress', { seenPages: ['index'], answers: { [HTML_Q]: '0' } });
+    const changed = await progress(a.token, 'progress', { seenPages: ['index', 'lesson'], answers: { [HTML_Q]: '1' } });
+    expect([changed.statusCode, changed.json().details.message, changed.json().details.field]).toEqual([400, 'INVALID_PROGRESS', `progress.answers.${HTML_Q}`]);
+    expect(contentLogs).toContainEqual(expect.objectContaining({ event: 'commit_rejected', code: 'INVALID_PROGRESS' }));
+    expect((await progress(a.token, 'progress', { seenPages: ['index', 'lesson'], answers: { [HTML_Q]: '0' } })).json()).toMatchObject({ outcome: 'failed', scoreGiven: 0 });
+    const bad = await progress(a.token, 'progress', { seenPages: ['index', 'secret-page'] });
+    expect([bad.statusCode, bad.json().details.field]).toEqual([400, 'progress.seenPages']);
+  });
+
+  it('AC-T5-10: the HTML package bytes are served unchanged (SHA-256 per file)', async () => {
+    await world();
+    const pkg = String(t.db.prepare("SELECT package_id AS p FROM course_version WHERE format = 'html'").get()!.p);
+    for (const f of HTML_FILES) {
+      const r = await content.inject({ method: 'GET', url: `/pkg/${pkg}/${f.name}` });
+      const sha = (b: Buffer | string) => createHash('sha256').update(b).digest('hex');
+      expect(sha(r.rawPayload), f.name).toBe(sha(Buffer.from(f.data)));
+    }
+  });
+});
+
+describe('score sync: retry, outage order, conflict, Resend, refresh (ADR-010 rules 5, 8-10; T5b)', () => {
+  it('AC-T5-14 / -30: a send that fails is retried; during an outage a later forged 0 makes no row; after the outage 100 is sent', async () => {
+    const w = await world();
+    const worker = quietWorker();
+    const a = await launch(w.platformId, w.scorm, { sub: '30' });
+    await commit(a.token, 'finish', cmi({ status: 'passed', raw: '100' }));
+    t.lti.failNext = { status: 504, code: 'PLATFORM_TIMEOUT' };
+    await worker.kick();
+    expect([rowOf('30').status, rowOf('30').tries, Number(rowOf('30').next_try_at) - t.clock.now]).toEqual(['pending', 1, 5000]);
+    const forged = await launch(w.platformId, w.scorm, { sub: '30' });
+    await commit(forged.token, 'commit', cmi({ status: 'failed', raw: '0' }));
+    await commit(forged.token, 'finish', cmi({ status: 'failed', raw: '0' }));
+    expect(syncs().filter((r) => r.user_sub === '30')).toHaveLength(1);
+    t.lti.failNext = { status: 502, code: 'PLATFORM_ERROR' };
+    t.clock.now += 5000;
+    await worker.kick();
+    expect([rowOf('30').status, rowOf('30').tries, Number(rowOf('30').next_try_at) - t.clock.now]).toEqual(['pending', 2, 30_000]);
+    t.clock.now += 30_000;
+    await worker.kick();
+    expect(rowOf('30').status).toBe('sent');
+    expect(t.lti.scores.map((x) => x.body.scoreGiven)).toEqual([100]);
+  });
+
+  it('AC-T5-31 / -32: conflict names PLATFORM_CONFLICT and is not retried; Resend: failed/conflict only, never lower, library scope', async () => {
+    const w = await world();
+    const worker = quietWorker();
+    const c = await launch(w.platformId, w.scorm, { sub: '31' });
+    await commit(c.token, 'finish', cmi({ status: 'passed', raw: '100' }));
+    t.lti.failNext = { status: 409, code: 'PLATFORM_CONFLICT' };
+    await worker.kick();
+    const conflict = rowOf('31');
+    expect([conflict.status, conflict.tries, String(conflict.last_error)]).toEqual(['conflict', 1, expect.stringContaining('PLATFORM_CONFLICT')]);
+    t.clock.now += 120_000;
+    await worker.kick();
+    expect(rowOf('31').tries).toBe(1); // no retry
+    const f = await launch(w.platformId, w.scorm, { sub: '32' });
+    await commit(f.token, 'finish', cmi({ status: 'passed', raw: '100' }));
+    t.lti.failNext = { status: 400, code: 'PLATFORM_REJECTED_REQUEST' };
+    await worker.kick();
+    const failed = rowOf('32');
+    expect([failed.status, String(failed.last_error)]).toEqual(['failed', expect.stringContaining('PLATFORM_REJECTED_REQUEST')]);
+
+    const resend = (id: string, cookie = w.thanh) => json('POST', `/app-api/score-syncs/${id}/resend`, cookie);
+    const r = await resend(String(failed.id));
+    expect(r.statusCode).toBe(200);
+    expect(r.json()).toMatchObject({ id: failed.id, status: 'pending', tries: 0, lastError: null });
+    await worker.kick();
+    expect(rowOf('32').status).toBe('sent');
+    const again = await resend(String(failed.id));
+    expect([again.statusCode, again.json().details.message]).toEqual([409, 'SYNC_NOT_RESENDABLE']);
+    t.lti.failNext = { status: 409, code: 'PLATFORM_CONFLICT' };
+    expect((await resend(String(conflict.id))).statusCode).toBe(200);
+    await worker.kick();
+    expect(rowOf('31').status).toBe('conflict'); // Moodle still has the newer time
+    expect((await resend(String(conflict.id), await t.login(QA_B))).statusCode).toBe(404);
+    expect((await resend('sync_unknown')).statusCode).toBe(404);
+    // Never lower: a failed 0 row is not sent again while a sent 100 row exists.
+    const low = await launch(w.platformId, w.scorm, { sub: '33' });
+    await commit(low.token, 'finish', cmi({ status: 'failed', raw: '0' }));
+    t.lti.failNext = { status: 400, code: 'PLATFORM_REJECTED_REQUEST' };
+    await worker.kick();
+    const lowRow = rowOf('33');
+    const high = await launch(w.platformId, w.scorm, { sub: '33' });
+    await commit(high.token, 'finish', cmi({ status: 'passed', raw: '100' }));
+    await worker.kick();
+    expect([(await resend(String(lowRow.id))).statusCode]).toEqual([409]);
+  });
+
+  it('AC-T5-33 / -18: "Refresh from Moodle" stores the gradebook value; gradebookDiffers when Moodle keeps another grade', async () => {
+    const w = await world();
+    const worker = quietWorker();
+    const lineItem = `${TEST_URLS.moodle}/mod/lti/services.php/2/lineitems/7/lineitem?type_id=1`;
+    for (const sub of ['40', '41']) {
+      const a = await launch(w.platformId, w.scorm, { sub });
+      await commit(a.token, 'finish', cmi({ status: 'passed', raw: '100' }));
+    }
+    await worker.kick();
+    t.lti.gradebook.set(`${lineItem} 40`, { resultScore: 50, resultMaximum: 100 }); // a teacher override
+    t.lti.gradebook.set(`${lineItem} 41`, { resultScore: 100, resultMaximum: 100 });
+    const before = (await json('GET', `/app-api/publications/${w.scorm}/results`, w.thanh)).json().rows;
+    expect(before.every((r: { gradebook: unknown; gradebookDiffers: boolean }) => r.gradebook === null && r.gradebookDiffers === false)).toBe(true);
+    const r = await json('POST', `/app-api/publications/${w.scorm}/results/refresh`, w.thanh);
+    expect(r.statusCode).toBe(200);
+    const bySub = Object.fromEntries(r.json().rows.map((x: { learner: { sub: string } }) => [x.learner.sub, x]));
+    expect(bySub['40']).toMatchObject({ gradebook: { resultScore: 50, resultMaximum: 100, readAt: new Date(t.clock.now).toISOString() }, gradebookDiffers: true });
+    expect(bySub['41']).toMatchObject({ gradebook: { resultScore: 100 }, gradebookDiffers: false });
+    expect(t.lti.calls.filter((c) => c.startsWith('GET results'))).toHaveLength(2);
+    expect((await json('POST', `/app-api/publications/${w.scorm}/results/refresh`, await t.login(QA_B))).statusCode).toBe(404);
+  });
+});
+
+describe('A-T5a-01 / -02 / -06: ordering, cookies, worker errors', () => {
+  it('a finish that arrives after a higher-seq unload still closes the attempt (LMSFinish rule) and makes the row', async () => {
+    const w = await world();
+    const a = await launch(w.platformId, w.scorm);
+    const st = await state(a.token);
+    const send = (event: string, seq: number, c: ReturnType<typeof cmi>) => content.inject({ method: 'POST', url: `/rt/${a.token}/commit`,
+      headers: { 'content-type': 'application/json' }, payload: { kind: 'scorm12', event, sessionId: st.sessionId, seq, cmi: c } });
+    const blank = cmi({ status: 'not attempted', session: '0000:00:20.00' });
+    expect((await send('unload', st.lastSeq + 2, blank)).json()).toMatchObject({ outcome: 'in_progress' });
+    const late = await send('finish', st.lastSeq + 1, blank);
+    expect([late.statusCode, late.json().outcome, late.json().scoreGiven]).toEqual([200, 'completed', 100]);
+    expect(syncs().map((r) => [r.status, r.score_given])).toEqual([['pending', 100]]);
+    expect(contentLogs.filter((l) => l.event === 'commit_accepted').map((l) => [l.commit_event, l.stale ?? false])).toEqual([['unload', false], ['finish', true]]);
+    const stale = await send('commit', st.lastSeq + 1, blank);
+    expect([stale.statusCode, stale.json().details.message]).toEqual([409, 'STALE_SEQUENCE']); // a late commit is still stale
+    expect((await state(a.token)).lastSeq).toBe(st.lastSeq + 2);
+  });
+
+  it('a late unload is accepted but never overwrites newer data (SCORM keeps the stored CMI; HTML merges)', async () => {
+    const w = await world();
+    const a = await launch(w.platformId, w.scorm);
+    await commit(a.token, 'commit', cmi({ suspend: 'newer' }), 5);
+    expect((await commit(a.token, 'unload', cmi({ suspend: 'older' }), 4, true)).statusCode).toBe(200);
+    expect(JSON.parse(String(attemptOf(a.token).cmi_or_progress)).suspend_data).toBe('newer');
+    const h = await launch(w.platformId, w.html);
+    const hs = await state(h.token);
+    const post = (event: string, seq: number, p: object) => content.inject({ method: 'POST', url: `/rt/${h.token}/commit`, headers: { 'content-type': 'application/json' },
+      payload: { kind: 'html', event, sessionId: hs.sessionId, seq, progress: p } });
+    await post('progress', 3, { seenPages: ['index', 'lesson'], answers: {} });
+    expect((await post('unload', 2, { seenPages: ['index'], answers: { [HTML_Q]: '1' } })).json()).toMatchObject({ outcome: 'passed', scoreGiven: 100 });
+    expect((await state(h.token)).html.progress).toEqual({ seenPages: ['index', 'lesson'], answers: { [HTML_Q]: '1' } });
+  });
+
+  it('A-T5a-02: the runtime page clears the cookies of the content origin', async () => {
+    const w = await world();
+    const { token } = await launch(w.platformId, w.scorm);
+    expect((await content.inject({ method: 'GET', url: `/rt/${token}` })).headers['clear-site-data']).toBe('"cookies"');
+  });
+
+  it('A-T5a-06: a service key that cannot be decrypted -> failed once (no send every 2 s)', async () => {
+    const w = await world();
+    const a = await launch(w.platformId, w.scorm, { sub: '60' });
+    await commit(a.token, 'finish', cmi({ status: 'passed', raw: '100' }));
+    t.db.prepare("UPDATE resource_link SET service_key_encrypted = X'00112233'").run();
+    const worker = quietWorker();
+    await worker.kick();
+    await worker.kick();
+    expect([rowOf('60').status, rowOf('60').tries, String(rowOf('60').last_error)]).toEqual(['failed', 1, expect.stringContaining('Internal error')]);
   });
 });

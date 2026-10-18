@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  agsScore, agsScoreBody, checkScormCmi, finishStatus, formatTimespan, improves, nextRetryAt, outcomeFromStatus, parseTimespan, playStatusText,
+  agsScore, agsScoreBody, bestAttempt, checkScormCmi, syncResult, finishStatus, formatTimespan, improves, nextRetryAt, outcomeFromStatus, parseTimespan, playStatusText,
   sessionMax, syncDecision, totalTime,
 } from './index.ts';
 import type { SyncRow } from './index.ts';
@@ -146,5 +146,27 @@ describe('shell status text', () => {
     expect(playStatusText({ ...base, outcome: 'failed', scoreGiven: 0 })).toBe('Completed — score 0 sent to Moodle');
     expect(playStatusText({ ...base, scoreSync: { status: 'pending' } })).toBe('Completed — sending score 100 to Moodle');
     expect(playStatusText({ ...base, outcome: 'not_started', scoreSync: { status: null } })).toBe('Not started');
+  });
+});
+
+describe('grade policy in one place (B-T5a-01): syncResult and bestAttempt', () => {
+  const t0 = 1_000_000;
+  it('send answers -> row status (ADR-010 rules 8, 9; app contract §10)', () => {
+    expect(syncResult({ http: 204 }, 1, t0, t0)).toEqual({ status: 'sent', nextTryAt: null });
+    expect(syncResult({ http: 409 }, 1, t0, t0)).toEqual({ status: 'conflict', nextTryAt: null });
+    for (const http of [400, 403, 404]) expect(syncResult({ http }, 1, t0, t0)).toEqual({ status: 'failed', nextTryAt: null });
+    for (const http of [0, 401, 500, 502, 504]) expect(syncResult({ http }, 1, t0, t0)).toEqual({ status: 'pending', nextTryAt: t0 + 5_000 });
+    expect(syncResult({ http: 502 }, 30, t0, t0 + 23.9 * 3_600_000)).toEqual({ status: 'failed', nextTryAt: null }); // 24 h are over
+    expect(syncResult({ local: 'no_gradebook_column' }, 1, t0, t0).status).toBe('failed');
+    expect(syncResult({ local: 'internal_error' }, 1, t0, t0).status).toBe('failed'); // never a send every 2 s
+    expect(syncResult({ http: 502 }, 30, t0 + 23.9 * 3_600_000, t0 + 23.9 * 3_600_000).status).toBe('pending'); // a resend starts a new window
+  });
+  it('bestAttempt: the final one with the highest score; else the newest in progress; else the newest', () => {
+    const a = (outcome: 'passed' | 'failed' | 'in_progress' | 'not_started', scoreGiven: number | null, createdAt: number) => ({ outcome, scoreGiven, scoreMaximum: scoreGiven === null ? null : 100, createdAt });
+    expect(bestAttempt([a('failed', 0, 1), a('passed', 100, 2), a('in_progress', null, 3)])?.outcome).toBe('passed');
+    expect(bestAttempt([a('passed', 100, 1), a('failed', 0, 2)])?.scoreGiven).toBe(100);
+    expect(bestAttempt([a('not_started', null, 1), a('in_progress', null, 2), a('not_started', null, 3)])?.createdAt).toBe(2);
+    expect(bestAttempt([a('not_started', null, 1), a('not_started', null, 3)])?.createdAt).toBe(3);
+    expect(bestAttempt([])).toBeUndefined();
   });
 });

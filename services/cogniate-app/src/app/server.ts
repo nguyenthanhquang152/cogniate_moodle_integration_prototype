@@ -20,6 +20,7 @@ import { registerRegisterPages } from '../tool-pages/register.ts';
 import { registerConnectionRoutes } from './connections.ts';
 import { registerCourseRoutes } from './courses.ts';
 import { registerPublicationRoutes } from './publications.ts';
+import { registerResultRoutes } from './results.ts';
 import { ApiError, apiErrorBody } from './api-errors.ts';
 import { registerSessionRoutes, sessionOf } from './session.ts';
 
@@ -59,6 +60,8 @@ export interface AppApiDeps {
   playTtlSeconds: number;
   /** apps/player build folder (the shell script /_player/shell.js, T5a). */
   playerDir: string;
+  /** Ask the score sync worker to send now (Resend, T5b). */
+  kickSync?: () => void;
 }
 
 const TRACE_ID = /^[A-Za-z0-9-]{16,64}$/;
@@ -134,6 +137,7 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
     registerCourseRoutes(api, { db: deps.db, logger: log, store: deps.store, limits, now });
     registerConnectionRoutes(api, { db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, refTtlSeconds: deps.refTtlSeconds, now });
     registerPublicationRoutes(api, { db: deps.db, now });
+    registerResultRoutes(api, { db: deps.db, lti: deps.lti, logger: log, masterKey: deps.masterKey, now, ...(deps.kickSync ? { kickSync: deps.kickSync } : {}) });
     registerPlayStatusRoute(api, { db: deps.db, now });
   }, { prefix: '/app-api' });
 

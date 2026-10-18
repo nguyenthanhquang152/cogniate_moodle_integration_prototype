@@ -10,6 +10,8 @@ export interface DueSync {
   payload: Record<string, unknown>;
   tries: number;
   createdAt: number;
+  /** Start of the 24 h retry window: the resend time of a resent row, else createdAt. */
+  retryFrom: number;
   /** Moodle's resource link id (for the line item lookup). */
   platformResourceLinkId: string;
   lineItemId: string | null;
@@ -18,11 +20,11 @@ export interface DueSync {
 
 /** Pending rows whose next try is due, oldest first. */
 export function dueSyncs(db: Db, now: number, limit: number): DueSync[] {
-  return db.prepare(`SELECT s.id, s.resource_link_id, s.user_sub, s.payload, s.tries, s.created_at, rl.resource_link_id AS platform_rl, rl.line_item_id,
+  return db.prepare(`SELECT s.id, s.resource_link_id, s.user_sub, s.payload, s.tries, s.created_at, s.resent_at, rl.resource_link_id AS platform_rl, rl.line_item_id,
       rl.service_key_encrypted FROM score_sync s JOIN resource_link rl ON rl.id = s.resource_link_id
     WHERE s.status = 'pending' AND s.next_try_at <= ? ORDER BY s.next_try_at, s.created_at LIMIT ?`).all(now, limit).map((r) => ({
     id: String(r.id), resourceLinkId: String(r.resource_link_id), userSub: String(r.user_sub), payload: JSON.parse(String(r.payload)) as Record<string, unknown>,
-    tries: Number(r.tries), createdAt: Number(r.created_at), platformResourceLinkId: String(r.platform_rl),
+    tries: Number(r.tries), createdAt: Number(r.created_at), retryFrom: r.resent_at === null ? Number(r.created_at) : Number(r.resent_at), platformResourceLinkId: String(r.platform_rl),
     lineItemId: r.line_item_id === null ? null : String(r.line_item_id), serviceKeyEncrypted: r.service_key_encrypted === null ? null : (r.service_key_encrypted as Uint8Array),
   }));
 }
@@ -42,4 +44,51 @@ export function setLineItem(db: Db, resourceLinkId: string, lineItemId: string):
 export function latestSyncStatus(db: Db, resourceLinkId: string, userSub: string): SyncStatus | null {
   const r = db.prepare('SELECT status FROM score_sync WHERE resource_link_id = ? AND user_sub = ? ORDER BY created_at DESC, rowid DESC LIMIT 1').get(resourceLinkId, userSub);
   return r ? (r.status as SyncStatus) : null;
+}
+
+export type ResendResult = { ok: true } | { ok: false; reason: 'not_found' | 'not_resendable'; description: string };
+
+/**
+ * Resend (app contract §5, ADR-010 rule 10): only a `failed` or `conflict` row, back to `pending` with tries = 0 and
+ * a new 24 h retry window. ADR-010 rule 5 (never lower) also holds here: a row is not sent again when a `pending`
+ * or `sent` row of the same learner and activity has an equal or higher score.
+ */
+export function resendSync(db: Db, libraryId: string, syncId: string, now: number): ResendResult {
+  const r = db.prepare(`SELECT s.status, s.resource_link_id, s.user_sub, s.score_given, s.score_maximum FROM score_sync s
+    JOIN resource_link rl ON rl.id = s.resource_link_id JOIN connection con ON con.id = rl.connection_id
+    WHERE s.id = ? AND con.library_id = ?`).get(syncId, libraryId);
+  if (!r) return { ok: false, reason: 'not_found', description: 'The score sync does not exist in your library.' };
+  if (r.status !== 'failed' && r.status !== 'conflict') return { ok: false, reason: 'not_resendable', description: 'Only a failed or conflict score sync can be sent again.' };
+  const ratio = Number(r.score_given) / Number(r.score_maximum);
+  const better = db.prepare(`SELECT 1 FROM score_sync WHERE resource_link_id = ? AND user_sub = ? AND id <> ? AND status IN ('pending', 'sent')
+    AND score_given / score_maximum >= ? LIMIT 1`).get(String(r.resource_link_id), String(r.user_sub), syncId, ratio);
+  if (better) return { ok: false, reason: 'not_resendable', description: 'An equal or better result of this learner is already sent or pending.' };
+  db.prepare(`UPDATE score_sync SET status = 'pending', tries = 0, next_try_at = ?, last_error = NULL, resent_at = ?, updated_at = ? WHERE id = ?`).run(now, now, now, syncId);
+  return { ok: true };
+}
+
+/** A score sync row as the results API shows it. */
+export function syncRow(db: Db, syncId: string) {
+  const s = db.prepare('SELECT * FROM score_sync WHERE id = ?').get(syncId)!;
+  const iso = (v: unknown) => (v === null ? null : new Date(Number(v)).toISOString());
+  return {
+    id: String(s.id), status: String(s.status), tries: Number(s.tries), scoreGiven: Number(s.score_given), scoreMaximum: Number(s.score_maximum),
+    createdAt: iso(s.created_at), sentAt: iso(s.sent_at), lastError: s.last_error === null ? null : String(s.last_error),
+  };
+}
+
+/** Learner + activity pairs of a publication's attempts (not previews), with what a results read needs. */
+export function gradebookTargets(db: Db, connectionId: string, courseId: string) {
+  return db.prepare(`SELECT DISTINCT rl.id AS rl_id, rl.resource_link_id AS platform_rl, rl.line_item_id, rl.service_key_encrypted, a.user_sub
+    FROM attempt a JOIN course_version v ON v.id = a.course_version_id JOIN resource_link rl ON rl.id = a.resource_link_id
+    WHERE rl.connection_id = ? AND v.course_id = ? AND a.preview = 0`).all(connectionId, courseId).map((r) => ({
+    resourceLinkId: String(r.rl_id), platformResourceLinkId: String(r.platform_rl), lineItemId: r.line_item_id === null ? null : String(r.line_item_id),
+    serviceKeyEncrypted: r.service_key_encrypted === null ? null : (r.service_key_encrypted as Uint8Array), userSub: String(r.user_sub),
+  }));
+}
+
+export function saveGradebookRead(db: Db, resourceLinkId: string, userSub: string, result: { resultScore: number | null; resultMaximum: number | null }, now: number): void {
+  db.prepare(`INSERT INTO gradebook_read (resource_link_id, user_sub, result_score, result_maximum, read_at) VALUES (?, ?, ?, ?, ?)
+    ON CONFLICT (resource_link_id, user_sub) DO UPDATE SET result_score = excluded.result_score, result_maximum = excluded.result_maximum, read_at = excluded.read_at`)
+    .run(resourceLinkId, userSub, result.resultScore, result.resultMaximum, now);
 }

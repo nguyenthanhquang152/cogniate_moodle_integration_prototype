@@ -2,7 +2,7 @@
 // (resource link); preview attempts are rows with preview: true. An attempt shows under the publication of its own
 // course (data-model §2: after a rebind, an old attempt stays with its own course's publication).
 import type { Outcome, SyncStatus } from '@cogniate/tracking';
-import { isFinal } from '@cogniate/tracking';
+import { bestAttempt } from '@cogniate/tracking';
 import type { Db } from './db.ts';
 
 const iso = (ms: number | null): string | null => (ms === null ? null : new Date(ms).toISOString());
@@ -21,15 +21,6 @@ interface AttemptRow {
   contextTitle: string;
   title: string;
   issuer: string | null;
-}
-
-/** The best attempt: the final one with the highest score; else the newest in progress; else the newest. */
-export function bestAttempt<T extends { outcome: Outcome; scoreGiven: number | null; scoreMaximum: number | null; createdAt: number }>(attempts: readonly T[]): T | undefined {
-  const ratio = (a: T) => (a.scoreGiven === null || !a.scoreMaximum ? -1 : a.scoreGiven / a.scoreMaximum);
-  const newest = (list: T[]) => list.reduce<T | undefined>((m, a) => (m === undefined || a.createdAt >= m.createdAt ? a : m), undefined);
-  const finals = attempts.filter((a) => isFinal(a.outcome));
-  if (finals.length > 0) return finals.reduce((m, a) => (ratio(a) > ratio(m) ? a : m));
-  return newest(attempts.filter((a) => a.outcome === 'in_progress')) ?? newest([...attempts]);
 }
 
 function attemptsOfPublication(db: Db, connectionId: string, courseId: string): AttemptRow[] {
@@ -74,6 +65,24 @@ const learnerLabel = (sub: string, issuer: string | null): string => {
   return `Learner ${sub} @ ${host}`;
 };
 
+/** The last gradebook read of a learner and activity ("Refresh from Moodle", T5b), or null. */
+function gradebookOf(db: Db, resourceLinkId: string, userSub: string): { resultScore: number | null; resultMaximum: number | null; readAt: string | null } | null {
+  const r = db.prepare('SELECT result_score, result_maximum, read_at FROM gradebook_read WHERE resource_link_id = ? AND user_sub = ?').get(resourceLinkId, userSub);
+  if (!r) return null;
+  return { resultScore: r.result_score === null ? null : Number(r.result_score), resultMaximum: r.result_maximum === null ? null : Number(r.result_maximum), readAt: iso(Number(r.read_at)) };
+}
+
+/**
+ * App contract §5: after a refresh, the row has gradebookDiffers: true when Moodle's value differs from the best
+ * result while the last sync is `sent` (for example a teacher override, ADR-010 rule 8).
+ */
+export function gradebookDiffers(gradebook: { resultScore: number | null; resultMaximum: number | null } | null, best: { scoreGiven: number | null; scoreMaximum: number | null },
+  lastSyncStatus: SyncStatus | undefined): boolean {
+  if (!gradebook || gradebook.resultScore === null || lastSyncStatus !== 'sent' || best.scoreGiven === null || !best.scoreMaximum) return false;
+  const moodle = gradebook.resultScore / (gradebook.resultMaximum || 100);
+  return Math.abs(moodle - best.scoreGiven / best.scoreMaximum) > 1e-9;
+}
+
 /** ResultRows of one publication (the caller checked the library). Oldest activity and learner first. */
 export function publicationResults(db: Db, p: { connectionId: string; courseId: string }) {
   const attempts = attemptsOfPublication(db, p.connectionId, p.courseId);
@@ -87,17 +96,19 @@ export function publicationResults(db: Db, p: { connectionId: string; courseId: 
     const first = list[0]!;
     const best = bestAttempt(list)!;
     const ids = new Set(list.map((a) => a.id));
+    const rowSyncs = syncs.filter((s) => ids.has(s.attemptId));
+    const gradebook = first.preview ? null : gradebookOf(db, first.resourceLinkId, first.userSub);
     return {
       learner: { sub: first.userSub, label: learnerLabel(first.userSub, first.issuer) },
       activity: { resourceLinkId: first.resourceLinkId, contextTitle: first.contextTitle, title: first.title },
       preview: first.preview,
       best: { attemptId: best.id, outcome: best.outcome, scoreGiven: best.scoreGiven, scoreMaximum: best.scoreMaximum },
       attempts: list.map((a) => ({ attemptId: a.id, versionId: a.versionId, outcome: a.outcome, scoreGiven: a.scoreGiven, scoreMaximum: a.scoreMaximum, updatedAt: iso(a.updatedAt) })),
-      scoreSyncs: syncs.filter((s) => ids.has(s.attemptId)).map((s) => ({
+      scoreSyncs: rowSyncs.map((s) => ({
         id: s.id, status: s.status, tries: s.tries, scoreGiven: s.scoreGiven, scoreMaximum: s.scoreMaximum, createdAt: iso(s.createdAt), sentAt: iso(s.sentAt), lastError: s.lastError,
       })),
-      // T5b fills gradebook after "Refresh from Moodle".
-      gradebook: null,
+      gradebook,
+      gradebookDiffers: gradebookDiffers(gradebook, best, rowSyncs.at(-1)?.status),
     };
   });
 }

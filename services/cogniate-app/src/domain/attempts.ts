@@ -3,8 +3,9 @@
 // Repository: the only SQL for the attempt and play_session tables.
 import type { PackageFormat, PackageReport, TrackingProfile } from '@cogniate/package-inspector';
 import { randomId, sha256Hex } from '@cogniate/shared';
-import type { AgsScore, Credit, Outcome, ScormCmi } from '@cogniate/tracking';
-import { agsScore, agsScoreBody, checkScormCmi, finishStatus, improves, isFinal, outcomeFromStatus, sessionMax, syncDecision, totalTime } from '@cogniate/tracking';
+import type { AgsScore, Credit, Outcome, RuntimeState, ScormCmi } from '@cogniate/tracking';
+import type { HtmlProgress } from '@cogniate/tracking';
+import { agsScore, agsScoreBody, checkHtmlProgress, checkScormCmi, emptyProgress, finishStatus, htmlOutcome, improves, isFinal, outcomeFromStatus, sessionMax, syncDecision, totalTime } from '@cogniate/tracking';
 import type { Db } from './db.ts';
 import { transaction } from './db.ts';
 
@@ -172,7 +173,7 @@ const credit = (preview: boolean): Credit => (preview ? 'no-credit' : 'credit');
  * session of the attempt, `resume` if the last exit was `suspend`, else "". total_time = the counted time of the
  * attempt's other sessions. Write-only values of the last session (exit, session_time) are not given back.
  */
-export function runtimeState(db: Db, s: RuntimeSession) {
+export function runtimeState(db: Db, s: RuntimeSession): RuntimeState {
   const saved = s.format === 'scorm12' ? (s.saved as ScormCmi | null) : null;
   let entry = s.entry;
   if (entry === null) {
@@ -181,7 +182,7 @@ export function runtimeState(db: Db, s: RuntimeSession) {
   }
   const others = db.prepare('SELECT max_session_time_cs AS cs FROM play_session WHERE attempt_id = ? AND id <> ?').all(s.attemptId, s.playKey).map((r) => Number(r.cs));
   const base = { format: s.format, packageBaseUrl: `/pkg/${s.packageId}/`, launchPath: s.profile.launchPath, preview: s.preview, learner: { id: s.userSub, name: '' }, sessionId: s.sessionId, lastSeq: s.lastSeq };
-  if (s.format !== 'scorm12') return { ...base, scorm: null, html: { profile: s.profile, progress: s.saved ?? { seenPages: [], answers: {} } } };
+  if (s.format !== 'scorm12') return { ...base, scorm: null, html: { profile: s.profile, progress: (s.saved as HtmlProgress | null) ?? emptyProgress() } };
   const cmi = saved === null ? null : { ...saved, core: { ...saved.core, exit: '', session_time: '' } };
   return {
     ...base,
@@ -190,53 +191,85 @@ export function runtimeState(db: Db, s: RuntimeSession) {
   };
 }
 
-export type CommitEvent = 'commit' | 'finish' | 'unload';
+export type CommitEvent = 'commit' | 'finish' | 'unload' | 'progress';
 export type CommitResult =
-  | { ok: true; event: CommitEvent; seq: number; outcome: Outcome; scoreGiven: number | null; scoreMaximum: number | null; syncId: string | null }
-  | { ok: false; status: 400 | 409; code: 'INVALID_REQUEST' | 'STALE_SEQUENCE' | 'INVALID_CMI'; field: string };
+  | { ok: true; event: CommitEvent; seq: number; stale: boolean; outcome: Outcome; scoreGiven: number | null; scoreMaximum: number | null; syncId: string | null }
+  | { ok: false; status: 400 | 409; code: 'INVALID_REQUEST' | 'STALE_SEQUENCE' | 'INVALID_CMI' | 'INVALID_PROGRESS'; field: string };
 
-const EVENTS: ReadonlySet<string> = new Set(['commit', 'finish', 'unload']);
+/** Events per format (app contract §7): SCORM commit, finish, unload; HTML progress, unload. */
+const EVENTS: Record<PackageFormat, ReadonlySet<string>> = { scorm12: new Set(['commit', 'finish', 'unload']), html: new Set(['progress', 'unload']) };
+const KIND: Record<PackageFormat, string> = { scorm12: 'scorm12', html: 'html' };
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
 
+/** The format step of a commit: what to store, the outcome of this commit, its score. */
+type Evaluated = { ok: true; stored: unknown; outcome: Outcome; score: AgsScore | null } | { ok: false; code: 'INVALID_CMI' | 'INVALID_PROGRESS'; field: string };
+
 /**
- * A SCORM 1.2 commit (app contract §7), checks in this order after the token: (2) the session id of this play
- * session, (3) seq > last accepted seq (409 STALE_SEQUENCE), (4) value rules (400 INVALID_CMI, details.field),
- * (5) store, derive the outcome and maybe make a score sync row, all in one transaction (T5a design note).
- * After a `finish` in this session the LMSFinish rule also applies to later commits, so a late `unload` does not
- * turn the stored status back to "not attempted". The attempt keeps its best outcome (never lower).
+ * SCORM 1.2: value rules, then Moodle's LMSFinish rule on `finish`. After a `finish` in this session the rule also
+ * applies to later commits, so a late `unload` does not turn the stored status back to "not attempted".
+ * `useStored` (A-T5a-01): a late body (seq not newer) is checked but the stored CMI, which is the same or newer, is
+ * what the rules run on.
  */
-export function applyScormCommit(db: Db, s: RuntimeSession, body: unknown, now: number): CommitResult {
+function evaluateScorm(s: RuntimeSession, body: Record<string, unknown>, event: CommitEvent, finishedBefore: boolean, useStored: ScormCmi | null): Evaluated {
+  const checked = checkScormCmi(body.cmi);
+  if (!checked.ok) return { ok: false, code: 'INVALID_CMI', field: checked.field };
+  const cmi = useStored ? { ...useStored, core: { ...useStored.core } } : checked.cmi;
+  let status = cmi.core.lesson_status === '' ? 'not attempted' : cmi.core.lesson_status;
+  if (event === 'finish' || finishedBefore) status = finishStatus(status, cmi.core.score.raw, s.profile.masteryScore, credit(s.preview));
+  cmi.core.lesson_status = status;
+  const outcome = outcomeFromStatus(status);
+  return { ok: true, stored: cmi, outcome, score: agsScore(outcome, cmi.core.score.raw, cmi.core.score.max) };
+}
+
+/** HTML: progress rules against the tracking profile of the attempt's version (a saved answer never changes). */
+function evaluateHtml(s: RuntimeSession, body: Record<string, unknown>, saved: unknown): Evaluated {
+  const checked = checkHtmlProgress(body.progress, s.profile, isRecord(saved) ? (saved as unknown as HtmlProgress) : null);
+  if (!checked.ok) return { ok: false, code: 'INVALID_PROGRESS', field: checked.field };
+  const { outcome, raw } = htmlOutcome(checked.progress, s.profile);
+  return { ok: true, stored: checked.progress, outcome, score: agsScore(outcome, raw, '100') };
+}
+
+/**
+ * A commit (app contract §7), checks in this order after the token: (2) the session id of this play session,
+ * (3) seq > last accepted seq (409 STALE_SEQUENCE), (4) value rules (400 INVALID_CMI or INVALID_PROGRESS,
+ * details.field), (5) store, derive the outcome and maybe make a score sync row, all in one transaction (T5a
+ * design note). The attempt keeps its best outcome (never lower).
+ *
+ * A-T5a-01: arrival order is not seq order, and a `finish` or the final `unload` must never be lost. A late
+ * (not newer) `finish` or `unload` is accepted without overwriting the stored state: a late `finish` closes the
+ * session and applies the LMSFinish rule to the stored CMI (after LMSFinish the API changes nothing, so the stored
+ * CMI is the same or newer); a late HTML `unload` is merged (progress only grows). A late `commit` or `progress`
+ * still gets 409 STALE_SEQUENCE.
+ */
+export function applyCommit(db: Db, s: RuntimeSession, body: unknown, now: number): CommitResult {
   if (!isRecord(body)) return { ok: false, status: 400, code: 'INVALID_REQUEST', field: 'body' };
-  if (body.kind !== 'scorm12' || s.format !== 'scorm12') return { ok: false, status: 400, code: 'INVALID_REQUEST', field: 'kind' };
-  if (typeof body.event !== 'string' || !EVENTS.has(body.event)) return { ok: false, status: 400, code: 'INVALID_REQUEST', field: 'event' };
+  if (body.kind !== KIND[s.format]) return { ok: false, status: 400, code: 'INVALID_REQUEST', field: 'kind' };
+  if (typeof body.event !== 'string' || !EVENTS[s.format].has(body.event)) return { ok: false, status: 400, code: 'INVALID_REQUEST', field: 'event' };
   if (body.sessionId !== s.sessionId) return { ok: false, status: 400, code: 'INVALID_REQUEST', field: 'sessionId' };
   const seq = body.seq;
   if (typeof seq !== 'number' || !Number.isInteger(seq) || seq < 1) return { ok: false, status: 400, code: 'INVALID_REQUEST', field: 'seq' };
   const event = body.event as CommitEvent;
   return transaction(db, (): CommitResult => {
     const current = db.prepare('SELECT last_seq, max_session_time_cs, finished_at FROM play_session WHERE id = ?').get(s.playKey)!;
-    if (seq <= Number(current.last_seq)) return { ok: false, status: 409, code: 'STALE_SEQUENCE', field: 'seq' };
-    const checked = checkScormCmi(body.cmi);
-    if (!checked.ok) return { ok: false, status: 400, code: 'INVALID_CMI', field: checked.field };
-    const cmi = checked.cmi;
-    const finished = event === 'finish' || current.finished_at !== null;
-    let status = cmi.core.lesson_status === '' ? 'not attempted' : cmi.core.lesson_status;
-    if (finished) status = finishStatus(status, cmi.core.score.raw, s.profile.masteryScore, credit(s.preview));
-    cmi.core.lesson_status = status;
-    const outcome = outcomeFromStatus(status);
-    const score = agsScore(outcome, cmi.core.score.raw, cmi.core.score.max);
+    const stale = seq <= Number(current.last_seq);
+    if (stale && (event === 'commit' || event === 'progress')) return { ok: false, status: 409, code: 'STALE_SEQUENCE', field: 'seq' };
+    const a = db.prepare('SELECT outcome, score_given, score_maximum, cmi_or_progress FROM attempt WHERE id = ?').get(s.attemptId)!;
+    const saved = a.cmi_or_progress === null ? null : JSON.parse(String(a.cmi_or_progress));
+    // A late SCORM body keeps the stored CMI; with no stored CMI yet it is the only data there is.
+    const storedCmi = stale && s.format === 'scorm12' && saved !== null ? (saved as ScormCmi) : null;
+    const r = s.format === 'scorm12' ? evaluateScorm(s, body, event, current.finished_at !== null, storedCmi) : evaluateHtml(s, body, saved);
+    if (!r.ok) return { ok: false, status: 400, code: r.code, field: r.field };
 
-    db.prepare(`UPDATE play_session SET last_seq = ?, max_session_time_cs = ?, finished_at = COALESCE(finished_at, ?) WHERE id = ?`)
-      .run(seq, sessionMax(Number(current.max_session_time_cs), cmi.core.session_time || undefined), event === 'finish' ? now : null, s.playKey);
-    const a = db.prepare('SELECT outcome, score_given, score_maximum FROM attempt WHERE id = ?').get(s.attemptId)!;
+    const sessionTime = s.format === 'scorm12' ? (r.stored as ScormCmi).core.session_time || undefined : undefined;
+    db.prepare(`UPDATE play_session SET last_seq = MAX(last_seq, ?), max_session_time_cs = ?, finished_at = COALESCE(finished_at, ?) WHERE id = ?`)
+      .run(seq, sessionMax(Number(current.max_session_time_cs), sessionTime), event === 'finish' ? now : null, s.playKey);
     const before = { outcome: a.outcome as Outcome, score: a.score_given === null ? null : { scoreGiven: Number(a.score_given), scoreMaximum: Number(a.score_maximum) } };
-    const better = improves(before, { outcome, score });
-    const best = better ? { outcome, score } : before;
-    db.prepare(`UPDATE attempt SET cmi_or_progress = ?, last_seq = ?, outcome = ?, score_given = ?, score_maximum = ?, updated_at = ? WHERE id = ?`)
-      .run(JSON.stringify(cmi), seq, best.outcome, best.score?.scoreGiven ?? null, best.score?.scoreMaximum ?? null, now, s.attemptId);
+    const best = improves(before, { outcome: r.outcome, score: r.score }) ? { outcome: r.outcome, score: r.score } : before;
+    db.prepare(`UPDATE attempt SET cmi_or_progress = ?, last_seq = MAX(last_seq, ?), outcome = ?, score_given = ?, score_maximum = ?, updated_at = ? WHERE id = ?`)
+      .run(JSON.stringify(r.stored), seq, best.outcome, best.score?.scoreGiven ?? null, best.score?.scoreMaximum ?? null, now, s.attemptId);
 
-    const syncId = !s.preview && isFinal(outcome) && score ? maybeCreateSync(db, s, score, now) : null;
-    return { ok: true, event, seq, outcome: best.outcome, scoreGiven: best.score?.scoreGiven ?? null, scoreMaximum: best.score?.scoreMaximum ?? null, syncId };
+    const syncId = !s.preview && isFinal(r.outcome) && r.score ? maybeCreateSync(db, s, r.score, now) : null;
+    return { ok: true, event, seq, stale, outcome: best.outcome, scoreGiven: best.score?.scoreGiven ?? null, scoreMaximum: best.score?.scoreMaximum ?? null, syncId };
   });
 }
 

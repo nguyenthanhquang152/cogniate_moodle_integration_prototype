@@ -1,12 +1,11 @@
 // Score sync worker (app contract §10, ADR-010). Sends each due `pending` row with POST /api/lineitems/:id/scores
 // (SERVICE-AUTH-V1: works after the ltik expired). One trace id per row and try. Answers:
-//   204 -> sent; 409 PLATFORM_CONFLICT -> conflict (no retry); 400/403/404 -> failed at once (lastError);
-//   401, 5xx, timeout, no answer -> retry at 5 s, 30 s, 2 min, 10 min, 30 min, then hourly until 24 h, then failed.
+// The answer -> status mapping and the retry times are the grade policy in packages/tracking (syncResult).
 import { randomBytes } from 'node:crypto';
 import type { Logger } from '@cogniate/shared';
 import { decrypt } from '@cogniate/shared';
-import type { SyncStatus } from '@cogniate/tracking';
-import { nextRetryAt } from '@cogniate/tracking';
+import type { SendAnswer } from '@cogniate/tracking';
+import { syncResult } from '@cogniate/tracking';
 import type { LtiClient } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import type { Db } from '../domain/db.ts';
@@ -24,6 +23,9 @@ export interface ScoreSyncWorkerDeps {
 }
 
 export const NO_GRADEBOOK_COLUMN = 'No gradebook column: the activity has no AGS line item.';
+
+/** The activity has no AGS line item (ADR-010 rule 1): nothing can be sent. */
+class NoGradebookColumn extends Error {}
 
 /** A safe, short lastError from an LTI service error (codes and the service's short description only). */
 const errorText = (err: LtiServiceError): string => `${err.status || 'no answer'} ${err.code}${err.description ? `: ${err.description}` : ''}`.slice(0, 300);
@@ -45,29 +47,34 @@ export function createScoreSyncWorker(deps: ScoreSyncWorkerDeps) {
   async function send(row: DueSync): Promise<void> {
     const traceId = randomBytes(16).toString('hex');
     const tries = row.tries + 1;
-    let result: { status: SyncStatus; lastError: string | null; nextTryAt: number | null };
+    let answer: SendAnswer;
+    let lastError: string | null = null;
     try {
-      if (row.serviceKeyEncrypted === null) throw new Error(NO_GRADEBOOK_COLUMN);
+      if (row.serviceKeyEncrypted === null) throw new NoGradebookColumn();
       const serviceKey = decrypt(masterKey, row.serviceKeyEncrypted);
       const lineItemId = await lineItemOf(row, serviceKey, traceId);
-      if (lineItemId === null) throw new Error(NO_GRADEBOOK_COLUMN);
+      if (lineItemId === null) throw new NoGradebookColumn();
       await lti.postScore(serviceKey, lineItemId, row.payload, traceId);
-      result = { status: 'sent', lastError: null, nextTryAt: null };
+      answer = { http: 204 };
     } catch (err) {
       if (err instanceof LtiServiceError) {
-        if (err.status === 409) result = { status: 'conflict', lastError: 'Moodle has a grade with a newer time.', nextTryAt: null };
-        else if (err.status === 400 || err.status === 403 || err.status === 404) result = { status: 'failed', lastError: errorText(err), nextTryAt: null };
-        else {
-          const next = nextRetryAt(row.createdAt, tries, now());
-          result = next === null ? { status: 'failed', lastError: errorText(err), nextTryAt: null } : { status: 'pending', lastError: errorText(err), nextTryAt: next };
-        }
-      } else if (err instanceof Error && err.message === NO_GRADEBOOK_COLUMN) {
-        result = { status: 'failed', lastError: NO_GRADEBOOK_COLUMN, nextTryAt: null };
+        answer = { http: err.status };
+        lastError = err.status === 409 ? `${errorText(err)} (Moodle has a grade with a newer time)`.slice(0, 300) : errorText(err);
+      } else if (err instanceof NoGradebookColumn) {
+        answer = { local: 'no_gradebook_column' };
+        lastError = NO_GRADEBOOK_COLUMN;
       } else {
-        throw err;
+        // A-T5a-06 / B-T5a-03: any other error (for example a service key that cannot be decrypted after an
+        // APP_MASTER_KEY change) does not get better by itself: failed at once (a human can Resend).
+        const name = err instanceof Error ? err.name : 'Error';
+        answer = { local: 'internal_error' };
+        lastError = `Internal error (${name}). The service key cannot be used. Give the trace id ${traceId} to your Cogniate admin.`.slice(0, 300);
+        log.error('internal_error', { trace_id: traceId, method: 'WORKER', path: 'score_sync', error: name });
       }
     }
-    recordSend(db, row.id, { status: result.status, tries, nextTryAt: result.nextTryAt, lastError: result.lastError }, now());
+    // The grade policy decides the row status and the next try (packages/tracking, ADR-010 rules 8 and 9).
+    const result = syncResult(answer, tries, row.retryFrom, now());
+    recordSend(db, row.id, { status: result.status, tries, nextTryAt: result.nextTryAt, lastError: result.status === 'sent' ? null : lastError }, now());
     log.info('score_sync', { trace_id: traceId, sync_id: row.id, status: result.status, tries });
   }
 

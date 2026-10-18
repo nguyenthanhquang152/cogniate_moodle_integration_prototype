@@ -6,7 +6,7 @@ import { getConnection } from '../domain/connections.ts';
 import { getCourse, getVersion, latestVersion } from '../domain/courses.ts';
 import type { Db } from '../domain/db.ts';
 import { launchStats } from '../domain/launch.ts';
-import { outcomeStats, publicationResults } from '../domain/results.ts';
+import { outcomeStats } from '../domain/results.ts';
 import type { Publication } from '../domain/publications.ts';
 import { getPublication, listPublications, upsertPublication, withdrawPublication } from '../domain/publications.ts';
 import { ApiError } from './api-errors.ts';
@@ -64,13 +64,6 @@ export function registerPublicationRoutes(api: FastifyInstance, deps: { db: Db; 
     const p = getPublication(db, libraryId(req), req.params.id);
     if (!p) throw notFound('publication');
     return publicationJson(db, p);
-  });
-
-  // T5a: one row per learner per activity, with best, attempts and every score sync (app contract §5, H5).
-  api.get<IdParams>('/publications/:id/results', async (req) => {
-    const p = getPublication(db, libraryId(req), req.params.id);
-    if (!p) throw notFound('publication');
-    return { rows: publicationResults(db, p) };
   });
 
   api.post<IdParams>('/publications/:id/withdraw', async (req) => {

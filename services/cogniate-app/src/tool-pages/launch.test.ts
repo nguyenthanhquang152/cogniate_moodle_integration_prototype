@@ -416,6 +416,7 @@ describe('B-T4b2-01 / -03, A-T4b2-04: every tool page error code logs one event 
       expect(pageCode(r.body), code).toBe(code);
       expect(r.body, code).toMatch(/<p data-error-action>[^<]+<\/p>/);
       expect(r.body, code).not.toContain('Try again in a minute');
+      if (code === 'RETURN_URL_MISMATCH') expect(r.body).not.toContain('Select content again'); // a retry cannot help
       const lines = t.logs.filter((l) => l.trace_id === traceId && l.event.endsWith('_rejected'));
       expect(lines, code).toHaveLength(1);
       expect(lines[0], code).toMatchObject({ event, ...(fields ?? {}) });
