@@ -13,6 +13,7 @@ The product owner gave six roles. The Lead added one role (Lead) and made four r
 | **Author** | Opus 5.5, xhigh | Dedicated Author instance. Same instance for all tasks. | `services/**`, `apps/**`, `packages/**`, `infra/**`, unit tests next to the code, root build files | Edit `tests/**` or review files. Declare its own work "verified". |
 | **QA** (independent) | Opus 5.5, xhigh | Dedicated QA instance. Never the Author, Docs or a Reviewer. | `tests/**` (a separate npm project, not a root workspace), `docs/reviews/<task>/qa.md` | Edit product code. Read the Author's notes before it writes the tests (★ tests come from the acceptance criteria, not from the code). |
 | ★ **Author-2** (added 2026-10-18 by the product owner) | Codex GPT-6-Astra, xhigh | Dedicated Codex instance, started by the Lead through Orca orchestration in its own git worktree and branch. | Only the files its task brief names (for example `apps/portal/**` for T6) | Edit `tests/**`, `docs/**`, or files owned by the Author's current task. Push. Review or test its own work. |
+| ★ **QA-E2E** (added 2026-10-18 by the Lead) | Opus 5.5, xhigh | Second dedicated QA instance, independent of both Authors, Docs and the Reviewers. | `tests/e2e/**` and the T7 sections of `docs/reviews/T7/qa.md` | Edit product code or other `tests/**` folders (QA owns those). |
 | **Docs** | Opus 5.5, xhigh | Dedicated Docs instance. | `README.md`, `docs/guides/**`, `docs/human_review/**` | Document a behaviour that QA did not verify. |
 | **Reviewer-A** | Opus 5.5, xhigh | Dedicated instance. | `docs/reviews/<task>/reviewer-a.md` | Read Reviewer-B's file before it submits its own (★ blind review). |
 | **Reviewer-B** | Opus 5.5, xhigh | Dedicated instance. Independent of Reviewer-A. | `docs/reviews/<task>/reviewer-b.md` | Read Reviewer-A's file before it submits its own (★ blind review). |
@@ -154,6 +155,8 @@ In round 2 and round 3, add a new section `## Round N`. Do not delete old rounds
 - Author-2 works in its own worktree and branch (for example `feat/t6-portal-ui`), commits only there, and never pushes. The Lead merges the branch into `feat/moodle-lti-prototype` when the task is ready for verification.
 - The same gates apply: QA (Opus) verifies, Reviewer-A and Reviewer-B (Opus) review. So Codex work always gets a cross-model review.
 - Each Author runs its own local stack (own `COMPOSE_PROJECT_NAME`, `PUBLIC_PORT`, `STACK_SUBNET`).
+
+- From 2026-10-18 a second QA instance (**QA-E2E**, Opus) writes and runs the T7 end-to-end suite, so the first QA can keep verifying T5b and T6 in parallel. Both QA instances follow the same rules (charter §1, §3a).
 
 ## 8. Why these execution tools
 
