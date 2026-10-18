@@ -8,7 +8,7 @@ import { APP, appApi, QA_B, signIn } from '../lib/app';
 import { publicUrls } from '../lib/env';
 import { httpsRequest } from '../lib/https';
 import { checkErrorPage, eventsSince, hostIs, pageTraceId, waitForEvent } from '../lib/lti';
-import { cmidByName, openPicker, pickerOptions, saveActivity, submitPicker } from '../lib/moodle-dl';
+import { cmidByName, openPicker, pickerOptions, submitPicker } from '../lib/moodle-dl';
 import { launchActivity, launchToHandoff, newStackContext } from '../lib/moodle-launch';
 import { expect, test } from '../lib/pw';
 import { seed } from '../lib/seed';
@@ -142,9 +142,15 @@ test.describe.serial('T4b2 negative cases', () => {
       expect(await open.frame.evaluate(() => (window as unknown as { __xss?: unknown }).__xss), 'picker: window.__xss').toBeUndefined();
       const { pickerPost } = await submitPicker(open, '<b>x</b>');
       expect(pickerPost.status).toBe(200);
-      const cmid = await saveActivity(open.page, course101(), '<i>y</i>');
+      await open.page.locator('#id_name').fill('<i>y</i>');
+      await Promise.all([open.page.waitForURL(/\/course\/view\.php/, { timeout: 30_000 }), open.page.locator('#id_submitbutton2').click()]);
+      // Moodle 5.2.4 cleans activity names (PARAM_TEXT strips tags): "<i>y</i>" is stored as "y" (spec note).
+      const typed = await cmidByName(course101(), '<i>y</i>');
+      const cmid = typed ?? (await cmidByName(course101(), 'y'));
+      expect(cmid, 'the activity "<i>y</i>" (or its cleaned name "y") exists').toBeDefined();
+      test.info().annotations.push({ type: 'moodle activity name', description: typed ? 'stored as typed: <i>y</i>' : 'stored as "y" (Moodle strips the tags)' });
 
-      const cap = await launchActivity(context, seed().users.cg_student, cmid, { until: `${APP}/play/`, timeoutMs: 20_000 });
+      const cap = await launchActivity(context, seed().users.cg_student, cmid!, { until: `${APP}/play/`, timeoutMs: 20_000 });
       const shell = cap.popup!;
       const text = (await shell.locator('body').innerText()).replace(/\s+/g, ' ');
       expect(text, 'the shell shows the course title as text').toContain('<b>x</b>');

@@ -78,9 +78,12 @@ async function ac05() {
   // AC-T4-35 (4da1f95) runs in the same pass: it reads the details.action of the AC-T4-05 answers, and the store count
   // around this pass covers its rejects too ("nothing stored").
   await r.containerSuite('rejects', { env: { QA_TASK: 'T4a', QA_GREP: 'AC-T4-05|AC-T4-35' }, expectIds: ['AC-T4-05', 'AC-T4-35'] });
-  const after = await packageFolders(app);
+  // `npm run test:acceptance` switches the acceptance profile on and off (T2b), which recreates the cogniate-app
+  // container: look it up again (a container id from before the pass is gone).
+  const appAfter = (await serviceContainer(r.PROJECT, 'cogniate-app')) ?? app;
+  const after = await packageFolders(appAfter);
   const find = await r.exec('find-evil-files', 'docker', [
-    'exec', app, 'sh', '-c',
+    'exec', appAfter, 'sh', '-c',
     'find / -path /proc -prune -o -path /sys -prune -o \\( -name evil.html -o -name abs.html \\) -print 2>/dev/null',
   ], { timeoutMs: 300_000 });
   const found = find.stdout.split('\n').filter(Boolean);

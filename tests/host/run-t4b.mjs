@@ -7,7 +7,8 @@
 // The T4b specs share the state file "T4b" (tests/acceptance/artifacts/state-T4b.json in the clone), so the passes
 // after the first keep the artifacts folder.
 // 1. setup: npm ci, gen-env, guard, stack:up + seed, H1; course zips into tests/fixtures/courses.
-// 2. Pass 1: QA_TASK=T4b1,T4b2, all ACs except AC-T4-18, -21, -32 (they need step 4).
+// 2. Pass 1: QA_TASK=T4b1,T4b2 (with --tasks T3b,…: also the T3b registration ACs), all ACs except AC-T4-18, -21, -32
+//    (they need step 4).
 // 3. Knob passes: REF_TTL_SECONDS=20 (cogniate-app) → AC-T4-09 knob test; PICKER_TTL_SECONDS=20 → AC-T4-20 knob test.
 // 4. npm run seed:lti-activity (T4b2 scope): an activity under Thanh's tool that points at library B's publication.
 // 5. Pass 2: AC-T4-18, then AC-T4-21 and AC-T4-32 over the pages of all passes.
@@ -16,7 +17,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRunner } from './core.mjs';
 
-const r = createRunner({ task: 'T4b', defaultProject: 'qa-t4b-r1' });
+const r = createRunner({
+  task: 'T4b',
+  defaultProject: 'qa-t4b-r1',
+  extraOptions: { tasks: { type: 'string', default: 'T4b1,T4b2' }, only: { type: 'string', default: '' } },
+  extraHelp:
+    '  --tasks <list>               T4b1,T4b2 (default); add T3b to run its registration ACs in pass 1.\n' +
+    '  --only <ids>                 One focused pass: the setup chain (SETUP-T4b*, AC-T4-07, -08, -10) and these ACs.\n',
+});
+const TASKS = r.opt.tasks.split(',').map((t) => t.trim());
+// T3b in pass 1: the registration ACs only. AC-T3-29 and AC-T3-30 use the T3a state ("QA DL"), which a T4b run has not.
+const T3B = ['AC-T3-01', 'AC-T3-02', 'AC-T3-03', 'AC-T3-04', 'AC-T3-05', 'AC-T3-25', 'AC-T3-26', 'AC-T3-28'];
 const ZIPS = [
   { name: 'Build Your First Website with AI_ The Zero-to-Hero Micro-Sprint-scorm-v2.zip', sha256: 'a685744e5fd9de21c203c3b2f47916ef1079532196ed870df89a00ab8ee76df7' },
   { name: 'Build Your First Website with AI_ The Zero-to-Hero Micro-Sprint-html.zip', sha256: '9f04d3abd65f85e362b2dca5207cc4b86ffa286e4b1a73923c157b69321f3f6d' },
@@ -85,8 +96,19 @@ async function seedForeignActivity() {
 
 await r.main(async () => {
   if (!(await setup())) return;
-  const exclude = `^(?!.*(${LATE.join('|')}))`;
-  await r.containerSuite('pass1', { env: { QA_TASK: 'T4b1,T4b2', QA_GREP: exclude }, expectIds: [...T4B1, ...T4B2_PASS1] });
+  if (r.opt.only) {
+    // Re-run only what is missing: the state these ACs need comes from the setup chain in the same pass.
+    const ids = r.opt.only.split(',').map((t) => t.trim()).filter(Boolean);
+    const grep = ['SETUP-T4b', 'AC-T4-07', 'AC-T4-08', 'AC-T4-10', ...ids].join('|');
+    await r.containerSuite('focus', { env: { QA_TASK: 'T4b1,T4b2', QA_GREP: grep }, expectIds: ids });
+    return;
+  }
+  const withT3b = TASKS.includes('T3b');
+  const exclude = `^(?!.*(${[...LATE, ...(withT3b ? ['AC-T3-29', 'AC-T3-30'] : [])].join('|')}))`;
+  await r.containerSuite('pass1', {
+    env: { QA_TASK: [...(withT3b ? ['T3b'] : []), 'T4b1', 'T4b2'].join(','), QA_GREP: exclude },
+    expectIds: [...(withT3b ? T3B : []), ...T4B1, ...T4B2_PASS1],
+  });
   await knobPass('cogniate-app', 'REF_TTL_SECONDS', 'T4b1', 'AC-T4-09.*knob', 'AC-T4-09');
   await knobPass('cogniate-app', 'PICKER_TTL_SECONDS', 'T4b2', 'AC-T4-20.*knob', 'AC-T4-20');
   if (await seedForeignActivity()) {

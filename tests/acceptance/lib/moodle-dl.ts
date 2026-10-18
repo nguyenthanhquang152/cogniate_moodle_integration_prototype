@@ -180,7 +180,8 @@ export async function createManualTool(page: Page, admin: MoodleUser, name: stri
     await page.locator('#id_lti_toolurl_ContentItemSelectionRequest').fill(`${lti}/lti/launch/${ACCOUNT}`);
   }
   if (opts.memberships) await page.locator('#id_ltiservice_memberships').selectOption('1');
-  await Promise.all([page.waitForURL(/toolconfigure\.php/, { timeout: 30_000 }), page.locator('#id_submitbutton').click()]);
+  await Promise.all([page.waitForURL(/toolconfigure\.php|section=modsettinglti/, { timeout: 30_000 }), page.locator('#id_submitbutton').click()]);
+  if (!/toolconfigure\.php/.test(page.url())) await page.goto(`${urls.moodle}/mod/lti/toolconfigure.php`);
 
   // Find the new tool: mod/lti/templates/tool_card.mustache renders <div class="tool-card" data-type-id="{{id}}">.
   await page.locator('.tool-card', { hasText: name }).first().waitFor({ timeout: 15_000 });
