@@ -58,6 +58,8 @@ export interface ContentItem {
   lineItem: { scoreMaximum: number; label: string; resourceId: string; tag: string };
 }
 const DeepLinkingAnswer = z.object({ message: z.string().min(1), target: z.string().min(1) });
+const NoContent = z.undefined();
+const LineItems = z.object({ lineItems: z.array(z.object({ id: z.string().min(1), resourceLinkId: z.string().optional() })) });
 
 /** POST /api/platforms body (contract §3.9). */
 export interface NewPlatform {
@@ -104,15 +106,15 @@ export interface LtiClientDeps {
 export function createLtiClient(deps: LtiClientDeps) {
   const readKey = deps.readKey ?? ((f: string) => readFileSync(f, 'utf8').trim());
 
-  /** `ltik` set: LTIK-AUTH-V2 (contract §1.2); else Bearer. */
-  async function call<S extends z.ZodType>(schema: S, method: 'GET' | 'POST' | 'PATCH', path: string, traceId: string, body?: unknown, ltik?: string): Promise<z.output<S>> {
+  /** Auth (contract §1.2): `ltik` -> LTIK-AUTH-V2; `serviceKey` -> SERVICE-AUTH-V1; else Bearer. */
+  async function call<S extends z.ZodType>(schema: S, method: 'GET' | 'POST' | 'PATCH', path: string, traceId: string, body?: unknown, ltik?: string, serviceKey?: string): Promise<z.output<S>> {
     let key: string;
     try {
       key = readKey(deps.apiKeyFile);
     } catch {
       throw new LtiServiceError(0, 'NO_API_KEY', 'The LTI service API key file cannot be read. Run npm run seed.');
     }
-    const authorization = ltik === undefined ? `Bearer ${key}` : `LTIK-AUTH-V2 ${key}:${ltik}`;
+    const authorization = ltik !== undefined ? `LTIK-AUTH-V2 ${key}:${ltik}` : serviceKey !== undefined ? `SERVICE-AUTH-V1 ${key}:${serviceKey}` : `Bearer ${key}`;
     let res;
     try {
       res = await deps.outbound.request(`${deps.ltiUrl}${path}`, {
@@ -151,6 +153,12 @@ export function createLtiClient(deps: LtiClientDeps) {
     /** The signed Deep Linking response for one content item (flows §6b). */
     deepLinking: (ltik: string, contentItems: ContentItem[], traceId: string) =>
       call(DeepLinkingAnswer, 'POST', '/api/deeplinking', traceId, { contentItems }, ltik),
+    /** One AGS score (app contract §10), SERVICE-AUTH-V1: works after the ltik expired. 204 on success. */
+    postScore: (serviceKey: string, lineItemId: string, body: object, traceId: string) =>
+      call(NoContent, 'POST', `/api/lineitems/${id(lineItemId)}/scores`, traceId, body, undefined, serviceKey),
+    /** The line items of a resource link (ADR-010 rule 1: used when the launch had no line item). */
+    findLineItems: (serviceKey: string, resourceLinkId: string, traceId: string) =>
+      call(LineItems, 'GET', `/api/lineitems?${new URLSearchParams({ resourceLinkId })}`, traceId, undefined, undefined, serviceKey).then((r) => r.lineItems),
   };
 }
 

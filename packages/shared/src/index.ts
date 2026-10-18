@@ -14,5 +14,7 @@ export type { Db as SqliteDb } from './migrations.ts';
 export { OutboundError, createOutboundClient, isBlockedAddress, parseAllowlist } from './outbound.ts';
 export type { OutboundBlockReason, OutboundClient, OutboundOptions, OutboundRequest, OutboundResponse, ResolvedAddress, Resolver } from './outbound.ts';
 export type { LogLevel, LogLine, Logger, LoggerOptions } from './logger.ts';
+export { RETENTION_INTERVAL_MS, startRetention } from './retention.ts';
+export type { RetentionResult } from './retention.ts';
 export { startService } from './service.ts';
 export type { ServiceListener, StartOptions } from './service.ts';

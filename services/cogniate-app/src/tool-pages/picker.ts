@@ -7,11 +7,11 @@ import { decrypt } from '@cogniate/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { TOOL_ACCOUNT } from '../app/connections.ts';
 import type { ContentItem, LtiClient } from '../clients/lti-client.ts';
-import { LtiServiceError } from '../clients/lti-client.ts';
+import { LtiServiceError, ltiErrorFields } from '../clients/lti-client.ts';
 import type { Db } from '../domain/db.ts';
 import { publicationOfConnection } from '../domain/launch.ts';
 import type { PickerSession } from '../domain/pickers.ts';
-import { claimPicker, getPicker, pickablePublications, releasePicker } from '../domain/pickers.ts';
+import { claimPicker, clearPickerLtik, getPicker, pickablePublications, releasePicker } from '../domain/pickers.ts';
 import { httpsOrigin } from './launch-rules.ts';
 import { errorPage, escapeHtml, layout, newNonce, toolPageHeaders } from './page.ts';
 
@@ -24,7 +24,7 @@ export interface PickerPageDeps {
   now: () => number;
 }
 
-export type PickerErrorCode = 'PICKER_NOT_FOUND' | 'PICKER_USED' | 'PICKER_EXPIRED' | 'ORIGIN_NOT_ALLOWED' | 'PUBLICATION_NOT_AVAILABLE' | 'LTI_SERVICE_ERROR';
+export type PickerErrorCode = 'PICKER_NOT_FOUND' | 'PICKER_USED' | 'PICKER_EXPIRED' | 'ORIGIN_NOT_ALLOWED' | 'PUBLICATION_NOT_AVAILABLE' | 'LTI_SERVICE_ERROR' | 'RETURN_URL_MISMATCH';
 
 const HEADING = 'Cogniate could not add the course';
 const AGAIN = 'In Moodle, use Select content again.';
@@ -35,8 +35,13 @@ export const PICKER_ERRORS: Record<PickerErrorCode, { status: number; action: st
   PICKER_EXPIRED: { status: 410, action: `This course list expired. ${AGAIN}` },
   ORIGIN_NOT_ALLOWED: { status: 403, action: 'Open the course list again from Moodle and choose the course there.' },
   PUBLICATION_NOT_AVAILABLE: { status: 400, action: 'This course is not available for this Moodle site. In Moodle, use Select content again and choose one available course.' },
-  LTI_SERVICE_ERROR: { status: 502, action: 'Cogniate cannot reach its LTI service now. Try again in a minute. If it happens again, give the trace id to your Moodle administrator.' },
+  LTI_SERVICE_ERROR: { status: 502, action: `Cogniate could not send the course to Moodle. ${AGAIN} If it happens again, give the trace id to your Moodle administrator.` },
+  // B-T4b2-01: Moodle's return URL is not on the Moodle site of the launch; a retry of the same answer cannot help.
+  RETURN_URL_MISMATCH: { status: 502, action: `${AGAIN} If it happens again, give the trace id to your Moodle administrator.` },
 };
+
+/** picker_rejected reasons (app contract §12; lti_service_error, return_url_mismatch, not_found: B-T4b2-01). */
+type PickerReason = 'used' | 'expired' | 'publication_not_available' | 'not_found' | 'lti_service_error' | 'return_url_mismatch';
 
 export const FORMAT_BADGE = { scorm12: 'SCORM 1.2', html: 'HTML' } as const;
 
@@ -60,8 +65,8 @@ export function contentItemFor(urls: PublicUrls, publication: { id: string; cour
 export function registerPickerPages(app: FastifyInstance, deps: PickerPageDeps): void {
   const { db, urls, logger: log, lti, masterKey, now } = deps;
 
-  const fail = (req: FastifyRequest, reply: FastifyReply, code: PickerErrorCode, reason?: 'used' | 'expired' | 'publication_not_available') => {
-    if (reason) log.warn('picker_rejected', { trace_id: req.traceId, reason });
+  const fail = (req: FastifyRequest, reply: FastifyReply, code: PickerErrorCode, reason?: PickerReason, err?: unknown) => {
+    if (reason) log.warn('picker_rejected', { trace_id: req.traceId, reason, ...ltiErrorFields(err) });
     const e = PICKER_ERRORS[code];
     return reply.code(e.status).headers(toolPageHeaders('error')).send(errorPage(HEADING, code, req.traceId, e.action));
   };
@@ -69,7 +74,7 @@ export function registerPickerPages(app: FastifyInstance, deps: PickerPageDeps):
   /** The picker if it exists, is not used and has not expired; else the error page is sent. */
   const openPicker = (req: FastifyRequest<PickerParams>, reply: FastifyReply): PickerSession | FastifyReply => {
     const picker = getPicker(db, req.params.pickerId);
-    if (!picker) return fail(req, reply, 'PICKER_NOT_FOUND');
+    if (!picker) return fail(req, reply, 'PICKER_NOT_FOUND', 'not_found');
     if (picker.usedAt !== null) return fail(req, reply, 'PICKER_USED', 'used');
     if (picker.expiresAt <= now()) return fail(req, reply, 'PICKER_EXPIRED', 'expired');
     return picker;
@@ -98,7 +103,7 @@ ${rows.map((p) => `    <label class="option" data-publication-id="${escapeHtml(p
     const body = `<main data-page="picker">
   <h1>Select a Cogniate course</h1>
   ${picker.contextTitle ? `<p class="muted">Moodle course: <span data-context-title>${escapeHtml(picker.contextTitle)}</span></p>` : ''}
-  <form method="post" action="/tool/picker/${escapeHtml(picker.id)}">
+  <form method="post" action="/tool/picker/${escapeHtml(req.params.pickerId)}">
   ${list}
   </form>
 </main>`;
@@ -119,21 +124,23 @@ ${rows.map((p) => `    <label class="option" data-publication-id="${escapeHtml(p
     const id = (req.body ?? {}).publicationId;
     const publication = typeof id === 'string' && PUBLICATION_ID.test(id) ? publicationOfConnection(db, picker.connectionId, id) : undefined;
     if (!publication || publication.status !== 'available') return fail(req, reply, 'PUBLICATION_NOT_AVAILABLE', 'publication_not_available');
-    if (!claimPicker(db, picker.id, publication.id, now())) return fail(req, reply, 'PICKER_USED', 'used');
+    if (!claimPicker(db, picker.key, publication.id, now())) return fail(req, reply, 'PICKER_USED', 'used');
     let answer: { message: string; target: string };
     try {
       answer = await lti.deepLinking(decrypt(masterKey, picker.ltikEncrypted), [contentItemFor(urls, publication)], req.traceId);
     } catch (err) {
-      releasePicker(db, picker.id); // nothing went to Moodle: the teacher may try again
-      if (err instanceof LtiServiceError) return fail(req, reply, 'LTI_SERVICE_ERROR');
+      releasePicker(db, picker.key); // nothing went to Moodle: the teacher may try again
+      if (err instanceof LtiServiceError) return fail(req, reply, 'LTI_SERVICE_ERROR', 'lti_service_error', err);
       throw err;
     }
     // The return URL is Moodle's (deep_link_return_url): https on the platform origin, else we do not post the JWT there.
     const returnOrigin = httpsOrigin(answer.target);
     if (returnOrigin !== picker.issuerOrigin) {
-      releasePicker(db, picker.id);
-      return fail(req, reply, 'LTI_SERVICE_ERROR');
+      releasePicker(db, picker.key);
+      return fail(req, reply, 'RETURN_URL_MISMATCH', 'return_url_mismatch');
     }
+    // A-T4b2-04: the pick is done; the encrypted ltik is not needed any more (the release path above keeps it).
+    clearPickerLtik(db, picker.key);
     const nonce = newNonce();
     const body = `<main data-page="picker-submit">
   <h1>Adding the course to Moodle</h1>

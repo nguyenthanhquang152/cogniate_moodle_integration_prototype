@@ -274,5 +274,17 @@ export async function setToolOptions(page: Page, typeId: number, { coursevisible
   if (await expand.count()) await expand.first().click();
   if (coursevisible) await page.locator('#id_lti_coursevisible').selectOption(coursevisible);
   if (launchcontainer) await page.locator('#id_lti_launchcontainer').selectOption(launchcontainer);
-  await Promise.all([page.waitForURL(/toolconfigure\.php/, { timeout: 30_000 }), page.locator('#id_submitbutton').click()]);
+  // Moodle 5.2.4 returns to admin/settings.php?section=modsettinglti after saving an edited tool (a new tool returns to
+  // toolconfigure.php).
+  await Promise.all([page.waitForURL(/toolconfigure\.php|section=modsettinglti/, { timeout: 30_000 }), page.locator('#id_submitbutton').click()]);
+  // The save must have stuck: read the values back from the edit form.
+  await page.goto(`${urls.moodle}/mod/lti/typessettings.php?action=update&id=${typeId}&sesskey=${await page.evaluate(() => (window as unknown as { M?: { cfg?: { sesskey?: string } } }).M?.cfg?.sesskey ?? '')}`);
+  if (coursevisible) {
+    const v = await page.locator('#id_lti_coursevisible').inputValue();
+    if (v !== coursevisible) throw new Error(`tool ${typeId}: coursevisible is ${v} after save, want ${coursevisible}`);
+  }
+  if (launchcontainer) {
+    const v = await page.locator('#id_lti_launchcontainer').inputValue();
+    if (v !== launchcontainer) throw new Error(`tool ${typeId}: launchcontainer is ${v} after save, want ${launchcontainer}`);
+  }
 }

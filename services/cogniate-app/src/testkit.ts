@@ -43,6 +43,10 @@ export interface FakeLti {
   addLaunch(token: LtiIdToken): string;
   /** POST /api/deeplinking calls: the ltik and the content items. */
   deepLinks: Array<{ ltik: string; items: ContentItem[] }>;
+  /** POST /api/lineitems/:id/scores calls (SERVICE-AUTH-V1). */
+  scores: Array<{ serviceKey: string; lineItemId: string; body: Record<string, unknown> }>;
+  /** Line items per Moodle resource link id (GET /api/lineitems?resourceLinkId=). */
+  lineItems: Map<string, string[]>;
 }
 
 export const LEARNER = 'http://purl.imsglobal.org/vocab/lis/v2/membership#Learner';
@@ -75,6 +79,8 @@ export function fakeLti(): FakeLti {
   const calls: string[] = [];
   const launches = new Map<string, LtiIdToken>();
   const deepLinks: Array<{ ltik: string; items: ContentItem[] }> = [];
+  const scores: FakeLti['scores'] = [];
+  const lineItems = new Map<string, string[]>();
   let seq = 0;
   const state: { failNext: FakeLti['failNext'] } = { failNext: null };
   const failIfAsked = () => {
@@ -124,9 +130,18 @@ export function fakeLti(): FakeLti {
       deepLinks.push({ ltik, items });
       return { message: `header.${Buffer.from(JSON.stringify(items)).toString('base64url')}.sig`, target: DL_RETURN };
     },
+    async postScore(serviceKey, lineItemId, body) {
+      calls.push(`POST score ${lineItemId} ${JSON.stringify(body)}`); failIfAsked();
+      scores.push({ serviceKey, lineItemId, body: body as Record<string, unknown> });
+      return undefined;
+    },
+    async findLineItems(_serviceKey, resourceLinkId) {
+      calls.push(`GET lineitems ${resourceLinkId}`); failIfAsked();
+      return (lineItems.get(resourceLinkId) ?? []).map((id) => ({ id, resourceLinkId }));
+    },
   };
   return {
-    client, registrations, platforms, calls, launches, deepLinks,
+    client, registrations, platforms, calls, launches, deepLinks, scores, lineItems,
     addLaunch(token) {
       const ltik = randomBytes(32).toString('base64url');
       launches.set(ltik, token);
@@ -171,7 +186,7 @@ export async function testApp(opts: { limits?: Partial<Limits>; refTtlSeconds?: 
   const app = await buildAppApi({
     db, urls: TEST_URLS, logger, store, profile: 'default', knobs: [], now: () => clock.now, ...(opts.limits ? { limits: opts.limits } : {}),
     masterKey: TEST_MASTER_KEY, lti: lti.client, refTtlSeconds: opts.refTtlSeconds ?? 86400,
-    pickerTtlSeconds: opts.pickerTtlSeconds ?? 3600, playTtlSeconds: opts.playTtlSeconds ?? 86400,
+    pickerTtlSeconds: opts.pickerTtlSeconds ?? 3600, playTtlSeconds: opts.playTtlSeconds ?? 86400, playerDir: join(dataDir, 'player'),
   });
   const login = async (user: { email: string; password: string }): Promise<string> => {
     const res = await app.inject({ method: 'POST', url: '/app-api/session', headers: { origin: TEST_URLS.app }, payload: { email: user.email, password: user.password } });

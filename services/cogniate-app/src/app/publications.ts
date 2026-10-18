@@ -6,6 +6,7 @@ import { getConnection } from '../domain/connections.ts';
 import { getCourse, getVersion, latestVersion } from '../domain/courses.ts';
 import type { Db } from '../domain/db.ts';
 import { launchStats } from '../domain/launch.ts';
+import { outcomeStats, publicationResults } from '../domain/results.ts';
 import type { Publication } from '../domain/publications.ts';
 import { getPublication, listPublications, upsertPublication, withdrawPublication } from '../domain/publications.ts';
 import { ApiError } from './api-errors.ts';
@@ -14,11 +15,12 @@ const iso = (ms: number): string => new Date(ms).toISOString();
 
 export function publicationJson(db: Db, p: Publication) {
   const { activities, learners } = launchStats(db, p);
+  const { inProgress, completed, passed, failed, lastScoreSync } = outcomeStats(db, p);
   return {
     id: p.id, connectionId: p.connectionId, courseId: p.courseId, courseTitle: p.courseTitle, versionId: p.versionId, version: p.version,
     format: p.format, status: p.status,
-    // T4b2: activities and learners. T5a fills the outcome counts and lastScoreSync from attempts and score syncs.
-    stats: { activities, learners, inProgress: 0, completed: 0, passed: 0, failed: 0, lastScoreSync: null },
+    // activities and learners (T4b2); outcome counts by each learner's best outcome and the last sent sync (T5a).
+    stats: { activities, learners, inProgress, completed, passed, failed, lastScoreSync },
     createdAt: iso(p.createdAt), updatedAt: iso(p.updatedAt),
   };
 }
@@ -62,6 +64,13 @@ export function registerPublicationRoutes(api: FastifyInstance, deps: { db: Db; 
     const p = getPublication(db, libraryId(req), req.params.id);
     if (!p) throw notFound('publication');
     return publicationJson(db, p);
+  });
+
+  // T5a: one row per learner per activity, with best, attempts and every score sync (app contract §5, H5).
+  api.get<IdParams>('/publications/:id/results', async (req) => {
+    const p = getPublication(db, libraryId(req), req.params.id);
+    if (!p) throw notFound('publication');
+    return { rows: publicationResults(db, p) };
   });
 
   api.post<IdParams>('/publications/:id/withdraw', async (req) => {

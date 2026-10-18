@@ -1,6 +1,6 @@
 // lti-service entry point. Public URL: PUBLIC_LTI_URL (proxy -> :4100). Contract: docs/architecture/contracts/lti-service-api.md
 import { join } from 'node:path';
-import { createLogger, createOutboundClient, readServiceKnobs } from '@cogniate/shared';
+import { createLogger, createOutboundClient, readServiceKnobs, startRetention } from '@cogniate/shared';
 import { loadConfig } from './config.ts';
 import { openDb } from './db/index.ts';
 import { buildApp } from './http/app.ts';
@@ -8,6 +8,7 @@ import { createPlatformKeys } from './lti/jwks.ts';
 import { createAgsClient } from './platform/ags.ts';
 import { createScoreClock } from './platform/score-clock.ts';
 import { createTokenClient } from './platform/token-client.ts';
+import { cleanupExpired } from './store/retention.ts';
 
 const SERVICE = 'lti-service';
 const config = loadConfig();
@@ -29,9 +30,12 @@ logger.info('service_started', {
   node: process.version, port: config.port, public_url: config.urls.lti, profile: config.profile,
   outbound_allowlist: outbound.allowlist, knobs,
 });
+// Retention (data-model §2.1): at start and every 10 min.
+const retention = startRetention({ logger, run: () => cleanupExpired(db, Date.now()) });
 
 const stop = (signal: string): void => {
   logger.info('service_stopping', { signal });
+  retention.stop();
   app.close().finally(() => { db.close(); process.exit(0); });
   setTimeout(() => process.exit(0), 3000).unref();
 };
