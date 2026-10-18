@@ -209,7 +209,7 @@ The six values back from Moodle use the fixed keys of `PUT .../platform`: `issue
 | `POST /app-api/publications/:id/withdraw` | — | `200` `withdrawn` |
 | `GET /app-api/publications/:id/results` (T5a) | — | `200 { rows: [ResultRow] }` |
 | `POST /app-api/publications/:id/results/refresh` (T5b) | — | `200 { rows }` after an AGS results read per row (`SERVICE-AUTH-V1`) |
-| `POST /app-api/score-syncs/:syncId/resend` (T5b) | — | `200`: the row goes back to `pending` with `tries = 0` and a new 24 h retry window. Only for `failed` or `conflict`, and never when an equal or better result for the same learner and activity is already `sent` or `pending`; else `409 SYNC_NOT_RESENDABLE`. |
+| `POST /app-api/score-syncs/:syncId/resend` (T5b) | — | `200`: the row goes back to `pending` with `tries = 0` and a new 24 h retry window. Only the learner's current **best** final result on that resource link is ever sent: Resend works only for a `failed` or `conflict` row whose score is that best result. A row whose score is lower than any existing final result of the learner on that resource link (whatever that result's sync status: `sent`, `pending`, `conflict`, `failed`, or a final attempt with no row) → `409 SYNC_NOT_RESENDABLE`. Any other status → `409 SYNC_NOT_RESENDABLE`. |
 
 ResultRow (one per learner per activity; preview attempts are rows with `preview: true`):
 
