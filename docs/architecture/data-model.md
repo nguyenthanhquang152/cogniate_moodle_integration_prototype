@@ -226,8 +226,8 @@ A cleanup job in each service runs at start and then every 10 min. It deletes ro
 | Service | Table | Deleted when |
 | --- | --- | --- |
 | Cogniate app | `handoff` | `expires_at` (= `used_at` + 24 h, the ltik lifetime) is more than 24 h ago |
-| Cogniate app | `picker_session` | `expires_at` is more than 24 h ago |
-| Cogniate app | `play_session` | `expires_at` is more than 24 h ago |
+| Cogniate app | `picker_session` | `expires_at` is more than 24 h ago, except a used pick not yet matched to a launch (kept, because `stats.activities` counts it) |
+| Cogniate app | `play_session` | `expires_at` is more than 24 h ago. The session's largest `session_time` is kept on the attempt first (cogniate-app migration 006), so `total_time` is not lost. |
 | LTI service | `oidc_state` | `expires_at` is past (10 min life) |
 | LTI service | `launch` | the ltik expired more than 24 h ago |
 | LTI service | `registration_session` | older than 24 h |
