@@ -39,5 +39,11 @@ moodle_login() {
 until_ok "LTI service /healthz (default profile, no knobs)" clean_health "$PUBLIC_LTI_URL"
 until_ok "Cogniate app /healthz (default profile, no knobs)" clean_health "$PUBLIC_APP_URL"
 until_ok "content origin /healthz (default profile, no knobs)" clean_health "$PUBLIC_CONTENT_URL"
+portal_page() {
+  # /signin is the portal's public page (the other pages send a signed-out user there).
+  local body; body="$(https "$PUBLIC_APP_URL/signin" -f)" || return 1
+  [[ "$body" == *"<div id=\"root\""* || "$body" == *"<html"* ]] || { echo "${body:0:200}"; return 1; }
+}
+until_ok "portal page (T6 build)" portal_page
 until_ok "Moodle login page" https "$PUBLIC_MOODLE_URL/login/index.php" -f -o /dev/null
 until_ok "Moodle admin login" moodle_login
