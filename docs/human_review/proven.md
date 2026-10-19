@@ -38,11 +38,12 @@ Each row is one claim. **Proven by QA** means that an independent QA agent teste
 
 ## 2. Pending final QA
 
-Both reviewers approved these items. QA did not check them yet.
+Both reviewers approved the fixes. The final regression covers T4b1, T4b2, T5a, T5b and T6. Earlier passes in section 1 do not close this gate.
 
 | Task | Claim | State |
 | --- | --- | --- |
 | T5b, T7 | After a retake with a lower score, the player status names the score that Moodle keeps, for example "Completed — score 60. Moodle keeps your best score: 80" (P11). | Fixed in the code. The next QA run checks it. |
+| T5b | Late score sends and Resend after a missing sync record (P2/P5). | Fixed in the code. Final regression evidence is pending. |
 | T4b1 | "Connect" in Moodle shows a 15-second wait text. If Moodle is slow, the panel says that Moodle may have saved a Pending tool (P1). | Fixed in the code. The next QA run checks it. |
 
 ## 3. Not proven
