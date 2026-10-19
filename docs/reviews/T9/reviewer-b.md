@@ -153,3 +153,89 @@ The focus assertion now uses Playwright's retrying focus check; it does not remo
 The coordinator received these boundaries before the final Docs pass.
 No product, QA, or other documentation file was changed by this reviewer.
 Final scope, measurable STE results, artifact checks, findings, and verdict will follow in this round.
+
+### Independent focused QA checkpoint — 2026-10-19
+
+The coordinator supplied `tests/host/artifacts/qa-cont-p2-d54c607d-2026-10-19T10-45-38-252Z/`.
+I inspected `summary.json` and the two extracted P2/P5 evidence files.
+The SHA matches the phase-one candidate.
+All six tests passed, including two setup tests; no tests were skipped.
+The runner recorded no abort and zero remaining own containers, volumes, or networks.
+
+- Higher score 90 first accepted: `10:49:29.543Z`, still `pending`, try 1.
+- App stopped: `10:49:30.151Z`, before confirmation became due.
+- Accepted confirmation: `10:49:35.204Z`, `sent`, try 2, phase `confirmation`.
+- Response gap: 5.661 seconds. The lower row's two events end in `superseded`.
+- The test's observation was 90 seconds, with no obsolete retry or further successful confirmation loop.
+- P5 removed exactly one failed 80 row. Public results retained both versions' attempts and best score 80.
+- Lower failed score 60 stayed unchanged. Resend returned `409 SYNC_NOT_RESENDABLE`.
+
+P5 remains fixture-assisted. These results do not replace the full T5/T6 regression or fresh T7.
+The finite P2 observation does not remove the late remote-write limit.
+
+### Phase 2 static draft — 2026-10-19
+
+Reviewed committed draft: `4af20fa5462131a0682636157f39e262670a886b`.
+The coordinator identifies old stamps, old MP4s, and pending full regression/T7 text as unfinished work.
+They are not new findings against a claimed final pack.
+
+The read-only scan checked 13 Markdown files, explainer data, and English video text.
+All 107 Markdown relative links resolve, including checked anchors.
+All 18 named `npm run` scripts exist.
+The deferred counts reconcile: 14 unique MINOR findings and 30 NITs.
+Duplicate references F2 and P6 are counted only once.
+
+Automated sentence classification needs human review.
+It initially classified the conditional instruction below as descriptive.
+I inspected every segment over 20 words and reclassified that instruction.
+The final audit will report this method and the resolved measurements.
+
+#### B-T9-05 — BLOCKER — One procedure exceeds the explicit AC-T9-04 limit
+
+- Location: `docs/guides/run-the-stack.md:45` at `4af20fa`.
+- Problem: the conditional instruction has 22 words, excluding the `NOTE` label; the procedure limit is 20.
+- Evidence: “If another stack runs on this Mac (for example a second clone), give this clone its own project name, port and subnet.”
+- Fix: shorten it or split the condition and action into two short sentences.
+- Scope: an editorial acceptance failure, not a product defect.
+
+#### B-T9-06 — MAJOR — Two reset entry points lack a data-loss WARNING
+
+- Locations: `docs/guides/run-the-stack.md:116` (Procedure 6) and `docs/guides/troubleshooting.md:16`.
+- Problem: these instructions run destructive reset commands without the required WARNING before the action.
+- Evidence: Procedure 6 runs `test:e2e` and later offers `--yes`; troubleshooting recommends `stack:reset` with only a parenthetical deletion note.
+- Fix: put a clear local-data deletion WARNING before each command. Keep the existing warnings for Procedures 1 and 4.
+- Basis: inputs §7 uses WARNING for risk to data; AC-T9-04 requires the correct warning convention.
+
+#### B-T9-07 — MINOR — Same-result wording overstates agreement with Moodle
+
+- Locations: `docs/human_review/START-HERE.md:17`, `docs/guides/teacher.md:51`, explainer story “Grades”, and video script slide 8 in EN and VI.
+- Problem: these sentences say the portal shows the same result or score, without limiting that claim to the demonstrated scenario.
+- Evidence: teacher overrides and the documented P2 remote-write limit can leave different Moodle and local grades.
+- Fix: describe the learner result and sync status. Describe “Refresh from Moodle” as the separate gradebook read.
+
+#### B-T9-08 — MINOR — The deferred-list introduction exceeds the paragraph limit
+
+- Location: `docs/human_review/deferred.md:5` at `4af20fa`.
+- Problem: one paragraph has ten sentences, above inputs §7's six-sentence limit.
+- Evidence: it mixes current status, T8 history, and the intended audience.
+- Fix: split these topics into short paragraphs.
+
+All four findings were sent to the coordinator promptly.
+No fixes were made outside this review file.
+After submitting my phase-one verdict, I encountered the Lead-published A-T9-C01 disposition in the required human pack.
+I did not open the counterpart review file or use that disposition as my own finding.
+Final artifacts, fresh full QA/T7, closure checks, and the final verdict remain pending.
+
+### Static findings recheck — 2026-10-19
+
+Reviewed fix commit: `90f4e9efd737cba8f6cb4507e25a1b5bc73cd5c6`.
+**B-T9-05, B-T9-06, B-T9-07, and B-T9-08 are closed in the source text.**
+
+- B-T9-05: the condition and instruction are separate short sentences; the instruction has 10 words.
+- B-T9-06: Procedure 6 and the troubleshooting reset advice now put WARNING before the destructive command.
+- B-T9-07: all listed Markdown/explainer occurrences and both EN/VI slide 8 narrations describe results and send status.
+  The video script identifies the separate Moodle gradebook read.
+- B-T9-08: the ten-sentence introduction is split into paragraphs of five, three, and two sentences.
+
+The repeated scan finds no new over-limit prose segment.
+The MP4 regeneration and final stamp/evidence review remain pending.
