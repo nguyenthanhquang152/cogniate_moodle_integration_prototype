@@ -115,7 +115,7 @@ Moodle shows a choice page when a tool with the same domain exists. If the admin
 - Moodle handles its own Lax cookie on cross-site POSTs with `repost_crosssite_page` (`auth.php`, `contentitem_return.php`).
 - Tool pages after the launch use no cookies. They use capability ids in the path (`/tool/picker/{pickerId}`, `/play/{playId}`), bound to one launch, with expiry.
 
-NOTE: Deep Linking always runs in Moodle's modal iframe (`amd/src/contentitem.js`). The return page calls `parent.processContentItemReturnData`, so a popup cannot replace the iframe. So the teacher flow needs our partitioned state cookie. It works in Chromium and Firefox. It can fail in Safari. Decision: open questions Q16.
+NOTE: Deep Linking always runs in Moodle's modal iframe (`amd/src/contentitem.js`). The return page calls `parent.processContentItemReturnData`, so a popup cannot replace the iframe. So the teacher flow needs our partitioned state cookie. QA verified Chromium only; other browsers, including Firefox, remain unproven. It can fail in Safari. Decision: open questions Q16.
 
 ## 4. Launch handoff (Cogniate app)
 

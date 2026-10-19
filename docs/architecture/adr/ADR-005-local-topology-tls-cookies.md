@@ -44,6 +44,6 @@ Option C.
 ## Consequences
 
 - The dev stack tests the same cross-site paths as production.
-- Deep Linking is the exception to "New window": Moodle always opens "Select content" in an iframe, and its return page needs `parent`. The teacher flow depends on the partitioned state cookie. It works in Chromium and Firefox, and can fail in Safari (Q16).
+- Deep Linking is the exception to "New window": Moodle always opens "Select content" in an iframe, and its return page needs `parent`. The teacher flow depends on the partitioned state cookie. QA verified Chromium only; other browsers, including Firefox, remain unproven. It can fail in Safari (Q16).
 - A human needs `npm run demo:browser` or a manual host mapping and CA trust (infra README). The E2E needs nothing on the host.
 - Images to pull: `caddy`, `node:24-alpine`, plus the three pre-pulled images.
