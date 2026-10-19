@@ -13,7 +13,7 @@ Each row is one claim. **Proven by QA** means that an independent QA agent teste
 | End to end | One command runs the full story on an empty Moodle 5.2.4 site in about 3 minutes (188, 189 and 186 s). | AC-T7-01, AC-T7-11 |
 | Connect | The admin follows the 6 portal steps in Moodle. Every Moodle label matches. Moodle shows the tool "Active", with "New window". | AC-T7-14, AC-T7-02 |
 | Connect | The manual method (16 values out, 6 values back) also connects a site. | AC-T4-10, AC-T7-01 |
-| Texts | The portal uses the exact Moodle 5.2.4 labels: the teacher path and the manual grade option (findings Q-T7-01, Q-T7-02 fixed). | T7 qa.md §6 (validation run `f0e5525`) |
+| Texts | The portal uses the exact Moodle 5.2.4 labels: the teacher path and the manual grade option (findings Q-T7-01, Q-T7-02 fixed). | AC-T7-01, [T7 qa.md §6](../reviews/T7/qa.md#6-suite-changes-after-the-reviews-round-1-addendum) (validation run `f0e5525`) |
 | Publish | Publish, withdraw and publish again work. You cannot publish to a site that is not ready. | AC-T4-12, AC-T4-14 |
 | Teacher | "Select content" lists exactly the published courses of the library. The activity gets a grade item of max 100. | AC-T7-03, AC-T4-15 |
 | Learner | Each launch opens a new window with the player in less than 0.2 s. The URL has no token. | AC-T7-07 |
@@ -25,7 +25,7 @@ Each row is one claim. **Proven by QA** means that an independent QA agent teste
 | Portal | The portal (dev-portal style) has Integrations, the Connect wizard with live status, the manual form, upload progress, Publish, and Results with "Resend". No request leaves the app site. No serious accessibility error. | AC-T6-01 to AC-T6-14 |
 | Portal | The Results page shows "Passed 100" and "Sent". "Refresh from Moodle" shows the Moodle gradebook values. | AC-T7-06, AC-T6-08, AC-T5-18 |
 | Security | Replayed, forged, expired, tampered or changed launches are refused. | AC-T2-09 to AC-T2-11, AC-T2-20 to AC-T2-27, AC-T7-10 |
-| Security | No token or key is in the logs. Each end-to-end run found 0 of 28 captured secrets. The validation run found 0 of 48 values of 9 kinds. | AC-T7-10, T7 qa.md §6, AC-T2-30, AC-T5-19 |
+| Security | No token or key is in the logs. Each end-to-end run found 0 of 28 captured secrets. The validation run found 0 of 48 values of 9 kinds. | AC-T7-10, [T7 qa.md §6](../reviews/T7/qa.md#6-suite-changes-after-the-reviews-round-1-addendum), AC-T2-30, AC-T5-19 |
 | Privacy | Cogniate gets an anonymous learner id and role. It does not get names or emails. | AC-T2-04, AC-T4-08 |
 | LTIAAS-style API | For the endpoints listed in ADR-003, our API uses the paths, header schemes and field names of the public LTIAAS API reference. The differences are in contract §8. The real `ltiaas` 0.0.4 Python SDK passed: id token, deep linking, scores (7/10 read back as 70/100) and memberships. One limit: a line item id with a raw slash gets 404. The form that the SDK sends passes (D15). An external claim needs decision Q1. | AC-T3-27, AC-T3-09, AC-T3-20 |
 | Isolation | One library cannot see or use the courses, connections or results of another library. | AC-T7-08, AC-T7-09, AC-T4-34, AC-T4-16 |

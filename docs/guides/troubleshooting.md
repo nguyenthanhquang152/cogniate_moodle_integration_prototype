@@ -15,7 +15,7 @@ More technical help: [`infra/README.md`](../../infra/README.md#troubleshooting).
 | `PUBLIC_* ... expected ...` | You changed `PUBLIC_PORT`. | Run `npm run gen-env`. | No |
 | `This checkout has no .env, but project ... still has Docker volumes` | A new `.env` has new passwords. They do not match the old database. | Put back the old `.env`. Or run `npm run stack:reset` (this deletes the local data). | No |
 | `The stack is not healthy` | A service did not start in 300 seconds. | Run `npm run stack:logs -- moodle`. Then start the stack again. | No |
-| Moodle shows error 502 just after a start | Moodle is not ready yet. | Wait until the Moodle login page loads. | Seen by QA (T5b qa.md §4) |
+| Moodle shows error 502 just after a start | Moodle is not ready yet. | Wait until the Moodle login page loads. | Seen by QA ([T5b qa.md §4](../reviews/T5b/qa.md#4-qa-side-changes-tests-only)) |
 | `fixtures:check` fails | A course zip is missing or changed. | Make the folder (`mkdir -p docs/raw/data/courses`). Put the two original zips into it (decision Q15). | LC-T1-06 |
 | Your daily browser cannot open `*.test` addresses | These names exist only for the local stack. | Use `npm run demo:browser`. Or see "Your own browser" in `infra/README.md` first. | No |
 
@@ -23,9 +23,9 @@ More technical help: [`infra/README.md`](../../infra/README.md#troubleshooting).
 
 | Symptom | Cause | Fix | Verified by QA |
 | --- | --- | --- | --- |
-| A Moodle tour ("Activate edit mode") covers the page | First visit to edit mode. | Click "End tour". | Seen by QA (T7 qa.md §4) |
+| A Moodle tour ("Activate edit mode") covers the page | First visit to edit mode. | Click "End tour". | Seen by QA ([T7 qa.md §4](../reviews/T7/qa.md#4-notes-for-the-reader)) |
 | You cannot find "Add an activity" | Moodle 5.2.4 has no such label. | Turn on Edit mode, then click "Add content" → "Activity or resource". See the [teacher guide](teacher.md). | AC-T7-14, finding Q-T7-02 |
-| You cannot find the option "Delegate to teacher" | The Moodle 5.2.4 text is longer. | Select "As specified in Deep Linking definition or Delegate to teacher". | T7 qa.md §6 |
+| You cannot find the option "Delegate to teacher" | The Moodle 5.2.4 text is longer. | Select "As specified in Deep Linking definition or Delegate to teacher". | AC-T7-01, [T7 qa.md §6](../reviews/T7/qa.md#6-suite-changes-after-the-reviews-round-1-addendum) |
 | Moodle asks you to update a tool or register a new one | Another tool with the same domain exists. | Click "Register as a new external tool". Cogniate refuses an update. | AC-T6-04, AC-T3-25, AC-T4-30 |
 | A grade or completion seems late | Moodle cron did not run yet. | Normally not needed. Fallback: `npm run moodle:cron`. | No cron needed: AC-T7-05. The command: no. |
 

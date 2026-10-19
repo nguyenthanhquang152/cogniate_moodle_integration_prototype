@@ -75,7 +75,7 @@ The portal shows a table "Tool configuration" with 16 Moodle settings and their 
 5. On the new tool card, click "View configuration details" [AC-T7-01].
 6. Keep this dialog open. It shows the six values for the portal [AC-T7-01].
 
-NOTE: For "Accept grades from the tool", select "As specified in Deep Linking definition or Delegate to teacher". The portal shows this exact text [T7 qa.md §6].
+NOTE: For "Accept grades from the tool", select "As specified in Deep Linking definition or Delegate to teacher". The portal shows this exact text [AC-T7-01, [T7 qa.md §6](../reviews/T7/qa.md#6-suite-changes-after-the-reviews-round-1-addendum)].
 
 ### Back in the portal
 

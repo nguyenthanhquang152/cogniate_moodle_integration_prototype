@@ -69,7 +69,7 @@ Result [AC-T7-15]:
 
 NOTE: `demo:prepare` does by script what the guides for the [Moodle admin](moodle-admin.md) and the [teacher](teacher.md) show by hand. To do these steps by hand, run only steps 1 to 9.
 
-NOTE: On a new clone, `e2e:reset` does not ask. If you answer anything other than `yes`, it stops and deletes nothing [T7 qa.md §7].
+NOTE: On a new clone, `e2e:reset` does not ask. If you answer anything other than `yes`, it stops and deletes nothing [[T7 qa.md §7](../reviews/T7/qa.md#7-pre-final-run-2129b69), check B-T7-01].
 
 ## Procedure 2: Show the users
 
@@ -116,11 +116,11 @@ Result: the containers are removed. The data stays [AC-T9-01]. To start again, r
 ## Procedure 6: Run the full end-to-end test
 
 1. Run `npm run test:e2e` [AC-T7-01].
-2. When the command asks, type `yes` and press Return [T7 qa.md §7].
+2. When the command asks, type `yes` and press Return [AC-T9-01, [T7 qa.md §7](../reviews/T7/qa.md#7-pre-final-run-2129b69)].
 
 Result: the test starts an empty stack and runs the full story on Moodle 5.2.4. In the QA runs, it took 188, 189 and 186 seconds, with 17 tests passed and no retries [AC-T7-01, AC-T7-11].
 
-NOTE: In a script, use `npm run test:e2e -- --yes` or set `E2E_CONFIRM=1`. Then the command does not ask [T7 qa.md §7]. If a step fails, see "Debug a failed E2E step" in [`infra/README.md`](../../infra/README.md#debug-a-failed-e2e-step).
+NOTE: In a script, use `npm run test:e2e -- --yes` or set `E2E_CONFIRM=1`. Then the command does not ask [AC-T7-01, [T7 qa.md §7](../reviews/T7/qa.md#7-pre-final-run-2129b69)]. If a step fails, see "Debug a failed E2E step" in [`infra/README.md`](../../infra/README.md#debug-a-failed-e2e-step).
 
 ## Optional checks
 

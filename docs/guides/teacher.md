@@ -14,7 +14,7 @@ NOTE: QA tested teachers and learners with Chromium only. Other browsers are not
 
 ## Procedure: Add the course
 
-The path in Moodle 5.2.4: Edit mode → "Add content" → "Activity or resource" → "Cogniate (<library>)" → "Add" → "Select content". The portal shows the same path next to each publication [T7 qa.md §6].
+The path in Moodle 5.2.4: Edit mode → "Add content" → "Activity or resource" → "Cogniate (<library>)" → "Add" → "Select content". The portal shows the same path next to each publication [AC-T7-01, [T7 qa.md §6](../reviews/T7/qa.md#6-suite-changes-after-the-reviews-round-1-addendum)].
 
 1. Open the Moodle course.
 2. Turn on the "Edit mode" switch at the top right [AC-T7-01].

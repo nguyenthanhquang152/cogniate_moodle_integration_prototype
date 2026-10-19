@@ -88,6 +88,6 @@ Source: [`docs/reviews/T9/architect-conformance.md`](../reviews/T9/architect-con
 | T8 portal 1+2 | NIT | T8 | The portal shows the raw course status word. The last restore step holds two actions. | Use plain sentences. Split the step. |
 | Q-T7-03 | NIT | T7 | A decorative layer in the HTML export covers the lesson link. Tests use a DOM click. | The exporter fixes it (decision Q17). |
 
-Resolved and not listed: A-T7-03, Q-T7-01 and Q-T7-02. For A-T7-03 (test traces hold raw secrets), `infra/README.md` has a WARNING in "Debug a failed E2E step". QA verified the portal texts of Q-T7-01 and Q-T7-02 (T7 qa.md §6).
+Resolved and not listed: A-T7-03, Q-T7-01 and Q-T7-02. For A-T7-03 (test traces hold raw secrets), `infra/README.md` has a WARNING in "Debug a failed E2E step". QA verified the portal texts of Q-T7-01 and Q-T7-02 ([T7 qa.md §6](../reviews/T7/qa.md#6-suite-changes-after-the-reviews-round-1-addendum)).
 
 Board notes that do not match the review files (for the Lead): the board lists Q-T1-04 as MINOR (qa.md says NIT). For T4b2, the board says the MINOR follow-ups are "in progress". The code has the fixes, but no review file closes them by name.
