@@ -2,7 +2,7 @@
 
 This prototype publishes Cogniate courses (SCORM 1.2 and HTML) to Moodle with LTI 1.3. It has its own LTI service, with an API in the same shape as the public LTIAAS API (a clean-room implementation of the 1EdTech specifications).
 
-**Status:** the full end-to-end test passed on a real Moodle 5.2.4 site, 15 of 15 checks, three runs in a row ([`docs/reviews/T7/qa.md`](docs/reviews/T7/qa.md)). The portal passed its own QA, 14 of 14 checks (T6). The LTIAAS-style API (T3c) and the native `.mbz` channel (T8) are in final QA.
+**Status:** the full end-to-end test passed on a real Moodle 5.2.4 site, 15 of 15 checks, three runs in a row ([`docs/reviews/T7/qa.md`](docs/reviews/T7/qa.md)). The portal (T6, 14 of 14) and the LTIAAS-style API with the real `ltiaas` SDK (T3c, 7 of 7) passed their own QA. The native `.mbz` channel (T8) is in final QA.
 
 ## Start here
 
@@ -17,7 +17,7 @@ The two course zips must be in `docs/raw/data/courses/` (they are not in git).
 npm ci
 npm run fixtures:check
 npm run gen-env
-npm run e2e:reset      # WARNING: deletes the local Moodle site and the local Cogniate data
+npm run e2e:reset      # WARNING: deletes the local Moodle site and the local Cogniate data. Type yes to confirm.
 npm run demo:prepare   # connection, two published courses, two Moodle activities
 ```
 

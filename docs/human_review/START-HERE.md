@@ -20,8 +20,9 @@
 | SCORM 1.2 and HTML courses, pass (100) and fail (0) | Teachers on Safari (Q16). QA used Chromium only. |
 | The best result counts. A score waits if Moodle is down. | Load, scale and 1EdTech certification |
 | Launch security. No secrets in the logs. | A new person runs the stack in 10 minutes (HR-2) |
-| One library cannot see another library's data. | Final QA of the LTIAAS-style API and the native `.mbz` backup (pending) |
+| One library cannot see another library's data. | Final QA of the native `.mbz` backup (pending) |
 | The portal: Connect wizard, Publish, Results (14 of 14 checks) | |
+| The real `ltiaas` SDK works against our LTI service | |
 
 ## What we need from you
 
@@ -46,6 +47,6 @@ To run the prototype yourself, see [`docs/guides/`](../guides/run-the-stack.md).
 
 ## How this was built
 
-- **`rea` not used.** We evaluated [`rea`](https://github.com/morluto/rea) and did not use it to clone LTIAAS. LTIAAS is a hosted service, and its terms forbid reverse engineering. So we built a clean-room service from the 1EdTech specs and the public API shape. The real `ltiaas` SDK passed against our service in the builder's test (QA pending, T3c). See [`rea-evaluation.md`](../architecture/rea-evaluation.md) and [ADR-001](../architecture/adr/ADR-001-rea-not-used.md).
-- **A team of agents.** Lead, Architect, Author, QA, QA-E2E, Docs, Reviewer-A and Reviewer-B ran on Claude Opus 5.5 (xhigh). Codex GPT-6-Astra (xhigh) worked as Author-2 through Orca, for the portal and the LTIAAS-compatible endpoints. Each finished task passed QA and two independent reviews (T3c and T8: QA pending). See the [charter](../team/charter.md#as-run-from-2026-10-18-two-author-lanes-two-qa-instances) and the [board](../team/board.md).
+- **`rea` not used.** We evaluated [`rea`](https://github.com/morluto/rea) and did not use it to clone LTIAAS. LTIAAS is a hosted service, and its terms forbid reverse engineering. So we built a clean-room service from the 1EdTech specs and the public API shape. QA then ran the real `ltiaas` 0.0.4 SDK against our service, and every check passed (AC-T3-27). See [`rea-evaluation.md`](../architecture/rea-evaluation.md) and [ADR-001](../architecture/adr/ADR-001-rea-not-used.md).
+- **A team of agents.** Lead, Architect, Author, QA, QA-E2E, Docs, Reviewer-A and Reviewer-B ran on Claude Opus 5.5 (xhigh). Codex GPT-6-Astra (xhigh) worked as Author-2 through Orca, for the portal and the LTIAAS-compatible endpoints. Each finished task passed QA and two independent reviews (T8: QA pending). See the [charter](../team/charter.md#as-run-from-2026-10-18-two-author-lanes-two-qa-instances) and the [board](../team/board.md).
 - **Legal note.** The claim "LTIAAS-compatible" is for internal use until a human decides Q1.

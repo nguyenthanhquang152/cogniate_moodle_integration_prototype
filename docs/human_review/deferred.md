@@ -2,7 +2,7 @@
 
 These review findings are still open. Each one is MINOR ("worth a fix, safe to defer") or NIT (style). No BLOCKER or MAJOR finding is open. This list is for engineers. A product person can skip it.
 
-Counts: **6 MINOR, 25 NIT** (state 2026-10-19). T3c and T8 have no QA report yet, so new findings can come for these tasks. Ids are in `docs/reviews/<task>/`.
+Counts: **6 MINOR, 25 NIT** (state 2026-10-19). T8 has no QA report yet, so new findings can come for this task. The T3c QA report has no product findings. Ids are in `docs/reviews/<task>/`.
 
 ## Fixed after the last QA run (QA pending)
 

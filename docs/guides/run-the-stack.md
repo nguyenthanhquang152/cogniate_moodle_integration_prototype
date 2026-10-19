@@ -52,17 +52,18 @@ WARNING: Step 6 deletes the local Moodle site and all local Cogniate data. Use i
 4. Run `npm run fixtures:check` to check the two course zips [LC-T1-06].
 5. Run `npm run gen-env` to make `.env`, the passwords and the certificates [LC-T1-01].
 6. Run `npm run e2e:reset` to build and start an empty stack [AC-T7-15].
-7. Run `npm run demo:prepare` to make the demo set-up [AC-T7-15].
-8. Read the users and the two activity URLs in the output [AC-T7-15].
+7. When the command asks, type `yes` and press Return [Not verified by QA].
+8. Run `npm run demo:prepare` to make the demo set-up [AC-T7-15].
+9. Read the users and the two activity URLs in the output [AC-T7-15].
 
 Result [AC-T7-15]:
 
-- In the QA run, step 6 took 36 seconds and step 7 took 9.3 seconds.
+- In the QA run, step 6 took 36 seconds and step 8 took 9.3 seconds.
 - Thanh's Library is connected to Moodle. Both courses are uploaded and published.
 - `COGNIATE-DEV-101` has two Cogniate activities, with a maximum grade of 100 and completion "Receive a grade".
 - `cg_student` can open both activities and reach the course player.
 
-NOTE: `demo:prepare` does by script what the guides for the [Moodle admin](moodle-admin.md) and the [teacher](teacher.md) show by hand. To do these steps by hand, run only steps 1 to 6.
+NOTE: `demo:prepare` does by script what the guides for the [Moodle admin](moodle-admin.md) and the [teacher](teacher.md) show by hand. To do these steps by hand, run only steps 1 to 7.
 
 ## Procedure 2: Show the users
 
@@ -95,7 +96,8 @@ Next: [what a learner sees](learner-view.md).
 WARNING: `npm run e2e:reset` deletes the local Moodle site, the Cogniate data, the logs and `seed.json`. It keeps `.env` and the certificates.
 
 1. Run `npm run e2e:reset` [AC-T7-01, AC-T7-15].
-2. If you want the demo set-up again, run `npm run demo:prepare` [AC-T7-15].
+2. When the command asks, type `yes` and press Return [Not verified by QA].
+3. If you want the demo set-up again, run `npm run demo:prepare` [AC-T7-15].
 
 Result: an empty stack in about 40 seconds, with the same passwords [AC-T7-01, AC-T1-10].
 
@@ -108,8 +110,11 @@ Result: the containers stop. The data stays [Not verified by QA]. To start again
 ## Procedure 6: Run the full end-to-end test
 
 1. Run `npm run test:e2e` [AC-T7-01].
+2. When the command asks, type `yes` and press Return [Not verified by QA].
 
 Result: the test starts an empty stack and runs the full story on Moodle 5.2.4. In the QA runs, it took 188, 189 and 186 seconds, with 17 tests passed and no retries [AC-T7-01, AC-T7-11].
+
+NOTE: In a script, use `npm run test:e2e -- --yes` or set `E2E_CONFIRM=1`. Then the command does not ask [Not verified by QA]. If a step fails, see "Debug a failed E2E step" in [`infra/README.md`](../../infra/README.md#debug-a-failed-e2e-step).
 
 ## Optional checks
 
@@ -122,6 +127,7 @@ Result: the test starts an empty stack and runs the full story on Moodle 5.2.4. 
 ## Not verified by QA
 
 - `npm run stack:doctor`, `npm run demo:users`, `npm run demo:browser` and `npm run stack:down`.
+- The `yes` question of `e2e:reset` and `test:e2e`. It came after the last QA run.
 - `npm run demo` as the first command on a new clone. QA checked `npm run demo` only after T1, on a stack that ran already [LC-T1-03].
 - A browser on your Mac, and the default port 443.
 - Safari and Firefox. QA used Chromium only.

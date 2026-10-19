@@ -24,6 +24,7 @@ Each row is one claim. **Proven by QA** means that an independent QA agent teste
 | Security | Replayed, forged, expired, tampered or changed launches are refused. | AC-T2-09 to AC-T2-11, AC-T2-20 to AC-T2-27, AC-T7-10 |
 | Security | No token or key is in the logs (0 of 28 captured secrets in the end-to-end run). | AC-T7-10, AC-T2-30, AC-T5-19 |
 | Privacy | Cogniate gets an anonymous learner id and role. It does not get names or emails. | AC-T2-04, AC-T4-08 |
+| LTIAAS-style API | The real `ltiaas` 0.0.4 Python SDK works against our LTI service: id token, deep linking, scores (7/10 read back as 70/100) and memberships. The output has no secrets. An external claim needs decision Q1. | AC-T3-27, AC-T3-09, AC-T3-20 |
 | Isolation | One library cannot see or use the courses, connections or results of another library. | AC-T7-08, AC-T7-09, AC-T4-34, AC-T4-16 |
 | Isolation | Course packages run on a separate content site, in a sandbox. They cannot read the portal session. 16 kinds of bad zip are refused. | AC-T5-01, AC-T5-03, AC-T5-17, AC-T4-05 |
 | Run it | A ready demo starts from zero in about 45 seconds (`e2e:reset` 36 s, `demo:prepare` 9.3 s). | AC-T7-15 |
@@ -31,11 +32,10 @@ Each row is one claim. **Proven by QA** means that an independent QA agent teste
 
 ## 2. Pending final QA
 
-Both reviewers approved these tasks. Their QA reports do not exist yet.
+Both reviewers approved these items. QA did not check them yet.
 
 | Task | Claim | State |
 | --- | --- | --- |
-| T3c | Our LTI service API has the same shape as the public LTIAAS API. The real `ltiaas` 0.0.4 Python SDK works against it. | Builder evidence only. QA (AC-T3-27) is pending. The external claim also needs decision Q1. |
 | T8 | Native channel: Moodle backup (`.mbz`) and an empty Moodle course on publish. | Builder evidence only. QA (AC-T8-02 to AC-T8-10) is pending. |
 | T6, T7 | Portal texts that changed after the QA run (findings Q-T7-01, Q-T7-02). | Fixed in the code (portal `8fdfa9e`). The next QA run checks them. |
 
