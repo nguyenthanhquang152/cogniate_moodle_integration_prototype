@@ -51,7 +51,7 @@ Result (2026-10-19): `explainer-en.mp4` 155 s, 1.9 MB; `explainer-vi.mp4` 183 s,
 
 macOS has one Vietnamese voice, `Linh` (vi_VN, compact quality). Vietnamese captions show correctly.
 
-Recommendation: keep English STE as the only written source. Make `video/explainer-vi.mp4` only if a Vietnamese team member listens to the 12-second sample and says that it is clear. A human must also check the Vietnamese script, because an agent translated it. Keep product terms in English (Moodle, LTI, SCORM, Deep Linking).
+English STE remains the written source. The Vietnamese video is supplied for HR-1 review. A Vietnamese team member must check the script and voice before the team keeps it. Keep product terms in English (Moodle, LTI, SCORM, Deep Linking).
 
 ## Open points for the Lead
 

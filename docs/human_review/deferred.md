@@ -2,9 +2,11 @@
 
 Source: commit `4182c80`, 2026-10-19.
 
-These review findings are still open. Each one is MINOR ("worth a fix, safe to defer") or NIT (style). No BLOCKER or MAJOR finding is open in a finished task. T8 round 1 failed on two races (Q-T8-01, Q-T8-02, MAJOR). Both passed in [round 2 at `8059c31`](../reviews/T8/qa.md). They are resolved, not open deferrals. This list is for engineers. A product person can skip it.
+These review findings are still open. Each one is MINOR ("worth a fix, safe to defer") or NIT (style). The P2/P5 repair passed [focused QA](../reviews/T5b/qa.md#replacement-qa-repair-focus-2026-10-19--d54c607d). Full regression and fresh T7 remain pending. P2 is not an accepted MINOR deferral. T8 round 1 failed on two races (Q-T8-01, Q-T8-02, MAJOR). Both passed in [round 2 at `8059c31`](../reviews/T8/qa.md). They are resolved, not open deferrals. This list is for engineers. A product person can skip it.
 
-Counts: **13 MINOR, 30 NIT** (state 2026-10-19). The T3c QA report has no product findings. Ids are in `docs/reviews/<task>/`.
+The [P2 remote-ordering limit](../architecture/adr/ADR-010-grade-and-completion-policy.md#p2-bounded-confirmation-after-uncertain-delivery-2026-10-19) is a documented boundary, not a new accepted MINOR finding. An older request can write after the best score’s accepted confirmation. Migration 010 cannot recover unrecorded sends from before the upgrade. The Author’s synthetic upgrade check is not independent QA. Focused repair QA passed; the full regression and fresh T7 remain pending.
+
+Counts: **14 MINOR, 30 NIT** (state 2026-10-19). The T3c QA report has no product findings. Ids are in `docs/reviews/<task>/`.
 
 ## Security
 
@@ -21,12 +23,15 @@ Counts: **13 MINOR, 30 NIT** (state 2026-10-19). The T3c QA report has no produc
 
 | Id | Severity | Task | Finding | Suggested fix |
 | --- | --- | --- | --- | --- |
+| A-T9-C01 | MINOR | T9 | Repeated line-item lookup failures can retry every 5 seconds, instead of increasing the delay. No score POST occurs; the 24-hour limit stays. | Count preparation retries separately from actual score POSTs. Keep the increasing-backoff policy. |
 | B-T8-03 (rest) | NIT | T8 | A forgotten hold file blocks the Build Runner with no time limit. | Stop after 30 minutes and log it. |
 | T8 readiness 1+2 | NIT | T8 | `stack:doctor` does not check the expiry of `root.crt`. Its knob fix line names no services. | Check the expiry. Print the service names. |
 | T8 readiness 3 | NIT | T8 | `demo:users` never shows passwords, so a person must open the hidden `.env` file. | Add a local option that shows them. |
 | A-FX-03 | NIT | T9 | Two Build Runners that start at the same moment can, in theory, both take over a stale lock. | Very unlikely. Make the take-over atomic. |
 | B-T3c-02 (rest) | NIT | T3c | When the compatibility image build fails, the script deletes the build log. | Print the last 20 log lines first. |
 | Q-T1-04 | NIT | T1 | Moodle shows "Missing capabilities: moodle/user:update" for the product web services token. | Remove unused functions, or add the capability. |
+
+A-T9-C01 is an accepted implementation difference, not conformance to the retry policy. See the [Lead’s disposition](../team/board.md).
 
 ## Code and logs
 
@@ -88,6 +93,6 @@ Source: [`docs/reviews/T9/architect-conformance.md`](../reviews/T9/architect-con
 | T8 portal 1+2 | NIT | T8 | The portal shows the raw course status word. The last restore step holds two actions. | Use plain sentences. Split the step. |
 | Q-T7-03 | NIT | T7 | A decorative layer in the HTML export covers the lesson link. Tests use a DOM click. | The exporter fixes it (decision Q17). |
 
-Resolved and not listed: A-T7-03, A-T7-04, A-T5b-05 (= P5), P1, P2, P11, C-T8-01 to C-T8-03, Q-T7-01 and Q-T7-02. For A-T7-03 (test traces hold raw secrets), `infra/README.md` has a WARNING in "Debug a failed E2E step". QA verified the portal texts of Q-T7-01 and Q-T7-02 ([T7 qa.md §6](../reviews/T7/qa.md#6-suite-changes-after-the-reviews-round-1-addendum)).
+Resolved and not listed: A-T7-03, A-T7-04, A-T5b-05 (= P5), P1, P11, C-T8-01 to C-T8-03, Q-T7-01 and Q-T7-02. For A-T7-03 (test traces hold raw secrets), `infra/README.md` has a WARNING in "Debug a failed E2E step". QA verified the portal texts of Q-T7-01 and Q-T7-02 ([T7 qa.md §6](../reviews/T7/qa.md#6-suite-changes-after-the-reviews-round-1-addendum)).
 
 Board notes that do not match the review files (for the Lead): the board lists Q-T1-04 as MINOR (qa.md says NIT). For T4b2, the board says the MINOR follow-ups are "in progress". The code has the fixes, but no review file closes them by name.

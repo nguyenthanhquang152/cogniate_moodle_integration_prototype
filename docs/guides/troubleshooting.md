@@ -27,7 +27,7 @@ More technical help: [`infra/README.md`](../../infra/README.md#troubleshooting).
 | You cannot find "Add an activity" | Moodle 5.2.4 has no such label. | Turn on Edit mode, then click "Add content" → "Activity or resource". See the [teacher guide](teacher.md). | AC-T7-14, finding Q-T7-02 |
 | You cannot find the option "Delegate to teacher" | The Moodle 5.2.4 text is longer. | Select "As specified in Deep Linking definition or Delegate to teacher". | AC-T7-01, [T7 qa.md §6](../reviews/T7/qa.md#6-suite-changes-after-the-reviews-round-1-addendum) |
 | Moodle asks you to update a tool or register a new one | Another tool with the same domain exists. | Click "Register as a new external tool". Cogniate refuses an update. | AC-T6-04, AC-T3-25, AC-T4-30 |
-| The Cogniate panel says "Moodle may have saved a Pending tool" | Moodle answered slowly during "Connect". | In "Manage tools", delete the pending tool "Cogniate (<library>)". Connect again with the same URL. | No |
+| The Cogniate panel says "Moodle may have saved a Pending tool" | Moodle answered slowly during "Connect". | In "Manage tools", delete the pending tool "Cogniate (<library>)". Connect again with the same URL. | Message: [P1, final T4b1 QA](../reviews/T4b1/qa.md#replacement-qa-final-regression--2026-10-19). Manual cleanup and URL reuse: not verified. |
 | A grade or completion seems late | Moodle cron did not run yet. | Normally not needed. Fallback: `npm run moodle:cron`. | No cron needed: AC-T7-05. The command: no. |
 
 ## Course and player

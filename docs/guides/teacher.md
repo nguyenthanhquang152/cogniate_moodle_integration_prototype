@@ -12,6 +12,10 @@ Tags: `[AC-T7-…]` = the full end-to-end QA run on Moodle 5.2.4 used this step,
 
 NOTE: QA tested teachers and learners with Chromium only. Other browsers are not proven (decision Q16). In Safari, "Select content" can fail. Our recommendation for the pilot: add content with Chrome, Edge or Firefox.
 
+NOTE: [Focused P2/P5 QA](../reviews/T5b/qa.md#replacement-qa-repair-focus-2026-10-19--d54c607d) passed after the grade repair. Full regression and fresh T7 remain pending.
+
+NOTE: An older Moodle request can write after the best score’s accepted confirmation. Permanent grade agreement is [not guaranteed (P2 remote ordering)](../architecture/adr/ADR-010-grade-and-completion-policy.md#p2-bounded-confirmation-after-uncertain-delivery-2026-10-19).
+
 ## Procedure: Add the course
 
 The path in Moodle 5.2.4: Edit mode → "Add content" → "Activity or resource" → "Cogniate (<library>)" → "Add" → "Select content". The portal shows the same path next to each publication [AC-T7-01, [T7 qa.md §6](../reviews/T7/qa.md#6-suite-changes-after-the-reviews-round-1-addendum)].
@@ -42,7 +46,7 @@ NOTE: The picker lists only the courses that your library published to this Mood
 
 - The Moodle grader report shows 100.00 for a pass and 0.00 for a fail. It shows "-" if the learner did not finish. The grade arrives in about 4 seconds [AC-T7-04].
 - Completion "Receive a grade" is done, also for a grade of 0 [AC-T7-05].
-- The best result counts. A later worse result does not lower the grade [AC-T5-12] (decision Q4).
+- In QA’s sequential retake, Moodle kept the higher grade [AC-T5-12]. Delivery races remain limited (P2; decision Q4).
 - If you change a grade in Moodle (override), Moodle keeps your grade. The portal shows the difference [AC-T5-33].
 - The Cogniate portal page "Results" shows the same scores. "Refresh from Moodle" shows the Moodle gradebook values [AC-T7-06, AC-T5-18].
 

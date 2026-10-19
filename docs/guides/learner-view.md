@@ -6,6 +6,10 @@ Tags: `[AC-…]` = QA tested it, and it passed (row in `docs/reviews/<task>/qa.m
 
 Before you start: the stack runs, and `COGNIATE-DEV-101` has the two Cogniate activities. See [run the stack](run-the-stack.md), procedure 1.
 
+NOTE: [Focused P2/P5 QA](../reviews/T5b/qa.md#replacement-qa-repair-focus-2026-10-19--d54c607d) passed after the grade repair. Full regression and fresh T7 remain pending.
+
+NOTE: An older Moodle request can write after the best score’s accepted confirmation. Permanent grade agreement is [not guaranteed (P2 remote ordering)](../architecture/adr/ADR-010-grade-and-completion-policy.md#p2-bounded-confirmation-after-uncertain-delivery-2026-10-19).
+
 ## Procedure: Do a Cogniate course as a learner
 
 1. Sign in to Moodle as `cg_student`.
@@ -41,7 +45,7 @@ NOTE: On the HTML menu page, a decorative layer covers the centre of the lesson 
 | closes the window before the end | Moodle gets no grade. The next launch continues the same attempt. QA closed the window by script, not by hand. | AC-T5-35, AC-T5-06, AC-T5-11 |
 | leaves the lesson page before 10 seconds | The course is not complete. Moodle gets no grade. | AC-T5-29 |
 | opens a passed course again | Nothing changes. Moodle keeps 100. | AC-T5-20 |
-| fails, then passes on a new try | The best result counts. Moodle shows 100. | AC-T5-23, AC-T5-12 |
+| fails, then passes on a new try | In this QA scenario, Moodle showed 100. Delivery races remain limited (P2). | AC-T5-23, AC-T5-12 |
 | completes the course while Moodle is down | The score waits. In the QA run, Moodle got it within 3 minutes after it came back. | AC-T5-14 |
 | is in progress when a new course version comes | The learner stays on the old version. A new attempt uses the new version. | AC-T5-24 |
 

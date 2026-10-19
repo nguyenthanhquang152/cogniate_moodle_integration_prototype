@@ -39,7 +39,7 @@ The portal page also shows the six Moodle steps of Part 2, with the menu path fo
 5. If Moodle asks you to update an old tool, click "Register as a new external tool". Cogniate refuses an update [AC-T6-04, AC-T4-30].
 6. In the Cogniate panel inside Moodle, check the Moodle site, the Moodle version and the Cogniate library [AC-T4-08].
 7. Click "Connect" [AC-T4-08, AC-T7-14].
-8. Wait until the panel closes [AC-T4-08, AC-T7-14].
+8. Wait until the panel closes [AC-T4-08, AC-T7-14]. This can take up to 15 seconds ([P1, final T4b1 QA](../reviews/T4b1/qa.md#replacement-qa-final-regression--2026-10-19)).
 9. Find the tool card "Cogniate (<library name>)". It shows "Pending" [AC-T7-14].
 10. Click "Activate". The card shows "Active" [AC-T7-14, AC-T7-02].
 11. On the same card, click "Edit" [AC-T7-14].
@@ -53,9 +53,9 @@ Result:
 - The portal shows "Registered — activate in Moodle" within 10 seconds, with no reload [AC-T6-04]. After the first launch from Moodle, it shows "Connected" [AC-T7-02].
 - Learners are anonymous: Moodle does not send their names or emails to Cogniate [AC-T4-08, AC-T2-04] (decision Q3).
 
-NOTE: While Moodle answers, the panel says "Connecting to Moodle. This can take up to 15 seconds. Do not close this window." The button is disabled [Not verified by QA].
+NOTE: While Moodle answers, the panel says "Connecting to Moodle. This can take up to 15 seconds. Do not close this window." The button is disabled ([P1, final T4b1 QA](../reviews/T4b1/qa.md#replacement-qa-final-regression--2026-10-19)).
 
-NOTE: If Moodle is slow, the panel can say: "Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool 'Cogniate (<library>)', then connect again." Do this. The same registration URL still works until it expires [Not verified by QA].
+NOTE: If Moodle is slow, the panel can say "Moodle may have saved a Pending tool" ([P1, final T4b1 QA](../reviews/T4b1/qa.md#replacement-qa-final-regression--2026-10-19)). The page tells you to delete that tool in "Manage tools", then connect again. QA verified the message, not this manual cleanup. Reuse of the URL after cleanup remains unverified.
 
 NOTE: Do steps 11 to 14. Moodle sets new tools to open inside the Moodle page. Then courses open inside Moodle with an "Open in a new window" button [AC-T4-31], and teachers do not see the tool in the activity chooser.
 

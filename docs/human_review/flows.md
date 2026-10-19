@@ -4,7 +4,7 @@
 
 Source: commit `4182c80`, 2026-10-19. The same diagrams are in [`explainer.html`](explainer.html) (tab Flows).
 
-QA tested each flow on a real Moodle 5.2.4 site. The proof line under each flow names the QA rows (docs/reviews/<task>/qa.md).
+QA tested each flow on a real Moodle 5.2.4 site. The proof line under each flow names the QA rows (docs/reviews/<task>/qa.md). The P2 remote-ordering limit applies to grade delivery.
 The full technical diagrams are in [`docs/architecture/flows.md`](../architecture/flows.md).
 
 | # | Flow | People | Status |
@@ -135,7 +135,7 @@ sequenceDiagram
 3. **Hand over.** The LTI service sends the learner to the Cogniate app with a short-lived launch token.
 4. **Player, new window.** The course opens in the Cogniate player, in a new window. The course runs on a separate content site.
 5. **Do the course.** The learner reads the pages and answers the question. The SCORM package reports progress and score to our SCORM 1.2 runtime.
-6. **Final result.** At the end, the result is passed or failed, with a score from 0 to 100. The pass mark is 70. The best result counts (decision Q4).
+6. **Final result.** At the end, the result is passed or failed, with a score from 0 to 100. The pass mark is 70. Cogniate selects the best local result (decision Q4).
 7. **Send score.** The Cogniate app sends the score to the LTI service (score sync).
 8. **Gradebook.** The LTI service sends the score to the Moodle gradebook (LTI Assignment and Grade Services). In the QA runs, this took about 4 seconds.
 

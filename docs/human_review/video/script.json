@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Cogniate × Moodle prototype",
-    "source": "T7 qa.md §9 (dd6dd11); T8 qa.md round 2 (8059c31); T3c, T6 and T9 qa.md; open-questions.md; architecture README §6",
+    "source": "T7 qa.md §9 (dd6dd11); T8 qa.md round 2 (8059c31); T3c, T6 and T9 qa.md; open-questions.md; architecture README §6; ADR-010 P2 remote-ordering limit",
     "commit": "4182c80",
     "date": "2026-10-19",
     "voices": {
@@ -205,7 +205,7 @@
         {
           "st": "qa",
           "en": "Backup, CLI restore, native grade: PASS",
-          "vi": "Sao lưu, khôi phục qua CLI, điểm gốc: ĐẠT"
+          "vi": "Sao lưu, khôi phục qua CLI, điểm SCORM: ĐẠT"
         },
         {
           "st": "qa",
@@ -225,14 +225,14 @@
       ],
       "say": {
         "en": "T8 round two passed the listed checks. QA verified backups, command-line restore, native grades, course shells, Publish controls, and two races. MoodleCloud, restore pages, the portal token form, and some runner checks remain unverified.",
-        "vi": "T8 vòng hai đạt các kiểm tra đã liệt kê. QA xác minh sao lưu, khôi phục bằng dòng lệnh, điểm gốc, khóa học trống, nút Publish và hai lỗi chạy đồng thời. MoodleCloud, trang khôi phục, form token và một số kiểm tra runner vẫn chưa được xác minh."
+        "vi": "T8 vòng hai đạt các kiểm tra đã liệt kê. QA xác minh sao lưu, khôi phục bằng dòng lệnh, điểm SCORM, khóa học trống, nút Publish và hai kiểm tra chạy đồng thời. MoodleCloud, trang khôi phục, form token và một số kiểm tra runner vẫn chưa được xác minh."
       }
     },
     {
       "kind": "list",
       "title": {
-        "en": "What is not proven",
-        "vi": "Điều chưa được chứng minh"
+        "en": "Limits and remaining checks",
+        "vi": "Giới hạn và kiểm tra còn lại"
       },
       "items": [
         {
@@ -251,14 +251,14 @@
           "vi": "Tải, mở rộng, chứng nhận 1EdTech"
         },
         {
-          "st": "not",
-          "en": "Moodle in a subfolder: unsupported (Q18)",
-          "vi": "Moodle trong thư mục con: chưa hỗ trợ (Q18)"
+          "st": "limit",
+          "en": "Very late older scores can overwrite Moodle grades (P2)",
+          "vi": "Điểm cũ đến rất muộn có thể ghi đè điểm Moodle (P2)"
         }
       ],
       "say": {
-        "en": "MoodleCloud needs a trial site. Teachers on Safari may fail to add content. Load, scale and certification remain unproven. Moodle in a subfolder is unsupported.",
-        "vi": "MoodleCloud cần một trang dùng thử. Giáo viên dùng Safari có thể không thêm được nội dung. Tải, khả năng mở rộng và chứng nhận vẫn chưa được kiểm chứng. Moodle trong thư mục con chưa được hỗ trợ."
+        "en": "MoodleCloud needs a trial site. Teachers on Safari may fail to add content. Load, scale and certification remain unproven. A very late older score can overwrite Moodle’s grade, even after confirmation. Moodle in a subfolder remains unsupported.",
+        "vi": "MoodleCloud cần một trang dùng thử. Giáo viên dùng Safari có thể không thêm được nội dung. Tải, khả năng mở rộng và chứng nhận vẫn chưa được kiểm chứng. Điểm cũ đến rất muộn vẫn có thể ghi đè điểm trong Moodle. Rủi ro này còn tồn tại sau bước xác nhận. Moodle trong thư mục con chưa được hỗ trợ."
       }
     },
     {
@@ -290,8 +290,8 @@
         }
       ],
       "say": {
-        "en": "We need your decisions. The most important four: legal approval of our clean-room method, a MoodleCloud trial account, the privacy default, and the browser advice for teachers. Each question has our recommendation.",
-        "vi": "Chúng tôi cần bạn quyết định. Bốn điều quan trọng nhất: pháp lý duyệt cách làm clean-room, một tài khoản dùng thử MoodleCloud, mặc định về quyền riêng tư, và lời khuyên trình duyệt cho giáo viên. Mỗi câu hỏi đều có đề xuất của chúng tôi."
+        "en": "We need your decisions. The most important four: legal approval of our clean-room method, a MoodleCloud trial account, the privacy default, and the browser advice for teachers. Each question has our recommendation. Q4 asks people to choose the intended grade policy. It remains open, with no human approval of the P2 delivery limit.",
+        "vi": "Chúng tôi cần bạn quyết định. Bốn điều quan trọng nhất: pháp lý duyệt cách làm clean-room, một tài khoản dùng thử MoodleCloud, mặc định về quyền riêng tư, và lời khuyên trình duyệt cho giáo viên. Mỗi câu hỏi đều có đề xuất của chúng tôi. Q4 hỏi con người về chính sách điểm mong muốn. Q4 vẫn mở; chưa có phê duyệt của con người cho giới hạn P2."
       }
     },
     {

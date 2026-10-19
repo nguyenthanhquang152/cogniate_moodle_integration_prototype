@@ -201,16 +201,16 @@
     "subtitle": "Publish Cogniate courses (SCORM 1.2 and HTML) to Moodle with LTI 1.3.",
     "source": "4182c80",
     "date": "2026-10-19",
-    "draft": "T7 PASS · T6 PASS · T3c PASS · T8 listed checks PASS",
-    "resultsNote": "All 15 T7 checks passed on real Moodle 5.2.4, including the final dd6dd11 regression. T6 and T3c passed their own QA. T8 round 2 passed its listed checks at 8059c31. MoodleCloud, Moodle-page restore, the portal token form and some runner hardening remain unverified.",
+    "draft": "P2/P5 focus PASS · Full regression and T7 pending",
+    "resultsNote": "Focused P2/P5 QA passed at d54c607d, including a real app restart. Full T5a/T5b/T6 regression and fresh T7 remain pending. Earlier main-flow passes remain dated evidence. P2 remote ordering and recovery of unrecorded sends from before the upgrade remain limited.",
     "storyNote": "QA tested this story on a real Moodle 5.2.4 site (task T7). All 15 end-to-end checks passed.",
-    "flowsNote": "QA tested each flow on a real Moodle 5.2.4 site. The proof line under each flow names the QA rows (docs/reviews/<task>/qa.md)."
+    "flowsNote": "QA tested each flow on a real Moodle 5.2.4 site. The proof line under each flow names the QA rows (docs/reviews/<task>/qa.md). The P2 remote-ordering limit applies to grade delivery."
   },
   "start": {
     "intro": [
       "This page explains the prototype in about 15 minutes.",
       "A Cogniate user publishes a course. A Moodle teacher adds it to a Moodle course. A learner does the course, and the score goes to the Moodle gradebook.",
-      "All 15 end-to-end checks passed on real Moodle 5.2.4. The final regression passed after the earlier three consecutive runs.",
+      "All 15 T7 checks passed on real Moodle 5.2.4 before the P2 repair. The repair passed focused QA. Full regression and fresh T7 remain pending.",
       "We need your answers to some questions. Use the Decisions tab."
     ],
     "path": [
@@ -673,7 +673,7 @@
           "from": "cog",
           "to": "cog",
           "label": "Final result",
-          "detail": "At the end, the result is passed or failed, with a score from 0 to 100. The pass mark is 70. The best result counts (decision Q4)."
+          "detail": "At the end, the result is passed or failed, with a score from 0 to 100. The pass mark is 70. Cogniate selects the best local result (decision Q4)."
         },
         {
           "from": "cog",
@@ -789,6 +789,26 @@
       "evidence": "docs/reviews/T7/qa.md"
     },
     {
+      "claim": "T4b1 and T4b2 passed the final regression. P1 verified the disabled Connect button, 15-second wait text and MOODLE_TOOL_MAY_EXIST message.",
+      "status": "qa",
+      "ids": [
+        "AC-T4-07 to AC-T4-10",
+        "P1",
+        "T4b1/T4b2 final coverage"
+      ],
+      "evidence": "docs/reviews/T4b1/qa.md and T4b2/qa.md (a5d9ddcb)"
+    },
+    {
+      "claim": "Six focused P2/P5 tests passed. A real app restart preceded confirmation; Moodle kept 90 for 90 seconds without obsolete retries. P5 used an approved fixture.",
+      "status": "qa",
+      "ids": [
+        "AC-T5-30",
+        "P2",
+        "P5 (fixture-assisted)"
+      ],
+      "evidence": "docs/reviews/T5b/qa.md (repair focus, d54c607d)"
+    },
+    {
       "claim": "Connect: the admin follows the 6 portal steps in Moodle. Every Moodle label matches. The tool is Active, with New window.",
       "status": "qa",
       "ids": [
@@ -836,7 +856,7 @@
       "evidence": "docs/reviews/T7/qa.md"
     },
     {
-      "claim": "The best result counts. A score waits while Moodle is down. A teacher override stays.",
+      "claim": "Sequential retakes, tested outage recovery and teacher overrides passed. P2 remote ordering remains limited.",
       "status": "qa",
       "ids": [
         "AC-T5-12",
@@ -919,20 +939,20 @@
       "evidence": "docs/reviews/T3c/qa.md"
     },
     {
-      "claim": "After a lower retake, the player status names the score that Moodle keeps (P11). The Connect panel shows a 15-second wait text (P1).",
+      "claim": "P11 sent, pending and failed lower-retake texts passed at a5d9ddcb. Fresh regression remains pending.",
       "status": "pending",
       "ids": [
-        "next QA run (T5b, T7, T4b1)"
-      ]
+        "P11 sent/pending/failed"
+      ],
+      "evidence": "docs/reviews/T5b/qa.md"
     },
     {
-      "claim": "Final conformance regression: T4b1, T4b2, T5a, T5b and T6, including late score sends and missing-sync Resend (P2/P5). Earlier passes do not close this gate.",
+      "claim": "Full T5a/T5b/T6 regression and fresh T7 remain pending after the P2 repair.",
       "status": "pending",
       "ids": [
-        "P2",
-        "P5"
+        "Final regression gate"
       ],
-      "evidence": "docs/reviews/T9/architect-conformance.md §9"
+      "evidence": "docs/reviews/T5b/qa.md (d54c607d focus)"
     },
     {
       "claim": "Native backup, CLI restore, native SCORM grade and course shell passed. The Publish checkbox and link passed. Both race checks passed.",
@@ -1043,6 +1063,30 @@
         "T8 QA §5"
       ],
       "evidence": "docs/reviews/T8/qa.md"
+    },
+    {
+      "claim": "Not guaranteed (P2 remote ordering): permanent grade agreement. An older Moodle request can write after the best score’s accepted confirmation. The 5-second gap cannot prove all remote work finished.",
+      "status": "not",
+      "ids": [
+        "P2 remote ordering"
+      ],
+      "evidence": "docs/architecture/adr/ADR-010-grade-and-completion-policy.md; app contract §10"
+    },
+    {
+      "claim": "Recovery of unrecorded sends from before the upgrade is not supported. Migration 010 preserves old rows with empty markers. The Author’s synthetic check is not independent QA or a production-upgrade guarantee.",
+      "status": "not",
+      "ids": [
+        "P2 upgrade boundary"
+      ],
+      "evidence": "docs/reviews/T9/architect-conformance.md §10; data-model §2"
+    },
+    {
+      "claim": "Scoreless and lower-retake conflict P11 variants remain unverified live. The sent, pending and failed lower-retake variants have QA evidence.",
+      "status": "not",
+      "ids": [
+        "P11 live scope"
+      ],
+      "evidence": "docs/reviews/T5b/qa.md"
     }
   ],
   "decisionGroups": [
@@ -1133,7 +1177,7 @@
       "area": "Product",
       "who": "Product",
       "question": "Which grade does Moodle show: the best result or the latest? What does a completion-only course give?",
-      "recommendation": "The best result. Never lower a grade. A completion-only course gives 100/100.",
+      "recommendation": "Keep the best result as the intended policy. A completion-only course gives 100/100. Q4 remains open. No human approval of the P2 remote-ordering limit is recorded.",
       "blocks": "The grade rule (ADR-010)"
     },
     {
@@ -1335,7 +1379,7 @@
     },
     {
       "title": "Final check",
-      "text": "The Architect checked the whole system against the design. No BLOCKER. 3 MAJOR findings were found and fixed. One limit is accepted (Q18).",
+      "text": "The earlier conformance check approved the fixes. Final QA then found a P2 grade mismatch. Focused QA passed the repair. Full regression and fresh T7 remain pending. Q18 remains an accepted limit.",
       "links": [
         [
           "Conformance report",
@@ -1626,7 +1670,7 @@
         h('b', {}, count), badge(st)));
     }
     el.append(h('div', { class: 'card hero', style: 'margin-bottom:16px' }, h('h2', {}, 'Proven / not proven'),
-      h('p', {}, 'Each row is one claim. “Proven by QA” means that an independent QA test passed. “Pending final QA” means that both reviewers approved, and the QA report is not ready yet.'),
+      h('p', {}, 'Each row is one claim. “Proven by QA” means that an independent QA test passed. “Pending final QA” means that required verification is incomplete. A row can need a repair or rerun.'),
       h('p', { class: 'muted' }, D.meta.resultsNote)),
       tiles, note,
       h('div', { class: 'card' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Claim'), h('th', {}, 'Status'), h('th', {}, 'Proof'))), tbody)));

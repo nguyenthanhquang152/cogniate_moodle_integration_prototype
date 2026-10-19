@@ -6,6 +6,8 @@ Each row is one claim. **Proven by QA** means that an independent QA agent teste
 
 **Headline:** the full story works on a real Moodle 5.2.4 site. QA ran the end-to-end test three times in a row, with no retries. All 15 end-to-end checks passed [AC-T7-01, AC-T7-11]. The final regression at `dd6dd11` also passed all 15 ACs. Source: [T7 QA §9](../reviews/T7/qa.md#9-final-regression-run-dd6dd11-final-code).
 
+**Current gate:** [Focused P2/P5 QA](../reviews/T5b/qa.md#replacement-qa-repair-focus-2026-10-19--d54c607d) passed at `d54c607d`. Full T5a/T5b/T6 regression and fresh T7 remain pending. Earlier main-flow passes remain dated evidence.
+
 ## 1. Proven by QA
 
 | Area | Claim | Proof |
@@ -20,7 +22,7 @@ Each row is one claim. **Proven by QA** means that an independent QA agent teste
 | SCORM 1.2 | The real Cogniate SCORM course gives 100 for a correct answer and 0 for a wrong answer, with completion in Moodle. | AC-T5-07, AC-T5-08, AC-T7-04, AC-T7-05 |
 | HTML | The real Cogniate HTML course gives the same results. Our HTML runtime watches the pages, because the export does not record progress. | AC-T5-09, AC-T5-27, AC-T7-04 |
 | Grades | The score reaches the Moodle gradebook in 3.4 to 3.9 seconds (limit 60 s). No Moodle cron is needed. | AC-T7-04, AC-T7-05 |
-| Grades | The best result counts. A later worse result never lowers the grade. A teacher override in Moodle stays. | AC-T5-12, AC-T5-23, AC-T5-33 |
+| Grades | In tested sequential retakes, a lower result did not lower Moodle’s grade. A teacher override stayed. Late delivery remains limited (P2). | AC-T5-12, AC-T5-23, AC-T5-33 |
 | Grades | If Moodle is down, the score waits and arrives after Moodle comes back. A grade conflict shows in the portal, with "Resend". | AC-T5-14, AC-T5-31, AC-T5-32 |
 | Portal | The portal (dev-portal style) has Integrations, the Connect wizard with live status, the manual form, upload progress, Publish, and Results with "Resend". No request leaves the app site. No serious accessibility error. | AC-T6-01 to AC-T6-14 |
 | Portal | The Results page shows "Passed 100" and "Sent". "Refresh from Moodle" shows the Moodle gradebook values. | AC-T7-06, AC-T6-08, AC-T5-18 |
@@ -35,21 +37,26 @@ Each row is one claim. **Proven by QA** means that an independent QA agent teste
 | Run it | The Lead accepted QA’s fresh-clone run for AC-T9-01. Both login pages opened in 61 seconds. Unfamiliar-human usability remains unproven. | [AC-T9-01](../reviews/T9/qa.md), HR-2 |
 | Native channel | QA built the backup, restored it through the CLI, and confirmed grade 100 in Moodle’s SCORM player. | [AC-T8-02 to AC-T8-07](../reviews/T8/qa.md), round 2, `8059c31` |
 | Native channel | The token API and course shell passed. The Publish checkbox and course link passed. Two race checks passed. | [AC-T8-08 to AC-T8-10, C-T8-01, C-T8-02](../reviews/T8/qa.md), round 2 |
+| Connect | The button is disabled with the 15-second wait text. Slow Moodle shows `MOODLE_TOOL_MAY_EXIST`. QA observed one confirm POST. | [P1, final T4b1 QA](../reviews/T4b1/qa.md#replacement-qa-final-regression--2026-10-19), `a5d9ddcb` |
+| Grades | Six focused P2/P5 tests passed. After a real app restart, Moodle kept 90 for 90 seconds. No obsolete retry occurred. | [P2/P5 repair focus](../reviews/T5b/qa.md#replacement-qa-repair-focus-2026-10-19--d54c607d), `d54c607d` |
+| Grades | With an approved fixture, QA removed the higher failed sync. Resend of the lower score returned `409 SYNC_NOT_RESENDABLE`. | [P5, fixture-assisted](../reviews/T5b/qa.md#replacement-qa-repair-focus-2026-10-19--d54c607d), `d54c607d` |
 
 ## 2. Pending final QA
 
-Both reviewers approved the fixes. The final regression covers T4b1, T4b2, T5a, T5b and T6. Earlier passes in section 1 do not close this gate.
+T4b1, T4b2 and P1 passed at `a5d9ddcb`. The P2/P5 repair passed focused QA at `d54c607d`. Full T5a/T5b/T6 regression and fresh T7 remain pending. Earlier passes do not close those gates.
 
 | Task | Claim | State |
 | --- | --- | --- |
-| T5b, T7 | After a retake with a lower score, the player status names the score that Moodle keeps, for example "Completed — score 60. Moodle keeps your best score: 80" (P11). | Fixed in the code. The next QA run checks it. |
-| T5b | Late score sends and Resend after a missing sync record (P2/P5). | Fixed in the code. Final regression evidence is pending. |
-| T4b1 | "Connect" in Moodle shows a 15-second wait text. If Moodle is slow, the panel says that Moodle may have saved a Pending tool (P1). | Fixed in the code. The next QA run checks it. |
+| T5b | P11 names the best score after a lower retake. | Sent, pending and failed variants passed at `a5d9ddcb`. Fresh regression is pending. Scoreless and lower-retake conflict variants remain unverified live. |
+| T5a, T5b, T6, T7 | Regression after the P2 repair. | Focused P2/P5 checks passed. Full regression and fresh T7 remain pending. |
 
 ## 3. Not proven
 
 | Claim | Why | Decision |
 | --- | --- | --- |
+| Scoreless and lower-retake conflict P11 texts. | Live QA covers the sent, pending and failed lower-retake variants only. | [T5b QA](../reviews/T5b/qa.md) |
+| Recovery of unrecorded sends from before the upgrade. | Migration 010 preserves old rows with empty markers. It cannot reconstruct earlier delivery uncertainty. | [P2 upgrade boundary](../reviews/T9/architect-conformance.md#10-round-3-p2-late-remote-write) |
+| **Not guaranteed (P2 remote ordering):** Moodle always keeps the confirmed best score. | An older request can write after accepted confirmation. The 5-second gap cannot prove that all remote work finished. | [ADR-010](../architecture/adr/ADR-010-grade-and-completion-policy.md#p2-bounded-confirmation-after-uncertain-delivery-2026-10-19) |
 | It works on MoodleCloud. | QA used a local Moodle 5.2.4 site. A test needs a MoodleCloud trial account. | Q5 |
 | **Not supported:** Moodle in a subfolder (for example `https://school.edu/moodle`). | Dynamic registration is refused. Web service and course links (T8) would use the wrong path. Manual connect may work, but nobody tested it. MoodleCloud is not affected. About 1 day to add. | Q18 |
 | A teacher on Safari can add content. | QA used Chromium only. Safari can block the Cogniate cookie in Moodle's frame. | Q16, R4 |
@@ -66,6 +73,10 @@ Both reviewers approved the fixes. The final regression covers T4b1, T4b2, T5a, 
 | All Build Runner hardening paths. | The 10-minute timeout, interrupted-build sweep, planted-file rejection and backup copy checks lack black-box tests ([T8 QA §5](../reviews/T8/qa.md#5-not-covered)). | — |
 
 ## QA notes
+
+- The live restart check used recorded sends after the upgrade. It observed Moodle grade 90 for 90 seconds. It does not recover earlier, unrecorded remote work.
+- P5 uses an approved fixture exception. QA removes one higher failed sync, then checks the public API. This is fixture-assisted, not pure black-box.
+- The Author’s synthetic upgrade check preserved seven rows and passed its integrity checks. This is not independent QA or a production-upgrade guarantee. See the [conformance record](../reviews/T9/architect-conformance.md#10-round-3-p2-late-remote-write).
 
 - A third-party SCORM package that writes more than 250 interactions loses its score (P9). The Cogniate package is not affected.
 - The desktop window of `npm run demo:browser` is not verified by QA. QA used the same Chrome settings without a window. The [run guide](../guides/run-the-stack.md) marks it.
