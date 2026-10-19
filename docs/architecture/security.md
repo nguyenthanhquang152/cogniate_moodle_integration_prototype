@@ -189,7 +189,7 @@ WARNING: Google Fonts in the HTML export send learner IP addresses to Google (Q9
 
 All outbound HTTP of both services goes through one client in `packages/shared` (`outbound`):
 
-- https only. No redirects. Timeout 5 s (one exception: the app's registration `complete` call waits 15 s, §2.6). A per-request timeout is clamped to 1–60 000 ms; a value that is not a finite number uses the 5 s default (A-FX-02). Response limit 1 MB.
+- https only. No redirects. Timeout 5 s (one exception: the app's registration `complete` call waits 15 s, §2.6). A per-request timeout above 60 000 ms (also Infinity) uses 60 000 ms; NaN, 0 or a negative value uses the 5 s default (A-FX-02). Response limit 1 MB.
 - The IP check runs **inside the lookup that the connection uses**. Mechanism (library-neutral; T2a uses `node:https` with its own `lookup` option): the client gives the HTTPS request a `lookup` function that resolves the name once, checks **every** address of the answer, and hands only those checked addresses to the socket. No other lookup happens for that connection (no proxy, no second resolver), so a DNS answer that changes between check and connect (DNS rebinding) cannot reach a blocked IP. An IP literal in the URL is checked before the request. TLS still verifies the certificate against the host name (`servername` = host).
 - Blocked ranges:
   - IPv4: `0.0.0.0/8`, `10.0.0.0/8`, `100.64.0.0/10` (CGNAT), `127.0.0.0/8`, `169.254.0.0/16` (link-local, incl. the `169.254.169.254` metadata address), `172.16.0.0/12`, `192.0.0.0/24`, `192.168.0.0/16`, `198.18.0.0/15`, `224.0.0.0/4` (multicast), `240.0.0.0/4`, `255.255.255.255/32`.
