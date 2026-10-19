@@ -1,7 +1,7 @@
-Verdict: APPROVE
-Round: 2
+Verdict: CHANGES_REQUESTED
+Round: 3
 
-History: round 1 (at `2129b69`) was CHANGES_REQUESTED (MAJOR D1, P1, P2 open). Round 2 (section 9, after the fixes) is APPROVE for conformance; the final QA regression on `dd6dd11` is pending.
+History: round 1 (at `2129b69`) was CHANGES_REQUESTED (MAJOR D1, P1, P2 open). Round 2 (section 9, after the fixes) was APPROVE for conformance. Round 3 (section 10) reopens P2 after a live grade mismatch. T7 on `dd6dd11` and T4b1/T4b2 on `a5d9ddc` remain historical PASS evidence; they do not verify the forthcoming repair.
 
 # T9: Architect final conformance check
 
@@ -18,6 +18,8 @@ Question: do the code and the docs at `2129b69` match the ADRs, the two contract
 | Severity | Charter §5. |
 
 Finding ids: `F` = LTI service, `A` = infra, `D` = human docs, `P` = app and runtimes (ids as in the Lead's routing message).
+
+Continuation (2026-10-19): the dedicated Codex GPT-6-Astra Architect reconciles the existing QA and review evidence under the [continuation authority](../../team/charter.md#continuation-authority-2026-10-19). This is evidence reconciliation, not a new independent QA run or a cross-model review. Sections 1–7 retain the original findings; section 8 retains the Lead decisions; sections 9–10 record the later evidence.
 
 ## Summary
 
@@ -180,7 +182,19 @@ Verdict after fixes: **APPROVE (conformance).**
 | C-T8-01 | `655ab78` | Fixed and merged (build reserved before the request file). |
 | C-T8-02, C-T8-03 | `8059c31` | Fixed and merged (atomic runner lock; lang rule and failed status for refused requests). T8 QA round 2 PASS at `8059c31` (`8c9f7d9`). |
 | F5 | none | Accepted limitation, Q18. |
-| Final QA regression | `dd6dd11` | Pending. |
+| T7 final QA regression | `dd6dd11` | PASS: all 15 ACs, 17 tests in 183 s; demo preparation in 8.4 s. The four refusal checks leave the stack unchanged. Evidence: [T7 QA §9](../T7/qa.md#9-final-regression-run-dd6dd11-final-code), recorded in `3ca3105`. |
+| T4b1/T4b2 final QA regression | `a5d9ddc` (product code `dd6dd11`) | PASS: all 10 T4b1 ACs, all 17 T4b2 ACs, P1, both TTL passes and eight T3b registration checks. Own stack cleanup: zero containers, volumes or networks. Evidence: [T4b1 QA](../T4b1/qa.md#replacement-qa-final-regression--2026-10-19), [T4b2 QA](../T4b2/qa.md#replacement-qa-final-regression--2026-10-19). |
+| Final QA regression (T5a, T5b, T6) | `a5d9ddc` (product code `dd6dd11`) | Pending, including the targeted P2/P5, P11 and related review follow-up checks. |
 
-No BLOCKER or MAJOR finding is open in the conformance check. Open items: the final QA regression on `dd6dd11`, and the deferred MINOR and NIT findings (section 8).
+T4b tested SHA: `a5d9ddcbc95cfb61968f70372334790386f2bb4b`. Evidence root: `tests/host/artifacts/qa-cont-t4b-a5d9ddcb-2026-10-19T10-05-11-656Z/`; `summary.json` records each AC and cleanup as PASS. The P1 wait text and disabled button appeared after 0.1 s; one confirm POST led to `MOODLE_TOOL_MAY_EXIST` after 6.0 s. QA saw no new active ownerless platform during the 30-second observation after Moodle resumed. This bounded check does not resolve the deferred late-orphan case A-FX-02. T4b coverage is limited to Chromium and local Moodle 5.2.4.
+
+Round 2 had no open BLOCKER or MAJOR finding after its fixes. The live P2 failure below reopens the final regression gate. The deferred MINOR and NIT findings in section 8 remain unchanged.
+
+## 10. Round 3: P2 late remote write
+
+Verdict: **CHANGES_REQUESTED**. The final T5a/T5b/T6 gate remains open.
+
+Replacement QA reported a grade mismatch on `a5d9ddc` (product code `dd6dd11`); the Lead recorded it in board commit `8e7bada`. A paused-Moodle send of 60 was superseded by 90. The app marked 90 as `sent`, but the Moodle oracle still showed 60 after 120 seconds. The local `superseded` guard did not prevent the older remote request from writing later. The Author is repairing this path; the finding is not an accepted deferral.
+
+The Architect approved a durable, bounded confirmation policy for the current best score (ADR-010 and app contract §10). It preserves terminal `superseded` rows, 409 conflicts and teacher overrides. A delayed confirmation can repair the observed ordering, but cannot prove that an arbitrarily late Moodle write will never occur. The contract must state that limit, and final QA must prove the repaired scenario before this gate closes.
 

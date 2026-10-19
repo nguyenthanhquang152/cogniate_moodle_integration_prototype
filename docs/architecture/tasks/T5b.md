@@ -35,6 +35,18 @@ QA run order: AC-T5-09 and AC-T5-10 (`cg_student`, "Cogniate HTML"); AC-T5-11 �
 - **AC-T5-18** (run after the other ACs) `POST /app-api/publications/<id>/results/refresh` → every row's `gradebook.resultScore` equals the Moodle grade (QA oracle), with `resultMaximum` 100. Expected for "Cogniate SCORM": `cg_student` 100, `cg_student2` 100 (AC-T5-23 raised it from 0). For `Cogniate SCORM AC-T5-33`: 50 with `gradebookDiffers: true`.
 - **AC-T5-19** `infra/.logs/cogniate-app.jsonl` and `cogniate-content.jsonl` contain no runtime token, ltik or service key (QA greps for the captured values).
 
+## Final regression P2: uncertain remote delivery
+
+Use ADR-010's bounded confirmation policy and app contract §10. The local `superseded` guard alone does not prove that Moodle keeps the best score.
+
+- Live QA uses its own fresh activity and the approved pause/unpause host actions. Hold an in-flight 60/100 send, create a better 90/100 final result, then resume Moodle. Always unpause in `finally` cleanup.
+- The lower row stays `superseded` and is never sent again. The higher row stays `pending` after its first accepted send. Its confirmation POST is due at least 5 s later; only a successful confirmation permits `sent`.
+- When Moodle resumes normal responses with no conflict or teacher override, the oracle must reach 90 within 120 s. Observe 90 for another 30 s after confirmation. Check the log's actual POST count, phases and persisted statuses.
+- Author unit tests model a late old remote write after the first higher success and before confirmation. They also cover restart while confirmation is pending, an even higher result inheriting the requirement, terminal superseded state, confirmation `409` with no retry, teacher override, and retry-window exhaustion.
+- For the restart check, QA may restart only `cogniate-app` in its own fresh `qa-*` stack. Use public results and logs; no database mutation is authorized for P2.
+
+Report the observation window. This check does not prove that an older remote request cannot write after the accepted confirmation. Preserve that limit in the final QA and conformance evidence.
+
 ## Final regression P5: bounded fixture exception
 
 Lead decision, 2026-10-19, with the approved service-stop extension. This checks the existing Resend rule in app contract §5 and ADR-010 rules 10–11. No public API removes a sync row. QA may use the following fixture exception only for this regression.

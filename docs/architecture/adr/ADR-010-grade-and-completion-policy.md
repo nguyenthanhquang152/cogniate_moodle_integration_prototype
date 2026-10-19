@@ -29,7 +29,7 @@ DataCamp sends 100/100 when the learner completes.
 | `failed` | SCORM `failed`; HTML score < mastery | `Completed` | `FullyGraded` | raw / max; 0 / 100 if no raw |
 | `in_progress` | SCORM `incomplete`, `browsed`; HTML not complete | — | — | not sent |
 
-5. **Best result wins, never lower.** A new score sync row is made when an attempt reaches a final outcome and its `scoreGiven / scoreMaximum` is higher than the best value of **every** row of that learner and activity that is not `superseded` (`pending`, `sent`, `conflict` or `failed`; A-T5b-02, rule 10) (the first final outcome always makes a row). A new row marks older `pending` rows with a **lower** value as `superseded`. A `superseded` row never goes back to `pending` or `sent`: a send that ends after the row was superseded does not change its status (conformance P2). So an outage can never let a lower result replace a better pending one.
+5. **Choose the best result; never retry a superseded result.** A new score sync row is made when an attempt reaches a final outcome and its `scoreGiven / scoreMaximum` is higher than the best value of **every** row of that learner and activity that is not `superseded` (`pending`, `sent`, `conflict` or `failed`; A-T5b-02, rule 10) (the first final outcome always makes a row). A new row marks older `pending` rows with a **lower** value as `superseded`. A `superseded` row never goes back to `pending` or `sent`: a send that ends after the row was superseded does not change its status (conformance P2). A timeout does not prove that Moodle stopped processing the old request. Apply the bounded confirmation policy below when an uncertain lower send is superseded; do not claim universal remote ordering.
 6. **Learners only.** If the launch roles have no Learner role (teacher preview), the attempt is a preview: no row.
 7. **Timestamps**: the LTI service sets them, ≥ 1 s apart per (platform, line item, user).
 8. **409 = `conflict`.** No automatic retry. The portal says: "Moodle has a grade with a newer time." A teacher override is a different case: the sync is `sent`, Moodle keeps the override, and after "Refresh from Moodle" the portal says "Moodle keeps another grade, for example a teacher override" (`gradebookDiffers`).
@@ -38,8 +38,21 @@ DataCamp sends 100/100 when the learner completes.
 11. **Versions**: an attempt keeps its course version. The best result counts across all attempts of the learner on that activity.
 12. **Completion in Moodle**: the teacher sets "Receive a grade" on the activity. Our score makes Moodle mark it done.
 
+### P2: bounded confirmation after uncertain delivery (2026-10-19)
+
+The existing best-score policy still applies. Replacement QA showed that an old timed-out request can write in Moodle after the app receives success for a higher score. The local `superseded` guard prevents another local send; it cannot cancel remote work.
+
+- Persist an in-flight marker before each score POST. A timeout, no response, or an unresolved marker after restart means uncertain delivery. A later successful retry must not erase earlier uncertainty.
+- When an uncertain lower send is superseded, the current best pending row requires confirmation. Store this requirement durably for that learner and activity. A still higher result inherits the requirement.
+- The first `204` for that row keeps it `pending`, with no `sentAt`. Schedule one confirmation POST at least 5 s after that response. Re-check that the row is still pending and current best before the POST and before recording success.
+- A successful confirmation `204` permits `sent`. Failures use the existing status mapping and retry schedule. Confirmation does not reset the current 24 h retry window. A manual Resend still starts a new window under rule 10.
+- One successful confirmation completes the requirement. A restart can repeat an unacknowledged confirmation. Do not start an endless loop after successful confirmations.
+- A `409` still stops as `conflict`; teacher overrides stay intact. A different grade in a results read is not permission to resend or override it.
+
+**Limit:** a still older Moodle request can write after the accepted confirmation. The 5 s gap is a bounded mitigation, not proof that every remote request finished. `sent` records accepted delivery, including the required confirmation; it does not guarantee permanent equality with the Moodle gradebook. This limit must stay in the handover evidence. App contract §10 defines the worker rules; T5b defines the regression checks.
+
 ## Consequences
 
-- The gradebook shows the best result. The portal shows the best outcome, every attempt and every sync row.
+- The tool sends the best result. Teacher overrides and the late-write limit above can leave a different Moodle grade. The portal shows the best outcome, every attempt and every sync row.
 - A learner who does not finish gets no grade ("In progress" in the portal).
 - If product wants "latest result" instead, only rule 5 changes.

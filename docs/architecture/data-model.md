@@ -203,6 +203,9 @@ erDiagram
       datetime created_at
       datetime next_try_at
       string last_error
+      datetime send_started_at "unresolved score POST; null when no send is in flight"
+      bool delivery_uncertain "earlier send may still write remotely"
+      datetime confirmation_after "required confirmation due time; null before first success"
     }
 ```
 
@@ -217,6 +220,8 @@ Unique keys and rules:
 | `handoff` | Insert fails if the ltik was used before → error page `HANDOFF_USED`. |
 | `play_session` | No ltik. Commits use the runtime token. Score sync uses the service key. Stored by `id_hash` only (A-T4b2-03). |
 | `picker_session` | Stored by `id_hash` only (A-T4b2-03). The ltik inside is encrypted. |
+
+Score delivery recovery (P2, app contract §10): SQLite must retain in-flight send state, unresolved delivery uncertainty, and any confirmation requirement and due time. Write the in-flight state before the external POST. After restart, an unresolved send is uncertain; an awaited confirmation stays `pending`. The requirement belongs to the learner and activity and passes to a higher result if its row is superseded. A later acknowledged retry does not erase earlier uncertainty. Public status remains one of the existing values; no `sentAt` is set before required confirmation succeeds. Confirmation uses the existing retry window, including its deadline.
 
 ### 2.1 Retention (A-T4b2-02)
 
@@ -279,8 +284,8 @@ Attempt outcome. The attempt keeps its best outcome. The portal shows the best o
 stateDiagram-v2
     direction LR
     [*] --> pending
-    pending --> sent: 204
-    pending --> pending: retry
+    pending --> sent: 204, required confirmation complete
+    pending --> pending: retry or required confirmation
     pending --> conflict: 409 from Moodle
     pending --> failed: 24 h of retries, or 400 or 404
     pending --> superseded: a better row exists

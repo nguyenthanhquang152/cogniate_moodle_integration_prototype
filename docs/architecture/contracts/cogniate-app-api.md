@@ -374,13 +374,29 @@ Sends `POST /api/lineitems/{encodeURIComponent(lineItemId)}/scores` with `SERVIC
 
 | Answer | Row status |
 | --- | --- |
-| `204` | `sent` |
+| `204` | `sent`, except that a required P2 confirmation keeps the first accepted send `pending` (below). |
 | `409 PLATFORM_CONFLICT` | `conflict` (no retry; "Moodle has a grade with a newer time"). A teacher override alone does **not** cause a 409: Moodle 5.2.4 accepts the score and keeps the override (`scores.php` compares times; `grade_item::update_raw_grade` does not change an overridden final grade). |
 | `400`, `404` (`PLATFORM_REJECTED_REQUEST`) | `failed` at once, `lastError` = description |
 | `403` from the LTI service (for example `SERVICE_NOT_AVAILABLE`, `PLATFORM_NOT_ACTIVE`) | `failed` at once (a retry cannot fix it), `lastError` = the code |
 | `401`, `5xx`, `502`, `504`, network error | retry: 5 s, 30 s, 2 min, 10 min, 30 min, then every 1 h until 24 h after `createdAt`, then `failed` |
 
 When rows are made: ADR-010.
+
+### P2: durable bounded confirmation
+
+This policy repairs uncertain delivery of a superseded lower score. It adds no public status or endpoint and does not change outbound timeouts.
+
+1. Persist an in-flight marker before a score POST. Record uncertain delivery when no conclusive response arrives, or when restart finds an unresolved marker. Retain earlier uncertainty even if a later retry succeeds.
+2. If an uncertain lower send is superseded, persist a confirmation requirement for the current best pending row of the same learner and activity. A still higher row inherits it. Never resend a superseded row.
+3. A first `204` for a row that requires confirmation leaves it `pending`, with `sentAt = null`. Persist a due time at least 5 s after that response. The normal worker poll sends the confirmation when due.
+4. Before each send and success update, check that the row is still pending and current best. If it was superseded, preserve its terminal state and the requirement for the higher row.
+5. One successful confirmation `204` permits `sent` and completes the requirement. Restart must resume a pending confirmation; it must not promote the row to `sent` without the response.
+6. Confirmation failures use the table above and the existing retry schedule. Keep the original retry-window start, or the latest manual Resend time. At 24 h, stop as `failed`; confirmation never extends the window.
+7. Each actual POST increments `tries` and emits one `score_sync` event. Waiting does not count as a send. Restart can repeat an unacknowledged confirmation, but success must not start another confirmation loop.
+
+All `409` responses remain terminal `conflict` until a permitted manual Resend. Do not use results-read inequality to force another send: a teacher override intentionally differs from the submitted score (AC-T5-33). The same guarded client, 5 s timeout, generated timestamps and no transport-level POST retry still apply.
+
+The confirmation proves that Moodle accepted that delivery. It cannot prove that an arbitrarily late older request will not write afterward. This is a recorded remote-ordering limit, not a new guarantee of gradebook equality.
 
 ## 11. Stretch (T8): native `.mbz` and course shell
 
@@ -456,5 +472,5 @@ Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `e
 | `internal_error` | error | `method`, `path` (no query, no capability ids), `error` (the error class name only, for example `TypeError`). No error message with data and no stack trace in the JSON file (stdout may print the stack at `debug`). The response is `500 INTERNAL_ERROR` with the trace id. |
 | `commit_rejected` | warn | `code`, `field` |
 | `outcome_changed` | info | `attempt_id`, `outcome` |
-| `score_sync` | info | `sync_id`, `status`, `tries`. When a send ends after its row was superseded (ADR-010 rule 5), the row stays `superseded` and the line has `status: "superseded"` plus `send_result` = the status that the send would have set (`sent`, `pending`, `conflict` or `failed`) (B-FIX-01). |
+| `score_sync` | info | `sync_id`, `status`, `tries`, `phase` (`send` or `confirmation`). `status` is the persisted row status. When the first accepted P2 send stays pending, include `send_result: "sent"`. When a send ends after its row was superseded (ADR-010 rule 5), the row stays `superseded` and the line has `status: "superseded"` plus `send_result` = the status that the send would have set (`sent`, `pending`, `conflict` or `failed`) (B-FIX-01). One event per actual POST. |
 | `gradebook_refresh_failed` | warn | `publication_id`, `resource_link_id`, `lti_status`, `lti_code` (one per row that "Refresh from Moodle" could not read) |
