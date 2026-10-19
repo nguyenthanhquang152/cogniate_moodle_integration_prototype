@@ -125,3 +125,41 @@ Checked and conforming (docs): every "Not proven" item of architecture README §
 ## 7. Verdict
 
 CHANGES_REQUESTED. Open MAJOR findings: D1 (Docs), P1 and P2 (Author). F5 is MAJOR but accepted as a limitation (Q18), so it does not block. The MINOR findings follow the Lead's routing (Author infra batch, Docs, or `deferred.md`). P7 and P10 need a Lead decision. After the fixes, the Architect checks again: D1, P1 and P2 only.
+
+## 8. Lead decisions
+
+From the Lead's routing messages (after `2129b69`, and with commit `aeb0854`). One line per finding.
+
+| Id | Lead decision |
+| --- | --- |
+| F1 | Deferred (`deferred.md`, via Docs). |
+| F2 | Deferred. |
+| F3 | Author, infra batch (with A4). |
+| F4 | Spec follows the code: `custom: null` becomes `{}`. Spec fixed. No code change. |
+| F5 | MAJOR, accepted limitation → open question Q18. No spec or code change before the hand-over. Architecture README §6 lists it as "Not supported". |
+| F6 | Spec wording. Fixed. |
+| F7 | Deferred. |
+| F8 | Spec wording. Fixed. |
+| F9 | Deferred. |
+| P1 | Fix now (Author-2, Codex fork). Spec: `complete` waits 15 s (longer than the LTI service's 5 s Moodle call), and a timeout maps to `MOODLE_TOOL_MAY_EXIST` (app contract §6, security §2.6, §9). |
+| P2 | Fix now (Author-2). Spec: ADR-010 rule 5 ("a `superseded` row never goes back"). |
+| P3 | Deferred. |
+| P4 | Deferred. |
+| P5 | Fix now with P2 (same area). |
+| P6 | Deferred. |
+| P7 | Architect recommendation accepted: the spec stays, the code follows later. Deferred, listed as a known difference. |
+| P8 | Spec. Fixed (ADR-010 rule 5). |
+| P9 | Deferred, with a note in the human review pack about third-party SCORM packages. |
+| P10 | Architect recommendation accepted: the spec stays, the code follows later. Deferred, listed as a known difference. |
+| P11 | Fix now (Author-2). Spec: the status API `scoreSync` also has `scoreGiven` and `scoreMaximum` of the synced row, and new texts when the scores differ (app contract §6). |
+| P12 | Deferred. |
+| P13 | Deferred. |
+| P14 | Spec. Fixed (security §10, data-model). |
+| A1, A2, A3, A4, A6, A7 | Author, infra batch. |
+| A5 | Spec. Fixed (ADR-008, local-stack §3). |
+| D1 | Docs (MAJOR). |
+| D2, D3, D8 | Author, infra batch. |
+| D4, D5, D6, D7 | Docs. |
+
+Spec changes for these decisions (not committed): app contract §6 (status API and texts for P11; register timing for P1), security §2.6 and §9 (P1).
+
