@@ -85,7 +85,7 @@ sequenceDiagram
     participant LTI as LTI service
     participant APP as Cogniate app
 
-    T->>M: Add an activity > Cogniate (Thanh's Library) > Select content
+    T->>M: Edit mode, Add content > Activity or resource > Cogniate (Thanh's Library) > Add > Select content
     M->>LTI: (modal iframe) POST /lti/login/cogniate
     LTI-->>M: state cookie (Partitioned), 302 /mod/lti/auth.php
     M->>LTI: POST /lti/launch/cogniate (id_token LtiDeepLinkingRequest, state)
@@ -211,7 +211,7 @@ sequenceDiagram
     P->>APP: POST /app-api/publications {connectionId, courseId, versionId}
     APP->>APP: upsert (one per connection + course). status = available.
     APP-->>P: publication + stats
-    P-->>CU: "Available in Moodle. Teachers: Add an activity > Cogniate (Thanh's Library) > Select content."
+    P-->>CU: "Available in Moodle. Teachers: Add content > Activity or resource > Cogniate (Thanh's Library) > Add > Select content."
 ```
 
 The portal shows "Selected in Moodle" when `stats.activities > 0` (a pick counts even if the teacher then cancels the activity form; Moodle does not tell us) and "In use" when `stats.learners > 0`. "Withdraw" hides the course from the picker. Existing activities then show "This course is no longer available". An empty Moodle course through web services (course shell) is stretch (T8).

@@ -184,7 +184,7 @@ The first valid launch from the platform sets `connected` and `lastLaunchAt`.
 | 13 | `nrps` | IMS LTI Names and Role Provisioning | `Use this service to retrieve members' information as per privacy settings` |
 | 14 | `share_name` | Share launcher's name with tool | `Never` |
 | 15 | `share_email` | Share launcher's email with tool | `Never` |
-| 16 | `accept_grades` | Accept grades from the tool | `Delegate to teacher` |
+| 16 | `accept_grades` | Accept grades from the tool | `As specified in Deep Linking definition or Delegate to teacher` (the exact Moodle 5.2.4 option text of the tool form, Q-T7-01) |
 
 The six values back from Moodle use the fixed keys of `PUT .../platform`: `issuer`, `clientId`, `deploymentId`, `authenticationEndpoint`, `accessTokenEndpoint`, `jwksUrl`.
 
