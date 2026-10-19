@@ -80,7 +80,7 @@ Import rules (ESLint `no-restricted-imports`):
 
 ### Root scripts (the set grows by task)
 
-`check` (lint + typecheck + unit tests), `build`, `gen-env`, `stack:up`, `stack:down`, `stack:reset`, `stack:restart`, `stack:logs`, `stack:moodle-reach-check`, `stack:node-reach-check`, `seed`, `demo`, `demo:browser`, `fixtures:check`, `test:acceptance`, `test:e2e` (T1); `seed:lti-manual` and argument forwarding of `test:acceptance` (T2a); `STACK_PROFILE=acceptance` (T2b); `seed:lti-activity`, optional `stack:snapshot`/`stack:restore` (T4b2); `dev:web` (T5a); `demo:prepare`, `moodle:cron` (T7); `test:compat` (T3c).
+`check` (lint + typecheck + unit tests), `build`, `gen-env`, `stack:up`, `stack:down`, `stack:reset`, `stack:restart`, `stack:logs`, `stack:moodle-reach-check`, `stack:node-reach-check`, `seed`, `demo`, `demo:browser`, `fixtures:check`, `test:acceptance`, `test:e2e` (T1); `seed:lti-manual` and argument forwarding of `test:acceptance` (T2a); `STACK_PROFILE=acceptance` (T2b); `seed:lti-activity`, optional `stack:snapshot`/`stack:restore` (T4b2); `dev:web` (T5a); `demo:prepare`, `moodle:cron` (T7); `test:compat` (T3c); `build-runner` (T8); `stack:doctor`, `demo:users` (human-run readiness, local stack §6).
 
 ## Consequences
 

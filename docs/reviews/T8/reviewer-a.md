@@ -1,7 +1,11 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # T8 review (stretch): Reviewer-A (correctness and security)
+
+History: the round 1 verdict was APPROVE (1 MINOR, 2 NIT; below). The round 2 verdict is APPROVE (section "Round 2" at the end, with the readiness note).
+
+## Round 1
 
 Scope: `git diff 48c725d c9e26da -- . ':!docs' ':!tests'` (34 files). Spec: `tasks/T8.md`, ADR-007, app contract §11, security §9 (outbound guard), §10 (secrets).
 
@@ -82,3 +86,57 @@ Method:
 ## Counts
 
 0 BLOCKER, 0 MAJOR, 1 MINOR (A-T8-01), 2 NIT (A-T8-02, -03).
+
+## Round 2
+
+Scope: `git diff 16507ac b5ee0ea -- infra services ':!infra/scripts/stack-doctor.sh' ':!infra/scripts/demo-users.sh'` (19 files).
+- I read the new `queue.mjs`, `build-runner.sh`, the build compose file and `build_course.php`, and the `mbz.ts`, `mbz-builds.ts` and `compose.yaml` changes.
+- I ran the **real** `queue.mjs` (identical to `b5ee0ea`) on crafted files in a new temporary folder. Each call had a 4 s watchdog, so a blocking read would show as "HUNG". The folder was deleted afterwards.
+- I did not read `reviewer-b.md`.
+
+### A-T8-01 (MINOR): resolved. I tried to break the symlink and FIFO cases.
+
+`validate` (request files) opens with `O_RDONLY | O_NOFOLLOW | O_NONBLOCK`, then uses `fstat`: the file must be regular, owned by this user, and at most 4,096 bytes. It reads exactly `st.size` bytes.
+
+| Request file | Result |
+| --- | --- |
+| normal JSON request | accepted |
+| symlink to `/etc/hosts`; symlink to the runner's **own** valid request | `request is a symlink` |
+| FIFO (`mkfifo`) | `request is not a regular file`, at once (no hang) |
+| folder; `/dev/zero` | `request is not a regular file` |
+| 5,000-byte file | `request too large` |
+| hard link to the user's own regular file | accepted (same user, same file system, so no gain) |
+
+`publish` (the backup) uses `lstat`: the file must be regular. Then come the size range (18 B to 2 GB), the gzip magic read through `O_NOFOLLOW`, and `copyFileSync(…, COPYFILE_EXCL)`.
+
+| Backup / destination | Result |
+| --- | --- |
+| gzip file to a new name | copied (`{"bytes":42}`) |
+| symlink to `/etc/hosts`; symlink to the runner's own valid backup; FIFO; folder | `backup is not a regular file (symlink or special file)` |
+| not gzip; 2 bytes | `backup is not a gzip file`; `backup size is out of range` |
+| existing destination; destination that is a planted symlink | `EEXIST`, and the symlink target is **not** written |
+
+The design closes the round 1 path. The build container has **no writable host folder** any more: the `out` bind mount is removed, and the backup is written inside the container (`moodledata/cogniate-out`). The runner takes it out with `docker cp` into a new empty host folder. `docker cp` copies a symlink as a symlink unless you pass `-L`, and the runner does not. After the copy, the container cannot change that host folder, so there is no race between the check and the copy. `out/` is still read-only for the app. `rm -rf` of the work folder does not follow links.
+
+### B-T8-01 and A-T8-02 (recovery): resolved
+
+- **Stop signal:** a `TERM` or `INT` trap (`on_stop`) tears down the current project, removes the work folder and hold file, writes `status=failed` with the reason "The Build Runner stopped during the build …", removes the request and the heartbeat, and frees the lock. Long commands run through `bg … & wait`, so the trap runs at once.
+- **Start-up sweep (also used by `stack:reset`):** it fails interrupted builds in `processing/`, removes work folders that match `^[0-9a-f]{24}$`, and runs `down -v` on every container, volume or network labelled `cogniate-build-<24 hex>`.
+- **Single runner:** the lock `build-queue/.runner.pid` (not mounted in the app) holds the pid, and a pid only counts if `ps … command` contains `build-runner.sh`.
+- **App timeout:** a build with no progress for 10 min is failed, so a new request starts fresh. The hints come from the `status/runner.json` heartbeat.
+
+### A-T8-03 (NIT): resolved
+
+At most 2 queued or running builds per library, else `409 MBZ_BUILD_LIMIT`.
+
+### A-T8-04: NIT: two small robustness details
+
+- (a) `activeBuildCount` counts rows that are still `queued` or `running`. A stale build on **another** version becomes `failed` only when that version is refreshed (GET or POST for it). After a runner crash, a library can therefore stay at the limit until it opens those versions. Fix: before the count, expire the library's active builds with no progress for `STALE_BUILD_MS`, or count only builds updated within that time.
+- (b) In `publish`, `EEXIST` from `copyFileSync` is not caught. The runner keeps the last line of a Node stack trace as the failure reason that the portal shows. Fix: catch it and call `fail('a backup with this id already exists')`.
+
+Round 2 counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (A-T8-04). All round 1 findings are resolved.
+
+## Readiness scripts (`f26ffbf`): note
+
+- **`npm run demo:users` prints no secret.** It prints the public URLs, the user names, and only the **names** of the variables that hold the passwords (`MOODLE_ADMIN_PASSWORD`, `PORTAL_THANH_PASSWORD`, …), with a pointer to `.env` and `infra/.secrets/seed.json`. When the stack runs, it adds the LTI activities from one read-only `SELECT` in the Moodle container (course short name, activity name, view URL).
+- **`npm run stack:doctor` changes nothing.** It runs only read-only checks: `docker info`, `image inspect`, `network ls`/`inspect`, `compose port`/`ps`, `docker inspect` health, `openssl x509` reads of `infra/.certs/*.crt`, one TCP connect to `127.0.0.1:$PUBLIC_PORT`, a DNS cache query and `grep`. It runs no `rm`, `down`, `kill`, `docker run` or file write. Sourcing `lib.sh` only reads `.env` and exports variables. Its output holds only versions, sizes, host names, subnets and fix commands, never a key or password.

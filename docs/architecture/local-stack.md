@@ -107,3 +107,14 @@ Source: `infra/moodle/SPIKE-NOTES.md`.
 | Moodle curl blocks private IPs and allows ports 80/443. (§6) | Dev-only change: only `STACK_SUBNET` is cut out of the block list, only port 443 allowed. Production needs public https on 443. |
 | `MoodleSession` is `SameSite=Lax`, fixed in code; `auth.php` re-posts. (§7) | Our cookies handle only our side. |
 | Native SCORM upload and `.mbz` backup work; restore elsewhere not verified. (§8) | Native channel stays stretch. |
+
+## 6. Helper commands for a human run (T9)
+
+These two commands help a person who runs the stack by hand (T9 guides). Both change nothing.
+
+| Command | What it does |
+| --- | --- |
+| `npm run stack:doctor` | Checks the computer and the stack. One line per check: `OK`, `FIX` (the exact fix is on the next line) or `INFO`. Exit `1` if one check needs a fix. Checks: Docker runs and has 6 GB memory or more; Node.js 24.11 or later; npm packages installed; `.env` present and its URLs match `PUBLIC_PORT`; certificates present, valid for 14 days or more and naming the four hosts; `PUBLIC_PORT` free or used by this stack's proxy; `STACK_SUBNET` not used by another Docker network; base images and the Build Runner image present; both course zips present. When the stack runs: each service healthy, Build Runner running, no test knobs, profile `default`, stack seeded. Last: whether the stack names resolve on this computer (else it tells you to use `npm run demo:browser`). |
+| `npm run demo:users` | Prints the four public URLs, the Moodle users (`admin`, `cg_teacher`, `cg_student`, `cg_student2`), the courses `COGNIATE-DEV-101` and `COGNIATE-DEV-102`, the portal users (`thanh@cogniate.test`, `qa-b@cogniate.test`) and, for each user, the `.env` variable that holds the password. It never prints a password (they are in `.env` and `infra/.secrets/seed.json`). When the stack runs, it also lists the Cogniate activities in Moodle with their links. |
+
+Logs for a human run: `infra/.logs/<service>.jsonl` (`lti-service`, `cogniate-app`, `cogniate-content`, and `build-runner` for T8).

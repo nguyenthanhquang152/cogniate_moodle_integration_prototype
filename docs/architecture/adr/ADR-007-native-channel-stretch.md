@@ -12,7 +12,7 @@ The goal of this prototype is LTI 1.3 publishing. The native channel and the cou
 
 ## Decision
 
-- **"Download SCORM package"** (the original zip, with steps for "Add an activity → SCORM package") is in **T6**. It needs almost no work and helps MoodleCloud users now.
+- **"Download SCORM package"** (the original zip, with steps for "Add content → Activity or resource → SCORM package → Add") is in **T6**. It needs almost no work and helps MoodleCloud users now.
 - **Stretch task T8** (only after T7 passes, only if the Lead starts it):
   - Build Runner (as built in T8): a script on the **host**; the app never gets the Docker socket. The app writes a request file to `infra/.data/build-queue/requests/`; the runner writes `status/` and `out/` (read-only for the app). Each build runs a throwaway Moodle and Postgres on an internal network (no internet) from the derived image `cogniate-build-moodle:v5.2.4` (Moodle's PHP packages baked in). It makes a hidden course with one `mod_scorm` activity, runs `backup.php --nousers`, and copies the `.mbz` out (security §10a).
   - Portal: build status, download, restore steps.

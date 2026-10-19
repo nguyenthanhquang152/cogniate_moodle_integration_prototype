@@ -2,7 +2,7 @@
 import type { BrowserContext, Page, TestInfo } from '@playwright/test';
 import { stateCookieHeader } from './capture';
 import { type LaunchRecord, loadState, need, note, pollUntil, saveState, SHELL_DONE_100, shot, urls } from './e2e';
-import { doCourse, launchFromCourse, shellText } from './learner';
+import { doCourse, domClicks, launchFromCourse, shellText } from './learner';
 import { addActivityFromChooser, ensureEditMode, openSelectContent, pickCourse, saveAndReturn, setCompletionReceiveGrade } from './moodle';
 import { cmidByName, grade, users } from './oracle';
 import { expect } from './pw';
@@ -45,7 +45,9 @@ export async function learnerRun(context: BrowserContext, user: 'cg_student' | '
     if (f) saveState({ replay: { id_token: f.id_token, state: f.state, cookie: stateCookieHeader(l.capture.stateCookies), firstStatus: l.capture.launchStatuses[0] ?? 0 } });
   }
   await l.capture.stop();
+  domClicks.length = 0;
   await doCourse(l.popup, answer);
+  if (domClicks.length) note(testInfo, 'DOM click', `${user} ${key}: ${domClicks.join('; ')}`);
   const t0 = Date.now();
   const want = answer === 'correct' ? 100 : 0;
   const matches = (v: { raw: number | null } | undefined) => v?.raw !== null && v?.raw !== undefined && Math.abs(Number(v.raw) - want) < 0.001;
