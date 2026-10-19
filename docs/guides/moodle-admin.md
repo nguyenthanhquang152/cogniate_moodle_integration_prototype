@@ -23,7 +23,7 @@ There are two methods. Use **Automatic** if you can. Use **Manual** only if the 
 8. Click "Copy" next to the registration URL [AC-T4-07].
 9. Send the URL to the Moodle admin.
 
-NOTE: The URL works one time. It expires after 24 hours. A used or expired URL is refused. Then click "Make a new URL" [AC-T4-09].
+NOTE: The URL works one time. It expires after 24 hours. A used or expired URL is refused [AC-T4-09]. Then click "Make a new URL" [Not verified by QA].
 
 The portal page also shows the six Moodle steps of Part 2, with the menu path for each step [AC-T7-14].
 

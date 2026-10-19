@@ -27,7 +27,7 @@ Each row is one claim. **Proven by QA** means that an independent QA agent teste
 | Security | Replayed, forged, expired, tampered or changed launches are refused. | AC-T2-09 to AC-T2-11, AC-T2-20 to AC-T2-27, AC-T7-10 |
 | Security | No token or key is in the logs. Each end-to-end run found 0 of 28 captured secrets. The validation run found 0 of 48 values of 9 kinds. | AC-T7-10, T7 qa.md §6, AC-T2-30, AC-T5-19 |
 | Privacy | Cogniate gets an anonymous learner id and role. It does not get names or emails. | AC-T2-04, AC-T4-08 |
-| LTIAAS-style API | The real `ltiaas` 0.0.4 Python SDK works against our LTI service: id token, deep linking, scores (7/10 read back as 70/100) and memberships. The output has no secrets. An external claim needs decision Q1. | AC-T3-27, AC-T3-09, AC-T3-20 |
+| LTIAAS-style API | For the endpoints listed in ADR-003, our API uses the paths, header schemes and field names of the public LTIAAS API reference. The differences are in contract §8. The real `ltiaas` 0.0.4 Python SDK passed: id token, deep linking, scores (7/10 read back as 70/100) and memberships. One limit: a line item id with a raw slash gets 404. The form that the SDK sends passes (D15). An external claim needs decision Q1. | AC-T3-27, AC-T3-09, AC-T3-20 |
 | Isolation | One library cannot see or use the courses, connections or results of another library. | AC-T7-08, AC-T7-09, AC-T4-34, AC-T4-16 |
 | Isolation | Course packages run on a separate content site, in a sandbox. They cannot read the portal session. 16 kinds of bad zip are refused. | AC-T5-01, AC-T5-03, AC-T5-17, AC-T4-05 |
 | Run it | A ready demo starts from zero in about 45 seconds (`e2e:reset` 36 s, `demo:prepare` 9.3 s). | AC-T7-15 |
@@ -49,7 +49,7 @@ Both reviewers approved these items. QA did not check them yet.
 | A teacher on Safari can add content. | QA used Chromium only. Safari can block the Cogniate cookie in Moodle's frame. | Q16, R4 |
 | The player works in Firefox and Safari. | QA used Chromium only. | — |
 | The player works in mobile browsers. | No mobile test. | — |
-| The course video plays. | QA proved only that the server sends the video file correctly (AC-T5-02). The export has no visible video. | — |
+| Video playback. | The export has no visible video. QA proved only that the server sends the video file correctly (AC-T5-02). | — |
 | A real person who closes the real player window keeps the progress. | QA closed the window by script (AC-T5-22, AC-T5-35). That proves the saved progress, not a real close by hand. | — |
 | A person (not a test robot) can do every step. | All runs used a browser robot. The HTML menu link was clicked by script. | Q17, HR-2 |
 | A new person starts the stack in 10 minutes. | The human run test is not done yet. | HR-2 |

@@ -1,8 +1,8 @@
 # Cogniate × Moodle integration prototype
 
-This prototype publishes Cogniate courses (SCORM 1.2 and HTML) to Moodle with LTI 1.3. It has its own LTI service, with an API in the same shape as the public LTIAAS API (a clean-room implementation of the 1EdTech specifications).
+This prototype publishes Cogniate courses (SCORM 1.2 and HTML) to Moodle with LTI 1.3. It has its own LTI service, a clean-room implementation of the 1EdTech specifications. For the endpoints listed in ADR-003, its API follows the public LTIAAS API reference, with listed differences.
 
-**Status:** the full end-to-end test passed on a real Moodle 5.2.4 site, 15 of 15 checks, three runs in a row ([`docs/reviews/T7/qa.md`](docs/reviews/T7/qa.md)). The portal (T6, 14 of 14) and the LTIAAS-style API with the real `ltiaas` SDK (T3c, 7 of 7) passed their own QA. The native `.mbz` channel (T8) is in final QA.
+**Status:** the full end-to-end test passed on a real Moodle 5.2.4 site, 15 of 15 checks, three runs in a row ([`docs/reviews/T7/qa.md`](docs/reviews/T7/qa.md)). The portal (T6, 14 of 14) and the listed LTIAAS-style endpoints (T3c, 7 of 7, with the real `ltiaas` SDK) passed their own QA. The native `.mbz` channel (T8) is in final QA.
 
 ## Start here
 
@@ -38,7 +38,7 @@ QA measured 36 seconds for `e2e:reset` and 9.3 seconds for `demo:prepare` (AC-T7
 
 | Folder | Content |
 | --- | --- |
-| `services/lti-service` | The LTI service: LTI 1.3 launch, Deep Linking, grades (AGS), registration, LTIAAS-style REST API |
+| `services/lti-service` | The LTI service: LTI 1.3 launch, Deep Linking, grades (AGS), registration, REST API for the listed LTIAAS-style endpoints |
 | `services/cogniate-app` | The stand-in Cogniate app: portal API, tool pages, content host, score sync |
 | `apps/portal`, `apps/player` | The portal UI and the course player |
 | `packages/` | Shared code, the package inspector, the tracking rules |

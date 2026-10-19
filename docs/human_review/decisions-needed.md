@@ -26,7 +26,9 @@ Source: [`docs/architecture/open-questions.md`](../architecture/open-questions.m
 
 Source: [ADR-003, "Promises"](../architecture/adr/ADR-003-ltiaas-compatibility-scope.md#promises). In plain words:
 
-> Our LTI service has the endpoints, paths, header schemes and field names of the public LTIAAS API reference, with a listed set of differences. The real `ltiaas` Python SDK passed our test for the id token, deep linking, scores and memberships (AC-T3-27). We used it only as a test client (MIT licence).
+> For the endpoints listed in ADR-003, our LTI service uses the paths, header schemes and field names of the public LTIAAS API reference. The differences are listed in contract §8. The real `ltiaas` Python SDK passed our test for the id token, deep linking, scores and memberships (AC-T3-27). We used it only as a test client (MIT licence).
+
+One limit: a line item id with a raw slash gets 404. The form that the SDK sends passes (D15).
 
 Do not say:
 

@@ -35,10 +35,21 @@ Counts: **6 MINOR, 27 NIT** (state 2026-10-19). T8 has no QA report yet, so new 
 | A-T5b-05 | NIT | T5b | The Resend query divides integers, so most scores sort as 0. | Cast to a real number before the division. |
 | A-T5a-04 | NIT | T5a | A player reload starts a new SCORM session. The server counts one session per launch. | Count per page load, or change the contract. |
 | A-T3a-03 (rest) | NIT | T3a | A token request that waits logs `cache: "hit"` before it succeeds. | Log `wait`, and only after success. |
-| B-T4a-05 (rest) | NIT | T4a | Two `internal_error` log lines have no `method` and `path` fields. | Add the two fields. |
+| B-T4a-05 (rest), F2 | NIT | T4a | Two `internal_error` log lines have no `method` and `path` fields. | Add the two fields. |
 | B-T2a-05 | NIT | T2a | An unknown tool account gives one error code at login and another at launch. | Use one code, or document the choice. |
 | B-T5a-05 | NIT | T5a | The content host writes error codes as plain text. The owner of `AGENTS.md` is not confirmed. | Add a typed code table. The Lead confirms the owner. |
 | B-T5b-02 (rest) | NIT | T5b | The package inspector has its own copy of the default pass mark. Some tests cover several ACs. | Import one constant. Write one test per AC. |
+
+## Architect conformance check (T9)
+
+Source: `docs/reviews/T9/architect-conformance.md`. The severity is in that report.
+
+| Id | Finding | Suggested fix |
+| --- | --- | --- |
+| F1 | The description of a 5xx error (`PLATFORM_ERROR`, `TIMEOUT`) has no trace id. The `X-Trace-Id` header has it. | Add the trace id to the description. |
+| F2 | Same as B-T4a-05 above. | — |
+| F7 | `PUT` and `DELETE` on `/lti/launch` give 404, not 405. | Answer 405 for a wrong method. |
+| F9 | The time window of a retired tool key counts from its creation. `revokeServiceKeys` has no caller. | Count from retirement. Use or remove the function. |
 
 ## Tests (QA)
 
