@@ -227,6 +227,29 @@ qa_env_args() {
   done < <(compgen -e | grep -E '^QA_[A-Za-z0-9_]*$' || true)
 }
 
+# B-T7-01: test:e2e and e2e:reset delete ALL stack data (stack-reset.sh). Print what goes; in a terminal, ask for
+# "yes" unless the run is confirmed with --yes or E2E_CONFIRM=1. Without a terminal (QA host runner, CI) there is no
+# question, so a runner never hangs; runners pass E2E_CONFIRM=1 (or --yes) anyway. No data yet: no question.
+#   confirm_stack_delete <confirmed 0|1> <command name>
+confirm_stack_delete() {
+  local confirmed="${1:-0}" cmd="${2:-this command}" ans=""
+  if [[ ! -s "$INFRA_DIR/.secrets/seed.json" && ! -d "$INFRA_DIR/.data/cogniate-app" && ! -d "$INFRA_DIR/.data/lti-service" ]] \
+    && [[ -z "$(docker volume ls -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME" 2>/dev/null)" ]]; then
+    return 0
+  fi
+  echo "WARNING: $cmd deletes ALL stack data: the Moodle site (courses, activities, grades), the portal data (connections," >&2
+  echo "         uploaded and published courses), the LTI service data, the seed users and API keys, and infra/.logs/." >&2
+  echo "         It keeps .env, infra/.certs/ and infra/.data/fixtures/." >&2
+  [[ "$confirmed" == 1 || "${E2E_CONFIRM:-0}" == 1 ]] && return 0
+  if [[ -t 0 && -t 2 ]]; then
+    read -r -p "Type yes to delete the data and go on (or run it with -- --yes, or E2E_CONFIRM=1): " ans || true
+    [[ "$ans" == yes ]] && return 0
+    echo "Stopped. Nothing was deleted." >&2
+    exit 1
+  fi
+  echo "         (no terminal: no question; going on)" >&2
+}
+
 print_urls() {
   if [[ "$ACTIVE_STACK_PROFILE" == acceptance ]]; then
     echo "Profile:  acceptance (evil.test sink, qa-platform.test). Back to default: npm run stack:up"

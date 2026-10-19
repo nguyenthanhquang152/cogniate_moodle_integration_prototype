@@ -32,35 +32,83 @@ rm -rf "$D/zips" && mkdir -p "$D/zips"
 cp "$SCORM_ZIP" "$D/zips/scorm.zip"
 cp "$HTML_ZIP" "$D/zips/html.zip"
 
+# A-T7-01: a JSON value goes to node on stdin (printf is a shell builtin), never on a command line: the connection
+# answer holds the registration URL with its ref, and the registration start holds the registration token.
+jget() { printf '%s' "$1" | node -e 'const o = JSON.parse(require("fs").readFileSync(0, "utf8")); console.log(String(process.argv[1].split(".").reduce((a, k) => a[k], o)))' "$2"; }
+jsonline() { grep '^{' | tail -1 || true; }
+# Text from a failed step, safe to show: no .env or seed secret, no JWT, no token/ref/password value in a URL.
+redact() {
+  node -e '
+    const fs = require("fs");
+    const [envFile, seedFile] = process.argv.slice(1);
+    let text = fs.readFileSync(0, "utf8");
+    const secrets = new Set();
+    try {
+      for (const line of fs.readFileSync(envFile, "utf8").split("\n")) {
+        const m = /^\s*[A-Z0-9_]*(PASS|SECRET|KEY|TOKEN)[A-Z0-9_]*=(.*)$/.exec(line);
+        if (m) secrets.add(m[2].trim().replace(/^["\x27]|["\x27]$/g, ""));
+      }
+    } catch {}
+    try {
+      JSON.stringify(JSON.parse(fs.readFileSync(seedFile, "utf8")), (k, v) => { if (typeof v === "string" && /pass|secret|token|key/i.test(k)) secrets.add(v); return v; });
+    } catch {}
+    for (const s of secrets) if (s.length >= 6) text = text.split(s).join("[redacted]");
+    text = text.replace(/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/g, "[redacted JWT]")
+      .replace(/((?:ref|registration_token|token|ltik|password|secret)=)[^&\s"\x27]+/gi, "$1[redacted]");
+    process.stdout.write(text);' "$ENV_FILE" "$INFRA_DIR/.secrets/seed.json"
+}
+# B-T7-06: a step that gives no JSON line stops the script and shows the last lines of its output (redacted). Moodle
+# writes its CLI errors to stdout, so the output is kept, not filtered away.
+STEP=0
+say() { STEP="$1"; echo "$1. $2"; }
+step_failed() {  # step_failed <who said it> <output>
+  # Without the Docker build and compose progress lines of the e2e container (they hide the real message).
+  { echo "Step $STEP failed. $1 said:"
+    printf '%s\n' "$2" | grep -vE '^[[:space:]]*$|^[[:space:]]*(#[0-9]+ |\[\+\] |(Container|Image|Network|Volume) [^ ]+ )' | tail -10 | redact | sed 's/^/   /'
+  } >&2
+  exit 1
+}
 # One step of infra/demo/prepare.mjs in the e2e container (stack network, dev CA): its JSON line.
-step() { "$INFRA_DIR/scripts/e2e-run.sh" node /repo/infra/demo/prepare.mjs "$@" | grep '^{' | tail -1; }
-jget() { node -e 'const o = JSON.parse(process.argv[1]); console.log(String(process.argv[2].split(".").reduce((a, k) => a[k], o)))' "$1" "$2"; }
-jsonline() { grep '^{' | tail -1; }
+step() {
+  local out j
+  out="$("$INFRA_DIR/scripts/e2e-run.sh" node /repo/infra/demo/prepare.mjs "$@" 2>&1)" || true
+  j="$(printf '%s\n' "$out" | jsonline)"
+  [[ -n "$j" ]] || step_failed "The portal step" "${out:-(no output)}"
+  printf '%s\n' "$j"
+}
+# One Moodle CLI helper (stdin passes through): its JSON line.
+mstep() {
+  local out j
+  out="$(mphp "$@" 2>&1)" || true
+  j="$(printf '%s\n' "$out" | jsonline)"
+  [[ -n "$j" ]] || step_failed "Moodle" "${out:-(no output)}"
+  printf '%s\n' "$j"
+}
 
-echo "1. Thanh: connection \"Dev Moodle\" (dynamic registration)"
-c="$(step connect)"; [[ -n "$c" ]] || exit 1
+say 1 "Thanh: connection \"Dev Moodle\" (dynamic registration)"
+c="$(step connect)"
 connection="$(jget "$c" connectionId)"
-echo "2. Moodle admin: Add LTI Advantage, confirm page, Connect"
-reg_start="$(jget "$c" registrationUrl | mphp /opt/cogniate/php/start_lti_registration.php --url=- | jsonline)"
-r="$(jget "$reg_start" url | step register -)"; [[ -n "$r" ]] || exit 1
+say 2 "Moodle admin: Add LTI Advantage, confirm page, Connect"
+reg_start="$(jget "$c" registrationUrl | mstep /opt/cogniate/php/start_lti_registration.php --url=-)"
+r="$(jget "$reg_start" url | step register -)"
 client_id="$(jget "$r" clientId)"
 echo "   registered: platform $(jget "$r" platformId)"
-echo "3. Moodle admin: activate the tool, Show in activity chooser, New window"
-t="$(mphp /opt/cogniate/php/activate_lti_tool.php --clientid="$client_id" | jsonline)"
+say 3 "Moodle admin: activate the tool, Show in activity chooser, New window"
+t="$(mstep /opt/cogniate/php/activate_lti_tool.php --clientid="$client_id")"
 type_id="$(jget "$t" typeid)"
 echo "   tool type $type_id: $(jget "$t" name)"
-echo "4. Thanh: upload and publish both courses"
-p="$(step publish "$connection")"; [[ -n "$p" ]] || exit 1
-echo "5. Moodle: activities in COGNIATE-DEV-101 (grade 100, completion \"Receive a grade\")"
+say 4 "Thanh: upload and publish both courses"
+p="$(step publish "$connection")"
+say 5 "Moodle: activities in COGNIATE-DEV-101 (grade 100, completion \"Receive a grade\")"
 activity() {
-  mphp /opt/cogniate/php/add_lti_activity.php --course=COGNIATE-DEV-101 --typeid="$type_id" --name="$1" \
-    --toolurl="$PUBLIC_LTI_URL/lti/launch/cogniate?resource=$2" --completion=grade | jsonline
+  mstep /opt/cogniate/php/add_lti_activity.php --course=COGNIATE-DEV-101 --typeid="$type_id" --name="$1" \
+    --toolurl="$PUBLIC_LTI_URL/lti/launch/cogniate?resource=$2" --completion=grade
 }
 a1="$(activity "AI Website Sprint — SCORM" "$(jget "$p" scorm.publicationId)")"
 a2="$(activity "AI Website Sprint — HTML" "$(jget "$p" html.publicationId)")"
 cm1="$(jget "$a1" cmid)"; cm2="$(jget "$a2" cmid)"
 if (( verify )); then
-  echo "6. Check: cg_teacher opens both activities (preview)"
+  say 6 "Check: cg_teacher opens both activities (preview)"
   v="$(step verify "$cm1" "$cm2")"
   [[ "$(jget "$v" ok)" == true ]] || { echo "The player check failed: $v" >&2; exit 1; }
   echo "   both activities reach the player"
