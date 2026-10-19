@@ -35,6 +35,24 @@ QA run order: AC-T5-09 and AC-T5-10 (`cg_student`, "Cogniate HTML"); AC-T5-11 �
 - **AC-T5-18** (run after the other ACs) `POST /app-api/publications/<id>/results/refresh` → every row's `gradebook.resultScore` equals the Moodle grade (QA oracle), with `resultMaximum` 100. Expected for "Cogniate SCORM": `cg_student` 100, `cg_student2` 100 (AC-T5-23 raised it from 0). For `Cogniate SCORM AC-T5-33`: 50 with `gradebookDiffers: true`.
 - **AC-T5-19** `infra/.logs/cogniate-app.jsonl` and `cogniate-content.jsonl` contain no runtime token, ltik or service key (QA greps for the captured values).
 
+## Final regression P5: bounded fixture exception
+
+Lead decision, 2026-10-19. This checks the existing Resend rule in app contract §5 and ADR-010 rules 10–11. No public API removes a sync row. QA may use the following fixture exception only for this regression.
+
+1. Use an isolated QA clone, its own stack, and a fresh activity for this check.
+2. Through UI/API calls, create final attempts of 60/100 and 80/100 on two course versions for the same learner and activity.
+3. Make both score syncs fail through UI/API actions. Record the attempt ids, version ids, sync ids, scores and statuses from public results.
+4. Delete only the higher failed score-sync row from QA's app database, selected by its exact sync id. Assert exactly one deletion.
+5. Do not alter either attempt, the lower sync row, or any other database row.
+6. Read `GET /app-api/publications/:id/results`. Assert that both final attempts remain and `best` is still 80/100.
+7. Assert that the higher sync is absent and the lower 60/100 sync is still `failed` or `conflict`.
+8. Call `POST /app-api/score-syncs/:syncId/resend` for the lower sync. Expect `409 SYNC_NOT_RESENDABLE`.
+9. Remove QA's own stack after the run.
+
+The lower row must satisfy every Resend condition except the best-score rule. A `sent`, `pending` or `superseded` row cannot prove P5. If QA cannot reach the preconditions naturally, ask the Lead before any wider fixture mutation.
+
+Report this check as **fixture-assisted**, not pure black-box. Include the exact deleted sync id, the one-row deletion count, public results before and after, and the Resend response. Keep the final regression pending until QA records the result.
+
 ## Self-check
 
 `npm run check` green. Unit tests: HTML rules (dwell, scroll end, menu page, first answer stands), retry schedule, conflict mapping, resend rules.

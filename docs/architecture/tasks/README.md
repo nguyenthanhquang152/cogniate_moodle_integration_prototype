@@ -36,7 +36,8 @@ QA writes tests from the task specs and contracts only (charter §1). It does no
 | Allowed | Not allowed |
 | --- | --- |
 | Playwright 1.56.0 (Chromium) and HTTP calls from the `e2e` container | Reading service source code |
-| `docker compose exec` for the read-only commands that an AC names, `docker compose logs`, `stop`, `start`, `port`, `ps`, `network inspect` | Reading or changing SQLite files or the package store, except where an AC allows it |
+| `docker compose exec` for the read-only commands that an AC names, `docker compose logs`, `stop`, `start`, `port`, `ps`, `network inspect` | Reading or changing SQLite files or the package store, except where an AC or the P5 fixture exception below allows it |
+| [T5b final regression P5](T5b.md#final-regression-p5-bounded-fixture-exception): delete one higher failed sync by exact id in QA's own stack; assert one deletion and check Resend through public APIs | Any wider P5 fixture mutation without a new Lead decision; altering attempts or the lower sync; reporting this check as pure black-box |
 | Moodle web services: the product service (as a client of the product) and the QA-only `cogniate_qa_oracle` service | Changing Moodle data with CLI, except the steps that an AC names |
 | `docker compose pause moodle` and `docker compose unpause moodle` through the host channel (Lead decision, T9 P1 and P2 fixes): **only on QA's own compose project**, only to make Moodle hang (the P1 register timeout, the P2 in-flight score race). Every pause has an `unpause` in a `finally` block or a shell `trap`, so Moodle never stays paused after the test. | `pause` or `unpause` on another project (the Author's stack, `cogniate-*`, another QA project) or on any other service |
 | Moodle CLI read-only (`admin/cli/cfg.php` without `--set`), and `admin/cli/cron.php` (`npm run moodle:cron`) | Test knobs in T7 |
