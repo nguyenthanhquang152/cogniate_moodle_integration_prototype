@@ -7,9 +7,12 @@
 //
 // Charter §3a: QA clones the SHA into a new folder (~/cogniate-qa-runs/…) and runs its own stack there. The project
 // name must start with "qa-e2e": this runner never touches another project (qa-t*, cogniate-*).
-// Steps: preflight → clone → course zips → npm ci, gen-env → compose name guard → N × `npm run test:e2e` (each run does
-// its own e2e:reset; AC-T7-01, AC-T7-11) → optional demo pass (AC-T7-15: e2e:reset, timed demo:prepare, the DEMO spec)
-// → teardown (stack:down, then containers, volumes and networks of this project) → summary.
+// Steps: preflight → clone → course zips → npm ci, gen-env → compose name guard → N × `npm run test:e2e -- --yes` (each
+// run does its own e2e:reset; AC-T7-01, AC-T7-11) → optional confirm check (B-T7-01: "no" in a terminal deletes nothing)
+// → optional demo pass (AC-T7-15: e2e:reset, timed demo:prepare, the DEMO spec) → teardown (stack:down, then
+// containers, volumes and networks of this project) → summary.
+// B-T7-01: e2e:reset and test:e2e delete all stack data and ask for "yes" in a terminal. The runner has no terminal
+// (no question), but it passes `-- --yes` anyway, as infra/README.md says for QA runners.
 // Evidence: tests/e2e/artifacts/runs/<run id>/ in the QA working copy (git-ignored). Known secrets are redacted in
 // text files; captured-secrets.jsonl is replaced by a masked list (first 6 characters and the length).
 import crypto from 'node:crypto';
@@ -18,7 +21,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { allContainers, cidrOverlap, networkSubnets, portFree, projectResources, readEnv, Redactor, run, secretsInFile, walkFiles } from '../../host/lib.mjs';
+import { allContainers, cidrOverlap, networkSubnets, portFree, projectResources, readEnv, Redactor, run, secretsInFile, sha256File, walkFiles } from '../../host/lib.mjs';
 
 const { values: opt } = parseArgs({
   options: {
@@ -26,6 +29,7 @@ const { values: opt } = parseArgs({
     runs: { type: 'string', default: '1' },
     demo: { type: 'boolean', default: false },
     'demo-only': { type: 'boolean', default: false },
+    'check-confirm': { type: 'boolean', default: false },
     'replace-e2e': { type: 'boolean', default: false },
     keep: { type: 'boolean', default: false },
     checkout: { type: 'string' },
@@ -37,6 +41,8 @@ const HELP = `Usage: COMPOSE_PROJECT_NAME=qa-e2e-r1 PUBLIC_PORT=8543 STACK_SUBNE
   --runs <n>        Consecutive "npm run test:e2e" runs (default 1; AC-T7-11 wants 3).
   --demo            After the runs: e2e:reset, timed "npm run demo:prepare", the AC-T7-15 player check.
   --demo-only       Only the demo pass (no scenario run).
+  --check-confirm   After the runs: in a terminal (pty), answer "no" to the delete question of e2e:reset and test:e2e
+                    (B-T7-01) and check that nothing was deleted.
   --replace-e2e     Copy tests/e2e from this working copy into the clone (QA suite newer than the SHA).
   --keep            Do not tear the stack down at the end (debugging).
   --checkout <dir>  Use an existing clone instead of a fresh one.
@@ -66,7 +72,7 @@ const RUN_ID = `${PROJECT}-${(opt.sha ?? 'checkout').slice(0, 8)}-${new Date().t
 const CLONE = path.resolve(opt.checkout ?? path.join(os.homedir(), 'cogniate-qa-runs', RUN_ID));
 const ART = path.join(E2E_DIR, 'artifacts', 'runs', RUN_ID);
 fs.mkdirSync(ART, { recursive: true });
-const BASE_ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('npm_') && !k.startsWith('QA_')));
+const BASE_ENV = Object.fromEntries(Object.entries(process.env).filter(([k]) => !k.startsWith('npm_') && !k.startsWith('QA_') && k !== 'E2E_CONFIRM' && k !== 'E2E_RESET'));
 const STACK_ENV = { ...BASE_ENV, COMPOSE_PROJECT_NAME: PROJECT, PUBLIC_PORT, STACK_SUBNET, COURSE_FIXTURES_DIR: FIXTURES };
 const ZIPS = [
   { name: 'Build Your First Website with AI_ The Zero-to-Hero Micro-Sprint-scorm-v2.zip', sha256: 'a685744e5fd9de21c203c3b2f47916ef1079532196ed870df89a00ab8ee76df7' },
@@ -225,7 +231,7 @@ function collect(label) {
 
 async function e2eRun(i) {
   fs.rmSync(path.join(CLONE, 'tests', 'e2e', 'artifacts'), { recursive: true, force: true });
-  const r = await exec(`test-e2e-run${i}`, 'npm', ['run', 'test:e2e'], { timeoutMs: 45 * 60_000 });
+  const r = await exec(`test-e2e-run${i}`, 'npm', ['run', 'test:e2e', '--', '--yes'], { timeoutMs: 45 * 60_000 });
   addSecretsFromClone();
   const dest = collect(`run${i}`);
   const rows = playwrightRows(path.join(dest, 'playwright-results.json'));
@@ -250,9 +256,9 @@ async function e2eRun(i) {
 
 async function demoPass() {
   fs.rmSync(path.join(CLONE, 'tests', 'e2e', 'artifacts'), { recursive: true, force: true });
-  const reset = await exec('demo-e2e-reset', 'npm', ['run', 'e2e:reset']);
+  const reset = await exec('demo-e2e-reset', 'npm', ['run', 'e2e:reset', '--', '--yes']);
   const prep = await exec('demo-prepare', 'npm', ['run', 'demo:prepare'], { timeoutMs: 600_000 });
-  const check = await exec('demo-check', 'npm', ['run', 'test:e2e'], { env: { ...STACK_ENV, E2E_RESET: '0', QA_E2E_DEMO: '1', QA_GREP: 'AC-T7-15' }, timeoutMs: 600_000 });
+  const check = await exec('demo-check', 'npm', ['run', 'test:e2e', '--', '--yes'], { env: { ...STACK_ENV, E2E_RESET: '0', QA_E2E_DEMO: '1', QA_GREP: 'AC-T7-15' }, timeoutMs: 600_000 });
   const dest = collect('demo');
   const rows = playwrightRows(path.join(dest, 'playwright-results.json'));
   summary.demo = {
@@ -265,6 +271,43 @@ async function demoPass() {
     tests: rows,
   };
   step(`demo pass (AC-T7-15): e2e:reset ${reset.code}, demo:prepare exit ${prep.code} in ${summary.demo.prepareSeconds} s (≤ 180 s), player check exit ${check.code}`, reset.code === 0 && prep.code === 0 && prep.durationMs <= 180_000 && check.code === 0 && rows.some((t) => t.status === 'PASS'), rows.filter((t) => t.status !== 'PASS').map((t) => `${t.status} ${t.title.slice(0, 80)} :: ${t.errors.join(' | ').slice(0, 400)}`));
+}
+
+/** What a reset would change: this project's containers (id, start time), volumes, seed.json, data folders, log files. */
+async function stackSnapshot() {
+  const containers = (await allContainers())
+    .filter((c) => c.Config?.Labels?.['com.docker.compose.project'] === PROJECT)
+    .map((c) => `${c.Name}|${c.Id.slice(0, 12)}|${c.State?.StartedAt}`)
+    .sort();
+  const seed = path.join(CLONE, 'infra', '.secrets', 'seed.json');
+  return {
+    containers,
+    volumes: (await projectResources(PROJECT)).volumes.sort(),
+    seedSha256: fs.existsSync(seed) ? sha256File(seed).slice(0, 16) : null,
+    dataDirs: ['cogniate-app', 'lti-service'].map((d) => `${d}:${fs.existsSync(path.join(CLONE, 'infra', '.data', d))}`),
+    logFiles: walkFiles(path.join(CLONE, 'infra', '.logs')).map((f) => path.basename(f)).sort(),
+  };
+}
+
+/**
+ * B-T7-01: in a terminal (pty from `script`), the command asks for "yes"; QA answers "no". Nothing may be deleted.
+ * The answer is sent after 8 s: input that reaches the pty before the prompt can be flushed (QA saw this on macOS).
+ */
+async function confirmCheck(label, npmArgs) {
+  const before = await stackSnapshot();
+  const env = { ...STACK_ENV };
+  delete env.E2E_CONFIRM;
+  const r = await exec(`confirm-no-${label}`, 'sh', ['-c', `(sleep 8; printf 'no\\n'; sleep 3) | script -q /dev/null npm ${npmArgs}`], { env, timeoutMs: 180_000 });
+  const after = await stackSnapshot();
+  const out = `${r.stdout}\n${r.stderr}`;
+  const asked = /Type yes to delete the data/.test(out);
+  const stopped = /Stopped\. Nothing was deleted\./.test(out);
+  const same = JSON.stringify(before) === JSON.stringify(after);
+  summary.confirm = { ...(summary.confirm ?? {}), [label]: { exit: r.code, asked, stopped, unchanged: same, before, after } };
+  return step(`B-T7-01 confirm check: "npm ${npmArgs}" in a terminal, answer "no" → asks, stops, nothing deleted`, asked && stopped && same && r.code !== 0, [
+    `exit ${r.code}; question shown: ${asked}; "Stopped. Nothing was deleted.": ${stopped}; stack unchanged (containers, volumes, seed.json, data folders, logs): ${same}`,
+    `snapshot: ${before.containers.length} containers, ${before.volumes.length} volumes, seed ${before.seedSha256 ?? 'none'}`,
+  ]);
 }
 
 async function images() {
@@ -301,6 +344,10 @@ try {
       for (let i = 1; i <= RUNS; i++) {
         await e2eRun(i);
         if (i === 1) await images();
+      }
+      if (opt['check-confirm'] && RUNS > 0) {
+        await confirmCheck('e2e-reset', 'run e2e:reset');
+        await confirmCheck('test-e2e', 'run test:e2e');
       }
       if (opt.demo || opt['demo-only']) await demoPass();
       if (RUNS === 0) await images();

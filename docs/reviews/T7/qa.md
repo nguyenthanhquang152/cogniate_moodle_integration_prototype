@@ -104,3 +104,20 @@ The reviews asked for small suite changes (no product change). QA-E2E made them 
 Validation run of the changed suite: `f0e5525`, fresh clone, `npm run test:e2e` exit 0 in 184 s (e2e:reset 42 s), 17 pass, 0 fail. C2: 48 captured values of 9 kinds (8 ltiks, 3 service keys, 4 runtime tokens, 11 id_tokens, 2 API keys, 8 states, 1 registration ref, 4 play ids, 4 picker ids), 0 found in the logs. Evidence: `tests/e2e/artifacts/runs/qa-e2e-r1-f0e55252-2026-10-19T02-57-08-020Z/`. The stack was removed after the run.
 
 Not done (optional in A-T7-02): a search of the container stdout logs (`docker compose logs`). The service JSON logs carry the same events.
+
+## 7. Pre-final run (`2129b69`)
+
+`2129b69` has the same code as `63de503` (only docs changed). It includes the Author's B-T7-01 confirmation (`88e7d76`). The runner now passes `-- --yes` to `test:e2e` and `e2e:reset` and has a new option `--check-confirm` (`tests/e2e/host/run-t7.mjs`).
+
+Command: `… node tests/e2e/host/run-t7.mjs --sha 2129b69 --runs 1 --check-confirm --demo --replace-e2e` (the only suite file that differs from the SHA is the runner). Fresh clone `~/cogniate-qa-runs/qa-e2e-r1-2129b69-2026-10-19T08-31-58-985Z`, project `qa-e2e-r1`, port 8543, subnet 172.31.0.0/16. Evidence: `G` = `tests/e2e/artifacts/runs/qa-e2e-r1-2129b69-2026-10-19T08-31-58-985Z/`.
+
+| Check | Result | What QA saw | Evidence |
+| --- | --- | --- | --- |
+| `npm run test:e2e -- --yes` | PASS | Exit 0 in 185 s (`e2e:reset` 42 s). 17 pass, 0 fail, 1 skip (DEMO). No AC-T7-14 label difference, no manual-form difference. Grades in Moodle 3.8 s after each completion. C2: 45 captured values of 9 kinds, 0 in the logs. | `G/run1/tests.json`, `G/run1/evidence/` |
+| B-T7-01 "no" deletes nothing: `npm run e2e:reset` | PASS | In a terminal (pty from `script`, answer typed after the prompt) the command prints the WARNING, asks "Type yes to delete the data and go on …", gets "no", prints "Stopped. Nothing was deleted." and exits 1. Snapshot before and after is the same: 5 containers (same ids and start times), 3 volumes, `seed.json` (same SHA-256), the data folders, the log files. | `G/cmd/07-confirm-no-e2e-reset.log`, `G/summary.json` (`confirm`) |
+| B-T7-01 "no" deletes nothing: `npm run test:e2e` | PASS | The same for `test:e2e`: question, "no", "Stopped. Nothing was deleted.", exit 1, stack unchanged. | `G/cmd/08-confirm-no-test-e2e.log` |
+| `--yes` on a fresh stack | PASS | The first `test:e2e -- --yes` in the new clone did not ask (no terminal, and no stack data yet). The demo pass `e2e:reset -- --yes` deleted and rebuilt the stack. | `G/cmd/06-test-e2e-run1.log`, `G/cmd/09-demo-e2e-reset.log` |
+| AC-T7-15 `demo:prepare` (registration values now through stdin, A-T7-01) | PASS | After `e2e:reset` (44 s): `npm run demo:prepare` exit 0 in 9.0 s ("Demo ready in 8 s"), with the step list and the two activity URLs. Then `cg_student` reached the player with the course package in both activities (DEMO test PASS). | `G/cmd/10-demo-prepare.log`, `G/demo/evidence/` |
+| Teardown | PASS | 0 containers, 0 volumes, 0 networks of `qa-e2e-r1` left. No `build_leftover_removed` event in the collected logs. | `G/cmd/12-stack-down.log` |
+
+The same checks also passed at `63de503` (`tests/e2e/artifacts/runs/qa-e2e-r1-63de503-2026-10-19T03-05-23-440Z/`: `test:e2e` 180 s, both "no" checks, `demo:prepare` 8.2 s).
