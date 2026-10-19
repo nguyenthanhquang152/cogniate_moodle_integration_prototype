@@ -49,11 +49,11 @@ services:
       - ./.certs/stack.key:/certs/stack.key:ro   # leaf key; the CA key is never mounted
     networks:
       default:
-        aliases:
-          - moodle.test
-          - lti.cogniate.test
-          - app.cogniate.test
-          - content.cogniate-content.test
+        aliases:   # the four public host names (infra/scripts/lib.sh exports them; same defaults here, B-T1-10)
+          - ${MOODLE_HOST:-moodle.test}
+          - ${LTI_HOST:-lti.cogniate.test}
+          - ${APP_HOST:-app.cogniate.test}
+          - ${CONTENT_HOST:-content.cogniate-content.test}
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2019/config/"]
       interval: 2s
@@ -131,7 +131,7 @@ services:
       STACK_PROFILE: ${ACTIVE_STACK_PROFILE:-default}   # set by infra/scripts/lib.sh from the saved profile
       # Hosts that may resolve to private addresses (security §9). The acceptance profile adds ",qa-platform.test,evil.test"
       # (ACCEPTANCE_ALLOWLIST_EXTRA, set by infra/scripts/lib.sh from the saved stack profile).
-      OUTBOUND_PRIVATE_HOST_ALLOWLIST: moodle.test${ACCEPTANCE_ALLOWLIST_EXTRA:-}
+      OUTBOUND_PRIVATE_HOST_ALLOWLIST: ${MOODLE_HOST:-moodle.test}${ACCEPTANCE_ALLOWLIST_EXTRA:-}
       <<: *public-urls
     volumes:
       - ../package.json:/repo/package.json:ro
@@ -162,7 +162,7 @@ services:
       STACK_PROFILE: ${ACTIVE_STACK_PROFILE:-default}   # set by infra/scripts/lib.sh from the saved profile
       # Security §9: the app may call the LTI service host (private address behind the proxy); acceptance adds QA hosts.
       # T8 (course shell): the app also calls Moodle web services on the local Moodle host.
-      OUTBOUND_PRIVATE_HOST_ALLOWLIST: lti.cogniate.test,moodle.test${ACCEPTANCE_ALLOWLIST_EXTRA:-}
+      OUTBOUND_PRIVATE_HOST_ALLOWLIST: ${LTI_HOST:-lti.cogniate.test},${MOODLE_HOST:-moodle.test}${ACCEPTANCE_ALLOWLIST_EXTRA:-}
       # T4b1: the LTI service API key of the tool account "cogniate", read at each use (app contract §1).
       LTI_API_KEY_FILE: /run/secrets/app/lti-api-key
       <<: *public-urls

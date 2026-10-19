@@ -27,6 +27,6 @@ echo "Chrome:  $chrome"
 echo "Profile: $profile (delete it any time)"
 print_urls
 exec "$chrome" --user-data-dir="$profile" --no-first-run --no-default-browser-check \
-  --host-resolver-rules="MAP *.test 127.0.0.1, MAP *.cogniate-content.test 127.0.0.1" \
+  --host-resolver-rules="$(printf 'MAP %s 127.0.0.1, ' "${STACK_HOSTS[@]}" | sed 's/, $//')" \
   --ignore-certificate-errors-spki-list="$spki" \
   "$@" "$PUBLIC_MOODLE_URL/login/index.php" "$PUBLIC_APP_URL/healthz"

@@ -19,7 +19,7 @@ set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 
 DIR="$INFRA_DIR/.certs"
-NAMES=(moodle.test lti.cogniate.test app.cogniate.test content.cogniate-content.test)
+NAMES=("${STACK_HOSTS[@]}")   # the four public host names (lib.sh, B-T1-10)
 QA_NAMES=(evil.test qa-platform.test)
 CA_DAYS=365
 LEAF_DAYS=90
