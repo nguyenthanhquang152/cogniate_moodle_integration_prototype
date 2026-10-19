@@ -15,6 +15,7 @@ import { runtimeTokenFor } from './tool-pages/launch-rules.ts';
 import type { TestApp } from './testkit.ts';
 import { INSTRUCTOR, QA_B, TEST_MASTER_KEY, TEST_URLS, THANH, formBody, launchToken, testApp } from './testkit.ts';
 import { createScoreSyncWorker } from './worker/score-sync.ts';
+import { openDb } from './domain/db.ts';
 import { buildContentApp, packageFilePath, parseRange } from './content-host/server.ts';
 
 let t: TestApp;
@@ -353,6 +354,293 @@ async function progress(token: string, event: 'progress' | 'unload', p: { seenPa
 const quietWorker = () => createScoreSyncWorker({ db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: () => undefined }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
 const rowOf = (sub: string) => t.db.prepare('SELECT * FROM score_sync WHERE user_sub = ? ORDER BY created_at DESC, rowid DESC').get(sub)!;
 
+describe('P2 durable score confirmation', () => {
+  const sub = 'p2-recovery';
+  async function uncertainLower() {
+    const w = await world();
+    const worker = quietWorker();
+    const low = await launch(w.platformId, w.scorm, { sub });
+    await commit(low.token, 'finish', cmi({ status: 'failed', raw: '60' }));
+    t.lti.failNext = { status: 504, code: 'PLATFORM_TIMEOUT' };
+    await worker.kick();
+    return { w, worker, lowId: String(rowOf(sub).id) };
+  }
+  async function confirmationPending() {
+    const fixture = await uncertainLower();
+    const high = await launch(fixture.w.platformId, fixture.w.scorm, { sub });
+    await commit(high.token, 'finish', cmi({ status: 'passed', raw: '90' }));
+    await fixture.worker.kick();
+    expect(rowOf(sub)).toMatchObject({ status: 'pending', tries: 1, sent_at: null, confirmation_after: t.clock.now + 5000 });
+    return { ...fixture, high, highId: String(rowOf(sub).id) };
+  }
+  function restartSnapshot() {
+    // A file database carries the state into a fresh connection and worker; no worker memory is reused.
+    const file = join(t.dataDir, 'restart.db');
+    t.db.prepare('VACUUM INTO ?').run(file);
+    const db = openDb(file);
+    const worker = createScoreSyncWorker({ db, lti: t.lti.client,
+      logger: createLogger({ service: 'cogniate-app', write: (line) => t.logs.push(JSON.parse(line)) }),
+      masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
+    return { db, worker };
+  }
+
+  it('reopens a pending confirmation, waits the full five seconds, then sends once', async () => {
+    const { highId, lowId } = await confirmationPending();
+    const { db, worker } = restartSnapshot();
+    try {
+      t.clock.now += 4999;
+      await worker.kick();
+      expect(t.lti.scores.map((s) => s.body.scoreGiven)).toEqual([90]);
+      expect(db.prepare('SELECT status, sent_at FROM score_sync WHERE id = ?').get(highId)).toEqual({ status: 'pending', sent_at: null });
+      t.clock.now += 1;
+      await worker.kick();
+      expect(db.prepare('SELECT status, tries, sent_at FROM score_sync WHERE id = ?').get(highId)).toEqual({ status: 'sent', tries: 2, sent_at: t.clock.now });
+      expect(db.prepare('SELECT status, delivery_uncertain FROM score_sync WHERE id = ?').get(lowId)).toEqual({ status: 'superseded', delivery_uncertain: 0 });
+      t.clock.now += 90_000;
+      await worker.kick();
+      expect(t.lti.scores.map((s) => s.body.scoreGiven)).toEqual([90, 90]);
+    } finally { db.close(); }
+  });
+
+  it('recovers a crash during the lower POST after a better row superseded it', async () => {
+    const w = await world();
+    const worker = quietWorker();
+    const low = await launch(w.platformId, w.scorm, { sub });
+    await commit(low.token, 'finish', cmi({ status: 'failed', raw: '60' }));
+    const lowId = String(rowOf(sub).id);
+    const started = Promise.withResolvers<void>();
+    const timeout = Promise.withResolvers<void>();
+    const original = t.lti.client.postScore;
+    t.lti.client.postScore = async (...args) => {
+      if ((args[2] as { scoreGiven: number }).scoreGiven === 60) {
+        started.resolve();
+        await timeout.promise;
+        throw new LtiServiceError(0, 'LTI_SERVICE_UNREACHABLE', 'No answer.');
+      }
+      return original(...args);
+    };
+    const sending = worker.kick();
+    await started.promise;
+    const high = await launch(w.platformId, w.scorm, { sub });
+    await commit(high.token, 'finish', cmi({ status: 'passed', raw: '90' }));
+    const highId = String(rowOf(sub).id);
+    const recovered = restartSnapshot();
+    try {
+      expect(recovered.db.prepare('SELECT status, tries, delivery_uncertain, send_started_at FROM score_sync WHERE id = ?').get(lowId))
+        .toEqual({ status: 'superseded', tries: 1, delivery_uncertain: 1, send_started_at: null });
+      await recovered.worker.kick();
+      expect(recovered.db.prepare('SELECT status, sent_at FROM score_sync WHERE id = ?').get(highId)).toEqual({ status: 'pending', sent_at: null });
+      t.clock.now += 5000;
+      await recovered.worker.kick();
+      expect(recovered.db.prepare('SELECT status, tries FROM score_sync WHERE id = ?').get(highId)).toEqual({ status: 'sent', tries: 2 });
+    } finally {
+      recovered.db.close();
+      timeout.resolve();
+      await sending;
+    }
+  });
+
+  it('transfers confirmation to a still higher result on a new course version', async () => {
+    const { w, worker, high, highId } = await confirmationPending();
+    const oldVersion = attemptOf(high.token).course_version_id;
+    t.clock.now += 1;
+    await upload(w.thanh, w.scormCourse, [...scormFiles(), { name: 'version.txt', data: '2' }]);
+    await json('POST', '/app-api/publications', w.thanh, { connectionId: w.connectionId, courseId: w.scormCourse });
+    const newer = await launch(w.platformId, w.scorm, { sub });
+    expect(attemptOf(newer.token).course_version_id).not.toBe(oldVersion);
+    await commit(newer.token, 'finish', cmi({ status: 'passed', raw: '100' }));
+    await worker.kick();
+    expect(rowOf(sub)).toMatchObject({ status: 'pending', score_given: 100, sent_at: null });
+    expect(syncs().find((r) => r.id === highId)?.status).toBe('superseded');
+    t.clock.now += 5000;
+    await worker.kick();
+    expect(rowOf(sub)).toMatchObject({ status: 'sent', score_given: 100 });
+    expect(t.lti.scores.map((s) => s.body.scoreGiven)).toEqual([90, 100, 100]);
+  });
+
+  it.each([[409, 'conflict'], [400, 'failed']] as const)('a confirmation %i stays %s with no automatic retry', async (http, status) => {
+    const { worker } = await confirmationPending();
+    t.clock.now += 5000;
+    t.lti.failNext = { status: http, code: http === 409 ? 'PLATFORM_CONFLICT' : 'PLATFORM_REJECTED_REQUEST' };
+    await worker.kick();
+    expect(rowOf(sub)).toMatchObject({ status, tries: 2, sent_at: null, next_try_at: null });
+    const calls = t.lti.calls.length;
+    t.clock.now += 120_000;
+    await worker.kick();
+    expect(t.lti.calls).toHaveLength(calls);
+  });
+
+  it('keeps the confirmation phase and thirty-second retry after a timeout and restart', async () => {
+    const { worker, highId } = await confirmationPending();
+    t.clock.now += 5000;
+    t.lti.failNext = { status: 504, code: 'PLATFORM_TIMEOUT' };
+    await worker.kick();
+    expect(rowOf(sub)).toMatchObject({ status: 'pending', tries: 2, sent_at: null, next_try_at: t.clock.now + 30_000 });
+    const restarted = restartSnapshot();
+    try {
+      t.clock.now += 29_999;
+      await restarted.worker.kick();
+      expect(t.lti.scores.map((s) => s.body.scoreGiven)).toEqual([90]);
+      t.clock.now += 1;
+      await restarted.worker.kick();
+      expect(restarted.db.prepare('SELECT status, tries FROM score_sync WHERE id = ?').get(highId)).toEqual({ status: 'sent', tries: 3 });
+      expect(t.lti.scores.map((s) => s.body.scoreGiven)).toEqual([90, 90]);
+    } finally { restarted.db.close(); }
+  });
+
+  it('does not clear uncertainty when a confirmation is superseded in flight', async () => {
+    const { w, worker, highId } = await confirmationPending();
+    const original = t.lti.client.postScore;
+    const started = Promise.withResolvers<void>();
+    const finish = Promise.withResolvers<void>();
+    t.lti.client.postScore = async (...args) => {
+      if ((args[2] as { scoreGiven: number }).scoreGiven === 90) {
+        started.resolve();
+        await finish.promise;
+      }
+      return original(...args);
+    };
+    t.clock.now += 5000;
+    const confirming = worker.kick();
+    await started.promise;
+    const newer = await launch(w.platformId, w.scorm, { sub });
+    await commit(newer.token, 'finish', cmi({ status: 'passed', raw: '100' }));
+    finish.resolve();
+    await confirming;
+    expect(syncs().find((r) => r.id === highId)?.status).toBe('superseded');
+    await worker.kick();
+    expect(rowOf(sub)).toMatchObject({ status: 'pending', score_given: 100, sent_at: null });
+    t.clock.now += 5000;
+    await worker.kick();
+    expect(rowOf(sub)).toMatchObject({ status: 'sent', score_given: 100 });
+    expect(t.lti.scores.map((s) => s.body.scoreGiven)).toEqual([90, 90, 100, 100]);
+  });
+
+  it.each(['timeout', 'already expired'])('ends the original retry window on %s without claiming sent', async (mode) => {
+    const { worker } = await confirmationPending();
+    t.clock.now = Number(rowOf(sub).created_at) + 24 * 3_600_000 + (mode === 'timeout' ? -1000 : 1);
+    t.lti.failNext = { status: 504, code: 'PLATFORM_TIMEOUT' };
+    await worker.kick();
+    expect(rowOf(sub)).toMatchObject({ status: 'failed', sent_at: null, next_try_at: null, tries: mode === 'timeout' ? 2 : 1 });
+    const calls = t.lti.calls.length;
+    await worker.kick();
+    expect(t.lti.calls).toHaveLength(calls);
+  });
+
+  it('retains earlier uncertainty after an ordinary retry succeeds', async () => {
+    const { w, worker, lowId } = await uncertainLower();
+    t.clock.now += 5000;
+    await worker.kick();
+    expect(rowOf(sub)).toMatchObject({ status: 'sent', delivery_uncertain: 1 });
+    const high = await launch(w.platformId, w.scorm, { sub });
+    await commit(high.token, 'finish', cmi({ status: 'passed', raw: '90' }));
+    await worker.kick();
+    expect(rowOf(sub)).toMatchObject({ status: 'pending', sent_at: null });
+    t.clock.now += 5000;
+    await worker.kick();
+    expect(rowOf(sub).status).toBe('sent');
+    expect(syncs().find((r) => r.id === lowId)?.delivery_uncertain).toBe(0);
+  });
+
+  it('recovers an interrupted confirmation with its retry count and phase', async () => {
+    const { worker, highId } = await confirmationPending();
+    t.clock.now += 5000;
+    const original = t.lti.client.postScore;
+    const started = Promise.withResolvers<void>();
+    const finish = Promise.withResolvers<void>();
+    t.lti.client.postScore = async (...args) => {
+      started.resolve();
+      await finish.promise;
+      return original(...args);
+    };
+    const interrupted = worker.kick();
+    await started.promise;
+    const restarted = restartSnapshot();
+    finish.resolve();
+    await interrupted;
+    try {
+      expect(restarted.db.prepare('SELECT status, tries, sent_at, next_try_at, delivery_uncertain FROM score_sync WHERE id = ?').get(highId))
+        .toEqual({ status: 'pending', tries: 2, sent_at: null, next_try_at: t.clock.now + 30_000, delivery_uncertain: 1 });
+      await restarted.worker.kick();
+      t.clock.now += 30_000;
+      await restarted.worker.kick();
+      expect(restarted.db.prepare('SELECT status, tries FROM score_sync WHERE id = ?').get(highId)).toEqual({ status: 'sent', tries: 3 });
+      expect(t.logs).toContainEqual(expect.objectContaining({ event: 'score_sync', sync_id: highId, status: 'sent', phase: 'confirmation', tries: 3 }));
+    } finally { restarted.db.close(); }
+  });
+
+  it('fails when the first accepted higher score leaves no time for confirmation', async () => {
+    const { w, worker } = await uncertainLower();
+    const high = await launch(w.platformId, w.scorm, { sub });
+    await commit(high.token, 'finish', cmi({ status: 'passed', raw: '90' }));
+    t.clock.now += 24 * 3_600_000 - 4000;
+    await worker.kick();
+    expect(rowOf(sub)).toMatchObject({ status: 'failed', tries: 1, sent_at: null, next_try_at: null,
+      last_error: 'The score confirmation could not finish within the retry window.' });
+  });
+
+  it.each(['batch', 'lookup'])('does not send a stale lower row after an awaited %s operation', async (mode) => {
+    const w = await world();
+    const worker = quietWorker();
+    const started = Promise.withResolvers<void>();
+    const finish = Promise.withResolvers<void>();
+    if (mode === 'batch') {
+      const blocker = await launch(w.platformId, w.scorm, { sub: 'other-learner' });
+      await commit(blocker.token, 'finish', cmi({ status: 'passed', raw: '100' }));
+      const original = t.lti.client.postScore;
+      t.lti.client.postScore = async (...args) => {
+        if ((args[2] as { userId: string }).userId === 'other-learner') {
+          started.resolve();
+          await finish.promise;
+        }
+        return original(...args);
+      };
+      t.clock.now += 1;
+    }
+    const low = await launch(w.platformId, w.scorm, { sub });
+    await commit(low.token, 'finish', cmi({ status: 'failed', raw: '60' }));
+    const lowId = String(rowOf(sub).id);
+    if (mode === 'lookup') {
+      t.db.prepare('UPDATE resource_link SET line_item_id = NULL').run();
+      t.lti.client.findLineItems = async () => {
+        started.resolve();
+        await finish.promise;
+        return [{ id: `${TEST_URLS.moodle}/lineitems/7/lineitem` }];
+      };
+    }
+    const draining = worker.kick();
+    await started.promise;
+    const high = await launch(w.platformId, w.scorm, { sub });
+    await commit(high.token, 'finish', cmi({ status: 'passed', raw: '90' }));
+    finish.resolve();
+    await draining;
+    await worker.kick();
+    expect(syncs().find((r) => r.id === lowId)).toMatchObject({ status: 'superseded', tries: 0 });
+    expect(t.lti.scores.filter((s) => s.body.userId === sub).map((s) => s.body.scoreGiven)).toEqual([90]);
+    expect(rowOf(sub)).toMatchObject({ status: 'sent', tries: 1 });
+  });
+
+  it('isolates uncertainty by learner, activity and tenant', async () => {
+    const { w, worker, lowId } = await uncertainLower();
+    const otherUser = await launch(w.platformId, w.scorm, { sub: 'another-user' });
+    const otherActivity = await launch(w.platformId, w.scorm, { sub, resourceLinkId: 'another-activity' });
+    const qaB = await t.login(QA_B);
+    const connection = (await json('POST', '/app-api/connections', qaB, { name: 'B', siteUrl: TEST_URLS.moodle, method: 'manual' })).json();
+    const platform = (await json('PUT', `/app-api/connections/${connection.id}/platform`, qaB, {
+      issuer: TEST_URLS.moodle, clientId: 'other-tenant', deploymentId: '1', authenticationEndpoint: `${TEST_URLS.moodle}/a`,
+      accessTokenEndpoint: `${TEST_URLS.moodle}/t`, jwksUrl: `${TEST_URLS.moodle}/k`,
+    })).json().platform.id as string;
+    const otherCourse = await course(qaB, 'Other tenant course', scormFiles());
+    const publication = (await json('POST', '/app-api/publications', qaB, { connectionId: connection.id, courseId: otherCourse })).json().id as string;
+    const otherTenant = await launch(platform, publication, { sub });
+    for (const target of [otherUser, otherActivity, otherTenant]) await commit(target.token, 'finish', cmi({ status: 'passed', raw: '90' }));
+    await worker.kick();
+    expect(syncs().filter((r) => r.id !== lowId).map((r) => [r.status, r.tries, r.confirmation_after]))
+      .toEqual([['sent', 1, null], ['sent', 1, null], ['sent', 1, null]]);
+    expect(syncs().find((r) => r.id === lowId)?.delivery_uncertain).toBe(1);
+  });
+});
+
 describe('HTML runtime on the server (app contract §7, §9; T5b)', () => {
   it('RuntimeState has the profile; progress commits: menu only -> in_progress; all pages + correct answer -> passed 100 (AC-T5-09, -11)', async () => {
     const w = await world();
@@ -464,9 +752,78 @@ describe('score sync: retry, outage order, conflict, Resend, refresh (ADR-010 ru
     await worker.kick();
     t.clock.now += 5000;
     await worker.kick();
-    expect(attempted).toEqual([60, 80]);
-    expect(t.lti.scores.map((s) => s.body.scoreGiven)).toEqual([80]);
+    expect(attempted).toEqual([60, 80, 80]);
+    expect(t.lti.scores.map((s) => s.body.scoreGiven)).toEqual([80, 80]);
     expect(rowOf('29').status).toBe('sent');
+  });
+
+  it.each([null, 50])('P2: late remote writes survive two timeouts; recover the best score with teacher override %s', async (override) => {
+    const w = await world();
+    const low = await launch(w.platformId, w.scorm, { sub: 'p2-late' });
+    await commit(low.token, 'finish', cmi({ status: 'failed', raw: '60' }));
+    const lowId = String(rowOf('p2-late').id);
+    const attempts: number[] = [];
+    const lateWrites: Array<() => void> = [];
+    let remoteGrade: number | null = null;
+    const secondStarted = Promise.withResolvers<void>();
+    const secondTimeout = Promise.withResolvers<void>();
+    t.lti.client.postScore = async (_serviceKey, _lineItemId, body) => {
+      const score = (body as { scoreGiven: number }).scoreGiven;
+      attempts.push(score);
+      const apply = () => { remoteGrade = override ?? score; };
+      if (score === 60) {
+        // Cancelling the client request does not cancel Moodle's queued write.
+        // On recovery both old requests can pass the timestamp check before 90 is stored.
+        lateWrites.push(apply);
+        if (lateWrites.length === 2) {
+          secondStarted.resolve();
+          await secondTimeout.promise;
+          t.clock.now += 3000;
+        } else {
+          t.clock.now += 5000;
+        }
+        throw new LtiServiceError(0, 'LTI_SERVICE_UNREACHABLE', 'The LTI service did not answer.');
+      }
+      apply();
+    };
+    const logs: LogLine[] = [];
+    const worker = createScoreSyncWorker({ db: t.db, lti: t.lti.client,
+      logger: createLogger({ service: 'cogniate-app', write: (line) => logs.push(JSON.parse(line)) }),
+      masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
+    await worker.kick();
+    expect(rowOf('p2-late')).toMatchObject({ status: 'pending', tries: 1 });
+    t.clock.now += 5000;
+    const second = worker.kick();
+    await secondStarted.promise;
+    t.clock.now += 2000; // QA: the better result arrives 7 s after the first timeout.
+    const high = await launch(w.platformId, w.scorm, { sub: 'p2-late' });
+    await commit(high.token, 'finish', cmi({ status: 'passed', raw: '90' }));
+    expect(syncs().find((r) => r.id === lowId)?.status).toBe('superseded');
+    secondTimeout.resolve();
+    await second;
+    await worker.kick();
+    expect(remoteGrade).toBe(override ?? 90);
+    expect(rowOf('p2-late')).toMatchObject({ status: 'pending', sent_at: null, tries: 1, confirmation_after: t.clock.now + 5000 });
+    // Moodle completes the older writes after it acknowledges the higher write.
+    for (const apply of lateWrites) apply();
+    expect(remoteGrade).toBe(override ?? 60);
+    for (let i = 0; i < 20; i++) {
+      t.clock.now += 5000;
+      await worker.kick();
+    }
+    expect(remoteGrade).toBe(override ?? 90);
+    expect(rowOf('p2-late').status).toBe('sent');
+    expect(attempts.filter((score) => score === 90)).toEqual([90, 90]);
+    expect(syncs().find((r) => r.id === lowId)).toMatchObject({ status: 'superseded', next_try_at: null });
+    expect(attempts.filter((score) => score === 60)).toEqual([60, 60]);
+    expect(logs.filter((line) => line.event === 'score_sync' && line.sync_id === lowId)).toEqual([
+      expect.objectContaining({ status: 'pending', tries: 1 }),
+      expect.objectContaining({ status: 'superseded', send_result: 'pending', tries: 2 }),
+    ]);
+    expect(logs.filter((line) => line.event === 'score_sync' && line.sync_id !== lowId)).toEqual([
+      expect.objectContaining({ status: 'pending', send_result: 'sent', phase: 'send', tries: 1 }),
+      expect.objectContaining({ status: 'sent', phase: 'confirmation', tries: 2 }),
+    ]);
   });
 
   it('AC-T5-14 / -30: a send that fails is retried; during an outage a later forged 0 makes no row; after the outage 100 is sent', async () => {
@@ -603,10 +960,15 @@ describe('A-T5a-01 / -02 / -06: ordering, cookies, worker errors', () => {
     const a = await launch(w.platformId, w.scorm, { sub: '60' });
     await commit(a.token, 'finish', cmi({ status: 'passed', raw: '100' }));
     t.db.prepare("UPDATE resource_link SET service_key_encrypted = X'00112233'").run();
-    const worker = quietWorker();
+    const logs: LogLine[] = [];
+    const worker = createScoreSyncWorker({ db: t.db, lti: t.lti.client,
+      logger: createLogger({ service: 'cogniate-app', write: (line) => logs.push(JSON.parse(line)) }),
+      masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
     await worker.kick();
     await worker.kick();
-    expect([rowOf('60').status, rowOf('60').tries, String(rowOf('60').last_error)]).toEqual(['failed', 1, expect.stringContaining('Internal error')]);
+    expect([rowOf('60').status, rowOf('60').tries, String(rowOf('60').last_error)]).toEqual(['failed', 0, expect.stringContaining('Internal error')]); // no score POST
+    expect(logs.filter((line) => line.event === 'score_sync')).toEqual([]);
+    expect(t.lti.scores).toEqual([]);
   });
 });
 

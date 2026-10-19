@@ -10,7 +10,7 @@ import type { LtiClient } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import type { Db } from '../domain/db.ts';
 import type { DueSync } from '../domain/score-syncs.ts';
-import { dueSyncs, recordSend } from '../domain/score-syncs.ts';
+import { beginSend, dueSyncs, isCurrentSync, recordSend, recoverInterruptedSends } from '../domain/score-syncs.ts';
 import { resolveLineItem } from './line-item.ts';
 
 export interface ScoreSyncWorkerDeps {
@@ -36,22 +36,33 @@ export function createScoreSyncWorker(deps: ScoreSyncWorkerDeps) {
   let running: Promise<void> | null = null;
   let again = false;
   let timer: NodeJS.Timeout | null = null;
+  recoverInterruptedSends(db, now());
 
   async function send(row: DueSync): Promise<void> {
+    if (!isCurrentSync(db, row.id)) return;
     const traceId = randomBytes(16).toString('hex');
-    const tries = row.tries + 1;
+    const phase = row.confirmationAfter === null ? 'send' : 'confirmation';
+    let posted = false;
+    let uncertain = false;
     let answer: SendAnswer;
     let lastError: string | null = null;
+    if (now() > row.retryFrom + 24 * 3_600_000) {
+      recordSend(db, row, { status: 'failed', nextTryAt: null, uncertain: false, lastError: 'The score retry window has ended.' }, now());
+      return;
+    }
     try {
       if (row.serviceKeyEncrypted === null) throw new NoGradebookColumn();
       const serviceKey = decrypt(masterKey, row.serviceKeyEncrypted);
       const lineItemId = await resolveLineItem({ db, lti }, row, serviceKey, traceId);
       if (lineItemId === null) throw new NoGradebookColumn();
+      if (!beginSend(db, row.id, now())) return;
+      posted = true;
       await lti.postScore(serviceKey, lineItemId, row.payload, traceId);
       answer = { http: 204 };
     } catch (err) {
       if (err instanceof LtiServiceError) {
         answer = { http: err.status };
+        uncertain = posted && (err.status === 0 || err.status >= 500);
         lastError = err.status === 409 ? `${errorText(err)} (Moodle has a grade with a newer time)`.slice(0, 300) : errorText(err);
       } else if (err instanceof NoGradebookColumn) {
         answer = { local: 'no_gradebook_column' };
@@ -66,12 +77,11 @@ export function createScoreSyncWorker(deps: ScoreSyncWorkerDeps) {
       }
     }
     // The grade policy decides the row status and the next try (packages/tracking, ADR-010 rules 8 and 9).
-    const result = syncResult(answer, tries, row.retryFrom, now());
-    if (recordSend(db, row.id, { status: result.status, tries, nextTryAt: result.nextTryAt, lastError: result.status === 'sent' ? null : lastError }, now())) {
-      log.info('score_sync', { trace_id: traceId, sync_id: row.id, status: result.status, tries });
-    } else {
-      log.info('score_sync', { trace_id: traceId, sync_id: row.id, status: 'superseded', send_result: result.status, tries });
-    }
+    const tries = row.tries + (posted ? 1 : 0);
+    const result = syncResult(answer, Math.max(1, tries), row.retryFrom, now());
+    const status = recordSend(db, row, { status: result.status, nextTryAt: result.nextTryAt, lastError: result.status === 'sent' ? null : lastError, uncertain }, now());
+    if (posted) log.info('score_sync', { trace_id: traceId, sync_id: row.id, status, tries, phase,
+      ...(status !== result.status ? { send_result: result.status } : {}) });
   }
 
   async function drain(): Promise<void> {

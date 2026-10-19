@@ -1,8 +1,9 @@
 // Score sync rows (app contract §10, ADR-010) for the worker. The rows are made by the commit transaction in
 // attempts.ts (best-result rule); this repository only reads the due rows and records each send.
 import type { SyncRow, SyncStatus } from '@cogniate/tracking';
-import { resendDecision } from '@cogniate/tracking';
+import { resendDecision, syncResult } from '@cogniate/tracking';
 import type { Db } from './db.ts';
+import { transaction } from './db.ts';
 
 export interface DueSync {
   id: string;
@@ -13,6 +14,7 @@ export interface DueSync {
   createdAt: number;
   /** Start of the 24 h retry window: the resend time of a resent row, else createdAt. */
   retryFrom: number;
+  confirmationAfter: number | null;
   /** Moodle's resource link id (for the line item lookup). */
   platformResourceLinkId: string;
   lineItemId: string | null;
@@ -21,19 +23,83 @@ export interface DueSync {
 
 /** Pending rows whose next try is due, oldest first. */
 export function dueSyncs(db: Db, now: number, limit: number): DueSync[] {
-  return db.prepare(`SELECT s.id, s.resource_link_id, s.user_sub, s.payload, s.tries, s.created_at, s.resent_at, rl.resource_link_id AS platform_rl, rl.line_item_id,
+  return db.prepare(`SELECT s.id, s.resource_link_id, s.user_sub, s.payload, s.tries, s.created_at, s.resent_at, s.confirmation_after, rl.resource_link_id AS platform_rl, rl.line_item_id,
       rl.service_key_encrypted FROM score_sync s JOIN resource_link rl ON rl.id = s.resource_link_id
     WHERE s.status = 'pending' AND s.next_try_at <= ? ORDER BY s.next_try_at, s.created_at LIMIT ?`).all(now, limit).map((r) => ({
     id: String(r.id), resourceLinkId: String(r.resource_link_id), userSub: String(r.user_sub), payload: JSON.parse(String(r.payload)) as Record<string, unknown>,
     tries: Number(r.tries), createdAt: Number(r.created_at), retryFrom: r.resent_at === null ? Number(r.created_at) : Number(r.resent_at), platformResourceLinkId: String(r.platform_rl),
+    confirmationAfter: r.confirmation_after === null ? null : Number(r.confirmation_after),
     lineItemId: r.line_item_id === null ? null : String(r.line_item_id), serviceKeyEncrypted: r.service_key_encrypted === null ? null : (r.service_key_encrypted as Uint8Array),
   }));
 }
 
-/** Record a send only while still pending: a better score may have superseded this row during the request. */
-export function recordSend(db: Db, id: string, r: { status: SyncStatus; tries: number; nextTryAt: number | null; lastError: string | null }, now: number): boolean {
-  return db.prepare(`UPDATE score_sync SET status = ?, tries = ?, next_try_at = ?, last_error = ?, sent_at = CASE WHEN ? = 'sent' THEN ? ELSE sent_at END,
-    updated_at = ? WHERE id = ? AND status = 'pending'`).run(r.status, r.tries, r.status === 'pending' ? r.nextTryAt : null, r.lastError, r.status, now, now, id).changes > 0;
+/** Recheck after every await: a due-row snapshot may already be superseded. */
+export function isCurrentSync(db: Db, id: string): boolean {
+  return db.prepare(`SELECT s.id FROM score_sync s WHERE s.id = ? AND s.status = 'pending'
+    AND NOT EXISTS (SELECT 1 FROM score_sync other WHERE other.resource_link_id = s.resource_link_id AND other.user_sub = s.user_sub
+      AND other.status <> 'superseded' AND other.score_given / other.score_maximum > s.score_given / s.score_maximum)
+    AND NOT EXISTS (SELECT 1 FROM attempt a WHERE a.resource_link_id = s.resource_link_id AND a.user_sub = s.user_sub AND a.preview = 0
+      AND a.outcome IN ('completed', 'passed', 'failed') AND a.score_given / a.score_maximum > s.score_given / s.score_maximum)`).get(id) !== undefined;
+}
+
+/** Uncertainty stays on its source row until an accepted confirmation covers it, even after an ordinary 204.
+ * This also transfers the requirement across versions and further supersessions without copying flags between rows.
+ */
+function needsConfirmation(db: Db, id: string): boolean {
+  return db.prepare(`SELECT s.id FROM score_sync s JOIN score_sync old ON old.resource_link_id = s.resource_link_id AND old.user_sub = s.user_sub
+    WHERE s.id = ? AND old.delivery_uncertain = 1 AND old.score_given / old.score_maximum < s.score_given / s.score_maximum LIMIT 1`).get(id) !== undefined;
+}
+
+/** Durable before the POST: an unresolved marker on startup means delivery is uncertain. */
+export function beginSend(db: Db, id: string, now: number): boolean {
+  if (!isCurrentSync(db, id)) return false;
+  return db.prepare(`UPDATE score_sync SET send_started_at = ?, tries = tries + 1, updated_at = ?
+    WHERE id = ? AND status = 'pending' AND send_started_at IS NULL AND next_try_at <= ?
+      AND COALESCE(resent_at, created_at) + 86400000 >= ?`).run(now, now, id, now, now).changes > 0;
+}
+
+/** Startup only. An interrupted confirmation keeps its phase and its original retry window. */
+export function recoverInterruptedSends(db: Db, now: number): void {
+  transaction(db, () => {
+    for (const row of db.prepare('SELECT id, status, tries, created_at, resent_at FROM score_sync WHERE send_started_at IS NOT NULL').all()) {
+      db.prepare('UPDATE score_sync SET delivery_uncertain = 1, send_started_at = NULL WHERE id = ?').run(String(row.id));
+      if (row.status !== 'pending') continue;
+      const result = syncResult({ http: 0 }, Number(row.tries), Number(row.resent_at ?? row.created_at), now);
+      db.prepare('UPDATE score_sync SET status = ?, next_try_at = ?, last_error = ?, updated_at = ? WHERE id = ?')
+        .run(result.status, result.nextTryAt, 'The score send was interrupted. Moodle may have received it.', now, String(row.id));
+    }
+  });
+}
+
+/** Record the persisted status, including the bounded confirmation policy (ADR-010 rule 5). */
+export function recordSend(db: Db, row: DueSync, r: { status: SyncStatus; nextTryAt: number | null; lastError: string | null; uncertain: boolean }, now: number): SyncStatus {
+  return transaction(db, () => {
+    db.prepare(`UPDATE score_sync SET send_started_at = NULL, delivery_uncertain = MAX(delivery_uncertain, ?) WHERE id = ?`)
+      .run(r.uncertain ? 1 : 0, row.id);
+    if (!isCurrentSync(db, row.id)) {
+      db.prepare("UPDATE score_sync SET status = 'superseded', next_try_at = NULL, updated_at = ? WHERE id = ? AND status = 'pending'").run(now, row.id);
+      return db.prepare('SELECT status FROM score_sync WHERE id = ?').get(row.id)!.status as SyncStatus;
+    }
+    let { status, nextTryAt, lastError } = r;
+    if (status === 'sent' && row.confirmationAfter === null && needsConfirmation(db, row.id)) {
+      nextTryAt = now + 5000;
+      if (nextTryAt > row.retryFrom + 24 * 3_600_000) {
+        status = 'failed';
+        lastError = 'The score confirmation could not finish within the retry window.';
+      } else {
+        status = 'pending';
+        db.prepare('UPDATE score_sync SET confirmation_after = ? WHERE id = ?').run(nextTryAt, row.id);
+      }
+    } else if (status === 'sent' && row.confirmationAfter !== null) {
+      // Only a successful confirmation consumes uncertainty. An ordinary successful retry cannot do this.
+      db.prepare(`UPDATE score_sync SET delivery_uncertain = 0 WHERE resource_link_id = ? AND user_sub = ?
+        AND score_given / score_maximum <= (SELECT score_given / score_maximum FROM score_sync WHERE id = ?)`)
+        .run(row.resourceLinkId, row.userSub, row.id);
+    }
+    db.prepare(`UPDATE score_sync SET status = ?, next_try_at = ?, last_error = ?, sent_at = CASE WHEN ? = 'sent' THEN ? ELSE sent_at END,
+      updated_at = ? WHERE id = ?`).run(status, status === 'pending' ? nextTryAt : null, status === 'sent' ? null : lastError, status, now, now, row.id);
+    return status;
+  });
 }
 
 /** ADR-010 rule 1: keep the line item found by the lookup for later rows of the same activity. */
@@ -72,7 +138,8 @@ export function resendSync(db: Db, libraryId: string, syncId: string, now: numbe
         : 'An equal result of this learner is already sent or pending.';
     return { ok: false, reason: 'not_resendable', description };
   }
-  db.prepare(`UPDATE score_sync SET status = 'pending', tries = 0, next_try_at = ?, last_error = NULL, resent_at = ?, updated_at = ? WHERE id = ?`).run(now, now, now, syncId);
+  db.prepare(`UPDATE score_sync SET status = 'pending', tries = 0, next_try_at = ?, last_error = NULL, resent_at = ?, updated_at = ?,
+    confirmation_after = NULL WHERE id = ?`).run(now, now, now, syncId);
   return { ok: true };
 }
 
