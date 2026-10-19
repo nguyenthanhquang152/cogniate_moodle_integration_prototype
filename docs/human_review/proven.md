@@ -1,6 +1,6 @@
 # Proven / not proven
 
-Source: commit `4182c80`, 2026-10-19.
+Source: commit `533141e`, 2026-10-19.
 
 Each row is one claim. **Proven by QA** means that an independent QA agent tested it from the acceptance criteria, and the test passed. The id points to a row in `docs/reviews/<task>/qa.md`. Time to read: 5 minutes.
 
@@ -22,7 +22,7 @@ Each row is one claim. **Proven by QA** means that an independent QA agent teste
 | Grades | The score reaches the Moodle gradebook in 3.3 to 3.9 seconds (limit 60 s). No Moodle cron is needed. | AC-T7-04, AC-T7-05 |
 | Grades | In tested sequential retakes, a lower result did not lower Moodle’s grade. A teacher override stayed. Late delivery remains limited (P2). | AC-T5-12, AC-T5-23, AC-T5-33 |
 | Grades | If Moodle is down, the score waits and arrives after Moodle comes back. A grade conflict shows in the portal, with "Resend". | AC-T5-14, AC-T5-31, AC-T5-32 |
-| Portal | The portal (dev-portal style) has Integrations, the Connect wizard with live status, the manual form, upload progress, Publish, and Results with "Resend". No request leaves the app site. No serious accessibility error. | AC-T6-01 to AC-T6-14 |
+| Portal | The portal (dev-portal style) has Integrations, the Connect wizard with live status, the manual form, upload progress, Publish, and Results with "Resend". No request leaves the app site. Five tested surfaces had no serious or critical axe issue. | AC-T6-01 to AC-T6-14 |
 | Portal | The Results page shows "Passed 100" and "Sent". "Refresh from Moodle" shows the Moodle gradebook values. | AC-T7-06, AC-T6-08, AC-T5-18 |
 | Security | Replayed, forged, expired, tampered or changed launches are refused. | AC-T2-09 to AC-T2-11, AC-T2-20 to AC-T2-27, AC-T7-10 |
 | Security | No token or key is in the logs. Each fresh run found 0 of 45 captured values of 9 kinds. The earlier validation run found 0 of 48 values. | AC-T7-10, [T7 qa.md §6](../reviews/T7/qa.md#6-suite-changes-after-the-reviews-round-1-addendum), AC-T2-30, AC-T5-19 |

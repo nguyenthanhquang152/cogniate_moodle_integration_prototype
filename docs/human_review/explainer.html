@@ -199,7 +199,7 @@
   "meta": {
     "title": "Cogniate × Moodle prototype",
     "subtitle": "Publish Cogniate courses (SCORM 1.2 and HTML) to Moodle with LTI 1.3.",
-    "source": "4182c80",
+    "source": "533141e",
     "date": "2026-10-19",
     "draft": "Verified scope · Open decisions",
     "resultsNote": "Three fresh T7 runs passed at c5683f8 after the grade repair. Full T5a/T5b/T6 regression passed at d54c607d: 49 ACs and 65 tests. P2 remote ordering and recovery of unrecorded sends from before the upgrade remain limited.",
@@ -921,7 +921,7 @@
       "evidence": "docs/reviews/T7/qa.md §10 (c5683f8)"
     },
     {
-      "claim": "Portal (task T6): Integrations, Connect wizard with live status, manual form, upload progress, Publish, Results with Resend. No request leaves the app site. No serious accessibility error.",
+      "claim": "Portal (task T6): Integrations, Connect wizard with live status, manual form, upload progress, Publish, Results with Resend. No request leaves the app site. Five tested surfaces had no serious or critical axe issue.",
       "status": "qa",
       "ids": [
         "AC-T6-01 to AC-T6-14"
@@ -1089,6 +1089,30 @@
         "P11 live scope"
       ],
       "evidence": "docs/reviews/T5b/qa.md"
+    },
+    {
+      "claim": "The full 24-hour score retry window remains unverified by live QA.",
+      "status": "not",
+      "ids": [
+        "T5b live retry-window scope"
+      ],
+      "evidence": "docs/reviews/T5b/qa.md (final regression, d54c607d)"
+    },
+    {
+      "claim": "T6 covers Chromium at 1440 pixels only. Expired, disconnected and server-error card states lack independent setup.",
+      "status": "not",
+      "ids": [
+        "T6 viewport and card-state scope"
+      ],
+      "evidence": "docs/reviews/T6/qa.md (final regression, d54c607d)"
+    },
+    {
+      "claim": "Accessibility outside the five scanned portal surfaces remains unverified. The scans checked serious and critical axe issues only.",
+      "status": "not",
+      "ids": [
+        "AC-T6-09 scope"
+      ],
+      "evidence": "docs/reviews/T6/qa.md (final regression, d54c607d)"
     }
   ],
   "decisionGroups": [
