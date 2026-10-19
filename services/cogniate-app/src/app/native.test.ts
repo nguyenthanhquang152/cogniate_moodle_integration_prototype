@@ -231,11 +231,17 @@ describe('A-T8-01: the host runner never follows a symlink and never reads a spe
     writeFileSync(good, gzipSync(Buffer.from('a real backup body')));
     const ok = runQueue(['publish', good, join(dir, 'out3.mbz')]);
     expect([ok.status, JSON.parse(ok.stdout).bytes > 0]).toEqual([0, true]);
+    // Exclusive create: an existing (or planted) target is never overwritten. A-T8-04: the refusal is ONE readable
+    // line (the runner puts it into the build's reason and its build_failed log line), never a stack trace.
+    const exists = 'out/ already has a file for this build; it is never overwritten';
     const again = runQueue(['publish', good, join(dir, 'out3.mbz')]);
-    expect(again.status).toBe(1); // exclusive create: an existing (or planted) target is never overwritten
+    expect([again.status, again.stderr]).toEqual([1, `${exists}\n`]);
     symlinkSync(hostFile, join(dir, 'planted.mbz'));
-    expect(runQueue(['publish', good, join(dir, 'planted.mbz')]).status).toBe(1);
+    const planted = runQueue(['publish', good, join(dir, 'planted.mbz')]);
+    expect([planted.status, planted.stderr]).toEqual([1, `${exists}\n`]);
     expect(readFileSync(hostFile).length).toBeGreaterThan(0); // the host file is untouched
+    const noDir = runQueue(['publish', good, join(dir, 'missing-dir', 'out4.mbz')]);
+    expect([noDir.status, noDir.stderr]).toEqual([1, 'backup cannot be copied into out/ (ENOENT)\n']);
   });
 });
 
@@ -283,5 +289,23 @@ describe('B-T8-01 / B-T8-02: interrupted builds, runner heartbeat, per-library l
     const qaB = await t.login(QA_B);
     const vb = await version(qaB, scorm, 'B lib');
     expect((await json('POST', `/app-api/courses/${vb.course}/versions/${vb.version}/mbz`, qaB)).statusCode).toBe(202);
+  });
+
+  it('A-T8-04: timed-out builds of OTHER versions do not count for the limit; a held build that the runner updates still counts', async () => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const vs = [await version(cookie, scorm, 'A'), await version(cookie, scorm, 'B'), await version(cookie, scorm, 'C'), await version(cookie, scorm, 'D')];
+    const mbz = (v: { course: string; version: string }) => `/app-api/courses/${v.course}/versions/${v.version}/mbz`;
+    expect((await json('POST', mbz(vs[0]!), cookie)).statusCode).toBe(202); // the runner is down: A is never taken
+    const b = (await json('POST', mbz(vs[1]!), cookie)).json().buildId as string;
+    t.clock.now += 11 * 60_000;
+    // B is held (BUILD_RUNNER_HOLD): the runner rewrites its status every 30 s, so B is not timed out.
+    writeFileSync(join(queueDir(t.dataDir), 'status', `${b}.json`), JSON.stringify({ status: 'running', step: 'copy', holdFile: `hold/${b}`, updatedAt: new Date(t.clock.now).toISOString() }));
+    // Nobody opened A or B: the POST for C applies the time-out to them first (A failed, B still running).
+    expect((await json('POST', mbz(vs[2]!), cookie)).statusCode).toBe(202);
+    expect((await json('GET', mbz(vs[0]!), cookie)).json()).toMatchObject({ status: 'failed', reason: expect.stringContaining('did not take this build in 10 min') });
+    expect((await json('GET', mbz(vs[1]!), cookie)).json()).toMatchObject({ status: 'running', step: 'copy' });
+    const d = await json('POST', mbz(vs[3]!), cookie); // B (held) + C (new) = 2 active
+    expect([d.statusCode, d.json().details.message]).toEqual([409, 'MBZ_BUILD_LIMIT']);
   });
 });

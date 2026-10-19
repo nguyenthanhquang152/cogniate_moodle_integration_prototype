@@ -11,7 +11,8 @@ source "$(dirname "$0")/lib.sh"
 require_docker
 require_own_project   # A-T1-09: never delete another checkout's stack
 stop_build_runner
-# B-T8-01: interrupted builds leave cogniate-build-* containers, volumes and networks; remove them too.
+# B-T8-01: interrupted builds leave cogniate-build-* containers, volumes and networks; remove them too (only this
+# stack's: label org.cogniate.stack=$COMPOSE_PROJECT_NAME; other stacks on this Docker host keep their builds).
 bash "$INFRA_DIR/scripts/build-runner.sh" sweep >/dev/null 2>&1 || true
 if [[ -f "$ENV_FILE" ]]; then
   dc --profile test --profile acceptance down -v --remove-orphans

@@ -186,11 +186,17 @@ export async function cellUnder(row: Locator, header: RegExp): Promise<string> {
   }, header.source);
 }
 
-/** A results row: the learner label "Learner <sub> …" and the exact activity title. */
-export function resultsRow(page: Page, sub: string | number, activityTitle: string): Locator {
-  const esc = activityTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/**
+ * A results row: the learner label "Learner <sub> …" and the exact activity title. The Results view shows the activity
+ * title and, right after it, the Moodle course (`activity.contextTitle`, contract §5), with no space in the text
+ * content. With `contextTitle`, the row must have "<title><contextTitle>" (spaces optional), so "Cogniate SCORM" does
+ * not match "Cogniate SCORM AC-T5-30".
+ */
+export function resultsRow(page: Page, sub: string | number, activityTitle: string, contextTitle?: string): Locator {
+  const esc = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const title = contextTitle ? `${esc(activityTitle)}\\s*${esc(contextTitle)}` : `${esc(activityTitle)}(?![\\w-]|\\s+(AC-|rebind|\\d))`;
   return page
     .locator('tr, [role="row"]')
     .filter({ hasText: new RegExp(`Learner ${sub}\\b`) })
-    .filter({ hasText: new RegExp(`${esc}(?![\\w-]|\\s+(AC-|rebind|\\d))`) });
+    .filter({ hasText: new RegExp(title) });
 }

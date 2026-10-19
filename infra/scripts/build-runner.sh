@@ -14,7 +14,8 @@
 # Robustness (B-T8-01, B-T8-02):
 #  - TERM/INT during a build (stack:down, Ctrl+C): the build project is torn down and the build is marked failed.
 #  - At start (and `sweep`, used by stack:reset): interrupted builds are marked failed, their work folders are
-#    removed, and every leftover cogniate-build-* container, volume and network is removed.
+#    removed, and the leftover cogniate-build-* containers, volumes and networks OF THIS STACK are removed (label
+#    org.cogniate.stack=<COMPOSE_PROJECT_NAME>; other stacks on the same Docker host are never touched).
 #  - One runner per queue (lock file build-queue/.runner.pid); a second `watch`, `once` or `sweep` is refused.
 #  - status/runner.json is a heartbeat {pid, startedAt, lastSeenAt, image}; the app uses it for its hints.
 #  - Log: JSON lines on stdout (stack:up writes them to infra/.logs/build-runner.jsonl), like the services.
@@ -31,6 +32,9 @@ UPLOADS="$INFRA_DIR/.data/cogniate-app/uploads"
 COMPOSE_FILE_BUILD="$INFRA_DIR/build-runner/compose.yaml"
 Q="$INFRA_DIR/build-runner/queue.mjs"
 BUILD_IMAGE=cogniate-build-moodle:v5.2.4
+# The owning stack (lib.sh: one COMPOSE_PROJECT_NAME per checkout). Build projects get the label
+# org.cogniate.stack=$STACK; the sweep removes only projects with this label (other stacks on this host keep theirs).
+STACK="$COMPOSE_PROJECT_NAME"
 STOPPED_REASON="The Build Runner stopped during the build. Start it again (npm run stack:up) and build again."
 mkdir -p "$QUEUE/requests" "$QUEUE/processing" "$QUEUE/status" "$QUEUE/out" "$QUEUE/hold"
 # The log goes to fd 3 (a copy of stdout): a trap that runs inside a redirected command (for example
@@ -102,12 +106,13 @@ sweep() {
   for f in $(ls "$REPO_ROOT/.tmp/build" 2>/dev/null | grep -E '^[0-9a-f]{24}$' || true); do
     rm -rf "${REPO_ROOT:?}/.tmp/build/$f"
   done
-  local projects p
-  projects="$( { docker ps -a --format '{{.Label "com.docker.compose.project"}}'; docker volume ls --format '{{.Label "com.docker.compose.project"}}'; \
-    docker network ls --format '{{.Label "com.docker.compose.project"}}'; } 2>/dev/null | grep -E '^cogniate-build-[0-9a-f]{24}$' | sort -u || true)"
+  # Only this stack's build projects (label org.cogniate.stack=$STACK): another stack's build may be running.
+  local projects p own="label=org.cogniate.stack=$STACK" fmt='{{.Label "com.docker.compose.project"}}'
+  projects="$( { docker ps -a --filter "$own" --format "$fmt"; docker volume ls --filter "$own" --format "$fmt"; \
+    docker network ls --filter "$own" --format "$fmt"; } 2>/dev/null | grep -E '^cogniate-build-[0-9a-f]{24}$' | sort -u || true)"
   for p in $projects; do
     BUILD_IN=/tmp BUILD_DB_PASS=x BUILD_ADMIN_PASS=x docker compose -p "$p" -f "$COMPOSE_FILE_BUILD" down -v --remove-orphans >/dev/null 2>&1 || true
-    jlog warn build_leftover_removed "$BOOT_ID" "project=$p"
+    jlog warn build_leftover_removed "$BOOT_ID" "project=$p" "stack=$STACK"
   done
 }
 
@@ -139,7 +144,7 @@ build_one() {
   local st="$QUEUE/status/$id.json"
   status() { node "$Q" status "$st" "$@"; }
   setstep() { step="$1"; CUR_STEP="$1"; status "step=$1"; jlog info build_step "$id" "step=$1"; }
-  dcb() { BUILD_IN="$work/in" BUILD_DB_PASS="${db_pass:-x}" BUILD_ADMIN_PASS="${admin_pass:-x}" \
+  dcb() { BUILD_STACK="$STACK" BUILD_IN="$work/in" BUILD_DB_PASS="${db_pass:-x}" BUILD_ADMIN_PASS="${admin_pass:-x}" \
     docker compose -p "$project" -f "$COMPOSE_FILE_BUILD" "$@"; }
   teardown() {
     if [[ "$hold" == true ]]; then
@@ -176,8 +181,11 @@ build_one() {
   cp "$UPLOADS/$sha.zip" "$work/in/package.zip"
   node "$Q" jobfile "$req" > "$work/in/job.json"
   db_pass="$(openssl rand -hex 16)"; admin_pass="Aa1-$(openssl rand -hex 12)"
-  if ! bg dcb up -d --wait --wait-timeout 300 >/dev/null 2>&1; then failed "The build Moodle did not start."; return 0; fi
   local last
+  if ! bg dcb up -d --wait --wait-timeout 300 > "$work/up.log" 2>&1; then
+    last="$(grep -v '^ *$' "$work/up.log" | tail -1 | tr -d '\r' | cut -c1-200)"
+    failed "The build Moodle did not start (${last:-no detail}). Build again."; return 0
+  fi
   for s in course scorm backup; do
     setstep "$s"
     knob_stop "$s" && return 0
@@ -193,8 +201,9 @@ build_one() {
   local cid; cid="$(dcb ps -q moodle)"
   if ! bg docker cp "$cid:/var/www/moodledata/cogniate-out/course.mbz" "$work/copy/course.mbz" >/dev/null 2>&1; then failed "The backup file is missing."; return 0; fi
   if ! node "$Q" publish "$work/copy/course.mbz" "$QUEUE/out/$id.mbz" > "$work/publish.log" 2>&1; then
-    last="$(tail -1 "$work/publish.log" | cut -c1-200)"
-    failed "The backup was refused: $last"; return 0
+    # A-T8-04: queue.mjs writes one readable line (for example: out/ already has a file for this build).
+    last="$(tail -1 "$work/publish.log" | tr -d '\r' | cut -c1-200)"
+    failed "The backup was refused: ${last:-unknown reason}. Build again."; return 0
   fi
   local bytes; bytes="$(wc -c < "$QUEUE/out/$id.mbz" | tr -d ' ')"
   teardown
