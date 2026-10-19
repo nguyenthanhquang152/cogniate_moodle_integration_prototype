@@ -1,7 +1,11 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # T7 review: Reviewer-A (correctness and security)
+
+History: the round 1 verdict was APPROVE (3 NIT; below). The round 2 verdict (polish `88e7d76`) is APPROVE (section "Round 2 (polish 88e7d76)" at the end).
+
+## Round 1
 
 Scope:
 - The Author's harness (`8b45d15`, `4a35ee0`): `infra/scripts/{e2e-reset,e2e-wait,demo-prepare,moodle-cron,qa-suite}.sh`, `infra/demo/prepare.mjs`, `infra/moodle/php/{start_lti_registration,activate_lti_tool,add_lti_activity}.php`.
@@ -72,3 +76,32 @@ Method:
 ## Counts
 
 0 BLOCKER, 0 MAJOR, 0 MINOR, 3 NIT (A-T7-01 to -03).
+
+## Round 2 (polish 88e7d76)
+
+Scope: `git show 88e7d76` (`demo-prepare.sh`, `e2e-reset.sh`, `lib.sh` `confirm_stack_delete`, `qa-suite.sh`, `infra/README.md`). I also read `mphp` in `lib.sh`, the `.env` key names (not the values), the `seed.json` key paths (not the values) and the confirm flags in `tests/e2e/host/run-t7.mjs`. I did not read `reviewer-b.md`.
+
+- **A-T7-01 resolved.**
+  - `jget` now runs `printf '%s' "$1" | node -e '…' "$2"`. `printf` is a bash builtin, so the JSON (the registration URL with `ref`, and the URL with the registration JWT) is never the argument of a new process and is not visible in `ps`. Only the key name is on `node`'s command line.
+  - The two secret-bearing values still travel only through stdin: `jget … | mstep start_lti_registration.php --url=-` (through `mphp` = `docker compose exec -T moodle php`, which passes stdin) and `jget … | step register -` (read from stdin in `prepare.mjs`).
+  - The other command-line values are not secrets: connection id, client id, tool type id, publication ids and cmids.
+- **Confirm flow: correct.**
+  - `confirm_stack_delete` runs **before** anything is deleted: in `e2e-reset.sh` before `stack-reset.sh`, and in `qa-suite.sh` before the exit trap and the reset. `qa-suite.sh` then calls the reset with `E2E_CONFIRM=1`, so the user is asked only once.
+  - With no stack data (no `seed.json`, no data folders, no project volumes) there is no question.
+  - In a terminal (`-t 0 && -t 2`), anything other than `yes`, including EOF, prints "Stopped. Nothing was deleted." and exits 1.
+  - `--yes` (removed from the suite arguments) or `E2E_CONFIRM=1` skips the question.
+  - Without a terminal it does not ask, so it cannot hang. It prints the warning and goes on (see A-T7-04).
+- **"Step N failed. … said:" prints no secret that a step can produce.**
+  - `step` and `mstep` keep the step output and show the last 10 non-empty lines, without Docker progress lines, through `redact()`.
+  - `redact()` replaces every `.env` value whose name holds `PASS`, `SECRET`, `KEY` or `TOKEN` (all secret names in `.env` match: `DB_PASS`, the `*_PASSWORD`s, `LTI_MASTER_KEY`, `APP_MASTER_KEY`; `.env` has no `export` lines). It also replaces every `seed.json` string under a `pass|secret|token|key` key (the passwords, `moodle.ws.*.token`), every JWT-shaped value, and the values of `ref=`, `registration_token=`, `token=`, `ltik=`, `password=` and `secret=` query parameters.
+  - The files are passed as paths and the text through stdin, so no secret is on a command line.
+  - Moodle's CLI exception output has function names and lines, not argument values.
+
+### A-T7-04: NIT: without a terminal, the data delete goes on with no confirmation
+
+- Location: `infra/scripts/lib.sh` `confirm_stack_delete` (the last branch: "(no terminal: no question; going on)").
+- Problem: a run with no terminal (an IDE task, a pipe, a CI job without `--yes`) deletes all stack data after only a printed warning. QA's runner already passes `-- --yes` (`run-t7.mjs` lines 234 and 259), so failing closed would not break it.
+- Fix: without a terminal and without `--yes` or `E2E_CONFIRM=1`, exit 1 with the hint ("run it with -- --yes, or E2E_CONFIRM=1"). That also cannot hang.
+- Optional hardening for `redact()`: also read the values of `infra/.secrets/lti-api-key.*` (they are not in `seed.json`), and add a pattern for a PEM `-----BEGIN … PRIVATE KEY-----` block. No step prints either today.
+
+Round 2 counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (A-T7-04). A-T7-01 is resolved. A-T7-02 (QA's C2 scope) is still open. **A-T7-03 is resolved:** `infra/README.md` line 331, in the section "Debug a failed E2E step" (added in `88e7d76`), says "WARNING: a trace and the HTML report hold raw secrets … Keep them on your computer. Do not attach them to a ticket, a chat or a review pack, and do not commit them". `tests/e2e/README.md` has a matching CAUTION. (My first check of this commit read only the first matching lines, so I missed it. Thanks to the Lead for the pointer.) A-T7-04 goes to the Author.
