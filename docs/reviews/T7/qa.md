@@ -151,3 +151,54 @@ Command: `… node tests/e2e/host/run-t7.mjs --sha dd6dd11 --runs 1 --check-conf
 | Teardown | PASS | 0 containers, 0 volumes, 0 networks of `qa-e2e-r1`. | `J/cmd/14-stack-down.log` |
 
 T7 on the final code: all 15 ACs pass. Passing `npm run test:e2e` runs in this file: `1639c7e` ×3, `f0e5525`, `63de503`, `2129b69`, `8059c31`, `dd6dd11` (183–189 s each). One dry run at `512bb86` (not listed above) failed on a suite text check (the old teacher hint); §6 fixed the check.
+
+## 10. Replacement QA-E2E repair regression — 2026-10-19
+
+Verdict: **PASS**. Round: **2 (Codex continuation)**. All 15 T7 ACs pass on the repaired candidate below. Earlier rounds and failures remain above.
+
+| Item | Value |
+| --- | --- |
+| Independent role | Dedicated replacement QA-E2E, Codex GPT-6-Astra, xhigh. Independent of Authors, Docs and reviewers under the continuation charter. This is not a cross-model review. |
+| Exact tested SHA | `c5683f896330debaea5e9a09f49357dc3e99e92b`. Its product and T7 harness match `d54c607d7fc6ce2d97e039bb108f52a37f2174ee`. No working-copy overlay was used. |
+| Product delta from `dd6dd11` | `services/cogniate-app/src/domain/migrations/010_score_delivery_confirmation.sql`, `src/domain/score-syncs.ts`, `src/worker/score-sync.ts`, and adjacent `src/runtime-path.test.ts`. The repair adds durable delivery markers and bounded confirmation. |
+| Isolation | Fresh external clone: `/Users/quangnguyen/cogniate-qa-runs/qa-e2e-cont-p2-c5683f89-2026-10-19T11-17-07-393Z`. Own project `qa-e2e-cont-p2`, port `8743`, subnet `172.29.0.0/16`. The Lead assigned the only new QA stack slot and required preservation of the ten existing development containers. |
+| Command | `COMPOSE_PROJECT_NAME=qa-e2e-cont-p2 PUBLIC_PORT=8743 STACK_SUBNET=172.29.0.0/16 COURSE_FIXTURES_DIR=<read-only real course source> node tests/e2e/host/run-t7.mjs --sha c5683f896330debaea5e9a09f49357dc3e99e92b --runs 3 --check-confirm --demo` |
+| Fixtures | Read-only copies from the historical QA clone `qa-e2e-t9-bf22fb7-20261019T084016/docs/raw/data/courses/`. SCORM SHA-256 `a685744e5fd9de21c203c3b2f47916ef1079532196ed870df89a00ab8ee76df7`; HTML `9f04d3abd65f85e362b2dca5207cc4b86ffa286e4b1a73923c157b69321f3f6d`. Copies went to the isolated clone's `tests/fixtures/courses/` and `docs/raw/data/courses/`. Source files stayed unchanged. |
+| Environment | Local Moodle 5.2.4; Chromium in Playwright 1.56.0; one worker and `retries: 0`. Default profile, no knobs. No Moodle cron was needed. |
+| Evidence | `K` = `tests/e2e/artifacts/runs/qa-e2e-cont-p2-c5683f89-2026-10-19T11-17-07-393Z/`. Commands, summary, each run's screenshots/JSON/logs, traces and demo evidence remain local. Raw traces and Playwright HTML reports contain test secrets; do not publish them. |
+
+| Run | Full command | Reset | Tests | Grade latency: SCORM / HTML / wrong SCORM / library B | Secret scan |
+| --- | --- | --- | --- | --- | --- |
+| 1 | exit 0, 186 s | 48 s | 17 PASS, 0 FAIL, 1 demo-only skip | 3.3 / 3.8 / 3.3 / 3.8 s | 45 values, 9 kinds, 0 hits |
+| 2 | exit 0, 181 s | 43 s | 17 PASS, 0 FAIL, 1 demo-only skip | 3.3 / 3.8 / 3.9 / 3.8 s | 45 values, 9 kinds, 0 hits |
+| 3 | exit 0, 175 s | 39 s | 17 PASS, 0 FAIL, 1 demo-only skip | 3.9 / 3.8 / 3.8 / 3.8 s | 45 values, 9 kinds, 0 hits |
+
+| AC | Result | Observed evidence in `K` |
+| --- | --- | --- |
+| AC-T7-01 | PASS | Each `npm run test:e2e -- --yes` starts from a clean reset and runs Scenarios A, B and C. All three runs exit 0, well below 25 minutes. `cmd/06-…` to `08-…`, `run*/tests.json`. |
+| AC-T7-02 | PASS | Dynamic tool Active, New window and Show in activity chooser. Connection A changes `registered` to `connected`; B is `registered` after manual setup. `run*/evidence/A2-…`, `A4-integrations-connected.png`, `summary.json`. |
+| AC-T7-03 | PASS | Thanh's picker contains exactly the two courses. Both activities have maximum 100; both publications show Selected in Moodle. `A4-*-picker.png`, publication screenshots and grade oracle. |
+| AC-T7-04 | PASS | Student 1: SCORM 100, HTML 100. Student 2: SCORM 0, HTML no grade. Every observation takes at most 3.9 s. `AC-T7-04-oracle-grades.json` and grader report screenshot. |
+| AC-T7-05 | PASS | Completion states are 1/1 for Student 1 and 1/0 for Student 2. Oracle and course screenshots agree. `AC-T7-05-*`. |
+| AC-T7-06 | PASS | Portal rows show Passed 100/Sent, Failed 0/Sent and Passed 100/Sent. Refresh reads 100, 0 and 100. `AC-T7-06-results-*.png`. |
+| AC-T7-07 | PASS | All 12 scenario launches end in a new top-level player window with Moodle as opener, without `ltik`. Click-to-player times are 90–125 ms. `summary.json`, player screenshots. |
+| AC-T7-08 | PASS | B4 lists only library B's course. B5 lists only Thanh's two courses. `B4-picker.png`, `B5-picker-thanh.png`, `summary.json`. |
+| AC-T7-09 | PASS | Course 102 and library B show Student 1's 100. Thanh's results do not contain that activity. `AC-T7-09-*`. |
+| AC-T7-10 | PASS | Replayed launch returns `INVALID_STATE`. Each run finds zero hits for all 45 captured values of nine kinds in service JSON logs. `C1-replay.json`, `C2-secret-grep.json`. |
+| AC-T7-11 | PASS | Three consecutive runs of this exact repaired SHA pass with retries 0. This proof does not rely on the historical three-run result. |
+| AC-T7-12 | PASS | Each run includes grader, completion, portal and tool-setting screenshots, traces and timings. QA-E2E visually inspected the rendered grader report, portal results, completion page and tool settings. |
+| AC-T7-13 | PASS | Start and end health reports show `profile: default` and empty knobs for all three services. No `test_knob_active` event is present. `health-start.json`, `health-end.json`, end test. |
+| AC-T7-14 | PASS | No dynamic-step label difference and no manual-form difference in any run. `A2-label-diffs.json` and `B2-manual-diffs.json` are empty. |
+| AC-T7-15 | PASS | Fresh demo reset: 43 s. `demo:prepare`: exit 0 in **8.64 s**, below 180 s. The separate demo test passes; Student 1 reaches both course players. `cmd/13-…` to `15-…`, `demo/evidence/`. |
+
+Additional required checks:
+
+- **B-T7-01:** answering `no` in a terminal stops both `e2e:reset` and `test:e2e` with exit 1. Both show the refusal message. Containers, volumes, seed hash, data folders and log lists are unchanged.
+- **A-T7-04:** without a terminal, `--yes` or `E2E_CONFIRM`, both commands refuse with exit 1 and unchanged snapshots. Evidence: `cmd/09-…` to `12-…` and `summary.json`.
+- **Root check:** `npm run check` in the isolated checkout exits 0. Lint, type checking and **708 unit tests in 48 files PASS, zero skips**. All five real-fixture tests ran. Evidence: `root-check.log`.
+- **Teardown:** runner and independent exact-label queries both find **zero own containers, volumes and networks**. All ten pre-existing containers keep their IDs, start times and running state. Evidence: `cleanup-independent.json`, `other-containers-before.json`, `other-containers-after.json`, `cmd/16-stack-down.log`.
+- **T8 scope:** the Architect's section 10 repair assessment retains the dated T8 PASS at `8059c31`. This delta changes no native channel, Build Runner, LTI transport, portal or infra path. QA-E2E checked the product-path diff; no new T8 run is claimed.
+
+No new finding. T7 does not place the P2 late-write race or test lower-retake P11 variants. Those claims use the separate T5b regression at `d54c607`. This PASS does not remove the post-confirmation late-write risk or reconstruct unrecorded sends from before migration 010. Chromium/local Moodle and the HTML menu DOM-click limitation remain the tested boundary.
+
+The full T7/root result and zero-resource teardown were sent to the Lead promptly. This worker remains active for the final committed T9 pack; this section does not declare T9 complete.
