@@ -44,6 +44,7 @@ export function checkContentItems(items: unknown, settings: Obj, urls: PublicUrl
   const accepted = Array.isArray(settings.accept_types) ? settings.accept_types.filter((t): t is string => typeof t === 'string') : [...CONTENT_ITEM_TYPES];
   return items.map((input, i) => {
     if (!isObj(input)) throw bad(i, 'must be an object');
+    // ltiaas-0.0.4 tolerance (contract §8 D14): null custom data means an empty object.
     const item = input.custom === null ? { ...input, custom: {} } : input;
     const type = item.type;
     if (typeof type !== 'string' || !CONTENT_ITEM_TYPES.includes(type as (typeof CONTENT_ITEM_TYPES)[number])) throw bad(i, `type must be one of ${CONTENT_ITEM_TYPES.join(', ')}`);
@@ -58,6 +59,7 @@ export function checkContentItems(items: unknown, settings: Obj, urls: PublicUrl
       }
     }
     if (type !== 'ltiResourceLink') return { ...item };
+    // ltiaas-0.0.4 tolerance (contract §8 D14): a null resource URL uses the default launch URL.
     if (item.url === undefined || item.url === null) return { ...item, url: launchUri(urls, accountId) };
     if (!isOwnLaunchTarget(item.url, urls, accountId)) throw bad(i, `url must start with ${launchUri(urls, accountId)}`);
     return { ...item };

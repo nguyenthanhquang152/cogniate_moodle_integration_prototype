@@ -7,12 +7,12 @@ const isHttps = (u: URL): boolean => u.protocol === 'https:' && u.username === '
 /**
  * A-T3a-01, contract §3.4 rule 4: the platform web server decodes the path (nginx: %2F -> /) and then resolves dot
  * segments, so a path that LOOKS inside the claim path can reach another course. Refuse, before any outbound call, a raw
- * path with %2F, %5C, %2E or %25 (any letter case), a backslash, or a "." / ".." segment (also after decoding).
+ * path with %2F, %5C, %2E, %25, %3F or %23 (any letter case), a backslash, or a "." / ".." segment (also after decoding).
  */
 export function hasPathTrick(rawUrl: string): boolean {
   const afterScheme = rawUrl.replace(/^[A-Za-z][A-Za-z0-9+.-]*:\/\/[^/?#]*/, '');
   const path = afterScheme.split(/[?#]/, 1)[0] ?? '';
-  if (/%(2f|5c|2e|25)/i.test(path) || path.includes('\\')) return true;
+  if (/%(2f|5c|2e|25|3f|23)/i.test(path) || path.includes('\\')) return true;
   let decoded = path;
   for (let i = 0; i < 3; i += 1) {
     if (decoded.split('/').some((seg) => seg === '.' || seg === '..')) return true;
