@@ -37,21 +37,23 @@ QA run order: AC-T5-09 and AC-T5-10 (`cg_student`, "Cogniate HTML"); AC-T5-11 �
 
 ## Final regression P5: bounded fixture exception
 
-Lead decision, 2026-10-19. This checks the existing Resend rule in app contract §5 and ADR-010 rules 10–11. No public API removes a sync row. QA may use the following fixture exception only for this regression.
+Lead decision, 2026-10-19, with the approved service-stop extension. This checks the existing Resend rule in app contract §5 and ADR-010 rules 10–11. No public API removes a sync row. QA may use the following fixture exception only for this regression.
 
 1. Use an isolated QA clone, its own stack, and a fresh activity for this check.
 2. Through UI/API calls, create final attempts of 60/100 and 80/100 on two course versions for the same learner and activity.
 3. Make both score syncs fail through UI/API actions. Record the attempt ids, version ids, sync ids, scores and statuses from public results.
-4. Delete only the higher failed score-sync row from QA's app database, selected by its exact sync id. Assert exactly one deletion.
-5. Do not alter either attempt, the lower sync row, or any other database row.
-6. Read `GET /app-api/publications/:id/results`. Assert that both final attempts remain and `best` is still 80/100.
-7. Assert that the higher sync is absent and the lower 60/100 sync is still `failed` or `conflict`.
-8. Call `POST /app-api/score-syncs/:syncId/resend` for the lower sync. Expect `409 SYNC_NOT_RESENDABLE`.
-9. Remove QA's own stack after the run.
+4. Check that the target is the fresh QA clone and its own `qa-*` compose project. Stop only that project's `cogniate-app` service.
+5. Delete only the higher failed score-sync row from QA's app database, selected by its exact sync id. Assert exactly one deletion.
+6. Do not alter either attempt, the lower sync row, or any other database row.
+7. In guaranteed `finally` cleanup, restart `cogniate-app` and wait for its health check, even if the fixture fails. Do not stop other services or projects.
+8. Read `GET /app-api/publications/:id/results`. Assert that both final attempts remain and `best` is still 80/100.
+9. Assert that the higher sync is absent and the lower 60/100 sync is still `failed` or `conflict`.
+10. Call `POST /app-api/score-syncs/:syncId/resend` for the lower sync. Expect `409 SYNC_NOT_RESENDABLE`.
+11. Remove QA's own stack after the run.
 
 The lower row must satisfy every Resend condition except the best-score rule. A `sent`, `pending` or `superseded` row cannot prove P5. If QA cannot reach the preconditions naturally, ask the Lead before any wider fixture mutation.
 
-Report this check as **fixture-assisted**, not pure black-box. Include the exact deleted sync id, the one-row deletion count, public results before and after, and the Resend response. Keep the final regression pending until QA records the result.
+Report this check as **fixture-assisted**, not pure black-box. Include the exact deleted sync id, the one-row deletion count, service stop/restart evidence, public results before and after, and the Resend response. Keep the final regression pending until QA records the result. The coordinator commits the spec and QA harness changes before the fresh rerun; finish the current run's teardown first.
 
 ## Self-check
 
