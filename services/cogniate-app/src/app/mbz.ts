@@ -94,6 +94,8 @@ export function registerMbzRoutes(api: FastifyInstance, deps: MbzRouteDeps): voi
         finishedAt: typeof s.finishedAt === 'string' ? Date.parse(s.finishedAt) || now() : null,
       }, now());
       const current = latestBuild(db, b.libraryId, b.versionId) ?? b;
+      // A parallel retry may have reserved a newer build during readFile. The old status cannot time it out.
+      if (current.id !== b.id) return current;
       const lastProgress = typeof s.updatedAt === 'string' ? Date.parse(s.updatedAt) : current.createdAt;
       if ((current.status === 'running' || current.status === 'queued') && now() - lastProgress > STALE_BUILD_MS) {
         return stale(current, 'The Build Runner did not finish this build (no progress for 10 min). Build again.');
@@ -110,18 +112,22 @@ export function registerMbzRoutes(api: FastifyInstance, deps: MbzRouteDeps): voi
     const { course, version, lib } = versionOf(req);
     if (version.format !== 'scorm12') throw new ApiError('MBZ_NOT_SUPPORTED', 'Only a SCORM 1.2 version can be built as a Moodle backup (.mbz).');
     const latest = latestBuild(db, lib, version.id);
-    const current = latest ? await refresh(latest) : undefined;
-    if (current && (current.status === 'queued' || current.status === 'running')) return reply.code(202).send(buildJson(current));
+    if (latest) await refresh(latest);
     // A-T8-04 (contract §11): a timed-out build does not count. The time-out runs only when a build is read, so apply it
     // (and any runner status) to every active build of the library first; a held build stays active (the runner
     // updates its status every 30 s).
     for (const other of activeBuilds(db, lib)) await refresh(other);
+    // C-T8-01: re-check and reserve synchronously, with no await until createBuild. Another request may have
+    // reserved a build while refresh read its status; the queue file is written only after this slot is held.
+    const current = latestBuild(db, lib, version.id);
+    if (current && (current.status === 'queued' || current.status === 'running')) return reply.code(202).send(buildJson(current));
     if (activeBuildCount(db, lib) >= MAX_ACTIVE_BUILDS_PER_LIBRARY) {
       throw new ApiError('MBZ_BUILD_LIMIT', `${MAX_ACTIVE_BUILDS_PER_LIBRARY} builds of your library wait or run. Build again when one has ended.`);
     }
     const pkg = db.prepare('SELECT sha256 FROM package WHERE id = ? AND library_id = ?').get(version.packageId, lib);
     if (!pkg || !/^[0-9a-f]{64}$/.test(String(pkg.sha256))) throw new ApiError('NOT_FOUND', 'The package of this version is missing.');
     const id = newBuildId();
+    const b = createBuild(db, { id, libraryId: lib, courseId: course.id, versionId: version.id }, now());
     const request = {
       buildId: id, courseId: course.id, versionId: version.id, packageSha256: String(pkg.sha256), variant: course.variant || 'default',
       lang: course.lang || 'en', title: [...course.title].map((ch) => (ch.charCodeAt(0) < 0x20 || ch.charCodeAt(0) === 0x7f ? ' ' : ch)).join('').slice(0, 255),
@@ -129,9 +135,13 @@ export function registerMbzRoutes(api: FastifyInstance, deps: MbzRouteDeps): voi
     };
     // Atomic: the runner only takes complete files (bld_<hex>.json).
     const file = join(buildQueueDir, 'requests', `${id}.json`);
-    await writeFile(`${file}.tmp`, JSON.stringify(request), { mode: 0o600 });
-    await rename(`${file}.tmp`, file);
-    const b = createBuild(db, { id, libraryId: lib, courseId: course.id, versionId: version.id }, now());
+    try {
+      await writeFile(`${file}.tmp`, JSON.stringify(request), { mode: 0o600 });
+      await rename(`${file}.tmp`, file);
+    } catch (error) {
+      stale(b, 'The build request could not be written. Build again.');
+      throw error;
+    }
     return reply.code(202).send(buildJson(b));
   });
 
