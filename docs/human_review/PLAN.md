@@ -1,6 +1,6 @@
 # Hand-over pack: plan
 
-Source: commit `4182c80`, 2026-10-19.
+Source: commit `6932539`, 2026-10-19.
 
 Status: accepted by the Lead (2026-10-16). Built 2026-10-19. Owner of the pack: Docs.
 
@@ -45,7 +45,16 @@ One command: `bash docs/human_review/video/build.sh [en|vi|all]`.
 4. Merge: `linuxserver/ffmpeg` (pinned digest) makes still slides at 5 fps, H.264 CRF 30, mono AAC 64 kbit/s, 1280×720.
 5. Check: duration ≤ 240 s and size ≤ 8 MB, else the script fails.
 
-Result (2026-10-19): `explainer-en.mp4` 155 s, 1.9 MB; `explainer-vi.mp4` 183 s, 2.2 MB, marked machine-translated (decision HR-1). A build takes about 15 seconds per language.
+Result (2026-10-19), built from source `6932539d4b44e017dd54acc8dc37c6bb2ba9fed1`:
+
+| Video | Duration | Exact size | Limits |
+| --- | --- | --- | --- |
+| `explainer-en.mp4` | 182.4 seconds | 2,211,513 bytes | PASS: ≤ 240 seconds and ≤ 8,000,000 bytes |
+| `explainer-vi.mp4` | 212.4 seconds | 2,567,661 bytes | PASS: ≤ 240 seconds and ≤ 8,000,000 bytes |
+
+The combined build took 24.60 seconds on this Mac. Both files have H.264 video at 1280×720, 5 fps, and mono AAC audio at 44,100 Hz. Both decode without errors. Docs inspected all 26 slide renders and extracted MP4 frames. The Vietnamese notice remains visible; HR-1 still needs human approval.
+
+Details: [Docs closing-pass record](CLOSING-PASS.md).
 
 ## Vietnamese option
 
@@ -55,6 +64,6 @@ English STE remains the written source. The Vietnamese video is supplied for HR-
 
 ## Open points for the Lead
 
-- Final mp4 files: 1.9 MB (English) and 2.2 MB (Vietnamese). The Lead decided to commit files of 8 MB or less.
+- Both final MP4 files meet the Lead’s limit of 8,000,000 bytes. Exact measurements are above.
 - The Lead accepted QA’s 61-second fresh-clone run for AC-T9-01. HR-2 remains a follow-up for unfamiliar-human usability.
 - Review workflow and approval status are recorded on the [Lead board](../team/board.md) and in the [T9 reports](../reviews/T9/qa.md).

@@ -1,6 +1,6 @@
 # Proven / not proven
 
-Source: commit `533141e`, 2026-10-19.
+Source: commit `6932539`, 2026-10-19.
 
 Each row is one claim. **Proven by QA** means that an independent QA agent tested it from the acceptance criteria, and the test passed. The id points to a row in `docs/reviews/<task>/qa.md`. Time to read: 5 minutes.
 

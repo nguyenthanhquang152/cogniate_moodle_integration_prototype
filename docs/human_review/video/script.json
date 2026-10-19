@@ -2,7 +2,7 @@
   "meta": {
     "title": "Cogniate × Moodle prototype",
     "source": "T7 qa.md §10 (c5683f8); T5a/T5b/T6 final QA (d54c607d); T8 qa.md round 2 (8059c31); T3c and T9 qa.md; open-questions.md; architecture README §6; ADR-010 P2 remote-ordering limit",
-    "commit": "4182c80",
+    "commit": "6932539",
     "date": "2026-10-19",
     "voices": {
       "en": {

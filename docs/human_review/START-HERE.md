@@ -1,6 +1,6 @@
 # Start here
 
-Source: commit `4182c80`, 2026-10-19.
+Source: commit `6932539`, 2026-10-19.
 
 **What it is.** A prototype that publishes Cogniate courses to Moodle with the LTI 1.3 standard. It has our own LTI service. For the endpoints listed in ADR-003, its API follows the public LTIAAS API reference, with listed differences. It also has a stand-in for the Cogniate portal and a real Moodle 5.2.4 site, all on one Mac.
 

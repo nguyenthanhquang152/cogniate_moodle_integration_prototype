@@ -1,6 +1,6 @@
 # Deferred findings
 
-Source: commit `4182c80`, 2026-10-19.
+Source: commit `6932539`, 2026-10-19.
 
 These review findings are still open. Each one is MINOR ("worth a fix, safe to defer") or NIT (style). The P2/P5 repair passed [full regression](../reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d). [Fresh T7](../reviews/T7/qa.md#10-replacement-qa-e2e-repair-regression--2026-10-19) also passed. P2 is not an accepted MINOR deferral.
 

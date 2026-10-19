@@ -1,6 +1,6 @@
 # Decisions needed
 
-Source: commit `4182c80`, 2026-10-19.
+Source: commit `6932539`, 2026-10-19.
 
 Only a human can answer these questions. Each row has our recommendation, what the answer blocks, and who decides. Until you decide, the prototype uses our recommendation.
 
