@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # T7 review — Reviewer-B (lens: "Can a human team own it?")
 
@@ -135,3 +135,26 @@ Summary: The product team can run both commands. The output tells them what each
 - **Location:** `infra/scripts/demo-prepare.sh` lines 38, 44, 49 and 56–57 (`mphp … | jsonline`, and `jsonline` is `grep '^{' | tail -1`).
 - **Problem:** Moodle 5.2.4 writes CLI fatal errors to stdout (`public/lib/setuplib.php` lines 162, 181 and 196: `echo …fatal_error(...)`). `jsonline` keeps only the JSON line, so it drops the error. When step 2, 3 or 5 fails (for example "course COGNIATE-DEV-101 not found" after a partial seed), the person sees the step line and then the script stops with no reason, or with a Node `JSON.parse` stack trace from `jget`. This is not likely: the preconditions are checked, and a rerun stops with the clear "run e2e:reset" message.
 - **Suggested fix:** Keep the PHP output in a variable. When it has no JSON line, print "Step N failed. Moodle said:" and the last 10 lines, then exit 1. Make `step` do the same for an empty answer.
+
+---
+
+## Round 2 (polish 88e7d76)
+
+Verdict: APPROVE. Scope: `git show 88e7d76` (`infra/scripts/{lib,e2e-reset,qa-suite,demo-prepare}.sh`, `infra/README.md`).
+
+What I checked:
+- I read the diff.
+- I ran `confirm_stack_delete` from `lib.sh` in a pseudo-terminal (`script`) against a temp folder. There was no stack and no delete. I tested the answers `yes`, `no`, `Yes` and an empty answer, and also no terminal, `--yes`, and no data.
+- I ran the new `mstep`, `step_failed` and `redact` functions from `demo-prepare.sh` against a fake `mphp` that prints a Moodle-style error with fake secrets (a temp `.env` and `seed.json`).
+- I checked that `npx playwright` resolves from the repo root.
+
+| Id | Round 2 status | Evidence |
+| --- | --- | --- |
+| B-T7-01 | **Resolved** | `confirm_stack_delete` (`lib.sh`) prints a clear three-line WARNING: what goes (Moodle site, portal data, LTI service data, seed users and API keys, `infra/.logs/`) and what stays (`.env`, `infra/.certs/`, `infra/.data/fixtures/`). In a terminal, only `yes` goes on (the probe returned). `no`, `Yes` and an empty answer print "Stopped. Nothing was deleted." and exit 1. In `qa-suite.sh` the question comes before the exit trap and before any container starts, so a "no" does nothing. `-- --yes` and `E2E_CONFIRM=1` skip the question. `--yes` is removed before the suite arguments. With no terminal there is no question, so the QA runners do not hang, and with no data there is no question. The step line now says "1/4 stack:reset (deletes all stack data)". |
+| B-T7-02 | **Resolved** | `infra/README.md` "Debug a failed E2E step" has the four folders, "find the FIRST failed step" ("Needs … from an earlier step" is not the cause), `show-report`, `show-trace --port 0`, `grep` of the trace id in `infra/.logs/*.jsonl`, and `E2E_RESET=0 QA_GREP='B6'` for one step. The `test:e2e` row links to it. The WARNING about secrets in traces and in the HTML report is clear: keep them local, share only the error text and screenshots. The root has `@playwright/test` 1.56.0 (the same version as `tests/`), so `npx playwright …` from the repo root works without a download. |
+| B-T7-06 | **Resolved** | Steps 2, 3 and 5 go through `mstep`, and the portal steps go through `step`. Both keep the full output. With no JSON line they print "Step N failed. Moodle said:" (or "The portal step said:") and the last 10 lines, without Docker progress lines, then exit 1. In the probe, the Moodle error ("Can not find data record in database table course … COGNIATE-DEV-101") was shown. The `ref=` value, the `.env` password, the seed password and the JWT were shown as `[redacted]` / `[redacted JWT]`. JSON values now go to `node` on stdin, not on a command line. |
+| B-T7-03, -04, -05 | Open (MINOR / NIT, QA-owned `tests/e2e/**`, not blocking) | Not in this commit. They can go with the next suite change. |
+
+New in Round 2: nothing at MINOR or above. Two small points, no action needed:
+- `npm run test:e2e` now prints the WARNING twice: once with the question in `qa-suite.sh`, and again (with no question) when `e2e-reset.sh` runs with `E2E_CONFIRM=1`. This is harmless. It repeats the warning just before the delete.
+- The end line "test:e2e: artifacts in tests/e2e/artifacts/" (`qa-suite.sh` line 40) could add "(when a test fails: infra/README.md, Debug a failed E2E step)", and `tests/e2e/README.md` (QA) could link to that section. Optional.
