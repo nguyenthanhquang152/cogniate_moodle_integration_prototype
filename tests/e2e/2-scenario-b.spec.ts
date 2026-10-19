@@ -21,6 +21,7 @@ import {
   TOOL_B,
   urls,
   writeEvidence,
+  teacherHint,
 } from './lib/e2e';
 import { addCogniateActivity, checkLaunch, learnerRun } from './lib/flows';
 import {
@@ -149,7 +150,7 @@ test('B3 QA Library B uploads the HTML zip and publishes it to "Dev Moodle B"', 
       const courseId = await createCourseWithZip(page, COURSE_B_HTML, courseZipCopy('html'), 'HTML');
       saveState({ courses: { bhtml: courseId } });
       await publishCourse(page, CONNECTION_B);
-      await expect.soft(page.getByText(`Teachers: Add an activity > ${TOOL_B} > Select content`).first()).toBeVisible();
+      await expect.soft(page.getByText(teacherHint(TOOL_B)).first()).toBeVisible();
       await shot(page, 'B3-published', testInfo);
       saveState({ publications: { bhtml: (await publicationOf(QA_B, courseId)).id } });
     });
@@ -257,8 +258,9 @@ test('B6 AC-T7-09 AC-T7-07 cg_student completes the COGNIATE-DEV-102 activity (c
     for (const key of ['scorm', 'html'] as const) {
       const pub = need(st.publications?.[key], `publication ${key}`);
       await page.goto(`${urls.app}/publications/${pub}/results`);
-      await page.getByRole('button', { name: 'Refresh from Moodle' }).waitFor({ timeout: 15_000 });
-      await page.waitForTimeout(1_000);
+      // B-T7-03: the table must show Thanh's own row first, so the negative check reads a full table.
+      const own = resultsRow(page, u.cg_student.id, key === 'scorm' ? COURSE_SCORM : COURSE_HTML).first();
+      await expect(own, `Thanh's ${key} results show his own cg_student row`).toContainText(/Passed/, { timeout: 30_000 });
       const text = (await page.locator('main').innerText()).replace(/\s+/g, ' ');
       expect.soft(text, `Thanh's ${key} results do not show the library B activity`).not.toContain(COURSE_B_HTML);
       expect.soft(text, `Thanh's ${key} results do not show the COGNIATE-DEV-102 context`).not.toContain('Course 102');

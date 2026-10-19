@@ -145,6 +145,15 @@ async function passT5b() {
   }
 }
 
+async function passT6Focus(ids) {
+  const stop = startHostControl();
+  try {
+    await r.containerSuite('focus-T6', { env: { QA_TASK: 'T6', QA_GREP: ids.join('|') }, expectIds: ids });
+  } finally {
+    r.record('HOSTCTL', 'Host actions asked for by the focused T6 tests', 'PASS', stop().length ? ['see log'] : ['none']);
+  }
+}
+
 async function passT6() {
   // AC-T6-14 setup runs the AC-T5-31 recipe again (lti-service restart), so the host channel runs here too.
   const stop = startHostControl();
@@ -162,6 +171,11 @@ await r.main(async () => {
   if (r.opt.only) {
     // Re-run only what is missing: SETUP-T5a makes the state these ACs need.
     const ids = r.opt.only.split(',').map((t) => t.trim()).filter(Boolean);
+    if (TASKS.length === 1 && TASKS[0] === 'T6') {
+      // T6-only focus (ACs that need no T5 state, for example the Connect wizard).
+      await passT6Focus(ids);
+      return;
+    }
     await r.containerSuite('focus', { env: { QA_TASK: TASKS.filter((t) => t !== 'T6').join(','), QA_GREP: ['SETUP-T5a', ...ids].join('|') }, expectIds: ids });
     return;
   }

@@ -37,6 +37,7 @@ export async function launchFromCourse(context: BrowserContext, user: MoodleUser
   const popup = await popupPromise;
   await popup.waitForURL((u) => u.href.startsWith(`${urls.app}/play/`), { timeout: 30_000, waitUntil: 'commit' });
   const msToPlay = Date.now() - t0;
+  recordSecret('play_id', new URL(popup.url()).pathname.split('/')[2], `${where}: player URL`);
   await popup.waitForLoadState('domcontentloaded');
   const runtime = await waitForFrame(popup, (u) => u.startsWith(`${urls.content}/rt/`));
   const runtimeToken = new URL(runtime.url()).pathname.split('/')[2] ?? '';

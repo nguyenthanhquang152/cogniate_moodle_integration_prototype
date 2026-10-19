@@ -72,7 +72,7 @@ function needles(value: string): string[] {
   return out.filter((n) => n.length >= 16);
 }
 
-test('C2 AC-T7-10 no captured ltik, service key, runtime token, id_token or API key is in any infra/.logs/*.jsonl', async () => {
+test('C2 AC-T7-10 no captured ltik, service key, runtime token, id_token or API key (and no state, registration ref, play id or picker id) is in any infra/.logs/*.jsonl', async () => {
   test.setTimeout(120_000);
   // API keys of the tool accounts (infra/.secrets, read-only in the e2e container).
   const keyFiles = fs.existsSync(SECRETS_DIR) ? fs.readdirSync(SECRETS_DIR).filter((f) => f.startsWith('lti-api-key.')) : [];
@@ -90,7 +90,9 @@ test('C2 AC-T7-10 no captured ltik, service key, runtime token, id_token or API 
   }
 
   const logs = logFiles().map((f) => ({ name: path.basename(f), text: fs.readFileSync(f, 'utf8') }));
-  const asked: SecretKind[] = ['ltik', 'service_key', 'runtime_token', 'id_token', 'api_key'];
+  // AC-T7-10 kinds, plus (A-T7-02) state values, registration refs and the raw play and picker ids: security §10 and §11
+  // and contract §12 (`http_request` paths carry no capability ids) keep them out of the logs too.
+  const asked: SecretKind[] = ['ltik', 'service_key', 'runtime_token', 'id_token', 'api_key', 'state', 'registration_ref', 'play_id', 'picker_id'];
   const report = capturedSecrets().map((s) => {
     const hits = logs.filter((l) => needles(s.value).some((n) => l.text.includes(n))).map((l) => l.name);
     return { kind: s.kind, secret: masked(s.value), where: s.where, hits };
@@ -99,7 +101,4 @@ test('C2 AC-T7-10 no captured ltik, service key, runtime token, id_token or API 
   writeEvidence('C2-secret-grep.json', { logFiles: logs.map((l) => `${l.name} (${l.text.length} bytes)`), counts, report });
   for (const k of asked) expect.soft(counts[k], `captured at least one ${k} (else the grep proves nothing)`).toBeGreaterThan(0);
   expect(report.filter((r) => asked.includes(r.kind) && r.hits.length > 0), 'captured secrets found in the logs').toEqual([]);
-  // state values and the registration ref are not in the AC list; a hit is still listed in qa.md.
-  const extra = report.filter((r) => !asked.includes(r.kind) && r.hits.length > 0);
-  if (extra.length) test.info().annotations.push({ type: 'info', description: `other values in the logs: ${JSON.stringify(extra)}` });
 });

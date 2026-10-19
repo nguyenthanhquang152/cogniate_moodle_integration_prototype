@@ -194,7 +194,7 @@ test.describe.serial('T3c compatibility endpoints', () => {
     expect(eventsSince('lti-service', since, (e) => /^outbound_/.test(String(e.event)) && hostIs(e, 'evil.test')), 'outbound_* for evil.test').toEqual([]);
   });
 
-  test('AC-T3-31 SDK tolerances: GET //api/idtoken = /api/idtoken with services.outcomes {available: false}; scores ?user_id = ?userId, both with different values → 400 INVALID_REQUEST; an ltiResourceLink with url null → 200 and the JWT url = {PUBLIC_LTI_URL}/lti/launch/cogniate; a bad line item id with a leading // → 400 INVALID_LINE_ITEM_ID', async () => {
+  test('AC-T3-31 SDK tolerances: GET //api/idtoken = /api/idtoken with services.outcomes {available: false}; scores ?user_id = ?userId, both with different values → 400 INVALID_REQUEST; an ltiResourceLink with url null → 200 and the JWT url = {PUBLIC_LTI_URL}/lti/launch/cogniate; a bad line item id with a leading // → 400 INVALID_LINE_ITEM_ID; id encoded once/twice → 204, three times → 400; custom: null and comment: null accepted', async () => {
     test.setTimeout(120_000);
     const key = apiKey(ACCOUNT);
     const s = seed();
@@ -230,9 +230,24 @@ test.describe.serial('T3c compatibility endpoints', () => {
     expect(nullUrl.status, nullUrl.body.slice(0, 300)).toBe(200);
     const items = (await verifyDl(String(nullUrl.json.message)))[`${DL_CLAIM}content_items`] as { url?: string }[];
     expect(items?.[0]?.url, 'JWT item url').toBe(`${urls.lti}/lti/launch/${ACCOUNT}`);
-    // Observation (Lead note, not in the AC text): the SDK also sends null optional fields such as custom.
-    const nullCustom = await ltiApi('POST', '/api/deeplinking', { authorization: auth.ltik(key, dlLtik), body: { contentItems: [{ type: 'ltiResourceLink', title: `QA null custom ${runId}`, url: null, custom: null, icon: null }] } });
-    test.info().annotations.push({ type: 'null custom/icon', description: `HTTP ${nullCustom.status} ${errorCode(nullCustom) ?? ''}` });
+    // custom: null is the same as no custom (§3.2, T3c round 3).
+    const nullCustom = await ltiApi<{ message?: string }>('POST', '/api/deeplinking', { authorization: auth.ltik(key, dlLtik), body: { contentItems: [{ type: 'ltiResourceLink', title: `QA null custom ${runId}`, url: null, custom: null }] } });
+    expect(nullCustom.status, `custom: null: ${nullCustom.body.slice(0, 200)}`).toBe(200);
+    const customItems = (await verifyDl(String(nullCustom.json.message)))[`${DL_CLAIM}content_items`] as Record<string, unknown>[];
+    test.info().annotations.push({ type: 'custom: null → JWT item', description: JSON.stringify(customItems?.[0]).slice(0, 300) });
+
+    // Line item id encoding (§1.4): the AC-T3-12 score with the id encoded once and twice → 204; three times → 400
+    // INVALID_LINE_ITEM_ID and no outbound request. A score with comment: null → accepted (§3.6).
+    const scoreBody = (comment?: null) => ({ userId: uid, activityProgress: 'Completed', gradingProgress: 'FullyGraded', scoreGiven: 87, scoreMaximum: 100, ...(comment === null ? { comment: null } : {}) });
+    const once = await ltiApi('POST', `/api/lineitems/${enc(lineItemId)}/scores`, { authorization: authz, body: scoreBody() });
+    const twiceOk = await ltiApi('POST', `/api/lineitems/${enc(enc(lineItemId))}/scores`, { authorization: authz, body: scoreBody() });
+    const nullComment = await ltiApi('POST', `/api/lineitems/${enc(lineItemId)}/scores`, { authorization: authz, body: scoreBody(null) });
+    const thrice = await ltiApi('POST', `/api/lineitems/${enc(enc(enc(lineItemId)))}/scores`, { authorization: authz, body: scoreBody() });
+    expect(once.status, `encoded once: ${once.body.slice(0, 200)}`).toBe(204);
+    expect(twiceOk.status, `encoded twice: ${twiceOk.body.slice(0, 200)}`).toBe(204);
+    expect(nullComment.status, `comment: null: ${nullComment.body.slice(0, 200)}`).toBe(204);
+    expect(thrice.status, `encoded three times: ${thrice.body.slice(0, 200)}`).toBe(400);
+    expect(errorCode(thrice)).toBe('INVALID_LINE_ITEM_ID');
 
     // 4. A line item id that breaks the URL rule, with a leading // → still 400 INVALID_LINE_ITEM_ID. Three oracles.
     const since = Date.now() - 1_000;
@@ -247,6 +262,7 @@ test.describe.serial('T3c compatibility endpoints', () => {
     await settle();
     expect(sinkHitsSince(since), 'sink hits').toEqual([]);
     expect(eventsSince('lti-service', since, (e) => /^outbound_/.test(String(e.event)) && hostIs(e, 'evil.test')), 'outbound_* for evil.test').toEqual([]);
+    expect(eventsSince('lti-service', 0, (e) => e.event === 'outbound_request' && e.trace_id === thrice.traceId), 'no outbound request for the triple-encoded id').toEqual([]);
 
     // Evidence for AC-T3-27 / D15: the valid id encoded twice (the SDK path), and the raw id with its slashes.
     const validTwice = await ltiApi('GET', `/api/lineitems/${enc(enc(lineItemId))}`, { authorization: authz });

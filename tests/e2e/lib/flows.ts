@@ -1,7 +1,7 @@
 // Flows that Scenario A and Scenario B share: the teacher adds a Cogniate activity, and a learner does one activity.
 import type { BrowserContext, Page, TestInfo } from '@playwright/test';
 import { stateCookieHeader } from './capture';
-import { type LaunchRecord, loadState, need, note, pollUntil, saveState, SHELL_DONE_100, shot, urls } from './e2e';
+import { escapeRegExp, type LaunchRecord, loadState, need, note, pollUntil, saveState, SHELL_DONE_0, SHELL_DONE_100, shot, urls } from './e2e';
 import { doCourse, domClicks, launchFromCourse, shellText } from './learner';
 import { addActivityFromChooser, ensureEditMode, openSelectContent, pickCourse, saveAndReturn, setCompletionReceiveGrade } from './moodle';
 import { cmidByName, grade, users } from './oracle';
@@ -51,13 +51,12 @@ export async function learnerRun(context: BrowserContext, user: 'cg_student' | '
   const t0 = Date.now();
   const want = answer === 'correct' ? 100 : 0;
   const matches = (v: { raw: number | null } | undefined) => v?.raw !== null && v?.raw !== undefined && Math.abs(Number(v.raw) - want) < 0.001;
+  // The grade in Moodle (AC deadline 60 s) and the final shell text (the shell polls every 5 s), at the same time.
   const [g] = await Promise.all([
     pollUntil(() => grade(act.courseId, u, act), matches, 60_000, 1_000),
-    answer === 'correct' ? l.popup.getByText(SHELL_DONE_100).first().waitFor({ timeout: 90_000 }).catch(() => undefined) : Promise.resolve(),
+    l.popup.getByText(answer === 'correct' ? SHELL_DONE_100 : SHELL_DONE_0).first().waitFor({ timeout: 90_000 }).catch(() => undefined),
   ]);
   const latency = matches(g) ? Math.round((Date.now() - t0) / 100) / 10 : null;
-  // The shell polls the status every 5 s: give it time to show the final text for the evidence.
-  if (answer === 'wrong') await l.popup.waitForTimeout(6_000);
   const shell = await shellText(l.popup);
   saveState({ gradeLatency: { [`${user} ${key}`]: latency ?? -1 } });
   await shot(l.popup, `${user}-${key}-done`, testInfo);
@@ -65,11 +64,9 @@ export async function learnerRun(context: BrowserContext, user: 'cg_student' | '
   return { launch: rec, shell, latency, grade: g?.raw ?? null };
 }
 
-const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
 /** AC-T7-07: the launch ends at {PUBLIC_APP_URL}/play/... in a new top-level window; no ltik in the final URL. */
 export function checkLaunch(rec: LaunchRecord): void {
-  expect.soft(rec.finalUrl, `${rec.user} ${rec.activity}: final URL`).toMatch(new RegExp(`^${esc(urls.app)}/play/`));
+  expect.soft(rec.finalUrl, `${rec.user} ${rec.activity}: final URL`).toMatch(new RegExp(`^${escapeRegExp(urls.app)}/play/`));
   expect.soft(rec.finalUrl, `${rec.user} ${rec.activity}: no ltik in the final URL`).not.toContain('ltik');
   expect.soft(rec.topLevel && rec.hasOpener, `${rec.user} ${rec.activity}: a new top-level window opened from Moodle`).toBe(true);
 }

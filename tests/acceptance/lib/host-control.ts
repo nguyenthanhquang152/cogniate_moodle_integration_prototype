@@ -10,7 +10,17 @@ import { publicUrls } from './env';
 import { httpsRequest } from './https';
 import { artifactsDir } from './paths';
 
-export type HostAction = 'moodle-stop' | 'moodle-start' | 'lti-restart' | 'compat-run' | 'seed-lti-manual';
+export type HostAction =
+  | 'moodle-stop'
+  | 'moodle-start'
+  | 'lti-restart'
+  | 'compat-run'
+  | 'seed-lti-manual'
+  // T8 (tests/host/run-t8.mjs): AC-T8-03, -05, -07
+  | 'build-inspect'
+  | 'build-release'
+  | 'build-leftovers'
+  | 'moodle-restore';
 
 export interface HostAnswer {
   action: HostAction;

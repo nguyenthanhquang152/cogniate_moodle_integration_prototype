@@ -23,6 +23,19 @@ export const COURSE_SCORM = 'AI Website Sprint — SCORM';
 export const COURSE_HTML = 'AI Website Sprint — HTML';
 export const COURSE_B_HTML = 'AI Website Sprint — HTML (QA Library B)';
 export const SHELL_DONE_100 = 'Completed — score 100 sent to Moodle';
+export const SHELL_DONE_0 = 'Completed — score 0 sent to Moodle';
+
+/** Escapes a text for use inside a RegExp. */
+export const escapeRegExp = (t: string) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/**
+ * The teacher hint after "Publish": the Moodle 5.2.4 labels in order (Q-T7-02). T6.md writes "Teachers: Add content >
+ * Activity or resource > Cogniate (<library>) > Add > Select content"; the portal shows "→" and starts with "Edit mode".
+ * The check accepts both separators and an "Edit mode" step first.
+ */
+export const teacherHint = (tool: string) => {
+  const sep = '\\s*(?:→|>)\\s*';
+  return new RegExp(`Teachers:\\s*(?:Edit mode${sep})?${['Add content', 'Activity or resource', tool, 'Add', 'Select content'].map(escapeRegExp).join(sep)}`);
+};
 
 export interface Activity {
   /** Moodle activity name (the picker fills it with the course title). */
@@ -137,7 +150,7 @@ export function note(testInfo: TestInfo, type: string, description: string): voi
 
 // ---------------------------------------------------------------- captured secrets (Scenario C2)
 
-export type SecretKind = 'ltik' | 'id_token' | 'service_key' | 'runtime_token' | 'api_key' | 'state' | 'registration_ref';
+export type SecretKind = 'ltik' | 'id_token' | 'service_key' | 'runtime_token' | 'api_key' | 'state' | 'registration_ref' | 'play_id' | 'picker_id';
 
 /** Remembers a secret value seen in the real flow. C2 greps the service logs for each one. Git-ignored file. */
 export function recordSecret(kind: SecretKind, value: string | null | undefined, where: string): void {

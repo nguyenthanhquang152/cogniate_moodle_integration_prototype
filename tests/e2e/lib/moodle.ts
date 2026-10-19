@@ -11,7 +11,7 @@
 // - Moodle help icons have aria-label "Help with <label>", so form fields are found with exact labels.
 import type { BrowserContext, Frame, Locator, Page } from '@playwright/test';
 import type { MoodleUser } from '../../acceptance/lib/seed';
-import { urls } from './e2e';
+import { recordSecret, urls } from './e2e';
 
 const toursHandled = new WeakSet<Page>();
 
@@ -391,6 +391,7 @@ export async function openSelectContent(page: Page, timeoutMs = 45_000): Promise
   }
   if (!frame) throw new Error(`the Cogniate picker did not open in Moodle's dialog within ${timeoutMs} ms (frames: ${page.frames().map((f) => f.url().split('?')[0]).join(' | ')})`);
   await frame.waitForLoadState('load');
+  recordSecret('picker_id', new URL(frame.url()).pathname.split('/')[3], 'teacher: picker URL');
   await frame.locator('input[name="publicationId"]').first().waitFor({ timeout: 15_000 }).catch(() => undefined);
   const titles = await frame.locator('input[name="publicationId"]').evaluateAll((inputs) =>
     inputs.map((el) => {

@@ -189,8 +189,12 @@ export async function createManualTool(page: Page, admin: MoodleUser, name: stri
   if (!/toolconfigure\.php/.test(page.url())) await page.goto(`${urls.moodle}/mod/lti/toolconfigure.php`);
 
   // Find the new tool: mod/lti/templates/tool_card.mustache renders <div class="tool-card" data-type-id="{{id}}">.
-  await page.locator('.tool-card', { hasText: name }).first().waitFor({ timeout: 15_000 });
-  const typeId = Number(await page.locator('.tool-card', { hasText: name }).first().getAttribute('data-type-id'));
+  // Another tool can have the same name (a dynamic registration of the same library names its tool the same way),
+  // so take the newest card with this name (the highest type id).
+  const cards = page.locator('.tool-card', { hasText: name });
+  await cards.first().waitFor({ timeout: 15_000 });
+  const ids = (await cards.evaluateAll((els) => els.map((e) => Number(e.getAttribute('data-type-id'))))).filter((n) => n > 0);
+  const typeId = ids.length ? Math.max(...ids) : 0;
   if (!typeId) throw new Error(`tool "${name}" not found on Manage tools`);
   await page.goto(`${urls.moodle}/mod/lti/typessettings.php?action=update&id=${typeId}&sesskey=${await sesskey(page)}`);
   const clientId = await page.locator('#id_lti_clientid_disabled').inputValue();

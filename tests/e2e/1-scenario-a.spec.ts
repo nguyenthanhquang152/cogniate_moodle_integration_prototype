@@ -7,6 +7,7 @@ import { captureLti } from './lib/capture';
 import { addCogniateActivity, checkLaunch, learnerRun } from './lib/flows';
 import {
   appendList,
+  escapeRegExp,
   CONNECTION_A,
   COURSE_HTML,
   COURSE_SCORM,
@@ -18,12 +19,14 @@ import {
   pollUntil,
   recordSecret,
   saveState,
+  SHELL_DONE_0,
   SHELL_DONE_100,
   shot,
   timed,
   TOOL_A,
   urls,
   writeEvidence,
+  teacherHint,
 } from './lib/e2e';
 import {
   activateTool,
@@ -66,7 +69,7 @@ test('A1-A2 AC-T7-02 AC-T7-14 Thanh connects "Dev Moodle" (Automatic); the Moodl
       await portal.getByRole('button', { name: /^Copy/ }).first().click();
       return clipboard(portal);
     });
-    expect(regUrl, 'the registration URL from the Copy button').toMatch(new RegExp(`^${urls.lti.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/lti/register/cogniate\\?ref=`));
+    expect(regUrl, 'the registration URL from the Copy button').toMatch(new RegExp(`^${escapeRegExp(urls.lti)}/lti/register/cogniate\\?ref=`));
     recordSecret('registration_ref', new URL(regUrl).searchParams.get('ref'), 'A1 registration URL');
     await shot(portal, 'A1-wizard-dynamic', testInfo);
 
@@ -194,7 +197,7 @@ test('A3 Thanh uploads the SCORM zip and the HTML zip and publishes both to "Dev
         const courseId = await createCourseWithZip(page, c.title, courseZipCopy(c.key), c.format);
         saveState({ courses: { [c.key]: courseId } });
         await publishCourse(page, CONNECTION_A);
-        await expect.soft(page.getByText(`Teachers: Add an activity > ${TOOL_A} > Select content`).first()).toBeVisible();
+        await expect.soft(page.getByText(teacherHint(TOOL_A)).first()).toBeVisible();
         await shot(page, `A3-published-${c.key}`, testInfo);
         saveState({ publications: { [c.key]: (await publicationOf(THANH, courseId)).id } });
       }
@@ -293,6 +296,7 @@ test('A6 AC-T7-07 cg_student2 does the SCORM activity with the wrong option and 
       const r = await learnerRun(ctx, 'cg_student2', 'scorm', 'wrong', testInfo);
       note(testInfo, 'cg_student2 scorm', `shell "${r.shell.slice(0, 160)}", grade ${r.grade}, ${r.latency} s`);
       checkLaunch(r.launch);
+      expect.soft(r.shell, 'cg_student2 SCORM: shell text').toContain(SHELL_DONE_0);
       expect.soft(r.grade, 'cg_student2 SCORM: Moodle grade').toBe(0);
       if (r.latency !== null) expect.soft(r.latency, 'cg_student2 SCORM: ≤ 60 s').toBeLessThanOrEqual(60);
     });
@@ -384,18 +388,19 @@ test('AC-T7-06 portal results: SCORM cg_student "Passed 100, Sent" and cg_studen
   try {
     const page = await ctx.newPage();
     await portalSignIn(page, THANH);
-    const views: [string, string, { user: 'cg_student' | 'cg_student2'; outcome: RegExp; score: string }[]][] = [
-      ['scorm', pubScorm, [{ user: 'cg_student', outcome: /Passed/, score: '100' }, { user: 'cg_student2', outcome: /Failed/, score: '0' }]],
-      ['html', pubHtml, [{ user: 'cg_student', outcome: /Passed/, score: '100' }]],
+    const views: [string, string, { user: 'cg_student' | 'cg_student2'; outcome: string; score: string }[]][] = [
+      ['scorm', pubScorm, [{ user: 'cg_student', outcome: 'Passed', score: '100' }, { user: 'cg_student2', outcome: 'Failed', score: '0' }]],
+      ['html', pubHtml, [{ user: 'cg_student', outcome: 'Passed', score: '100' }]],
     ];
     for (const [key, pub, rows] of views) {
       const title = key === 'scorm' ? COURSE_SCORM : COURSE_HTML;
       await page.goto(`${urls.app}/publications/${pub}/results`);
       for (const r of rows) {
         const row = resultsRow(page, u[r.user].id, title).first();
-        await expect.soft(row, `${key} ${r.user}: outcome`).toContainText(r.outcome, { timeout: 15_000 });
-        await expect.soft(row, `${key} ${r.user}: score`).toContainText(new RegExp(`\\b${r.score}\\b`));
-        await expect.soft(row, `${key} ${r.user}: sync`).toContainText('Sent');
+        await row.waitFor({ timeout: 15_000 });
+        // B-T7-04: the "Best outcome" cell holds the outcome and the score ("Passed 100 Out of 100").
+        await expect.poll(() => cellUnder(row, /best outcome/i), { timeout: 15_000, message: `${key} ${r.user}: best outcome cell` }).toMatch(new RegExp(`^${r.outcome}\\s*${r.score}(\\D|$)`));
+        await expect.poll(() => cellUnder(row, /moodle sync/i), { timeout: 15_000, message: `${key} ${r.user}: Moodle sync cell` }).toMatch(/^Sent\b/);
       }
       await shot(page, `AC-T7-06-results-${key}`, testInfo);
       await page.getByRole('button', { name: 'Refresh from Moodle' }).click();
