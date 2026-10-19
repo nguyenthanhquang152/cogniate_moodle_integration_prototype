@@ -4,7 +4,7 @@ This prototype publishes Cogniate courses (SCORM 1.2 and HTML) to Moodle with LT
 
 **Status:** all 15 end-to-end checks passed on real Moodle 5.2.4. The T7 regression at `dd6dd11` also passed ([T7 QA §9](docs/reviews/T7/qa.md#9-final-regression-run-dd6dd11-final-code)). Portal QA passed 14 checks; the listed LTIAAS-style endpoints passed 7 checks with the real `ltiaas` SDK. T8 round 2 passed AC-T8-02 to AC-T8-10 and both race checks at `8059c31` ([T8 QA](docs/reviews/T8/qa.md)). MoodleCloud, restore through Moodle pages, and the portal token form remain unverified.
 
-**Current gate:** [Focused P2/P5 QA](docs/reviews/T5b/qa.md#replacement-qa-repair-focus-2026-10-19--d54c607d) passed at `d54c607d`. Full T5a/T5b/T6 regression and fresh T7 remain pending. Earlier main-flow passes remain dated evidence.
+**Current gate:** [Full player and portal regression](docs/reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d) passed at `d54c607d`: 49 ACs and 65 tests. Fresh T7 and final T9 artifact checks remain pending.
 
 ## Start here
 

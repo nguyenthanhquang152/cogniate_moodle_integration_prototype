@@ -201,8 +201,8 @@
     "subtitle": "Publish Cogniate courses (SCORM 1.2 and HTML) to Moodle with LTI 1.3.",
     "source": "4182c80",
     "date": "2026-10-19",
-    "draft": "P2/P5 focus PASS · Full regression and T7 pending",
-    "resultsNote": "Focused P2/P5 QA passed at d54c607d, including a real app restart. Full T5a/T5b/T6 regression and fresh T7 remain pending. Earlier main-flow passes remain dated evidence. P2 remote ordering and recovery of unrecorded sends from before the upgrade remain limited.",
+    "draft": "Player and portal regression PASS · Fresh T7 pending",
+    "resultsNote": "Full T5a/T5b/T6 regression passed at d54c607d: 49 ACs and 65 tests. Fresh T7 and final T9 checks remain pending. P2 remote ordering and recovery of unrecorded sends from before the upgrade remain limited.",
     "storyNote": "QA tested this story on a real Moodle 5.2.4 site (task T7). All 15 end-to-end checks passed.",
     "flowsNote": "QA tested each flow on a real Moodle 5.2.4 site. The proof line under each flow names the QA rows (docs/reviews/<task>/qa.md). The P2 remote-ordering limit applies to grade delivery."
   },
@@ -210,7 +210,7 @@
     "intro": [
       "This page explains the prototype in about 15 minutes.",
       "A Cogniate user publishes a course. A Moodle teacher adds it to a Moodle course. A learner does the course, and the score goes to the Moodle gradebook.",
-      "All 15 T7 checks passed on real Moodle 5.2.4 before the P2 repair. The repair passed focused QA. Full regression and fresh T7 remain pending.",
+      "All 15 T7 checks passed on real Moodle 5.2.4 before the P2 repair. Full player and portal regression passed the repair. Fresh T7 remains pending.",
       "We need your answers to some questions. Use the Decisions tab."
     ],
     "path": [
@@ -799,14 +799,14 @@
       "evidence": "docs/reviews/T4b1/qa.md and T4b2/qa.md (a5d9ddcb)"
     },
     {
-      "claim": "Six focused P2/P5 tests passed. A real app restart preceded confirmation; Moodle kept 90 for 90 seconds without obsolete retries. P5 used an approved fixture.",
+      "claim": "Full P2/P5 regression passed. A real app restart preceded confirmation; Moodle kept 90 for 90 seconds without obsolete retries. P5 used an approved fixture.",
       "status": "qa",
       "ids": [
         "AC-T5-30",
         "P2",
         "P5 (fixture-assisted)"
       ],
-      "evidence": "docs/reviews/T5b/qa.md (repair focus, d54c607d)"
+      "evidence": "docs/reviews/T5b/qa.md (final regression, d54c607d)"
     },
     {
       "claim": "Connect: the admin follows the 6 portal steps in Moodle. Every Moodle label matches. The tool is Active, with New window.",
@@ -939,20 +939,22 @@
       "evidence": "docs/reviews/T3c/qa.md"
     },
     {
-      "claim": "P11 sent, pending and failed lower-retake texts passed at a5d9ddcb. Fresh regression remains pending.",
-      "status": "pending",
+      "claim": "P11 sent, pending and failed lower-retake texts passed at d54c607d. The current score stayed 75; the best stayed 90.",
+      "status": "qa",
       "ids": [
         "P11 sent/pending/failed"
       ],
-      "evidence": "docs/reviews/T5b/qa.md"
+      "evidence": "docs/reviews/T5b/qa.md (final regression, d54c607d)"
     },
     {
-      "claim": "Full T5a/T5b/T6 regression and fresh T7 remain pending after the P2 repair.",
-      "status": "pending",
+      "claim": "Full T5a/T5b/T6 regression passed: 49 ACs and 65 tests, including the separate runtime-expiry test.",
+      "status": "qa",
       "ids": [
-        "Final regression gate"
+        "21 T5a ACs",
+        "14 T5b ACs",
+        "14 T6 ACs"
       ],
-      "evidence": "docs/reviews/T5b/qa.md (d54c607d focus)"
+      "evidence": "docs/reviews/T5a/qa.md, T5b/qa.md and T6/qa.md (final regression, d54c607d)"
     },
     {
       "claim": "Native backup, CLI restore, native SCORM grade and course shell passed. The Publish checkbox and link passed. Both race checks passed.",
@@ -1087,6 +1089,15 @@
         "P11 live scope"
       ],
       "evidence": "docs/reviews/T5b/qa.md"
+    },
+    {
+      "claim": "Fresh T7 and final T9 artifact checks remain pending.",
+      "status": "pending",
+      "ids": [
+        "T7",
+        "T9"
+      ],
+      "evidence": "docs/reviews/T7/qa.md and T9/qa.md"
     }
   ],
   "decisionGroups": [
@@ -1379,7 +1390,7 @@
     },
     {
       "title": "Final check",
-      "text": "The earlier conformance check approved the fixes. Final QA then found a P2 grade mismatch. Focused QA passed the repair. Full regression and fresh T7 remain pending. Q18 remains an accepted limit.",
+      "text": "The earlier conformance check approved the fixes. Final QA then found a P2 grade mismatch. Full player and portal regression passed the repair. Fresh T7 remains pending. Q18 remains an accepted limit.",
       "links": [
         [
           "Conformance report",

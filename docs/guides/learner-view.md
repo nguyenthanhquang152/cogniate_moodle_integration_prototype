@@ -6,7 +6,7 @@ Tags: `[AC-…]` = QA tested it, and it passed (row in `docs/reviews/<task>/qa.m
 
 Before you start: the stack runs, and `COGNIATE-DEV-101` has the two Cogniate activities. See [run the stack](run-the-stack.md), procedure 1.
 
-NOTE: [Focused P2/P5 QA](../reviews/T5b/qa.md#replacement-qa-repair-focus-2026-10-19--d54c607d) passed after the grade repair. Full regression and fresh T7 remain pending.
+NOTE: [Full player and portal regression](../reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d) passed after the grade repair. Fresh T7 remains pending.
 
 NOTE: An older Moodle request can write after the best score’s accepted confirmation. Permanent grade agreement is [not guaranteed (P2 remote ordering)](../architecture/adr/ADR-010-grade-and-completion-policy.md#p2-bounded-confirmation-after-uncertain-delivery-2026-10-19).
 
@@ -30,7 +30,7 @@ Result:
 - The player shows the course title and a "Back to Moodle" link [AC-T4-17].
 - With a correct answer, the status line shows "Completed — score 100 sent to Moodle" [AC-T7-07].
 - With a wrong answer, it shows "Completed — score 0 sent to Moodle" [AC-T7-07].
-- After a retake with a lower score, the status line names both scores. Example: "Completed — score 60. Moodle keeps your best score: 80" [Pending QA (T5b, T7)].
+- After a retake with a lower score, the status line names both scores. Example: "Completed — score 75. Moodle keeps your best score: 90" ([P11, sent variant](../reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d)).
 - Moodle gets the grade in about 4 seconds. In the QA runs, it took 3.4 to 3.9 seconds [AC-T7-04].
 - The Moodle completion "Receive a grade" is done, also with a grade of 0 [AC-T7-05, AC-T5-08].
 

@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Cogniate × Moodle prototype",
-    "source": "T7 qa.md §9 (dd6dd11); T8 qa.md round 2 (8059c31); T3c, T6 and T9 qa.md; open-questions.md; architecture README §6; ADR-010 P2 remote-ordering limit",
+    "source": "T7 qa.md §9 (dd6dd11); T5a/T5b/T6 final QA (d54c607d); T8 qa.md round 2 (8059c31); T3c and T9 qa.md; open-questions.md; architecture README §6; ADR-010 P2 remote-ordering limit",
     "commit": "4182c80",
     "date": "2026-10-19",
     "voices": {
@@ -258,7 +258,7 @@
       ],
       "say": {
         "en": "MoodleCloud needs a trial site. Teachers on Safari may fail to add content. Firefox is unverified. Load, scale and certification remain unproven. A very late older score can overwrite Moodle’s grade, even after confirmation. Moodle in a subfolder remains unsupported.",
-        "vi": "MoodleCloud cần một trang dùng thử. Giáo viên dùng Safari có thể không thêm được nội dung. Firefox chưa được kiểm tra. Tải, khả năng mở rộng và chứng nhận vẫn chưa được kiểm chứng. Điểm cũ đến rất muộn vẫn có thể ghi đè điểm trong Moodle. Rủi ro này còn tồn tại sau bước xác nhận. Moodle trong thư mục con chưa được hỗ trợ."
+        "vi": "MoodleCloud cần một trang dùng thử. Giáo viên dùng Safari có thể không thêm được nội dung, còn Firefox chưa được kiểm tra. Tải, khả năng mở rộng và chứng nhận vẫn chưa được kiểm chứng. Điểm cũ đến rất muộn vẫn có thể ghi đè điểm trong Moodle. Rủi ro này còn tồn tại sau bước xác nhận. Moodle trong thư mục con chưa được hỗ trợ."
       }
     },
     {

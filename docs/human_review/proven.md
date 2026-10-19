@@ -4,9 +4,9 @@ Source: commit `4182c80`, 2026-10-19.
 
 Each row is one claim. **Proven by QA** means that an independent QA agent tested it from the acceptance criteria, and the test passed. The id points to a row in `docs/reviews/<task>/qa.md`. Time to read: 5 minutes.
 
-**Headline:** the full story works on a real Moodle 5.2.4 site. QA ran the end-to-end test three times in a row, with no retries. All 15 end-to-end checks passed [AC-T7-01, AC-T7-11]. The final regression at `dd6dd11` also passed all 15 ACs. Source: [T7 QA §9](../reviews/T7/qa.md#9-final-regression-run-dd6dd11-final-code).
+**Headline:** the full story works on a real Moodle 5.2.4 site. QA ran the end-to-end test three times in a row, with no retries. All 15 end-to-end checks passed [AC-T7-01, AC-T7-11]. The earlier regression at `dd6dd11` also passed all 15 ACs. Source: [T7 QA §9](../reviews/T7/qa.md#9-final-regression-run-dd6dd11-final-code).
 
-**Current gate:** [Focused P2/P5 QA](../reviews/T5b/qa.md#replacement-qa-repair-focus-2026-10-19--d54c607d) passed at `d54c607d`. Full T5a/T5b/T6 regression and fresh T7 remain pending. Earlier main-flow passes remain dated evidence.
+**Current gate:** [Full player and portal regression](../reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d) passed at `d54c607d`: 49 ACs and 65 tests. Fresh T7 and final T9 artifact checks remain pending.
 
 ## 1. Proven by QA
 
@@ -38,17 +38,19 @@ Each row is one claim. **Proven by QA** means that an independent QA agent teste
 | Native channel | QA built the backup, restored it through the CLI, and confirmed grade 100 in Moodle’s SCORM player. | [AC-T8-02 to AC-T8-07](../reviews/T8/qa.md), round 2, `8059c31` |
 | Native channel | The token API and course shell passed. The Publish checkbox and course link passed. Two race checks passed. | [AC-T8-08 to AC-T8-10, C-T8-01, C-T8-02](../reviews/T8/qa.md), round 2 |
 | Connect | The button is disabled with the 15-second wait text. Slow Moodle shows `MOODLE_TOOL_MAY_EXIST`. QA observed one confirm POST. | [P1, final T4b1 QA](../reviews/T4b1/qa.md#replacement-qa-final-regression--2026-10-19), `a5d9ddcb` |
-| Grades | Six focused P2/P5 tests passed. After a real app restart, Moodle kept 90 for 90 seconds. No obsolete retry occurred. | [P2/P5 repair focus](../reviews/T5b/qa.md#replacement-qa-repair-focus-2026-10-19--d54c607d), `d54c607d` |
-| Grades | With an approved fixture, QA removed the higher failed sync. Resend of the lower score returned `409 SYNC_NOT_RESENDABLE`. | [P5, fixture-assisted](../reviews/T5b/qa.md#replacement-qa-repair-focus-2026-10-19--d54c607d), `d54c607d` |
+| Grades | Full P2 regression passed. After a real app restart, Moodle kept 90 for 90 seconds. No obsolete retry occurred. | [P2, final T5b QA](../reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d), `d54c607d` |
+| Grades | With an approved fixture, QA removed the higher failed sync. Resend of the lower score returned `409 SYNC_NOT_RESENDABLE`. | [P5, fixture-assisted](../reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d), `d54c607d` |
+| Player and portal | All 49 ACs and 65 tests passed after the repair. The separate runtime-expiry test also passed. | [T5a](../reviews/T5a/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d), [T5b](../reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d), [T6](../reviews/T6/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d), `d54c607d` |
+| Grades | P11 lower-retake texts passed for sent, pending and failed best scores. The current score stayed 75; the best stayed 90. | [P11, final T5b QA](../reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d) |
 
 ## 2. Pending final QA
 
-T4b1, T4b2 and P1 passed at `a5d9ddcb`. The P2/P5 repair passed focused QA at `d54c607d`. Full T5a/T5b/T6 regression and fresh T7 remain pending. Earlier passes do not close those gates.
+T4b1, T4b2 and P1 passed at `a5d9ddcb`. Full T5a/T5b/T6 regression passed at `d54c607d`. Fresh T7 and final T9 checks remain pending.
 
 | Task | Claim | State |
 | --- | --- | --- |
-| T5b | P11 names the best score after a lower retake. | Sent, pending and failed variants passed at `a5d9ddcb`. Fresh regression is pending. Scoreless and lower-retake conflict variants remain unverified live. |
-| T5a, T5b, T6, T7 | Regression after the P2 repair. | Focused P2/P5 checks passed. Full regression and fresh T7 remain pending. |
+| T7 | End-to-end regression after the P2 repair. | Fresh run pending. |
+| T9 | Final pack and videos meet the hand-over criteria. | Final QA-E2E and independent reviews follow this Docs pass. |
 
 ## 3. Not proven
 
@@ -74,10 +76,13 @@ T4b1, T4b2 and P1 passed at `a5d9ddcb`. The P2/P5 repair passed focused QA at `d
 
 ## QA notes
 
-- The live restart check used recorded sends after the upgrade. It observed Moodle grade 90 for 90 seconds. It does not recover earlier, unrecorded remote work.
+- The final live restart check used recorded sends after the upgrade. It observed Moodle grade 90 for 90 seconds. It does not recover earlier, unrecorded remote work.
 - P5 uses an approved fixture exception. QA removes one higher failed sync, then checks the public API. This is fixture-assisted, not pure black-box.
 - The Author’s synthetic upgrade check preserved seven rows and passed its integrity checks. This is not independent QA or a production-upgrade guarantee. See the [conformance record](../reviews/T9/architect-conformance.md#10-round-3-p2-late-remote-write).
 
 - A third-party SCORM package that writes more than 250 interactions loses its score (P9). The Cogniate package is not affected.
 - The desktop window of `npm run demo:browser` is not verified by QA. QA used the same Chrome settings without a window. The [run guide](../guides/run-the-stack.md) marks it.
 - In a regression run, the attempt status after the first SCORM page load was "in progress", not "not started" (Q-T5a-02). QA calls it a spec interaction, not a product error.
+
+- T6 covers Chromium at 1440 pixels. Its five accessibility scans found no serious or critical issue. Expired, disconnected and server-error card states lack independent setup.
+- The full 24-hour score retry window was not observed by live QA.
