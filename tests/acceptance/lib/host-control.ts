@@ -27,6 +27,8 @@ export type HostAction =
   // P1, P2 (Lead decision): docker compose pause/unpause moodle, own QA project only; the runner always unpauses
   | 'moodle-pause'
   | 'moodle-unpause'
+  // P2 confirmation recovery: restart only cogniate-app in the fresh own QA stack.
+  | 'p2-app-restart'
   // T5b final P5: exact higher failed row only, in the fresh QA clone (bounded spec exception).
   | 'p5-remove-failed-sync';
 
@@ -39,6 +41,7 @@ export interface HostAnswer {
   /** compat-run: the output file name in the control folder (stdout and stderr, redacted by the runner). */
   out?: string;
   fixture?: { deletedSyncId: string; deletedCount: number };
+  restart?: { stoppedAt: number; startedAt: number };
 }
 
 export const CONTROL_DIR = () => path.join(artifactsDir('acceptance'), 'control');

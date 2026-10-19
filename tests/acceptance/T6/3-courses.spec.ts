@@ -141,7 +141,7 @@ test.describe.serial('T6 Courses (Thanh)', () => {
     }
     await dialog.getByRole('button', { name: 'Publish', exact: true }).click();
     await expect(page.getByText('Available in Moodle').first()).toBeVisible({ timeout: 15_000 });
-    // tasks/T6.md (Q-T7-02, Moodle 5.2.4 labels): "Teachers: Add content > Activity or resource > Cogniate (<library>) > Add > Select content".
-    await expect(page.getByText("Teachers: Add content > Activity or resource > Cogniate (Thanh's Library) > Add > Select content").first()).toBeVisible();
+    // tasks/T6.md (Q-T7-02, verified Moodle 5.2.4 flow): the full Edit mode path and arrow separators.
+    await expect(page.getByText("Teachers: Edit mode → Add content → Activity or resource → Cogniate (Thanh's Library) → Add → Select content").first()).toBeVisible();
   });
 });

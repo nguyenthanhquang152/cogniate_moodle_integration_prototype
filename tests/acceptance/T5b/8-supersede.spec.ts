@@ -64,8 +64,10 @@ test('AC-T5-30 (P2) Moodle stopped: a failed 60 is pending, then a passed 90 sup
 // P2 in-flight variant (Lead decision: docker compose pause/unpause moodle through the host channel, QA project only).
 // With Moodle paused, each send of row A hangs until the LTI service's 5 s time-out. Row A's first try ends with a
 // score_sync event; data-model §3 puts the next try 5 s later, so the better result is committed 7 s after that event,
-// inside A's second send. After unpause, A must stay superseded and Moodle must show 90.
-test('AC-T5-30 (P2, in flight) Moodle paused: the better result (90) arrives while the send of the lower row (60) runs; after unpause the 60 row stays superseded and Moodle shows 90', async ({ browser }) => {
+// inside A's second send. App contract §10/§12 now requires a durable confirmation of the best row.
+// Restart only the own QA app after the first accepted higher send; verify persisted pending, confirmation,
+// no further obsolete sends, and a finite 90-second Moodle observation (not universal remote ordering).
+test('AC-T5-30 (P2, in flight and restart) lower 60 stays superseded; first accepted 90 stays pending across app restart until confirmation; Moodle stays 90 for 90 seconds with no obsolete retry', async ({ browser }) => {
   test.setTimeout(600_000);
   const user = seed().users.cg_student;
   const context: BrowserContext = await newStackContext(browser);
@@ -97,6 +99,7 @@ test('AC-T5-30 (P2, in flight) Moodle paused: the better result (90) arrives whi
       expect(res.status, res.body.slice(0, 120)).toBe(200);
     }
     const b = await waitForRow(c.publicationId, user, c.activity, (r) => r.scoreSyncs.some((s) => s.scoreGiven === 90), { timeoutMs: 30_000 });
+    const rowB = b!.scoreSyncs.find((s) => s.scoreGiven === 90)!;
     expect(b?.scoreSyncs.find((s) => s.id === rowA.id)?.status, 'the 60 row is superseded').toBe('superseded');
     // The send that was running when B arrived ends (time-out); its event shows the window was hit.
     const after = await waitForAppEvent((e) => e.event === 'score_sync' && e.sync_id === rowA.id && Date.parse(String(e.ts)) > committedAt, since, 30_000);
@@ -104,6 +107,7 @@ test('AC-T5-30 (P2, in flight) Moodle paused: the better result (90) arrives whi
     expect(after, 'a send of row A ended after the better result (the window was hit)').toBeDefined();
     expect(after?.status, `score_sync of the late send: ${JSON.stringify(after)}`).toBe('superseded');
     expect(String(after?.send_result ?? ''), 'send_result').toMatch(/^(sent|pending|conflict|failed)$/);
+    expect(after?.phase).toBe('send');
     const settledA = rowsFor(await results(c.publicationId), user, c.activity)[0]?.scoreSyncs.find((s) => s.id === rowA.id);
     expect(settledA?.status).toBe('superseded');
     const events = appEvents(since, (e) => e.event === 'score_sync' && e.sync_id === rowA.id).map((e) => `${String(e.ts).slice(11, 23)} ${e.status} tries ${e.tries}`);
@@ -111,7 +115,28 @@ test('AC-T5-30 (P2, in flight) Moodle paused: the better result (90) arrives whi
 
     await hostAction('moodle-unpause');
     paused = false;
-    await waitForRow(c.publicationId, user, c.activity, (r) => r.scoreSyncs.some((s) => s.scoreGiven === 90 && s.status === 'sent'), { timeoutMs: 240_000 });
+    const accepted = await waitForAppEvent((e) => e.event === 'score_sync' && e.sync_id === rowB.id
+      && e.phase === 'send' && e.send_result === 'sent', since, 120_000);
+    expect(accepted, 'the first accepted higher POST is logged').toBeDefined();
+    expect(accepted?.status, 'a required confirmation keeps accepted delivery pending').toBe('pending');
+    const pendingB = rowsFor(await results(c.publicationId), user, c.activity)[0]?.scoreSyncs.find((s) => s.id === rowB.id);
+    expect(pendingB?.status).toBe('pending');
+    expect(pendingB?.sentAt).toBeNull();
+    expect(pendingB?.tries).toBe(Number(accepted!.tries));
+
+    // Spec-authorized restart proves the required confirmation survives process recovery.
+    const restart = await hostAction('p2-app-restart');
+    expect(restart.restart, 'host records actual app stop/start times').toBeDefined();
+    expect(restart.restart!.stoppedAt).toBeGreaterThan(Date.parse(String(accepted!.ts)));
+    expect(restart.restart!.stoppedAt, 'QA stopped the app before confirmation became due').toBeLessThan(Date.parse(String(accepted!.ts)) + 5_000);
+    const confirmed = await waitForAppEvent((e) => e.event === 'score_sync' && e.sync_id === rowB.id
+      && e.phase === 'confirmation' && e.status === 'sent', since, 120_000);
+    expect(confirmed, 'only a successful confirmation permits sent').toBeDefined();
+    expect(Date.parse(String(confirmed!.ts)), 'confirmation happened after the app stopped and recovered').toBeGreaterThanOrEqual(restart.restart!.stoppedAt);
+    expect(Date.parse(String(confirmed!.ts)) - Date.parse(String(accepted!.ts)), 'at least five seconds between accepted responses').toBeGreaterThanOrEqual(5_000);
+    expect(Number(confirmed!.tries), 'exactly one successful confirmation after the accepted send').toBe(Number(accepted!.tries) + 1);
+    const sent = await waitForRow(c.publicationId, user, c.activity, (r) => r.scoreSyncs.some((s) => s.id === rowB.id && s.status === 'sent'), { timeoutMs: 30_000 });
+    expect(sent?.scoreSyncs.find((s) => s.id === rowB.id)?.sentAt).toBeTruthy();
     expect((await waitForMoodle(course101(), user, c.activity, 90, { timeoutMs: 120_000 })).grade, 'Moodle 90').toBe(90);
     const until = Date.now() + 90_000; // longer than the 30 s retry step after the 5 s one
     const seen: string[] = [];
@@ -122,12 +147,24 @@ test('AC-T5-30 (P2, in flight) Moodle paused: the better result (90) arrives whi
       seen.push(`${statusA}/${grade}`);
       expect(statusA, 'the 60 row stays superseded').toBe('superseded');
       expect(row?.scoreSyncs.find((s) => s.id === rowA.id)?.tries, 'no retry of the obsolete row').toBe(settledA!.tries);
+      expect(row?.scoreSyncs.find((s) => s.id === rowB.id)?.status).toBe('sent');
+      expect(row?.scoreSyncs.find((s) => s.id === rowB.id)?.tries, 'no endless successful confirmation loop').toBe(Number(confirmed!.tries));
       expect(grade, 'Moodle stays 90').toBe(90);
       await new Promise((r) => setTimeout(r, 5_000));
     }
     test.info().annotations.push({ type: 'observed', description: [...new Set(seen)].join(', ') });
     expect(appEvents(Date.parse(String(after!.ts)) + 1, (e) => e.event === 'score_sync' && e.sync_id === rowA.id),
       'no later send event for the obsolete row during the 90-second observation').toEqual([]);
+    for (const [id, tries] of [[rowA.id, settledA!.tries], [rowB.id, Number(confirmed!.tries)]] as const) {
+      const sends = appEvents(since, (e) => e.event === 'score_sync' && e.sync_id === id);
+      expect(sends.map((e) => Number(e.tries)), 'one log event per actual POST, no waiting counted').toEqual(Array.from({ length: tries }, (_, i) => i + 1));
+      expect(sends.every((e) => e.phase === 'send' || e.phase === 'confirmation')).toBe(true);
+    }
+    await test.info().attach('p2-confirmation-evidence', {
+      body: JSON.stringify({ lower: settledA, higherPending: pendingB, accepted, restart, confirmed,
+        events: appEvents(since, (e) => e.event === 'score_sync' && (e.sync_id === rowA.id || e.sync_id === rowB.id)), observationSeconds: 90 }, null, 2),
+      contentType: 'application/json',
+    });
     await player.popup.close({ runBeforeUnload: true }).catch(() => undefined);
   } finally {
     if (paused) await hostAction('moodle-unpause').catch(() => undefined);

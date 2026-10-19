@@ -10,9 +10,9 @@
 // 2. T5a pass: QA_TASK=T5a (SETUP-T5a makes the connection, publications and activities).
 // 3. Knob pass: stack:restart -- cogniate-app --env PLAY_TTL_SECONDS=20 → the AC-T5-15 knob test; restore.
 // 4. T5b pass (if selected): QA_TASK=T5b with the state of step 2 (fresh: false). During this pass the runner answers
-//    the host actions that the tests ask for (tests/acceptance/lib/host-control.ts): "docker compose stop moodle",
-//    "docker compose start moodle" (AC-T5-14, -30) and "npm run stack:restart -- lti-service" (AC-T5-31). Only these
-//    three commands, only for this QA project.
+//    the whitelisted host actions (tests/acceptance/lib/host-control.ts): Moodle stop/start/pause/unpause,
+//    LTI restart for AC-T5-31, own-app stop/start for P2 recovery, and the bounded P5 fixture.
+//    Every action targets only this QA project; P2/P5 additionally require a verified fresh clone.
 // 5. T6 pass (if selected): QA_TASK=T6 (fresh: false), with the host channel (AC-T6-14 setup: lti-service restart). With T6, setup runs `npm run build` before `stack:up`
 //    (tasks/T6.md: "after npm run build && npm run stack:up && npm run seed").
 import { spawnSync } from 'node:child_process';
@@ -100,6 +100,22 @@ process.on('exit', unpauseNow);
 
 const ACTIONS = {
   'p5-remove-failed-sync': async (req) => ({ code: 0, fixture: await removeP5FailedSync(r, req.syncId) }),
+  'p2-app-restart': async () => {
+    if (!r.state.h1Verified || !/^qa-/.test(r.PROJECT) || r.opt.checkout || r.CLONE === r.SOURCE) return { code: 9 };
+    let stoppedAt;
+    let startedAt;
+    try {
+      const stopped = await r.exec('p2-stop-cogniate-app', 'docker', [...COMPOSE, 'stop', 'cogniate-app'], { timeoutMs: 60_000 });
+      if (stopped.code !== 0) throw new Error('P2 could not stop its QA app');
+      stoppedAt = Date.now();
+    } finally {
+      const started = await r.exec('p2-start-cogniate-app', 'docker', [...COMPOSE, 'start', 'cogniate-app'], { timeoutMs: 60_000 });
+      startedAt = Date.now();
+      const health = await r.waitHealth(r.state.urls.app, (body) => body.status === 'ok' && body.service === 'cogniate-app', 60_000);
+      if (started.code !== 0 || !health.ok) throw new Error('P2 QA app did not recover');
+    }
+    return { code: 0, restart: { stoppedAt, startedAt } };
+  },
   'moodle-pause': async () => {
     if (!/^qa-/.test(r.PROJECT)) return { code: 9 };
     const res = await r.exec('compose-pause-moodle', 'docker', [...COMPOSE, 'pause', 'moodle'], { timeoutMs: 60_000 });
@@ -146,7 +162,7 @@ function startHostControl() {
       res = { code: 3 };
       log.push(`Host action ${req.action} failed: ${String(err)}`);
     }
-    const answer = { action: req.action, ok: Boolean(fn) && res.code === 0, code: res.code, startedAt, endedAt: Date.now(), ...(res.fixture ? { fixture: res.fixture } : {}) };
+    const answer = { action: req.action, ok: Boolean(fn) && res.code === 0, code: res.code, startedAt, endedAt: Date.now(), ...(res.fixture ? { fixture: res.fixture } : {}), ...(res.restart ? { restart: res.restart } : {}) };
     fs.writeFileSync(path.join(dir, `ack-${req.id}.json`), JSON.stringify(answer));
     log.push(`${new Date(startedAt).toISOString()} ${req.action}: exit ${res.code} in ${answer.endedAt - startedAt} ms${res.fixture ? ` ${JSON.stringify(res.fixture)}` : ''}`);
     busy = false;
@@ -185,7 +201,7 @@ async function passT5b() {
     await r.containerSuite('T5b', { env: { QA_TASK: 'T5b' }, expectIds: EXPECT.T5b, fresh: false });
   } finally {
     const log = stop();
-    r.record('HOSTCTL', 'Host actions asked for by the T5b tests (compose stop/start/pause/unpause moodle, stack:restart lti-service, bounded P5 fixture)', 'PASS', log.length ? log : ['none']);
+    r.record('HOSTCTL', 'Host actions asked for by T5b (own Moodle stop/start/pause/unpause, LTI restart, P2 app recovery, bounded P5 fixture)', 'PASS', log.length ? log : ['none']);
   }
 }
 
