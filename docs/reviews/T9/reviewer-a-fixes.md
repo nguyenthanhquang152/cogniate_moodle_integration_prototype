@@ -1,7 +1,9 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # Fix commits after T9 conformance: Reviewer-A (correctness and security)
+
+History: the round 1 verdict was APPROVE (3 NIT; below). The round 2 verdict (`2676cc7`) is APPROVE (section "Round 2 (2676cc7)" at the end).
 
 Scope:
 - Author-2 (Codex): `655ab78` (C-T8-01), `804a139` (P2, P5), `ab0119b` (P11), `5b10196` (P1).
@@ -71,3 +73,16 @@ Also checked:
 ## Counts
 
 0 BLOCKER, 0 MAJOR, 0 MINOR, 3 NIT (A-FX-01 to -03). Resolved by these commits: C-T8-01, P2, P5 (= A-T5b-05), P11, P1 (main path), C-T8-02, C-T8-03, A-T7-04, A-T8-04(a), A3. Not committed (Lead's instruction).
+
+## Round 2 (2676cc7)
+
+Scope: `git show 2676cc7` (spec `bb7c785`). Read-only; nothing committed. I did not read `reviewer-b.md`.
+
+- **A-FX-01 resolved.** When `recordSend` changes nothing, the worker now logs `score_sync {sync_id, status: "superseded", send_result, tries}`. So a lower score that reached Moodle during its supersede is visible in the log. The test asserts the new line.
+- **A-FX-02 (clamp part) resolved.** `once()` uses the client default for `undefined`, `NaN`, 0 and negative values, and otherwise `Math.min(60 000, Math.max(1, value))`. `Infinity` gives 60 000 ms and a fraction gives 1 ms, so a bad value can no longer fire at once or overflow. The other guards did not change. The orphan read-back and the security §9 sentence are still open, as a NIT for the Architect or Author.
+- **Register confirm page script: CSP stays strict, and there is no new sink.**
+  - The script is a fixed string with no interpolated data. It goes into the existing `<script nonce="…">` of `layout()` (nonce escaped), on a page whose CSP already has `script-src 'nonce-…'`, `form-action 'self'` and `frame-ancestors {site}`. There is no inline handler and no `unsafe-inline`.
+  - It only disables the submit button and sets a status line with `textContent`. The form posts the same hidden `registrationId` and `ref` fields (the button has no name), so the `Origin` rule and the single-use `ref` are unchanged.
+- **P11 texts.** With no attempt score, the text starts with "Completed" instead of "Completed — score ." (an empty score). The text is still plain and is set with `textContent` or escaped.
+
+Round 2 counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 new NIT. Still open: A-FX-02 (the orphan read-back and the §9 sentence), A-FX-03.

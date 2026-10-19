@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # Fix review — Reviewer-B (lens: maintainability, operability, what the user sees)
 
@@ -87,3 +87,19 @@ Summary: All the fixes do what the findings asked, with clear comments and focus
 
 - `npm run check` passes (679 tests). I did not run the stack or the T8 runner. QA owns the regression (T8 races, P1/P2 with `docker compose pause`).
 - The doctor shows GiB values with the label "GB". This is acceptable for the readers.
+
+---
+
+## Round 2 (2676cc7)
+
+Verdict: APPROVE. Scope: `git show 2676cc7` (Author-2), spec `bb7c785` (app contract §6 and §12, security §9). I read the diff and the spec lines. I did not read the Reviewer-A file.
+
+| Id | Round 2 status | Evidence |
+| --- | --- | --- |
+| B-FIX-01 | **Resolved** | `worker/score-sync.ts`: when `recordSend` returns `false`, the worker logs `score_sync` with `trace_id`, `sync_id`, `status: "superseded"`, `send_result` (the status that the send would have set) and `tries`. An operator can now match the LTI service's score POST to an app line. The contract log table (§12) gives the fields. The P2 test now expects exactly this one line (`send_result: "pending"`, `tries: 1`). |
+| B-FIX-02 | **Resolved** | The confirm page has a nonce script (the test checks that the nonce equals the one in the CSP). On submit it disables the "Connect" button and writes "Connecting to Moodle. This can take up to 15 seconds. Do not close this window." into `<p role="status" aria-live="polite">`, so a screen reader announces it too. The text is short and clear for a Moodle admin, and contract §6 has the same words. A second click is no longer possible from this page, so the false "The connection failed" page cannot appear this way. |
+| B-FIX-03 | **Resolved** | `status-text.ts` uses "Completed" with no score label when this attempt has no score: "Completed. Moodle keeps your best score: 80", "Completed. Sending your best score, 80, to Moodle", "Completed. Your best score, 80, was not sent to Moodle". Contract §6 (P11) has the same three texts, and there are three new test rows. |
+
+Note (no finding; for the owner of A-FX-02):
+- Security §9 says "a value that is not a finite number uses the 5 s default". The code (`outbound.ts`) and its test turn `Infinity` into 60,000 ms. 0 and negative values use the default (the test shows 123 ms) instead of the clamp to 1 ms.
+- This is harmless: the only caller passes 15,000. But the text and the code should say the same thing. Either change the sentence ("… `NaN`, 0 or less uses the default; more than 60 000 is cut to 60 000") or map `Infinity` to the default.
