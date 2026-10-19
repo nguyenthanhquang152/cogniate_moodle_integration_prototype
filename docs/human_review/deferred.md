@@ -1,15 +1,10 @@
 # Deferred findings
 
+Source: commit `4182c80`, 2026-10-19.
+
 These review findings are still open. Each one is MINOR ("worth a fix, safe to defer") or NIT (style). No BLOCKER or MAJOR finding is open. This list is for engineers. A product person can skip it.
 
-Counts: **6 MINOR, 25 NIT** (state 2026-10-19). T8 has no QA report yet, so new findings can come for this task. The T3c QA report has no product findings. Ids are in `docs/reviews/<task>/`.
-
-## Fixed after the last QA run (QA pending)
-
-| Id | Severity | Finding | State |
-| --- | --- | --- | --- |
-| Q-T7-01 | MINOR | The portal showed "Delegate to teacher". The Moodle 5.2.4 option is "As specified in Deep Linking definition or Delegate to teacher". | The portal text is changed (`d4218b2`). The next QA run checks it. |
-| Q-T7-02 | MINOR | The portal said "Add an activity". Moodle 5.2.4 has no such label. | T6.md and the portal (`8fdfa9e`) now use the Moodle 5.2.4 path. The next QA run checks it. |
+Counts: **6 MINOR, 27 NIT** (state 2026-10-19). T8 has no QA report yet, so new findings can come for this task. The T3c QA report has no product findings. Ids are in `docs/reviews/<task>/`.
 
 ## Security
 
@@ -30,6 +25,7 @@ Counts: **6 MINOR, 25 NIT** (state 2026-10-19). T8 has no QA report yet, so new 
 | T8 readiness 3 | NIT | T8 | `demo:users` never shows passwords, so a person must open the hidden `.env` file. | Add a local option that shows them. |
 | B-T3c-02 (rest) | NIT | T3c | When the compatibility image build fails, the script deletes the build log. | Print the last 20 log lines first. |
 | Q-T1-04 | NIT | T1 | Moodle shows "Missing capabilities: moodle/user:update" for the product web services token. | Remove unused functions, or add the capability. |
+| A-T7-04 | NIT | T7 | Without a terminal, `e2e:reset` and `test:e2e` delete the data with no confirmation. They print only a warning. | Ask for `--yes` or `E2E_CONFIRM=1` when no terminal is attached. |
 
 ## Code and logs
 
@@ -51,6 +47,7 @@ Counts: **6 MINOR, 25 NIT** (state 2026-10-19). T8 has no QA report yet, so new 
 | B-T1-07 (rest) | MINOR | T1 | A T1 test does not check `knobs: []` on the content host. It reads `seed.json` by shape. | Check `knobs: []`. Read the documented key paths. |
 | B-T1-08 (rest) | MINOR | T1 | Some T1 host checks are weak. | Add the listed checks. |
 | Q-T0-44 | NIT | T0 | AC-T5-32 depends on AC-T5-31 through a 10-minute window. | Write "run right after AC-T5-31". |
+| A-T7-02 (rest) | NIT | T7 | The secret search does not cover the container output. The service JSON logs carry the same events. | Optional: also search `docker compose logs`. |
 
 ## Docs and contracts
 
@@ -71,5 +68,7 @@ Counts: **6 MINOR, 25 NIT** (state 2026-10-19). T8 has no QA report yet, so new 
 | B-T6-05 (rest) | NIT | T6 | A connected site shows no fact, such as the last launch time. | Show the last launch. Add one test per state. |
 | T8 portal 1+2 | NIT | T8 | The portal shows the raw course status word. The last restore step holds two actions. | Use plain sentences. Split the step. |
 | Q-T7-03 | NIT | T7 | A decorative layer in the HTML export covers the lesson link. Tests use a DOM click. | The exporter fixes it (decision Q17). |
+
+Resolved and not listed: A-T7-03, Q-T7-01 and Q-T7-02. For A-T7-03 (test traces hold raw secrets), `infra/README.md` has a WARNING in "Debug a failed E2E step". QA verified the portal texts of Q-T7-01 and Q-T7-02 (T7 qa.md §6).
 
 Board notes that do not match the review files (for the Lead): the board lists Q-T1-04 as MINOR (qa.md says NIT). For T4b2, the board says the MINOR follow-ups are "in progress". The code has the fixes, but no review file closes them by name.

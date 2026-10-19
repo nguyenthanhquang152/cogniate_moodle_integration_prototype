@@ -7,7 +7,6 @@ Tags:
 - `[AC-T7-14]`: QA followed this step on a live Moodle 5.2.4 site, and every label matched.
 - `[AC-T7-01]`: the full end-to-end QA run used this step, and the run passed.
 - `[AC-T6-…]`: QA tested this portal behaviour in task T6, and it passed.
-- `[Pending QA]`: the text changed after the last QA run.
 - `[Not verified by QA]`: only the builder checked it.
 
 There are two methods. Use **Automatic** if you can. Use **Manual** only if the automatic method fails.
@@ -73,7 +72,7 @@ The portal shows a table "Tool configuration" with 16 Moodle settings and their 
 5. On the new tool card, click "View configuration details" [AC-T7-01].
 6. Keep this dialog open. It shows the six values for the portal [AC-T7-01].
 
-NOTE: For "Accept grades from the tool", select "As specified in Deep Linking definition or Delegate to teacher". The portal showed a shorter text in the QA run (finding Q-T7-01). The portal now shows the full text [Pending QA].
+NOTE: For "Accept grades from the tool", select "As specified in Deep Linking definition or Delegate to teacher". The portal shows this exact text [T7 qa.md §6].
 
 ### Back in the portal
 
@@ -106,4 +105,3 @@ A connection can fail. Then Moodle can show a pending Cogniate tool that you did
 
 - MoodleCloud. QA used a local Moodle 5.2.4 site (decision Q5).
 - The badges "Link expired" and "Disconnected", and the "Disconnect" button.
-- The portal texts that changed after the last QA run (marked "Pending QA").

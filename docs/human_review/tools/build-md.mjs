@@ -3,18 +3,44 @@
 // So the explainer, the Markdown diagrams and the video use the same content.
 // Usage: node docs/human_review/tools/build-md.mjs           write flows.md
 //        node docs/human_review/tools/build-md.mjs --check   exit 1 if flows.md is out of date
+//        node docs/human_review/tools/build-md.mjs --stamp   write "Source: commit <HEAD>, <today>" into every
+//          pack file (Markdown, explainer, video script), then write flows.md. Then run video/build.sh again.
+//          A commit cannot hold its own SHA, so the stamp names the commit that the pack was built on.
+import { execFileSync } from 'node:child_process';
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const dir = join(dirname(fileURLToPath(import.meta.url)), '..');
-const html = readFileSync(join(dir, 'explainer.html'), 'utf8');
+let html = readFileSync(join(dir, 'explainer.html'), 'utf8');
 const block = html.match(/<script type="application\/json" id="pack-data">([\s\S]*?)<\/script>/);
 if (!block) {
   console.error('explainer.html has no <script type="application/json" id="pack-data"> block.');
   process.exit(2);
 }
 const data = JSON.parse(block[1]);
+
+if (process.argv.includes('--stamp')) {
+  const sha = execFileSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: dir, encoding: 'utf8' }).trim();
+  const date = new Date().toISOString().slice(0, 10);
+  data.meta.source = sha;
+  data.meta.date = date;
+  const start = block.index + block[0].indexOf(block[1]);
+  html = html.slice(0, start) + '\n' + JSON.stringify(data, null, 2) + '\n' + html.slice(start + block[1].length);
+  writeFileSync(join(dir, 'explainer.html'), html);
+  const line = /^Source: commit `[0-9a-f]+`, \d{4}-\d{2}-\d{2}\.$/m;
+  for (const file of ['START-HERE.md', 'proven.md', 'decisions-needed.md', 'deferred.md', 'PLAN.md']) {
+    const text = readFileSync(join(dir, file), 'utf8');
+    if (!line.test(text)) throw new Error(`${file} has no "Source: commit …" line`);
+    writeFileSync(join(dir, file), text.replace(line, `Source: commit \`${sha}\`, ${date}.`));
+  }
+  const scriptPath = join(dir, 'video', 'script.json');
+  const script = readFileSync(scriptPath, 'utf8');
+  if (!/"commit": "[0-9a-f]+"/.test(script)) throw new Error('video/script.json has no meta "commit"');
+  writeFileSync(scriptPath, script.replace(/"commit": "[0-9a-f]+"/, `"commit": "${sha}"`)
+    .replace(/("commit": "[0-9a-f]+",\s*"date": )"\d{4}-\d{2}-\d{2}"/, `$1"${date}"`));
+  console.log(`Stamped commit ${sha}, ${date}. Next: bash docs/human_review/video/build.sh`);
+}
 
 // Mermaid breaks on ";" and "#" in message text.
 const mm = (text) => text.replace(/;/g, ',').replace(/#/g, 'no. ');

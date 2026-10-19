@@ -37,7 +37,7 @@ NOTE: On the HTML menu page, a decorative layer covers the centre of the lesson 
 
 | When the learner… | Then… | Tag |
 | --- | --- | --- |
-| closes the window before the end | Moodle gets no grade. The next launch continues the same attempt. | AC-T5-35, AC-T5-06, AC-T5-11 |
+| closes the window before the end | Moodle gets no grade. The next launch continues the same attempt. QA closed the window by script, not by hand. | AC-T5-35, AC-T5-06, AC-T5-11 |
 | leaves the lesson page before 10 seconds | The course is not complete. Moodle gets no grade. | AC-T5-29 |
 | opens a passed course again | Nothing changes. Moodle keeps 100. | AC-T5-20 |
 | fails, then passes on a new try | The best result counts. Moodle shows 100. | AC-T5-23, AC-T5-12 |

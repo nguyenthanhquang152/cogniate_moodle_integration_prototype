@@ -1,5 +1,7 @@
 # Hand-over pack: plan
 
+Source: commit `4182c80`, 2026-10-19.
+
 Status: accepted by the Lead (2026-10-16). Built 2026-10-19. Owner of the pack: Docs.
 
 **Goal:** a product person understands the prototype and the open decisions in 30 minutes or less. Each artifact is small. You can throw it away after the review.

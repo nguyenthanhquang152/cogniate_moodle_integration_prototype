@@ -17,7 +17,7 @@ The two course zips must be in `docs/raw/data/courses/` (they are not in git).
 npm ci
 npm run fixtures:check
 npm run gen-env
-npm run e2e:reset      # WARNING: deletes the local Moodle site and the local Cogniate data. Type yes to confirm.
+npm run e2e:reset      # WARNING: deletes the local Moodle site and the local Cogniate data. If it asks, type yes.
 npm run demo:prepare   # connection, two published courses, two Moodle activities
 ```
 

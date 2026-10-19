@@ -1,5 +1,7 @@
 # Start here
 
+Source: commit `4182c80`, 2026-10-19.
+
 **What it is.** A prototype that publishes Cogniate courses to Moodle with the LTI 1.3 standard. It has our own LTI service. Its API has the same shape as the public LTIAAS API. It also has a stand-in for the Cogniate portal and a real Moodle 5.2.4 site, all on one Mac.
 
 **Result.** It works. On a real Moodle 5.2.4 site, QA ran the full test three times in a row with no retries. All 15 end-to-end checks passed. The score reaches the Moodle gradebook in about 4 seconds. ([proven.md](proven.md))
@@ -22,7 +24,7 @@
 | Launch security. No secrets in the logs. | A new person runs the stack in 10 minutes (HR-2) |
 | One library cannot see another library's data. | Final QA of the native `.mbz` backup (pending) |
 | The portal: Connect wizard, Publish, Results (14 of 14 checks) | |
-| The real `ltiaas` SDK works against our LTI service | |
+| The real `ltiaas` SDK works against our LTI service | Other browsers (QA used Chromium only), mobile, video playback, and a real person who closes the player window |
 
 ## What we need from you
 
@@ -43,10 +45,10 @@ Answer the questions in [decisions-needed.md](decisions-needed.md). The four mos
 | 4 | [`proven.md`](proven.md) (also the Proven tab) | 5 min |
 | 5 | [`decisions-needed.md`](decisions-needed.md) (also the Decisions tab, with "Copy my answers") | 10 min |
 
-To run the prototype yourself, see [`docs/guides/`](../guides/run-the-stack.md). For engineers: [`deferred.md`](deferred.md) (open minor findings) and [`flows.md`](flows.md) (one diagram per flow).
+To run the prototype yourself, see [`docs/guides/`](../guides/run-the-stack.md). For engineers: [`deferred.md`](deferred.md) (open minor findings) and [`flows.md`](flows.md) (one diagram per flow). [`PLAN.md`](PLAN.md): how Docs made this pack. You can skip it.
 
 ## How this was built
 
 - **`rea` not used.** We evaluated [`rea`](https://github.com/morluto/rea) and did not use it to clone LTIAAS. LTIAAS is a hosted service, and its terms forbid reverse engineering. So we built a clean-room service from the 1EdTech specs and the public API shape. QA then ran the real `ltiaas` 0.0.4 SDK against our service, and every check passed (AC-T3-27). See [`rea-evaluation.md`](../architecture/rea-evaluation.md) and [ADR-001](../architecture/adr/ADR-001-rea-not-used.md).
-- **A team of agents.** Lead, Architect, Author, QA, QA-E2E, Docs, Reviewer-A and Reviewer-B ran on Claude Opus 5.5 (xhigh). Codex GPT-6-Astra (xhigh) worked as Author-2 through Orca, for the portal and the LTIAAS-compatible endpoints. Each finished task passed QA and two independent reviews (T8: QA pending). See the [charter](../team/charter.md#as-run-from-2026-10-18-two-author-lanes-two-qa-instances) and the [board](../team/board.md).
+- **A team of agents.** Lead, Architect, Author, QA, QA-E2E, Docs, Reviewer-A and Reviewer-B ran on Claude Opus 5.5 (xhigh). Codex GPT-6-Astra (xhigh) worked as Author-2 through Orca, for the portal and the LTIAAS-compatible endpoints. Each finished task passed QA and two independent reviews (T5-spike: reference code only, not reviewed or QA-tested; T8: QA pending). See the [charter](../team/charter.md#as-run-from-2026-10-18-two-author-lanes-two-qa-instances) and the [board](../team/board.md).
 - **Legal note.** The claim "LTIAAS-compatible" is for internal use until a human decides Q1.

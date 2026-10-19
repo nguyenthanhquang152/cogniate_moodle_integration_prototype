@@ -18,6 +18,7 @@
     font-family: "DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", "DejaVu Sans", sans-serif; }
   .top { position: absolute; left: 40px; right: 40px; top: 22px; display: flex; justify-content: space-between; font-size: 18px; color: var(--muted); }
   .logo span { background: var(--grad-logo); -webkit-background-clip: text; background-clip: text; color: transparent; font-weight: 700; }
+  #stamp { font-size: 14px; color: hsl(0 0% 55%); margin-left: 10px; }
   .notice { color: var(--warn); border: 1px solid var(--warn); border-radius: 999px; padding: 2px 12px; font-size: 15px; }
   h1 { position: absolute; left: 40px; top: 58px; font-size: 40px; letter-spacing: -.01em; }
   .stage { position: absolute; left: 40px; right: 40px; top: 122px; height: 430px; display: flex; align-items: center; justify-content: center; }
@@ -50,7 +51,7 @@
 </style>
 </head>
 <body>
-<div class="top"><div class="logo"><span>Cogniate</span> × Moodle</div><div id="right"></div></div>
+<div class="top"><div class="logo"><span>Cogniate</span> × Moodle <small id="stamp"></small></div><div id="right"></div></div>
 <h1 id="h"></h1>
 <div class="stage" id="stage"></div>
 <div class="caption" id="cap"></div>
@@ -67,6 +68,7 @@
   const right = document.getElementById('right');
   if (lang === 'vi') right.append(el('span', 'notice', S.meta.viNotice));
   right.append(el('span', null, '   ' + (i + 1) + ' / ' + S.slides.length));
+  document.getElementById('stamp').textContent = 'Source: commit ' + S.meta.commit + ', ' + S.meta.date;
   document.getElementById('cap').textContent = sl.say[lang];
   const done = () => { window.READY = true; };
   if (sl.kind === 'title') {

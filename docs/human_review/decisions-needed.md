@@ -1,5 +1,7 @@
 # Decisions needed
 
+Source: commit `4182c80`, 2026-10-19.
+
 Only a human can answer these questions. Each row has our recommendation, what the answer blocks, and who decides. Until you decide, the prototype uses our recommendation.
 
 **How to answer:** open [`explainer.html`](explainer.html), tab **Decisions**. Select an answer for each row, then click **Copy my answers** and send the text to the Lead. Or reply with the row ids (for example "Q1 accept, Q3 change: …").
@@ -10,7 +12,7 @@ Source: [`docs/architecture/open-questions.md`](../architecture/open-questions.m
 
 | Id | Question | Our recommendation | It blocks | Who decides |
 | --- | --- | --- | --- | --- |
-| Q1 | Legal: is our clean-room method acceptable? May QA use the MIT `ltiaas` Python SDK as a test-only client? How may we describe the result? | Yes, and yes (test only, not shipped). Use only the narrow claim of ADR-003. Do not use "LTIAAS" in product names. Check the LTI® mark and plan 1EdTech membership. | Any external claim about LTIAAS compatibility | Legal |
+| Q1 | Legal: is our clean-room method acceptable? May QA use the MIT `ltiaas` Python SDK as a test-only client? May we use the claim below? | Yes, yes (test only, not shipped), and yes: use only the claim below. Check the LTI® mark and plan 1EdTech membership. | Any external claim about LTIAAS compatibility | Legal |
 | Q5 | Do we test on a real MoodleCloud site (registration, Activate, launch container, grades, web services, `.mbz` size limit)? | Yes, one test on a MoodleCloud trial site. A human must make the account, because the agents may not sign up. | The claim "works on MoodleCloud" | Product owner |
 | Q3 | Privacy: do we share the learner name and email with Cogniate? (DataCamp shares both.) | No, by default. Moodle sends only an anonymous LTI user id. Add an opt-in per connection later, with a data processing agreement. | Learner names in the portal | Product and Legal (DPO) |
 | Q16 | A teacher on Safari may not be able to add Cogniate content ("Select content" runs in a Moodle frame). Learner launches open in a new window, so by design they do not have this problem. QA tested Chromium only. Residual risk R4. | For the pilot: teachers use Chrome, Edge or Firefox to add content. Before general release, choose: accept the limit, a special mode after a security review, or ask Moodle HQ for support. | The browser statement for teachers | Product and a security reviewer |
@@ -19,6 +21,18 @@ Source: [`docs/architecture/open-questions.md`](../architecture/open-questions.m
 | Q2 | Does the course open in a new window or inside the Moodle page? | New window (current setting). A course inside the Moodle page fails in browsers that block third-party cookies. DataCamp also uses a new window. | Admin guide text | Product |
 | Q4 | Which grade does Moodle show: the best result or the latest? What does a completion-only course give? | The best result. Never lower a grade. A completion-only course gives 100/100. | The grade rule (ADR-010) | Product |
 | Q12 | Do we offer the native channel (`.mbz` backup and course shell, task T8) in the pilot? T8 is built as a stretch. Its QA is pending. | Keep LTI as the main path. Offer the native backup only to a customer who needs editable courses on MoodleCloud. | Pilot scope | Product owner |
+
+### Q1: the claim to approve
+
+Source: [ADR-003, "Promises"](../architecture/adr/ADR-003-ltiaas-compatibility-scope.md#promises). In plain words:
+
+> Our LTI service has the endpoints, paths, header schemes and field names of the public LTIAAS API reference, with a listed set of differences. The real `ltiaas` Python SDK passed our test for the id token, deep linking, scores and memberships (AC-T3-27). We used it only as a test client (MIT licence).
+
+Do not say:
+
+- "a copy of LTIAAS"
+- "works with any LTIAAS tool"
+- "LTIAAS" in a product name
 
 ## B. Hand-over checks (this week)
 

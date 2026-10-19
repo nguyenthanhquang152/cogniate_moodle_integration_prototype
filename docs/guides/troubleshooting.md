@@ -25,7 +25,7 @@ More technical help: [`infra/README.md`](../../infra/README.md#troubleshooting).
 | --- | --- | --- | --- |
 | A Moodle tour ("Activate edit mode") covers the page | First visit to edit mode. | Click "End tour". | Seen by QA (T7 qa.md §4) |
 | You cannot find "Add an activity" | Moodle 5.2.4 has no such label. | Turn on Edit mode, then click "Add content" → "Activity or resource". See the [teacher guide](teacher.md). | AC-T7-14, finding Q-T7-02 |
-| You cannot find the option "Delegate to teacher" | The Moodle 5.2.4 text is longer. | Select "As specified in Deep Linking definition or Delegate to teacher". | Finding Q-T7-01 |
+| You cannot find the option "Delegate to teacher" | The Moodle 5.2.4 text is longer. | Select "As specified in Deep Linking definition or Delegate to teacher". | T7 qa.md §6 |
 | Moodle asks you to update a tool or register a new one | Another tool with the same domain exists. | Click "Register as a new external tool". Cogniate refuses an update. | AC-T6-04, AC-T3-25, AC-T4-30 |
 | A grade or completion seems late | Moodle cron did not run yet. | Normally not needed. Fallback: `npm run moodle:cron`. | No cron needed: AC-T7-05. The command: no. |
 
@@ -39,3 +39,9 @@ More technical help: [`infra/README.md`](../../infra/README.md#troubleshooting).
 | A teacher on Safari cannot add Cogniate content | Safari blocks the Cogniate cookie inside Moodle's "Select content" frame (decision Q16). | Use Chrome, Edge or Firefox to add content. | No. QA used Chromium only. |
 | The lesson link on the HTML menu page does not react | A decorative layer of the HTML export covers the link (decision Q17). | Click another part of the link. | No (not checked by hand) |
 | The player says that the player is not built | The player files are missing. | Run `npm run build`. | No |
+
+## End-to-end test
+
+If a step of `npm run test:e2e` fails, follow "Debug a failed E2E step" in [`infra/README.md`](../../infra/README.md#debug-a-failed-e2e-step).
+
+WARNING: The test traces and the HTML report in `tests/e2e/artifacts/` hold raw secrets (passwords, cookies, tokens). Do not share them. Share the error text and a screenshot.

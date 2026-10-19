@@ -2,6 +2,7 @@
   "meta": {
     "title": "Cogniate × Moodle prototype",
     "source": "T3c, T6 and T7 qa.md; open-questions.md; architecture README §6",
+    "commit": "4182c80",
     "date": "2026-10-19",
     "voices": { "en": { "voice": "Samantha", "rate": 170 }, "vi": { "voice": "Linh", "rate": 185 } },
     "viNotice": "Bản dịch máy, vui lòng kiểm tra (machine-translated, please check)"

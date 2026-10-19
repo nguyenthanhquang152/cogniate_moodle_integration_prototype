@@ -14,7 +14,7 @@ NOTE: QA tested teachers and learners with Chromium only. Other browsers are not
 
 ## Procedure: Add the course
 
-The path in Moodle 5.2.4: Edit mode → "Add content" → "Activity or resource" → "Cogniate (<library>)" → "Add" → "Select content".
+The path in Moodle 5.2.4: Edit mode → "Add content" → "Activity or resource" → "Cogniate (<library>)" → "Add" → "Select content". The portal shows the same path next to each publication [T7 qa.md §6].
 
 1. Open the Moodle course.
 2. Turn on the "Edit mode" switch at the top right [AC-T7-01].
@@ -60,4 +60,3 @@ If a Cogniate user withdraws the course, the activity shows "This course is no l
 
 - Safari (see the NOTE above).
 - The menu clicks to open the grader report. QA opened the report by its URL.
-- The teacher path text that the portal shows next to a publication. Since portal commit `8fdfa9e` it is the same path as above. The next QA run checks it (finding Q-T7-02).
