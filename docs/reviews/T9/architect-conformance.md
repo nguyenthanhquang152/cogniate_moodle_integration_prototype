@@ -1,7 +1,7 @@
 Verdict: APPROVE
 Round: 2
 
-History: round 1 (at `2129b69`) was CHANGES_REQUESTED (MAJOR D1, P1, P2 open). Round 2 (section 9, after the fixes) is APPROVE for conformance; QA results are pending.
+History: round 1 (at `2129b69`) was CHANGES_REQUESTED (MAJOR D1, P1, P2 open). Round 2 (section 9, after the fixes) is APPROVE for conformance; the final QA regression on `dd6dd11` is pending.
 
 # T9: Architect final conformance check
 
@@ -165,21 +165,22 @@ From the Lead's routing messages (after `2129b69`, and with commit `aeb0854`). O
 | A-FX-02 | Deferred. A platform that the LTI service makes after the app gave up stays active with no owner; the residual is in security §2.6. The timeout clamp part is in the spec (security §9). |
 | A-FX-03 | Deferred. A theoretical double take-over of a stale Build Runner lock (needs a killed runner plus two starts at the same moment). |
 
-Spec changes for these decisions: app contract §6 (status API and texts for P11; register timing for P1), security §2.6 and §9 (P1), commit `5d2bf50`. QA may pause and unpause Moodle on its own project to test P1 and P2 (tasks README §2), commit `1a0d915`. From the reviews of the fixes (`reviewer-a-fixes.md`, `reviewer-b-fixes.md`): app contract §6 (connect page wait text, P11 texts without a score), §12 (`score_sync` with `send_result`), security §9 (timeout clamp), not yet committed.
+Spec changes for these decisions: app contract §6 (status API and texts for P11; register timing for P1), security §2.6 and §9 (P1), commit `5d2bf50`. QA may pause and unpause Moodle on its own project to test P1 and P2 (tasks README §2), commit `1a0d915`. From the reviews of the fixes (`reviewer-a-fixes.md`, `reviewer-b-fixes.md`): app contract §6 (connect page wait text, P11 texts without a score), §12 (`score_sync` with `send_result`), security §9 (timeout clamp), commits `bb7c785` and `3847139`.
 
 ## 9. Round 2: after fixes
 
-Verdict after fixes: **APPROVE (conformance), QA results pending.**
+Verdict after fixes: **APPROVE (conformance).**
 
 | Finding | Fix commit | State |
 | --- | --- | --- |
 | D1 (MAJOR) | `5187765` | Fixed (Docs). |
-| P1 (MAJOR) | `5b10196` (merge `1aeef88`) | Fixed and merged. Reviewer-A and Reviewer-B: APPROVE. Follow-ups B-FIX-02 (wait text, no second submit) and A-FX-02 (timeout clamp) in the spec; Author-2 implements. |
-| P2 (MAJOR), P5 | `804a139` | Fixed and merged. Follow-up B-FIX-01 (`score_sync` with `send_result`) in the spec; Author-2 implements. |
-| P11 | `ab0119b` | Fixed and merged. Texts without a score in the spec; Author-2 implements. |
+| P1 (MAJOR) | `5b10196` (merge `1aeef88`); follow-ups `2676cc7` (merge `dd6dd11`) | Fixed and merged. Follow-ups B-FIX-02 (wait text, no second submit) and A-FX-02 (timeout clamp) merged. Reviewer-A and Reviewer-B: APPROVE round 2 (`d2cfa76`). |
+| P2 (MAJOR), P5 | `804a139`; follow-up `2676cc7` (merge `dd6dd11`) | Fixed and merged. Follow-up B-FIX-01 (`score_sync` with `send_result`) merged. Reviewers APPROVE round 2 (`d2cfa76`). |
+| P11 | `ab0119b`; follow-up `2676cc7` (merge `dd6dd11`) | Fixed and merged, including the texts without a score. Reviewers APPROVE round 2 (`d2cfa76`). |
 | C-T8-01 | `655ab78` | Fixed and merged (build reserved before the request file). |
-| C-T8-02, C-T8-03 | `8059c31` | Fixed and merged (atomic runner lock; lang rule and failed status for refused requests). |
+| C-T8-02, C-T8-03 | `8059c31` | Fixed and merged (atomic runner lock; lang rule and failed status for refused requests). T8 QA round 2 PASS at `8059c31` (`8c9f7d9`). |
 | F5 | none | Accepted limitation, Q18. |
+| Final QA regression | `dd6dd11` | Pending. |
 
-No BLOCKER or MAJOR finding is open in the conformance check. Open items: QA results for the fixes, the three small Author-2 follow-ups above, and the deferred MINOR and NIT findings (section 8).
+No BLOCKER or MAJOR finding is open in the conformance check. Open items: the final QA regression on `dd6dd11`, and the deferred MINOR and NIT findings (section 8).
 
