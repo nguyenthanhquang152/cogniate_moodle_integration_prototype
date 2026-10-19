@@ -136,3 +136,18 @@ Command: `… node tests/e2e/host/run-t7.mjs --sha 8059c31 --runs 1 --check-conf
 | A-T7-04 fail closed: no terminal, no `--yes`, no `E2E_CONFIRM` (`e2e:reset`, `test:e2e`) | PASS | With stack data present, each command printed the WARNING and "No terminal to ask. Run it with -- --yes, or E2E_CONFIRM=1. Nothing was deleted.", exit 1. Snapshot before and after the same (5 containers with the same ids and start times, 3 volumes, `seed.json`, data folders, log files). | `H/cmd/09-no-terminal-e2e-reset.log`, `H/cmd/10-no-terminal-test-e2e.log`, `H/summary.json` (`confirm`) |
 | AC-T7-15 `demo:prepare` | PASS | After `e2e:reset -- --yes` (49 s): `demo:prepare` exit 0 in 8.6 s; `cg_student` reached the player with the course package in both activities. | `H/cmd/12-demo-prepare.log`, `H/demo/evidence/` |
 | Teardown | PASS | 0 containers, 0 volumes, 0 networks of `qa-e2e-r1`. No `build_leftover_removed` event in the collected logs. | `H/cmd/14-stack-down.log` |
+
+## 9. Final regression run (`dd6dd11`, final code)
+
+`dd6dd11` = `8059c31` plus the review follow-ups: the Cogniate register page disables "Connect" on submit and shows a wait text; one extra `score_sync` log line for a superseded late send; P11 texts for attempts with no score; a clamp on the outbound timeout. The suite is the one in the SHA (no `--replace-e2e`).
+
+Command: `… node tests/e2e/host/run-t7.mjs --sha dd6dd11 --runs 1 --check-confirm --demo`. Fresh clone `~/cogniate-qa-runs/qa-e2e-r1-dd6dd11-2026-10-19T09-12-10-259Z`, project `qa-e2e-r1`, port 8543, subnet 172.31.0.0/16. Evidence: `J` = `tests/e2e/artifacts/runs/qa-e2e-r1-dd6dd11-2026-10-19T09-12-10-259Z/`.
+
+| Check | Result | What QA saw | Evidence |
+| --- | --- | --- | --- |
+| `npm run test:e2e -- --yes` (AC-T7-01 to -14) | PASS | Exit 0 in 183 s (`e2e:reset` 42 s). 17 pass, 0 fail, 1 skip (DEMO). A2 clicked "Connect" once and the Cogniate panel closed as before. No AC-T7-14 label difference, no manual-form difference, no finding. Grades in Moodle 3.8–3.9 s after each completion; shell texts "Completed — score 100 / 0 sent to Moodle" unchanged. C2: 45 captured values of 9 kinds, 0 in the logs. | `J/run1/tests.json`, `J/run1/evidence/` |
+| B-T7-01 "no" in a terminal; A-T7-04 no terminal and no `--yes` (`e2e:reset`, `test:e2e`) | PASS | All four stop with exit 1 and the right text ("Stopped. Nothing was deleted." / "No terminal to ask … Nothing was deleted."). The stack is unchanged each time. | `J/cmd/07-…` to `J/cmd/10-…`, `J/summary.json` |
+| AC-T7-15 `demo:prepare` | PASS | After `e2e:reset -- --yes` (39 s): exit 0 in 8.4 s; `cg_student` reached the player in both activities. | `J/cmd/12-demo-prepare.log`, `J/demo/evidence/` |
+| Teardown | PASS | 0 containers, 0 volumes, 0 networks of `qa-e2e-r1`. | `J/cmd/14-stack-down.log` |
+
+T7 on the final code: all 15 ACs pass. Passing `npm run test:e2e` runs in this file: `1639c7e` ×3, `f0e5525`, `63de503`, `2129b69`, `8059c31`, `dd6dd11` (183–189 s each). One dry run at `512bb86` (not listed above) failed on a suite text check (the old teacher hint); §6 fixed the check.
