@@ -78,7 +78,8 @@ test('AC-T6-09 axe: no serious or critical violation on Integrations, wizard, Co
   await page.goto(`${APP}${PORTAL_ROUTES.course(courseId)}`);
   await page.getByRole('button', { name: /Publish to Moodle/ }).or(page.getByRole('link', { name: /Publish to Moodle/ })).first().click();
   await page.getByRole('dialog').waitFor();
-  await scan('Publish dialog', '[role="dialog"]');
+  // A native <dialog> has the dialog role without the attribute.
+  await scan('Publish dialog', (await page.locator('[role="dialog"]').count()) ? '[role="dialog"]' : 'dialog[open]');
   await page.keyboard.press('Escape');
   await page.goto(`${APP}${PORTAL_ROUTES.results(String(st.scormPublicationId))}`);
   await page.waitForLoadState('networkidle');

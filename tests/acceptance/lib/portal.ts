@@ -36,6 +36,14 @@ export const SIX_VALUES: Record<string, RegExp> = {
 };
 
 export async function portalSignIn(page: Page, email: string, password?: string): Promise<void> {
+  // A context that is already signed in: /signin redirects into the app. Same user → keep the session; another user →
+  // drop the app cookies first, then sign in.
+  const me = await page.request.get(`${APP}/app-api/me`);
+  if (me.status() === 200) {
+    const who = (await me.json().catch(() => null)) as { user?: { email?: string } } | null;
+    if (who?.user?.email?.toLowerCase() === email.toLowerCase()) return;
+    await page.context().clearCookies({ domain: new URL(APP).hostname });
+  }
   await page.goto(`${APP}${PORTAL_ROUTES.signin}`);
   await page.getByLabel(/e-?mail/i).first().fill(email);
   await page.getByLabel(/password/i).first().fill(password ?? portalUser(email).password);

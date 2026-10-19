@@ -69,7 +69,8 @@ test.describe.serial('T6 Courses (Thanh)', () => {
       while (Date.now() < deadline) {
         const v = await bar.first().getAttribute('aria-valuenow').catch(() => null);
         if (v !== null && (values.length === 0 || Number(v) !== values[values.length - 1])) values.push(Number(v));
-        if ((await page.getByText('SCORM 1.2').count()) > 0 || (await bar.count()) === 0) break;
+        // The upload hint also says "SCORM 1.2", so stop on the report's mastery line or when the bar is gone.
+        if ((await page.getByText(/Mastery score\s*70/).count()) > 0 || (await bar.count()) === 0) break;
         await page.waitForTimeout(200);
       }
     } finally {
@@ -80,7 +81,7 @@ test.describe.serial('T6 Courses (Thanh)', () => {
     expect(values.every((v, i) => i === 0 || v >= values[i - 1]), 'aria-valuenow never goes down').toBe(true);
     expect(values[values.length - 1]).toBeGreaterThan(values[0]);
 
-    await expect(page.getByText('SCORM 1.2').first()).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByText('SCORM 1.2', { exact: true }).first(), 'the report shows the format SCORM 1.2').toBeVisible({ timeout: 60_000 });
     await expect(page.getByText(/Mastery score\s*70/).first()).toBeVisible();
     await expect(page.getByText(S3).first(), 'external hosts warning names the S3 host').toBeVisible();
 

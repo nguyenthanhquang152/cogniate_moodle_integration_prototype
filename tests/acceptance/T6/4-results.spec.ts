@@ -22,8 +22,16 @@ async function contextTitleOf(publicationId: string, activityTitle: string): Pro
   return String(row!.activity.contextTitle);
 }
 
-/** The history of a row: the region that its expand control opens (aria-controls), else the row's next sibling. */
+/** The history of a row: a <details> "Sync history" disclosure, else the region that its expand control opens (aria-controls), else the row's next sibling. */
 async function historyText(page: Page, row: Locator): Promise<string> {
+  // A <details> disclosure ("Sync history (n)"): open it and read its content.
+  const summary = row.locator('details > summary', { hasText: /history/i }).first();
+  if (await summary.count()) {
+    await summary.click();
+    const details = summary.locator('xpath=..');
+    await expect(details).toHaveAttribute('open', /.*/);
+    return (await details.innerText()).replace(/\s+/g, ' ');
+  }
   const toggle = row.locator('[aria-expanded]').or(row.getByRole('button', { name: /history|details|syncs|expand/i })).first();
   await toggle.click();
   const controls = await toggle.getAttribute('aria-controls');
