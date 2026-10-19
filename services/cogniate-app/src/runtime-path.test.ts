@@ -639,6 +639,26 @@ describe('P2 durable score confirmation', () => {
       .toEqual([['sent', 1, null], ['sent', 1, null], ['sent', 1, null]]);
     expect(syncs().find((r) => r.id === lowId)?.delivery_uncertain).toBe(1);
   });
+
+  it.each(['send', 'confirmation'])('a higher final attempt without a sync row blocks a lower %s POST', async (phase) => {
+    const { w, worker } = phase === 'confirmation' ? await confirmationPending() : await uncertainLower();
+    const lowerId = String(rowOf(sub).id);
+    const sentBefore = t.lti.scores.map((s) => s.body.scoreGiven);
+    await upload(w.thanh, w.scormCourse, scormFiles());
+    await json('POST', '/app-api/publications', w.thanh, { connectionId: w.connectionId, courseId: w.scormCourse });
+    const higher = await launch(w.platformId, w.scorm, { sub });
+    const attempt = attemptOf(higher.token);
+    // Model a final attempt whose sync row is absent. Keep the lower row pending so the attempt guard is exercised.
+    t.db.prepare("UPDATE attempt SET outcome = 'passed', score_given = ?, score_maximum = 100 WHERE id = ?")
+      .run(phase === 'confirmation' ? 95 : 80, String(attempt.id));
+    expect(t.db.prepare('SELECT id FROM score_sync WHERE attempt_id = ?').get(String(attempt.id))).toBeUndefined();
+    const callsBefore = t.lti.calls.length;
+    t.clock.now += 5000;
+    await worker.kick();
+    expect(t.lti.scores.map((s) => s.body.scoreGiven)).toEqual(sentBefore);
+    expect(t.lti.calls).toHaveLength(callsBefore);
+    expect(t.db.prepare('SELECT status, tries FROM score_sync WHERE id = ?').get(lowerId)).toEqual({ status: 'pending', tries: 1 });
+  });
 });
 
 describe('HTML runtime on the server (app contract §7, §9; T5b)', () => {

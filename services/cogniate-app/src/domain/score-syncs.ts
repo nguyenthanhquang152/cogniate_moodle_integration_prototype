@@ -39,7 +39,7 @@ export function isCurrentSync(db: Db, id: string): boolean {
     AND NOT EXISTS (SELECT 1 FROM score_sync other WHERE other.resource_link_id = s.resource_link_id AND other.user_sub = s.user_sub
       AND other.status <> 'superseded' AND other.score_given / other.score_maximum > s.score_given / s.score_maximum)
     AND NOT EXISTS (SELECT 1 FROM attempt a WHERE a.resource_link_id = s.resource_link_id AND a.user_sub = s.user_sub AND a.preview = 0
-      AND a.outcome IN ('completed', 'passed', 'failed') AND a.score_given / a.score_maximum > s.score_given / s.score_maximum)`).get(id) !== undefined;
+      AND a.outcome IN ('completed', 'passed', 'failed') AND CAST(a.score_given AS REAL) / a.score_maximum > s.score_given / s.score_maximum)`).get(id) !== undefined;
 }
 
 /** Uncertainty stays on its source row until an accepted confirmation covers it, even after an ordinary 204.
