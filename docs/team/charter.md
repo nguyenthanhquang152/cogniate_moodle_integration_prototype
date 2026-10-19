@@ -63,6 +63,43 @@ flowchart TD
     ESC --> HR
 ```
 
+### As run (from 2026-10-18): two Author lanes, two QA instances
+
+```mermaid
+flowchart LR
+    subgraph CC [Claude Code subagents - Opus 5.5 xhigh]
+      L[Lead / orchestrator]
+      AR[Architect]
+      AU[Author - main checkout]
+      QA[QA - tests/acceptance]
+      QE[QA-E2E - tests/e2e]
+      RA[Reviewer-A]
+      RB[Reviewer-B]
+      DO[Docs]
+    end
+    subgraph OR [Orca orchestration - Codex GPT-6-Astra xhigh]
+      C1[Author-2 worker<br/>own worktree + branch<br/>own local stack]
+    end
+    L -- task brief / SendMessage --> AU
+    L -- worker-start spec --> C1
+    C1 -- worker_done / question / escalation --> L
+    AU -- done report --> L
+    L -- merge branch, clean-worktree check, commit --> MAIN[(feat/moodle-lti-prototype)]
+    MAIN -- SHA --> QA
+    MAIN -- SHA --> QE
+    MAIN -- diff --> RA
+    MAIN -- diff --> RB
+    QA & QE & RA & RB -- verdicts + findings --> L
+    L -- contract questions --> AR
+    AR -- spec updates --> L
+    L -- verified results --> DO
+```
+
+- Author lane (Opus): T1, spikes, T2a–T5b, T7 harness, T8 backend.
+- Author-2 lane (Codex, Orca): T6 portal UI, T3c LTIAAS-compatible endpoints, T8 portal parts. Each worker gets a fresh worktree and a self-contained spec; the Lead merges.
+- QA-E2E (second Opus QA) owns the T7 end-to-end suite, so QA can keep verifying other tasks in parallel.
+- Every task, whoever built it, passes QA and both reviewers (Opus). Codex work therefore always gets a cross-model review.
+
 ### Sequence for one task
 
 ```mermaid
