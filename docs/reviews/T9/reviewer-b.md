@@ -239,3 +239,204 @@ Reviewed fix commit: `90f4e9efd737cba8f6cb4507e25a1b5bc73cd5c6`.
 
 The repeated scan finds no new over-limit prose segment.
 The MP4 regeneration and final stamp/evidence review remain pending.
+
+### Offline pack checkpoint — 2026-10-19
+
+Snapshot: committed `90f4e9efd737cba8f6cb4507e25a1b5bc73cd5c6`, extracted outside the worktree.
+I opened its explainer from a file URL in an isolated headless Chrome context with networking disabled.
+All five tabs displayed one visible panel, with no page errors or HTTP requests.
+At a 1440 × 1000 viewport, none of the five panels had horizontal overflow.
+The Q4 answer survived reload; the text export included its selected answer.
+Arrow-right advanced the flow step.
+I inspected screenshots of Start, Flows, and Proven.
+`node docs/human_review/tools/build-md.mjs --check` passed in that snapshot.
+These checks cover the offline artifact, not unfamiliar-person usability.
+
+Historical B-T9-01 through B-T9-04 are also addressed in the committed pack.
+The old pending labels are replaced, Q1 includes the bounded claim and its limits,
+README makes the confirmation conditional, and START-HERE identifies PLAN as optional.
+The 30-minute path now allocates 3 + 4 + 8 + 5 + 10 minutes.
+Final QA claims and the regenerated videos remain to be checked.
+
+### Full regression checkpoint — 2026-10-19
+
+Report commit: `c5683f896330debaea5e9a09f49357dc3e99e92b`.
+Tested product and harness: `d54c607d7fc6ce2d97e039bb108f52a37f2174ee`.
+Their paths have no changes between these commits.
+I read the appended T5a, T5b, and T6 reports and checked their supplied raw results.
+Evidence root: `tests/host/artifacts/qa-cont-t5-d54c607d-2026-10-19T10-52-13-189Z/`.
+
+- `summary.json`: all 63 aggregate IDs pass, including 49 required AC IDs; no abort.
+- Playwright reports: 22 T5a main, one separate expiry, 24 T5b, and 18 T6 tests pass; total 65 executed.
+- The intentional T5a main expiry skip is covered by the separate pass. No failure or flaky result is recorded.
+- Cleanup records zero own containers, volumes, and networks, with no other project's container stopped or restarted.
+- The P2 attachment shows higher acceptance at `11:04:52.856Z`, still pending, try 2, without `sentAt`.
+- The app stopped at `11:04:53.397Z`; confirmation succeeded at `11:04:58.479Z`, try 3, a 5.623-second gap.
+- The finite observation remains 90 seconds. The lower row remains superseded at try 2, with no obsolete retry.
+- P5 again deletes exactly one failed 80 sync. Both versioned attempts and best 80 remain unchanged; lower Resend returns 409.
+- P11 sent, pending, and failed lower-retake states pass. T6 teacher-copy and awaited keyboard/focus checks also pass.
+
+The reports correctly retain the older failures and identify the current successful rerun.
+They disclose the fixture, browser/site limits, unobserved 24-hour window, and P2 remote-ordering limit.
+This closes the fresh T5a/T5b/T6 evidence gate for this review.
+Fresh T7, final architecture reconciliation, and final pack artifacts remain pending.
+
+### Fresh T7 and root checkpoint — 2026-10-19
+
+Report commit: `a5633697206831d5a148f872d08e45d803dce4cd`, T7 report section 10.
+Tested commit: `c5683f896330debaea5e9a09f49357dc3e99e92b`.
+Product, infra, packages, and QA harness paths match the reviewed repair `d54c607`.
+Evidence root: `tests/e2e/artifacts/runs/qa-e2e-cont-p2-c5683f89-2026-10-19T11-17-07-393Z/`.
+
+I checked the report against `summary.json`, four Playwright result files, `root-check.log`, and `cleanup-independent.json`.
+All 13 command steps succeeded, including reset refusal and non-terminal refusal checks.
+Three consecutive T7 commands took 186, 181, and 175 seconds.
+Each has 17 passes, no failure or flaky result, and one intentional demo-only skip.
+The separate demo check passes; `demo:prepare` took 8.64 seconds.
+The report maps all 15 T7 ACs to this fresh run.
+The root check passes lint, types, and 708 unit tests in 48 files, with no skips.
+Cleanup has no own resources; all ten baseline containers are unchanged.
+
+T7 explicitly does not prove P2 delayed-write placement or the lower-retake P11 variants.
+Those claims retain the separate T5b evidence and finite observation boundary.
+The fresh T7/root evidence gate is closed for this review.
+Final conformance, pack stamps, STE measurements, and video artifacts remain pending.
+
+### Final source checkpoint — 2026-10-19
+
+Reviewed source: `533141e6903ba13e1b3efd09a0851a52a1d7f867`.
+The final Architect disposition matches the fresh QA scope and keeps its limits explicit.
+The source now uses the fresh T7 times and removes obsolete regression-pending text.
+All 115 checked relative links and anchors resolve; all 18 named npm scripts exist.
+The sentence scan passes, including manual review of every segment above 20 words.
+The coordinator is preparing narrower T6/live-window wording and final stamped media.
+
+#### B-T9-09 — MINOR — Q1 remains one overlong paragraph in the explainer
+
+- Location: `explainer.html`, Q1 question at line 1121; renderer line 1709, at `533141e`.
+- Problem: eight sentences render in one `p.q`, above the six-sentence paragraph limit in inputs §7.
+- Evidence: three opening questions, four quoted claim sentences, and one raw-slash limitation.
+- Fix: shorten to six sentences, or render separate short paragraphs without losing the claim and its limits.
+- Suggested small change: combine the three opening questions into one question within the 25-word descriptive limit.
+
+This was sent promptly to the coordinator.
+It does not change the passing individual sentence-length measurement or the P2 code verdict.
+
+Correction recheck: `6932539d4b44e017dd54acc8dc37c6bb2ba9fed1`.
+**B-T9-09 is closed.** Q1 now has six sentences, with the claim and limits intact.
+The stronger scan handles closing quotation marks and counts each table cell separately.
+It finds no sentence or paragraph above the applicable limit in the reviewed scope.
+The additional live-window, viewport, card-state, and accessibility qualifications match the QA reports.
+The Lead supplied this source delta and its finding identifiers; I did not open the counterpart review or adopt its findings.
+All requested source corrections from this review are closed.
+Final artifact checks and the final scoped verdict remain pending.
+
+### Final continuation verdict — 2026-10-19
+
+**APPROVE — Reviewer-B's complete assigned continuation scope.**
+
+Exact final candidate: `39c401ae7247547a6a503414ffa699aaea6fb884`.
+Build source: `6932539d4b44e017dd54acc8dc37c6bb2ba9fed1`.
+Reviewer provenance remains Codex GPT-6-Astra, xhigh, independent replacement Reviewer-B.
+The continuation delta starts at `c3f6d13`; the product review starts at `dd6dd11`.
+Product, package, infra, and QA harness paths still match the reviewed repair `d54c607`.
+
+This verdict covers the P2 repair, migration, adjacent tests, QA harness, architecture reconciliation, guides, human pack, offline explainer, and EN/VI artifacts.
+It includes `CLOSING-PASS.md` and the final PLAN measurements.
+Fresh T5a/T5b/T6, fresh T7/root, and final Architect evidence are checked above.
+It does not declare overall T9 complete; final T9 QA and the Lead's closure remain separate gates.
+
+| Severity | Unresolved new findings |
+| --- | --- |
+| BLOCKER | 0 |
+| MAJOR | 0 |
+| MINOR | 0 |
+| NIT | 0 |
+
+B-T9-05 through B-T9-09 are closed in this candidate.
+This round raised one BLOCKER, one MAJOR, and three MINOR findings; none was silently waived.
+The historical findings and dated checkpoints above remain unchanged.
+I did not open Reviewer-A's review files.
+Lead-published dispositions encountered during source reconciliation are disclosed above and are not my independent findings.
+
+#### AC-T9-04 — confirmed PASS
+
+I measured 14 Markdown files: README, all six guides, and all seven human-pack Markdown files.
+The scan also covers explainer `pack-data` and English video narration, titles, captions, boxes, chips, and list text.
+
+| Scope | Procedure segments | Maximum words | Descriptive segments | Maximum words |
+| --- | --- | --- | --- | --- |
+| Markdown | 268 | 18 | 1,661 | 25 |
+| Explainer data | 49 | 18 | 630 | 23 |
+| English video text | 12 | 7 | 87 | 23 |
+
+**Procedures are within 20 words; descriptions are within 25 words; paragraphs are within six sentences.**
+The maximum measured paragraph has six sentences, including the corrected Q1 question block.
+No over-limit result remains.
+
+Method: read each file from the named commit, strip Markdown/HTML markup and link targets, and split prose at sentence punctuation.
+Decimal numbers and version numbers remain intact; closing quotation marks do not hide a sentence boundary.
+Count whitespace-separated words, separating arrows and em dashes; count an inline code span as one technical token.
+Treat each Markdown table cell, list item, paragraph, and JSON text field as a separate block.
+Numbered guide steps and imperative starts are procedure candidates.
+I manually inspected every segment above 20 words to catch conditional instructions and classification errors.
+The counts include labels and fragments, so they are scan segments rather than a linguistic sentence census.
+
+Exceptions and limits: code blocks, metadata headings, paths, and identifiers are not English prose sentences.
+Commands and their warning comments were checked separately.
+Vietnamese text is outside English word limits; HR-1 remains open for human wording and voice approval.
+Exact Moodle labels, API names, technical noun phrases, and short navigation sequences remain as needed for reproduction.
+This is the requested approximately 80% STE review, not certification against the complete ASD-STE100 dictionary.
+Manual checks cover plain terms, active instructions, short paragraphs, and consistent names.
+
+NOTE supplies context and limitations. WARNING precedes local-data resets and identifies secret-bearing traces.
+The two missing reset warnings are fixed. There is no misuse of CAUTION for data loss.
+No hardware-damage instruction in this scope needs a CAUTION label.
+
+#### Final artifact checks
+
+I extracted the committed pack into an isolated temporary snapshot outside the worktree.
+All 131 checked relative Markdown links and anchors resolve; all 18 named npm scripts exist.
+The seven Markdown stamps, explainer metadata, script metadata, and decoded video frames name source `6932539`, dated 2026-10-19.
+The generator's `--check` passes in the snapshot.
+The build source predates generated outputs, as the documented stamping process requires.
+
+All 25 human decision IDs remain: Q1–Q18, R1–R5, HR-1, and HR-2.
+The teacher path includes Add content, Activity or resource, Cogniate, Add, and Select content.
+Completion and manual Accept grades labels match the task authority and fresh QA evidence.
+The 30-minute path remains 3 + 4 + 8 + 5 + 10 minutes.
+The 61-second QA substitute is distinguished from unfamiliar-person proof; HR-2 remains open.
+
+The final offline explainer passed all five tabs at 1440 × 1000 with no script errors, HTTP requests, or horizontal overflow.
+Answer persistence, text export, and keyboard flow navigation passed again.
+These are automated artifact checks, not an unfamiliar-person usability test.
+
+| Decoded final file | Duration | Bytes | Streams |
+| --- | --- | --- | --- |
+| `explainer-en.mp4` | 182.4 s | 2,211,513 | H.264 1280×720 at 5 fps; mono AAC 44,100 Hz |
+| `explainer-vi.mp4` | 212.4 s | 2,567,661 | H.264 1280×720 at 5 fps; mono AAC 44,100 Hz |
+
+Both satisfy the 240-second and 8,000,000-byte limits.
+I used the pinned ffprobe/ffmpeg image from the build script; both complete files decoded without errors.
+Both audio streams are non-silent; their measured mean levels are −16.4 dB and −17.7 dB.
+Audio ends before the final held frame, as the closing record states.
+I inspected contact sheets extracted from all 13 slides per language and full-size limits/decision frames.
+The final source stamp, readable captions, updated grade wording, P2 limit, and Vietnamese translation notice are present.
+This does not approve Vietnamese voice quality on behalf of a human.
+
+Artifact SHA-256 values:
+
+- EN: `4901730820675e93a8dd6bf644259dc2d7ed39775b8e34724469653324215934`.
+- VI: `26f4cadd96fe5dae039be25059d539d1daba7c74895ad29047d5d778755db4d7`.
+
+#### Scope retained at approval
+
+The pack does not claim that confirmation prevents an arbitrarily late older remote write.
+It also does not claim recovery of unrecorded sends from before migration 010.
+P2's finite observation, fixture-assisted P5, and Author-only synthetic upgrade evidence remain distinct.
+Fresh QA passes replace obsolete pending claims while historical failures retain their dates and SHAs.
+T8's dated PASS, unsupported Moodle subfolders, browser limits, T6 coverage limits, and accepted deferrals remain visible.
+Q4 and the other human decisions remain open; no human acceptance of the P2 limit is invented.
+
+Only this Reviewer-B report was changed by this reviewer.
+No product, QA, other Docs file, commit, push, or subagent was created.
