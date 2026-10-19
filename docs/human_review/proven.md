@@ -1,0 +1,58 @@
+# Proven / not proven
+
+Each row is one claim. **Proven by QA** means that an independent QA agent tested it from the acceptance criteria, and the test passed. The id points to a row in `docs/reviews/<task>/qa.md`. Time to read: 5 minutes.
+
+**Headline:** the full story works on a real Moodle 5.2.4 site. QA ran the end-to-end test three times in a row, with no retries. All 15 end-to-end checks passed [AC-T7-01, AC-T7-11]. Source: [`docs/reviews/T7/qa.md`](../reviews/T7/qa.md).
+
+## 1. Proven by QA
+
+| Area | Claim | Proof |
+| --- | --- | --- |
+| End to end | One command runs the full story on an empty Moodle 5.2.4 site in about 3 minutes (188, 189 and 186 s). | AC-T7-01, AC-T7-11 |
+| Connect | The admin follows the 6 portal steps in Moodle. Every Moodle label matches. Moodle shows the tool "Active", with "New window". | AC-T7-14, AC-T7-02 |
+| Connect | The manual method (16 values out, 6 values back) also connects a site. | AC-T4-10, AC-T7-01 |
+| Publish | Publish, withdraw and publish again work. You cannot publish to a site that is not ready. | AC-T4-12, AC-T4-14 |
+| Teacher | "Select content" lists exactly the published courses of the library. The activity gets a grade item of max 100. | AC-T7-03, AC-T4-15 |
+| Learner | Each launch opens a new window with the player in less than 0.2 s. The URL has no token. | AC-T7-07 |
+| SCORM 1.2 | The real Cogniate SCORM course gives 100 for a correct answer and 0 for a wrong answer, with completion in Moodle. | AC-T5-07, AC-T5-08, AC-T7-04, AC-T7-05 |
+| HTML | The real Cogniate HTML course gives the same results. Our HTML runtime watches the pages, because the export does not record progress. | AC-T5-09, AC-T5-27, AC-T7-04 |
+| Grades | The score reaches the Moodle gradebook in 3.4 to 3.9 seconds (limit 60 s). No Moodle cron is needed. | AC-T7-04, AC-T7-05 |
+| Grades | The best result counts. A later worse result never lowers the grade. A teacher override in Moodle stays. | AC-T5-12, AC-T5-23, AC-T5-33 |
+| Grades | If Moodle is down, the score waits and arrives after Moodle comes back. A grade conflict shows in the portal, with "Resend". | AC-T5-14, AC-T5-31, AC-T5-32 |
+| Portal | The Results page shows "Passed 100" and "Sent". "Refresh from Moodle" shows the Moodle gradebook values. | AC-T7-06, AC-T5-18 |
+| Security | Replayed, forged, expired, tampered or changed launches are refused. | AC-T2-09 to AC-T2-11, AC-T2-20 to AC-T2-27, AC-T7-10 |
+| Security | No token or key is in the logs (0 of 28 captured secrets in the end-to-end run). | AC-T7-10, AC-T2-30, AC-T5-19 |
+| Privacy | Cogniate gets an anonymous learner id and role. It does not get names or emails. | AC-T2-04, AC-T4-08 |
+| Isolation | One library cannot see or use the courses, connections or results of another library. | AC-T7-08, AC-T7-09, AC-T4-34, AC-T4-16 |
+| Isolation | Course packages run on a separate content site, in a sandbox. They cannot read the portal session. 16 kinds of bad zip are refused. | AC-T5-01, AC-T5-03, AC-T5-17, AC-T4-05 |
+| Run it | A ready demo starts from zero in about 45 seconds (`e2e:reset` 36 s, `demo:prepare` 9.3 s). | AC-T7-15 |
+| Run it | A reset gives an empty site with the same passwords. No secret is in git. | AC-T1-10, AC-T1-11 |
+
+## 2. Pending final QA
+
+Both reviewers approved these tasks. Their QA reports do not exist yet.
+
+| Task | Claim | State |
+| --- | --- | --- |
+| T6 | All portal screens and texts (Integrations, wizard, courses, publish, results). | The end-to-end run used the portal and passed [AC-T7-02, AC-T7-06, AC-T7-14]. The T6 checks (AC-T6-01 to AC-T6-14) are pending. |
+| T3c | Our LTI service API has the same shape as the public LTIAAS API. The real `ltiaas` 0.0.4 Python SDK works against it. | Builder evidence only. QA (AC-T3-27) is pending. The external claim also needs decision Q1. |
+| T8 | Native channel: Moodle backup (`.mbz`) and an empty Moodle course on publish. | Builder evidence only. QA (AC-T8-02 to AC-T8-10) is pending. |
+| T6, T7 | Portal texts that changed after the QA run (findings Q-T7-01, Q-T7-02). | Fixed in the code. The next QA run checks them. |
+
+## 3. Not proven
+
+| Claim | Why | Decision |
+| --- | --- | --- |
+| It works on MoodleCloud. | QA used a local Moodle 5.2.4 site. A test needs a MoodleCloud trial account. | Q5 |
+| A teacher on Safari can add content. | QA used Chromium only. Safari can block the Cogniate cookie in Moodle's frame. | Q16, R4 |
+| The player works in Firefox and Safari. | QA used Chromium only. | — |
+| The course video plays. | QA proved only that the server sends the video file correctly (AC-T5-02). | — |
+| A person (not a test robot) can do every step. | All runs used a browser robot. The HTML menu link was clicked by script. | Q17, HR-2 |
+| A new person starts the stack in 10 minutes. | The human run test is not done yet. | HR-2 |
+| Load, scale, mobile, 1EdTech certification. | No test is planned for the prototype. | Q11 |
+| A `.mbz` restore in the Moodle pages, or on another site. | The T8 test uses the Moodle command line only. | Q5, Q12 |
+
+## QA notes
+
+- `npm run demo:browser`, `stack:doctor`, `demo:users` and `stack:down` are not verified by QA. The [run guide](../guides/run-the-stack.md) marks them.
+- In a regression run, the attempt status after the first SCORM page load was "in progress", not "not started" (Q-T5a-02). QA calls it a spec interaction, not a product error.

@@ -21,7 +21,7 @@ const mm = (text) => text.replace(/;/g, ',').replace(/#/g, 'no. ');
 const alias = (key) => key.toUpperCase();
 // Heading anchor as GitHub makes it: lower case, drop punctuation, spaces to hyphens.
 const slug = (heading) => heading.toLowerCase().replace(/[^\p{L}\p{N} -]/gu, '').replace(/ /g, '-');
-const status = { qa: 'Proven by QA', author: 'Author check only', planned: 'Planned, not tested yet', not: 'Not proven' };
+const status = { qa: 'Proven by QA', pending: 'Pending final QA', author: 'Not verified by QA', planned: 'Planned, not tested yet', not: 'Not proven' };
 const proof = (p) =>
   p.status === 'planned'
     ? `Status: **${status.planned}**. Planned proof: ${p.ids.map((id) => `\`${id}\``).join(', ')}. Result: after T7.`
@@ -34,7 +34,7 @@ const out = [
   '',
   `Source: commit \`${data.meta.source}\`, ${data.meta.date}. The same diagrams are in [\`explainer.html\`](explainer.html) (tab Flows).`,
   '',
-  'These diagrams show the **design**. QA has not tested these flows yet. Each flow gets its test result after task T7.',
+  data.meta.flowsNote,
   'The full technical diagrams are in [`docs/architecture/flows.md`](../architecture/flows.md).',
   '',
   '| # | Flow | People | Status |',

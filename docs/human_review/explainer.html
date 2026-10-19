@@ -199,23 +199,51 @@
   "meta": {
     "title": "Cogniate × Moodle prototype",
     "subtitle": "Publish Cogniate courses (SCORM 1.2 and HTML) to Moodle with LTI 1.3.",
-    "source": "dc70851",
-    "date": "2026-10-16",
-    "draft": "Draft shell: results come after task T7",
-    "resultsNote": "QA has not tested the full flows yet. Task T7 (the full end-to-end test on Moodle 5.2) gives the results. Until then, every flow shows “Planned, not tested yet”."
+    "source": "512bb86",
+    "date": "2026-10-19",
+    "draft": "T7 end-to-end: PASS 15/15 · T3c, T6, T8: final QA pending",
+    "resultsNote": "QA tested the full story on a real Moodle 5.2.4 site (task T7): 15 of 15 checks passed, in three runs in a row. Three tasks are in final QA (T3c, T6, T8). Their rows show “Pending final QA”.",
+    "storyNote": "QA tested this story on a real Moodle 5.2.4 site (task T7). All 15 end-to-end checks passed.",
+    "flowsNote": "QA tested each flow on a real Moodle 5.2.4 site. The proof line under each flow names the QA rows (docs/reviews/<task>/qa.md)."
   },
   "start": {
     "intro": [
       "This page explains the prototype in about 15 minutes.",
       "A Cogniate user publishes a course. A Moodle teacher adds it to a Moodle course. A learner does the course, and the score goes to the Moodle gradebook.",
+      "Result: it works on a real Moodle 5.2.4 site. All 15 end-to-end checks passed, three runs in a row.",
       "We need your answers to some questions. Use the Decisions tab."
     ],
     "path": [
-      { "title": "START-HERE (one page)", "time": "3 min", "file": "START-HERE.md", "ready": false },
-      { "title": "Video, optional", "time": "4 min", "file": "video/explainer-en.mp4", "ready": false },
-      { "title": "Story and Flows (this page)", "time": "8 min", "tab": "story", "ready": true },
-      { "title": "Proven / not proven (this page)", "time": "5 min", "tab": "proven", "ready": true },
-      { "title": "Decisions needed (this page)", "time": "10 min", "tab": "decisions", "ready": true }
+      {
+        "title": "START-HERE (one page)",
+        "time": "3 min",
+        "file": "START-HERE.md",
+        "ready": true
+      },
+      {
+        "title": "Video (Vietnamese: video/explainer-vi.mp4)",
+        "time": "3 min",
+        "file": "video/explainer-en.mp4",
+        "ready": true
+      },
+      {
+        "title": "Story and Flows (this page)",
+        "time": "8 min",
+        "tab": "story",
+        "ready": true
+      },
+      {
+        "title": "Proven / not proven (this page)",
+        "time": "5 min",
+        "tab": "proven",
+        "ready": true
+      },
+      {
+        "title": "Decisions needed (this page)",
+        "time": "10 min",
+        "tab": "decisions",
+        "ready": true
+      }
     ],
     "howTo": [
       "Click a section on the left.",
@@ -225,81 +253,171 @@
     ]
   },
   "actors": {
-    "cu": { "name": "Cogniate user", "kind": "person" },
-    "ma": { "name": "Moodle admin", "kind": "person" },
-    "t": { "name": "Teacher", "kind": "person" },
-    "l": { "name": "Learner", "kind": "person" },
-    "cog": { "name": "Cogniate app", "kind": "system" },
-    "m": { "name": "Moodle", "kind": "system" },
-    "lti": { "name": "LTI service", "kind": "system" }
+    "cu": {
+      "name": "Cogniate user",
+      "kind": "person"
+    },
+    "ma": {
+      "name": "Moodle admin",
+      "kind": "person"
+    },
+    "t": {
+      "name": "Teacher",
+      "kind": "person"
+    },
+    "l": {
+      "name": "Learner",
+      "kind": "person"
+    },
+    "cog": {
+      "name": "Cogniate app",
+      "kind": "system"
+    },
+    "m": {
+      "name": "Moodle",
+      "kind": "system"
+    },
+    "lti": {
+      "name": "LTI service",
+      "kind": "system"
+    }
   },
   "terms": [
-    ["Cogniate app", "Our stand-in for the Cogniate platform: the portal, the tool pages and the course player."],
-    ["LTI service", "Our service that does all LTI 1.3 work with Moodle. Its API has the same shape as the public LTIAAS API."],
-    ["Connection", "The link between one Cogniate library and one Moodle site."],
-    ["Publication", "One course that is available to one connection."],
-    ["Content picker", "The Cogniate page where a teacher selects a course. Moodle calls it “Select content”."]
+    [
+      "Cogniate app",
+      "Our stand-in for the Cogniate platform: the portal, the tool pages and the course player."
+    ],
+    [
+      "LTI service",
+      "Our service that does all LTI 1.3 work with Moodle. Its API has the same shape as the public LTIAAS API."
+    ],
+    [
+      "Connection",
+      "The link between one Cogniate library and one Moodle site."
+    ],
+    [
+      "Publication",
+      "One course that is available to one connection."
+    ],
+    [
+      "Content picker",
+      "The Cogniate page where a teacher selects a course. Moodle calls it “Select content”."
+    ]
   ],
   "story": [
     {
       "title": "Connect",
-      "who": ["Cogniate user", "Moodle admin"],
+      "who": [
+        "Cogniate user",
+        "Moodle admin"
+      ],
       "where": "Cogniate portal, then Moodle site administration",
       "text": [
-        "The Cogniate user starts the connection in the portal.",
+        "The Cogniate user starts the connection in the portal: Integrations > Moodle > Connect.",
         "The Moodle admin pastes one URL in Moodle and clicks Connect.",
-        "Then the admin activates the Cogniate tool in Moodle."
+        "Then the admin activates the Cogniate tool and sets “New window”."
       ],
-      "flows": ["connect"],
-      "proof": { "status": "planned", "ids": ["AC-T7-02", "AC-T7-14"] }
+      "flows": [
+        "connect"
+      ],
+      "proof": {
+        "status": "qa",
+        "ids": [
+          "AC-T7-02",
+          "AC-T7-14"
+        ]
+      }
     },
     {
       "title": "Publish",
-      "who": ["Cogniate user"],
+      "who": [
+        "Cogniate user"
+      ],
       "where": "Cogniate portal",
       "text": [
         "The Cogniate user uploads a SCORM 1.2 course and an HTML course.",
         "The Cogniate app checks each package.",
         "The user publishes each course to the Moodle connection. The app copies nothing into Moodle."
       ],
-      "flows": ["publish"],
-      "proof": { "status": "planned", "ids": ["AC-T7-03"] }
+      "flows": [
+        "publish"
+      ],
+      "proof": {
+        "status": "qa",
+        "ids": [
+          "AC-T7-03",
+          "AC-T4-12"
+        ]
+      }
     },
     {
       "title": "Add to a course",
-      "who": ["Teacher"],
+      "who": [
+        "Teacher"
+      ],
       "where": "A Moodle course page",
       "text": [
-        "The teacher adds an activity and opens the Cogniate content picker.",
-        "The teacher selects one course.",
+        "The teacher turns on Edit mode and clicks Add content > Activity or resource > Cogniate > Add.",
+        "The teacher clicks Select content and selects one course.",
         "Moodle makes the activity, with a grade item of max 100."
       ],
-      "flows": ["deeplink"],
-      "proof": { "status": "planned", "ids": ["AC-T7-03", "AC-T7-08"] }
+      "flows": [
+        "deeplink"
+      ],
+      "proof": {
+        "status": "qa",
+        "ids": [
+          "AC-T7-03",
+          "AC-T7-08"
+        ]
+      }
     },
     {
       "title": "Learn",
-      "who": ["Learner"],
+      "who": [
+        "Learner"
+      ],
       "where": "Moodle, then a new window with the Cogniate player",
       "text": [
         "The learner opens the activity in Moodle.",
         "The course opens in the Cogniate player, in a new window.",
-        "The player records the progress and the quiz answer."
+        "At the end, the player shows “Completed — score 100 sent to Moodle”."
       ],
-      "flows": ["scorm", "html"],
-      "proof": { "status": "planned", "ids": ["AC-T7-07"] }
+      "flows": [
+        "scorm",
+        "html"
+      ],
+      "proof": {
+        "status": "qa",
+        "ids": [
+          "AC-T7-07"
+        ]
+      }
     },
     {
       "title": "Grades",
-      "who": ["Teacher", "Cogniate user"],
+      "who": [
+        "Teacher",
+        "Cogniate user"
+      ],
       "where": "Moodle gradebook and Cogniate portal",
       "text": [
         "When the learner completes the course, the Cogniate app sends the score to Moodle.",
-        "The score and the completion show in the Moodle gradebook.",
-        "The portal shows the same result."
+        "The score and the completion show in the Moodle gradebook in about 4 seconds.",
+        "The portal Results page shows the same result."
       ],
-      "flows": ["scorm", "html"],
-      "proof": { "status": "planned", "ids": ["AC-T7-04", "AC-T7-05", "AC-T7-06"] }
+      "flows": [
+        "scorm",
+        "html"
+      ],
+      "proof": {
+        "status": "qa",
+        "ids": [
+          "AC-T7-04",
+          "AC-T7-05",
+          "AC-T7-06"
+        ]
+      }
     }
   ],
   "flows": [
@@ -308,136 +426,797 @@
       "ref": "6a",
       "title": "Connect a Moodle site",
       "summary": "A Cogniate user and a Moodle admin connect one Moodle site to one Cogniate library. This is the default method (dynamic registration). A manual method is the fallback.",
-      "actors": ["cu", "cog", "ma", "m", "lti"],
-      "steps": [
-        { "from": "cu", "to": "cog", "label": "Connect", "detail": "In the portal, the Cogniate user opens Integrations > Moodle > Connect. The user types the Moodle site URL and a name." },
-        { "from": "cog", "to": "cu", "reply": true, "label": "Registration URL", "detail": "The portal shows a registration URL. The user gives this URL to the Moodle admin." },
-        { "from": "ma", "to": "m", "label": "Add LTI Advantage", "detail": "In Moodle, the admin opens Manage tools, pastes the URL and clicks Add LTI Advantage." },
-        { "from": "m", "to": "lti", "label": "Start registration", "detail": "Moodle opens the URL. The LTI service reads the Moodle settings from Moodle." },
-        { "from": "cog", "to": "ma", "reply": true, "label": "Confirm page", "detail": "The Cogniate app shows a confirm page: the Moodle site, the library and the privacy setting." },
-        { "from": "ma", "to": "cog", "label": "Click Connect", "detail": "The admin clicks Connect." },
-        { "from": "lti", "to": "m", "label": "Register the tool", "detail": "The LTI service registers the Cogniate tool in Moodle. Moodle returns the client ID and the deployment ID." },
-        { "from": "ma", "to": "m", "label": "Activate, New window", "detail": "Moodle adds the tool as pending. The admin activates it and sets the launch container to New window." }
+      "actors": [
+        "cu",
+        "cog",
+        "ma",
+        "m",
+        "lti"
       ],
-      "proof": { "status": "planned", "ids": ["AC-T7-02", "AC-T7-14"] }
+      "steps": [
+        {
+          "from": "cu",
+          "to": "cog",
+          "label": "Connect",
+          "detail": "In the portal, the Cogniate user opens Integrations > Moodle > Connect. The user types the Moodle site URL and a name."
+        },
+        {
+          "from": "cog",
+          "to": "cu",
+          "reply": true,
+          "label": "Registration URL",
+          "detail": "The portal shows a registration URL. The user gives this URL to the Moodle admin."
+        },
+        {
+          "from": "ma",
+          "to": "m",
+          "label": "Add LTI Advantage",
+          "detail": "In Moodle, the admin opens Manage tools, pastes the URL into Tool URL and clicks Add LTI Advantage."
+        },
+        {
+          "from": "m",
+          "to": "lti",
+          "label": "Start registration",
+          "detail": "Moodle opens the URL. The LTI service reads the Moodle settings from Moodle."
+        },
+        {
+          "from": "cog",
+          "to": "ma",
+          "reply": true,
+          "label": "Confirm page",
+          "detail": "The Cogniate app shows a confirm page: the Moodle site, the library and the privacy setting."
+        },
+        {
+          "from": "ma",
+          "to": "cog",
+          "label": "Click Connect",
+          "detail": "The admin clicks Connect."
+        },
+        {
+          "from": "lti",
+          "to": "m",
+          "label": "Register the tool",
+          "detail": "The LTI service registers the Cogniate tool in Moodle. Moodle returns the client ID and the deployment ID."
+        },
+        {
+          "from": "ma",
+          "to": "m",
+          "label": "Activate and edit",
+          "detail": "The tool card shows Pending. The admin clicks Activate, then Edit, and sets “Show in activity chooser and as a preconfigured tool” and “New window”."
+        }
+      ],
+      "proof": {
+        "status": "qa",
+        "ids": [
+          "AC-T7-02",
+          "AC-T7-14",
+          "AC-T4-08",
+          "AC-T3-01"
+        ]
+      }
     },
     {
       "id": "publish",
       "ref": "6e",
       "title": "Upload and publish a course",
       "summary": "A Cogniate user uploads a course package and makes the course available to one Moodle connection. Publish does not copy the course into Moodle.",
-      "actors": ["cu", "cog"],
-      "steps": [
-        { "from": "cu", "to": "cog", "label": "Upload package", "detail": "The Cogniate user uploads a course package: a SCORM 1.2 zip or an HTML zip." },
-        { "from": "cog", "to": "cog", "label": "Check package", "detail": "The Cogniate app checks the package and makes a course version. The app treats every package as untrusted data." },
-        { "from": "cog", "to": "cu", "reply": true, "label": "Course version", "detail": "The portal shows the course and its version." },
-        { "from": "cu", "to": "cog", "label": "Publish to Moodle", "detail": "The user opens the course and clicks Publish to Moodle. Then the user selects the connection and the version." },
-        { "from": "cog", "to": "cog", "label": "Make available", "detail": "The app makes the course available to that connection only. The app copies nothing into Moodle." },
-        { "from": "cog", "to": "cu", "reply": true, "label": "Available in Moodle", "detail": "The portal shows “Available in Moodle”, with the next step for teachers." }
+      "actors": [
+        "cu",
+        "cog"
       ],
-      "proof": { "status": "planned", "ids": ["AC-T7-03"] }
+      "steps": [
+        {
+          "from": "cu",
+          "to": "cog",
+          "label": "Upload package",
+          "detail": "The Cogniate user uploads a course package: a SCORM 1.2 zip or an HTML zip."
+        },
+        {
+          "from": "cog",
+          "to": "cog",
+          "label": "Check package",
+          "detail": "The Cogniate app checks the package and makes a course version. The app treats every package as untrusted data."
+        },
+        {
+          "from": "cog",
+          "to": "cu",
+          "reply": true,
+          "label": "Course version",
+          "detail": "The portal shows the course and its version."
+        },
+        {
+          "from": "cu",
+          "to": "cog",
+          "label": "Publish to Moodle",
+          "detail": "The user opens the course and clicks Publish to Moodle. Then the user selects the connection and the version."
+        },
+        {
+          "from": "cog",
+          "to": "cog",
+          "label": "Make available",
+          "detail": "The app makes the course available to that connection only. The app copies nothing into Moodle."
+        },
+        {
+          "from": "cog",
+          "to": "cu",
+          "reply": true,
+          "label": "Available in Moodle",
+          "detail": "The portal shows “Available in Moodle”, with the next step for teachers."
+        }
+      ],
+      "proof": {
+        "status": "qa",
+        "ids": [
+          "AC-T7-03",
+          "AC-T4-12",
+          "AC-T4-03",
+          "AC-T4-05"
+        ]
+      }
     },
     {
       "id": "deeplink",
       "ref": "6b",
       "title": "Teacher adds a course (Deep Linking)",
       "summary": "A teacher adds one Cogniate course to a Moodle course. Moodle makes a normal activity with a grade item.",
-      "actors": ["t", "m", "lti", "cog"],
-      "steps": [
-        { "from": "t", "to": "m", "label": "Select content", "detail": "In a Moodle course, the teacher adds an activity, selects Cogniate and clicks Select content." },
-        { "from": "m", "to": "lti", "label": "Signed launch", "detail": "Moodle sends a signed LTI 1.3 launch (a Deep Linking request) to the LTI service." },
-        { "from": "lti", "to": "lti", "label": "Check launch", "detail": "The LTI service checks the launch: signature, state, nonce and claims." },
-        { "from": "lti", "to": "cog", "label": "Hand over", "detail": "The LTI service sends the teacher to the Cogniate app with a short-lived launch token." },
-        { "from": "cog", "to": "t", "reply": true, "label": "Content picker", "detail": "The app shows the content picker. It lists only the courses that are published to this connection." },
-        { "from": "t", "to": "cog", "label": "Select one course", "detail": "The teacher selects one course." },
-        { "from": "cog", "to": "m", "label": "Signed content item", "detail": "The app returns the course to Moodle as one content item. The LTI service signs it." },
-        { "from": "t", "to": "m", "label": "Set completion, save", "detail": "Moodle fills the activity form, with a grade of max 100. The teacher sets completion to Receive a grade and saves." }
+      "actors": [
+        "t",
+        "m",
+        "lti",
+        "cog"
       ],
-      "proof": { "status": "planned", "ids": ["AC-T7-03", "AC-T7-08"] }
+      "steps": [
+        {
+          "from": "t",
+          "to": "m",
+          "label": "Select content",
+          "detail": "The teacher turns on Edit mode and clicks Add content, then Activity or resource. The teacher selects Cogniate and clicks Add. Then the teacher clicks Select content."
+        },
+        {
+          "from": "m",
+          "to": "lti",
+          "label": "Signed launch",
+          "detail": "Moodle sends a signed LTI 1.3 launch (a Deep Linking request) to the LTI service."
+        },
+        {
+          "from": "lti",
+          "to": "lti",
+          "label": "Check launch",
+          "detail": "The LTI service checks the launch: signature, state, nonce and claims."
+        },
+        {
+          "from": "lti",
+          "to": "cog",
+          "label": "Hand over",
+          "detail": "The LTI service sends the teacher to the Cogniate app with a short-lived launch token."
+        },
+        {
+          "from": "cog",
+          "to": "t",
+          "reply": true,
+          "label": "Content picker",
+          "detail": "The app shows the content picker. It lists only the courses that are published to this connection."
+        },
+        {
+          "from": "t",
+          "to": "cog",
+          "label": "Select one course",
+          "detail": "The teacher selects one course and clicks Add to Moodle."
+        },
+        {
+          "from": "cog",
+          "to": "m",
+          "label": "Signed content item",
+          "detail": "The app returns the course to Moodle as one content item. The LTI service signs it."
+        },
+        {
+          "from": "t",
+          "to": "m",
+          "label": "Set completion, save",
+          "detail": "Moodle fills the activity form, with a grade of max 100. Under Completion conditions, the teacher adds Receive a grade and saves."
+        }
+      ],
+      "proof": {
+        "status": "qa",
+        "ids": [
+          "AC-T7-03",
+          "AC-T7-08",
+          "AC-T4-15",
+          "AC-T3-07"
+        ]
+      }
     },
     {
       "id": "scorm",
       "ref": "6c",
       "title": "Learner does a SCORM 1.2 course",
       "summary": "A learner opens the activity in Moodle and does the SCORM 1.2 course in the Cogniate player. The score goes to the Moodle gradebook.",
-      "actors": ["l", "m", "lti", "cog"],
-      "steps": [
-        { "from": "l", "to": "m", "label": "Open activity", "detail": "The learner opens the Cogniate activity in Moodle." },
-        { "from": "m", "to": "lti", "label": "Signed launch", "detail": "Moodle sends a signed LTI 1.3 launch. The LTI service checks it." },
-        { "from": "lti", "to": "cog", "label": "Hand over", "detail": "The LTI service sends the learner to the Cogniate app with a short-lived launch token." },
-        { "from": "cog", "to": "l", "reply": true, "label": "Player, new window", "detail": "The course opens in the Cogniate player, in a new window. The course runs on a separate content site." },
-        { "from": "l", "to": "cog", "label": "Do the course", "detail": "The learner reads the pages and answers the question. The SCORM package reports progress and score to our SCORM 1.2 runtime." },
-        { "from": "cog", "to": "cog", "label": "Final result", "detail": "At the end, the result is passed or failed, with a score from 0 to 100. The pass mark is 70. The best result counts (decision Q4)." },
-        { "from": "cog", "to": "lti", "label": "Send score", "detail": "The Cogniate app sends the score to the LTI service (score sync)." },
-        { "from": "lti", "to": "m", "label": "Gradebook", "detail": "The LTI service sends the score to the Moodle gradebook (LTI Assignment and Grade Services)." }
+      "actors": [
+        "l",
+        "m",
+        "lti",
+        "cog"
       ],
-      "proof": { "status": "planned", "ids": ["AC-T5-07", "AC-T5-08", "AC-T7-04", "AC-T7-05", "AC-T7-07"] }
+      "steps": [
+        {
+          "from": "l",
+          "to": "m",
+          "label": "Open activity",
+          "detail": "The learner opens the Cogniate activity in Moodle."
+        },
+        {
+          "from": "m",
+          "to": "lti",
+          "label": "Signed launch",
+          "detail": "Moodle sends a signed LTI 1.3 launch. The LTI service checks it."
+        },
+        {
+          "from": "lti",
+          "to": "cog",
+          "label": "Hand over",
+          "detail": "The LTI service sends the learner to the Cogniate app with a short-lived launch token."
+        },
+        {
+          "from": "cog",
+          "to": "l",
+          "reply": true,
+          "label": "Player, new window",
+          "detail": "The course opens in the Cogniate player, in a new window. The course runs on a separate content site."
+        },
+        {
+          "from": "l",
+          "to": "cog",
+          "label": "Do the course",
+          "detail": "The learner reads the pages and answers the question. The SCORM package reports progress and score to our SCORM 1.2 runtime."
+        },
+        {
+          "from": "cog",
+          "to": "cog",
+          "label": "Final result",
+          "detail": "At the end, the result is passed or failed, with a score from 0 to 100. The pass mark is 70. The best result counts (decision Q4)."
+        },
+        {
+          "from": "cog",
+          "to": "lti",
+          "label": "Send score",
+          "detail": "The Cogniate app sends the score to the LTI service (score sync)."
+        },
+        {
+          "from": "lti",
+          "to": "m",
+          "label": "Gradebook",
+          "detail": "The LTI service sends the score to the Moodle gradebook (LTI Assignment and Grade Services). In the QA runs, this took about 4 seconds."
+        }
+      ],
+      "proof": {
+        "status": "qa",
+        "ids": [
+          "AC-T5-07",
+          "AC-T5-08",
+          "AC-T7-04",
+          "AC-T7-05",
+          "AC-T7-07"
+        ]
+      }
     },
     {
       "id": "html",
       "ref": "6d",
       "title": "Learner does an HTML course",
       "summary": "The same launch as the SCORM flow. The HTML export does not record progress. So our HTML runtime watches the pages and calculates the result.",
-      "actors": ["l", "m", "lti", "cog"],
-      "steps": [
-        { "from": "l", "to": "m", "label": "Open activity", "detail": "The learner opens the Cogniate activity in Moodle." },
-        { "from": "m", "to": "lti", "label": "Signed launch", "detail": "Moodle sends a signed LTI 1.3 launch. The LTI service checks it." },
-        { "from": "lti", "to": "cog", "label": "Hand over", "detail": "The LTI service sends the learner to the Cogniate app with a short-lived launch token." },
-        { "from": "cog", "to": "l", "reply": true, "label": "Player, new window", "detail": "The HTML course opens in the Cogniate player, in a new window." },
-        { "from": "l", "to": "cog", "label": "Read and answer", "detail": "The learner reads each page and answers the question." },
-        { "from": "cog", "to": "cog", "label": "Page seen", "detail": "Our HTML runtime marks a page as seen after 10 seconds on screen and a scroll to the end." },
-        { "from": "cog", "to": "cog", "label": "Complete, score", "detail": "The course is complete when the learner sees all pages and answers all questions. Score = correct answers / questions × 100. The pass mark is 70." },
-        { "from": "cog", "to": "lti", "label": "Send score", "detail": "The Cogniate app sends the score to the LTI service (score sync)." },
-        { "from": "lti", "to": "m", "label": "Gradebook", "detail": "The LTI service sends the score to the Moodle gradebook (LTI Assignment and Grade Services)." }
+      "actors": [
+        "l",
+        "m",
+        "lti",
+        "cog"
       ],
-      "proof": { "status": "planned", "ids": ["AC-T5-09", "AC-T5-27", "AC-T7-04", "AC-T7-05"] }
+      "steps": [
+        {
+          "from": "l",
+          "to": "m",
+          "label": "Open activity",
+          "detail": "The learner opens the Cogniate activity in Moodle."
+        },
+        {
+          "from": "m",
+          "to": "lti",
+          "label": "Signed launch",
+          "detail": "Moodle sends a signed LTI 1.3 launch. The LTI service checks it."
+        },
+        {
+          "from": "lti",
+          "to": "cog",
+          "label": "Hand over",
+          "detail": "The LTI service sends the learner to the Cogniate app with a short-lived launch token."
+        },
+        {
+          "from": "cog",
+          "to": "l",
+          "reply": true,
+          "label": "Player, new window",
+          "detail": "The HTML course opens in the Cogniate player, in a new window."
+        },
+        {
+          "from": "l",
+          "to": "cog",
+          "label": "Read and answer",
+          "detail": "The learner reads each page and answers the question."
+        },
+        {
+          "from": "cog",
+          "to": "cog",
+          "label": "Page seen",
+          "detail": "Our HTML runtime marks a page as seen after 10 seconds on screen and a scroll to the end."
+        },
+        {
+          "from": "cog",
+          "to": "cog",
+          "label": "Complete, score",
+          "detail": "The course is complete when the learner sees all pages and answers all questions. Score = correct answers / questions × 100. The pass mark is 70."
+        },
+        {
+          "from": "cog",
+          "to": "lti",
+          "label": "Send score",
+          "detail": "The Cogniate app sends the score to the LTI service (score sync)."
+        },
+        {
+          "from": "lti",
+          "to": "m",
+          "label": "Gradebook",
+          "detail": "The LTI service sends the score to the Moodle gradebook (LTI Assignment and Grade Services)."
+        }
+      ],
+      "proof": {
+        "status": "qa",
+        "ids": [
+          "AC-T5-09",
+          "AC-T5-27",
+          "AC-T7-04",
+          "AC-T7-05"
+        ]
+      }
     }
   ],
   "proven": [
-    { "claim": "The local stack starts: Moodle 5.2.4 behind HTTPS and the Cogniate services. Start and seed take 31 seconds (images pulled).", "status": "qa", "ids": ["AC-T1-02", "AC-T1-03", "AC-T1-04"], "evidence": "docs/reviews/T1/qa.md" },
-    { "claim": "A reset gives an empty Moodle site. The passwords and the certificate authority stay the same.", "status": "qa", "ids": ["AC-T1-10"], "evidence": "docs/reviews/T1/qa.md" },
-    { "claim": "No generated secret is in a file that git tracks.", "status": "qa", "ids": ["AC-T1-11"], "evidence": "docs/reviews/T1/qa.md" },
-    { "claim": "npm run demo:browser opens the stack in a separate Chrome profile.", "status": "author", "ids": ["LC-T1-04"], "evidence": "docs/reviews/T1/qa.md" },
-    { "claim": "SCORM 1.2 course through LTI 1.3 to the Moodle gradebook", "status": "planned", "ids": ["AC-T5-07", "AC-T5-08", "AC-T7-03", "AC-T7-04", "AC-T7-05"] },
-    { "claim": "HTML course through LTI 1.3 to the Moodle gradebook", "status": "planned", "ids": ["AC-T5-09", "AC-T5-27", "AC-T7-04", "AC-T7-05"] },
-    { "claim": "LTI 1.3 security: state, nonce, signature, claims", "status": "planned", "ids": ["AC-T2-08 to AC-T2-15", "AC-T2-20 to AC-T2-29"] },
-    { "claim": "Deep Linking, grades (AGS), dynamic and manual registration on Moodle 5.2", "status": "planned", "ids": ["AC-T3-01 to AC-T3-14", "AC-T3-25", "AC-T4-08", "AC-T4-10", "AC-T7-02", "AC-T7-08"] },
-    { "claim": "API with the same shape as the public LTIAAS API (narrow claim, ADR-003)", "status": "planned", "ids": ["AC-T3-27"] },
-    { "claim": "Portal: Integrations > Moodle > Connect, Publish, Results", "status": "planned", "ids": ["AC-T6-01 to AC-T6-14", "AC-T7-06"] },
-    { "claim": "One library cannot see the data of another library (tenant isolation)", "status": "planned", "ids": ["AC-T2-18", "AC-T4-16", "AC-T4-29", "AC-T4-34", "AC-T7-08", "AC-T7-09"] },
-    { "claim": "Course content cannot attack the portal (content isolation)", "status": "planned", "ids": ["AC-T4-05", "AC-T5-01", "AC-T5-03", "AC-T5-17"] },
-    { "claim": "Full end-to-end test on a real Moodle 5.2", "status": "planned", "ids": ["AC-T7-01", "AC-T7-11"] },
-    { "claim": "A new person can run the stack in 10 minutes", "status": "planned", "ids": ["AC-T9-01"] },
-    { "claim": "Native .mbz channel and empty Moodle course shell (stretch task T8, decision Q12)", "status": "planned", "ids": ["T8"] },
-    { "claim": "A teacher on Safari can add Cogniate content", "status": "not", "ids": ["Q16"] },
-    { "claim": "It works on MoodleCloud", "status": "not", "ids": ["Q5"] },
-    { "claim": "Load and scale", "status": "not", "ids": ["no test planned"] },
-    { "claim": "1EdTech LTI Advantage certification", "status": "not", "ids": ["no test planned"] }
+    {
+      "claim": "One command runs the full story on an empty Moodle 5.2.4 site in about 3 minutes, three runs in a row, with no retries.",
+      "status": "qa",
+      "ids": [
+        "AC-T7-01",
+        "AC-T7-11"
+      ],
+      "evidence": "docs/reviews/T7/qa.md"
+    },
+    {
+      "claim": "Connect: the admin follows the 6 portal steps in Moodle. Every Moodle label matches. The tool is Active, with New window.",
+      "status": "qa",
+      "ids": [
+        "AC-T7-14",
+        "AC-T7-02"
+      ],
+      "evidence": "docs/reviews/T7/qa.md"
+    },
+    {
+      "claim": "Teacher: Select content lists exactly the published courses. The activity gets a grade item of max 100.",
+      "status": "qa",
+      "ids": [
+        "AC-T7-03",
+        "AC-T4-15"
+      ],
+      "evidence": "docs/reviews/T7/qa.md"
+    },
+    {
+      "claim": "Learner: each launch opens a new window with the player in less than 0.2 s, with no token in the URL.",
+      "status": "qa",
+      "ids": [
+        "AC-T7-07"
+      ],
+      "evidence": "docs/reviews/T7/qa.md"
+    },
+    {
+      "claim": "SCORM 1.2 and HTML: a correct answer gives 100, a wrong answer gives 0, with completion in Moodle.",
+      "status": "qa",
+      "ids": [
+        "AC-T5-07",
+        "AC-T5-08",
+        "AC-T5-09",
+        "AC-T5-27",
+        "AC-T7-04",
+        "AC-T7-05"
+      ],
+      "evidence": "docs/reviews/T5a, T5b, T7"
+    },
+    {
+      "claim": "The score reaches the Moodle gradebook in 3.4 to 3.9 seconds (limit 60 s).",
+      "status": "qa",
+      "ids": [
+        "AC-T7-04"
+      ],
+      "evidence": "docs/reviews/T7/qa.md"
+    },
+    {
+      "claim": "The best result counts. A score waits while Moodle is down. A teacher override stays.",
+      "status": "qa",
+      "ids": [
+        "AC-T5-12",
+        "AC-T5-14",
+        "AC-T5-33"
+      ],
+      "evidence": "docs/reviews/T5a, T5b"
+    },
+    {
+      "claim": "Portal Results show Passed 100 and Sent. Refresh from Moodle shows the gradebook values.",
+      "status": "qa",
+      "ids": [
+        "AC-T7-06",
+        "AC-T5-18"
+      ],
+      "evidence": "docs/reviews/T7/qa.md"
+    },
+    {
+      "claim": "Replayed, forged, expired or changed launches are refused. No secret is in the logs.",
+      "status": "qa",
+      "ids": [
+        "AC-T2-09 to AC-T2-27",
+        "AC-T7-10"
+      ],
+      "evidence": "docs/reviews/T2b, T7"
+    },
+    {
+      "claim": "Privacy: Cogniate gets an anonymous learner id, no name and no email.",
+      "status": "qa",
+      "ids": [
+        "AC-T2-04",
+        "AC-T4-08"
+      ],
+      "evidence": "docs/reviews/T2a, T4b1"
+    },
+    {
+      "claim": "One library cannot see the courses, connections or results of another library.",
+      "status": "qa",
+      "ids": [
+        "AC-T7-08",
+        "AC-T7-09",
+        "AC-T4-34"
+      ],
+      "evidence": "docs/reviews/T7/qa.md"
+    },
+    {
+      "claim": "Course packages run in a sandbox on a separate content site. Bad zips are refused.",
+      "status": "qa",
+      "ids": [
+        "AC-T5-01",
+        "AC-T5-03",
+        "AC-T4-05"
+      ],
+      "evidence": "docs/reviews/T5a, T4a"
+    },
+    {
+      "claim": "A ready demo starts from zero in about 45 seconds.",
+      "status": "qa",
+      "ids": [
+        "AC-T7-15"
+      ],
+      "evidence": "docs/reviews/T7/qa.md"
+    },
+    {
+      "claim": "Portal screens and texts (task T6). The end-to-end run used the portal and passed.",
+      "status": "pending",
+      "ids": [
+        "AC-T6-01 to AC-T6-14"
+      ]
+    },
+    {
+      "claim": "LTIAAS-style API works with the real ltiaas 0.0.4 Python SDK (task T3c). The claim also needs decision Q1.",
+      "status": "pending",
+      "ids": [
+        "AC-T3-27"
+      ]
+    },
+    {
+      "claim": "Native channel: Moodle backup (.mbz) and an empty Moodle course on publish (task T8).",
+      "status": "pending",
+      "ids": [
+        "AC-T8-02 to AC-T8-10"
+      ]
+    },
+    {
+      "claim": "Portal texts fixed after the QA run (findings Q-T7-01, Q-T7-02).",
+      "status": "pending",
+      "ids": [
+        "next QA run"
+      ]
+    },
+    {
+      "claim": "Helper commands: demo:browser, stack:doctor, demo:users, stack:down.",
+      "status": "author",
+      "ids": [
+        "LC-T1-04"
+      ],
+      "evidence": "docs/reviews/T1/qa.md"
+    },
+    {
+      "claim": "It works on MoodleCloud.",
+      "status": "not",
+      "ids": [
+        "Q5"
+      ]
+    },
+    {
+      "claim": "A teacher on Safari can add content. The player works in Firefox and Safari.",
+      "status": "not",
+      "ids": [
+        "Q16",
+        "R4"
+      ]
+    },
+    {
+      "claim": "The course video plays (QA proved only the file serving).",
+      "status": "not",
+      "ids": [
+        "AC-T5-02"
+      ]
+    },
+    {
+      "claim": "A person (not a test robot) can do every step. A new person starts the stack in 10 minutes.",
+      "status": "not",
+      "ids": [
+        "HR-2",
+        "Q17"
+      ]
+    },
+    {
+      "claim": "A .mbz restore in the Moodle pages, or on another site.",
+      "status": "not",
+      "ids": [
+        "Q5",
+        "Q12"
+      ]
+    },
+    {
+      "claim": "Load, scale, mobile, 1EdTech certification.",
+      "status": "not",
+      "ids": [
+        "no test planned"
+      ]
+    }
   ],
   "decisionGroups": [
-    { "id": "now", "title": "Now: prototype and hand-over" },
-    { "id": "pilot", "title": "Before the pilot" },
-    { "id": "prod", "title": "Before production" }
+    {
+      "id": "pilot",
+      "title": "A. Decide before the pilot"
+    },
+    {
+      "id": "handover",
+      "title": "B. Hand-over checks (this week)"
+    },
+    {
+      "id": "prod",
+      "title": "C. Decide before you sell or go to production"
+    },
+    {
+      "id": "risks",
+      "title": "D. Residual risks: confirm before production"
+    }
   ],
   "decisions": [
-    { "id": "HR-1", "group": "now", "area": "Hand-over", "who": "Product team", "question": "Do we keep the Vietnamese version of the video? An agent translated it, and a computer voice reads it (machine-translated, please check).", "recommendation": "Keep it only if one Vietnamese team member watches it and says that it is clear. Otherwise drop it.", "blocks": "The Vietnamese video" },
-    { "id": "HR-2", "group": "now", "area": "Hand-over", "who": "Product team (one member)", "question": "Can a new person start the stack with the guides in 10 minutes?", "recommendation": "One team member tries it with docs/guides/run-the-stack.md and reports each unclear step. QA times the commands separately.", "blocks": "AC-T9-01, the human run test" },
-    { "id": "Q12", "group": "now", "area": "Scope", "who": "Product owner", "question": "Do we need the native channel (.mbz restore, task T8) now?", "recommendation": "No. Keep LTI as the main path. Do T8 only if a customer needs editable native courses on MoodleCloud. The “Download SCORM package” button is enough for a manual upload today.", "blocks": "Start of T8" },
-    { "id": "Q15", "group": "now", "area": "Repo", "who": "Lead and product owner", "question": "Where do the two course zips (24 MB) go: in git, in Git LFS, or outside git?", "recommendation": "Outside normal git: Git LFS or a documented download. Until then, use COURSE_FIXTURES_DIR and npm run fixtures:check.", "blocks": "QA runs in a clean clone, hand-over" },
-    { "id": "Q1", "group": "pilot", "area": "Legal", "who": "Legal", "question": "Is our clean-room process acceptable? May QA use the MIT LTIAAS Python SDK as a test-only client? How may we describe the result?", "recommendation": "Yes to the process and to test-only use of the SDK. Use only the narrow claim in ADR-003. Do not use “LTIAAS” in product names. Check the LTI® mark and plan 1EdTech certification.", "blocks": "External claims, start of T3c" },
-    { "id": "Q2", "group": "pilot", "area": "Product", "who": "Product", "question": "Does the course open in a new window, or inside the Moodle page?", "recommendation": "New window. A course inside the Moodle page fails in browsers that block third-party cookies. DataCamp also uses a new window.", "blocks": "Admin guide text" },
-    { "id": "Q3", "group": "pilot", "area": "Privacy", "who": "Product and Legal (DPO)", "question": "Do we share the learner name and email with Cogniate? DataCamp shares both.", "recommendation": "No, by default. Moodle sends only an anonymous LTI user ID. Add an opt-in per connection later, with a data processing agreement.", "blocks": "Learner names in the portal" },
-    { "id": "Q4", "group": "pilot", "area": "Product", "who": "Product", "question": "Does Moodle show the best result or the latest result? Which score does a completion-only course give?", "recommendation": "The best result. Never lower a grade. A completion-only course gives 100/100.", "blocks": "The grade rule (ADR-010)" },
-    { "id": "Q5", "group": "pilot", "area": "MoodleCloud", "who": "Product owner", "question": "Do we test on a real MoodleCloud site: registration, activation, grades, web services and restore size?", "recommendation": "Yes, one test on a MoodleCloud trial site. A human must make the account, because the agents may not sign up.", "blocks": "The claim “works on MoodleCloud”" },
-    { "id": "Q7", "group": "pilot", "area": "Cogniate exporter", "who": "Cogniate engineering", "question": "Will the HTML export keep the markup that our HTML runtime reads? Can the exporter add a real completion signal?", "recommendation": "Yes. Freeze the markup as “Cogniate HTML export markup v1”. Better: the exporter adds a small adapter that sends progress, like scorm-api.js.", "blocks": "Stable HTML results" },
-    { "id": "Q9", "group": "pilot", "area": "Content", "who": "Cogniate engineering and DPO", "question": "The packages load images from the Cogniate production storage, and the HTML export loads Google Fonts. What do we do?", "recommendation": "Ask the exporter to put all assets and fonts into the package. Google Fonts sends learner IP addresses to Google (GDPR risk).", "blocks": "Offline use, privacy" },
-    { "id": "Q13", "group": "pilot", "area": "Product", "who": "Product", "question": "When a course gets a new version, do the Moodle activities of that course show the new version at once?", "recommendation": "Yes (live link). Later, if customers ask, let a teacher keep an activity on one version.", "blocks": "Publish UI" },
-    { "id": "Q16", "group": "pilot", "area": "Product and security", "who": "Product and a security reviewer", "question": "In Safari, a teacher may not be able to add Cogniate content. What do we tell teachers? Learner launches are not affected.", "recommendation": "For the pilot: teachers use Chrome, Edge or Firefox to add content. Before general release, choose: accept the limit, a special mode after a security review, or ask Moodle HQ for support.", "blocks": "Teacher browser support statement" },
-    { "id": "Q6", "group": "prod", "area": "Pricing", "who": "Product and Sales", "question": "Which Cogniate plans get “Publish to Moodle (LTI)”? Does a publication count as an export?", "recommendation": "Pro Creator and above. One publication per course per Moodle site counts as one export.", "blocks": "Plan checks (not built)" },
-    { "id": "Q8", "group": "prod", "area": "Assessment", "who": "Product", "question": "The browser calculates the score, and the correct answer is in the page. Is that acceptable?", "recommendation": "Yes for completion-type courses. No for graded or certified tests: calculate the score on the server before you sell graded courses.", "blocks": "Graded-course offer" },
-    { "id": "Q10", "group": "prod", "area": "Security", "who": "CTO", "question": "Do we buy a separate domain for course content, with one subdomain per customer?", "recommendation": "Yes, before production. Course content on the same site can attack the portal.", "blocks": "Production deployment" },
-    { "id": "Q11", "group": "prod", "area": "Operations", "who": "CTO", "question": "Who runs the LTI service, in which region, with which SLA and key management?", "recommendation": "The same cloud and region as Cogniate. Keys in a KMS, with rotation every 90 days. Target: 99.95 % uptime.", "blocks": "Production deployment" },
-    { "id": "Q14", "group": "prod", "area": "Cogniate API", "who": "Cogniate engineering", "question": "Who defines the real Cogniate API that replaces our mock app?", "recommendation": "A Phase 0 contract workshop with Cogniate engineering. Our mock contract is an input.", "blocks": "Production integration" }
+    {
+      "id": "Q1",
+      "group": "pilot",
+      "area": "Legal",
+      "who": "Legal",
+      "question": "Is our clean-room method acceptable? May QA use the MIT ltiaas Python SDK as a test-only client? How may we describe the result?",
+      "recommendation": "Yes, and yes (test only, not shipped). Use only the narrow claim of ADR-003. Do not use “LTIAAS” in product names. Check the LTI® mark and plan 1EdTech membership.",
+      "blocks": "Any external claim. The compatibility work (T3c is built; its QA is pending)."
+    },
+    {
+      "id": "Q5",
+      "group": "pilot",
+      "area": "MoodleCloud",
+      "who": "Product owner",
+      "question": "Do we test on a real MoodleCloud site (registration, Activate, launch container, grades, web services, .mbz size limit)?",
+      "recommendation": "Yes, one test on a MoodleCloud trial site. A human must make the account, because the agents may not sign up.",
+      "blocks": "The claim “works on MoodleCloud”"
+    },
+    {
+      "id": "Q3",
+      "group": "pilot",
+      "area": "Privacy",
+      "who": "Product and Legal (DPO)",
+      "question": "Do we share the learner name and email with Cogniate? DataCamp shares both.",
+      "recommendation": "No, by default. Moodle sends only an anonymous LTI user id. Add an opt-in per connection later, with a data processing agreement.",
+      "blocks": "Learner names in the portal"
+    },
+    {
+      "id": "Q16",
+      "group": "pilot",
+      "area": "Product and security",
+      "who": "Product and a security reviewer",
+      "question": "A teacher on Safari may not be able to add Cogniate content. Learner launches are not affected. (Residual risk R4.)",
+      "recommendation": "For the pilot: teachers use Chrome, Edge or Firefox to add content. Before general release, choose: accept the limit, a special mode after a security review, or ask Moodle HQ for support.",
+      "blocks": "The browser statement for teachers"
+    },
+    {
+      "id": "Q9",
+      "group": "pilot",
+      "area": "Content",
+      "who": "Cogniate engineering and DPO",
+      "question": "The packages load images from the Cogniate production storage. The HTML export loads Google Fonts. What do we do?",
+      "recommendation": "Ask the exporter to put all assets and fonts into the package. Google Fonts sends learner IP addresses to Google (GDPR risk).",
+      "blocks": "Privacy, offline use"
+    },
+    {
+      "id": "Q17",
+      "group": "pilot",
+      "area": "Cogniate exporter",
+      "who": "Cogniate engineering",
+      "question": "In the HTML export, a decorative layer covers the centre of the lesson link. Does a person also miss clicks there?",
+      "recommendation": "Ask the exporter to give decorative layers pointer-events: none. Check the menu page by hand in this review. No change in our product.",
+      "blocks": "Usability of HTML packages"
+    },
+    {
+      "id": "Q2",
+      "group": "pilot",
+      "area": "Product",
+      "who": "Product",
+      "question": "Does the course open in a new window or inside the Moodle page?",
+      "recommendation": "New window (current setting). A course inside the Moodle page fails in browsers that block third-party cookies. DataCamp also uses a new window.",
+      "blocks": "Admin guide text"
+    },
+    {
+      "id": "Q4",
+      "group": "pilot",
+      "area": "Product",
+      "who": "Product",
+      "question": "Which grade does Moodle show: the best result or the latest? What does a completion-only course give?",
+      "recommendation": "The best result. Never lower a grade. A completion-only course gives 100/100.",
+      "blocks": "The grade rule (ADR-010)"
+    },
+    {
+      "id": "Q12",
+      "group": "pilot",
+      "area": "Scope",
+      "who": "Product owner",
+      "question": "Do we offer the native channel (.mbz backup and course shell, task T8) in the pilot? T8 is built as a stretch. Its QA is pending.",
+      "recommendation": "Keep LTI as the main path. Offer the native backup only to a customer who needs editable courses on MoodleCloud.",
+      "blocks": "Pilot scope"
+    },
+    {
+      "id": "HR-2",
+      "group": "handover",
+      "area": "Hand-over",
+      "who": "Product team (one member)",
+      "question": "Can a person who did not build the stack start it with the guides in 10 minutes?",
+      "recommendation": "One team member follows docs/guides/run-the-stack.md on a Mac with the images pulled, and reports each unclear step. QA times the commands separately.",
+      "blocks": "AC-T9-01, the human run test"
+    },
+    {
+      "id": "HR-1",
+      "group": "handover",
+      "area": "Hand-over",
+      "who": "Product team",
+      "question": "Do we keep the Vietnamese video (video/explainer-vi.mp4)? It is machine-translated, and a computer voice reads it.",
+      "recommendation": "Keep it only if one Vietnamese team member watches it and says that it is clear. Otherwise drop it.",
+      "blocks": "The Vietnamese video"
+    },
+    {
+      "id": "Q15",
+      "group": "handover",
+      "area": "Repo",
+      "who": "Lead and product owner",
+      "question": "The two course zips (24 MB) are test files. Do they go into git, into Git LFS, or outside git?",
+      "recommendation": "Outside normal git: Git LFS or a documented download. Until then, use COURSE_FIXTURES_DIR and npm run fixtures:check.",
+      "blocks": "QA runs in a clean clone, hand-over"
+    },
+    {
+      "id": "Q8",
+      "group": "prod",
+      "area": "Assessment",
+      "who": "Product",
+      "question": "The browser calculates the score, and the correct answer is in the page. Is that acceptable? (Residual risk R3.)",
+      "recommendation": "Yes for completion-type courses. No for graded or certified tests: calculate the score on the server before you sell graded courses.",
+      "blocks": "A graded-course offer"
+    },
+    {
+      "id": "Q10",
+      "group": "prod",
+      "area": "Security",
+      "who": "CTO",
+      "question": "Do we buy a separate domain for course content, with one subdomain per customer? (Residual risk R5.)",
+      "recommendation": "Yes, before production. Course content on the same site can attack the portal.",
+      "blocks": "Production deployment"
+    },
+    {
+      "id": "Q11",
+      "group": "prod",
+      "area": "Operations",
+      "who": "CTO",
+      "question": "Who runs the LTI service, in which region, with which SLA and key management?",
+      "recommendation": "The same cloud and region as Cogniate. Keys in a KMS, with rotation every 90 days. Target: 99.95 % uptime.",
+      "blocks": "Production deployment"
+    },
+    {
+      "id": "Q14",
+      "group": "prod",
+      "area": "Cogniate API",
+      "who": "Cogniate engineering",
+      "question": "Who defines the real Cogniate API that replaces our stand-in app?",
+      "recommendation": "A Phase 0 contract workshop with Cogniate engineering. Our stand-in contract is an input.",
+      "blocks": "Production integration"
+    },
+    {
+      "id": "Q6",
+      "group": "prod",
+      "area": "Pricing",
+      "who": "Product and Sales",
+      "question": "Which Cogniate plans get “Publish to Moodle (LTI)”? Does a publication count as an export?",
+      "recommendation": "Pro Creator and above. One publication per course per Moodle site counts as one export.",
+      "blocks": "Plan checks (not built)"
+    },
+    {
+      "id": "Q7",
+      "group": "prod",
+      "area": "Cogniate exporter",
+      "who": "Cogniate engineering",
+      "question": "Will the HTML export keep the markup that our HTML runtime reads? Can the exporter send a real completion signal?",
+      "recommendation": "Yes. Freeze the markup as “Cogniate HTML export markup v1”. Better: the exporter adds a small adapter that sends progress, like scorm-api.js.",
+      "blocks": "Stable HTML results"
+    },
+    {
+      "id": "Q13",
+      "group": "prod",
+      "area": "Product",
+      "who": "Product",
+      "question": "When a course gets a new version, do the Moodle activities of that course show it at once?",
+      "recommendation": "Yes (live link). Learners in progress stay on their version. Later, if customers ask, let a teacher keep an activity on one version.",
+      "blocks": "Publish UI"
+    },
+    {
+      "id": "R1",
+      "group": "risks",
+      "area": "Residual risk",
+      "who": "Product owner and a security reviewer",
+      "question": "A changed Moodle can make a new registration take over an old, unused tool record. A standard Moodle cannot do this.",
+      "recommendation": "Accept. A security reviewer checks it again before production.",
+      "blocks": "Production sign-off"
+    },
+    {
+      "id": "R2",
+      "group": "risks",
+      "area": "Residual risk",
+      "who": "Product owner and a security reviewer",
+      "question": "A person can send an unused launch link to someone else. The first person who opens it gets the attempt.",
+      "recommendation": "Accept for the pilot. A security reviewer checks it before production.",
+      "blocks": "Production sign-off"
+    },
+    {
+      "id": "R3",
+      "group": "risks",
+      "area": "Residual risk",
+      "who": "Product",
+      "question": "A learner can change the score with browser developer tools.",
+      "recommendation": "Same as Q8: acceptable for completion-type courses only.",
+      "blocks": "Graded-course offer"
+    },
+    {
+      "id": "R4",
+      "group": "risks",
+      "area": "Residual risk",
+      "who": "Product and a security reviewer",
+      "question": "Teacher Select content can fail in Safari. Chrome, Edge and Firefox work.",
+      "recommendation": "Same as Q16.",
+      "blocks": "Teacher browser statement"
+    },
+    {
+      "id": "R5",
+      "group": "risks",
+      "area": "Residual risk",
+      "who": "CTO",
+      "question": "All libraries share one content site, so course code of two libraries shares browser storage. The content site has no cookies.",
+      "recommendation": "Same as Q10: one content subdomain per customer.",
+      "blocks": "Production deployment"
+    }
   ]
 }
 </script>
@@ -450,8 +1229,9 @@
   const KEY = 'cogniate-pack-answers:' + D.meta.source;
   const STATUS = {
     qa: ['Proven by QA', 'b-ok'],
-    author: ['Author check only', 'b-warn'],
+    author: ['Not verified by QA', 'b-bad'],
     planned: ['Planned, not tested yet', 'b-plan'],
+    pending: ['Pending final QA', 'b-warn'],
     not: ['Not proven', 'b-bad'],
   };
   const TABS = [['start', 'Start'], ['story', 'Story'], ['flows', 'Flows'], ['proven', 'Proven'], ['decisions', 'Decisions']];
@@ -482,7 +1262,8 @@
   const idList = (ids) => ids.map((id, i) => [i ? ', ' : '', h('code', {}, id)]);
   function proofLine(p) {
     return h('p', { class: 'proof' }, badge(p.status), ' ',
-      p.status === 'planned' ? ['Planned proof: ', idList(p.ids), '. Result: after T7.'] : ['Evidence: ', idList(p.ids), '.']);
+      p.status === 'planned' ? ['Planned proof: ', idList(p.ids), '. Result: after T7.']
+        : p.status === 'pending' ? ['Pending QA: ', idList(p.ids), '.'] : ['Proof: ', idList(p.ids), '.']);
   }
   const flowById = (id) => D.flows.find((f) => f.id === id) || D.flows[0];
   const clamp = (n, lo, hi) => Math.max(lo, Math.min(hi, n));
@@ -536,7 +1317,7 @@
     const el = document.getElementById('tab-start');
     const path = h('ol', { class: 'path' }, D.start.path.map((p, i) => h('li', {},
       h('span', { class: 'num' }, i + 1),
-      h('span', {}, p.title, p.file ? [' ', h('code', {}, p.file)] : null),
+      h('span', {}, p.title, p.file ? [' ', h('a', { href: p.file }, h('code', {}, p.file))] : null),
       h('span', { class: 'time' }, p.time),
       p.tab ? h('button', { class: 'btn', onclick: () => go(p.tab) }, 'Open')
         : h('span', { class: 'badge ' + (p.ready ? 'b-ok' : 'b-plan') }, p.ready ? 'Ready' : 'After T7'))));
@@ -564,7 +1345,7 @@
   const prevS = h('button', { class: 'btn', onclick: () => go('story', state.story) }, '← Previous');
   const nextS = h('button', { class: 'btn main', onclick: () => go('story', state.story + 2) }, 'Next →');
   storyEl.append(h('div', { class: 'card hero', style: 'margin-bottom:16px' },
-    h('h2', {}, 'The story in five steps'), h('p', { class: 'muted' }, 'This is the design. QA tests the full story in task T7.'), stepper),
+    h('h2', {}, 'The story in five steps'), h('p', { class: 'muted' }, D.meta.storyNote), stepper),
     storyCard, h('div', { class: 'row', style: 'margin-top:14px' }, prevS, nextS));
   function updateStory() {
     const st = D.story[state.story];
@@ -693,7 +1474,7 @@
   // ---------- Proven ----------
   (function renderProven() {
     const el = document.getElementById('tab-proven');
-    const order = ['qa', 'author', 'planned', 'not'];
+    const order = ['qa', 'pending', 'author', 'not'];
     const tiles = h('div', { class: 'tiles', role: 'group', 'aria-label': 'Filter by status' });
     const tbody = h('tbody');
     const note = h('p', { class: 'muted' });
@@ -711,7 +1492,7 @@
         h('b', {}, count), badge(st)));
     }
     el.append(h('div', { class: 'card hero', style: 'margin-bottom:16px' }, h('h2', {}, 'Proven / not proven'),
-      h('p', {}, 'Each row is one claim. “Proven by QA” means that an independent QA test passed. “Author check only” means that only the builder checked it.'),
+      h('p', {}, 'Each row is one claim. “Proven by QA” means that an independent QA test passed. “Pending final QA” means that both reviewers approved, and the QA report is not ready yet.'),
       h('p', { class: 'muted' }, D.meta.resultsNote)),
       tiles, note,
       h('div', { class: 'card' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Claim'), h('th', {}, 'Status'), h('th', {}, 'Proof'))), tbody)));
@@ -735,7 +1516,7 @@
     const name = h('input', { type: 'text', id: 'yourName', value: store.name, placeholder: 'Your name', oninput: (e) => { store.name = e.target.value; save(); } });
     el.append(h('div', { class: 'card hero' }, h('h2', {}, 'Decisions needed'),
       h('p', {}, 'Only a human can answer these questions. Each question has our recommendation. The prototype uses the recommendation until you decide.'),
-      h('p', { class: 'muted' }, 'Draft list from docs/architecture/open-questions.md. The groups are a proposal by Docs.'),
+      h('p', { class: 'muted' }, 'The same list as decisions-needed.md (from docs/architecture/open-questions.md). The groups are a proposal by Docs.'),
       h('label', { for: 'yourName' }, 'Your name'), name));
     for (const g of D.decisionGroups) {
       const items = D.decisions.filter((d) => d.group === g.id);

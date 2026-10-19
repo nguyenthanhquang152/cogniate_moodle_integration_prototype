@@ -1,139 +1,130 @@
 # Run the local stack
 
-This guide tells you how to start, open, reset and stop the local stack on a Mac. The stack is Moodle 5.2 and the Cogniate services in Docker.
+This guide tells you how to start the prototype on a Mac, open it in your browser, and start again. The stack is a real Moodle 5.2.4 site and the Cogniate services, in Docker.
 
-For all commands, settings and certificates, see the technical reference: [`infra/README.md`](../../infra/README.md).
+Technical reference (all commands, settings, certificates): [`infra/README.md`](../../infra/README.md).
 
 ## How to read the tags
 
 | Tag | Meaning |
 | --- | --- |
-| `[AC-T1-02]`, `[LC-T1-03]`, `[H2]` | QA tested this behaviour in task T1, and it passed. The tag is a row in [`docs/reviews/T1/qa.md`](../reviews/T1/qa.md), round 2 (commit `b82382b`). |
-| `[Not verified by QA]` | Only the Author checked it. It can fail on your Mac. If it fails, tell the Lead. |
+| `[AC-T7-15]`, `[LC-T1-06]`, `[H2]` | QA tested this behaviour, and it passed. The tag is a row in `docs/reviews/<task>/qa.md`, for example [`T7`](../reviews/T7/qa.md) or [`T1`](../reviews/T1/qa.md). |
+| `[Not verified by QA]` | Only the builder checked it. It can fail on your Mac. If it fails, tell the Lead. |
 
-NOTE: QA ran the stack with `PUBLIC_PORT=8443`, so the QA URLs end in `:8443` [LC-T1-02]. The default port is 443. Then the URLs have no port number [Not verified by QA].
+NOTE: QA used `PUBLIC_PORT=8443` and `8543`, so the QA URLs end in `:8443` or `:8543` [AC-T1-09, AC-T7-07]. The default port is 443. Then the URLs have no port number [Not verified by QA].
 
-## What the stack gives you
+## What you get
 
-| URL | What it shows |
+| URL | What it is |
 | --- | --- |
-| `https://moodle.test/login/index.php` | The Moodle 5.2 login page [AC-T1-03] |
-| `https://lti.cogniate.test/healthz` | `{"status":"ok","service":"lti-service","knobs":[]}` [AC-T1-04] |
-| `https://app.cogniate.test/healthz` | The same, with the service `cogniate-app` [AC-T1-04] |
-| `https://content.cogniate-content.test/healthz` | The same, with the service `cogniate-content` [AC-T1-04] |
+| `https://moodle.test/login/index.php` | The Moodle 5.2.4 site [AC-T1-03, AC-T1-07] |
+| `https://app.cogniate.test/signin` | The Cogniate portal (a stand-in for the real Cogniate portal) [AC-T4-01] |
 
-The portal and the course player come in later tasks (T4 to T6). This guide does not describe them yet.
+| User | Where | Role |
+| --- | --- | --- |
+| `admin` | Moodle | Site administrator [AC-T7-14] |
+| `cg_teacher` | Moodle | Editing teacher in `COGNIATE-DEV-101` and `COGNIATE-DEV-102` [AC-T1-08] |
+| `cg_student`, `cg_student2` | Moodle | Students in both courses [AC-T1-08] |
+| `thanh@cogniate.test` | Portal | Owner of "Thanh's Library" [AC-T4-01] |
+| `qa-b@cogniate.test` | Portal | Owner of "QA Library B", a second library for isolation tests [AC-T7-08] |
 
-`npm run seed` makes these Moodle users and courses:
-
-| User | Role in `COGNIATE-DEV-101` and `COGNIATE-DEV-102` |
-| --- | --- |
-| `admin` | Moodle site administrator |
-| `cg_teacher` | Editing teacher [AC-T1-08] |
-| `cg_student` | Student [AC-T1-08] |
-| `cg_student2` | Student [AC-T1-08] |
-
-- All four users can sign in with the passwords in `.env` [AC-T1-10].
-- The passwords are also in `infra/.secrets/seed.json` [H2]. In `.env`, the names are `MOODLE_ADMIN_PASSWORD`, `MOODLE_TEACHER_PASSWORD`, `MOODLE_STUDENT_PASSWORD` and `MOODLE_STUDENT2_PASSWORD`.
+- The passwords are in `infra/.secrets/seed.json` [H2, AC-T4-01] and in `.env` [AC-T1-10]. Examples of `.env` names: `MOODLE_STUDENT_PASSWORD`, `PORTAL_THANH_PASSWORD`.
 - Git ignores both files [AC-T1-11]. Do not copy the passwords into git, chat or tickets.
-- Completion tracking is on in both courses [AC-T1-08].
 
 ## Before you start
 
 You need:
 
-- A Mac with Docker Desktop. QA used Docker 29.8.2 and Compose 5.5.1.
+- A Mac with Docker Desktop. QA used Docker 29.8.2.
 - Node 24 and npm. QA used Node 24.21.0.
-- The Docker images on your Mac. The times in this guide are with the images already pulled, as in AC-T1-02.
+- The two Cogniate course zips in `docs/raw/data/courses/`. They are not in git (decision Q15).
+- The Docker images on your Mac. The times below are with the images already pulled.
 
-## Procedure 1: Start the stack the first time
+Optional: run `npm run stack:doctor`. It prints one line per check, with `OK` or `FIX` and a fix [Not verified by QA].
+
+## Procedure 1: Start a ready demo from zero
+
+WARNING: Step 6 deletes the local Moodle site and all local Cogniate data. Use it only for a local demo stack.
 
 1. Start Docker Desktop.
-2. Wait until Docker Desktop shows that the engine runs.
-3. Open a terminal in the repo folder.
-4. Run `npm ci` to install the packages [AC-T1-01].
-5. Run `npm run gen-env` to make `.env` and the certificates in `infra/.certs/` [LC-T1-01].
-6. Run `npm run stack:up` to start the containers [AC-T1-02].
-7. Wait until the command stops.
-8. Run `npm run seed` to make the Moodle users and courses [AC-T1-02].
-9. Read the four URLs in the output [AC-T1-02].
+2. Open a terminal in the repo folder.
+3. Run `npm ci` to install the packages [AC-T1-01].
+4. Run `npm run fixtures:check` to check the two course zips [LC-T1-06].
+5. Run `npm run gen-env` to make `.env`, the passwords and the certificates [LC-T1-01].
+6. Run `npm run e2e:reset` to build and start an empty stack [AC-T7-15].
+7. Run `npm run demo:prepare` to make the demo set-up [AC-T7-15].
+8. Read the users and the two activity URLs in the output [AC-T7-15].
 
-Result: steps 6 and 8 end with exit code 0. In the QA run, they took 31 seconds together [AC-T1-02].
+Result [AC-T7-15]:
 
-## Procedure 2: Show the URLs and user names again
+- In the QA run, step 6 took 36 seconds and step 7 took 9.3 seconds.
+- Thanh's Library is connected to Moodle. Both courses are uploaded and published.
+- `COGNIATE-DEV-101` has two Cogniate activities, with a maximum grade of 100 and completion "Receive a grade".
+- `cg_student` can open both activities and reach the course player.
 
-1. Run `npm run demo` [LC-T1-03].
+NOTE: `demo:prepare` does by script what the guides for the [Moodle admin](moodle-admin.md) and the [teacher](teacher.md) show by hand. To do these steps by hand, run only steps 1 to 6.
 
-Result: the command prints the four URLs and the four user names [LC-T1-03].
+## Procedure 2: Show the users
 
-NOTE: `npm run demo` can also install, build and start the stack in one command. QA verified it only on a stack that runs already. For the first start, use procedure 1.
+1. Run `npm run demo:users` [Not verified by QA].
+
+Result: the command lists the URLs, the users, and the `.env` name of each password. It does not print passwords [Not verified by QA].
 
 ## Procedure 3: Open the stack in your browser [Not verified by QA]
 
-QA opened the Moodle login page and signed in with Chromium inside the test container [AC-T1-03, AC-T1-07]. QA did not test a browser on your Mac.
+QA opened every page with Chromium in a test container [AC-T7-01]. QA did not test a browser on your Mac.
 
 1. Make sure that Google Chrome or Chromium is in `/Applications`.
-2. Run `npm run demo:browser` [Not verified by QA].
-3. In the new Chrome window, go to the Moodle login page tab [Not verified by QA].
-4. Type `cg_teacher` in the user name field.
-5. Type the password of `cg_teacher` from `infra/.secrets/seed.json`.
-6. Click **Log in**.
+2. Run `npm run demo:browser`. A new Chrome window opens with its own profile [Not verified by QA].
+3. In the Moodle tab, sign in as `cg_student`, `cg_teacher` or `admin` [AC-T1-07].
+4. In a new tab, go to `https://app.cogniate.test/signin`.
+5. Sign in with the email `thanh@cogniate.test` and its password [AC-T4-01].
 
-Result: Moodle signs you in as `cg_teacher` [AC-T1-07]. With a wrong password, Moodle does not sign you in [AC-T1-07].
+Result: you are signed in to Moodle and to the Cogniate portal.
 
-The Author states these facts. QA did not verify them:
+The builder states these facts. QA did not verify them:
 
-- The Chrome window uses a new profile in `.tmp/demo-browser-profile`. You can delete this folder at any time.
+- The Chrome profile is in `.tmp/demo-browser-profile`. You can delete it at any time.
 - The command does not change the settings of your Mac.
 - If Chrome is in a different folder, set `CHROME_BIN=/path/to/chrome` before the command.
 
-You can also use your daily browser. This changes the settings of your Mac. Read the section "Your own browser" in [`infra/README.md`](../../infra/README.md#your-own-browser) and its CAUTION first [Not verified by QA].
+Next: [what a learner sees](learner-view.md).
 
-## Procedure 4: Start again with an empty Moodle site (reset)
+## Procedure 4: Start again
 
-WARNING: `npm run stack:reset` deletes the Moodle site and its database. You lose all courses, activities and grades that you added.
+WARNING: `npm run e2e:reset` deletes the local Moodle site, the Cogniate data, the logs and `seed.json`. It keeps `.env` and the certificates.
 
-1. Run `npm run stack:reset` [AC-T1-10].
-2. Run `npm run stack:up` [AC-T1-10].
-3. Run `npm run seed` [AC-T1-10].
+1. Run `npm run e2e:reset` [AC-T7-01, AC-T7-15].
+2. If you want the demo set-up again, run `npm run demo:prepare` [AC-T7-15].
 
-Result [AC-T1-10]:
+Result: an empty stack in about 40 seconds, with the same passwords [AC-T7-01, AC-T1-10].
 
-- Moodle has only the site course, `COGNIATE-DEV-101` and `COGNIATE-DEV-102`. QA added a course before the reset, and that course was gone after it.
-- The passwords in `.env` still work.
-- The certificate authority in `infra/.certs/` does not change (same fingerprint).
-- In the QA run, the three steps took 33 to 34 seconds.
-
-## Procedure 5: Run seed again
-
-1. Run `npm run seed` [AC-T1-12].
-
-Result: exit code 0. Seed does not make a second copy of a user, course, enrolment, web service or token [AC-T1-12]. You can run it at any time.
-
-## Procedure 6: Stop the stack [Not verified by QA]
+## Procedure 5: Stop the stack [Not verified by QA]
 
 1. Run `npm run stack:down` [Not verified by QA].
 
-Result: the containers stop. The Moodle site and the database stay [Not verified by QA]. To start the stack again, run `npm run stack:up`.
+Result: the containers stop. The data stays [Not verified by QA]. To start again, run `npm run stack:up` [AC-T1-02].
+
+## Procedure 6: Run the full end-to-end test
+
+1. Run `npm run test:e2e` [AC-T7-01].
+
+Result: the test starts an empty stack and runs the full story on Moodle 5.2.4. In the QA runs, it took 188, 189 and 186 seconds, with 17 tests passed and no retries [AC-T7-01, AC-T7-11].
 
 ## Optional checks
 
 | Command | Expected result | Tag |
 | --- | --- | --- |
 | `npm run check` | Exit code 0 (lint, type check, unit tests). | AC-T1-01 |
-| `npm run stack:moodle-reach-check` | Moodle reaches the LTI service. The command prints `{"status":"ok","service":"lti-service","knobs":[]}`. | AC-T1-05 |
-| `npm run stack:node-reach-check` | The two Cogniate services reach Moodle. Exit code 0. | AC-T1-13 |
-| `npm run fixtures:check` | Exit code 0 if the two course zips are correct. Exit code 1 if a zip is missing or changed. | LC-T1-06 |
+| `npm run seed` | Exit code 0. You can run it again at any time. It makes no duplicate users or courses. | AC-T1-12 |
+| `npm run stack:node-reach-check` | The Cogniate services reach Moodle. Exit code 0. | AC-T1-13 |
 
 ## Not verified by QA
 
-- `npm run demo:browser`, and any browser on your Mac.
-- `npm run demo` as the first command on a new clone.
-- `npm run stack:down`.
-- The default port 443. QA used port 8443.
+- `npm run stack:doctor`, `npm run demo:users`, `npm run demo:browser` and `npm run stack:down`.
+- `npm run demo` as the first command on a new clone. QA checked `npm run demo` only after T1, on a stack that ran already [LC-T1-03].
+- A browser on your Mac, and the default port 443.
 - Safari and Firefox. QA used Chromium only.
-- The 10-minute test with a new person (AC-T9-01). It comes after task T7.
+- The 10-minute test with a new person (AC-T9-01, decision HR-2).
 
-## If something goes wrong
-
-See "Troubleshooting" in [`infra/README.md`](../../infra/README.md#troubleshooting) [Not verified by QA].
+If something goes wrong, see [troubleshooting](troubleshooting.md).

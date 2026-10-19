@@ -1,6 +1,6 @@
 # Hand-over pack: plan
 
-Status: proposal by Docs, 2026-10-16. The Lead approves it. Owner of the pack: Docs.
+Status: accepted by the Lead (2026-10-16). Built 2026-10-19. Owner of the pack: Docs.
 
 **Goal:** a product person understands the prototype and the open decisions in 30 minutes or less. Each artifact is small. You can throw it away after the review.
 
@@ -35,13 +35,15 @@ Total: 30 minutes (26 minutes without the video).
 
 ## Video pipeline (local and free, tested on this Mac on 2026-10-16)
 
-1. Script: `video/script.md`, one short STE text per slide, max 600 words.
-2. Narration: macOS `say -v Samantha -r 165`, one AIFF file per slide. Slide time = clip time + 0.7 s.
-3. Slides: one HTML file with the explainer tokens and diagrams. The narration text shows as a caption. Playwright `recordVideo` records it in `mcr.microsoft.com/playwright:v1.56.0-noble`.
-4. Merge: `linuxserver/ffmpeg` in Docker (arm64) joins the clips and encodes H.264 + AAC, 1280×720.
-5. Check: duration ≤ 240 s, audio not silent, one frame per slide matches the slide.
+One command: `bash docs/human_review/video/build.sh [en|vi|all]`.
 
-Sample result: it worked. English 9.96 s, Vietnamese 12.4 s (`.tmp/docs/video-sample/out/`, git-ignored). A build takes about the video length plus 5 s.
+1. Script: `video/script.json`, one short STE text per slide in English and Vietnamese.
+2. Narration: macOS `say` (Samantha for English, Linh for Vietnamese), one AIFF file per slide. Slide time = clip time + 0.8 s.
+3. Slides: `video/slides.html` (dev-portal tokens; portal screenshots from `apps/portal/evidence/` only, checked for secrets). Playwright takes one PNG per slide in `mcr.microsoft.com/playwright:v1.56.0-noble`.
+4. Merge: `linuxserver/ffmpeg` (pinned digest) makes still slides at 5 fps, H.264 CRF 30, mono AAC 64 kbit/s, 1280×720.
+5. Check: duration ≤ 240 s and size ≤ 8 MB, else the script fails.
+
+Result (2026-10-19): `explainer-en.mp4` 155 s, 1.9 MB; `explainer-vi.mp4` 183 s, 2.2 MB, marked machine-translated (decision HR-1). A build takes about 15 seconds per language.
 
 ## Vietnamese option
 
