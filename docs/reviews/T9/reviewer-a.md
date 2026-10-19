@@ -65,3 +65,65 @@ Method (all read-only, from `git archive 2129b69` into temporary folders that we
 ## Counts
 
 0 BLOCKER, 0 MAJOR, 0 MINOR, 2 NIT (A-T9-01, -02). Not committed (Lead's instruction).
+
+
+## Round 2 — replacement continuation, phase 1 (2026-10-19)
+
+**Scoped verdict: APPROVE — committed product, migration, tests and policy.**
+**Final T9 pack verdict: pending phase 2.** This section does not close the T5, T7 or T9 gates.
+
+### Identity and scope
+
+- Independent replacement Reviewer-A, assigned Codex GPT-6-Astra at xhigh effort under the charter's continuation authority.
+- This is a replacement-model review. It is not a new cross-model review.
+- Reviewed candidate: `d54c607d7fc6ce2d97e039bb108f52a37f2174ee`.
+- Continuation baseline: `c3f6d13`. Product baseline: `dd6dd1188833653cb92c63cc09e3c438ac3cb7b4`.
+- Read committed files with `git show` and `git diff`. Other workers' uncommitted drafts were excluded.
+- Read my historical T9 review and fixes report. I did not read Reviewer-B's review files or findings.
+- No product, test or architecture file changed. No commit, push, subagent or stack action was performed.
+
+The product delta contains exactly four files: migration `010_score_delivery_confirmation.sql`, `domain/score-syncs.ts`, `worker/score-sync.ts`, and `runtime-path.test.ts`, all under `services/cogniate-app/src/`. I reviewed every change in these files. I also traced their callers and the existing transaction, migration, LTI-client, line-item and grade-policy code.
+
+The QA delta includes T4b1/T4b2/T5b/T6 acceptance tests, the host-control channel, the P5 fixture, and the T4b/T5 runners. I reviewed those changes against the committed task specs. I checked the architecture changes since `c3f6d13`, including ADR-009, ADR-010, the app contract, data model and T5b/T6 specs.
+
+### Correctness and safety results
+
+| Area | Review result |
+| --- | --- |
+| Durable uncertainty | `beginSend` stores a marker and increments `tries` before calling the score client. Startup recovery marks unresolved sends uncertain. `recordSend` retains earlier uncertainty after an ordinary successful retry. |
+| Higher-result confirmation | The requirement is derived from uncertain lower rows of the same learner and internal resource link. It therefore survives restart and a still higher result, including another course version. The first accepted higher send stays `pending`, with no `sentAt`. |
+| Confirmation timing | The first accepted higher response stores a due time at least five seconds later. A successful confirmation permits `sent` and clears the covered uncertainty. Successful confirmation does not create an endless send loop. |
+| Concurrency | The production app has one process, one synchronous SQLite connection and one worker drain. Current-best checks run before processing a row and after awaited line-item lookup. The guarded update rejects a superseded row. Result updates run in `BEGIN IMMEDIATE`; a late response cannot revive a superseded row or consume the higher row's requirement. This does not establish multi-process worker support. |
+| Score comparisons | The corrected final-attempt comparison casts the INTEGER score to REAL. Score-sync columns already have REAL affinity. The new unit cases cover higher final attempts without sync rows during ordinary sends and confirmation. |
+| Retry window and conflicts | Confirmation retains the original retry start. A new manual Resend resets its window. Expired rows fail, and a first success without time for confirmation fails. A confirmation 409 remains `conflict` without an automatic retry. See A-T9-C01 for the lookup-only backoff exception. |
+| Teacher override | The repair does not compare gradebook reads to trigger extra sends. Existing Moodle override handling remains intact. The author tests model an override during the P2 sequence; fresh independent override evidence is still required. |
+| Logging | Normal score-client calls log the persisted status, try count and phase. A superseded response includes `send_result`; the first accepted higher response logs `pending` with `send_result: sent`. Waiting adds no try or score event. Crash-before-log and failures inside client preparation are not proof of one remote write per event. |
+| Migration | Migration 010 adds nullable markers and a false uncertainty default without changing previous migrations or historical statuses. Existing unresolved remote work from before the upgrade cannot be reconstructed. Recovery applies to markers written after the upgrade. |
+| P5 fixture | It requires a verified fresh QA clone and its own `qa-*` project. It stops only that app, deletes one exact failed sync id, asserts one deletion, and restarts with a health wait in `finally`. Public assertions retain both attempts and best 80, retain the otherwise eligible failed 60 row, then require Resend 409. This tests the existing best-final-attempt rule, with a disclosed fixture exception. |
+| Test isolation | Changed host actions use the runner's clone and explicit QA compose environment. The shared runner verifies project labels; teardown selects its own project's resources. I found no new cross-project cleanup command. |
+| Harness corrections | The T4 initial outcome allows the already specified first runtime commit. The XSS activity name follows the existing task spec while retaining the malicious manifest test. T6 uses the accepted Moodle teacher path and an awaited focus assertion. These changes are not themselves passing QA evidence. |
+
+### Evidence boundaries
+
+The coordinator reported root self-check: **703 passed, five fixture-dependent skips**, and runtime tests: **52/52 passed**. I reviewed the author tests but did not run independent acceptance QA. The coordinator also reported a synthetic seven-row schema-upgrade check in ignored local artifacts. That is author evidence, not independent migration QA.
+
+The committed failed QA round at `a5d9ddc` remains valid history: P2 left Moodle at 60 while the app said 90 sent; P5 did not reach Resend because the higher sync remained visible. The withdrawn `1ce57f2` run produced no acceptance result. Neither run is a PASS for this repair. At this phase-one verdict, fresh focused P2/P5, full T5a/T5b/T6, fresh T7, final architecture reconciliation and the final docs/videos are pending.
+
+**Remote-write limit:** an older timed-out Moodle request may write after the accepted confirmation. The five-second gap is a bounded mitigation. `sent` records accepted delivery and any required confirmation; it does not guarantee lasting equality with Moodle. The final human pack must retain this limit and the migration boundary above.
+
+My historical fixes report said that a grade could not go down because the worker sends serially. The live failure disproved that remote-ordering inference. Its local terminal-state finding remains valid, but that broad statement must not be used as current evidence. This round supersedes that inference without deleting the historical record.
+
+### A-T9-C01 — MINOR: repeated line-item lookup failures stay on the first retry step
+
+- Location at `d54c607`: `services/cogniate-app/src/worker/score-sync.ts:56`, `:80` and `:81`; `worker/line-item.ts:17`.
+- Problem: when a launch has no line-item id and lookup repeatedly fails, no score POST starts, so `tries` stays zero. Each failure calls `syncResult` with try 1 and schedules another attempt in five seconds.
+- Evidence: source tracing plus an in-memory evaluation of the committed `packages/tracking/src/outcome.ts` function. Seven consecutive lookup-failure inputs with zero POST tries each returned `pending` and a 5,000 ms delay. No files or stack state changed for this check.
+- Impact: the documented 5 s, 30 s, 2 min, 10 min, 30 min, then hourly backoff does not apply on this path. The 24-hour bound remains. This increases lookup traffic during an outage; it does not demonstrate a wrong grade.
+- Suggested fix: preserve POST-only `tries` and add separate retry accounting for failed preparation. Alternatively, the Lead may accept this narrow prototype exception and record it in the contract and deferred list.
+- Disposition at submission: sent to the Lead; owner assessment pending. Safe to defer under the charter's MINOR rule.
+
+### Phase-one counts and remaining work
+
+**0 BLOCKER, 0 MAJOR, 1 MINOR, 0 new NIT.** Historical accepted deferrals remain separate from these new counts.
+
+The code/harness verdict is APPROVE with A-T9-C01 recorded. The final T9 verdict remains pending. I will review the final committed README, guides, human pack, EN/VI videos, fresh QA/T7 reports, architecture reconciliation and any follow-up changes in this same task and instance.

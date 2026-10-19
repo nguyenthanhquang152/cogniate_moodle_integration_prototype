@@ -84,3 +84,72 @@ Summary: This is a good pack for its readers. It is short, honest about what QA 
 
 - The working copy (not committed, Docs is working on it) changes Q16 and R4 in `decisions-needed.md`. The committed R4 row says "Chrome, Edge and Firefox work", but QA tested Chromium only. The new text ("QA tested Chromium only. Other browsers are not proven.") fixes this. Please commit it.
 - `flows.md` says "Source: commit `63de503`". It is a generated file and names the commit before its own, which is expected.
+
+---
+
+## Round 2 — continuation review, 2026-10-19
+
+Replacement Reviewer-B: Codex GPT-6-Astra, xhigh, under the continuation authority in `docs/team/charter.md`.
+This is an independent replacement review, not a cross-model review.
+Historical Round 1 remains unchanged.
+I have not read Reviewer-A's files or findings.
+
+### Phase 1 — committed P2 repair
+
+Reviewed candidate: `d54c607d7fc6ce2d97e039bb108f52a37f2174ee`.
+Continuation baseline: `c3f6d13`.
+Product baseline: `dd6dd1188833653cb92c63cc09e3c438ac3cb7b4`.
+
+**Phase 1 verdict: APPROVE — code, migration, adjacent tests, and QA harness at the SHA above.**
+Finding counts: BLOCKER 0, MAJOR 0, MINOR 0, NIT 0.
+This is not the final T9 verdict.
+Fresh QA, T7, final architecture reconciliation, and the final docs/video pack remain required.
+
+Scope and evidence:
+
+- Read all new product changes since the product baseline: migration 010, `domain/score-syncs.ts`, `worker/score-sync.ts`, and adjacent `runtime-path.test.ts` changes.
+- Read policy commit `b826eb1`, the corrected fractional guard in `d54c607`, and the continuation QA harness changes.
+- Checked the existing migration runner, score policy, commit transaction, and LTI client as relevant context.
+- Ran `npx vitest run services/cogniate-app/src/runtime-path.test.ts`: **52 passed**, 3.88 seconds, Node 24.21.0.
+- Product, workspace packages, infra, lockfile, and test configuration matched the reviewed commit before and after that run.
+- The coordinator reports root self-check: 703 passed and five fixture-dependent skips. I did not repeat that complete check.
+- The failed `a5d9ddc` live run remains valid historical failure evidence. It does not verify this repair.
+
+The implementation keeps the change in the repository and worker layers.
+The three new database fields have distinct purposes: active send, unresolved uncertainty, and confirmation phase/due time.
+The worker persists its marker before the external call.
+Startup converts unresolved markers to uncertainty, including markers on superseded rows.
+An ordinary successful retry does not clear earlier uncertainty.
+The learner/activity query carries the requirement to a higher result, including another course version.
+The first accepted higher send stays pending; a successful confirmation can complete it.
+The worker checks current best before posting and before recording success.
+It retains terminal conflicts and the existing retry-window start.
+
+The tests exercise behavior rather than only the added fields.
+They model late lower writes between higher acceptance and confirmation, then check the remote grade model.
+They also cover a teacher override, restart from a file database, higher-result transfer, and supersession during confirmation.
+Other cases cover confirmation errors, timeout retries, deadline exhaustion, stale batch/lookup snapshots, and learner/activity/tenant separation.
+The fractional best-attempt guard is exercised with an absent higher sync row.
+These unit models do not prove Moodle's remote ordering.
+
+The QA additions have useful public oracles and explicit scope.
+P2 checks pending status, `sentAt`, phase logs, app restart timing, confirmation, and a finite 90-second grade observation.
+P5 deletes one exact higher failed sync in an isolated clone after stopping that clone's app.
+It restarts in `finally` and compares both attempts, the best result, and the lower row through public results.
+The P5 test is explicitly fixture-assisted.
+P11 checks separate attempt and sync scores across versions, including pending and failed states.
+The focus assertion now uses Playwright's retrying focus check; it does not remove the requirement.
+
+### Boundaries to retain in the final pack
+
+1. A lower remote request can still write after the accepted confirmation. The five-second gap is a bounded mitigation.
+2. `sent` records accepted delivery with any required confirmation. It does not prove permanent Moodle grade equality.
+3. Migration 010 preserves old rows and defaults the new fields. It cannot reconstruct pre-upgrade uncertainty.
+4. Recovery therefore covers recorded post-upgrade sends. A prior-schema database upgrade is not live remote-recovery proof.
+5. The author's ignored migration smoke reports seven preserved rows, migration integrity, reopen, and synthetic recovery checks.
+   I inspected its result, but it is author evidence, not independent QA.
+6. Fresh T5a/T5b/T6 and T7 were pending at this phase-one checkpoint.
+
+The coordinator received these boundaries before the final Docs pass.
+No product, QA, or other documentation file was changed by this reviewer.
+Final scope, measurable STE results, artifact checks, findings, and verdict will follow in this round.
