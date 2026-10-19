@@ -118,6 +118,8 @@ export interface OutboundRequest {
   headers?: Record<string, string>;
   body?: string;
   traceId?: string;
+  /** Override this request's deadline without changing the client's default or other guards. */
+  timeoutMs?: number;
 }
 
 export interface OutboundResponse {
@@ -164,6 +166,7 @@ export function createOutboundClient(options: OutboundOptions): OutboundClient {
   };
 
   const once = (url: URL, req: OutboundRequest): Promise<OutboundResponse> => {
+    const requestTimeoutMs = req.timeoutMs ?? timeoutMs;
     const host = url.hostname.toLowerCase();
     const method = req.method ?? 'GET';
     const started = performance.now();
@@ -217,7 +220,7 @@ export function createOutboundClient(options: OutboundOptions): OutboundClient {
         res.on('error', () => fail('network_error', 'response error'));
       });
       // Request callbacks are always asynchronous, so `timer` exists before fail() or 'end' can run.
-      const timer = setTimeout(() => { fail('timeout', `no answer in ${timeoutMs} ms`); r.destroy(); }, timeoutMs);
+      const timer = setTimeout(() => { fail('timeout', `no answer in ${requestTimeoutMs} ms`); r.destroy(); }, requestTimeoutMs);
       r.on('error', (err: NodeJS.ErrnoException & { reason?: OutboundBlockReason }) => {
         if (err.code === BLOCKED_CODE && err.reason) fail(err.reason, err.message);
         else fail('network_error', err.code ?? 'network error');

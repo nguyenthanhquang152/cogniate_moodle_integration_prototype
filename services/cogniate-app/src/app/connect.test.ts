@@ -266,6 +266,77 @@ describe('/tool/register (app contract §6, security §5, §6)', () => {
     expect(t.logs).toContainEqual(expect.objectContaining({ event: 'registration_confirm_rejected', code: 'MOODLE_TOOL_MAY_EXIST' }));
   });
 
+  it.each([
+    [0, 'LTI_SERVICE_UNREACHABLE', 'MOODLE_TOOL_MAY_EXIST'],
+    [504, 'PLATFORM_TIMEOUT', 'MOODLE_TOOL_MAY_EXIST'],
+    [0, 'NO_API_KEY', 'REGISTRATION_FAILED'],
+    [502, 'PLATFORM_ERROR', 'REGISTRATION_FAILED'],
+  ] as const)('P1: completion %s %s shows %s and preserves the pending ref', async (status, code, expected) => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const { id, ref } = await pending(cookie);
+    const reg = t.lti.addRegistration();
+    t.lti.client.completeRegistration = async () => { throw new LtiServiceError(status, code, 'test failure'); };
+    const page = await post(reg, ref);
+    expect([page.statusCode, pageCode(page.body)]).toEqual([502, expected]);
+    expect((await json('GET', `/app-api/connections/${id}`, cookie)).json()).toMatchObject({
+      status: 'pending', platform: null, lastError: { code: expected, ltiCode: code },
+    });
+    expect((await get(reg, ref)).statusCode).toBe(200);
+    expect(patches()).toEqual([]);
+  });
+
+  it('P1: a preflight lookup timeout remains generic because completion was never called', async () => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const { ref } = await pending(cookie);
+    t.lti.client.getRegistration = async () => { throw new LtiServiceError(504, 'PLATFORM_TIMEOUT', 'test failure'); };
+    expect(pageCode((await post(t.lti.addRegistration(), ref)).body)).toBe('REGISTRATION_FAILED');
+    expect(t.lti.calls.some((c) => c.startsWith('POST complete'))).toBe(false);
+  });
+
+  it.each([
+    [0, 'LTI_SERVICE_UNREACHABLE', null],
+    [504, 'PLATFORM_TIMEOUT', null],
+    [502, 'PLATFORM_ERROR', 'tool_may_exist'],
+  ] as const)('P1: after completion, %s %s (%s) cleans up the known orphan before the generic failure', async (status, code, reason) => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const { id, ref } = await pending(cookie);
+    t.lti.client.getPlatform = async () => { throw new LtiServiceError(status, code, 'test failure', reason); };
+    const page = await post(t.lti.addRegistration(), ref);
+    expect([page.statusCode, pageCode(page.body)]).toEqual([502, 'REGISTRATION_FAILED']);
+    const orphan = [...t.lti.platforms.values()].at(-1)!;
+    expect(orphan.active).toBe(false);
+    expect(t.logs.filter((l) => ['platform_orphan_deactivated', 'registration_confirm_rejected'].includes(l.event)).map((l) => l.event)).toEqual(['platform_orphan_deactivated', 'registration_confirm_rejected']);
+    expect((await json('GET', `/app-api/connections/${id}`, cookie)).json()).toMatchObject({ status: 'pending', platform: null });
+  });
+
+  it('P1: post-completion lookup failure cannot deactivate a platform owned by another connection', async () => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const owner = await pending(cookie);
+    expect((await post(t.lti.addRegistration(), owner.ref)).statusCode).toBe(200);
+    const before = (await json('GET', `/app-api/connections/${owner.id}`, cookie)).json();
+    const next = await pending(cookie);
+    t.lti.client.completeRegistration = async () => ({ platformId: before.platform.id, html: '' });
+    t.lti.client.getPlatform = async () => { throw new LtiServiceError(0, 'LTI_SERVICE_UNREACHABLE', 'test failure'); };
+    expect(pageCode((await post(t.lti.addRegistration(), next.ref)).body)).toBe('REGISTRATION_FAILED');
+    expect(patches()).toEqual([]);
+    expect((await json('GET', `/app-api/connections/${owner.id}`, cookie)).json()).toEqual(before);
+  });
+
+  it('P1: an orphan cleanup failure preserves the original registration error and logs the failed cleanup', async () => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const { id, ref } = await pending(cookie);
+    t.lti.client.getPlatform = async () => { throw new LtiServiceError(504, 'PLATFORM_TIMEOUT', 'test failure'); };
+    t.lti.client.patchPlatform = async () => { throw new LtiServiceError(0, 'LTI_SERVICE_UNREACHABLE', 'cleanup failure'); };
+    expect(pageCode((await post(t.lti.addRegistration(), ref)).body)).toBe('REGISTRATION_FAILED');
+    expect(t.logs).toContainEqual(expect.objectContaining({ event: 'platform_orphan_deactivate_failed', lti_code: 'LTI_SERVICE_UNREACHABLE' }));
+    expect((await json('GET', `/app-api/connections/${id}`, cookie)).json()).toMatchObject({ lastError: { code: 'REGISTRATION_FAILED', ltiCode: 'PLATFORM_TIMEOUT' } });
+  });
+
   it('the returned platform belongs to another connection -> REGISTRATION_FAILED; neither connection changes (app contract §6)', async () => {
     t = await testApp();
     const cookie = await t.login(THANH);

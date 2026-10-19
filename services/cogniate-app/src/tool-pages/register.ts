@@ -126,13 +126,16 @@ export function registerRegisterPages(app: FastifyInstance, deps: RegisterPageDe
       }
       markRegistered(db, connection.id, platformInfo(platform), now());
     } catch (err) {
-      if (err instanceof LtiServiceError && err.reason === 'tool_may_exist') return fail(req, reply, { code: 'MOODLE_TOOL_MAY_EXIST', connection, err });
-      if (!(err instanceof LtiServiceError) && !(err instanceof PlatformTakenError)) throw err;
       // The LTI service made or returned a platform that this connection cannot take: if no connection owns it, it is
       // an orphan and is switched off at once (security §2.6). The platform of another connection is not touched, and
       // neither connection changes (app contract §6).
       if (platformId !== null) await deactivateOrphan({ db, lti, logger: log }, platformId, req.traceId);
-      return fail(req, reply, { code: 'REGISTRATION_FAILED', connection, err });
+      if (!(err instanceof LtiServiceError) && !(err instanceof PlatformTakenError)) throw err;
+      // Only a failed completion leaves Moodle's write unknown. A missing local API key is not an outbound call;
+      // a later getPlatform failure has a known platform id and has already gone through orphan cleanup above.
+      const uncertain = platformId === null && err instanceof LtiServiceError &&
+        (err.reason === 'tool_may_exist' || err.code === 'LTI_SERVICE_UNREACHABLE' || (err.status === 504 && err.code === 'PLATFORM_TIMEOUT'));
+      return fail(req, reply, { code: uncertain ? 'MOODLE_TOOL_MAY_EXIST' : 'REGISTRATION_FAILED', connection, err });
     }
     const nonce = newNonce();
     const body = `<main data-page="register-done" data-connection-status="registered">
