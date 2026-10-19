@@ -95,3 +95,83 @@ No product findings.
 ## 6. Writing
 
 This file uses Simplified Technical English where practical: short sentences, active voice, one instruction per sentence. Code names, AC ids and error codes are kept as they are.
+
+
+## Replacement QA regression, 2026-10-19 — candidate a5d9ddc
+
+Independent replacement QA: Codex GPT-6-Astra, xhigh, assigned by the continuation authority. This is a replacement-model run, not a claim of cross-model QA. Acceptance specs and contracts were read before prior QA evidence. No author notes were used to create acceptance criteria. Historical rounds above remain unchanged.
+
+- Tested SHA: `a5d9ddcbc95cfb61968f70372334790386f2bb4b`; product code: `dd6dd1188833653cb92c63cc09e3c438ac3cb7b4`. Product paths have no diff between these commits.
+- Run: 2026-10-19 10:10:28–10:29:45 UTC. Fresh external clone: `/Users/quangnguyen/cogniate-qa-runs/qa-cont-t5-a5d9ddcb-2026-10-19T10-10-28-786Z`. No `--checkout` or `--replace-tests`.
+- Evidence root `R`: `/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/moodle-lti-continuation/tests/host/artifacts/qa-cont-t5-a5d9ddcb-2026-10-19T10-10-28-786Z`. The root has `summary.json`, `images.json`, and command logs. Each container folder has its Playwright JSON, traces, screenshots, log snapshots and captured-secret evidence.
+- Command: `COMPOSE_PROJECT_NAME=qa-cont-t5 PUBLIC_PORT=8643 STACK_SUBNET=172.29.0.0/16 COURSE_FIXTURES_DIR=/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses node tests/host/run-t5.mjs --sha a5d9ddcbc95cfb61968f70372334790386f2bb4b --tasks T5a,T5b,T6`. The fixture source checkout was read only.
+- Isolation: preflight and H1 passed; one own stack, free port and subnet, SHA-checked course fixtures. The runner removed the stack and recorded zero own containers, volumes and networks. An independent label-filtered Docker check also returned zero. None of the ten pre-existing containers stopped or restarted. No other stack was paused or changed.
+
+Image IDs from `R/images.json`:
+
+| Service | Image | ID |
+| --- | --- | --- |
+| moodle | `erseco/alpine-moodle:v5.2.4` | `sha256:3a310197e51ff34c6e8e8adbb92703fe598f71cbcf9eb974055c27f07f4cb23d` |
+| cogniate-app | `node:24.22.0-alpine3.24` | `sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f` |
+| lti-service | `node:24.22.0-alpine3.24` | `sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f` |
+| postgres | `postgres:16-alpine` | `sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea` |
+| proxy | `caddy:2.11.7-alpine` | `sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f` |
+
+### Result at this candidate
+
+**FAIL — 13 of 14 ACs pass; AC-T5-30 has an in-flight failure. The additional P5 fixture precondition failed.** The combined runner exited 1. This run does not clear the final T5/T6 gate.
+
+Main pass: 22 passed, two failed, no skipped or flaky tests. P11 sent, pending and failed variants passed; P2 in flight and fixture-assisted P5 failed. The table uses the command above and `R/container-T5b/playwright-results.json`; the full test titles below identify the executed tests.
+
+| AC | Result | Executed test / observation |
+| --- | --- | --- |
+| AC-T5-09 | PASS | HTML pass: cg_student in "Cogniate HTML" (menu, lesson ≥ 11 s + scroll, correct option); the runtime reads body[data-lesson-id]; within 60 s Moodle 100 and completion done; row passed, one sync sent |
+| AC-T5-36 | PASS | hanging hosts: every non-*.test request hangs; cg_student completes the HTML course → passed and 100 in Moodle within 60 s |
+| AC-T5-10 | PASS | the HTML package bytes are not changed: SHA-256 of GET /pkg/<id>/<path> = SHA-256 of the zip entry, for every file; (A-T5b-01) 5 and 10 cookies of 4,000 characters on the content origin: GET /pkg/<id>/index.html → 200 with the same bytes (Node HTTP/1.1; Chromium HTTP/2 top-level); the player loads in Chromium (every content response < 400) |
+| AC-T5-11 | PASS | incomplete: cg_student2 sees only the menu page and closes the window → no grade in Moodle; row in_progress, no scoreSyncs |
+| AC-T5-27 | PASS | HTML fail: cg_student2 (new run) picks a wrong option and finishes the pages → Moodle 0; row failed, one sync sent |
+| AC-T5-28 | PASS | first answer stands: a wrong option, then the correct one, then the pages → failed, score 0 |
+| AC-T5-29 | PASS | dwell rule: the learner answers, scrolls to the end and closes the window before 10 s → in_progress, no sync |
+| AC-T5-14 | PASS | retry: Moodle stopped, the learner passes → row pending with tries ≥ 1; Moodle started before 30 s since the first try → within 3 min sent and Moodle 100 |
+| AC-T5-30 | FAIL | outage order: Moodle stopped; the learner passes (row 1 pending, 100); a failed/0 final commit in a new session; Moodle started → Moodle 100, row 1 sent, no row with 0 sent; (P2) Moodle stopped: a failed 60 is pending, then a passed 90 supersedes it; Moodle started → 90 sent, Moodle 90; the 60 row stays superseded and is never sent; (P2, in flight) Moodle paused: the better result (90) arrives while the send of the lower row (60) runs; after unpause the 60 row stays superseded and Moodle shows 90 |
+| AC-T5-31 | PASS | conflict: a QA score with timestamp now + 10 min, lti-service restart, then cg_student2 completes → row conflict (tries stays 1 for 2 min, PLATFORM_CONFLICT), Moodle still 10, best passed |
+| AC-T5-32 | PASS | failed and Resend: unenrolled learner → failed at once (PLATFORM_REJECTED_REQUEST); enrol again, Resend → pending, tries 0, then sent; conflict Resend → conflict; Resend of a sent row → 409; (A-T5b-02) Resend never lowers a grade: rows 50 and 100 both failed (learner unenrolled); after enrol, Resend of the 50 row → 409 SYNC_NOT_RESENDABLE; Resend of the 100 row → sent, Moodle 100; the 50 row stays failed |
+| AC-T5-33 | PASS | teacher override: the grade is overridden to 50; a better result is sent; Moodle still shows 50; after Refresh, gradebookDiffers and resultScore 50 |
+| AC-T5-18 | PASS | (B-T5b-01) Refresh from Moodle never stores another learner's grade: a learner without a Moodle grade keeps resultScore null; every HTML row = the Moodle grade; Refresh from Moodle: every row of the SCORM publication has gradebook.resultScore = the Moodle grade (resultMaximum 100); Cogniate SCORM 100/100; AC-T5-33 activity 50 with gradebookDiffers |
+| AC-T5-19 | PASS | cogniate-app.jsonl and cogniate-content.jsonl contain no runtime token, ltik or service key captured in this run |
+
+### P2 failure: app says 90 sent, Moodle remains 60
+
+Product behavior failure, reported to the coordinator before test changes. Repro: create a fresh blank SCO activity; pause only QA Moodle; finalize failed 60; wait for its first send timeout; at seven seconds after that event, finalize passed 90 during the next send; wait for the late lower-send event; unpause Moodle. The app marks the higher row `sent`, but the Moodle grade oracle still returns 60 at the end of the 120-second wait. `8-supersede.spec.ts:115` fails with expected 90, received 60. ADR-010 rule 5 at this candidate requires the best result to win.
+
+| UTC event | Public/log evidence |
+| --- | --- |
+| 10:22:36.402 | Host starts own Moodle pause; exit 0. |
+| 10:22:41.578 | Lower `sync_f0t9IXlPJGgkxXMf0tXB7g`: `pending`, tries 1. |
+| 10:22:48.583 | Better result committed, inside the lower send. |
+| 10:22:52.142 | Lower row late completion: `superseded`, `send_result: pending`, tries 2. |
+| 10:22:52.432 | Host starts own Moodle unpause; exit 0. |
+| 10:22:52.582 | Higher `sync_7OWUNO4QA4OGy1pWREuY-Q`: `sent`, tries 1. |
+| Following 120 seconds | Moodle remains 60; required 90 is not observed. |
+
+Trace: `R/container-T5b/playwright/T5b-8-supersede-AC-T5-30-P-a42e6-erseded-and-Moodle-shows-90/trace.zip`. The late-event `superseded` and `send_result` assertions passed. The subsequent 90-second no-retry/grade-stability observation was **not reached** and is not claimed as passing. The separate stopped-Moodle P2 case passed its 60-second observation. The approved repair policy and its residual remote-write risk require fresh independent verification; this failed run proves neither the repair nor universal never-lower delivery.
+
+### P5 fixture failure: QA ownership
+
+The fixture naturally created final 60/100 and 80/100 attempts on two versions with both sync rows `failed`. The host reported deletion of exactly one row, higher sync `sync_n7HyLWux3irUt477kFfG3g`, at 10:26:39.864 UTC. The following public results still contained that same failed 80 row. Both attempts and best 80 were unchanged, but `9a-best-score.spec.ts:64` correctly failed the requirement that only the lower failed row remain. **Resend was not called; this run does not prove P5.**
+
+Trace: `R/container-T5b/playwright/T5b-9a-best-score-P5-fixtu-84c03-d-sync-60-Resend-is-refused/trace.zip`. The failure belongs to the QA fixture, not a demonstrated Resend defect. The Lead approved the bounded stop/delete/start/health-wait extension, now in the T5b spec. The QA fix keeps the one-row deletion and unchanged-attempt/lower-row assertions. It must be committed and rerun before P5 can pass. This exception is fixture-assisted, not pure black-box.
+
+### P11 and additional passing checks
+
+| Check | Result and observed behavior |
+| --- | --- |
+| P11 sent | PASS: version 1 best 90, version 2 retake 75; status API reports attempt 75 and sync sent 90/100; shell says Moodle keeps best 90; no 75 sync; Moodle 90. |
+| P11 pending | PASS: own Moodle stopped while best 90 is pending; retake 75 remains separate; exact shell text names sending best 90; after recovery Moodle 90. |
+| P11 failed | PASS: UI unenrolment makes best 90 fail with `PLATFORM_REJECTED_REQUEST`; retake 75 remains separate; shell says best 90 was not sent; re-enrol/Resend ends with Moodle 90. |
+| Existing lower-Resend guard | PASS: two failed syncs 50 and 100; lower Resend 409, higher Resend sent, Moodle 100. This does not substitute for P5's missing-higher-row precondition. |
+| Conflict | PASS: no retry for the required two minutes; Resend returns conflict again within the future timestamp window. |
+| Teacher override | PASS: higher sent result does not remove Moodle's override 50; refresh reports 50 and `gradebookDiffers`. |
+| Secret scan | PASS: captured runtime tokens, ltiks and service keys were absent from app/content logs. Captured values remain only in ignored QA artifacts, never copied to this report. |
+
+The P11 pending and failed screenshots and status annotations are under `R/container-T5b/playwright/T5b-9-retake-unsent-*` and in its JSON report. No live lower-score `conflict` or scoreless-attempt P11 variant is claimed here. This run does not observe a full 24-hour retry window. Observation windows are finite; only Chromium and local Moodle 5.2.4 were tested.

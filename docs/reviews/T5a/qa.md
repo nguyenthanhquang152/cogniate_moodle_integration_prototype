@@ -79,3 +79,58 @@ Counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 2 NIT.
 3. **AC-T5-37:** it now finds the rows by resource link, not by title. In update mode, `submitPicker` returns before Moodle's content-item return sets the new name, so the activity got the HTML course title. Its first version also waited for an HTML runtime commit, but HTML tracking is T5b scope.
 4. **`run-t5.mjs --only`** and **`run-t4b.mjs --only`:** focused re-runs (the setup chain plus the named ACs).
 5. **`T4b2/2-launch.spec.ts`:** the group is no longer serial (one failed AC skipped the next ones), and AC-T4-17 saves the handoff URL before its status check, so AC-T4-24 can run.
+
+
+## Replacement QA regression, 2026-10-19 — candidate a5d9ddc
+
+Independent replacement QA: Codex GPT-6-Astra, xhigh, assigned by the continuation authority. This is a replacement-model run, not a claim of cross-model QA. Acceptance specs and contracts were read before prior QA evidence. No author notes were used to create acceptance criteria. Historical rounds above remain unchanged.
+
+- Tested SHA: `a5d9ddcbc95cfb61968f70372334790386f2bb4b`; product code: `dd6dd1188833653cb92c63cc09e3c438ac3cb7b4`. Product paths have no diff between these commits.
+- Run: 2026-10-19 10:10:28–10:29:45 UTC. Fresh external clone: `/Users/quangnguyen/cogniate-qa-runs/qa-cont-t5-a5d9ddcb-2026-10-19T10-10-28-786Z`. No `--checkout` or `--replace-tests`.
+- Evidence root `R`: `/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/moodle-lti-continuation/tests/host/artifacts/qa-cont-t5-a5d9ddcb-2026-10-19T10-10-28-786Z`. The root has `summary.json`, `images.json`, and command logs. Each container folder has its Playwright JSON, traces, screenshots, log snapshots and captured-secret evidence.
+- Command: `COMPOSE_PROJECT_NAME=qa-cont-t5 PUBLIC_PORT=8643 STACK_SUBNET=172.29.0.0/16 COURSE_FIXTURES_DIR=/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses node tests/host/run-t5.mjs --sha a5d9ddcbc95cfb61968f70372334790386f2bb4b --tasks T5a,T5b,T6`. The fixture source checkout was read only.
+- Isolation: preflight and H1 passed; one own stack, free port and subnet, SHA-checked course fixtures. The runner removed the stack and recorded zero own containers, volumes and networks. An independent label-filtered Docker check also returned zero. None of the ten pre-existing containers stopped or restarted. No other stack was paused or changed.
+
+Image IDs from `R/images.json`:
+
+| Service | Image | ID |
+| --- | --- | --- |
+| moodle | `erseco/alpine-moodle:v5.2.4` | `sha256:3a310197e51ff34c6e8e8adbb92703fe598f71cbcf9eb974055c27f07f4cb23d` |
+| cogniate-app | `node:24.22.0-alpine3.24` | `sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f` |
+| lti-service | `node:24.22.0-alpine3.24` | `sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f` |
+| postgres | `postgres:16-alpine` | `sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea` |
+| proxy | `caddy:2.11.7-alpine` | `sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f` |
+
+### Result at this candidate
+
+**PASS — all 21 ACs and the separate runtime-expiry pass.** The combined runner exited 1. This run does not clear the final T5/T6 gate.
+
+Main pass: 22 passed (setup plus 21 AC tests), one intentional TTL skip. The separate `container-knob-PLAY_TTL_SECONDS` pass executed that TTL test and passed; defaults were restored. The table uses the command above and `R/container-T5a/playwright-results.json`; the full test titles below identify the executed tests.
+
+| AC | Result | Executed test / observation |
+| --- | --- | --- |
+| AC-T5-01 | PASS | /pkg/<packageId>/index.html: 200 text/html, nosniff, frame-ancestors content + app, no Set-Cookie; raw ../ and %2e%2e/ paths → 400 or 404 |
+| AC-T5-02 | PASS | a Range request on assets/ask-lyra/lyra.mp4 → 206 video/mp4, Content-Range bytes 0-1023/10721508 |
+| AC-T5-03 | PASS | /rt/<token>: frame-ancestors app; random token → 404; runtime iframe sandbox and allow exact; fullscreenEnabled; no Permissions-Policy on the shell |
+| AC-T5-04 | PASS | the runtime frame has window.API with the 8 SCORM 1.2 functions; the package frame has CogniateSCORM.available === true |
+| AC-T5-05 | PASS | the SCORM 1.2 API answers per contract §8 (301 before init, 405, 404, 403, 201, 201 on a new page load, 101 after LMSFinish) |
+| AC-T5-06 | PASS | suspend_data and exit=suspend are kept: the next launch gets suspend_data "qa-resume" and entry "resume" |
+| AC-T5-21 | PASS | a new learner attempt with LMSInitialize + LMSFinish only → outcome completed, Moodle shows 100 |
+| AC-T5-22 | PASS | two sessions of 30 s (each LMSFinish, then window close) → total_time 0000:01:00.00 in the third session |
+| AC-T5-07 | PASS | SCORM pass: within 60 s the shell says "Completed — score 100 sent to Moodle", Moodle shows 100 and completion done, the row is passed/100 with one sync sent |
+| AC-T5-08 | PASS | SCORM fail: cg_student2 picks a wrong option and finishes → Moodle 0 and completion done; row failed, 0, one sync sent |
+| AC-T5-20 | PASS | cg_student opens "Cogniate SCORM" again (the package calls LMSFinish at once): no new sync, best still passed, Moodle still 100 |
+| AC-T5-12 | PASS | after AC-T5-07: a commit failed/0 with seq = lastSeq + 1 from the runtime frame → 200; no new sync; Moodle still 100 |
+| AC-T5-23 | PASS | after AC-T5-08: cg_student2 relaunches, commits passed/100 and finish → one new sync sent, Moodle 100, best passed |
+| AC-T5-13 | PASS | teacher preview: cg_teacher completes "Cogniate SCORM" → "Preview — no grade is sent"; the row has preview: true and no scoreSyncs; no teacher grade in Moodle |
+| AC-T5-24 | PASS | version 2 published: cg_student2 continues version 1 (in progress); cg_student (final attempt) gets a new attempt on version 2 |
+| AC-T5-34 | PASS | after the end, back to the menu page in the same window: no second finish, no new commit (at most one unload), outcome stays passed |
+| AC-T5-35 | PASS | close mid-course: exactly one commit_accepted {unload} for the session, the attempt is in_progress, the next launch gets entry "resume" |
+| AC-T5-37 | PASS | rebind with an in-progress attempt: the next launch opens the HTML course with a new attempt; the SCORM attempt stays in_progress, has no sync, and shows under the SCORM publication |
+| AC-T5-15 | PASS | token scope: token A reads attempt A only, token B reads B only, a random token → 404; a commit with 1 ≤ seq ≤ lastSeq → 409 STALE_SEQUENCE; seq 0 or 1.5 → 400 INVALID_REQUEST (field seq) |
+| AC-T5-16 | PASS | a commit with 5,000 chars of suspend_data → 400 INVALID_CMI, details.field cmi.suspend_data; commit_rejected logged |
+| AC-T5-17 | PASS | from the package frame: fetch of {app}/app-api/me with credentials does not return the user; top.location = evil.test does not change the top window |
+
+### Scope and limits
+
+This run also checks `seq` 0 and 1.5 → 400 `INVALID_REQUEST` with field `seq`, runtime expiry at TTL + 3 seconds → 410, the version-pinning/rebind paths, SCORM pass/fail and preview, no lower grade after a final score, sandbox isolation and the single unload event. It uses Chromium and local Moodle 5.2.4. It does not establish behavior in other browsers or production Moodle sites. T4b1/T4b2 passed separately on the same candidate; see their dated replacement QA sections. No T5a product finding was observed.
