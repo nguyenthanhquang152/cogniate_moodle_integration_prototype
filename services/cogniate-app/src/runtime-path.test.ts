@@ -458,7 +458,9 @@ describe('score sync: retry, outage order, conflict, Resend, refresh (ADR-010 ru
       await running;
     }
     expect(syncs().find((r) => r.id === lowId)).toMatchObject({ status: 'superseded', next_try_at: null });
-    expect(t.logs.filter((l) => l.event === 'score_sync' && l.sync_id === lowId)).toEqual([]);
+    expect(t.logs.filter((l) => l.event === 'score_sync' && l.sync_id === lowId)).toEqual([
+      expect.objectContaining({ trace_id: expect.stringMatching(/^[0-9a-f]{32}$/), status: 'superseded', send_result: 'pending', tries: 1 }),
+    ]);
     await worker.kick();
     t.clock.now += 5000;
     await worker.kick();

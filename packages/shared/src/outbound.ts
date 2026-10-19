@@ -166,7 +166,8 @@ export function createOutboundClient(options: OutboundOptions): OutboundClient {
   };
 
   const once = (url: URL, req: OutboundRequest): Promise<OutboundResponse> => {
-    const requestTimeoutMs = req.timeoutMs ?? timeoutMs;
+    const override = req.timeoutMs;
+    const requestTimeoutMs = override === undefined || Number.isNaN(override) || override <= 0 ? timeoutMs : Math.min(60_000, Math.max(1, override));
     const host = url.hostname.toLowerCase();
     const method = req.method ?? 'GET';
     const started = performance.now();

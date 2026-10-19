@@ -168,6 +168,14 @@ describe('shell status text', () => {
     expect(playStatusText({ ...base, scoreGiven: 40, scoreMaximum: 100, scoreSync: { status: 'sent', scoreGiven: 40, scoreMaximum: 50 } })).toBe('Completed — score 40. Moodle keeps your best score: 40/50');
     expect(playStatusText({ ...base, scoreGiven: 0, scoreSync: { status: 'sent', scoreGiven: 80.25, scoreMaximum: 100 } })).toBe('Completed — score 0. Moodle keeps your best score: 80.25');
   });
+
+  it.each([
+    ['sent', 'Completed. Moodle keeps your best score: 80'],
+    ['pending', 'Completed. Sending your best score, 80, to Moodle'],
+    ['failed', 'Completed. Your best score, 80, was not sent to Moodle'],
+  ])('B-FIX-03: %s with no attempt score has no empty score label', (status, text) => {
+    expect(playStatusText({ ...base, scoreGiven: null, scoreMaximum: null, scoreSync: { status, scoreGiven: 80, scoreMaximum: 100 } })).toBe(text);
+  });
 });
 
 describe('grade policy in one place (B-T5a-01): syncResult and bestAttempt', () => {

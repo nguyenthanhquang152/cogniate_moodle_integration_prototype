@@ -69,6 +69,8 @@ export function createScoreSyncWorker(deps: ScoreSyncWorkerDeps) {
     const result = syncResult(answer, tries, row.retryFrom, now());
     if (recordSend(db, row.id, { status: result.status, tries, nextTryAt: result.nextTryAt, lastError: result.status === 'sent' ? null : lastError }, now())) {
       log.info('score_sync', { trace_id: traceId, sync_id: row.id, status: result.status, tries });
+    } else {
+      log.info('score_sync', { trace_id: traceId, sync_id: row.id, status: 'superseded', send_result: result.status, tries });
     }
   }
 
