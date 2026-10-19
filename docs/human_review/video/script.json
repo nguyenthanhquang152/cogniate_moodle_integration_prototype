@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Cogniate × Moodle prototype",
-    "source": "T7 qa.md at 1639c7e; open-questions.md; architecture README §6",
+    "source": "T6 and T7 qa.md at 1639c7e; open-questions.md; architecture README §6",
     "date": "2026-10-19",
     "voices": { "en": { "voice": "Samantha", "rate": 170 }, "vi": { "voice": "Linh", "rate": 185 } },
     "viNotice": "Bản dịch máy, vui lòng kiểm tra (machine-translated, please check)"
@@ -101,11 +101,11 @@
         { "st": "not", "en": "MoodleCloud: needs a trial site (Q5)", "vi": "MoodleCloud: cần một trang dùng thử (Q5)" },
         { "st": "not", "en": "Teachers on Safari (Q16)", "vi": "Giáo viên dùng Safari (Q16)" },
         { "st": "not", "en": "Load, scale, 1EdTech certification", "vi": "Tải, mở rộng, chứng nhận 1EdTech" },
-        { "st": "pending", "en": "Final QA: portal details, LTIAAS-style API, native backup", "vi": "QA cuối: chi tiết cổng, API kiểu LTIAAS, bản sao lưu gốc" }
+        { "st": "pending", "en": "Final QA: LTIAAS-style API, native backup", "vi": "QA cuối: API kiểu LTIAAS, bản sao lưu gốc" }
       ],
       "say": {
-        "en": "What is not proven. MoodleCloud: we need a trial site, and a person must make the account. Teachers on Safari may not be able to add content. There is no load test and no certification yet. Three parts are in final QA now.",
-        "vi": "Điều chưa được chứng minh. MoodleCloud: chúng tôi cần một trang dùng thử, và một người phải tạo tài khoản. Giáo viên dùng Safari có thể không thêm được nội dung. Chưa có kiểm tra tải và chưa có chứng nhận. Ba phần đang ở bước QA cuối."
+        "en": "What is not proven. MoodleCloud: we need a trial site, and a person must make the account. Teachers on Safari may not be able to add content. There is no load test and no certification yet. Two parts are in final QA now: the LTIAAS-style API and the native backup.",
+        "vi": "Điều chưa được chứng minh. MoodleCloud: chúng tôi cần một trang dùng thử, và một người phải tạo tài khoản. Giáo viên dùng Safari có thể không thêm được nội dung. Chưa có kiểm tra tải và chưa có chứng nhận. Hai phần đang ở bước QA cuối: API kiểu LTIAAS và bản sao lưu gốc."
       }
     },
     {

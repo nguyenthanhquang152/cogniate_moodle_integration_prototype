@@ -2,14 +2,14 @@
 
 These review findings are still open. Each one is MINOR ("worth a fix, safe to defer") or NIT (style). No BLOCKER or MAJOR finding is open. This list is for engineers. A product person can skip it.
 
-Counts: **6 MINOR, 25 NIT** (state 2026-10-19). T3c, T6 and T8 have no QA report yet, so new findings can come for these tasks. Ids are in `docs/reviews/<task>/`.
+Counts: **6 MINOR, 25 NIT** (state 2026-10-19). T3c and T8 have no QA report yet, so new findings can come for these tasks. Ids are in `docs/reviews/<task>/`.
 
 ## Fixed after the last QA run (QA pending)
 
 | Id | Severity | Finding | State |
 | --- | --- | --- | --- |
 | Q-T7-01 | MINOR | The portal showed "Delegate to teacher". The Moodle 5.2.4 option is "As specified in Deep Linking definition or Delegate to teacher". | The portal text is changed (`d4218b2`). The next QA run checks it. |
-| Q-T7-02 | MINOR | The portal said "Add an activity". Moodle 5.2.4 has no such label. | The portal text is changed (`f9bdeed`). It now differs from the T6 spec and the QA test text, so the Lead and the Architect must align them. |
+| Q-T7-02 | MINOR | The portal said "Add an activity". Moodle 5.2.4 has no such label. | T6.md and the portal (`8fdfa9e`) now use the Moodle 5.2.4 path. The next QA run checks it. |
 
 ## Security
 

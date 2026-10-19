@@ -14,12 +14,14 @@ NOTE: Use Chrome, Edge or Firefox to add Cogniate content. In Safari, "Select co
 
 ## Procedure: Add the course
 
+The path in Moodle 5.2.4: Edit mode → "Add content" → "Activity or resource" → "Cogniate (<library>)" → "Add" → "Select content".
+
 1. Open the Moodle course.
 2. Turn on the "Edit mode" switch at the top right [AC-T7-01].
 3. If Moodle shows the tour "Activate edit mode", end the tour.
 4. In a section, click "Add content" [AC-T7-01].
 5. Click "Activity or resource" [AC-T7-01].
-6. Select "Cogniate (<library name>)" [AC-T7-01].
+6. Select "Cogniate (<library>)" [AC-T7-01].
 7. Click "Add". Sometimes the form opens at once. Then go to the next step [AC-T7-01].
 8. In the activity form, click "Select content" [AC-T3-06, AC-T7-03].
 9. In the Cogniate picker, select one course [AC-T4-15, AC-T7-03].
@@ -58,4 +60,4 @@ If a Cogniate user withdraws the course, the activity shows "This course is no l
 
 - Safari (see the NOTE above).
 - The menu clicks to open the grader report. QA opened the report by its URL.
-- The short teacher path that the portal shows next to a publication. Its text changed after the last QA run (finding Q-T7-02).
+- The teacher path text that the portal shows next to a publication. Since portal commit `8fdfa9e` it is the same path as above. The next QA run checks it (finding Q-T7-02).

@@ -2,7 +2,7 @@
 
 This prototype publishes Cogniate courses (SCORM 1.2 and HTML) to Moodle with LTI 1.3. It has its own LTI service, with an API in the same shape as the public LTIAAS API (a clean-room implementation of the 1EdTech specifications).
 
-**Status:** the full end-to-end test passed on a real Moodle 5.2.4 site, 15 of 15 checks, three runs in a row ([`docs/reviews/T7/qa.md`](docs/reviews/T7/qa.md)). The portal details (T6), the LTIAAS-style API (T3c) and the native `.mbz` channel (T8) are in final QA.
+**Status:** the full end-to-end test passed on a real Moodle 5.2.4 site, 15 of 15 checks, three runs in a row ([`docs/reviews/T7/qa.md`](docs/reviews/T7/qa.md)). The portal passed its own QA, 14 of 14 checks (T6). The LTIAAS-style API (T3c) and the native `.mbz` channel (T8) are in final QA.
 
 ## Start here
 
@@ -31,7 +31,7 @@ QA measured 36 seconds for `e2e:reset` and 9.3 seconds for `demo:prepare` (AC-T7
 | [Moodle admin](docs/guides/moodle-admin.md) | Connect a Moodle site (automatic or manual) |
 | [Teacher](docs/guides/teacher.md) | Add a Cogniate course to a Moodle course |
 | [Learner view](docs/guides/learner-view.md) | What a learner sees, and what happens when… |
-| [Native channel](docs/guides/native-channel-moodlecloud.md) | Put a course into Moodle as a normal Moodle course (pending QA) |
+| [Native channel](docs/guides/native-channel-moodlecloud.md) | Put a course into Moodle as a normal Moodle course (partly pending QA) |
 | [Troubleshooting](docs/guides/troubleshooting.md) | Symptoms and fixes |
 
 ## Repository map

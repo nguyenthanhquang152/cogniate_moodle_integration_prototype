@@ -19,7 +19,8 @@ Each row is one claim. **Proven by QA** means that an independent QA agent teste
 | Grades | The score reaches the Moodle gradebook in 3.4 to 3.9 seconds (limit 60 s). No Moodle cron is needed. | AC-T7-04, AC-T7-05 |
 | Grades | The best result counts. A later worse result never lowers the grade. A teacher override in Moodle stays. | AC-T5-12, AC-T5-23, AC-T5-33 |
 | Grades | If Moodle is down, the score waits and arrives after Moodle comes back. A grade conflict shows in the portal, with "Resend". | AC-T5-14, AC-T5-31, AC-T5-32 |
-| Portal | The Results page shows "Passed 100" and "Sent". "Refresh from Moodle" shows the Moodle gradebook values. | AC-T7-06, AC-T5-18 |
+| Portal | The portal (dev-portal style) has Integrations, the Connect wizard with live status, the manual form, upload progress, Publish, and Results with "Resend". No request leaves the app site. No serious accessibility error. | AC-T6-01 to AC-T6-14 |
+| Portal | The Results page shows "Passed 100" and "Sent". "Refresh from Moodle" shows the Moodle gradebook values. | AC-T7-06, AC-T6-08, AC-T5-18 |
 | Security | Replayed, forged, expired, tampered or changed launches are refused. | AC-T2-09 to AC-T2-11, AC-T2-20 to AC-T2-27, AC-T7-10 |
 | Security | No token or key is in the logs (0 of 28 captured secrets in the end-to-end run). | AC-T7-10, AC-T2-30, AC-T5-19 |
 | Privacy | Cogniate gets an anonymous learner id and role. It does not get names or emails. | AC-T2-04, AC-T4-08 |
@@ -34,10 +35,9 @@ Both reviewers approved these tasks. Their QA reports do not exist yet.
 
 | Task | Claim | State |
 | --- | --- | --- |
-| T6 | All portal screens and texts (Integrations, wizard, courses, publish, results). | The end-to-end run used the portal and passed [AC-T7-02, AC-T7-06, AC-T7-14]. The T6 checks (AC-T6-01 to AC-T6-14) are pending. |
 | T3c | Our LTI service API has the same shape as the public LTIAAS API. The real `ltiaas` 0.0.4 Python SDK works against it. | Builder evidence only. QA (AC-T3-27) is pending. The external claim also needs decision Q1. |
 | T8 | Native channel: Moodle backup (`.mbz`) and an empty Moodle course on publish. | Builder evidence only. QA (AC-T8-02 to AC-T8-10) is pending. |
-| T6, T7 | Portal texts that changed after the QA run (findings Q-T7-01, Q-T7-02). | Fixed in the code. The next QA run checks them. |
+| T6, T7 | Portal texts that changed after the QA run (findings Q-T7-01, Q-T7-02). | Fixed in the code (portal `8fdfa9e`). The next QA run checks them. |
 
 ## 3. Not proven
 
