@@ -33,6 +33,11 @@ export interface DeepLinkRun {
   saved: boolean;
 }
 
+/** The body that deepLinkActivity sends to POST /api/deeplinking (the AC-T3-07 body); AC-T3-09 sends the same. */
+export function deepLinkBody(contentItems: Record<string, unknown>[]): Record<string, unknown> {
+  return { contentItems, options: { message: 'QA deep link' } };
+}
+
 export async function deepLinkActivity(
   context: BrowserContext,
   teacher: MoodleUser,
@@ -74,7 +79,7 @@ export async function deepLinkActivity(
     const idtoken = await ltiApi('GET', '/api/idtoken', { authorization: auth.ltik(key, ltik) });
     const dl = await ltiApi<{ message?: string; target?: string }>('POST', '/api/deeplinking', {
       authorization: auth.ltik(key, ltik),
-      body: { contentItems, options: { message: 'QA deep link' } },
+      body: deepLinkBody(contentItems),
     });
     run = { toolUrl, ltik, idtoken, dl, dlAt: Date.now() };
     if (dl.status !== 200 || !dl.json?.message || !dl.json.target) {

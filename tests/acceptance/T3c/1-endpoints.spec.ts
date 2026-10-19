@@ -25,7 +25,7 @@ import {
   saveState,
   sinkHitsSince,
 } from '../lib/lti';
-import { deepLinkActivity } from '../lib/moodle-dl';
+import { deepLinkActivity, deepLinkBody } from '../lib/moodle-dl';
 import { launchActivity, newStackContext } from '../lib/moodle-launch';
 import { gradeItems } from '../lib/moodle-ws';
 import { expect, test } from '../lib/pw';
@@ -82,7 +82,7 @@ test.describe.serial('T3c compatibility endpoints', () => {
     const key = apiKey(ACCOUNT);
     const title = `QA DL form ${runId}`;
     const item = { type: 'ltiResourceLink', title, url: `${urls.lti}/lti/launch/${ACCOUNT}?resource=qa-dl`, lineItem: { scoreMaximum: 100, label: title } };
-    const body = { contentItems: [item] };
+    const body = deepLinkBody([item]); // the same body as the /api/deeplinking call of deepLinkActivity
     // A real cg_teacher deep-linking launch; QA's page calls /api/deeplinking (the AC-T3-07 body); not saved in Moodle.
     const run = await deepLinkActivity(context, seed().users.cg_teacher, seed().courses['COGNIATE-DEV-101'], ltiSeed().typeId, [item], { save: false });
     expect(run.dl.status, run.dl.body.slice(0, 200)).toBe(200);

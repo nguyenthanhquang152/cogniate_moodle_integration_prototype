@@ -88,3 +88,19 @@ Demo pass (AC-T7-15): `npm run e2e:reset` exit 0 in 36 s; `npm run demo:prepare`
 
 Build Runner note (Lead heads-up about `1639c7e`): the collected service logs (`infra/.logs/*.jsonl`) and command output of both runner calls have no `build_leftover_removed` event. The T7 suite does not use the Build Runner. A later run will use a SHA ≥ `8b4442b`.
 
+
+## 6. Suite changes after the reviews (Round 1 addendum)
+
+The reviews asked for small suite changes (no product change). QA-E2E made them in `tests/e2e/**` (in `565ac16`):
+
+| Item | Change |
+| --- | --- |
+| B-T7-03 | No fixed waits outside the dwell rule. B6: QA waits for Thanh's own `cg_student` row ("Passed") before the negative check, so the check reads a full table. `learnerRun`: QA polls for the final shell text ("Completed — score 0 sent to Moodle" for a wrong answer) with a 90 s deadline. A6 now also checks that text. |
+| B-T7-04 | AC-T7-06 reads the "Best outcome" cell ("Passed 100", "Failed 0") and the "Moodle sync" cell ("Sent"), not any text in the row. |
+| A-T7-02 | C2 also captures and asserts state values, the registration `ref`, and the raw play ids (`ply_…`) and picker ids (`pck_…`) (security §10, §11; contract §12). It needs at least one value of each kind. |
+| A-T7-03 | `tests/e2e/README.md`: traces and the HTML report hold raw secrets; keep them out of shared evidence. |
+| Q-T7-01, Q-T7-02 fixed on main | The teacher hint check accepts the Moodle 5.2.4 labels in order ("Edit mode → Add content → Activity or resource → Cogniate (<library>) → Add → Select content"; T6.md writes ">" and leaves out "Edit mode"). The manual form now has no difference (the portal value is the exact Moodle option "As specified in Deep Linking definition or Delegate to teacher"). |
+
+Validation run of the changed suite: `f0e5525`, fresh clone, `npm run test:e2e` exit 0 in 184 s (e2e:reset 42 s), 17 pass, 0 fail. C2: 48 captured values of 9 kinds (8 ltiks, 3 service keys, 4 runtime tokens, 11 id_tokens, 2 API keys, 8 states, 1 registration ref, 4 play ids, 4 picker ids), 0 found in the logs. Evidence: `tests/e2e/artifacts/runs/qa-e2e-r1-f0e55252-2026-10-19T02-57-08-020Z/`. The stack was removed after the run.
+
+Not done (optional in A-T7-02): a search of the container stdout logs (`docker compose logs`). The service JSON logs carry the same events.
