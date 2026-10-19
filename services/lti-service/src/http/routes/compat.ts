@@ -9,7 +9,7 @@ import { deepLinkingForm } from '../../lti/deep-linking.ts';
 import type { LineItemInput } from '../../platform/ags.ts';
 import type { RouteContext } from '../context.ts';
 import { agsContext, claimObject, platformOf, signedDeepLink } from '../service-context.ts';
-import { invalid } from '../validation.ts';
+import { decodeLineItemId, invalid } from '../validation.ts';
 
 const text = z.string().min(1).max(2048);
 const LineItemBody = z.object({
@@ -41,11 +41,11 @@ export function registerCompatRoutes(app: FastifyInstance, ctx: RouteContext): v
   });
   app.put<ItemParams>('/api/lineitems/:lineItemId', async (req, reply) => {
     const caller = ctx.auth(req, ['ltik', 'service']);
-    return reply.code(201).send(await ctx.ags.updateLineItem(agsContext(ctx.db, caller, req.traceId), req.params.lineItemId, parseItem(req.body)));
+    return reply.code(201).send(await ctx.ags.updateLineItem(agsContext(ctx.db, caller, req.traceId), decodeLineItemId(req.params.lineItemId), parseItem(req.body)));
   });
   app.delete<ItemParams>('/api/lineitems/:lineItemId', async (req, reply) => {
     const caller = ctx.auth(req, ['ltik', 'service']);
-    await ctx.ags.deleteLineItem(agsContext(ctx.db, caller, req.traceId), req.params.lineItemId);
+    await ctx.ags.deleteLineItem(agsContext(ctx.db, caller, req.traceId), decodeLineItemId(req.params.lineItemId));
     return reply.code(204).send();
   });
   app.get('/api/memberships', async (req) => {

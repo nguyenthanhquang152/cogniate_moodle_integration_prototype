@@ -56,7 +56,11 @@ const MAX_PARAM_LENGTH = 2048; // :lineItemId is a URL-encoded line item URL (co
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const now = deps.now ?? Date.now;
   const log = deps.logger;
-  const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, maxParamLength: MAX_PARAM_LENGTH, return503OnClosing: false });
+  const app = Fastify({
+    logger: false, bodyLimit: BODY_LIMIT, maxParamLength: MAX_PARAM_LENGTH, return503OnClosing: false,
+    // Contract §1.4: the SDK sends leading slashes. Leave route segments, encoded ids and queries untouched.
+    rewriteUrl: (req) => (req.url ?? '/').replace(/^\/{2,}/, '/'),
+  });
   await app.register(formbody, { bodyLimit: BODY_LIMIT });
 
   app.decorateRequest('traceId', '');

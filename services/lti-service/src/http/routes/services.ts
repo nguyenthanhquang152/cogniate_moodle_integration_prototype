@@ -6,14 +6,18 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { parseScore } from '../../platform/ags.ts';
 import type { RouteContext } from '../context.ts';
-import { invalid } from '../validation.ts';
+import { decodeLineItemId, invalid } from '../validation.ts';
 import { agsContext, signedDeepLink } from '../service-context.ts';
 
 type Obj = Record<string, unknown>;
 const text = z.string().min(1).max(2048);
 const limit = z.string().regex(/^[1-9]\d{0,5}$/, 'a whole number >= 1').transform(Number);
 const LineItemsQuery = z.object({ resourceLinkId: text.optional(), resourceId: text.optional(), tag: text.optional(), limit: limit.optional(), url: text.optional() });
-const ScoresQuery = z.object({ userId: text.optional(), limit: limit.optional(), url: text.optional() });
+const ScoresQuery = z.object({ userId: text.optional(), user_id: text.optional(), limit: limit.optional(), url: text.optional() })
+  .refine((q) => q.userId === undefined || q.user_id === undefined || q.userId === q.user_id, {
+    path: ['user_id'], message: 'user_id must match userId when both are present',
+  })
+  .transform(({ user_id, ...q }) => ({ ...q, userId: q.userId ?? user_id }));
 const parseQuery = <T extends z.ZodType>(schema: T, q: unknown): z.output<T> => {
   const r = schema.safeParse(q ?? {});
   if (!r.success) throw invalid(r.error);
@@ -36,18 +40,18 @@ export function registerServiceRoutes(app: FastifyInstance, ctx: RouteContext): 
 
   app.get<ItemParams>('/api/lineitems/:lineItemId', async (req) => {
     const caller = ctx.auth(req, ['ltik', 'service']);
-    return ctx.ags.getLineItem(agsContext(ctx.db, caller, traceOf(req)), req.params.lineItemId);
+    return ctx.ags.getLineItem(agsContext(ctx.db, caller, traceOf(req)), decodeLineItemId(req.params.lineItemId));
   });
 
   app.post<ItemParams>('/api/lineitems/:lineItemId/scores', async (req, reply) => {
     const caller = ctx.auth(req, ['ltik', 'service']);
     const score = parseScore(req.body, ctx.now());
-    await ctx.ags.postScore(agsContext(ctx.db, caller, traceOf(req)), req.params.lineItemId, score);
+    await ctx.ags.postScore(agsContext(ctx.db, caller, traceOf(req)), decodeLineItemId(req.params.lineItemId), score);
     return reply.code(204).send();
   });
 
   app.get<ItemParams>('/api/lineitems/:lineItemId/scores', async (req) => {
     const caller = ctx.auth(req, ['ltik', 'service']);
-    return ctx.ags.getScores(agsContext(ctx.db, caller, traceOf(req)), req.params.lineItemId, parseQuery(ScoresQuery, req.query));
+    return ctx.ags.getScores(agsContext(ctx.db, caller, traceOf(req)), decodeLineItemId(req.params.lineItemId), parseQuery(ScoresQuery, req.query));
   });
 }
