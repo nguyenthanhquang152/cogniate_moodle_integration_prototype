@@ -113,3 +113,67 @@ Main pass: 16 passed (four setup tests plus 12 ACs), two failed, no skipped or f
 QA opened `R/container-T6/playwright/T6-1-integrations-AC-T6-02-20ac2-nshot-next-to-the-reference/integrations-1440.png` and its attached dev-portal reference. The tested page has the sidebar, library selector, pills and nine cards in three columns, with a readable waiting-for-Moodle state. The automated check passes the specified background color, active-pill color, DM Sans and 12-pixel radius. This is not a pixel-identical match claim: spacing, logos and background treatment differ from the reference.
 
 Only Chromium at 1440 pixels was exercised. Card `Link expired`, `Disconnected`, and a server-owned `lastError` state were not independently set up here. Historical T6 passes above do not override these two current failures.
+
+
+## Replacement QA final regression, 2026-10-19 — d54c607d
+
+**PASS — all 14 required ACs, including teacher copy and the complete keyboard/focus check.**
+
+Independent replacement QA: **Codex GPT-6-Astra, xhigh**, under the 2026-10-19 continuation authority. Acceptance specs and contracts define this verdict; historical failed and focused runs above remain as evidence. This is replacement-model QA, not a cross-model QA claim.
+
+- Tested committed SHA: `d54c607d7fc6ce2d97e039bb108f52a37f2174ee`. This candidate includes the P2 durable-confirmation repair and the corrected fractional best-attempt comparison.
+- Full run: **2026-10-19 10:52:13–11:11:10 UTC**, runner exit **0**. Fresh external clone: `/Users/quangnguyen/cogniate-qa-runs/qa-cont-t5-d54c607d-2026-10-19T10-52-13-189Z`. No test overlay, `--checkout` or `--replace-tests` was used; the clone's HEAD and unchanged tracked test/product paths were checked.
+- Evidence root `V`: `/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/moodle-lti-continuation/tests/host/artifacts/qa-cont-t5-d54c607d-2026-10-19T10-52-13-189Z`. `V/summary.json` has all 63 aggregate IDs PASS and `abort: null`. Per-suite folders contain Playwright JSON, traces, screenshots, log snapshots and host-control acknowledgements.
+- Command: `COMPOSE_PROJECT_NAME=qa-cont-t5 PUBLIC_PORT=8643 STACK_SUBNET=172.29.0.0/16 COURSE_FIXTURES_DIR=/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses node tests/host/run-t5.mjs --sha d54c607d7fc6ce2d97e039bb108f52a37f2174ee --tasks T5a,T5b,T6`.
+- Isolation and cleanup: preflight, H1 and fixture checks passed. The one QA stack was removed with **zero containers, volumes and networks**. A separate exact-label Docker check confirmed zero. The runner found no stop/restart among the ten pre-existing containers. Only own QA services were controlled.
+- The original source checkout was read only; SHA-256 checks confirmed that its four recovered unfinished QA files remained unchanged. No real secret is included in this report.
+
+The complete run passed **65 executed tests**: T5a main 22, runtime-expiry pass 1, T5b 24 and T6 18. The one deliberate TTL skip in T5a main ran and passed in its separate pass. There were no failed or flaky tests. All **49 required T5a/T5b/T6 AC IDs** passed.
+
+Image identities from `V/images.json`:
+
+| Service | Image | ID |
+| --- | --- | --- |
+| moodle | `erseco/alpine-moodle:v5.2.4` | `sha256:3a310197e51ff34c6e8e8adbb92703fe598f71cbcf9eb974055c27f07f4cb23d` |
+| lti-service | `node:24.22.0-alpine3.24` | `sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f` |
+| cogniate-app | `node:24.22.0-alpine3.24` | `sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f` |
+| postgres | `postgres:16-alpine` | `sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea` |
+| proxy | `caddy:2.11.7-alpine` | `sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f` |
+
+### T6 AC coverage
+
+Command and evidence root are given above. The table maps the current acceptance spec to executed tests in `V/container-T6/playwright-results.json`.
+
+| AC | Result | Executed test / observation |
+| --- | --- | --- |
+| AC-T6-01 | PASS | Thanh → Integrations: title, subtitle, five pills, ≥ 9 cards in 3 columns at 1440 px; the Moodle card text; the card state matches GET /app-api/connections (no connection: enabled "Connect"; else the badge of the newest, "Manage", "Connect another site", no "Connect") |
+| AC-T6-02 | PASS | look: body background rgb(11,10,15), active pill rgb(166,103,228), DM Sans, cards 12 px radius; screenshot next to the reference |
+| AC-T6-03 | PASS | no request leaves PUBLIC_APP_URL while the portal loads (sign-in and Integrations) |
+| AC-T6-04 | PASS | dynamic connect: the registration URL (AC-T4-07 form) with a working copy button; "Waiting for Moodle" before; after the admin registers, "Registered — activate in Moodle" within 10 s without a reload |
+| AC-T6-05 | PASS | manual connect: the 16 rows of §4.1 in order (data-key, copy = value); http issuer or a JWKS URL on another origin → inline error; valid values → "Registered"; the six inputs have name = the contract keys |
+| AC-T6-06 | PASS | upload on a slow network: a role="progressbar" with a growing aria-valuenow, then the report (SCORM 1.2, Mastery score 70, external hosts); a PATH_TRAVERSAL zip shows the server reason title and path ../evil.html, and makes no version |
+| AC-T6-07 | PASS | the Publish dialog lists only registered or connected connections; after "Publish": "Available in Moodle" and the teacher text |
+| AC-T6-08 | PASS | SCORM results: cg_student "Passed 100" and cg_student2 with the best outcome, both "Sent"; "Refresh from Moodle" fills the gradebook column |
+| AC-T6-09 | PASS | axe: no serious or critical violation on Integrations, wizard, Courses, Publish dialog, Results; wizard and dialog work by keyboard; focus returns to the opener |
+| AC-T6-10 | PASS | signed out: every route redirects to /signin; "Logout" clears the session (GET /app-api/me → 401) |
+| AC-T6-11 | PASS | "Download SCORM package" on the SCORM course downloads the uploaded zip (same SHA-256); the HTML course has no such button |
+| AC-T6-12 | PASS | moodle-steps.json equals the content of tasks/T6.md; the wizard shows the steps in order for both methods (data-step-id = id, text with {libraryName} replaced); choose-register-new is optional; edit-tool-settings follows activate-tool |
+| AC-T6-13 | PASS | `&lt;b&gt;x&lt;/b&gt;` and the manifest title show literally in Courses, Publish and Results; window.__xss stays undefined |
+| AC-T6-14 | PASS | (fresh rows of T6 setup) conflict row text + Resend; the failed row with its error + Resend; after enrol, Resend → Pending → Sent without a reload; the override text after Refresh; the sync history lists every sync |
+
+### Earlier failures resolved and independently rerun
+
+`V/container-T6/playwright-results.json` records **18 passed**: four setup tests and all 14 ACs, with no skipped, failed or flaky tests.
+
+- **AC-T6-07 PASS.** Publication succeeds and shows `Available in Moodle`. The full teacher text matches the Architect-reconciled T6 spec/Q-T7-02 authority: `Teachers: Edit mode → Add content → Activity or resource → Cogniate (Thanh's Library) → Add → Select content`. This repairs the QA expectation against the normative copy; it does not hide the prior mismatch.
+- **AC-T6-09 PASS.** All five axe scans report no serious/critical violation. Keyboard Tab/Enter opens Publish; Escape closes it; the awaited focus assertion observes focus back on the opener. The remaining keyboard-only wizard segment also executes and reaches the registration URL step. The prior QA timing race was fixed with an awaited condition, without a sleep or weaker requirement.
+
+Traces: `V/container-T6/playwright/T6-3-courses-T6-Courses-Th-60236-Moodle-and-the-teacher-text/trace.zip` and `V/container-T6/playwright/T6-5-xss-a11y-AC-T6-09-axe-e53e7-focus-returns-to-the-opener/trace.zip`.
+
+### Visual check and scope
+
+QA opened the current `V/container-T6/playwright/T6-1-integrations-AC-T6-02-20ac2-nshot-next-to-the-reference/integrations-1440.png` and its attached `attachments/dev-portal-reference-30912c38d52f5f5b9bd18b45889bbd11bbd5676b.png`. The sidebar, library selector, five pills and nine cards in three columns are visible. The Moodle waiting state, Manage control and Connect another site link are readable. The specified background color, active-pill color, DM Sans and 12-pixel card radius pass automated assertions.
+
+This is not a pixel-identical match claim: spacing, logos and background treatment differ from the reference. Only Chromium at 1440 pixels was exercised. Card `Link expired`, `Disconnected` and a server-owned `lastError` state were not independently set up here. The successful axe scans are limited to the five tested surfaces and serious/critical impact.
+
+All 14 required T6 ACs pass on the corrected candidate. Dynamic/manual connection, schema/step order, upload/error handling, download hash, results/Refresh, Resend/override states, literal untrusted titles, logout and origin confinement pass in the same full run. No current T6 product or QA failure remains.
