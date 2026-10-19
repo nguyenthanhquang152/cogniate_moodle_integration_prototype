@@ -52,3 +52,54 @@ Counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT.
 
 - The new page codes `PICKER_NOT_FOUND`, `PLAY_NOT_FOUND`, `INVALID_LTIK`, `LTI_SERVICE_ERROR` and `deep_link_rejected {reason: unknown_platform}` have no T4b2 AC. QA saw only the codes that the ACs reach.
 - `scoreSync.status: null` before a sync: the status check of AC-T4-17 reads `outcome` and `preview` only.
+
+
+## Replacement QA final regression — 2026-10-19
+
+Verdict: PASS
+
+Replacement QA: Codex GPT-6-Astra, xhigh, under the continuation authority in `docs/team/charter.md`. This is independent replacement QA, not a cross-model review. Historical rounds above remain intact.
+
+- Tested SHA: `a5d9ddcbc95cfb61968f70372334790386f2bb4b`. Product code remains `dd6dd1188833653cb92c63cc09e3c438ac3cb7b4`; later changes are docs and QA harness only.
+- Fresh external clone: `/Users/quangnguyen/cogniate-qa-runs/qa-cont-t4b-a5d9ddcb-2026-10-19T10-05-11-656Z`. No `--checkout` or `--replace-tests`.
+- Run: 2026-10-19, 10:05:11–10:10:18 UTC. Project `qa-cont-t4b`, port `8643`, subnet `172.29.0.0/16`.
+- Full evidence root: `/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/moodle-lti-continuation/tests/host/artifacts/qa-cont-t4b-a5d9ddcb-2026-10-19T10-05-11-656Z`. `summary.json`, `images.json`, `cmd/`, `container-*/playwright-results.json`, traces, screenshots and service logs are retained there.
+- Command: `COMPOSE_PROJECT_NAME=qa-cont-t4b PUBLIC_PORT=8643 STACK_SUBNET=172.29.0.0/16 COURSE_FIXTURES_DIR=/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses node tests/host/run-t4b.mjs --sha a5d9ddcbc95cfb61968f70372334790386f2bb4b --tasks T3b,T4b1,T4b2`.
+- Runner exit: `0`. Pass 1: 35 passed; two TTL tests deferred to their dedicated passes. Both TTL passes: 1 passed each. Final security pass: 3 passed. No required AC was skipped at completion.
+- Cleanup: `TEARDOWN PASS`; zero project containers, volumes and networks. All ten other containers retained their start times. Every Moodle pause was undone.
+
+Image content IDs are in `images.json`: Moodle `sha256:3a310197e51ff34c6e8e8adbb92703fe598f71cbcf9eb974055c27f07f4cb23d`; app/LTI Node `sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f`; Postgres `sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea`; Caddy `sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f`.
+
+### Final coverage
+
+Evidence paths below are relative to the full evidence root. Each row maps to the named test in its Playwright JSON report.
+
+| Criterion | Result | Evidence pass | Verified check |
+| --- | --- | --- | --- |
+| AC-T4-15 | PASS | `pass1` | the picker lists exactly Thanh's publications (radios, badges); picking the SCORM course makes an activity with a grade item of 100 |
+| AC-T4-16 | PASS | `pass1` | through "Cogniate (QA Library B)" in COGNIATE-DEV-102 the picker shows only library B's publication |
+| AC-T4-17 | PASS | `pass1` | cg_student opens the activity: a new window ends at /play/<id> without ltik; the 303 has no-referrer; status not_started or in_progress |
+| AC-T4-18 | PASS | `pass2` | an activity under Thanh's tool that points at library B's publication → 404 "This course is not available"; no attempt |
+| AC-T4-19 | PASS | `pass1` | cg_teacher opens the activity → play status preview=true |
+| AC-T4-20 | PASS | `pass1, knob-PICKER_TTL_SECONDS` | /tool/deep-link with an unused student resource ltik → 403 page, deep_link_rejected {reason: not_deep_linking}; a POST to a used picker → 410 |
+| AC-T4-21 | PASS | `pass2` | headers of the picker, the picker POST result, /play, /play/…/embedded and the error pages |
+| AC-T4-22 | PASS | `pass1` | POST /tool/picker/<id> with Origin evil.test, null or none → 403, csrf_rejected; the picker is not used; no deep-linking call |
+| AC-T4-23 | PASS | `pass1` | changing resource= in the handoff URL to the HTML publication still opens the SCORM course (signed target) |
+| AC-T4-24 | PASS | `pass1` | the captured /tool/launch?…&ltik= URL opened again in a new context → 409 HANDOFF_USED; handoff_rejected; no launch_accepted |
+| AC-T4-25 | PASS | `pass1` | the teacher picks the HTML course for the SCORM activity: the next cg_student launch opens the HTML course; resource_link_rebound |
+| AC-T4-26 | PASS | `pass1` | a real picker POST with library B's publication id, and with a withdrawn one → 400 PUBLICATION_NOT_AVAILABLE; no deep-linking call |
+| AC-T4-27 | PASS | `pass1` | a withdrawn publication: the launch shows 410 "This course is no longer available" |
+| AC-T4-28 | PASS | `pass1` | the course title <b>x</b>, manifest title <img …> and activity name x < y & "z" stay safe; window.__xss stays undefined |
+| AC-T4-29 | PASS | `pass1` | an unknown playId → 404; library B gets 404 for Thanh's publication after the launches (no stats leak) |
+| AC-T4-31 | PASS | `pass1` | "Embed, without blocks" shows /play/<id>/embedded with "Open in a new window"; "Existing window" opens the player directly |
+| AC-T4-32 | PASS | `pass2` | every tool page error shows its code, trace id and one action line (data-error-code, data-trace-id, data-error-action), has no form, and its trace id is in the matching log event |
+
+### Prior failures and QA ownership
+
+The `519b8aae` run had a stale AC-T4-17 expectation; the current spec permits the initial runtime commit to set `in_progress`. The corrected test passed in both later runs.
+
+The `cf506285` run (`tests/host/artifacts/qa-cont-t4b-cf506285-2026-10-19T10-00-05-662Z`) failed before AC-T4-28 launch checks and skipped AC-T4-29. QA changed the old `<i>y</i>` activity fixture to the current spec text `x < y & "z"`, but compared that literal name to the HTML-escaped value from Moodle's course-contents API. The trace proves that Moodle displayed the literal name correctly. The repaired test reads the visible activity link and its module id. It keeps the title and `window.__xss` checks. Full rerun: AC-T4-28 and AC-T4-29 both PASS.
+
+All failed-run evidence is retained. Both failed-run stacks were removed before a fresh clone was started; no other project was restarted. See the T4b1 replacement section for the original AC-T4-10 fixture cascade.
+
+No product defect was found in the final T4b run. Limits: Chromium and local Moodle 5.2.4 only. AC-T4-28 proves the literal course title, the surviving activity name in Moodle, and no XSS execution in the tested frames. This report does not expand that result to every possible input or browser.
