@@ -94,7 +94,7 @@ test('AC-T6-09 axe: no serious or critical violation on Integrations, wizard, Co
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toBeHidden();
-  expect(await opener.evaluate((el) => document.activeElement === el), 'focus is back on "Publish to Moodle"').toBe(true);
+  await expect(opener, 'focus is back on "Publish to Moodle"').toBeFocused();
 
   // Keyboard only: the wizard (QA Library B, Automatic) reaches the registration URL step.
   await portalSignIn(page, QA_B);

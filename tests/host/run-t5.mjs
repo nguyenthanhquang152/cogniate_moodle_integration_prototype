@@ -99,7 +99,7 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
 process.on('exit', unpauseNow);
 
 const ACTIONS = {
-  'p5-remove-failed-sync': async (req) => ({ code: 0, fixture: removeP5FailedSync(r, req.syncId) }),
+  'p5-remove-failed-sync': async (req) => ({ code: 0, fixture: await removeP5FailedSync(r, req.syncId) }),
   'moodle-pause': async () => {
     if (!/^qa-/.test(r.PROJECT)) return { code: 9 };
     const res = await r.exec('compose-pause-moodle', 'docker', [...COMPOSE, 'pause', 'moodle'], { timeoutMs: 60_000 });

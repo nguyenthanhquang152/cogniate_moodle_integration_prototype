@@ -54,9 +54,13 @@ test('P5 fixture-assisted: final attempts 60 and 80 across versions; remove only
     expect(before?.scoreSyncs.map((s) => [s.status, s.scoreGiven])).toEqual([['failed', 60], ['failed', 80]]);
     const low = before!.scoreSyncs.find((s) => s.scoreGiven === 60)!;
     const high = before!.scoreSyncs.find((s) => s.scoreGiven === 80)!;
-    const fixture = await hostAction('p5-remove-failed-sync', 30_000, { payload: { syncId: high.id } });
+    const fixture = await hostAction('p5-remove-failed-sync', 240_000, { payload: { syncId: high.id } });
     expect(fixture.fixture).toEqual({ deletedSyncId: high.id, deletedCount: 1 });
     const after = rowsFor(await results(c.publicationId), user, c.activity)[0];
+    await test.info().attach('p5-fixture-preconditions', {
+      body: JSON.stringify({ before, fixture: fixture.fixture, after }, null, 2),
+      contentType: 'application/json',
+    });
     expect(after?.attempts, 'both attempts unchanged').toEqual(before!.attempts);
     expect(after?.best).toEqual(before!.best);
     expect(after?.best?.scoreGiven).toBe(80);

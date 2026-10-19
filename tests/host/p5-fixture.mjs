@@ -3,13 +3,28 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-export function removeP5FailedSync(r, syncId) {
+export async function removeP5FailedSync(r, syncId) {
   if (!r.state.h1Verified || !/^qa-/.test(r.PROJECT) || r.opt.checkout || r.CLONE === r.SOURCE) {
     throw new Error('P5 requires a verified fresh QA clone');
   }
   if (typeof syncId !== 'string' || !/^sync_[A-Za-z0-9_-]+$/.test(syncId)) throw new Error('Invalid sync id');
   const file = path.join(r.CLONE, 'infra/.data/cogniate-app/cogniate.db');
   if (!fs.existsSync(file) || fs.lstatSync(file).isSymbolicLink()) throw new Error('QA database missing or symlinked');
+  const compose = ['compose', '-f', 'infra/compose.yaml', '--env-file', '.env'];
+  // The bounded fixture exception requires the app to reload the edited state.
+  // Validate every scope guard before stopping anything; always start this service again.
+  try {
+    const stopped = await r.exec('p5-stop-cogniate-app', 'docker', [...compose, 'stop', 'cogniate-app'], { timeoutMs: 60_000 });
+    if (stopped.code !== 0) throw new Error('P5 could not stop its QA app');
+    return deleteFailedSync(file, syncId);
+  } finally {
+    const started = await r.exec('p5-start-cogniate-app', 'docker', [...compose, 'start', 'cogniate-app'], { timeoutMs: 60_000 });
+    const health = await r.waitHealth(r.state.urls.app, (body) => body.status === 'ok' && body.service === 'cogniate-app', 60_000);
+    if (started.code !== 0 || !health.ok) throw new Error('P5 QA app did not recover after the fixture');
+  }
+}
+
+function deleteFailedSync(file, syncId) {
   const db = new DatabaseSync(file);
   try {
     db.exec('PRAGMA busy_timeout=5000; BEGIN IMMEDIATE');
