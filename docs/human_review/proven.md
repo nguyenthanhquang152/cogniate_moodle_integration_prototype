@@ -32,6 +32,7 @@ Each row is one claim. **Proven by QA** means that an independent QA agent teste
 | Isolation | Course packages run on a separate content site, in a sandbox. They cannot read the portal session. 16 kinds of bad zip are refused. | AC-T5-01, AC-T5-03, AC-T5-17, AC-T4-05 |
 | Run it | A ready demo starts from zero in about 45 seconds (`e2e:reset` 36 s, `demo:prepare` 9.3 s). | AC-T7-15 |
 | Run it | A reset gives an empty site with the same passwords. No secret is in git. | AC-T1-10, AC-T1-11 |
+| Run it | QA followed only the README and the run guide in a new clone. Both pages (Moodle and portal) were open after 61 seconds. | AC-T9-01 (command part) |
 
 ## 2. Pending final QA
 
@@ -46,18 +47,20 @@ Both reviewers approved these items. QA did not check them yet.
 | Claim | Why | Decision |
 | --- | --- | --- |
 | It works on MoodleCloud. | QA used a local Moodle 5.2.4 site. A test needs a MoodleCloud trial account. | Q5 |
+| **Not supported:** Moodle in a subfolder (for example `https://school.edu/moodle`). | Dynamic registration is refused. Web service and course links (T8) would use the wrong path. Manual connect may work, but nobody tested it. MoodleCloud is not affected. About 1 day to add. | Q18 |
 | A teacher on Safari can add content. | QA used Chromium only. Safari can block the Cogniate cookie in Moodle's frame. | Q16, R4 |
 | The player works in Firefox and Safari. | QA used Chromium only. | — |
 | The player works in mobile browsers. | No mobile test. | — |
 | Video playback. | The export has no visible video. QA proved only that the server sends the video file correctly (AC-T5-02). | — |
 | A real person who closes the real player window keeps the progress. | QA closed the window by script (AC-T5-22, AC-T5-35). That proves the saved progress, not a real close by hand. | — |
 | A person (not a test robot) can do every step. | All runs used a browser robot. The HTML menu link was clicked by script. | Q17, HR-2 |
-| A new person starts the stack in 10 minutes. | The human run test is not done yet. | HR-2 |
+| A new person starts the stack in 10 minutes. | QA did the command part in 61 seconds (AC-T9-01). The test with a new person is not done yet. | HR-2 |
 | Load and scale. | No test is planned for the prototype. | Q11 |
 | 1EdTech LTI Advantage certification. | No test is planned for the prototype. | Q1 |
 | A `.mbz` restore in the Moodle pages, or on another site. | The T8 test uses the Moodle command line only. | Q5, Q12 |
 
 ## QA notes
 
-- `npm run demo:browser`, `stack:doctor`, `demo:users` and `stack:down` are not verified by QA. The [run guide](../guides/run-the-stack.md) marks them.
+- A third-party SCORM package that writes more than 250 interactions loses its score (P9). The Cogniate package is not affected.
+- The desktop window of `npm run demo:browser` is not verified by QA. QA used the same Chrome settings without a window. The [run guide](../guides/run-the-stack.md) marks it.
 - In a regression run, the attempt status after the first SCORM page load was "in progress", not "not started" (Q-T5a-02). QA calls it a spec interaction, not a product error.

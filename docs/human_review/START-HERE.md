@@ -20,6 +20,7 @@ Source: commit `4182c80`, 2026-10-19.
 | --- | --- |
 | The five steps above, on a real Moodle 5.2.4 site | MoodleCloud: needs a trial account (Q5) |
 | SCORM 1.2 and HTML courses, pass (100) and fail (0) | Teachers on Safari (Q16). QA used Chromium only. |
+| | Not supported: Moodle in a subfolder, for example `https://school.edu/moodle` (Q18). MoodleCloud is not affected. |
 | The best result counts. A score waits if Moodle is down. | Load, scale and 1EdTech certification |
 | Launch security. No secrets in the logs. | A new person runs the stack in 10 minutes (HR-2) |
 | One library cannot see another library's data. | Final QA of the native `.mbz` backup (pending) |

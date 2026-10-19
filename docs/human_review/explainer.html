@@ -934,10 +934,19 @@
       "evidence": "docs/reviews/T7/qa.md (validation run f0e5525)"
     },
     {
-      "claim": "Helper commands: demo:browser, stack:doctor, demo:users, stack:down.",
+      "claim": "A new clone reaches both pages (Moodle and portal) in 61 seconds with the README and the run guide only. stack:doctor, demo:users, stack:down and the yes question work.",
+      "status": "qa",
+      "ids": [
+        "AC-T9-01",
+        "T7 qa.md §7"
+      ],
+      "evidence": "docs/reviews/T9/qa.md"
+    },
+    {
+      "claim": "The desktop window of demo:browser (QA used the same Chrome settings without a window).",
       "status": "author",
       "ids": [
-        "LC-T1-04"
+        "AC-T9-01"
       ],
       "evidence": "docs/reviews/T1/qa.md"
     },
@@ -946,6 +955,13 @@
       "status": "not",
       "ids": [
         "Q5"
+      ]
+    },
+    {
+      "claim": "Not supported: Moodle in a subfolder (for example https://school.edu/moodle). Dynamic registration is refused; manual connect is not tested. MoodleCloud is not affected. About 1 day to add.",
+      "status": "not",
+      "ids": [
+        "Q18"
       ]
     },
     {
@@ -972,7 +988,7 @@
       ]
     },
     {
-      "claim": "A person (not a test robot) can do every step. A new person starts the stack in 10 minutes.",
+      "claim": "A person (not a test robot) can do every step. A new person starts the stack in 10 minutes (QA did the command part in 61 s).",
       "status": "not",
       "ids": [
         "HR-2",
@@ -1101,6 +1117,15 @@
       "question": "Do we offer the native channel (.mbz backup and course shell, task T8) in the pilot? T8 is built as a stretch. Its QA is pending.",
       "recommendation": "Keep LTI as the main path. Offer the native backup only to a customer who needs editable courses on MoodleCloud.",
       "blocks": "Pilot scope"
+    },
+    {
+      "id": "Q18",
+      "group": "pilot",
+      "area": "Product and engineering",
+      "who": "Product and Engineering",
+      "question": "A Moodle site in a subfolder (for example https://school.edu/moodle) cannot connect today. Dynamic registration is refused. Web service and course links (T8) would use the wrong path. Manual connect may work, but nobody tested it. MoodleCloud is not affected.",
+      "recommendation": "Support it before the first self-hosted customer. It is about 1 day of work. Our local stack cannot test it before the hand-over.",
+      "blocks": "Self-hosted Moodle customers in a subfolder"
     },
     {
       "id": "HR-2",

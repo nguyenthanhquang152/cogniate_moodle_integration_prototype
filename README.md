@@ -11,9 +11,10 @@ This prototype publishes Cogniate courses (SCORM 1.2 and HTML) to Moodle with LT
 
 ## Quick start (Mac, Docker Desktop, Node 24)
 
-The two course zips must be in `docs/raw/data/courses/` (they are not in git).
+The two course zips are not in git. Get them from the product team.
 
 ```sh
+mkdir -p docs/raw/data/courses   # then copy the two course zips into this folder
 npm ci
 npm run fixtures:check
 npm run gen-env
@@ -21,7 +22,7 @@ npm run e2e:reset      # WARNING: deletes the local Moodle site and the local Co
 npm run demo:prepare   # connection, two published courses, two Moodle activities
 ```
 
-QA measured 36 seconds for `e2e:reset` and 9.3 seconds for `demo:prepare` (AC-T7-15). Then open the stack in a browser: see the run guide, procedure 3.
+QA measured 36 seconds for `e2e:reset` and 9.3 seconds for `demo:prepare` (AC-T7-15). From a new clone to both pages in the browser: 61 seconds (AC-T9-01). Then open the stack in a browser: see the run guide, procedure 3.
 
 ## Guides
 

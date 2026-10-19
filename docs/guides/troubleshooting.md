@@ -2,7 +2,7 @@
 
 Find your symptom. Do the fix. The last column tells you if QA verified the fix (`AC-…` = row in `docs/reviews/<task>/qa.md`).
 
-First step for most problems: run `npm run stack:doctor`. It prints one line per check, with `OK` or `FIX` and the fix [Not verified by QA].
+First step for most problems: run `npm run stack:doctor`. It prints one line per check, with `OK`, `FIX` or `INFO`, and a fix for each `FIX` [AC-T9-01].
 
 More technical help: [`infra/README.md`](../../infra/README.md#troubleshooting).
 
@@ -16,7 +16,7 @@ More technical help: [`infra/README.md`](../../infra/README.md#troubleshooting).
 | `This checkout has no .env, but project ... still has Docker volumes` | A new `.env` has new passwords. They do not match the old database. | Put back the old `.env`. Or run `npm run stack:reset` (this deletes the local data). | No |
 | `The stack is not healthy` | A service did not start in 300 seconds. | Run `npm run stack:logs -- moodle`. Then start the stack again. | No |
 | Moodle shows error 502 just after a start | Moodle is not ready yet. | Wait until the Moodle login page loads. | Seen by QA (T5b qa.md §4) |
-| `fixtures:check` fails | A course zip is missing or changed. | Put the two original zips in `docs/raw/data/courses/` (decision Q15). | LC-T1-06 |
+| `fixtures:check` fails | A course zip is missing or changed. | Make the folder (`mkdir -p docs/raw/data/courses`). Put the two original zips into it (decision Q15). | LC-T1-06 |
 | Your daily browser cannot open `*.test` addresses | These names exist only for the local stack. | Use `npm run demo:browser`. Or see "Your own browser" in `infra/README.md` first. | No |
 
 ## Moodle pages

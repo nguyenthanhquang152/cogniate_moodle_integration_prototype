@@ -18,6 +18,9 @@ There are two methods. Use **Automatic** if you can. Use **Manual** only if the 
 3. On the Moodle card, click "Connect". If the library has a connection already, click "Connect another site" [AC-T7-01, AC-T6-01].
 4. In "Connection name", type a name, for example "Company Moodle" [AC-T7-01].
 5. In "Moodle site URL", type the site origin, for example `https://moodle.example.org`. Do not add a course path [AC-T7-01].
+
+NOTE: A Moodle site in a subfolder (for example `https://school.edu/moodle`) cannot connect today (decision Q18). MoodleCloud sites are not affected.
+
 6. Under "Connection method", select "Automatic (recommended)" [AC-T7-01].
 7. Click "Continue" [AC-T7-01].
 8. Click "Copy" next to the registration URL [AC-T4-07].

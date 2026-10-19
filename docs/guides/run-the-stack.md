@@ -37,51 +37,57 @@ You need:
 
 - A Mac with Docker Desktop. QA used Docker 29.8.2.
 - Node 24 and npm. QA used Node 24.21.0.
-- The two Cogniate course zips in `docs/raw/data/courses/`. They are not in git (decision Q15).
+- The two Cogniate course zips. They are not in git (decision Q15). Procedure 1 tells you where to put them.
 - The Docker images on your Mac. The times below are with the images already pulled.
 
-Optional: run `npm run stack:doctor`. It prints one line per check, with `OK` or `FIX` and a fix [Not verified by QA].
+Optional: run `npm run stack:doctor`. It prints one line per check, with `OK`, `FIX` or `INFO`, and a fix for each `FIX` [AC-T9-01].
+
+NOTE: If another stack runs on this Mac (for example a second clone), give this clone its own project name, port and subnet. See "Separate checkout" in [`infra/README.md`](../../infra/README.md#qa-hooks).
 
 ## Procedure 1: Start a ready demo from zero
 
-WARNING: Step 6 deletes the local Moodle site and all local Cogniate data. Use it only for a local demo stack.
+WARNING: Step 8 deletes the local Moodle site and all local Cogniate data. Use it only for a local demo stack.
 
 1. Start Docker Desktop.
 2. Open a terminal in the repo folder.
-3. Run `npm ci` to install the packages [AC-T1-01].
-4. Run `npm run fixtures:check` to check the two course zips [LC-T1-06].
-5. Run `npm run gen-env` to make `.env`, the passwords and the certificates [LC-T1-01].
-6. Run `npm run e2e:reset` to build and start an empty stack [AC-T7-15].
-7. When the command asks, type `yes` and press Return [Not verified by QA].
-8. Run `npm run demo:prepare` to make the demo set-up [AC-T7-15].
-9. Read the users and the two activity URLs in the output [AC-T7-15].
+3. Make the course folder: `mkdir -p docs/raw/data/courses` [AC-T9-01].
+4. Copy the two Cogniate course zips into `docs/raw/data/courses/` [AC-T9-01].
+5. Run `npm ci` to install the packages [AC-T1-01].
+6. Run `npm run fixtures:check` to check the two course zips [LC-T1-06].
+7. Run `npm run gen-env` to make `.env`, the passwords and the certificates [LC-T1-01].
+8. Run `npm run e2e:reset` to build and start an empty stack [AC-T7-15].
+9. When the command asks, type `yes` and press Return [AC-T9-01].
+10. Run `npm run demo:prepare` to make the demo set-up [AC-T7-15].
+11. Read the users and the two activity URLs in the output [AC-T7-15].
 
 Result [AC-T7-15]:
 
-- In the QA run, step 6 took 36 seconds and step 8 took 9.3 seconds.
+- In the QA run, step 8 took 36 seconds and step 10 took 9.3 seconds. From a new clone to both pages in the browser took 61 seconds [AC-T9-01].
 - Thanh's Library is connected to Moodle. Both courses are uploaded and published.
 - `COGNIATE-DEV-101` has two Cogniate activities, with a maximum grade of 100 and completion "Receive a grade".
 - `cg_student` can open both activities and reach the course player.
 
-NOTE: `demo:prepare` does by script what the guides for the [Moodle admin](moodle-admin.md) and the [teacher](teacher.md) show by hand. To do these steps by hand, run only steps 1 to 7.
+NOTE: `demo:prepare` does by script what the guides for the [Moodle admin](moodle-admin.md) and the [teacher](teacher.md) show by hand. To do these steps by hand, run only steps 1 to 9.
+
+NOTE: On a new clone, `e2e:reset` does not ask. If you answer anything other than `yes`, it stops and deletes nothing [T7 qa.md §7].
 
 ## Procedure 2: Show the users
 
-1. Run `npm run demo:users` [Not verified by QA].
+1. Run `npm run demo:users` [AC-T9-01].
 
-Result: the command lists the URLs, the users, and the `.env` name of each password. It does not print passwords [Not verified by QA].
+Result: the command lists the URLs, the users, the `.env` name of each password, and the Cogniate activities. It does not print passwords [AC-T9-01].
 
-## Procedure 3: Open the stack in your browser [Not verified by QA]
+## Procedure 3: Open the stack in your browser
 
-QA opened every page with Chromium in a test container [AC-T7-01]. QA did not test a browser on your Mac.
+QA signed in on both pages with Chrome and the same settings as `demo:browser`, but without a window on the desktop [AC-T9-01].
 
 1. Make sure that Google Chrome or Chromium is in `/Applications`.
 2. Run `npm run demo:browser`. A new Chrome window opens with its own profile [Not verified by QA].
-3. In the Moodle tab, sign in as `cg_student`, `cg_teacher` or `admin` [AC-T1-07].
-4. In a new tab, go to `https://app.cogniate.test/signin`.
-5. Sign in with the email `thanh@cogniate.test` and its password [AC-T4-01].
+3. In the Moodle tab, sign in as `cg_student`, `cg_teacher` or `admin` [AC-T9-01, AC-T1-07].
+4. In a new tab, go to `https://app.cogniate.test/signin` [AC-T9-01].
+5. Sign in with the email `thanh@cogniate.test` and its password [AC-T9-01, AC-T4-01].
 
-Result: you are signed in to Moodle and to the Cogniate portal.
+Result: you are signed in to Moodle and to the Cogniate portal [AC-T9-01].
 
 The builder states these facts. QA did not verify them:
 
@@ -96,25 +102,25 @@ Next: [what a learner sees](learner-view.md).
 WARNING: `npm run e2e:reset` deletes the local Moodle site, the Cogniate data, the logs and `seed.json`. It keeps `.env` and the certificates.
 
 1. Run `npm run e2e:reset` [AC-T7-01, AC-T7-15].
-2. When the command asks, type `yes` and press Return [Not verified by QA].
+2. When the command asks, type `yes` and press Return [AC-T9-01].
 3. If you want the demo set-up again, run `npm run demo:prepare` [AC-T7-15].
 
 Result: an empty stack in about 40 seconds, with the same passwords [AC-T7-01, AC-T1-10].
 
-## Procedure 5: Stop the stack [Not verified by QA]
+## Procedure 5: Stop the stack
 
-1. Run `npm run stack:down` [Not verified by QA].
+1. Run `npm run stack:down` [AC-T9-01].
 
-Result: the containers stop. The data stays [Not verified by QA]. To start again, run `npm run stack:up` [AC-T1-02].
+Result: the containers are removed. The data stays [AC-T9-01]. To start again, run `npm run stack:up` [AC-T1-02].
 
 ## Procedure 6: Run the full end-to-end test
 
 1. Run `npm run test:e2e` [AC-T7-01].
-2. When the command asks, type `yes` and press Return [Not verified by QA].
+2. When the command asks, type `yes` and press Return [T7 qa.md §7].
 
 Result: the test starts an empty stack and runs the full story on Moodle 5.2.4. In the QA runs, it took 188, 189 and 186 seconds, with 17 tests passed and no retries [AC-T7-01, AC-T7-11].
 
-NOTE: In a script, use `npm run test:e2e -- --yes` or set `E2E_CONFIRM=1`. Then the command does not ask [Not verified by QA]. If a step fails, see "Debug a failed E2E step" in [`infra/README.md`](../../infra/README.md#debug-a-failed-e2e-step).
+NOTE: In a script, use `npm run test:e2e -- --yes` or set `E2E_CONFIRM=1`. Then the command does not ask [T7 qa.md §7]. If a step fails, see "Debug a failed E2E step" in [`infra/README.md`](../../infra/README.md#debug-a-failed-e2e-step).
 
 ## Optional checks
 
@@ -126,11 +132,10 @@ NOTE: In a script, use `npm run test:e2e -- --yes` or set `E2E_CONFIRM=1`. Then 
 
 ## Not verified by QA
 
-- `npm run stack:doctor`, `npm run demo:users`, `npm run demo:browser` and `npm run stack:down`.
-- The `yes` question of `e2e:reset` and `test:e2e`. It came after the last QA run.
+- The desktop window of `npm run demo:browser` (Procedure 3, step 2).
 - `npm run demo` as the first command on a new clone. QA checked `npm run demo` only after T1, on a stack that ran already [LC-T1-03].
-- A browser on your Mac, and the default port 443.
-- Safari and Firefox. QA used Chromium only.
-- The 10-minute test with a new person (AC-T9-01, decision HR-2).
+- The default port 443.
+- Safari and Firefox. QA used Chromium and Chrome only.
+- The 10-minute test with a new person. QA did the command part in 61 seconds [AC-T9-01]. The human part is decision HR-2.
 
 If something goes wrong, see [troubleshooting](troubleshooting.md).

@@ -4,7 +4,7 @@ Source: commit `4182c80`, 2026-10-19.
 
 These review findings are still open. Each one is MINOR ("worth a fix, safe to defer") or NIT (style). No BLOCKER or MAJOR finding is open. This list is for engineers. A product person can skip it.
 
-Counts: **6 MINOR, 27 NIT** (state 2026-10-19). T8 has no QA report yet, so new findings can come for this task. The T3c QA report has no product findings. Ids are in `docs/reviews/<task>/`.
+Counts: **13 MINOR, 30 NIT** (state 2026-10-19). T8 has no QA report yet, so new findings can come for this task. The T3c QA report has no product findings. Ids are in `docs/reviews/<task>/`.
 
 ## Security
 
@@ -35,21 +35,29 @@ Counts: **6 MINOR, 27 NIT** (state 2026-10-19). T8 has no QA report yet, so new 
 | A-T5b-05 | NIT | T5b | The Resend query divides integers, so most scores sort as 0. | Cast to a real number before the division. |
 | A-T5a-04 | NIT | T5a | A player reload starts a new SCORM session. The server counts one session per launch. | Count per page load, or change the contract. |
 | A-T3a-03 (rest) | NIT | T3a | A token request that waits logs `cache: "hit"` before it succeeds. | Log `wait`, and only after success. |
-| B-T4a-05 (rest), F2 | NIT | T4a | Two `internal_error` log lines have no `method` and `path` fields. | Add the two fields. |
+| B-T4a-05 (rest) | MINOR | T4a | Two `internal_error` log lines have no `method` and `path` fields. | Add the two fields. |
 | B-T2a-05 | NIT | T2a | An unknown tool account gives one error code at login and another at launch. | Use one code, or document the choice. |
 | B-T5a-05 | NIT | T5a | The content host writes error codes as plain text. The owner of `AGENTS.md` is not confirmed. | Add a typed code table. The Lead confirms the owner. |
 | B-T5b-02 (rest) | NIT | T5b | The package inspector has its own copy of the default pass mark. Some tests cover several ACs. | Import one constant. Write one test per AC. |
 
 ## Architect conformance check (T9)
 
-Source: `docs/reviews/T9/architect-conformance.md`. The severity is in that report.
+Source: [`docs/reviews/T9/architect-conformance.md`](../reviews/T9/architect-conformance.md) §1 to §3.
 
-| Id | Finding | Suggested fix |
-| --- | --- | --- |
-| F1 | The description of a 5xx error (`PLATFORM_ERROR`, `TIMEOUT`) has no trace id. The `X-Trace-Id` header has it. | Add the trace id to the description. |
-| F2 | Same as B-T4a-05 above. | — |
-| F7 | `PUT` and `DELETE` on `/lti/launch` give 404, not 405. | Answer 405 for a wrong method. |
-| F9 | The time window of a retired tool key counts from its creation. `revokeServiceKeys` has no caller. | Count from retirement. Use or remove the function. |
+| Id | Severity | Finding | Suggested fix |
+| --- | --- | --- | --- |
+| F1 | MINOR | A 502 or 504 platform error has no trace id in its description. The `X-Trace-Id` header has it. | Add the trace id to the description. |
+| F2 | MINOR | Same as B-T4a-05 above (LTI service). Counted once. | — |
+| P3 | MINOR | The log event `outcome_changed` is never written. | Write the event, or remove it from the contract. |
+| P4 | MINOR | The app API never answers `502 INVALID_LTI_ANSWER`. Every LTI service error becomes `LTI_SERVICE_ERROR`. | Give a bad answer its own code. |
+| P6 | MINOR | Same as B-T4a-05 above (Cogniate app), counted once. Also, one warning has the wrong level and no `error` field. | Add the fields. Use level `error`. |
+| P7 | MINOR | The code makes a teacher preview for a staff role. ADR-010 makes a preview when there is no Learner role. Moodle 5.2 sends one role only, so nothing differs today. | Lead decides. The Architect recommends that the code follows ADR-010. |
+| P9 | MINOR | The SCORM runtime accepts more than 250 interactions. The server then refuses later commits, so the score is lost. The Cogniate package writes one interaction only. | Refuse interaction 250 and higher in the runtime. |
+| P10 | MINOR | A reload of the player keeps the same session, so the time after a reload is too low. | Lead decides. The Architect recommends a new session for each page load. |
+| F7 | NIT | `PUT` and `DELETE` on `/lti/launch` give 404, not 405. | Answer 405 for a wrong method. |
+| F9 | NIT | A retired tool key stays in the key list for 30 days from its creation, not from its retirement. `revokeServiceKeys` has no caller. | Count from retirement. Use or remove the function. |
+| P12 | NIT | A bad Origin on the registration confirm page logs two events, not one. | Log one event. |
+| P13 | NIT | Some package reject reasons have no `path`. | Add the manifest path. |
 
 ## Tests (QA)
 

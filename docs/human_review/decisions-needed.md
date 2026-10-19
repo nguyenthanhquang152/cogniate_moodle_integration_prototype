@@ -6,7 +6,7 @@ Only a human can answer these questions. Each row has our recommendation, what t
 
 **How to answer:** open [`explainer.html`](explainer.html), tab **Decisions**. Select an answer for each row, then click **Copy my answers** and send the text to the Lead. Or reply with the row ids (for example "Q1 accept, Q3 change: …").
 
-Source: [`docs/architecture/open-questions.md`](../architecture/open-questions.md) (Q1 to Q17, R1 to R5), plus two hand-over checks (HR-1, HR-2). The groups are a proposal by Docs. Time: about 10 minutes.
+Source: [`docs/architecture/open-questions.md`](../architecture/open-questions.md) (Q1 to Q18, R1 to R5), plus two hand-over checks (HR-1, HR-2). The groups are a proposal by Docs. Time: about 10 minutes.
 
 ## A. Decide before the pilot
 
@@ -21,6 +21,7 @@ Source: [`docs/architecture/open-questions.md`](../architecture/open-questions.m
 | Q2 | Does the course open in a new window or inside the Moodle page? | New window (current setting). A course inside the Moodle page fails in browsers that block third-party cookies. DataCamp also uses a new window. | Admin guide text | Product |
 | Q4 | Which grade does Moodle show: the best result or the latest? What does a completion-only course give? | The best result. Never lower a grade. A completion-only course gives 100/100. | The grade rule (ADR-010) | Product |
 | Q12 | Do we offer the native channel (`.mbz` backup and course shell, task T8) in the pilot? T8 is built as a stretch. Its QA is pending. | Keep LTI as the main path. Offer the native backup only to a customer who needs editable courses on MoodleCloud. | Pilot scope | Product owner |
+| Q18 | A Moodle site in a subfolder (for example `https://school.edu/moodle`) cannot connect today. Dynamic registration is refused. Web service and course links (T8) would use the wrong path. Manual connect may work, but nobody tested it. MoodleCloud is not affected. | Support it before the first self-hosted customer. It is about 1 day of work. Our local stack cannot test it before the hand-over. | Self-hosted Moodle customers in a subfolder | Product and Engineering |
 
 ### Q1: the claim to approve
 
