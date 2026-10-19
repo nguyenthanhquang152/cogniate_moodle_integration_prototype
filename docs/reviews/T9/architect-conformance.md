@@ -184,7 +184,8 @@ Verdict after fixes: **APPROVE (conformance).**
 | F5 | none | Accepted limitation, Q18. |
 | T7 final QA regression | `dd6dd11` | PASS: all 15 ACs, 17 tests in 183 s; demo preparation in 8.4 s. The four refusal checks leave the stack unchanged. Evidence: [T7 QA §9](../T7/qa.md#9-final-regression-run-dd6dd11-final-code), recorded in `3ca3105`. |
 | T4b1/T4b2 final QA regression | `a5d9ddc` (product code `dd6dd11`) | PASS: all 10 T4b1 ACs, all 17 T4b2 ACs, P1, both TTL passes and eight T3b registration checks. Own stack cleanup: zero containers, volumes or networks. Evidence: [T4b1 QA](../T4b1/qa.md#replacement-qa-final-regression--2026-10-19), [T4b2 QA](../T4b2/qa.md#replacement-qa-final-regression--2026-10-19). |
-| Final QA regression (T5a, T5b, T6) | `a5d9ddc` (product code `dd6dd11`) | Pending, including the targeted P2/P5, P11 and related review follow-up checks. |
+| T5a final QA regression | `a5d9ddc` (product code `dd6dd11`) | PASS: all 21 ACs and the separate runtime-expiry pass. Evidence: [T5a QA](../T5a/qa.md#replacement-qa-regression-2026-10-19--candidate-a5d9ddc), recorded in `7f92f73`. This predates the P2 repair. |
+| T5b/T6 final QA regression | `a5d9ddc` (product code `dd6dd11`) | FAIL: T5b AC-T5-30 in-flight grade mismatch and P5 fixture precondition; T6 AC-T6-07 exact-copy drift and AC-T6-09 test timing. See section 10. Fresh T5a/T5b/T6 and then T7 are required after the repair. |
 
 T4b tested SHA: `a5d9ddcbc95cfb61968f70372334790386f2bb4b`. Evidence root: `tests/host/artifacts/qa-cont-t4b-a5d9ddcb-2026-10-19T10-05-11-656Z/`; `summary.json` records each AC and cleanup as PASS. The P1 wait text and disabled button appeared after 0.1 s; one confirm POST led to `MOODLE_TOOL_MAY_EXIST` after 6.0 s. QA saw no new active ownerless platform during the 30-second observation after Moodle resumed. This bounded check does not resolve the deferred late-orphan case A-FX-02. T4b coverage is limited to Chromium and local Moodle 5.2.4.
 
@@ -192,9 +193,22 @@ Round 2 had no open BLOCKER or MAJOR finding after its fixes. The live P2 failur
 
 ## 10. Round 3: P2 late remote write
 
-Verdict: **CHANGES_REQUESTED**. The final T5a/T5b/T6 gate remains open.
+Verdict: **CHANGES_REQUESTED**. The final T5a/T5b/T6 gate remains open; the Lead also requires fresh T7 on the repaired code before pack closure.
 
 Replacement QA reported a grade mismatch on `a5d9ddc` (product code `dd6dd11`); the Lead recorded it in board commit `8e7bada`. A paused-Moodle send of 60 was superseded by 90. The app marked 90 as `sent`, but the Moodle oracle still showed 60 after 120 seconds. The local `superseded` guard did not prevent the older remote request from writing later. The Author is repairing this path; the finding is not an accepted deferral.
 
 The Architect approved a durable, bounded confirmation policy for the current best score (ADR-010 and app contract §10). It preserves terminal `superseded` rows, 409 conflicts and teacher overrides. A delayed confirmation can repair the observed ordering, but cannot prove that an arbitrarily late Moodle write will never occur. The contract must state that limit, and final QA must prove the repaired scenario before this gate closes.
+
+The failed candidate evidence is preserved in `7f92f73`: [T5b QA](../T5b/qa.md#replacement-qa-regression-2026-10-19--candidate-a5d9ddc) and [T6 QA](../T6/qa.md#replacement-qa-regression-2026-10-19--candidate-a5d9ddc). The combined run used `a5d9ddcbc95cfb61968f70372334790386f2bb4b` from 10:10:28 to 10:29:45 UTC on 2026-10-19. Evidence root: `tests/host/artifacts/qa-cont-t5-a5d9ddcb-2026-10-19T10-10-28-786Z/`. Its own stack ended with zero containers, volumes and networks; no pre-existing container stopped or restarted.
+
+| Check at the failed candidate | Evidence and remaining work |
+| --- | --- |
+| T5a | All 21 ACs and runtime expiry PASS. Fresh verification must cover the repaired score worker. |
+| T5b | 13 of 14 ACs PASS. AC-T5-30 fails only in the in-flight P2 case; the separate stopped-Moodle case passes. The app's `superseded` and late `send_result` checks pass, but Moodle stays at 60 through the 120 s wait. The later 90 s stability observation was not reached. |
+| P5 fixture | The deleted higher failed sync still appeared in the public results. QA did not call Resend, so this is no proof of P5 and no demonstrated Resend defect. The Lead-approved stop/delete/start/health-wait extension is in T5b; fresh evidence is required. |
+| P11 | The sent, pending and failed lower-retake variants PASS. No live lower-score `conflict` or scoreless-attempt variant is claimed. |
+| T6 | 12 of 14 ACs PASS. AC-T6-07 used stale teacher text; `3385c55` aligns the spec with the accepted Moodle flow. AC-T6-09 used an immediate focus check; QA changed it to an awaited focus assertion (`e578c51`). Neither correction is a passing rerun; the later wizard keyboard segment was not reached. |
+| Repair and T7 | The bounded confirmation policy is committed in `b826eb1`. Product repair, fresh T5a/T5b/T6 verification and fresh T7 remain pending. Historical T7 PASS at `dd6dd11` does not clear these gates. |
+
+This run covers Chromium and local Moodle 5.2.4 only. It does not observe a full 24 h retry window. Existing human questions, accepted limitations and MINOR/NIT deferrals remain unchanged.
 

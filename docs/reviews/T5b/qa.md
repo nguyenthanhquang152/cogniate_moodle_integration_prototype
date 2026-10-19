@@ -175,3 +175,9 @@ Trace: `R/container-T5b/playwright/T5b-9a-best-score-P5-fixtu-84c03-d-sync-60-Re
 | Secret scan | PASS: captured runtime tokens, ltiks and service keys were absent from app/content logs. Captured values remain only in ignored QA artifacts, never copied to this report. |
 
 The P11 pending and failed screenshots and status annotations are under `R/container-T5b/playwright/T5b-9-retake-unsent-*` and in its JSON report. No live lower-score `conflict` or scoreless-attempt P11 variant is claimed here. This run does not observe a full 24-hour retry window. Observation windows are finite; only Chromium and local Moodle 5.2.4 were tested.
+
+### Withdrawn repair candidate, 2026-10-19 10:41–10:43 UTC
+
+The coordinator first authorized `1ce57f2435103fef5a342e141080de8d7191afa7`, then withdrew it after an Architect finding in the new score-comparison guard. The fresh focus run had passed clone/setup/H1/fixtures and started its acceptance container. QA stopped only `qa-cont-p2-qa-acceptance-31933`, so the host runner returned through its normal `finally` teardown. No acceptance test result was produced; the focus reports exit 137 and missing expected tests. This is a withdrawn run, not a PASS and not a new observed product failure.
+
+Evidence: `/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/moodle-lti-continuation/tests/host/artifacts/qa-cont-p2-1ce57f24-2026-10-19T10-41-44-249Z`. Command: the same `run-t5.mjs` environment above, with project `qa-cont-p2`, the withdrawn SHA, and `--tasks T5a,T5b --only SETUP-T5b,AC-T5-30,P5`. Cleanup passed with zero own containers, volumes and networks; a separate exact-label Docker check also returned zero, and no other container stopped or restarted. A corrected committed candidate is required before the focus and full regressions can continue.
