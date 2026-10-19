@@ -107,3 +107,18 @@ Judged as a Vietnamese product person who runs the stack by hand. I ran `stack:d
   - Suggestion (NIT): add a local-only opt-in, for example `npm run demo:users -- --copy cg_teacher` (copies one password with `pbcopy`) or `--show-passwords` (with a WARNING line that these are local dev values).
 - **Host names in one place (B-T1-10): resolved.** `lib.sh` defines and exports `MOODLE_HOST`, `LTI_HOST`, `APP_HOST`, `CONTENT_HOST` and `STACK_HOSTS`. `gen-env`, `gen-certs`, `demo-browser` and the doctor use them, and the compose aliases read `${MOODLE_HOST:-moodle.test}` (and so on). The only other place is the compose fallback default, which is fine.
 
+---
+
+## T8 portal (AC-T8-10 UI, merge `bdca28a`, Author-2 / Codex)
+
+Verdict for this part: **APPROVE** (NITs only). Input: `git diff 8b4442b 8fdfa9e` (`apps/portal/src/courses/{MoodleBackup,MoodleCourse,PublishDialog}.tsx`, `connect/{WebServices,ConnectionSetup}.tsx`). `npm run check`: pass, 46 test files, 658 tests.
+
+- **What is good:**
+  - "Moodle backup" has one button ("Build Moodle backup (.mbz)", "Starting build…" while busy) and shows the build status, the server reason and the download.
+  - The "Restore in MoodleCloud" steps are short STE, one action per line: "Open Site administration > Courses > Restore course." → "Upload the .mbz file." → "Restore as a new course." → "The course arrives hidden. Check the course, then make it visible."
+  - The web-services form says why it is optional ("to create an empty course when you publish"), uses a password field with `autocomplete="off"`, clears the token after saving, and shows the site and release in a polite live region.
+  - The publish dialog's checkbox and the Moodle course link follow T8.
+- **NITs:**
+  1. `MoodleCourse.tsx` shows the raw value ("Moodle course status: created / exists / failed"). Use plain words, for example "A hidden Moodle course was created.", "The Moodle course already exists.", "Cogniate could not create the Moodle course: <reason>".
+  2. The last restore step holds two actions. Split it.
+  3. `T8-REPORT.md` and `evidence/t8-*` add to the report files in the product folder (B-T6-04).

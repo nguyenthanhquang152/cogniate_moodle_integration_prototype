@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # T6 review — Reviewer-B (lens: "Can a human team own it?")
 
@@ -116,3 +116,8 @@ Input: `git diff 0d1e169 adb0f61 -- apps/portal` (46 files, Author-2 / Codex). `
 - **Evidence:** The heading and the dynamic steps depend on `connection.status === "registered"`, but line 68 is shown for every status.
 - **Suggested fix:** Show that sentence only when `status === "registered"`. For `connected`, show a fact instead, for example "Last launch from Moodle: <lastLaunchAt>" (the Connection JSON has `lastLaunchAt`). Add one component test for each state.
 
+---
+
+## Round 3
+
+Round 3 verdict: **APPROVE**. **B-T6-05 is resolved** (commit `b9b5bdb`). In `connect/ConnectionStatus.tsx`, "The first launch from Moodle changes the status to Connected." now renders only when `connection.status === "registered"`. A `connected` connection shows only the "Connected" badge and the "Your library is connected" heading, so the page no longer shows two opposite states. One rest (NIT): for `connected`, a fact such as "Last launch from Moodle: <lastLaunchAt>" would still help, and no component test pins each state.

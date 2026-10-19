@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 3
+Round: 4
 
 # T3c review — Reviewer-B (lens: "Can a human team own it?")
 
@@ -119,3 +119,8 @@ Input: `git diff 1639c7e^1 1639c7e -- services` (8 files, Author-2 / Codex: "lti
   1. Put the request-side tolerances in one module, for example `http/ltiaas-tolerances.ts` (path fold, `user_id` alias, `null` → absent for `url`, `custom` and `comment`, one extra decode layer), applied at the edge, with one header that cites "ltiaas 0.0.4 SDK, contract §8 D14/D15".
   2. Or keep them in place, but mark each site with the same tag, for example `// ltiaas-0.0.4 tolerance (contract §8 D14): <what the SDK sends>`, so `grep ltiaas-0.0.4` finds all of them. Group their tests under one `describe('ltiaas 0.0.4 tolerances (contract §8 D14/D15)')`.
 
+---
+
+## Round 4 (B-T3c-03)
+
+Verdict: **APPROVE**. **B-T3c-03 is resolved** (commit `cd64ef1`). Every SDK tolerance site now has the same tag: `// ltiaas-0.0.4 tolerance (contract §8 D14|D15): <what and why>`. There are seven sites: `http/app.ts`, `http/validation.ts`, `http/routes/services.ts`, `lti/deep-linking.ts` (two), `lti/idtoken.ts` and `platform/ags.ts`, so `grep "ltiaas-0.0.4 tolerance"` finds all of them. `http/routes/README.md` has a new section "ltiaas 0.0.4 compatibility sites" that lists each site with one line and points to contract §8 D14/D15. It also names the related guard change in `lti/service-url.ts` (`%3F` and `%23` refused in paths).

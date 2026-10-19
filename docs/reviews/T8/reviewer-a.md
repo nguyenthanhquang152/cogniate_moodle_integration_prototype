@@ -140,3 +140,11 @@ Round 2 counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (A-T8-04). All round 1 findin
 
 - **`npm run demo:users` prints no secret.** It prints the public URLs, the user names, and only the **names** of the variables that hold the passwords (`MOODLE_ADMIN_PASSWORD`, `PORTAL_THANH_PASSWORD`, …), with a pointer to `.env` and `infra/.secrets/seed.json`. When the stack runs, it adds the LTI activities from one read-only `SELECT` in the Moodle container (course short name, activity name, view URL).
 - **`npm run stack:doctor` changes nothing.** It runs only read-only checks: `docker info`, `image inspect`, `network ls`/`inspect`, `compose port`/`ps`, `docker inspect` health, `openssl x509` reads of `infra/.certs/*.crt`, one TCP connect to `127.0.0.1:$PUBLIC_PORT`, a DNS cache query and `grep`. It runs no `rm`, `down`, `kill`, `docker run` or file write. Sourcing `lib.sh` only reads `.env` and exports variables. Its output holds only versions, sizes, host names, subnets and fix commands, never a key or password.
+
+## T8 portal (AC-T8-10; Codex batch `git diff 8b4442b 8fdfa9e`): note, no finding
+
+The new views (`WebServices.tsx`, `MoodleBackup.tsx`, `MoodleCourse.tsx`, `PublishDialog.tsx`) are safe:
+- **Token handling.** The token input is `type="password"` with `autocomplete="off"`. The token is kept only in React state, sent once in the `PUT …/web-services` body, and cleared (`setToken("")`) after a successful save. It never goes to `localStorage`, `sessionStorage` or a cookie, and the UI shows only `siteName` and `release` from the answer. The two committed screenshots show an empty or masked field, and the error state shows only the server message, the code and a trace id.
+- **XSS.** `build.reason`, `shellError`, site name, release and course names are React text nodes. No view uses raw HTML.
+- **Links.** The backup link is the server-built relative `/app-api/…/download?kind=mbz` path. "Open Moodle course" uses the server-built `{https siteUrl}/course/view.php?id={integer}` with `target="_blank" rel="noopener noreferrer"`.
+- **Origin.** The new writes (`PUT web-services`, `POST …/mbz`, `POST /publications` with `createMoodleCourse` only when the connection has a token) all go through `api.ts`, so the server's `Origin` rule applies.

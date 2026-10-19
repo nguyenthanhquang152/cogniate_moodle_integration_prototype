@@ -1,9 +1,9 @@
 Verdict: APPROVE
-Round: 3
+Round: 4
 
 # T3c review: Reviewer-A (correctness and security)
 
-History: the round 1 verdict was APPROVE (1 MINOR, 1 NIT; below). The round 2 verdict was APPROVE (section "Round 2"). The round 3 verdict is APPROVE (section "Round 3" at the end).
+History: the round 1 verdict was APPROVE (1 MINOR, 1 NIT; below). The round 2 verdict was APPROVE (section "Round 2"). The round 3 verdict was APPROVE (section "Round 3"). The round 4 verdict is APPROVE (section "Round 4" at the end).
 
 ## Round 1
 
@@ -129,3 +129,16 @@ The unit tests repeat the important cases with both ltik and service auth, on al
 - Fix (optional hardening): add `%3F` and `%23` (any letter case) to the raw-path list in `hasPathTrick` and in security §8 / contract §3.4.
 
 Round 3 counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (A-T3c-03).
+
+## Round 4
+
+Scope: the T3c part of `git diff 8b4442b 8fdfa9e` (Codex batch).
+- **A-T3c-03 resolved.** `hasPathTrick` now also refuses `%3F` and `%23` (any letter case) in the raw path. The pattern applies only to the path (the part before the first `?` or `#`), so the rule only gets stricter.
+- **Probe.** I re-ran my round 3 probe with the real `decodeLineItemId` and `isAllowedServiceUrl` (the working tree is identical to `8fdfa9e`):
+  - one and two layers (also lower case) are still allowed, and three layers are still refused;
+  - `%3F`/`%3f`, `%23` and `%253F` in the path are now refused with one or two layers;
+  - `%2e%2e`, backslash, another course and `type_id=2` stay refused;
+  - a real query with `%3F%23` in a parameter value is still allowed, so legitimate queries still work.
+- **B-T3c-03.** The tolerance tags (`ltiaas-0.0.4 tolerance (contract §8 D14/D15)`) in `app.ts`, `services.ts`, `validation.ts`, `deep-linking.ts`, `idtoken.ts` and `ags.ts` are comments only. The one moved line (`outcomes: { available: false }`) does not change behaviour.
+
+Round 4 counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.
