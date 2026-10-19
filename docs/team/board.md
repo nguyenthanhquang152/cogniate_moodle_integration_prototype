@@ -26,4 +26,5 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 ## Continuation decisions
 
 - 2026-10-19: both independent phase 1 code reviews APPROVE `d54c607`; final pack verdicts remain pending.
+- Focused P2/P5 QA PASS on `d54c607`: six tests, including app restart before confirmation, 90 seconds of stable Moodle scores, and the fixture-assisted missing-sync Resend refusal. Own stack teardown left zero resources. Full T5a/T5b/T6 regression is running on the same SHA; fresh T7 and final pack checks remain required. Evidence: `docs/reviews/T5b/qa.md`, dated repair focus.
 - A-T9-C01 is an accepted MINOR deferral under charter §5. Repeated pre-POST line-item lookup failures can retry GET requests every 5 seconds instead of increasing the delay. The 24-hour retry window still applies, and no score POST occurs on this failure path. Keep the increasing-backoff policy as the target; document this implementation difference. Future work should count preparation failures separately from actual score POSTs. This acceptance does not waive any live QA or final review gate.

@@ -181,3 +181,44 @@ The P11 pending and failed screenshots and status annotations are under `R/conta
 The coordinator first authorized `1ce57f2435103fef5a342e141080de8d7191afa7`, then withdrew it after an Architect finding in the new score-comparison guard. The fresh focus run had passed clone/setup/H1/fixtures and started its acceptance container. QA stopped only `qa-cont-p2-qa-acceptance-31933`, so the host runner returned through its normal `finally` teardown. No acceptance test result was produced; the focus reports exit 137 and missing expected tests. This is a withdrawn run, not a PASS and not a new observed product failure.
 
 Evidence: `/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/moodle-lti-continuation/tests/host/artifacts/qa-cont-p2-1ce57f24-2026-10-19T10-41-44-249Z`. Command: the same `run-t5.mjs` environment above, with project `qa-cont-p2`, the withdrawn SHA, and `--tasks T5a,T5b --only SETUP-T5b,AC-T5-30,P5`. Cleanup passed with zero own containers, volumes and networks; a separate exact-label Docker check also returned zero, and no other container stopped or restarted. A corrected committed candidate is required before the focus and full regressions can continue.
+
+## Replacement QA repair focus, 2026-10-19 — d54c607d
+
+**PASS: all six focused tests.** Independent replacement QA remains Codex GPT-6-Astra, xhigh. Tested committed SHA `d54c607d7fc6ce2d97e039bb108f52a37f2174ee`, including the P2 policy and the fractional best-attempt guard repair. This focus clears P2 and P5; the full T5a/T5b/T6 regression is still required.
+
+Run time: 10:45:38–10:51:48 UTC. Fresh clone: `/Users/quangnguyen/cogniate-qa-runs/qa-cont-p2-d54c607d-2026-10-19T10-45-38-252Z`. Evidence root `F`: `/Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/moodle-lti-continuation/tests/host/artifacts/qa-cont-p2-d54c607d-2026-10-19T10-45-38-252Z`. Image identities are in `F/images.json` and equal the IDs listed in the a5d9ddc section above. Command: `COMPOSE_PROJECT_NAME=qa-cont-p2 PUBLIC_PORT=8643 STACK_SUBNET=172.29.0.0/16 COURSE_FIXTURES_DIR=/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses node tests/host/run-t5.mjs --sha d54c607d7fc6ce2d97e039bb108f52a37f2174ee --tasks T5a,T5b --only SETUP-T5b,AC-T5-30,P5`.
+
+`F/container-focus/playwright-results.json`: setup T5a, setup T5b, outage-order AC-T5-30, stopped-Moodle P2, in-flight/restart P2, and fixture-assisted P5 all passed; no skipped, failed or flaky tests. The runner and a separate exact-label Docker check confirmed zero own containers, volumes and networks after teardown. No other container stopped or restarted. No tests were overlaid on the clone.
+
+### P2: confirmation and restart evidence
+
+Lower sync `sync_SSG3MN8g1s4yqe2ecTslPQ` (60/100) logged its first timeout at 10:49:18.025 UTC. QA committed the better result at 10:49:25.030. The lower send ended at 10:49:28.712 with persisted status `superseded`, `send_result: pending`, phase `send`, tries 2.
+
+Higher sync `sync_JBTzuM3oNEx-L_R0qv121g` (90/100) had this sequence:
+
+| UTC | Evidence |
+| --- | --- |
+| 10:49:29.543 | First accepted POST: phase `send`, `send_result: sent`, persisted status `pending`, tries 1. Public results also show `pending`, `sentAt: null`. |
+| 10:49:30.151 | Own QA app fully stopped, 608 ms after the accepted response and before confirmation was due. |
+| 10:49:30.819 | Own QA app started again; the host then waited for its health check. |
+| 10:49:35.204 | Successful phase `confirmation`: status `sent`, tries 2, 5.661 s after first acceptance. Public results now have a `sentAt`. |
+| Next 90 seconds | Moodle stays 90; lower row stays `superseded` with tries 2 and no later send log; higher row stays `sent` with tries 2 and no repeat confirmation loop. |
+
+Each actual POST has one log event and the expected consecutive `tries` value. The separate stopped-Moodle P2 case also passed its 60-second observation. Exact JSON attachment extracted without changes: `F/evidence/p2-confirmation-evidence.json`; original attachment and trace: `F/container-focus/playwright-results.json` and `F/container-focus/playwright/T5b-8-supersede-AC-T5-30-P-ad9a4-onds-with-no-obsolete-retry/trace.zip`. Own app stop/start commands and the successful host acknowledgement are also in `F/cmd/` and `F/container-focus/control/`.
+
+This is a finite live confirmation/restart check. An older remote request can still write after an accepted confirmation; the five-second policy does not prove universal remote ordering or permanent gradebook equality. Deterministic delayed-write placement, requirement transfer, confirmation-conflict and retry-window exhaustion are separate Author unit proofs, not claims of this live focus.
+
+### P5: fixture-assisted best score across versions
+
+All setup used public UI/API calls. UI unenrolment made both sync rows fail; UI re-enrolment restored the learner before the fixture. The own app was stopped, the exact higher failed sync was deleted, and the app was started and health-checked in `finally` cleanup before public assertions.
+
+| Item | Before | After fixture and Resend |
+| --- | --- | --- |
+| Attempt `att_RpG4ojPVWhy2c3k-PGjDQA` | Version `ver_re11IfSgyNPHjaMY3yKGxQ`, final failed 60/100. | Unchanged, including its timestamp. |
+| Attempt `att_sa4pFXIsuqHHN5p2Ah5PVg` | Version `ver_3JfbLCEPfx2hRRHiuo7gDw`, final passed 80/100. | Unchanged, including its timestamp. |
+| Higher sync `sync_XPXxf5komBRbbyb9HPpduA` | Failed 80/100, tries 1. | Exact deletion count 1; absent in public results. |
+| Lower sync `sync_U5SnN5SeJw4Y1OoYU_6OWw` | Failed 60/100, tries 1; otherwise resend-eligible. | Entire row unchanged; no send or retry created. |
+| Public `best` | Higher final attempt, 80/100. | Still the same higher final attempt, 80/100. |
+| Resend lower sync | Not yet requested. | HTTP 409, `details.message: SYNC_NOT_RESENDABLE`. |
+
+Exact before/fixture/after/Resend/end public evidence: `F/evidence/p5-public-evidence.json`, extracted from the `p5-public-evidence` attachment in the Playwright JSON. Trace: `F/container-focus/playwright/T5b-9a-best-score-P5-fixtu-84c03-d-sync-60-Resend-is-refused/trace.zip`. The host fixture action ran from 10:51:31.164 to 10:51:34.067 UTC; its acknowledgement records deletion count 1 and successful stop/start/health recovery. This is **fixture-assisted**, not pure black-box, under the bounded T5b spec exception. No other database row or stack was changed.
