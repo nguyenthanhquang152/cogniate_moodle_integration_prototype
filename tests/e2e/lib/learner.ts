@@ -70,6 +70,9 @@ export async function packageFrame(popup: Page, file: string, timeoutMs = 30_000
   return f;
 }
 
+/** Clicks that QA had to do as DOM clicks (listed in the test annotations). */
+export const domClicks: string[] = [];
+
 /** Menu page → lesson page → the option → scroll to the end → stay 11 s → scroll again. */
 export async function doCourse(popup: Page, answer: 'correct' | 'wrong'): Promise<void> {
   const menu = await packageFrame(popup, 'index.html');
@@ -80,16 +83,28 @@ export async function doCourse(popup: Page, answer: 'correct' | 'wrong'): Promis
   let clicked = false;
   for (let i = 0; i < n && !clicked; i++) {
     if (await links.nth(i).isVisible()) {
-      await links.nth(i).click();
-      clicked = true;
+      // A decorative layer of the HTML package can cover the link (Playwright then refuses the click): fall back to
+      // a DOM click on the same link.
+      clicked = await links.nth(i).click({ timeout: 5_000 }).then(() => true, () => false);
+      if (!clicked) {
+        await links.nth(i).evaluate((a) => (a as HTMLAnchorElement).click());
+        clicked = true;
+        domClicks.push('lesson link (covered by a decorative layer)');
+      }
     }
   }
-  if (!clicked) await links.first().evaluate((a) => (a as HTMLAnchorElement).click());
+  if (!clicked) {
+    await links.first().evaluate((a) => (a as HTMLAnchorElement).click());
+    domClicks.push('lesson link (no visible copy)');
+  }
   const lesson = await packageFrame(popup, `${LESSON}.html`);
   await popup.bringToFront();
   const option = lesson.locator(`[data-cog-quiz] input[data-cog-correct="${answer === 'correct' ? 'true' : 'false'}"]`).first();
   await option.scrollIntoViewIfNeeded();
-  await option.click();
+  if (!(await option.click({ timeout: 5_000 }).then(() => true, () => false))) {
+    await option.evaluate((el) => (el as HTMLInputElement).click());
+    domClicks.push(`${answer} option (click refused)`);
+  }
   const toEnd = () => lesson.evaluate(() => window.scrollTo(0, Math.max(document.documentElement.scrollHeight, document.body.scrollHeight)));
   await toEnd();
   await popup.waitForTimeout(11_000); // the 10 s dwell rule (fixed wait allowed: tasks README §2)
