@@ -96,9 +96,14 @@ describe('runtime page (T5a design note, app contract §7)', () => {
   });
 
   it('the shell poll shows the status text of the status API', async () => {
-    const f = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify({ outcome: 'passed', scoreGiven: 100, scoreMaximum: 100, preview: false, scoreSync: { status: 'sent' } })));
+    const f = vi.fn(async (_url: string, _init?: RequestInit) => new Response(JSON.stringify({ outcome: 'passed', scoreGiven: 100, scoreMaximum: 100, preview: false, scoreSync: { status: 'sent', scoreGiven: 100, scoreMaximum: 100 } })));
     expect(await pollOnce(f as unknown as typeof fetch, 'ply_x')).toBe('Completed — score 100 sent to Moodle');
     expect(f.mock.calls[0]![0]).toBe('/app-api/play/ply_x/status');
     expect(await pollOnce((async () => new Response('', { status: 404 })) as unknown as typeof fetch, 'ply_x')).toBeNull();
+  });
+
+  it('P11: a poll distinguishes this attempt from the better score in Moodle', async () => {
+    const f = async () => new Response(JSON.stringify({ outcome: 'failed', scoreGiven: 60, scoreMaximum: 100, preview: false, scoreSync: { status: 'sent', scoreGiven: 80, scoreMaximum: 100 } }));
+    expect(await pollOnce(f as typeof fetch, 'ply_lower')).toBe('Completed — score 60. Moodle keeps your best score: 80');
   });
 });

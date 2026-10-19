@@ -42,9 +42,9 @@ export function setLineItem(db: Db, resourceLinkId: string, lineItemId: string):
 }
 
 /** The newest row of a learner and activity (the shell status line), or null. */
-export function latestSyncStatus(db: Db, resourceLinkId: string, userSub: string): SyncStatus | null {
-  const r = db.prepare('SELECT status FROM score_sync WHERE resource_link_id = ? AND user_sub = ? ORDER BY created_at DESC, rowid DESC LIMIT 1').get(resourceLinkId, userSub);
-  return r ? (r.status as SyncStatus) : null;
+export function latestSyncStatus(db: Db, resourceLinkId: string, userSub: string): { status: SyncStatus; scoreGiven: number; scoreMaximum: number } | null {
+  const r = db.prepare('SELECT status, score_given, score_maximum FROM score_sync WHERE resource_link_id = ? AND user_sub = ? ORDER BY created_at DESC, rowid DESC LIMIT 1').get(resourceLinkId, userSub);
+  return r ? { status: r.status as SyncStatus, scoreGiven: Number(r.score_given), scoreMaximum: Number(r.score_maximum) } : null;
 }
 
 export type ResendResult = { ok: true } | { ok: false; reason: 'not_found' | 'not_resendable'; description: string };

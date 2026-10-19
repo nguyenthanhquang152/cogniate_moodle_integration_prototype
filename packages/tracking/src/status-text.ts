@@ -8,22 +8,28 @@ export interface PlayStatus {
   scoreGiven: number | null;
   scoreMaximum: number | null;
   preview: boolean;
-  scoreSync: { status: string | null };
+  scoreSync: { status: string | null; scoreGiven: number | null; scoreMaximum: number | null };
 }
 
 const number = (n: number): string => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0$/, ''));
+const formatScore = (given: number | null, maximum: number | null): string =>
+  given === null ? '' : maximum === null || maximum === 100 ? number(given) : `${number(given)}/${number(maximum)}`;
 
 /** "In progress", "Completed — score 100 sent to Moodle", "Preview — no grade is sent", ... */
 export function playStatusText(s: PlayStatus): string {
   if (s.preview) return 'Preview — no grade is sent';
   if (s.outcome === 'not_started') return 'Not started';
   if (!isFinal(s.outcome)) return 'In progress';
-  const score = s.scoreGiven === null ? '' : s.scoreMaximum === null || s.scoreMaximum === 100 ? number(s.scoreGiven) : `${number(s.scoreGiven)}/${number(s.scoreMaximum)}`;
+  const score = formatScore(s.scoreGiven, s.scoreMaximum);
+  const sync = s.scoreSync;
+  const different = sync.scoreGiven !== null && sync.scoreMaximum !== null &&
+    (s.scoreGiven === null || s.scoreMaximum === null || s.scoreGiven / s.scoreMaximum !== sync.scoreGiven / sync.scoreMaximum);
+  const best = formatScore(sync.scoreGiven, sync.scoreMaximum);
   switch (s.scoreSync.status) {
-    case 'sent': return `Completed — score ${score} sent to Moodle`;
-    case 'pending': return `Completed — sending score ${score} to Moodle`;
+    case 'sent': return different ? `Completed — score ${score}. Moodle keeps your best score: ${best}` : `Completed — score ${score} sent to Moodle`;
+    case 'pending': return different ? `Completed — score ${score}. Sending your best score, ${best}, to Moodle` : `Completed — sending score ${score} to Moodle`;
     case 'conflict': return 'Completed — Moodle has a grade with a newer time';
-    case 'failed': return `Completed — score ${score} not sent to Moodle`;
+    case 'failed': return different ? `Completed — score ${score}. Your best score, ${best}, was not sent to Moodle` : `Completed — score ${score} not sent to Moodle`;
     default: return score === '' ? 'Completed' : `Completed — score ${score}`;
   }
 }
