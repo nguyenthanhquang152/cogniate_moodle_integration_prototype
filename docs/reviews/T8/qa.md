@@ -1,5 +1,5 @@
-Verdict: FAIL
-Round: 1
+Verdict: PASS
+Round: 2
 
 # T8 QA verification
 
@@ -44,6 +44,26 @@ Round: 1
 | Q-T8-02 | MAJOR (known: C-T8-02, fix in progress) | Two Build Runners started together both take the lock; the loser crashes on the shared heartbeat temp file instead of `runner_refused`. Black-box reproduction: `T8/6-runner-race.spec.ts`. |
 
 Round 2: QA re-runs the passes `races` and `runner-race`, and AC-T8-02, -03, -07 (build and runner paths), on the fix SHA (`--passes`).
+
+## Round 2 (`8059c31…`, the combined fix SHA)
+
+| Item | Value |
+| --- | --- |
+| SHA | `8059c316…` (Lead: C-T8-01 `4c83901`, C-T8-02 atomic runner lock and C-T8-03 in `8059c31`; P1, P2/P5, P11 app fixes). The Lead's last delta `dd6dd11` has no T8 or infra change, so T8 round 2 stays on this SHA. |
+| Tests used | The suite of round 1 with the round 1 fixes, copied into the clone with `--replace-tests` (the Lead commits `tests/**` from the main checkout). |
+| Runner | `run-t8.mjs --sha 8059c31…` with every pass: main, races, hold (AC-T8-03), fail (AC-T8-07), runner-race (C-T8-02, last). |
+| Evidence root | `R2` = `tests/host/artifacts/qa-t8-r1-8059c316-2026-10-19T09-04-05-507Z/` |
+
+| Item | Result | What QA saw |
+| --- | --- | --- |
+| `stack:doctor`, AC-T8-02, -04, -05, -06, -08, -09, -10 | PASS | As in round 1 (`.mbz` 23,171,352 B, ready after 42 s; restore → course 4 with `forum` and one `scorm`; gradebook 100.00 and "Passed" in Moodle's player; shell course `exists` on the second publish; the checkbox only with a token). |
+| AC-T8-03 | PASS | Held build: network `Internal: true`, each container on that network only, `moodle.test` and `example.com` unresolved; after release `ready` and no `cogniate-build-*` item of this stack. |
+| AC-T8-07 | PASS | `failed` at `backup` with the knob reason; the portal shows it; no leftovers. |
+| C-T8-01 (one version) | PASS (was FAIL) | Two parallel `POST …/mbz` → both `202 queued` with the same build id `bld_da96…`; that build ends `ready`. |
+| C-T8-01 (limit) | PASS (was FAIL) | Three parallel `POST …/mbz` for three versions → `202`, `409 MBZ_BUILD_LIMIT`, `202`. |
+| C-T8-02 | PASS (was FAIL) | Two runners started together: runner a runs (`runner_started`, then the queued build `build_started` … `build_ready`, once); runner b logs `runner_refused` and exits 1. The queued build is `ready`; the lock file names runner a. |
+
+Findings Q-T8-01 and Q-T8-02 are fixed. No new findings.
 
 ## 4. QA-side changes (tests only)
 
