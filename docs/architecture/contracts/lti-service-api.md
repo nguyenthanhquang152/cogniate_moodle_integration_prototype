@@ -65,7 +65,7 @@ Authorization: Bearer <API_KEY>
 
 | HTTP | `details.message` | When |
 | --- | --- | --- |
-| 400 | `INVALID_REQUEST` | Body or query fails validation. `description` names the field. |
+| 400 | `INVALID_REQUEST` | Body or query fails validation. `description` names the field. A body larger than 256 KB gives `413` with this code. |
 | 400 | `INVALID_LINE_ITEM_ID` | `:lineItemId` fails the URL rule (§3.4) |
 | 400 | `INVALID_URL_PARAMETER` | The `url` query fails the URL rule |
 | 400 | `INVALID_CONTENT_ITEM` | A content item breaks a rule (§3.2) |
@@ -84,9 +84,9 @@ Authorization: Bearer <API_KEY>
 | 409 | `REGISTRATION_UPDATE_NOT_ALLOWED` | Update without the matching `updatePlatformId` (§3.8) |
 | 409 | `PLATFORM_ALREADY_EXISTS` | Same tool account + issuer + client id |
 | 409 | `PLATFORM_CONFLICT` | The platform answered 409 |
-| 400, 404 | `PLATFORM_REJECTED_REQUEST` | The platform answered 400 or 404. Same status. `description` has the platform status and a short, escaped message. |
+| 400, 404 | `PLATFORM_REJECTED_REQUEST` | The platform answered 400 or 404. Same status. `description` has the platform status and a short message as plain data; every page or client that shows it escapes it (B-T3a-03). |
 | 501 | `NOT_IMPLEMENTED` | OAuth2 stubs |
-| 502 | `PLATFORM_ERROR` | The platform answered 401, 403 or 5xx, or bad data |
+| 502 | `PLATFORM_ERROR` | The platform answered 401, 403 or 5xx, or bad data. Also a `400` from the platform **token endpoint** (for example `invalid_client`): the tool cannot fix the request, so it is a platform-side error, not `PLATFORM_REJECTED_REQUEST` (confirmed in T3a QA). |
 | 504 | `PLATFORM_TIMEOUT` | No answer in 5 s |
 | 500 | `INTERNAL_ERROR` | Bug |
 
@@ -229,7 +229,7 @@ Query: `raw=true` gives the validated raw claims.
 
 `POST /api/deeplinking/form` (T3c): same request. `200 { "form": "<form id=\"lti_dl_submit\" style=\"display:none\" action=\"{target}\" method=\"POST\"><input type=\"hidden\" name=\"JWT\" value=\"{message}\"/></form><script>document.getElementById(\"lti_dl_submit\").submit()</script>" }` (values HTML-escaped).
 
-`custom: null` on a content item is the same as no `custom` (the `ltiaas` SDK sends `null`).
+`custom: null` on a content item (the `ltiaas` SDK sends `null`) becomes `custom: {}` in the signed JWT. Moodle treats an empty `custom` like no `custom` (conformance F4, Lead decision: spec follows the code).
 
 Content item fields (Deep Linking 2.0): `type` (`ltiResourceLink`, `link`, `file`, `html`, `image`), `url`, `title`, `text`, `icon`, `thumbnail`, `embed`, `window`, `iframe`, `custom` (string values), `lineItem` (`label`, `scoreMaximum`, `resourceId`, `tag`, `gradesReleased`), `available`, `submission`, `expiresAt`, `html`, `width`, `height`.
 
@@ -239,7 +239,7 @@ Rules (`400 INVALID_CONTENT_ITEM`):
 - `type` must be in `accept_types`.
 - `ltiResourceLink.url`: optional (Deep Linking 2.0). If missing or `null`, the service sets `{PUBLIC_LTI_URL}/lti/launch/{toolAccountId}` (the only field it may add; such a link has no `resource` query). If present, it must start with that value.
 - `lineItem.scoreMaximum` > 0. `custom` values are strings.
-- The JWT `content_items` equal the request items, plus only the default `url` above.
+- The JWT `content_items` equal the request items, plus only the default `url` above and `custom: {}` for `custom: null`.
 - The launch's `deep_link_return_url` must be an https URL on the platform issuer origin; else `400 INVALID_DEEP_LINK_RETURN_URL` and no JWT is signed (all three deep-linking endpoints; A-T3c-01).
 - JWT claims: security §2.3.
 - Not a deep-linking launch → `403 SERVICE_NOT_AVAILABLE`.
@@ -263,7 +263,7 @@ Otherwise `400 INVALID_LINE_ITEM_ID` (or `INVALID_URL_PARAMETER`), and **no** ou
 
 Line item: `id` (URL, platform-set), `label` (required on write), `scoreMaximum` (> 0, required on write), `resourceLinkId`, `resourceId`, `tag`, `startDateTime`, `endDateTime`, `gradesReleased`.
 
-Empty optional metadata (AGS 2.0 §3.2.10–3.2.13): for `resourceLinkId`, `resourceId`, `tag`, `startDateTime` and `endDateTime`, "no value" may be absent, `""` or `null`. In a request, the service accepts all three as "no value". In a response, it passes the platform's form through unchanged, so a tool must treat absent, `""` and `null` the same.
+Empty optional metadata (AGS 2.0 §3.2.10–3.2.13): for `resourceLinkId`, `resourceId`, `tag`, `startDateTime` and `endDateTime`, "no value" may be absent, `""` or `null`. In a request, the service accepts all three as "no value". In a response, it returns `""` as `""` and returns `null` as an absent field (conformance F6), so a tool must treat absent, `""` and `null` the same.
 
 | Method and path | Task | Request | Success | Platform call |
 | --- | --- | --- | --- | --- |

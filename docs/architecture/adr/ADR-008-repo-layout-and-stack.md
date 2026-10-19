@@ -16,16 +16,21 @@ tsconfig.base.json, eslint.config.js, vitest.config.ts   (all exclude tests/**)
 .env.example                 names only
 services/
   lti-service/src/
-    protocol/                login, launch, keys, register (HTML endpoints)
-    api/                     /api/* (LTIAAS-shaped)
+    http/                    Fastify app, auth schemes, validation, error pages
+      routes/                protocol (login, launch, keys, register), idtoken, services (/api/*), compat, platforms, registration
+    lti/                     LTI rules: login, launch checks, ID token, deep linking, registration, tool JWTs, JWKS
     platform/                token client, AGS, NRPS, registration client
-    domain/                  repositories, launch checks, keys
+    store/                   repositories (accounts, platforms, states, launches, keys, service keys, registrations, retention)
+    db/                      SQLite set-up and migrations
+    cli/                     bootstrap, register-platform (dev seed)
   cogniate-app/src/
     app/                     /app-api/* (portal API), SPA serving
     tool-pages/              /tool/*, /play/*
     content-host/            /pkg/*, /rt/*  (untrusted boundary)
     worker/                  score sync
     domain/                  repositories, attempts, publications, connections
+    clients/                 LTI service client, Moodle web services client (T8)
+    cli/                     portal seed
 apps/
   portal/                    React + Vite + Tailwind (static build)
   player/                    browser TS: shell script, SCORM 1.2 runtime, HTML runtime (Vite library build)
@@ -51,6 +56,8 @@ docs/
 | `errors` | error shape and codes | T2a |
 | `outbound` | SSRF-guarded client (security §9); methods GET, POST, PUT, PATCH, DELETE | T2a (PATCH added in T4b1) |
 | `crypto` | AES-256-GCM, token hashing | T2a |
+| `html` | HTML escaping for the server-rendered pages of both services (security §7). Reason: B-T4b1-02. | T4b1 |
+| `retention` | the retention job of both services: start-up run, then every 10 min, `retention_cleanup` log (data-model §2.1). Reason: A-T4b2-02. | T4b2 |
 
 Import rules (ESLint `no-restricted-imports`):
 

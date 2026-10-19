@@ -207,7 +207,7 @@ All outbound HTTP of both services goes through one client in `packages/shared` 
 | Service key | first launch of a resource link | hash only, no expiry, revocable | same |
 | Platform access token | Moodle `token.php` | memory only | same |
 | Registration token | Moodle | encrypted, ≤ 1 h | same |
-| `ref` token | app, 32 random bytes | hash, 24 h, single use | same |
+| `ref` token | app, 32 random bytes | hash for the check, 24 h, single use; plus an AES-GCM encrypted copy, only so that the portal can show `registrationUrl` again (app contract §4) | same |
 | Runtime token | HMAC of the play id with `APP_MASTER_KEY` (base64url) | SHA-256 hash only, 24 h | same |
 | Play id, picker id | app, ≥ 128 random bits | SHA-256 hash only (A-T4b2-03); the raw id exists only in the URL and the handoff redirect | same |
 | Master keys | `gen-env` | `.env` (git-ignored) | KMS |

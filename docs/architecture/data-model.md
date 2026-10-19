@@ -161,8 +161,7 @@ erDiagram
     }
     HANDOFF {
       string ltik_hash PK "one use of /tool/launch or /tool/deep-link"
-      datetime used_at
-      datetime expires_at
+      datetime used_at "expires_at is derived: used_at + 24 h"
     }
     RESOURCE_LINK {
       string id PK

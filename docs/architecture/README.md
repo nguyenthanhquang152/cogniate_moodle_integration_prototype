@@ -141,7 +141,7 @@ Status from the QA reports (`docs/reviews/<task>/qa.md`). The SHA is the commit 
 | Full E2E on a real Moodle 5.2 | AC-T7-01, AC-T7-11 | proven: T7 QA-E2E, 15/15 ACs in 3 runs in a row on Moodle 5.2.4 (1639c7e) |
 | A new person can run it | AC-T9-01 | open: T9 draft in review (2129b69); the human run is not done yet |
 | Native `.mbz` channel, course shell | AC-T8-02 to AC-T8-10 | stretch: Reviewer-A and Reviewer-B APPROVE; QA in progress (8fdfa9e). Restore on MoodleCloud is not verified (Q5). |
-| **Not proven** | Teacher Deep Linking in Safari (Q16). MoodleCloud (Q5). Player in Firefox and Safari, video playback (the export has no visible video), a real person closing a real window, mobile browsers (T5-spike). Load and scale. 1EdTech certification. | — |
+| **Not proven** | Teacher Deep Linking in Safari (Q16). MoodleCloud (Q5). **Not supported:** Moodle in a subfolder, for example `https://school.edu/moodle` (dynamic registration refused, web services use the wrong path, manual connect not tested; Q18). Player in Firefox and Safari, video playback (the export has no visible video), a real person closing a real window, mobile browsers (T5-spike). Load and scale. 1EdTech certification. | — |
 
 ## 7. Task plan
 
