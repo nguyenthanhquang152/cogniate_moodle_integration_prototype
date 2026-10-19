@@ -15,6 +15,13 @@ import { T6_ACT } from '../lib/t6-recipes';
 
 const urls = publicUrls();
 
+/** The Moodle course title of an activity (ResultRow.activity.contextTitle), as the Results view shows it. */
+async function contextTitleOf(publicationId: string, activityTitle: string): Promise<string> {
+  const row = (await results(publicationId)).find((r) => r.activity.title === activityTitle);
+  expect(row?.activity.contextTitle, `contextTitle of "${activityTitle}"`).toBeTruthy();
+  return String(row!.activity.contextTitle);
+}
+
 /** The history of a row: the region that its expand control opens (aria-controls), else the row's next sibling. */
 async function historyText(page: Page, row: Locator): Promise<string> {
   const toggle = row.locator('[aria-expanded]').or(row.getByRole('button', { name: /history|details|syncs|expand/i })).first();
@@ -41,8 +48,9 @@ test.describe.serial('T6 Results (Thanh)', () => {
   test('AC-T6-08 SCORM results: cg_student "Passed 100" and cg_student2 with the best outcome, both "Sent"; "Refresh from Moodle" fills the gradebook column', async () => {
     test.setTimeout(120_000);
     await page.goto(`${APP}${PORTAL_ROUTES.results(String(t5().scormPublicationId))}`);
-    const r1 = resultsRow(page, seed().users.cg_student.id, ACT.scorm).first();
-    const r2 = resultsRow(page, seed().users.cg_student2.id, ACT.scorm).first();
+    const ctx = await contextTitleOf(String(t5().scormPublicationId), ACT.scorm);
+    const r1 = resultsRow(page, seed().users.cg_student.id, ACT.scorm, ctx).first();
+    const r2 = resultsRow(page, seed().users.cg_student2.id, ACT.scorm, ctx).first();
     await expect(r1).toContainText(/Passed\s*100/, { timeout: 15_000 });
     await expect(r1).toContainText('Sent');
     // cg_student2's best outcome after AC-T5-08 (failed 0) and AC-T5-23 (passed 100) is passed 100.
@@ -64,14 +72,14 @@ test.describe.serial('T6 Results (Thanh)', () => {
     // 1. The conflict row (AC-T5-31 recipe).
     expect(t6.conflictSyncId, 'SETUP-T6 made the conflict row').toBeTruthy();
     await page.goto(`${APP}${PORTAL_ROUTES.results(htmlPub)}`);
-    const conflict = resultsRow(page, s2.id, T6_ACT.conflict).first();
+    const conflict = resultsRow(page, s2.id, T6_ACT.conflict, await contextTitleOf(htmlPub, T6_ACT.conflict)).first();
     await expect(conflict).toContainText('Moodle has a grade with a newer time', { timeout: 15_000 });
     await expect(conflict.getByRole('button', { name: 'Resend' })).toBeVisible();
 
     // 2. The failed row (AC-T5-32 recipe, before re-enrolment): error + Resend; QA enrols again; Resend → Pending → Sent.
     expect(t6.failedSyncId && t6.failedEmail, 'SETUP-T6 made the failed row').toBeTruthy();
     const c102 = seed().courses['COGNIATE-DEV-102'];
-    const row = resultsRow(page, s2.id, T6_ACT.failed).first();
+    const row = resultsRow(page, s2.id, T6_ACT.failed, await contextTitleOf(htmlPub, T6_ACT.failed)).first();
     await expect(row).toContainText(/PLATFORM_REJECTED_REQUEST|Incorrect score|rejected/i, { timeout: 15_000 });
     await expect(row.getByRole('button', { name: 'Resend' })).toBeVisible();
     const admin = await newStackContext(browser);
@@ -94,7 +102,7 @@ test.describe.serial('T6 Results (Thanh)', () => {
     const scormPub = String(st.scormPublicationId);
     await page.goto(`${APP}${PORTAL_ROUTES.results(scormPub)}`);
     await page.getByRole('button', { name: 'Refresh from Moodle' }).click();
-    const override = resultsRow(page, s2.id, T6_ACT.override).first();
+    const override = resultsRow(page, s2.id, T6_ACT.override, await contextTitleOf(scormPub, T6_ACT.override)).first();
     await expect(override).toContainText('Moodle keeps another grade, for example a teacher override', { timeout: 30_000 });
     const apiRow = rowsFor(await results(scormPub), s2, T6_ACT.override)[0];
     const history = await historyText(page, override);
