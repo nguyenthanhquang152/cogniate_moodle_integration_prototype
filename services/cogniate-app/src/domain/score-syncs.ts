@@ -30,10 +30,10 @@ export function dueSyncs(db: Db, now: number, limit: number): DueSync[] {
   }));
 }
 
-/** Record one send. `nextTryAt` only for a row that stays pending. lastError is short and safe (no token, no key). */
-export function recordSend(db: Db, id: string, r: { status: SyncStatus; tries: number; nextTryAt: number | null; lastError: string | null }, now: number): void {
-  db.prepare(`UPDATE score_sync SET status = ?, tries = ?, next_try_at = ?, last_error = ?, sent_at = CASE WHEN ? = 'sent' THEN ? ELSE sent_at END,
-    updated_at = ? WHERE id = ?`).run(r.status, r.tries, r.status === 'pending' ? r.nextTryAt : null, r.lastError, r.status, now, now, id);
+/** Record a send only while still pending: a better score may have superseded this row during the request. */
+export function recordSend(db: Db, id: string, r: { status: SyncStatus; tries: number; nextTryAt: number | null; lastError: string | null }, now: number): boolean {
+  return db.prepare(`UPDATE score_sync SET status = ?, tries = ?, next_try_at = ?, last_error = ?, sent_at = CASE WHEN ? = 'sent' THEN ? ELSE sent_at END,
+    updated_at = ? WHERE id = ? AND status = 'pending'`).run(r.status, r.tries, r.status === 'pending' ? r.nextTryAt : null, r.lastError, r.status, now, now, id).changes > 0;
 }
 
 /** ADR-010 rule 1: keep the line item found by the lookup for later rows of the same activity. */
@@ -63,7 +63,7 @@ export function resendSync(db: Db, libraryId: string, syncId: string, now: numbe
   const others = db.prepare('SELECT id, status, score_given, score_maximum FROM score_sync WHERE resource_link_id = ? AND user_sub = ?')
     .all(String(r.resource_link_id), String(r.user_sub)).map(toRow);
   const best = db.prepare(`SELECT score_given, score_maximum FROM attempt WHERE resource_link_id = ? AND user_sub = ? AND preview = 0
-      AND outcome IN ('completed', 'passed', 'failed') AND score_given IS NOT NULL ORDER BY score_given / score_maximum DESC LIMIT 1`)
+      AND outcome IN ('completed', 'passed', 'failed') AND score_given IS NOT NULL ORDER BY CAST(score_given AS REAL) / score_maximum DESC LIMIT 1`)
     .get(String(r.resource_link_id), String(r.user_sub));
   const decision = resendDecision(toRow(r), others, best ? { scoreGiven: Number(best.score_given), scoreMaximum: Number(best.score_maximum) } : null);
   if (!decision.ok) {

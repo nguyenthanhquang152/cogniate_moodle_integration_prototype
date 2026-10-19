@@ -67,8 +67,9 @@ export function createScoreSyncWorker(deps: ScoreSyncWorkerDeps) {
     }
     // The grade policy decides the row status and the next try (packages/tracking, ADR-010 rules 8 and 9).
     const result = syncResult(answer, tries, row.retryFrom, now());
-    recordSend(db, row.id, { status: result.status, tries, nextTryAt: result.nextTryAt, lastError: result.status === 'sent' ? null : lastError }, now());
-    log.info('score_sync', { trace_id: traceId, sync_id: row.id, status: result.status, tries });
+    if (recordSend(db, row.id, { status: result.status, tries, nextTryAt: result.nextTryAt, lastError: result.status === 'sent' ? null : lastError }, now())) {
+      log.info('score_sync', { trace_id: traceId, sync_id: row.id, status: result.status, tries });
+    }
   }
 
   async function drain(): Promise<void> {

@@ -393,6 +393,48 @@ describe('HTML runtime on the server (app contract §7, §9; T5b)', () => {
 });
 
 describe('score sync: retry, outage order, conflict, Resend, refresh (ADR-010 rules 5, 8-10; T5b)', () => {
+  it('P2: a failed in-flight lower score stays superseded and is never retried', async () => {
+    const w = await world();
+    const low = await launch(w.platformId, w.scorm, { sub: '29' });
+    await commit(low.token, 'finish', cmi({ status: 'failed', raw: '60' }));
+    const lowId = String(rowOf('29').id);
+    let started!: () => void;
+    let release!: () => void;
+    const inFlight = new Promise<void>((resolve) => { started = resolve; });
+    const finishSend = new Promise<void>((resolve) => { release = resolve; });
+    const postScore = t.lti.client.postScore;
+    const attempted: unknown[] = [];
+    t.lti.client.postScore = async (...args) => {
+      const score = (args[2] as { scoreGiven: number }).scoreGiven;
+      attempted.push(score);
+      if (score === 60) {
+        started();
+        await finishSend;
+        throw new LtiServiceError(502, 'PLATFORM_ERROR', 'Moodle unavailable');
+      }
+      return postScore(...args);
+    };
+    const worker = createScoreSyncWorker({ db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: (l) => t.logs.push(JSON.parse(l)) }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
+    const running = worker.kick();
+    await inFlight;
+    try {
+      const high = await launch(w.platformId, w.scorm, { sub: '29' });
+      await commit(high.token, 'finish', cmi({ status: 'passed', raw: '80' }));
+      expect(syncs().find((r) => r.id === lowId)?.status).toBe('superseded');
+    } finally {
+      release();
+      await running;
+    }
+    expect(syncs().find((r) => r.id === lowId)).toMatchObject({ status: 'superseded', next_try_at: null });
+    expect(t.logs.filter((l) => l.event === 'score_sync' && l.sync_id === lowId)).toEqual([]);
+    await worker.kick();
+    t.clock.now += 5000;
+    await worker.kick();
+    expect(attempted).toEqual([60, 80]);
+    expect(t.lti.scores.map((s) => s.body.scoreGiven)).toEqual([80]);
+    expect(rowOf('29').status).toBe('sent');
+  });
+
   it('AC-T5-14 / -30: a send that fails is retried; during an outage a later forged 0 makes no row; after the outage 100 is sent', async () => {
     const w = await world();
     const worker = quietWorker();
@@ -571,6 +613,23 @@ describe('T5b round 2: only the best result is ever sent; strict refresh; late b
     const low = await finalRow(w, '73', '50', { status: 400, code: 'PLATFORM_REJECTED_REQUEST' });
     t.db.prepare("UPDATE attempt SET outcome = 'passed', score_given = 100, score_maximum = 100 WHERE user_sub = '73'").run(); // e.g. a row lost to a crash
     expect((await resend(w, low.id)).statusCode).toBe(409);
+  });
+
+  it('P5: Resend compares fractional best scores across final attempts without a higher sync row', async () => {
+    const w = await world();
+    await upload(w.thanh, w.scormCourse, scormFiles());
+    // Choose version ids in index order so integer division ties cannot accidentally pick the better attempt.
+    const versions = t.db.prepare('SELECT id FROM course_version WHERE course_id = ? ORDER BY id').all(w.scormCourse);
+    await json('POST', '/app-api/publications', w.thanh, { connectionId: w.connectionId, courseId: w.scormCourse, versionId: versions[0]!.id });
+    const low = await finalRow(w, '74', '60', { status: 400, code: 'PLATFORM_REJECTED_REQUEST' });
+    await json('POST', '/app-api/publications', w.thanh, { connectionId: w.connectionId, courseId: w.scormCourse, versionId: versions[1]!.id });
+    const high = await launch(w.platformId, w.scorm, { sub: '74' });
+    await commit(high.token, 'finish', cmi({ status: 'passed', raw: '80' }));
+    expect(t.db.prepare("SELECT score_given FROM attempt WHERE user_sub = '74' ORDER BY rowid").all()).toEqual([{ score_given: 60 }, { score_given: 80 }]);
+    t.db.prepare('DELETE FROM score_sync WHERE id = ?').run(String(rowOf('74').id)); // simulate a missing best-score row
+    const r = await resend(w, low.id);
+    expect([r.statusCode, r.json().details.message]).toEqual([409, 'SYNC_NOT_RESENDABLE']);
+    expect(rowOf('74').status).toBe('failed');
   });
 
   it('B-T5b-01: refresh never stores another learner\'s value; failed reads are logged with the contract fields and the others go on', async () => {
