@@ -98,7 +98,8 @@ export function toolConfiguration(urls: PublicUrls, libraryName: string): Array<
     { key: 'nrps', label: 'IMS LTI Names and Role Provisioning', value: "Use this service to retrieve members' information as per privacy settings" },
     { key: 'share_name', label: "Share launcher's name with tool", value: 'Never' },
     { key: 'share_email', label: "Share launcher's email with tool", value: 'Never' },
-    { key: 'accept_grades', label: 'Accept grades from the tool', value: 'Delegate to teacher' },
+    // Q-T7-01 (contract §4.1 row 16): the exact Moodle 5.2.4 option text of the tool form.
+    { key: 'accept_grades', label: 'Accept grades from the tool', value: 'As specified in Deep Linking definition or Delegate to teacher' },
   ];
 }
 

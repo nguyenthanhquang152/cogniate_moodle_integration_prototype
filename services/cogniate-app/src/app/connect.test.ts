@@ -67,6 +67,7 @@ describe('connections (app contract §4)', () => {
       'deep_linking', 'content_selection_url', 'tool_configuration_usage', 'launch_container', 'ags', 'nrps', 'share_name', 'share_email', 'accept_grades']);
     expect(rows[0]).toEqual({ key: 'tool_name', label: 'Tool name', value: 'Cogniate (QA Library B)' });
     expect(rows[4]!.value).toBe(`${TEST_URLS.lti}/lti/keys/cogniate`);
+    expect(rows[15]).toEqual({ key: 'accept_grades', label: 'Accept grades from the tool', value: 'As specified in Deep Linking definition or Delegate to teacher' }); // Q-T7-01
     const values = { issuer: TEST_URLS.moodle, clientId: 'abc', deploymentId: '3', authenticationEndpoint: `${TEST_URLS.moodle}/mod/lti/auth.php`,
       accessTokenEndpoint: `${TEST_URLS.moodle}/mod/lti/token.php`, jwksUrl: `${TEST_URLS.moodle}/mod/lti/certs.php` };
     const bad = await json('PUT', `/app-api/connections/${c.id}/platform`, cookie, { ...values, jwksUrl: 'https://evil.test/certs' });
