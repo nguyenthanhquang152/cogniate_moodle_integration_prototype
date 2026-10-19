@@ -10,12 +10,16 @@
 //   jobfile <request.json>                  -> {title, idnumber} for the build Moodle
 //   status <status.json> key=value ...      -> merge into the status file (atomic), with timestamps
 //   publish <course.mbz> <out/<id>.mbz>     -> check the backup and copy it with exclusive create
-import { closeSync, constants, copyFileSync, fstatSync, lstatSync, openSync, readFileSync, readSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
+//   stage <uploads/<sha>.zip> <dst> <sha>   -> copy the package zip from the app's upload store: no symlink (the store
+//                                              is app-writable), regular file, exclusive create, sha256 of the copy
+import { createHash } from 'node:crypto';
+import { closeSync, constants, copyFileSync, fstatSync, lstatSync, openSync, readFileSync, readSync, renameSync, unlinkSync, writeFileSync, writeSync } from 'node:fs';
 
 const [cmd, file, ...rest] = process.argv.slice(2);
 const STEPS = ['', 'start', 'course', 'scorm', 'backup', 'copy'];
 const MAX_REQUEST = 4096;
 const MAX_MBZ = 2 * 1024 * 1024 * 1024; // 2 GB (a backup holds the zip and its extracted files)
+const MAX_PACKAGE = 2 * 1024 * 1024 * 1024; // a backstop only: the app limits uploads, and the sha256 must match
 const fail = (msg) => { process.stderr.write(`${msg}\n`); process.exit(1); };
 
 /** Read a request file safely: no symlink (O_NOFOLLOW), no blocking open (FIFO), regular file, own user, small. */
@@ -50,12 +54,16 @@ function checked(path) {
     versionId: want('versionId', /^ver_[A-Za-z0-9_-]{22}$/),
     packageSha256: want('packageSha256', /^[0-9a-f]{64}$/),
     variant: want('variant', /^[A-Za-z0-9_-]{1,32}$/),
-    lang: want('lang', /^[A-Za-z0-9_-]{1,16}$/),
+    // C-T8-03: the app's rule (services/cogniate-app/src/app/courses.ts), so every course the API accepts can be built.
+    lang: want('lang', /^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8}){0,3}$/),
     title: typeof r.title === 'string' && r.title.length >= 1 && r.title.length <= 255 && ![...r.title].some((c) => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f) ? r.title : fail('bad field title'),
     hold: r.hold === true,
     failAt: typeof r.failAt === 'string' && STEPS.includes(r.failAt) ? r.failAt : fail('bad field failAt'),
   };
-  return { ...job, hex: job.buildId.slice(4), idnumber: `cogniate:${job.courseId}:${job.variant}:${job.lang}` };
+  // Moodle's course idnumber holds at most 100 characters: 9 + 26 + 1 + variant (<= 32) + 1 + lang (<= 30) = 99.
+  const idnumber = `cogniate:${job.courseId}:${job.variant}:${job.lang}`;
+  if (idnumber.length > 100) fail('bad field idnumber');
+  return { ...job, hex: job.buildId.slice(4), idnumber };
 }
 
 /**
@@ -86,12 +94,51 @@ function publish(src, dst) {
   process.stdout.write(`${JSON.stringify({ bytes: st.size })}\n`);
 }
 
+/** A3: copy the package zip without following a symlink; the copy must have the sha256 of the request. */
+function stage(src, dst, sha) {
+  if (!/^[0-9a-f]{64}$/.test(sha ?? '')) fail('usage: stage <src> <dst> <sha256>');
+  let fd;
+  try {
+    fd = openSync(src, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+  } catch (e) {
+    fail(e.code === 'ELOOP' ? 'the package zip is a symlink' : e.code === 'ENOENT' ? 'the package zip is not in the upload store' : `the package zip cannot be read (${e.code ?? 'error'})`);
+  }
+  const st = fstatSync(fd);
+  if (!st.isFile()) fail('the package zip is not a regular file');
+  if (st.size > MAX_PACKAGE) fail('the package zip is too large');
+  let out;
+  try {
+    out = openSync(dst, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
+  } catch (e) {
+    fail(`the package zip cannot be copied (${e.code ?? 'error'})`);
+  }
+  const hash = createHash('sha256');
+  const buf = Buffer.alloc(1024 * 1024);
+  let pos = 0;
+  for (;;) {
+    const n = readSync(fd, buf, 0, buf.length, pos);
+    if (n <= 0) break;
+    hash.update(buf.subarray(0, n));
+    for (let w = 0; w < n;) w += writeSync(out, buf, w, n - w);
+    pos += n;
+  }
+  closeSync(fd);
+  closeSync(out);
+  if (hash.digest('hex') !== sha) {
+    unlinkSync(dst);
+    fail('the package zip does not have the expected sha256');
+  }
+  process.stdout.write(`${JSON.stringify({ bytes: pos })}\n`);
+}
+
 function main() {
   if (cmd === 'validate') {
     process.stdout.write(`${JSON.stringify(checked(file))}\n`);
   } else if (cmd === 'jobfile') {
     const j = checked(file);
     process.stdout.write(`${JSON.stringify({ title: j.title, idnumber: j.idnumber })}\n`);
+  } else if (cmd === 'stage') {
+    stage(file, rest[0], rest[1]);
   } else if (cmd === 'publish') {
     publish(file, rest[0] ?? fail('usage: publish <src> <dst>'));
   } else if (cmd === 'status') {
@@ -110,7 +157,7 @@ function main() {
     writeFileSync(`${file}.tmp`, JSON.stringify(next));
     renameSync(`${file}.tmp`, file);
   } else {
-    fail('usage: queue.mjs validate|jobfile|status|publish <file> [...]');
+    fail('usage: queue.mjs validate|jobfile|status|publish|stage <file> [...]');
   }
 }
 

@@ -61,19 +61,42 @@ heartbeat() {
 
 # One runner per queue (a second runner's start-up sweep would tear down the first runner's build). The lock file
 # holds the pid; a dead pid, or a pid that is now another program (after a reboot), does not count.
+# C-T8-02: taking the lock is atomic. `ln` of a file that already holds our pid creates the lock complete or not at
+# all (link fails if the lock exists), so two runners that start at the same moment cannot both get it. A stale lock
+# is taken over ONCE, under a take-over mutex (`mkdir` is atomic), and the holder is checked again under the mutex.
 LOCK="$QUEUE/.runner.pid"
-other_runner() {
-  local other; other="$(cat "$LOCK" 2>/dev/null || true)"
-  [[ "$other" =~ ^[0-9]+$ && "$other" != "$$" ]] && ps -p "$other" -o command= 2>/dev/null | grep -q 'build-runner\.sh' && echo "$other"
-}
-check_lock() {
-  local other; other="$(other_runner || true)"
-  [[ -z "$other" ]] && return 0
-  echo "Another Build Runner is running (pid $other). Stop it first: npm run stack:down." >&2
-  jlog error runner_refused "$BOOT_ID" "other_pid=$other"
+live_runner() { [[ "$1" =~ ^[0-9]+$ && "$1" != "$$" ]] && ps -p "$1" -o command= 2>/dev/null | grep -q 'build-runner\.sh'; }
+lock_holder() { cat "$LOCK" 2>/dev/null || true; }
+refuse() {
+  echo "Another Build Runner is running (pid $1). Stop it first: npm run stack:down." >&2
+  jlog error runner_refused "$BOOT_ID" "other_pid=$1"
   exit 1
 }
-take_lock() { check_lock; echo "$$" > "$LOCK.$$"; mv -f "$LOCK.$$" "$LOCK"; }
+check_lock() { local h; h="$(lock_holder)"; if live_runner "$h"; then refuse "$h"; fi; return 0; }
+take_lock() {
+  local tmp="$LOCK.$$" h
+  echo "$$" > "$tmp"
+  if ln "$tmp" "$LOCK" 2>/dev/null; then rm -f "$tmp"; return 0; fi
+  h="$(lock_holder)"
+  if live_runner "$h"; then rm -f "$tmp"; refuse "$h"; fi
+  # Stale lock. A take-over mutex older than 1 min is left over from a killed runner: remove it first.
+  find "$LOCK.takeover" -maxdepth 0 -type d -mmin +1 -exec rmdir {} \; 2>/dev/null || true
+  if mkdir "$LOCK.takeover" 2>/dev/null; then
+    h="$(lock_holder)"   # again, under the mutex: another runner may have taken over just before
+    if live_runner "$h"; then rmdir "$LOCK.takeover"; rm -f "$tmp"; refuse "$h"; fi
+    rm -f "$LOCK"
+    if ln "$tmp" "$LOCK" 2>/dev/null; then
+      rmdir "$LOCK.takeover"; rm -f "$tmp"
+      jlog warn runner_lock_taken_over "$BOOT_ID" "stale_pid=${h:-none}"
+      return 0
+    fi
+    rmdir "$LOCK.takeover"
+  fi
+  # Another runner took the lock (or is taking it over) at the same moment.
+  rm -f "$tmp"
+  h="$(lock_holder)"
+  refuse "${h:-unknown}"
+}
 drop_lock() { [[ "$(cat "$LOCK" 2>/dev/null || true)" == "$$" ]] && rm -f "$LOCK"; return 0; }
 
 # Run a long command as a background job and wait for it: a TERM/INT trap then runs at once (bash runs traps only
@@ -93,13 +116,36 @@ ensure_image() {
 }
 
 # Interrupted builds: requests in processing/ get a failed status; leftover cogniate-build-* items are removed.
+# A request that cannot be built: log it; a valid name gets a failed status at once (C-T8-03: the app shows it, no
+# 10-min wait). The reason names only the field or the check (queue.mjs's fixed messages), never the request content.
+# A build that already has a status is not touched.
+reject_request() {  # reject_request <file name> <detail>
+  local name="$1" detail="$2" re='^bad field ([A-Za-z]+)$' what
+  jlog warn request_rejected "$BOOT_ID" "file=$name" "detail=$detail"
+  if [[ "$name" =~ ^bld_[0-9a-f]{24}\.json$ && ! -e "$QUEUE/status/$name" ]]; then
+    what="$(printf '%s\n' "$detail" | head -1)"
+    if [[ "$what" =~ $re ]]; then what="${BASH_REMATCH[1]}"; fi
+    what="$(printf '%s' "$what" | tr -cd 'A-Za-z0-9 ()_-' | cut -c1-60)"
+    node "$Q" status "$QUEUE/status/$name" status=failed step=start \
+      "reason=The build request was not valid (${what:-unknown}). Build again or ask support."
+  fi
+}
+# A3: only a regular file (no symlink, no directory, no FIFO) is a request. Anything else with a request name is
+# rejected and removed (rm never follows a symlink), so it cannot stop the runner or come back at every start.
+is_request_file() { [[ -f "$1" && ! -L "$1" ]]; }
+
 sweep() {
   local f id step
   for f in $(ls "$QUEUE/processing" 2>/dev/null | grep -E '^bld_[0-9a-f]{24}\.json$' || true); do
     id="${f%.json}"
+    if ! is_request_file "$QUEUE/processing/$f"; then
+      reject_request "$f" "request is not a regular file"
+      rm -rf -- "${QUEUE:?}/processing/$f"
+      continue
+    fi
     step="$(node -e 'try { console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).step ?? "") } catch { console.log("") }' "$QUEUE/status/$id.json")"
     node "$Q" status "$QUEUE/status/$id.json" status=failed "reason=$STOPPED_REASON"
-    rm -f "$QUEUE/processing/$f" "$QUEUE/hold/$id"
+    rm -rf -- "${QUEUE:?}/processing/$f" "${QUEUE:?}/hold/$id"
     jlog warn build_failed "$id" "step=${step:-start}" "reason=$STOPPED_REASON"
   done
   # Work folders (a copy of the package zip) of interrupted builds. No build is active while the sweep runs.
@@ -125,7 +171,7 @@ on_stop() {
     BUILD_IN=/tmp BUILD_DB_PASS=x BUILD_ADMIN_PASS=x docker compose -p "$CUR_PROJECT" -f "$COMPOSE_FILE_BUILD" down -v --remove-orphans >/dev/null 2>&1 || true
     rm -rf "$CUR_WORK" "$QUEUE/hold/$CUR_ID"
     node "$Q" status "$QUEUE/status/$CUR_ID.json" status=failed "step=$CUR_STEP" "reason=$STOPPED_REASON"
-    [[ -z "$CUR_REQ" ]] || rm -f "$CUR_REQ"
+    [[ -z "$CUR_REQ" ]] || rm -rf -- "$CUR_REQ"
     jlog warn build_failed "$CUR_ID" "step=$CUR_STEP" "reason=$STOPPED_REASON"
   fi
   jlog info runner_stopping "$BOOT_ID"
@@ -136,7 +182,7 @@ on_stop() {
 
 build_one() {
   local req="$1" job id hex project work step="start" failat hold sha
-  if ! job="$(node "$Q" validate "$req" 2>&1)"; then jlog warn request_rejected "$BOOT_ID" "file=$(basename "$req")" "detail=$job"; return 0; fi
+  if ! job="$(node "$Q" validate "$req" 2>&1)"; then reject_request "$(basename "$req")" "$job"; return 0; fi
   id="$(jget "$job" buildId)"; hex="$(jget "$job" hex)"; failat="$(jget "$job" failAt)"; hold="$(jget "$job" hold)"; sha="$(jget "$job" packageSha256)"
   project="cogniate-build-$hex"
   work="$REPO_ROOT/.tmp/build/$hex"
@@ -177,8 +223,10 @@ build_one() {
   knob_stop start && return 0
   rm -rf "$work"; mkdir -p "$work/in" "$work/copy"
   # Untrusted data: a copy in a new empty folder, mounted read-only into the build Moodle.
-  [[ -s "$UPLOADS/$sha.zip" ]] || { failed "The package zip is not in the upload store."; return 0; }
-  cp "$UPLOADS/$sha.zip" "$work/in/package.zip"
+  # A3: the upload store is app-writable: copy without following a symlink, and check the sha256 of the copy.
+  if ! node "$Q" stage "$UPLOADS/$sha.zip" "$work/in/package.zip" "$sha" > "$work/stage.log" 2>&1; then
+    failed "The package zip was refused: $(tail -1 "$work/stage.log" | tr -d '\r' | cut -c1-200)."; return 0
+  fi
   node "$Q" jobfile "$req" > "$work/in/job.json"
   db_pass="$(openssl rand -hex 16)"; admin_pass="Aa1-$(openssl rand -hex 12)"
   local last
@@ -237,9 +285,14 @@ case "${1:-watch}" in
         continue
       fi
       for f in $(ls -tr "$QUEUE/requests" 2>/dev/null | grep -E '^bld_[0-9a-f]{24}\.json$' || true); do
+        if ! is_request_file "$QUEUE/requests/$f"; then
+          reject_request "$f" "request is not a regular file"
+          rm -rf -- "${QUEUE:?}/requests/$f"
+          continue
+        fi
         mv "$QUEUE/requests/$f" "$QUEUE/processing/$f" 2>/dev/null || continue
         build_one "$QUEUE/processing/$f" || jlog error build_error "$BOOT_ID" "file=$f"
-        rm -f "$QUEUE/processing/$f"
+        rm -rf -- "${QUEUE:?}/processing/$f"   # -r: it may have been swapped for a directory after the check
         heartbeat
       done
       sleep 2 & wait $!

@@ -36,11 +36,12 @@ cp "$HTML_ZIP" "$D/zips/html.zip"
 # answer holds the registration URL with its ref, and the registration start holds the registration token.
 jget() { printf '%s' "$1" | node -e 'const o = JSON.parse(require("fs").readFileSync(0, "utf8")); console.log(String(process.argv[1].split(".").reduce((a, k) => a[k], o)))' "$2"; }
 jsonline() { grep '^{' | tail -1 || true; }
-# Text from a failed step, safe to show: no .env or seed secret, no JWT, no token/ref/password value in a URL.
+# Text from a failed step, safe to show: no .env or seed secret, no LTI API key, no private key, no JWT, no
+# token/ref/password value in a URL.
 redact() {
   node -e '
     const fs = require("fs");
-    const [envFile, seedFile] = process.argv.slice(1);
+    const [envFile, seedFile, secretsDir] = process.argv.slice(1);
     let text = fs.readFileSync(0, "utf8");
     const secrets = new Set();
     try {
@@ -52,10 +53,14 @@ redact() {
     try {
       JSON.stringify(JSON.parse(fs.readFileSync(seedFile, "utf8")), (k, v) => { if (typeof v === "string" && /pass|secret|token|key/i.test(k)) secrets.add(v); return v; });
     } catch {}
+    try {
+      for (const f of fs.readdirSync(secretsDir)) if (f.startsWith("lti-api-key.")) secrets.add(fs.readFileSync(`${secretsDir}/${f}`, "utf8").trim());
+    } catch {}
     for (const s of secrets) if (s.length >= 6) text = text.split(s).join("[redacted]");
-    text = text.replace(/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/g, "[redacted JWT]")
+    text = text.replace(/-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(-----END [A-Z ]*PRIVATE KEY-----|$)/g, "[redacted private key]")
+      .replace(/eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*/g, "[redacted JWT]")
       .replace(/((?:ref|registration_token|token|ltik|password|secret)=)[^&\s"\x27]+/gi, "$1[redacted]");
-    process.stdout.write(text);' "$ENV_FILE" "$INFRA_DIR/.secrets/seed.json"
+    process.stdout.write(text);' "$ENV_FILE" "$INFRA_DIR/.secrets/seed.json" "$INFRA_DIR/.secrets"
 }
 # B-T7-06: a step that gives no JSON line stops the script and shows the last lines of its output (redacted). Moodle
 # writes its CLI errors to stdout, so the output is kept, not filtered away.

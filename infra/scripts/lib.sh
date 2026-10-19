@@ -228,8 +228,8 @@ qa_env_args() {
 }
 
 # B-T7-01: test:e2e and e2e:reset delete ALL stack data (stack-reset.sh). Print what goes; in a terminal, ask for
-# "yes" unless the run is confirmed with --yes or E2E_CONFIRM=1. Without a terminal (QA host runner, CI) there is no
-# question, so a runner never hangs; runners pass E2E_CONFIRM=1 (or --yes) anyway. No data yet: no question.
+# "yes" unless the run is confirmed with --yes or E2E_CONFIRM=1. A-T7-04: without a terminal and without the flag it
+# stops (fail closed, never hangs): QA host runners and CI pass --yes or E2E_CONFIRM=1. No data yet: no question.
 #   confirm_stack_delete <confirmed 0|1> <command name>
 confirm_stack_delete() {
   local confirmed="${1:-0}" cmd="${2:-this command}" ans=""
@@ -247,7 +247,8 @@ confirm_stack_delete() {
     echo "Stopped. Nothing was deleted." >&2
     exit 1
   fi
-  echo "         (no terminal: no question; going on)" >&2
+  echo "No terminal to ask. Run it with -- --yes, or E2E_CONFIRM=1. Nothing was deleted." >&2
+  exit 1
 }
 
 print_urls() {
@@ -264,7 +265,12 @@ print_urls() {
 # ---- T8 Build Runner (host side; infra/scripts/build-runner.sh). The app container never gets the Docker socket.
 BUILD_QUEUE_DIR="$INFRA_DIR/.data/build-queue"
 BUILD_RUNNER_PID_FILE="$REPO_ROOT/.tmp/build-runner.${COMPOSE_PROJECT_NAME:-cogniate-stack}.pid"
-build_runner_running() { [[ -s "$BUILD_RUNNER_PID_FILE" ]] && kill -0 "$(cat "$BUILD_RUNNER_PID_FILE")" 2>/dev/null; }
+# A1: the pid file survives a reboot, and its pid may then be another program. The runner runs only when that pid is
+# alive AND is build-runner.sh (same rule as the lock in build-runner.sh), so stack:down never signals another program.
+build_runner_running() {
+  local pid; pid="$(cat "$BUILD_RUNNER_PID_FILE" 2>/dev/null || true)"
+  [[ "$pid" =~ ^[0-9]+$ ]] && ps -p "$pid" -o command= 2>/dev/null | grep -q 'build-runner\.sh'
+}
 # B-T8-02: report "started" only when the runner really runs: the process is alive and its heartbeat
 # (infra/.data/build-queue/status/runner.json) appears. Its log is JSON lines: infra/.logs/build-runner.jsonl.
 start_build_runner() {

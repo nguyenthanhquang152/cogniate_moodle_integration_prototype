@@ -2,7 +2,8 @@ import { mkdtempSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { createHealthServer } from './http.ts';
+import { createServer } from 'node:http';
+import { sendJson } from './http.ts';
 import { startService } from './service.ts';
 
 describe('startService', () => {
@@ -15,7 +16,8 @@ describe('startService', () => {
       OUTBOUND_PRIVATE_HOST_ALLOWLIST: 'moodle.test,qa-platform.test,evil.test',
     };
     const [server] = await startService('lti-service',
-      [{ name: 'demo', port: 0, publicUrl: (u) => u.lti, build: (deps) => createHealthServer('demo', deps) }],
+      [{ name: 'demo', port: 0, publicUrl: (u) => u.lti,
+        build: (deps) => createServer((_req, res) => sendJson(res, 200, { knobs: deps.knobs, profile: deps.profile, outbound_allowlist: deps.outboundAllowlist })) }],
       { env, handleSignals: false, write: () => undefined });
     try {
       const addr = server?.address();

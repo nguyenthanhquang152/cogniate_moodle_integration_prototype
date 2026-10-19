@@ -44,7 +44,7 @@ export const KNOB_REGISTRY = {
     default: 86_400,
     min: 1,
     max: 30 * 86_400,
-    description: 'Registration URL ref token lifetime in seconds. Contract: 24 h (cogniate-app-api, T4). AC-T4-09 uses 5.',
+    description: 'Registration URL ref token lifetime in seconds. Contract: 24 h (cogniate-app-api, T4). AC-T4-09 uses 20.',
   },
   BUILD_RUNNER_HOLD: {
     service: 'cogniate-app',

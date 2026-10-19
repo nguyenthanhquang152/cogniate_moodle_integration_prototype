@@ -3,7 +3,8 @@
 #   npm run test:acceptance [-- <args>]  ->  npm ci --prefix tests && npm --prefix tests run acceptance -- <args>
 #   npm run test:e2e        [-- <args>]  ->  e2e:reset (T7), then npm ci --prefix tests && npm --prefix tests run e2e -- <args>
 #     B-T7-01: the reset deletes all stack data. In a terminal it asks for "yes"; `-- --yes` or E2E_CONFIRM=1 skips the
-#     question (QA runners and CI). --yes is not passed on to the suite. E2E_RESET=0 skips the reset (debugging only).
+#     question (QA runners and CI). Without a terminal and without the flag it stops (A-T7-04). --yes is not passed on
+#     to the suite. E2E_RESET=0 skips the reset (debugging only).
 # test:acceptance (local-stack §3): (1) STACK_PROFILE=acceptance stack:up, (2) the suite, (3) stack:up with the default
 # profile, also when the suite fails or is stopped with Ctrl+C. A run that is killed (SIGKILL) leaves the profile on;
 # /healthz then shows "profile": "acceptance", and npm run stack:up restores the default.

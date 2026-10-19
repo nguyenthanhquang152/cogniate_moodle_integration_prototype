@@ -16,13 +16,15 @@ while IFS= read -r line; do
   if [[ "$have" == "$want" ]]; then echo "OK       $name"; else echo "MISMATCH $name (sha256 $have)"; rc=1; fi
 done < "$LIST"
 if (( rc != 0 )); then
+  # Q-T9-02: a fresh clone has no fixtures folder; say how to make it (a path in the repo is shown relative to it).
+  dir="${COURSE_FIXTURES_DIR#"$REPO_ROOT"/}"
   cat >&2 <<MSG
 
 The course fixtures are not in git. To get them:
   1. Ask the product owner (or the Lead) for the two Cogniate exports named above
      (SCORM 1.2 "-scorm-v2.zip" and plain HTML "-html.zip").
-  2. Copy them, unchanged, into $COURSE_FIXTURES_DIR
-     or set COURSE_FIXTURES_DIR=/path/to/folder before the command.
+  2. Make the folder: mkdir -p "$dir". Copy the two course zips into it, unchanged.
+     (Another folder: set COURSE_FIXTURES_DIR=/path/to/folder before the command.)
   3. Run npm run fixtures:check again. The SHA-256 values must match infra/fixtures/courses.sha256.
 MSG
 fi

@@ -6,6 +6,7 @@
 #   3. seed (users, courses, tool accounts, portal users)
 #   4. wait until every /healthz answers with "profile":"default" and "knobs":[] and the Moodle admin can log in
 # B-T7-01: it prints the warning first; in a terminal it asks for "yes" (skip the question: -- --yes or E2E_CONFIRM=1).
+# A-T7-04: without a terminal it needs --yes or E2E_CONFIRM=1, else it stops and deletes nothing.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 confirmed=0

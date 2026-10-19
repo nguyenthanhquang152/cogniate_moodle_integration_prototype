@@ -19,9 +19,12 @@ elif ! docker info >/dev/null 2>&1; then
   docker_up=0
 else
   docker_up=1
-  mem=$(docker info --format '{{.MemTotal}}' 2>/dev/null || echo 0); gb=$(( mem / 1024 / 1024 / 1024 ))
+  # A2: compare bytes. Docker Desktop set to 6 GB reports a bit less than 6 GiB (the VM kernel keeps some), so the
+  # limit is 5.5 GiB; the shown value is rounded to 0.1 GB.
+  mem=$(docker info --format '{{.MemTotal}}' 2>/dev/null || echo 0); [[ "$mem" =~ ^[0-9]+$ ]] || mem=0
+  gb="$(( mem / 1073741824 )).$(( mem % 1073741824 * 10 / 1073741824 ))"
   cpus=$(docker info --format '{{.NCPU}}' 2>/dev/null || echo '?')
-  if (( gb < 6 )); then fix "Docker has only ${gb} GB of memory (Moodle, Postgres, the services and the test browser need about 6 GB)." "Docker Desktop > Settings > Resources > Memory: set 6 GB or more, then Apply & restart."
+  if (( mem < 5905580032 )); then fix "Docker has only ${gb} GB of memory (Moodle, Postgres, the services and the test browser need about 6 GB)." "Docker Desktop > Settings > Resources > Memory: set 6 GB or more, then Apply & restart."
   else ok "Docker is running ($cpus CPUs, ${gb} GB memory)"; fi
 fi
 
@@ -95,7 +98,7 @@ for z in "Build Your First Website with AI_ The Zero-to-Hero Micro-Sprint-scorm-
   [[ -s "$COURSE_FIXTURES_DIR/$z" ]] && fx=$((fx + 1))
 done
 if (( fx == 2 )); then ok "Both course zips are present ($COURSE_FIXTURES_DIR)"
-else fix "The two course zips are not in $COURSE_FIXTURES_DIR ($fx of 2 found)." "Copy them there (see infra/README.md, fixtures), or set COURSE_FIXTURES_DIR. Check with: npm run fixtures:check"; fi
+else fix "The two course zips are not in $COURSE_FIXTURES_DIR ($fx of 2 found)." "Make the folder: mkdir -p \"${COURSE_FIXTURES_DIR#"$REPO_ROOT"/}\". Copy the two course zips into it (see infra/README.md, fixtures), or set COURSE_FIXTURES_DIR. Check with: npm run fixtures:check"; fi
 
 # 8. The running stack (only if it is up)
 if (( docker_up )) && [[ -n "$(dc ps -q 2>/dev/null)" ]]; then
