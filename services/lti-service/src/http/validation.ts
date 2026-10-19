@@ -2,7 +2,7 @@
 import type { z } from 'zod';
 import { ApiError } from '../api-errors.ts';
 
-/** Fastify decoded the path parameter once. Accept one SDK encoding layer, then apply the unchanged URL guard. */
+// ltiaas-0.0.4 tolerance (contract §8 D15): decode one extra HTTPS layer after Fastify; the final URL still passes the guard.
 export function decodeLineItemId(value: string): string {
   if (!/^https%3a%2f%2f/i.test(value)) return value;
   try {

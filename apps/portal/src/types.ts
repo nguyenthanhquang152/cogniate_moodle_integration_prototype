@@ -13,6 +13,7 @@ export interface Connection {
   registrationUrlExpiresAt: string | null;
   createdAt: string;
   lastLaunchAt: string | null;
+  webServices: { siteName: string; release: string } | null;
   platform: {
     id: string;
     issuer: string;
@@ -82,6 +83,19 @@ export interface CourseVersion {
     masteryScore: number | null;
   };
 }
+export interface MbzBuild {
+  buildId: string;
+  courseId: string;
+  versionId: string;
+  updatedAt: string;
+  status: "queued" | "running" | "ready" | "failed";
+  step: string | null;
+  reason: string | null;
+  bytes: number | null;
+  createdAt: string;
+  finishedAt: string | null;
+  downloadUrl: string | null;
+}
 export interface Publication {
   id: string;
   connectionId: string;
@@ -93,6 +107,9 @@ export interface Publication {
   status: "available" | "withdrawn";
   createdAt: string;
   updatedAt: string;
+  moodleCourse: { id: number; idnumber: string; url: string } | null;
+  shellStatus: "created" | "exists" | "failed" | null;
+  shellError: string | null;
   stats: {
     activities: number;
     learners: number;

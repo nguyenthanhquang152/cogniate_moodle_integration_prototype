@@ -13,6 +13,7 @@ type Obj = Record<string, unknown>;
 const text = z.string().min(1).max(2048);
 const limit = z.string().regex(/^[1-9]\d{0,5}$/, 'a whole number >= 1').transform(Number);
 const LineItemsQuery = z.object({ resourceLinkId: text.optional(), resourceId: text.optional(), tag: text.optional(), limit: limit.optional(), url: text.optional() });
+// ltiaas-0.0.4 tolerance (contract §8 D14): accept user_id as a userId alias; refuse conflicting values.
 const ScoresQuery = z.object({ userId: text.optional(), user_id: text.optional(), limit: limit.optional(), url: text.optional() })
   .refine((q) => q.userId === undefined || q.user_id === undefined || q.userId === q.user_id, {
     path: ['user_id'], message: 'user_id must match userId when both are present',

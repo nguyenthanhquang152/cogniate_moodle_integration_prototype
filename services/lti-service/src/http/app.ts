@@ -58,7 +58,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const log = deps.logger;
   const app = Fastify({
     logger: false, bodyLimit: BODY_LIMIT, maxParamLength: MAX_PARAM_LENGTH, return503OnClosing: false,
-    // Contract §1.4: the SDK sends leading slashes. Leave route segments, encoded ids and queries untouched.
+    // ltiaas-0.0.4 tolerance (contract §8 D14): fold leading slashes only; preserve route segments, encoded ids and queries.
     rewriteUrl: (req) => (req.url ?? '/').replace(/^\/{2,}/, '/'),
   });
   await app.register(formbody, { bodyLimit: BODY_LIMIT });

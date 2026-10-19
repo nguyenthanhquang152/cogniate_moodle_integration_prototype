@@ -103,6 +103,7 @@ export function parseScore(body: unknown, nowMs: number = Date.now()): ScoreInpu
     if (out.scoreMaximum === undefined) throw invalid('scoreMaximum', 'is required with scoreGiven');
     out.scoreGiven = b.scoreGiven;
   }
+  // ltiaas-0.0.4 tolerance (contract §8 D14): omit a null score comment from the Moodle request.
   if (b.comment !== undefined && b.comment !== null) {
     if (typeof b.comment !== 'string' || b.comment.length > 4000) throw invalid('comment', 'must be a string');
     out.comment = b.comment;

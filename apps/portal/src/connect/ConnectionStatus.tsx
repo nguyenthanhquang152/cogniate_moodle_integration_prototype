@@ -65,7 +65,9 @@ export function ConnectionReady({
             <MoodleSteps method="dynamic" libraryName={libraryName} />
           </div>
         )}
-      <p>The first launch from Moodle changes the status to Connected.</p>
+      {connection.status === "registered" && (
+        <p>The first launch from Moodle changes the status to Connected.</p>
+      )}
       <div className="flex flex-wrap items-center gap-3">
         <Link
           className={buttonVariants({ variant: "primary", size: "default" })}
