@@ -1,5 +1,7 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
+
+History: round 1 (at `2129b69`) was CHANGES_REQUESTED (MAJOR D1, P1, P2 open). Round 2 (section 9, after the fixes) is APPROVE for conformance; QA results are pending.
 
 # T9: Architect final conformance check
 
@@ -114,7 +116,7 @@ Checked and conforming (infra): the topology and the `PUBLIC_*` URLs; content-ho
 
 Checked and conforming (docs): every "Not proven" item of architecture README §6 is in `proven.md`; no doc calls T8 proven; Q1 to Q17 and R1 to R5 are in `decisions-needed.md` with recommendations (Q18 is new after `2129b69`; Docs adds it); the proven claims match the T3c, T6 and T7 QA reports; Moodle 5.2.4 labels are current; every `npm run` command in the guides exists; the ADR-001 and privacy wording is correct.
 
-## 6. Spec changes made in this check (not committed)
+## 6. Spec changes made in this check (commit `aeb0854`)
 
 - LTI contract §1.3 (F8), §3.2 (F4), §3.5 (F6).
 - ADR-008 layout and shared module table (A5). local-stack §3 `compat` profile (A5).
@@ -147,19 +149,37 @@ From the Lead's routing messages (after `2129b69`, and with commit `aeb0854`). O
 | P4 | Deferred. |
 | P5 | Fix now with P2 (same area). |
 | P6 | Deferred. |
-| P7 | Architect recommendation accepted: the spec stays, the code follows later. Deferred, listed as a known difference. |
+| P7 | Accepted deferral: the spec stays (no Learner role → preview), the code follows later. Listed as a known difference. |
 | P8 | Spec. Fixed (ADR-010 rule 5). |
 | P9 | Deferred, with a note in the human review pack about third-party SCORM packages. |
-| P10 | Architect recommendation accepted: the spec stays, the code follows later. Deferred, listed as a known difference. |
+| P10 | Accepted deferral: the spec stays (one page load = one session), the code follows later. Listed as a known difference. |
 | P11 | Fix now (Author-2). Spec: the status API `scoreSync` also has `scoreGiven` and `scoreMaximum` of the synced row, and new texts when the scores differ (app contract §6). |
 | P12 | Deferred. |
 | P13 | Deferred. |
 | P14 | Spec. Fixed (security §10, data-model). |
 | A1, A2, A3, A4, A6, A7 | Author, infra batch. |
 | A5 | Spec. Fixed (ADR-008, local-stack §3). |
-| D1 | Docs (MAJOR). |
+| D1 | Docs (MAJOR). Fixed in `5187765` (claim narrowed to the ADR-003 endpoints, with the D15 note). |
 | D2, D3, D8 | Author, infra batch. |
-| D4, D5, D6, D7 | Docs. |
+| D4, D5, D6, D7 | Docs. Fixed in `5187765`. |
+| A-FX-02 | Deferred. A platform that the LTI service makes after the app gave up stays active with no owner; the residual is in security §2.6. The timeout clamp part is in the spec (security §9). |
+| A-FX-03 | Deferred. A theoretical double take-over of a stale Build Runner lock (needs a killed runner plus two starts at the same moment). |
 
-Spec changes for these decisions (not committed): app contract §6 (status API and texts for P11; register timing for P1), security §2.6 and §9 (P1).
+Spec changes for these decisions: app contract §6 (status API and texts for P11; register timing for P1), security §2.6 and §9 (P1), commit `5d2bf50`. QA may pause and unpause Moodle on its own project to test P1 and P2 (tasks README §2), commit `1a0d915`. From the reviews of the fixes (`reviewer-a-fixes.md`, `reviewer-b-fixes.md`): app contract §6 (connect page wait text, P11 texts without a score), §12 (`score_sync` with `send_result`), security §9 (timeout clamp), not yet committed.
+
+## 9. Round 2: after fixes
+
+Verdict after fixes: **APPROVE (conformance), QA results pending.**
+
+| Finding | Fix commit | State |
+| --- | --- | --- |
+| D1 (MAJOR) | `5187765` | Fixed (Docs). |
+| P1 (MAJOR) | `5b10196` (merge `1aeef88`) | Fixed and merged. Reviewer-A and Reviewer-B: APPROVE. Follow-ups B-FIX-02 (wait text, no second submit) and A-FX-02 (timeout clamp) in the spec; Author-2 implements. |
+| P2 (MAJOR), P5 | `804a139` | Fixed and merged. Follow-up B-FIX-01 (`score_sync` with `send_result`) in the spec; Author-2 implements. |
+| P11 | `ab0119b` | Fixed and merged. Texts without a score in the spec; Author-2 implements. |
+| C-T8-01 | `655ab78` | Fixed and merged (build reserved before the request file). |
+| C-T8-02, C-T8-03 | `8059c31` | Fixed and merged (atomic runner lock; lang rule and failed status for refused requests). |
+| F5 | none | Accepted limitation, Q18. |
+
+No BLOCKER or MAJOR finding is open in the conformance check. Open items: QA results for the fixes, the three small Author-2 follow-ups above, and the deferred MINOR and NIT findings (section 8).
 
