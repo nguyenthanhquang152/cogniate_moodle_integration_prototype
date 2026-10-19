@@ -3,7 +3,7 @@ Round: 1
 
 # T7 QA-E2E verification
 
-Scope of this round: official run 1 of 3. All T7 acceptance criteria that one run can prove pass. Two criteria are still open: AC-T7-11 (three consecutive runs) and AC-T7-15 (`npm run demo:prepare`). QA-E2E does them next and adds the result as a new section. The task is not done until those two have evidence.
+Scope of this round: three consecutive official runs of `npm run test:e2e` and the demo pass, all at the same SHA with the same suite. All 15 T7 acceptance criteria pass. Run 1 is described in sections 1–4; runs 2 and 3 and the demo pass (AC-T7-11, AC-T7-15) are in section 5.
 
 | Item | Value |
 | --- | --- |
@@ -15,7 +15,7 @@ Scope of this round: official run 1 of 3. All T7 acceptance criteria that one ru
 | Isolation | Own project `qa-e2e-r1`, port 8543, subnet 172.31.0.0/16. QA-E2E did not touch `qa-t*` or `cogniate-*` projects. After the run: 0 containers, 0 volumes, 0 networks of `qa-e2e-r1`. |
 | Images | `erseco/alpine-moodle:v5.2.4` (`sha256:3a310197e51f…`), `node:24.22.0-alpine3.24` (`sha256:44fce696f38b…`, lti-service and cogniate-app), `postgres:16-alpine` (`sha256:721873c34ceb…`), `caddy:2.11.7-alpine` (`sha256:d8542f48d34a…`); e2e image from `mcr.microsoft.com/playwright:v1.56.0-noble`. |
 | Browser | Chromium (Playwright 1.56.0), `retries: 0`, `workers: 1`. Hosts outside `*.test` are blocked (route and host-resolver rule). `QA_IGNORE_HTTPS_ERRORS` was not used. |
-| Evidence root | `E` = `tests/e2e/artifacts/runs/qa-e2e-r1-1639c7ee-2026-10-19T02-31-21-517Z/` (git-ignored). Screenshots and JSON: `E/run1/evidence/`. Traces and HTML report: `E/run1/playwright/`, `E/run1/playwright-report/`. Service logs: `E/run1/service-logs/`. Commands: `E/cmd/`. |
+| Evidence root | Run 1: `E` = `tests/e2e/artifacts/runs/qa-e2e-r1-1639c7ee-2026-10-19T02-31-21-517Z/` (git-ignored). Runs 2, 3 and the demo pass: `F` = `tests/e2e/artifacts/runs/qa-e2e-r1-1639c7ee-2026-10-19T02-37-10-943Z/` (folders `run1` = run 2, `run2` = run 3, `demo`). Screenshots and JSON: `E/run1/evidence/`. Traces and HTML report: `E/run1/playwright/`, `E/run1/playwright-report/`. Service logs: `E/run1/service-logs/`. Commands: `E/cmd/`. |
 
 ## 1. Run 1 results per acceptance criterion
 
@@ -31,11 +31,11 @@ Scope of this round: official run 1 of 3. All T7 acceptance criteria that one ru
 | AC-T7-08 | PASS | B4 picker (`COGNIATE-DEV-102`, "Cogniate (QA Library B)"): only "AI Website Sprint — HTML (QA Library B)". B5 picker (`COGNIATE-DEV-101`, Thanh's tool, opened after B3): Thanh's two courses, not the library B course. B5 saved no activity. | `B4-picker.png`, `B5-picker-thanh.png`, `summary.json` (`pickers`) |
 | AC-T7-09 | PASS | `COGNIATE-DEV-102` gradebook: 100.00 for `cg_student`. Library B Results show the "Learner 4" row "Passed 100". Thanh's SCORM and HTML Results show no library B activity and no Course 102 row (UI and API). | `AC-T7-09-oracle-grade-102.json`, `AC-T7-09-grader-report-102.png`, `AC-T7-09-results-library-B.png`, `AC-T7-09-results-thanh-scorm.png`, `AC-T7-09-results-thanh-html.png` |
 | AC-T7-10 | PASS | C1: the `cg_student` SCORM launch form (id_token + state, first post 303) posted again from a browser page and from Node, both with the original state cookie → HTTP 401 error page `data-error-code="INVALID_STATE"`, no redirect. `lti-service.jsonl` has `launch_check_failed {check: 1, code: INVALID_STATE}`. C2: 0 hits in the 3 log files for 8 ltiks, 3 service keys, 4 runtime tokens, 11 id_tokens (launch forms and Deep Linking response JWTs) and 2 API keys. QA searched each full value, and for a JWT also its payload and signature parts. | `C1-replay.json`, `C1-browser-replay.png`, `C2-secret-grep.json` (values masked), `E/run1/captured-secrets-masked.json` |
-| AC-T7-11 | OPEN | Run 1 of 3 passed. Runs 2 and 3 follow. | — |
+| AC-T7-11 | PASS | Three consecutive runs passed with `retries: 0`: run 1 (188 s), run 2 (189 s), run 3 (186 s); each 17 passed, 0 failed. Section 5. | `E/run1/tests.json`, `F/run1/tests.json`, `F/run2/tests.json`, `F/summary.json` |
 | AC-T7-12 | PASS (run 1) | Screenshots: grader reports (101, 102), completion (course pages), portal Results (SCORM, HTML, library B, Thanh), Moodle tool settings (both tools: Manage tools card and edit form). Playwright traces for every test. Run times: section 3. | `E/run1/evidence/`, `E/run1/playwright/*/trace.zip` |
 | AC-T7-13 | PASS | At the start and at the end, the three `/healthz` answered 200 with `"profile":"default"` and `"knobs":[]`. No `test_knob_active` event in the run's logs. The end check of `qa-suite.sh` also passed (exit 0). | `health-start.json`, `health-end.json` |
 | AC-T7-14 | PASS | The wizard showed 6 dynamic steps; their `data-step-id` values equal the ids in `moodle-steps.json`. QA followed each step on the live Moodle 5.2.4 site: the menu path by clicks (Site administration → tab Plugins → Activity modules → External tool → Manage tools), then Add LTI Advantage, the Cogniate panel and Connect, Pending and Activate, and Edit with "Tool configuration usage", "Show in activity chooser and as a preconfigured tool", "Default launch container", "New window", "Save changes". Every label is on the page where the step says. No difference. The optional step `choose-register-new` did not apply: after `e2e:reset` no other tool exists, so Moodle did not show the choice page, and its label was not checked in this run. | `A2-steps.json`, `A2-label-diffs.json` (empty), `A2-manage-tools.png`, `A2-cogniate-confirm.png`, `A2-after-connect.png` |
-| AC-T7-15 | OPEN | The demo pass (`e2e:reset`, timed `npm run demo:prepare`, `cg_student` reaches the player in both activities) runs after runs 2 and 3. | — |
+| AC-T7-15 | PASS | After a fresh `e2e:reset` (36 s), `npm run demo:prepare` ended with exit 0 in 9.3 s (limit 3 min; it prints "Demo ready in 8 s"). Then `cg_student` opened both activities from the course page; each reached `/play/ply_…` (166 ms, 109 ms) and the course package loaded in the player. Section 5. | `F/demo/evidence/demo-launches.json`, `F/demo/evidence/demo-player-3.png`, `F/demo/evidence/demo-player-4.png`, `F/cmd/` (demo-prepare log) |
 
 B-T6-01 (the wizard had no edit step) is closed: at `1639c7e` the wizard shows `edit-tool-settings`, and A2 followed it with no label difference.
 
@@ -71,3 +71,20 @@ Not seen in this run: the old Moodle button text "Register as a new tool" on the
 - The chooser option sometimes opens the activity form at the first click (before the chooser script takes the click), and sometimes only selects it (then "Add" opens the form). The suite accepts both.
 - Secrets: qa.md and the JSON evidence show no secret values (first 6 characters and the length only). The Playwright traces of this throwaway stack contain raw tokens; they stay in the git-ignored artifacts.
 - Suite design: each scenario step is one Playwright test; later steps read the run state from `tests/e2e/artifacts/state.json`. So one failed check does not hide the later steps.
+
+## 5. Runs 2 and 3, and the demo pass
+
+Runner: the same command with `--runs 2 --demo` at the same SHA and with the same suite (`--replace-e2e`, the same 3 files as run 1). New clone `~/cogniate-qa-runs/qa-e2e-r1-1639c7ee-2026-10-19T02-37-10-943Z`, the same project, port and subnet. After the demo pass the stack was removed: 0 containers, 0 volumes, 0 networks.
+
+| Run | `npm run test:e2e` | `e2e:reset` | Tests | Grade latency (s): `cg_student` SCORM, HTML, 102; `cg_student2` SCORM | C2 (captured / found in logs) | AC-T7-14 label differences |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 (`E/run1`) | exit 0, 188 s | 41 s | 17 pass, 0 fail, 1 skip (DEMO) | 3.9, 3.8, 3.8; 0 | 28 / 0 | none |
+| 2 (`F/run1`) | exit 0, 189 s | 41 s | 17 pass, 0 fail, 1 skip (DEMO) | 3.8, 3.8, 3.8; 0 | 28 / 0 | none |
+| 3 (`F/run2`) | exit 0, 186 s | 43 s | 17 pass, 0 fail, 1 skip (DEMO) | 3.8, 3.4, 3.9; 0 | 28 / 0 | none |
+
+In every run: connection A `registered` after A2 and `connected` after A4, connection B `registered` after B2; pickers A4 = Thanh's two courses, B4 = only the library B course, B5 = Thanh's two courses; the only manual-form difference is Q-T7-01; Q-T7-03 (DOM click on the HTML lesson link) in A5 and B6.
+
+Demo pass (AC-T7-15): `npm run e2e:reset` exit 0 in 36 s; `npm run demo:prepare` exit 0 in 9.3 s. Its output lists the steps (dynamic connection, Connect, activate with "Show in activity chooser" and "New window", upload and publish, two activities with grade 100 and completion "Receive a grade", teacher preview check) and the activity URLs `…/mod/lti/view.php?id=3` and `id=4`. Then `E2E_RESET=0 QA_E2E_DEMO=1 QA_GREP=AC-T7-15 npm run test:e2e`: the DEMO test passed (2.5 s); `cg_student` reached the player with the course package in both activities.
+
+Build Runner note (Lead heads-up about `1639c7e`): the collected service logs (`infra/.logs/*.jsonl`) and command output of both runner calls have no `build_leftover_removed` event. The T7 suite does not use the Build Runner. A later run will use a SHA ≥ `8b4442b`.
+
