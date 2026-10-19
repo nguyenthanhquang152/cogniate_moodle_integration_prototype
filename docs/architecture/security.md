@@ -220,7 +220,12 @@ All outbound HTTP of both services goes through one client in `packages/shared` 
 | Interface | Files in `infra/.data/build-queue/`: the app writes only to `requests/`; it reads `status/` and `out/`, which are read-only for it. |
 | Isolation | Each build runs a throwaway Moodle + Postgres on an **internal** Docker network (no internet, no link to the main stack). |
 | Image | A derived image `cogniate-build-moodle:v5.2.4` with Moodle's PHP packages baked in, so a build needs no internet. |
-| Input | The SCORM zip is copied in read-only; the package is untrusted data like any upload. |
+| Input | The package is untrusted data like any upload. The runner finds the zip by its sha256 in the app's upload store (no path from the request is used), copies it into a new empty folder and mounts it read-only. |
+| Request files (A-T8-01) | The runner opens a request with no-follow and no-block flags (`O_NOFOLLOW`, `O_NONBLOCK`) and checks it with `fstat`: only a regular file of the runner's user, at most 4 KB. A symlink, FIFO or device is refused (never read, never waited on) and logged as `request_rejected`. It takes only names `bld_<24 hex>.json`. Every field is checked against a strict pattern. The app writes each request atomically (temporary file + rename, mode `0600`). |
+| Backup copy (A-T8-01) | `docker cp` copies a symlink as a symlink (it never follows it), into a new empty folder. The runner then accepts the `.mbz` only as a regular file (`lstat`: no symlink, no special file), 18 B to 2 GB, with the gzip magic bytes, and writes it into `out/` with exclusive create (it fails if the target exists, also a planted symlink). Else the build is `failed` ("The backup was refused: …"). |
+| Single runner | One runner per queue (lock file `build-queue/.runner.pid`). A second runner is refused, because its start-up clean-up would remove the first runner's build. |
+| Limits | At most 2 active builds per library (`409 MBZ_BUILD_LIMIT`). A build with no progress for 10 min becomes `failed` (app contract §11). |
+| Clean-up | At start and on `stack:reset`: interrupted builds become `failed`; leftover `cogniate-build-*` containers, volumes, networks and work folders are removed. On `TERM`/`INT` the current build is removed and marked `failed`. |
 
 ## 11. Privacy and logs
 

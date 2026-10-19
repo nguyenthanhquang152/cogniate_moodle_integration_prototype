@@ -388,11 +388,33 @@ Native `.mbz` (SCORM course versions only):
 
 | Method and path | Request | Success / errors |
 | --- | --- | --- |
-| `POST /app-api/courses/:courseId/versions/:versionId/mbz` | — | `202` MbzBuild (`status: queued`). An HTML version → `422 MBZ_NOT_SUPPORTED`. |
+| `POST /app-api/courses/:courseId/versions/:versionId/mbz` | — | `202` MbzBuild (`status: queued`). If the newest build of this version still waits or runs, `202` with that build (no new build). An HTML version → `422 MBZ_NOT_SUPPORTED`. Two builds of the library already `queued` or `running` → `409 MBZ_BUILD_LIMIT` (at most 2 active builds per library, so one library cannot fill the single build queue). |
 | `GET /app-api/courses/:courseId/versions/:versionId/mbz` | — | `200` MbzBuild of the newest build, or `404` if none |
 | `GET /app-api/courses/:courseId/versions/:versionId/download?kind=mbz` | — | `200 application/vnd.moodle.backup` when the newest build is `ready`; `404` until then |
 
-MbzBuild: `{ buildId, status, step, reason, bytes, createdAt, finishedAt, downloadUrl }`. `status`: `queued`, `running`, `ready`, `failed`. `step`: the current or failed step (for example `backup`). `reason`: plain text when `failed`, else `null`. `bytes` and `downloadUrl`: set when `ready`, else `null`.
+MbzBuild: `{ buildId, courseId, versionId, status, step, reason, bytes, createdAt, updatedAt, finishedAt, downloadUrl }`. `status`: `queued`, `running`, `ready`, `failed`. `step`: the current or failed step (`start`, `course`, `scorm`, `backup`, `copy`; `done` when `ready`). `reason`: plain text when `failed`; while a build is `queued` for more than 60 s, a hint why it waits (the Build Runner is not running, makes its image, or the build waits in the queue; from the runner heartbeat); else `null`. `bytes` and `downloadUrl`: set when `ready`, else `null`. A `ready` or `failed` build does not change any more.
+
+Build time-out (B-T8-01): a build with no progress for **10 min** becomes `failed`, so a new request starts a fresh build. "No progress" = the runner's status file for the build is not updated for 10 min, or the runner did not take the request in 10 min. The `reason` says which (for example "The Build Runner did not finish this build (no progress for 10 min). Build again."). A held build (`BUILD_RUNNER_HOLD`) is not timed out: the runner updates its status every 30 s while it waits. A build that the time-out made `failed` does not count for `MBZ_BUILD_LIMIT`.
+
+Build Runner (host side, ADR-007, security §10a): one runner per queue (single-runner rule: lock file `infra/.data/build-queue/.runner.pid`; a second `watch`, `once` or `sweep` is refused and exits `1`; a dead pid, or a pid that is now another program, does not count). It writes a heartbeat `status/runner.json` `{ pid, startedAt, lastSeenAt, image }` (`image`: `missing`, `building`, `ready`, `failed`); the app treats a heartbeat older than 30 s as "not running". At start (and on `stack:reset`) it marks interrupted builds `failed`, removes their work folders and every leftover `cogniate-build-*` container, volume and network. On `TERM` or `INT` during a build it removes the build project and marks the build `failed`.
+
+Build Runner log events: JSON lines with `service: build-runner`, in `infra/.logs/build-runner.jsonl` (`stack:up` writes the runner's stdout there). `trace_id` = the build id for build events, else the runner boot id (`runner-` + 12 hex).
+
+| Event | Level | Fields |
+| --- | --- | --- |
+| `runner_started` | info | `pid`, `queue` |
+| `runner_refused` | error | `other_pid` (single-runner rule) |
+| `runner_stopping` | info | — |
+| `image_build` | info | `image` |
+| `image_build_failed` | error | `image`, `detail` |
+| `request_rejected` | warn | `file`, `detail` (a request file that fails the A-T8-01 checks) |
+| `build_started` | info | `course_id`, `version_id` |
+| `build_step` | info | `step` |
+| `build_hold` | info | `hold_file` |
+| `build_ready` | info | `bytes` |
+| `build_failed` | warn | `step`, `reason` (also for builds that the start-up sweep or a stop marks failed) |
+| `build_leftover_removed` | warn | `project` |
+| `build_error` | error | `file` (an unexpected error in one build; the runner goes on with the next request) |
 
 Course shell (web services):
 

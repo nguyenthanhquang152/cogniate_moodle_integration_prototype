@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # T8 (stretch) review — Reviewer-B (lens: "Can a human team own it?")
 
@@ -75,3 +75,35 @@ Scope: `git diff 48c725d c9e26da -- . ':!docs' ':!tests'` (34 files): host-side 
   - `build-runner.sh` usage line: "Usage: build-runner.sh [watch | once <request.json>]" does not name the existing `image` command. Add it.
   - `teardown()` waits for the hold file with `while [[ -e … ]]; do sleep 2; done` and no limit. A forgotten `BUILD_RUNNER_HOLD=1` blocks the single-threaded runner, and so every other build. Add a maximum (for example 30 min), then go on and log it.
   - The failing test on main (`apps/portal/src/server.test.ts`, `download?kind=mbz`) is the cogniate-app route test that sits in the portal workspace (B-T6-04). A change in cogniate-app (T8) broke a test in `apps/portal`. Moving it next to `courses.ts` keeps each task's tests in its own workspace.
+
+---
+
+## Round 2
+
+Round 2 verdict: **APPROVE**. No open BLOCKER or MAJOR finding.
+
+Input: `git diff 16507ac b5ee0ea -- infra services ':!infra/scripts/stack-doctor.sh' ':!infra/scripts/demo-users.sh'` (19 files).
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| B-T8-01 (MAJOR) | **Resolved** | `build-runner.sh` traps TERM and INT and runs the long commands as background jobs (`bg …`), so the trap runs at once and tears down the current `cogniate-build-*` project. It writes the failed status with `STOPPED_REASON` ("The Build Runner stopped during the build. Start it again (npm run stack:up) and build again."). At start, and in the new `sweep` command (which `stack:reset` now runs), interrupted builds in `processing/` are marked failed and every leftover `cogniate-build-*` container, volume and network is removed. A lock file (`build-queue/.runner.pid`) refuses a second runner (its sweep would kill the first runner's build). The app fails a build with no progress for 10 min (`STALE_BUILD_MS`), so `POST …/mbz` can start a new one. `native.test.ts` grew by about 97 lines for these paths. |
+| B-T8-02 | **Resolved** | `start_build_runner` prints "Build Runner started" only when the pid is alive **and** `status/runner.json` exists. Otherwise it prints "ERROR: the Build Runner did not start (it stopped at once) …", the last five log lines and the fix. The heartbeat `{pid, startedAt, lastSeenAt, image}` drives the app hints: "not running …", "cannot make its build image … run npm run build-runner image", "making its build image (once, about 20 s)". The log is JSON lines in `infra/.logs/build-runner.jsonl` (stderr in `build-runner.err.log`). |
+| B-T8-03 (NIT) | Partly | The usage line now names `image` and `sweep`. Still open, safe to defer: the hold wait has no time limit (test-only knob). |
+
+## Readiness (`f26ffbf`): `npm run stack:doctor`, `npm run demo:users`, host names in one place
+
+Judged as a Vietnamese product person who runs the stack by hand. I ran `stack:doctor` against the live stack (it changes nothing). Result: 20 `OK` lines and one `INFO`, then "Result: all checks OK.", exit 0. I ran `demo:users` with passwords masked in my notes, although the script prints none.
+
+- **`stack:doctor`: very good.**
+  - One line per check, with `OK`, `FIX` or `INFO`, then a one-line result and exit 1 when something needs a fix.
+  - It covers Docker (running, memory, CPUs), Node and npm packages, `.env` and URLs, certificates (days left, names), port, subnet, images, fixtures, each service's health, the Build Runner, test knobs, the profile, seeding, and how to browse the names.
+  - Every `FIX` has **one** concrete next action in short STE sentences, mostly the exact command: "Run: npm ci"; "Docker Desktop > Settings > Resources > Memory: set 6 GB or more, then Apply & restart."; "Set STACK_SUBNET in .env to a free range (for example 172.29.0.0/16), run npm run gen-env, then npm run stack:up."
+  - Two small points (NIT):
+    1. The test-knob fix says "for each service in .tmp/compose.knobs.yaml". Print the service names in the line (the doctor can read the file), so nobody must open a hidden file.
+    2. Only the stack *leaf* certificate is checked for expiry. Also check `infra/.certs/root.crt` (365 days), with "delete infra/.certs/, run npm run gen-env, then npm run stack:up (and trust the new CA again if you trusted it)".
+- **`demo:users`: clear.**
+  - It shows the web addresses (with "no page to open" for the LTI and content hosts, and "open them with npm run demo:browser"), the Moodle users with roles and courses, the portal users with libraries, where the passwords are (the `.env` variable name for each user, and `seed.json`), and the direct Moodle activity links.
+  - It never prints a password. That is a safe default, but a product person must then open `.env`, which Finder hides.
+  - Suggestion (NIT): add a local-only opt-in, for example `npm run demo:users -- --copy cg_teacher` (copies one password with `pbcopy`) or `--show-passwords` (with a WARNING line that these are local dev values).
+- **Host names in one place (B-T1-10): resolved.** `lib.sh` defines and exports `MOODLE_HOST`, `LTI_HOST`, `APP_HOST`, `CONTENT_HOST` and `STACK_HOSTS`. `gen-env`, `gen-certs`, `demo-browser` and the doctor use them, and the compose aliases read `${MOODLE_HOST:-moodle.test}` (and so on). The only other place is the compose fallback default, which is fine.
+
