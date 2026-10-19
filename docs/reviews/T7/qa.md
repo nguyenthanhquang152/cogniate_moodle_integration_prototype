@@ -121,3 +121,18 @@ Command: `… node tests/e2e/host/run-t7.mjs --sha 2129b69 --runs 1 --check-conf
 | Teardown | PASS | 0 containers, 0 volumes, 0 networks of `qa-e2e-r1` left. No `build_leftover_removed` event in the collected logs. | `G/cmd/12-stack-down.log` |
 
 The same checks also passed at `63de503` (`tests/e2e/artifacts/runs/qa-e2e-r1-63de503-2026-10-19T03-05-23-440Z/`: `test:e2e` 180 s, both "no" checks, `demo:prepare` 8.2 s).
+
+## 8. Final-candidate run (`8059c31`)
+
+`8059c31` has all merged fixes (`.mbz` build race, runner lock, grade guard P2/P5, player status text P11, register timeout P1, fail-closed reset A-T7-04). The runner adds the A-T7-04 check to `--check-confirm` (committed in `fd84156`).
+
+Command: `… node tests/e2e/host/run-t7.mjs --sha 8059c31 --runs 1 --check-confirm --demo --replace-e2e`. Fresh clone `~/cogniate-qa-runs/qa-e2e-r1-8059c31-2026-10-19T09-03-48-868Z`, project `qa-e2e-r1`, port 8543, subnet 172.31.0.0/16. Evidence: `H` = `tests/e2e/artifacts/runs/qa-e2e-r1-8059c31-2026-10-19T09-03-48-868Z/`.
+
+| Check | Result | What QA saw | Evidence |
+| --- | --- | --- | --- |
+| `npm run test:e2e -- --yes` (AC-T7-01 to -14) | PASS | Exit 0 in 187 s (`e2e:reset` 42 s). 17 pass, 0 fail, 1 skip (DEMO). No AC-T7-14 label difference, no manual-form difference, no finding. Grades in Moodle 3.8 s after each completion. C2: 45 captured values of 9 kinds, 0 in the logs. Connection A `registered` → `connected`, B `registered`. | `H/run1/tests.json`, `H/run1/evidence/` |
+| P11 player status text | PASS | When the attempt's score equals Moodle's score, the text did not change: "Completed — score 100 sent to Moodle" (A5, B6) and "Completed — score 0 sent to Moodle" (A6) matched exactly. No T7 scenario does a lower retake, so the new text "Completed — score X. Moodle keeps your best score: Y" does not show in T7. | A5, A6, B6 in `H/run1/tests.json` |
+| B-T7-01 "no" in a terminal (`e2e:reset`, `test:e2e`) | PASS | Asks, gets "no", "Stopped. Nothing was deleted.", exit 1, stack unchanged. | `H/cmd/07-…`, `H/cmd/08-…` |
+| A-T7-04 fail closed: no terminal, no `--yes`, no `E2E_CONFIRM` (`e2e:reset`, `test:e2e`) | PASS | With stack data present, each command printed the WARNING and "No terminal to ask. Run it with -- --yes, or E2E_CONFIRM=1. Nothing was deleted.", exit 1. Snapshot before and after the same (5 containers with the same ids and start times, 3 volumes, `seed.json`, data folders, log files). | `H/cmd/09-no-terminal-e2e-reset.log`, `H/cmd/10-no-terminal-test-e2e.log`, `H/summary.json` (`confirm`) |
+| AC-T7-15 `demo:prepare` | PASS | After `e2e:reset -- --yes` (49 s): `demo:prepare` exit 0 in 8.6 s; `cg_student` reached the player with the course package in both activities. | `H/cmd/12-demo-prepare.log`, `H/demo/evidence/` |
+| Teardown | PASS | 0 containers, 0 volumes, 0 networks of `qa-e2e-r1`. No `build_leftover_removed` event in the collected logs. | `H/cmd/14-stack-down.log` |
