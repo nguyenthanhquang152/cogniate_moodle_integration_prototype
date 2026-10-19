@@ -20,7 +20,10 @@ export type HostAction =
   | 'build-inspect'
   | 'build-release'
   | 'build-leftovers'
-  | 'moodle-restore';
+  | 'moodle-restore'
+  // C-T8-02 (Lead): stop the stack's Build Runner, then start two at the same moment
+  | 'runner-stop'
+  | 'runner-race';
 
 export interface HostAnswer {
   action: HostAction;

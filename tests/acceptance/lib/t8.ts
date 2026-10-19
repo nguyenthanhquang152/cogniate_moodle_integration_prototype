@@ -4,11 +4,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
 import type { Frame, Page } from '@playwright/test';
-import { APP, appApi, type Session } from './app';
+import { APP, appApi, createCourse, type Session, uploadVersion } from './app';
 import { publicUrls } from './env';
 import { CONTROL_DIR, type HostAction, hostAction } from './host-control';
 import { httpsRequest } from './https';
 import { loadState, saveState } from './lti';
+import { blankScoZip } from './t5';
 
 const urls = publicUrls();
 export const LESSON = 'lesson-ai-web-sprint';
@@ -213,3 +214,11 @@ export async function noLeftovers(timeoutMs = 90_000): Promise<Leftovers | null>
   }
 }
 
+
+/** A new QA course with one blank SCO version (a fast build); returns the course and version ids. */
+export async function newBlankVersion(s: Session, title: string): Promise<{ courseId: string; versionId: string }> {
+  const course = await createCourse(s, title);
+  const up = await uploadVersion(s, course.id, blankScoZip());
+  if (up.status !== 201) throw new Error(`upload for "${title}": HTTP ${up.status} ${up.body.slice(0, 200)}`);
+  return { courseId: course.id, versionId: String((up.json as { id?: string }).id ?? '') };
+}

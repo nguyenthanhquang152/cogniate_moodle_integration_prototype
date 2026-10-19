@@ -11,6 +11,9 @@
 //    without a knob (AC-T8-02, -04, -05, -06, -08, -09, -10).
 // 3. Knob pass BUILD_RUNNER_HOLD=1 (stack:restart -- cogniate-app --env …): AC-T8-03; restore.
 // 4. Knob pass BUILD_RUNNER_FAIL_AT=backup: AC-T8-07; restore (knobs: []).
+// Audit items (Lead): pass "races" (C-T8-01, after the main pass) and pass "runner-race" (C-T8-02, last: the host stops
+// the stack's runner, then starts two runners at the same moment). --passes selects passes (a setup pass runs when
+// "main" is not selected).
 // During every pass the runner answers the T8 host actions of the tests (tests/acceptance/lib/host-control.ts), only
 // these, only for this QA project (build items are found by the label org.cogniate.stack=<project>):
 //   build-inspect   AC-T8-03: docker network inspect of this stack's build network, the networks of its containers,
@@ -19,12 +22,21 @@
 //   build-leftovers AC-T8-03, -07: docker ps -a, volume ls, network ls for cogniate-build-* of this stack.
 //   moodle-restore  AC-T8-05: docker cp of QA's downloaded .mbz into the stack Moodle, then
 //                   admin/cli/restore_backup.php --file=<mbz> --categoryid=1 (the step that the AC names).
+import { spawn } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRunner } from './core.mjs';
 
-const r = createRunner({ task: 'T8', defaultProject: 'qa-t8-r1' });
+const r = createRunner({
+  task: 'T8',
+  defaultProject: 'qa-t8-r1',
+  extraOptions: { passes: { type: 'string', default: 'main,races,hold,fail,runner-race' } },
+  extraHelp: '  --passes <list>              main, races (C-T8-01), hold (AC-T8-03), fail (AC-T8-07), runner-race (C-T8-02, last).\n',
+});
+const PASSES = r.opt.passes.split(',').map((x) => x.trim());
+const spawnedRunners = [];
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 const ZIPS = [
   { name: 'Build Your First Website with AI_ The Zero-to-Hero Micro-Sprint-scorm-v2.zip', sha256: 'a685744e5fd9de21c203c3b2f47916ef1079532196ed870df89a00ab8ee76df7' },
   { name: 'Build Your First Website with AI_ The Zero-to-Hero Micro-Sprint-html.zip', sha256: '9f04d3abd65f85e362b2dca5207cc4b86ffa286e4b1a73923c157b69321f3f6d' },
@@ -119,7 +131,9 @@ const ACTIONS = {
     return { code: 0, out: writeOut(`t8-inspect-${req.id}.json`, { project: r.PROJECT, networks: nets, dns }) };
   },
   'build-release': async (req) => {
-    const target = path.resolve(String(req.holdFile ?? ''));
+    // build_hold names the flag file relative to the stack's repo root (infra/.data/build-queue/hold/<id>).
+    const given = String(req.holdFile ?? '');
+    const target = path.isAbsolute(given) ? given : path.join(r.CLONE, given);
     const allowed = [path.join(r.CLONE, 'infra', '.data'), path.join(fs.realpathSync(r.CLONE), 'infra', '.data')];
     let real = target;
     try {
@@ -134,6 +148,54 @@ const ACTIONS = {
   'build-leftovers': async (req) => {
     const data = { project: r.PROJECT, containers: await buildItems('container'), volumes: await buildItems('volume'), networks: await buildItems('network') };
     return { code: 0, out: writeOut(`t8-leftovers-${req.id}.json`, data) };
+  },
+  'runner-stop': async (req) => {
+    const pidFile = path.join(r.CLONE, 'infra', '.data', 'build-queue', '.runner.pid');
+    const pid = Number((fs.existsSync(pidFile) ? fs.readFileSync(pidFile, 'utf8') : '').match(/\d+/)?.[0] ?? 0) || null;
+    let stopped = false;
+    if (pid) {
+      try {
+        process.kill(pid, 'SIGTERM');
+      } catch {}
+      for (let i = 0; i < 60 && !stopped; i++) {
+        try {
+          process.kill(pid, 0);
+          await sleep(1_000);
+        } catch {
+          stopped = true;
+        }
+      }
+    }
+    return { code: stopped ? 0 : 6, out: writeOut(`t8-runner-stop-${req.id}.json`, { pid, stopped }) };
+  },
+  'runner-race': async (req) => {
+    const start = (label) => {
+      const outFile = path.join(CONTROL(), `t8-runner-${label}-${req.id}.jsonl`);
+      const fd = fs.openSync(outFile, 'a');
+      const child = spawn('bash', ['infra/scripts/build-runner.sh', 'watch'], { cwd: r.CLONE, env: r.STACK_ENV, detached: true, stdio: ['ignore', fd, fd] });
+      const info = { label, pid: child.pid, alive: true, exitCode: null, outFile };
+      child.on('exit', (code) => {
+        info.alive = false;
+        info.exitCode = code;
+      });
+      child.unref();
+      spawnedRunners.push(child.pid);
+      return info;
+    };
+    const both = [start('a'), start('b')]; // the same tick
+    const read = (f) => lines(fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : '').map((l) => { try { return JSON.parse(l); } catch { return { raw: l.slice(0, 200) }; } });
+    const buildId = String(req.buildId ?? '');
+    const deadline = Date.now() + 300_000;
+    await sleep(10_000);
+    while (Date.now() < deadline) {
+      const ev = both.flatMap((x) => read(x.outFile));
+      if (!buildId || ev.some((e) => (e.event === 'build_ready' || e.event === 'build_failed') && e.trace_id === buildId)) break;
+      await sleep(3_000);
+    }
+    const pidFile = path.join(r.CLONE, 'infra', '.data', 'build-queue', '.runner.pid');
+    const lockPid = Number((fs.existsSync(pidFile) ? fs.readFileSync(pidFile, 'utf8') : '').match(/\d+/)?.[0] ?? 0) || null;
+    const runners = both.map((x) => ({ label: x.label, pid: x.pid, alive: x.alive, exitCode: x.exitCode, events: read(x.outFile) }));
+    return { code: 0, out: writeOut(`t8-runner-race-${req.id}.json`, { runners, lockPid }) };
   },
   'moodle-restore': async (req) => {
     const name = String(req.mbz ?? '');
@@ -194,7 +256,7 @@ async function withHostControl(label, fn) {
     await fn();
   } finally {
     const log = stop();
-    r.record('HOSTCTL', `Host actions asked for by the ${label} tests (whitelist: build-inspect, build-release, build-leftovers, moodle-restore)`, 'PASS', log.length ? log : ['none']);
+    r.record('HOSTCTL', `Host actions asked for by the ${label} tests (whitelist: build-inspect, build-release, build-leftovers, moodle-restore, runner-stop, runner-race)`, 'PASS', log.length ? log : ['none']);
   }
 }
 
@@ -215,9 +277,24 @@ async function knobPass(name, value, ac) {
 await r.main(async () => {
   if (!(await setup())) return;
   if (!copyFixtures()) return;
-  await withHostControl('T8 main', () =>
-    r.containerSuite('T8', { env: { QA_TASK: 'T5a,T8', QA_GREP: `SETUP-T5a|${MAIN.join('|')}` }, expectIds: MAIN.filter((x) => x.startsWith('AC-')) }),
-  );
-  await knobPass('BUILD_RUNNER_HOLD', '1', 'AC-T8-03');
-  await knobPass('BUILD_RUNNER_FAIL_AT', 'backup', 'AC-T8-07');
+  try {
+    if (PASSES.includes('main')) {
+      await withHostControl('T8 main', () =>
+        r.containerSuite('T8', { env: { QA_TASK: 'T5a,T8', QA_GREP: `SETUP-T5a|${MAIN.join('|')}` }, expectIds: MAIN.filter((x) => x.startsWith('AC-')) }),
+      );
+    } else {
+      await r.containerSuite('T8-setup', { env: { QA_TASK: 'T5a,T8', QA_GREP: 'SETUP-T5a|SETUP-T8' }, expectIds: [] });
+    }
+    if (PASSES.includes('races')) await withHostControl('C-T8-01', () => r.containerSuite('races', { env: { QA_TASK: 'T8', QA_GREP: '(?<!A)C-T8-01' }, expectIds: ['C-T8-01'], fresh: false }));
+    if (PASSES.includes('hold')) await knobPass('BUILD_RUNNER_HOLD', '1', 'AC-T8-03');
+    if (PASSES.includes('fail')) await knobPass('BUILD_RUNNER_FAIL_AT', 'backup', 'AC-T8-07');
+    if (PASSES.includes('runner-race')) await withHostControl('C-T8-02', () => r.containerSuite('runner-race', { env: { QA_TASK: 'T8', QA_GREP: '(?<!A)C-T8-02' }, expectIds: ['C-T8-02'], fresh: false }));
+  } finally {
+    // Runners that the runner-race pass started: stop them (process group) before the teardown.
+    for (const pid of spawnedRunners) {
+      try {
+        process.kill(-pid, 'SIGTERM');
+      } catch {}
+    }
+  }
 });

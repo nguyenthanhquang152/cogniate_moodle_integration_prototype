@@ -22,11 +22,18 @@ async function coursesByIdnumber(value: string) {
   return (await callWs<{ courses: { id: number; idnumber: string; visible: number; shortname: string }[] }>(seed().oracleToken, 'core_course_get_courses_by_field', { field: 'idnumber', value })).courses;
 }
 
+/** Opens the Publish dialog and chooses Thanh's connection (the dialog starts with "Choose a connection"). */
 async function openPublishDialog(page: Page, courseId: string) {
+  const thanh = await signIn(THANH);
+  const conn = await appApi<{ name: string; siteUrl: string }>('GET', `/app-api/connections/${encodeURIComponent(String(t5().connectionId))}`, { cookie: thanh.cookie });
   await page.goto(`${APP}${PORTAL_ROUTES.course(courseId)}`);
   await page.getByRole('button', { name: /Publish to Moodle/ }).or(page.getByRole('link', { name: /Publish to Moodle/ })).first().click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
+  const select = dialog.getByRole('combobox', { name: 'Moodle connection' });
+  const label = await select.locator('option').evaluateAll((opts, name) => opts.map((o) => o.textContent ?? '').find((t) => t.startsWith(`${name} ·`)) ?? '', conn.json.name);
+  expect(label, `option for the connection "${conn.json.name}"`).toBeTruthy();
+  await select.selectOption({ label });
   return dialog;
 }
 
@@ -49,7 +56,7 @@ test.describe.serial('T8 course shell (web services)', () => {
     const conn = await appApi<{ webServices?: unknown }>('GET', `/app-api/connections/${encodeURIComponent(String(t5().connectionId))}`, { cookie: thanh.cookie });
     expect(conn.json.webServices ?? null, 'the connection has no web services token yet').toBeNull();
     const dialog = await openPublishDialog(page, String(t8().shellUi?.courseId));
-    await expect(dialog.getByText(/Thanh|Moodle/).first()).toBeVisible();
+    await expect(dialog.getByRole('button', { name: /^Publish/ }).last(), 'the dialog is ready with the connection chosen').toBeVisible();
     expect(await dialog.getByLabel(CHECKBOX).count(), 'no checkbox without a token').toBe(0);
     expect(await dialog.getByText(CHECKBOX).count()).toBe(0);
     await page.keyboard.press('Escape');
