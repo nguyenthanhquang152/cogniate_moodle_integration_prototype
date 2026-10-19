@@ -66,7 +66,9 @@ Manual values (shown in the portal; URLs from `PUBLIC_LTI_URL`, account `cogniat
 | IMS LTI Names and Role Provisioning | Use this service to retrieve members' information as per privacy settings |
 | Share launcher's name with tool | Never |
 | Share launcher's email with tool | Never |
-| Accept grades from the tool | Delegate to teacher |
+| Accept grades from the tool | As specified in Deep Linking definition or Delegate to teacher |
+
+The grade option uses the exact Moodle 5.2.4 label (Q-T7-01), as in [app contract §4.1](../contracts/cogniate-app-api.md#41-tool-configuration-rows-manual-registration).
 
 The admin sends back: Platform ID (issuer), Client ID, Deployment ID, Public keyset URL, Access token URL, Authentication request URL. The last three must be on the issuer origin.
 
