@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # T3c review — Reviewer-B (lens: "Can a human team own it?")
 
@@ -85,4 +85,37 @@ Input: `git diff 963cb5e^1 963cb5e -- . ':!docs' ':!tests'` (15 files, Author-2 
 | B-T3c-02 | **Resolved** | The `compat.ts` header lists the endpoints with contract §3.2, §3.5, §3.7 and §3.10. The `as unknown as` cast is gone. `platformResponseError(res, { echoMessage: false })`. `DELETE /api/platforms/:id` logs `platform_deleted {platform_id}`. |
 
 Rest (NIT, safe to defer): when the image build fails, the script prints the one-line message but deletes the captured build log (`trap 'rm -f "$build_log" …'`), so the pip error is lost. Print the last 20 lines of `$build_log` before the message, or keep the file and print its path.
+
+---
+
+## Round 3
+
+Round 3 verdict: **APPROVE**. One new MINOR (B-T3c-03), safe to fix later.
+
+Input: `git diff 1639c7e^1 1639c7e -- services` (8 files, Author-2 / Codex: "ltiaas 0.0.4 tolerances; real SDK passes"). Contract §8 now lists them as D14 (tolerances) and D15 (raw line item ids).
+
+**Tests:** Good. `compat.test.ts` (+162 lines) checks each tolerance, and also that it does not go further than needed:
+- only *leading* slashes are folded (`/api//idtoken` and `//api/idtoken//` stay `404`);
+- `services.outcomes` is `{available: false}` with and without AGS;
+- one or two encoding layers work on every line item route with both auth schemes, and the upstream URL is exact;
+- double-encoded URL violations (`%2F`, `%5C`, `%2E`, `%25`, `..`, `.`, another context, another or missing `type_id`) and triple-encoded ids are refused with `INVALID_LINE_ITEM_ID` **before** any outbound call;
+- a `null` score comment is not sent upstream.
+
+### B-T3c-03 — MINOR — The SDK tolerances are in six files, and only some comments cite the SDK and contract §8
+
+- **Location:**
+
+  | File | Tolerance | Comment |
+  | --- | --- | --- |
+  | `services/lti-service/src/http/app.ts` | `rewriteUrl` (leading `//`) | cites "Contract §1.4" |
+  | `http/validation.ts` | `decodeLineItemId` | "Accept one SDK encoding layer", no §8 |
+  | `http/routes/services.ts` | `ScoresQuery` `user_id` alias | none |
+  | `lti/deep-linking.ts` | `null` url and custom | generic, no SDK and no §8 |
+  | `platform/ags.ts` | `null` comment | none |
+  | `lti/idtoken.ts` | `outcomes: {available: false}` | — |
+
+- **Problem:** A maintainer who wants to know "what do we accept only because of the ltiaas 0.0.4 SDK?", or who wants to remove a tolerance when the SDK is fixed, cannot find the list in the code. Contract §8 D14 has it, but the code sites do not point back to D14 in the same way.
+- **Suggested fix (either one):**
+  1. Put the request-side tolerances in one module, for example `http/ltiaas-tolerances.ts` (path fold, `user_id` alias, `null` → absent for `url`, `custom` and `comment`, one extra decode layer), applied at the edge, with one header that cites "ltiaas 0.0.4 SDK, contract §8 D14/D15".
+  2. Or keep them in place, but mark each site with the same tag, for example `// ltiaas-0.0.4 tolerance (contract §8 D14): <what the SDK sends>`, so `grep ltiaas-0.0.4` finds all of them. Group their tests under one `describe('ltiaas 0.0.4 tolerances (contract §8 D14/D15)')`.
 

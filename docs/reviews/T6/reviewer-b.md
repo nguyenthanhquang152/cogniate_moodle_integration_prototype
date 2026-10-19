@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # T6 review — Reviewer-B (lens: "Can a human team own it?")
 
@@ -93,3 +93,26 @@ Scope: `git diff 7bf48b6^1 7bf48b6` (merge of the T6 branch by Author-2 / Codex;
   - The results view says "1 tries". Write "1 try".
   - `Modal` uses a fixed `id="modal-title"`. Use `useId()`.
   - The ErrorNotice special case builds the AC-T6-06 sentence "The package has an unsafe file path: <path>" in the UI. It is better to have the server's `REJECT_INFO` title carry it, so the text has one source.
+
+---
+
+## Round 2
+
+Round 2 verdict: **APPROVE**. No open BLOCKER or MAJOR finding. One new MINOR (B-T6-05).
+
+Input: `git diff 0d1e169 adb0f61 -- apps/portal` (46 files, Author-2 / Codex). `npm run check`: pass, 46 test files, 648 tests. `npm run build`: pass, portal JS 336.3 kB (gzip 103.6 kB), CSS 32.9 kB (gzip 8.1 kB).
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| B-T6-01 (MAJOR) | **Resolved** | `moodle-steps.json` `dynamic` now ends with `edit-tool-settings`: "On the same tool card, click Edit. Set Tool configuration usage to "Show in activity chooser and as a preconfigured tool". Set Default launch container to "New window". Click Save changes." The labels are `Edit`, `Tool configuration usage`, `Show in activity chooser and as a preconfigured tool`, `Default launch container`, `New window`, `Save changes`. So T7 A2 and AC-T7-02 can follow it. |
+| B-T6-02 | **Resolved** (one rest) | Small shadcn-style primitives in `apps/portal/src/ui/` (`button.tsx` with variants and `cn`, `badge`, `card`, `dialog`, `input`, `notice`, `tabs`). `styles.css` is 267 lines with tokens and base only (0 class rules, was 152). The long components are split: `connect/` into `CreateConnection`, `ConnectionSetup`, `ConnectionStatus`, `DynamicSetup`, `ManualSetup`, `MoodleSteps`, `DisconnectDialog`; `courses/` into `CourseDetail`, `CoursePackage`, `Publications`, `UploadForm`. The largest file is now `App.tsx` (398 lines). Rest (NIT): many hard-coded hex values in utilities (for example `text-[#b3a4c6]`, `text-[#cbb9e0]`, `bg-[#292631]`). Map the repeated colors to `@theme` tokens, as the dev portal does. |
+| B-T6-03 | **Resolved** | No `gradeDiffers`, no "not available yet" branch and no `connectionErrors` map remain (search over `apps/portal/src`, tests excluded). The results view shows the server's `gradebook` and `gradebookDiffers`, and the action texts come from the server. |
+| B-T6-04 (NIT) | Partly | The step texts still hold two to four actions each (`edit-tool-settings` has four sentences). The report and evidence files are still in the product folder, now also `T6-ROUND2-REPORT.md` and `evidence/round2-*`. Safe to defer. |
+
+### B-T6-05 — MINOR — The "Manage Moodle" page says "the first launch changes the status to Connected" when it is already Connected
+
+- **Location:** `apps/portal/src/connect/ConnectionStatus.tsx` `ConnectionReady`, line 68 (`<p>The first launch from Moodle changes the status to Connected.</p>`, outside any status check).
+- **Problem:** For a `connected` connection, the page shows the badge "Connected" and the heading "Your library is connected", and then a sentence that says the status will *become* Connected. The user reads two opposite states on one screen. (The Lead saw this on the page.)
+- **Evidence:** The heading and the dynamic steps depend on `connection.status === "registered"`, but line 68 is shown for every status.
+- **Suggested fix:** Show that sentence only when `status === "registered"`. For `connected`, show a fact instead, for example "Last launch from Moodle: <lastLaunchAt>" (the Connection JSON has `lastLaunchAt`). Add one component test for each state.
+

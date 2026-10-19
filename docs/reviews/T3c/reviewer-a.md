@@ -1,9 +1,9 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # T3c review: Reviewer-A (correctness and security)
 
-History: the round 1 verdict was APPROVE (1 MINOR, 1 NIT; below). The round 2 verdict is APPROVE (section "Round 2" at the end).
+History: the round 1 verdict was APPROVE (1 MINOR, 1 NIT; below). The round 2 verdict was APPROVE (section "Round 2"). The round 3 verdict is APPROVE (section "Round 3" at the end).
 
 ## Round 1
 
@@ -88,3 +88,44 @@ Scope: `git diff 963cb5e^1 963cb5e -- . ':!docs' ':!tests'` (15 files). I read t
 Residual (accepted, no finding): the dependencies are pinned by version, not by hash, and the container still has internet access on the default network. Both are acceptable for a test-only container that holds one local dev key.
 
 Round 2 counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT. All round 1 findings are resolved.
+
+## Round 3
+
+Scope: `git diff 1639c7e^1 1639c7e -- services` (8 files: ltiaas 0.0.4 tolerances).
+- I read every change.
+- I ran the **real** `decodeLineItemId` and `isAllowedServiceUrl` (the working-tree files are identical to `1639c7e`) on 22 crafted inputs. The script ran from a new temporary folder with Node 24 and was deleted afterwards.
+- I did not read `reviewer-b.md`.
+
+### Bounded second decode of `:lineItemId` (Lead-approved): no break found
+
+- Design check: `decodeLineItemId` decodes once more only when the value that Fastify decoded once starts with `https%3A%2F%2F` (any letter case), so there are at most two decodes. A malformed escape gives `400 INVALID_LINE_ITEM_ID`. The unchanged §3.4 guard (`isAllowedServiceUrl` through `checkedUrl`) then runs on the **final** value, and `checkedUrl` returns that same string for the outbound call.
+- Why this is safe: for any final URL F, a client could already send `encodeURIComponent(F)` with one layer. Accepting two layers therefore adds no new string that can reach the guard or Moodle.
+- Probe results (input = the value after Fastify's decode):
+
+| Input | Result |
+| --- | --- |
+| 1 layer; 2 layers; 2 layers with lower-case escapes; upper-case `HTTPS`; half-encoded (`https%3A%2F%2F` + raw rest) | allowed: the real line item URL |
+| 3 layers; 4 layers | refused (no third decode) |
+| 2 layers with `%252e%252e`, `../`, backslash, `%2F`, `%5C` or `%25` in the path | refused |
+| 2 layers with another course (`/3/lineitems`), `type_id=2`, or a duplicate `type_id` (`&type_id=2`) | refused (`getAll` must give exactly the claim value once) |
+| 2 layers with user info, a look-alike host (`moodle.test.evil.test`), port 8443, or scheme-relative | refused |
+| malformed second layer (`%ZZ`) | refused, `INVALID_LINE_ITEM_ID` |
+
+The unit tests repeat the important cases with both ltik and service auth, on all five item routes (GET, PUT, DELETE, GET scores, POST scores), with no outbound call. The paging `url` queries (`/api/lineitems?url=`, `/scores?url=`, `/api/memberships?url=`) do **not** get the second decode.
+
+### Other tolerances: no finding
+
+- **Leading slashes:** `rewriteUrl` changes only a leading run of `/` to one `/`. Inner `//` still gives 404, and the line item guard applies after the rewrite (tested).
+- **`custom: null`:** it becomes `{}` before the content-item checks, which still need string values.
+- **Null resource `url`:** a null `ltiResourceLink.url` gets the default launch URL, as a missing one does. Any other value must still be our own launch URL.
+- **`comment: null`:** it is dropped (not sent upstream). Other non-string comments still give `400`.
+- **`user_id` alias:** `user_id` is an alias of `userId` on GET scores. Different values, an empty value or a repeated `user_id` give `400` before any outbound call. The value is URL-encoded in the AGS `user_id` query.
+- **`outcomes`:** `services.outcomes = { available: false }` is information only.
+
+### A-T3c-03: NIT: `%3F` and `%23` in a line item path pass the raw-path rule
+
+- Location: `services/lti-service/src/lti/service-url.ts` `hasPathTrick` (the §3.4 list is `%2F`, `%5C`, `%2E`, `%25`, backslash and dot segments).
+- Problem: a final URL such as `…/7/lineitem%3Ftype_id=2?type_id=1` is allowed. This predates round 3 (one layer reaches it too). It is not a type bypass, because the real query still has `type_id=1`, which is what Moodle reads for the tool type. But the path then holds a `?` after Moodle's decode.
+- Fix (optional hardening): add `%3F` and `%23` (any letter case) to the raw-path list in `hasPathTrick` and in security §8 / contract §3.4.
+
+Round 3 counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (A-T3c-03).

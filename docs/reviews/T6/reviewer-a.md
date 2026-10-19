@@ -1,7 +1,11 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # T6 review: Reviewer-A (correctness and security)
+
+History: the round 1 verdict was APPROVE (1 NIT; below). The round 2 verdict is APPROVE (section "Round 2" at the end).
+
+## Round 1
 
 Scope: the changes that T6 brings into the branch, `git diff 7bf48b6^1 7bf48b6`:
 - `apps/portal/**` (built by Author-2, Codex);
@@ -57,3 +61,18 @@ Method:
 ## Counts
 
 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (A-T6-01).
+
+## Round 2
+
+Scope: `git diff 0d1e169 adb0f61 -- apps/portal` (46 files: views split into components, `src/ui/` primitives, server-owned texts, badges, exact wizard steps). I swept the source at `adb0f61` (extracted with `git archive` into a temporary folder) and the built bundle. I did not read `reviewer-b.md`.
+
+| Check | Result |
+| --- | --- |
+| XSS after the refactor | **No sink.** The source has no `dangerouslySetInnerHTML`, `innerHTML`, `outerHTML`, `insertAdjacentHTML`, `eval` or `new Function`, including the new `ui/` primitives. Server-owned texts are React text nodes: the reject `title`, `path` and `action` in `ErrorNotice`, `lastError` through `syncError` (a string, the `description` or `message`, else `JSON.stringify`), and package, course and activity titles. The built bundle has the string `dangerouslySetInnerHTML` only in React DOM's own prop handling. |
+| URL sinks | The same two as in round 1. The download link uses `encodeURIComponent` ids. "Open Moodle" uses `connection.siteUrl`, which the server accepts only as an https origin, with `target="_blank" rel="noopener noreferrer"`. |
+| Origin and CSRF | **No change.** Every request still goes through `api.ts` (same-origin `fetch` with `credentials: 'same-origin'`, and the same-origin XHR upload). The only `api.ts` change is the error-message fallback (`description`, else `message`). The server's `Origin` rule for `POST`, `PUT`, `PATCH` and `DELETE` covers every write. |
+| Resend cannot send a lower grade | The UI offers Resend only on the newest row when it is `failed` or `conflict`. The server decides with `resendDecision` (T5b round 2) and refuses a lower row with `409 SYNC_NOT_RESENDABLE`. The UI then shows the server's description ("This learner has a better result. Resend the better result instead.") through `ErrorNotice`. |
+| A-T6-01 (NIT) | **Resolved.** The "not available yet" fallback is removed, and two tests check that the text does not appear. |
+| Secrets and external loads | None in the source or the bundle (no external URL, API key, `Bearer`, private key, `localStorage`, `sessionStorage` or `document.cookie`). |
+
+Round 2 counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.
