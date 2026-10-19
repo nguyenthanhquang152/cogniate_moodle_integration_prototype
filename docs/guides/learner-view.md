@@ -26,6 +26,7 @@ Result:
 - The player shows the course title and a "Back to Moodle" link [AC-T4-17].
 - With a correct answer, the status line shows "Completed — score 100 sent to Moodle" [AC-T7-07].
 - With a wrong answer, it shows "Completed — score 0 sent to Moodle" [AC-T7-07].
+- After a retake with a lower score, the status line names both scores. Example: "Completed — score 60. Moodle keeps your best score: 80" [Pending QA (T5b, T7)].
 - Moodle gets the grade in about 4 seconds. In the QA runs, it took 3.4 to 3.9 seconds [AC-T7-04].
 - The Moodle completion "Receive a grade" is done, also with a grade of 0 [AC-T7-05, AC-T5-08].
 

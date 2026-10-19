@@ -919,6 +919,13 @@
       "evidence": "docs/reviews/T3c/qa.md"
     },
     {
+      "claim": "After a lower retake, the player status names the score that Moodle keeps (P11). The Connect panel shows a 15-second wait text (P1).",
+      "status": "pending",
+      "ids": [
+        "next QA run (T5b, T7, T4b1)"
+      ]
+    },
+    {
       "claim": "Native channel: Moodle backup (.mbz) and an empty Moodle course on publish (task T8).",
       "status": "pending",
       "ids": [
@@ -988,7 +995,7 @@
       ]
     },
     {
-      "claim": "A person (not a test robot) can do every step. A new person starts the stack in 10 minutes (QA did the command part in 61 s).",
+      "claim": "A person (not a test robot) can do every step. A person who did not build it runs the stack (HR-2). QA's timed fresh-clone run is accepted for the command part (61 s).",
       "status": "not",
       "ids": [
         "HR-2",
@@ -1133,7 +1140,7 @@
       "area": "Hand-over",
       "who": "Product team (one member)",
       "question": "Can a person who did not build the stack start it with the guides in 10 minutes?",
-      "recommendation": "One team member follows docs/guides/run-the-stack.md on a Mac with the images pulled, and reports each unclear step. QA times the commands separately.",
+      "recommendation": "QA's timed fresh-clone run is accepted for the command part (61 s, AC-T9-01). One team member who did not build it follows docs/guides/run-the-stack.md and reports each unclear step.",
       "blocks": "AC-T9-01, the human run test"
     },
     {
@@ -1293,6 +1300,16 @@
         [
           "Board",
           "../team/board.md"
+        ]
+      ]
+    },
+    {
+      "title": "Final check",
+      "text": "The Architect checked the whole system against the design. No BLOCKER. 3 MAJOR findings were found and fixed. One limit is accepted (Q18).",
+      "links": [
+        [
+          "Conformance report",
+          "../reviews/T9/architect-conformance.md"
         ]
       ]
     },

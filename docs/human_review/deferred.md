@@ -2,9 +2,9 @@
 
 Source: commit `4182c80`, 2026-10-19.
 
-These review findings are still open. Each one is MINOR ("worth a fix, safe to defer") or NIT (style). No BLOCKER or MAJOR finding is open. This list is for engineers. A product person can skip it.
+These review findings are still open. Each one is MINOR ("worth a fix, safe to defer") or NIT (style). No BLOCKER or MAJOR finding is open in a finished task. T8: QA round 1 failed on two races (Q-T8-01, Q-T8-02, MAJOR). Both are fixed. QA round 2 is pending. This list is for engineers. A product person can skip it.
 
-Counts: **13 MINOR, 30 NIT** (state 2026-10-19). T8 has no QA report yet, so new findings can come for this task. The T3c QA report has no product findings. Ids are in `docs/reviews/<task>/`.
+Counts: **13 MINOR, 30 NIT** (state 2026-10-19). The T3c QA report has no product findings. Ids are in `docs/reviews/<task>/`.
 
 ## Security
 
@@ -14,6 +14,7 @@ Counts: **13 MINOR, 30 NIT** (state 2026-10-19). T8 has no QA report yet, so new
 | A-T1-03 (rest) | MINOR | T1 | The QA install runs npm lifecycle scripts in the test container. | Use `npm ci --ignore-scripts` for `tests/`. |
 | A-T0-16 (rest) | MINOR | T0 | No test covers the rotation of the signing key. Rotation is not built yet. | Add a test when rotation is built. |
 | A-T3a-04 | NIT | T3a | A leaked service key and API key together can write grades for every activity of that course. | Architect decides: limit writes to the own line item. |
+| A-FX-02 (rest) | NIT | T9 | The app gives up on a slow registration after 15 seconds. If the LTI service makes a platform later, it stays active with no owner. Its launches are refused. | The admin deletes the Pending tool (security §2.6). Later: switch the orphan off. |
 | A-T4a-04 | NIT | T4a | Two libraries that upload the same zip share one stored file. A later delete can affect both. | Store per package id, or count references. |
 
 ## Operability
@@ -23,16 +24,15 @@ Counts: **13 MINOR, 30 NIT** (state 2026-10-19). T8 has no QA report yet, so new
 | B-T8-03 (rest) | NIT | T8 | A forgotten hold file blocks the Build Runner with no time limit. | Stop after 30 minutes and log it. |
 | T8 readiness 1+2 | NIT | T8 | `stack:doctor` does not check the expiry of `root.crt`. Its knob fix line names no services. | Check the expiry. Print the service names. |
 | T8 readiness 3 | NIT | T8 | `demo:users` never shows passwords, so a person must open the hidden `.env` file. | Add a local option that shows them. |
+| A-FX-03 | NIT | T9 | Two Build Runners that start at the same moment can, in theory, both take over a stale lock. | Very unlikely. Make the take-over atomic. |
 | B-T3c-02 (rest) | NIT | T3c | When the compatibility image build fails, the script deletes the build log. | Print the last 20 log lines first. |
 | Q-T1-04 | NIT | T1 | Moodle shows "Missing capabilities: moodle/user:update" for the product web services token. | Remove unused functions, or add the capability. |
-| A-T7-04 | NIT | T7 | Without a terminal, `e2e:reset` and `test:e2e` delete the data with no confirmation. They print only a warning. | Ask for `--yes` or `E2E_CONFIRM=1` when no terminal is attached. |
 
 ## Code and logs
 
 | Id | Severity | Task | Finding | Suggested fix |
 | --- | --- | --- | --- | --- |
 | B-T1-06 (rest) | MINOR | T1 | The shared package uses the file names `http.ts` and `service.ts`, not the name `server` from ADR-008. | Rename to `server.ts`. |
-| A-T5b-05 | NIT | T5b | The Resend query divides integers, so most scores sort as 0. | Cast to a real number before the division. |
 | A-T5a-04 | NIT | T5a | A player reload starts a new SCORM session. The server counts one session per launch. | Count per page load, or change the contract. |
 | A-T3a-03 (rest) | NIT | T3a | A token request that waits logs `cache: "hit"` before it succeeds. | Log `wait`, and only after success. |
 | B-T4a-05 (rest) | MINOR | T4a | Two `internal_error` log lines have no `method` and `path` fields. | Add the two fields. |
@@ -51,9 +51,9 @@ Source: [`docs/reviews/T9/architect-conformance.md`](../reviews/T9/architect-con
 | P3 | MINOR | The log event `outcome_changed` is never written. | Write the event, or remove it from the contract. |
 | P4 | MINOR | The app API never answers `502 INVALID_LTI_ANSWER`. Every LTI service error becomes `LTI_SERVICE_ERROR`. | Give a bad answer its own code. |
 | P6 | MINOR | Same as B-T4a-05 above (Cogniate app), counted once. Also, one warning has the wrong level and no `error` field. | Add the fields. Use level `error`. |
-| P7 | MINOR | The code makes a teacher preview for a staff role. ADR-010 makes a preview when there is no Learner role. Moodle 5.2 sends one role only, so nothing differs today. | Lead decides. The Architect recommends that the code follows ADR-010. |
+| P7 | MINOR | The code makes a teacher preview for a staff role. ADR-010 makes a preview when there is no Learner role. Moodle 5.2 sends one role only, so nothing differs today. | Accepted deferral (Lead): the spec rule stays. The code follows later. |
 | P9 | MINOR | The SCORM runtime accepts more than 250 interactions. The server then refuses later commits, so the score is lost. The Cogniate package writes one interaction only. | Refuse interaction 250 and higher in the runtime. |
-| P10 | MINOR | A reload of the player keeps the same session, so the time after a reload is too low. | Lead decides. The Architect recommends a new session for each page load. |
+| P10 | MINOR | A reload of the player keeps the same session, so the time after a reload is too low. | Accepted deferral (Lead): the spec rule stays. The code follows later. |
 | F7 | NIT | `PUT` and `DELETE` on `/lti/launch` give 404, not 405. | Answer 405 for a wrong method. |
 | F9 | NIT | A retired tool key stays in the key list for 30 days from its creation, not from its retirement. `revokeServiceKeys` has no caller. | Count from retirement. Use or remove the function. |
 | P12 | NIT | A bad Origin on the registration confirm page logs two events, not one. | Log one event. |
@@ -88,6 +88,6 @@ Source: [`docs/reviews/T9/architect-conformance.md`](../reviews/T9/architect-con
 | T8 portal 1+2 | NIT | T8 | The portal shows the raw course status word. The last restore step holds two actions. | Use plain sentences. Split the step. |
 | Q-T7-03 | NIT | T7 | A decorative layer in the HTML export covers the lesson link. Tests use a DOM click. | The exporter fixes it (decision Q17). |
 
-Resolved and not listed: A-T7-03, Q-T7-01 and Q-T7-02. For A-T7-03 (test traces hold raw secrets), `infra/README.md` has a WARNING in "Debug a failed E2E step". QA verified the portal texts of Q-T7-01 and Q-T7-02 ([T7 qa.md §6](../reviews/T7/qa.md#6-suite-changes-after-the-reviews-round-1-addendum)).
+Resolved and not listed: A-T7-03, A-T7-04, A-T5b-05 (= P5), P1, P2, P11, C-T8-01 to C-T8-03, Q-T7-01 and Q-T7-02. For A-T7-03 (test traces hold raw secrets), `infra/README.md` has a WARNING in "Debug a failed E2E step". QA verified the portal texts of Q-T7-01 and Q-T7-02 ([T7 qa.md §6](../reviews/T7/qa.md#6-suite-changes-after-the-reviews-round-1-addendum)).
 
 Board notes that do not match the review files (for the Lead): the board lists Q-T1-04 as MINOR (qa.md says NIT). For T4b2, the board says the MINOR follow-ups are "in progress". The code has the fixes, but no review file closes them by name.

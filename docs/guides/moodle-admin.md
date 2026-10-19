@@ -38,13 +38,14 @@ The portal page also shows the six Moodle steps of Part 2, with the menu path fo
 4. Click "Add LTI Advantage" [AC-T7-14, AC-T3-01].
 5. If Moodle asks you to update an old tool, click "Register as a new external tool". Cogniate refuses an update [AC-T6-04, AC-T4-30].
 6. In the Cogniate panel inside Moodle, check the Moodle site, the Moodle version and the Cogniate library [AC-T4-08].
-7. Click "Connect". The panel closes [AC-T4-08, AC-T7-14].
-8. Find the tool card "Cogniate (<library name>)". It shows "Pending" [AC-T7-14].
-9. Click "Activate". The card shows "Active" [AC-T7-14, AC-T7-02].
-10. On the same card, click "Edit" [AC-T7-14].
-11. Set "Tool configuration usage" to "Show in activity chooser and as a preconfigured tool" [AC-T7-14, AC-T7-02].
-12. Set "Default launch container" to "New window" [AC-T7-14, AC-T7-02].
-13. Click "Save changes" [AC-T7-14].
+7. Click "Connect" [AC-T4-08, AC-T7-14].
+8. Wait until the panel closes. This can take up to 15 seconds. Do not close the window [AC-T4-08, AC-T7-14].
+9. Find the tool card "Cogniate (<library name>)". It shows "Pending" [AC-T7-14].
+10. Click "Activate". The card shows "Active" [AC-T7-14, AC-T7-02].
+11. On the same card, click "Edit" [AC-T7-14].
+12. Set "Tool configuration usage" to "Show in activity chooser and as a preconfigured tool" [AC-T7-14, AC-T7-02].
+13. Set "Default launch container" to "New window" [AC-T7-14, AC-T7-02].
+14. Click "Save changes" [AC-T7-14].
 
 Result:
 
@@ -52,7 +53,11 @@ Result:
 - The portal shows "Registered — activate in Moodle" within 10 seconds, with no reload [AC-T6-04]. After the first launch from Moodle, it shows "Connected" [AC-T7-02].
 - Learners are anonymous: Moodle does not send their names or emails to Cogniate [AC-T4-08, AC-T2-04] (decision Q3).
 
-NOTE: Do steps 10 to 13. Moodle sets new tools to open inside the Moodle page. Then courses open inside Moodle with an "Open in a new window" button [AC-T4-31], and teachers do not see the tool in the activity chooser.
+NOTE: While Moodle answers, the panel says "Connecting to Moodle. This can take up to 15 seconds. Do not close this window." The button is disabled [Not verified by QA].
+
+NOTE: If Moodle is slow, the panel can say: "Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool 'Cogniate (<library>)', then connect again." Do this. The same registration URL still works until it expires [Not verified by QA].
+
+NOTE: Do steps 11 to 14. Moodle sets new tools to open inside the Moodle page. Then courses open inside Moodle with an "Open in a new window" button [AC-T4-31], and teachers do not see the tool in the activity chooser.
 
 ## Manual method (fallback)
 
@@ -90,7 +95,7 @@ Result: the portal shows "Registered" [AC-T6-05, AC-T4-10]. The manual method ha
 | --- | --- | --- |
 | "Waiting for Moodle" | The registration URL is ready. Moodle did not use it yet. | AC-T6-01, AC-T6-04 |
 | "Link expired" | The registration URL expired. Make a new URL. | Not verified by QA |
-| "Registered — activate in Moodle" | Moodle has the tool. Activate and edit it (Part 2, steps 9 to 13). | AC-T6-04, AC-T7-02 |
+| "Registered — activate in Moodle" | Moodle has the tool. Activate and edit it (Part 2, steps 10 to 14). | AC-T6-04, AC-T7-02 |
 | "Connected" | A first launch from Moodle worked. | AC-T7-02 |
 | "Disconnected" | Somebody disconnected the site. Launches stop. The tool stays in Moodle. | Not verified by QA |
 

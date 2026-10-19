@@ -40,6 +40,8 @@ Both reviewers approved these items. QA did not check them yet.
 
 | Task | Claim | State |
 | --- | --- | --- |
+| T5b, T7 | After a retake with a lower score, the player status names the score that Moodle keeps, for example "Completed — score 60. Moodle keeps your best score: 80" (P11). | Fixed in the code. The next QA run checks it. |
+| T4b1 | "Connect" in Moodle shows a 15-second wait text. If Moodle is slow, the panel says that Moodle may have saved a Pending tool (P1). | Fixed in the code. The next QA run checks it. |
 | T8 | Native channel: Moodle backup (`.mbz`) and an empty Moodle course on publish. | Builder evidence only. QA (AC-T8-02 to AC-T8-10) is pending. |
 
 ## 3. Not proven
@@ -54,7 +56,7 @@ Both reviewers approved these items. QA did not check them yet.
 | Video playback. | The export has no visible video. QA proved only that the server sends the video file correctly (AC-T5-02). | — |
 | A real person who closes the real player window keeps the progress. | QA closed the window by script (AC-T5-22, AC-T5-35). That proves the saved progress, not a real close by hand. | — |
 | A person (not a test robot) can do every step. | All runs used a browser robot. The HTML menu link was clicked by script. | Q17, HR-2 |
-| A new person starts the stack in 10 minutes. | QA did the command part in 61 seconds (AC-T9-01). The test with a new person is not done yet. | HR-2 |
+| A person who did not build it starts the stack in 10 minutes. | QA's timed fresh-clone run is accepted for the command part (61 s, AC-T9-01). A person who did not build it still needs to do the run. | HR-2 |
 | Load and scale. | No test is planned for the prototype. | Q11 |
 | 1EdTech LTI Advantage certification. | No test is planned for the prototype. | Q1 |
 | A `.mbz` restore in the Moodle pages, or on another site. | The T8 test uses the Moodle command line only. | Q5, Q12 |

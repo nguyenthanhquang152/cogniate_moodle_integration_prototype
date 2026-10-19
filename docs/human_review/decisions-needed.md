@@ -41,7 +41,7 @@ Do not say:
 
 | Id | Question | Our recommendation | It blocks | Who decides |
 | --- | --- | --- | --- | --- |
-| HR-2 | Can a person who did not build the stack start it with the guides in 10 minutes? | One team member follows [`../guides/run-the-stack.md`](../guides/run-the-stack.md) on a Mac with the images pulled, and reports each unclear step. QA times the commands separately. | AC-T9-01, the human run test | Product team (one member) |
+| HR-2 | Can a person who did not build the stack start it with the guides in 10 minutes? | QA's timed fresh-clone run is accepted for the command part (61 s, AC-T9-01). One team member who did not build it follows [`../guides/run-the-stack.md`](../guides/run-the-stack.md) and reports each unclear step. | AC-T9-01, the human run test | Product team (one member) |
 | HR-1 | Do we keep the Vietnamese video (`video/explainer-vi.mp4`)? It is machine-translated, and a computer voice reads it. | Keep it only if one Vietnamese team member watches it and says that it is clear. Otherwise drop it. | The Vietnamese video | Product team |
 | Q15 | The two course zips (24 MB) are test files. Do they go into git, into Git LFS, or outside git? | Outside normal git: Git LFS or a documented download. Until then, use `COURSE_FIXTURES_DIR` and `npm run fixtures:check`. | QA runs in a clean clone, hand-over | Lead and product owner |
 
