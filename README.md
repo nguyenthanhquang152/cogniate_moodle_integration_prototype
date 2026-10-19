@@ -2,7 +2,7 @@
 
 This prototype publishes Cogniate courses (SCORM 1.2 and HTML) to Moodle with LTI 1.3. It has its own LTI service, a clean-room implementation of the 1EdTech specifications. For the endpoints listed in ADR-003, its API follows the public LTIAAS API reference, with listed differences.
 
-**Status:** the full end-to-end test passed on a real Moodle 5.2.4 site, 15 of 15 checks, three runs in a row ([`docs/reviews/T7/qa.md`](docs/reviews/T7/qa.md)). The portal (T6, 14 of 14) and the listed LTIAAS-style endpoints (T3c, 7 of 7, with the real `ltiaas` SDK) passed their own QA. The native `.mbz` channel (T8) is in final QA.
+**Status:** all 15 end-to-end checks passed on real Moodle 5.2.4. The final regression at `dd6dd11` also passed ([T7 QA §9](docs/reviews/T7/qa.md#9-final-regression-run-dd6dd11-final-code)). Portal QA passed 14 checks; the listed LTIAAS-style endpoints passed 7 checks with the real `ltiaas` SDK. T8 round 2 passed AC-T8-02 to AC-T8-10 and both race checks at `8059c31` ([T8 QA](docs/reviews/T8/qa.md)). MoodleCloud, restore through Moodle pages, and the portal token form remain unverified.
 
 ## Start here
 
@@ -22,7 +22,7 @@ npm run e2e:reset      # WARNING: deletes the local Moodle site and the local Co
 npm run demo:prepare   # connection, two published courses, two Moodle activities
 ```
 
-QA measured 36 seconds for `e2e:reset` and 9.3 seconds for `demo:prepare` (AC-T7-15). From a new clone to both pages in the browser: 61 seconds (AC-T9-01). Then open the stack in a browser: see the run guide, procedure 3.
+QA measured 36 seconds for `e2e:reset` and 9.3 seconds for `demo:prepare` (AC-T7-15). The Lead accepted QA’s fresh-clone run for AC-T9-01: both login pages opened in 61 seconds. Unfamiliar-human usability remains unproven (HR-2). Then open the stack in a browser: see the run guide, procedure 3.
 
 ## Guides
 
@@ -32,7 +32,7 @@ QA measured 36 seconds for `e2e:reset` and 9.3 seconds for `demo:prepare` (AC-T7
 | [Moodle admin](docs/guides/moodle-admin.md) | Connect a Moodle site (automatic or manual) |
 | [Teacher](docs/guides/teacher.md) | Add a Cogniate course to a Moodle course |
 | [Learner view](docs/guides/learner-view.md) | What a learner sees, and what happens when… |
-| [Native channel](docs/guides/native-channel-moodlecloud.md) | Put a course into Moodle as a normal Moodle course (partly pending QA) |
+| [Native channel](docs/guides/native-channel-moodlecloud.md) | Build a Moodle backup or empty course; see the guide for verified scope |
 | [Troubleshooting](docs/guides/troubleshooting.md) | Symptoms and fixes |
 
 ## Repository map

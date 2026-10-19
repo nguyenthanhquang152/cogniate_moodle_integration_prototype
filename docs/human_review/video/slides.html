@@ -45,6 +45,7 @@
   ul.list { list-style: none; padding: 0; display: grid; gap: 16px; width: 100%; max-width: 1000px; }
   ul.list li { display: flex; gap: 16px; align-items: center; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 20px; font-size: 26px; }
   .badge { flex: none; border: 1px solid; border-radius: 999px; padding: 3px 12px; font-size: 17px; font-weight: 600; }
+  .b-qa { color: hsl(140 65% 64%); border-color: var(--ok); }
   .b-not { color: hsl(0 80% 66%); border-color: var(--bad); }
   .b-pending { color: var(--warn); border-color: var(--warn); }
   .b-dec { color: var(--primary); border-color: var(--primary); }
@@ -99,7 +100,7 @@
   }
   if (sl.kind === 'list') {
     const ul = el('ul', 'list');
-    const label = { not: { en: 'Not proven', vi: 'Chưa chứng minh' }, pending: { en: 'Pending', vi: 'Đang chờ' }, dec: { en: 'Decide', vi: 'Quyết định' } };
+    const label = { qa: { en: 'Proven', vi: 'Đã kiểm tra' }, not: { en: 'Not proven', vi: 'Chưa chứng minh' }, pending: { en: 'Pending', vi: 'Đang chờ' }, dec: { en: 'Decide', vi: 'Quyết định' } };
     sl.items.forEach((x) => { const li = el('li'); li.append(el('span', 'badge b-' + x.st, label[x.st][lang]), el('span', null, x[lang])); ul.append(li); });
     stage.append(ul);
     return done();

@@ -20,7 +20,7 @@ Source: [`docs/architecture/open-questions.md`](../architecture/open-questions.m
 | Q17 | In the HTML export, a decorative layer covers the centre of the lesson link on the menu page. Does a person also miss clicks there? | Ask the exporter to give decorative layers `pointer-events: none`. Check the menu page by hand in this review. No change in our product. | Usability of HTML packages | Cogniate engineering |
 | Q2 | Does the course open in a new window or inside the Moodle page? | New window (current setting). A course inside the Moodle page fails in browsers that block third-party cookies. DataCamp also uses a new window. | Admin guide text | Product |
 | Q4 | Which grade does Moodle show: the best result or the latest? What does a completion-only course give? | The best result. Never lower a grade. A completion-only course gives 100/100. | The grade rule (ADR-010) | Product |
-| Q12 | Do we offer the native channel (`.mbz` backup and course shell, task T8) in the pilot? T8 is built as a stretch. Its QA is pending. | Keep LTI as the main path. Offer the native backup only to a customer who needs editable courses on MoodleCloud. | Pilot scope | Product owner |
+| Q12 | Do we offer the native channel (`.mbz` backup and course shell, task T8) in the pilot? T8 round 2 passed its listed ACs and two race checks. MoodleCloud and Moodle-page restore remain unverified. | Keep LTI as the main path. Offer the native backup only to a customer who needs editable courses on MoodleCloud. | Pilot scope | Product owner |
 | Q18 | A Moodle site in a subfolder (for example `https://school.edu/moodle`) cannot connect today. Dynamic registration is refused. Web service and course links (T8) would use the wrong path. Manual connect may work, but nobody tested it. MoodleCloud is not affected. | Support it before the first self-hosted customer. It is about 1 day of work. Our local stack cannot test it before the hand-over. | Self-hosted Moodle customers in a subfolder | Product and Engineering |
 
 ### Q1: the claim to approve
@@ -41,7 +41,7 @@ Do not say:
 
 | Id | Question | Our recommendation | It blocks | Who decides |
 | --- | --- | --- | --- | --- |
-| HR-2 | Can a person who did not build the stack start it with the guides in 10 minutes? | QA's timed fresh-clone run is accepted for the command part (61 s, AC-T9-01). One team member who did not build it follows [`../guides/run-the-stack.md`](../guides/run-the-stack.md) and reports each unclear step. | AC-T9-01, the human run test | Product team (one member) |
+| HR-2 | Can a person who did not build the stack start it with the guides in 10 minutes? | The Lead accepted QA’s 61-second fresh-clone run for AC-T9-01. Ask an unfamiliar team member to follow the [run guide](../guides/run-the-stack.md) and report unclear steps. | Unfamiliar-human usability; not AC-T9-01 acceptance | Product team (one member) |
 | HR-1 | Do we keep the Vietnamese video (`video/explainer-vi.mp4`)? It is machine-translated, and a computer voice reads it. | Keep it only if one Vietnamese team member watches it and says that it is clear. Otherwise drop it. | The Vietnamese video | Product team |
 | Q15 | The two course zips (24 MB) are test files. Do they go into git, into Git LFS, or outside git? | Outside normal git: Git LFS or a documented download. Until then, use `COURSE_FIXTURES_DIR` and `npm run fixtures:check`. | QA runs in a clean clone, hand-over | Lead and product owner |
 

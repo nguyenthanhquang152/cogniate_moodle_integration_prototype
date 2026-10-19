@@ -28,11 +28,11 @@ Total: 30 minutes (26 minutes without the video).
 ## Content rules
 
 - **START-HERE:** five parts: what it is, the five-step story, what works, what does not work yet, what we need from you.
-- **decisions-needed.md:** only questions that a human must answer. Sources: Q1 to Q17 and the residual risks R1 to R5 in `docs/architecture/open-questions.md`, plus the hand-over checks HR-1 and HR-2. One card each: the question in one sentence, our recommendation, what it blocks, who decides. The prototype uses the recommendation until a human decides. "Blocks the pilot" comes first, "blocks production" second.
+- **decisions-needed.md:** only questions that a human must answer. Sources: Q1 to Q18 and the residual risks R1 to R5 in `docs/architecture/open-questions.md`, plus the hand-over checks HR-1 and HR-2. One card each: the question in one sentence, our recommendation, what it blocks, who decides. The prototype uses the recommendation until a human decides. "Blocks the pilot" comes first, "blocks production" second.
 - **proven.md:** four states. *Proven by QA* (AC id and qa.md row). *Pending final QA*. *Not verified by QA* (builder check only). *Not proven* (every item of `docs/architecture/README.md` §6, AC-T9-03).
 - **flows.md:** one Mermaid diagram each for connect (6a), publish (6e), deep link (6b), SCORM launch to gradebook (6c) and HTML launch to gradebook (6d). Max 8 boxes. Product words, not protocol words. Each links to the full diagram in `docs/architecture/flows.md`.
 - **explainer.html:** one self-contained file. No CDN, no web font, no network request. Dev-portal tokens: dark background `hsl(252 20% 5%)`, purple primary `hsl(270 70% 65%)`, button gradient `#b78bf9 → #7444bb`, cards `#16161d`, radius `.75rem`, "DM Sans" with system fallback. Tabs: Story, Flows (inline SVG), Proven, Decisions. The Decisions tab has "Copy my answers" (plain text for the Lead).
-- **Every artifact** shows its source commit and date. When the code changes, we make the artifact again from its sources. We do not edit it by hand.
+- **Every artifact** shows its source commit and date. When evidence changes, Docs updates the Markdown, explainer data and both video narrations. The builder stamps sources and generates diagrams; it does not synchronize prose.
 - **When:** `flows.md` and the explainer shell can start now. The other artifacts state results, so they wait for T7 PASS.
 
 ## Video pipeline (local and free, tested on this Mac on 2026-10-16)
@@ -56,4 +56,5 @@ Recommendation: keep English STE as the only written source. Make `video/explain
 ## Open points for the Lead
 
 - Final mp4 files: 1.9 MB (English) and 2.2 MB (Vietnamese). The Lead decided to commit files of 8 MB or less.
-- Who does the 10-minute run test (AC-T9-01)?
+- The Lead accepted QA’s 61-second fresh-clone run for AC-T9-01. HR-2 remains a follow-up for unfamiliar-human usability.
+- T9 final QA and blind reviews follow this Docs pass. This pack does not declare T9 done.

@@ -1,17 +1,32 @@
 {
   "meta": {
     "title": "Cogniate × Moodle prototype",
-    "source": "T3c, T6 and T7 qa.md; open-questions.md; architecture README §6",
+    "source": "T7 qa.md §9 (dd6dd11); T8 qa.md round 2 (8059c31); T3c, T6 and T9 qa.md; open-questions.md; architecture README §6",
     "commit": "4182c80",
     "date": "2026-10-19",
-    "voices": { "en": { "voice": "Samantha", "rate": 170 }, "vi": { "voice": "Linh", "rate": 185 } },
+    "voices": {
+      "en": {
+        "voice": "Samantha",
+        "rate": 170
+      },
+      "vi": {
+        "voice": "Linh",
+        "rate": 185
+      }
+    },
     "viNotice": "Bản dịch máy, vui lòng kiểm tra (machine-translated, please check)"
   },
   "slides": [
     {
       "kind": "title",
-      "title": { "en": "Cogniate × Moodle prototype", "vi": "Bản thử nghiệm Cogniate × Moodle" },
-      "sub": { "en": "What we built · what works · what you decide", "vi": "Chúng tôi làm gì · điều gì chạy được · bạn cần quyết định gì" },
+      "title": {
+        "en": "Cogniate × Moodle prototype",
+        "vi": "Bản thử nghiệm Cogniate × Moodle"
+      },
+      "sub": {
+        "en": "What we built · what works · what you decide",
+        "vi": "Chúng tôi làm gì · điều gì chạy được · bạn cần quyết định gì"
+      },
       "say": {
         "en": "This video explains the Cogniate and Moodle prototype in about three minutes. You see what we built, what works, and what you must decide.",
         "vi": "Video này giải thích bản thử nghiệm Cogniate và Moodle trong khoảng ba phút. Bạn sẽ thấy chúng tôi đã làm gì, điều gì chạy được, và bạn cần quyết định gì."
@@ -19,8 +34,17 @@
     },
     {
       "kind": "flow",
-      "title": { "en": "The goal", "vi": "Mục tiêu" },
-      "boxes": ["Cogniate user", "Cogniate app", "LTI service", "Moodle", "Gradebook"],
+      "title": {
+        "en": "The goal",
+        "vi": "Mục tiêu"
+      },
+      "boxes": [
+        "Cogniate user",
+        "Cogniate app",
+        "LTI service",
+        "Moodle",
+        "Gradebook"
+      ],
       "say": {
         "en": "The goal: a Cogniate user publishes a course to Moodle. A teacher adds it to a Moodle course. A learner does the course, and the score goes to the Moodle gradebook. We use the LTI 1.3 standard. Two course types work: SCORM 1.2 and plain HTML.",
         "vi": "Mục tiêu: người dùng Cogniate xuất bản một khóa học lên Moodle. Giáo viên thêm khóa học vào lớp Moodle. Học viên học xong, và điểm được gửi về sổ điểm Moodle. Chúng tôi dùng chuẩn LTI 1.3. Hai loại khóa học đều chạy được: SCORM 1.2 và HTML."
@@ -28,8 +52,17 @@
     },
     {
       "kind": "shot",
-      "title": { "en": "1 · Connect (Cogniate portal)", "vi": "1 · Kết nối (cổng Cogniate)" },
-      "img": "apps/portal/evidence/round2-wizard-after.png", "crop": [290, 690, 1080, 470],
+      "title": {
+        "en": "1 · Connect (Cogniate portal)",
+        "vi": "1 · Kết nối (cổng Cogniate)"
+      },
+      "img": "apps/portal/evidence/round2-wizard-after.png",
+      "crop": [
+        290,
+        690,
+        1080,
+        470
+      ],
       "say": {
         "en": "Step one: connect. In the Cogniate portal, the user opens Integrations, then Moodle, then Connect. The portal shows one registration URL and six steps for the Moodle admin.",
         "vi": "Bước một: kết nối. Trong cổng Cogniate, người dùng mở Integrations, chọn Moodle, rồi bấm Connect. Cổng hiện một đường dẫn đăng ký và sáu bước cho quản trị viên Moodle."
@@ -37,8 +70,17 @@
     },
     {
       "kind": "shot",
-      "title": { "en": "1 · Connect (Moodle admin)", "vi": "1 · Kết nối (quản trị Moodle)" },
-      "img": "apps/portal/evidence/round2-moodle-tool-settings.png", "crop": [26, 1140, 960, 200],
+      "title": {
+        "en": "1 · Connect (Moodle admin)",
+        "vi": "1 · Kết nối (quản trị Moodle)"
+      },
+      "img": "apps/portal/evidence/round2-moodle-tool-settings.png",
+      "crop": [
+        26,
+        1140,
+        960,
+        200
+      ],
       "say": {
         "en": "In Moodle, the admin pastes the URL and clicks Add LTI Advantage. Then the admin clicks Connect and Activate. In the last step, the admin sets Default launch container to New window.",
         "vi": "Trong Moodle, quản trị viên dán đường dẫn và bấm Add LTI Advantage. Sau đó bấm Connect và Activate. Ở bước cuối, quản trị viên chọn New window cho mục Default launch container."
@@ -46,8 +88,16 @@
     },
     {
       "kind": "flow",
-      "title": { "en": "2 · Publish", "vi": "2 · Xuất bản" },
-      "boxes": ["Upload zip", "Check package", "Publish to Moodle", "Course in picker"],
+      "title": {
+        "en": "2 · Publish",
+        "vi": "2 · Xuất bản"
+      },
+      "boxes": [
+        "Upload zip",
+        "Check package",
+        "Publish to Moodle",
+        "Course in picker"
+      ],
       "say": {
         "en": "Step two: publish. The user uploads a course package. The app checks it. Then the user publishes the course to the Moodle site. The app copies nothing into Moodle.",
         "vi": "Bước hai: xuất bản. Người dùng tải lên gói khóa học. Ứng dụng kiểm tra gói. Sau đó người dùng xuất bản khóa học lên trang Moodle. Ứng dụng không sao chép gì vào Moodle."
@@ -55,18 +105,40 @@
     },
     {
       "kind": "path",
-      "title": { "en": "3 · Teacher adds the course", "vi": "3 · Giáo viên thêm khóa học" },
-      "chips": ["Edit mode", "Add content", "Activity or resource", "Cogniate", "Add", "Select content"],
-      "note": { "en": "Completion: “Receive a grade”", "vi": "Hoàn thành: “Receive a grade”" },
+      "title": {
+        "en": "3 · Teacher adds the course",
+        "vi": "3 · Giáo viên thêm khóa học"
+      },
+      "chips": [
+        "Edit mode",
+        "Add content",
+        "Activity or resource",
+        "Cogniate",
+        "Add",
+        "Select content"
+      ],
+      "note": {
+        "en": "Completion: “Receive a grade”",
+        "vi": "Hoàn thành: “Receive a grade”"
+      },
       "say": {
-        "en": "Step three: the teacher adds the course. In Moodle, turn on Edit mode. Click Add content, then Activity or resource, then Cogniate, then Add, then Select content. The teacher selects one course and sets completion to Receive a grade.",
-        "vi": "Bước ba: giáo viên thêm khóa học. Trong Moodle, bật Edit mode. Bấm Add content, rồi Activity or resource, rồi Cogniate, rồi Add, rồi Select content. Giáo viên chọn một khóa học và đặt điều kiện hoàn thành là Receive a grade."
+        "en": "Step three: add the course. Turn on Edit mode. Click Add content. Click Activity or resource. Select Cogniate. Click Add. Click Select content. Choose one course. Set completion to Receive a grade.",
+        "vi": "Bước ba: thêm khóa học. Bật Edit mode. Bấm Add content. Bấm Activity or resource. Chọn Cogniate. Bấm Add, rồi Select content. Chọn một khóa học. Đặt điều kiện hoàn thành là Receive a grade."
       }
     },
     {
       "kind": "shot",
-      "title": { "en": "4 · Learner", "vi": "4 · Học viên" },
-      "img": "apps/portal/evidence/round2-player-new-window.png", "crop": [0, 0, 1440, 600],
+      "title": {
+        "en": "4 · Learner",
+        "vi": "4 · Học viên"
+      },
+      "img": "apps/portal/evidence/round2-player-new-window.png",
+      "crop": [
+        0,
+        0,
+        1440,
+        600
+      ],
       "say": {
         "en": "Step four: the learner. The course opens in a new window, in the Cogniate player. When the learner completes the course, the player shows: Completed, score 100 sent to Moodle.",
         "vi": "Bước bốn: học viên. Khóa học mở trong một cửa sổ mới, trong trình phát Cogniate. Khi học viên học xong, trình phát hiện: Completed, score 100 sent to Moodle."
@@ -74,8 +146,17 @@
     },
     {
       "kind": "shot",
-      "title": { "en": "5 · Grades", "vi": "5 · Điểm" },
-      "img": "apps/portal/evidence/round2-results-resent.png", "crop": [250, 140, 1160, 420],
+      "title": {
+        "en": "5 · Grades",
+        "vi": "5 · Điểm"
+      },
+      "img": "apps/portal/evidence/round2-results-resent.png",
+      "crop": [
+        250,
+        140,
+        1160,
+        420
+      ],
       "say": {
         "en": "Step five: grades. The score arrives in the Moodle gradebook in about four seconds. The Results page in the portal shows the same score.",
         "vi": "Bước năm: điểm. Điểm đến sổ điểm Moodle trong khoảng bốn giây. Trang Results trong cổng Cogniate hiện cùng điểm đó."
@@ -83,40 +164,130 @@
     },
     {
       "kind": "numbers",
-      "title": { "en": "What is proven", "vi": "Điều đã được chứng minh" },
+      "title": {
+        "en": "What is proven",
+        "vi": "Điều đã được chứng minh"
+      },
       "tiles": [
-        { "big": "15 / 15", "en": "end-to-end checks passed", "vi": "kiểm tra đầu cuối đạt" },
-        { "big": "3 × ~3 min", "en": "runs in a row, no retries", "vi": "lần chạy liên tiếp, không chạy lại" },
-        { "big": "≈ 4 s", "en": "score to the gradebook", "vi": "điểm về sổ điểm" },
-        { "big": "0", "en": "secrets found in the logs", "vi": "bí mật lộ trong log" }
+        {
+          "big": "15 / 15",
+          "en": "end-to-end checks passed",
+          "vi": "kiểm tra đầu cuối đạt"
+        },
+        {
+          "big": "3 × ~3 min",
+          "en": "runs in a row, no retries",
+          "vi": "lần chạy liên tiếp, không chạy lại"
+        },
+        {
+          "big": "≈ 4 s",
+          "en": "score to the gradebook",
+          "vi": "điểm về sổ điểm"
+        },
+        {
+          "big": "0",
+          "en": "secrets found in the logs",
+          "vi": "bí mật lộ trong log"
+        }
       ],
       "say": {
-        "en": "What is proven. QA ran the full test on a real Moodle 5.2 site three times in a row, with no retries. All fifteen end-to-end checks passed. One library cannot see the courses or results of another library. A replayed launch is refused.",
-        "vi": "Điều đã được chứng minh. Nhóm QA chạy toàn bộ bài kiểm tra trên một trang Moodle 5.2 thật, ba lần liên tiếp, không chạy lại. Cả mười lăm kiểm tra đầu cuối đều đạt. Thư viện này không thấy khóa học hay kết quả của thư viện khác. Một lần khởi chạy bị gửi lại sẽ bị từ chối."
+        "en": "QA passed all fifteen end-to-end checks on real Moodle 5.2.4. Three consecutive runs passed, followed by the final regression. Libraries stay separate. Replayed launches are refused.",
+        "vi": "QA đạt cả mười lăm kiểm tra đầu cuối trên Moodle 5.2.4 thật. Ba lần chạy liên tiếp đều đạt, rồi kiểm tra hồi quy cuối cũng đạt. Các thư viện tách biệt. Lần khởi chạy gửi lại bị từ chối."
       }
     },
     {
       "kind": "list",
-      "title": { "en": "What is not proven", "vi": "Điều chưa được chứng minh" },
+      "title": {
+        "en": "Native channel: verified scope",
+        "vi": "Kênh gốc: phạm vi đã kiểm tra"
+      },
       "items": [
-        { "st": "not", "en": "MoodleCloud: needs a trial site (Q5)", "vi": "MoodleCloud: cần một trang dùng thử (Q5)" },
-        { "st": "not", "en": "Teachers on Safari (Q16)", "vi": "Giáo viên dùng Safari (Q16)" },
-        { "st": "not", "en": "Load, scale, 1EdTech certification", "vi": "Tải, mở rộng, chứng nhận 1EdTech" },
-        { "st": "pending", "en": "Final QA: native Moodle backup (.mbz)", "vi": "QA cuối: bản sao lưu gốc Moodle (.mbz)" }
+        {
+          "st": "qa",
+          "en": "Backup, CLI restore, native grade: PASS",
+          "vi": "Sao lưu, khôi phục qua CLI, điểm gốc: ĐẠT"
+        },
+        {
+          "st": "qa",
+          "en": "Course shell, Publish controls, races: PASS",
+          "vi": "Khóa học trống, Publish, chạy đồng thời: ĐẠT"
+        },
+        {
+          "st": "not",
+          "en": "MoodleCloud and restore pages unverified",
+          "vi": "MoodleCloud và trang khôi phục chưa kiểm tra"
+        },
+        {
+          "st": "not",
+          "en": "Portal token form and some runner checks unverified",
+          "vi": "Form token và một số kiểm tra runner chưa xác minh"
+        }
       ],
       "say": {
-        "en": "What is not proven. MoodleCloud: we need a trial site, and a person must make the account. Teachers on Safari may not be able to add content. There is no load test and no certification yet. One part is in final QA now: the native Moodle backup.",
-        "vi": "Điều chưa được chứng minh. MoodleCloud: chúng tôi cần một trang dùng thử, và một người phải tạo tài khoản. Giáo viên dùng Safari có thể không thêm được nội dung. Chưa có kiểm tra tải và chưa có chứng nhận. Một phần đang ở bước QA cuối: bản sao lưu gốc của Moodle."
+        "en": "T8 round two passed the listed checks. QA verified backups, command-line restore, native grades, course shells, Publish controls, and two races. MoodleCloud, restore pages, the portal token form, and some runner checks remain unverified.",
+        "vi": "T8 vòng hai đạt các kiểm tra đã liệt kê. QA xác minh sao lưu, khôi phục bằng dòng lệnh, điểm gốc, khóa học trống, nút Publish và hai lỗi chạy đồng thời. MoodleCloud, trang khôi phục, form token và một số kiểm tra runner vẫn chưa được xác minh."
       }
     },
     {
       "kind": "list",
-      "title": { "en": "We need your decisions", "vi": "Chúng tôi cần bạn quyết định" },
+      "title": {
+        "en": "What is not proven",
+        "vi": "Điều chưa được chứng minh"
+      },
       "items": [
-        { "st": "dec", "en": "Q1 Legal: approve the clean-room method and the claim", "vi": "Q1 Pháp lý: duyệt cách làm clean-room và cách mô tả" },
-        { "st": "dec", "en": "Q5 Make a MoodleCloud trial account", "vi": "Q5 Tạo tài khoản dùng thử MoodleCloud" },
-        { "st": "dec", "en": "Q3 Privacy: no learner names or emails", "vi": "Q3 Quyền riêng tư: không gửi tên hay email học viên" },
-        { "st": "dec", "en": "Q16 Pilot teachers use Chrome, Edge or Firefox", "vi": "Q16 Giáo viên thí điểm dùng Chrome, Edge hoặc Firefox" }
+        {
+          "st": "not",
+          "en": "MoodleCloud: needs a trial site (Q5)",
+          "vi": "MoodleCloud: cần một trang dùng thử (Q5)"
+        },
+        {
+          "st": "not",
+          "en": "Teachers on Safari (Q16)",
+          "vi": "Giáo viên dùng Safari (Q16)"
+        },
+        {
+          "st": "not",
+          "en": "Load, scale, 1EdTech certification",
+          "vi": "Tải, mở rộng, chứng nhận 1EdTech"
+        },
+        {
+          "st": "not",
+          "en": "Moodle in a subfolder: unsupported (Q18)",
+          "vi": "Moodle trong thư mục con: chưa hỗ trợ (Q18)"
+        }
+      ],
+      "say": {
+        "en": "MoodleCloud needs a trial site. Teachers on Safari may fail to add content. Load, scale and certification remain unproven. Moodle in a subfolder is unsupported.",
+        "vi": "MoodleCloud cần một trang dùng thử. Giáo viên dùng Safari có thể không thêm được nội dung. Tải, khả năng mở rộng và chứng nhận vẫn chưa được kiểm chứng. Moodle trong thư mục con chưa được hỗ trợ."
+      }
+    },
+    {
+      "kind": "list",
+      "title": {
+        "en": "We need your decisions",
+        "vi": "Chúng tôi cần bạn quyết định"
+      },
+      "items": [
+        {
+          "st": "dec",
+          "en": "Q1 Legal: approve the clean-room method and the claim",
+          "vi": "Q1 Pháp lý: duyệt cách làm clean-room và cách mô tả"
+        },
+        {
+          "st": "dec",
+          "en": "Q5 Make a MoodleCloud trial account",
+          "vi": "Q5 Tạo tài khoản dùng thử MoodleCloud"
+        },
+        {
+          "st": "dec",
+          "en": "Q3 Privacy: no learner names or emails",
+          "vi": "Q3 Quyền riêng tư: không gửi tên hay email học viên"
+        },
+        {
+          "st": "dec",
+          "en": "Q16 Pilot teachers use Chrome, Edge or Firefox",
+          "vi": "Q16 Giáo viên thí điểm dùng Chrome, Edge hoặc Firefox"
+        }
       ],
       "say": {
         "en": "We need your decisions. The most important four: legal approval of our clean-room method, a MoodleCloud trial account, the privacy default, and the browser advice for teachers. Each question has our recommendation.",
@@ -125,8 +296,14 @@
     },
     {
       "kind": "title",
-      "title": { "en": "Next: START-HERE.md", "vi": "Tiếp theo: START-HERE.md" },
-      "sub": { "en": "docs/human_review/ · explainer.html · decisions-needed.md", "vi": "docs/human_review/ · explainer.html · decisions-needed.md" },
+      "title": {
+        "en": "Next: START-HERE.md",
+        "vi": "Tiếp theo: START-HERE.md"
+      },
+      "sub": {
+        "en": "docs/human_review/ · explainer.html · decisions-needed.md",
+        "vi": "docs/human_review/ · explainer.html · decisions-needed.md"
+      },
       "say": {
         "en": "Next, open START-HERE in the human review folder. Then answer the questions in the explainer page. Thank you.",
         "vi": "Tiếp theo, mở START-HERE trong thư mục human review. Sau đó trả lời các câu hỏi trong trang explainer. Cảm ơn bạn."

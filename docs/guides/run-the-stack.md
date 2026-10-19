@@ -136,6 +136,6 @@ NOTE: In a script, use `npm run test:e2e -- --yes` or set `E2E_CONFIRM=1`. Then 
 - `npm run demo` as the first command on a new clone. QA checked `npm run demo` only after T1, on a stack that ran already [LC-T1-03].
 - The default port 443.
 - Safari and Firefox. QA used Chromium and Chrome only.
-- The 10-minute test with a new person. QA did the command part in 61 seconds [AC-T9-01]. The human part is decision HR-2.
+- Unfamiliar-human usability (HR-2). The Lead accepted QA’s 61-second fresh-clone run for [AC-T9-01](../reviews/T9/qa.md). A human follow-up does not block that acceptance.
 
 If something goes wrong, see [troubleshooting](troubleshooting.md).

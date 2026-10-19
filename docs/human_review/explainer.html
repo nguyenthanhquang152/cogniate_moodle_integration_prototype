@@ -201,8 +201,8 @@
     "subtitle": "Publish Cogniate courses (SCORM 1.2 and HTML) to Moodle with LTI 1.3.",
     "source": "4182c80",
     "date": "2026-10-19",
-    "draft": "T7 PASS 15/15 · T6 PASS · T3c PASS · T8: final QA pending",
-    "resultsNote": "QA tested the full story on a real Moodle 5.2.4 site (task T7): 15 of 15 checks passed, in three runs in a row. The portal (T6) and the listed LTIAAS-style endpoints (T3c) passed their own QA. One task is in final QA (T8). Its rows show “Pending final QA”.",
+    "draft": "T7 PASS · T6 PASS · T3c PASS · T8 listed checks PASS",
+    "resultsNote": "All 15 T7 checks passed on real Moodle 5.2.4, including the final dd6dd11 regression. T6 and T3c passed their own QA. T8 round 2 passed its listed checks at 8059c31. MoodleCloud, Moodle-page restore, the portal token form and some runner hardening remain unverified.",
     "storyNote": "QA tested this story on a real Moodle 5.2.4 site (task T7). All 15 end-to-end checks passed.",
     "flowsNote": "QA tested each flow on a real Moodle 5.2.4 site. The proof line under each flow names the QA rows (docs/reviews/<task>/qa.md)."
   },
@@ -210,7 +210,7 @@
     "intro": [
       "This page explains the prototype in about 15 minutes.",
       "A Cogniate user publishes a course. A Moodle teacher adds it to a Moodle course. A learner does the course, and the score goes to the Moodle gradebook.",
-      "Result: it works on a real Moodle 5.2.4 site. All 15 end-to-end checks passed, three runs in a row.",
+      "All 15 end-to-end checks passed on real Moodle 5.2.4. The final regression passed after the earlier three consecutive runs.",
       "We need your answers to some questions. Use the Decisions tab."
     ],
     "path": [
@@ -222,7 +222,7 @@
       },
       {
         "title": "Video (Vietnamese: video/explainer-vi.mp4)",
-        "time": "3 min",
+        "time": "4 min",
         "file": "video/explainer-en.mp4",
         "ready": true
       },
@@ -780,7 +780,7 @@
   ],
   "proven": [
     {
-      "claim": "One command runs the full story on an empty Moodle 5.2.4 site in about 3 minutes, three runs in a row, with no retries.",
+      "claim": "One command runs the full story on an empty Moodle 5.2.4 site in about 3 minutes. Three consecutive runs passed without retries.",
       "status": "qa",
       "ids": [
         "AC-T7-01",
@@ -926,11 +926,14 @@
       ]
     },
     {
-      "claim": "Native channel: Moodle backup (.mbz) and an empty Moodle course on publish (task T8).",
-      "status": "pending",
+      "claim": "Native backup, CLI restore, native SCORM grade and course shell passed. The Publish checkbox and link passed. Both race checks passed.",
+      "status": "qa",
       "ids": [
-        "AC-T8-02 to AC-T8-10"
-      ]
+        "AC-T8-02 to AC-T8-10",
+        "C-T8-01",
+        "C-T8-02"
+      ],
+      "evidence": "docs/reviews/T8/qa.md (round 2, 8059c31)"
     },
     {
       "claim": "The portal uses the exact Moodle 5.2.4 labels: the teacher path and the manual grade option (findings Q-T7-01, Q-T7-02 fixed).",
@@ -941,7 +944,7 @@
       "evidence": "docs/reviews/T7/qa.md (validation run f0e5525)"
     },
     {
-      "claim": "A new clone reaches both pages (Moodle and portal) in 61 seconds with the README and the run guide only. stack:doctor, demo:users, stack:down and the yes question work.",
+      "claim": "The Lead accepted QA’s fresh-clone run for AC-T9-01: both login pages opened in 61 seconds. stack:doctor, demo:users, stack:down and the confirmation prompt passed.",
       "status": "qa",
       "ids": [
         "AC-T9-01",
@@ -995,7 +998,7 @@
       ]
     },
     {
-      "claim": "A person (not a test robot) can do every step. A person who did not build it runs the stack (HR-2). QA's timed fresh-clone run is accepted for the command part (61 s).",
+      "claim": "Unfamiliar-human usability remains unproven (HR-2). The Lead accepted QA’s 61-second fresh-clone run for AC-T9-01. The HTML menu link needs a human check (Q17).",
       "status": "not",
       "ids": [
         "HR-2",
@@ -1023,6 +1026,14 @@
       "ids": [
         "no test planned"
       ]
+    },
+    {
+      "claim": "The portal token form remains unverified. Untested runner paths: the 10-minute timeout, startup sweep, planted-file rejection and backup copy checks.",
+      "status": "not",
+      "ids": [
+        "T8 QA §5"
+      ],
+      "evidence": "docs/reviews/T8/qa.md"
     }
   ],
   "decisionGroups": [
@@ -1049,7 +1060,7 @@
       "group": "pilot",
       "area": "Legal",
       "who": "Legal",
-      "question": "Is our clean-room method acceptable? May QA use the MIT ltiaas Python SDK as a test-only client? May we use this claim: “For the endpoints listed in ADR-003, our LTI service uses the paths, header schemes and field names of the public LTIAAS API reference. The differences are listed in contract §8. The real ltiaas Python SDK passed our test for the id token, deep linking, scores and memberships (AC-T3-27). We used it only as a test client (MIT licence).” One limit: a line item id with a raw slash gets 404 (D15).",
+      "question": "Is our clean-room method acceptable? May QA use the MIT ltiaas Python SDK as a test-only client? May we use the following claim? “For the endpoints listed in ADR-003, our LTI service uses the paths, header schemes and field names of the public LTIAAS API reference. The differences are listed in contract §8. The real ltiaas Python SDK passed our test for the id token, deep linking, scores and memberships (AC-T3-27). We used it only as a test client (MIT licence).” One limit: a line item id with a raw slash gets 404 (D15).",
       "recommendation": "Yes to all three. Do not say “a copy of LTIAAS” or “works with any LTIAAS tool”. Do not use “LTIAAS” in a product name. Check the LTI® mark and plan 1EdTech membership. Source: ADR-003, Promises.",
       "blocks": "Any external claim about LTIAAS compatibility"
     },
@@ -1121,7 +1132,7 @@
       "group": "pilot",
       "area": "Scope",
       "who": "Product owner",
-      "question": "Do we offer the native channel (.mbz backup and course shell, task T8) in the pilot? T8 is built as a stretch. Its QA is pending.",
+      "question": "Do we offer the native channel (.mbz backup and course shell, task T8) in the pilot? T8 round 2 passed its listed checks. MoodleCloud and Moodle-page restore remain unverified.",
       "recommendation": "Keep LTI as the main path. Offer the native backup only to a customer who needs editable courses on MoodleCloud.",
       "blocks": "Pilot scope"
     },
@@ -1140,8 +1151,8 @@
       "area": "Hand-over",
       "who": "Product team (one member)",
       "question": "Can a person who did not build the stack start it with the guides in 10 minutes?",
-      "recommendation": "QA's timed fresh-clone run is accepted for the command part (61 s, AC-T9-01). One team member who did not build it follows docs/guides/run-the-stack.md and reports each unclear step.",
-      "blocks": "AC-T9-01, the human run test"
+      "recommendation": "The Lead accepted QA’s 61-second fresh-clone run for AC-T9-01. Ask an unfamiliar team member to follow the run guide and report unclear steps.",
+      "blocks": "Unfamiliar-human usability; not AC-T9-01 acceptance"
     },
     {
       "id": "HR-1",
@@ -1290,8 +1301,8 @@
       ]
     },
     {
-      "title": "A team of agents",
-      "text": "Lead, Architect, Author, QA, QA-E2E, Docs, Reviewer-A and Reviewer-B ran on Claude Opus 5.5 (xhigh). Codex GPT-6-Astra (xhigh) worked as Author-2 through Orca, for the portal and the LTIAAS-compatible endpoints. Each finished task passed QA and two independent reviews (T1-spike and T5-spike: reference work only, not reviewed or QA-tested; T8: QA pending).",
+      "title": "Original team",
+      "text": "The original team used Claude Opus 5.5, with Codex GPT-6-Astra as Author-2 through Orca. Both used xhigh effort. The spikes remain reference work without independent QA or review.",
       "links": [
         [
           "Charter: As run",
@@ -1300,6 +1311,16 @@
         [
           "Board",
           "../team/board.md"
+        ]
+      ]
+    },
+    {
+      "title": "Continuation team",
+      "text": "The owner authorized Codex GPT-6-Astra replacements on 2026-10-19 after Claude reached its session limit. Dedicated roles keep separate ownership and independent QA and reviews. These continuation reviews are not cross-model reviews. T8 round 2 passed QA. T9 still needs final QA and blind reviews.",
+      "links": [
+        [
+          "Continuation authority",
+          "../team/charter.md#continuation-authority-2026-10-19"
         ]
       ]
     },

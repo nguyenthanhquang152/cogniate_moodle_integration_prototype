@@ -4,7 +4,7 @@ Source: commit `4182c80`, 2026-10-19.
 
 **What it is.** A prototype that publishes Cogniate courses to Moodle with the LTI 1.3 standard. It has our own LTI service. For the endpoints listed in ADR-003, its API follows the public LTIAAS API reference, with listed differences. It also has a stand-in for the Cogniate portal and a real Moodle 5.2.4 site, all on one Mac.
 
-**Result.** It works. On a real Moodle 5.2.4 site, QA ran the full test three times in a row with no retries. All 15 end-to-end checks passed. The score reaches the Moodle gradebook in about 4 seconds. ([proven.md](proven.md))
+**Result.** All 15 end-to-end checks passed on real Moodle 5.2.4, including the final regression at `dd6dd11`. The earlier three consecutive runs also passed. Grades reached Moodle in 3.8–3.9 seconds in the final run. ([proven.md](proven.md))
 
 ## The story in five steps
 
@@ -22,8 +22,9 @@ Source: commit `4182c80`, 2026-10-19.
 | SCORM 1.2 and HTML courses, pass (100) and fail (0) | Teachers on Safari (Q16). QA used Chromium only. |
 | | Not supported: Moodle in a subfolder, for example `https://school.edu/moodle` (Q18). MoodleCloud is not affected. |
 | The best result counts. A score waits if Moodle is down. | Load, scale and 1EdTech certification |
-| Launch security. No secrets in the logs. | A person who did not build it runs the stack (HR-2). QA's timed fresh-clone run is accepted for the command part (61 s, AC-T9-01). |
-| One library cannot see another library's data. | Final QA of the native `.mbz` backup (pending) |
+| Launch security. No secrets in the logs. | Unfamiliar-human usability remains unproven (HR-2). The Lead accepted QA’s 61-second fresh-clone run for AC-T9-01. |
+| One library cannot see another library's data. | Moodle-page restore, portal token form, and some runner hardening remain untested ([T8 QA §5](../reviews/T8/qa.md#5-not-covered)). |
+| Native backup, CLI restore, native SCORM grade, course shell and two race checks ([T8 QA](../reviews/T8/qa.md)) | |
 | The portal: Connect wizard, Publish, Results (14 of 14 checks) | |
 | The real `ltiaas` SDK passed our test for the listed endpoints (claim: Q1) | Other browsers (QA used Chromium only), mobile, video playback, and a real person who closes the player window |
 
@@ -41,7 +42,7 @@ Answer the questions in [decisions-needed.md](decisions-needed.md). The four mos
 | # | Open | Time |
 | --- | --- | --- |
 | 1 | This page | 3 min |
-| 2 | Video: [`video/explainer-en.mp4`](video/explainer-en.mp4) (Vietnamese: [`video/explainer-vi.mp4`](video/explainer-vi.mp4), machine-translated, please check) | 3 min |
+| 2 | Video: [`video/explainer-en.mp4`](video/explainer-en.mp4) (Vietnamese: [`video/explainer-vi.mp4`](video/explainer-vi.mp4), machine-translated, please check) | 4 min |
 | 3 | [`explainer.html`](explainer.html): open it in a browser. Tabs Story and Flows. | 8 min |
 | 4 | [`proven.md`](proven.md) (also the Proven tab) | 5 min |
 | 5 | [`decisions-needed.md`](decisions-needed.md) (also the Decisions tab, with "Copy my answers") | 10 min |
@@ -51,6 +52,7 @@ To run the prototype yourself, see [`docs/guides/`](../guides/run-the-stack.md).
 ## How this was built
 
 - **`rea` not used.** We evaluated [`rea`](https://github.com/morluto/rea) and did not use it to clone LTIAAS. LTIAAS is a hosted service, and its terms forbid reverse engineering. So we built a clean-room service from the 1EdTech specs and the public API shape. QA then ran the real `ltiaas` 0.0.4 SDK against the listed endpoints of our service, and every check passed (AC-T3-27). See [`rea-evaluation.md`](../architecture/rea-evaluation.md) and [ADR-001](../architecture/adr/ADR-001-rea-not-used.md).
-- **A team of agents.** Lead, Architect, Author, QA, QA-E2E, Docs, Reviewer-A and Reviewer-B ran on Claude Opus 5.5 (xhigh). Codex GPT-6-Astra (xhigh) worked as Author-2 through Orca, for the portal and the LTIAAS-compatible endpoints. Each finished task passed QA and two independent reviews (T1-spike and T5-spike: reference work only, not reviewed or QA-tested; T8: QA pending). See the [charter](../team/charter.md#as-run-from-2026-10-18-two-author-lanes-two-qa-instances) and the [board](../team/board.md).
+- **Original team.** Lead, Architect, Author, QA, QA-E2E, Docs and both reviewers used Claude Opus 5.5 at xhigh effort. Codex GPT-6-Astra worked as Author-2 through Orca, also at xhigh effort. Author-2 built the portal and the listed LTIAAS-style endpoints. The spikes remain reference work, without independent QA or review.
+- **Continuation team.** On 2026-10-19, the owner authorized Codex GPT-6-Astra replacements after Claude reached its session limit. Dedicated roles keep separate ownership and independent QA and reviews. These continuation reviews are not cross-model reviews. T8 round 2 passed QA. T9 still needs final QA and blind reviews. See the [charter](../team/charter.md#continuation-authority-2026-10-19) and [board](../team/board.md).
 - **Final check.** The Architect checked the whole system against the design ([conformance report](../reviews/T9/architect-conformance.md)). No BLOCKER. 3 MAJOR findings were found and fixed. One limit is accepted (Q18).
 - **Legal note.** The claim "LTIAAS-compatible" is for internal use until a human decides Q1.

@@ -39,7 +39,7 @@ The portal page also shows the six Moodle steps of Part 2, with the menu path fo
 5. If Moodle asks you to update an old tool, click "Register as a new external tool". Cogniate refuses an update [AC-T6-04, AC-T4-30].
 6. In the Cogniate panel inside Moodle, check the Moodle site, the Moodle version and the Cogniate library [AC-T4-08].
 7. Click "Connect" [AC-T4-08, AC-T7-14].
-8. Wait until the panel closes. This can take up to 15 seconds. Do not close the window [AC-T4-08, AC-T7-14].
+8. Wait until the panel closes [AC-T4-08, AC-T7-14].
 9. Find the tool card "Cogniate (<library name>)". It shows "Pending" [AC-T7-14].
 10. Click "Activate". The card shows "Active" [AC-T7-14, AC-T7-02].
 11. On the same card, click "Edit" [AC-T7-14].

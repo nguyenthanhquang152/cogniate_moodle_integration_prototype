@@ -4,7 +4,7 @@ Source: commit `4182c80`, 2026-10-19.
 
 Each row is one claim. **Proven by QA** means that an independent QA agent tested it from the acceptance criteria, and the test passed. The id points to a row in `docs/reviews/<task>/qa.md`. Time to read: 5 minutes.
 
-**Headline:** the full story works on a real Moodle 5.2.4 site. QA ran the end-to-end test three times in a row, with no retries. All 15 end-to-end checks passed [AC-T7-01, AC-T7-11]. Source: [`docs/reviews/T7/qa.md`](../reviews/T7/qa.md).
+**Headline:** the full story works on a real Moodle 5.2.4 site. QA ran the end-to-end test three times in a row, with no retries. All 15 end-to-end checks passed [AC-T7-01, AC-T7-11]. The final regression at `dd6dd11` also passed all 15 ACs. Source: [T7 QA §9](../reviews/T7/qa.md#9-final-regression-run-dd6dd11-final-code).
 
 ## 1. Proven by QA
 
@@ -32,7 +32,9 @@ Each row is one claim. **Proven by QA** means that an independent QA agent teste
 | Isolation | Course packages run on a separate content site, in a sandbox. They cannot read the portal session. 16 kinds of bad zip are refused. | AC-T5-01, AC-T5-03, AC-T5-17, AC-T4-05 |
 | Run it | A ready demo starts from zero in about 45 seconds (`e2e:reset` 36 s, `demo:prepare` 9.3 s). | AC-T7-15 |
 | Run it | A reset gives an empty site with the same passwords. No secret is in git. | AC-T1-10, AC-T1-11 |
-| Run it | QA followed only the README and the run guide in a new clone. Both pages (Moodle and portal) were open after 61 seconds. | AC-T9-01 (command part) |
+| Run it | The Lead accepted QA’s fresh-clone run for AC-T9-01. Both login pages opened in 61 seconds. Unfamiliar-human usability remains unproven. | [AC-T9-01](../reviews/T9/qa.md), HR-2 |
+| Native channel | QA built the backup, restored it through the CLI, and confirmed grade 100 in Moodle’s SCORM player. | [AC-T8-02 to AC-T8-07](../reviews/T8/qa.md), round 2, `8059c31` |
+| Native channel | The token API and course shell passed. The Publish checkbox and course link passed. Two race checks passed. | [AC-T8-08 to AC-T8-10, C-T8-01, C-T8-02](../reviews/T8/qa.md), round 2 |
 
 ## 2. Pending final QA
 
@@ -42,7 +44,6 @@ Both reviewers approved these items. QA did not check them yet.
 | --- | --- | --- |
 | T5b, T7 | After a retake with a lower score, the player status names the score that Moodle keeps, for example "Completed — score 60. Moodle keeps your best score: 80" (P11). | Fixed in the code. The next QA run checks it. |
 | T4b1 | "Connect" in Moodle shows a 15-second wait text. If Moodle is slow, the panel says that Moodle may have saved a Pending tool (P1). | Fixed in the code. The next QA run checks it. |
-| T8 | Native channel: Moodle backup (`.mbz`) and an empty Moodle course on publish. | Builder evidence only. QA (AC-T8-02 to AC-T8-10) is pending. |
 
 ## 3. Not proven
 
@@ -56,10 +57,12 @@ Both reviewers approved these items. QA did not check them yet.
 | Video playback. | The export has no visible video. QA proved only that the server sends the video file correctly (AC-T5-02). | — |
 | A real person who closes the real player window keeps the progress. | QA closed the window by script (AC-T5-22, AC-T5-35). That proves the saved progress, not a real close by hand. | — |
 | A person (not a test robot) can do every step. | All runs used a browser robot. The HTML menu link was clicked by script. | Q17, HR-2 |
-| A person who did not build it starts the stack in 10 minutes. | QA's timed fresh-clone run is accepted for the command part (61 s, AC-T9-01). A person who did not build it still needs to do the run. | HR-2 |
+| A person who did not build it starts the stack in 10 minutes. | The Lead accepted QA’s 61-second run for AC-T9-01. A new person’s experience remains unproven; this follow-up does not block that AC. | HR-2 |
 | Load and scale. | No test is planned for the prototype. | Q11 |
 | 1EdTech LTI Advantage certification. | No test is planned for the prototype. | Q1 |
 | A `.mbz` restore in the Moodle pages, or on another site. | The T8 test uses the Moodle command line only. | Q5, Q12 |
+| The portal web services token form. | T8 QA used the API for AC-T8-08. | Q12 |
+| All Build Runner hardening paths. | The 10-minute timeout, interrupted-build sweep, planted-file rejection and backup copy checks lack black-box tests ([T8 QA §5](../reviews/T8/qa.md#5-not-covered)). | — |
 
 ## QA notes
 

@@ -2,7 +2,7 @@
 
 Source: commit `4182c80`, 2026-10-19.
 
-These review findings are still open. Each one is MINOR ("worth a fix, safe to defer") or NIT (style). No BLOCKER or MAJOR finding is open in a finished task. T8: QA round 1 failed on two races (Q-T8-01, Q-T8-02, MAJOR). Both are fixed. QA round 2 is pending. This list is for engineers. A product person can skip it.
+These review findings are still open. Each one is MINOR ("worth a fix, safe to defer") or NIT (style). No BLOCKER or MAJOR finding is open in a finished task. T8 round 1 failed on two races (Q-T8-01, Q-T8-02, MAJOR). Both passed in [round 2 at `8059c31`](../reviews/T8/qa.md). They are resolved, not open deferrals. This list is for engineers. A product person can skip it.
 
 Counts: **13 MINOR, 30 NIT** (state 2026-10-19). The T3c QA report has no product findings. Ids are in `docs/reviews/<task>/`.
 
