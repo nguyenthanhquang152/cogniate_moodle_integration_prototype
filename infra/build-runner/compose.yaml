@@ -2,7 +2,8 @@
 # Started and removed by infra/scripts/build-runner.sh (host side). Isolation (ADR-007, AC-T8-03):
 #  - ONE network, internal: no internet, no DNS for the main stack (moodle.test), no published port;
 #  - own Postgres and own volumes (removed with `down -v`);
-#  - the package zip and the job file are read-only; only the output folder is writable.
+#  - the package zip and the job file are read-only; there is NO writable host folder (A-T8-01): the runner takes
+#    the .mbz out with `docker cp` (which never follows a symlink) and checks it before it reaches out/.
 services:
   db:
     image: postgres:16-alpine
@@ -51,7 +52,6 @@ services:
       - moodledata:/var/www/moodledata
       - ./php:/opt/cogniate/php:ro
       - ${BUILD_IN:?set by build-runner.sh}:/opt/cogniate/in:ro
-      - ${BUILD_OUT:?set by build-runner.sh}:/opt/cogniate/out
     networks: [build]
     healthcheck:
       test: ["CMD-SHELL", "curl -fsS -o /dev/null -H 'Host: cogniate-build.invalid' http://127.0.0.1:8080/login/index.php"]

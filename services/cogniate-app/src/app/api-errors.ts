@@ -31,6 +31,7 @@ export const APP_API_ERRORS = defineErrorTable({
   WS_TOKEN_INVALID: { status: 422, description: 'The web services token is not valid.' },
   WS_FUNCTIONS_MISSING: { status: 422, description: 'The web services token cannot use every function that Cogniate needs.' },
   MBZ_NOT_SUPPORTED: { status: 422, description: 'Only a SCORM 1.2 version can be built as a Moodle backup.' },
+  MBZ_BUILD_LIMIT: { status: 409, description: 'This library already has the most builds that may wait or run at the same time.' },
   LTI_SERVICE_ERROR: { status: 502, description: 'The LTI service answered with an error.' },
   MOODLE_WS_ERROR: { status: 502, description: 'Moodle web services did not answer as expected.' },
 });

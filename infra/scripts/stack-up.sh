@@ -64,6 +64,6 @@ if [[ "$profile" == acceptance ]]; then
   fi
   echo "$qa_now" > "$qa_seen_file"
 fi
-start_build_runner
+start_build_runner || true   # the stack works without it; only .mbz builds wait (the message says why)
 echo "Stack healthy in $(( $(date +%s) - start )) s (profile: $profile). Next: npm run seed"
 print_urls

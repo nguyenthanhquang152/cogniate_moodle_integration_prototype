@@ -10,7 +10,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { getCourse, getVersion } from '../domain/courses.ts';
 import type { Db } from '../domain/db.ts';
 import type { BuildStatus, MbzBuild } from '../domain/mbz-builds.ts';
-import { applyRunnerStatus, createBuild, latestBuild, newBuildId } from '../domain/mbz-builds.ts';
+import { activeBuildCount, applyRunnerStatus, createBuild, latestBuild, newBuildId } from '../domain/mbz-builds.ts';
 import { ApiError } from './api-errors.ts';
 
 export interface MbzRouteDeps {
@@ -24,8 +24,14 @@ export interface MbzRouteDeps {
 
 type VersionParams = { Params: { courseId: string; versionId: string } };
 const STATUSES: ReadonlySet<string> = new Set(['queued', 'running', 'ready', 'failed']);
-/** A request that the runner has not taken after this time: the portal says how to start the runner. */
+/** A request that the runner has not taken after this time: the portal says why (from the runner heartbeat). */
 const RUNNER_WAIT_MS = 60_000;
+/** B-T8-01: a build with no progress for this long is failed, so a new request starts a fresh build. */
+export const STALE_BUILD_MS = 10 * 60_000;
+/** The runner writes status/runner.json every few seconds; older than this = not running. */
+const HEARTBEAT_MS = 30_000;
+/** A-T8 NIT: one library cannot fill the single build queue. */
+export const MAX_ACTIVE_BUILDS_PER_LIBRARY = 2;
 
 const iso = (ms: number | null): string | null => (ms === null ? null : new Date(ms).toISOString());
 
@@ -51,32 +57,64 @@ export function registerMbzRoutes(api: FastifyInstance, deps: MbzRouteDeps): voi
     return { course, version, lib };
   };
 
-  /** Read the runner's status file into the row; a request that waits too long gets a hint. */
+  /** Why a queued build waits, from the runner heartbeat (status/runner.json, B-T8-02). */
+  async function waitingReason(): Promise<string> {
+    try {
+      const hb = JSON.parse(await readFile(join(buildQueueDir, 'status', 'runner.json'), 'utf8')) as { lastSeenAt?: string; image?: string };
+      if (typeof hb.lastSeenAt !== 'string' || now() - Date.parse(hb.lastSeenAt) > HEARTBEAT_MS) throw new Error('stale');
+      if (hb.image === 'failed') return 'The Build Runner cannot make its build image. See infra/.logs/build-runner.jsonl, then run npm run build-runner image.';
+      if (hb.image === 'building' || hb.image === 'missing') return 'The Build Runner is making its build image (once, about 20 s).';
+      return 'Waiting in the build queue.';
+    } catch {
+      return 'The Build Runner is not running. Start it with npm run stack:up, or run npm run build-runner.';
+    }
+  }
+
+  const stale = (b: MbzBuild, reason: string): MbzBuild => {
+    applyRunnerStatus(db, b.id, { status: 'failed', step: b.step, reason, bytes: null, finishedAt: now() }, now());
+    return latestBuild(db, b.libraryId, b.versionId) ?? b;
+  };
+
+  /**
+   * Read the runner's status file into the row. B-T8-01: a build with no progress for STALE_BUILD_MS is failed (the
+   * runner stopped or the request was never taken), so a new request starts a fresh build.
+   */
   async function refresh(b: MbzBuild): Promise<MbzBuild> {
     if (b.status === 'ready' || b.status === 'failed') return b;
+    let s: Record<string, unknown> | null;
     try {
-      const s = JSON.parse(await readFile(join(buildQueueDir, 'status', `${b.id}.json`), 'utf8')) as Record<string, unknown>;
-      if (typeof s.status === 'string' && STATUSES.has(s.status)) {
-        applyRunnerStatus(db, b.id, {
-          status: s.status as BuildStatus, step: typeof s.step === 'string' ? s.step.slice(0, 32) : null,
-          reason: typeof s.reason === 'string' && s.reason !== '' ? s.reason.slice(0, 300) : null, bytes: typeof s.bytes === 'number' ? s.bytes : null,
-          finishedAt: typeof s.finishedAt === 'string' ? Date.parse(s.finishedAt) || now() : null,
-        }, now());
-      }
+      s = JSON.parse(await readFile(join(buildQueueDir, 'status', `${b.id}.json`), 'utf8')) as Record<string, unknown>;
     } catch {
-      // No status yet: still queued.
-      if (now() - b.createdAt > RUNNER_WAIT_MS && existsSync(join(buildQueueDir, 'requests', `${b.id}.json`))) {
-        return { ...b, reason: 'Waiting for the Build Runner. It starts with npm run stack:up, or run npm run build-runner.' };
-      }
+      s = null;
     }
-    return latestBuild(db, b.libraryId, b.versionId) ?? b;
+    if (s && typeof s.status === 'string' && STATUSES.has(s.status)) {
+      applyRunnerStatus(db, b.id, {
+        status: s.status as BuildStatus, step: typeof s.step === 'string' ? s.step.slice(0, 32) : null,
+        reason: typeof s.reason === 'string' && s.reason !== '' ? s.reason.slice(0, 300) : null, bytes: typeof s.bytes === 'number' ? s.bytes : null,
+        finishedAt: typeof s.finishedAt === 'string' ? Date.parse(s.finishedAt) || now() : null,
+      }, now());
+      const current = latestBuild(db, b.libraryId, b.versionId) ?? b;
+      const lastProgress = typeof s.updatedAt === 'string' ? Date.parse(s.updatedAt) : current.createdAt;
+      if ((current.status === 'running' || current.status === 'queued') && now() - lastProgress > STALE_BUILD_MS) {
+        return stale(current, 'The Build Runner did not finish this build (no progress for 10 min). Build again.');
+      }
+      return current;
+    }
+    // No status yet: still queued (the runner has not taken the request).
+    if (now() - b.createdAt > STALE_BUILD_MS) return stale(b, `The Build Runner did not take this build in 10 min. ${await waitingReason()}`);
+    if (now() - b.createdAt > RUNNER_WAIT_MS && existsSync(join(buildQueueDir, 'requests', `${b.id}.json`))) return { ...b, reason: await waitingReason() };
+    return b;
   }
 
   api.post<VersionParams>('/courses/:courseId/versions/:versionId/mbz', async (req, reply) => {
     const { course, version, lib } = versionOf(req);
     if (version.format !== 'scorm12') throw new ApiError('MBZ_NOT_SUPPORTED', 'Only a SCORM 1.2 version can be built as a Moodle backup (.mbz).');
-    const current = latestBuild(db, lib, version.id);
-    if (current && (current.status === 'queued' || current.status === 'running')) return reply.code(202).send(buildJson(await refresh(current)));
+    const latest = latestBuild(db, lib, version.id);
+    const current = latest ? await refresh(latest) : undefined;
+    if (current && (current.status === 'queued' || current.status === 'running')) return reply.code(202).send(buildJson(current));
+    if (activeBuildCount(db, lib) >= MAX_ACTIVE_BUILDS_PER_LIBRARY) {
+      throw new ApiError('MBZ_BUILD_LIMIT', `${MAX_ACTIVE_BUILDS_PER_LIBRARY} builds of your library wait or run. Build again when one has ended.`);
+    }
     const pkg = db.prepare('SELECT sha256 FROM package WHERE id = ? AND library_id = ?').get(version.packageId, lib);
     if (!pkg || !/^[0-9a-f]{64}$/.test(String(pkg.sha256))) throw new ApiError('NOT_FOUND', 'The package of this version is missing.');
     const id = newBuildId();

@@ -5,7 +5,8 @@
 //   --step=course  a hidden course, idnumber cogniate:{courseId}:{variant}:{lang}, completion tracking on
 //   --step=scorm   one SCORM activity from the package: grade method "highest", maximum grade 100,
 //                  completion "Receive a grade" (automatic, use grade)
-//   --step=backup  a course backup WITHOUT users to /opt/cogniate/out/course.mbz
+//   --step=backup  a course backup WITHOUT users to /var/www/moodledata/cogniate-out/course.mbz (inside the container;
+//                  the host runner takes it out with docker cp)
 // Output: one JSON line per step.
 define('CLI_SCRIPT', true);
 require('/var/www/html/config.php');
@@ -81,8 +82,10 @@ if ($options['step'] === 'backup') {
     }
     $bc->execute_plan();
     $file = $bc->get_results()['backup_destination'];
-    $file->copy_content_to('/opt/cogniate/out/course.mbz');
+    $dir = $CFG->dataroot . '/cogniate-out';
+    check_dir_exists($dir, true, true);
+    $file->copy_content_to($dir . '/course.mbz');
     $bc->destroy();
-    $out += ['bytes' => filesize('/opt/cogniate/out/course.mbz')];
+    $out += ['bytes' => filesize($dir . '/course.mbz')];
 }
 echo json_encode($out, JSON_UNESCAPED_SLASHES) . "\n";

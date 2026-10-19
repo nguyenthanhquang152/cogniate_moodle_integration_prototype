@@ -51,3 +51,8 @@ export function applyRunnerStatus(db: Db, id: string, s: { status: BuildStatus; 
   db.prepare(`UPDATE mbz_build SET status = ?, step = ?, reason = ?, bytes = ?, finished_at = ?, updated_at = ? WHERE id = ? AND status NOT IN ('ready', 'failed')`)
     .run(s.status, s.step, s.reason, s.bytes, s.finishedAt, now, id);
 }
+
+/** Builds of a library that wait or run (the per-library limit, A-T8 NIT). */
+export function activeBuildCount(db: Db, libraryId: string): number {
+  return Number(db.prepare("SELECT COUNT(*) AS n FROM mbz_build WHERE library_id = ? AND status IN ('queued', 'running')").get(libraryId)?.n ?? 0);
+}

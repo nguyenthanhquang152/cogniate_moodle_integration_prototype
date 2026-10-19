@@ -53,6 +53,17 @@ if ! [[ "$PUBLIC_PORT" =~ ^[0-9]+$ ]] || (( PUBLIC_PORT < 1 || PUBLIC_PORT > 655
   exit 1
 fi
 
+# The four public host names: the ONE place (B-T1-10). gen-env builds the URLs from them, gen-certs the certificate
+# names, require_env the check, demo-browser the name mapping, and compose.yaml the proxy aliases (exported below;
+# compose keeps the same values as defaults). The URLs add :PUBLIC_PORT when it is not 443.
+MOODLE_HOST=moodle.test
+LTI_HOST=lti.cogniate.test
+APP_HOST=app.cogniate.test
+CONTENT_HOST=content.cogniate-content.test
+STACK_HOSTS=("$MOODLE_HOST" "$LTI_HOST" "$APP_HOST" "$CONTENT_HOST")
+export MOODLE_HOST LTI_HOST APP_HOST CONTENT_HOST
+public_url() { local suffix=""; [[ "$PUBLIC_PORT" == 443 ]] || suffix=":$PUBLIC_PORT"; printf 'https://%s%s\n' "$1" "$suffix"; }
+
 # Stack profile (local-stack §3): "default" or "acceptance". Only stack-up.sh changes it (STACK_PROFILE in the shell)
 # and saves it in .tmp/stack-profile.<project>. Every other command uses the saved value, so a restart, a seed or a
 # QA run never switches the profile by mistake. The effective profile is ACTIVE_STACK_PROFILE (compose.yaml gives it
@@ -92,14 +103,13 @@ mcfg() { mphp /var/www/html/admin/cli/cfg.php "$@"; }
 # .env, the four public URLs and the certificates must exist and agree with PUBLIC_PORT.
 require_env() {
   if [[ ! -f "$ENV_FILE" ]]; then echo "Missing $ENV_FILE. Run: npm run gen-env" >&2; exit 1; fi
-  local suffix=""; [[ "$PUBLIC_PORT" == 443 ]] || suffix=":$PUBLIC_PORT"
   local name want
   for name in PUBLIC_MOODLE_URL PUBLIC_LTI_URL PUBLIC_APP_URL PUBLIC_CONTENT_URL; do
     case "$name" in
-      PUBLIC_MOODLE_URL) want="https://moodle.test$suffix" ;;
-      PUBLIC_LTI_URL) want="https://lti.cogniate.test$suffix" ;;
-      PUBLIC_APP_URL) want="https://app.cogniate.test$suffix" ;;
-      PUBLIC_CONTENT_URL) want="https://content.cogniate-content.test$suffix" ;;
+      PUBLIC_MOODLE_URL) want="$(public_url "$MOODLE_HOST")" ;;
+      PUBLIC_LTI_URL) want="$(public_url "$LTI_HOST")" ;;
+      PUBLIC_APP_URL) want="$(public_url "$APP_HOST")" ;;
+      PUBLIC_CONTENT_URL) want="$(public_url "$CONTENT_HOST")" ;;
     esac
     if [[ "${!name:-}" != "$want" ]]; then
       echo "$name is '${!name:-}', expected '$want' for PUBLIC_PORT=$PUBLIC_PORT. Run: npm run gen-env" >&2
@@ -232,14 +242,40 @@ print_urls() {
 BUILD_QUEUE_DIR="$INFRA_DIR/.data/build-queue"
 BUILD_RUNNER_PID_FILE="$REPO_ROOT/.tmp/build-runner.${COMPOSE_PROJECT_NAME:-cogniate-stack}.pid"
 build_runner_running() { [[ -s "$BUILD_RUNNER_PID_FILE" ]] && kill -0 "$(cat "$BUILD_RUNNER_PID_FILE")" 2>/dev/null; }
+# B-T8-02: report "started" only when the runner really runs: the process is alive and its heartbeat
+# (infra/.data/build-queue/status/runner.json) appears. Its log is JSON lines: infra/.logs/build-runner.jsonl.
 start_build_runner() {
   mkdir -p "$BUILD_QUEUE_DIR/requests" "$BUILD_QUEUE_DIR/status" "$BUILD_QUEUE_DIR/out" "$BUILD_QUEUE_DIR/hold" "$LOGS_DIR" "$REPO_ROOT/.tmp"
   if build_runner_running; then return 0; fi
-  nohup bash "$INFRA_DIR/scripts/build-runner.sh" watch >> "$LOGS_DIR/build-runner.log" 2>&1 &
+  rm -f "$BUILD_QUEUE_DIR/status/runner.json"
+  nohup bash "$INFRA_DIR/scripts/build-runner.sh" watch >> "$LOGS_DIR/build-runner.jsonl" 2>> "$LOGS_DIR/build-runner.err.log" &
   echo $! > "$BUILD_RUNNER_PID_FILE"
-  echo "Build Runner started (host side, pid $(cat "$BUILD_RUNNER_PID_FILE"); log infra/.logs/build-runner.log)."
+  local i
+  for i in $(seq 1 15); do
+    sleep 1
+    if ! build_runner_running; then
+      echo "ERROR: the Build Runner did not start (it stopped at once). .mbz builds will wait. Last log lines:" >&2
+      tail -5 "$LOGS_DIR/build-runner.jsonl" "$LOGS_DIR/build-runner.err.log" 2>/dev/null >&2
+      echo "Fix the cause, then run: npm run stack:up (or npm run build-runner to see it in the foreground)." >&2
+      rm -f "$BUILD_RUNNER_PID_FILE"
+      return 1
+    fi
+    if [[ -s "$BUILD_QUEUE_DIR/status/runner.json" ]]; then
+      echo "Build Runner started (host side, pid $(cat "$BUILD_RUNNER_PID_FILE"); log infra/.logs/build-runner.jsonl)."
+      return 0
+    fi
+  done
+  echo "WARNING: the Build Runner runs (pid $(cat "$BUILD_RUNNER_PID_FILE")) but wrote no heartbeat in 15 s. See infra/.logs/build-runner.jsonl." >&2
+  return 1
 }
+# B-T8-01: TERM lets the runner tear down a running build and mark it failed; wait for that, then KILL if needed.
 stop_build_runner() {
-  if build_runner_running; then kill "$(cat "$BUILD_RUNNER_PID_FILE")" 2>/dev/null || true; echo "Build Runner stopped."; fi
+  if build_runner_running; then
+    local pid i; pid="$(cat "$BUILD_RUNNER_PID_FILE")"
+    kill "$pid" 2>/dev/null || true
+    for i in $(seq 1 60); do kill -0 "$pid" 2>/dev/null || break; sleep 1; done
+    kill -0 "$pid" 2>/dev/null && kill -9 "$pid" 2>/dev/null || true
+    echo "Build Runner stopped."
+  fi
   rm -f "$BUILD_RUNNER_PID_FILE"
 }

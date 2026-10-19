@@ -1,6 +1,7 @@
 // T8 (stretch): .mbz builds through the host-side Build Runner queue, Moodle web services token, course shell.
 import { spawnSync } from 'node:child_process';
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeZip, scormManifest } from '@cogniate/package-inspector/testing';
@@ -188,5 +189,99 @@ describe('web services token and course shell (app contract §11)', () => {
     expect(f.courses.size).toBe(1);
     const plain = await json('POST', '/app-api/publications', cookie, { connectionId: id, courseId: v.course });
     expect(plain.json().moodleCourse).toMatchObject({ id: 10 }); // the shell stays on the publication
+  });
+});
+
+const QUEUE_MJS = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'infra', 'build-runner', 'queue.mjs');
+const runQueue = (args: string[]) => spawnSync(process.execPath, [QUEUE_MJS, ...args], { encoding: 'utf8', timeout: 5000 });
+const GOOD = { buildId: `bld_${'a'.repeat(24)}`, courseId: `crs_${'A'.repeat(22)}`, versionId: `ver_${'B'.repeat(22)}`, packageSha256: 'f'.repeat(64), variant: 'default', lang: 'en', title: 'T', hold: false, failAt: '' };
+
+describe('A-T8-01: the host runner never follows a symlink and never reads a special file', () => {
+  it('a symlinked request, a FIFO request and an oversized request are refused (no read of the target, no hang)', async () => {
+    t = await testApp();
+    const secret = join(t.dataDir, 'host-secret.json');
+    writeFileSync(secret, JSON.stringify(GOOD));
+    const link = join(t.dataDir, 'link.json');
+    symlinkSync(secret, link);
+    const r1 = runQueue(['validate', link]);
+    expect([r1.status, r1.stderr.trim()]).toEqual([1, 'request is a symlink']);
+    const fifo = join(t.dataDir, 'fifo.json');
+    expect(spawnSync('mkfifo', [fifo]).status).toBe(0);
+    const r2 = runQueue(['validate', fifo]);
+    expect([r2.status, r2.signal, r2.stderr.trim()]).toEqual([1, null, 'request is not a regular file']); // no hang (timeout 5 s)
+    const big = join(t.dataDir, 'big.json');
+    writeFileSync(big, JSON.stringify({ ...GOOD, title: 'x'.repeat(5000) }));
+    expect(runQueue(['validate', big]).stderr.trim()).toBe('request too large');
+    expect(runQueue(['jobfile', link]).status).toBe(1);
+  });
+
+  it('publish: a symlinked or non-gzip backup is refused; out/ is written with exclusive create', async () => {
+    t = await testApp();
+    const dir = t.dataDir;
+    const hostFile = join(dir, 'passwd');
+    writeFileSync(hostFile, gzipSync(Buffer.from('host data')));
+    const link = join(dir, 'course-link.mbz');
+    symlinkSync(hostFile, link);
+    const r1 = runQueue(['publish', link, join(dir, 'out1.mbz')]);
+    expect([r1.status, r1.stderr.trim(), existsSync(join(dir, 'out1.mbz'))]).toEqual([1, 'backup is not a regular file (symlink or special file)', false]);
+    const plain = join(dir, 'plain.mbz');
+    writeFileSync(plain, 'not a gzip file, just text that is long enough');
+    expect(runQueue(['publish', plain, join(dir, 'out2.mbz')]).stderr.trim()).toBe('backup is not a gzip file');
+    const good = join(dir, 'good.mbz');
+    writeFileSync(good, gzipSync(Buffer.from('a real backup body')));
+    const ok = runQueue(['publish', good, join(dir, 'out3.mbz')]);
+    expect([ok.status, JSON.parse(ok.stdout).bytes > 0]).toEqual([0, true]);
+    const again = runQueue(['publish', good, join(dir, 'out3.mbz')]);
+    expect(again.status).toBe(1); // exclusive create: an existing (or planted) target is never overwritten
+    symlinkSync(hostFile, join(dir, 'planted.mbz'));
+    expect(runQueue(['publish', good, join(dir, 'planted.mbz')]).status).toBe(1);
+    expect(readFileSync(hostFile).length).toBeGreaterThan(0); // the host file is untouched
+  });
+});
+
+describe('B-T8-01 / B-T8-02: interrupted builds, runner heartbeat, per-library limit', () => {
+  it('a running build with no progress for 10 min is failed; a new POST starts a fresh build', async () => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const v = await version(cookie, scorm);
+    const url = `/app-api/courses/${v.course}/versions/${v.version}/mbz`;
+    const first = (await json('POST', url, cookie)).json().buildId as string;
+    writeFileSync(join(queueDir(t.dataDir), 'status', `${first}.json`), JSON.stringify({ status: 'running', step: 'scorm', updatedAt: new Date(t.clock.now).toISOString() }));
+    expect((await json('GET', url, cookie)).json()).toMatchObject({ status: 'running' });
+    t.clock.now += 11 * 60_000;
+    expect((await json('GET', url, cookie)).json()).toMatchObject({ status: 'failed', step: 'scorm', reason: expect.stringContaining('did not finish this build') });
+    const second = await json('POST', url, cookie);
+    expect([second.statusCode, second.json().status, second.json().buildId === first]).toEqual([202, 'queued', false]);
+  });
+
+  it('a request that is never taken: the reason comes from the heartbeat; after 10 min it is failed', async () => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const v = await version(cookie, scorm);
+    const url = `/app-api/courses/${v.course}/versions/${v.version}/mbz`;
+    await json('POST', url, cookie);
+    t.clock.now += 61_000;
+    expect((await json('GET', url, cookie)).json().reason).toContain('The Build Runner is not running');
+    const hb = (image: string) => writeFileSync(join(queueDir(t.dataDir), 'status', 'runner.json'), JSON.stringify({ pid: 1, lastSeenAt: new Date(t.clock.now).toISOString(), image }));
+    hb('building');
+    expect((await json('GET', url, cookie)).json().reason).toContain('making its build image');
+    hb('failed');
+    expect((await json('GET', url, cookie)).json().reason).toContain('cannot make its build image');
+    hb('ready');
+    expect((await json('GET', url, cookie)).json().reason).toBe('Waiting in the build queue.');
+    t.clock.now += 10 * 60_000;
+    expect((await json('GET', url, cookie)).json()).toMatchObject({ status: 'failed', reason: expect.stringContaining('did not take this build in 10 min') });
+  });
+
+  it('one library may have at most 2 builds waiting or running (409 MBZ_BUILD_LIMIT); another library is not blocked', async () => {
+    t = await testApp();
+    const cookie = await t.login(THANH);
+    const vs = [await version(cookie, scorm, 'A'), await version(cookie, scorm, 'B'), await version(cookie, scorm, 'C')];
+    for (const v of vs.slice(0, 2)) expect((await json('POST', `/app-api/courses/${v.course}/versions/${v.version}/mbz`, cookie)).statusCode).toBe(202);
+    const third = await json('POST', `/app-api/courses/${vs[2]!.course}/versions/${vs[2]!.version}/mbz`, cookie);
+    expect([third.statusCode, third.json().details.message]).toEqual([409, 'MBZ_BUILD_LIMIT']);
+    const qaB = await t.login(QA_B);
+    const vb = await version(qaB, scorm, 'B lib');
+    expect((await json('POST', `/app-api/courses/${vb.course}/versions/${vb.version}/mbz`, qaB)).statusCode).toBe(202);
   });
 });
