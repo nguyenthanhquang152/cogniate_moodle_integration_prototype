@@ -59,7 +59,7 @@ T4b1, T4b2 and P1 passed at `a5d9ddcb`. The P2/P5 repair passed focused QA at `d
 | **Not guaranteed (P2 remote ordering):** Moodle always keeps the confirmed best score. | An older request can write after accepted confirmation. The 5-second gap cannot prove that all remote work finished. | [ADR-010](../architecture/adr/ADR-010-grade-and-completion-policy.md#p2-bounded-confirmation-after-uncertain-delivery-2026-10-19) |
 | It works on MoodleCloud. | QA used a local Moodle 5.2.4 site. A test needs a MoodleCloud trial account. | Q5 |
 | **Not supported:** Moodle in a subfolder (for example `https://school.edu/moodle`). | Dynamic registration is refused. Web service and course links (T8) would use the wrong path. Manual connect may work, but nobody tested it. MoodleCloud is not affected. About 1 day to add. | Q18 |
-| A teacher on Safari can add content. | QA used Chromium only. Safari can block the Cogniate cookie in Moodle's frame. | Q16, R4 |
+| A teacher on Firefox or Safari can add content. | QA used Chromium only. Safari can block the Cogniate cookie in Moodle's frame. | Q16, R4 |
 | The player works in Firefox and Safari. | QA used Chromium only. | — |
 | The player works in mobile browsers. | No mobile test. | — |
 | Video playback. | The export has no visible video. QA proved only that the server sends the video file correctly (AC-T5-02). | — |

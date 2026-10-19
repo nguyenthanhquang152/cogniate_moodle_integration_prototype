@@ -21,7 +21,7 @@ Source: commit `4182c80`, 2026-10-19.
 | Works (proven by QA) | Not proven yet |
 | --- | --- |
 | Earlier main-flow checks passed on real Moodle 5.2.4 | MoodleCloud: needs a trial account (Q5) |
-| SCORM 1.2 and HTML courses, pass (100) and fail (0) | Teachers on Safari (Q16). QA used Chromium only. |
+| SCORM 1.2 and HTML courses, pass (100) and fail (0) | Teachers on Firefox or Safari (Q16). QA used Chromium only. |
 | | Not supported: Moodle in a subfolder, for example `https://school.edu/moodle` (Q18). MoodleCloud is not affected. |
 | Sequential retakes and focused P2/P5 checks passed. Full regression remains pending. | Load, scale and 1EdTech certification |
 | | Not guaranteed: a very late older score can overwrite Moodle’s grade after confirmation ([P2 remote ordering](../architecture/adr/ADR-010-grade-and-completion-policy.md#p2-bounded-confirmation-after-uncertain-delivery-2026-10-19)). |

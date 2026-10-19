@@ -242,8 +242,8 @@
         },
         {
           "st": "not",
-          "en": "Teachers on Safari (Q16)",
-          "vi": "Giáo viên dùng Safari (Q16)"
+          "en": "Teachers on Firefox or Safari (Q16)",
+          "vi": "Giáo viên dùng Firefox hoặc Safari (Q16)"
         },
         {
           "st": "not",
@@ -257,8 +257,8 @@
         }
       ],
       "say": {
-        "en": "MoodleCloud needs a trial site. Teachers on Safari may fail to add content. Load, scale and certification remain unproven. A very late older score can overwrite Moodle’s grade, even after confirmation. Moodle in a subfolder remains unsupported.",
-        "vi": "MoodleCloud cần một trang dùng thử. Giáo viên dùng Safari có thể không thêm được nội dung. Tải, khả năng mở rộng và chứng nhận vẫn chưa được kiểm chứng. Điểm cũ đến rất muộn vẫn có thể ghi đè điểm trong Moodle. Rủi ro này còn tồn tại sau bước xác nhận. Moodle trong thư mục con chưa được hỗ trợ."
+        "en": "MoodleCloud needs a trial site. Teachers on Safari may fail to add content. Firefox is unverified. Load, scale and certification remain unproven. A very late older score can overwrite Moodle’s grade, even after confirmation. Moodle in a subfolder remains unsupported.",
+        "vi": "MoodleCloud cần một trang dùng thử. Giáo viên dùng Safari có thể không thêm được nội dung. Firefox chưa được kiểm tra. Tải, khả năng mở rộng và chứng nhận vẫn chưa được kiểm chứng. Điểm cũ đến rất muộn vẫn có thể ghi đè điểm trong Moodle. Rủi ro này còn tồn tại sau bước xác nhận. Moodle trong thư mục con chưa được hỗ trợ."
       }
     },
     {
