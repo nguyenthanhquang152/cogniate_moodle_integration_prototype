@@ -2,9 +2,7 @@
 
 This prototype publishes Cogniate courses (SCORM 1.2 and HTML) to Moodle with LTI 1.3. It has its own LTI service, a clean-room implementation of the 1EdTech specifications. For the endpoints listed in ADR-003, its API follows the public LTIAAS API reference, with listed differences.
 
-**Status:** all 15 end-to-end checks passed on real Moodle 5.2.4. The T7 regression at `dd6dd11` also passed ([T7 QA §9](docs/reviews/T7/qa.md#9-final-regression-run-dd6dd11-final-code)). Portal QA passed 14 checks; the listed LTIAAS-style endpoints passed 7 checks with the real `ltiaas` SDK. T8 round 2 passed AC-T8-02 to AC-T8-10 and both race checks at `8059c31` ([T8 QA](docs/reviews/T8/qa.md)). MoodleCloud, restore through Moodle pages, and the portal token form remain unverified.
-
-**Current gate:** [Full player and portal regression](docs/reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d) passed at `d54c607d`: 49 ACs and 65 tests. Fresh T7 and final T9 artifact checks remain pending.
+**Status:** all 15 end-to-end checks passed on real Moodle 5.2.4. Three fresh runs passed at `c5683f8`, after the grade repair ([T7 QA §10](docs/reviews/T7/qa.md#10-replacement-qa-e2e-repair-regression--2026-10-19)). Portal QA passed 14 checks; the listed LTIAAS-style endpoints passed 7 checks with the real `ltiaas` SDK. T8 round 2 passed AC-T8-02 to AC-T8-10 and both race checks at `8059c31` ([T8 QA](docs/reviews/T8/qa.md)). MoodleCloud, restore through Moodle pages, and the portal token form remain unverified.
 
 ## Start here
 
@@ -24,7 +22,7 @@ npm run e2e:reset      # WARNING: deletes the local Moodle site and the local Co
 npm run demo:prepare   # connection, two published courses, two Moodle activities
 ```
 
-QA measured 36 seconds for `e2e:reset` and 9.3 seconds for `demo:prepare` (AC-T7-15). The Lead accepted QA’s fresh-clone run for AC-T9-01: both login pages opened in 61 seconds. Unfamiliar-human usability remains unproven (HR-2). Then open the stack in a browser: see the run guide, procedure 3.
+QA measured 43 seconds for `e2e:reset` and 8.64 seconds for `demo:prepare` (AC-T7-15). The Lead accepted QA’s fresh-clone run for AC-T9-01: both login pages opened in 61 seconds. Unfamiliar-human usability remains unproven (HR-2). Then open the stack in a browser: see the run guide, procedure 3.
 
 ## Guides
 

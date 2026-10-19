@@ -11,7 +11,7 @@ Technical reference (all commands, settings, certificates): [`infra/README.md`](
 | `[AC-T7-15]`, `[LC-T1-06]`, `[H2]` | QA tested this behaviour, and it passed. The tag is a row in `docs/reviews/<task>/qa.md`, for example [`T7`](../reviews/T7/qa.md) or [`T1`](../reviews/T1/qa.md). |
 | `[Not verified by QA]` | Only the builder checked it. It can fail on your Mac. If it fails, tell the Lead. |
 
-NOTE: QA used `PUBLIC_PORT=8443` and `8543`, so the QA URLs end in `:8443` or `:8543` [AC-T1-09, AC-T7-07]. The default port is 443. Then the URLs have no port number [Not verified by QA].
+NOTE: QA used ports 8443, 8543 and 8743. The QA URLs include the selected port [AC-T1-09, AC-T7-07]. The default port is 443. Then the URLs have no port number [Not verified by QA].
 
 ## What you get
 
@@ -62,7 +62,7 @@ WARNING: Step 8 deletes the local Moodle site and all local Cogniate data. Use i
 
 Result [AC-T7-15]:
 
-- In the QA run, step 8 took 36 seconds and step 10 took 9.3 seconds. From a new clone to both pages in the browser took 61 seconds [AC-T9-01].
+- In the latest QA run, step 8 took 43 seconds and step 10 took 8.64 seconds. From a new clone to both pages in the browser took 61 seconds [AC-T9-01].
 - Thanh's Library is connected to Moodle. Both courses are uploaded and published.
 - `COGNIATE-DEV-101` has two Cogniate activities, with a maximum grade of 100 and completion "Receive a grade".
 - `cg_student` can open both activities and reach the course player.
@@ -120,7 +120,7 @@ WARNING: This test deletes the local Moodle site and all local Cogniate data. Us
 1. Run `npm run test:e2e` [AC-T7-01].
 2. When the command asks, type `yes` and press Return [AC-T9-01, [T7 qa.md §7](../reviews/T7/qa.md#7-pre-final-run-2129b69)].
 
-Result: the test starts an empty stack and runs the full story on Moodle 5.2.4. In the QA runs, it took 188, 189 and 186 seconds, with 17 tests passed and no retries [AC-T7-01, AC-T7-11].
+Result: the test starts an empty stack and runs the full story on Moodle 5.2.4. The fresh runs took 186, 181 and 175 seconds, with 17 tests passed each and no retries ([T7 QA §10](../reviews/T7/qa.md#10-replacement-qa-e2e-repair-regression--2026-10-19)).
 
 NOTE: In a script, use `npm run test:e2e -- --yes` or set `E2E_CONFIRM=1`. Then the command does not ask [AC-T7-01, [T7 qa.md §7](../reviews/T7/qa.md#7-pre-final-run-2129b69)]. If a step fails, see "Debug a failed E2E step" in [`infra/README.md`](../../infra/README.md#debug-a-failed-e2e-step).
 

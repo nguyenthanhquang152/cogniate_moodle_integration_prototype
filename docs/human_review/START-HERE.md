@@ -4,9 +4,7 @@ Source: commit `4182c80`, 2026-10-19.
 
 **What it is.** A prototype that publishes Cogniate courses to Moodle with the LTI 1.3 standard. It has our own LTI service. For the endpoints listed in ADR-003, its API follows the public LTIAAS API reference, with listed differences. It also has a stand-in for the Cogniate portal and a real Moodle 5.2.4 site, all on one Mac.
 
-**Result.** All 15 end-to-end checks passed on real Moodle 5.2.4, including the regression at `dd6dd11`. The earlier three consecutive runs also passed. Grades reached Moodle in 3.8–3.9 seconds in the final run. ([proven.md](proven.md))
-
-**Current gate:** [Full player and portal regression](../reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d) passed at `d54c607d`: 49 ACs and 65 tests. Fresh T7 and final T9 artifact checks remain pending.
+**Result.** All 15 end-to-end checks passed in three fresh runs at `c5683f8`, after the grade repair. Each run took about three minutes, with no retries. Grades reached Moodle in 3.3–3.9 seconds. ([proven.md](proven.md))
 
 ## The story in five steps
 
@@ -56,6 +54,6 @@ To run the prototype yourself, see [`docs/guides/`](../guides/run-the-stack.md).
 
 - **`rea` not used.** We evaluated [`rea`](https://github.com/morluto/rea) and did not use it to clone LTIAAS. LTIAAS is a hosted service, and its terms forbid reverse engineering. So we built a clean-room service from the 1EdTech specs and the public API shape. QA then ran the real `ltiaas` 0.0.4 SDK against the listed endpoints of our service, and every check passed (AC-T3-27). See [`rea-evaluation.md`](../architecture/rea-evaluation.md) and [ADR-001](../architecture/adr/ADR-001-rea-not-used.md).
 - **Original team.** Lead, Architect, Author, QA, QA-E2E, Docs and both reviewers used Claude Opus 5.5 at xhigh effort. Codex GPT-6-Astra worked as Author-2 through Orca, also at xhigh effort. Author-2 built the portal and the listed LTIAAS-style endpoints. The spikes remain reference work, without independent QA or review.
-- **Continuation team.** On 2026-10-19, the owner authorized Codex GPT-6-Astra replacements after Claude reached its session limit. Dedicated roles keep separate ownership and independent QA and reviews. These continuation reviews are not cross-model reviews. T8 round 2 passed QA. T9 still needs final QA and blind reviews. See the [charter](../team/charter.md#continuation-authority-2026-10-19) and [board](../team/board.md).
-- **Final check.** The Architect checked the whole system against the design ([conformance report](../reviews/T9/architect-conformance.md)). The earlier conformance check approved the fixes. Full player and portal regression passed the repair. Fresh T7 remains pending. Q18 remains an accepted limit.
+- **Continuation team.** On 2026-10-19, the owner authorized Codex GPT-6-Astra replacements after Claude reached its session limit. Dedicated roles keep separate ownership and independent QA and reviews. These continuation reviews are not cross-model reviews. T8 round 2 passed QA. See the [charter](../team/charter.md#continuation-authority-2026-10-19) and [board](../team/board.md).
+- **Final check.** The Architect checked the whole system against the design ([conformance report](../reviews/T9/architect-conformance.md)). Full player, portal and end-to-end regression passed after the grade repair. Q18 remains an accepted limit.
 - **Legal note.** The claim "LTIAAS-compatible" is for internal use until a human decides Q1.

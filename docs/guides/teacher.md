@@ -12,7 +12,7 @@ Tags: `[AC-T7-…]` = the full end-to-end QA run on Moodle 5.2.4 used this step,
 
 NOTE: QA tested teachers and learners with Chromium only. Other browsers are not proven (decision Q16). In Safari, "Select content" can fail. Our recommendation for the pilot: add content with Chrome, Edge or Firefox.
 
-NOTE: [Full player and portal regression](../reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d) passed after the grade repair. Fresh T7 remains pending.
+NOTE: [Full player and portal regression](../reviews/T5b/qa.md#replacement-qa-final-regression-2026-10-19--d54c607d) passed after the grade repair. [Fresh T7](../reviews/T7/qa.md#10-replacement-qa-e2e-repair-regression--2026-10-19) also passed.
 
 NOTE: An older Moodle request can write after the best score’s accepted confirmation. Permanent grade agreement is [not guaranteed (P2 remote ordering)](../architecture/adr/ADR-010-grade-and-completion-policy.md#p2-bounded-confirmation-after-uncertain-delivery-2026-10-19).
 

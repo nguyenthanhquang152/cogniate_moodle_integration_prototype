@@ -1,7 +1,7 @@
-Verdict: CHANGES_REQUESTED
+Verdict: APPROVE
 Round: 3
 
-History: round 1 (at `2129b69`) was CHANGES_REQUESTED (MAJOR D1, P1, P2 open). Round 2 (section 9, after the fixes) was APPROVE for conformance. Round 3 (section 10) reopens P2 after a live grade mismatch, then records the focused repair PASS. T7 on `dd6dd11` and T4b1/T4b2 on `a5d9ddc` remain historical PASS evidence; they do not verify the repaired candidate.
+History: round 1 (at `2129b69`) was CHANGES_REQUESTED (MAJOR D1, P1, P2 open). Round 2 (section 9, after the fixes) was APPROVE for conformance. Round 3 (section 10) reopened P2 after a live grade mismatch, then verified the bounded repair with full T5a/T5b/T6 at `d54c607` and fresh three-pass T7 at `c5683f8` (same product). It now APPROVES conformance to the accepted prototype scope. Historical T7 at `dd6dd11` and T4b1/T4b2 at `a5d9ddc` remain dated evidence. Final T9 QA and Docs/media review are separate Lead gates.
 
 # T9: Architect final conformance check
 
@@ -193,7 +193,7 @@ Round 2 had no open BLOCKER or MAJOR finding after its fixes. The live P2 failur
 
 ## 10. Round 3: P2 late remote write
 
-Verdict: **CHANGES_REQUESTED pending fresh T7**. The focused repair checks and full T5a/T5b/T6 regression below PASS. Fresh T7 on the repaired code is the remaining Architect conformance gate. Final T9 QA and Docs/media reviews remain separate Lead gates.
+Verdict: **APPROVE (conformance to the accepted prototype scope)**. The focused repair checks, full T5a/T5b/T6 and fresh three-pass T7 below PASS. P2 is resolved against the approved bounded-confirmation policy; the remote-write and pre-upgrade recovery limits remain explicit. Final T9 QA and Docs/media reviews are separate Lead gates and are not approved by this report.
 
 Replacement QA reported a grade mismatch on `a5d9ddc` (product code `dd6dd11`); the Lead recorded it in board commit `8e7bada`. A paused-Moodle send of 60 was superseded by 90. The app marked 90 as `sent`, but the Moodle oracle still showed 60 after 120 seconds. The local `superseded` guard did not prevent the older remote request from writing later. The repair and its focused PASS are recorded below; this finding was not accepted as a deferral.
 
@@ -208,7 +208,7 @@ The failed candidate evidence is preserved in `7f92f73`: [T5b QA](../T5b/qa.md#r
 | P5 fixture | The deleted higher failed sync still appeared in the public results. QA did not call Resend, so this is no proof of P5 and no demonstrated Resend defect. The Lead-approved stop/delete/start/health-wait extension is in T5b; fresh evidence is required. |
 | P11 | The sent, pending and failed lower-retake variants PASS. No live lower-score `conflict` or scoreless-attempt variant is claimed. |
 | T6 | 12 of 14 ACs PASS. AC-T6-07 used stale teacher text; `3385c55` aligns the spec with the accepted Moodle flow. AC-T6-09 used an immediate focus check; QA changed it to an awaited focus assertion (`e578c51`). Neither correction is a passing rerun; the later wizard keyboard segment was not reached. |
-| Repair and T7 | The bounded confirmation policy is committed in `b826eb1`; product repair is in `1ce57f2` with the current-best attempt ratio correction in `d54c607`. Fresh full T5a/T5b/T6 PASS at `d54c607d7fc6ce2d97e039bb108f52a37f2174ee` is recorded below. Fresh T7 is running on `c5683f8` (same product). Historical T7 PASS at `dd6dd11` does not clear that gate. |
+| Repair and T7 | The bounded confirmation policy is committed in `b826eb1`; product repair is in `1ce57f2` with the current-best attempt ratio correction in `d54c607`. Fresh full T5a/T5b/T6 PASS at `d54c607d7fc6ce2d97e039bb108f52a37f2174ee` and fresh three-pass T7 at `c5683f8` (same product) are recorded below. This evidence closes the Architect conformance gate. |
 
 This run covers Chromium and local Moodle 5.2.4 only. It does not observe a full 24 h retry window. Existing human questions, accepted limitations and MINOR/NIT deferrals remain unchanged.
 
@@ -216,7 +216,7 @@ Repair scope: the product diff from `dd6dd11` to `d54c607` changes only the scor
 
 Upgrade limit: migration 010 gives old rows empty send and confirmation markers and `delivery_uncertain = 0`. It cannot recover uncertainty for remote writes started before the upgrade. The Author reported a synthetic seven-row upgrade check (nine migrations to ten), preserved history/statuses and manual Resend window, unchanged migration hashes, successful reopen, and no integrity or foreign-key errors. Its local evidence is `.tmp/p2-upgrade-task_fd4aae827241/result.json` and `validate.mjs`; the Architect inspected the result and migration, but did not run that check. This is Author evidence, not independent QA or proof of recovering pre-upgrade remote writes.
 
-Continuation review deferral: **A-T9-C01 (MINOR)** remains a known implementation difference. Repeated retryable line-item GET failures before the first score POST keep `tries = 0` and the 5 s delay, rather than advancing the backoff. Static evidence: `worker/score-sync.ts` calls `syncResult` with `Math.max(1, tries)`; `worker/line-item.ts` calls only `findLineItems` (GET). The existing retry-window limit still applies and this path sends no score POST. The Lead accepted this deferral after both phase 1 verdicts were submitted (2026-10-19); the app contract §10 retains the required increasing schedule and labels the difference. A future fix needs separate preparation-retry accounting. This disposition does not clear the pending QA or final review gates.
+Continuation review deferral: **A-T9-C01 (MINOR)** remains a known implementation difference. Repeated retryable line-item GET failures before the first score POST keep `tries = 0` and the 5 s delay, rather than advancing the backoff. Static evidence: `worker/score-sync.ts` calls `syncResult` with `Math.max(1, tries)`; `worker/line-item.ts` calls only `findLineItems` (GET). The existing retry-window limit still applies and this path sends no score POST. The Lead accepted this deferral after both phase 1 verdicts were submitted (2026-10-19); the app contract §10 retains the required increasing schedule and labels the difference. A future fix needs separate preparation-retry accounting. This deferral does not waive any QA or final review gate.
 
 ### Focused repair verification at d54c607
 
@@ -245,5 +245,25 @@ The full P2 run adds an initial higher-send timeout before acceptance. The first
 
 Limits remain: P5 is fixture-assisted; P11 lower-score conflict and scoreless-attempt variants are not live-tested; the full 24 h window was not observed. This run covers Chromium and local Moodle 5.2.4. T6 covers 1440 px and five axe surfaces with serious/critical impact; it does not prove other viewports or every card/error state. The P2 remote-ordering and pre-upgrade recovery limits above remain unchanged.
 
-Fresh T7 is running on `c5683f896330debaea5e9a09f49357dc3e99e92b`. A product-path diff against `d54c607` is empty. The Architect verdict remains pending that independent E2E result; final T9 QA and pack reviews will follow as separate Lead gates.
+### Fresh T7 and root verification at c5683f8
+
+**PASS:** [T7 QA §10](../T7/qa.md#10-replacement-qa-e2e-repair-regression--2026-10-19), committed in `a5633697206831d5a148f872d08e45d803dce4cd`, verifies `c5683f896330debaea5e9a09f49357dc3e99e92b`. Product and T7 harness paths match `d54c607`. The dedicated QA-E2E used a fresh external clone, Chromium, local Moodle 5.2.4 and no working-copy overlay. This is independent replacement-model QA, not a cross-model review.
+
+Evidence root: `tests/e2e/artifacts/runs/qa-e2e-cont-p2-c5683f89-2026-10-19T11-17-07-393Z/`. The Architect read the report, `summary.json`, all four Playwright result summaries, `root-check.log` and `cleanup-independent.json`.
+
+| Check | Verified result |
+| --- | --- |
+| All 15 T7 ACs | PASS. Three consecutive runs take 186, 181 and 175 s, with 17 scenario passes each, no failure or flake, and retries 0. This directly proves AC-T7-11 on the repaired product. |
+| Demo-only skip | Each main run skips only the separate demo test. Fresh `demo:prepare` exits 0 in 8.64 s; the demo test passes and the learner reaches both course players. AC-T7-15 is covered. |
+| Four refusal checks | Both reset/test commands refuse `no` in a terminal and missing confirmation without a terminal, with exit 1 and unchanged snapshots each time. |
+| Root check | Independent `npm run check` exits 0: lint, type checking, 708 unit tests in 48 files, zero skips. All five real-fixture tests run. |
+| Cleanup and isolation | `abort: null`; zero own containers, volumes and networks. The independent cleanup check confirms all ten baseline container IDs, start times and running states are unchanged. |
+
+T7 verifies the normal grade, completion, connection, tenant-isolation and launch flows after the repair. It does not place the P2 late-write race or test lower-retake P11 variants; those proofs remain the T5b evidence above. Author-written deterministic unit cases were independently rerun in the root check; they remain distinct from live Moodle observations. The separate synthetic migration smoke remains Author evidence. Chromium/local Moodle, the HTML menu DOM-click limitation, and the remote-write and pre-upgrade recovery limits remain unchanged.
+
+### Final Architect disposition
+
+No unresolved BLOCKER or MAJOR requires another change within the accepted prototype scope. P2/P5/P11 have the evidence above; the earlier P1/T4b and T8 passes retain their exact SHAs and limits. F5 remains the accepted unsupported-subfolder limitation Q18, not a claimed fix. P7, P10, A-FX-02, A-FX-03, A-T9-C01 and the other recorded MINOR/NIT deferrals remain visible. All human questions, including Q4, Q16 and Q17, remain for humans.
+
+Architecture wording now matches the exact Moodle Accept grades label (ADR-009), the accepted teacher flow (T6), and Chromium-only browser evidence (ADR-005, security §3 and risk R4). The architecture README separates tested paths from the T5/T6/T8, remote-ordering and upgrade boundaries. This conformance APPROVE is not final T9 QA, a Docs/media review, a production upgrade guarantee or human approval; the Lead closes those separate gates.
 

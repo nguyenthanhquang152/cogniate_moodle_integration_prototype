@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Cogniate × Moodle prototype",
-    "source": "T7 qa.md §9 (dd6dd11); T5a/T5b/T6 final QA (d54c607d); T8 qa.md round 2 (8059c31); T3c and T9 qa.md; open-questions.md; architecture README §6; ADR-010 P2 remote-ordering limit",
+    "source": "T7 qa.md §10 (c5683f8); T5a/T5b/T6 final QA (d54c607d); T8 qa.md round 2 (8059c31); T3c and T9 qa.md; open-questions.md; architecture README §6; ADR-010 P2 remote-ordering limit",
     "commit": "4182c80",
     "date": "2026-10-19",
     "voices": {
@@ -122,8 +122,8 @@
         "vi": "Hoàn thành: “Receive a grade”"
       },
       "say": {
-        "en": "Step three: add the course. Turn on Edit mode. Click Add content. Click Activity or resource. Select Cogniate. Click Add. Click Select content. Choose one course. Set completion to Receive a grade.",
-        "vi": "Bước ba: thêm khóa học. Bật Edit mode. Bấm Add content. Bấm Activity or resource. Chọn Cogniate. Bấm Add, rồi Select content. Chọn một khóa học. Đặt điều kiện hoàn thành là Receive a grade."
+        "en": "Step three: add the course. Turn on Edit mode. Click Add content, then Activity or resource. Select Cogniate, then click Add. Click Select content and choose one course. Set completion to Receive a grade.",
+        "vi": "Bước ba: thêm khóa học. Bật Edit mode. Bấm Add content, rồi Activity or resource. Chọn Cogniate, rồi bấm Add. Bấm Select content và chọn một khóa học. Đặt điều kiện hoàn thành là Receive a grade."
       }
     },
     {
@@ -191,8 +191,8 @@
         }
       ],
       "say": {
-        "en": "QA passed all fifteen end-to-end checks on real Moodle 5.2.4. Three consecutive runs passed, followed by the final regression. Libraries stay separate. Replayed launches are refused.",
-        "vi": "QA đạt cả mười lăm kiểm tra đầu cuối trên Moodle 5.2.4 thật. Ba lần chạy liên tiếp đều đạt, rồi kiểm tra hồi quy cuối cũng đạt. Các thư viện tách biệt. Lần khởi chạy gửi lại bị từ chối."
+        "en": "QA passed all fifteen end-to-end checks on real Moodle 5.2.4. Three fresh runs passed after the grade repair, with no retries. Libraries stay separate. Replayed launches are refused.",
+        "vi": "QA đạt cả mười lăm kiểm tra đầu cuối trên Moodle 5.2.4 thật. Sau khi sửa lỗi điểm, ba lần chạy mới đều đạt, không cần chạy lại. Các thư viện tách biệt. Lần khởi chạy gửi lại bị từ chối."
       }
     },
     {

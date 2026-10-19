@@ -201,8 +201,8 @@
     "subtitle": "Publish Cogniate courses (SCORM 1.2 and HTML) to Moodle with LTI 1.3.",
     "source": "4182c80",
     "date": "2026-10-19",
-    "draft": "Player and portal regression PASS · Fresh T7 pending",
-    "resultsNote": "Full T5a/T5b/T6 regression passed at d54c607d: 49 ACs and 65 tests. Fresh T7 and final T9 checks remain pending. P2 remote ordering and recovery of unrecorded sends from before the upgrade remain limited.",
+    "draft": "Verified scope · Open decisions",
+    "resultsNote": "Three fresh T7 runs passed at c5683f8 after the grade repair. Full T5a/T5b/T6 regression passed at d54c607d: 49 ACs and 65 tests. P2 remote ordering and recovery of unrecorded sends from before the upgrade remain limited.",
     "storyNote": "QA tested this story on a real Moodle 5.2.4 site (task T7). All 15 end-to-end checks passed.",
     "flowsNote": "QA tested each flow on a real Moodle 5.2.4 site. The proof line under each flow names the QA rows (docs/reviews/<task>/qa.md). The P2 remote-ordering limit applies to grade delivery."
   },
@@ -210,7 +210,7 @@
     "intro": [
       "This page explains the prototype in about 15 minutes.",
       "A Cogniate user publishes a course. A Moodle teacher adds it to a Moodle course. A learner does the course, and the score goes to the Moodle gradebook.",
-      "All 15 T7 checks passed on real Moodle 5.2.4 before the P2 repair. Full player and portal regression passed the repair. Fresh T7 remains pending.",
+      "All 15 T7 checks passed in three fresh runs after the grade repair. Full player and portal regression also passed. Human decisions and untested limits remain.",
       "We need your answers to some questions. Use the Decisions tab."
     ],
     "path": [
@@ -780,13 +780,13 @@
   ],
   "proven": [
     {
-      "claim": "One command runs the full story on an empty Moodle 5.2.4 site in about 3 minutes. Three consecutive runs passed without retries.",
+      "claim": "One command runs the full story on an empty Moodle 5.2.4 site in about 3 minutes. Three fresh runs passed at c5683f8 without retries.",
       "status": "qa",
       "ids": [
         "AC-T7-01",
         "AC-T7-11"
       ],
-      "evidence": "docs/reviews/T7/qa.md"
+      "evidence": "docs/reviews/T7/qa.md §10 (c5683f8)"
     },
     {
       "claim": "T4b1 and T4b2 passed the final regression. P1 verified the disabled Connect button, 15-second wait text and MOODLE_TOOL_MAY_EXIST message.",
@@ -815,7 +815,7 @@
         "AC-T7-14",
         "AC-T7-02"
       ],
-      "evidence": "docs/reviews/T7/qa.md"
+      "evidence": "docs/reviews/T7/qa.md §10 (c5683f8)"
     },
     {
       "claim": "Teacher: Select content lists exactly the published courses. The activity gets a grade item of max 100.",
@@ -824,7 +824,7 @@
         "AC-T7-03",
         "AC-T4-15"
       ],
-      "evidence": "docs/reviews/T7/qa.md"
+      "evidence": "docs/reviews/T7/qa.md §10 (c5683f8)"
     },
     {
       "claim": "Learner: each launch opens a new window with the player in less than 0.2 s, with no token in the URL.",
@@ -832,7 +832,7 @@
       "ids": [
         "AC-T7-07"
       ],
-      "evidence": "docs/reviews/T7/qa.md"
+      "evidence": "docs/reviews/T7/qa.md §10 (c5683f8)"
     },
     {
       "claim": "SCORM 1.2 and HTML: a correct answer gives 100, a wrong answer gives 0, with completion in Moodle.",
@@ -848,12 +848,12 @@
       "evidence": "docs/reviews/T5a, T5b, T7"
     },
     {
-      "claim": "The score reaches the Moodle gradebook in 3.4 to 3.9 seconds (limit 60 s).",
+      "claim": "The score reaches the Moodle gradebook in 3.3 to 3.9 seconds (limit 60 s).",
       "status": "qa",
       "ids": [
         "AC-T7-04"
       ],
-      "evidence": "docs/reviews/T7/qa.md"
+      "evidence": "docs/reviews/T7/qa.md §10 (c5683f8)"
     },
     {
       "claim": "Sequential retakes, tested outage recovery and teacher overrides passed. P2 remote ordering remains limited.",
@@ -872,7 +872,7 @@
         "AC-T7-06",
         "AC-T5-18"
       ],
-      "evidence": "docs/reviews/T7/qa.md"
+      "evidence": "docs/reviews/T7/qa.md §10 (c5683f8)"
     },
     {
       "claim": "Replayed, forged, expired or changed launches are refused. No secret is in the logs.",
@@ -900,7 +900,7 @@
         "AC-T7-09",
         "AC-T4-34"
       ],
-      "evidence": "docs/reviews/T7/qa.md"
+      "evidence": "docs/reviews/T7/qa.md §10 (c5683f8)"
     },
     {
       "claim": "Course packages run in a sandbox on a separate content site. Bad zips are refused.",
@@ -913,12 +913,12 @@
       "evidence": "docs/reviews/T5a, T4a"
     },
     {
-      "claim": "A ready demo starts from zero in about 45 seconds.",
+      "claim": "A ready demo starts from zero in about 52 seconds.",
       "status": "qa",
       "ids": [
         "AC-T7-15"
       ],
-      "evidence": "docs/reviews/T7/qa.md"
+      "evidence": "docs/reviews/T7/qa.md §10 (c5683f8)"
     },
     {
       "claim": "Portal (task T6): Integrations, Connect wizard with live status, manual form, upload progress, Publish, Results with Resend. No request leaves the app site. No serious accessibility error.",
@@ -1089,15 +1089,6 @@
         "P11 live scope"
       ],
       "evidence": "docs/reviews/T5b/qa.md"
-    },
-    {
-      "claim": "Fresh T7 and final T9 artifact checks remain pending.",
-      "status": "pending",
-      "ids": [
-        "T7",
-        "T9"
-      ],
-      "evidence": "docs/reviews/T7/qa.md and T9/qa.md"
     }
   ],
   "decisionGroups": [
@@ -1380,7 +1371,7 @@
     },
     {
       "title": "Continuation team",
-      "text": "The owner authorized Codex GPT-6-Astra replacements on 2026-10-19 after Claude reached its session limit. Dedicated roles keep separate ownership and independent QA and reviews. These continuation reviews are not cross-model reviews. T8 round 2 passed QA. T9 still needs final QA and blind reviews.",
+      "text": "The owner authorized Codex GPT-6-Astra replacements on 2026-10-19 after Claude reached its session limit. Dedicated roles keep separate ownership and independent QA and reviews. These continuation reviews are not cross-model reviews. T8 round 2 passed QA.",
       "links": [
         [
           "Continuation authority",
@@ -1390,7 +1381,7 @@
     },
     {
       "title": "Final check",
-      "text": "The earlier conformance check approved the fixes. Final QA then found a P2 grade mismatch. Full player and portal regression passed the repair. Fresh T7 remains pending. Q18 remains an accepted limit.",
+      "text": "The earlier conformance check approved the fixes. Final QA then found a P2 grade mismatch. Full player, portal and end-to-end regression passed the repair. Q18 remains an accepted limit.",
       "links": [
         [
           "Conformance report",
@@ -1681,7 +1672,7 @@
         h('b', {}, count), badge(st)));
     }
     el.append(h('div', { class: 'card hero', style: 'margin-bottom:16px' }, h('h2', {}, 'Proven / not proven'),
-      h('p', {}, 'Each row is one claim. “Proven by QA” means that an independent QA test passed. “Pending final QA” means that required verification is incomplete. A row can need a repair or rerun.'),
+      h('p', {}, 'Each row is one claim. “Proven by QA” means that an independent QA test passed. “Not verified by QA” marks builder evidence. “Not proven” marks an untested claim or a stated limit.'),
       h('p', { class: 'muted' }, D.meta.resultsNote)),
       tiles, note,
       h('div', { class: 'card' }, h('table', {}, h('thead', {}, h('tr', {}, h('th', {}, 'Claim'), h('th', {}, 'Status'), h('th', {}, 'Proof'))), tbody)));
