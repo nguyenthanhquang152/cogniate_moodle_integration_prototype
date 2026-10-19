@@ -10,7 +10,7 @@ Before you start:
 
 Tags: `[AC-T7-…]` = the full end-to-end QA run on Moodle 5.2.4 used this step, and it passed. Other `[AC-…]` = QA tested it in an earlier task. `[Not verified by QA]` = only the builder checked it.
 
-NOTE: Use Chrome, Edge or Firefox to add Cogniate content. In Safari, "Select content" can fail (decision Q16). QA tested Chromium only. Learners can use any browser, because the course opens in a new window.
+NOTE: QA tested teachers and learners with Chromium only. Other browsers are not proven (decision Q16). In Safari, "Select content" can fail. Our recommendation for the pilot: add content with Chrome, Edge or Firefox.
 
 ## Procedure: Add the course
 

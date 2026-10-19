@@ -1,6 +1,6 @@
 # Architecture: Cogniate × Moodle LTI prototype
 
-Status: T0 round 2. Owner: Architect. Date: 2026-10-16.
+Status: T0 done; kept in line with the built code. §6 shows the QA status at 2129b69. Owner: Architect. Date: 2026-10-19.
 
 This page is the overview. Details are in other files:
 
@@ -126,19 +126,21 @@ flowchart TB
 
 ## 6. What the plan proves
 
+Status from the QA reports (`docs/reviews/<task>/qa.md`). The SHA is the commit that QA tested. "Proven" = every listed AC is PASS in the last QA round of its task.
+
 | Goal part | Proving acceptance criteria | Status |
 | --- | --- | --- |
-| SCORM 1.2 course via LTI 1.3 to the Moodle gradebook | AC-T5-07, AC-T5-08, AC-T7-03 to AC-T7-05 | planned |
-| HTML course via LTI 1.3 to the gradebook | AC-T5-09, AC-T5-27, AC-T7-04, AC-T7-05 | planned |
-| LTI 1.3 security (state, nonce, signature, claims) | AC-T2-08 to AC-T2-15, AC-T2-20 to AC-T2-29 | planned |
-| Deep Linking, AGS, dynamic and manual registration on Moodle 5.2 | AC-T3-01 to AC-T3-14, AC-T3-25, AC-T4-08, AC-T4-10, AC-T7-02, AC-T7-08 | planned |
-| LTIAAS-compatible API (narrow claim, ADR-003) | AC-T3-27 (independent client), T3a and T3c endpoint ACs | planned |
-| Portal: Integrations → Moodle → Connect, Publish, Results | AC-T6-01 to AC-T6-14, AC-T7-06 | planned |
-| Tenant isolation | AC-T2-18, AC-T4-16, AC-T4-29, AC-T4-34, AC-T7-08, AC-T7-09 | planned |
-| Untrusted content isolation | AC-T4-05, AC-T5-01, AC-T5-03, AC-T5-17 | planned |
-| Full E2E on a real Moodle 5.2 | AC-T7-01, AC-T7-11 | planned |
-| A new person can run it | AC-T9-01 | planned |
-| Native `.mbz` channel, course shell | T8 | stretch |
+| SCORM 1.2 course via LTI 1.3 to the Moodle gradebook | AC-T5-07, AC-T5-08, AC-T7-03 to AC-T7-05 | proven: T5a QA (e05aa29), T7 QA-E2E (1639c7e) |
+| HTML course via LTI 1.3 to the gradebook | AC-T5-09, AC-T5-27, AC-T7-04, AC-T7-05 | proven: T5b QA (edb99c9), T7 QA-E2E (1639c7e) |
+| LTI 1.3 security (state, nonce, signature, claims) | AC-T2-08 to AC-T2-15, AC-T2-20 to AC-T2-29 | proven: T2a QA (a2a5aa3), T2b QA (1fa011d) |
+| Deep Linking, AGS, dynamic and manual registration on Moodle 5.2 | AC-T3-01 to AC-T3-14, AC-T3-25, AC-T4-08, AC-T4-10, AC-T7-02, AC-T7-08 | proven: T3a and T3b QA (6f03a80), T3c QA for AC-T3-09 (8fdfa9e), T4b1 QA (716a72c), T7 QA-E2E (1639c7e) |
+| LTIAAS-compatible API (narrow claim, ADR-003) | AC-T3-27 (independent client), T3a and T3c endpoint ACs | proven: T3c QA (8fdfa9e): the real `ltiaas` 0.0.4 SDK passes idtoken, deep linking (form and message), scores and memberships; raw line item ids give `404` (difference D15) |
+| Portal: Integrations → Moodle → Connect, Publish, Results | AC-T6-01 to AC-T6-14, AC-T7-06 | proven: T6 QA 14/14 (1639c7e), T7 QA-E2E (1639c7e) |
+| Tenant isolation | AC-T2-18, AC-T4-16, AC-T4-29, AC-T4-34, AC-T7-08, AC-T7-09 | proven: T2a QA (a2a5aa3), T4b1 and T4b2 QA (716a72c), T7 QA-E2E (1639c7e) |
+| Untrusted content isolation | AC-T4-05, AC-T5-01, AC-T5-03, AC-T5-17 | proven: T4a QA round 3 (93884d8), T5a QA (e05aa29) |
+| Full E2E on a real Moodle 5.2 | AC-T7-01, AC-T7-11 | proven: T7 QA-E2E, 15/15 ACs in 3 runs in a row on Moodle 5.2.4 (1639c7e) |
+| A new person can run it | AC-T9-01 | open: T9 draft in review (2129b69); the human run is not done yet |
+| Native `.mbz` channel, course shell | AC-T8-02 to AC-T8-10 | stretch: Reviewer-A and Reviewer-B APPROVE; QA in progress (8fdfa9e). Restore on MoodleCloud is not verified (Q5). |
 | **Not proven** | Teacher Deep Linking in Safari (Q16). MoodleCloud (Q5). Player in Firefox and Safari, video playback (the export has no visible video), a real person closing a real window, mobile browsers (T5-spike). Load and scale. 1EdTech certification. | — |
 
 ## 7. Task plan
