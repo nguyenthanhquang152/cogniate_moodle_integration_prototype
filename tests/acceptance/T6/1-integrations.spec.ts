@@ -43,11 +43,22 @@ test('AC-T6-01 Thanh → Integrations: title, subtitle, five pills, ≥ 9 cards 
   await expect(card.getByText('Connect another site', { exact: true }).first(), '"Connect another site"').toBeVisible();
   expect(await exactConnect.count(), 'with a connection: no "Connect"').toBe(0);
   const expired = newest.status === 'pending' && newest.registrationUrlExpiresAt && Date.parse(newest.registrationUrlExpiresAt) < Date.now();
-  const label = newest.status === 'registered' ? 'Registered — activate in Moodle' : newest.status === 'connected' ? 'Connected' : expired ? 'Link expired' : null;
+  const label =
+    newest.status === 'registered'
+      ? 'Registered — activate in Moodle'
+      : newest.status === 'connected'
+        ? 'Connected'
+        : newest.status === 'disabled'
+          ? 'Disconnected'
+          : newest.status === 'pending'
+            ? expired
+              ? 'Link expired'
+              : 'Waiting for Moodle'
+            : null;
   const cardText = (await card.innerText()).replace(/\s+/g, ' ');
   test.info().annotations.push({ type: 'card state', description: `${conns.length} connections; newest "${newest.name}" status ${newest.status}; card text: ${cardText.slice(0, 300)}` });
   if (label) await expect(card.getByText(label, { exact: true }).first(), `badge of the newest connection (${newest.status})`).toBeVisible();
-  else test.info().annotations.push({ type: 'spec gap', description: `tasks/T6.md gives no badge text for status ${newest.status} with a valid link; not checked` });
+  else throw new Error(`unknown connection status ${newest.status}`);
 });
 
 test('AC-T6-02 look: body background rgb(11,10,15), active pill rgb(166,103,228), DM Sans, cards 12 px radius; screenshot next to the reference', async ({ page }) => {

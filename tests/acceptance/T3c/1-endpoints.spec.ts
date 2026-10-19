@@ -1,6 +1,7 @@
-// T3c: compatibility endpoints. Source: tasks/T3c.md AC-T3-09, -15, -20, -21; contract lti-service-api.md §1.3 (error
-// shape), §3.2 (/api/deeplinking/form and /message), §3.5 (line item writes need the AGS lineitem scope), §3.7
-// (memberships, no personal fields), §3.10 (OAuth stubs). T3c runs in the same pass after T3a (tests/host/run-t3c.mjs):
+// T3c: compatibility endpoints. Source: tasks/T3c.md AC-T3-09, -15, -20, -21, -31; contract lti-service-api.md §1.3
+// (error shape), §1.4 (leading //), §3.1 (services.outcomes), §3.2 (/api/deeplinking/form and /message, url null), §3.5
+// (line item writes need the AGS lineitem scope), §3.6 (user_id alias), §3.7 (memberships, no personal fields), §3.10
+// (OAuth stubs), §8 D14/D15. T3c runs in the same pass after T3a (tests/host/run-t3c.mjs):
 // it uses the T3a activity "QA DL" (state "T3a") and the seed tool. AC-T3-19 deletes the seed platform, so it is in
 // 9-delete-platform.spec.ts (last file).
 import crypto from 'node:crypto';
@@ -11,6 +12,7 @@ import { httpsRequest } from '../lib/https';
 import {
   ACCOUNT,
   apiKey,
+  DL_CLAIM,
   auth,
   errorCode,
   eventsSince,
@@ -27,7 +29,7 @@ import { deepLinkActivity } from '../lib/moodle-dl';
 import { launchActivity, newStackContext } from '../lib/moodle-launch';
 import { gradeItems } from '../lib/moodle-ws';
 import { expect, test } from '../lib/pw';
-import { QA_ISSUER, qaLaunchLtik, resourceLinkClaims, setupQaPlatform } from '../lib/qa-platform';
+import { deepLinkingClaims, QA_ISSUER, qaLaunchLtik, resourceLinkClaims, setupQaPlatform } from '../lib/qa-platform';
 import { seed } from '../lib/seed';
 
 const urls = publicUrls();
@@ -190,6 +192,69 @@ test.describe.serial('T3c compatibility endpoints', () => {
     await settle();
     expect(sinkHitsSince(since), 'sink hits').toEqual([]);
     expect(eventsSince('lti-service', since, (e) => /^outbound_/.test(String(e.event)) && hostIs(e, 'evil.test')), 'outbound_* for evil.test').toEqual([]);
+  });
+
+  test('AC-T3-31 SDK tolerances: GET //api/idtoken = /api/idtoken with services.outcomes {available: false}; scores ?user_id = ?userId, both with different values → 400 INVALID_REQUEST; an ltiResourceLink with url null → 200 and the JWT url = {PUBLIC_LTI_URL}/lti/launch/cogniate; a bad line item id with a leading // → 400 INVALID_LINE_ITEM_ID', async () => {
+    test.setTimeout(120_000);
+    const key = apiKey(ACCOUNT);
+    const s = seed();
+    const lineItemId = String(loadState('T3a').lineItemId ?? '');
+    expect(lineItemId, 'T3a stored the "QA DL" line item id').toMatch(/^https:\/\//);
+
+    // 1. A leading // in the request path (contract §1.4) and services.outcomes (§3.1).
+    const plain = await ltiApi<{ services?: Record<string, unknown> }>('GET', '/api/idtoken', { authorization: auth.ltik(key, studentLtik) });
+    const slashes = await ltiApi<{ services?: Record<string, unknown> }>('GET', '//api/idtoken', { authorization: auth.ltik(key, studentLtik) });
+    expect(plain.status, plain.body.slice(0, 200)).toBe(200);
+    expect(slashes.status, `//api/idtoken: ${slashes.body.slice(0, 200)}`).toBe(200);
+    expect(slashes.json, '//api/idtoken answers like /api/idtoken').toEqual(plain.json);
+    expect(slashes.json.services?.outcomes, 'services.outcomes').toEqual({ available: false });
+
+    // 2. user_id as an alias of userId on scores GET (§3.6).
+    const authz = auth.service(key, serviceKey);
+    const scoresPath = `/api/lineitems/${enc(lineItemId)}/scores`;
+    const uid = String(s.users.cg_student.id);
+    const byUserId = await ltiApi<{ scores?: unknown[] }>('GET', `${scoresPath}?userId=${uid}`, { authorization: authz });
+    const byAlias = await ltiApi<{ scores?: unknown[] }>('GET', `${scoresPath}?user_id=${uid}`, { authorization: authz });
+    expect(byUserId.status, byUserId.body.slice(0, 200)).toBe(200);
+    expect(byAlias.status, `user_id: ${byAlias.body.slice(0, 200)}`).toBe(200);
+    expect((byUserId.json.scores ?? []).length, 'cg_student has a result (T3a scores)').toBeGreaterThan(0);
+    expect(byAlias.json.scores, '?user_id gives the same scores as ?userId').toEqual(byUserId.json.scores);
+    const both = await ltiApi('GET', `${scoresPath}?userId=${uid}&user_id=${String(s.users.cg_student2.id)}`, { authorization: authz });
+    expect(both.status, `both with different values: ${both.body.slice(0, 200)}`).toBe(400);
+    expect(errorCode(both)).toBe('INVALID_REQUEST');
+
+    // 3. A content item url of null (§3.2): the service sets the default url. QA platform deep-linking launch.
+    const p = await setupQaPlatform(key, 't3c-tol');
+    const dlLtik = await qaLaunchLtik(p, (login) => deepLinkingClaims(p, login, true));
+    const nullUrl = await ltiApi<{ message?: string }>('POST', '/api/deeplinking', { authorization: auth.ltik(key, dlLtik), body: { contentItems: [{ type: 'ltiResourceLink', title: `QA null url ${runId}`, url: null }] } });
+    expect(nullUrl.status, nullUrl.body.slice(0, 300)).toBe(200);
+    const items = (await verifyDl(String(nullUrl.json.message)))[`${DL_CLAIM}content_items`] as { url?: string }[];
+    expect(items?.[0]?.url, 'JWT item url').toBe(`${urls.lti}/lti/launch/${ACCOUNT}`);
+    // Observation (Lead note, not in the AC text): the SDK also sends null optional fields such as custom.
+    const nullCustom = await ltiApi('POST', '/api/deeplinking', { authorization: auth.ltik(key, dlLtik), body: { contentItems: [{ type: 'ltiResourceLink', title: `QA null custom ${runId}`, url: null, custom: null, icon: null }] } });
+    test.info().annotations.push({ type: 'null custom/icon', description: `HTTP ${nullCustom.status} ${errorCode(nullCustom) ?? ''}` });
+
+    // 4. A line item id that breaks the URL rule, with a leading // → still 400 INVALID_LINE_ITEM_ID. Three oracles.
+    const since = Date.now() - 1_000;
+    const evilId = enc('https://evil.test/x');
+    const bad = await ltiApi('POST', `//api/lineitems/${evilId}/scores`, { authorization: authz, body: { userId: uid, activityProgress: 'Completed', gradingProgress: 'FullyGraded', scoreGiven: 1, scoreMaximum: 100 } });
+    expect(bad.status, bad.body.slice(0, 200)).toBe(400);
+    expect(errorCode(bad)).toBe('INVALID_LINE_ITEM_ID');
+    // Security check beside the AC: the same id encoded twice must not reach evil.test either.
+    const twice = await ltiApi('GET', `/api/lineitems/${enc(evilId)}`, { authorization: authz });
+    expect(twice.status, `double-encoded evil id: ${twice.body.slice(0, 200)}`).toBeGreaterThanOrEqual(400);
+    expect(twice.status).toBeLessThan(500);
+    await settle();
+    expect(sinkHitsSince(since), 'sink hits').toEqual([]);
+    expect(eventsSince('lti-service', since, (e) => /^outbound_/.test(String(e.event)) && hostIs(e, 'evil.test')), 'outbound_* for evil.test').toEqual([]);
+
+    // Evidence for AC-T3-27 / D15: the valid id encoded twice (the SDK path), and the raw id with its slashes.
+    const validTwice = await ltiApi('GET', `/api/lineitems/${enc(enc(lineItemId))}`, { authorization: authz });
+    const raw = await ltiApi('GET', `/api/lineitems/${lineItemId}`, { authorization: authz });
+    test.info().annotations.push({
+      type: 'line item id forms',
+      description: `double-encoded evil id → ${twice.status} ${errorCode(twice) ?? ''}; double-encoded valid id → ${validTwice.status}; raw id with slashes → ${raw.status} ${errorCode(raw) ?? ''} (D15: 404 expected)`,
+    });
   });
 
   test('AC-T3-21 POST /api/oauth/x/access_token (and …/refresh) with the API key → 501 NOT_IMPLEMENTED with the error shape; without auth → 401', async () => {

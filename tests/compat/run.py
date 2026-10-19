@@ -38,7 +38,7 @@ import sys
 import traceback
 from importlib.metadata import version
 from typing import Any, Callable
-from urllib.parse import urlsplit
+from urllib.parse import quote, urlsplit
 
 RESULT_MARK = "QA_COMPAT_RESULT"
 
@@ -239,14 +239,17 @@ def main() -> int:
         target_ok = got_msg and f'action="{msg.target}"' in html.replace("&amp;", "&")
         report.check("deep linking form", one_form and jwt_input and target_ok, f"one <form>: {one_form}; JWT input: {jwt_input}; action = message target: {target_ok}")
 
-    # 3. Score: post with the SDK, read back with the SDK.
+    # 3. Score: post with the SDK, read back with the SDK. The SDK does not encode line item ids (contract §8 D15): QA
+    # passes the id already encoded, as encodeURIComponent does (the public reference); the SDK's quote() then encodes
+    # it once more, which the service accepts (T3c round 3).
+    encoded_id = quote(line_item_id, safe="") if line_item_id else None
     if line_item_id and user_id:
         given, maximum = 7.0, 10.0
         score = Score(user_id=user_id, activity_progress=ActivityProgress.COMPLETED, grading_progress=GradingProgress.FULLY_GRADED, score_given=given, score_maximum=maximum, comment=f"QA compat {run_id}")
-        posted, _ = run_step(report, "score post", lambda: student.submit_score(line_item_id, score))
+        posted, _ = run_step(report, "score post", lambda: student.submit_score(encoded_id, score))
         if posted:
             report.check("score post", True, f"submit_score {given}/{maximum} for user {user_id}")
-            got_results, results = run_step(report, "score read", lambda: student.get_scores(line_item_id, user_id=user_id))
+            got_results, results = run_step(report, "score read", lambda: student.get_scores(encoded_id, user_id=user_id))
             if got_results:
                 mine = [r for r in results.scores if r.user_id == user_id]
                 others = [r.user_id for r in results.scores if r.user_id != user_id]
@@ -275,8 +278,20 @@ def main() -> int:
     for call in report.calls:
         print(f"  {call['method']} {call['path']} → {call['status']}", flush=True)
 
+    # D15 (contract §8): the SDK's own unencoded line item id is expected to give 404 NOT_FOUND. Evidence, outside the
+    # "every call 2xx" check above.
+    d15: dict[str, Any] = {}
+    if line_item_id and user_id:
+        before = len(report.calls)
+        try:
+            student.get_scores(line_item_id, user_id=user_id)
+            d15 = {"status": report.calls[-1]["status"] if len(report.calls) > before else None, "raised": False}
+        except Exception as err:  # noqa: BLE001
+            d15 = {"raised": True, **describe_error(err)}
+        print(f"D15 raw line item id (expected 404): {json.dumps(d15)[:400]}", flush=True)
+
     ok = all(c["ok"] for c in report.checks)
-    print(f"{RESULT_MARK} " + json.dumps({"ok": ok, "sdk": f"ltiaas {version('ltiaas')}", "checks": report.checks, "calls": report.calls}), flush=True)
+    print(f"{RESULT_MARK} " + json.dumps({"ok": ok, "sdk": f"ltiaas {version('ltiaas')}", "checks": report.checks, "calls": report.calls, "d15RawId": d15}), flush=True)
     return 0 if ok else 1
 
 

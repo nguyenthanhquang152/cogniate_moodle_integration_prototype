@@ -356,8 +356,19 @@ export async function addActivityFromChooser(page: Page, toolName: string, secti
   const option = modal.getByRole('menuitem', { name: toolName, exact: true }).first();
   await option.waitFor({ timeout: 15_000 });
   const chooserItems = (await modal.locator('[data-region="chooser-option-container"]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label') ?? ''))).filter(Boolean);
+  // A click selects the option and "Add" opens the form. If the chooser script has not taken the click yet, the
+  // option link opens the form at once. Both are the same person action; QA accepts both.
   await option.locator('.optionname').click();
-  await clickAndNavigate(page, modal.getByRole('button', { name: 'Add', exact: true }));
+  const deadline = Date.now() + 30_000;
+  while (!/\/course\/modedit\.php/.test(page.url())) {
+    const addButton = modal.getByRole('button', { name: 'Add', exact: true });
+    if ((await addButton.isVisible().catch(() => false)) && (await addButton.isEnabled().catch(() => false))) {
+      await Promise.all([page.waitForURL(/\/course\/modedit\.php/, { timeout: 30_000 }), addButton.click()]).catch(() => undefined);
+    }
+    if (Date.now() > deadline) throw new Error(`the activity form did not open after choosing "${toolName}" (URL ${page.url()})`);
+    await page.waitForTimeout(250);
+  }
+  await page.waitForLoadState('load');
   await page.getByRole('button', { name: 'Select content', exact: true }).waitFor();
   return { chooserItems: [...new Set(chooserItems)] };
 }

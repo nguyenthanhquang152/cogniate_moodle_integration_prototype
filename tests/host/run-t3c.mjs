@@ -21,7 +21,7 @@ import { createRunner } from './core.mjs';
 const r = createRunner({ task: 'T3c', defaultProject: 'qa-t3c-r1' });
 const EXPECT = {
   T3a: ['AC-T3-06', 'AC-T3-07', 'AC-T3-08', 'AC-T3-10', 'AC-T3-11', 'AC-T3-12', 'AC-T3-13', 'AC-T3-14', 'AC-T3-16', 'AC-T3-17', 'AC-T3-18', 'AC-T3-22', 'AC-T3-23', 'AC-T3-24'],
-  T3c: ['AC-T3-09', 'AC-T3-15', 'AC-T3-20', 'AC-T3-21', 'AC-T3-27', 'AC-T3-19'],
+  T3c: ['AC-T3-09', 'AC-T3-15', 'AC-T3-20', 'AC-T3-21', 'AC-T3-31', 'AC-T3-27', 'AC-T3-19'],
 };
 const CONTROL = () => path.join(r.CLONE, 'tests', 'acceptance', 'artifacts', 'control');
 

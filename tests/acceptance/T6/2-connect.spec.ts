@@ -69,7 +69,7 @@ test.describe.serial('T6 Connect wizard (QA Library B)', () => {
     await context?.close();
   });
 
-  test('AC-T6-04 dynamic connect: the registration URL (AC-T4-07 form) with a working copy button; after the admin registers, "Registered — activate in Moodle" within 10 s without a reload', async ({ browser }) => {
+  test('AC-T6-04 dynamic connect: the registration URL (AC-T4-07 form) with a working copy button; "Waiting for Moodle" before; after the admin registers, "Registered — activate in Moodle" within 10 s without a reload', async ({ browser }) => {
     test.setTimeout(180_000);
     const page = await context.newPage();
     await portalSignIn(page, QA_B);
@@ -78,6 +78,7 @@ test.describe.serial('T6 Connect wizard (QA Library B)', () => {
     expect(regUrl, 'the wizard shows the registration URL').toMatch(REG_URL);
     await page.getByRole('button', { name: /copy/i }).first().click();
     expect(await clipboardText(page), 'clipboard after "copy"').toBe(regUrl);
+    await expect(page.getByText('Waiting for Moodle').first(), 'status before the registration').toBeVisible({ timeout: 10_000 });
     const samePage = await markNoReload(page);
 
     const admin = await newStackContext(browser);
