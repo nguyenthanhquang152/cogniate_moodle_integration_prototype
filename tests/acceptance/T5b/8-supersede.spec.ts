@@ -100,6 +100,10 @@ test('AC-T5-30 (P2, in flight) Moodle paused: the better result (90) arrives whi
     expect(b?.scoreSyncs.find((s) => s.id === rowA.id)?.status, 'the 60 row is superseded').toBe('superseded');
     // The send that was running when B arrived ends (time-out); its event shows the window was hit.
     const after = await waitForAppEvent((e) => e.event === 'score_sync' && e.sync_id === rowA.id && Date.parse(String(e.ts)) > committedAt, since, 30_000);
+    // Contract §12 (B-FIX-01): a send that ends after its row was superseded logs status "superseded" and send_result.
+    expect(after, 'a send of row A ended after the better result (the window was hit)').toBeDefined();
+    expect(after?.status, `score_sync of the late send: ${JSON.stringify(after)}`).toBe('superseded');
+    expect(String(after?.send_result ?? ''), 'send_result').toMatch(/^(sent|pending|conflict|failed)$/);
     const events = appEvents(since, (e) => e.event === 'score_sync' && e.sync_id === rowA.id).map((e) => `${String(e.ts).slice(11, 23)} ${e.status} tries ${e.tries}`);
     test.info().annotations.push({ type: 'row A sends', description: `${events.join('; ')}; better result committed at ${new Date(committedAt).toISOString().slice(11, 23)}; a send of A ended after it: ${Boolean(after)}` });
 

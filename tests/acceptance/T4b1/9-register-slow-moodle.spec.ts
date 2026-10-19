@@ -32,7 +32,7 @@ async function boundPlatformIds(): Promise<Set<string>> {
   return ids;
 }
 
-test('P1 register with a paused (slow) Moodle → MOODLE_TOOL_MAY_EXIST after the LTI service\'s 5 s and within 15 s; the connection stays pending; after Moodle resumes, no new active platform without a connection', async ({ browser }) => {
+test('P1 register with a paused (slow) Moodle → "Connect" disabled with the waiting text, one POST only; MOODLE_TOOL_MAY_EXIST after the LTI service\'s 5 s and within 15 s; the connection stays pending; after Moodle resumes, no new active platform without a connection', async ({ browser }) => {
   test.setTimeout(300_000);
   const b = await signIn(QA_B);
   const before = new Set(await activePlatformIds());
@@ -50,10 +50,20 @@ test('P1 register with a paused (slow) Moodle → MOODLE_TOOL_MAY_EXIST after th
     const held = await startRegistration(admin, page, regUrl, 'new', 45_000, { hold: false });
     const connect = held.frame.getByRole('button', { name: 'Connect' });
     await expect(connect, 'the app confirm page').toBeVisible();
+    // Count the confirm form posts (B-FIX-02: the button is disabled on submit, so a second click sends nothing).
+    const posts: string[] = [];
+    admin.on('request', (q) => {
+      if (q.method() === 'POST' && q.url().startsWith(`${urls.app}/tool/register`)) posts.push(q.url());
+    });
     await hostAction('moodle-pause');
     paused = true;
     const t0 = Date.now();
     await connect.click();
+    // While Moodle is slow (app contract §6, GET /tool/register): "Connect" disabled and the waiting text.
+    await expect(connect, '"Connect" is disabled after submit').toBeDisabled({ timeout: 3_000 });
+    await expect(held.frame.getByText('Connecting to Moodle. This can take up to 15 seconds. Do not close this window.').first()).toBeVisible({ timeout: 3_000 });
+    await connect.click({ force: true, timeout: 2_000 }).catch(() => undefined); // a second click
+    test.info().annotations.push({ type: 'waiting state', description: `disabled and waiting text ${((Date.now() - t0) / 1000).toFixed(1)} s after Connect` });
     try {
       await expect(held.frame.getByText(/Moodle may have saved a Pending tool/).first(), 'MOODLE_TOOL_MAY_EXIST page').toBeVisible({ timeout: 30_000 });
     } catch (err) {
@@ -68,6 +78,7 @@ test('P1 register with a paused (slow) Moodle → MOODLE_TOOL_MAY_EXIST after th
     expect(text).not.toContain('REGISTRATION_FAILED');
     expect(seconds, 'after the LTI service\'s 5 s Moodle call').toBeGreaterThanOrEqual(4.5);
     expect(seconds, 'within the app\'s 15 s').toBeLessThanOrEqual(16);
+    expect(posts, 'one confirm POST (the second click sent nothing)').toHaveLength(1);
   } finally {
     if (paused) await hostAction('moodle-unpause').catch(() => undefined);
     await admin.close();

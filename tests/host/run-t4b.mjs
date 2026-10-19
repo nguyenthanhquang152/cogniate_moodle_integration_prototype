@@ -8,7 +8,7 @@
 // after the first keep the artifacts folder.
 // 1. setup: npm ci, gen-env, guard, stack:up + seed, H1; course zips into tests/fixtures/courses.
 // 2. Pass 1: QA_TASK=T4b1,T4b2 (with --tasks T3b,…: also the T3b registration ACs), all ACs except AC-T4-18, -21, -32
-//    (they need step 4).
+//    (they need step 4). With the host channel for P1 (T4b1/9: docker compose pause/unpause moodle, Lead decision).
 // 3. Knob passes: REF_TTL_SECONDS=20 (cogniate-app) → AC-T4-09 knob test; PICKER_TTL_SECONDS=20 → AC-T4-20 knob test.
 // 4. npm run seed:lti-activity (T4b2 scope): an activity under Thanh's tool that points at library B's publication.
 // 5. Pass 2: AC-T4-18, then AC-T4-21 and AC-T4-32 over the pages of all passes.
@@ -16,6 +16,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRunner } from './core.mjs';
+import { createHostControl } from './host-control.mjs';
 
 const r = createRunner({
   task: 'T4b',
@@ -104,11 +105,20 @@ await r.main(async () => {
     return;
   }
   const withT3b = TASKS.includes('T3b');
+  // P1 (Lead decision): T4b1/9-register-slow-moodle pauses Moodle through the host channel during pass 1.
+  const host = createHostControl(r);
+  const stopHost = host.start();
+  let hostLog = [];
+  try {
   const exclude = `^(?!.*(${[...LATE, ...(withT3b ? ['AC-T3-29', 'AC-T3-30'] : [])].join('|')}))`;
   await r.containerSuite('pass1', {
     env: { QA_TASK: [...(withT3b ? ['T3b'] : []), 'T4b1', 'T4b2'].join(','), QA_GREP: exclude },
-    expectIds: [...(withT3b ? T3B : []), ...T4B1, ...T4B2_PASS1],
+    expectIds: [...(withT3b ? T3B : []), ...T4B1, 'P1', ...T4B2_PASS1],
   });
+  } finally {
+    hostLog = stopHost();
+  }
+  r.record('HOSTCTL', 'Host actions asked for in pass 1 (whitelist: compose pause/unpause moodle, P1)', 'PASS', hostLog.length ? hostLog : ['none']);
   await knobPass('cogniate-app', 'REF_TTL_SECONDS', 'T4b1', 'AC-T4-09.*knob', 'AC-T4-09');
   await knobPass('cogniate-app', 'PICKER_TTL_SECONDS', 'T4b2', 'AC-T4-20.*knob', 'AC-T4-20');
   if (await seedForeignActivity()) {

@@ -118,7 +118,7 @@ test.describe.serial('T4b1 connect', () => {
       ['nrps', 'IMS LTI Names and Role Provisioning', "Use this service to retrieve members' information as per privacy settings"],
       ['share_name', "Share launcher's name with tool", 'Never'],
       ['share_email', "Share launcher's email with tool", 'Never'],
-      ['accept_grades', 'Accept grades from the tool', 'Delegate to teacher'],
+      ['accept_grades', 'Accept grades from the tool', 'As specified in Deep Linking definition or Delegate to teacher'],
     ].map(([key, label, value]) => ({ key, label, value }));
     expect(cfg.json.map((r) => ({ key: r.key, label: r.label, value: r.value }))).toEqual(expected);
 
