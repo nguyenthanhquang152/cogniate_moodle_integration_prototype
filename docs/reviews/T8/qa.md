@@ -5,7 +5,7 @@ Round: 1
 
 | Item | Value |
 | --- | --- |
-| SHA | `63de503e…` (Lead: the same product code as `8fdfa9e` plus the Author's T7 script polish). Run 1 used `8fdfa9ec4c86343c58a8019df1e3131817fe8047`. |
+| SHA | `63de503e86684d2a71ed43b8aac3a88029423a01` (Lead: the same product code as `8fdfa9e` plus the Author's T7 script polish). Run 1 used `8fdfa9ec4c86343c58a8019df1e3131817fe8047`. |
 | Spec | `tasks/T8.md` (AC-T8-02 to -10; AC-T8-05 checks the restored course **shortname**), app contract §11 (MbzBuild, limits, Build Runner rules and log events, course shell), security §10a, tasks README §3 (knobs `BUILD_RUNNER_HOLD`, `BUILD_RUNNER_FAIL_AT`). Audit items C-T8-01 and C-T8-02 (Lead): checks against the contract §11 rules. |
 | Scope | AC-T8-02 to AC-T8-10 (AC-T8-10 is the portal part of Codex's round) and the two audit items. |
 | Tests used | New QA suite `tests/acceptance/T8/` and runner `tests/host/run-t8.mjs` (section 4), with `--replace-tests`. The Lead can commit `tests/**`. |

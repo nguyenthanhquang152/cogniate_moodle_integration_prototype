@@ -42,7 +42,8 @@ const HELP = `Usage: COMPOSE_PROJECT_NAME=qa-e2e-r1 PUBLIC_PORT=8543 STACK_SUBNE
   --demo            After the runs: e2e:reset, timed "npm run demo:prepare", the AC-T7-15 player check.
   --demo-only       Only the demo pass (no scenario run).
   --check-confirm   After the runs: in a terminal (pty), answer "no" to the delete question of e2e:reset and test:e2e
-                    (B-T7-01) and check that nothing was deleted.
+                    (B-T7-01); then run both without a terminal and without --yes (A-T7-04: fail closed). Each time,
+                    check that nothing was deleted.
   --replace-e2e     Copy tests/e2e from this working copy into the clone (QA suite newer than the SHA).
   --keep            Do not tear the stack down at the end (debugging).
   --checkout <dir>  Use an existing clone instead of a fresh one.
@@ -310,6 +311,22 @@ async function confirmCheck(label, npmArgs) {
   ]);
 }
 
+/** A-T7-04: without a terminal and without --yes / E2E_CONFIRM=1, the command must stop (fail closed) and delete nothing. */
+async function noTerminalCheck(label, npmArgs) {
+  const before = await stackSnapshot();
+  const env = { ...STACK_ENV };
+  delete env.E2E_CONFIRM;
+  const r = await exec(`no-terminal-${label}`, 'npm', npmArgs.split(' '), { env, timeoutMs: 180_000 });
+  const after = await stackSnapshot();
+  const out = `${r.stdout}\n${r.stderr}`;
+  const refused = /No terminal to ask\. Run it with -- --yes, or E2E_CONFIRM=1\. Nothing was deleted\./.test(out);
+  const same = JSON.stringify(before) === JSON.stringify(after);
+  summary.confirm = { ...(summary.confirm ?? {}), [`no-terminal ${label}`]: { exit: r.code, refused, unchanged: same } };
+  return step(`A-T7-04 fail closed: "npm ${npmArgs}" without a terminal and without --yes → stops, nothing deleted`, r.code !== 0 && refused && same, [
+    `exit ${r.code}; "No terminal to ask … Nothing was deleted.": ${refused}; stack unchanged: ${same}`,
+  ]);
+}
+
 async function images() {
   const ours = (await allContainers()).filter((c) => c.Config?.Labels?.['com.docker.compose.project'] === PROJECT);
   const list = ours.map((c) => ({ service: c.Config.Labels['com.docker.compose.service'], image: c.Config.Image, id: c.Image }));
@@ -348,6 +365,8 @@ try {
       if (opt['check-confirm'] && RUNS > 0) {
         await confirmCheck('e2e-reset', 'run e2e:reset');
         await confirmCheck('test-e2e', 'run test:e2e');
+        await noTerminalCheck('e2e-reset', 'run e2e:reset');
+        await noTerminalCheck('test-e2e', 'run test:e2e');
       }
       if (opt.demo || opt['demo-only']) await demoPass();
       if (RUNS === 0) await images();

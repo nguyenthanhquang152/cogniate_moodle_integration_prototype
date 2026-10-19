@@ -23,7 +23,10 @@ export type HostAction =
   | 'moodle-restore'
   // C-T8-02 (Lead): stop the stack's Build Runner, then start two at the same moment
   | 'runner-stop'
-  | 'runner-race';
+  | 'runner-race'
+  // P1, P2 (Lead decision): docker compose pause/unpause moodle, own QA project only; the runner always unpauses
+  | 'moodle-pause'
+  | 'moodle-unpause';
 
 export interface HostAnswer {
   action: HostAction;
@@ -53,7 +56,7 @@ export async function hostAction(action: HostAction, timeoutMs = 240_000, { payl
     if (fs.existsSync(answerFile)) {
       const answer = JSON.parse(fs.readFileSync(answerFile, 'utf8')) as HostAnswer;
       if (!answer.ok && !allowFail) throw new Error(`host action ${action} failed (exit ${answer.code})`);
-      if (action === 'moodle-start') await waitMoodleReady();
+      if (action === 'moodle-start' || action === 'moodle-unpause') await waitMoodleReady();
       return answer;
     }
     await new Promise((r) => setTimeout(r, 500));

@@ -15,6 +15,7 @@
 //    three commands, only for this QA project.
 // 5. T6 pass (if selected): QA_TASK=T6 (fresh: false), with the host channel (AC-T6-14 setup: lti-service restart). With T6, setup runs `npm run build` before `stack:up`
 //    (tasks/T6.md: "after npm run build && npm run stack:up && npm run seed").
+import { spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -79,7 +80,36 @@ function copyFixtures() {
 
 // ---------------------------------------------------------------- host actions for the T5b tests
 
+// P1, P2 (Lead decision for the final regression): pause/unpause Moodle, only for this QA project (qa-*). The runner
+// unpauses in every case: after each pass, on SIGINT/SIGTERM and at exit.
+const COMPOSE = ['compose', '-f', 'infra/compose.yaml', '--env-file', '.env'];
+let moodlePaused = false;
+function unpauseNow() {
+  if (!moodlePaused) return;
+  spawnSync('docker', [...COMPOSE, 'unpause', 'moodle'], { cwd: r.CLONE, env: r.STACK_ENV, stdio: 'ignore', timeout: 60_000 });
+  moodlePaused = false;
+}
+for (const sig of ['SIGINT', 'SIGTERM']) {
+  process.on(sig, () => {
+    unpauseNow();
+    process.exit(130);
+  });
+}
+process.on('exit', unpauseNow);
+
 const ACTIONS = {
+  'moodle-pause': async () => {
+    if (!/^qa-/.test(r.PROJECT)) return { code: 9 };
+    const res = await r.exec('compose-pause-moodle', 'docker', [...COMPOSE, 'pause', 'moodle'], { timeoutMs: 60_000 });
+    if (res.code === 0) moodlePaused = true;
+    return res;
+  },
+  'moodle-unpause': async () => {
+    if (!/^qa-/.test(r.PROJECT)) return { code: 9 };
+    const res = await r.exec('compose-unpause-moodle', 'docker', [...COMPOSE, 'unpause', 'moodle'], { timeoutMs: 60_000 });
+    if (res.code === 0) moodlePaused = false;
+    return res;
+  },
   'moodle-stop': () => r.exec('compose-stop-moodle', 'docker', ['compose', '-f', 'infra/compose.yaml', '--env-file', '.env', 'stop', 'moodle'], { timeoutMs: 180_000 }),
   'moodle-start': () => r.exec('compose-start-moodle', 'docker', ['compose', '-f', 'infra/compose.yaml', '--env-file', '.env', 'start', 'moodle'], { timeoutMs: 300_000 }),
   'lti-restart': () => r.npm('restart-lti-service', ['run', 'stack:restart', '--', 'lti-service'], { timeoutMs: 300_000 }),
@@ -113,6 +143,10 @@ function startHostControl() {
   }, 500);
   return () => {
     clearInterval(timer);
+    if (moodlePaused) {
+      unpauseNow();
+      log.push('Moodle was still paused at the end of the pass: unpaused by the runner');
+    }
     return log;
   };
 }
@@ -141,7 +175,18 @@ async function passT5b() {
     await r.containerSuite('T5b', { env: { QA_TASK: 'T5b' }, expectIds: EXPECT.T5b, fresh: false });
   } finally {
     const log = stop();
-    r.record('HOSTCTL', 'Host actions asked for by the T5b tests (whitelist: compose stop/start moodle, stack:restart lti-service)', 'PASS', log.length ? log : ['none']);
+    r.record('HOSTCTL', 'Host actions asked for by the T5b tests (whitelist: compose stop/start/pause/unpause moodle, stack:restart lti-service)', 'PASS', log.length ? log : ['none']);
+  }
+}
+
+async function passP1() {
+  // P1 (Lead decision): register with a paused Moodle; the T4b1 folder, only the test titled "P1 …".
+  const stop = startHostControl();
+  try {
+    await r.containerSuite('P1', { env: { QA_TASK: 'T4b1', QA_GREP: 'P1 register with a paused' }, expectIds: ['P1'], fresh: false });
+  } finally {
+    const log = stop();
+    r.record('HOSTCTL', 'Host actions asked for by the P1 test (whitelist: compose pause/unpause moodle)', 'PASS', log.length ? log : ['none']);
   }
 }
 
@@ -176,7 +221,14 @@ await r.main(async () => {
       await passT6Focus(ids);
       return;
     }
-    await r.containerSuite('focus', { env: { QA_TASK: TASKS.filter((t) => t !== 'T6').join(','), QA_GREP: ['SETUP-T5a', ...ids].join('|') }, expectIds: ids });
+    const stop = startHostControl();
+    try {
+      await r.containerSuite('focus', { env: { QA_TASK: TASKS.filter((t) => t !== 'T6' && t !== 'P1').join(','), QA_GREP: ['SETUP-T5a', ...ids].join('|') }, expectIds: ids });
+    } finally {
+      const log = stop();
+      r.record('HOSTCTL', 'Host actions asked for by the focused tests', 'PASS', log.length ? log : ['none']);
+    }
+    if (TASKS.includes('P1')) await passP1();
     return;
   }
   if (TASKS.includes('T5a')) {
@@ -185,4 +237,5 @@ await r.main(async () => {
   }
   if (TASKS.includes('T5b')) await passT5b();
   if (TASKS.includes('T6')) await passT6();
+  if (TASKS.includes('P1')) await passP1();
 });
