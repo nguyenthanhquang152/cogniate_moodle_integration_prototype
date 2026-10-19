@@ -1,0 +1,35 @@
+{
+  "cases": [
+    {
+      "encoded": "%3F",
+      "layers": 1,
+      "allowed": false
+    },
+    {
+      "encoded": "%3F",
+      "layers": 2,
+      "allowed": false
+    },
+    {
+      "encoded": "%3f",
+      "layers": 1,
+      "allowed": false
+    },
+    {
+      "encoded": "%3f",
+      "layers": 2,
+      "allowed": false
+    },
+    {
+      "encoded": "%23",
+      "layers": 1,
+      "allowed": false
+    },
+    {
+      "encoded": "%23",
+      "layers": 2,
+      "allowed": false
+    }
+  ],
+  "validSingleAndSdkDoubleEncoding": true
+}

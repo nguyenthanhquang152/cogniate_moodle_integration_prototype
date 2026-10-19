@@ -1,3 +1,4 @@
+import { MoodleCourse } from "./MoodleCourse.tsx";
 import { Select } from "../ui/input.tsx";
 import { buttonVariants, Button } from "../ui/button.tsx";
 import { useState } from "react";
@@ -5,7 +6,7 @@ import type { FormEvent } from "react";
 import { Link } from "react-router";
 import { api } from "../api.ts";
 import { useApi } from "../hooks.ts";
-import type { Connection, Course } from "../types.ts";
+import type { Connection, Course, Publication } from "../types.ts";
 import { ErrorNotice, Loading, Modal, formatName } from "../ui.tsx";
 
 export function PublishDialog({
@@ -21,12 +22,16 @@ export function PublishDialog({
     "/connections",
   );
   const [error, setError] = useState<unknown>(null);
+  const [result, setResult] = useState<Publication | null>(null);
+  const [connectionId, setConnectionId] = useState("");
+  const [createCourse, setCreateCourse] = useState(false);
   const [busy, setBusy] = useState(false);
   const ready =
     data?.connections.filter(
       (connection) =>
         connection.status === "registered" || connection.status === "connected",
     ) ?? [];
+  const connection = ready.find((item) => item.id === connectionId);
   const versions = course.versions ?? [];
   const [versionId, setVersionId] = useState(versions.at(-1)?.id ?? "");
   const selectedVersion = versions.find((version) => version.id === versionId);
@@ -36,20 +41,35 @@ export function PublishDialog({
     setBusy(true);
     setError(null);
     try {
-      await api("/publications", {
+      const publication = await api<Publication>("/publications", {
         method: "POST",
         body: {
           courseId: course.id,
           connectionId: form.get("connectionId"),
           versionId: form.get("versionId"),
+          ...(connection?.webServices && createCourse
+            ? { createMoodleCourse: {} }
+            : {}),
         },
       });
-      onPublished();
+      if (connection?.webServices && createCourse) setResult(publication);
+      else onPublished();
     } catch (reason) {
       setError(reason);
+    } finally {
       setBusy(false);
     }
   }
+  if (result)
+    return (
+      <Modal title="Published to Moodle" onClose={onPublished}>
+        <div role="status">
+          <p>This course is available in the Moodle content picker.</p>
+        </div>
+        <MoodleCourse publication={result} />
+        <Button variant="primary" onClick={onPublished} autoFocus>Done</Button>
+      </Modal>
+    );
   return (
     <Modal title="Publish to Moodle" onClose={onClose}>
       <p className="text-muted-foreground">
@@ -74,6 +94,12 @@ export function PublishDialog({
             <span id="publish-connection-label">Moodle connection</span>
             <Select
               name="connectionId"
+              value={connectionId}
+              disabled={busy}
+              onChange={(event) => {
+                setConnectionId(event.target.value);
+                setCreateCourse(false);
+              }}
               aria-labelledby="publish-connection-label"
               required
               autoFocus
@@ -93,6 +119,7 @@ export function PublishDialog({
               aria-labelledby="publish-version-label"
               required
               value={versionId}
+              disabled={busy}
               onChange={(event) => setVersionId(event.target.value)}
             >
               {[...versions].reverse().map((version) => (
@@ -102,6 +129,18 @@ export function PublishDialog({
               ))}
             </Select>
           </label>
+          {connection?.webServices && (
+            <label className="flex flex-row items-center gap-3">
+              <input
+                type="checkbox"
+                className="size-[17px] shrink-0 accent-[#b78bf9]"
+                checked={createCourse}
+                disabled={busy}
+                onChange={(event) => setCreateCourse(event.target.checked)}
+              />
+              Also create an empty Moodle course
+            </label>
+          )}
           {selectedVersion?.report?.scorm?.title && (
             <p className="wrap-anywhere">
               Package: {selectedVersion.report.scorm.title}

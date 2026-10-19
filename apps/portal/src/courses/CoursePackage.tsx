@@ -6,6 +6,7 @@ import { Card } from "../ui/card.tsx";
 import { Download } from "lucide-react";
 import { idPath } from "../api.ts";
 import type { CourseVersion } from "../types.ts";
+import { MoodleBackup } from "./MoodleBackup.tsx";
 import { formatName } from "../ui.tsx";
 
 export function CoursePackage({
@@ -61,9 +62,12 @@ export function CoursePackage({
             Download SCORM package
           </a>
           <p className="text-muted-foreground">
-            In Moodle: Add an activity → SCORM package
+            In Moodle: Edit mode → Add content → Activity or resource → SCORM package → Add
           </p>
         </div>
+      )}
+      {version?.format === "scorm12" && (
+        <MoodleBackup key={version.id} courseId={courseId} versionId={version.id} />
       )}
     </Card>
   );

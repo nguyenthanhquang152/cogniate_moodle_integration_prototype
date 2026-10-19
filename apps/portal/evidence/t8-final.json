@@ -1,0 +1,18 @@
+{
+  "axe": {
+    "finalCourse": [],
+    "mobileCourse": [],
+    "buildLimit": [],
+    "mobilePublish": [],
+    "mobilePublished": [],
+    "mobileWebServices": [],
+    "webServices502": []
+  },
+  "checks": {
+    "Q_T7_02": true,
+    "pollingStoppedAtReady": true,
+    "simulatedBuildLimit": true,
+    "publishResultFocus": true,
+    "simulatedWsError": true
+  }
+}

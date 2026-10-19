@@ -10,6 +10,7 @@ import { ConnectionError, ErrorNotice, Loading } from "../ui.tsx";
 import { DynamicSetup } from "./DynamicSetup.tsx";
 import { ManualSetup } from "./ManualSetup.tsx";
 import { ConnectionOverview, ConnectionReady } from "./ConnectionStatus.tsx";
+import { WebServices } from "./WebServices.tsx";
 import { DisconnectDialog } from "./DisconnectDialog.tsx";
 
 export function ConnectionSetup({ id }: { id: string }) {
@@ -65,6 +66,9 @@ export function ConnectionSetup({ id }: { id: string }) {
           To reconnect, delete the old Cogniate tool in Moodle. Then disconnect
           this connection and connect again. Cogniate refuses every tool update.
         </Notice>
+      )}
+      {connection.status !== "disabled" && (
+        <WebServices key={connection.id} connection={connection} onSaved={reload} />
       )}
       <div className="flex flex-wrap items-center gap-3">
         <Link

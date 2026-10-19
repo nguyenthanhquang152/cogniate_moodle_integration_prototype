@@ -1,3 +1,4 @@
+import { MoodleCourse } from "./MoodleCourse.tsx";
 import { Badge } from "../ui/badge.tsx";
 import { buttonVariants, Button } from "../ui/button.tsx";
 import { Card } from "../ui/card.tsx";
@@ -87,10 +88,11 @@ export function Publications({
             </p>
             {publication.status === "available" && (
               <p className="text-[12px] text-[#cbb9e0]">
-                Teachers: Add an activity &gt; Cogniate ({library.name}) &gt;
-                Select content
+                Teachers: Edit mode → Add content → Activity or resource →
+                Cogniate ({library.name}) → Add → Select content
               </p>
             )}
+            <MoodleCourse publication={publication} />
             <dl className="publication-stats m-0 flex gap-[25px] [&_dd]:text-[22px]">
               <div>
                 <dt>Selected in Moodle</dt>

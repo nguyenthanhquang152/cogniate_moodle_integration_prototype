@@ -1,0 +1,31 @@
+{
+  "sdk": "ltiaas==0.0.4",
+  "command": "COMPAT_TESTS_DIR=/tmp/t3c-r3-smoke COMPAT_INPUT_FILE=.tmp/t8-sdk-input.json npm run test:compat",
+  "stack": "cogniate-codex",
+  "realMoodleLaunches": true,
+  "score": 87,
+  "scoreMaximum": 100,
+  "checks": [
+    {
+      "name": "idtoken",
+      "result": "pass"
+    },
+    {
+      "name": "deep linking form + message with default URL",
+      "result": "pass"
+    },
+    {
+      "name": "encoded scores POST",
+      "result": "pass"
+    },
+    {
+      "name": "encoded scores GET user_id",
+      "result": "pass"
+    },
+    {
+      "name": "memberships",
+      "result": "pass"
+    }
+  ],
+  "exitCode": 0
+}

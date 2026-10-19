@@ -45,6 +45,7 @@ const connection: Connection = {
   lastError: null,
   createdAt: "2026-10-18T01:00:00Z",
   lastLaunchAt: null,
+  webServices: null,
 };
 const values = {
   issuer: connection.siteUrl,

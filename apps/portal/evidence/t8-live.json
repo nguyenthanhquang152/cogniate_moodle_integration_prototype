@@ -1,0 +1,94 @@
+{
+  "checkedAt": "2026-10-19T02:38:11.429Z",
+  "stack": "cogniate-codex",
+  "port": 9443,
+  "axe": {
+    "publishNoToken": [],
+    "webServicesError": [],
+    "webServicesSaved": [],
+    "backupQueued": [],
+    "backupReady": [],
+    "publishWithToken": [],
+    "publishedCourse": [],
+    "publishedExists": [],
+    "htmlCourse": [],
+    "backupRunning": [],
+    "backupFailed": [],
+    "shellFailed": []
+  },
+  "checks": {
+    "noTokenCheckboxAbsent": true,
+    "connectedHintAbsent": true,
+    "invalidToken": {
+      "status": 422,
+      "code": "WS_TOKEN_INVALID"
+    },
+    "webServices": {
+      "siteName": "Cogniate_Dev_Moodle",
+      "release": "5.2.4 (Build: 20261005)"
+    },
+    "buildStart": {
+      "buildId": "bld_2eb5563b75bb4621ac9ad77d",
+      "courseId": "crs_q-p7ydMz1N2BWqheGwMpow",
+      "versionId": "ver_u_gOPtTlZ50Tfsmyt9BBpQ",
+      "status": "queued",
+      "step": null,
+      "reason": null,
+      "bytes": null,
+      "createdAt": "2026-10-19T02:36:50.380Z",
+      "updatedAt": "2026-10-19T02:36:50.380Z",
+      "finishedAt": null,
+      "downloadUrl": null
+    },
+    "buildReady": {
+      "buildId": "bld_2eb5563b75bb4621ac9ad77d",
+      "courseId": "crs_q-p7ydMz1N2BWqheGwMpow",
+      "versionId": "ver_u_gOPtTlZ50Tfsmyt9BBpQ",
+      "status": "ready",
+      "step": "done",
+      "reason": null,
+      "bytes": 23171327,
+      "createdAt": "2026-10-19T02:36:50.380Z",
+      "updatedAt": "2026-10-19T02:37:29.463Z",
+      "finishedAt": "2026-10-19T02:37:27.875Z",
+      "downloadUrl": "/app-api/courses/crs_q-p7ydMz1N2BWqheGwMpow/versions/ver_u_gOPtTlZ50Tfsmyt9BBpQ/download?kind=mbz"
+    },
+    "downloadBytes": 23171327,
+    "publication": {
+      "id": "pub_oJSp8cE-ejhv-R89Hgv06w",
+      "moodleCourse": {
+        "id": 4,
+        "idnumber": "cogniate:crs_q-p7ydMz1N2BWqheGwMpow:default:en",
+        "url": "https://moodle.test:9443/course/view.php?id=4"
+      },
+      "shellStatus": "created",
+      "shellError": null
+    },
+    "hiddenCourse": {
+      "id": 4,
+      "visible": 0,
+      "idnumber": "cogniate:crs_q-p7ydMz1N2BWqheGwMpow:default:en"
+    },
+    "republishExists": true,
+    "htmlBuildAbsent": true,
+    "failedBuild": {
+      "buildId": "bld_852c9f6983e12e581ef5f4b6",
+      "courseId": "crs_q-p7ydMz1N2BWqheGwMpow",
+      "versionId": "ver_u_gOPtTlZ50Tfsmyt9BBpQ",
+      "status": "failed",
+      "step": "backup",
+      "reason": "Test knob BUILD_RUNNER_FAIL_AT=backup: the build stopped at step backup.",
+      "bytes": null,
+      "createdAt": "2026-10-19T02:38:11.858Z",
+      "updatedAt": "2026-10-19T02:38:53.952Z",
+      "finishedAt": "2026-10-19T02:38:51.706Z",
+      "downloadUrl": null
+    },
+    "simulatedShellFailure": true
+  },
+  "ids": {
+    "connection": "con_7Xk8qX-zy77Vdc7KMpoMBQ",
+    "course": "crs_q-p7ydMz1N2BWqheGwMpow",
+    "version": "ver_u_gOPtTlZ50Tfsmyt9BBpQ"
+  }
+}
