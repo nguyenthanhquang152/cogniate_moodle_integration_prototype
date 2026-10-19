@@ -108,7 +108,7 @@ export function createLtiClient(deps: LtiClientDeps) {
   const readKey = deps.readKey ?? ((f: string) => readFileSync(f, 'utf8').trim());
 
   /** Auth (contract §1.2): `ltik` -> LTIK-AUTH-V2; `serviceKey` -> SERVICE-AUTH-V1; else Bearer. */
-  async function call<S extends z.ZodType>(schema: S, method: 'GET' | 'POST' | 'PATCH', path: string, traceId: string, body?: unknown, ltik?: string, serviceKey?: string): Promise<z.output<S>> {
+  async function call<S extends z.ZodType>(schema: S, method: 'GET' | 'POST' | 'PATCH', path: string, traceId: string, body?: unknown, ltik?: string, serviceKey?: string, timeoutMs?: number): Promise<z.output<S>> {
     let key: string;
     try {
       key = readKey(deps.apiKeyFile);
@@ -120,6 +120,7 @@ export function createLtiClient(deps: LtiClientDeps) {
     try {
       res = await deps.outbound.request(`${deps.ltiUrl}${path}`, {
         method, traceId, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
         headers: { authorization, 'x-trace-id': traceId, accept: 'application/json', ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
       });
     } catch {
@@ -145,7 +146,8 @@ export function createLtiClient(deps: LtiClientDeps) {
   return {
     getRegistration: (regId: string, traceId: string) => call(Registration, 'GET', `/api/registrations/${id(regId)}`, traceId),
     completeRegistration: (regId: string, body: { platformName: string; privacyLevel: string; autoActivate: boolean }, traceId: string) =>
-      call(Completed, 'POST', `/api/registrations/${id(regId)}/complete`, traceId, body),
+      // Give the LTI service's 5 s Moodle call time to return its uncertain-registration result (P1).
+      call(Completed, 'POST', `/api/registrations/${id(regId)}/complete`, traceId, body, undefined, undefined, 15_000),
     createPlatform: (body: NewPlatform, traceId: string) => call(Platform, 'POST', '/api/platforms', traceId, body),
     getPlatform: (platformId: string, traceId: string) => call(Platform, 'GET', `/api/platforms/${id(platformId)}`, traceId),
     patchPlatform: (platformId: string, body: { active?: boolean; name?: string }, traceId: string) => call(Platform, 'PATCH', `/api/platforms/${id(platformId)}`, traceId, body),

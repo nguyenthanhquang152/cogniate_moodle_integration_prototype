@@ -108,6 +108,14 @@ describe('createOutboundClient', () => {
     expect(events()).toHaveLength(1);
   });
 
+  it('P1: a request timeout override permits a slow response and leaves the next request at the default', async () => {
+    const port = await startServer((_q, s) => { setTimeout(() => s.end('done'), 100); });
+    const { c, events } = client(port, { resolver: resolveTo('127.0.0.1'), allowlist: ['moodle.test'], timeoutMs: 30 });
+    expect((await c.request('https://moodle.test/complete', { method: 'POST', timeoutMs: 1000 })).text()).toBe('done');
+    await expect(c.request('https://moodle.test/ordinary')).rejects.toMatchObject({ reason: 'timeout', message: 'no answer in 30 ms' });
+    expect(events().map((e) => [e.event, e.reason ?? null])).toEqual([['outbound_request', null], ['outbound_blocked', 'timeout']]);
+  });
+
   // A-T2a-01: one event per attempt. The attempt must not log a second, false event (timeout or network_error)
   // after it ended with a refused redirect or an oversize answer. Wait longer than the timeout to see it.
   const settle = () => new Promise((r) => setTimeout(r, 350));
