@@ -20,6 +20,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRunner } from './core.mjs';
+import { removeP5FailedSync } from './p5-fixture.mjs';
 
 const r = createRunner({
   task: 'T5',
@@ -35,7 +36,7 @@ const ZIPS = [
 const EXPECT = {
   T5a: ['SETUP-T5a', 'AC-T5-01', 'AC-T5-02', 'AC-T5-03', 'AC-T5-04', 'AC-T5-05', 'AC-T5-06', 'AC-T5-21', 'AC-T5-22', 'AC-T5-07', 'AC-T5-34', 'AC-T5-20', 'AC-T5-12',
     'AC-T5-35', 'AC-T5-24', 'AC-T5-08', 'AC-T5-23', 'AC-T5-13', 'AC-T5-37', 'AC-T5-15', 'AC-T5-16', 'AC-T5-17'],
-  T5b: ['SETUP-T5b', 'AC-T5-09', 'AC-T5-36', 'AC-T5-10', 'AC-T5-11', 'AC-T5-27', 'AC-T5-28', 'AC-T5-29', 'AC-T5-14', 'AC-T5-30', 'AC-T5-31', 'AC-T5-32', 'AC-T5-33', 'AC-T5-18', 'AC-T5-19'],
+  T5b: ['SETUP-T5b', 'AC-T5-09', 'AC-T5-36', 'AC-T5-10', 'AC-T5-11', 'AC-T5-27', 'AC-T5-28', 'AC-T5-29', 'AC-T5-14', 'AC-T5-30', 'AC-T5-31', 'AC-T5-32', 'AC-T5-33', 'AC-T5-18', 'AC-T5-19', 'P5', 'P11'],
   T6: ['SETUP-T6', 'AC-T6-01', 'AC-T6-02', 'AC-T6-03', 'AC-T6-04', 'AC-T6-05', 'AC-T6-06', 'AC-T6-07', 'AC-T6-08', 'AC-T6-09', 'AC-T6-10', 'AC-T6-11', 'AC-T6-12', 'AC-T6-13', 'AC-T6-14'],
 };
 
@@ -98,6 +99,7 @@ for (const sig of ['SIGINT', 'SIGTERM']) {
 process.on('exit', unpauseNow);
 
 const ACTIONS = {
+  'p5-remove-failed-sync': async (req) => ({ code: 0, fixture: removeP5FailedSync(r, req.syncId) }),
   'moodle-pause': async () => {
     if (!/^qa-/.test(r.PROJECT)) return { code: 9 };
     const res = await r.exec('compose-pause-moodle', 'docker', [...COMPOSE, 'pause', 'moodle'], { timeoutMs: 60_000 });
@@ -123,7 +125,9 @@ function startHostControl() {
   let busy = false;
   const timer = setInterval(async () => {
     if (busy || !fs.existsSync(dir)) return;
-    const next = fs.readdirSync(dir).filter((f) => /^req-[\w-]+\.json$/.test(f)).sort().find((f) => !done.has(f));
+    // Later passes keep this folder. Never replay an action already acknowledged by an earlier pass.
+    const next = fs.readdirSync(dir).filter((f) => /^req-[\w-]+\.json$/.test(f)).sort()
+      .find((f) => !done.has(f) && !fs.existsSync(path.join(dir, f.replace(/^req-/, 'ack-'))));
     if (!next) return;
     busy = true;
     done.add(next);
@@ -135,10 +139,16 @@ function startHostControl() {
     }
     const startedAt = Date.now();
     const fn = ACTIONS[req.action];
-    const res = fn ? await fn() : { code: 2 };
-    const answer = { action: req.action, ok: Boolean(fn) && res.code === 0, code: res.code, startedAt, endedAt: Date.now() };
+    let res;
+    try {
+      res = fn ? await fn(req) : { code: 2 };
+    } catch (err) {
+      res = { code: 3 };
+      log.push(`Host action ${req.action} failed: ${String(err)}`);
+    }
+    const answer = { action: req.action, ok: Boolean(fn) && res.code === 0, code: res.code, startedAt, endedAt: Date.now(), ...(res.fixture ? { fixture: res.fixture } : {}) };
     fs.writeFileSync(path.join(dir, `ack-${req.id}.json`), JSON.stringify(answer));
-    log.push(`${new Date(startedAt).toISOString()} ${req.action}: exit ${res.code} in ${answer.endedAt - startedAt} ms`);
+    log.push(`${new Date(startedAt).toISOString()} ${req.action}: exit ${res.code} in ${answer.endedAt - startedAt} ms${res.fixture ? ` ${JSON.stringify(res.fixture)}` : ''}`);
     busy = false;
   }, 500);
   return () => {
@@ -175,7 +185,7 @@ async function passT5b() {
     await r.containerSuite('T5b', { env: { QA_TASK: 'T5b' }, expectIds: EXPECT.T5b, fresh: false });
   } finally {
     const log = stop();
-    r.record('HOSTCTL', 'Host actions asked for by the T5b tests (whitelist: compose stop/start/pause/unpause moodle, stack:restart lti-service)', 'PASS', log.length ? log : ['none']);
+    r.record('HOSTCTL', 'Host actions asked for by the T5b tests (compose stop/start/pause/unpause moodle, stack:restart lti-service, bounded P5 fixture)', 'PASS', log.length ? log : ['none']);
   }
 }
 

@@ -26,7 +26,9 @@ export type HostAction =
   | 'runner-race'
   // P1, P2 (Lead decision): docker compose pause/unpause moodle, own QA project only; the runner always unpauses
   | 'moodle-pause'
-  | 'moodle-unpause';
+  | 'moodle-unpause'
+  // T5b final P5: exact higher failed row only, in the fresh QA clone (bounded spec exception).
+  | 'p5-remove-failed-sync';
 
 export interface HostAnswer {
   action: HostAction;
@@ -36,6 +38,7 @@ export interface HostAnswer {
   endedAt: number;
   /** compat-run: the output file name in the control folder (stdout and stderr, redacted by the runner). */
   out?: string;
+  fixture?: { deletedSyncId: string; deletedCount: number };
 }
 
 export const CONTROL_DIR = () => path.join(artifactsDir('acceptance'), 'control');

@@ -30,7 +30,7 @@ test('AC-T5-07 (P11) after a lower retake (75) on a new version: the status API 
     expect((await waitForMoodle(course101(), user, c.activity, 90)).grade, 'Moodle 90').toBe(90);
     await first.popup.close({ runBeforeUnload: true });
 
-    await publishNewVersion(c);
+    const version2 = await publishNewVersion(c);
     const retake = await openPlayer(context, user, c.cmid);
     await finalCommit(retake, 75);
     const status = async () => retake.popup.evaluate(async (id) => (await fetch(`/app-api/play/${id}/status`, { credentials: 'include' })).json(), retake.playId) as Promise<Status>;
@@ -40,6 +40,9 @@ test('AC-T5-07 (P11) after a lower retake (75) on a new version: the status API 
     expect(st.scoreSync, 'scoreSync = the synced row').toEqual({ status: 'sent', scoreGiven: 90, scoreMaximum: 100 });
     await expect.poll(() => shellText(retake.popup), { timeout: 30_000, message: 'player status text' }).toContain('Completed — score 75. Moodle keeps your best score: 90');
     const row = rowsFor(await results(c.publicationId), user, c.activity)[0];
+    expect(row?.attempts.map((a) => a.versionId).sort(), 'two course versions').toEqual([c.versionId, version2].sort());
+    expect(row?.best?.scoreGiven, 'the best score spans both versions').toBe(90);
+    expect(row?.attempts.find((a) => a.attemptId === row.best?.attemptId)?.versionId).toBe(c.versionId);
     expect(row?.scoreSyncs.map((s) => `${s.status}:${s.scoreGiven}`), 'no new sync for the lower retake').toEqual(['sent:90']);
     expect(await moodleGrade(course101(), user, c.activity), 'Moodle keeps 90').toBe(90);
     await retake.popup.close({ runBeforeUnload: true });

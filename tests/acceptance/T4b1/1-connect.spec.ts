@@ -24,7 +24,7 @@ const urls = publicUrls();
 const THANH_TOOL = "Cogniate (Thanh's Library)";
 const B_TOOL = 'Cogniate (QA Library B)';
 const PRIVACY = 'Learners are anonymous: Moodle does not send names or emails.';
-const UPDATE_TEXT = 'Go back in Moodle and choose Register as a new tool';
+const UPDATE_TEXT = 'Go back in Moodle and choose Register as a new external tool';
 
 interface Connection {
   id: string;

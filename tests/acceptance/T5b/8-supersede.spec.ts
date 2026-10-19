@@ -104,6 +104,8 @@ test('AC-T5-30 (P2, in flight) Moodle paused: the better result (90) arrives whi
     expect(after, 'a send of row A ended after the better result (the window was hit)').toBeDefined();
     expect(after?.status, `score_sync of the late send: ${JSON.stringify(after)}`).toBe('superseded');
     expect(String(after?.send_result ?? ''), 'send_result').toMatch(/^(sent|pending|conflict|failed)$/);
+    const settledA = rowsFor(await results(c.publicationId), user, c.activity)[0]?.scoreSyncs.find((s) => s.id === rowA.id);
+    expect(settledA?.status).toBe('superseded');
     const events = appEvents(since, (e) => e.event === 'score_sync' && e.sync_id === rowA.id).map((e) => `${String(e.ts).slice(11, 23)} ${e.status} tries ${e.tries}`);
     test.info().annotations.push({ type: 'row A sends', description: `${events.join('; ')}; better result committed at ${new Date(committedAt).toISOString().slice(11, 23)}; a send of A ended after it: ${Boolean(after)}` });
 
@@ -119,10 +121,13 @@ test('AC-T5-30 (P2, in flight) Moodle paused: the better result (90) arrives whi
       const grade = await moodleGrade(course101(), user, c.activity);
       seen.push(`${statusA}/${grade}`);
       expect(statusA, 'the 60 row stays superseded').toBe('superseded');
+      expect(row?.scoreSyncs.find((s) => s.id === rowA.id)?.tries, 'no retry of the obsolete row').toBe(settledA!.tries);
       expect(grade, 'Moodle stays 90').toBe(90);
       await new Promise((r) => setTimeout(r, 5_000));
     }
     test.info().annotations.push({ type: 'observed', description: [...new Set(seen)].join(', ') });
+    expect(appEvents(Date.parse(String(after!.ts)) + 1, (e) => e.event === 'score_sync' && e.sync_id === rowA.id),
+      'no later send event for the obsolete row during the 90-second observation').toEqual([]);
     await player.popup.close({ runBeforeUnload: true }).catch(() => undefined);
   } finally {
     if (paused) await hostAction('moodle-unpause').catch(() => undefined);

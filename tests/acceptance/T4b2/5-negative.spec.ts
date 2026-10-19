@@ -129,7 +129,7 @@ test.describe.serial('T4b2 negative cases', () => {
     }
   });
 
-  test('AC-T4-28 the course title <b>x</b>, the manifest title <img …> and the activity name <i>y</i> show as text; window.__xss stays undefined', async ({ browser }) => {
+  test('AC-T4-28 the course title <b>x</b>, manifest title <img …> and activity name x < y & "z" stay safe; window.__xss stays undefined', async ({ browser }) => {
     test.setTimeout(180_000);
     const st = t4b();
     const context = await newStackContext(browser);
@@ -142,13 +142,13 @@ test.describe.serial('T4b2 negative cases', () => {
       expect(await open.frame.evaluate(() => (window as unknown as { __xss?: unknown }).__xss), 'picker: window.__xss').toBeUndefined();
       const { pickerPost } = await submitPicker(open, '<b>x</b>');
       expect(pickerPost.status).toBe(200);
-      await open.page.locator('#id_name').fill('<i>y</i>');
+      const activityName = 'x < y & "z"';
+      await open.page.locator('#id_name').fill(activityName);
       await Promise.all([open.page.waitForURL(/\/course\/view\.php/, { timeout: 30_000 }), open.page.locator('#id_submitbutton2').click()]);
-      // Moodle 5.2.4 cleans activity names (PARAM_TEXT strips tags): "<i>y</i>" is stored as "y" (spec note).
-      const typed = await cmidByName(course101(), '<i>y</i>');
-      const cmid = typed ?? (await cmidByName(course101(), 'y'));
-      expect(cmid, 'the activity "<i>y</i>" (or its cleaned name "y") exists').toBeDefined();
-      test.info().annotations.push({ type: 'moodle activity name', description: typed ? 'stored as typed: <i>y</i>' : 'stored as "y" (Moodle strips the tags)' });
+      // AC-T4-28 now uses punctuation that survives Moodle PARAM_TEXT (Q-T4b2-01).
+      const cmid = await cmidByName(course101(), activityName);
+      expect(cmid, 'the activity name survives Moodle unchanged').toBeDefined();
+      test.info().annotations.push({ type: 'moodle activity name', description: activityName });
 
       const cap = await launchActivity(context, seed().users.cg_student, cmid!, { until: `${APP}/play/`, timeoutMs: 20_000 });
       const shell = cap.popup!;
