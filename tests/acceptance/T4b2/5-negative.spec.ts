@@ -145,9 +145,11 @@ test.describe.serial('T4b2 negative cases', () => {
       const activityName = 'x < y & "z"';
       await open.page.locator('#id_name').fill(activityName);
       await Promise.all([open.page.waitForURL(/\/course\/view\.php/, { timeout: 30_000 }), open.page.locator('#id_submitbutton2').click()]);
-      // AC-T4-28 now uses punctuation that survives Moodle PARAM_TEXT (Q-T4b2-01).
-      const cmid = await cmidByName(course101(), activityName);
-      expect(cmid, 'the activity name survives Moodle unchanged').toBeDefined();
+      // Moodle's course-contents API returns this name HTML-escaped. Read the rendered activity link instead.
+      const activityLink = open.page.locator('a[href*="/mod/lti/view.php"]').filter({ hasText: activityName });
+      await expect(activityLink, 'the activity name is shown literally in Moodle').toHaveCount(1);
+      const cmid = Number(new URL((await activityLink.getAttribute('href'))!, open.page.url()).searchParams.get('id'));
+      expect(cmid).toBeGreaterThan(0);
       test.info().annotations.push({ type: 'moodle activity name', description: activityName });
 
       const cap = await launchActivity(context, seed().users.cg_student, cmid!, { until: `${APP}/play/`, timeoutMs: 20_000 });
