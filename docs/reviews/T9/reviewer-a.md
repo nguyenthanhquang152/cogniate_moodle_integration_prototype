@@ -127,3 +127,91 @@ My historical fixes report said that a grade could not go down because the worke
 **0 BLOCKER, 0 MAJOR, 1 MINOR, 0 new NIT.** Historical accepted deferrals remain separate from these new counts.
 
 The code/harness verdict is APPROVE with A-T9-C01 recorded. The final T9 verdict remains pending. I will review the final committed README, guides, human pack, EN/VI videos, fresh QA/T7 reports, architecture reconciliation and any follow-up changes in this same task and instance.
+
+
+## Round 3 — replacement continuation, final review (2026-10-19)
+
+**Verdict: APPROVE — complete continuation accuracy and safety scope.**
+
+**Open findings: 0 BLOCKER, 0 MAJOR, 1 accepted MINOR, 0 new NIT.** Two MINOR findings were raised in this continuation: A-T9-C01 is accepted for deferral; A-T9-C02 is resolved. Historical deferrals are separate.
+
+### Identity, exact scope and independence
+
+Independent replacement Reviewer-A: **Codex GPT-6-Astra, xhigh**, under the [continuation authority](../../team/charter.md#continuation-authority-2026-10-19). This is the same worker and review task as Round 2. It is not a cross-model review.
+
+| Scope | Exact revision |
+| --- | --- |
+| Continuation baseline | `c3f6d13` |
+| Previously approved product baseline | `dd6dd1188833653cb92c63cc09e3c438ac3cb7b4` |
+| Reviewed repair, migration, tests and harness | `d54c607d7fc6ce2d97e039bb108f52a37f2174ee` |
+| Full T5a/T5b/T6 QA reports | `c5683f896330debaea5e9a09f49357dc3e99e92b` |
+| Fresh T7/root QA report | `a5633697206831d5a148f872d08e45d803dce4cd`, testing `c5683f8` |
+| Final architecture reconciliation | `533141e6903ba13e1b3efd09a0851a52a1d7f867` |
+| Final pack source stamp | `6932539d4b44e017dd54acc8dc37c6bb2ba9fed1` |
+| Final artifact candidate | **`39c401ae7247547a6a503414ffa699aaea6fb884`** |
+| Final T9 QA evidence | **`1a6f92c97489ca8304cacc03e4e1212d8d8ae27d`**, [QA §5](qa.md#5-replacement-qa-e2e-final-verification--2026-10-19) |
+
+Round 2 covers every product, migration and test change since the product baseline, including the fractional-score correction. This round adds every final README, guide, human-pack, video and architecture change through the artifact candidate. I checked follow-up fixes from committed revisions. Product and harness paths are unchanged from `d54c607` through the final candidate. The later QA-evidence commit changes none of those artifacts or product paths.
+
+I did not open Reviewer-B's review files. I submitted my product and final-artifact verdicts before the Lead relayed the counterpart's final result. The final QA report supplies the assigned STE authority; I did not use counterpart findings to derive this accuracy/safety verdict. Only this report was edited. No product edits, commits, pushes, subagents or QA-stack changes were made by this reviewer.
+
+### Fresh evidence reconciled with the claims
+
+| Evidence | Result and practical boundary |
+| --- | --- |
+| Focused P2/P5, exact repair | Six tests passed, including two setup tests. Higher 90 remained pending after its first accepted response and an actual app restart. Confirmation followed after 5.661 seconds. Moodle remained 90 for the finite 90-second observation. P5 used the disclosed one-row fixture. |
+| Full T5a/T5b/T6, exact repair | **49 required ACs and 65 executed tests passed**, with no failures, retries or flakes. The main T5a TTL case was intentionally skipped there and passed in its separate 20-second TTL run. T5b includes teacher override, conflict stop, P11 sent/pending/failed states and P2; T6 includes the whole keyboard wizard and teacher copy. |
+| Fresh T7 after repair | All **15 ACs passed in three consecutive runs**, taking 186, 181 and 175 seconds. Each run passed 17 scenarios without retry or flake. Its demo-only skip passed separately. Grade observations took 3.3–3.9 seconds. Four destructive-command refusals preserved stack snapshots. Reset took 43 seconds; demo preparation took 8.64 seconds. T7 is not the P2 late-write race test. |
+| T7 secret and resource checks | Each run scanned 45 captured values across nine kinds in service JSON logs, with zero hits. Container stdout is outside that scan, as A-T7-02 records. Teardown left zero own resources; ten baseline containers retained their IDs, start times and running state. |
+| Final T9 QA, exact artifacts | All four ACs are PASS under their stated authorities. QA verified the isolated candidate, guide evidence, all 25 decision IDs, offline interactions, generated content, all 26 slide/narration correspondences and cleanup. No new finding was raised. |
+| Final root check | Independent QA's isolated `npm run check` passed lint, type checking and **708 tests in 48 files, with zero skipped or failed**. All five real-fixture tests ran. This replaces the earlier 703-pass/five-skip self-check as final evidence. |
+| Historical T4b and T8 | P1 connection-feedback evidence remains dated to its final T4b1 run. T8 retains its `8059c31` AC-T8-02 through -10 and two race-check results. There is no new T8 run. The repair changes no native-channel, Build Runner or infra code. |
+
+I read the focused/full host summaries, Playwright results and P2/P5 attachments, plus the fresh T7 summaries, four Playwright reports, scan records, root log and isolation records. For final T9, I read the committed QA appendix and its provenance, document audit, offline, media, root-check and cleanup records. Both committed MP4 hashes match the final QA records.
+
+Local evidence roots, intentionally not tracked:
+
+- `tests/host/artifacts/qa-cont-p2-d54c607d-2026-10-19T10-45-38-252Z/`
+- `tests/host/artifacts/qa-cont-t5-d54c607d-2026-10-19T10-52-13-189Z/`
+- `tests/e2e/artifacts/runs/qa-e2e-cont-p2-c5683f89-2026-10-19T11-17-07-393Z/`
+- `tests/e2e/artifacts/t9/continuation/final-39c401ae/`
+
+The full P2 run records accepted 90 at 11:04:52.856 UTC, still pending at try 2 with no `sentAt`. The app stopped at 11:04:53.397 and restarted at 11:04:54.061. Confirmation succeeded at 11:04:58.479: a **5.623-second gap**, then sent at try 3. The lower 60 stayed superseded; no obsolete retry or repeated confirmation loop appeared during the next 90 seconds.
+
+The full P5 run deleted exactly one higher failed 80 sync. Both final attempts and their version IDs, plus best 80, remained unchanged. The lower failed 60 row kept try 1. Resend returned descriptive `409 SYNC_NOT_RESENDABLE`. This exercises the existing best-final-attempt contract through a fixture-assisted state; it is not pure black-box coverage.
+
+### Independent final-artifact checks
+
+- Read the final committed source and rendered artifacts, rather than drafts. Source `6932539` is an ancestor of the artifact commit. Explainer data and video script match that source after the intentional stamp update.
+- `build-md.mjs --check` passed. My scan found **131 local Markdown links with no missing paths or anchors**. Final QA independently reports the same 131 links, 63 checked fragments and no missing guide report IDs.
+- The offline explainer passed in a fresh local Chrome context: five tabs, 39 flow steps, all proof filters and all 25 decisions. Proof groups contain 22 QA, zero pending, one author and 16 not-proven rows. Temporary Q4 input survived reload and export, then was cleared. No human decision was submitted. There were zero page errors and HTTP requests. QA additionally exercised all story steps, keyboard navigation and autoplay on the final candidate.
+- Scanned 20 final text deliverables for private-key/JWT patterns and 22 distinct local secret values, without printing them. There were no hits. I inspected the visible portal images and video frames for exposed credentials. This is a scoped deliverable check, not a claim about all possible secrets in every runtime log.
+- Fully decoded both final videos and inspected all **26 scene frames**, plus full-size limit and decision frames. Text, captions and source stamps are visible. English is **182.4 seconds / 2,211,513 bytes**; Vietnamese is **212.4 seconds / 2,567,661 bytes**. Both are below four minutes and eight million bytes. Their streams are H.264 1280×720 at 5 fps and mono AAC at 44,100 Hz.
+- Scene boundaries agree with narration pauses, without cumulative drift. The final slide remains after the audio ends. Final QA independently regenerated the 26 narration clips: both resulting AAC streams exactly match the committed videos. Its regenerated slide comparisons also pass. These technical checks do not supply Vietnamese human voice or wording approval.
+
+### T9 acceptance and architecture reconciliation
+
+| Criterion | Review conclusion |
+| --- | --- |
+| AC-T9-01 | PASS under the Lead's explicit acceptance of the historical 61-second fresh-clone QA run, permitted by the spec. Images were pulled and npm cache was warm. No unfamiliar human performed it; HR-2 remains open. |
+| AC-T9-02 | Guide behavior is linked to QA evidence or explicitly bounded as unverified. Current repair claims use fresh T5/T6 and T7 evidence. Native API/CLI checks are kept distinct from Moodle-page restore, token-form, cloud and runner-hardening gaps. Pending tests are not represented as passing. |
+| AC-T9-03 | Markdown and explainer retain the architecture's Not Proven/Not Guaranteed limits and all **25 decisions: Q1–Q18, R1–R5, HR-1 and HR-2**, with recommendations. Q4 contains no invented human acceptance of P2. Q18 remains unsupported. |
+| AC-T9-04 | The Lead and final QA appendix record Reviewer-B's explicit PASS for this same artifact candidate. This is the assigned STE authority, not an independent STE measurement by Reviewer-A. |
+
+Architect's final conformance approval reconciles the bounded prototype policy, evidence dates and unchanged T8 scope. It does not approve production deployment or replace human decisions. The earlier Firefox claim is corrected to Chromium-only QA; Firefox and Safari remain unproven. The final Q1 readability edit retains the clean-room, test-only MIT SDK, narrow compatibility and raw-slash 404 boundaries.
+
+### Findings and historical treatment
+
+**A-T9-C01 — MINOR, accepted deferral.** The Lead accepted the Round 2 lookup-only retry exception under the charter's MINOR rule. The contract and deferred list now disclose it. Repeated preparation lookup failures remain at five-second intervals because no score POST increments `tries`; the 24-hour bound remains. The documented increasing retry policy is not silently rewritten as proof of implementation. A future separate preparation-retry counter remains the suggested repair.
+
+**A-T9-C02 — MINOR, resolved.** At `533141e`, `proven.md:24` and `explainer.html:924` used the broad statement “No serious accessibility error.” The standalone explainer also lacked the live 24-hour, T6 viewport/card and accessibility-scope limits already present in Markdown QA notes. I sent this finding promptly to the Lead. Fix `d1a521094c369bfa76dedced781e24042a75d366` narrows the claim to five tested surfaces with no serious or critical axe issue. It adds the missing limits to the explainer. I verified the fix again in `39c401ae`.
+
+Historical A-T9-01 and A-T9-02 are resolved: the trace warning/A-T7-02 scope is retained, and the original spikes are identified as unreviewed reference code. Accepted P7/P10 differences and the other historical deferrals stay visible. Resolved T8 race findings are not listed as current defects. The broad remote-ordering inference in my old fixes report remains superseded by Round 2; it is not restored by this approval.
+
+### Limits retained in the approval
+
+The five-second confirmation gap **does not prevent an arbitrarily late older remote write after confirmation**. `sent` records accepted delivery and required confirmation; it does not guarantee lasting equality with Moodle. The finite 90-second QA observation proves only that observed run. Migration 010 cannot recover unrecorded sends from before the upgrade. The seven-row synthetic upgrade check remains author evidence, not independent upgrade acceptance.
+
+Live operation for the full 24-hour retry window, untested P11 conflict/scoreless states, other browsers, viewports outside the T6 scope, untested card/error states and accessibility beyond the specified checks remain unproven. MoodleCloud, subfolder Moodle, the listed native UI/runner gaps and production readiness remain outside the demonstrated scope. All human decisions remain open where stated, including Q4, Vietnamese approval HR-1 and unfamiliar-human follow-up HR-2.
+
+**Final counts: 0 open BLOCKER, 0 open MAJOR, 1 accepted MINOR, 1 resolved MINOR, 0 new NIT. APPROVE.** Both review phases and the required fresh evidence are complete. No further review work is pending in this dispatch.
