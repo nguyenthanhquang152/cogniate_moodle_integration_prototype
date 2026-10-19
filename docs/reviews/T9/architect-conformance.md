@@ -1,7 +1,7 @@
 Verdict: CHANGES_REQUESTED
 Round: 3
 
-History: round 1 (at `2129b69`) was CHANGES_REQUESTED (MAJOR D1, P1, P2 open). Round 2 (section 9, after the fixes) was APPROVE for conformance. Round 3 (section 10) reopens P2 after a live grade mismatch. T7 on `dd6dd11` and T4b1/T4b2 on `a5d9ddc` remain historical PASS evidence; they do not verify the forthcoming repair.
+History: round 1 (at `2129b69`) was CHANGES_REQUESTED (MAJOR D1, P1, P2 open). Round 2 (section 9, after the fixes) was APPROVE for conformance. Round 3 (section 10) reopens P2 after a live grade mismatch, then records the focused repair PASS. T7 on `dd6dd11` and T4b1/T4b2 on `a5d9ddc` remain historical PASS evidence; they do not verify the repaired candidate.
 
 # T9: Architect final conformance check
 
@@ -193,11 +193,11 @@ Round 2 had no open BLOCKER or MAJOR finding after its fixes. The live P2 failur
 
 ## 10. Round 3: P2 late remote write
 
-Verdict: **CHANGES_REQUESTED**. The final T5a/T5b/T6 gate remains open; the Lead also requires fresh T7 on the repaired code before pack closure.
+Verdict: **CHANGES_REQUESTED**. The P2/P5 focused repair checks below PASS, but the final T5a/T5b/T6 gate remains open; the Lead also requires fresh T7 on the repaired code before pack closure. Final review gates remain pending.
 
-Replacement QA reported a grade mismatch on `a5d9ddc` (product code `dd6dd11`); the Lead recorded it in board commit `8e7bada`. A paused-Moodle send of 60 was superseded by 90. The app marked 90 as `sent`, but the Moodle oracle still showed 60 after 120 seconds. The local `superseded` guard did not prevent the older remote request from writing later. The Author is repairing this path; the finding is not an accepted deferral.
+Replacement QA reported a grade mismatch on `a5d9ddc` (product code `dd6dd11`); the Lead recorded it in board commit `8e7bada`. A paused-Moodle send of 60 was superseded by 90. The app marked 90 as `sent`, but the Moodle oracle still showed 60 after 120 seconds. The local `superseded` guard did not prevent the older remote request from writing later. The repair and its focused PASS are recorded below; this finding was not accepted as a deferral.
 
-The Architect approved a durable, bounded confirmation policy for the current best score (ADR-010 and app contract §10). It preserves terminal `superseded` rows, 409 conflicts and teacher overrides. A delayed confirmation can repair the observed ordering, but cannot prove that an arbitrarily late Moodle write will never occur. The contract must state that limit, and final QA must prove the repaired scenario before this gate closes.
+The Architect approved a durable, bounded confirmation policy for the current best score (ADR-010 and app contract §10). It preserves terminal `superseded` rows, 409 conflicts and teacher overrides. A delayed confirmation can repair the observed ordering, but cannot prove that an arbitrarily late Moodle write will never occur. The contract records that limit; the evidence below does not remove it.
 
 The failed candidate evidence is preserved in `7f92f73`: [T5b QA](../T5b/qa.md#replacement-qa-regression-2026-10-19--candidate-a5d9ddc) and [T6 QA](../T6/qa.md#replacement-qa-regression-2026-10-19--candidate-a5d9ddc). The combined run used `a5d9ddcbc95cfb61968f70372334790386f2bb4b` from 10:10:28 to 10:29:45 UTC on 2026-10-19. Evidence root: `tests/host/artifacts/qa-cont-t5-a5d9ddcb-2026-10-19T10-10-28-786Z/`. Its own stack ended with zero containers, volumes and networks; no pre-existing container stopped or restarted.
 
@@ -208,7 +208,24 @@ The failed candidate evidence is preserved in `7f92f73`: [T5b QA](../T5b/qa.md#r
 | P5 fixture | The deleted higher failed sync still appeared in the public results. QA did not call Resend, so this is no proof of P5 and no demonstrated Resend defect. The Lead-approved stop/delete/start/health-wait extension is in T5b; fresh evidence is required. |
 | P11 | The sent, pending and failed lower-retake variants PASS. No live lower-score `conflict` or scoreless-attempt variant is claimed. |
 | T6 | 12 of 14 ACs PASS. AC-T6-07 used stale teacher text; `3385c55` aligns the spec with the accepted Moodle flow. AC-T6-09 used an immediate focus check; QA changed it to an awaited focus assertion (`e578c51`). Neither correction is a passing rerun; the later wizard keyboard segment was not reached. |
-| Repair and T7 | The bounded confirmation policy is committed in `b826eb1`. Product repair, fresh T5a/T5b/T6 verification and fresh T7 remain pending. Historical T7 PASS at `dd6dd11` does not clear these gates. |
+| Repair and T7 | The bounded confirmation policy is committed in `b826eb1`; product repair is in `1ce57f2` with the current-best attempt ratio correction in `d54c607`. Fresh T5a/T5b/T6 QA is running on `d54c607d7fc6ce2d97e039bb108f52a37f2174ee`; fresh T7 must follow. Historical T7 PASS at `dd6dd11` does not clear these gates. |
 
 This run covers Chromium and local Moodle 5.2.4 only. It does not observe a full 24 h retry window. Existing human questions, accepted limitations and MINOR/NIT deferrals remain unchanged.
+
+Repair scope: the product diff from `dd6dd11` to `d54c607` changes only the score-sync repository, worker, migration 010 and adjacent unit tests. Native `.mbz`, the Build Runner, LTI transport, portal and infra code are unchanged. Retain the T8 PASS at its tested SHA `8059c31`; this is not a new T8 run. Fresh T7 is required for the graded flow and app startup.
+
+Upgrade limit: migration 010 gives old rows empty send and confirmation markers and `delivery_uncertain = 0`. It cannot recover uncertainty for remote writes started before the upgrade. The Author reported a synthetic seven-row upgrade check (nine migrations to ten), preserved history/statuses and manual Resend window, unchanged migration hashes, successful reopen, and no integrity or foreign-key errors. Its local evidence is `.tmp/p2-upgrade-task_fd4aae827241/result.json` and `validate.mjs`; the Architect inspected the result and migration, but did not run that check. This is Author evidence, not independent QA or proof of recovering pre-upgrade remote writes.
+
+Continuation review deferral: **A-T9-C01 (MINOR)** remains a known implementation difference. Repeated retryable line-item GET failures before the first score POST keep `tries = 0` and the 5 s delay, rather than advancing the backoff. Static evidence: `worker/score-sync.ts` calls `syncResult` with `Math.max(1, tries)`; `worker/line-item.ts` calls only `findLineItems` (GET). The existing retry-window limit still applies and this path sends no score POST. The Lead accepted this deferral after both phase 1 verdicts were submitted (2026-10-19); the app contract §10 retains the required increasing schedule and labels the difference. A future fix needs separate preparation-retry accounting. This disposition does not clear the pending QA or final review gates.
+
+### Focused repair verification at d54c607
+
+**PASS, scoped to P2/P5:** independent replacement QA ran the fresh-clone focus on `d54c607d7fc6ce2d97e039bb108f52a37f2174ee` from 10:45:38 to 10:51:48 UTC on 2026-10-19. [T5b QA repair focus](../T5b/qa.md#replacement-qa-repair-focus-2026-10-19--d54c607d) records six passing tests: two setup tests, AC-T5-30 outage order, stopped-Moodle P2, in-flight P2 with app restart, and fixture-assisted P5. No tests failed or were skipped; `summary.json` has no abort and records zero own containers, volumes and networks after cleanup. No other container stopped or restarted.
+
+Evidence root: `tests/host/artifacts/qa-cont-p2-d54c607d-2026-10-19T10-45-38-252Z/`. The Architect read its summary, the QA report and `evidence/p2-confirmation-evidence.json`; this is reconciliation of independent QA, not another execution.
+
+- P2: the lower 60 row stayed `superseded` after its late response, with tries 2 and `send_result: pending`. The first accepted 90 at 10:49:29.543 kept the higher row `pending`, `sentAt: null`, tries 1. QA fully stopped its own app at 10:49:30.151, before confirmation was due, and started it again. Confirmation at 10:49:35.204 set `sent`, tries 2, after 5.661 s. Moodle stayed 90 for another 90 s, with no obsolete retry or repeat confirmation. Each actual POST had one phase-labeled log. The separate stopped-Moodle case also passed its 60 s observation.
+- P5: public calls created final 60/100 and 80/100 attempts on two versions with failed syncs. The approved fixture stopped only the own app, deleted exactly the higher failed sync, and restarted and health-checked the app. Both attempts and the lower sync stayed unchanged; public best stayed 80. Resend of the lower 60 returned `409 SYNC_NOT_RESENDABLE`. This remains **fixture-assisted**, not pure black-box; exact public evidence is `evidence/p5-public-evidence.json`.
+
+This focused PASS proves the recorded post-upgrade restart path and finite observation window. It does not prove pre-upgrade remote-write recovery or universal grade ordering. The full T5a/T5b/T6 regression is running on the same SHA; fresh T7 and final reviews remain required. Deterministic late-write placement, requirement transfer, confirmation-conflict and retry-window exhaustion remain separate Author unit evidence, not claims of this live focus.
 

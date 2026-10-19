@@ -382,6 +382,8 @@ Sends `POST /api/lineitems/{encodeURIComponent(lineItemId)}/scores` with `SERVIC
 
 When rows are made: ADR-010.
 
+Known implementation difference, **A-T9-C01 (deferred MINOR, Lead decision 2026-10-19)**: when the line item is missing and its GET lookup repeatedly fails with a retryable error before any score POST, the implementation keeps the 5 s retry delay instead of increasing it. `tries` counts actual score POSTs, so it stays zero on this path. The 24 h window still applies, including the latest manual Resend time; the failed lookup sends no score POST. The increasing schedule above remains the policy. A future fix must count preparation retries separately from actual score POSTs.
+
 ### P2: durable bounded confirmation
 
 This policy repairs uncertain delivery of a superseded lower score. It adds no public status or endpoint and does not change outbound timeouts.
@@ -397,6 +399,8 @@ This policy repairs uncertain delivery of a superseded lower score. It adds no p
 All `409` responses remain terminal `conflict` until a permitted manual Resend. Do not use results-read inequality to force another send: a teacher override intentionally differs from the submitted score (AC-T5-33). The same guarded client, 5 s timeout, generated timestamps and no transport-level POST retry still apply.
 
 The confirmation proves that Moodle accepted that delivery. It cannot prove that an arbitrarily late older request will not write afterward. This is a recorded remote-ordering limit, not a new guarantee of gradebook equality.
+
+Recovery requires a stored marker. Migration 010 preserves old sync history and starts the new delivery fields empty; it cannot infer unresolved remote writes from before the upgrade (data-model §2).
 
 ## 11. Stretch (T8): native `.mbz` and course shell
 

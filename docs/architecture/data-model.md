@@ -223,6 +223,8 @@ Unique keys and rules:
 
 Score delivery recovery (P2, app contract §10): SQLite must retain in-flight send state, unresolved delivery uncertainty, and any confirmation requirement and due time. Write the in-flight state before the external POST. After restart, an unresolved send is uncertain; an awaited confirmation stays `pending`. The requirement belongs to the learner and activity and passes to a higher result if its row is superseded. A later acknowledged retry does not erase earlier uncertainty. Public status remains one of the existing values; no `sentAt` is set before required confirmation succeeds. Confirmation uses the existing retry window, including its deadline.
 
+Upgrade boundary: migration `010_score_delivery_confirmation.sql` adds these fields to existing rows with `send_started_at = null`, `delivery_uncertain = 0` and `confirmation_after = null`. It preserves the existing sync history and statuses. Recovery uses markers written after the upgrade; it cannot reconstruct unresolved remote sends made before these fields existed.
+
 ### 2.1 Retention (A-T4b2-02)
 
 A cleanup job in each service runs at start and then every 10 min. It deletes rows that can never be used again and logs `retention_cleanup {table, deleted}` (info) when it deletes something.
