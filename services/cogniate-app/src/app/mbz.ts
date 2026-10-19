@@ -10,7 +10,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { getCourse, getVersion } from '../domain/courses.ts';
 import type { Db } from '../domain/db.ts';
 import type { BuildStatus, MbzBuild } from '../domain/mbz-builds.ts';
-import { activeBuildCount, applyRunnerStatus, createBuild, latestBuild, newBuildId } from '../domain/mbz-builds.ts';
+import { activeBuildCount, activeBuilds, applyRunnerStatus, createBuild, latestBuild, newBuildId } from '../domain/mbz-builds.ts';
 import { ApiError } from './api-errors.ts';
 
 export interface MbzRouteDeps {
@@ -112,6 +112,10 @@ export function registerMbzRoutes(api: FastifyInstance, deps: MbzRouteDeps): voi
     const latest = latestBuild(db, lib, version.id);
     const current = latest ? await refresh(latest) : undefined;
     if (current && (current.status === 'queued' || current.status === 'running')) return reply.code(202).send(buildJson(current));
+    // A-T8-04 (contract §11): a timed-out build does not count. The time-out runs only when a build is read, so apply it
+    // (and any runner status) to every active build of the library first; a held build stays active (the runner
+    // updates its status every 30 s).
+    for (const other of activeBuilds(db, lib)) await refresh(other);
     if (activeBuildCount(db, lib) >= MAX_ACTIVE_BUILDS_PER_LIBRARY) {
       throw new ApiError('MBZ_BUILD_LIMIT', `${MAX_ACTIVE_BUILDS_PER_LIBRARY} builds of your library wait or run. Build again when one has ended.`);
     }

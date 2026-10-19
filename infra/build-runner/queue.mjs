@@ -10,7 +10,7 @@
 //   jobfile <request.json>                  -> {title, idnumber} for the build Moodle
 //   status <status.json> key=value ...      -> merge into the status file (atomic), with timestamps
 //   publish <course.mbz> <out/<id>.mbz>     -> check the backup and copy it with exclusive create
-import { closeSync, constants, copyFileSync, fstatSync, lstatSync, openSync, readFileSync, readSync, renameSync, writeFileSync } from 'node:fs';
+import { closeSync, constants, copyFileSync, fstatSync, lstatSync, openSync, readFileSync, readSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 
 const [cmd, file, ...rest] = process.argv.slice(2);
 const STEPS = ['', 'start', 'course', 'scorm', 'backup', 'copy'];
@@ -58,42 +58,65 @@ function checked(path) {
   return { ...job, hex: job.buildId.slice(4), idnumber: `cogniate:${job.courseId}:${job.variant}:${job.lang}` };
 }
 
-/** Copy the build's backup into out/: regular file only (no symlink), size limit, gzip magic, exclusive create. */
+/**
+ * Copy the build's backup into out/: regular file only (no symlink), size limit, gzip magic, exclusive create.
+ * A-T8-04: every refusal is ONE readable line on stderr (the runner puts it into the build's reason), never a stack.
+ */
 function publish(src, dst) {
   const st = lstatSync(src, { throwIfNoEntry: false });
   if (!st) fail('backup file is missing');
   if (!st.isFile()) fail('backup is not a regular file (symlink or special file)');
   if (st.size < 18 || st.size > MAX_MBZ) fail('backup size is out of range');
-  const fd = openSync(src, constants.O_RDONLY | constants.O_NOFOLLOW);
+  let fd;
+  try {
+    fd = openSync(src, constants.O_RDONLY | constants.O_NOFOLLOW);
+  } catch (e) {
+    fail(e.code === 'ELOOP' ? 'backup is not a regular file (symlink or special file)' : `backup cannot be read (${e.code ?? 'error'})`);
+  }
   const magic = Buffer.alloc(2);
   try { readSync(fd, magic, 0, 2, 0); } finally { closeSync(fd); }
   if (magic[0] !== 0x1f || magic[1] !== 0x8b) fail('backup is not a gzip file');
-  copyFileSync(src, dst, constants.COPYFILE_EXCL); // fails if dst exists (also a planted symlink)
+  try {
+    copyFileSync(src, dst, constants.COPYFILE_EXCL); // fails if dst exists (also a planted symlink)
+  } catch (e) {
+    if (e.code === 'EEXIST') fail('out/ already has a file for this build; it is never overwritten');
+    try { unlinkSync(dst); } catch { /* not created */ } // a partial copy (for example a full disk) is not left in out/
+    fail(e.code === 'ENOSPC' ? 'no free disk space for the backup' : `backup cannot be copied into out/ (${e.code ?? 'error'})`);
+  }
   process.stdout.write(`${JSON.stringify({ bytes: st.size })}\n`);
 }
 
-if (cmd === 'validate') {
-  process.stdout.write(`${JSON.stringify(checked(file))}\n`);
-} else if (cmd === 'jobfile') {
-  const j = checked(file);
-  process.stdout.write(`${JSON.stringify({ title: j.title, idnumber: j.idnumber })}\n`);
-} else if (cmd === 'publish') {
-  publish(file, rest[0] ?? fail('usage: publish <src> <dst>'));
-} else if (cmd === 'status') {
-  let current;
-  try { current = JSON.parse(readFileSync(file, 'utf8')); } catch { current = {}; }
-  const now = new Date().toISOString();
-  const next = { ...current, updatedAt: now };
-  for (const kv of rest) {
-    const i = kv.indexOf('=');
-    const key = kv.slice(0, i);
-    const value = kv.slice(i + 1);
-    next[key] = key === 'bytes' ? Number(value) : value;
+function main() {
+  if (cmd === 'validate') {
+    process.stdout.write(`${JSON.stringify(checked(file))}\n`);
+  } else if (cmd === 'jobfile') {
+    const j = checked(file);
+    process.stdout.write(`${JSON.stringify({ title: j.title, idnumber: j.idnumber })}\n`);
+  } else if (cmd === 'publish') {
+    publish(file, rest[0] ?? fail('usage: publish <src> <dst>'));
+  } else if (cmd === 'status') {
+    let current;
+    try { current = JSON.parse(readFileSync(file, 'utf8')); } catch { current = {}; }
+    const now = new Date().toISOString();
+    const next = { ...current, updatedAt: now };
+    for (const kv of rest) {
+      const i = kv.indexOf('=');
+      const key = kv.slice(0, i);
+      const value = kv.slice(i + 1);
+      next[key] = key === 'bytes' ? Number(value) : value;
+    }
+    if (!next.startedAt && next.status === 'running') next.startedAt = now;
+    if (next.status === 'ready' || next.status === 'failed') next.finishedAt = now;
+    writeFileSync(`${file}.tmp`, JSON.stringify(next));
+    renameSync(`${file}.tmp`, file);
+  } else {
+    fail('usage: queue.mjs validate|jobfile|status|publish <file> [...]');
   }
-  if (!next.startedAt && next.status === 'running') next.startedAt = now;
-  if (next.status === 'ready' || next.status === 'failed') next.finishedAt = now;
-  writeFileSync(`${file}.tmp`, JSON.stringify(next));
-  renameSync(`${file}.tmp`, file);
-} else {
-  fail('usage: queue.mjs validate|jobfile|status|publish <file> [...]');
+}
+
+// No stack trace for the runner's log or a build's reason: an unexpected error is one line too.
+try {
+  main();
+} catch (e) {
+  fail(`queue.mjs ${cmd ?? ''} failed (${e?.code ?? e?.name ?? 'error'})`);
 }

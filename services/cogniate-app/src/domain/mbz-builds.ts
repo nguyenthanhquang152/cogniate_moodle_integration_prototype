@@ -52,6 +52,11 @@ export function applyRunnerStatus(db: Db, id: string, s: { status: BuildStatus; 
     .run(s.status, s.step, s.reason, s.bytes, s.finishedAt, now, id);
 }
 
+/** All builds of a library that wait or run (oldest first): the app refreshes them before it counts (A-T8-04). */
+export function activeBuilds(db: Db, libraryId: string): MbzBuild[] {
+  return db.prepare("SELECT * FROM mbz_build WHERE library_id = ? AND status IN ('queued', 'running') ORDER BY created_at, rowid").all(libraryId).map(toBuild);
+}
+
 /** Builds of a library that wait or run (the per-library limit, A-T8 NIT). */
 export function activeBuildCount(db: Db, libraryId: string): number {
   return Number(db.prepare("SELECT COUNT(*) AS n FROM mbz_build WHERE library_id = ? AND status IN ('queued', 'running')").get(libraryId)?.n ?? 0);

@@ -4,9 +4,16 @@
 #  - own Postgres and own volumes (removed with `down -v`);
 #  - the package zip and the job file are read-only; there is NO writable host folder (A-T8-01): the runner takes
 #    the .mbz out with `docker cp` (which never follows a symlink) and checks it before it reaches out/.
+# Owner label (stack-scoped sweep): several stacks can run on one Docker host (other checkouts, QA runs). Every
+# container, volume and network has org.cogniate.stack=<COMPOSE_PROJECT_NAME of the owning stack>; a runner removes
+# leftovers of its OWN stack only.
+x-owner: &owner
+  org.cogniate.stack: ${BUILD_STACK:-unknown}
+
 services:
   db:
     image: postgres:16-alpine
+    labels: *owner
     environment:
       POSTGRES_DB: moodle
       POSTGRES_USER: moodle
@@ -23,6 +30,7 @@ services:
   moodle:
     # erseco/alpine-moodle:v5.2.4 + composer dependencies (infra/build-runner/Dockerfile): no download at start.
     image: cogniate-build-moodle:v5.2.4
+    labels: *owner
     depends_on:
       db:
         condition: service_healthy
@@ -63,7 +71,10 @@ services:
 networks:
   build:
     internal: true
+    labels: *owner
 
 volumes:
-  pgdata: {}
-  moodledata: {}
+  pgdata:
+    labels: *owner
+  moodledata:
+    labels: *owner
