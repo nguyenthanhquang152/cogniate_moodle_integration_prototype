@@ -225,7 +225,7 @@ All outbound HTTP of both services goes through one client in `packages/shared` 
 | Backup copy (A-T8-01) | `docker cp` copies a symlink as a symlink (it never follows it), into a new empty folder. The runner then accepts the `.mbz` only as a regular file (`lstat`: no symlink, no special file), 18 B to 2 GB, with the gzip magic bytes, and writes it into `out/` with exclusive create (it fails if the target exists, also a planted symlink). Else the build is `failed` ("The backup was refused: …"). |
 | Single runner | One runner per queue (lock file `build-queue/.runner.pid`). A second runner is refused, because its start-up clean-up would remove the first runner's build. |
 | Limits | At most 2 active builds per library (`409 MBZ_BUILD_LIMIT`). A build with no progress for 10 min becomes `failed` (app contract §11). |
-| Clean-up | At start and on `stack:reset`: interrupted builds become `failed`; leftover `cogniate-build-*` containers, volumes, networks and work folders are removed. On `TERM`/`INT` the current build is removed and marked `failed`. |
+| Clean-up | At start and on `stack:reset`: interrupted builds become `failed`; leftover `cogniate-build-*` containers, volumes, networks and work folders **of this stack** are removed (never the build projects of another stack on the same Docker host). On `TERM`/`INT` the current build is removed and marked `failed`. |
 
 ## 11. Privacy and logs
 
