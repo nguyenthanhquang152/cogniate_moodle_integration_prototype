@@ -1,8 +1,9 @@
-import type { IncomingMessage, Server, ServerResponse } from 'node:http';
+import type { ClientRequest, IncomingMessage, Server, ServerResponse } from 'node:http';
+import { EventEmitter } from 'node:events';
 import type { RequestOptions } from 'node:https';
 import { createServer, request as httpRequest } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createLogger } from './logger.ts';
 import type { OutboundOptions, Resolver } from './outbound.ts';
 import { OutboundError, createOutboundClient, isBlockedAddress, parseAllowlist } from './outbound.ts';
@@ -114,6 +115,28 @@ describe('createOutboundClient', () => {
     expect((await c.request('https://moodle.test/complete', { method: 'POST', timeoutMs: 1000 })).text()).toBe('done');
     await expect(c.request('https://moodle.test/ordinary')).rejects.toMatchObject({ reason: 'timeout', message: 'no answer in 30 ms' });
     expect(events().map((e) => [e.event, e.reason ?? null])).toEqual([['outbound_request', null], ['outbound_blocked', 'timeout']]);
+  });
+
+  it.each([
+    [0.1, 1], [60_001, 60_000], [Infinity, 60_000],
+    [NaN, 123], [0, 123], [-1, 123], [-Infinity, 123],
+  ])('A-FX-02: request timeout %s resolves to %s ms', async (override, expected) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    try {
+      const req = Object.assign(new EventEmitter(), { write: vi.fn(), end: vi.fn(), destroy: vi.fn() });
+      const { c, events } = client(1, { timeoutMs: 123, requestImpl: () => req as unknown as ClientRequest });
+      const answer = c.request('https://example.test/slow', { method: 'POST', timeoutMs: override }).catch((err: unknown) => err);
+      await vi.advanceTimersByTimeAsync(expected - 1);
+      expect(req.destroy).not.toHaveBeenCalled();
+      expect(events()).toEqual([]);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(await answer).toMatchObject({ reason: 'timeout', message: `no answer in ${expected} ms` });
+      expect(req.destroy).toHaveBeenCalledTimes(1);
+      expect(events()).toHaveLength(1);
+    } finally {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    }
   });
 
   // A-T2a-01: one event per attempt. The attempt must not log a second, false event (timeout or network_error)

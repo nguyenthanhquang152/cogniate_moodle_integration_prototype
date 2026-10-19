@@ -25,11 +25,12 @@ export function playStatusText(s: PlayStatus): string {
   const different = sync.scoreGiven !== null && sync.scoreMaximum !== null &&
     (s.scoreGiven === null || s.scoreMaximum === null || s.scoreGiven / s.scoreMaximum !== sync.scoreGiven / sync.scoreMaximum);
   const best = formatScore(sync.scoreGiven, sync.scoreMaximum);
+  const completed = score === '' ? 'Completed' : `Completed — score ${score}`;
   switch (s.scoreSync.status) {
-    case 'sent': return different ? `Completed — score ${score}. Moodle keeps your best score: ${best}` : `Completed — score ${score} sent to Moodle`;
-    case 'pending': return different ? `Completed — score ${score}. Sending your best score, ${best}, to Moodle` : `Completed — sending score ${score} to Moodle`;
+    case 'sent': return different ? `${completed}. Moodle keeps your best score: ${best}` : `Completed — score ${score} sent to Moodle`;
+    case 'pending': return different ? `${completed}. Sending your best score, ${best}, to Moodle` : `Completed — sending score ${score} to Moodle`;
     case 'conflict': return 'Completed — Moodle has a grade with a newer time';
-    case 'failed': return different ? `Completed — score ${score}. Your best score, ${best}, was not sent to Moodle` : `Completed — score ${score} not sent to Moodle`;
+    case 'failed': return different ? `${completed}. Your best score, ${best}, was not sent to Moodle` : `Completed — score ${score} not sent to Moodle`;
     default: return score === '' ? 'Completed' : `Completed — score ${score}`;
   }
 }

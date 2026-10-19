@@ -95,8 +95,13 @@ export function registerRegisterPages(app: FastifyInstance, deps: RegisterPageDe
     <input type="hidden" name="ref" value="${escapeHtml(String(req.query.ref))}">
     <button type="submit">Connect</button>
   </form>
+  <p role="status" aria-live="polite" data-connect-status></p>
 </main>`;
-    return reply.code(200).headers(toolPageHeaders('register-form', { site: connection.siteUrl, nonce })).send(layout('Connect to Cogniate', body));
+    const js = `document.querySelector('form').addEventListener('submit', function () {
+  this.querySelector('button[type="submit"]').disabled = true;
+  document.querySelector('[data-connect-status]').textContent = 'Connecting to Moodle. This can take up to 15 seconds. Do not close this window.';
+});`;
+    return reply.code(200).headers(toolPageHeaders('register-form', { site: connection.siteUrl, nonce })).send(layout('Connect to Cogniate', body, { nonce, js }));
   });
 
   // ---------------------------------------------------------------- POST: complete the registration

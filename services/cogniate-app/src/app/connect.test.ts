@@ -177,6 +177,12 @@ describe('/tool/register (app contract §6, security §5, §6)', () => {
     expect(csp).toContain(`frame-ancestors ${TEST_URLS.moodle}`);
     expect(csp).toContain("form-action 'self'");
     expect(csp).toMatch(/script-src 'nonce-[A-Za-z0-9+/=]+'/);
+    const nonce = /script-src 'nonce-([A-Za-z0-9+/=]+)'/.exec(csp)![1]!;
+    expect(page.body).toContain(`<script nonce="${nonce}">`);
+    expect(page.body).toContain('<p role="status" aria-live="polite" data-connect-status></p>');
+    expect(page.body).toContain("addEventListener('submit'");
+    expect(page.body).toContain('disabled = true');
+    expect(page.body).toContain('Connecting to Moodle. This can take up to 15 seconds. Do not close this window.');
     expect(page.headers['referrer-policy']).toBe('same-origin');
     expect(page.headers['x-frame-options']).toBeUndefined();
     expect(page.headers['set-cookie']).toBeUndefined();
