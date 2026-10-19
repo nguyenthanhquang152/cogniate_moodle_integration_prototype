@@ -17,8 +17,8 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 | 7b | T4b2 | Picker, launch handoff, security | Author | **done** | 1 | QA PASS 17/17 (716a72c; AC-T4-22/23 live), A APPROVE, B APPROVE. MINOR follow-ups (B-T4b2-01/03, A-T4b2-02/04) in progress with T5b batch. |
 | 8 | T5a | Content host, SCORM runtime, score sync | Author | **done** | 1 | QA PASS 21/21 black-box (e05aa29; real SCORM → 100 in Moodle), A APPROVE, B APPROVE. Review fixes landed in T5b. |
 | 9 | T5b | HTML runtime, conflict, Resend | Author | **done** | 2 | QA PASS 14/14 live (edb99c9, incl. Moodle outage/conflict/Resend/override; real HTML → 100), A APPROVE, B APPROVE. T5a regression 21/21. |
-| 10 | T6 | Portal UI (dev-portal style) | **Author-2 (Codex)** | fixing | 2 | R1: A APPROVE, B CHANGES_REQUESTED (B-T6-01 MAJOR). R2 Codex dispatch ctx_2ae487c52432 (wizard step, server texts, Tailwind). QA after R2. |
-| 11 | T7 | Full E2E in real Moodle | Author + **QA-E2E** | in_progress | 1 | Harness done (8b45d15, 4a35ee0: e2e:reset 41 s, demo:prepare 9 s). QA-E2E writes tests/e2e (Scenarios A, B, C). |
-| 12 | T3c | Compat-only endpoints + LTIAAS SDK black-box test | **Author-2 (Codex)** | fixing | 3 | R2 merged (0d1e169): A + B APPROVE R2 pending A. R3 Codex ctx_a3412978617b: ltiaas 0.0.4 tolerances (AC-T3-31). QA tests ready (run.py). |
+| 10 | T6 | Portal UI (dev-portal style) | **Author-2 (Codex)** | verifying | 2 | R2 merged (adb0f61; 638 tests, axe 0, live wizard incl. edit step, real Resend). A + B R2 review; QA run at 1639c7e. |
+| 11 | T7 | Full E2E in real Moodle | Author + **QA-E2E** | verifying | 1 | Suite committed (0b6a1e6). Official run 1 at 1639c7e (qa-e2e-r1). |
+| 12 | T3c | Compat-only endpoints + LTIAAS SDK black-box test | **Author-2 (Codex)** | verifying | 3 | R3 merged (1639c7e): real ltiaas 0.0.4 SDK passes idtoken, deep-link, scores 87/100, memberships. R2 A+B APPROVE; R3 short review; QA AC-T3-27 at 1639c7e. |
 | 13 | T8 | Native channel (.mbz) + course shell via WS — stretch | Author (backend) + Author-2 (portal) | fixing | 2 | R1 c9e26da: B CHANGES_REQUESTED (B-T8-01 stuck build MAJOR), A pending. Portal parts → Codex later. |
 | 14 | T9 | Docs + human review pack | Docs | in_progress (drafts) | — | PLAN.md, run-the-stack guide, explainer.html shell, flows.md done as drafts; results after T7. |
