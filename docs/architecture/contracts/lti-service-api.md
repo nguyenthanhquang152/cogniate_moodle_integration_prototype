@@ -15,7 +15,7 @@ Base URL: `PUBLIC_LTI_URL` (dev `https://lti.cogniate.test`).
 | `POST /api/deeplinking`, `GET /api/lineitems`, `GET /api/lineitems/:id`, `GET` and `POST /api/lineitems/:id/scores`, service keys | T3a |
 | `GET /lti/register/{toolAccountId}`, `GET /api/registrations/:id`, `POST /api/registrations/:id/complete` | T3b |
 | `POST /api/deeplinking/form`, `POST /api/deeplinking/message`, `POST /api/lineitems`, `PUT` and `DELETE /api/lineitems/:id`, `GET /api/memberships`, `DELETE /api/platforms/:id`, OAuth2 stubs | T3c |
-| SDK tolerances (§1.4 leading `//`, §3.1 `services.outcomes`, §3.2 `url: null`, §3.6 `user_id`) | T3c round 3 |
+| SDK tolerances (§1.4 leading `//` and double-encoded `:lineItemId`, §3.1 `services.outcomes`, §3.2 `url: null` and `custom: null`, §3.6 `user_id` and `comment: null`) | T3c round 3 |
 
 ---
 
@@ -95,7 +95,7 @@ HTML pages of the protocol endpoints use the codes in [`../security.md`](../secu
 ### 1.4 Other rules
 
 - JSON: `Content-Type: application/json`, UTF-8, max 256 KB.
-- `:lineItemId` = the line item URL, encoded with `encodeURIComponent`.
+- `:lineItemId` = the line item URL, encoded with `encodeURIComponent`. Decoding (Lead decision, T3c round 3): the router decodes the value once as usual. If the result starts with `https%3A%2F%2F` (any letter case), the service decodes it **exactly once more** (the `ltiaas` SDK encodes an already encoded id). There are never more than two decodes. The line item URL rule (§3.4) then runs, unchanged, on the final value.
 - A run of slashes at the very **start** of the request path is treated as one (`//api/idtoken` = `/api/idtoken`; the `ltiaas` SDK sends it). Nothing else in the path changes. This does not touch the line item URL rule (§3.4), which works on the decoded `:lineItemId` value, not on the request path; an encoded line item id has no raw `/`.
 - Times: ISO 8601 UTC with milliseconds.
 - Trace id: every response has `X-Trace-Id`. A valid incoming `X-Trace-Id` (`^[A-Za-z0-9-]{16,64}$`) is reused.
@@ -229,6 +229,8 @@ Query: `raw=true` gives the validated raw claims.
 
 `POST /api/deeplinking/form` (T3c): same request. `200 { "form": "<form id=\"lti_dl_submit\" style=\"display:none\" action=\"{target}\" method=\"POST\"><input type=\"hidden\" name=\"JWT\" value=\"{message}\"/></form><script>document.getElementById(\"lti_dl_submit\").submit()</script>" }` (values HTML-escaped).
 
+`custom: null` on a content item is the same as no `custom` (the `ltiaas` SDK sends `null`).
+
 Content item fields (Deep Linking 2.0): `type` (`ltiResourceLink`, `link`, `file`, `html`, `image`), `url`, `title`, `text`, `icon`, `thumbnail`, `embed`, `window`, `iframe`, `custom` (string values), `lineItem` (`label`, `scoreMaximum`, `resourceId`, `tag`, `gradesReleased`), `available`, `submission`, `expiresAt`, `html`, `width`, `height`.
 
 Rules (`400 INVALID_CONTENT_ITEM`):
@@ -253,7 +255,7 @@ The service takes the AGS claim (or NRPS claim) of the launch or service key. A 
 1. its origin = the origin of the claim URL (`lineitems`, or `context_memberships_url`),
 2. its path starts with the claim URL path, and
 3. every query parameter of the claim URL is present with the same value (Moodle: `type_id`), and
-4. its raw path has no `%2F`, `%5C`, `%2E` or `%25` (any letter case), no backslash, and no `.` or `..` segment (A-T3a-01).
+4. the path of the final value (after the §1.4 decoding) has no `%2F`, `%5C`, `%2E` or `%25` (any letter case), no backslash, and no `.` or `..` segment (A-T3a-01). A triple-encoded id is refused (`400 INVALID_LINE_ITEM_ID`): the decoding never gives a valid line item URL for it.
 
 Otherwise `400 INVALID_LINE_ITEM_ID` (or `INVALID_URL_PARAMETER`), and **no** outbound request is made. Scores URL = line item URL with `/scores` added to the path, before the query. Results use `/results`.
 
@@ -284,7 +286,7 @@ Write operations need the AGS `lineitem` scope. With only `lineitem.readonly`: `
 | `gradingProgress` | required: `FullyGraded`, `Pending`, `PendingManual`, `Failed`, `NotReady` |
 | `scoreGiven` | optional, ≥ 0, needs `scoreMaximum` |
 | `scoreMaximum` | > 0, required with `scoreGiven` |
-| `comment` | optional |
+| `comment` | optional; `null` is the same as no comment (the `ltiaas` SDK sends `null`) |
 | `timestamp` (addition) | optional ISO 8601, at most now + 15 min, else `400 INVALID_REQUEST` (field `timestamp`). The limit bounds how far a tool can push Moodle's grade time ahead (later scores get 409 until then). |
 
 The service sends `application/vnd.ims.lis.v1.score+json` with `timestamp` ≥ last + 1 s per (platform, line item, user). The clock is in memory; at start its floor is the start time + 2 s, so scores sent just before a restart do not cause a 409 after it. A `timestamp` in the request is used as given (QA uses this to make a `conflict`, AC-T5-31). `204` on success. Platform 409 → `409 PLATFORM_CONFLICT`.
@@ -411,5 +413,5 @@ A tool written against the public LTIAAS API works after two changes (base URL, 
 | D11 | OAuth2 endpoints | Documented | `501` stubs |
 | D12 | Tested LMS | Many | Moodle 5.2 only |
 | D13 | Member personal fields in `/api/memberships` | Returned when the LMS sends them | Never returned (anonymous by default, Q3) |
-| D15 | Unencoded line item ids from the `ltiaas` 0.0.4 SDK | `lineItemID` is URL-encoded | We require the documented encoding. The SDK puts the raw line item URL (with `/` and its own `?type_id=…`) into the path; such a request does not match the route (`404 NOT_FOUND`). We do not accept it: the raw id cannot be told apart from our route and query, and a loose route would weaken the line item URL rule (§3.4, A-T3a-01). A client (or a test) passes the id already encoded, as the reference says. |
-| D14 | Tolerances for the `ltiaas` 0.0.4 SDK | — | Leading `//` in the path, `user_id` as an alias of `userId` on scores GET, a content item `url` of `null`. They widen what we accept; they change no answer for a request that already followed the reference. |
+| D15 | Raw (unencoded) line item ids from the `ltiaas` 0.0.4 SDK | `lineItemID` is URL-encoded | A raw line item URL in the path (with `/` and its own `?type_id=…`) does not match the route (`404 NOT_FOUND`); it cannot be told apart from our route and query. A double-encoded id (the SDK called with an encoded id) **is** accepted by the two-decode rule (§1.4). |
+| D14 | Tolerances for the `ltiaas` 0.0.4 SDK | — | Leading `//` in the path, `user_id` as an alias of `userId` on scores GET, a content item `url` or `custom` of `null`, a score `comment` of `null`, a double-encoded line item id (§1.4). They widen what we accept; they change no answer for a request that already followed the reference. |
