@@ -14,7 +14,7 @@ Source: commit `4182c80`, 2026-10-19.
 2. **Publish.** The Cogniate user uploads a SCORM 1.2 or HTML course and publishes it to the Moodle site.
 3. **Add.** A teacher adds it in Moodle: Add content → Activity or resource → Cogniate → Add → Select content.
 4. **Learn.** A learner opens the activity. The course opens in a new window, in the Cogniate player.
-5. **Grades.** The score and the completion go to the Moodle gradebook. The portal shows the same result.
+5. **Grades.** The score and the completion go to the Moodle gradebook. The portal shows course results and send status.
 
 ## What works, and what does not
 

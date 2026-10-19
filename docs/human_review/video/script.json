@@ -158,8 +158,8 @@
         420
       ],
       "say": {
-        "en": "Step five: grades. The score arrives in the Moodle gradebook in about four seconds. The Results page in the portal shows the same score.",
-        "vi": "Bước năm: điểm. Điểm đến sổ điểm Moodle trong khoảng bốn giây. Trang Results trong cổng Cogniate hiện cùng điểm đó."
+        "en": "Step five: grades. The score arrives in the Moodle gradebook in about four seconds. The portal shows course results and send status. Refresh from Moodle reads gradebook values.",
+        "vi": "Bước năm: điểm. Điểm đến sổ điểm Moodle trong khoảng bốn giây. Cổng hiển thị kết quả học và trạng thái gửi điểm. Refresh from Moodle đọc giá trị từ sổ điểm."
       }
     },
     {

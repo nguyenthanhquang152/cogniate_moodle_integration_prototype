@@ -2,7 +2,11 @@
 
 Source: commit `4182c80`, 2026-10-19.
 
-These review findings are still open. Each one is MINOR ("worth a fix, safe to defer") or NIT (style). The P2/P5 repair passed [focused QA](../reviews/T5b/qa.md#replacement-qa-repair-focus-2026-10-19--d54c607d). Full regression and fresh T7 remain pending. P2 is not an accepted MINOR deferral. T8 round 1 failed on two races (Q-T8-01, Q-T8-02, MAJOR). Both passed in [round 2 at `8059c31`](../reviews/T8/qa.md). They are resolved, not open deferrals. This list is for engineers. A product person can skip it.
+These review findings are still open. Each one is MINOR ("worth a fix, safe to defer") or NIT (style). The P2/P5 repair passed [focused QA](../reviews/T5b/qa.md#replacement-qa-repair-focus-2026-10-19--d54c607d). Full regression and fresh T7 remain pending. P2 is not an accepted MINOR deferral.
+
+T8 round 1 failed on two races (Q-T8-01, Q-T8-02, MAJOR). Both passed in [round 2 at `8059c31`](../reviews/T8/qa.md). They are resolved, not open deferrals.
+
+This list is for engineers. A product person can skip it.
 
 The [P2 remote-ordering limit](../architecture/adr/ADR-010-grade-and-completion-policy.md#p2-bounded-confirmation-after-uncertain-delivery-2026-10-19) is a documented boundary, not a new accepted MINOR finding. An older request can write after the best score’s accepted confirmation. Migration 010 cannot recover unrecorded sends from before the upgrade. The Author’s synthetic upgrade check is not independent QA. Focused repair QA passed; the full regression and fresh T7 remain pending.
 

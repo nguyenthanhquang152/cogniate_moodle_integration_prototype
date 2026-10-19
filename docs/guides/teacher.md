@@ -48,7 +48,7 @@ NOTE: The picker lists only the courses that your library published to this Mood
 - Completion "Receive a grade" is done, also for a grade of 0 [AC-T7-05].
 - In QA’s sequential retake, Moodle kept the higher grade [AC-T5-12]. Delivery races remain limited (P2; decision Q4).
 - If you change a grade in Moodle (override), Moodle keeps your grade. The portal shows the difference [AC-T5-33].
-- The Cogniate portal page "Results" shows the same scores. "Refresh from Moodle" shows the Moodle gradebook values [AC-T7-06, AC-T5-18].
+- The Cogniate portal page "Results" shows course results and send status. "Refresh from Moodle" shows the Moodle gradebook values [AC-T7-06, AC-T5-18].
 
 ## Other tasks
 

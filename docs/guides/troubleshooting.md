@@ -13,7 +13,7 @@ More technical help: [`infra/README.md`](../../infra/README.md#troubleshooting).
 | `Docker is not running` | Docker Desktop is not started. | Start Docker Desktop. Wait until it runs. Run the command again. | No |
 | `Port 443 on 127.0.0.1 is busy` | Another program uses port 443. | Stop that program. Or set `PUBLIC_PORT=8443` in `.env`, run `npm run gen-env`, then start again. The URLs then end in `:8443`. | Another port works: AC-T1-09, AC-T7-07 |
 | `PUBLIC_* ... expected ...` | You changed `PUBLIC_PORT`. | Run `npm run gen-env`. | No |
-| `This checkout has no .env, but project ... still has Docker volumes` | A new `.env` has new passwords. They do not match the old database. | Put back the old `.env`. Or run `npm run stack:reset` (this deletes the local data). | No |
+| `This checkout has no .env, but project ... still has Docker volumes` | A new `.env` has new passwords. They do not match the old database. | Put back the old `.env`. **WARNING:** A reset deletes the local Moodle site and all local Cogniate data. To start with empty data, run `npm run stack:reset`. | No |
 | `The stack is not healthy` | A service did not start in 300 seconds. | Run `npm run stack:logs -- moodle`. Then start the stack again. | No |
 | Moodle shows error 502 just after a start | Moodle is not ready yet. | Wait until the Moodle login page loads. | Seen by QA ([T5b qa.md §4](../reviews/T5b/qa.md#4-qa-side-changes-tests-only)) |
 | `fixtures:check` fails | A course zip is missing or changed. | Make the folder (`mkdir -p docs/raw/data/courses`). Put the two original zips into it (decision Q15). | LC-T1-06 |

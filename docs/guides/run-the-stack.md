@@ -42,7 +42,7 @@ You need:
 
 Optional: run `npm run stack:doctor`. It prints one line per check, with `OK`, `FIX` or `INFO`, and a fix for each `FIX` [AC-T9-01].
 
-NOTE: If another stack runs on this Mac (for example a second clone), give this clone its own project name, port and subnet. See "Separate checkout" in [`infra/README.md`](../../infra/README.md#qa-hooks).
+NOTE: Another stack may run on this Mac. Give each clone its own project name, port and subnet. See "Separate checkout" in [`infra/README.md`](../../infra/README.md#qa-hooks).
 
 ## Procedure 1: Start a ready demo from zero
 
@@ -114,6 +114,8 @@ Result: an empty stack in about 40 seconds, with the same passwords [AC-T7-01, A
 Result: the containers are removed. The data stays [AC-T9-01]. To start again, run `npm run stack:up` [AC-T1-02].
 
 ## Procedure 6: Run the full end-to-end test
+
+WARNING: This test deletes the local Moodle site and all local Cogniate data. Use it only for a local demo stack.
 
 1. Run `npm run test:e2e` [AC-T7-01].
 2. When the command asks, type `yes` and press Return [AC-T9-01, [T7 qa.md §7](../reviews/T7/qa.md#7-pre-final-run-2129b69)].
