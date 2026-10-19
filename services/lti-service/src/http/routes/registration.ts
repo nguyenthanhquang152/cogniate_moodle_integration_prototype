@@ -177,7 +177,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     if (session.operation === 'update') {
       const allowed = session.existingPlatformId !== null && body.data.updatePlatformId === session.existingPlatformId
         && getPlatform(ctx.db, account.id, session.existingPlatformId) !== null;
-      if (!allowed) reject(new ApiError('REGISTRATION_UPDATE_NOT_ALLOWED', 'This registration updates a tool that is not this connection. Choose "Register as a new tool" in Moodle.'));
+      if (!allowed) reject(new ApiError('REGISTRATION_UPDATE_NOT_ALLOWED', 'This registration updates a tool that is not this connection. Choose "Register as a new external tool" in Moodle.'));
     }
     // A-T3b-03: a message target must be our own launch URL for this account (Moodle only checks the domain).
     for (const m of body.data.messages ?? []) {

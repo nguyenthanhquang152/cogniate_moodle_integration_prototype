@@ -217,7 +217,7 @@ describe('/tool/register (app contract §6, security §5, §6)', () => {
     const upd = t.lti.addRegistration({ operation: 'update', existingPlatformId: 'plt_thanh' });
     const page = await get(upd, ref);
     expect([page.statusCode, pageCode(page.body)]).toEqual([409, 'UPDATE_NOT_ALLOWED']);
-    expect(page.body).toContain('Go back in Moodle and choose Register as a new tool.');
+    expect(page.body).toContain('Go back in Moodle and choose Register as a new external tool.');
     expect(pageCode((await post(upd, ref)).body)).toBe('UPDATE_NOT_ALLOWED');
     expect(t.lti.calls.some((x) => x.startsWith('POST complete'))).toBe(false);
     const fresh = t.lti.addRegistration();

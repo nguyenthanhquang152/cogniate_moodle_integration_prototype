@@ -10,7 +10,7 @@ export const REGISTER_ERRORS: Record<RegisterErrorCode, { status: number; action
   REF_INVALID: { status: 400, action: 'This registration link is not valid or was already used. In Cogniate, open the connection and copy a new registration URL.' },
   REF_EXPIRED: { status: 400, action: 'This registration link expired. In Cogniate, open the connection and make a new registration URL.' },
   SITE_MISMATCH: { status: 400, action: 'This registration link is for another Moodle site. Use the link on the Moodle site that the Cogniate connection names.' },
-  UPDATE_NOT_ALLOWED: { status: 409, action: 'Go back in Moodle and choose Register as a new tool.' },
+  UPDATE_NOT_ALLOWED: { status: 409, action: 'Go back in Moodle and choose Register as a new external tool.' },
   ORIGIN_NOT_ALLOWED: { status: 403, action: 'Open the registration again from Moodle and press Connect on the Cogniate page.' },
   // App contract §6 texts. In both cases the connection stays pending and the ref still works until it expires.
   REGISTRATION_FAILED: { status: 502, action: 'The connection failed. Go back to Moodle and try again.' },
