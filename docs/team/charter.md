@@ -2,6 +2,14 @@
 
 Every agent on this team reads this file first. It defines the roles, who may write which files, and how one task moves from "planned" to "done".
 
+## Continuation authority (2026-10-19)
+
+The product owner authorized Codex GPT-6-Astra to replace the Claude roles after Claude reached its session limit. This applies to the `nguyenthanhquang152/moodle-lti-continuation` fork. The historical role table and reports below retain the original team record.
+
+For this continuation, the existing Codex coordinator acts as Lead. Dedicated Codex GPT-6-Astra workers, at xhigh effort, replace the required QA, QA-E2E, Architect, Docs, and reviewer roles. Each worker keeps its role and file ownership. QA and both reviewers remain independent of the authors and Docs. The Lead commits by path, coordinates fixes, and closes the board only after the existing evidence and review gates pass. The Lead does not perform independent QA or review its earlier product changes.
+
+The original Claude checkout and its unfinished QA files remain intact. QA may copy those files into the fork and finish them. The continuation records the replacement model in new reports; it does not call these new checks cross-model reviews. No push is authorized.
+
 ## 1. Roles
 
 The product owner gave six roles. The Lead added one role (Lead) and made four rules stricter. The changes are marked with ★.
