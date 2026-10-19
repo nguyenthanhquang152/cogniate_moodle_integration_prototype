@@ -3,6 +3,7 @@
 // course, a status text that it polls every 5 s, "Back to Moodle", and the runtime iframe on the content origin
 // (the runtime itself is T5a).
 import type { Logger, PublicUrls } from '@cogniate/shared';
+import type { PlayStatus } from '@cogniate/tracking';
 import { playStatusText } from '@cogniate/tracking';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ApiError } from '../app/api-errors.ts';
@@ -26,9 +27,10 @@ export interface PlayPageDeps {
 }
 
 /** The status of a play session (status API and the first shell render). Previews never have a score sync. */
-function statusOf(db: Db, view: PlayView) {
+function statusOf(db: Db, view: PlayView): PlayStatus {
   const sync = view.preview ? null : latestSyncStatus(db, view.resourceLinkId, view.userSub);
-  return { outcome: view.outcome, scoreGiven: view.scoreGiven, scoreMaximum: view.scoreMaximum, preview: view.preview, scoreSync: { status: sync } };
+  return { outcome: view.outcome, scoreGiven: view.scoreGiven, scoreMaximum: view.scoreMaximum, preview: view.preview,
+    scoreSync: sync ?? { status: null, scoreGiven: null, scoreMaximum: null } };
 }
 
 /** Security §7 "Frames": the runtime iframe attributes (T5-spike: the minimal set that runs both exports). */

@@ -145,7 +145,7 @@ describe('/tool/launch (app contract §6, flows §6c)', () => {
     // The play session holds no ltik (T4b2 design note).
     expect(JSON.stringify(t.db.prepare('SELECT * FROM play_session').all())).not.toContain(ltik);
     const status = await get(`/app-api/play/${playId}/status`);
-    expect(status.json()).toEqual({ outcome: 'not_started', scoreGiven: null, scoreMaximum: null, preview: false, scoreSync: { status: null } });
+    expect(status.json()).toEqual({ outcome: 'not_started', scoreGiven: null, scoreMaximum: null, preview: false, scoreSync: { status: null, scoreGiven: null, scoreMaximum: null } });
     expect((await json('GET', `/app-api/publications/${w.scorm}`, w.thanh)).json().stats).toMatchObject({ learners: 1, activities: 1 });
     expect((await json('GET', `/app-api/connections/${w.a.id}`, w.thanh)).json()).toMatchObject({ status: 'connected', lastLaunchAt: new Date(t.clock.now).toISOString() });
     expect(events('launch_accepted', String(res.headers['x-trace-id']))[0]).toMatchObject({ attempt_id: expect.stringMatching(/^att_/), preview: false });
