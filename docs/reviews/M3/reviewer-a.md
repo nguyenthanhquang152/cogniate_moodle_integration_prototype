@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 5
+Round: 6
 
 # M3 review: Reviewer-A (correctness and security)
 
@@ -309,3 +309,60 @@ The Lead relayed QA's run (QA's execution, not mine). All 64 M2 cases ran at `00
 - **Cleanup:** complete.
 
 That is SIM evidence only. My source approval does not change any earlier failed run into a PASS. T7 (three default Moodle runs plus demo/confirmation) was started by QA but has no result yet. Both complete M1 inventories, legacy, migration/rollback and the 32 live rows (UNVERIFIED) remain separate gates.
+
+## Round 6 (2026-10-20): T7 publish helper supplement at `aff4882`
+
+| Item | Value |
+| --- | --- |
+| Verdict | **APPROVE** for the one-file T7 harness repair. No BLOCKER, MAJOR or MINOR is open. A-M1-02 stays the accepted NIT (M1 report). This is a source verdict only. It is not a T7 or M2 PASS. |
+| Exact SHA | **`aff48823a4c6206d6314d91a95f5eb0979d3e0e7`** (repair commit and frozen source), compared with `004568bd4ab8390d64945cb73f16cfdd51d566bf`. Fresh detached clone `/tmp/rva-aff4882`. |
+| Scope | Outside `docs/`, the only delta is `tests/e2e/lib/portal.ts`: three added lines in `publishCourse` (L116–L118). SHA-256 `b9e75a8d97fb49ac965749e06944500f64df6e7d8ea10d4d694c23180cd07a3b`, the value the Lead gave. The base file at `004568b` has SHA-256 `6fba5d83…f9e1d`, which matches QA's `publish-sources.json`. Product, build, other tests, specs, manifests and both Playwright configs are unchanged. |
+| Reviewer | The original Claude Reviewer-A (claude-opus-5-5, xhigh). Task `task_ab8f85ebf8b7`, dispatch `ctx_792bc1b67146`. Earlier rounds, including the Codex replacement's Round 3, are kept unchanged. I read B `00f1717` only as history and did not read Reviewer-B's new T7 supplement. No stack, browser, real secret, edit, commit or push. |
+
+### Repair and its effect
+
+- **Before** the existing label read, `publishCourse` now builds `^\s*<wanted>\s*$`, where `wanted` is `"<name> (Moodle, <Moodle host>)"`. It escapes the same metacharacter set as `constants.ts:44`. It then waits with `select.locator('option').filter({ hasText }).waitFor({ state: 'attached', timeout: 15_000 })`.
+- `attached` is correct, because the options of a closed `<select>` are not visible.
+- 15 s equals the existing `actionTimeout` and `expect` timeout (`tests/playwright.config.ts:19`, `:37`), so no timeout is inflated.
+- The steps after the wait are unchanged: the exact label read (`o.text.trim() === wanted`), the "has no connection option" throw, `selectOption`, Publish, the detach wait and the "Available in Moodle" wait.
+- Callers: `1-scenario-a.spec.ts:199` (`Dev Moodle`) and `2-scenario-b.spec.ts:152` (`Dev Moodle B`). No caller expects the old error text.
+- There is no sleep, retry, skip, `startConnect` change, product change or selection change. The demo-only selection is unchanged.
+- **Strictness.** In Playwright 1.56, `locator.waitFor` sends `strict: true` (`playwright-core/lib/client/locator.js:289`). So two identical ready options now fail. The old code took the first one. This fails closed, and it never chooses an ambiguous connection.
+
+### Controls
+
+My private probe `/tmp/rva-probes/publish-probe.mjs` (log `/tmp/rva-probes/publish-probe.log`) transpiles the **actual** old and new `publishCourse` source unchanged. It runs them against a synthetic in-memory page model with a virtual clock. The model copies only the Playwright calls the helper uses (strict `waitFor`, regex `hasText`). It is a model, not a browser.
+
+| Case | Old (`004568b`) | New (`aff4882`) |
+| --- | --- | --- |
+| Valid option appears after 800 ms | **fails** ("no connection option"): the T7 A3 race | passes; order: wait → label read → select → Publish → Available |
+| Valid option already present | passes | passes |
+| Option never loads | fails | fails (wait times out) |
+| Wrong name (`Dev Moodle B` for `Dev Moodle`), wrong host, wrong LMS, other case, prefix/suffix text | fails | fails |
+| Metacharacters in the name (`Dev.Moodle+(1)[a]`) | fails (delayed) | passes; `Dev.Moodle` does not match `DevXMoodle` |
+| A and B both listed | fails (delayed) | selects A exactly |
+| Two identical options | passes (first) | fails (strict) |
+| "Available in Moodle" never shown | fails | fails |
+
+QA's real-Playwright controls (P1–P6, QA's execution; `…/verification-004568b-HS9Wwxx3/publish-repair`) name the same base and new SHA-256 values. Their results agree with the model: the old helper fails on a delayed list; the new one passes delayed valid data; missing option, other host, other name and missing "Available in Moodle" still fail. `held.patch` SHA-256 `b340e4fe…c480c` matches the Lead's value.
+
+### Independent commands
+
+```sh
+node tests/e2e/host/run-m2.mjs --harness-only                  # 6 self-checks, typecheck, 64 M2 cases; exit 0
+(cd tests && npx tsc --noEmit -p tsconfig.json)                # exit 0
+(cd tests && QA_SUITE=e2e npx playwright test --list)          # 18 tests in 6 files (list only; no browser start)
+OLD=/tmp/rva-probes/portal-old.ts node /tmp/rva-probes/publish-probe.mjs   # PROBE OK
+```
+
+Logs: `/tmp/rva-aff4882-m2-harness.log`, `/tmp/rva-aff4882-tsc.log`, `/tmp/rva-aff4882-t7-list.log`.
+
+### Evidence boundary
+
+QA's executor claims, relayed by the Lead (QA's execution, not mine):
+- At `004568b`, all three default T7 runs gave 8 PASS / 9 FAIL / 1 demo-only SKIP, because of this race.
+- A fresh 64-case M2 run passed at `aff4882`.
+- An external QA observer, outside the repository source, put two disposable secrets into its own local log. QA contained this privately. It adds no source scope here.
+- The three default T7 runs plus demo/confirmation at `aff4882` have started, and their result is pending.
+
+My source approval does not stand in for those runs. The earlier failed runs stay FAIL history. Both complete M1 inventories, legacy, migration/rollback and the 32 live rows (UNVERIFIED) remain separate gates.
