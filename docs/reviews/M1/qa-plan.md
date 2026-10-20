@@ -1,6 +1,54 @@
 Verdict: OWNED PREPARATION READY — harness checks only, no product verification
-Behavior baseline: `56591df0e71939d5d62c9042c630c841d01f84e8` (ADR-011 revision 6)
+Behavior baseline: `ccdd9ef67cdd2be4c6af374136777fda4e081943` (applied target-snapshot contracts)
 Owner: independent Codex QA, common engine and Blackboard
+
+## Target-snapshot preparation, 2026-10-20
+
+Preparation is complete for common and Blackboard only. Product verification
+is on hold. The approved proposal is `78bc34ac422e0bcac324fa10e69ec9f82a17a3b8`;
+the applied contracts above include cause precedence. The existing Canvas
+oracle repair is `3b160f7bc22ca43f18bc16c94ecfc336b0fe80d6`.
+
+This extension adds 27 individually required `SIM` rows: 21 Blackboard rows,
+common h1–h5 and common i5. The current owned inventory is 166 API cases and
+17 host rows (42 common plus 141 Blackboard). Canvas must add its own
+37 v1/v3/v4/v6/v8/v10/v12/aa and 38 i1/i2/i4 rows. Its v12 and i4 are separate
+from Blackboard's. Common h1–h5 run once per round, not once per provider.
+The inventory rejects missing exact IDs, duplicates, unselected executed
+cases, skips, mixed SHAs and mixed labels.
+
+| Rows | Independent oracle | Execution phase |
+| --- | --- | --- |
+| 37 BB v2/v5/v7/v9/v11/v12 | Exact status, first-failure code/field/reason; all-method zero requests; same-process completion-bounded no-attempt window; valid V-failure capture control; approved key unchanged | `sim` |
+| 37 BB x1/x2/y1/z1–z5 | One V, timeout and late-delivery observations, cancellation precedence, pinned id, saved-target cleanup and ref rotation | `sim` |
+| 37 BB w/y2; 29 BB k1–k3 | Inactive or replaced shared platform, reservation survives, failed issue changes no grants, fresh connection succeeds | `snapshot-isolated` |
+| 38 common h1 | Public 011 fixtures, no remote BB row after failed S1, active Canvas orphan after lost S3, stopped verified backup before 012 | `snapshot-upgrade`, seed stage |
+| 38 common h2–h5 | No-snapshot refusal; local registered repeat; old Canvas add-deployment grants; old keys and signed launches; reservation/orphan recovery with the rightful grant first | `snapshot-upgrade`, upgrade stage |
+| 38 BB i3/i4; common i5 | Fresh snapshots and both restart boundaries; phase-1 event while V is held; one V before writes; Moodle DTO and no provider read | `sim` |
+
+The shared interface is `tests/acceptance/M1/common/snapshot.ts`. Canvas can
+import `refusedWithoutAttempt`, `redeemedWithOneAttempt`, `completed`,
+`gateMark`, `watchAll`, `noRequests`, `readiness`, `liveRelease`, `restartApp`,
+`snapshotScope`, `grantState`, `received`, `onlyV` and `vBeforeMutation`.
+No test module is imported for these oracles. `received` includes every
+received path and method. All fixture setup and CLI provider reads finish
+before the measured request cursor. A restart needs a new healthy-process
+cursor. Missing log completion, a lost live-call window or a missed lease
+window is `BLOCKED` and fails the gate. Event absence does not prove database
+atomicity; injected rollback and unreachable comparator cases remain Author
+unit/integration evidence under the M1 handoff list.
+
+Each full round now runs `sim`, `snapshot-isolated`, `snapshot-upgrade` and
+the existing `migration` route sequentially in separate clean clones/projects.
+The snapshot seed build is exactly
+`9f96f7b24cd0aed702e4dc40373bdda4307aad31`, whose tree contains 011 and no 012.
+The host checks the stopped ledger, builds without startup, verifies both
+database files and sidecars against a private backup, then starts the candidate.
+The final stopped ledger must add exactly 012. All fixtures use public APIs,
+CLI and gate controls. There are no SQL writes or migration-ledger edits.
+The released-v10 Moodle upgrade/rollback route stays required and unchanged.
+
+See [qa.md](qa.md) for the preparation checks and remaining execution hold.
 
 ## Independence and scope
 
@@ -115,8 +163,8 @@ named in M1. It must preserve the baseline containers and volumes.
 
 ## Prepared files and checks
 
-The common manifest has 36 rows. The Blackboard manifest has 120 rows.
-Together they contain 144 API cases and 12 host checks. The machine inventory
+The original revision-6 preparation had 36 common and 120 Blackboard rows.
+The current counts are in the target-snapshot section above. The machine inventory
 is `tests/acceptance/M1/{common,blackboard}/manifest.json`.
 `common/coverage.mjs` defines the required owner/AC coverage and race variants
 independently of test discovery.
@@ -310,13 +358,16 @@ node tests/host/run-m1.mjs --sha "$QA_PRODUCT_SHA" --test-sha "$QA_TEST_SHA"
 ```
 
 `QA_PRODUCT_SHA` and `QA_TEST_SHA` are the Lead's frozen values. Default `full`
-runs SIM then migration/rollback twice, compares every case at those same SHAs,
+runs SIM, isolated drift, populated 011→012 and Moodle migration/rollback twice,
+compares every case at those same SHAs,
 then runs the legacy host runners sequentially. No parallel stack is started.
 Targeted commands use the same environment:
 
 ```sh
 node tests/host/run-m1.mjs --phase sim --provider blackboard --sha "$QA_PRODUCT_SHA" --test-sha "$QA_TEST_SHA"
 node tests/host/run-m1.mjs --phase sim --sha "$QA_PRODUCT_SHA" --test-sha "$QA_TEST_SHA"
+node tests/host/run-m1.mjs --phase snapshot-isolated --sha "$QA_PRODUCT_SHA" --test-sha "$QA_TEST_SHA"
+node tests/host/run-m1.mjs --phase snapshot-upgrade --sha "$QA_PRODUCT_SHA" --test-sha "$QA_TEST_SHA"
 node tests/host/run-m1.mjs --phase migration --sha "$QA_PRODUCT_SHA" --test-sha "$QA_TEST_SHA"
 node tests/host/run-m1.mjs --phase legacy --sha "$QA_PRODUCT_SHA" --test-sha "$QA_TEST_SHA"
 ```
@@ -327,8 +378,9 @@ and starts at `b0b83a8`; it keeps the original environment, keys and data while
 switching code. Its private backup stays outside shared evidence. Maintenance
 checks read copied migration ledgers only; they never write SQL.
 
-Resource estimate, not a measurement: allow 20–40 minutes per SIM pass,
-30–60 minutes per migration/rollback pass and 60–120 minutes for all legacy
+Resource estimate, not a measurement: allow 25–50 minutes per SIM pass,
+10–20 minutes per isolated drift pass, 20–40 minutes per populated 011→012 pass,
+30–60 minutes per Moodle migration/rollback pass and 60–120 minutes for all legacy
 runners on warm images. Allow extra image/build time on a cold machine.
 Use one stack within the current roughly 7.75 GiB Docker limit. Keep at most
 two stacks across both QA workers, and do not change Docker settings.
@@ -343,8 +395,9 @@ secret scan runs before the browser pass.
 
 ## Remaining gates and useful counterexamples
 
-Canvas simulator, Canvas manifest/cases and browser coverage are not present
-yet. Full selection must fail until they arrive. The migration HTTP form driver,
+The baseline Canvas simulator, cases and browser coverage are present.
+The new Canvas target-snapshot rows are still pending its owner. Full selection
+must fail until those rows arrive. The migration HTTP form driver,
 maintenance manifest reader, CLI timing, gate wiring, artifact/environment
 forwarding and baseline behavior are prepared but not exercised against a
 product build. The backup reader checks semantic fields because the accepted

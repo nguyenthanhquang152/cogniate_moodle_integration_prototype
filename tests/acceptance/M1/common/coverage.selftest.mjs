@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { verifyResults, playwrightResults } from './coverage.mjs';
+import { verifyResults, playwrightResults, vitestResults } from './coverage.mjs';
 const productSha = '1'.repeat(40), testSha = '2'.repeat(40);
 const expected = [{ id: 'M1-37.blackboard.a', environment: 'SIM' }, { id: 'M1-37.canvas.c', environment: 'SIM' }];
 const good = expected.map((row) => ({ ...row, productSha, testSha, status: 'PASS' }));
@@ -15,8 +15,18 @@ for (const [name, rows] of [
   ['mixed test SHA', [good[0], { ...good[1], testSha: '3'.repeat(40) }]],
   ['wrong evidence label', [good[0], { ...good[1], environment: 'CANVAS-HOSTED' }]],
   ['duplicate result', [...good, good[0]]],
+  ['unselected executed case', [...good, { ...good[0], id: 'M1-37.blackboard.y2' }]],
 ]) test('HARNESS ONLY: evidence gate rejects ' + name, () => {
   assert.throws(() => verifyResults(expected, rows, { productSha, testSha }));
+});
+test('HARNESS ONLY: phased accounting ignores only unselected skipped cases', () => {
+  const report = (status) => ({ testResults: [{ assertionResults: [
+    { fullName: '{case:M1-37.blackboard.a}', status: 'passed' },
+    { fullName: '{case:M1-37.blackboard.y2}', status },
+  ] }] });
+  assert.equal(vitestResults(report('skipped'), expected, { productSha, testSha }, { partial: true }).length, 1);
+  assert.throws(() => vitestResults(report('passed'), expected, { productSha, testSha }, { partial: true }), /Unmanifested/);
+  assert.throws(() => vitestResults(report('skipped'), expected, { productSha, testSha }), /Unmanifested/);
 });
 test('HARNESS ONLY: an empty expected inventory is an error', () => {
   assert.throws(() => verifyResults([], [], { productSha, testSha }), /Empty expected/);

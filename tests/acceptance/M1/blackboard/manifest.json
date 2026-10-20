@@ -958,5 +958,178 @@
     "title": "[SIM] AC-M1-38 late S3 after release cannot gain app authority or change the new binding {case:M1-38.blackboard.g-existing}",
     "kind": "api",
     "file": "acceptance/M1/blackboard/60-containment.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.v2",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Snapshot phase-one and V schedule v2",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.v5",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Snapshot phase-one and V schedule v5",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.v7",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Snapshot phase-one and V schedule v7",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.v9",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Snapshot phase-one and V schedule v9",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.v11",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Snapshot phase-one and V schedule v11",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.v12",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Snapshot phase-one and V schedule v12",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.x1",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Snapshot phase-one and V schedule x1",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.x2",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Snapshot phase-one and V schedule x2",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.y1",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Snapshot phase-one and V schedule y1",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.z1",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Snapshot phase-one and V schedule z1",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.z2",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Snapshot phase-one and V schedule z2",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.z3",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Snapshot phase-one and V schedule z3",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.z4",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Snapshot phase-one and V schedule z4",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.z5",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Snapshot phase-one and V schedule z5",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.w",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Fresh shared platform schedule w",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/02-snapshot-isolated.test.ts",
+    "phase": "snapshot-isolated"
+  },
+  {
+    "id": "M1-37.blackboard.y2",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "Fresh shared platform schedule y2",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/02-snapshot-isolated.test.ts",
+    "phase": "snapshot-isolated"
+  },
+  {
+    "id": "M1-29.blackboard.k1",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "Pinned operator target schedule k1",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/02-snapshot-isolated.test.ts",
+    "phase": "snapshot-isolated"
+  },
+  {
+    "id": "M1-29.blackboard.k2",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "Pinned operator target schedule k2",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/02-snapshot-isolated.test.ts",
+    "phase": "snapshot-isolated"
+  },
+  {
+    "id": "M1-29.blackboard.k3",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "Pinned operator target schedule k3",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/02-snapshot-isolated.test.ts",
+    "phase": "snapshot-isolated"
+  },
+  {
+    "id": "M1-38.blackboard.i3",
+    "ac": "AC-M1-38",
+    "environment": "SIM",
+    "title": "Fresh snapshot and restart i3",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
+  },
+  {
+    "id": "M1-38.blackboard.i4",
+    "ac": "AC-M1-38",
+    "environment": "SIM",
+    "title": "Fresh snapshot and restart i4",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/52-snapshot.test.ts"
   }
 ]

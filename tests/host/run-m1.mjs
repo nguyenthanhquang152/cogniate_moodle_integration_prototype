@@ -10,7 +10,8 @@ import { parseArgs } from 'node:util';
 import { createRunner } from './core.mjs';
 import { allContainers, httpsLoopback, run, walkFiles } from './lib.mjs';
 import { m1HostControl } from './m1-control.mjs';
-import { migrationRun } from './m1-migration.mjs';
+import { migrationRun, snapshotMigrationRun } from './m1-migration.mjs';
+import { FULL_PHASES, SNAPSHOT_OLD_SHA, SNAPSHOT_CONTRACT_SHA, phaseRows, casePattern, snapshotStageRows } from './m1-phases.mjs';
 import { readManifests, verifyResults, vitestResults, playwrightResults } from '../acceptance/M1/common/coverage.mjs';
 import { createRuntime } from '../sim/core/runtime.mjs';
 import { loadProviders } from '../sim/server.mjs';
@@ -25,7 +26,7 @@ const options = {
 const { values: opt } = parseArgs({ strict: false, options: {
   ...options, sha: { type: 'string' }, source: { type: 'string' }, help: { type: 'boolean' },
 } });
-assert.ok(['full', 'sim', 'migration', 'legacy'].includes(opt.phase), 'Unknown phase');
+assert.ok(['full', ...FULL_PHASES, 'legacy'].includes(opt.phase), 'Unknown phase');
 assert.ok(['all', 'blackboard', 'canvas'].includes(opt.provider), 'Unknown provider');
 const source = path.resolve(opt.source ?? path.join(testsDir, '..'));
 const owners = opt.provider === 'all' ? ['common', 'blackboard', 'canvas'] : ['common', opt.provider];
@@ -39,16 +40,16 @@ async function checked(command, args, extra = {}) {
   return result;
 }
 if (opt.help) {
-  print('M1: --sha <40 hex> --test-sha <40 hex> [--phase full|sim|migration|legacy] [--provider all|blackboard|canvas]');
+  print('M1: --sha <40 hex> --test-sha <40 hex> [--phase full|sim|snapshot-isolated|snapshot-upgrade|migration|legacy] [--provider all|blackboard|canvas]');
   print('Preparation only: --harness-only --provider blackboard (no Docker or product calls).');
-  print('Full = SIM + migration twice at the same SHAs, then legacy acceptance; it requires Canvas.');
+  print('Full = SIM + snapshot-isolated + populated 011-to-012 + Moodle migration twice at the same SHAs, then legacy; it requires Canvas.');
   process.exit(0);
 }
 if (opt['harness-only']) {
   // This branch must remain above all Docker, clone and product-run operations.
   const selftests = walkFiles(path.join(testsDir, 'sim')).filter((f) => f.endsWith('.test.mjs'));
   selftests.push(...walkFiles(path.join(testsDir, 'host')).filter((f) => f.endsWith('.selftest.mjs')));
-  selftests.push(path.join(testsDir, 'acceptance/M1/common/coverage.selftest.mjs'));
+  selftests.push(...walkFiles(path.join(testsDir, 'acceptance/M1/common')).filter((f) => f.endsWith('.selftest.mjs')));
   await checked(process.execPath, ['--test', ...selftests]);
   await checked('npm', ['--prefix', testsDir, 'run', 'typecheck']);
   const manifest = readManifests(testsDir, owners);
@@ -65,6 +66,17 @@ if (opt['harness-only']) {
   assert.equal(new Set(ids).size, ids.length, 'No duplicate discovered cases');
   for (const row of api) assert.ok(ids.includes(row.id), 'Undiscovered manifest case ' + row.id);
   for (const id of ids) assert.ok(api.some((row) => row.id === id), 'Unmanifested discovered case ' + id);
+  for (const stage of ['snapshot-seed', 'snapshot-upgrade']) {
+    const wanted = snapshotStageRows(manifest, stage);
+    const probe = await run(process.execPath, [
+      path.join(testsDir, 'node_modules/vitest/vitest.mjs'), 'list', '--config',
+      path.join(testsDir, 'acceptance/M1/vitest.config.mts'), '--json',
+    ], { cwd: source, env: { ...process.env, QA_M1_PROVIDER: opt.provider, QA_M1_MIGRATION_STAGE: stage,
+      QA_GREP: casePattern(wanted) }, timeoutMs: 120_000 });
+    assert.equal(probe.code, 0, probe.stderr);
+    assert.deepEqual(JSON.parse(probe.stdout).map((row) => row.name.match(/\{case:([^}]+)\}/)?.[1]).sort(),
+      wanted.map((row) => row.id).sort(), 'Snapshot host probe discovery: ' + stage);
+  }
   print(`HARNESS ONLY: ${api.length} API cases, ${manifest.length - api.length} host rows; providers ${providers.map((p) => p.id).join(', ')}.`);
   print('No product acceptance or live provider check was executed.');
   process.exit(0);
@@ -106,7 +118,7 @@ if (opt.phase === 'full') {
   const runs = [];
   for (let round = 1; round <= 2; round++) {
     const rows = [];
-    for (const phase of ['sim', 'migration']) {
+    for (const phase of FULL_PHASES) {
       print(`Starting M1 round ${round}, ${phase}; one stack at a time.`);
       const resultFile = path.join(scratch, `round-${round}-${phase}.json`);
       rows.push(...await childRun(fileURLToPath(import.meta.url), [
@@ -120,7 +132,7 @@ if (opt.phase === 'full') {
   await childRun(fileURLToPath(import.meta.url), [
     '--phase', 'legacy', '--sha', identity.productSha, '--test-sha', identity.testSha, '--source', source,
   ], {});
-  print('M1 SIM/migration accounting and legacy runner checks passed; M2, T7 and live checks remain separate gates.');
+  print('M1 SIM, isolated drift, populated 011-to-012, Moodle rollback and legacy accounting passed; M2, T7 and live checks remain separate.');
   process.exit(0);
 }
 if (opt.phase === 'legacy') {
@@ -220,7 +232,7 @@ async function suite(label, selection, environment = {}) {
     result = await run('npm', ['run', 'test:acceptance'], {
       cwd: r.CLONE,
       env: { ...r.STACK_ENV, QA_TASK: 'M1', QA_M1_PROVIDER: opt.provider,
-        ...(opt.provider !== 'all' ? { QA_GREP: `\\{case:M1-\\d{2}\\.(?:common|${opt.provider})\\.` } : {}),
+        QA_GREP: casePattern(selection),
         QA_PRODUCT_SHA: identity.productSha, QA_TEST_SHA: identity.testSha, ...environment },
       timeoutMs: 7_200_000,
     });
@@ -231,11 +243,11 @@ async function suite(label, selection, environment = {}) {
   }, null, 2));
   assert.ok(fs.existsSync(reportFile), 'No M1 JSON report was produced');
   const actual = vitestResults(JSON.parse(fs.readFileSync(reportFile, 'utf8')),
-    selection.filter((row) => row.kind !== 'browser'), identity, { partial: opt.provider !== 'all' });
+    selection.filter((row) => row.kind !== 'browser'), identity, { partial: true });
   const browserCases = selection.filter((row) => row.kind === 'browser');
   if (browserCases.length) assert.ok(fs.existsSync(browserReport), 'No required browser case report');
   if (fs.existsSync(browserReport)) actual.push(...playwrightResults(
-    JSON.parse(fs.readFileSync(browserReport, 'utf8')), browserCases, identity, { partial: opt.provider !== 'all' }));
+    JSON.parse(fs.readFileSync(browserReport, 'utf8')), browserCases, identity, { partial: true }));
   for (const row of actual) Object.assign(row, { command: 'npm run test:acceptance', startedAt,
     artifact: `evidence/${label}`, profile: 'acceptance', project: r.PROJECT });
   shareEvidence(label);
@@ -263,9 +275,24 @@ await r.main(async () => {
   try {
     if (opt.phase === 'sim') {
       assert.ok(await setup()); await defaultGate();
-      await suite('sim', expected.filter((row) => ['api', 'browser'].includes(row.kind)));
-      verifyResults(expected.filter((row) => row.environment === 'SIM'), rows, identity);
-    } else {
+      const selected = phaseRows(expected, 'sim');
+      await suite('sim', selected.filter((row) => ['api', 'browser'].includes(row.kind)));
+      verifyResults(selected, rows, identity);
+    } else if (opt.phase === 'snapshot-isolated') {
+      assert.ok(await setup());
+      const selected = phaseRows(expected, 'snapshot-isolated');
+      await suite('snapshot-isolated', selected, { QA_M1_ISOLATED: '1' });
+      verifyResults(selected, rows, identity);
+    } else if (opt.phase === 'snapshot-upgrade') {
+      const probe = async (stage, executingSha) => {
+        const count = rows.length;
+        const actual = await suite(stage, snapshotStageRows(expected, stage),
+          { QA_M1_MIGRATION_STAGE: stage, QA_M1_EXECUTING_SHA: executingSha });
+        rows.splice(count); return actual;
+      };
+      rows.push(...await snapshotMigrationRun(r, { installTests, setup, probe, identity }));
+      verifyResults(phaseRows(expected, 'snapshot-upgrade'), rows, identity);
+    } else if (opt.phase === 'migration') {
       copyCourseFixtures();
       // migrationRun records each successful stage once. Probe results are used
       // as assertions here, then included in the host inventory by that runner.
@@ -293,7 +320,7 @@ await r.main(async () => {
     r.saveText('m1-evidence-secret-scan.json', JSON.stringify({ capturedValues: captured.length,
       checkedFiles: evidenceFiles.length, hits: 0 }));
     r.saveText('m1-case-results.json', JSON.stringify(rows, null, 2));
-    r.saveText('m1-identity.json', JSON.stringify({ ...identity, behaviorSha: '56591df0e71939d5d62c9042c630c841d01f84e8',
+    r.saveText('m1-identity.json', JSON.stringify({ ...identity, behaviorSha: SNAPSHOT_CONTRACT_SHA, snapshotSourceSha: SNAPSHOT_OLD_SHA,
       provider: opt.provider, phase: opt.phase, labels: [...new Set(rows.map((row) => row.environment))],
       project: r.PROJECT, publicPort: r.PUBLIC_PORT, subnet: r.STACK_SUBNET,
       timestamp: new Date().toISOString(), command: process.argv,

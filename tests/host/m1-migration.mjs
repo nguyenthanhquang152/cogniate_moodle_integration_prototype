@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { allContainers } from './lib.mjs';
+import { SNAPSHOT_OLD_SHA, assertSnapshotBoundary } from './m1-phases.mjs';
 
 export const OLD_REVISION = 'b0b83a8';
 const databaseNames = ['lti-service/lti.db', 'cogniate-app/cogniate.db'];
@@ -160,5 +161,49 @@ export async function migrationRun(r, { installTests, setup, probe, identity }) 
   r.saveText('migration-hashes.json', JSON.stringify({ oldSha, candidate, oldLedger, before, restored: before, evidence }, null, 2));
   // Backups contain secrets. Keep them private for investigation, outside checkout/evidence.
   r.record('MIGRATION', 'Upgrade and rollback lifecycle', 'PASS', ['Private backup retained outside shared evidence']);
+  return evidence;
+}
+
+// A distinct clean clone/project from the released-v10 Moodle rollback route.
+// Seed through the public APIs; read only stopped database copies for ledgers.
+export async function snapshotMigrationRun(r, { installTests, setup, probe, identity }) {
+  const candidate = r.opt.sha, evidence = [];
+  assert.match(candidate, /^[a-f0-9]{40}$/);
+  const tree = await r.exec('snapshot-old-tree', 'git', ['ls-tree', '--name-only', SNAPSHOT_OLD_SHA,
+    'services/cogniate-app/src/domain/migrations/011_lms_types.sql',
+    'services/cogniate-app/src/domain/migrations/012_connection_provider_snapshot.sql']);
+  assert.equal(tree.code, 0);
+  assertSnapshotBoundary(tree.stdout.trim().split('\n').map((name) => path.basename(name)), 'before');
+  assert.equal((await r.exec('snapshot-checkout-011', 'git', ['checkout', '--detach', '--force', SNAPSHOT_OLD_SHA])).code, 0);
+  await installTests(); assert.ok(await setup());
+  const seedRows = await probe('snapshot-seed', SNAPSHOT_OLD_SHA);
+  await stopServices(r);
+  const oldLedger = await ledgerNames(r.CLONE), before = dataSnapshot(r.CLONE);
+  assertSnapshotBoundary(oldLedger['cogniate-app/cogniate.db'], 'before');
+  assert.equal((await r.exec('snapshot-checkout-candidate', 'git', ['checkout', '--detach', '--force', candidate])).code, 0);
+  await installTests();
+  assert.equal((await r.npm('snapshot-ci-no-start', ['ci', '--no-audit', '--no-fund'])).code, 0);
+  assert.equal((await r.npm('snapshot-build-no-start', ['run', 'build'])).code, 0);
+  await assertServicesStopped(r);
+  assert.deepEqual(await ledgerNames(r.CLONE), oldLedger, 'Build cannot migrate before the stopped backup');
+  const backupRoot = fs.mkdtempSync(path.join(path.dirname(r.CLONE), 'qa-m1-snapshot-private-'));
+  fs.chmodSync(backupRoot, 0o700);
+  const backup = path.join(backupRoot, 'original');
+  assert.equal((await r.npm('snapshot-backup', ['run', 'stack:data-backup', '--', '--out', backup])).code, 0);
+  inspectBackup(backup, before, oldLedger, r.PROJECT);
+  evidence.push(...seedRows.map((row) => ({ ...row, sourceSha: SNAPSHOT_OLD_SHA,
+    notes: 'Public 011 fixtures seeded; stopped databases and sidecars verified against the private backup before 012' })));
+  assert.equal((await r.npm('snapshot-start-012', ['run', 'stack:up'], { timeoutMs: 900_000 })).code, 0);
+  evidence.push(...await probe('snapshot-upgrade', candidate));
+  await stopServices(r);
+  const newLedger = await ledgerNames(r.CLONE);
+  assertSnapshotBoundary(newLedger['cogniate-app/cogniate.db'], 'after');
+  assert.deepEqual(newLedger['lti-service/lti.db'], oldLedger['lti-service/lti.db']);
+  assert.deepEqual(newLedger['cogniate-app/cogniate.db'],
+    [...oldLedger['cogniate-app/cogniate.db'], '012_connection_provider_snapshot.sql'].sort());
+  r.saveText('snapshot-migration-hashes.json', JSON.stringify({
+    ...identity, sourceSha: SNAPSHOT_OLD_SHA, oldLedger, newLedger, before,
+    evidence: evidence.map(({ id, status, environment }) => ({ id, status, environment })),
+  }, null, 2));
   return evidence;
 }

@@ -286,5 +286,58 @@
     "title": "[SIM] AC-M1-39 missing and Moodle product families pass the standard profile check {case:M1-39.common.missing-family-control}",
     "kind": "api",
     "file": "acceptance/M1/common/80-standard-controls.test.ts"
+  },
+  {
+    "id": "M1-38.common.h1",
+    "ac": "AC-M1-38",
+    "environment": "SIM",
+    "title": "Populated 011 public fixture and stopped backup",
+    "kind": "host",
+    "file": "acceptance/M1/common/snapshot-migration.probe.ts",
+    "phase": "snapshot-upgrade"
+  },
+  {
+    "id": "M1-38.common.h2",
+    "ac": "AC-M1-38",
+    "environment": "SIM",
+    "title": "Old pending refusal, unknown code and failed issue",
+    "kind": "host",
+    "file": "acceptance/M1/common/snapshot-migration.probe.ts",
+    "phase": "snapshot-upgrade"
+  },
+  {
+    "id": "M1-38.common.h3",
+    "ac": "AC-M1-38",
+    "environment": "SIM",
+    "title": "Old registered repeats and redeemed initial code",
+    "kind": "host",
+    "file": "acceptance/M1/common/snapshot-migration.probe.ts",
+    "phase": "snapshot-upgrade"
+  },
+  {
+    "id": "M1-38.common.h4",
+    "ac": "AC-M1-38",
+    "environment": "SIM",
+    "title": "Old Canvas add deployment preserves original key",
+    "kind": "host",
+    "file": "acceptance/M1/common/snapshot-migration.probe.ts",
+    "phase": "snapshot-upgrade"
+  },
+  {
+    "id": "M1-38.common.h5",
+    "ac": "AC-M1-38",
+    "environment": "SIM",
+    "title": "Old reservation and active orphan recovery",
+    "kind": "host",
+    "file": "acceptance/M1/common/snapshot-migration.probe.ts",
+    "phase": "snapshot-upgrade"
+  },
+  {
+    "id": "M1-38.common.i5",
+    "ac": "AC-M1-38",
+    "environment": "SIM",
+    "title": "Moodle create remains local with unchanged DTO",
+    "kind": "api",
+    "file": "acceptance/M1/common/03-snapshot-controls.test.ts"
   }
 ]

@@ -6,20 +6,23 @@ export const LABELS = ['SIM', 'MOODLE-LIVE', 'CANVAS-LOCAL', 'CANVAS-HOSTED', 'B
 // AC-level allocation is independent of test discovery. Named races below are
 // mandatory rows, so a one-test-per-AC enum implementation cannot satisfy it.
 export const REQUIRED = {
-  common: [1, 2, 3, 7, 12, 14, 15, 19, 21, 23, 24, 25, 30, 35, 39],
+  common: [1, 2, 3, 7, 12, 14, 15, 19, 21, 23, 24, 25, 30, 35, 38, 39],
   blackboard: [1, 4, 5, 6, 7, 10, 11, 12, 13, 14, 15, 18, 19, 21, 22, 27, 28, 29, 31, 33, 34, 36, 37, 38],
   canvas: [4, 5, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 25, 26, 29, 31, 32, 33, 34, 36, 37, 38, 39, 40],
 };
 export const RACES = {
+  common: { 38: ['h1', 'h2', 'h3', 'h4', 'h5', 'i5'] },
   blackboard: {
-    37: ['a', 'b', 'd', 'e', 'f', 'g', 'i', 'j', 'k-after-a', 'k-after-b', 'l', 'm', 'n', 'o', 'q', 'r'],
-    38: ['a', 'b', 'c', 'e', 'g-existing', 'g-absent'],
+    29: ['k1', 'k2', 'k3'],
+    37: ['a', 'b', 'd', 'e', 'f', 'g', 'i', 'j', 'k-after-a', 'k-after-b', 'l', 'm', 'n', 'o', 'q', 'r',
+      'v2', 'v5', 'v7', 'v9', 'v11', 'v12', 'w', 'x1', 'x2', 'y1', 'y2', 'z1', 'z2', 'z3', 'z4', 'z5'],
+    38: ['a', 'b', 'c', 'e', 'g-existing', 'g-absent', 'i3', 'i4'],
   },
   canvas: {
     37: ['c', 'c2', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'm', 'n',
       'p-create', 'p-activate', 'q', 'r', 's-retry', 's-dead', 's-compensation',
-      't', 'u-after-c', 'u-after-c2'],
-    38: ['a', 'b', 'd', 'e', 'f', 'f-held-delete', 'g-late-create'],
+      't', 'u-after-c', 'u-after-c2', 'v1', 'v3', 'v4', 'v6', 'v8', 'v10', 'v12', 'aa'],
+    38: ['a', 'b', 'd', 'e', 'f', 'f-held-delete', 'g-late-create', 'i1', 'i2', 'i4'],
   },
 };
 export function readManifests(testsDir, owners = ['common', 'blackboard', 'canvas']) {
@@ -35,6 +38,8 @@ export function readManifests(testsDir, owners = ['common', 'blackboard', 'canva
       assert.ok(!ids.has(entry.id), `Duplicate case: ${entry.id}`); ids.add(entry.id);
       assert.ok(LABELS.includes(entry.environment), `Evidence label missing: ${entry.id}`);
       assert.ok(['api', 'host', 'browser'].includes(entry.kind), `Case kind missing: ${entry.id}`);
+      assert.ok(entry.phase === undefined || ['sim', 'snapshot-isolated', 'snapshot-upgrade', 'migration'].includes(entry.phase),
+        `Unknown execution phase: ${entry.id}`);
       assert.ok(typeof entry.title === 'string' && entry.title.trim(), `Case title missing: ${entry.id}`);
       assert.ok(typeof entry.file === 'string' && !path.isAbsolute(entry.file)
         && !entry.file.split(/[\\/]/).includes('..'), `Unsafe file: ${entry.id}`);
@@ -47,7 +52,7 @@ export function readManifests(testsDir, owners = ['common', 'blackboard', 'canva
     }
     for (const [number, variants] of Object.entries(RACES[owner] ?? {})) {
       for (const variant of variants) assert.ok(entries.some((e) =>
-        e.id === `M1-${number}.${owner}.${variant}` || e.ac === `AC-M1-${number}` && e.subcase === variant),
+        e.id === `M1-${number}.${owner}.${variant}`),
       `Required ${owner} race variant missing: M1-${number} ${variant}`);
     }
   }
@@ -58,7 +63,9 @@ export function verifyResults(expected, actual, { productSha, testSha } = {}) {
   assert.match(productSha ?? '', /^[0-9a-f]{40}$/, 'Product SHA required');
   assert.match(testSha ?? '', /^[0-9a-f]{40}$/, 'Test SHA required');
   const seen = new Map();
+  const expectedIds = new Set(expected.map((row) => row.id));
   for (const row of actual) {
+    assert.ok(expectedIds.has(row.id), `Unexpected result: ${row.id}`);
     assert.ok(!seen.has(row.id), `Duplicate result ${row.id}`);
     assert.equal(row.productSha, productSha, `Mixed product SHA: ${row.id}`);
     assert.equal(row.testSha, testSha, `Mixed test SHA: ${row.id}`);
