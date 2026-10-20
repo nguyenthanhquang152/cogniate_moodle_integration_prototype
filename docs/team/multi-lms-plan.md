@@ -36,6 +36,31 @@ They are not implied by adding these two LMS integrations.
 
 ## Roles and gates
 
+### Current owner direction: two LMS teams, one engine
+
+The owner clarified this structure after the M0 gate passed:
+
+| Team | Implementation | Independent QA |
+| --- | --- | --- |
+| Team 1: Blackboard | Existing Author, Claude Code Opus 5.5 xhigh | Existing QA, Codex GPT-6-Astra xhigh |
+| Team 2: Canvas | Existing Author-2, Codex GPT-6-Astra xhigh | Existing QA-E2E, Claude Code Opus 5.5 xhigh |
+
+Only these two models and xhigh effort are authorized.
+Moodle, Blackboard and Canvas share one LTI engine.
+The teams own provider-specific adapters, setup flows and tests around that engine.
+Shared engine and portal files each have one named implementer; two workers never edit the same file concurrently.
+Both existing reviewers remain separate from the authors and QA, and review both teams.
+The Architect and Docs remain shared roles. The Lead integrates the work.
+At most two implementers and one QA or reviewer run beside the Lead.
+
+The horizontal M1/M2 implementation and test-preparation tasks were never dispatched.
+They are now marked blocked as superseded; their old ownership is not authority to start work.
+Read-only Architect task `task_f8c34ad605f6`, dispatch `ctx_e9dd8cd62b35`, maps exact disjoint paths and shared interfaces.
+The Lead will issue provider-team task briefs from that map.
+This changes execution ownership, not the approved protocol, criteria or review gate.
+
+### Initial role assignment (history)
+
 | Role | Model | Initial responsibility |
 | --- | --- | --- |
 | Lead | Existing Codex coordinator | Task briefs, team records, commits, integration, gate tracking |

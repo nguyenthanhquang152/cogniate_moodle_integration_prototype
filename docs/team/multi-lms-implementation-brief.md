@@ -13,7 +13,20 @@ After acceptance, the Lead advances the portal branch to the accepted integratio
 The Lead then sends each retained worker a fresh dispatch and the approved SHA.
 The task specs and contracts define behavior. This handoff defines execution and ownership.
 
-## First implementation wave
+## Current execution direction
+
+The owner requests two LMS teams, with one shared LTI engine for Moodle, Blackboard and Canvas.
+Team 1: Claude Author implements Blackboard; Codex QA supplies independent acceptance evidence.
+Team 2: Codex Author-2 implements Canvas; Claude QA-E2E supplies independent acceptance and browser evidence.
+Only Claude Code Opus 5.5 xhigh and Codex GPT-6-Astra xhigh are used.
+Both dedicated reviewers remain independent shared reviewers.
+
+Exact file boundaries are being mapped in `task_f8c34ad605f6`.
+The Lead will replace the horizontal briefs below with disjoint provider and common-engine tasks.
+The old tasks were never dispatched and must not start.
+The accepted behavior and all criteria remain unchanged.
+
+## Superseded horizontal wave (not dispatched)
 
 | Role | Queued task | Scope |
 | --- | --- | --- |
