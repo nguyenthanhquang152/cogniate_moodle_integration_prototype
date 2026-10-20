@@ -81,6 +81,55 @@ it("disables Blackboard creation with the operator readiness explanation", async
   expect(within(screen.getByRole("article", { name: "Canvas" })).getByRole("link", { name: "Connect" }).getAttribute("href")).toBe("/integrations/canvas/connect");
 });
 
+it("mounts the ready Blackboard wizard from its card through creation, approval and teacher guidance", async () => {
+  const readyProviders: LmsProvidersResponse = {
+    lms: providers.lms.map((provider) => provider.lms === "blackboard"
+      ? { ...provider, profiles: provider.profiles.map((profile) => ({ ...profile, ready: true, clientId: "qa-bb-app" })) }
+      : provider),
+  };
+  let created = false;
+  let current: Connection = { ...connection("blackboard", "bb-new", "pending"), platform: null };
+  fetchMock.mockImplementation(async (url: string, options?: RequestInit) => {
+    if (url === "/app-api/lms-providers") return json(readyProviders);
+    if (url === "/app-api/connections") {
+      if (options?.method === "POST") { created = true; return json(current, 201); }
+      return json({ connections: created ? [current] : [] });
+    }
+    if (url === "/app-api/connections/bb-new/platform") {
+      current = connection("blackboard", "bb-new", "registered");
+      return json(current);
+    }
+    if (url === "/app-api/connections/bb-new") return json(current);
+    if (url.endsWith("/tool-configuration")) return json([]);
+    return defaultFetch(url);
+  });
+  app("/integrations");
+  const card = within(await screen.findByRole("article", { name: "Blackboard" }));
+  fireEvent.click(await card.findByRole("link", { name: "Connect" }));
+  await screen.findByLabelText("Learn URL");
+  fireEvent.change(screen.getByLabelText("Connection name"), { target: { value: "School Blackboard" } });
+  fireEvent.change(screen.getByLabelText("Learn URL"), { target: { value: "https://learn.school.edu" } });
+  fireEvent.click(screen.getByRole("button", { name: "Next" }));
+  await screen.findByRole("heading", { name: "Register Cogniate in Blackboard Learn" });
+  expect(screen.getByText("qa-bb-app")).toBeTruthy();
+  expect(screen.queryByLabelText("Client ID")).toBeNull();
+  fireEvent.change(screen.getByLabelText("Deployment ID"), { target: { value: "bb-deployment" } });
+  fireEvent.change(screen.getByLabelText("Approval code"), { target: { value: "b".repeat(43) } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await screen.findByRole("heading", { name: "Add a Cogniate course in Blackboard" });
+  expect(screen.getByText(/Blackboard Ultra:/)).toBeTruthy();
+  expect(screen.getByText(/Blackboard Original:/)).toBeTruthy();
+  expect(screen.queryByLabelText("Approval code")).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Add deployment ID" })).toBeNull();
+  expect(screen.queryByText(/Web services/)).toBeNull();
+  const createCall = fetchMock.mock.calls.find(([url, options]) => url === "/app-api/connections" && options?.method === "POST")!;
+  expect(JSON.parse(createCall[1].body)).toEqual({
+    name: "School Blackboard", siteUrl: "https://learn.school.edu", lms: "blackboard", method: "manual", profile: "blackboard-sim",
+  });
+  const bindCall = fetchMock.mock.calls.find(([url]) => url.endsWith("/bb-new/platform"))!;
+  expect(JSON.parse(bindCall[1].body)).toEqual({ deploymentId: "bb-deployment", grantCode: "b".repeat(43) });
+});
+
 it.each(["/integrations/blackboard/canvas", "/integrations/unknown/canvas", "/integrations/canvas/foreign"])("shows not found without exposing connection settings at %s", async (path) => {
   fetchMock.mockImplementation(async (url: string) => url.endsWith("/connections/foreign") ? json({ details: { message: "NOT_FOUND" } }, 404) : defaultFetch(url));
   app(path);
