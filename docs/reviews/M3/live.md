@@ -1,6 +1,6 @@
 Verdict: UNVERIFIED — no live LMS run authorized or performed
-Round: 1 (2026-10-20)
-Owner: independent Codex Canvas QA replacement
+Round: 2 (2026-10-20)
+Owner: original Claude Canvas QA (`claude-opus-5-5`, xhigh), resumed by owner request; round 1 by the independent Codex Canvas QA replacement
 
 # M3 live LMS matrix
 
@@ -60,3 +60,28 @@ Setup without public exposure: the tester's browser trusts the dev CA and resolv
 | L-B16 | Grader: the same | Record the raw roles and results | UNVERIFIED | BLACKBOARD-LIVE | None |
 | L-B17 | Guest: the same | Record the raw roles; a guest without a context learner role is a preview | UNVERIFIED | BLACKBOARD-LIVE | None |
 | L-B18 | Inspect `/api/idtoken?raw=true` of a Learn launch | Record `tool_platform.product_family_code` (expected `BlackboardLearn`, F-BB-16; another value only weakens check 14 for Blackboard, it does not break launches) | UNVERIFIED | BLACKBOARD-LIVE | None |
+
+## Round 2 — local Canvas feasibility (assessment only, no startup)
+
+The SIM gate (M2 64/64) and the Moodle gate (T7 three default runs, demo and confirmation) passed at `aff48823a4c6206d6314d91a95f5eb0979d3e0e7`. So QA assessed a local Canvas for row L-C13 (`CANVAS-LOCAL`), read-only. Nothing was installed, built, pulled or started. No Docker Desktop setting, host resolver or network exposure changed. All rows stay **UNVERIFIED**.
+
+Sources: canvas-lms at the pinned commit `1c9f0bb8013ed69c4f2efe11fd483025469b7e6c`, files `doc/docker/developing_with_docker.md` and `doc/docker/getting_docker.md`. Host facts were measured on 2026-10-20.
+
+| Need | Fact | Effect under current rules |
+| --- | --- | --- |
+| Docker memory | canvas-lms recommends a Docker Desktop memory allocation of "at least 8GB". The Docker VM here reports MemTotal `8319238144` bytes, shared by everything that runs in it. | The documented recommendation is an allocation for Canvas alone, not a measured Canvas footprint. Both stacks would share this allocation. Their combined memory demand was not measured. QA must not change Docker Desktop. |
+| Concurrent stacks | L-C13 needs Canvas (web, jobs, database, cache, sidecar) and the Cogniate default stack at the same time. | The fleet rule allows one stack. A second stack needs a Lead exception. |
+| Transport | The canvas-lms dev site is `http://canvas.docker/` (HTTP), with dory, Dinghy-http-proxy or Traefik for DNS. | The product refuses HTTP platform URLs (the M2 `rule1-http` case). It needs HTTPS with a certificate that the LTI service, the app and the browser trust. A host DNS proxy or resolver change is a host change, so the run would use container-network aliases and a TLS proxy with the dev CA. |
+| Outbound guard | The LTI and app services allow private hosts only through `OUTBOUND_PRIVATE_HOST_ALLOWLIST` (`infra/compose.yaml`). | The local Canvas host must be added through a QA-only runtime override. The frozen runs use no overlays, so this needs Lead approval and stays out of the repository. |
+| Issuer | A self-hosted Canvas must change its issuer to its own host (F-CV-2). | Canvas configuration in the local instance only. `product_family_code` stays `canvas` (F-CV-22). |
+| Accounts and data | Local admin, teacher and learner exist only in the local instance. Images, gems and packages come from public registries; no account is needed. | No third-party sign-up. New images and volumes are QA-owned and must be removed after the run. The seven protected volumes stay unchanged. |
+| Time | canvas-lms says only that the first build "will take a while". | QA planning estimate, not measured: allow more than one hour for the first build and setup, before any row runs. |
+| Evidence value | L-C13 uses the `canvas-self-hosted` profile. | A local result fills only L-C13 and never a `CANVAS-HOSTED` row. |
+
+**Assessment: not feasible now without Lead decisions.** The current rules block it: one stack only, no Docker Desktop change, and no overlays. These stack and overlay constraints alone defer the run; the memory row adds risk but no measured failure. A run needs, at a minimum:
+1. An explicit exception for a second concurrent (local Canvas) stack, and acceptance of the memory risk. Any memory change is the owner's action, not QA's.
+2. Approval of a QA-only, uncommitted runtime override: TLS proxy with the dev CA, container DNS aliases, network attachment, and an allowlist entry for the local Canvas host.
+3. A time window for the first build.
+4. Cleanup of all QA-owned Canvas images, volumes and networks afterwards.
+
+Without these, L-C13 stays UNVERIFIED with the reason "not feasible under the current one-stack and no-Docker-change rules".
