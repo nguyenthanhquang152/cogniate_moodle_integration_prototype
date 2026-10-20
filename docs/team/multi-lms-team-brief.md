@@ -38,6 +38,11 @@ The same dedicated replacement also owns the queued author startup smoke, `task_
 This extends the instance exception to that task only, with its existing infrastructure scope and isolated author lane.
 The original Claude Author stays retained without edit authority. Independent QA and review ownership stays separate.
 
+The same replacement owns `task_bfa884e18169`, the bounded-call and audit repair from Reviewer-A Round 2.
+This extends the instance exception to that follow-up and its existing shared backend paths only.
+It fixes A-M1-03 through A-M1-06. The Lead commits its held files before independent re-review.
+No schema change, contract change or additional backend editor is authorized.
+
 ### Canvas QA quota replacement (2026-10-20)
 
 The retained Claude Canvas QA session also ended at the same provider limit when `task_1276def76f95` started.

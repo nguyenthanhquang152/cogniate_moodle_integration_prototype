@@ -647,6 +647,33 @@ Common QA received `msg_c9724f02c615` and holds before its next stack.
 After Canvas cleanup, the Lead returns the window for the complete M1 runs and remaining legacy suites.
 Canvas QA will assess its 233 M1 cases from common QA's two complete runs, with executor attribution and any necessary targeted recheck.
 
+### Reviewer-A Round 2 corrections
+
+Reviewer-A completed `ctx_3604d1e6a48e` in `msg_558896e7e433`; its three reports are committed at `af5d5f6`.
+The replacement instance is retained. M1 and M3 are CHANGES_REQUESTED; M2 source is APPROVE.
+The reviewer ran 234 focused unit tests and harness checks, then reproduced the defects with independent supplemental probes.
+Those checks are not full acceptance.
+
+| Finding | Severity | Repair owner |
+| --- | --- | --- |
+| A-M1-03: Canvas S2 fallback has no new S0 and exceeds the call budget | MAJOR | Same shared backend replacement, `task_bfa884e18169` |
+| A-M1-04: binding GET transport retries outside S0 and the five-second bound | MAJOR | Same backend task; preserve unrelated transport retries |
+| A-M1-05: phase-1 refusal logs use the boot trace | MINOR | Same backend task; retain exact request-trace assertions |
+| A-M1-06: success audit precedes phase-2 COMMIT | MINOR | Same backend task; prove failed COMMIT emits no success |
+| A-M3-01: snapshot and upgrade cases miss outbound methods in gate capture | MAJOR | Common QA, current `ctx_8d51e8033a8a` |
+
+Common QA accepted the repair in `msg_4d57be697049`.
+It will preserve specific fault rules, capture all seven methods, re-arm after resets, and exercise the actual gate boundary.
+It may edit only its current common/Blackboard paths and harness glue; Canvas QA keeps its own paths.
+The backend owner may edit its shared modules and colocated units. No contract or migration change is authorized.
+
+Canvas QA started M2 at `eb43247` in `msg_5ebcc8f6db24` before the findings arrived.
+Run: `qa-e2e-sim-r1-eb43247d-2026-10-20T12-34-50-805Z`.
+Message `msg_478c680eab7a` permits that in-flight run and cleanup, then holds T7 and any next stack.
+Message `msg_66224538862d` holds common QA's full M1 runs until committed repairs, re-review and a new frozen candidate.
+The current M2 run and earlier T2/T3 pass remain evidence only for their exact SHA.
+Reviewer-B's approval does not override Reviewer-A's blocking findings.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
