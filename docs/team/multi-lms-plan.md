@@ -764,6 +764,28 @@ This work has no stack authority and does not change the external frozen M2/T7 c
 Reviewer-A completes its current frozen review before reviewing any later repair.
 Full M1 remains held until the repair is committed, independently reviewed, and frozen for both complete runs.
 
+Reviewer-A settled `task_e0177b2e9a56` successfully in `msg_4e9c1935f050`.
+Its three reports are committed at `76ac36cf479be7c4b0f79878ca892e2817ef04de`.
+M1 and the bounded M2 source corrections are APPROVE; A-M1-03/04/05/06 and the original A-M3-01 locations are closed.
+M3 remains CHANGES_REQUESTED for A-M3-02. Its independent checks include 207 focused product tests and 20 grouped engine probes.
+The same reviewer stays retained for a later bounded repair review; its current dispatch has settled.
+
+The complete M2 rerun finished in `msg_dde9a4b82cc9`: **61 PASS / 3 FAIL**, zero skips or retries.
+Both `M2-12` learner-frame cases time out after reaching the player/content frames.
+`M2-13.no-stale-values` sees Canvas values on the Blackboard route during same-document navigation.
+QA also found missed runtime capability URLs in failed-frame diagnostics. The earlier zero-hit scan is not complete privacy evidence.
+The bundle stays local and restricted until QA sanitizes the missed values and repairs capture; messages and reports must not contain those values.
+Cleanup at 13:06:07 UTC confirms zero containers, seven unchanged baseline volume records and no owned runner.
+The Lead independently confirmed zero containers. T7 remains HOLD and no new stack window is assigned.
+
+The existing Canvas/shared portal author now owns bounded repair task `task_6082e04b612c`, dispatch `ctx_80cd0ede9eba`.
+Its clean tracked portal branch was fast-forwarded to exact `ae130a3`; its original portal/player ownership still applies.
+It diagnoses route-state isolation and the learner-frame symptoms, then fixes reproducible owned product defects with regression checks.
+Canvas QA independently isolates harness causes and fixes its owned diagnostic redaction paths.
+Common QA continues the separate A-M3-02 capture repair without a stack.
+These are the three active workers; Reviewer-B stays queued until a slot and the committed repair candidate are ready.
+No full acceptance, final conformance, guide completion, push or main merge is implied.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
