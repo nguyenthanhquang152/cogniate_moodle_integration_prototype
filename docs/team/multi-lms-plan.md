@@ -159,6 +159,21 @@ QA owns the combined M3 report; QA-E2E owns its separate M3 browser report and l
 The Lead added Q19 to Q22 and D-1 to D-12 to `docs/human_review/decisions-needed.md` in `7a9734a`.
 These are open human decisions from the approved design, not implementation or live-test evidence.
 
+The final-stage tasks are queued. They do not start until their evidence gates pass.
+
+| Work | Task |
+| --- | --- |
+| Architect final conformance | `task_f94489087dd6` |
+| Docs: guides and offline review page | `task_ba7497546050` |
+| Independent guide, STE and offline-page checks | `task_d98e2da881be` |
+| M4 Reviewer-A | `task_551efa49283b` |
+| M4 Reviewer-B | `task_8c5153cd2cd7` |
+
+The Architect follows accepted implementation reviews and M3 verification.
+Docs follows accepted conformance and documents only verified behavior, with separate notes for untested real LMS steps.
+The two reviewers and independent QA then check one frozen documentation candidate.
+A settled task with a failing verdict does not open the next gate.
+
 ### Initial role assignment (history)
 
 | Role | Model | Initial responsibility |
