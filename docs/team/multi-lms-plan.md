@@ -135,6 +135,14 @@ Canvas still owns the Blackboard wizard mount and final shared portal checks onc
 The Lead requested this small Blackboard checkpoint in `msg_13c6f24fa767`.
 The current evidence remains author self-checks; no independent SIM or live result exists yet.
 
+The Blackboard wizard is committed as `6bbee71`.
+Its five held files were released after the commit, and the Canvas branch advanced with its smoke-script edit preserved.
+Canvas received the exact exports for the shared registry mount in `msg_8467740fcceb`.
+The backend author's checkpoint check passed 866 tests in 66 files (`/tmp/au-check-cp5.log`).
+That check includes uncommitted backend work and remains author evidence.
+The backend owner also received two narrowly scoped tracking files for AC-M1-33's HTTP 422 mapping.
+The [team brief](multi-lms-team-brief.md) records this ownership correction from `msg_495acdccb262`.
+
 The teams agreed on the player interface in `msg_a05ac85fc3b8` and `msg_7df7bdfe2bcc`.
 The backend emits `data-lms-name` on the play page element and the content-origin runtime body.
 Its value is `Moodle`, `Canvas` or `Blackboard`, derived from the stored connection.

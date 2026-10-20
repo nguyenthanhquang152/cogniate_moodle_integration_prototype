@@ -47,11 +47,13 @@ Own:
 - `services/cogniate-app/**`, except the four Canvas modules and their unit tests named below after the foundation handoff.
 - `packages/shared/**`, `infra/**`, root `package.json` and `package-lock.json` when required.
 - `apps/portal/src/connect/blackboard/**`, after the portal wizard interface is available.
+- `packages/tracking/src/outcome.ts` and `packages/tracking/src/tracking.test.ts`, only for AC-M1-33's permanent HTTP 422 grade failure and its unit test.
 
 This includes all shared route mounts, stores, DTOs, migrations, profile registries and provider registries.
 It also includes the app's redemption and cleanup engines, both operator CLIs and the shared-platform CLI.
 Keep the Blackboard wizard in this team; route a proposed ownership change through the Lead first.
-Do not edit other portal files, `apps/player/**` or `packages/tracking/**`.
+Do not edit other portal files, `apps/player/**`, or other files in `packages/tracking/**`.
+This closes the ownership gap reported in `msg_495acdccb262`; it does not change the approved grade policy.
 
 ### Canvas implementer and shared portal owner
 
