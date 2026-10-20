@@ -7,8 +7,10 @@ import { Link } from "react-router";
 import { api, idPath } from "../api.ts";
 import { useApi } from "../hooks.ts";
 import { useSession } from "../App.tsx";
-import type { Connection, Publication } from "../types.ts";
+import type { Publication } from "../types.ts";
 import { ErrorNotice, Loading, Modal, formatName } from "../ui.tsx";
+import { lmsNames } from "../lms.ts";
+import { providerWizards } from "../connect/wizards.ts";
 
 export function Publications({
   courseId,
@@ -21,7 +23,6 @@ export function Publications({
   const pubState = useApi<{ publications: Publication[] }>(
     `/publications?courseId=${idPath(courseId)}`,
   );
-  const connectionState = useApi<{ connections: Connection[] }>("/connections");
   const [actionError, setActionError] = useState<unknown>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmWithdraw, setConfirmWithdraw] = useState<Publication | null>(
@@ -53,14 +54,13 @@ export function Publications({
         <p className="eyebrow mb-[5px] text-[10px] font-semibold tracking-[0.15em] text-[#b3a4c6]">
           LMS PUBLISHING
         </p>
-        <h2>Moodle publications</h2>
+        <h2>LMS publications</h2>
         <ErrorNotice error={pubState.error} />
         <ErrorNotice error={actionError} />
-        <ErrorNotice error={connectionState.error} />
         {!pubState.data && !pubState.error && <Loading />}
         {pubState.data?.publications.length === 0 && (
           <p className="text-muted-foreground">
-            This course is not published yet. Select Publish to Moodle to make
+            This course is not published yet. Select Publish to an LMS to make
             it available.
           </p>
         )}
@@ -70,32 +70,31 @@ export function Publications({
             key={publication.id}
           >
             <h3>
-              {connectionState.data?.connections.find(
-                (c) => c.id === publication.connectionId,
-              )?.name ?? "Moodle"}
+              {publication.connectionName}
             </h3>
+            <Badge>{lmsNames[publication.lms]}</Badge>
             <Badge
               variant={
                 publication.status === "available" ? "success" : "default"
               }
             >
               {publication.status === "available"
-                ? "Available in Moodle"
+                ? `Available in ${lmsNames[publication.lms]}`
                 : "Withdrawn"}
             </Badge>
             <p className="text-muted-foreground">
               Version {publication.version} · {formatName(publication.format)}
             </p>
-            {publication.status === "available" && (
+            {publication.status === "available" && (publication.lms === "moodle" ? (
               <p className="text-[12px] text-[#cbb9e0]">
                 Teachers: Edit mode → Add content → Activity or resource →
                 Cogniate ({library.name}) → Add → Select content
               </p>
-            )}
-            <MoodleCourse publication={publication} />
+            ) : <TeacherSteps lms={publication.lms} />)}
+            {publication.lms === "moodle" && <MoodleCourse publication={publication} />}
             <dl className="publication-stats m-0 flex gap-[25px] [&_dd]:text-[22px]">
               <div>
-                <dt>Selected in Moodle</dt>
+                <dt>Selected in {lmsNames[publication.lms]}</dt>
                 <dd>{publication.stats.activities}</dd>
               </div>
               <div>
@@ -141,7 +140,7 @@ export function Publications({
           onClose={() => setConfirmWithdraw(null)}
         >
           <p>
-            Teachers cannot select this course. Existing Moodle activities
+            Teachers cannot select this course. Existing {lmsNames[confirmWithdraw.lms]} activities
             cannot open it until you re-publish.
           </p>
           <div className="flex flex-wrap items-center gap-3">
@@ -179,4 +178,9 @@ export function Publications({
       )}
     </>
   );
+}
+
+function TeacherSteps({ lms }: { lms: "canvas" | "blackboard" }) {
+  const component = providerWizards[lms];
+  return component ? <component.TeacherSteps /> : null;
 }
