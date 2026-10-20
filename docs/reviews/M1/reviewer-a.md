@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 2
+Verdict: APPROVE
+Round: 3
 
 # M1 review: Reviewer-A (correctness and security)
 
@@ -182,3 +182,64 @@ node --test tests/acceptance/M1/canvas/snapshot-oracle.selftest.mjs
 ### Acceptance still pending
 
 QA must still execute the repaired candidate through the authorized fresh/restart snapshot, isolated readiness, old-011 upgrade, both complete-run inventories, Moodle regression/migration/rollback and M2 browser routes. Neither my focused units nor internal fault fixtures establish these results. SIM evidence remains distinct from `MOODLE-LIVE` and live Canvas/Blackboard interoperability; no live row was run or promoted by this review.
+
+## Round 3 (2026-10-20): bounded correction re-review
+
+| Item | Value |
+| --- | --- |
+| Verdict | **APPROVE** for the M1 implementation correction. A-M1-03 through A-M1-06 are closed at this SHA. A-M1-02 remains the accepted open NIT. This is not release or acceptance approval: M3 has a newly identified MAJOR harness finding, A-M3-02. |
+| Exact product and test SHA | **`ae130a3501f3a2502c6a34e36319629e3dcdfb09`**, compared with `eb43247d02df622d5da72dafac41d919f65a91fe`. All candidate reads and executions used detached local clone `/tmp/cogniate-review-a-ae130a3.ketuxd`. |
+| Repair commits | Common/Blackboard capture and host CLI: `41ee174ddcd4cd5c925b09d7c57ef9f8ceaa03b9`; Canvas capture and M2 order: `feb36b112edd4173094e0ba3d38ccfc0a549fb35`; backend: `ae130a3501f3a2502c6a34e36319629e3dcdfb09`. |
+| Basis and interpretation | Applied contracts `ccdd9ef67cdd2be4c6af374136777fda4e081943`, ADR-011 and M1/M2/M3 criteria. Lead interpretation `msg_742788eff0bb` was assessed against the actual S2/target/adoption rules below. No contract was edited or treated as newly approved. |
+| Reviewer | Retained independent replacement Reviewer-A, Codex GPT-6-Astra xhigh; role extension `e8fbb53`; task `task_e0177b2e9a56`, dispatch `ctx_2b5524d3ba70`. No delegation. |
+| Independence and scope | Used my submitted Round 2 at `af5d5f6` and already-submitted B review at `9680bb7`. Did not read the other reviewer's new re-review or exchange conclusions with that reviewer. No product/test edits, stack, browser run, live tenant, public exposure, commit or push. Only my existing three reports are held for Lead commit. |
+
+### Finding disposition and conformance
+
+| Finding | Disposition, evidence and location at `ae130a3` |
+| --- | --- |
+| A-M1-03, unguarded Canvas S2 fallback | **CLOSED.** `app/redemption.ts:267`–`:283`, `:323`–`:334` use one qualified lookup when the platform id is not yet known. There is no unqualified fallback. An empty successful list response runs the local S0 check before returning `PLATFORM_IN_USE`. Revocation/replacement, state change, takeover, cleared lease and less than six seconds remaining all stop without another wire call. Independent probes cover these branches. |
+| A-M1-04, hidden GET retry and timeout | **CLOSED.** V and all S2 read forms pass `singleAttempt: true` at `app/redemption.ts:237`, `:327`–`:334`. `clients/lti-client.ts:186` maps it to `timeoutMs: 5000, retryNetworkError: false`; `packages/shared/src/outbound.ts:250` honors the opt-out. The default GET retry remains enabled for unrelated calls. Real-client/transport-boundary probes and the focused tests verify both behaviors. |
+| A-M1-05, refusal trace | **CLOSED.** `app/redemption.ts:62`–`:64`, `:87`, `:108`, `:112` pass `req.traceId` to every grant-invalid/mismatch log path. Exact request trace, reason and secret exclusions are retained. All three endpoint families passed the colocated reason matrix; independent unknown-code/mismatch probes also passed with zero remote calls. |
+| A-M1-06, pre-COMMIT success event | **CLOSED.** `app/redemption.ts:306`–`:310` emits `grant_redeemed` only after `phase2` returns from `transaction`. Independent successful runs observed it with no open transaction. Deferred-FK COMMIT failure on all three binding families left no approval or redeemed grant and emitted no success event. The internal fault fixture remains supplemental. |
+| A-M1-02 | **NIT, open, safe to defer**, unchanged. The broader disabled-connection approval replacement at `domain/bindings.ts:281`–`:286` and its isolation rationale remain exactly as in prior rounds. |
+| A-M1-01; B-M1-01/02/03 | Earlier closures retained. Configuration, score worker, maintenance guard, local-preflight/snapshot and migration source are unchanged by this correction. This round does not replace their required acceptance evidence. |
+
+The single-query interpretation is consistent with the applied S2 rule: a successful qualified lookup with no row supplies no adoptable target. Returning `409 PLATFORM_IN_USE` makes no foreign write and leaves the grant unredeemed. It also preserves the specified refusal when a `standard` platform occupies the issuer/client key, without reading or adopting that foreign profile. A record that disappears between the create conflict and this list response has the same empty-result outcome. In contrast, a failed list request, timeout, or GET-by-id `404` remains `502 LTI_SERVICE_ERROR`. This distinction concerns a successful empty response versus a failed call; I found no contract ambiguity that requires a new design decision for this repair.
+
+The independent empty-result schedule observed exactly `POST platform, GET list` in every branch. Ordinary empty response gave 409; revoke/replacement/takeover gave 403; disabled connection gave the state 409; a cleared lease or 5,999 ms remaining gave 502. A newer lease was preserved. At exactly 6,000 ms remaining, an adoptable result proceeded to activation; at 5,999 ms it did not. The constants remain a 60,000 ms lease and 6,000 ms S0 minimum.
+
+All actual binding call sites still pass S0: Blackboard V, staged S1, each S2, each S3 and the optional compensation. There is one engine and at most two activation rounds. Independent controlled-boundary runs observed five calls for Canvas initial/add and six for Blackboard after S1 conflict and one activation mismatch. No new retry or call was hidden in a read. These probes used the real engine, migrations and repositories; the boundary supplied controlled responses, not a second binding algorithm.
+
+I1–I6, local target capture and hidden snapshot rules were not weakened. Ref creation/history, conditional activation and compensation, adoption/history floor, approval-only application authority and cleanup ownership remain unchanged. The source delta does not change migrations, LTI validation/keys, the score worker, provider adapters, the portal, Moodle behavior or the production simulation/gate restrictions. The unrelated Moodle completion call retains its 15-second outer allowance, and ordinary GETs retain their existing retry policy.
+
+### Reviewed files
+
+Read the complete delta and surrounding callers in `services/cogniate-app/src/app/redemption.ts` and its tests, `services/cogniate-app/src/clients/lti-client.ts` and its tests, and `packages/shared/src/outbound.ts` and its tests. Rechecked `app/binding-targets.ts`, `domain/bindings.ts`, `domain/connections.ts`, the shared transaction/logger, and the applied contract's phase-1, S0–S3, phase-2, failure and audit rules. Harness/CLI and M2 files are listed in the corresponding Round 3 reports. Git comparison confirmed that the architecture, migrations, LTI-service source, provider targets, cleanup, score worker, portal/player and infrastructure have no delta from the previous candidate.
+
+### Independent supplemental execution
+
+Dependencies were installed offline in the detached candidate with:
+
+```sh
+npm ci --offline --ignore-scripts --no-audit --no-fund
+npm --prefix tests ci --offline --ignore-scripts --no-audit --no-fund
+
+COURSE_FIXTURES_DIR=/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses npm run test:unit -- \
+  services/cogniate-app/src/app/redemption.test.ts \
+  services/cogniate-app/src/app/canvas-deployments.test.ts \
+  services/cogniate-app/src/clients/lti-client.test.ts \
+  packages/shared/src/outbound.test.ts
+
+node /tmp/cogniate-review-a-ae130a3-probes.mjs
+```
+
+All commands exited 0. The focused unit run passed **207 tests in four files, zero skips**; log `/tmp/cogniate-review-a-ae130a3-unit.log`. This is my execution of committed tests, distinct from the author's reported 197-test selection.
+
+The independent scratch script passed **20 grouped probes**: seven empty-S2/cancellation states, three maximum-call sequences with committed audit checks, both sides of the six-second lease boundary, list failure and id-404 failure, trace/failed-COMMIT checks for all three families, and three transport controls. The real outbound/client stack made one wire request for a delayed reset and settled at **4,106 ms**, made one request and timed out at **5,002 ms** despite an 8-second default, and retained two wire attempts for an unrelated default GET. Timing values are observed wall-clock values, not relaxed production limits. Script and output are in `/tmp/cogniate-review-a-ae130a3-probes.mjs` and `/tmp/cogniate-review-a-ae130a3-probes.log`. No listening socket or external service was used by that script.
+
+### Other evidence and remaining gates
+
+Lead subsequently reported a clean exact-SHA root check in `msg_db27b9cc3f43`: lint/typechecks and **1,032 tests in 69 files, zero skips**, log `/tmp/cogniate-lead-foundation.bzkF2F.round3-check.log`. This is Lead validation, not mine.
+
+Lead also relayed QA's **14/14 PARTIAL SIM preflight** in `msg_7ac69e393e11`, including actual app/LTI operator commands and selected repaired capture cases. It is QA execution and does not establish either complete M1 inventory, migration/rollback, legacy, full M2, default-profile T7 or live interoperability. M3 A-M3-02 still blocks an unqualified harness approval. All live evidence stays separate; this report does not promote any live matrix entry.

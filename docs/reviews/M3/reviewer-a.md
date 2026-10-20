@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 2
+Round: 3
 
 # M3 review: Reviewer-A (correctness and security)
 
@@ -122,3 +122,65 @@ node --test tests/acceptance/M1/canvas/snapshot-oracle.selftest.mjs
 ### Still-pending acceptance
 
 AC-M3-01 through AC-M3-07 remain evidence requirements. This review supplies no full-run, browser, Moodle-live, rollback, container-isolation or complete secret-scan PASS. Fix the blocking implementation and harness findings, freeze the next candidate, and run the authorized suites with both complete inventories and all required controls. Keep `SIM`, local Canvas, `MOODLE-LIVE` and live Canvas/Blackboard evidence distinct. No live matrix entry is promoted by these static or supplemental results.
+
+## Round 3 (2026-10-20): bounded correction re-review
+
+| Item | Value |
+| --- | --- |
+| Verdict | **CHANGES_REQUESTED**. The original A-M3-01 snapshot/upgrade locations are repaired. A newly identified MAJOR gap, A-M3-02, remains in older Blackboard no-call assertions. M1's four repair findings are closed; M2 source corrections are approved separately. |
+| Exact product/test SHA | **`ae130a3501f3a2502c6a34e36319629e3dcdfb09`**, delta from `eb43247d02df622d5da72dafac41d919f65a91fe`. Detached clone `/tmp/cogniate-review-a-ae130a3.ketuxd`. |
+| Repair commits | `41ee174ddcd4cd5c925b09d7c57ef9f8ceaa03b9` common/Blackboard and CLI; `feb36b112edd4173094e0ba3d38ccfc0a549fb35` Canvas and M2; `ae130a3501f3a2502c6a34e36319629e3dcdfb09` backend. Normative applied contracts remain `ccdd9ef67cdd2be4c6af374136777fda4e081943`. |
+| Reviewer and independence | Retained independent replacement Reviewer-A, Codex GPT-6-Astra xhigh; task `task_e0177b2e9a56`, dispatch `ctx_2b5524d3ba70`. Used prior A Round 2 and submitted B final at `9680bb7`; did not read B's new re-review or communicate conclusions with that reviewer. No delegation. |
+| Scope | Source and targeted supplemental probes/checks. No stack, browser, live activity, product/test edits, commit or push. Only my three existing reports are held uncommitted for Lead. Prior report history is retained. |
+
+### A-M3-01 disposition: original locations closed
+
+`common/gate-capture.mjs:4`–`:12` installs specific fault rules first, followed by pass/fault capture for GET, HEAD, POST, PUT, PATCH, DELETE and OPTIONS. It reads the cursor only after the rule update completes. `common/snapshot.ts:16`–`:19` exposes that behavior through `watchAll`, and `snapshotScope` resets then arms it before collecting evidence.
+
+The earlier defective Blackboard 52/isolated and common old-011 h4/h5 paths now keep catch-alls behind faults, re-arm after resets and take the relevant cursor afterward. The Canvas 51 race and 52 dead-S3 windows also use this helper. Exact trace refusals, request-completion/audit windows, separate positive capture controls and state/authority checks were retained. No criterion or case was removed.
+
+The three new `gate-capture.selftest.mjs` tests execute the **actual gate handler**, replacing only Node network/file boundaries. They reproduce the old narrow-rule blind spot, confirm all seven methods, specific-fault precedence, one-shot exhaustion, reset/re-arm, and separate negative/positive windows. They passed in my harness-only run. These are meaningful observation controls, not merely hand-built event arrays, but they prove only callers that install the helper.
+
+### A-M3-02 — MAJOR — Older Blackboard no-call assertions still have incomplete capture
+
+**Locations at the exact SHA:** `tests/acceptance/M1/blackboard/50-races.test.ts:125`–`:130` and `tests/acceptance/M1/blackboard/30-grants.test.ts:12`–`:20`. Gate behavior remains `infra/lti-gate/gate.mjs:204`–`:216`; the one-shot rule consumes its count before the held request is released.
+
+The replacement-during-live-lease case `M1-37.blackboard.f` arms only one PATCH `hold_after` rule. That rule is exhausted when S3 is held. It then takes a cursor, sends the replacement request and checks that no gate event followed the cursor. At that point **no rule can capture a new GET, POST or PATCH**, including the same PATCH path. Unmatched calls are forwarded without events. Thus the 409/status check can pass while the claimed I1 zero-call observation is blind to an erroneous provider read or mutation.
+
+The older `30-grants.test.ts` `noMutation` helper captures only GET/POST/PATCH/DELETE under `^/api/`. It claims no LTI call but cannot see HEAD/PUT/OPTIONS. Those omissions also fail the requested all-seven-method capture control. The first location is the principal blocking case because it misses even the binding engine's normal methods.
+
+**Independent actual-gate probe:** I reused the gate-boundary loader from the committed self-test, with the actual gate source and only in-memory Node edges. Under the exact one-shot PATCH rule, I held the first PATCH, took its event cursor, then sent three unexpected requests: GET `/api/providers`, POST `/api/platforms/P/deployments`, PATCH `/api/platforms/P/deployments/D`. All three forwarded; the case's current zero-event assertion still saw **0**. Arming the repaired helper observed all **3**. A second control sent HEAD/PUT/OPTIONS under the four-method `noMutation` rules: **0 observed**, versus **3** with the all-method helper.
+
+Command: `node /tmp/cogniate-review-a-ae130a3-gate-gap-probe.mjs`, exit 0; output `/tmp/cogniate-review-a-ae130a3-gate-gap-probe.log`. This proves the observation defect, not that the production handler currently makes those forbidden calls. The files are older unchanged paths newly identified in this re-review, not a regression introduced by the three repair commits. I reported the finding promptly to Lead in `msg_55731d8888b8`.
+
+**Suggested repair:** use the existing all-method helper in these remaining no-call windows, with the specific hold rule before catch-alls and capture armed before the cursor. Preserve the held request, replacement grant, 409 result, negative window and later cancellation/recovery assertions. Add a caller-level control that injects an unexpected request while the original hold remains active and proves the zero-call assertion fails. Audit other narrow-rule callers that claim absence of all traffic; do not weaken the assertion or substitute final remote state.
+
+### CLI, M2 and full inventory
+
+The shared host CLI correction at `tests/host/m1-control.mjs:20` supplies `--workdir /repo` before the service name, then invokes the actual service workspace script. Compose mounts and both service manifests support that path. The new self-test exercises the real file-control handler with captured subprocess calls, preserving arguments, return code, stdout/stderr, secret registration and the command whitelist. It passed. Real container CLI execution is separate QA evidence; the Lead's 14-case PARTIAL preflight report includes both CLIs.
+
+The M2 Copy/row-order repair preserves the four rows and all Copy/clipboard checks. My supplemental probe of the actual assertion blocks reproduced the old scroll failure, passed the repaired loop, and rejected reversed rows, wrong values, wrong clipboard contents and a missing Copy control. M2's prior actual `eb43247` **35 PASS / 29 FAIL** record remains history. Neither the source correction nor the 14-case preflight is a full repaired M2 PASS.
+
+Git comparison confirmed no change to common/Blackboard/Canvas manifests, the M2 manifest, `tests/host/run-m1.mjs` or `m1-phases.mjs`. The full runner still requires **both complete runs at the same frozen SHAs**, each inventorying `sim`, `snapshot-isolated`, `snapshot-upgrade` and `migration`; it compares per-case results, then runs legacy separately. Default-profile T7/Moodle browser regression remains separate and mandatory. Populated old-011/012 and paired Moodle backup/rollback evidence are still required in their respective phases. There was no migration or contract change.
+
+### Reviewed files and independent checks
+
+Read the complete harness delta: common `gate-capture.mjs`, its declaration/self-test, `snapshot.ts`, `snapshot-migration.probe.ts`; Blackboard `02-snapshot-isolated.test.ts`, `52-snapshot.test.ts`; Canvas `51-canvas-races.test.ts`, `52-canvas-snapshot.test.ts`; `tests/host/m1-control.mjs` and its self-test; and M2 `02-canvas-wizard.m2.ts`. Rechecked the actual gate, snapshot/audit oracles, old Blackboard 30/50 callers, Canvas/common helper call sites, Compose/service CLI layout, full-run phase accounting and unchanged manifests.
+
+```sh
+node tests/host/run-m1.mjs --harness-only --provider all
+node tests/e2e/host/run-m2.mjs --harness-only
+node --test tests/acceptance/M1/canvas/snapshot-oracle.selftest.mjs
+node /tmp/cogniate-review-a-ae130a3-gate-gap-probe.mjs
+node /tmp/cogniate-review-a-ae130a3-row-probe.mjs
+```
+
+All exited 0. M1: **31 self-tests**, typecheck, **392 API + 24 host rows** discovered; log `/tmp/cogniate-review-a-ae130a3-harness.log`. M2: **2 self-tests**, typecheck and **64 rows**; log `/tmp/cogniate-review-a-ae130a3-m2-harness.log`. Canvas oracle: **3 self-tests**; log `/tmp/cogniate-review-a-ae130a3-canvas-oracle.log`. No self-test skip. The gate probe reproduced A-M3-02; exit 0 means its diagnostic assertions passed, not that the candidate's affected acceptance cases are adequate.
+
+M1 Round 3 records my **207 passing focused product tests** and **20 independent grouped engine/transport/audit probes**. Those probes do not replace the independent acceptance suite or use an internal binding fixture as its oracle. Neither private probe starts a stack or browser.
+
+### Evidence boundary
+
+Lead reported an exact-SHA clean root check of **1,032 tests / 69 files / zero skips** in `msg_db27b9cc3f43`. Lead relayed QA's **14/14 PARTIAL SIM preflight** in `msg_7ac69e393e11`, with both real CLIs, selected repaired capture cases, scoped cleanup and evidence scanning. These are attributed Lead/QA results, not my execution and not full M1/M3 PASS.
+
+The newly reported A-M3-02 gap needs correction and review. Both full M1 inventories, migration/rollback, legacy, complete repaired M2 and default-profile T7/Moodle execution remain separate gates at this evidence boundary. A later source approval or selected-case PASS must not erase historical failures or promote SIM to live evidence. All 32 live matrix rows remain UNVERIFIED.

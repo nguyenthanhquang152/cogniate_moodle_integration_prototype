@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # M2 review: Reviewer-A (correctness and security)
 
@@ -95,3 +95,35 @@ node tests/e2e/host/run-m2.mjs --harness-only
 The unit command passed **51 tests in 7 files, zero skips**, exit 0. Log: `/tmp/cogniate-review-a-eb43247-m2-unit.log`. The harness-only command passed **2 self-tests** and tests typecheck, and discovered/accounted for **64 browser cases**, with T7 selection unchanged, exit 0. Log: `/tmp/cogniate-review-a-eb43247-m2-harness.log`.
 
 These are supplemental checks, not the 64 browser cases themselves. Screenshots, keyboard/axe behavior, actual route races and complete SIM flows still require the authorized QA run. Live Canvas and Blackboard rows remain unverified, and no SIM result is promoted to live evidence.
+
+## Round 3 (2026-10-20): correction and actual-failure recheck
+
+| Item | Value |
+| --- | --- |
+| Verdict | **APPROVE** for the bounded M2 source/harness corrections. This does not convert the earlier browser FAIL to PASS or approve the integrated acceptance gate; M3 has new MAJOR A-M3-02. |
+| Exact product/test SHA | **`ae130a3501f3a2502c6a34e36319629e3dcdfb09`**, delta from `eb43247d02df622d5da72dafac41d919f65a91fe`, in detached clone `/tmp/cogniate-review-a-ae130a3.ketuxd`. |
+| Repairs | Common host CLI `41ee174ddcd4cd5c925b09d7c57ef9f8ceaa03b9`; Canvas row-order/capture `feb36b112edd4173094e0ba3d38ccfc0a549fb35`; backend `ae130a3501f3a2502c6a34e36319629e3dcdfb09`. Applied contracts remain `ccdd9ef67cdd2be4c6af374136777fda4e081943`. |
+| Reviewer and scope | Retained independent replacement Reviewer-A, Codex GPT-6-Astra xhigh, task `task_e0177b2e9a56`, dispatch `ctx_2b5524d3ba70`. No delegation. Used earlier submitted reports only; did not read Reviewer-B's new re-review. No browser, stack, product/test edit, commit or push. Reports held for Lead. |
+
+### Actual failures and repair disposition
+
+The historical full M2 run at **`eb43247` remains 35 PASS / 29 FAIL**, zero skips or retries, as recorded in `qa.md`. Of those failures, QA identified 28 blocked by the shared operator-command cwd and one caused by row-order measurement after Copy scrolling. That historical result is not removed or reclassified by this source review.
+
+- **Q-M2-CLI: source correction accepted.** `tests/host/m1-control.mjs:20` explicitly runs Compose exec with `--workdir /repo`, then selects `services/cogniate-app` or `services/lti-service` with npm `-w`. Both service directories, their manifests and the root manifest are mounted there in the real Compose layout. Service routing, argument arrays, whitelist, exit code, stdout/stderr and evidence redaction remain intact. The new file-control self-test checks the actual handler against both Compose service layouts, success and failure, literal special characters in an argument, and a rejected command. It passed as part of the 31 M1 self-checks. Lead separately reported that both real CLIs passed QA's 14-case PARTIAL preflight; that runtime evidence is not my execution or a complete M2 rerun.
+- **Q-M2-ORDER: source correction accepted.** `tests/e2e/M2/02-canvas-wizard.m2.ts:93`–`:108` measures all four rows before any Copy click. A separate loop retains all four Copy and exact clipboard assertions. Four-row count, visible labels/values and strict order remain checked. A Copy-induced scroll can no longer invalidate the next viewport-position comparison.
+- **No portal product delta.** This candidate changes no `apps/portal/**` source. Earlier approval-code clearing, route/library isolation, neutral readiness error, Blackboard two-Submit/unverified instructions and unchanged Moodle texts retain their prior review disposition. This round adds no live vendor verification.
+
+### Independent supplemental checks
+
+```sh
+node tests/e2e/host/run-m2.mjs --harness-only
+node /tmp/cogniate-review-a-ae130a3-row-probe.mjs
+```
+
+The harness-only command passed **two self-tests**, tests typecheck and **64 discovered/accounted browser cases**, with T7 separate; exit 0, log `/tmp/cogniate-review-a-ae130a3-m2-harness.log`. Git comparison confirmed the M2 manifest is unchanged.
+
+The scratch row probe executes the actual old and repaired assertion blocks, with only the page/expect/clipboard boundary supplied in memory. Its Copy control changes the simulated viewport scroll: the old loop fails and the repaired loop passes with four copies. Four negative controls still fail: reversed rows, wrong visible value, wrong clipboard contents and a missing Copy button. Exit 0; script `/tmp/cogniate-review-a-ae130a3-row-probe.mjs`, output `/tmp/cogniate-review-a-ae130a3-row-probe.log`. This is an internal harness diagnostic, not a browser or rendered-layout test.
+
+Reviewed files: the full row-test delta, shared `tests/host/m1-control.mjs` and its self-test, both service script manifests and Compose working-directory/mount declarations, plus the unchanged M2 manifest/runner selection. Product and gate probes are recorded in M1/M3 Round 3.
+
+At this report's evidence boundary, full repaired M2 browser results, keyboard/axe flows and default-profile T7/Moodle regression remain QA execution gates. A later partial preflight or source approval cannot substitute for them. The 32-row live matrix remains UNVERIFIED.
