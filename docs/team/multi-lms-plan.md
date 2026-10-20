@@ -77,7 +77,22 @@ It was committed on the Canvas branch as `1f8ebc5` and merged into integration a
 This is WIP interface evidence, not product acceptance.
 The Blackboard owner received the typed wizard interface in `msg_b274eddbc535`.
 The provider-aware player text request is `msg_808ad19bf8c6`.
-Shared portal helper exports are planned in `msg_3e366e64c0b7` and forwarded in `msg_7b59a572eade`; they await a checked integration slice.
+The next Canvas slice was committed as `51f685a` and merged as `4876253`.
+It adds the Canvas setup wizard, configuration export UI, approval forms and shared portal helpers.
+Author checks passed: portal typecheck, targeted lint and 34 unit tests.
+The Blackboard owner can now use the shared tool rows, error notices, form lifetime hook and copy fallback.
+These are author checks, not independent feature acceptance.
+
+The teams agreed on the player interface in `msg_a05ac85fc3b8` and `msg_7df7bdfe2bcc`.
+The backend emits `data-lms-name` on the play page element and the content-origin runtime body.
+Its value is `Moodle`, `Canvas` or `Blackboard`, derived from the stored connection.
+The player accepts only these values and defaults to Moodle.
+`playStatusText(status, lmsName)` also defaults to Moodle and preserves its existing text.
+
+QA's simulator interface is committed in `7738dc3`, in `docs/reviews/M1/qa-plan.md`.
+Canvas QA uses that interface when a worker slot becomes free.
+The token assertion audience is a scalar for Canvas and an array for Blackboard.
+The queued Canvas task's earlier shorthand about an audience array does not change this contract.
 
 ### Initial role assignment (history)
 
