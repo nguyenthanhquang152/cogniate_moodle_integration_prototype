@@ -33,6 +33,11 @@ The old Claude session stays retained but has no edit authority for the retry.
 Canvas, both QA owners and both reviewers keep their existing assignments and independence.
 No second backend editor, broader file scope or extra active worker is authorized.
 
+The replacement completed the backend repair in `ctx_1cb6714a155b`; the Lead committed it at `a8580dd`.
+The same dedicated replacement also owns the queued author startup smoke, `task_0ea1b07b3397`.
+This extends the instance exception to that task only, with its existing infrastructure scope and isolated author lane.
+The original Claude Author stays retained without edit authority. Independent QA and review ownership stays separate.
+
 ### Canvas QA quota replacement (2026-10-20)
 
 The retained Claude Canvas QA session also ended at the same provider limit when `task_1276def76f95` started.

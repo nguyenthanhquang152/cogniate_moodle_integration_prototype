@@ -544,6 +544,16 @@ Its selection discovers 166 API cases and 17 host rows; 27 self-checks, typechec
 Full inventory correctly fails until the 11 required Canvas rows exist. No product or stack run occurred.
 The Canvas QA retry received the frozen common interface and inventory in `msg_6962666ea78b`.
 
+The backend replacement completed `task_de758fb0e31a` in `msg_204ddcfa7578`.
+Its 12 held paths are committed at **`a8580ddea51db354a743ba469d8ad0e53878c030`**.
+The Lead checked every file against the report's SHA-256 values before committing.
+The final author check passes lint, typechecks and 996 tests in 69 files, with real course fixtures and zero skips.
+Log: `/tmp/cogniate-backend-snapshot-final-check.log`; report: `/tmp/cogniate-backend-snapshot-report.md`.
+This completes implementation of the accepted snapshot repair. B-M1-03 still needs independent review and acceptance.
+The same replacement is retained for the separate author startup smoke, `task_0ea1b07b3397`, at this exact product revision.
+The [team brief](multi-lms-team-brief.md) extends the instance exception to that task and preserves its original scope.
+Canvas QA preparation remains active; both combined reviews wait for its committed harness.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
