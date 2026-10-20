@@ -10,15 +10,17 @@ The Moodle release below is the completed baseline.
 | Task | Owner | Status | Evidence |
 | --- | --- | --- | --- |
 | M0 | Architect; independent QA and reviewers | Done for design scope | Round 3 at `158a4d8`: A APPROVE, B APPROVE, QA PASS for design testability. Nonblocking A-M0-11, A-M0-12 and B-M0-10 text corrections applied. No open BLOCKER or MAJOR. |
-| M1 | Blackboard and Canvas teams; one shared engine owner | Implemented; verification pending | Both author tasks are complete. Default-profile author smoke passed; its CLI audit-log fix is committed in `1e2c81f`. The Lead's isolated combined check passes lint, typechecks and 876 tests. Acceptance-profile startup and independent verification remain pending. [Exclusive paths and handoffs](multi-lms-team-brief.md). |
+| M1 | Blackboard and Canvas teams; one shared engine owner | Review fixes in progress | Both original author tasks are complete. Isolated check at `76b03c7`: lint, typechecks and 889 tests pass. Reviewer-B found two MAJOR issues: disabled-grade races and maintenance guards that allow unknown service state. The backend author is fixing them in `ctx_02a94eea74ad`. [Exclusive paths and handoffs](multi-lms-team-brief.md). |
 | M2 | Blackboard and Canvas teams; one owner per shared portal file | Implemented; verification pending | Both wizards are mounted. Duplicate Blackboard text is fixed in `92f9f12`. Combined implementation check at `1e2c81f`: 876 tests in 66 files. Author browser evidence covers 11 mocked stages; independent product verification remains pending. |
-| M3 | QA (Codex), QA-E2E (Claude) | Test preparation in progress | Common/Blackboard preparation `6733e57`: 144 API cases, 12 host checks and 16 passing harness self-checks. Canvas/browser QA is active in `ctx_2289f5d57f67`. No product acceptance run yet. Real Canvas and Blackboard checks remain unverified. |
+| M3 | QA (Codex), QA-E2E (Claude) | Prepared; harness corrections pending | Canvas/M2 preparation is committed in `9964e6f`: 222 Canvas rows and 64 browser rows. Full M1 discovery: 359 API cases plus 19 host/browser rows. Harness checks pass; Reviewer-B found two MAJOR browser-test flaws. Clarification and QA correction tasks are queued before product runs. Real Canvas and Blackboard remain unverified. |
 | M4 | Docs and Architect | Queued | Final conformance, guides, offline review page and three independent documentation checks have explicit tasks and evidence gates. |
 
-Both implementation tasks are complete; independent product verification is pending.
-Reviewer-A's static checkpoint has no open finding after the A-M1-01 fix in `76b03c7`.
-The app now restricts `LTI_API_URL` to the acceptance profile; the author and isolated Lead checks pass 889 tests.
-Final review waits for the complete Canvas/browser harness. No push is authorized.
+Both original implementation tasks are complete; independent product verification is pending.
+Reviewer-A closed A-M1-01 at `76b03c7` and checked the prepared harness at `9964e6f`.
+Reviewer-B has four open MAJOR findings: B-M1-01, B-M1-02, B-M3-01 and B-M3-02.
+Its MINOR B-M2-01 adds the final Blackboard Submit instruction.
+Both reviewers will finish round-1 reports before a fresh round-2 review of the fixes.
+No product gate has passed. No push is authorized.
 
 ## Completed Moodle baseline
 

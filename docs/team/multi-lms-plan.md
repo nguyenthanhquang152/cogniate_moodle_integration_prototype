@@ -233,9 +233,52 @@ With the guard fix complete and Canvas preparation still active, Reviewer-B star
 Handoff `msg_7da9e4f23266` supplies frozen candidate `76b03c7` and the isolated 889-test check.
 It reuses the retained GPT-6-Astra xhigh session and reviews independently of Reviewer-A.
 Like Reviewer-A, it must inspect the complete committed harness supplement before final reports and settlement.
-Both reviewers and Canvas QA now occupy the three worker slots.
+At that checkpoint, both reviewers and Canvas QA occupied the three worker slots.
 The author infrastructure smoke waits for the checked Canvas module and the next free slot.
 This avoids an idle review slot while keeping every verification gate.
+
+Canvas/M2 QA preparation completed in `msg_008313464d19`; the same instance remains retained.
+Its 31 paths are committed in `9964e6f`.
+The inventory has 222 Canvas M1 rows (215 API, seven browser) and 64 M2 browser rows for both providers.
+Full M1 discovery accounts for 359 API cases and 19 host/browser rows; 21 harness self-checks and typecheck pass.
+M2's two harness self-checks, typecheck and 64-row accounting pass; the T7 selection remains 18.
+No stack or product call ran in this preparation task.
+Reviewer-A checked this supplement in `msg_478694142449` and reports no new finding from its lens.
+
+Reviewer-B reproduced two product MAJORs in `msg_fe92ec471501`:
+
+- B-M1-01: stale batch state permits a new grade POST after a connection is disabled, including during line-item lookup.
+- B-M1-02: failed Docker or compose state checks permit backup/restore instead of refusing unknown service state.
+
+The retained backend author is fixing them in `task_3ad990ed7771`, dispatch `ctx_02a94eea74ad`.
+Handoff `msg_779d98e9768c` includes four independent probes and requires regression tests and a full root check.
+Its additional MINOR B-M2-01 is the missing final Blackboard Submit instruction, routed in `msg_67647d0b44a3`.
+That supplemental ownership is limited to the author's Blackboard steps and existing unit-test file.
+
+Reviewer-B also found two harness MAJORs in `msg_f28b7dbcbfaa`.
+B-M3-01 covers an invented wizard transition, the wrong connection-list location and incomplete baseline/label checks.
+B-M3-02 covers full-page navigation that destroys the stale-state observer or resets the form under test.
+The corrections must preserve every behavior assertion and use real client-side navigation.
+They are mandatory in the final QA alignment task below.
+
+Both reviewers now finish round-1 reports on `9964e6f`, with product code at `76b03c7`.
+Messages `msg_b111ba3ce99a` and `msg_79c736363acc` replace the earlier instruction to wait for author repairs.
+They will be retained for fresh round-2 reviews of all committed fixes.
+A completed review task does not mean a passing verdict or a completed product gate.
+This frees worker slots for the proper repair owners.
+
+| Pre-verification follow-up | Task | Gate |
+| --- | --- | --- |
+| Architect: clarify Canvas domain, pending endpoint precondition and initial-grant check order (C-1 to C-3) | `task_52f5846266a5` | Accepted contract clarification, no silent design change |
+| QA-E2E: exact oracles, B-M3-01/B-M3-02 and approved selectors | `task_ef66f1c5c7ed` | Architect clarification and author repair; then checked, committed harness |
+
+For H-3, QA may read the accepted pre-M2 baseline `9e24137` and assert the exact Moodle disconnect text.
+For H-6, the Lead approves only the M2 label-table changes in `tests/e2e/lib/portal.ts`, with affected test IDs recorded.
+For H-1, QA may now read final portal structure to align selectors; all behavior assertions remain.
+For H-7, retain the existing M2 host runner and infra helper interface; do not add a second selection path.
+C-4's optional rotation host action is not added; its live matrix row stays unverified.
+The two product-verification tasks are explicitly blocked on these internal gates and the acceptance startup smoke.
+The Lead reopens them only after the exact product/test revisions and lanes are ready.
 
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
