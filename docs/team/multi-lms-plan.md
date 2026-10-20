@@ -786,6 +786,19 @@ Common QA continues the separate A-M3-02 capture repair without a stack.
 These are the three active workers; Reviewer-B stays queued until a slot and the committed repair candidate are ready.
 No full acceptance, final conformance, guide completion, push or main merge is implied.
 
+Human review flag under the charter's Round 3 rule: A-M3-02 is a newly found MAJOR in older test paths.
+It remains an explicit blocker, not an accepted deferral. Its report and eventual correction must appear in the human review history.
+The bounded repair addresses this new finding; it does not erase Round 3 or reopen the closed original locations.
+
+The portal author reproduced a build defect at `ae130a3`: player entry files import a generated shared chunk that the existing asset routes cannot serve.
+QA's retained learner-window logs corroborate script 404s and show no runtime state request.
+The author fixes the independent-entry build within `apps/player/**`; the existing security routes and course assertions stay unchanged.
+The route failure still requires source reproduction: QA observed a history/DOM mismatch but did not prove late response repopulation.
+
+Canvas QA traced the diagnostic gap to direct `doCourse` use without request-time token capture.
+It repairs its own browser capture and timeout diagnostics. Lead message `msg_64f4c9d8cff5` assigns common QA the shared recorder type extension for `play_id` and `picker_id`.
+Both owners retain one private recorder and hold their disjoint paths for Lead commit. These checks do not start a stack.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
