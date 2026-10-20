@@ -71,10 +71,10 @@ export function MoodleBackup({
   }
   return (
     <section
-      aria-label="Moodle backup"
+      aria-label="Moodle backup (.mbz) – Moodle only"
       className="flex flex-col gap-3 border-t border-border pt-5"
     >
-      <h3>Moodle backup</h3>
+      <h3>Moodle backup (.mbz) – Moodle only</h3>
       <div>
         <Button
           variant="secondary"

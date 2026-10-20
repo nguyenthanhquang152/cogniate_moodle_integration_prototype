@@ -1,0 +1,166 @@
+// @vitest-environment jsdom
+import { createElement as h } from "react";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
+import { App } from "./App.tsx";
+import { Integrations } from "./Integrations.tsx";
+import { PublishDialog } from "./courses/PublishDialog.tsx";
+import { DisconnectDialog } from "./connect/DisconnectDialog.tsx";
+import { BLACKBOARD_NOT_READY } from "./lms.ts";
+import type { Connection, Course, Lms, LmsProvidersResponse, Publication, Session } from "./types.ts";
+
+const session: Session = { user: { id: "usr_a", name: "Author", email: "author@example.test", role: "owner" }, library: { id: "lib_a", name: "Library A" } };
+function connection(lms: Lms, id: string = lms, status: Connection["status"] = "registered"): Connection {
+  return {
+    id, lms, name: "School", siteUrl: `https://${lms}.school.test`, serviceUrl: `https://${lms}.service.test`,
+    profile: lms === "moodle" ? "standard" : `${lms}-sim`, method: "manual", status,
+    capabilities: { dynamicRegistration: lms === "moodle", operatorApproval: lms !== "moodle", webServices: lms === "moodle", courseShell: lms === "moodle", addDeployment: lms === "canvas", canvasConfiguration: lms === "canvas" },
+    registrationUrl: null, registrationUrlExpiresAt: null, createdAt: "2026-10-20T00:00:00Z", lastLaunchAt: null, lastError: null, webServices: null,
+    platform: { id: `plt_${id}`, issuer: `https://${lms}.issuer.test`, clientId: `client_${id}`, deploymentIds: [`dep_${id}`], productFamilyCode: lms, siteUrl: `https://${lms}.school.test`, serviceUrl: `https://${lms}.service.test` },
+  };
+}
+const all = (["moodle", "canvas", "blackboard"] as const).map((lms) => connection(lms));
+const providers: LmsProvidersResponse = {
+  lms: all.map((c) => ({
+    lms: c.lms, label: c.lms, methods: ["manual"], capabilities: c.capabilities,
+    profiles: [{ id: c.profile, label: `${c.lms} (simulation)`, ready: c.lms !== "blackboard", simulation: true, clientId: null }],
+  })),
+};
+const course = {
+  id: "crs_a", title: "Safety", versions: [{ id: "ver_a", version: 1, format: "html" }],
+} as Course;
+const publication: Publication = {
+  id: "pub_a", lms: "canvas", connectionName: "School Canvas", connectionId: "canvas",
+  courseId: "crs_a", courseTitle: "Safety", versionId: "ver_a", version: 1, format: "html",
+  status: "available", createdAt: "2026-10-20", updatedAt: "2026-10-20",
+  moodleCourse: null, shellStatus: null, shellError: null,
+  stats: { activities: 1, learners: 1, inProgress: 0, completed: 1, passed: 1, failed: 0, lastScoreSync: null },
+};
+const fetchMock = vi.fn();
+const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
+function defaultFetch(path: string) {
+  if (path === "/app-api/me") return json(session);
+  if (path === "/app-api/connections") return json({ connections: all });
+  if (path === "/app-api/lms-providers") return json(providers);
+  const found = all.find((c) => path === `/app-api/connections/${c.id}`);
+  if (found) return json(found);
+  throw new Error(`Unexpected test request: ${path}`);
+}
+function app(path: string) { return render(h(MemoryRouter, { initialEntries: [path] }, h(App))); }
+beforeEach(() => {
+  vi.stubGlobal("fetch", fetchMock);
+  fetchMock.mockReset().mockImplementation(async (path: string) => defaultFetch(path));
+  HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
+  HTMLDialogElement.prototype.close = function () { this.removeAttribute("open"); };
+});
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+it("isolates newest card status by LMS with equal names/times and a stable id tie break", async () => {
+  fetchMock.mockImplementation(async (path: string) => path.endsWith("/connections") ? json({ connections: [
+    connection("canvas", "canvas-a", "pending"), connection("blackboard", "blackboard-z", "connected"),
+    connection("moodle", "moodle-z", "disabled"), connection("canvas", "canvas-z", "registered"),
+  ] }) : json(providers));
+  render(h(MemoryRouter, null, h(Integrations)));
+  await waitFor(() => expect(screen.getAllByRole("link", { name: /Manage/ })).toHaveLength(3));
+  for (const [name, id, status] of [["Moodle", "moodle-z", "Disconnected"], ["Canvas", "canvas-z", "Registered"], ["Blackboard", "blackboard-z", "Connected"]]) {
+    const card = within(screen.getByRole("article", { name }));
+    expect(card.getByRole("link", { name: /Manage/ }).getAttribute("href")).toBe(`/integrations/${name!.toLowerCase()}/${id}`);
+    expect(card.getByText(status!)).toBeTruthy();
+  }
+  fireEvent.click(screen.getByRole("tab", { name: "LMS Publishing" }));
+  expect(screen.getAllByRole("article")).toHaveLength(4);
+});
+
+it("disables Blackboard creation with the operator readiness explanation", async () => {
+  fetchMock.mockImplementation(async (path: string) => path.endsWith("/connections") ? json({ connections: [] }) : json(providers));
+  render(h(MemoryRouter, null, h(Integrations)));
+  const card = within(screen.getByRole("article", { name: "Blackboard" }));
+  await card.findByText(BLACKBOARD_NOT_READY);
+  expect((card.getByRole("button", { name: "Connect" }) as HTMLButtonElement).disabled).toBe(true);
+  expect(within(screen.getByRole("article", { name: "Canvas" })).getByRole("link", { name: "Connect" }).getAttribute("href")).toBe("/integrations/canvas/connect");
+});
+
+it.each(["/integrations/blackboard/canvas", "/integrations/unknown/canvas", "/integrations/canvas/foreign"])("shows not found without exposing connection settings at %s", async (path) => {
+  fetchMock.mockImplementation(async (url: string) => url.endsWith("/connections/foreign") ? json({ details: { message: "NOT_FOUND" } }, 404) : defaultFetch(url));
+  app(path);
+  await screen.findByRole("heading", { name: "Page not found" });
+  expect(screen.queryByText("https://canvas.school.test")).toBeNull();
+  expect(screen.queryByLabelText("Approval code")).toBeNull();
+  expect(fetchMock.mock.calls.some(([url]) => url.includes("/tool-configuration"))).toBe(false);
+});
+
+it("shows canonical Canvas values and deployment ids with only Canvas capabilities", async () => {
+  app("/integrations/canvas/canvas");
+  await screen.findByRole("heading", { name: "Add deployment ID" });
+  expect(screen.getByText("https://canvas.school.test")).toBeTruthy();
+  expect(screen.getByText("Canvas service URL: https://canvas.service.test")).toBeTruthy();
+  expect(screen.getByText("dep_canvas")).toBeTruthy();
+  expect(screen.getByRole("link", { name: /Open Canvas/ }).getAttribute("href")).toBe("https://canvas.school.test");
+  expect(screen.queryByText(/Web services/)).toBeNull();
+  expect(screen.queryByText(/activate in Moodle/)).toBeNull();
+  expect(screen.getByRole("heading", { name: "Add a Cogniate course in Canvas" })).toBeTruthy();
+});
+
+it("clears the old connection immediately when navigating to a different LMS", async () => {
+  let finish!: (value: Response) => void;
+  fetchMock.mockImplementation((url: string) => url === "/app-api/connections/blackboard"
+    ? new Promise<Response>((resolve) => { finish = resolve; }) : Promise.resolve(defaultFetch(url)));
+  app("/integrations/canvas/canvas");
+  await screen.findByRole("heading", { name: "Add deployment ID" });
+  fireEvent.change(screen.getByLabelText("LMS connection"), { target: { value: "blackboard" } });
+  expect(screen.queryByText("https://canvas.school.test")).toBeNull();
+  expect(screen.queryByLabelText("Approval code")).toBeNull();
+  await act(async () => finish(json(all[2])));
+  await screen.findByText("https://blackboard.school.test");
+  expect(screen.queryByRole("heading", { name: "Add deployment ID" })).toBeNull();
+});
+
+it.each(["canvas", "blackboard"] as const)("never offers or sends Moodle native course creation for %s", async (lms) => {
+  const c = { ...connection(lms), webServices: { siteName: "Malformed unrelated service", release: "5.2" } };
+  fetchMock.mockImplementation(async (url: string) => url.endsWith("/connections") ? json({ connections: [c] }) : json({ ...publication, lms }));
+  const onPublished = vi.fn();
+  render(h(MemoryRouter, null, h(PublishDialog, { course, onClose: vi.fn(), onPublished })));
+  await screen.findByRole("option", { name: `School (${lms === "canvas" ? "Canvas" : "Blackboard"}, ${lms}.school.test)` });
+  fireEvent.change(screen.getByLabelText("LMS connection"), { target: { value: lms } });
+  expect(screen.queryByLabelText("Also create an empty Moodle course")).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+  await waitFor(() => expect(onPublished).toHaveBeenCalled());
+  expect(JSON.parse(fetchMock.mock.calls.at(-1)![1].body as string)).not.toHaveProperty("createMoodleCourse");
+});
+
+it("keeps Moodle native course creation when its capability and web services are present", async () => {
+  fetchMock.mockResolvedValue(json({ connections: [{ ...all[0], webServices: { siteName: "Moodle", release: "5.2" } }] }));
+  render(h(MemoryRouter, null, h(PublishDialog, { course, onClose: vi.fn(), onPublished: vi.fn() })));
+  await screen.findByRole("option", { name: "School (Moodle, moodle.school.test)" });
+  fireEvent.change(screen.getByLabelText("LMS connection"), { target: { value: "moodle" } });
+  expect(screen.getByLabelText("Also create an empty Moodle course")).toBeTruthy();
+});
+
+it("uses the Canvas publication DTO and anonymous label throughout results", async () => {
+  fetchMock.mockImplementation(async (url: string) => {
+    if (url.endsWith("/results")) return json({ rows: [{
+      learner: { sub: "anonymous", label: "Learner anonymous @ school-a.canvas.sim.test" },
+      activity: { resourceLinkId: "rl_a", title: "Safety", contextTitle: "School" }, preview: false,
+      best: null, attempts: [], scoreSyncs: [], gradebook: { resultScore: null, resultMaximum: 100, readAt: "2026-10-20" }, gradebookDiffers: true,
+    }] });
+    if (url === "/app-api/publications/pub_a") return json(publication);
+    if (url.includes("/versions/")) return json({ report: { scorm: null } });
+    return defaultFetch(url);
+  });
+  app("/publications/pub_a/results");
+  await screen.findByText("Learner anonymous @ school-a.canvas.sim.test");
+  expect(screen.getByText(/School Canvas/)).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Refresh from Canvas" })).toBeTruthy();
+  expect(screen.getByRole("columnheader", { name: "Canvas sync" })).toBeTruthy();
+  expect(screen.getByText("No grade in Canvas")).toBeTruthy();
+  expect(screen.getByText("Canvas keeps another grade, for example a teacher override")).toBeTruthy();
+  expect(screen.queryByText(/Moodle/)).toBeNull();
+});
+
+it("uses Blackboard-specific disconnect scope and the original Moodle wording", () => {
+  const view = render(h(DisconnectDialog, { id: "blackboard", lms: "blackboard", onClose: vi.fn(), onDisconnected: vi.fn() }));
+  expect(screen.getByText("This switches off Cogniate for this Blackboard site only. Other schools are not affected. Cogniate items in Blackboard courses stop working, and connecting again later does not restore them.")).toBeTruthy();
+  view.rerender(h(DisconnectDialog, { id: "moodle", lms: "moodle", onClose: vi.fn(), onDisconnected: vi.fn() }));
+  expect(screen.getByText("This stops launches through this connection. The tool stays in Moodle.")).toBeTruthy();
+});

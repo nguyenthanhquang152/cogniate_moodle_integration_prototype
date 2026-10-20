@@ -23,7 +23,7 @@ export function Courses() {
             YOUR LIBRARY
           </p>
           <h1 tabIndex={-1}>Courses</h1>
-          <p>Upload a course. Publish it to your connected Moodle sites.</p>
+          <p>Upload a course. Publish it to your connected LMS sites.</p>
         </div>
         <Button variant="primary" onClick={() => setCreate(true)}>
           <Plus size={17} aria-hidden="true" />
@@ -90,7 +90,7 @@ export function Courses() {
                         (p) => p.status === "available",
                       ).length
                     }{" "}
-                    Moodle publications
+                    LMS publications
                   </p>
                   <Link
                     className="inline-flex items-center gap-1.5 text-[12px] text-[#ccc5d9] no-underline hover:text-white"

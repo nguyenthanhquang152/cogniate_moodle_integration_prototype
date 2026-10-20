@@ -13,6 +13,9 @@ import { Publications } from "./Publications.tsx";
 
 export function CourseDetail({ publish = false }: { publish?: boolean }) {
   const { courseId = "" } = useParams();
+  return <CourseDetailView key={courseId} courseId={courseId} publish={publish} />;
+}
+function CourseDetailView({ courseId, publish }: { courseId: string; publish: boolean }) {
   const courseState = useApi<Course>(`/courses/${idPath(courseId)}`);
   const [selectedVersion, setSelectedVersion] = useState("");
   const [publicationRevision, setPublicationRevision] = useState(0);
@@ -52,7 +55,7 @@ export function CourseDetail({ publish = false }: { publish?: boolean }) {
             className={buttonVariants({ variant: "primary", size: "default" })}
             to={`${coursePath}/publish`}
           >
-            Publish to Moodle
+            Publish to an LMS
             <ArrowRight size={16} aria-hidden="true" />
           </Link>
         )}
