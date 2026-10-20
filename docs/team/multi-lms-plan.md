@@ -579,6 +579,22 @@ The retry is `ctx_3604d1e6a48e`, effective `gpt-6-astra` / `xhigh`, handle `stru
 Handoff `msg_270a933f6402` gives its exact candidate, evidence, report scope and independence rules.
 The old Claude session received closure notice `msg_296d8bb69bf3`.
 
+The author startup smoke completed with PASS in `msg_01e5f0382738`, with no repository changes.
+Report: `/Users/quangnguyen/cogniate-author-runs/startup-smoke-20261020T120716Z/evidence/report.md`.
+It verifies the nine acceptance services, TLS, actual simulators, transport controls, and restoration of the five default services.
+The Lead confirmed identical product and simulator runtime bytes between its `a8580dd` source and candidate `eb43247`.
+Cleanup leaves no containers and preserves all seven baseline volumes.
+Background host-runner persistence after a tool session remains unverified; a foreground heartbeat and image readiness passed.
+QA must keep a persistent runner session and check its heartbeat before course builds.
+This limitation does not turn the startup smoke into course-build or product acceptance evidence.
+
+With the smoke complete, common/Blackboard acceptance may run beside the two independent reviews.
+This follows the charter's parallel verification stage and uses the newly free third worker slot.
+The candidate remains `eb43247` for every product and harness check.
+All review, acceptance, migration, Moodle and documentation gates remain required.
+A discovered blocking defect must be routed to its owner; no mixed-revision evidence may pass a gate.
+The Canvas/M2 verification task waits for the next worker slot and an assigned lane.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
