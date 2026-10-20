@@ -316,6 +316,23 @@ This scheduling refinement replaces waiting for the final backend revision solel
 It does not allow product execution, reading uncommitted implementation, weakening assertions, or skipping cases.
 The final product and test revisions, startup smoke, both round-2 reviews and all independent acceptance gates remain required.
 
+The author completed the separate Blackboard instruction repair in `msg_1b3d231b3f20`, committed as `9f96f7b`.
+Six focused tests, portal typecheck and lint pass; the new ordering test fails with the old steps.
+QA received the committed supplement in `msg_320bcbe9119c`.
+The live Learn workflow remains unverified.
+
+The same checkpoint identifies a real data dependency for B-M1-03.
+Current target construction reads provider data before local grant checks because the app has no local shared-platform id or Canvas issuer source.
+The operator's grant issuance also reads providers despite the contract's no-LTI-call wording.
+The Lead did not authorize the proposed exception that would allow provider reads before lease acquisition.
+Reply `msg_3f5dd027395d` holds the engine repair for an explicit Architect decision.
+Architect task `task_82c1af131e8a` must preserve local refusal, saved targets and authoritative remote checks, or submit a precise amendment for independent review.
+
+Reviewer-B started the bounded repair recheck in `task_f13911a45527`, dispatch `ctx_e01f09f551e3`.
+Handoff `msg_3a08c5b1220e` supplies `9aeeddc`; `msg_b9d86bd1e03e` narrows this dispatch to B-M1-01 and B-M1-02.
+It will submit a checkpoint and settle to free the Architect slot.
+Remaining round-2 work needs a fresh dispatch and exact later commits; this checkpoint cannot approve M1, M2 or M3 as a whole.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
