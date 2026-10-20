@@ -1665,6 +1665,25 @@ QA must compare those identities at its run boundary; a mismatch requires new G-
 The diagnostic limits remain. No implementation or runtime acceptance follows from these approvals.
 QA's independent R3B-01 disposition is still pending, so G1 and source implementation remain held.
 
+QA submitted PASS for bounded design testability in `msg_8fab24c0dc58` and closed MAJOR R3B-01.
+Held report SHA-256: `561151be1213d70a3779f6aaed511f711f5ef045a3a9c5410c13846130ba9454`.
+The Lead verified that hash and the unchanged first 68,830 bytes, then retained QA before acknowledgment.
+All R3-01 through R3-07 remain closed. No BLOCKER or MAJOR remains from any of the three checks.
+QA recounted 488 rows: 416 original assertions and 72 storage rows, with unchanged phase totals.
+New nonblocking MINOR G1-QA-01 requires ownership records for containers and networks as well as volumes.
+New nonblocking MINOR G1-QA-02 requires a Docker-clock comparison that accounts for whole-second volume timestamps.
+QA records its inbox exposure to Reviewer-A's summary after completing its own fixture tracing.
+It read no other addendum file and used no G-1 conclusion from that summary.
+QA's reported G-1 limit reflects its earlier handoff; Reviewer-A separately accepted the complete follow-up evidence.
+
+Lead decision: the blocking design findings in escalation G1 are independently closed at revision 3.2.
+This accepts the storage design for implementation; it does not accept the implementation or any runtime result.
+Architect task `task_1131dea487ca` will state the four nonblocking precision corrections: A-S-14, B-S-23, G1-QA-01 and G1-QA-02.
+It changes no product mechanism, protocol, original assertion or row count.
+Those items will remain addressed pending implementation checks, not waived or self-closed.
+The two queued source tasks can start after that contract is frozen and the Lead supplies the exact handoff.
+The human review record must preserve the escalation history and distinguish design closure from all remaining verification gates.
+
 The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
