@@ -497,3 +497,166 @@ Neither a profile's constants nor a passing simulation establishes live interope
 
 Required next step: Architect resolves Q-M0-R2-01 to 06 in the contracts and ACs, then the same QA instance rechecks the frozen correction.
 No M1 product verification or design approval is claimed by this report.
+
+---
+
+## 8. Round 3 — 2026-10-20
+
+**Verdict: PASS — FOR DESIGN TESTABILITY ONLY.**
+
+Reviewed SHA: **`158a4d86fb5764f597ff20e3f652ae6d5225f96b`**, ADR-011 revision 6.
+Task: `task_15510d66f895`. Dispatch: `ctx_e5ddff18c81b`.
+Comparison: revision 5 at `bd9fe36`; completed round-2 reports at `706a278`.
+All source line references in this section refer to the reviewed SHA.
+Rounds 1 and 2 above are unchanged.
+
+The corrected design gives the required fault cases reachable schedules and separate remote-state and app-authority oracles.
+No BLOCKER or MAJOR design-testability finding remains open in this assessment.
+A-M0-10 is the Lead's one accepted MINOR deferral; it is not resolved by this verdict.
+This is `DOC` evidence only. No product behavior, test result or live interoperability is verified.
+
+I read the charter, phase plan, completed M0 reports and the Architect's round-2 response.
+I traced the changed contracts, data model, security rules, flows and affected acceptance criteria.
+The source checks from round 1 remain the provider-fixture basis; unrelated provider research was not repeated.
+No implementation or author audit was used to construct this plan.
+Only this report was changed; no product/design/test file, stack, tenant, account, tunnel, commit, push or subworker was created.
+
+### 8.1 Remaining finding dispositions
+
+“Closed” here means that the design now supplies a consistent test oracle, not that the future implementation has passed it.
+
+| Finding | Round-3 disposition | Contract and acceptance evidence |
+| --- | --- | --- |
+| Q-M0-R2-01; B-M0-09 | CLOSED for design testability | App lines 389–412 and 429–440 distinguish live replies, timed-out late writes and dead handlers. M1-37(d–g, i, n–r) names reachable schedules. M3 lines 71–78 define request ids, phases, caller disconnect, late forwarding and limits. No old request is expected to resume after a timeout. |
+| Q-M0-R2-02; B-M0-08; A-M0-09, and the outstanding part of A-M0-02 | CLOSED for design testability | Targets are saved before calls (app lines 365–368; data model lines 411–439); exact lookup filters are defined (LTI line 552). Fence-out and release use current owned refs, not a missing final connection ref (app lines 461–465, 509–511). M1-37(c/c2, t, u) and M1-38(f/g) cover lost replies, cancellation, corrected values, late creates and an old delete against a newer binding. |
+| Q-M0-R2-03; B-M0-07 | CLOSED for design testability | Phase 2 alone commits approval (app line 408); launch routing requires that deployment's approval (line 582); a remote active row is not an idempotent repeat (line 458). M1-37(p/s) keeps `dA` usable while denying unapproved `dA2`, then tests retry and grant-specific cleanup. |
+| B-M0-03 | CLOSED for design testability | One lease per connection, S0 before calls, older-ref rules, ref rotation and activation in the same conditional request address both reported schedules. App lines 382–406; LTI lines 658–664; M1-37(f, n, q, r). Explicit traces are below. |
+| Q-M0-R2-04 | CLOSED for design testability | M1-07 now uses valid `a/b:c`; `a/b c` has a precise `400 INVALID_REQUEST`/`deploymentId` refusal in the LTI schema, line 556. |
+| Q-M0-R2-05 | CLOSED for design testability | App line 385 fixes check-5 precedence; M1-37(l) and M2-06 expect `422 GRANT_MISMATCH`. The unreachable defensive `DEPLOYMENT_FIXED` branch is explicitly an author unit test, not a database-seeded QA case. |
+| Q-M0-R2-06 | CLOSED for design testability | App line 469 and M1-38(a) specify a future-due row, two real 503 score answers, due-time failure, unchanged tries, no further POST, and a finite polling deadline. |
+| Q-M0-03 from round 1 | CLOSED for design testability | Its remaining gaps were carried into Q-M0-R2-01 to 03. Their closure now completes the earlier recovery finding. Other round-1 QA closures in §7.1 remain closed. |
+| A-M0-10 | ACCEPTED MINOR DEFERRAL; remains a limitation | Lead direction, ADR-011 lines 165–167, D-12/R-M-16, app line 512, M1-39 and M4-08 accurately preserve the race and require its documentation. See §8.4. |
+
+### 8.2 Traces of the disputed schedules
+
+These are deductions from the frozen protocol, not execution results.
+Reviewer-A's round-2 statement that held writes and stale compensation were already safe was broader than the schedules justified.
+B-M0-03 and B-M0-07 remain the controlling counterexamples to revision 5; their closure relies on revision 6's new rules.
+
+**B-M0-03, schedule 1: replacement before the old create returns.**
+M1-37(q) holds attempt A's S1 before forwarding it.
+Issue G2 while A still holds the connection lease; G2's first redemption must return `409 GRANT_IN_USE` and send no LTI call.
+A's five-second timeout returns `502` and ends its handler.
+G2 can then create, activate and commit B.
+Only then release A's old S1: uniqueness gives upstream `409 …_ALREADY_EXISTS`; the dead handler cannot read B's ref or adopt it.
+The resulting platform/deployment must retain B's ref and working launch.
+M1-37(f) separately tests a live S3 reply: replacement still waits, A cancels and compensates, then B starts.
+An older-attempt/newer-ref defensive branch is also required in the author's unit tests (M1 line 180); QA does not invent an impossible overlapping app handler to reach it.
+
+**B-M0-03, schedule 2: compensation between read and activation.**
+Use M1-37(n) to obtain a held compensation, with its new ref already recorded before B starts.
+Let that compensation's caller time out; A returns `403`, logs compensation failure and releases the lease.
+B reads the still-active old ref. Hold B's first S3.
+Now deliver A's compensation: it succeeds and changes both `active` and the ref.
+B's first S3 therefore gets `409`, even though its earlier read was valid.
+Its second S2 sees an inactive adoptable record, and its second S3 sets `active: true` with a fresh ref before phase 2 commits.
+M1-37(r) requires `200`, the final active state, and a working launch/grade.
+The compensation ref is in B's older history because it was recorded before B's phase 1; its later network delivery does not make the history entry newer.
+
+**Remote comparison is not ref-history enforcement.**
+LTI lines 657–661 require rotation on a conditional PATCH and atomically compare only the current value.
+A raw API holder can still create an ABA sequence (`r1 → r2 → r1`); the LTI service promises no history-based prevention.
+The app's guarantee depends on unique, never-reused refs recorded before transmission (app lines 368, 420; data model lines 429–438, 516).
+M1-07 tests the remote comparison and rotation; M1-37(n/r) tests delayed app writes.
+These tests must not claim to prove the app's write-ahead transaction or uniqueness implementation; the specified author checks and independent code review cover those internal properties.
+
+**B-M0-07 / Q-M0-R2-03: Canvas D2 before approval.**
+M1-37(p) starts from an approved, working D1.
+After a timed-out D2 create, revoke finds nothing; the late S1 then creates an inactive D2, whose launch gives `DEPLOYMENT_NOT_ACTIVE`.
+A repeated revoke finds and fences it.
+The late-S3 variant creates an active D2 without approval: the app returns `UNKNOWN_PLATFORM` with `deployment_not_approved`, and creates no picker, attempt or service-key use.
+M1-37(s) adds lost-S3-response retry and a dead-handler case before approval; only a successful phase-2 commit adds D2 to the connection DTO and permits its launch.
+The finalized-repeat shortcut cannot bypass this because line 458 requires an existing approval.
+Check D1's existing key, launch and actual grade throughout; merely observing D2's denial does not prove isolation.
+
+**A-M0-09 / B-M0-08 / Q-M0-R2-02: incomplete Canvas recovery.**
+M1-37(c/c2) distinguishes lost creation from lost activation: inactive versus active remote platform, with no final app binding in either case.
+Saved profile/issuer/client/target data permits discovery without `lti_platform_id`.
+Cancel and same-value retry are covered by M1-37(t/u); corrected-service recovery is M1-38(f).
+For the held old DELETE variant, let release return exit 1 at its timeout, let a new same-value connection adopt the inactive platform, then deliver the old DELETE.
+Its expected old ref no longer matches, so upstream `409` must leave the new binding intact.
+The API lookup, CLI per-record results, connection DTO, and new signed launch/grade are sufficient public oracles.
+
+**Late writes after release, including an absent Blackboard row.**
+M1-38(g) distinguishes an existing deployment, whose ref is changed by suspend, from a row that never existed when cleanup ran.
+The existing row rejects old S3 after the new binding.
+The absent-row case permits late S1 to create only an inactive generation-0 row; a repeat cleanup finds it, and the next authorized binding activates generation 1.
+For Canvas, a late inactive platform with the wrong service URL blocks corrected-value adoption; repeat release must locate and delete it before the corrected redemption succeeds.
+An “absent” cleanup result is a point-in-time observation, not proof that a held create cannot arrive later.
+
+### 8.3 Executable evidence plan
+
+The plan now covers **40 M1 + 13 M2 + 7 M3 + 8 M4 = 68 ACs**.
+M1-37 contains (a) through (u), plus (c2); M1-38 contains (a) through (g).
+The runner must also enumerate the named variants, profile matrices and both DL/resource launch paths.
+All rows below are future `SIM` checks on the owned acceptance stack; no row has run.
+
+| Schedule group | Required event ordering and final oracle |
+| --- | --- |
+| M1-37(a/b/c/c2, k, t, u) | Prove failure-before-write versus successful write/lost reply. Match remote active state, CLI grant state and DTO. Retry or cancel through the documented endpoints; require one record and a functioning approved result. |
+| M1-37(d/o), (s) dead variant | App stops while the selected call is held; observe `caller_gone` and app restart. Assert a request is refused before 60 seconds and accepted after lease expiry. A dead process never supplies a later HTTP answer. For (d/o), the S3 held before forwarding gets upstream `409` after takeover or fence-out. For (s), S3 already completed upstream; discard its held answer and test approval denial before recovery. |
+| M1-37(e/f/g/h/m) live cancellation | Reach `held_after` on S3; run the specified revoke, replacement or DELETE; release while the caller is still live. Capture `delivered`, exact `403`/`409`, cleanup result and final authority. Log measured time for every step. |
+| M1-37(i/p/q), M1-38(g) late writes | First capture the client's `502` and `caller_gone`; only then release the held request. Require `forwarded` followed by `upstream_completed` with the specified 201/200/409. Assert denial before reconciliation and success only after the defined new commit. |
+| M1-37(n/r/s) delayed compensation | Keep the old compensation held through its own timeout. Record whether it lands before or after B's S3. The two schedules have different intermediate statuses but both must end with B active, approved and usable. |
+| M1-37(j/l) parallel/precedence | One redemption event and record; exact permitted repeat/conflict answers; no manufactured grant for the defensive fixed-deployment branch. |
+| M1-38(a) score timing | Take the second actual 503 score event as the retry reference; disable before its 30-second due time. Pending before due, then failed by due + 4-second polling allowance + 5 seconds; unchanged tries and no score POST after disable. |
+| M1-38(b–f) release/isolation | Record per-target CLI result and old/new public state. Never infer successful release from exit code alone. Old library history stays private; old credentials stay invalid after a new binding; newer/foreign binding remains usable. |
+
+For each subcase preserve product SHA, test SHA, run id, exact command, profile/health, image digests, timestamps, gate event cursor/request ids, HTTP and CLI outcomes, and redacted state/launch/grade evidence.
+Install a final matching `pass` rule for the relevant API paths when asserting that a request emitted **no** LTI call; otherwise unmatched traffic would not receive a gate request id.
+Use ordered rules and `times` to distinguish S3 from compensation on the same path.
+Poll the documented gate phases with deadlines; reset the gate at the end of each subcase, which drops held requests without forwarding and preserves events.
+No token, body, query or authorization material enters gate evidence.
+
+For live schedules, prepare fixtures and clients before the hold, and measure completion against the unchanged five-second timeout.
+If the local machine cannot complete a required live sequence in time, record `BLOCKED` and the timings; that result does not satisfy its AC.
+Use at least a 120-second QA test deadline for lease/crash cases, while retaining the product's five-second call and 60-second lease.
+Bound phase 1 between the initial request submission and its first gate event: use the earlier bound for a before-expiry check and the later bound for an after-expiry check.
+No clock manipulation, direct database writes or silent timeout extensions are needed.
+The record kept for a disabled connection is history, not effective approval authority: assert denial by connection status, and assert removal of its local approval on release as specified in app line 467 and data-model line 513.
+
+The planned M1 command remains:
+
+```sh
+COMPOSE_PROJECT_NAME=qa-multi-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 \
+  node tests/host/run-m1.mjs --sha "$candidate_sha" --runs 2
+```
+
+This is a future QA-owned runner, not an executed command or claimed existing result.
+The in-container entry point, migration/rollback command sequence, legacy host commands and T7 command in §§5 and 7.4 remain applicable.
+Use two full M1 runs at fixed product/test SHAs, separate upgrade/rollback evidence, the named legacy suites, and three default-profile T7 runs.
+Keep real-Moodle subcases `MOODLE-LIVE` and synthetic subcases `SIM`.
+The added approval tables must not enter Moodle routing; M1-23/30, M1-39's standard-path recovery and the regression suites remain required controls.
+
+Resource lanes are unchanged: QA `qa-multi-rN`/8443/`172.29.0.0/16`, separate QA-E2E lanes, at most two stacks, preferably sequential.
+No fresh resource measurement was made in this review.
+Preserve baseline volumes and other-owner resources. Local Canvas remains a separate, solitary assessment after simulations pass, with no Docker Desktop setting changes.
+QA owns simulator behavior, signing fixtures, expected values and gate scenarios; Author owns infrastructure/gate plumbing.
+No production validator or mapper enters the independent oracle.
+
+### 8.4 Accepted MINOR boundary and completion gate
+
+A-M0-10 is accurately bounded in revision 6:
+
+- A grant-free standard/Moodle registration can occupy the released self-hosted Canvas issuer/client pair before the rightful Canvas redemption.
+- Check 14 still rejects its Canvas-signed launch before claim storage; the residual impact is blocked setup, not Canvas access.
+- Issue the rightful grant, suspend, release, then redeem promptly. The text explicitly says this order **does not prevent the race**.
+- M1-39 deliberately reproduces the race and its operator repair. D-12/R-M-16 and M4-08 require the limitation in the operator/troubleshooting guides and `docs/human_review/deferred.md`, with reserved identifiers or quarantine needed before enterprise reliance.
+
+No other BLOCKER or MAJOR is waived by that decision.
+M4-08 is a future deliverable, not a claim that its guide/deferred artifact already exists.
+Hosted Canvas, local Canvas and Blackboard execution remain UNVERIFIED until evidence from their own authorized environments exists.
+
+The next QA dispatch may implement the approved simulator and tests once the Lead confirms both design reviews and the overall gate.
+This PASS closes only the independent **design-testability** assessment at the exact SHA above.
+It does not mark M1/M2/M3 complete, authorize a live tenant action, or verify the product.

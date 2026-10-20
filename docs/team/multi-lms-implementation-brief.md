@@ -5,8 +5,8 @@ Owner: Lead. Date: 2026-10-20.
 ## Start gate
 
 The design candidate is ADR-011 revision 6 at `158a4d86fb5764f597ff20e3f652ae6d5225f96b`.
-It is in independent round 3. This file does not open the implementation gate.
-The Lead must record two approvals, a design-testability PASS, and no open BLOCKER or MAJOR first.
+Round 3 passed: both reviewers APPROVE, QA gives a design-testability PASS, and no BLOCKER or MAJOR remains.
+The Lead accepted this design gate. Three nonblocking text corrections are queued before the implementation handoff.
 Task completion by itself is not approval.
 
 After acceptance, the Lead advances the portal branch to the accepted integration commit.

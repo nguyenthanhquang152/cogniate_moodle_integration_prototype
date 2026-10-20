@@ -9,7 +9,7 @@ The Moodle release below is the completed baseline.
 
 | Task | Owner | Status | Evidence |
 | --- | --- | --- | --- |
-| M0 | Architect; independent QA and reviewers | Revision 6 in independent round 3 | Frozen design `158a4d8`. Round-2 findings at `706a278` await independent closure. No design approval yet. |
+| M0 | Architect; independent QA and reviewers | Design gate passed; three text corrections queued | Round 3 at `158a4d8`: A APPROVE, B APPROVE, QA PASS for design testability. No open BLOCKER or MAJOR. |
 | M1 | Author (Claude) | Planned; design gate required | Backend implementation task queued. |
 | M2 | Author-2 (Codex) | Planned; design gate required | Portal task queued in its own worktree. |
 | M3 | QA (Codex), QA-E2E (Claude) | Planned | Environment preflight complete. Real Canvas and Blackboard checks remain unverified. |

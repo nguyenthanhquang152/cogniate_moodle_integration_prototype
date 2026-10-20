@@ -70,7 +70,7 @@ Do not run a destructive reset against the user's existing environment.
 
 | Task | Result | State |
 | --- | --- | --- |
-| M0 | Source review, architecture, contracts, criteria | Revision 6 frozen at `158a4d8`; independent round 3 running |
+| M0 | Source review, architecture, contracts, criteria | Round 3 accepted at `158a4d8`; three nonblocking text corrections queued |
 | M0-A2 | Read-only portal and integration audit | Complete; no code or tests changed |
 | M0-AU | Read-only backend and deployment impact audit | Complete; no code or tests changed |
 | M0-QE | Independent environment and live-LMS validation preflight | Complete; environment inventory, no product verification |
@@ -123,8 +123,14 @@ M1, M2 and both test-preparation tasks remain blocked.
 The Lead froze revision 6 at `158a4d86fb5764f597ff20e3f652ae6d5225f96b`.
 Round 3 uses the same retained sessions: Reviewer-A `ctx_61b8795c3642`, Reviewer-B `ctx_3b1d667906b2`, and QA `ctx_e5ddff18c81b`.
 All three received their new authoritative preambles and the same frozen handoff.
-All three confirmed the new tasks. No design verdict is recorded yet.
+All three completed the new tasks. Both reviewers APPROVE; QA gives PASS FOR DESIGN TESTABILITY ONLY.
 The [implementation handoff](multi-lms-implementation-brief.md) records the full criterion count, ownership and test boundaries.
+The Lead accepts the M0 design gate at `158a4d8`: no BLOCKER or MAJOR remains.
+This is not product approval or live-LMS evidence.
+Architect task `task_ceecd44306c1` applies three nonblocking text corrections before the implementation handoff:
+A-M0-11 narrows the accepted race to self-hosted Canvas; A-M0-12 aligns the due-time test bound;
+B-M0-10 distinguishes retained approval history from effective authority.
+The same contracts already define those behaviors. No protocol redesign or additional deferral is authorized.
 
 Author-2 completed the read-only audit in `ctx_1eeade383449`.
 Messages `msg_57b462b0aec3`, `msg_c8afa054e00e`, and `msg_b3a206ea8b3f` hold the findings.

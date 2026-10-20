@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 2
+Verdict: APPROVE
+Round: 3
 
 # M0 design review: Reviewer-A (correctness and security)
 
@@ -202,3 +202,60 @@ Line numbers in this round refer to `bd9fe36`.
 
 - A-M0-09 is fixed in the design, with the acceptance subcases above.
 - A-M0-10 is fixed, or the Lead records it as an accepted deferral.
+
+## Round 3 (2026-10-20)
+
+| Item | Value |
+| --- | --- |
+| Verdict | **APPROVE** (M0 design, correctness and security lens). No BLOCKER or MAJOR stays open. This is not a product approval and not implementation evidence. |
+| Reviewed | `158a4d8` (ADR-011 revision 6). Changes read against `bd9fe36`. Round 2 reports frozen at `706a278`. Disposition map: `docs/architecture/review-response-M0.md`, "Round 2". |
+| Task, dispatch | `task_ed981aeb1a31`, `ctx_61b8795c3642`; same dedicated Reviewer-A instance |
+| Read | Charter, phase plan, the round 2 sections of `reviewer-b.md` and `qa.md`, the Architect response, ADR-011, both contracts, security, data model, flows, M1 to M4 changes. |
+
+Line numbers in this round refer to `158a4d8`. App = `docs/architecture/contracts/cogniate-app-api.md`; LTI = `docs/architecture/contracts/lti-service-api.md`.
+
+### Correction of my round 2 statement
+
+In round 2 I called the fence and the late-write handling "sound". That was too broad. Reviewer-B's B-M0-03 schedules 1 and 2 and B-M0-07 were valid against revision 5: a newly read ref of the same connection gave adoption permission, a ref-only take-over could finalize an inactive record, and an active added deployment had launch authority through `lti_platform_id`. Revision 6 closes all three (traces below).
+
+### Disposition of open findings
+
+| Id | Sev. | Round 3 status | Evidence |
+| --- | --- | --- | --- |
+| A-M0-02 | MAJOR | **Resolved.** | The remaining gap was A-M0-09. Suspend and release now find every record through saved targets and the ref history (App L463–L465, L509–L510; ADR-011 §4b). |
+| A-M0-09 | MAJOR | **Resolved.** | Each attempt saves its target at phase 1 (data model L411–L426); the Canvas `initial` target is found with exact `url` + `clientId` + `profile` filters (App L366; LTI §9.4). `DELETE` and `suspend` fence out every owned record, also for a pending Canvas connection without `lti_platform_id` (App L459–L465). `release` deletes an owned inactive platform with `?ifBindingRef=<read ref>` (App L510). A same-library new connection adopts the fenced platform (A3, App L404). ACs: AC-M1-37 (c), (c2), (t), (u); AC-M1-38 (f) with the held old delete, (g). |
+| A-M0-10 | MINOR | **Accepted deferral, accurately bounded.** | ADR-011 §4b L167, D-12 (L422), R-M-16 (L443); App §4.9 "After a release" (L512, the false claim is corrected); security §12; Q21; AC-M1-39 records the race without claiming that the operator order prevents it; AC-M4-08 puts it in `docs/human_review/deferred.md`. The stated impact is right: setup can be blocked, and check 14 refuses the Canvas-signed launch before any claim is stored, so it gives no Canvas access. See NIT A-M0-11 for one precision. |
+
+### Traces of the named schedules
+
+| Schedule | Revision 5 failure | Revision 6 result | Rules and AC |
+| --- | --- | --- | --- |
+| B-M0-03 schedule 1: replacement redeemed before the old create is delivered | The old attempt read the newer ref of its own connection and took it over; its compensation then switched off the newer binding. | Closed. The replacement gets `409 GRANT_IN_USE` while the old attempt is live (I1, connection lease). The old call times out at 5 s; the handler ends and never resumes (S0, App L393, L412). The late create meets the existing record: `409 …_ALREADY_EXISTS`, no change (I5; LTI "Staging" L660). A newer ref is never "older" for the old attempt (App L370, L406). | App L382, L393, L406, L418, L422, L436; AC-M1-37 (q) |
+| B-M0-03 schedule 2: compensation between the replacement's read and take-over | A ref-only take-over still matched and finalized an inactive record. | Closed. No ref-only adoption: adoption is always S3 (`active: true` plus a new ref). Every conditional `PATCH` must write a new ref (LTI "Rotation" L658), so the compensation changes the ref; S3 gets `409`, S2 reads the inactive record again (A2: the compensation ref was written before the replacement's phase 1), and the second S3 activates it. I traced the timing: each held step fits in the replacement's own 5 s calls and its 60 s lease. | App L396, L403–L406, L421, L440; AC-M1-37 (r) |
+| B-M0-07: Canvas added deployment written late after timeout and revoke | An active remote row routed to the registered connection through `lti_platform_id`; the "already active → 200" rule had no approval check. | Closed. Creates are staged inactive; only the live attempt's S3 activates. Authority needs an `approved_deployment` row that only phase 2 writes (I2; routing App L582 gives `deployment_not_approved`). The no-grant `200` is only for an approved deployment (App L458). `app:grant revoke` fences only records whose current ref came from that grant and that have no approval, never the platform or an approved deployment (App L494). `dA` and its keys keep working. | App L371, L419, L458, L494, L582; AC-M1-20, AC-M1-37 (p), (s) |
+| A-M0-09 / B-M0-08 / Q-M0-R2-02: unfinalized Canvas platform | Nothing could find or delete the record. | Closed (see A-M0-09 above). A held old release `DELETE` meets the new ref and gets `409` (AC-M1-38 (f) variant). | App L463–L465, L510–L511 |
+| B-M0-09 / Q-M0-R2-01: reachable schedules | A timed-out handler was expected to reach phase 2. | Closed. Live races release within the caller's 5 s; late writes wait for `caller_gone`; dead handlers use `stack:restart` and the 60 s lease. The gate has request ids and phases, forwards a held request after the caller left, discards its answer, and has a 600 s hold limit (M3 §3.3). A schedule that does not fit in 5 s is reported `BLOCKED` with measured times; no production timeout changes. | App L389, L425–L441; M3 §3.3; AC-M1-37 preamble (L128), (d), (i), (o) |
+| Q-M0-R2-03: added-deployment authority (QA's four cases) | As B-M0-07. | Closed: launch before phase 2, lost answer and retry (one `grant_redeemed`), lost answer and revoke, and replacement against an old compensation are AC-M1-37 (s) and (p). | as above |
+
+### Checks of the areas that the Lead named
+
+| Area | Result |
+| --- | --- |
+| Incomplete Canvas record recovery | Sound: saved targets, exact lookup, fence-out of owned records, conditional delete on release, A3 adoption for same values. |
+| Committed per-deployment authority | Sound: `approved_deployment` (primary key platform + deployment) is the only Canvas and Blackboard authority; the same-library Blackboard move deletes the old disabled row in the same transaction (data model L513); release deletes only its own rows; Moodle routing is unchanged. |
+| Same-connection attempt ordering | Sound: one live attempt per connection for all grants (I1); S0 before every call with at least 6 s of lease left; at most five 5 s calls before phase 2; phase 2 needs the same lease holder. A stalled process that loses its lease only causes a retry: a late S3 meets a newer ref, or leaves an active record without approval that the next attempt adopts. |
+| Late writes | Sound: a create never replaces a record and is always inactive; a late activation succeeds only if nobody changed the ref, and it never creates an approval; a cleanup that found nothing finds a late record on the next run. The Blackboard absent-row case gives an inactive generation-0 row that the next reservation holder adopts (A3, generation 1) (App L511). |
+| Active-state changes | Sound: adoption = activation with a new ref; compensation, fence-out and revoke cleanup = switch-off with a new ref; there is no ref-only change by the app. Generation rule for shared deployments: staged create 0, every activation and every adoption of an active row + 1, switch-off unchanged (LTI §9.5, §9.6, §9.14). |
+| Current-ref CAS limits | Stated honestly: the LTI service compares with the current value only and keeps no history (LTI "Limit" L661). The no-stale-write property is an app property: refs are random, unique (`binding_ref_history.ref UNIQUE`), recorded before the call and never reused; raw operator API calls are outside it (I3). |
+| Timeout-consistent tests | Sound (see B-M0-09). |
+| Due-time score oracles | Sound in App §4.7.2 (L469), ADR-011 §12 and AC-M1-38 (a). See NIT A-M0-12. |
+| Regressions | None found. Moodle: unconditional disconnect, no approvals, `POST …/deployments` default stays active, check 14 passes `moodle`. Gate: `acceptance` only, no production code path, no URL check change. |
+
+### New findings (NIT only)
+
+- **A-M0-11 NIT: A-M0-10 scope precision.** ADR-011 L167, R-M-16 (L443) and App L512 say "Canvas issuer and client id". The race exists only for `canvas-self-hosted`: hosted Canvas issuers and the Blackboard issuer are reserved, so a `standard` connect gets `ISSUER_RESERVED` (LTI §9.1). Say so in the deferral text and in `deferred.md`. This narrows the stated risk; it does not change the decision.
+- **A-M0-12 NIT: AC-M1-18 timing.** AC-M1-18 (M1 L105) expects the disabled connection's pending score row to become `failed`, without the due-time bound that AC-M1-38 (a) uses. Add the same rule (poll until the row's due time + 2 × 2 s + 5 s), so the two criteria cannot be read differently.
+
+### Result
+
+APPROVE for the M0 design from the correctness and security lens. Open items: A-M0-10 (accepted deferral, D-12), A-M0-11 and A-M0-12 (NIT, safe to defer). Every claim of real Canvas or Blackboard interoperability stays limited to the live matrix in M3; nothing in this round is product verification.

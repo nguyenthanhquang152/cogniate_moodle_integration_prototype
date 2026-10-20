@@ -229,3 +229,75 @@ The normal Canvas Paste JSON and Blackboard operator/admin workflows remain cons
 Only this report was changed. No product or design file, test, stack, tenant, account or remote configuration was changed; no commit or push was made. This verdict is for design only.
 
 Resolve B-M0-03 and B-M0-07 through B-M0-09 in the contracts and matching criteria, then freeze the correction for recheck. No approval is given while these findings remain open.
+
+---
+
+## Round 3 — 2026-10-20
+
+Verdict: APPROVE
+Round: 3
+
+Reviewed SHA: `158a4d86fb5764f597ff20e3f652ae6d5225f96b`, ADR-011 revision 6.
+Comparison: round 2 design `bd9fe36edbe59143b914d7ccac424efd1db2c335`.
+Task: `task_31e336af4b46`; dispatch: `ctx_3b1d667906b2`.
+
+This is design approval only. No product test or live-provider verification ran. I read the charter, Lead phase plan, completed M0 reports and Architect's round-2 response, then traced the corrections through the contracts and criteria. The older reports remain unchanged. All line numbers below refer to the frozen revision 6.
+
+No BLOCKER or MAJOR remains in my review. One new MINOR wording correction is below. A-M0-10 remains the separate, sole Lead-accepted MINOR deferral; this approval does not extend that deferral.
+
+### Remaining finding dispositions
+
+| Finding | Round 3 disposition | Design evidence |
+| --- | --- | --- |
+| B-M0-03 — MAJOR | CLOSED | [App contract](../../architecture/contracts/cogniate-app-api.md), lines 365–424: one connection lease, S0 before calls, an older-ref rule, activation with adoption, rotating compensation and final approval checks. [LTI contract](../../architecture/contracts/lti-service-api.md), lines 650–664: atomic current-ref comparison and required rotation, with the history limitation stated. AC-M1-37(f), (n), (q), (r) cover the relevant schedules. Detailed traces follow. |
+| B-M0-07 — BLOCKER | CLOSED | App lines 408, 418, 458, 494 and 582 require an exact committed deployment approval, distinguish a finalized repeat from an active orphan, and scope grant cleanup to the unapproved target. [Data model](../../architecture/data-model.md), lines 442–452 and 513–514, supplies the approval key and routing rule. AC-M1-37(p), (s) keep the existing Canvas deployment working while the new one has no authority. |
+| B-M0-08 — MAJOR; overlaps A-M0-09 and Q-M0-R2-02 | CLOSED | App lines 366, 461–467 and 508–511 use saved targets and ref history for discovery, suspend and conditional release. Data model lines 411–440 preserve targets and refs before calls. LTI line 552 defines the exact lookup. AC-M1-37(c), (c2), (t), (u) and AC-M1-38(f), (g) cover pending records, correction and late writes. |
+| B-M0-09 — MAJOR; overlaps Q-M0-R2-01 | CLOSED | App lines 390–412 end a timed-out handler and distinguish it from a live or dead handler. [M3](../../architecture/tasks/M3.md), lines 63–80, defines request IDs, phases, caller disconnect, late delivery, hold limits and reset. AC-M1-37 now gives separate reachable schedules under the unchanged five-second timeout. |
+| B-M0-01, B-M0-02, B-M0-04, B-M0-05, B-M0-06 | Remain CLOSED | The corrected protocol keeps own-reservation retry, one reservation per connection and fixed deployment IDs. The maintenance-command ordering, self-hosted split origins and replacement-course-item guidance remain intact. |
+
+### Explicit race traces
+
+**B-M0-03, schedule 1: replacement before the old create completes.** The old attempt holds the connection lease, so the replacement first gets `409 GRANT_IN_USE`. If the old call times out, its handler ends with `502` and makes no further calls. The replacement can then create, activate and commit. Delivering the old create gives `409 …_ALREADY_EXISTS`; it cannot replace the record. There is no old handler left to read and adopt the replacement's ref. For a still-live handler, S0 checks revocation before another call; the older-ref rule also excludes a ref written after its phase 1. AC-M1-37(f), (q), at [M1](../../architecture/tasks/M1.md) lines 134 and 145, cover the live and late-write variants.
+
+**B-M0-03, schedule 2: compensation between the replacement's read and activation.** The old compensation records its new ref before it is held. After its timeout, the replacement begins and reads the old active ref. Delivering compensation changes both `active` and the ref. The replacement's first S3 therefore gets `409`. Its second S2 reads the inactive row, and its second S3 sets `active: true` and a fresh ref together. It cannot finalize an inactive row through a ref-only update. AC-M1-37(r), M1 line 146, gives this ordering. In the opposite ordering, the replacement activates first, and the old compensation gets `409`; AC-M1-37(n), line 142, covers that case.
+
+These conclusions also resolve the difference between the round-2 reviews. Reviewer-A treated the old fence as sufficient; my two counterexamples and QA's stale-compensation schedule showed why that was too broad. Revision 6 adds the missing ordering and rotation rules. The LTI service itself still compares only the current ref. A raw API caller can reuse a ref or make an unconditional write; the guarantee depends on the app's unique, never-reused, write-ahead refs and conditional mutations. The revised contract states this limit instead of claiming that remote CAS alone proves current ownership.
+
+**B-M0-07 and Q-M0-R2-03: a Canvas addition before approval.** Start with approved deployment `dA`. A held S1 for `dA2` times out; revoke finds no row. Its late delivery can only create an inactive row. A repeated revoke finds and fences that row. A late S3 can instead leave `dA2` active without approval, but routing refuses it with `deployment_not_approved`; no picker, attempt or service-key use follows. Grant cleanup acts on `dA2`, preserving the platform, `dA` and its keys. An active orphan cannot take the no-grant repeat path. A retry must pass S2/S3 and phase 2, which commits one approval and one redemption event. AC-M1-37(p), (s), M1 lines 144 and 147, cover late create, late activation, lost answer, dead handler and stale compensation.
+
+**Timeout and lease separation.** AC-M1-37(e), (f), (g) release live calls within five seconds. Cases (i), (n), (p), (q), (r) let the relevant caller finish before delivering a late request. Cases (d), (o) and the dead-handler variant of (s) restart the app and use the real 60-second lease; they do not expect an answer from the dead handler. The gate records upstream completion even after the caller disconnects. A live recipe that cannot fit the real timeout must be reported BLOCKED, not made to pass by changing product timing. These are executable design recipes, not evidence that they have passed.
+
+### Recovery and affected workflow checks
+
+| Area | Result |
+| --- | --- |
+| Incomplete Canvas initial setup | The attempt saves profile, canonical issuer, client ID and deployment ID before S1. The lookup can find a platform even when no response supplied its ID. `DELETE` and suspend fence an owned record; release deletes it using the freshly read owned ref. A pending connection does not need a final connection ref. |
+| Correction and preservation | AC-M1-38(f) corrects a pending connection's service URL after suspend and release. Its held-delete variant lets a new connection adopt the inactive platform; the old conditional delete then fails and preserves the new binding. AC-M1-38(c) preserves another library's reservation and approval on a repeated release. No publication or result history transfers. |
+| Late record after release | AC-M1-38(g) covers both providers. A late Canvas create is inactive, discoverable and removable by repeating release before the corrected setup. A late Blackboard create after an absent-row cleanup is inactive at generation 0; the next reservation holder can activate it at generation 1. If the Blackboard row already existed, fence-out changed its ref and delayed writes fail. |
+| Blackboard generations | LTI lines 562 and 572–576 define inactive create at 0, first activation at 1, another activation/adoption at +1, and unchanged generation on switch-off. Moodle and exclusive-platform generation-0 compatibility remain separate. |
+| QA's input and error clarifications | Q-M0-R2-04 uses valid `a/b:c` for the encoded positive and rejects a space separately. Q-M0-R2-05 follows grant mismatch before the defensive fixed-deployment branch; M2 uses the same public error. Neither requires database seeding. |
+| Due-time score oracle | Q-M0-R2-06 is closed. App line 469 and AC-M1-38(a), M1 line 151, agree that a future retry stays pending until due. The test starts after two `503` replies, observes the 30-second retry deadline plus the stated poll allowance, and requires no new POST, unchanged tries and refused Resend/Refresh. |
+| Human setup and migration | Canvas Paste JSON/inline-key handling and Blackboard operator/admin steps keep the previously reviewed provider limits. Recovery now names per-record results and repeat cleanup. ADR-011 lines 388–403 retain the new-code backup command while services are stopped, whole-backup validation before restore, and the explicit lost-write/remote-grade consequences. |
+| Evidence boundary | M3 still separates SIM, real Moodle, local Canvas, hosted Canvas and live Blackboard. M4 requires guides to follow actual evidence; this design approval supplies none of the missing live execution results. The current inventory is 40 M1, 13 M2, 7 M3 and 8 M4 criteria, including every listed 37/38 subcase. |
+
+### Accepted deferral A-M0-10
+
+The bounds match the Lead's decision. A grant-free `standard` registration can reclaim a released self-hosted Canvas issuer/client pair and block the rightful setup. Signed Canvas-family launches on that record still fail check 14 before claim storage; the accepted risk is setup denial, not Canvas access. Fixed reserved issuers remain subject to their refusal rule.
+
+[ADR-011](../../architecture/adr/ADR-011-multi-lms.md) line 167, D-12 at line 422 and R-M-16 at line 443 state the operator order and residual race. App line 512 and AC-M1-39, M1 line 158, do not claim that prompt redemption prevents it. The Architect response records the accepted deferral, and [M4](../../architecture/tasks/M4.md) requires the same limit in `operator.md`, troubleshooting and `docs/human_review/deferred.md`, including the need for reserved identifiers or quarantine before enterprise reliance. No BLOCKER or MAJOR is waived by this decision.
+
+### B-M0-10 — MINOR, new — Distinguish retained approval history from effective authority in the fault-test summary
+
+Locations: [M1](../../architecture/tasks/M1.md) line **128**; [app contract](../../architecture/contracts/cogniate-app-api.md) line **467**; [data model](../../architecture/data-model.md) line **513**.
+
+The common AC-M1-37 ending says “no approval for a revoked grant or a disabled connection.” The lifecycle deliberately keeps an approved deployment row with a disabled connection until release. In subcase (h), disconnecting a registered Canvas connection therefore retains the earlier `dA` approval as history, although routing denies it.
+
+Impact: a literal test could fail the correct retained-history behavior, or encourage premature deletion of audit rows. This is a wording conflict, not an open authority defect: app line 582 explicitly requires a registered or connected owner before routing.
+
+Suggested correction: keep “no approval for a revoked grant,” but change the disabled-connection clause to “no effective launch or grade authority for a disabled connection; earlier approval rows remain as history until release.” Keep the release-removal assertions in AC-M1-38(b). This new MINOR is not an additional accepted deferral and does not require a protocol change.
+
+### Round 3 boundary and handoff
+
+The frozen design resolves my previous blocking findings and the overlapping recovery schedules. I approve it for the M0 design gate, subject to the Lead's separate collection of Reviewer-A and QA results. The minor wording correction above can be handled without reopening the protocol.
+
+Only this report was changed. No product, design, test, stack, account, tenant or remote configuration was changed; no commit or push was made. Prior review text remains intact. Product acceptance, the required regression runs and authorized live checks remain future work.
