@@ -193,6 +193,8 @@ App contract §4.8 "Issue output" said "`issue` makes no LTI call". But the acce
 
 # B-M1-03 proposal D, revision 2 (REQUIRES DESIGN REVIEW; NOT ACCEPTED)
 
+**Superseded by revision 3 below.** This revision stays unchanged as the reviewed record of `caa3541`; only revision 3 is normative.
+
 Task `task_1d0ecd7020a8`, dispatch `ctx_fc5241ad834d`.
 
 Inputs (reviews of proposal D at `a4bc3a4`):
@@ -447,3 +449,332 @@ Accounting: QA owns common and Blackboard ids, the `011` route and the case acco
 | LTI contract | none |
 
 Ownership after acceptance: the Lead assigns. `services/cogniate-app/src/providers/canvas.ts` (S1 `url`) stays with its current Canvas owner until the Lead makes an explicit transfer. This proposal transfers nothing.
+
+---
+
+# B-M1-03 proposal D, revision 3 — AUTHORITATIVE (REQUIRES DESIGN REVIEW; NOT ACCEPTED)
+
+Task `task_68130407ba89`, dispatch `ctx_ebe383641cd8`. **This section is the one coherent normative proposal.** It replaces revision 2 (above, kept as the reviewed record of `caa3541`) and, through it, D1–D8 of `a4bc3a4`. Section numbers R3.0–R3.10 belong to this revision only.
+
+Inputs (Round 2 reviews of revision 2 at `caa3541`):
+
+| Report | Findings |
+| --- | --- |
+| Reviewer-A `docs/reviews/M1/reviewer-a-target-snapshot.md`, Round 2 (Lead `msg_d3456c44427d`) | APPROVE; A-D-06, A-D-07 MINOR; A-D-08 NIT |
+| Reviewer-B `docs/reviews/M1/reviewer-b-target-snapshot.md`, Round 2 (`6222358`) | B-M1-D-04 MAJOR; B-M1-D-05, B-M1-D-06 MINOR; one NIT |
+| Codex QA `docs/reviews/M1/qa-target-snapshot.md`, Round 2 (`9eb5da3`) | Q-TS-01 residual MAJOR; Q-TS-04 residual and Q-TS-R2-01 MINOR |
+
+It stays a proposal until both reviewers and QA recheck it. No contract, data model, ADR, task, product, test or team file changes before that gate; the amendments in R3.9 come after it. This is a bounded correction of the existing scope: no new function and no new public field.
+
+Unchanged core:
+- an authoritative snapshot saved at create;
+- one atomic, local, ordered phase-1 transaction before any LTI call;
+- strict bodies and local finalized repeats;
+- saved targets and write-ahead ref history;
+- S0 and the 5 s call budget;
+- Blackboard validation (V) before any mutation;
+- the Canvas issuer pinned in S1;
+- no new trusted public identifier;
+- unchanged Moodle data and unchanged cleanup isolation;
+- accepted I1–I6, timeouts, phase order and migration rules;
+- explicit ownership.
+
+## R3.0. Disposition per finding
+
+### Round 2 findings (reviews of revision 2 at `caa3541`)
+
+| Id | Sev. | Disposition | Where |
+| --- | --- | --- | --- |
+| B-M1-D-04 | MAJOR | Done. The old-pending recovery is one fixed order of accepted operations: (1) new connection with a snapshot, (2) rightful `initial` grant first, (3) `suspend` the old row (fence-out of its saved targets), (4) `release` after the lease and active-record preconditions, (5) redeem at once. It includes the accepted retry rule for a failed cleanup or a late write, and the D-12 limit. The populated route seeds both a Blackboard retained reservation and a Canvas active orphan, and checks every step, a negative control, and unchanged unrelated bindings and keys. | R3.1, R3.8 (38 h1, h5) |
+| B-M1-D-05 | MINOR | Done. The registered other-values row gives the normal grant-first errors. The reachable fixture is the own redeemed `initial` code → `403` (`redeemed`), zero requests, no attempt. Check 4 `409` is a supplemental unit-only branch. | R3.1, R3.8 (38 h3), supplemental list |
+| B-M1-D-06 | MINOR | Done. Phase 1 builds and saves the target from the fresh local row inside its transaction; no call before the commit; the S1 request is built from the committed target after the commit. | R3.2 |
+| B (NIT) | NIT | Done. `skipped` is removed. A missed window is `BLOCKED`, which fails the gate. | R3.8 (v4–v6), gate rules |
+| Q-TS-01 (residual) | MAJOR | Done. Same correction as B-M1-D-05. The seeds give both old pending providers a valid `initial` code before the upgrade (reaches 4a); unknown codes stay `403`; a new issue exits 1. | R3.1, R3.8 (38 h1–h3) |
+| Q-TS-04 (residual) | MINOR | Done. Stable ids for the fresh `012` controls, 38 (i1)–(i5); the repeated-start check is supplemental. v4–v6 use a new cursor in the restarted healthy process with its own completion control, never a pre/post-kill comparison; missed schedules are `BLOCKED`. | R3.7 rule 5, R3.8 |
+| Q-TS-R2-01 | MINOR | Done. Same correction as B-M1-D-06. | R3.2 |
+| A-D-06 | MINOR | Done. One neutral `PROVIDER_NOT_READY` title and action for every LMS and cause; no new public reason field; an internal `provider_not_ready {cause}` log for operator diagnosis. The exact later M2, portal and contract changes and their owners are listed. | R3.10, R3.9 |
+| A-D-07 | MINOR | Done, with the complete B-M1-D-04 order (instead of the shorter "disconnect first" order), plus the negative control: before step 3, the new connection gets `409 DEPLOYMENT_IN_USE` (Blackboard) or `409 PLATFORM_IN_USE` (Canvas). | R3.1, R3.8 (38 h5) |
+| A-D-08 | NIT | Done, all six items: (1) "builds the target from snapshot values only after check 4a"; (2) audit reasons `taken_over`, `connection_changed`, `revoked` / `replaced` in rows 1–3; (3) readiness answers of Canvas S1 and Blackboard S1 run the same decision (rows 1–3 first); (4) "checks 1–3, then check 4"; (5) platform ids are never reused, which goes into the LTI contract; (6) z5 is one run with the exact repeated `suspend` oracle. | R3.1, R3.2, R3.3, R3.6, R3.8, R3.9 |
+| Self-check | — | Fixed: revision 2's header pointed to "the R6 amendments"; the amendments are R3.9. | header |
+
+Round 2 verdicts: Reviewer-A APPROVE (A-D-01 to A-D-05 closed); Reviewer-B CHANGES_REQUESTED (B-M1-D-01 to B-M1-D-03 closed); QA CHANGES_REQUESTED (Q-TS-02 and Q-TS-03 closed). This revision answers every open item above. It is still **not accepted** until the three recheck it.
+
+### Round 1 findings (reviews of `a4bc3a4`; dispositions kept, section references now point to revision 3)
+
+| Id | Sev. | Disposition | Where |
+| --- | --- | --- | --- |
+| A-D-01 | MAJOR | Done. Every redemption endpoint builds its target **locally inside phase 1**: Canvas `initial` (snapshot and request), Canvas `add_deployment` (committed platform), Blackboard `initial` (snapshot and request). No endpoint reads providers before phase 1 commits. `POST …/deployments` never reads providers and never runs V. New zero-call cases for `POST …/deployments`. Unit test with an LTI client that throws on any call, for all three endpoints. | R3.2, R3.3, R3.8 |
+| A-D-02 | MINOR | Done. The missing-snapshot refusal is phase-1 check **4a**, for purpose `initial` only, after the grant and start-state checks. The finalized repeat runs before phase 1 from the persisted `platform`. `add_deployment` issue and redemption use the committed platform and never need the snapshot. | R3.1, R3.2, R3.4 |
+| A-D-03 | MINOR | Done. Canvas `initial` S1 `400 UNKNOWN_PROFILE` and `400 PLATFORM_URL_NOT_IN_PROFILE` both map to `409 PROVIDER_NOT_READY`, with the V-failure handling. `add_deployment` S1 errors keep the accepted mapping (`502`). | R3.3, R3.6 |
+| A-D-04 | MINOR | Done. `grant_attempt_started` gets contract semantics: emitted **after** the phase-1 commit; FIFO positive control in the same process; no claim across a crash or restart. | R3.7 |
+| A-D-05 | NIT | Done. The Blackboard `client_id` row of `tool-configuration` comes from local data (snapshot, else the persisted platform, else a refusal); `lms-providers` stays live. The self-hosted issuer wording is precise. | R3.1, R3.5 |
+| B-M1-D-01 | MAJOR | Done. One purpose-specific lifecycle policy (table R3.1). Registered Canvas add-deployment on an old `011` row is **preserved**: issue and redemption use its committed platform, with no backfill and no provider read. Live profile issuer drift does **not** block `add_deployment` issue on any connection. | R3.1, R3.4 |
+| B-M1-D-02 | MINOR | Done. After a V failure, cleanup still reads every saved target. An earlier owned record gives `fenced`, a foreign one `not_owned`. `absent` only means the saved id has no record. Provider drift is never proof of absence. | R3.6 |
+| B-M1-D-03 | MINOR | Done. The audit event name, level, fields and emission point are defined, with bounded test semantics. | R3.7 |
+| Q-TS-01 | MAJOR | Done. State/purpose table for null-snapshot rows (R3.1); populated `011→012` route (R3.8). | R3.1, R3.8 |
+| Q-TS-02 | MAJOR | Done. V is a point-in-time observation, not a lock. Exact outcomes for changes after V, for V failure together with revoke, `DELETE` or `suspend`, and for delete/recreate. | R3.3, R3.6 |
+| Q-TS-03 | MAJOR | Done. Same as B-M1-D-03, plus the atomic-rollback fixture as supplemental evidence. | R3.7, R3.8 |
+| Q-TS-04 | MAJOR | Done. Individually mandatory result ids; separate `011→012` route in both full rounds; reachable Blackboard same-client drift; supplemental-only list. | R3.8 |
+
+## R3.1. Snapshot fields and the old-`011` lifecycle
+
+Fields (migration `012_connection_provider_snapshot.sql`, three nullable columns, forward only, no backfill; `011` and its ledger entry are not edited):
+
+| Field | Source (from the one `GET /api/providers` answer that the create handler already reads for profile validation and `PROVIDER_NOT_READY`) | Required for |
+| --- | --- | --- |
+| `target_issuer` | Canvas cloud and sim: the row `issuer` (a fixed value). `canvas-self-hosted`: the row template `{siteUrl}` filled with the canonical `siteUrl` from the create body. That is the portal input after site rules 1–5, the same value that the grant binds as `--site` and that the accepted design already uses as the self-hosted issuer; it is not a new trusted identifier. Blackboard: the row `issuer`. | Canvas and Blackboard `initial` |
+| `target_platform_id` | Blackboard: `sharedPlatform.id` (active at create). Else `NULL`. | Blackboard `initial` |
+| `target_client_id` | Blackboard: `sharedPlatform.clientId`. Else `NULL`. | Blackboard `initial` |
+
+Write rules:
+- Only the create handler writes these fields, in the insert transaction, from that one response.
+- No `UPDATE` path, no request field, no CLI flag. A create body never sets them: the existing create schema applies, and the stored values come only from the provider read.
+- Not in the DTO.
+- Moodle rows stay `NULL`; Moodle code never reads them.
+
+A snapshot is **complete** when:
+- Canvas: `target_issuer` is not `NULL`;
+- Blackboard: all three fields are not `NULL`.
+
+A partial Blackboard snapshot (not producible by the create handler) is treated as missing.
+
+Lifecycle for a connection **without** a complete snapshot (old `011` rows only; v10 has no Canvas or Blackboard rows):
+
+| State | Operation | Result |
+| --- | --- | --- |
+| `pending` Canvas or Blackboard | `PUT …/platform` | Steps R3.2.1–R3.2.4 as usual (`404`, `422`, no repeat). Phase 1 checks 1–4 as usual (`403` for any invalid code). Then check 4a → `409 PROVIDER_NOT_READY` (R3.10 text; log `cause: no_snapshot`), no attempt, no lease, no reservation, no LTI call. Recovery: the R3.1 order below. |
+| `pending` Canvas or Blackboard | `app:grant issue --purpose initial` | exit 1 "This connection has no provider snapshot. Make a new connection." No grant stored, no older grant revoked, no LTI call. |
+| `pending` Blackboard | `GET …/tool-configuration` | `409 PROVIDER_NOT_READY` (no local client id; a null row is never returned). |
+| `pending` Canvas | `GET …/tool-configuration`, `GET …/canvas-configuration` | unchanged (no snapshot value is used) |
+| `registered` or `connected` Canvas or Blackboard | `PUT …/platform`, same values | `200` finalized repeat from the persisted `platform` (unchanged, local) |
+| `registered` or `connected` | `PUT …/platform`, other values (no finalized repeat) | the normal ordered phase-1 errors, grant checks first: an unknown code → check 1 `403 GRANT_INVALID` (`not_found`); the connection's own redeemed `initial` code → check 2 `403` (`redeemed`); an `add_deployment` code → check 3 `403` (`purpose`). Check 4 `409 CONNECTION_NOT_PENDING` answers only when checks 1–3 pass. That needs an unredeemed, unrevoked `initial` grant on a registered connection, which the CLI never issues (C-3), so check 4 here is a **supplemental unit-only** branch with an injected grant. Check 4a is never reached. Zero LTI requests and no attempt in every case. |
+| `registered` or `connected` Canvas | `app:grant issue --purpose add_deployment` | unchanged accepted rules; `--client-id` must equal the persisted `platform.clientId`; no provider read |
+| `registered` or `connected` Canvas | `POST …/deployments` (repeat or new deployment) | unchanged: R3.2 precedence; target (`lti_platform_id`, `deploymentId`); issuer and client from `platform`; no provider read; no V |
+| `registered` or `connected` Blackboard | `GET …/tool-configuration` | `client_id` row = persisted `platform.clientId` |
+| `disabled`, any | `DELETE`, `suspend`, `release`, `app:grant revoke` cleanup | unchanged (saved attempt targets, reservation, `lti_platform_id`) |
+
+Recovery for a pending old row C0 (Canvas or Blackboard), using only accepted operations (app contract §4.8, §4.9). C0 may still hold a Blackboard reservation, or an active owned Canvas orphan from a lost S3 answer, and both block a new connection: check 7 refuses a reservation held by a **pending** connection, and adoption A1–A3 refuses an active record with another connection's ref. So the order is fixed:
+
+| Step | Operator action | Expected result |
+| --- | --- | --- |
+| 1 | The library makes a new connection C1 with the rightful values; it gets a complete snapshot. | `201`, `pending` |
+| 2 | `app:grant issue --purpose initial` for C1 (the rightful grant first, as in the D-12 operator order). | exit 0 |
+| 3 | `app:binding suspend --connection C0`. C0 becomes `disabled`, its unredeemed grants are revoked (`suspend`), and the fence-out writes a new ref on every owned saved target (Blackboard deployment; Canvas platform, found by the saved issuer, client and profile). | exit 0. Per saved target: an owned record → `fenced`; no record → `absent` (for example a Blackboard attempt whose S1 never reached the LTI service). On `failed`: run `suspend` again (accepted retry rule). |
+| 4 | `app:binding release --connection C0`, after its preconditions: C0 is `disabled`; its lease is not live (a dead handler's lease lasts until 60 s after its phase 1; else exit 1 "retry after <n> s"); no owned record is active. | exit 0. Per saved target: an owned inactive record → Canvas `deleted` (conditional delete), Blackboard `kept_inactive` (the deployment row stays inactive); no record → `absent`. Then C0's own local rows are deleted: its reservation (Blackboard) and its approvals. On `failed`, or after a late write: run `suspend` and `release` again (accepted rule; the saved targets find a late record). |
+| 5 | C1 redeems its code at once. | Blackboard: check 7 finds the reservation free, and C1 takes it. If step 4 gave `kept_inactive` (a deployment row exists), S1 gets `409 DEPLOYMENT_ALREADY_EXISTS` → S2 adopts the inactive row (A3, C1 holds the reservation) → S3 → generation + 1 → `200`. If step 4 gave `absent` (no row), S1 creates the deployment inactive (generation 0) → S3 activates it (generation 1) → `200`. Canvas: any owned platform was deleted at step 4, so S1 creates a new platform with the pinned `url` → `200`. |
+
+Every other connection, approval and key stays unchanged in every step. The accepted self-hosted limit D-12 applies between steps 4 and 5: a grant-free Moodle connect can take a released `canvas-self-hosted` issuer and client id first. Step 2 before step 3 makes that window short; it does not close it. Nothing is backfilled, no snapshot is edited, no local history is deleted, no reservation rule is bypassed, and no public input is trusted.
+
+## R3.2. Local precedence before any LTI call
+
+`PUT …/platform`, Canvas and Blackboard. The first failure answers; steps 1–5 send **zero** LTI requests.
+
+| # | Step | Failure |
+| --- | --- | --- |
+| 1 | connection of another library | `404` |
+| 2 | no provider adapter (unit only) | `409 CAPABILITY_NOT_SUPPORTED` |
+| 3 | strict body. Blackboard optional `clientId`, if sent, is compared with the **first non-null local source**: `target_client_id`, then the persisted `platform.clientId`. If both are `NULL` (old pending row), only its form is checked (1–255 printable ASCII without spaces). | `422 INVALID_PLATFORM_VALUES`, field names |
+| 4 | finalized repeat: `registered` or `connected`, and the persisted `platform` has the same `clientId` (Canvas) and the `deploymentId` | `200`, nothing changes |
+| 5 | phase 1, one `BEGIN IMMEDIATE` transaction: checks 1, 2, 3 (`403`), 4 (`409 CONNECTION_NOT_PENDING`), **4a** (`initial`: complete snapshot, else `409 PROVIDER_NOT_READY`), 5 (`422 GRANT_MISMATCH`; Blackboard client = `target_client_id`), 6 (`409 GRANT_IN_USE`), 7 (`409 DEPLOYMENT_IN_USE` / `DEPLOYMENT_FIXED`; key `target_platform_id`, `deploymentId`). Then the attempt row, the lease and the Blackboard reservation, then commit. | accepted answers, plus 4a |
+
+The engine builds the target from snapshot values only after check 4a, inside the phase-1 transaction. (Step 3 reads only `target_client_id`, for the body check.) The attempt target that it saves is:
+- Canvas: `lti_profile`, `target_issuer`, the request `clientId`, `deploymentId`;
+- Blackboard: `target_platform_id`, `deploymentId`, issuer `target_issuer`, client `target_client_id`.
+
+`POST …/deployments` (Canvas `add_deployment`). Unchanged order from C-2 (`ca14de6`), all local:
+1. `404`;
+2. `409 CAPABILITY_NOT_SUPPORTED`;
+3. `409 CONNECTION_NOT_READY` (also when the committed `lti_platform_id` or `platform` is missing);
+4. `422` strict body;
+5. finalized repeat (approval) → `200`;
+6. phase 1 checks 1–7 (no 4a), with target (`lti_platform_id`, `deploymentId`) and issuer and client from `platform`.
+
+No provider read and no V.
+
+Target construction, for every endpoint: phase 1 builds the target from its fresh local connection row (after check 4a for `initial`, after check 4 for `add_deployment`). It saves the target in the attempt row in the **same** transaction, before the commit. No LTI call and no remote resolution happen before the commit. The S1 request is built from the committed target **after** the commit.
+
+## R3.3. LTI step for Blackboard `initial`: V and its limit
+
+After the phase-1 commit and the `grant_attempt_started` line, the sequence is: S0 → **V** (`GET /api/providers`, 5 s timeout) → **post-V decision** → S0 → S1 … (accepted).
+
+The post-V decision runs once after every V result: an answer, an error or a timeout. It is one short transaction. It applies the first matching row:
+
+| # | Condition | Answer | Attempt, lease, grant, reservation |
+| --- | --- | --- | --- |
+| 1 | the lease no longer holds this attempt | `403 GRANT_INVALID`; log `grant_redemption_cancelled {reason: "taken_over"}` | attempt `cancelled`; lease unchanged; grant unchanged; reservation unchanged |
+| 2 | the connection is no longer `pending` (`DELETE` or `suspend`; both also revoke the grant) | `409 CONNECTION_NOT_PENDING` (the accepted AC-M1-37 (g) answer); log `grant_redemption_cancelled {reason: "connection_changed"}` | attempt `cancelled`; lease cleared if it holds this attempt; grant stays revoked; reservation kept |
+| 3 | the grant is revoked or replaced by the operator (connection still `pending`) | `403 GRANT_INVALID`; log `grant_redemption_cancelled {reason: "revoked"}` or `{reason: "replaced"}` (from `revoked_reason`) | as row 2 |
+| 4 | V timed out or failed | `502 LTI_SERVICE_ERROR` (no cancel event; the existing `outbound_request` line shows the call) | attempt `failed`; lease cleared if it holds this attempt; grant unchanged (`issued`); reservation kept |
+| 5 | V answered, but the profile row is missing, `sharing` is not `shared`, the row `issuer` ≠ `target_issuer`, `sharedPlatform` is `NULL`, its `id` ≠ `target_platform_id`, its `clientId` ≠ `target_client_id`, or `active` is false | `409 PROVIDER_NOT_READY` (neutral text, R3.10); log `provider_not_ready {connection_id, profile, cause}` | as row 4 |
+| 6 | V matched | continue with S0 → S1 | — |
+
+Cancellation always wins over a V result. No row makes a revoked grant usable again. A read-only attempt never compensates (it has no S3), so rows 1–5 send no further LTI call.
+
+**The same decision for every readiness answer.** Rows 1–3, then the readiness `409` with row 4 handling, also run after these answers: the Canvas `initial` S1 `400 UNKNOWN_PROFILE` or `400 PLATFORM_URL_NOT_IN_PROFILE`, and the Blackboard S1 `404 UNREGISTERED_PLATFORM`. Every other S1, S2 or S3 failure keeps the accepted LTI-failure path (`502`). These S1 answers create no record, so the attempt has no S3 and does not compensate.
+
+**Limit (stated, not a guarantee).** V is a point-in-time readiness observation, not a lock in the LTI service.
+- **Deactivated after V:** S1 and S3 still go to the pinned platform id. The accepted LTI deployment endpoints do not check the parent platform's `active` flag. So the attempt can commit an approval (`200 registered`) while the parent is inactive. Every login, launch and service call of that platform then fails in the LTI service (`PLATFORM_NOT_ACTIVE`) until the operator reactivates it. No authority comes from this: approval routing (I2) and the inactive parent both still apply. This boundary already existed in revision 6; D does not change it, and the documents must not call V an atomic readiness guarantee.
+- **Deleted or re-created after V:** a re-created platform always has a new id. The LTI service never reuses a platform id (random ids; product: 96 random bits). R3.9 adds this premise to the LTI contract; the same client id and issuer therefore cannot hide a replacement. S1 `POST /api/platforms/{pinned id}/deployments` gets `404 UNREGISTERED_PLATFORM`. For a shared target this maps to `409 PROVIDER_NOT_READY`, with row 4 handling. No record is created, and no write ever goes to the new platform. A later S2 or S3 `404` keeps the accepted LTI-failure mapping (`502`).
+
+Call budget before phase 2 for Blackboard: V + S1 + S2 + S3 + S2 + S3 = 6 calls, each under S0 and the 5 s timeout, inside the 60 s lease. Canvas has no V (at most 5 calls).
+
+## R3.4. `app:grant issue` (proposed §4.8 text after acceptance)
+
+Every check runs before the grant transaction. On any failure: exit 1, no grant stored, no older grant revoked.
+
+| Purpose | Rule |
+| --- | --- |
+| `initial`, Canvas | complete snapshot (else R3.1 exit 1). One `GET /api/providers` (read failure → exit 1). Exit 1 if the connection's profile row is missing, or if the row issuer filled with the canonical `siteUrl` ≠ `target_issuer` ("The Canvas profile changed after this connection was made. Make a new connection."). |
+| `initial`, Blackboard | complete snapshot. One `GET /api/providers` (read failure → exit 1). The row must have an active shared platform whose `id`, `clientId` and row `issuer` equal the snapshot, and `--client-id` must equal that client id, else exit 1 ("The Blackboard shared platform changed after this connection was made. Make a new connection."). |
+| `add_deployment`, Canvas | unchanged accepted rules: a `registered` or `connected` Canvas connection with its committed platform, and `--client-id` = `platform.clientId`. **No provider read, no snapshot needed, no issuer comparison**: the target is the existing platform, so profile drift does not block it. |
+
+`issue` never writes to the LTI service. After acceptance, the §4.8 clarification already applied names the Canvas `initial` read as well.
+
+## R3.5. Configuration rows (A-D-05)
+
+- `GET …/tool-configuration`, Blackboard `client_id` row: `target_client_id`; else the persisted `platform.clientId`; else `409 PROVIDER_NOT_READY`. No provider read on this path.
+- `GET /app-api/lms-providers` stays live; it describes the providers for **new** connections. After a shared platform is replaced, an existing connection keeps showing the client id that it accepts. Its redemption (`409 PROVIDER_NOT_READY`) and issue (exit 1) then refuse. The operator follows the R3.1 recovery order for it, because the old connection can still hold a reservation.
+
+## R3.6. Outcomes and cleanup (additions to the accepted outcome table)
+
+| Case | Answer | Grant | Attempt, lease | Reservation | Remote record | Cleanup |
+| --- | --- | --- | --- | --- | --- | --- |
+| Local refusal, any step R3.2.1–R3.2.5 | as R3.2 | unchanged | no attempt, no lease change | unchanged | unchanged | — |
+| V row 4 or 5 (first attempt) | `502` or `409 PROVIDER_NOT_READY` | `issued` | `failed`; lease cleared | kept | none from this attempt | retry the same code later; `DELETE` → fence-out reads all saved targets |
+| V failure after an earlier lost S3 (attempt A left an active owned deployment; attempt B fails at V) | `409` or `502` | `issued` | B `failed` | kept | A's record unchanged by B | `DELETE` or `suspend` finds A's saved target → `fenced`. A record with another connection's ref → `not_owned`. Only a `404` at the saved id → `absent`. |
+| Revoke, `DELETE` or `suspend` around V (rows 1–3) | `403` or `409 CONNECTION_NOT_PENDING` | revoked | `cancelled` | kept (released only by `release`) | none from this attempt | as above |
+| Deactivated after V | `200 registered` possible | `redeemed` | `committed` | kept | active deployment under an inactive parent | operator reactivates, or `suspend` |
+| Deleted or re-created after V | `409 PROVIDER_NOT_READY` (S1 `404`) | `issued` | `failed` | kept | none; nothing on the new platform | `DELETE` → saved old id → `absent`; a new connection binds on the new platform |
+| Canvas S1 `400 UNKNOWN_PROFILE` or `400 PLATFORM_URL_NOT_IN_PROFILE` | `409 PROVIDER_NOT_READY`, after the R3.3 rows 1–3 (a cancellation answers first, with its own audit reason) | `issued` (revoked if cancelled) | `failed` (or `cancelled`); lease cleared if held | — | none | retry after the profile returns, or a new connection (R3.10 text) |
+
+Provider drift is never proof that a saved target is absent. Cleanup reads each saved id.
+
+## R3.7. `grant_attempt_started`: event contract and bounded test use
+
+Contract (app contract §12 after acceptance):
+- Event `grant_attempt_started`, level `info`.
+- Fields: `trace_id`, `grant_id`, `connection_id`, `attempt_id`, `purpose`.
+- Emitted **after** the phase-1 transaction commits: exactly one line per committed phase 1 in a healthy process. Never on a refusal or a rolled-back transaction.
+- The service logger writes through a buffered stream in first-in, first-out order. The line is not durable: a crash or restart can lose it.
+
+Bounded test use (M1 QA notes after acceptance):
+1. Only in a healthy process with complete capture of `cogniate-app.jsonl`.
+2. Take a connection-scoped cursor before the request. Unknown codes have no grant id, so scope by connection and time window.
+3. After the refused request, wait with a deadline for a **positive control in the same process and stream**: the refused request's own `http_request` line (same `trace_id`; it is written when the answer is sent, after any phase-1 line of that request). A suite also runs one positive-control redemption that produces exactly one event, including one attempt that fails at V.
+4. A missing positive control or incomplete capture is a blocked result, not a pass. A fixed sleep proves nothing.
+5. No claim across a crash or `stack:restart`. A dead-handler schedule confirms the first attempt's event before the kill. For the restarted process it uses API answers, gate events and CLI state. An event-absence claim in the restarted process needs its own **new** cursor, taken after the restart in a healthy process, bounded by that process's own same-trace `http_request` control (rule 3). It is never a comparison of pre-kill and post-restart logs.
+6. Absence of the event is not a database oracle. Atomic rollback of attempt, lease and reservation is supplemental unit or integration evidence: inject a failure between those writes and observe that none survives.
+
+## R3.8. Acceptance and test inventory (individually mandatory ids; proposed M1 and M3 text)
+
+All cases below are `SIM` unless marked. Rules for all of them:
+- Finish fixture setup, including CLI provider reads, before the cursor.
+- Count every gate `received` request on every method after the cursor; never filter GETs.
+- A paired valid Blackboard request with the same faults must reach V, which proves that capture is active.
+- Every existing AC and race subcase stays required.
+- The new ids run in both full rounds at the same product and test SHAs.
+
+| Id | Case | Oracle |
+| --- | --- | --- |
+| 37 (v1) | unknown code, Canvas `PUT` | `403`, `grant_rejected not_found`, zero requests, R3.7 no event |
+| 37 (v2) | unknown code, Blackboard `PUT` | same |
+| 37 (v3) | unknown code, Canvas `POST …/deployments` | same |
+| 37 (v4) | live lease (dead handler of (d)), Canvas `PUT` | `409 GRANT_IN_USE`, zero new gate requests. The no-event check uses a new cursor in the restarted, healthy process with that request's own `http_request` control (R3.7 rule 5). `BLOCKED` (a gate failure, never a pass or a skip) if the restart misses the lease window. |
+| 37 (v5) | live lease, Blackboard `PUT` | same as (v4), including the `BLOCKED` rule |
+| 37 (v6) | live lease, Canvas `POST …/deployments` | same as (v4), including the `BLOCKED` rule |
+| 37 (v7) | foreign reservation, Blackboard (B's grant issued before faults) | `409 DEPLOYMENT_IN_USE`, zero requests; A's approval, generation and key unchanged |
+| 37 (v8) | wrong `deploymentId`, Canvas `PUT` | `422 GRANT_MISMATCH` (`deploymentId`), zero requests |
+| 37 (v9) | wrong `deploymentId` that is also a foreign reservation, Blackboard | `422 GRANT_MISMATCH` before `DEPLOYMENT_IN_USE`, zero requests |
+| 37 (v10) | wrong `deploymentId`, Canvas `POST …/deployments` | `422 GRANT_MISMATCH`, zero requests |
+| 37 (v11) | Blackboard body `clientId` ≠ snapshot; omitted and matching values as positive controls | `422 INVALID_PLATFORM_VALUES` (`clientId`), no `grant_rejected`, zero requests |
+| 37 (v12) | local guard matrix (wrong library, malformed body, finalized repeat), also after a cold app restart | R3.2 first-failure order; repeat `200` consumes no grant |
+| 37 (w) | V inactive (assert the R3.10 text and the log `cause: platform_inactive`): fresh empty shared platform; issue A's and a competing B grant; deactivate; redeem A; reactivate; B; retry A | A `409 PROVIDER_NOT_READY` with exactly one V and no S1; one event; grant `issued`. B `409 DEPLOYMENT_IN_USE` (A kept the reservation). A retry → `200`, with its own V and event. |
+| 37 (x1) | V `fail_before` | `502`, one V, no writes, grant `issued`; retry → `200` |
+| 37 (x2) | V held past 5 s (`caller_gone`), then released | `502`; the late answer causes no write and no continuation |
+| 37 (y1) | `hold_after` on V, deactivate the platform, release within 5 s | R3.3 limit: `200 registered` possible, launches `PLATFORM_NOT_ACTIVE` until reactivation; the record is on the pinned id |
+| 37 (y2) | `hold_after` on V, delete and re-create the empty platform, release | `409 PROVIDER_NOT_READY` (S1 `404`; R3.10 text, `cause: platform_changed`); no write on the new platform |
+| 37 (z1)–(z3) | `hold_after` on a matching V; then (z1) `app:grant revoke`, (z2) `DELETE`, (z3) `suspend`; release within 5 s | (z1) `403 GRANT_INVALID` (row 3); (z2), (z3) `409 CONNECTION_NOT_PENDING` (row 2); no S1, no compensation |
+| 37 (z4) | `hold_after` on a non-matching V; then `app:grant revoke`; release | `403` (row 3 before row 5); grant stays revoked |
+| 37 (z5) | one run: lost S3 (attempt A); deactivate; attempt B fails at V; then `DELETE`; then `app:binding suspend` on the same, now `disabled`, connection | B `409 PROVIDER_NOT_READY`. `DELETE` → `204`, fence-out line `fenced` for A's saved target (it was active). `suspend` → exit 0, its fence-out repeats: line `fenced` again (a new ref on the now inactive record), no other change (accepted AC-M1-38 (a) repeat rule). |
+| 37 (aa) | Canvas `initial` S1 `400 UNKNOWN_PROFILE` (assert the R3.10 text and `cause: profile_missing`): `canvas-sim-cloud` connection and grant, then `stack:restart -- lti-service` with simulations off (AC-M1-35 control), then `PUT` | `409 PROVIDER_NOT_READY`, no platform, grant `issued` |
+| 29 (k1) | Blackboard drift: pending C at P0, grant G0; delete the empty P0; re-create P1 with the **same** client id (fresh QA project); issue for C; redeem G0; app restart; repeat; new C1 at P1 as a positive control | issue exit 1 after one read, no grant change; G0 → `409 PROVIDER_NOT_READY` (V; R3.10 text, `cause: platform_changed`), no write on P1; C stays pinned after restart; C1 issues and binds |
+| 29 (k2) | shared platform missing at issue | issue exit 1 |
+| 29 (k3) | re-created with another client id | issue exit 1 (does not isolate the client comparator; unit test does) |
+| 38 (h1) | populated `011→012` route: a new host route, separate from AC-M1-23/30, run in both full rounds. Seed it on a pinned build with `011` and no `012`, through the public API, CLI and gate only, **before** the upgrade: (A) a registered Canvas connection with an approved deployment and its service key, plus an issued `add_deployment` grant; (B) a registered Blackboard connection; (C) a pending Blackboard connection C0-B with an issued `initial` grant, redeemed once under `fail_before` on S1 (`502`; the grant stays `issued`; the local reservation stays; **no** remote deployment exists, because S1 never reached the LTI service); (D) a pending Canvas connection C0-C with an issued `initial` grant, redeemed once under `drop_after` on S3 (`502`; an active owned platform without approval; the grant stays `issued`). Then stop, back up, upgrade. | see (h2)–(h5) |
+| 38 (h2) | old pending rows after the upgrade: C0-B and C0-C with their saved valid codes; an unknown code; a new `initial` issue | saved codes → check 4a `409 PROVIDER_NOT_READY` (R3.10 text, `cause: no_snapshot`), zero requests, no attempt; unknown code → `403 not_found`; issue → exit 1, grant list unchanged |
+| 38 (h3) | old registered rows after the upgrade: same-value repeats (A, B); (A) with its redeemed `initial` code and a new `deploymentId` | repeats `200` from the persisted platform; the redeemed code → `403 GRANT_INVALID` (`redeemed`), zero requests, no attempt, approval and key unchanged |
+| 38 (h4) | old registered Canvas (A): redeem the seeded `add_deployment` grant for a new deployment; then issue and redeem one more | both `200` from the committed platform, no provider read; the first approved deployment and its old service key keep working |
+| 38 (h5) | recovery order R3.1 steps 1–5 for C0-B and for C0-C. Negative control first: C1 redeems **before** step 3 | Negative control: Blackboard `409 DEPLOYMENT_IN_USE` at check 7 (zero requests; C0-B is still `pending` and holds the reservation); Canvas `409 PLATFORM_IN_USE` at S2 (S1 `409`, then the active orphan has C0-C's ref). Then, per R3.1. **C0-B (reservation only):** suspend line `absent`; release (after the lease) line `absent`, exit 0, and C0-B's reservation is gone; C1 redemption `200` with a fresh deployment: S1 `201` inactive at generation 0, then S3 → generation 1. **C0-C (active orphan):** suspend line `fenced`; release line `deleted`; C1 redemption `200` with a new platform. (A) and (B) bindings, approvals and keys unchanged throughout. Read-only inspection of stopped database copies is supplemental. |
+| 38 (i1) | fresh `012`: new Canvas cloud connection, redeem | `200`; zero LTI requests before phase 1; the platform `url` is the profile issuer |
+| 38 (i2) | fresh `012`: new `canvas-self-hosted` connection, redeem | `200`; the platform `url` is the canonical site origin |
+| 38 (i3) | fresh `012`: new Blackboard connection, redeem | `200` with exactly one V before S1 |
+| 38 (i4) | fresh `012`: app restart between create and issue, and between issue and redemption | the same results as (i1)–(i3); zero provider reads before phase 1 after each restart (the snapshot is not read again) |
+| 38 (i5) | fresh `012`: Moodle create | no gate request (no provider call), unchanged DTO |
+
+**Supplemental, unit or integration only (never a `SIM` row):**
+- adapter missing;
+- partial snapshot;
+- snapshot capture from one response (later reads never overwrite);
+- each single-field V and issue comparator (id, client, issuer, inactive, missing row, wrong sharing; Canvas cloud and self-hosted issuer);
+- create-body snapshot keys never stored;
+- Canvas S1 sends `url: target_issuer`, and both `400` codes map to `409`;
+- `grant_attempt_started` after commit;
+- atomic rollback injection;
+- the resolver and phase 1 for all three endpoints with an LTI client that throws on any call;
+- the post-V decision order;
+- a second start applies no migration twice and changes no snapshot (stopped-copy storage evidence);
+- check 4 `409 CONNECTION_NOT_PENDING` on a registered connection with an injected unredeemed `initial` grant.
+
+Fixed profile issuer changes cannot be reached through the simulator or admin API. Do not rewrite responses or change production profiles to reach them.
+
+Gate schedules:
+- Existing `POST` and `PATCH` rules do not match V.
+- An all-`/api/*` `fail_before` hits V first.
+- Issue-time provider GETs belong to preparation.
+- Each held call keeps its 5 s. A schedule that misses its window (the 5 s of a held call, or the 60 s lease of a dead handler) is `BLOCKED`. `BLOCKED` fails the full gate. It is never a pass or a skip, and never a reason to change production timeouts.
+
+Accounting: QA owns common and Blackboard ids, the `011` route and the case accounting. QA-E2E owns the Canvas variants. The Author owns product and colocated unit tests.
+
+## R3.9. Amendments after acceptance (not applied) and ownership
+
+| File | Change |
+| --- | --- |
+| App contract §4.2 | snapshot capture (R3.1) |
+| App contract §4.4 | R3.2 precedence; Canvas S1 `url`; the readiness row becomes check 4a and V |
+| App contract §4.7.1 | Terms (target source); check 4a; check 5 Blackboard source; V row and post-V decision; budget; outcome rows R3.6; the V limit |
+| App contract §4.7.2 | unchanged order; note "no provider read" |
+| App contract §4.8 | R3.4 |
+| App contract §12 | `grant_attempt_started` (R3.7) |
+| `tool-configuration` rule | R3.5 |
+| Data model §4.2 | three columns, write rules, migration `012` |
+| ADR-011 §14 | migration list adds `012` |
+| M1 | R3.8 ids (37 v1–v12, w, x1–x2, y1–y2, z1–z5, aa; 29 k1–k3; 38 h1–h5, i1–i5) and the unit list |
+| M3 | the `011` route in both rounds |
+| LTI contract §3.9 / §9.4 | one sentence: a platform id is never reused; a re-created platform has a new id (R3.3 premise). |
+| App contract §4.2, §4.4, §4.7.1, §12 | the neutral `PROVIDER_NOT_READY` title and action (R3.10); the `provider_not_ready` log event |
+| M2 error-text table | row `409 PROVIDER_NOT_READY` → the R3.10 neutral text (was "the Blackboard not-ready text"). The Blackboard **card** not-ready text (AC-M2-02, from `lms-providers` `ready`) does not change. |
+
+Implementation files for R3.10 (for the Lead's assignment): `services/cogniate-app/src/app/api-errors.ts` (server title and action; engine Author) and `apps/portal/src/connect/provider-errors.tsx` (portal map `PROVIDER_NOT_READY`; portal owner Author-2).
+
+Ownership after acceptance: the Lead assigns. `services/cogniate-app/src/providers/canvas.ts` (S1 `url`) stays with its current Canvas owner until the Lead makes an explicit transfer. This proposal transfers nothing.
+
+## R3.10. One neutral `409 PROVIDER_NOT_READY` text (A-D-06)
+
+After D, one public code has several causes:
+- the Blackboard shared platform is not active (wait, then retry the same code);
+- the connection has no snapshot, or the shared platform or the Canvas profile changed (make a new connection by the R3.1 order);
+- the Canvas profile is missing (wait for the operator, then retry).
+
+The code stays the same, and **no public reason field** is added. The text is neutral for every LMS and every cause, and it names both recoveries:
+
+| Field | Text |
+| --- | --- |
+| Title | `This LMS setup is not ready in Cogniate.` |
+| Action | `Ask your Cogniate operator to check the LMS setup for this connection. The operator tells you to try again later, or to make a new connection.` |
+
+Operator diagnosis is internal:
+- the app logs `provider_not_ready {connection_id, profile, cause}` (warn) for check 4a, V row 5 and the readiness S1 answers;
+- `cause`, exactly: check 4a → `no_snapshot`; V row 5 with a missing profile row → `profile_missing`; V row 5 with `sharedPlatform` `NULL` or `active` false → `platform_inactive`; V row 5 with another `id` or `clientId`, or `sharing` not `shared` → `platform_changed`; V row 5 with another row `issuer` → `issuer_changed`; Blackboard S1 `404 UNREGISTERED_PLATFORM` → `platform_changed`; Canvas S1 `400 UNKNOWN_PROFILE` → `profile_missing`; Canvas S1 `400 PLATFORM_URL_NOT_IN_PROFILE` → `issuer_changed`; the create-time Blackboard refusal → `platform_inactive`. If several V conditions fail, the first in this list is logged;
+- `app:grant issue` prints its own cause line (R3.4).
+
+Cases 37 (w), (y2), (aa), 29 (k1) and 38 (h2) assert the text and the logged `cause`. The create-time refusal (`lms: blackboard` without an active shared platform, app contract §4.2) uses the same neutral text and logs `cause: platform_inactive`.
