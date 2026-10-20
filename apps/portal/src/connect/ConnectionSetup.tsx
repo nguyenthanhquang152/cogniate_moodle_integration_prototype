@@ -27,6 +27,12 @@ export function ConnectionSetup({ id, lms = "moodle", opener = `${lms}-manage` }
   } = useApi<Connection>(`/connections/${idPath(id)}`, 5000);
   const list = useApi<{ connections: Connection[] }>("/connections");
   const [disconnect, setDisconnect] = useState(false);
+  function changed(updated: Connection) {
+    setData(updated);
+    // End any older poll before it can replace the result of this write.
+    reload();
+    list.reload();
+  }
   if ((connection && connection.lms !== lms) || (error instanceof ApiError && error.status === 404)) return <NotFound />;
   if (!connection)
     return (
@@ -52,11 +58,11 @@ export function ConnectionSetup({ id, lms = "moodle", opener = `${lms}-manage` }
       ) : lms !== "moodle" ? (
         <>
           {connection.status !== "pending" && <ConnectionReady connection={connection} libraryName={library.name} />}
-          <ProviderSetup key={`${lms}:${id}`} lms={lms} connection={connection} opener={opener} onCreated={setData} onChanged={setData} />
+          <ProviderSetup key={`${lms}:${id}`} lms={lms} connection={connection} opener={opener} onCreated={changed} onChanged={changed} />
           {lms === "canvas" && connection.capabilities.addDeployment && connection.status !== "pending" &&
             <Card className="flex flex-col gap-5">
               <h2>Add deployment ID</h2>
-              <CanvasBinding key={id} connection={connection} onChanged={setData} addDeployment />
+              <CanvasBinding key={id} connection={connection} onChanged={changed} addDeployment />
             </Card>}
         </>
       ) : connection.status === "pending" ? (
@@ -64,13 +70,13 @@ export function ConnectionSetup({ id, lms = "moodle", opener = `${lms}-manage` }
           <DynamicSetup
             connection={connection}
             libraryName={library.name}
-            onChanged={setData}
+            onChanged={changed}
           />
         ) : (
           <ManualSetup
             connection={connection}
             libraryName={library.name}
-            onRegistered={setData}
+            onRegistered={changed}
           />
         )
       ) : (
