@@ -1167,6 +1167,32 @@ QA must record a fresh preflight and new run root, both complete 416-row rounds,
 Canvas QA independently judges each complete round's 233 Canvas rows without another stack.
 Attempts 1 and 2 remain separate failed and interrupted records. Final conformance and Docs still wait for accepted verification.
 
+### Attempt 3 default-gate failure; bounded backend diagnosis
+
+QA started attempt 3 at 20:15:15 UTC (`msg_12f46e8f1d9e`).
+Run root: `/Users/quangnguyen/cogniate-qa-runs/m1-full-8138097-a3-20261020T2014Z`.
+The Lead checked the exact command, provenance and pre-start boundary.
+Setup and seed passed. The required default-profile `GET /api/providers` returned HTTP 500 before the suite started.
+The runner exited 1 at 20:15:58 UTC. Zero suite rows were evaluated; this gives no acceptance credit.
+QA reported an unclassified required failure in `msg_c0c19a2f8c70` and closed the window.
+The same product and five service images passed this gate in attempt 1.
+
+Docker Desktop's log records a pending update from 4.95.0 to 4.96.0 after the host reboot.
+Attempt 3 used engine 29.9.1. The default bridge was recreated at 20:15:16 UTC, inside the window.
+These are observed environment changes; they do not prove the cause of the HTTP 500.
+Cleanup left zero containers and no owned resources. All seven original full volume metadata records match.
+Thirteen stack secrets had zero hits in five raw logs and 42 public files.
+No test values were captured, so the secret-scan acceptance gate has no passing result.
+
+Lead `msg_4b16706de8b7` selects backend diagnosis. Both QA workers remain no-stack.
+Task `task_b97d185ccfba`, dispatch `ctx_7496cc224976`, reuses the original Claude backend Author at Opus 5.5 xhigh.
+It may reproduce the single endpoint in a fresh diagnostic clone of `8138097` and inspect the precise failing operation.
+Its sole stack uses `cogniate-multi-author`, port 8743 and subnet `172.26.0.0/16`.
+It may instrument only that disposable clone, record the diff and keep raw exceptions private.
+It cannot edit tracked integration source, tests or docs, run acceptance suites, or change Docker settings.
+Any proposed product repair needs a bounded file scope after the diagnosis.
+The diagnostic must return its stack window with protected-volume and cleanup evidence before QA can resume.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.

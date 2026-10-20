@@ -1,5 +1,5 @@
-Verdict: FAIL — no complete M1 round and no final-SHA legacy yet: attempt 1 FAIL at `aff4882`; attempt 2 INTERRUPTED at `8138097`
-Round: Claude continuation `ctx_8d5f8d3984d0`, attempt 2 interruption and recovery, 2026-10-20
+Verdict: FAIL — no complete M1 round and no final-SHA legacy yet: attempt 1 FAIL at `aff4882`; attempts 2 (INTERRUPTED) and 3 (FAIL: one host-gate assertion, zero suite rows) at `8138097`
+Round: Claude continuation `ctx_8d5f8d3984d0`, attempt 3 default-gate failure, 2026-10-20
 
 The T2/T3 group below passed at its exact frozen candidate. The later harness
 repair is preparation only and does not replace that run or close M3.
@@ -326,3 +326,14 @@ from 29.8.2 to 29.9.1 when Docker Desktop restarted. The
 has the full record. The status table of attempt 1 is still current:
 AC-M3-01, AC-M3-02(b) and AC-M3-04 are not complete. Attempt 3 needs a new
 window.
+
+## Attempt 3 at `8138097`: FAIL at the default gate, 2026-10-20
+
+The runner's default-profile gate got HTTP 500 from `GET /api/providers`
+before the suite started. One required host-gate assertion ran and failed
+(`M1-02.common.default-profile`); zero suite rows ran. The same product and images passed this gate in attempt 1.
+Docker Desktop updated itself to 4.96.0 (engine 29.9.1) after the reboot. The
+cause is not classified. Cleanup passed, and all seven protected volume
+records still match the original baseline. The
+[M1 report](../M1/qa.md#claude-continuation--full-run-attempt-3-at-8138097-fail-at-the-default-gate-2026-10-20)
+has the record. AC-M3-01, AC-M3-02(b) and AC-M3-04 stay incomplete.

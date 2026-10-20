@@ -1,5 +1,5 @@
-Verdict: FAIL — no complete M1 round yet: attempt 1 at `aff4882` FAIL (repaired in `8138097`); attempt 2 at `8138097` INTERRUPTED by a host reboot
-Round: Claude continuation `ctx_8d5f8d3984d0`, attempt 2 interruption and recovery, 2026-10-20
+Verdict: FAIL — no complete M1 round yet: attempt 1 FAIL at `aff4882`; attempt 2 INTERRUPTED and attempt 3 FAIL at `8138097` (one required host-gate assertion failed with HTTP 500; zero suite rows ran)
+Round: Claude continuation `ctx_8d5f8d3984d0`, attempt 3 default-gate failure, 2026-10-20
 
 The latest checkpoint is at the end of this report. The completed legacy
 T2/T3 run remains exact-`eb43247` evidence in the M3 report. It is not an M1
@@ -545,3 +545,64 @@ uses the frozen lookup and the same removal commands as the runner teardown.
 Next: a new exclusive window for attempt 3 of the same exact entry at
 `8138097`, from a new clean clone and a new run root. Attempt 1 (FAIL) and
 attempt 2 (INTERRUPTED) stay as separate records.
+
+## Claude continuation — full-run attempt 3 at `8138097`: FAIL at the default gate, 2026-10-20
+
+Result: **FAIL**. The run stopped in round 1, phase `sim`, before the suite
+started. One required host-gate assertion ran and failed: the default gate for
+`M1-02.common.default-profile`. Zero suite rows (API or browser) ran. No retry
+was made. The cause is not classified yet.
+
+| Item | Value |
+| --- | --- |
+| Product SHA = test SHA | `8138097889f87359d5055bb1d79766b5ed842f92` (tests tree `a6437598`) |
+| Window | Lead `msg_ff5f23202f77`. Docker engine 29.9.1 is the accepted environment baseline. Equivalence with 29.8.2 was not assessed. |
+| Source | `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-8138097-a3-20261020T2011Z/source` (provenance `df7e5f2d…`) |
+| Run root | `/Users/quangnguyen/cogniate-qa-runs/m1-full-8138097-a3-20261020T2014Z` |
+| Phase run | `qa-multi-r1-81380978-2026-10-20T20-15-15-670Z` |
+| Time | 20:15:15Z start; parent exit 1 at 20:15:58Z |
+
+The pre-start gates passed. Setup passed: clone, root `npm ci`, `gen-env`, the
+H1 project guard, `stack:up` (32.4 s) and `seed` (2.8 s, the same output as
+attempt 1). Then the runner's default gate (`run-m1.mjs:216`) for the required
+row `M1-02.common.default-profile` sent `GET /api/providers` to the
+default-profile stack. The answer was **500**, not 200.
+
+Product evidence (redacted copies in the phase artifacts):
+
+- `service_started` at 20:15:25Z with `profile: default`, `knobs: []` and
+  `simulation_profiles: []`.
+- `internal_error` at 20:15:55.149Z with error `Error`. The product does not
+  log the message.
+- `http_request GET /api/providers` with status 500 after 1 ms, in the same
+  trace.
+
+The same product and images passed this gate in attempt 1 (14:43Z, engine
+29.8.2). All five `images.json` entries are identical. The seed output is
+identical, and the setup timings are similar (32.4 s and 2.8 s now; 31.9 s and 2.7 s then).
+
+Environment differences, recorded as facts and not as a cause:
+
+- Docker Desktop was 4.95.0 when the Lead launched it after the reboot. Its own
+  log shows that it installed a pending update at 20:08:50Z. It now runs
+  4.96.0 with engine 29.9.1.
+- In this window, the default `bridge` network was recreated at 20:15:16Z. That
+  is one second after the before-boundary and before `stack:up`. The VM
+  console log rotated at 20:15:15Z. The VM init log shows network policy
+  components loading at 20:15:16Z.
+
+Cleanup: the runner teardown passed with 0 containers, volumes and networks
+left. The after-boundary found 0 containers and no owned leftovers. All seven
+protected volume records are identical to the original baseline. Its only
+problem is the bridge recreation above. No owned process remains. Privacy: no
+suite ran, so no test value was captured. The 13 stack secrets gave 0 hits in
+5 raw logs and 42 public files.
+
+Evidence: `public/attempt3-failure-classification.json`, `public/` boundaries,
+and the phase artifacts under
+`/Users/quangnguyen/cogniate-qa-runs/m3-frozen-8138097-a3-20261020T2011Z/source/tests/host/artifacts/qa-multi-r1-81380978-2026-10-20T20-15-15-670Z/`
+(`summary.json`, `service-logs/lti-service.jsonl`, `docker-logs/`, `cmd/`).
+
+Next: a bounded diagnosis of the 500 before any rerun (escalation
+`msg_c0c19a2f8c70`). This QA does not change Docker, downgrade it or edit
+source.
