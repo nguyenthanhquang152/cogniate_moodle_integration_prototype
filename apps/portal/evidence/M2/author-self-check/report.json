@@ -26,6 +26,36 @@
       "stage": "canvas-added-deployment",
       "seriousOrCritical": [],
       "violations": []
+    },
+    {
+      "stage": "blackboard-not-ready",
+      "seriousOrCritical": [],
+      "violations": []
+    },
+    {
+      "stage": "blackboard-step-1",
+      "seriousOrCritical": [],
+      "violations": []
+    },
+    {
+      "stage": "blackboard-steps-2-and-3",
+      "seriousOrCritical": [],
+      "violations": []
+    },
+    {
+      "stage": "blackboard-approval-error",
+      "seriousOrCritical": [],
+      "violations": []
+    },
+    {
+      "stage": "blackboard-step-4-and-detail",
+      "seriousOrCritical": [],
+      "violations": []
+    },
+    {
+      "stage": "blackboard-disconnect",
+      "seriousOrCritical": [],
+      "violations": []
     }
   ],
   "errors": []

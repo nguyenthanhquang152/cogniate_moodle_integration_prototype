@@ -36,7 +36,14 @@ try {
     capabilities: { dynamicRegistration: false, operatorApproval: true, webServices: false, courseShell: false, addDeployment: true, canvasConfiguration: true },
     registrationUrl: null, registrationUrlExpiresAt: null, createdAt: "2026-10-20T00:00:00Z", lastLaunchAt: null, webServices: null, platform: null, lastError: null,
   };
-  let created = false;
+  const blackboard = {
+    ...canvas, id: "con_blackboard_smoke", name: "School Blackboard", lms: "blackboard", profile: "blackboard-sim",
+    siteUrl: "https://learn.school.edu", serviceUrl: "https://learn.school.edu",
+    capabilities: { ...canvas.capabilities, addDeployment: false, canvasConfiguration: false },
+  };
+  const connections = new Map();
+  let blackboardReady = false;
+  let blackboardRefusal = true;
   await page.route("**/app-api/**", async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname.slice("/app-api".length);
@@ -46,14 +53,35 @@ try {
       lms: "canvas", label: "Canvas", methods: ["manual"], capabilities: canvas.capabilities,
       profiles: [{ id: "canvas-sim-cloud", label: "Canvas cloud (simulation)", ready: true, simulation: true, clientId: null }],
     }, {
-      lms: "blackboard", label: "Blackboard", methods: ["manual"], capabilities: { ...canvas.capabilities, addDeployment: false, canvasConfiguration: false },
-      profiles: [{ id: "blackboard-sim", label: "Blackboard Learn (simulation)", ready: false, simulation: true, clientId: null }],
+      lms: "blackboard", label: "Blackboard", methods: ["manual"], capabilities: blackboard.capabilities,
+      profiles: [{ id: "blackboard-sim", label: "Blackboard Learn (simulation)", ready: blackboardReady, simulation: true, clientId: blackboardReady ? "qa-bb-app" : null }],
     }] };
     else if (path === "/connections") {
-      if (request.method() === "POST") { created = true; body = canvas; }
-      else body = { connections: created ? [canvas] : [] };
-    } else if (path === `/connections/${canvas.id}`) body = canvas;
-    else if (path.endsWith("/tool-configuration")) body = [
+      if (request.method() === "POST") {
+        const input = request.postDataJSON();
+        body = input.lms === "canvas" ? canvas : blackboard;
+        assert.deepEqual(Object.keys(input).sort(), (input.lms === "canvas"
+          ? ["lms", "method", "name", "profile", "serviceUrl", "siteUrl"] : ["lms", "method", "name", "profile", "siteUrl"]).sort());
+        connections.set(body.id, body);
+      } else body = { connections: [...connections.values()] };
+    } else if (path === `/connections/${canvas.id}` || path === `/connections/${blackboard.id}`) {
+      body = connections.get(path.split("/")[2]);
+      if (request.method() === "DELETE") {
+        body.status = "disabled";
+        return route.fulfill({ status: 204 });
+      }
+    } else if (path === `/connections/${blackboard.id}/tool-configuration`) body = [
+      { key: "client_id", label: "Client ID", value: "qa-bb-app" },
+      { key: "login_initiation_url", label: "Login Initiation URL", value: "https://lti.example.test/lti/login/cogniate" },
+      { key: "tool_redirect_url", label: "Tool Redirect URL(s)", value: "https://lti.example.test/lti/launch/cogniate" },
+      { key: "tool_jwks_url", label: "Tool JWKS URL", value: "https://lti.example.test/lti/keys/cogniate" },
+      { key: "tool_status", label: "Tool Status", value: "Approved" },
+      { key: "user_fields", label: "User Fields to Send", value: "Role in Course only. Do not send Name or Email Address." },
+      { key: "grade_service", label: "Allow grade service access", value: "Yes" },
+      { key: "membership_service", label: "Allow Membership Service access", value: "Yes" },
+      { key: "placement", label: "Placement", value: "Cogniate: type Deep Linking, Target Link URI https://lti.example.test/lti/launch/cogniate, student access off" },
+    ];
+    else if (path === `/connections/${canvas.id}/tool-configuration`) body = [
       { key: "key_name", label: "Key Name", value: "Cogniate (Library A)" },
       { key: "redirect_uris", label: "Redirect URIs", value: "https://lti.example.test/lti/launch/cogniate" },
       { key: "method", label: "Method", value: "Paste JSON" },
@@ -64,9 +92,21 @@ try {
       return route.fulfill({ contentType: "application/json", headers: inline ? { "x-cogniate-key-id": "smoke-key" } : {}, body: inline ? '{"public_jwk":{"kid":"smoke-key"}}\n' : jsonText });
     } else if (path.endsWith("/platform")) {
       const input = request.postDataJSON();
-      canvas.status = "registered";
-      canvas.platform = { id: "plt_canvas_smoke", issuer: "https://canvas.sim.test", clientId: input.clientId, deploymentIds: [input.deploymentId], productFamilyCode: "canvas", siteUrl: canvas.siteUrl, serviceUrl: canvas.serviceUrl };
-      body = canvas;
+      const target = connections.get(path.split("/")[2]);
+      assert.deepEqual(Object.keys(input).sort(), (target.lms === "canvas"
+        ? ["clientId", "deploymentId", "grantCode"] : ["deploymentId", "grantCode"]).sort());
+      if (target.lms === "blackboard" && blackboardRefusal) {
+        blackboardRefusal = false;
+        return route.fulfill({ status: 422, contentType: "application/json",
+          body: JSON.stringify({ details: { message: "GRANT_MISMATCH", fields: ["deploymentId"] } }) });
+      }
+      target.status = "registered";
+      target.platform = {
+        id: `plt_${target.lms}_smoke`, issuer: target.lms === "canvas" ? "https://canvas.sim.test" : "https://blackboard.sim.test",
+        clientId: input.clientId ?? "qa-bb-app", deploymentIds: [input.deploymentId],
+        productFamilyCode: target.lms === "canvas" ? "canvas" : "BlackboardLearn", siteUrl: target.siteUrl, serviceUrl: target.serviceUrl,
+      };
+      body = target;
     } else if (path.endsWith("/deployments")) {
       canvas.platform.deploymentIds.push(request.postDataJSON().deploymentId);
       body = canvas;
@@ -106,7 +146,8 @@ try {
   assert.equal(download.suggestedFilename(), "cogniate-canvas-lti.json");
   assert.equal(await readFile(await download.path(), "utf8"), jsonText);
   await capture("canvas-steps-2-and-3");
-  await page.getByRole("checkbox").check();
+  await page.getByRole("checkbox").focus();
+  await page.keyboard.press("Space");
   await page.getByText(/Key id: smoke-key/).waitFor();
   await capture("canvas-inline-key");
   await page.getByLabel("Client ID", { exact: true }).focus();
@@ -128,10 +169,65 @@ try {
   await page.getByText("deployment-two", { exact: true }).waitFor();
   assert.equal(await page.getByLabel("Approval code", { exact: true }).inputValue(), "");
   await capture("canvas-added-deployment");
+
+  await page.goto(`${origin}/integrations`);
+  await page.getByRole("tab", { name: "LMS Publishing", exact: true }).click();
+  const blackboardCard = page.getByRole("article", { name: "Blackboard", exact: true });
+  await blackboardCard.getByText("Blackboard is not set up for this Cogniate service yet. Ask your Cogniate operator.").waitFor();
+  assert.equal(await blackboardCard.getByRole("button", { name: "Connect", exact: true }).isDisabled(), true);
+  await capture("blackboard-not-ready");
+  blackboardReady = true;
+  await page.reload();
+  await blackboardCard.getByRole("link", { name: "Connect", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await page.getByLabel("Learn URL", { exact: true }).waitFor();
+  await capture("blackboard-step-1");
+  await page.getByLabel("Connection name", { exact: true }).focus();
+  await page.keyboard.type("School Blackboard");
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("https://Learn.School.edu/");
+  await page.keyboard.press("Shift+Tab");
+  assert.equal(await page.getByLabel("Connection name", { exact: true }).evaluate((element) => element === document.activeElement), true);
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await page.getByRole("heading", { name: "Register Cogniate in Blackboard Learn" }).waitFor();
+  await page.locator("[data-client-id]").getByRole("button", { name: "Copy Client ID", exact: true }).click();
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), "qa-bb-app");
+  assert.equal(await page.getByLabel("Client ID", { exact: true }).count(), 0);
+  assert.equal(await page.getByRole("table").locator("tbody tr").count(), 9);
+  await capture("blackboard-steps-2-and-3");
+  await page.getByLabel("Deployment ID", { exact: true }).focus();
+  await page.keyboard.type("blackboard-deployment");
+  await page.keyboard.press("Tab");
+  await page.keyboard.type("b".repeat(43));
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await page.getByText("The values do not match the approval. Check the marked fields, or ask your Cogniate operator.").waitFor();
+  assert.equal(await page.getByLabel("Approval code", { exact: true }).inputValue(), "");
+  assert.equal(await page.getByLabel("Deployment ID", { exact: true }).getAttribute("aria-invalid"), "true");
+  await capture("blackboard-approval-error");
+  await page.getByLabel("Approval code", { exact: true }).focus();
+  await page.keyboard.type("b".repeat(43));
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Enter");
+  await page.getByRole("heading", { name: "Add a Cogniate course in Blackboard" }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Add deployment ID", exact: true }).count(), 0);
+  assert.equal(await page.getByLabel("Approval code", { exact: true }).count(), 0);
+  assert.equal(page.url().includes("b".repeat(43)), false);
+  assert.equal(await page.evaluate(() => JSON.stringify({ local: localStorage, session: sessionStorage }).includes("b".repeat(43))), false);
+  await capture("blackboard-step-4-and-detail");
+  await page.getByRole("button", { name: "Disconnect", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("dialog").getByText("This switches off Cogniate for this Blackboard site only. Other schools are not affected. Cogniate items in Blackboard courses stop working, and connecting again later does not restore them.").waitFor();
+  await capture("blackboard-disconnect");
+  await page.getByRole("dialog").getByRole("button", { name: "Disconnect", exact: true }).click();
+  await page.getByText("This connection is disconnected. Connecting again does not restore its old course items.").waitFor();
+  assert.equal(canvas.status, "registered");
   assert.deepEqual(errors, []);
 } finally {
   await writeFile(new URL("report.json", evidence), `${JSON.stringify({ evidence: "AUTHOR SELF-CHECK — MOCKED API, NOT SIM OR LIVE LMS", viewport: "1440x1000", records, errors }, null, 2)}\n`);
   await browser.close();
   await new Promise((resolve) => server.close(resolve));
 }
-console.log(`Author UI self-check complete: ${records.length} Canvas stages; report in ${fileURLToPath(evidence)}`);
+console.log(`Author UI self-check complete: ${records.length} Canvas and Blackboard stages; report in ${fileURLToPath(evidence)}`);
