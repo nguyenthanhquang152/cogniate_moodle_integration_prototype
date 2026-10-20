@@ -317,3 +317,56 @@ This is a bounded check of the revision 3.1 corrections, not a fourth review rou
 - Every probe and self-check here is design feasibility, not acceptance. Assumptions 4, 10 and 11 are unmeasured.
 - The 488 rows (416 + 72) are unchanged. The lock self-check is a harness self-check, not a row.
 - No runtime or implementation acceptance follows. All 32 live rows stay `UNVERIFIED`.
+
+## G1 bounded disposition addendum: A-S-13 (2026-10-21)
+
+This is a bounded disposition of A-S-13 under escalation G1 at revision 3.2, not a new review round. The top verdict line (APPROVE) stays. G1 itself stays UNRESOLVED until the Lead records independent closure.
+
+| Item | Value |
+| --- | --- |
+| Verdict for this bounded correction | **APPROVE.** **A-S-13 is closed as a design build gate.** Revision 3.2 makes the Docker-client process group a gate (G-1) with explicit pass criteria and a fail-closed outcome. The two verified Author diagnostics meet G-1 for storage-style `docker compose run` on the measured host and client versions. The R3B-01 fixture and exact-name rules do not reopen my state, recovery or data-ownership closures. One new **MINOR**, A-S-14: the G-1 result is not yet bound to the Docker client versions, and this host's Docker Desktop has already updated itself once during the project. No BLOCKER or MAJOR. |
+| Frozen candidate | **`d0bdda06cbb7176fcb7d2b66797d81edd95de6fe`** (revision 3.2; ADR-012 SHA-256 `d1d95e5c5432f21afadd895bba9dd8a22e4fd8426d8ad13bd4d1d21dabb494b7`, response `f78179767075debd396cf01b3d30993821ab112feb4a5ae99791b677db7e5079`, both verified), compared with `a65a4ee`. Product, test and infrastructure stay `8138097889f87359d5055bb1d79766b5ed842f92`. My report at `0928c88` (SHA-256 `89955081…89c0`) is unchanged at `d0bdda0`. |
+| Diagnostic evidence (AUTHOR-DIAGNOSTIC; no acceptance credit) | (1) `/Users/quangnguyen/cogniate-author-diag/client-group-20261020T2243Z/public/AUTHOR-DIAGNOSTIC-client-group.md`, SHA-256 `24768ae9a3dbdb18881adbb0ff4131aa3d2ce014556b9aed606688d358b7a9df`. (2) `/Users/quangnguyen/cogniate-author-diag/client-group-30s-20261020T2252Z/public/AUTHOR-DIAGNOSTIC-client-group-30s.md`, SHA-256 `297cdf8c83cbf2876d1e638d579c1c7daa44dbbbad8f7e0106cc1dd2f3ebdc4e`. I verified both report hashes and both manifests read-only (`shasum -c`: 14 OK and 26 OK). I read `results-g1-shape.txt`, the 25 rows of `samples-g1-shape.jsonl` (every count 0; `since_gate_s` 0.02 → 30.36) and the command line in `scripts/client-group-30s-g1.sh`. |
+| Reviewer | Original Reviewer-A, Claude Code Opus 5.5, xhigh, session `604b28c1-156c-4266-84c3-e0f0089004da`. Task `task_98eab0aaf4c1`, dispatch `ctx_2f807ddce9f7`. |
+| Independence | I read only my own report, the shared ADR and response, the Lead handoff and the two Author diagnostics. I read no other new addendum. No Docker, product command, edit outside this report, commit or push. |
+
+### Disposition
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-S-13 | **Closed (design build gate)** | **Design (`d0bdda0`):** §17 "Build-step gate G-1" (L730–L738) defines the measurement: the script, the `docker` front process and the `compose` plugin, a parent-only kill before creation, a whole-group kill before creation, and no client and no container within 30 s. "G-1 passes only when every Docker client process of the run is in the command's group…" (L736). Unmeasured or failed → implementation acceptance and every lock-dependent runtime gate stay `BLOCKED`; stop and report; no fallback without its own review (L737). §7 claims the group guarantee "only where … G-1 … has shown" it (L235). Assumption 10 (L750) explicitly rejects the weaker branch. **Evidence against G-1 (measured host only):** front and plugin were in the stub's group in all six trials (diagnostic 1: A–D; diagnostic 2: supplemental and G-1-shaped). **Parent-only kill** (diagnostic 1, trial A): front and plugin survived in the original group, and the surviving client created and started the target 0.73 s after the gate. That proves the risk is real, and that the group rule detects it, because the group is not empty. **Whole-group kill** (diagnostic 2, G-1 shape, with `--name` and the run label): no survivor; by name, by run label, target and one-off all 0 from 0.02 s to 30.36 s after the gate; no target, name or label event; a positive control found an equal-shaped run by the same filters. |
+| R3B-01 changes (my closures) | **No regression** | §11 "Lane volume presence" (L520 ff.) and §15 (L664 ff.) change only QA fixture and oracle rules. The product §6 state table, the §8 journal, checked move and R3 order, backup admissibility, quarantine and the §7 lock are unchanged. The `FIRST_START` fixture is made by the product preflight under `storage-oplock.sh run --`: a raw `dc run`, not a guarded command, so there is no re-entry. Its container is a labelled storage container, so A5/A6 see it. QA writes only as `HOST_UID` with services stopped and the lock held. QA never creates or mounts an absent or foreign volume. Unlabelled lane-named volumes are preserved and reported, never removed. Every product data path is untouched. |
+
+### Why the measured scope is enough for the design gate
+
+- **The group rule fails only if a client survives outside the recorded group.** With every client in the group (measured), any survivor keeps the record live (A4). If the whole group is gone, no client remains to create anything.
+- **Graceful signals.** `SIGINT` and `SIGTERM` are trapped, and the script waits for its child (§7 release), so the owner identity stays live. A hang-up does not move processes between groups.
+- **An unmeasured create or start API race is covered by the container checks**, not by the group rule:
+  - a request that completes after its client died leaves an *inactive* container (A6 removes it) or an *active* one (A5/A6 refuse `storage_writer_active`);
+  - a started container that its client does not attach to still counts as active.
+- **The "before creation" point:** the trials held the client in a dependency wait. A storage container has no dependency, so its pre-creation window is the client's own start-up. That window is shorter, and the group membership is the same.
+
+These are reasoning, not measurements. The limits in the next section stay.
+
+### New finding
+
+#### A-S-14 — MINOR — The G-1 result is not bound to the Docker client versions it measured
+
+- **Where:** §17 G-1 (L738: "It runs … again on any other supported host"), §7 L235 ("not claimed for any other host or client behavior"). The diagnostics record the identities they measured: Docker CLI 29.9.1, SHA-256 `678271184175…af5fb`; Compose plugin v5.6.0, SHA-256 `1ec06408b809…bf605`; engine 29.9.1.
+- **Problem:** the property depends on the Docker CLI's plugin launch. A CLI update could start plugins in a new process group, and nothing would notice, because G-1 is tied only to "host". This host's Docker Desktop already updated itself during the project: 4.95.0 / engine 29.8.2 → 4.96.0 / engine 29.9.1 (`docs/reviews/M3/qa.md:335`; M1 run tools `docs/reviews/M1/qa.md:375` versus `:559`). A later implementation acceptance or AC-M1-41 run could therefore use a client that G-1 never measured, while the §7 claim seems to hold.
+- **Narrow fix (precision; no mechanism change):**
+  - State that a G-1 pass is valid only for the recorded Docker CLI version and binary SHA-256, the Compose plugin version and SHA-256, and the OS version.
+  - QA's run boundary records the same identities.
+  - Any difference → G-1 runs again before the lock-dependent rows count, else those rows are `BLOCKED` (the existing fail-closed path of L737).
+
+### Remaining limits (unchanged by this disposition)
+
+- G-1 evidence covers only the following:
+  - **host:** macOS 27.0.1, arm64;
+  - **client:** Docker CLI and engine 29.9.1, Compose 5.6.0;
+  - **shell:** `/bin/bash` 3.2.57, with a `perl setpgrp` stub as the group leader;
+  - **trials:** synthetic gated trials with a pinned Node image and `pull_policy: never`;
+  - **paths:** `docker compose run` only.
+
+  Not measured: other signals or a terminal close, a kill during the create API call (covered by the container checks above), `up`/`exec`, other callers and shells (an interactive zsh job, Node `detached` spawn), other versions, and Linux. The `ps` field was `comm`, not `command`, which is enough to tell the front process from the plugin.
+- G-1 is design-gate evidence. The implementation still needs its own review. The `storage-oplock.sh selftest` (stubs), the 488 rows (416 + 72; original assertions unchanged) and every runtime and stack-level rerun remain. No implementation or acceptance credit follows. All 32 live rows stay `UNVERIFIED`.

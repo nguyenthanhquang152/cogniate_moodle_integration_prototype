@@ -1655,6 +1655,16 @@ The Author was retained before acknowledgment. This is diagnostic evidence only.
 Reviewer-A `task_98eab0aaf4c1`, dispatch `ctx_2f807ddce9f7`, launch `msg_e87b558008b9`, now has both reports and their limits.
 It independently decides A-S-13 and the scoped G-1 disposition. No Docker window is open.
 
+Reviewer-A started in `msg_8e6d632e3693` and submitted APPROVE in `msg_47587678d2c7`.
+Held report SHA-256: `318d753fe8962f408eed5b87939a7c6ab729d12d760b8278141b54913e3bc0aa`.
+The Lead checked the hash and unchanged prior report bytes, then retained the worker before acknowledgment.
+A-S-13 closes as a design build gate; both diagnostics meet scoped G-1 for storage-style Compose run on this measured host.
+The exact-name fixture changes do not reopen Reviewer-A's earlier closures.
+New MINOR A-S-14 asks to bind the result to the recorded OS version, Docker CLI and Compose plugin versions and binary hashes.
+QA must compare those identities at its run boundary; a mismatch requires new G-1 evidence or blocks lock-dependent rows.
+The diagnostic limits remain. No implementation or runtime acceptance follows from these approvals.
+QA's independent R3B-01 disposition is still pending, so G1 and source implementation remain held.
+
 The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
