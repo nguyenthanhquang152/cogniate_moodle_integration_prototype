@@ -443,6 +443,27 @@ The final bounded design recheck wave is active on that exact commit:
 Handoffs: `msg_fa58502aaa35`, `msg_bf1c0892b181`, and `msg_a0afb45d9d38`.
 The Architect is retained. Implementation still waits for approval and application of the accepted contract amendments.
 
+All three final design rechecks passed on `78bc34a`; the reports are committed together as **`b6e8f739e6de752cb287929c9836734d2494e444`**.
+Reviewer-A APPROVE: `msg_826bd7afdaea`. Reviewer-B APPROVE: `msg_3a6cd089d556`. QA design PASS: `msg_776a4a57d078`.
+No design BLOCKER, MAJOR, or MINOR remains. Product B-M1-03 remains open.
+The Lead accepts optional A-D-09 precision for the contract application: include the create-handler error override, use a null pre-create connection id in the log, prefer the replacement cause over inactivity, and retain cancellation-first outcome wording.
+Architect application task `task_cf7e2e942594`, dispatch `ctx_50ca8c5ba951`, started with explicit approval in `msg_2a5205155c10`.
+It owns the eight named architecture files only. Product ownership stays with the existing two teams.
+
+The next implementation and preparation tasks wait for the frozen applied contracts:
+
+| Work | Task | Owner |
+| --- | --- | --- |
+| Shared engine, snapshot migration, Blackboard and server errors | `task_de758fb0e31a` | Existing Claude Author |
+| Canvas S1 issuer pin and shared portal error text | `task_65cded3fc783` | Existing Codex Author-2 |
+| Common/Blackboard cases, inventory and populated upgrade route | `task_7f4a69ad0b33` | Existing Codex QA |
+
+No Canvas file ownership is transferred. The Canvas worktree has only its existing untracked setup artifact; the Lead will advance it before launch.
+In parallel, the narrow B-M3-03 task `task_480510c15247` now runs as `ctx_974f279ececc`.
+Handoff `msg_68891aec5a82` supplies the accepted R3.7 audit semantics and permits preparation in its two existing owned paths.
+It uses a same-process request-completion control and a positive attempt control; it makes no durable crash or database claim.
+This does not authorize product acceptance runs or the broader Canvas snapshot test work.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
