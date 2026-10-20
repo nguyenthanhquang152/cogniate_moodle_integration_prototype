@@ -8,6 +8,7 @@ import { APP, appApi, createCourse, QA_B, signIn, THANH, uploadVersion, type Ses
 import { publicUrls } from '../../lib/env';
 import { httpsRequest } from '../../lib/https';
 import { apiKey, auth, ltiApi, recordSecret } from '../../lib/lti';
+import { captureBrowserSecrets, diagnosticUrl } from './browser-diagnostics.mjs';
 import { artifactsDir } from '../../lib/paths';
 import { zipBuffer } from '../../lib/zip';
 import { BLACKBOARD, CANVAS_LOGIN, CLOUD, ROLE, SELF, canvasClientId, canvasDeepLinking, canvasDeploymentId, hostOf } from './constants';
@@ -177,19 +178,13 @@ export async function waitForFrame(page: Page, test: (url: URL) => boolean, time
   for (;;) {
     const frame = page.frames().find((f) => { try { return test(new URL(f.url())); } catch { return false; } });
     if (frame) return frame;
-    check(Date.now() < deadline, `No frame matched within ${timeoutMs} ms: ${page.frames().map((f) => f.url().split('?')[0]).join(' | ')}`);
+    check(Date.now() < deadline, `No frame matched within ${timeoutMs} ms: ${page.frames().map((f) => diagnosticUrl(f.url())).join(' | ')}`);
     await page.waitForTimeout(200);
   }
 }
-/** Records browser-visible ltiks, runtime tokens and play ids for the leak scan (never into shared evidence). */
+/** Records browser-visible capabilities and launch form values for the private leak scan. */
 export function captureSecrets(context: BrowserContext) {
-  context.on('request', (request) => {
-    try {
-      const u = new URL(request.url());
-      const ltik = u.searchParams.get('ltik'); if (ltik) recordSecret('ltik', ltik);
-      const rt = u.pathname.match(/^\/rt\/([^/]+)/)?.[1]; if (rt) recordSecret('runtime_token', rt);
-    } catch { /* not a URL that carries a secret */ }
-  });
+  return captureBrowserSecrets(context, recordSecret);
 }
 export const playPath = /^\/play\/ply_[^/]+$/;
 export const embeddedPath = /^\/play\/ply_[^/]+\/embedded$/;

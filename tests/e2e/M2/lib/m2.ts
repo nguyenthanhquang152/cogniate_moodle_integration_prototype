@@ -7,8 +7,9 @@ import { portalUser, QA_B, THANH, type Session } from '../../../acceptance/lib/a
 import { recordSecret } from '../../../acceptance/lib/lti';
 import { TESTS_DIR } from '../../../acceptance/lib/paths';
 import {
-  APP, BLACKBOARD, CLOUD, admin, app, check, gate, issueGrant, ok, requireShas, session, unique, urls, type Grant, type Json,
+  APP, BLACKBOARD, CLOUD, admin, app, captureSecrets, check, gate, issueGrant, ok, requireShas, session, unique, urls, type Grant, type Json,
 } from '../../../acceptance/M1/canvas/browser';
+import { diagnosticUrl } from '../../../acceptance/M1/canvas/browser-diagnostics.mjs';
 
 export const TEXT = {
   moodleCard: 'Export SCORM packages and sync course content with your Moodle LMS.',
@@ -67,12 +68,13 @@ const blocked: string[] = [];
 export const test = base.extend<{ guard: void }>({
   guard: [async ({ context }, use, testInfo) => {
     blocked.length = 0;
+    const stopCapture = captureSecrets(context);
     await context.route('**/*', (route) => {
       const host = new URL(route.request().url()).hostname;
       if (host.endsWith('.test')) return route.continue();
-      blocked.push(route.request().url()); return route.abort('blockedbyclient');
+      blocked.push(diagnosticUrl(route.request().url())); return route.abort('blockedbyclient');
     });
-    await use();
+    try { await use(); } finally { stopCapture(); }
     if (blocked.length) await testInfo.attach('blocked-external-requests.txt', { body: [...new Set(blocked)].join('\n'), contentType: 'text/plain' });
   }, { auto: true }],
 });
@@ -96,6 +98,7 @@ export async function portalSignIn(page: Page, email: string) {
 }
 export async function libraryPage(browser: Browser, library: 'A' | 'B') {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 }, ignoreHTTPSErrors: process.env.QA_IGNORE_HTTPS_ERRORS === '1' });
+  captureSecrets(context);
   await context.route('**/*', (route) => new URL(route.request().url()).hostname.endsWith('.test') ? route.continue() : route.abort('blockedbyclient'));
   const page = await context.newPage();
   await portalSignIn(page, library === 'A' ? THANH : QA_B);

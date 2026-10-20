@@ -1,8 +1,8 @@
-Verdict: FAIL — frozen M2 SIM run: 35 PASS, 29 FAIL; repair preparation only
-Round: 4, verification task `task_e28388df4dcc`, dispatch `ctx_8ec51c3aa7b5`
+Verdict: FAIL / HOLD — second frozen M2 SIM run: 61 PASS, 3 FAIL; privacy capture repair prepared
+Round: 5, verification task `task_e28388df4dcc`, dispatch `ctx_8ec51c3aa7b5`
 Owner: independent Codex Canvas QA quota replacement, authorized by Lead for GPT-6-Astra at xhigh
 
-Sections 1–4 preserve the earlier preparation record. The current execution result is in section 5.
+Sections 1–5 preserve earlier preparation and execution records. The current execution result is in section 6.
 
 ## 1. Inputs and result
 
@@ -189,3 +189,130 @@ The runner's captured-secret scan passed: **1 captured value, 49 files, zero hit
 Cleanup passed at `2026-10-20T12:37:25.151515Z`: zero containers, all seven baseline Docker volume metadata records exactly unchanged, only `bridge`, `host` and `none` networks, and no owned Build Runner process. Full before/after evidence: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-eb43247-21t8wgiv/baseline-before.json` and `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-eb43247-21t8wgiv/baseline-after-m2.json`. No Docker Desktop setting, real tenant, account or public exposure changed.
 
 Lead received the failure and clean boundary in `msg_43f19e48bd65`. **T7, demo/check-confirm and another M2 stack remain HOLD** until repair freeze and a new exclusive window. Core QA still owns both complete M1 rounds; Canvas will judge its 233 rows from those exact per-case artifacts. All live LMS rows stay UNVERIFIED. No full root check, migration, legacy acceptance or live provider run was performed here.
+
+## 6. Round 5 — second frozen M2 run and diagnostic hygiene (2026-10-20)
+
+**FAIL: 61 PASS, 3 FAIL, zero skips and zero retries.** Product and test SHA: `ae130a3501f3a2502c6a34e36319629e3dcdfb09`. Applied criteria remain `ccdd9ef67cdd2be4c6af374136777fda4e081943`. Lead authorized the exclusive window in `msg_499d8986cf43` after the narrow common QA controls passed. This round supersedes the execution result in §5, not its historical evidence.
+
+### 6.1 Identity and execution
+
+Run `qa-e2e-sim-r2-ae130a35-2026-10-20T13-02-19-726Z`; project `qa-e2e-sim-r2`; port `8643`; subnet `172.27.0.0/16`; profile `acceptance`. External evidence root (`R`): `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-ae130a3-s73h9dlx`. Frozen source: `R/source`. Fresh runtime clone: `R/m2-stack`. Artifact directory (`A`): `R/source/tests/host/artifacts/qa-e2e-sim-r2-ae130a35-2026-10-20T13-02-19-726Z`.
+
+Executed from the frozen source:
+
+```sh
+COMPOSE_PROJECT_NAME=qa-e2e-sim-r2 PUBLIC_PORT=8643 STACK_SUBNET=172.27.0.0/16 \
+COURSE_FIXTURES_DIR='/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses' \
+node tests/e2e/host/run-m2.mjs \
+  --sha ae130a3501f3a2502c6a34e36319629e3dcdfb09 \
+  --test-sha ae130a3501f3a2502c6a34e36319629e3dcdfb09 \
+  --workdir /Users/quangnguyen/cogniate-canvas-qa-runs/verification-ae130a3-s73h9dlx/m2-stack
+```
+
+The Playwright pass began at `2026-10-20T13:03:00.689Z` and took `131844.29 ms`. Runner exit: `1`; strict result accounting rejects the three failed rows. Browser observed inside the actual e2e container: Chromium `141.0.7390.37`, Playwright `1.56.0`, Linux arm64. `A/evidence/m2/playwright-results.json`, `A/m2-case-results.json` and `A/cmd/09-m2-browser-pass.log` hold the redacted results. There are 35 masked screenshots in `A/evidence/m2/playwright`. QA visually inspected the Canvas teacher picker and Blackboard step 4; successful learner completion screenshots do not exist because those steps failed.
+
+Full health and browser/image/Build Runner observations are in `R/qa-e2e-sim-r2-observation.jsonl`. At `13:02:30.047Z`, all three service health endpoints returned 200, `profile: acceptance`, empty knobs, and LTI profiles `blackboard-sim`, `canvas-sim-cloud`. The readiness cases deliberately removed profiles, observed empty profiles at `13:03:22.784Z`, then restored both at `13:03:29.129Z`. Initial startup probes before services were ready are recorded separately; they are not passing health evidence. Fresh Build Runner PID `40074` started at `13:02:53Z`; observed alive with image ready and a fresh heartbeat during browser execution.
+
+Image IDs (full repository digests are in the observer; service inventory is `A/images.json`):
+
+| Image | ID |
+| --- | --- |
+| Node `24.22.0-alpine3.24` | `sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f` |
+| Moodle `v5.2.4` | `sha256:3a310197e51ff34c6e8e8adbb92703fe598f71cbcf9eb974055c27f07f4cb23d` |
+| Caddy `2.11.7-alpine` | `sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f` |
+| Postgres `16-alpine` | `sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea` |
+| E2E `1.56.0` | `sha256:27d1576af12a9a03852704ff30d5db61c957d3a69e097b7e18f31238e5e0b2df` |
+
+### 6.2 All named outcomes
+
+All 64 existing cases ran once. `M2-04.rows` now passes all four values, strict row order and Copy checks. Both provider registration/readiness paths are reached. Exact neutral readiness text, Blackboard card guidance, Moodle card/control/disconnect text and keyboard/axe checks pass their named cases. These observations do not replace T7.
+
+| Case | Outcome |
+| --- | --- |
+| `M2-02.not-ready` | PASS |
+| `M2-02.ready` | PASS |
+| `M2-01.cards` | PASS |
+| `M2-01.isolated-newest` | PASS |
+| `M2-01.moodle-card` | PASS |
+| `M2-03.profile-labels` | PASS |
+| `M2-03.rule1-http` | PASS |
+| `M2-03.rule1-path` | PASS |
+| `M2-03.rule1-query` | PASS |
+| `M2-03.rule1-fragment` | PASS |
+| `M2-03.rule1-userinfo` | PASS |
+| `M2-03.rule2-ipv4` | PASS |
+| `M2-03.rule2-ipv6` | PASS |
+| `M2-03.rule2-localhost` | PASS |
+| `M2-03.rule2-sub-localhost` | PASS |
+| `M2-03.rule3-lti` | PASS |
+| `M2-03.rule3-app` | PASS |
+| `M2-03.rule3-content` | PASS |
+| `M2-03.rule4-sso` | PASS |
+| `M2-03.rule4-sso-port` | PASS |
+| `M2-03.rule5-instructure` | PASS |
+| `M2-03.rule4-service-sso` | PASS |
+| `M2-03.valid-split` | PASS |
+| `M2-03.valid-default-service` | PASS |
+| `M2-04.rows` | PASS |
+| `M2-04.copy-json` | PASS |
+| `M2-04.download-json` | PASS |
+| `M2-04.inline` | PASS |
+| `M2-04.clipboard-denied` | PASS |
+| `M2-04.download-failure` | PASS |
+| `M2-05.success` | PASS |
+| `M2-05.grant-invalid` | PASS |
+| `M2-05.grant-mismatch` | PASS |
+| `M2-05.platform-in-use` | PASS |
+| `M2-05.invalid-values` | PASS |
+| `M2-05.lti-service-error` | PASS |
+| `M2-06.success` | PASS |
+| `M2-06.deployment-in-use` | PASS |
+| `M2-06.retry-after-error` | PASS |
+| `M2-06.second-deployment` | PASS |
+| `M2-07.badges` | PASS |
+| `M2-07.canvas-detail` | PASS |
+| `M2-07.no-add-elsewhere` | PASS |
+| `M2-08.canvas-no-moodle-features` | PASS |
+| `M2-08.blackboard-no-moodle-features` | PASS |
+| `M2-08.moodle-controls` | PASS |
+| `M2-09.blackboard-dialog` | PASS |
+| `M2-09.canvas-dialog` | PASS |
+| `M2-09.moodle-dialog` | PASS |
+| `M2-10.publish-dialog` | PASS |
+| `M2-10.canvas-results` | PASS |
+| `M2-11.canvas-keyboard` | PASS |
+| `M2-11.blackboard-keyboard` | PASS |
+| `M2-11.add-deployment-keyboard` | PASS |
+| `M2-11.axe-canvas` | PASS |
+| `M2-11.axe-blackboard` | PASS |
+| `M2-11.axe-canvas-detail` | PASS |
+| `M2-12.canvas` | FAIL |
+| `M2-12.blackboard` | FAIL |
+| `M2-13.routes-open` | PASS |
+| `M2-13.cross-provider` | PASS |
+| `M2-13.no-stale-values` | FAIL |
+| `M2-13.form-state` | PASS |
+| `M2-13.cross-library` | PASS |
+
+### 6.3 Three failures and evidence limits
+
+- **M2-12.canvas and M2-12.blackboard — player boot failure.** Both reached real HTML upload, portal publication, the framed teacher pick and the expected Deep Linking resource. Learner frames were app `/play/[play_id]`, content `/rt/[runtime_token]` and `about:blank`; `doCourse` timed out after 30 seconds waiting for `/pkg/.../index.html`. In both learner windows, service logs show shell entry 200 followed by a player asset 404, and runtime page 200 followed by a runtime asset 404; no runtime-state request follows. The normalized logs do not expose the missing filenames. They corroborate the author's submitted diagnosis of a shared generated player chunk that the existing asset routes do not serve. Product player build ownership was forwarded through Lead; package selectors, real-course completion, score 100 and Sent assertions stay unchanged. `A/player-boot-sanitized-sequence.json` preserves the sequence.
+- **M2-13.no-stale-values — product history/DOM transition defect.** The case opens Canvas once, installs the existing MutationObserver, delays subsequent Canvas detail requests by 3 seconds, clicks Refresh status, then changes the LMS connection selector to Blackboard without a document reload. It waits for the Blackboard URL and visible site, then 7 seconds and checks the observer. The observer saw Canvas page/service URLs and a Canvas deployment ID while the pathname was Blackboard. It verifies an intercepted Canvas request, but does not record whether the held response was delivered or cancelled. The failure therefore proves a stale URL/DOM observation, not a late response repopulation. The original same-document and live-poll/cancellation observation remains unchanged. Lead relayed the author's independent BrowserRouter reproduction in `msg_4f75f0cd85fa`: history changes before concurrent React commits the replacement view, while cancellation works and the late response does not repopulate the new route. This classifies the defect as the product navigation boundary; the frozen browser result alone does not establish that internal cause. No readiness wait or observer was weakened.
+
+Sanitized handoffs: `msg_12f41af5ebdd` and `msg_f228085d8a97`. No raw capability value was included. No new product run occurred during triage.
+
+### 6.4 Privacy gap, containment and harness repair
+
+**The original runner scan is insufficient for AC-M3-07.** It reported 52 captured values, 63 files and zero hits, but M2 used `doCourse` without T7's launch capture and did not install the existing browser request capture. Timeout diagnostics retained two runtime tokens and two play IDs. This is a harness evidence leak; no service-log hit for the two missed runtime values was found. Do not promote the original zero-hit count to a full privacy PASS.
+
+Shared text copies were sanitized with stable placeholders, 16 replacements across the browser command log and JSON report. The originals stay mode `0600` under the private external runtime clone. The independent rescan covers 77 shared text files and finds zero remaining hits for those four values. `R/runtime-diagnostic-redaction.json` and `R/capability-diagnostic-redaction.json` record counts and before/after hashes without secret values. This containment does not repair the historical capture inventory or prove the future automatic scan.
+
+Owned repair installs request-time capture before navigation in every M2 context, including `libraryPage`; records URL capabilities and launch form/query values only through the existing private recorder; and formats frame timeout and blocked-request URLs without credentials, query/fragment values or runtime/play/picker path tokens. The common owner extended the recorder's accepted kinds for `play_id` and `picker_id`; no duplicate writer was added. Both actual frame-wait branches have negative controls with synthetic full capabilities. Cases, product actions, timing, completion and route assertions are unchanged.
+
+`node tests/e2e/host/run-m2.mjs --harness-only`: **5 PASS**, typecheck PASS, exact 64-case discovery and unchanged T7 selection. `node tests/host/run-m1.mjs --harness-only --provider canvas`: **33 PASS**, typecheck PASS, 251 API plus 24 host/browser rows including common. Logs: `R/m2-hygiene-harness.log` and `R/canvas-hygiene-harness.log`. These are harness checks only; the automatic capture repair still requires the next frozen browser run.
+
+### 6.5 Cleanup and next gate
+
+Cleanup at `2026-10-20T13:06:07.255505+00:00` found zero containers, exactly the same seven complete baseline volume metadata records, only `bridge`, `host`, `none` networks, and no owned Build Runner. `R/baseline-before.json` and `R/baseline-after-m2.json` retain the comparison. The window was released to Lead in `msg_dde9a4b82cc9`; Lead confirmed the hold in `msg_fc6e9ba4bbca`.
+
+**T7 is NOT RUN / HOLD**, including the three-run sequence, demo and confirmation checks. No new stack starts before Lead integrates the product and harness repairs, freezes exact SHAs and assigns a new exclusive window. Core QA still owns both full M1 rounds and host upgrade evidence; independent Canvas verdicts need all 233 Canvas rows from each. All live LMS matrix rows remain UNVERIFIED. No legacy suite, full root check, live tenant or public exposure was used by this worker.

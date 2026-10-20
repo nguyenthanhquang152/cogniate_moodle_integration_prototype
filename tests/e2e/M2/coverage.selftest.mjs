@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { playwrightResults, verifyResults } from '../../acceptance/M1/common/coverage.mjs';
 import { M2_REQUIRED, readM2Manifest } from './coverage.mjs';
+import './browser-secrets.selftest.mjs';
 
 const testsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const productSha = 'a'.repeat(40), testSha = 'b'.repeat(40);

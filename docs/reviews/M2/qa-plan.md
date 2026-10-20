@@ -1,5 +1,5 @@
-Verdict: HOLD — first frozen M2 SIM run failed; owned harness repair prepared, rerun needs repair freeze
-Round: 4 (verification task `task_e28388df4dcc`; see §9)
+Verdict: HOLD — second frozen M2 run: 61 PASS, 3 FAIL; product and diagnostic repairs need refreeze
+Round: 5 (verification task `task_e28388df4dcc`; see §9)
 Owner: independent Codex Canvas QA quota replacement, authorized by Lead for GPT-6-Astra at xhigh; earlier Claude reports remain below
 Behavior baseline: `56591df0e71939d5d62c9042c630c841d01f84e8` (ADR-011 revision 6). Criteria: [M2](../../architecture/tasks/M2.md), [M3 §2–§4](../../architecture/tasks/M3.md).
 
@@ -159,3 +159,11 @@ The exact product/test `eb43247d02df622d5da72dafac41d919f65a91fe` run reported 3
 The 64-case inventory is unchanged. The repaired M2 harness passes two self-checks, typecheck and exact discovery. A synthetic browser harness reproduces the old scroll failure and confirms both valid order and rejection of reversed rows with the repaired block. It makes no product claim.
 
 Lead messages `msg_478c680eab7a` and `msg_d8dc5181f08c` hold all new stacks, including T7, pending a repair freeze. The failed candidate's cleanup is complete and its exclusive window was released. Next: integrate common operator controls, shared all-method capture and owned test corrections; freeze exact product/test SHAs; obtain the next exclusive window; repeat all 64 M2 cases, then T7 three consecutive runs plus demo/check-confirm. Preserve the exact Moodle text, Blackboard card guidance, neutral readiness wording and the existing live-poll cancellation observation. Do not claim delivered-late-response evidence from that observation alone.
+
+## 10. Second execution and diagnostic capture repair
+
+Product/test `ae130a3501f3a2502c6a34e36319629e3dcdfb09` ran all 64 rows once: 61 PASS, three FAIL, no skips or retries. Both real-course learner scenarios stopped at player boot; the same-document stale-value observer also failed. The unchanged test sequences and precise limits are in [QA §6](qa.md#6-round-5--second-frozen-m2-run-and-diagnostic-hygiene-2026-10-20). No T7 run followed.
+
+M2 now installs the shared Canvas request capture before any request in its default context and every `libraryPage` context. Both frame-wait diagnostics use token-free URL shapes. The common private recorder accepts play and picker IDs. Three additional harness self-checks cover request-time capture, safe diagnostics without any capture, and both actual timeout branches; total five self-checks, typecheck and exact 64-row discovery PASS. No assertion or case ID changed. T7 discovery remains unchanged.
+
+The failed run's original 52-value scan omitted four capability values; shared copies have been sanitized and independently rescanned, but AC-M3-07 remains failed/pending automatic rerun. The next frozen run must demonstrate capture of successful and failed learner flows before a zero-hit result can satisfy the privacy gate. Lead owns refreeze and serialized stack authorization. All live rows remain UNVERIFIED.
