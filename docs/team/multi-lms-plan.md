@@ -71,8 +71,9 @@ Do not run a destructive reset against the user's existing environment.
 | Task | Result | State |
 | --- | --- | --- |
 | M0 | Source review, architecture, contracts, criteria | In progress |
-| M0-A2 | Read-only portal and integration audit | In progress |
-| M0-QE | Independent environment and live-LMS validation preflight | In progress |
+| M0-A2 | Read-only portal and integration audit | Complete; no code or tests changed |
+| M0-AU | Read-only backend and deployment impact audit | In progress |
+| M0-QE | Independent environment and live-LMS validation preflight | Complete; environment inventory, no product verification |
 | M1 | Shared backend and provider registration support | Planned |
 | M2 | Blackboard and Canvas portal flows | Planned |
 | M3 | Independent QA and Moodle regression | Planned |
@@ -87,7 +88,50 @@ Orca accepted these workers. Each receipt reports the requested model and effort
 | Architect | `ctx_c8c00b22d5f1` | `claude-opus-5-5` | `xhigh` |
 | Author-2 | `ctx_1eeade383449` | `gpt-6-astra` | `xhigh` |
 | QA-E2E preflight | `ctx_3c4961a02f14` | `claude-opus-5-5` | `xhigh` |
+| Author impact audit | `ctx_94cbe8647c96` | `claude-opus-5-5` | `xhigh` |
 
 The initial Docker inventory found no running containers.
 The Lead asked which existing LMS test environments are available; the answer is pending.
+
+## M0 checkpoints
+
+Author-2 completed the read-only audit in `ctx_1eeade383449`.
+Messages `msg_57b462b0aec3`, `msg_c8afa054e00e`, and `msg_b3a206ea8b3f` hold the findings.
+The Lead sent the contract questions and source findings to the Architect.
+Main gaps include provider identity, endpoint trust, deployment binding, framing, native-feature guards, and provider-specific UI.
+These are implementation inputs, not independent QA evidence.
+
+The Author-2 instance remains idle for later implementation.
+This preserves the charter's requirement to use the same dedicated author instance across tasks.
+The Lead accepted its successful completion and recorded retention before acknowledging the report.
+
+Design review tasks `task_8539cca49e29` and `task_6df3fc0172eb` depend on the Architect's M0 task.
+Each reviewer will write its own report before it sees the other review.
+
+QA-E2E completed [the environment preflight](../reviews/M0/qa-e2e-preflight.md).
+The Lead accepted its report and retained the dedicated QA-E2E instance for the later regression task.
+The VM has 7.75 GiB of memory. Seven existing Docker volumes belong to earlier work and must remain intact.
+
+## Test environment decisions
+
+Proceed with signed platform simulations and real Moodle regression first.
+Assess local Canvas alone after those checks; do not change Docker Desktop settings.
+Local Canvas and hosted Canvas are separate evidence levels.
+Hosted Canvas and Blackboard validation still need confirmed access and a reachable tool configuration.
+
+QA owns simulator behavior, signing fixtures, and score oracles under `tests/**`.
+The Author owns required infrastructure and test transport plumbing.
+Test overrides must stay unavailable in production.
+A simulation must not impersonate real vendor hosts through DNS or certificates.
+
+| Test lane | Project prefix | Port | Subnet |
+| --- | --- | --- | --- |
+| QA acceptance | `qa-multi-r` | 8443 | `172.29.0.0/16` |
+| QA-E2E Moodle | `qa-e2e-m3-r` | 8543 | `172.31.0.0/16` |
+| QA-E2E provider simulation | `qa-e2e-sim-r` | 8643 | `172.27.0.0/16` |
+| Author smoke, when needed | `cogniate-multi-author` | 8743 | `172.26.0.0/16` |
+
+Check availability again before each run. Run at most two stacks at once.
+Cleanup of a worker's own temporary stack, clone, secrets, traces, and test image is authorized.
+Preserve redacted evidence first. Never remove existing volumes, shared base images, or another worker's resources.
 
