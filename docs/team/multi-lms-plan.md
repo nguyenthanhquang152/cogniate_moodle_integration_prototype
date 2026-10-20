@@ -1193,6 +1193,41 @@ It cannot edit tracked integration source, tests or docs, run acceptance suites,
 Any proposed product repair needs a bounded file scope after the diagnosis.
 The diagnostic must return its stack window with protected-volume and cleanup evidence before QA can resume.
 
+### SQLite mount-lock diagnosis; independent confirmation and repair assessment
+
+The backend Author completed `task_b97d185ccfba` in `msg_9842fa54a739` and returned its stack window.
+The Lead accepted the diagnostic and retained the original session before acknowledging settlement.
+Report: `/Users/quangnguyen/cogniate-author-diag/providers500-8138097-20261020T2022Z/public/AUTHOR-DIAGNOSTIC-report.md`.
+SHA256: `f759561126bf17c70914fbcb114850f95662b838ffd1bc185f3a732e0ce075c3`.
+This is AUTHOR-DIAGNOSTIC evidence, not independent acceptance.
+
+The fresh default setup reproduced HTTP 500 twice.
+The failing call is the bearer-authentication `tool_account` SELECT, which throws `SQLITE_CORRUPT` on the running service connection.
+A fresh process reports database integrity `ok`. The on-disk database is intact in this experiment.
+The seed's separate bootstrap process deletes the WAL and shared-memory files while the server still has the database open.
+The lock probe permits a second writer while the first holds its transaction on both service data bind mounts.
+It refuses that writer on the container's Linux writable layer. Both DELETE and WAL journal modes were checked.
+The observed bind-mount filesystem is `fakeowner` on Docker Desktop 4.96.0 / engine 29.9.1.
+Lock behavior on the earlier Docker version was not measured; the update is not proved causal.
+Concurrent CLI and service writes need working storage locks. A restart after seed would not establish that precondition.
+
+Temporary error instrumentation stayed in the disposable clone and was reverted.
+No tracked integration file changed. The Author removed only its project resources and returned a clean lane.
+The Lead compared both boundaries to all seven original full protected-volume records; every record matches.
+Docker settings hashes, memory and CPU allocation are unchanged.
+A VM cold boot and default bridge recreation occurred before the diagnostic stack started; their relation to locking is unknown.
+
+Lead `msg_4b9a4e0703c7` opens one bounded independent QA filesystem diagnostic, with no application stack or acceptance credit.
+It compares a fresh host bind mount, the container writable layer and a fresh project-labeled named volume.
+Each DELETE/WAL probe must synchronize two processes and include a successful write after the first releases its lock.
+QA alone owns that disposable container window. Canvas QA stays no-stack.
+
+Architect task `task_a37d8fc8b8e3`, dispatch `ctx_2ff14edc1068`, assesses a small project-level storage repair in parallel.
+The same Claude Opus 5.5 xhigh Architect may read only and produce an external proposal.
+It must map existing-data preservation, coordinated backup/restore, old-build migrations, rollback and independent acceptance changes.
+Named volumes and a fail-fast locking precondition are candidates, pending evidence and the impact map.
+No tracked repair, Docker settings change, downgrade or acceptance rerun is authorized yet.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
