@@ -1054,6 +1054,40 @@ QA reports zero containers or owned leftovers, seven unchanged full volume metad
 The independent scan covers 1,299 captured values, nine raw logs and 669 public files, with zero secret or JWT hits.
 The failed evidence remains intact. Final conformance and Docs remain gated on accepted verification.
 
+### M1 test repair frozen at `8138097`
+
+Canvas QA independently classified its three failures in `msg_cd40cdf48b25`.
+The query and course-shell cases used invalid test expectations or inputs.
+The repeat case counted the first successful redemption because it shared the test cursor's millisecond timestamp.
+The two repeats returned 200 without a new attempt, redemption or outbound call.
+The Lead authorized two Canvas test files in `msg_f981848032b1`.
+The replacement uses connection-scoped log-line counts after same-trace completion barriers.
+Synthetic controls detect later redemption and attempt events, including timestamp ties.
+
+Common QA's bounded repair required one extra inert dependency entry in the existing capture self-check.
+Lead reply `msg_729bb2941b68` authorized that single-file addition.
+Strict dependency rejection and all seven method checks remain unchanged.
+Held reports are `msg_88953580aaf0` (Canvas) and `msg_caddad575dc9` (common/Blackboard).
+The Lead read both diffs and controls, matched all held hashes, and checked both patches in reverse.
+Exact-path commit `8138097889f87359d5055bb1d79766b5ed842f92` contains eight test/harness files and three QA reports.
+Product and build files remain unchanged from `aff4882`.
+
+Common QA prepared a clean detached clone at `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-8138097-20261020T1524Z/source`.
+The combined harness passes 34 self-checks, typecheck and the unchanged 416-row inventory.
+The Lead checked the 15 pinned source hashes, eight observer hashes and harness-log hash.
+Source provenance SHA-256: `c51d4a6af55fecf0731aa37fef657642c73636291f0e5e32fdcafd8a690f3162`.
+This is preparation only; no new stack window is open.
+
+Both independent source supplements use the same frozen candidate:
+
+| Reviewer | Task | Dispatch |
+| --- | --- | --- |
+| Original Claude Reviewer-A | `task_2cd49d67d152` | `ctx_d8273aa97f78` |
+| Dedicated Claude Reviewer-B | `task_4f1a9a5431eb` | Queued for the next worker slot |
+
+Both remain Claude Opus 5.5 at xhigh effort and keep blind review independence.
+The two active QA tasks remain open. The next full run waits for both source verdicts and explicit stack handback.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
