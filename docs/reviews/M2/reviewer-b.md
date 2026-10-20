@@ -59,3 +59,38 @@ These are independent code/harness review observations. All browser acceptance i
 The focused root run passed 151 tests in 14 files; it included portal `multi-lms.test.ts`, `connect/canvas/canvas.test.ts` and `connect/blackboard/blackboard.test.ts`. See the M1 report for the full set. At `9964e6f`, `node tests/e2e/host/run-m2.mjs --harness-only` passed two coverage self-tests, the tests TypeScript check, discovery/accounting of all 64 browser cases, and confirmation that the T7 selector excludes M2 files. It started no browser acceptance run or stack.
 
 Correct the setup instruction and the two M3 harness findings. QA must then run the 1440 px Chromium suite, preserve masked screenshots for every wizard step, and complete the approved Moodle regression label alignment. Live Canvas and Blackboard teacher/learner paths remain UNVERIFIED; the public vendor guide supports the instruction correction only.
+
+
+## Round 2 — CHECKPOINT: committed QA and Learn instruction repairs
+
+Date: 2026-10-20. This is a bounded supplement, not the final feature or QA gate. Exact reviewed checkout/harness: `0008bdef092b866a361d57ab705b581cd16312a5`; product: `9f96f7b24cd0aed702e4dc40373bdda4307aad31`. Product files at these two commits are identical. The harness comparison is against `9964e6f132e6608216616bff621e3f9ba5667b04`. Clarification: `ca14de6360021af4ce3692f1a0073fe4ec92633d`; accepted architecture: ADR-011 revision 6 at `56591df0e71939d5d62c9042c630c841d01f84e8`.
+
+All source reads and checks used the clean detached clone `/tmp/cogniate-reviewer-b-76b03c7-ivj64s6o`. No uncommitted author regression or Architect proposal was read. No stack or product acceptance was run. Earlier report sections are preserved.
+
+### B-M2-01 — CLOSED for the committed instruction repair
+
+Product commit `9f96f7b` changes only the Blackboard step data and its portal unit test. The instruction now distinguishes the first Submit that retrieves settings from the final Submit after Institution Policies that adds the tool. It then directs the administrator to copy the Deployment ID and return to Cogniate. Tool status, role-only user fields, grade service and membership policies remain explicit. All four step entries still have `verified: false`.
+
+The sequence agrees with steps 4–9 of the primary [Anthology Set Up LTIs guide](https://help.anthology.com/blackboard/administrator/en/integrations/learning-tools-interoperability/set-up-ltis.html), “Add an LTI 1.3/Advantage Tool,” read 2026-10-20. This closes the omitted instruction. It does not verify any live Learn tenant, placement or teacher/learner journey.
+
+Independent command:
+
+```sh
+npx --no-install vitest run apps/portal/src/connect/blackboard/blackboard.test.ts apps/portal/src/connect/canvas/canvas.test.ts apps/portal/src/multi-lms.test.ts
+```
+
+Result: 30 tests pass in three files. The new Blackboard test checks order and preserves the unverified state.
+
+### M2 harness repairs reviewed
+
+B-M3-01 and B-M3-02 are closed for their original source defects in the M3 checkpoint below. Shared and direct wizard paths now wait for the pending connection route, setup heading and approval input after the single create-step Next. Keyboard paths preserve their key-only operations, focus checks and live status assertions. Axe inspects the first page and the combined setup/approval page. The badge test opens each actual connection view, checks its LMS badge and name, and checks all three LMS identities in the connection selector.
+
+The Moodle disconnect case now asserts the exact accepted title and body. I independently compared it with `9e24137:apps/portal/src/connect/DisconnectDialog.tsx`: `Disconnect Moodle?` and `This stops launches through this connection. The tool stays in Moodle.` The additional no-Canvas/no-Blackboard assertions remain.
+
+The route tests keep their document sentinel and observer across client-side navigation; there is no navigation helper that reloads the observed document. The detail case starts a delayed Canvas request before selecting Blackboard. The form case uses the Integrations link and Blackboard card link, preserving typed-value checks through the transition. See the M3 report for the limits of the late-request evidence.
+
+### Evidence and limits
+
+`node tests/e2e/host/run-m2.mjs --harness-only` passes two self-tests, tests TypeScript, all 64 discovered/manifested browser rows, and separation from T7. Case IDs, order, criterion assignments, kinds and labels are unchanged from `9964e6f`. An explicit T7 listing shows 18 tests in six files.
+
+No new M2 product finding was found in this bounded supplement. B-M2-01 is closed; the earlier browser-harness blockers are corrected in source. This checkpoint does not give a complete M2 approval: the common B-M1-03 dependency, final review and actual browser/Moodle regression evidence remain. All live-provider checks remain UNVERIFIED.

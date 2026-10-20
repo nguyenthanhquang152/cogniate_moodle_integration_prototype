@@ -283,3 +283,30 @@ The original round-1 defect probes and outputs are preserved. These new probes a
 | Local Canvas, hosted Canvas and Blackboard Learn live evidence | UNVERIFIED; no live check or authorization assumed. |
 
 No new BLOCKER or MAJOR was found in the bounded first repair slice. The remaining open findings keep the overall review at CHANGES_REQUESTED, and neither unchanged M2 nor M3 report is superseded by this checkpoint.
+
+
+## Round 2 — CHECKPOINT: committed QA and Learn instruction repairs
+
+Date: 2026-10-20. This is a bounded supplement, not the final feature or QA gate. Exact reviewed checkout/harness: `0008bdef092b866a361d57ab705b581cd16312a5`; product: `9f96f7b24cd0aed702e4dc40373bdda4307aad31`. Product files at these two commits are identical. The harness comparison is against `9964e6f132e6608216616bff621e3f9ba5667b04`. Clarification: `ca14de6360021af4ce3692f1a0073fe4ec92633d`; accepted architecture: ADR-011 revision 6 at `56591df0e71939d5d62c9042c630c841d01f84e8`.
+
+All source reads and checks used the clean detached clone `/tmp/cogniate-reviewer-b-76b03c7-ivj64s6o`. No uncommitted author regression or Architect proposal was read. No stack or product acceptance was run. Earlier report sections are preserved.
+
+### Disposition
+
+Overall M1 remains **CHANGES_REQUESTED**. B-M1-01 and B-M1-02 stay closed as recorded in the previous checkpoint, committed by the Lead in `86adfbf`; this supplement does not repeat or replace that proof. B-M1-03 is **OPEN**: no grant-order repair is present or approved here. No weaker local-refusal or gate-count rule is accepted.
+
+The Canvas C-1 oracle now computes one expected host independently from the product: lower-case hostname and a non-default HTTPS port, if present. It checks exact equality and rejects a bare hostname at a non-443 port. The old accept-either-form branch is removed.
+
+C-2 now exercises both a well-formed random code and the connection's issued initial code while pending. It requires `409 CONNECTION_NOT_READY`, an unchanged connection, no remote platform, no gate request of any method, no `grant_rejected`, and an initial grant still listed as issued. C-3 now uses a fresh unapproved deployment with the redeemed initial code and requires exactly one connection-scoped `grant_rejected` with reason `redeemed`, `403 GRANT_INVALID`, unchanged connection/deployment values, and no remote call. These are useful corrections. Their separate claim of no binding-attempt row is not fully observed: see new MINOR B-M3-03 in the M3 report. A successful later redemption proves that no live lease blocks it; it does not prove that an earlier failed attempt was never stored.
+
+The no-remote-call helper still watches GET, POST, PATCH and DELETE across `/api/`, including provider reads. AC-M1-37(f)'s all-method observation is unchanged. The grant-rejection case `M1-29.canvas.m` now also applies the no-remote-call oracle. These assertions will continue to expose the open B-M1-03 product behavior; they were not relaxed to fit it.
+
+### Independent checks
+
+`node tests/host/run-m1.mjs --harness-only --provider all` passes at the exact harness commit: 21 self-tests, zero skips, tests TypeScript, 359 API cases plus 19 host rows, and all three simulator module profiles. Manifest comparison against `9964e6f` confirms that all common, Blackboard and Canvas case IDs, order, criterion assignments, kinds and evidence labels are unchanged (36, 120 and 222 rows respectively). This includes every earlier race and containment variant.
+
+The M2 harness-only run also passes: two self-tests, tests TypeScript and all 64 browser cases. Explicit T7 discovery remains 18 tests in six files. Thirty focused portal unit tests pass. These are preparation and unit results; none is a SIM acceptance, migration, Moodle regression or live-provider result.
+
+### Still required
+
+Review the exact B-M1-03 design and implementation repair, resolve the narrow no-attempt evidence gap, and review the final startup-smoke handoff. Then use the final frozen product/test SHAs for acceptance, browser, migration/rollback and Moodle regression. Local Canvas, hosted Canvas and Blackboard Learn live rows remain UNVERIFIED.

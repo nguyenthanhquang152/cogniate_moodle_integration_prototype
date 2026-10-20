@@ -85,3 +85,59 @@ These commands passed and made no stack or live-provider calls. They verify mani
 ## Next review gate
 
 Review exact committed repairs to B-M3-01/02 and the narrow oracle/baseline items above, together with the product fixes. Then QA must produce actual per-case results and artifacts for the final frozen SHAs. This delivered round-1 report frees repair work; it does not pass the implementation, acceptance, migration, regression or live-provider gates.
+
+
+## Round 2 — CHECKPOINT: committed QA and Learn instruction repairs
+
+Date: 2026-10-20. This is a bounded supplement, not the final feature or QA gate. Exact reviewed checkout/harness: `0008bdef092b866a361d57ab705b581cd16312a5`; product: `9f96f7b24cd0aed702e4dc40373bdda4307aad31`. Product files at these two commits are identical. The harness comparison is against `9964e6f132e6608216616bff621e3f9ba5667b04`. Clarification: `ca14de6360021af4ce3692f1a0073fe4ec92633d`; accepted architecture: ADR-011 revision 6 at `56591df0e71939d5d62c9042c630c841d01f84e8`.
+
+All source reads and checks used the clean detached clone `/tmp/cogniate-reviewer-b-76b03c7-ivj64s6o`. No uncommitted author regression or Architect proposal was read. No stack or product acceptance was run. Earlier report sections are preserved.
+
+### B-M3-01 — CLOSED for the original wizard and badge defects
+
+`pendingWizard()` waits for `/integrations/<lms>/<connection id>`, the setup heading and the approval input. Both shared helpers and every changed direct, keyboard and axe path use that state after one Next. No second-Next transition remains in those paths. The screenshots and semantic approval/error assertions are retained. One axe scan of the combined setup/approval page still covers both sections.
+
+The badge case now visits each connection detail, where the product's `ConnectionOverview` actually renders the badge and selector. It checks the open connection's exact name and LMS badge, then all expected `<name> (<LMS>, <host>)` options. It no longer looks for individual connection rows on the provider-card page.
+
+The adjacent alignment changes also match the product: configuration row Copy buttons are named `Copy <label>`, and a download-error case rejects `URL.createObjectURL` because the file is made from an already loaded export. It retains an error alert, zero-download and no-success assertions. This is source-level closure; a product browser run is still required.
+
+### B-M3-02 — CLOSED for the reload-masked observation defect
+
+The route observer now attaches to `document.documentElement`. A unique sentinel must remain equal after navigation; the stale-value array must remain present and empty. The detail test navigates through the overview's connection selector. The form test navigates through the real Integrations and Blackboard links. Neither invokes the hard-navigation helper after installing the observer. The form case also polls input values and checks them explicitly at the end.
+
+The detail test intercepts a Canvas detail request, starts Refresh status, changes the selected connection, and keeps the observer installed while the delayed request and subsequent polling window are handled. It checks that a Canvas request was intercepted, then checks observed and final forbidden values. This repairs the original loss of the entire observation document. The code delays a request before continuation; it does not independently prove that a response was delivered after the transition. Correct product abort handling can cancel that request. Actual execution evidence must distinguish delayed/cancelled requests from delivered late answers and must not label a cancellation as a delivered-response result.
+
+### B-M3-03 — MINOR — C-2/C-3 no-attempt subclaim is not directly observed
+
+Locations: `tests/acceptance/M1/canvas/31-canvas-grants.test.ts:209` through 213 and `:236` through 240.
+
+The revised rejection cases compare the connection DTO and then redeem a proper grant. This proves the visible connection was unchanged and no live lease prevents the follow-up. It does not prove that no historical binding-attempt row was created: an implementation could store a failed attempt, clear its lease and still satisfy every one of these assertions. The DTO does not expose binding-attempt history. The pending-case comment explicitly infers both no attempt and no lease from the follow-up success.
+
+Impact: the exact C-2/C-3 no-attempt subclaim in the clarified AC-M1-20 can be reported as proved without an observation of that state. This is a narrow evidence gap, not a demonstrated product state corruption, and does not reopen the corrected wizard or route-navigation findings.
+
+Correction: before the positive follow-up, compare an approved observation of binding-attempt creation across the refused request. A before/after connection-scoped audit count can be used if the existing `grant_attempt_started` event is accepted as the stable oracle; otherwise use an approved read-only inspection. Preserve the current public status, grant-state, exact-reason and all-method no-call checks. Until that observation exists, leave the no-attempt subclaim unverified rather than treating subsequent redemption as proof of it. The coordinator received this finding in `msg_9f5267d2025b`.
+
+### Other required checks
+
+- C-1: the exact independent host/port oracle replaces the two-form acceptance. It rejects a bare host at non-443 ports.
+- C-2: both random and issued initial codes are exercised while pending; status, no rejection audit, issued state and all-method zero-call assertions are present. B-M3-03 qualifies the no-attempt claim.
+- C-3: the redeemed initial code is sent for a new unapproved deployment; exactly one `redeemed` rejection and zero remote calls are required. B-M3-03 qualifies the no-attempt claim.
+- B-M1-03: GET requests are still included by `noRemoteCall` and race-f gate observation. This open product defect is not hidden by the repair.
+- H-3: exact Moodle warning equals the accepted `9e24137` baseline, independently read.
+- H-6: only `tests/e2e/lib/portal.ts` changes outside the M2 suite. Its four label changes match the approved M2 list. The selected publish option now matches the exact connection name, Moodle LMS and Moodle site host. Existing Available/Selected in Moodle, grade, result and learner-identity assertions remain; the other T7 case files are unchanged.
+
+### Independent checks
+
+```sh
+node tests/host/run-m1.mjs --harness-only --provider all
+node tests/e2e/host/run-m2.mjs --harness-only
+QA_SUITE=e2e tests/node_modules/.bin/playwright test --config tests/playwright.config.ts --list
+```
+
+Results: M1 has 21 passing self-tests, tests TypeScript and 359 API plus 19 host rows; M2 has two passing self-tests, tests TypeScript and all 64 browser cases. Both self-test runs report zero skips. The explicit T7 listing is 18 tests in six files and contains no M2 file. The 30 focused portal units named in the M2 checkpoint also pass.
+
+Independent JSON comparison confirms every common/Blackboard/Canvas and M2 manifest ID, order, criterion, kind and evidence label is unchanged from `9964e6f`; only the documented titles change. No case was removed to close a finding.
+
+### Remaining gate
+
+The original B-M3-01/02 MAJOR source defects are closed in this bounded supplement. B-M3-03 is open MINOR, and B-M1-03 is still an open product MAJOR. No new BLOCKER or MAJOR was found in this supplement. These preparation results do not approve the full M3 acceptance gate: final grant-order repair, final reviewed SHAs and actual SIM/browser, migration/rollback and Moodle regression results remain. Local Canvas, hosted Canvas and Learn live evidence stays UNVERIFIED.
