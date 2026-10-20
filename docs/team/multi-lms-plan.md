@@ -174,6 +174,22 @@ The isolated Lead check at `92f9f12` passes root lint, all typechecks and 874 te
 Log: `/tmp/cogniate-lead-foundation.bzkF2F.integration-check.log`.
 This is the combined implementation check, not independent acceptance.
 
+The backend implementation task completed in `msg_9dce99140564`; the same author instance remains retained.
+Its default-profile smoke passed migrations, health, operator approval and containment, Moodle compatibility, and backup/restore checks.
+The smoke found missing CLI audit logs when the process exited before the stream flushed.
+The six-file correction is committed as `1e2c81f`.
+The author reran the CLI checks and reports the expected audit events in the log.
+Evidence: `/tmp/au-smoke/EVIDENCE.md` and `/tmp/au-smoke/logs/`.
+The Lead confirmed no running containers and all seven baseline volumes after author cleanup.
+The isolated combined check at `1e2c81f` passes root lint, typechecks and 876 tests in 66 files.
+Log: `/tmp/cogniate-lead-foundation.bzkF2F.final-implementation-check.log`.
+Both author tasks are complete. M1 and M2 still need independent acceptance and both reviews.
+
+A narrow author infrastructure task, `task_0ea1b07b3397`, is queued for acceptance-profile startup.
+It starts only after the Canvas simulator checkpoint is committed and the Lead supplies an exact revision and lane.
+It checks simulator/gate startup and transport controls; it does not replace independent acceptance.
+The Canvas QA checkpoint request is `msg_1fe8a7abb13e`.
+
 The teams agreed on the player interface in `msg_a05ac85fc3b8` and `msg_7df7bdfe2bcc`.
 The backend emits `data-lms-name` on the play page element and the content-origin runtime body.
 Its value is `Moodle`, `Canvas` or `Blackboard`, derived from the stored connection.
