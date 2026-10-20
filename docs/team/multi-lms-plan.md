@@ -166,6 +166,14 @@ The retained Claude QA-E2E instance started Canvas and M2 preparation in `ctx_22
 Its authoritative handoff is `msg_c851b8cb47a8`, with the committed simulator interface and explicit audience correction.
 Both implementation teams and QA keep the original path ownership.
 
+The Blackboard duplicate instruction correction is committed as `92f9f12`.
+The author reported the three files complete, with 15 focused checks and portal typecheck passing.
+The Lead checked the scoped diff and confirmed that indexed content matched the worktree before committing.
+No hold remains on those files; the backend owner received `msg_6f6a81330d49`.
+The isolated Lead check at `92f9f12` passes root lint, all typechecks and 874 tests in 66 files, with zero skips.
+Log: `/tmp/cogniate-lead-foundation.bzkF2F.integration-check.log`.
+This is the combined implementation check, not independent acceptance.
+
 The teams agreed on the player interface in `msg_a05ac85fc3b8` and `msg_7df7bdfe2bcc`.
 The backend emits `data-lms-name` on the play page element and the content-origin runtime body.
 Its value is `Moodle`, `Canvas` or `Blackboard`, derived from the stored connection.
