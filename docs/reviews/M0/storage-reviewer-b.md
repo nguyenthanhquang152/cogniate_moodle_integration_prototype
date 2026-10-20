@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 3 (bounded disposition check of revision 3.1 at a65a4ee; see the last section)
+Round: 3 (bounded G1 disposition check of revision 3.2 at d0bdda0; see the last section)
 
 # Storage design review — Reviewer-B (operability, minimality, test claims)
 
@@ -497,3 +497,75 @@ The Round 3 observation that `stale-<runId>/` folders are kept also still applie
   - the 488 rows per full round (416 existing and 72 AC-M1-41), plus the separate lock self-check;
   - every stack-level rerun (both full M1 rounds, both old routes, legacy, M2 and three T7 runs).
 - **Labels:** no implementation, runtime or acceptance approval follows from this check. All 32 live LMS rows stay UNVERIFIED, and historical evidence keeps its labels and SHAs.
+
+
+## G1 bounded-disposition addendum — revision 3.2
+
+Verdict for the bounded correction: **APPROVE** (design only)
+
+Reviewer: the same dedicated Reviewer-B, Claude Code `claude-opus-5-5`, xhigh, retained session `c75b96cd-c1da-42ea-9b53-c5207e508e49`. Task `task_278ec21bfdec`, dispatch `ctx_db35f10495b2`. Date: 2026-10-21.
+
+This is a bounded check inside escalation G1. It covers B-S-22, and the new `FIRST_START` fixture and exact-volume-name ownership changes only where they bear on my earlier closures. It is not a new general review.
+
+**Changes to earlier bytes:**
+- Line 2 (the current top header) changed from "Round: 3 (bounded disposition check of revision 3.1 at a65a4ee; see the last section)" to the line now shown. Line 1 still says `APPROVE`.
+- Every other earlier byte is unchanged: lines 3–499 equal the committed report at `0928c888543a1171944870125ac2fe2ab5e0067a` (whole-file SHA-256 `c18278e6db0fa287efbe80bc0bc8ad41d8de41114a80aeebc59b18dc8f10394b`).
+
+### Scope and method
+
+- Frozen correction: `d0bdda06cbb7176fcb7d2b66797d81edd95de6fe` (ADR-012 revision 3.2), compared with `a65a4eec669c4a98aac80ff6b3dc3d1f55813dd0`.
+- Hashes match the Lead handoff:
+  - ADR-012 SHA-256 `d1d95e5c5432f21afadd895bba9dd8a22e4fd8426d8ad13bd4d1d21dabb494b7`;
+  - `review-response-storage.md` SHA-256 `f78179767075debd396cf01b3d30993821ab112feb4a5ae99791b677db7e5079`.
+- Product, test, build and infrastructure files equal `8138097889f87359d5055bb1d79766b5ed842f92`: no path outside `docs/**` changed.
+- Read:
+  - the ADR-012 diff;
+  - the "G1 bounded correction" section of the response;
+  - the M1, M3 and `local-stack.md` diffs;
+  - the Lead handoff.
+- `git diff --check a65a4ee d0bdda0 -- docs/architecture`: clean.
+- I did not read any other worker's new addendum. No Docker, product command, edit outside my report, commit or push.
+
+### Dispositions
+
+| Id | Disposition | Evidence |
+| --- | --- | --- |
+| B-S-22 (NIT) | **Closed** | The group read is exactly `LC_ALL=C ps -A -o pid= -o pgid=` in ADR-012 §7 (line 235), in the self-check output field `psCommand` (line 277), in §17 assumption 4 (line 744) and in the M1 unit list (`M1.md:309`). The G-1 diagnostic uses the same one-`-o`-per-column form (line 731). A repository search finds no remaining `ps -ax` or `pid=,pgid=` form under `docs/architecture`. |
+| B-S-20, B-S-21 | **Not reopened** | `rename(2)` via `node`, `LC_ALL=C`, and the `stack:down` wording are unchanged by this diff. |
+| B-S-15 | **Not reopened**; strengthened | `g-quarantine` now also checks that neither exact volume name exists afterwards (`M1.md`, `g-quarantine`). Quarantine steps 1–5 are unchanged. |
+| B-S-16 | **Not reopened** | The lock mechanism is unchanged. §7 line 235 now limits the group guarantee to hosts where gate G-1 passed, and §17 (line 730) makes G-1 a precondition of implementation acceptance. This narrows a claim; it opens no new path. |
+| B-S-01, B-S-05, B-S-11 | **Not reopened**; B-S-11 strengthened | The product-made setup (§11 item 2, line 522) runs the real `check --prepare`, so the roots and mountpoints get `HOST_UID:HOST_GID 0700` the same way as on the guarded path. QA checks this independently (item 3, line 525). §15 (lines 668–671) and AC-M3-06 now use exact volume names as well as labels, plus an ownership record and a preserve-on-doubt teardown. This closes the "mount of a missing name creates an unlabeled root-owned volume" gap without any new product surface. |
+
+### Operability of the new fixture and ownership rules
+
+- **No QA-made lane volume** (§11 items 1–2): every lane volume is created by Compose for a product storage container, with Compose labels, and the product's own §4 step prepares it. Existing closures still apply to every volume QA then mounts.
+- **Fixture command:** `storage-oplock.sh run -- bash -c 'source infra/scripts/lib.sh && dc --profile storage run --rm --name … --label … storage-preflight check --prepare …'` (line 522).
+  - It holds QA's lock.
+  - Its inner command is not a guarded `npm` command, so it cannot trigger `operation_lock_reentry`.
+  - It creates a named, labeled storage container, so A5 and A6 see it.
+  - It is consistent with §5 and §7.
+- **Teardown preserve rule** (line 670): it never removes an unrecorded, unlabeled or other-project resource with a lane name. With the fresh-lane check (line 668), a leftover from an earlier run blocks the next run (`BLOCKED`) instead of being silently reused or removed. That is the safe behaviour for shared Docker hosts.
+- **Gate G-1** (line 730): implementation acceptance is held until a real-Docker measurement shows every client process of a run in the command's group, and that a whole-group kill leaves no client and no container within 30 s.
+  - The Lead's diagnostic context (front and plugin processes in the group in 4/4 trials; no container during about 2.7 s after a whole-group kill) does **not** yet meet the 30 s condition.
+  - I give no G-1, runtime or acceptance credit, and I keep that timing limit.
+
+### New finding
+
+**B-S-23 — NIT (precision) — The product-made `FIRST_START` setup can produce a state that the guarded path never reaches.**
+
+- Location: ADR-012 §11 item 2 (line 522); `M1.md:238` (`a-first-start-resume`: "a new lane, or one after `stack:data-quarantine`"); §10 rows L5–L7 (lines 493–495).
+- Problem:
+  - The setup runs `storage-preflight check --prepare` directly, so it skips `stack:up`'s §10 legacy scan.
+  - `stack:data-quarantine` does not touch the legacy bind files (§9).
+  - So on a lane that still holds legacy files (for example after the `e-*` rows keep them for reference), the setup can make `FIRST_START` with legacy files present and an empty `legacySources`.
+  - The guarded path never reaches that state: `stack:up` refuses `legacy_present` (L5) before the preflight.
+- Schedule: legacy files present → quarantine → product setup (`FIRST_START`) → `stack:up` → L7 `legacy_conflict`. So `a-first-start-resume` would FAIL for a fixture reason, not a product one. `h-target-state` (2) is not affected, because it does not run `stack:up` after the setup.
+- Fix: state in §11 item 2, and in the two rows, that the setup runs only when both legacy sets of §10 are empty (QA checks this; otherwise the setup is `BLOCKED`). The fixture is then a state that a cut `stack:up` can reach.
+- This is a text precision note for QA's sequencing. It is not a design change and does not affect product safety.
+
+### Remaining limits
+
+- **Open findings:** no BLOCKER or MAJOR is open from this reviewer; B-S-23 is a NIT.
+- **G1 closure:** G1 also depends on QA's independent decision on R3B-01 and on Reviewer-A's assessment of the G-1 diagnostic results. This addendum does not close G1 by itself.
+- **Held:** implementation acceptance, gate G-1 (unmeasured to its 30 s condition), §17 assumptions 1–9 and 11, the 488 rows per full round (416 original rows with unchanged assertions and 72 AC-M1-41 rows), the lock self-check, and every stack-level rerun (both full M1 rounds, both old routes, legacy, M2 and three T7 runs).
+- **Labels:** no runtime or acceptance credit follows from this check. All 32 live LMS rows stay UNVERIFIED, and historical evidence keeps its labels and SHAs.

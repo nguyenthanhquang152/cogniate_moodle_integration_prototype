@@ -1627,6 +1627,34 @@ Reviewer-A receives both reports and their limits before its disposition; no wid
 Reviewer-B and QA can check the frozen text while this measurement completes; neither has Docker authority.
 G1 stays unresolved, and both source tasks stay held until all independent design checks pass.
 
+Revision 3.2 is frozen at `d0bdda06cbb7176fcb7d2b66797d81edd95de6fe`.
+Reviewer-B: `task_278ec21bfdec`, dispatch `ctx_db35f10495b2`, launch `msg_d533d7ff989e`, start `msg_40173d9872ae`.
+Common QA: `task_c1ad8c306bab`, dispatch `ctx_7aed1436bc04`, launch `msg_bbfd773f916f`, start `msg_2a92cde42868`.
+Both check only the bounded correction and its direct regressions. Reviewer-A waits for the complete diagnostic evidence.
+Reviewer-B submitted APPROVE in `msg_ddc9731a37a8`, closing B-S-22 without reopening earlier findings.
+Held report hash: `a09233e7c4562fca7a27aa6a0dee05a311dc2a855eae41822e0d108b1b81b726`.
+The Lead checked the hash and preserved report history, then retained the worker before acknowledgment.
+New NIT B-S-23 asks for an explicit empty-legacy-file check before the FIRST_START fixture setup.
+It does not waive QA's independent fixture disposition or any runtime gate.
+
+The Author's first 30-second trial omitted the exact name and run-label flags from the follow-up message.
+That evidence stays supplemental. One corrected trial is authorized within the original window, with no clock reset.
+Message `msg_98d105063c85` sets the final cleanup deadline at 22:58:27 UTC and permits no further retry.
+
+The follow-up completed in `msg_daacd205995a`; the Docker window is returned.
+Evidence root: `/Users/quangnguyen/cogniate-author-diag/client-group-30s-20261020T2252Z`.
+Report SHA-256: `297cdf8c83cbf2876d1e638d579c1c7daa44dbbbad8f7e0106cc1dd2f3ebdc4e`.
+The exact named and labeled trial saw no surviving client or late target for more than 30 seconds after gate opening.
+A positive control confirmed the exact-name and run-label filters detect a real target.
+The first follow-up trial without those flags stays supplemental; both trials remain in the report.
+The Lead verified all 26 manifest hashes and the prior 14 unchanged hashes.
+All four boundary snapshots have seven unchanged original volume records, zero containers and no owned leftovers.
+The final cleanup boundary was 22:57:23.934 UTC, within the original window starting 22:53:29.148 UTC.
+CPU and memory stayed unchanged. Other signals, create-API races, command paths, hosts and client versions remain unmeasured.
+The Author was retained before acknowledgment. This is diagnostic evidence only.
+Reviewer-A `task_98eab0aaf4c1`, dispatch `ctx_2f807ddce9f7`, launch `msg_e87b558008b9`, now has both reports and their limits.
+It independently decides A-S-13 and the scoped G-1 disposition. No Docker window is open.
+
 The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
