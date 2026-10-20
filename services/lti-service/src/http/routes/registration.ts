@@ -22,6 +22,7 @@ import {
 import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
 import { isOwnLaunchTarget } from '../../lti/target.ts';
+import { lmsNameOfFamily, reservedIssuerOrigins } from '../../profiles/index.ts';
 import { OutboundError, pendingToolText } from '@cogniate/shared';
 
 const HEADING = 'The registration did not work';
@@ -36,7 +37,12 @@ export const REGISTRATION_HELP: Partial<Record<ProtocolErrorCode, string>> = {
   FETCH_FAILED: 'Cogniate cannot reach this Moodle site. The site must be reachable from the internet over https (port 443). Check the firewall, then start the registration again.',
   INVALID_OPENID_CONFIGURATION: 'Moodle sent a registration that Cogniate cannot use. Start the registration again from Manage tools. If it happens again, give the trace id to your Cogniate contact.',
   ISSUER_MISMATCH: 'The platform configuration is not from this Moodle site. Start the registration again from Manage tools on the site itself.',
+  // M1 (contract §9.2): the start page refuses a hosted LMS issuer and a Canvas or Blackboard platform configuration.
+  ISSUER_RESERVED: 'This address belongs to a hosted LMS. Connect it as Canvas or Blackboard in the Cogniate portal.',
 };
+
+/** M1 (contract §9.2): `This is a {LMS} site. Connect it as {LMS} in the Cogniate portal.` */
+const familyHelp = (lms: string) => `This is a ${lms} site. Connect it as ${lms} in the Cogniate portal.`;
 
 /** A-T3b-01: the registration may have reached Moodle, but the result is unknown. No automatic clean-up. */
 // The same clean-up text as the app page MOODLE_TOOL_MAY_EXIST (B-T4b1-02), with the tool name that was sent to Moodle.
@@ -120,6 +126,13 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     const token = q.data.registration_token;
     const config = await fetchConfiguration(ctx, q.data.openid_configuration, token, req.traceId);
     if ('code' in config) return page(config.code, config.detail);
+    // M1: a reserved issuer or a Canvas or Blackboard product family; nothing is stored and no session starts.
+    if (reservedIssuerOrigins(ctx.profiles).includes(new URL(config.issuer).origin)) return page('ISSUER_RESERVED', 'issuer_reserved');
+    const family = lmsNameOfFamily(config.productFamilyCode);
+    if (family) {
+      log.warn('registration_rejected', { trace_id: req.traceId, code: 'PROVIDER_PROFILE_MISMATCH', detail: `family=${config.productFamilyCode.toLowerCase()}` });
+      return ctx.errorPage(reply, req, 'PROVIDER_PROFILE_MISMATCH', { heading: HEADING, help: familyHelp(family) });
+    }
 
     let operation: RegistrationOperation = 'new';
     let existingPlatformId: string | null = null;
@@ -185,6 +198,8 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
         throw new ApiError('INVALID_REQUEST', 'Invalid field: messages.target_link_uri must be the launch URL of this tool account.');
       }
     }
+    // M1 (§9.2): a standard platform cannot use a reserved issuer; nothing is sent to the platform.
+    if (reservedIssuerOrigins(ctx.profiles).includes(new URL(configOf(session).issuer).origin)) reject(new ApiError('ISSUER_RESERVED'));
     if (!claimRegistrationSession(ctx.db, account.id, session.id)) throw new ApiError('REGISTRATION_ALREADY_COMPLETED');
     try {
       const config = configOf(session);

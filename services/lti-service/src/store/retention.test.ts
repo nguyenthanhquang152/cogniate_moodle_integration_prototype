@@ -7,10 +7,10 @@ describe('LTI service retention cleanup (data-model §2.1)', () => {
     const db = openDb(':memory:');
     const now = 100 * DAY_MS;
     db.exec(`PRAGMA foreign_keys = OFF;`);
-    const state = db.prepare("INSERT INTO oidc_state VALUES (?, 'cogniate', 'plt_1', 'n', 't', ?, NULL)");
+    const state = db.prepare("INSERT INTO oidc_state (state_hash, tool_account_id, platform_id, nonce, target_link_uri, expires_at, used_at) VALUES (?, 'cogniate', 'plt_1', 'n', 't', ?, NULL)");
     state.run('s-old', now - 1);
     state.run('s-new', now + 60_000);
-    const launch = db.prepare("INSERT INTO launch VALUES (?, 'cogniate', 'plt_1', '1', 'LtiResourceLinkRequest', '{}', ?, ?, 0)");
+    const launch = db.prepare("INSERT INTO launch (id, tool_account_id, platform_id, deployment_id, message_type, claims, ltik_hash, expires_at, created_at) VALUES (?, 'cogniate', 'plt_1', '1', 'LtiResourceLinkRequest', '{}', ?, ?, 0)");
     launch.run('l-old', 'h1', now - DAY_MS - 1);
     launch.run('l-new', 'h2', now - DAY_MS + 1000);
     const reg = db.prepare(`INSERT INTO registration_session (id, tool_account_id, openid_configuration_url, platform_configuration, operation, privacy_level,

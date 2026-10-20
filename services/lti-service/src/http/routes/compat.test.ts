@@ -404,7 +404,7 @@ describe('T3c compat routes with real API authorization', () => {
   it('platform delete is account scoped and cascades to states, launches and service keys; recreation does not revive keys', async () => {
     const headers = auth();
     const service = await serviceAuth(headers);
-    h.db.prepare('INSERT INTO oidc_state VALUES (?, ?, ?, ?, ?, ?, NULL)').run('state-hash', 'cogniate', h.platform.id, 'nonce', LAUNCH, h.clock.now + 10000);
+    h.db.prepare('INSERT INTO oidc_state (state_hash, tool_account_id, platform_id, nonce, target_link_uri, expires_at, used_at) VALUES (?, ?, ?, ?, ?, ?, NULL)').run('state-hash', 'cogniate', h.platform.id, 'nonce', LAUNCH, h.clock.now + 10000);
     const foreign = await h.app.inject({ method: 'DELETE', url: `/api/platforms/${h.platform.id}`, headers: { authorization: `Bearer ${h.otherApiKey}` } });
     expect([foreign.statusCode, foreign.json().details.message]).toEqual([404, 'UNREGISTERED_PLATFORM']);
     expect(h.lines.filter((line) => line.event === 'platform_deleted')).toEqual([]);

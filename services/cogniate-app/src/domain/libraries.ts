@@ -39,6 +39,12 @@ export function ensureLibrary(db: Db, name: string, now: number): Library {
   return lib;
 }
 
+/** A library by id (operator CLIs, the redemption engine), or undefined. */
+export function getLibrary(db: Db, id: string): Library | undefined {
+  const row = db.prepare('SELECT id, name FROM library WHERE id = ?').get(id);
+  return row ? { id: String(row.id), name: String(row.name) } : undefined;
+}
+
 /** Make or update a user by email (seed). The password hash is always replaced. */
 export async function upsertUser(
   db: Db,

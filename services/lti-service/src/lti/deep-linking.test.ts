@@ -23,7 +23,7 @@ async function setup(over: Partial<LaunchRecord> = {}) {
   });
   const launch: LaunchRecord = {
     id: 'lch_1', toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', messageType: 'LtiDeepLinkingRequest',
-    claims: { [CLAIM.deepLinkingSettings]: settings }, expiresAt: 0, ...over,
+    claims: { [CLAIM.deepLinkingSettings]: settings }, expiresAt: 0, siteOrigin: null, serviceOrigin: null, bindingGeneration: 0, ...over,
   };
   return { db, platform, launch };
 }

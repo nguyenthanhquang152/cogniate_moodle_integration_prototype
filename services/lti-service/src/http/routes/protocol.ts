@@ -19,10 +19,10 @@ export function registerProtocolRoutes(app: FastifyInstance, ctx: RouteContext):
   // OIDC login initiation (contract §2.1)
   const login = async (req: FastifyRequest<{ Params: { account: string } }>, reply: FastifyReply) => {
     const params = (req.method === 'GET' ? req.query : req.body) as Record<string, unknown> | undefined;
-    const result = initiateLogin(ctx.db, ctx.urls, req.params.account, params ?? {}, ctx.now());
+    const result = initiateLogin(ctx.db, ctx.urls, req.params.account, params ?? {}, ctx.now(), ctx.profiles);
     if (!result.ok) {
       log.warn('login_rejected', { trace_id: req.traceId, code: result.code, detail: result.detail });
-      return ctx.errorPage(reply, req, result.code);
+      return ctx.errorPage(reply, req, result.code, { lms: result.lms });
     }
     return reply.code(302).headers({ location: result.location, 'set-cookie': result.setCookie, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }).send();
   };
@@ -32,7 +32,7 @@ export function registerProtocolRoutes(app: FastifyInstance, ctx: RouteContext):
   // Launch / redirect URI (contract §2.2)
   app.post<{ Params: { account: string } }>('/lti/launch/:account', async (req, reply) => {
     const form = (req.body ?? {}) as Record<string, unknown>;
-    const result = await handleLaunch({ db: ctx.db, urls: ctx.urls, keys: ctx.keys, ltikTtlSeconds: ctx.ltikTtlSeconds, now: ctx.now },
+    const result = await handleLaunch({ db: ctx.db, urls: ctx.urls, keys: ctx.keys, ltikTtlSeconds: ctx.ltikTtlSeconds, now: ctx.now, profiles: ctx.profiles },
       req.params.account, form, req.headers.cookie, req.traceId);
     if (!result.ok) {
       log.warn('launch_check_failed', { trace_id: req.traceId, check: result.check, code: result.code, detail: result.detail });
@@ -40,8 +40,11 @@ export function registerProtocolRoutes(app: FastifyInstance, ctx: RouteContext):
       return ctx.errorPage(reply, req, result.code, {
         ...(result.help ? { help: result.help } : {}),
         ...(result.oidcError ? { detail: result.oidcError } : {}),
+        lms: result.lms,
       });
     }
+    // Contract §9.8: the removed claim names only, never a value.
+    if (result.removedClaims.length > 0) log.info('launch_claims_minimized', { trace_id: req.traceId, platform_id: result.platformId, claims: result.removedClaims });
     log.info('launch_accepted', { trace_id: req.traceId, platform_id: result.platformId, message_type: result.messageType });
     return reply.code(303).headers({ location: result.location, 'set-cookie': result.clearCookie, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }).send();
   });

@@ -37,20 +37,20 @@ export function registerCompatRoutes(app: FastifyInstance, ctx: RouteContext): v
   });
   app.post('/api/lineitems', async (req, reply) => {
     const caller = ctx.auth(req, ['ltik', 'service']);
-    return reply.code(201).send(await ctx.ags.createLineItem(agsContext(ctx.db, caller, req.traceId), parseItem(req.body)));
+    return reply.code(201).send(await ctx.ags.createLineItem(agsContext(ctx, caller, req.traceId), parseItem(req.body)));
   });
   app.put<ItemParams>('/api/lineitems/:lineItemId', async (req, reply) => {
     const caller = ctx.auth(req, ['ltik', 'service']);
-    return reply.code(201).send(await ctx.ags.updateLineItem(agsContext(ctx.db, caller, req.traceId), decodeLineItemId(req.params.lineItemId), parseItem(req.body)));
+    return reply.code(201).send(await ctx.ags.updateLineItem(agsContext(ctx, caller, req.traceId), decodeLineItemId(req.params.lineItemId), parseItem(req.body)));
   });
   app.delete<ItemParams>('/api/lineitems/:lineItemId', async (req, reply) => {
     const caller = ctx.auth(req, ['ltik', 'service']);
-    await ctx.ags.deleteLineItem(agsContext(ctx.db, caller, req.traceId), decodeLineItemId(req.params.lineItemId));
+    await ctx.ags.deleteLineItem(agsContext(ctx, caller, req.traceId), decodeLineItemId(req.params.lineItemId));
     return reply.code(204).send();
   });
   app.get('/api/memberships', async (req) => {
     const caller = ctx.auth(req, ['ltik', 'service']);
-    const platform = platformOf(ctx.db, caller);
+    const platform = platformOf(ctx, caller);
     const parsed = MembershipsQuerySchema.safeParse(req.query ?? {});
     if (!parsed.success) {
       if (parsed.error.issues.some((i) => i.path[0] === 'url')) throw new ApiError('INVALID_URL_PARAMETER');

@@ -5,6 +5,7 @@ import { randomToken } from '@cogniate/shared';
 import type { Logger, OutboundClient } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import { signToolJwt } from '../lti/tool-jwt.ts';
+import { profileDefinition } from '../profiles/index.ts';
 import type { Platform } from '../store/platforms.ts';
 import { ApiError } from '../api-errors.ts';
 import { badPlatformDataError, outboundFailureError } from './error-mapping.ts';
@@ -32,8 +33,10 @@ export function createTokenClient(deps: TokenClientDeps): TokenClient {
   const inFlight = new Map<string, Promise<string>>();
 
   async function fetchToken(platform: Platform, scopes: string[], key: string, traceId: string): Promise<string> {
+    // Profiles with clientAssertionAudArray (Blackboard, F-BB-5): aud = [token endpoint].
+    const aud = profileDefinition(platform.profile)?.flags.clientAssertionAudArray ? [platform.tokenEndpoint] : platform.tokenEndpoint;
     const assertion = await signToolJwt(deps.db, deps.masterKey, platform.toolAccountId,
-      { iss: platform.clientId, sub: platform.clientId, aud: platform.tokenEndpoint, jti: randomToken() }, now());
+      { iss: platform.clientId, sub: platform.clientId, aud, jti: randomToken() }, now());
     const body = new URLSearchParams({ grant_type: 'client_credentials', client_assertion_type: ASSERTION_TYPE, client_assertion: assertion, scope: scopes.join(' ') }).toString();
     let res;
     try {

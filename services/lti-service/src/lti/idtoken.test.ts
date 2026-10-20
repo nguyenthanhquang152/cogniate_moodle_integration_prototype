@@ -8,9 +8,10 @@ import { toIdToken } from './idtoken.ts';
 const platform: Platform = {
   id: 'plt_1', toolAccountId: 'cogniate', issuer: 'https://moodle.test', clientId: 'c', name: 'Moodle seed', authEndpoint: '', tokenEndpoint: '',
   jwksUrl: '', productFamilyCode: null, active: true, deploymentIds: ['1'],
+  profile: 'standard', siteUrl: null, serviceUrl: null, bindingRef: null, deployments: [{ deploymentId: '1', siteUrl: null, active: true, bindingGeneration: 0, bindingRef: null, createdAt: null }],
 };
 const launch = (claims: Record<string, unknown>, messageType = 'LtiResourceLinkRequest'): LaunchRecord =>
-  ({ id: 'l', toolAccountId: 'cogniate', platformId: 'plt_1', deploymentId: '1', messageType, claims, expiresAt: 0 });
+  ({ id: 'l', toolAccountId: 'cogniate', platformId: 'plt_1', deploymentId: '1', messageType, claims, expiresAt: 0, siteOrigin: null, serviceOrigin: null, bindingGeneration: 0 });
 
 describe('toIdToken', () => {
   it('maps name and email only when present, and the AGS line item', () => {

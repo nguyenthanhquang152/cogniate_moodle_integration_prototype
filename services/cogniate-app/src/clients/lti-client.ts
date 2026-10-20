@@ -19,6 +19,16 @@ const Registration = z.object({
 });
 export type LtiRegistration = z.infer<typeof Registration>;
 
+/** One deployment of a platform answer (LTI contract §9.4). */
+const Deployment = z.object({
+  deploymentId: z.string(),
+  siteUrl: z.string(),
+  active: z.boolean(),
+  bindingGeneration: z.number(),
+  bindingRef: z.string().nullable(),
+});
+export type LtiDeployment = z.infer<typeof Deployment>;
+
 const Platform = z.object({
   id: z.string().min(1),
   url: z.string(),
@@ -27,8 +37,15 @@ const Platform = z.object({
   active: z.boolean(),
   deploymentIds: z.array(z.string()),
   productFamilyCode: z.string().nullish().transform((v) => v ?? null),
+  // M1 (§9.4); optional so that an answer without them still parses.
+  profile: z.string().optional().transform((v) => v ?? 'standard'),
+  siteUrl: z.string().nullish().transform((v) => v ?? null),
+  serviceUrl: z.string().nullish().transform((v) => v ?? null),
+  bindingRef: z.string().nullish().transform((v) => v ?? null),
+  deployments: z.array(Deployment).optional().transform((v) => v ?? []),
 });
 export type LtiPlatform = z.infer<typeof Platform>;
+const PlatformList = z.object({ platforms: z.array(Platform) });
 
 const Completed = z.object({ platformId: z.string().min(1), html: z.string() });
 
@@ -59,13 +76,18 @@ export type LtiToolKey = z.infer<typeof ToolKeys>['keys'][number];
 /** GET /api/idtoken (contract §3.1): only the fields that the app reads. Absent values are omitted by the service. */
 const IdToken = z.object({
   user: z.object({ id: z.string().min(1), roles: z.array(z.string()) }),
-  platform: z.object({ id: z.string().min(1), url: z.string(), deploymentId: z.string().min(1) }),
+  platform: z.object({
+    id: z.string().min(1), url: z.string(), deploymentId: z.string().min(1),
+    // M1 (§9.9): site and service origin and profile; absent in an answer from before M1 (then the issuer origin).
+    siteUrl: z.string().optional(), serviceUrl: z.string().optional(), profile: z.string().optional(), productFamilyCode: z.string().optional(),
+  }),
   launch: z.object({
     type: z.string(),
     target: z.string(),
     context: z.object({ id: z.string(), label: z.string().optional(), title: z.string().optional() }).optional(),
     resourceLink: z.object({ id: z.string(), title: z.string().optional() }).optional(),
     presentation: z.object({ documentTarget: z.string().optional(), returnUrl: z.string().optional() }).optional(),
+    deepLinkingSettings: z.object({ acceptPresentationDocumentTargets: z.array(z.string()).optional() }).passthrough().optional(),
   }),
   services: z.object({
     assignmentAndGrades: z.object({ available: z.boolean(), lineItemId: z.string().optional() }).optional(),
@@ -74,12 +96,13 @@ const IdToken = z.object({
 });
 export type LtiIdToken = z.infer<typeof IdToken>;
 
-/** One Deep Linking content item (flows §6b: the app sends exactly this shape). */
+/** One Deep Linking content item (flows §6b: the app sends exactly this shape; M1: `window` for Canvas and Blackboard). */
 export interface ContentItem {
   type: 'ltiResourceLink';
   title: string;
   url: string;
   lineItem: { scoreMaximum: number; label: string; resourceId: string; tag: string };
+  window?: { targetName: '_blank' };
 }
 const DeepLinkingAnswer = z.object({ message: z.string().min(1), target: z.string().min(1) });
 const NoContent = z.undefined();
@@ -95,6 +118,24 @@ export interface NewPlatform {
   accesstokenEndpoint: string;
   authConfig: { method: 'JWK_SET'; key: string };
   deploymentIds: string[];
+}
+
+/** POST /api/platforms body of a profile other than `standard` (LTI contract §9.4): the service fills the endpoints. */
+export interface NewProviderPlatform {
+  profile: string;
+  clientId: string;
+  name: string;
+  siteUrl: string;
+  serviceUrl?: string;
+  deploymentIds: string[];
+  active: boolean;
+  bindingRef: string;
+}
+
+/** A conditional change (LTI contract §9.15): a new ref and the expected current ref (null = no ref stored). */
+export interface RefChange {
+  bindingRef: string;
+  ifBindingRef: string | null;
 }
 
 /** An LTI service answer that is not a success (`code` = details.message), or no answer at all (status 0). */
@@ -123,6 +164,11 @@ export interface LtiClientDeps {
   outbound: OutboundClient;
   /** PUBLIC_LTI_URL */
   ltiUrl: string;
+  /**
+   * Base URL of the `/api/*` calls. Default: `ltiUrl`. The `acceptance` profile sends them through the transport gate
+   * (M3 §3.3, `https://lti-gate.test`); browser protocol traffic never passes the gate.
+   */
+  apiUrl?: string;
   /** Compose: /run/secrets/app/lti-api-key (only this file; infra/.secrets/app/lti-api-key on the host). */
   apiKeyFile: string;
   readKey?: (file: string) => string;
@@ -132,7 +178,7 @@ export function createLtiClient(deps: LtiClientDeps) {
   const readKey = deps.readKey ?? ((f: string) => readFileSync(f, 'utf8').trim());
 
   /** Auth (contract §1.2): `ltik` -> LTIK-AUTH-V2; `serviceKey` -> SERVICE-AUTH-V1; else Bearer. */
-  async function call<S extends z.ZodType>(schema: S, method: 'GET' | 'POST' | 'PATCH', path: string, traceId: string, body?: unknown, ltik?: string, serviceKey?: string, timeoutMs?: number): Promise<z.output<S>> {
+  async function call<S extends z.ZodType>(schema: S, method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, traceId: string, body?: unknown, ltik?: string, serviceKey?: string, timeoutMs?: number): Promise<z.output<S>> {
     let key: string;
     try {
       key = readKey(deps.apiKeyFile);
@@ -142,7 +188,7 @@ export function createLtiClient(deps: LtiClientDeps) {
     const authorization = ltik !== undefined ? `LTIK-AUTH-V2 ${key}:${ltik}` : serviceKey !== undefined ? `SERVICE-AUTH-V1 ${key}:${serviceKey}` : `Bearer ${key}`;
     let res;
     try {
-      res = await deps.outbound.request(`${deps.ltiUrl}${path}`, {
+      res = await deps.outbound.request(`${path.startsWith('/api/') ? (deps.apiUrl ?? deps.ltiUrl) : deps.ltiUrl}${path}`, {
         method, traceId, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
         ...(timeoutMs !== undefined ? { timeoutMs } : {}),
         headers: { authorization, 'x-trace-id': traceId, accept: 'application/json', ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
@@ -174,7 +220,18 @@ export function createLtiClient(deps: LtiClientDeps) {
       call(Completed, 'POST', `/api/registrations/${id(regId)}/complete`, traceId, body, undefined, undefined, 15_000),
     createPlatform: (body: NewPlatform, traceId: string) => call(Platform, 'POST', '/api/platforms', traceId, body),
     getPlatform: (platformId: string, traceId: string) => call(Platform, 'GET', `/api/platforms/${id(platformId)}`, traceId),
-    patchPlatform: (platformId: string, body: { active?: boolean; name?: string }, traceId: string) => call(Platform, 'PATCH', `/api/platforms/${id(platformId)}`, traceId, body),
+    patchPlatform: (platformId: string, body: { active?: boolean; name?: string } & Partial<RefChange>, traceId: string) => call(Platform, 'PATCH', `/api/platforms/${id(platformId)}`, traceId, body),
+    // M1 (LTI contract §9.4 to §9.6, §9.15): provider platforms, deployments and conditional changes.
+    createProviderPlatform: (body: NewProviderPlatform, traceId: string) => call(Platform, 'POST', '/api/platforms', traceId, body),
+    findPlatforms: (q: { url: string; clientId: string; profile: string }, traceId: string) =>
+      call(PlatformList, 'GET', `/api/platforms?${new URLSearchParams(q)}`, traceId).then((r) => r.platforms),
+    /** Conditional delete (`ifBindingRef`), or unconditional without it. 204 → undefined. */
+    deletePlatform: (platformId: string, ifBindingRef: string | null, traceId: string) =>
+      call(NoContent, 'DELETE', `/api/platforms/${id(platformId)}${ifBindingRef !== null ? `?${new URLSearchParams({ ifBindingRef })}` : ''}`, traceId),
+    addDeployment: (platformId: string, body: { deploymentId: string; siteUrl?: string; active: boolean; bindingRef: string }, traceId: string) =>
+      call(Deployment, 'POST', `/api/platforms/${id(platformId)}/deployments`, traceId, body),
+    patchDeployment: (platformId: string, deploymentId: string, body: { active: boolean; siteUrl?: string } & RefChange, traceId: string) =>
+      call(Deployment, 'PATCH', `/api/platforms/${id(platformId)}/deployments/${id(deploymentId)}`, traceId, body),
     /** Provider profiles (LTI contract §9.3, M1). */
     getProviders: (traceId: string) => call(Providers, 'GET', '/api/providers', traceId).then((r) => r.profiles),
     /** Public tool keys of the tool account (LTI contract §2.3); the first key is the active one (Canvas inline JWK). */

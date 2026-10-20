@@ -11,10 +11,13 @@ export function shortPlatformMessage(body: Buffer | string): string {
   return text.length > 200 ? `${text.slice(0, 200)}...` : text;
 }
 
-/** A platform HTTP answer that is not a success: 409 -> PLATFORM_CONFLICT, 400/404 -> PLATFORM_REJECTED_REQUEST, else PLATFORM_ERROR. */
+/**
+ * A platform HTTP answer that is not a success: 409 -> PLATFORM_CONFLICT, 400/404/422 -> PLATFORM_REJECTED_REQUEST
+ * (M1: a 422 is a permanent refusal too, ADR-011 §9), else PLATFORM_ERROR.
+ */
 export function platformResponseError(res: OutboundResponse, { echoMessage = true }: { echoMessage?: boolean } = {}): ApiError {
   if (res.status === 409) return new ApiError('PLATFORM_CONFLICT', 'The platform answered 409: it has a newer value (for example a grade with a newer time).');
-  if (res.status === 400 || res.status === 404) {
+  if (res.status === 400 || res.status === 404 || res.status === 422) {
     const msg = echoMessage ? shortPlatformMessage(res.body) : '';
     return new ApiError('PLATFORM_REJECTED_REQUEST', `The platform answered ${res.status}${msg ? `: ${msg}` : '.'}`, { status: res.status });
   }

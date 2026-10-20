@@ -1,5 +1,6 @@
 import type { LaunchRecord } from '../store/launches.ts';
 import type { Platform } from '../store/platforms.ts';
+import { findDeployment, serviceOriginOf, siteOriginOf } from '../store/platforms.ts';
 import type { Claims } from './checks.ts';
 import { CLAIM } from './checks.ts';
 
@@ -28,6 +29,10 @@ export function toIdToken(launch: LaunchRecord, platform: Platform, serviceKey?:
   const ags = obj(c[CLAIM.ags]);
   const isDeepLinking = launch.messageType === 'LtiDeepLinkingRequest';
   const docTarget = pres ? s(pres.document_target) : undefined;
+  // M1 (§9.9): the origins stored with the launch; a launch from before M1 uses the stored rows (issuer origin).
+  const deployment = findDeployment(platform, launch.deploymentId);
+  const siteUrl = launch.siteOrigin ?? siteOriginOf(platform, deployment);
+  const serviceUrl = launch.serviceOrigin ?? (launch.siteOrigin ?? serviceOriginOf(platform, deployment));
 
   return {
     ltiVersion: s(c[CLAIM.version]),
@@ -39,6 +44,7 @@ export function toIdToken(launch: LaunchRecord, platform: Platform, serviceKey?:
       id: platform.id, url: s(c.iss), clientId, deploymentId: s(c[CLAIM.deploymentId]),
       name: s(tp.name) ?? platform.name, guid: s(tp.guid) ?? '', productFamilyCode: s(tp.product_family_code) ?? platform.productFamilyCode ?? '',
       version: s(tp.version) ?? '', description: s(tp.description) ?? '', contactEmail: s(tp.contact_email) ?? '',
+      siteUrl, serviceUrl, profile: platform.profile,
     },
     launch: compact({
       type: launch.messageType,
