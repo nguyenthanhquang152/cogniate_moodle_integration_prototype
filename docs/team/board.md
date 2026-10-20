@@ -2,6 +2,23 @@
 
 Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Order = critical path (see the task DAG in `docs/architecture/README.md`).
 
+## Blackboard and Canvas phase — 2026-10-20
+
+Branch: `nguyenthanhquang152/lti-multi-lms`. Current [phase plan](multi-lms-plan.md).
+The Moodle release below is the completed baseline.
+
+| Task | Owner | Status | Evidence |
+| --- | --- | --- | --- |
+| M0 | Architect; independent QA and reviewers | Design proposal under review | `51e69d1`: ADR-011 revision 4, contracts, M1–M4 criteria. Both reviewer preflights complete. |
+| M1 | Author (Claude) | Planned; design gate required | Backend implementation task queued. |
+| M2 | Author-2 (Codex) | Planned; design gate required | Portal task queued in its own worktree. |
+| M3 | QA (Codex), QA-E2E (Claude) | Planned | Environment preflight complete. Real Canvas and Blackboard checks remain unverified. |
+| M4 | Docs and Architect | Planned | Guides, review pack, final conformance. |
+
+No implementation or product verification is complete for this phase. No push is authorized.
+
+## Completed Moodle baseline
+
 | # | Task | Title | Owner | Status | Round | Notes |
 | --- | --- | --- | --- | --- | --- | --- |
 | — | T1-spike | Moodle dev environment spike | Author | done | — | Unreviewed. Facts in `infra/moodle/SPIKE-NOTES.md`. |

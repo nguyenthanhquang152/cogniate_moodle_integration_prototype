@@ -91,6 +91,9 @@ Orca accepted these workers. Each receipt reports the requested model and effort
 | Author impact audit | `ctx_94cbe8647c96` | `claude-opus-5-5` | `xhigh` |
 | Reviewer-A source preflight | `ctx_8546daf0903f` | `claude-opus-5-5` | `xhigh` |
 | Reviewer-B workflow preflight | `ctx_6964f917fdea` | `gpt-6-astra` | `xhigh` |
+| Reviewer-A formal design review (same instance) | `ctx_1d8b93c872ae` | `claude-opus-5-5` | `xhigh` |
+| Reviewer-B formal design review (same instance) | `ctx_3c1ba794297e` | `gpt-6-astra` | `xhigh` |
+| QA design testability review | `ctx_4d2994dbaa01` | `gpt-6-astra` | `xhigh` |
 
 The initial Docker inventory found no running containers.
 The Lead asked which existing LMS test environments are available; the answer is pending.
@@ -117,6 +120,13 @@ It covers ADR-011, both API contracts, migration and security rules, and M1 thro
 The Lead accepted the handoff for independent review, not as design approval.
 The dedicated Architect remains retained for review corrections and final conformance.
 No product implementation has started.
+
+The frozen review proposal is `51e69d1`.
+Both reviewers and independent QA confirmed that they started their assigned reviews.
+The runtime refused `worker-start --terminal` for retained structured chat sessions.
+The Lead reused each exact reviewer session through `dispatch` and sent its returned preamble by orchestration message.
+Both sessions confirmed the new dispatch. These two dispatches do not own a new supervised process.
+Their original retained resources remain assigned to the same dedicated reviewer roles.
 
 Implementation tasks are queued, but they are not authorized to start before the design gate passes.
 Backend task `task_88ef41c0aea3` resumes the dedicated Author.
