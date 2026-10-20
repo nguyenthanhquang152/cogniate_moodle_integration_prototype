@@ -238,3 +238,37 @@ No stack or product acceptance was run for this repair. M3 remains
 FAIL/incomplete. The two full M1 rounds, remaining legacy suites and
 independent M2/T7 evidence remain required after the new source-review,
 freeze and stack-handback gates.
+
+## Legacy diagnostic checkpoint — A-M3-04, 2026-10-20
+
+The Lead authorized a bounded repair after Reviewer-A found that the
+`waitForFrame` timeout in `tests/acceptance/lib/t5.ts` printed full frame
+URLs before successful-frame secret capture could run. The timeout now
+uses the existing Canvas-owned `diagnosticUrl` helper. This repair changes
+only the import and timeout formatting; frame matching, polling, deadline,
+assertions and legacy cases are unchanged. Canvas QA retains ownership of
+the helper; the final check records its current source hash.
+
+A private scratch check executed the actual `waitForFrame` function,
+extracted as exact TypeScript AST text without rewriting its body. The old
+function from `e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63` exposed all 14
+synthetic values in runtime, play and picker paths, queries, fragments and
+credentials. The repaired timeout exposed none. An exact expected-message
+check retained useful safe route shapes, capability placeholders and
+`about:blank`. Old and new controls both received raw URLs for matching,
+returned the same frame on success, and used the same 200 ms polling step
+and controlled deadline. These are local diagnostic checks with synthetic
+inputs, not browser or product runtime evidence.
+
+```sh
+node /Users/quangnguyen/cogniate-qa-runs/m3-repair-A-M3-04-20261020T1349Z/timeout-branch-check.mjs
+node tests/host/run-m1.mjs --harness-only --provider all
+```
+
+Both commands passed. The second included the full acceptance typecheck,
+33 self-checks with no failures or skips, and unchanged discovery of 392 API
+plus 24 host/browser rows. [Diagnostic result](/Users/quangnguyen/cogniate-qa-runs/m3-repair-A-M3-04-20261020T1349Z/timeout-branch-result.json)
+and [held files, hashes and harness log](/Users/quangnguyen/cogniate-qa-runs/m3-repair-A-M3-04-20261020T1349Z/preparation.json)
+preserve this working-tree checkpoint. No stack, rebuild or product
+acceptance ran. M3 remains FAIL/incomplete, and full verification still
+needs a new committed test freeze, review gates and the Lead's handback.

@@ -22,6 +22,7 @@ import { type LaunchCapture, launchActivity } from './moodle-launch';
 import { callWs, gradeItems } from './moodle-ws';
 import { type MoodleUser, seed } from './seed';
 import { zipBuffer } from './zip';
+import { diagnosticUrl } from '../M1/canvas/browser-diagnostics.mjs';
 
 const urls = publicUrls();
 export const CONTENT = urls.content;
@@ -197,7 +198,7 @@ export async function waitForFrame(page: Page, test: (url: string) => boolean, t
   for (;;) {
     const f = page.frames().find((fr) => test(fr.url()));
     if (f) return f;
-    if (Date.now() > deadline) throw new Error(`no frame matched within ${timeoutMs} ms (frames: ${page.frames().map((fr) => fr.url()).join(' | ')})`);
+    if (Date.now() > deadline) throw new Error(`no frame matched within ${timeoutMs} ms (frames: ${page.frames().map((fr) => diagnosticUrl(fr.url())).join(' | ')})`);
     await page.waitForTimeout(200);
   }
 }
