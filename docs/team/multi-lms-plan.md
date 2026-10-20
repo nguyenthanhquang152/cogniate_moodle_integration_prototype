@@ -674,6 +674,29 @@ Message `msg_66224538862d` holds common QA's full M1 runs until committed repair
 The current M2 run and earlier T2/T3 pass remain evidence only for their exact SHA.
 Reviewer-B's approval does not override Reviewer-A's blocking findings.
 
+The backend follow-up is active in `ctx_49162242887c`, handoff `msg_dcede193bb3f`.
+The author asked about the Canvas lookup in `msg_c42a7ea76b45`.
+The Lead confirmed the existing-contract interpretation in `msg_742788eff0bb`: retain one profile-qualified S2 lookup.
+A successful empty result after conflict is not adoptable and returns `409 PLATFORM_IN_USE` after local cancellation and lease checks.
+It makes no extra lookup. Network errors, timeouts and GET-by-id `404` keep the specified `502` mapping.
+The independent re-review must assess this interpretation and its tests; no normative contract was edited.
+
+Canvas QA completed M2 in `msg_43f19e48bd65`: **35 PASS, 29 FAIL**, zero skips or retries.
+Evidence: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-eb43247-21t8wgiv/source/tests/host/artifacts/qa-e2e-sim-r1-eb43247d-2026-10-20T12-34-50-805Z/summary.json`.
+The Lead read the summary. Teardown and isolation pass: zero containers remain and all seven baseline volumes are preserved.
+The run's secret scan passed with zero hits across 49 files for its one captured value.
+QA traces 28 failures to the operator-command working directory in `tests/host/m1-control.mjs`.
+The other failure is M2-04.rows: Copy clicks can scroll the page between viewport position measurements.
+Messages `msg_22c0e428098e` and `msg_d8dc5181f08c` assign these repairs to their existing owners.
+Common QA must prove both app and LTI operator commands on the next frozen stack.
+Canvas QA must retain every row value, Copy and clipboard assertion while measuring order before clicks.
+No stack window is active. T7 and full M1 remain held until the new freeze and explicit window assignment.
+
+The common capture interface is confirmed in `msg_6717ae0ed480` and reply `msg_0c57ab9062a3`.
+`watchAll(action = "pass", faults: Json[] = [])` preserves specific fault precedence and returns its cursor after arming.
+It appends capture for all seven methods. Later resets or raw rule replacement require re-arming.
+Canvas QA may use this interface in its older race cases and held-S3 windows; common QA owns the helper and its checks.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
