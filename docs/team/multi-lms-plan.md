@@ -201,10 +201,15 @@ Canvas QA uses that interface when a worker slot becomes free.
 The token assertion audience is a scalar for Canvas and an array for Blackboard.
 The queued Canvas task's earlier shorthand about an audience array does not change this contract.
 
-Both code review tasks are queued behind the two implementation tasks.
+Both code review tasks depend on the two completed implementation tasks.
 Reviewer-A: `task_def3c0e1323e`. Reviewer-B: `task_8b9947e26455`.
-Each will review the same frozen candidate, with separate reports for M1, M2 and relevant M3 infrastructure.
-Neither review task has started.
+Each has separate reports for M1, M2 and relevant M3 infrastructure.
+Reviewer-A started in `ctx_8abc3ceb148c`, with handoff `msg_6bb1694b881f`.
+It reviews frozen implementation `1e2c81f` in a clean clone while Canvas QA prepares the remaining tests.
+Its scope remains open until it also reviews the complete harness at a later exact revision supplied by the Lead.
+The review must record both revisions and cannot approve missing tests.
+Reviewer-B remains queued. One worker slot is reserved for the short acceptance-profile infrastructure smoke.
+This parallel review start changes scheduling only; every acceptance and review gate still applies.
 
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
