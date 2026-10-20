@@ -429,6 +429,20 @@ Before committing it, the Lead found a fixture mismatch: the Blackboard seed fai
 Narrow task `task_8fbbd0427488`, dispatch `ctx_d6339580ea3c`, corrects that oracle and the conditional recovery text.
 Handoff: `msg_0188520c6b03`. This is part of the uncommitted revision 3; the independent third review has not started.
 
+The Architect completed that correction in `msg_390347962e0a`.
+Revision 3 is frozen at **`78bc34ac422e0bcac324fa10e69ec9f82a17a3b8`**.
+The Blackboard reservation-only fixture now expects absent records and a fresh deployment; the Canvas orphan fixture still requires fencing and deletion.
+The final bounded design recheck wave is active on that exact commit:
+
+| Work | Task | Dispatch |
+| --- | --- | --- |
+| Reviewer-A | `task_1fe8ae6741d8` | `ctx_752eba91c7de` |
+| Reviewer-B | `task_081f83c4db74` | `ctx_d851263c7966` |
+| Codex QA testability | `task_03dd4c0d94cd` | `ctx_f5b1c375220f` |
+
+Handoffs: `msg_fa58502aaa35`, `msg_bf1c0892b181`, and `msg_a0afb45d9d38`.
+The Architect is retained. Implementation still waits for approval and application of the accepted contract amendments.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
