@@ -9,14 +9,15 @@ import { BlackboardBinding } from "./BlackboardBinding.tsx";
 import { BlackboardCreate } from "./BlackboardCreate.tsx";
 import steps from "./blackboard-steps.json";
 
-function Step({ index, children }: { index: number; children?: ReactNode }) {
+/** One step card. `list={false}`: the form in `children` shows the step instructions in context, so no list here. */
+function Step({ index, list = true, children }: { index: number; list?: boolean; children?: ReactNode }) {
   const step = steps.steps[index]!;
   return <Card className="flex flex-col gap-5" data-step-id={step.id}>
     <p className="text-[10px] font-semibold tracking-[0.15em] text-[#b3a4c6]">STEP {index + 1}</p>
     <h2>{step.title}</h2>
-    <ol className="list-decimal space-y-3 pl-5">
+    {list && <ol className="list-decimal space-y-3 pl-5">
       {step.instructions.map((text) => <li key={text}>{text}</li>)}
-    </ol>
+    </ol>}
     {children}
   </Card>;
 }
@@ -41,6 +42,6 @@ export function BlackboardWizard(props: ProviderWizardProps) {
       </div>
       <ToolConfiguration key={connection.id} id={connection.id} lmsName="Blackboard" />
     </Step>
-    <Step index={2}><BlackboardBinding key={connection.id} connection={connection} onChanged={props.onChanged} /></Step>
+    <Step index={2} list={false}><BlackboardBinding key={connection.id} connection={connection} onChanged={props.onChanged} /></Step>
   </>;
 }

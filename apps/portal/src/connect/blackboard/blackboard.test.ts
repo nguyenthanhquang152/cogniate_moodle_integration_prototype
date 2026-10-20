@@ -80,6 +80,12 @@ it("steps 2 and 3: Client ID with Copy, the tool rows, and Save with the approva
   expect(document.querySelector("[data-client-id] code")?.textContent).toBe("qa-bb-app");
   expect(screen.getAllByRole("button", { name: /Copy/ }).length).toBeGreaterThan(0);
   await waitFor(() => expect(document.querySelector('tr[data-key="client_id"]')).toBeTruthy());
+  // The approval instructions show once: as the help text of the code field, not also as a step list.
+  const help = "Ask your Cogniate operator for an approval code. The operator checks the request with your Blackboard administrator first. The code works once and expires.";
+  expect(screen.getAllByText(help)).toHaveLength(1);
+  expect(screen.getByLabelText("Approval code").getAttribute("aria-describedby")).toBe("blackboard-approval-help");
+  expect(document.querySelector('[data-step-id="blackboard-approval"] ol')).toBeNull();
+  expect(document.querySelector('[data-step-id="blackboard-register"] ol')).toBeTruthy();
   const code = "A".repeat(43);
   field("Deployment ID", "dZ");
   field("Approval code", code);

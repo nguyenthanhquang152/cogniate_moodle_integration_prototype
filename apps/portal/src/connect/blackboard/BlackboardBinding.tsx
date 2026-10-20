@@ -6,6 +6,10 @@ import type { BlackboardPlatformBody, Connection } from "../../types.ts";
 import { Button } from "../../ui/button.tsx";
 import { Input } from "../../ui/input.tsx";
 import { ProviderErrorNotice, providerErrorFields } from "../provider-errors.tsx";
+import steps from "./blackboard-steps.json";
+
+/** The step 3 instructions (data), shown once: as the help text of the approval code field. */
+const APPROVAL_HELP = steps.steps.find((step) => step.id === "blackboard-approval")!.instructions.join(" ");
 
 /**
  * Step 3: the deployment id and the operator's approval code (PUT …/platform, app contract §4.4). The code stays only
@@ -43,7 +47,7 @@ export function BlackboardBinding({ connection, onChanged }: { connection: Conne
       <Input name="grantCode" type="text" required autoComplete="off" spellCheck={false} value={grantCode} onChange={(event) => setGrantCode(event.target.value)}
         aria-invalid={fields.includes("grantCode")} aria-describedby={`blackboard-approval-help${fields.includes("grantCode") ? " blackboard-binding-error" : ""}`} />
     </label>
-    <p id="blackboard-approval-help" className="text-muted-foreground">Ask your Cogniate operator for an approval code. The operator checks the request with your Blackboard administrator first. The code works once and expires.</p>
+    <p id="blackboard-approval-help" className="text-muted-foreground">{APPROVAL_HELP}</p>
     <div id="blackboard-binding-error"><ProviderErrorNotice error={error} /></div>
     <div className="flex flex-wrap items-center gap-3">
       <Button variant="primary" disabled={busy}>Save</Button>
