@@ -1,6 +1,7 @@
 // Canvas registration, configuration documents, added deployments, capability guards, grant negatives and
 // portal routes: AC-M1-17, -19, -20, -21, -29, -31 (Canvas parts).
 import { createCourse } from '../../lib/app';
+import { readLog, waitForLog } from '../../lib/logs';
 import {
   APP, app, assert, cli, connPath, createConnection, expectStatus, httpsRequest, idToken, logEvents, m1Test,
   parseForm, pause, service, session, sharedPlatform, unique, urls, type Json,
@@ -27,6 +28,51 @@ async function unchanged(p: Pending, body: () => Promise<void>) {
 }
 const rejected = (since: number, reason: string, connectionId?: string) =>
   logEvents('grant_rejected', since, connectionId ? { reason, connection_id: connectionId } : { reason });
+
+// AC-M1-20 no-attempt subclaim (C-2, C-3) through the accepted audit oracle (docs/architecture/review-response-M1.md, D
+// revision 3, R3.7): `grant_attempt_started {connection_id, grant_id, attempt_id}` is written after a committed phase 1,
+// in first-in, first-out order before the same request's `http_request` line. Bounded use: one healthy process, complete
+// capture of cogniate-app.jsonl, no claim across a crash or restart, and an absent line is no database or rollback proof.
+// The connection DTO and a later successful redemption are not used as evidence of "no attempt".
+type Answer = { status: number; traceId: string };
+export function attemptLines(connectionId: string) {
+  const log = readLog('cogniate-app');
+  assert.deepEqual(log.badLines, [], 'BLOCKED: incomplete capture of cogniate-app.jsonl');
+  return log.entries.filter((e) => e.entry.event === 'grant_attempt_started' && e.entry.connection_id === connectionId)
+    .map((e) => ({ line: e.line, ...e.entry }) as Json);
+}
+/** FIFO completion control: the answer's own same-trace `http_request` line (R3.7 rule 3); missing means BLOCKED. */
+export async function completed(answer: Answer, method: string) {
+  assert.match(answer.traceId, /^[A-Za-z0-9-]{16,64}$/, 'BLOCKED: no x-trace-id on the answer, so its completion control is missing');
+  const hit = await waitForLog('cogniate-app', (entry) => entry.event === 'http_request' && entry.trace_id === answer.traceId, 15_000);
+  assert.ok(hit, `BLOCKED: no http_request line for trace ${answer.traceId} within 15 s (completion control missing)`);
+  assert.equal(hit.entry.method, method);
+  assert.equal(Number(hit.entry.status), answer.status);
+}
+/** Baseline after a completed request of this test, so every earlier line of the connection is already captured. */
+async function attemptBaseline(s: any, connectionId: string) {
+  await completed(await app(s, 'GET', connPath(connectionId)), 'GET');
+  return attemptLines(connectionId).length;
+}
+/** A refused request adds no `grant_attempt_started` line for the connection, read after its own completion control. */
+export async function refusedWithoutAttempt<T extends Answer>(connectionId: string, method: string, request: () => Promise<T>) {
+  const before = attemptLines(connectionId).length;
+  const answer = await request();
+  await completed(answer, method);
+  assert.deepEqual(attemptLines(connectionId).slice(before), [], 'No grant_attempt_started line for the refused request');
+  return answer;
+}
+/** Positive control (R3.7 rule 3): one redemption adds exactly one line for its grant, so capture is alive. */
+export async function redeemedWithOneAttempt<T extends Answer>(connectionId: string, grantId: string, method: string, request: () => Promise<T>) {
+  const before = attemptLines(connectionId).length;
+  const answer = await request();
+  await completed(answer, method);
+  const added = attemptLines(connectionId).slice(before);
+  assert.equal(added.length, 1, 'Positive control: exactly one grant_attempt_started line for the redemption');
+  assert.equal(added[0].grant_id, grantId);
+  assert.ok(typeof added[0].attempt_id === 'string' && added[0].attempt_id.length > 0, 'attempt_id is set');
+  return answer;
+}
 
 // ---------------------------------------------------------------- AC-M1-17 registration through the app
 m1Test('M1-17.canvas.register', 'a matching grant registers the Canvas connection once', async () => {
@@ -202,15 +248,23 @@ m1Test('M1-20.canvas.missing-code', 'an added deployment without a code is refus
 });
 m1Test('M1-20.canvas.initial-grant', 'the redeemed initial grant cannot add a deployment: GRANT_INVALID, reason redeemed, no LTI call', async () => {
   // C-3: the only reachable initial grant of a registered connection is the redeemed one; check 2 answers before check 3.
+  // Check 3 (`purpose`) needs an unredeemed initial grant on a registered connection; no CLI path makes one (unit test only).
   const b = await canvasBound(), third = canvasDeploymentId(), before = await connectionOf(b), since = Date.now();
-  await noRemoteCall(async () => expectStatus(await addDeployment(b, third, b.grant), 403, 'GRANT_INVALID'));
+  const baseline = await attemptBaseline(b.s, b.connection.id); // includes the registration's own attempt line
+  await noRemoteCall(async () => {
+    const answer = await refusedWithoutAttempt(b.connection.id, 'POST', () => addDeployment(b, third, b.grant));
+    expectStatus(answer, 403, 'GRANT_INVALID');
+  });
   const lines = logEvents('grant_rejected', since, { connection_id: b.connection.id });
   assert.deepEqual(lines.map((e) => e.reason), ['redeemed'], 'Exactly one grant_rejected {reason: "redeemed"} for this connection');
   assert.deepEqual(await connectionOf(b), before, 'Approvals and platform.deploymentIds unchanged');
-  // No attempt holds the connection lease: a proper add_deployment grant for the same id redeems at once.
+  // Positive control: a proper add_deployment grant for the same id redeems with exactly one attempt line.
   const grant = await addGrant(b, third);
-  const added = await addDeployment(b, third, grant); expectStatus(added, 200);
+  const added = await redeemedWithOneAttempt(b.connection.id, grant.id, 'POST', () => addDeployment(b, third, grant));
+  expectStatus(added, 200);
   assert.deepEqual([...added.json.platform.deploymentIds].sort(), [b.deploymentId, third].sort());
+  // A delayed line of the refused request is not ignored: the connection has only the positive line since the baseline.
+  assert.equal(attemptLines(b.connection.id).length, baseline + 1, 'No later grant_attempt_started line from the refused request');
 });
 m1Test('M1-20.canvas.capability-blackboard', 'Blackboard connections cannot add deployments', async () => {
   await sharedPlatform();
@@ -227,17 +281,23 @@ m1Test('M1-20.canvas.pending', 'a pending Canvas connection answers CONNECTION_N
   // C-2: checks 1–3 of the endpoint (other library, capability, status) read no grant and log no grant_rejected.
   const p = await pendingCanvas(), since = Date.now();
   const initial = await canvasGrant(p.s, p.connection, p.clientId, p.deploymentId);
+  const baseline = await attemptBaseline(p.s, p.connection.id);
   await unchanged(p, async () => {
     for (const grantCode of ['A'.repeat(43), initial.code]) {
-      expectStatus(await app(p.s, 'POST', connPath(p.connection.id) + '/deployments', { deploymentId: canvasDeploymentId(), grantCode }),
-        409, 'CONNECTION_NOT_READY');
+      const answer = await refusedWithoutAttempt(p.connection.id, 'POST',
+        () => app(p.s, 'POST', connPath(p.connection.id) + '/deployments', { deploymentId: canvasDeploymentId(), grantCode }));
+      expectStatus(answer, 409, 'CONNECTION_NOT_READY');
     }
   });
   assert.deepEqual(logEvents('grant_rejected', since, { connection_id: p.connection.id }), [], 'No grant_rejected line');
   await grantState(initial, p.connection.id, 'issued');
-  // No attempt and no lease: the same initial grant then redeems normally through PUT …/platform.
-  const registered = await redeemP(p, initial); expectStatus(registered, 200);
+  // Positive control: the same initial grant then redeems through PUT …/platform with exactly one attempt line
+  // (this also shows that no live lease blocks it; it is not used as the no-attempt evidence).
+  const registered = await redeemedWithOneAttempt(p.connection.id, initial.id, 'PUT', () => redeemP(p, initial));
+  expectStatus(registered, 200);
   assert.equal(registered.json.status, 'registered');
+  // A delayed line of a refused request is not ignored: the connection has only the positive line since the baseline.
+  assert.equal(attemptLines(p.connection.id).length, baseline + 1, 'No later grant_attempt_started line from the refused requests');
 });
 
 // ---------------------------------------------------------------- AC-M1-21 capability guards

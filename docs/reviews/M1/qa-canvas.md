@@ -1,5 +1,5 @@
 Verdict: PREPARED — Canvas simulator and Canvas M1 cases are ready; harness checks only, no product verification
-Round: 2 (alignment, task `task_ef66f1c5c7ed`; see §8)
+Round: 3 (B-M3-03 audit oracle, task `task_480510c15247`; see §9)
 Owner: independent Claude QA-E2E (Canvas QA), claude-opus-5-5, xhigh
 Behavior baseline: `56591df0e71939d5d62c9042c630c841d01f84e8` (ADR-011 revision 6). Plan: [M1 QA plan](qa-plan.md) at `6733e57`.
 
@@ -137,10 +137,33 @@ Input: [review response M1](../../architecture/review-response-M1.md) at `ca14de
 | Case | Change | Oracle now |
 | --- | --- | --- |
 | `M1-19.canvas.json`, `M1-19.canvas.inline-key` | C-1: the "both forms" branch is removed. QA computes the value from `PUBLIC_LTI_URL`. | `extensions[0].domain` equals the lower-case host name plus `:<port>` when the port is not 443, exactly; at a non-443 port the bare host name is refused. The whole document is still compared with `deepEqual`. |
-| `M1-20.canvas.pending` | C-2: also sends the pending connection's issued `initial` code. | Both a well-formed random code and the issued `initial` code → `409 CONNECTION_NOT_READY`; no `grant_rejected` line for the connection; no gate request of any method, no simulator service call, no sink hit, no LTI platform; the `initial` grant stays `issued` and then redeems with `200` through `PUT …/platform` (so no attempt holds the lease). |
-| `M1-20.canvas.initial-grant` | C-3: the "`redeemed` or `purpose`" alternative is removed; a deployment id without approval is used. | `403 GRANT_INVALID`; exactly one `grant_rejected {reason: "redeemed"}` for the connection; no gate request; connection and `platform.deploymentIds` unchanged; a proper `add_deployment` grant for the same id then redeems with `200` (no live lease). |
+| `M1-20.canvas.pending` | C-2: also sends the pending connection's issued `initial` code. | Both a well-formed random code and the issued `initial` code → `409 CONNECTION_NOT_READY`; no `grant_rejected` line for the connection; no gate request of any method, no simulator service call, no sink hit, no LTI platform; the `initial` grant stays `issued` and then redeems with `200` through `PUT …/platform` (no live lease). The no-attempt observation is in §9. |
+| `M1-20.canvas.initial-grant` | C-3: the "`redeemed` or `purpose`" alternative is removed; a deployment id without approval is used. | `403 GRANT_INVALID`; exactly one `grant_rejected {reason: "redeemed"}` for the connection; no gate request; connection and `platform.deploymentIds` unchanged; a proper `add_deployment` grant for the same id then redeems with `200` (no live lease). The no-attempt observation is in §9. |
 | `M1-29.canvas.m` | B-M1-03: the three refusals now run inside the no-call watch. | `other_library`, `other_connection` and an unknown code → the same `403 GRANT_INVALID` answer, with zero gate requests of any method (provider reads included). |
 
 All other Canvas refusal cases keep their no-call watch over every gate method (`noRemoteCall`); no provider `GET` is filtered out.
 
 Harness evidence (round 2, worktree with the committed portal `9f96f7b` and design `ca14de6`): `node tests/sim/canvas/protocol.test.mjs` 5 pass; `node tests/host/run-m1.mjs --harness-only --provider canvas` 21 self-tests pass, typecheck pass, 239 API cases (24 common, 215 Canvas) and 19 host/browser rows; `--provider all` 359 API cases and 19 rows; `--provider blackboard` 144 API cases and 12 rows (unchanged). No stack, no product call.
+
+## 9. Round 3 — B-M3-03: observed "no attempt" for C-2 and C-3 (2026-10-20)
+
+Finding: Reviewer-B B-M3-03 at `f89262c` (MINOR): an unchanged connection DTO and a later successful redemption exclude a live lease, but they do not observe that no binding attempt was created. Oracle: accepted design D revision 3, R3.7, at `78bc34a` (approvals `b6e8f73`); the C-2 and C-3 decisions (`ca14de6`) and R3.2 stay unchanged.
+
+**Observation (R3.7).** `grant_attempt_started {trace_id, grant_id, connection_id, attempt_id}` is written once after each committed phase 1, never on a refusal, in first-in, first-out order before the same request's `http_request` line. The new helpers in `31-canvas-grants.test.ts` use it as follows:
+
+1. Baseline per connection, taken only after a completed request of the test (its own same-trace `http_request` line), so an earlier attempt line of the connection (for C-3, the registration's own attempt) is already in the file.
+2. For each refused request: wait with a 15 s deadline for that request's own `http_request` line (trace id from its `x-trace-id`, same method and status), then assert zero added `grant_attempt_started` lines for the connection.
+3. Positive control in the same process and stream: the follow-up redemption must add exactly one line, for its own grant id, with an `attempt_id`, before its own `http_request` line. So a missing or stale capture cannot pass.
+4. Late lines are not ignored: after the positive control, the connection has exactly one new line since the baseline.
+5. A missing `x-trace-id`, a missing completion line or an incomplete log capture fails as `BLOCKED`, never as PASS. No fixed sleep is evidence.
+
+| Case | Refused requests observed | Positive control |
+| --- | --- | --- |
+| `M1-20.canvas.pending` (C-2) | a random 43-character code and the issued `initial` code → `409 CONNECTION_NOT_READY`, each with zero added attempt lines | the same `initial` grant through `PUT …/platform` → `200`, exactly one line |
+| `M1-20.canvas.initial-grant` (C-3) | the redeemed `initial` code for a deployment without approval → `403 GRANT_INVALID`, zero added attempt lines | a proper `add_deployment` grant for the same id → `200`, exactly one line |
+
+Every earlier assertion stays: the public status and code, exactly one `grant_rejected {reason: "redeemed"}` (C-3) or none (C-2), zero gate requests of any method (provider reads included), the `issued` grant state, the unchanged connection and approvals, and the positive redemption. The connection DTO and the follow-up redemption are no longer described as no-attempt evidence. Check 3 (`purpose`) stays a unit-only branch. Case ids, titles and the manifest do not change.
+
+**Limits (R3.7).** One healthy process with complete capture of `cogniate-app.jsonl`; no claim across a crash or a restart; an absent line is not a database or rollback oracle (atomic rollback stays supplemental unit evidence). The approved `purpose` field is not asserted here; the broader design D cases are a separate later task.
+
+**Harness evidence (no stack, no product call).** `npm --prefix tests run typecheck` passes. `node tests/host/run-m1.mjs --harness-only --provider canvas`: 21 self-tests, 239 API cases and 19 host/browser rows; `--provider all`: 359 and 19; `--provider blackboard`: 144 and 12 (unchanged). Discovery: 215 Canvas API ids and titles equal the manifest. Out-of-repo oracle self-check (synthetic `cogniate-app.jsonl`, the exported helpers of this file): 6 pass — a refused request without a line passes and one with a line fails; the positive control fails with zero lines, two lines or another grant; a wrong status or method fails; a missing trace header, a missing completion line (after the deadline) and an incomplete capture are `BLOCKED`.
