@@ -2,7 +2,7 @@
 // c, c2, d, e, f, g, h, i, j, m, n, p-create, p-activate, q, r, s-retry, s-dead, s-compensation, t, u-after-c, u-after-c2.
 // Each subcase reports the remote record (exists, active, ref) and the app authority separately (evidence JSON).
 import {
-  admin, app, assert, cli, connPath, expectStatus, gateEvents, gatePhase, gateReset, gateRules,
+  admin, app, assert, cli, connPath, expectStatus, gateEvents, gatePhase, gateReset,
   httpsRequest, logEvents, m1Test, pause, poll, records, release, service, session, type Json,
 } from '../common/client';
 import { commitGrade, publication, waitSync } from '../common/course';
@@ -11,8 +11,7 @@ import {
   canvasGrant, canvasGradeWorks, canvasLaunch, canvasPlay, canvasRedeem, connectionOf, escape, grantState, hostOf,
   platformsFor, refused, saveEvidence, type CanvasBinding,
 } from './canvas';
-import { liveRelease, restartApp } from '../common/snapshot';
-import { METHODS } from '../common/snapshot-oracle.mjs';
+import { liveRelease, restartApp, watchAll } from '../common/snapshot';
 import { leaseWindow } from './snapshot-oracle.mjs';
 
 type Race = Awaited<ReturnType<typeof fresh>>;
@@ -31,7 +30,6 @@ const createRule = (id: string, action: string) => ({ id, method: 'POST', pathRe
 const activateRule = (id: string, action: string, times = 1) => ({ id, method: 'PATCH', pathRegex: PLATFORM, action, times });
 const addCreate = (b: CanvasBinding) => `^/api/platforms/${escape(b.platformId)}/deployments$`;
 const addActivate = (b: CanvasBinding, d: string) => `^/api/platforms/${escape(b.platformId)}/deployments/${escape(encodeURIComponent(d))}$`;
-const watch = METHODS.map((method) => ({ id: 'watch-' + method, method, pathRegex: '^/', action: 'pass', times: 10_000 }));
 
 async function remote(p: { clientId: string }) {
   const list = await platformsFor(p.clientId, CLOUD.issuer);
@@ -86,6 +84,7 @@ const revoke = async (grantId: string) => cli('app:grant', ['revoke', '--grant',
 
 async function scope(id: string, p: { clientId: string; since: number; connection: Json; s: any }, body: () => Promise<void>) {
   await gateReset();
+  await watchAll();
   try {
     await body();
     await remote(p);
@@ -117,7 +116,7 @@ async function firstWorks(b: CanvasBinding, pub: Json, key: string, graded = fal
 }
 
 race('c', 'Canvas initial S1 answer lost leaves an inactive platform; retry adopts it (A2)', async (p) => {
-  await gateRules([createRule('create', 'drop_after')]);
+  await watchAll('pass', [createRule('create', 'drop_after')]);
   expectStatus(await apply(p), 502, 'LTI_SERVICE_ERROR');
   assert.equal((await remote(p))?.active, false);
   refused((await canvasLaunch(p)).login, 'PLATFORM_NOT_ACTIVE', [403]);
@@ -125,14 +124,14 @@ race('c', 'Canvas initial S1 answer lost leaves an inactive platform; retry adop
   expectStatus(await apply(p), 200); await approved(p);
 });
 race('c2', 'Canvas initial S3 answer lost: active without approval gives no authority; retry finishes', async (p) => {
-  await gateRules([activateRule('activate', 'drop_after')]);
+  await watchAll('pass', [activateRule('activate', 'drop_after')]);
   expectStatus(await apply(p), 502, 'LTI_SERVICE_ERROR');
   assert.equal((await remote(p))?.active, true);
   await unapprovedInitial(p);
   expectStatus(await apply(p), 200); await approved(p);
 });
 race('d', 'dead Canvas handler keeps the lease for 60 s; its late S3 loses to the retry', async (p) => {
-  await gateRules([activateRule('activate', 'hold_before')]);
+  await watchAll('pass', [activateRule('activate', 'hold_before')]);
   const started = Date.now(), first = apply(p).catch(() => null), held = await gatePhase('activate', 'held_before');
   await restartApp(); await gatePhase('activate', 'caller_gone', 10_000); await first;
   leaseWindow(started);
@@ -146,7 +145,7 @@ race('d', 'dead Canvas handler keeps the lease for 60 s; its late S3 loses to th
   await canvasGradeWorks(await approved(p));
 });
 race('e', 'revoke during a held Canvas S3 cancels and switches off with a new ref', async (p) => {
-  await gateRules([activateRule('activate', 'hold_after'), ...watch]);
+  await watchAll('pass', [activateRule('activate', 'hold_after')]);
   const first = apply(p), held = await gatePhase('activate', 'held_after'), old = await remote(p);
   assert.equal((await revoke(p.grant.id)).code, 0);
   await liveRelease(held); expectStatus(await first, 403, 'GRANT_INVALID');
@@ -157,7 +156,7 @@ race('e', 'revoke during a held Canvas S3 cancels and switches off with a new re
   expectStatus(await apply(p, replacement), 200); await approved(p);
 });
 race('f', 'a Canvas replacement cannot start during a live lease and adopts after the cancel', async (p) => {
-  await gateRules([activateRule('activate', 'hold_after'), ...watch]);
+  await watchAll('pass', [activateRule('activate', 'hold_after')]);
   const first = apply(p), held = await gatePhase('activate', 'held_after');
   const replacement = await canvasGrant(p.s, p.connection, p.clientId, p.deploymentId);
   const cursor = (await gateEvents(0)).at(-1)!.seq;
@@ -168,7 +167,7 @@ race('f', 'a Canvas replacement cannot start during a live lease and adopts afte
   expectStatus(await apply(p, replacement), 200); await approved(p);
 });
 race('g', 'DELETE during a held Canvas S3 fences the platform; the stale compensation cannot undo it', async (p) => {
-  await gateRules([activateRule('activate', 'hold_after'), activateRule('cleanup', 'pass', 10)]);
+  await watchAll('pass', [activateRule('activate', 'hold_after'), activateRule('cleanup', 'pass', 10)]);
   const first = apply(p), held = await gatePhase('activate', 'held_after');
   expectStatus(await app(p.s, 'DELETE', connPath(p.connection.id)), 204);
   const fenced = await remote(p); assert.equal(fenced?.active, false);
@@ -180,7 +179,7 @@ race('g', 'DELETE during a held Canvas S3 fences the platform; the stale compens
 });
 addRace('h', 'DELETE during a held Canvas add_deployment ends with the platform off and the connection disabled', async (b) => {
   const second = canvasDeploymentId(), grant = await addGrant(b, second);
-  await gateRules([{ id: 'activate', method: 'PATCH', pathRegex: addActivate(b, second), action: 'hold_after', times: 1 },
+  await watchAll('pass', [{ id: 'activate', method: 'PATCH', pathRegex: addActivate(b, second), action: 'hold_after', times: 1 },
     { id: 'cleanup', method: 'PATCH', pathRegex: ANY_RECORD, action: 'pass', times: 10 }]);
   const first = addDeployment(b, second, grant), held = await gatePhase('activate', 'held_after');
   expectStatus(await app(b.s, 'DELETE', connPath(b.connection.id)), 204);
@@ -190,7 +189,7 @@ addRace('h', 'DELETE during a held Canvas add_deployment ends with the platform 
   assert.equal((await connectionOf(b)).status, 'disabled');
 });
 race('i', 'a timed-out late Canvas activation gives no authority; the same grant then finishes (A2)', async (p) => {
-  await gateRules([activateRule('activate', 'hold_before')]);
+  await watchAll('pass', [activateRule('activate', 'hold_before')]);
   const first = apply(p), held = await gatePhase('activate', 'held_before');
   await gatePhase('activate', 'caller_gone', 7000); expectStatus(await first, 502, 'LTI_SERVICE_ERROR');
   await release(held.request_id); await upstream(held, 200);
@@ -206,7 +205,7 @@ race('j', 'two parallel Canvas redemptions with one grant commit exactly once', 
   await approved(p);
 });
 race('m', 'a failed Canvas compensation leaves no authority; a second revoke fences the record', async (p) => {
-  await gateRules([activateRule('activate', 'hold_after'), activateRule('compensate', 'fail_before')]);
+  await watchAll('pass', [activateRule('activate', 'hold_after'), activateRule('compensate', 'fail_before')]);
   const first = apply(p), held = await gatePhase('activate', 'held_after');
   assert.equal((await revoke(p.grant.id)).code, 0);
   await liveRelease(held); expectStatus(await first, 403, 'GRANT_INVALID');
@@ -217,7 +216,7 @@ race('m', 'a failed Canvas compensation leaves no authority; a second revoke fen
   assert.equal((await remote(p))?.active, false);
 });
 async function staleCompensation(p: Race) {
-  await gateRules([activateRule('activate', 'hold_after'), activateRule('compensate', 'hold_before')]);
+  await watchAll('pass', [activateRule('activate', 'hold_after'), activateRule('compensate', 'hold_before')]);
   const first = apply(p), held = await gatePhase('activate', 'held_after');
   const replacement = await canvasGrant(p.s, p.connection, p.clientId, p.deploymentId);
   await liveRelease(held);
@@ -235,7 +234,7 @@ race('n', 'a late Canvas compensation loses to the replacement binding', async (
 });
 addRace('p-create', 'a timed-out Canvas added deployment create, revoke and late write give no authority', async (b, pub, key) => {
   const second = canvasDeploymentId(), grant = await addGrant(b, second);
-  await gateRules([{ id: 'create', method: 'POST', pathRegex: addCreate(b), action: 'hold_before', times: 1 }]);
+  await watchAll('pass', [{ id: 'create', method: 'POST', pathRegex: addCreate(b), action: 'hold_before', times: 1 }]);
   const first = addDeployment(b, second, grant), held = await gatePhase('create', 'held_before');
   await gatePhase('create', 'caller_gone', 7000); expectStatus(await first, 502, 'LTI_SERVICE_ERROR');
   await firstWorks(b, pub, key);
@@ -249,7 +248,7 @@ addRace('p-create', 'a timed-out Canvas added deployment create, revoke and late
 });
 addRace('p-activate', 'a late Canvas added deployment activation has no authority until revoke fences it', async (b, pub, key) => {
   const second = canvasDeploymentId(), grant = await addGrant(b, second);
-  await gateRules([{ id: 'activate', method: 'PATCH', pathRegex: addActivate(b, second), action: 'hold_before', times: 1 }]);
+  await watchAll('pass', [{ id: 'activate', method: 'PATCH', pathRegex: addActivate(b, second), action: 'hold_before', times: 1 }]);
   const first = addDeployment(b, second, grant), held = await gatePhase('activate', 'held_before');
   await gatePhase('activate', 'caller_gone', 7000); expectStatus(await first, 502, 'LTI_SERVICE_ERROR');
   await release(held.request_id); await upstream(held, 200);
@@ -262,7 +261,7 @@ addRace('p-activate', 'a late Canvas added deployment activation has no authorit
   await firstWorks(b, pub, key, true);
 });
 race('q', 'a Canvas replacement creates first after the old S1 times out; the old create cannot overwrite', async (p) => {
-  await gateRules([createRule('create', 'hold_before')]);
+  await watchAll('pass', [createRule('create', 'hold_before')]);
   const first = apply(p), held = await gatePhase('create', 'held_before');
   const replacement = await canvasGrant(p.s, p.connection, p.clientId, p.deploymentId);
   assert.ok(Date.now() - Date.parse(held.ts) < 4500, 'BLOCKED: replacement CLI exceeded the live schedule');
@@ -275,7 +274,7 @@ race('q', 'a Canvas replacement creates first after the old S1 times out; the ol
 });
 race('r', 'a Canvas replacement reads again when the old compensation lands between its S2 and S3', async (p) => {
   const { compensation, replacement } = await staleCompensation(p);
-  await gateRules([activateRule('replacement', 'hold_before'), activateRule('retry', 'pass', 3)]);
+  await watchAll('pass', [activateRule('replacement', 'hold_before'), activateRule('retry', 'pass', 3)]);
   const next = apply(p, replacement), held = await gatePhase('replacement', 'held_before');
   await release(compensation.request_id); await upstream(compensation, 200);
   assert.equal((await remote(p))?.active, false);
@@ -285,7 +284,7 @@ race('r', 'a Canvas replacement reads again when the old compensation lands betw
 });
 addRace('s-retry', 'a lost Canvas added deployment S3 answer: no authority before approval; retry finishes once', async (b, pub) => {
   const second = canvasDeploymentId(), grant = await addGrant(b, second), since = Date.now();
-  await gateRules([{ id: 'activate', method: 'PATCH', pathRegex: addActivate(b, second), action: 'drop_after', times: 1 }]);
+  await watchAll('pass', [{ id: 'activate', method: 'PATCH', pathRegex: addActivate(b, second), action: 'drop_after', times: 1 }]);
   expectStatus(await addDeployment(b, second, grant), 502, 'LTI_SERVICE_ERROR');
   await unapprovedAdded(b, second);
   const done = await addDeployment(b, second, grant); expectStatus(done, 200);
@@ -295,7 +294,7 @@ addRace('s-retry', 'a lost Canvas added deployment S3 answer: no authority befor
 });
 addRace('s-dead', 'a dead Canvas added deployment handler: no authority until the 60 s lease ends', async (b, pub) => {
   const second = canvasDeploymentId(), grant = await addGrant(b, second);
-  await gateRules([{ id: 'activate', method: 'PATCH', pathRegex: addActivate(b, second), action: 'hold_after', times: 1 }]);
+  await watchAll('pass', [{ id: 'activate', method: 'PATCH', pathRegex: addActivate(b, second), action: 'hold_after', times: 1 }]);
   const started = Date.now(), first = addDeployment(b, second, grant).catch(() => null), held = await gatePhase('activate', 'held_after');
   await restartApp(); await first;
   await unapprovedAdded(b, second);
@@ -309,7 +308,7 @@ addRace('s-dead', 'a dead Canvas added deployment handler: no authority until th
 });
 addRace('s-compensation', 'a stale Canvas added deployment compensation cannot undo the replacement; dA is unchanged', async (b, pub, key) => {
   const second = canvasDeploymentId(), grant = await addGrant(b, second), firstRow = await deployment(b, b.deploymentId);
-  await gateRules([{ id: 'activate', method: 'PATCH', pathRegex: addActivate(b, second), action: 'hold_after', times: 1 },
+  await watchAll('pass', [{ id: 'activate', method: 'PATCH', pathRegex: addActivate(b, second), action: 'hold_after', times: 1 },
     { id: 'compensate', method: 'PATCH', pathRegex: addActivate(b, second), action: 'hold_before', times: 1 }]);
   const first = addDeployment(b, second, grant), held = await gatePhase('activate', 'held_after');
   const replacement = await addGrant(b, second);
@@ -327,7 +326,7 @@ addRace('s-compensation', 'a stale Canvas added deployment compensation cannot u
 m1Test('M1-37.canvas.t', 'a foreign active Canvas record is not adoptable until its owner is fenced (I4, A3)', async () => {
   const k1 = await fresh(), k2 = await fresh('A', {}, { clientId: k1.clientId, deploymentId: k1.deploymentId });
   await scope('M1-37.canvas.t', k1, async () => {
-    await gateRules([activateRule('activate', 'drop_after')]);
+    await watchAll('pass', [activateRule('activate', 'drop_after')]);
     expectStatus(await apply(k1), 502, 'LTI_SERVICE_ERROR');
     const before = await remote(k1); assert.equal(before?.active, true);
     expectStatus(await apply(k2), 409, 'PLATFORM_IN_USE');
@@ -339,7 +338,7 @@ m1Test('M1-37.canvas.t', 'a foreign active Canvas record is not adoptable until 
 }, 240_000);
 for (const [variant, rule] of [['u-after-c', createRule('create', 'drop_after')], ['u-after-c2', activateRule('activate', 'drop_after')]] as const) {
   race(variant, `cancelling a pending Canvas connection after ${variant.slice(8)} fences through the saved target`, async (p) => {
-    await gateRules([rule]);
+    await watchAll('pass', [rule]);
     expectStatus(await apply(p), 502, 'LTI_SERVICE_ERROR');
     const before = await remote(p); assert.ok(before, 'The lost call made a record');
     expectStatus(await app(p.s, 'DELETE', connPath(p.connection.id)), 204);

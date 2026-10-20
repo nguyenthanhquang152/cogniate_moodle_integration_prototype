@@ -90,14 +90,19 @@ m2Case('M2-04.rows', 'Canvas step 2 shows the four developer key rows in order, 
   const c = await step2(page, s);
   const rows = await app(s, 'GET', `/app-api/connections/${c.id}/tool-configuration`); ok(rows, 200, 'rows');
   check(rows.json.length === 4, 'Four Canvas rows');
+  const rowHolder = (row: Json) =>
+    page.locator('tr', { has: page.getByRole('rowheader', { name: row.label, exact: true }) });
   let lastY = -1;
   for (const row of rows.json as Json[]) {
     // Each row is a table row: the label as row header, the value, and its own Copy button ("Copy <label>").
-    const holder = page.locator('tr', { has: page.getByRole('rowheader', { name: row.label, exact: true }) });
+    const holder = rowHolder(row);
     await expect(holder).toBeVisible();
     await expect(holder).toContainText(row.value);
     const y = (await holder.boundingBox())!.y; expect(y, `Row ${row.key} order`).toBeGreaterThan(lastY); lastY = y;
-    await holder.getByRole('button', { name: `Copy ${row.label}`, exact: true }).click();
+  }
+  // Copy clicks can scroll the viewport. Check all row positions before the first click.
+  for (const row of rows.json as Json[]) {
+    await rowHolder(row).getByRole('button', { name: `Copy ${row.label}`, exact: true }).click();
     expect(await clipboardText(page)).toBe(row.value);
   }
   await shot(page, 'm2-04-canvas-step2');

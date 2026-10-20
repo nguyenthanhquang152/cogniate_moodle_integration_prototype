@@ -202,3 +202,9 @@ Additional required checks:
 No new finding. T7 does not place the P2 late-write race or test lower-retake P11 variants. Those claims use the separate T5b regression at `d54c607`. This PASS does not remove the post-confirmation late-write risk or reconstruct unrecorded sends from before migration 010. Chromium/local Moodle and the HTML menu DOM-click limitation remain the tested boundary.
 
 The full T7/root result and zero-resource teardown were sent to the Lead promptly. This worker remains active for the final committed T9 pack; this section does not declare T9 complete.
+
+## M3 regression checkpoint — 2026-10-20
+
+**NOT RUN / HOLD.** Task `task_e28388df4dcc`, independent Codex Canvas QA replacement. The planned final-SHA T7 gate was product/test `eb43247d02df622d5da72dafac41d919f65a91fe`, default profile, three consecutive runs plus demo and confirmation checks. While M2 was running, Lead `msg_478c680eab7a` superseded that candidate and required a hold before T7. No T7 stack or acceptance command started, so none of AC-T7-01 through AC-T7-15 is newly passed here; the historical rounds above retain their original SHA limits.
+
+The preceding M2 stack was fully removed with the seven baseline Docker volumes unchanged. The next T7 run requires the repair freeze and another serialized window on `qa-e2e-m3-rN`, port `8543`, subnet `172.31.0.0/16`. It must record default health, no knobs, `simulation_profiles: []`, and absence of `lms-sim` and `lti-gate`. No T7 test or assertion changed in this checkpoint. See [M3 QA-E2E](../M3/qa-e2e.md) and [M2 QA round 4](../M2/qa.md#5-round-4--frozen-m2-execution-and-repair-preparation-2026-10-20).

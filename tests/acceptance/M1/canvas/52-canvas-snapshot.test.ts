@@ -1,6 +1,6 @@
 // Applied M1 37(v1,v3,v4,v6,v8,v10,v12), 38(i1,i2,i4). Preparation only until a frozen full run.
 import {
-  app, assert, connPath, expectStatus, gateEvents, gatePhase, gateReset, gateRules,
+  app, assert, connPath, expectStatus, gateEvents, gatePhase, gateReset,
   logEvents, m1Test, release, session,
 } from '../common/client';
 import {
@@ -64,7 +64,7 @@ for (const [variant, added] of [['v4', false], ['v6', true]] as const) {
     const activation = added
       ? `^/api/platforms/${escape(p.connection.platform.id)}/deployments/${escape(encodeURIComponent(deploymentId))}$`
       : '^/api/platforms/[^/]+$';
-    await gateRules([{ id: 'canvas-dead-s3', method: 'PATCH', pathRegex: activation, action: 'hold_before', times: 1 }]);
+    await watchAll('pass', [{ id: 'canvas-dead-s3', method: 'PATCH', pathRegex: activation, action: 'hold_before', times: 1 }]);
     const started = Date.now(), first = request().catch(() => null);
     const held = await gatePhase('canvas-dead-s3', 'held_before');
     await restartApp(); await gatePhase('canvas-dead-s3', 'caller_gone', 10_000);

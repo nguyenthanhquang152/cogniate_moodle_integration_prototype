@@ -1,5 +1,5 @@
 Verdict: PREPARED — Canvas simulator and Canvas M1 cases are ready; harness checks only, no product verification
-Round: 4 (applied snapshot preparation, task `task_1276def76f95`; see §10)
+Round: 5 (verification checkpoint and capture repair, task `task_e28388df4dcc`; see §11)
 Owner: independent Codex Canvas QA quota replacement, authorized by Lead for GPT-6-Astra at xhigh; earlier Claude reports remain below
 Behavior baseline: `56591df0e71939d5d62c9042c630c841d01f84e8` (ADR-011 revision 6). Plan: [M1 QA plan](qa-plan.md) at `6733e57`.
 
@@ -243,3 +243,29 @@ Hold these exact paths for Lead integration:
 The M2 paths are listed in [the M2 report](../M2/qa.md). Lead must integrate the exact paths and freeze the test SHA before independent product verification. The common QA owner retains the full manifest, mixed-provider old-state fixtures, and populated `011→012` host route.
 
 Audit absence is limited to complete capture in one healthy process. It is not storage, transaction rollback or cross-crash proof. Fixed-issuer drift, atomic rollback and raw storage checks remain supplemental; they never fill a SIM row. No stack, product/SIM/browser acceptance, migration, legacy suite, root check, tenant access or public exposure ran. No commit or push was made. Setup-generated `pnpm-workspace.yaml` and the author's held `redemption.test.ts` were untouched. Real Canvas, Blackboard and Moodle regression evidence remains pending for the separate verification task.
+
+## 11. Round 5 — integrated review response and verification hold (2026-10-20)
+
+**PREPARED, NOT RUN for Canvas M1.** The full product/test candidate `eb43247d02df622d5da72dafac41d919f65a91fe` was superseded during the separate M2 browser run. Lead holds new stacks in `msg_478c680eab7a`. Core QA retains execution of both complete M1 rounds; this worker has not executed or duplicated any M1/host-upgrade acceptance row.
+
+After submission, Lead authorized reading Reviewer-A Round 2, committed at `af5d5f6b612545b74b425011ed6e25514743da5d`. A-M3-01 exposed unarmed or GET-only observations in common/Blackboard/upgrade paths. Common QA owns those repairs and the actual-gate helper check. The product findings A-M1-03 through A-M1-06 are outside this worker's scope; the bounded call, cancellation, rejection trace and post-commit audit assertions remain unchanged.
+
+### 11.1 Owned capture corrections
+
+Lead authorized these changes in `msg_d8dc5181f08c`. The coordinator confirmed common QA's final interface from `msg_6717ae0ed480`: `watchAll(action = "pass", faults: Json[] = [])`. It puts specific fault rules first, appends pass/fault catch-alls for all seven methods, and returns the cursor only after arming.
+
+- `51-canvas-races.test.ts`: every fault installation now uses the shared helper. Each scope re-arms after its opening reset, including the parallel-redemption case without a specific fault. Specific rule ids, precedence, actions, counts and every existing assertion remain intact. No GET filter was added.
+- `52-canvas-snapshot.test.ts`: v4/v6 held-S3 setup now also captures all methods. Their local refusal window still uses a new healthy-process completion and cursor, then all-method failure rules and a separate positive attempt control.
+- All eleven snapshot additions already armed capture before their measured windows and re-armed after intervening resets. Fresh/restart positive cases and isolated aa retain their controls. Existing C-2/C-3 purpose and order assertions, both time bounds, and all exported Canvas fixture interfaces are unchanged.
+
+No common, Blackboard, host, manifest, product or infrastructure path was edited by this worker. Fixed-issuer drift, rollback and raw storage probes remain supplemental and do not fill SIM rows.
+
+### 11.2 Inventory and checks
+
+The inventory remains **233 Canvas rows: 226 API plus seven browser**, with common 42, Blackboard 141, and full M1 416. Existing case ids and manifest bytes are unchanged from `eb43247`. Both future full rounds still require all 416 rows, including the common owner's populated `011→012` route exactly once per round.
+
+`node tests/host/run-m1.mjs --harness-only --provider canvas` passed: **31 shared harness self-checks, zero skips**, typecheck, **251 API plus 24 host/browser rows** including common cases. Log: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-eb43247-21t8wgiv/canvas-repair-harness.log`. This includes the common owner's new actual-gate capture checks; it is not a product acceptance run. M2 also keeps all 64 IDs and passes its two harness self-checks, typecheck and discovery.
+
+### 11.3 Required handoff
+
+Hold `tests/acceptance/M1/canvas/51-canvas-races.test.ts`, `tests/acceptance/M1/canvas/52-canvas-snapshot.test.ts` and this report for Lead integration. Common QA must integrate its final `watchAll`/capture implementation and host operator CLI cwd fix before refreeze. Core QA must then provide both complete M1 per-case artifacts with exact product/test SHAs, run ids, phases and evidence paths for an independent Canvas verdict. No Canvas PASS or live LMS claim is made at this checkpoint.

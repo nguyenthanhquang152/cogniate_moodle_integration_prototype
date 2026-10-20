@@ -1,5 +1,5 @@
-Verdict: PREPARED — M2 browser suite and runner are ready; harness checks only, no product verification
-Round: 3 (applied readiness preparation, task `task_1276def76f95`; see §8)
+Verdict: HOLD — first frozen M2 SIM run failed; owned harness repair prepared, rerun needs repair freeze
+Round: 4 (verification task `task_e28388df4dcc`; see §9)
 Owner: independent Codex Canvas QA quota replacement, authorized by Lead for GPT-6-Astra at xhigh; earlier Claude reports remain below
 Behavior baseline: `56591df0e71939d5d62c9042c630c841d01f84e8` (ADR-011 revision 6). Criteria: [M2](../../architecture/tasks/M2.md), [M3 §2–§4](../../architecture/tasks/M3.md).
 
@@ -151,3 +151,11 @@ Action: `Ask your Cogniate operator to check the LMS setup for this connection. 
 Each readiness assertion requires the exact title and action as visible text. `M2-02.not-ready` still requires its original Blackboard card text. The current live-poll cancellation observation in `M2-13.no-stale-values` is unchanged. The exact Moodle heading and body in §7.3 are unchanged.
 
 Preparation evidence: `node tests/e2e/host/run-m2.mjs --harness-only` passes two self-checks, typecheck and discovery of all 64 rows. T7 selection is unchanged. No browser, stack or product run occurred. The future browser run uses the existing whitelisted `m1-profile` action; no host runner or product setting was edited in this preparation.
+
+## 9. Round 4 — execution checkpoint and repair gate (2026-10-20)
+
+The exact product/test `eb43247d02df622d5da72dafac41d919f65a91fe` run reported 35 PASS and 29 FAIL out of 64, zero skips/retries. [qa.md §5](qa.md#5-round-4--frozen-m2-execution-and-repair-preparation-2026-10-20) records every named result and evidence path. Twenty-eight cases stopped at the shared operator CLI workspace error; common QA owns that repair. `M2-04.rows` had a viewport-coordinate comparison across scrolling Copy clicks; the owned repair checks every row position before any click and retains every Copy/value assertion.
+
+The 64-case inventory is unchanged. The repaired M2 harness passes two self-checks, typecheck and exact discovery. A synthetic browser harness reproduces the old scroll failure and confirms both valid order and rejection of reversed rows with the repaired block. It makes no product claim.
+
+Lead messages `msg_478c680eab7a` and `msg_d8dc5181f08c` hold all new stacks, including T7, pending a repair freeze. The failed candidate's cleanup is complete and its exclusive window was released. Next: integrate common operator controls, shared all-method capture and owned test corrections; freeze exact product/test SHAs; obtain the next exclusive window; repeat all 64 M2 cases, then T7 three consecutive runs plus demo/check-confirm. Preserve the exact Moodle text, Blackboard card guidance, neutral readiness wording and the existing live-poll cancellation observation. Do not claim delivered-late-response evidence from that observation alone.
