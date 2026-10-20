@@ -70,6 +70,17 @@ This extends the instance exception to that follow-up and the same three report 
 Reviewer-B keeps its dedicated instance for parallel task `task_485802b55bbd`; the Lead schedules both within the worker limit.
 Both reviewers assess one committed candidate and stay blind to the other's new report until their own submission.
 
+### Owner-requested Claude resumption (2026-10-20)
+
+The owner now explicitly requests resuming the Claude sessions that stopped at quota.
+The Lead reuses the original Opus 5.5 xhigh sessions and preserves the Codex replacement results.
+The backend repair is complete; the original backend Author first reconciles current state without editing completed work.
+Canvas QA returns to its original Claude session only after the Codex replacement settles with a durable continuation handoff.
+The full verification task remains incomplete during that transfer; a new dispatch grants the original session authority.
+The original Claude Reviewer-A owns the next bounded review, `task_016398b7ed4e`, after the product repair and final freeze.
+This supersedes that pending task's initial Codex assignment; the Codex Reviewer-A remains retained without edit authority.
+No old fenced dispatch is resumed, and no completed patch is overwritten. All original file ownership and the three-worker limit still apply.
+
 ## One common engine
 
 Moodle, Blackboard and Canvas use the same LTI engine.

@@ -799,6 +799,20 @@ Canvas QA traced the diagnostic gap to direct `doCourse` use without request-tim
 It repairs its own browser capture and timeout diagnostics. Lead message `msg_64f4c9d8cff5` assigns common QA the shared recorder type extension for `play_id` and `picker_id`.
 Both owners retain one private recorder and hold their disjoint paths for Lead commit. These checks do not start a stack.
 
+The common QA repair is committed at `832f8c8ac437c7fd93425d7152f865a8ffb13eaa`; all six held hashes and evidence hashes matched.
+Its 33 harness self-checks pass, and both new caller checks fail against the old callers as expected.
+The Canvas diagnostic repair and complete failed-run reports are committed at `7ddff36ccc58ebc9218c7e1bca646f28067c891b`.
+All 12 held hashes matched. M2 retains its exact 64 cases, and Canvas grant purpose/order assertions remain unchanged.
+Five M2 self-checks and typecheck pass; the full browser privacy gate still needs a new run.
+
+The owner explicitly requested resuming the original Claude sessions after quota.
+The Lead confirmed their original launch records: `claude-opus-5-5`, `xhigh`, and the same retained session handles.
+Message `msg_02529042bb5a` requests a safe continuation handoff from the Codex Canvas QA replacement.
+Its unfinished verification must be transferred through settlement and a new dispatch, with no overlapping editor or stack.
+Original Claude backend Author reconciliation is queued as `task_4db65c194479`; its earlier repair is already complete.
+Original Claude Reviewer-A will own `task_016398b7ed4e` after the author task and final freeze, as the team brief now records.
+The user request restores original Claude roles; it does not invalidate committed Codex results or bypass remaining QA/review gates.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
