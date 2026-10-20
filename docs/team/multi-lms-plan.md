@@ -854,6 +854,41 @@ It holds exact paths and hashes for Lead commit. No product edits or stack run a
 The next full run requires a new committed product/test freeze and explicit exclusive window.
 Common QA stays held; Reviewer-A continues the exact `e3cd7db` source review with these runtime limits.
 
+### Final harness freeze after restored Claude review
+
+Original Claude Reviewer-A settled `task_016398b7ed4e` in `msg_686ccbdfc290`.
+Its three reports are committed at `e07e3cdae57c60589b9fd44f2a384fcf26a4f085`.
+M1, M2 and M3 source verdicts are APPROVE at `e3cd7db`; A-M3-02 is independently closed.
+The review preserves the failed browser runs and all pending execution gates.
+Two new MINOR findings concern evidence: A-M3-03 misses the Deep Linking response JWT in request-time capture; A-M3-04 prints full capability URLs in a legacy timeout.
+The Lead routed both to their QA owners before the next freeze.
+
+Common QA's two held paths are committed at `504421b123e7a8265d5453761b1341c69c766c6f`.
+The legacy timeout now uses the existing safe URL formatter.
+Its exact-function control found 14 synthetic values in the old output and none in the repaired output, with matching and timing controls unchanged.
+All 33 M1 harness checks, typecheck and 416-row discovery pass.
+The Lead matched both source hashes, three artifact hashes and the shared helper dependency hash.
+
+Canvas QA's nine held paths are committed at **`004568bd4ab8390d64945cb73f16cfdd51d566bf`**.
+The four readiness fixes retain all assertions, case IDs and timeouts.
+The same private recorder now captures the response form field `JWT` as `id_token`.
+QA reports six M2 self-checks, typecheck, all 64 cases and 19 synthetic browser controls, including expected failures for missing options and inaccessible fields.
+The old capture module fails the new response-JWT control.
+The Lead read the scoped diff and reports, matched all nine file hashes and the patch hash, and checked the patch in reverse.
+The tracked tree is clean. Product/build files are identical to the clean-checked `e3cd7db`, so the root check is not repeated.
+
+**The frozen product and test SHA is `004568bd4ab8390d64945cb73f16cfdd51d566bf`.**
+Lead message `msg_b6726e8da143` grants original Claude Canvas QA the exclusive full M2 window.
+Its response `msg_2fcdbdd4484f` confirms fresh clones, exact harness checks, full baseline checks and the external observer.
+The run must privately confirm captured Deep Linking, play and runtime values for each provider and report coverage counts only.
+Only an all-64 PASS, complete privacy evidence and clean teardown permit three default T7 runs plus demo and confirmation at the same SHA.
+Common QA stays held for full M1 and legacy. No other stack is authorized.
+
+Original Codex Reviewer-B is active in `task_485802b55bbd` / `ctx_900018cdc4f7`.
+Its handoff `msg_c61b25991fd2` adds the final seven source paths while keeping it blind to the new A reports.
+Original Claude Reviewer-A's bounded final harness review is ready as `task_69b4e5e2f147` for the next free worker slot.
+The three-worker limit, independent review, retained failure history and live-provider limits still apply.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
