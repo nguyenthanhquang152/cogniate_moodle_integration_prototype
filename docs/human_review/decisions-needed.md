@@ -115,3 +115,41 @@ After release, a grant-free Moodle registration can take the self-hosted Canvas 
 That can block setup. Check 14 refuses Canvas launches before storage, so it gives no Canvas access.
 Issue the rightful grant, suspend the old binding, release it, then redeem the rightful grant promptly.
 This order shortens the window but does not prevent the race.
+
+## G. Review escalations
+
+Added by Docs on 2026-10-21, under the Round 3 rule in [charter §2](../team/charter.md#2-workflow-graph).
+That rule sends each BLOCKER or MAJOR that is open after review round 3 to this list.
+This section asks for no decision.
+The charter does not require human permission before the authorized corrections.
+
+### G1. Storage design: UNRESOLVED
+
+Topic: SQLite data on Docker named volumes ([ADR-012](../architecture/adr/ADR-012-sqlite-volume-storage.md)).
+Round 3 checked design revision 3 at commit `b3bd22e`. The report text is at commit `7f2c2c5`.
+
+| Check | Round 3 verdict | Report |
+| --- | --- | --- |
+| Reviewer-A | APPROVE, design only | [Round 3](../reviews/M0/storage-reviewer-a.md#round-3-2026-10-21) |
+| Reviewer-B | APPROVE, design only | [Round 3](../reviews/M0/storage-reviewer-b.md#round-3--recheck-of-revision-3) |
+| Common QA | FAIL, design testability: 2 MAJOR | [Round 3](../reviews/M0/storage-qa.md#round-3) |
+
+Open MAJOR findings:
+
+| Id | Problem |
+| --- | --- |
+| QA R3-01 | The old-schema import test copies the old app database, but not the package folders that it references. The content check refuses the import, so the test cannot pass. |
+| QA R3-02 | The existing T5b test P5 stops only the app, then writes the app database while the LTI service runs. The fixture write rule requires both services stopped. |
+
+Current status:
+
+- QA rates each fix as a bounded text correction, not a design change.
+- The Architect corrects both in task `task_e7ed35da6e6b`. The same task corrects the non-blocking findings A-S-12, B-S-20, B-S-21 and QA R3-03 to R3-07.
+- There is no waiver and no human approval. The implementation gate is closed. No runtime acceptance exists.
+- Each full round keeps 488 rows: the 416 existing rows plus 72 storage rows.
+- Product and test files are unchanged from commit `8138097`. All runtime gates stay required. All 32 live LMS rows stay **UNVERIFIED**.
+- The Lead's direction is in the [phase plan](../team/multi-lms-plan.md#storage-round-3-escalation-and-bounded-correction).
+
+G1 stays UNRESOLVED until the same reviewers and QA check the frozen correction and record closure.
+Do not mark G1 closed without that independent evidence.
+Add any new BLOCKER or MAJOR from that check to G1.

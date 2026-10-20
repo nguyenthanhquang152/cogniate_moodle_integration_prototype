@@ -1515,6 +1515,21 @@ After a frozen correction, the same reviewers and QA will check their exact find
 Any further BLOCKER or MAJOR must be reported in the same escalation; no automatic fourth general round is authorized.
 All 488 rows, original assertions, old-build qualifiers, full reruns and 32 UNVERIFIED live rows remain required.
 
+The three Round 3 reports and this synthesis are committed at `7f2c2c5db6f398291106b778f19811ca3dfaa440`.
+Architect correction: `task_e7ed35da6e6b`, dispatch `ctx_ee1c2165c28f`, launch `msg_0026550b1e6e`, start `msg_bd21c2cc3e27`.
+Docs escalation record: `task_9b5771f76cf8`, dispatch `ctx_0df32f7a15bd`, start `msg_0cbaf22c5564`.
+The Docs launch confirms both requested and effective `claude-opus-5-5`, `xhigh`.
+It owns only the human review list; the final M4 guides remain gated.
+The bounded disposition tasks wait for the Architect and a frozen correction:
+Reviewer-A `task_07487a8a99ff`, Reviewer-B `task_95e51fff8e37`, common QA `task_9266d07c15ec`.
+Each appends to its own Round 3 report. No Docker window is open.
+
+Docs submitted the required G1 escalation record in `msg_300a8e9a7462`.
+Its held hash is `ad82d723cea8860f1287816006ef11651686d80568f94cd8c44e9c6e138e1c28`.
+The Lead checked the record and unchanged prior text, then released the worker before acknowledgment.
+G1 is UNRESOLVED. It names both MAJOR findings, required corrections and the independent closure gate.
+This record does not waive findings, claim human approval or open implementation.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
