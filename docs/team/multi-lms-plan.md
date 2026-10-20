@@ -280,6 +280,42 @@ C-4's optional rotation host action is not added; its live matrix row stays unve
 The two product-verification tasks are explicitly blocked on these internal gates and the acceptance startup smoke.
 The Lead reopens them only after the exact product/test revisions and lanes are ready.
 
+### Round-1 settlement and repairs
+
+Reviewer-A completed its reports in `msg_b41420268b51`, committed as `17aa295`.
+Its static code verdicts approve the reviewed scope, with A-M1-02 NIT open.
+Reviewer-B completed in `msg_f1eb667c395a`, committed as `689e424`.
+It requests changes for five MAJOR findings and the Blackboard instruction MINOR.
+Both reviewed product `76b03c7` and harness `9964e6f`; neither report is product acceptance.
+Both dedicated reviewer instances remain retained for fresh round-2 tasks.
+
+The author completed B-M1-01 and B-M1-02 in `msg_ad700ad680a8`.
+The seven held paths are committed as `9aeeddc`.
+The repair also makes the maintenance entry point work through macOS path symlinks.
+Meaningful tests cover disable during batch processing and lookup, failed Docker observation, and actual backup/restore entry.
+The author reports mutation failures on the old code and a passing root check.
+The Lead's isolated check at `9aeeddc` passes lint, all typechecks and 912 tests in 68 files, with zero skips.
+Log: `/tmp/cogniate-lead-foundation.bzkF2F.bm1-repair-check.log`.
+The path hold is released; no stack ran for this repair.
+
+Reviewer-B's additional B-M1-03 proves provider lookup occurs before local grant or lease refusal.
+The retained author received it with the outstanding B-M2-01 in `task_11e90efd0070`, dispatch `ctx_bbcf90c431bb`.
+Handoff `msg_3842ee823d6e` requires local ordered validation and lease acquisition before any outbound LTI call.
+Authoritative Blackboard readiness, target history, remote guards and strict repeats must remain.
+Endpoint tests must prove invalid-code and live-lease refusals make zero outbound calls.
+
+The Architect completed C-1 to C-3 in `msg_95b35b2fd6b0`, committed as `ca14de6`.
+The [response](../architecture/review-response-M1.md) clarifies existing rules without changing the design.
+Canvas domain uses the URL host with a non-default port.
+Pending add-deployment refuses before grant lookup; a redeemed initial grant has the exact audit reason `redeemed`.
+
+QA alignment started in `ctx_3d09691e1edf`, handoff `msg_707e7e5c3724`.
+It uses the committed portal and clarified contract at `689e424`.
+Its test-only corrections run alongside the backend grant repair because their files and preparation checks are independent.
+This scheduling refinement replaces waiting for the final backend revision solely to prepare selectors and oracles.
+It does not allow product execution, reading uncommitted implementation, weakening assertions, or skipping cases.
+The final product and test revisions, startup smoke, both round-2 reviews and all independent acceptance gates remain required.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
