@@ -1,4 +1,11 @@
 Verdict: APPROVE
+Round: 6
+
+Latest verdict covers the bounded M1 test and harness repair at `8138097889f87359d5055bb1d79766b5ed842f92`, compared with `aff48823a4c6206d6314d91a95f5eb0979d3e0e7`; see Round 6 below. The same dedicated Claude Reviewer-B (`claude-opus-5-5`, xhigh) wrote Rounds 5 and 6. Rounds 1–4 are by the earlier dedicated Codex GPT-6-Astra xhigh Reviewer-B and keep that attribution. No BLOCKER, MAJOR or MINOR Reviewer-B finding is open. The NITs B-M3-05 and B-M3-06 are open. This is source approval only. It is not an M1 or M3 QA PASS, a completed full-run claim or a live-provider approval.
+
+## Archived header through Round 5
+
+Verdict: APPROVE
 Round: 5
 
 Latest verdict covers the bounded T7 `publishCourse` readiness repair at `aff48823a4c6206d6314d91a95f5eb0979d3e0e7`; see Round 5 below. Round 5 is by a fresh dedicated Claude Reviewer-B (`claude-opus-5-5`, xhigh). Rounds 1–4 are by the earlier dedicated Codex GPT-6-Astra xhigh Reviewer-B and keep that attribution. No BLOCKER, MAJOR or MINOR Reviewer-B finding is open. One new NIT is open. This is not a T7 PASS, an M3 QA PASS, a completed full-run claim or a live-provider approval.
@@ -410,3 +417,130 @@ This is source approval only. It is not a T7 PASS, an M3 QA PASS or runtime evid
 - default health, the privacy scan and cleanup.
 
 Common QA still owns both full M1 runs, migration/rollback and the legacy suites. All 32 live LMS rows stay UNVERIFIED. The Lead will forward fresh executor evidence separately. This review does not assess that evidence.
+
+
+## Round 6 — M1 oracle and host-control repair
+
+Verdict: **APPROVE** for this bounded source review. Date: 2026-10-20.
+
+Reviewer: the same dedicated Claude Reviewer-B as Round 5 (`claude-opus-5-5`, xhigh, no delegation). Task `task_4f1a9a5431eb`, dispatch `ctx_eaafeee64212`. This reviewer is independent of both Authors, both QA workers and Reviewer-A.
+
+### Scope and method
+
+- Frozen source: `8138097889f87359d5055bb1d79766b5ed842f92`. Base: `aff48823a4c6206d6314d91a95f5eb0979d3e0e7`.
+- Lead approvals: `msg_da9a87e79584` (common and Blackboard), `msg_729bb2941b68` (one inert self-test mapping), `msg_f981848032b1` (Canvas).
+- Outside `docs/**`, exactly eight paths changed:
+  - `tests/acceptance/M1/blackboard/10-deployments.test.ts`, `20-protocol.test.ts`, `30-grants.test.ts`
+  - `tests/acceptance/M1/canvas/21-canvas-protocol.test.ts`, `31-canvas-grants.test.ts`
+  - `tests/acceptance/M1/common/gate-capture.selftest.mjs`
+  - `tests/host/m1-control.mjs`, `tests/host/m1-control.selftest.mjs`
+- Product, build and infrastructure: no path outside `docs/**` and `tests/**` differs from `aff4882`.
+- All eight files match the QA held hashes (`held-repair-hashes.json` and the Canvas `held-manifest.sha256`).
+- Contracts read: LTI API §1.3 and §3.4; app API §11 and the §4.7.2 capability row; AC-M1-35; review response R3.7.
+- Clean detached clone: `/tmp/cogniate-reviewer-b-claude-8138097-MzlPLT/src`. Its only additions are symlinks to the installed `tests/node_modules` and root `node_modules`. Both lockfiles are unchanged since `aff4882`. The workspace link `@cogniate/shared` resolves to the integration checkout, whose product and infrastructure files equal `8138097`.
+- I ran no Docker, stack, browser or live tenant, and I read no private folder or raw capture. I did not use or change the QA clone `m3-frozen-8138097-20261020T1524Z`. I edited no source, test or architecture file.
+- Blind review: I read team records only up to `32c698e`. I did not read Reviewer-A's new round (`914071d`).
+
+### Failure classification check
+
+All nine round-1 SIM failures at `aff4882` are test or harness defects. Each test asked for a result that the contract does not require. The "Probe" column refers to my probe, described below.
+
+| Case | QA class | Independent basis | Result |
+| --- | --- | --- | --- |
+| M1-07.blackboard.alphabet, .fencing | oracle | §1.3 defines only `details.message` and `details.description`. Probe: the product bodies are `Invalid field: deploymentId.` and `Invalid field: bindingRef (…)`, with no `details.field`. | Agree |
+| M1-36.blackboard.query, M1-36.canvas.query | oracle | §3.4 rule 3 needs only the claim's own query parameters. Probe: the product rule accepts `…?injected=1` for a claim with no query. | Agree |
+| M1-21.blackboard.capabilities, M1-21.canvas.course-shell | request | §11 defines `createMoodleCourse: { categoryId? }`. Probe: the product schema rejects `true` at `createMoodleCourse`. The old Blackboard input `crs_unknown` would also give `404` before the guard. | Agree |
+| M1-35.common.default-off, .default-on | host control | `lib.sh` applies the saved profile, and only `stack:up` changes it. Probe with the actual old control: default/off ran with `STACK_PROFILE=acceptance`, and default/on changed nothing. | Agree |
+| M1-20.canvas.repeat | oracle (time tie) | The first redemption logs `grant_redeemed` before it returns (`redemption.ts:308`), in the same millisecond as its `http_request`. `ts >= since` counts it. The Canvas control reproduces this with the old helper. | Agree |
+
+The independent Canvas judge's raw messages agree with these classes: `actual 400, code INVALID_REQUEST`, `actual 200`, and a strict-equal count failure.
+
+### Repair assessment
+
+- **M1-07.** `namesField` checks `details.description` with a whole-word match. Status, code, the absent deployment and the unchanged `bindingRef` stay. The app-contract `details.field` check at line 60 is correctly unchanged.
+- **M1-36 Blackboard.** Only the `query` row changes. It signs an AGS claim whose `lineitems` and `lineitem` carry `?qa_claim=v7`; the simulator replaces the whole claim (`sim/core/provider.mjs:45`). The claim URL must give 200. Then a changed value and a missing parameter must each give 400 on both endpoints. `noServiceCalls(cursor)` runs after all four refusals. The other four rows keep their input and assertions.
+- **M1-36 Canvas.** `query` leaves the loop and keeps its case ID in a dedicated case with the same shape. `SCOPE` includes `lineitem`, so the positive GET is authorized. The four loop rows are unchanged.
+- **M1-21 Blackboard.** The three original pending-connection checks stay in their `noMutation`. The shell request now uses a bound connection, a real course and an uploaded SCORM fixture, all made before the cursor. A second `noMutation` then requires an unchanged remote deployment, zero service calls and zero gate events. The test now also checks `details.capability = courseShell`, and the publication list is unchanged. With a ready version, the guard is the only reason to refuse, so a removed guard gives `201` and fails the test.
+- **M1-21 Canvas.** Only the body changes to `{}`. The course exists but has no version. The product checks the capability before connection status and version (`publications.ts:86`–`:94`). This matches the unconditional §4.7.2 row.
+- **M1-20 Canvas repeat.**
+  - Old oracle: a time window.
+  - New oracle: connection-scoped line counts, taken after `completed(first, 'POST')`. Each repeat also waits for its own same-trace completion.
+  - Assertions: no new `grant_redeemed` line, and (new) no new `grant_attempt_started` line. The other grant stays `issued`, both answers are 200, `deploymentIds` is correct, and there is no remote call.
+  - Basis: R3.7 rule 3 says `http_request` is written when the answer is sent. The product logs `grant_redeemed` before it returns. There is no time window and no sleep.
+- **M1-35 host control.** Every non-default combination now passes `--env STACK_PROFILE=…` and `--env LTI_PROVIDER_SIMULATION=…`. acceptance/on restores with no overrides, and `m1-restart` is unchanged. Unknown profile or simulation values are still refused before any subprocess. The new self-test reads `stack-restart.sh` and `compose.yaml` to pin the facts the command depends on, and checks the exact argv for all four combinations and two refusals.
+- **Gate-capture self-test.** It adds one empty mapping for `../../lib/app`. The loaded caller only uses `noMutation`, so the mapping is inert. Strict rejection of unknown dependencies remains.
+- No negative oracle is weaker. Three oracles are stronger: two escape inputs per Blackboard and Canvas query case, the extra attempt-line check, and the capability detail plus mutation guard on Blackboard.
+- New dependencies are test-side only: `tests/acceptance/lib/app`, `M1/common/course` and two read-only infra text files. No changed file imports `services/**`, `apps/**` or `packages/**`.
+
+### Inventory
+
+```sh
+node tests/host/run-m1.mjs --harness-only --provider all
+node tests/e2e/host/run-m2.mjs --harness-only
+```
+
+- M1: 34 self-tests pass with zero skips, and tests TypeScript passes. Discovery equals the manifest in both directions with no duplicate: **392 API + 24 host rows = 416**. No manifest file changed. Static `m1Test` IDs are identical in four of the five test files. The fifth file only moves `M1-36.canvas.query` from the template loop to a literal, and discovery confirms it.
+- M2: 6 self-tests pass, and all 64 cases are accounted for. I ran this because `run-m2.mjs` imports the changed host control.
+
+### Independent probe
+
+```sh
+node /tmp/cogniate-reviewer-b-claude-8138097-MzlPLT/probe/m1-repair-probe.mjs \
+  /tmp/cogniate-reviewer-b-claude-8138097-MzlPLT/src \
+  /tmp/cogniate-reviewer-b-claude-8138097-MzlPLT/probe/m1-repair-probe.results.json
+```
+
+Result: exit 0, **29/29 checks pass**. Script SHA-256 `413977e16816833afd85f0040f38193472540da5a446718ba9f8927e0b9b92d4`. Results SHA-256 `91a40c84bb8acdc27f0bba3319b4a7a3e1988bdf6bf7d2f64a711dfb545fb6df`.
+
+The probe imports the unchanged product source through Node type stripping. It takes test inputs and helpers verbatim from the frozen files, and old inputs from `git show aff4882:…`.
+
+- **URL rule:** the product `isAllowedServiceUrl` accepts every repaired claim URL and refuses every new escape. A mutant without rule 3 accepts both query escapes for each provider, so the new inputs test rule 3 specifically. The old `query` input is valid for both providers.
+- **Field naming:** the exact `namesField` passes on the product's create and patch error bodies. The old `details.field` check fails on the same bodies. Bodies that name `siteUrl`, name `ifBindingRef`, use the default description or are empty all fail it.
+- **Publication body:** the product schema rejects `createMoodleCourse: true` and accepts `{}`. The handler order is schema, course, capability, connection status, version.
+- **Host control:** I ran the actual `m1HostControl` from both SHAs with a stub runner. I fed each argv through the actual knob writer from `stack-restart.sh` over the saved acceptance environment. The new switches give exactly the requested profile and simulation. The old default/* switches never changed the profile. Restore gives acceptance/on in both versions; the new restore also removes the knob file.
+
+### QA control evidence (executor claims, assessed)
+
+- **Common.**
+  - The new profile self-test fails against the old control, at default/off (`negative.log`).
+  - The strict-dependency self-test fails without the new mapping and passes with it.
+  - The combined harness has 34 passes and 392 + 24 rows.
+  - `url-rule-check.mjs` is an independent reading of the contract, not the product. My probe adds the product function and the rule-3 mutant.
+  - No QA control covered the M1-07 bodies or the course-shell body. My probe covers them with the product functions.
+- **Canvas.** `m1-controls.mjs` compiles the exact helper source. It shows that two repeats in the same millisecond leave both counts unchanged, that the old timestamp oracle counts the first redemption, and that a later redemption or attempt line is detected. A malformed line blocks, and a partial last line is tolerated. These controls test the helpers with synthetic logs. They do not test the order of steps in the case, which I checked in the source.
+
+### Findings
+
+**B-M3-06 — NIT — The host-control change also reaches M2 and a second M1 phase.**
+
+- Location: `tests/host/m1-control.mjs:29`–`:37`.
+- Problem: the records name eight M1 test and harness files. `tests/e2e/host/run-m2.mjs:24` also imports this control, and two callers use acceptance/off then acceptance/on:
+  - the M2 Canvas wizard (`02-canvas-wizard.m2.ts:246` and `:254`);
+  - the M1 isolated phase (`02-canvas-snapshot-isolated.test.ts:14` and `:25`).
+  At `8138097` their argv differs from the passing `aff4882` M2 run.
+- Evidence: the probe shows the same effective LTI service environment for acceptance/off and for the restore in both versions. Only the leftover knob entry is gone. T7 does not use this control.
+- Suggested fix: when the Lead carries `aff4882` M2 evidence to the final SHA, record this reach and the equivalence. Alternatively, cover the M2 case in a final-SHA run.
+- No source change is needed.
+
+Prior dispositions are unchanged:
+
+- B-M3-01, B-M3-02 and B-M3-03 are CLOSED. B-M3-04 is WITHDRAWN.
+- B-M3-05 (duplicate RegExp escape helper) and A-M1-02 stay accepted open NITs. They are unrelated to this repair.
+
+### Observations (no finding)
+
+- **`namesField`:** it accepts any whole-word mention. The product message `Invalid field: active (send active or bindingRef).` would pass for `bindingRef`, but the tested bodies send `active` and cannot reach it. The contract says only that the description names the field, so a stricter prefix would go beyond the contract.
+- **Course-shell fixtures:** the Blackboard case adds a ready version, but the Canvas case relies on the guard running before the version check. Both detect a removed guard.
+- **R3.7 citation:** the Canvas repeat comment and QA notes cite R3.7 for the order of the `grant_redeemed` line. R3.7 defines only `grant_attempt_started`. The order also holds from the product source (`redemption.ts:308`).
+- **Small duplication:** `redeemedLines` repeats `attemptLines` except for the event name. The two query repairs also take two code shapes for one rule.
+
+### Remaining gate
+
+This is source approval only. The first full M1 attempt at `aff4882` stays FAIL (385/394 SIM rows), and its failure history stays recorded. These are still NOT RUN:
+
+- the isolated, upgrade and migration phases;
+- round 2;
+- the final legacy suites;
+- a complete M1 run at `8138097`.
+
+The next stack window must run the complete M1 entry twice at the same SHAs, then legacy. All 32 live LMS rows stay UNVERIFIED.
