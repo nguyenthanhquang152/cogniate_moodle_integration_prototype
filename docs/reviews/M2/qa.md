@@ -1,8 +1,8 @@
-Verdict: PASS — fourth frozen M2 SIM run at `004568b`: 64/64 PASS, privacy and capture PASS, clean boundary (history: `e3cd7db` 60 PASS / 4 FAIL)
-Round: 7, verification task `task_e28388df4dcc`, dispatch `ctx_4a94125660be` (earlier rounds: `ctx_8ec51c3aa7b5`)
+Verdict: M2 functional PASS — fifth frozen run at `aff4882`: 64/64, capture coverage complete, clean boundary; external observer log leak FAIL/incident, contained (history: `004568b` PASS, `e3cd7db` 60/4)
+Round: 8, verification task `task_e28388df4dcc`, dispatch `ctx_4a94125660be` (earlier rounds: `ctx_8ec51c3aa7b5`)
 Owner: original Claude Canvas QA (`claude-opus-5-5`, xhigh), resumed by owner request; round 5 owner was the independent Codex quota replacement
 
-Sections 1–5 preserve earlier preparation and execution records. Section 6 retains round 5 and section 7 retains round 6. The current execution result is in section 8.
+Sections 1–5 preserve earlier preparation and execution records. Sections 6–8 retain rounds 5–7. The current execution result is in section 9.
 
 ## 1. Inputs and result
 
@@ -616,3 +616,111 @@ The recorder also holds 4 `picker_id`, 5 `ltik`, 8 `state`, 4 `nonce` and 26 `ap
 - **Independent after-check at `2026-10-20T14:00:03Z`** (`R/baseline-after-m2.json`): zero containers. Volume records, networks and Docker MemTotal/NCPU are exactly equal to the before snapshot. No Build Runner process; ports `8643` and `8543` free.
 
 All T7 gate conditions in `msg_b6726e8da143` were met, so T7 started under the same window. T7 failed through a QA harness race in `tests/e2e/lib/portal.ts`; M2 does not call that function (see [T7 QA](../T7/qa.md#m3-checkpoint-update--fourth-candidate-004568b-t7-executed-fail)).
+
+## 9. Round 8 — fifth frozen M2 run at `aff4882` (2026-10-20)
+
+**PASS: 64 PASS, 0 FAIL, zero skips, zero retries, zero flaky.** Product and test SHA: `aff48823a4c6206d6314d91a95f5eb0979d3e0e7`. The product and build are byte-identical to `e3cd7db`. In `tests/`, only `tests/e2e/lib/portal.ts` differs from `004568b` (the T7 `publishCourse` readiness repair, which M2 does not call). Lead opened the exclusive window in `msg_cd92688894e5`. The `004568b` M2 PASS and the `004568b` T7 FAIL remain history.
+
+### 9.1 Identity and execution
+
+Run `qa-e2e-sim-r5-aff48823-2026-10-20T14-19-46-505Z`; project `qa-e2e-sim-r5`; port `8643`; subnet `172.27.0.0/16`; profile `acceptance`. External evidence root (`R`, mode `0700`): `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-aff4882-eFk7FU4s`. Frozen source: `R/source` (clean, detached). Runtime clone: `R/m2-stack`. Artifacts (`A`): `R/source/tests/host/artifacts/qa-e2e-sim-r5-aff48823-2026-10-20T14-19-46-505Z`.
+
+Before the stack, in the frozen source:
+- `npm ci --prefix tests`, then `run-m2.mjs --harness-only`: 6/6 self-checks PASS, typecheck PASS, all 64 cases, T7 selection unchanged.
+- T7 inventory: 18 tests in 6 files.
+- Preflight (`R/baseline-before.json`): zero containers. The seven volume records, the networks and Docker `29.8.2` / MemTotal `8319238144` / NCPU `12` are exactly equal to the established baseline. No Build Runner; ports `8643` and `8543` free; both course zip hashes match.
+
+The command is the §8.1 command with project `qa-e2e-sim-r5`, both SHAs `aff48823a4c6206d6314d91a95f5eb0979d3e0e7` and `--workdir R/m2-stack`. The Playwright pass began at `2026-10-20T14:20:27.306Z` and took `112997.88 ms`. Runner exit `0`. All rows carry product = test = `aff48823…`, environment `SIM`. There are 40 screenshots. The learner screenshots of both `M2-12` cases show "Status: Completed — score 100 sent to Canvas" and "… to Blackboard".
+
+- **Browser:** Chromium `141.0.7390.37`, Playwright `1.56.0`, Linux arm64.
+- **Health:** at `14:19:56.213Z`, 200 `ok`, `profile: acceptance`, empty knobs, both SIM profiles. They were removed (`14:20:51.234Z`) and restored (`14:20:57.673Z`) by `M2-02`.
+- **Build Runner:** fresh PID `27365` started at `14:20:20Z`, image ready, alive, heartbeat 0.1–1.3 s.
+- **Images:** identical to §8.1 except e2e `qa-e2e-sim-r5-e2e:1.56.0` `sha256:d21b52715db71c24c91d35aba07daa03bd88a029c4ad55f93535b3a53928bd34`.
+
+### 9.2 All named outcomes
+
+| Case | Outcome |
+| --- | --- |
+| `M2-02.not-ready` | PASS |
+| `M2-02.ready` | PASS |
+| `M2-01.cards` | PASS |
+| `M2-01.isolated-newest` | PASS |
+| `M2-01.moodle-card` | PASS |
+| `M2-03.profile-labels` | PASS |
+| `M2-03.rule1-http` | PASS |
+| `M2-03.rule1-path` | PASS |
+| `M2-03.rule1-query` | PASS |
+| `M2-03.rule1-fragment` | PASS |
+| `M2-03.rule1-userinfo` | PASS |
+| `M2-03.rule2-ipv4` | PASS |
+| `M2-03.rule2-ipv6` | PASS |
+| `M2-03.rule2-localhost` | PASS |
+| `M2-03.rule2-sub-localhost` | PASS |
+| `M2-03.rule3-lti` | PASS |
+| `M2-03.rule3-app` | PASS |
+| `M2-03.rule3-content` | PASS |
+| `M2-03.rule4-sso` | PASS |
+| `M2-03.rule4-sso-port` | PASS |
+| `M2-03.rule5-instructure` | PASS |
+| `M2-03.rule4-service-sso` | PASS |
+| `M2-03.valid-split` | PASS |
+| `M2-03.valid-default-service` | PASS |
+| `M2-04.rows` | PASS |
+| `M2-04.copy-json` | PASS |
+| `M2-04.download-json` | PASS |
+| `M2-04.inline` | PASS |
+| `M2-04.clipboard-denied` | PASS |
+| `M2-04.download-failure` | PASS |
+| `M2-05.success` | PASS |
+| `M2-05.grant-invalid` | PASS |
+| `M2-05.grant-mismatch` | PASS |
+| `M2-05.platform-in-use` | PASS |
+| `M2-05.invalid-values` | PASS |
+| `M2-05.lti-service-error` | PASS |
+| `M2-06.success` | PASS |
+| `M2-06.deployment-in-use` | PASS |
+| `M2-06.retry-after-error` | PASS |
+| `M2-06.second-deployment` | PASS |
+| `M2-07.badges` | PASS |
+| `M2-07.canvas-detail` | PASS |
+| `M2-07.no-add-elsewhere` | PASS |
+| `M2-08.canvas-no-moodle-features` | PASS |
+| `M2-08.blackboard-no-moodle-features` | PASS |
+| `M2-08.moodle-controls` | PASS |
+| `M2-09.blackboard-dialog` | PASS |
+| `M2-09.canvas-dialog` | PASS |
+| `M2-09.moodle-dialog` | PASS |
+| `M2-10.publish-dialog` | PASS |
+| `M2-10.canvas-results` | PASS |
+| `M2-11.canvas-keyboard` | PASS |
+| `M2-11.blackboard-keyboard` | PASS |
+| `M2-11.add-deployment-keyboard` | PASS |
+| `M2-11.axe-canvas` | PASS |
+| `M2-11.axe-blackboard` | PASS |
+| `M2-11.axe-canvas-detail` | PASS |
+| `M2-12.canvas` | PASS |
+| `M2-12.blackboard` | PASS |
+| `M2-13.routes-open` | PASS |
+| `M2-13.cross-provider` | PASS |
+| `M2-13.no-stale-values` | PASS |
+| `M2-13.form-state` | PASS |
+| `M2-13.cross-library` | PASS |
+
+### 9.3 Privacy, capture and cleanup
+
+- **`M3-07-M2` PASS:** 74 values, 63 files, 0 hits.
+- **Independent private rescans:** 68 clone-captured values over 81 text files, 0 hits; 8 `.env` secrets over 78 files, 0 hits.
+- **Capture coverage** (counts only): identical to §8.3, for each provider (Deep Linking response JWT, resource-link `id_token`, `play_id`, `runtime_token`).
+- **`M3-06-M2` and `TEARDOWN` PASS.** Independent after-check at `14:24:23Z`: zero containers; volumes, networks and Docker MemTotal/NCPU exact; no Build Runner or observer process; both ports free.
+
+**Evidence hygiene outcomes for this run.** These are separate from the M2 functional PASS, which Lead accepted in `msg_987f8e232e3b`. This run is not a pristine end-to-end privacy gate.
+
+| Outcome | Result | Detail |
+| --- | --- | --- |
+| External observer log leak | **FAIL / incident** | At about `14:22:20Z`, the external read-only observer (`R/observe.mjs`, not repository code) crashed when a container vanished between `docker ps` and `docker inspect`. Node printed the failed command output, including container environment values, into `R/observer.stdout.log`: 4 occurrences of 2 values (`LTI_MASTER_KEY` and one `seed.json` value) of the disposable `qa-e2e-sim-r5` stack, now destroyed with its volumes. The values were never forwarded, committed or copied to shared artifacts. |
+| Local private containment | PASS | The original is now `R/private/observer.stdout.original.log`, mode `0600`, under the `0700` root and `0700` `private/`. It is not published or opened in shared output. |
+| Sanitized copy rescan | PASS | `R/observer.stdout.log`: 4 placeholders for 2 values, 0 remaining hits. SHA-256 before `215367a3df3ea88264b2d1935fbfb778106f70fbb5ea722ee28c2b8549ea39e2`, after `f945c2d5cd0dd31a3c9d72e6415de63bb4b0c5a3b461c43dd1c29d543b731c20` (`R/observer-log-redaction.json`). |
+| Observation gap | Recorded | The observer missed the progress lines after `M2-12.canvas` and its `containers_removed` record. Case results come from the runner report. Identity, health and Build Runner records were captured before the crash. |
+| Observer repair | PASS (controls) | Lead authorized the external observer repair (`R/observe2.mjs`, SHA-256 `d60dc920f5122d2b3317ae28e071ba7885c19bb780ab287f9d027d7d05c53dc0`): tolerant per-container inspect, no printed `docker` output, error handlers that record only a code. In `R/observer-control/`, byte-identical copies ran against a fake `docker` with a planted synthetic secret. The old observer reproduces the leak and collects nothing. The new one emits no payload, collects the surviving container and image, and withholds an unexpected exception (only `observer_error: uncaught`). |
+
+QA stopped before T7 and reported in `msg_4e94792776cf`. T7 then ran under a new window with the pinned observer and passed (see [T7 QA](../T7/qa.md#m3-checkpoint-update--final-candidate-aff4882-t7-pass)).

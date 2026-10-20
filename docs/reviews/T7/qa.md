@@ -282,3 +282,57 @@ Evidence (synthetic only; `R/publish-repair/`):
 - T7 inventory (`QA_SUITE=e2e playwright test --list`): 18 tests in 6 files (unchanged).
 
 Next: Lead commits the repair and freezes one new product/test SHA, then a fresh full M2 and three default T7 passes with demo and confirmation checks under a new window.
+
+### M3 checkpoint update — final candidate (`aff4882`): T7 PASS
+
+**PASS.** Product/test `aff48823a4c6206d6314d91a95f5eb0979d3e0e7`, after M2 64/64 at the same SHA ([M2 round 8](../M2/qa.md#9-round-8--fifth-frozen-m2-run-at-aff4882-2026-10-20)). Lead window: `msg_987f8e232e3b`, a T7-only window after the observer controls. Run `qa-e2e-m3-r2-aff48823-2026-10-20T14-27-17-341Z`; project `qa-e2e-m3-r2`; port `8543`; subnet `172.31.0.0/16`; default profile. External evidence root (`R`, mode `0700`): `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-aff4882-eFk7FU4s`. Artifacts: `R/source/tests/e2e/artifacts/runs/qa-e2e-m3-r2-aff48823-2026-10-20T14-27-17-341Z`. Fresh runtime clone: `/Users/quangnguyen/cogniate-qa-runs/qa-e2e-m3-r2-aff48823-2026-10-20T14-27-17-341Z`.
+
+```sh
+COMPOSE_PROJECT_NAME=qa-e2e-m3-r2 PUBLIC_PORT=8543 STACK_SUBNET=172.31.0.0/16 \
+COURSE_FIXTURES_DIR='/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses' \
+node tests/e2e/host/run-t7.mjs --sha aff48823a4c6206d6314d91a95f5eb0979d3e0e7 --runs 3 --demo --check-confirm
+```
+
+Runner exit `0`, summary "ALL OK".
+
+| Pass | Exit | Time | `e2e:reset` | PASS | FAIL | SKIP |
+| --- | --- | --- | --- | --- | --- | --- |
+| Run 1 | 0 | 172 s | 37 s | 17 | 0 | 1 |
+| Run 2 | 0 | 174 s | 38 s | 17 | 0 | 1 |
+| Run 3 | 0 | 173 s | 37 s | 17 | 0 | 1 |
+| Demo pass | 0 | — | 38 s | 1 (DEMO) | 0 | 0 |
+
+In each run, the skip is `DEMO AC-T7-15`, which runs only in the demo pass by design. The demo pass ran `demo:prepare` in 8.21 s, then the DEMO case alone, and it passed. All four checks pass: B-T7-01 confirm "no" for `e2e:reset` and `test:e2e` (asked, stopped, stack unchanged), and A-T7-04 fail-closed for both (refused, stack unchanged). Teardown OK.
+
+| Criterion | Result at `aff4882` | Evidence |
+| --- | --- | --- |
+| AC-T7-01 | PASS | `npm run test:e2e` exit 0 in each run, 172–174 s (≤ 25 min) |
+| AC-T7-02 | PASS | A1-A2 and A4 in each run |
+| AC-T7-03 | PASS | A4 in each run |
+| AC-T7-04 | PASS | A5, A6 and the AC-T7-04 case in each run |
+| AC-T7-05 | PASS | AC-T7-05 case in each run |
+| AC-T7-06 | PASS | AC-T7-06 case in each run |
+| AC-T7-07 | PASS | A5, A6 and B6 in each run |
+| AC-T7-08 | PASS | B4 and B5 in each run |
+| AC-T7-09 | PASS | B6 in each run |
+| AC-T7-10 | PASS | C1 and C2 in each run |
+| AC-T7-11 | PASS | Three consecutive runs pass with `retries: 0` |
+| AC-T7-12 | PASS | This section; per-run screenshots, traces and run times under the artifact directory |
+| AC-T7-13 | PASS | T7-START and T7-END in each run |
+| AC-T7-14 | PASS | A1-A2 in each run |
+| AC-T7-15 | PASS | Demo pass: `demo:prepare` 8.21 s, DEMO case PASS |
+
+Observer (pinned `R/observe2.mjs`, SHA-256 `d60dc920…`, across resets; no `observer_error`):
+- **Health:** all 4 full-health snapshots, one per stack lifecycle, show LTI, app and content 200 `ok`, `profile: default`, `knobs: []`, `simulation_profiles: []`, and no `lms-sim` or `lti-gate` service.
+- **Images:** Node `sha256:44fce696f38b…`, Moodle `sha256:3a310197e51f…`, Caddy `sha256:d8542f48d34a…`, Postgres `sha256:721873c34ceb…`. The e2e image was built 4 times (`393461480e5e…`, `98472d4be733…`, `bbfd8ce90214…`, `fd1589038474…`).
+- **Browser:** Chromium `141.0.7390.37`, Playwright `1.56.0`, Linux arm64.
+- **Build Runner:** fresh PIDs `39229`, `48743`, `57203`, each alive with the image ready.
+
+Privacy:
+- The private union watcher kept 174 entries (145 unique values) across all passes in `R/private/` (mode `0600`).
+- Independent scan of those values plus the clone `.env` secrets (153 values) over 128 shared text files (artifacts, runner stdout, observer output, watcher log): 0 hits.
+- C2 passes in every run.
+
+Boundary after T7 (`R/baseline-after-t7.json`, `14:38:28Z`): zero containers. The seven volume records, networks and Docker MemTotal/NCPU are exactly equal to before. No Build Runner; ports `8543` and `8643` free.
+
+The failed T7 runs at `004568b` remain history. This PASS is SIM-free Moodle regression on the local stack; it is not live LMS validation.

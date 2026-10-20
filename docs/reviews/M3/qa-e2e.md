@@ -1,11 +1,11 @@
-Verdict: FAIL / HOLD — at `004568b`: M2 64/64 PASS with privacy and capture PASS; T7 FAIL 3/3 (QA harness race in portal glue); repair requested
-Round: 4 (2026-10-20)
+Verdict: at `aff4882`: M2 64/64 functional PASS (SIM); T7 3/3 default runs + demo + confirm PASS; observer-log incident contained; M1 held by Core QA; live UNVERIFIED
+Round: 5 (2026-10-20)
 Owner: original Claude Canvas QA (`claude-opus-5-5`, xhigh), resumed by owner request; rounds 1–2 by the independent Codex replacement
 Task: `task_e28388df4dcc`; dispatch: `ctx_4a94125660be` (rounds 1–2: `ctx_8ec51c3aa7b5`)
 
 # M3 QA-E2E verification checkpoint
 
-Sections 1–4 retain round 1. Section 5 retains round 2 and section 6 retains round 3. Section 7 is the current round 4 result.
+Sections 1–4 retain round 1. Sections 5–7 retain rounds 2–4. Section 8 is the current round 5 result.
 
 Applied contract: `ccdd9ef67cdd2be4c6af374136777fda4e081943`. Executed product and test: `eb43247d02df622d5da72dafac41d919f65a91fe`. Scope and replacement authorization: team brief `910f7a48f39c5679040a8e0c98f4de54baf14f8f`. Full M2 result, command, image identities, reduced health output, timing, per-case results, masked screenshot paths and limits are in [M2 QA §5](../M2/qa.md#5-round-4--frozen-m2-execution-and-repair-preparation-2026-10-20).
 
@@ -94,3 +94,20 @@ Exact product/test: `004568bd4ab8390d64945cb73f16cfdd51d566bf`. Product and buil
 | AC-M3-07 | PASS for M2 and T7 scans | M2: runner 74 values, 63 files, 0 hits. Independent: 68 values, 80 files, 0 hits. Capture coverage per provider: Deep Linking response JWT, resource-link `id_token`, `play_id` and `runtime_token`. T7: C2 PASS in each run; union of 60 values over 103 files, 0 hits. |
 
 Lead authorized the bounded `portal.ts` readiness repair in `msg_859204e81d48`. It is held for Lead commit with synthetic controls and unchanged inventories (see [T7 QA](../T7/qa.md#m3-checkpoint-update--fourth-candidate-004568b-t7-executed-fail)). T7 stays HOLD until Lead freezes one new product/test SHA and opens a new window. The plan is a fresh full M2 and three default T7 passes plus demo and confirmation checks at that single SHA. The M2 PASS at `004568b` remains history. Local Canvas is not assessed: it needs SIM and Moodle to pass first.
+
+## 8. Round 5 — M2 and T7 at `aff4882`
+
+Exact product/test: `aff48823a4c6206d6314d91a95f5eb0979d3e0e7`. Product and build are byte-identical to `e3cd7db`. In `tests/`, the only change from `004568b` is the `portal.ts` `publishCourse` readiness repair. Both independent source supplements approve `aff4882` (Lead `msg_72d5add19f35`). External evidence root: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-aff4882-eFk7FU4s`. Details: [M2 QA §9](../M2/qa.md#9-round-8--fifth-frozen-m2-run-at-aff4882-2026-10-20) and [T7 QA](../T7/qa.md#m3-checkpoint-update--final-candidate-aff4882-t7-pass).
+
+| Criterion | Current result | Evidence and limit |
+| --- | --- | --- |
+| AC-M3-01 | NOT RUN / HOLD | Core QA owns both full M1 runs and is held. The independent Canvas verdict still needs the 233 Canvas outcomes from each frozen run. |
+| AC-M3-02(a) | PASS | T7: three consecutive default runs, 17 PASS / 0 FAIL / 1 demo-only skip each; demo pass PASS; 4/4 confirm and fail-closed checks; default health at every reset (`default`, no knobs, `simulation_profiles: []`, no simulator or gate). |
+| AC-M3-02(b) | Other owner | Core QA owns the legacy and default-return checks. |
+| AC-M3-03 | PASS (SIM) | M2: 64/64, zero skips or retries, single SHA, all 13 criteria and every named variant. |
+| AC-M3-04 | PASS (SIM) | Both `M2-12` scenarios complete the real HTML course (teacher Deep Linking, learner score 100, sync Sent). No live behavior is inferred. |
+| AC-M3-05 | UNVERIFIED live | All 32 normative live matrix rows keep their planned steps and UNVERIFIED status. |
+| AC-M3-06 | PASS | After M2 and after T7: zero containers; the seven volume records, networks and Docker MemTotal/NCPU exactly equal to before; no Build Runner; ports free. |
+| AC-M3-07 | Product and runner scans PASS; QA observer incident FAIL, contained | M2: runner 74 values, 63 files, 0 hits; per-provider capture coverage complete; independent rescans 0 hits. T7: union of 145 captured values plus `.env` secrets over 128 files, 0 hits; C2 PASS in each run. Separately, the external QA observer crash wrote 2 disposable-stack values into its own log during M2. The log was contained privately, its sanitized copy rescans at 0 hits, and the observer was repaired and pinned with controls. |
+
+Common QA remains held until Lead hands back. Local Canvas may now be assessed for feasibility only (SIM and Moodle gates passed); QA reports feasibility to Lead before any startup.
