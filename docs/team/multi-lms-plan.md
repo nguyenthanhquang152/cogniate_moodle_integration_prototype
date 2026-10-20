@@ -1117,6 +1117,56 @@ No source overlays, subsets or ad hoc reruns are permitted.
 Canvas QA has no stack authority and will independently judge each complete round's 233 rows.
 Final conformance and Docs still wait for accepted verification.
 
+### Attempt 2 interrupted by host shutdown and reboot
+
+Common QA started attempt 2 at 15:45:52 UTC on 2026-10-20 (`msg_587efecb0e7f`).
+Run root: `/Users/quangnguyen/cogniate-qa-runs/m1-full-8138097-20261020T1545Z`.
+Phase run: `qa-multi-r1-81380978-2026-10-20T15-45-52-377Z`.
+All pre-start gates passed. The command used frozen `8138097` without source overlays.
+The host later stopped; the last observed QA activity is at 15:57:19 UTC.
+QA's 15:55 progress claim was corrected in `msg_b74fa5b0121a`: those two samples were identical.
+Later logs did advance before the interruption. The correction and original evidence remain in the record.
+
+After host boot at 20:04:55 UTC, QA reported the interruption in `msg_9dc9ec4e8bb7`.
+The Lead independently confirmed the boot time, absent run processes and an unavailable Docker daemon.
+There is no Vitest report or case result for this phase: zero rows are evaluated.
+No phase completed. This is an interrupted attempt, not a test or product failure, and gives no acceptance credit.
+The partial evidence stays intact. The stopped Docker VM's resource state needed inspection after restart.
+
+Lead `msg_b465eb9ef8f0` authorizes recovery only, with no product rerun yet.
+The Lead launched Docker Desktop with `open -a Docker`; no setting changed.
+Docker became ready with version 29.8.2, 8,319,238,144 bytes and 12 CPUs, unchanged from before.
+QA must inspect before cleanup, remove only resources positively labeled `qa-multi-r1`, and preserve all other resources.
+It must compare all seven protected volume records to the original baseline and report restart or network differences.
+No prune or shared-image removal is authorized. Attempt 3 requires a new clean clone, new run root and explicit handback.
+
+### Recovery accepted; full attempt 3 authorized
+
+Common QA returned the recovery evidence in `msg_331e88082c29`.
+Nine owned containers restarted under their existing policies when Docker returned; the suite container did not restart.
+QA saved their logs privately, then removed those containers, three owned volumes and one owned network by exact project label.
+Post-cleanup and two stable boundaries show zero containers and no owned resources.
+The Lead independently compared all seven full protected-volume metadata records to the original baseline; every record matches.
+Port 8443 is free, and the subnet has no conflict. No owned runner remains.
+The independent secret scan found zero hits in nine raw logs and 232 public files using 696 captured values and 12 stack secrets.
+
+The engine restarted again at about 20:08:57 UTC, before cleanup.
+Its version changed from 29.8.2 to 29.9.1. The default bridge was recreated at 20:08:18 and 20:08:57 UTC.
+The host and none networks, memory allocation, CPU count, Compose and Node versions are unchanged.
+The cause of the host interruption and engine version change is not attributed.
+M2 and T7 retain their exact `aff4882` evidence on engine 29.8.2.
+No environment-equivalence claim or new runtime credit is attached to them.
+
+Lead `msg_ff5f23202f77` accepts 29.9.1 as the new environment baseline and opens the sole full-M1/legacy window.
+Product and test SHA remain `8138097889f87359d5055bb1d79766b5ed842f92`.
+New clean source: `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-8138097-a3-20261020T2011Z/source`.
+Provenance SHA256: `df7e5f2d93e0eafa0f911f0ce50a67ea1dbcdd9c741950d271062a5c346cea71`.
+All 15 recorded source hashes match; the tests tree remains `a6437598df46f49879478f9221b3bc1de885a9fd`.
+The unchanged harness evidence and source approvals carry without repetition.
+QA must record a fresh preflight and new run root, both complete 416-row rounds, and all legacy groups.
+Canvas QA independently judges each complete round's 233 Canvas rows without another stack.
+Attempts 1 and 2 remain separate failed and interrupted records. Final conformance and Docs still wait for accepted verification.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.

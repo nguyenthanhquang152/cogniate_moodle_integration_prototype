@@ -1,5 +1,5 @@
-Verdict: FAIL — the first complete M1 attempt at `aff4882` failed in round 1; repair is held
-Round: Claude continuation `ctx_8d5f8d3984d0`, full-run attempt 1 and repair checkpoint, 2026-10-20
+Verdict: FAIL — no complete M1 round yet: attempt 1 at `aff4882` FAIL (repaired in `8138097`); attempt 2 at `8138097` INTERRUPTED by a host reboot
+Round: Claude continuation `ctx_8d5f8d3984d0`, attempt 2 interruption and recovery, 2026-10-20
 
 The latest checkpoint is at the end of this report. The completed legacy
 T2/T3 run remains exact-`eb43247` evidence in the M3 report. It is not an M1
@@ -475,3 +475,73 @@ the Lead freezes a new candidate, gets source review, and opens a new
 exclusive window. Then both complete rounds and all legacy groups run again
 from a fresh clone. This failed attempt, its artifacts and its not-run phases
 stay in the record.
+
+## Claude continuation — full-run attempt 2 at `8138097`: INTERRUPTED, 2026-10-20
+
+Result: **INTERRUPTED**. The host stopped during round 1, phase `sim`, and
+rebooted later. No phase finished. The suite wrote no Vitest report, so no
+row was evaluated. This is not a test or product result. It gives no M1
+credit and no Canvas rows to assess.
+
+| Item | Value |
+| --- | --- |
+| Product SHA = test SHA | `8138097889f87359d5055bb1d79766b5ed842f92` (tests tree `a6437598`); the repairs held after attempt 1 |
+| Window | Lead `msg_a2aa04484762`, after both source approvals (A `msg_945c9463e27d`, B `msg_feaafbe8d45f`) |
+| Command | The Lead's exact command, from `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-8138097-20261020T1524Z/source`, with `TMPDIR=<run root>/tmp` |
+| Run root | `/Users/quangnguyen/cogniate-qa-runs/m1-full-8138097-20261020T1545Z` |
+| Phase run | `qa-multi-r1-81380978-2026-10-20T15-45-52-377Z` |
+| Start | 15:45:52Z. All pre-start gates passed, and all seven volume records matched the original baseline. |
+| Last activity | 15:57:19.577Z (app log). LTI service and simulator logs 15:57:11Z, gate 15:57:13Z, last sampler flush 15:56:46Z. |
+| Host | Boot time 20:04:55Z. `last` has no clean-shutdown record. The power log has no entry between the stop and 20:06:01Z. The cause is not attributed. |
+
+A 15:55Z checkpoint first said "advancing" before the samples were read. The
+two 15-second samples were identical. The corrected report went to the Lead
+at once. Both messages stay in the record. After that quiet minute, the suite
+continued until the stop: gate log 1 → 54 lines, simulator 741 → 757, app
+2,460 → 2,563, and 206 host-control requests. A quiet interval alone is not a
+failure.
+
+### Recovery (Lead `msg_b465eb9ef8f0`)
+
+The Lead started Docker Desktop with no settings change. The daemon answered
+at 20:08:19Z. Then this QA ran a recovery-only cleanup:
+
+1. A read-only boundary before any change (20:08:30Z) found only owned
+   resources. Nine `qa-multi-r1` containers had restarted at 20:08:18Z under
+   their restart policies; the suite container did not come back. There were 3
+   owned volumes and 1 owned network. No other project had a container.
+2. The container logs were saved raw to a private 0700 folder.
+3. The runner's exact-label lookup (`projectResources`) and its three removal
+   commands removed 9 containers, 3 volumes and 1 network. Nothing else was
+   removed. No prune ran, and no image was removed.
+4. Post-cleanup and 30-second stability boundaries found 0 containers and no
+   owned leftovers. All **seven protected volume records are identical to the
+   original baseline**. Port 8443 is free, and there is no subnet clash. No
+   build runner or owned runner process remains. Docker memory is
+   8,319,238,144 bytes with 12 CPUs, unchanged.
+
+Differences caused by the restart, recorded and not attributed:
+
+- The default `bridge` network was recreated twice: at 20:08:18Z and again at
+  20:08:57Z. `host` and `none` are unchanged.
+- The Docker server version changed from 29.8.2 (pre-cleanup boundary at
+  20:08:30Z) to 29.9.1 after the 20:08:57Z engine restart. The Docker Desktop
+  4.96.0 app bundle on disk is dated 2026-10-19. Compose (5.6.0) and Node
+  (24.21.0) are unchanged. Attempt 1 and the earlier M2/T7 runs used engine
+  29.8.2.
+
+Privacy: the independent scan checked 696 values captured before the stop
+plus 12 stack secrets. It found 0 hits in 9 raw service, simulator and gate
+logs and in 232 public files, and 0 JWT-shaped strings.
+
+Evidence: `public/interruption-record.json`, `public/recovery/`
+(`boundary-pre-cleanup.json`, `owned-cleanup.json`,
+`boundary-post-cleanup.json`, `boundary-stable-1/2.json`,
+`recovery-comparison.json`, `secret-scan.json`). Raw logs and captures:
+`private/` (0700). The recovery script
+`/Users/quangnguyen/cogniate-qa-runs/claude-common-qa-tools/recover-owned.mjs`
+uses the frozen lookup and the same removal commands as the runner teardown.
+
+Next: a new exclusive window for attempt 3 of the same exact entry at
+`8138097`, from a new clean clone and a new run root. Attempt 1 (FAIL) and
+attempt 2 (INTERRUPTED) stay as separate records.

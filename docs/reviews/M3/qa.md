@@ -1,5 +1,5 @@
-Verdict: FAIL — the first complete M1 attempt at `aff4882` failed in round 1; legacy not run; repair is held
-Round: Claude continuation `ctx_8d5f8d3984d0`, full-run attempt 1 and repair checkpoint, 2026-10-20
+Verdict: FAIL — no complete M1 round and no final-SHA legacy yet: attempt 1 FAIL at `aff4882`; attempt 2 INTERRUPTED at `8138097`
+Round: Claude continuation `ctx_8d5f8d3984d0`, attempt 2 interruption and recovery, 2026-10-20
 
 The T2/T3 group below passed at its exact frozen candidate. The later harness
 repair is preparation only and does not replace that run or close M3.
@@ -314,3 +314,15 @@ M3 stays FAIL. It closes only after the Lead commits the held repairs and
 Canvas QA's own repairs, a new reviewed freeze, two complete 416-row rounds
 with identical outcomes, all legacy groups with default-profile restoration,
 and Canvas QA's separate verdict on its rows.
+
+## Attempt 2 at `8138097`: INTERRUPTED, 2026-10-20
+
+The host stopped during round 1, phase `sim` (last activity 15:57:19Z), and
+rebooted at 20:04:55Z. No row was evaluated, so the attempt gives no M3 credit.
+The owned stack was removed after the reboot by label. All seven protected
+volume records still match the original baseline. The Docker engine changed
+from 29.8.2 to 29.9.1 when Docker Desktop restarted. The
+[M1 report](../M1/qa.md#claude-continuation--full-run-attempt-2-at-8138097-interrupted-2026-10-20)
+has the full record. The status table of attempt 1 is still current:
+AC-M3-01, AC-M3-02(b) and AC-M3-04 are not complete. Attempt 3 needs a new
+window.
