@@ -86,7 +86,28 @@ These are author checks, not independent feature acceptance.
 The portal and player slice followed as `b3544ca`, merged as `42055ff`.
 It adds provider routes, connection details, capability guards, publishing and results labels, and learner text.
 Author checks passed: portal and player typechecks, targeted lint and 136 tests in 11 files.
-Canvas backend implementation and the Blackboard wizard mount remain pending.
+The Blackboard wizard mount remains pending.
+Canvas backend implementation started after the foundation transfer below.
+
+The shared backend foundation is committed as `2aa9263`.
+It contains the provider types, registries, shared origin and role helpers, route interfaces and five Canvas stubs.
+The backend owner had frozen those five stubs in `msg_2eb8c5b7802a`.
+The Lead captured the 26 named files with matching content hashes and tested an isolated clone.
+The Canvas branch advanced to this commit without changing its ongoing portal edits.
+Exclusive ownership of the five Canvas modules transferred in `msg_f0102e0ecabc`.
+Canvas accepted in `msg_ed519996cc5c`; the backend owner received `msg_a57aa8f39711`.
+The common connection fields (`lms`, `profile`, `serviceUrl`) remain the next backend dependency for Canvas routes.
+
+The first isolated root check at `2aa9263` passed lint, typechecks and 789 of 790 tests.
+One Canvas test read a teacher heading before its separate request completed.
+The author retained the assertion and waited for that heading.
+The follow-up also fixes older polls replacing a successful write and preserves registered teacher guidance.
+It is committed as `a8736b2`, merged as `410e0eb`.
+The Lead's isolated root check at `410e0eb` passes lint, all typechecks and 791 tests in 55 files, with zero skips.
+The command used the real course fixtures through `COURSE_FIXTURES_DIR`.
+Local check logs are `/tmp/cogniate-lead-foundation.bzkF2F.check.log` and `/tmp/cogniate-lead-foundation.bzkF2F.followup-check.log`.
+This is a checked WIP foundation and portal snapshot. Canvas and Blackboard backend behavior is still incomplete.
+Author screenshots in `apps/portal/evidence/M2/author-self-check/` use mocked API responses and make no SIM or live claim.
 
 The teams agreed on the player interface in `msg_a05ac85fc3b8` and `msg_7df7bdfe2bcc`.
 The backend emits `data-lms-name` on the play page element and the content-origin runtime body.
