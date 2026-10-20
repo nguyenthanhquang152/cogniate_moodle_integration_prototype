@@ -81,6 +81,26 @@ The original Claude Reviewer-A owns the next bounded review, `task_016398b7ed4e`
 This supersedes that pending task's initial Codex assignment; the Codex Reviewer-A remains retained without edit authority.
 No old fenced dispatch is resumed, and no completed patch is overwritten. All original file ownership and the three-worker limit still apply.
 
+### Owner-requested Claude-only remaining work (2026-10-20)
+
+The owner now directs: "For remaining tasks, use full Claude Code Opus 5.5 xhigh."
+This supersedes the mixed-model assignments above for all remaining implementation, QA, review and documentation work.
+Use only `claude-opus-5-5` at `xhigh` for those tasks; do not fall back to Codex under the earlier quota exceptions.
+Completed Codex commits, checks and reviews remain valid records with their original model attribution.
+The Lead continues orchestration, exact-path integration and gate tracking.
+
+- Original Claude Canvas QA keeps the active M2/T7 task and exclusive stack window.
+- Original Claude Reviewer-A performs the bounded final harness review.
+- Common/Blackboard QA transfers its unfinished verification through a durable handoff and settlement to a fresh, independent Claude QA session.
+- Reviewer-B's current source review had already settled when the handoff request arrived. A fresh, independent Claude Reviewer-B owns any remaining B review task.
+- The original Claude backend Author, Architect and Docs remain available for their roles. Any further Canvas product repair goes to a dedicated Claude author, with an explicit ownership handoff from the completed Codex lane.
+
+New Claude sessions must read the handoff and current frozen revision before work.
+An old task brief's Codex model or instance wording does not override this owner instruction.
+No replacement may edit a path before the prior owner settles and the Lead grants a new dispatch.
+A fresh QA session has no stack authority until the Lead explicitly assigns a clean window.
+The three-worker limit, file ownership, independent QA and blind reviews remain in force.
+
 ## One common engine
 
 Moodle, Blackboard and Canvas use the same LTI engine.

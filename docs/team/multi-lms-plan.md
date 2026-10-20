@@ -889,6 +889,31 @@ Its handoff `msg_c61b25991fd2` adds the final seven source paths while keeping i
 Original Claude Reviewer-A's bounded final harness review is ready as `task_69b4e5e2f147` for the next free worker slot.
 The three-worker limit, independent review, retained failure history and live-provider limits still apply.
 
+### Complete M2 PASS and Claude-only continuation
+
+Original Claude Canvas QA reports **64/64 PASS** at `004568b` in `msg_3835fc45edc0`.
+Run: `qa-e2e-sim-r4-004568bd-2026-10-20T13-56-30-961Z`; one result per case, no skips, retries or flaky cases.
+Both providers pass the real HTML teacher pick, learner completion and score-sent flow.
+The runner scan reports 74 values over 63 files with zero hits; the independent scan reports 68 values over 80 files with zero hits.
+Private coverage includes each provider's Deep Linking response JWT, resource-link ID token, play IDs and runtime tokens, plus picker IDs.
+The after-check at 14:00:03 UTC reports zero containers, all seven full volume records and baseline networks unchanged, no runner, and unchanged Docker memory/CPU.
+These are SIM results, not live LMS proof.
+Under the existing conditional authorization, Claude QA started three default T7 runs plus demo and confirmation on the same frozen SHA.
+
+Codex Reviewer-B settled its source review in `msg_dd51db5abaaa` with APPROVE through `004568b`.
+Its three held reports are committed at `00f1717eed4ed591a1b48e67bb52eeffb969abdd`.
+The review preserves historical failures and claims no runtime gate.
+Original Claude Reviewer-A now runs the bounded final harness task `task_69b4e5e2f147` in `ctx_458a1f109271`.
+Its handoff includes only attributed QA runtime evidence and keeps it blind to B's new conclusions.
+
+The owner now requires Claude Code Opus 5.5 xhigh for all remaining work.
+The [team brief](multi-lms-team-brief.md#owner-requested-claude-only-remaining-work-2026-10-20) supersedes the earlier mixed-model assignments and fallback exceptions.
+Reviewer-B had already settled when the transfer request arrived; no further Codex review is assigned.
+Lead message `msg_5f746bedb9c8` requests common QA's durable handoff and incomplete-task settlement.
+A fresh independent Claude QA session will continue the same unfinished verification after that handoff.
+Original Claude Canvas QA keeps its task and stack window without interruption.
+All new implementation, QA, review and documentation assignments use Claude; completed Codex work retains its true attribution.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
