@@ -1737,6 +1737,18 @@ This clarifies the task brief; it changes no architecture or acceptance criterio
 
 All 416 original acceptance assertions and 72 storage rows remain required. No assertion waiver or Docker window is granted.
 
+Author checkpoint `msg_5e0627470c2d` reports the first storage implementation and passing host probe, lock and recovery controls.
+It is not a source freeze or independent verdict. Its shell-entry fixtures still need the approved Option C update.
+Architect task `task_ef3a4a661c2f`, dispatch `ctx_00a1865dca19`, answered three output questions read-only in `msg_b00eb2939295`.
+The Lead retained the Architect before acknowledgment and sent the binding direction in `msg_f487225f3ac0`.
+
+The required correction preserves this order: complete backup validation, target state, backup source kind, then pair rules.
+An invalid target must retain its specified refusal code for either backup source kind.
+Report-mode identity metadata is permitted before the final summary, after privilege drop, with no file contents.
+The separate event must preserve one `storage_preflight` line per folder and be documented in `infra/README.md`.
+The `--rm -T` invocation matches the measured command form, subject to its recorded environment and runtime limits.
+These are existing-contract interpretations, not new design or runtime approval. Both source reviews still verify their implementation.
+
 Docs started in `msg_ec29e7a52a8a` and submitted G1's current design-closure record in `msg_1405db3332a1`.
 Held SHA-256: `84b95ce1992885fe9ca93597bd3dda53052b46900f7400f06d9db4ae1e1b8ae4`.
 The Lead checked the scoped diff, hash and preserved earlier sections, then released the worker before acknowledgment.
