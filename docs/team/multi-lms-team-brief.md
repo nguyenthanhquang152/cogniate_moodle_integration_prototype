@@ -46,6 +46,16 @@ Under the same owner-authorized fallback, a separate dedicated Codex GPT-6-Astra
 It takes only the Canvas QA paths in its task brief and remains independent of both authors, common QA and the reviewers.
 This replaces the task's old Claude-instance requirement for the retry. The original Claude QA session stays retained without edit authority.
 
+### Reviewer-A quota replacement (2026-10-20)
+
+The Claude Reviewer-A session ended at its provider limit when final review `task_74de10f72cf9` started.
+It made no new review edits or completion report. The Lead fenced `ctx_b1fbdd75524c` after reading the transcript to its end.
+The owner's existing Codex replacement authorization covers a separate GPT-6-Astra xhigh Reviewer-A retry of the same task.
+This supersedes that task's old model and instance restriction for the retry only.
+The replacement owns only the three `reviewer-a.md` reports named in the task.
+It remains independent of both authors, both QA workers and Reviewer-B, with the same blind review rule.
+The earlier Claude reports remain history. The old Claude session stays retained without review edit authority.
+
 ## One common engine
 
 Moodle, Blackboard and Canvas use the same LTI engine.

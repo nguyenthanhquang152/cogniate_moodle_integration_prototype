@@ -571,6 +571,11 @@ The same backend replacement runs the separate startup smoke in `ctx_49f1b164723
 Its isolated source is `a8580dd`, which has the same product and simulator runtime as `eb43247`.
 These three tasks fill the worker slots. No independent acceptance stack has started.
 
+Reviewer-A's new turn ended at 12:12:12 UTC with the Claude session-limit notice, before any new review edit or `worker_done`.
+The Lead followed the transcript to its end, fenced `ctx_b1fbdd75524c`, and marked the same task failed for quota recovery.
+The [team brief](multi-lms-team-brief.md#reviewer-a-quota-replacement-2026-10-20) assigns a separate Codex GPT-6-Astra xhigh Reviewer-A retry under the owner's existing fallback authorization.
+The reviewed candidate stays `eb43247`; no product, harness or review gate changes.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
