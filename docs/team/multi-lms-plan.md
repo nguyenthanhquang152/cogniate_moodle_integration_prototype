@@ -1721,7 +1721,21 @@ The Author started in `msg_1618035ac061`; QA started in `msg_c4bc47b90b42`.
 QA writes from the accepted criteria before reading implementation notes.
 Their files do not overlap; neither task has a Docker window or acceptance authority.
 The Author runs meaningful host/unit checks and the existing root check. QA runs host-only harness and inventory controls.
-All original assertions stay intact, and the full runtime gates follow source reviews and a frozen candidate.
+All original acceptance assertions stay intact, and the full runtime gates follow source reviews and a frozen candidate.
+
+The Author raised a unit-fixture conflict in `msg_dc57a64a7114` before changing `stack-data.test.ts`.
+Architect task `task_8d1a19a966c7`, dispatch `ctx_a1b035ce7912`, resolved it read-only in `msg_e79a9023d798`.
+The Lead retained the Architect before acknowledgment and accepted Option C in `msg_3b7b585f30b5`.
+This clarifies the task brief; it changes no architecture or acceptance criterion.
+
+- Keep every existing unit assertion and its guarantee. Adapt fixtures, fakes and command arguments to the accepted volume layout.
+- Remove the old restore primitive that bypasses the journal and database identities. Do not retain an undocumented bind-writing route.
+- Count database-program calls separately from the Node lock helper. Rejected operations must still leave database data unchanged.
+- Exercise journaled restore through a valid temporary volume layout and the real database program.
+- Add controls for identity refusal, unchanged legacy binds, damaged backups, preserved sidecars, generation and restore provenance.
+- Map the old and new unit guarantees for both source reviewers. Unit stand-ins do not prove the real container path.
+
+All 416 original acceptance assertions and 72 storage rows remain required. No assertion waiver or Docker window is granted.
 
 Docs started in `msg_ec29e7a52a8a` and submitted G1's current design-closure record in `msg_1405db3332a1`.
 Held SHA-256: `84b95ce1992885fe9ca93597bd3dda53052b46900f7400f06d9db4ae1e1b8ae4`.
