@@ -194,3 +194,42 @@ No MAJOR is waived or deferred. This section records changes; it closes no findi
 - **Unmeasured** (ADR-012 §17 assumptions 1–9), among them: directory `rename` and `ps -o lstart=` behavior on the host; a `docker compose run` container that keeps running after its client gets `SIGKILL`; `run --name`/`--label` and `docker ps --filter volume=`; restart durations inside the existing test windows; Linux hosts.
 
 All runtime gates run again after the implementation. All 32 live rows stay `UNVERIFIED`. No acceptance credit comes from this design.
+
+## Round 3 bounded corrections (to the Round 3 rechecks; ADR-012 revision 3.1)
+
+The two earlier sections above are kept as history. This section applies to revision 3.1. It is a bounded correction of the concrete Round 3 findings that the Lead's "Storage Round 3 escalation and bounded correction" lists. It is not a new general design round, and it labels no finding deferred or approved.
+
+Inputs at `7f2c2c5db6f398291106b778f19811ca3dfaa440` (Round 3 of each report checks revision 3, frozen at `b3bd22e2ada43f45499db5e50cfb4cafc8295fb9`):
+
+| Report (Round 3 section) | Verdict and findings | SHA-256 of the whole report |
+| --- | --- | --- |
+| `docs/reviews/M0/storage-reviewer-a.md` | APPROVE (design); new A-S-12 MINOR | `c5bac73f38f3ca4f2d897b090b6195420f22bb2f54aa5993cab9eeed312429b8` |
+| `docs/reviews/M0/storage-reviewer-b.md` | APPROVE (design); new B-S-20 MINOR (required), B-S-21 NIT | `42dd201aa7fdbe28f3b83681438cc3310a36106fd7daf026565d71eae6205b60` |
+| `docs/reviews/M0/storage-qa.md` | FAIL (design testability); R3-01, R3-02 MAJOR (text gaps), R3-03 to R3-06 MINOR, R3-07 NIT; 488 = 416 + 72 confirmed | `ee614e70eba8aeae165533109eb36bf8089412c8a62ce42b7cad91b1b0dec1df` |
+
+The same owners check these dispositions in their Round 3 addenda. This text closes no finding.
+
+| Id | Sev. | Resolution |
+| --- | --- | --- |
+| QA R3-01 | MAJOR | Done. M1 `e-old-schema`: the copy list adds the course package folders that the copied app database names (QA reads the distinct `package.storage_path` values from a copy, never the original) and places them in the storage lane **before** the legacy backup. The import prints a new `storage_content_check` line (ADR-012 §8); the row records `result: "pass"` and `checked` equal to QA's own count. The credential, lane and source limits are unchanged. |
+| QA R3-02 | MAJOR | Done. ADR-012 §11: new container kind `storage-p5`, the second named exception while a service runs. It mounts only `<project>_appdb`, never `ltidb`; it writes only `cogniate.db` and its SQLite sidecars; `cogniate-app` is positively stopped by the approved P5 guard; the stop, write and start run inside one `storage-oplock.sh run --`; `lti-service` may run. §7 and §11 name the existing harness `docker compose stop`/`start` actions (T5b P2 and P5, the AC-M1-23/30 stops, Moodle) as accepted harness actions, not operator starts. AC-M3-02 states the same; no assertion changes. |
+| A-S-12 | MINOR | Done (bounded correction, not an accepted limit). ADR-012 §7 "Process ownership": the lock record also holds `pgid`; a record is live while its owner identity is live **or** another process has that group, so a Docker client that survives a parent-only `SIGKILL` keeps the record live also before it creates a container. Guarded commands keep their Docker clients in their group; the Build Runner (source fact S6) is started in its own group. The design does not claim that every `npm` or script call has its own group (source fact S7): in a shared group a killed command's record stays live (fail-closed, `operation_in_progress`, with a stated exit). Self-check: `storage-oplock.sh selftest` scenario `orphan-client` (run once per round by QA as a harness self-check, and in the Author's tests); stack-level case `a-lock-stale` (4). Unit cases: M1 Self-check. |
+| B-S-20 | MINOR (required) | Done. ADR-012 §7 "Primitives": every lock folder move is `rename(2)` through `node:fs.renameSync`, never shell `mv`; every `ps` call writes and compares under `LC_ALL=C`. Self-check scenarios `rename-held` and `locale`; unit case with a non-C locale on one side. |
+| B-S-21 | NIT | Done. ADR-012 §7 `stack:down` row and §9: `stack:down` (`down --remove-orphans`) removes the service containers and the project network and keeps the volumes and the knobs file (source fact S8). |
+| QA R3-03 | MINOR | Done. ADR-012 §9 step 1 completes the removal of its own ended copy container (by its run label) before step 2. |
+| QA R3-04 | MINOR | Done. M1 `a-serialize`: QA waits for the backup's `storage_lock_acquired` event or the live record, whichever comes first. |
+| QA R3-05 | MINOR | Done. M1 `h-target-state` uses one lane at two points: a `--stop-after staged` refusal then `--recover`, and the `FRESH` state between `g-quarantine` and `g-fresh-target`. |
+| QA R3-06 | MINOR | Done. M1 `h-pair-mismatch` runs after `g-fresh-target`: one more quarantine, then `stack:up` makes a fresh pair whose `pairId` QA checks differs from `B`'s, then the restore of `B` refuses `pair_mismatch`. |
+| QA R3-07 | NIT | Done. ADR-012 §7 scope: `demo` has no lock of its own (its internal `stack-up.sh` takes it); `demo:prepare`, `demo:users` and `demo:browser` start no container. |
+
+### Facts used by these corrections
+
+- **Source facts** (`git show`, read only; ADR-012 §17): S6 the Build Runner start in `stack-up.sh`/`lib.sh` is a plain `nohup … &` job; S7 QA's `tests/host/lib.mjs` `run` does not detach, and P5/P2 use `docker compose stop`/`start cogniate-app`; S8 `stack-down.sh:7` is `down --remove-orphans` in all three trees.
+- **Architect scratch probes** (design feasibility only, not acceptance; no Docker, no product command; macOS APFS, `/bin/bash` 3.2.57, Node 24.21.0; ADR-012 §17 P1–P5): `renameSync` onto a non-empty folder fails with `ENOTEMPTY` (onto an empty one it replaces); `mv` moves a folder into an existing one; `ps -o lstart=` differs under `fr_FR.UTF-8`; after a parent-only `SIGKILL` the child stays in the owner's own group, and a non-detached child shares its caller's group; `( set -m; … & )` gives a job its own group.
+- **Unmeasured** (ADR-012 §17 assumptions 4, 10, 11 added or changed): the Linux behavior of P1–P5; whether the `docker compose` client (or the `docker` front process) stays in the command's group; whether `down --remove-orphans` touches a running storage container.
+
+### Row accounting
+
+No row is added or removed. Each full round still has **488** mandatory rows: the 416 existing rows (unchanged ids, phases, labels and assertions) and the 72 AC-M1-41 rows (a 10, b 3, c 2, d 7, e 13, f 6, g 20, h 7, i 2, j 2). Changed oracles or fixtures: `a-serialize`, `a-lock-stale` (new case 4), `e-old-schema`, `g-orphan-refusal`, `g-orphan-stopped`, `h-pair-mismatch`, `h-target-state`. The lock self-check is a harness self-check, not a row.
+
+No implementation, runtime or acceptance approval follows from this text. All 32 live rows stay `UNVERIFIED`, and every required M1, legacy, M2 and T7 rerun remains.

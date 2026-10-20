@@ -1530,6 +1530,24 @@ The Lead checked the record and unchanged prior text, then released the worker b
 G1 is UNRESOLVED. It names both MAJOR findings, required corrections and the independent closure gate.
 This record does not waive findings, claim human approval or open implementation.
 
+The Architect submitted bounded revision 3.1 in `msg_3b1754e35f60`.
+It changed eight architecture files; `local-stack.md` needed no change.
+The Lead checked all held hashes and preserved response history, then retained the worker before acknowledgment.
+ADR-012 hash: `02e2cff7573f1cac9befb436ef4972ae72a2d0c68cb544b9f58879d727e6c8a6`.
+Response hash: `a221d6b642f64b66cb49d145908c54ae7cb36f1b91b6f51178b750b2960635c3`.
+Revision 3.1 adds group liveness and keeps Docker clients in the guarded command's group.
+The Build Runner gets its own group. Shared caller groups refuse recovery until their remaining processes end.
+Lock renames use rename(2); process identity uses LC_ALL=C.
+The revision adds the package-copy oracle, app-only P5 container, exact harness actions and the listed precision corrections.
+Scratch host probes support only macOS process, locale and rename behavior. They give no acceptance credit.
+Docker client group behavior, Linux behavior and the other §17 assumptions still need build-step evidence.
+No row is added or removed. The three bounded disposition checks remain required.
+
+Two later source tasks are queued behind those checks and explicit Lead acceptance:
+backend Author `task_3b908985fd0b` and independent common QA preparation `task_58a1e33ac60f`.
+They may run in parallel after an accepted frozen design. Neither has a Docker window.
+Their completion does not replace retries of the failed full verification tasks.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.

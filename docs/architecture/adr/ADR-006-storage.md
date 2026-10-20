@@ -1,6 +1,6 @@
 # ADR-006: Storage — SQLite per service, package files on disk, caches in memory
 
-Status: Accepted (round 2). Date: 2026-10-16. The storage **location** of the SQLite files is amended by [ADR-012](ADR-012-sqlite-volume-storage.md) (proposed, revision 3, 2026-10-21); every other decision here stays. Tables: [`data-model.md`](../data-model.md).
+Status: Accepted (round 2). Date: 2026-10-16. The storage **location** of the SQLite files is amended by [ADR-012](ADR-012-sqlite-volume-storage.md) (proposed, revision 3.1, 2026-10-21); every other decision here stays. Tables: [`data-model.md`](../data-model.md).
 
 ## Context
 

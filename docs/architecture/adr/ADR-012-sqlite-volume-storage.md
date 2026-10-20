@@ -1,13 +1,14 @@
 # ADR-012: SQLite state on project-scoped named volumes, with a lock prerequisite
 
-Status: Proposed, **revision 3** (design for independent review; not accepted). Date: 2026-10-21. Owner: Architect. Amends [ADR-006](ADR-006-storage.md) (storage location) and [ADR-011 §14](ADR-011-multi-lms.md#14-compatibility-migration-upgrade-and-rollback) (maintenance commands).
+Status: Proposed, **revision 3.1** (revision 3 with the bounded Round 3 corrections; design for independent check; not accepted). Date: 2026-10-21. Owner: Architect. Amends [ADR-006](ADR-006-storage.md) (storage location) and [ADR-011 §14](ADR-011-multi-lms.md#14-compatibility-migration-upgrade-and-rollback) (maintenance commands).
 
 Revision history:
 - Revision 1 was frozen at `6a5eb6a` and reviewed in `docs/reviews/M0/storage-reviewer-a.md`, `storage-reviewer-b.md` and `storage-qa.md` (committed at `2bb918f`).
 - Revision 2 answers every finding. The ID-by-ID response is [review-response-storage](../review-response-storage.md).
 - Revision 2 was frozen at `7a63744` and rechecked in Round 2 of the same three reports (committed at `584ab9e`).
 - Revision 3 answers the Round 2 findings (response: Round 3 section of [review-response-storage](../review-response-storage.md)).
-- The same three reviewers recheck revision 3; this text does not close any finding.
+- Revision 3 was frozen at `b3bd22e` and rechecked in Round 3 (committed at `7f2c2c5`). Revision 3.1 makes only the bounded corrections that the Lead's Round 3 escalation lists (response: "Round 3 bounded corrections" in [review-response-storage](../review-response-storage.md)). It is not a new general design round.
+- The same three reviewers check their exact findings against revision 3.1; this text does not close any finding.
 
 ## 1. Context
 
@@ -225,10 +226,12 @@ All lock records are folders in `.tmp/` of the checkout, each with an `owner.jso
 | `storage-op.<P>.stale-<runId>/` | a reclaimed lock record, kept as evidence (§7 takeover); no storage command deletes it |
 | `storage-op.<P>.rel-<runId>/` | a released lock that its owner is deleting |
 
-`owner.json`: `{ formatVersion: 1, project, checkout (absolute path), command, runId, pid, pidStart, acquiredAt, containers: [names] }`.
+`owner.json`: `{ formatVersion: 1, project, checkout (absolute path), command, runId, pid, pidStart, pgid, acquiredAt, containers: [names] }`.
 - `pid` is the process of the guarded command (or of the wrapper of §12, or of `storage-oplock.sh run`).
-- `pidStart` is the start time of that process as `ps -o lstart= -p <pid>` prints it.
-- The **process identity** is the pair (`pid`, `pidStart`). It is **live** only when `ps -o lstart= -p <pid>` prints exactly `pidStart`. So a reused pid, or a pid after a host reboot, is not live.
+- `pidStart` is the start time of that process as `LC_ALL=C ps -o lstart= -p <pid>` prints it. `pgid` is its process group, from `LC_ALL=C ps -o pgid= -p <pid>`.
+- **Locale.** Every `ps` call of the lock, for writing and for comparing, runs with `LC_ALL=C`, whatever the caller's locale is. (Scratch probe on the measured host, §17 P3: `lstart` printed `Wed Oct 21 …` under `C` and `mer. 21 oct. …` under `fr_FR.UTF-8`.)
+- The **owner identity** is the pair (`pid`, `pidStart`). It is live only when `LC_ALL=C ps -o lstart= -p <pid>` prints exactly `pidStart`. So a reused pid, or a pid after a host reboot, is not live.
+- A **record is live** when its owner identity is live, **or** when any process other than the checking process has the record's `pgid` (`LC_ALL=C ps -ax -o pid=,pgid=`, read once and matched in the helper's own code). The group part covers a Docker client that survives a kill of only its parent script (A-S-12): the client is still in the group, so the record stays live, also before the client has created its container.
 - Each record is written to `owner.json.tmp`, then `fsync`, then `rename`. A lock folder appears only by the `rename` of a complete candidate folder, so a lock never has an incomplete record.
 - The holder adds each storage container name to `containers` before it creates that container. This is evidence for messages; safety does not depend on it.
 
@@ -239,32 +242,54 @@ All lock records are folders in `.tmp/` of the checkout, each with an `owner.jso
 | A1 | Write `cand-<runId>/owner.json` for this command. |
 | A2 | `rename(cand-<runId>, lock)`. It succeeds only when no lock exists, because a held lock folder is never empty. Success → A6. Failure because the lock exists → A3. |
 | A3 | Read the lock record `K`. A lock folder without a valid record for 10 s → refuse `operation_lock_invalid`, naming the folder (manual exit: the M4 guide; only when no storage command of this checkout runs). |
-| A4 | `COGNIATE_STORAGE_LOCK_RUN` in this process equals `K.runId` → refuse `operation_lock_reentry` at once. Else, `K`'s process identity is live → wait, poll each 1 s, for up to 120 s; then refuse `operation_in_progress`, naming `K.command`, `K.runId`, `K.pid` and `K.acquiredAt`. When the lock goes, → A2. |
-| A5 | `K`'s process identity is not live (a **stale** record). If any **active** storage container of P exists → refuse `storage_writer_active`, naming its name, id, state and `org.cogniate.storage.run` label. Nothing moves. Else read the lock record again: not `K` → A2. Still `K` → `rename(lock, stale-<K.runId>)`. Success → log `storage_lock_reclaimed`, then A2. Failure (the lock is gone, or `stale-<K.runId>` exists because another command reclaimed `K` first) → A2. |
-| A6 | This command holds the lock. Before its first Docker write it checks the storage containers of P again: an **active** one → refuse `storage_writer_active` and release; an **inactive** one → remove it by id (`docker rm <id>`, never `-f`, never `-v`) and log `storage_container_removed`. Then it deletes each `cand-*` and `rel-*` folder whose recorded process identity is not live (`storage_lock_cleanup`). It exports `COGNIATE_STORAGE_LOCK_RUN=<runId>` to its children. |
+| A4 | `COGNIATE_STORAGE_LOCK_RUN` in this process equals `K.runId` → refuse `operation_lock_reentry` at once. Else, the record `K` is live → wait, poll each 1 s, for up to 120 s; then refuse `operation_in_progress`, naming `K.command`, `K.runId`, `K.pid` and `K.acquiredAt`. When the lock goes, → A2. |
+| A5 | The record `K` is not live (a **stale** record: owner identity ended and group empty). If any **active** storage container of P exists → refuse `storage_writer_active`, naming its name, id, state and `org.cogniate.storage.run` label. Nothing moves. Else read the lock record again: not `K` → A2. Still `K` → `rename(lock, stale-<K.runId>)`. Success → log `storage_lock_reclaimed`, then A2. Failure (the lock is gone, or `stale-<K.runId>` exists because another command reclaimed `K` first) → A2. |
+| A6 | This command holds the lock. Before its first Docker write it checks the storage containers of P again: an **active** one → refuse `storage_writer_active` and release; an **inactive** one → remove it by id (`docker rm <id>`, never `-f`, never `-v`) and log `storage_container_removed`. Then it deletes each `cand-*` and `rel-*` folder whose record is not live (`storage_lock_cleanup`). It exports `COGNIATE_STORAGE_LOCK_RUN=<runId>` to its children. |
 
 Why a takeover never removes a current owner:
-- A stale record stays stale: a process identity that is not live cannot become live again.
-- The second read in A5 happens after the liveness test. So if it still shows `K`, the owner of `K` can no longer release it, and only a takeover can move it.
+- A stale record has an ended owner identity, and an ended identity cannot come back. So the owner of `K` can never release it again. (A reused group id can make a stale record look live again; that only makes other commands wait: fail-closed.)
+- The second read in A5 happens after the liveness test. So if it still shows `K`, only a takeover can move it.
 - A takeover moves `K` only to the name `stale-<K.runId>`. That folder is never empty and never deleted, so a second `rename` to the same name fails. It cannot move a newer lock.
 - An orphaned writer blocks the takeover (A5) and every new holder (A6). No new writer starts while an old storage container is active.
 
-The only primitives are `mkdir`, `rename` and `ps` on the host. No `flock` and no new product API are needed.
+### Process ownership (A-S-12)
+
+| Rule | Detail |
+| --- | --- |
+| Docker clients stay in the group | A guarded command starts every Docker client (`dc run`, `dc up`, `docker rm`, …) as a foreground child, or as a plain background job that it waits for. A child that is not put in a new group stays in the command's group. The scripts use no `setsid`, `disown` or `set -m` for a Docker client. |
+| Long-lived helpers leave the group | The only long-lived background process that a guarded command starts is the Build Runner (`stack-up.sh` → `start_build_runner` in `lib.sh`, today `nohup … &`; source fact S6). It is started in its own process group (`set -m` for that one job). So it never keeps a lock record live after `stack:up` ends. (Scratch probe P5: a `( set -m; nohup … & )` job got its own group; a plain `&` job did not.) |
+| The caller gives the group | The design does **not** claim that every `npm` or script call has its own group. An interactive shell gives each command line its own job group. QA's harness starts each guarded command that a row may kill as its own group (Node `spawn` with `detached: true`); the current `tests/host/lib.mjs` `run` does not detach (source fact S7). |
+| Shared group: fail-closed | When the caller runs a guarded command in a group that it shares with other long-lived processes (for example a harness process), a record of a killed command stays live while that group lives. Other commands then wait and refuse `operation_in_progress`. Exit: end that caller or its group, or wait, then run the command again. Safety does not depend on the group being private; only the time to recover does. |
+
+**Primitives.** The lock uses only `mkdir`, the `rename(2)` system call and `ps` on the host. `storage-oplock.sh` does every folder `rename` and every record write through `node` (`node:fs.renameSync`, `fsync`), never through shell `mv`. Reason: `mv a b` moves `a` **into** an existing folder `b` and succeeds, so A2 and the takeover would not be exclusive (scratch probe P1–P2: `renameSync` onto a non-empty folder fails with `ENOTEMPTY`; `mv` moved the folder inside). No `flock` and no new product API are needed.
+
+**Lock self-check.** `bash infra/scripts/storage-oplock.sh selftest` runs on the host without Docker, in a new scratch folder `.tmp/storage-op-selftest-<16 hex>/` with the project name `selftest-<16 hex>`. Its container checks see no container. It removes its scratch folder. Each scenario has a bound of 30 s; the whole run has 90 s.
+
+| Scenario | Expected |
+| --- | --- |
+| `rename-held` | a candidate `rename` onto a held lock fails, and a second takeover onto an existing `stale-<id>` fails |
+| `locale` | a record written under `LC_ALL=C` is still live when the check runs from a caller environment with another locale (for example `LC_ALL=fr_FR.UTF-8`, if installed); the line also records whether a raw `ps -o lstart=` differs in that locale |
+| `orphan-client` | a stub owner in its own group starts a stub client child; the owner gets `SIGKILL` alone → a contender refuses `operation_in_progress`, not a reclaim; after the stub client ends → the contender reclaims (`storage_lock_reclaimed`) |
+| `dead-owner` | a record whose owner has ended and whose group is empty → reclaimed |
+| `own-group` | a background job started like the Build Runner has a group other than the command's |
+
+It prints one line per scenario, `{"event":"storage_lock_selftest","ts","runId","scenario","expected","observed","ok"}`, and exits 0 only when all are `ok`.
 
 **Release.** The holder releases after its last storage container has exited (its `dc run` returned). For `stack:up`, this is after `up --wait` and `mark-started`. Release steps:
 1. Read the record; continue only when it has its own `runId`. Else log `storage_lock_lost` and exit 1; another owner's lock is never removed.
-2. `rename(lock, rel-<runId>)`, then delete `rel-<runId>`.
+2. `rename(2)` of the lock folder to `rel-<runId>`, then delete `rel-<runId>`.
 3. Log `storage_lock_released`.
 
 An `EXIT`, `INT` or `TERM` trap releases the lock in the same way after the child `dc run` has ended. After `SIGKILL` there is no release, and the record becomes stale (A5).
 
-**Orphaned writer: the operator exit.** `storage_writer_active` names the container. Wait until it ends (a maintenance run then completes or stops at its own error), or stop it with `docker stop <name>`. A restore or import that is stopped in the middle is then a crash at that point. Run the command again: the lock is reclaimed (A5), and `stack:data-restore -- --recover` handles the journal (§8).
+**Orphaned writer: the operator exit.** `storage_writer_active` names the container. Wait until it ends (a maintenance run then completes or stops at its own error), or stop it with `docker stop <name>`. `operation_in_progress` for a record whose owner has ended means that a process of its group still runs (for example a Docker client); the message names the group and its processes. Wait for them, or end them. A restore or import that is stopped in the middle is then a crash at that point. Run the command again: the lock is reclaimed (A5), and `stack:data-restore -- --recover` handles the journal (§8).
 
 ### Scope
 
 | Command | Lock scope |
 | --- | --- |
 | candidate `stack:up`, `stack:restart`, `stack:reset`, `stack:data-backup`, `-restore` (also `--recover`), `-import`, `-quarantine`, `stack:storage-compat` (`enable`, `disable`) | the whole command |
+| candidate `demo` | no lock of its own; its internal `stack-up.sh` run takes and releases the lock, like the test commands. `demo:prepare`, `demo:users` and `demo:browser` start no container and take no lock. |
 | candidate `test:acceptance`, `test:e2e`, `e2e:reset` | no lock of their own. Each internal `stack-up.sh` or `stack-reset.sh` run takes and releases the lock. The suite container (`e2e`) is not a storage container. So a QA host-control `stack:restart` during the suite gets the lock between those internal runs. |
 | `infra/scripts/storage-oplock.sh run -- <command>` (candidate tree) | the whole command. QA uses it for its fixture writes. It must not wrap a candidate guarded command: that command then refuses `operation_lock_reentry` at once. |
 | old-build commands | only through the copied `bash .tmp/storage-compat/storage-compat.sh run -- <old command>` (§12): one lock for the whole old command, because the old scripts take no lock. Its `preflight` and `status` subcommands also take the lock. |
@@ -276,12 +301,13 @@ The lock is **not re-entrant**. No supported command starts another guarded comm
 ### Lock events
 
 Each event is one JSON line on stdout and in `infra/.logs/storage-lock.jsonl`. The host scripts write it as the host user.
-- Fields: `{event, ts, project, command, runId, pid, pidStart, owner: {runId, command, pid, pidStart, acquiredAt} | null, reason | null, waitedMs, container: {name, id, state, runLabel} | null}`.
+- Fields: `{event, ts, project, command, runId, pid, pidStart, pgid, owner: {runId, command, pid, pidStart, pgid, acquiredAt} | null, reason | null, waitedMs, container: {name, id, state, runLabel} | null}`.
 - Events:
   - `storage_lock_acquired`, `storage_lock_wait`, `storage_lock_released`, `storage_lock_lost`;
   - `storage_lock_refused`, with `reason` `operation_in_progress`, `operation_lock_reentry`, `storage_writer_active` or `operation_lock_invalid`;
   - `storage_lock_reclaimed`, with `owner` = the stale record;
-  - `storage_lock_cleanup`, `storage_container_removed`.
+  - `storage_lock_cleanup`, `storage_container_removed`;
+  - `storage_lock_selftest` (self-check lines).
 
 ### Guarded paths
 
@@ -296,7 +322,8 @@ Each event is one JSON line on stdout and in `infra/.logs/storage-lock.jsonl`. T
 | old-build starts (§12) | **yes** | the harness or the operator runs each old start command through the copied `storage-compat.sh run --` |
 | QA host-control actions `m1-restart`, `m1-profile` | **yes** | they run the candidate `stack:restart`, which takes its own lock. While the `x-cogniate-storage-compat` marker is present, the host control refuses them before it runs any command (QA-owned, §11). |
 | CLIs through `dc exec` (`seed`, `lti:bootstrap`, `lti:shared-platform`, `app:grant`, `app:binding`, `seed-portal`) | **indirectly** | They run inside a running container whose volume was checked when it started through a guarded path. They take no lock: they create no container and use working SQLite locks. |
-| `npm run stack:down` | no | It only stops services. A stop never breaks a storage rule: maintenance needs the services stopped anyway. |
+| `npm run stack:down` | no | Source fact (all three trees, `stack-down.sh:7`): `docker compose … down --remove-orphans`. It stops and **removes** the service containers and the project network, and keeps the volumes and the knobs file. It writes no database file. Whether it also stops a running storage container is not measured (§17); if it does, that is a crash at that point, and §8 recovery applies. Do not run it while a storage command runs. |
+| QA harness actions `docker compose stop` and `start` of an existing service container (T5b P2 and P5, the AC-M1-23/30 stops) | not a supported operator start | They create no container and change no mount, so they change no storage layout. The P5 write follows §11. |
 | `docker compose up`, `start` or `restart` typed by hand | **no** | Outside the supported scripts. Stated limit. The design adds **no** `depends_on: service_completed_successfully` guard, although Compose accepted one in the Author's fixture (§17). Reason: the preflight needs a mode, a fresh `runId` and the operation lock, which a compose dependency cannot give, and every compose call would need `--profile storage`. |
 | Docker restarts containers itself (`restart: unless-stopped`, for example after a VM boot) | **no** | Stated limit. dockerd restarts only containers that were running, so a lane stopped for maintenance stays stopped. Storage containers have `restart: "no"`. |
 
@@ -337,7 +364,7 @@ The volume source is read in one maintenance container that mounts both volumes 
 
 **Other target states.** Step 1 reads the target state (§6, as `report` does). A restore into any state other than `OK` or `FRESH` refuses `restore_target_state`. An import into any state other than `FRESH` refuses `import_target_not_fresh`. The output names the state (for example `FIRST_START`, `FRESH_INIT_PARTIAL` or a §6 refusal code) and the next step: `--recover` or quarantine for a journal row, `stack:up` to finish a first start, or quarantine. Nothing changes.
 
-Before the swap, every restore and import runs a read-only content check on a scratch copy of the staged app database: every `package.storage_path` must exist as a directory under `infra/.data/cogniate-app/packages`, else `content_missing`, and nothing changes. This proves only that the referenced folders exist. It does not prove that their files are the same.
+Before the swap, every restore and import runs a read-only content check on a scratch copy of the staged app database: every `package.storage_path` must exist as a directory under `infra/.data/cogniate-app/packages`, else `content_missing`, and nothing changes. This proves only that the referenced folders exist. It does not prove that their files are the same. The command prints and logs one line `{"event":"storage_content_check","ts","opId","result":"pass"|"content_missing","checked":<count of distinct storage_path values>,"missing":[…]}`.
 
 ### Journal and states
 
@@ -429,7 +456,7 @@ The existing AC-M1-30 oracles stay true:
 ## 9. Quarantine: the non-destructive exit
 
 `npm run stack:data-quarantine -- --out <folder outside the checkout>` is the exit from `rollback_failed`, `journal_inconsistent` and any refusal that the operator cannot repair. It runs with the operation lock held (so no storage container of the project is active, §7 A6) and with both services positively stopped (`exited`, `created`, `dead` or absent, as the existing maintenance check reads them):
-1. **Copy.** Copy **every** entry of both volumes (databases, sidecars, identities, journals, `.restore-*`, `.previous-*`) into the folder, with a manifest of names, sizes and SHA-256, written last. Verify the copy. A failure → exit 1; nothing is removed.
+1. **Copy.** Copy **every** entry of both volumes (databases, sidecars, identities, journals, `.restore-*`, `.previous-*`) into the folder, with a manifest of names, sizes and SHA-256, written last, in one storage container of this run. Verify the copy. A failure → exit 1; nothing is removed. Then complete the removal of that copy container: when a container with this command's `org.cogniate.storage.run` label still exists, it must be inactive; remove it by id (`docker rm <id>`) and check that none remains. Only then go on, so step 2 never sees the command's own container.
 2. **Volume users.** List every container, in any state, that references `<project>_ltidb` or `<project>_appdb` (`docker ps -a --filter volume=<name>`). A user may be removed only when **all** of these hold:
    - label `com.docker.compose.project=<project>`;
    - label `com.docker.compose.service` is `lti-service` or `cogniate-app`;
@@ -440,7 +467,7 @@ The existing AC-M1-30 oracles stay true:
 4. **Volumes.** `docker volume rm <project>_ltidb <project>_appdb`. A failure → exit 1 with the Docker message. The service containers of step 3 stay removed; the volumes and the copy stay.
 5. **Record.** Write `quarantine.json` in the folder and print one `storage_quarantine` line: `{ts, project, out, manifestSha256, removedContainers: [{name, id, service}], removedVolumes}`.
 
-So the documented stop (`docker compose stop`, or the old or candidate `stack:down`, which keeps the stopped containers) leads to a successful quarantine.
+So both documented stops lead to a successful quarantine: `docker compose stop` keeps the stopped service containers, and step 3 removes them; `stack:down` (`down --remove-orphans`) already removed them and kept the volumes, so step 2 finds no service container.
 
 It does **not** touch the legacy bind files, the content folders, the Moodle volumes, any other container, any other project, or any backup. The lane is then `FRESH`. The operator restores a known backup into it (§8, FRESH target) or imports. Exit `0` when the copy verified and both volumes are gone.
 
@@ -487,10 +514,12 @@ Common rules for every QA container:
 | `storage-oracle` (`--rm`) | QA's own oracle script, and the same scratch bind as `c-host-negative` | QA's independent two-process lock oracle on that folder, before the probe, in the same round. It never mounts the product probe. |
 | `storage-decoy` (`-d --rm`) | `<checkout>/infra/.data/lti-service` read-only at `/data` | `e-old-layout` only: also the label `com.docker.compose.project=<project>`, command `sleep 300`. It opens no database. QA removes it by id (`docker rm -f <id>`) right after the row. |
 | `storage-volume-user` (`docker create`, never started) | `<project>_ltidb` read-only | `g-quarantine-in-use` only. QA removes it by id after the row. |
+| `storage-p5` (`--rm`) | only `<project>_appdb` read-write, and QA's P5 script. Never `<project>_ltidb`. | The T5b P5 fixture: the second named exception while a service runs. QA runs the approved P5 sequence inside one `storage-oplock.sh run -- <QA P5 step>`: the existing `docker compose stop cogniate-app` (the approved app-stop guard), the check that `cogniate-app` is positively stopped, the write, then the existing `docker compose start cogniate-app`. The write touches only `cogniate.db` and the `-wal` and `-shm` files that SQLite uses for it. `lti-service` may run, because it does not mount `appdb`. The P5 assertions do not change. |
 
 Other QA rules:
 - **Independence.** QA's own scripts parse identities, journals and lock records, hash files and read rows. They never use the product maintenance code as their oracle. The product commands are what QA tests.
-- **Existing fixtures.** The T5b P5 fixture keeps its approved app-stop guard and its assertions; only its database access moves into the `storage-fixture` container. `tests/host/m1-migration.mjs` and `m1-migration.selftest.mjs` read and write volume copies the same way.
+- **Existing fixtures.** The T5b P5 fixture keeps its approved app-stop guard and its assertions; only its database access moves into the `storage-p5` container.
+- **Harness actions.** The existing harness `docker compose stop` and `start` of an existing service container stay as they are: T5b P2 (stop and start `cogniate-app`), T5b P5 (above), the AC-M1-23/30 stops of both services, and the Moodle stop and start. They are accepted harness actions, not supported operator starts (§7). They create no container and change no mount. `tests/host/m1-migration.mjs` and `m1-migration.selftest.mjs` read and write volume copies the same way.
 - **Lock records.** For `a-lock-stale`, QA writes lock record folders in `.tmp/` of the storage clone as the host user (§7 format).
 - **Host control.** While `.tmp/compose.knobs.yaml` holds the `x-cogniate-storage-compat` marker, QA's host control (`tests/host/m1-control.mjs`) refuses `m1-restart` and `m1-profile` before it runs any command. This is recorded as a harness self-check (§13).
 
@@ -608,7 +637,8 @@ The fixture is built so that the two generations differ **logically** in both da
 Harness self-checks are recorded in a separate harness section of the run, **not** as product rows:
 - a one-byte change of the override, the probe, the runner or the lock helper → the harness reports `BLOCKED`;
 - an override copy with one added environment key → the config check reports a not-allowed difference;
-- with the marker present, a host-control `m1-restart` or `m1-profile` request → the host control refuses before it runs any command.
+- with the marker present, a host-control `m1-restart` or `m1-profile` request → the host control refuses before it runs any command;
+- once per round, before the `storage` phase: `bash infra/scripts/storage-oplock.sh selftest` (§7) exits 0 with every scenario `ok`. A failure makes the `storage` phase `BLOCKED`.
 
 ## 14. The single conditional row
 
@@ -640,9 +670,9 @@ Cleanup semantics:
 
 | Owner | Files |
 | --- | --- |
-| Backend Author (owns `infra/**`) | `infra/compose.yaml` (volumes, nested binds, `storage-preflight`, a `maintenance` service); `infra/scripts/sqlite-lock-probe.mjs` (new) and its unit test; `infra/scripts/storage-oplock.sh` (new: acquisition A1–A6, takeover, release, lock events, `run --`); `infra/scripts/stack-up.sh`, `stack-restart.sh`, `stack-reset.sh` (lock only), `qa-suite.sh` and `e2e-reset.sh` (guard only; no lock of their own); `infra/scripts/stack-data.sh`, `stack-data.mjs`, `lib.sh` (storage containers with name and run label, `--source legacy`, `stack:data-import`, `stack:data-quarantine` with the volume-user rule, the journal, the checked move, the R3 order, the target-state refusals, `--recover`, `--stop-after`, `--pause-after`); `infra/compat/*`, `infra/scripts/storage-compat.sh`; root `package.json` scripts; `infra/README.md`; `services/lti-service/src/cli/stack-data.test.ts` (new cases; existing assertions unchanged) |
+| Backend Author (owns `infra/**`) | `infra/compose.yaml` (volumes, nested binds, `storage-preflight`, a `maintenance` service); `infra/scripts/sqlite-lock-probe.mjs` (new) and its unit test; `infra/scripts/storage-oplock.sh` (new: acquisition A1–A6 with the group rule, takeover, release, lock events, `run --`, `selftest`; every `rename` and record write through `node`, every `ps` with `LC_ALL=C`); `lib.sh` `start_build_runner` (its own process group); `infra/scripts/stack-up.sh`, `stack-restart.sh`, `stack-reset.sh` (lock only), `qa-suite.sh` and `e2e-reset.sh` (guard only; no lock of their own); `infra/scripts/stack-data.sh`, `stack-data.mjs`, `lib.sh` (storage containers with name and run label, `--source legacy`, `stack:data-import`, `stack:data-quarantine` with the volume-user rule, the journal, the checked move, the R3 order, the target-state refusals, `--recover`, `--stop-after`, `--pause-after`); `infra/compat/*`, `infra/scripts/storage-compat.sh`; root `package.json` scripts; `infra/README.md`; `services/lti-service/src/cli/stack-data.test.ts` (new cases; existing assertions unchanged) |
 | Product code | none |
-| Independent common QA (Claude) | `tests/host/m1-migration.mjs`, `tests/host/m1-migration.selftest.mjs`, `tests/host/p5-fixture.mjs` (database access through §11; guards and assertions unchanged); `tests/host/run-t1.mjs` (the information-only `**/.data` scan no longer sees database bytes; note it); `tests/host/m1-control.mjs` (refuse `m1-restart` and `m1-profile` while the compat marker is present); the QA fixture scripts and container kinds of §11 under `tests/host/`; the QA suite case that `a-lock-scope` runs; the 72 AC-M1-41 rows and their accounting |
+| Independent common QA (Claude) | `tests/host/m1-migration.mjs`, `tests/host/m1-migration.selftest.mjs`, `tests/host/p5-fixture.mjs` (database access through §11; guards and assertions unchanged); `tests/host/run-t1.mjs` (the information-only `**/.data` scan no longer sees database bytes; note it); `tests/host/m1-control.mjs` (refuse `m1-restart` and `m1-profile` while the compat marker is present); a detached start (own process group) for each guarded command that a row kills; the `storage-p5` P5 access; the QA fixture scripts and container kinds of §11 under `tests/host/`; the QA suite case that `a-lock-scope` runs; the 72 AC-M1-41 rows and their accounting |
 | Architect | this ADR, ADR-006, `local-stack.md`, ADR-011 §14, M1, M3, the indexes, `review-response-storage.md` |
 | Docs (M4) | operator guide: import, backup, restore, recovery, quarantine, rollback mode with the override, cleanup semantics |
 
@@ -670,17 +700,32 @@ Cleanup semantics:
 | S3 | Both old `qa-suite.sh` call `stack-up.sh` twice in one `test:acceptance` (acceptance profile, then the default restore). | §12 `run --` |
 | S4 | The candidate host control (`tests/host/m1-control.mjs`) runs `npm run stack:restart` in the clone for `m1-restart` and `m1-profile`. | §7 scope, §11 |
 | S5 | The candidate `stack-reset.sh` removes every container with the project label (`docker rm -f`) and then the project volumes. | §7 guarded paths |
+| S6 | The candidate `stack-up.sh` calls `start_build_runner` (`lib.sh`), which starts `build-runner.sh watch` with `nohup … &`, a plain background job. No other guarded script starts a long-lived background process. | §7 process ownership |
+| S7 | QA's `tests/host/lib.mjs` `run` uses `spawn` without `detached`; its timeout sends `SIGTERM`, then `SIGKILL`, to the child pid only. `tests/host/p5-fixture.mjs` and the P2 action of `tests/host/run-t5.mjs` run `docker compose stop cogniate-app` and `start cogniate-app`; P5 then opens `cogniate.db` with `node:sqlite`. | §7, §11 |
+| S8 | `stack-down.sh:7` in `b0b83a8`, `9f96f7b` and the candidate: `docker compose --profile test --profile acceptance down --remove-orphans`. | §7, §9 |
+
+**Architect scratch probes** (design feasibility only, not acceptance; no Docker, no product command; macOS Darwin 27.0.0 on APFS, `/bin/bash` 3.2.57, Node 24.21.0; scratch folders under `/tmp`):
+
+| # | Observed | Design use |
+| --- | --- | --- |
+| P1 | `fs.renameSync` of a folder onto a non-empty folder failed with `ENOTEMPTY`, also for a second takeover onto an existing `stale-<id>`; onto an **empty** folder it succeeded (replace) | §7 A2, A5 (a lock or `stale-*` folder is never empty) |
+| P2 | `mv m1 m2` with an existing `m2` moved `m1` into `m2` and exited 0 | §7: never `mv` |
+| P3 | `ps -o lstart=` for one process: `C` and `vi_VN.UTF-8` printed the same text; `fr_FR.UTF-8` printed another text | §7: `LC_ALL=C` |
+| P4 | a stub owner started as its own group, then `SIGKILL` to the owner alone: its foreground child stayed in the group; after the child ended, the group was empty. A child started without its own group shared the caller's group (the caller's shell and Node were in it). | §7 group rule; shared group = fail-closed |
+| P5 | in a script, `( set -m; nohup sleep … & )` gave the job its own group; a plain `nohup … &` job kept the script's group | §7 Build Runner rule |
 
 **Assumptions still to verify in the build step (not claimed, not measured):**
 1. M1–M7 also hold for the candidate and the old product Compose files, with the project's `--env-file` and the old `dc()` arguments.
 2. The named volume enforces the SQLite WAL lock with the product's `node:sqlite` (shown by QA's earlier diagnostic; not part of the feasibility diagnostic). The probe checks this at every guarded start.
 3. `node:sqlite` reports the extended result code in its error (`errcode`), so 5, 261 and 517 can be told apart.
-4. On the host (macOS APFS; Linux ext4): `rename` of a complete folder onto an absent name is atomic, and `rename` onto a non-empty folder fails. `ps -o lstart= -p <pid>` prints the same start time for a live process each time, and nothing for an ended one.
+4. On Linux hosts: the `rename(2)` and `ps` behavior of P1, P3 and P4–P5 (measured only on macOS). On every host: `LC_ALL=C ps -o lstart= -p <pid>` prints the same text for a live process each time, and nothing for an ended one.
 5. A `docker compose run --rm` container keeps running after its client gets `SIGKILL` (the A-S-09 premise). The design does not depend on whether Docker or the client removes it after it ends: A6 removes an inactive leftover.
 6. `docker compose run` accepts `--name` and `--label` for the storage containers, and `docker ps -a --filter volume=<name>` lists every container that references a named volume, in any state.
 7. `docker inspect` shows the mount type, source and destination needed by `status`.
 8. The added preflight time of each guarded `stack:restart` stays inside the existing test windows (for example the 60 s lease windows of AC-M1-37). QA records the measured restart durations. No test window or lease changes.
 9. On Linux hosts, the bind-source owner rules and real UIDs give the same result as M2–M3.
+10. The Docker client of a guarded command stays in the command's process group while it runs: the `docker compose` plugin process, or at least the `docker` front process that waits for it (not measured: Docker was not used in the probes).
+11. Whether `docker compose … down --remove-orphans` without `--profile storage` stops or removes a running storage container (a `run` container of a profiled service). The design depends on neither answer (§7 `stack:down` row).
 
 ## 18. Consequences
 
