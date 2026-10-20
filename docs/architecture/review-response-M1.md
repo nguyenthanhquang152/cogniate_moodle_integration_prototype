@@ -778,3 +778,72 @@ Operator diagnosis is internal:
 - `app:grant issue` prints its own cause line (R3.4).
 
 Cases 37 (w), (y2), (aa), 29 (k1) and 38 (h2) assert the text and the logged `cause`. The create-time refusal (`lms: blackboard` without an active shared platform, app contract §4.2) uses the same neutral text and logs `cause: platform_inactive`.
+
+---
+
+# B-M1-03 proposal D: acceptance and application record
+
+Task `task_cf7e2e942594`, dispatch `ctx_50ca8c5ba951` (Lead gate message `msg_2a5205155c10`).
+
+**Accepted design:** proposal D **revision 3** at `78bc34ac422e0bcac324fa10e69ec9f82a17a3b8` (the section above). Approvals for that exact text:
+
+| Report | Verdict |
+| --- | --- |
+| Reviewer-A, Round 3, `docs/reviews/M1/reviewer-a-target-snapshot.md` | APPROVE (one optional NIT, A-D-09) |
+| Reviewer-B, Round 3, `docs/reviews/M1/reviewer-b-target-snapshot.md` | APPROVE |
+| Codex QA, Round 3, `docs/reviews/M1/qa-target-snapshot.md` | PASS for design testability |
+
+All three Round 3 reports were committed together at `b6e8f739e6de752cb287929c9836734d2494e444`. The proposal text above (revision 3, revision 2 and D1–D8) stays unchanged as the reviewed record. This record and the normative documents below apply it. The original product finding B-M1-03 stays open until the implementation is verified independently.
+
+## Amendment map (R3.9 applied)
+
+| Revision 3 section | Normative document and section |
+| --- | --- |
+| R3.1 fields and write rules | app contract §4.2 (capture at create), §4.7.3 (fields, rules, completeness); data model §4.3 (migration `012`); ADR-011 §14 (migration list) |
+| R3.1 old-`011` lifecycle and recovery order | app contract §4.7.3 (lifecycle table; recovery steps 1–5 with the `absent` and owned-record branches) |
+| R3.2 local precedence; target built inside phase 1 | app contract §4.4 (order of steps 1–5; Blackboard `clientId` source order; finalized repeat before phase 1), §4.7.1 (Terms "Target" and "Provider snapshot"; check 4a; check 5 source; target construction), §4.7.2 (`POST …/deployments`: no provider read, no V) |
+| R3.3 V, post-V decision, readiness answers, V limit, budget | app contract §4.7.1 (S0 before V; row V; post-V decision table with audit reasons; readiness answers of S1; V limit; six-call budget; LTI failure exception) |
+| R3.3 platform id premise | LTI contract §9.4 (a platform id is never reused) |
+| R3.4 issue | app contract §4.8 (Issue checks; Issue output: an `initial` issue reads providers once; `add_deployment` makes no LTI call) |
+| R3.5 configuration rows | app contract §4.5 (Blackboard `client_id` row source; `409` instead of a null row) |
+| R3.6 outcomes | app contract §4.7.1 outcome table (seven new rows) |
+| R3.7 event contract | app contract §4.7.1 (log after commit), §12 (`grant_attempt_started`) |
+| R3.7 bounded test use | M1 AC-M1-37, B-M1-03 evidence rules (1)–(5) |
+| R3.8 ids and supplemental list | M1 AC-M1-37 (v1)–(v12), (w), (x1)–(x2), (y1)–(y2), (z1)–(z5), (aa); AC-M1-29 (k1)–(k3); AC-M1-38 (h1)–(h5), (i1)–(i5); the supplemental unit list; M1 design note and scope |
+| R3.8 both full runs; separate route | M3 AC-M3-01 and run order step 2 |
+| R3.10 neutral text and cause log | app contract §4.2, §4.4, §4.7.1 row 5, §4.7.3 (text and cause table), §12 (`provider_not_ready`); M2 error-text table (the Blackboard card text does not change) |
+
+Every existing acceptance criterion and race variant stays as it was. No accepted outcome changed.
+
+## Final nonblocking text dispositions (Reviewer-A A-D-09)
+
+| Item | Disposition |
+| --- | --- |
+| 1. Implementation paths; create-time log | Done. `services/cogniate-app/src/app/connections.ts` is in the implementation list below; its hard-coded old create-time action text is replaced by the neutral text. The create-time `provider_not_ready` line has `connection_id: null`, because no connection exists yet (app contract §4.2, §4.7.3, §12). |
+| 2. Cause precedence | Done. When `sharedPlatform` exists and its `id` or `clientId` differs, the cause is `platform_changed`, before `platform_inactive`. Exact order in app contract §4.7.3 (profile missing; wrong sharing; no shared platform; another id or client; another issuer; inactive). Operator diagnosis only; no public field. |
+| 3. Deleted or re-created after V | Done. The app contract §4.7.1 outcome row now names the approved cancellation-first alternative (post-V rows 1–3), as the Canvas row does. |
+
+These are wording changes. They change no approved outcome and add no scope.
+
+## Implementation files and interfaces (for the Lead's assignments; no ownership transfer)
+
+| Owner (current) | Files | Required change |
+| --- | --- | --- |
+| Backend Author (shared engine, Blackboard) | `services/cogniate-app/src/domain/migrations/012_connection_provider_snapshot.sql` (new), `services/cogniate-app/src/domain/connections.ts` | three nullable columns and their read model (data model §4.3) |
+| | `services/cogniate-app/src/app/connections.ts` | create: write the snapshot from the one providers answer; neutral create-time text; `provider_not_ready {connection_id: null}`. `PUT …/platform`: no providers read before phase 1; Blackboard `clientId` local source order. `tool-configuration`: local `client_id` source, `409` instead of a null row |
+| | `services/cogniate-app/src/app/binding-targets.ts`, `services/cogniate-app/src/app/redemption.ts` | target built and saved inside phase 1 from local rows (all three endpoints); check 4a; `grant_attempt_started` after the commit; V and the post-V decision; readiness answers of S1; `provider_not_ready` causes |
+| | `services/cogniate-app/src/app/operator.ts` | `app:grant issue` rules of §4.8 |
+| | `services/cogniate-app/src/app/api-errors.ts` | neutral `PROVIDER_NOT_READY` title and action |
+| | colocated unit tests | the M1 supplemental list |
+| Canvas Author-2 | `services/cogniate-app/src/providers/canvas.ts` and its test | interface: the `exclusive_platform` create request adds `url` = the issuer saved in the target |
+| | `apps/portal/src/connect/provider-errors.tsx` and its test | `PROVIDER_NOT_READY` → the neutral text; the Blackboard card text stays |
+| LTI service | none | the never-reused id premise already holds; it is now contract text |
+| Codex QA / QA-E2E | `tests/**` (as assigned) | common and Blackboard ids, the `011` route and accounting / the Canvas variants |
+
+## Checks
+
+`git diff --check`, the Markdown link and anchor check, and the table column check are clean for every changed file. The id inventory is exhaustive and the same in M1, M3 and this record: AC-M1-37 23 ids in 21 bullets ((z1)–(z3) share one bullet), AC-M1-29 3 ids, AC-M1-38 10 ids.
+
+No unresolved contradiction was found. Two places were checked and need no change, so they stay outside this task's files:
+- flows §6h-2 shows the unchanged create-time `PROVIDER_NOT_READY`;
+- security §12 states no rule that the design changes.

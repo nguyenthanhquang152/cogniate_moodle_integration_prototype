@@ -1,6 +1,6 @@
 # Data model and state machines
 
-Status: T0 round 2; multi-LMS changes in §4 (M0, 2026-10-20). Storage choice: [ADR-006](adr/ADR-006-storage.md).
+Status: T0 round 2; multi-LMS changes in §4 (M0, 2026-10-20); §4.3 from the accepted B-M1-03 design (M1, [review-response-M1](review-response-M1.md)). Storage choice: [ADR-006](adr/ADR-006-storage.md).
 
 Each service has its own SQLite file. Every LTI service row has `tool_account_id` (directly or through its parent). Every Cogniate app row has `library_id` (directly or through its parent). Repository functions take the tenant id as a required argument.
 
@@ -415,7 +415,7 @@ CREATE TABLE binding_attempt (
   grant_id        TEXT NOT NULL REFERENCES binding_grant (id),
   purpose         TEXT NOT NULL,                        -- initial or add_deployment (copy of the grant)
   lti_profile     TEXT NOT NULL,                        -- target: profile
-  issuer          TEXT NOT NULL,                        -- target: canonical issuer (profile issuer, or canonical site for canvas-self-hosted; Blackboard: shared issuer)
+  issuer          TEXT NOT NULL,                        -- target: canonical issuer, from local data at phase 1 (connection.target_issuer; add_deployment: platform_json issuer)
   client_id       TEXT NOT NULL,                        -- target: client id
   deployment_id   TEXT NOT NULL,                        -- target: deployment id
   lti_platform_id TEXT,                                 -- target platform; set at phase 1 when known (Blackboard, Canvas add_deployment), else by S1 or S2
@@ -519,3 +519,22 @@ erDiagram
 | Tenant scope | Every query of `connection_deployment` and `binding_grant` that serves a portal request includes `library_id`. Only launch routing and the grant redemption read reservations by (`lti_platform_id`, `deployment_id`). |
 
 `resource_link` keeps its unique key (`connection_id`, `deployment_id`, `context_id`, `resource_link_id`). For Canvas and Blackboard the context and resource link ids are unique within the platform deployment, so the key stays correct.
+
+### 4.3 Cogniate app: `012_connection_provider_snapshot.sql`
+
+Accepted B-M1-03 design (proposal D revision 3, app contract §4.7.3). Forward only and additive. No backfill; `011` and its ledger entry are not edited.
+
+| Table | Change | Default for old rows | Meaning |
+| --- | --- | --- | --- |
+| `connection` | `target_issuer TEXT` | `NULL` | canonical issuer of the provider target: Canvas cloud and sim profile issuer, canonical `site_url` for `canvas-self-hosted`, Blackboard shared issuer |
+| `connection` | `target_platform_id TEXT` | `NULL` | Blackboard: the shared platform id at create |
+| `connection` | `target_client_id TEXT` | `NULL` | Blackboard: the shared client id at create |
+
+| Rule | Detail |
+| --- | --- |
+| Writer | Only the `POST /app-api/connections` handler, in the insert transaction, from the one `GET /api/providers` answer that it reads. No `UPDATE`, no request field, no CLI flag; not in the DTO. |
+| Moodle | Moodle rows keep `NULL`; Moodle code never reads the fields. |
+| Complete | Canvas: `target_issuer` not null. Blackboard: all three not null. A partial row counts as missing. |
+| Readers | Phase 1 of an `initial` redemption (check 4a, check 5, the attempt target, the check 7 key), the Blackboard V check, `app:grant issue` (`initial`), `tool-configuration` (Blackboard `client_id`). `add_deployment` and every cleanup command never need them. |
+| Old rows | A Canvas or Blackboard row from an `011` build has `NULL` fields; app contract §4.7.3 gives its lifecycle and recovery. |
+| Rollback | Unchanged ADR-011 §14 procedure; an older build never starts on a `012` ledger. |

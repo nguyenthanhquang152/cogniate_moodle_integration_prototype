@@ -517,6 +517,8 @@ Order: `standard`, `canvas-cloud-production`, `canvas-cloud-beta`, `canvas-cloud
 
 ### 9.4 Platforms: fields and rules
 
+A platform `id` is random and is **never reused**: a platform that is deleted and created again (also with the same issuer and client id) always gets a new id (B-M1-03 design, app contract §4.7.1 "V limit").
+
 New fields in every platform answer (§3.9):
 
 | Field | Value |
