@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { run } from './lib.mjs';
 
-export function m1HostControl(r) {
+export function m1HostControl(r, runCommand = run) {
   const dir = path.join(r.CLONE, 'tests/acceptance/artifacts/control');
   const done = new Set(), active = new Set();
   const compose = ['compose', '-f', 'infra/compose.yaml', '--env-file', '.env'];
@@ -15,17 +15,19 @@ export function m1HostControl(r) {
         || !Array.isArray(req.args) || req.args.some((a) => typeof a !== 'string' || a.includes('\0'))
         || req.args.length > 40) return { code: 2, stdout: '', stderr: 'CLI whitelist', durationMs: 0 };
       const service = req.script.startsWith('lti:') ? 'lti-service' : 'cogniate-app';
-      return run('docker', [...compose, 'exec', '-T', service, 'npm', 'run', req.script,
+      // Both containers start in their service directory. Resolve npm's workspace
+      // selector from the mounted /repo/package.json, not from that child folder.
+      return runCommand('docker', [...compose, 'exec', '-T', '--workdir', '/repo', service, 'npm', 'run', req.script,
         '-w', `services/${service}`, '--', ...req.args],
       { cwd: r.CLONE, env: r.STACK_ENV, timeoutMs: 30_000 });
     }
     if (req.action === 'm1-restart' && ['cogniate-app', 'lti-service'].includes(req.service)) {
-      return run('npm', ['run', 'stack:restart', '--', req.service], {
+      return runCommand('npm', ['run', 'stack:restart', '--', req.service], {
         cwd: r.CLONE, env: { ...r.STACK_ENV, STACK_PROFILE: 'acceptance' }, timeoutMs: 180_000,
       });
     }
     if (req.action === 'm1-profile' && ['acceptance', 'default'].includes(req.profile) && ['on', 'off'].includes(req.simulation)) {
-      return run('npm', ['run', 'stack:restart', '--', 'lti-service', '--env', `LTI_PROVIDER_SIMULATION=${req.simulation}`],
+      return runCommand('npm', ['run', 'stack:restart', '--', 'lti-service', '--env', `LTI_PROVIDER_SIMULATION=${req.simulation}`],
         { cwd: r.CLONE, env: { ...r.STACK_ENV, STACK_PROFILE: req.profile }, timeoutMs: 180_000 });
     }
     return { code: 2, stdout: '', stderr: 'Unknown M1 host action', durationMs: 0 };

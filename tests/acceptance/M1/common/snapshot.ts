@@ -8,15 +8,15 @@ import {
   host, httpsRequest, poll, release, unique, urls, type Json,
 } from './client';
 import {
-  METHODS, READINESS_TITLE, READINESS_ACTION, auditCursor, auditWindow, received, onlyV, vBeforeMutation,
+  READINESS_TITLE, READINESS_ACTION, auditCursor, auditWindow, received, onlyV, vBeforeMutation,
 } from './snapshot-oracle.mjs';
+import { armCapture } from './gate-capture.mjs';
 export { received, onlyV, vBeforeMutation, READINESS_TITLE, READINESS_ACTION };
 export const exactPath = (p: string) => '^' + p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$';
 export async function gateMark() { return (await gateEvents(0)).at(-1)?.seq ?? 0; }
-export async function watchAll(action = 'pass') {
-  await gateRules(METHODS.map((method) => ({ id: unique('snapshot-watch'), method, pathRegex: '^/',
-    action, times: 100_000 })));
-  return gateMark();
+export async function watchAll(action = 'pass', faults: Json[] = []) {
+  return armCapture({ setRules: gateRules, readEvents: () => gateEvents(0) },
+    { action, faults, idPrefix: unique('snapshot-watch') });
 }
 function capture() {
   let log;
@@ -100,7 +100,7 @@ export function saveSnapshotEvidence(id: string, value: Json) {
   }, null, 2));
 }
 export async function snapshotScope(id: string, body: () => Promise<void>) {
-  await gateReset(); const since = await gateMark(), startedAt = new Date().toISOString();
+  await gateReset(); const since = await watchAll(), startedAt = new Date().toISOString();
   try { await body(); }
   finally {
     saveSnapshotEvidence(id, { startedAt, endedAt: new Date().toISOString(), events: await gateEvents(since) });

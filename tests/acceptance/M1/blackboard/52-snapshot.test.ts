@@ -1,7 +1,7 @@
 import { waitForLog } from '../../lib/logs';
 import {
   admin, app, assert, bound, cli, connPath, createConnection, denied, expectStatus, gateEvents, gatePhase,
-  gateReset, gateRules, issueGrant, launch, logEvents, m1Test, redeem, release, remote, service,
+  gateReset, issueGrant, launch, logEvents, m1Test, redeem, release, remote, service,
   session, unique, type Json,
 } from '../common/client';
 import { openPlay, publication } from '../common/course';
@@ -20,7 +20,7 @@ async function local(p: Pending, request: () => ReturnType<typeof apply>, status
   expectStatus(r, status, code); return r;
 }
 async function vRule(id: string, action: string) {
-  await gateRules([{ id, method: 'GET', pathRegex: '^/api/providers$', action, times: 1 }]);
+  await watchAll('pass', [{ id, method: 'GET', pathRegex: '^/api/providers$', action, times: 1 }]);
 }
 async function freshRedemption(p: Pending) {
   const rule = unique('phase-before-v');
@@ -49,7 +49,7 @@ caseOf(37, 'v2', 'unknown code refuses locally with a bounded no-attempt oracle'
 caseOf(37, 'v5', 'a dead handler retains its lease across restart without provider reads', async () => {
   const p = await pending(), control = await pending(p.platformId);
   const rule = unique('dead');
-  await gateRules([{ id: rule, method: 'POST', pathRegex: exactPath(`/api/platforms/${p.platformId}/deployments`), action: 'hold_before', times: 1 }]);
+  await watchAll('pass', [{ id: rule, method: 'POST', pathRegex: exactPath(`/api/platforms/${p.platformId}/deployments`), action: 'hold_before', times: 1 }]);
   const first = apply(p).catch(() => null), held = await gatePhase(rule, 'held_before');
   const started = await waitForLog('cogniate-app', (e) => e.event === 'grant_attempt_started' && e.grant_id === p.grant.id, 1000);
   assert.ok(started, 'BLOCKED: first attempt was not captured before restart');
@@ -65,7 +65,7 @@ caseOf(37, 'v7', 'foreign reservation is refused locally without changing the ap
   const b = await pending(a.platformId, 'B', a.deploymentId), control = await pending(a.platformId);
   const before = await remote(a.platformId, a.deploymentId);
   await watchAll('fail_before'); await local(b, () => apply(b), 409, 'DEPLOYMENT_IN_USE');
-  await captureControl(control); await gateReset();
+  await captureControl(control); await gateReset(); await watchAll();
   assert.deepEqual(await remote(a.platformId, a.deploymentId), before);
   expectStatus(await service(key, 'GET', '/api/lineitems'), 200);
 });
@@ -82,7 +82,7 @@ caseOf(37, 'v11', 'explicit wrong client is strict-body refusal while matching a
     { deploymentId: p.deploymentId, grantCode: p.grant.code, clientId: 'wrong-client' }), 422, 'INVALID_PLATFORM_VALUES');
   assert.deepEqual(r.json.details.fields, ['clientId']);
   assert.equal(logEvents('grant_rejected', 0, { trace_id: r.traceId }).length, 0);
-  await captureControl(p); await gateReset();
+  await captureControl(p); await gateReset(); await watchAll();
   expectStatus(await oneAttempt(p), 200);
   expectStatus(await app(matching.s, 'PUT', connPath(matching.connection.id) + '/platform',
     { deploymentId: matching.deploymentId, grantCode: matching.grant.code, clientId: 'qa-bb-app' }), 200);
@@ -101,7 +101,7 @@ caseOf(37, 'v12', 'local guards and finalized repeat retain precedence across a 
     const repeat = await noRequests(() => refusedWithoutAttempt(a.connection.id, 'PUT', () =>
       redeem(a.s, a.connection, a.deploymentId, spare)));
     expectStatus(repeat, 200); assert.deepEqual(repeat.json.platform, a.connection.platform);
-    await captureControl(control); await gateReset();
+    await captureControl(control); await gateReset(); await watchAll();
   }
   assert.deepEqual(await grantList(p.connection.id), before);
 });
@@ -110,7 +110,7 @@ caseOf(37, 'x1', 'V transport failure frees the grant and retry has a new V and 
   const mark = await gateMark(); expectStatus(await oneAttempt(p), 502, 'LTI_SERVICE_ERROR');
   onlyV(await gateEvents(0), mark); assert.equal(await remote(p.platformId, p.deploymentId), undefined);
   await issuedAndPending(p); await gateReset();
-  const retry = await gateMark(); expectStatus(await oneAttempt(p), 200);
+  const retry = await watchAll(); expectStatus(await oneAttempt(p), 200);
   vBeforeMutation(await gateEvents(0), retry); await successful(p);
 });
 caseOf(37, 'x2', 'timed-out V cannot resume after its late answer is delivered', async () => {
@@ -120,7 +120,8 @@ caseOf(37, 'x2', 'timed-out V cannot resume after its late answer is delivered',
   await gatePhase('v-timeout', 'caller_gone', 2000); await release(held.request_id);
   onlyV(await gateEvents(0), mark); await issuedAndPending(p);
   assert.equal(await remote(p.platformId, p.deploymentId), undefined);
-  await gateReset(); expectStatus(await oneAttempt(p), 200); await successful(p);
+  await gateReset(); const retry = await watchAll();
+  expectStatus(await oneAttempt(p), 200); vBeforeMutation(await gateEvents(0), retry); await successful(p);
 });
 caseOf(37, 'y1', 'deactivation after V pins the target but parent readiness is not atomic', async () => {
   const p = await pending();
@@ -163,11 +164,11 @@ for (const [variant, action, mismatch] of [
 caseOf(37, 'z5', 'cleanup fences the earlier lost-S3 target even after a new V failure', async () => {
   const p = await pending();
   try {
-    await gateRules([{ id: 'lost-activation', method: 'PATCH',
+    await watchAll('pass', [{ id: 'lost-activation', method: 'PATCH',
       pathRegex: exactPath(`/api/platforms/${p.platformId}/deployments/${p.deploymentId}`), action: 'drop_after', times: 1 }]);
     expectStatus(await oneAttempt(p), 502, 'LTI_SERVICE_ERROR');
     const a = await remote(p.platformId, p.deploymentId); assert.equal(a?.active, true);
-    await setActive(p.platformId, false); await gateReset();
+    await setActive(p.platformId, false); await gateReset(); await watchAll();
     await readiness(await oneAttempt(p), p.connection.id, 'platform_inactive');
     assert.deepEqual(await remote(p.platformId, p.deploymentId), a);
     const deleted = await app(p.s, 'DELETE', connPath(p.connection.id)); expectStatus(deleted, 204);

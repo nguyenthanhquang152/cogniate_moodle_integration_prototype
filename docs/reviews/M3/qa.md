@@ -1,3 +1,11 @@
+Verdict: FAIL — M3 evidence is incomplete; further execution is on HOLD
+Round: execution dispatch 1, repair checkpoint, 2026-10-20
+
+The T2/T3 group below passed at its exact frozen candidate. The later harness
+repair is preparation only and does not replace that run or close M3.
+
+## Historical preparation checkpoint
+
 Verdict: PREPARATION ONLY — product and provider verification NOT RUN
 Round: target-snapshot accounting, 2026-10-20
 Owner: retained independent common/Blackboard QA
@@ -30,3 +38,155 @@ public fixtures, public APIs, CLI and gate controls. No stack, signup, tunnel
 or Docker Desktop change was attempted. The execution lane remains held
 until the Lead freezes the integrated tests and candidate and dispatches
 the clean runs.
+
+
+## Execution checkpoint 1 — T2/T3 legacy, 2026-10-20
+
+Status: the executed T2/T3 group is PASS; M3 remains incomplete.
+Active dispatch: `task_ed3b08aa45ea` / `ctx_8d51e8033a8a`.
+Product and test SHA: `eb43247d02df622d5da72dafac41d919f65a91fe`.
+Run: `qa-multi-r1-eb43247d-2026-10-20T12-21-21-904Z`.
+Window: 12:21:21–12:30:03 UTC. Lane: `qa-multi-r1`, port `8443`,
+subnet `172.29.0.0/16`.
+
+The exact frozen tree was cloned outside integration. No test, product or
+infra correction was made. The fixture hashes match the two required ZIPs.
+The retained common/Blackboard QA executed this run. The existing independent
+QA tests supply the expected results; author self-checks are not this evidence.
+
+Command (from the external frozen source):
+
+```sh
+COMPOSE_PROJECT_NAME=qa-multi-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 \
+STACK_PROFILE=default QA_M1_LEGACY_GUARD=1 \
+QA_PRODUCT_SHA=eb43247d02df622d5da72dafac41d919f65a91fe \
+QA_TEST_SHA=eb43247d02df622d5da72dafac41d919f65a91fe \
+COURSE_FIXTURES_DIR=/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses \
+node tests/host/run-t2.mjs --sha eb43247d02df622d5da72dafac41d919f65a91fe \
+  --source /Users/quangnguyen/cogniate-qa-runs/m3-frozen-20261020T121939Z/source \
+  --tasks T2a,T2b,T3a,T3b
+```
+
+[Case evidence](/Users/quangnguyen/cogniate-qa-runs/m3-frozen-20261020T121939Z/source/tests/host/artifacts/qa-multi-r1-eb43247d-2026-10-20T12-21-21-904Z/legacy-case-evidence.json) contains each passed
+observation's source file, command, SHA, run, label, phase, time, duration and
+redacted report path. The [host summary](/Users/quangnguyen/cogniate-qa-runs/m3-frozen-20261020T121939Z/source/tests/host/artifacts/qa-multi-r1-eb43247d-2026-10-20T12-21-21-904Z/summary.json) preserves
+all main, TTL and reset results. [Image identities](/Users/quangnguyen/cogniate-qa-runs/m3-frozen-20261020T121939Z/source/tests/host/artifacts/qa-multi-r1-eb43247d-2026-10-20T12-21-21-904Z/legacy-image-identities.json)
+include the five services and the E2E image. The [main command log](/Users/quangnguyen/cogniate-qa-runs/m3-frozen-20261020T121939Z/source/tests/host/artifacts/qa-multi-r1-eb43247d-2026-10-20T12-21-21-904Z/cmd/10-test-acceptance-passA.log),
+[TTL log](/Users/quangnguyen/cogniate-qa-runs/m3-frozen-20261020T121939Z/source/tests/host/artifacts/qa-multi-r1-eb43247d-2026-10-20T12-21-21-904Z/cmd/12-test-acceptance-knob.log) and
+[reset-pass log](/Users/quangnguyen/cogniate-qa-runs/m3-frozen-20261020T121939Z/source/tests/host/artifacts/qa-multi-r1-eb43247d-2026-10-20T12-21-21-904Z/cmd/18-test-acceptance-passC.log) record the actual executions.
+
+There are 55 passing criteria and 61 passed test observations. The main pass
+had 58 reported cases: 57 passed and the documented TTL case was deferred.
+The TTL case passed in its required knob phase; reset then rechecked launch
+and seed state. Twelve unselected observations across the three phase reports
+remain in the evidence as unselected, never as PASS. Every required criterion
+in this group has an executed passing observation. No failing or skipped
+required criterion was hidden by aggregation.
+
+All rows below share that exact SHA, command and run. The evidence index gives
+the individual times and paths. `SIM` covers synthetic protocol and metadata
+checks; `MOODLE-LIVE` covers the real Moodle launch, registration and grade flows.
+
+| Criterion | Result | Label | Passing phase |
+| --- | --- | --- | --- |
+| AC-T2-01 | PASS | SIM | passA |
+| AC-T2-02 | PASS | SIM | passA |
+| AC-T2-03 | PASS | MOODLE-LIVE | passA, passC |
+| AC-T2-04 | PASS | MOODLE-LIVE | passA |
+| AC-T2-05 | PASS | MOODLE-LIVE | passA |
+| AC-T2-06 | PASS | MOODLE-LIVE | passA |
+| AC-T2-07 | PASS | MOODLE-LIVE | knob |
+| AC-T2-08 | PASS | MOODLE-LIVE | passA |
+| AC-T2-09 | PASS | MOODLE-LIVE | passA |
+| AC-T2-10 | PASS | MOODLE-LIVE | passA |
+| AC-T2-11 | PASS | MOODLE-LIVE | passA |
+| AC-T2-12 | PASS | SIM | passA |
+| AC-T2-13 | PASS | SIM | passA |
+| AC-T2-14 | PASS | MOODLE-LIVE | passA |
+| AC-T2-15 | PASS | MOODLE-LIVE | passA |
+| AC-T2-16 | PASS | MOODLE-LIVE | passA |
+| AC-T2-18 | PASS | MOODLE-LIVE | passA |
+| AC-T2-19 | PASS | MOODLE-LIVE | passA |
+| AC-T2-20 | PASS | SIM | passA |
+| AC-T2-21 | PASS | SIM | passA |
+| AC-T2-22 | PASS | MOODLE-LIVE | passA |
+| AC-T2-23 | PASS | MOODLE-LIVE | passA |
+| AC-T2-24 | PASS | SIM | passA |
+| AC-T2-25 | PASS | SIM | passA |
+| AC-T2-26 | PASS | SIM | passA |
+| AC-T2-27 | PASS | SIM | passA |
+| AC-T2-28 | PASS | SIM | passA |
+| AC-T2-29 | PASS | SIM | passA |
+| AC-T2-30 | PASS | SIM | passA |
+| AC-T2-31 | PASS | MOODLE-LIVE | passA, passC |
+| AC-T2-32 | PASS | SIM | passA |
+| AC-T3-01 | PASS | MOODLE-LIVE | passA |
+| AC-T3-02 | PASS | MOODLE-LIVE | passA |
+| AC-T3-03 | PASS | MOODLE-LIVE | passA |
+| AC-T3-04 | PASS | MOODLE-LIVE | passA |
+| AC-T3-05 | PASS | SIM | passA |
+| AC-T3-06 | PASS | MOODLE-LIVE | passA |
+| AC-T3-07 | PASS | MOODLE-LIVE | passA |
+| AC-T3-08 | PASS | MOODLE-LIVE | passA |
+| AC-T3-10 | PASS | MOODLE-LIVE | passA |
+| AC-T3-11 | PASS | MOODLE-LIVE | passA |
+| AC-T3-12 | PASS | MOODLE-LIVE | passA |
+| AC-T3-13 | PASS | MOODLE-LIVE | passA |
+| AC-T3-14 | PASS | MOODLE-LIVE | passA |
+| AC-T3-16 | PASS | MOODLE-LIVE | passA |
+| AC-T3-17 | PASS | MOODLE-LIVE | passA |
+| AC-T3-18 | PASS | MOODLE-LIVE | passA |
+| AC-T3-22 | PASS | MOODLE-LIVE | passA |
+| AC-T3-23 | PASS | MOODLE-LIVE | passA |
+| AC-T3-24 | PASS | MOODLE-LIVE | passA |
+| AC-T3-25 | PASS | MOODLE-LIVE | passA |
+| AC-T3-26 | PASS | MOODLE-LIVE | passA |
+| AC-T3-28 | PASS | MOODLE-LIVE | passA |
+| AC-T3-29 | PASS | MOODLE-LIVE | passA |
+| AC-T3-30 | PASS | MOODLE-LIVE | passA |
+
+Default restoration passed: both services reported `profile: default` and
+`knobs: []`; LTI reported `simulation_profiles: []`. The default health bodies
+are retained under `M3-LEGACY-DEFAULT` in the host summary. The build runner
+was alive with a fresh heartbeat and `image: ready` during the acceptance
+pass. Cleanup removed all owned containers, volumes and networks. An
+independent post-cleanup check found zero containers and the same seven
+volume metadata records as before startup; the baseline was not mounted or
+modified by QA. [Boundary evidence](/Users/quangnguyen/cogniate-qa-runs/m3-frozen-20261020T121939Z/source/tests/host/artifacts/dispatch-baseline/post-t2-boundary.json).
+
+The Lead accepted this checkpoint and gave Canvas QA the next exclusive
+stack window. No M1 run or other stack starts until the Lead returns that
+window. Both complete M1 rounds, the populated 011→012 route, the separate
+released-v10 Moodle migration/rollback, and remaining legacy suites are still
+required. M2 and the three T7 runs need Canvas QA's own report; they are not
+claimed here. No live Canvas or Blackboard result is claimed.
+
+## Repair checkpoint — 2026-10-20
+
+The Lead then relayed Reviewer-A's blocking A-M3-01 capture finding and
+Canvas QA's host CLI working-directory failure. The authorized owned repair
+is recorded in [M1 QA](../M1/qa.md#repair-checkpoint--a-m3-01-and-host-cli-2026-10-20).
+Specific faults now precede all seven method capture rules; opening and
+post-reset windows are armed before their cursors. The actual gate-boundary
+checks reproduce the old blind spot. No exact-trace or zero-call assertion
+was weakened.
+
+The shared host control now runs app and LTI npm workspace commands from
+the mounted `/repo` directory. A local handler check covers both services,
+literal arguments, error result propagation and the command whitelist.
+Actual app/LTI CLI smoke is the first required check on the next frozen
+stack. Harness-only subprocess stubs do not establish that smoke.
+
+`node tests/host/run-m1.mjs --harness-only --provider all` passed 31
+self-checks, typecheck and the unchanged 416-row discovery. This was an
+uncommitted working tree; it supplies no product result. The [log and source
+record](/Users/quangnguyen/cogniate-qa-runs/m3-repair-20261020T1243Z/preparation.json)
+are separate from the immutable `eb43247` T2/T3 artifacts.
+
+Canvas QA reported its first M2 run as 35 PASS and 29 FAIL, with no skips or
+retries; the Lead relayed that 28 failures stopped at the shared CLI route.
+Those counts are Canvas QA's report, not this worker's execution or verdict.
+Canvas QA cleaned its stack. No new stack is authorized until repairs are
+committed and reviewed, the candidate is frozen again, and the Lead returns
+the lane. Both complete M1 rounds, remaining legacy suites and Canvas QA's
+M2/T7 results remain required; M3 has no overall PASS.

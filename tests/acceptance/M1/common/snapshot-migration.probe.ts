@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { artifactsDir } from '../../lib/paths';
 import {
-  admin, app, assert, bound, cli, connPath, expectStatus, gateEvents, gatePhase, gateReset, gateRules,
+  admin, app, assert, bound, cli, connPath, expectStatus, gateEvents, gatePhase, gateReset,
   logEvents, m1Test, redeem, remote, rememberSecret, service, session, type Json,
 } from './client';
 import {
@@ -48,7 +48,7 @@ function upgradeCase(variant: string, title: string, body: (state: Json) => Prom
 }
 if (stage === 'snapshot-seed') m1Test('M1-38.common.h1', 'seed public 011 states with valid grants, reservation and lost-S3 orphan', async () => {
   assert.equal(process.env.QA_M1_EXECUTING_SHA, '9f96f7b24cd0aed702e4dc40373bdda4307aad31');
-  await gateReset();
+  await gateReset(); await watchAll();
   const a = await canvasBound(), b = await bound();
   const canvasPub = await publication(a), canvasRun = await canvasPlay(a, canvasPub);
   const blackboardPub = await publication(b), blackboardRun = await openPlay(b, blackboardPub);
@@ -56,19 +56,19 @@ if (stage === 'snapshot-seed') m1Test('M1-38.common.h1', 'seed public 011 states
   assert.ok(canvasKey && blackboardKey); rememberSecret(canvasKey); rememberSecret(blackboardKey);
   const addId = canvasDeploymentId(), add = await addGrant(a, addId);
   const oldB = await pending(b.platformId);
-  await gateRules([{ id: 'old-bb-fail', method: 'POST', pathRegex: exactPath(`/api/platforms/${b.platformId}/deployments`),
+  await watchAll('pass', [{ id: 'old-bb-fail', method: 'POST', pathRegex: exactPath(`/api/platforms/${b.platformId}/deployments`),
     action: 'fail_before', times: 1 }]);
   expectStatus(await apply(oldB), 502, 'LTI_SERVICE_ERROR');
   assert.equal(await remote(b.platformId, oldB.deploymentId), undefined);
   await grantState(oldB.connection.id, oldB.grant.id, 'issued');
-  await gateReset();
+  await gateReset(); await watchAll();
   const s = await session(), c = await canvasConnection(s), clientId = canvasClientId(), deploymentId = canvasDeploymentId();
   const grant = await canvasGrant(s, c, clientId, deploymentId);
-  await gateRules([{ id: 'old-cv-lost', method: 'PATCH', pathRegex: '^/api/platforms/[^/]+$', action: 'drop_after', times: 1 }]);
+  await watchAll('pass', [{ id: 'old-cv-lost', method: 'PATCH', pathRegex: '^/api/platforms/[^/]+$', action: 'drop_after', times: 1 }]);
   expectStatus(await canvasRedeem(s, c, clientId, deploymentId, grant), 502, 'LTI_SERVICE_ERROR');
   const orphan = (await platformsFor(clientId))[0]; assert.ok(orphan); assert.equal(orphan.active, true);
   assert.equal((await connection(s, c.id)).status, 'pending');
-  await grantState(c.id, grant.id, 'issued'); await gateReset();
+  await grantState(c.id, grant.id, 'issued'); await gateReset(); await watchAll();
   const oldC = binding(s, c, clientId, deploymentId, grant);
   // Launches above may move registered -> connected; persist the actual stable view.
   a.connection = await connection(a.s, a.connection.id); b.connection = await connection(b.s, b.connection.id);
@@ -97,7 +97,7 @@ if (stage === 'snapshot-upgrade') {
           '--note', 'Old snapshot refusal']));
       assert.equal(issue.code, 1); assert.deepEqual(await grantList(p.connection.id), before);
       await captureControl(control);
-      await gateReset();
+      await gateReset(); await watchAll();
     }
     await preserve(state);
   });
@@ -116,13 +116,13 @@ if (stage === 'snapshot-upgrade') {
     expectStatus(r, 403, 'GRANT_INVALID');
     assert.equal(logEvents('grant_rejected', 0, { trace_id: r.traceId, reason: 'redeemed' }).length, 1);
     await captureControl(control);
-    await gateReset(); await preserve(state);
+    await gateReset(); await watchAll(); await preserve(state);
   });
   upgradeCase('h4', 'old Canvas adds seeded and freshly approved deployments while its original key survives', async (state) => {
     const a = state.a;
     for (const seeded of [true, false]) {
       const d = seeded ? state.addId : canvasDeploymentId();
-      const mark = await gateMark(), grant = seeded ? state.add : await addGrant(a, d);
+      const mark = await watchAll(), grant = seeded ? state.add : await addGrant(a, d);
       expectStatus(await redeemedWithOneAttempt(a.connection.id, grant.id, 'POST', () => addDeployment(a, d, grant)), 200);
       assert.equal(received(await gateEvents(0), mark).some((e) => e.path === '/api/providers'), false);
       a.connection = await connection(a.s, a.connection.id);
@@ -144,15 +144,14 @@ if (stage === 'snapshot-upgrade') {
       const send = () => isB ? apply(fresh as Pending) : canvasRedeem(fresh.s, fresh.connection,
         (fresh as Json).clientId, fresh.deploymentId, fresh.grant);
       const control = isB ? await pending(old.platformId) : null;
-      if (isB) await watchAll('fail_before');
-      const mark = await gateMark();
+      const mark = await watchAll(isB ? 'fail_before' : 'pass');
       const negative = isB ? await refusedWithoutAttempt(fresh.connection.id, 'PUT', send)
         : await redeemedWithOneAttempt(fresh.connection.id, fresh.grant.id, 'PUT', send);
       expectStatus(negative, 409, isB ? 'DEPLOYMENT_IN_USE' : 'PLATFORM_IN_USE');
       if (isB) assert.deepEqual(received(await gateEvents(0), mark), []);
       else assert.deepEqual(received(await gateEvents(0), mark).map((e) => e.method), ['POST', 'GET']);
       if (control) await captureControl(control);
-      await gateReset();
+      await gateReset(); await watchAll();
       await grantState(fresh.connection.id, fresh.grant.id, 'issued');
       await preserve(state);
       const suspended = await cli('app:binding', ['suspend', '--connection', old.connection.id, '--note', '011 snapshot recovery']);
@@ -165,7 +164,7 @@ if (stage === 'snapshot-upgrade') {
       else expectStatus(await admin('GET', '/api/platforms/' + state.orphanId), 404, 'UNREGISTERED_PLATFORM');
       await preserve(state);
       if (isB) {
-        await gateRules([{ id: 'fresh-bb-stage', method: 'POST', pathRegex: exactPath(`/api/platforms/${old.platformId}/deployments`),
+        await watchAll('pass', [{ id: 'fresh-bb-stage', method: 'POST', pathRegex: exactPath(`/api/platforms/${old.platformId}/deployments`),
           action: 'hold_after', times: 1 }]);
         const request = oneAttempt(fresh as Pending), held = await gatePhase('fresh-bb-stage', 'held_after');
         const row = await remote(old.platformId, old.deploymentId);
@@ -177,7 +176,7 @@ if (stage === 'snapshot-upgrade') {
         const r = await redeemedWithOneAttempt(fresh.connection.id, fresh.grant.id, 'PUT', send);
         expectStatus(r, 200); assert.notEqual(r.json.platform.id, state.orphanId);
       }
-      await gateReset(); await preserve(state);
+      await gateReset(); await watchAll(); await preserve(state);
       await grantState(fresh.connection.id, fresh.grant.id, 'redeemed');
     }
   });
