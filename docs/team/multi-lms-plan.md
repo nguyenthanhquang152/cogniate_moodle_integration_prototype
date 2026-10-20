@@ -1582,6 +1582,24 @@ A false or unmeasured client-group guarantee blocks implementation acceptance; n
 B-S-22 is included in the bounded specification correction.
 The two planned source tasks remain held despite their completed orchestration dependencies.
 
+These addenda and the correction scope are frozen at `0928c888543a1171944870125ac2fe2ab5e0067a`.
+Architect task `task_aa24785b66a8`, dispatch `ctx_db1896d29904`, launch `msg_2d6ea9a0b678`, start `msg_8dc77f595b0e`, owns the same architecture paths.
+Docs task `task_77ca2a4e65c9`, dispatch `ctx_b8d83b29cb9a`, updates only G1 with the new finding and previous closures.
+Its fresh launch confirms requested and effective Claude Opus 5.5 xhigh.
+Author diagnostic task `task_0b882dfdab3f`, dispatch `ctx_a5879eef31cc`, launch `msg_a40b2df41e69`, start `msg_00d787d45214`, resumed the original Author session.
+It alone owns a bounded Docker diagnostic window: two disposable containers at most, no network or named volumes, pinned existing image, no product stack.
+A gated health dependency holds the target absent while QA-style process kills are observed.
+The Author must compare all seven original protected volume records, remove only its own resources and explicitly return the window.
+The diagnostic gives no acceptance credit. The Architect and Docs have no Docker authority.
+
+The next bounded disposition tasks depend on both the correction and diagnostic settlement:
+Reviewer-A `task_98eab0aaf4c1`, Reviewer-B `task_278ec21bfdec`, common QA `task_c1ad8c306bab`.
+They still need the Lead's exact frozen handoff and verified diagnostic evidence.
+Docs submitted the updated G1 history in `msg_d784f00628e8`.
+Its held hash is `3fc5ddedb1ae808811a89b51c5f83f419482da699f93bedc8b32e701fb3ab618`.
+The Lead checked the scoped history and hash, then released Docs before acknowledgment.
+G1 now names R3B-01 as the current MAJOR and preserves the closed original findings.
+
 The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.

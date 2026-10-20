@@ -126,6 +126,12 @@ The charter does not require human permission before the authorized corrections.
 ### G1. Storage design: UNRESOLVED
 
 Topic: SQLite data on Docker named volumes ([ADR-012](../architecture/adr/ADR-012-sqlite-volume-storage.md)).
+
+**Open now:** one MAJOR finding, QA R3B-01 (fresh-volume fixtures and cleanup checks). See [G1 current status](#g1-current-status-after-the-bounded-check).
+The bounded check closed the two Round 3 MAJOR findings, QA R3-01 and R3-02.
+
+#### G1 history: Round 3
+
 Round 3 checked design revision 3 at commit `b3bd22e`. The report text is at commit `7f2c2c5`.
 
 | Check | Round 3 verdict | Report |
@@ -134,14 +140,14 @@ Round 3 checked design revision 3 at commit `b3bd22e`. The report text is at com
 | Reviewer-B | APPROVE, design only | [Round 3](../reviews/M0/storage-reviewer-b.md#round-3--recheck-of-revision-3) |
 | Common QA | FAIL, design testability: 2 MAJOR | [Round 3](../reviews/M0/storage-qa.md#round-3) |
 
-Open MAJOR findings:
+Open MAJOR findings after Round 3 (the bounded check below closed both):
 
 | Id | Problem |
 | --- | --- |
 | QA R3-01 | The old-schema import test copies the old app database, but not the package folders that it references. The content check refuses the import, so the test cannot pass. |
 | QA R3-02 | The existing T5b test P5 stops only the app, then writes the app database while the LTI service runs. The fixture write rule requires both services stopped. |
 
-Current status:
+Status after Round 3 (recorded at commit `9124cfd`):
 
 - QA rates each fix as a bounded text correction, not a design change.
 - The Architect corrects both in task `task_e7ed35da6e6b`. The same task corrects the non-blocking findings A-S-12, B-S-20, B-S-21 and QA R3-03 to R3-07.
@@ -152,4 +158,51 @@ Current status:
 
 G1 stays UNRESOLVED until the same reviewers and QA check the frozen correction and record closure.
 Do not mark G1 closed without that independent evidence.
+Add any new BLOCKER or MAJOR from that check to G1.
+
+#### G1 current status: after the bounded check
+
+The Architect's bounded revision 3.1 is frozen at commit `a65a4ee` ([response](../architecture/review-response-storage.md#round-3-bounded-corrections-to-the-round-3-rechecks-adr-012-revision-31)).
+On 2026-10-21, the same Reviewer-A, Reviewer-B and QA checked their findings against that exact commit.
+This was a bounded check, not a fourth review round.
+All three checks are complete. The report text is at commit `0928c88`.
+
+| Check | Bounded-check verdict | Report |
+| --- | --- | --- |
+| Reviewer-A | APPROVE, design only. New MINOR A-S-13. | [Addendum](../reviews/M0/storage-reviewer-a.md#round-3-bounded-disposition-addendum-2026-10-21) |
+| Reviewer-B | APPROVE, design only. New NIT B-S-22. | [Addendum](../reviews/M0/storage-reviewer-b.md#round-3-bounded-disposition-addendum--revision-31) |
+| Common QA | FAIL, bounded design testability: 1 new MAJOR | [Addendum](../reviews/M0/storage-qa.md#round-3-bounded-disposition-addendum-revision-31) |
+
+Closed: QA R3-01 to R3-07, which include both Round 3 MAJOR findings. Also closed: A-S-12, B-S-20 and B-S-21.
+
+Open MAJOR finding (it blocks implementation):
+
+| Id | Problem |
+| --- | --- |
+| QA R3B-01 | After quarantine, a lane has no volumes. Two QA fixture rows, `h-target-state` (2) and `a-first-start-resume`, mount the absent volume names. Docker then makes new volumes with no Compose labels and a root-owned root folder. QA fixtures run as the host user, so QA cannot write the fixture files. The fresh-lane and cleanup checks find volumes by label only. They do not find these volumes, so a cleanup check can falsely report "none". |
+
+Other open findings:
+
+| Id | Severity | Problem |
+| --- | --- | --- |
+| A-S-13 | MINOR | The A-S-12 lock rule assumes that the Docker client stays in the process group of the guarded command. Nobody has measured this with a real Docker client. A measurement is necessary before implementation acceptance. |
+| B-S-22 | NIT | The process-group read uses a `ps` form that is not portable. Use `LC_ALL=C ps -A -o pid= -o pgid=`. |
+
+Next steps:
+
+- The Architect corrects R3B-01 in task `task_aa24785b66a8`. QA must not mount an absent volume. The product preflight makes the fresh-lane fixtures under the operation lock. Fresh-lane and cleanup checks also find volumes by exact name. The Architect checks every fixture setup path that this rule affects.
+- The same task adds the A-S-13 build measurement gate and corrects B-S-22.
+- The original Author measures the real Docker client groups in diagnostic task `task_0b882dfdab3f`. This diagnostic gives no implementation or acceptance credit. A false or unmeasured result blocks implementation acceptance. No unreviewed fallback is authorized.
+- The Lead's direction is in the [phase plan](../team/multi-lms-plan.md#storage-round-3-escalation-and-bounded-correction).
+
+Unchanged gates:
+
+- There is no waiver, no accepted deferral and no human approval. This update adds no human approval step.
+- The implementation gate is closed. No runtime acceptance exists.
+- Each full round keeps 488 rows: the 416 existing rows plus 72 storage rows. R3B-01 adds no row.
+- Product and test files are unchanged from commit `8138097`. All runtime gates stay required. All 32 live LMS rows stay **UNVERIFIED**.
+- The final M4 guides are a separate task. They stay pending.
+
+G1 stays UNRESOLVED. R3B-01 stays open until an independent check of the frozen correction records its closure.
+Do not mark R3B-01 or G1 closed without that independent evidence.
 Add any new BLOCKER or MAJOR from that check to G1.
