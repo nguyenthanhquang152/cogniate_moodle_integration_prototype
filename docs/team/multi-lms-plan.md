@@ -1354,6 +1354,38 @@ Do not claim this flag removes the new named volumes. [Docker's volume reference
 No prune command was run; the Lead used CLI help and read the official documentation.
 The project-name reuse concern and the need for scoped cleanup remain valid.
 
+The reports and correction scope are committed at `2bb918f550f165f535aa89c4ac4993f9fbac5067`.
+Architect correction task `task_05303c6abd7a`, dispatch `ctx_7fe65ac312a1`, reuses the original Claude session.
+Launch `msg_f81a5b8e411e` grants only the eight architecture paths and an ID-by-ID response document.
+Its start is confirmed in `msg_d3f488ff5f6c`. It has no Docker or implementation authority.
+
+Author diagnostic task `task_b5db7037a739`, dispatch `ctx_f2d87fba253c`, runs in parallel (`msg_218a267dbbdc`).
+It alone owns a bounded Docker window for synthetic mount, ownership, fsync and minimal Compose checks.
+It uses the existing pinned Node image, no network or ports, at most two fresh diagnostic volumes and one running container.
+It may make one labeled disposable wake operation before the fresh boundary to avoid Docker's idle API cache.
+It cannot edit tracked files, run a product stack, pull images, change settings or import any existing database.
+It must return the window with zero owned resources and seven unchanged original protected-volume records.
+The Architect receives measured facts through the Lead; this diagnostic earns no acceptance credit.
+
+The diagnostic completed in `msg_2a11f7b555e8`; the worker is retained and the Docker window is returned.
+The report is `/Users/quangnguyen/cogniate-author-diag/storage-feasibility-20261020T2119Z/public/AUTHOR-DIAGNOSTIC-storage-feasibility.md`.
+Its SHA-256 is `32a07797786eac79ada89a07c472735f7fffb87cd13da7afc00ff6ccb18226ba`.
+Fresh volume roots and covered nested mountpoints were root-owned `0755`; the service user could not write the root.
+Exact `501:20` ownership and `0700` preparation worked across a second inspection and start.
+File and directory fsync worked; renames within one volume worked. A rename across the bind boundary returned `EXDEV`.
+The small Compose fixture passed target replacement, profile gating, one-shot execution and completed-service dependency checks.
+These facts apply to the measured Docker Desktop host and synthetic fixture only.
+Candidate and old product configurations, Linux hosts and SQLite locks were outside this diagnostic.
+The Lead checked all 14 manifest hashes and compared both boundaries with the seven original full volume records.
+Both boundaries had zero containers, no owned resources, and unchanged CPU and memory settings.
+The Lead forwarded these measured facts to the Architect in `msg_253a2126df4c`.
+
+Three independent Round 2 checks wait for this correction and its frozen commit.
+Reviewer-A: `task_b9571fcd7912`; Reviewer-B: `task_5f05dfacb229`; common QA: `task_30e5c7f55481`.
+Each returns to its original Claude Opus 5.5 xhigh session and appends to its own storage report.
+They must not read another Round 2 report before submitting their own.
+No implementation starts until both design reviews and QA testability pass.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
