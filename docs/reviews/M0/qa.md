@@ -309,3 +309,191 @@ Read on 2026-10-20. These support fixture design only; none is live product evid
 
 The next QA dispatch should implement tests from the corrected, approved criteria before reading M1 product code.
 This report does not approve implementation, verify any product behavior, or establish Canvas/Blackboard interoperability.
+
+---
+
+## 7. Round 2 — 2026-10-20
+
+**Verdict: FAIL — FOR DESIGN TESTABILITY ONLY.**
+
+Frozen design: **`bd9fe36edbe59143b914d7ccac424efd1db2c335`**, ADR-011 revision 5.
+Task: `task_f0190c5eafe4`. Dispatch: `ctx_d667c956a9d5`.
+This section supplements the unchanged round-1 report. All line references in this section refer to the frozen design.
+It is `DOC` evidence, not a product verification result.
+
+I checked the Architect's response against the revised ADR, contracts, data model, security rules and M1–M4 criteria.
+I did not read product implementation or author audit notes, and did not use either reviewer report to form these findings.
+The round-1 primary-source checks and independent fixture rules still apply; this round adds no live-provider claim.
+No code, test, stack, tenant, account, tunnel, commit or subworker was created.
+
+Revision 5 makes most previous criteria executable and supplies a useful remote binding-ref comparison.
+Three MAJOR gaps remain in the recovery contract and its fault oracles. Three MINOR AC conflicts also need correction.
+The design gate must stay closed until the major gaps have explicit outcomes and reproducible tests.
+
+### 7.1 Disposition of every previous QA finding
+
+| Finding | Disposition at revision 5 | Evidence and remaining work |
+| --- | --- | --- |
+| Q-M0-01 | CLOSED for design | M3 AC-M3-02 separates three default-profile T7 runs from legacy acceptance/knob passes, includes T3c and T8, and assigns labels per real or simulated subcase. Default restoration is explicit. |
+| Q-M0-02 | CLOSED for design | M1-23/30 and ADR-011 §14 now switch code while both services are stopped, back up before migration, validate the whole backup before replacement, remove obsolete sidecars, and preserve the remote Moodle-grade oracle. QA may damage backup copies and compare file hashes. |
+| Q-M0-03 | PARTLY CLOSED; still MAJOR | Phase-1 expiry policy, phase-2 checks, attempt history, conditional remote mutation, containment commands and the gate are specified. M1-27 separates old-key rejection from old-publication rejection. The remaining problems are Q-M0-R2-01 to 03 below; a named fault case alone is not an executable oracle. |
+| Q-M0-04 | CLOSED for design | M1-40 separately tests wrong-host DL refusal, browser CSP refusal and successful top-level launch with its foreign return URL discarded. It no longer claims that the backend can infer an unsigned source page. |
+| Q-M0-05 | CLOSED for design | M1-05/26 and the profile contract agree: self-hosted issuer/auth/JWKS use the page origin, token/AGS use the separately stored service origin. Canonical expected values are explicit and need no production validator in QA. |
+| Q-M0-06 | CLOSED for design | M1-34/35/36 add per-profile cryptographic refusal, all simulation-gate combinations and post-launch service URL isolation. M1-29 adds both-provider squatting and Canvas add-deployment theft/replay. M1-09/11 require non-100 and best-result fixtures. |
+| Q-M0-07 | CLOSED for design | M1 line 15 and M3 separate partial M1a evidence from full-AC completion after M1b. |
+| Q-M0-08 | CLOSED for design | M3 §5 defines browser PASS by flow success, separates blocked-cookie observation, and forces a cold token cache for L-C14 while retaining the existing-token caveat. |
+| Q-M0-09 | CLOSED for design | The positive parallel case moved to M1-37(j). M1-28, M2-05 and M3-07 distinguish intentional input/CLI display, clearing the input, raw private traces and redacted retained evidence. |
+
+### 7.2 Remaining criteria gaps
+
+#### Q-M0-R2-01 — MAJOR: the stale-attempt scenario cannot reach its specified answer
+
+Locations: app contract lines 375, 377–381, 394–395; M1 lines 137, 142–143; M3 lines 65–74.
+
+M1-37(i) holds the first LTI response for more than 60 seconds, completes a second redemption, then expects the first request to return `403 GRANT_INVALID` from phase 2.
+The same contract requires a normal **5-second** outbound timeout and says a missing answer returns `502`, clearing that attempt's lease.
+With the specified transport gate, the first request has therefore finished before the second starts. Releasing its old response cannot make it enter phase 2.
+Stopping the app does not solve this: the old handler dies, as the separate M1-37(d) case already recognizes.
+
+M1-37(n) also needs a reachable trigger for compensation after loss of the lease; M1-37(o) needs an exact point for its “release before lease ends” check because successful cancellation clears the attempt fields.
+The gate does not say whether a held request survives downstream disconnect, whether a late `hold_before` release still forwards it, or how QA observes “held before”, “forwarded” and “upstream completed”.
+Those distinctions are essential for M1-38(f), not implementation details of the QA assertions.
+
+Required correction:
+
+1. Split a timed-out request (`502`, lease cleared, possible later remote write) from a still-running request that actually reaches phase 2.
+2. Give M1-37(i/n/o) reachable schedules under the real timeout. A practical stale-compensation case is: revoke within five seconds, release the initial response, hold its compensation before forwarding, issue/redeem a replacement grant, then release the old compensation. Expect remote `409`, the new ref still active, and a working new launch.
+3. For the genuine 60-second lease case, use the documented app crash/restart and assert takeover by a new request; do not expect a response from the dead request. If another paused-process mechanism is required, specify and authorize it before QA uses it.
+4. Define gate lifecycle events and behavior after a caller closes. Record a request id and phase without headers, bodies or secrets. A late-mutation test must prove that the gate really forwarded the old request after the newer state existed.
+
+Do not increase a production timeout, alter clocks, or add an unapproved test bypass merely to force the current oracle to pass.
+
+#### Q-M0-R2-02 — MAJOR: release has no complete contract for an unfinalized Canvas platform
+
+Locations: app contract lines 278, 377, 388, 444–446; data model lines 367, 408–414; M1-37(c), M1-38(d).
+
+Reproducible design sequence: create a pending Canvas connection with the wrong service URL; issue a matching grant; let the remote platform create succeed but drop its answer.
+The app returns `502`; phase 2 never stores the platform binding on the connection.
+The LTI platform exists with an attempt ref, but `connection.lti_binding_ref` is still null and the connection has not saved its platform id.
+Suspend permits discovery/use of an old attempt ref. Release instead specifies deletion with the **connection binding ref**.
+It does not specify how to locate and conditionally delete this unfinalized platform.
+The normal recovery exception cannot correct its service URL because it requires an exact service-URL match.
+
+Required correction: define release of a platform made by one of this connection's attempts, including lookup when the connection has no saved platform id/ref.
+Use the verified remote ref from that attempt's history as the condition; refuse deletion if ownership changed.
+Keep final connection history distinct from an unfinalized attempt, and define the already-absent/repeated-release result.
+
+Add an explicit `SIM` AC: lost create response → pending connection → suspend → release → old remote record absent → new connection with the same client id and corrected service URL successfully redeems and grades.
+Repeat with a held old delete delivered after a newer binding: it must not delete the newer platform.
+These outcomes must use APIs/CLI and logs, without QA editing database rows.
+
+#### Q-M0-R2-03 — MAJOR: Canvas added-deployment authority and retry bypass the final grant step
+
+Locations: ADR-011 lines 85, 137–141; app contract lines 375–381, 401, 516; LTI contract lines 560–564; M1-20, M1-37(h).
+
+The new two-phase contract needs a distinct Canvas add-deployment fault case.
+Its LTI `POST` creates an **active** deployment before phase 2. Unlike initial Canvas setup, the parent platform already belongs to a registered connection.
+App launch routing uses that platform id and does not require the deployment to be in a finalized app binding.
+Following these written rules therefore permits a launch from the new deployment while its grant has not completed redemption.
+This is a design consequence, not an observed product failure.
+
+After `drop_after`, the grant remains unredeemed and the remote row active.
+The deployment endpoint then says an already-active id returns `200`, no change, **without using a grant**.
+That is not a complete recovery oracle: it does not require finalization of the pending attempt, storage of its binding ref or a `grant_redeemed` event.
+Revocation after the timeout likewise has no running phase-2 handler to compensate.
+M1-37(h) only tests disconnect during the call, which disables the entire connection and misses this case.
+
+Required correction: state exactly when a new Canvas deployment gains launch/grade authority, and gate that authority on final grant redemption.
+Distinguish an idempotent repeat of a finalized deployment from an active remote row left by an incomplete attempt.
+Define recovery for the latter, including ref adoption, final grant state and cancellation cleanup, without treating “remote active” as proof of completed approval.
+
+Add `SIM` cases on a connection with an existing working deployment:
+
+- Hold the new-deployment response before phase 2 and launch the new deployment; it must not produce an authorized picker, attempt or grade. The old deployment must still work.
+- Drop that response, retry with the same grant, and require one finalized new binding, one redemption event and the deployment in the connection DTO.
+- Drop the response, revoke/replace the unredeemed grant, then try the old code and a new-deployment launch. Specify the denial/repair result and prove no cancelled authority survives.
+- Race replacement with an old compensation; the new ref and new deployment must survive the stale conditional mutation.
+
+#### Q-M0-R2-04 — MINOR: encoded-id positive violates the declared input alphabet
+
+Locations: M1 line 73; LTI contract lines 556, 568.
+M1-07 requires `a/b c` to round-trip through create and patch, but the create schema forbids spaces.
+Use a valid id such as `a/b:c` for the encoded-path positive, and make the space-containing id a separate rejection case with its exact error.
+The fixture must not depend on relaxing the production schema.
+
+#### Q-M0-R2-05 — MINOR: the fixed-deployment error has conflicting precedence
+
+Locations: M1 line 140; M2 AC-M2-06; app contract lines 369–371, 427.
+After a failed `dA` redemption leaves a reservation, M1-37(l) expects a direct request for another id to give `409 DEPLOYMENT_FIXED`.
+With the original grant, ordered phase-1 check 5 instead gives `422 GRANT_MISMATCH`.
+The CLI refuses to issue the matching other-id grant needed to reach check 7.
+
+Choose the observable precedence and align the app contract and both ACs.
+If the mismatch check stays first, test that exact `422`, the CLI refusal and unchanged reservation; cover any unreachable defensive `DEPLOYMENT_FIXED` branch in the author's unit tests.
+Do not seed a forbidden grant directly into the database to claim black-box coverage.
+
+#### Q-M0-R2-06 — MINOR: suspend's score-row timing differs from the worker contract
+
+Locations: M1 line 145; app contract line 404; ADR-011 §12.
+M1-38(a) requires all pending score rows to become failed “at once”; the API/ADR requires this when a row is **due**.
+A future retry row distinguishes these outcomes.
+Specify either synchronous failure on suspend or failure at the next due worker pass, with a bounded observation interval.
+In both cases, assert zero score POSTs after disable, unchanged tries, and `409` for Resend/Refresh.
+
+### 7.3 Revised acceptance-to-test plan
+
+The round-1 mapping remains the baseline. Its old “33 M1” inventory becomes **40 M1 + 13 M2 + 7 M3 + 7 M4 = 67 ACs**.
+Expand all listed subcases and per-profile matrices; an AC name alone is not a result.
+Every following row is planned work after design approval, not executed evidence.
+
+| Criteria / change | Independent black-box oracle | Environment and dependency |
+| --- | --- | --- |
+| M1-07, 37(n), 38(f) remote fence | Read ref R1; arrange new binding R2; deliver the captured old conditional mutation; require `409`, unchanged R2/generation and working new launch/grade. Exercise platform and shared-deployment boundaries. A log of a local pre-check is insufficient. | `SIM`, full M1; Q-M0-R2-01 |
+| M1-37(a–d, j–k) failure/retry | Gate proves before-write failure versus write-with-lost-response; compare public records, CLI grant state, generation, response and one redemption event. For crash recovery retain the dead lease for its full duration, then retry. | `SIM`, owned app restart; no database edits |
+| M1-37(e–i, m–o) cancellation | Use named barriers before the five-second deadline for live cancellation; assert exact HTTP/CLI/log outcomes and final remote state. Separately test timed-out late writes and failed compensation followed by operator repair. | `SIM`; do not mark complete until Q-M0-R2-01 is resolved |
+| M1-20, 37(h) add-deployment recovery | Existing deployment remains usable; unfinalized new deployment has no app authority; successful retry finalizes exactly once; revocation/replacement and stale compensation preserve the selected final authority. | `SIM`; Q-M0-R2-03 |
+| M1-38 containment/recovery | CLI without library session; disable/revoke; cross-library denial; same-client corrected Canvas setup; release of finalized and unfinalized bindings; late old operations leave new owner intact. Compare old/new histories and credential outcomes separately. | `SIM`; Q-M0-R2-02/06 |
+| M1-39 signed family | Self-hosted Canvas through standard/manual and DR paths; signed refusal before usable idtoken/picker/attempt; unknown/missing and matching-case controls; release wrong binding then rightful grant. | `SIM`, independent RSA signer and primary-source family fixture |
+| M1-34/35/36 | Each crypto/session failure per new profile; all four simulation-gate combinations including stored-row behavior; service-key origin/path/query attacks with no outbound traffic. | `SIM`, including default/off negative controls; no vendor DNS/certificate impersonation |
+| M1-08/10, 19 | Canvas return-query `data` preserved byte for byte with no JWT data claim; Blackboard claim echoed; signed response verified independently; exact anonymous configuration and inline public-key snapshot. | `SIM`; does not prove a real vendor accepted the export |
+| M1-05/26/32/40 | Explicit canonical values, self-hosted split services, signed wrong-host rejection, browser frame refusal and top-level return-link fallback. | `SIM`; no production validator imported into fixtures |
+| M1-09/11/27/29/33 | HTML and SCORM 7/10, 0/100, incomplete, 80→60→90; independent token/score oracle; squatting, replay, old keys before/after restart; permanent 422 and retained best result. | `SIM`; no enum-only implementation can satisfy these |
+| M1-23/30; M3-02 | Corrected two-database upgrade/rollback; default T7 three times; all named legacy suites with their actual profiles and permitted knobs; remote Moodle grade survives local rollback. | `MOODLE-LIVE` for real Moodle, `SIM` for signed QA-platform subcases |
+| M2 changes | QA-E2E tests approval-field clearing, exact error mapping, retry UI, unchanged Moodle capabilities and revised disconnect/attempt-limit text. Backend fault scenarios use QA-owned gate rules. | `SIM`; Q-M0-R2-05 must settle the error oracle |
+| M3 live matrix | Browser flow success, cold-cache rotation and recorded cross-site Blackboard-token observation; every absent authorized environment remains UNVERIFIED. | Exact `CANVAS-HOSTED`, `CANVAS-LOCAL` or `BLACKBOARD-LIVE` label only |
+
+For every race, retain: product/test SHAs, initial public state, grant state, gate request id and event sequence, both client outcomes, final ref/active/generation, launch result and redacted logs.
+Never use a naked sleep as proof that a write happened. Poll a documented gate phase or public state with a deadline.
+A physical remote row left after a failed request and actual app authority must be reported separately.
+“No active binding” must state whether it is required before or after the documented operator repair.
+
+### 7.4 Commands, resources and handoff
+
+The existing host commands and resource lanes in §5 still apply; no stack was started to re-measure them.
+The earlier 7.75 GiB Docker limit is preflight evidence, not a new capacity measurement.
+Keep QA on `qa-multi-rN`, port 8443, subnet `172.29.0.0/16`; keep QA-E2E on its separate named lanes.
+Prefer sequential stacks and never exceed two. Local Canvas runs alone only after SIM passes, with no Docker Desktop setting change.
+Preserve the seven baseline volumes and all other-owner resources.
+
+M3 now explicitly assigns QA `tests/host/run-m1.mjs`, so the planned command has an owner:
+
+```sh
+COMPOSE_PROJECT_NAME=qa-multi-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 \
+  node tests/host/run-m1.mjs --sha "$candidate_sha" --runs 2
+```
+
+This runner is still **planned**, not claimed to exist or pass.
+It must record a separate test SHA, validate all 40 M1 IDs and their expected subcases, split profile-off/SIM/migration passes, restore the default profile and clean only owned resources.
+Keep `QA_TASK=M1 npm run test:acceptance` as its in-container suite entry point.
+Use explicit per-test timeouts of at least 120 seconds for the real 60-second lease/expiry and no-retry observations; this changes a QA test deadline, not a product deadline.
+Live cancellation schedules must fit the actual five-second call, using acknowledged barriers.
+Allow two full M1 runs, a separate migration/rollback pass, the legacy suites and three T7 runs; there is still no measured M1 runtime.
+
+The Author owns compose/TLS/routing and the transport-gate service in `infra/**`.
+QA owns simulator behavior, in-memory signing fixtures, gate scenarios, expected values and assertions under `tests/**`.
+QA-E2E consumes those interfaces and owns portal/browser evidence.
+No shared production URL validator, claim filter, role helper or grade mapper may become a QA oracle.
+Neither a profile's constants nor a passing simulation establishes live interoperability.
+
+Required next step: Architect resolves Q-M0-R2-01 to 06 in the contracts and ACs, then the same QA instance rechecks the frozen correction.
+No M1 product verification or design approval is claimed by this report.

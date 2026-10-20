@@ -70,7 +70,7 @@ Do not run a destructive reset against the user's existing environment.
 
 | Task | Result | State |
 | --- | --- | --- |
-| M0 | Source review, architecture, contracts, criteria | Revision 5 frozen at `bd9fe36`; independent rechecks running |
+| M0 | Source review, architecture, contracts, criteria | Revision 5 rechecks complete; second correction required |
 | M0-A2 | Read-only portal and integration audit | Complete; no code or tests changed |
 | M0-AU | Read-only backend and deployment impact audit | Complete; no code or tests changed |
 | M0-QE | Independent environment and live-LMS validation preflight | Complete; environment inventory, no product verification |
@@ -109,6 +109,11 @@ The retained structured sessions use authoritative dispatch preambles sent throu
 No new worker process or model replacement was created for this wave.
 The gate needs two approvals, a design-testability PASS, and no open BLOCKER or MAJOR.
 M1, M2 and test-writing tasks stay blocked until that gate passes.
+
+Round 2 is complete on `bd9fe36`: both reviewers require changes and QA gives FAIL for design testability only.
+The reports preserve the first round and identify which findings are closed.
+The same Architect will resolve the remaining findings in `task_ca1fae1a7570`.
+The same three independent instances remain retained for the next recheck.
 
 Author-2 completed the read-only audit in `ctx_1eeade383449`.
 Messages `msg_57b462b0aec3`, `msg_c8afa054e00e`, and `msg_b3a206ea8b3f` hold the findings.
@@ -282,3 +287,30 @@ Split default-profile T7 from legacy acceptance suites that need their existing 
 Use the new revision's maintenance commands while both old services remain stopped.
 Validate the complete backup before replacing either database, including sidecars and backup identity.
 
+## Direction for the second design correction
+
+Resolve these groups together. A passing remote call alone does not prove that an app binding was approved.
+
+| Required correction | Finding ids |
+| --- | --- |
+| A Canvas deployment has app launch and grade authority only after its own approval commits. Separate a finalized repeat from an active orphan. Retry, cancellation and cleanup must keep the existing approved deployment working. | B-M0-07 (BLOCKER), Q-M0-R2-03 |
+| An older or cancelled attempt cannot adopt a newer attempt's ref. Adoption must atomically establish or validate the required active state, including compensation between its read and write. | B-M0-03 |
+| Persist each attempt's target and locate unfinalized Canvas platforms through that history. Suspend and release use an owned remote ref even when the connection has no final platform id or ref. Preserve newer and foreign bindings. | A-M0-09, B-M0-08, Q-M0-R2-02 |
+| Separate live overlap within the five-second call from a timed-out late write and a dead handler's lease. Define gate request ids, phases and delivery after caller disconnect. Give executable schedules and explicit cleanup owners. | B-M0-09, Q-M0-R2-01 |
+| Align encoded-id inputs, fixed-deployment error precedence and the due-time behavior of disabled score rows. | Q-M0-R2-04, Q-M0-R2-05, Q-M0-R2-06 |
+
+The two reviewers differ on whether the current fence is complete.
+The concrete schedules in B-M0-03 and B-M0-07 remain required corrections.
+The next independent rechecks must trace those schedules explicitly.
+Keep the existing production timeout and security checks; do not add a test bypass to make an unreachable schedule pass.
+
+A-M0-10 is an accepted MINOR deferral under charter §5 for this prototype.
+After release, an authenticated library can race the rightful Canvas owner by making a new standard-profile record with the same public identifiers.
+Signed product-family checks still refuse its Canvas launches before claim storage.
+This can block setup; it does not authorize Canvas access.
+Correct the false claim that every later binding must use a grant.
+Document the operator order and residual race without claiming that prompt redemption prevents it.
+Protection against repeated hostile registration needs a later reserved-identifier or quarantine design before an enterprise service relies on this workflow.
+The Architect must record this limit in the ADR, response and guide requirements.
+Docs must carry it into `docs/human_review/deferred.md` in M4.
+This deferral does not waive any BLOCKER, MAJOR or functional recovery check.

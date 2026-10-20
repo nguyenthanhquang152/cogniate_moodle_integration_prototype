@@ -129,3 +129,103 @@ The trusted-operator decision covers both providers and added Canvas deployments
 No product tests, stacks, accounts, tenants or external configuration were changed. I used read-only repository inspection and current vendor sources. Only this report was written. The unrelated untracked `pnpm-workspace.yaml` was present before this review and was not touched.
 
 The Architect should resolve B-M0-01 through B-M0-04 in the contracts, data model and observable acceptance criteria, then provide a new frozen design for review.
+
+---
+
+## Round 2 — 2026-10-20
+
+Verdict: CHANGES_REQUESTED
+Round: 2
+
+Reviewed SHA: `bd9fe36edbe59143b914d7ccac424efd1db2c335`, ADR-011 revision 5.
+Comparison: round 1 design `51e69d11c256984929e8522d5c1446b54565dc93`.
+Task: `task_f5a737f0a439`; dispatch: `ctx_adcbc4bedd37`.
+
+I re-read the charter, phase plan and Architect response, then traced the changed contracts, state model and acceptance criteria. The findings below are traces of the specified behavior, not results from running an implementation. The round 1 report above is unchanged. Established vendor research was not repeated.
+
+Five original findings are closed at the design level. B-M0-03 remains MAJOR. Three new findings remain: one BLOCKER and two MAJOR. The revised design cannot yet be approved.
+
+### Original finding dispositions
+
+All line numbers in this section refer to `bd9fe36`.
+
+| Finding | Disposition | Evidence |
+| --- | --- | --- |
+| B-M0-01 — MAJOR | CLOSED at design level | App contract lines 371 and 381 explicitly reuse the pending connection's own reservation. Line 402 treats a missing remote deployment as already absent. AC-M1-37(a), (b), (k), at M1 lines 129–130 and 139, cover retry and cancellation before and after remote creation. The remaining concurrent cases are B-M0-03 below. |
+| B-M0-02 — MAJOR | CLOSED at design level | Data model line 384 adds a unique index on `connection_id`. App contract lines 280, 371 and 427 fix the deployment ID after reservation. AC-M1-29(k) and AC-M1-37(l), M1 lines 124 and 140, cover the refusal. |
+| B-M0-03 — MAJOR | OPEN; partial correction | App contract lines 373–379 add attempt identity, final validation and conditional compensation. These solve the simple revoke-before-finalize case. The takeover and remote-state races below remain possible. |
+| B-M0-04 — MAJOR | CLOSED at design level | ADR-011 lines 378–391 and AC-M1-23/30, M1 lines 156–167, explicitly obtain maintenance commands from the new revision while services stay stopped. Backup precedes the first migration; restore precedes the old build's startup. |
+| B-M0-05 — MINOR | CLOSED at design level | ADR-011 lines 168–170 and 201, app contract line 234, and AC-M1-26 at M1 line 110 agree on a separate self-hosted service origin. The acceptance case includes split origins and a wrong-host refusal. |
+| B-M0-06 — MINOR | CLOSED at design level | LTI contract line 479 now asks the admin to check the connection. M4 line 25 requires the guide to explain the need for new publications and course items. |
+
+### B-M0-03 — MAJOR, still open — Conditional refs do not cover the specified takeover races
+
+Locations: [app contract](../../architecture/contracts/cogniate-app-api.md), lines **281, 377 and 379**; [LTI contract](../../architecture/contracts/lti-service-api.md), lines **655–660**; [M1](../../architecture/tasks/M1.md), lines **134, 137 and 142**.
+
+Two allowed orderings still break the promised final state:
+
+1. **A cancelled attempt can take back a newer binding.** Blackboard attempt A has its create request held. The operator issues a replacement grant. Attempt B redeems it and registers the same connection with remote ref B. Release A's request within its five-second timeout: create returns `DEPLOYMENT_ALREADY_EXISTS`. Line 281 lets A read ref B and take it over because B is an attempt of the same connection. A sends `bindingRef: A, ifBindingRef: B`, which succeeds. Its phase 2 then detects revocation, and its compensation switches off ref A. B's successful binding is now inactive.
+2. **A compensation can invalidate a read without changing its ref.** B reads an active deployment with ref A and prepares the ref-only takeover in line 281. A's compensation runs first: `active: false, ifBindingRef: A`, leaving ref A unchanged. B's conditional ref-only PATCH still succeeds, but the deployment remains inactive. B can then finalize and return `200 registered`. Thus two changes expecting the same ref can both succeed; the claim at LTI line 657 is too broad.
+
+Impact: a successful setup can immediately stop working, or report registered while its deployment is inactive. The remote comparison is atomic, but it does not by itself prove that a request is current or that the state used to select the operation is unchanged.
+
+Necessary correction: exclude adoption of a newer attempt by an older or cancelled attempt. Do not treat any newly read ref from the same connection as permission to take over. Also make takeover validate or establish the required active state atomically; a ref-only update must not finalize an inactive deployment. State the ordering rule in the app contract and the exact preconditions in the LTI contract.
+
+Acceptance: redeem the replacement **before** delivering the old create response, and separately apply compensation **between** the replacement's read and takeover PATCH. Both schedules must preserve the successful current binding and its usable launch path. AC-M1-37(f) currently finishes the old attempt before redeeming its replacement, so it misses the first schedule.
+
+### B-M0-07 — BLOCKER, new — A late Canvas added deployment can gain authority after revocation
+
+Locations: [app contract](../../architecture/contracts/cogniate-app-api.md), lines **375–381, 401 and 516**; [LTI contract](../../architecture/contracts/lti-service-api.md), lines **561–564**; [ADR-011](../../architecture/adr/ADR-011-multi-lms.md), lines **85 and 431**; [M1](../../architecture/tasks/M1.md), lines **128 and 136**.
+
+The claim that an unfinalized remote record grants no authority is false for an added deployment of an already registered Canvas connection.
+
+Concrete sequence:
+
+1. Canvas connection C is registered with deployment D1.
+2. An `add_deployment` attempt for D2 passes phase 1. Hold its remote POST before the write.
+3. The app reaches its five-second timeout, clears the attempt fields and returns `502`.
+4. The operator revokes the unredeemed grant. C remains registered.
+5. Deliver the held POST. The LTI service creates D2 active. The timed-out handler has already exited; it does not run phase 2 or compensation.
+6. A valid D2 launch passes the active-deployment check. App routing at line 516 selects C by platform ID, without requiring a committed D2 binding. Its site and LMS checks also pass.
+
+Impact: the cancelled installation can reach C's picker and publications without a successfully redeemed D2 grant. The “already active → 200, no grant” rule at line 401 also fails to distinguish this remote orphan from an approved added deployment.
+
+Necessary correction: make the committed deployment approval part of the authority check for Canvas additions. A remote active row alone must not enable routing or idempotent success. Define how an uncertain late write is reconciled or switched off, using its ref, while keeping D1 usable. Staging remote records inactive until a fenced activation is another possible design, but the chosen protocol must cover a late activation too.
+
+Acceptance: reproduce the timeout/revoke/late-write sequence without disabling C. Before successful reconciliation, D2 must create no picker, attempt or usable app binding; D1 must keep working. Repeat for a lost response after remote creation. AC-M1-37(h), which disables the entire connection, does not prove this property.
+
+### B-M0-08 — MAJOR, new — Release has no usable ref for an unfinalized Canvas platform
+
+Locations: [app contract](../../architecture/contracts/cogniate-app-api.md), lines **377, 388 and 444–446**; [data model](../../architecture/data-model.md), line **367**; [M1](../../architecture/tasks/M1.md), lines **141 and 148**.
+
+A lost Canvas create response leaves an active platform with attempt ref A, but the connection remains pending. The connection's platform and `lti_binding_ref` are stored only at phase 2.
+
+Suppose the operator now corrects a wrong service URL. Suspend can discover a remote record through this connection's attempt history and switch it off using A. Release, however, specifies deletion using the **connection binding ref**, which is still null. Even if the platform ID is discovered, that condition does not match A. The contract neither persists a recovered ref during suspend nor defines a history-based conditional delete for release.
+
+Impact: the operator can contain the orphan but cannot follow the promised release-and-correct procedure. The corrected connection has different approved URL values, so the exact-value orphan adoption path cannot repair it.
+
+Necessary correction: define how release discovers and conditionally deletes a Canvas record from an unfinalized attempt. Use an identified ref belonging to that connection, preserve the foreign/newer-owner checks, and keep historical state explicit. Do not require the operator to redeem an incorrect binding merely to obtain a connection ref.
+
+Acceptance: lose the initial create response, suspend the still-pending connection, release it after the required wait, then bind the same client ID with a corrected service URL. Also prove that a newer foreign binding cannot be deleted. The current correction case, AC-M1-38(d), starts from a registered connection and misses this path.
+
+### B-M0-09 — MAJOR, new — The held-request test cannot reach its stated cancellation result
+
+Locations: [app contract](../../architecture/contracts/cogniate-app-api.md), lines **375 and 381**; [M1](../../architecture/tasks/M1.md), lines **137, 142–143**; [M3](../../architecture/tasks/M3.md), lines **63–74**.
+
+AC-M1-37(i) holds the first request for more than 60 seconds, lets a second attempt redeem, then expects the first request to return `403 GRANT_INVALID`. The contract gives the first LTI call a five-second timeout. At that point its handler must already return `502 LTI_SERVICE_ERROR` and clear its attempt fields. Delivering the held response after 60 seconds cannot resume that completed handler into phase 2.
+
+The transport gate delays network traffic; it does not pause an app handler or its timeout. The same distinction matters wherever the criteria expect a delayed request to continue into compensation.
+
+Impact: QA cannot prove the stale-live-attempt claim with the specified black-box recipe. Extending a timeout silently would test different behavior from the contract.
+
+Necessary correction: separate live-response races from timed-out late remote writes. Use a replacement-grant overlap within the real timeout for the former, and assert `502` plus safe remote reconciliation for the latter. Keep the app-restart case for a dead attempt's lease recovery. If a different deterministic mechanism is needed, specify its boundary and ownership explicitly.
+
+Acceptance: each revised recipe must state when the caller times out, whether its handler still exists, and which component performs any later cleanup. The existing transport controls should be sufficient for the late-write checks in B-M0-07.
+
+### Round 2 boundary and next action
+
+The normal Canvas Paste JSON and Blackboard operator/admin workflows remain consistent with the earlier source review. The revised backup ordering, canonical origins, operator identity output and recovery explanations are improvements. No unrelated provider research needs to be reopened for the findings above.
+
+Only this report was changed. No product or design file, test, stack, tenant, account or remote configuration was changed; no commit or push was made. This verdict is for design only.
+
+Resolve B-M0-03 and B-M0-07 through B-M0-09 in the contracts and matching criteria, then freeze the correction for recheck. No approval is given while these findings remain open.
