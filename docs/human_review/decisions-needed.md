@@ -70,3 +70,48 @@ A reviewer found each risk, and the Lead accepted it for the prototype. A human 
 | R3 | A learner can change the score with browser developer tools. | Acceptable for completion-type courses only. | Same as Q8. |
 | R4 | Teacher "Select content" can fail in Safari. | Moodle 5.2 has no LTI client-side storage. QA tested Chromium only. Other browsers are not proven. | Same as Q16. |
 | R5 | All libraries share one content site, so course code of two libraries shares browser storage. | Prototype only. The content site has no cookies, and the proxy drops `Cookie`. | Same as Q10: one content subdomain per customer. |
+
+## E. Canvas and Blackboard decisions
+
+Added by the Lead on 2026-10-20 for AC-M4-07.
+Sources: [Q19 to Q22](../architecture/open-questions.md) and [ADR-011 revision 6](../architecture/adr/ADR-011-multi-lms.md).
+These are open decisions. They do not claim that implementation or verification is complete.
+The earlier Moodle explainer does not yet include these rows. Send answers to the Lead with the row ids.
+
+| Id | Decision needed | Recommendation or current boundary | It blocks | Who decides |
+| --- | --- | --- | --- | --- |
+| Q19 | Which Canvas and Blackboard environments may the team use for live checks? | Give written permission for each tenant and each allowed change. Canvas needs a developer key, test course and enrolled learner. Blackboard also needs Developer Portal access, Learn admin access and a public JWKS URL. | Live interoperability checks and claims | Product owner |
+| Q20 | Who owns the Blackboard application, and which host runs the production LTI service? | Use a company account and a stable LTI host. Keep one application per host. A second tool account needs another host. | Blackboard production setup | Product owner and Legal |
+| Q21 | Which enterprise follow-ups come first? | Prioritize D-3 before many customers and D-12 before enterprise recovery depends on release. Then assess D-2, D-4, D-1, D-5 and D-11 by customer need. | Next phase scope | Product |
+| Q22 | What evidence permits an approval grant, and who may operate the commands? | Check a request from the institution's LMS administrator through an institutional channel. Match the library, site, Canvas service URL, client id and deployment id. Record the evidence reference in the note. Name the support staff who may issue grants, suspend bindings and release them. | Operator policy and first customer setup | Product and Legal |
+
+Q19 does not authorize an account, a public tunnel, a deployment or a real tenant change.
+Without permission and matching evidence, live rows stay **UNVERIFIED**.
+An inline public key can avoid public exposure for an authorized Canvas test.
+Blackboard needs a JWKS URL that its services can reach.
+
+## F. Enterprise follow-ups
+
+These defaults come from [ADR-011 §15](../architecture/adr/ADR-011-multi-lms.md#15-out-of-scope-and-follow-ups).
+They define this phase's scope. They are not human approval of a production service.
+
+| Id | Decision needed | Default until decided |
+| --- | --- | --- |
+| D-1 | Add Canvas Dynamic Registration with profile checks? | Manual Canvas setup. |
+| D-2 | Accept more than one Canvas page origin? | One page origin and one service origin. The third-host rules in ADR-011 §5 apply. |
+| D-3 | Replace operator approval with self-service ownership proof? | One operator approval grant for each new binding. |
+| D-4 | Add LTI platform storage for frames without cookies? | A partitioned cookie, with the browser limit in R4. |
+| D-5 | Support inherited Canvas keys across institutions? | Refuse shared key ownership with `409 PLATFORM_IN_USE`. |
+| D-6 | Add one Blackboard host for each tool account? | Blackboard uses only the `cogniate` tool account. |
+| D-7 | Reconnect a disabled connection and keep its publications? | Create a new connection. Old activities stay unavailable. Another library needs an operator release first. |
+| D-8 | Remove the NRPS scope? | Keep the Moodle scope policy. Each service call asks for one scope. |
+| D-9 | Apply the claim allowlist to standard Moodle profiles? | Keep Moodle behavior unchanged. |
+| D-10 | Request a new learner window in Blackboard and Moodle? | Keep Moodle unchanged. Blackboard follows the Learn setting. Canvas already honors the window hint. |
+| D-11 | Offer ungraded Canvas module items? | Do not offer `link_selection` before a decision on completion without a grade column. |
+| D-12 | Reserve released self-hosted Canvas identifiers, or add a quarantine period? | Use the operator order in ADR-011 §4b and document the remaining race. This needs a design before enterprise recovery relies on release. |
+
+D-12 applies only to self-hosted Canvas. Hosted Canvas and Blackboard issuers are already reserved.
+After release, a grant-free Moodle registration can take the self-hosted Canvas issuer and client id first.
+That can block setup. Check 14 refuses Canvas launches before storage, so it gives no Canvas access.
+Issue the rightful grant, suspend the old binding, release it, then redeem the rightful grant promptly.
+This order shortens the window but does not prevent the race.

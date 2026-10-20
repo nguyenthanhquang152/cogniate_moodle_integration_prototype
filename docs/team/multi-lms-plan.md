@@ -83,6 +83,11 @@ Author checks passed: portal typecheck, targeted lint and 34 unit tests.
 The Blackboard owner can now use the shared tool rows, error notices, form lifetime hook and copy fallback.
 These are author checks, not independent feature acceptance.
 
+The portal and player slice followed as `b3544ca`, merged as `42055ff`.
+It adds provider routes, connection details, capability guards, publishing and results labels, and learner text.
+Author checks passed: portal and player typechecks, targeted lint and 136 tests in 11 files.
+Canvas backend implementation and the Blackboard wizard mount remain pending.
+
 The teams agreed on the player interface in `msg_a05ac85fc3b8` and `msg_7df7bdfe2bcc`.
 The backend emits `data-lms-name` on the play page element and the content-origin runtime body.
 Its value is `Moodle`, `Canvas` or `Blackboard`, derived from the stored connection.
@@ -93,6 +98,11 @@ QA's simulator interface is committed in `7738dc3`, in `docs/reviews/M1/qa-plan.
 Canvas QA uses that interface when a worker slot becomes free.
 The token assertion audience is a scalar for Canvas and an array for Blackboard.
 The queued Canvas task's earlier shorthand about an audience array does not change this contract.
+
+Both code review tasks are queued behind the two implementation tasks.
+Reviewer-A: `task_def3c0e1323e`. Reviewer-B: `task_8b9947e26455`.
+Each will review the same frozen candidate, with separate reports for M1, M2 and relevant M3 infrastructure.
+Neither review task has started.
 
 ### Initial role assignment (history)
 
