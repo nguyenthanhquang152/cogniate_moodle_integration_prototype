@@ -16,9 +16,9 @@ The Moodle release below is the completed baseline.
 | M4 | Docs and Architect | Queued | Final conformance, guides, offline review page and three independent documentation checks have explicit tasks and evidence gates. |
 
 Both implementation tasks are complete; independent product verification is pending.
-Reviewer-A's static checkpoint at `1e2c81f` has no BLOCKER or MAJOR and one MINOR, A-M1-01.
-The backend author has a fresh task to restrict `LTI_API_URL` to the acceptance profile.
-Final review waits for that fix and the complete Canvas/browser harness. No push is authorized.
+Reviewer-A's static checkpoint has no open finding after the A-M1-01 fix in `76b03c7`.
+The app now restricts `LTI_API_URL` to the acceptance profile; the author and isolated Lead checks pass 889 tests.
+Final review waits for the complete Canvas/browser harness. No push is authorized.
 
 ## Completed Moodle baseline
 

@@ -220,6 +220,15 @@ This bounded fix uses the reserved worker slot before the acceptance-profile sta
 Reviewer-A remains active until it checks the committed fix and full harness supplement.
 The checkpoint is not a final approval or independent product acceptance.
 
+The author completed A-M1-01 in `msg_bac4c859dd20`; its two held paths are committed as `76b03c7`.
+All 13 config cases and the full root check pass: 889 tests in 67 files, `/tmp/au-check-am101.log`.
+The Lead's isolated check at `76b03c7` also passes lint, all typechecks and 889 tests with zero skips.
+Log: `/tmp/cogniate-lead-foundation.bzkF2F.config-guard-check.log`.
+Removing the guard made the four refusal cases fail; the author restored the guard before handoff.
+Reviewer-A checked the exact delta and closed A-M1-01 by code reading in `msg_284bd54bb2aa`.
+The author remains retained for the queued infrastructure smoke. No stack ran for this fix.
+Final review still waits for the complete Canvas/M2 harness.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
