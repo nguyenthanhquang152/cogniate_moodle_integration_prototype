@@ -554,6 +554,23 @@ The same replacement is retained for the separate author startup smoke, `task_0e
 The [team brief](multi-lms-team-brief.md) extends the instance exception to that task and preserves its original scope.
 Canvas QA preparation remains active; both combined reviews wait for its committed harness.
 
+Canvas QA completed in `msg_1a68d2c8fea3` and remains retained.
+Its 17 held files are committed at **`eb43247d02df622d5da72dafac41d919f65a91fe`**.
+This adds all 11 required Canvas snapshot rows and exact readiness assertions within existing M2 cases.
+Full M1 inventory is 392 API cases and 24 host/browser checks: common 42, Blackboard 141, Canvas 233.
+The four phases account for all 416 rows. Both complete acceptance rounds remain required.
+M1 preparation passes 27 harness checks plus three Canvas oracle checks; M2 passes two checks and retains all 64 case IDs.
+The Lead's clean checkout at `eb43247` passes lint, all typechecks and 996 tests in 69 files, with zero skips.
+Log: `/tmp/cogniate-lead-foundation.bzkF2F.snapshot-candidate-check.log`.
+These checks establish a review candidate, not independent product acceptance.
+
+The final combined review wave now uses this exact candidate:
+Reviewer-A `ctx_b1fbdd75524c`, handoff `msg_2815e3ab70d5`; Reviewer-B `ctx_67d2f3361829`, handoff `msg_2b50d40ab55c`.
+Each reuses its retained instance and reviews independently.
+The same backend replacement runs the separate startup smoke in `ctx_49f1b1647236`, handoff `msg_7e38a28b13c6`.
+Its isolated source is `a8580dd`, which has the same product and simulator runtime as `eb43247`.
+These three tasks fill the worker slots. No independent acceptance stack has started.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
