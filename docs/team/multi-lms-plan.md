@@ -60,6 +60,19 @@ The [two-team brief](multi-lms-team-brief.md) is the current ownership authority
 It names the shared backend owner, shared portal owner, provider files, test paths and foundation handoffs.
 This changes execution ownership, not the approved protocol, criteria or review gate.
 
+The first provider-team wave was dispatched from `294114092b643766b5f552150038b812513da1d0`:
+
+| Work | Task | Dispatch |
+| --- | --- | --- |
+| Blackboard and shared backend | `task_9522839fff91` | `ctx_bed3b61aefb9` |
+| Canvas and shared portal | `task_11fc3a40e7a0` | `ctx_303ff8d6037c` |
+| Common and Blackboard test preparation | `task_33fd8359458d` | `ctx_45f64a5defb9` |
+| Canvas and M2 browser test preparation | `task_b8c969c16053` | Queued for the next free slot and simulator interface |
+
+The first three reuse the same dedicated instances and the recorded model/effort settings.
+The Blackboard worker and Codex QA confirmed activity. Canvas dispatch delivery is recorded; its acceptance is pending.
+The Lead will commit and transfer the backend and wizard interfaces at explicit checkpoints.
+
 ### Initial role assignment (history)
 
 | Role | Model | Initial responsibility |
@@ -100,9 +113,9 @@ Do not run a destructive reset against the user's existing environment.
 | M0-A2 | Read-only portal and integration audit | Complete; no code or tests changed |
 | M0-AU | Read-only backend and deployment impact audit | Complete; no code or tests changed |
 | M0-QE | Independent environment and live-LMS validation preflight | Complete; environment inventory, no product verification |
-| M1 | Shared backend and provider registration support | Planned |
-| M2 | Blackboard and Canvas portal flows | Planned |
-| M3 | Independent QA and Moodle regression | Planned |
+| M1 | Shared backend and provider registration support | Provider-team implementation dispatched |
+| M2 | Blackboard and Canvas portal flows | Provider-team implementation dispatched |
+| M3 | Independent QA and Moodle regression | Common/Blackboard test preparation started; Canvas preparation queued |
 | M4 | Guides, interactive review pack, final conformance | Planned |
 
 ## Launch evidence
