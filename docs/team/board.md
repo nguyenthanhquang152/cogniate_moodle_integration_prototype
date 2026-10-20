@@ -10,16 +10,17 @@ The Moodle release below is the completed baseline.
 | Task | Owner | Status | Evidence |
 | --- | --- | --- | --- |
 | M0 | Architect; independent QA and reviewers | Done for design scope | Round 3 at `158a4d8`: A APPROVE, B APPROVE, QA PASS for design testability. Nonblocking A-M0-11, A-M0-12 and B-M0-10 text corrections applied. No open BLOCKER or MAJOR. |
-| M1 | Blackboard and Canvas teams; one shared engine owner | Review fixes in progress | Disabled-grade races and unknown-state maintenance guards are repaired in `9aeeddc`; isolated lint, typechecks and 912 tests pass. Reviewer-B is rechecking that slice. B-M1-03 needs Architect resolution of local target data before the author resumes. [Exclusive paths and handoffs](multi-lms-team-brief.md). |
+| M1 | Blackboard and Canvas teams; one shared engine owner | Review fixes in progress | B-M1-01/02 are independently closed at `9aeeddc`, report `86adfbf`. Isolated lint, typechecks and 912 tests pass. B-M1-03 needs Architect resolution of local target data in `ctx_d4db78b27fef` before the author resumes. [Exclusive paths and handoffs](multi-lms-team-brief.md). |
 | M2 | Blackboard and Canvas teams; one owner per shared portal file | Implemented; verification pending | Both wizards are mounted. The final Learn Submit instruction is repaired in `9f96f7b`; six focused author tests pass. Author browser evidence covers 11 mocked stages; independent product verification remains pending. |
-| M3 | QA (Codex), QA-E2E (Claude) | Prepared; harness corrections in progress | Preparation at `9964e6f` discovers 359 M1 API cases, 19 host/browser rows and 64 M2 rows. Architect clarifications are committed at `ca14de6`. QA is fixing two MAJOR browser-test flaws and exact oracles in `ctx_3d09691e1edf`. No product acceptance run yet. Real Canvas and Blackboard remain unverified. |
+| M3 | QA (Codex), QA-E2E (Claude) | Corrected harness under review | QA corrections are committed at `0008bde`: exact Canvas oracles, real wizard flow, persistent route observers and approved Moodle labels. Harness checks pass with 359 M1 API cases, 19 host/browser rows and 64 M2 rows. Reviewer-B recheck is active in `ctx_17d6e7cf12b1`. No product acceptance run yet. Real Canvas and Blackboard remain unverified. |
 | M4 | Docs and Architect | Queued | Final conformance, guides, offline review page and three independent documentation checks have explicit tasks and evidence gates. |
 
 Both original implementation tasks are complete; independent product verification is pending.
 Reviewer-A closed A-M1-01 at `76b03c7` and checked the prepared harness at `9964e6f`.
 Both round-1 reports are committed: Reviewer-A at `17aa295`, Reviewer-B at `689e424`.
 Reviewer-B requests changes for five MAJOR findings: B-M1-01, B-M1-02, B-M1-03, B-M3-01 and B-M3-02.
-The first two have committed repairs; independent round-2 closure remains pending for every finding.
+The first two are independently closed in Reviewer-B's bounded round-2 checkpoint at `86adfbf`.
+The other three remain open pending repair or independent closure.
 Its MINOR B-M2-01 has a committed repair at `9f96f7b`; independent closure is pending.
 Reviewer-A's A-M1-02 NIT remains open. Its round-1 code approval does not override Reviewer-B's findings or the pending QA gate.
 No product gate has passed. No push is authorized.

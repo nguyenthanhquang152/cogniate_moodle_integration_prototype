@@ -333,6 +333,23 @@ Handoff `msg_3a08c5b1220e` supplies `9aeeddc`; `msg_b9d86bd1e03e` narrows this d
 It will submit a checkpoint and settle to free the Architect slot.
 Remaining round-2 work needs a fresh dispatch and exact later commits; this checkpoint cannot approve M1, M2 or M3 as a whole.
 
+Reviewer-B completed that checkpoint in `msg_c5c310c6e0ff`, committed as `86adfbf`.
+B-M1-01 and B-M1-02 are closed at `9aeeddc`.
+Independent evidence includes 77 unit tests, 16 score-fence combinations, two refusal probes and six real/symlink backup-restore probes.
+The same reviewer remains retained; overall CHANGES_REQUESTED still applies.
+The Architect then started target-data resolution in `ctx_d4db78b27fef`, handoff `msg_31aa2ffc73ce`.
+The author prepared six expected-failing endpoint tests in its held `redemption.test.ts`; these are not part of a passing commit.
+No engine repair is authorized before the explicit design handoff.
+
+QA completed alignment in `msg_02644efb0adc`; its twelve held paths are committed as `0008bde`.
+The full harness checks pass: 21 M1 self-tests, two M2 self-tests, typechecks and unchanged case inventories.
+The T7 selection remains 18 tests in six files.
+This preparation used no stack or product calls.
+The same QA-E2E instance is retained for final verification.
+Reviewer-B started a separate bounded check of this supplement and the Learn instruction in `task_41cfdcc25616`, dispatch `ctx_17d6e7cf12b1`.
+Handoff `msg_535e68ea63aa` supplies exact `0008bde` and requires meaningful oracle checks, not just successful discovery.
+That review can close only the changes it actually checks; B-M1-03 and all product acceptance gates remain separate.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
