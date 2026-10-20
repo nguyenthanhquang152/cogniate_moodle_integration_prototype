@@ -32,6 +32,15 @@ export const APP_API_ERRORS = defineErrorTable({
   WS_FUNCTIONS_MISSING: { status: 422, description: 'The web services token cannot use every function that Cogniate needs.' },
   MBZ_NOT_SUPPORTED: { status: 422, description: 'Only a SCORM 1.2 version can be built as a Moodle backup.' },
   MBZ_BUILD_LIMIT: { status: 409, description: 'This library already has the most builds that may wait or run at the same time.' },
+  // M1 (app contract §4.2–§4.9): LMS types, approval grants and capabilities.
+  CAPABILITY_NOT_SUPPORTED: { status: 409, alsoStatus: [422], description: 'This connection does not support this feature.' },
+  INVALID_SITE_URL: { status: 422, description: 'The site URL is not valid.' },
+  PROVIDER_NOT_READY: { status: 409, description: 'Ask the Cogniate operator to register the Blackboard application.' },
+  GRANT_INVALID: { status: 403, description: 'The approval code is not valid, was used, or expired.' },
+  GRANT_MISMATCH: { status: 422, description: 'The values do not match the approval.' },
+  GRANT_IN_USE: { status: 409, description: 'Cogniate is already saving this connection.' },
+  DEPLOYMENT_IN_USE: { status: 409, description: 'This Blackboard site is already connected to Cogniate.' },
+  DEPLOYMENT_FIXED: { status: 409, description: 'This connection already reserved another Blackboard deployment. Disconnect it, then make a new connection.' },
   LTI_SERVICE_ERROR: { status: 502, description: 'The LTI service answered with an error.' },
   MOODLE_WS_ERROR: { status: 502, description: 'Moodle web services did not answer as expected.' },
 });

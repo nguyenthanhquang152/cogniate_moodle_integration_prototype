@@ -120,6 +120,12 @@ export function fakeLti(): FakeLti {
     },
     async getPlatform(id) { calls.push(`GET platform ${id}`); const p = platforms.get(id); if (!p) throw new LtiServiceError(404, 'UNREGISTERED_PLATFORM', ''); return p; },
     async patchPlatform(id, body) { calls.push(`PATCH platform ${id} ${JSON.stringify(body)}`); const p = platforms.get(id)!; Object.assign(p, body); return p; },
+    async getProviders() {
+      calls.push('GET providers'); failIfAsked();
+      return [{ id: 'standard', lms: null, label: 'Standard LTI 1.3 platform', sharing: 'exclusive', issuer: null, authenticationEndpoint: null,
+        accesstokenEndpoint: null, jwksUrl: null, siteUrlOn: null, serviceUrl: false, simulation: false, sharedPlatform: null }];
+    },
+    async getToolKeys() { calls.push('GET tool keys'); return [{ kty: 'RSA', kid: 'kid-1', alg: 'RS256', use: 'sig', n: 'n-value', e: 'AQAB' }]; },
     async getIdToken(ltik) {
       calls.push('GET idtoken'); failIfAsked();
       const token = launches.get(ltik);

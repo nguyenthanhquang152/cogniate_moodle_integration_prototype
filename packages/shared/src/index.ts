@@ -18,3 +18,6 @@ export { RETENTION_INTERVAL_MS, startRetention } from './retention.ts';
 export type { RetentionResult } from './retention.ts';
 export { startService } from './service.ts';
 export type { ServiceListener, StartOptions } from './service.ts';
+export { canonicalOrigin, checkSiteUrl, fixedHostsOf, hostOf, originHost } from './origins.ts';
+export type { CanonicalOrigin, SiteRule, SiteRuleInput, SiteUrlCheck } from './origins.ts';
+export { ADMIN_ROLES, canSelectContent, hasAdminRole, hasContextLearnerRole, hasContextStaffRole, isGradedLaunch } from './roles.ts';

@@ -32,6 +32,30 @@ export type LtiPlatform = z.infer<typeof Platform>;
 
 const Completed = z.object({ platformId: z.string().min(1), html: z.string() });
 
+/** One profile of `GET /api/providers` (LTI contract §9.3). */
+const ProviderProfile = z.object({
+  id: z.string().min(1),
+  lms: z.enum(['canvas', 'blackboard']).nullable(),
+  label: z.string(),
+  sharing: z.enum(['exclusive', 'shared']),
+  issuer: z.string().nullable(),
+  authenticationEndpoint: z.string().nullable(),
+  accesstokenEndpoint: z.string().nullable(),
+  jwksUrl: z.string().nullable(),
+  siteUrlOn: z.enum(['platform', 'deployment']).nullable(),
+  serviceUrl: z.boolean(),
+  simulation: z.boolean(),
+  sharedPlatform: z.object({ id: z.string().min(1), clientId: z.string(), active: z.boolean() }).nullable(),
+});
+export type LtiProviderProfile = z.infer<typeof ProviderProfile>;
+const Providers = z.object({ profiles: z.array(ProviderProfile) });
+
+/** The public tool JWKS (`GET /lti/keys/{account}`, LTI contract §2.3): public members only. */
+const ToolKeys = z.object({
+  keys: z.array(z.object({ kty: z.literal('RSA'), kid: z.string().min(1), alg: z.literal('RS256'), use: z.literal('sig'), n: z.string().min(1), e: z.string().min(1) })),
+});
+export type LtiToolKey = z.infer<typeof ToolKeys>['keys'][number];
+
 /** GET /api/idtoken (contract §3.1): only the fields that the app reads. Absent values are omitted by the service. */
 const IdToken = z.object({
   user: z.object({ id: z.string().min(1), roles: z.array(z.string()) }),
@@ -151,6 +175,10 @@ export function createLtiClient(deps: LtiClientDeps) {
     createPlatform: (body: NewPlatform, traceId: string) => call(Platform, 'POST', '/api/platforms', traceId, body),
     getPlatform: (platformId: string, traceId: string) => call(Platform, 'GET', `/api/platforms/${id(platformId)}`, traceId),
     patchPlatform: (platformId: string, body: { active?: boolean; name?: string }, traceId: string) => call(Platform, 'PATCH', `/api/platforms/${id(platformId)}`, traceId, body),
+    /** Provider profiles (LTI contract §9.3, M1). */
+    getProviders: (traceId: string) => call(Providers, 'GET', '/api/providers', traceId).then((r) => r.profiles),
+    /** Public tool keys of the tool account (LTI contract §2.3); the first key is the active one (Canvas inline JWK). */
+    getToolKeys: (account: string, traceId: string) => call(ToolKeys, 'GET', `/lti/keys/${id(account)}`, traceId).then((r) => r.keys),
     /** The launch behind a ltik (T4b2 handoff). */
     getIdToken: (ltik: string, traceId: string) => call(IdToken, 'GET', '/api/idtoken', traceId, undefined, ltik),
     /** The signed Deep Linking response for one content item (flows §6b). */

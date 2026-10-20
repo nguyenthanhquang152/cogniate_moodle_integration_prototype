@@ -11,11 +11,12 @@ import {
   PlatformTakenError, createConnection, disableConnection, getConnection, listConnections, markRegistered, platformOwner, replaceRef,
 } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
+import { TOOL_ACCOUNT, toolName } from '../providers/common.ts';
+import { moodleToolRows } from '../providers/moodle.ts';
 import { registerErrorText } from '../tool-pages/register-texts.ts';
 import { ApiError } from './api-errors.ts';
 
-/** The tool account of the app in the LTI service (contract §4.1). */
-export const TOOL_ACCOUNT = 'cogniate';
+export { TOOL_ACCOUNT, toolName };
 
 export interface ConnectionDeps {
   db: Db;
@@ -37,11 +38,6 @@ export function newRef(masterKey: Buffer, ttlSeconds: number, now: number): { to
 
 export const registrationUrl = (urls: PublicUrls, ref: string): string => `${urls.lti}/lti/register/${TOOL_ACCOUNT}?ref=${ref}`;
 
-/** Tool name in Moodle: `Cogniate (<library name>)`, ASCII only (flows §6a). */
-export function toolName(libraryName: string): string {
-  const ascii = libraryName.normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^\x20-\x7e]/g, '').replace(/\s+/g, ' ').trim();
-  return `Cogniate (${ascii || 'Library'})`;
-}
 
 /** `libraryName` fills the tool name into a lastError action line. */
 export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffer, libraryName = '') {
@@ -79,29 +75,8 @@ export async function deactivateOrphan(deps: { db: Db; lti: LtiClient; logger: L
   }
 }
 
-/** App contract §4.1: exactly these 16 rows, in this order (stable keys; labels are the Moodle 5.2.4 form labels). */
-export function toolConfiguration(urls: PublicUrls, libraryName: string): Array<{ key: string; label: string; value: string }> {
-  const launch = `${urls.lti}/lti/launch/${TOOL_ACCOUNT}`;
-  return [
-    { key: 'tool_name', label: 'Tool name', value: toolName(libraryName) },
-    { key: 'tool_url', label: 'Tool URL', value: launch },
-    { key: 'lti_version', label: 'LTI version', value: 'LTI 1.3' },
-    { key: 'public_key_type', label: 'Public key type', value: 'Keyset URL' },
-    { key: 'public_keyset_url', label: 'Public keyset', value: `${urls.lti}/lti/keys/${TOOL_ACCOUNT}` },
-    { key: 'initiate_login_url', label: 'Initiate login URL', value: `${urls.lti}/lti/login/${TOOL_ACCOUNT}` },
-    { key: 'redirection_uris', label: 'Redirection URI(s)', value: launch },
-    { key: 'deep_linking', label: 'Supports Deep Linking (Content-Item Message)', value: 'Yes' },
-    { key: 'content_selection_url', label: 'Content Selection URL', value: launch },
-    { key: 'tool_configuration_usage', label: 'Tool configuration usage', value: 'Show in activity chooser and as a preconfigured tool' },
-    { key: 'launch_container', label: 'Default launch container', value: 'New window' },
-    { key: 'ags', label: 'IMS LTI Assignment and Grade Services', value: 'Use this service for grade sync and column management' },
-    { key: 'nrps', label: 'IMS LTI Names and Role Provisioning', value: "Use this service to retrieve members' information as per privacy settings" },
-    { key: 'share_name', label: "Share launcher's name with tool", value: 'Never' },
-    { key: 'share_email', label: "Share launcher's email with tool", value: 'Never' },
-    // Q-T7-01 (contract §4.1 row 16): the exact Moodle 5.2.4 option text of the tool form.
-    { key: 'accept_grades', label: 'Accept grades from the tool', value: 'As specified in Deep Linking definition or Delegate to teacher' },
-  ];
-}
+/** App contract §4.1: exactly these 16 rows, in this order (the Moodle adapter owns them). */
+export const toolConfiguration = moodleToolRows;
 
 export const platformInfo = (p: LtiPlatform): PlatformInfo => ({ id: p.id, issuer: p.url, clientId: p.clientId, deploymentIds: p.deploymentIds, productFamilyCode: p.productFamilyCode ?? null });
 
