@@ -1,8 +1,8 @@
-Verdict: FAIL / HOLD — third frozen M2 SIM run at `e3cd7db`: 60 PASS, 4 FAIL (QA harness races); authorized readiness and capture repairs held for Lead commit; T7 held
-Round: 6, verification task `task_e28388df4dcc`, dispatch `ctx_4a94125660be` (earlier rounds: `ctx_8ec51c3aa7b5`)
+Verdict: PASS — fourth frozen M2 SIM run at `004568b`: 64/64 PASS, privacy and capture PASS, clean boundary (history: `e3cd7db` 60 PASS / 4 FAIL)
+Round: 7, verification task `task_e28388df4dcc`, dispatch `ctx_4a94125660be` (earlier rounds: `ctx_8ec51c3aa7b5`)
 Owner: original Claude Canvas QA (`claude-opus-5-5`, xhigh), resumed by owner request; round 5 owner was the independent Codex quota replacement
 
-Sections 1–5 preserve earlier preparation and execution records. Section 6 retains round 5. The current execution result is in section 7.
+Sections 1–5 preserve earlier preparation and execution records. Section 6 retains round 5 and section 7 retains round 6. The current execution result is in section 8.
 
 ## 1. Inputs and result
 
@@ -481,3 +481,138 @@ Evidence (synthetic only; retained in `R/readiness-repair/`):
 | New capture self-check against the old module (scratch mirror) | FAILS with `actual: []`: the gap is detected. It passes with the repaired module. |
 
 The scratch config uses a 2 s expect timeout for speed (all synthetic delays are shorter); the M2 config keeps 15 s. These are harness checks only. The next frozen browser run must reach the teacher Deep Linking and learner runtime/play steps for the scan to exercise those capabilities.
+
+## 8. Round 7 — fourth frozen M2 run at `004568b` (2026-10-20)
+
+**PASS: 64 PASS, 0 FAIL, zero skips, zero retries, zero flaky.** Product and test SHA: `004568bd4ab8390d64945cb73f16cfdd51d566bf`. This is the Lead commit of the held readiness and capture repairs (§7.5) on top of the `e3cd7db` product. The product and build sources are identical to `e3cd7db`, and the Core legacy timeout repair is `504421b`. Lead opened the exclusive window in `msg_b6726e8da143`. Applied criteria remain `ccdd9ef67cdd2be4c6af374136777fda4e081943`. This round supersedes the execution result in §7, not its history: the `e3cd7db` run stays 60 PASS / 4 FAIL.
+
+### 8.1 Identity and execution
+
+Run `qa-e2e-sim-r4-004568bd-2026-10-20T13-56-30-961Z`; project `qa-e2e-sim-r4`; port `8643`; subnet `172.27.0.0/16`; profile `acceptance`. External evidence root (`R`, mode `0700`): `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-004568b-HS9Wwxx3`. Frozen source: `R/source` (clean, detached at the SHA). Fresh runtime clone: `R/m2-stack`. Artifact directory (`A`): `R/source/tests/host/artifacts/qa-e2e-sim-r4-004568bd-2026-10-20T13-56-30-961Z`.
+
+Before the stack, in the frozen source: `npm ci --prefix tests`, then `node tests/e2e/host/run-m2.mjs --harness-only`: 6/6 self-checks PASS, typecheck PASS, all 64 cases discovered, T7 selection unchanged (`R/frozen-m2-harness.log`). The discovery output was removed, and the source stayed clean.
+
+```sh
+COMPOSE_PROJECT_NAME=qa-e2e-sim-r4 PUBLIC_PORT=8643 STACK_SUBNET=172.27.0.0/16 \
+COURSE_FIXTURES_DIR='/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses' \
+node tests/e2e/host/run-m2.mjs \
+  --sha 004568bd4ab8390d64945cb73f16cfdd51d566bf \
+  --test-sha 004568bd4ab8390d64945cb73f16cfdd51d566bf \
+  --workdir /Users/quangnguyen/cogniate-canvas-qa-runs/verification-004568b-HS9Wwxx3/m2-stack
+```
+
+Preflight (`R/baseline-before.json`):
+- zero containers;
+- the seven full volume metadata records equal the reference baseline exactly;
+- networks `bridge`, `host`, `none` only;
+- ports `8643` and `8543` free; no overlap with `172.27.0.0/16`;
+- no Build Runner process;
+- Docker `29.8.2`, MemTotal `8319238144`, NCPU `12`;
+- both course zips match their SHA-256 values.
+
+The Playwright pass began at `2026-10-20T13:57:11.576Z` and took `111896.73 ms`, with one worker and no retries. Runner exit `0`. All 64 rows carry product SHA = test SHA = `004568b…` and environment `SIM`. Redacted results: `A/evidence/m2/playwright-results.json`, `A/m2-case-results.json`, `A/cmd/09-m2-browser-pass.log`. There are 40 screenshots in `A/evidence/m2/playwright`. QA inspected the Canvas learner completion screenshot ("Status: Completed — score 100 sent to Canvas"); no capability is visible.
+
+Observer (`R/qa-e2e-sim-r4-observation.jsonl`):
+- **Browser** in the e2e container: Chromium `141.0.7390.37`, Playwright `1.56.0`, Linux arm64.
+- **Health:** at `13:56:41.072Z`, LTI, app and content returned 200 `ok`, `profile: acceptance`, empty knobs, and LTI `simulation_profiles` `blackboard-sim`, `canvas-sim-cloud`. `M2-02` removed the profiles through host control (`13:57:33.786Z`) and restored both (`13:57:40.231Z`).
+- **Build Runner:** fresh PID `83097` started at `13:57:05Z`, image ready, alive, heartbeat age 0.1–1.3 s.
+
+| Image | ID |
+| --- | --- |
+| Node `24.22.0-alpine3.24` (app, LTI, simulator, gate, sink, QA platform) | `sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f` |
+| Moodle `v5.2.4` | `sha256:3a310197e51ff34c6e8e8adbb92703fe598f71cbcf9eb974055c27f07f4cb23d` |
+| Caddy `2.11.7-alpine` | `sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f` |
+| Postgres `16-alpine` | `sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea` |
+| E2E `qa-e2e-sim-r4-e2e:1.56.0` | `sha256:6e0220025cc5d88af8c22b28f59e038e0cd4e20d3770ae0b33168415c6f35342` |
+
+### 8.2 All named outcomes
+
+All 64 cases ran once, in execution order. Both `M2-12` cases now complete the real HTML course end to end: portal connection, publish, framed teacher pick, learner completion with score 100, and sync Sent. This verifies the player-bundle repair in SIM.
+
+| Case | Outcome |
+| --- | --- |
+| `M2-02.not-ready` | PASS |
+| `M2-02.ready` | PASS |
+| `M2-01.cards` | PASS |
+| `M2-01.isolated-newest` | PASS |
+| `M2-01.moodle-card` | PASS |
+| `M2-03.profile-labels` | PASS |
+| `M2-03.rule1-http` | PASS |
+| `M2-03.rule1-path` | PASS |
+| `M2-03.rule1-query` | PASS |
+| `M2-03.rule1-fragment` | PASS |
+| `M2-03.rule1-userinfo` | PASS |
+| `M2-03.rule2-ipv4` | PASS |
+| `M2-03.rule2-ipv6` | PASS |
+| `M2-03.rule2-localhost` | PASS |
+| `M2-03.rule2-sub-localhost` | PASS |
+| `M2-03.rule3-lti` | PASS |
+| `M2-03.rule3-app` | PASS |
+| `M2-03.rule3-content` | PASS |
+| `M2-03.rule4-sso` | PASS |
+| `M2-03.rule4-sso-port` | PASS |
+| `M2-03.rule5-instructure` | PASS |
+| `M2-03.rule4-service-sso` | PASS |
+| `M2-03.valid-split` | PASS |
+| `M2-03.valid-default-service` | PASS |
+| `M2-04.rows` | PASS |
+| `M2-04.copy-json` | PASS |
+| `M2-04.download-json` | PASS |
+| `M2-04.inline` | PASS |
+| `M2-04.clipboard-denied` | PASS |
+| `M2-04.download-failure` | PASS |
+| `M2-05.success` | PASS |
+| `M2-05.grant-invalid` | PASS |
+| `M2-05.grant-mismatch` | PASS |
+| `M2-05.platform-in-use` | PASS |
+| `M2-05.invalid-values` | PASS |
+| `M2-05.lti-service-error` | PASS |
+| `M2-06.success` | PASS |
+| `M2-06.deployment-in-use` | PASS |
+| `M2-06.retry-after-error` | PASS |
+| `M2-06.second-deployment` | PASS |
+| `M2-07.badges` | PASS |
+| `M2-07.canvas-detail` | PASS |
+| `M2-07.no-add-elsewhere` | PASS |
+| `M2-08.canvas-no-moodle-features` | PASS |
+| `M2-08.blackboard-no-moodle-features` | PASS |
+| `M2-08.moodle-controls` | PASS |
+| `M2-09.blackboard-dialog` | PASS |
+| `M2-09.canvas-dialog` | PASS |
+| `M2-09.moodle-dialog` | PASS |
+| `M2-10.publish-dialog` | PASS |
+| `M2-10.canvas-results` | PASS |
+| `M2-11.canvas-keyboard` | PASS |
+| `M2-11.blackboard-keyboard` | PASS |
+| `M2-11.add-deployment-keyboard` | PASS |
+| `M2-11.axe-canvas` | PASS |
+| `M2-11.axe-blackboard` | PASS |
+| `M2-11.axe-canvas-detail` | PASS |
+| `M2-12.canvas` | PASS |
+| `M2-12.blackboard` | PASS |
+| `M2-13.routes-open` | PASS |
+| `M2-13.cross-provider` | PASS |
+| `M2-13.no-stale-values` | PASS |
+| `M2-13.form-state` | PASS |
+| `M2-13.cross-library` | PASS |
+
+### 8.3 Privacy and capture coverage
+
+- **`M3-07-M2` PASS:** 74 captured values (simulator and clone), 63 files, 0 hits.
+- **Independent private rescan:** 68 clone-captured values over 80 text files, including the runner stdout, observer output and harness log: 0 hits.
+- **Private capture coverage** (counts only, from the single private recorder; JWT kinds come from decoded claims):
+
+| Provider | Teacher Deep Linking | Learner launch |
+| --- | --- | --- |
+| Canvas | request `id_token` 1; response `JWT` 1 (`aud` Canvas) | resource-link `id_token` 1; `play_id` 2; `runtime_token` 6 |
+| Blackboard | request `id_token` 1; response `JWT` 1 | resource-link `id_token` 1; `play_id` 1; `runtime_token` 6 |
+
+The recorder also holds 4 `picker_id`, 5 `ltik`, 8 `state`, 4 `nonce` and 26 `api_key` values. The play and runtime values are grouped by their order between the two Deep Linking responses. The automatic request-time capture (7ddff36) and the response JWT capture (§7.5) are now exercised by a real run.
+
+### 8.4 Cleanup
+
+- **`M3-06-M2` PASS:** volumes 7 → 7, containers 0 → 0.
+- **`TEARDOWN` PASS:** 0 containers, 0 volumes and 0 networks left.
+- **Independent after-check at `2026-10-20T14:00:03Z`** (`R/baseline-after-m2.json`): zero containers. Volume records, networks and Docker MemTotal/NCPU are exactly equal to the before snapshot. No Build Runner process; ports `8643` and `8543` free.
+
+All T7 gate conditions in `msg_b6726e8da143` were met, so T7 started under the same window. T7 failed through a QA harness race in `tests/e2e/lib/portal.ts`; M2 does not call that function (see [T7 QA](../T7/qa.md#m3-checkpoint-update--fourth-candidate-004568b-t7-executed-fail)).

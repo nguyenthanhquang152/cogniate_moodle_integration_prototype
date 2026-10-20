@@ -113,6 +113,9 @@ export async function publishCourse(page: Page, connectionName: string): Promise
   const select = dialog.getByLabel('LMS connection');
   // M2 option text "<name> (<LMS>, <site host>)": the selected option must be this Moodle connection on the Moodle site.
   const wanted = `${connectionName} (Moodle, ${new URL(urls.moodle).host})`;
+  // Retrying readiness: the dialog loads the connection list after it opens. Options in a closed select are not visible.
+  const exact = new RegExp(`^\\s*${wanted.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
+  await select.locator('option').filter({ hasText: exact }).waitFor({ state: 'attached', timeout: 15_000 });
   const label = await select.evaluate((s, w) => Array.from((s as HTMLSelectElement).options).find((o) => o.text.trim() === w)?.text ?? '', wanted);
   if (!label) throw new Error(`the Publish dialog has no connection option "${wanted}"`);
   await select.selectOption({ label });

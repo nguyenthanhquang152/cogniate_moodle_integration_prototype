@@ -220,3 +220,65 @@ The only shared learner glue change prepared here formats failed frame-wait URLs
 **T7 remains NOT RUN / HOLD.** Product/test `e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63` finished M2 with 60 PASS and 4 FAIL (QA harness races, see [M2 round 6](../M2/qa.md#7-round-6--third-frozen-m2-run-at-e3cd7db-2026-10-20)). Lead's conditional T7 authorization (`msg_88bc0ba11c4c`) required all 64 PASS and complete cleanup. Therefore no default T7 stack, three-run sequence, demo or confirmation command began. Cleanup returned to zero containers and seven exact baseline volume records.
 
 No T7 test or assertion changed. The held repairs authorized in `msg_3590cf55633f` and `msg_b4e09fd0ad1a` change no T7 file. T7 learner glue imports only the unchanged `diagnosticUrl` from the diagnostics module; the T7 test list is unchanged. QA read the current `run-t7.mjs` at this SHA. It has no health assertion of its own, so the next T7 window will record default health (no knobs, `simulation_profiles: []`, no `lms-sim` or `lti-gate`), image identities and the Build Runner with the external read-only observer. See [M3 round 3](../M3/qa-e2e.md#6-round-3--third-m2-run-at-e3cd7db).
+
+### M3 checkpoint update — fourth candidate (`004568b`): T7 executed, FAIL
+
+**FAIL / HOLD.** Product/test `004568bd4ab8390d64945cb73f16cfdd51d566bf`, after M2 passed 64/64 at the same SHA ([M2 round 7](../M2/qa.md#8-round-7--fourth-frozen-m2-run-at-004568b-2026-10-20)). Lead window: `msg_b6726e8da143`. Run `qa-e2e-m3-r1-004568bd-2026-10-20T14-00-53-214Z`; project `qa-e2e-m3-r1`; port `8543`; subnet `172.31.0.0/16`; default profile. External evidence root (`R`, mode `0700`): `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-004568b-HS9Wwxx3`. Artifacts: `R/source/tests/e2e/artifacts/runs/qa-e2e-m3-r1-004568bd-2026-10-20T14-00-53-214Z`. Runtime clone: `/Users/quangnguyen/cogniate-qa-runs/qa-e2e-m3-r1-004568bd-2026-10-20T14-00-53-214Z`.
+
+```sh
+COMPOSE_PROJECT_NAME=qa-e2e-m3-r1 PUBLIC_PORT=8543 STACK_SUBNET=172.31.0.0/16 \
+COURSE_FIXTURES_DIR='/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses' \
+node tests/e2e/host/run-t7.mjs --sha 004568bd4ab8390d64945cb73f16cfdd51d566bf --runs 3 --demo --check-confirm
+```
+
+Runner exit `1`. All three runs gave the same result: **8 PASS, 9 FAIL, 1 SKIP**, each run in 125 s with `e2e:reset` in 37–38 s. The skip is `DEMO AC-T7-15`, which runs only in the demo pass by design. Both B-T7-01 confirm-"no" checks and both A-T7-04 fail-closed checks are OK. The demo pass is OK: `e2e:reset` exit 0, `demo:prepare` in 8.05 s, player check exit 0. Teardown OK.
+
+**Root cause: a QA harness race in `tests/e2e/lib/portal.ts` `publishCourse` (QA-E2E glue, H-6 edit).** It reads the `LMS connection` options once with `select.evaluate()`. This is the same pattern that was repaired in M2 at `004568b`. QA missed this T7 copy when it judged T7 unaffected.
+- In A3, the SCORM publish passed, and the HTML publish failed with "the Publish dialog has no connection option".
+- Run 1 app log: the HTML dialog's `GET /app-api/connections` completed at `14:01:46.914Z`, and A3 ended at `14:01:46.999Z`.
+- A4, A5, A6, AC-T7-04, AC-T7-05, AC-T7-06 and B5 fail through `need()` on A3/A4 state.
+- B6 completes its own course 102 activity (grade 100). It then fails on Thanh's SCORM results row for `cg_student`, which needs A5.
+- QA found no product defect.
+
+| Criterion | Result at `004568b` | Evidence and limit |
+| --- | --- | --- |
+| AC-T7-01 | FAIL | `npm run test:e2e` exit 1 in each run (125 s ≤ 25 min). |
+| AC-T7-02 | NOT VERIFIED | A1-A2 PASS (registered); the `connected` state after A4 was not reached. |
+| AC-T7-03 | NOT VERIFIED | A4 did not run (cascade). |
+| AC-T7-04 to AC-T7-06 | NOT VERIFIED | Cascade from A3. |
+| AC-T7-07 | NOT VERIFIED | A5 and A6 did not run. B6's learner launch reached the player, but the B6 case failed. |
+| AC-T7-08 | NOT VERIFIED | B4 PASS; B5 failed through cascade. |
+| AC-T7-09 | NOT VERIFIED | B6 grade 100 reached; the Thanh results part failed through cascade. |
+| AC-T7-10 | PASS in each run | C1 `INVALID_STATE` and C2 scan PASS. |
+| AC-T7-11 | FAIL | Three consecutive runs did not pass. |
+| AC-T7-12 | Partial | This section, run artifacts, screenshots and traces. No grader report, completion or portal results screenshot was reached. |
+| AC-T7-13 | PASS in each run | T7-START and T7-END PASS. |
+| AC-T7-14 | PASS in each run | A1-A2 PASS. |
+| AC-T7-15 | PASS | Demo pass OK. |
+
+Default profile, from the external observer across all resets:
+- **Health:** LTI, app and content returned 200 `ok`, `profile: default`, `knobs: []`, `simulation_profiles: []`, and no `lms-sim` or `lti-gate` ran.
+- **Images:** Node `sha256:44fce696f38b…`, Moodle `sha256:3a310197e51f…`, Caddy `sha256:d8542f48d34a…`, Postgres `sha256:721873c34ceb…`. The e2e image is rebuilt in each pass (`4dc3d13b6d32…`, `1da03e9bfa6c…`, `7e3f9a6a90d9…`, `e8b97479953b…`).
+- **Browser:** Chromium `141.0.7390.37`, Playwright `1.56.0`, Linux arm64.
+- **Build Runner:** fresh PIDs `94898`, `2778`, `9197`, `17599`, each alive with the image ready.
+
+Privacy:
+- The runner deletes each run's private capture file, so a read-only watcher kept the union in `R/private/` (mode `0600`): 60 entries.
+- Independent scan of those values and the clone `.env` secrets over 103 shared text files (artifacts, runner stdout, observer): 0 hits.
+
+Boundary after T7 (`R/baseline-after-t7.json`, `14:08:57Z`): zero containers. The seven volume records, networks and Docker MemTotal/NCPU are exactly equal to before. No Build Runner; ports `8543` and `8643` free.
+
+QA requested a bounded test-only repair in `msg_019380277074`. Lead authorized it in `msg_859204e81d48`. The three failed runs, the demo-only skip, the confirm and demo results, and the privacy and cleanup evidence above remain the record for `004568b`; this is not a T7 PASS.
+
+**Held repair (no stack):** `tests/e2e/lib/portal.ts` `publishCourse` now waits for the exact expected option before the unchanged label read: an escaped, anchored RegExp of `<name> (Moodle, <site host>)`, `waitFor({ state: 'attached', timeout: 15_000 })`. Options in a closed select are attached, not visible. The exact text and host match, the missing-option throw, the selection, Publish and the "Available in Moodle" check are unchanged. No other helper, scenario, case selection or demo-skip behavior changed. The latent one-shot `Connect` count in `startConnect` is outside this repair; it passed in all three runs.
+
+Evidence (synthetic only; `R/publish-repair/`):
+- **Scratch control** (host Google Chrome, Playwright `1.56.0`): 6/6 behave as stated. The spec uses verbatim copies of the old (HEAD) and new (working tree) `publishCourse`, with their SHA-256 values recorded.
+  - P1: the old function on a delayed list throws "no connection option" (reproduces A3).
+  - P2: the new function selects a delayed valid option and reaches "Available in Moodle".
+  - P3–P5: a missing option, the same name on another host, and a different name on the same host still fail.
+  - P6: a Publish that never shows "Available in Moodle" still fails.
+- `node tests/e2e/host/run-m2.mjs --harness-only`: 6/6 PASS, typecheck PASS, all 64 M2 cases, T7 selection unchanged.
+- T7 inventory (`QA_SUITE=e2e playwright test --list`): 18 tests in 6 files (unchanged).
+
+Next: Lead commits the repair and freezes one new product/test SHA, then a fresh full M2 and three default T7 passes with demo and confirmation checks under a new window.
