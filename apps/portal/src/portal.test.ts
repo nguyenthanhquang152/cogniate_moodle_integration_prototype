@@ -37,6 +37,13 @@ const connection: Connection = {
   id: "con_test",
   name: "Test Moodle",
   siteUrl: "https://moodle.test",
+  serviceUrl: "https://moodle.test",
+  lms: "moodle",
+  profile: "standard",
+  capabilities: {
+    dynamicRegistration: true, operatorApproval: false, webServices: true,
+    courseShell: true, addDeployment: false, canvasConfiguration: false,
+  },
   method: "manual",
   status: "pending",
   registrationUrl: null,

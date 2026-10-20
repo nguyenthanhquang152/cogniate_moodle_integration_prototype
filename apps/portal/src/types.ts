@@ -1,4 +1,52 @@
 // Browser DTOs follow docs/architecture/contracts/cogniate-app-api.md. No service imports.
+export type Lms = "moodle" | "canvas" | "blackboard";
+export interface LmsCapabilities {
+  dynamicRegistration: boolean;
+  operatorApproval: boolean;
+  webServices: boolean;
+  courseShell: boolean;
+  addDeployment: boolean;
+  canvasConfiguration: boolean;
+}
+export interface LmsProfile {
+  id: string;
+  label: string;
+  simulation: boolean;
+  ready: boolean;
+  clientId: string | null;
+}
+export interface LmsProvider {
+  lms: Lms;
+  label: string;
+  methods: ("dynamic" | "manual")[];
+  capabilities: LmsCapabilities;
+  profiles: LmsProfile[];
+}
+export interface LmsProvidersResponse {
+  lms: LmsProvider[];
+}
+export type ConnectionCreateBody =
+  | { name: string; siteUrl: string; method: "dynamic" | "manual"; lms?: "moodle"; profile?: "standard" }
+  | { name: string; siteUrl: string; method: "manual"; lms: "canvas"; profile: string; serviceUrl?: string }
+  | { name: string; siteUrl: string; method: "manual"; lms: "blackboard"; profile: string };
+export interface CanvasPlatformBody {
+  clientId: string;
+  deploymentId: string;
+  grantCode: string;
+}
+export interface BlackboardPlatformBody {
+  deploymentId: string;
+  grantCode: string;
+  clientId?: string;
+}
+export interface AddDeploymentBody {
+  deploymentId: string;
+  grantCode: string;
+}
+export interface CanvasConfigurationSnapshot {
+  text: string;
+  keyId: string | null;
+}
 export interface Session {
   user: { id: string; name: string; email: string; role: string };
   library: { id: string; name: string };
@@ -7,6 +55,10 @@ export interface Connection {
   id: string;
   name: string;
   siteUrl: string;
+  serviceUrl: string;
+  lms: Lms;
+  profile: string;
+  capabilities: LmsCapabilities;
   method: "dynamic" | "manual";
   status: "pending" | "registered" | "connected" | "disabled";
   registrationUrl: string | null;
@@ -19,7 +71,9 @@ export interface Connection {
     issuer: string;
     clientId: string;
     deploymentIds: string[];
-    productFamilyCode: string;
+    productFamilyCode: string | null;
+    siteUrl: string;
+    serviceUrl: string;
   } | null;
   lastError: {
     title?: string;
@@ -98,6 +152,8 @@ export interface MbzBuild {
 }
 export interface Publication {
   id: string;
+  lms: Lms;
+  connectionName: string;
   connectionId: string;
   courseId: string;
   courseTitle: string;
@@ -168,6 +224,9 @@ export interface ErrorDetails {
   description?: string;
   action?: string;
   fields?: Record<string, string> | string[];
+  field?: string;
+  rule?: number;
+  capability?: keyof LmsCapabilities;
   reasons?: RejectReason[];
   traceId?: string;
 }
