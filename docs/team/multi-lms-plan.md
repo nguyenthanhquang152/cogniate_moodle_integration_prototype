@@ -697,6 +697,11 @@ The common capture interface is confirmed in `msg_6717ae0ed480` and reply `msg_0
 It appends capture for all seven methods. Later resets or raw rule replacement require re-arming.
 Canvas QA may use this interface in its older race cases and held-S3 windows; common QA owns the helper and its checks.
 
+Two bounded re-review tasks are queued: Reviewer-A `task_e0177b2e9a56` and Reviewer-B `task_485802b55bbd`.
+They depend on the backend repair and also require a Lead handoff with committed harness repairs and one frozen SHA.
+The same independent reviewers own their existing reports; the team brief extends Reviewer-A's replacement role to this follow-up.
+Their new reports remain blind until each submits. The three-worker limit still applies.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.

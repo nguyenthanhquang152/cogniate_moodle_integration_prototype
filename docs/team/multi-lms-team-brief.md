@@ -65,6 +65,11 @@ The replacement owns only the three `reviewer-a.md` reports named in the task.
 It remains independent of both authors, both QA workers and Reviewer-B, with the same blind review rule.
 The earlier Claude reports remain history. The old Claude session stays retained without review edit authority.
 
+The same independent replacement also owns `task_e0177b2e9a56`, the bounded re-review after its Round 2 findings.
+This extends the instance exception to that follow-up and the same three report files only.
+Reviewer-B keeps its dedicated instance for parallel task `task_485802b55bbd`; the Lead schedules both within the worker limit.
+Both reviewers assess one committed candidate and stay blind to the other's new report until their own submission.
+
 ## One common engine
 
 Moodle, Blackboard and Canvas use the same LTI engine.
