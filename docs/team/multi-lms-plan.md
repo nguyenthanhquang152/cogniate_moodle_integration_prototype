@@ -109,6 +109,13 @@ Design review tasks `task_8539cca49e29` and `task_6df3fc0172eb` depend on the Ar
 Each reviewer will write its own report before it sees the other review.
 Independent QA task `task_8b0eb55ffe6f` will check the design's testability from its acceptance criteria.
 
+Implementation tasks are queued, but they are not authorized to start before the design gate passes.
+Backend task `task_88ef41c0aea3` resumes the dedicated Author.
+Portal task `task_3b1e979ab893` resumes Author-2 in its isolated worktree.
+Each task depends on both design reviews and the QA testability review.
+The Lead must also confirm that all BLOCKER and MAJOR findings are closed.
+The portal branch will first advance to the approved design commit.
+
 The Author completed the backend audit in `ctx_94cbe8647c96`.
 Messages `msg_7b0385efd7e4`, `msg_a49edfb39d36`, and `msg_f0556212f33f` hold the findings.
 The Lead sent them to the Architect and retained the same dedicated Author for implementation.
@@ -145,7 +152,8 @@ Preserve redacted evidence first. Never remove existing volumes, shared base ima
 ## Design requirements from the Lead
 
 Public issuer, client, and deployment IDs do not prove that a library controls an LMS installation.
-New shared-provider bindings need a verified approval or proof step before activation.
+New Canvas and Blackboard bindings need a verified approval or proof step before activation.
+This includes additional Canvas deployments.
 Typing another institution's public deployment ID must not claim its launches.
 This protection is in scope. It is not an accepted deferral.
 
