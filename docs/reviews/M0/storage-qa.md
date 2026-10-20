@@ -509,3 +509,138 @@ No row uses a product maintenance command as its own oracle (M1.md:220).
 
 It does not claim any §17 assumption beyond the source facts stated above. It approves no implementation and gives no
 acceptance credit. Every stack-level gate must run again on the storage-repaired candidate.
+
+## Round 3
+
+Verdict (Round 3): FAIL (design testability) — 2 MAJOR (both are narrow text fixes with no design change), 4 MINOR, 1 NIT; no BLOCKER. All Round 2 findings R2-01 to R2-10 are closed.
+Round: 3, task `task_0e99b6e5fb12`, dispatch `ctx_010e8e2ab9d8`, 2026-10-21
+
+Rounds 1 and 2 above are unchanged. Their first 47,421 bytes still have SHA-256
+`50b83fbdc6c50645be16c54e7ddf2b8c35e450cadae9e83325c2841c567a2194`.
+
+| Item | Value |
+| --- | --- |
+| Frozen design candidate | `b3bd22e2ada43f45499db5e50cfb4cafc8295fb9` (ADR-012 revision 3) |
+| Product and test tree | identical to `8138097889f87359d5055bb1d79766b5ed842f92` (checked with `git diff --quiet` on `services apps packages infra tests` and the root build files) |
+| Read | ADR-012 rev 3, the Round 3 section of `review-response-storage.md`, the M1, M3, ADR-011 §14 and index changes, and the Lead's phase-plan synthesis |
+| Not read | both storage reviewer reports and every other worker's Round 3 report or draft |
+| Method | Read-only `git show`/`git diff` at the SHAs above, and source reads of `8138097` (`infra/scripts/*.sh`, `tests/host/p5-fixture.mjs`, `tests/host/run-t5.mjs`, `tests/acceptance/T5a/0-setup.spec.ts`, `package.json`). No Docker, stack or product command. |
+
+References are at `b3bd22e`. "ADR" means ADR-012 revision 3.
+
+### R3.1 Recheck of the Round 2 findings
+
+| Id | Round 3 status | Evidence at `b3bd22e` |
+| --- | --- | --- |
+| R2-01 | Closed | ADR §8 "File set" (line 348): `<db>`, `-wal`, `-shm` and the identity; equality is never the main file alone. ADR §13 "Recovery oracle" (lines 602–606): the full file set plus logical rows from stopped copies with their sidecars. M1.md:224–225 defines "equals the state before" and "equals `B`" with both parts; the logical precondition is at M1.md:224. Every `g-*` and `e-*` recovery row uses these terms (M1.md:277, 283, 285–286). |
+| R2-02 | Closed | ADR §7 Scope (lines 263–272): candidate `test:acceptance`, `test:e2e` and `e2e:reset` hold no lock; each internal start takes and releases it. The lock is not re-entrant (A4, line 242). Rows `a-lock-scope` and `a-lock-reentry` (M1.md:235–236). The trace in R3.3 finds no deadlock. |
+| R2-03 | Closed for credentials | M1.md:263–266: the four `.env` values and four secret files; no `gen-env`, `seed`, `lti:bootstrap` or `seed-portal` before the oracle; the oracle uses only the copied values. A **new** gap in the same row: R3-01 (package content). |
+| R2-04 | Closed | ADR §11 container kinds (lines 483–489). The `selftest` folder is in the container's own writable layer (ADR line 161; M1.md:242). `c-host-negative` uses a `storage-oracle` and then a `storage-probe` container on the same bind folder (M1.md:243). |
+| R2-05 | Closed | `a-serialize` has a fixed order and an order-independent oracle (M1.md:232). A precision point: R3-04. |
+| R2-06 | Closed | ADR §5 `check` steps 1–6 (lines 138–143): read, then the journal gate with no change, then preparation, which records an unsafe mountpoint for row 5, then the privilege drop, the cleanup and the table. |
+| R2-07 | Closed | ADR §8 "Other target states" (line 338); row `h-target-state` (M1.md:294). A precision point: R3-05. |
+| R2-08 | Closed | ADR §14 "Two rounds" (line 620); M3 AC-M3-01. |
+| R2-09 | Closed | ADR §10 first-match rows L1–L7 (lines 459–469). |
+| R2-10 | Closed | ADR §7 "Lock events" (lines 276–284): sink, fields with `ts`, and the event list. |
+| O2-1, O2-2 | Done | `ts` on every storage line (lines 155–157, 166, 404); §17 assumption 8 (line 682). |
+
+The Round 1 and Round 2 closures still hold at `b3bd22e`. The §6 table is unchanged and total. The exact codes, the
+tree rule, the command rule (now with the `run --` wrapper, lines 516–521), the C0/C1 method, the mountpoint rule and
+the legacy hot-journal rule are all still present. A takeover can never move a newer lock, for two reasons. A stale
+record cannot become live again, because the live test compares `pid` with `pidStart`. And a takeover is a `rename` to
+the never-deleted name `stale-<runId>`, which fails onto a non-empty folder (lines 243–252). This proof depends on §17
+assumption 4, which stays unmeasured.
+
+### R3.2 Required fixes (Round 3)
+
+#### R3-01 MAJOR — `e-old-schema` cannot pass: the import's content check refuses, because no package folder is copied
+
+- Location:
+  - M1.md:263–266. The row runs "after QA's `stack:reset` of the storage lane". It copies "the two databases … It also
+    copies the complete synthetic credential set … and nothing else".
+  - ADR §8 line 340: every restore **and import** runs the content check. Every `package.storage_path` must exist under
+    `infra/.data/cogniate-app/packages`, else `content_missing`.
+- Evidence:
+  - AC-M1-23 step 1 (M1.md:208) runs the unmodified `SETUP-T5a` (`tests/host/m1-migration.mjs:107–108`). That setup
+    creates and uploads SCORM, HTML and blank-SCO courses (`tests/acceptance/T5a/0-setup.spec.ts:24`, `:32–33`). So the
+    v10 app database in the AC-M1-23 step 4 backup has `package` rows with `storage_path` values.
+  - The candidate `stack-reset.sh` removes `infra/.data/cogniate-app` (ADR §3 line 56; §15).
+- Schedule: `stack:reset` empties the storage lane's packages folder → QA copies the v10 databases and credentials →
+  legacy backup → `stack:data-import` → the staged content check finds a missing `storage_path` → refuses
+  `content_missing` (correct product behavior) → the mandatory row fails in both rounds.
+- Fix (text only): add to the copy list the package folders that the copied app database references, from the AC-M1-23
+  clone's `infra/.data/cogniate-app/packages/` (QA's own synthetic course content), placed before the legacy backup. The
+  row's oracle should also record that the content check passed.
+
+#### R3-02 MAJOR — The T5b P5 fixture contradicts the §11 write rule
+
+- Location: ADR §11 line 485 (write mode "only while both services are positively stopped and QA holds the operation
+  lock"; the only running-stack exception is `a-restart-refusal`); ADR §11 line 493 and M3 AC-M3-02 (b) ("keeps its
+  approved app-stop guard and its assertions; only its database access moves into the `storage-fixture` container").
+- Evidence:
+  - `tests/host/p5-fixture.mjs:17–22` stops **only** `cogniate-app` (`docker compose stop cogniate-app`). It edits
+    `cogniate.db`, then runs `docker compose start cogniate-app`; `lti-service` keeps running.
+  - P5 is a required T5b case (`tests/host/run-t5.mjs:39`), so it is part of the legacy suites of AC-M3-02 (b).
+- Schedule: the T5b legacy run reaches P5 → QA must write `cogniate.db` in `appdb` while `lti-service` runs → §11
+  forbids it → QA either breaks §11 or changes the approved P5 guard. Both are forbidden, so the legacy group cannot run
+  within the rules.
+- I should have found this in Round 2; the same text was present at `7a63744`.
+- Fix (text only): add P5 as a second named running-stack exception in §11. Its write is limited to `cogniate.db` (and
+  the sidecars that SQLite uses) in `appdb`. It needs `cogniate-app` positively stopped (the approved guard) and the lock
+  held through `storage-oplock.sh run --`. `lti-service` may run, because it does not mount `appdb`. In the same place,
+  state that the existing harness `docker compose stop` and `start` of an existing service container are accepted
+  harness actions, not supported operator starts. These are P5, the P2 app recovery of `run-t5.mjs`, and the M1-23/30
+  stops. They change no storage layout.
+
+### R3.3 Scope trace: candidate suites, the host control and the lock (no deadlock)
+
+| Path | Source fact at `8138097` | Lock behavior at `b3bd22e` | Result |
+| --- | --- | --- | --- |
+| `npm run test:acceptance` (`qa-suite.sh`) | starts with `STACK_PROFILE=acceptance stack-up.sh` (line 56); its `EXIT` trap runs `STACK_PROFILE=default stack-up.sh` (line 45) | the command holds no lock; each internal `stack-up.sh` takes and releases it | the suite container runs with the lock free |
+| `npm run test:e2e` / `e2e:reset` | `qa-suite.sh` line 62 runs `e2e-reset.sh`, which runs `stack-reset.sh` (27), `stack-up.sh` (29) and `seed.sh` (31) one after another | each internal run takes and releases the lock; `seed` takes none | no nesting |
+| Host-control `m1-restart` / `m1-profile` during a suite | `tests/host/m1-control.mjs` runs `npm run stack:restart` from the harness process (ADR §17 S4) | not a child of a lock holder, so `COGNIATE_STORAGE_LOCK_RUN` is absent; A1–A2 acquire; concurrent restarts wait (≤ 120 s) | no deadlock; checked by `a-lock-scope` |
+| QA fixture writes | `storage-oplock.sh run -- <QA command>` | the QA command is not a guarded command | no re-entry |
+| Old route | `storage-compat.sh run -- npm run test:acceptance` holds the lock for the whole old command; old scripts take none; the host control refuses old restarts under the marker | — | no nested wait |
+| `demo` | `demo.sh:11–12` runs `stack-up.sh`, then `seed.sh` | not named in the §7 scope table: R3-07 | consistent if it holds no lock of its own |
+
+### R3.4 Other findings (Round 3)
+
+| Id | Sev. | Location | Problem | Narrow fix |
+| --- | --- | --- | --- | --- |
+| R3-03 | MINOR | ADR §9 steps 1–2 (lines 432–438) | The volume-user check lists "every container, in any state" that references the lane volumes. It does not exclude the command's own copy container (`oneoff=True`, a storage service). If that container still exists at step 2, quarantine refuses `volume_in_use` and names itself. | State that steps 2–5 run on the host after the copy container has ended and is removed, or exclude the containers whose `org.cogniate.storage.run` is this command's `runId`. |
+| R3-04 | MINOR | M1.md:232 (`a-serialize`) | QA "waits until the lock record names that backup". A fast backup can acquire and release before the first read, and then the wait never ends. The row itself says a fast backup can finish early. | Wait for the backup's `storage_lock_acquired` event in `storage-lock.jsonl`, or the live record, whichever comes first. |
+| R3-05 | MINOR | M1.md:294 (`h-target-state`, "after `--stop-after staged` on another lane") | The `storage` phase has one lane and one checkout ("one checkout per project", ADR §7 line 274). A second lane needs another project, `.env` and stack, and no rule defines one. | Use the same lane: `--stop-after staged`, check the refusal, then `--recover`. Or define the second lane. |
+| R3-06 | MINOR | M1.md:283 (`g-fresh-target`) and M1.md:292 (`h-pair-mismatch`) | After `g-fresh-target`, the lane carries `B`'s `pairId` again. A backup "made before `g-quarantine`" then has the same `pairId`, so a restore succeeds and `pair_mismatch` cannot happen. The row needs a new fresh pair, and the sequence does not make one. | State the order and fixture: for example, one more `stack:data-quarantine`, then a fresh `stack:up` (a new `pairId`), then the old-pair restore. |
+| R3-07 | NIT | ADR §7 scope table (lines 265–270) | `demo` and `demo:prepare` are in the candidate guard (line 562) but not in the scope table. `demo.sh` calls `stack-up.sh`. | Add "no lock of its own, like the `test:*` commands". |
+
+### R3.5 Inventory and oracle independence (as designed at `b3bd22e`)
+
+| Item | Value |
+| --- | --- |
+| Original mandatory rows, each round | **416**, with unchanged ids, phases and labels |
+| AC-M1-41 rows, each round | **72**: a 10, b 3, c 2, d 7, e 13, f 6, g 20, h 7, i 2, j 2 (I recounted from ADR §13 lines 589–598 and M1.md:219–299) |
+| Rows per full round | **488** |
+| Phases | `sim` 394, `snapshot-isolated` 6, `snapshot-upgrade` 6, `migration` 12, `storage` 70; `storage` runs after `migration` in each round, and `e-old-schema` runs last |
+| Rounds | 2, at the same product and test SHA, with the same result per row (also for `c-host-negative`) |
+| Conditional | only `c-host-negative`: PASS or `NOT_APPLICABLE` with same-round evidence, reported apart, never counted as PASS |
+| Not rows | harness self-checks (copied-file hashes, an added environment key, host-control refusal under the marker) and unit/integration cases |
+
+None of my Round 3 findings adds or removes a row.
+
+Oracle independence: every group is decided by QA's own parsing and hashing, through the five fixture container kinds of
+§11 and `docker inspect`/`ps`. The lock rows (`a-lock-*`, `g-orphan-*`) use QA's own reads of the lock records and
+events, and QA's container listings. The product probe is the tested object only in `c-*`. No row uses a product
+maintenance command as its own oracle (M1.md:221).
+
+### R3.6 Dispositions
+
+| Finding | Disposition |
+| --- | --- |
+| R2-01 – R2-10, O2-1, O2-2 | Closed (R3.1) |
+| R3-01, R3-02 | Required before the design passes. Each is a narrow text fix; neither needs a design change. |
+| R3-03 – R3-06 | Precision fixes; not blocking alone |
+| R3-07 | NIT |
+
+The design is otherwise testable as written. Once R3-01 and R3-02 are fixed, I see no remaining required gap in the
+case map, the phases or the oracles. This review approves no implementation and gives no acceptance credit. Every
+stack-level gate must run again on the implemented candidate, and the §17 assumptions remain to be verified there.

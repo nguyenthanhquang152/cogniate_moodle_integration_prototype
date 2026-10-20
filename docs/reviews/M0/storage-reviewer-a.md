@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 2
+Verdict: APPROVE
+Round: 3
 
 # Storage design review: ADR-012 (SQLite named volumes) — Reviewer-A
 
@@ -221,3 +221,54 @@ In a single-writer world, I found no reachable pair that leads to R6. Recovery i
 - A-S-10 (MINOR) is amended, or the Lead records it as accepted with its stated limit.
 - A-S-11 is optional.
 - I re-check the next frozen revision. Every runtime gate, every stack-level rerun and the 32 `UNVERIFIED` live rows stay as stated.
+
+## Round 3 (2026-10-21)
+
+| Item | Value |
+| --- | --- |
+| Verdict | **APPROVE** (design only). No BLOCKER or MAJOR is open. A-S-09, A-S-10 and all five A-S-11 items are closed, and the earlier closures hold. One new **MINOR**, A-S-12, is a narrow residual of A-S-09: the lock liveness test sees the guarded command's own process but not its `docker compose run` child. I recommend a one-sentence amendment before the implementation starts. If the Lead accepts it instead, record the limit. This approval opens no implementation or acceptance gate by itself. |
+| Frozen candidate | **`b3bd22e2ada43f45499db5e50cfb4cafc8295fb9`** (design revision 3; product and tests stay `8138097889f87359d5055bb1d79766b5ed842f92`). Detached clone `/tmp/rva-b3bd22e`. |
+| Inputs read | My Rounds 1–2 above (whole-report SHA-256 `1ba1ceb6abec579db1d46b2c115a22ab717fcf507f56bd215db7945dfd48c14a` at `584ab9e`); `review-response-storage.md` "Round 3 response" (Reviewer-A, QA and row sections); ADR-012 revision 3 (all 692 lines, with the diff from `7a63744`); ADR-011 §14 changes; M1 AC-M1-41 oracles of the new rows (`g-orphan-*`, `a-lock-*`, `g-quarantine-in-use`, `h-target-state`). |
+| Reviewer | Original independent Reviewer-A, Claude Code Opus 5.5, xhigh, session `604b28c1-156c-4266-84c3-e0f0089004da`. Task `task_8e1e6a064266`, dispatch `ctx_e2d9047f3655`, run `run_ebe671ad72a9`. |
+| Independence | I did not read `storage-reviewer-b.md`, `storage-qa.md` or any other worker's Round 3 draft. No Docker, stack, edit, commit or push. My checks are source reads and reasoning only; they are not runtime acceptance. |
+
+### Status of the Round 2 findings
+
+| Id | Sev. | Status | Normative evidence at `b3bd22e` |
+| --- | --- | --- | --- |
+| A-S-09 | MAJOR | **Closed** (residual: A-S-12) | ADR-012 §7 (L211–L262). Storage containers are named and labelled per run (L213); "active" includes `running`, `paused`, `restarting` and `removing` (L214). The lock record has a process identity (`pid`, `pidStart`; L228–L231), and a lock folder appears only by the `rename` of a complete candidate (L232). **A5** (L243): a stale record is reclaimed only when **no active storage container** of the project exists, else `storage_writer_active`, and nothing moves. **A6** (L244): every new holder checks again before its first Docker write, and removes only *inactive* storage containers (`docker rm <id>`, never `-f`/`-v`). The takeover proof (L246–L252) holds: a takeover renames only to the never-deleted, non-empty `stale-<runId>`, so a second takeover fails; and `rename` onto a non-empty folder fails, so A2 cannot replace a held lock. The operator exit is `docker stop <name>`, then a reclaim and `--recover` (L261; ADR-011 §14). The rows `g-orphan-refusal`, `-complete` and `-stopped` kill the whole process group while a paused container still runs. My Round 2 schedule (the client dies while the container runs) is now refused at A5 and A6. |
+| A-S-10 | MINOR | **Closed** | §8 "Checked move" (L350): the source bytes are checked, the target must be absent (`lstat`), and a collision moves nothing. **R3 order** (L382–L390): classify each in-place name first; `after` bytes leave their place before any `before` file comes back; unknown bytes or an unlisted present name → `rollback_failed` at once; "the rollback never overwrites data that it does not know". The swap itself also stops on an in-place file that is not in `before` (L357). An interrupted rollback re-classifies the files, so it is idempotent. "File set" (L348) makes every verification cover `<db>`, `-wal`, `-shm` and the identity, not the main database alone. |
+| A-S-11 (1) | NIT | **Closed** | §4 privilege rule (L95): as root, only reads and the §4 steps; no identity, journal or log line as root in any mode; `report`, `mark-started`, `probe` and `selftest` drop privilege at once. §5 `check` order (L138–L148): read, journal gate, prepare, then drop privilege. |
+| A-S-11 (2) | NIT | **Closed** | §8 "Other target states" (L338): `restore_target_state` / `import_target_not_fresh` name the state and the next step; nothing changes. ADR-011 §14 rollback step 2; row `h-target-state`. |
+| A-S-11 (3) | NIT | **Closed** | §9 (L431–L445): only stopped, non-one-off service containers of the project are removed (never `-f`/`-v`); any other volume user → `volume_in_use`, nothing removed, and the verified copy stays; row `g-quarantine-in-use`. |
+| A-S-11 (4) | NIT | **Closed** | §12 (L507, L513, L517–L521): `storage-oplock.sh` is committed, hashed (`<h4>`) and copied by `enable`. The copied `storage-compat.sh run -- <old start>` holds one lock for the whole old command, and its `run`, `preflight` and `status` are old-only. |
+| A-S-11 (5) | NIT | **Closed** | §7 guarded paths (L297) and §12 command rule (L555, L560): the QA host control refuses `m1-restart` and `m1-profile` while the marker is present; harness self-check. |
+| Round 1 closures (A-S-01 to A-S-08, O-2, O-3) | — | **Still closed** | The §4 preparation, the §6 total table (rows 1–18 unchanged), backup admissibility (§8 L314), the R0–R6 recovery table and R1/R5, the content check, the operator mount checks (now through `storage-compat.sh run --`), and the extended error codes are unchanged or strengthened. The journal gate runs before any preparation (§5 step 2). The legacy table is first-match with L1 = the journal rows (§10). No grant, tenant or protocol assurance is weakened. The ADR-011 §14 warning still names the undone revocations and suspensions. |
+
+### New finding
+
+#### A-S-12 — MINOR — An orphaned `docker compose run` client can still start its storage container after a new holder has passed A5 and A6
+
+- **Where:** ADR-012 §7. L229 ("`pid` is the process of the guarded command"), L231 (liveness = that one process identity), L243 (A5) and L244 (A6) check only containers that already exist. L250: "No new writer starts while an old storage container is active."
+- **Problem:** the guarded command (a `bash` script) starts its storage container through a **child** client process, `docker compose … run`. A `SIGKILL` sent only to the script's pid does not stop that child. While the child has not yet **created and started** its container, A5 sees "not live, no active storage container" and reclaims the lock. A6 then sees no container either. The orphaned client then starts its container next to the new holder.
+- **Schedule:**
+  1. `npm run stack:data-restore -- --from B`. The script (pid S, the recorded identity) checks that both services are stopped, then runs `dc --profile storage run … maintenance restore` (client pid C).
+  2. `kill -9 S` before C has started the container. C keeps running. The window is C's create-and-start latency: about a second, or longer during an image pull.
+  3. Inside that window, `npm run stack:up` runs. A5: S is not live and no storage container is active → reclaim. A6: still none → the preflight passes, `up --wait` starts the services, and the lock is released.
+  4. C now starts the restore container. Its program cannot see the services. It swaps the database files under the running services: the services keep writing to the renamed inodes in `.previous-<opId>/`, new processes open the restored files, and the commit verification passes on the files in place.
+
+  This is a silent split between the two writers: the class of overlap that A-S-09 closed for an existing container. A late restore or import next to another holder's restore, import or quarantine follows the same path.
+- **Why MINOR, not MAJOR:** it needs a single-pid `SIGKILL` of the script (not of its process group: a terminal close, Ctrl-C or the QA `SIGKILL` of the group stop the client too), and a new guarded command inside the client's short create-and-start window.
+- **Narrow fix (one rule; the design already uses process groups in the `g-orphan-*` rows):** extend the process identity with the command's process group. Record `pgid` with `pid`/`pidStart`, and treat the record as **live** while any process of that group exists (`ps -o pid= -g <pgid>`). A guarded command runs its `dc run` client in its own process group, which is the default. Alternatively, record the client's pid and `pidStart` in `owner.json` **before** spawning it, and include them in the liveness test. Add a unit or self-check case: kill only the script while a stub client of its group lives → `operation_in_progress`, not `storage_lock_reclaimed`.
+
+### Partial-pair transitions and rollback preservation (recheck)
+
+- The reachable journal pairs and their R0–R6 recovery are unchanged from my Round 2 trace. The only change is the order inside R3, which now never overwrites unknown bytes.
+- For a single writer, every interrupted swap, commit or rollback ends in one of three ways: a verified `committed`, a verified `rolled_back`, or `rollback_failed` with every file kept.
+- After A-S-09, a second writer is excluded whenever the first writer's container exists. A-S-12 is the remaining gap before the container exists.
+
+### What closes this gate (from my lens)
+
+- The design gate passes from Reviewer-A's side at `b3bd22e`.
+- A-S-12 should be amended in ADR-012 §7 and its self-check, or recorded by the Lead as an accepted limit.
+- The implementation then needs its own independent review. Every runtime gate and stack-level rerun, the 488-row inventory (416 + 72), the conditional-row rule for `c-host-negative`, and the 32 `UNVERIFIED` live rows stay as stated.

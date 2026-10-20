@@ -1464,6 +1464,57 @@ The nine added rows cover lock waiting, stale ownership, scope, reentry, three o
 The Lead's scope reminder `msg_f0221cbee8dd` kept recovery bounded; no new link protocol was added.
 This is a submitted design correction, not independent approval. The three queued rechecks remain required.
 
+Revision 3 is frozen at `b3bd22e2ada43f45499db5e50cfb4cafc8295fb9`.
+All three rechecks were dispatched in parallel to the same Claude Opus 5.5 xhigh sessions.
+
+| Check | Task | Dispatch | Launch |
+| --- | --- | --- | --- |
+| Reviewer-A | `task_8e1e6a064266` | `ctx_e2d9047f3655` | `msg_58268dcaf209` |
+| Reviewer-B | `task_31dd99af646c` | `ctx_9ba10725b220` | `msg_17df01a10f78` |
+| Common QA | `task_0e99b6e5fb12` | `ctx_010e8e2ab9d8` | `msg_5ba736d9c2a5` |
+
+A and QA acknowledged starts in `msg_6a74ed8b8396` and `msg_2e1a95cdb02b`.
+Reviewer-B submitted `msg_73791f6b7e07`: APPROVE for design, with no open BLOCKER or MAJOR.
+Its held report hash is `42dd201aa7fdbe28f3b83681438cc3310a36106fd7daf026565d71eae6205b60`.
+B-S-15 through B-S-19 close. Required MINOR B-S-20 pins system-call rename semantics and locale-stable process identity.
+NIT B-S-21 corrects the description of `stack:down`: it removes containers and keeps volumes.
+Reviewer-A submitted `msg_dd2316ad3550`: APPROVE for design, with no open BLOCKER or MAJOR.
+Its held report hash is `f75b916bd8e18b9df47deac5a76600122333243abd55ccc3aab6a138777a5a2b`.
+A-S-09 through A-S-11 close. New MINOR A-S-12 covers a surviving Docker client after a parent-only kill.
+The Lead selects a bounded correction for A-S-12 and B-S-20, not acceptance of their limits.
+The Lead checked both report hashes and preserved history, then retained each worker before acknowledgment.
+Reviewer-A then removed two trailing spaces in task `task_2daac32ffd71`, dispatch `ctx_b1a7184e4ebb`.
+Its final report hash is `c5bac73f38f3ca4f2d897b090b6195420f22bb2f54aa5993cab9eeed312429b8`; no other byte changed.
+Common QA submitted `msg_ffa3c85574b5`: FAIL for design testability, with two MAJOR findings.
+Its held report hash is `ee614e70eba8aeae165533109eb36bf8089412c8a62ce42b7cad91b1b0dec1df`.
+The Lead checked that hash and all 47,421 previous bytes, then retained QA before acknowledgment.
+QA confirms 488 rows per round: all 416 original rows plus 72 storage rows.
+Every Round 2 finding closes, but R3-01 and R3-02 block the implementation gate.
+
+### Storage Round 3 escalation and bounded correction
+
+The charter's Round 3 rule requires escalation to the human review list.
+These findings remain explicit blockers; the Lead accepts no deferral and records no human approval.
+The Docs owner will add the review history and unresolved status to `docs/human_review/decisions-needed.md`.
+This is a bounded correction of concrete findings, not a new general design-review round.
+The charter requires the escalation record; it does not require permission before these authorized corrections.
+No implementation, Docker run or acceptance credit is authorized while the gaps remain.
+
+| Finding | Required correction |
+| --- | --- |
+| QA R3-01, MAJOR | Copy the package folders referenced by the old app database before the legacy backup. Record the content-check result. Keep the credential, lane and source restrictions. |
+| QA R3-02, MAJOR | Name the existing P5 exception: only app database and sidecars, app positively stopped, operation lock held, LTI may run. Allow the exact existing harness stop/start actions without broadening operator starts or changing assertions. |
+| A-S-12, MINOR | Cover a surviving Docker client after a parent-only kill, including the time before container creation. Add a self-check. The Architect must specify an operable process-ownership rule. |
+| B-S-20, required MINOR | Use rename(2) semantics rather than shell mv. Write and compare process start identities under LC_ALL=C. Add a locale self-check. |
+| B-S-21, NIT | Correct both descriptions of stack:down to say it removes containers and keeps volumes. |
+| QA R3-03 to R3-06, MINOR | Exclude quarantine's ended copy container by completing its removal first. Observe the acquired event or record. Use one lane for target-state checks. Create a distinct pair before the mismatch check. |
+| QA R3-07, NIT | State that demo commands hold no lock of their own. |
+
+The Architect owns the existing nine architecture paths and appends the bounded response without rewriting review history.
+After a frozen correction, the same reviewers and QA will check their exact findings in Round 3 addenda.
+Any further BLOCKER or MAJOR must be reported in the same escalation; no automatic fourth general round is authorized.
+All 488 rows, original assertions, old-build qualifiers, full reruns and 32 UNVERIFIED live rows remain required.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.

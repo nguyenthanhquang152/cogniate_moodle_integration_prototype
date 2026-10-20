@@ -328,3 +328,93 @@ node /tmp/cogniate-reviewer-b-claude-7a63744-bGC6Vd/probe/journal-table-probe-r2
 ### Remaining gate
 
 The required fix before a design APPROVE from this reviewer is B-S-15 (MAJOR). B-S-16 is a required MINOR that may be closed in the same correction or recorded for the build step. The NITs need no new round. Revision 2 closes every Round 1 BLOCKER and MAJOR of this report. Implementation, its independent source reviews, the 63 AC-M1-41 rows and every stack-level rerun at the new candidate remain separate gates. All 32 live LMS rows stay UNVERIFIED, and historical evidence keeps its labels and SHAs.
+
+
+## Round 3 — recheck of revision 3
+
+Verdict: **APPROVE** (design only)
+Round: 3
+
+Reviewer: the same dedicated Reviewer-B, Claude Code `claude-opus-5-5`, xhigh, retained session `c75b96cd-c1da-42ea-9b53-c5207e508e49`. Task `task_31dd99af646c`, dispatch `ctx_9ba10725b220`. Date: 2026-10-21. Rounds 1 and 2 above are unchanged.
+
+The approval covers the storage **design** only. It is not an implementation approval or acceptance, and it does not open the implementation gate by itself. One required MINOR precision fix (B-S-20) and one NIT stay open.
+
+### Scope and method
+
+- Frozen design: `b3bd22e2ada43f45499db5e50cfb4cafc8295fb9` (ADR-012 revision 3). Product and test files equal `8138097889f87359d5055bb1d79766b5ed842f92`: no path outside `docs/**` changed.
+- Read at the frozen commit:
+  - ADR-012 §4–§18;
+  - the Round 3 section of `review-response-storage.md`;
+  - ADR-011 §14 (lines 397–420);
+  - the M1 AC-M1-23 step 1 and AC-M1-41 rows (lock, orphan and quarantine rows, the self-check list);
+  - my committed Round 2 report (SHA-256 `16b857b032d430fa67fc1db4375cc25a8d8dea109616be1b6e06059f5d84a338`).
+- Source check with `git show`: `infra/scripts/stack-down.sh:7` in `b0b83a8`, `9f96f7b` and the candidate.
+- The §6 rows and the R0–R6 conditions are identical to revision 2; only the R3 and R4 action texts changed. So the Round 2 model result still applies: 44/44 crash points recover to `FRESH` or `OK`, and a second `--recover` gives R0.
+- I did not read `storage-reviewer-a.md`, `storage-qa.md`, or any other worker's Round 3 report or draft.
+- No Docker, stack, product run, edit, commit or push.
+
+### Recheck of Round 2 findings
+
+| Id | Round 3 disposition | Basis |
+| --- | --- | --- |
+| B-S-15 | **Closed** | §9 steps 1–5 (lines 431–445). After the verified copy, quarantine lists every container that uses a lane volume. It removes by id, without `-f` or `-v`, only the project's `lti-service`/`cogniate-app` containers that are not `run` containers and are `exited`, `created` or `dead` on a second read. Any other user → `volume_in_use`, with nothing removed. It then removes the volumes and writes `quarantine.json`. The exact Round 2 schedule is now a row: `g-quarantine` starts from the harness's `docker compose stop` and checks the container list (`M1.md:281`). `g-quarantine-in-use` (`M1.md:280`) proves the refusal with a QA container that is created but never started. |
+| B-S-16 | **Closed**, apart from B-S-20 | Process identity (`pid`, `pidStart`), so a reused pid or a pid after a reboot is not live (§7 lines 228–231). `operation_lock_invalid` has a manual exit. "One checkout per project" (§7 line 274, §15 line 629). The lock helper is copied and hashed (§12 lines 507–520). Rows `a-lock-wait` and `a-lock-stale` (including a live pid with another `pidStart`). |
+| B-S-17 | **Closed** | §12 line 515 and §17 S1. |
+| B-S-18 | **Closed** | §12 line 578; `M1.md:208` (AC-M1-23 step 1: `enable` in the candidate checkout before `git checkout b0b83a8`). |
+| B-S-19 | **Closed** | §4 privilege rule (line 95) and §5 output (line 153): no file or log line as root, also after a root-step failure. |
+
+**Earlier closures, rechecked:**
+- B-S-01 to B-S-14 remain sound in revision 3.
+- The new §5 order — read, journal gate, preparation that only records an unsafe mountpoint, privilege drop, cleanup, table — removes my Round 1 concern about root writes.
+- The legacy table is now first-match and total (L1–L7). Journal refusals still come first.
+- Old start commands now run only through the copied `storage-compat.sh run --`. It is old-only (`git rev-parse HEAD` must be one of the two SHAs) and runs: lock, hashes, preflight, command, `status`, release. The rollback-mode restart is old `stack:down`, then `run -- npm run stack:up` (ADR-011 line 415).
+- The effective-config allow list (a)–(e) is unchanged and precise.
+
+### Old procedures traced as an operator would run them
+
+| Procedure | Result |
+| --- | --- |
+| Fresh old-route lane | Candidate checkout → `enable` (host folders, copies, four hashes) → `git checkout <old>` → `storage-compat.sh run -- npm run stack:up`. Runnable. |
+| Rollback | Stop → `stack:data-restore` (lock) → `enable` → `git checkout <old>`, install, build → `run -- npm run stack:up` → `status` inside. Runnable. |
+| Restart in rollback mode | Old `stack:down` → `run -- npm run stack:up`. Runnable; forbidden commands listed (ADR-011 line 414). |
+| Upgrade from rollback mode | Old `stack:down` → `git checkout <candidate>` → `disable` (lock) → `stack:data-backup` → `stack:up`. Runnable; the candidate guard refuses a skipped `disable`. |
+| `rollback_failed` | Quarantine from services stopped by `docker compose stop`, or after `stack:down` (no containers) → `FRESH` → restore a known backup. Runnable. |
+| Killed client with a running storage container | `storage_writer_active` names the container → wait, or `docker stop <name>` → `--recover`. Runnable (`g-orphan-*`). |
+
+### New findings in revision 3
+
+#### B-S-20 — MINOR (required precision fix) — The lock's mutual exclusion depends on two primitives the contract does not pin
+
+- Location: ADR-012 §7 lines 230–232 (`pidStart`, liveness), 240 (A2), 243 (A5), 252 ("the only primitives are `mkdir`, `rename` and `ps`"); §17 assumption 4.
+- Problem 1, `rename` versus `mv`:
+  - A2 and A5 rely on `rename(2)` semantics. A directory rename onto a non-empty directory fails, and a second takeover to the same `stale-<id>` name fails.
+  - Shell `mv src dst` (BSD and GNU, without GNU's `-T`) moves `src` **into** an existing directory `dst`, and succeeds.
+  - With `mv`, A2 succeeds while a lock is held, and a second takeover nests inside `stale-<id>`, so the takeover proof (lines 246–250) does not hold.
+- Problem 2, locale-dependent `pidStart`:
+  - `ps -o lstart=` prints a locale-formatted date (`%c` style).
+  - Schedule: a holder writes `pidStart` from a shell with one `LANG`/`LC_ALL`, for example a Vietnamese-locale operator terminal. A contender compares from another locale, for example a harness or `cron` environment in the C locale. The strings differ, so a live owner looks stale.
+  - If the owner has no active storage container at that moment (for example `stack:up` inside `up --wait`), A5 takes over a live lock.
+  - Other checks limit the damage: data commands still require stopped services. But the guarantee "a takeover never removes a current owner" (line 246) is broken.
+- Detection: a wrong `rename` would make `a-lock-wait` or the "two contenders" unit case fail, so problem 1 is detectable. No row or unit case covers problem 2.
+- Fix:
+  - State that every §7 `rename` is the `rename(2)` system call on the folder, for example through `node:fs.renameSync`, never `mv`. Node is already a host requirement.
+  - Run `ps` with `LC_ALL=C` both when `pidStart` is written and when it is compared, or record an epoch value.
+  - Add a unit case with a non-C locale on one side.
+- This fits in the design text or the implementation brief. It is not a design change.
+
+#### B-S-21 — NIT — `stack:down` removes containers
+
+- Location: ADR-012 §7 line 299 ("It only stops services") and §9 line 443 ("`stack:down`, which keeps the stopped containers").
+- Fact: in all three trees `stack-down.sh:7` is `docker compose … down --remove-orphans`. That removes the service containers and the project network, and keeps volumes and the knobs file.
+- The quarantine outcome is unchanged (no users remain), but the two sentences should state the fact.
+
+#### Observations (no finding)
+
+- **Maintainability of the lock.** The lock now has four record folder kinds and six acquisition steps. That is a real maintenance cost, but it is the bounded answer to an orphaned writer after `SIGKILL`. The unit list (`M1.md:307`) and the four `a-lock-*` rows cover it. I accept it.
+- **Leftover `stale-<runId>/` folders.** They are never deleted by storage commands (§7 line 225), so an operator checkout keeps one per killed command. The M4 guide may say that they can be removed when no storage command runs.
+
+### Remaining gate
+
+- Design: no open BLOCKER or MAJOR from this reviewer. B-S-20 must be applied before or with the implementation brief. B-S-21 is optional wording.
+- Implementation of ADR-012, its independent source reviews, the 72 AC-M1-41 rows (488 rows per full round), and every stack-level rerun at the new candidate (both full M1 rounds, both old routes, the legacy suites, M2 and three T7 runs) remain separate gates.
+- §17 assumptions 1–9 remain unmeasured until the build step. All 32 live LMS rows stay UNVERIFIED. Historical evidence keeps its labels and SHAs.
