@@ -10,7 +10,7 @@ The Moodle release below is the completed baseline.
 | Task | Owner | Status | Evidence |
 | --- | --- | --- | --- |
 | M0 | Architect; independent QA and reviewers | Done for design scope | Round 3 at `158a4d8`: A APPROVE, B APPROVE, QA PASS for design testability. Nonblocking A-M0-11, A-M0-12 and B-M0-10 text corrections applied. No open BLOCKER or MAJOR. |
-| M1 | Blackboard and Canvas teams; one shared engine owner | In progress | Foundation `2aa9263`, Canvas adapter `8af7914`, and shared LTI/typed connection checkpoint `6742cd9` integrated. Author check: 821 tests pass. Canvas routes, common engine focused tests and remaining backend work continue. [Exclusive paths and handoffs](multi-lms-team-brief.md). |
+| M1 | Blackboard and Canvas teams; one shared engine owner | In progress | Shared LTI/typed connection checkpoint `6742cd9` integrated. All five Canvas backend modules integrated, ending with route slice `d01eb5e` in `003e2e4`; author check: 832 tests pass. Common engine focused tests and remaining backend work continue. [Exclusive paths and handoffs](multi-lms-team-brief.md). |
 | M2 | Blackboard and Canvas teams; one owner per shared portal file | In progress | Canvas wizard, shared portal and player checkpoints merged; follow-up `a8736b2` merged as `410e0eb`. Isolated root check passes lint, typechecks and 791 tests with zero skips. Blackboard wizard mount and independent product verification remain pending. |
 | M3 | QA (Codex), QA-E2E (Claude) | Test preparation started | Common/Blackboard QA `task_33fd8359458d`; simulator interface committed in `7738dc3`. Canvas/browser QA queued. Real Canvas and Blackboard checks remain unverified. |
 | M4 | Docs and Architect | Planned | Guides, review pack, final conformance. |

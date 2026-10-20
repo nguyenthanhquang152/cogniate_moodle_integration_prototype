@@ -127,6 +127,14 @@ Canvas received the typed connection, DTO and real redemption interfaces in `msg
 The backend hold was released in `msg_12634eff2ca7`; Canvas-owned modules remain exclusive to Canvas.
 Both implementation tasks continue. This checkpoint is not independent QA or full feature acceptance.
 
+Canvas's final two backend routes are committed as `d01eb5e`, merged as `003e2e4`.
+The author reports 11 focused route tests and a full root check of 832 tests in 61 files passing.
+The four source and unit-test paths were held for the commit, then released.
+All five Canvas backend modules are now implemented.
+Canvas still owns the Blackboard wizard mount and final shared portal checks once that module is delivered.
+The Lead requested this small Blackboard checkpoint in `msg_13c6f24fa767`.
+The current evidence remains author self-checks; no independent SIM or live result exists yet.
+
 The teams agreed on the player interface in `msg_a05ac85fc3b8` and `msg_7df7bdfe2bcc`.
 The backend emits `data-lms-name` on the play page element and the content-origin runtime body.
 Its value is `Moodle`, `Canvas` or `Blackboard`, derived from the stored connection.
