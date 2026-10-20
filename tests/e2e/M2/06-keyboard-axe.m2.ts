@@ -7,7 +7,7 @@ import {
 } from '../../acceptance/M1/canvas/browser';
 import {
   ERR, TEXT, blackboardGrantFor, blackboardStep1, canvasGrantFor, canvasStep1, connection, expect, m2Case, newestByName, next,
-  portalSignIn, shot,
+  pendingWizard, portalSignIn, shot,
 } from './lib/m2';
 
 /** Presses Tab (or Shift+Tab) until the focused element matches; checks the focus is visible. */
@@ -47,8 +47,7 @@ m2Case('M2-11.canvas-keyboard', 'the Canvas wizard works with the keyboard only 
   await tabTo(page, /^Canvas type/); await page.keyboard.press('End');
   await tabTo(page, /^Canvas URL/, true); await tabTo(page, /^Next$/);
   await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { name: TEXT.canvasStep2 })).toBeVisible();
-  await tabTo(page, /^Next$/); await page.keyboard.press('Enter');
+  await pendingWizard(page, 'canvas'); // setup and approval together; no second Next (B-M3-01)
   const c = await newestByName(s, name, 'canvas'), clientId = canvasClientId(), deploymentId = canvasDeploymentId();
   await tabTo(page, /^Client ID/); await page.keyboard.type(clientId);
   await tabTo(page, /^Deployment ID/); await page.keyboard.type(deploymentId);
@@ -67,8 +66,7 @@ m2Case('M2-11.blackboard-keyboard', 'the Blackboard wizard works with the keyboa
   await tabTo(page, /^Connection name/); await page.keyboard.type(name);
   await tabTo(page, /^Learn URL/); await page.keyboard.type(BLACKBOARD.siteA);
   await tabTo(page, /^Next$/); await page.keyboard.press('Enter');
-  await expect(page.getByRole('heading', { name: TEXT.blackboardStep2 })).toBeVisible();
-  await tabTo(page, /^Next$/); await page.keyboard.press('Enter');
+  await pendingWizard(page, 'blackboard'); // setup and approval together; no second Next (B-M3-01)
   const c = await newestByName(s, name, 'blackboard'), deploymentId = unique('bb-key');
   await tabTo(page, /^Deployment ID/); await page.keyboard.type(deploymentId);
   await tabTo(page, /^Save$/); await page.keyboard.press('Enter');
@@ -92,15 +90,14 @@ m2Case('M2-11.add-deployment-keyboard', 'the Canvas add-deployment form works wi
 m2Case('M2-11.axe-canvas', 'axe finds no serious or critical issue on Canvas steps 1 to 3', async ({ page }) => {
   await portalSignIn(page, THANH);
   await canvasStep1(page, { name: unique('axe canvas'), site: CLOUD.siteA }); await axe(page, 'Canvas step 1');
-  await next(page); await expect(page.getByRole('heading', { name: TEXT.canvasStep2 })).toBeVisible(); await axe(page, 'Canvas step 2');
-  await next(page); await expect(page.getByLabel('Approval code', { exact: true })).toBeVisible(); await axe(page, 'Canvas step 3');
+  // Steps 2 and 3 render together on the pending connection page; one analysis covers both sections.
+  await next(page); await pendingWizard(page, 'canvas'); await axe(page, 'Canvas steps 2 and 3');
   await shot(page, 'm2-11-axe-canvas-step3');
 });
 m2Case('M2-11.axe-blackboard', 'axe finds no serious or critical issue on Blackboard steps 1 to 3', async ({ page }) => {
   await sharedPlatform(); await portalSignIn(page, THANH);
   await blackboardStep1(page, { name: unique('axe bb'), site: BLACKBOARD.siteA }); await axe(page, 'Blackboard step 1');
-  await next(page); await expect(page.getByRole('heading', { name: TEXT.blackboardStep2 })).toBeVisible(); await axe(page, 'Blackboard step 2');
-  await next(page); await expect(page.getByLabel('Approval code', { exact: true })).toBeVisible(); await axe(page, 'Blackboard step 3');
+  await next(page); await pendingWizard(page, 'blackboard'); await axe(page, 'Blackboard steps 2 and 3');
 });
 m2Case('M2-11.axe-canvas-detail', 'axe finds no serious or critical issue on the Canvas connection detail', async ({ page }) => {
   const b = await canvasBinding('A');

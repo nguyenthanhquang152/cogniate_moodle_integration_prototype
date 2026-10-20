@@ -3,7 +3,7 @@ import { THANH } from '../../acceptance/lib/app';
 import { BLACKBOARD, app, blackboardBinding, escape, ok, session, sharedPlatform, unique, type Json } from '../../acceptance/M1/canvas/browser';
 import {
   ERR, TEACHER, TEXT, blackboardGrantFor, blackboardStep1, blackboardToStep3, codeCleared, connection, expect, fieldMarked,
-  fillBlackboardStep3, gateClear, gateFailNext, m2Case, newestByName, next, noForbiddenFields, portalSignIn, save, shot,
+  fillBlackboardStep3, gateClear, gateFailNext, m2Case, newestByName, next, noForbiddenFields, pendingWizard, portalSignIn, save, shot,
 } from './lib/m2';
 
 const BB_ROWS = ['client_id', 'login_initiation_url', 'tool_redirect_url', 'tool_jwks_url', 'tool_status', 'user_fields',
@@ -15,7 +15,7 @@ m2Case('M2-06.success', 'Blackboard steps 1 to 4 with a matching approval code r
   const name = unique('Blackboard M2-06');
   await blackboardStep1(page, { name, site: BLACKBOARD.siteA }); await noForbiddenFields(page); await shot(page, 'm2-06-blackboard-step1');
   await next(page);
-  await expect(page.getByRole('heading', { name: TEXT.blackboardStep2 })).toBeVisible();
+  await pendingWizard(page, 'blackboard');
   const c = await newestByName(s, name, 'blackboard');
   const rows = await app(s, 'GET', `/app-api/connections/${c.id}/tool-configuration`); ok(rows, 200, 'rows');
   expect((rows.json as Json[]).map((r) => r.key)).toEqual(BB_ROWS);
@@ -23,7 +23,7 @@ m2Case('M2-06.success', 'Blackboard steps 1 to 4 with a matching approval code r
     await expect(page.locator('div, li, tr, section', { hasText: row.label }).filter({ hasText: row.value }).last(), `Row ${row.key}`).toBeVisible();
   }
   await noForbiddenFields(page); await shot(page, 'm2-06-blackboard-step2');
-  await next(page);
+  // Setup (step 2) and approval (step 3) show together on the pending connection page (no second Next).
   await expect(page.getByText(TEXT.blackboardOperator, { exact: true })).toBeVisible();
   const deploymentId = unique('bb-dep'), grant = await blackboardGrantFor(s, c, deploymentId);
   await fillBlackboardStep3(page, { deploymentId, code: grant.code }); await noForbiddenFields(page); await shot(page, 'm2-06-blackboard-step3');

@@ -771,7 +771,7 @@
   "id": "M1-20.canvas.initial-grant",
   "ac": "AC-M1-20",
   "environment": "SIM",
-  "title": "[SIM] AC-M1-20 an initial-purpose grant cannot add a deployment {case:M1-20.canvas.initial-grant}",
+  "title": "[SIM] AC-M1-20 the redeemed initial grant cannot add a deployment: GRANT_INVALID, reason redeemed, no LTI call {case:M1-20.canvas.initial-grant}",
   "kind": "api",
   "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
  },
@@ -787,7 +787,7 @@
   "id": "M1-20.canvas.pending",
   "ac": "AC-M1-20",
   "environment": "SIM",
-  "title": "[SIM] AC-M1-20 a pending Canvas connection cannot add a deployment {case:M1-20.canvas.pending}",
+  "title": "[SIM] AC-M1-20 a pending Canvas connection answers CONNECTION_NOT_READY before any grant check {case:M1-20.canvas.pending}",
   "kind": "api",
   "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
  },

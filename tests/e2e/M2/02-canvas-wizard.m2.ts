@@ -7,7 +7,7 @@ import {
 import {
   ERR, TEACHER, TEXT, button, canvasGrantFor, canvasStep1, canvasToStep3, clipboardDenied, clipboardText, codeCleared,
   connection, connections, expect, fieldMarked, fillCanvasStep3, gateClear, gateFailNext, m2Case, newestByName, next,
-  noForbiddenFields, portalSignIn, save, shot,
+  noForbiddenFields, pendingWizard, portalSignIn, save, shot,
 } from './lib/m2';
 
 async function canvasLabels(s: Json) {
@@ -77,7 +77,7 @@ async function step2(page: import('@playwright/test').Page, s: Json) {
   const name = unique('Canvas M2-04');
   await canvasStep1(page, { name, site: CLOUD.siteA });
   await next(page);
-  await expect(page.getByRole('heading', { name: TEXT.canvasStep2 })).toBeVisible();
+  await pendingWizard(page, 'canvas');
   return newestByName(s as any, name, 'canvas');
 }
 async function exportBody(s: Json, id: string, inline = false) {
@@ -92,11 +92,12 @@ m2Case('M2-04.rows', 'Canvas step 2 shows the four developer key rows in order, 
   check(rows.json.length === 4, 'Four Canvas rows');
   let lastY = -1;
   for (const row of rows.json as Json[]) {
-    const holder = page.locator('div, li, tr, section', { hasText: row.label }).filter({ hasText: row.value })
-      .filter({ has: page.getByRole('button', { name: 'Copy', exact: true }) }).last();
+    // Each row is a table row: the label as row header, the value, and its own Copy button ("Copy <label>").
+    const holder = page.locator('tr', { has: page.getByRole('rowheader', { name: row.label, exact: true }) });
     await expect(holder).toBeVisible();
+    await expect(holder).toContainText(row.value);
     const y = (await holder.boundingBox())!.y; expect(y, `Row ${row.key} order`).toBeGreaterThan(lastY); lastY = y;
-    await holder.getByRole('button', { name: 'Copy', exact: true }).click();
+    await holder.getByRole('button', { name: `Copy ${row.label}`, exact: true }).click();
     expect(await clipboardText(page)).toBe(row.value);
   }
   await shot(page, 'm2-04-canvas-step2');
@@ -142,13 +143,15 @@ m2Case('M2-04.clipboard-denied', 'with clipboard access denied, a selectable tex
   expect(values).toContain(expected.body);
   await shot(page, 'm2-04-clipboard-denied');
 });
-m2Case('M2-04.download-failure', 'a failed JSON download never shows success', async ({ page }) => {
+m2Case('M2-04.download-failure', 'a failed JSON download never shows success', async ({ page, context }) => {
+  // The portal builds the file from the loaded export in the browser; the browser refuses the file here.
+  await context.addInitScript(() => { URL.createObjectURL = () => { throw new Error('Download refused by the browser'); }; });
   const s = await session('A'); await portalSignIn(page, THANH);
   await step2(page, s);
-  await page.route('**/app-api/connections/*/canvas-configuration*', (route) => route.abort('failed'));
   let downloaded = false; page.on('download', () => { downloaded = true; });
   await button(page, 'Download JSON').first().click();
-  await page.waitForTimeout(3000);
+  await expect(page.getByRole('alert').first()).toBeVisible();
+  await page.waitForTimeout(2000);
   expect(downloaded).toBe(false);
   await expect(page.getByText(/(download(ed)? (is )?(complete|done|ready)|saved)/i)).toHaveCount(0);
 });
@@ -158,8 +161,9 @@ m2Case('M2-05.success', 'Canvas steps 1 to 4 with a matching approval code regis
   const s = await session('A'); await portalSignIn(page, THANH);
   const name = unique('Canvas M2-05');
   await canvasStep1(page, { name, site: CLOUD.siteA }); await shot(page, 'm2-05-canvas-step1');
-  await next(page); await expect(page.getByRole('heading', { name: TEXT.canvasStep2 })).toBeVisible(); await shot(page, 'm2-05-canvas-step2');
-  await next(page); await expect(page.getByText(TEXT.canvasOperator, { exact: true })).toBeVisible();
+  await next(page); await pendingWizard(page, 'canvas'); await shot(page, 'm2-05-canvas-step2');
+  // Setup (step 2) and approval (step 3) show together on the pending connection page (no second Next).
+  await expect(page.getByText(TEXT.canvasOperator, { exact: true })).toBeVisible();
   const c = await newestByName(s, name, 'canvas'), clientId = canvasClientId(), deploymentId = canvasDeploymentId();
   const grant = await canvasGrantFor(s, c, clientId, deploymentId);
   await fillCanvasStep3(page, { clientId, deploymentId, code: grant.code }); await shot(page, 'm2-05-canvas-step3');

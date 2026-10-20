@@ -99,12 +99,19 @@ export function expectedCanvasJson(libraryName: string, domain: string, key?: Js
     custom_fields: {},
   };
 }
-// Contract §4.6 names the domain "<host of PUBLIC_LTI_URL>". With a non-443 QA port, "host" may or may not carry the port;
-// QA accepts both forms and records the observed one (open contract question for the Architect).
+// C-1 (docs/architecture/review-response-M1.md, app contract §4.6): `domain` is the URL host of PUBLIC_LTI_URL: the
+// lower-case host name, plus ":<port>" only when the port is not 443. Computed here independently of the product.
+function expectedDomain(publicLtiUrl = urls.lti) {
+  const url = new URL(publicLtiUrl);
+  const port = url.port && url.port !== '443' ? `:${url.port}` : '';
+  return url.hostname.toLowerCase() + port;
+}
 function domainOf(document: Json) {
-  const domain = document?.extensions?.[0]?.domain;
-  assert.ok([new URL(urls.lti).host, new URL(urls.lti).hostname].includes(domain), `Extension domain ${domain}`);
-  return String(domain);
+  const expected = expectedDomain(), domain = document?.extensions?.[0]?.domain;
+  assert.equal(domain, expected, 'Extension domain is the exact URL host of PUBLIC_LTI_URL');
+  const port = new URL(urls.lti).port;
+  if (port && port !== '443') assert.notEqual(domain, new URL(urls.lti).hostname, 'A bare host name is refused at a non-443 port');
+  return expected;
 }
 function configurationHeaders(response: { headers: Json }) {
   assert.equal(String(response.headers['content-type']).toLowerCase().replace(/\s/g, ''), 'application/json;charset=utf-8');
@@ -193,12 +200,17 @@ m1Test('M1-20.canvas.missing-code', 'an added deployment without a code is refus
   const r = await addDeployment(b, canvasDeploymentId()); expectStatus(r, 422, 'INVALID_PLATFORM_VALUES');
   assert.deepEqual(r.json.details.fields, ['grantCode']);
 });
-m1Test('M1-20.canvas.initial-grant', 'an initial-purpose grant cannot add a deployment', async () => {
-  const b = await canvasBound(), since = Date.now();
-  // A black-box initial grant is always redeemed once the connection is registered (the CLI refuses a new one, k):
-  // phase 1 check 2 (redeemed) or check 3 (purpose) answers; both are GRANT_INVALID.
-  await noRemoteCall(async () => expectStatus(await addDeployment(b, canvasDeploymentId(), b.grant), 403, 'GRANT_INVALID'));
-  assert.equal(rejected(since, 'redeemed').length + rejected(since, 'purpose').length, 1, 'grant_rejected names the precise reason');
+m1Test('M1-20.canvas.initial-grant', 'the redeemed initial grant cannot add a deployment: GRANT_INVALID, reason redeemed, no LTI call', async () => {
+  // C-3: the only reachable initial grant of a registered connection is the redeemed one; check 2 answers before check 3.
+  const b = await canvasBound(), third = canvasDeploymentId(), before = await connectionOf(b), since = Date.now();
+  await noRemoteCall(async () => expectStatus(await addDeployment(b, third, b.grant), 403, 'GRANT_INVALID'));
+  const lines = logEvents('grant_rejected', since, { connection_id: b.connection.id });
+  assert.deepEqual(lines.map((e) => e.reason), ['redeemed'], 'Exactly one grant_rejected {reason: "redeemed"} for this connection');
+  assert.deepEqual(await connectionOf(b), before, 'Approvals and platform.deploymentIds unchanged');
+  // No attempt holds the connection lease: a proper add_deployment grant for the same id redeems at once.
+  const grant = await addGrant(b, third);
+  const added = await addDeployment(b, third, grant); expectStatus(added, 200);
+  assert.deepEqual([...added.json.platform.deploymentIds].sort(), [b.deploymentId, third].sort());
 });
 m1Test('M1-20.canvas.capability-blackboard', 'Blackboard connections cannot add deployments', async () => {
   await sharedPlatform();
@@ -211,12 +223,21 @@ m1Test('M1-20.canvas.capability-moodle', 'Moodle connections cannot add deployme
   const c = await app(s, 'POST', '/app-api/connections', { name: unique('Moodle'), siteUrl: urls.moodle, method: 'manual' }); expectStatus(c, 201);
   expectStatus(await app(s, 'POST', connPath(c.json.id) + '/deployments', { deploymentId: 'x', grantCode: 'A'.repeat(43) }), 409, 'CAPABILITY_NOT_SUPPORTED');
 });
-m1Test('M1-20.canvas.pending', 'a pending Canvas connection cannot add a deployment', async () => {
-  const p = await pendingCanvas();
+m1Test('M1-20.canvas.pending', 'a pending Canvas connection answers CONNECTION_NOT_READY before any grant check', async () => {
+  // C-2: checks 1–3 of the endpoint (other library, capability, status) read no grant and log no grant_rejected.
+  const p = await pendingCanvas(), since = Date.now();
+  const initial = await canvasGrant(p.s, p.connection, p.clientId, p.deploymentId);
   await unchanged(p, async () => {
-    expectStatus(await app(p.s, 'POST', connPath(p.connection.id) + '/deployments', { deploymentId: p.deploymentId, grantCode: 'A'.repeat(43) }),
-      409, 'CONNECTION_NOT_READY');
+    for (const grantCode of ['A'.repeat(43), initial.code]) {
+      expectStatus(await app(p.s, 'POST', connPath(p.connection.id) + '/deployments', { deploymentId: canvasDeploymentId(), grantCode }),
+        409, 'CONNECTION_NOT_READY');
+    }
   });
+  assert.deepEqual(logEvents('grant_rejected', since, { connection_id: p.connection.id }), [], 'No grant_rejected line');
+  await grantState(initial, p.connection.id, 'issued');
+  // No attempt and no lease: the same initial grant then redeems normally through PUT …/platform.
+  const registered = await redeemP(p, initial); expectStatus(registered, 200);
+  assert.equal(registered.json.status, 'registered');
 });
 
 // ---------------------------------------------------------------- AC-M1-21 capability guards
@@ -370,11 +391,13 @@ m1Test('M1-29.canvas.m', 'every grant rejection gives the same public answer whi
   const mine = await canvasGrant(a.s, a.connection, a.clientId, a.deploymentId);
   const theirs = await canvasGrant(b.s, b.connection, a.clientId, a.deploymentId);
   const other = await canvasConnection(a.s);
-  const answers = [
-    await redeemP(a, theirs), // other_library
-    await redeemP(a, mine, {}, other), // other_connection
-    await redeemP(a, { code: 'A'.repeat(43) }), // not_found
-  ];
+  const answers: Awaited<ReturnType<typeof redeemP>>[] = [];
+  // Phase 1 refuses before any LTI call (B-M1-03): no gate request of any method, provider reads included.
+  await noRemoteCall(async () => {
+    answers.push(await redeemP(a, theirs)); // other_library
+    answers.push(await redeemP(a, mine, {}, other)); // other_connection
+    answers.push(await redeemP(a, { code: 'A'.repeat(43) })); // not_found
+  });
   for (const r of answers) expectStatus(r, 403, 'GRANT_INVALID');
   assert.equal(new Set(answers.map((r) => `${r.status} ${r.json.details.message} ${r.json.details.description}`)).size, 1,
     'The public answer never says which check failed');

@@ -323,7 +323,7 @@
   "id": "M2-07.badges",
   "ac": "AC-M2-07",
   "environment": "SIM",
-  "title": "[SIM] AC-M2-07 the connection list shows the LMS badge of each connection {case:M2-07.badges}",
+  "title": "[SIM] AC-M2-07 each connection view shows its LMS badge, and the connection list names the LMS of every connection {case:M2-07.badges}",
   "kind": "browser",
   "file": "e2e/M2/04-detail.m2.ts"
  },
@@ -387,7 +387,7 @@
   "id": "M2-09.moodle-dialog",
   "ac": "AC-M2-09",
   "environment": "SIM",
-  "title": "[SIM] AC-M2-09 the Moodle disconnect dialog stays a Moodle text {case:M2-09.moodle-dialog}",
+  "title": "[SIM] AC-M2-09 the Moodle disconnect dialog keeps its exact pre-M2 title and text {case:M2-09.moodle-dialog}",
   "kind": "browser",
   "file": "e2e/M2/04-detail.m2.ts"
  },
@@ -491,7 +491,7 @@
   "id": "M2-13.form-state",
   "ac": "AC-M2-13",
   "environment": "SIM",
-  "title": "[SIM] AC-M2-13 a value typed in the Canvas wizard does not appear in the Blackboard wizard {case:M2-13.form-state}",
+  "title": "[SIM] AC-M2-13 values typed in the Canvas wizard never appear in the Blackboard wizard after a client-side move {case:M2-13.form-state}",
   "kind": "browser",
   "file": "e2e/M2/08-routes.m2.ts"
  },
@@ -499,7 +499,7 @@
   "id": "M2-13.no-stale-values",
   "ac": "AC-M2-13",
   "environment": "SIM",
-  "title": "[SIM] AC-M2-13 moving from a Canvas detail to a Blackboard detail never shows Canvas values {case:M2-13.no-stale-values}",
+  "title": "[SIM] AC-M2-13 a client-side move from a Canvas detail to a Blackboard detail never shows Canvas values, also after a late Canvas answer {case:M2-13.no-stale-values}",
   "kind": "browser",
   "file": "e2e/M2/08-routes.m2.ts"
  },

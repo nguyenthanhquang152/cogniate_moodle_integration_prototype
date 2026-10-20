@@ -1,5 +1,5 @@
 Verdict: PREPARED — Canvas simulator and Canvas M1 cases are ready; harness checks only, no product verification
-Round: 1
+Round: 2 (alignment, task `task_ef66f1c5c7ed`; see §8)
 Owner: independent Claude QA-E2E (Canvas QA), claude-opus-5-5, xhigh
 Behavior baseline: `56591df0e71939d5d62c9042c630c841d01f84e8` (ADR-011 revision 6). Plan: [M1 QA plan](qa-plan.md) at `6733e57`.
 
@@ -117,13 +117,30 @@ These checks prove only that the harness loads, types and accounts for every cas
 
 ## 7. Open items for the Lead
 
-| Id | Item | Needed from |
+Status after round 2 (§8): C-1 to C-3 are closed by the Architect clarification at `ca14de6`, and the cases assert the exact oracles. C-4 is closed by the Lead decision (no rotation host action; L-C14 stays UNVERIFIED).
+
+| Id | Item | Status |
 | --- | --- | --- |
-| C-1 | Contract §4.6 names `domain` "<host of PUBLIC_LTI_URL>". With a non-443 QA port it is unclear if the port is part of it. AC-M1-19 accepts both forms and records the value. | Architect (wording) |
-| C-2 | AC-M1-20 expects `409 CONNECTION_NOT_READY` for a pending Canvas connection. Only a well-formed random code can reach it (the CLI refuses `add_deployment` while pending). The case expects the endpoint precondition before phase 1. | Architect (confirm order) |
-| C-3 | AC-M1-20 "an `initial` grant": in black box, that grant is already redeemed, so phase 1 answers at check 2 or 3. The case accepts the log reason `redeemed` or `purpose`; the public answer is `403 GRANT_INVALID` in both. | Architect (confirm) |
-| C-4 | Signing-key rotation is not reachable: the M1 host channel has no `lti:bootstrap --rotate-signing-key` action. No SIM criterion needs it; AC-M1-19 `inline-key` proves the snapshot is the active key. Live row L-C14 covers rotation. | Lead (optional host action through Codex QA) |
-| C-5 | A live race that misses its 5 s window reports `BLOCKED` with its times (same rule as Blackboard). No product timeout changes. | — |
+| C-1 | Exact `domain` of the Canvas JSON. | Closed: `host:port` (port only when not 443). |
+| C-2 | Pending Canvas `POST …/deployments`. | Closed: `409 CONNECTION_NOT_READY` before any grant check. |
+| C-3 | Redeemed `initial` grant on add-deployment. | Closed: `403 GRANT_INVALID`, reason `redeemed` only. |
+| C-4 | Signing-key rotation host action. | Closed: not added; live row L-C14 stays UNVERIFIED. |
+| C-5 | A live race that misses its 5 s window reports `BLOCKED` with its times (same rule as Blackboard). No product timeout changes. | Open rule for the run |
 | C-6 | The Canvas browser rows and M2 need the acceptance stack only; no extra fixture or core change is needed. | — |
 
 Not done in this task: product, Moodle regression, local Canvas, hosted Canvas or Blackboard live checks. Every live row stays UNVERIFIED.
+
+## 8. Round 2 — alignment with the Architect clarification (2026-10-20)
+
+Input: [review response M1](../../architecture/review-response-M1.md) at `ca14de6` (C-1 to C-3), the Lead handoff for `task_ef66f1c5c7ed`, and Reviewer-B finding B-M1-03 (refusals make no LTI call). No case was removed or loosened; two case titles changed. The manifest keeps the same 222 case ids.
+
+| Case | Change | Oracle now |
+| --- | --- | --- |
+| `M1-19.canvas.json`, `M1-19.canvas.inline-key` | C-1: the "both forms" branch is removed. QA computes the value from `PUBLIC_LTI_URL`. | `extensions[0].domain` equals the lower-case host name plus `:<port>` when the port is not 443, exactly; at a non-443 port the bare host name is refused. The whole document is still compared with `deepEqual`. |
+| `M1-20.canvas.pending` | C-2: also sends the pending connection's issued `initial` code. | Both a well-formed random code and the issued `initial` code → `409 CONNECTION_NOT_READY`; no `grant_rejected` line for the connection; no gate request of any method, no simulator service call, no sink hit, no LTI platform; the `initial` grant stays `issued` and then redeems with `200` through `PUT …/platform` (so no attempt holds the lease). |
+| `M1-20.canvas.initial-grant` | C-3: the "`redeemed` or `purpose`" alternative is removed; a deployment id without approval is used. | `403 GRANT_INVALID`; exactly one `grant_rejected {reason: "redeemed"}` for the connection; no gate request; connection and `platform.deploymentIds` unchanged; a proper `add_deployment` grant for the same id then redeems with `200` (no live lease). |
+| `M1-29.canvas.m` | B-M1-03: the three refusals now run inside the no-call watch. | `other_library`, `other_connection` and an unknown code → the same `403 GRANT_INVALID` answer, with zero gate requests of any method (provider reads included). |
+
+All other Canvas refusal cases keep their no-call watch over every gate method (`noRemoteCall`); no provider `GET` is filtered out.
+
+Harness evidence (round 2, worktree with the committed portal `9f96f7b` and design `ca14de6`): `node tests/sim/canvas/protocol.test.mjs` 5 pass; `node tests/host/run-m1.mjs --harness-only --provider canvas` 21 self-tests pass, typecheck pass, 239 API cases (24 common, 215 Canvas) and 19 host/browser rows; `--provider all` 359 API cases and 19 rows; `--provider blackboard` 144 API cases and 12 rows (unchanged). No stack, no product call.

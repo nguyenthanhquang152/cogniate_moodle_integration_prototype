@@ -1,5 +1,5 @@
 Verdict: PREPARED — M2 browser suite and runner are ready; harness checks only, no product verification
-Round: 1
+Round: 2 (alignment, task `task_ef66f1c5c7ed`; see §7)
 Owner: independent Claude QA-E2E, claude-opus-5-5, xhigh
 Behavior baseline: `56591df0e71939d5d62c9042c630c841d01f84e8` (ADR-011 revision 6). Criteria: [M2](../../architecture/tasks/M2.md), [M3 §2–§4](../../architecture/tasks/M3.md).
 
@@ -75,15 +75,60 @@ Harness evidence (2026-10-20): `node tests/e2e/host/run-m2.mjs --harness-only` �
 
 ## 6. Open items
 
-| Id | Item | Owner |
+Status after round 2 (§7):
+
+| Id | Item | Status |
 | --- | --- | --- |
-| H-1 | M2 does not name some structure: where the connection list is (M2-07), the "not found" view text (M2-13), the button between steps 2 and 3 (assumed `Next`), the picker submit button, the disconnect confirm button and the results status label (assumed `Sent`). After the Author-2 handoff, QA may align these selectors only; no assertion changes. | QA-E2E, after the handoff |
-| H-2 | Canvas and Blackboard card status labels are not specified. The isolated-status oracle uses "Manage" targets and a differential check. | Architect (optional) |
-| H-3 | M2-09 says the Moodle dialog text is unchanged, but no baseline string exists in the specs. The row records the observed text. QA needs the accepted pre-M2 text from the Lead, or approval to read it from the accepted baseline build. | Lead |
-| H-4 | M2-08 "with web services both still show (AC-T8 recipes)": the token case comes from the legacy T8 run (AC-M3-02b, Codex QA). The M2 row checks the section and the `.mbz` label. | Codex QA (legacy run) |
-| H-5 | M2-01 "AC-T6 recipes pass with the label changes": the legacy T6 run provides it (AC-M3-02b). | Codex QA, Lead approval of label changes |
-| H-6 | T7 selectors use the old labels: `tests/e2e/lib/portal.ts` lines 110, 113 (`Publish to Moodle`, `Moodle connection`, option `"<name> ·"`) and 133 (`Moodle publications`). They change only with the Lead-approved M2 label list before AC-M3-02a; this preparation task did not change them. | Lead approval, then QA-E2E |
-| H-7 | `run-m2.mjs` uses the e2e helpers of `infra/scripts/lib.sh` because `npm run test:acceptance` cannot select `tests/e2e/M2`. Alternative: Codex QA adds an M2 selection to `tests/playwright.config.ts`. | Lead (choose) |
-| H-8 | `DEPLOYMENT_FIXED` text is an Author-2 unit test only (AC-M2-06). | Author-2 |
+| H-1 | Portal structure that M2 does not name. | Closed: aligned to the committed portal (§7.2). Assertions unchanged. |
+| H-2 | Canvas and Blackboard card status labels are not specified; the isolated-status oracle uses "Manage" targets and a differential check. | Kept (no criterion text exists) |
+| H-3 | Exact pre-M2 Moodle disconnect text. | Closed: exact baseline from `9e24137` asserted (§7.3). |
+| H-4 | Moodle web services with a token (AC-T8 recipes). | Codex QA legacy run (AC-M3-02b), Lead decision |
+| H-5 | AC-T6 recipes with the label changes. | Codex QA legacy run (AC-M3-02b), Lead decision |
+| H-6 | T7 selectors for the M2 label changes. | Closed: Lead-approved changes applied (§7.4). |
+| H-7 | M2 run path. | Closed: Lead chose `tests/e2e/host/run-m2.mjs` with the existing infra helpers; `tests/playwright.config.ts` does not change. |
+| H-8 | `DEPLOYMENT_FIXED` text. | Author-2 unit test only (approved criteria) |
 
 No live tenant, public tunnel, account or Docker setting change is part of this plan.
+
+## 7. Round 2 — alignment and review repairs (2026-10-20)
+
+Inputs: the committed portal source (now allowed for H-1 only: `apps/portal/src/connect/**`, `Integrations.tsx`, `ui.tsx`, `ui/dialog.tsx`, `ui/badge.tsx`, `NotFound.tsx`, `courses/PublishDialog.tsx`, `courses/Publications.tsx`, `results/Results.tsx`), the accepted baseline `9e24137` (`DisconnectDialog.tsx` only), Reviewer-B M3 findings B-M3-01 and B-M3-02, and the Lead handoff. The manifest keeps the same 64 case ids; four titles changed.
+
+### 7.1 Review repairs
+
+| Finding | Repair | Affected rows |
+| --- | --- | --- |
+| B-M3-01 (wizard) | Step 1 `Next` creates the connection and opens `/integrations/<lms>/<id>`; the setup step and the approval step show together. The second `Next` is removed from the shared helpers and from every direct, keyboard and axe path. A new check `pendingWizard()` waits for the connection route, the step 2 heading and the `Approval code` field. Screenshots of every step stay. Axe now analyzes step 1 and the combined steps 2–3 page. | `M2-03.valid-*`, `M2-04.*`, `M2-05.*`, `M2-06.*`, `M2-11.canvas-keyboard`, `M2-11.blackboard-keyboard`, `M2-11.axe-canvas`, `M2-11.axe-blackboard`, `M2-12.*` |
+| B-M3-01 (badges) | The case opens each connection's own view (`/integrations/<lms>/<id>`), asserts the LMS badge of the connection overview, and asserts that the connection list (`LMS connection`) names every connection as `<name> (<LMS>, <site host>)`, for all three LMS types. | `M2-07.badges` |
+| B-M3-02 | `no-stale-values`: one document load only; a sentinel and a MutationObserver stay installed; Canvas connection answers are held for 3 s and a "Refresh status" request is in flight during the client-side move (the connection list of the overview); after the move the case waits for the held answers and one poll, then asserts the same sentinel, a non-empty late-request list, no Canvas value seen at any time, and none on the final page. `form-state`: one document load; typed Canvas values; client-side move through the `Integrations` link and the Blackboard card link; a sentinel, observer and 25 ms input check stay installed; same sentinel, no typed value in any input or text. Direct-route and library cases keep their separate assertions. | `M2-13.no-stale-values`, `M2-13.form-state` |
+
+### 7.2 Structure aligned (H-1)
+
+| Assumption in round 1 | Committed portal | Change |
+| --- | --- | --- |
+| Rows found by a `Copy` button | Table rows: label as row header, value cell, button named `Copy <label>` | `M2-04.rows` finds `tr` by its row header and clicks `Copy <label>`; value, order and clipboard checks unchanged |
+| A failed download from an aborted API call | The file is built in the browser from the loaded export | `M2-04.download-failure` makes the browser refuse the file (`URL.createObjectURL` throws); it still asserts no download, an error alert and no success text |
+| Connection list on the Integrations page | Connection overview of each connection view | `M2-07.badges` (§7.1) |
+| "Not found" text, results label `Sent`, dialog and confirm buttons, picker submit | `Page not found`; results status `Sent`; `<dialog>` with `Disconnect`; server picker button | No change needed |
+| Blackboard registration text (`9f96f7b`, final Learn `Submit`) | Step data only | No change needed; no case asserts those sentences |
+
+### 7.3 Exact Moodle disconnect baseline (H-3)
+
+`M2-09.moodle-dialog` now asserts the dialog heading `Disconnect Moodle?` and the text `This stops launches through this connection. The tool stays in Moodle.` exactly (from `9e24137` `apps/portal/src/connect/DisconnectDialog.tsx`), and that the dialog names neither Canvas nor Blackboard.
+
+### 7.4 T7 selector changes (H-6, Lead-approved under AC-M3-02 and the M2 label table)
+
+File: `tests/e2e/lib/portal.ts`. No other T7 file and no T7 assertion changed. The Moodle identity, site, availability (`Available in Moodle`, `Selected in Moodle`), grades and results checks stay as before.
+
+| Helper | Old selector | New selector | Reason |
+| --- | --- | --- | --- |
+| `publishCourse` | link or button `Publish to Moodle` | `Publish to an LMS` | M2 label table: button and dialog title |
+| `publishCourse` | select label `Moodle connection` | `LMS connection` | M2 label table |
+| `publishCourse` | option text starting with `<name> ·` | option text exactly `<name> (Moodle, <host of PUBLIC_MOODLE_URL>)` | M2 option format; the exact match also proves the selected option is the Moodle connection on the Moodle site |
+| `publicationBlockText` | wait for `Moodle publications` | `LMS publications` | M2 label table |
+
+Affected T7 tests: `A3` (`1-scenario-a.spec.ts`, publishes both courses), `A4 AC-T7-03 AC-T7-02` (reads the publication block: "Selected in Moodle"), and `B3` (`2-scenario-b.spec.ts`, publishes the library B course). AC-T7 criteria and their oracles do not change.
+
+### 7.5 Harness evidence (round 2)
+
+`node tests/e2e/host/run-m2.mjs --harness-only`: 2 self-tests pass, typecheck pass, 64 M2 rows discovered and equal to the manifest, and the T7 selection is unchanged. `QA_SUITE=e2e playwright test --list`: 18 tests in 6 files, no M2 file. No stack and no product call.

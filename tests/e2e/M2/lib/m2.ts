@@ -171,26 +171,29 @@ export async function blackboardStep1(page: Page, values: { name: string; site: 
   await page.getByLabel('Connection name', { exact: true }).fill(values.name);
   await page.getByLabel('Learn URL', { exact: true }).fill(values.site);
 }
+/** Step 1 "Next" creates the pending connection. The portal then opens /integrations/<lms>/<id> and shows the setup
+ * step and the approval step together (there is no second "Next"; B-M3-01). */
 export async function next(page: Page) { await button(page, 'Next').first().click(); }
+export async function pendingWizard(page: Page, lms: 'canvas' | 'blackboard') {
+  await page.waitForURL(new RegExp(`/integrations/${lms}/con_[^/?#]+$`), { timeout: 20_000 });
+  await expect(page.getByRole('heading', { name: lms === 'canvas' ? TEXT.canvasStep2 : TEXT.blackboardStep2 })).toBeVisible();
+  await expect(page.getByLabel('Approval code', { exact: true })).toBeVisible();
+}
 export async function save(page: Page) { await button(page, 'Save').first().click(); }
 export function errorNear(page: Page, text: string | RegExp) { return page.getByText(text).first(); }
-/** Runs a Canvas wizard to step 3 and returns the pending connection (by its unique name). */
+/** Runs the Canvas wizard to the approval step and returns the pending connection (by its unique name). */
 export async function canvasToStep3(page: Page, s: Session, values: { name?: string; site?: string; service?: string } = {}) {
   const name = values.name ?? unique('Canvas M2');
   await canvasStep1(page, { name, site: values.site ?? CLOUD.siteA, service: values.service });
   await next(page);
-  await expect(page.getByRole('heading', { name: TEXT.canvasStep2 })).toBeVisible();
-  await next(page);
-  await expect(page.getByLabel('Approval code', { exact: true })).toBeVisible();
+  await pendingWizard(page, 'canvas');
   return newestByName(s, name, 'canvas');
 }
 export async function blackboardToStep3(page: Page, s: Session, values: { name?: string; site?: string } = {}) {
   const name = values.name ?? unique('Blackboard M2');
   await blackboardStep1(page, { name, site: values.site ?? BLACKBOARD.siteA });
   await next(page);
-  await expect(page.getByRole('heading', { name: TEXT.blackboardStep2 })).toBeVisible();
-  await next(page);
-  await expect(page.getByLabel('Approval code', { exact: true })).toBeVisible();
+  await pendingWizard(page, 'blackboard');
   return newestByName(s, name, 'blackboard');
 }
 export async function fillCanvasStep3(page: Page, values: { clientId: string; deploymentId: string; code: string }) {

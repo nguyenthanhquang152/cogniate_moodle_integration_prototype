@@ -1,35 +1,33 @@
 // AC-M2-07 (badges and Canvas added deployment), AC-M2-08 (Moodle-only features), AC-M2-09 (disconnect dialogs).
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { createCourse, THANH, uploadVersion } from '../../acceptance/lib/app';
 import {
   APP, BLACKBOARD, CLOUD, app, blackboardBinding, canvasBinding, canvasDeploymentId, canvasPending, fixtureZip, issueGrant, ok,
   session, sharedPlatform, unique, urls, type Bound, type Json,
 } from '../../acceptance/M1/canvas/browser';
-import { TEXT, button, codeCleared, connection, expect, m2Case, portalSignIn, shot, test } from './lib/m2';
+import { TEXT, button, codeCleared, connection, expect, m2Case, portalSignIn, shot } from './lib/m2';
 
 async function moodleConnection(s: Json) {
   const r = await app(s as any, 'POST', '/app-api/connections', { name: unique('Moodle M2'), siteUrl: urls.moodle, method: 'manual' });
   ok(r, 201, 'Moodle connection'); return r.json as Json;
 }
-/** Finds a connection by its unique name on the Integrations page (connection list) and reads the LMS badge next to it. */
-async function badgeOf(page: Page, name: string) {
-  const row = page.locator('li, tr, article, section, div', { hasText: name })
-    .filter({ has: page.getByText(/^(Moodle|Canvas|Blackboard)$/) }).last();
-  await expect(row, `Connection list row for ${name}`).toBeVisible();
-  return (await row.getByText(/^(Moodle|Canvas|Blackboard)$/).first().innerText()).trim();
-}
-
 // ---------------------------------------------------------------- AC-M2-07
-m2Case('M2-07.badges', 'the connection list shows the LMS badge of each connection', async ({ page }) => {
+m2Case('M2-07.badges', 'each connection view shows its LMS badge, and the connection list names the LMS of every connection', async ({ page }) => {
   await sharedPlatform();
   const s = await session('A'), m = await moodleConnection(s), c = (await canvasPending('A')).connection;
   const b = await app(s, 'POST', '/app-api/connections', { name: unique('Blackboard M2'), siteUrl: BLACKBOARD.siteA, method: 'manual', lms: 'blackboard', profile: BLACKBOARD.profile });
   ok(b, 201, 'Blackboard connection');
-  await portalSignIn(page, THANH); await page.goto(`${APP}/integrations`);
-  expect(await badgeOf(page, m.name)).toBe('Moodle');
-  expect(await badgeOf(page, c.name)).toBe('Canvas');
-  expect(await badgeOf(page, b.json.name)).toBe('Blackboard');
-  await shot(page, 'm2-07-badges');
+  const all: [string, string, Json][] = [['moodle', 'Moodle', m], ['canvas', 'Canvas', c], ['blackboard', 'Blackboard', b.json]];
+  await portalSignIn(page, THANH);
+  for (const [lms, name, conn] of all) {
+    await page.goto(`${APP}/integrations/${lms}/${conn.id}`);
+    // The connection overview (the portal's connection list) shows the LMS badge of the open connection.
+    await expect(page.locator('[data-slot="badge"]', { hasText: new RegExp(`^${name}$`) }).first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: conn.name, exact: true }).first()).toBeVisible();
+    const options = (await page.getByLabel('LMS connection', { exact: true }).locator('option').allTextContents()).map((o) => o.trim());
+    for (const [, otherName, other] of all) expect(options).toContain(`${other.name} (${otherName}, ${new URL(other.siteUrl).host})`);
+    await shot(page, `m2-07-badge-${lms}`);
+  }
 });
 m2Case('M2-07.canvas-detail', 'a registered Canvas detail shows site, service URL and adds a deployment with an approval code', async ({ page }) => {
   const bound = await canvasBinding('A', { siteUrl: CLOUD.pageA, serviceUrl: CLOUD.siteA });
@@ -105,7 +103,7 @@ async function disconnectDialog(page: Page, lms: string, id: string) {
   await expect(dialog.first()).toBeVisible();
   return dialog.first();
 }
-async function confirm(page: Page, dialog: import('@playwright/test').Locator) {
+async function confirm(page: Page, dialog: Locator) {
   await dialog.getByRole('button', { name: /disconnect/i }).last().click();
   await expect(dialog).toBeHidden({ timeout: 15_000 });
 }
@@ -128,14 +126,15 @@ m2Case('M2-09.canvas-dialog', 'the Canvas disconnect dialog names Canvas; confir
   await confirm(page, dialog);
   expect((await connection(c.s, c.connection.id)).status).toBe('disabled');
 });
-m2Case('M2-09.moodle-dialog', 'the Moodle disconnect dialog stays a Moodle text', async ({ page }) => {
+// Accepted pre-M2 text at 9e24137 (apps/portal/src/connect/DisconnectDialog.tsx, Lead-approved H-3 baseline).
+const MOODLE_DISCONNECT = { title: 'Disconnect Moodle?', text: 'This stops launches through this connection. The tool stays in Moodle.' };
+m2Case('M2-09.moodle-dialog', 'the Moodle disconnect dialog keeps its exact pre-M2 title and text', async ({ page }) => {
   const s = await session('A'), m = await moodleConnection(s);
   await portalSignIn(page, THANH);
   const dialog = await disconnectDialog(page, 'moodle', m.id);
+  await expect(dialog.getByRole('heading', { name: MOODLE_DISCONNECT.title, exact: true })).toBeVisible();
+  await expect(dialog.getByText(MOODLE_DISCONNECT.text, { exact: true })).toBeVisible();
   const text = await dialog.innerText();
-  expect(text).toContain('Moodle'); expect(text).not.toContain('Canvas'); expect(text).not.toContain('Blackboard');
-  // The exact pre-M2 Moodle text needs a Lead-supplied baseline (docs/reviews/M2/qa-plan.md, open item H-3).
-  // The observed text is attached, so the verification run can compare it with that baseline.
-  test.info().annotations.push({ type: 'moodle-disconnect-text', description: text.replace(/\s+/g, ' ').trim() });
+  expect(text).not.toContain('Canvas'); expect(text).not.toContain('Blackboard');
   await shot(page, 'm2-09-moodle-dialog');
 });
