@@ -10,9 +10,9 @@ The Moodle release below is the completed baseline.
 | Task | Owner | Status | Evidence |
 | --- | --- | --- | --- |
 | M0 | Architect; independent QA and reviewers | Done for design scope | Round 3 at `158a4d8`: A APPROVE, B APPROVE, QA PASS for design testability. Nonblocking A-M0-11, A-M0-12 and B-M0-10 text corrections applied. No open BLOCKER or MAJOR. |
-| M1 | Blackboard and Canvas teams; one shared engine owner | Review fixes in progress | B-M1-01/02 are independently closed at `9aeeddc`, report `86adfbf`. Isolated lint, typechecks and 912 tests pass. B-M1-03 needs Architect resolution of local target data in `ctx_d4db78b27fef` before the author resumes. [Exclusive paths and handoffs](multi-lms-team-brief.md). |
-| M2 | Blackboard and Canvas teams; one owner per shared portal file | Implemented; verification pending | Both wizards are mounted. The final Learn Submit instruction is repaired in `9f96f7b`; six focused author tests pass. Author browser evidence covers 11 mocked stages; independent product verification remains pending. |
-| M3 | QA (Codex), QA-E2E (Claude) | Corrected harness under review | QA corrections are committed at `0008bde`: exact Canvas oracles, real wizard flow, persistent route observers and approved Moodle labels. Harness checks pass with 359 M1 API cases, 19 host/browser rows and 64 M2 rows. Reviewer-B recheck is active in `ctx_17d6e7cf12b1`. No product acceptance run yet. Real Canvas and Blackboard remain unverified. |
+| M1 | Blackboard and Canvas teams; one shared engine owner | Snapshot design review | B-M1-01/02 are independently closed at `9aeeddc`, report `86adfbf`. Isolated lint, typechecks and 912 tests pass. B-M1-03 remains open. Architect proposal D at `a4bc3a4` needs both reviews and QA testability approval before implementation. [Exclusive paths and handoffs](multi-lms-team-brief.md). |
+| M2 | Blackboard and Canvas teams; one owner per shared portal file | Implemented; verification pending | Both wizards are mounted. B-M2-01 is independently closed at `9f96f7b`, report `f89262c`. Author browser evidence covers 11 mocked stages; independent product verification remains pending. |
+| M3 | QA (Codex), QA-E2E (Claude) | Corrected harness; narrow oracle follow-up | B-M3-01/02 are independently closed at `0008bde`, report `f89262c`. Full harness checks preserve 359 M1 API cases, 19 host/browser rows and 64 M2 rows. MINOR B-M3-03 needs direct observation of no historical attempt; task `task_480510c15247` is queued. No product acceptance run yet. Real Canvas and Blackboard remain unverified. |
 | M4 | Docs and Architect | Queued | Final conformance, guides, offline review page and three independent documentation checks have explicit tasks and evidence gates. |
 
 Both original implementation tasks are complete; independent product verification is pending.
@@ -20,8 +20,8 @@ Reviewer-A closed A-M1-01 at `76b03c7` and checked the prepared harness at `9964
 Both round-1 reports are committed: Reviewer-A at `17aa295`, Reviewer-B at `689e424`.
 Reviewer-B requests changes for five MAJOR findings: B-M1-01, B-M1-02, B-M1-03, B-M3-01 and B-M3-02.
 The first two are independently closed in Reviewer-B's bounded round-2 checkpoint at `86adfbf`.
-The other three remain open pending repair or independent closure.
-Its MINOR B-M2-01 has a committed repair at `9f96f7b`; independent closure is pending.
+B-M3-01/02 and MINOR B-M2-01 are independently closed in `f89262c`.
+B-M1-03 remains open; new MINOR B-M3-03 is a test-evidence gap.
 Reviewer-A's A-M1-02 NIT remains open. Its round-1 code approval does not override Reviewer-B's findings or the pending QA gate.
 No product gate has passed. No push is authorized.
 

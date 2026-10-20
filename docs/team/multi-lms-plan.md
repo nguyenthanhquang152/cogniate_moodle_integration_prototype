@@ -350,6 +350,36 @@ Reviewer-B started a separate bounded check of this supplement and the Learn ins
 Handoff `msg_535e68ea63aa` supplies exact `0008bde` and requires meaningful oracle checks, not just successful discovery.
 That review can close only the changes it actually checks; B-M1-03 and all product acceptance gates remain separate.
 
+Reviewer-B completed the harness supplement in `msg_e830b4a0c281`, committed as `f89262c`.
+It closes B-M2-01 and B-M3-01/02 for the reviewed source corrections.
+MINOR B-M3-03 requires an observation of attempt creation; a later successful redemption proves only that no live lease remains.
+QA follow-up `task_480510c15247` is queued for the retained Canvas QA instance.
+The Lead approves a scoped audit comparison using the existing `grant_attempt_started` event and a positive control.
+It must not add database access or weaken the no-attempt claim.
+The event's stable semantics and rollback limits are also input to the design gate below.
+
+The Architect completed proposal D in `msg_ade9630a3ca4`, committed as `a4bc3a4`.
+It is **not accepted**. The [proposal](../architecture/review-response-M1.md) saves a trusted provider snapshot when the connection is created.
+It adds migration `012`, a Blackboard readiness read after the local transaction, and a pinned Canvas issuer in S1.
+The original B-M1-03 repair attempt settled **failed** in `msg_667a74777b06` because this design is not yet accepted.
+Its separate B-M2-01 work is complete; the six expected-failing regressions remain held and uncommitted.
+The same author remains retained for a fresh accepted-design implementation task.
+This settlement does not close B-M1-03 or open any product gate.
+
+The full independent design-review wave started on exact `a4bc3a4`:
+
+| Work | Task | Dispatch |
+| --- | --- | --- |
+| Reviewer-A: correctness and security | `task_f01adc29325b` | `ctx_49f6050fff8e` |
+| Reviewer-B: operability and test quality | `task_63f744cb3a1a` | `ctx_34758f845593` |
+| Codex QA: design testability | `task_42cf75647102` | `ctx_8e6d60f0de88` |
+
+Each writes its own target-snapshot report under `docs/reviews/M1/` before reading the other reports.
+They inspect the applied issue-read clarification as well as the proposed schema and behavior changes.
+Any BLOCKER or MAJOR keeps the design gate closed.
+After approval, the Architect must apply the exact amendments before the author receives the implementation handoff.
+Proposal D8 does not transfer Canvas module ownership by itself; the Lead must make that assignment explicit.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
