@@ -1005,6 +1005,28 @@ It fixed that evidence tool outside the frozen source and reports eight focused 
 Its prior zero-container observations exposed no values. The full seven-volume baseline comparison is retained.
 Message `msg_408fa2b08984` records both completed source gates and continues the common-QA stack HOLD pending T7 and cleanup.
 
+### T7 PASS and full M1 handback
+
+Message `msg_35533422f9a4` records T7 PASS at the unchanged `aff48823a4c6206d6314d91a95f5eb0979d3e0e7`.
+Run: `qa-e2e-m3-r2-aff48823-2026-10-20T14-27-17-341Z`.
+Each of three default runs has 17 PASS, zero FAIL and the single intentional demo-only skip.
+The separate demo and all four confirmation/refusal controls pass. Runner exit is zero.
+The pinned observer has no error. All four lifecycle health snapshots show default profile, empty knobs and no simulation profiles or services.
+The independent scan covers 153 values and 128 shared files with zero hits.
+QA reports exact cleanup at 14:38:28 UTC.
+The Lead independently confirmed zero containers, the seven full volume metadata records, baseline networks and unchanged Docker settings.
+All three held QA report hashes and the patch reverse check matched; commit `02b62da82526193b752f3da3b3fa2a2a8da2c773` records the results.
+
+Lead message `msg_d26c1a003c73` gives the sole stack window to fresh Claude common QA for the complete M1 entry and all legacy wrappers.
+No source, overlay or subset change is allowed. The runner executes both 416-row inventories, all four phases and the required migrations, then legacy.
+QA confirmed startup at 14:42:33 UTC in `msg_ac023ab65343`.
+Run root: `/Users/quangnguyen/cogniate-qa-runs/m1-full-aff4882-20261020T1442Z`.
+Source: `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-aff4882-20261020T1420Z/source`.
+The actual command, pinned observer hashes and full clean preflight are in the run's `public/` evidence folder.
+Canvas QA has no stack authority. It will independently judge all 233 Canvas rows from each complete round.
+Its read-only local Canvas feasibility assessment proposes no startup under the current stack and runtime-configuration limits.
+All 32 live rows stay UNVERIFIED. No live result is inferred from SIM or Moodle.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
