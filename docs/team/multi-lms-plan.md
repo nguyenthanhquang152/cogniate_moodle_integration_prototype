@@ -123,7 +123,8 @@ M1, M2 and both test-preparation tasks remain blocked.
 The Lead froze revision 6 at `158a4d86fb5764f597ff20e3f652ae6d5225f96b`.
 Round 3 uses the same retained sessions: Reviewer-A `ctx_61b8795c3642`, Reviewer-B `ctx_3b1d667906b2`, and QA `ctx_e5ddff18c81b`.
 All three received their new authoritative preambles and the same frozen handoff.
-Reviewer-A and QA confirmed the new tasks. No design verdict is recorded yet.
+All three confirmed the new tasks. No design verdict is recorded yet.
+The [implementation handoff](multi-lms-implementation-brief.md) records the full criterion count, ownership and test boundaries.
 
 Author-2 completed the read-only audit in `ctx_1eeade383449`.
 Messages `msg_57b462b0aec3`, `msg_c8afa054e00e`, and `msg_b3a206ea8b3f` hold the findings.
