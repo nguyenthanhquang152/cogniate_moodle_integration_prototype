@@ -33,6 +33,14 @@ The old Claude session stays retained but has no edit authority for the retry.
 Canvas, both QA owners and both reviewers keep their existing assignments and independence.
 No second backend editor, broader file scope or extra active worker is authorized.
 
+### Canvas QA quota replacement (2026-10-20)
+
+The retained Claude Canvas QA session also ended at the same provider limit when `task_1276def76f95` started.
+It made no new task edits. The Lead fenced `ctx_fb3dd983143d`; the earlier committed QA work stays intact.
+Under the same owner-authorized fallback, a separate dedicated Codex GPT-6-Astra xhigh QA instance retries that task.
+It takes only the Canvas QA paths in its task brief and remains independent of both authors, common QA and the reviewers.
+This replaces the task's old Claude-instance requirement for the retry. The original Claude QA session stays retained without edit authority.
+
 ## One common engine
 
 Moodle, Blackboard and Canvas use the same LTI engine.

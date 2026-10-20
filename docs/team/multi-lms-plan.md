@@ -515,6 +515,24 @@ The retry started through `worker-start --retry-of` as **`ctx_1cb6714a155b`**, w
 Its dedicated handle is `structworker_ead1fb5e-7672-4a9f-9e28-fe7e2943ed8d`.
 Handoff `msg_0881270e976b` supplies the applied-contract SHA, partial-file backup and priority interface checkpoint.
 Canvas received the recovery notice in `msg_6e4870bb8d15`; the active worker count stays three.
+The replacement supplied the held two-file interface in `msg_a3a8a37dfea8`.
+It is committed at `d64832b5b2ebf82f267cb6f21208eee792a4ff30`: a typed optional create URL and a local profile view.
+An isolated app TypeScript check passed with exactly those two files; this does not verify the unfinished engine.
+The Canvas branch advanced to that commit with its six modified paths and setup artifact byte-identical.
+Canvas received `msg_07b1edd4332f`; the backend hold was released in `msg_1697d5d06e38`.
+
+Canvas completed its repair in `msg_208b3e00ecb8`; its seven held paths are committed and integrated at **`4cf1e91c5c56b49630e57f9b428c73777a38af3d`**.
+The final author check passes 926 tests in 68 files and 46 focused tests, plus lint and typechecks.
+This includes the API-created connection fixture needed by the snapshot guard.
+The backend owner received the integration in `msg_50801fa7b224`; its full engine check and independent verification are still pending.
+Author-2 remains retained.
+
+Canvas QA preparation started in `ctx_fb3dd983143d`, handoff `msg_c709d138e690`, with the common QA helper and case interfaces.
+The quoted common-owner paragraph was clarified immediately in `msg_56190c6754af`: this worker owns only Canvas cases.
+Its transcript then ended with two Claude session-limit notices, before task edits or `worker_done`.
+The Lead fenced that dispatch and marked the same task `task_1276def76f95` failed for a quota retry.
+The [Canvas QA replacement rule](multi-lms-team-brief.md#canvas-qa-quota-replacement-2026-10-20) assigns a distinct Codex GPT-6-Astra xhigh QA instance under the owner's existing fallback authorization.
+No author or common QA instance takes that independent role.
 
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
