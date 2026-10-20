@@ -70,7 +70,7 @@ Do not run a destructive reset against the user's existing environment.
 
 | Task | Result | State |
 | --- | --- | --- |
-| M0 | Source review, architecture, contracts, criteria | Revision 5 rechecks complete; second correction required |
+| M0 | Source review, architecture, contracts, criteria | Revision 6 complete; independent round 3 pending |
 | M0-A2 | Read-only portal and integration audit | Complete; no code or tests changed |
 | M0-AU | Read-only backend and deployment impact audit | Complete; no code or tests changed |
 | M0-QE | Independent environment and live-LMS validation preflight | Complete; environment inventory, no product verification |
@@ -112,10 +112,14 @@ M1, M2 and test-writing tasks stay blocked until that gate passes.
 
 Round 2 is complete on `bd9fe36`: both reviewers require changes and QA gives FAIL for design testability only.
 The reports preserve the first round and identify which findings are closed.
-The same Architect is resolving the remaining findings in `task_ca1fae1a7570`, dispatch `ctx_2b04d15a6bc3`, from `706a278`.
+The same Architect completed revision 6 in `task_ca1fae1a7570`, dispatch `ctx_2b04d15a6bc3`, from `706a278`.
 The same three independent instances remain retained for the next recheck.
 Round 3 tasks are queued: Reviewer-A `task_ed981aeb1a31`, Reviewer-B `task_31e336af4b46`, and QA `task_15510d66f895`.
 They depend on the completed correction and will use one frozen commit.
+The completion reports all round-2 corrections applied; this is not independent approval.
+Revision 6 adds committed deployment approval, inactive staging, ordered attempts, and history-based cleanup.
+The criteria now contain 40 M1, 13 M2, 7 M3 and 8 M4 items, including the accepted A-M0-10 deferral record.
+M1, M2 and both test-preparation tasks remain blocked.
 
 Author-2 completed the read-only audit in `ctx_1eeade383449`.
 Messages `msg_57b462b0aec3`, `msg_c8afa054e00e`, and `msg_b3a206ea8b3f` hold the findings.
@@ -316,3 +320,9 @@ Protection against repeated hostile registration needs a later reserved-identifi
 The Architect must record this limit in the ADR, response and guide requirements.
 Docs must carry it into `docs/human_review/deferred.md` in M4.
 This deferral does not waive any BLOCKER, MAJOR or functional recovery check.
+
+The Architect proposed the second correction in `msg_b3037b65604e`.
+The Lead directed it to proceed in `msg_c1e60694db20`; this is not independent approval.
+The proposed shape uses one attempt lease per connection, changing refs on conditional writes, inactive staging, committed deployment approvals, and saved attempt targets and ref history.
+The final contracts must distinguish denied app authority from a remote record that still needs cleanup.
+They must also define exact generation changes, replacement-request refusals, discovery of late records, and preservation of another connection's binding.

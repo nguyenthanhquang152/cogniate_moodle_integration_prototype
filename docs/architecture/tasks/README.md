@@ -36,7 +36,7 @@ Design: [ADR-011](../adr/ADR-011-multi-lms.md). Order: M0 review → M1a ∥ M2 
 | [M1](M1.md) | Backend: profiles, reserved issuers, signed product family, canonical site and service origins, deployments and generations, two-phase operator grants, operator containment, Canvas and Blackboard registration, guards, backup and restore (M1a LTI service, M1b app) | Author (Claude) | QA (Codex) | AC-M1-01 to AC-M1-40 |
 | [M2](M2.md) | Portal: Canvas and Blackboard cards, wizards with approval codes, routes, generic labels | Author-2 (Codex) | QA-E2E (Claude) | AC-M2-01 to AC-M2-13 |
 | [M3](M3.md) | Simulator, independent QA, Moodle regression, live matrix | QA, QA-E2E | — | AC-M3-01 to AC-M3-07 |
-| [M4](M4.md) | Guides, review pack, final conformance | Docs, Architect | Reviewers | AC-M4-01 to AC-M4-07 |
+| [M4](M4.md) | Guides, review pack, final conformance | Docs, Architect | Reviewers | AC-M4-01 to AC-M4-08 |
 
 File ownership does not overlap: M1 = `services/**`, `apps/player/**`, `packages/**`, `infra/**`; M2 = `apps/portal/**`; M3 = `tests/**` and its review files; M4 = the files in M4.
 

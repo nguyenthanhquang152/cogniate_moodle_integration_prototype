@@ -60,6 +60,7 @@ Use these words. Use the same word for the same thing.
 | **Shared platform** (M1) | One Blackboard registration (one client id) for many schools; each school is one deployment owned by one connection. | — |
 | **Service URL** (M1, Canvas) | The origin of the Canvas AGS and NRPS URLs and the token endpoint (the account domain). Default: the site URL. | — |
 | **Approval grant** (M1) | A one-time, expiring operator approval for one Canvas or Blackboard binding; the portal calls its secret the approval code. | — |
+| **Approval** (M1) | The committed app row for one (platform, deployment) after a grant redemption; the only source of Canvas and Blackboard launch and grade authority (app contract §4.7.1). | — |
 
 ## 3. Context
 

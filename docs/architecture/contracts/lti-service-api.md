@@ -424,7 +424,7 @@ A tool written against the public LTIAAS API works after two changes (base URL, 
 | D17 | Site and service origins | Platform `url` is the LMS | `url` stays the issuer. `siteUrl` (platform and deployment), Canvas `serviceUrl`, and `platform.siteUrl` / `platform.serviceUrl` in `/api/idtoken` give the LMS page and service origins (§9). |
 | D18 | Deployments | `deploymentIds` only | Additions: `deployments` with `siteUrl` and `active`, `POST` and `PATCH` deployment endpoints, `GET /api/providers`, shared platforms (§9.4–§9.6). |
 | D19 | Claims of Canvas and Blackboard profiles | Passed through | Only an allowlist is stored (§9.8). `/api/idtoken` (also `raw=true`) never shows other claims; `launch.custom` is `{}`. |
-| D20 | Binding generations and binding refs | — | Keys and ltiks of an older binding generation of a shared deployment stop working (§9.14). Platforms and deployments can carry a binding ref, and changes can be conditional on it (§9.15). |
+| D20 | Binding generations and binding refs | — | Keys and ltiks of an older binding generation of a shared deployment stop working (§9.14). Platforms and deployments can carry a binding ref, and changes can be conditional on it (§9.15). A conditional `PATCH` must write a new ref (rotation). `POST …/deployments` accepts `active: false` (staged create). |
 | D21 | Signed product family and canonical origins | — | Launch check 14 refuses a Canvas- or Blackboard-signed launch on a non-matching profile, before any claim is stored (§9.7). Site, service and self-hosted issuer URLs are stored and answered in canonical origin form (§9.1). |
 
 ---
@@ -530,7 +530,7 @@ New fields in every platform answer (§3.9):
 
 Site origin of a deployment = deployment `siteUrl`, else platform `siteUrl`, else the origin of `url` (issuer). Service origin = platform `serviceUrl`, else the site origin.
 
-`POST /api/platforms` per profile (new optional request fields `profile`, `siteUrl`, `serviceUrl`, `bindingRef`):
+`POST /api/platforms` per profile (new optional request fields `profile`, `siteUrl`, `serviceUrl`, `bindingRef`). The existing optional `active` (default `true`) works for every profile except the shared ones; `active: false` stores an inactive platform (staging, §9.15): login, launch and API calls give `PLATFORM_NOT_ACTIVE` until a `PATCH` activates it.
 
 | Profile | Required | Optional, must equal the profile value if sent | Other rules |
 | --- | --- | --- | --- |
@@ -545,34 +545,35 @@ Check order: body schema, `UNKNOWN_PROFILE`, `UNSUPPORTED_AUTH_METHOD`, `PLATFOR
 
 - `deploymentIds` on a shared platform → `409 SHARED_PLATFORM_DEPLOYMENTS`.
 - On other platforms `deploymentIds` is a **diff**: listed ids that exist keep their row (site, generation) and become active; new ids get new rows (active, generation 0, site from the platform); ids that are not listed are deleted. (Today's delete-and-insert gives the same result for `standard`, whose rows have no extra values.)
-- `active` and `name` work on every platform. New optional fields `bindingRef` (set) and `ifBindingRef` (condition) follow §9.15. The Cogniate app never sends `PATCH` or `DELETE` to a shared platform (ADR-011 §4 rule 4).
+- `active` and `name` work on every platform. New optional fields `bindingRef` (set) and `ifBindingRef` (condition) follow §9.15: a request with `ifBindingRef` must also send a new `bindingRef` (rotation). The Cogniate app never sends `PATCH` or `DELETE` to a shared platform (ADR-011 §4 rule 4).
 
 `DELETE /api/platforms/:id` on a shared platform with an active deployment → `409 SHARED_PLATFORM_IN_USE`. `DELETE /api/platforms/:id?ifBindingRef=<ref>` deletes only if the platform's binding ref equals `<ref>` (§9.15).
 
-`GET /api/platforms` gets the query filter `profile`.
+`GET /api/platforms` gets the query filter `profile`. The filters `url`, `clientId` and `profile` compare **exactly** with the stored values (no canonicalization in the filter). Issuers of Canvas profiles are stored as the fixed profile value, and a `canvas-self-hosted` issuer in canonical origin form, so a caller that sends the canonical issuer finds the record. `url` plus `clientId` finds at most one platform of the account (unique key).
 
 ### 9.5 `POST /api/platforms/:id/deployments` — Bearer
 
-Request: `{ "deploymentId": "<1-255 printable ASCII, no space>", "siteUrl"?: "<https origin>", "bindingRef"?: "<1-64 characters [A-Za-z0-9_-]>" }`.
+Request: `{ "deploymentId": "<1-255 printable ASCII, no space>", "siteUrl"?: "<https origin>", "active"?: boolean, "bindingRef"?: "<1-64 characters [A-Za-z0-9_-]>" }`. `active` defaults to `true`; `active: false` stores an inactive row (staging, §9.15). A `deploymentId` outside its alphabet (for example with a space) → `400 INVALID_REQUEST`, field `deploymentId`, nothing stored.
 
 | Platform profile | `siteUrl` | New row |
 | --- | --- | --- |
-| `standard` | must be absent | active, generation 0 |
-| Canvas profiles | absent, or equal to the platform `siteUrl` (`400 INVALID_SITE_URL` otherwise) | active, generation 0 |
-| shared profiles | required; site rules 1 to 4 | active, **generation 1** |
+| `standard` | must be absent | `active` as sent, generation 0 |
+| Canvas profiles | absent, or equal to the platform `siteUrl` (`400 INVALID_SITE_URL` otherwise) | `active` as sent, generation 0 |
+| shared profiles | required; site rules 1 to 4 | `active: true` → active, **generation 1**; `active: false` → inactive, generation 0 (its first activation gives 1) |
 
-`201 { "deploymentId", "siteUrl", "active": true, "bindingGeneration", "bindingRef" }` (`siteUrl` resolved). `409 DEPLOYMENT_ALREADY_EXISTS`. `404 UNREGISTERED_PLATFORM`. Logs `deployment_added {platform_id, deployment_id}`.
+`201 { "deploymentId", "siteUrl", "active", "bindingGeneration", "bindingRef" }` (`siteUrl` resolved). `409 DEPLOYMENT_ALREADY_EXISTS`. `404 UNREGISTERED_PLATFORM`. Logs `deployment_added {platform_id, deployment_id}`.
 
 ### 9.6 `PATCH /api/platforms/:id/deployments/:deploymentId` — Bearer
 
-`:deploymentId` is encoded with `encodeURIComponent`. Request: `{ "active"?: boolean, "siteUrl"?: "<https origin>", "bindingRef"?: "<ref>", "ifBindingRef"?: "<ref>" or null }`, at least one of `active` and `bindingRef`. `ifBindingRef` makes the whole change conditional (§9.15).
+`:deploymentId` is encoded with `encodeURIComponent`. Request: `{ "active"?: boolean, "siteUrl"?: "<https origin>", "bindingRef"?: "<ref>", "ifBindingRef"?: "<ref>" or null }`, at least one of `active` and `bindingRef`. `ifBindingRef` makes the whole change conditional and needs a new `bindingRef` (§9.15).
 
 | Change | Rule |
 | --- | --- |
 | `active: false` | Allowed on every platform. The generation does not change. |
 | `active: true` on an inactive deployment of a shared platform | A **new binding**: generation + 1. `siteUrl` may be sent (site rules 1 to 4) and replaces the old site. |
+| `active: true` with a new `bindingRef` on an **active** deployment of a shared platform (an adoption, §9.15) | A **new binding**: generation + 1. `siteUrl` may be sent (site rules 1 to 4) and replaces the old site. Keys and ltiks of the old generation stop working. |
 | `active: true` on an inactive deployment of another platform | Active again; generation unchanged. |
-| `active: true` on an active deployment | No change (`200`). `siteUrl` is not allowed here. |
+| `active: true` without `bindingRef` on an active deployment, or on an active deployment of another platform | No change to `active` or the generation (`200`). `siteUrl` is not allowed here. |
 | `siteUrl` in any other case | `400 INVALID_REQUEST`, field `siteUrl` |
 
 `200 { "deploymentId", "siteUrl", "active", "bindingGeneration", "bindingRef" }`. `404 UNKNOWN_DEPLOYMENT`, `404 UNREGISTERED_PLATFORM`, `409 BINDING_REF_MISMATCH`. Logs `deployment_updated {platform_id, deployment_id, active, binding_generation}`.
@@ -639,7 +640,7 @@ The simulation profiles are on only when both are true: the service profile is `
 
 | Rule | Detail |
 | --- | --- |
-| Values | `deployment.binding_generation`: 0 for every existing row and for exclusive platforms; 1 for a new shared deployment (§9.5); + 1 for each new binding (§9.6). |
+| Values | `deployment.binding_generation`: 0 for every existing row and for exclusive platforms; 1 for a new active shared deployment and 0 for a new inactive one (§9.5); + 1 for each new binding (§9.6: an activation, or an adoption of an active row). |
 | Key derivation | Unchanged when the generation is 0 (existing Moodle keys keep their exact value). When it is above 0, the generation is part of the HMAC input, so each binding has other key values. |
 | Issue | On a launch, the service key row of (platform, deployment, context, resource link) gets the current generation. A row with an older generation gets a new key value (the old value stops working at once). |
 | Service key check | The key's generation must equal the deployment's generation (else `401 INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER`), and the deployment must be active (else `403 DEPLOYMENT_NOT_ACTIVE`). |
@@ -648,13 +649,16 @@ The simulation profiles are on only when both are true: the service profile is `
 
 ### 9.15 Binding refs (fencing for app recovery)
 
-A binding ref is an opaque value (1 to 64 characters, `[A-Za-z0-9_-]`) that the API caller stores on a platform (exclusive profiles) or on a deployment (all profiles). The Cogniate app uses its redemption attempt id (app contract §4.7.1). The LTI service does not interpret it; it only stores it, returns it, and compares it.
+A binding ref is an opaque value (1 to 64 characters, `[A-Za-z0-9_-]`) that the API caller stores on a platform (exclusive profiles) or on a deployment (all profiles). The Cogniate app writes a new random ref for each of its writes and records it first (app contract §4.7.1). The LTI service does not interpret a ref; it only stores it, returns it, and compares it.
 
 | Rule | Detail |
 | --- | --- |
 | Set | `bindingRef` in `POST /api/platforms`, `POST …/deployments`, `PATCH /api/platforms/:id` and `PATCH …/deployments/:deploymentId` sets the stored value. |
 | Condition | `ifBindingRef` in a `PATCH` body, or the `ifBindingRef` query of `DELETE /api/platforms/:id`, makes the whole request conditional: it applies only if the stored value equals the given value (`null` = "no value stored"). Else `409 BINDING_REF_MISMATCH` and nothing changes. |
-| Atomicity | The comparison and the change run in one database transaction of the LTI service. So two conditional changes of the same record are serialized, and at most one of two changes that expect the same value succeeds. |
+| Rotation | A `PATCH` with `ifBindingRef` must also send `bindingRef`, and that value must differ from `ifBindingRef`. Else `400 INVALID_REQUEST`, field `bindingRef`, and nothing changes (this check comes before the condition). So every successful conditional `PATCH` changes the stored value. A conditional `DELETE` removes the record. |
+| Atomicity | The comparison with the **current** stored value and the change run in one database transaction of the LTI service. So two conditional requests of the same record are serialized, and of two requests that expect the same current value, only the first one that runs can succeed; the second one then sees the changed value and gets `409 BINDING_REF_MISMATCH`, whatever mix of `active`, `siteUrl` and `bindingRef` it sends. |
+| Staging | A create with `active: false` (§9.4, §9.5) stores an inactive record with its ref. Only a later conditional `PATCH {active: true, bindingRef: <new>, ifBindingRef: <the create ref>}` activates it. A create has no condition: it succeeds only if no record with the same unique key exists (`409 PLATFORM_ALREADY_EXISTS` or `409 DEPLOYMENT_ALREADY_EXISTS` otherwise, nothing changes). |
+| Limit | The service compares with the current value only; it keeps no history of old values. It cannot prove that a value was never stored before: a caller with the API key can write `r1`, then `r2`, then `r1` again, or make an unconditional change, and an old request that expects `r1` then succeeds. It also does not know which caller is current or approved. The no-stale-write guarantee therefore comes from the **caller's protocol**. The Cogniate app writes each ref once, as a new random value that it never reuses, and records it before the call. It changes Canvas and Blackboard records only with conditional requests (app contract §4.7.1, I3). Other API key holders (the operator with raw API calls) are outside this guarantee. The app decides which values it may expect and which deployments have authority (app contract §6.1). |
 | Compatibility | A request without `ifBindingRef` behaves as before (unconditional). Old rows have `null`. Moodle calls of the app send no ref and no condition. |
 
-Use by the app (app contract §4.7.1, §4.9): every switch-off, delete or adoption of a Canvas or Blackboard record is conditional on a ref that belongs to the same connection; every new binding or adoption writes a new ref. A stale request therefore fails with `409 BINDING_REF_MISMATCH` instead of changing a newer binding.
+Use by the app (app contract §4.7.1, §4.9): every create of a Canvas or Blackboard record is inactive; every activation, adoption, switch-off and delete is conditional on a ref that the app read, and every conditional `PATCH` writes a new random ref that the app never reuses. Because no ref value returns, a delayed app request fails with `409 BINDING_REF_MISMATCH` instead of changing a record that another app request changed after it was sent.

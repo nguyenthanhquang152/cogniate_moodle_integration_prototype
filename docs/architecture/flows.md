@@ -258,11 +258,14 @@ sequenceDiagram
     OP->>CU: approval code
     CU->>P: client id, deployment id, approval code
     P->>APP: PUT …/platform {clientId, deploymentId, grantCode}
-    APP->>APP: redeem grant (one transaction: valid, same library + connection, same values, redeeming)
-    APP->>LTI: POST /api/platforms {profile, clientId, name, siteUrl, serviceUrl, deploymentIds}
-    Note over LTI: issuer, auth, JWKS from the profile; token = {serviceUrl}/login/oauth2/token
-    LTI-->>APP: 201 platform
-    APP->>APP: grant redeemed; connection registered
+    APP->>APP: phase 1 (one transaction): grant valid, same library + connection, same values, no live attempt, take the connection lease, save the target, record ref c
+    APP->>LTI: POST /api/platforms {profile, clientId, name, siteUrl, serviceUrl, deploymentIds, active: false, bindingRef: c}
+    Note over LTI: issuer, auth, JWKS from the profile, token = {serviceUrl}/login/oauth2/token
+    LTI-->>APP: 201 platform (inactive)
+    APP->>APP: record ref a
+    APP->>LTI: PATCH /api/platforms/{id} {active: true, bindingRef: a, ifBindingRef: c}
+    LTI-->>APP: 200 active
+    APP->>APP: phase 2: grant redeemed, approval (platform, deployment) committed, connection registered
     APP-->>P: 200 registered
 ```
 
@@ -278,7 +281,7 @@ sequenceDiagram
     participant APP as Cogniate app
     T->>CV: Assignments → + Assignment → Submission Type External Tool → Find → Cogniate
     CV->>LTI: (modal iframe) GET /lti/login/cogniate iss=canvas.instructure.com, client_id, lti_deployment_id
-    LTI->>LTI: platform by (iss, client_id); deployment known and active
+    LTI->>LTI: platform by (iss, client_id), deployment known and active
     LTI-->>CV: 302 to SSO auth endpoint + partitioned state cookie
     CV->>SSO: authorize_redirect
     SSO-->>LTI: form POST id_token (LtiDeepLinkingRequest)
@@ -290,7 +293,7 @@ sequenceDiagram
     APP->>LTI: POST /api/deeplinking (one ltiResourceLink, lineItem 100, window if accepted)
     LTI-->>APP: JWT + target on school site
     APP-->>CV: auto-submit JWT to deep_link_return_url
-    CV-->>T: assignment with 100 points, set to open in a new tab (window hint); teacher checks the tab setting and selects Save & Publish
+    CV-->>T: assignment with 100 points, set to open in a new tab (window hint), teacher checks the tab setting and selects Save & Publish
 ```
 
 ### 6g-3. Learner launch and grade
@@ -299,7 +302,7 @@ Same as 6c and 6d after the launch. Differences: Canvas always sends `documentTa
 
 ### 6g-4. Add a second deployment
 
-The Canvas admin installs the same key in a sub-account and gets a second deployment id. A launch from it fails with `UNKNOWN_DEPLOYMENT`. The operator issues a grant with `--purpose add_deployment`; the user enters the deployment id and the approval code (`POST …/deployments`); the app redeems the grant and adds the deployment to the connection's platform.
+The Canvas admin installs the same key in a sub-account and gets a second deployment id. A launch from it fails with `UNKNOWN_DEPLOYMENT`. The operator issues a grant with `--purpose add_deployment`; the user enters the deployment id and the approval code (`POST …/deployments`); the app redeems the grant: it creates the deployment inactive on the connection's platform, activates it with a conditional call, and commits an approval for it. Until that approval commits, a launch from the new deployment gets `UNKNOWN_PLATFORM` (`deployment_not_approved`), and the first deployment keeps working.
 
 ## 6h. Blackboard (M1, ADR-011)
 
@@ -342,10 +345,13 @@ sequenceDiagram
     OP->>CU: approval code
     CU->>P: deployment id + approval code
     P->>APP: PUT …/platform {deploymentId, grantCode}
-    APP->>APP: redeem grant + reserve (shared platform, deployment) in one transaction
-    APP->>LTI: POST /api/platforms/{shared}/deployments {deploymentId, siteUrl} (or PATCH active true = new generation)
-    LTI-->>APP: 201 active
-    APP->>APP: grant redeemed; connection registered
+    APP->>APP: phase 1: check grant, take the connection lease, reserve (shared platform, deployment), record ref c
+    APP->>LTI: POST /api/platforms/{shared}/deployments {deploymentId, siteUrl, active: false, bindingRef: c} (existing row: read it, adoption rule)
+    LTI-->>APP: 201 inactive, generation 0
+    APP->>APP: record ref a
+    APP->>LTI: PATCH …/deployments/{id} {active: true, siteUrl, bindingRef: a, ifBindingRef: c}
+    LTI-->>APP: 200 active, generation + 1
+    APP->>APP: phase 2: grant redeemed, approval committed, connection registered
     APP-->>P: 200 registered
 ```
 
@@ -361,14 +367,14 @@ sequenceDiagram
     participant APP as Cogniate app
     U->>L: Ultra: Content Market → Cogniate (teacher) / open the course item (learner)
     L->>LTI: GET /lti/login/cogniate iss=https://blackboard.com, client_id, lti_deployment_id
-    LTI->>LTI: shared platform; deployment known and active
+    LTI->>LTI: shared platform, deployment known and active
     LTI-->>U: 302 to the gateway OIDC endpoint + state cookie
     U->>GW: oidcauth
     GW-->>L: (Blackboard internal)
     L-->>LTI: form POST id_token
     LTI->>LTI: checks 1-12, check 9 (= login deployment), check 13 (URLs on the deployment site), claim allowlist
     LTI-->>APP: 303 with ltik
-    APP->>APP: routing by reservation (platform, deployment); site check
+    APP->>APP: routing by approval (platform, deployment), site check
     Note over APP,LTI: Deep Linking: picker → JWT with sub = client id → Learn return URL. Grades: token from the gateway, score to the AGS URL on the deployment site only.
 ```
 
@@ -383,13 +389,15 @@ sequenceDiagram
     actor RU as Rightful library user
     Note over OP: evidence: a binding is wrong (wrong library, wrong site or service URL, or a standard platform for a self-hosted Canvas)
     OP->>APP: app:binding suspend --connection K --note <evidence>
-    APP->>APP: K disabled; unredeemed grants revoked
-    APP->>LTI: PATCH platform active false (Moodle, Canvas) or PATCH deployment active false (Blackboard)
-    LTI-->>APP: 200 (or 404 = already off)
+    APP->>APP: K disabled, unredeemed grants revoked, records = K's binding + K's attempt targets
+    APP->>LTI: read each record (Canvas without platform id: GET /api/platforms?url=&clientId=)
+    APP->>LTI: owned records only: PATCH active false, new ref, ifBindingRef = read ref (also when already off)
+    LTI-->>APP: 200 (404 = absent, foreign or newer ref = left unchanged)
     OP->>APP: app:binding release --connection K --note <evidence>
-    APP->>LTI: DELETE platform (Moodle, Canvas): keys and launches removed
-    APP->>APP: Blackboard: delete K's reservation (deployment stays inactive)
-    Note over APP: K keeps its publications, attempts and score history
+    APP->>APP: refuse while K's lease is live or an owned record is active
+    APP->>LTI: Canvas: DELETE platform ?ifBindingRef = read ref (keys and launches removed)
+    APP->>APP: delete only K's reservation (Blackboard, deployment stays inactive) and K's approvals
+    Note over APP: K keeps its publications, attempts, grants, ref history and score history
     OP->>APP: app:grant issue for the rightful connection R (normal check)
     RU->>APP: PUT …/platform with the approval code
     APP->>LTI: new Canvas platform, or Blackboard deployment active again (generation + 1)
