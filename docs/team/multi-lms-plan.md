@@ -71,9 +71,23 @@ Do not run a destructive reset against the user's existing environment.
 | Task | Result | State |
 | --- | --- | --- |
 | M0 | Source review, architecture, contracts, criteria | In progress |
-| M0-A2 | Read-only portal and integration audit | Planned |
+| M0-A2 | Read-only portal and integration audit | In progress |
+| M0-QE | Independent environment and live-LMS validation preflight | In progress |
 | M1 | Shared backend and provider registration support | Planned |
 | M2 | Blackboard and Canvas portal flows | Planned |
 | M3 | Independent QA and Moodle regression | Planned |
 | M4 | Guides, interactive review pack, final conformance | Planned |
+
+## Launch evidence
+
+Orca accepted these workers. Each receipt reports the requested model and effort as effective.
+
+| Role | Dispatch | Effective model | Effort |
+| --- | --- | --- | --- |
+| Architect | `ctx_c8c00b22d5f1` | `claude-opus-5-5` | `xhigh` |
+| Author-2 | `ctx_1eeade383449` | `gpt-6-astra` | `xhigh` |
+| QA-E2E preflight | `ctx_3c4961a02f14` | `claude-opus-5-5` | `xhigh` |
+
+The initial Docker inventory found no running containers.
+The Lead asked which existing LMS test environments are available; the answer is pending.
 
