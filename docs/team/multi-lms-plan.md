@@ -464,6 +464,33 @@ Handoff `msg_68891aec5a82` supplies the accepted R3.7 audit semantics and permit
 It uses a same-process request-completion control and a positive attempt control; it makes no durable crash or database claim.
 This does not authorize product acceptance runs or the broader Canvas snapshot test work.
 
+The Architect completed the eight-file application in `msg_8acb2b069133`.
+The Lead inspected the changes and committed them at **`ccdd9ef67cdd2be4c6af374136777fda4e081943`**.
+This is the applied-contract baseline for implementation and test preparation.
+The Architect remains retained; no product finding is closed by that application.
+The Canvas worktree advanced to this commit with tracked files clean and its untracked setup artifact preserved.
+
+The implementation and preparation wave is now active:
+
+| Work | Task | Dispatch | Handoff |
+| --- | --- | --- | --- |
+| Shared backend and Blackboard | `task_de758fb0e31a` | `ctx_610c9d2ca767` | `msg_7ed661f0cc4a` |
+| Canvas adapter and shared error text | `task_65cded3fc783` | `ctx_7ea6a7979f6e` | `msg_f33acba30b52` |
+| Common/Blackboard acceptance preparation and populated upgrade route | `task_7f4a69ad0b33` | `ctx_365b9228372d` | `msg_61ddda53baef` |
+
+All reuse the same dedicated instances. This fills the three worker slots.
+Each owner must hold exact completed paths for a Lead commit. No stack runs in this wave.
+The six previously failing backend regression tests remain with their author until the repair passes.
+
+Canvas QA completed the narrow B-M3-03 repair in `msg_e2c3b7e40181`.
+Its two held paths are committed at **`3b160f7bc22ca43f18bc16c94ecfc336b0fe80d6`**.
+The helper checks cover each refused request's own completion line and a separate positive attempt control.
+Typecheck, 21 harness self-tests, unchanged inventory, and six synthetic oracle checks pass.
+These are harness checks only. B-M3-03 awaits independent recheck.
+The same Canvas QA instance remains retained for `task_1276def76f95`, the broader Canvas snapshot and readiness test preparation.
+That task depends on the applied contracts and the committed narrow repair, and waits for a free worker slot.
+Codex QA owns the complete manifest and mixed-provider `011→012` host route; Canvas QA supplies its assigned cases and fixture interfaces.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
