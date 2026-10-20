@@ -1,12 +1,12 @@
 import { expect, it } from 'vitest';
 import { canvasProvider, parseCanvasBody } from './canvas.ts';
-import type { InitialTargetContext } from './types.ts';
+import type { BindingTarget, InitialTargetContext } from './types.ts';
 
 const grantCode = 'g'.repeat(43);
 const context: InitialTargetContext = {
   connection: { id: 'con_canvas', libraryId: 'lib_a', name: 'School', lms: 'canvas', profile: 'canvas-cloud-production', siteUrl: 'https://canvas.school.edu', serviceUrl: 'https://school.instructure.com', status: 'pending', ltiPlatformId: null },
   values: { clientId: 'client', deploymentId: 'deployment', grantCode },
-  profile: { id: 'canvas-cloud-production', lms: 'canvas', label: 'Canvas', sharing: 'exclusive', issuer: 'https://canvas.instructure.com', authenticationEndpoint: 'https://sso.canvaslms.com/api/lti/authorize_redirect', accesstokenEndpoint: '{serviceUrl}/login/oauth2/token', jwksUrl: 'https://sso.canvaslms.com/api/lti/security/jwks', siteUrlOn: 'platform', serviceUrl: true, simulation: false, sharedPlatform: null },
+  profile: { id: 'canvas-cloud-production', lms: 'canvas', issuer: 'https://canvas.instructure.com' },
   sharedPlatform: null,
 };
 
@@ -27,7 +27,7 @@ it('describes the exclusive target and staged create without adding authority or
   });
   expect(canvasProvider.createRequest!(target, { libraryName: 'Library A' })).toEqual({
     kind: 'platform', body: {
-      profile: 'canvas-cloud-production', clientId: 'client', name: 'Cogniate (Library A)', siteUrl: context.connection.siteUrl,
+      profile: 'canvas-cloud-production', url: 'https://canvas.instructure.com', clientId: 'client', name: 'Cogniate (Library A)', siteUrl: context.connection.siteUrl,
       serviceUrl: context.connection.serviceUrl, deploymentIds: ['deployment'],
     },
   });
@@ -35,6 +35,29 @@ it('describes the exclusive target and staged create without adding authority or
   expect(canvasProvider.initialTarget!({ ...context, profile: { ...context.profile, issuer: '{siteUrl}' }, connection: { ...context.connection, profile: 'canvas-self-hosted' } })).toMatchObject({ issuer: context.connection.siteUrl });
   expect(canvasProvider.createRequest!({ kind: 'platform_deployment', platformId: 'plt_own', deploymentId: 'dep_2' }, { libraryName: 'Library A' })).toEqual({
     kind: 'deployment', platformId: 'plt_own', body: { deploymentId: 'dep_2' },
+  });
+});
+
+it.each([
+  ['canvas-cloud-production', 'https://canvas.instructure.com'],
+  ['canvas-cloud-beta', 'https://canvas.beta.instructure.com'],
+  ['canvas-cloud-test', 'https://canvas.test.instructure.com'],
+  ['canvas-self-hosted', 'https://canvas.school.edu'],
+  ['canvas-sim-cloud', 'https://canvas.sim.test'],
+  // The target, not a new profile lookup or a hardcoded default, is authoritative for S1.
+  ['canvas-cloud-production', 'https://saved-issuer.example.test'],
+])('pins the %s S1 URL to the committed issuer %s', (profile, issuer) => {
+  const target: BindingTarget = {
+    kind: 'exclusive_platform', profile, issuer, clientId: 'saved-client', deploymentId: 'saved-deployment',
+    siteUrl: 'https://canvas.school.edu', serviceUrl: 'https://school.instructure.com', platformId: null,
+  };
+  expect(canvasProvider.createRequest!(target, { libraryName: 'Library A' })).toEqual({
+    kind: 'platform',
+    body: {
+      profile, url: issuer, clientId: 'saved-client', name: 'Cogniate (Library A)',
+      siteUrl: 'https://canvas.school.edu', serviceUrl: 'https://school.instructure.com',
+      deploymentIds: ['saved-deployment'],
+    },
   });
 });
 

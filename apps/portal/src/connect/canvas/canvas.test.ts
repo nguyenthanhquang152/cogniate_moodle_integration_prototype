@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
 import { createElement as h } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
 import { ApiError } from "../../api.ts";
 import type { Connection, LmsProvider } from "../../types.ts";
-import { providerErrorFields, providerErrorMessage } from "../provider-errors.tsx";
+import { ProviderErrorNotice, providerErrorFields, providerErrorMessage } from "../provider-errors.tsx";
+import { BlackboardBinding } from "../blackboard/BlackboardBinding.tsx";
 import { CanvasBinding } from "./CanvasBinding.tsx";
 import { CanvasConfiguration } from "./CanvasConfiguration.tsx";
 import { CanvasWizard } from "./CanvasWizard.tsx";
@@ -102,6 +103,38 @@ it("adds a deployment with a distinct endpoint and no client id", async () => {
   await screen.findByText("Deployment ID added.");
   expect(fetchMock.mock.calls[0]![0]).toBe("/app-api/connections/con_canvas/deployments");
   expect(JSON.parse(fetchMock.mock.calls[0]![1].body as string)).toEqual({ deploymentId: "next-deployment", grantCode: "add-code" });
+});
+
+it.each(["canvas", "blackboard"] as const)("shows the neutral readiness title and action after %s binding fails", async (lms) => {
+  fetchMock.mockResolvedValue(json({ details: { message: "PROVIDER_NOT_READY", traceId: "trace-readiness" } }, 409));
+  const onChanged = vi.fn();
+  const current: Connection = { ...connection, lms, id: `con_${lms}` };
+  render(lms === "canvas" ? h(CanvasBinding, { connection: current, onChanged }) : h(BlackboardBinding, { connection: current, onChanged }));
+  if (lms === "canvas") field("Client ID", "client");
+  field("Deployment ID", "deployment");
+  field("Approval code", "one-use-code");
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  const alert = within(await screen.findByRole("alert"));
+  expect(alert.getByText("This LMS setup is not ready in Cogniate.")).toBeTruthy();
+  expect(alert.getByText("Ask your Cogniate operator to check the LMS setup for this connection. The operator tells you to try again later, or to make a new connection.")).toBeTruthy();
+  expect(alert.getByText("Code: PROVIDER_NOT_READY")).toBeTruthy();
+  expect(alert.getByText("Trace id: trace-readiness")).toBeTruthy();
+  expect(alert.queryByText(/Blackboard is not set up/)).toBeNull();
+  expect(screen.getByRole("alert").textContent).not.toContain("one-use-code");
+  expect((screen.getByLabelText("Approval code") as HTMLInputElement).value).toBe("");
+  expect(onChanged).not.toHaveBeenCalled();
+  expect(fetchMock.mock.calls[0]![0]).toBe(`/app-api/connections/con_${lms}/platform`);
+});
+
+it("keeps the server action for other provider errors", () => {
+  render(h(ProviderErrorNotice, { error: new ApiError(422, {
+    message: "GRANT_MISMATCH", fields: ["deploymentId"], action: "Check the Deployment ID with your operator.",
+  }, "trace-mismatch") }));
+  const alert = within(screen.getByRole("alert"));
+  expect(alert.getByText("The values do not match the approval. Check the marked fields, or ask your Cogniate operator.")).toBeTruthy();
+  expect(alert.getByText("Check the Deployment ID with your operator.")).toBeTruthy();
+  expect(alert.getByText("Trace id: trace-mismatch")).toBeTruthy();
 });
 
 it("copies exact JSON bytes, shares them with download and switches to a fresh inline snapshot", async () => {

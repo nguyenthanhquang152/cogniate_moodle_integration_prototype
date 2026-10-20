@@ -15,7 +15,8 @@ export function registerCanvasDeploymentRoutes(api: FastifyInstance, deps: Provi
     if (!c) throw new ApiError('NOT_FOUND', 'The connection does not exist in your library.');
     if (c.lms !== 'canvas')
       throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'This connection cannot add a deployment.', { details: { capability: 'addDeployment' } });
-    if (c.status !== 'registered' && c.status !== 'connected') throw new ApiError('CONNECTION_NOT_READY');
+    if ((c.status !== 'registered' && c.status !== 'connected') || !c.ltiPlatformId || !c.platform)
+      throw new ApiError('CONNECTION_NOT_READY');
     const parsed = parseStrictBody(req.body, { required: ['deploymentId', 'grantCode'] });
     if (!parsed.ok) throw new ApiError('INVALID_PLATFORM_VALUES', undefined, { details: { fields: parsed.fields } });
     const connection = await deps.redeem({

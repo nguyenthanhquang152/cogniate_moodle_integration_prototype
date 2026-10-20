@@ -55,7 +55,14 @@ function grant(c: Connection, purpose: GrantPurpose, deploymentId: string) {
 
 /** Use the real shared redemption engine, with the testkit's local LTI service model. */
 async function boundConnection() {
-  const c = connection();
+  // Use connection creation so the fixture receives the provider snapshot required by phase 1.
+  const created = await t.app.inject({
+    method: 'POST', url: '/app-api/connections', headers: t.writeHeaders(cookie),
+    payload: { name: 'School', siteUrl: 'https://school-a.canvas.sim.test', method: 'manual', lms: 'canvas', profile: 'canvas-sim-cloud' },
+  });
+  expect(created.statusCode).toBe(201);
+  const library = ensureLibrary(t.db, THANH.library, t.clock.now);
+  const c = getConnection(t.db, library.id, created.json().id)!;
   const initial = grant(c, 'initial', 'deployment-one');
   const answer = await t.app.inject({
     method: 'PUT', url: `/app-api/connections/${c.id}/platform`, headers: t.writeHeaders(cookie),
@@ -93,6 +100,26 @@ describe('Canvas add deployment route (app contract §4.7.2)', () => {
       expect(answer.json().details.message).toBe('CONNECTION_NOT_READY');
     }
     expect(t.lti.calls).toEqual([]);
+  });
+
+  it.each([
+    ['registered', 'lti_platform_id'],
+    ['registered', 'platform_json'],
+    ['connected', 'lti_platform_id'],
+    ['connected', 'platform_json'],
+  ] as const)('refuses a %s connection missing %s before body parsing or grant handling', async (status, column) => {
+    const c = ready(connection(), status);
+    const approval = grant(c, 'add_deployment', 'deployment-two');
+    t.db.prepare(`UPDATE connection SET ${column} = NULL WHERE id = ?`).run(c.id);
+    for (const payload of [{}, body, { ...body, grantCode: approval.code }]) {
+      const answer = await post(c.id, payload);
+      expect(answer.statusCode).toBe(409);
+      expect(answer.json().details.message).toBe('CONNECTION_NOT_READY');
+    }
+    expect(t.lti.calls).toEqual([]);
+    expect(getGrant(t.db, approval.id)?.redeemedAt).toBeNull();
+    expect(getConnection(t.db, c.libraryId, c.id)?.redeemingAttempt).toBeNull();
+    expect(t.logs.filter((line) => line.event === 'grant_rejected' || line.event === 'grant_attempt_started')).toEqual([]);
   });
 
   it('accepts only deploymentId and grantCode, with the strict provider field rules', async () => {

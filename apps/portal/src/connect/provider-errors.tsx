@@ -1,7 +1,7 @@
 import { ApiError } from "../api.ts";
-import { BLACKBOARD_NOT_READY } from "../lms.ts";
 import { ErrorNotice } from "../ui.tsx";
 
+const providerNotReadyAction = "Ask your Cogniate operator to check the LMS setup for this connection. The operator tells you to try again later, or to make a new connection.";
 const siteRules: Record<number, string> = {
   1: "Enter only the address, for example https://school.instructure.com. No path.",
   2: "Enter a host name, not an IP address or localhost.",
@@ -18,7 +18,7 @@ const texts: Record<string, string> = {
   DEPLOYMENT_IN_USE: "This Blackboard site is already connected to Cogniate.",
   DEPLOYMENT_FIXED: "This connection already reserved another Blackboard deployment. Disconnect it, then make a new connection.",
   CONNECTION_NOT_PENDING: "This connection changed while Cogniate saved it. Reload the page.",
-  PROVIDER_NOT_READY: BLACKBOARD_NOT_READY,
+  PROVIDER_NOT_READY: "This LMS setup is not ready in Cogniate.",
 };
 
 export function providerErrorMessage(error: unknown): string | undefined {
@@ -37,6 +37,9 @@ export function providerErrorFields(error: unknown): string[] {
 export function ProviderErrorNotice({ error }: { error: unknown }) {
   const message = providerErrorMessage(error);
   return <ErrorNotice error={error instanceof ApiError && message
-    ? new ApiError(error.status, { ...error.details, description: message }, error.traceId)
+    ? new ApiError(error.status, {
+      ...error.details, description: message,
+      action: error.details.message === "PROVIDER_NOT_READY" ? providerNotReadyAction : error.details.action,
+    }, error.traceId)
     : error} />;
 }

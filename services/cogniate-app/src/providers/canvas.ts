@@ -45,7 +45,7 @@ export const canvasProvider: ProviderAdapter = {
   createRequest: (target, { libraryName }): StagedCreate => {
     if (target.kind === 'exclusive_platform') return {
       kind: 'platform', body: {
-        profile: target.profile, clientId: target.clientId, name: toolName(libraryName),
+        profile: target.profile, url: target.issuer, clientId: target.clientId, name: toolName(libraryName),
         siteUrl: target.siteUrl, serviceUrl: target.serviceUrl, deploymentIds: [target.deploymentId],
       },
     };

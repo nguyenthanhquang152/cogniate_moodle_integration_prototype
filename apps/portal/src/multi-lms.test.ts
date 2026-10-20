@@ -77,6 +77,8 @@ it("disables Blackboard creation with the operator readiness explanation", async
   render(h(MemoryRouter, null, h(Integrations)));
   const card = within(screen.getByRole("article", { name: "Blackboard" }));
   await card.findByText(BLACKBOARD_NOT_READY);
+  expect(card.getByText("Blackboard is not set up for this Cogniate service yet. Ask your Cogniate operator.")).toBeTruthy();
+  expect(card.queryByText("This LMS setup is not ready in Cogniate.")).toBeNull();
   expect((card.getByRole("button", { name: "Connect" }) as HTMLButtonElement).disabled).toBe(true);
   expect(within(screen.getByRole("article", { name: "Canvas" })).getByRole("link", { name: "Connect" }).getAttribute("href")).toBe("/integrations/canvas/connect");
 });
