@@ -123,6 +123,8 @@ export interface NewPlatform {
 /** POST /api/platforms body of a profile other than `standard` (LTI contract §9.4): the service fills the endpoints. */
 export interface NewProviderPlatform {
   profile: string;
+  /** Optional issuer pin: the LTI service refuses another value with 400 PLATFORM_URL_NOT_IN_PROFILE (LTI contract §9.4). */
+  url?: string;
   clientId: string;
   name: string;
   siteUrl: string;

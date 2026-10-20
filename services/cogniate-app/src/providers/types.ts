@@ -52,7 +52,10 @@ export interface ToolRow {
 export interface ToolConfigurationContext {
   urls: PublicUrls;
   libraryName: string;
-  /** Client id of the active shared platform of the connection's profile (Blackboard Application ID), else null. */
+  /**
+   * Blackboard Application ID from LOCAL data (app contract §4.5): the connection's snapshot `target_client_id`, else
+   * the persisted `platform.clientId`; else null. Never read from the LTI service here.
+   */
   sharedClientId: string | null;
 }
 
@@ -67,7 +70,10 @@ export interface PlatformBodyValues {
 export type PlatformBodyResult = { ok: true; values: PlatformBodyValues } | { ok: false; fields: string[] };
 
 export interface PlatformBodyContext {
-  /** Client id of the active shared platform of the connection's profile, else null. */
+  /**
+   * Blackboard: the first non-null LOCAL client id (app contract §4.4): the snapshot `target_client_id`, then the
+   * persisted `platform.clientId`. Null (an old pending 011 row): only the form of a sent `clientId` is checked.
+   */
   sharedClientId: string | null;
 }
 
@@ -99,20 +105,27 @@ export interface SharedPlatformInfo {
   active: boolean;
 }
 
+/**
+ * Local view of the connection's profile, built from its provider snapshot inside phase 1 (no LTI call, B-M1-03).
+ * `issuer` is the saved canonical target issuer (already filled for `canvas-self-hosted`).
+ */
+export type LocalProfileView = Pick<LtiProviderProfile, 'id' | 'lms' | 'issuer'> & Partial<LtiProviderProfile>;
+
 export interface InitialTargetContext {
   connection: ProviderConnection;
   values: PlatformBodyValues;
-  /** The connection's profile row of `GET /api/providers` (LTI contract §9.3). */
-  profile: LtiProviderProfile;
-  /** The active shared platform of a shared profile, else null. */
-  sharedPlatform: SharedPlatformInfo | null;
+  /** The local profile view (app contract §4.7.1 "Target": local data only). */
+  profile: LocalProfileView;
+  /** Blackboard: the pinned id and client id from the complete snapshot, never a live provider lookup. */
+  sharedPlatform: Pick<SharedPlatformInfo, 'id' | 'clientId'> | null;
 }
 
 /** S1 request without `active` and `bindingRef` (the engine adds `active: false` and the write-ahead ref). */
 export type StagedCreate =
   | {
     kind: 'platform';
-    body: { profile: string; clientId: string; name: string; siteUrl: string; serviceUrl?: string; deploymentIds: string[] };
+    /** `url`: Canvas `initial` pins the issuer saved in the target (app contract §4.4). */
+    body: { profile: string; url?: string; clientId: string; name: string; siteUrl: string; serviceUrl?: string; deploymentIds: string[] };
   }
   | { kind: 'deployment'; platformId: string; body: { deploymentId: string; siteUrl?: string } };
 
