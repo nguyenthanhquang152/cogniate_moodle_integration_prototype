@@ -8,10 +8,11 @@
 // replaces exactly the two databases and their listed sidecars, and deletes a target sidecar that the backup does not
 // list. No command edits or deletes a migration ledger row. The backup contains secrets: keep it outside the checkout.
 import { createHash, randomUUID } from 'node:crypto';
-import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 
 export const DATABASES = ['lti-service/lti.db', 'cogniate-app/cogniate.db'];
@@ -115,7 +116,9 @@ export function restore({ from, data, project }) {
   return m;
 }
 
-const isMain = process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname);
+// Real paths on both sides: Node runs the main module from its real path, so a checkout under a symlink (macOS /tmp,
+// /var) must not look like an import (that would exit 0 without a backup).
+const isMain = process.argv[1] !== undefined && realpathSync(resolve(process.argv[1])) === realpathSync(fileURLToPath(import.meta.url));
 if (isMain) {
   const [command, ...rest] = process.argv.slice(2);
   const { values } = parseArgs({ args: rest, options: { out: { type: 'string' }, from: { type: 'string' }, data: { type: 'string' }, project: { type: 'string' }, revision: { type: 'string' }, repo: { type: 'string' } } });
