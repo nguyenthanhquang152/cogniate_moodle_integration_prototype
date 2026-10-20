@@ -112,8 +112,10 @@ M1, M2 and test-writing tasks stay blocked until that gate passes.
 
 Round 2 is complete on `bd9fe36`: both reviewers require changes and QA gives FAIL for design testability only.
 The reports preserve the first round and identify which findings are closed.
-The same Architect will resolve the remaining findings in `task_ca1fae1a7570`.
+The same Architect is resolving the remaining findings in `task_ca1fae1a7570`, dispatch `ctx_2b04d15a6bc3`, from `706a278`.
 The same three independent instances remain retained for the next recheck.
+Round 3 tasks are queued: Reviewer-A `task_ed981aeb1a31`, Reviewer-B `task_31e336af4b46`, and QA `task_15510d66f895`.
+They depend on the completed correction and will use one frozen commit.
 
 Author-2 completed the read-only audit in `ctx_1eeade383449`.
 Messages `msg_57b462b0aec3`, `msg_c8afa054e00e`, and `msg_b3a206ea8b3f` hold the findings.

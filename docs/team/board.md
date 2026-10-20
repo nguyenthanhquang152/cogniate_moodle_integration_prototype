@@ -9,7 +9,7 @@ The Moodle release below is the completed baseline.
 
 | Task | Owner | Status | Evidence |
 | --- | --- | --- | --- |
-| M0 | Architect; independent QA and reviewers | Round 2 requires correction | `bd9fe36`: both reviews CHANGES_REQUESTED; QA FAIL for design testability. Delayed Canvas deployment authority is a BLOCKER. Second correction queued. |
+| M0 | Architect; independent QA and reviewers | Second correction in progress | `bd9fe36`: both reviews CHANGES_REQUESTED; QA FAIL for design testability. Delayed Canvas deployment authority is a BLOCKER. Findings committed at `706a278`. |
 | M1 | Author (Claude) | Planned; design gate required | Backend implementation task queued. |
 | M2 | Author-2 (Codex) | Planned; design gate required | Portal task queued in its own worktree. |
 | M3 | QA (Codex), QA-E2E (Claude) | Planned | Environment preflight complete. Real Canvas and Blackboard checks remain unverified. |
