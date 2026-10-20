@@ -1,5 +1,7 @@
 // Browser evidence helpers. Full capabilities go only to the private recorder.
 const fields = ['ltik', 'id_token', 'state', 'nonce'];
+// Form field → recorded kind. The signed Deep Linking response (form field JWT) is recorded as id_token, as T7 does.
+const formFields = [...fields.map((kind) => [kind, kind]), ['JWT', 'id_token']];
 
 /** Keep useful frame route shapes without credentials, query values, fragments or path capabilities. */
 export function diagnosticUrl(value) {
@@ -34,7 +36,7 @@ export function captureBrowserSecrets(context, record) {
     }
     if (request.headers()['content-type']?.split(';')[0].trim() === 'application/x-www-form-urlencoded') {
       const form = new URLSearchParams(request.postData() ?? '');
-      for (const kind of fields) for (const value of form.getAll(kind)) record(kind, value);
+      for (const [field, kind] of formFields) for (const value of form.getAll(field)) record(kind, value);
     }
   };
   context.on('request', listener);

@@ -2,7 +2,7 @@
 import { createCourse, THANH, uploadVersion } from '../../acceptance/lib/app';
 import { httpsRequest } from '../../acceptance/lib/https';
 import {
-  APP, app, blackboardBinding, canvasBinding, canvasPending, check, completeHtml, fixtureZip, ok, publicationFor, serverLaunch,
+  APP, app, blackboardBinding, canvasBinding, canvasPending, check, completeHtml, escape, fixtureZip, ok, publicationFor, serverLaunch,
   unique, type Bound,
 } from '../../acceptance/M1/canvas/browser';
 import { TEXT, button, expect, m2Case, portalSignIn, shot } from './lib/m2';
@@ -18,7 +18,12 @@ m2Case('M2-10.publish-dialog', 'Publish to an LMS lists every ready connection a
   await button(page, TEXT.publishTitle).first().click();
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { name: TEXT.publishTitle })).toBeVisible();
-  const options = (await dialog.getByLabel(TEXT.publishSelect, { exact: true }).locator('option').allTextContents()).map((o) => o.trim());
+  const select = dialog.getByLabel(TEXT.publishSelect, { exact: true });
+  // Retrying readiness: the list loads after the dialog opens. The snapshot below (and its absence checks) needs a loaded list.
+  for (const text of [`${canvas.connection.name} (Canvas, school-a.canvas.sim.test)`, `${bb.connection.name} (Blackboard, learn-a.blackboard.sim.test)`]) {
+    await expect(select.locator('option').filter({ hasText: new RegExp(`^\\s*${escape(text)}\\s*$`) })).toHaveCount(1);
+  }
+  const options = (await select.locator('option').allTextContents()).map((o) => o.trim());
   expect(options).toContain(`${canvas.connection.name} (Canvas, school-a.canvas.sim.test)`);
   expect(options).toContain(`${bb.connection.name} (Blackboard, learn-a.blackboard.sim.test)`);
   for (const absent of [pending.name, disabled.connection.name]) expect(options.some((o) => o.startsWith(absent + ' ('))).toBe(false);

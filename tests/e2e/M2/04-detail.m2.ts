@@ -2,11 +2,13 @@
 import type { Locator, Page } from '@playwright/test';
 import { createCourse, THANH, uploadVersion } from '../../acceptance/lib/app';
 import {
-  APP, BLACKBOARD, CLOUD, app, blackboardBinding, canvasBinding, canvasDeploymentId, canvasPending, fixtureZip, issueGrant, ok,
+  APP, BLACKBOARD, CLOUD, app, blackboardBinding, canvasBinding, canvasDeploymentId, canvasPending, escape, fixtureZip, issueGrant, ok,
   session, sharedPlatform, unique, urls, type Bound, type Json,
 } from '../../acceptance/M1/canvas/browser';
 import { TEXT, button, codeCleared, connection, expect, m2Case, portalSignIn, shot } from './lib/m2';
 
+/** Retrying readiness: the connection list loads after the page or dialog, so wait for one option that matches. */
+const optionReady = (select: Locator, text: RegExp) => expect(select.locator('option').filter({ hasText: text })).toHaveCount(1);
 async function moodleConnection(s: Json) {
   const r = await app(s as any, 'POST', '/app-api/connections', { name: unique('Moodle M2'), siteUrl: urls.moodle, method: 'manual' });
   ok(r, 201, 'Moodle connection'); return r.json as Json;
@@ -24,7 +26,10 @@ m2Case('M2-07.badges', 'each connection view shows its LMS badge, and the connec
     // The connection overview (the portal's connection list) shows the LMS badge of the open connection.
     await expect(page.locator('[data-slot="badge"]', { hasText: new RegExp(`^${name}$`) }).first()).toBeVisible();
     await expect(page.getByRole('heading', { name: conn.name, exact: true }).first()).toBeVisible();
-    const options = (await page.getByLabel('LMS connection', { exact: true }).locator('option').allTextContents()).map((o) => o.trim());
+    const select = page.getByLabel('LMS connection', { exact: true });
+    const expected = all.map(([, otherName, other]) => `${other.name} (${otherName}, ${new URL(other.siteUrl).host})`);
+    for (const text of expected) await optionReady(select, new RegExp(`^\\s*${escape(text)}\\s*$`));
+    const options = (await select.locator('option').allTextContents()).map((o) => o.trim());
     for (const [, otherName, other] of all) expect(options).toContain(`${other.name} (${otherName}, ${new URL(other.siteUrl).host})`);
     await shot(page, `m2-07-badge-${lms}`);
   }
@@ -67,6 +72,7 @@ async function publishDialog(page: Page, s: Json, connectionName: string) {
   const dialog = page.getByRole('dialog');
   await expect(dialog.getByRole('heading', { name: TEXT.publishTitle })).toBeVisible();
   const select = dialog.getByLabel(TEXT.publishSelect, { exact: true });
+  await optionReady(select, new RegExp(`^\\s*${escape(connectionName)} \\(`));
   const label = await select.evaluate((el, n) => Array.from((el as HTMLSelectElement).options).find((o) => o.text.startsWith(`${n} (`))?.text ?? '', connectionName);
   expect(label, `Option for ${connectionName}`).not.toBe('');
   await select.selectOption({ label });

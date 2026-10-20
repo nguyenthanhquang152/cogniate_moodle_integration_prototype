@@ -1,8 +1,8 @@
-Verdict: FAIL / HOLD — second frozen M2 SIM run: 61 PASS, 3 FAIL; privacy capture repair prepared
-Round: 5, verification task `task_e28388df4dcc`, dispatch `ctx_8ec51c3aa7b5`
-Owner: independent Codex Canvas QA quota replacement, authorized by Lead for GPT-6-Astra at xhigh
+Verdict: FAIL / HOLD — third frozen M2 SIM run at `e3cd7db`: 60 PASS, 4 FAIL (QA harness races); authorized readiness and capture repairs held for Lead commit; T7 held
+Round: 6, verification task `task_e28388df4dcc`, dispatch `ctx_4a94125660be` (earlier rounds: `ctx_8ec51c3aa7b5`)
+Owner: original Claude Canvas QA (`claude-opus-5-5`, xhigh), resumed by owner request; round 5 owner was the independent Codex quota replacement
 
-Sections 1–5 preserve earlier preparation and execution records. The current execution result is in section 6.
+Sections 1–5 preserve earlier preparation and execution records. Section 6 retains round 5. The current execution result is in section 7.
 
 ## 1. Inputs and result
 
@@ -316,3 +316,168 @@ Owned repair installs request-time capture before navigation in every M2 context
 Cleanup at `2026-10-20T13:06:07.255505+00:00` found zero containers, exactly the same seven complete baseline volume metadata records, only `bridge`, `host`, `none` networks, and no owned Build Runner. `R/baseline-before.json` and `R/baseline-after-m2.json` retain the comparison. The window was released to Lead in `msg_dde9a4b82cc9`; Lead confirmed the hold in `msg_fc6e9ba4bbca`.
 
 **T7 is NOT RUN / HOLD**, including the three-run sequence, demo and confirmation checks. No new stack starts before Lead integrates the product and harness repairs, freezes exact SHAs and assigns a new exclusive window. Core QA still owns both full M1 rounds and host upgrade evidence; independent Canvas verdicts need all 233 Canvas rows from each. All live LMS matrix rows remain UNVERIFIED. No legacy suite, full root check, live tenant or public exposure was used by this worker.
+
+## 7. Round 6 — third frozen M2 run at `e3cd7db` (2026-10-20)
+
+**FAIL: 60 PASS, 4 FAIL, zero skips, zero retries, zero flaky.** Product and test SHA: `e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63` (author commit `4b3edd54a24c9ca1f793dc1a9976e19ee2841001`; standalone player scripts and synchronous portal routes). Lead opened the exclusive window in `msg_88bc0ba11c4c`. Applied criteria remain `ccdd9ef67cdd2be4c6af374136777fda4e081943`. This round supersedes the execution result in §6, not its historical evidence. The four failures are QA harness races (§7.3). QA found no product defect, but the product player repair is still not verified.
+
+### 7.1 Identity and execution
+
+Run `qa-e2e-sim-r3-e3cd7dbc-2026-10-20T13-35-07-428Z`; project `qa-e2e-sim-r3`; port `8643`; subnet `172.27.0.0/16`; profile `acceptance`. External evidence root (`R`, mode `0700`): `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-e3cd7db-xSD1OpOM`. Frozen source: `R/source` (clean, detached at the SHA; `tests/` equal to `7ddff36`). Fresh runtime clone: `R/m2-stack`. Artifact directory (`A`): `R/source/tests/host/artifacts/qa-e2e-sim-r3-e3cd7dbc-2026-10-20T13-35-07-428Z`.
+
+Executed from the frozen source:
+
+```sh
+COMPOSE_PROJECT_NAME=qa-e2e-sim-r3 PUBLIC_PORT=8643 STACK_SUBNET=172.27.0.0/16 \
+COURSE_FIXTURES_DIR='/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses' \
+node tests/e2e/host/run-m2.mjs \
+  --sha e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63 \
+  --test-sha e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63 \
+  --workdir /Users/quangnguyen/cogniate-canvas-qa-runs/verification-e3cd7db-xSD1OpOM/m2-stack
+```
+
+Preflight before any build, recorded in `R/baseline-before.json`:
+- zero containers;
+- the seven complete volume metadata records equal the previous baseline exactly;
+- networks `bridge`, `host`, `none` only;
+- port `8643` free; no overlap with `172.27.0.0/16`;
+- no Build Runner process;
+- both course zips match their SHA-256 values.
+
+The Playwright pass began at `2026-10-20T13:35:54.379Z` and took `69331.19 ms` (one worker, no retries). Runner exit: `1`. Strict accounting rejects the four failed rows. Redacted results: `A/evidence/m2/playwright-results.json`, `A/m2-case-results.json` and `A/cmd/09-m2-browser-pass.log`. There are 33 screenshots in `A/evidence/m2/playwright`. QA inspected the Blackboard step 3 screenshot: the Approval code field is masked.
+
+Observer: `R/qa-e2e-sim-r3-observation.jsonl`.
+- **Browser** (inside the actual e2e container): Chromium `141.0.7390.37`, Playwright `1.56.0`, Linux arm64.
+- **Health:** at `13:35:17.196Z`, the LTI, app and content endpoints returned 200 `ok`, with `profile: acceptance`, empty knobs, and LTI `simulation_profiles` `blackboard-sim`, `canvas-sim-cloud`.
+- **Readiness cases:** `M2-02` removed the profiles through host control (empty at `13:36:16.182Z`), then restored both (`13:36:22.617Z`).
+- **Build Runner:** fresh PID `66554` started at `13:35:48Z`, with the image ready. The observer saw it alive, with heartbeat ages of 0.2–1.9 s.
+
+| Image | ID |
+| --- | --- |
+| Node `24.22.0-alpine3.24` (app, LTI, simulator, gate, sink, QA platform) | `sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f` |
+| Moodle `v5.2.4` | `sha256:3a310197e51ff34c6e8e8adbb92703fe598f71cbcf9eb974055c27f07f4cb23d` |
+| Caddy `2.11.7-alpine` | `sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f` |
+| Postgres `16-alpine` | `sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea` |
+| E2E `qa-e2e-sim-r3-e2e:1.56.0` | `sha256:152efc18cc3f727e7e05f9505f484756f754b2b194e81ef8239184f4983f24cf` |
+
+### 7.2 All named outcomes
+
+All 64 cases ran once, in execution order. `M2-13.no-stale-values` now passes with the unchanged observer, the held late request and every existing assertion.
+
+| Case | Outcome |
+| --- | --- |
+| `M2-02.not-ready` | PASS |
+| `M2-02.ready` | PASS |
+| `M2-01.cards` | PASS |
+| `M2-01.isolated-newest` | PASS |
+| `M2-01.moodle-card` | PASS |
+| `M2-03.profile-labels` | PASS |
+| `M2-03.rule1-http` | PASS |
+| `M2-03.rule1-path` | PASS |
+| `M2-03.rule1-query` | PASS |
+| `M2-03.rule1-fragment` | PASS |
+| `M2-03.rule1-userinfo` | PASS |
+| `M2-03.rule2-ipv4` | PASS |
+| `M2-03.rule2-ipv6` | PASS |
+| `M2-03.rule2-localhost` | PASS |
+| `M2-03.rule2-sub-localhost` | PASS |
+| `M2-03.rule3-lti` | PASS |
+| `M2-03.rule3-app` | PASS |
+| `M2-03.rule3-content` | PASS |
+| `M2-03.rule4-sso` | PASS |
+| `M2-03.rule4-sso-port` | PASS |
+| `M2-03.rule5-instructure` | PASS |
+| `M2-03.rule4-service-sso` | PASS |
+| `M2-03.valid-split` | PASS |
+| `M2-03.valid-default-service` | PASS |
+| `M2-04.rows` | PASS |
+| `M2-04.copy-json` | PASS |
+| `M2-04.download-json` | PASS |
+| `M2-04.inline` | PASS |
+| `M2-04.clipboard-denied` | PASS |
+| `M2-04.download-failure` | PASS |
+| `M2-05.success` | PASS |
+| `M2-05.grant-invalid` | PASS |
+| `M2-05.grant-mismatch` | PASS |
+| `M2-05.platform-in-use` | PASS |
+| `M2-05.invalid-values` | PASS |
+| `M2-05.lti-service-error` | PASS |
+| `M2-06.success` | PASS |
+| `M2-06.deployment-in-use` | PASS |
+| `M2-06.retry-after-error` | PASS |
+| `M2-06.second-deployment` | PASS |
+| `M2-07.badges` | PASS |
+| `M2-07.canvas-detail` | PASS |
+| `M2-07.no-add-elsewhere` | PASS |
+| `M2-08.canvas-no-moodle-features` | FAIL |
+| `M2-08.blackboard-no-moodle-features` | PASS |
+| `M2-08.moodle-controls` | PASS |
+| `M2-09.blackboard-dialog` | PASS |
+| `M2-09.canvas-dialog` | PASS |
+| `M2-09.moodle-dialog` | PASS |
+| `M2-10.publish-dialog` | PASS |
+| `M2-10.canvas-results` | PASS |
+| `M2-11.canvas-keyboard` | PASS |
+| `M2-11.blackboard-keyboard` | FAIL |
+| `M2-11.add-deployment-keyboard` | PASS |
+| `M2-11.axe-canvas` | PASS |
+| `M2-11.axe-blackboard` | PASS |
+| `M2-11.axe-canvas-detail` | PASS |
+| `M2-12.canvas` | FAIL |
+| `M2-12.blackboard` | FAIL |
+| `M2-13.routes-open` | PASS |
+| `M2-13.cross-provider` | PASS |
+| `M2-13.no-stale-values` | PASS |
+| `M2-13.form-state` | PASS |
+| `M2-13.cross-library` | PASS |
+
+### 7.3 Four failures: QA harness races
+
+QA owns all four failing helpers. The normalized service logs place each failure before the product finished an asynchronous load that it then completed correctly.
+
+- **`M2-08.canvas-no-moodle-features`, `M2-12.canvas`, `M2-12.blackboard`.** The helpers `publishDialog` (`04-detail.m2.ts`) and `publishVia` (`07-sim-scenario.m2.ts`) read the `LMS connection` options **once** with `select.evaluate()`. The dialog opens with the status `Loading…` and only `Choose a connection`.
+  - For `M2-08.canvas`, `GET /app-api/connections` completed at `13:36:36.075Z`. The case failed at about `13:36:36.089Z`.
+  - The `M2-12.blackboard` page snapshot, taken just after the failure, already lists `Blackboard M2-… (Blackboard, learn-a.blackboard.sim.test)`.
+  - The same helper passed for `M2-08.blackboard-no-moodle-features`. The synchronous route change (`useTransitions={false}`) makes this load window visible; the loading state itself is valid product behavior.
+- **`M2-11.blackboard-keyboard`.** The case opens `/integrations/blackboard/connect` and starts pressing Tab at once, up to 80 times. The Blackboard form renders only after `GET /app-api/lms-providers` returns (`13:36:43.223Z`). The case ended at `13:36:43.275Z`, with focus on the sidebar `Assets` link. The snapshot shows the form present after the loop. The Canvas form has no such load and passed.
+- **Impact.** Both `M2-12` cases stopped before the teacher pick and the learner launch. **The product player-bundle repair is not verified by M2 yet.** AC-M2-08, AC-M2-11 and AC-M2-12 stay FAIL for this run.
+
+QA requested a test-only repair in `msg_523fd7d86744`. Lead authorized it as a bounded, held QA repair in `msg_3590cf55633f` (see §7.5). The frozen source and runtime clone were not patched. This run stays 60 PASS / 4 FAIL.
+
+### 7.4 Privacy, cleanup and next gate
+
+- **`M3-07-M2` PASS:** 45 captured values, 62 files, 0 hits.
+- **Independent private rescan:** 43 clone-captured values over 77 text files, including the runner stdout and observer files: 0 hits.
+- **Limit:** the run created no play or runtime capability, because `M2-12` stopped first. Automatic play and runtime capture is therefore still not exercised.
+- **`M3-06-M2` PASS:** volumes 7 → 7, containers 0 → 0.
+- **`TEARDOWN` PASS:** 0 containers, 0 volumes and 0 networks left.
+- **Independent after-check** (`R/baseline-after-m2.json`): zero containers, seven volume records exactly equal to the before snapshot, baseline networks only, no Build Runner process, port `8643` free.
+
+**T7 is NOT RUN / HOLD.** Lead's window allows T7 only after all 64 M2 cases pass and cleanup is complete. The stack window closed after cleanup. The next stage needs a Lead commit of the held repair (§7.5), a new exact SHA, a new exclusive window and a fresh full 64-case run. All live LMS matrix rows remain UNVERIFIED.
+
+### 7.5 Authorized held repairs (no stack)
+
+Lead authorized two bounded QA repairs: the readiness repair (`msg_3590cf55633f`) and the Deep Linking response capture (`msg_b4e09fd0ad1a`, from Reviewer-A finding A-M3-03 MINOR). Both are held in the shared tree for Lead commit. No product, common, Blackboard, runner or manifest path changed. No sleep, retry, skip or timeout change was added.
+
+**Readiness** (`04-detail.m2.ts`, `05-publish-results.m2.ts`, `06-keyboard-axe.m2.ts`, `07-sim-scenario.m2.ts`):
+- Before every option snapshot or label read, a retrying `expect(...).toHaveCount(1)` waits for the exact expected option: the M2-07 connection switcher (all three expected options), M2-08 `publishDialog`, the M2-10 dialog (both positive options) and M2-12 `publishVia`.
+- All existing assertions follow unchanged: positive options, pending and disabled absence, the option format, the label read and the selection.
+- `formReady` waits until the first form field is visible before the first Tab in `M2-11.canvas-keyboard`, `M2-11.blackboard-keyboard` and `M2-11.add-deployment-keyboard`. It does not focus, click or fill the field. The `tabTo` loop, visible-focus check and keyboard-only input are unchanged.
+
+**Capture** (`tests/acceptance/M1/canvas/browser-diagnostics.mjs`, `tests/e2e/M2/browser-secrets.selftest.mjs`):
+- The request-time listener now records the signed Deep Linking response (form field `JWT`) through the same private recorder, as kind `id_token`, as T7 does. The helper API, the type surface and all earlier capture kinds are unchanged.
+- A new self-check posts a synthetic response JWT. It requires exactly one `id_token` capture, and a scan with the captured values must find the leak in shared failure text.
+
+Evidence (synthetic only; retained in `R/readiness-repair/`):
+
+| Check | Result |
+| --- | --- |
+| `node tests/e2e/host/run-m2.mjs --harness-only` | 6/6 self-checks PASS (5 earlier + 1 new), typecheck PASS, all 64 cases discovered, T7 selection unchanged |
+| `node tests/host/run-m1.mjs --harness-only --provider canvas` | 33/33 PASS, typecheck PASS, 251 API + 24 host rows (unchanged) |
+| Scratch readiness controls, host Google Chrome `155.0.8059.85`, Playwright `1.56.0` | 19/19 behave as stated. The spec is generated from 18 verbatim lines of the repaired files and records their SHA-256 values. |
+| — old one-shot reads (C01, C06, C12) and the old Tab loop (C15) | Reproduce the frozen failures on delayed synthetic pages |
+| — new readiness with delayed valid data (C02, C04, C07, C13, C16) | PASS. `formReady` leaves focus on `BODY`. |
+| — negative controls (C03, C05, C08–C11, C14, C17–C19) | Still FAIL: missing option, loaded pending option, loaded disabled option, bad format, keyboard-inaccessible field, form never rendered, focus not visible |
+| New capture self-check against the old module (scratch mirror) | FAILS with `actual: []`: the gap is detected. It passes with the repaired module. |
+
+The scratch config uses a 2 s expect timeout for speed (all synthetic delays are shorter); the M2 config keeps 15 s. These are harness checks only. The next frozen browser run must reach the teacher Deep Linking and learner runtime/play steps for the scan to exercise those capabilities.

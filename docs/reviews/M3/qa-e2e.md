@@ -1,11 +1,11 @@
-Verdict: FAIL / HOLD — second M2 run: 61 PASS, 3 FAIL; privacy capture gap; T7 not run
-Round: 2 (2026-10-20)
-Owner: independent Codex Canvas QA replacement, GPT-6-Astra xhigh, no delegation
-Task: `task_e28388df4dcc`; dispatch: `ctx_8ec51c3aa7b5`
+Verdict: FAIL / HOLD — third M2 run at `e3cd7db`: 60 PASS, 4 FAIL (QA harness races); T7 not run
+Round: 3 (2026-10-20)
+Owner: original Claude Canvas QA (`claude-opus-5-5`, xhigh), resumed by owner request; rounds 1–2 by the independent Codex replacement
+Task: `task_e28388df4dcc`; dispatch: `ctx_4a94125660be` (rounds 1–2: `ctx_8ec51c3aa7b5`)
 
 # M3 QA-E2E verification checkpoint
 
-Sections 1–4 retain round 1. Section 5 is the current round 2 result.
+Sections 1–4 retain round 1. Section 5 retains round 2. Section 6 is the current round 3 result.
 
 Applied contract: `ccdd9ef67cdd2be4c6af374136777fda4e081943`. Executed product and test: `eb43247d02df622d5da72dafac41d919f65a91fe`. Scope and replacement authorization: team brief `910f7a48f39c5679040a8e0c98f4de54baf14f8f`. Full M2 result, command, image identities, reduced health output, timing, per-case results, masked screenshot paths and limits are in [M2 QA §5](../M2/qa.md#5-round-4--frozen-m2-execution-and-repair-preparation-2026-10-20).
 
@@ -60,3 +60,20 @@ The player symptom is supported by two sets of 404 asset requests before any lea
 Owned hygiene repair captures capabilities at request time and masks capability paths in both frame timeout functions. Five M2 self-checks, typecheck and all 64 IDs pass; Canvas-selected M1 harness passes 33 checks, typecheck and unchanged 251 API plus 24 host/browser rows including common. No product run followed those edits. Frozen failed source and tests were not edited. Lead must integrate exact owned paths and the common recorder extension before a new test SHA.
 
 External evidence root: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-ae130a3-s73h9dlx`. Cleanup at `2026-10-20T13:06:07.255505+00:00`; window released in `msg_dde9a4b82cc9`. T7 remains HOLD until a fresh all-64 M2 PASS and clean boundary on the repaired candidate, or a new explicit Lead instruction. No stack, tenant, account or public exposure was introduced during repair preparation.
+
+## 6. Round 3 — third M2 run at `e3cd7db`
+
+Exact product/test: `e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63`. Applied contract unchanged. Lead window: `msg_88bc0ba11c4c`. Full command, all 64 results, image identities, browser version, health, Build Runner, cleanup and evidence paths are in [M2 QA §7](../M2/qa.md#7-round-6--third-frozen-m2-run-at-e3cd7db-2026-10-20).
+
+| Criterion | Current result | Evidence and limit |
+| --- | --- | --- |
+| AC-M3-01 | NOT RUN / HOLD | Core QA owns both full M1 runs and is held. The independent Canvas verdict still needs the 233 Canvas outcomes from each frozen run. |
+| AC-M3-02(a) | NOT RUN / HOLD | M2 did not pass all 64 cases, so T7 did not start. No three-run, demo or confirmation result is claimed at this SHA. |
+| AC-M3-02(b) | Other owner | Core QA owns the legacy and default-return checks. |
+| AC-M3-03 | FAIL | 60 PASS, 4 FAIL, zero skips or retries, all 64 rows. `M2-13.no-stale-values` now passes. The four failures are QA harness races: a one-shot read of the publish-dialog options while it shows `Loading…` (`M2-08.canvas`, both `M2-12`), and a Tab loop that starts before the Blackboard form renders (`M2-11.blackboard-keyboard`). |
+| AC-M3-04 | NOT VERIFIED | Both `M2-12` cases stopped at the publish step, before the teacher pick and learner launch. The player-bundle repair is not verified. |
+| AC-M3-05 | UNVERIFIED live | All 32 normative live matrix rows keep their planned steps and UNVERIFIED status. |
+| AC-M3-06 | PASS for this run | Zero containers after cleanup, seven volume records exactly unchanged, baseline networks only, no Build Runner process, port `8643` free. |
+| AC-M3-07 | Scan PASS; full gate pending | Runner scan: 45 values, 62 files, 0 hits. Independent private rescan: 43 values, 77 files, 0 hits. No play or runtime capability was created, so automatic capability capture is still not exercised. |
+
+Lead authorized two bounded, held QA repairs: readiness in `msg_3590cf55633f` and Deep Linking response capture in `msg_b4e09fd0ad1a` (Reviewer-A A-M3-03 MINOR). The readiness repair adds retrying waits before the option reads and before the first Tab. It keeps every assertion, case ID and keyboard-only input. The capture repair records the response form field `JWT` as `id_token` through the same private recorder. Harness and synthetic control results are in [M2 QA §7.5](../M2/qa.md#75-authorized-held-repairs-no-stack). External evidence root: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-e3cd7db-xSD1OpOM`. The frozen source and runtime clone were not edited. The stack window is closed. T7 stays HOLD until a new frozen SHA passes all 64 M2 cases with complete cleanup.

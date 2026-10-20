@@ -29,6 +29,10 @@ async function tabTo(page: Page, name: RegExp, back = false, max = 80) {
   }
   throw new Error(`Keyboard focus never reached ${name}`);
 }
+/** Retrying readiness before the first Tab: the form renders after its data loads. No focus, click or fill. */
+async function formReady(page: Page, firstField: string) {
+  await expect(page.getByLabel(firstField, { exact: true })).toBeVisible();
+}
 async function liveText(page: Page, text: string | RegExp) {
   const region = page.locator('[role="status"], [role="alert"], [aria-live]:not([aria-live="off"])').filter({ hasText: text });
   await expect(region.first(), 'Status change is announced').toBeVisible();
@@ -42,6 +46,7 @@ async function axe(page: Page, label: string) {
 m2Case('M2-11.canvas-keyboard', 'the Canvas wizard works with the keyboard only and announces its status', async ({ page }) => {
   const s = await session('A'), name = unique('Canvas keyboard');
   await portalSignIn(page, THANH); await page.goto(`${APP}/integrations/canvas/connect`);
+  await formReady(page, 'Connection name');
   await tabTo(page, /^Connection name/); await page.keyboard.type(name);
   await tabTo(page, /^Canvas URL/); await page.keyboard.type(CLOUD.siteA);
   await tabTo(page, /^Canvas type/); await page.keyboard.press('End');
@@ -63,6 +68,7 @@ m2Case('M2-11.blackboard-keyboard', 'the Blackboard wizard works with the keyboa
   await sharedPlatform();
   const s = await session('A'), name = unique('Blackboard keyboard');
   await portalSignIn(page, THANH); await page.goto(`${APP}/integrations/blackboard/connect`);
+  await formReady(page, 'Connection name');
   await tabTo(page, /^Connection name/); await page.keyboard.type(name);
   await tabTo(page, /^Learn URL/); await page.keyboard.type(BLACKBOARD.siteA);
   await tabTo(page, /^Next$/); await page.keyboard.press('Enter');
@@ -81,6 +87,7 @@ m2Case('M2-11.add-deployment-keyboard', 'the Canvas add-deployment form works wi
   const b = await canvasBinding('A'), second = canvasDeploymentId();
   const grant = await issueGrant(b.s, b.connection, { 'client-id': b.clientId, 'deployment-id': second, 'service-url': b.connection.serviceUrl, purpose: 'add_deployment' });
   await portalSignIn(page, THANH); await page.goto(`${APP}/integrations/canvas/${b.connection.id}`);
+  await formReady(page, 'Deployment ID');
   await tabTo(page, /^Deployment ID/); await page.keyboard.type(second);
   await tabTo(page, /^Approval code/); await page.keyboard.type(grant.code);
   await tabTo(page, /^Add deployment ID$/); await page.keyboard.press('Enter');

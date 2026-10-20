@@ -54,6 +54,28 @@ test('HARNESS ONLY: request-time capture retains capabilities before any frame w
   assert.equal(captured.length, 7);
 });
 
+test('HARNESS ONLY: the signed Deep Linking response (form field JWT) is captured as id_token, so the scan detects its leak', () => {
+  const context = new EventEmitter(), captured = [];
+  const stop = captureBrowserSecrets(context, (kind, value) => captured.push({ kind, value }));
+  const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  const jwt = [b64({ alg: 'RS256', typ: 'JWT', kid: 'synthetic-kid' }),
+    b64({ iss: 'synthetic-client', aud: 'https://canvas.sim.test', 'https://purl.imsglobal.org/spec/lti/claim/message_type': 'LtiDeepLinkingResponse' }),
+    'synthetic-response-signature'].join('.');
+  // The tool's auto-submitted form posts the response to the platform's Deep Linking return URL.
+  context.emit('request', {
+    url: () => 'https://school-a.canvas.sim.test/courses/course-1/deep_linking_response',
+    postData: () => new URLSearchParams({ JWT: jwt }).toString(), headers: () => ({ 'content-type': 'application/x-www-form-urlencoded' }),
+  });
+  stop();
+  assert.deepEqual(captured, [{ kind: 'id_token', value: jwt }]);
+  // The leak scan uses the captured values: shared failure text that holds the response JWT is a hit.
+  const evidence = `POST /courses/course-1/deep_linking_response failed; body JWT=${jwt}`;
+  const hits = (values) => values.filter((value) => evidence.includes(value)).length;
+  assert.equal(hits(captured.map((c) => c.value)), 1);
+  // Negative control: the capture before this repair recorded nothing for this request, so the same leak gave zero hits.
+  assert.equal(hits([]), 0);
+});
+
 test('HARNESS ONLY: both real frame-wait failure branches emit only redacted URL shapes', async () => {
   const urls = [
     'https://app.test/play/synthetic-private-play',

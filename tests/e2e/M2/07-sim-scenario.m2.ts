@@ -19,6 +19,8 @@ async function publishVia(page: Page, courseId: string, connectionName: string) 
   await button(page, TEXT.publishTitle).first().click();
   const dialog = page.getByRole('dialog');
   const select = dialog.getByLabel(TEXT.publishSelect, { exact: true });
+  // Retrying readiness: the connection list loads after the dialog opens.
+  await expect(select.locator('option').filter({ hasText: new RegExp(`^\\s*${escapeRe(connectionName)} \\(`) })).toHaveCount(1);
   const label = await select.evaluate((el, n) => Array.from((el as HTMLSelectElement).options).find((o) => o.text.startsWith(`${n} (`))?.text ?? '', connectionName);
   check(label, `Publish dialog lists ${connectionName}`);
   await select.selectOption({ label });
