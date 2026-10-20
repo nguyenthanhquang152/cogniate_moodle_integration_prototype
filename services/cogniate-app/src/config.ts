@@ -16,8 +16,9 @@ export interface AppConfig {
   /** The LTI service API key file of the tool account `cogniate` (read at each use; app contract §1). */
   ltiApiKeyFile: string;
   /**
-   * LTI_API_URL: base URL of the `/api/*` calls when it is not PUBLIC_LTI_URL. Only the `acceptance` profile sets it,
-   * to the app-to-LTI transport gate (M3 §3.3); unset everywhere else.
+   * LTI_API_URL: base URL of the `/api/*` calls when it is not PUBLIC_LTI_URL. Only the `acceptance` profile may set it,
+   * to the app-to-LTI transport gate (M3 §3.3). In every other profile the app calls the LTI service directly, so
+   * loadConfig refuses a value there (the API key must not go to another origin by mistake).
    */
   ltiApiUrl: string | null;
   /** apps/player build (runtime.js, runtime.css, shell.js): PLAYER_DIR, default apps/player/dist. */
@@ -31,22 +32,31 @@ function masterKeyFrom(raw: string | undefined): Buffer {
   return Buffer.from(raw, 'hex');
 }
 
-/** An https origin, or null when unset. */
-function ltiApiUrlFrom(raw: string | undefined): string | null {
+/** An https origin in the `acceptance` profile, or null when unset (M3 §3.3). Any other profile refuses a value. */
+function ltiApiUrlFrom(raw: string | undefined, profile: string): string | null {
   if (!raw) return null;
-  const u = new URL(raw);
+  if (profile !== 'acceptance') {
+    throw new Error(`LTI_API_URL is only for the acceptance profile (M3 §3.3), but STACK_PROFILE is ${profile}. Unset LTI_API_URL.`);
+  }
+  let u: URL;
+  try {
+    u = new URL(raw);
+  } catch {
+    throw new Error('LTI_API_URL must be an https origin without path or trailing slash.');
+  }
   if (u.protocol !== 'https:' || u.origin !== raw) throw new Error('LTI_API_URL must be an https origin without path or trailing slash.');
   return u.origin;
 }
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
+  const profile = env.STACK_PROFILE && env.STACK_PROFILE !== '' ? env.STACK_PROFILE : 'default';
   return {
     urls: loadPublicUrls(env),
     dataDir: env.DATA_DIR && env.DATA_DIR !== '' ? env.DATA_DIR : '/data',
-    profile: env.STACK_PROFILE && env.STACK_PROFILE !== '' ? env.STACK_PROFILE : 'default',
+    profile,
     masterKey: masterKeyFrom(env.APP_MASTER_KEY),
     ltiApiKeyFile: env.LTI_API_KEY_FILE && env.LTI_API_KEY_FILE !== '' ? env.LTI_API_KEY_FILE : '/run/secrets/app/lti-api-key',
-    ltiApiUrl: ltiApiUrlFrom(env.LTI_API_URL),
+    ltiApiUrl: ltiApiUrlFrom(env.LTI_API_URL, profile),
     playerDir: env.PLAYER_DIR && env.PLAYER_DIR !== '' ? env.PLAYER_DIR : DEFAULT_PLAYER_DIR,
     buildQueueDir: env.BUILD_QUEUE_DIR && env.BUILD_QUEUE_DIR !== '' ? env.BUILD_QUEUE_DIR : '/build-queue',
   };
