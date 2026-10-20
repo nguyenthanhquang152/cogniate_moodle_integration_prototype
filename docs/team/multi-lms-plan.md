@@ -414,6 +414,21 @@ The Architect started bounded revision 3 in `task_68130407ba89`, dispatch `ctx_e
 It must incorporate Reviewer-A's final revision-2 report before settlement.
 The same file ownership and implementation gate remain in force.
 
+Reviewer-A completed revision 2 in `msg_f6406ec30b4a`, committed as `979aecc`.
+Its verdict is APPROVE, with A-D-01 through A-D-05 closed.
+A-D-06 requires neutral readiness guidance for both providers; A-D-07 overlaps the pending recovery correction.
+A-D-08 lists six wording corrections.
+The Lead forwarded the final report in `msg_d3456c44427d`.
+Use the complete accepted recovery order and one neutral readiness message; no new public cause field is needed solely for that message.
+The Architect now has all three final reports.
+The final bounded recheck tasks are `task_1fe8ae6741d8`, `task_081f83c4db74`, and `task_03dd4c0d94cd`.
+They wait for a frozen revision 3 and remain separate from product acceptance.
+
+The Architect delivered revision 3 in `msg_c4f4e0386f02`.
+Before committing it, the Lead found a fixture mismatch: the Blackboard seed fails before S1, so cleanup must observe an absent remote record.
+Narrow task `task_8fbbd0427488`, dispatch `ctx_d6339580ea3c`, corrects that oracle and the conditional recovery text.
+Handoff: `msg_0188520c6b03`. This is part of the uncommitted revision 3; the independent third review has not started.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
