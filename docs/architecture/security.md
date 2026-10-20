@@ -1,6 +1,6 @@
 # Security model
 
-Status: T0 round 2. Overview: [`README.md`](README.md). Flows: [`flows.md`](flows.md). Log event names: the "Log events" sections of both contracts.
+Status: T0 round 2; multi-LMS rules in §12 and marked M1 lines (M0, 2026-10-20). Overview: [`README.md`](README.md). Flows: [`flows.md`](flows.md). Log event names: the "Log events" sections of both contracts.
 
 ## 1. Trust boundaries
 
@@ -10,6 +10,7 @@ Status: T0 round 2. Overview: [`README.md`](README.md). Flows: [`flows.md`](flow
 | LTI service | `https://lti.cogniate.test` (`cogniate.test`) | platform JWTs after the checks, the API key | browser input, `openid_configuration` URLs, line item URLs from tools |
 | Cogniate app | `https://app.cogniate.test` (`cogniate.test`) | LTI service API answers | URL query parameters, runtime commits, every text from packages or Moodle |
 | Content origin | `https://content.cogniate-content.test` (`cogniate-content.test`) | nothing | everything: it runs untrusted package code |
+| Canvas or Blackboard (M1) | school site origin; provider hosts for auth, JWKS, token (ADR-011 §5) | its own session | tool JWTs until the signature is valid |
 
 The content origin is a different **site**, not only a different subdomain. Same-site content could send Lax cookies to the app and could set cookies on the parent domain.
 
@@ -19,15 +20,15 @@ The content origin is a different **site**, not only a different subdomain. Same
 
 1. The tool account in the path must exist (else `404 UNKNOWN_TOOL_ACCOUNT`).
 2. `iss` + `client_id` must match an active platform **of that account**. If `client_id` is missing and the account has more than one platform with this `iss`, the request fails.
-3. If `lti_deployment_id` is present, it must be a known deployment.
+3. If `lti_deployment_id` is present, it must be a known deployment (`UNKNOWN_DEPLOYMENT`) and, from M1, active (`DEPLOYMENT_NOT_ACTIVE`). The state record keeps it for check 9.
 4. `target_link_uri` must start with `{PUBLIC_LTI_URL}/lti/launch/{toolAccountId}`.
 5. The service makes `state` and `nonce` (32 random bytes each), stores `hash(state) → {platform, nonce, target_link_uri, expires_at = now + 10 min}`, sets the state cookie, and redirects (302) to the platform auth endpoint with `scope=openid`, `response_type=id_token`, `response_mode=form_post`, `prompt=none`, `client_id`, `redirect_uri={PUBLIC_LTI_URL}/lti/launch/{toolAccountId}`, `login_hint`, `lti_message_hint`, `state`, `nonce`.
 
-Login error codes: `UNKNOWN_TOOL_ACCOUNT`, `UNKNOWN_PLATFORM`, `PLATFORM_NOT_ACTIVE`, `UNKNOWN_DEPLOYMENT`, `INVALID_TARGET_LINK_URI`, `INVALID_REQUEST`. Log: `login_rejected {code}`.
+Login error codes: `UNKNOWN_TOOL_ACCOUNT`, `UNKNOWN_PLATFORM`, `PLATFORM_NOT_ACTIVE`, `UNKNOWN_DEPLOYMENT`, `DEPLOYMENT_NOT_ACTIVE` (M1), `INVALID_TARGET_LINK_URI`, `INVALID_REQUEST`. Log: `login_rejected {code}`.
 
 ### 2.2 Launch (`POST /lti/launch/{toolAccountId}`)
 
-Run order: check 1, then 3, then 2, then 4 to 12. Every failure gives an HTML error page (status 400 or 401) and no redirect. Every failure logs `launch_check_failed {check, code}`.
+Run order: check 1, then 3, then 2, then 4 to 12, then 13 (M1, profiles other than `standard`). Every failure gives an HTML error page (status 400 or 401) and no redirect. Every failure logs `launch_check_failed {check, code}`.
 
 | # | Check | Error code |
 | --- | --- | --- |
@@ -39,10 +40,11 @@ Run order: check 1, then 3, then 2, then 4 to 12. Every failure gives an HTML er
 | 6 | The signature is valid with a key of the platform JWKS (unknown `kid` → one refetch, at most once per minute). | `INVALID_SIGNATURE` |
 | 7 | `exp` > now − 60 s and `iat` < now + 60 s. | `TOKEN_EXPIRED` |
 | 8 | `nonce` = the nonce of the state record. | `INVALID_NONCE` |
-| 9 | `deployment_id` is a known deployment of the platform. | `UNKNOWN_DEPLOYMENT` |
+| 9 | `deployment_id` is a known deployment of the platform. M1: it equals the login `lti_deployment_id` if the login had one, and the deployment is active. No exception for shared platforms. | `UNKNOWN_DEPLOYMENT` (details `deployment_unknown`, `deployment_differs_from_login`), `DEPLOYMENT_NOT_ACTIVE` (`deployment_inactive`) |
 | 10 | `version` = `1.3.0`. `message_type` is `LtiResourceLinkRequest` or `LtiDeepLinkingRequest`. | `UNSUPPORTED_MESSAGE_TYPE` |
 | 11 | Required claims exist: `sub`, `roles`, `target_link_uri`; `resource_link.id` (resource link) or `deep_linking_settings.deep_link_return_url` (deep linking). | `MISSING_CLAIM` |
 | 12 | `target_link_uri` = the value in the state record, and it starts with `{PUBLIC_LTI_URL}/lti/launch/{toolAccountId}`. | `INVALID_TARGET_LINK_URI` |
+| 13 | M1, profiles other than `standard`: every present URL claim is https and has no user info; AGS `lineitems`, AGS `lineitem` and NRPS `context_memberships_url` are on the **service origin**, and `deep_linking_settings.deep_link_return_url` is on the **site origin** of the launch deployment (ADR-011 §5; the two differ only for a Canvas platform with a separate service URL). | `SERVICE_ORIGIN_MISMATCH` (details `claim=ags_lineitems`, `claim=ags_lineitem`, `claim=nrps`, `claim=dl_return`) |
 
 Other launch cases:
 
@@ -68,17 +70,17 @@ Moodle decodes with `$leeway = 0` (`lib/php-jwt/src/JWT.php`). A tool clock that
 
 | JWT | Other claims |
 | --- | --- |
-| Deep Linking response | `iss = client_id`, `aud = platform issuer`, `nonce` (new random value), `deployment_id`, `message_type = LtiDeepLinkingResponse`, `version = 1.3.0`, `content_items` (exactly as the tool sent them), `data` (echo, if present), `msg`, `log`, `errormsg`, `errorlog` (from `options`) |
-| Client assertion (token request) | `iss = sub = client_id`, `aud = token endpoint`, `jti` (random) |
+| Deep Linking response | `iss = client_id`, `aud = platform issuer`, M1: `sub = client_id` for profiles with `deepLinkingResponseSub` (Blackboard), `nonce` (new random value), `deployment_id`, `message_type = LtiDeepLinkingResponse`, `version = 1.3.0`, `content_items` (exactly as the tool sent them), `data` (echo, if present), `msg`, `log`, `errormsg`, `errorlog` (from `options`) |
+| Client assertion (token request) | `iss = sub = client_id`, `aud = token endpoint`, `jti` (random). M1: `aud = [token endpoint]` for profiles with `clientAssertionAudArray` (Blackboard). |
 
 Signing key: one active RSA 2048 key per tool account, RS256, with `kid`. Rotation is optional in the prototype.
 
 ### 2.4 Platform URLs
 
-- `authenticationEndpoint`, `accesstokenEndpoint` and the JWKS URL must be https URLs on the **issuer origin**. Moodle puts `auth.php`, `token.php` and `certs.php` under wwwroot. Else: `400 PLATFORM_URL_NOT_ON_ISSUER_ORIGIN` at create.
+- `standard` profile: `authenticationEndpoint`, `accesstokenEndpoint` and the JWKS URL must be https URLs on the **issuer origin**. Other profiles (M1) take the issuer and these URLs from the fixed profile (§12). Moodle puts `auth.php`, `token.php` and `certs.php` under wwwroot. Else: `400 PLATFORM_URL_NOT_ON_ISSUER_ORIGIN` at create.
 - The platform JWKS is fetched with the guarded client (section 9), not with the `jose` remote fetcher. The service builds the key set with `createLocalJWKSet` and caches it for 10 min (refresh age).
 - If a refresh fails (timeout, error status, bad JSON), the service keeps using the cached keys up to a **maximum age of 24 h** from the last good fetch, and logs the failed attempt. A token whose `kid` is in the cached set still verifies. A token with an unknown `kid` fails with `INVALID_SIGNATURE` (`detail: jwks_fetch_failed`). After 24 h without a good fetch, the cache is dropped and every launch of that platform fails with `INVALID_SIGNATURE` (`detail: jwks_unavailable`).
-- The deep-link return URL in a deep-linking launch must be https on the issuer origin; the LTI service refuses to sign a response for any other target (`400 INVALID_DEEP_LINK_RETURN_URL`, A-T3c-01), and the app checks it again (`RETURN_URL_MISMATCH`).
+- The deep-link return URL in a deep-linking launch must be https on the issuer origin (M1: the site origin; the same value for `standard`); the LTI service refuses to sign a response for any other target (`400 INVALID_DEEP_LINK_RETURN_URL`, A-T3c-01), and the app checks it again (`RETURN_URL_MISMATCH`).
 - Dynamic registration: the `openid_configuration` URL goes through the guarded client. Its `issuer` must equal the origin of the configuration URL. All endpoint URLs in it must be on that origin.
 
 ### 2.5 Dynamic registration: "update existing tool"
@@ -130,7 +132,7 @@ NOTE: Deep Linking always runs in Moodle's modal iframe (`amd/src/contentitem.js
 
 ## 5. Page headers
 
-`{issuer}` = origin of the launch platform issuer. `{site}` = origin of the connection `siteUrl`. `{return}` = origin of `deep_link_return_url`. No page that Moodle frames sends `X-Frame-Options`.
+`{issuer}` = origin of the launch platform issuer. `{site}` = origin of the connection `siteUrl`. M1: every `{issuer}` in this table becomes `{site}`; for Moodle both are the same origin (ADR-011 §5). `{return}` = origin of `deep_link_return_url`. No page that Moodle frames sends `X-Frame-Options`.
 
 | Response | `Content-Security-Policy` (main parts) | `Referrer-Policy` |
 | --- | --- | --- |
@@ -143,7 +145,7 @@ NOTE: Deep Linking always runs in Moodle's modal iframe (`amd/src/contentitem.js
 | `GET /tool/picker/{id}` | `frame-ancestors {issuer}; form-action 'self'` | `same-origin` |
 | `POST /tool/picker/{id}` auto-submit | `frame-ancestors {issuer}; form-action {return}; script-src 'nonce-…'` | `same-origin` |
 | `/play/{playId}` | `frame-ancestors 'none'; frame-src {PUBLIC_CONTENT_URL}; script-src 'nonce-…'` | `same-origin` |
-| `/play/{playId}/embedded` | `frame-ancestors {issuer}; form-action 'none'` | `same-origin` |
+| `/play/{playId}/embedded` | `frame-ancestors {issuer}; form-action 'none'`. M1, Canvas connections: plus `script-src 'nonce-…'` for the top-level continuation script (app contract §6.1). | `same-origin` |
 | Portal (SPA) | `default-src 'self'; frame-ancestors 'none'` | `same-origin` |
 | `/rt/{runtimeToken}` | `frame-ancestors {PUBLIC_APP_URL}` | `same-origin` |
 | `/pkg/{packageId}/*` | `frame-ancestors {PUBLIC_CONTENT_URL} {PUBLIC_APP_URL}` (CSP checks every ancestor, and the shell is the top ancestor) | `same-origin` |
@@ -181,6 +183,7 @@ WARNING: Google Fonts in the HTML export send learner IP addresses to Google (Q9
 
 ## 8. Tenant isolation
 
+- M1 (ADR-011 §4): the tenancy key is (tool account, issuer, client id, deployment id). The issuer alone never selects a tenant. A shared Blackboard platform serves many libraries; each library owns one deployment. Disconnect changes only that deployment.
 - LTI service: protocol URLs carry the tool account. The API key resolves to one tool account. Every ltik, service key, platform and registration lookup includes `tool_account_id`. A credential of account A never reads data of account B (401 or 404).
 - Cogniate app: every query includes `library_id`. At launch, `platform.id` → connection → library. A resource of another library gives 404.
 - AGS and NRPS URLs from a tool (`:lineItemId`, `url` query) must have the origin and path prefix of the claim URL (`lineitems` or `context_memberships_url`) **and** every query parameter of the claim URL with the same value. Moodle puts `type_id` in the query, so this rule stops a service key of tool A from naming a line item of tool B in the same course. The line item id is decoded once, and once more only if it then starts with `https%3A%2F%2F` (never more than two decodes; LTI contract §1.4). The path of that final value must not contain `%2F`, `%5C`, `%2E` or `%25` in any letter case (encoded slash, backslash, dot, or more encoding), a backslash, or a `.` or `..` segment, because Moodle's web server decodes them and a path could then leave the course (A-T3a-01). A triple-encoded id is refused, because the decoding never gives a valid line item URL for it. The rule runs before any outbound call. The platform access token goes only to platform URLs.
@@ -194,7 +197,7 @@ All outbound HTTP of both services goes through one client in `packages/shared` 
 - Blocked ranges:
   - IPv4: `0.0.0.0/8`, `10.0.0.0/8`, `100.64.0.0/10` (CGNAT), `127.0.0.0/8`, `169.254.0.0/16` (link-local, incl. the `169.254.169.254` metadata address), `172.16.0.0/12`, `192.0.0.0/24`, `192.168.0.0/16`, `198.18.0.0/15`, `224.0.0.0/4` (multicast), `240.0.0.0/4`, `255.255.255.255/32`.
   - IPv6: `::/128`, `::1/128`, `::/96` (IPv4-compatible), `fc00::/7`, `fe80::/10`, `fec0::/10` (site-local), `ff00::/8`, `64:ff9b::/96` (NAT64), `2002::/16` (6to4), and IPv4-mapped `::ffff:0:0/96` (the mapped IPv4 address is checked against the IPv4 list).
-- Allowlist per service (`OUTBOUND_PRIVATE_HOST_ALLOWLIST`, a host name list; the host may resolve to a blocked range): LTI service: the Moodle host. Cogniate app: the LTI service host and the Moodle host (course shell web services, T8). The `acceptance` profile adds `qa-platform.test` and `evil.test` to both (so that a missing rule shows up as a sink hit). Production: empty.
+- Allowlist per service (`OUTBOUND_PRIVATE_HOST_ALLOWLIST`, a host name list; the host may resolve to a blocked range): LTI service: the Moodle host. Cogniate app: the LTI service host and the Moodle host (course shell web services, T8). The `acceptance` profile adds `qa-platform.test` and `evil.test` to both (so that a missing rule shows up as a sink hit). M1: the `acceptance` profile also adds the simulation hosts of M3 (`developer.blackboard.sim.test`, `learn-a.blackboard.sim.test`, `learn-b.blackboard.sim.test`, `sso.canvas.sim.test`, `school-a.canvas.sim.test`, `school-b.canvas.sim.test`, `canvas-self.sim.test`) to the LTI service. Production: empty.
 - Every attempt logs exactly one event. `outbound_request {host, method, status, ms}` = an HTTP response was accepted (any status that is not a redirect). `outbound_blocked {host, method, reason}` = no accepted response. Reasons: policy (the guard refused) `not_https`, `private_ip`, `redirect` (a 3xx is not followed), `too_large`; failure (after the guard allowed the call) `dns_error`, `timeout`, `network_error` (connection refused, reset or TLS error). A GET is retried once after `network_error`; the retry is a second attempt with its own event.
 
 ## 10. Keys and secrets
@@ -230,7 +233,27 @@ All outbound HTTP of both services goes through one client in `packages/shared` 
 
 ## 11. Privacy and logs
 
-- Default privacy level `anonymous`: no `name` and no `email` claims. Learners are shown as "Learner {sub} @ {host}".
+- Default privacy level `anonymous`: no `name` and no `email` claims. Learners are shown as "Learner {sub} @ {host}" (M1: host of the connection site URL).
+- M1: Canvas and Blackboard launches keep only the claim allowlist of ADR-011 §9 (no names, emails, `lis`, `custom` or vendor claims). The Canvas JSON sets `privacy_level: anonymous`; the Blackboard guide sends the role only.
 - Logs are JSON lines in `infra/.logs/<service>.jsonl` and on stdout. Every event has `ts`, `level`, `service`, `event`, `trace_id`. Lifecycle events with no request (`service_started`, `test_knob_active`, `service_stopping`) use one boot trace id per process. `GET /healthz` requests are not written to the JSON log files (stdout may keep them at `debug` level) (Lead decision B-T1-04).
 - Trace ids: the app sends `X-Trace-Id` to the LTI service. The LTI service reuses a valid incoming id (`^[A-Za-z0-9-]{16,64}$`), else makes one. The score sync worker makes one per sync row.
 - The logger redacts: `ltik`, `id_token`, `JWT`, `registration_token`, `client_assertion`, `access_token`, `Authorization`, cookies, `ref`, runtime tokens, service keys, and the `ltik` query in URLs.
+
+## 12. Multi-LMS (M1, ADR-011)
+
+| Rule | Detail |
+| --- | --- |
+| Fixed profiles | Issuer, auth, token and JWKS URLs of Canvas and Blackboard come from one reviewed code module (ADR-011 §6). No request field, token claim or admin input can set another endpoint (`400 PLATFORM_URL_NOT_IN_PROFILE`). There is no "allow any host" option. |
+| Reserved issuers | A `standard` platform cannot use a fixed-profile issuer origin (`ISSUER_RESERVED`, also for dynamic registration). So no second record can claim `https://blackboard.com` or a Canvas cloud issuer with other endpoints. |
+| Simulation profiles | On only when the service profile is `acceptance` and `LTI_PROVIDER_SIMULATION=on` (LTI contract §9.13). Unknown in every other case. |
+| Site URL rules | ADR-011 §6 rules 1 to 5 for every site URL and Canvas service URL, one shared function for the LTI service and the app. Rule 4 refuses only fixed provider hosts; site-derived endpoints are allowed. The site URL is never fetched at connect time; later calls use the guarded client (§9). |
+| Self-hosted Canvas | Issuer = site origin; fixed paths on it; hosted Instructure hosts refused (rule 5). |
+| Check 13 | Service URL claims on the service origin, the Deep Linking return URL on the site origin (§2.2). The platform access token goes only to URLs that passed check 13 and the line item rule (§8). This matters most for Blackboard: one gateway token works for every Learn site of the Application ID. |
+| Binding approval | Ids are not secrets. Every new Canvas platform, Canvas added deployment and Blackboard deployment needs a one-time operator approval grant, bound to the exact library, connection, profile, site URL, service URL, client id and deployment id, redeemed atomically in a session of that library before activation (ADR-011 §4a, app contract §4.7, §4.8). Only the code's SHA-256 is stored. No unbound-launch exception exists in launch validation. |
+| Deployment state | Inactive deployment: launches and API calls fail (`DEPLOYMENT_NOT_ACTIVE`). |
+| Binding generation | A new binding of a shared deployment makes older service keys and ltiks fail with `401` (LTI contract §9.14). Generation 0 keeps today's key values. |
+| Ownership | Exclusive platforms: §2.6 unchanged, plus one bounded exception: during a grant redemption, an unowned platform with exactly the grant's profile, issuer, client id and site may be bound (crash recovery). Shared platforms: the reservation is written in the grant redemption transaction; the app never patches or deletes a shared platform; `DELETE` with active deployments is refused. |
+| No proxy redirect | One redirect URI for every LMS (`{PUBLIC_LTI_URL}/lti/launch/{toolAccountId}`). Research §5.3. |
+| No secrets from LMS admins | No client secret field; the strict body refuses it. Service access uses the signed client assertion. |
+| Error page texts | Pages of a platform with a Canvas or Blackboard profile name that LMS, not Moodle. Before a platform is known, a login `iss` equal to a fixed profile issuer selects that LMS name. `standard` texts stay byte for byte. |
+| Personal data | Claim allowlist (ADR-011 §9): only the listed claims are stored; `custom` is dropped. NRPS rule unchanged. |

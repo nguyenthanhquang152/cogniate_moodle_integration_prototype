@@ -1,6 +1,6 @@
 # Contract: Cogniate app (stand-in for the Cogniate platform)
 
-Status: T0 round 2. Owner: Architect. Security rules: [`../security.md`](../security.md). Flows: [`../flows.md`](../flows.md).
+Status: T0 round 2; M0 multi-LMS additions in §4.2–§4.8, §5.1 and §6.1 (2026-10-20). Owner: Architect. Security rules: [`../security.md`](../security.md). Flows: [`../flows.md`](../flows.md).
 
 NOTE: This is our design for a stand-in. It is not a Cogniate API (spec §7.1). When Cogniate gives its contract, only this app changes.
 
@@ -20,6 +20,7 @@ NOTE: This is our design for a stand-in. It is not a Cogniate API (spec §7.1). 
 | §9 HTML runtime, results refresh, Resend, retry schedule | T5b |
 | §3 download `kind=original` | T6 |
 | §11 course shell and web services token, `kind=mbz` | T8 (stretch) |
+| §4.2–§4.8 LMS types, providers, portal routes, Canvas and Blackboard registration with operator grants, deployments, capability guards, grant CLI; §5.1 publication fields; §6.1 multi-LMS tool page rules; §12 additions | M1 (portal use: M2) |
 
 ---
 
@@ -188,6 +189,217 @@ The first valid launch from the platform sets `connected` and `lastLaunchAt`.
 
 The six values back from Moodle use the fixed keys of `PUT .../platform`: `issuer`, `clientId`, `deploymentId`, `authenticationEndpoint`, `accessTokenEndpoint`, `jwksUrl`.
 
+### 4.2 LMS type, provider profile and capabilities (M1)
+
+Design: [ADR-011](../adr/ADR-011-multi-lms.md). All fields below are additions. A request without them behaves as in §4 and §4.1 (LMS `moodle`, profile `standard`).
+
+Connection DTO (every connection answer; new fields marked M1):
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `id`, `name`, `siteUrl`, `method`, `status`, `createdAt`, `lastLaunchAt`, `lastError`, `webServices` | as §4 | unchanged |
+| `registrationUrl`, `registrationUrlExpiresAt` | string or `null` | unchanged (pending dynamic Moodle connection only) |
+| `lms` (M1) | `"moodle"`, `"canvas"`, `"blackboard"` | stored; default `moodle` |
+| `profile` (M1) | string | LTI service profile id; stored; default per LMS: `moodle` → `standard`, `canvas` → `canvas-cloud-production`, `blackboard` → `blackboard` |
+| `serviceUrl` (M1) | string | Canvas: the service URL (https origin of the Canvas AGS and NRPS URLs and the token endpoint; the root account domain); stored; default `siteUrl`. Moodle and Blackboard: always equal to `siteUrl`. |
+| `capabilities` (M1) | object of booleans | derived from `lms` ([ADR-011 §11](../adr/ADR-011-multi-lms.md#11-capabilities)): `dynamicRegistration`, `operatorApproval`, `webServices`, `courseShell`, `addDeployment`, `canvasConfiguration` |
+| `platform` | object or `null` | `{ id, issuer, clientId, deploymentIds, productFamilyCode, siteUrl (M1), serviceUrl (M1) }`. `siteUrl` = the site origin, `serviceUrl` = the service origin (for Moodle both equal the connection `siteUrl`). Blackboard: `deploymentIds` has only this connection's deployment, never other schools' ids. |
+
+The DTO never contains an approval code, a grant note or a grant id.
+
+Example (registered Canvas connection):
+
+```json
+{
+  "id": "con_...", "name": "School A Canvas", "siteUrl": "https://canvas.school-a.edu", "method": "manual", "status": "registered",
+  "lms": "canvas", "profile": "canvas-cloud-production", "serviceUrl": "https://school-a.instructure.com",
+  "capabilities": { "dynamicRegistration": false, "operatorApproval": true, "webServices": false, "courseShell": false, "addDeployment": true, "canvasConfiguration": true },
+  "registrationUrl": null, "registrationUrlExpiresAt": null,
+  "platform": { "id": "plt_...", "issuer": "https://canvas.instructure.com", "clientId": "10000000000042", "deploymentIds": ["12:8865aa05b4b79b64a91a86042e43af5ea8ae79eb"], "productFamilyCode": "canvas", "siteUrl": "https://canvas.school-a.edu", "serviceUrl": "https://school-a.instructure.com" },
+  "createdAt": "...", "lastLaunchAt": null, "lastError": null, "webServices": null
+}
+```
+
+`POST /app-api/connections` body: `{ name, siteUrl, method, lms?, profile?, serviceUrl? }`.
+
+| Rule | Error |
+| --- | --- |
+| `lms` not one of the three | `400 INVALID_REQUEST`, `details.field = "lms"` |
+| `profile` is not a profile of that LMS in `GET /app-api/lms-providers` (simulation profiles only when they are on) | `400 INVALID_REQUEST`, `details.field = "profile"` |
+| `method: "dynamic"` with `lms` other than `moodle` | `422 CAPABILITY_NOT_SUPPORTED`, `details.capability = "dynamicRegistration"`; nothing stored |
+| `lms` other than `moodle`: `siteUrl` or `serviceUrl` breaks a site rule ([ADR-011 §6](../adr/ADR-011-multi-lms.md#6-provider-trust-profiles); the same shared function as the LTI service) | `422 INVALID_SITE_URL`, `details.rule` (1 to 5), `details.field` (`siteUrl` or `serviceUrl`) |
+| `serviceUrl` with `lms` other than `canvas` | `400 INVALID_REQUEST`, `details.field = "serviceUrl"` |
+| `lms: "blackboard"` and the profile has no active shared platform | `409 PROVIDER_NOT_READY`; action: "Ask the Cogniate operator to register the Blackboard application." |
+
+A new Canvas or Blackboard connection is `pending` and has `method: "manual"`. The Moodle rules of §4 do not change.
+
+Portal routes (the app serves the portal for these paths; M1 adds them to the server allowlist, M2 to the portal router): `/integrations/canvas/connect`, `/integrations/canvas/:connectionId`, `/integrations/blackboard/connect`, `/integrations/blackboard/:connectionId`, next to the existing Moodle routes. A route whose LMS is not the connection's `lms` shows the portal's "not found" view. Other unknown paths keep today's behaviour (no portal fallback for `/app-api/*`, `/tool/*`, `/play/*`).
+
+### 4.3 `GET /app-api/lms-providers` (M1)
+
+Session required. The app builds the answer from `GET /api/providers` (LTI contract §9.3). Failure of that call: `502 LTI_SERVICE_ERROR`.
+
+```json
+{
+  "lms": [
+    { "lms": "moodle", "label": "Moodle", "methods": ["dynamic", "manual"],
+      "capabilities": { "dynamicRegistration": true, "operatorApproval": false, "webServices": true, "courseShell": true, "addDeployment": false, "canvasConfiguration": false },
+      "profiles": [ { "id": "standard", "label": "Moodle site", "simulation": false, "ready": true, "clientId": null } ] },
+    { "lms": "canvas", "label": "Canvas", "methods": ["manual"],
+      "capabilities": { "dynamicRegistration": false, "operatorApproval": true, "webServices": false, "courseShell": false, "addDeployment": true, "canvasConfiguration": true },
+      "profiles": [
+        { "id": "canvas-cloud-production", "label": "Instructure-hosted Canvas (production)", "simulation": false, "ready": true, "clientId": null },
+        { "id": "canvas-cloud-beta", "label": "Instructure-hosted Canvas (beta)", "simulation": false, "ready": true, "clientId": null },
+        { "id": "canvas-cloud-test", "label": "Instructure-hosted Canvas (test)", "simulation": false, "ready": true, "clientId": null },
+        { "id": "canvas-self-hosted", "label": "Self-hosted Canvas", "simulation": false, "ready": true, "clientId": null } ] },
+    { "lms": "blackboard", "label": "Blackboard Learn", "methods": ["manual"],
+      "capabilities": { "dynamicRegistration": false, "operatorApproval": true, "webServices": false, "courseShell": false, "addDeployment": false, "canvasConfiguration": false },
+      "profiles": [ { "id": "blackboard", "label": "Blackboard Learn", "simulation": false, "ready": false, "clientId": null } ] }
+  ]
+}
+```
+
+Simulation profile labels: `Canvas cloud (simulation)` for `canvas-sim-cloud`, `Blackboard Learn (simulation)` for `blackboard-sim`; they come last in their LMS list with `"simulation": true`, only when the LTI service reports them (LTI contract §9.13). `ready` = the profile is exclusive, or its shared platform exists and is active. `clientId` = the shared platform client id (the Blackboard Application ID), else `null`. Labels are app texts.
+
+### 4.4 `PUT /app-api/connections/:id/platform` per LMS (M1)
+
+Moodle (`profile: standard`): unchanged (§4). No grant.
+
+Canvas and Blackboard use a strict body. A key that is not listed (for example `issuer`, an endpoint, or `clientSecret`) gives `422 INVALID_PLATFORM_VALUES` with that key in `details.fields`, and nothing changes. A listed key that is missing also gives `422 INVALID_PLATFORM_VALUES` with that key. Values are trimmed, 1 to 255 characters, printable ASCII without spaces (`0x21`–`0x7E`); `grantCode` is 43 base64url characters.
+
+| LMS | Body | After the grant redemption (§4.7) | Success |
+| --- | --- | --- | --- |
+| `canvas` | `{ clientId, deploymentId, grantCode }` | `POST /api/platforms { profile, clientId, name: "Cogniate (<library>)", siteUrl, serviceUrl, deploymentIds: [deploymentId] }`; for `canvas-self-hosted` the issuer is `siteUrl` | `200`, `registered` |
+| `blackboard` | `{ deploymentId, grantCode, clientId? }` (`clientId`, if sent, must equal the shared client id, else `422`, field `clientId`) | `POST /api/platforms/{shared id}/deployments { deploymentId, siteUrl }`; for an inactive deployment of a disabled connection of the same library: `PATCH …/deployments/{id} { active: true, siteUrl }` (new binding, generation + 1) | `200`, `registered` |
+
+| Case | Answer |
+| --- | --- |
+| Grant errors | §4.7 (`403 GRANT_INVALID`, `422 GRANT_MISMATCH`, `409 GRANT_IN_USE`) |
+| Canvas: the LTI service answers `409 PLATFORM_ALREADY_EXISTS` | If that platform has exactly the grant's profile, issuer, client id, site and service URL, contains the deployment, and **no** connection owns it: bind it (grant-authorized recovery; set it active). Else `409 PLATFORM_IN_USE` ("This Canvas developer key is already connected to Cogniate. Make a new developer key for this library."); the grant stays unredeemed. |
+| Blackboard: the deployment is reserved by another connection that is not a `disabled` connection of the same library | `409 DEPLOYMENT_IN_USE` ("This Blackboard site is already connected to Cogniate."); no LTI service call; the grant stays unredeemed |
+| Blackboard: the LTI service answers `409 DEPLOYMENT_ALREADY_EXISTS` while this connection holds the reservation | active with the same site: bind; inactive: `PATCH { active: true, siteUrl }`; active with another site: `409 DEPLOYMENT_IN_USE` |
+| Blackboard: no active shared platform | `409 PROVIDER_NOT_READY` |
+| A repeat of the call that registered this connection (same `clientId` and `deploymentId`) | `200`, nothing changes, no grant is checked or used |
+| The LTI service fails (5xx, timeout) | `502 LTI_SERVICE_ERROR`. The grant stays unredeemed (its redeeming mark is cleared). Blackboard: the reservation stays with this pending connection. A retry with the same grant can finish. |
+| The LTI service answers `400 INVALID_SITE_URL` | `422 INVALID_SITE_URL` |
+| The platform or deployment was created but the connection is no longer pending | the app switches it off (platform `active: false`, or deployment `active: false` with `deployment_orphan_deactivated`); the grant stays unredeemed |
+
+### 4.5 Tool configuration rows for Canvas and Blackboard (M1)
+
+`GET /app-api/connections/:id/tool-configuration` keeps the 16 Moodle rows of §4.1 for `moodle`. For the other LMS types it returns these rows, in this order. `key` is stable. `label` is the LMS form label (human text; the live checks confirm it). URLs come from `PUBLIC_LTI_URL`; the tool account is `cogniate`.
+
+Canvas (developer key form; only the Paste JSON method is supported):
+
+| # | `key` | `label` | `value` |
+| --- | --- | --- | --- |
+| 1 | `key_name` | Key Name | `Cogniate (<library name>)` |
+| 2 | `redirect_uris` | Redirect URIs | `{PUBLIC_LTI_URL}/lti/launch/cogniate` |
+| 3 | `method` | Method | `Paste JSON` |
+| 4 | `lti_json` | LTI 1.3 Configuration | `Paste the JSON from "Copy JSON" or "Download JSON". Do not edit it.` |
+
+Blackboard (Learn tool registration; values the Learn admin compares):
+
+| # | `key` | `label` | `value` |
+| --- | --- | --- | --- |
+| 1 | `client_id` | Client ID | the shared client id (Application ID) |
+| 2 | `login_initiation_url` | Login Initiation URL | `{PUBLIC_LTI_URL}/lti/login/cogniate` |
+| 3 | `tool_redirect_url` | Tool Redirect URL(s) | `{PUBLIC_LTI_URL}/lti/launch/cogniate` |
+| 4 | `tool_jwks_url` | Tool JWKS URL | `{PUBLIC_LTI_URL}/lti/keys/cogniate` |
+| 5 | `tool_status` | Tool Status | `Approved` |
+| 6 | `user_fields` | User Fields to Send | `Role in Course only. Do not send Name or Email Address.` |
+| 7 | `grade_service` | Allow grade service access | `Yes` |
+| 8 | `membership_service` | Allow Membership Service access | `Yes` |
+| 9 | `placement` | Placement | `Cogniate: type Deep Linking, Target Link URI {PUBLIC_LTI_URL}/lti/launch/cogniate, student access off` |
+
+Values that come back use the fixed keys of §4.4. The approval code comes from the operator, not from the LMS.
+
+### 4.6 `GET /app-api/connections/:id/canvas-configuration` (M1)
+
+Canvas connections only; other LMS types give `409 CAPABILITY_NOT_SUPPORTED`. Query `jwk`: `url` (default) or `inline`; another value gives `400 INVALID_REQUEST`. Headers: `Content-Type: application/json; charset=utf-8`, `Content-Disposition: attachment; filename="cogniate-canvas-lti.json"`, `Cache-Control: no-store`. The document is served only through this signed-in API (no public configuration URL). Body (exactly these keys; values for `cogniate`):
+
+```json
+{
+  "title": "Cogniate (<library name>)",
+  "description": "Cogniate courses (SCORM 1.2 and HTML) with grade return.",
+  "oidc_initiation_url": "{PUBLIC_LTI_URL}/lti/login/cogniate",
+  "target_link_uri": "{PUBLIC_LTI_URL}/lti/launch/cogniate",
+  "scopes": [
+    "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem",
+    "https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly",
+    "https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly",
+    "https://purl.imsglobal.org/spec/lti-ags/scope/score",
+    "https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly"
+  ],
+  "extensions": [
+    {
+      "domain": "<host of PUBLIC_LTI_URL>",
+      "tool_id": "cogniate",
+      "platform": "canvas.instructure.com",
+      "privacy_level": "anonymous",
+      "settings": {
+        "text": "Cogniate",
+        "placements": [
+          { "placement": "assignment_selection", "message_type": "LtiDeepLinkingRequest", "target_link_uri": "{PUBLIC_LTI_URL}/lti/launch/cogniate", "text": "Cogniate" }
+        ]
+      }
+    }
+  ],
+  "public_jwk_url": "{PUBLIC_LTI_URL}/lti/keys/cogniate",
+  "custom_fields": {}
+}
+```
+
+With `jwk=inline` the key `public_jwk_url` is replaced by `public_jwk`: a **snapshot** of the active tool public key from `GET {PUBLIC_LTI_URL}/lti/keys/cogniate` (`kty`, `kid`, `alg: "RS256"`, `use: "sig"`, `n`, `e`; never a private member), and the answer has the header `X-Cogniate-Key-Id: <kid>`. Every other key is the same. Canvas does not refresh an inline key: after `lti:bootstrap --rotate-signing-key`, the Canvas admin must paste a new export, or Deep Linking and grade return fail for that installation. `platform` is `canvas.instructure.com` for every Canvas profile (it names the extension set, not a host). `link_selection` is not offered (ADR-011 §8, D-11).
+
+### 4.7 Operator approval grants, deployments, disconnect and guards (M1)
+
+Grant redemption (Canvas `PUT …/platform`, Canvas `POST …/deployments`, Blackboard `PUT …/platform`). Checks in this order, in one database transaction, before any LTI service call:
+
+| # | Check | Failure |
+| --- | --- | --- |
+| 1 | `grantCode` has the right form and its SHA-256 matches a grant | `403 GRANT_INVALID` |
+| 2 | The grant is not revoked, not redeemed and not expired | `403 GRANT_INVALID` |
+| 3 | The grant's `library_id` is the session library, its `connection_id` is the path connection, and its `purpose` fits the endpoint (`initial` for `PUT …/platform`, `add_deployment` for `POST …/deployments`) | `403 GRANT_INVALID` |
+| 4 | The grant's LMS type, profile, site URL and service URL equal the connection; its client id and deployment id equal the request (Blackboard: the shared client id) | `422 GRANT_MISMATCH`, `details.fields` = the request keys that differ (`clientId`, `deploymentId`), or `["connection"]` if the connection changed |
+| 5 | No other redemption of this grant runs (`redeeming_since` is null or older than 60 s) | `409 GRANT_IN_USE` |
+| 6 | Blackboard: reserve (shared platform, deployment): free, or held by a `disabled` connection of the same library (the row moves) | `409 DEPLOYMENT_IN_USE` |
+
+Then the transaction sets `redeeming_since` and commits. The LTI service call follows (§4.4). On success one transaction sets `redeemed_at`, updates the connection (`registered`, or the new deployment in `platform`) and logs `grant_redeemed`. On an LTI failure the app clears `redeeming_since`. Every `403` and `422` above logs `grant_rejected {reason}` with a precise reason (`not_found`, `revoked`, `redeemed`, `expired`, `other_library`, `other_connection`, `purpose`, `mismatch`) and changes no LTI row. The answer never says which of checks 1 to 3 failed.
+
+| Method and path | Request | Success / errors |
+| --- | --- | --- |
+| `POST /app-api/connections/:id/deployments` | `{ deploymentId, grantCode }` (strict body) | Canvas connections that are `registered` or `connected`, after the redemption above (`purpose: add_deployment`): `POST /api/platforms/:id/deployments` on the connection's own platform (an existing inactive row: `PATCH { active: true }`); `200` connection. An id that is already active on this platform: `200`, no change, no grant is used. Other LMS types: `409 CAPABILITY_NOT_SUPPORTED` (`addDeployment`). Status `pending` or `disabled`: `409 CONNECTION_NOT_READY`. |
+| `DELETE /app-api/connections/:id` | — | `moodle`, `canvas`: unchanged (platform `active: false`). `blackboard`: if the connection holds a reservation, `PATCH /api/platforms/{shared id}/deployments/{deploymentId} { active: false }` only; the shared platform and other deployments do not change; the reservation stays with the disabled connection. Unredeemed grants of the connection are revoked. |
+
+Score syncs of a disabled Canvas or Blackboard connection (ADR-011 §12): the worker sends nothing; a due row becomes `failed` with `lastError = "CONNECTION_DISABLED"` and one `score_sync` event without a POST (`phase: "send"`, `tries` unchanged). `POST /app-api/score-syncs/:id/resend` and `POST /app-api/publications/:id/results/refresh` for such a connection: `409 CONNECTION_NOT_READY`. Moodle connections are unchanged.
+
+Capability guards (nothing is stored when they fire):
+
+| Request | Guard |
+| --- | --- |
+| `PUT /app-api/connections/:id/web-services` (§11) on a connection that is not `moodle` | `409 CAPABILITY_NOT_SUPPORTED`, `details.capability = "webServices"`; no outbound call |
+| `POST /app-api/publications` with `createMoodleCourse` for a connection that is not `moodle` | `409 CAPABILITY_NOT_SUPPORTED`, `details.capability = "courseShell"`; no publication is made or changed |
+| `POST /app-api/connections/:id/registration-url` on a connection that is not `moodle` | `409 CONNECTION_NOT_PENDING` (unchanged code: only a pending dynamic connection has a URL) |
+
+### 4.8 Operator CLI: approval grants (M1)
+
+The operator runs it in the app service (`docker compose exec cogniate-app …`). It is not reachable over HTTP.
+
+```sh
+npm run app:grant -w services/cogniate-app -- issue --connection <con_id> --site <origin> [--service-url <origin>] --client-id <id> --deployment-id <id> \
+    [--purpose initial|add_deployment] [--ttl-seconds 86400] --note "<evidence reference>"
+npm run app:grant -w services/cogniate-app -- revoke --grant <grt_id>
+npm run app:grant -w services/cogniate-app -- list --connection <con_id>
+```
+
+| Rule | Detail |
+| --- | --- |
+| Issue checks | The connection exists and is `canvas` or `blackboard`. `initial`: the connection is `pending`. `add_deployment`: a Canvas connection that is `registered` or `connected`, and `--client-id` equals its platform client id. `--site` equals the connection `siteUrl`. `--service-url` (Canvas only; default `--site`) equals the connection `serviceUrl`. Blackboard: `--client-id` equals the active shared platform client id. Ids: 1 to 255 printable ASCII without spaces. `--ttl-seconds`: 60 to 604800 (default 86400). `--note`: 1 to 500 characters. Any failure: exit 1 with one line, nothing stored. |
+| Issue output | Grant id, approval code (shown only here, once), expiry time. A new grant for the same connection and purpose revokes older unredeemed ones. |
+| Revoke | Sets `revoked_at` on an unredeemed grant (exit 0). A redeemed grant cannot be revoked (exit 1); disconnect the connection instead. |
+| List | Grant id, purpose, site, service URL, client id, deployment id, created, expires, state (`issued`, `redeeming`, `redeemed`, `expired`, `revoked`). Never the code or its hash. |
+| Logs | `grant_issued {grant_id, connection_id, purpose, expires_at}`, `grant_revoked {grant_id}`. Never the code. |
+
 ## 5. Publications — T4b1 (results: T5a, T5b)
 
 ```json
@@ -227,6 +439,10 @@ ResultRow (one per learner per activity; preview attempts are rows with `preview
 
 `scoreSyncs` lists every row, oldest first. `gradebook` is `null` until a refresh. After a refresh, if `gradebook.resultScore / resultMaximum` differs from `best.scoreGiven / scoreMaximum` while the last sync is `sent`, the row has `gradebookDiffers: true`, and the portal shows "Moodle keeps another grade, for example a teacher override".
 
+### 5.1 Publication fields for the portal (M1)
+
+Every publication answer gets two additions: `lms` (the connection's LMS type) and `connectionName`. The portal shows them in the publish dialog, the course page and the results page.
+
 ## 6. Tool pages and player shell — T4b1 (`/tool/register`), T4b2 (the others)
 
 Server-rendered HTML. No cookies. Headers per page: security §5. Every tool error page logs exactly one event (§12) with its code and, when the error came from the LTI service, `lti_status` and `lti_code`. Every error page shows the code, the trace id and one action line, marked with `data-error-code`, `data-trace-id` and `data-error-action` (security §2.2). Log events: §12.
@@ -234,7 +450,7 @@ Server-rendered HTML. No cookies. Headers per page: security §5. Every tool err
 | Method and path | Input | Result |
 | --- | --- | --- |
 | `GET /tool/launch` | `ltik` | Handoff (security §4): single use (`409 HANDOFF_USED`); `GET /api/idtoken`; publication from the signed `launch.target` (`resource`); resource link upsert by (connection, deployment, context, resource link) with `lineItemId` and service key; attempt (data-model §2, incl. the rule after a rebind); play session. `303 /play/{playId}`, or `303 /play/{playId}/embedded` when `documentTarget` is `iframe` (`frame` and `window` open the player directly). Errors: `401` page `INVALID_LTIK` (bad or expired ltik: `launch_rejected {reason: invalid_ltik}`; a valid deep-linking ltik sent to `/tool/launch`: `launch_rejected {reason: not_resource_link}`), `502` page `LTI_SERVICE_ERROR` (the LTI service failed), `404` page "This course is not available" (`PUBLICATION_NOT_IN_CONNECTION`, `UNKNOWN_PLATFORM`), `410` page "This course is no longer available" (`PUBLICATION_WITHDRAWN`). No attempt on error. |
-| `GET /tool/deep-link` | `ltik` | Checks in this order: (1) single use (`409 HANDOFF_USED`, `handoff_rejected`); (2) `GET /api/idtoken` (`401` page `INVALID_LTIK`, `deep_link_rejected {reason: invalid_ltik}`; `502` page `LTI_SERVICE_ERROR`); (3) `launch.type` is `LtiDeepLinkingRequest` (`403` page, `not_deep_linking`); (4) a role that ends with `#Instructor`, `#ContentDeveloper` or `#Administrator` (`403` page, `role_not_allowed`); (5) `platform.id` belongs to a connection (`404` page, `deep_link_rejected {reason: unknown_platform}`). Then a picker session (`PICKER_TTL_SECONDS`, default 1 h) with the ltik encrypted, and `303 /tool/picker/{pickerId}`. |
+| `GET /tool/deep-link` | `ltik` | Checks in this order: (1) single use (`409 HANDOFF_USED`, `handoff_rejected`); (2) `GET /api/idtoken` (`401` page `INVALID_LTIK`, `deep_link_rejected {reason: invalid_ltik}`; `502` page `LTI_SERVICE_ERROR`); (3) `launch.type` is `LtiDeepLinkingRequest` (`403` page, `not_deep_linking`); (4) a role that ends with `#Instructor`, `#ContentDeveloper` or `#Administrator` (`403` page, `role_not_allowed`; M1: the role sets of §6.1); (5) `platform.id` belongs to a connection (`404` page, `deep_link_rejected {reason: unknown_platform}`). Then a picker session (`PICKER_TTL_SECONDS`, default 1 h) with the ltik encrypted, and `303 /tool/picker/{pickerId}`. |
 | `GET /tool/picker/{pickerId}` | — | Radio list (single select) of the connection's `available` publications: title, format badge ("SCORM 1.2" / "HTML"), version. Unknown id: `404` page `PICKER_NOT_FOUND`; used: `410` page `PICKER_USED`; expired: `410` page `PICKER_EXPIRED`. |
 | `POST /tool/picker/{pickerId}` | form `publicationId` (exactly one) | Checks: picker exists (`404 PICKER_NOT_FOUND`), not used (`410 PICKER_USED`), not expired (`410 PICKER_EXPIRED`), `Origin` (403), publication of this connection and `available` (`400 PUBLICATION_NOT_AVAILABLE`, no deep-linking call). Calls `POST /api/deeplinking` with one item (flows §6b). The returned `target` (deep-link return URL) must be on the platform issuer origin, else `502` page `RETURN_URL_MISMATCH` with no "try again" advice (the action line says: give the trace id to your Moodle administrator), and no form is posted. Page with a hidden form (`JWT`, action = `target`) and a nonce script that submits it. Marks the picker used. |
 | `GET /tool/register` | `registrationId`, `ref` | Checks `ref` (`pending`, not expired, not used). `GET /api/registrations/{id}`. Checks `url` origin = `siteUrl` origin (`SITE_MISMATCH`). If `operation = update`: page `UPDATE_NOT_ALLOWED` ("Go back in Moodle and choose Register as a new external tool"), always (security §2.5). Else the confirm page: site URL, Moodle version, library, "Learners are anonymous: Moodle does not send names or emails." Button "Connect". On submit the button is disabled (no second submit) and the page shows "Connecting to Moodle. This can take up to 15 seconds. Do not close this window." (B-FIX-02; the `complete` call can take 15 s, §6 failure pages). Errors: `400` page `REF_INVALID`, `REF_EXPIRED`, `SITE_MISMATCH`. |
@@ -245,6 +461,21 @@ Server-rendered HTML. No cookies. Headers per page: security §5. Every tool err
 | `GET /app-api/play/{playId}/status` | — | `200 { outcome, scoreGiven, scoreMaximum, preview, scoreSync: { status, scoreGiven, scoreMaximum } }`; `scoreSync` is the **newest** score sync of this learner on this activity (any attempt), with the score of that row; all three fields are `null` before the first one. Unknown id → `404`. The shell polls every 5 s. Status text (P11, Lead decision): if this attempt's score equals the synced row's score (same `scoreGiven / scoreMaximum`), the texts stay as they are (for example "Completed — score 80 sent to Moodle"). If the scores differ (this attempt 60, synced row 80): `sent` → "Completed — score 60. Moodle keeps your best score: 80"; `pending` → "Completed — score 60. Sending your best score, 80, to Moodle"; `failed` → "Completed — score 60. Your best score, 80, was not sent to Moodle"; `conflict` → unchanged ("Completed — Moodle has a grade with a newer time"). If this attempt has no score, the texts have no score of their own: `sent` → "Completed. Moodle keeps your best score: 80"; `pending` → "Completed. Sending your best score, 80, to Moodle"; `failed` → "Completed. Your best score, 80, was not sent to Moodle". Scores use the existing format (a whole number, or `n/max` when the maximum is not 100). |
 
 Play session: `PLAY_TTL_SECONDS` (default 24 h). It holds the SHA-256 hash of the runtime token and a session id. It holds no ltik. The runtime token is derived from the play id with the app master key (HMAC); only its hash is stored, so a database copy alone cannot rebuild a runtime URL.
+
+### 6.1 Multi-LMS rules for tool pages and the player (M1)
+
+These rules replace the matching parts of the §6 table. For a Moodle connection every result stays the same, because its site origin is its issuer origin.
+
+| Topic | Rule |
+| --- | --- |
+| Launch routing | `/tool/launch` and `/tool/deep-link` find the connection in this order: (1) a reservation for (`platform.id`, `platform.deploymentId`) whose connection is `registered` or `connected`; (2) the connection whose `lti_platform_id` is `platform.id` and that is `registered` or `connected`. None: page `UNKNOWN_PLATFORM` (`reason: unknown_platform`). |
+| Site check | `platform.siteUrl` and `platform.serviceUrl` (LTI contract §9.9) must equal the connection `siteUrl` and `serviceUrl`. Else page `UNKNOWN_PLATFORM`, log `launch_rejected` or `deep_link_rejected` with `reason: site_mismatch`. No attempt, no picker. |
+| Canvas embedded page | Canvas sends `documentTarget = iframe` for every launch (ADR-011 §8). For a `canvas` connection, `/play/{playId}/embedded` has a nonce script: if the page is the top-level page (`window.top === window`), it replaces the location with `/play/{playId}` at once; in a frame it shows the existing "Open in a new window" button. CSP: `frame-ancestors {site}; form-action 'none'; script-src 'nonce-…'`. Moodle and Blackboard keep the static page without script. |
+| Site origin | The picker pages and `/play/{playId}/embedded` use `frame-ancestors {site}` (security §5). `POST /tool/picker/{id}` requires the returned `target` on `{site}` (`RETURN_URL_MISMATCH` otherwise). The launch return URL is kept only if it is https on `{site}`. "Back to …" without a return URL goes to `{site}/`. |
+| Roles | Deep Linking needs a context staff role or an admin role. A launch is graded only with a context learner role and no context staff role; any other launch is a preview. The sets are in [ADR-011 §10](../adr/ADR-011-multi-lms.md#10-roles). Codes and log reasons stay (`ROLE_NOT_ALLOWED`, `role_not_allowed`). |
+| Content item | Unchanged for `moodle`. For `canvas` and `blackboard`, if `launch.deepLinkingSettings.acceptPresentationDocumentTargets` contains `window`, the item also has `"window": { "targetName": "_blank" }`. The publication id stays in the `resource` query of the item URL; no custom parameters. |
+| LMS name in texts | Every text that names Moodle (tool error pages, player "Back to Moodle", player status texts, `UNKNOWN_PLATFORM` and `ROLE_NOT_ALLOWED` actions) uses the LMS name of the connection: `Moodle`, `Canvas` or `Blackboard`. Without a connection, the name comes from `platform.profile` (`canvas-*` → Canvas, `blackboard*` → Blackboard, else Moodle). Moodle texts stay byte for byte. |
+| Learner label | `Learner {sub} @ {host of the connection siteUrl}` (results, §5). |
 
 ## 7. Content host — T5a
 
@@ -376,7 +607,7 @@ Sends `POST /api/lineitems/{encodeURIComponent(lineItemId)}/scores` with `SERVIC
 | --- | --- |
 | `204` | `sent`, except that a required P2 confirmation keeps the first accepted send `pending` (below). |
 | `409 PLATFORM_CONFLICT` | `conflict` (no retry; "Moodle has a grade with a newer time"). A teacher override alone does **not** cause a 409: Moodle 5.2.4 accepts the score and keeps the override (`scores.php` compares times; `grade_item::update_raw_grade` does not change an overridden final grade). |
-| `400`, `404` (`PLATFORM_REJECTED_REQUEST`) | `failed` at once, `lastError` = description |
+| `400`, `404`, `422` (`PLATFORM_REJECTED_REQUEST`; `422` from M1) | `failed` at once, no retry, `lastError` = description. Canvas `400` for a score older than its stored result is this case, not `conflict`. |
 | `403` from the LTI service (for example `SERVICE_NOT_AVAILABLE`, `PLATFORM_NOT_ACTIVE`) | `failed` at once (a retry cannot fix it), `lastError` = the code |
 | `401`, `5xx`, `502`, `504`, network error | retry: 5 s, 30 s, 2 min, 10 min, 30 min, then every 1 h until 24 h after `createdAt`, then `failed` |
 
@@ -440,8 +671,8 @@ Course shell (web services):
 
 | Method and path | Request | Success / errors |
 | --- | --- | --- |
-| `PUT /app-api/connections/:id/web-services` | `{ token }` | `200 { siteName, release, functions }` after `core_webservice_get_site_info`. `422 WS_TOKEN_INVALID` or `WS_FUNCTIONS_MISSING`. Moodle unreachable or a Moodle error → `502 MOODLE_WS_ERROR`. |
-| `POST /app-api/publications` with `createMoodleCourse: { categoryId? }` | — | Publication with `moodleCourse { id, idnumber, url }`, `shellStatus` (`created`, `exists`, `failed`) and `shellError` (plain text when `failed`, else `null`) |
+| `PUT /app-api/connections/:id/web-services` (Moodle only, §4.7) | `{ token }` | `200 { siteName, release, functions }` after `core_webservice_get_site_info`. `422 WS_TOKEN_INVALID` or `WS_FUNCTIONS_MISSING`. Moodle unreachable or a Moodle error → `502 MOODLE_WS_ERROR`. |
+| `POST /app-api/publications` with `createMoodleCourse: { categoryId? }` (Moodle connections only, §4.7) | — | Publication with `moodleCourse { id, idnumber, url }`, `shellStatus` (`created`, `exists`, `failed`) and `shellError` (plain text when `failed`, else `null`) |
 
 Connection field `webServices`: `{ siteName, release }` after a successful `PUT .../web-services`, else `null`. The token is stored encrypted and never returned.
 
@@ -463,10 +694,10 @@ Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `e
 | `package_accepted` | info | `version_id`, `format` |
 | `package_rejected` | warn | `codes` |
 | `handoff_rejected` | warn | `code` (`HANDOFF_USED`) |
-| `launch_rejected` | warn | `reason`: `publication_not_in_connection`, `publication_withdrawn`, `unknown_platform`, `invalid_ltik`, `not_resource_link` (a valid deep-linking ltik on `/tool/launch`), `lti_service_error`; plus `lti_status`, `lti_code` when the LTI service answered with an error |
+| `launch_rejected` | warn | `reason`: `publication_not_in_connection`, `publication_withdrawn`, `unknown_platform`, `site_mismatch` (M1), `invalid_ltik`, `not_resource_link` (a valid deep-linking ltik on `/tool/launch`), `lti_service_error`; plus `lti_status`, `lti_code` when the LTI service answered with an error |
 | `launch_accepted` | info | `attempt_id`, `preview` |
 | `resource_link_rebound` | info | `resource_link_id`, `from_publication`, `to_publication` |
-| `deep_link_rejected` | warn | `reason`: `not_deep_linking` (the ltik is not a deep-linking launch), `role_not_allowed`, `invalid_ltik`, `unknown_platform`; plus `lti_status`, `lti_code` when the LTI service answered with an error |
+| `deep_link_rejected` | warn | `reason`: `not_deep_linking` (the ltik is not a deep-linking launch), `role_not_allowed`, `invalid_ltik`, `unknown_platform`, `site_mismatch` (M1); plus `lti_status`, `lti_code` when the LTI service answered with an error |
 | `picker_rejected` | warn | `reason`: `not_found`, `used`, `expired`, `publication_not_available`, `lti_service_error`, `return_url_mismatch`; plus `lti_status`, `lti_code` when the LTI service answered with an error |
 | `retention_cleanup` | info | `table`, `deleted` |
 | `platform_orphan_deactivated` | warn | `platform_id` |
@@ -477,4 +708,10 @@ Every event: `ts`, `level`, `service` (`cogniate-app` or `cogniate-content`), `e
 | `commit_rejected` | warn | `code`, `field` |
 | `outcome_changed` | info | `attempt_id`, `outcome` |
 | `score_sync` | info | `sync_id`, `status`, `tries`, `phase` (`send` or `confirmation`). `status` is the persisted row status. When the first accepted P2 send stays pending, include `send_result: "sent"`. When a send ends after its row was superseded (ADR-010 rule 5), the row stays `superseded` and the line has `status: "superseded"` plus `send_result` = the status that the send would have set (`sent`, `pending`, `conflict` or `failed`) (B-FIX-01). One event per actual POST. |
+| `grant_issued` | info | `grant_id`, `connection_id`, `purpose`, `expires_at` (§4.8; M1) |
+| `grant_revoked` | info | `grant_id` (§4.8; M1) |
+| `grant_redeemed` | info | `grant_id`, `connection_id`, `purpose`, `platform_id`, `deployment_id` (§4.7; M1) |
+| `grant_rejected` | warn | `reason` (§4.7; M1), `connection_id` |
+| `deployment_orphan_deactivated` | warn | `platform_id`, `deployment_id` (§4.4; M1) |
+| `deployment_orphan_deactivate_failed` | error | `platform_id`, `deployment_id`, `error` (M1) |
 | `gradebook_refresh_failed` | warn | `publication_id`, `resource_link_id`, `lti_status`, `lti_code` (one per row that "Refresh from Moodle" could not read) |

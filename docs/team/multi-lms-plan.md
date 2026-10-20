@@ -70,7 +70,7 @@ Do not run a destructive reset against the user's existing environment.
 
 | Task | Result | State |
 | --- | --- | --- |
-| M0 | Source review, architecture, contracts, criteria | In progress |
+| M0 | Source review, architecture, contracts, criteria | Proposal complete; independent review pending |
 | M0-A2 | Read-only portal and integration audit | Complete; no code or tests changed |
 | M0-AU | Read-only backend and deployment impact audit | Complete; no code or tests changed |
 | M0-QE | Independent environment and live-LMS validation preflight | Complete; environment inventory, no product verification |
@@ -110,6 +110,13 @@ The Lead accepted its successful completion and recorded retention before acknow
 Design review tasks `task_8539cca49e29` and `task_6df3fc0172eb` depend on the Architect's M0 task.
 Each reviewer will write its own report before it sees the other review.
 Independent QA task `task_8b0eb55ffe6f` will check the design's testability from its acceptance criteria.
+
+The Architect completed the revision 4 proposal in `ctx_c8c00b22d5f1`.
+The completion report is `msg_e1108c37cd51`.
+It covers ADR-011, both API contracts, migration and security rules, and M1 through M4 criteria.
+The Lead accepted the handoff for independent review, not as design approval.
+The dedicated Architect remains retained for review corrections and final conformance.
+No product implementation has started.
 
 Implementation tasks are queued, but they are not authorized to start before the design gate passes.
 Backend task `task_88ef41c0aea3` resumes the dedicated Author.

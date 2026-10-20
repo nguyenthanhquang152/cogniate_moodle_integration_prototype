@@ -1,6 +1,6 @@
 # Data model and state machines
 
-Status: T0 round 2. Storage choice: [ADR-006](adr/ADR-006-storage.md).
+Status: T0 round 2; multi-LMS changes in §4 (M0, 2026-10-20). Storage choice: [ADR-006](adr/ADR-006-storage.md).
 
 Each service has its own SQLite file. Every LTI service row has `tool_account_id` (directly or through its parent). Every Cogniate app row has `library_id` (directly or through its parent). Repository functions take the tenant id as a required argument.
 
@@ -298,3 +298,141 @@ stateDiagram-v2
 Score sync. Retry times: 5 s, 30 s, 2 min, 10 min, 30 min, then every 1 h until 24 h after `created_at` (ADR-010).
 
 Publication: `available` ⇄ `withdrawn`. "Selected in Moodle" and "In use" come from `stats`.
+
+## 4. Multi-LMS changes (M1, ADR-011)
+
+Design: [ADR-011](adr/ADR-011-multi-lms.md). Both migrations are forward only and additive (no table rebuild: the migration runner uses one transaction with foreign keys on). Old rows keep today's behaviour.
+
+### 4.1 LTI service: `004_provider_profiles.sql`
+
+| Table | Change | Default for old rows | Meaning |
+| --- | --- | --- | --- |
+| `platform` | `profile TEXT NOT NULL DEFAULT 'standard'` | `standard` | provider profile id (ADR-011 §6) |
+| `platform` | `site_url TEXT` | `NULL` | Canvas profiles: the school site (page) origin |
+| `platform` | `service_url TEXT` | `NULL` | Canvas profiles: the service origin (AGS, NRPS, token endpoint); the same as `site_url` when not sent |
+| `deployment` | `site_url TEXT` | `NULL` | shared profiles: the school site origin of this deployment |
+| `deployment` | `active INTEGER NOT NULL DEFAULT 1` | `1` | `0` = launches and API calls of this deployment fail |
+| `deployment` | `binding_generation INTEGER NOT NULL DEFAULT 0` | `0` | shared profiles: 1 at the first binding, + 1 for each new binding |
+| `deployment` | `created_at INTEGER` | `NULL` | time of `POST …/deployments` |
+| `oidc_state` | `login_deployment_id TEXT` | `NULL` | the `lti_deployment_id` of the login request, for check 9 |
+| `launch` | `site_origin TEXT` | `NULL` (= issuer origin) | site origin of the launch deployment |
+| `launch` | `binding_generation INTEGER NOT NULL DEFAULT 0` | `0` | deployment generation at launch time |
+| `service_key` | `binding_generation INTEGER NOT NULL DEFAULT 0` | `0` | deployment generation of this key value |
+
+```mermaid
+erDiagram
+    PLATFORM ||--o{ DEPLOYMENT : has
+    DEPLOYMENT ||--o{ SERVICE_KEY : "keys of one generation"
+    PLATFORM {
+      string profile "standard, canvas-cloud-production, ..., blackboard"
+      string site_url "Canvas only"
+    }
+    DEPLOYMENT {
+      string platform_id FK
+      string deployment_id
+      string site_url "shared profiles only"
+      bool active
+      int binding_generation
+    }
+    SERVICE_KEY {
+      string key_hash PK
+      int binding_generation
+    }
+```
+
+Rules:
+
+| Rule | Detail |
+| --- | --- |
+| Site origin | `deployment.site_url`, else `platform.site_url`, else the origin of `platform.issuer`. |
+| Service origin | `platform.service_url`, else the site origin. |
+| Shared platform | At most one platform per (`tool_account_id`, shared profile). The create runs the check and the insert in one transaction. |
+| Unique keys | Unchanged: (`tool_account_id`, `issuer`, `client_id`), (`platform_id`, `deployment_id`), service key (`platform_id`, `deployment_id`, `context_id`, `resource_link_id`). A new generation **updates** the service key row (new `key_hash`, new generation); it does not add a row. |
+| Key derivation | Generation 0: the HMAC input of today, so every existing key keeps its value. Generation above 0: the generation is part of the input. |
+| `PATCH deploymentIds` | Not allowed on a shared platform. On other platforms it is a diff (LTI contract §9.4); kept rows keep `site_url`, `active` and generation. |
+| Retention | Unchanged. Deployment rows are never deleted by the cleanup job. |
+
+### 4.2 Cogniate app: `011_lms_types.sql`
+
+| Table | Change | Default for old rows | Meaning |
+| --- | --- | --- | --- |
+| `connection` | `lms TEXT NOT NULL DEFAULT 'moodle' CHECK (lms IN ('moodle','canvas','blackboard'))` | `moodle` | LMS type |
+| `connection` | `lti_profile TEXT NOT NULL DEFAULT 'standard'` | `standard` | LTI service profile id |
+| `connection` | `service_url TEXT` | `NULL` (= `site_url`) | Canvas service origin |
+| `picker_session` | `site_origin TEXT` | `NULL` | `frame-ancestors` and return URL origin of the picker. Code reads `site_origin`, else `issuer_origin` (old rows expire in 1 h). |
+| new `connection_deployment` | see below | — | Blackboard deployment reservations |
+| new `binding_grant` | see below | — | operator approval grants (app contract §4.7, §4.8) |
+
+```sql
+CREATE TABLE connection_deployment (
+  lti_platform_id TEXT NOT NULL,                       -- the shared platform (LTI service id)
+  deployment_id   TEXT NOT NULL,
+  connection_id   TEXT NOT NULL REFERENCES connection (id),
+  library_id      TEXT NOT NULL REFERENCES library (id),
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  PRIMARY KEY (lti_platform_id, deployment_id)          -- one owner per school deployment
+);
+CREATE INDEX connection_deployment_connection ON connection_deployment (connection_id);
+
+CREATE TABLE binding_grant (
+  id              TEXT PRIMARY KEY,                     -- grt_...
+  code_hash       TEXT NOT NULL UNIQUE,                 -- SHA-256 of the approval code; the code is shown once to the operator
+  library_id      TEXT NOT NULL REFERENCES library (id),
+  connection_id   TEXT NOT NULL REFERENCES connection (id),
+  lms             TEXT NOT NULL,                        -- canvas or blackboard
+  lti_profile     TEXT NOT NULL,
+  purpose         TEXT NOT NULL CHECK (purpose IN ('initial', 'add_deployment')),
+  site_url        TEXT NOT NULL,
+  service_url     TEXT NOT NULL,                        -- Canvas service origin; equals site_url for Blackboard
+  client_id       TEXT NOT NULL,
+  deployment_id   TEXT NOT NULL,
+  note            TEXT NOT NULL,                        -- operator evidence reference (never shown in the portal)
+  created_at      INTEGER NOT NULL,
+  expires_at      INTEGER NOT NULL,
+  redeeming_since INTEGER,                              -- set while one redemption runs (60 s)
+  redeemed_at     INTEGER,
+  revoked_at      INTEGER
+);
+CREATE INDEX binding_grant_connection ON binding_grant (connection_id, purpose);
+```
+
+```mermaid
+erDiagram
+    LIBRARY ||--o{ CONNECTION : owns
+    CONNECTION ||--o| CONNECTION_DEPLOYMENT : "owns (Blackboard)"
+    CONNECTION ||--o{ BINDING_GRANT : "approved by"
+    CONNECTION {
+      string lms "moodle, canvas, blackboard"
+      string lti_profile
+      string lti_platform_id "unique; NULL for Blackboard"
+      string site_url
+    }
+    CONNECTION_DEPLOYMENT {
+      string lti_platform_id PK
+      string deployment_id PK
+      string connection_id FK
+      string library_id FK
+    }
+    BINDING_GRANT {
+      string id PK
+      string connection_id FK
+      string purpose
+      string site_url
+      string client_id
+      string deployment_id
+      datetime redeemed_at
+    }
+```
+
+| Rule | Detail |
+| --- | --- |
+| Exclusive platforms | Moodle and Canvas connections keep `lti_platform_id` (unique, unchanged). |
+| Shared platforms | A Blackboard connection has `method = 'manual'` and `lti_platform_id = NULL`. Its platform and deployment are in `connection_deployment`. `platform_json` holds the shared platform view with **only** this connection's deployment id. |
+| Reservation | Only a grant redemption (app contract §4.7) inserts or moves a row, in the same transaction that marks the grant as redeeming. A move is allowed only from a `disabled` connection of the same library. A pending connection holds a reservation only after such a redemption reached the LTI step and failed there (retry case). |
+| Launch routing | Reservation first, then `lti_platform_id` (app contract §6.1). |
+| Disconnect | A Blackboard reservation stays with the disabled connection (the record of who owned the school deployment). |
+| Grants | A grant is valid when it is not revoked, not redeemed, not expired, and `redeeming_since` is null or older than 60 s. It redeems only for its own `library_id` and `connection_id`. Grants are never deleted (audit record). |
+| Tenant scope | Every query of `connection_deployment` and `binding_grant` that serves a portal request includes `library_id`. Only launch routing and the grant redemption read reservations by (`lti_platform_id`, `deployment_id`). |
+
+`resource_link` keeps its unique key (`connection_id`, `deployment_id`, `context_id`, `resource_link_id`). For Canvas and Blackboard the context and resource link ids are unique within the platform deployment, so the key stays correct.

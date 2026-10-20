@@ -1,6 +1,6 @@
 # Flows
 
-Status: T0 round 2. Overview: [`README.md`](README.md). Rules behind each step: [`security.md`](security.md). Paths use the tool account `cogniate`. URLs come from the four `PUBLIC_*_URL` values ([`local-stack.md`](local-stack.md)).
+Status: T0 round 2; Canvas and Blackboard flows 6g and 6h added in M0 (2026-10-20). Overview: [`README.md`](README.md). Rules behind each step: [`security.md`](security.md). Paths use the tool account `cogniate`. URLs come from the four `PUBLIC_*_URL` values ([`local-stack.md`](local-stack.md)).
 
 ## 6a. Connect a Moodle site
 
@@ -228,4 +228,146 @@ flowchart LR
     D --> MA[Teacher adds a SCORM package activity]
     RS --> NS[Native mod_scorm, Moodle grades it]
     MA --> NS
+```
+
+## 6g. Canvas (M1, ADR-011)
+
+### 6g-1. Connect (developer key, operator approval)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor CU as Cogniate user
+    actor CA as Canvas admin
+    actor OP as Cogniate operator
+    participant P as Portal
+    participant APP as Cogniate app
+    participant LTI as LTI service
+    participant CV as Canvas (school site)
+    CU->>P: Integrations → Canvas → Connect
+    P->>APP: POST /app-api/connections {lms: canvas, profile: canvas-cloud-production, siteUrl, serviceUrl, method: manual}
+    APP->>APP: site rules 1-4 for both URLs (no fetch)
+    APP-->>P: 201 pending
+    P->>APP: GET …/canvas-configuration, GET …/tool-configuration
+    CU->>CA: JSON file + Redirect URIs value
+    CA->>CV: Developer Keys → + LTI Key → Paste JSON → Save → On
+    CA->>CV: Settings → Apps → + App → By Client ID → Install → read deployment id
+    CA->>OP: approval request: library, site, client id, deployment id (out of band)
+    OP->>APP: app:grant issue --connection --site --service-url --client-id --deployment-id --note
+    APP-->>OP: approval code (once)
+    OP->>CU: approval code
+    CU->>P: client id, deployment id, approval code
+    P->>APP: PUT …/platform {clientId, deploymentId, grantCode}
+    APP->>APP: redeem grant (one transaction: valid, same library + connection, same values, redeeming)
+    APP->>LTI: POST /api/platforms {profile, clientId, name, siteUrl, serviceUrl, deploymentIds}
+    Note over LTI: issuer, auth, JWKS from the profile; token = {serviceUrl}/login/oauth2/token
+    LTI-->>APP: 201 platform
+    APP->>APP: grant redeemed; connection registered
+    APP-->>P: 200 registered
+```
+
+### 6g-2. Teacher selects content (assignment_selection)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor T as Teacher
+    participant CV as Canvas (school site)
+    participant SSO as sso.canvaslms.com
+    participant LTI as LTI service
+    participant APP as Cogniate app
+    T->>CV: Assignments → + Assignment → Submission Type External Tool → Find → Cogniate
+    CV->>LTI: (modal iframe) GET /lti/login/cogniate iss=canvas.instructure.com, client_id, lti_deployment_id
+    LTI->>LTI: platform by (iss, client_id); deployment known and active
+    LTI-->>CV: 302 to SSO auth endpoint + partitioned state cookie
+    CV->>SSO: authorize_redirect
+    SSO-->>LTI: form POST id_token (LtiDeepLinkingRequest)
+    LTI->>LTI: checks 1-12, JWKS from SSO, check 13 (AGS and NRPS on the service origin, return URL on the site origin), claim allowlist
+    LTI-->>APP: 303 /tool/deep-link?ltik
+    APP->>APP: site check, role check (context staff or admin)
+    APP-->>T: picker (frame-ancestors = school site)
+    T->>APP: select course
+    APP->>LTI: POST /api/deeplinking (one ltiResourceLink, lineItem 100, window if accepted)
+    LTI-->>APP: JWT + target on school site
+    APP-->>CV: auto-submit JWT to deep_link_return_url
+    CV-->>T: assignment with 100 points, set to open in a new tab (window hint); teacher checks the tab setting and selects Save & Publish
+```
+
+### 6g-3. Learner launch and grade
+
+Same as 6c and 6d after the launch. Differences: Canvas always sends `documentTarget = iframe`, so the launch goes to `/play/{playId}/embedded`; for a Canvas connection that page continues to the player at once when it is top-level (new tab), and shows "Open in a new window" inside a frame. The LTI service gets the access token from `{serviceUrl}/login/oauth2/token` and sends the score to the AGS URL on the service origin.
+
+### 6g-4. Add a second deployment
+
+The Canvas admin installs the same key in a sub-account and gets a second deployment id. A launch from it fails with `UNKNOWN_DEPLOYMENT`. The operator issues a grant with `--purpose add_deployment`; the user enters the deployment id and the approval code (`POST …/deployments`); the app redeems the grant and adds the deployment to the connection's platform.
+
+## 6h. Blackboard (M1, ADR-011)
+
+### 6h-1. Operator setup (once per LTI service host)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor OP as Cogniate operator
+    participant DP as Blackboard Developer Portal
+    participant LTI as LTI service
+    OP->>DP: register application: domain = host of PUBLIC_LTI_URL, login URL, one redirect URL, JWKS URL, RS256
+    OP->>DP: placement "Cogniate", type Deep Linking, Target Link URI {PUBLIC_LTI_URL}/lti/launch/cogniate, student access off
+    DP-->>OP: Application ID (= client id)
+    OP->>LTI: npm run lti:shared-platform -- --profile blackboard --client-id <Application ID>
+    LTI-->>OP: shared platform id
+```
+
+### 6h-2. Connect one school (operator approval)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor CU as Cogniate user
+    actor BA as Learn admin
+    actor OP as Cogniate operator
+    participant P as Portal
+    participant APP as Cogniate app
+    participant LTI as LTI service
+    participant L as Learn (school site)
+    CU->>P: Integrations → Blackboard → Connect (Learn URL)
+    P->>APP: POST /app-api/connections {lms: blackboard, siteUrl, method: manual}
+    APP-->>P: 201 pending (409 PROVIDER_NOT_READY if no shared platform)
+    P->>APP: GET …/tool-configuration (Application ID and values to check)
+    CU->>BA: Application ID
+    BA->>L: Admin → LTI Tool Providers → register LTI 1.3 tool → Client ID → Submit → Submit → read Deployment ID
+    BA->>OP: approval request: library, Learn URL, deployment id (out of band)
+    OP->>APP: app:grant issue --connection --site --client-id <Application ID> --deployment-id --note
+    APP-->>OP: approval code (once)
+    OP->>CU: approval code
+    CU->>P: deployment id + approval code
+    P->>APP: PUT …/platform {deploymentId, grantCode}
+    APP->>APP: redeem grant + reserve (shared platform, deployment) in one transaction
+    APP->>LTI: POST /api/platforms/{shared}/deployments {deploymentId, siteUrl} (or PATCH active true = new generation)
+    LTI-->>APP: 201 active
+    APP->>APP: grant redeemed; connection registered
+    APP-->>P: 200 registered
+```
+
+### 6h-3. Teacher Deep Linking and learner launch
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor U as Teacher or learner
+    participant L as Learn (school site)
+    participant GW as developer.blackboard.com
+    participant LTI as LTI service
+    participant APP as Cogniate app
+    U->>L: Ultra: Content Market → Cogniate (teacher) / open the course item (learner)
+    L->>LTI: GET /lti/login/cogniate iss=https://blackboard.com, client_id, lti_deployment_id
+    LTI->>LTI: shared platform; deployment known and active
+    LTI-->>U: 302 to the gateway OIDC endpoint + state cookie
+    U->>GW: oidcauth
+    GW-->>L: (Blackboard internal)
+    L-->>LTI: form POST id_token
+    LTI->>LTI: checks 1-12, check 9 (= login deployment), check 13 (URLs on the deployment site), claim allowlist
+    LTI-->>APP: 303 with ltik
+    APP->>APP: routing by reservation (platform, deployment); site check
+    Note over APP,LTI: Deep Linking: picker → JWT with sub = client id → Learn return URL. Grades: token from the gateway, score to the AGS URL on the deployment site only.
 ```
