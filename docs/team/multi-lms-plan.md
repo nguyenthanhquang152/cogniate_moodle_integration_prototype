@@ -609,6 +609,14 @@ The first T2a/T2b/T3a/T3b legacy run started in the assigned lane in `msg_54797a
 Final evidence must prove unchanged relevant paths before carrying a legacy result to the corrected candidate.
 Both complete M1 rounds must use the same final product and test revision.
 
+Reviewer-B withdrew preliminary B-M3-04 in `msg_59b0f18c82eb` after checking the applied normative text.
+M1 evidence rule 4 requires the fresh restarted-process cursor and completion control already present in Canvas v4/v6.
+The historical proposal also names pre-kill capture; the applied criterion does not repeat that sentence.
+The Lead checked both sources and kept their evidence limits: no cross-crash audit claim or storage proof.
+Unstarted task `task_efed48b0e53a` is cancelled, recorded as failed with that explicit reason; it created no worker or file change.
+Message `msg_23970ae81e88` lifts the full M1 hold and keeps the exact candidate `eb43247`.
+QA will finish its current legacy group, then run both full M1 rounds at that same revision.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
