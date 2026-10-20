@@ -391,6 +391,20 @@ The Architect owns only `review-response-M1.md` for this revision.
 All three reviewing instances remain retained for independent rechecks of the frozen revision.
 The engine repair and QA audit follow-up wait for the accepted contract.
 
+The Architect completed revision 2 in `msg_5f5c25b3616a`, committed as `caa3541`.
+It replaces D1–D8 with R0–R9 and preserves the original proposal as review history.
+No accepted contract, data model, ADR, or task specification changed.
+The independent recheck wave uses exact `caa35412887aa7c4b762a2c82be5fd12a984db9c`:
+
+| Work | Task | Dispatch |
+| --- | --- | --- |
+| Reviewer-A | `task_c17cd1135dca` | `ctx_d1e7f2d9e3f0` |
+| Reviewer-B | `task_06b884338b8a` | `ctx_1fd3ff3518ef` |
+| Codex QA testability | `task_2184b58e02fa` | `ctx_db5eb5c61bc7` |
+
+Handoffs are `msg_f49fa5cc459b`, `msg_d77e73ef389d`, and `msg_b014cce0238f`.
+The Architect remains retained. Review completion alone will not open the implementation gate; the verdicts must approve the design.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
