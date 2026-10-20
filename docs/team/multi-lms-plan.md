@@ -123,6 +123,14 @@ Tasks `task_5029938ab2e4` and `task_843b9fd4f001` check stable vendor facts and 
 These tasks are not formal design approval. The reviewers remain independent.
 They will reuse the same instances for the formal design review.
 
+Reviewer-B completed its preflight in `ctx_6964f917fdea` without changing files.
+The Lead sent B-PF-01 through B-PF-09 to the Architect.
+This is not design approval. The same dedicated reviewer is retained for the formal review.
+
+Reviewer-A completed its source preflight in `ctx_8546daf0903f` without changing files.
+The Lead sent A-PRE-01 through A-PRE-06 to the Architect in `msg_9328b2a6abc6`.
+The same dedicated reviewer is retained for the formal review.
+
 The Author completed the backend audit in `ctx_94cbe8647c96`.
 Messages `msg_7b0385efd7e4`, `msg_a49edfb39d36`, and `msg_f0556212f33f` hold the findings.
 The Lead sent them to the Architect and retained the same dedicated Author for implementation.
@@ -170,6 +178,19 @@ The operator issues a one-time expiring grant for the exact library, connection,
 The app must redeem that grant atomically before it activates the binding.
 Normal LTI validation will not gain an exception for unbound deployments in this phase.
 The Architect must define the trust boundary, recovery steps and negative tests.
+
+The Architect accepted this direction in `msg_6bf730b0e5a7`.
+Canvas uses Paste JSON setup and graded assignment selection in this phase.
+Ungraded Canvas module items are deferred; the existing grade policy stays unchanged.
+The final design must separate hosted Canvas evidence from local Canvas evidence.
+Rollback uses coordinated, verified backups and restores; it must state the lost-write consequences and pass QA.
+
+Canvas will have one configured page origin and one configured service origin, which defaults to the page origin.
+The operator grant must bind both. No wildcard or arbitrary alias list is in scope.
+Canvas AGS, NRPS and token requests use the service origin; Deep Linking and framing use the page origin.
+The Canvas simulator must use its actual `iframe` launch claim, including new-tab launches.
+A top-level Canvas embedded page will continue to its player; a framed page keeps the open-in-window step.
+The final design must define permanent handling of upstream HTTP 422 and retain the existing policy for HTTP 400.
 
 The acceptance criteria must cover first-claim squatting, cross-library redemption, replay, disconnect, and old stored service keys.
 Disconnecting one deployment must not stop another institution or reactivate old authority through a later binding.
