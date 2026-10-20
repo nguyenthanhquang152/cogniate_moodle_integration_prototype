@@ -40,6 +40,18 @@ it("has 4 step data entries, none verified", () => {
   expect(steps.steps.every((s) => s.verified === false)).toBe(true);
 });
 
+it("register step: the first Submit only shows the settings; the final Submit after Institution Policies comes before the Deployment ID", () => {
+  const register = steps.steps.find((s) => s.id === "blackboard-register")!.instructions;
+  const at = (pattern: RegExp) => register.findIndex((text) => pattern.test(text));
+  const first = at(/^Enter the Client ID below, then select Submit\. This first Submit only shows the tool settings\./);
+  const policies = at(/^In Institution Policies, set User Fields to Send to Role in Course only\. Do not send Name or Email Address\.$/);
+  const final = at(/^Select Submit again at the end of the page\. This final Submit adds the tool\./);
+  const deployment = at(/^Copy the Deployment ID that Learn shows\. Then come back to Cogniate\.$/);
+  expect([first, policies, final, deployment].every((i) => i >= 0)).toBe(true);
+  expect(first < at(/Tool Status to Approved/) && first < policies && policies < final && at(/grade service access/) < final && final < deployment).toBe(true);
+  expect(register.filter((text) => /Submit/.test(text))).toHaveLength(2);
+});
+
 it("step 1: name and Learn URL only; the single ready profile is sent; no issuer, endpoint or secret input", async () => {
   fetchMock.mockResolvedValue(json(connection, 201));
   const onCreated = vi.fn();
