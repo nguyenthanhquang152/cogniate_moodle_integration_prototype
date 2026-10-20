@@ -70,7 +70,7 @@ Do not run a destructive reset against the user's existing environment.
 
 | Task | Result | State |
 | --- | --- | --- |
-| M0 | Source review, architecture, contracts, criteria | Revision 5 correction complete; independent rechecks pending |
+| M0 | Source review, architecture, contracts, criteria | Revision 5 frozen at `bd9fe36`; independent rechecks running |
 | M0-A2 | Read-only portal and integration audit | Complete; no code or tests changed |
 | M0-AU | Read-only backend and deployment impact audit | Complete; no code or tests changed |
 | M0-QE | Independent environment and live-LMS validation preflight | Complete; environment inventory, no product verification |
@@ -103,7 +103,10 @@ The Lead asked which existing LMS test environments are available; the answer is
 The Architect completed the first correction in `ctx_51ca18725d38`.
 ADR-011 revision 5 and [the response table](../architecture/review-response-M0.md) address all 23 initial findings.
 This is the Architect's resolution record, not independent approval.
-The Lead will freeze the design and reuse the same Reviewer-A, Reviewer-B and QA instances for round 2.
+The Lead froze the design at `bd9fe36` and reused the same Reviewer-A, Reviewer-B and QA instances for round 2.
+The new dispatches are `ctx_e0abb11702aa`, `ctx_adcbc4bedd37` and `ctx_d667c956a9d5`, respectively.
+The retained structured sessions use authoritative dispatch preambles sent through Orca messaging.
+No new worker process or model replacement was created for this wave.
 The gate needs two approvals, a design-testability PASS, and no open BLOCKER or MAJOR.
 M1, M2 and test-writing tasks stay blocked until that gate passes.
 
