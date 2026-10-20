@@ -575,6 +575,9 @@ Reviewer-A's new turn ended at 12:12:12 UTC with the Claude session-limit notice
 The Lead followed the transcript to its end, fenced `ctx_b1fbdd75524c`, and marked the same task failed for quota recovery.
 The [team brief](multi-lms-team-brief.md#reviewer-a-quota-replacement-2026-10-20) assigns a separate Codex GPT-6-Astra xhigh Reviewer-A retry under the owner's existing fallback authorization.
 The reviewed candidate stays `eb43247`; no product, harness or review gate changes.
+The retry is `ctx_3604d1e6a48e`, effective `gpt-6-astra` / `xhigh`, handle `structworker_6dd41299-6d1a-4212-b8eb-5877a29ed6bc`.
+Handoff `msg_270a933f6402` gives its exact candidate, evidence, report scope and independence rules.
+The old Claude session received closure notice `msg_296d8bb69bf3`.
 
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
