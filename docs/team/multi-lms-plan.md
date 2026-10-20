@@ -70,7 +70,7 @@ Do not run a destructive reset against the user's existing environment.
 
 | Task | Result | State |
 | --- | --- | --- |
-| M0 | Source review, architecture, contracts, criteria | First reviews require changes; Architect correction next |
+| M0 | Source review, architecture, contracts, criteria | Revision 5 correction complete; independent rechecks pending |
 | M0-A2 | Read-only portal and integration audit | Complete; no code or tests changed |
 | M0-AU | Read-only backend and deployment impact audit | Complete; no code or tests changed |
 | M0-QE | Independent environment and live-LMS validation preflight | Complete; environment inventory, no product verification |
@@ -99,6 +99,13 @@ The initial Docker inventory found no running containers.
 The Lead asked which existing LMS test environments are available; the answer is pending.
 
 ## M0 checkpoints
+
+The Architect completed the first correction in `ctx_51ca18725d38`.
+ADR-011 revision 5 and [the response table](../architecture/review-response-M0.md) address all 23 initial findings.
+This is the Architect's resolution record, not independent approval.
+The Lead will freeze the design and reuse the same Reviewer-A, Reviewer-B and QA instances for round 2.
+The gate needs two approvals, a design-testability PASS, and no open BLOCKER or MAJOR.
+M1, M2 and test-writing tasks stay blocked until that gate passes.
 
 Author-2 completed the read-only audit in `ctx_1eeade383449`.
 Messages `msg_57b462b0aec3`, `msg_c8afa054e00e`, and `msg_b3a206ea8b3f` hold the findings.
@@ -160,6 +167,10 @@ Both dedicated instances remain retained for recheck.
 Architect correction task `task_76b235e74210` follows the three first reports.
 The recheck tasks are `task_2e2307b7f7fe` (Reviewer-A), `task_f5a737f0a439` (Reviewer-B), and `task_f0190c5eafe4` (QA).
 The initial task completions do not open the implementation gate when their verdicts require changes.
+The queued M1, M2 and two test-preparation tasks are explicitly blocked in Orca until that gate passes.
+The Architect confirmed correction dispatch `ctx_51ca18725d38` in the same dedicated instance.
+The first reports and Lead correction directions are committed at `74de92c`.
+Local dependencies are installed in both author worktrees. No product check ran as part of that preparation.
 
 Reviewer-A completed its first formal review in `ctx_1d8b93c872ae`.
 Its [report](../reviews/M0/reviewer-a.md) requests changes: one BLOCKER, one MAJOR, three MINOR and three NIT findings.

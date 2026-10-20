@@ -1,6 +1,6 @@
 # Research: Blackboard and Canvas (M0)
 
-Author: Architect (M0). Date: 2026-10-20. Status: input to [ADR-011](../architecture/adr/ADR-011-multi-lms.md).
+Author: Architect (M0). Date: 2026-10-20. Status: input to [ADR-011](../architecture/adr/ADR-011-multi-lms.md); facts F-CV-21 to F-CV-23 and F-BB-16 added after the formal M0 reviews.
 
 This file lists the facts that the multi-LMS design uses. Each fact has a source. The text is our paraphrase. We copied no provider prose or code.
 
@@ -65,6 +65,7 @@ All sources were read on 2026-10-20.
 | F-BB-13 | Learn verifies a Deep Linking response and a client assertion with the tool JWKS URL. So Learn must reach that URL. | S-BB-DL, S-BB-AUTH |
 | F-BB-14 | The sample launch carries `name`, `given_name`, `family_name`, `email`, a `lis` claim, `tool_platform.url` (the Learn host) and a vendor claim `https://blackboard.com/lti/claim/one_time_session_token`. | S-BB-DL |
 | F-BB-15 | Deleting a registered tool or placement in Learn breaks all its course links for good. | S-BB-REG |
+| F-BB-16 | The sample launch signs `tool_platform.product_family_code = "BlackboardLearn"`. Only this sample shows the value; the live matrix records the real value (L-B18). | S-BB-DL |
 
 ## 4. Canvas facts
 
@@ -90,6 +91,9 @@ All sources were read on 2026-10-20.
 | F-CV-18 | Canvas builds AGS and NRPS URLs (and line item ids) on the root account's environment-specific domain, but the Deep Linking return URL on the host of the browser request. So one launch can carry two hosts. INFERENCE: on hosted Canvas the environment-specific domain is the root account's primary domain for that environment (its resolver is in closed code). | S-CV-CODE |
 | F-CV-19 | A score with a timestamp older than the stored result gets `400`. A user who is not a student in the course, and some other score errors, get `422`. | S-CV-CODE |
 | F-CV-20 | Canvas Student View (test student) launches with `membership#Learner` and `http://purl.imsglobal.org/vocab/lti/system/person#TestUser`; Canvas keeps test-student grades. | S-CV-CODE (per Reviewer-A, `lib/lti/substitutions_helper.rb`) |
+| F-CV-21 | Canvas puts the Deep Linking `data` value in the **query of `deep_link_return_url`** (a signed `data` parameter), not in a `deep_linking_settings.data` claim. On the return POST, Canvas reads `data` from that URL and refuses a missing or wrong value. So the tool must post to the return URL exactly as received. | S-CV-CODE (`deep_linking_request.rb` `deep_link_params`; per Reviewer-A also `deep_linking_services.rb`) |
+| F-CV-22 | Canvas signs `tool_platform.product_family_code = "canvas"` in every launch, also on a self-hosted instance (the value is in the code, not in configuration). | S-CV-CODE (`jwt_message.rb`) |
+| F-CV-23 | By default each score POST makes a new submission attempt, and Canvas answers `422` when the assignment's attempt limit is reached. | S-CV-CODE (per Reviewer-A, `scores_controller.rb`) |
 
 ## 4a. Browser facts
 

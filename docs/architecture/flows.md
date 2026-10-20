@@ -1,6 +1,6 @@
 # Flows
 
-Status: T0 round 2; Canvas and Blackboard flows 6g and 6h added in M0 (2026-10-20). Overview: [`README.md`](README.md). Rules behind each step: [`security.md`](security.md). Paths use the tool account `cogniate`. URLs come from the four `PUBLIC_*_URL` values ([`local-stack.md`](local-stack.md)).
+Status: T0 round 2; Canvas and Blackboard flows 6g and 6h, operator containment 6i, added in M0 (2026-10-20; corrected after the formal M0 reviews). Overview: [`README.md`](README.md). Rules behind each step: [`security.md`](security.md). Paths use the tool account `cogniate`. URLs come from the four `PUBLIC_*_URL` values ([`local-stack.md`](local-stack.md)).
 
 ## 6a. Connect a Moodle site
 
@@ -370,4 +370,28 @@ sequenceDiagram
     LTI-->>APP: 303 with ltik
     APP->>APP: routing by reservation (platform, deployment); site check
     Note over APP,LTI: Deep Linking: picker → JWT with sub = client id → Learn return URL. Grades: token from the gateway, score to the AGS URL on the deployment site only.
+```
+
+## 6i. Operator containment and recovery (M1, ADR-011 §4b)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor OP as Cogniate operator
+    participant APP as Cogniate app
+    participant LTI as LTI service
+    actor RU as Rightful library user
+    Note over OP: evidence: a binding is wrong (wrong library, wrong site or service URL, or a standard platform for a self-hosted Canvas)
+    OP->>APP: app:binding suspend --connection K --note <evidence>
+    APP->>APP: K disabled; unredeemed grants revoked
+    APP->>LTI: PATCH platform active false (Moodle, Canvas) or PATCH deployment active false (Blackboard)
+    LTI-->>APP: 200 (or 404 = already off)
+    OP->>APP: app:binding release --connection K --note <evidence>
+    APP->>LTI: DELETE platform (Moodle, Canvas): keys and launches removed
+    APP->>APP: Blackboard: delete K's reservation (deployment stays inactive)
+    Note over APP: K keeps its publications, attempts and score history
+    OP->>APP: app:grant issue for the rightful connection R (normal check)
+    RU->>APP: PUT …/platform with the approval code
+    APP->>LTI: new Canvas platform, or Blackboard deployment active again (generation + 1)
+    Note over LTI: old keys and ltiks fail with 401
 ```

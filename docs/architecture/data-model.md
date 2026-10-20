@@ -313,9 +313,12 @@ Design: [ADR-011](adr/ADR-011-multi-lms.md). Both migrations are forward only an
 | `deployment` | `site_url TEXT` | `NULL` | shared profiles: the school site origin of this deployment |
 | `deployment` | `active INTEGER NOT NULL DEFAULT 1` | `1` | `0` = launches and API calls of this deployment fail |
 | `deployment` | `binding_generation INTEGER NOT NULL DEFAULT 0` | `0` | shared profiles: 1 at the first binding, + 1 for each new binding |
+| `deployment` | `binding_ref TEXT` | `NULL` | binding ref for conditional changes (LTI contract §9.15) |
+| `platform` | `binding_ref TEXT` | `NULL` | binding ref of an exclusive platform (LTI contract §9.15) |
 | `deployment` | `created_at INTEGER` | `NULL` | time of `POST …/deployments` |
 | `oidc_state` | `login_deployment_id TEXT` | `NULL` | the `lti_deployment_id` of the login request, for check 9 |
 | `launch` | `site_origin TEXT` | `NULL` (= issuer origin) | site origin of the launch deployment |
+| `launch` | `service_origin TEXT` | `NULL` (= site origin) | service origin of the launch deployment |
 | `launch` | `binding_generation INTEGER NOT NULL DEFAULT 0` | `0` | deployment generation at launch time |
 | `service_key` | `binding_generation INTEGER NOT NULL DEFAULT 0` | `0` | deployment generation of this key value |
 
@@ -346,6 +349,8 @@ Rules:
 | --- | --- |
 | Site origin | `deployment.site_url`, else `platform.site_url`, else the origin of `platform.issuer`. |
 | Service origin | `platform.service_url`, else the site origin. |
+| Canonical origins | `site_url`, `service_url` and a `canvas-self-hosted` issuer are stored in canonical origin form (ADR-011 §6). |
+| Unknown profile | A row whose `profile` is unknown at run time (simulations off) is treated as inactive for login, launch and API calls. |
 | Shared platform | At most one platform per (`tool_account_id`, shared profile). The create runs the check and the insert in one transaction. |
 | Unique keys | Unchanged: (`tool_account_id`, `issuer`, `client_id`), (`platform_id`, `deployment_id`), service key (`platform_id`, `deployment_id`, `context_id`, `resource_link_id`). A new generation **updates** the service key row (new `key_hash`, new generation); it does not add a row. |
 | Key derivation | Generation 0: the HMAC input of today, so every existing key keeps its value. Generation above 0: the generation is part of the input. |
@@ -359,6 +364,8 @@ Rules:
 | `connection` | `lms TEXT NOT NULL DEFAULT 'moodle' CHECK (lms IN ('moodle','canvas','blackboard'))` | `moodle` | LMS type |
 | `connection` | `lti_profile TEXT NOT NULL DEFAULT 'standard'` | `standard` | LTI service profile id |
 | `connection` | `service_url TEXT` | `NULL` (= `site_url`) | Canvas service origin |
+| `connection` | `lti_binding_ref TEXT` | `NULL` | Canvas: the attempt id written on its LTI platform (the fence for later switch-off and release) |
+| new `binding_attempt` | see below | — | history of redemption attempt ids (they are binding refs) |
 | `picker_session` | `site_origin TEXT` | `NULL` | `frame-ancestors` and return URL origin of the picker. Code reads `site_origin`, else `issuer_origin` (old rows expire in 1 h). |
 | new `connection_deployment` | see below | — | Blackboard deployment reservations |
 | new `binding_grant` | see below | — | operator approval grants (app contract §4.7, §4.8) |
@@ -369,11 +376,12 @@ CREATE TABLE connection_deployment (
   deployment_id   TEXT NOT NULL,
   connection_id   TEXT NOT NULL REFERENCES connection (id),
   library_id      TEXT NOT NULL REFERENCES library (id),
+  binding_ref     TEXT,                                -- attempt id of the latest redemption of this reservation
   created_at      INTEGER NOT NULL,
   updated_at      INTEGER NOT NULL,
   PRIMARY KEY (lti_platform_id, deployment_id)          -- one owner per school deployment
 );
-CREATE INDEX connection_deployment_connection ON connection_deployment (connection_id);
+CREATE UNIQUE INDEX connection_deployment_connection ON connection_deployment (connection_id);  -- at most one reservation per connection
 
 CREATE TABLE binding_grant (
   id              TEXT PRIMARY KEY,                     -- grt_...
@@ -390,11 +398,20 @@ CREATE TABLE binding_grant (
   note            TEXT NOT NULL,                        -- operator evidence reference (never shown in the portal)
   created_at      INTEGER NOT NULL,
   expires_at      INTEGER NOT NULL,
-  redeeming_since INTEGER,                              -- set while one redemption runs (60 s)
+  redeeming_attempt TEXT,                              -- random id of the attempt that holds the grant (phase 1 to phase 2)
+  redeeming_since INTEGER,                              -- time the attempt took the grant; a lease of 60 s
   redeemed_at     INTEGER,
   revoked_at      INTEGER
 );
 CREATE INDEX binding_grant_connection ON binding_grant (connection_id, purpose);
+
+CREATE TABLE binding_attempt (
+  attempt_id    TEXT PRIMARY KEY,                       -- random; also the binding ref written to LTI records
+  connection_id TEXT NOT NULL REFERENCES connection (id),
+  grant_id      TEXT NOT NULL REFERENCES binding_grant (id),
+  started_at    INTEGER NOT NULL
+);
+CREATE INDEX binding_attempt_connection ON binding_attempt (connection_id);
 ```
 
 ```mermaid
@@ -427,12 +444,13 @@ erDiagram
 
 | Rule | Detail |
 | --- | --- |
-| Exclusive platforms | Moodle and Canvas connections keep `lti_platform_id` (unique, unchanged). |
+| Exclusive platforms | Moodle and Canvas connections keep `lti_platform_id` (unique, unchanged). After `app:binding release` the LTI platform is deleted; the disabled connection keeps `lti_platform_id` and `platform_json` as history (no launch can reach it). |
 | Shared platforms | A Blackboard connection has `method = 'manual'` and `lti_platform_id = NULL`. Its platform and deployment are in `connection_deployment`. `platform_json` holds the shared platform view with **only** this connection's deployment id. |
-| Reservation | Only a grant redemption (app contract §4.7) inserts or moves a row, in the same transaction that marks the grant as redeeming. A move is allowed only from a `disabled` connection of the same library. A pending connection holds a reservation only after such a redemption reached the LTI step and failed there (retry case). |
+| Reservation | Only phase 1 of a grant redemption (app contract §4.7.1) inserts or moves a row, in the same transaction that gives the grant to the attempt. A connection holds at most one row (unique index); its deployment id is then fixed. A redemption by the same connection reuses its own row (retry). A move is allowed only from a `disabled` connection of the same library. `app:binding release` (§4.9) deletes the row of a disabled, switched-off connection. |
 | Launch routing | Reservation first, then `lti_platform_id` (app contract §6.1). |
-| Disconnect | A Blackboard reservation stays with the disabled connection (the record of who owned the school deployment). |
-| Grants | A grant is valid when it is not revoked, not redeemed, not expired, and `redeeming_since` is null or older than 60 s. It redeems only for its own `library_id` and `connection_id`. Grants are never deleted (audit record). |
+| Disconnect and suspend | A Blackboard reservation stays with the disabled connection (the record of who owned the school deployment) until the operator releases it. |
+| Binding refs (fence) | Every LTI record that a redemption creates, reactivates or takes over carries the attempt id as binding ref. Every app switch-off, delete or take-over of a Canvas or Blackboard record is conditional on a ref that is an attempt id of the same connection (`binding_attempt`). The LTI service compares and changes in one transaction, so a stale request cannot change a newer binding. Attempt rows are never deleted. |
+| Grants | Phase 1 takes a grant that is not revoked, not redeemed, not expired, and whose `redeeming_attempt` is null or whose `redeeming_since` is older than 60 s. Phase 2 needs `redeeming_attempt` = its own id and `revoked_at` null. Only the owning attempt clears the attempt fields. A grant redeems only for its own `library_id` and `connection_id`. Grants are never deleted (audit record). |
 | Tenant scope | Every query of `connection_deployment` and `binding_grant` that serves a portal request includes `library_id`. Only launch routing and the grant redemption read reservations by (`lti_platform_id`, `deployment_id`). |
 
 `resource_link` keeps its unique key (`connection_id`, `deployment_id`, `context_id`, `resource_link_id`). For Canvas and Blackboard the context and resource link ids are unique within the platform deployment, so the key stays correct.
