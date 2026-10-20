@@ -116,3 +116,78 @@ M1/M3 accounting remains intact: all existing protocol, setup/export, signed OID
 D8 does not transfer `providers/canvas.ts` by itself. The Canvas owner retains it until the Lead issues an explicit handoff after design acceptance. Codex QA owns common/Blackboard scenarios and case accounting; QA-E2E owns the Canvas acceptance variants; Author owns product and colocated unit tests. QA fixtures and expected values must remain independent of production validators. No response rewriting, vendor DNS/certificate impersonation, or production SSRF exception is needed.
 
 **Acceptance gate:** resolve Q-TS-01 through Q-TS-04 in the frozen design, assign the exact cases and supplemental fixtures, then re-review. This report authorizes no implementation and makes no product verification claim.
+
+---
+
+## Round 2 — CHANGES_REQUESTED / FAIL FOR DESIGN TESTABILITY ONLY
+
+Reviewed on 2026-10-20 for task `task_2184b58e02fa`, dispatch `ctx_db5eb5c61bc7`. **One MAJOR and two MINOR items remain.** Revision 2 resolves the main design policies, but its old-row acceptance table still requires a public-API outcome that the preserved grant-check order cannot produce.
+
+### Exact inputs and independence
+
+Authoritative proposal: **`caa35412887aa7c4b762a2c82be5fd12a984db9c`**, `docs/architecture/review-response-M1.md`, “B-M1-03 proposal D, revision 2,” R0–R9, lines 194–449. Original D1–D8 is superseded. Accepted baseline remains `56591df0e71939d5d62c9042c630c841d01f84e8` plus `ca14de6360021af4ce3692f1a0073fe4ec92633d`.
+
+The original report above is preserved byte for byte from **`c447dd3f95bd8230c9d3b0aad818b9224231c031`**. Frozen harness **`0008bdef092b866a361d57ab705b581cd16312a5`** was used only to check reachability and accounting. No other worker's Round 2 report, product code, author implementation notes or uncommitted tests were read. No test or stack ran. Applying the promised R9 amendments after this gate is expected; their absence from contract files is not itself a finding.
+
+### Disposition of every prior finding
+
+| Prior finding | Round 2 disposition | Exact evidence and remaining work |
+| --- | --- | --- |
+| **Q-TS-01, MAJOR** — null-snapshot lifecycle | **Partly closed; MAJOR retained for one incorrect acceptance oracle** | R1 lines 259–274 and R4 lines 327–333 preserve registered repeats and Canvas add-deployment issuance/redemption without snapshots or provider reads. Pending old rows fail closed, partial Blackboard snapshots are defined, and live issuer drift no longer blocks add-deployment. However, R1 line 268's registered/other-values `409` conflicts with R2's ordered checks and C-3; see the concrete case below. |
+| **Q-TS-02, MAJOR** — V timing and cancellation | **CLOSED for design testability** | R3 lines 304–323 defines the post-V transaction and first-failure order for success, mismatch, error and timeout. Lost lease wins, then connection change, then revocation, then V failure. R3/R6 explicitly permits a committed approval under an inactive parent, which blocks protocol/service use until reactivation; S1 missing pinned platform maps to `409`, while later S2/S3 `404` remains `502`. R6 also fixes cleanup after an earlier lost S3: saved targets are read, not presumed absent. |
+| **Q-TS-03, MAJOR** — no-attempt evidence | **CLOSED for design testability** | R7 lines 358–370 defines the event, fields, post-commit emission and FIFO stream. The request's same-trace `http_request` line is a bounded flush control, with a separate positive redemption including V failure. Missing capture is blocked evidence; crash durability is not claimed. Atomic rollback remains supplemental unit/integration evidence. The existing app §12 defines the HTTP log event and shared trace field, so this requires no debug API. One restart-row wording inconsistency remains under Q-TS-04 below. |
+| **Q-TS-04, MAJOR** — inventory and upgrade route | **Core gap closed; residual downgraded to MINOR** | R8 lines 374–430 makes the named additions mandatory in both full passes, retains all existing cases, adds a populated `38(h)` `011→012` route, and separates unit-only comparators/rollback from SIM. The released-v10 M1-23/30 path stays separate. Same-client P0→P1 drift is explicitly reachable. Remaining inventory wording is listed below; it does not require new product behavior. |
+
+### Remaining MAJOR: Q-TS-01 registered/other-values row is not a reachable `409` fixture
+
+**Evidence:** revision-2 R1 line **268**, R2 line **286**, R8 `38(h)` line **407**, and accepted C-3 at lines **17** and **35** of the same frozen proposal file.
+
+Reproducible contract-only counterexample:
+
+1. On the pinned `011` build, create pending Canvas C, issue initial grant G, and redeem G for `dA`. C is registered and G is redeemed.
+2. Upgrade to `012`; C has no snapshot, as R1 intends.
+3. Send strict `PUT …/platform` with C's correct client, a new `deploymentId: dOther`, and G's code. The finalized repeat does not apply.
+4. R2 phase-1 check 2 returns **`403 GRANT_INVALID`**, with `grant_rejected.reason = "redeemed"`. It cannot reach check 4's `409 CONNECTION_NOT_PENDING`.
+
+An unknown code instead fails check 1; an add-deployment grant fails the purpose check. The accepted CLI cannot issue a fresh initial grant after registration. C-3 already states why an unredeemed, unrevoked initial grant on a registered connection is not a public fixture. Yet `38(h)` requires exercising **every R1 row**, including its unconditional registered/other-values `409`.
+
+**Required amendment:** state the earlier grant errors in R1's registered/other-values row. For its concrete SIM fixture, require the `403`/`redeemed` result above, zero requests, no attempt, and unchanged approval/key. Label check 4's `409` here as a supplemental unit-only branch with an injected otherwise-valid initial grant. Preserve the accepted check order; do not move the status check ahead of the grant checks to satisfy the table.
+
+Also make the `38(h)` seed explicit: issue initial grants for the pending Canvas and Blackboard rows **before** upgrading. Those saved, still-valid codes reach new check 4a and demonstrate `409 PROVIDER_NOT_READY`; unknown codes must still give `403`, and new issuance on the upgraded null-snapshot rows must exit 1 locally. This is a fixture clarification within the existing upgrade scope.
+
+### Remaining MINOR: Q-TS-04 inventory and restarted-process evidence
+
+**Evidence:** R8 lines **386–388**, **408**, **428**, and R7 line **369**.
+
+- The required “fresh `012`” row has no AC/subcase id. Give it an explicit stable id, or attach its enumerated positive controls to named required ids, before the R9 M1/M3 text is frozen. All other new groups have names: `37(v1–v12)`, `(w)`, `(x1–x2)`, `(y1–y2)`, `(z1–z5)`, `(aa)`, `29(k1–k3)`, and `38(h)`. The frozen manifest validator requires an AC-backed case id; a prose-only row cannot be counted.
+- `v4–v6` say “no event” for the dead-handler schedules, while R7 says not to make an event-absence claim across restart and to use API/gate/CLI evidence there. Specify either no cross-process absence assertion, or a **new**, healthy-process cursor with its own same-process FIFO control. Do not compare a pre-kill cursor with post-restart logs as proof of no attempt. Align “skipped if the restart misses the lease window” with the global `BLOCKED` schedule rule. Either status fails the full acceptance gate under the frozen harness; neither may count as PASS.
+
+### New MINOR: Q-TS-R2-01 — target construction sentence contradicts the transaction rule
+
+**Evidence:** R0 line **224** says every target is built locally **inside phase 1**; R2 lines **286–290** saves the target in the atomic attempt write; R2 line **300** says the engine “never builds a target … before phase 1 commits.”
+
+Replace the last statement with the intended distinction: **resolve and persist the target from local validated data inside phase 1; make no LTI call before commit; construct/send the remote create request afterwards.** The accepted target columns and write-ahead requirement already establish the intended behavior, so this is a wording correction, not a request for another transaction or remote precheck.
+
+### Reachability and oracle confirmation
+
+The following design expectations are testable without product-source-derived expected values:
+
+| Required group | Reachable fixture and exact evidence |
+| --- | --- |
+| `v1–v3`, `v7–v12` | Prepare connections and grants first, arm all-method `/api/*` faults, then take the request window. R2 gives exact status/error precedence. Count **every** `received` event, including GET; pair the fault configuration with a valid Blackboard redemption that reaches V. Use R7's healthy-process HTTP/event control for no-attempt evidence. Canvas add-deployment is a distinct local path, not evidence borrowed from initial connect. |
+| `v4–v6` | The accepted held-S1/dead-handler control leaves a live 60 s lease after app restart. Retry only after health and before expiry; `409 GRANT_IN_USE` and zero new gate requests are observable. Use the corrected event scope above. A missed window is not a successful race. |
+| `w`, `x1–x2` | Public admin deactivation or the existing gate creates V mismatch, `503` transport failure, or a timed-out read. The CLI exposes `issued`; competing B's local reservation refusal plus A's immediate successful retry establishes retention and lease release. Late read delivery cannot create a record or resume the ended handler. |
+| `y1–y2` | Wait for V `held_after`, then deactivate or delete/recreate the empty platform through the admin API. Release before 5 s. With no other fault, test the documented committed binding under an inactive parent and its `PLATFORM_NOT_ACTIVE` denial; for deletion, test S1's `409 PROVIDER_NOT_READY`, old pinned id and no mutation at P1. This does not claim atomic readiness. |
+| `z1–z5` | The matching and non-matching held V responses can coexist with operator revoke, disconnect or suspend. R3 supplies the cancellation-first oracle even when V failed; its supplemental decision-order fixture covers the full outcome table. Existing lost-S3 controls create the owned earlier record for `z5`, and public cleanup reads prove `fenced`, not `absent`. Existing ref/late-write cases stay mandatory. |
+| `aa`, `k1–k3` | The accepted simulation-off service restart reaches Canvas `UNKNOWN_PROFILE`. Empty Blackboard P0 can be deleted and recreated with the same client to isolate platform-id drift; missing P0 and a different-client recreation are also public fixtures. Fixed issuer drift and an isolated client comparator remain supplemental, not synthetic vendor behavior. |
+| `38(h)` and fresh `012` | Public API/CLI setup can create the specified old states and saved attempts. Preserve an old approved deployment/key and an issued add-deployment grant; upgrade and add another deployment without changing the first key. Use the corrected R1 oracles above. Snapshots' raw storage and atomic rollback need separate stopped-copy/unit evidence; API effects remain SIM. |
+
+R8's supplemental list supplies complete snapshot, partial snapshot, individual comparator, missing adapter, Canvas S1 URL/error mapping, post-commit audit, rollback-injection and throwing-LTI-client fixtures. They are explicitly outside SIM accounting. QA must use independent literal expectations; no production validator, response rewriting, vendor DNS/certificate spoofing or SSRF relaxation is needed.
+
+### Gate, execution and held file
+
+The prior command and resource plan remains applicable after design correction and a later implementation/test dispatch: exact frozen product/test SHAs, one QA stack at a time in the allocated lane, two full passes including the populated `011` upgrade, separate released-v10 Moodle migration/rollback, and unchanged legacy/T7 gates. Live provider evidence remains separate. No code or test execution is required to close this design recheck.
+
+R9 line 449 correctly preserves `services/cogniate-app/src/providers/canvas.ts` with its current Canvas owner until an explicit Lead transfer. QA owns common/Blackboard scenarios, the new host upgrade route and accounting; QA-E2E owns Canvas variants; Author owns product and colocated unit tests.
+
+**Held path for the Lead's exact-path commit:** `docs/reviews/M1/qa-target-snapshot.md`. Only this Round 2 append was written. Resolve the one MAJOR oracle conflict and carry the two MINOR corrections into the frozen proposal; then recheck the design. This is a delivered review, not proposal approval or product acceptance.
