@@ -29,11 +29,11 @@ Technical dependencies ("Depends on" in each file) are fewer: T2a and T4a need o
 
 ### Blackboard and Canvas phase (from 2026-10-20)
 
-Design: [ADR-011](../adr/ADR-011-multi-lms.md); SQLite storage: [ADR-012](../adr/ADR-012-sqlite-volume-storage.md) (proposed). Roles: from the owner's 2026-10-20 direction, every remaining task uses Claude Code Opus 5.5 xhigh; the model names below that say Codex record who did the earlier work. Order: M0 review → M1a ∥ M2 (against the contract) ∥ QA simulator → M1b → M2 integration → M3 → M4.
+Design: [ADR-011](../adr/ADR-011-multi-lms.md); SQLite storage: [ADR-012](../adr/ADR-012-sqlite-volume-storage.md) (proposed, revision 2; 63 AC-M1-41 rows, so 479 mandatory rows per full round). Roles: from the owner's 2026-10-20 direction, every remaining task uses Claude Code Opus 5.5 xhigh; the model names below that say Codex record who did the earlier work. Order: M0 review → M1a ∥ M2 (against the contract) ∥ QA simulator → M1b → M2 integration → M3 → M4.
 
 | Task | Title | Owner | Verified by | AC ids |
 | --- | --- | --- | --- | --- |
-| [M1](M1.md) | Backend: profiles, reserved issuers, signed product family, canonical site and service origins, deployments and generations, two-phase operator grants, operator containment, Canvas and Blackboard registration, guards, backup and restore, SQLite volume storage (ADR-012, proposed) (M1a LTI service, M1b app) | Author (Claude) | common QA (Codex in earlier rounds; an independent Claude session from 2026-10-20) | AC-M1-01 to AC-M1-41 |
+| [M1](M1.md) | Backend: profiles, reserved issuers, signed product family, canonical site and service origins, deployments and generations, two-phase operator grants, operator containment, Canvas and Blackboard registration, guards, backup and restore, SQLite volume storage (ADR-012 revision 2, proposed) (M1a LTI service, M1b app) | Author (Claude) | common QA (Codex in earlier rounds; an independent Claude session from 2026-10-20) | AC-M1-01 to AC-M1-41 |
 | [M2](M2.md) | Portal: Canvas and Blackboard cards, wizards with approval codes, routes, generic labels | Author-2 (Codex; any further Canvas repair: a dedicated Claude author) | QA-E2E (Claude) | AC-M2-01 to AC-M2-13 |
 | [M3](M3.md) | Simulator, independent QA, Moodle regression, live matrix | QA, QA-E2E | — | AC-M3-01 to AC-M3-07 |
 | [M4](M4.md) | Guides, review pack, final conformance | Docs, Architect | Reviewers | AC-M4-01 to AC-M4-08 |

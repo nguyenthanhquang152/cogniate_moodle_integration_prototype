@@ -1386,6 +1386,18 @@ Each returns to its original Claude Opus 5.5 xhigh session and appends to its ow
 They must not read another Round 2 report before submitting their own.
 No implementation starts until both design reviews and QA testability pass.
 
+The Architect submitted revision 2 in `msg_b724752eea63` and settled `task_05303c6abd7a` successfully.
+Its nine held files include `docs/architecture/review-response-storage.md`; the Lead checked every held SHA-256.
+The response hash is `78e6f1fb0940544f9b217ee9c7b27ec10df51bb036684862ad4ecfc36bb19188`.
+The ADR-012 hash is `77e7167c1fc38ad0d23664916a90ac578ebe08444743e8529791021657951c5d`.
+The worker is retained before acknowledgment. This settlement means the design correction is submitted, not independently approved.
+Revision 2 proposes narrow folder preparation, ordered start states, complete recovery rules, operation serialization and a quarantine exit.
+It defines old-build commands and test-tree provenance, with an ID-by-ID response to all three first reviews.
+Its proposed inventory is 479 rows per round: all 416 existing rows plus 63 storage rows.
+Only the host-negative storage row can report `NOT_APPLICABLE`, separately from PASS and with independent oracle evidence.
+Both reviewers and common QA must recheck this inventory, the normative rules and every original finding.
+All source, runtime, legacy, portal and Moodle verification gates remain required after implementation.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
