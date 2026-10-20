@@ -1284,6 +1284,28 @@ Historical results remain at their true SHAs. All 32 live LMS rows remain UNVERI
 Lead messages `msg_3a24ee1a3b97` and `msg_e39da706dc01` request honest closure of the current incomplete verification attempts.
 The dedicated QA sessions will be reused for the new storage candidate. No Docker window is currently assigned.
 
+Both current verification attempts are now settled as failed and incomplete, without changing any earlier result.
+Canvas QA settled in `msg_80f61df03efb`; common QA settled in `msg_8057e686ca30`.
+Both exact Claude sessions were retained before acknowledgment. Their reports are committed through `db20fbf`.
+The Lead rechecked the preserved Canvas judge and control hashes.
+No worker resource awaits cleanup. The Architect alone has an active task.
+
+Three independent design checks wait for the frozen storage contract:
+
+| Check | Task | Owned report |
+| --- | --- | --- |
+| Reviewer-A: correctness and data integrity | `task_e3cb869da7e7` | `docs/reviews/M0/storage-reviewer-a.md` |
+| Reviewer-B: operability and test claims | `task_fe7b1645e3a0` | `docs/reviews/M0/storage-reviewer-b.md` |
+| Common QA: design testability and acceptance map | `task_f86ec03635e4` | `docs/reviews/M0/storage-qa.md` |
+
+They reuse the dedicated Claude Opus 5.5 xhigh sessions and stay blind to each other's new reports until submission.
+Only these three workers may run beside the Lead after the Architect settles. None has a Docker window.
+
+The Architect completed the contract in `msg_72ef02268228` and the bounded index and role corrections in `msg_0c50613ff3ba`.
+Editorial task `task_01bc269cca8b` also corrected the diagnostic wording: A could not commit; no successful commit of A's row was proved.
+The eight architecture files are held and ready for a review freeze. ADR-012 remains Proposed.
+The Lead retained the Architect before acknowledgment. The next wave reviews this frozen design, with no implementation authority.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.

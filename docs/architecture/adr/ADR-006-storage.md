@@ -1,6 +1,6 @@
 # ADR-006: Storage — SQLite per service, package files on disk, caches in memory
 
-Status: Accepted (round 2). Date: 2026-10-16. Tables: [`data-model.md`](../data-model.md).
+Status: Accepted (round 2). Date: 2026-10-16. The storage **location** of the SQLite files is amended by [ADR-012](ADR-012-sqlite-volume-storage.md) (proposed, 2026-10-21); every other decision here stays. Tables: [`data-model.md`](../data-model.md).
 
 ## Context
 
@@ -20,7 +20,7 @@ The LTI service (registrations, keys, launches) and the Cogniate app (courses, p
 
 Option A.
 
-- Each service keeps its data under `/data` in its container (env `DATA_DIR`), a bind mount of `infra/.data/<service>`: `/data/lti.db`; `/data/cogniate.db`, `/data/packages/`, `/data/uploads/`. `stack:reset` deletes these folders.
+- Each service keeps its data under `/data` in its container (env `DATA_DIR`): `/data/lti.db`; `/data/cogniate.db`, `/data/packages/`, `/data/uploads/`. **Amended by ADR-012:** `/data` of each service is a project-scoped Docker named volume (`ltidb`, `appdb`) that holds only the SQLite files, and `/data/packages` and `/data/uploads` are nested binds of the unchanged host folders `infra/.data/cogniate-app/packages` and `…/uploads`. A storage preflight checks real WAL lock exclusion before a guarded start. `stack:reset` deletes the volumes and these folders. (Before ADR-012, `/data` was a bind mount of `infra/.data/<service>`; on the measured Docker Desktop host that bind mount does not enforce WAL locks between processes.)
 - Plain SQL migrations at start. No ORM. Portable SQL only.
 - **Migration rule (both services, one shared runner in `packages/shared` `migrations`):** each applied migration is stored with its SHA-256. If an applied migration file changed, the service stops at start with a clear message. Never edit an applied migration; add a new one.
 - Repository modules are the only code that touches SQL. Every tenant-owned query takes the tenant id as a required argument.

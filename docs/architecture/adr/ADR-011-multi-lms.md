@@ -386,20 +386,26 @@ Migration (forward only, additive; no table rebuild):
 - App `012_connection_provider_snapshot.sql` (M1, B-M1-03): `connection.target_issuer`, `connection.target_platform_id`, `connection.target_client_id`, nullable, written once at create, no backfill (data model §4.3). A Canvas or Blackboard row from an `011` build keeps `NULL`; app contract §4.7.3 gives its lifecycle and recovery. Blackboard connections use method `manual` and keep `lti_platform_id` `NULL`.
 - Old rows keep their behaviour: `standard` profile, site = issuer origin, deployments active, generation 0 (byte-identical service keys), LMS `moodle`. A `POST …/deployments` without `active` keeps the old default (active). Moodle routing does not use approvals.
 
-The two databases are `infra/.data/lti-service/lti.db` and `infra/.data/cogniate-app/cogniate.db` (with their `-wal` and `-shm` sidecars when present). The new revision adds two maintenance commands: `npm run stack:data-backup` and `npm run stack:data-restore`. They exist only in the new revision, so the procedure switches the **code** first while **both services stay stopped**.
+Storage (amended by [ADR-012](ADR-012-sqlite-volume-storage.md), proposed). The two databases are `lti.db` and `cogniate.db`, with their `-wal` and `-shm` sidecars when present.
+- From the candidate revision on, they live in the project volumes `<project>_ltidb` and `<project>_appdb`.
+- The older revisions `b0b83a8` and `9f96f7b` bind-mount them from `infra/.data/<service>/`. On a host where WAL locks fail on that bind mount, those revisions run only with the storage-compatibility override of ADR-012 §8, which mounts the same volumes. Their tracked product source stays unchanged.
+- The maintenance commands `npm run stack:data-backup`, `stack:data-restore` (journaled, with `--recover`) and `stack:data-import` exist only in the candidate revision. So the procedure switches the **code** first while **both services stay stopped**.
+- No step ever returns live data to a bind folder.
 
 Upgrade procedure (operator, maintenance window; same checkout, compose project, `.env`, keys and data):
 
-1. Stop the Cogniate app and the LTI service with the old revision's compose configuration. Check that both containers are stopped.
-2. Switch the checkout to the new revision. Install and build **without** starting either service.
-3. `npm run stack:data-backup -- --out <folder outside the checkout>`. The command refuses to run while either service runs. It copies both databases and their sidecars, reads each database's `schema_migration` names, and writes a manifest: backup id, time, compose project, source revision, and for each file its name, size and SHA-256. It verifies the copies against the manifest before it exits 0.
-4. Start the new revision. The migrations run at the first start.
+1. Stop the Cogniate app and the LTI service with the old revision's compose configuration (with the override, if it is active). Check that both containers are stopped.
+2. Disable the override (`npm run stack:storage-compat -- disable` from the candidate tree, if it was enabled). Switch the checkout to the new revision. Install and build **without** starting either service.
+3. `npm run stack:data-backup -- --out <folder outside the checkout>`. The command refuses to run while either service runs. It copies both databases and their sidecars from the volumes (read-only) and reads each database's `schema_migration` names from a scratch copy. It writes the manifest last: backup id, time, compose project, source revision, pair id, and for each file its name, size and SHA-256. It verifies the copies against the manifest before it exits 0.
+4. Start the new revision (`npm run stack:up`). The storage preflight runs first, then the migrations run at the first start.
+
+A bind-layout installation that has never used the volumes first runs the one-time import of ADR-012 §6: `stack:data-backup -- --source legacy`, then `stack:data-import`, with both services stopped.
 
 Rollback procedure (to the revision before the upgrade):
 
 1. Stop the Cogniate app and the LTI service. Keep the new revision checked out.
-2. `npm run stack:data-restore -- --from <folder>`. The command refuses to run while either service runs. It validates the **whole** backup before it changes anything: manifest form, backup id, compose project equal to the current one, every listed file present with its size and SHA-256. Any failure: exit 1 and no target file changes. Then it replaces exactly the two databases and their listed sidecars, and deletes a target `-wal` or `-shm` file that the backup does not list.
-3. Switch the checkout to the old revision, install and build it, and start it. It sees only the migrations it knows.
+2. `npm run stack:data-restore -- --from <folder>`. The command refuses to run while either service runs. It validates the **whole** backup before it changes anything: manifest form, backup id, compose project equal to the current one, every listed file present with its size and SHA-256. Any failure: exit 1 and no target file changes. Then it restores **both volumes as one pair** through the journal of ADR-012 §7. The old files stay in `.previous-<opId>/` until both volumes are verified; an unlisted target `-wal` or `-shm` file leaves its place. An interrupted restore refuses every start until `stack:data-restore -- --recover` ends in `committed` or a verified `rolled_back`.
+3. `npm run stack:storage-compat -- enable` (candidate tree), then switch the checkout to the old revision, install and build it. Run its storage preflight (`dc --profile storage run --rm storage-preflight`) and start it. It sees only the migrations it knows.
 
 WARNING: Rollback loses every Cogniate write after the backup: new connections, grants, platforms and deployments, launches, attempts, score sync rows and publication changes. Scores that the LMS already accepted stay in the LMS gradebook, but the portal no longer shows their sync rows. Canvas and Blackboard records made after the upgrade stay configured in the LMS, but their launches fail with `UNKNOWN_PLATFORM` after the restore. No migration ledger entry is ever edited or deleted. The backup folder contains secrets: keep it outside the checkout and outside shared evidence.
 
