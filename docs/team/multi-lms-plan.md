@@ -380,6 +380,17 @@ Any BLOCKER or MAJOR keeps the design gate closed.
 After approval, the Architect must apply the exact amendments before the author receives the implementation handoff.
 Proposal D8 does not transfer Canvas module ownership by itself; the Lead must make that assignment explicit.
 
+All three independent design reports request changes.
+Reviewer-A's report is committed as `5a08512`; Reviewer-B and QA reports are committed as `c447dd3`.
+The reports require local validation on all three redemption paths and consistent behavior for existing registered Canvas connections after migration.
+They also require exact readiness and cancellation outcomes, post-commit audit semantics, prior-attempt cleanup, and a complete test inventory.
+These are design findings. No product acceptance result follows from them.
+The same Architect is correcting proposal D in `task_1d0ecd7020a8`, dispatch `ctx_fc5241ad834d`.
+The Lead forwarded the final B and QA reports in `msg_0028acd06c91`.
+The Architect owns only `review-response-M1.md` for this revision.
+All three reviewing instances remain retained for independent rechecks of the frozen revision.
+The engine repair and QA audit follow-up wait for the accepted contract.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
