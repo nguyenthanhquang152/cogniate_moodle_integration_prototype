@@ -214,3 +214,27 @@ credit. The Lead now assigned the stack to Canvas QA for M2 and conditional
 T7. Our two complete four-phase M1 runs and remaining legacy suites stay on
 HOLD until that cleanup boundary and the source-review gates. No optional
 upgrade smoke or other stack was started.
+
+## A-M3-02 harness checkpoint — 2026-10-20
+
+The two remaining owned Blackboard gate-capture gaps are repaired. Grant
+refusal windows now observe all seven HTTP methods and all paths. Race
+windows retain all-method capture after a one-shot fault is consumed, with
+the specific fault first and the negative-window cursor read after setup.
+No refusal, zero-call, cancellation or recovery assertion was removed.
+
+The [M1 repair record](../M1/qa.md#capture-repair-checkpoint--a-m3-02-2026-10-20)
+records the owned audit and two actual-caller checks. The checks use an
+in-memory gate and inert product responses; they do not establish product
+behavior. Their negative control fails both old callers from `ae130a3`
+as expected. The final `node tests/host/run-m1.mjs --harness-only
+--provider all` passed 33 self-checks, typecheck and unchanged 416-row
+discovery. [Evidence and held hashes](/Users/quangnguyen/cogniate-qa-runs/m3-repair-A-M3-02-20261020T1311Z/preparation.json).
+
+At the Lead's request, the single shared secret recorder's accepted kind
+union now includes `play_id` and `picker_id`. Its storage and redaction are
+unchanged; Canvas QA owns the corresponding browser capture and diagnostics.
+No stack or product acceptance was run for this repair. M3 remains
+FAIL/incomplete. The two full M1 rounds, remaining legacy suites and
+independent M2/T7 evidence remain required after the new source-review,
+freeze and stack-handback gates.

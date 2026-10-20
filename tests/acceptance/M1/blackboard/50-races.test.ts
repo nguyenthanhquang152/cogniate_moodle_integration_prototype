@@ -3,10 +3,11 @@ import path from 'node:path';
 import { artifactsDir } from '../../lib/paths';
 import {
   admin, app, assert, cli, connPath, createConnection, denied, expectStatus, gateEvents, gatePhase,
-  gateReset, gateRules, host, httpsRequest, issueGrant, launch, logEvents, m1Test, pause,
+  gateReset, host, httpsRequest, issueGrant, launch, logEvents, m1Test, pause,
   poll, records, redeem, release, remote, session, sharedPlatform, unique, type Json,
 } from '../common/client';
 import { gradeWorks } from '../common/course';
+import { gateMark, watchAll } from '../common/snapshot';
 
 type Race = Awaited<ReturnType<typeof fresh>>;
 async function fresh() {
@@ -60,7 +61,7 @@ async function liveRelease(event: Json) {
   await poll(() => gateEvents(0, event.request_id), (rows) => rows.some((r) => r.phase === 'delivered'), 1000, 25);
 }
 async function scope(id: string, action: (p: Race) => Promise<void>) {
-  const p = await fresh(); await gateReset();
+  const p = await fresh(); await gateReset(); await watchAll();
   try {
     await action(p);
     const shared = await admin('GET', '/api/platforms/' + p.platformId); expectStatus(shared, 200);
@@ -82,7 +83,7 @@ function race(variant: string, title: string, body: (p: Race) => Promise<void>) 
   m1Test(id, title, () => scope(id, body), 240_000);
 }
 async function loseCreate(p: Race, action: 'fail_before' | 'drop_after') {
-  await gateRules([rule(p, 'create', 'S1', action)]);
+  await watchAll('pass', [rule(p, 'create', 'S1', action)]);
   expectStatus(await apply(p), 502, 'LTI_SERVICE_ERROR');
   assert.equal((await connection(p)).status, 'pending');
 }
@@ -99,7 +100,7 @@ race('b', 'lost S1 answer leaves an inactive generation-zero record that retry a
   assert.equal((await remote(p.platformId, p.deploymentId))?.bindingGeneration, 1);
 });
 race('d', 'dead handler retains the lease for 60 seconds and its late S3 loses to the retry', async (p) => {
-  await gateRules([rule(p, 'activate', 'S3', 'hold_before')]);
+  await watchAll('pass', [rule(p, 'activate', 'S3', 'hold_before')]);
   const started = Date.now(), first = apply(p).catch(() => null), held = await gatePhase('activate', 'held_before');
   assert.equal((await host('m1-restart', { service: 'cogniate-app' })).code, 0);
   await gatePhase('activate', 'caller_gone', 10_000); await first;
@@ -113,7 +114,7 @@ race('d', 'dead handler retains the lease for 60 seconds and its late S3 loses t
   await gradeWorks(await approved(p));
 });
 race('e', 'revocation during held S3 cancels approval and compensates with a new ref', async (p) => {
-  await gateRules([rule(p, 'activate', 'S3', 'hold_after')]);
+  await watchAll('pass', [rule(p, 'activate', 'S3', 'hold_after')]);
   const first = apply(p), held = await gatePhase('activate', 'held_after'), old = await remote(p.platformId, p.deploymentId);
   assert.equal((await cli('app:grant', ['revoke', '--grant', p.grant.id])).code, 0);
   await liveRelease(held); expectStatus(await first, 403, 'GRANT_INVALID');
@@ -123,9 +124,9 @@ race('e', 'revocation during held S3 cancels approval and compensates with a new
   expectStatus(await apply(p, replacement), 200); await approved(p);
 });
 race('f', 'replacement cannot start during a live lease and adopts after cancellation', async (p) => {
-  await gateRules([rule(p, 'activate', 'S3', 'hold_after')]);
+  await watchAll('pass', [rule(p, 'activate', 'S3', 'hold_after')]);
   const first = apply(p), held = await gatePhase('activate', 'held_after');
-  const replacement = await issueGrant(p.s, p.connection, p.deploymentId), cursor = (await gateEvents()).at(-1)!.seq;
+  const replacement = await issueGrant(p.s, p.connection, p.deploymentId), cursor = await gateMark();
   expectStatus(await apply(p, replacement), 409, 'GRANT_IN_USE');
   assert.equal((await gateEvents(cursor)).length, 0);
   await liveRelease(held); expectStatus(await first, 403, 'GRANT_INVALID');
@@ -133,7 +134,7 @@ race('f', 'replacement cannot start during a live lease and adopts after cancell
   expectStatus(await apply(p, replacement), 200); await approved(p);
 });
 race('g', 'disconnect during S3 fences the record and stale compensation cannot undo the fence', async (p) => {
-  await gateRules([rule(p, 'activate', 'S3', 'hold_after'),
+  await watchAll('pass', [rule(p, 'activate', 'S3', 'hold_after'),
     { ...rule(p, 'cleanup', 'S3', 'pass'), times: 10 }]);
   const first = apply(p), held = await gatePhase('activate', 'held_after');
   expectStatus(await app(p.s, 'DELETE', connPath(p.connection.id)), 204);
@@ -144,7 +145,7 @@ race('g', 'disconnect during S3 fences the record and stale compensation cannot 
   assert.equal((await connection(p)).status, 'disabled');
 });
 race('i', 'late S3 can create active remote state without app approval, then retry recovers', async (p) => {
-  await gateRules([rule(p, 'activate', 'S3', 'hold_before')]);
+  await watchAll('pass', [rule(p, 'activate', 'S3', 'hold_before')]);
   const first = apply(p), held = await gatePhase('activate', 'held_before');
   await gatePhase('activate', 'caller_gone', 7000); expectStatus(await first, 502, 'LTI_SERVICE_ERROR');
   await release(held.request_id); await upstream(held, 200);
@@ -183,7 +184,7 @@ race('l', 'pending reservation cannot switch deployment through CLI or redemptio
   expectStatus(await apply(p), 200);
 });
 race('m', 'failed compensation leaves no authority and repeated revoke repairs the record', async (p) => {
-  await gateRules([rule(p, 'activate', 'S3', 'hold_after'), rule(p, 'compensate', 'S3', 'fail_before')]);
+  await watchAll('pass', [rule(p, 'activate', 'S3', 'hold_after'), rule(p, 'compensate', 'S3', 'fail_before')]);
   const first = apply(p), held = await gatePhase('activate', 'held_after');
   assert.equal((await cli('app:grant', ['revoke', '--grant', p.grant.id])).code, 0);
   await liveRelease(held); expectStatus(await first, 403, 'GRANT_INVALID');
@@ -193,7 +194,7 @@ race('m', 'failed compensation leaves no authority and repeated revoke repairs t
   assert.equal((await remote(p.platformId, p.deploymentId))?.active, false);
 });
 async function staleCompensation(p: Race) {
-  await gateRules([rule(p, 'activate', 'S3', 'hold_after'), rule(p, 'compensate', 'S3', 'hold_before')]);
+  await watchAll('pass', [rule(p, 'activate', 'S3', 'hold_after'), rule(p, 'compensate', 'S3', 'hold_before')]);
   const first = apply(p), held = await gatePhase('activate', 'held_after');
   const replacement = await issueGrant(p.s, p.connection, p.deploymentId);
   await liveRelease(held);
@@ -210,7 +211,7 @@ race('n', 'late compensation loses to a successful replacement binding', async (
   await gradeWorks(await approved(p));
 });
 race('o', 'operator suspend fences a dead attempt and release waits for its lease', async (p) => {
-  await gateRules([rule(p, 'activate', 'S3', 'hold_before')]);
+  await watchAll('pass', [rule(p, 'activate', 'S3', 'hold_before')]);
   const start = Date.now(), first = apply(p).catch(() => null), held = await gatePhase('activate', 'held_before');
   assert.equal((await host('m1-restart', { service: 'cogniate-app' })).code, 0);
   await gatePhase('activate', 'caller_gone', 10_000); await first;
@@ -225,7 +226,7 @@ race('o', 'operator suspend fences a dead attempt and release waits for its leas
   assert.equal((await remote(p.platformId, p.deploymentId))?.active, false);
 });
 race('q', 'replacement creates first after old S1 times out and the old create cannot overwrite', async (p) => {
-  await gateRules([rule(p, 'create', 'S1', 'hold_before')]);
+  await watchAll('pass', [rule(p, 'create', 'S1', 'hold_before')]);
   const first = apply(p), held = await gatePhase('create', 'held_before');
   const replacement = await issueGrant(p.s, p.connection, p.deploymentId);
   assert.ok(Date.now() - Date.parse(held.ts) < 4500, 'BLOCKED: replacement CLI exceeded live schedule');
@@ -238,7 +239,7 @@ race('q', 'replacement creates first after old S1 times out and the old create c
 });
 race('r', 'replacement rereads when old compensation wins between S2 and S3', async (p) => {
   const { compensation, replacement } = await staleCompensation(p);
-  await gateRules([rule(p, 'replacement', 'S3', 'hold_before'), { ...rule(p, 'retry', 'S3', 'pass'), times: 3 }]);
+  await watchAll('pass', [rule(p, 'replacement', 'S3', 'hold_before'), { ...rule(p, 'retry', 'S3', 'pass'), times: 3 }]);
   const next = apply(p, replacement), held = await gatePhase('replacement', 'held_before');
   await release(compensation.request_id); await upstream(compensation, 200);
   assert.equal((await remote(p.platformId, p.deploymentId))?.active, false);

@@ -281,3 +281,66 @@ remaining legacy suites are still required after source review and the next
 clean handback. The old-011 upgrade, released-v10 Moodle rollback and
 real-provider matrix were not exercised by this preflight. No live
 Blackboard or Canvas result is claimed.
+
+## Capture repair checkpoint — A-M3-02, 2026-10-20
+
+Verdict for this checkpoint only: **PASS, HARNESS ONLY**. Overall M1 stays
+FAIL/incomplete. The Lead authorized this repair after Reviewer-A identified
+two older Blackboard callers with incomplete gate capture.
+
+`30-grants.test.ts` now arms all seven method rules on every path before
+reading its cursor. The former four-method `/api/` filter could miss HEAD,
+PUT, OPTIONS and other paths. Its remote-state, simulator-call and zero-gate-
+event assertions remain. `50-races.test.ts` now places each specific fault
+before all seven capture rules, including the opening window after reset.
+The replacement-under-live-lease case reads its cursor after replacement
+issuance. Capture remains active after the one-shot PATCH hold is consumed;
+its zero-call, refusal, cancellation and successful recovery checks remain.
+
+The two new checks execute the actual unchanged caller source through
+TypeScript transpilation and the actual in-memory gate boundary. Inert
+public-response stubs only let the caller reach its observation assertion;
+they are not product or binding oracles. A clean no-call control passes.
+Fresh gate instances then inject each of GET, HEAD, POST, PUT, PATCH, DELETE
+and OPTIONS; each actual zero-call assertion rejects the injection. The
+grant caller also rejects a GET outside `/api/`. The race check proves that
+the original hold is still active during injection and is cleared on both
+success and failure. The clean control completes the caller's cancellation
+and recovery continuation.
+
+A disposable negative control used the two old callers from
+`ae130a3501f3a2502c6a34e36319629e3dcdfb09` with the new checks. Both new
+caller checks failed with `Missing expected rejection`, while the three
+existing gate checks passed. This expected exit 1 proves that these checks
+detect the old capture gaps; it is not a product failure result.
+[Negative-control record](/Users/quangnguyen/cogniate-qa-runs/m3-repair-A-M3-02-20261020T1311Z/old-callers-negative-control.json).
+
+The owned common/Blackboard audit covered every gate rule and no-call
+assertion. Snapshot opening, reset and retry windows already use the full
+capture helper. The remaining narrow rule in `60-containment.test.ts`
+checks one held request's upstream result by request ID; it makes no
+zero-traffic claim. Other simulator-service and rejected-host log assertions
+use different observation boundaries. No further instance of this gate
+capture gap was found in the owned files. Canvas callers were not edited.
+
+The Lead also authorized one shared type extension in
+`tests/acceptance/lib/lti.ts`: `recordSecret` accepts `play_id` and
+`picker_id`. Its one private recorder, storage and redaction behavior are
+unchanged. Canvas QA owns and validates the associated capture/diagnostic
+changes.
+
+Final local command:
+
+```sh
+node tests/host/run-m1.mjs --harness-only --provider all
+```
+
+It passed 33 self-checks, typecheck and discovery of 392 API cases plus 24
+host/browser rows, with no failed, skipped or cancelled self-check. These
+are working-tree checks, not a frozen acceptance run.
+[Final log](/Users/quangnguyen/cogniate-qa-runs/m3-repair-A-M3-02-20261020T1311Z/harness-only-final.log)
+and [held source hashes](/Users/quangnguyen/cogniate-qa-runs/m3-repair-A-M3-02-20261020T1311Z/preparation.json)
+retain the exact evidence. No stack was started. Both complete 416-row M1
+rounds and remaining legacy suites now require a new reviewed freeze and
+the Lead's exclusive stack handback; earlier partial and older-SHA evidence
+does not satisfy that requirement.

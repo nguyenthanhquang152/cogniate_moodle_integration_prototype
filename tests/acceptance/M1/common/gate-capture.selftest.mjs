@@ -5,7 +5,9 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { randomBytes } from 'node:crypto';
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import vm from 'node:vm';
+import ts from 'typescript';
 import { armCapture } from './gate-capture.mjs';
 import { received, onlyV, vBeforeMutation } from './snapshot-oracle.mjs';
 
@@ -142,4 +144,101 @@ test('HARNESS ONLY: reset/re-arm preserves separate negative and positive fault 
     ['PATCH', '/api/platforms/P/deployments/D']]) await gate.send(method, path);
   vBeforeMutation(await gate.controls.readEvents(), retry);
   assert.equal(gate.upstream.length, 3);
+});
+
+function loadCaller(name, gate, overrides = {}) {
+  // Execute the owned test caller unchanged. Product responses are inert stubs
+  // only to reach its observation assertion; this is not a product oracle.
+  const file = new URL('../blackboard/' + name, import.meta.url);
+  const code = ts.transpileModule(readFileSync(file, 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+  }).outputText;
+  const cases = new Map();
+  let cursor = 0, serial = 0, deployment = 'D';
+  const client = {
+    assert, APP: 'https://app.test', urls: { moodle: 'https://moodle.test' },
+    unique: (label) => label + '-' + ++serial,
+    m1Test: (id, _title, body) => cases.set(id, body),
+    gateRules: gate.controls.setRules,
+    gateReset: async () => { await gate.reset(); cursor = (await gate.controls.readEvents()).at(-1)?.seq ?? 0; },
+    gateEvents: async (since = cursor, requestId) => (await gate.controls.readEvents())
+      .filter((event) => event.seq > since && (!requestId || event.request_id === requestId)),
+    gatePhase: async (ruleId, phase) => client.poll(() => client.gateEvents(),
+      (events) => events.some((event) => event.rule_id === ruleId && event.phase === phase))
+      .then((events) => events.find((event) => event.rule_id === ruleId && event.phase === phase)),
+    poll: async (read, accept) => {
+      for (let step = 0; step < 100; step++) { const value = await read(); if (accept(value)) return value; }
+      assert.fail('In-memory gate did not reach its requested phase');
+    },
+    release: gate.release, records: async () => ({ cursor: 0, records: [] }),
+    noServiceCalls: async () => {},
+    sharedPlatform: async () => 'P', session: async () => ({ library: { id: 'L' } }),
+    connPath: (id) => '/app-api/connections/' + id,
+    createConnection: async () => ({ id: 'C', siteUrl: 'https://learn.test' }),
+    issueGrant: async (_s, _connection, id) => { deployment = id; return { id: 'G-' + ++serial }; },
+    remote: async () => ({ active: true }),
+    app: async () => ({ status: 200, json: { status: 'registered', platform: { id: 'P', deploymentIds: [deployment] } } }),
+    admin: async () => ({ status: 200, json: { deployments: [{ deploymentId: deployment }] } }),
+    logEvents: (event) => event === 'grant_redemption_cancelled' ? [{ reason: 'replaced' }] : [],
+    expectStatus: (answer, status, code) => {
+      assert.equal(answer.status, status);
+      if (code) assert.equal(answer.json.details.message, code);
+    },
+    ...overrides,
+  };
+  const modules = {
+    'node:fs': { writeFileSync() {} }, 'node:path': path,
+    '../../lib/paths': { artifactsDir: () => '/in-memory-evidence' },
+    '../common/client': client, '../common/course': {},
+    '../common/snapshot': {
+      gateMark: async () => (await gate.controls.readEvents()).at(-1)?.seq ?? 0,
+      watchAll: (action = 'pass', faults = []) => armCapture(gate.controls, { action, faults }),
+    },
+  };
+  const execute = vm.runInThisContext('(function(require, exports) {\n' + code
+    + '\nreturn typeof noMutation === "function" ? { noMutation } : {};\n})', { filename: file.pathname });
+  const exported = execute((specifier) => {
+    assert.ok(Object.hasOwn(modules, specifier), 'Unexpected caller dependency: ' + specifier);
+    return modules[specifier];
+  }, {});
+  return { ...exported, cases };
+}
+
+test('HARNESS ONLY: actual grant noMutation caller detects every method and a non-api path', async () => {
+  const pending = { platformId: 'P', deploymentId: 'D' };
+  await loadCaller('30-grants.test.ts', gateBoundary()).noMutation(pending, async () => {});
+  for (const [method, route] of [...methods.map((method) => [method, '/api/unexpected']), ['GET', '/outside-api']]) {
+    // An earlier captured method must not make a later blind method look caught.
+    const gate = gateBoundary(), { noMutation } = loadCaller('30-grants.test.ts', gate);
+    await assert.rejects(noMutation(pending, () => gate.send(method, route)),
+      (error) => error.code === 'ERR_ASSERTION' && /Grant rejection makes no LTI call/.test(error.message));
+  }
+});
+
+test('HARNESS ONLY: actual replacement-race caller detects injected calls while its one-shot hold remains active', async () => {
+  for (const injected of [null, ...methods]) {
+    const gate = gateBoundary();
+    let calls = 0;
+    const { cases } = loadCaller('50-races.test.ts', gate, {
+      redeem: async (_s, _connection, deploymentId) => {
+        const route = '/api/platforms/P/deployments/' + deploymentId;
+        if (++calls === 1) {
+          await gate.send('PATCH', route);
+          return { status: 403, json: { details: { message: 'GRANT_INVALID' } } };
+        }
+        if (calls === 2) {
+          assert.equal(gate.timers.size, 1, 'The original hold is still active during the negative window');
+          if (injected) await gate.send(injected, injected === 'GET' ? '/api/providers' : route);
+          return { status: 409, json: { details: { message: 'GRANT_IN_USE' } } };
+        }
+        return { status: 200 };
+      },
+    });
+    const run = cases.get('M1-37.blackboard.f');
+    assert.equal(typeof run, 'function');
+    if (injected) await assert.rejects(run(),
+      (error) => error.code === 'ERR_ASSERTION' && error.expected === 0 && error.actual > 0);
+    else await run(); // The original cancellation/recovery continuation still runs.
+    assert.equal(gate.timers.size, 0, 'The caller resets its hold on success and failure');
+  }
 });

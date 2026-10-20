@@ -1,8 +1,9 @@
 import {
   APP, app, assert, bound, cli, connPath, createConnection, expectStatus, gateEvents, gateReset,
-  gateRules, httpsRequest, issueGrant, logEvents, m1Test, noServiceCalls, pause, records,
+  httpsRequest, issueGrant, logEvents, m1Test, noServiceCalls, pause, records,
   redeem, remote, session, sharedPlatform, unique, urls,
 } from '../common/client';
+import { watchAll } from '../common/snapshot';
 
 async function pending(library: 'A' | 'B' = 'A', siteUrl = 'https://learn-a.blackboard.sim.test') {
   const platformId = await sharedPlatform(), s = await session(library), connection = await createConnection(s, { siteUrl });
@@ -12,9 +13,7 @@ async function pending(library: 'A' | 'B' = 'A', siteUrl = 'https://learn-a.blac
 async function noMutation(p: Awaited<ReturnType<typeof pending>>, run: () => Promise<void>) {
   const before = await remote(p.platformId, p.deploymentId);
   const cursor = (await records()).cursor;
-  await gateReset(); await gateRules(['GET', 'POST', 'PATCH', 'DELETE'].map((method) =>
-    ({ id: unique('no-call'), method, pathRegex: '^/api/', action: 'pass', times: 10000 })));
-  const events = await gateEvents(), seq = events.at(-1)?.seq ?? 0;
+  await gateReset(); const seq = await watchAll();
   try { await run(); assert.deepEqual(await remote(p.platformId, p.deploymentId), before); await noServiceCalls(cursor);
     assert.equal((await gateEvents(seq)).length, 0, 'Grant rejection makes no LTI call');
   } finally { await gateReset(); }
