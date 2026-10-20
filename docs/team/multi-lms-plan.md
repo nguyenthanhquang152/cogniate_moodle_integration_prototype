@@ -405,6 +405,15 @@ The independent recheck wave uses exact `caa35412887aa7c4b762a2c82be5fd12a984db9
 Handoffs are `msg_f49fa5cc459b`, `msg_d77e73ef389d`, and `msg_b014cce0238f`.
 The Architect remains retained. Review completion alone will not open the implementation gate; the verdicts must approve the design.
 
+QA's revision-2 report is committed as `9eb5da3`; Reviewer-B's report is committed as `6222358`.
+They close the original readiness, registered Canvas lifecycle, prior-history cleanup, and bounded audit gaps.
+Two MAJOR findings remain: a wrong registered-nonrepeat migration oracle, and incomplete recovery steps for old pending connections.
+The intended fixes preserve grant-first validation and use the accepted suspend, fence, and release procedure.
+Minor corrections cover target-construction wording, stable fresh-migration case IDs, and audit scope after restart.
+The Architect started bounded revision 3 in `task_68130407ba89`, dispatch `ctx_ebe383641cd8`, handoff `msg_3672b92b92d2`.
+It must incorporate Reviewer-A's final revision-2 report before settlement.
+The same file ownership and implementation gate remain in force.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
