@@ -70,8 +70,14 @@ The first provider-team wave was dispatched from `294114092b643766b5f552150038b8
 | Canvas and M2 browser test preparation | `task_b8c969c16053` | Queued for the next free slot and simulator interface |
 
 The first three reuse the same dedicated instances and the recorded model/effort settings.
-The Blackboard worker and Codex QA confirmed activity. Canvas dispatch delivery is recorded; its acceptance is pending.
+All three workers confirmed activity.
 The Lead will commit and transfer the backend and wizard interfaces at explicit checkpoints.
+Canvas's first wizard/DTO checkpoint passed its portal typecheck.
+It was committed on the Canvas branch as `1f8ebc5` and merged into integration as `c0b35ab`.
+This is WIP interface evidence, not product acceptance.
+The Blackboard owner received the typed wizard interface in `msg_b274eddbc535`.
+The provider-aware player text request is `msg_808ad19bf8c6`.
+Shared portal helper exports are planned in `msg_3e366e64c0b7` and forwarded in `msg_7b59a572eade`; they await a checked integration slice.
 
 ### Initial role assignment (history)
 

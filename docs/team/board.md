@@ -10,8 +10,8 @@ The Moodle release below is the completed baseline.
 | Task | Owner | Status | Evidence |
 | --- | --- | --- | --- |
 | M0 | Architect; independent QA and reviewers | Done for design scope | Round 3 at `158a4d8`: A APPROVE, B APPROVE, QA PASS for design testability. Nonblocking A-M0-11, A-M0-12 and B-M0-10 text corrections applied. No open BLOCKER or MAJOR. |
-| M1 | Blackboard and Canvas teams; one shared engine owner | Implementation dispatched | Tasks `task_9522839fff91` and `task_11fc3a40e7a0`; [exclusive paths and handoffs](multi-lms-team-brief.md). |
-| M2 | Blackboard and Canvas teams; one owner per shared portal file | Implementation dispatched | Canvas/shared portal first; Blackboard wizard follows the typed interface checkpoint. |
+| M1 | Blackboard and Canvas teams; one shared engine owner | In progress | Tasks `task_9522839fff91` and `task_11fc3a40e7a0`; [exclusive paths and handoffs](multi-lms-team-brief.md). |
+| M2 | Blackboard and Canvas teams; one owner per shared portal file | In progress | Wizard/DTO checkpoint `1f8ebc5` merged as `c0b35ab`; Author-2 portal typecheck passes. No independent product verification yet. |
 | M3 | QA (Codex), QA-E2E (Claude) | Test preparation started | Common/Blackboard QA `task_33fd8359458d`; Canvas/browser QA queued. Real Canvas and Blackboard checks remain unverified. |
 | M4 | Docs and Architect | Planned | Guides, review pack, final conformance. |
 
