@@ -48,3 +48,17 @@ Exact final artifact candidate: `39c401ae7247547a6a503414ffa699aaea6fb884`. Its 
 All seven owned Orca worker resources were released after successful settlement. No active or reclaimable worker remains in `run_249322a81631`. Superseded planning tasks launched no worker; reused-dispatch records hold no additional terminal resource. QA removed its own containers, volumes and networks. All ten baseline containers remained unchanged during QA.
 
 The 25 [human decisions](../human_review/decisions-needed.md) remain open where stated. HR-1 needs Vietnamese approval; HR-2 needs unfamiliar-human follow-up. P2 confirmation cannot prevent an arbitrarily late older remote write. Migration 010 cannot recover unrecorded sends from before the upgrade. These limits and the [accepted deferrals](../human_review/deferred.md) are explicit; no human approval is implied.
+
+## Lead validation — 2026-10-20
+
+`feat/moodle-lti-prototype` is fast-forwarded to the continuation result `3f934ee` (no merge commit). The Claude QA in-progress test files from `c3f6d13` are kept in `git stash` (three are identical to the fork; the fork's `T5b/8-supersede.spec.ts` is newer and was the one run).
+
+| Check | Result |
+| --- | --- |
+| Product code at `3f934ee` | Same as `d54c607`; no product or test change after it. |
+| `npm run check` in this checkout (course fixtures present) | PASS: 48 files, 708 tests, 0 skipped. Without the course zips, 5 fixture tests skip (703 + 5). |
+| Independent cross-team T7 (Claude QA-E2E, fresh clone of `3f934ee`, suite at that SHA) | PASS: 17 tests, 0 fail, 173 s; 0 of 45 captured secrets in the logs; `demo:prepare` 8.3 s, player reached. Evidence is git-ignored in `~/cogniate-qa-runs/`. |
+| Board, QA, reviews, Architect conformance | All tasks done; T9 PASS (1a6f92c), Reviewer-A (ad1db2d) and Reviewer-B (20c12e2) APPROVE, Architect APPROVE (533141e). |
+| `flows.md` check | Up to date. |
+
+Open for humans (not agent work): the decisions in `docs/human_review/decisions-needed.md` (Q1 legal claim first), HR-1 (Vietnamese narration review) and HR-2 (an unfamiliar person runs the guides).
