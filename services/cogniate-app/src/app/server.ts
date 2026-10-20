@@ -19,7 +19,6 @@ import { registerPlayPages, registerPlayStatusRoute } from '../tool-pages/play.t
 import { registerRegisterPages } from '../tool-pages/register.ts';
 import { registerCanvasConfigurationRoutes } from './canvas-configuration.ts';
 import { registerCanvasDeploymentRoutes } from './canvas-deployments.ts';
-import { createTargetResolver } from './binding-targets.ts';
 import { createBindingCleanup } from './binding-cleanup.ts';
 import type { connectionJson } from './connections.ts';
 import { connectionDto, registerConnectionRoutes } from './connections.ts';
@@ -129,7 +128,7 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
   }));
 
   // The ONE redemption and cleanup engine of every binding (app contract §4.7.1, §4.9).
-  const engine = createRedemptionEngine({ db: deps.db, lti: deps.lti, logger: log, now, resolve: createTargetResolver({ db: deps.db, lti: deps.lti }) });
+  const engine = createRedemptionEngine({ db: deps.db, lti: deps.lti, logger: log, now });
   const cleanup = createBindingCleanup({ db: deps.db, lti: deps.lti, logger: log, now });
 
   // Portal API. The hooks of this scope run only for its routes, before the body is read.

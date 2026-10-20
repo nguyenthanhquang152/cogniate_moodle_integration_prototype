@@ -1,8 +1,9 @@
 // The common grant redemption engine (app contract §4.7.1, ADR-011 §4a). ONE engine for every binding: Canvas
 // `PUT …/platform` (initial), Canvas `POST …/deployments` (add_deployment) and Blackboard `PUT …/platform` (initial).
 //
-//   phase 1 (one BEGIN IMMEDIATE transaction): grant, connection, values, lease, reservation -> attempt + lease
-//   S0 before EVERY LTI call: the lease holds this attempt with >= 6 s left (and, before S1-S3, grant and state)
+//   phase 1 (one BEGIN IMMEDIATE transaction): grant, connection, snapshot, values, lease, reservation -> attempt + lease
+//   S0 before EVERY LTI call: the lease holds this attempt with >= 6 s left (and, before V/S1-S3, grant and state)
+//   V (Blackboard initial only): provider read, then cancellation-first readiness decision
 //   S1 staged create (inactive, write-ahead ref c) | S2 read + adoption rule (A1-A3) | S3 conditional activation (ref a)
 //   phase 2 (one BEGIN IMMEDIATE transaction): lease, grant, state, S3 ok -> approval + redeemed
 //   otherwise: compensation (only our own activation ref, write-ahead ref x), cancel
@@ -18,28 +19,17 @@ import {
   recordRef, refRow, reservationOf, reservationOfConnection, setAttemptPlatform, setReservationRef, takeLease, writeApproval, writeReservation,
 } from '../domain/bindings.ts';
 import type { Connection, PlatformInfo } from '../domain/connections.ts';
-import { getConnection, getConnectionAnyLibrary } from '../domain/connections.ts';
+import { completeSnapshot, getConnection, getConnectionAnyLibrary } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
 import type { BindingTarget, GrantPurpose, PlatformBodyValues, RedemptionRequest } from '../providers/types.ts';
-import { ApiError } from './api-errors.ts';
+import { ApiError, providerNotReady } from './api-errors.ts';
+import type { LocalTarget, ReadinessCause } from './binding-targets.ts';
+import { localTarget, s1ReadinessCause, sharedReadiness, stagedCall } from './binding-targets.ts';
 
 export interface RedemptionEngine {
   /** Redeem a grant (or answer a finalized repeat). Throws the contract ApiError on any refusal. */
   redeem(request: RedemptionRequest): Promise<Connection>;
-}
-
-/** What the caller resolved before phase 1 (from GET /api/providers and the adapter). */
-export interface RedemptionTarget {
-  target: BindingTarget;
-  /** The S1 call (built by the adapter; the engine adds `active: false` and the write-ahead ref). */
-  create: (ref: string) => Promise<{ platformId: string }>;
-  /** Canonical issuer of the target platform (Canvas: profile issuer or site; Blackboard: the shared issuer). */
-  issuer: string;
-  /** Client id of the target (Canvas add_deployment: the connection platform's client id; Blackboard: the shared one). */
-  clientId: string;
-  /** Product family stored in the connection's platform view (null until the first launch tells it). */
-  productFamilyCode: string | null;
 }
 
 export interface RedemptionDeps {
@@ -47,8 +37,6 @@ export interface RedemptionDeps {
   lti: LtiClient;
   logger: Logger;
   now: () => number;
-  /** Resolves the target and the S1 call of a request (adapter + provider data); throws the contract ApiError. */
-  resolve: (connection: Connection, purpose: GrantPurpose, values: PlatformBodyValues, traceId: string) => Promise<RedemptionTarget>;
 }
 
 const startState = (purpose: GrantPurpose, c: Connection): boolean =>
@@ -75,6 +63,10 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
     log.warn('grant_rejected', { reason, connection_id: connectionId });
     throw err;
   };
+  const notReady = (c: Connection, cause: ReadinessCause, traceId: string): never => {
+    log.warn('provider_not_ready', { trace_id: traceId, connection_id: c.id, profile: c.profile, cause });
+    throw providerNotReady();
+  };
 
   /** Finalized repeats (§4.4, §4.7.2): no grant check, no LTI call. */
   function finalizedRepeat(c: Connection, purpose: GrantPurpose, values: PlatformBodyValues): boolean {
@@ -87,7 +79,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
   }
 
   /** Phase 1 (§4.7.1): checks 1 to 7 in order; on success the attempt, the lease and the Blackboard reservation. */
-  function phase1(req: RedemptionRequest, resolved: RedemptionTarget, traceId: string): { attempt: Attempt; grant: Grant } {
+  function phase1(req: RedemptionRequest): { connection: Connection; attempt: Attempt; grant: Grant; resolved: LocalTarget } {
     return transaction(db, () => {
       const t = now();
       const connection = getConnection(db, req.libraryId, req.connectionId);
@@ -106,6 +98,10 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       if (grant.purpose !== req.purpose) return invalid('purpose');
       // 4. start state
       if (!startState(req.purpose, connection)) throw stateError(req.purpose);
+      // 4a. Only initial needs a complete snapshot; old registered rows can add deployments without it.
+      const snapshot = req.purpose === 'initial' ? completeSnapshot(connection) : null;
+      if (req.purpose === 'initial' && !snapshot) return notReady(connection, 'no_snapshot', req.traceId);
+      const resolved = localTarget(connection, req.purpose, req.values, snapshot);
       // 5. values
       const target = resolved.target;
       if (grant.lms !== connection.lms || grant.profile !== connection.profile || grant.siteUrl !== connection.siteUrl || grant.serviceUrl !== connection.serviceUrl) {
@@ -135,8 +131,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       if (target.kind === 'shared_deployment') {
         writeReservation(db, { platformId: target.platformId, deploymentId: target.deploymentId, connectionId: connection.id, libraryId: connection.libraryId, bindingRef: attempt.attemptId }, t);
       }
-      log.info('grant_attempt_started', { trace_id: traceId, grant_id: grant.id, connection_id: connection.id, attempt_id: attempt.attemptId });
-      return { attempt, grant };
+      return { connection, attempt, grant, resolved };
     });
   }
 
@@ -146,9 +141,11 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       const connection = getConnection(db, req.libraryId, req.connectionId);
       if (!connection) throw new ApiError('NOT_FOUND', 'The connection does not exist in your library.');
       if (finalizedRepeat(connection, req.purpose, req.values)) return connection;
-      const resolved = await deps.resolve(connection, req.purpose, req.values, traceId);
-      const { attempt, grant } = phase1(req, resolved, traceId);
-      return runAttempt(connection, attempt, grant, resolved, traceId);
+      const committed = phase1(req);
+      const { attempt, grant, resolved } = committed;
+      // A refusal or rollback must never produce this event. No LTI request has run yet.
+      log.info('grant_attempt_started', { trace_id: traceId, grant_id: grant.id, connection_id: connection.id, attempt_id: attempt.attemptId, purpose: attempt.purpose });
+      return runAttempt(committed.connection, attempt, grant, resolved, traceId);
     },
   };
 
@@ -167,8 +164,9 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
     });
   }
 
-  async function runAttempt(c: Connection, attempt: Attempt, grant: Grant, resolved: RedemptionTarget, traceId: string): Promise<Connection> {
+  async function runAttempt(c: Connection, attempt: Attempt, grant: Grant, resolved: LocalTarget, traceId: string): Promise<Connection> {
     const target = resolved.target;
+    const create = stagedCall({ db, lti }, c, target, traceId);
     let platformId: string | null = target.kind === 'exclusive_platform' ? target.platformId : target.platformId;
     let activationRef: string | null = null; // ref `a` of a successful S3
     const fail = (err: unknown): never => {
@@ -192,10 +190,53 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
         throw new LtiFailure(err);
       }
     };
+    // Every V result, including failure, and each readiness answer of S1 passes this one ordered decision.
+    const afterReadiness = (result: { kind: 'matched' } | { kind: 'failed'; error: unknown } | { kind: 'not_ready'; cause: ReadinessCause }): void => {
+      const cancellation = transaction(db, (): CancelReason | null => {
+        const fresh = getConnectionAnyLibrary(db, c.id)!;
+        const g = getGrant(db, grant.id)!;
+        let reason: CancelReason | null = null;
+        if (fresh.redeemingAttempt !== attempt.attemptId) reason = 'taken_over';
+        else if (!startState(attempt.purpose, fresh)) reason = 'connection_changed';
+        else if (g.revokedAt !== null) reason = g.revokedReason === 'replaced' ? 'replaced' : 'revoked';
+        if (reason !== null || result.kind !== 'matched') {
+          if (reason !== 'taken_over') clearLease(db, c.id, attempt.attemptId);
+          endAttempt(db, attempt.attemptId, reason === null ? 'failed' : 'cancelled', now());
+        }
+        return reason;
+      });
+      if (cancellation !== null) {
+        log.warn('grant_redemption_cancelled', { trace_id: traceId, grant_id: grant.id, connection_id: c.id, reason: cancellation });
+        if (cancellation === 'connection_changed') throw stateError(attempt.purpose);
+        throw new ApiError('GRANT_INVALID', 'This approval code is not valid, was used, or expired.');
+      }
+      if (result.kind === 'not_ready') return notReady(c, result.cause, traceId);
+      if (result.kind === 'failed') {
+        const err = result.error;
+        throw new ApiError('LTI_SERVICE_ERROR', `The LTI service answered ${err instanceof LtiServiceError ? `${err.status || 'nothing'} (${err.code})` : 'nothing'}. Trace id: ${traceId}`);
+      }
+    };
 
     try {
       let expected: string | null = null;
       let stop = false;
+      // ---------------------------------------------------------------- V (Blackboard initial only)
+      if (target.kind === 'shared_deployment' && attempt.purpose === 'initial') {
+        const guard = s0(c, attempt, grant.id, 'step');
+        if (guard === 'taken_over' || guard === 'lease_lost') return leaseStop(guard);
+        if (guard === 'stop') stop = true;
+        else {
+          let result: Parameters<typeof afterReadiness>[0];
+          try {
+            const rows = await lti.getProviders(traceId);
+            const cause = sharedReadiness(rows.find((p) => p.id === c.profile), completeSnapshot(c)!);
+            result = cause ? { kind: 'not_ready', cause } : { kind: 'matched' };
+          } catch (error) {
+            result = { kind: 'failed', error };
+          }
+          afterReadiness(result);
+        }
+      }
       // ---------------------------------------------------------------- S1 staged create
       const g1 = s0(c, attempt, grant.id, 'step');
       if (g1 === 'taken_over' || g1 === 'lease_lost') return leaseStop(g1);
@@ -204,12 +245,14 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       if (!stop) {
         const ref = recordRef(db, { connectionId: c.id, attemptId: attempt.attemptId, grantId: grant.id, action: 'create', platformId, deploymentId: attempt.deploymentId }, now());
         try {
-          const created = await resolved.create(ref);
+          const created = await create(ref);
           platformId = created.platformId;
           setAttemptPlatform(db, attempt.attemptId, platformId);
           expected = ref;
         } catch (err) {
-          if (err instanceof LtiServiceError && err.status === 409 && (err.code === 'PLATFORM_ALREADY_EXISTS' || err.code === 'DEPLOYMENT_ALREADY_EXISTS')) goS2 = true;
+          const readinessCause = s1ReadinessCause(target, attempt.purpose, err);
+          if (readinessCause) afterReadiness({ kind: 'not_ready', cause: readinessCause });
+          else if (err instanceof LtiServiceError && err.status === 409 && (err.code === 'PLATFORM_ALREADY_EXISTS' || err.code === 'DEPLOYMENT_ALREADY_EXISTS')) goS2 = true;
           else return fail(err);
         }
       }
@@ -317,7 +360,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
   }
 
   /** Phase 2 (§4.7.1). On success the approval and the connection change commit together. */
-  function phase2(c: Connection, attempt: Attempt, grant: Grant, target: BindingTarget, platformId: string | null, activationRef: string | null, resolved: RedemptionTarget, traceId: string)
+  function phase2(c: Connection, attempt: Attempt, grant: Grant, target: BindingTarget, platformId: string | null, activationRef: string | null, resolved: LocalTarget, traceId: string)
     : { ok: true; connection: Connection } | { ok: false; reason: CancelReason } {
     return transaction(db, () => {
       const t = now();

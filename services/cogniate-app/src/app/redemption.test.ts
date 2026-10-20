@@ -2,7 +2,8 @@
 // LTI service models deployments, binding refs, generations and the M3 §3.3 fault actions (fail_before, drop_after,
 // late write, live schedules). Black-box evidence is QA's (AC-M1-28, -29, -37, -38).
 import { createLogger } from '@cogniate/shared';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { LtiServiceError } from '../clients/lti-client.ts';
 import type { LtiIdToken } from '../clients/lti-client.ts';
 import { getGrant, grantsOfConnection, insertGrant, reservationOfConnection } from '../domain/bindings.ts';
 import { getConnectionAnyLibrary } from '../domain/connections.ts';
@@ -631,5 +632,550 @@ describe('app text tables (§6.1): Moodle texts byte for byte', () => {
     expect(m(PICKER_ERRORS.PUBLICATION_NOT_AVAILABLE.action)).toBe('This course is not available for this Moodle site. In Moodle, use Select content again and choose one available course.');
     expect(m(PICKER_ERRORS.LTI_SERVICE_ERROR.action)).toBe('Cogniate could not send the course to Moodle. In Moodle, use Select content again. If it happens again, give the trace id to your Moodle administrator.');
     expect(withLms(LAUNCH_ERRORS.UNKNOWN_PLATFORM.action, 'Canvas')).toBe('This Canvas site is not connected to Cogniate. Tell your Canvas administrator.');
+  });
+});
+
+// B-M1-03 (app contract §4.7.1: phase 1 runs its local checks and takes the lease BEFORE any LTI service call).
+// These six held regressions failed before the accepted snapshot repair.
+describe('B-M1-03: a phase-1 refusal makes no LTI call (§4.7.1)', () => {
+  const UNKNOWN_CODE = 'x'.repeat(43);
+  const connectionOf = (lms: 'blackboard' | 'canvas', cookie: string) => (lms === 'blackboard' ? bbConnection(cookie) : canvasConnection(cookie));
+  const put = (lms: 'blackboard' | 'canvas', cookie: string, con: Json, grantCode: string) =>
+    (lms === 'blackboard' ? putBb(cookie, con, 'dA', grantCode) : putCanvas(cookie, con, 'dA', grantCode));
+
+  it.each([
+    ['blackboard', false], ['blackboard', true], ['canvas', false], ['canvas', true],
+  ] as const)('%s: an unknown code answers 403 GRANT_INVALID with zero outbound calls (provider outage: %s)', async (lms, outage) => {
+    const { a } = await setup();
+    const con = await connectionOf(lms, a);
+    t.lti.calls.length = 0;
+    if (outage) t.lti.failNext = { code: 'UNAVAILABLE', status: 503 };
+    const r = await put(lms, a, con, UNKNOWN_CODE);
+    expect([r.status, code(r), t.lti.calls]).toEqual([403, 'GRANT_INVALID', []]);
+    t.lti.failNext = null;
+    expect(getConnectionAnyLibrary(t.db, con.id)).toMatchObject({ status: 'pending', redeemingAttempt: null });
+  });
+
+  it.each(['blackboard', 'canvas'] as const)('%s: a valid grant while another attempt holds the live lease answers 409 GRANT_IN_USE with zero outbound calls', async (lms) => {
+    const { op, a, libA } = await setup();
+    const con = await connectionOf(lms, a);
+    const g = await grant(op, libA, con, 'dA');
+    t.db.prepare('UPDATE connection SET redeeming_attempt = ?, redeeming_since = ? WHERE id = ?').run('att_live', t.clock.now, con.id);
+    t.lti.calls.length = 0;
+    const r = await put(lms, a, con, g.code);
+    expect([r.status, code(r), t.lti.calls]).toEqual([409, 'GRANT_IN_USE', []]);
+    // Nothing changed: the grant is still open and the lease still holds the other attempt.
+    expect(getGrant(t.db, g.id)).toMatchObject({ redeemedAt: null, revokedAt: null });
+    expect(getConnectionAnyLibrary(t.db, con.id)).toMatchObject({ status: 'pending', redeemingAttempt: 'att_live' });
+    expect(reservationOfConnection(t.db, con.id)).toBeUndefined();
+  });
+});
+
+const UNKNOWN_CODE = 'x'.repeat(43);
+const NULL_SNAPSHOT = { issuer: null, platformId: null, clientId: null };
+const eraseSnapshot = (id: string) => t.db.prepare('UPDATE connection SET target_issuer = NULL, target_platform_id = NULL, target_client_id = NULL WHERE id = ?').run(id);
+const attempts = (id: string) => t.db.prepare('SELECT * FROM binding_attempt WHERE connection_id = ? ORDER BY seq').all(id);
+const assertNeutral = (r: Awaited<ReturnType<typeof call>>) => {
+  expect([r.status, code(r), r.json.details.description, r.json.details.action]).toEqual([
+    409, 'PROVIDER_NOT_READY', 'This LMS setup is not ready in Cogniate.',
+    'Ask your Cogniate operator to check the LMS setup for this connection. The operator tells you to try again later, or to make a new connection.',
+  ]);
+  expect(r.json.details).not.toHaveProperty('cause');
+  expect(r.json.details).not.toHaveProperty('reason');
+};
+
+type Endpoint = 'blackboard' | 'canvas' | 'add_deployment';
+async function endpoint(kind: Endpoint) {
+  const base = await setup();
+  const con = kind === 'blackboard' ? await bbConnection(base.a) : await canvasConnection(base.a);
+  const initial = await grant(base.op, base.libA, con, 'dA');
+  if (kind === 'add_deployment') expect((await putCanvas(base.a, con, 'dA', initial.code)).status).toBe(200);
+  const g = kind === 'add_deployment' ? await grant(base.op, base.libA, con, 'dB', { purpose: 'add_deployment' }) : initial;
+  const deploymentId = kind === 'add_deployment' ? 'dB' : 'dA';
+  const submit = (body: Json = {}) => call(kind === 'add_deployment' ? 'POST' : 'PUT',
+    `/app-api/connections/${con.id}/${kind === 'add_deployment' ? 'deployments' : 'platform'}`, base.a,
+    { ...(kind === 'canvas' ? { clientId: 'cA' } : {}), deploymentId, grantCode: g.code, ...body });
+  t.lti.calls.length = 0;
+  t.logs.length = 0;
+  return { ...base, con, g, submit, deploymentId };
+}
+
+describe('snapshot create, local configuration and operator reads (§4.2, §4.5, §4.8)', () => {
+  it('captures one authenticated response, hides the snapshot, ignores public snapshot fields and leaves Moodle local', async () => {
+    const { a, shared } = await setup();
+    t.lti.calls.length = 0;
+    const bb = await bbConnection(a);
+    expect(t.lti.calls).toEqual(['GET providers']);
+    expect(getConnectionAnyLibrary(t.db, bb.id)?.snapshot).toEqual({ issuer: 'https://blackboard.sim.test', platformId: shared.id, clientId: BB });
+    expect(bb).not.toHaveProperty('snapshot');
+    expect(JSON.stringify(bb)).not.toContain('target_');
+    t.lti.calls.length = 0;
+    const canvas = await call('POST', '/app-api/connections', a, {
+      name: 'Canvas', lms: 'canvas', profile: 'canvas-sim-cloud', method: 'manual', siteUrl: SCHOOL_A,
+      target_issuer: 'https://untrusted.test', snapshot: { issuer: 'https://untrusted.test' },
+    });
+    expect(canvas.status).toBe(201);
+    expect(t.lti.calls).toEqual(['GET providers']);
+    expect(getConnectionAnyLibrary(t.db, canvas.json.id)?.snapshot).toEqual({ issuer: 'https://canvas.sim.test', platformId: null, clientId: null });
+    t.lti.calls.length = 0;
+    const moodle = await call('POST', '/app-api/connections', a, { name: 'Moodle', siteUrl: TEST_URLS.moodle, method: 'manual' });
+    expect(moodle.status).toBe(201);
+    expect(t.lti.calls).toEqual([]);
+    expect(getConnectionAnyLibrary(t.db, moodle.json.id)?.snapshot).toEqual(NULL_SNAPSHOT);
+    expect(moodle.json).not.toHaveProperty('snapshot');
+  });
+
+  it('uses the canonical site for a self-hosted snapshot', async () => {
+    const { a } = await setup();
+    const canvas = t.lti.providers.find((p) => p.id === 'canvas-sim-cloud')!;
+    t.lti.providers.push({ ...canvas, id: 'canvas-self-hosted', issuer: '{siteUrl}', authenticationEndpoint: '{siteUrl}/api/lti/authorize_redirect', jwksUrl: '{siteUrl}/api/lti/security/jwks' });
+    const r = await call('POST', '/app-api/connections', a, { name: 'Self', siteUrl: 'HTTPS://Canvas.School.EDU:443/', serviceUrl: 'https://root.school.edu', method: 'manual', lms: 'canvas', profile: 'canvas-self-hosted' });
+    expect(r.status).toBe(201);
+    expect(getConnectionAnyLibrary(t.db, r.json.id)?.snapshot.issuer).toBe('https://canvas.school.edu');
+  });
+
+  it('logs create-time readiness with connection_id null and the neutral text', async () => {
+    const { a, shared } = await setup();
+    shared.active = false;
+    const before = t.db.prepare('SELECT COUNT(*) AS n FROM connection').get();
+    const r = await call('POST', '/app-api/connections', a, { name: 'Learn', siteUrl: LEARN_A, method: 'manual', lms: 'blackboard', profile: 'blackboard-sim' });
+    assertNeutral(r);
+    expect(events('provider_not_ready')).toHaveLength(1);
+    expect(events('provider_not_ready')[0]).toMatchObject({ connection_id: null, profile: 'blackboard-sim', cause: 'platform_inactive' });
+    expect(t.db.prepare('SELECT COUNT(*) AS n FROM connection').get()).toEqual(before);
+  });
+
+  it('Blackboard configuration and optional clientId use snapshot then old persisted platform, never provider data', async () => {
+    const { a, op, libA, shared } = await setup();
+    const con = await bbConnection(a);
+    const g = await grant(op, libA, con, 'dA');
+    expect((await putBb(a, con, 'dA', g.code)).status).toBe(200);
+    shared.clientId = 'changed'; shared.active = false;
+    t.lti.calls.length = 0;
+    const rows = await call('GET', `/app-api/connections/${con.id}/tool-configuration`, a);
+    expect(rows.json[0]).toMatchObject({ key: 'client_id', value: BB });
+    const repeat = { deploymentId: 'dA', grantCode: UNKNOWN_CODE, clientId: BB };
+    expect((await call('PUT', `/app-api/connections/${con.id}/platform`, a, repeat)).status).toBe(200);
+    expect(code(await call('PUT', `/app-api/connections/${con.id}/platform`, a, { ...repeat, clientId: 'changed' }))).toBe('INVALID_PLATFORM_VALUES');
+    eraseSnapshot(con.id);
+    expect((await call('GET', `/app-api/connections/${con.id}/tool-configuration`, a)).json[0].value).toBe(BB);
+    expect((await call('PUT', `/app-api/connections/${con.id}/platform`, a, repeat)).status).toBe(200);
+    expect(t.lti.calls).toEqual([]);
+  });
+
+  it.each(['blackboard', 'canvas'] as const)('%s initial issue reads once, fails closed on drift/outage, and never replaces a grant on failure', async (kind) => {
+    const { con, g, op, libA, shared } = await endpoint(kind);
+    const input = { library: libA, connection: con.id, site: con.siteUrl, clientId: kind === 'blackboard' ? BB : 'cA', deploymentId: 'dA', note: 'ticket', traceId: 'issue' };
+    const before = grantsOfConnection(t.db, con.id);
+    t.lti.failNext = { status: 503, code: 'UNAVAILABLE' };
+    expect((await op.issue(input)).exitCode).toBe(1);
+    expect(t.lti.calls).toEqual(['GET providers']);
+    t.lti.calls.length = 0;
+    if (kind === 'blackboard') { shared.clientId = 'other'; shared.active = false; }
+    else t.lti.providers.find((p) => p.id === con.profile)!.issuer = 'https://changed.test';
+    const refused = await op.issue(input);
+    expect(refused.exitCode).toBe(1);
+    expect(refused.lines[0]).toContain('changed after this connection was made');
+    expect(t.lti.calls).toEqual(['GET providers']);
+    expect(grantsOfConnection(t.db, con.id)).toEqual(before);
+    expect(getGrant(t.db, g.id)?.revokedAt).toBeNull();
+    t.lti.calls.length = 0;
+    eraseSnapshot(con.id);
+    expect(await op.issue(input)).toEqual({ exitCode: 1, lines: ['This connection has no provider snapshot. Make a new connection.'] });
+    expect(t.lti.calls).toEqual([]);
+    expect(grantsOfConnection(t.db, con.id)).toEqual(before);
+  });
+});
+
+describe('all three endpoints: local ordering, committed target and audit (§4.7.1)', () => {
+  it.each(['blackboard', 'canvas', 'add_deployment'] as const)('%s refuses strict body, grant, mismatch and lease locally even during a provider outage', async (kind) => {
+    const { con, g, submit } = await endpoint(kind);
+    const prior = attempts(con.id);
+    t.lti.failNext = { status: 503, code: 'UNAVAILABLE' };
+    expect(code(await submit({ endpoint: 'untrusted', grantCode: UNKNOWN_CODE }))).toBe('INVALID_PLATFORM_VALUES');
+    expect(code(await submit({ grantCode: UNKNOWN_CODE }))).toBe('GRANT_INVALID');
+    expect(code(await submit({ deploymentId: 'wrong' }))).toBe('GRANT_MISMATCH');
+    t.db.prepare('UPDATE connection SET redeeming_attempt = ?, redeeming_since = ? WHERE id = ?').run('att_other', t.clock.now, con.id);
+    expect(code(await submit())).toBe('GRANT_IN_USE');
+    expect(t.lti.calls).toEqual([]);
+    expect(attempts(con.id)).toEqual(prior);
+    expect(events('grant_attempt_started')).toEqual([]);
+    expect(getGrant(t.db, g.id)).toMatchObject({ revokedAt: null, redeemedAt: null });
+  });
+
+  it.each(['blackboard', 'canvas', 'add_deployment'] as const)('%s commits its target and bounded event before the first outbound request', async (kind) => {
+    const { con, g, submit, deploymentId } = await endpoint(kind);
+    const first = kind === 'blackboard' ? 'GET providers' : kind === 'canvas' ? 'POST platform' : 'POST deployment';
+    let observed = false;
+    const logTransactions: boolean[] = [];
+    const push = t.logs.push.bind(t.logs);
+    const observer = vi.spyOn(t.logs, 'push').mockImplementation((...lines) => {
+      for (const line of lines) if (line.event === 'grant_attempt_started') logTransactions.push(t.db.isTransaction);
+      return push(...lines);
+    });
+    t.lti.faults.push({ op: first, action: 'before', run: () => {
+      observed = true;
+      expect(t.db.isTransaction).toBe(false);
+      const row = attempts(con.id).at(-1)!;
+      const current = getConnectionAnyLibrary(t.db, con.id)!;
+      expect(row).toMatchObject({ grant_id: g.id, purpose: kind === 'add_deployment' ? kind : 'initial',
+        issuer: kind === 'blackboard' ? 'https://blackboard.sim.test' : 'https://canvas.sim.test',
+        client_id: kind === 'blackboard' ? BB : 'cA', deployment_id: deploymentId, state: 'open' });
+      expect(current.redeemingAttempt).toBe(row.attempt_id);
+      expect(events('grant_attempt_started')).toHaveLength(1);
+      expect(events('grant_attempt_started')[0]).toMatchObject({ grant_id: g.id, connection_id: con.id, attempt_id: row.attempt_id, purpose: row.purpose });
+      expect(Object.keys(events('grant_attempt_started')[0]!).sort()).toEqual(['attempt_id', 'connection_id', 'event', 'grant_id', 'level', 'purpose', 'service', 'trace_id', 'ts']);
+    } });
+    expect((await submit()).status).toBe(200);
+    observer.mockRestore();
+    expect(observed).toBe(true);
+    expect(logTransactions).toEqual([false]);
+    expect(t.lti.calls.filter((s) => s === 'GET providers')).toHaveLength(kind === 'blackboard' ? 1 : 0);
+    expect(getGrant(t.db, g.id)?.redeemedAt).not.toBeNull();
+  });
+
+  it('a rolled-back phase 1 emits no start event and leaves no attempt, lease or reservation', async () => {
+    const { con, submit, g } = await endpoint('blackboard');
+    t.db.exec("CREATE TRIGGER reject_reservation BEFORE INSERT ON connection_deployment BEGIN SELECT RAISE(ABORT, 'injected rollback'); END");
+    expect((await submit()).status).toBe(500);
+    expect(events('grant_attempt_started')).toEqual([]);
+    expect(attempts(con.id)).toEqual([]);
+    expect(getConnectionAnyLibrary(t.db, con.id)?.redeemingAttempt).toBeNull();
+    expect(reservationOfConnection(t.db, con.id)).toBeUndefined();
+    expect(t.lti.calls).toEqual([]);
+    expect(getGrant(t.db, g.id)?.redeemedAt).toBeNull();
+  });
+
+  it.each(['blackboard', 'canvas'] as const)('%s old pending row: grant errors precede check 4a; no attempt is started', async (kind) => {
+    const { con, g, submit, a } = await endpoint(kind);
+    eraseSnapshot(con.id);
+    expect(code(await submit({ grantCode: UNKNOWN_CODE }))).toBe('GRANT_INVALID');
+    assertNeutral(await submit({ deploymentId: 'other' })); // check 4a precedes mismatch
+    expect(events('provider_not_ready').at(-1)).toMatchObject({ connection_id: con.id, cause: 'no_snapshot' });
+    if (kind === 'blackboard') {
+      assertNeutral(await call('GET', `/app-api/connections/${con.id}/tool-configuration`, a));
+      expect(code(await submit({ clientId: 'valid-form' }))).toBe('PROVIDER_NOT_READY');
+      expect(code(await submit({ clientId: 'has space' }))).toBe('INVALID_PLATFORM_VALUES');
+    }
+    expect(attempts(con.id)).toEqual([]);
+    expect(t.lti.calls).toEqual([]);
+    expect(events('grant_attempt_started')).toEqual([]);
+    expect(getGrant(t.db, g.id)).toMatchObject({ redeemedAt: null, revokedAt: null });
+  });
+
+  it.each(['blackboard', 'canvas'] as const)('%s old registered row repeats locally and applies grant errors before snapshot checks', async (kind) => {
+    const { con, g, submit } = await endpoint(kind);
+    expect((await submit()).status).toBe(200);
+    eraseSnapshot(con.id);
+    t.lti.calls.length = 0;
+    expect((await submit({ grantCode: UNKNOWN_CODE })).status).toBe(200);
+    expect(code(await submit({ grantCode: UNKNOWN_CODE, deploymentId: 'other' }))).toBe('GRANT_INVALID');
+    expect(events('grant_rejected').at(-1)?.reason).toBe('not_found');
+    expect(code(await submit({ grantCode: g.code, deploymentId: 'other' }))).toBe('GRANT_INVALID');
+    expect(events('grant_rejected').at(-1)?.reason).toBe('redeemed');
+    expect(t.lti.calls).toEqual([]);
+  });
+
+  it('old registered Canvas can issue, add and repeat without snapshots or provider reads; existing approval survives', async () => {
+    const { con, op, libA, a, submit } = await endpoint('canvas');
+    expect((await submit()).status).toBe(200);
+    eraseSnapshot(con.id);
+    const before = t.db.prepare('SELECT * FROM approved_deployment WHERE connection_id = ?').all(con.id);
+    t.lti.calls.length = 0;
+    t.lti.providers.length = 0;
+    const g = await grant(op, libA, con, 'dB', { purpose: 'add_deployment' });
+    expect(t.lti.calls).toEqual([]);
+    const add = () => call('POST', `/app-api/connections/${con.id}/deployments`, a, { deploymentId: 'dB', grantCode: g.code });
+    expect((await add()).status).toBe(200);
+    expect(t.lti.calls.some((s) => s === 'GET providers')).toBe(false);
+    t.lti.calls.length = 0;
+    expect((await add()).status).toBe(200);
+    expect(t.lti.calls).toEqual([]);
+    expect(t.db.prepare('SELECT * FROM approved_deployment WHERE connection_id = ? AND deployment_id = ?').all(con.id, 'dA')).toEqual(before);
+    expect(getConnectionAnyLibrary(t.db, con.id)?.snapshot).toEqual(NULL_SNAPSHOT);
+  });
+});
+
+describe('Blackboard V and cancellation-first readiness decisions (§4.7.1, A-D-09)', () => {
+  it.each([
+    ['missing', 'profile_missing'], ['sharing', 'platform_changed'], ['absent', 'platform_inactive'],
+    ['replaced_inactive', 'platform_changed'], ['client_inactive', 'platform_changed'],
+    ['issuer_inactive', 'issuer_changed'], ['inactive', 'platform_inactive'],
+  ] as const)('V %s: exact diagnostic %s, pinned failed attempt, no remote write', async (change, cause) => {
+    const { con, g, shared, submit } = await endpoint('blackboard');
+    const profile = t.lti.providers.find((p) => p.id === con.profile)!;
+    if (change === 'missing') t.lti.providers.splice(t.lti.providers.indexOf(profile), 1);
+    if (change === 'sharing') profile.sharing = 'exclusive';
+    if (change === 'absent' || change === 'replaced_inactive') t.lti.platforms.delete(shared.id);
+    if (change === 'replaced_inactive') t.lti.addSharedPlatform(con.profile, BB).active = false;
+    if (change === 'client_inactive') { shared.clientId = 'another'; shared.active = false; }
+    if (change === 'issuer_inactive') { profile.issuer = 'https://changed.test'; shared.active = false; }
+    if (change === 'inactive') shared.active = false;
+    assertNeutral(await submit());
+    expect(t.lti.calls).toEqual(['GET providers']);
+    expect(events('provider_not_ready').at(-1)).toMatchObject({ connection_id: con.id, profile: con.profile, cause });
+    expect(events('grant_attempt_started')).toHaveLength(1);
+    expect(events('grant_redemption_cancelled')).toEqual([]);
+    expect(attempts(con.id)).toEqual([expect.objectContaining({ state: 'failed', lti_platform_id: shared.id, client_id: BB })]);
+    expect(getConnectionAnyLibrary(t.db, con.id)?.redeemingAttempt).toBeNull();
+    expect(getGrant(t.db, g.id)).toMatchObject({ revokedAt: null, redeemedAt: null });
+    expect(reservationOfConnection(t.db, con.id)).toMatchObject({ platformId: shared.id, deploymentId: 'dA' });
+    expect(t.db.prepare('SELECT * FROM binding_ref_history WHERE connection_id = ?').all(con.id)).toEqual([]);
+  });
+
+  it.each([0, 400, 503])('V error status %s maps to 502 and keeps the grant retryable', async (status) => {
+    const { con, g, submit } = await endpoint('blackboard');
+    t.lti.failNext = { status, code: status === 400 ? 'INVALID_SITE_URL' : 'UNAVAILABLE' };
+    const r = await submit();
+    expect([r.status, code(r)]).toEqual([502, 'LTI_SERVICE_ERROR']);
+    expect(events('http_request').at(-1)).toMatchObject({ status: 502 });
+    expect(events('provider_not_ready')).toEqual([]);
+    expect(events('grant_redemption_cancelled')).toEqual([]);
+    expect(attempts(con.id).at(-1)?.state).toBe('failed');
+    expect(t.lti.calls).toEqual(['GET providers']);
+    expect(getGrant(t.db, g.id)).toMatchObject({ redeemedAt: null, revokedAt: null });
+    expect((await submit()).status).toBe(200);
+  });
+
+  it.each(['revoke', 'replace', 'suspend', 'delete', 'takeover', 'lease_cleared'] as const)('cancellation %s wins over every V result and preserves the lease owner', async (cancel) => {
+    // Each outcome runs in a fresh app. Assertions use the returned response, so the hook cannot pass silently.
+    for (const result of ['matched', 'mismatch', 'failed'] as const) {
+      const { con, g, op, libA, a, shared, submit } = await endpoint('blackboard');
+      let callsAtEnd = 0;
+      t.lti.faults.push({ op: 'GET providers', action: 'before', run: async () => {
+        if (cancel === 'revoke') expect((await op.revoke(g.id, 'cancel')).exitCode).toBe(0);
+        if (cancel === 'replace') await grant(op, libA, con, 'dA');
+        if (cancel === 'suspend') expect((await op.suspend(con.id, 'ticket', 'cancel')).exitCode).toBe(0);
+        if (cancel === 'delete') expect((await call('DELETE', `/app-api/connections/${con.id}`, a)).status).toBe(204);
+        if (cancel === 'takeover' || cancel === 'lease_cleared') {
+          t.db.prepare('UPDATE connection SET redeeming_attempt = ?, redeeming_since = ? WHERE id = ?').run(cancel === 'takeover' ? 'att_new_owner' : null, t.clock.now, con.id);
+        }
+        if (result === 'mismatch') shared.active = false;
+        callsAtEnd = t.lti.calls.length;
+        if (result === 'failed') throw new LtiServiceError(0, 'UNAVAILABLE', '');
+      } });
+      const r = await submit();
+      const changed = cancel === 'suspend' || cancel === 'delete';
+      const takenOver = cancel === 'takeover' || cancel === 'lease_cleared';
+      expect([r.status, code(r)]).toEqual(changed ? [409, 'CONNECTION_NOT_PENDING'] : [403, 'GRANT_INVALID']);
+      expect(t.lti.calls).toHaveLength(callsAtEnd);
+      expect(events('provider_not_ready')).toEqual([]);
+      expect(events('grant_redemption_cancelled').at(-1)?.reason).toBe(changed ? 'connection_changed' : takenOver ? 'taken_over' : cancel === 'replace' ? 'replaced' : 'revoked');
+      expect(attempts(con.id).at(-1)?.state).toBe('cancelled');
+      expect(getConnectionAnyLibrary(t.db, con.id)?.redeemingAttempt).toBe(cancel === 'takeover' ? 'att_new_owner' : null);
+      expect(reservationOfConnection(t.db, con.id)).toMatchObject({ platformId: shared.id, deploymentId: 'dA' });
+      expect(getGrant(t.db, g.id)?.redeemedAt).toBeNull();
+      if (!takenOver) expect(getGrant(t.db, g.id)?.revokedAt).not.toBeNull();
+      expect(deployment(shared.id, 'dA')).toBeUndefined();
+      await t.app.close();
+    }
+  });
+
+  it('S0 after a matched V enforces the six-second minimum without making S1', async () => {
+    const { con, submit } = await endpoint('blackboard');
+    t.lti.faults.push({ op: 'GET providers', action: 'after', run: () => { t.clock.now += 54_001; } });
+    expect(code(await submit())).toBe('LTI_SERVICE_ERROR');
+    expect(t.lti.calls).toEqual(['GET providers']);
+    expect(attempts(con.id).at(-1)?.state).toBe('failed');
+    expect(getConnectionAnyLibrary(t.db, con.id)?.redeemingAttempt).toBeNull();
+  });
+
+  it('deactivation after V still binds to the pinned parent without re-resolving it', async () => {
+    const { shared, submit } = await endpoint('blackboard');
+    t.lti.faults.push({ op: 'GET providers', action: 'after', run: () => { shared.active = false; } });
+    expect((await submit()).status).toBe(200);
+    expect(shared.active).toBe(false);
+    expect(deployment(shared.id, 'dA')).toMatchObject({ active: true, bindingGeneration: 1 });
+    expect(t.lti.calls.filter((s) => s === 'GET providers')).toHaveLength(1);
+    expect(t.lti.calls[1]).toContain(`POST deployment ${shared.id}`);
+  });
+});
+
+describe('exact S1 readiness mappings and preserved later-step failures', () => {
+  it.each([
+    ['blackboard', 404, 'UNREGISTERED_PLATFORM', 'platform_changed'],
+    ['canvas', 400, 'UNKNOWN_PROFILE', 'profile_missing'],
+    ['canvas', 400, 'PLATFORM_URL_NOT_IN_PROFILE', 'issuer_changed'],
+  ] as const)('%s S1 %s %s is neutral readiness; cancellation wins over the same answer', async (kind, status, error, cause) => {
+    for (const cancel of [false, true]) {
+      const { con, submit, g, op } = await endpoint(kind);
+      t.lti.faults.push({ op: kind === 'canvas' ? 'POST platform' : 'POST deployment', action: 'before', run: async () => {
+        if (cancel) await op.revoke(g.id, 'cancel');
+        throw new LtiServiceError(status, error, '');
+      } });
+      const r = await submit();
+      if (cancel) {
+        expect([r.status, code(r)]).toEqual([403, 'GRANT_INVALID']);
+        expect(events('provider_not_ready')).toEqual([]);
+        expect(events('grant_redemption_cancelled').at(-1)?.reason).toBe('revoked');
+      } else {
+        assertNeutral(r);
+        expect(events('provider_not_ready').at(-1)?.cause).toBe(cause);
+        expect(getGrant(t.db, g.id)?.revokedAt).toBeNull();
+      }
+      expect(attempts(con.id).at(-1)?.state).toBe(cancel ? 'cancelled' : 'failed');
+      expect(t.lti.calls.some((s) => s.startsWith('PATCH'))).toBe(false);
+      expect(getConnectionAnyLibrary(t.db, con.id)?.redeemingAttempt).toBeNull();
+      await t.app.close();
+    }
+  });
+
+  it('Blackboard deletion and same-client recreation after V never writes to the new platform', async () => {
+    const { con, shared, submit } = await endpoint('blackboard');
+    let replacement = '';
+    t.lti.faults.push({ op: 'GET providers', action: 'after', run: () => {
+      t.lti.platforms.delete(shared.id);
+      replacement = t.lti.addSharedPlatform(con.profile, BB).id;
+    } });
+    assertNeutral(await submit());
+    expect(t.lti.calls[1]).toContain(`POST deployment ${shared.id}`);
+    expect(t.lti.platforms.get(replacement)?.deployments).toEqual([]);
+    expect(attempts(con.id).at(-1)?.lti_platform_id).toBe(shared.id);
+  });
+
+  it('Canvas issuer drift is refused by the S1 URL pin with no provider pre-read', async () => {
+    const { con, submit } = await endpoint('canvas');
+    t.lti.providers.find((p) => p.id === con.profile)!.issuer = 'https://changed.test';
+    assertNeutral(await submit());
+    expect(events('provider_not_ready').at(-1)?.cause).toBe('issuer_changed');
+    expect(t.lti.calls).toHaveLength(1);
+    expect(t.lti.calls[0]).toContain('"url":"https://canvas.sim.test"');
+    expect(attempts(con.id).at(-1)?.issuer).toBe('https://canvas.sim.test');
+  });
+
+  it.each([
+    ['canvas', 404, 'UNKNOWN_PROFILE', 502, 'LTI_SERVICE_ERROR'],
+    ['blackboard', 400, 'UNREGISTERED_PLATFORM', 502, 'LTI_SERVICE_ERROR'],
+    ['add_deployment', 404, 'UNREGISTERED_PLATFORM', 502, 'LTI_SERVICE_ERROR'],
+    ['canvas', 503, 'UNKNOWN_PROFILE', 502, 'LTI_SERVICE_ERROR'],
+    ['canvas', 400, 'INVALID_SITE_URL', 422, 'INVALID_SITE_URL'],
+  ] as const)('%s S1 %s %s keeps the normal error mapping', async (kind, status, error, wantStatus, wantCode) => {
+    const { submit } = await endpoint(kind);
+    t.lti.faults.push({ op: kind === 'canvas' ? 'POST platform' : 'POST deployment', action: 'before', run: () => { throw new LtiServiceError(status, error, ''); } });
+    const r = await submit();
+    expect([r.status, code(r)]).toEqual([wantStatus, wantCode]);
+    expect(events('provider_not_ready')).toEqual([]);
+  });
+
+  it.each(['S2', 'S3'] as const)('Blackboard %s 404 remains 502, not a readiness refusal', async (step) => {
+    const { shared, submit } = await endpoint('blackboard');
+    if (step === 'S2') {
+      shared.deployments.push({ deploymentId: 'dA', siteUrl: LEARN_A, active: false, bindingRef: null, bindingGeneration: 0 });
+      const read = t.lti.client.getPlatform;
+      t.lti.client.getPlatform = async (...args) => { t.lti.platforms.delete(shared.id); return read(...args); };
+    } else {
+      t.lti.faults.push({ op: 'PATCH deployment', action: 'before', run: () => { t.lti.platforms.delete(shared.id); } });
+    }
+    const r = await submit();
+    expect([r.status, code(r)]).toEqual([502, 'LTI_SERVICE_ERROR']);
+    expect(events('provider_not_ready')).toEqual([]);
+  });
+});
+
+describe('supplemental snapshot boundaries and retained cleanup history', () => {
+  it.each(['target_issuer', 'target_platform_id', 'target_client_id'])('a partial Blackboard snapshot missing %s stops at 4a and prevents issue', async (column) => {
+    const { con, submit, op, libA } = await endpoint('blackboard');
+    t.db.prepare(`UPDATE connection SET ${column} = NULL WHERE id = ?`).run(con.id);
+    assertNeutral(await submit());
+    expect(events('provider_not_ready').at(-1)?.cause).toBe('no_snapshot');
+    expect((await op.issue({ library: libA, connection: con.id, site: con.siteUrl, clientId: BB, deploymentId: 'dA', note: 'ticket', traceId: 't' })).exitCode).toBe(1);
+    expect(t.lti.calls).toEqual([]);
+    expect(attempts(con.id)).toEqual([]);
+  });
+
+  it.each(['id', 'client', 'issuer', 'inactive', 'missing', 'sharing', 'absent'] as const)('the isolated Blackboard %s comparator refuses V and issue without replacing its grant or snapshot', async (field) => {
+    const { con, submit, op, libA, shared } = await endpoint('blackboard');
+    const snapshot = getConnectionAnyLibrary(t.db, con.id)!.snapshot;
+    const before = grantsOfConnection(t.db, con.id);
+    const row = t.lti.providers.find((p) => p.id === con.profile)!;
+    if (field === 'id') { t.lti.platforms.delete(shared.id); t.lti.addSharedPlatform(con.profile, BB); }
+    if (field === 'client') shared.clientId = 'another';
+    if (field === 'issuer') row.issuer = 'https://new-issuer.test';
+    if (field === 'inactive') shared.active = false;
+    if (field === 'missing') t.lti.providers.splice(t.lti.providers.indexOf(row), 1);
+    if (field === 'sharing') row.sharing = 'exclusive';
+    if (field === 'absent') t.lti.platforms.delete(shared.id);
+    assertNeutral(await submit());
+    const result = await op.issue({ library: libA, connection: con.id, site: con.siteUrl, clientId: BB, deploymentId: 'dA', note: 'ticket', traceId: 't' });
+    expect(result).toEqual({ exitCode: 1, lines: [field === 'inactive' || field === 'absent'
+      ? 'The Blackboard shared platform is not active.'
+      : 'The Blackboard shared platform changed after this connection was made. Make a new connection.'] });
+    expect(t.lti.calls).toEqual(['GET providers', 'GET providers']);
+    expect(grantsOfConnection(t.db, con.id)).toEqual(before);
+    expect(getConnectionAnyLibrary(t.db, con.id)?.snapshot).toEqual(snapshot);
+  });
+
+  it('self-hosted Canvas issue matches the canonical saved issuer and rejects later profile drift or removal', async () => {
+    const { a, op, libA } = await setup();
+    t.lti.providers.push({ ...t.lti.providers.find((p) => p.lms === 'canvas')!, id: 'canvas-self-hosted', issuer: '{siteUrl}' });
+    const r = await call('POST', '/app-api/connections', a, { name: 'Self', siteUrl: 'HTTPS://Canvas.School.EDU:443/', method: 'manual', lms: 'canvas', profile: 'canvas-self-hosted' });
+    expect(r.status).toBe(201);
+    t.lti.calls.length = 0;
+    await grant(op, libA, r.json, 'dA');
+    expect(t.lti.calls).toEqual(['GET providers']);
+    const before = grantsOfConnection(t.db, r.json.id);
+    const input = { library: libA, connection: r.json.id, site: 'HTTPS://CANVAS.SCHOOL.EDU:443/', clientId: 'cA', deploymentId: 'dA', note: 'ticket', traceId: 't' };
+    t.lti.providers.find((p) => p.id === 'canvas-self-hosted')!.issuer = 'https://another.school.edu';
+    expect((await op.issue(input)).lines).toEqual(['The Canvas profile changed after this connection was made. Make a new connection.']);
+    t.lti.providers.splice(t.lti.providers.findIndex((p) => p.id === 'canvas-self-hosted'), 1);
+    expect((await op.issue(input)).lines).toEqual(['The Canvas profile changed after this connection was made. Make a new connection.']);
+    expect(grantsOfConnection(t.db, r.json.id)).toEqual(before);
+    expect(getConnectionAnyLibrary(t.db, r.json.id)?.snapshot.issuer).toBe('https://canvas.school.edu');
+  });
+
+  it('an unavailable adapter is refused before parsing and before any provider request', async () => {
+    const { submit } = await endpoint('blackboard');
+    const { blackboardProvider } = await import('../providers/blackboard.ts');
+    const parser = blackboardProvider.parsePlatformBody;
+    try {
+      delete blackboardProvider.parsePlatformBody;
+      expect(code(await submit({ grantCode: '', unexpected: true }))).toBe('CAPABILITY_NOT_SUPPORTED');
+      expect(t.lti.calls).toEqual([]);
+      expect(events('grant_attempt_started')).toEqual([]);
+    } finally {
+      blackboardProvider.parsePlatformBody = parser!;
+    }
+  });
+
+  it('defensive check 4 precedes check 4a on a registered row with an injected unredeemed initial grant', async () => {
+    const { con, submit, libA } = await endpoint('canvas');
+    expect((await submit()).status).toBe(200);
+    eraseSnapshot(con.id);
+    insertGrant(t.db, { libraryId: libA, connectionId: con.id, lms: 'canvas', profile: con.profile, purpose: 'initial', siteUrl: con.siteUrl, serviceUrl: con.serviceUrl,
+      clientId: 'cA', deploymentId: 'other', note: 'unreachable CLI fixture', expiresAt: t.clock.now + 60_000 }, (await import('@cogniate/shared')).sha256Hex(UNKNOWN_CODE), t.clock.now);
+    t.lti.calls.length = 0;
+    expect(code(await submit({ grantCode: UNKNOWN_CODE, deploymentId: 'other' }))).toBe('CONNECTION_NOT_PENDING');
+    expect(events('provider_not_ready')).toEqual([]);
+    expect(t.lti.calls).toEqual([]);
+  });
+
+  it('V failure after a lost older activation retains its target for suspend; unrelated approval and ref stay unchanged', async () => {
+    const { con, submit, op, libA, a, shared } = await endpoint('blackboard');
+    const other = await bbConnection(a, LEARN_B);
+    const otherGrant = await grant(op, libA, other, 'dB');
+    expect((await putBb(a, other, 'dB', otherGrant.code)).status).toBe(200);
+    const otherRemote = structuredClone(deployment(shared.id, 'dB'));
+    const otherApproval = t.db.prepare('SELECT * FROM approved_deployment WHERE connection_id = ?').all(other.id);
+    t.lti.faults.push({ op: 'PATCH deployment', action: 'drop_after' });
+    expect((await submit()).status).toBe(502);
+    const older = structuredClone(deployment(shared.id, 'dA'));
+    expect(older?.active).toBe(true);
+    shared.active = false;
+    assertNeutral(await submit());
+    expect(deployment(shared.id, 'dA')).toEqual(older);
+    expect(attempts(con.id)).toHaveLength(2);
+    // Recovery works entirely from historical targets even when a connection has no snapshot.
+    eraseSnapshot(con.id);
+    const result = await op.suspend(con.id, 'cleanup', 't');
+    expect(result.exitCode).toBe(0);
+    expect(result.lines.some((line) => line.startsWith('fenced'))).toBe(true);
+    expect(deployment(shared.id, 'dA')?.active).toBe(false);
+    expect(deployment(shared.id, 'dB')).toEqual(otherRemote);
+    expect(t.db.prepare('SELECT * FROM approved_deployment WHERE connection_id = ?').all(other.id)).toEqual(otherApproval);
+    expect(attempts(con.id)).toHaveLength(2);
+    expect(t.db.prepare('SELECT * FROM binding_ref_history WHERE connection_id = ?').all(con.id)).toHaveLength(3);
+    expect((await op.release(con.id, 'release', 't')).exitCode).toBe(0);
+    expect(reservationOfConnection(t.db, con.id)).toBeUndefined();
+    expect(deployment(shared.id, 'dB')).toEqual(otherRemote);
   });
 });

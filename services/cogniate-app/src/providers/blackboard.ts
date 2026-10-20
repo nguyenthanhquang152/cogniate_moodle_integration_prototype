@@ -24,12 +24,15 @@ export function blackboardToolRows(urls: Parameters<typeof toolUrls>[0], sharedC
   ];
 }
 
-/** `{ deploymentId, grantCode, clientId? }`; a sent `clientId` must equal the shared client id (app contract §4.4). */
+/**
+ * `{ deploymentId, grantCode, clientId? }` (app contract §4.4). A sent `clientId` must equal the local client id (the
+ * snapshot, then the persisted platform); when there is none (an old pending 011 row), only its form is checked.
+ */
 export function parseBlackboardBody(body: unknown, sharedClientId: string | null): PlatformBodyResult {
   const parsed = parseStrictBody(body, { required: ['deploymentId', 'grantCode'], optional: ['clientId'] });
   if (!parsed.ok) return parsed;
   const { clientId, deploymentId, grantCode } = parsed.values;
-  if (clientId !== undefined && clientId !== sharedClientId) return { ok: false, fields: ['clientId'] };
+  if (clientId !== undefined && sharedClientId !== null && clientId !== sharedClientId) return { ok: false, fields: ['clientId'] };
   return { ok: true, values: { clientId: sharedClientId ?? '', deploymentId: deploymentId!, grantCode: grantCode! } };
 }
 
@@ -45,8 +48,9 @@ export const blackboardProvider: ProviderAdapter = {
   profileLabel: (id) => PROFILE_LABELS[id] ?? null,
   toolConfiguration: (ctx) => blackboardToolRows(ctx.urls, ctx.sharedClientId),
   parsePlatformBody: (body, ctx) => parseBlackboardBody(body, ctx.sharedClientId),
+  // The pinned shared platform of the snapshot (app contract §4.7.1 "Target"; local data only).
   initialTarget: (ctx): BindingTarget => {
-    if (!ctx.sharedPlatform) throw new Error('blackboard target needs the shared platform');
+    if (!ctx.sharedPlatform) throw new Error('blackboard target needs the snapshot shared platform id');
     return { kind: 'shared_deployment', platformId: ctx.sharedPlatform.id, deploymentId: ctx.values.deploymentId, siteUrl: ctx.connection.siteUrl };
   },
   createRequest: (target): StagedCreate => {

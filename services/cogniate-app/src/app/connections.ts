@@ -18,12 +18,12 @@ import { checkSiteUrl, fixedHostsOf, originHost } from '@cogniate/shared';
 import type { LtiProviderProfile } from '../clients/lti-client.ts';
 import { LMS_TYPES, capabilitiesOf, providerAdapters, providerOf } from '../providers/index.ts';
 import type { BindingCleanup } from './binding-cleanup.ts';
-import { activeShared, providerProfiles } from './binding-targets.ts';
+import { activeShared, providerProfiles, snapshotOf } from './binding-targets.ts';
 import type { RedemptionEngine } from './redemption.ts';
 import { TOOL_ACCOUNT, toolName } from '../providers/common.ts';
 import { moodleToolRows } from '../providers/moodle.ts';
 import { registerErrorText } from '../tool-pages/register-texts.ts';
-import { ApiError } from './api-errors.ts';
+import { ApiError, providerNotReady } from './api-errors.ts';
 
 export { TOOL_ACCOUNT, toolName };
 
@@ -217,8 +217,14 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
     };
     const siteUrl = site('siteUrl', b.siteUrl);
     const serviceUrl = b.serviceUrl !== undefined ? site('serviceUrl', b.serviceUrl) : null;
-    if (profile.sharing === 'shared' && !activeShared(profile)) throw new ApiError('PROVIDER_NOT_READY', 'Ask the Cogniate operator to register the Blackboard application.');
-    const c = createConnection(db, libraryOf(req).id, { name: b.name, siteUrl, method: 'manual', lms: adapter.lms, profile: profile.id, serviceUrl }, null, now());
+    if (lms === 'blackboard' && !activeShared(profile)) {
+      logger.warn('provider_not_ready', { trace_id: req.traceId, connection_id: null, profile: profile.id, cause: 'platform_inactive' });
+      throw providerNotReady();
+    }
+    const snapshot = snapshotOf(profile, { siteUrl, serviceUrl: serviceUrl ?? siteUrl });
+    const c = transaction(db, () => createConnection(db, libraryOf(req).id, {
+      name: b.name, siteUrl, method: 'manual', lms: adapter.lms, profile: profile.id, serviceUrl, snapshot,
+    }, null, now()));
     return reply.code(201).send(dto(req, c));
   });
 
@@ -232,17 +238,18 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
     return { registrationUrl: registrationUrl(urls, ref.token), expiresAt: new Date(ref.stored.expiresAt).toISOString() };
   });
 
-  /** The client id of the shared platform of a shared profile (Blackboard Application ID), else null. */
-  const sharedClientIdOf = async (c: Connection, traceId: string): Promise<{ row: LtiProviderProfile | undefined; clientId: string | null }> => {
-    const row = (await providerProfiles(lti, traceId)).find((p) => p.id === c.profile);
-    return { row, clientId: row?.sharing === 'shared' ? row.sharedPlatform?.clientId ?? null : null };
-  };
+  /** The local Blackboard Application ID, including the registered old-011 fallback (§4.4, §4.5). */
+  const sharedClientIdOf = (c: Connection): string | null => c.snapshot.clientId ?? c.platform?.clientId ?? null;
 
   api.get<IdParams>('/connections/:id/tool-configuration', async (req) => {
     const c = connectionOf(req);
     const adapter = providerOf(c.lms);
     if (!adapter || c.lms === 'moodle') return toolConfiguration(urls, libraryOf(req).name);
-    const { clientId } = c.lms === 'blackboard' ? await sharedClientIdOf(c, req.traceId) : { clientId: null };
+    const clientId = c.lms === 'blackboard' ? sharedClientIdOf(c) : null;
+    if (c.lms === 'blackboard' && clientId === null) {
+      logger.warn('provider_not_ready', { trace_id: req.traceId, connection_id: c.id, profile: c.profile, cause: 'no_snapshot' });
+      throw providerNotReady();
+    }
     return adapter.toolConfiguration({ urls, libraryName: libraryOf(req).name, sharedClientId: clientId });
   });
 
@@ -250,9 +257,7 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
   async function providerPlatform(req: FastifyRequest<IdParams>, c: Connection) {
     const adapter = providerOf(c.lms);
     if (!adapter?.parsePlatformBody || !deps.engine) throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'This connection has no operator approval.', { details: { capability: 'operatorApproval' } });
-    const { row, clientId } = await sharedClientIdOf(c, req.traceId);
-    if (row?.sharing === 'shared' && !activeShared(row)) throw new ApiError('PROVIDER_NOT_READY', 'Ask the Cogniate operator to register the Blackboard application.');
-    const parsed = adapter.parsePlatformBody(req.body, { sharedClientId: clientId });
+    const parsed = adapter.parsePlatformBody(req.body, { sharedClientId: c.lms === 'blackboard' ? sharedClientIdOf(c) : null });
     if (!parsed.ok) throw new ApiError('INVALID_PLATFORM_VALUES', 'Some values are missing or not valid.', { details: { fields: parsed.fields } });
     const done = await deps.engine.redeem({ libraryId: libraryOf(req).id, connectionId: c.id, purpose: 'initial', values: parsed.values, traceId: req.traceId });
     return dto(req, done);

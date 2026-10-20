@@ -8,13 +8,13 @@ import type { LtiClient } from '../clients/lti-client.ts';
 import type { GrantPurpose } from '../domain/bindings.ts';
 import { getGrant, grantsOfConnection, insertGrant, leaseLive, reservationOfConnection, revokeGrant, revokeOpenGrants } from '../domain/bindings.ts';
 import type { Connection } from '../domain/connections.ts';
-import { disableConnection, getConnectionAnyLibrary } from '../domain/connections.ts';
+import { completeSnapshot, disableConnection, getConnectionAnyLibrary } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
 import { getLibrary } from '../domain/libraries.ts';
 import { PRINTABLE_ID } from '../providers/index.ts';
 import type { BindingCleanup, CleanupLine } from './binding-cleanup.ts';
-import { activeShared, providerProfiles } from './binding-targets.ts';
+import { canvasIssuerMatches, providerProfiles, sharedReadiness } from './binding-targets.ts';
 
 export interface OperatorDeps {
   db: Db;
@@ -74,17 +74,26 @@ export function createOperator(deps: OperatorDeps) {
     if (c.lms !== 'canvas' && input.serviceUrl !== undefined && (!service.ok || service.origin !== c.siteUrl)) return fail('--service-url is only for Canvas connections.');
     if (!service.ok || service.origin !== c.serviceUrl) return fail('--service-url is not the service URL of this connection.');
     if (purpose === 'add_deployment' && input.clientId !== c.platform?.clientId) return fail('--client-id is not the client id of this connection platform.');
-    if (c.lms === 'blackboard') {
-      let shared: { clientId: string } | null;
+    if (purpose === 'initial') {
+      const snapshot = completeSnapshot(c);
+      if (!snapshot) return fail('This connection has no provider snapshot. Make a new connection.');
+      let row;
       try {
-        shared = activeShared((await providerProfiles(lti, input.traceId)).find((p) => p.id === c.profile));
+        row = (await providerProfiles(lti, input.traceId)).find((p) => p.id === c.profile);
       } catch {
         return fail('The LTI service did not answer. Nothing was stored.');
       }
-      if (!shared) return fail('The Blackboard shared platform is not active. Nothing was stored.');
-      if (input.clientId !== shared.clientId) return fail('--client-id is not the Blackboard Application ID of the shared platform.');
-      const reserved = reservationOfConnection(db, c.id);
-      if (reserved && reserved.deploymentId !== input.deploymentId) return fail(`This connection holds a reservation for deployment ${reserved.deploymentId}; --deployment-id must be that id.`);
+      if (c.lms === 'canvas' && !canvasIssuerMatches(row, c, snapshot)) {
+        return fail('The Canvas profile changed after this connection was made. Make a new connection.');
+      }
+      if (c.lms === 'blackboard') {
+        const cause = sharedReadiness(row, snapshot);
+        if (cause === 'platform_inactive') return fail('The Blackboard shared platform is not active.');
+        if (cause) return fail('The Blackboard shared platform changed after this connection was made. Make a new connection.');
+        if (input.clientId !== snapshot.clientId) return fail('--client-id is not the Blackboard Application ID of the shared platform.');
+        const reserved = reservationOfConnection(db, c.id);
+        if (reserved && reserved.deploymentId !== input.deploymentId) return fail(`This connection holds a reservation for deployment ${reserved.deploymentId}; --deployment-id must be that id.`);
+      }
     }
     const code = randomToken();
     const t = now();

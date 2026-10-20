@@ -219,6 +219,7 @@ export function fakeLti(): FakeLti {
         const prof = providers.find((x) => x.id === body.profile);
         if (!prof) throw new LtiServiceError(400, 'UNKNOWN_PROFILE', '');
         const url = (prof.issuer ?? '').replace('{siteUrl}', body.siteUrl);
+        if (body.url !== undefined && body.url !== url) throw new LtiServiceError(400, 'PLATFORM_URL_NOT_IN_PROFILE', '');
         if ([...platforms.values()].some((p) => p.url === url && p.clientId === body.clientId)) throw new LtiServiceError(409, 'PLATFORM_ALREADY_EXISTS', '');
         const id = `plt_${++seq}`;
         const p = ltiPlatform({
@@ -278,11 +279,11 @@ export function fakeLti(): FakeLti {
       });
     },
     async getProviders() {
-      calls.push('GET providers'); failIfAsked();
-      return providers.map((p) => {
+      calls.push('GET providers');
+      return guarded('GET providers', () => providers.map((p) => {
         const shared = p.sharing === 'shared' ? [...platforms.values()].find((x) => x.profile === p.id) : undefined;
         return { ...p, sharedPlatform: shared ? { id: shared.id, clientId: shared.clientId, active: shared.active } : null };
-      });
+      }));
     },
     async getToolKeys() { calls.push('GET tool keys'); return [{ kty: 'RSA', kid: 'kid-1', alg: 'RS256', use: 'sig', n: 'n-value', e: 'AQAB' }]; },
     async getIdToken(ltik) {

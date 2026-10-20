@@ -35,7 +35,7 @@ export const APP_API_ERRORS = defineErrorTable({
   // M1 (app contract §4.2–§4.9): LMS types, approval grants and capabilities.
   CAPABILITY_NOT_SUPPORTED: { status: 409, alsoStatus: [422], description: 'This connection does not support this feature.' },
   INVALID_SITE_URL: { status: 422, description: 'The site URL is not valid.' },
-  PROVIDER_NOT_READY: { status: 409, description: 'Ask the Cogniate operator to register the Blackboard application.' },
+  PROVIDER_NOT_READY: { status: 409, description: 'This LMS setup is not ready in Cogniate.' },
   GRANT_INVALID: { status: 403, description: 'The approval code is not valid, was used, or expired.' },
   GRANT_MISMATCH: { status: 422, description: 'The values do not match the approval.' },
   GRANT_IN_USE: { status: 409, description: 'Cogniate is already saving this connection.' },
@@ -52,3 +52,9 @@ export class ApiError extends ApiErrorBase<AppApiErrorCode> {
     super(APP_API_ERRORS, code, description, options);
   }
 }
+
+/** App contract §4.7.3: the one neutral readiness text (the same for every LMS and cause; no public reason field). */
+export const PROVIDER_NOT_READY_ACTION = 'Ask your Cogniate operator to check the LMS setup for this connection. The operator tells you to try again later, or to make a new connection.';
+
+/** `409 PROVIDER_NOT_READY` with the neutral title (description) and action. The cause goes only to the log. */
+export const providerNotReady = (): ApiError => new ApiError('PROVIDER_NOT_READY', undefined, { details: { action: PROVIDER_NOT_READY_ACTION } });
