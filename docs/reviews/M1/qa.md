@@ -1,5 +1,5 @@
 Verdict: FAIL — no complete M1 round yet: attempt 1 FAIL at `aff4882`; attempt 2 INTERRUPTED and attempt 3 FAIL at `8138097` (one required host-gate assertion failed with HTTP 500; zero suite rows ran)
-Round: Claude continuation `ctx_8d5f8d3984d0`, attempt 3 default-gate failure, 2026-10-20
+Round: Claude continuation `ctx_8d5f8d3984d0`, attempt 3 default-gate failure and storage-lock diagnostic, 2026-10-20
 
 The latest checkpoint is at the end of this report. The completed legacy
 T2/T3 run remains exact-`eb43247` evidence in the M3 report. It is not an M1
@@ -606,3 +606,78 @@ and the phase artifacts under
 Next: a bounded diagnosis of the 500 before any rerun (escalation
 `msg_c0c19a2f8c70`). This QA does not change Docker, downgrade it or edit
 source.
+
+## Independent storage-lock diagnostic after attempt 3, 2026-10-20
+
+Status: **bounded diagnostic evidence only**. It earns no acceptance credit.
+Attempt 3 remains a **FAILED** required host-gate assertion
+(`M1-02.common.default-profile`, HTTP 500), with zero suite rows.
+
+Authority: Lead `msg_4b9a4e0703c7`, after the author diagnostic
+`task_b97d185ccfba` (report
+`/Users/quangnguyen/cogniate-author-diag/providers500-8138097-20261020T2022Z/public/AUTHOR-DIAGNOSTIC-report.md`,
+SHA-256 `f759561126bf17c70914fbcb114850f95662b838ffd1bc185f3a732e0ce075c3`). The
+author found that the bind-mounted data folder (`fakeowner`) does not enforce
+SQLite locks between processes. A seed CLI then removed the WAL under the open
+server connection, which caused `SQLITE_CORRUPT` and the 500.
+
+This QA wrote its own oracle and did not reuse the author's probe. It used one
+labeled volume and one container with no network, from the pinned image
+`sha256:44fce696…` (`node:24.22.0-alpine3.24`). Docker Desktop was 4.96.0 with
+engine 29.9.1. No product or test source, app stack, secret or production
+data was used.
+
+Method: process A holds `BEGIN EXCLUSIVE` with one inserted row and signals
+that it is ready. Process B, with busy timeout 0, tries `BEGIN IMMEDIATE`,
+`INSERT` and `COMMIT`. A is checked alive and `inTransaction` before and after
+B. Only `SQLITE_BUSY` (errcode 5) counts as a refusal, and B acquiring while A
+holds is a failure. After A releases, a new B must acquire (positive control).
+A fresh process then reads the rows and runs `integrity_check`. Every wait has
+a 20-second deadline. Host self-tests on APFS passed first: both modes
+enforced. A `nolock=1` negative control was detected (DELETE "not enforced";
+WAL "inconclusive", so a non-lock error never counts as enforcement).
+
+| Location | Filesystem | DELETE | WAL |
+| --- | --- | --- | --- |
+| Host bind mount | `fakeowner` | Enforced (B refused, errcode 5) | **Not enforced**: B acquired while A held; A could not commit; final rows `[B, B]`, so A's row was lost (integrity ok) |
+| Named volume | `ext4` | Enforced | Enforced |
+| Container writable layer | `overlay` | Enforced | Enforced |
+
+In all six cases A stayed alive with `inTransaction = true`, and every positive
+control acquired.
+
+- Agreement: WAL locking (the product's journal mode) fails on the bind mount.
+  The named volume and the container layer enforce locks here.
+- **Discrepancy, kept open:** the author saw B acquire on the bind mount in
+  DELETE mode. This oracle saw B refused (journal mode `delete`, `-journal`
+  file present). The cause is unknown. No extra run was made.
+- No version causality is claimed. As existing evidence: attempt 2 (VM cold
+  start, Docker Desktop 4.95.0, engine 29.8.2) passed the same fresh default
+  gate (`GET /api/providers` 200 at 15:46:31Z, 0 `internal_error` lines). Attempt
+  3 and the author's two fresh runs (4.96.0, 29.9.1) got 500. That is a
+  correlation, and no downgrade is authorized.
+
+Later finding about the bridge changes: Docker Desktop's backend `idle`
+component stops the VM when it is idle and answers read-only API calls from a
+cache. The next mutating call logs `idle -> busy`, `starting VM` and `engine
+start requested`, and the engine then creates a new default `bridge`. The
+"starting VM" times match every recorded bridge creation: 14:19:37, 15:19:05,
+15:45:52, 20:15:15, 20:22:50 and 20:39:00 UTC. So these ID changes come from
+idle VM restarts, not from QA actions. A boundary read while the VM is idle
+shows cached state.
+
+Cleanup: only the labeled container and volume `qa-multi-r1-sqlite-diag` were
+removed. Before and after: 0 containers, all seven protected volume records
+identical to the original baseline, memory and CPUs unchanged, port 8443 free,
+no owned leftovers. The only after-boundary problem is the bridge ID change
+explained above.
+
+| Evidence (`/Users/quangnguyen/cogniate-qa-runs/claude-sqlite-diag-20261020T2035Z/`) | SHA-256 |
+| --- | --- |
+| `public/QA-SQLITE-LOCK-DIAGNOSTIC.md` (summary) | `ada5017363a0e757b3faaccc301c0e854fb95056bd6ec2928ab95c5060c62cb7` |
+| `public/docker-oracle.json` (raw result; test rows only) | `d2c20c9f1ebdd4899b134c8e9a12de97362aaef9fa42f44418c836bffd26c204` |
+| `hostdir/probe/oracle.mjs` (oracle) | `c79a15f0edbcb9d8c11b92e1170d3159001be2fef9ea97c3339bf2126b37f570` |
+| `public/selftest-positive.json` | `4a4cb3395ca0048d4132811c12411582d248286962d8593998ffc5bb347a1e91` |
+| `public/selftest-negative.json` | `b283f8cec2f7dd6268a1ff97354c8e48c5eb35537560c9d6718efedfd833506d` |
+| `public/boundary-before.json` | `0532ba0f7aca4de1b16b9be80cf949b762793fb6fcc1d92930ab7e881c14f73d` |
+| `public/boundary-after.json` | `05eac6e162bd57edf72f9acd1cb27456d3060430ed687d87d8ffbb98b28b1ded` |

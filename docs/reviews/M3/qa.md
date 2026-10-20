@@ -1,5 +1,5 @@
 Verdict: FAIL — no complete M1 round and no final-SHA legacy yet: attempt 1 FAIL at `aff4882`; attempts 2 (INTERRUPTED) and 3 (FAIL: one host-gate assertion, zero suite rows) at `8138097`
-Round: Claude continuation `ctx_8d5f8d3984d0`, attempt 3 default-gate failure, 2026-10-20
+Round: Claude continuation `ctx_8d5f8d3984d0`, attempt 3 default-gate failure and storage-lock diagnostic, 2026-10-20
 
 The T2/T3 group below passed at its exact frozen candidate. The later harness
 repair is preparation only and does not replace that run or close M3.
@@ -337,3 +337,15 @@ cause is not classified. Cleanup passed, and all seven protected volume
 records still match the original baseline. The
 [M1 report](../M1/qa.md#claude-continuation--full-run-attempt-3-at-8138097-fail-at-the-default-gate-2026-10-20)
 has the record. AC-M3-01, AC-M3-02(b) and AC-M3-04 stay incomplete.
+
+## Storage-lock diagnostic after attempt 3, 2026-10-20
+
+An independent QA oracle confirmed that SQLite WAL locking fails on the
+`fakeowner` bind mount in this Docker Desktop (4.96.0, engine 29.9.1). B got
+the write lock while A held it, and A's row was lost. DELETE mode was enforced
+there, which differs from the author's result, and the cause is unknown. A
+named volume and the container layer enforce both modes. No version causality
+is claimed. The bridge ID changes come from Docker Desktop's idle VM restarts.
+This is diagnostic evidence only. Attempt 3 remains a FAILED required host-gate
+assertion, and M3 stays FAIL. Details, paths and hashes:
+[M1 report](../M1/qa.md#independent-storage-lock-diagnostic-after-attempt-3-2026-10-20).

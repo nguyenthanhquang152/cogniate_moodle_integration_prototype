@@ -1228,6 +1228,62 @@ It must map existing-data preservation, coordinated backup/restore, old-build mi
 Named volumes and a fail-fast locking precondition are candidates, pending evidence and the impact map.
 No tracked repair, Docker settings change, downgrade or acceptance rerun is authorized yet.
 
+### Independent WAL diagnosis accepted; bounded storage design authorized
+
+QA returned the diagnostic window in `msg_4b9ecd55cdfd` at 20:41 UTC.
+The independent oracle found unsafe WAL locking on the bind mount and a lost test row.
+Named volumes and the container writable layer enforced both DELETE and WAL locks.
+Every held-lock check proved that process A stayed alive and in its transaction.
+Every release-positive control then acquired its lock.
+The bind-mount DELETE result differs: the Author observed failure, but QA observed correct locking. Its cause remains unknown.
+The agreed finding is unsafe WAL locking on this host, not failure of every locking mode.
+No evidence proves that the Docker update caused the defect.
+
+Evidence root: `/Users/quangnguyen/cogniate-qa-runs/claude-sqlite-diag-20261020T2035Z`.
+The Lead verified these artifact hashes and the raw six-case results:
+
+| Artifact | SHA256 |
+| --- | --- |
+| `public/QA-SQLITE-LOCK-DIAGNOSTIC.md` | `ada5017363a0e757b3faaccc301c0e854fb95056bd6ec2928ab95c5060c62cb7` |
+| `public/docker-oracle.json` | `d2c20c9f1ebdd4899b134c8e9a12de97362aaef9fa42f44418c836bffd26c204` |
+| `hostdir/probe/oracle.mjs` | `c79a15f0edbcb9d8c11b92e1170d3159001be2fef9ea97c3339bf2126b37f570` |
+
+QA removed only its labeled diagnostic container and volume. Zero containers remain.
+All seven original protected-volume records match in full. Memory and CPU allocation are unchanged.
+This evidence earns no acceptance credit. Attempt 3 remains a failed required host assertion, with zero suite rows run.
+
+The default bridge changes now have an explanation from Docker's backend logs.
+Docker stops its idle VM and answers read-only calls from its API cache.
+The next mutating operation starts the VM and creates a new default bridge.
+The recorded VM start times match every observed bridge recreation.
+A later QA preflight must wake the VM with an owned, labeled, no-network disposable operation before recording its boundary.
+This explains the earlier unknown bridge changes; it does not prove their relation to the storage fault.
+
+The Architect completed its read-only assessment in `msg_fe35e9a47129`.
+Proposal: `/Users/quangnguyen/cogniate-architect-diag/storage-recovery-task_a37d8fc8b8e3/STORAGE-RECOVERY-PROPOSAL.md`.
+SHA256: `a0e497c2058a29f1c463358daf088cd6ea5370c8ba439d8ed5973d2784e05ff3`.
+The Lead selected S1 for formal design: project-scoped volumes for SQLite state, existing content binds, and a fresh WAL lock precondition.
+Task `task_f7bf1fb07035`, dispatch `ctx_5a9eec1ff0ab`, reuses the same Claude Architect.
+It owns only the named architecture documents. It has no Docker, implementation or commit authority.
+
+The Lead authorizes a bounded storage-only compatibility fixture for old revisions `b0b83a8` and `9f96f7b`.
+This is an explicit exception to the earlier no-overlay rule, subject to independent design and implementation reviews.
+The old tracked product source must remain unchanged; frozen hashes and effective-configuration comparisons must prove the fixture's narrow scope.
+Every old-build result must name its storage fixture. No other overlay or assertion change is authorized.
+Rollback must retain safe storage. It must not restore live use of the failing bind mount.
+The Lead also authorizes the proposed AC-M1-41 storage criterion, with an honest inventory update after review.
+No personal or protected baseline stack will be imported in this phase.
+
+The formal contract must resolve every paired-restore interruption, including partial identity writes and failed rollback.
+It must refuse ambiguous legacy state and preserve previous data until both restored targets pass validation.
+It must state automatic-restart limits and use portable negative controls without claiming all bind mounts fail.
+No implementation or acceptance rerun is open yet.
+After the repair, both full M1 rounds, both migration routes, all legacy suites, M2 and three T7 runs must rerun.
+Historical results remain at their true SHAs. All 32 live LMS rows remain UNVERIFIED.
+
+Lead messages `msg_3a24ee1a3b97` and `msg_e39da706dc01` request honest closure of the current incomplete verification attempts.
+The dedicated QA sessions will be reused for the new storage candidate. No Docker window is currently assigned.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
