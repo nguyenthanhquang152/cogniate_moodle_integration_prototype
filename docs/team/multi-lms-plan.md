@@ -966,6 +966,29 @@ Evidence root: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-aff4882-
 Common QA may prepare the new source read-only under `msg_41e9d3df3523`; all its stack actions remain held.
 Both source supplements and complete runtime gates are required before the full M1 handback.
 
+### `aff4882` M2 result and observer incident
+
+QA reports all 64 M2 cases PASS, without skips, retries or flaky results, in `msg_4e94792776cf`.
+Run: `qa-e2e-sim-r5-aff48823-2026-10-20T14-19-46-505Z`.
+Both HTML teacher/learner flows and the per-provider capability capture completed.
+The runner scan found zero hits. Cleanup restored the full baseline.
+
+The separate external observer crashed when a container vanished between enumeration and inspection.
+Its local stdout log received four occurrences of two disposable stack secrets from a child-process error.
+QA moved the original to a private mode-0600 file, sanitized the working copy and rescanned it.
+The secrets were not sent, committed or copied to shared artifacts.
+This is an observer privacy FAIL/incident with containment, not a pristine privacy PASS.
+The final 40 seconds of redundant progress observations are absent; the complete Playwright results remain available.
+The Lead accepts the functional M2 result without another product run and preserves the incident as a separate outcome.
+
+Message `msg_987f8e232e3b` requires actual observer controls and a clean baseline before T7.
+The old observer leaks the planted test payload; the replacement suppresses it, tolerates the vanished container and records the survivor.
+An unexpected parse error also withholds the payload.
+The Lead read `observer-control/results.json`; these controls use the exact pinned observer source.
+QA confirmed the sanitized log hash, private permissions and clean boundary in `msg_ee28235a411d`.
+T7 now runs as `qa-e2e-m3-r2` at the unchanged `aff48823a4c6206d6314d91a95f5eb0979d3e0e7`.
+Common QA received the concrete observer failure mode in `msg_e8cce2bcc584` and remains held.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
