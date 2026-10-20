@@ -9,9 +9,9 @@ The Moodle release below is the completed baseline.
 
 | Task | Owner | Status | Evidence |
 | --- | --- | --- | --- |
-| M0 | Architect; independent QA and reviewers | Design gate passed; three text corrections queued | Round 3 at `158a4d8`: A APPROVE, B APPROVE, QA PASS for design testability. No open BLOCKER or MAJOR. |
-| M1 | Author (Claude) | Planned; design gate required | Backend implementation task queued. |
-| M2 | Author-2 (Codex) | Planned; design gate required | Portal task queued in its own worktree. |
+| M0 | Architect; independent QA and reviewers | Done for design scope | Round 3 at `158a4d8`: A APPROVE, B APPROVE, QA PASS for design testability. Nonblocking A-M0-11, A-M0-12 and B-M0-10 text corrections applied. No open BLOCKER or MAJOR. |
+| M1 | Author (Claude) | Ready for implementation | Full backend task unblocked by the accepted design gate. |
+| M2 | Author-2 (Codex) | Ready for implementation | Portal task unblocked; separate worktree. |
 | M3 | QA (Codex), QA-E2E (Claude) | Planned | Environment preflight complete. Real Canvas and Blackboard checks remain unverified. |
 | M4 | Docs and Architect | Planned | Guides, review pack, final conformance. |
 

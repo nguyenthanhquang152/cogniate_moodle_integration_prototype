@@ -118,3 +118,13 @@ The findings share one root cause: a successful remote compare-and-set did not p
 No round-2 finding stays open in the design. A-M0-10 is the one accepted deferral (D-12). The AC inventory is now 40 M1 + 13 M2 + 7 M3 + 8 M4 (new AC-M4-08). AC-M1-37 has subcases (a) to (u) with (c2); AC-M1-38 has (a) to (g).
 
 Incidental, no change of meaning: in Mermaid sequence messages a semicolon ends the message, so the semicolons in flows 6g–6i and ADR-011 §4a are now commas. The Lead's pre-freeze precisions are applied. `msg_98230276627d`: app contract §4.9 now separates a Blackboard row that existed at the fence-out from an absent row that a late create makes later (inactive, no approval, adopted by the next reservation holder or fenced by a repeated suspend). `msg_45c324e137dc`: LTI contract §9.15 now promises only an atomic comparison with the current ref; the no-stale-write property is an app property with its stated assumption (I3).
+
+## Round 3 (editorial clarifications, revision 6 unchanged)
+
+Inputs: the round-3 sections of `docs/reviews/M0/reviewer-a.md` and `reviewer-b.md` and the Lead gate decision at `e19e38a`. The reviewed design stays revision 6 at `158a4d8` (both reviewers APPROVE; QA PASS for design testability; no open BLOCKER or MAJOR). These are wording changes only: no rule, schema, API, provider, timeout or behaviour changes, so the ADR revision number stays 6.
+
+| Id | Sev. | Change |
+| --- | --- | --- |
+| A-M0-11 | NIT | Done. The A-M0-10 race now has its exact scope: it exists only for `canvas-self-hosted`, because hosted Canvas issuers and the Blackboard issuer are reserved and a `standard` connect with them gets `400 ISSUER_RESERVED`. Files: ADR-011 §4b "Accepted limit", D-12, R-M-16; app contract §4.9 "After a release"; security §12 "Containment"; open questions Q21; M4 `operator.md` scope (3a) and AC-M4-08 (the `deferred.md` entry states the scope). AC-M1-39 already tests the self-hosted case and does not change. |
+| A-M0-12 | NIT | Done. AC-M1-18 uses the same due-time bound as AC-M1-38 (a): the pending row stays `pending` until its due time, then becomes `failed` (`CONNECTION_DISABLED`); QA polls until the due time + 2 × 2 s worker poll + 5 s; `tries` unchanged; no score POST. File: M1. |
+| B-M0-10 | MINOR | Done. The AC-M1-37 common ending now says "no approval from a revoked grant's redemption" and "no effective launch or grade authority for a disabled connection (earlier approval rows stay as history until `release`, AC-M1-38 (b))". This matches app contract §4.7.2 (approvals stay with the disabled connection until release), §6.1 (routing needs a `registered` or `connected` owner) and data model §4.2 "Approvals". File: M1. |

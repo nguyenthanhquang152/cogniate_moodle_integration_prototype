@@ -6,7 +6,7 @@ Owner: Lead. Date: 2026-10-20.
 
 The design candidate is ADR-011 revision 6 at `158a4d86fb5764f597ff20e3f652ae6d5225f96b`.
 Round 3 passed: both reviewers APPROVE, QA gives a design-testability PASS, and no BLOCKER or MAJOR remains.
-The Lead accepted this design gate. Three nonblocking text corrections are queued before the implementation handoff.
+The Lead accepted this design gate. The Architect applied the three nonblocking text corrections without changing behavior.
 Task completion by itself is not approval.
 
 After acceptance, the Lead advances the portal branch to the accepted integration commit.
@@ -25,6 +25,11 @@ The task specs and contracts define behavior. This handoff defines execution and
 Use the same dedicated instances. Run at most three workers beside the Lead.
 Respect the exact paths in each task. Workers do not commit or push.
 The Lead commits only reported paths. Leave setup-generated `pnpm-workspace.yaml` files untouched.
+
+Canvas and Blackboard proceed together. Neither provider waits for the other provider's live tenant access.
+The backend owner builds shared mechanisms once, with provider-specific adapters and cases.
+Portal and test work proceed in parallel against those contracts.
+Keep separate progress and evidence for each provider.
 
 M1 follows its stated internal order: LTI service, shared package and infrastructure first; app and player second.
 Partial M1a evidence does not close M1. Every M1 criterion needs the full implementation.

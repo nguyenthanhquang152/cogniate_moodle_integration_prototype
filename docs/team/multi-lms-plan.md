@@ -70,7 +70,7 @@ Do not run a destructive reset against the user's existing environment.
 
 | Task | Result | State |
 | --- | --- | --- |
-| M0 | Source review, architecture, contracts, criteria | Round 3 accepted at `158a4d8`; three nonblocking text corrections queued |
+| M0 | Source review, architecture, contracts, criteria | Done for design scope; round 3 accepted and nonblocking text corrections applied |
 | M0-A2 | Read-only portal and integration audit | Complete; no code or tests changed |
 | M0-AU | Read-only backend and deployment impact audit | Complete; no code or tests changed |
 | M0-QE | Independent environment and live-LMS validation preflight | Complete; environment inventory, no product verification |
@@ -131,6 +131,15 @@ Architect task `task_ceecd44306c1` applies three nonblocking text corrections be
 A-M0-11 narrows the accepted race to self-hosted Canvas; A-M0-12 aligns the due-time test bound;
 B-M0-10 distinguishes retained approval history from effective authority.
 The same contracts already define those behaviors. No protocol redesign or additional deferral is authorized.
+The Architect completed these exact clarifications in `ctx_58eb42ecc1de`.
+The Lead checked the diff against the accepted contracts; it changes wording only and keeps ADR revision 6.
+M1, M2 and both test-preparation tasks are now ready. Product implementation and verification remain separate.
+
+The owner asked to proceed with Canvas and Blackboard in parallel.
+Neither provider waits for the other provider's live access or setup work.
+Shared LTI, grant and grade code has one backend owner; portal and independent tests run beside it.
+Each provider keeps its own setup cases, acceptance results, live matrix and readiness status.
+The current resource limit still applies: three active workers beside the Lead, and at most two test stacks.
 
 Author-2 completed the read-only audit in `ctx_1eeade383449`.
 Messages `msg_57b462b0aec3`, `msg_c8afa054e00e`, and `msg_b3a206ea8b3f` hold the findings.
