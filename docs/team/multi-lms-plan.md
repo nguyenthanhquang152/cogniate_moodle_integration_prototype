@@ -835,6 +835,25 @@ Only if M2 passes and cleanup completes may the same owner run three default T7 
 A failed M2 run or a new source blocker holds the next stage. Common QA has no stack authority yet.
 The active workers are common QA, original Claude Canvas QA and original Claude Reviewer-A. Reviewer-B stays queued.
 
+### Third M2 run and bounded readiness repair
+
+Original Claude Canvas QA reports the full `e3cd7db` run in `msg_523fd7d86744`: **60 PASS / 4 FAIL**, zero skips or retries.
+Run: `qa-e2e-sim-r3-e3cd7dbc-2026-10-20T13-35-07-428Z`.
+The unchanged `M2-13.no-stale-values` observer now passes.
+Three failing cases read the publish options before asynchronous loading finishes.
+The fourth starts its keyboard Tab sequence before the Blackboard form renders.
+Both `M2-12` cases stop before launch, so neither the player repair nor automatic runtime/play capability capture is verified.
+QA reports zero captured-secret hits and clean teardown, with all seven complete baseline volume records unchanged.
+The Lead independently observed zero containers. The previous stack window is closed; T7 remains HOLD.
+
+Lead reply `msg_3590cf55633f` authorizes a bounded QA repair in four M2 case files.
+It adds retrying readiness assertions before option snapshots and before initial keyboard navigation.
+All case IDs, positive and negative checks, keyboard-only input and existing assertions must remain.
+QA must run harness checks, typecheck and unchanged inventory checks, and demonstrate delayed-render and missing-target controls in private scratch.
+It holds exact paths and hashes for Lead commit. No product edits or stack run are authorized by this repair.
+The next full run requires a new committed product/test freeze and explicit exclusive window.
+Common QA stays held; Reviewer-A continues the exact `e3cd7db` source review with these runtime limits.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
