@@ -2,9 +2,12 @@
 //   npm run lti:shared-platform -w services/lti-service -- --account cogniate --profile blackboard --client-id <Application ID> [--name "Cogniate"]
 // Makes the shared platform if it does not exist and prints one JSON line {platformId, created}. The same client id
 // again: prints the id and changes nothing (exit 0). Another client id: exit 1 with one line. It prints no secret.
+// A create logs `platform_created {platform_id, profile}` (§9.4, like the API) to the service log (createCliLogger).
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
+import { createCliLogger } from '@cogniate/shared';
+import type { Logger } from '@cogniate/shared';
 import { loadConfig } from '../config.ts';
 import { openDb } from '../db/index.ts';
 import type { Db } from '../db/index.ts';
@@ -16,7 +19,7 @@ import { SharedPlatformExistsError, createPlatform, findSharedPlatform } from '.
 export type SharedPlatformResult = { ok: true; platformId: string; created: boolean } | { ok: false; message: string };
 
 /** The rules of contract §9.12 (unit-tested; the CLI below only parses arguments and prints). */
-export function ensureSharedPlatform(db: Db, opts: ProfileOptions, input: { account: string; profile: string; clientId: string; name?: string }): SharedPlatformResult {
+export function ensureSharedPlatform(db: Db, opts: ProfileOptions, input: { account: string; profile: string; clientId: string; name?: string }, logger?: Logger): SharedPlatformResult {
   if (!getAccount(db, input.account)) return { ok: false, message: `Unknown tool account: ${input.account}.` };
   const profile = findProfile(input.profile, opts);
   if (!profile) return { ok: false, message: `Unknown provider profile: ${input.profile} (UNKNOWN_PROFILE).` };
@@ -33,6 +36,7 @@ export function ensureSharedPlatform(db: Db, opts: ProfileOptions, input: { acco
       issuer: e.issuer, clientId: input.clientId, name: input.name ?? 'Cogniate', authEndpoint: e.authenticationEndpoint, tokenEndpoint: e.accesstokenEndpoint,
       jwksUrl: e.jwksUrl, deploymentIds: [], active: true, profile: profile.id, shared: true,
     });
+    logger?.info('platform_created', { platform_id: p.id, profile: p.profile });
     return { ok: true, platformId: p.id, created: true };
   } catch (err) {
     if (err instanceof SharedPlatformExistsError) return { ok: false, message: `A ${profile.id} shared platform exists. Run the command again.` };
@@ -50,7 +54,7 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(
   const db = openDb(join(config.dataDir, 'lti.db'));
   const result = ensureSharedPlatform(db, { simulation: config.simulationProfiles }, {
     account: values.account, profile: values.profile, clientId: values['client-id'], ...(values.name ? { name: values.name } : {}),
-  });
+  }, createCliLogger({ service: 'lti-service' }));
   db.close();
   if (!result.ok) {
     console.error(result.message);

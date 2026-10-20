@@ -8,7 +8,7 @@ export { ApiErrorBase, apiErrorBody, defineErrorTable } from './errors.ts';
 export type { ApiErrorBody, ApiErrorOptions, ApiErrorSpec, ApiErrorTable } from './errors.ts';
 export { BUILD_STEPS, KNOB_REGISTRY, knobString, knobValue, readServiceKnobs } from './knobs.ts';
 export type { Knob, KnobName, KnobSpec, NumberKnobName, ServiceKnobs, StringKnobName } from './knobs.ts';
-export { BOOT_TRACE_ID, createLogger, redact, redactPath, redactString } from './logger.ts';
+export { BOOT_TRACE_ID, createCliLogger, createLogger, redact, redactPath, redactString } from './logger.ts';
 export { MigrationChangedError, applyMigrations, openSqlite, transaction } from './migrations.ts';
 export type { Db as SqliteDb } from './migrations.ts';
 export { OutboundError, createOutboundClient, isBlockedAddress, parseAllowlist } from './outbound.ts';

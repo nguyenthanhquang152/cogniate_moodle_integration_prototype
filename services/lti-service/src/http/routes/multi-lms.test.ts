@@ -1,6 +1,7 @@
 // M1 LTI service behaviour (contract §9, ADR-011): profiles, platforms, deployments, binding refs, login and launch
 // changes, claim allowlist, generations and the providers API. Canvas profile DATA is owned by the Canvas
 // implementer; these engine tests use a test copy of the two Canvas rows they need (vi.mock below).
+import { createLogger } from '@cogniate/shared';
 import { decodeJwt } from 'jose';
 import { describe, expect, it, vi } from 'vitest';
 import type { Harness } from '../../testkit.ts';
@@ -477,9 +478,15 @@ describe('lti:shared-platform CLI rules (§9.12)', () => {
   it('creates once; the same client id prints the same id; another client id fails and changes nothing', async () => {
     const h = await harness({ simulationProfiles: true });
     const opts = { simulation: true };
-    const first = ensureSharedPlatform(h.db, opts, { account: 'cogniate', profile: 'blackboard-sim', clientId: BB_CLIENT });
+    const lines: Array<Record<string, unknown>> = [];
+    const logger = createLogger({ service: 'lti-service', dir: '', write: (l) => lines.push(JSON.parse(l) as Record<string, unknown>) });
+    const first = ensureSharedPlatform(h.db, opts, { account: 'cogniate', profile: 'blackboard-sim', clientId: BB_CLIENT }, logger);
     expect(first).toMatchObject({ ok: true, created: true });
-    expect(ensureSharedPlatform(h.db, opts, { account: 'cogniate', profile: 'blackboard-sim', clientId: BB_CLIENT })).toEqual({ ok: true, platformId: (first as { platformId: string }).platformId, created: false });
+    expect(ensureSharedPlatform(h.db, opts, { account: 'cogniate', profile: 'blackboard-sim', clientId: BB_CLIENT }, logger)).toEqual({ ok: true, platformId: (first as { platformId: string }).platformId, created: false });
+    // One platform_created line (§9.4 fields), only for the create.
+    expect(lines.map(({ ts: _ts, trace_id: _t, ...rest }) => rest)).toEqual([
+      { level: 'info', service: 'lti-service', event: 'platform_created', platform_id: (first as { platformId: string }).platformId, profile: 'blackboard-sim' },
+    ]);
     expect(ensureSharedPlatform(h.db, opts, { account: 'cogniate', profile: 'blackboard-sim', clientId: 'other' }).ok).toBe(false);
     expect(ensureSharedPlatform(h.db, { simulation: false }, { account: 'cogniate', profile: 'blackboard-sim', clientId: BB_CLIENT }).ok).toBe(false);
     expect(ensureSharedPlatform(h.db, opts, { account: 'cogniate', profile: 'standard', clientId: BB_CLIENT }).ok).toBe(false);
