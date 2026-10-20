@@ -1684,6 +1684,32 @@ Those items will remain addressed pending implementation checks, not waived or s
 The two queued source tasks can start after that contract is frozen and the Lead supplies the exact handoff.
 The human review record must preserve the escalation history and distinguish design closure from all remaining verification gates.
 
+The QA report and Lead design-acceptance decision are frozen at `5f3337a95d07a588767d06ddb26f8b014d2d9671`.
+Architect precision: `task_1131dea487ca`, dispatch `ctx_2aeaee00bed0`, launch `msg_cd43c61a8ae0`, start `msg_7519f3a8a6d5`.
+The B-S-23 correction must preserve the required h-target-state sequence: its restore/import refusals do not run the legacy scan.
+Docs closure record: `task_84864af0379e`, dispatch `ctx_3469514c4537`.
+Its launch confirms requested and effective Claude Code Opus 5.5 xhigh; it owns only G1 in the human review list.
+Both tasks have no Docker authority. The final M4 guide task remains gated by implementation and verification.
+
+The Architect submitted revision 3.3 in `msg_022bac95a5fc`: eight architecture files, with all four items addressed pending implementation verification.
+The Lead checked the eight held hashes and preserved response history. `local-stack.md` is unchanged.
+Before freezing, the Lead found a mechanical resource-identity detail: Docker volume metadata has no `Id` field.
+The original protected-volume records expose `Name`, `CreatedAt`, `Driver`, `Labels`, `Mountpoint`, `Options` and `Scope`.
+Architect follow-up `task_76c3c8865200`, dispatch `ctx_f54503e2deb2`, launch `msg_6e9ab17ddf68`, start `msg_a3c1e92de4db`, clarifies only that wording.
+It uses kind-specific recorded identity and preservation checks; it does not invent a volume id or broaden cleanup authority.
+The other five held architecture files stay unchanged. No Docker is authorized.
+
+Docs started in `msg_ec29e7a52a8a` and submitted G1's current design-closure record in `msg_1405db3332a1`.
+Held SHA-256: `84b95ce1992885fe9ca93597bd3dda53052b46900f7400f06d9db4ae1e1b8ae4`.
+The Lead checked the scoped diff, hash and preserved earlier sections, then released the worker before acknowledgment.
+The record keeps escalation history, both diagnostics, the QA disclosure, four open nonblocking items and every remaining verification gate.
+
+Storage implementation reviews are queued behind the two source-preparation tasks and an exact committed candidate:
+Reviewer-A `task_5580d3cb79c5`, Reviewer-B `task_94536ec30f9a`.
+They own only their separate M1 storage-review reports and remain independent of the authors and QA.
+Both approvals and the Author/QA source checks are required before any full verification retry or final conformance starts.
+These new source-review gates supplement the original final-stage dependencies; they do not replace failed verification tasks.
+
 The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.

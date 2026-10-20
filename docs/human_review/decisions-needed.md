@@ -123,14 +123,102 @@ That rule sends each BLOCKER or MAJOR that is open after review round 3 to this 
 This section asks for no decision.
 The charter does not require human permission before the authorized corrections.
 
-### G1. Storage design: UNRESOLVED
+### G1. Storage design: blocking design findings closed
 
 Topic: SQLite data on Docker named volumes ([ADR-012](../architecture/adr/ADR-012-sqlite-volume-storage.md)).
 
-**Open now:** one MAJOR finding, QA R3B-01 (fresh-volume fixtures and cleanup checks). See [G1 current status](#g1-current-status-after-the-bounded-check).
-The bounded check closed the two Round 3 MAJOR findings, QA R3-01 and R3-02.
+**Current status:** the blocking design findings of G1 are closed. The Lead accepts the storage design for implementation.
+Implementation and all runtime checks are still open. See [G1 current status](#g1-current-status-design-accepted-for-implementation).
+
+The two G1 history parts below keep the earlier records. Their UNRESOLVED and "open" statements were true at that time.
+They do not give the current status.
+
+#### G1 current status: design accepted for implementation
+
+Updated by Docs on 2026-10-21 from the Lead decision at commit `5f3337a`.
+The Architect's bounded revision 3.2 of ADR-012 is frozen at commit `d0bdda0` ([response](../architecture/review-response-storage.md#g1-bounded-correction-r3b-01-a-s-13-b-s-22-adr-012-revision-32)).
+On 2026-10-21, the same Reviewer-A, Reviewer-B and QA checked that exact commit.
+This was a second bounded check, not a fourth review round.
+
+| Check | Verdict | Closed by this check | New nonblocking finding | Report |
+| --- | --- | --- | --- | --- |
+| Reviewer-A | APPROVE, design only | A-S-13, as a design build gate (scoped gate G-1) | A-S-14, MINOR | [Addendum](../reviews/M0/storage-reviewer-a.md#g1-bounded-disposition-addendum-a-s-13-2026-10-21) |
+| Reviewer-B | APPROVE, design only | B-S-22 | B-S-23, NIT | [Addendum](../reviews/M0/storage-reviewer-b.md#g1-bounded-disposition-addendum--revision-32) |
+| Common QA | PASS, bounded design testability | R3B-01, the last open MAJOR. R3-01 to R3-07 stay closed. | G1-QA-01 and G1-QA-02, MINOR | [Addendum](../reviews/M0/storage-qa.md#g1-bounded-disposition-addendum-revision-32) |
+
+No BLOCKER or MAJOR remains from these three checks.
+The three addenda and the Lead decision are at commit `5f3337a`.
+
+**Lead decision:** G1's blocking design findings are independently closed at revision 3.2. The storage design is accepted for implementation.
+This decision is design closure only. It is not:
+
+- human approval;
+- a waiver of a finding;
+- implementation acceptance;
+- runtime acceptance;
+- enterprise readiness.
+
+The Lead's record is in the [phase plan](../team/multi-lms-plan.md#storage-round-3-escalation-and-bounded-correction).
+
+**Four nonblocking items stay open.** Architect task `task_1131dea487ca` states them as precision corrections.
+That task changes no product mechanism, protocol, original assertion or row count.
+
+| Id | Severity | Required precision |
+| --- | --- | --- |
+| A-S-14 | MINOR | A G-1 pass is valid only for the recorded OS version, Docker CLI version and binary hash, and Compose plugin version and binary hash. QA compares these identities at its run boundaries. If one is different, G-1 must run again. Until then, the lock-dependent rows are BLOCKED. |
+| B-S-23 | NIT | The product-made `FIRST_START` setup needs empty legacy file sets only where `stack:up` runs after it, for example in `a-first-start-resume`. If legacy files are present there, the setup is BLOCKED. |
+| G1-QA-01 | MINOR | QA keeps an ownership record for each resource kind that it lists by label: containers, volumes and networks. |
+| G1-QA-02 | MINOR | Docker shows a volume `CreatedAt` in whole seconds. QA compares in whole seconds. It reads the command start from the Docker engine clock and rounds it down to the second. |
+
+The Architect's text addresses these items. It does not close them.
+Each item closes only after implementation evidence and an independent check of that evidence.
+Do not mark these items closed before that.
+
+**Gate G-1: Docker client process groups (diagnostic evidence only).**
+[ADR-012 §17](../architecture/adr/ADR-012-sqlite-volume-storage.md#17-measured-feasibility-facts-and-assumptions-for-the-build-step) defines gate G-1.
+Every Docker client process of a run must stay in the process group of the guarded command.
+A kill of the whole group before the container exists must leave no client and no container for 30 seconds.
+The original Author measured this in two bounded diagnostics. Reviewer-A checked both reports independently.
+
+| Step | Result | Use |
+| --- | --- | --- |
+| First diagnostic, `task_0b882dfdab3f` | The Docker front process and the Compose plugin stayed in the command's group in four trials. A real `SIGKILL` to the parent only left Docker clients alive in the group. These clients created the target container later. A whole-group kill left no client and no late target, but the watch lasted only about 2.7 seconds. | Not sufficient. G-1 needs 30 seconds. |
+| Follow-up `task_e33f7d22129d`, first trial | The watch lasted 30 seconds, but the command did not have the exact container name and run label. | Supplemental only. |
+| Follow-up, corrected trial | The command had the exact name and run label. A whole-group `SIGKILL` left no client and no target for more than 30 seconds after the test's dependency gate opened. A positive control showed that the same name and label filters find a real target. | Meets G-1 for the measured scope. |
+
+Reviewer-A accepts scoped G-1 from both reports. A-S-13 closes as a design build gate.
+The measured scope is only:
+
+- macOS 27.0.1 on arm64;
+- Docker CLI and engine 29.9.1, and Compose 5.6.0;
+- `/bin/bash` 3.2.57;
+- a storage-style `docker compose run`.
+
+There is no claim for other signals, a race in the container create API, `up`, `exec`, other hosts or other versions.
+The diagnostics give no acceptance credit.
+The report hashes and evidence folders are in the [phase plan](../team/multi-lms-plan.md#storage-round-3-escalation-and-bounded-correction).
+
+**QA independence disclosure.** QA finished its own R3B-01 trace first.
+After that, its inbox output showed the summary of Reviewer-A's completion message.
+QA read no other addendum file. QA used no G-1 conclusion from that summary. QA does not decide G-1.
+The Reviewer-B and QA addenda give the G-1 state from their earlier handoff, which had only the 2.7-second watch.
+Reviewer-A separately accepted the complete follow-up evidence.
+
+**Gates that stay required:**
+
+- Source implementation and test preparation stay queued until the Architect freezes the final precision contract and the Lead gives the exact handoff. The backend Author task is `task_3b908985fd0b`. The independent QA preparation task is `task_58a1e33ac60f`.
+- The implementation needs a green Author self-check, the lock self-check, and source reviews by Reviewer-A and Reviewer-B.
+- Each full M1 round keeps 488 rows: the 416 existing rows plus 72 storage rows. Two complete rounds must give matching results.
+- Both qualified old-build routes and the legacy regression must pass again.
+- A fresh M2 run of all 64 cases and fresh T7 runs are required.
+- The full QA tasks `task_ed3b08aa45ea` and `task_e28388df4dcc` stay failed and incomplete. Each needs a proper retry after implementation, test preparation and both source reviews pass. The Lead gives one frozen candidate for each retry.
+- All 32 live LMS rows stay **UNVERIFIED**. Local live Canvas stays deferred.
+- No merge to `main` and no push is authorized.
+- The final M4 guides are a separate task. They stay pending.
 
 #### G1 history: Round 3
+
+History: this was the status at commit `9124cfd`. For the current status, see [G1 current status](#g1-current-status-design-accepted-for-implementation).
 
 Round 3 checked design revision 3 at commit `b3bd22e`. The report text is at commit `7f2c2c5`.
 
@@ -160,7 +248,9 @@ G1 stays UNRESOLVED until the same reviewers and QA check the frozen correction 
 Do not mark G1 closed without that independent evidence.
 Add any new BLOCKER or MAJOR from that check to G1.
 
-#### G1 current status: after the bounded check
+#### G1 history: first bounded check (revision 3.1)
+
+History: this was the status at commit `0810b84`, before revision 3.2. For the current status, see [G1 current status](#g1-current-status-design-accepted-for-implementation).
 
 The Architect's bounded revision 3.1 is frozen at commit `a65a4ee` ([response](../architecture/review-response-storage.md#round-3-bounded-corrections-to-the-round-3-rechecks-adr-012-revision-31)).
 On 2026-10-21, the same Reviewer-A, Reviewer-B and QA checked their findings against that exact commit.
