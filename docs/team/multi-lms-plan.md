@@ -1708,6 +1708,21 @@ Teardown re-inspects the latest record and preserves any mismatch or unverifiabl
 The text states Docker's lack of a unique volume-generation id and makes no stronger identity claim.
 Revision 3.3 is ready for the exact source handoff. The four minor precision items remain subject to implementation verification.
 
+The accepted contract is frozen at `89be93cc9e24f74c2b32ce72180ad4c706d000f7`.
+The Lead authorized the two source tasks in parallel against that exact commit:
+
+| Owner | Task | Dispatch | Launch |
+| --- | --- | --- | --- |
+| Original backend Author | `task_3b908985fd0b` | `ctx_f1299da8103d` | `msg_9e844f8be156` |
+| Independent common QA preparation | `task_58a1e33ac60f` | `ctx_e583d25c6083` | `msg_96802109f5df` |
+
+Both reuse the same dedicated Claude Code Opus 5.5 xhigh sessions.
+The Author started in `msg_1618035ac061`; QA started in `msg_c4bc47b90b42`.
+QA writes from the accepted criteria before reading implementation notes.
+Their files do not overlap; neither task has a Docker window or acceptance authority.
+The Author runs meaningful host/unit checks and the existing root check. QA runs host-only harness and inventory controls.
+All original assertions stay intact, and the full runtime gates follow source reviews and a frozen candidate.
+
 Docs started in `msg_ec29e7a52a8a` and submitted G1's current design-closure record in `msg_1405db3332a1`.
 Held SHA-256: `84b95ce1992885fe9ca93597bd3dda53052b46900f7400f06d9db4ae1e1b8ae4`.
 The Lead checked the scoped diff, hash and preserved earlier sections, then released the worker before acknowledgment.
