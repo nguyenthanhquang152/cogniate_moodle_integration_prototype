@@ -201,3 +201,85 @@ The prepared test IDs below were matched to the task specification and manifest.
 ## Remaining evidence and correction gate
 
 Close B-M1-01, B-M1-02 and B-M1-03 at exact committed code, with the stated regressions. Resolve the two narrow Canvas oracle questions in the M3 report. Then QA must run the full same-SHA SIM suite, both required migration/rollback passes and Moodle regression. Simulator conformance cannot prove hosted Canvas or Learn interoperability; all live rows remain UNVERIFIED unless their own authorized evidence is supplied.
+
+
+## Round 2 — CHECKPOINT: first repair slice
+
+Checkpoint date: 2026-10-20. Disposition: **B-M1-01 and B-M1-02 CLOSED for this repair slice; overall CHANGES_REQUESTED remains.** This is not a complete M1, M2 or M3 approval.
+
+The Lead narrowed this dispatch in message `msg_b9d86bd1e03e` to finish the independent B-M1-01/02 recheck now and free capacity for the remaining design and implementation repairs. The same reviewer must review those later exact commits in a fresh dispatch. Round 1 above is preserved.
+
+### Exact scope
+
+- Product repair: `9aeeddc58444dd60c7ac36e24f570f4b3ad75237`, compared with product `76b03c7f24c15de2f7e164b836b27a398d45158a`.
+- Detached review clone: `/tmp/cogniate-reviewer-b-76b03c7-ivj64s6o`, checked out at `83ebcb85ed9ed9ad4eadebcd7ca185527f417b1b`. Its product files equal `9aeeddc`; the intervening paths are architecture clarification, review reports and team records. No uncommitted product or QA work was read.
+- Accepted architecture baseline: ADR-011 revision 6 at `56591df0e71939d5d62c9042c630c841d01f84e8`.
+- Contract clarification read: `ca14de6360021af4ce3692f1a0073fe4ec92633d`, including `docs/architecture/review-response-M1.md`. It specifies the exact Canvas domain host/port, the pending add-deployment preconditions, and `redeemed` before `purpose`. ADR-011 is unchanged. QA alignment to those clarifications remains outside this checkpoint.
+
+Only this M1 report is changed by this checkpoint. No product, tests, architecture, team file, stack, tenant, or commit was changed. The temporary probes below use in-memory data or isolated fixture files and inert Docker stubs.
+
+### B-M1-01 — CLOSED at the reviewed repair
+
+The worker no longer stores disabled state in the due-row snapshot. It checks current state when processing each row. `beginSend` now combines the current score-row and connection-state checks with the send marker and try increment in a `BEGIN IMMEDIATE` transaction. After line-item lookup, the worker calls this decision and then invokes `postScore` without another await between the decision and client invocation. If lookup fails or returns no line item after disable, the no-POST branch still records `CONNECTION_DISABLED`. A POST already started retains its actual result.
+
+The correction covers ordinary and confirmation sends. A future-due disabled row stays pending. A due disabled row fails with `CONNECTION_DISABLED`, unchanged tries and no new POST. The log preserves the correct `send` or `confirmation` phase. Moodle stays outside this new provider-specific containment rule.
+
+Independent evidence:
+
+- Reran the nine committed worker regressions. They pass, including suspension through a second database connection during an earlier row's POST and during this row's line-item lookup; successful, empty and failed lookup outcomes; active-connection controls; future due time; Moodle behavior; and direct begin-send decisions.
+- Adapted the original independent reproduction to assert the corrected behavior. All 16 combinations pass: Canvas and Blackboard × ordinary and confirmation phase × earlier-row suspension, suspension during lookup, already disabled due row, and already disabled future-due row. Every prevented send retains `tries: 3`; due rows have the required error and phase. Only the first, already started POST in the batch schedule is allowed.
+- Reran 52 existing runtime-path regression tests. All pass, including durable confirmation, uncertainty, supersession and retry behavior. The app TypeScript check passes.
+
+This closes the two reproduced interleavings and the inspected decision path. It does not claim an actual LMS score/containment acceptance run.
+
+### B-M1-02 — CLOSED at the reviewed repair
+
+The maintenance shell now requires a successful Docker check and a successful `compose ps -a` before starting the Node backup/restore program. It accepts only absent containers or `exited`, `created` and `dead` states for the two data services. Running, paused, restarting and other observed states refuse. Failed observation no longer falls through to file operations.
+
+The additional Node entry-point correction compares real filesystem paths and uses `fileURLToPath`. It avoids a successful no-op when the checkout is reached through a symlink such as macOS `/tmp` or `/var`, and handles a path containing spaces.
+
+Independent evidence:
+
+- Reran all 16 committed maintenance tests. They pass. The shell tests exercise inspection failures for both backup and restore, running/restarting/paused states, missing Docker, and stopped/created/absent positives. Positive paths use the real Node maintenance program on fixture databases and compare restored bytes; failure paths prove the program was not invoked and targets did not change.
+- Reran the two original independent shell probes with corrected assertions. A failed Docker-info check and a failed compose-ps check both exit 1, emit a clear refusal, and never reach the fake Node program.
+- Added six independent positive shell-entry probes: stopped, absent, and created/dead container results, each through a real directory and an explicit directory symlink. Every directory also contains spaces. All six create a real manifest containing both fixture databases, then restore both databases to their original hashes after a fixture write. Docker is always an inert stub; no actual daemon or stack is contacted.
+
+These checks establish the corrected maintenance entry behavior. Full upgrade, rollback, old-service-key continuity and retained Moodle-grade evidence still require QA's separate MOODLE-LIVE run.
+
+### Commands and artifacts
+
+Commands run at the exact detached review checkout:
+
+```sh
+npx --no-install vitest run services/cogniate-app/src/worker/score-sync.test.ts services/lti-service/src/cli/stack-data.test.ts
+npx --no-install vitest run services/cogniate-app/src/runtime-path.test.ts
+npm run typecheck -w services/cogniate-app
+```
+
+Results: 25 tests in the first run and 52 in the second, all passed with zero reported skips; app typecheck passed. Author mutation evidence was not treated as independent proof and was not rerun against modified product files.
+
+Independent diagnostic files and captured outputs are in the existing external directory:
+
+`/var/folders/_h/pjt6zzrj46sctnb18tsmbzgw0000gn/T/reviewer-b-m1-probes-q0nwvjt3`
+
+- `r2-score-fences.mjs` / `r2-score-fences.output.json`: 16 combinations. Run `node <script> <review-clone>`.
+- `r2-maintenance-guard.py` / `r2-maintenance-guard.output.jsonl`: both original unknown-state failures. Run `python3 <script> <review-clone>`.
+- `r2-maintenance-positive.py` / `r2-maintenance-positive.output.jsonl`: six real/symlink entry and paired-restore cases. Run `python3 <script> <review-clone>`.
+
+The original round-1 defect probes and outputs are preserved. These new probes assert corrected behavior and do not edit repository source or existing stack data.
+
+### Still open / not reviewed in this checkpoint
+
+| Item | Disposition |
+| --- | --- |
+| B-M1-03, remote provider calls before local grant checks | **OPEN.** No repair reviewed. The Lead reports an Architect dependency for locally available target data; no weaker validation order is authorized. |
+| B-M2-01, final Learn Submit instruction | **OPEN / repair NOT REVIEWED.** |
+| B-M3-01, wizard and badge harness flow | **OPEN / repair NOT REVIEWED.** |
+| B-M3-02, route observer and form-state navigation | **OPEN / repair NOT REVIEWED.** |
+| C-1/C-2/C-3 exact Canvas oracles, Moodle baseline and H-6 labels | Clarified contract read; committed QA repair NOT REVIEWED. |
+| Final author acceptance-startup smoke | NOT REVIEWED; exact evidence handoff still needed. |
+| Full M1 and M2 harness-only checks on final repaired SHAs | Not repeated in this bounded checkpoint; both complete checks remain required for the final round-2 review. |
+| SIM/browser acceptance, migration/rollback and Moodle regression | NOT RUN here; separate evidence gates remain. |
+| Local Canvas, hosted Canvas and Blackboard Learn live evidence | UNVERIFIED; no live check or authorization assumed. |
+
+No new BLOCKER or MAJOR was found in the bounded first repair slice. The remaining open findings keep the overall review at CHANGES_REQUESTED, and neither unchanged M2 nor M3 report is superseded by this checkpoint.
