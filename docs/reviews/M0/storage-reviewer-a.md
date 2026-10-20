@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 1
+Round: 2
 
 # Storage design review: ADR-012 (SQLite named volumes) — Reviewer-A
 
@@ -131,3 +131,93 @@ Round: 1
 - A-S-04 to A-S-07 (MINOR) are amended, or the Lead records them as accepted with their stated limits.
 - A-S-08 and O-1 to O-3 are optional.
 - I re-check the amended frozen text before any implementation. This review is a design verdict only; it gives no implementation or runtime approval.
+
+## Round 2 (2026-10-21)
+
+| Item | Value |
+| --- | --- |
+| Verdict | **CHANGES_REQUESTED.** Revision 2 resolves all three Round 1 MAJOR findings and all four MINOR findings. The ordered start-state table and the recovery table now cover every reachable journal pair that I traced. But the new **operation lock** has one MAJOR gap: a lock is reclaimed by host process id while the maintenance container that writes the volumes can still run. One narrow amendment closes it. One new MINOR and one NIT are listed. This review gives no implementation or acceptance authorization. |
+| Frozen candidate | **`7a6374460dd02c3544b6dbf043086b0facefceb2`** (design revision 2; product and tests stay `8138097889f87359d5055bb1d79766b5ed842f92`). Detached clone `/tmp/rva-7a63744`. |
+| Inputs read | My Round 1 above (SHA-256 `f5ceeebacb98146ffc85ecfcf00ad1d9d47ee5332494d86495d0c4b455150a13` at `2bb918f`); `docs/architecture/review-response-storage.md`; ADR-012 revision 2 (all 541 lines); ADR-011 §14 (storage, upgrade, rollback, rollback mode, warning); M1 AC-M1-23 step 0 and the AC-M1-41 row oracles; the M3 and README amendments. The Author feasibility report was not needed; I used only the facts M1–M8 that ADR-012 §17 quotes, as AUTHOR-DIAGNOSTIC. |
+| Feasibility reads | Old `b0b83a8`/`9f96f7b` `lib.sh` `dc()`, `stack-up.sh`, `stack-reset.sh`, `qa-suite.sh` (Round 1); candidate `tests/host/m1-control.mjs` (host restart and profile actions run `npm run stack:restart` in the clone). |
+| Reviewer | Original independent Reviewer-A, Claude Code Opus 5.5, xhigh, session `604b28c1-156c-4266-84c3-e0f0089004da`. Task `task_b9571fcd7912`, dispatch `ctx_de1c69e93c96`, run `run_ebe671ad72a9`. |
+| Independence | I did not read `storage-reviewer-b.md`, `storage-qa.md` (Round 1 or Round 2), or any other worker's draft. I read the Architect response and the Lead synthesis, as allowed. No Docker, stack, edit, commit or push. |
+
+### Status of the Round 1 findings
+
+| Id | Sev. | Status | Normative evidence at `7a63744` |
+| --- | --- | --- | --- |
+| A-S-01 | MAJOR | **Closed** | §4 volume side (L80–L89): the preflight, as root, creates `packages`/`uploads` as `HOST_UID:HOST_GID 0700` before the first app start. It fixes only an **empty** root-owned mountpoint, and `mountpoint_unsafe` covers a non-empty or linked one; never recursive. §3 (L70) allows the two only as empty directories. §17 M2/M3 measure the root-owned mountpoint and keeping it after precreation (AUTHOR-DIAGNOSTIC). **UID after the second start:** the identities and probe scratch are written after the privilege drop (§5 step 2), and the services write their databases as `HOST_UID`. A later volume-only container sees `HOST_UID 0700` (M3). Rows `a-second-start`, `a-restart`, `d-mountpoint` test it. See A-S-11 (1) for `mark-started`. |
+| A-S-02 | MAJOR | **Closed** | §6 (L172–L195) is ordered and total (row 18 `state_unclassified`). (1) A first start that fails before any database → `FIRST_START` (row 14), and `mark-started` follows only after a healthy start. (2) An empty-`before` rollback removes the new identities, `.restore-X/` and an empty `.previous-X/` (R3, L285; `rolled_back`, L269). `FRESH` accepts `rolled_back` journals of any opId (row 13), so an import can run again. (3) R1 (L283). (4) R5 changes nothing, exit 2 (L287). (5) The journal rows come first (rows 1–3). `stack:reset` is never a recovery step (§9 L333, ADR-011 §14). The non-destructive exit is quarantine (§9). |
+| A-S-03 | MAJOR | **Closed** | §8 Backup step 2 (L228): a volume source must be `OK` with no open journal (`backup_source_not_ok:<code>`). A legacy source refuses `legacy_hot_journal`/`legacy_unknown_entry`. `manifest_incomplete` (L240). The pair rule (L246–L250) refuses `pair_mismatch` into an `OK` target. Backup holds the operation lock (§7 table). The `stack:up` legacy scan refuses a hot journal in any pair state (§10). Rows `h-open-journal`, `e-hot-journal`. |
+| A-S-04 | MINOR | **Closed, with a new gap** | The running-services statement is corrected (§7 L217–L220). Serialization is the host operation lock (L199–L203). Probe cleanup runs under the lock with no cap (§5 step 3). The lock itself has a stale-reclaim gap: **A-S-09**. |
+| A-S-05 | MINOR | **Closed** | §12 (L425–L428): one preflight before each harness- or operator-invoked old start command and `status` after it. Old `test:acceptance` is covered by the preflight before it and the mount check after it. C0/C1 through the old `dc()` with `--profile storage` and the step profiles, keyed by `target` (L401–L405). |
+| A-S-06 | MINOR | **Closed** | ADR-011 §14 rollback step 4 (copied `preflight`, old `stack:up`, then `status`; "stop now" on failure); temporary rollback mode with the forbidden commands and the only supported restart. |
+| A-S-07 | MINOR | **Closed** | §8 L252: the read-only content check runs on every restore and import before the swap. Its limit is stated (folders exist; files are not compared). Row `e-content-missing`. |
+| A-S-08 | NIT | **Closed** | (1) extended code `5` only; 261/517/6 → `probe_error` (§5 step 6). (2) full service table without the anchor, `user "0:0"`, `restart "no"`, no `depends_on` (L108–L122). (3) The candidate guard covers every start and data command (L430). (4) QA scratch `.qa-scratch-<16 hex>` (§3, §11). |
+| O-1 | optional | Not adopted; accepted | Hand-typed compose stays a stated limit (§7). Note: the reason "the old-build allowed differences forbid it" binds only the override, not the candidate `compose.yaml`. The decision stays acceptable as optional. |
+| O-2 | optional | Done | §8 pair rule: a same-pair restore keeps `legacySources`; §10 L354. Row `e-provenance-restore`. |
+| O-3 | optional | Done | ADR-011 §14 warning: revocations and suspensions after the backup are undone; revoke and suspend again. |
+
+### Partial-pair journal transitions (my trace)
+
+Each state change is written lti first, then app, and the swap is done per volume (drill points `swap-lti-mid`, `swapped-lti`, `swap-app-mid`). So these are the reachable journal pairs and their recovery:
+- `(prepared, —)` and `(prepared, older terminal)` → R1;
+- `(prepared|staged|rolled_back, prepared|staged)` → R2;
+- `(swapping|swapped, staged)`, `(swapped, swapping|swapped)`, `(rolling_back, *)` and `(rolled_back, rolling_back)` → R3;
+- `(committed, swapped)` → R4, or R3 when one verification fails;
+- `(committed, committed)`, `(rolled_back, rolled_back)` and terminal pairs with different opIds → R0;
+- any `rollback_failed` → R5; every other pair → R6 and quarantine.
+
+In a single-writer world, I found no reachable pair that leads to R6. Recovery is idempotent, because every move first finds the file by name and SHA-256. Commit needs both volumes verified, and `committed` is written only after both identities. The rows `g-*`, `e-import-recover` and `g-fresh-target` exercise these transitions, including the FRESH-target and import paths. The single-writer premise is the gap in A-S-09.
+
+### New findings
+
+#### A-S-09 — MAJOR — A stale-lock reclaim by host pid can start a second writer while the first maintenance container still runs
+
+- **Where:** ADR-012 §7 operation lock (L199–L202: "keeps it until it ends"; "A lock whose `pid` no longer runs on this host is stale. The next command removes it … and goes on"); §8 (L256: "One maintenance process restores or imports both volumes … the operation lock held"); §17 assumption 5 (`kill -0`).
+- **Problem:** the lock records the **host** command's pid. The writer is the maintenance **container**, and a container keeps running when its client dies. A `docker compose run` client killed by SIGKILL, a crashed terminal or a dropped session does not stop the container: Ctrl-C is forwarded, but SIGKILL is not.
+- **Schedule:**
+  1. The operator runs `stack:data-restore -- --from B`. The container reaches `swapping` on lti.
+  2. The host script is killed (`kill -9`, the terminal app is force-quit). Its pid is gone, but the container keeps moving files.
+  3. The operator sees `journal_open` and runs `stack:data-restore -- --recover`. The lock is "stale" by pid, so it is reclaimed. A second container now runs R3 on the same files.
+  4. The two processes interleave. The original verifies both volumes against `after` and then writes the identities and `committed`. Meanwhile, recovery has already moved the lti `before` files back. The result is journals `committed`, new identities, an lti database from `before` and an app database from `after`. That is a **mixed pair that `stack:up` accepts as `OK`**, exactly the state that DS3 forbids. The same window lets a `stack:up` or a backup run next to a live import or quarantine.
+- **Narrow fix:**
+  - The lock stays live while its maintenance or preflight container exists. Record the container name in `owner.json`. The staleness test is then "pid gone **and** no container with this project's storage label (`docker ps -a --filter label=com.docker.compose.project=<project> --filter label=org.cogniate.storage`) exists". Otherwise refuse `operation_in_progress` and name the container.
+  - Optionally add defense in depth: the maintenance program holds a kernel lock (for example `flock`) on a fixed allowed entry in each volume root for its whole life. The volume is `ext4`, where locks work, so a second writer can never start.
+  - Add a unit case and an AC-M1-41 row: kill the host client during a drill pause, then `--recover` → `operation_in_progress` while the container lives.
+
+#### A-S-10 — MINOR — Rollback move order can overwrite an in-place file that matches neither `before` nor `after`
+
+- **Where:** R3 (L285): "move every `before` file … into place …; move every `after` file that is in place back into `.restore-X/`". Also R4 → R3 when a verification fails (L286), and the in-live-restore R3 (L292).
+- **Problem:** read in order, a `rename` from `.previous-X/lti.db` onto an in-place `lti.db` replaces the file atomically. If that in-place file matches neither `before` nor `after`, the rollback destroys it silently and then reports a verified `rolled_back`. That can happen when a service was started by hand (a stated unguarded path) while the journal was open, so the database got new writes. The "keep every file" rule of `rollback_failed` does not apply, because no step "fails".
+- **Narrow fix:** state the order and the rule. First move each in-place `after` file to `.restore-X/`. A `rename` never replaces an existing file (check first; refuse on a collision). An in-place file whose SHA-256 matches neither `before` nor `after` → `rollback_failed`, keep everything. Add a unit case.
+
+#### A-S-11 — NIT — Precision items
+
+1. **Privilege in every probe mode.** The note to §5 `user "0:0"` (L114) implies, but does not state for `mark-started` (L105) and the log append to `./.logs`, that the program drops to `HOST_UID:HOST_GID` before **every** write that is not a §4 step. A root-written identity would cause `owner_mismatch` on the next start, the A-S-01 class again. `a-second-start` would catch it; one sentence prevents it.
+2. **Pair rule targets.** L246–L250 define only `OK` and `FRESH` targets. Name the result for any other state, for example `FIRST_START`: `restore_target_state:<code>`, no change.
+3. **Quarantine and stopped containers.** `docker volume rm` fails while a stopped container still references the volume, so §9 step 2 must remove the two stopped service containers first. Otherwise it exits 1 with nothing removed. That is fail-closed, but the documented exit would never succeed after a plain `stop`.
+4. **The operation lock in old checkouts.** `infra/scripts/storage-oplock.sh` (L203) does not exist after `git checkout <old>`, while §12 L428 says "the harness holds the operation lock for the whole command". Copy the helper with `enable` (and hash it), or give `storage-compat.sh` a `run --` subcommand.
+5. **Host-control actions in old steps.** The candidate `tests/host/m1-control.mjs` runs `npm run stack:restart` in the clone for `m1-restart` and `m1-profile`. In an old step that is the forbidden old `stack:restart`, which rewrites `services.<svc>` in the knobs file. The `status` check after the command would report `BLOCKED`, but only after a service may have run on the bind. Let the host control refuse these actions while the `x-cogniate-storage-compat` marker is present.
+
+### Requested checks (Round 2)
+
+| Topic | Result |
+| --- | --- |
+| Partial-pair journal transitions | Total for a single writer (trace above). The concurrency premise: A-S-09. |
+| Backup admissibility | Closed (`OK` and no open journal; legacy hot journal and unknown entries refused; `manifest_incomplete`; pair rule). |
+| Interrupted rollback | Idempotent R3 with drills `rollback-mid` and `g-tamper` (any failure → `rollback_failed`, exit 2, nothing deleted). Overwrite order: A-S-10. |
+| UID ownership after the second start | Closed by §4 precreation and the privilege drop. Precision: A-S-11 (1). |
+| Fail-closed start and auto-restart | Unchanged honest limits (§7); a failed restart preflight exits before `--force-recreate`. |
+| Legacy sidecars and accidental overwrite | Closed (§10: every `<db>-*` entry; import only into `FRESH`; same-pair restore only; quarantine is non-destructive; `stack:reset` never a recovery step). |
+| Old-route identity and safe rollback | Closed (exact tree rule, C0/C1 with (a)–(e), command rule, rollback mode, preflight and `status`). Precision: A-S-11 (4), (5). |
+| Real lock holder and release controls | Closed (§5 steps 5–7 and the self-test; `c-host-negative` is the only conditional row and never counts as PASS). |
+| Grant, tenant and protocol assurances | Not weakened; the warning now names the undone revocations. |
+
+### What closes this gate
+
+- A-S-09 (MAJOR) is amended, with its unit case and AC row.
+- A-S-10 (MINOR) is amended, or the Lead records it as accepted with its stated limit.
+- A-S-11 is optional.
+- I re-check the next frozen revision. Every runtime gate, every stack-level rerun and the 32 `UNVERIFIED` live rows stay as stated.

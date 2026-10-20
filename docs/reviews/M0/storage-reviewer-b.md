@@ -217,3 +217,114 @@ node /tmp/cogniate-reviewer-b-claude-6a5eb6a-du37d9/probe/journal-table-probe.mj
 ## 7. Remaining gate
 
 Before a design APPROVE from this reviewer, the Architect must close B-S-01 to B-S-05 and answer B-S-06 to B-S-12. The NITs and optional items need no new round. Implementation, its independent source reviews, AC-M1-41 and all stack-level reruns at the new candidate remain separate gates. All 32 live LMS rows stay UNVERIFIED. Historical evidence keeps its labels and SHAs.
+
+
+## Round 2 — recheck of revision 2
+
+Verdict: **CHANGES_REQUESTED**
+Round: 2
+
+Reviewer: the same dedicated Reviewer-B, Claude Code `claude-opus-5-5`, xhigh, retained session `c75b96cd-c1da-42ea-9b53-c5207e508e49`. Task `task_5f05dfacb229`, dispatch `ctx_b55641e6fd09`. Date: 2026-10-21. The Round 1 text above is unchanged.
+
+This round gives no implementation approval and does not open the implementation gate.
+
+### Scope and method
+
+- Frozen design: `7a6374460dd02c3544b6dbf043086b0facefceb2`. Product and test files equal `8138097889f87359d5055bb1d79766b5ed842f92`: no path outside `docs/**` changed.
+- Read at the frozen commit:
+  - ADR-012 revision 2 (all of §1–§18);
+  - `docs/architecture/review-response-storage.md`;
+  - the amendments to ADR-006, ADR-011 §14 (lines 389–418), `local-stack.md` (line 60), M1 (AC-M1-23, the AC-M1-41 rows), M3 (AC-M3-02 line 92, AC-M3-06 line 96) and both indexes;
+  - the Lead correction scope in the phase plan;
+  - my Round 1 report (SHA-256 `4f95cf7d2b3cebaf583f72edc6a6b30abad14bb5f69521049eaf283c18fecad2`, committed in `2bb918f`).
+- Source checks with `git show`:
+  - old `seed.sh` and `lti-bootstrap.sh` at `b0b83a8` and `9f96f7b` use only `dc exec`;
+  - both old `lib.sh` set `KNOBS_FILE` to an absolute path (line 9).
+- I did not read `storage-reviewer-a.md`, `storage-qa.md`, any Round 2 review or draft of another worker, or the optional Author feasibility report itself. I used its summary in ADR-012 §17.
+- No Docker, stack, product run, edit, commit or push.
+
+Private model probe for revision 2. It encodes recovery rows R0–R6 and the relevant §6 rows. It enumerates every crash point that the stated write order can leave, for an `OK` or `FRESH` target, with or without an earlier terminal journal, including a rollback in progress.
+
+```sh
+node /tmp/cogniate-reviewer-b-claude-7a63744-bGC6Vd/probe/journal-table-probe-r2.mjs \
+  /tmp/cogniate-reviewer-b-claude-7a63744-bGC6Vd/probe/journal-table-probe-r2.results.json
+```
+
+- Script SHA-256: `d845ec67914b5e6815f6aedea8fadb959c20b8a151168b2ef29d7a95a1ef856d`.
+- Results SHA-256: `20b5afd2c2dbcc740157c08b2a948b7bf59cd0602bafa4b9f95c395f7066cff6`.
+- Result: 44 crash points and 0 failures. Each point goes to R1–R4 (never R5 or R6) and ends in `FRESH` or `OK`, and a second `--recover` gives R0.
+- This is a model of the text, not of an implementation.
+
+### Recheck of Round 1 findings
+
+| Id | Round 2 disposition | Basis |
+| --- | --- | --- |
+| B-S-01 | **Closed** | §3 allowed-children table; §4 volume-side steps (no recursion, no symbolic links, an empty root-owned mountpoint is fixed once); maintenance writers drop to `HOST_UID:HOST_GID` (§4 line 91). Author facts M1–M3 support it. Rows `a-second-start`, `a-restart`, `d-mountpoint`. |
+| B-S-02 | **Closed** (required part) | ADR-011 §14 lines 413–416: rollback mode is temporary, the forbidden old commands are listed, the supported restart is given, and `status` checks the knobs hash and mounts. ADR-012 §12 command rule. The sentinel tripwire was optional; I accept that it is not adopted, given the Lead scope. |
+| B-S-03 | **Closed** | §6 row 13 (`FRESH` accepts terminal `rolled_back` journals), §8 line 269 and R3 (an empty `before` removes the new identities and the empty `.previous-X/`). Probe: every FRESH-target point ends in `FRESH`. Rows `e-import-recover`, `g-fresh-target`. |
+| B-S-04 | **Closed** | R1 (§8 line 283), drill point `prepared-lti`. Probe: both first-write cases end in `FRESH`/`OK`. |
+| B-S-05 | **Closed** | §4 host side (line 77): create the three content folders as the host user, mode 0700, before any compose start; `content_path_unsafe`; no host `chown`. `enable` also creates them (§12 line 385). Row `d-content-folder`. |
+| B-S-06 | **Closed** | §6 is total and ordered; rows 1–3 come first; row 18 catches everything else. |
+| B-S-07 | **Closed** | Upgrade order (§12 line 434, ADR-011 line 400); the copied `bash .tmp/storage-compat/storage-compat.sh` runs after the old checkout; the candidate guard covers every start and data command (§12 line 430). |
+| B-S-08 | **Closed**, apart from B-S-15 below | The `rollback_failed` exit is quarantine (§9); R5 changes nothing, which I accept; the scratch cap is dropped (§5 step 3). |
+| B-S-09 | **Closed** | `legacySources` survive a same-pair restore (§8 line 248, §10 line 354). Row `e-provenance-restore`. |
+| B-S-10 | **Closed** | C0/C1 through the old `dc()` with `--profile storage` and the step profiles, compared by `target` (§12 lines 401–410); the preflight is before each harness-invoked old start command, with `status` after it (§12 lines 425–428). |
+| B-S-11 | **Closed**, with my correction below | §15, `local-stack.md:60`, AC-M3-06. |
+| B-S-12 | **Closed** | AC-M3-02 approved-change list (`tasks/M3.md:92`). |
+| B-S-13 | **Closed** | §7 "Running services" (lines 217–220). |
+| B-S-14 | **Closed** | Marker key `x-cogniate-storage-compat` (§12 line 382); C1 item (e). |
+| O-1 | Not adopted; accepted | A hot journal and unknown legacy entries now refuse. A data-quality check stays operator guidance. |
+| O-2 | Done | `STORAGE_DRILL=1` gate and the `storage_drill_stop` log (§8 line 302). |
+| O-3 | Done | §13 line 471 puts the cause claim on the lock-level rows. |
+| O-4 | Done, changed; accepted | QA runs the probe in its own fixture container (§11, §14). No new option. |
+| O-5 | Done | M1 AC-M1-41 defines `SIM` for these rows. |
+
+**Correction to Round 1 B-S-11.** In Round 1, I wrote that `docker system prune --volumes` deletes every Cogniate database. That was wrong. The installed `docker system prune --help` and Docker's command reference say that `--volumes` prunes anonymous volumes only. `docker volume prune --all` removes unused named volumes, so it does delete these databases. Revision 2 states this correctly (§15 lines 496–499, `local-stack.md:60`). The rest of B-S-11 stands and is closed.
+
+### New findings in revision 2
+
+#### B-S-15 — MAJOR — Quarantine cannot remove volumes that stopped containers still use
+
+- Location: ADR-012 §9 lines 327–331 ("Remove only the two volumes"); ADR-011 §14 rollback step 1 (line 408); §12 line 422 (the harness's `stop`); `tasks/M1.md:271` (`g-quarantine`, from the `g-tamper` state).
+- Problem:
+  - Every maintenance precondition accepts "positively stopped" services. Stopped containers count (`infra/scripts/stack-data.sh` accepts `exited`, `created`, `dead` or absent).
+  - The documented stop (`docker compose stop`, the harness's `stop`) keeps the `cogniate-app` and `lti-service` containers, and those containers keep their references to `<project>_ltidb` and `<project>_appdb`.
+  - Docker refuses to remove a volume that any container references, running or stopped ("volume is in use").
+  - §9 removes only the two volumes. It does not remove those containers or name this condition.
+- Schedule:
+  1. Run `docker compose stop cogniate-app lti-service`.
+  2. Run `stack:data-restore`, then `--stop-after swapped`, then tamper one byte in `.previous-X/`, then `--recover` → `rollback_failed`, exit 2. This is `g-tamper`.
+  3. `stack:data-quarantine -- --out Q`: the copy is verified, then `docker volume rm <lane>_ltidb` fails.
+  4. Quarantine exits 1 and removes nothing. The lane stays `rollback_failed`.
+  5. The documented commands then offer no exit. `stack:reset` is forbidden as a recovery step, and removing the containers by hand is not documented.
+- Consequence:
+  - The only exit from `rollback_failed` and `journal_inconsistent` fails in its own main scenario, and `g-quarantine` fails as specified.
+  - The failure is safe (nothing is removed, and the copy is verified), but the operator is left without a documented next step.
+- Narrow fix:
+  - After the verified copy, with both services positively stopped, quarantine removes the project's `cogniate-app` and `lti-service` containers. They hold no data, and the next guarded `stack:up` recreates them.
+  - It refuses `volume_in_use`, naming the container, when any other container still references a lane volume. Only then does it remove the two volumes.
+  - `g-quarantine` starts from services stopped with `docker compose stop`. Its oracle also records that both containers were removed and no other container changed.
+  - An alternative is to require old or candidate `stack:down` before quarantine, and say so in §9, ADR-011 §14 and the refusal message.
+
+#### B-S-16 — MINOR — The operation lock has no documented exit for a false-live owner, and the old checkout lacks the lock helper
+
+- Location: ADR-012 §7 lines 199–203; §12 lines 386 and 389.
+- Problems:
+  - A stale lock is detected only by "pid no longer runs". After a host reboot, or with pid reuse, an unrelated process can have the recorded pid. Every guarded command then waits 120 s and refuses `operation_in_progress`, and the remedy (removing `.tmp/storage-op.<project>.lock/`) is not documented.
+  - The lock lives in the checkout's `.tmp/`, so it is per checkout and project, not "per project" as written.
+  - `enable` copies only the probe and `storage-compat.sh`, so `infra/scripts/storage-oplock.sh run -- <command>` (line 203) does not exist after the old checkout for operator-invoked old steps.
+- Fix:
+  - Record a boot id or the process start time with the pid, and treat a mismatch as stale.
+  - Name the manual removal in the refusal message and the M4 guide.
+  - Say that two checkouts sharing one project name are unsupported.
+  - Copy and hash the lock helper with the other compatibility files, or add `storage-compat.sh run -- <command>`.
+
+#### NITs
+
+- **B-S-17:** §17 assumption 2 is already settled by source. Both old `lib.sh` set `KNOBS_FILE="$REPO_ROOT/.tmp/compose.knobs.yaml"` (line 9), an absolute path. So the relative `-f` behaviour of M6 does not apply to the old `dc()`.
+- **B-S-18:** AC-M1-23 step 1 and AC-M1-38 (h1) start a fresh lane on the old SHA. State that QA runs `npm run stack:storage-compat -- enable` in the candidate checkout of the same clone before the old checkout, as the rollback order does (§12 line 440).
+- **B-S-19:** state that the preflight writes every output and log line after the privilege drop. A failure during the root-only prepare step must not create a root-owned `infra/.logs/storage-preflight.jsonl` on a host that keeps real owners.
+
+### Remaining gate
+
+The required fix before a design APPROVE from this reviewer is B-S-15 (MAJOR). B-S-16 is a required MINOR that may be closed in the same correction or recorded for the build step. The NITs need no new round. Revision 2 closes every Round 1 BLOCKER and MAJOR of this report. Implementation, its independent source reviews, the 63 AC-M1-41 rows and every stack-level rerun at the new candidate remain separate gates. All 32 live LMS rows stay UNVERIFIED, and historical evidence keeps its labels and SHAs.

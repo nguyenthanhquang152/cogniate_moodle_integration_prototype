@@ -1398,6 +1398,55 @@ Only the host-negative storage row can report `NOT_APPLICABLE`, separately from 
 Both reviewers and common QA must recheck this inventory, the normative rules and every original finding.
 All source, runtime, legacy, portal and Moodle verification gates remain required after implementation.
 
+Revision 2 is frozen at `7a6374460dd02c3544b6dbf043086b0facefceb2`.
+All three independent rechecks started on that commit, using the original Claude Opus 5.5 xhigh sessions.
+Reviewer-A: `ctx_de1c69e93c96`, launch `msg_c7c56ac4da9b`, start `msg_e621c2528318`.
+Reviewer-B: `ctx_b55641e6fd09`, launch `msg_c10e4c7727bf`, start `msg_ee123da56268`.
+Common QA: `ctx_ab90749064c8`, launch `msg_50b5c5aac3c4`, start `msg_10e51644439d`.
+Each owns only its storage review report. No Docker window is open.
+
+Reviewer-A returned Round 2 in `msg_ded7d6fa7f90`: CHANGES_REQUESTED.
+All eight original findings are closed; A-S-09 is a new MAJOR finding.
+A dead host process does not prove that its maintenance container stopped writing.
+The next revision must prevent lock reclamation and recovery while that writer remains active.
+A-S-10 asks for a rollback order that preserves unknown in-place data; A-S-11 lists five precision fixes.
+The held report hash is `1ba1ceb6abec579db1d46b2c115a22ab717fcf507f56bd215db7945dfd48c14a`.
+The Lead checked the report and retained the worker before acknowledgment.
+Reviewer-B and common QA continue independently; no new correction starts before their findings are combined.
+
+Reviewer-B returned Round 2 in `msg_ec6594b9bb47`: CHANGES_REQUESTED.
+All fourteen original findings are closed. Its model of the text passed 44 crash points; this is not runtime evidence.
+B-S-15 is a new MAJOR finding: stopped service containers prevent the documented quarantine from removing their database volumes.
+B-S-16 covers false-live lock ownership, checkout scope and the missing old-build lock helper.
+B-S-17 to B-S-19 cover old-build preparation and privilege precision.
+The held report hash is `16b857b032d430fa67fc1db4375cc25a8d8dea109616be1b6e06059f5d84a338`.
+The Lead checked this hash and the model artifact hashes, then retained the worker before acknowledgment.
+Common QA continues independently. No implementation gate has opened.
+
+Common QA returned Round 2 in `msg_a4f89ac1d6ac`: FAIL for design testability, with five MAJOR and five MINOR findings.
+The held report hash is `50b83fbdc6c50645be16c54e7ddf2b8c35e450cadae9e83325c2841c567a2194`.
+The Lead checked the hash and unchanged Round 1 prefix, then retained the worker before acknowledgment.
+QA confirms the 479-row inventory. Its required corrections concern the recovery oracle, lock scope, import credentials, fixture mounts and deterministic serialization tests.
+No original assertion is waived. All three Round 2 reports are complete; no implementation or acceptance run is authorized yet.
+
+### Storage design correction, Round 3
+
+The Architect must resolve these groups together in the existing nine architecture files.
+This is the third design review round under the charter; no open MAJOR finding is deferred.
+
+| Group | Required result | Findings |
+| --- | --- | --- |
+| Operation ownership and scope | A dead host client cannot authorize another writer while its container lives. Define stale-owner identity, cleanup and refusal. Candidate suites lock their individual mutations without deadlocking internal starts or host-control restarts. Old-build wrappers remain available and qualified after checkout. State the one-checkout-per-project limit. | A-S-09, B-S-16, QA R2-02; A-S-11 (4) |
+| Quarantine | After a verified copy, handle only the two exact stopped service containers. Refuse other volume users. Prove the documented stopped-container path works and preserves unrelated resources. | B-S-15; A-S-11 (3) |
+| Recovery integrity | Move recognized after-files out before restoring before-files. Never overwrite unknown or colliding data. Verify the complete database file sets, including sidecar presence, size and hashes, and logical rows from stopped copies. Fixture generations must differ logically; every sidecar need not differ. | A-S-10, QA R2-01 |
+| Import and fixture setup | Carry the full synthetic credential set for the old-schema oracle. Keep lane addresses and certificates distinct. Define narrow probe, scratch-bind and decoy mounts; selftest uses a lock-safe container layer. | QA R2-03, R2-04 |
+| Deterministic checks | Give serialization tests an observable fixed order and exact outcomes. Add the live-maintenance-container refusal case, host-control restart coverage and changed counts. Keep all 416 original rows. | A-S-09, QA R2-02, R2-05 |
+| Precision | State privilege for every write, restore target refusals, journal-first preparation, ordered legacy refusals, two-round conditional-row accounting and log event fields. Guard old host-control restart/profile actions. State enable-before-checkout and correct the old absolute knobs-path assumption. | A-S-11; B-S-17 to B-S-19; QA R2-06 to R2-10 |
+
+Resolve small MINOR and NIT items in the same bounded correction; do not add optional infrastructure without a stated need.
+Update the existing response document by appending Round 3 dispositions, with previous responses preserved.
+The same two reviewers and common QA must recheck the next frozen revision.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
