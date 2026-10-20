@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # M2 review: Reviewer-A (correctness and security)
 
@@ -53,3 +53,45 @@ The QA-E2E plan (`docs/reviews/M2/qa-plan.md`) lists the open items H-1 to H-8. 
 ### Scope limits
 
 No M2 criterion has browser evidence yet. `SIM` rows never prove live Canvas or Blackboard behaviour.
+
+## Round 2 (2026-10-20): integrated implementation and harness
+
+| Item | Value |
+| --- | --- |
+| Verdict | **APPROVE** for the M2 portal implementation and prepared browser-harness source from this review lens. No new M2 finding. This does not approve the integrated release: M1 and M3 are **CHANGES_REQUESTED** at this SHA. |
+| Exact reviewed SHA | **`eb43247d02df622d5da72dafac41d919f65a91fe`**, including product and harness, reviewed in detached checkout `/tmp/cogniate-review-a-eb43247.XUbPtw`. |
+| Normative basis | Applied contracts `ccdd9ef67cdd2be4c6af374136777fda4e081943`, ADR-011 and M2. Proposal `78bc34a` and design approvals `b6e8f73` do not substitute for this code review. |
+| Reviewer | Independent replacement Reviewer-A, Codex GPT-6-Astra, xhigh, authorized in the current team brief at `1cb392e`. Task `task_74de10f72cf9`, dispatch `ctx_3604d1e6a48e`. No delegation or claim of cross-model review. |
+| Independence | Used my earlier report and previously shared findings. Did not read Reviewer-B's new review or communicate conclusions with that reviewer. Only my existing M1/M2/M3 report files were edited; held for Lead commit. |
+| Evidence | Static source/harness review and focused units/harness preparation checks below. No browser session, stack, full acceptance, live tenant, commit or push. |
+
+### Static review and prior findings
+
+- The provider-neutral `PROVIDER_NOT_READY` mapping uses the same title and action on the server and portal. Strict body fields and grant errors remain server-authoritative. The snapshot stays hidden in the public connection DTO.
+- Approval codes are cleared when submitted, including failures. The forms do not persist them in URLs or web storage. Canvas and Blackboard setup do not collect arbitrary provider endpoints or secrets.
+- Detail requests retain library-scoped server checks. Route/provider mismatches render not found; request cancellation, route identity and form resets prevent the previous connection's data from being reused by a new route. No new tenant-data path was found by source tracing.
+- The existing Blackboard unverified card and provider-specific setup content remain distinct from the new neutral readiness error. Moodle setup and status/error wording remain unchanged by the snapshot repair.
+- Historical B-M2-01 is closed in the candidate source. `apps/portal/src/connect/blackboard/blackboard-steps.json:19` says the first Submit shows settings, and `:23` requires a final Submit to save. The following deployment-ID instruction remains after the final Submit. All four entries remain `verified: false`; this is not evidence that a live Learn screen was exercised.
+- Historical B-M3-01's M2 wizard-step/badge fixes remain present. Historical B-M3-02's stale-route observer now stays in the same document, with a sentinel and a `MutationObserver` on `document.documentElement`; navigation uses the app route. This repairs the destroyed-observer problem. The delayed request may be cancelled on navigation, so I do not label this as proof that a stale response was delivered and ignored.
+- Prepared rows still cover route/library/provider isolation, form state, navigation, accessibility and SIM flows. M2 end-to-end binding behavior depends on the unresolved M1 findings, and common acceptance evidence depends on the M3 gate-capture repair.
+
+### Supplemental checks
+
+The following ran at the exact reviewed SHA after offline dependency installation:
+
+```sh
+npm run test:unit -- \
+  apps/portal/src/multi-lms.test.ts \
+  apps/portal/src/connect/canvas/canvas.test.ts \
+  apps/portal/src/connect/blackboard/blackboard.test.ts \
+  apps/player/src/lms-name.test.ts \
+  packages/tracking/src/status-text.test.ts \
+  services/cogniate-app/src/app/canvas-configuration.test.ts \
+  services/cogniate-app/src/tool-pages/canvas-embedded.test.ts
+
+node tests/e2e/host/run-m2.mjs --harness-only
+```
+
+The unit command passed **51 tests in 7 files, zero skips**, exit 0. Log: `/tmp/cogniate-review-a-eb43247-m2-unit.log`. The harness-only command passed **2 self-tests** and tests typecheck, and discovered/accounted for **64 browser cases**, with T7 selection unchanged, exit 0. Log: `/tmp/cogniate-review-a-eb43247-m2-harness.log`.
+
+These are supplemental checks, not the 64 browser cases themselves. Screenshots, keyboard/axe behavior, actual route races and complete SIM flows still require the authorized QA run. Live Canvas and Blackboard rows remain unverified, and no SIM result is promoted to live evidence.
