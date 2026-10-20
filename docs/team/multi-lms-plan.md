@@ -96,7 +96,7 @@ The Lead captured the 26 named files with matching content hashes and tested an 
 The Canvas branch advanced to this commit without changing its ongoing portal edits.
 Exclusive ownership of the five Canvas modules transferred in `msg_f0102e0ecabc`.
 Canvas accepted in `msg_ed519996cc5c`; the backend owner received `msg_a57aa8f39711`.
-The common connection fields (`lms`, `profile`, `serviceUrl`) remain the next backend dependency for Canvas routes.
+The common connection fields (`lms`, `profile`, `serviceUrl`) were deferred to the second backend checkpoint below.
 
 The first isolated root check at `2aa9263` passed lint, typechecks and 789 of 790 tests.
 One Canvas test read a teacher heading before its separate request completed.
@@ -114,8 +114,18 @@ It implements five Canvas profiles, the adapter and the embedded continuation he
 The author reports root lint, typechecks and 798 tests passing for this slice.
 The six source and unit-test files were held for the commit, then released.
 The backend owner received the implemented profiles in `msg_bb1f19617691`.
-Canvas configuration and deployment routes still await typed connection fields.
+Canvas configuration and deployment routes use the typed connection handoff recorded below.
 No provider-readiness or independent QA claim follows from this checkpoint.
+
+The shared backend's second checkpoint is committed as `6742cd9`.
+The Lead committed the 57 named, held paths from `msg_148c594af91e`.
+The author check passed lint, typechecks and 821 tests in 59 files; log: `/tmp/au-check-cp2.log`.
+It adds the provider-aware LTI paths, migrations 004 and 011, typed connections, app routes and grant-engine implementation.
+The app redemption and cleanup modules compile, but their focused unit tests are still in progress.
+The Canvas branch advanced to this commit with its route edits preserved.
+Canvas received the typed connection, DTO and real redemption interfaces in `msg_18ea5d4b5b6e`.
+The backend hold was released in `msg_12634eff2ca7`; Canvas-owned modules remain exclusive to Canvas.
+Both implementation tasks continue. This checkpoint is not independent QA or full feature acceptance.
 
 The teams agreed on the player interface in `msg_a05ac85fc3b8` and `msg_7df7bdfe2bcc`.
 The backend emits `data-lms-name` on the play page element and the content-origin runtime body.
