@@ -1306,6 +1306,54 @@ Editorial task `task_01bc269cca8b` also corrected the diagnostic wording: A coul
 The eight architecture files are held and ready for a review freeze. ADR-012 remains Proposed.
 The Lead retained the Architect before acknowledgment. The next wave reviews this frozen design, with no implementation authority.
 
+Storage design candidate: `6a5eb6a89b3ee6bb377f93244b00e6488e9e2314`.
+The eight held architecture hashes matched before the exact-path commit; product and test files did not change.
+All three independent checks started on this candidate:
+
+| Check | Dispatch | Launch message |
+| --- | --- | --- |
+| Reviewer-A | `ctx_148e1d3f008a` | `msg_11211a21b840` |
+| Reviewer-B | `ctx_2646adf72f56` | `msg_bf884f9a23ef` |
+| Common QA | `ctx_cccf34f08216` | `msg_09af27bb77a6` |
+
+Their starts are confirmed. Each report is independent; no verdict is available yet.
+No author implementation or Docker run is authorized during this review wave.
+
+Reviewer-A submitted `msg_5414a3ab98da`: CHANGES_REQUESTED at `6a5eb6a`.
+Its held report is `docs/reviews/M0/storage-reviewer-a.md`, SHA256 `f5ceeebacb98146ffc85ecfcf00ad1d9d47ee5332494d86495d0c4b455150a13`.
+The three MAJOR findings concern nested mountpoint ownership, missing recovery states, and backups of an inconsistent database pair.
+The Lead accepted this review as completed work and retained the same reviewer before acknowledgment.
+This does not approve the design. The other independent reports remain pending; no correction edits have started.
+
+All three first storage-design reports are now submitted at `6a5eb6a`.
+Common QA: `msg_c71a10d16a93`, FAIL for design testability, 13 MAJOR findings, six MINOR findings and two NITs.
+Reviewer-B: `msg_00b816b96840`, CHANGES_REQUESTED, one BLOCKER, four MAJOR findings, seven MINOR findings and two NITs.
+Their report hashes are `a1cba5040d7573e74a9e62fb015452426c3def2ac77ddc1ca4df9b6f0fa88c51` (QA) and `4f95cf7d2b3cebaf583f72edc6a6b30abad14bb5f69521049eaf283c18fecad2` (B).
+The Lead checked every report and hash, and retained each exact session before acknowledging its settlement.
+No BLOCKER or MAJOR is waived. The following groups define the bounded Architect correction scope:
+
+| Correction | Findings |
+| --- | --- |
+| Create safe host content folders and volume mountpoints; define maintenance ownership; retain non-recursive handling | A-S-01, B-S-01/05, Q-S-03 |
+| Complete and order startup and recovery states, including partial first starts, first journal writes, empty-target rollback and unresolved recovery | A-S-02, B-S-03/04/06/08, Q-S-01/02/10 |
+| Refuse inconsistent backup pairs and legacy rollback journals; retain import provenance and define pair compatibility and content checks | A-S-03/07, B-S-09, Q-S-11/12/18 |
+| Define safe restart refusal, serialize conflicting operations and make scratch cleanup recoverable | A-S-04, B-S-13, Q-S-13/17 |
+| Make old-build procedures runnable; preserve the exact old product and candidate test trees; define temporary rollback limits and full fixture comparisons | A-S-05/06, B-S-02/07/10/14, Q-S-05/06/15/16 |
+| Define independent QA volume access and the probe interface; enumerate added rows and phases; distinguish conditional applicability from PASS | Q-S-04/07/08/09/14/20/21 |
+| State lane-volume ownership and fresh-lane checks; add the exact P5 storage-access exception with unchanged assertions | B-S-11/12, Q-S-19 |
+
+QA's proposed 45-row addition is provisional, not an approved total. The corrected contract must enumerate the final list.
+All existing 416 rows remain mandatory in each full round. Added old-schema import and recovery cases must have explicit outcomes.
+The host-dependent negative may be inapplicable only with independent oracle evidence. It must never be counted as a PASS.
+Recovery drills must distinguish the previous and restored database pairs, including their identities; identical fixtures cannot prove rollback.
+Old `test:acceptance` remains needed by the existing route. Its internal starts need an explicit coverage rule, not removal of existing tests.
+The existing P5 fixture keeps its approved app-stop guard; the new access mechanism must not weaken its assertions.
+
+One part of B-S-11 needs factual correction. The installed `docker system prune --help` and [Docker's command reference](https://docs.docker.com/reference/cli/docker/system/prune/) say `--volumes` prunes anonymous volumes.
+Do not claim this flag removes the new named volumes. [Docker's volume reference](https://docs.docker.com/reference/cli/docker/volume/prune/) assigns named-volume pruning to `docker volume prune --all`.
+No prune command was run; the Lead used CLI help and read the official documentation.
+The project-name reuse concern and the need for scoped cleanup remain valid.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
