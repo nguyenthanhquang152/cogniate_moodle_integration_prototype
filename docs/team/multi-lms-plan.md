@@ -511,6 +511,10 @@ The same task `task_de758fb0e31a` is failed for quota recovery, with a retry ass
 The eight partial backend paths are preserved in `/var/folders/_h/pjt6zzrj46sctnb18tsmbzgw0000gn/T/cogniate-bm1-03-claude-partial-taeekbh7`, with a SHA-256 manifest.
 They remain uncommitted and are not a passed checkpoint. The replacement must check and complete them.
 The [team brief](multi-lms-team-brief.md#backend-quota-replacement-2026-10-20) records the narrow role exception and prevents overlapping editors.
+The retry started through `worker-start --retry-of` as **`ctx_1cb6714a155b`**, with effective `gpt-6-astra` / `xhigh`.
+Its dedicated handle is `structworker_ead1fb5e-7672-4a9f-9e28-fe7e2943ed8d`.
+Handoff `msg_0881270e976b` supplies the applied-contract SHA, partial-file backup and priority interface checkpoint.
+Canvas received the recovery notice in `msg_6e4870bb8d15`; the active worker count stays three.
 
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
