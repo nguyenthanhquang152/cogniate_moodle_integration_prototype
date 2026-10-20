@@ -1,0 +1,41 @@
+import { expect, it } from 'vitest';
+import { CANVAS_PROFILES } from './canvas.ts';
+import { findProfile, listProfiles, profileEndpoints, reservedIssuerOrigins, siteRulesFor } from './index.ts';
+import { checkSiteUrl } from '@cogniate/shared';
+
+it('defines the reviewed hosted endpoints, flags and simulation gate in registry order', () => {
+  const rows = [
+    ['canvas-cloud-production', 'https://canvas.instructure.com', 'https://sso.canvaslms.com'],
+    ['canvas-cloud-beta', 'https://canvas.beta.instructure.com', 'https://sso.beta.canvaslms.com'],
+    ['canvas-cloud-test', 'https://canvas.test.instructure.com', 'https://sso.test.canvaslms.com'],
+    ['canvas-sim-cloud', 'https://canvas.sim.test', 'https://sso.canvas.sim.test'],
+  ];
+  for (const [id, issuer, sso] of rows) {
+    const profile = CANVAS_PROFILES.find((p) => p.id === id)!;
+    expect(profile).toMatchObject({
+      issuer, authenticationEndpoint: `${sso}/api/lti/authorize_redirect`, jwksUrl: `${sso}/api/lti/security/jwks`,
+      accesstokenEndpoint: '{serviceUrl}/login/oauth2/token', lms: 'canvas', sharing: 'exclusive', siteUrlOn: 'platform', serviceUrl: true, productFamily: 'canvas',
+      flags: { deepLinkingResponseSub: false, clientAssertionAudArray: false, minimizeClaims: true, serviceOriginCheck: true },
+    });
+    expect(profile.sources.length).toBeGreaterThan(0);
+  }
+  expect(listProfiles({ simulation: false }).map((p) => p.id)).toEqual([
+    'standard', 'canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'blackboard',
+  ]);
+  expect(listProfiles({ simulation: true }).slice(-2).map((p) => p.id)).toEqual(['blackboard-sim', 'canvas-sim-cloud']);
+  expect(findProfile('canvas-sim-cloud', { simulation: false })).toBeNull();
+  expect(reservedIssuerOrigins({ simulation: false })).toContain('https://canvas.instructure.com');
+  expect(reservedIssuerOrigins({ simulation: false })).not.toContain('https://canvas.sim.test');
+});
+
+it('keeps self-hosted issuer/auth/keys on the site and token on the separate service', () => {
+  const profile = findProfile('canvas-self-hosted', { simulation: false })!;
+  expect(profileEndpoints(profile, { siteUrl: 'https://canvas.school.edu', serviceUrl: 'https://api.school.edu' })).toEqual({
+    issuer: 'https://canvas.school.edu', authenticationEndpoint: 'https://canvas.school.edu/api/lti/authorize_redirect',
+    jwksUrl: 'https://canvas.school.edu/api/lti/security/jwks', accesstokenEndpoint: 'https://api.school.edu/login/oauth2/token',
+  });
+  expect(profileEndpoints(profile, { siteUrl: 'https://canvas.school.edu' }).accesstokenEndpoint).toBe('https://canvas.school.edu/login/oauth2/token');
+  const rules = siteRulesFor(profile, ['https://app.cogniate.test'], { simulation: true });
+  expect(checkSiteUrl('https://school.instructure.com', rules)).toMatchObject({ ok: false, rule: 5 });
+  expect(checkSiteUrl('https://sso.canvas.sim.test', rules)).toMatchObject({ ok: false, rule: 5 });
+});
