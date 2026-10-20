@@ -10,9 +10,9 @@ The Moodle release below is the completed baseline.
 | Task | Owner | Status | Evidence |
 | --- | --- | --- | --- |
 | M0 | Architect; independent QA and reviewers | Done for design scope | Round 3 at `158a4d8`: A APPROVE, B APPROVE, QA PASS for design testability. Nonblocking A-M0-11, A-M0-12 and B-M0-10 text corrections applied. No open BLOCKER or MAJOR. |
-| M1 | Blackboard and Canvas teams; one shared engine owner | Changes requested; repair assigned | Reviewer-A Round 2 at `af5d5f6` finds two MAJOR bounded-call defects and two MINOR audit defects at candidate `eb43247`. Backend follow-up: `task_bfa884e18169`. Reviewer-B's approval at `9680bb7` remains separate evidence. Applied contracts: `ccdd9ef`; design approvals: `b6e8f73`. [Exclusive paths and handoffs](multi-lms-team-brief.md). |
-| M2 | Blackboard and Canvas teams; one owner per shared portal file | First SIM run failed; harness repairs active | At `eb43247`, 35 cases PASS and 29 FAIL, zero skips or retries. QA traces 28 failures to the shared operator-command working directory and one to a row-order assertion affected by scrolling. Common QA repairs the command helper; Canvas QA repairs its layout assertion. Both source reviews approve M2, but browser acceptance has not passed. Cleanup and preservation of all seven baseline volumes pass. |
-| M3 | Independent common QA and Canvas QA | Capture repair active; final acceptance held | Reviewer-A's MAJOR A-M3-01 at `af5d5f6` identifies incomplete gate capture. Common QA repairs its harness while preserving the passing T2a/T2b/T3a/T3b evidence at `eb43247`. Canvas QA may finish its in-flight M2 run and cleanup; T7 and full M1 await a repaired, reviewed freeze. Reviewer-B's separate approval stays recorded. No complete acceptance verdict; real Canvas and Blackboard remain unverified. |
+| M1 | Blackboard and Canvas teams; one shared engine owner | Repair integrated; independent re-review active | Frozen candidate `ae130a3` repairs A-M1-03 through A-M1-06. Lead clean check passes lint, typechecks and 1,032 tests in 69 files, zero skips. Reviewer-A rechecks in `ctx_2b5524d3ba70`; Reviewer-B is queued. Findings remain open until independent disposition. Applied contracts: `ccdd9ef`. [Exclusive paths and handoffs](multi-lms-team-brief.md). |
+| M2 | Blackboard and Canvas teams; one owner per shared portal file | First SIM run failed; repairs committed, rerun held | At `eb43247`, 35 cases PASS and 29 FAIL, zero skips or retries. The CLI repair is in `41ee174`; row-order repair and complete failure reports are in `feb36b1`. The next run uses `ae130a3` after a new window is assigned. All 64 cases remain required. Cleanup of the failed run and all seven baseline volumes pass. |
+| M3 | Independent common QA and Canvas QA | Partial runtime preflight authorized; full acceptance held | Complete capture fixes are in `41ee174` and `feb36b1`. Common QA owns the exclusive window for 14 existing PARTIAL SIM cases at `ae130a3`; source re-review runs in parallel. Canvas QA holds. Both complete M1 runs, migration inventories, remaining legacy suites and T7 still await execution. Earlier exact-`eb43247` T2/T3 evidence is preserved. All 32 live LMS rows remain UNVERIFIED. |
 | M4 | Docs and Architect | Queued | Final conformance, guides, offline review page and three independent documentation checks have explicit tasks and evidence gates. |
 
 Both original implementation tasks are complete; independent product verification is pending.
@@ -28,6 +28,7 @@ No product gate has passed. No push is authorized.
 Reviewer-A Round 2 is committed at `af5d5f6`: M1/M3 CHANGES_REQUESTED, M2 source APPROVE.
 A-M1-03/04 and A-M3-01 block completion. A-M1-05/06 also go to the shared backend owner for repair.
 The new findings do not invalidate earlier evidence at its recorded SHA, but that evidence cannot approve the next candidate.
+The repairs are now committed at `ae130a3`; this is the candidate for re-review, not a finding-closure verdict.
 
 ## Completed Moodle baseline
 

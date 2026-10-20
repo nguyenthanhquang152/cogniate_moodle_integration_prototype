@@ -702,6 +702,39 @@ They depend on the backend repair and also require a Lead handoff with committed
 The same independent reviewers own their existing reports; the team brief extends Reviewer-A's replacement role to this follow-up.
 Their new reports remain blind until each submits. The three-worker limit still applies.
 
+### Repaired candidate and partial runtime gate
+
+The Lead committed common QA's eleven held paths as `41ee174ddcd4cd5c925b09d7c57ef9f8ceaa03b9`.
+All nine source hashes matched its preparation record; both reports preserve their prior history.
+This includes the actual-gate capture checks, the CLI working-directory repair and the exact T2/T3 evidence.
+Canvas QA's nine held paths followed as `feb36b112edd4173094e0ba3d38ccfc0a549fb35`.
+Its three test files repair race capture and the scrolling assertion. Its reports preserve the failed M2 run.
+The new live matrix records all 32 normative rows as UNVERIFIED.
+
+Backend `task_bfa884e18169` completed in `msg_4052d2ce8047`; its dedicated replacement remains retained.
+The Lead matched all six file hashes and committed them as `ae130a3501f3a2502c6a34e36319629e3dcdfb09`.
+The author's regressions failed on the original defects, then 197 focused tests passed.
+Its full check passed lint, typechecks and 1,032 tests in 69 files, with real fixtures and zero skips.
+Report: `/tmp/cogniate-m1-round3-backend-report.md`; manifest: `/tmp/cogniate-m1-round3-backend-sha256.json`.
+No schema, contract, Canvas-owned product module or infrastructure file changed.
+
+**Product and test freeze: `ae130a3501f3a2502c6a34e36319629e3dcdfb09`.**
+The Lead repeated `npm run check` in its clean detached clone with real fixtures: the same 1,032 tests pass.
+Lint and all typechecks pass; tracked state stays clean.
+Log: `/tmp/cogniate-lead-foundation.bzkF2F.round3-check.log`.
+Reviewer-A re-review is active in `ctx_2b5524d3ba70`, handoff `msg_2f4880834051`.
+Reviewer-B's task remains queued for the next free worker slot.
+
+Common QA prepared an external command that selects 14 existing cases without changing any acceptance test.
+The Lead accepted only that partial scope in `msg_80300bbaa998`, then granted its exclusive window in `msg_6b9fc22e8767`.
+The command is `/Users/quangnguyen/cogniate-qa-runs/m3-repair-20261020T1243Z/preflight-smoke.mjs`.
+Its hash is `c231c34f084fb010351b28da3d24ed06ad6fd6c6c80cc908c9f10bed5a1f56d8`.
+It uses a fresh clone of the frozen SHA on port 8443, subnet `172.29.0.0/16`.
+It checks both real operator CLIs, representative refusal/readiness/restart capture paths, health, secrets and cleanup.
+Every result is PARTIAL SIM; none fills either complete-run inventory. No standalone upgrade preflight is authorized.
+After cleanup, common QA holds the next stack until Lead assigns it.
+Canvas QA remains active but held under reply `msg_5cc6a0b12d41`; its next window is separate.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
