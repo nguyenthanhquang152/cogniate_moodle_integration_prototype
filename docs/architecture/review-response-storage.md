@@ -270,3 +270,46 @@ No row is added or removed: **488** per full round = 416 original rows + 72 AC-M
 - Gate G-1 (A-S-13) is unmeasured until the Author diagnostic reports; it blocks implementation acceptance.
 - ADR-012 §17 assumptions 1–9 and 11 stay unmeasured; assumption 6 now also covers the Compose volume labels that the presence rule reads.
 - No implementation, Docker or acceptance authority follows from this text. All 32 live rows stay `UNVERIFIED`, and every M1, legacy, M2 and T7 rerun remains.
+
+## Design acceptance: four nonblocking precision items (ADR-012 revision 3.3)
+
+The sections above are kept as history. This section applies to revision 3.3.
+
+**Lead decision** (at `5f3337a95d07a588767d06ddb26f8b014d2d9671`): the blocking design findings in escalation G1 are independently closed at revision 3.2 (`d0bdda0`): Reviewer-A APPROVE, Reviewer-B APPROVE, QA PASS, no open BLOCKER or MAJOR. This accepts the storage **design** for implementation. It accepts no implementation and no runtime result. Final report SHA-256: Reviewer-A `318d753fe8962f408eed5b87939a7c6ab729d12d760b8278141b54913e3bc0aa`, Reviewer-B `a09233e7c4562fca7a27aa6a0dee05a311dc2a855eae41822e0d108b1b81b726`, QA `561151be1213d70a3779f6aaed511f711f5ef045a3a9c5410c13846130ba9454`.
+
+Revision 3.3 states only the four nonblocking precision items that the decision names, the measured G-1 scope, and the status text. No product mechanism, protocol, state table, lock algorithm, recovery guarantee, original assertion or row count changes. Each item is **addressed pending independent implementation verification**; none is self-closed.
+
+| Id | Sev. | Source evidence | Delta in revision 3.3 |
+| --- | --- | --- | --- |
+| A-S-14 | MINOR | Reviewer-A final addendum: the G-1 pass is not bound to the measured client versions; Docker Desktop on this host already updated once (4.95.0 / engine 29.8.2 → 4.96.0 / engine 29.9.1). The diagnostics' `client-identity.txt` records the identities. | ADR-012 §17 "G-1 result" and "Identity binding": the pass is valid only for macOS 27.0.1 arm64, Docker CLI 29.9.1 (binary SHA-256 `678271184175…af5fb`) and Compose plugin v5.6.0 (binary SHA-256 `1ec06408b809…bf605`), read by the stated commands from the resolved real paths. QA's run boundary records and compares the same three. Any difference → the existing fail-closed path (implementation acceptance and lock-dependent runtime gates `BLOCKED`) until a new, separately authorized G-1 diagnostic passes. §7 claims the group rule only for these identities. M1 Self-check and M3 AC-M3-01 state the same. |
+| B-S-23 | NIT | Reviewer-B final addendum: the setup skips `stack:up`'s legacy scan; with legacy files present it can make `FIRST_START` with empty `legacySources`, which `stack:up` never reaches. QA's own trace: `a-first-start-resume` needs empty legacy sets; `h-target-state` (2) runs restore and import, which do not read the legacy sets. | ADR-012 §11 item 2: the legacy precondition applies only when the row runs `stack:up` after the setup. QA reads both legacy sets on the host; any entry → `BLOCKED`; QA never moves or deletes a legacy file. `h-target-state` (2) has no legacy precondition, and retained legacy files stay in place. M1 rows state the sequences. |
+| G1-QA-01 | MINOR | QA final addendum: the ownership proof covered volumes only, while the record-only teardown applies to containers and networks too; strict reading gives a false teardown FAIL (`tests/host/lib.mjs:234–240` lists all three kinds by label). | ADR-012 §15 "Ownership record": every kind that QA lists by the project label (containers, volumes, networks), with the identity that Docker supplies for each kind: containers and networks by `Id`, name, labels and creation time; volumes, which have no `Id` field (the original baseline records show only `CreatedAt`, `Driver`, `Labels`, `Mountpoint`, `Name`, `Options`, `Scope`), by exact `Name` plus that metadata. A name that reappears after an absence gets a new record. The proof is the before-command absence, the run-start second rule and this project's labels (and the volume label for the two lane volumes). Teardown re-inspects and removes only recorded resources that still match their latest record (same `Id` for containers and networks; same `Name` and metadata for volumes); a mismatch, a missing record or a failed inspect keeps the resource and reports it; every unrecorded, unlabeled or other-project resource stays and is reported; the original baseline stays unchanged. Stated limit: Docker has no unique volume generation id, so a same-name, same-second, same-metadata re-creation inside the run cannot be told apart; no stronger proof is claimed. AC-M3-06 states the same. (Pre-freeze wording correction, task `task_76c3c8865200`: the earlier text of this row said "id" for every kind.) |
+| G1-QA-02 | MINOR | QA final addendum: Docker shows `CreatedAt` in whole seconds on the engine clock; a host start time in milliseconds can be later than the creation in the same second, which gives a false FAIL. | ADR-012 §11 new item 6: QA reads each start from the Docker engine clock (`docker system info` `SystemTime`), rounds it down to the whole second, and accepts a creation time not earlier than that second; QA also records the host time. The before-command checks stay: the exact name was absent in QA's listing just before the command, and the labels must match afterwards. §11 item 5 and §15 use this rule. |
+
+### Implications for the two fixture sequences
+
+- **`a-first-start-resume`.** Executable order:
+  1. QA reads both legacy folders on the host. Any `<db>` or `<db>-…` entry → `BLOCKED`, with nothing moved or deleted.
+  2. The exact-name volume check: both names absent, or present with this project's labels and state `FRESH`.
+  3. The product setup under QA's lock.
+  4. The independent setup check.
+  5. For the partial case, the removal of the app identity as the service user.
+  6. `stack:up` and its oracle.
+  QA runs the row in a new storage lane, or in the storage lane before any `e-*` row places legacy files (QA's own trace). The volumes that the setup makes were absent in QA's listing before the setup and have a creation time not earlier than the setup's start second (G1-QA-02), so QA records them as made by the run, and the teardown removes them (G1-QA-01). The setup container is `--rm`, has the project label, and is recorded the same way.
+- **`h-target-state` (2).** Order:
+  1. After `g-quarantine`, the exact-name check (both absent).
+  2. The product setup.
+  3. The independent check.
+  4. The restore refusal and the import refusal; "nothing changes" is compared with the listing after the setup.
+  5. The removal of both identities as the service user, which returns the lane to `FRESH` for `g-fresh-target`.
+  There is no legacy precondition. Retained legacy files of the `e-*` rows stay in place, because restore and import read the target state, not the legacy sets. The ownership and time rules apply to the setup's volumes as above.
+
+### G-1 measured scope (recorded, not widened)
+
+A-S-13 is closed as a design build gate for the measured host only: macOS 27.0.1 arm64, Docker CLI 29.9.1, Compose 5.6.0, `/bin/bash` 3.2.57, storage-style `docker compose run` (two Author diagnostics, SHA-256 `24768ae9…7a9df` and `297cdf8c…ebdc4e`, checked by the Lead and Reviewer-A). Measured: all client processes in the stub's group; a parent-only kill left a client that created its target (the group rule sees it); a whole-group kill before creation left no client and no container for 30.36 s. **Not measured:** other signals and a terminal close; a kill during the create API call; `up`, `exec` and other paths; other callers and shells; other versions; Linux. Reviewer-A's reasoning about those paths is not a measurement. The implementation, its independent source reviews, the lock self-check and every runtime gate stay required.
+
+### Inventory
+
+Unchanged: **488** rows per full round = 416 original rows (ids, phases, labels and assertions unchanged) + 72 AC-M1-41 rows (a 10, b 3, c 2, d 7, e 13, f 6, g 20, h 7, i 2, j 2); phases `sim` 394, `snapshot-isolated` 6, `snapshot-upgrade` 6, `migration` 12, `storage` 70. `c-host-negative` stays the only conditional row.
+
+All 32 live rows stay `UNVERIFIED`. Both full M1 rounds, both old routes, the legacy suites, M2 and the three T7 runs remain required on the implemented candidate.

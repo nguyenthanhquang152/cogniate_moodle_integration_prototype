@@ -1699,6 +1699,15 @@ Architect follow-up `task_76c3c8865200`, dispatch `ctx_f54503e2deb2`, launch `ms
 It uses kind-specific recorded identity and preservation checks; it does not invent a volume id or broaden cleanup authority.
 The other five held architecture files stay unchanged. No Docker is authorized.
 
+The Architect submitted the corrected resource identity wording in `msg_88c2266e5c8e`.
+The Lead checked all eight final held hashes and preserved response history, then retained the worker before acknowledgment.
+Final ADR-012 SHA-256: `f586f1d76083297b22eae8981d9347512c313f9a0dd929bcee9f0763c0aed2fe`.
+Final response SHA-256: `9f1999769bbcbf3ee4442411d739df23790f23a45f5a2a42097a343ded45234f`.
+Containers and networks use Docker Id; volumes use Name and the recorded metadata that Docker supplies.
+Teardown re-inspects the latest record and preserves any mismatch or unverifiable resource.
+The text states Docker's lack of a unique volume-generation id and makes no stronger identity claim.
+Revision 3.3 is ready for the exact source handoff. The four minor precision items remain subject to implementation verification.
+
 Docs started in `msg_ec29e7a52a8a` and submitted G1's current design-closure record in `msg_1405db3332a1`.
 Held SHA-256: `84b95ce1992885fe9ca93597bd3dda53052b46900f7400f06d9db4ae1e1b8ae4`.
 The Lead checked the scoped diff, hash and preserved earlier sections, then released the worker before acknowledgment.
