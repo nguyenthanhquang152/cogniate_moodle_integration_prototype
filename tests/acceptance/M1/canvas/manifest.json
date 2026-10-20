@@ -1,0 +1,1778 @@
+[
+ {
+  "id": "M1-04.canvas.cloud-fixed",
+  "ac": "AC-M1-04",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-04 canvas-sim-cloud create stores the fixed issuer, SSO endpoints and service token URL {case:M1-04.canvas.cloud-fixed}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-04.canvas.override-auth",
+  "ac": "AC-M1-04",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-04 a sent authenticationEndpoint that is not the profile value is refused and stores nothing {case:M1-04.canvas.override-auth}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-04.canvas.override-jwks",
+  "ac": "AC-M1-04",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-04 a sent authConfig that is not the profile value is refused and stores nothing {case:M1-04.canvas.override-jwks}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-04.canvas.override-token",
+  "ac": "AC-M1-04",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-04 a sent accesstokenEndpoint that is not the profile value is refused and stores nothing {case:M1-04.canvas.override-token}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-04.canvas.override-url",
+  "ac": "AC-M1-04",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-04 a sent url that is not the profile value is refused and stores nothing {case:M1-04.canvas.override-url}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-04.canvas.self-hosted",
+  "ac": "AC-M1-04",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-04 canvas-self-hosted builds issuer, auth and JWKS from the site and the token URL from the service {case:M1-04.canvas.self-hosted}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-04.canvas.service-url-blackboard",
+  "ac": "AC-M1-04",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-04 serviceUrl is refused on a blackboard-sim platform {case:M1-04.canvas.service-url-blackboard}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-04.canvas.service-url-standard",
+  "ac": "AC-M1-04",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-04 serviceUrl is refused on a standard platform {case:M1-04.canvas.service-url-standard}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-04.canvas.split-hosts",
+  "ac": "AC-M1-04",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-04 a Canvas page host and a separate service host are both kept; token on the service host {case:M1-04.canvas.split-hosts}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.canonical",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 an upper-case origin with :443 and / is stored, granted and site-checked in canonical form {case:M1-05.canvas.canonical}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule1-fragment",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 1 refuses siteUrl https://school-a.canvas.sim.test/#f at both services without an outbound call {case:M1-05.canvas.rule1-fragment}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule1-http",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 1 refuses siteUrl http://school-a.canvas.sim.test at both services without an outbound call {case:M1-05.canvas.rule1-http}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule1-path",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 1 refuses siteUrl https://school-a.canvas.sim.test/canvas at both services without an outbound call {case:M1-05.canvas.rule1-path}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule1-query",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 1 refuses siteUrl https://school-a.canvas.sim.test/?x=1 at both services without an outbound call {case:M1-05.canvas.rule1-query}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule1-userinfo",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 1 refuses siteUrl https://u:p@school-a.canvas.sim.test at both services without an outbound call {case:M1-05.canvas.rule1-userinfo}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule2-ipv4",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 2 refuses siteUrl https://10.20.30.40 at both services without an outbound call {case:M1-05.canvas.rule2-ipv4}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule2-ipv6",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 2 refuses siteUrl https://[::1] at both services without an outbound call {case:M1-05.canvas.rule2-ipv6}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule2-localhost",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 2 refuses siteUrl https://localhost at both services without an outbound call {case:M1-05.canvas.rule2-localhost}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule2-sub-localhost",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 2 refuses siteUrl https://a.localhost at both services without an outbound call {case:M1-05.canvas.rule2-sub-localhost}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule3-app",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 3 refuses siteUrl https://app.cogniate.test at both services without an outbound call {case:M1-05.canvas.rule3-app}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule3-content",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 3 refuses siteUrl https://content.cogniate-content.test at both services without an outbound call {case:M1-05.canvas.rule3-content}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule3-lti",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 3 refuses siteUrl https://lti.cogniate.test at both services without an outbound call {case:M1-05.canvas.rule3-lti}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule4-service-sso",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 4 refuses serviceUrl https://sso.canvas.sim.test at both services without an outbound call {case:M1-05.canvas.rule4-service-sso}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule4-sso",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 4 refuses siteUrl https://sso.canvas.sim.test at both services without an outbound call {case:M1-05.canvas.rule4-sso}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule4-sso-port",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 4 refuses siteUrl https://sso.canvas.sim.test:8443 at both services without an outbound call {case:M1-05.canvas.rule4-sso-port}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.rule5-instructure",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 site rule 5 refuses siteUrl https://school.instructure.com at both services without an outbound call {case:M1-05.canvas.rule5-instructure}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-05.canvas.self-positive",
+  "ac": "AC-M1-05",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-05 a self-hosted site is accepted at the LTI service and the app {case:M1-05.canvas.self-positive}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-07.canvas.conditional-delete",
+  "ac": "AC-M1-07",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-07 a conditional DELETE with another ref keeps the Canvas platform {case:M1-07.canvas.conditional-delete}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-07.canvas.deactivate-reactivate",
+  "ac": "AC-M1-07",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-07 switching a Canvas deployment off and on keeps generation zero {case:M1-07.canvas.deactivate-reactivate}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-07.canvas.deployment-add",
+  "ac": "AC-M1-07",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-07 a Canvas deployment without site is active with generation zero and is logged {case:M1-07.canvas.deployment-add}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-07.canvas.deployment-site-refused",
+  "ac": "AC-M1-07",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-07 a Canvas deployment can name only the platform site {case:M1-07.canvas.deployment-site-refused}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-07.canvas.parallel-conditional",
+  "ac": "AC-M1-07",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-07 two parallel conditional activations of one Canvas platform: exactly one wins {case:M1-07.canvas.parallel-conditional}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-07.canvas.patch-site-refused",
+  "ac": "AC-M1-07",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-07 a Canvas deployment PATCH cannot change the site {case:M1-07.canvas.patch-site-refused}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-07.canvas.platform-diff",
+  "ac": "AC-M1-07",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-07 PATCH deploymentIds on a Canvas platform is a diff that keeps listed rows {case:M1-07.canvas.platform-diff}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-07.canvas.staged-platform",
+  "ac": "AC-M1-07",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-07 an inactive Canvas create refuses login and launch until its conditional activation {case:M1-07.canvas.staged-platform}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-08.canvas.deep-link",
+  "ac": "AC-M1-08",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-08 Canvas Deep Linking posts a verified response to the exact return URL with query data only {case:M1-08.canvas.deep-link}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-08.canvas.login-redirect",
+  "ac": "AC-M1-08",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-08 Canvas login goes to the fixed SSO authorize URL with unchanged hints {case:M1-08.canvas.login-redirect}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-09.canvas.best-html",
+  "ac": "AC-M1-09",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-09 Canvas 80, 60, 90 sends 80 and 90 only (html) {case:M1-09.canvas.best-html}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-09.canvas.best-scorm12",
+  "ac": "AC-M1-09",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-09 Canvas 80, 60, 90 sends 80 and 90 only (scorm12) {case:M1-09.canvas.best-scorm12}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-09.canvas.browser-framed",
+  "ac": "AC-M1-09",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-09 the same Canvas launch inside a school-a frame stays framed with Open in a new window {case:M1-09.canvas.browser-framed}",
+  "kind": "browser",
+  "file": "acceptance/M1/canvas/70-canvas-browser.spec.ts"
+ },
+ {
+  "id": "M1-09.canvas.browser-top-level",
+  "ac": "AC-M1-09",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-09 a top-level Canvas learner launch passes the embedded page to the player without a click {case:M1-09.canvas.browser-top-level}",
+  "kind": "browser",
+  "file": "acceptance/M1/canvas/70-canvas-browser.spec.ts"
+ },
+ {
+  "id": "M1-09.canvas.embedded-page",
+  "ac": "AC-M1-09",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-09 the Canvas embedded page has a nonce script, site framing and no form action {case:M1-09.canvas.embedded-page}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-09.canvas.html-incomplete",
+  "ac": "AC-M1-09",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-09 Canvas grade fixture html-incomplete: cold token at the account domain and ADR-010 score {case:M1-09.canvas.html-incomplete}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-09.canvas.html-seven-of-ten",
+  "ac": "AC-M1-09",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-09 Canvas grade fixture html-seven-of-ten: cold token at the account domain and ADR-010 score {case:M1-09.canvas.html-seven-of-ten}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-09.canvas.html-zero",
+  "ac": "AC-M1-09",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-09 Canvas grade fixture html-zero: cold token at the account domain and ADR-010 score {case:M1-09.canvas.html-zero}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-09.canvas.moodle-static-control",
+  "ac": "AC-M1-09",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-09 a standard (Moodle) iframe launch keeps the static embedded page without script {case:M1-09.canvas.moodle-static-control}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-09.canvas.scorm-incomplete",
+  "ac": "AC-M1-09",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-09 Canvas grade fixture scorm-incomplete: cold token at the account domain and ADR-010 score {case:M1-09.canvas.scorm-incomplete}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-09.canvas.scorm-seven-of-ten",
+  "ac": "AC-M1-09",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-09 Canvas grade fixture scorm-seven-of-ten: cold token at the account domain and ADR-010 score {case:M1-09.canvas.scorm-seven-of-ten}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-09.canvas.scorm-zero",
+  "ac": "AC-M1-09",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-09 Canvas grade fixture scorm-zero: cold token at the account domain and ADR-010 score {case:M1-09.canvas.scorm-zero}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-12.canvas.ags-lineitem-evil",
+  "ac": "AC-M1-12",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-12 signed Canvas ags_lineitem outside the service or site origin is refused (check 13) {case:M1-12.canvas.ags-lineitem-evil}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-12.canvas.ags-lineitems",
+  "ac": "AC-M1-12",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-12 signed Canvas ags_lineitems outside the service or site origin is refused (check 13) {case:M1-12.canvas.ags-lineitems}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-12.canvas.dl-return",
+  "ac": "AC-M1-12",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-12 signed Canvas dl_return outside the service or site origin is refused (check 13) {case:M1-12.canvas.dl-return}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-12.canvas.nrps",
+  "ac": "AC-M1-12",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-12 signed Canvas nrps outside the service or site origin is refused (check 13) {case:M1-12.canvas.nrps}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-13.canvas.inactive-deployment",
+  "ac": "AC-M1-13",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-13 an inactive Canvas deployment refuses login, launch, its ltik and its service key {case:M1-13.canvas.inactive-deployment}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-13.canvas.login-token-deployment",
+  "ac": "AC-M1-13",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-13 the signed Canvas deployment must equal the login deployment {case:M1-13.canvas.login-token-deployment}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-13.canvas.no-client-id",
+  "ac": "AC-M1-13",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-13 two Canvas platforms with one issuer need client_id at login {case:M1-13.canvas.no-client-id}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-13.canvas.unknown-deep-link",
+  "ac": "AC-M1-13",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-13 an unknown Canvas deployment fails at login and at the deep-link launch {case:M1-13.canvas.unknown-deep-link}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-13.canvas.unknown-resource",
+  "ac": "AC-M1-13",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-13 an unknown Canvas deployment fails at login and at the resource launch {case:M1-13.canvas.unknown-resource}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-14.canvas.browser-runtime-name",
+  "ac": "AC-M1-14",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-14 the Canvas SCORM runtime returns an empty student name in the browser {case:M1-14.canvas.browser-runtime-name}",
+  "kind": "browser",
+  "file": "acceptance/M1/canvas/70-canvas-browser.spec.ts"
+ },
+ {
+  "id": "M1-14.canvas.claims",
+  "ac": "AC-M1-14",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-14 Canvas personal, custom, vendor and nested claims are removed before storage {case:M1-14.canvas.claims}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-14.canvas.runtime-identity",
+  "ac": "AC-M1-14",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-14 the SCORM runtime state of a Canvas launch has an empty learner name {case:M1-14.canvas.runtime-identity}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-15.canvas.default-profile",
+  "ac": "AC-M1-15",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-15 a Canvas connection without profile gets canvas-cloud-production {case:M1-15.canvas.default-profile}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-15.canvas.dto",
+  "ac": "AC-M1-15",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-15 a Canvas connection is pending, manual, has the Canvas capabilities and no grant field {case:M1-15.canvas.dto}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-15.canvas.dynamic-refused",
+  "ac": "AC-M1-15",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-15 Canvas connection create refuses dynamic-refused and stores nothing {case:M1-15.canvas.dynamic-refused}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-15.canvas.lms-providers",
+  "ac": "AC-M1-15",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-15 lms-providers lists the Canvas methods, capabilities and profiles with the simulation last {case:M1-15.canvas.lms-providers}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-15.canvas.lms-unknown",
+  "ac": "AC-M1-15",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-15 Canvas connection create refuses lms-unknown and stores nothing {case:M1-15.canvas.lms-unknown}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-15.canvas.profile-mismatch",
+  "ac": "AC-M1-15",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-15 Canvas connection create refuses profile-mismatch and stores nothing {case:M1-15.canvas.profile-mismatch}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-15.canvas.split",
+  "ac": "AC-M1-15",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-15 a Canvas connection stores its page site and its service URL {case:M1-15.canvas.split}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/11-canvas-platforms.test.ts"
+ },
+ {
+  "id": "M1-16.canvas.graded-vs-preview",
+  "ac": "AC-M1-16",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-16 a graded Canvas learner sends a score; an instructor preview makes no row and no POST {case:M1-16.canvas.graded-vs-preview}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-16.canvas.institution-admin",
+  "ac": "AC-M1-16",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-16 Canvas roles institution-admin: preview true and Deep Linking picker {case:M1-16.canvas.institution-admin}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-16.canvas.instructor",
+  "ac": "AC-M1-16",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-16 Canvas roles instructor: preview true and Deep Linking picker {case:M1-16.canvas.instructor}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-16.canvas.learner",
+  "ac": "AC-M1-16",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-16 Canvas roles learner: preview false and Deep Linking refused {case:M1-16.canvas.learner}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-16.canvas.learner-and-instructor",
+  "ac": "AC-M1-16",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-16 Canvas roles learner-and-instructor: preview true and Deep Linking picker {case:M1-16.canvas.learner-and-instructor}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-16.canvas.learner-institution-instructor",
+  "ac": "AC-M1-16",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-16 Canvas roles learner-institution-instructor: preview false and Deep Linking refused {case:M1-16.canvas.learner-institution-instructor}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-16.canvas.simple-instructor",
+  "ac": "AC-M1-16",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-16 Canvas roles simple-instructor: preview true and Deep Linking picker {case:M1-16.canvas.simple-instructor}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-16.canvas.simple-learner",
+  "ac": "AC-M1-16",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-16 Canvas roles simple-learner: preview false and Deep Linking refused {case:M1-16.canvas.simple-learner}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-16.canvas.student-view",
+  "ac": "AC-M1-16",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-16 Canvas roles student-view: preview false and Deep Linking refused {case:M1-16.canvas.student-view}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-16.canvas.teaching-assistant",
+  "ac": "AC-M1-16",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-16 Canvas roles teaching-assistant: preview true and Deep Linking picker {case:M1-16.canvas.teaching-assistant}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-17.canvas.other-library-conflict",
+  "ac": "AC-M1-17",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-17 another library cannot bind a Canvas client id that a connection owns {case:M1-17.canvas.other-library-conflict}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-17.canvas.register",
+  "ac": "AC-M1-17",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-17 a matching grant registers the Canvas connection once {case:M1-17.canvas.register}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-17.canvas.repeat",
+  "ac": "AC-M1-17",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-17 repeating the registering call answers 200 with the same platform and no new redemption {case:M1-17.canvas.repeat}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-17.canvas.strict-client-secret",
+  "ac": "AC-M1-17",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-17 the strict Canvas body refuses clientSecret and changes nothing {case:M1-17.canvas.strict-client-secret}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-17.canvas.strict-issuer",
+  "ac": "AC-M1-17",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-17 the strict Canvas body refuses issuer and changes nothing {case:M1-17.canvas.strict-issuer}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-17.canvas.strict-jwks-url",
+  "ac": "AC-M1-17",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-17 the strict Canvas body refuses jwksUrl and changes nothing {case:M1-17.canvas.strict-jwks-url}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-17.canvas.strict-missing-code",
+  "ac": "AC-M1-17",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-17 the strict Canvas body refuses grantCode and changes nothing {case:M1-17.canvas.strict-missing-code}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-18.canvas.disconnect",
+  "ac": "AC-M1-18",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-18 a Canvas DELETE switches its platform off, as Moodle does {case:M1-18.canvas.disconnect}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-18.canvas.grant-revoked",
+  "ac": "AC-M1-18",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-18 a Canvas disconnect revokes its unredeemed grants {case:M1-18.canvas.grant-revoked}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-18.canvas.pending-score",
+  "ac": "AC-M1-18",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-18 a pending Canvas score row fails with CONNECTION_DISABLED at its due time after disconnect {case:M1-18.canvas.pending-score}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-19.canvas.blackboard-refused",
+  "ac": "AC-M1-19",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-19 a Blackboard connection has no Canvas configuration {case:M1-19.canvas.blackboard-refused}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-19.canvas.inline-key",
+  "ac": "AC-M1-19",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-19 the inline export is a public snapshot of the active signing key {case:M1-19.canvas.inline-key}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-19.canvas.json",
+  "ac": "AC-M1-19",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-19 a pending Canvas connection exports exactly the contract JSON with its headers {case:M1-19.canvas.json}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-19.canvas.jwk-other",
+  "ac": "AC-M1-19",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-19 an unknown jwk mode is refused {case:M1-19.canvas.jwk-other}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-19.canvas.rows",
+  "ac": "AC-M1-19",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-19 a Canvas connection returns exactly the four developer key rows in order {case:M1-19.canvas.rows}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-20.canvas.add",
+  "ac": "AC-M1-20",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-20 an add_deployment grant adds one approved deployment without touching the first one {case:M1-20.canvas.add}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-20.canvas.capability-blackboard",
+  "ac": "AC-M1-20",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-20 Blackboard connections cannot add deployments {case:M1-20.canvas.capability-blackboard}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-20.canvas.capability-moodle",
+  "ac": "AC-M1-20",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-20 Moodle connections cannot add deployments {case:M1-20.canvas.capability-moodle}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-20.canvas.initial-grant",
+  "ac": "AC-M1-20",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-20 an initial-purpose grant cannot add a deployment {case:M1-20.canvas.initial-grant}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-20.canvas.missing-code",
+  "ac": "AC-M1-20",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-20 an added deployment without a code is refused {case:M1-20.canvas.missing-code}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-20.canvas.pending",
+  "ac": "AC-M1-20",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-20 a pending Canvas connection cannot add a deployment {case:M1-20.canvas.pending}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-20.canvas.repeat",
+  "ac": "AC-M1-20",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-20 a finalized repeat answers 200 without an LTI call, a redemption or use of the code {case:M1-20.canvas.repeat}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-21.canvas.course-shell",
+  "ac": "AC-M1-21",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-21 Canvas publications cannot ask for a Moodle course shell {case:M1-21.canvas.course-shell}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-21.canvas.registration-url",
+  "ac": "AC-M1-21",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-21 a Canvas connection has no Moodle registration URL {case:M1-21.canvas.registration-url}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-21.canvas.web-services",
+  "ac": "AC-M1-21",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-21 Canvas has no Moodle web services and makes no outbound call {case:M1-21.canvas.web-services}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-22.canvas.back-to-canvas",
+  "ac": "AC-M1-22",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-22 the Canvas player shows Back to Canvas {case:M1-22.canvas.back-to-canvas}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-22.canvas.browser-status-text",
+  "ac": "AC-M1-22",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-22 the player status and return link name Canvas after a sent score {case:M1-22.canvas.browser-status-text}",
+  "kind": "browser",
+  "file": "acceptance/M1/canvas/70-canvas-browser.spec.ts"
+ },
+ {
+  "id": "M1-22.canvas.inactive-text",
+  "ac": "AC-M1-22",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-22 the DEPLOYMENT_NOT_ACTIVE page of Canvas names Canvas {case:M1-22.canvas.inactive-text}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-22.canvas.role-text",
+  "ac": "AC-M1-22",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-22 the ROLE_NOT_ALLOWED page of a Canvas learner names Canvas {case:M1-22.canvas.role-text}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-22.canvas.unknown-deployment-text",
+  "ac": "AC-M1-22",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-22 an unknown Canvas deployment page names Canvas, not Moodle {case:M1-22.canvas.unknown-deployment-text}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-24.canvas.browser-secrets",
+  "ac": "AC-M1-24",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-24 browser tokens, assertions and approval codes never reach service, simulator or gate logs {case:M1-24.canvas.browser-secrets}",
+  "kind": "browser",
+  "file": "acceptance/M1/canvas/99-canvas-secrets.spec.ts"
+ },
+ {
+  "id": "M1-25.canvas.self-hosted-metadata",
+  "ac": "AC-M1-25",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-25 idtoken shows the self-hosted site and its separate service URL {case:M1-25.canvas.self-hosted-metadata}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-25.canvas.site-metadata",
+  "ac": "AC-M1-25",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-25 idtoken shows the Canvas site, service URL and profile {case:M1-25.canvas.site-metadata}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-26.canvas.deep-link",
+  "ac": "AC-M1-26",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-26 self-hosted Deep Linking verifies with the site JWKS and returns to the site {case:M1-26.canvas.deep-link}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-26.canvas.grade",
+  "ac": "AC-M1-26",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-26 self-hosted score uses the service host token URL and AGS {case:M1-26.canvas.grade}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-26.canvas.no-cloud-hosts",
+  "ac": "AC-M1-26",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-26 a self-hosted launch, Deep Linking and grade never call a cloud issuer or SSO host {case:M1-26.canvas.no-cloud-hosts}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-26.canvas.page-host-ags",
+  "ac": "AC-M1-26",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-26 self-hosted AGS on the page host is refused by check 13 {case:M1-26.canvas.page-host-ags}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-26.canvas.register",
+  "ac": "AC-M1-26",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-26 a self-hosted Canvas grant for site and service registers its own issuer {case:M1-26.canvas.register}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.a-foreign-code",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 first-claim squatting: another library cannot use the rightful code {case:M1-29.canvas.a-foreign-code}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.a-no-code",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 first-claim squatting: another library cannot bind Canvas ids without a code {case:M1-29.canvas.a-no-code}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.c",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 a grant of library B cannot register library A {case:M1-29.canvas.c}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.d",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 a grant of one connection cannot register another connection of the same library {case:M1-29.canvas.d}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.e-client",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 a grant with another clientId is a mismatch and stays usable {case:M1-29.canvas.e-client}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.e-deployment",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 a grant with another deploymentId is a mismatch and stays usable {case:M1-29.canvas.e-deployment}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.f",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 a redeemed Canvas grant cannot register another connection {case:M1-29.canvas.f}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.g",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 an expired Canvas grant is refused at phase 1 and listed as expired {case:M1-29.canvas.g}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.h",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 a revoked Canvas grant is refused {case:M1-29.canvas.h}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.i-other-library",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 an add_deployment code of library B cannot add a deployment to library A {case:M1-29.canvas.i-other-library}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.i-redeemed",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 a redeemed add_deployment code cannot add another deployment {case:M1-29.canvas.i-redeemed}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.k-add-client",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 operator CLI refuses an add_deployment grant with another client id {case:M1-29.canvas.k-add-client}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.k-add-pending",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 operator CLI refuses k-add-pending for a Canvas connection and stores nothing {case:M1-29.canvas.k-add-pending}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.k-initial-registered",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 operator CLI refuses an initial grant for a registered Canvas connection {case:M1-29.canvas.k-initial-registered}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.k-library",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 operator CLI refuses k-library for a Canvas connection and stores nothing {case:M1-29.canvas.k-library}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.k-service-url",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 operator CLI refuses k-service-url for a Canvas connection and stores nothing {case:M1-29.canvas.k-service-url}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.k-site",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 operator CLI refuses k-site for a Canvas connection and stores nothing {case:M1-29.canvas.k-site}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.k-site-canonical",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 operator CLI refuses k-site-canonical for a Canvas connection and stores nothing {case:M1-29.canvas.k-site-canonical}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.k-ttl",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 operator CLI refuses k-ttl for a Canvas connection and stores nothing {case:M1-29.canvas.k-ttl}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.l-delete",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 library B gets 404 for DELETE on a library A Canvas connection {case:M1-29.canvas.l-delete}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.l-get",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 library B gets 404 for GET on a library A Canvas connection {case:M1-29.canvas.l-get}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.l-post-deployments",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 library B gets 404 for POST on a library A Canvas connection {case:M1-29.canvas.l-post-deployments}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.l-put",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 library B gets 404 for PUT on a library A Canvas connection {case:M1-29.canvas.l-put}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-29.canvas.m",
+  "ac": "AC-M1-29",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-29 every grant rejection gives the same public answer while the log keeps the precise reason {case:M1-29.canvas.m}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-31.canvas.other-lms",
+  "ac": "AC-M1-31",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-31 an unknown LMS route does not answer the portal page {case:M1-31.canvas.other-lms}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-31.canvas.publication-fields",
+  "ac": "AC-M1-31",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-31 Canvas publication answers carry lms and connectionName {case:M1-31.canvas.publication-fields}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-31.canvas.routes",
+  "ac": "AC-M1-31",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-31 signed-in Canvas routes answer the portal page with the portal security headers {case:M1-31.canvas.routes}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-31.canvas.signed-out",
+  "ac": "AC-M1-31",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-31 signed-out Canvas routes redirect to sign-in {case:M1-31.canvas.signed-out}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/31-canvas-grants.test.ts"
+ },
+ {
+  "id": "M1-32.canvas.ags-on-page-host",
+  "ac": "AC-M1-32",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-32 split AGS line items on the page host are refused {case:M1-32.canvas.ags-on-page-host}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-32.canvas.deep-link",
+  "ac": "AC-M1-32",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-32 split Canvas Deep Linking frames on the page host and returns there {case:M1-32.canvas.deep-link}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-32.canvas.dl-on-service-host",
+  "ac": "AC-M1-32",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-32 split Deep Linking return on the service host is refused {case:M1-32.canvas.dl-on-service-host}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-32.canvas.grade",
+  "ac": "AC-M1-32",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-32 split Canvas score uses the service host and the player link stays on the page host {case:M1-32.canvas.grade}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-32.canvas.idtoken",
+  "ac": "AC-M1-32",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-32 split Canvas idtoken shows both origins {case:M1-32.canvas.idtoken}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-33.canvas.mapping-400",
+  "ac": "AC-M1-33",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-33 the LTI score API keeps the Canvas HTTP 400 as PLATFORM_REJECTED_REQUEST {case:M1-33.canvas.mapping-400}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-33.canvas.mapping-422",
+  "ac": "AC-M1-33",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-33 the LTI score API keeps the Canvas HTTP 422 as PLATFORM_REJECTED_REQUEST {case:M1-33.canvas.mapping-422}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-33.canvas.status-400",
+  "ac": "AC-M1-33",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-33 Canvas score HTTP 400 fails at once, never retries, and Resend follows rule 10 {case:M1-33.canvas.status-400}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-33.canvas.status-422",
+  "ac": "AC-M1-33",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-33 Canvas score HTTP 422 fails at once, never retries, and Resend follows rule 10 {case:M1-33.canvas.status-422}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/41-canvas-grades.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.cloud-altered-signature",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed cloud Canvas login rejects altered-signature {case:M1-34.canvas.cloud-altered-signature}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.cloud-expired",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed cloud Canvas login rejects expired {case:M1-34.canvas.cloud-expired}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.cloud-future-iat",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed cloud Canvas login rejects future-iat {case:M1-34.canvas.cloud-future-iat}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.cloud-hs256",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed cloud Canvas login rejects hs256 {case:M1-34.canvas.cloud-hs256}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.cloud-multi-aud-no-azp",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed cloud Canvas login rejects multi-aud-no-azp {case:M1-34.canvas.cloud-multi-aud-no-azp}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.cloud-multi-aud-wrong-azp",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed cloud Canvas login rejects multi-aud-wrong-azp {case:M1-34.canvas.cloud-multi-aud-wrong-azp}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.cloud-no-cookie",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 a valid cloud Canvas signature cannot replace the state cookie {case:M1-34.canvas.cloud-no-cookie}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.cloud-none",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed cloud Canvas login rejects none {case:M1-34.canvas.cloud-none}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.cloud-replay",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 the cloud Canvas state is single use {case:M1-34.canvas.cloud-replay}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.cloud-unknown-key",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed cloud Canvas login rejects unknown-key {case:M1-34.canvas.cloud-unknown-key}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.cloud-unknown-kid",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed cloud Canvas login rejects unknown-kid {case:M1-34.canvas.cloud-unknown-kid}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.cloud-wrong-audience",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed cloud Canvas login rejects wrong-audience {case:M1-34.canvas.cloud-wrong-audience}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.cloud-wrong-issuer",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed cloud Canvas login rejects wrong-issuer {case:M1-34.canvas.cloud-wrong-issuer}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.cloud-wrong-nonce",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed cloud Canvas login rejects wrong-nonce {case:M1-34.canvas.cloud-wrong-nonce}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.self-altered-signature",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed self Canvas login rejects altered-signature {case:M1-34.canvas.self-altered-signature}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.self-expired",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed self Canvas login rejects expired {case:M1-34.canvas.self-expired}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.self-future-iat",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed self Canvas login rejects future-iat {case:M1-34.canvas.self-future-iat}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.self-hs256",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed self Canvas login rejects hs256 {case:M1-34.canvas.self-hs256}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.self-multi-aud-no-azp",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed self Canvas login rejects multi-aud-no-azp {case:M1-34.canvas.self-multi-aud-no-azp}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.self-multi-aud-wrong-azp",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed self Canvas login rejects multi-aud-wrong-azp {case:M1-34.canvas.self-multi-aud-wrong-azp}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.self-no-cookie",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 a valid self Canvas signature cannot replace the state cookie {case:M1-34.canvas.self-no-cookie}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.self-none",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed self Canvas login rejects none {case:M1-34.canvas.self-none}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.self-replay",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 the self Canvas state is single use {case:M1-34.canvas.self-replay}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.self-unknown-key",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed self Canvas login rejects unknown-key {case:M1-34.canvas.self-unknown-key}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.self-unknown-kid",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed self Canvas login rejects unknown-kid {case:M1-34.canvas.self-unknown-kid}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.self-wrong-audience",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed self Canvas login rejects wrong-audience {case:M1-34.canvas.self-wrong-audience}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.self-wrong-issuer",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed self Canvas login rejects wrong-issuer {case:M1-34.canvas.self-wrong-issuer}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-34.canvas.self-wrong-nonce",
+  "ac": "AC-M1-34",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-34 fresh signed self Canvas login rejects wrong-nonce {case:M1-34.canvas.self-wrong-nonce}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-36.canvas.encoded-dot",
+  "ac": "AC-M1-36",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-36 a Canvas service key refuses a encoded-dot escape without an outbound call {case:M1-36.canvas.encoded-dot}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-36.canvas.encoded-slash",
+  "ac": "AC-M1-36",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-36 a Canvas service key refuses a encoded-slash escape without an outbound call {case:M1-36.canvas.encoded-slash}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-36.canvas.origin",
+  "ac": "AC-M1-36",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-36 a Canvas service key refuses a origin escape without an outbound call {case:M1-36.canvas.origin}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-36.canvas.path",
+  "ac": "AC-M1-36",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-36 a Canvas service key refuses a path escape without an outbound call {case:M1-36.canvas.path}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-36.canvas.query",
+  "ac": "AC-M1-36",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-36 a Canvas service key refuses a query escape without an outbound call {case:M1-36.canvas.query}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.c",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 Canvas initial S1 answer lost leaves an inactive platform; retry adopts it (A2) {case:M1-37.canvas.c}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.c2",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 Canvas initial S3 answer lost: active without approval gives no authority; retry finishes {case:M1-37.canvas.c2}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.d",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 dead Canvas handler keeps the lease for 60 s; its late S3 loses to the retry {case:M1-37.canvas.d}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.e",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 revoke during a held Canvas S3 cancels and switches off with a new ref {case:M1-37.canvas.e}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.f",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 a Canvas replacement cannot start during a live lease and adopts after the cancel {case:M1-37.canvas.f}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.g",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 DELETE during a held Canvas S3 fences the platform; the stale compensation cannot undo it {case:M1-37.canvas.g}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.h",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 DELETE during a held Canvas add_deployment ends with the platform off and the connection disabled {case:M1-37.canvas.h}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.i",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 a timed-out late Canvas activation gives no authority; the same grant then finishes (A2) {case:M1-37.canvas.i}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.j",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 two parallel Canvas redemptions with one grant commit exactly once {case:M1-37.canvas.j}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.m",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 a failed Canvas compensation leaves no authority; a second revoke fences the record {case:M1-37.canvas.m}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.n",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 a late Canvas compensation loses to the replacement binding {case:M1-37.canvas.n}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.p-activate",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 a late Canvas added deployment activation has no authority until revoke fences it {case:M1-37.canvas.p-activate}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.p-create",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 a timed-out Canvas added deployment create, revoke and late write give no authority {case:M1-37.canvas.p-create}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.q",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 a Canvas replacement creates first after the old S1 times out; the old create cannot overwrite {case:M1-37.canvas.q}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.r",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 a Canvas replacement reads again when the old compensation lands between its S2 and S3 {case:M1-37.canvas.r}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.s-compensation",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 a stale Canvas added deployment compensation cannot undo the replacement; dA is unchanged {case:M1-37.canvas.s-compensation}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.s-dead",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 a dead Canvas added deployment handler: no authority until the 60 s lease ends {case:M1-37.canvas.s-dead}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.s-retry",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 a lost Canvas added deployment S3 answer: no authority before approval; retry finishes once {case:M1-37.canvas.s-retry}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.t",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 a foreign active Canvas record is not adoptable until its owner is fenced (I4, A3) {case:M1-37.canvas.t}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.u-after-c",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 cancelling a pending Canvas connection after c fences through the saved target {case:M1-37.canvas.u-after-c}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.u-after-c2",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 cancelling a pending Canvas connection after c2 fences through the saved target {case:M1-37.canvas.u-after-c2}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/51-canvas-races.test.ts"
+ },
+ {
+  "id": "M1-38.canvas.a",
+  "ac": "AC-M1-38",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-38 suspend without a library session disables Canvas; a due row fails without a POST; B is unaffected {case:M1-38.canvas.a}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/61-canvas-containment.test.ts"
+ },
+ {
+  "id": "M1-38.canvas.b",
+  "ac": "AC-M1-38",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-38 Canvas release needs a suspend first, deletes only the owned platform and keeps history {case:M1-38.canvas.b}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/61-canvas-containment.test.ts"
+ },
+ {
+  "id": "M1-38.canvas.d",
+  "ac": "AC-M1-38",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-38 a registered Canvas connection with a wrong service URL is corrected without a new developer key {case:M1-38.canvas.d}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/61-canvas-containment.test.ts"
+ },
+ {
+  "id": "M1-38.canvas.e",
+  "ac": "AC-M1-38",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-38 after release and a new binding, old Canvas publications and history stay with their own library {case:M1-38.canvas.e}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/61-canvas-containment.test.ts"
+ },
+ {
+  "id": "M1-38.canvas.f",
+  "ac": "AC-M1-38",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-38 a pending Canvas connection with a wrong service URL is suspended, released and corrected {case:M1-38.canvas.f}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/61-canvas-containment.test.ts"
+ },
+ {
+  "id": "M1-38.canvas.f-held-delete",
+  "ac": "AC-M1-38",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-38 a held release DELETE fails; the same values bind (A3); the late DELETE then fails {case:M1-38.canvas.f-held-delete}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/61-canvas-containment.test.ts"
+ },
+ {
+  "id": "M1-38.canvas.g-late-create",
+  "ac": "AC-M1-38",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-38 a late Canvas create after release is inactive; another value set waits for a second release {case:M1-38.canvas.g-late-create}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/61-canvas-containment.test.ts"
+ },
+ {
+  "id": "M1-39.canvas.blackboard-family-on-canvas",
+  "ac": "AC-M1-39",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-39 a BlackboardLearn-signed launch on canvas-sim-cloud is refused before storage {case:M1-39.canvas.blackboard-family-on-canvas}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-39.canvas.operator-order",
+  "ac": "AC-M1-39",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-39 grant first, then suspend and release the squatter, then redeem: 200 {case:M1-39.canvas.operator-order}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/61-canvas-containment.test.ts"
+ },
+ {
+  "id": "M1-39.canvas.residual-race",
+  "ac": "AC-M1-39",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-39 the accepted D-12 race: a new standard connect after release blocks the redemption until repeated release {case:M1-39.canvas.residual-race}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/61-canvas-containment.test.ts"
+ },
+ {
+  "id": "M1-39.canvas.squat-refused",
+  "ac": "AC-M1-39",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-39 a standard connection with a self-hosted Canvas issuer cannot run Canvas-signed launches {case:M1-39.canvas.squat-refused}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/61-canvas-containment.test.ts"
+ },
+ {
+  "id": "M1-39.canvas.upper-case-family",
+  "ac": "AC-M1-39",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-39 family CANVAS on a Canvas profile passes check 14 {case:M1-39.canvas.upper-case-family}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-40.canvas.a-dl-third-host",
+  "ac": "AC-M1-40",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-40 Deep Linking whose return URL is on a third Canvas page host is refused {case:M1-40.canvas.a-dl-third-host}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/21-canvas-protocol.test.ts"
+ },
+ {
+  "id": "M1-40.canvas.b-frame-refused",
+  "ac": "AC-M1-40",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-40 the picker framed by a third Canvas page host is refused by the browser, with no Cogniate error page {case:M1-40.canvas.b-frame-refused}",
+  "kind": "browser",
+  "file": "acceptance/M1/canvas/70-canvas-browser.spec.ts"
+ },
+ {
+  "id": "M1-40.canvas.c-return-fallback",
+  "ac": "AC-M1-40",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-40 a top-level launch with a third-host return URL opens and returns to the site root {case:M1-40.canvas.c-return-fallback}",
+  "kind": "browser",
+  "file": "acceptance/M1/canvas/70-canvas-browser.spec.ts"
+ }
+]
