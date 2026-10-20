@@ -8,6 +8,7 @@ import { Check, Copy } from "lucide-react";
 import { pendingToolText } from "../../../packages/shared/src/html.ts";
 import { ApiError } from "./api.ts";
 import type { Connection } from "./types.ts";
+import { lmsNames } from "./lms.ts";
 
 export function ErrorNotice({ error }: { error: unknown }) {
   if (!error) return null;
@@ -53,10 +54,10 @@ export function ConnectionError({
   if (!error) return null;
   return (
     <Notice variant="error" role="alert">
-      <p>{error.title ?? "The Moodle connection failed."}</p>
+      <p>{error.title ?? (connection.lms === "moodle" ? "The Moodle connection failed." : "The connection failed.")}</p>
       {error.action ? (
         <p>{error.action}</p>
-      ) : error.code === "MOODLE_TOOL_MAY_EXIST" && libraryName ? (
+      ) : connection.lms === "moodle" && error.code === "MOODLE_TOOL_MAY_EXIST" && libraryName ? (
         <p>{pendingToolText(`Cogniate (${libraryName})`)}</p>
       ) : null}
       <small>
@@ -69,7 +70,7 @@ export function ConnectionError({
 }
 export function connectionStatus(connection: Connection): string {
   if (connection.status === "registered")
-    return "Registered — activate in Moodle";
+    return connection.lms === "moodle" ? "Registered — activate in Moodle" : "Registered";
   if (connection.status === "connected") return "Connected";
   if (connection.status === "disabled") return "Disconnected";
   if (
@@ -77,7 +78,7 @@ export function connectionStatus(connection: Connection): string {
     new Date(connection.registrationUrlExpiresAt).getTime() <= Date.now()
   )
     return "Link expired";
-  if (connection.registrationUrl) return "Waiting for Moodle";
+  if (connection.registrationUrl) return `Waiting for ${lmsNames[connection.lms]}`;
   return "Pending";
 }
 export function ConnectionBadge({ connection }: { connection: Connection }) {
@@ -87,8 +88,10 @@ export function ConnectionBadge({ connection }: { connection: Connection }) {
     </Badge>
   );
 }
-export function CopyButton({ value, label }: { value: string; label: string }) {
-  const [status, setStatus] = useState("");
+export function CopyButton({ value, label, text = "Copy" }: { value: string; label: string; text?: string }) {
+  const [result, setResult] = useState<{ value: string; failed: boolean } | null>(null);
+  const current = result?.value === value ? result : null;
+  const status = current ? current.failed ? "Copy failed. Select the value and copy it." : "Copied" : "";
   return (
     <span className="inline-flex flex-col items-start gap-[5px]">
       <Button
@@ -99,9 +102,9 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(value);
-            setStatus("Copied");
+            setResult({ value, failed: false });
           } catch {
-            setStatus("Copy failed. Select the value and copy it.");
+            setResult({ value, failed: true });
           }
         }}
       >
@@ -110,11 +113,18 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
         ) : (
           <Copy size={15} aria-hidden="true" />
         )}
-        Copy
+        {text}
       </Button>
       <span className="text-[11px] text-[#cbb7e6] empty:hidden" role="status">
         {status}
       </span>
+      {current?.failed && <textarea
+        aria-label={`Copy ${label} manually`}
+        readOnly
+        value={value}
+        className="w-full min-w-[220px] rounded border border-border bg-background p-2 font-mono text-xs"
+        onFocus={(event) => event.target.select()}
+      />}
     </span>
   );
 }

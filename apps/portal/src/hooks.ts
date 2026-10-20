@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api.ts";
 
 export function useApi<T>(path: string, pollMs?: number) {
@@ -39,4 +39,14 @@ export function useApi<T>(path: string, pollMs?: number) {
     };
   }, [path, pollMs, revision]);
   return { data, setData, error, loading, reload };
+}
+
+/** Ignore a completed write when its form has already left the screen. */
+export function useAlive() {
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
+  return alive;
 }
