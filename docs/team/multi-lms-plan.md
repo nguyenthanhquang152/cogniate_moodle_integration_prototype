@@ -945,6 +945,27 @@ Two Claude-only source reviews are ready: A `task_ab8f85ebf8b7`, B `task_a5f2e5c
 The next single frozen revision needs a fresh complete M2 run and T7 sequence before common QA receives the clean exclusive window.
 The completed M2 PASS at `004568b` remains recorded; full M1 and final-SHA legacy are still NOT RUN.
 
+### T7 helper repair frozen at `aff4882`
+
+The Lead matched the four held file hashes and the patch hash from `msg_de6820a7a075`.
+The patch reverse check passed. Exact-path commit `aff48823a4c6206d6314d91a95f5eb0979d3e0e7` is the new frozen product/test SHA.
+The only test source delta from `004568b` is three lines in `tests/e2e/lib/portal.ts`.
+Product and build sources remain identical to the clean checked `e3cd7db` revision.
+QA's six exact-source controls detect the old delayed-option failure, accept the repaired valid option, and reject missing, wrong-host, wrong-name and missing-publication outcomes.
+Harness checks, typecheck, the 64-case M2 inventory and the 18-test T7 inventory pass.
+These controls are not runtime acceptance.
+
+Fresh independent Claude Reviewer-B now owns `task_a5f2e5cfc0c2`, dispatch `ctx_a7d1b1515df2`.
+Its launch receipt confirms requested and effective `claude-opus-5-5`, `xhigh`.
+The Lead supplied the exact source and one-file scope in `msg_97bd6afbe05e` and `msg_1df61b8626bb`.
+Original Claude A's independent supplement stays queued within the three-worker limit.
+
+Message `msg_cd92688894e5` opens the exclusive Canvas QA window for fresh full M2, then conditional three default T7 runs plus demo and confirmation at `aff4882`.
+QA confirmed the exact clean preflight and started `qa-e2e-sim-r5` in `msg_27036d47b24b`.
+Evidence root: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-aff4882-eFk7FU4s`.
+Common QA may prepare the new source read-only under `msg_41e9d3df3523`; all its stack actions remain held.
+Both source supplements and complete runtime gates are required before the full M1 handback.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
