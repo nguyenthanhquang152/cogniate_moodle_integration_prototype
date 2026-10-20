@@ -594,6 +594,20 @@ The candidate remains `eb43247` for every product and harness check.
 All review, acceptance, migration, Moodle and documentation gates remain required.
 A discovered blocking defect must be routed to its owner; no mixed-revision evidence may pass a gate.
 The Canvas/M2 verification task waits for the next worker slot and an assigned lane.
+Common/Blackboard QA `task_ed3b08aa45ea` is active in `ctx_8d51e8033a8a`, handoff `msg_a90c92ad2da1`.
+It reuses the original independent Codex QA instance and owns the `qa-multi-rN` lane, port 8443, subnet `172.29.0.0/16`.
+It must run the complete M1 inventory twice at `eb43247`, then the required legacy suites, with exact revision and case accounting.
+
+Reviewer-B's checkpoint `msg_9fac9a00748f` reports that B-M1-03 and B-M3-03 can close on `eb43247`.
+Its final reports are still pending; Reviewer-A has not submitted its new verdict.
+The checkpoint adds MINOR B-M3-04: Canvas v4/v6 must capture their scoped attempt event before killing the old process.
+The Lead queued the two-file correction as `task_efed48b0e53a` for the retained independent Canvas QA replacement.
+Full M1 rounds are held by `msg_f7c9fd485238` until the correction is committed and a revised candidate is supplied.
+Common QA acknowledged this before any acceptance round or stack startup in `msg_30c2b4836507`.
+It may execute unchanged legacy suites on the separate, exact `eb43247` record while it waits.
+The first T2a/T2b/T3a/T3b legacy run started in the assigned lane in `msg_54797a8ff3fd`.
+Final evidence must prove unchanged relevant paths before carrying a legacy result to the corrected candidate.
+Both complete M1 rounds must use the same final product and test revision.
 
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
