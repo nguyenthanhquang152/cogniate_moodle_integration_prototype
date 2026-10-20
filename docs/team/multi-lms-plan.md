@@ -72,7 +72,7 @@ Do not run a destructive reset against the user's existing environment.
 | --- | --- | --- |
 | M0 | Source review, architecture, contracts, criteria | In progress |
 | M0-A2 | Read-only portal and integration audit | Complete; no code or tests changed |
-| M0-AU | Read-only backend and deployment impact audit | In progress |
+| M0-AU | Read-only backend and deployment impact audit | Complete; no code or tests changed |
 | M0-QE | Independent environment and live-LMS validation preflight | Complete; environment inventory, no product verification |
 | M1 | Shared backend and provider registration support | Planned |
 | M2 | Blackboard and Canvas portal flows | Planned |
@@ -107,6 +107,13 @@ The Lead accepted its successful completion and recorded retention before acknow
 
 Design review tasks `task_8539cca49e29` and `task_6df3fc0172eb` depend on the Architect's M0 task.
 Each reviewer will write its own report before it sees the other review.
+Independent QA task `task_8b0eb55ffe6f` will check the design's testability from its acceptance criteria.
+
+The Author completed the backend audit in `ctx_94cbe8647c96`.
+Messages `msg_7b0385efd7e4`, `msg_a49edfb39d36`, and `msg_f0556212f33f` hold the findings.
+The Lead sent them to the Architect and retained the same dedicated Author for implementation.
+The findings cover deployment ownership, disconnect effects, stored keys, migration safety, and issuer-versus-site assumptions.
+They are implementation inputs, not independent QA evidence.
 
 QA-E2E completed [the environment preflight](../reviews/M0/qa-e2e-preflight.md).
 The Lead accepted its report and retained the dedicated QA-E2E instance for the later regression task.
@@ -134,4 +141,20 @@ A simulation must not impersonate real vendor hosts through DNS or certificates.
 Check availability again before each run. Run at most two stacks at once.
 Cleanup of a worker's own temporary stack, clone, secrets, traces, and test image is authorized.
 Preserve redacted evidence first. Never remove existing volumes, shared base images, or another worker's resources.
+
+## Design requirements from the Lead
+
+Public issuer, client, and deployment IDs do not prove that a library controls an LMS installation.
+New shared-provider bindings need a verified approval or proof step before activation.
+Typing another institution's public deployment ID must not claim its launches.
+This protection is in scope. It is not an accepted deferral.
+
+The acceptance criteria must cover first-claim squatting, cross-library redemption, replay, disconnect, and old stored service keys.
+Disconnecting one deployment must not stop another institution or reactivate old authority through a later binding.
+Keep existing Moodle IDs and service keys valid across migration.
+
+M1 includes `apps/player/**` for provider-aware learner text, as well as services, packages, and infrastructure.
+M2 owns only `apps/portal/**`.
+Preserve anonymous identity and the existing grade policy.
+Canvas dynamic registration, billing, high availability, public deployment, and certification are outside this phase.
 
