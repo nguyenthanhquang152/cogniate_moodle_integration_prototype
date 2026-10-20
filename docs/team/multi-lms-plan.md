@@ -1447,6 +1447,23 @@ Resolve small MINOR and NIT items in the same bounded correction; do not add opt
 Update the existing response document by appending Round 3 dispositions, with previous responses preserved.
 The same two reviewers and common QA must recheck the next frozen revision.
 
+The Round 2 reports and combined correction scope are committed at `584ab9efdcba1be2b5dfa1d0bc506d043f65ea72`.
+The original Architect received correction task `task_5fc787769d03`, dispatch `ctx_b9e134a1565d`, in `msg_45081da0f6e8`.
+It owns only the nine architecture files and has no Docker window.
+The next recheck tasks depend on this correction: Reviewer-A `task_8e1e6a064266`, Reviewer-B `task_31dd99af646c`, common QA `task_0e99b6e5fb12`.
+The Lead will supply the exact frozen candidate after the Architect holds the revised files.
+
+The Architect submitted revision 3 in `msg_6f51306f5898` and settled `task_5fc787769d03` successfully.
+The Lead checked all nine held SHA-256 values and retained the worker before acknowledgment.
+ADR-012 hash: `e292b4e5b5983d6408fe67086b6d4190c63813941a44eafe2a6e12ec2f810761`.
+Response hash: `b3e6b4143eaffaece129cda092fde99d8662e33b102514fd4e058695f4f00272`.
+Revision 3 proposes container-aware operation ownership, scoped suite locks, a usable quarantine exit and checked rollback moves.
+It specifies full file-set and logical-row recovery checks, credential transfer and exact fixture mounts.
+The proposed inventory is 488 rows per round: all 416 original rows and 72 storage rows.
+The nine added rows cover lock waiting, stale ownership, scope, reentry, three orphan-writer outcomes, quarantine users and restore targets.
+The Lead's scope reminder `msg_f0221cbee8dd` kept recovery bounded; no new link protocol was added.
+This is a submitted design correction, not independent approval. The three queued rechecks remain required.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.

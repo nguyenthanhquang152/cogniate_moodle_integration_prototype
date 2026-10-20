@@ -116,3 +116,81 @@ The design does not claim these. ADR-012 §17 lists them:
 - Linux hosts.
 
 All runtime gates run again after the implementation. All 32 live rows stay `UNVERIFIED`.
+
+## Round 3 response (to the Round 2 rechecks; ADR-012 revision 3)
+
+The Round 1 response above is kept as history; it applies to revision 2. This section applies to revision 3.
+
+Inputs at `584ab9efdcba1be2b5dfa1d0bc506d043f65ea72` (Round 2 of each report rechecks revision 2, frozen at `7a6374460dd02c3544b6dbf043086b0facefceb2`):
+
+| Report (Round 2 section) | Verdict and new findings | SHA-256 of the whole report |
+| --- | --- | --- |
+| `docs/reviews/M0/storage-reviewer-a.md` | CHANGES_REQUESTED: A-S-01 to A-S-08 closed; new A-S-09 MAJOR, A-S-10 MINOR, A-S-11 NIT (5 items) | `1ba1ceb6abec579db1d46b2c115a22ab717fcf507f56bd215db7945dfd48c14a` |
+| `docs/reviews/M0/storage-reviewer-b.md` | CHANGES_REQUESTED: B-S-01 to B-S-14 closed; new B-S-15 MAJOR, B-S-16 MINOR, B-S-17 to B-S-19 NIT | `16b857b032d430fa67fc1db4375cc25a8d8dea109616be1b6e06059f5d84a338` |
+| `docs/reviews/M0/storage-qa.md` | FAIL (design testability): Round 1 findings closed or converted; new R2-01 to R2-05 MAJOR, R2-06 to R2-10 MINOR, 2 optional; 479 = 416 + 63 confirmed | `50b83fbdc6c50645be16c54e7ddf2b8c35e450cadae9e83325c2841c567a2194` |
+
+Other inputs:
+- the Lead scope "Storage design correction, Round 3" in `docs/team/multi-lms-plan.md` at `584ab9e` (task `task_5fc787769d03`);
+- Lead message `msg_f0221cbee8dd`: keep the recovery change bounded and serialized; no general adversarial filesystem protocol.
+
+No MAJOR is waived or deferred. This section records changes; it closes no finding. The same three reviewers recheck the next frozen revision.
+
+### Reviewer-A, Round 2
+
+| Id | Sev. | Resolution |
+| --- | --- | --- |
+| A-S-09 | MAJOR | Done. ADR-012 §7 is rewritten. (1) **Storage containers** have exact labels (`com.docker.compose.project`, `org.cogniate.storage`, `org.cogniate.storage.run=<runId>`) and the name `<project>-storage-<runId>`. (2) The lock record has a **process identity** (`pid` and `pidStart` from `ps -o lstart=`). (3) Acquisition A1–A6: a stale record is reclaimed only when **no active storage container** of the project exists (else `storage_writer_active`, nothing moves). Every new holder checks again before its first Docker write (A6). (4) The takeover is race-safe without `flock`: a lock folder appears only by the `rename` of a complete candidate folder; a takeover is a `rename` to the keyed name `stale-<runId>`, which is never deleted, after a second read that follows the liveness test (proof in §7). (5) The operator exit for an orphaned writer: wait, or `docker stop <name>`, then `--recover`. Rows: `g-orphan-refusal`, `g-orphan-complete`, `g-orphan-stopped`; drill option `--pause-after` (§8). Unit cases: M1 Self-check. |
+| A-S-10 | MINOR | Done, bounded (Lead `msg_f0221cbee8dd`). ADR-012 §8 **R3 order**: classify each in-place file first; after-files leave their places before any before-file comes back; unknown bytes or an unlisted sidecar → `rollback_failed`, nothing deleted. **Checked move**: one `rename` after an `lstat` check that the target is absent. The lock and the stopped services make the check enough; no new partial state and no link protocol. A collision → `rollback_failed`. Unit cases: M1 Self-check. |
+| A-S-11 (1) | NIT | Done. §4 privilege rule: as root, only reads and §4 steps; no identity, journal or log line as root, in any mode; `mark-started`, `report`, `probe` and `selftest` drop privilege at once. |
+| A-S-11 (2) | NIT | Done. §8 "Other target states": `restore_target_state` and `import_target_not_fresh`, with the state named. Row `h-target-state`. |
+| A-S-11 (3) | NIT | Done. As B-S-15. |
+| A-S-11 (4) | NIT | Done. `enable` copies and hashes `storage-oplock.sh` with the probe and the runner (four hashes, qualifier `<h4>`); the copied `storage-compat.sh run --` holds the lock for an old command (§12). |
+| A-S-11 (5) | NIT | Done. The QA host control refuses `m1-restart` and `m1-profile` while the marker is present (§11; harness self-check in §13). Owner: QA (`tests/host/m1-control.mjs`). |
+| O-1 note | — | Done. The `depends_on` reason in §7 no longer cites the old-build differences; the reason is the mode, `runId` and lock that a compose dependency cannot give. |
+
+### Reviewer-B, Round 2
+
+| Id | Sev. | Resolution |
+| --- | --- | --- |
+| B-S-15 | MAJOR | Done. ADR-012 §9: after the verified copy, quarantine lists every container that uses a lane volume. It removes only the project's `lti-service` and `cogniate-app` containers that are not `run` containers and are `exited`, `created` or `dead` (read again), by id, without `-f` or `-v`. Any other user → `volume_in_use`, naming it; nothing is removed. `quarantine.json` records what was removed. Rows: `g-quarantine` (now from `docker compose stop`, with a container-list oracle) and `g-quarantine-in-use`. ADR-011 §14 states it. |
+| B-S-16 | MINOR | Done. Process identity with `pidStart` (a reused pid or a pid after a reboot is not live); `operation_lock_invalid` with a manual exit in the M4 guide; "one checkout per project" in §7, §15, `local-stack.md` and ADR-011 §14, with no cross-checkout claim; the lock helper is copied and hashed for old checkouts. |
+| B-S-17 | NIT | Done. ADR-012 §12 and §17 S1: both old `lib.sh` (line 9) set an absolute `KNOBS_FILE`; the old relative-path assumption is removed. I read this with `git show` at both SHAs. |
+| B-S-18 | NIT | Done. ADR-012 §12 "fresh old-route lane"; M1 AC-M1-23 step 1 and AC-M1-38 (h1): `enable` in the candidate checkout before `git checkout <old>`. |
+| B-S-19 | NIT | Done. As A-S-11 (1): output and log lines only after the privilege drop, also after a root-step failure. |
+
+### Common QA, Round 2
+
+| Id | Sev. | Resolution |
+| --- | --- | --- |
+| R2-01 | MAJOR | Done. ADR-012 §8 "File set" and §13 "Recovery oracle"; M1 AC-M1-41 rules. Verification and the oracle compare the full file set (`<db>`, `-wal`, `-shm`: presence, size, SHA-256; identity) and the logical rows from copies of stopped databases with their sidecars, never the originals. The fixture differs logically in both databases; it does not need every sidecar to differ. |
+| R2-02 | MAJOR | Done. ADR-012 §7 scope table: candidate `test:acceptance`, `test:e2e` and `e2e:reset` hold no lock; each internal `stack-up.sh` or `stack-reset.sh` run takes it. The lock is not re-entrant (`operation_lock_reentry` at once). The whole-command lock applies only to the old-build wrapper. Rows: `a-lock-scope` (host-control restart during a candidate suite), `a-lock-reentry`. |
+| R2-03 | MAJOR | Done. M1 `e-old-schema`: the complete synthetic credential set (four `.env` values and four secret files), the storage lane's own project, port, subnet, certificates and Moodle values, no `gen-env`, `seed`, `lti:bootstrap` or `seed-portal` before the oracle, the oracle with the copied values only. The row runs last in the `storage` phase. |
+| R2-04 | MAJOR | Done. ADR-012 §11 container kinds: `storage-probe` (the candidate probe read-only; `selftest` in a new folder of the container's writable layer; `probe` mode on the `.tmp/qa-host-negative-<16 hex>/` bind for `c-host-negative` only), `storage-oracle`, `storage-decoy`, `storage-volume-user`. All bounded, labeled, without network. The P5 app-stop guard is unchanged. New probe mode `probe` (§5). |
+| R2-05 | MAJOR | Done. `a-serialize` has a fixed order (the backup first, `stack:up` after the lock record names the backup) and an order-independent oracle (no service starts before the backup's release). Separate rows `a-lock-wait` and `a-lock-stale` (dead owner, reused pid, `cand-*` and `rel-*` leftovers). |
+| R2-06 | MINOR | Done. ADR-012 §5 steps: read, then the **journal gate** (rows 1–3 refuse with no change), then preparation, which records an unsafe mountpoint for row 5, then the privilege drop, cleanup and the table. |
+| R2-07 | MINOR | Done. As A-S-11 (2). |
+| R2-08 | MINOR | Done. ADR-012 §14 and AC-M3-01: the same-result rule applies to `c-host-negative`; PASS in one round and `NOT_APPLICABLE` in the other fails the run. No broader waiver. |
+| R2-09 | MINOR | Done. ADR-012 §10: first-match rows L1–L7; the §6 journal rows come first (L1), then the legacy hot journal (L2), then other §6 refusals (L3). |
+| R2-10 | MINOR | Done. ADR-012 §7 "Lock events": sink stdout and `infra/.logs/storage-lock.jsonl`, the fields with `ts`, and the event list. |
+| O2-1 | optional | Done. `ts` on every `storage_preflight`, summary, self-test and drill line. |
+| O2-2 | optional | Done. ADR-012 §17 assumption 8 and AC-M3-01: no test window or lease changes; QA records restart durations. |
+
+### Row accounting (revision 3)
+
+| Item | Value |
+| --- | --- |
+| Existing rows per full round | 416 (unchanged ids, phases and labels) |
+| AC-M1-41 rows per full round | 72 = the 63 of revision 2 + 9 added: `a-lock-wait`, `a-lock-stale`, `a-lock-scope`, `a-lock-reentry`, `g-orphan-refusal`, `g-orphan-complete`, `g-orphan-stopped`, `g-quarantine-in-use`, `h-target-state` |
+| Groups | a 10, b 3, c 2, d 7, e 13, f 6, g 20, h 7, i 2, j 2 |
+| Total per full round | 488 |
+| Phases | `sim` 394, `snapshot-isolated` 6, `snapshot-upgrade` 6, `migration` 12, `storage` 70 |
+| Conditional | only `c-host-negative`; same result in both rounds; never counted as PASS |
+| Not rows | harness self-checks (copied-file hashes, added environment key, host-control refusal under the marker); unit and integration cases |
+
+### Facts: source, measured, unmeasured
+
+- **Source facts** (read with `git show`; ADR-012 §17 S1–S5): absolute old `KNOBS_FILE` and conditional `-f`; old `seed.sh` uses `exec` only; old `test:acceptance` has two internal starts; the candidate host control runs `npm run stack:restart`; the candidate `stack-reset.sh` removes project containers with `docker rm -f`.
+- **Measured** (Author feasibility diagnostic, one macOS host; ADR-012 §17 M1–M8): unchanged from revision 2.
+- **Unmeasured** (ADR-012 §17 assumptions 1–9), among them: directory `rename` and `ps -o lstart=` behavior on the host; a `docker compose run` container that keeps running after its client gets `SIGKILL`; `run --name`/`--label` and `docker ps --filter volume=`; restart durations inside the existing test windows; Linux hosts.
+
+All runtime gates run again after the implementation. All 32 live rows stay `UNVERIFIED`. No acceptance credit comes from this design.

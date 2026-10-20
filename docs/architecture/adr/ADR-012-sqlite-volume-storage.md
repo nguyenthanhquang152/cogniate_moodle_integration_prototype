@@ -1,11 +1,13 @@
 # ADR-012: SQLite state on project-scoped named volumes, with a lock prerequisite
 
-Status: Proposed, **revision 2** (design for independent review; not accepted). Date: 2026-10-21. Owner: Architect. Amends [ADR-006](ADR-006-storage.md) (storage location) and [ADR-011 §14](ADR-011-multi-lms.md#14-compatibility-migration-upgrade-and-rollback) (maintenance commands).
+Status: Proposed, **revision 3** (design for independent review; not accepted). Date: 2026-10-21. Owner: Architect. Amends [ADR-006](ADR-006-storage.md) (storage location) and [ADR-011 §14](ADR-011-multi-lms.md#14-compatibility-migration-upgrade-and-rollback) (maintenance commands).
 
 Revision history:
 - Revision 1 was frozen at `6a5eb6a` and reviewed in `docs/reviews/M0/storage-reviewer-a.md`, `storage-reviewer-b.md` and `storage-qa.md` (committed at `2bb918f`).
 - Revision 2 answers every finding. The ID-by-ID response is [review-response-storage](../review-response-storage.md).
-- The same three reviewers recheck revision 2; this text does not close any finding.
+- Revision 2 was frozen at `7a63744` and rechecked in Round 2 of the same three reports (committed at `584ab9e`).
+- Revision 3 answers the Round 2 findings (response: Round 3 section of [review-response-storage](../review-response-storage.md)).
+- The same three reviewers recheck revision 3; this text does not close any finding.
 
 ## 1. Context
 
@@ -38,7 +40,7 @@ The decision does not depend on any of these claims.
 | # | Decision |
 | --- | --- |
 | DS1 | The SQLite files of both services live only on two project-scoped named volumes, `ltidb` and `appdb`. Content files stay on the existing host folders, as nested binds. No product code changes. |
-| DS2 | A storage preflight prepares the volume roots without recursion, checks a real WAL lock exclusion with a live holder and a positive release, and evaluates one total, ordered start-state table. It runs in a fresh one-shot container on every **guarded** path of §7, under one per-project operation lock. |
+| DS2 | A storage preflight prepares the volume roots without recursion, checks a real WAL lock exclusion with a live holder and a positive release, and evaluates one total, ordered start-state table. It runs in a fresh one-shot container on every **guarded** path of §7, under one operation lock per checkout and project. The lock stays held while a storage container of the project still runs. |
 | DS3 | The two databases are one **pair**. Identity files name the pair. A journaled paired restore has a total recovery table, keeps the old state until both targets are verified, and never claims "no target changed" without a verification. |
 | DS4 | Old bind-folder databases are never selected automatically. An explicit import goes only into a fresh pair. Any ambiguous state refuses, with an exact reason code. A non-destructive quarantine is the exit for an unresolved lane. `stack:reset` is never a recovery step. |
 | DS5 | A bounded storage-only override lets exactly the two old builds `b0b83a8289e1bf9cf349068aca184f0879e9aaf0` and `9f96f7b24cd0aed702e4dc40373bdda4307aad31` run on the volumes. It is the only exception to the no-overlay rule. No route and no documented procedure returns live data to a bind folder. |
@@ -77,7 +79,7 @@ Host side (the candidate `stack-up.sh`, `stack-restart.sh`, the maintenance comm
 1. Create `infra/.data/cogniate-app`, `…/packages` and `…/uploads` as the host user with mode `0700` when they are absent. Do this before any compose command that can start a service.
 2. Refuse `content_path_unsafe` when any of the three exists and is a symbolic link, or is not a directory, or is not owned by the host user. Nothing is changed in that case. The scripts never `chown` a host folder.
 
-Volume side (the preflight, as root, before it drops privilege; §5 step 1):
+Volume side (the preflight, as root, before it drops privilege; §5 step 3):
 1. **Volume root folder:** if its owner is not `HOST_UID:HOST_GID` or its mode is not `0700`, change only that folder.
 2. **`appdb` mountpoints** `packages` and `uploads`:
    - absent → create as `HOST_UID:HOST_GID`, `0700`;
@@ -90,20 +92,26 @@ Docker therefore finds both mountpoints present before the first app start, so a
 
 Maintenance writers (backup, restore, import, recover, quarantine) start as root only for the same two volume-side steps. Then they switch to `HOST_UID:HOST_GID` (`setgid`, then `setuid`) before they read or write anything else. So no maintenance command leaves a root-owned entry.
 
+**Privilege rule (every storage program, every mode).** As root, a program may only read and do the §4 volume-side steps. It writes no other file, no identity, no journal and no log line as root. A root-step failure is kept in memory; the program drops privilege, then writes its output and log lines, then exits 1. Modes that do no §4 step (`report`, `mark-started`, `probe`, `selftest`) drop privilege at once. A program that starts as `HOST_UID` (for example in a QA fixture container) runs unchanged.
+
 ## 5. Storage preflight
 
 ### Program and service
 
 Program: `infra/scripts/sqlite-lock-probe.mjs`.
 
-Command line: `node sqlite-lock-probe.mjs <mode> --run-id <16 hex> --project <name> --folder lti=<path> --folder app=<path> [--prepare]`. Modes:
+Command lines:
+- `node sqlite-lock-probe.mjs <report|check|mark-started> --run-id <16 hex> --project <name> --folder lti=<path> --folder app=<path> [--prepare]` (`--prepare` only with `check`);
+- `node sqlite-lock-probe.mjs probe --run-id <16 hex> --folder <name>=<path> [--folder …]`;
+- `node sqlite-lock-probe.mjs selftest --run-id <16 hex> --folder self=<path>`.
 
 | Mode | Use | Writes |
 | --- | --- | --- |
 | `report` | print the §6 state of both folders | nothing |
-| `check` | with `--prepare`: §4 volume-side steps; then state table; then lock probe; then `FRESH` initialization (§6) | root folder and mountpoint owner/mode, probe scratch, identities |
+| `check` | the steps below: journal gate, preparation, state table, lock probe, initialization | root folder and mountpoint owner/mode, probe scratch, identities |
 | `mark-started` | set `firstStart: "completed"` in both identities after a healthy first start | identities |
-| `selftest` | the three scenarios below, in one folder that must be empty | scratch only |
+| `probe` | only the lock probe (steps 7–10 below) on each named folder; no state table, no preparation, no identity | probe scratch only |
+| `selftest` | the three scenarios below, in one empty folder on a filesystem that enforces locks | scratch only |
 
 Compose service `storage-preflight`. This is the full definition; it does **not** use the `x-node-service` anchor:
 
@@ -111,7 +119,7 @@ Compose service `storage-preflight`. This is the full definition; it does **not*
 | --- | --- |
 | `image` | `node:24.22.0-alpine3.24` |
 | `profiles` | `["storage"]` (a plain `up` never starts it) |
-| `user` | `"0:0"` (§4 volume-side steps only; the program then drops to `HOST_UID:HOST_GID`) |
+| `user` | `"0:0"` (for the §4 volume-side steps only; the privilege rule of §4 applies) |
 | `network_mode` | `none` |
 | `restart` | `"no"` |
 | `entrypoint` | `["node", "/probe/sqlite-lock-probe.mjs"]` |
@@ -121,37 +129,41 @@ Compose service `storage-preflight`. This is the full definition; it does **not*
 | `labels` | `org.cogniate.storage: "preflight"` |
 | not set | `depends_on`, `ports`, `networks`, `healthcheck`, `working_dir` |
 
+Every caller runs it as `dc --profile storage run --rm --name <project>-storage-<runId> --label org.cogniate.storage.run=<runId> storage-preflight <mode> …` (§7 storage containers).
+
 ### Steps of `check`
 
 | Step | Rule |
 | --- | --- |
-| 1. Prepare | `--prepare`: the §4 volume-side steps, as root |
-| 2. Privilege | switch to `HOST_UID:HOST_GID` |
-| 3. Leftovers | delete every probe scratch file whose name matches `^\.lock-probe-[0-9a-f]{16}\.db(-wal\|-shm)?$` (the operation lock of §7 makes sure no other probe runs). No count limit. A failed delete → `scratch_cleanup_failed` with the path; nothing starts; fix the cause and run again. |
-| 4. State | evaluate the §6 table; a refusal code stops here |
-| 5. Live holder | a child process opens `.lock-probe-<runId>.db` in WAL mode, runs `BEGIN IMMEDIATE`, inserts one row, and writes `HELD` |
-| 6. Negative oracle | the parent opens the same file with `busy_timeout = 0`. `BEGIN IMMEDIATE` must fail with the **extended** result code `5` (`SQLITE_BUSY`) exactly. Success → `lock_not_enforced`. `261` (`SQLITE_BUSY_RECOVERY`), `517` (`SQLITE_BUSY_SNAPSHOT`), `6` (`SQLITE_LOCKED`) or any other result → `probe_error`. Then the parent sends `PING`; the child must answer `PONG inTransaction=1`. |
-| 7. Release-positive control | the parent sends `COMMIT`; the child commits, closes, writes `COMMITTED` and exits 0; the parent's `BEGIN IMMEDIATE` must succeed and a `SELECT` must return the child's row; the parent rolls back and closes |
-| 8. Cleanup | delete the run's scratch `.db`, `-wal` and `-shm` in a `finally` block; a failed delete → `scratch_cleanup_failed` |
-| 9. Initialization | state `FRESH` → write both identities (§6) |
+| 1. Read | as root, read only: list both volume roots with `lstat`; read the journals and identities |
+| 2. Journal gate | §6 rows 1–3 match → refuse with that code. Nothing changes: no preparation, no cleanup, no initialization. |
+| 3. Prepare | `--prepare`: the §4 volume-side steps. An unsafe mountpoint is recorded, not changed; step 6 refuses it as row 5. |
+| 4. Privilege | switch to `HOST_UID:HOST_GID` (§4 privilege rule) |
+| 5. Leftovers | delete every probe scratch file whose name matches `^\.lock-probe-[0-9a-f]{16}\.db(-wal\|-shm)?$`, and the identity and journal `.tmp` files (no journal is open, by step 2). The operation lock of §7 makes sure that no other storage program runs. No count limit. A failed delete → `scratch_cleanup_failed` with the path; nothing starts; fix the cause and run again. |
+| 6. State | evaluate §6 rows 4–18; a refusal code stops here |
+| 7. Live holder | a child process opens `.lock-probe-<runId>.db` in WAL mode, runs `BEGIN IMMEDIATE`, inserts one row, and writes `HELD` |
+| 8. Negative oracle | the parent opens the same file with `busy_timeout = 0`. `BEGIN IMMEDIATE` must fail with the **extended** result code `5` (`SQLITE_BUSY`) exactly. Success → `lock_not_enforced`. `261` (`SQLITE_BUSY_RECOVERY`), `517` (`SQLITE_BUSY_SNAPSHOT`), `6` (`SQLITE_LOCKED`) or any other result → `probe_error`. Then the parent sends `PING`; the child must answer `PONG inTransaction=1`. |
+| 9. Release-positive control | the parent sends `COMMIT`; the child commits, closes, writes `COMMITTED` and exits 0; the parent's `BEGIN IMMEDIATE` must succeed and a `SELECT` must return the child's row; the parent rolls back and closes |
+| 10. Cleanup | delete the run's scratch `.db`, `-wal` and `-shm` in a `finally` block; a failed delete → `scratch_cleanup_failed` |
+| 11. Initialization | `FRESH` → write both identities; `FRESH_INIT_PARTIAL` → write the missing identity; `OK` with a `pending` identity → write `completed` (§6) |
 | Bounds | each wait ≤ 10 s (`timeout`); the whole run ≤ 60 s |
 
 ### Output
 
-One JSON line per folder on stdout, and the same lines appended to `infra/.logs/storage-preflight.jsonl`:
+One JSON line per folder on stdout, and the same lines appended to `infra/.logs/storage-preflight.jsonl` (after the privilege drop):
 
-`{"event":"storage_preflight","runId":"<id>","mode":"check","project":"<name>","folder":"lti","path":"/check/lti-service","fsType":"ext4","state":"OK","result":"pass","reason":null,"waits":{"busyMs":0,"releaseMs":12}}`
+`{"event":"storage_preflight","ts":"<iso>","runId":"<id>","mode":"check","project":"<name>","folder":"lti","path":"/check/lti-service","fsType":"ext4","state":"OK","result":"pass","reason":null,"waits":{"busyMs":0,"releaseMs":12}}`
 
-A last line `{"event":"storage_preflight_summary","runId","mode","result":"pass"|"fail","reasons":[…]}`. Exit codes: `0` pass, `1` fail (any reason), `2` usage error. A non-lock error is never a pass. `stack:up` and `stack:restart` print these lines, so the evidence does not need container logs after `--rm`.
+A last line `{"event":"storage_preflight_summary","ts","runId","mode","result":"pass"|"fail","reasons":[…]}`. Exit codes: `0` pass, `1` fail (any reason), `2` usage error. A non-lock error is never a pass. `stack:up` and `stack:restart` print these lines, so the evidence does not need container logs after `--rm`.
 
 ### Self-test (portable, controlled negative)
 
-`selftest` runs in one empty folder:
+`selftest` runs in one empty folder. The folder must be on a filesystem that enforces locks; QA uses a new folder in the fixture container's own writable layer, never a bind mount (§11).
 - `normal` → must be `pass`;
 - `no-hold` (the child opens the database but takes no lock) → must be `lock_not_enforced`;
 - `holder-dies` (the child exits before `PING`) → must be `probe_error`.
 
-It prints one line per scenario, `{"event":"storage_selftest","runId","scenario","expected","observed","ok"}`, and exits 0 only when all three are `ok`. It never touches a database folder of the product.
+It prints one line per scenario, `{"event":"storage_selftest","ts","runId","scenario","expected","observed","ok"}`, and exits 0 only when all three are `ok`. It never touches a database folder of the product.
 
 ## 6. Start-state table (total and ordered)
 
@@ -196,23 +208,97 @@ Rows 1–3 come first, so a lane in the middle of a restore always names the rig
 
 ## 7. Guarded paths and the operation lock
 
-**Operation lock.** One lock per project, at the host path `.tmp/storage-op.<project>.lock/` (made with `mkdir`, which is atomic). It holds `owner.json` with `{pid, command, runId, startedAt}`.
-- Every guarded command of the table below takes the lock before its first Docker command, and keeps it until it ends.
-- A second command waits up to 120 s, then refuses `operation_in_progress` and names the owner.
-- A lock whose `pid` no longer runs on this host is stale. The next command removes it, logs `storage_lock_reclaimed`, and goes on.
-- The helper `infra/scripts/storage-oplock.sh run -- <command>` lets QA and the operator serialize their own fixture and old-build steps with the same lock.
+### Storage containers
+
+A **storage container of project P** is a container with the label `com.docker.compose.project=P` and the label `org.cogniate.storage` (value `preflight` or `maintenance`). Every guarded command creates its storage containers with `dc --profile storage run --rm --name P-storage-<runId> --label org.cogniate.storage.run=<runId> <service> …`, so each one names its run.
+- **Active:** Docker state `running`, `paused`, `restarting` or `removing`. An active storage container can still write the volumes. Its client process can be gone: a client killed with `SIGKILL` does not stop the container (§17 assumption).
+- **Inactive:** state `created`, `exited` or `dead`. It has no running process, so it cannot write.
+
+### Lock records
+
+All lock records are folders in `.tmp/` of the checkout, each with an `owner.json` record:
+
+| Folder | Meaning |
+| --- | --- |
+| `storage-op.<P>.lock/` | the lock; present = held |
+| `storage-op.<P>.cand-<runId>/` | a candidate record of a command that is installing the lock |
+| `storage-op.<P>.stale-<runId>/` | a reclaimed lock record, kept as evidence (§7 takeover); no storage command deletes it |
+| `storage-op.<P>.rel-<runId>/` | a released lock that its owner is deleting |
+
+`owner.json`: `{ formatVersion: 1, project, checkout (absolute path), command, runId, pid, pidStart, acquiredAt, containers: [names] }`.
+- `pid` is the process of the guarded command (or of the wrapper of §12, or of `storage-oplock.sh run`).
+- `pidStart` is the start time of that process as `ps -o lstart= -p <pid>` prints it.
+- The **process identity** is the pair (`pid`, `pidStart`). It is **live** only when `ps -o lstart= -p <pid>` prints exactly `pidStart`. So a reused pid, or a pid after a host reboot, is not live.
+- Each record is written to `owner.json.tmp`, then `fsync`, then `rename`. A lock folder appears only by the `rename` of a complete candidate folder, so a lock never has an incomplete record.
+- The holder adds each storage container name to `containers` before it creates that container. This is evidence for messages; safety does not depend on it.
+
+### Acquisition (every guarded command, before its first Docker command)
+
+| Step | Rule |
+| --- | --- |
+| A1 | Write `cand-<runId>/owner.json` for this command. |
+| A2 | `rename(cand-<runId>, lock)`. It succeeds only when no lock exists, because a held lock folder is never empty. Success → A6. Failure because the lock exists → A3. |
+| A3 | Read the lock record `K`. A lock folder without a valid record for 10 s → refuse `operation_lock_invalid`, naming the folder (manual exit: the M4 guide; only when no storage command of this checkout runs). |
+| A4 | `COGNIATE_STORAGE_LOCK_RUN` in this process equals `K.runId` → refuse `operation_lock_reentry` at once. Else, `K`'s process identity is live → wait, poll each 1 s, for up to 120 s; then refuse `operation_in_progress`, naming `K.command`, `K.runId`, `K.pid` and `K.acquiredAt`. When the lock goes, → A2. |
+| A5 | `K`'s process identity is not live (a **stale** record). If any **active** storage container of P exists → refuse `storage_writer_active`, naming its name, id, state and `org.cogniate.storage.run` label. Nothing moves. Else read the lock record again: not `K` → A2. Still `K` → `rename(lock, stale-<K.runId>)`. Success → log `storage_lock_reclaimed`, then A2. Failure (the lock is gone, or `stale-<K.runId>` exists because another command reclaimed `K` first) → A2. |
+| A6 | This command holds the lock. Before its first Docker write it checks the storage containers of P again: an **active** one → refuse `storage_writer_active` and release; an **inactive** one → remove it by id (`docker rm <id>`, never `-f`, never `-v`) and log `storage_container_removed`. Then it deletes each `cand-*` and `rel-*` folder whose recorded process identity is not live (`storage_lock_cleanup`). It exports `COGNIATE_STORAGE_LOCK_RUN=<runId>` to its children. |
+
+Why a takeover never removes a current owner:
+- A stale record stays stale: a process identity that is not live cannot become live again.
+- The second read in A5 happens after the liveness test. So if it still shows `K`, the owner of `K` can no longer release it, and only a takeover can move it.
+- A takeover moves `K` only to the name `stale-<K.runId>`. That folder is never empty and never deleted, so a second `rename` to the same name fails. It cannot move a newer lock.
+- An orphaned writer blocks the takeover (A5) and every new holder (A6). No new writer starts while an old storage container is active.
+
+The only primitives are `mkdir`, `rename` and `ps` on the host. No `flock` and no new product API are needed.
+
+**Release.** The holder releases after its last storage container has exited (its `dc run` returned). For `stack:up`, this is after `up --wait` and `mark-started`. Release steps:
+1. Read the record; continue only when it has its own `runId`. Else log `storage_lock_lost` and exit 1; another owner's lock is never removed.
+2. `rename(lock, rel-<runId>)`, then delete `rel-<runId>`.
+3. Log `storage_lock_released`.
+
+An `EXIT`, `INT` or `TERM` trap releases the lock in the same way after the child `dc run` has ended. After `SIGKILL` there is no release, and the record becomes stale (A5).
+
+**Orphaned writer: the operator exit.** `storage_writer_active` names the container. Wait until it ends (a maintenance run then completes or stops at its own error), or stop it with `docker stop <name>`. A restore or import that is stopped in the middle is then a crash at that point. Run the command again: the lock is reclaimed (A5), and `stack:data-restore -- --recover` handles the journal (§8).
+
+### Scope
+
+| Command | Lock scope |
+| --- | --- |
+| candidate `stack:up`, `stack:restart`, `stack:reset`, `stack:data-backup`, `-restore` (also `--recover`), `-import`, `-quarantine`, `stack:storage-compat` (`enable`, `disable`) | the whole command |
+| candidate `test:acceptance`, `test:e2e`, `e2e:reset` | no lock of their own. Each internal `stack-up.sh` or `stack-reset.sh` run takes and releases the lock. The suite container (`e2e`) is not a storage container. So a QA host-control `stack:restart` during the suite gets the lock between those internal runs. |
+| `infra/scripts/storage-oplock.sh run -- <command>` (candidate tree) | the whole command. QA uses it for its fixture writes. It must not wrap a candidate guarded command: that command then refuses `operation_lock_reentry` at once. |
+| old-build commands | only through the copied `bash .tmp/storage-compat/storage-compat.sh run -- <old command>` (§12): one lock for the whole old command, because the old scripts take no lock. Its `preflight` and `status` subcommands also take the lock. |
+
+The lock is **not re-entrant**. No supported command starts another guarded command while it holds the lock. The candidate test commands hold no lock, so their internal starts and the host-control restarts never wait on a parent.
+
+**One checkout per project.** The lock and its records are in `.tmp/` of one checkout, so they serialize the commands of that checkout only. Two checkouts that use one project name are not supported. The design does not claim cross-checkout locking. (The storage-container checks in A5 and A6 are project-wide, so they also see a storage container of another checkout. This is a side effect, not a guarantee.)
+
+### Lock events
+
+Each event is one JSON line on stdout and in `infra/.logs/storage-lock.jsonl`. The host scripts write it as the host user.
+- Fields: `{event, ts, project, command, runId, pid, pidStart, owner: {runId, command, pid, pidStart, acquiredAt} | null, reason | null, waitedMs, container: {name, id, state, runLabel} | null}`.
+- Events:
+  - `storage_lock_acquired`, `storage_lock_wait`, `storage_lock_released`, `storage_lock_lost`;
+  - `storage_lock_refused`, with `reason` `operation_in_progress`, `operation_lock_reentry`, `storage_writer_active` or `operation_lock_invalid`;
+  - `storage_lock_reclaimed`, with `owner` = the stale record;
+  - `storage_lock_cleanup`, `storage_container_removed`.
+
+### Guarded paths
 
 | Path | Guarded? | Rule |
 | --- | --- | --- |
-| `npm run stack:up` | **yes** | lock; §4 host-side steps; §10 legacy scan; `dc --profile storage run --rm storage-preflight check --prepare …` (a new container and a new `runId` each time); `dc up --wait`; on the first healthy start `mark-started` |
-| `npm run stack:restart -- <svc>` | **yes** | lock; host-side steps; preflight. A failed preflight → exit 1 **before** `up --force-recreate`, so the running container keeps its container id and start time. Then the existing restart. |
-| `test:acceptance`, `test:e2e`, `e2e:reset` | **yes** | they start the stack only through `stack-up.sh` |
+| `npm run stack:up` | **yes** | lock; §4 host-side steps; §10 legacy scan; `storage-preflight check --prepare …` (a new container and a new `runId` each time); `dc up --wait`; `mark-started` when an identity still says `pending`; release |
+| `npm run stack:restart -- <svc>` | **yes** | lock; host-side steps; preflight. A failed preflight → exit 1 **before** `up --force-recreate`, so the running container keeps its container id and start time. Then the existing restart; release. |
+| `npm run stack:reset` | **yes** (lock only) | lock; then the existing removal. It is never a recovery step (§9). |
+| `test:acceptance`, `test:e2e`, `e2e:reset` | **yes**, per internal run | they start and reset the stack only through `stack-up.sh` and `stack-reset.sh` (scope table) |
 | `stack:data-backup`, `-restore`, `-import`, `-quarantine`, `--recover` | **yes** | lock; both services positively stopped; §8 and §9 |
-| `stack:storage-compat` (`enable`, `disable`, `preflight`, `status`) | **yes** | lock |
-| old-build starts (§12) | **yes** | the harness or the operator runs the copied `storage-compat.sh preflight` before each harness-invoked or operator-invoked old start command, inside the lock |
+| `stack:storage-compat` (`enable`, `disable`) | **yes** | lock |
+| old-build starts (§12) | **yes** | the harness or the operator runs each old start command through the copied `storage-compat.sh run --` |
+| QA host-control actions `m1-restart`, `m1-profile` | **yes** | they run the candidate `stack:restart`, which takes its own lock. While the `x-cogniate-storage-compat` marker is present, the host control refuses them before it runs any command (QA-owned, §11). |
 | CLIs through `dc exec` (`seed`, `lti:bootstrap`, `lti:shared-platform`, `app:grant`, `app:binding`, `seed-portal`) | **indirectly** | They run inside a running container whose volume was checked when it started through a guarded path. They take no lock: they create no container and use working SQLite locks. |
-| `docker compose up`, `start` or `restart` typed by hand | **no** | Outside the supported scripts. Stated limit. The design adds **no** `depends_on: service_completed_successfully` guard, although Compose accepted one in the Author's fixture (§17). Reasons: the preflight needs a mode, a fresh `runId` and the operation lock, which a compose dependency cannot give; every compose call would need `--profile storage`; and the old-build allowed differences (§12) forbid a `depends_on` change. |
-| Docker restarts containers itself (`restart: unless-stopped`, for example after a VM boot) | **no** | Stated limit. dockerd restarts only containers that were running, so a lane stopped for maintenance stays stopped. |
+| `npm run stack:down` | no | It only stops services. A stop never breaks a storage rule: maintenance needs the services stopped anyway. |
+| `docker compose up`, `start` or `restart` typed by hand | **no** | Outside the supported scripts. Stated limit. The design adds **no** `depends_on: service_completed_successfully` guard, although Compose accepted one in the Author's fixture (§17). Reason: the preflight needs a mode, a fresh `runId` and the operation lock, which a compose dependency cannot give, and every compose call would need `--profile storage`. |
+| Docker restarts containers itself (`restart: unless-stopped`, for example after a VM boot) | **no** | Stated limit. dockerd restarts only containers that were running, so a lane stopped for maintenance stays stopped. Storage containers have `restart: "no"`. |
 
 **Running services.** The preflight of `stack:restart`, and of a second `stack:up` on a running stack, runs while services hold their databases open. This is safe:
 - the probe opens only its own scratch files;
@@ -249,22 +335,28 @@ The volume source is read in one maintenance container that mounts both volumes 
 | `volume`, another `pairId` | refuse `pair_mismatch` (to restore another pair, quarantine first, §9) | restore; the new identity takes the backup's `pairId`, `generation` = backup `generation` + 1, `legacySources` from the backup |
 | `legacy` (also an older manifest) | refuse `import_target_not_fresh` | `stack:data-import`: new `pairId`, `generation 1`, `kind: import`, `legacySources` from the manifest |
 
+**Other target states.** Step 1 reads the target state (§6, as `report` does). A restore into any state other than `OK` or `FRESH` refuses `restore_target_state`. An import into any state other than `FRESH` refuses `import_target_not_fresh`. The output names the state (for example `FIRST_START`, `FRESH_INIT_PARTIAL` or a §6 refusal code) and the next step: `--recover` or quarantine for a journal row, `stack:up` to finish a first start, or quarantine. Nothing changes.
+
 Before the swap, every restore and import runs a read-only content check on a scratch copy of the staged app database: every `package.storage_path` must exist as a directory under `infra/.data/cogniate-app/packages`, else `content_missing`, and nothing changes. This proves only that the referenced folders exist. It does not prove that their files are the same.
 
 ### Journal and states
 
-One maintenance process restores or imports both volumes: both volumes read-write, the backup folder read-only, both services positively stopped, the operation lock held. Each volume holds `.storage-journal.json`: `{ formatVersion, operation: "restore" | "import", opId, backupId, manifestSha256, pairIdBefore, generationBefore, state, before: [{name, size, sha256}], after: [{name, size, sha256}], identityBefore, updatedAt }`. The two journals have the same `opId`.
+One maintenance process restores or imports both volumes: both volumes read-write, the backup folder read-only, both services positively stopped, the operation lock held, in one storage container (§7). Each volume holds `.storage-journal.json`: `{ formatVersion, operation: "restore" | "import", opId, backupId, manifestSha256, pairIdBefore, generationBefore, state, before: [{name, size, sha256}], after: [{name, size, sha256}], identityBefore, updatedAt }`. The two journals have the same `opId`.
 
 **Write order.** Each state change is written to the lti journal first, then to the app journal. At commit, the order is: lti identity, app identity, lti journal, app journal.
+
+**File set.** The file set of a volume is its database `<db>`, `<db>-wal`, `<db>-shm` and `.storage-identity.json`. For each name it holds presence, size and SHA-256; "absent" is a value. `before` and `after` list the present database files; a name that is not listed is absent. Two file sets are **equal** when every one of the four names has the same presence and, when present, the same size and SHA-256 (the identity is compared with `identityBefore` or with the new identity). "Verify in place = `before`" and "verify in place against `after`" always mean this equality, never the main database alone.
+
+**Checked move.** Every move of a swap, a rollback and a forward completion is one `rename` inside one volume, then `fsync` of both folders. Before the `rename`, the program checks two things: the source has the bytes that the journal expects, and the target name does not exist (`lstat`). A target that exists is a **collision**, and nothing moves. The check and the `rename` are not one atomic step. This is enough here, because the operation lock is held and both services are stopped, so no other process writes the volume in between (§7). A crash leaves each file at its source or at its target, never both, so the existing recovery classification applies.
 
 | State | Meaning |
 | --- | --- |
 | (no journal) | Step 1 validates the whole backup (existing rules, plus the pair rule and `manifest_incomplete`). A failure → exit 1 "no target changed" (true: nothing was written). |
 | `prepared` | the journal holds `before` (current files with SHA-256) and `identityBefore`; no target file changed |
 | `staged` | every listed file is copied into `.restore-<opId>/`, `fsync`ed and verified; the content check passed; no target file changed |
-| `swapping` | the swap of this volume began: files move one by one by `rename` — current files and identity into `.previous-<opId>/`, staged files into place |
+| `swapping` | the swap of this volume began: files move one by one with the checked move — current files and identity into `.previous-<opId>/`, staged files into place. An in-place file that is not in `before`, a source with other bytes, or a collision stops the swap and starts R3. |
 | `swapped` | this volume's new files are in place; old files and old identity are in `.previous-<opId>/` |
-| `committed` | both volumes verified in place against `after`, no unlisted sidecar in place; this volume's new identity is written |
+| `committed` | both file sets verified equal to `after` in place (so no unlisted sidecar is in place); this volume's new identity is written |
 | `rolling_back` | a rollback of this volume began |
 | `rolled_back` | in place equals `before` (verified); the old identity is back (or, for an empty `before`, no identity); `.restore-<opId>/` and an empty `.previous-<opId>/` are removed |
 | `rollback_failed` | a move or a verification failed during the rollback; every file and folder is kept |
@@ -282,10 +374,20 @@ Here "X" is the open `opId`; the lti journal is written first, so lti is never b
 | R0 | none, or both terminal | nothing | `0` "nothing to recover" |
 | R1 | lti `prepared` X; app absent, or terminal with another `opId` | the first write was cut: staging starts only after both say `prepared`. Remove `.restore-X/` if present, verify lti in place = `before`, write lti `rolled_back` X; leave the app journal as it is. | `1` "cancelled at the first journal write; the targets equal the state before (verified)" |
 | R2 | both X, each `prepared`, `staged` or `rolled_back`, and at least one not terminal (this includes an R2 that was cut between its two journal writes) | remove `.restore-X/` in both; verify both in place = `before`; both `rolled_back` | `1` "cancelled; the targets equal the state before (verified)" |
-| R3 | both X, at least one `swapping`, `swapped` or `rolling_back`, and not the R4 pair | roll back **both**: write `rolling_back`; move every `before` file and the old identity from `.previous-X/` into place (or rebuild the old identity from `identityBefore`); move every `after` file that is in place back into `.restore-X/`; for an empty `before`, remove the new identities; verify in place = `before`; remove `.restore-X/` and an empty `.previous-X/`; both `rolled_back` | `1` "rolled back; the targets equal the state before (verified)" |
-| R4 | lti `committed` X, app `swapped` X (identities written in any order) | re-verify both volumes against `after`. Both verify → write the missing app identity and app journal, both `committed`. One fails → R3. | `0` "commit completed", or as R3 |
+| R3 | both X, at least one `swapping`, `swapped` or `rolling_back`, and not the R4 pair | roll back **both**, by the R3 order below | `1` "rolled back; the targets equal the state before (verified)" |
+| R4 | lti `committed` X, app `swapped` X (identities written in any order) | re-verify both file sets against `after`. Both are equal → write the missing app identity and app journal, both `committed`. One is not → R3. | `0` "commit completed", or as R3 |
 | R5 | any `rollback_failed` | change **nothing** | `2` "the rollback did not finish; do not start; keep both volumes; use `stack:data-quarantine`" |
 | R6 | any other pair (`journal_inconsistent`, §6 row 2) | change nothing | `2`, as R5 |
+
+**R3 order** (per volume, lti first, then app):
+1. Write `rolling_back`.
+2. Classify each in-place name of the file set: bytes equal to its `before` entry (or to `identityBefore`) → keep it in place; else bytes equal to its `after` entry (or to the new identity) → move it to `.restore-X/`; absent → nothing; any other bytes, or a present name that neither list has → `rollback_failed` at once. All the after-files leave their places **before** any before-file comes back.
+3. Move each `before` file that is not in place from `.previous-X/` into place. The file must have its `before` bytes; else `rollback_failed`.
+4. Put the old identity back: move it from `.previous-X/`, or write it from `identityBefore`. For an empty `before` there is no identity.
+5. Verify in place = `before`.
+6. Remove `.restore-X/` (it holds only staged copies of the backup and after-files with the backup's bytes) and `.previous-X/` when it is empty. Write `rolled_back`.
+
+A collision in any move → `rollback_failed`. So the rollback never overwrites data that it does not know.
 
 A rollback step that fails, or a verification after a rollback that fails, writes `rollback_failed` to every journal that it can write, keeps every file and folder, and exits `2`. Exit `1` is used only after a verification. Exit `2` never says "no target changed".
 
@@ -299,7 +401,9 @@ Terminal journals do not block a start (§6). So a lane recovers fully after R1�
 
 ### Recovery drills
 
-`--stop-after <point>` exits with code 3 right after the named point is durable. It skips no check, and leaves the same files that a crash at that point leaves. Each use logs `storage_drill_stop {opId, point}`. It is a drill option: it is accepted only when the environment has `STORAGE_DRILL=1`; else the command exits 1 before any change. `rollback-mid` also needs `STORAGE_DRILL_FAIL=after-swapped`, which makes the restore fail on purpose right after `swapped`.
+`--stop-after <point>` exits with code 3 right after the named point is durable. It skips no check, and leaves the same files that a crash at that point leaves. Each use logs `storage_drill_stop {ts, opId, point}`. It is a drill option: it is accepted only when the environment has `STORAGE_DRILL=1`; else the command exits 1 before any change. `rollback-mid` also needs `STORAGE_DRILL_FAIL=after-swapped`, which makes the restore fail on purpose right after `swapped`.
+
+`--pause-after <point>` (same points, also only with `STORAGE_DRILL=1`, and with `STORAGE_DRILL_PAUSE_SECONDS` from 1 to 300) makes the maintenance container wait at the point. It logs `storage_drill_pause {ts, opId, point, seconds}`, waits, logs `storage_drill_resume`, and then goes on normally. QA uses it to keep a storage container active while its client is gone (§13 `g-orphan-*`). A command takes at most one of the two options.
 
 | Point | State left |
 | --- | --- |
@@ -315,7 +419,7 @@ Terminal journals do not block a start (§6). So a lane recovers fully after R1�
 | `committed-lti` | lti `committed`, app `swapped` |
 | `rollback-mid` (with a forced failure after `swapped`) | lti `rolling_back`; the lti database is back, the lti sidecars are not |
 
-Partial copies, a partial `.tmp` file and an `fsync` failure are unit tests through the library API.
+Partial copies, a partial `.tmp` file, an `fsync` failure, a collision, and an in-place file with unknown bytes (→ `rollback_failed`, nothing deleted) are unit tests through the library API.
 
 The existing AC-M1-30 oracles stay true:
 - a damaged backup stops in the "(no journal)" row, with no change;
@@ -324,11 +428,21 @@ The existing AC-M1-30 oracles stay true:
 
 ## 9. Quarantine: the non-destructive exit
 
-`npm run stack:data-quarantine -- --out <folder outside the checkout>` is the exit from `rollback_failed`, `journal_inconsistent` and any refusal that the operator cannot repair. It runs with both services positively stopped and the operation lock held:
-1. Copy **every** entry of both volumes (databases, sidecars, identities, journals, `.restore-*`, `.previous-*`) into the folder, with a manifest of names, sizes and SHA-256, written last. Verify the copy.
-2. Remove only the two volumes `<project>_ltidb` and `<project>_appdb`.
+`npm run stack:data-quarantine -- --out <folder outside the checkout>` is the exit from `rollback_failed`, `journal_inconsistent` and any refusal that the operator cannot repair. It runs with the operation lock held (so no storage container of the project is active, §7 A6) and with both services positively stopped (`exited`, `created`, `dead` or absent, as the existing maintenance check reads them):
+1. **Copy.** Copy **every** entry of both volumes (databases, sidecars, identities, journals, `.restore-*`, `.previous-*`) into the folder, with a manifest of names, sizes and SHA-256, written last. Verify the copy. A failure → exit 1; nothing is removed.
+2. **Volume users.** List every container, in any state, that references `<project>_ltidb` or `<project>_appdb` (`docker ps -a --filter volume=<name>`). A user may be removed only when **all** of these hold:
+   - label `com.docker.compose.project=<project>`;
+   - label `com.docker.compose.service` is `lti-service` or `cogniate-app`;
+   - label `com.docker.compose.oneoff` is not `True` (not a `run` container);
+   - state `exited`, `created` or `dead`, read again at this step.
+   Any other user → refuse `volume_in_use`, naming its name, id, project and service labels, and state. Nothing is removed; exit 1; the verified copy stays.
+3. **Service containers.** Remove each allowed user by id (`docker rm <id>`; never `-f`, never `-v`). They hold no data: the service state is in the volumes, and the next guarded `stack:up` creates them again.
+4. **Volumes.** `docker volume rm <project>_ltidb <project>_appdb`. A failure → exit 1 with the Docker message. The service containers of step 3 stay removed; the volumes and the copy stay.
+5. **Record.** Write `quarantine.json` in the folder and print one `storage_quarantine` line: `{ts, project, out, manifestSha256, removedContainers: [{name, id, service}], removedVolumes}`.
 
-It does **not** touch the legacy bind files, the content folders, the Moodle volumes, any other project, or any backup. The lane is then `FRESH`. The operator restores a known backup into it (§8, FRESH target) or imports. Exit `0` when the copy verified and both volumes are gone; else `1`, and nothing is removed.
+So the documented stop (`docker compose stop`, or the old or candidate `stack:down`, which keeps the stopped containers) leads to a successful quarantine.
+
+It does **not** touch the legacy bind files, the content folders, the Moodle volumes, any other container, any other project, or any backup. The lane is then `FRESH`. The operator restores a known backup into it (§8, FRESH target) or imports. Exit `0` when the copy verified and both volumes are gone.
 
 `stack:reset` is **never** a recovery step: it also deletes the content folders, the legacy files, `infra/.data/backups` and the Moodle volumes.
 
@@ -340,33 +454,45 @@ The **legacy set** of a service is every entry of `infra/.data/<service>/` whose
 1. It refuses `old_layout_container` when any container with the label `com.docker.compose.project=<project>` has a mount whose destination is `/data` and whose source is the resolved host path `<checkout>/infra/.data/lti-service` or `<checkout>/infra/.data/cogniate-app`.
 2. It reads the legacy sets at rest and computes size and SHA-256.
 3. It reads the pair state with `report`.
-4. It decides by the table below. Only after a "continue" does it run the preflight in `check` mode.
+4. It takes the **first** matching row of the table below. Only after a "continue" does it run the preflight in `check` mode.
 
-| Legacy sets | Pair state | Result |
-| --- | --- | --- |
-| both empty | allowed state (§6) | continue |
-| any `-journal` or other `<db>-…` entry that is not `-wal` or `-shm` | any | refuse `legacy_hot_journal` or `legacy_unknown_entry`: a hot rollback journal is not supported; nothing changes |
-| present | `FRESH` | refuse `legacy_present`: "Import the legacy databases explicitly (`stack:data-backup -- --source legacy`, then `stack:data-import`), or move them out of the checkout. No empty database was made." |
-| present | `OK` or `FIRST_START`, with `legacySources` equal to the current legacy files (the same names, sizes and SHA-256; nothing added, removed or changed) | continue, with the warning "legacy files are kept for reference and are not used" |
-| present | any other allowed state, or a difference to `legacySources` | refuse `legacy_conflict`: "Legacy and volume databases both exist and are not the same import. Move the legacy files out, or import into a quarantined lane." |
-| any | a refusal code of §6 | that refusal |
+| # | Legacy sets | Pair state | Result |
+| --- | --- | --- | --- |
+| L1 | any | §6 rows 1–3 (`rollback_failed`, `journal_inconsistent`, `journal_open`) | that refusal: an open or failed restore or import comes first, as in §6 |
+| L2 | a `<db>-journal`, or another `<db>-…` entry that is not `-wal` or `-shm` | any other | refuse `legacy_hot_journal` (for `-journal`) or `legacy_unknown_entry`: a hot rollback journal is not supported; nothing changes |
+| L3 | any | any other §6 refusal code | that refusal |
+| L4 | both empty | an allowed state (§6) | continue |
+| L5 | present | `FRESH` | refuse `legacy_present`: "Import the legacy databases explicitly (`stack:data-backup -- --source legacy`, then `stack:data-import`), or move them out of the checkout. No empty database was made." |
+| L6 | present | `OK` or `FIRST_START`, with `legacySources` equal to the current legacy files (the same names, sizes and SHA-256; nothing added, removed or changed) | continue, with the warning "legacy files are kept for reference and are not used" |
+| L7 | present | any other allowed state, or a difference to `legacySources` | refuse `legacy_conflict`: "Legacy and volume databases both exist and are not the same import. Move the legacy files out, or import into a quarantined lane." |
+
+Every combination matches one row, so the table is total.
 
 `legacySources` survive a restore that keeps the `pairId` (§8). So a backup and restore cycle on an imported lane does not create a `legacy_conflict`.
 
 ## 11. QA fixture access (test interface, not an overlay)
 
-QA reads and writes the volumes only through its own fixture container. The rules:
+QA reads and writes the volumes, and runs the probe, only through its own fixture containers. Each kind below is a test fixture, not an overlay; QA owns every one.
 
-| Item | Rule |
-| --- | --- |
-| Image | `node:24.22.0-alpine3.24`, pinned by the image id that QA records at the start of the run |
-| Container | `docker run --rm --network none --label org.cogniate.qa=storage-fixture --label org.cogniate.lane=<project>`; removed after use; QA checks that none remains |
-| Mounts | only `<project>_ltidb` and `<project>_appdb`, and QA's own script and output folder |
-| Read mode | volumes read-only, user `HOST_UID:HOST_GID`; allowed at any time |
-| Write mode | volumes read-write, user `HOST_UID:HOST_GID`, only while both services are positively stopped and QA holds the operation lock. Root only for the owner changes of `d-owner` and `d-mountpoint`. One exception while services run: the single empty planted entry of `a-restart-refusal`, in the `ltidb` root only, removed by QA after that row |
-| Lock oracle | may run while services run, only inside `.qa-scratch-<16 hex>/`; QA removes it, and a preflight afterwards must pass |
-| Independence | QA's own script parses identities and journals and hashes files. It never uses the product maintenance code as its oracle. The product commands are what QA tests. |
-| Existing fixtures | the T5b P5 fixture keeps its approved app-stop guard and its assertions; only its database access moves into this container. `tests/host/m1-migration.mjs` and `m1-migration.selftest.mjs` read and write volume copies the same way. |
+Common rules for every QA container:
+- image `node:24.22.0-alpine3.24`, pinned by the image id that QA records at the start of the run;
+- `--network none`, the labels `org.cogniate.qa=<kind>` and `org.cogniate.lane=<project>`, user `HOST_UID:HOST_GID` unless a row below says root;
+- a host-side time bound of 120 s (the decoy: until its row ends), after which QA removes it by id;
+- QA checks after each row that none of its containers remains.
+
+| Kind (`org.cogniate.qa`) | Mounts | Use and limits |
+| --- | --- | --- |
+| `storage-fixture` (`--rm`) | only `<project>_ltidb` and `<project>_appdb`, and QA's own script and output folder | **Read mode:** volumes read-only, at any time. **Write mode:** volumes read-write, only while both services are positively stopped and QA holds the operation lock (`storage-oplock.sh run --`, §7). Root only for the owner changes of `d-owner` and `d-mountpoint`. One exception while services run: the single empty planted entry of `a-restart-refusal`, in the `ltidb` root only, removed by QA after that row. The lock oracle of `b-oracle-*` may run while services run, only inside `.qa-scratch-<16 hex>/`; QA removes it, and a preflight afterwards must pass. Logical reads (§13) open only copies in the container's own writable layer, never the originals. |
+| `storage-probe` (`--rm`) | the candidate `infra/scripts/sqlite-lock-probe.mjs` read-only at `/probe/sqlite-lock-probe.mjs`; for `c-host-negative` only, also the QA scratch bind `<storage clone>/.tmp/qa-host-negative-<16 hex>/` read-write at `/check/host-negative` | `c-selftest`: `selftest --folder self=/tmp/qa-selftest-<16 hex>`, a new folder in the container's own writable layer, never a bind mount; no volume is mounted. `c-host-negative`: `probe --folder host=/check/host-negative`. QA makes the scratch bind folder empty, as the host user, and removes it after the row. |
+| `storage-oracle` (`--rm`) | QA's own oracle script, and the same scratch bind as `c-host-negative` | QA's independent two-process lock oracle on that folder, before the probe, in the same round. It never mounts the product probe. |
+| `storage-decoy` (`-d --rm`) | `<checkout>/infra/.data/lti-service` read-only at `/data` | `e-old-layout` only: also the label `com.docker.compose.project=<project>`, command `sleep 300`. It opens no database. QA removes it by id (`docker rm -f <id>`) right after the row. |
+| `storage-volume-user` (`docker create`, never started) | `<project>_ltidb` read-only | `g-quarantine-in-use` only. QA removes it by id after the row. |
+
+Other QA rules:
+- **Independence.** QA's own scripts parse identities, journals and lock records, hash files and read rows. They never use the product maintenance code as their oracle. The product commands are what QA tests.
+- **Existing fixtures.** The T5b P5 fixture keeps its approved app-stop guard and its assertions; only its database access moves into the `storage-fixture` container. `tests/host/m1-migration.mjs` and `m1-migration.selftest.mjs` read and write volume copies the same way.
+- **Lock records.** For `a-lock-stale`, QA writes lock record folders in `.tmp/` of the storage clone as the host user (§7 format).
+- **Host control.** While `.tmp/compose.knobs.yaml` holds the `x-cogniate-storage-compat` marker, QA's host control (`tests/host/m1-control.mjs`) refuses `m1-restart` and `m1-profile` before it runs any command. This is recorded as a harness self-check (§13).
 
 ## 12. Old-build storage compatibility (bounded exception)
 
@@ -377,16 +503,22 @@ Scope: **only** `b0b83a8289e1bf9cf349068aca184f0879e9aaf0` (released v10; AC-M1-
 - Committed in the candidate tree (backend Author):
   - `infra/compat/storage-compat.knobs.json` (the override);
   - `infra/scripts/sqlite-lock-probe.mjs`;
-  - `infra/scripts/storage-compat.sh`;
-  - `infra/compat/storage-compat.sha256` (the SHA-256 of the three files).
+  - `infra/scripts/storage-compat.sh` (the runner);
+  - `infra/scripts/storage-oplock.sh` (the lock helper of §7);
+  - `infra/compat/storage-compat.sha256` (the SHA-256 of these four files).
 - The override is JSON with the top-level marker key `"x-cogniate-storage-compat": {"formatVersion": 1, "revisions": ["b0b83a8289e1bf9cf349068aca184f0879e9aaf0", "9f96f7b24cd0aed702e4dc40373bdda4307aad31"]}`.
 - `npm run stack:storage-compat -- enable` (candidate tree):
   1. refuses when `.tmp/compose.knobs.yaml` already exists ("test knobs are active: restore the defaults first"); it never merges;
   2. creates the host content folders (§4);
-  3. copies the override to `.tmp/compose.knobs.yaml`, and copies the probe and `storage-compat.sh` to `.tmp/storage-compat/`;
+  3. copies the override to `.tmp/compose.knobs.yaml`, and copies the probe, `storage-compat.sh` and `storage-oplock.sh` to `.tmp/storage-compat/`;
   4. checks all hashes.
-- The old builds' `dc()` adds `-f .tmp/compose.knobs.yaml` to every compose call. `.tmp/` is git-ignored and survives `git checkout --force`.
-- After the old SHA is checked out, the copied `bash .tmp/storage-compat/storage-compat.sh <preflight|status|disable>` runs without the candidate tree. `disable` removes the two copies.
+- Source fact (both old SHAs, `infra/scripts/lib.sh` line 9): `KNOBS_FILE="$REPO_ROOT/.tmp/compose.knobs.yaml"`, an **absolute** path, and the old `dc()` adds `-f "$KNOBS_FILE"` to every compose call when that file exists. `.tmp/` is git-ignored and survives `git checkout --force`.
+- After the old SHA is checked out, the copies run without the candidate tree:
+  - `bash .tmp/storage-compat/storage-compat.sh run -- <old start command>`: the only supported way to run an old start command. It accepts only old `npm run stack:up` and old `npm run test:acceptance …`; any other command → `wrapper_command_not_allowed`. Steps: take the operation lock for the whole command (§7); check the hashes of the knobs file and the copies; the preflight; the command; `status`; release. The exit code is the command's, or 1 when a check fails ("stop now").
+  - `storage-compat.sh preflight` and `storage-compat.sh status`: the same checks alone, each under the lock.
+  - `storage-compat.sh disable`: removes the knobs file and the copies.
+  - `bash .tmp/storage-compat/storage-oplock.sh run -- <command>`: QA's fixture writes during old steps (§11).
+  - `run`, `preflight` and `status` are **old-only**: they refuse `wrapper_old_only` unless `git rev-parse HEAD` is one of the two SHAs of the marker. A candidate command never runs through them; it takes its own lock (§7).
 
 ### Exact tree rule
 
@@ -420,14 +552,14 @@ Principle:
 | Allowed | Forbidden while the override is enabled |
 | --- | --- |
 | `git checkout` of the two SHAs, the frozen test install, old `npm ci`, `npm run build`, `npm run gen-env` (it keeps an existing `.env`), `docker compose … config`, the harness's `docker compose … exec` and `stop` | old `npm run stack:restart`, `stack:reset`, `e2e:reset`, `test:e2e`, `demo`, `demo:prepare`, `demo:users`, `demo:browser`; any `docker compose up`, `create`, `run`, `start` or `restart` of a service without the knobs file |
-| through the old `dc()`: old `npm run stack:up` and old `npm run test:acceptance` (they start services), old `npm run seed` (it uses `exec` only), old `npm run stack:down` (it keeps the volumes and the knobs file); the copied `storage-compat.sh preflight` and `status` | the candidate commands of the guard below |
+| through the old `dc()`: old `npm run stack:up` and old `npm run test:acceptance` (they start services; only through `storage-compat.sh run --`), old `npm run seed` (it uses `exec` only), old `npm run stack:down` (it keeps the volumes and the knobs file); the copied `storage-compat.sh run`, `preflight` and `status` | the candidate commands of the guard below; the QA host-control actions `m1-restart` and `m1-profile` (they run old `stack:restart`; §11) |
 
 Preflight and mount checks:
-- One preflight runs before each **harness-invoked** (or operator-invoked) old command that can start a service.
-- The mount check runs after it: `storage-compat.sh status` reads `docker inspect` of the running `lti-service` and `cogniate-app`. `/data` must be the volume `<project>_ltidb` / `<project>_appdb`; the app must have the two nested binds; no bind may sit at `/data`; and the knobs file hash must still equal its frozen value. Else exit 1 → `BLOCKED` (QA) or "stop now" (operator).
-- Old `test:acceptance` calls `stack-up.sh` twice inside one command. The preflight before the command and the mount check after it cover those internal starts. They use the same knobs file and the same volumes, so the storage cannot change between them. The harness holds the operation lock for the whole command.
+- Each **harness-invoked** (or operator-invoked) old start command runs as `storage-compat.sh run -- <command>`, so one preflight runs before it and the mount check after it.
+- The mount check (`status`) reads `docker inspect` of the running `lti-service` and `cogniate-app`. `/data` must be the volume `<project>_ltidb` / `<project>_appdb`; the app must have the two nested binds; no bind may sit at `/data`; and the knobs file hash must still equal its frozen value. Else exit 1 → `BLOCKED` (QA) or "stop now" (operator).
+- Old `test:acceptance` calls `stack-up.sh` twice inside one command. The preflight before the command and the mount check after it cover those internal starts. They use the same knobs file and the same volumes, so the storage cannot change between them. The wrapper holds the lock for the whole old command; the old scripts take no lock, so nothing inside waits for it. The host control refuses old restarts (§11), so no other start runs during the command.
 
-**Candidate guard.** Every candidate command that can create, recreate or start a container, or that reads or writes the databases, refuses while `.tmp/compose.knobs.yaml` holds the `x-cogniate-storage-compat` key ("run `npm run stack:storage-compat -- disable`"). These commands are `stack:up`, `stack:restart`, `test:*`, `e2e:reset`, `demo*` and `stack:data-*`. `seed` runs `exec` only and is not affected.
+**Candidate guard.** Every candidate command that can create, recreate or start a container, or that reads or writes the databases, refuses while `.tmp/compose.knobs.yaml` holds the `x-cogniate-storage-compat` key ("run `npm run stack:storage-compat -- disable`"). These commands are `stack:up`, `stack:restart`, `stack:reset`, `test:*`, `e2e:reset`, `demo*` and `stack:data-*`. `seed` runs `exec` only and is not affected.
 
 ### Routes and evidence
 
@@ -441,38 +573,42 @@ Preflight and mount checks:
   1. stop both services;
   2. `stack:data-restore` into the volumes;
   3. `stack:storage-compat -- enable`;
-  4. `git checkout <old>`;
-  5. `bash .tmp/storage-compat/storage-compat.sh preflight`;
-  6. old `npm run stack:up`;
-  7. `storage-compat.sh status`.
+  4. `git checkout <old>`; install and build it;
+  5. `bash .tmp/storage-compat/storage-compat.sh run -- npm run stack:up`.
+- A **fresh old-route lane** (AC-M1-23 step 1, AC-M1-38 (h1)): in the clone, check out the candidate and run `npm run stack:storage-compat -- enable` **before** `git checkout <old>`; then install the frozen tests and run `storage-compat.sh run -- npm run stack:up`.
 - Old and new builds use the same volumes, so the two QA routes need no import step.
-- **Evidence qualifier:** every old-build row keeps its label (`MOODLE-LIVE` or `SIM`) and adds: "old build `<sha>`: tracked product tree equal to that SHA, frozen candidate tests (`tests/` tree `<hash>`), and the storage-compatibility override (`compose.knobs.yaml` SHA-256 `<h1>`, probe `<h2>`, runner `<h3>`), which changes only the effective-config items (a)–(e) of ADR-012 §12". It never says "unchanged old infrastructure".
+- **Evidence qualifier:** every old-build row keeps its label (`MOODLE-LIVE` or `SIM`) and adds: "old build `<sha>`: tracked product tree equal to that SHA, frozen candidate tests (`tests/` tree `<hash>`), and the storage-compatibility override (`compose.knobs.yaml` SHA-256 `<h1>`, probe `<h2>`, runner `<h3>`, lock helper `<h4>`), which changes only the effective-config items (a)–(e) of ADR-012 §12". It never says "unchanged old infrastructure".
 - The old `warn_knobs` caution line is expected and recorded. `/healthz` shows `"knobs":[]`, because the override sets no environment.
 
 ## 13. Acceptance rows (AC-M1-41)
 
-Every row has the id `M1-41.common.<id>` and is individually mandatory in **each** full round. The phase `storage` is a new host phase. It runs in its own fresh clone with its own lane (project name), after the `migration` phase of the same round, because `e-old-schema` uses the v10 databases of that round's AC-M1-23 backup.
+Every row has the id `M1-41.common.<id>` and is individually mandatory in **each** full round. The phase `storage` is a new host phase. It runs in its own fresh clone with its own lane (project name), after the `migration` phase of the same round, because `e-old-schema` uses the v10 databases of that round's AC-M1-23 backup. `e-old-schema` runs last in the `storage` phase.
 
 | Group | Ids | Phase | Count |
 | --- | --- | --- | --- |
-| a. start paths | `a-fresh`, `a-second-start`, `a-restart`, `a-restart-refusal`, `a-serialize`, `a-first-start-resume` | storage | 6 |
+| a. start paths and the operation lock | `a-fresh`, `a-second-start`, `a-restart`, `a-restart-refusal`, `a-serialize`, `a-first-start-resume`, `a-lock-wait`, `a-lock-stale`, `a-lock-scope`, `a-lock-reentry` | storage | 10 |
 | b. lock and write safety | `b-oracle-lti`, `b-oracle-app`, `b-sequence` | storage | 3 |
 | c. negatives | `c-selftest`, `c-host-negative` (conditional, §14) | storage | 2 |
 | d. hygiene and ownership | `d-clean`, `d-stale`, `d-unknown`, `d-symlink`, `d-owner`, `d-mountpoint`, `d-content-folder` | storage | 7 |
 | e. legacy and import | `e-fresh-refusal`, `e-import`, `e-kept`, `e-changed-byte`, `e-added-wal`, `e-not-same-import`, `e-import-nonfresh`, `e-content-missing`, `e-old-layout`, `e-hot-journal`, `e-old-schema`, `e-import-recover`, `e-provenance-restore` | storage | 13 |
 | f. identity | `f-pairid`, `f-identity-missing`, `f-db-without-identity`, `f-project`, `f-half-pair`, `f-originals-back` | storage | 6 |
-| g. restore recovery | `g-prepared-lti`, `g-prepared`, `g-staged`, `g-swap-lti-mid`, `g-swapped-lti`, `g-swap-app-mid`, `g-swapped`, `g-identity-lti`, `g-identity-app`, `g-committed-lti`, `g-rollback-mid`, `g-recover-idempotent`, `g-tamper`, `g-quarantine`, `g-damaged`, `g-fresh-target` | storage | 16 |
-| h. backup and pair rule | `h-nomanifest`, `h-volume-manifest`, `h-legacy-manifest`, `h-open-journal`, `h-pair-mismatch`, `h-old-manifest` | storage | 6 |
+| g. restore recovery and quarantine | `g-prepared-lti`, `g-prepared`, `g-staged`, `g-swap-lti-mid`, `g-swapped-lti`, `g-swap-app-mid`, `g-swapped`, `g-identity-lti`, `g-identity-app`, `g-committed-lti`, `g-rollback-mid`, `g-recover-idempotent`, `g-tamper`, `g-quarantine`, `g-damaged`, `g-fresh-target`, `g-orphan-refusal`, `g-orphan-complete`, `g-orphan-stopped`, `g-quarantine-in-use` | storage | 20 |
+| h. backup and pair rule | `h-nomanifest`, `h-volume-manifest`, `h-legacy-manifest`, `h-open-journal`, `h-pair-mismatch`, `h-old-manifest`, `h-target-state` | storage | 7 |
 | i. product guards | `i-enable-refusal`, `i-candidate-guard` | storage | 2 |
 | j. old-route qualification | `j-migration` (phase `migration`), `j-snapshot` (phase `snapshot-upgrade`) | as named | 2 |
 
-Total new rows: **63** per round. The existing **416** rows stay unchanged, with the same ids, phases and labels. So each full round has **479** mandatory rows. The phases are: `sim` 394, `snapshot-isolated` 6, `snapshot-upgrade` 6, `migration` 12, `storage` 61.
+Total new rows: **72** per round (revision 2 had 63; revision 3 adds the nine rows `a-lock-wait`, `a-lock-stale`, `a-lock-scope`, `a-lock-reentry`, `g-orphan-refusal`, `g-orphan-complete`, `g-orphan-stopped`, `g-quarantine-in-use` and `h-target-state`). The existing **416** rows stay unchanged, with the same ids, phases and labels. So each full round has **488** mandatory rows. The phases are: `sim` 394, `snapshot-isolated` 6, `snapshot-upgrade` 6, `migration` 12, `storage` 70.
 
-QA's own hashes decide every "equal" and "unchanged" oracle. `b-sequence` shows that the volumes work; the cause claim rests on the lock-level rows `b-oracle-*` and `c-host-negative` and on the diagnostics of §1, not on `b-sequence`. Recovery drills use a backup that differs from the in-place pair in **both** databases (a write after the backup), and they check the identities' `generation` and `provenance`. They do not require differences in sidecars, which can be legitimately absent or the same.
+QA's own hashes decide every "equal" and "unchanged" oracle. `b-sequence` shows that the volumes work; the cause claim rests on the lock-level rows `b-oracle-*` and `c-host-negative` and on the diagnostics of §1, not on `b-sequence`. **Recovery oracle.** Every recovery and restore row compares two things, both read only from **stopped** volumes in QA's `storage-fixture` container:
+- the **full file set** of each volume (§8): `<db>`, `<db>-wal` and `<db>-shm` with presence, size and SHA-256 ("absent" is a value), and the identity with its `generation` and `provenance`;
+- the **logical rows**: QA copies each database together with its present sidecars into the container's own writable layer and reads the marker rows from that copy (so a committed write that is still in `-wal` counts). It never opens an original.
+
+The fixture is built so that the two generations differ **logically** in both databases: after backup `B`, QA writes one new LTI platform and one new app connection, and its logical read confirms that the pre-drill pair has them and `B` does not. The fixture does not need every sidecar to differ, because sidecars can be absent or equal. The oracle still compares the full file set exactly.
 
 Harness self-checks are recorded in a separate harness section of the run, **not** as product rows:
-- a one-byte change of the override, the probe or the runner → the harness reports `BLOCKED`;
-- an override copy with one added environment key → the config check reports a not-allowed difference.
+- a one-byte change of the override, the probe, the runner or the lock helper → the harness reports `BLOCKED`;
+- an override copy with one added environment key → the config check reports a not-allowed difference;
+- with the marker present, a host-control `m1-restart` or `m1-profile` request → the host control refuses before it runs any command.
 
 ## 14. The single conditional row
 
@@ -481,6 +617,7 @@ Harness self-checks are recorded in a separate harness section of the run, **not
 - Where QA's oracle shows the demonstrated fault (WAL lock not enforced), the probe must report `lock_not_enforced` and exit 1, and the row is PASS.
 - Where QA's oracle shows enforcement, the row is `NOT_APPLICABLE`, with the oracle evidence attached.
 - `NOT_APPLICABLE` is reported separately and is **never** counted as a PASS. A round is complete only when every other row is PASS and this row is PASS or `NOT_APPLICABLE` with evidence.
+- **Two rounds.** The existing rule "the same result per row in both full rounds" applies to this row too: PASS in both, or `NOT_APPLICABLE` with evidence in both. A different result between the rounds fails the run, because the host fault must be stable. This is not a general waiver: it applies to this one row only.
 - No other row, and no original M1 row, can be `NOT_APPLICABLE`.
 - `c-selftest` is the portable negative and must PASS on every host.
 
@@ -489,6 +626,7 @@ Harness self-checks are recorded in a separate harness section of the run, **not
 The databases belong to the **compose project name**, not to the checkout.
 - A new clone that reuses an existing project name finds that project's volumes, and its identity check passes. But `gen-env` gives the new clone new master keys, so the services cannot use the old encrypted rows.
 - Rule: a fresh QA lane must show no `<lane>_ltidb` and no `<lane>_appdb` before its first start (QA's boundary check with the label `com.docker.compose.project=<lane>`), and none after its cleanup.
+- **One checkout per project.** The operation lock is in `.tmp/` of the checkout (§7). Two checkouts that use one project name are not supported, and nothing claims to lock across checkouts. The `stale-*` lock records stay in `.tmp/` as evidence; QA removes them with its clone.
 
 Cleanup semantics:
 - `stack:reset` (`down -v` with the project guard) removes both volumes, the legacy bind folders and the content folders of this project.
@@ -502,9 +640,9 @@ Cleanup semantics:
 
 | Owner | Files |
 | --- | --- |
-| Backend Author (owns `infra/**`) | `infra/compose.yaml` (volumes, nested binds, `storage-preflight`, a `maintenance` service); `infra/scripts/sqlite-lock-probe.mjs` (new) and its unit test; `infra/scripts/storage-oplock.sh` (new); `infra/scripts/stack-up.sh`, `stack-restart.sh`, `qa-suite.sh` and `e2e-reset.sh` (guard only); `infra/scripts/stack-data.sh`, `stack-data.mjs`, `lib.sh` (container execution, `--source legacy`, `stack:data-import`, `stack:data-quarantine`, the journal, `--recover`, `--stop-after`); `infra/compat/*`, `infra/scripts/storage-compat.sh`; root `package.json` scripts; `infra/README.md`; `services/lti-service/src/cli/stack-data.test.ts` (new cases; existing assertions unchanged) |
+| Backend Author (owns `infra/**`) | `infra/compose.yaml` (volumes, nested binds, `storage-preflight`, a `maintenance` service); `infra/scripts/sqlite-lock-probe.mjs` (new) and its unit test; `infra/scripts/storage-oplock.sh` (new: acquisition A1–A6, takeover, release, lock events, `run --`); `infra/scripts/stack-up.sh`, `stack-restart.sh`, `stack-reset.sh` (lock only), `qa-suite.sh` and `e2e-reset.sh` (guard only; no lock of their own); `infra/scripts/stack-data.sh`, `stack-data.mjs`, `lib.sh` (storage containers with name and run label, `--source legacy`, `stack:data-import`, `stack:data-quarantine` with the volume-user rule, the journal, the checked move, the R3 order, the target-state refusals, `--recover`, `--stop-after`, `--pause-after`); `infra/compat/*`, `infra/scripts/storage-compat.sh`; root `package.json` scripts; `infra/README.md`; `services/lti-service/src/cli/stack-data.test.ts` (new cases; existing assertions unchanged) |
 | Product code | none |
-| Independent common QA (Claude) | `tests/host/m1-migration.mjs`, `tests/host/m1-migration.selftest.mjs`, `tests/host/p5-fixture.mjs` (database access through §11; guards and assertions unchanged); `tests/host/run-t1.mjs` (the information-only `**/.data` scan no longer sees database bytes; note it); the QA fixture script under `tests/host/`; the 63 AC-M1-41 rows and their accounting |
+| Independent common QA (Claude) | `tests/host/m1-migration.mjs`, `tests/host/m1-migration.selftest.mjs`, `tests/host/p5-fixture.mjs` (database access through §11; guards and assertions unchanged); `tests/host/run-t1.mjs` (the information-only `**/.data` scan no longer sees database bytes; note it); `tests/host/m1-control.mjs` (refuse `m1-restart` and `m1-profile` while the compat marker is present); the QA fixture scripts and container kinds of §11 under `tests/host/`; the QA suite case that `a-lock-scope` runs; the 72 AC-M1-41 rows and their accounting |
 | Architect | this ADR, ADR-006, `local-stack.md`, ADR-011 §14, M1, M3, the indexes, `review-response-storage.md` |
 | Docs (M4) | operator guide: import, backup, restore, recovery, quarantine, rollback mode with the override, cleanup semantics |
 
@@ -516,21 +654,33 @@ Cleanup semantics:
 | --- | --- | --- |
 | M1 | A new empty named volume at `/data` (the image has no `/data`) is `root:root 0755`. The service user cannot write in it. | §4 volume-root step |
 | M2 | For nested binds, Docker creates the covered mountpoint folders inside the volume as `root:root 0755`, empty, at container creation. Host-source owner and mountpoint owner are different. | §4 mountpoint rule (fix an empty root-owned mountpoint) |
-| M3 | A narrow root step (the volume root and the two mountpoints, `501:20 0700`, not recursive) works. A later volume-only container and the next start with binds keep `501:20 0700`. The bare mountpoints stay empty. | §4, §5 step 1 |
+| M3 | A narrow root step (the volume root and the two mountpoints, `501:20 0700`, not recursive) works. A later volume-only container and the next start with binds keep `501:20 0700`. The bare mountpoints stay empty. | §4, §5 step 3 |
 | M4 | As the service user in the volume: a `0600` file, a file `fsync`, a rename in one folder, a rename over a file, a rename into another folder of the same volume, and a folder `fsync` all work. A rename from the volume into the `uploads` bind fails with `EXDEV`. | §6 and §8 write order; §3 rename rule |
 | M5 | A Compose override with a volume at the same target **replaces** the base `/data` bind (merge by target) and adds the two nested binds. | §12 items (a) and (b) |
 | M6 | A profiled service is absent unless its profile is enabled. `run --rm --no-deps` of a one-shot service works with `-p` and absolute `-f` files. Compose resolves a relative `-f` path against the current folder, not against `--project-directory`. | §5 service, §12 C0/C1 |
 | M7 | `config --format json` gave the same hash in two runs of one fixture. | §12 C0/C1 |
 | M8 | `up --wait` accepted a `service_completed_successfully` dependency in the fixture. | not used (§7) |
 
-**Assumptions still to verify in the build step (not claimed):**
-1. M1–M7 also hold for the candidate and the old product Compose files, with the project's `--env-file` and the old `dc()` arguments (not measured).
-2. The old `dc()` gives `-f .tmp/compose.knobs.yaml` in a form that Compose resolves to the checkout's `.tmp/` (M6: a relative `-f` path resolves against the current folder).
-3. The named volume enforces the SQLite WAL lock with the product's `node:sqlite` (shown by QA's earlier diagnostic; not part of the feasibility diagnostic). The probe checks this at every guarded start.
-4. `node:sqlite` reports the extended result code in its error (`errcode`), so 5, 261 and 517 can be told apart.
-5. `mkdir` on the host is atomic for the operation lock, and `kill -0 <pid>` detects a dead owner.
-6. `docker inspect` shows the mount type, source and destination needed by `status`.
-7. On Linux hosts, the bind-source owner rules and real UIDs give the same result as M2–M3 (not measured).
+**Source facts** (read with `git show`, no run):
+
+| # | Fact | Design use |
+| --- | --- | --- |
+| S1 | Both old `lib.sh` (line 9) set `KNOBS_FILE="$REPO_ROOT/.tmp/compose.knobs.yaml"`, an absolute path, and the old `dc()` adds `-f "$KNOBS_FILE"` only when the file exists. So M6's relative-path behavior does not apply to the old builds. | §12 injection |
+| S2 | Both old `seed.sh` use only `dc exec`. | §12 command rule |
+| S3 | Both old `qa-suite.sh` call `stack-up.sh` twice in one `test:acceptance` (acceptance profile, then the default restore). | §12 `run --` |
+| S4 | The candidate host control (`tests/host/m1-control.mjs`) runs `npm run stack:restart` in the clone for `m1-restart` and `m1-profile`. | §7 scope, §11 |
+| S5 | The candidate `stack-reset.sh` removes every container with the project label (`docker rm -f`) and then the project volumes. | §7 guarded paths |
+
+**Assumptions still to verify in the build step (not claimed, not measured):**
+1. M1–M7 also hold for the candidate and the old product Compose files, with the project's `--env-file` and the old `dc()` arguments.
+2. The named volume enforces the SQLite WAL lock with the product's `node:sqlite` (shown by QA's earlier diagnostic; not part of the feasibility diagnostic). The probe checks this at every guarded start.
+3. `node:sqlite` reports the extended result code in its error (`errcode`), so 5, 261 and 517 can be told apart.
+4. On the host (macOS APFS; Linux ext4): `rename` of a complete folder onto an absent name is atomic, and `rename` onto a non-empty folder fails. `ps -o lstart= -p <pid>` prints the same start time for a live process each time, and nothing for an ended one.
+5. A `docker compose run --rm` container keeps running after its client gets `SIGKILL` (the A-S-09 premise). The design does not depend on whether Docker or the client removes it after it ends: A6 removes an inactive leftover.
+6. `docker compose run` accepts `--name` and `--label` for the storage containers, and `docker ps -a --filter volume=<name>` lists every container that references a named volume, in any state.
+7. `docker inspect` shows the mount type, source and destination needed by `status`.
+8. The added preflight time of each guarded `stack:restart` stays inside the existing test windows (for example the 60 s lease windows of AC-M1-37). QA records the measured restart durations. No test window or lease changes.
+9. On Linux hosts, the bind-source owner rules and real UIDs give the same result as M2–M3.
 
 ## 18. Consequences
 
@@ -538,4 +688,5 @@ Cleanup semantics:
 - Database files are no longer plain files in the checkout. Read them only through the maintenance or QA fixture container.
 - Existing bind installations need one explicit import. Old builds need the override, with its caution line, and a temporary rollback mode with forbidden commands.
 - A lane that cannot recover has a non-destructive quarantine exit.
+- Storage commands of one checkout are serialized. A killed client cannot let a second writer start while its storage container still runs.
 - The released-v10 and `011` evidence rows carry the §12 qualifier.
