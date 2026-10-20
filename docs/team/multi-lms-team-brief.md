@@ -101,6 +101,12 @@ No replacement may edit a path before the prior owner settles and the Lead grant
 A fresh QA session has no stack authority until the Lead explicitly assigns a clean window.
 The three-worker limit, file ownership, independent QA and blind reviews remain in force.
 
+The common QA transfer is complete. Outgoing `ctx_8d51e8033a8a` settled as incomplete for transfer in `msg_d7ff40f4e6a8`.
+The same verification task continues under fresh Claude dispatch `ctx_8d5f8d3984d0`; requested and effective launch settings are `claude-opus-5-5`, `xhigh`.
+Handoff: `/Users/quangnguyen/cogniate-qa-runs/common-blackboard-claude-handoff-20261020T1405Z/continuation.md`.
+Lead message `msg_08de99358b99` supplies the current authority and supersedes stale status sentences in that record.
+The incoming QA confirmed the handoff and its HOLD in `msg_14a8681838f4`.
+
 ## One common engine
 
 Moodle, Blackboard and Canvas use the same LTI engine.

@@ -914,6 +914,37 @@ A fresh independent Claude QA session will continue the same unfinished verifica
 Original Claude Canvas QA keeps its task and stack window without interruption.
 All new implementation, QA, review and documentation assignments use Claude; completed Codex work retains its true attribution.
 
+### Claude QA transfer and first T7 result
+
+Original Claude A completed the final seven-file review in `msg_f2265f99ece5`.
+Its reports are committed at `601386f05061baef3a09716ab5921052bf5ebda2`.
+A-M3-03 and A-M3-04 are closed; source reviews are clear through `004568b`.
+
+Outgoing common QA settled its unfinished task for the owner-requested transfer in `msg_d7ff40f4e6a8`.
+The Lead verified its three-file handoff index, 11 owned file hashes and clean prepared source.
+The same task now runs in a fresh independent Claude session, dispatch `ctx_8d5f8d3984d0`.
+Its launch receipt confirms requested and effective `claude-opus-5-5`, `xhigh`.
+The continuation handoff is `/Users/quangnguyen/cogniate-qa-runs/common-blackboard-claude-handoff-20261020T1405Z/continuation.md`.
+Lead message `msg_08de99358b99` updates the record with final reviews and the current window.
+The new QA acknowledged and confirmed the actual full runner has no `--runs` option; default full runs both inventories and then legacy.
+
+Original Claude Canvas QA reports the first T7 sequence in `msg_019380277074`.
+Run: `qa-e2e-m3-r1-004568bd-2026-10-20T14-00-53-214Z`.
+Each of three default runs has **8 PASS / 9 FAIL / 1 intentional demo-only SKIP**.
+The test helper `publishCourse` reads asynchronously loaded connection options once; the A3 failure blocks dependent scenarios.
+The four confirmation/refusal controls and the separate demo pass succeed.
+Default health has no knobs or simulation profiles. The independent scan reports zero hits over 103 shared text files.
+Cleanup at 14:08:57 UTC reports zero containers, all seven full volume records and baseline networks unchanged, no runner and free ports.
+The Lead independently confirmed zero containers. The window is closed.
+
+Lead reply `msg_859204e81d48` authorizes only a bounded readiness wait in `tests/e2e/lib/portal.ts` at `publishCourse`, plus owned QA reports.
+The exact Moodle option match, missing-option failure, selection, publication and downstream assertions must remain.
+No latent helper change, retry, sleep, skip or timeout increase is authorized.
+QA must hold the repair with hashes and meaningful delayed/missing/wrong-option controls for commit.
+Two Claude-only source reviews are ready: A `task_ab8f85ebf8b7`, B `task_a5f2e5cfc0c2`.
+The next single frozen revision needs a fresh complete M2 run and T7 sequence before common QA receives the clean exclusive window.
+The completed M2 PASS at `004568b` remains recorded; full M1 and final-SHA legacy are still NOT RUN.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
