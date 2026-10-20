@@ -50,7 +50,7 @@ export function rememberPrivate(value: unknown) {
   fs.appendFileSync(path.join(artifactsDir('acceptance'), 'm1-secrets.raw.jsonl'), JSON.stringify(value) + '\n', { mode: 0o600 });
 }
 /** M1 host-control channel (tests/host/m1-control.mjs): whitelisted operator CLI and restarts of this QA project only. */
-export async function hostAction(action: 'm1-cli' | 'm1-restart', payload: Json, timeoutMs = 240_000) {
+export async function hostAction(action: 'm1-cli' | 'm1-restart' | 'm1-profile', payload: Json, timeoutMs = 240_000) {
   const dir = path.join(artifactsDir('acceptance'), 'control'); fs.mkdirSync(dir, { recursive: true });
   const id = `m1-${crypto.randomBytes(6).toString('hex')}`, request = path.join(dir, `req-${id}.json`);
   fs.writeFileSync(request + '.tmp', JSON.stringify({ id, action, ...payload }), { mode: 0o600 });

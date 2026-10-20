@@ -1,6 +1,6 @@
 Verdict: PREPARED — M2 browser suite and runner are ready; harness checks only, no product verification
-Round: 2 (alignment, task `task_ef66f1c5c7ed`; see §7)
-Owner: independent Claude QA-E2E, claude-opus-5-5, xhigh
+Round: 3 (applied readiness preparation, task `task_1276def76f95`; see §8)
+Owner: independent Codex Canvas QA quota replacement, authorized by Lead for GPT-6-Astra at xhigh; earlier Claude reports remain below
 Behavior baseline: `56591df0e71939d5d62c9042c630c841d01f84e8` (ADR-011 revision 6). Criteria: [M2](../../architecture/tasks/M2.md), [M3 §2–§4](../../architecture/tasks/M3.md).
 
 ## 1. Scope and independence
@@ -132,3 +132,22 @@ Affected T7 tests: `A3` (`1-scenario-a.spec.ts`, publishes both courses), `A4 AC
 ### 7.5 Harness evidence (round 2)
 
 `node tests/e2e/host/run-m2.mjs --harness-only`: 2 self-tests pass, typecheck pass, 64 M2 rows discovered and equal to the manifest, and the T7 selection is unchanged. `QA_SUITE=e2e playwright test --list`: 18 tests in 6 files, no M2 file. No stack and no product call.
+
+## 8. Round 3 — neutral readiness assertions (2026-10-20)
+
+Applied contracts: `ccdd9ef67cdd2be4c6af374136777fda4e081943`, including A-D-09. The [preparation report](qa.md) records the Lead handoff and exact held paths. Every row remains PREPARED, NOT RUN.
+
+The inventory remains **64 browser rows across all 13 M2 criteria**, with unchanged IDs, titles and manifest entries. No prior assertion is removed.
+
+| Existing row | Added readiness observation |
+| --- | --- |
+| `M2-05.lti-service-error` | After its original LTI failure assertion, turn simulations off through the existing host control. Save the same pending Canvas values and code. Require the exact neutral title and action, a pending connection, and a cleared code. Restore simulations in `finally`. |
+| `M2-06.retry-after-error` | Preserve the original failed Save and successful second Save. Use a separate pending Blackboard connection and issued grant; deactivate the shared platform, Save, and require the same exact neutral text. Restore it and prove that the same code registers. Restore the shared platform in `finally`. |
+
+Title: `This LMS setup is not ready in Cogniate.`
+
+Action: `Ask your Cogniate operator to check the LMS setup for this connection. The operator tells you to try again later, or to make a new connection.`
+
+Each readiness assertion requires the exact title and action as visible text. `M2-02.not-ready` still requires its original Blackboard card text. The current live-poll cancellation observation in `M2-13.no-stale-values` is unchanged. The exact Moodle heading and body in §7.3 are unchanged.
+
+Preparation evidence: `node tests/e2e/host/run-m2.mjs --harness-only` passes two self-checks, typecheck and discovery of all 64 rows. T7 selection is unchanged. No browser, stack or product run occurred. The future browser run uses the existing whitelisted `m1-profile` action; no host runner or product setting was edited in this preparation.

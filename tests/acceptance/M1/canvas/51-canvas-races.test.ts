@@ -2,7 +2,7 @@
 // c, c2, d, e, f, g, h, i, j, m, n, p-create, p-activate, q, r, s-retry, s-dead, s-compensation, t, u-after-c, u-after-c2.
 // Each subcase reports the remote record (exists, active, ref) and the app authority separately (evidence JSON).
 import {
-  admin, app, assert, cli, connPath, expectStatus, gateEvents, gatePhase, gateReset, gateRules, host,
+  admin, app, assert, cli, connPath, expectStatus, gateEvents, gatePhase, gateReset, gateRules,
   httpsRequest, logEvents, m1Test, pause, poll, records, release, service, session, type Json,
 } from '../common/client';
 import { commitGrade, publication, waitSync } from '../common/course';
@@ -11,6 +11,9 @@ import {
   canvasGrant, canvasGradeWorks, canvasLaunch, canvasPlay, canvasRedeem, connectionOf, escape, grantState, hostOf,
   platformsFor, refused, saveEvidence, type CanvasBinding,
 } from './canvas';
+import { liveRelease, restartApp } from '../common/snapshot';
+import { METHODS } from '../common/snapshot-oracle.mjs';
+import { leaseWindow } from './snapshot-oracle.mjs';
 
 type Race = Awaited<ReturnType<typeof fresh>>;
 async function fresh(library: 'A' | 'B' = 'A', patch: Json = {}, values?: { clientId: string; deploymentId: string }) {
@@ -28,7 +31,7 @@ const createRule = (id: string, action: string) => ({ id, method: 'POST', pathRe
 const activateRule = (id: string, action: string, times = 1) => ({ id, method: 'PATCH', pathRegex: PLATFORM, action, times });
 const addCreate = (b: CanvasBinding) => `^/api/platforms/${escape(b.platformId)}/deployments$`;
 const addActivate = (b: CanvasBinding, d: string) => `^/api/platforms/${escape(b.platformId)}/deployments/${escape(encodeURIComponent(d))}$`;
-const watch = ['GET', 'POST', 'PATCH', 'DELETE'].map((method) => ({ id: 'watch-' + method, method, pathRegex: '^/api/', action: 'pass', times: 10_000 }));
+const watch = METHODS.map((method) => ({ id: 'watch-' + method, method, pathRegex: '^/', action: 'pass', times: 10_000 }));
 
 async function remote(p: { clientId: string }) {
   const list = await platformsFor(p.clientId, CLOUD.issuer);
@@ -79,13 +82,6 @@ async function upstream(event: Json, status: number) {
   const all = await poll(() => gateEvents(0, event.request_id), (rows) => rows.some((r) => r.phase === 'upstream_completed'), 6000, 25);
   assert.equal(all.find((r) => r.phase === 'upstream_completed')!.status, status);
 }
-async function liveRelease(event: Json) {
-  const elapsed = Date.now() - Date.parse(event.ts);
-  assert.ok(elapsed < 4500, `BLOCKED: live race schedule exceeded its budget (${elapsed} ms); production timeout stays 5 s`);
-  await release(event.request_id);
-  await poll(() => gateEvents(0, event.request_id), (rows) => rows.some((r) => r.phase === 'delivered'), 1000, 25);
-}
-const restartApp = async () => assert.equal((await host('m1-restart', { service: 'cogniate-app' })).code, 0);
 const revoke = async (grantId: string) => cli('app:grant', ['revoke', '--grant', grantId]);
 
 async function scope(id: string, p: { clientId: string; since: number; connection: Json; s: any }, body: () => Promise<void>) {
@@ -139,8 +135,9 @@ race('d', 'dead Canvas handler keeps the lease for 60 s; its late S3 loses to th
   await gateRules([activateRule('activate', 'hold_before')]);
   const started = Date.now(), first = apply(p).catch(() => null), held = await gatePhase('activate', 'held_before');
   await restartApp(); await gatePhase('activate', 'caller_gone', 10_000); await first;
-  assert.ok(Date.now() - started < 55_000, 'Restart leaves time to observe the live lease');
-  expectStatus(await apply(p), 409, 'GRANT_IN_USE');
+  leaseWindow(started);
+  const refused = await apply(p); leaseWindow(started, Date.now(), true);
+  expectStatus(refused, 409, 'GRANT_IN_USE');
   await pause(Math.max(0, started + 62_000 - Date.now()));
   expectStatus(await apply(p), 200);
   const before = await remote(p);
@@ -302,8 +299,9 @@ addRace('s-dead', 'a dead Canvas added deployment handler: no authority until th
   const started = Date.now(), first = addDeployment(b, second, grant).catch(() => null), held = await gatePhase('activate', 'held_after');
   await restartApp(); await first;
   await unapprovedAdded(b, second);
-  assert.ok(Date.now() - started < 55_000, 'Lease still live');
-  expectStatus(await addDeployment(b, second, grant), 409, 'GRANT_IN_USE');
+  leaseWindow(started);
+  const refused = await addDeployment(b, second, grant); leaseWindow(started, Date.now(), true);
+  expectStatus(refused, 409, 'GRANT_IN_USE');
   await pause(Math.max(0, started + 62_000 - Date.now()));
   expectStatus(await addDeployment(b, second, grant), 200);
   await release(held.request_id).catch(() => undefined);

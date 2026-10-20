@@ -1,7 +1,9 @@
 // Canvas registration, configuration documents, added deployments, capability guards, grant negatives and
 // portal routes: AC-M1-17, -19, -20, -21, -29, -31 (Canvas parts).
 import { createCourse } from '../../lib/app';
-import { readLog, waitForLog } from '../../lib/logs';
+import { readLog } from '../../lib/logs';
+import { completed, refusedWithoutAttempt, redeemedWithOneAttempt } from '../common/snapshot';
+export { completed, refusedWithoutAttempt, redeemedWithOneAttempt } from '../common/snapshot';
 import {
   APP, app, assert, cli, connPath, createConnection, expectStatus, httpsRequest, idToken, logEvents, m1Test,
   parseForm, pause, service, session, sharedPlatform, unique, urls, type Json,
@@ -34,44 +36,16 @@ const rejected = (since: number, reason: string, connectionId?: string) =>
 // in first-in, first-out order before the same request's `http_request` line. Bounded use: one healthy process, complete
 // capture of cogniate-app.jsonl, no claim across a crash or restart, and an absent line is no database or rollback proof.
 // The connection DTO and a later successful redemption are not used as evidence of "no attempt".
-type Answer = { status: number; traceId: string };
 export function attemptLines(connectionId: string) {
   const log = readLog('cogniate-app');
   assert.deepEqual(log.badLines, [], 'BLOCKED: incomplete capture of cogniate-app.jsonl');
   return log.entries.filter((e) => e.entry.event === 'grant_attempt_started' && e.entry.connection_id === connectionId)
     .map((e) => ({ line: e.line, ...e.entry }) as Json);
 }
-/** FIFO completion control: the answer's own same-trace `http_request` line (R3.7 rule 3); missing means BLOCKED. */
-export async function completed(answer: Answer, method: string) {
-  assert.match(answer.traceId, /^[A-Za-z0-9-]{16,64}$/, 'BLOCKED: no x-trace-id on the answer, so its completion control is missing');
-  const hit = await waitForLog('cogniate-app', (entry) => entry.event === 'http_request' && entry.trace_id === answer.traceId, 15_000);
-  assert.ok(hit, `BLOCKED: no http_request line for trace ${answer.traceId} within 15 s (completion control missing)`);
-  assert.equal(hit.entry.method, method);
-  assert.equal(Number(hit.entry.status), answer.status);
-}
 /** Baseline after a completed request of this test, so every earlier line of the connection is already captured. */
 async function attemptBaseline(s: any, connectionId: string) {
   await completed(await app(s, 'GET', connPath(connectionId)), 'GET');
   return attemptLines(connectionId).length;
-}
-/** A refused request adds no `grant_attempt_started` line for the connection, read after its own completion control. */
-export async function refusedWithoutAttempt<T extends Answer>(connectionId: string, method: string, request: () => Promise<T>) {
-  const before = attemptLines(connectionId).length;
-  const answer = await request();
-  await completed(answer, method);
-  assert.deepEqual(attemptLines(connectionId).slice(before), [], 'No grant_attempt_started line for the refused request');
-  return answer;
-}
-/** Positive control (R3.7 rule 3): one redemption adds exactly one line for its grant, so capture is alive. */
-export async function redeemedWithOneAttempt<T extends Answer>(connectionId: string, grantId: string, method: string, request: () => Promise<T>) {
-  const before = attemptLines(connectionId).length;
-  const answer = await request();
-  await completed(answer, method);
-  const added = attemptLines(connectionId).slice(before);
-  assert.equal(added.length, 1, 'Positive control: exactly one grant_attempt_started line for the redemption');
-  assert.equal(added[0].grant_id, grantId);
-  assert.ok(typeof added[0].attempt_id === 'string' && added[0].attempt_id.length > 0, 'attempt_id is set');
-  return answer;
 }
 
 // ---------------------------------------------------------------- AC-M1-17 registration through the app

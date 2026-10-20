@@ -1774,5 +1774,94 @@
   "title": "[SIM] AC-M1-40 a top-level launch with a third-host return URL opens and returns to the site root {case:M1-40.canvas.c-return-fallback}",
   "kind": "browser",
   "file": "acceptance/M1/canvas/70-canvas-browser.spec.ts"
+ },
+ {
+  "id": "M1-37.canvas.aa",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 Canvas S1 profile refusal uses neutral readiness text and leaves the grant issued {case:M1-37.canvas.aa}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/02-canvas-snapshot-isolated.test.ts",
+  "phase": "snapshot-isolated"
+ },
+ {
+  "id": "M1-37.canvas.v1",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 Canvas initial unknown code is local with a bounded audit control {case:M1-37.canvas.v1}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/52-canvas-snapshot.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.v3",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 Canvas added deployment unknown code is local with a bounded audit control {case:M1-37.canvas.v3}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/52-canvas-snapshot.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.v8",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 Canvas initial mismatch is local with a bounded audit control {case:M1-37.canvas.v8}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/52-canvas-snapshot.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.v10",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 Canvas added deployment mismatch is local with a bounded audit control {case:M1-37.canvas.v10}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/52-canvas-snapshot.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.v4",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 dead Canvas initial handler refuses within its lease using a new healthy-process cursor {case:M1-37.canvas.v4}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/52-canvas-snapshot.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.v6",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 dead Canvas added deployment handler refuses within its lease using a new healthy-process cursor {case:M1-37.canvas.v6}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/52-canvas-snapshot.test.ts"
+ },
+ {
+  "id": "M1-37.canvas.v12",
+  "ac": "AC-M1-37",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-37 Canvas local guards and finalized repeats keep first-failure order before and after app restart {case:M1-37.canvas.v12}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/52-canvas-snapshot.test.ts"
+ },
+ {
+  "id": "M1-38.canvas.i1",
+  "ac": "AC-M1-38",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-38 fresh Canvas cloud connection uses its saved canonical issuer {case:M1-38.canvas.i1}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/52-canvas-snapshot.test.ts"
+ },
+ {
+  "id": "M1-38.canvas.i2",
+  "ac": "AC-M1-38",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-38 fresh Canvas self-hosted connection uses its saved canonical issuer {case:M1-38.canvas.i2}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/52-canvas-snapshot.test.ts"
+ },
+ {
+  "id": "M1-38.canvas.i4",
+  "ac": "AC-M1-38",
+  "environment": "SIM",
+  "title": "[SIM] AC-M1-38 Canvas cloud and self-hosted snapshots survive restarts between create, issue and redemption {case:M1-38.canvas.i4}",
+  "kind": "api",
+  "file": "acceptance/M1/canvas/52-canvas-snapshot.test.ts"
  }
 ]

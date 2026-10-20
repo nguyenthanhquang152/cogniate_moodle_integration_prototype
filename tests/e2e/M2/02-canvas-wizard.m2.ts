@@ -2,12 +2,12 @@
 import fs from 'node:fs';
 import { THANH } from '../../acceptance/lib/app';
 import {
-  CLOUD, app, canvasBinding, canvasClientId, canvasDeploymentId, check, ok, session, unique, urls, type Json,
+  CLOUD, app, canvasBinding, canvasClientId, canvasDeploymentId, check, hostAction, ok, session, unique, urls, type Json,
 } from '../../acceptance/M1/canvas/browser';
 import {
   ERR, TEACHER, TEXT, button, canvasGrantFor, canvasStep1, canvasToStep3, clipboardDenied, clipboardText, codeCleared,
   connection, connections, expect, fieldMarked, fillCanvasStep3, gateClear, gateFailNext, m2Case, newestByName, next,
-  noForbiddenFields, pendingWizard, portalSignIn, save, shot,
+  neutralReadiness, noForbiddenFields, pendingWizard, portalSignIn, save, shot,
 } from './lib/m2';
 
 async function canvasLabels(s: Json) {
@@ -223,6 +223,7 @@ m2Case('M2-05.invalid-values', 'an empty approval code shows the check text and 
 });
 m2Case('M2-05.lti-service-error', 'an LTI service failure shows the retry text with a trace id; the connection stays pending', async ({ page }) => {
   const s = await session('A'); await portalSignIn(page, THANH);
+  let profileChanged = false;
   try {
     const { c, values } = await failingSave(page, s, async (con) => {
       const clientId = canvasClientId(), deploymentId = canvasDeploymentId(), grant = await canvasGrantFor(s as any, con, clientId, deploymentId);
@@ -233,5 +234,18 @@ m2Case('M2-05.lti-service-error', 'an LTI service failure shows the retry text w
     expect((await connection(s, c.id)).status).toBe('pending');
     await codeCleared(page, values.code);
     await shot(page, 'm2-05-canvas-lti-error');
-  } finally { await gateClear(); }
+    await gateClear();
+    // Applied readiness contract: issue while available, then use the existing
+    // AC-M1-35 host control to make Canvas S1 answer UNKNOWN_PROFILE.
+    profileChanged = true;
+    expect((await hostAction('m1-profile', { profile: 'acceptance', simulation: 'off' })).code).toBe(0);
+    await fillCanvasStep3(page, values); await save(page);
+    await neutralReadiness(page);
+    expect((await connection(s, c.id)).status).toBe('pending');
+    await codeCleared(page, values.code);
+    await shot(page, 'm2-05-canvas-provider-not-ready');
+  } finally {
+    await gateClear();
+    if (profileChanged) expect((await hostAction('m1-profile', { profile: 'acceptance', simulation: 'on' })).code).toBe(0);
+  }
 });

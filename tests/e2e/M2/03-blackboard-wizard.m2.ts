@@ -1,9 +1,9 @@
 // AC-M2-06: Blackboard wizard success, deployment conflict, retry after an LTI failure, fixed reservation, no endpoint input.
 import { THANH } from '../../acceptance/lib/app';
-import { BLACKBOARD, app, blackboardBinding, escape, ok, session, sharedPlatform, unique, type Json } from '../../acceptance/M1/canvas/browser';
+import { BLACKBOARD, admin, app, blackboardBinding, escape, ok, session, sharedPlatform, unique, type Json } from '../../acceptance/M1/canvas/browser';
 import {
   ERR, TEACHER, TEXT, blackboardGrantFor, blackboardStep1, blackboardToStep3, codeCleared, connection, expect, fieldMarked,
-  fillBlackboardStep3, gateClear, gateFailNext, m2Case, newestByName, next, noForbiddenFields, pendingWizard, portalSignIn, save, shot,
+  fillBlackboardStep3, gateClear, gateFailNext, m2Case, neutralReadiness, newestByName, next, noForbiddenFields, pendingWizard, portalSignIn, save, shot,
 } from './lib/m2';
 
 const BB_ROWS = ['client_id', 'login_initiation_url', 'tool_redirect_url', 'tool_jwks_url', 'tool_status', 'user_fields',
@@ -61,7 +61,26 @@ m2Case('M2-06.retry-after-error', 'after an LTI_SERVICE_ERROR, a second Save wit
     await save(page);
     await expect(page.getByRole('heading', { name: TEXT.blackboardStep4 })).toBeVisible({ timeout: 30_000 });
     expect((await connection(s, c.id)).status).toBe('registered');
-  } finally { await gateClear(); }
+    // Keep the original second-Save retry above. Use a separate pending connection
+    // for the applied readiness assertion under this existing error case ID.
+    const readinessConnection = await blackboardToStep3(page, s), readinessDeployment = unique('bb-readiness');
+    const readinessGrant = await blackboardGrantFor(s, readinessConnection, readinessDeployment);
+    // A ready card and saved pending connection do not imply later readiness.
+    ok(await admin('PATCH', `/api/platforms/${shared}`, { active: false }), 200, 'deactivate shared platform');
+    await fillBlackboardStep3(page, { deploymentId: readinessDeployment, code: readinessGrant.code }); await save(page);
+    await neutralReadiness(page);
+    expect((await connection(s, readinessConnection.id)).status).toBe('pending');
+    await codeCleared(page, readinessGrant.code);
+    await shot(page, 'm2-06-blackboard-provider-not-ready');
+    ok(await admin('PATCH', `/api/platforms/${shared}`, { active: true }), 200, 'reactivate shared platform');
+    await fillBlackboardStep3(page, { deploymentId: readinessDeployment, code: readinessGrant.code });
+    await save(page);
+    await expect(page.getByRole('heading', { name: TEXT.blackboardStep4 })).toBeVisible({ timeout: 30_000 });
+    expect((await connection(s, readinessConnection.id)).status).toBe('registered');
+  } finally {
+    await gateClear();
+    ok(await admin('PATCH', `/api/platforms/${shared}`, { active: true }), 200, 'restore shared platform');
+  }
 });
 m2Case('M2-06.second-deployment', 'the same code with a second deployment id shows GRANT_MISMATCH; the reservation is kept', async ({ page }) => {
   const shared = await sharedPlatform(), s = await session('A'); await portalSignIn(page, THANH);

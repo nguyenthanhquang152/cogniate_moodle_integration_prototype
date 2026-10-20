@@ -13,6 +13,7 @@ import {
   issueGrant, launch, logEvents, parseForm, poll, records, rememberSecret, session, unique, urls, type Json,
 } from '../common/client';
 import { commitGrade, publication, results, waitSync } from '../common/course';
+import { METHODS } from '../common/snapshot-oracle.mjs';
 
 export {
   CANVAS_LOGIN, CANVAS_SCORE, CLOUD, PATHS, ROLE, SELF, canvasClientId, canvasDeepLinking, canvasDeploymentId, escape, hostOf,
@@ -162,8 +163,8 @@ export async function platformsFor(clientId: string, issuer?: string) {
 export async function noRemoteCall(body: () => Promise<void>) {
   const since = Date.now(), cursor = (await records()).cursor;
   await gateReset();
-  await gateRules(['GET', 'POST', 'PATCH', 'DELETE'].map((method) =>
-    ({ id: unique('watch'), method, pathRegex: '^/api/', action: 'pass', times: 10_000 })));
+  await gateRules(METHODS.map((method) =>
+    ({ id: unique('watch'), method, pathRegex: '^/', action: 'pass', times: 10_000 })));
   const seq = (await gateEvents()).at(-1)?.seq ?? 0;
   try {
     await body();

@@ -46,8 +46,15 @@ export const ERR = {
   platformInUse: 'This Canvas developer key is already connected to Cogniate. Make a new developer key for this library.',
   deploymentInUse: 'This Blackboard site is already connected to Cogniate.',
   connectionNotPending: 'This connection changed while Cogniate saved it. Reload the page.',
+  providerNotReadyTitle: 'This LMS setup is not ready in Cogniate.',
+  providerNotReadyAction: 'Ask your Cogniate operator to check the LMS setup for this connection. The operator tells you to try again later, or to make a new connection.',
   ltiServiceError: /Cogniate could not save the connection\. Try again\. Trace id: \S+/,
 };
+/** M2 error table / app §4.7.3. The Blackboard card keeps its separate guidance. */
+export async function neutralReadiness(page: Page) {
+  await expect(page.getByText(ERR.providerNotReadyTitle, { exact: true })).toBeVisible();
+  await expect(page.getByText(ERR.providerNotReadyAction, { exact: true })).toBeVisible();
+}
 // Teacher steps (M2 "Teacher steps"); labels are unverified on real tenants, the step data marks them verified:false.
 export const TEACHER = {
   canvas: ['Assignments', '+ Assignment', 'External Tool', 'Find', 'Cogniate', 'Load This Tool In A New Tab', 'Allowed Attempts', 'Save & Publish'],
