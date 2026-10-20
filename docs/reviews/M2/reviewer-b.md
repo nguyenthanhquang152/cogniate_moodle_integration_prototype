@@ -1,4 +1,11 @@
 Verdict: APPROVE
+Round: 4
+
+Latest verdict covers M2 product/build source at `e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63` and the bounded browser-harness supplement at `004568bd4ab8390d64945cb73f16cfdd51d566bf`; see Round 4 below. This is source approval. Full browser acceptance and live-provider evidence remain separate gates.
+
+## Archived report through Round 3
+
+Verdict: APPROVE
 Round: 3
 
 Latest verdict applies to the source review at `eb43247d02df622d5da72dafac41d919f65a91fe`; see Round 3 below. Browser acceptance and live-provider evidence are separate gates.
@@ -124,3 +131,42 @@ Independent checks:
 - Independent JSON comparison shows the M2 manifest is unchanged from `0008bdef092b866a361d57ab705b581cd16312a5`. No browser case or evidence label was removed.
 
 This closes the Reviewer-B M2 code gate. Actual browser/keyboard/axe flows, default-profile T7 and the required Moodle regression remain separate QA gates. The M3 report records why the preliminary Canvas audit concern was withdrawn against the applied contract. Local Canvas, hosted Canvas and Blackboard Learn workflows remain UNVERIFIED; a simulator pass cannot change the step verification flags.
+
+
+## Round 4 — production routing, player build and browser readiness
+
+Verdict: **APPROVE** for the bounded M2 source review. Date: 2026-10-20. No new open Reviewer-B finding. Comparison begins at `eb43247d02df622d5da72dafac41d919f65a91fe`; product/build target is `e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63`; source-only harness supplement is `004568bd4ab8390d64945cb73f16cfdd51d566bf`. Product directories are identical between these final two targets. Applied contracts remain `ccdd9ef67cdd2be4c6af374136777fda4e081943`.
+
+I used the clean detached external clone named in M1. I did not read the concurrent new Reviewer-A reports or later QA report prose, run a browser/stack, or change product/tests. All earlier report content is preserved. B-M2-01 stays closed; the external Learn setup instructions and unverified step flags are not changed by this repair. A-M1-02 remains the accepted open NIT described in M1.
+
+### Product source assessment
+
+`apps/portal/src/App.tsx:45` exports the production `BrowserRouter` wrapper with `useTransitions={false}`, and `main.tsx` mounts that wrapper. The installed router implementation uses the synchronous state update path for this option. This addresses the interval in which the URL has changed but a transition can keep old connection content on screen. It preserves client-side history and the existing route-scoped data reset and abort behavior.
+
+Six new tests mount this actual wrapper and cover the Blackboard selector, Moodle, another Canvas connection, browser back, browser forward and the Manage link. They hold the old refresh and destination request, observe the DOM across the URL change, require the old signal to abort, and resolve requests while continuing to reject stale content. They passed in my focused run. This is stronger source regression coverage than a harness assertion that only verifies a request was delayed; it still does not replace Chromium acceptance of the real pages.
+
+`apps/player/vite.config.ts` now builds the runtime and shell as two independent named environments. The sequential production builder cleans before runtime and preserves that output while building shell; watch builds preserve the sibling output. The previous shared-module dependency is removed from these served entries. The tracker change only narrows the timer type to the browser Window API.
+
+I ran the actual production CLI build, not only the new colocated build test:
+
+```sh
+npm run build -w apps/player -- --outDir /var/folders/_h/pjt6zzrj46sctnb18tsmbzgw0000gn/T/cogniate-reviewer-b-e3cd7db-vodbiofe/player-dist
+```
+
+It passed and produced `runtime.js`, `shell.js` and `runtime.css`. Independent parsing found no entry imports; importing each output with no browser Window present succeeded and exposed the expected runtime/shell exports. The actual Vite build regression also passed. These checks prove the output graph can be served as the intended standalone modules; they do not prove launch, course completion or score delivery in a browser.
+
+### Prepared browser assertions
+
+The configuration-row repair reads and compares every row's bounding box before the first Copy action can change focus or layout. It then retains each exact clipboard assertion. No expected row, order or copy value is removed.
+
+The final seven-file supplemental delta adds readiness checks in `04-detail.m2.ts`, `05-publish-results.m2.ts`, `06-keyboard-axe.m2.ts` and `07-sim-scenario.m2.ts`. The publish dialog fetches connections asynchronously, so its heading alone was not evidence that options were loaded. The fixed tests wait for exactly one expected option before taking the option snapshot or label read. Exact badge/host formatting, absence of pending/disabled connections, selected connection, successful publication and downstream teacher/learner/result assertions remain.
+
+The keyboard paths wait for the first expected labeled field to become visible before the first Tab. This wait does not click, focus or fill the field. The existing Tab loop, visible-focus check, keyboard typing, submit keys, live-region assertions and axe checks remain. The delta adds no fixed sleep, case retry, skip, timeout increase or removed case. M2's complete manifest is byte-identical to the previous reviewed target: all 64 IDs, order and labels remain. M3 covers the related request-time secret capture and safe diagnostic changes.
+
+### Evidence and limits
+
+The 247-test selection and four workspace typechecks in M1 include the affected portal and player regressions; all passed. The e3cd harness run passed five self-tests and all 64 discovered cases. After the supplemental checkout, `node tests/e2e/host/run-m2.mjs --harness-only` passed **six self-tests**, tests TypeScript and the same 64-case accounting, with zero skips and T7 still separate.
+
+The coordinator supplied executor results for the earlier e3cd browser run: **60 PASS / 4 FAIL**, no skips or retries. The failing Canvas M2-08 option read, both M2-12 option reads and Blackboard keyboard start agree with the frozen source readiness defects just described. M2-13 passed in that external run. Both learner scenarios stopped before launch, so that run does not verify the repaired player at runtime or complete runtime/play capability collection. The source supplement corrects the identified readiness causes; its new full 64-case run was still in progress at the review cutoff. I did not relabel the earlier run as PASS.
+
+The coordinator also reported 19 synthetic Chrome readiness controls for the supplement; those are separate QA evidence, not browser tests I ran. Full browser/keyboard/axe acceptance, the actual teacher and learner paths, final privacy/resource scans and default-profile T7/Moodle regression remain separate. SIM never verifies the Canvas or Learn live-setup flags.

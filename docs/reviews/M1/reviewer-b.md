@@ -1,4 +1,11 @@
 Verdict: APPROVE
+Round: 4
+
+Latest verdict covers the bounded repair review of product `e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63` and the source-only harness supplement `004568bd4ab8390d64945cb73f16cfdd51d566bf`; see Round 4 below. A-M1-02 remains an accepted open NIT. This is source approval, not QA PASS or task completion.
+
+## Archived report through Round 3
+
+Verdict: APPROVE
 Round: 3
 
 Latest verdict applies to the source review at `eb43247d02df622d5da72dafac41d919f65a91fe`; see Round 3 below. Acceptance and live-provider evidence are separate gates.
@@ -389,3 +396,52 @@ The Lead's reported full root check of 996 tests in 69 files is separate Lead ev
 ### Remaining evidence boundary
 
 No stack, full acceptance, browser journey, persistent migration, rollback, Moodle regression or live tenant was run in this review. The separate final startup-smoke handoff was not supplied as a completed result to this round. QA still needs the frozen-SHA full runs, actual per-case artifacts and required regression results. Local Canvas, hosted Canvas and Blackboard Learn live rows remain UNVERIFIED. This approval closes the Reviewer-B source gate; the Lead still owns the separate task-done gates.
+
+
+## Round 4 — bounded engine, transport and evidence repairs
+
+Verdict: **APPROVE** for the reviewed M1 source. Date: 2026-10-20. No new Reviewer-B BLOCKER, MAJOR or MINOR was found. Earlier reports are preserved above; their approvals do not prove the defects discovered later were absent.
+
+### Exact scope and independence
+
+Comparison starts at `eb43247d02df622d5da72dafac41d919f65a91fe`. The engine and transport repair is `ae130a3501f3a2502c6a34e36319629e3dcdfb09`; the final product/build target is `e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63`. The later source-only supplement is `004568bd4ab8390d64945cb73f16cfdd51d566bf`. I independently confirmed that `apps`, `packages` and `services` are identical between these final two targets. Applied contracts remain `ccdd9ef67cdd2be4c6af374136777fda4e081943`.
+
+All source checks ran in the clean detached clone `/tmp/cogniate-reviewer-b-76b03c7-ivj64s6o`, first at e3cd7db, then at 004568b. Only the seven source paths authorized in the supplemental handoff were read from the new delta. Earlier submitted Reviewer-A findings at the frozen e3cd snapshot were allowed inputs; the new concurrent Reviewer-A reports and later QA report prose were not read. No stack, browser, live tenant or persistent data operation was run. Only the three Reviewer-B reports change the integration checkout.
+
+### Repair dispositions
+
+| Finding or boundary | Independent disposition |
+| --- | --- |
+| A-M1-03: second, unguarded Canvas S2 lookup | **CLOSED.** `redemption.ts:327`–`:328` performs one profile-qualified lookup. After an exclusive-create conflict, a successful empty result takes a local S0 check and then returns `409 PLATFORM_IN_USE`; there is no unqualified fallback. |
+| A-M1-04: automatic binding GET retry outside S0 | **CLOSED.** V and both S2 read forms pass `singleAttempt: true`. `lti-client.ts:186` applies a five-second deadline and disables only the network-error retry for those reads. The shared outbound default is preserved for other GET users. |
+| A-M1-05: refusal audit uses the boot trace | **CLOSED.** Each phase-1 rejection uses the current request trace. Independent HTTP refusals match the returned trace and make no LTI call. |
+| A-M1-06: redeemed event emitted before COMMIT | **CLOSED.** `redemption.ts:308` emits after the phase-2 transaction returns. A failed COMMIT emits no redeemed event. |
+| A-M1-02: broad disabled-approval deletion | **OPEN NIT, accepted deferral.** This repair does not change the existing deletion in `writeApproval`. The prior reservation/release reachability analysis and accepted disposition remain; this review neither closes nor promotes it. |
+| Earlier B-M1-01/02/03 | **Remain CLOSED** for their documented fixes. No new preflight remote call or cleanup bypass was introduced by this delta. |
+
+The empty-S2 result follows the Lead's explicit applied-contract interpretation in `msg_742788eff0bb`. It means no adoptable record was found, not that a successful lookup was a transport failure. Revoke, replacement, disable and lease ownership/time checks still win before the normal collision result. Transport errors, timeouts and GET-by-ID 404 remain `502 LTI_SERVICE_ERROR`.
+
+The branch review and focused regressions retain S0 before each wire call, a minimum of six seconds remaining, the five-second step budget and 60-second lease, and at most five Canvas or six Blackboard calls. No extra retry is hidden below the engine. The two bounded S2/S3 rounds, guarded compensation and conditional cancellation remain. I1–I6, the saved provider/target snapshots, reservation ownership and authority rules are unchanged: an active remote orphan alone cannot authorize a launch, and an old attempt must not clear a newer lease. No schema or downgrade behavior changes in this repair.
+
+### Independent local evidence
+
+At e3cd7db, **247 tests passed in eight files**, with no skips, using:
+
+```sh
+node_modules/.bin/vitest run services/cogniate-app/src/app/redemption.test.ts services/cogniate-app/src/app/canvas-deployments.test.ts services/cogniate-app/src/clients/lti-client.test.ts packages/shared/src/outbound.test.ts apps/player/src/build.test.ts apps/portal/src/multi-lms.test.ts apps/portal/src/connect/canvas/canvas.test.ts apps/portal/src/connect/blackboard/blackboard.test.ts
+npm run typecheck -w services/cogniate-app -w packages/shared -w apps/player -w apps/portal
+```
+
+All four typechecks passed. This includes the binding wire-boundary tests, all three redemption families, the actual player build test and six production-router transition controls. It is a focused run, not a new full-root result.
+
+A separate private probe exercised real app routes, repositories and transactions with fake LTI responses, plus the real outbound implementation with controlled HTTP edges. All **18 grouped probes passed**:
+
+- Nine Canvas empty-qualified-S2 schedules: unchanged/disappeared foreign standard record returns 409; revoked/replaced grant or taken-over lease returns 403; disabled connection returns 409; cleared/short lease or failed transport returns 502. There is one qualified query, no PATCH/DELETE, no committed approval or redeemed grant, and a replacement lease remains owned by its new attempt.
+- Six audit schedules: Canvas initial, Blackboard initial and Canvas added-deployment success, each paired with a deferred-constraint COMMIT failure. Successful events see committed state outside the transaction. Failed COMMIT returns 500 without a redeemed event, rolls back approval/grant redemption and preserves an earlier added-deployment approval. Each schedule also checks a request-traced unknown-code refusal with zero outbound calls.
+- Three real elapsed-time transport controls: a delayed network reset ends after one binding call at 4,103 ms; a silent binding request is destroyed once at 5,002 ms despite a larger ordinary client timeout; an ordinary GET still retries and succeeds with two calls at 24 ms. These are controlled process observations, not live network latency claims.
+
+Private probe script and safe results: `/var/folders/_h/pjt6zzrj46sctnb18tsmbzgw0000gn/T/cogniate-reviewer-b-e3cd7db-vodbiofe/probes.mjs` and `probes.results.json`. They change no product/test source. M1 preparation also passed 33 self-tests, tests TypeScript and the unchanged 392 API plus 24 host/browser inventory; the separately run Canvas snapshot oracle passed three self-tests. The M3 report covers gate/caller negative controls, CLI cwd and the final supplemental evidence checks.
+
+### Remaining gate
+
+The Lead's 1,039-test full-root result is separate executor evidence, not my run. Actual M1 four-phase acceptance twice, populated migration/rollback, legacy/default-profile Moodle regression, complete browser evidence, resource preservation and final artifact scans still need their own frozen-SHA results. Local Canvas, hosted Canvas and Blackboard Learn remain UNVERIFIED. Source approval does not upgrade any simulator or unit result into live-provider proof.

@@ -1,4 +1,11 @@
 Verdict: APPROVE
+Round: 4
+
+Latest verdict covers bounded harness preparation at `004568bd4ab8390d64945cb73f16cfdd51d566bf`, including the product/build repair reviewed at `e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63`; see Round 4 below. No new open Reviewer-B finding remains. This is not an M3 QA PASS, a completed full-run claim or a live-provider approval.
+
+## Archived report through Round 3
+
+Verdict: APPROVE
 Round: 3
 
 Latest verdict applies to harness preparation at `eb43247d02df622d5da72dafac41d919f65a91fe`; see Round 3 below. No Reviewer-B finding remains open. This is not the M3 acceptance verdict.
@@ -205,3 +212,62 @@ Every prior M1 case ID retains its criterion, kind and evidence label. The M2 ma
 ### Remaining gate
 
 No Reviewer-B finding remains open in the reviewed implementation or prepared harness. The separate startup-smoke handoff was not reviewed as a completed result. QA must still execute the frozen full runs, M2 browser checks, migration/rollback, legacy and default-profile T7/Moodle regression, resource checks and final evidence scans. Every live-provider row remains UNVERIFIED until its own authorized evidence exists. This review therefore approves preparation, not the M3 QA verdict or task completion.
+
+
+## Round 4 — gate capture, CLI, browser evidence and readiness repairs
+
+Verdict: **APPROVE** for the bounded source/preparation review. Date: 2026-10-20. The earlier approvals are historical and do not prove the later-discovered capture and browser defects were absent.
+
+### Scope
+
+Comparison starts at `eb43247d02df622d5da72dafac41d919f65a91fe`. Reviewed repairs include `41ee174ddcd4cd5c925b09d7c57ef9f8ceaa03b9`, `feb36b112edd4173094e0ba3d38ccfc0a549fb35`, `ae130a3501f3a2502c6a34e36319629e3dcdfb09`, `832f8c8ac437c7fd93425d7152f865a8ffb13eaa`, `7ddff36ccc58ebc9218c7e1bca646f28067c891b` and final product/build `e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63`.
+
+The authorized later source supplement is `004568bd4ab8390d64945cb73f16cfdd51d566bf`, containing the changes from 504421b and 004568b in exactly seven reviewed paths: legacy `tests/acceptance/lib/t5.ts`, `tests/acceptance/M1/canvas/browser-diagnostics.mjs`, and M2's detail, publish/results, keyboard/axe, scenario and browser-secrets-selftest files. Product/build source is identical to e3cd7db. Applied contracts remain `ccdd9ef67cdd2be4c6af374136777fda4e081943`.
+
+I used a clean detached external clone and private probes. Earlier submitted A reports at the frozen e3cd snapshot were allowed inputs. No concurrent new Reviewer-A report, later QA report prose or uncommitted source was read. No stack/browser/live-tenant run was made. The only integration edits are these three reports; earlier text remains intact.
+
+### Gate and caller dispositions
+
+**A-M3-01 is CLOSED** for the narrow-gate false negative. `common/gate-capture.mjs` installs specific faults first, then catch-all rules for all seven methods at `^/`, before reading the event cursor. Reset paths re-arm before a measured window. Common, Blackboard, Canvas race/snapshot and populated migration callers use this setup. This captures provider reads and unexpected paths as well as expected platform mutations, without allowing the generic rule to consume the intended hold/failure first.
+
+**A-M3-02 is CLOSED** for the older Blackboard callers. `blackboard/30-grants.test.ts:16` now resets and captures all methods rather than only four under `/api`. In `blackboard/50-races.test.ts`, the catch-alls remain behind the one-shot S3 hold, so a replacement request cannot become invisible after that hold rule is consumed. The held request, exact refusal status, unchanged state and later valid retry assertions remain.
+
+The self-tests exercise the actual gate module with controlled Node edges, not a separate copy of its matching logic. They reproduce the old narrow-rule blind spot, verify priority and reset/re-arm, then transpile the actual older Blackboard no-mutation helper and race-f caller. Injecting each of the seven methods or the tested out-of-prefix request makes the relevant negative assertion fail; the no-injection positive controls pass. The race control injects while the real hold rule is active. These passed in my run. They establish observer sensitivity and caller wiring; they are not product acceptance.
+
+Exact-trace completion/start-event checks, healthy-process controls and separate positive V controls remain. The sampled negative window ends before the positive control starts. No absent event is promoted into a database-state or crash-durability proof. B-M3-03 stays closed for its bounded no-attempt oracle. Preliminary B-M3-04 remains withdrawn under the applied contract; this round does not revive the superseded proposal sentence.
+
+### CLI and full-run preparation
+
+`tests/host/m1-control.mjs:20` supplies `docker compose exec -T --workdir /repo <service> npm run <script> -w services/<service> -- ...`. This uses the root workspace from the actual container working-directory/mount layout. The command remains restricted to approved scripts/actions. Its self-test observes real constructed argv, argument forwarding, output and status, and rejects invalid actions before a subprocess. It does not claim an actual operator command was run in a container.
+
+Independent comparison confirms that all four manifests and both host runners are unchanged from the previous reviewed candidate. M1 still accounts for **416 rows: 392 API plus 24 host/browser**. The full entry executes ordinary SIM, isolated drift, populated 011-to-012 and Moodle migration/rollback **twice**, compares per-case results at the frozen SHAs, then runs legacy suites. The populated old-product boundary, backup/restore recipe, fail-on-missed-window rule, no-skip accounting and separate T7 selection remain. No case was removed to improve the result.
+
+### Browser evidence and supplemental readiness
+
+The request listener is attached before navigation and records query/form `ltik`, `id_token`, `state` and `nonce`, plus runtime, play and picker path capabilities, through the existing private recorder. Path values are also recorded decoded where needed. The supplemental form mapping records each Deep Linking response `JWT` as `id_token`, including multiple values. The listener is removed at cleanup; private values are not printed by this helper.
+
+`diagnosticUrl` removes query, fragment and URL credentials and replaces runtime/play/picker capabilities while preserving useful route shape. Both M1/M2 frame-wait failure branches use it. The supplemental legacy `t5.ts` edit changes only failure formatting; raw frame matching, the 200 ms poll and the original deadline remain. This closes the inspected legacy diagnostic exposure without weakening the match predicate.
+
+Independent probes compile the actual legacy function before and after repair. The former timeout message contains all **14** synthetic secret values; the new message contains **zero**. A raw-URL match still returns the original frame even at an already expired deadline, matching the old ordering. A controlled 300 ms deadline takes two 200 ms polls before refusing, and a frame arriving after one poll is returned. A separate real event-listener probe captures two form JWT values plus an existing ID token, state and nonce, then confirms listener removal. Probe and safe result files are in the private scratch directory listed in M1 as `supplement-probes.mjs` and `supplement-probes.results.json`.
+
+The six final M2 self-tests include request-before-frame-failure capture, Deep Linking JWT capture with a missing-capture negative control, safe route formatting, real M1/M2 timeout branches and inventory rules. A synthetic string-hit control proves sensitivity to the recorded value, not the outcome of a full artifact scan. Runtime/play/picker completeness and zero leaks still require successful real paths and the final scan of their actual artifacts.
+
+The supplemental readiness edits wait for expected connection options before a one-shot label/snapshot read and for the first labeled field before keyboard traversal. Existing exact positive/negative assertions remain. The pending/disabled exclusions still run against the loaded option list. Keyboard readiness performs no focus/click/fill and preserves the visible-focus failure check. There is no new fixed sleep, test retry, skip, timeout extension or removed case. The complete 64-case manifest is unchanged. The configuration-row repair also retains all Copy assertions and measures row order before Copy can change layout. The M2 report records the product-router/player checks separately.
+
+### Independent checks and external results
+
+At e3cd7db:
+
+```sh
+node tests/host/run-m1.mjs --harness-only --provider all
+node --test tests/acceptance/M1/canvas/snapshot-oracle.selftest.mjs
+node tests/e2e/host/run-m2.mjs --harness-only
+```
+
+Results: **33 M1 self-tests**, **three Canvas oracle self-tests**, **five M2 self-tests**, tests TypeScript, 416 M1 rows and 64 M2 rows; zero skips. The final 004568b supplement reran the M2 harness-only entry: **six self-tests**, tests TypeScript and the same 64-case accounting passed, with T7 separate. M1 host/gate source is unchanged by the supplement. The 247 product tests, four workspace typechecks, 18 local API/transport probes and actual CLI player build in M1/M2 are also independent evidence from this review. No additional full-root run is claimed.
+
+The coordinator's external e3cd browser result was **60 PASS / 4 FAIL**, zero skips/retries. M2-13 passed. One Canvas M2-08 option read, both M2-12 option reads and the Blackboard keyboard start failed before readiness. Both learner paths stopped before launch, so this run does not verify runtime execution or complete runtime/play collection. The supplement fixes the identified source causes; the new all-64 run was still in progress at this review cutoff. The reported 19 synthetic Chrome readiness controls are QA evidence, not a run by this reviewer. Reported baseline-volume preservation and zero containers likewise belong to that executor run and cannot stand in for the final full acceptance runs.
+
+### Final disposition and remaining gate
+
+No new Reviewer-B source finding remains open in this bounded review. A-M1-02 is still an accepted open NIT; the M1 report records it. The repaired observer, CLI, build and browser-preparation source is approved. This is **not M3 QA PASS**. Full M1 four-phase runs twice, required migrations/rollback, legacy/default-profile T7/Moodle regression, the final complete M2 browser run, resource checks and complete artifact scans remain independent gates. Every Canvas-local, Canvas-hosted and Blackboard-live row remains UNVERIFIED until its own authorized evidence exists.
