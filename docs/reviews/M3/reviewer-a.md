@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 6
+Round: 7
 
 # M3 review: Reviewer-A (correctness and security)
 
@@ -366,3 +366,51 @@ QA's executor claims, relayed by the Lead (QA's execution, not mine):
 - The three default T7 runs plus demo/confirmation at `aff4882` have started, and their result is pending.
 
 My source approval does not stand in for those runs. The earlier failed runs stay FAIL history. Both complete M1 inventories, legacy, migration/rollback and the 32 live rows (UNVERIFIED) remain separate gates.
+
+## Round 7 (2026-10-20): M1 oracle repair at `8138097`
+
+| Item | Value |
+| --- | --- |
+| Verdict | **APPROVE** for the eight-file test/harness repair. No BLOCKER, MAJOR or MINOR is open. One new NIT (A-M3-05) is optional. This is source approval only: the first full M1 attempt at `aff4882` (385/394 SIM PASS, 9 FAIL; later phases, round 2 and legacy NOT RUN) stays FAIL history, and nothing here is runtime credit. |
+| Exact SHA | **`8138097889f87359d5055bb1d79766b5ed842f92`**, compared with `aff48823a4c6206d6314d91a95f5eb0979d3e0e7`. Fresh detached clone `/tmp/rva-8138097`. |
+| Scope | Outside `docs/`, exactly eight files changed: Blackboard `10-deployments`, `20-protocol` and `30-grants` tests; Canvas `21-canvas-protocol` and `31-canvas-grants` tests; `common/gate-capture.selftest.mjs`; `tests/host/m1-control.mjs` and its self-test. There is no delta in product, build, infrastructure, any manifest, `run-m1.mjs` or `m1-phases.mjs`. All six Blackboard/host files match QA's `held-repair-hashes.json`, and both Canvas files match QA's `m1-controls-output.json` hashes. |
+| Basis | LTI API §1.3 and §3.4, app API §4.4 capability guards and §11, M1 AC-M1-07/20/21/35/36, applied contracts `ccdd9ef` (unchanged). Lead scope messages `msg_da9a87e79584`, `msg_729bb2941b68` and `msg_f981848032b1`. |
+| Reviewer | The original Claude Reviewer-A (claude-opus-5-5, xhigh). Task `task_2cd49d67d152`, dispatch `ctx_d8273aa97f78`. Earlier rounds, including the Codex replacement's Round 3, are kept unchanged. I did not read Reviewer-B's new round. B-M3-04 stays WITHDRAWN; A-M1-02 and B-M3-05 stay accepted NITs and are unrelated. No stack, browser, product run, real secret, edit, commit or push. |
+
+### Each changed obligation
+
+| Repair | Result | Evidence |
+| --- | --- | --- |
+| **M1-07 alphabet/fencing**: LTI `INVALID_REQUEST` must name the field | Pass, contract-exact. LTI §1.3 has only `details.message` and `details.description`, and "`description` names the field". The old `details.field` check could not pass against a conforming service. Status, code and "nothing stored" checks stay. | The product text is `Invalid field: <field>.` (`http/validation.ts:19`; `lti/platform-rules.ts:59` for both `bindingRef` inputs). The `\bfield\b` match is case-sensitive, so `ifBindingRef` does not satisfy `bindingRef`. |
+| **M1-36 query** (Blackboard and Canvas): signed AGS claim with a query parameter | Pass. The claim URL itself gives 200. The changed value and the missing parameter each give 400 on **both** endpoints (`INVALID_URL_PARAMETER`, `INVALID_LINE_ITEM_ID`). The zero-call cursor is taken after the positive call, and the zero-call check runs after all four refusals. The other four variants are unchanged. The case id and title of `M1-36.canvas.query` equal the manifest entry. | The simulator signs scenario claims (`tests/sim/core/provider.mjs:45`). See the §3.4 probe below. |
+| **M1-21 course shell**: `createMoodleCourse: {}` | Pass. App API §11 defines `createMoodleCourse: { categoryId? }`, and the §4.4 guard row requires `409 CAPABILITY_NOT_SUPPORTED` with `details.capability = "courseShell"` and "no publication is made or changed". **Blackboard** now uses a bound connection and a course with an uploaded version, both made before the `noMutation` cursor. It adds the `courseShell` check and keeps the publication-list, remote-record, simulator and seven-method gate oracles. That is **stronger** than before: an unknown course would have hidden a missing guard. The three pending-connection checks stay. **Canvas** changes only the body. | See A-M3-05 for the Canvas fixture. |
+| **M1-20.canvas.repeat**: count lines, not a time window | Pass. After `completed(first, 'POST')` (same-trace `http_request`, written after the redemption lines; one first-in, first-out stream), the test counts the connection's `grant_redeemed` and `grant_attempt_started` lines. Both repeats run inside `noRemoteCall`, and each has its own completion barrier. Both counts must stay unchanged and the unused grant must stay `issued`. This is stronger than the old check, which tested only `grant_redeemed` inside a millisecond window that also caught the first redemption. | QA's synthetic control `m1-controls.mjs`, **run by me** on my clone: identical output, `allControls: true`. Same-millisecond repeats leave the counts unchanged; the old timestamp oracle counts the first redemption; a later redemption and a later attempt are each detected; a malformed line blocks; a partial last line is tolerated. Log `/tmp/rva-probes/canvas-controls.json`. |
+| **M1-35 profile switch and restore** (`m1-control.mjs`) | Pass. `stack:restart -- lti-service --env STACK_PROFILE=… --env LTI_PROVIDER_SIMULATION=…` is the documented AC-M1-35 route. The two gate variables are the only allowed non-knob variables (`stack-restart.sh` `GATE_VARS`), so `/healthz knobs` stays `[]`. Each restart **replaces** the service's whole override entry, so both values are always sent. The `acceptance/on` restore restarts without overrides, which **deletes** the entry. The service then reads its base env again: `STACK_PROFILE` from the saved `ACTIVE_STACK_PROFILE` and `LTI_PROVIDER_SIMULATION` from `ACCEPTANCE_LTI_SIMULATION=on` (`compose.yaml`, `lib.sh` `apply_profile`). The caller restores in `finally` (`90-simulation-gates.test.ts:31`). Canvas `02-canvas-snapshot-isolated` (`aa`) gets the same effective states. `m1-restart`, the process-env guard (`STACK_PROFILE=acceptance`) and refusals are unchanged. | The new self-test runs the real handler: four commands, the restore, `m1-restart` and two refusals, plus the infrastructure facts it relies on. **My negative control**: with the `aff4882` handler it fails at `m1-profile default/off`, while the CLI check still passes. |
+| **Dependency mapping** (`gate-capture.selftest.mjs`) | Pass. One inert `'../../lib/app': {}` entry, needed because `30-grants` now imports `createCourse`/`uploadVersion`. They are used only inside an M1-21 body that the self-test never runs. Strict rejection of unknown dependencies, real caller loading, all seven methods and the non-api path stay. The new imports are test helpers only (`tests/acceptance/lib/app.ts`, `M1/common/course.ts`), not product code. | **My negative control**: with the `aff4882` map the self-test fails with "Unexpected caller dependency: ../../lib/app"; at `8138097` it passes 5/5. |
+
+**§3.4 probe (mine)** `/tmp/rva-probes/ags-query-probe.mjs`, log `/tmp/rva-probes/ags-query-probe.log`. It runs the product's pure rule (`services/lti-service/src/lti/service-url.ts`, no imports, transpiled unchanged) on the exact test inputs:
+- each claim URL is valid;
+- the changed value and the missing parameter are invalid for Blackboard and Canvas;
+- the same two inputs pass rules 1, 2 and 4 against a bare claim, so each new assertion tests **only** rule 3;
+- the old `?injected=1` input is **valid** under the default claim, which confirms that the old oracle was wrong;
+- origin, path, encoded-dot and encoded-slash stay invalid.
+
+### New finding
+
+**A-M3-05 — NIT — The Canvas course-shell case depends on a guard order that the contract does not fix.** `31-canvas-grants.test.ts` `M1-21.canvas.course-shell` posts for a course **without** an uploaded version. It gets `courseShell` only because the product checks the capability (`app/publications.ts:86`) before `VERSION_NOT_READY` (`:94`). The contract states no order between these two. The Blackboard variant now uploads a version, so it does not depend on the order. Adding the same upload to the Canvas case would make it contract-exact. This does not block.
+
+### Inventory and commands
+
+```sh
+node tests/host/run-m1.mjs --harness-only --provider all    # 34/34 self-checks, typecheck, 392 API + 24 host rows; exit 0
+node --test tests/host/m1-control.selftest.mjs              # pass; old aff4882 handler: fails at m1-profile default/off
+node --test tests/acceptance/M1/common/gate-capture.selftest.mjs   # 5/5; old dependency map: Unexpected caller dependency
+node /tmp/rva-probes/ags-query-probe.mjs                    # PROBE OK
+node <QA>/m1-canvas-repair/m1-controls.mjs /tmp/rva-8138097 # allControls true; identical to QA output
+```
+
+The case ids are the same: the Canvas query row moved from the generated loop to one literal case with the same id and title. Logs: `/tmp/rva-8138097-m1-harness.log` and `/tmp/rva-probes/{m1ctl-*,gatecap-*,ags-query-probe,canvas-controls}.*`.
+
+### Evidence boundary
+
+The nine failed rows at `aff4882` are QA oracle, request and host-control defects; QA classified them and I agree from the source. That changes no historical result. A new complete M1 run (both rounds, all four phases, legacy) at a frozen SHA that contains this repair is still required. M1-35 product behaviour was never observed, because the old control did not apply the profile. The 32 live rows remain UNVERIFIED.
