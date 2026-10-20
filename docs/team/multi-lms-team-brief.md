@@ -46,6 +46,10 @@ Under the same owner-authorized fallback, a separate dedicated Codex GPT-6-Astra
 It takes only the Canvas QA paths in its task brief and remains independent of both authors, common QA and the reviewers.
 This replaces the task's old Claude-instance requirement for the retry. The original Claude QA session stays retained without edit authority.
 
+The same independent replacement also owns verification task `task_e28388df4dcc` after its preparation completes.
+This extends the instance exception to that follow-up, including its named M3 and T7 report sections.
+Its original test ownership, evidence boundaries and separation from both authors and other reviewers still apply.
+
 ### Reviewer-A quota replacement (2026-10-20)
 
 The Claude Reviewer-A session ended at its provider limit when final review `task_74de10f72cf9` started.

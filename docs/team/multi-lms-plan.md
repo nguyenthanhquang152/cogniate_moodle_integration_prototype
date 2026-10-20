@@ -617,6 +617,18 @@ Unstarted task `task_efed48b0e53a` is cancelled, recorded as failed with that ex
 Message `msg_23970ae81e88` lifts the full M1 hold and keeps the exact candidate `eb43247`.
 QA will finish its current legacy group, then run both full M1 rounds at that same revision.
 
+Reviewer-B completed in `msg_ab1022a430ea`; its three final reports are committed at `9680bb75850b047f844fb05cf128fd254fd9e155`.
+All three source/preparation verdicts are APPROVE, with B-M1-03 and B-M3-03 closed and no open Reviewer-B finding.
+The Lead confirmed that every byte of each earlier report remains intact.
+Reviewer-A and independent acceptance remain separate unfinished gates.
+
+The free worker slot now belongs to Canvas/M2 verification task `task_e28388df4dcc`.
+The [team brief](multi-lms-team-brief.md) assigns it to the same independent Canvas QA replacement.
+At allocation, the first QA stack used about 683 MiB across its five containers; Docker has 7.75 GiB.
+A second isolated QA stack is authorized within the existing maximum of two, after its owner rechecks ports, subnet and current load.
+Canvas QA uses port 8643 and subnet `172.27.0.0/16` for SIM, then port 8543 and subnet `172.31.0.0/16` for Moodle.
+It must never run both of its lanes together. Neither worker may relax a deadline or remove another worker's resources.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
