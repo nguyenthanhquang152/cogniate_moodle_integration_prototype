@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 4
+Round: 5
 
 # M3 review: Reviewer-A (correctness and security)
 
@@ -253,3 +253,59 @@ Logs: `/tmp/rva-e3cd7db-m1-harness.log`, `/tmp/rva-e3cd7db-m2-harness.log`. No s
 ### Evidence boundary
 
 The Lead reported a clean exact-SHA root check of **1,039 tests in 70 files, zero skips**, plus lint and typechecks (`msg_54ff82484809`). That is the Lead's validation, not my execution. This report proves harness observation and source behaviour only. It is not a complete SIM run, migration/rollback, legacy, Moodle/T7 or live result. The M2 **61 PASS / 3 FAIL** run at `ae130a3` and the insufficient privacy inventory stay FAIL history. The Lead relayed QA's full M2 run at `e3cd7db` (`msg_b790866db0d7`): **60 PASS / 4 FAIL**. M2-13 passes. M2-12 (both cases), M2-08.canvas and M2-11.blackboard fail on harness readiness, and both learner scenarios stopped before launch. The privacy scan found 0 hits (45 values / 62 files; expanded 43 / 77), but A-M3-03 means it does not cover the Deep Linking response JWT. That is QA's evidence, not mine. The human-review flag for A-M3-02 stays in history; its correction is now reviewed. All 32 live matrix rows remain UNVERIFIED.
+
+## Round 5 (2026-10-20): final harness supplement at `004568b`
+
+| Item | Value |
+| --- | --- |
+| Verdict | **APPROVE** for the final harness source delta. A-M3-03 and A-M3-04 are **closed**. No BLOCKER, MAJOR or MINOR is open from my lens. This is a source verdict, not an acceptance PASS. |
+| Exact SHA | **`004568bd4ab8390d64945cb73f16cfdd51d566bf`**, compared with `e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63`. Commits `504421b123e7a8265d5453761b1341c69c766c6f` (legacy timeout text) and `004568bd4ab8390d64945cb73f16cfdd51d566bf` (M2 readiness and Deep Linking capture). Fresh detached clone `/tmp/rva-004568b`. |
+| Reviewed paths | The seven changed test files only: `tests/acceptance/lib/t5.ts`, `tests/acceptance/M1/canvas/browser-diagnostics.mjs`, `tests/e2e/M2/04-detail.m2.ts`, `05-publish-results.m2.ts`, `06-keyboard-axe.m2.ts`, `07-sim-scenario.m2.ts`, `browser-secrets.selftest.mjs`. There is no delta in `apps/**`, `services/**`, `packages/**`, `infra/**`, `docs/architecture/**`, any manifest, `08-routes.m2.ts`, `tests/e2e/M2/lib/**` or either Playwright config. |
+| Reviewer | The original Claude Reviewer-A (claude-opus-5-5, xhigh). Task `task_69b4e5e2f147`, dispatch `ctx_458a1f109271`. Round 4 above is committed at `e07e3cd`. I did not read Reviewer-B's new report or its conclusions. No stack, browser, edit, commit or push. I read no real captured value. |
+
+### A-M3-03 (Deep Linking response JWT): **CLOSED**
+
+- `browser-diagnostics.mjs:2`–`:4`, `:39`: the form branch now reads `formFields`. That is the four earlier fields, each mapped to its own kind, plus the form field `JWT` mapped to kind `id_token`. This is the same private recorder and kind that T7 uses (`tests/e2e/lib/capture.ts:54`). The query capture (`fields`), the path capabilities, the content-type check and the `context.on`/`off` listener are unchanged.
+- The earlier request-time test still passes with its exact seven values, so the earlier kinds are intact.
+- **Negative control (mine).** I ran the new self-test file in a scratch copy with the `e3cd7db` `browser-diagnostics.mjs`. The new JWT test **fails** (`captured` is `[]`, expected one `id_token`), and the other three pass. At `004568b`, all four pass. Logs `/tmp/rva-probes/jwt-old.log`, `/tmp/rva-probes/jwt-new.log`.
+- **Small note, no finding.** The test's own "negative control" line (`hits([]) === 0`) is always true. The test still catches the old code, because its `deepEqual` on the captured list fails.
+
+### A-M3-04 (legacy T5 timeout text): **CLOSED**
+
+- `t5.ts` changes only two lines: the `diagnosticUrl` import and the timeout `throw` text. Frame matching still runs `test(fr.url())` on the raw URL, and the success return, the 200 ms poll and the deadline are unchanged.
+- **Probe (mine)** `/tmp/rva-probes/t5-frame-probe.mjs`, log `/tmp/rva-probes/t5-frame-probe.log`. It compiles the **actual** old and new `waitForFrame` with synthetic frames only:
+  - the old timeout text contains the synthetic secret, so the negative control works;
+  - the new text contains none of it and shows `[play_id]`, `[runtime_token]`, `[picker_id]` and `about:blank`;
+  - both versions match a raw `/rt/…?ltik=` URL and return the **same** frame object;
+  - both find a late frame on the third poll, with 200 ms waits, and give the same message prefix.
+- QA's private actual-function control (`/Users/quangnguyen/cogniate-qa-runs/m3-repair-A-M3-04-20261020T1349Z`) names the same `t5.ts` and helper SHA-256 values as the frozen files. That is QA's execution.
+
+### M2 readiness repairs: accepted
+
+- **Option waits** (`04-detail.m2.ts` M2-07 and `publishDialog`, `05-publish-results.m2.ts` M2-10, `07-sim-scenario.m2.ts` `publishVia`). Before the one-shot `allTextContents()` snapshot or the label read, each waits for `toHaveCount(1)` on an option that matches the exact expected text (or the `name (` prefix that the label read uses). It uses Playwright's bounded retrying `expect` with the unchanged 15 s config. The regex is escaped (`constants.ts:44`, local `escapeRe`).
+  - The only removed lines are two imports and two snapshot lines. Those snapshots now read the same locator through `select`.
+  - Every `toContain`, absence check (pending, disabled), format check and label check is still there. The absence checks now run on a loaded list, so they are stronger: they can no longer pass on an empty list.
+- **Keyboard** (`06-keyboard-axe.m2.ts`). `formReady` only waits for the first field to be visible before the first Tab. It does no focus, click or fill. `tabTo`, the visible-focus checks, typing, live-region and axe checks are unchanged.
+- **Forbidden patterns.** None of the added lines adds a sleep, `waitForTimeout`, retry, skip, `fixme` or timeout change. The only matches are words in comments. No `m2Case` id changed, and `08-routes.m2.ts` (the M2-13 MutationObserver) is unchanged.
+- **QA controls.** QA's private readiness controls (19 expected outcomes, browser execution by QA, `…/verification-e3cd7db-xSD1OpOM/readiness-repair`) name source hashes that I matched to the frozen `04`, `05`, `06`, `07` and `constants.ts` files. Their old-code controls reproduce each race, and the negative controls (missing option, pending/disabled present, bad format, unreachable field, no visible focus, form never rendered) still fail. I did not run that browser suite.
+
+### Independent commands
+
+```sh
+node tests/host/run-m1.mjs --harness-only --provider all   # 33 self-checks, typecheck, 392 API + 24 host rows; exit 0
+node tests/e2e/host/run-m2.mjs --harness-only              # 6 self-checks, typecheck, 64 M2 cases; exit 0
+(cd tests && npx tsc --noEmit -p tsconfig.json)            # includes acceptance/lib/t5.ts and e2e/**; exit 0
+node --test tests/e2e/M2/browser-secrets.selftest.mjs      # 4/4 at 004568b; 3/4 with the old capture (scratch)
+node /tmp/rva-probes/t5-frame-probe.mjs                    # PROBE OK
+```
+
+Logs: `/tmp/rva-004568b-m1-harness.log`, `/tmp/rva-004568b-m2-harness.log`, `/tmp/rva-004568b-tests-tsc.log`, and the probe logs above.
+
+### Evidence boundary
+
+The Lead relayed QA's run (QA's execution, not mine). All 64 M2 cases ran at `004568b`, one result each, with no skip, retry or flaky result. Both real HTML learner scenarios reached "Completed — score 100 sent to <LMS>".
+- **Privacy scans:** the runner found 74 values in 63 files and the independent scan 68 values in 80 files, both with zero hits.
+- **Private coverage:** both response JWTs, the resource-link id tokens, the play ids, the runtime tokens and the picker ids were captured. No values were disclosed to me.
+- **Cleanup:** complete.
+
+That is SIM evidence only. My source approval does not change any earlier failed run into a PASS. T7 (three default Moodle runs plus demo/confirmation) was started by QA but has no result yet. Both complete M1 inventories, legacy, migration/rollback and the 32 live rows (UNVERIFIED) remain separate gates.

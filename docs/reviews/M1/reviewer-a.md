@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 4
+Round: 5
 
 # M1 review: Reviewer-A (correctness and security)
 
@@ -267,3 +267,11 @@ Lead also relayed QA's **14/14 PARTIAL SIM preflight** in `msg_7ac69e393e11`, in
 ### Remaining gates
 
 Both complete M1 inventories at the same final SHAs, the populated `011→012` route, migration/rollback, legacy and live interoperability are still separate execution gates. The Lead's clean 1,039-test check (`msg_54ff82484809`) is the Lead's evidence. My checks for this round are listed in the M2 and M3 Round 4 sections. The live matrix remains UNVERIFIED.
+
+## Round 5 (2026-10-20): final harness supplement at `004568b`
+
+**APPROVE** (unchanged). The delta `e3cd7db` → **`004568bd4ab8390d64945cb73f16cfdd51d566bf`** changes only seven test files. There is no delta in `services/**`, `packages/**`, `apps/**`, `infra/**`, `docs/architecture/**` or any M1 manifest. So A-M1-01, A-M1-03 to A-M1-06 and B-M1-01/02/03 stay closed, and A-M1-02 stays the accepted NIT.
+
+The only M1-area change is the masked legacy T5 timeout text (`tests/acceptance/lib/t5.ts`) and the Canvas browser capture helper. Both are reviewed in M3 Round 5. The M1 harness-only run passes: 33 self-checks, typecheck, 392 API + 24 host rows. Reviewer: the original Claude Reviewer-A, task `task_69b4e5e2f147`, dispatch `ctx_458a1f109271`.
+
+Both complete M1 inventories, the populated `011→012` route, migration/rollback, legacy and live evidence remain separate gates.

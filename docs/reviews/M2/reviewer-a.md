@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 4
+Round: 5
 
 # M2 review: Reviewer-A (correctness and security)
 
@@ -174,3 +174,17 @@ The Lead relayed a QA executor result (`msg_b790866db0d7`). It is QA's run, not 
 - **Privacy scan:** 45 values / 62 files / 0 hits, and an expanded 43 values / 77 files / 0 hits. A-M3-03 still applies: the Deep Linking response `JWT` is not among the captured values.
 
 The M2 gate is therefore still **FAIL** at this SHA. A complete passing M2 rerun (including keyboard/axe and both learner scenarios), the fresh AC-M3-07 evidence, default-profile T7/Moodle (HOLD) and the live matrix remain separate execution gates. The 32 live rows remain UNVERIFIED.
+
+## Round 5 (2026-10-20): readiness and capture supplement at `004568b`
+
+| Item | Value |
+| --- | --- |
+| Verdict | **APPROVE** for the M2 harness delta `e3cd7db` → **`004568bd4ab8390d64945cb73f16cfdd51d566bf`** (commits `504421b`, `004568b`). The product is identical to `e3cd7db` (no `apps/**` delta), so my Round 4 product review still applies. The details are in M3 Round 5. |
+| Reviewer | The original Claude Reviewer-A (claude-opus-5-5, xhigh). Task `task_69b4e5e2f147`, dispatch `ctx_458a1f109271`. Fresh clone `/tmp/rva-004568b`. I did not read Reviewer-B's new report. No browser or stack. |
+
+- **Readiness.** The bounded option waits come before the one-shot snapshots and label reads (M2-07, M2-08 dialog, M2-10, M2-12 `publishVia`). The first-field visibility wait before the first Tab (M2-11) does no focus, click or fill. Every positive, absence, format and visible-focus assertion is kept, and no sleep, retry, skip or timeout change was added. The 64 case ids and the manifest are unchanged, and `08-routes.m2.ts` (M2-13) is unchanged.
+- **Capture.** The Deep Linking response `JWT` form field is now recorded as `id_token`, which closes A-M3-03.
+- **Harness-only (mine):** 6 self-checks, typecheck, 64 cases; exit 0.
+- **Execution (QA's, relayed by the Lead).** All 64 M2 cases ran at `004568b` with no skip or retry. Both real HTML learner scenarios completed with score 100 sent. Both privacy scans found zero hits, and the response JWT, play id, runtime token and picker id were all captured. This is the first browser evidence for the M2-12 player repair. It is SIM only.
+
+My source approval does not change the earlier `ae130a3` (61/3) and `e3cd7db` (60/4) runs, which stay FAIL history. T7 and the live matrix remain open.
