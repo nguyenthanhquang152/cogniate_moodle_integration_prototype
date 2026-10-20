@@ -10,10 +10,10 @@ The Moodle release below is the completed baseline.
 | Task | Owner | Status | Evidence |
 | --- | --- | --- | --- |
 | M0 | Architect; independent QA and reviewers | Done for design scope | Round 3 at `158a4d8`: A APPROVE, B APPROVE, QA PASS for design testability. Nonblocking A-M0-11, A-M0-12 and B-M0-10 text corrections applied. No open BLOCKER or MAJOR. |
-| M1 | Blackboard and Canvas teams; one shared engine owner | In progress | Shared LTI/typed connection checkpoint `6742cd9` integrated. All five Canvas backend modules integrated, ending with route slice `d01eb5e` in `003e2e4`; author check: 832 tests pass. Common engine focused tests and remaining backend work continue. [Exclusive paths and handoffs](multi-lms-team-brief.md). |
-| M2 | Blackboard and Canvas teams; one owner per shared portal file | In progress | Canvas wizard, shared portal and player checkpoints merged; follow-up `a8736b2` merged as `410e0eb`. Isolated root check passes lint, typechecks and 791 tests with zero skips. Blackboard wizard mount and independent product verification remain pending. |
-| M3 | QA (Codex), QA-E2E (Claude) | Test preparation started | Common/Blackboard QA `task_33fd8359458d`; simulator interface committed in `7738dc3`. Canvas/browser QA queued. Real Canvas and Blackboard checks remain unverified. |
-| M4 | Docs and Architect | Planned | Guides, review pack, final conformance. |
+| M1 | Blackboard and Canvas teams; one shared engine owner | In progress | All five Canvas backend modules integrated. Shared learner, recovery, CLI and infrastructure slice `ea36bd8` has an author check of 873 passing tests. Backend default-profile smoke and independent verification remain pending. [Exclusive paths and handoffs](multi-lms-team-brief.md). |
+| M2 | Blackboard and Canvas teams; one owner per shared portal file | Implemented; verification pending | Blackboard wizard `6bbee71` and mount `3872e49` integrated in `4156ad9`. Canvas/shared portal author task is complete: 838 tests, portal build and 11 mocked browser stages pass. Minor Blackboard text correction and independent product verification remain pending. |
+| M3 | QA (Codex), QA-E2E (Claude) | Test preparation in progress | Common/Blackboard preparation `6733e57`: 144 API cases, 12 host checks and 16 passing harness self-checks. Canvas/browser QA is active in `ctx_2289f5d57f67`. No product acceptance run yet. Real Canvas and Blackboard checks remain unverified. |
+| M4 | Docs and Architect | Queued | Final conformance, guides, offline review page and three independent documentation checks have explicit tasks and evidence gates. |
 
 No implementation or product verification is complete for this phase. No push is authorized.
 

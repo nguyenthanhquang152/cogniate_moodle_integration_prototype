@@ -143,6 +143,29 @@ That check includes uncommitted backend work and remains author evidence.
 The backend owner also received two narrowly scoped tracking files for AC-M1-33's HTTP 422 mapping.
 The [team brief](multi-lms-team-brief.md) records this ownership correction from `msg_495acdccb262`.
 
+The final shared backend slice is committed as `ea36bd8` from 45 held paths.
+It adds the shared learner wiring, operator commands, recovery tests and acceptance infrastructure.
+The author's check passed 873 tests in 66 files (`/tmp/au-check-cp6.log`).
+The path hold was released in `msg_7c05dd903e1f`.
+That message authorizes a short default-profile smoke in the isolated author lane.
+Acceptance startup waits for the Canvas simulator; the author must not replace it with a stub.
+
+Canvas's final ten portal paths are committed as `3872e49`, merged as `4156ad9`.
+Its implementation task completed in `msg_aaf5bc7d16b9`; the same instance remains retained.
+The checked source was `6bbee71` plus that final slice: 838 tests in 62 files, portal build and 11 mocked browser stages pass.
+The Lead inspected the Blackboard setup and teacher screenshots.
+They are author evidence from mocked API responses, not SIM or live evidence.
+The Blackboard owner has a minor duplicate instruction correction in `msg_58d0d35222b3`.
+The final independent browser run must use the corrected candidate.
+
+Common and Blackboard QA preparation completed in `msg_7dc06a3b7ea3` and is committed as `6733e57`.
+Its 37 files include 144 API cases, 12 host checks and strict case accounting.
+All 16 harness self-checks pass; this task made no product calls or stack runs.
+The same QA instance remains retained for frozen-candidate verification.
+The retained Claude QA-E2E instance started Canvas and M2 preparation in `ctx_2289f5d57f67`.
+Its authoritative handoff is `msg_c851b8cb47a8`, with the committed simulator interface and explicit audience correction.
+Both implementation teams and QA keep the original path ownership.
+
 The teams agreed on the player interface in `msg_a05ac85fc3b8` and `msg_7df7bdfe2bcc`.
 The backend emits `data-lms-name` on the play page element and the content-origin runtime body.
 Its value is `Moodle`, `Canvas` or `Blackboard`, derived from the stored connection.
