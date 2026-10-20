@@ -1083,10 +1083,39 @@ Both independent source supplements use the same frozen candidate:
 | Reviewer | Task | Dispatch |
 | --- | --- | --- |
 | Original Claude Reviewer-A | `task_2cd49d67d152` | `ctx_d8273aa97f78` |
-| Dedicated Claude Reviewer-B | `task_4f1a9a5431eb` | Queued for the next worker slot |
+| Dedicated Claude Reviewer-B | `task_4f1a9a5431eb` | `ctx_eaafeee64212` |
 
 Both remain Claude Opus 5.5 at xhigh effort and keep blind review independence.
 The two active QA tasks remain open. The next full run waits for both source verdicts and explicit stack handback.
+
+### Both repair reviews approved; full run handback
+
+Reviewer-A approves `8138097` in `msg_945c9463e27d`; report commit `914071d19ff187733421bb9008512fed68e11679`.
+Reviewer-B independently approves in `msg_feaafbe8d45f`; report commit `5f61266fd659c10a636f578f62257ef0682ae5fc`.
+Neither report has an open BLOCKER, MAJOR or MINOR. Both dedicated sessions are retained for M4.
+The Lead accepts A-M3-05 as an optional NIT: a ready Canvas course version would remove a test dependency on validation order.
+
+B-M3-06 requires an evidence note, not a source change.
+The changed `m1HostControl` also reaches the M2 Canvas wizard and the M1 isolated `aa` case.
+Reviewer-B ran the old and new handlers through the actual knob writer.
+Both give the same effective acceptance/off and restored acceptance/on environments; the new restore removes the leftover override entry.
+Its M2 harness passes six controls and the unchanged 64-case inventory. T7 does not use this control.
+The Lead carries the M2 and T7 results at their actual `aff4882` SHA with this equivalence note.
+They are not relabeled as new `8138097` runtime runs. This records the disposition of B-M3-06.
+
+Before handback, the Lead and QA observed a between-run default bridge recreation.
+Its old ID began `2f806bc1`; the new ID begins `0bf596e5`, created at 15:19:06 UTC.
+This occurred after the failed run's 15:05 cleanup, during the no-stack hold. The cause is unknown.
+Two fresh read-only boundaries confirm a stable new baseline: zero containers, unchanged VM settings and seven original volume records.
+Host and none networks are unchanged; the bridge keeps the same driver and `172.17.0.0/16` subnet.
+The old evidence stays intact. Each new run compares networks against its own start, and volumes against the original records.
+Record: `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-8138097-20261020T1524Z/preflight/new-run-baseline.json`.
+
+Lead `msg_a2aa04484762` opens the sole stack window to common QA at frozen `8138097889f87359d5055bb1d79766b5ed842f92`.
+The complete entry must run both 416-row inventories, all four phases and both migration baselines, then every required legacy wrapper.
+No source overlays, subsets or ad hoc reruns are permitted.
+Canvas QA has no stack authority and will independently judge each complete round's 233 rows.
+Final conformance and Docs still wait for accepted verification.
 
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
