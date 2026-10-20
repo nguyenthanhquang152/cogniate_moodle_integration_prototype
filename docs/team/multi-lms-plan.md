@@ -109,6 +109,14 @@ Local check logs are `/tmp/cogniate-lead-foundation.bzkF2F.check.log` and `/tmp/
 This is a checked WIP foundation and portal snapshot. Canvas and Blackboard backend behavior is still incomplete.
 Author screenshots in `apps/portal/evidence/M2/author-self-check/` use mocked API responses and make no SIM or live claim.
 
+Canvas's pure backend slice is committed as `8af7914`, merged as `096aa89`.
+It implements five Canvas profiles, the adapter and the embedded continuation helper.
+The author reports root lint, typechecks and 798 tests passing for this slice.
+The six source and unit-test files were held for the commit, then released.
+The backend owner received the implemented profiles in `msg_bb1f19617691`.
+Canvas configuration and deployment routes still await typed connection fields.
+No provider-readiness or independent QA claim follows from this checkpoint.
+
 The teams agreed on the player interface in `msg_a05ac85fc3b8` and `msg_7df7bdfe2bcc`.
 The backend emits `data-lms-name` on the play page element and the content-origin runtime body.
 Its value is `Moodle`, `Canvas` or `Blackboard`, derived from the stored connection.
@@ -124,6 +132,14 @@ Both code review tasks are queued behind the two implementation tasks.
 Reviewer-A: `task_def3c0e1323e`. Reviewer-B: `task_8b9947e26455`.
 Each will review the same frozen candidate, with separate reports for M1, M2 and relevant M3 infrastructure.
 Neither review task has started.
+
+The verification tasks are also queued behind both implementation and test-preparation tasks.
+Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
+Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
+Each needs a frozen candidate and an assigned stack lane before dispatch.
+QA owns the combined M3 report; QA-E2E owns its separate M3 browser report and live matrix.
+The Lead added Q19 to Q22 and D-1 to D-12 to `docs/human_review/decisions-needed.md` in `7a9734a`.
+These are open human decisions from the approved design, not implementation or live-test evidence.
 
 ### Initial role assignment (history)
 
