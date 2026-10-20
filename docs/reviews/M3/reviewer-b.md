@@ -1,4 +1,11 @@
 Verdict: APPROVE
+Round: 5
+
+Latest verdict covers the bounded T7 `publishCourse` readiness repair at `aff48823a4c6206d6314d91a95f5eb0979d3e0e7`; see Round 5 below. Round 5 is by a fresh dedicated Claude Reviewer-B (`claude-opus-5-5`, xhigh). Rounds 1–4 are by the earlier dedicated Codex GPT-6-Astra xhigh Reviewer-B and keep that attribution. No BLOCKER, MAJOR or MINOR Reviewer-B finding is open. One new NIT is open. This is not a T7 PASS, an M3 QA PASS, a completed full-run claim or a live-provider approval.
+
+## Archived header through Round 4
+
+Verdict: APPROVE
 Round: 4
 
 Latest verdict covers bounded harness preparation at `004568bd4ab8390d64945cb73f16cfdd51d566bf`, including the product/build repair reviewed at `e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63`; see Round 4 below. No new open Reviewer-B finding remains. This is not an M3 QA PASS, a completed full-run claim or a live-provider approval.
@@ -271,3 +278,135 @@ The coordinator's external e3cd browser result was **60 PASS / 4 FAIL**, zero sk
 ### Final disposition and remaining gate
 
 No new Reviewer-B source finding remains open in this bounded review. A-M1-02 is still an accepted open NIT; the M1 report records it. The repaired observer, CLI, build and browser-preparation source is approved. This is **not M3 QA PASS**. Full M1 four-phase runs twice, required migrations/rollback, legacy/default-profile T7/Moodle regression, the final complete M2 browser run, resource checks and complete artifact scans remain independent gates. Every Canvas-local, Canvas-hosted and Blackboard-live row remains UNVERIFIED until its own authorized evidence exists.
+
+
+## Round 5 — T7 `publishCourse` readiness repair
+
+Verdict: **APPROVE** for this bounded one-file source review. Date: 2026-10-20.
+
+Reviewer: fresh dedicated Reviewer-B, Claude Code `claude-opus-5-5`, xhigh, no delegation. This reviewer is independent of both Authors, both QA workers and Reviewer-A. Rounds 1–4 above stay unchanged with their Codex GPT-6-Astra attribution. The owner instruction in `c5c3cf3` assigns remaining Reviewer-B work to Claude.
+
+### Scope and method
+
+- Frozen source and repair commit: `aff48823a4c6206d6314d91a95f5eb0979d3e0e7`. The Lead confirmed both in the reply to this task and in handoff `msg_97bd6afbe05e`.
+- Base: `004568bd4ab8390d64945cb73f16cfdd51d566bf`. Outside `docs/**`, the only changed path is `tests/e2e/lib/portal.ts`. The change is three added lines in `publishCourse` (lines 116–118).
+- `portal.ts` SHA-256: base `6fba5d83e7be676b6b86fd3dbce81afd13b6235a3f0b9676f521343c6faf9e1d`, repair `b9e75a8d97fb49ac965749e06944500f64df6e7d8ea10d4d694c23180cd07a3b`.
+- Product and build: no path outside `docs/**` and `tests/**` differs from `e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63`.
+- I read these unchanged files to establish the effect. Callers: A3 (`1-scenario-a.spec.ts:188`, call at `:199`) and B3 (`2-scenario-b.spec.ts:142`, call at `:152`). Also the `need()` dependents, the names `Dev Moodle` and `Dev Moodle B` (`lib/e2e.ts:20`–`:21`), `tests/playwright.config.ts`, `run-t7.mjs`, the Playwright 1.56.0 lockfile pin and the product `apps/portal/src/courses/PublishDialog.tsx`.
+- Clean detached clone: `/tmp/cogniate-reviewer-b-claude-aff4882-DtkFjV/src`. The clone's only addition is a symlink to the installed `tests/node_modules` of the integration checkout. The tests lockfile is unchanged.
+- I ran no Docker, stack, browser or live tenant, and I inspected no real secret. I edited no source, test or architecture file. I did not repeat the 1,039 product tests.
+- Inputs: completed history A `601386f` and B `00f1717`. The QA report text in `aff4882` and the QA folder `publish-repair` are executor claims. I did not read a new Reviewer-A supplement.
+
+### Root cause, from source
+
+While `GET /connections` loads, `data` is undefined (`PublishDialog.tsx:22`–`:24`). The check at `:83` is then false, so the dialog renders the form. The `LMS connection` select holds only `Choose a connection` (`:109`). The old helper read the options once, at that moment. This agrees with the QA claim for A3: the SCORM publish passed, and the HTML publish threw `has no connection option`. The source dependency chain explains the nine failures: A4 to AC-T7-06 need A3/A4 state, B5 needs A4, and B6's Thanh results row needs A5. I did not run these T7 runs.
+
+### Repair assessment
+
+- Line 117 builds `^\s*<escaped expected text>\s*$`. The escape class is the standard metacharacter set. There is no flag, so the match is case-sensitive.
+- Line 118 waits up to 15 s for exactly that option in state `attached`. The comment says why it uses `attached`: options in a closed select are not visible.
+- Playwright 1.56, read from the shipped source:
+  - `filter({ hasText: RegExp })` becomes `internal:has-text=/…/`.
+  - The injected matcher runs `re.test(elementText.full)`. `full` is the raw text of the option, with no whitespace normalization.
+  - `locator.waitFor` sends `strict: true`.
+- These parts are unchanged:
+  - the expected text `<name> (Moodle, <site host>)`
+  - the label read `o.text.trim() === w`
+  - the missing-option throw
+  - `selectOption({ label })`
+  - the Publish click
+  - the dialog-detached wait
+  - the `Available in Moodle` wait
+- There is no `startConnect` edit. There is no added sleep, retry, skip, test timeout or config change.
+- The T7 inventory is identical: 18 tests in 6 files, with the same titles and case IDs. `demo-check.spec.ts` is unchanged, so DEMO stays demo-only.
+- Effect on a passing run: the wait returns when the option attaches, so the earlier passing SCORM and B3 publishes behave as before. A failure adds at most 15 s. This fits the A3 (300 s) and B3 (240 s) budgets. It equals the suite's standard 15 s action and expect bound and does not increase any existing timeout.
+- Strictness: two identical exact options now cause a strict-mode error. The old code silently picked the first. Each T7 run does its own `e2e:reset`, and each library has one such connection. So this is a fail-closed improvement, not a regression.
+- Diagnostics (observation, not a finding): a missing or wrong option now fails at the wait, with a Playwright 15 s timeout for that locator. The explicit message at line 120 is now a backstop. It shows only if the option is removed after it attaches, or in the divergence below. People who triage the new runs must expect the timeout form. QA P3–P5 saw a timeout-form message. I did not see the exact call-log text.
+- Residual divergence: the wait tests the raw text, but the label read uses `HTMLOptionElement.text`, which collapses ASCII whitespace. So an option with an internal run of spaces would time out at the wait, although the old read would accept it. The product JSX (`PublishDialog.tsx:112`) renders single separators, and both T7 names have single spaces. So T7 cannot reach this case, and it fails closed.
+
+### Independent probe
+
+```sh
+node /tmp/cogniate-reviewer-b-claude-aff4882-DtkFjV/probe/publish-wait-probe.mjs \
+  /tmp/cogniate-reviewer-b-claude-aff4882-DtkFjV/src/tests/e2e/lib/portal.ts \
+  /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/lti-multi-lms/tests/node_modules/playwright-core/lib \
+  /tmp/cogniate-reviewer-b-claude-aff4882-DtkFjV/probe/publish-wait-probe.results.json
+```
+
+Result: exit 0, `PROBE PASS`. Script SHA-256 `1f70767cfadbf9279b983caac967f5e0a229f81bbc80c6239cfebd1d880bee41`. Results SHA-256 `32576ac084e86d7852244a7b32ca183d326285cd15a85de5ab3f7b6051247d25`.
+
+The probe takes the verbatim line 117 and the verbatim label predicate from `portal.ts`. It sends the RegExp through Playwright 1.56's own client serializer and selector parser, and through `createTextMatcher` taken from the shipped injected source.
+
+| Group | Option text | Wait | Label read |
+| --- | --- | --- | --- |
+| Valid | exact A and B text as React text nodes; outer whitespace; a name with every RegExp metacharacter, `/`, quotes, backtick and `>>` | match | match |
+| Missing or wrong | placeholder only; wrong host; wrong port; `moodleXtest` for `moodle.test`; wrong LMS; A wants B; B wants A; prefix; suffix; wrong case; metacharacter name with one changed character | no match | no match |
+| Divergence | internal double space | no match | match |
+
+All 16 cases give the expected result. Four mutants show that the probe is sensitive:
+
+- Unescaped text: rejects the real option, so a valid run would always time out.
+- Escaped text except `.`: accepts `moodleXtest:8543`.
+- No anchors: accepts the prefix and suffix decoys.
+- Playwright string `hasText`: accepts the case, prefix and suffix decoys.
+
+The actual line rejects all of these decoys. Limit: the probe uses no browser and does not test wait timing. QA P1 and P2 cover timing.
+
+### QA control evidence (executor claims, assessed)
+
+- `held.patch` SHA-256 is `b340e4fe3c2e1bd580449f96bdce51a7d00ffcb7dcf099073a5fbab9affc480c`. Its `portal.ts` added and removed lines are identical to the commit.
+- `publish-sources.json` records the base hash (equal at `004568b` and `601386f`) and the repair hash.
+- I extracted both functions again from both commits. `publish.spec.ts` contains each one verbatim.
+- `pc-results.json`: 6 expected, 0 unexpected, 0 flaky, 0 skipped, retries 0, Playwright 1.56.0. Durations: P1 0.16 s, P2 0.97 s, P3–P5 15.1–15.2 s, P6 31.0 s. These agree with the 15 s option wait, then the detached and `Available in Moodle` waits.
+- What the controls prove:
+  - P1 and P2 run the old and new helper on the same list that loads after 400 ms. The old helper fails with the A3 message, and the new helper publishes.
+  - P6 shows that `Available in Moodle` still fails closed.
+  - In P3–P5 the page publishes for any selected value. So if the helper accepted a wrong option, the control would fail.
+- Gaps in the controls (not findings; the probe above covers them):
+  - The P5 decoys do not contain the expected text, so P5 does not test the anchors.
+  - P4 does not test the escaped `.`.
+  - `/Timeout|waiting for/` does not tie the failure to the option wait.
+  - The synthetic option has one text node and React makes several. Playwright joins them, so the result is the same.
+- The synthetic controls do not show that `/connections` loads within 15 s on the real stack. Only the fresh runs can show this.
+
+### Other independent checks
+
+```sh
+node tests/e2e/host/run-m2.mjs --harness-only
+cd tests && QA_SUITE=e2e node_modules/.bin/playwright test --config playwright.config.ts --list
+git diff --name-only 004568bd4ab8390d64945cb73f16cfdd51d566bf aff48823a4c6206d6314d91a95f5eb0979d3e0e7 -- . ':(exclude)docs'
+git diff --stat e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63 aff48823a4c6206d6314d91a95f5eb0979d3e0e7 -- . ':(exclude)docs' ':(exclude)tests'
+```
+
+Results:
+
+- M2 harness-only: six self-tests pass with zero skips, tests TypeScript passes, all 64 M2 cases are accounted for, and the T7 selection excludes M2.
+- T7 list: 18 tests in 6 files, identical to QA `t7-list.log`.
+- The first diff lists only `tests/e2e/lib/portal.ts`. The second diff is empty.
+
+### Findings
+
+**B-M3-05 — NIT — duplicate RegExp escape.**
+
+- Location: `tests/e2e/lib/portal.ts:117`.
+- Problem: the line has its own copy of the escape class. `escapeRegExp`, with the same class, is already at `tests/e2e/lib/e2e.ts:29`, and `portal.ts` already imports `urls` from that module.
+- Evidence: the behavior is the same; the probe passes with the inline form.
+- Suggested fix: the next time this file changes for another reason, import `escapeRegExp` and use it on line 117.
+- This NIT does not need a new freeze or a deferral entry.
+
+Prior Reviewer-B findings are unchanged: B-M3-01, B-M3-02 and B-M3-03 are CLOSED, and B-M3-04 is WITHDRAWN. A-M1-02 stays an accepted open NIT, as recorded in the M1 report.
+
+### Evidence note for `004568b`
+
+At `004568b`, C1 passed with B6's learner form, not A5's. `learnerRun` stores the first captured form (`lib/flows.ts:42`–`:46`), and A5 did not run. The `need()` label at `3-scenario-c.spec.ts:20` still names A5. C1's assertions do not depend on the source of the form. At the new SHA, A5 runs first and gives the form. This is outside the repair and is context only.
+
+### Remaining gate
+
+This is source approval only. It is not a T7 PASS, an M3 QA PASS or runtime evidence. Before any T7 or M3 verdict, these must pass at `aff4882`:
+
+- a fresh full 64-case M2 run;
+- three consecutive default T7 runs, each with 17 PASS, 0 FAIL and only the demo-only DEMO skip;
+- the demo pass and the confirmation checks;
+- default health, the privacy scan and cleanup.
+
+Common QA still owns both full M1 runs, migration/rollback and the legacy suites. All 32 live LMS rows stay UNVERIFIED. The Lead will forward fresh executor evidence separately. This review does not assess that evidence.
