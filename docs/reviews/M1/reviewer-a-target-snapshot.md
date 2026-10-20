@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # Design gate: B-M1-03 proposal D (local provider snapshot) — Reviewer-A
 
@@ -81,3 +81,75 @@ Round: 1
 - A-D-01 is amended (local resolution for all three redemption endpoints, with zero-call tests for `POST …/deployments`).
 - A-D-02, A-D-03 and A-D-04 are amended, or the Lead records them as accepted deferrals with their stated limits. A-D-05 is optional.
 - I then re-check the amended proposal text before any engine implementation.
+
+## Round 2 (2026-10-20)
+
+| Item | Value |
+| --- | --- |
+| Verdict | **APPROVE (PASS)** for proposal D revision 2 as a design. No BLOCKER or MAJOR is open. A-D-01 to A-D-05 are closed. Two new MINOR findings (A-D-06, A-D-07) and one NIT (A-D-08) are amendment text for the R9 task. They do not block this gate. |
+| Proposal | `caa35412887aa7c4b762a2c82be5fd12a984db9c`: `docs/architecture/review-response-M1.md`, section "B-M1-03 proposal D, revision 2" (L194–L449, R0 to R9). It replaces D1 to D8 of `a4bc3a4`. |
+| Baselines | ADR-011 revision 6 at `56591df`. C-1 to C-3 at `ca14de6`. The contract, data model, ADR and task files at `caa3541` still have the baseline text, because R9 is not applied yet. I judged the proposal, not those unchanged files. |
+| Prior report | Round 1 above (committed at `5a08512`). |
+| Feasibility reads | Product `9f96f7b`: `app/server.ts`, `app/redemption.ts`, `app/binding-targets.ts`, `app/connections.ts`, `app/api-errors.ts`, `packages/shared/src/logger.ts`, portal `connect/provider-errors.tsx`, LTI `store/platforms.ts`. Harness `0008bde`: `tests/acceptance/T1/harness.test.ts`. Read through `git show` and a detached clone only. Product code is feasibility evidence, not the design. |
+| Reviewer | Reviewer-A, Claude Code Opus 5.5, xhigh, the retained instance. Task `task_c17cd1135dca`, dispatch `ctx_d1e7f2d9e3f0`. |
+| Independence | I did not read the other Round 2 reports (commit `fd74df4`) or the held dirty files (`redemption.test.ts`, `pnpm-workspace.yaml`). No product, test, architecture or team file was changed. No stack. |
+
+### Dispositions of the Round 1 findings
+
+| Id | Sev. | Round 2 | Evidence |
+| --- | --- | --- | --- |
+| A-D-01 | MAJOR | **Closed** | R2 (L276–L300): all three redemption endpoints build the target locally inside phase 1. "The engine never builds a target or a create request before phase 1 commits, for any endpoint" (L300). `POST …/deployments` keeps the C-2 order, reads no providers and runs no V. R8 adds the zero-request cases v3, v6 and v10, and a unit test with an LTI client that throws on any call, for all three endpoints. Feasible: every input is local (snapshot columns, `lti_profile`, `lti_platform_id`, `platform_json`, the request body). The product must move `providerProfiles` (`binding-targets.ts` L33) and `deps.resolve` (`redemption.ts` L149) out of the path before phase 1. |
+| A-D-02 | MINOR | **Closed** | Check 4a applies to `initial` only and comes after checks 1–4 (R2 step 5). The finalized repeat (R2 step 4) uses the persisted `platform` before phase 1, so a registered `011` row still gets `200`. `add_deployment` issue and redemption use the committed platform (R1, R4). |
+| A-D-03 | MINOR | **Closed** | Both Canvas `initial` S1 `400` codes map to `409 PROVIDER_NOT_READY` (R0, R6 L352). `add_deployment` keeps `502`. Case 37 (aa) reaches `UNKNOWN_PROFILE` through the AC-M1-35 restart. `PLATFORM_URL_NOT_IN_PROFILE` is a unit test only, because R8 forbids a profile change to reach it. |
+| A-D-04 | MINOR | **Closed** | R7: the event is written after the commit, exactly once for each committed phase 1, never on a refusal or a rollback, and it is not durable. The positive control is sound and has a contract basis. App contract §12 (L805) logs `http_request` at `info` for every request except `GET /healthz`. Product `server.ts` L100–L113 reuses a valid incoming `X-Trace-Id`, sends it back, and writes the line in `onResponse`, after the handler. One logger stream keeps first-in, first-out order (`logger.ts` L128–L145). The T1 harness already finds an `http_request` line by `x-trace-id` (`tests/acceptance/T1/harness.test.ts` L139–L149). R7.5 (no claim across a crash or restart) is my Round 1 condition 3. |
+| A-D-05 | NIT | **Closed** | R5: the `client_id` row comes from `target_client_id`, else `platform.clientId`, else `409`. `lms-providers` stays live for new connections. R1 now says how the self-hosted issuer is made. |
+
+### New findings
+
+#### A-D-06 MINOR: one public `409 PROVIDER_NOT_READY` now has different recoveries, but its user text is still the Blackboard-only text
+
+- **Where:** R1 L263 (check 4a, "Make a new connection"), R3 row 5, R6 (Canvas S1 `400`; deleted or re-created after V), R9 (L432–L449, no M2 or portal row). Baseline: app contract §4.2 L232, action "Ask the Cogniate operator to register the Blackboard application."; M2 task L95, "`409 PROVIDER_NOT_READY` → the Blackboard not-ready text"; product `api-errors.ts` L38; portal `connect/provider-errors.tsx` L21 (`PROVIDER_NOT_READY: BLACKBOARD_NOT_READY`).
+- **Problem:** after D, the same code has at least three causes, and each cause has a different correct action:
+  1. The shared platform is inactive (V row 5, case w). The correct action is to wait for the operator to reactivate it, then retry the same code. A new connection does not help: create also refuses, and the pending connection's reservation blocks a second connection (check 7).
+  2. There is no snapshot (check 4a), or the shared platform was replaced (V row 5, case 29 k1). The correct action is to make a new connection.
+  3. The Canvas profile is missing or changed (S1 `400`, case aa). The Canvas wizard then shows a **Blackboard** text.
+  The portal shows one fixed text for each code. So in cause 2 the user is told to ask for a Blackboard registration that already exists, and in cause 3 a Canvas user reads Blackboard advice. All causes fail closed. This is wrong recovery advice, not a security gap.
+- **Amendment:** keep the one public code. Add a cause field (for example `details.reason`: `platform_inactive`, `platform_changed`, `no_snapshot`, `profile_missing`) with a server-owned title and action for each cause. Or use one neutral text that names both actions. Add the M2 error-text table, the portal map (portal owner) and the app contract §4.4 and §4.7.1 texts to R9. Assert the cause in cases w, 29 (k1), (aa) and 38 (h).
+
+#### A-D-07 MINOR: the recovery for an old pending row does not say "disconnect it first"
+
+- **Where:** R1 L274: "Recovery for a pending old row: make a new connection (it gets a snapshot) and issue its grant." Accepted app contract §4.7.1: check 7 (L385) moves a Blackboard reservation only from a `disabled` connection of the same library. L284: after a failed attempt, "Blackboard keeps the reservation with this pending connection". L408: an active record whose ref is not an older ref of **this** connection is not adoptable.
+- **Problem:** case 38 (h) seeds failed attempts with saved targets on pending `011` rows. Such a row can hold (a) the Blackboard reservation of (shared platform, deployment), or (b) an active Canvas platform or Blackboard deployment from a lost S3 answer. Check 4a refuses every redemption of that row, so the reservation or the record never clears by itself. A new connection with the same values then gets `409 DEPLOYMENT_IN_USE` at phase 1 (portal text: "This Blackboard site is already connected to Cogniate."), or `409 PLATFORM_IN_USE` or `DEPLOYMENT_IN_USE` at S2. The data stays safe (fail closed, cleanup unchanged). Only the documented recovery does not work as written.
+- **Amendment:** change the R1 recovery to: "First disconnect (`DELETE`) or `suspend` the old pending connection. Its fence-out switches off its records, and check 7 then moves its reservation to the new connection of the same library. Then make a new connection and issue its grant." The accepted adoption rule A3 then lets the new connection adopt an inactive record with the same values. Add this order to case 38 (h), with a negative control: a new connection before the disconnect gets the `409`.
+
+#### A-D-08 NIT: wording items for the R9 text
+
+1. R2 L288, "The engine reads snapshot values only after check 4a": R2 step 3 already reads `target_client_id` for the Blackboard body check. Say "builds the target from snapshot values only after check 4a".
+2. R3 rows 1–3 do not name the audit line. An accepted cancellation logs `grant_redemption_cancelled {reason}` (app contract L410, L827). State the reasons: `taken_over` (row 1), `connection_changed` (row 2), and `revoked` or `replaced` (row 3). Then z1–z4 can assert them.
+3. R6 L352 (Canvas S1 `400`) says "or as row 2 or 3 if cancelled first", but R3 defines the post-call decision only after V. Say whether the Canvas S1 `400` result runs the same decision (rows 1–3 first) or the accepted LTI-failure path.
+4. R1 L268, "phase 1 → check 4": checks 1–3 still come first, so an invalid code gives `403`. Say "checks 1–3, then check 4".
+5. R3 L321, "Deleted or re-created after V", needs a new platform id. The LTI contract shows only an opaque `plt_…`. Product ids are 96-bit random values (`store/platforms.ts` L104). Case 29 (k1) re-creates the platform with the same client id and issuer, so only the id can show the change. State in §4.7.1 that a re-created platform always gets a new id.
+6. R8 37 (z5), "then `DELETE` and `suspend`": say if this is one run (`suspend` repeats the fence-out on a disabled connection) or two runs, and give the oracle of the second call.
+
+### Requested checks
+
+| Topic | Result |
+| --- | --- |
+| Local-only order, all three endpoints | Pass. R2 steps 1–5 and the C-2 order for `POST …/deployments` use only local data. There is no provider read, no V and no request before the phase-1 commit (L300). The zero-request oracles v1–v12 count every gate request on every method, with a paired valid Blackboard request as the capture control. |
+| Old `011` state and purpose | Pass, with A-D-07. R1 covers each state and operation. Registered Canvas `add_deployment` is kept. No backfill and no new trusted input. |
+| Strict parsing and repeat precedence | Pass. The strict body (step 3) comes before the finalized repeat (step 4), as accepted. The Blackboard `clientId` source order (snapshot, then platform, then form only) is local. Check 5 uses `target_client_id`, which issue (R4) already requires to equal `--client-id`. |
+| Canvas S1 mapping | Pass. Both `400` codes give `409` for `initial`. `add_deployment` keeps `502`. See A-D-06 for the user text and A-D-08 item 3. |
+| V cancellation and state ownership | Pass. Rows 1–3 come before rows 4–6, so cancellation always wins, as in accepted phase 2 (`DELETE` answers `409 CONNECTION_NOT_PENDING`, AC-M1-37 (g)). `DELETE` and `suspend` do not change the lease (app contract L461, L511), so row 1 does not hide row 2. Rows 1–5 send no LTI call. This is correct, because the attempt has no S3 to compensate. A late V answer after the 5 s timeout causes nothing (case x2). After row 6, S0 still runs before S1. |
+| Cleanup of earlier attempts | Pass. R6 keeps every saved target in the fence-out, the revoke cleanup and the release. `absent` means only a `404` at the saved id. Provider drift is never proof of absence. Case z5 covers it. |
+| Snapshot immutability | Pass. There is one writer: the create insert, from the one provider read that create already makes (`connections.ts` L202 read, L221 insert). There is no `UPDATE` path, no request field and no CLI flag, and the fields are not in the DTO. A unit test checks that later reads never overwrite them. |
+| Bounded audit semantics | Pass (A-D-04 closed). |
+| I1–I6 | Kept. I1: check 6 is unchanged, and V runs inside the lease. I2: approval routing is unchanged, and the inactive-parent limit gives no authority. I3–I5: V is read-only and writes no ref. I6: stronger, because phase 1 saves the full target, with the Canvas issuer. |
+| Call budget | Pass. Blackboard has 6 calls and Canvas has 5. Each call runs after S0 (at least 6 s left), with a 5 s timeout, inside the 60 s lease. |
+| Contradictions | None in the design. Revision 2 replaces D1–D8 explicitly. The unchanged baseline files still show the old order (for example, app contract §4.4 puts Blackboard readiness before the strict body). R9 lists them for the later Architect task. R9 does not list the M2 and portal text (A-D-06). |
+| Ownership | R9 transfers nothing. `providers/canvas.ts` stays with its current owner. Correct. |
+
+### What closes this gate
+
+- From my lens, the gate passes now. A-D-06 and A-D-07 (MINOR) and A-D-08 (NIT) go into the R9 amendment task, or the Lead records them as accepted deferrals with their stated limits. I re-check the applied amendment text when it is frozen.
+- The accepted MINOR deferral A-M0-10 (only `canvas-self-hosted` identifier reoccupation after a release) is unchanged. This report does not widen or narrow it.
+- Nothing here is live evidence. Every new case is `SIM` or a unit test.
