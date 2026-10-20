@@ -504,6 +504,14 @@ Both depend on the two implementation tasks and both test-preparation tasks.
 The Lead must supply one committed candidate with a passing root check before dispatch.
 They append independent reports and recheck the full candidate; earlier bounded findings and design approvals do not replace this gate.
 
+At 11:38:20 UTC the Claude backend transcript ended with a session-limit notice (reset 20:20 Asia/Saigon), without `worker_done`.
+The Lead followed the transcript cursor to its end; this is positive evidence of a stopped agent turn, not a timeout inference.
+Dispatch `ctx_610c9d2ca767` is abandoned to fence its authority; its session remains retained and no process or file was removed.
+The same task `task_de758fb0e31a` is failed for quota recovery, with a retry assigned to a dedicated Codex GPT-6-Astra xhigh replacement under the owner's earlier replacement authorization.
+The eight partial backend paths are preserved in `/var/folders/_h/pjt6zzrj46sctnb18tsmbzgw0000gn/T/cogniate-bm1-03-claude-partial-taeekbh7`, with a SHA-256 manifest.
+They remain uncommitted and are not a passed checkpoint. The replacement must check and complete them.
+The [team brief](multi-lms-team-brief.md#backend-quota-replacement-2026-10-20) records the narrow role exception and prevents overlapping editors.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.

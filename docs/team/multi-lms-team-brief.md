@@ -22,6 +22,17 @@ They review both providers and the shared engine.
 Architect, Docs and Lead remain shared roles.
 At most three workers run beside the Lead.
 
+### Backend quota replacement (2026-10-20)
+
+The Claude Author stopped at its session limit during `task_de758fb0e31a`, before completion.
+The Lead fenced dispatch `ctx_610c9d2ca767` with `worker-abandon` and preserved its partial files.
+The owner's earlier authorization to use Codex GPT-6-Astra as a replacement applies to this quota recovery.
+A dedicated Codex GPT-6-Astra xhigh replacement retries the same backend task and takes its existing exclusive paths.
+This assignment supersedes the old task brief's Claude-instance requirement for this retry only.
+The old Claude session stays retained but has no edit authority for the retry.
+Canvas, both QA owners and both reviewers keep their existing assignments and independence.
+No second backend editor, broader file scope or extra active worker is authorized.
+
 ## One common engine
 
 Moodle, Blackboard and Canvas use the same LTI engine.
