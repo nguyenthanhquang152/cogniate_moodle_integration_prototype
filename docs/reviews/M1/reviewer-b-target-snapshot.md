@@ -150,3 +150,41 @@ Line 300 says the engine never builds a target “before phase 1 commits.” The
 **CHANGES_REQUESTED.** B-M1-D-01, B-M1-D-02 and B-M1-D-03 are closed at the design level. B-M1-D-04 is the remaining **MAJOR**; B-M1-D-05 and B-M1-D-06 are **MINOR**, with one gate-status wording NIT noted above. Complete the existing pending-row recovery and correct the contradictory rows before implementation. Original product B-M1-03 remains open pending an accepted design, implementation and independent verification.
 
 Held file: `docs/reviews/M1/reviewer-b-target-snapshot.md`. Only this Round 2 append was written; no commit or push was made.
+
+## Round 3 — bounded final design recheck
+
+Verdict: **APPROVE**
+
+Task: `task_081f83c4db74`. Dispatch: `ctx_d851263c7966`.
+Exact proposal: **`78bc34ac422e0bcac324fa10e69ec9f82a17a3b8`**, authoritative section “B-M1-03 proposal D, revision 3”, R3.0–R3.10, lines 455–780. I reviewed that section as a whole; the preceding versions are superseded history.
+
+I read the frozen commit in the same clean detached clone. Its product paths equal `9f96f7b24cd0aed702e4dc40373bdda4307aad31`; its harness paths equal `0008bdef092b866a361d57ab705b581cd16312a5`. I used the accepted cleanup contract and committed harness only for feasibility and accounting. This append preserves my earlier report at `6222358f3c9db92ab4cc09bb94bd5a7368293f3c`. I did not read another worker's Round 3 report or any held Author changes. No stack or test execution was performed.
+
+### Disposition of every Round 2 finding
+
+| Finding | Disposition | Evidence in the frozen revision |
+| --- | --- | --- |
+| B-M1-D-04, MAJOR | **CLOSED at design level.** The pending-row recovery is complete. | R3.1 lines 556–566 specifies new connection → rightful grant → suspend/fence old connection → release after lease and active-record checks → immediate redemption. Failed cleanup and late writes retain the accepted retry rule; D-12 is still explicit. R3.8(h1), line 703, seeds the exact retained-reservation and lost-S3 cases. R3.8(h5), line 707, first proves the two blocking negative controls, then exercises recovery and checks unrelated bindings, approvals and keys. |
+| B-M1-D-05, MINOR | **CLOSED at design level.** The registered nonrepeat oracle follows grant-first precedence. | R3.1 line 550 explicitly gives `403/not_found` and `403/redeemed` before the state check. The unreachable fresh-initial-grant/state branch is supplemental only. R3.8(h3), line 705, uses the reachable redeemed initial code, with zero requests, no attempt, and unchanged approval/key. |
+| B-M1-D-06, MINOR | **CLOSED at design level.** Local target construction is atomic and unambiguous. | R3.2 lines 580–594 builds the target from the fresh local row inside phase 1, saves it before that transaction commits, and constructs S1 from the committed target afterwards. No remote resolution occurs before commit. |
+| Missed-schedule wording, NIT | **CLOSED.** No mandatory case may become a passing skip. | R3.8(v4–v6), lines 682–684, and the gate rule at line 734 consistently require BLOCKED, which fails the gate. Each restarted process uses its own cursor and completion control. |
+
+B-M1-D-01, B-M1-D-02 and B-M1-D-03 remain closed. Registered Canvas issue/add-deployment still uses its committed platform without a snapshot/provider read; V failure still preserves prior attempt targets; R3.7 retains after-commit audit emission and the bounded FIFO capture rules.
+
+### Consistency and regression check
+
+- The frozen recovery oracle correctly distinguishes **reservation without a remote row** from an orphan. C0-B's old S1 `fail_before` produces `absent` on suspend and release; C1 then creates an inactive generation-0 deployment and activates generation 1. C0-C's lost S3 produces `fenced`, then `deleted`, then a new platform. These outcomes fit accepted app contract §4.9 and do not require a new cleanup mechanism.
+- Recovery uses only the old connection's history and ownership. The new grant is prepared before release; the old lease must finish before release. No snapshot edits, backfill, history deletion or reservation bypass is introduced. Registered and disabled old-011 behavior and unchanged Moodle handling are preserved.
+- The corrections retain strict bodies, local finalized repeats, ordered phase 1, S0, saved targets, write-ahead refs and the original timeouts. Readiness-specific S1 errors now explicitly use the same cancellation-first decision; other failures retain their accepted mapping. V remains a point-in-time observation, with the inactive-parent limit stated.
+- Case accounting stays explicit: existing cases remain mandatory; new families `37(v1–v12,w,x1–x2,y1–y2,z1–z5,aa)`, `29(k1–k3)` and `38(h1–h5,i1–i5)` are named consistently in R3.8 and R3.9 and run in both rounds. The populated migration route is separate from the existing Moodle upgrade/rollback route. Fixed-profile drift and storage-only checks remain supplemental, not SIM evidence. The committed race/cleanup manifest IDs remain distinct from the added families, and the committed runner already maps BLOCKED to gate failure.
+- All-method gate capture and valid-request controls remain required. Restarted-process event absence is bounded by that process's own completion log, with no cross-crash durability claim. No GET filter or longer timeout is introduced to make a schedule pass.
+- The neutral readiness text and internal cause log in R3.10 explain the existing refusal causes without a new public reason field. R3.9 names the later contract/M2 and server/portal changes and their owners. The Blackboard new-connection card text stays distinct. These corrections stay within setup/error handling scope.
+- R3.9 keeps contract application as a later Architect task and leaves Canvas implementation ownership with its current owner until a Lead assignment. Neither is missing implementation evidence at this design gate.
+
+### Round 3 result
+
+**APPROVE the proposal at `78bc34ac422e0bcac324fa10e69ec9f82a17a3b8`.** No Reviewer-B design finding remains open at any severity, and this bounded recheck found no concrete regression introduced by the corrections.
+
+This is design approval only. Original product B-M1-03 remains open until the accepted amendments are applied, the repair is implemented and independent verification passes. There is no SIM or live PASS in this report.
+
+Held file: `docs/reviews/M1/reviewer-b-target-snapshot.md`. Only this Round 3 append was written; no commit or push was made.

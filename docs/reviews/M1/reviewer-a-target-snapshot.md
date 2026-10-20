@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # Design gate: B-M1-03 proposal D (local provider snapshot) — Reviewer-A
 
@@ -153,3 +153,52 @@ Round: 2
 - From my lens, the gate passes now. A-D-06 and A-D-07 (MINOR) and A-D-08 (NIT) go into the R9 amendment task, or the Lead records them as accepted deferrals with their stated limits. I re-check the applied amendment text when it is frozen.
 - The accepted MINOR deferral A-M0-10 (only `canvas-self-hosted` identifier reoccupation after a release) is unchanged. This report does not widen or narrow it.
 - Nothing here is live evidence. Every new case is `SIM` or a unit test.
+
+## Round 3 (2026-10-20)
+
+| Item | Value |
+| --- | --- |
+| Verdict | **APPROVE (PASS)** for proposal D revision 3 as a design. No BLOCKER, MAJOR or MINOR is open from my lens. A-D-06, A-D-07 and A-D-08 are closed. One new NIT (A-D-09) is optional amendment text. The original product finding B-M1-03 stays open until implementation and verification. |
+| Proposal | `78bc34ac422e0bcac324fa10e69ec9f82a17a3b8`: `docs/architecture/review-response-M1.md`, section "B-M1-03 proposal D, revision 3 — AUTHORITATIVE" (L455–L780, R3.0 to R3.10), read as a whole. Revision 2 and D1–D8 above it are superseded history. The pre-freeze fixture correction (h5: Blackboard `absent`/`absent`, then a fresh deployment at generation 0 → 1; Canvas `fenced`/`deleted`, then a new platform) is in this text. |
+| Baselines | ADR-011 revision 6 at `56591df`. C-1 to C-3 at `ca14de6`. Accepted app contract and M1 task text read at `78bc34a`. These files are unchanged since `caa3541`, because R3.9 is a later Architect task. |
+| Prior report | Round 2 above (committed at `979aecc`). |
+| Feasibility reads | Product `9f96f7b`: `app/connections.ts` L220 and L254, LTI `cli/shared-platform.ts` L37. Reading only. No new product audit. |
+| Reviewer | Reviewer-A, Claude Code Opus 5.5, xhigh, the retained instance. Task `task_1fe8ae6741d8`, dispatch `ctx_752eba91c7de`. |
+| Independence | I did not read any Round 3 report of another worker. I did not use the held `redemption.test.ts` or `pnpm-workspace.yaml`. No product, test, architecture or team file was changed. No stack and no test run. |
+
+### Dispositions of the Round 2 findings
+
+| Id | Sev. | Round 3 | Evidence |
+| --- | --- | --- | --- |
+| A-D-06 | MINOR | **Closed** | R3.10 (L761–L780): one public code and no public reason field. One neutral title and action for every LMS and cause, and the action names both recoveries ("try again later, or … make a new connection"). The operator diagnosis is the internal `provider_not_ready {connection_id, profile, cause}` log, with an exact cause map. R3.9 (L754–L757) adds the app contract text, the M2 error-text row and the two implementation files with their owners. The Blackboard card text (AC-M2-02) stays. Cases w, y2, aa, 29 (k1) and 38 (h2) assert the text and the cause. |
+| A-D-07 | MINOR | **Closed** | R3.1 (L556–L566) gives a fixed order of accepted operations: new connection C1, C1's grant first, `suspend` C0, `release` C0, then redeem. The text names both blockers (a reservation held by a **pending** connection, check 7; an active record with another connection's ref, A1–A3). Case 38 (h5) has the negative control (C1 before step 3: Blackboard `DEPLOYMENT_IN_USE` at check 7, Canvas `PLATFORM_IN_USE` at S2). This order is better than my shorter "disconnect first" order: it is the accepted D-12 operator order, and it equals the accepted AC-M1-38 (f) pending-Canvas recovery (suspend `fenced`, release `deleted`, new connection `200`). |
+| A-D-08 | NIT | **Closed** (all six items) | (1) L580: "builds the target from snapshot values only after check 4a", and step 3 reads only `target_client_id`. (2) L604–L606: rows 1–3 log `grant_redemption_cancelled` with `taken_over`, `connection_changed`, `revoked` or `replaced` (from `revoked_reason`). (3) L613: the Canvas S1 `400` and Blackboard S1 `404` readiness answers run rows 1–3 first. (4) L550: grant checks 1–3 first, then check 4. (5) L617 and L753: a platform id is never reused, and this sentence goes into the LTI contract. Product feasibility: 96-bit random ids, and the shared-platform CLI creates the platform `active: true` (`cli/shared-platform.ts` L37), so case 29 (k1) logs `platform_changed`. (6) L698: z5 is one run, and the repeated `suspend` gives `fenced` again, as AC-M1-38 (a) and fence-out step 3 ("also when the record is already inactive") require. |
+
+The Round 1 findings A-D-01 to A-D-05 stay closed. R3.0 keeps their dispositions, and R3.2, R3.3 and R3.7 keep the text that closed them.
+
+### Requested checks
+
+| Topic | Result |
+| --- | --- |
+| Old-pending recovery and I1–I6 | Pass. I1: each connection has its own lease, and `release` needs C0's lease to be not live. I2: C0 has no approval, and C1 gets one only in its phase 2. I3–I5: `suspend` writes its ref to the history first and rotates the ref on each owned record. `release` deletes only with `ifBindingRef`. A late write is handled by the accepted "run `suspend` and `release` again" rule (L563). I6: C0's saved targets find every record, also on an old `011` row, because the accepted design saved the target at phase 1. C1's negative-control attempt leaves only a target that C1 owns. The orphan that it met has C0's ref, so C1's later cleanup reports it `not_owned`. |
+| Cleanup of earlier attempts | Pass. `release` keeps C0's attempts, grants and ref history, as accepted (app contract §4.9). It deletes only C0's own reservation and approvals. The text "no local history is deleted" (L566) uses the accepted meaning of history. |
+| Grant-first order and registered repeats | Pass. The finalized repeat (R3.2 step 4) answers `200` before phase 1. Other values give checks 1–3 first (`403`: `not_found`, `redeemed`, `purpose`), with zero requests and no attempt (L550). Check 4 on a registered row needs an unredeemed `initial` grant. The CLI cannot make one: `initial` needs a `pending` connection, and a new grant revokes older ones (`replaced`) (app contract §4.8, Issue checks and Issue output). So the unit-only branch is correct. A request without a valid code learns nothing about the connection state. |
+| Local target construction | Pass. L594: phase 1 builds the target from the fresh local row and saves it in the attempt row in the same transaction. The S1 request is built from the committed target after the commit. No call and no remote resolution happen before the commit, for every endpoint. |
+| Audit scope after the commit | Pass. `grant_attempt_started` is written only after the commit (R3.7). Rule 5 needs a new cursor and a same-trace control in the restarted, healthy process, and never compares logs from before and after a restart. `provider_not_ready` and `grant_redemption_cancelled` are separate events, so the no-attempt oracle stays exact. |
+| Neutral portal recovery text | Pass, with A-D-09 item 1. The text names no LMS and is correct for every cause. |
+| Regressions from the corrections | None found. The shared decision for readiness answers keeps "cancellation wins". Those S1 answers make no record, so no compensation is needed. The recovery order uses only accepted operations and bypasses no reservation or adoption rule. |
+
+### New finding
+
+#### A-D-09 NIT: three precision items in the R3.10 and R3.6 text
+
+1. **Implementation file list (L757).** Product `app/connections.ts` L220 (the create-time Blackboard refusal) passes the old action text explicitly to `ApiError`, so that text overrides the `api-errors.ts` default. Add `connections.ts` to the R3.10 implementation files. L254 is the pre-phase-1 read that the A-D-01 change removes. At create time there is no connection yet: log `connection_id: null`, or omit it, for `cause: platform_inactive`.
+2. **Cause precedence (L777).** "If several V conditions fail, the first in this list is logged" puts `platform_inactive` before `platform_changed`. Suppose the shared platform is replaced by a new **inactive** platform with another id. The log then says `platform_inactive`, but reactivation does not help, because the id differs. Log `platform_changed` first when `sharedPlatform` exists and its `id` or `clientId` differs, or log every failing cause. This is operator diagnosis only. The public text is neutral, and the refusal fails closed.
+3. **Outcome row (L647).** The R3.6 row "Deleted or re-created after V" still shows only `issued` and `failed`. Add "(or as rows 1–3 if cancelled first)", as the Canvas row L648 does. The L613 paragraph already gives this rule.
+
+### What closes this gate
+
+- From my lens, the design gate passes. A-D-09 is optional text for the R3.9 amendment task. Applying R3.9 to the contracts is a later Architect task, not a missing part of the proposal.
+- B-M1-03 in the product stays open until the implementation and its verification.
+- The accepted MINOR deferral A-M0-10 (only `canvas-self-hosted` identifier reoccupation after a release) is unchanged. R3.1 restates the D-12 window between steps 4 and 5 and does not widen it.
+- Nothing here is live evidence.

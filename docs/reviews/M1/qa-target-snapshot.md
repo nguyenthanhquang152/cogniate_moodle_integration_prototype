@@ -191,3 +191,56 @@ The prior command and resource plan remains applicable after design correction a
 R9 line 449 correctly preserves `services/cogniate-app/src/providers/canvas.ts` with its current Canvas owner until an explicit Lead transfer. QA owns common/Blackboard scenarios, the new host upgrade route and accounting; QA-E2E owns Canvas variants; Author owns product and colocated unit tests.
 
 **Held path for the Lead's exact-path commit:** `docs/reviews/M1/qa-target-snapshot.md`. Only this Round 2 append was written. Resolve the one MAJOR oracle conflict and carry the two MINOR corrections into the frozen proposal; then recheck the design. This is a delivered review, not proposal approval or product acceptance.
+
+---
+
+## Round 3 — APPROVE / PASS FOR DESIGN TESTABILITY ONLY
+
+Independent bounded recheck, 2026-10-20, task `task_03dd4c0d94cd`, dispatch `ctx_f5b1c375220f`. **All remaining QA findings are closed. Remaining severity: no BLOCKER, MAJOR, MINOR or NIT findings in this recheck.** No concrete regression was found in the corrections.
+
+### Exact inputs and boundary
+
+Reviewed **`78bc34ac422e0bcac324fa10e69ec9f82a17a3b8`**, `docs/architecture/review-response-M1.md`, the complete authoritative revision-3 section **R3.0–R3.10, lines 455–780**. Earlier proposal sections are superseded history. The accepted baseline remains `56591df0e71939d5d62c9042c630c841d01f84e8` plus `ca14de6360021af4ce3692f1a0073fe4ec92633d`.
+
+Prior QA reports are preserved from **`9eb5da33bf6985d8bf03f33c64fa9a79654de8f6`**. The accepted app contract's phase-1, adoption, cleanup and release rules and M3's accounting rules were checked against the corrections. Harness **`0008bdef092b866a361d57ab705b581cd16312a5`** was used only for accounting/reachability. No other worker's Round 3 report, author notes, product source or dirty test content was used. No test or stack ran.
+
+### Per-finding disposition
+
+| Finding at Round 2 | Disposition | Evidence at the exact revision-3 SHA |
+| --- | --- | --- |
+| **Q-TS-01 — MAJOR**, registered-row error fixture | **CLOSED** | R3.1 line **550** preserves grant-first errors and explicitly separates the unreachable state-check branch. `38(h3)`, line **705**, now requires the registered connection's redeemed initial code plus a new deployment to return `403 GRANT_INVALID`, reason `redeemed`, with zero requests, no attempt, and unchanged approval/key. Check 4's `409` is supplemental only, line **726**. |
+| **Q-TS-01 — pending-row seed clarification** | **CLOSED** | `38(h1)`, line **703**, explicitly issues both pending rows' valid initial grants before upgrade. The controlled failures leave those grants issued. `38(h2)`, line **704**, distinguishes saved valid codes (`409`, check 4a), unknown codes (`403 not_found`), and new issuance (exit 1, unchanged grant list). The fixture no longer depends on obtaining a new grant after the null-snapshot guard exists. |
+| **Q-TS-04 — MINOR**, fresh-012 ids and restart evidence | **CLOSED** | `38(i1–i5)`, lines **708–712**, gives stable ids for cloud, self-hosted, Blackboard, persistence and Moodle controls; repeated migration application is explicitly supplemental, line **725**. R3.7 rule 5, line **665**, and `37(v4–v6)`, lines **682–684**, require a new healthy-process cursor and same-process HTTP completion control. Missed 5 s or 60 s windows are `BLOCKED`, never PASS or SKIP, line **734**. |
+| **Q-TS-R2-01 — MINOR**, target construction wording | **CLOSED** | R3.2 lines **580–594** consistently require local target construction and persistence inside the same phase-1 transaction, no remote resolution/call before commit, and S1 request construction from the committed target afterwards. This preserves the atomic lease/reservation/attempt boundary. |
+| **Q-TS-02 and Q-TS-03**, closed in Round 2 | **Remain CLOSED** | R3.3/R3.6 retain the cancellation-first decision, exact readiness/error handling, pinned target, point-in-time V limit and saved-target cleanup. R3.7 retains post-commit audit emission, bounded FIFO evidence and crash limits; transaction rollback remains supplemental. |
+
+### Populated upgrade and recovery are reachable
+
+The corrected `38(h1–h5)` route uses only the public API, operator CLI and accepted gate on a pinned `011` build, then a stopped backup and upgrade:
+
+- **Blackboard C0-B:** S1 `fail_before` leaves a local reservation and saved attempt target, but no remote deployment. Before containment, C1's negative control fails locally with `409 DEPLOYMENT_IN_USE`. C0-B suspend and release correctly report **`absent` / `absent`**; release frees its reservation. C1 then creates a fresh inactive deployment at generation **0** and activates it to **1**. It must not expect an existing remote row or a generation increment from a previous binding.
+- **Canvas C0-C:** S3 `drop_after` leaves an active owned platform without approval. C1's negative control reaches S2 and gets `409 PLATFORM_IN_USE`. C0-C suspend reports **`fenced`**, release reports **`deleted`**, and C1 can redeem onto a **new platform**. Saved targets and ref history let cleanup find the orphan even though C0-C has no committed platform id.
+- The rightful C1 grant is issued before suspend/release. Release's disabled-state, lease and active-record preconditions remain intact; failed cleanup or a late write uses the existing retry procedure. The accepted self-hosted D-12 limit is stated, not represented as solved.
+- The unrelated registered Canvas and Blackboard bindings remain unchanged. `h3–h4` separately preserve the registered Canvas approval and old key while consuming the pre-upgrade add-deployment grant and then issuing/redeeming another grant without a snapshot/provider read.
+
+These outcomes follow from R3.1 lines **556–566** and `h1–h5` lines **703–707**, and agree with accepted app §§4.7.1, 4.7.2 and 4.9. In `h2`, “no attempt/reservation” means no new writes by the refused redemption; C0-B's pre-existing reservation remains for the `h5` negative control and release. R3.6's local-refusal row preserves that existing state.
+
+The upgrade cases are **SIM**, distinct from released-v10 **MOODLE-LIVE** M1-23/M1-30 migration, backup and rollback. The latter retains its original baseline and evidence labels. R3.8 lines **674–675**, **703** and R3.9 line **752** require the populated `011` route in both full rounds at identical product/test SHAs. The frozen host runner's two-pass structure can be extended for these cases; this review does not claim that extension is already implemented.
+
+### Complete test boundary and accounting
+
+The required additions now have named AC/subcase groups: **37(v1–v12), (w), (x1–x2), (y1–y2), (z1–z5), (aa); 29(k1–k3); 38(h1–h5), (i1–i5)**. R3.9 line **751** carries the same inventory into the later M1 amendment. Every existing case stays mandatory; missing, empty or blocked results cannot satisfy full acceptance.
+
+All-method gate capture and paired positive controls remain explicit at lines **670–675**. CLI provider reads finish during preparation, before the redemption cursor; GETs are never filtered out of the measured request window. The restart persistence case uses that same separation: issue-time reads remain required by R3.4, while redemption has no remote precheck before phase 1. Healthy no-attempt evidence uses the new process's own FIFO control and is never treated as a database rollback oracle.
+
+Live held-call schedules still release within 5 s; timeout cases wait for `caller_gone`. Cancellation combined with a failed V has the explicit R3.3 first-failure table and `z4` fixture. Repeated cleanup in `z5` now has the exact `fenced`/`fenced` outcome. R3.3 also makes readiness-S1 cancellation precedence and the new-id premise explicit. These additions preserve the existing staging, approval, ref-history and old-key oracles.
+
+Lines **714–728** keep internal-only cases separate: missing adapter, partial snapshots, independent field comparators, capture/immutability, exact Canvas request URL, event timing, atomic rollback, a throwing LTI client, post-V ordering, repeated migration application, and the injected registered initial grant. Fixed issuer drift is not fabricated through public simulator controls. No vendor DNS/certificate impersonation, production validator reuse or SSRF relaxation is needed.
+
+The neutral readiness text and internal cause mapping in R3.10 have exact expectations and assigned assertions. R3.9 preserves the current Canvas owner of `providers/canvas.ts` until explicit transfer and names the server/portal owners for the text change. QA retains common/Blackboard cases, the host upgrade route and accounting; QA-E2E retains Canvas variants. No ownership transfer is inferred from this approval.
+
+### Result and held artifact
+
+**APPROVE / PASS FOR DESIGN TESTABILITY ONLY at `78bc34ac422e0bcac324fa10e69ec9f82a17a3b8`.** The design provides reachable public fixtures and observable outcomes, with supplemental-only branches clearly separated. The later Architect contract amendments, implementation, independent tests and full acceptance remain necessary. Original product finding **B-M1-03 remains open** until implementation and verification; this verdict is not product or live-provider acceptance.
+
+**Held path for the Lead's exact-path commit:** `docs/reviews/M1/qa-target-snapshot.md`. Only this Round 3 append was written; earlier rounds are preserved. No product/tests/architecture/team changes, test execution, stack operations, commits or pushes were performed.
