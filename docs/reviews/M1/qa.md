@@ -3,8 +3,8 @@ Round: execution dispatch 1, repair checkpoint, 2026-10-20
 
 The latest checkpoint is at the end of this report. The completed legacy
 T2/T3 run remains exact-`eb43247` evidence in the M3 report. It is not an M1
-PASS. Full M1 execution needs committed repairs, review, a new frozen
-candidate and the Lead's stack window.
+PASS. The latest 14-case preflight is also partial. Full M1 execution still
+needs source-review clearance and the Lead's next stack window.
 
 ## Historical preparation checkpoint
 
@@ -195,3 +195,89 @@ this host-control route, with command, exit code and sanitized output. The
 existing M1-28 and M1-06 fixtures supply these positive and negative controls;
 their test-file commands retain the actual runtime identifiers. Both full
 M1 rounds and all required legacy evidence remain outstanding.
+
+## Partial runtime preflight — 2026-10-20
+
+Verdict for this checkpoint only: **PASS, PARTIAL SIM — 14/14 selected cases**.
+Overall M1 remains incomplete. This run does not count as either complete
+inventory, even where it ran the same criterion.
+
+Product and test SHA: `ae130a3501f3a2502c6a34e36319629e3dcdfb09`.
+Run: `qa-multi-r1-ae130a35-2026-10-20T12-55-39-735Z`. The external source was
+clean and detached at that exact SHA. The external command used the
+unchanged frozen tests and host-control code. Approved wrapper SHA-256:
+`c231c34f084fb010351b28da3d24ed06ad6fd6c6c80cc908c9f10bed5a1f56d8`.
+
+```sh
+COMPOSE_PROJECT_NAME=qa-multi-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 \
+STACK_PROFILE=default \
+node /Users/quangnguyen/cogniate-qa-runs/m3-repair-20261020T1243Z/preflight-smoke.mjs \
+  --sha ae130a3501f3a2502c6a34e36319629e3dcdfb09 \
+  --source /Users/quangnguyen/cogniate-qa-runs/m3-preflight-ae130a3-20261020T1255Z/source
+```
+
+The host run began at 12:55:39.735 UTC. Its in-container command began at
+12:56:23.817 UTC and took 52.286 seconds. Every selected row below passed;
+there was no selected skip or retry. The 152 unselected Vitest observations
+are excluded, never counted as PASS. No browser, upgrade or full-run result
+was inferred from this selection.
+
+| Selected case | Result | Label |
+| --- | --- | --- |
+| M1-01.common.constants | PASS | SIM |
+| M1-37.blackboard.w | PASS | SIM |
+| M1-37.blackboard.y2 | PASS | SIM |
+| M1-29.blackboard.k1 | PASS | SIM |
+| M1-29.blackboard.k2 | PASS | SIM |
+| M1-29.blackboard.k3 | PASS | SIM |
+| M1-38.common.i5 | PASS | SIM |
+| M1-06.blackboard.cli | PASS | SIM |
+| M1-28.blackboard.positive | PASS | SIM |
+| M1-37.blackboard.v2 | PASS | SIM |
+| M1-37.blackboard.x1 | PASS | SIM |
+| M1-37.blackboard.z1 | PASS | SIM |
+| M1-38.blackboard.i3 | PASS | SIM |
+| M1-38.blackboard.i4 | PASS | SIM |
+
+[Exact result identity](/Users/quangnguyen/cogniate-qa-runs/m3-preflight-ae130a3-20261020T1255Z/source/tests/host/artifacts/qa-multi-r1-ae130a35-2026-10-20T12-55-39-735Z/partial-smoke-identity.json)
+contains the selection, full SHAs, command, profile and result rows.
+[Case timing and source index](/Users/quangnguyen/cogniate-qa-runs/m3-preflight-ae130a3-20261020T1255Z/source/tests/host/artifacts/qa-multi-r1-ae130a35-2026-10-20T12-55-39-735Z/partial-smoke-case-times.json)
+retains per-case duration, each test-file time window and available snapshot
+windows; Vitest did not report an individual wall-clock start for each
+assertion. The [host summary](/Users/quangnguyen/cogniate-qa-runs/m3-preflight-ae130a3-20261020T1255Z/source/tests/host/artifacts/qa-multi-r1-ae130a35-2026-10-20T12-55-39-735Z/summary.json)
+includes setup and teardown.
+
+Both real CLI paths worked through `m1HostControl`. App grants had 39
+successful commands and four expected refusal commands. LTI shared-platform
+had one successful idempotent command and one expected conflicting-client
+refusal. [CLI evidence](/Users/quangnguyen/cogniate-qa-runs/m3-preflight-ae130a3-20261020T1255Z/source/tests/host/artifacts/qa-multi-r1-ae130a35-2026-10-20T12-55-39-735Z/operator-cli-index.json)
+records each exact argument array, exit code, duration and sanitized output.
+The selected criteria checked those expected errors; no command error was
+ignored.
+
+[Acceptance health](/Users/quangnguyen/cogniate-qa-runs/m3-preflight-ae130a3-20261020T1255Z/source/tests/host/artifacts/qa-multi-r1-ae130a35-2026-10-20T12-55-39-735Z/partial-smoke-acceptance-health.json)
+records both services in `acceptance`, no knobs, and the two expected
+simulation profiles. [Final health](/Users/quangnguyen/cogniate-qa-runs/m3-preflight-ae130a3-20261020T1255Z/source/tests/host/artifacts/qa-multi-r1-ae130a35-2026-10-20T12-55-39-735Z/partial-smoke-final-health.json)
+records both services restored to `default`, no knobs and no LTI simulation
+profiles. [Image identities](/Users/quangnguyen/cogniate-qa-runs/m3-preflight-ae130a3-20261020T1255Z/source/tests/host/artifacts/qa-multi-r1-ae130a35-2026-10-20T12-55-39-735Z/partial-smoke-full-image-identities.json)
+include ten service/container roles, including E2E, simulator and gate, with
+five unique image IDs and available repository digests. The
+[executed wrapper](/Users/quangnguyen/cogniate-qa-runs/m3-preflight-ae130a3-20261020T1255Z/source/tests/host/artifacts/qa-multi-r1-ae130a35-2026-10-20T12-55-39-735Z/executed-preflight-wrapper.mjs)
+is preserved.
+
+The final scan checked 15 captured values against eight raw service logs
+and the public artifacts, with zero hits; see
+[scan evidence](/Users/quangnguyen/cogniate-qa-runs/m3-preflight-ae130a3-20261020T1255Z/source/tests/host/artifacts/qa-multi-r1-ae130a35-2026-10-20T12-55-39-735Z/post-cleanup-secret-scan.json).
+The independent 12:58:30 UTC
+[cleanup boundary](/Users/quangnguyen/cogniate-qa-runs/m3-preflight-ae130a3-20261020T1255Z/source/tests/host/artifacts/qa-multi-r1-ae130a35-2026-10-20T12-55-39-735Z/independent-cleanup-boundary.json)
+found zero containers, only bridge/host/none networks, and all seven original
+volume metadata records exactly unchanged. No claim of hashing volume data
+bytes is made. Docker memory remained 8,319,238,144 bytes.
+
+The Lead accepted this result and transferred the exclusive stack window
+to Canvas QA for M2 and conditional default-profile T7. No further stack is
+started here. Both complete 416-row runs at the frozen `ae130a3` SHA and the
+remaining legacy suites are still required after source review and the next
+clean handback. The old-011 upgrade, released-v10 Moodle rollback and
+real-provider matrix were not exercised by this preflight. No live
+Blackboard or Canvas result is claimed.

@@ -190,3 +190,27 @@ Canvas QA cleaned its stack. No new stack is authorized until repairs are
 committed and reviewed, the candidate is frozen again, and the Lead returns
 the lane. Both complete M1 rounds, remaining legacy suites and Canvas QA's
 M2/T7 results remain required; M3 has no overall PASS.
+
+## Partial preflight checkpoint — 2026-10-20
+
+The authorized 14-case PARTIAL SIM preflight passed at product/test
+`ae130a3501f3a2502c6a34e36319629e3dcdfb09` with the approved external wrapper.
+All 14 selected cases ran and passed; 152 unselected observations were
+excluded, with no selected skip or retry. The
+[M1 checkpoint](../M1/qa.md#partial-runtime-preflight--2026-10-20)
+records the exact command, all IDs, per-case evidence, timing, real app/LTI
+CLI outputs, image identities, health and wrapper hash.
+
+Both services returned to the default profile with no knobs or simulation
+profiles. The [final secret scan](/Users/quangnguyen/cogniate-qa-runs/m3-preflight-ae130a3-20261020T1255Z/source/tests/host/artifacts/qa-multi-r1-ae130a35-2026-10-20T12-55-39-735Z/post-cleanup-secret-scan.json)
+found no captured secret in eight raw service logs or public artifacts.
+The [independent cleanup check](/Users/quangnguyen/cogniate-qa-runs/m3-preflight-ae130a3-20261020T1255Z/source/tests/host/artifacts/qa-multi-r1-ae130a35-2026-10-20T12-55-39-735Z/independent-cleanup-boundary.json)
+at 12:58:30 UTC confirmed zero containers, no owned network or volume,
+and the same seven baseline volume metadata records. This is a separate
+`ae130a3` checkpoint; the earlier T2/T3 `eb43247` evidence remains unchanged.
+
+This partial PASS closes neither M1 nor M3 and provides no full-inventory
+credit. The Lead now assigned the stack to Canvas QA for M2 and conditional
+T7. Our two complete four-phase M1 runs and remaining legacy suites stay on
+HOLD until that cleanup boundary and the source-review gates. No optional
+upgrade smoke or other stack was started.

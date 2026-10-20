@@ -735,6 +735,35 @@ Every result is PARTIAL SIM; none fills either complete-run inventory. No standa
 After cleanup, common QA holds the next stack until Lead assigns it.
 Canvas QA remains active but held under reply `msg_5cc6a0b12d41`; its next window is separate.
 
+The partial preflight completed in `msg_1171f1c48e06`: all 14 selected cases PASS, no selected skip or retry.
+Run: `qa-multi-r1-ae130a35-2026-10-20T12-55-39-735Z`; exact candidate `ae130a3`.
+Artifacts: `/Users/quangnguyen/cogniate-qa-runs/m3-preflight-ae130a3-20261020T1255Z/source/tests/host/artifacts/qa-multi-r1-ae130a35-2026-10-20T12-55-39-735Z`.
+The Lead read its summary: all selected outcomes, isolation and teardown pass.
+The 152 unselected observations remain excluded. This is not either complete M1 run.
+Real CLI controls pass: app grant has 39 expected zero exits and four expected refusals; LTI has one success and one expected conflict.
+QA captured acceptance and default health, ten image identities, and the approved command hash.
+Its final scan found no matches for 15 captured values in eight raw service logs and 98 public files.
+Cleanup at 12:58:30 UTC preserved all seven baseline volume metadata records and left no containers or owned networks.
+The Lead independently confirmed zero containers.
+
+Message `msg_499d8986cf43` now gives Canvas QA the exclusive window for all 64 M2 cases at the same frozen SHA.
+This run may proceed in parallel with source re-review; it implies no release approval.
+If M2 passes and cleans up, Canvas QA may start the three default-profile T7 runs plus demo/confirmation.
+If M2 fails, it must preserve evidence, clean up, and hold T7. Any new review blocker can hold the next stage.
+Common QA received `msg_a08a92654c63` and holds its next stack while it records the partial evidence.
+
+Canvas QA started all 64 cases in `qa-e2e-sim-r2-ae130a35-2026-10-20T13-02-19-726Z`.
+Its external root is `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-ae130a3-s73h9dlx`.
+Fresh guards confirmed zero containers, free assigned ports and subnets, exact course hashes, and seven unchanged baseline volume records.
+
+Reviewer-A status `msg_55731d8888b8` identifies a new MAJOR A-M3-02 in older Blackboard harness paths.
+The one-shot hold in `50-races.test.ts` can expire before a zero-call observation; `30-grants.test.ts` omits three HTTP methods.
+The 14 selected preflight cases do not cover these gaps.
+Lead message `msg_f6e04e3b6c65` assigns common QA a bounded repair and audit of the remaining owned no-call assertions.
+This work has no stack authority and does not change the external frozen M2/T7 clones.
+Reviewer-A completes its current frozen review before reviewing any later repair.
+Full M1 remains held until the repair is committed, independently reviewed, and frozen for both complete runs.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
