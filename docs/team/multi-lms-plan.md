@@ -1027,6 +1027,33 @@ Canvas QA has no stack authority. It will independently judge all 233 Canvas row
 Its read-only local Canvas feasibility assessment proposes no startup under the current stack and runtime-configuration limits.
 All 32 live rows stay UNVERIFIED. No live result is inferred from SIM or Moodle.
 
+### First full M1 attempt: test failures and bounded repair
+
+Common QA reports the first SIM phase failed at `aff4882` in `msg_94ad439dfad6`.
+The parent command exited 1 at 15:05:04 UTC after 394 rows: 385 PASS and 9 FAIL.
+Common has 24 PASS and 2 FAIL; Blackboard has 132 PASS and 4 FAIL; Canvas has 229 PASS and 3 FAIL.
+The SIM selection has 232 Canvas rows. The remaining Canvas row belongs to the isolated phase.
+Round 1 isolated, upgrade and migration phases, all of round 2, and all final legacy suites did not run.
+This attempt gives no full M1 acceptance credit.
+
+QA identified six common/Blackboard test defects against the unchanged contracts:
+two assertions used an app-only error field on an LTI error;
+the query escape case had no claim query parameter to change;
+the course-shell refusal used a malformed body and an unknown course;
+and two profile cases did not pass the documented restart overrides.
+The Lead checked the relevant contract clauses and authorized five owned test/harness files in `msg_da9a87e79584`.
+Repairs must preserve negative assertions, valid positive controls, no-call checks and publication immutability.
+QA will supply harness controls, typecheck, the full 416-row inventory and a held patch before any new freeze.
+Canvas QA received its three failures for independent classification in `msg_8383137868da`.
+The unexpected repeated-redemption audit event remains unclassified.
+No product change or partial product rerun is authorized by these messages.
+
+The sole stack window is closed.
+The Lead read the exit, boundary and scan reports in the run root's `public/` folder.
+QA reports zero containers or owned leftovers, seven unchanged full volume metadata records, and unchanged VM settings.
+The independent scan covers 1,299 captured values, nine raw logs and 669 public files, with zero secret or JWT hits.
+The failed evidence remains intact. Final conformance and Docs remain gated on accepted verification.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
