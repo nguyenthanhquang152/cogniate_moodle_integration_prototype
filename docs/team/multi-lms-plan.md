@@ -491,6 +491,19 @@ The same Canvas QA instance remains retained for `task_1276def76f95`, the broade
 That task depends on the applied contracts and the committed narrow repair, and waits for a free worker slot.
 Codex QA owns the complete manifest and mixed-provider `011→012` host route; Canvas QA supplies its assigned cases and fixture interfaces.
 
+The QA case split is confirmed in `msg_dfe8dcfa0ded`: provider variants of AC-M1-37 (v12) and AC-M1-38 (i4) have separate rows.
+Common QA supplies shared audit helpers without imports from test modules.
+Canvas QA preserves the existing public Canvas fixture helpers or coordinates a change through the Lead.
+The backend interface handoff `msg_41dc8a263951` assigns the typed staged-create URL field to the backend Author.
+Canvas Author-2 owns `url: target.issuer` in the adapter and the missing committed-platform guard before parsing in its deployment route.
+This applies the accepted contract; it transfers no file ownership.
+
+Final combined code and harness review tasks are queued:
+Reviewer-A `task_74de10f72cf9` and Reviewer-B `task_08461c360614`.
+Both depend on the two implementation tasks and both test-preparation tasks.
+The Lead must supply one committed candidate with a passing root check before dispatch.
+They append independent reports and recheck the full candidate; earlier bounded findings and design approvals do not replace this gate.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
