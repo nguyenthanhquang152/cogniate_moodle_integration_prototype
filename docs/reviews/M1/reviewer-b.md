@@ -1,3 +1,10 @@
+Verdict: APPROVE
+Round: 3
+
+Latest verdict applies to the source review at `eb43247d02df622d5da72dafac41d919f65a91fe`; see Round 3 below. Acceptance and live-provider evidence are separate gates.
+
+## Round 1 — historical review
+
 Verdict: CHANGES_REQUESTED
 Round: 1
 
@@ -310,3 +317,75 @@ The M2 harness-only run also passes: two self-tests, tests TypeScript and all 64
 ### Still required
 
 Review the exact B-M1-03 design and implementation repair, resolve the narrow no-attempt evidence gap, and review the final startup-smoke handoff. Then use the final frozen product/test SHAs for acceptance, browser, migration/rollback and Moodle regression. Local Canvas, hosted Canvas and Blackboard Learn live rows remain UNVERIFIED.
+
+## Round 3 — final combined source and prepared-harness review
+
+Verdict: **APPROVE** for M1 code review. Date: 2026-10-20. No open Reviewer-B BLOCKER or MAJOR remains in the reviewed source. This is not a QA PASS, a startup-smoke result, or permission to call the feature done.
+
+Reviewed candidate: `eb43247d02df622d5da72dafac41d919f65a91fe`. Applied behavior contracts: `ccdd9ef67cdd2be4c6af374136777fda4e081943`, on the accepted ADR-011 revision-6 architecture. Product repairs include `a8580ddea51db354a743ba469d8ad0e53878c030`, `4cf1e91c5c56b49630e57f9b428c73777a38af3d` and `d64832b5b2ebf82f267cb6f21208eee792a4ff30`. Prepared harness includes `3fef85f51ea798ac6bf3245dba632131f4e38dda` and the candidate commit. All reads and executions used the clean detached clone `/tmp/cogniate-reviewer-b-76b03c7-ivj64s6o` at that candidate.
+
+This round carries forward the earlier complete source review and verifies the integrated repairs, their callers and the changed acceptance recipes. The previously reviewed LTI service, player, shared packages, infrastructure, binding cleanup and score-worker source are unchanged from `9f96f7b`. No other reviewer's new report or conclusions were read. Only the three Reviewer-B reports were edited.
+
+### Finding disposition
+
+| Finding | Latest disposition |
+| --- | --- |
+| B-M1-01, stale score-worker state after disable | **CLOSED.** The reviewed correction remains intact; its committed regression tests pass again in this round. Earlier independent interleaving evidence remains in Round 2. |
+| B-M1-02, maintenance entry fails open or becomes a no-op through a symlink | **CLOSED.** The corrected shell and real-path entry are unchanged; maintenance tests pass again. Earlier failure and real/symlink positive probes remain in Round 2. |
+| B-M1-03, provider reads before local grant checks | **CLOSED** at this candidate, for the source and local API behavior described below. |
+| B-M3-03, C-2/C-3 no-attempt evidence | **CLOSED** for the corrected bounded audit oracle; see the M3 report. This does not turn an absent log line into a database or crash-durability proof. |
+| Preliminary B-M3-04, Canvas pre-kill audit capture | **WITHDRAWN** after checking the applied M1 rule against the proposal wording. The current restarted-process oracle meets the applied rule; see M3. |
+
+### B-M1-03 closure
+
+Connection creation captures its private provider snapshot in the insert using that request's existing provider response. The snapshot is not returned in the public DTO and has no update or automatic backfill path. Blackboard tool configuration and strict body validation use the saved client ID, with the specified local platform fallback for registered old rows.
+
+The one redemption engine now performs all ordered local checks inside phase 1, builds the target from local rows, and commits the attempt, lease and any Blackboard reservation before emitting `grant_attempt_started` or making an outbound request. The event includes trace, grant, connection, attempt and purpose. The rollback regression injects failure between the writes and checks that no attempt, lease, reservation or start event survives.
+
+Blackboard initial redemption performs exactly one V provider read after phase 1. Its result passes through cancellation-first handling. Snapshot drift cannot silently retarget a stored grant or cleanup operation. A replacement lease is not cleared by the old attempt. Matching V still needs S0 before S1. Canvas initial redemption has no V; it sends its saved issuer as the S1 `url`. Only the contracted S1 status/code pairs map to neutral readiness. S2/S3 failures retain their ordinary error mapping.
+
+Old pending rows fail at check 4a only after earlier grant/state checks. Old registered rows still repeat locally, and Canvas can issue and redeem an added-deployment grant from its committed platform without a snapshot or provider read. Failed issue-time readiness checks occur before the grant-writing transaction, so they do not replace the existing code. Internal readiness causes stay in logs; both the API and portal present the same neutral title and action.
+
+Independent in-memory API probes adapted the original B-M1-03 reproduction without changing product files. All **12 checks passed**:
+
+| Probe | Canvas | Blackboard |
+| --- | --- | --- |
+| Well-formed unknown code, normal provider | 403; zero calls/attempts | 403; zero calls/attempts |
+| Unknown code with provider failure armed | 403; zero calls/attempts | 403; zero calls/attempts |
+| Valid code, wrong deployment | 422; zero calls/attempts | 422; zero calls/attempts |
+| Endpoint/body precedence | Pending add: 409; zero calls/attempts | Wrong explicit client: 422; zero calls/attempts |
+| Valid code during a live local lease | 409; zero calls/attempts | 409; zero calls/attempts |
+| Valid positive control | 200; staged POST then activation PATCH, no provider GET; one attempt/event | V failure: 502; exactly one provider GET; one attempt/event |
+
+Every local refusal also preserved the stored lease fields. These probes used the real app routes and isolated test fixtures with the fake LTI transport. They are supplemental local evidence, not simulator or LMS acceptance.
+
+### Invariants, migration and operability
+
+The repairs retain one engine for initial and added-deployment redemption. I1 remains enforced by the connection lease, including replacement requests. I2 still requires the exact committed deployment approval and an enabled connection; a remote active orphan has no app authority. I3–I5 retain fresh write-ahead refs, conditional activation/compensation, bounded adoption, inactive create and the existing cleanup owners. I6 is stronger at the entry point: the target is now committed with phase 1 before the first remote read. V failure does not erase an older target or prove an older remote record absent. The lost-S3/V-failure regression exercises later suspend through that saved history while preserving an unrelated binding.
+
+No product timeout or production URL/security exception was added. The outbound five-second timeout, 60-second connection lease and six-second S0 minimum remain. Provider adapters build the target and staged request; they do not acquire their own lease or run a second binding algorithm. The typed local-profile view replaces the former requirement for a complete live provider row.
+
+Migration 012 is three nullable columns and leaves migration 011 unchanged. Supplemental tests upgrade populated 010 and 011 fixtures, retain old migration entries and connection/grant/attempt/ref/approval/reservation/service-key data, keep old snapshots null, and check repeat startup and refusal to open the new database with the old migration set. The independent prepared host route also starts the actual frozen 011 product, seeds through public interfaces, takes a stopped verified paired backup, then starts 012. Its h2–h5 checks cover refusal, repeats, added deployments, suspend/release recovery and unrelated old-key continuity. This source review does not claim that host route passed.
+
+The existing rollback route remains a separate real-Moodle recipe: verify both stopped databases and sidecars before any replacement, refuse damaged backups without target changes, restore matching bytes, and show the lost local post-backup write while Moodle keeps the accepted grade. There is no downgrade-by-column-removal claim.
+
+### Independent checks at the candidate
+
+Two focused Vitest selections passed: **151 tests in seven files**, then **58 tests in six files**, with no reported skips. Together they cover redemption, added deployments, migration 012, Canvas provider behavior, portal behavior, score-worker containment, maintenance, LTI multi-LMS routes/profiles and the embedded Canvas page.
+
+```sh
+node_modules/.bin/vitest run services/cogniate-app/src/app/redemption.test.ts services/cogniate-app/src/app/canvas-deployments.test.ts services/cogniate-app/src/domain/migration-012.test.ts services/cogniate-app/src/providers/canvas.test.ts apps/portal/src/connect/canvas/canvas.test.ts apps/portal/src/connect/blackboard/blackboard.test.ts apps/portal/src/multi-lms.test.ts
+node_modules/.bin/vitest run services/cogniate-app/src/worker/score-sync.test.ts services/lti-service/src/cli/stack-data.test.ts services/lti-service/src/http/routes/multi-lms.test.ts services/lti-service/src/profiles/canvas.test.ts services/lti-service/src/profiles/registry.test.ts services/cogniate-app/src/tool-pages/canvas-embedded.test.ts
+npm run typecheck -w services/cogniate-app -w apps/portal
+node tests/host/run-m1.mjs --harness-only --provider all
+node --test tests/acceptance/M1/canvas/snapshot-oracle.selftest.mjs
+node tests/e2e/host/run-m2.mjs --harness-only
+```
+
+The first test invocation also named two nonexistent worker/maintenance paths; they selected no tests and are not counted. Their correct paths are in the second selection shown above. App and portal typechecks pass. M1 preparation passes 27 self-tests, tests TypeScript and discovery/accounting for 392 API plus 24 host/browser rows. The separately run Canvas oracle has three passing self-tests. M2 preparation passes two self-tests, tests TypeScript and all 64 browser rows, with T7 selection kept separate.
+
+The Lead's reported full root check of 996 tests in 69 files is separate Lead evidence. It was not rerun or relabeled as independent evidence here.
+
+### Remaining evidence boundary
+
+No stack, full acceptance, browser journey, persistent migration, rollback, Moodle regression or live tenant was run in this review. The separate final startup-smoke handoff was not supplied as a completed result to this round. QA still needs the frozen-SHA full runs, actual per-case artifacts and required regression results. Local Canvas, hosted Canvas and Blackboard Learn live rows remain UNVERIFIED. This approval closes the Reviewer-B source gate; the Lead still owns the separate task-done gates.

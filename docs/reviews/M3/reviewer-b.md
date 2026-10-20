@@ -1,3 +1,10 @@
+Verdict: APPROVE
+Round: 3
+
+Latest verdict applies to harness preparation at `eb43247d02df622d5da72dafac41d919f65a91fe`; see Round 3 below. No Reviewer-B finding remains open. This is not the M3 acceptance verdict.
+
+## Round 1 — historical review
+
 Verdict: CHANGES_REQUESTED
 Round: 1
 
@@ -141,3 +148,60 @@ Independent JSON comparison confirms every common/Blackboard/Canvas and M2 manif
 ### Remaining gate
 
 The original B-M3-01/02 MAJOR source defects are closed in this bounded supplement. B-M3-03 is open MINOR, and B-M1-03 is still an open product MAJOR. No new BLOCKER or MAJOR was found in this supplement. These preparation results do not approve the full M3 acceptance gate: final grant-order repair, final reviewed SHAs and actual SIM/browser, migration/rollback and Moodle regression results remain. Local Canvas, hosted Canvas and Learn live evidence stays UNVERIFIED.
+
+## Round 3 — final combined prepared-harness review
+
+Verdict: **APPROVE** for source/preparation review, with no open finding. Date: 2026-10-20. This is not QA PASS for M3 or a claim that any prepared acceptance schedule ran.
+
+Candidate: `eb43247d02df622d5da72dafac41d919f65a91fe`. Applied contract: `ccdd9ef67cdd2be4c6af374136777fda4e081943`. Common/Blackboard/011 harness repair: `3fef85f51ea798ac6bf3245dba632131f4e38dda`; Canvas snapshot supplement: the candidate. Source reads and preparation checks used the clean detached clone `/tmp/cogniate-reviewer-b-76b03c7-ivj64s6o`. No other reviewer's new report or conclusions were read.
+
+### Prior findings
+
+B-M3-01 and B-M3-02 remain **CLOSED** for the wizard/badge and hard-navigation defects. The current code preserves the repaired paths and observation sentinel. The Round 2 qualification about a delayed request versus a delivered late response still applies.
+
+B-M3-03 is **CLOSED** for the bounded no-attempt evidence gap. C-2 and C-3 now take a healthy-process cursor, observe the refused request's own same-trace `http_request` completion, and require zero connection-scoped start events within that window. Their valid follow-up redemptions require exactly one event. A final total check also rejects a delayed extra refusal event. Exact statuses, the `redeemed` reason, issued-grant checks and zero outbound assertions remain.
+
+The common oracle rejects a missing boot/completion control, log truncation, process changes and a start event after completion. It counts every received gate request without filtering GET. Its self-tests inject hidden attempts and invalid ordering. An absent audit event remains a bounded healthy-process observation, not a database or rollback oracle; the product's transaction-failure unit test supplies separate rollback evidence.
+
+B-M1-03, the last product MAJOR from these reports, is closed at the reviewed candidate. The independent local API proof and complete product disposition are in the M1 report.
+
+### Preliminary B-M3-04 — WITHDRAWN after the applied-contract check
+
+At `tests/acceptance/M1/canvas/52-canvas-snapshot.test.ts:68`–`:70`, Canvas v4/v6 reach held S3 and restart without first confirming capture of the first attempt's audit line. Proposal D R3.7 rule 5 contains that extra pre-kill confirmation sentence. However, the normative applied M1 evidence rule 4 at `ccdd9ef` requires the restarted process's own new cursor and completion control, with no comparison across a kill; it does not repeat the pre-kill sentence.
+
+The current cases satisfy that applied rule. Held S3 and the subsequent 409 exercise the lease. The new healthy-process cursor, same-trace completion and separate positive V control bound the refusal's no-event claim. They do not claim that the killed process's buffered event survived. The earlier proposal wording alone does not establish a defect against this review's applied-contract target, so the preliminary MINOR is withdrawn and needs no deferral. The preliminary message was `msg_9fac9a00748f`; the correction is `msg_59b0f18c82eb`.
+
+### Integrated harness assessment
+
+The full M1 entry now runs four phases twice at the same frozen product/test SHAs: ordinary SIM, isolated profile/shared-platform drift, populated 011-to-012, and Moodle migration/rollback. It then runs the legacy regression entry points. Exact per-case inventory checks still reject missing/duplicate cases, wrong labels, mixed SHAs, skips and non-PASS results. A missed timing schedule remains `BLOCKED` and fails the gate.
+
+The populated route freezes its old product at `9f96f7b24cd0aed702e4dc40373bdda4307aad31`, checks that 011 exists and 012 does not, seeds through public APIs/CLI, stops both data services, and verifies a paired private backup before starting the candidate. It checks the new migration ledger and keeps the h1 source SHA explicit. h2–h5 retain old-grant refusal, registered repeats, both seeded and new added-deployment grants, and suspend/release recovery through saved orphan targets. Unrelated approvals, launches and stored keys are checked throughout. The separate released-version Moodle route retains actual grade, backup corruption, restore-byte and lost-write checks. No SQL mutation or ledger editing is used to simulate these acceptance migrations.
+
+All new local-refusal recipes prepare provider/CLI reads before the gate cursor. Blackboard positives prove V is observable under the same faults. Canvas initial positives require POST first and no provider GET. Post-V cancellation tests distinguish the inactive or absent remote record from app authority, and late/time-limited schedules retain the existing five-second and 60-second budgets. Audit observations do not claim durability across a killed process.
+
+Host controls remain limited to the scoped QA project and named operator/profile/restart actions. Raw credential-bearing state and private backups stay outside shared evidence; copied textual evidence is redacted and scanned. The source supplies those checks, but resource preservation and zero-leak results still need an actual run. SIM remains separate from MOODLE-LIVE, CANVAS-LOCAL, CANVAS-HOSTED and BLACKBOARD-LIVE.
+
+### Independent preparation evidence
+
+```sh
+node tests/host/run-m1.mjs --harness-only --provider all
+node --test tests/acceptance/M1/canvas/snapshot-oracle.selftest.mjs
+node tests/e2e/host/run-m2.mjs --harness-only
+```
+
+Results: M1 has **27 passing self-tests**, tests TypeScript and **392 API + 24 host/browser rows**. The separately executed Canvas oracle has **three passing self-tests** covering forbidden provider GETs, S1-only readiness and missed lease windows. M2 has **two passing self-tests**, tests TypeScript and **64 discovered browser rows**, with T7 kept separate. No self-test reported a skip.
+
+Independent manifest comparison against `0008bdef092b866a361d57ab705b581cd16312a5`:
+
+| Owner | Prior rows retained | Current rows | Added |
+| --- | ---: | ---: | ---: |
+| Common | 36 | 42 | 6 |
+| Blackboard | 120 | 141 | 21 |
+| Canvas | 222 | 233 | 11 |
+| M2 | 64 | 64 | 0 |
+
+Every prior M1 case ID retains its criterion, kind and evidence label. The M2 manifest is identical. Existing race variants were not removed to obtain the larger inventory. The 209 focused product tests, app/portal typechecks and 12 independent local API probes documented in the M1 report also passed; they are not acceptance results.
+
+### Remaining gate
+
+No Reviewer-B finding remains open in the reviewed implementation or prepared harness. The separate startup-smoke handoff was not reviewed as a completed result. QA must still execute the frozen full runs, M2 browser checks, migration/rollback, legacy and default-profile T7/Moodle regression, resource checks and final evidence scans. Every live-provider row remains UNVERIFIED until its own authorized evidence exists. This review therefore approves preparation, not the M3 QA verdict or task completion.

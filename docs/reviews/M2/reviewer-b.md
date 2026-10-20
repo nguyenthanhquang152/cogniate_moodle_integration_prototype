@@ -1,3 +1,10 @@
+Verdict: APPROVE
+Round: 3
+
+Latest verdict applies to the source review at `eb43247d02df622d5da72dafac41d919f65a91fe`; see Round 3 below. Browser acceptance and live-provider evidence are separate gates.
+
+## Round 1 — historical review
+
 Verdict: CHANGES_REQUESTED
 Round: 1
 
@@ -94,3 +101,26 @@ The route tests keep their document sentinel and observer across client-side nav
 `node tests/e2e/host/run-m2.mjs --harness-only` passes two self-tests, tests TypeScript, all 64 discovered/manifested browser rows, and separation from T7. Case IDs, order, criterion assignments, kinds and labels are unchanged from `9964e6f`. An explicit T7 listing shows 18 tests in six files.
 
 No new M2 product finding was found in this bounded supplement. B-M2-01 is closed; the earlier browser-harness blockers are corrected in source. This checkpoint does not give a complete M2 approval: the common B-M1-03 dependency, final review and actual browser/Moodle regression evidence remain. All live-provider checks remain UNVERIFIED.
+
+## Round 3 — final combined source and prepared-browser review
+
+Verdict: **APPROVE** for M2 code review. Date: 2026-10-20. Candidate: `eb43247d02df622d5da72dafac41d919f65a91fe`. Applied contracts: `ccdd9ef67cdd2be4c6af374136777fda4e081943`. All reads and checks used the clean detached clone `/tmp/cogniate-reviewer-b-76b03c7-ivj64s6o`; no stack or browser acceptance was run. Earlier rounds remain intact.
+
+B-M2-01 remains **CLOSED**. The Learn instructions retain both Submit steps and all step data remains `verified: false`. This round does not repeat or extend the earlier vendor-document verification into a live-tenant claim. B-M1-03 is now closed by the backend correction reviewed in the M1 report. No new M2 BLOCKER, MAJOR or MINOR was found.
+
+The new `ProviderErrorNotice` behavior applies the exact neutral readiness title and action to both Canvas and Blackboard binding failures. It preserves the error code and trace ID, does not expose an internal readiness cause, and does not replace other error-specific actions. The separate unavailable-Blackboard card guidance stays unchanged. Colocated tests submit both forms through the error path, require the approval input to be cleared, require no successful `onChanged` callback, and check the expected route and visible action.
+
+The reviewed portal boundaries remain: provider capabilities select the supported controls; Canvas configuration uses the returned export bytes and distinguishes the inline-key snapshot; additional Canvas deployments use their own code and endpoint; approval codes are cleared and are not persisted by the form. Route/library changes reset scoped state and abort stale fetches. The repaired wizard helpers reach the combined setup/approval page after one Next, and badges are checked on the actual connection detail/selector.
+
+Prepared browser error cases now exercise readiness after a connection and grant already exist. Canvas turns its simulation profile off through the scoped host action and checks the neutral S1 error, pending state and cleared code, then restores the profile in `finally`. Blackboard retains its original retry-after-service-error assertions, then uses a separate pending connection, deactivates the shared platform, checks readiness, reactivates it and retries the same code. Cleanup restores the active parent. These are useful source-level assertions; they have not executed in a browser in this review.
+
+The route tests retain their document sentinel and observer across client-side transitions. The previous qualification remains: delaying an intercepted request does not by itself prove delivery of a late response. Product cancellation can abort that request. Actual evidence must describe the observed result accurately.
+
+Independent checks:
+
+- The Canvas, Blackboard and multi-LMS portal tests passed in the first 151-test combined selection documented in the M1 report.
+- `npm run typecheck -w services/cogniate-app -w apps/portal` passed.
+- `node tests/e2e/host/run-m2.mjs --harness-only` passed two self-tests, tests TypeScript and discovery/accounting for 64 browser cases; T7 remains separate.
+- Independent JSON comparison shows the M2 manifest is unchanged from `0008bdef092b866a361d57ab705b581cd16312a5`. No browser case or evidence label was removed.
+
+This closes the Reviewer-B M2 code gate. Actual browser/keyboard/axe flows, default-profile T7 and the required Moodle regression remain separate QA gates. The M3 report records why the preliminary Canvas audit concern was withdrawn against the applied contract. Local Canvas, hosted Canvas and Blackboard Learn workflows remain UNVERIFIED; a simulator pass cannot change the step verification flags.
