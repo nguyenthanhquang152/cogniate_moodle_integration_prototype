@@ -10,8 +10,8 @@ The Moodle release below is the completed baseline.
 | Task | Owner | Status | Evidence |
 | --- | --- | --- | --- |
 | M0 | Architect; independent QA and reviewers | Done for design scope | Round 3 at `158a4d8`: A APPROVE, B APPROVE, QA PASS for design testability. Nonblocking A-M0-11, A-M0-12 and B-M0-10 text corrections applied. No open BLOCKER or MAJOR. |
-| M1 | Blackboard and Canvas teams; one shared engine owner | Team ownership being mapped | Design accepted. Owner requests two LMS teams; old horizontal task was never dispatched. |
-| M2 | Blackboard and Canvas teams; one owner per shared portal file | Team ownership being mapped | Same approved portal criteria; exact disjoint paths are being assigned. |
+| M1 | Blackboard and Canvas teams; one shared engine owner | Ready under two-team brief | Design accepted. [Exclusive paths and handoffs](multi-lms-team-brief.md) assigned; old horizontal task was never dispatched. |
+| M2 | Blackboard and Canvas teams; one owner per shared portal file | Ready under two-team brief | Same approved portal criteria; Blackboard wizard and Canvas/shared portal files have separate owners. |
 | M3 | QA (Codex), QA-E2E (Claude) | Planned | Environment preflight complete. Real Canvas and Blackboard checks remain unverified. |
 | M4 | Docs and Architect | Planned | Guides, review pack, final conformance. |
 

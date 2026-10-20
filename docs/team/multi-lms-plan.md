@@ -55,8 +55,9 @@ At most two implementers and one QA or reviewer run beside the Lead.
 
 The horizontal M1/M2 implementation and test-preparation tasks were never dispatched.
 They are now marked blocked as superseded; their old ownership is not authority to start work.
-Read-only Architect task `task_f8c34ad605f6`, dispatch `ctx_e9dd8cd62b35`, maps exact disjoint paths and shared interfaces.
-The Lead will issue provider-team task briefs from that map.
+Read-only Architect task `task_f8c34ad605f6`, dispatch `ctx_e9dd8cd62b35`, completed the file and interface map.
+The [two-team brief](multi-lms-team-brief.md) is the current ownership authority.
+It names the shared backend owner, shared portal owner, provider files, test paths and foundation handoffs.
 This changes execution ownership, not the approved protocol, criteria or review gate.
 
 ### Initial role assignment (history)

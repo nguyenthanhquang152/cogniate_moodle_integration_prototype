@@ -21,8 +21,8 @@ Team 2: Codex Author-2 implements Canvas; Claude QA-E2E supplies independent acc
 Only Claude Code Opus 5.5 xhigh and Codex GPT-6-Astra xhigh are used.
 Both dedicated reviewers remain independent shared reviewers.
 
-Exact file boundaries are being mapped in `task_f8c34ad605f6`.
-The Lead will replace the horizontal briefs below with disjoint provider and common-engine tasks.
+The [two-team brief](multi-lms-team-brief.md) now gives exact paths and handoffs from the completed Architect map.
+It replaces the horizontal allocation below with disjoint provider and common-engine ownership.
 The old tasks were never dispatched and must not start.
 The accepted behavior and all criteria remain unchanged.
 
