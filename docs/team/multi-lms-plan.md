@@ -989,6 +989,22 @@ QA confirmed the sanitized log hash, private permissions and clean boundary in `
 T7 now runs as `qa-e2e-m3-r2` at the unchanged `aff48823a4c6206d6314d91a95f5eb0979d3e0e7`.
 Common QA received the concrete observer failure mode in `msg_e8cce2bcc584` and remains held.
 
+### Both Claude source supplements complete
+
+Fresh Claude B approved the one-file repair in `msg_95fbb6b9dcc9`.
+Its held report hash matched, and the Lead committed it at `16dc0f4887c37e97fb7a0dc74d59d8e8ab3043bf`.
+B-M3-05 is a nonblocking NIT about a duplicate RegExp escape helper. It does not require a new freeze.
+Original Claude A independently approved the same repair in `msg_7f53a1a43e3f`.
+Its held report hash matched, and the Lead committed it at `c5513f67977be91e36b894622c16c28f80f5a096`.
+Both reviewers stayed blind to the other's new supplement. Both instances are retained for their later roles.
+There is no open BLOCKER, MAJOR or MINOR; A-M1-02 remains the earlier accepted NIT.
+Source approval does not replace runtime acceptance. The frozen product/test SHA remains `aff4882`.
+
+Common QA also found the same child-process error risk in its external observer before running a stack.
+It fixed that evidence tool outside the frozen source and reports eight focused controls PASS in `msg_a31fa13c2266`.
+Its prior zero-container observations exposed no values. The full seven-volume baseline comparison is retained.
+Message `msg_408fa2b08984` records both completed source gates and continues the common-QA stack HOLD pending T7 and cleanup.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
