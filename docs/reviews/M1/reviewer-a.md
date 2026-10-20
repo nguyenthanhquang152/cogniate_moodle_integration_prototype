@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 3
+Round: 4
 
 # M1 review: Reviewer-A (correctness and security)
 
@@ -243,3 +243,27 @@ The independent scratch script passed **20 grouped probes**: seven empty-S2/canc
 Lead subsequently reported a clean exact-SHA root check in `msg_db27b9cc3f43`: lint/typechecks and **1,032 tests in 69 files, zero skips**, log `/tmp/cogniate-lead-foundation.bzkF2F.round3-check.log`. This is Lead validation, not mine.
 
 Lead also relayed QA's **14/14 PARTIAL SIM preflight** in `msg_7ac69e393e11`, including actual app/LTI operator commands and selected repaired capture cases. It is QA execution and does not establish either complete M1 inventory, migration/rollback, legacy, full M2, default-profile T7 or live interoperability. M3 A-M3-02 still blocks an unqualified harness approval. All live evidence stays separate; this report does not promote any live matrix entry.
+
+## Round 4 (2026-10-20): closure retention at the runtime repair freeze
+
+| Item | Value |
+| --- | --- |
+| Verdict | **APPROVE** (unchanged) for the M1 implementation. The earlier closures stay closed at this SHA, and A-M1-02 stays the accepted open NIT. This is not release or acceptance approval. |
+| Exact product/test SHA | **`e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63`**, compared with `ae130a3501f3a2502c6a34e36319629e3dcdfb09`, in detached clone `/tmp/rva-e3cd7db`. |
+| Reviewer | The original Claude Reviewer-A (claude-opus-5-5, xhigh), resumed. Task `task_016398b7ed4e`, dispatch `ctx_7e250abb1487`. Round 3 above was done by the Codex replacement and is kept unchanged. I did not read Reviewer-B's new re-review. |
+
+### Closure retention
+
+- `git diff ae130a3 e3cd7db` touches no file in `services/**`, `packages/**`, `infra/**` or `docs/architecture/**`. The product delta is only the six `apps/player` and `apps/portal` paths (M2 Round 4).
+- So these closures are unchanged:
+  - **A-M1-03**: one qualified Canvas S2 lookup;
+  - **A-M1-04**: single-attempt V and S2 reads with a 5 s limit;
+  - **A-M1-05**: refusal trace ids;
+  - **A-M1-06**: `grant_redeemed` written only after the commit;
+  - **A-M1-01** and **B-M1-01/02/03**.
+- **A-M1-02** (`domain/bindings.ts:281`–`:286`) stays the accepted NIT.
+- The M1 test changes in this delta are the Blackboard `30-grants`/`50-races` capture repair and the recorder kinds `play_id`/`picker_id`. They change no case, manifest or count (392 API + 24 host rows). I review them in M3 Round 4, where A-M3-02 is now closed.
+
+### Remaining gates
+
+Both complete M1 inventories at the same final SHAs, the populated `011→012` route, migration/rollback, legacy and live interoperability are still separate execution gates. The Lead's clean 1,039-test check (`msg_54ff82484809`) is the Lead's evidence. My checks for this round are listed in the M2 and M3 Round 4 sections. The live matrix remains UNVERIFIED.

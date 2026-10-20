@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 3
+Round: 4
 
 # M2 review: Reviewer-A (correctness and security)
 
@@ -127,3 +127,50 @@ The scratch row probe executes the actual old and repaired assertion blocks, wit
 Reviewed files: the full row-test delta, shared `tests/host/m1-control.mjs` and its self-test, both service script manifests and Compose working-directory/mount declarations, plus the unchanged M2 manifest/runner selection. Product and gate probes are recorded in M1/M3 Round 3.
 
 At this report's evidence boundary, full repaired M2 browser results, keyboard/axe flows and default-profile T7/Moodle regression remain QA execution gates. A later partial preflight or source approval cannot substitute for them. The 32-row live matrix remains UNVERIFIED.
+
+## Round 4 (2026-10-20): M2-12 player and M2-13 route repairs
+
+| Item | Value |
+| --- | --- |
+| Verdict | **APPROVE** for the bounded M2 product and diagnostic corrections. No BLOCKER or MAJOR is open. A-M3-03 (MINOR, Deep Linking JWT capture) is in the M3 report. This does **not** convert the **61 PASS / 3 FAIL** browser run at `ae130a3` to PASS. Only a complete M2 rerun at this SHA can show that M2-12 and M2-13 pass in a real browser. |
+| Exact product/test SHA | **`e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63`**, compared with `ae130a3501f3a2502c6a34e36319629e3dcdfb09`, in detached clone `/tmp/rva-e3cd7db`. |
+| Product delta | Exactly six paths: `apps/player/vite.config.ts`, `apps/player/src/build.test.ts`, `apps/player/src/html/tracker.ts`, `apps/portal/src/App.tsx`, `apps/portal/src/main.tsx`, `apps/portal/src/multi-lms.test.ts`. There is no delta in `services/**`, `packages/**`, `infra/**` or `docs/architecture/**`. Diagnostics: `7ddff36` (see M3 Round 4). |
+| Reviewer | The original Claude Reviewer-A (claude-opus-5-5, xhigh), resumed. Task `task_016398b7ed4e`, dispatch `ctx_7e250abb1487`. Round 3 above was done by the Codex replacement and is kept unchanged. I did not read Reviewer-B's new re-review. No browser, stack, edit, commit or push. |
+
+### M2-12, player entry scripts: **fixed in the build output**
+
+- **Defect reproduced.** I built `apps/player` at `ae130a3` in a scratch worktree. The output had a fourth file, `lms-name-C1xN6RS4.js`, and **both** `runtime.js` and `shell.js` import it. The routes serve only `/_rt/assets/:file` (content origin) and `/_player/shell.js` (app origin; `tool-pages/play.ts:86`–`:89`). So the shared chunk cannot load, which matches QA's script-404 observation.
+- **Repair.** `vite.config.ts` builds two environments one after the other, each as a self-contained ES library (`codeSplitting: false`). Only the first build empties `dist`, and watch mode never empties it.
+- **Build output at `e3cd7db`:** exactly `runtime.css`, `runtime.js`, `shell.js`, with **zero** import statements. Compared with the old output (both scripts plus the shared chunk), the string literals and property names are the same. The only differences are minified local names and the removed chunk import. The exports are unchanged (`startRuntime`; `POLL_MS`, `pollOnce`, `startShell`), and `runtime.css` is byte-identical. So the script format, the tracking API (`.API`), texts, CSS and names are kept.
+- **Watch probe** (scratch copy; `/tmp/rva-probes/watch-probe.sh`, log `/tmp/rva-probes/watch-probe.log`): after an edit to `runtime/main.ts` and then to `shell/main.ts`, all three files stay, with no imports.
+- **Unchanged.** `tracker.ts` changes one type only (`ReturnType<Window['setTimeout']>`), with no runtime change. The iframe/URL security, CSP, state/commit and grade logic and Moodle behaviour are all in unchanged server files.
+- **Test.** `build.test.ts` builds the real config and checks the real chunk graph and folder contents (two chunks, no imports, three files). It does not just read config text.
+
+### M2-13, route and DOM transition: **fixed for the selector and history paths**
+
+- **Repair.** `Portal` renders `<BrowserRouter useTransitions={false}>`, and `main.tsx` renders `Portal`. In react-router 7.18.4, `BrowserRouter` then sets its location state directly, not inside `startTransition`. Link clicks call `navigate` directly. So the URL and the route DOM change in the same commit. The portal has no `lazy`/`Suspense`, so no fallback behaviour changes. It is the only production router.
+- **New regression cases (six, rendering the real `Portal`):** select Blackboard, select Moodle, select another Canvas connection, Back, Forward, and the Blackboard Manage link. Each case runs while a delayed Canvas refresh is pending. It checks that the refresh signal is aborted and that no old Canvas value is ever in the DOM while the URL is the target route, also between the history event and the commit.
+- **Negative control (scratch worktree `/tmp/rva-portal-neg`, router transitions back to the default).** **5 of 6 fail**: the three selector cases, Back and Forward. The Manage-link case passes either way, because the Integrations page is shown between the two connection pages. So it is a no-regression control, not a test that catches this defect. Log `/tmp/rva-portal-neg.log`.
+- **Kept.** The browser oracle `tests/e2e/M2/08-routes.m2.ts` is unchanged: no readiness wait, and the MutationObserver is not weakened. `App` internals (keyed routes, provider/library isolation, request cancellation, wrong-LMS "not found", approval-code clearing) are unchanged, and their existing tests pass.
+
+### Independent checks
+
+```sh
+npx vitest run apps/portal/src/multi-lms.test.ts apps/player/src/build.test.ts   # 21 passed
+npx vitest run apps/portal apps/player                                          # 99 passed in 10 files, 0 skipped
+npm run typecheck -w apps/player && npm run typecheck -w apps/portal            # exit 0
+npx eslint apps/player apps/portal                                              # 0 errors
+node tests/e2e/host/run-m2.mjs --harness-only                                   # 5 self-checks, 64 cases; exit 0
+```
+
+Logs: `/tmp/rva-e3cd7db-focused.log`, `/tmp/rva-e3cd7db-apps-tests.log`, `/tmp/rva-e3cd7db-tc-*.log`, `/tmp/rva-e3cd7db-lint.log`, `/tmp/rva-e3cd7db-m2-harness.log`. The author's 91 focused tests and 1,039 root tests are author claims. The Lead's clean 1,039-test check (`msg_54ff82484809`) is Lead evidence. My numbers come from my own selections.
+
+### Remaining gates
+
+The Lead relayed a QA executor result (`msg_b790866db0d7`). It is QA's run, not mine, and it is attributed here without any other reviewer's conclusions. The full 64-case M2 run at `e3cd7db` gave **60 PASS / 4 FAIL**, with no skips or retries.
+- **M2-13 passes** in a real browser. This supports the router repair above.
+- **Both M2-12 cases failed before launch.** QA reports one-shot connection-option reads before async loading finished. So the standalone player scripts and the automatic runtime/play capture are **not yet verified in a browser**. My build-output evidence stays source evidence only.
+- **M2-08.canvas** (option-read timing) and **M2-11.blackboard** (Tab loop before the form rendered) also failed. QA classes all four as harness readiness defects and owns a bounded repair (`msg_3590cf55633f`). I have not reviewed that repair. A readiness wait must not weaken any assertion.
+- **Privacy scan:** 45 values / 62 files / 0 hits, and an expanded 43 values / 77 files / 0 hits. A-M3-03 still applies: the Deep Linking response `JWT` is not among the captured values.
+
+The M2 gate is therefore still **FAIL** at this SHA. A complete passing M2 rerun (including keyboard/axe and both learner scenarios), the fresh AC-M3-07 evidence, default-profile T7/Moodle (HOLD) and the live matrix remain separate execution gates. The 32 live rows remain UNVERIFIED.

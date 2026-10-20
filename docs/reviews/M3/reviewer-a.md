@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 3
+Verdict: APPROVE
+Round: 4
 
 # M3 review: Reviewer-A (correctness and security)
 
@@ -184,3 +184,72 @@ M1 Round 3 records my **207 passing focused product tests** and **20 independent
 Lead reported an exact-SHA clean root check of **1,032 tests / 69 files / zero skips** in `msg_db27b9cc3f43`. Lead relayed QA's **14/14 PARTIAL SIM preflight** in `msg_7ac69e393e11`, with both real CLIs, selected repaired capture cases, scoped cleanup and evidence scanning. These are attributed Lead/QA results, not my execution and not full M1/M3 PASS.
 
 The newly reported A-M3-02 gap needs correction and review. Both full M1 inventories, migration/rollback, legacy, complete repaired M2 and default-profile T7/Moodle execution remain separate gates at this evidence boundary. A later source approval or selected-case PASS must not erase historical failures or promote SIM to live evidence. All 32 live matrix rows remain UNVERIFIED.
+
+## Round 4 (2026-10-20): A-M3-02 repair and runtime/diagnostic corrections
+
+| Item | Value |
+| --- | --- |
+| Verdict | **APPROVE** for the bounded harness corrections. A-M3-02 is closed. No BLOCKER or MAJOR is open. Two new MINOR findings (A-M3-03, A-M3-04) are privacy-evidence gaps; they do not block this source approval, but the fresh AC-M3-07 run should include their fix or a Lead decision. This is **not** an acceptance PASS: both complete M1 runs, legacy, migration/rollback, the full M2 rerun, T7 and the fresh privacy scan are still open gates. |
+| Exact product/test SHA | **`e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63`**, compared with `ae130a3501f3a2502c6a34e36319629e3dcdfb09`. Detached clone `/tmp/rva-e3cd7db`; no dirty worktree file was used. |
+| Repair commits | Common/Blackboard capture and recorder kinds `832f8c8ac437c7fd93425d7152f865a8ffb13eaa`; Canvas/M2 browser capture and diagnostics `7ddff36ccc58ebc9218c7e1bca646f28067c891b`; product integration `e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63` (six paths, see M2 Round 4). Applied contracts `ccdd9ef67cdd2be4c6af374136777fda4e081943`. |
+| Reviewer | The **original** Claude Reviewer-A session (claude-opus-5-5, xhigh), resumed at the owner's request (team brief `094964d`). Task `task_016398b7ed4e`, dispatch `ctx_7e250abb1487`. No delegation. Round 3 above was done by the retained Codex GPT-6-Astra replacement; I kept it unchanged. |
+| Independence and scope | I used the submitted reports (`76ac36c`, B prior `9680bb7`) only as history. I did not read Reviewer-B's new re-review. No stack, browser, live tenant, account, product/test edit, commit or push. Private scratch probes only. |
+
+### A-M3-02 disposition: **CLOSED**
+
+The repair arms every method on every path, before the cursor, with each specific fault rule ahead of the catch-alls (`common/gate-capture.mjs:4`–`:12`; first match wins in `infra/lti-gate/gate.mjs:204`).
+
+- **`50-races.test.ts`.** `scope` re-arms after its reset (L64). Every race replaces its narrow `gateRules` call with `watchAll('pass', [specific rules])`. In race `f` (L126–L131), the catch-alls stay active after the one-shot S3 hold is consumed. The cursor comes from `gateMark()` after the replacement grant is issued, so issue-time reads stay outside the window. The held request, the `409 GRANT_IN_USE`, the zero-event window, `liveRelease` (< 4.5 s), the `403`, the `replaced` audit line and the adopting retry are unchanged. Rule-id lookups (`cleanup`, `retry`, `activate`) still work, because the specific rules stay first.
+- **`30-grants.test.ts`.** `noMutation` (L13–L19) now uses `gateReset()` then `seq = await watchAll()`. The remote-record, simulator-service and gate oracles are all kept.
+- **Other owned no-call windows.** Common/Canvas snapshot windows (`02-*`, `52-*`, `snapshot-fixture.ts`, `snapshot-migration.probe.ts`), the Canvas race `f` and `canvas.ts noRemoteCall` already arm all seven methods before their mark. They are unchanged since `ae130a3`. `60-containment` and `61-canvas-containment` use narrow hold rules, but they make no absence claim; they look up their own request id. `20-protocol`/`21-canvas-protocol` `noServiceCalls` is a simulator-record oracle, not a gate oracle. I found no remaining owned gate absence claim with partial capture.
+- **Manifests and counts.** No change to any M1/M2 manifest, `tests/host/**` or `infra/**`.
+
+**Caller-level checks (`gate-capture.selftest.mjs`, two new tests).** They run the **actual** `30-grants`/`50-races` callers, transpiled unchanged, against the actual gate handler, with only network edges supplied in memory. My checks:
+
+1. At `e3cd7db`: **5/5 pass** (`node --test tests/acceptance/M1/common/gate-capture.selftest.mjs`; log `/tmp/rva-e3cd7db-gatecap.log`).
+2. The same self-test with the two **`ae130a3` callers** in a scratch copy: the three helper tests pass, and **both new caller tests fail** ("Missing expected rejection"). They detect the old defect. Log `/tmp/rva-oldcallers.log`.
+3. My own per-method matrix (the actual loader with a non-stopping loop; `/tmp/rva-probes/a-m3-02-matrix.base.mjs`, log `/tmp/rva-probes/a-m3-02-matrix.log`):
+
+| Injected call | Old `noMutation` | New `noMutation` | Old race `f` | New race `f` |
+| --- | --- | --- | --- | --- |
+| none (clean control) | pass | pass | pass | pass, hold reset |
+| GET, POST, PATCH, DELETE | detected | detected | **missed** | detected |
+| HEAD, PUT, OPTIONS | **missed** | detected | **missed** | detected |
+| GET outside `/api` (`noMutation`) / GET `/api/providers` (race) | **missed** | detected | **missed** | detected |
+
+In race `f`, every injection goes on the same path as the consumed hold, with that hold still active (`timers.size === 1`). The new callers detect every method, and the clean continuation (release, `403`, retry `200`) still runs.
+
+### New findings
+
+#### A-M3-03 — MINOR — M2 request-time capture does not record the Deep Linking response JWT
+
+- **Where:** `tests/acceptance/M1/canvas/browser-diagnostics.mjs:2` (`fields = ['ltik', 'id_token', 'state', 'nonce']`) and the form branch at L35–L38. Compare T7's `tests/e2e/lib/capture.ts:54`, which records the tool's Deep Linking response `JWT` form field as a secret.
+- **Problem:** M2 cases run the in-browser teacher pick (for example M2-12 reached "the expected Deep Linking resource"). The tool then posts `JWT=<signed response>` to the simulator return URL. The new M2 capture sees this request but records no `JWT` value, and M2 does not install T7's `captureLti`. So the fresh AC-M3-07 scan cannot detect this signed assertion if a simulator or service log keeps it. This is a gap in the evidence, not an observed leak.
+- **Suggested fix:** record form `JWT` values in the same private recorder (T7 uses kind `id_token`). Add one synthetic self-test row.
+
+#### A-M3-04 — MINOR — Legacy T5 frame-wait failure text still prints full capability URLs
+
+- **Where:** `tests/acceptance/lib/t5.ts:200` (`page.frames().map((fr) => fr.url())`, with query). It is unchanged. Users: `T5a/*`, `T5b/*`. These suites are part of the legacy phase of the same full M1 runner (`tests/host/run-m1.mjs:133`–`:149`; M3 AC-M3-02 (b)).
+- **Problem:** this is the same failure mode QA found in M2. On a frame timeout, the shared error text keeps `/play/<id>`, `/rt/<token>` and query values. Legacy capture records the runtime token only after the frame is found (`t5.ts:213`), and it never records play ids. So the AC-M3-07 zero-hit scan can miss them. It only happens on a failure, and the player fix makes the M2-12-type timeout less likely. `t8.ts:174` lists Moodle SCORM frames, and `tests/e2e/lib/moodle.ts:156`/`:392` strip queries and contain no Cogniate path capability, so I do not include them.
+- **Suggested fix:** use `diagnosticUrl` in this branch (as `learner.ts:63` does now), or install request-time capture in the legacy browser fixtures. The owner and timing are a Lead decision.
+
+### Diagnostics repair (`7ddff36`): accepted, with A-M3-03
+
+- Capture starts before any request. The M2 `guard` fixture calls `captureSecrets(context)` before `context.route` and `use()`. `libraryPage` calls it right after `newContext`, before `newPage`/sign-in (`tests/e2e/M2/lib/m2.ts:71`, `:101`).
+- URL capabilities (`/rt`, `/play`, `/tool/picker`, also decoded) and query/form `ltik`, `id_token`, `state` and `nonce` go only to `recordSecret` (the git-ignored `captured-secrets.jsonl`). `832f8c8` adds the `play_id`/`picker_id` kinds.
+- Both frame-timeout branches (`canvas/browser.ts:181`, `e2e/lib/learner.ts:63`) and the M2 blocked-request list (`m2.ts:75`) use `diagnosticUrl`. It removes credentials, query and fragment, and replaces the three capability segments. The product's capability routes are exactly `/rt/:token`, `/play/:playId` and `/tool/picker/:pickerId`. The contract does not define `/pkg/{packageId}` as a capability id, so keeping its shape is consistent.
+- The three self-tests are meaningful. They include the old query-only negative control, capture before any successful frame wait, and the **actual** `waitForFrame` failure branches compiled from both files. They passed in the M2 harness run.
+- QA's record keeps AC-M3-07 as **FAIL / rerun required**: four missed historical values (two runtime tokens, two play ids), shared copies sanitized, and the original zero-hit scan insufficient. A fresh privacy run is required. I did not see or use any of those values.
+
+### Independent harness execution
+
+```sh
+node tests/host/run-m1.mjs --harness-only --provider all   # 33 self-checks; 392 API + 24 host rows; exit 0
+node tests/e2e/host/run-m2.mjs --harness-only              # 5 self-checks; 64 M2 cases; T7 selection unchanged; exit 0
+```
+
+Logs: `/tmp/rva-e3cd7db-m1-harness.log`, `/tmp/rva-e3cd7db-m2-harness.log`. No self-test skip. These numbers match the QA claims (33/416, 5/64).
+
+### Evidence boundary
+
+The Lead reported a clean exact-SHA root check of **1,039 tests in 70 files, zero skips**, plus lint and typechecks (`msg_54ff82484809`). That is the Lead's validation, not my execution. This report proves harness observation and source behaviour only. It is not a complete SIM run, migration/rollback, legacy, Moodle/T7 or live result. The M2 **61 PASS / 3 FAIL** run at `ae130a3` and the insufficient privacy inventory stay FAIL history. The Lead relayed QA's full M2 run at `e3cd7db` (`msg_b790866db0d7`): **60 PASS / 4 FAIL**. M2-13 passes. M2-12 (both cases), M2-08.canvas and M2-11.blackboard fail on harness readiness, and both learner scenarios stopped before launch. The privacy scan found 0 hits (45 values / 62 files; expanded 43 / 77), but A-M3-03 means it does not cover the Deep Linking response JWT. That is QA's evidence, not mine. The human-review flag for A-M3-02 stays in history; its correction is now reviewed. All 32 live matrix rows remain UNVERIFIED.
