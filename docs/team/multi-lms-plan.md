@@ -1600,6 +1600,33 @@ Its held hash is `3fc5ddedb1ae808811a89b51c5f83f419482da699f93bedc8b32e701fb3ab6
 The Lead checked the scoped history and hash, then released Docs before acknowledgment.
 G1 now names R3B-01 as the current MAJOR and preserves the closed original findings.
 
+The Architect submitted revision 3.2 in `msg_c3fcf12a2c55`.
+The Lead checked all nine held hashes and preserved response history, then retained the worker before acknowledgment.
+ADR-012 hash: `d1d95e5c5432f21afadd895bba9dd8a22e4fd8426d8ad13bd4d1d21dabb494b7`.
+Response hash: `f78179767075debd396cf01b3d30993821ab112feb4a5ae99791b677db7e5079`.
+The correction covers R3B-01, A-S-13 and B-S-22 only. No finding is closed by the Architect.
+Exact volume names and labels govern every QA mount, fresh-lane check and cleanup.
+Product preflight creates the fresh fixtures; QA checks their state independently.
+The 488-row inventory and original 416 assertions remain unchanged.
+
+The Author submitted the first client-group diagnostic in `msg_c86de0152c40` and returned its Docker window.
+Evidence root: `/Users/quangnguyen/cogniate-author-diag/client-group-20261020T2243Z`.
+Report SHA-256: `24768ae9a3dbdb18881adbb0ff4131aa3d2ce014556b9aed606688d358b7a9df`.
+The Lead verified all 14 manifest hashes and both full boundary comparisons against the seven original volume records.
+Cleanup left zero containers and owned leftovers; CPU and memory values were unchanged.
+On this macOS host, the real Docker front and Compose plugin stayed in the command's group in four trials.
+A parent-only kill left clients that created the target later. A whole-group kill left no client or late target.
+That last observation lasted about 2.7 seconds; revision 3.2 gate G-1 requires 30 seconds.
+The evidence therefore does not yet satisfy G-1. It gives no acceptance credit.
+
+Narrow follow-up `task_e33f7d22129d`, dispatch `ctx_678350c62620`, launch `msg_0a393a521b79`, start `msg_cbb4eafd83e9`, resumes the same Author.
+It alone owns a new bounded Docker window to complete the 30-second observation after opening the dependency gate.
+Message `msg_843a2ea23d1d` specifies the owned container name and storage run label required by G-1.
+The earlier evidence remains unchanged. All other diagnostic safety and cleanup limits remain.
+Reviewer-A receives both reports and their limits before its disposition; no wider host or client claim is authorized.
+Reviewer-B and QA can check the frozen text while this measurement completes; neither has Docker authority.
+G1 stays unresolved, and both source tasks stay held until all independent design checks pass.
+
 The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.

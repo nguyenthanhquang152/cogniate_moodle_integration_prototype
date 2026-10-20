@@ -233,3 +233,40 @@ The same owners check these dispositions in their Round 3 addenda. This text clo
 No row is added or removed. Each full round still has **488** mandatory rows: the 416 existing rows (unchanged ids, phases, labels and assertions) and the 72 AC-M1-41 rows (a 10, b 3, c 2, d 7, e 13, f 6, g 20, h 7, i 2, j 2). Changed oracles or fixtures: `a-serialize`, `a-lock-stale` (new case 4), `e-old-schema`, `g-orphan-refusal`, `g-orphan-stopped`, `h-pair-mismatch`, `h-target-state`. The lock self-check is a harness self-check, not a row.
 
 No implementation, runtime or acceptance approval follows from this text. All 32 live rows stay `UNVERIFIED`, and every required M1, legacy, M2 and T7 rerun remains.
+
+## G1 bounded correction: R3B-01, A-S-13, B-S-22 (ADR-012 revision 3.2)
+
+The sections above are kept as history. This section applies to revision 3.2. It stays inside the escalated G1. It is not a fourth general review round and no accepted waiver.
+
+Inputs at `0928c888543a1171944870125ac2fe2ab5e0067a` (bounded checks of revision 3.1, frozen at `a65a4ee`): Reviewer-A APPROVE with new MINOR A-S-13; Reviewer-B APPROVE with new NIT B-S-22; common QA FAIL (bounded testability) with new MAJOR R3B-01, and R3-01 to R3-07 closed. Whole-report SHA-256: Reviewer-A `89955081e57ab49caea679c6cf43dba9dc418a26c55ed161b2a57af8e26889c0`, Reviewer-B `c18278e6db0fa287efbe80bc0bc8ad41d8de41114a80aeebc59b18dc8f10394b`, QA `5ae7988ddcf37cff10cb336b85bc115abd2d9b23315433378382715a2e3fd12d`. The same owners check these dispositions after the Lead freezes them. This text closes no finding.
+
+| Id | Sev. | Resolution |
+| --- | --- | --- |
+| QA R3B-01 | MAJOR | Done. ADR-012 §11 "Lane volume presence": (1) before every mount (every QA container kind, also `docker create`), QA checks both exact names with `docker volume inspect`; it mounts only an existing volume with this project's Compose labels; an absent name is recorded `absent` and never mounted; an unlabeled or foreign volume with a lane name is unsafe (row FAIL, or `BLOCKED` before the first start), and QA changes and removes nothing. (2) No QA step creates a lane volume: the `FIRST_START` fixture comes from one product `storage-preflight check --prepare` run through Compose under QA's `storage-oplock.sh run --` (exact command in §11). (3) QA then checks independently: labels, `HOST_UID:HOST_GID 0700` roots and mountpoints, two `pending` fresh identities with one `pairId`, no database or journal. (4) The partial state removes only the app identity as the service user. (5) `FRESH` and "nothing changes" define absent volumes, so a product command's own Compose creation of the declared volumes is never confused with a QA mount. ADR-012 §15, AC-M3-06 and `local-stack.md`: fresh-lane, ownership record, teardown and after-cleanup checks use the exact names as well as the labels; the teardown removes only resources recorded as made by the run and preserves and reports any other. Rows changed: `a-first-start-resume` and `h-target-state` (2) use the product setup; `a-fresh` and `g-quarantine` check exact names. |
+| A-S-13 | MINOR | Done as a gate, not as an accepted limit. ADR-012 §17 "Build-step gate G-1": a separate Lead-assigned Author diagnostic measures, with a real Docker client, the groups of the script, the `docker` front process and the `compose` plugin, a parent-only kill before creation and a whole-group kill before creation (no surviving client, no container within 30 s). §7 claims the group guarantee only where G-1 passed. If G-1 is unmeasured or fails, the implementation is not accepted, and AC-M1-41 and the stack-level reruns stay `BLOCKED`; the procedure is stop, record the evidence, report it for an approved repair. Reviewer-A's two repair ideas are recorded only as candidates for that later review. M1 Self-check and M3 AC-M3-01 state the gate. No mechanism changed. |
+| B-S-22 | NIT | Done. The group read is exactly `LC_ALL=C ps -A -o pid= -o pgid=` in ADR-012 §7, §17 assumption 4, the self-check output field `psCommand`, and the M1 unit list. |
+
+### Fixture paths checked for the absent-volume rule
+
+Every fixture step that mounts a lane volume was checked. Only two rows could meet absent volumes at a QA write; both now use the product setup.
+
+| Row or fixture | Volume state at the QA step | Result |
+| --- | --- | --- |
+| `a-first-start-resume` | absent (new lane) or absent after quarantine | changed: product setup, independent check, service-user removal for the partial case |
+| `h-target-state` (2) | absent after `g-quarantine` | changed: product setup, independent check, service-user removal of both identities to return to `FRESH` |
+| `a-fresh`, fresh-lane boundary, teardown | absent before the first start; absent after cleanup | changed: exact names and labels, ownership record, preserve rule |
+| `e-fresh-refusal`, `e-content-missing`, `e-old-schema` (after `stack:reset`), `g-fresh-target`, `h-pair-mismatch`, `e-import`, `e-import-recover` | absent or `FRESH` before a **product** command | unchanged steps; QA mounts only after the product's Compose run created the labeled volumes; `FRESH` and "nothing changes" follow §11 item 5 |
+| `d-*`, `f-*`, `g-*` drills, `g-quarantine-in-use`, `b-*`, `a-*` lock rows, P5 (`storage-p5`), AC-M1-23/30 snapshot reads and fixtures (`m1-migration.mjs`) | volumes exist (made by earlier guarded starts) | unchanged; the exact-name check runs before each mount |
+| `c-*`, `e-old-layout` decoy, credential and package copies | no lane volume mounted | unchanged |
+
+Root fixture exceptions (`d-owner`, `d-mountpoint`), the P5 exception, oracle independence (the setup output is never the oracle) and all 416 original assertions are unchanged.
+
+### Row accounting
+
+No row is added or removed: **488** per full round = 416 original rows + 72 AC-M1-41 rows (a 10, b 3, c 2, d 7, e 13, f 6, g 20, h 7, i 2, j 2); phases `sim` 394, `snapshot-isolated` 6, `snapshot-upgrade` 6, `migration` 12, `storage` 70.
+
+### Remaining assumptions and gates
+
+- Gate G-1 (A-S-13) is unmeasured until the Author diagnostic reports; it blocks implementation acceptance.
+- ADR-012 §17 assumptions 1–9 and 11 stay unmeasured; assumption 6 now also covers the Compose volume labels that the presence rule reads.
+- No implementation, Docker or acceptance authority follows from this text. All 32 live rows stay `UNVERIFIED`, and every M1, legacy, M2 and T7 rerun remains.

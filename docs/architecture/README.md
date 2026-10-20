@@ -11,11 +11,11 @@ This page is the overview. Details are in other files:
 | [`data-model.md`](data-model.md) | Tables and state machines of both services |
 | [`local-stack.md`](local-stack.md) | Host names, TLS, ports, dev-only settings, fallbacks |
 | [`contracts/`](contracts/) | LTI service API (LTIAAS-compatible) and Cogniate app API |
-| [`adr/`](adr/) | Decisions ADR-001 to ADR-012 (ADR-012 proposed, revision 3.1) |
+| [`adr/`](adr/) | Decisions ADR-001 to ADR-012 (ADR-012 proposed, revision 3.2) |
 | [`tasks/`](tasks/) | Task specs, QA rules, test knobs |
 | [`open-questions.md`](open-questions.md) | Decisions for humans |
 | [`review-response-M0.md`](review-response-M0.md) | ID-by-ID disposition of the formal M0 review findings (Blackboard and Canvas design) |
-| [`review-response-storage.md`](review-response-storage.md) | ID-by-ID response to the independent storage reviews of ADR-012 (Round 1 → revision 2, Round 2 → revision 3, Round 3 → bounded corrections in revision 3.1; not closed until the same owners check them) |
+| [`review-response-storage.md`](review-response-storage.md) | ID-by-ID response to the independent storage reviews of ADR-012 (Round 1 → revision 2, Round 2 → revision 3, Round 3 → bounded corrections in revision 3.1, R3B-01 → bounded fixture correction in revision 3.2; not closed until the same owners check them) |
 
 ## 1. Goal
 
@@ -133,7 +133,7 @@ flowchart TB
 | [009](adr/ADR-009-moodle-connection-methods.md) | Dynamic registration first, manual fallback, privacy `anonymous`, refuse foreign "update". |
 | [010](adr/ADR-010-grade-and-completion-policy.md) | Send only final results, `FullyGraded`, choose the best result, bounded confirmation after uncertain delivery, 409 = conflict. |
 | [011](adr/ADR-011-multi-lms.md) | Canvas and Blackboard through fixed provider profiles; signed product family check; site (and Canvas service) origins separate from the issuer; tenancy by deployment; every new binding needs a one-time operator grant with two-phase redemption; operator suspend and release for wrong bindings; Moodle unchanged; backup-and-restore rollback; signed simulations until live tenants exist. |
-| [012](adr/ADR-012-sqlite-volume-storage.md) | **Proposed, revision 3.1** (Round 3: Reviewer-A and Reviewer-B approved the design with required precision fixes, QA failed it on two text gaps; the bounded corrections wait for the same owners' check; response: [review-response-storage](review-response-storage.md)): SQLite files on project-scoped Docker named volumes (`ltidb`, `appdb`); content files stay on bind folders; narrow folder preparation; a WAL lock preflight under one operation lock per checkout and project that also waits for live storage containers; an ordered start-state table; pair identity, journaled paired restore with total recovery, a non-destructive quarantine and explicit legacy import; a storage-only override for the two old builds only. Amends ADR-006 and ADR-011 §14. |
+| [012](adr/ADR-012-sqlite-volume-storage.md) | **Proposed, revision 3.2** (Reviewer-A and Reviewer-B approved revision 3.1; QA failed it on R3B-01, which revision 3.2 corrects; gate G-1 is still to be measured; the same owners' check is pending; response: [review-response-storage](review-response-storage.md)): SQLite files on project-scoped Docker named volumes (`ltidb`, `appdb`); content files stay on bind folders; narrow folder preparation; a WAL lock preflight under one operation lock per checkout and project that also waits for live storage containers; an ordered start-state table; pair identity, journaled paired restore with total recovery, a non-destructive quarantine and explicit legacy import; a storage-only override for the two old builds only. Amends ADR-006 and ADR-011 §14. |
 
 ## 6. What the plan proves
 
