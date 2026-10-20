@@ -208,7 +208,7 @@ Reviewer-A started in `ctx_8abc3ceb148c`, with handoff `msg_6bb1694b881f`.
 It reviews frozen implementation `1e2c81f` in a clean clone while Canvas QA prepares the remaining tests.
 Its scope remains open until it also reviews the complete harness at a later exact revision supplied by the Lead.
 The review must record both revisions and cannot approve missing tests.
-Reviewer-B remains queued. One worker slot is reserved for the short acceptance-profile infrastructure smoke.
+Initially, Reviewer-B remained queued while one slot was reserved for the short acceptance-profile infrastructure smoke.
 This parallel review start changes scheduling only; every acceptance and review gate still applies.
 
 Reviewer-A's checkpoint `msg_fedfa10e31a0` covers static review at `1e2c81f`.
@@ -228,6 +228,14 @@ Removing the guard made the four refusal cases fail; the author restored the gua
 Reviewer-A checked the exact delta and closed A-M1-01 by code reading in `msg_284bd54bb2aa`.
 The author remains retained for the queued infrastructure smoke. No stack ran for this fix.
 Final review still waits for the complete Canvas/M2 harness.
+
+With the guard fix complete and Canvas preparation still active, Reviewer-B started in `ctx_055ee059f6df`.
+Handoff `msg_7da9e4f23266` supplies frozen candidate `76b03c7` and the isolated 889-test check.
+It reuses the retained GPT-6-Astra xhigh session and reviews independently of Reviewer-A.
+Like Reviewer-A, it must inspect the complete committed harness supplement before final reports and settlement.
+Both reviewers and Canvas QA now occupy the three worker slots.
+The author infrastructure smoke waits for the checked Canvas module and the next free slot.
+This avoids an idle review slot while keeping every verification gate.
 
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
