@@ -89,6 +89,8 @@ Orca accepted these workers. Each receipt reports the requested model and effort
 | Author-2 | `ctx_1eeade383449` | `gpt-6-astra` | `xhigh` |
 | QA-E2E preflight | `ctx_3c4961a02f14` | `claude-opus-5-5` | `xhigh` |
 | Author impact audit | `ctx_94cbe8647c96` | `claude-opus-5-5` | `xhigh` |
+| Reviewer-A source preflight | `ctx_8546daf0903f` | `claude-opus-5-5` | `xhigh` |
+| Reviewer-B workflow preflight | `ctx_6964f917fdea` | `gpt-6-astra` | `xhigh` |
 
 The initial Docker inventory found no running containers.
 The Lead asked which existing LMS test environments are available; the answer is pending.
@@ -115,6 +117,11 @@ Portal task `task_3b1e979ab893` resumes Author-2 in its isolated worktree.
 Each task depends on both design reviews and the QA testability review.
 The Lead must also confirm that all BLOCKER and MAJOR findings are closed.
 The portal branch will first advance to the approved design commit.
+
+The two dedicated reviewers started read-only preflights while the Architect revised M0.
+Tasks `task_5029938ab2e4` and `task_843b9fd4f001` check stable vendor facts and setup workflows.
+These tasks are not formal design approval. The reviewers remain independent.
+They will reuse the same instances for the formal design review.
 
 The Author completed the backend audit in `ctx_94cbe8647c96`.
 Messages `msg_7b0385efd7e4`, `msg_a49edfb39d36`, and `msg_f0556212f33f` hold the findings.
@@ -156,6 +163,13 @@ New Canvas and Blackboard bindings need a verified approval or proof step before
 This includes additional Canvas deployments.
 Typing another institution's public deployment ID must not claim its launches.
 This protection is in scope. It is not an accepted deferral.
+
+The Lead selected trusted-operator approval for this prototype.
+The operator verifies installation authority outside the portal.
+The operator issues a one-time expiring grant for the exact library, connection, provider, site, client and deployment.
+The app must redeem that grant atomically before it activates the binding.
+Normal LTI validation will not gain an exception for unbound deployments in this phase.
+The Architect must define the trust boundary, recovery steps and negative tests.
 
 The acceptance criteria must cover first-claim squatting, cross-library redemption, replay, disconnect, and old stored service keys.
 Disconnecting one deployment must not stop another institution or reactivate old authority through a later binding.
