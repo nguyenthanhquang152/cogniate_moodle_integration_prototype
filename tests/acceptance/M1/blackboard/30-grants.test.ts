@@ -3,6 +3,8 @@ import {
   httpsRequest, issueGrant, logEvents, m1Test, noServiceCalls, pause, records,
   redeem, remote, session, sharedPlatform, unique, urls,
 } from '../common/client';
+import { createCourse, uploadVersion } from '../../lib/app';
+import { fixtureZip } from '../common/course';
 import { watchAll } from '../common/snapshot';
 
 async function pending(library: 'A' | 'B' = 'A', siteUrl = 'https://learn-a.blackboard.sim.test') {
@@ -158,10 +160,16 @@ m1Test('M1-21.blackboard.capabilities', 'Moodle-only operations are refused with
     expectStatus(await app(p.s, 'PUT', connPath(p.connection.id) + '/web-services', { token: 'test-token' }), 409, 'CAPABILITY_NOT_SUPPORTED');
     expectStatus(await app(p.s, 'POST', connPath(p.connection.id) + '/registration-url'), 409, 'CONNECTION_NOT_PENDING');
     expectStatus(await app(p.s, 'POST', connPath(p.connection.id) + '/deployments', { deploymentId: 'other', grantCode: 'x'.repeat(43) }), 409, 'CAPABILITY_NOT_SUPPORTED');
-    const before = await app(p.s, 'GET', '/app-api/publications');
-    const response = await app(p.s, 'POST', '/app-api/publications', { connectionId: p.connection.id, courseId: 'crs_unknown', createMoodleCourse: true });
-    expectStatus(response, 409, 'CAPABILITY_NOT_SUPPORTED');
-    assert.deepEqual((await app(p.s, 'GET', '/app-api/publications')).json, before.json);
+  });
+  // App contract §11: createMoodleCourse is an object ({ categoryId? }). A bound connection and a course with a
+  // ready version leave the capability guard as the only reason to refuse. The fixture is ready before the cursor.
+  const b = await bound(), course = await createCourse(b.s, unique('M1 shell'));
+  expectStatus(await uploadVersion(b.s, course.id, fixtureZip('scorm12')), 201);
+  await noMutation(b, async () => {
+    const before = await app(b.s, 'GET', '/app-api/publications');
+    const response = await app(b.s, 'POST', '/app-api/publications', { connectionId: b.connection.id, courseId: course.id, createMoodleCourse: {} });
+    expectStatus(response, 409, 'CAPABILITY_NOT_SUPPORTED'); assert.equal(response.json.details.capability, 'courseShell');
+    assert.deepEqual((await app(b.s, 'GET', '/app-api/publications')).json, before.json);
   });
 });
 m1Test('M1-31.blackboard.portal-routes', 'Blackboard routes require sign-in and use portal security headers', async () => {

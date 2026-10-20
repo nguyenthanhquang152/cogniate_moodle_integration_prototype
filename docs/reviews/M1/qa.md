@@ -1,5 +1,5 @@
-Verdict: FAIL — full M1 acceptance is incomplete; execution is on HOLD
-Round: execution dispatch 1, repair checkpoint, 2026-10-20
+Verdict: FAIL — the first complete M1 attempt at `aff4882` failed in round 1; repair is held
+Round: Claude continuation `ctx_8d5f8d3984d0`, full-run attempt 1 and repair checkpoint, 2026-10-20
 
 The latest checkpoint is at the end of this report. The completed legacy
 T2/T3 run remains exact-`eb43247` evidence in the M3 report. It is not an M1
@@ -344,3 +344,134 @@ retain the exact evidence. No stack was started. Both complete 416-row M1
 rounds and remaining legacy suites now require a new reviewed freeze and
 the Lead's exclusive stack handback; earlier partial and older-SHA evidence
 does not satisfy that requirement.
+
+## Claude continuation — full-run attempt 1 at `aff4882`, 2026-10-20
+
+Verdict for this attempt: **FAIL**. The run stopped in round 1, phase `sim`.
+Nine required rows failed. No phase after `sim` ran. No M1 criterion gets
+full-run credit from this attempt.
+
+Owner: a fresh, independent common/Blackboard QA session, Claude Code Opus 5.5
+at xhigh effort. Task `task_ed3b08aa45ea`, dispatch `ctx_8d5f8d3984d0`. This
+session did not write the product, and it did not review it. It continues from
+the outgoing QA's durable handoff,
+`/Users/quangnguyen/cogniate-qa-runs/common-blackboard-claude-handoff-20261020T1405Z/continuation.md`.
+It checked the three handoff hashes and the 11 owned file hashes before work.
+This is not a cross-model check of Claude-authored code.
+
+### Identity and command
+
+| Item | Value |
+| --- | --- |
+| Product SHA = test SHA | `aff48823a4c6206d6314d91a95f5eb0979d3e0e7` (tests tree `187afae0`) |
+| Behavior and 011 baseline SHAs | `ccdd9ef67cdd2be4c6af374136777fda4e081943`, `9f96f7b24cd0aed702e4dc40373bdda4307aad31` |
+| Window | Lead `msg_d26c1a003c73`, exclusive. No other stack ran. |
+| Lane | `qa-multi-r1`, port 8443, subnet `172.29.0.0/16` |
+| Source | `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-aff4882-20261020T1420Z/source` (clean, detached, push disabled) |
+| Source provenance | `.../m3-frozen-aff4882-20261020T1420Z/provenance.json` |
+| Run root | `/Users/quangnguyen/cogniate-qa-runs/m1-full-aff4882-20261020T1442Z` (`public/` shared, `private/` 0700) |
+| Phase run | `qa-multi-r1-aff48823-2026-10-20T14-42-33-520Z` |
+| Time | 14:42:33Z start; suite 14:43:11.821Z for 1,303,642 ms; parent exit 1 at 15:05:04Z |
+| Tools | Node 24.21.0, Docker 29.8.2, Compose 5.6.0 |
+
+```sh
+cd /Users/quangnguyen/cogniate-qa-runs/m3-frozen-aff4882-20261020T1420Z/source
+COMPOSE_PROJECT_NAME=qa-multi-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 \
+STACK_PROFILE=default \
+COURSE_FIXTURES_DIR=/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses \
+TMPDIR=/Users/quangnguyen/cogniate-qa-runs/m1-full-aff4882-20261020T1442Z/tmp \
+node tests/host/run-m1.mjs --sha aff48823a4c6206d6314d91a95f5eb0979d3e0e7 \
+  --test-sha aff48823a4c6206d6314d91a95f5eb0979d3e0e7 \
+  --source /Users/quangnguyen/cogniate-qa-runs/m3-frozen-aff4882-20261020T1420Z/source
+```
+
+This is the Lead's exact command. The runner has no `--runs` option. The
+default `full` phase runs all four phases twice, then legacy. The Lead accepted
+the `TMPDIR` value: it keeps the accounting and ledger temporary files in the
+private run root. A launcher ran external read-only observers before and after
+the command. It did not change the suite. Tool hashes and the 8/8 observer
+failure-path controls are in `public/run-provenance.json`.
+
+### Result of the `sim` phase, round 1
+
+The phase report has all 394 `sim` rows: **385 PASS, 9 FAIL**, zero skipped
+or missing rows in the selection. The five Blackboard and one Canvas isolated
+rows are not in this selection by design. The runner then stopped the full
+run. That is correct: a failed required child must stop the gate.
+
+| Owner | Rows in this phase | PASS | FAIL |
+| --- | ---: | ---: | ---: |
+| Common | 26 of 42 | 24 | 2 |
+| Blackboard | 136 of 141 | 132 | 4 |
+| Canvas | 232 of 233 | 229 | 3 |
+
+Not run: round 1 `snapshot-isolated`, `snapshot-upgrade` and `migration`; all
+four phases of round 2; all legacy groups. The 011→012 route and the
+released-v10 Moodle route did not start.
+
+| Row | Label | Result | Classification | Evidence |
+| --- | --- | --- | --- | --- |
+| M1-07.blackboard.alphabet | SIM | FAIL | QA oracle defect | `10-deployments.test.ts:91` reads `details.field` on an LTI service 400. LTI contract §1.3 has only `details.message` and `details.description`, and "`description` names the field". `details.field` is an app contract field. Status 400 and `INVALID_REQUEST` matched. |
+| M1-07.blackboard.fencing | SIM | FAIL | QA oracle defect | The same assertion at line 100. Status and code matched. |
+| M1-36.blackboard.query | SIM | FAIL | QA oracle defect | The claim `lineitems` URL has no query; the bare claim URL gave 200. §3.4 rule 3 requires only the claim's own parameters. So `…?injected=1` is a valid URL, and 200 is correct. The criterion's "changed claim query parameter" needs a claim URL that has one. |
+| M1-21.blackboard.capabilities | SIM | FAIL | QA request defect | Line 163 sent `createMoodleCourse: true`. App contract §11 defines `createMoodleCourse: { categoryId? }`. The answer `400 INVALID_REQUEST` is valid for that body. |
+| M1-35.common.default-off | SIM | FAIL | QA host-control defect | `/healthz` still showed `profile: acceptance`. `m1-control.mjs` set `STACK_PROFILE` only in the process environment. `stack:restart` reads the saved profile, and only `stack:up` changes it. The documented route is `--env STACK_PROFILE=…` (`stack-restart.sh` LTI gate variables; AC-M1-35 names `stack:restart -- lti-service --env …`). |
+| M1-35.common.default-on | SIM | FAIL | QA host-control defect | Same cause. `acceptance-off` passed because its `--env LTI_PROVIDER_SIMULATION` was applied. |
+| M1-36.canvas.query | SIM | FAIL | Canvas QA verdict | Same pattern as the Blackboard row (preliminary view only). |
+| M1-21.canvas.course-shell | SIM | FAIL | Canvas QA verdict | Same `createMoodleCourse: true` body (preliminary view only). |
+| M1-20.canvas.repeat | SIM | FAIL | Canvas QA verdict | `31-canvas-grants.test.ts:215` found one `grant_redeemed` for the connection after `since`; 0 expected. Not classified here. |
+
+For the six common/Blackboard rows, the observed product answer matches the
+approved contract in each case where an answer was observed. No product
+defect is identified. The M1-35 product behavior was not observed, because
+the host control never applied the requested profile. The Lead sent the three
+Canvas rows to Canvas QA (`msg_8383137868da`). Canvas QA owns their verdict.
+
+Evidence, all redacted:
+
+- Classification: `/Users/quangnguyen/cogniate-qa-runs/m1-full-aff4882-20261020T1442Z/public/round1-sim-failure-classification.json`.
+- Phase artifacts: `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-aff4882-20261020T1420Z/source/tests/host/artifacts/qa-multi-r1-aff48823-2026-10-20T14-42-33-520Z/`: `m1-case-results.json` (394 rows with SHAs, label, command, start, artifact), `evidence/sim/m1-vitest-results.json`, `cmd/acceptance-sim.log`, `summary.json`, `m1-identity.json`, `images.json`, `host-actions/`.
+- Health before the suite: the default gate passed (`M1-02.common.default-profile`; six profiles; three simulation profile ids refused). Health after the suite: both services `profile: default`, `knobs: []`; LTI `simulation_profiles: []`.
+- Images (sampler digests): `node@sha256:44fce696…` for app, LTI service, `lms-sim`, `lti-gate`, `qa-platform` and `sink`; `erseco/alpine-moodle@sha256:3a310197…`; `postgres@sha256:721873c3…`; `caddy@sha256:d8542f48…`; local `qa-multi-r1-e2e@sha256:4aa7dbea…`. Full values: `public/sampler/lane-containers.json`. The sampler saw at most one Compose project.
+- Secrets: the runner's own scan checked 1,299 captured values in 633 redacted files, with 0 hits. The independent scan checked the same 1,299 values plus 12 stack secrets. It found 0 hits in 9 raw service, simulator and gate logs and in 669 public files, and 0 JWT-shaped strings (`public/secret-scan.json`).
+- Isolation and cleanup: runner `M3-ISOLATION` and `TEARDOWN` PASS. The independent after-boundary found 0 containers, no owned volume or network, and all seven protected volume records identical to the original baseline (`public/baseline-vs-original-after.json`). Docker memory 8,319,238,144 bytes and 12 CPUs are unchanged. The build runner process was absent before and after.
+
+### Repair checkpoint — held for Lead commit
+
+The Lead authorized repairs (a)–(d) in `msg_da9a87e79584`, and one more file
+in its reply to the scope question. No product, infrastructure or Canvas file
+changed. No stack ran for the repair. All other assertions are unchanged.
+
+| Repair | File | Change |
+| --- | --- | --- |
+| (a) | `tests/acceptance/M1/blackboard/10-deployments.test.ts` | M1-07 alphabet and fencing check that `details.description` names `deploymentId` or `bindingRef` (§1.3). Status, code and "nothing stored" checks are unchanged. App-contract `details.field` checks in the same file are unchanged. |
+| (b) | `tests/acceptance/M1/blackboard/20-protocol.test.ts` | The M1-36 `query` variant launches with an AGS claim whose `lineitems` URL has `?qa_claim=v7`. The claim URL must give 200. A changed value and a missing parameter must each give 400 on both endpoints (`INVALID_URL_PARAMETER`, `INVALID_LINE_ITEM_ID`). The zero-call check runs after both. The other four variants are unchanged. |
+| (c) | `tests/acceptance/M1/blackboard/30-grants.test.ts` | The publication check uses a bound connection and a course with an uploaded version. Both are made before the no-mutation cursor. It sends `createMoodleCourse: {}` and expects `409 CAPABILITY_NOT_SUPPORTED` with `details.capability = "courseShell"`. The publication list must not change, and the remote state, simulator and gate must see no call. The three pending-connection checks are unchanged. |
+| (d) | `tests/host/m1-control.mjs` | `m1-profile` passes `--env STACK_PROFILE=<profile> --env LTI_PROVIDER_SIMULATION=<on/off>`. The `acceptance/on` restore restarts with no override. `m1-restart` and the CLI route are unchanged. |
+| (d) | `tests/host/m1-control.selftest.mjs` | A new check runs the real handler. It checks all four profile commands, the restore, `m1-restart` and two refusals. It also reads the infra facts it relies on. |
+| scope | `tests/acceptance/M1/common/gate-capture.selftest.mjs` | One inert `'../../lib/app': {}` dependency entry. Strict rejection of unknown dependencies, real caller loading, all seven methods and the non-api path are unchanged. |
+
+Checks, all without Docker:
+
+- `node tests/host/run-m1.mjs --harness-only --provider all`, in a scratch clone of `aff4882` with only these six files changed (15:22:47Z): exit 0, 34/34 self-checks (one new), 0 fail or skip, typecheck PASS, 392 API plus 24 host/browser rows (416) discovered. The same check also passed in the shared working tree at 15:19:22Z. Canvas QA was editing its own files in that tree at about the same time, so the scratch result is the evidence for this change set.
+- Negative control: the new profile check fails against the old `aff4882` handler at `m1-profile default/off`; the existing CLI check still passes.
+- Negative control: the old `aff4882` dependency map rejects the repaired caller with `Unexpected caller dependency: ../../lib/app`; with the entry, all five gate checks pass.
+- An independent §3.4 reading confirms the old `query` input was valid, the new claim URL is valid, and the changed and missing parameter inputs are invalid.
+- Control evidence: `/Users/quangnguyen/cogniate-qa-runs/m1-full-aff4882-20261020T1442Z/public/repair-controls/`. Exact held patch: `public/held-repair.patch`, SHA-256 `6c6c49bbba7694f2e5b990d7888dac76cba16ef9be9b874880a2d9aea744a0f9`. Full file hashes: `public/held-repair-hashes.json`.
+
+Held file SHA-256 (working tree, against `aff4882`):
+
+| File | Held | At `aff4882` |
+| --- | --- | --- |
+| `tests/acceptance/M1/blackboard/10-deployments.test.ts` | `7e07e713…3050` | `f6e3ced7…df1c` |
+| `tests/acceptance/M1/blackboard/20-protocol.test.ts` | `c5cf2932…af4e` | `6e0ff724…498f` |
+| `tests/acceptance/M1/blackboard/30-grants.test.ts` | `e5c1ee90…2f88` | `188bb0d6…b08b` |
+| `tests/host/m1-control.mjs` | `575d26a8…111d` | `18829faf…1a4e` |
+| `tests/host/m1-control.selftest.mjs` | `61b022d4…d06f` | `aabf27ef…dcee` |
+| `tests/acceptance/M1/common/gate-capture.selftest.mjs` | `7bd065e1…82cd` | `0a2dfe47…3673` |
+
+Next gates: the Lead commits these paths and Canvas QA's own repairs. Then
+the Lead freezes a new candidate, gets source review, and opens a new
+exclusive window. Then both complete rounds and all legacy groups run again
+from a fresh clone. This failed attempt, its artifacts and its not-run phases
+stay in the record.

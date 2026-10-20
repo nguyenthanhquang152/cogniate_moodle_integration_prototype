@@ -124,22 +124,29 @@ m1Test('M1-14.blackboard.claims', 'privacy allowlist removes personal, custom an
     LTI + 'tool_platform#extra', LTI + 'launch_presentation#extra'].sort());
 });
 
-for (const [variant, makeUrl] of [
-  ['origin', (base: string) => base.replace('learn-a.', 'learn-b.')],
-  ['path', (base: string) => new URL('/outside', base).href],
-  ['query', (base: string) => base + '?injected=1'],
-  ['encoded-dot', (base: string) => base + '/%2e%2e/private'],
-  ['encoded-slash', (base: string) => base + '/%2f..%2fprivate'],
+const lineItems = 'https://learn-a.blackboard.sim.test/learn/api/v1/lti/courses/course-1/lineItems';
+const agsScopes = ['lineitem', 'lineitem.readonly', 'result.readonly', 'score'].map((s) => 'https://purl.imsglobal.org/spec/lti-ags/scope/' + s);
+// LTI contract §3.4 rule 3: a url keeps every query parameter of the claim URL with the same value. So the query
+// variant launches with a claim URL that has a parameter, then changes it and removes it.
+for (const [variant, claimQuery, escapes] of [
+  ['origin', '', (base: string) => [base.replace('learn-a.', 'learn-b.')]],
+  ['path', '', (base: string) => [new URL('/outside', base).href]],
+  ['query', '?qa_claim=v7', (base: string) => [base.replace('qa_claim=v7', 'qa_claim=v8'), base.slice(0, base.indexOf('?'))]],
+  ['encoded-dot', '', (base: string) => [base + '/%2e%2e/private']],
+  ['encoded-slash', '', (base: string) => [base + '/%2f..%2fprivate']],
 ] as const) {
   m1Test(`M1-36.blackboard.${variant}`, `service key rejects ${variant} escape without outbound calls`, async () => {
-    const p = await platform(), launchResult = await launch({ deploymentId: p.deploymentId });
+    const base = lineItems + claimQuery;
+    const claims = claimQuery ? { [AGS]: { lineitems: base, lineitem: `${lineItems}/fixture${claimQuery}`, scope: agsScopes } } : {};
+    const p = await platform(), launchResult = await launch({ deploymentId: p.deploymentId, claims });
     const token = await idToken(launchResult.ltik); expectStatus(token, 200);
     const key = token.json.services.serviceKey;
-    const base = 'https://learn-a.blackboard.sim.test/learn/api/v1/lti/courses/course-1/lineItems';
     expectStatus(await service(key, 'GET', '/api/lineitems?url=' + encodeURIComponent(base)), 200);
     const cursor = (await records()).cursor;
-    expectStatus(await service(key, 'GET', '/api/lineitems?url=' + encodeURIComponent(makeUrl(base))), 400, 'INVALID_URL_PARAMETER');
-    expectStatus(await service(key, 'GET', '/api/lineitems/' + encodeURIComponent(makeUrl(base))), 400, 'INVALID_LINE_ITEM_ID');
+    for (const escaped of escapes(base)) {
+      expectStatus(await service(key, 'GET', '/api/lineitems?url=' + encodeURIComponent(escaped)), 400, 'INVALID_URL_PARAMETER');
+      expectStatus(await service(key, 'GET', '/api/lineitems/' + encodeURIComponent(escaped)), 400, 'INVALID_LINE_ITEM_ID');
+    }
     await noServiceCalls(cursor);
   });
 }

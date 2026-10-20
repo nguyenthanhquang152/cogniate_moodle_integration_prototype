@@ -1,5 +1,5 @@
-Verdict: FAIL — M3 evidence is incomplete; further execution is on HOLD
-Round: execution dispatch 1, repair checkpoint, 2026-10-20
+Verdict: FAIL — the first complete M1 attempt at `aff4882` failed in round 1; legacy not run; repair is held
+Round: Claude continuation `ctx_8d5f8d3984d0`, full-run attempt 1 and repair checkpoint, 2026-10-20
 
 The T2/T3 group below passed at its exact frozen candidate. The later harness
 repair is preparation only and does not replace that run or close M3.
@@ -272,3 +272,45 @@ and [held files, hashes and harness log](/Users/quangnguyen/cogniate-qa-runs/m3-
 preserve this working-tree checkpoint. No stack, rebuild or product
 acceptance ran. M3 remains FAIL/incomplete, and full verification still
 needs a new committed test freeze, review gates and the Lead's handback.
+
+## Claude continuation — full-run attempt 1 at `aff4882`, 2026-10-20
+
+Owner: a fresh, independent common/Blackboard QA session, Claude Code Opus 5.5
+at xhigh effort (`task_ed3b08aa45ea`, `ctx_8d5f8d3984d0`). It continues from
+the outgoing QA's durable handoff. All earlier sections stay as history. The
+`eb43247` T2/T3 result stays old-SHA evidence. It gives no credit at the final
+SHA.
+
+The Lead opened the exclusive window in `msg_d26c1a003c73`. The complete M1
+entry ran at product = test `aff48823a4c6206d6314d91a95f5eb0979d3e0e7`. It
+stopped in round 1, phase `sim`, with 385 PASS and 9 FAIL of 394 rows. The
+other three phases, round 2 and all legacy groups did not run. The
+[M1 report](../M1/qa.md#claude-continuation--full-run-attempt-1-at-aff4882-2026-10-20)
+records the command, identity, each failure, its classification, the
+evidence paths and the held repair.
+
+### M3 status after this attempt
+
+| Criterion | Status | Owner of the evidence | Notes |
+| --- | --- | --- | --- |
+| AC-M3-01 | FAIL | This QA (common, Blackboard); Canvas QA judges the Canvas rows | 9 of 394 `sim` rows failed; no complete 416-row round exists. Six common/Blackboard failures are QA oracle, request or host-control defects. The repair is held. The three Canvas rows belong to Canvas QA. |
+| AC-M3-02(a) | PASS, cited | Canvas QA (QA-E2E), not run by this QA | [M3 QA-E2E §8](qa-e2e.md#8-round-5--m2-and-t7-at-aff4882): three consecutive default T7 runs at `aff4882`, 17 PASS / 0 FAIL / 1 demo-only skip each, demo PASS, 4/4 confirm checks. Label `MOODLE-LIVE`. |
+| AC-M3-02(b) | NOT RUN | This QA | The legacy groups T2a/T2b/T3a/T3b, T3c, T4a, T4b1/T4b2, T5a/T5b/T6 and T8 run only after both full M1 rounds pass. No legacy test was changed. |
+| AC-M3-03 | PASS, cited | Canvas QA | [M2 QA](../M2/qa.md): 64/64 at `aff4882`, label `SIM`. |
+| AC-M3-04 | Partial | This QA for the M1 run | In this attempt, 0 of 1,299 captured values appear in the simulator, gate or service logs. The simulator keys stay in memory. The full criterion needs the complete runs. |
+| AC-M3-05 | UNVERIFIED, cited | Canvas QA | [Live matrix](live.md): all 32 rows UNVERIFIED; no live run is authorized. |
+| AC-M3-06 | PASS for this attempt | This QA | One stack only, lane `qa-multi-r1`/8443/`172.29.0.0/16`. Zero containers after. All seven protected volume records are identical to the original baseline. No Docker setting changed. |
+| AC-M3-07 | PASS for this attempt | This QA | Runner scan: 1,299 values, 633 files, 0 hits. Independent scan: 0 hits in 9 raw logs and 669 public files, 0 JWT-shaped strings. Raw values stay in the 0700 private run folder. |
+
+A SIM result means only that the service matched the documented provider
+behavior in a signed simulation. It does not prove interoperability with
+Canvas or Blackboard.
+
+The external observers added no stack action. Their tools and the 8/8
+failure-path controls are pinned in the run provenance. They read only selected
+container fields and never print child output or container environment.
+
+M3 stays FAIL. It closes only after the Lead commits the held repairs and
+Canvas QA's own repairs, a new reviewed freeze, two complete 416-row rounds
+with identical outcomes, all legacy groups with default-profile restoration,
+and Canvas QA's separate verdict on its rows.

@@ -219,7 +219,6 @@ const base = `${CLOUD.siteA}${PATHS.lineitems}`;
 for (const [variant, makeUrl] of [
   ['origin', (u: string) => u.replace('school-a.', 'school-b.')],
   ['path', (u: string) => new URL('/outside', u).href],
-  ['query', (u: string) => u + '?injected=1'],
   ['encoded-dot', (u: string) => u + '/%2e%2e/private'],
   ['encoded-slash', (u: string) => u + '/%2f..%2fprivate'],
 ] as const) {
@@ -234,6 +233,21 @@ for (const [variant, makeUrl] of [
     await noServiceCalls(cursor);
   });
 }
+// "A changed claim query parameter" (API contract §3.4 rule 3) needs a claim URL that has a parameter. The default Canvas
+// claim has none, and an added parameter keeps every claim parameter, so such a URL is valid there.
+m1Test('M1-36.canvas.query', 'a Canvas service key refuses a query escape without an outbound call', async () => {
+  const claimUrl = `${base}?scope_tag=qa-a`;
+  const p = await canvasPlatform(), result = await canvasLaunch(p, { claims: { [AGS]: { lineitems: claimUrl, scope: SCOPE } } });
+  const token = await idToken(result.ltik); expectStatus(token, 200);
+  const key = token.json.services.serviceKey;
+  expectStatus(await service(key, 'GET', '/api/lineitems?url=' + encodeURIComponent(claimUrl)), 200);
+  const cursor = (await records()).cursor;
+  for (const changed of [`${base}?scope_tag=qa-b`, base]) { // changed claim parameter value; claim parameter missing
+    expectStatus(await service(key, 'GET', '/api/lineitems?url=' + encodeURIComponent(changed)), 400, 'INVALID_URL_PARAMETER');
+    expectStatus(await service(key, 'GET', '/api/lineitems/' + encodeURIComponent(changed)), 400, 'INVALID_LINE_ITEM_ID');
+  }
+  await noServiceCalls(cursor);
+});
 
 // ---------------------------------------------------------------- AC-M1-39 signed family on a Canvas profile
 m1Test('M1-39.canvas.blackboard-family-on-canvas', 'a BlackboardLearn-signed launch on canvas-sim-cloud is refused before storage', async () => {

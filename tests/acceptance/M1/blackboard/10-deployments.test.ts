@@ -5,6 +5,9 @@ import {
 
 const siteA = 'https://learn-a.blackboard.sim.test';
 const siteB = 'https://learn-b.blackboard.sim.test';
+// LTI contract §1.3: an LTI service INVALID_REQUEST names the field in details.description (no details.field).
+const namesField = (response: { json?: any }, field: string) =>
+  assert.match(String(response.json?.details?.description ?? ''), new RegExp(`\\b${field}\\b`), `description names ${field}`);
 
 m1Test('M1-04.blackboard.fixed-endpoints', 'Blackboard endpoint template and forbidden overrides', async () => {
   const id = await sharedPlatform();
@@ -88,7 +91,7 @@ m1Test('M1-07.blackboard.alphabet', 'encoded deployment ids round-trip and space
   assert.equal((await remote(id, deploymentId))?.deploymentId, deploymentId);
   const invalid = unique('a') + '/b c';
   const response = await admin('POST', deploymentPath(id), { deploymentId: invalid, siteUrl: siteA });
-  expectStatus(response, 400, 'INVALID_REQUEST'); assert.equal(response.json.details.field, 'deploymentId');
+  expectStatus(response, 400, 'INVALID_REQUEST'); namesField(response, 'deploymentId');
   assert.equal(await remote(id, invalid), undefined);
 });
 m1Test('M1-07.blackboard.fencing', 'binding refs rotate atomically and compare only the current ref', async () => {
@@ -97,7 +100,7 @@ m1Test('M1-07.blackboard.fencing', 'binding refs rotate atomically and compare o
   expectStatus(await admin('PATCH', url, { active: false, bindingRef: 'r1b', ifBindingRef: 'r0' }), 409, 'BINDING_REF_MISMATCH');
   for (const patch of [{ active: false, ifBindingRef: 'r1' }, { active: false, bindingRef: 'r1', ifBindingRef: 'r1' }]) {
     const r = await admin('PATCH', url, patch); expectStatus(r, 400, 'INVALID_REQUEST');
-    assert.equal(r.json.details.field, 'bindingRef'); assert.equal((await remote(id, deploymentId))?.bindingRef, 'r1');
+    namesField(r, 'bindingRef'); assert.equal((await remote(id, deploymentId))?.bindingRef, 'r1');
   }
   expectStatus(await admin('PATCH', url, { active: false, bindingRef: 'r1b', ifBindingRef: 'r1' }), 200);
   const parallel = await Promise.all(['r2', 'r3'].map((bindingRef) => admin('PATCH', url, { active: true, bindingRef, ifBindingRef: 'r1b' })));

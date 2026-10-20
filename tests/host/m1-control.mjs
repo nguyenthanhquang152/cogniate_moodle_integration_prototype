@@ -27,8 +27,13 @@ export function m1HostControl(r, runCommand = run) {
       });
     }
     if (req.action === 'm1-profile' && ['acceptance', 'default'].includes(req.profile) && ['on', 'off'].includes(req.simulation)) {
-      return runCommand('npm', ['run', 'stack:restart', '--', 'lti-service', '--env', `LTI_PROVIDER_SIMULATION=${req.simulation}`],
-        { cwd: r.CLONE, env: { ...r.STACK_ENV, STACK_PROFILE: req.profile }, timeoutMs: 180_000 });
+      // AC-M1-35: `stack:restart -- lti-service --env …` sets both gate settings for the LTI service only.
+      // STACK_PROFILE in this process env would not reach it: only stack:up changes the saved stack profile.
+      // acceptance/on is the acceptance stack default, so the restore restarts without overrides.
+      const overrides = req.profile === 'acceptance' && req.simulation === 'on' ? []
+        : ['--env', `STACK_PROFILE=${req.profile}`, '--env', `LTI_PROVIDER_SIMULATION=${req.simulation}`];
+      return runCommand('npm', ['run', 'stack:restart', '--', 'lti-service', ...overrides],
+        { cwd: r.CLONE, env: { ...r.STACK_ENV, STACK_PROFILE: 'acceptance' }, timeoutMs: 180_000 });
     }
     return { code: 2, stdout: '', stderr: 'Unknown M1 host action', durationMs: 0 };
   }

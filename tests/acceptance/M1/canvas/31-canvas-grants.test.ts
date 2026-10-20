@@ -42,6 +42,13 @@ export function attemptLines(connectionId: string) {
   return log.entries.filter((e) => e.entry.event === 'grant_attempt_started' && e.entry.connection_id === connectionId)
     .map((e) => ({ line: e.line, ...e.entry }) as Json);
 }
+/** `grant_redeemed` lines of one connection, with the same capture guard. Counted after a same-trace completion barrier. */
+export function redeemedLines(connectionId: string) {
+  const log = readLog('cogniate-app');
+  assert.deepEqual(log.badLines, [], 'BLOCKED: incomplete capture of cogniate-app.jsonl');
+  return log.entries.filter((e) => e.entry.event === 'grant_redeemed' && e.entry.connection_id === connectionId)
+    .map((e) => ({ line: e.line, ...e.entry }) as Json);
+}
 /** Baseline after a completed request of this test, so every earlier line of the connection is already captured. */
 async function attemptBaseline(s: any, connectionId: string) {
   await completed(await app(s, 'GET', connPath(connectionId)), 'GET');
@@ -205,14 +212,19 @@ m1Test('M1-20.canvas.add', 'an add_deployment grant adds one approved deployment
 });
 m1Test('M1-20.canvas.repeat', 'a finalized repeat answers 200 without an LTI call, a redemption or use of the code', async () => {
   const b = await canvasBound(), second = canvasDeploymentId();
-  const grant = await addGrant(b, second); expectStatus(await addDeployment(b, second, grant), 200);
-  const since = Date.now(), other = await addGrant(b, second);
+  const grant = await addGrant(b, second), first = await addDeployment(b, second, grant); expectStatus(first, 200);
+  // Line counts, not a time window: the first redemption's lines come before its own http_request line (R3.7), so after
+  // this barrier they are already counted. A millisecond timestamp cannot separate them from later lines.
+  await completed(first, 'POST');
+  const redeemed = redeemedLines(b.connection.id).length, attempts = attemptLines(b.connection.id).length;
+  const other = await addGrant(b, second);
   await noRemoteCall(async () => {
-    expectStatus(await addDeployment(b, second, grant), 200);
-    const withOther = await addDeployment(b, second, other); expectStatus(withOther, 200);
+    const again = await addDeployment(b, second, grant); expectStatus(again, 200); await completed(again, 'POST');
+    const withOther = await addDeployment(b, second, other); expectStatus(withOther, 200); await completed(withOther, 'POST');
     assert.deepEqual([...withOther.json.platform.deploymentIds].sort(), [b.deploymentId, second].sort());
   });
-  assert.equal(logEvents('grant_redeemed', since).filter((e) => e.connection_id === b.connection.id).length, 0);
+  assert.equal(redeemedLines(b.connection.id).length, redeemed, 'No grant_redeemed line from a finalized repeat');
+  assert.equal(attemptLines(b.connection.id).length, attempts, 'No grant_attempt_started line from a finalized repeat');
   await grantState(other, b.connection.id, 'issued');
 });
 m1Test('M1-20.canvas.missing-code', 'an added deployment without a code is refused', async () => {
@@ -285,7 +297,7 @@ m1Test('M1-21.canvas.web-services', 'Canvas has no Moodle web services and makes
 m1Test('M1-21.canvas.course-shell', 'Canvas publications cannot ask for a Moodle course shell', async () => {
   const b = await canvasBound(), course = await createCourse(b.s, unique('shell'));
   const before = await app(b.s, 'GET', '/app-api/publications');
-  const r = await app(b.s, 'POST', '/app-api/publications', { connectionId: b.connection.id, courseId: course.id, createMoodleCourse: true });
+  const r = await app(b.s, 'POST', '/app-api/publications', { connectionId: b.connection.id, courseId: course.id, createMoodleCourse: {} });
   expectStatus(r, 409, 'CAPABILITY_NOT_SUPPORTED'); assert.equal(r.json.details.capability, 'courseShell');
   assert.deepEqual((await app(b.s, 'GET', '/app-api/publications')).json, before.json);
 });

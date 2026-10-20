@@ -189,7 +189,7 @@ function loadCaller(name, gate, overrides = {}) {
   const modules = {
     'node:fs': { writeFileSync() {} }, 'node:path': path,
     '../../lib/paths': { artifactsDir: () => '/in-memory-evidence' },
-    '../common/client': client, '../common/course': {},
+    '../common/client': client, '../common/course': {}, '../../lib/app': {},
     '../common/snapshot': {
       gateMark: async () => (await gate.controls.readEvents()).at(-1)?.seq ?? 0,
       watchAll: (action = 'pass', faults = []) => armCapture(gate.controls, { action, faults }),

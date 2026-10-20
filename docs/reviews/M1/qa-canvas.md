@@ -1,6 +1,6 @@
-Verdict: PREPARED — Canvas simulator and Canvas M1 cases are ready; harness checks only, no product verification
-Round: 5 (verification checkpoint and capture repair, task `task_e28388df4dcc`; see §11)
-Owner: independent Codex Canvas QA quota replacement, authorized by Lead for GPT-6-Astra at xhigh; earlier Claude reports remain below
+Verdict: FAIL / HOLD for round 1 SIM at `aff4882` — 232 selected Canvas rows: 229 PASS, 3 FAIL (all QA oracle or request defects; no product defect); bounded repairs held, not run
+Round: 7 (task `task_e28388df4dcc`, dispatch `ctx_4a94125660be`; see §13)
+Owner: original Claude Canvas QA (`claude-opus-5-5`, xhigh), resumed by owner request; rounds 5–6 by the independent Codex Canvas QA quota replacement; earlier Claude reports remain below
 Behavior baseline: `56591df0e71939d5d62c9042c630c841d01f84e8` (ADR-011 revision 6). Plan: [M1 QA plan](qa-plan.md) at `6733e57`.
 
 ## 1. Independence and inputs
@@ -277,3 +277,46 @@ Hold `tests/acceptance/M1/canvas/51-canvas-races.test.ts`, `tests/acceptance/M1/
 Five M2 harness checks include synthetic request-time collection, a negative control for the old query-only stripping, and both actual frame-wait timeout branches. The Canvas-selected M1 harness passes 33 shared self-checks, typecheck and discovery of 251 API plus 24 host/browser rows including common. Log: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-ae130a3-s73h9dlx/canvas-hygiene-harness.log`. This is not SIM or live acceptance. Canvas remains 233 rows (226 API, seven browser); common 42, Blackboard 141, full M1 416. Existing C2/C3 purpose/order, bounded audit oracle, all-method capture and fixture exports are unchanged.
 
 Hold `tests/acceptance/M1/canvas/browser.ts`, `browser-diagnostics.mjs`, `browser-diagnostics.d.mts` and this report for Lead integration with the M2 diagnostic paths. Core QA still supplies both complete frozen M1 runs, including the populated host upgrade route exactly once each. Independent Canvas verdict and live evidence remain pending. Failed M2 privacy evidence and the containment limits are recorded in [M2 QA §6](../M2/qa.md#6-round-5--second-frozen-m2-run-and-diagnostic-hygiene-2026-10-20).
+
+## 13. Round 7 — first full M1 round, SIM phase, at `aff4882` (2026-10-20)
+
+**FAIL / HOLD. No M1 acceptance credit.** Core QA ran full M1 round 1 at product and test `aff48823a4c6206d6314d91a95f5eb0979d3e0e7` and stopped after the SIM phase. Run `qa-multi-r1-aff48823-2026-10-20T14-42-33-520Z`, project `qa-multi-r1`, health profile `default` for app and LTI after the run. Artifact directory: `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-aff4882-20261020T1420Z/source/tests/host/artifacts/qa-multi-r1-aff48823-2026-10-20T14-42-33-520Z`. Canvas QA judged the Canvas rows independently from the runner rows and the raw reports. The failed run evidence is preserved and was not edited.
+
+### 13.1 Exact accounting
+
+| Set | Rows |
+| --- | --- |
+| Full M1 inventory | 416: Canvas 233, Blackboard 141, common 42 |
+| Round 1 SIM selection | 394: Blackboard 136 API, Canvas 225 API + 7 browser, common 25 API + 1 SIM host row |
+| Raw sources of the 394 | Vitest 392 assertions: 386 executed (377 passed, 9 failed) + 6 skipped because they belong to another phase. Plus 7 Playwright browser rows and 1 host row |
+| Not in this phase | 22: Canvas `M1-37.canvas.aa` (snapshot-isolated), Blackboard 5 snapshot-isolated, common 5 snapshot-upgrade + 11 `MOODLE-LIVE` host rows |
+| **Canvas** | **233 = 232 selected (229 PASS: 222 API + 7 browser; 3 FAIL) + 1 NOT RUN (`M1-37.canvas.aa`)** |
+
+Raw and runner results agree on every selected Canvas row: same product and test SHA, label `SIM`, one result, no retry or flake. `evidence/sim` and `evidence/final` hold byte-identical raw reports and are counted once. The runner's evidence scan record shows 1299 captured values, 633 files, 0 hits.
+
+### 13.2 The three failures
+
+| Case | Class | Evidence |
+| --- | --- | --- |
+| `M1-36.canvas.query` | Test oracle defect | The test appended `?injected=1` to the claim line items URL. That claim URL has no query. API contract §3.4 rules 1–4 hold: same origin, path prefix, every claim query parameter kept with the same value, no encoded trick. So the URL is valid and the product's 200 is correct. AC-M1-36 "a changed claim query parameter" needs a claim URL that has a parameter. Core's `M1-36.blackboard.query` has the same defect. |
+| `M1-20.canvas.repeat` | Test oracle defect (millisecond time window) | The case ran at about `14:44:56.086–57.130Z` on connection `con_8n1UzuNLG4rL-TOFXQhdqg`. The first add's `grant_redeemed` and its same-trace `POST …/deployments` 200 are both logged at `14:44:56.803Z`. `since` was `Date.now()` after that 200, and `eventsSince` counts `ts >= since`, so the first redemption itself was counted. The two repeats (`57.119Z`, `57.121Z`) returned 200 with no `grant_attempt_started`, no `grant_redeemed` and no outbound request. The unused grant has only `grant_issued`. |
+| `M1-21.canvas.course-shell` | Test request defect | The test sent `createMoodleCourse: true`. App API contract (line 888) defines `createMoodleCourse: { categoryId? }`; the T8 test and the portal send `{}`. A schema 400 `INVALID_REQUEST` before the capability guard is correct for a malformed body. Core's `M1-21.blackboard.capabilities` has the same body. |
+
+### 13.3 Authorized repairs (held, not run)
+
+Lead authorized repairs A–C in `msg_f981848032b1`. Case IDs, titles and the inventory are unchanged, as are every status, code and no-outbound assertion.
+
+- **A — `21-canvas-protocol.test.ts`.** `query` leaves the generic loop. A dedicated `M1-36.canvas.query` launches with an AGS claim whose `lineitems` URL is `…/line_items?scope_tag=qa-a`, and the claim URL itself must give 200. Then, for the changed value (`?scope_tag=qa-b`) and for the missing parameter (the bare URL), the `url` form must give 400 `INVALID_URL_PARAMETER` and the `:lineItemId` form 400 `INVALID_LINE_ITEM_ID`, with no outbound call.
+- **B — `31-canvas-grants.test.ts`, `M1-20.canvas.repeat`.** A connection-scoped line count replaces the time window. After the first add, `completed(first, 'POST')` waits for the same-trace `http_request` line; the R3.7 order puts the redemption lines before it. The test then counts the connection's `grant_redeemed` lines (new `redeemedLines`, with the same capture guard as `attemptLines`) and `grant_attempt_started` lines. Both repeats run inside `noRemoteCall`, and each waits for its own completion. Both counts must stay unchanged, and the unused grant must stay `issued`. There is no time slack, no sleep and no claim across processes.
+- **C — `31-canvas-grants.test.ts`, `M1-21.canvas.course-shell`.** `createMoodleCourse: true` becomes `{}`. The course exists, so the request reaches the capability guard.
+
+Evidence (synthetic or harness only; `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-aff4882-eFk7FU4s/m1-canvas-repair/`):
+- `node tests/host/run-m1.mjs --harness-only --provider canvas`: 34/34 self-checks, typecheck PASS, 251 API + 24 host rows (unchanged). All providers: 392 API + 24 host rows (unchanged).
+- `m1-controls.mjs` compiles the exact source of `readLog`, `attemptLines`, `redeemedLines` and `eventsSince` and records their SHA-256 values. It checks four things:
+  - Two same-millisecond repeats leave both counts unchanged. The old timestamp oracle counts the first redemption on the same log, which reproduces the failure.
+  - A later same-millisecond `grant_redeemed` and a later `grant_attempt_started` are each detected.
+  - A malformed line blocks; a partial last line does not.
+  - Against the contract's §3.4 rule, the new claim URL is valid, the changed value and the missing parameter are invalid, and the old `?injected=1` URL is valid under the default claim.
+- Independent judge: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-aff4882-eFk7FU4s/canvas-judge/` (`canvas-judge.mjs`, its synthetic self-test, `round1-sim-judge.json`, `round1-canvas-classification.json`).
+
+No product edit, stack or partial product run. A new frozen SHA and a complete M1 round are needed for any Canvas M1 verdict; `M1-37.canvas.aa` still needs its snapshot-isolated phase.
