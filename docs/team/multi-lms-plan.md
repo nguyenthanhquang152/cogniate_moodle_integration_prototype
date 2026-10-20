@@ -813,6 +813,28 @@ Original Claude backend Author reconciliation is queued as `task_4db65c194479`; 
 Original Claude Reviewer-A will own `task_016398b7ed4e` after the author task and final freeze, as the team brief now records.
 The user request restores original Claude roles; it does not invalidate committed Codex results or bypass remaining QA/review gates.
 
+The three original Claude sessions have now responded successfully:
+
+- Backend Author completed read-only reconciliation `task_4db65c194479` / `ctx_357068c33d19` in `msg_eb1a996c3a98`. No quota error remains; no edits were made. It stays retained for future author work.
+- Codex Canvas QA settled `ctx_8ec51c3aa7b5` as incomplete for the owner-requested transfer in `msg_89b84214a011`. Its durable handoff is `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-ae130a3-s73h9dlx/continuation-claude-canvas.md`. The same unfinished task was reopened for original Claude under `ctx_4a94125660be`; response `msg_2e87a3eb6709` confirms the handoff and scope.
+- Original Claude Reviewer-A resumed `task_016398b7ed4e` / `ctx_7e250abb1487` in `msg_28aec45e66bf`, with blind independent review and only its three report paths.
+
+The portal author settled `task_6082e04b612c` successfully in `msg_cd9911c9481b`.
+Lead read the six-path repair and report and matched the source and patch hashes.
+Author branch commit `4b3edd54a24c9ca1f793dc1a9976e19ee2841001` is integrated as **`e3cd7dbc11a2c41f9059445b0f011bd1ba5e1e63`**.
+This is the new frozen product and test SHA, including both committed harness repairs.
+The build now ships independent runtime/shell scripts. The portal uses the existing router option to commit route changes without a deferred transition.
+Six history/selector/link controls preserve request cancellation. Watch-build checks preserve the other player entry and CSS.
+Author checks pass 91 focused tests and the root check; Lead separately ran a clean isolated exact-SHA check.
+Lead result: lint, all typechecks, **1,039 tests in 70 files, zero skips**, clean detached clone.
+Log: `/tmp/cogniate-lead-foundation.bzkF2F.runtime-check.log`.
+
+Lead message `msg_88bc0ba11c4c` grants original Claude Canvas QA the exclusive all-64 M2 window at `e3cd7db`.
+All identity, complete health, browser/image, runner heartbeat, captured-secret scan and cleanup requirements apply.
+Only if M2 passes and cleanup completes may the same owner run three default T7 passes plus demo and confirmation at the same SHA.
+A failed M2 run or a new source blocker holds the next stage. Common QA has no stack authority yet.
+The active workers are common QA, original Claude Canvas QA and original Claude Reviewer-A. Reviewer-B stays queued.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
