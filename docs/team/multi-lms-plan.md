@@ -70,7 +70,7 @@ Do not run a destructive reset against the user's existing environment.
 
 | Task | Result | State |
 | --- | --- | --- |
-| M0 | Source review, architecture, contracts, criteria | Proposal complete; independent review pending |
+| M0 | Source review, architecture, contracts, criteria | First reviews require changes; Architect correction next |
 | M0-A2 | Read-only portal and integration audit | Complete; no code or tests changed |
 | M0-AU | Read-only backend and deployment impact audit | Complete; no code or tests changed |
 | M0-QE | Independent environment and live-LMS validation preflight | Complete; environment inventory, no product verification |
@@ -135,6 +135,12 @@ Each task depends on both design reviews and the QA testability review.
 The Lead must also confirm that all BLOCKER and MAJOR findings are closed.
 The portal branch will first advance to the approved design commit.
 
+Independent test preparation is also queued behind the design gate.
+QA task `task_7676dddddb02` owns the signed simulator and M1 acceptance tests.
+QA-E2E task `task_732732ad5b91` owns M2 browser tests.
+Both write tests from approved criteria before reading author code.
+Test preparation is not a product PASS; later runs use an exact candidate SHA.
+
 The two dedicated reviewers started read-only preflights while the Architect revised M0.
 Tasks `task_5029938ab2e4` and `task_843b9fd4f001` check stable vendor facts and setup workflows.
 These tasks are not formal design approval. The reviewers remain independent.
@@ -143,6 +149,23 @@ They will reuse the same instances for the formal design review.
 Reviewer-B completed its preflight in `ctx_6964f917fdea` without changing files.
 The Lead sent B-PF-01 through B-PF-09 to the Architect.
 This is not design approval. The same dedicated reviewer is retained for the formal review.
+
+Reviewer-B completed its first formal review of `51e69d1` in `ctx_3c1ba794297e`.
+Its verdict is CHANGES_REQUESTED: four MAJOR recovery and upgrade findings, plus two MINOR inconsistencies.
+Independent QA completed the design testability review in `ctx_4d2994dbaa01`.
+Its verdict is FAIL FOR DESIGN TESTABILITY ONLY, with six MAJOR gaps and three MINOR clarifications.
+Their reports are [Reviewer-B](../reviews/M0/reviewer-b.md) and [QA](../reviews/M0/qa.md).
+Both dedicated instances remain retained for recheck.
+
+Architect correction task `task_76b235e74210` follows the three first reports.
+The recheck tasks are `task_2e2307b7f7fe` (Reviewer-A), `task_f5a737f0a439` (Reviewer-B), and `task_f0190c5eafe4` (QA).
+The initial task completions do not open the implementation gate when their verdicts require changes.
+
+Reviewer-A completed its first formal review in `ctx_1d8b93c872ae`.
+Its [report](../reviews/M0/reviewer-a.md) requests changes: one BLOCKER, one MAJOR, three MINOR and three NIT findings.
+The blocker is self-hosted Canvas entering through the standard Moodle path without approval.
+The MAJOR finding requires operator containment and correction of a redeemed binding.
+All three first reports are complete. No design approval or product verification is implied.
 
 Reviewer-A completed its source preflight in `ctx_8546daf0903f` without changing files.
 The Lead sent A-PRE-01 through A-PRE-06 to the Architect in `msg_9328b2a6abc6`.
@@ -217,4 +240,31 @@ M1 includes `apps/player/**` for provider-aware learner text, as well as service
 M2 owns only `apps/portal/**`.
 Preserve anonymous identity and the existing grade policy.
 Canvas dynamic registration, billing, high availability, public deployment, and certification are outside this phase.
+
+## Direction for the first design correction
+
+Keep the operator-grant model and close the alternative registration path found by Reviewer-A.
+The `standard` profile must not let a real self-hosted Canvas launch bypass the required approval and privacy rules.
+Preserve legitimate Moodle launches. The Architect must state the exact signed evidence and refusal rule.
+
+Add a bounded operator procedure to recover an incorrectly approved binding.
+It must revoke old authority before any corrected binding can activate.
+It must not transfer old publications, attempts or grades to another library.
+This is an operator recovery path, not general self-service reassignment.
+
+For Q-M0-04, narrow the third-host claim to what the trusted inputs can establish.
+Specify Deep Linking return checks, browser frame restrictions and top-level resource launches separately.
+Do not add browser Referer checks as ownership proof.
+
+The one-page-origin and one-service-origin rule applies to self-hosted Canvas too.
+Its issuer remains the configured page origin. Test a distinct approved service origin explicitly.
+Define one canonical URL representation before storing values and comparing approval grants.
+
+QA's internal transport fault barrier is authorized only in the acceptance environment.
+The Author owns its infrastructure; QA owns the scenarios and assertions.
+Use fixed local transport endpoints and explicit gates. Do not weaken production URL checks.
+
+Split default-profile T7 from legacy acceptance suites that need their existing fixtures and knobs.
+Use the new revision's maintenance commands while both old services remain stopped.
+Validate the complete backup before replacing either database, including sidecars and backup identity.
 
