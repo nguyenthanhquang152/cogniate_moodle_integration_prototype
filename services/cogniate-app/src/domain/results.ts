@@ -25,16 +25,12 @@ interface AttemptRow {
 
 function attemptsOfPublication(db: Db, connectionId: string, courseId: string): AttemptRow[] {
   return db.prepare(`SELECT a.id, a.resource_link_id, a.user_sub, a.course_version_id, a.preview, a.outcome, a.score_given, a.score_maximum,
-      a.created_at, a.updated_at, rl.context_title, rl.title, con.platform_json
+      a.created_at, a.updated_at, rl.context_title, rl.title, con.site_url
     FROM attempt a JOIN course_version v ON v.id = a.course_version_id JOIN resource_link rl ON rl.id = a.resource_link_id
     JOIN connection con ON con.id = rl.connection_id
     WHERE rl.connection_id = ? AND v.course_id = ? ORDER BY a.created_at, a.rowid`).all(connectionId, courseId).map((r) => {
-    let issuer: string | null;
-    try {
-      issuer = r.platform_json === null ? null : (JSON.parse(String(r.platform_json)) as { issuer: string }).issuer;
-    } catch {
-      issuer = null;
-    }
+    // M1 (app contract §6.1): the learner label host is the connection site URL host (for Moodle the issuer host).
+    const issuer = r.site_url === null ? null : String(r.site_url);
     return {
       id: String(r.id), resourceLinkId: String(r.resource_link_id), userSub: String(r.user_sub), versionId: String(r.course_version_id),
       preview: Number(r.preview) === 1, outcome: r.outcome as Outcome, scoreGiven: r.score_given === null ? null : Number(r.score_given),

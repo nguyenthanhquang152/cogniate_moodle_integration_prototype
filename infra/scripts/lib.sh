@@ -76,14 +76,27 @@ saved_profile() {
   local p; p="$(cat "$PROFILE_FILE" 2>/dev/null || true)"
   if [[ "$p" == acceptance ]]; then echo acceptance; else echo default; fi
 }
+# M1 (M3 §3.1, §3.3, LTI contract §9.13), acceptance only: the simulation profiles of the LTI service
+# (LTI_PROVIDER_SIMULATION=on), the simulator hosts that the LTI service calls, and the app's /api/* route through the
+# transport gate (LTI_API_URL, allowlisted for the app only). The default profile sets none of them.
+SIM_LTI_HOSTS=(developer.blackboard.sim.test learn-a.blackboard.sim.test learn-b.blackboard.sim.test sso.canvas.sim.test
+  school-a.canvas.sim.test school-b.canvas.sim.test canvas-self.sim.test api.canvas-self.sim.test)
+SIM_ALIASES=(lms-sim.test "${SIM_LTI_HOSTS[@]}" canvas.school-a.sim.test)
+GATE_HOST=lti-gate.test
 apply_profile() {
   ACTIVE_STACK_PROFILE="$1"
   if [[ "$ACTIVE_STACK_PROFILE" == acceptance ]]; then
     COMPOSE_PROFILES=acceptance; ACCEPTANCE_ALLOWLIST_EXTRA=",qa-platform.test,evil.test"
+    ACCEPTANCE_LTI_ALLOWLIST_EXTRA="$(printf ',%s' "${SIM_LTI_HOSTS[@]}")"
+    ACCEPTANCE_APP_ALLOWLIST_EXTRA=",$GATE_HOST"
+    ACCEPTANCE_LTI_SIMULATION=on
+    ACCEPTANCE_LTI_API_URL="https://$GATE_HOST"
   else
     COMPOSE_PROFILES=""; ACCEPTANCE_ALLOWLIST_EXTRA=""
+    ACCEPTANCE_LTI_ALLOWLIST_EXTRA=""; ACCEPTANCE_APP_ALLOWLIST_EXTRA=""; ACCEPTANCE_LTI_SIMULATION=""; ACCEPTANCE_LTI_API_URL=""
   fi
-  export ACTIVE_STACK_PROFILE COMPOSE_PROFILES ACCEPTANCE_ALLOWLIST_EXTRA
+  export ACTIVE_STACK_PROFILE COMPOSE_PROFILES ACCEPTANCE_ALLOWLIST_EXTRA ACCEPTANCE_LTI_ALLOWLIST_EXTRA ACCEPTANCE_APP_ALLOWLIST_EXTRA \
+    ACCEPTANCE_LTI_SIMULATION ACCEPTANCE_LTI_API_URL
 }
 apply_profile "$(saved_profile)"
 

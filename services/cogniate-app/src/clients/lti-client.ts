@@ -223,8 +223,8 @@ export function createLtiClient(deps: LtiClientDeps) {
     patchPlatform: (platformId: string, body: { active?: boolean; name?: string } & Partial<RefChange>, traceId: string) => call(Platform, 'PATCH', `/api/platforms/${id(platformId)}`, traceId, body),
     // M1 (LTI contract §9.4 to §9.6, §9.15): provider platforms, deployments and conditional changes.
     createProviderPlatform: (body: NewProviderPlatform, traceId: string) => call(Platform, 'POST', '/api/platforms', traceId, body),
-    findPlatforms: (q: { url: string; clientId: string; profile: string }, traceId: string) =>
-      call(PlatformList, 'GET', `/api/platforms?${new URLSearchParams(q)}`, traceId).then((r) => r.platforms),
+    findPlatforms: (q: { url: string; clientId: string; profile?: string }, traceId: string) =>
+      call(PlatformList, 'GET', `/api/platforms?${new URLSearchParams(Object.entries(q).filter((e): e is [string, string] => e[1] !== undefined))}`, traceId).then((r) => r.platforms),
     /** Conditional delete (`ifBindingRef`), or unconditional without it. 204 → undefined. */
     deletePlatform: (platformId: string, ifBindingRef: string | null, traceId: string) =>
       call(NoContent, 'DELETE', `/api/platforms/${id(platformId)}${ifBindingRef !== null ? `?${new URLSearchParams({ ifBindingRef })}` : ''}`, traceId),

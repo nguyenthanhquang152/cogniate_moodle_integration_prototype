@@ -267,9 +267,13 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
   /** S2: read the remote record of the target. Null when it is absent. */
   async function readTarget(target: BindingTarget, platformId: string | null, attempt: Attempt, traceId: string): Promise<ReadRecord | null> {
     if (target.kind === 'exclusive_platform') {
+      // The target lookup of §4.7.1 Terms (issuer, client id, profile). A platform with the same issuer and client id
+      // but ANOTHER profile (for example a `standard` one made by a Moodle connection) is read too: it is not
+      // adoptable (other values), so the answer is 409 PLATFORM_IN_USE (AC-M1-39), not a lost record.
       const p = platformId
         ? await lti.getPlatform(platformId, traceId).catch((err: unknown) => { if (err instanceof LtiServiceError && err.status === 404) return null; throw err; })
-        : (await lti.findPlatforms({ url: target.issuer, clientId: target.clientId, profile: target.profile }, traceId))[0] ?? null;
+        : (await lti.findPlatforms({ url: target.issuer, clientId: target.clientId, profile: target.profile }, traceId))[0]
+          ?? (await lti.findPlatforms({ url: target.issuer, clientId: target.clientId }, traceId))[0] ?? null;
       return p ? { platformId: p.id, ref: p.bindingRef, active: p.active, platform: p } : null;
     }
     const p = await lti.getPlatform(target.platformId, traceId).catch((err: unknown) => { if (err instanceof LtiServiceError && err.status === 404) return null; throw err; });

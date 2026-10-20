@@ -21,6 +21,8 @@
     "stack:down": "bash infra/scripts/stack-down.sh",
     "stack:reset": "bash infra/scripts/stack-reset.sh",
     "stack:restart": "bash infra/scripts/stack-restart.sh",
+    "stack:data-backup": "bash infra/scripts/stack-data.sh backup",
+    "stack:data-restore": "bash infra/scripts/stack-data.sh restore",
     "stack:logs": "bash infra/scripts/stack-logs.sh",
     "seed": "bash infra/scripts/seed.sh",
     "seed:lti-manual": "bash infra/scripts/seed-lti-manual.sh",

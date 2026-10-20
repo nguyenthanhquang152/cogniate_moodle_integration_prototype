@@ -31,9 +31,13 @@ import { pathToFileURL } from 'node:url';
 const [file, svc, registryPath, ...pairs] = process.argv.slice(2);
 const { KNOB_REGISTRY } = await import(pathToFileURL(registryPath).href);
 const valid = Object.entries(KNOB_REGISTRY).filter(([, k]) => k.service === svc).map(([n]) => n);
+// M1 (AC-M1-35): the simulation gate of the LTI service is NOT a test knob (/healthz knobs stays []), but QA must
+// restart it in the other combinations of STACK_PROFILE and LTI_PROVIDER_SIMULATION. Only these two, only lti-service.
+const GATE_VARS = svc === 'lti-service' ? ['STACK_PROFILE', 'LTI_PROVIDER_SIMULATION'] : [];
 for (const kv of pairs) {
   const name = kv.slice(0, kv.indexOf('='));
   const spec = KNOB_REGISTRY[name];
+  if (GATE_VARS.includes(name)) continue;
   if (!spec || spec.service !== svc) {
     console.error(`${name} is not a registered knob of ${svc}. Valid knobs of ${svc}: ${valid.join(', ') || '(none)'}.`);
     console.error('Knobs are registered in packages/shared/src/knobs.ts (KNOB_REGISTRY).');

@@ -95,6 +95,9 @@ export function fakeProviders(): LtiProviderProfile[] {
     { id: 'standard', lms: null, label: 'Standard LTI 1.3 platform', sharing: 'exclusive', issuer: null, authenticationEndpoint: null,
       accesstokenEndpoint: null, jwksUrl: null, siteUrlOn: null, serviceUrl: false, simulation: false, sharedPlatform: null },
     bb('blackboard', 'blackboard.com', false), bb('blackboard-sim', 'blackboard.sim.test', true),
+    { id: 'canvas-sim-cloud', lms: 'canvas', label: 'Canvas cloud (simulation)', sharing: 'exclusive', issuer: 'https://canvas.sim.test',
+      authenticationEndpoint: 'https://sso.canvas.sim.test/api/lti/authorize_redirect', accesstokenEndpoint: '{serviceUrl}/login/oauth2/token',
+      jwksUrl: 'https://sso.canvas.sim.test/api/lti/security/jwks', siteUrlOn: 'platform', serviceUrl: true, simulation: true, sharedPlatform: null },
   ];
 }
 
@@ -201,6 +204,8 @@ export function fakeLti(): FakeLti {
       return guarded('PATCH platform', () => {
         const p = platforms.get(id);
         if (!p) throw new LtiServiceError(404, 'UNREGISTERED_PLATFORM', '');
+        // ADR-011 §4 rule 5: the app never changes a shared platform (a test fails loudly if it tries).
+        if (p.profile.startsWith('blackboard')) throw new Error('the app must never PATCH a shared platform');
         if (body.ifBindingRef !== undefined && p.bindingRef !== body.ifBindingRef) throw new LtiServiceError(409, 'BINDING_REF_MISMATCH', '');
         if (body.active !== undefined) p.active = body.active;
         if (body.name !== undefined) p.name = body.name;
@@ -227,7 +232,7 @@ export function fakeLti(): FakeLti {
     },
     async findPlatforms(q) {
       calls.push(`GET platforms ${q.url} ${q.clientId}`);
-      return [...platforms.values()].filter((p) => p.url === q.url && p.clientId === q.clientId && p.profile === q.profile).map(clone);
+      return [...platforms.values()].filter((p) => p.url === q.url && p.clientId === q.clientId && (q.profile === undefined || p.profile === q.profile)).map(clone);
     },
     async deletePlatform(id, ifBindingRef) {
       calls.push(`DELETE platform ${id}${ifBindingRef !== null ? ` if ${ifBindingRef}` : ''}`);

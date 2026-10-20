@@ -60,6 +60,10 @@ All commands run from the repo root.
 | `npm run demo:users` | The demo URLs, the Moodle and portal user names with their roles, and the `.env` variable that holds each password (it never prints a password). With the stack up, it also lists the Cogniate activities in Moodle. | nothing | everything |
 | `npm run moodle:cron` | T7 fallback (H13): run the Moodle cron once, for example when a report or the completion state waits for it. | nothing | everything |
 | `npm run check` | Lint, type check and unit tests (on the host). | nothing | everything |
+| `npm run stack:data-backup -- --out <folder>` | M1 upgrade (ADR-011 §14): with `cogniate-app` and `lti-service` STOPPED, after the new revision is installed and before its first start. The folder must be new and outside the checkout (it holds secrets). | nothing | everything. It copies `infra/.data/lti-service/lti.db` and `infra/.data/cogniate-app/cogniate.db` with their present `-wal` / `-shm` files, records each database's `schema_migration` names, writes `manifest.json` (backup id, time, compose project, revision, per-file name, size and SHA-256) and verifies the copies. It refuses to run while either service runs. |
+| `npm run stack:data-restore -- --from <folder>` | M1 rollback (ADR-011 §14): with both services STOPPED, before the old revision starts. **Every write after the backup is lost.** | target `-wal` / `-shm` files that the backup does not list | everything else. It validates the whole backup first (manifest form, backup id, compose project, every file with size and SHA-256); any failure: exit 1 and no file changes. Then it replaces exactly the two databases and their listed sidecars. It never edits a migration ledger row. |
+| `npm run lti:shared-platform -w services/lti-service -- --account cogniate --profile blackboard --client-id <Application ID> [--name "Cogniate"]` | M1 operator step (once per LTI host): make the shared Blackboard platform. Run it in the container: `docker compose exec lti-service npm run lti:shared-platform -w services/lti-service -- …`. | nothing | everything. Prints `{platformId, created}`; the same client id again changes nothing; another client id: exit 1. |
+| `npm run app:grant -w services/cogniate-app -- issue\|revoke\|list …` / `npm run app:binding -w services/cogniate-app -- suspend\|release …` | M1 operator approval grants and binding containment (app contract §4.8, §4.9). Run in the app container (`docker compose exec cogniate-app …`); not reachable over HTTP. `issue` prints the approval code once. | nothing local except what the command states | everything else |
 
 Advanced helpers in `infra/scripts/`:
 
@@ -214,6 +218,16 @@ Start: `STACK_PROFILE=acceptance npm run stack:up`. Stop: `npm run stack:up` (no
 | Both hosts | Code: `infra/qa-hosts/qa-hosts.mjs` (plain Node, no packages). Each container has its network alias and the `qa.crt` leaf. Log lines use the service format; paths have no query, and token-like segments show as `:redacted`. The health check uses plain HTTP `:8080` inside the container and is not logged. |
 | Allowlists | `OUTBOUND_PRIVATE_HOST_ALLOWLIST` of `lti-service` = `moodle.test,qa-platform.test,evil.test` and of `cogniate-app` = `lti.cogniate.test,moodle.test,qa-platform.test,evil.test` (default profile: without the two QA names; the app needs `moodle.test` for the T8 web services). |
 | `/healthz` and `service_started` | `"profile": "acceptance"` and `"outbound_allowlist": [...]` (the active list). Example (default): `{"status":"ok","service":"lti-service","profile":"default","knobs":[],"outbound_allowlist":["moodle.test"]}`. |
+
+### Acceptance profile additions (M1, M3 §3)
+
+| Item | Value |
+| --- | --- |
+| `lms-sim` | QA's signed platform simulator (`tests/sim/server.mjs`, read-only mount). Network aliases `lms-sim.test`, `developer.blackboard.sim.test`, `learn-a.blackboard.sim.test`, `learn-b.blackboard.sim.test`, `sso.canvas.sim.test`, `school-a.canvas.sim.test`, `school-b.canvas.sim.test`, `canvas.school-a.sim.test`, `canvas-self.sim.test`, `api.canvas-self.sim.test`; the QA leaf has these names. Log `infra/.logs/lms-sim.jsonl`. |
+| `lti-gate` | The app-to-LTI transport gate (`infra/lti-gate/gate.mjs`, plain Node), alias `lti-gate.test`. The app sends its `/api/*` calls there (`LTI_API_URL=https://lti-gate.test`); browser traffic does not pass it. Control API `/__gate/rules`, `/__gate/release`, `/__gate/events`, `/__gate/reset` (M3 §3.3). Log `infra/.logs/lti-gate.jsonl`. |
+| LTI service | `LTI_PROVIDER_SIMULATION=on`: the simulation profiles `blackboard-sim` and `canvas-sim-cloud` exist (`/healthz` `simulation_profiles`). The allowlist adds the eight simulator hosts that the LTI service calls. `npm run stack:restart -- lti-service --env STACK_PROFILE=default` or `--env LTI_PROVIDER_SIMULATION=off` checks the other gate combinations (AC-M1-35); these two are not test knobs. |
+| Cogniate app | The allowlist adds `lti-gate.test`. |
+| Default profile | None of the above: no simulator, no gate, `simulation_profiles: []`, the app calls the LTI service directly. |
 
 ## SDK compatibility runner (T3c)
 

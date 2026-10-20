@@ -9,6 +9,8 @@ import { CLAIM } from '../../lti/checks.ts';
 import { deriveServiceKey } from '../../store/service-keys.ts';
 import { createPlatform } from '../../store/platforms.ts';
 import { ensureSharedPlatform } from '../../cli/shared-platform.ts';
+import type { ProtocolErrorCode } from '../../lti/codes.ts';
+import { COOKIE_HELP, protocolAction } from '../../lti/codes.ts';
 
 vi.mock('../../profiles/canvas.ts', () => {
   const flags = { deepLinkingResponseSub: false, clientAssertionAudArray: false, minimizeClaims: true, serviceOriginCheck: true };
@@ -483,5 +485,31 @@ describe('lti:shared-platform CLI rules (§9.12)', () => {
     expect(ensureSharedPlatform(h.db, opts, { account: 'cogniate', profile: 'standard', clientId: BB_CLIENT }).ok).toBe(false);
     const view = (await api(h, 'GET', '/api/platforms?profile=blackboard-sim')).json.platforms;
     expect(view.map((p: Json) => p.clientId)).toEqual([BB_CLIENT]);
+  });
+});
+
+describe('LMS name text table (security §12): Moodle texts byte for byte', () => {
+  it('every protocol action and cookie help text with Moodle equals the text before M1', () => {
+    const before: Record<string, string> = {
+      UNKNOWN_TOOL_ACCOUNT: 'The tool URL in Moodle names an unknown Cogniate tool account. Ask your Moodle admin to check the tool settings.',
+      UNKNOWN_PLATFORM: 'This Moodle site is not connected to Cogniate. Ask your Moodle admin to connect it first.',
+      PLATFORM_NOT_ACTIVE: 'The connection to this Moodle site is switched off. Ask your Cogniate admin to switch it on.',
+      UNKNOWN_DEPLOYMENT: 'This tool deployment is not known to Cogniate. Ask your Moodle admin to connect the tool again.',
+      INVALID_TARGET_LINK_URI: 'The activity link does not point to the Cogniate LTI service. Ask your teacher to add the activity again.',
+      INVALID_REQUEST: 'Start again from Moodle. If it happens again, give the trace id to your Cogniate admin.',
+      INVALID_STATE: 'This launch was already used or is too old. Start again from Moodle.',
+      STATE_COOKIE_MISSING: 'Start again from Moodle.',
+      TOKEN_EXPIRED: 'The launch took too long. Start again from Moodle. If it happens again, check the clock of the Moodle server.',
+      UNSUPPORTED_MESSAGE_TYPE: 'Cogniate does not support this kind of launch. Start again from Moodle.',
+      PLATFORM_ERROR: 'Moodle stopped the launch. Start again from Moodle, or ask your Moodle admin.',
+      METHOD_NOT_ALLOWED: 'Open the activity from Moodle.',
+    };
+    for (const [code, text] of Object.entries(before)) expect(protocolAction(code as ProtocolErrorCode)).toBe(text);
+    expect(COOKIE_HELP).toEqual({
+      resourceLink: 'Your browser blocked a cookie in an embedded frame. Ask your Moodle admin to set the Cogniate tool to open in a new window.',
+      deepLinking: "Your browser blocks cookies in Moodle's content dialog. Use Chrome, Edge or Firefox, or allow cookies for this site.",
+      other: 'Start again from Moodle.',
+    });
+    expect(protocolAction('UNKNOWN_DEPLOYMENT', 'Canvas')).toBe('This tool deployment is not known to Cogniate. Ask your Canvas admin to connect the tool again.');
   });
 });

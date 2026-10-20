@@ -10,7 +10,7 @@ import type { LtiClient } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import type { Db } from '../domain/db.ts';
 import type { DueSync } from '../domain/score-syncs.ts';
-import { beginSend, dueSyncs, isCurrentSync, recordSend, recoverInterruptedSends } from '../domain/score-syncs.ts';
+import { beginSend, dueSyncs, failDisabledSync, isCurrentSync, recordSend, recoverInterruptedSends } from '../domain/score-syncs.ts';
 import { resolveLineItem } from './line-item.ts';
 
 export interface ScoreSyncWorkerDeps {
@@ -40,6 +40,11 @@ export function createScoreSyncWorker(deps: ScoreSyncWorkerDeps) {
 
   async function send(row: DueSync): Promise<void> {
     if (!isCurrentSync(db, row.id)) return;
+    // App contract §4.7.2: a disabled Canvas or Blackboard connection sends nothing; the due row becomes failed.
+    if (row.connectionDisabled) {
+      if (failDisabledSync(db, row.id, now())) log.info('score_sync', { trace_id: randomBytes(16).toString('hex'), sync_id: row.id, status: 'failed', tries: row.tries, phase: 'send' });
+      return;
+    }
     const traceId = randomBytes(16).toString('hex');
     const phase = row.confirmationAfter === null ? 'send' : 'confirmation';
     let posted = false;

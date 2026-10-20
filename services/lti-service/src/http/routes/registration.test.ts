@@ -257,4 +257,17 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
     s.clock.now += 3600 * 1000 + 1;
     expect((await s.app.inject({ method: 'GET', url: `/api/registrations/${id}`, headers: s.bearer() })).statusCode).toBe(404);
   });
+
+  it('M1 (§9.2): a Canvas or Blackboard platform configuration is refused on the start page; no session starts', async () => {
+    const s = await setup();
+    for (const [family, lms] of [['canvas', 'Canvas'], ['BlackboardLearn', 'Blackboard']] as const) {
+      s.state.config = { ...CONFIG, [PLATFORM_CONFIG_CLAIM]: { ...CONFIG[PLATFORM_CONFIG_CLAIM], product_family_code: family } };
+      const r = await s.start(await s.regToken({ scope: 'reg', sub: 'c' }));
+      expect(r.statusCode).toBe(400);
+      expect(r.body).toContain('data-error-code="PROVIDER_PROFILE_MISMATCH"');
+      expect(r.body).toContain(`This is a ${lms} site. Connect it as ${lms} in the Cogniate portal.`);
+    }
+    expect((s.db.prepare('SELECT COUNT(*) AS n FROM registration_session').get() as { n: number }).n).toBe(0);
+    expect(s.lines.filter((l) => l.event === 'registration_rejected').map((l) => l.detail)).toEqual(['family=canvas', 'family=blackboardlearn']);
+  });
 });

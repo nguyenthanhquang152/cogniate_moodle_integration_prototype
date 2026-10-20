@@ -89,12 +89,20 @@ export interface PlayView {
   activityTitle: string;
   contextTitle: string;
   issuerOrigin: string | null;
+  /** M1 (§6.1): the connection site origin (frame-ancestors, "Back to …") and LMS name. */
+  siteOrigin: string;
+  lmsName: 'Moodle' | 'Canvas' | 'Blackboard';
+  lms: 'moodle' | 'canvas' | 'blackboard';
 }
+
+const LMS_NAMES = { moodle: 'Moodle', canvas: 'Canvas', blackboard: 'Blackboard' } as const;
+type Lms = keyof typeof LMS_NAMES;
+const lmsOf = (v: unknown): Lms => (v === 'canvas' || v === 'blackboard' ? v : 'moodle');
 
 /** By the raw play id from the URL (looked up by its hash): a play session that exists and has not expired. */
 export function getPlay(db: Db, playId: string, now: number): PlayView | undefined {
   const r = db.prepare(`SELECT ps.attempt_id, ps.return_url, a.resource_link_id, a.user_sub, a.preview, a.outcome, a.score_given, a.score_maximum, c.title AS course_title,
-      v.format, v.validation_report, rl.title AS activity_title, rl.context_title, con.platform_json
+      v.format, v.validation_report, rl.title AS activity_title, rl.context_title, con.platform_json, con.site_url, con.lms
     FROM play_session ps JOIN attempt a ON a.id = ps.attempt_id JOIN resource_link rl ON rl.id = a.resource_link_id
     JOIN course_version v ON v.id = a.course_version_id JOIN course c ON c.id = v.course_id JOIN connection con ON con.id = rl.connection_id
     WHERE ps.id = ? AND ps.expires_at > ?`).get(sha256Hex(playId), now);
@@ -111,7 +119,7 @@ export function getPlay(db: Db, playId: string, now: number): PlayView | undefin
     outcome: r.outcome as Outcome, scoreGiven: r.score_given === null ? null : Number(r.score_given),
     scoreMaximum: r.score_maximum === null ? null : Number(r.score_maximum), courseTitle: String(r.course_title),
     packageTitle: report.scorm?.title ?? null, format: String(r.format) as PackageFormat, activityTitle: String(r.activity_title),
-    contextTitle: String(r.context_title), issuerOrigin,
+    contextTitle: String(r.context_title), issuerOrigin, siteOrigin: String(r.site_url), lms: lmsOf(r.lms), lmsName: LMS_NAMES[lmsOf(r.lms)],
   };
 }
 
@@ -140,14 +148,17 @@ export interface RuntimeSession {
   format: PackageFormat;
   packageId: string;
   profile: TrackingProfile;
+  /** M1: the LMS name of the connection (the runtime body `data-lms-name`). */
+  lmsName: 'Moodle' | 'Canvas' | 'Blackboard';
 }
 
 /** By token hash, expired or not (the caller answers 404 or 410). */
 export function findRuntimeSession(db: Db, runtimeTokenHash: string): RuntimeSession | undefined {
   const r = db.prepare(`SELECT ps.id AS play_id, ps.session_id, ps.last_seq, ps.max_session_time_cs, ps.entry, ps.finished_at, ps.expires_at,
       a.id AS attempt_id, a.resource_link_id, a.user_sub, a.preview, a.outcome, a.score_given, a.score_maximum, a.cmi_or_progress, a.archived_session_time_cs,
-      v.format, v.package_id, v.tracking_profile
+      v.format, v.package_id, v.tracking_profile, con.lms
     FROM play_session ps JOIN attempt a ON a.id = ps.attempt_id JOIN course_version v ON v.id = a.course_version_id
+    JOIN resource_link rl ON rl.id = a.resource_link_id JOIN connection con ON con.id = rl.connection_id
     WHERE ps.runtime_token_hash = ?`).get(runtimeTokenHash);
   if (!r) return undefined;
   return {
@@ -156,7 +167,7 @@ export function findRuntimeSession(db: Db, runtimeTokenHash: string): RuntimeSes
     attemptId: String(r.attempt_id), resourceLinkId: String(r.resource_link_id), userSub: String(r.user_sub), preview: Number(r.preview) === 1,
     outcome: r.outcome as Outcome, scoreGiven: r.score_given === null ? null : Number(r.score_given), scoreMaximum: r.score_maximum === null ? null : Number(r.score_maximum),
     saved: r.cmi_or_progress === null ? null : JSON.parse(String(r.cmi_or_progress)), format: String(r.format) as PackageFormat,
-    packageId: String(r.package_id), profile: JSON.parse(String(r.tracking_profile)) as TrackingProfile,
+    packageId: String(r.package_id), profile: JSON.parse(String(r.tracking_profile)) as TrackingProfile, lmsName: LMS_NAMES[lmsOf(r.lms)],
   };
 }
 

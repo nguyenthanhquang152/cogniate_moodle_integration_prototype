@@ -82,7 +82,8 @@ export function parseRange(header: string | undefined, size: number): [number, n
 
 const NOT_FOUND_HTML = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Not found</title></head><body><p>Not found.</p></body></html>';
 
-const runtimePage = (): string => `<!doctype html>
+/** The runtime page. M1: `data-lms-name` on the body for the player texts (Moodle, Canvas or Blackboard). */
+const runtimePage = (lmsName: string): string => `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="robots" content="noindex">
@@ -90,7 +91,7 @@ const runtimePage = (): string => `<!doctype html>
 <link rel="stylesheet" href="/_rt/assets/runtime.css">
 <script type="module" src="/_rt/assets/runtime.js"></script>
 </head>
-<body>
+<body data-lms-name="${lmsName}">
 <p id="cogniate-runtime-message" role="status" hidden></p>
 <iframe id="cogniate-package" title="Course content"></iframe>
 </body>
@@ -186,7 +187,7 @@ export async function buildContentApp(deps: ContentServerDeps): Promise<FastifyI
       // A-T5a-02: packages share this origin; each launch clears the cookies that a package script may have set.
       'clear-site-data': '"cookies"',
       'content-security-policy': `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-src 'self'; img-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors ${urls.app}`,
-    }).send(runtimePage());
+    }).send(runtimePage(s.lmsName));
   });
 
   app.get<TokenParams>('/rt/:token/state', async (req, reply) => {

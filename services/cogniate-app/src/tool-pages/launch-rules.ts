@@ -32,7 +32,7 @@ export function publicationFromTarget(target: string, ltiUrl: string): string | 
   return values.length === 1 && PUBLICATION_ID.test(values[0]!) ? values[0]! : null;
 }
 
-/** "Back to Moodle": the launch return URL only if it is https on the platform origin (no javascript:, no other host). */
+/** "Back to {LMS}": the launch return URL only if it is https on the site origin (no javascript:, no other host; §6.1). */
 export function safeReturnUrl(returnUrl: string | undefined, issuerOrigin: string): string | null {
   if (!returnUrl) return null;
   try {

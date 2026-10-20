@@ -1,20 +1,25 @@
-// GET /tool/launch and GET /tool/deep-link: the launch handoff (app contract §6, security §4, flows §6b, §6c).
+// GET /tool/launch and GET /tool/deep-link: the launch handoff (app contract §6, §6.1, security §4, flows §6b, §6c).
 // The LTI service sends the browser here with a ltik (303). The app uses each ltik once, reads the launch with
 // GET /api/idtoken, and takes the publication only from the SIGNED launch.target. Then it sends the browser on with a
 // 303 and Referrer-Policy: no-referrer, so the final URL holds no ltik. No cookies.
+// M1 (§6.1): routing by approval (Canvas, Blackboard) or lti_platform_id (Moodle), the site check, the LMS check, the
+// role sets of ADR-011 §10, the site origin for frames and return links, and the LMS name in every text.
 import type { Logger, PublicUrls } from '@cogniate/shared';
-import { encrypt, randomId, sha256Hex } from '@cogniate/shared';
+import { canSelectContent, encrypt, isGradedLaunch, randomId, sha256Hex } from '@cogniate/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { LtiClient, LtiIdToken } from '../clients/lti-client.ts';
 import { LtiServiceError, ltiErrorFields } from '../clients/lti-client.ts';
-import { findLaunchConnection, markLaunched } from '../domain/connections.ts';
+import type { Connection } from '../domain/connections.ts';
+import { markLaunched, routeLaunch } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
 import { chooseAttempt, createPlaySession } from '../domain/attempts.ts';
 import { publicationOfConnection, upsertResourceLink, useHandoff } from '../domain/launch.ts';
 import { createPicker, linkPickToResourceLink } from '../domain/pickers.ts';
-import { LTIK, hasStaffRole, httpsOrigin, publicationFromTarget, runtimeTokenFor, safeReturnUrl } from './launch-rules.ts';
-import { errorPage, handoffRedirectHeaders, toolPageHeaders } from './page.ts';
+import { lmsNameOf, lmsOfFamily, lmsOfProfile } from '../providers/index.ts';
+import type { LmsName } from '../providers/index.ts';
+import { LTIK, httpsOrigin, publicationFromTarget, runtimeTokenFor, safeReturnUrl } from './launch-rules.ts';
+import { errorPage, handoffRedirectHeaders, toolPageHeaders, withLms } from './page.ts';
 
 export interface LaunchPageDeps {
   db: Db;
@@ -36,26 +41,64 @@ export type LaunchErrorCode =
 const OPEN_FAILED = 'Cogniate could not open this course';
 const NOT_AVAILABLE = 'This course is not available';
 
-/** Status, heading and the one action line of each launch and deep-link error page (they speak to the Moodle user). */
+/**
+ * Status, heading and the one action line of each launch and deep-link error page (they speak to the LMS user). One
+ * text table with the LMS name as a parameter (`{LMS}`): with Moodle every text is byte for byte the text before M1.
+ */
 export const LAUNCH_ERRORS: Record<LaunchErrorCode, { status: number; heading: string; action: string }> = {
-  INVALID_LTIK: { status: 401, heading: OPEN_FAILED, action: 'This launch is not valid or it expired. Open the activity again in Moodle.' },
-  HANDOFF_USED: { status: 409, heading: OPEN_FAILED, action: 'This launch link was already used. Open the activity again in Moodle.' },
-  UNKNOWN_PLATFORM: { status: 404, heading: NOT_AVAILABLE, action: 'This Moodle site is not connected to Cogniate. Tell your Moodle administrator.' },
+  INVALID_LTIK: { status: 401, heading: OPEN_FAILED, action: 'This launch is not valid or it expired. Open the activity again in {LMS}.' },
+  HANDOFF_USED: { status: 409, heading: OPEN_FAILED, action: 'This launch link was already used. Open the activity again in {LMS}.' },
+  UNKNOWN_PLATFORM: { status: 404, heading: NOT_AVAILABLE, action: 'This {LMS} site is not connected to Cogniate. Tell your {LMS} administrator.' },
   PUBLICATION_NOT_IN_CONNECTION: { status: 404, heading: NOT_AVAILABLE, action: 'Ask your teacher to select the course again in the activity settings.' },
-  PUBLICATION_WITHDRAWN: { status: 410, heading: 'This course is no longer available', action: 'Cogniate withdrew this course from this Moodle site. Ask your teacher for help.' },
-  NOT_DEEP_LINKING: { status: 403, heading: 'Cogniate could not open the course list', action: 'This launch cannot select content. In Moodle, use Select content in the activity settings.' },
-  ROLE_NOT_ALLOWED: { status: 403, heading: 'Cogniate could not open the course list', action: 'Only a teacher can select a Cogniate course. Ask a teacher of this Moodle course.' },
-  LTI_SERVICE_ERROR: { status: 502, heading: OPEN_FAILED, action: 'Cogniate could not read this launch. Open the activity again in Moodle. If it happens again, give the trace id to your Moodle administrator.' },
+  PUBLICATION_WITHDRAWN: { status: 410, heading: 'This course is no longer available', action: 'Cogniate withdrew this course from this {LMS} site. Ask your teacher for help.' },
+  NOT_DEEP_LINKING: { status: 403, heading: 'Cogniate could not open the course list', action: 'This launch cannot select content. In {LMS}, use Select content in the activity settings.' },
+  ROLE_NOT_ALLOWED: { status: 403, heading: 'Cogniate could not open the course list', action: 'Only a teacher can select a Cogniate course. Ask a teacher of this {LMS} course.' },
+  LTI_SERVICE_ERROR: { status: 502, heading: OPEN_FAILED, action: 'Cogniate could not read this launch. Open the activity again in {LMS}. If it happens again, give the trace id to your {LMS} administrator.' },
 };
 
 type LtikQuery = { Querystring: { ltik?: unknown } };
 
+/** The LMS name of a launch before the connection is known: from `platform.profile` (§6.1 "LMS name in texts"). */
+const lmsOfToken = (token: LtiIdToken | null): LmsName => lmsNameOf(lmsOfProfile(token?.platform.profile ?? 'standard'));
+
+/** The site and service origins of a launch (LTI contract §9.9); a launch from before M1 has the issuer origin. */
+function launchOrigins(token: LtiIdToken): { site: string | null; service: string | null } {
+  const issuer = httpsOrigin(token.platform.url);
+  const site = token.platform.siteUrl ?? issuer;
+  return { site, service: token.platform.serviceUrl ?? site };
+}
+
+export type ConnectionCheck = { ok: true; connection: Connection; site: string } | { ok: false; code: 'UNKNOWN_PLATFORM'; reason: string; fields: Record<string, unknown> };
+
+/**
+ * App contract §6.1 in order: routing (approval or Moodle lti_platform_id), the site check, the LMS check. Pure on
+ * the database; the caller logs the reason with its fields and shows the UNKNOWN_PLATFORM page.
+ */
+export function checkLaunchConnection(db: Db, token: LtiIdToken): ConnectionCheck {
+  const route = routeLaunch(db, token.platform.id, token.platform.deploymentId);
+  if (!route.ok) {
+    return { ok: false, code: 'UNKNOWN_PLATFORM', reason: route.reason,
+      fields: route.reason === 'deployment_not_approved' ? { platform_id: token.platform.id, deployment_id: token.platform.deploymentId } : {} };
+  }
+  const c = route.connection;
+  const { site, service } = launchOrigins(token);
+  if (!site || site !== c.siteUrl || service !== c.serviceUrl) {
+    return { ok: false, code: 'UNKNOWN_PLATFORM', reason: 'site_mismatch',
+      fields: { expected_site: c.siteUrl, launch_site: site, expected_service: c.serviceUrl, launch_service: service } };
+  }
+  const family = lmsOfFamily(token.platform.productFamilyCode);
+  if (lmsOfProfile(token.platform.profile ?? 'standard') !== c.lms || (family !== null && family !== c.lms)) {
+    return { ok: false, code: 'UNKNOWN_PLATFORM', reason: 'lms_mismatch', fields: { connection_lms: c.lms, family: token.platform.productFamilyCode ?? null } };
+  }
+  return { ok: true, connection: c, site: c.siteUrl };
+}
+
 export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps): void {
   const { db, urls, logger: log, lti, masterKey, now } = deps;
 
-  const page = (req: FastifyRequest, reply: FastifyReply, code: LaunchErrorCode) => {
+  const page = (req: FastifyRequest, reply: FastifyReply, code: LaunchErrorCode, lms: LmsName = 'Moodle') => {
     const e = LAUNCH_ERRORS[code];
-    return reply.code(e.status).headers(toolPageHeaders('error')).send(errorPage(e.heading, code, req.traceId, e.action));
+    return reply.code(e.status).headers(toolPageHeaders('error')).send(errorPage(e.heading, code, req.traceId, withLms(e.action, lms)));
   };
 
   /**
@@ -92,28 +135,31 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
   // ---------------------------------------------------------------- resource launch (flows §6c)
   app.get<LtikQuery>('/tool/launch', async (req, reply) => {
     const traceId = req.traceId;
-    const reject = (code: LaunchErrorCode, reason: string) => {
-      log.warn('launch_rejected', { trace_id: traceId, reason });
-      return page(req, reply, code);
-    };
     const h = await handoff(req, reply, 'launch_rejected');
     if ('sent' in h) return h.sent;
     const { token } = h;
+    let lms = lmsOfToken(token);
+    const reject = (code: LaunchErrorCode, reason: string, fields: Record<string, unknown> = {}) => {
+      log.warn('launch_rejected', { trace_id: traceId, reason, ...fields });
+      return page(req, reply, code, lms);
+    };
     const { resourceLink, context } = token.launch;
     // A valid deep-linking ltik (or a launch without a resource link) cannot start a course: same page as a bad ltik
-    // ("Open the activity again in Moodle"), but its own log reason (B-T4b2-03).
+    // ("Open the activity again in {LMS}"), but its own log reason (B-T4b2-03).
     if (token.launch.type !== 'LtiResourceLinkRequest' || !resourceLink || !context) return reject('INVALID_LTIK', 'not_resource_link');
-    // Security §8: platform.id -> connection -> library.
-    const connection = findLaunchConnection(db, token.platform.id);
-    const issuerOrigin = httpsOrigin(token.platform.url);
-    if (!connection || !issuerOrigin) return reject('UNKNOWN_PLATFORM', 'unknown_platform');
+    // Security §8 / app contract §6.1: approval or Moodle platform -> connection -> library; site and LMS checks.
+    const checked = checkLaunchConnection(db, token);
+    if (!checked.ok) return reject(checked.code, checked.reason, checked.fields);
+    const { connection, site } = checked;
+    lms = lmsNameOf(connection.lms);
     // Security §4: the publication comes from the signed target only.
     const publicationId = publicationFromTarget(token.launch.target, urls.lti);
     const publication = publicationId ? publicationOfConnection(db, connection.id, publicationId) : undefined;
     if (!publication) return reject('PUBLICATION_NOT_IN_CONNECTION', 'publication_not_in_connection');
     if (publication.status !== 'available') return reject('PUBLICATION_WITHDRAWN', 'publication_withdrawn');
 
-    const preview = hasStaffRole(token.user.roles);
+    // ADR-011 §10: graded only with a context learner role and no context staff role; any other launch is a preview.
+    const preview = !isGradedLaunch(token.user.roles);
     const serviceKey = token.services?.serviceKey;
     const playId = randomId('ply_');
     const t = now();
@@ -129,7 +175,8 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
       const attempt = chooseAttempt(db, { resourceLinkId: link.id, userSub: token.user.id, courseId: publication.courseId, currentVersionId: publication.currentVersionId, preview }, t);
       createPlaySession(db, {
         id: playId, attemptId: attempt.id, runtimeTokenHash: sha256Hex(runtimeTokenFor(masterKey, playId)), sessionId: randomId('ses_'),
-        roles: token.user.roles, returnUrl: safeReturnUrl(token.launch.presentation?.returnUrl, issuerOrigin), expiresAt: t + deps.playTtlSeconds * 1000,
+        // §6.1 "Return link": kept only when https on {site}; else "Back to …" goes to {site}/.
+        roles: token.user.roles, returnUrl: safeReturnUrl(token.launch.presentation?.returnUrl, site), expiresAt: t + deps.playTtlSeconds * 1000,
       }, t);
       markLaunched(db, connection.id, t);
       return { link, attempt };
@@ -144,26 +191,29 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
   });
 
   // ---------------------------------------------------------------- deep linking (flows §6b)
-  // Check order (app contract §6): single use -> ltik -> message type -> role.
+  // Check order (app contract §6): single use -> ltik -> message type -> role -> connection (routing, site, LMS).
   app.get<LtikQuery>('/tool/deep-link', async (req, reply) => {
     const traceId = req.traceId;
-    const reject = (code: LaunchErrorCode, reason: string) => {
-      log.warn('deep_link_rejected', { trace_id: traceId, reason });
-      return page(req, reply, code);
-    };
     const h = await handoff(req, reply, 'deep_link_rejected');
     if ('sent' in h) return h.sent;
     const { ltik, token } = h;
+    const lms = lmsOfToken(token);
+    const reject = (code: LaunchErrorCode, reason: string, fields: Record<string, unknown> = {}) => {
+      log.warn('deep_link_rejected', { trace_id: traceId, reason, ...fields });
+      return page(req, reply, code, lms);
+    };
     if (token.launch.type !== 'LtiDeepLinkingRequest') return reject('NOT_DEEP_LINKING', 'not_deep_linking');
-    if (!hasStaffRole(token.user.roles)) return reject('ROLE_NOT_ALLOWED', 'role_not_allowed');
-    const connection = findLaunchConnection(db, token.platform.id);
-    const issuerOrigin = httpsOrigin(token.platform.url);
-    if (!connection || !issuerOrigin) return reject('UNKNOWN_PLATFORM', 'unknown_platform');
+    // ADR-011 §10: a context staff role or an admin role.
+    if (!canSelectContent(token.user.roles)) return reject('ROLE_NOT_ALLOWED', 'role_not_allowed');
+    const checked = checkLaunchConnection(db, token);
+    if (!checked.ok) return reject(checked.code, checked.reason, checked.fields);
+    const { connection, site } = checked;
+    const issuerOrigin = httpsOrigin(token.platform.url) ?? site;
     const t = now();
     const context = token.launch.context;
     const pickerId = transaction(db, () => {
       const id = createPicker(db, {
-        connectionId: connection.id, ltikEncrypted: encrypt(masterKey, ltik), issuerOrigin, deploymentId: token.platform.deploymentId,
+        connectionId: connection.id, ltikEncrypted: encrypt(masterKey, ltik), issuerOrigin, siteOrigin: site, deploymentId: token.platform.deploymentId,
         contextId: context?.id ?? '', contextTitle: context?.title ?? context?.label ?? '', expiresAt: t + deps.pickerTtlSeconds * 1000,
       }, t);
       markLaunched(db, connection.id, t);

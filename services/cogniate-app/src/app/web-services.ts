@@ -8,6 +8,7 @@ import type { MoodleWsClient } from '../clients/moodle-ws.ts';
 import { MoodleWsError, REQUIRED_WS_FUNCTIONS } from '../clients/moodle-ws.ts';
 import { getConnection, setWebServices } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
+import { capabilitiesOf } from '../providers/index.ts';
 import { ApiError } from './api-errors.ts';
 
 export interface WebServiceRouteDeps {
@@ -27,6 +28,8 @@ export function registerWebServiceRoutes(api: FastifyInstance, deps: WebServiceR
     const lib = req.auth!.signedIn.library.id;
     const c = getConnection(db, lib, req.params.id);
     if (!c) throw new ApiError('NOT_FOUND', 'The connection does not exist in your library.');
+    // M1 (§4.7.2): web services are a Moodle capability; no outbound call for another LMS.
+    if (!capabilitiesOf(c.lms).webServices) throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'Only a Moodle connection has web services.', { details: { capability: 'webServices' } });
     const body = Body.safeParse(req.body ?? {});
     if (!body.success) throw new ApiError('WS_TOKEN_INVALID', 'The token must be the 32-character web services token from Moodle.');
     let info: { siteName: string; release: string; functions: string[] };

@@ -131,7 +131,10 @@ services:
       STACK_PROFILE: ${ACTIVE_STACK_PROFILE:-default}   # set by infra/scripts/lib.sh from the saved profile
       # Hosts that may resolve to private addresses (security §9). The acceptance profile adds ",qa-platform.test,evil.test"
       # (ACCEPTANCE_ALLOWLIST_EXTRA, set by infra/scripts/lib.sh from the saved stack profile).
-      OUTBOUND_PRIVATE_HOST_ALLOWLIST: ${MOODLE_HOST:-moodle.test}${ACCEPTANCE_ALLOWLIST_EXTRA:-}
+      # M1, acceptance only: the simulator hosts that the LTI service calls (M3 §3.1).
+      OUTBOUND_PRIVATE_HOST_ALLOWLIST: ${MOODLE_HOST:-moodle.test}${ACCEPTANCE_ALLOWLIST_EXTRA:-}${ACCEPTANCE_LTI_ALLOWLIST_EXTRA:-}
+      # M1 (LTI contract §9.13): the simulation profiles are on only with STACK_PROFILE=acceptance AND this value "on".
+      LTI_PROVIDER_SIMULATION: ${ACCEPTANCE_LTI_SIMULATION:-}
       <<: *public-urls
     volumes:
       - ../package.json:/repo/package.json:ro
@@ -162,9 +165,12 @@ services:
       STACK_PROFILE: ${ACTIVE_STACK_PROFILE:-default}   # set by infra/scripts/lib.sh from the saved profile
       # Security §9: the app may call the LTI service host (private address behind the proxy); acceptance adds QA hosts.
       # T8 (course shell): the app also calls Moodle web services on the local Moodle host.
-      OUTBOUND_PRIVATE_HOST_ALLOWLIST: ${LTI_HOST:-lti.cogniate.test},${MOODLE_HOST:-moodle.test}${ACCEPTANCE_ALLOWLIST_EXTRA:-}
+      # M1, acceptance only: the transport gate host (M3 §3.3).
+      OUTBOUND_PRIVATE_HOST_ALLOWLIST: ${LTI_HOST:-lti.cogniate.test},${MOODLE_HOST:-moodle.test}${ACCEPTANCE_ALLOWLIST_EXTRA:-}${ACCEPTANCE_APP_ALLOWLIST_EXTRA:-}
       # T4b1: the LTI service API key of the tool account "cogniate", read at each use (app contract §1).
       LTI_API_KEY_FILE: /run/secrets/app/lti-api-key
+      # M1, acceptance only: the app's /api/* calls go through the transport gate (M3 §3.3). Empty = PUBLIC_LTI_URL.
+      LTI_API_URL: ${ACCEPTANCE_LTI_API_URL:-}
       <<: *public-urls
     volumes:
       - ../package.json:/repo/package.json:ro
@@ -245,6 +251,87 @@ services:
       default:
         aliases:
           - qa-platform.test
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 3s
+
+  # ---- M1, acceptance profile only (M3 §3.1): the signed platform simulator. QA owns tests/sim (the code, its keys in
+  # memory, its oracle); this service is only the compose plumbing. It resolves the stack host names (proxy aliases)
+  # like the e2e container, so it can fetch {PUBLIC_LTI_URL}/lti/keys/cogniate and post to the launch URL.
+  lms-sim:
+    image: node:24.22.0-alpine3.24
+    profiles: ["acceptance"]
+    init: true
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart: unless-stopped
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    working_dir: /sim
+    command: ["node", "/sim/server.mjs"]
+    environment:
+      LOG_DIR: /logs                           # lms-sim.jsonl: one sim_hit line per request (no query, no token)
+      CERT_FILE: /certs/qa.crt
+      KEY_FILE: /certs/qa.key
+      CA_FILE: /certs/root.crt
+      NODE_EXTRA_CA_CERTS: /certs/root.crt
+      <<: *public-urls
+    volumes:
+      - ../tests/sim:/sim:ro
+      - ./.certs/qa.crt:/certs/qa.crt:ro
+      - ./.certs/qa.key:/certs/qa.key:ro
+      - ./.certs/root.crt:/certs/root.crt:ro
+      - ./.logs:/logs
+    networks:
+      default:
+        aliases:
+          - lms-sim.test
+          - developer.blackboard.sim.test
+          - learn-a.blackboard.sim.test
+          - learn-b.blackboard.sim.test
+          - sso.canvas.sim.test
+          - school-a.canvas.sim.test
+          - school-b.canvas.sim.test
+          - canvas.school-a.sim.test
+          - canvas-self.sim.test
+          - api.canvas-self.sim.test
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 3s
+
+  # ---- M1, acceptance profile only (M3 §3.3): the app-to-LTI transport gate. The app's /api/* calls (LTI_API_URL)
+  # pass it; browser protocol traffic does not. Code: infra/lti-gate/gate.mjs (plain Node). QA owns its scenarios.
+  lti-gate:
+    image: node:24.22.0-alpine3.24
+    profiles: ["acceptance"]
+    init: true
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    restart: unless-stopped
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
+    working_dir: /gate
+    command: ["node", "/gate/gate.mjs"]
+    environment:
+      LOG_DIR: /logs                           # lti-gate.jsonl: gate_event lines (no header, body, query or secret)
+      CERT_FILE: /certs/qa.crt
+      KEY_FILE: /certs/qa.key
+      NODE_EXTRA_CA_CERTS: /certs/root.crt
+      UPSTREAM_URL: ${PUBLIC_LTI_URL:?run npm run gen-env}
+    volumes:
+      - ./lti-gate:/gate:ro
+      - ./.certs/qa.crt:/certs/qa.crt:ro
+      - ./.certs/qa.key:/certs/qa.key:ro
+      - ./.certs/root.crt:/certs/root.crt:ro
+      - ./.logs:/logs
+    networks:
+      default:
+        aliases:
+          - lti-gate.test
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz"]
       interval: 10s

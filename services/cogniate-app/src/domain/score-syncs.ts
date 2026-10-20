@@ -19,18 +19,40 @@ export interface DueSync {
   platformResourceLinkId: string;
   lineItemId: string | null;
   serviceKeyEncrypted: Uint8Array | null;
+  /** M1 (app contract §4.7.2): the row belongs to a disabled Canvas or Blackboard connection; nothing is sent. */
+  connectionDisabled: boolean;
 }
+
+/** A disabled Canvas or Blackboard connection (app contract §4.7.2). Moodle connections are unchanged. */
+const DISABLED_PROVIDER = "con.lms IN ('canvas', 'blackboard') AND con.status = 'disabled'";
 
 /** Pending rows whose next try is due, oldest first. */
 export function dueSyncs(db: Db, now: number, limit: number): DueSync[] {
   return db.prepare(`SELECT s.id, s.resource_link_id, s.user_sub, s.payload, s.tries, s.created_at, s.resent_at, s.confirmation_after, rl.resource_link_id AS platform_rl, rl.line_item_id,
-      rl.service_key_encrypted FROM score_sync s JOIN resource_link rl ON rl.id = s.resource_link_id
+      rl.service_key_encrypted, CASE WHEN ${DISABLED_PROVIDER} THEN 1 ELSE 0 END AS connection_disabled
+    FROM score_sync s JOIN resource_link rl ON rl.id = s.resource_link_id JOIN connection con ON con.id = rl.connection_id
     WHERE s.status = 'pending' AND s.next_try_at <= ? ORDER BY s.next_try_at, s.created_at LIMIT ?`).all(now, limit).map((r) => ({
     id: String(r.id), resourceLinkId: String(r.resource_link_id), userSub: String(r.user_sub), payload: JSON.parse(String(r.payload)) as Record<string, unknown>,
     tries: Number(r.tries), createdAt: Number(r.created_at), retryFrom: r.resent_at === null ? Number(r.created_at) : Number(r.resent_at), platformResourceLinkId: String(r.platform_rl),
     confirmationAfter: r.confirmation_after === null ? null : Number(r.confirmation_after),
     lineItemId: r.line_item_id === null ? null : String(r.line_item_id), serviceKeyEncrypted: r.service_key_encrypted === null ? null : (r.service_key_encrypted as Uint8Array),
+    connectionDisabled: Number(r.connection_disabled) === 1,
   }));
+}
+
+/**
+ * App contract §4.7.2: a due row of a disabled Canvas or Blackboard connection becomes `failed` with lastError
+ * CONNECTION_DISABLED, tries unchanged, and no POST. Returns true when the row changed.
+ */
+export function failDisabledSync(db: Db, id: string, now: number): boolean {
+  return db.prepare(`UPDATE score_sync SET status = 'failed', next_try_at = NULL, last_error = 'CONNECTION_DISABLED', updated_at = ?
+    WHERE id = ? AND status = 'pending'`).run(now, id).changes > 0;
+}
+
+/** True when the connection of a score sync row (or of a publication) is a disabled Canvas or Blackboard connection. */
+export function syncConnectionDisabled(db: Db, syncId: string): boolean {
+  return db.prepare(`SELECT 1 FROM score_sync s JOIN resource_link rl ON rl.id = s.resource_link_id JOIN connection con ON con.id = rl.connection_id
+    WHERE s.id = ? AND ${DISABLED_PROVIDER}`).get(syncId) !== undefined;
 }
 
 /** Recheck after every await: a due-row snapshot may already be superseded. */
@@ -141,6 +163,12 @@ export function resendSync(db: Db, libraryId: string, syncId: string, now: numbe
   db.prepare(`UPDATE score_sync SET status = 'pending', tries = 0, next_try_at = ?, last_error = NULL, resent_at = ?, updated_at = ?,
     confirmation_after = NULL WHERE id = ?`).run(now, now, now, syncId);
   return { ok: true };
+}
+
+/** True when the score sync row belongs to a connection of this library. */
+export function syncRowInLibrary(db: Db, libraryId: string, syncId: string): boolean {
+  return db.prepare(`SELECT 1 FROM score_sync s JOIN resource_link rl ON rl.id = s.resource_link_id JOIN connection con ON con.id = rl.connection_id
+    WHERE s.id = ? AND con.library_id = ?`).get(syncId, libraryId) !== undefined;
 }
 
 /** A score sync row as the results API shows it. */

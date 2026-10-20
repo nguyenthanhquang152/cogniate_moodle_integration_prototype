@@ -16,9 +16,9 @@ mkdir -p "$(dirname "$PROFILE_FILE")"; echo "$profile" > "$PROFILE_FILE"
 if [[ "$profile" == acceptance ]]; then
   for f in qa.crt qa.key; do [[ -s "$CERTS_DIR/$f" ]] || { echo "Missing infra/.certs/$f. Run: npm run gen-env" >&2; exit 1; }; done
   [[ -n "${QA_PLATFORM_DIR:-}" ]] || mkdir -p "$REPO_ROOT/tests/fixtures/qa-platform"
-elif [[ -n "$(dc --profile acceptance ps -aq sink qa-platform 2>/dev/null)" ]]; then
-  echo "Profile default: removing the acceptance hosts (sink, qa-platform)."
-  dc --profile acceptance rm -s -f sink qa-platform >/dev/null
+elif [[ -n "$(dc --profile acceptance ps -aq sink qa-platform lms-sim lti-gate 2>/dev/null)" ]]; then
+  echo "Profile default: removing the acceptance hosts (sink, qa-platform, lms-sim, lti-gate)."
+  dc --profile acceptance rm -s -f sink qa-platform lms-sim lti-gate >/dev/null
 fi
 warn_knobs
 check_public_port
@@ -60,7 +60,7 @@ if [[ "$profile" == acceptance ]]; then
   qa_now="$(openssl dgst -sha256 < "$CERTS_DIR/qa.crt" | awk '{print $NF}')"
   qa_seen_file="$REPO_ROOT/.tmp/qa-certs-in-use.$COMPOSE_PROJECT_NAME.sha256"
   if [[ -f "$qa_seen_file" && "$(cat "$qa_seen_file")" != "$qa_now" ]]; then
-    dc up -d --no-deps --force-recreate --wait --wait-timeout 120 sink qa-platform
+    dc up -d --no-deps --force-recreate --wait --wait-timeout 120 sink qa-platform lms-sim lti-gate
   fi
   echo "$qa_now" > "$qa_seen_file"
 fi

@@ -1,7 +1,8 @@
 // The player shell /play/{playId}, the embedded page /play/{playId}/embedded and GET /app-api/play/{playId}/status
-// (app contract §6, security §4, §5, §7). The play id is the capability (no cookies, no ltik). The shell shows the
-// course, a status text that it polls every 5 s, "Back to Moodle", and the runtime iframe on the content origin
-// (the runtime itself is T5a).
+// (app contract §6, §6.1, security §4, §5, §7). The play id is the capability (no cookies, no ltik). The shell shows the
+// course, a status text that it polls every 5 s, "Back to {LMS}", and the runtime iframe on the content origin
+// (the runtime itself is T5a). M1: `data-lms-name` on [data-page="play"] for the shell script, the site origin for
+// frames and the back link, and the Canvas embedded continuation.
 import type { Logger, PublicUrls } from '@cogniate/shared';
 import type { PlayStatus } from '@cogniate/tracking';
 import { playStatusText } from '@cogniate/tracking';
@@ -13,6 +14,7 @@ import { join } from 'node:path';
 import type { PlayView } from '../domain/attempts.ts';
 import { getPlay } from '../domain/attempts.ts';
 import { latestSyncStatus } from '../domain/score-syncs.ts';
+import { canvasEmbeddedScript } from './canvas-embedded.ts';
 import { runtimeTokenFor } from './launch-rules.ts';
 import { errorPage, escapeHtml, layout, newNonce, toolPageHeaders } from './page.ts';
 
@@ -48,21 +50,22 @@ export function registerPlayPages(app: FastifyInstance, deps: PlayPageDeps): voi
     reply.code(404).headers(toolPageHeaders('error')).send(errorPage(NOT_FOUND.heading, NOT_FOUND.code, req.traceId, NOT_FOUND.action));
 
   const shell = (playId: string, view: PlayView, nonce: string): string => {
-    const back = view.returnUrl ?? (view.issuerOrigin ? `${view.issuerOrigin}/` : null);
+    // §6.1: the kept return URL (https on {site}), else {site}/.
+    const back = view.returnUrl ?? `${view.siteOrigin}/`;
     const details = [
       `<span data-activity-title>${escapeHtml(view.activityTitle)}</span>`,
       view.contextTitle ? `<span data-context-title>${escapeHtml(view.contextTitle)}</span>` : '',
       view.packageTitle !== null ? `Package: <span data-package-title>${escapeHtml(view.packageTitle)}</span>` : '',
     ].filter(Boolean).join(' · ');
     const runtime = `${urls.content}/rt/${runtimeTokenFor(masterKey, playId)}`;
-    return `<div data-page="play" data-format="${view.format}">
+    return `<div data-page="play" data-format="${view.format}" data-lms-name="${view.lmsName}">
   <header class="shell-bar">
     <div>
       <h1 data-course-title>${escapeHtml(view.courseTitle)}</h1>
       <p class="muted">${details}</p>
     </div>
-    <p>Status: <strong data-play-status>${escapeHtml(playStatusText(statusOf(db, view)))}</strong>${view.preview ? ' <span class="badge" data-preview>Preview</span>' : ''}</p>
-    ${back ? `<a href="${escapeHtml(back)}" rel="noopener noreferrer" data-back-to-moodle>Back to Moodle</a>` : ''}
+    <p>Status: <strong data-play-status>${escapeHtml(playStatusText(statusOf(db, view), view.lmsName))}</strong>${view.preview ? ' <span class="badge" data-preview>Preview</span>' : ''}</p>
+    ${back ? `<a href="${escapeHtml(back)}" rel="noopener noreferrer" data-back-to-moodle>Back to ${view.lmsName}</a>` : ''}
   </header>
   <iframe class="shell-frame" title="${escapeHtml(view.courseTitle)}" src="${escapeHtml(runtime)}" sandbox="${RUNTIME_SANDBOX}" allow="${RUNTIME_ALLOW}"></iframe>
 </div>
@@ -90,16 +93,22 @@ export function registerPlayPages(app: FastifyInstance, deps: PlayPageDeps): voi
     return reply.code(200).headers({ 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'no-cache' }).send(js);
   });
 
-  // ---------------------------------------------------------------- inside Moodle's iframe: open the player in a new window
+  // ---------------------------------------------------------------- inside the LMS iframe: open the player in a new window
+  // Framed only by the site origin (§6.1). Canvas sends documentTarget = iframe for every launch, so for a Canvas
+  // connection a nonce script continues to the player when the page is the top-level page; Moodle and Blackboard keep
+  // the static page without script.
   app.get<PlayParams>('/play/:playId/embedded', async (req, reply) => {
     const view = getPlay(db, req.params.playId, now());
-    if (!view || !view.issuerOrigin) return notFound(req, reply);
+    if (!view) return notFound(req, reply);
     const body = `<main data-page="play-embedded">
   <h1 data-course-title>${escapeHtml(view.courseTitle)}</h1>
   <p>This course opens in a new window.</p>
   <a class="button" href="/play/${escapeHtml(req.params.playId)}" target="_blank" rel="noopener">Open in a new window</a>
 </main>`;
-    return reply.code(200).headers(toolPageHeaders('embedded', { issuer: view.issuerOrigin })).send(layout(view.courseTitle, body));
+    const js = view.lms === 'canvas' ? canvasEmbeddedScript(`/play/${req.params.playId}`) : null;
+    if (js === null) return reply.code(200).headers(toolPageHeaders('embedded', { issuer: view.siteOrigin })).send(layout(view.courseTitle, body));
+    const nonce = newNonce();
+    return reply.code(200).headers(toolPageHeaders('embedded', { issuer: view.siteOrigin, nonce })).send(layout(view.courseTitle, body, { nonce, js }));
   });
 }
 
