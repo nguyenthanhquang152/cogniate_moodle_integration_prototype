@@ -629,6 +629,24 @@ A second isolated QA stack is authorized within the existing maximum of two, aft
 Canvas QA uses port 8643 and subnet `172.27.0.0/16` for SIM, then port 8543 and subnet `172.31.0.0/16` for Moodle.
 It must never run both of its lanes together. Neither worker may relax a deadline or remove another worker's resources.
 
+Before a second stack started, the Lead found that M2's preservation check compares all other Docker resources across the run.
+Concurrent teardown would invalidate that comparison, even with enough memory.
+Message `msg_8408efe92281` therefore supersedes simultaneous stack use: only one QA worker owns the stack window at a time.
+This preserves the harness checks without changing them.
+Canvas verification is active in `ctx_8ec51c3aa7b5`, handoff `msg_c50d1a8c3922`; its initial work was read-only preparation.
+
+Common QA's T2a/T2b/T3a/T3b group passed at `eb43247` in `msg_3d455fd5d6ba`.
+Run: `qa-multi-r1-eb43247d-2026-10-20T12-21-21-904Z`.
+Evidence: `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-20261020T121939Z/source/tests/host/artifacts/qa-multi-r1-eb43247d-2026-10-20T12-21-21-904Z/summary.json`.
+The Lead read its summary: all aggregate entries pass, including the separate TTL check, reset/seed, default restoration, isolation and teardown.
+The main suite reported 58 cases with zero failures; its deferred TTL case passed in the required separate pass.
+Cleanup confirms no containers, unchanged metadata for the seven baseline volumes, and no owned networks.
+
+The exclusive stack window transferred to Canvas QA in `msg_cb4eaf43472a`: M2 SIM, then default-profile T7 three runs and demo checks.
+Common QA received `msg_c9724f02c615` and holds before its next stack.
+After Canvas cleanup, the Lead returns the window for the complete M1 runs and remaining legacy suites.
+Canvas QA will assess its 233 M1 cases from common QA's two complete runs, with executor attribution and any necessary targeted recheck.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.

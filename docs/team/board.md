@@ -10,9 +10,9 @@ The Moodle release below is the completed baseline.
 | Task | Owner | Status | Evidence |
 | --- | --- | --- | --- |
 | M0 | Architect; independent QA and reviewers | Done for design scope | Round 3 at `158a4d8`: A APPROVE, B APPROVE, QA PASS for design testability. Nonblocking A-M0-11, A-M0-12 and B-M0-10 text corrections applied. No open BLOCKER or MAJOR. |
-| M1 | Blackboard and Canvas teams; one shared engine owner | Repair committed; independent verification pending | Backend repair committed at `a8580dd`, with Canvas repair at `4cf1e91`. All 12 backend paths match the author check: lint, typechecks, 996 tests in 69 files, zero skips. Applied contracts: `ccdd9ef`; independent design approvals: `b6e8f73`. Product B-M1-03 remains open until independent recheck. B-M1-01/02 remain closed. [Exclusive paths and handoffs](multi-lms-team-brief.md). |
+| M1 | Blackboard and Canvas teams; one shared engine owner | Reviewer-B approved; Reviewer-A and acceptance pending | Backend repair at `a8580dd`, Canvas repair at `4cf1e91`; candidate `eb43247`. Lead clean check passes lint, typechecks and 996 tests in 69 files, zero skips. Reviewer-B closes B-M1-03 in `9680bb7`; B-M1-01/02 stay closed. Applied contracts: `ccdd9ef`; design approvals: `b6e8f73`. [Exclusive paths and handoffs](multi-lms-team-brief.md). |
 | M2 | Blackboard and Canvas teams; one owner per shared portal file | Repair integrated; verification pending | Canvas repair integrated at `4cf1e91`: issuer pin, missing-platform guard and neutral error text; Blackboard card text unchanged. Author check: 926 tests in 68 files and 46 focused tests pass. B-M2-01 remains independently closed at `9f96f7b`, report `f89262c`. Independent product verification remains pending. |
-| M3 | Independent common QA and Canvas QA | Independent acceptance and reviews active | Candidate `eb43247`: 392 API cases, 24 host/browser checks, and 64 M2 browser cases. Lead check: lint, typechecks and 996 tests pass, zero skips. Author startup smoke PASS. QA `ctx_8d51e8033a8a` runs legacy regression, then both full M1 rounds. Reviewer-B withdrew preliminary B-M3-04 after checking the applied criterion; the unstarted repair is cancelled and the full-run hold is lifted. Final reviews A `ctx_3604d1e6a48e` and B `ctx_67d2f3361829` remain active. No independent acceptance verdict yet; real Canvas and Blackboard remain unverified. |
+| M3 | Independent common QA and Canvas QA | Independent acceptance active; stack windows serialized | Candidate `eb43247`: 392 API cases, 24 host/browser checks, and 64 M2 browser cases. Author startup smoke PASS. Common QA `ctx_8d51e8033a8a` passed T2a/T2b/T3a/T3b and cleaned its stack. Canvas QA `ctx_8ec51c3aa7b5` now owns the window for M2 then T7; common QA waits for both full M1 runs. Reviewer-B approves preparation at `9680bb7`, closes B-M3-03 and withdraws B-M3-04. Reviewer-A `ctx_3604d1e6a48e` remains active. No complete acceptance verdict yet; real Canvas and Blackboard remain unverified. |
 | M4 | Docs and Architect | Queued | Final conformance, guides, offline review page and three independent documentation checks have explicit tasks and evidence gates. |
 
 Both original implementation tasks are complete; independent product verification is pending.
@@ -21,7 +21,7 @@ Both round-1 reports are committed: Reviewer-A at `17aa295`, Reviewer-B at `689e
 Reviewer-B requests changes for five MAJOR findings: B-M1-01, B-M1-02, B-M1-03, B-M3-01 and B-M3-02.
 The first two are independently closed in Reviewer-B's bounded round-2 checkpoint at `86adfbf`.
 B-M3-01/02 and MINOR B-M2-01 are independently closed in `f89262c`.
-B-M1-03 remains open; MINOR B-M3-03 has a committed repair awaiting independent recheck.
+Reviewer-B closes B-M1-03 and B-M3-03 in `9680bb7`; its preliminary B-M3-04 is withdrawn against the applied criterion.
 Reviewer-A's A-M1-02 NIT remains open. Its round-1 code approval does not override Reviewer-B's findings or the pending QA gate.
 No product gate has passed. No push is authorized.
 
