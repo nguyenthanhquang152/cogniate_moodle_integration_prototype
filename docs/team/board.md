@@ -15,7 +15,10 @@ The Moodle release below is the completed baseline.
 | M3 | QA (Codex), QA-E2E (Claude) | Test preparation in progress | Common/Blackboard preparation `6733e57`: 144 API cases, 12 host checks and 16 passing harness self-checks. Canvas/browser QA is active in `ctx_2289f5d57f67`. No product acceptance run yet. Real Canvas and Blackboard checks remain unverified. |
 | M4 | Docs and Architect | Queued | Final conformance, guides, offline review page and three independent documentation checks have explicit tasks and evidence gates. |
 
-No implementation or product verification is complete for this phase. No push is authorized.
+Both implementation tasks are complete; independent product verification is pending.
+Reviewer-A's static checkpoint at `1e2c81f` has no BLOCKER or MAJOR and one MINOR, A-M1-01.
+The backend author has a fresh task to restrict `LTI_API_URL` to the acceptance profile.
+Final review waits for that fix and the complete Canvas/browser harness. No push is authorized.
 
 ## Completed Moodle baseline
 

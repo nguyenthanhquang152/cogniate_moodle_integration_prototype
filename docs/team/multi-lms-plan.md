@@ -211,6 +211,15 @@ The review must record both revisions and cannot approve missing tests.
 Reviewer-B remains queued. One worker slot is reserved for the short acceptance-profile infrastructure smoke.
 This parallel review start changes scheduling only; every acceptance and review gate still applies.
 
+Reviewer-A's checkpoint `msg_fedfa10e31a0` covers static review at `1e2c81f`.
+It reports no BLOCKER or MAJOR and one MINOR, A-M1-01.
+The app accepts `LTI_API_URL` outside the acceptance profile; the startup scripts alone restrict it.
+The retained backend author received the config guard and focused tests in `task_a15209c95b03`, dispatch `ctx_998a94e37e40`.
+The authoritative handoff is `msg_3baae96cac7c`.
+This bounded fix uses the reserved worker slot before the acceptance-profile startup smoke.
+Reviewer-A remains active until it checks the committed fix and full harness supplement.
+The checkpoint is not a final approval or independent product acceptance.
+
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
