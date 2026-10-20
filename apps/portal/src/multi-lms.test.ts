@@ -99,7 +99,7 @@ it("shows canonical Canvas values and deployment ids with only Canvas capabiliti
   expect(screen.getByRole("link", { name: /Open Canvas/ }).getAttribute("href")).toBe("https://canvas.school.test");
   expect(screen.queryByText(/Web services/)).toBeNull();
   expect(screen.queryByText(/activate in Moodle/)).toBeNull();
-  expect(screen.getByRole("heading", { name: "Add a Cogniate course in Canvas" })).toBeTruthy();
+  expect(await screen.findByRole("heading", { name: "Add a Cogniate course in Canvas" })).toBeTruthy();
 });
 
 it("clears the old connection immediately when navigating to a different LMS", async () => {
@@ -114,6 +114,40 @@ it("clears the old connection immediately when navigating to a different LMS", a
   await act(async () => finish(json(all[2])));
   await screen.findByText("https://blackboard.school.test");
   expect(screen.queryByRole("heading", { name: "Add deployment ID" })).toBeNull();
+});
+
+it("does not let an older pending poll replace a successful binding", async () => {
+  vi.useFakeTimers();
+  const pending = connection("canvas", "canvas", "pending");
+  let reads = 0;
+  let completePoll!: (value: Response) => void;
+  fetchMock.mockImplementation((url: string) => {
+    if (url === "/app-api/connections/canvas") {
+      reads++;
+      if (reads === 2) return new Promise<Response>((resolve) => { completePoll = resolve; });
+      return Promise.resolve(json(reads === 1 ? pending : all[1]));
+    }
+    if (url.endsWith("/platform")) return Promise.resolve(json(all[1]));
+    if (url.endsWith("/tool-configuration")) return Promise.resolve(json([]));
+    if (url.endsWith("/canvas-configuration")) return Promise.resolve(json({ title: "Configuration" }));
+    return Promise.resolve(defaultFetch(url));
+  });
+  try {
+    await act(async () => { app("/integrations/canvas/canvas"); });
+    await act(async () => { await vi.advanceTimersByTimeAsync(5000); });
+    expect(reads).toBe(2);
+    fireEvent.change(screen.getByLabelText("Client ID"), { target: { value: "client" } });
+    fireEvent.change(screen.getByLabelText("Deployment ID"), { target: { value: "deployment" } });
+    fireEvent.change(screen.getByLabelText("Approval code"), { target: { value: "g".repeat(43) } });
+    await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Save" })); });
+    expect(screen.getByRole("heading", { name: "Add a Cogniate course in Canvas" })).toBeTruthy();
+    await act(async () => { completePoll(json(pending)); });
+    expect(screen.getByRole("heading", { name: "Add a Cogniate course in Canvas" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Save the Canvas values" })).toBeNull();
+  } finally {
+    cleanup();
+    vi.useRealTimers();
+  }
 });
 
 it.each(["canvas", "blackboard"] as const)("never offers or sends Moodle native course creation for %s", async (lms) => {

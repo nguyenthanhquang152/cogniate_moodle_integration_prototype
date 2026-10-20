@@ -1,0 +1,32 @@
+{
+  "evidence": "AUTHOR SELF-CHECK — MOCKED API, NOT SIM OR LIVE LMS",
+  "viewport": "1440x1000",
+  "records": [
+    {
+      "stage": "canvas-step-1",
+      "seriousOrCritical": [],
+      "violations": []
+    },
+    {
+      "stage": "canvas-steps-2-and-3",
+      "seriousOrCritical": [],
+      "violations": []
+    },
+    {
+      "stage": "canvas-inline-key",
+      "seriousOrCritical": [],
+      "violations": []
+    },
+    {
+      "stage": "canvas-step-4-and-detail",
+      "seriousOrCritical": [],
+      "violations": []
+    },
+    {
+      "stage": "canvas-added-deployment",
+      "seriousOrCritical": [],
+      "violations": []
+    }
+  ],
+  "errors": []
+}

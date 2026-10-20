@@ -45,7 +45,7 @@ export function CanvasConfiguration({ id }: { id: string }) {
   }
   return <>
     <ToolConfiguration key={id} id={id} lmsName="Canvas" />
-    <label className="flex items-center gap-3">
+    <label className="flex flex-row items-center gap-3">
       <input type="checkbox" checked={inline} onChange={(event) => { setInline(event.target.checked); setDownloadError(null); }} />
       Put a copy of the current public key in the JSON
     </label>

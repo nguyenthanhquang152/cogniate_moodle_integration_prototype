@@ -21,7 +21,7 @@ export function ProviderSetup({ lms, connection, opener, onCreated, onChanged }:
   const wizard = providerWizards[lms];
   if (error) return <><ErrorNotice error={error} /><Button variant="link" onClick={reload}>Try again</Button></>;
   if (!data) return <Loading />;
-  if (!provider || !provider.profiles.some((p) => p.ready))
+  if (!provider || ((!connection || connection.status === "pending") && !provider.profiles.some((p) => p.ready)))
     return <Notice>{lms === "blackboard" ? BLACKBOARD_NOT_READY : "Canvas is not set up for this Cogniate service yet. Ask your Cogniate operator."}</Notice>;
   if (!wizard) return <Notice>{lmsNames[lms]} connection setup is unavailable. Reload the page to try again.</Notice>;
   return <wizard.Wizard key={`${lms}:${connection?.id ?? "new"}`} provider={provider} connection={connection}
