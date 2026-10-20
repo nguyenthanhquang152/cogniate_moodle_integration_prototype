@@ -70,7 +70,7 @@ export function createHtmlTracker(opts: { profile: TrackerProfile; saved: HtmlPr
     // Dwell (visible time only) and scroll to the end; both are needed, in any order.
     let remaining = profile.minDwellMs;
     let since: number | null = null;
-    let timer: ReturnType<typeof setTimeout> | null = null;
+    let timer: ReturnType<Window['setTimeout']> | null = null;
     let dwellDone = false;
     let atEnd = false;
     const check = () => {

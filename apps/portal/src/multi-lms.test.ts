@@ -3,7 +3,7 @@ import { createElement as h } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router";
-import { App } from "./App.tsx";
+import { App, Portal } from "./App.tsx";
 import { Integrations } from "./Integrations.tsx";
 import { PublishDialog } from "./courses/PublishDialog.tsx";
 import { DisconnectDialog } from "./connect/DisconnectDialog.tsx";
@@ -165,6 +165,99 @@ it("clears the old connection immediately when navigating to a different LMS", a
   await act(async () => finish(json(all[2])));
   await screen.findByText("https://blackboard.school.test");
   expect(screen.queryByRole("heading", { name: "Add deployment ID" })).toBeNull();
+});
+
+it.each([
+  { name: "Blackboard selection", target: all[2]!, via: "select" },
+  { name: "Moodle selection", target: all[0]!, via: "select" },
+  { name: "another Canvas connection", target: { ...connection("canvas", "next-canvas"),
+    siteUrl: "https://next.canvas.school.test", serviceUrl: "https://next.canvas.service.test" }, via: "select" },
+  { name: "Back to Blackboard", target: all[2]!, via: "back" },
+  { name: "Forward to Blackboard", target: all[2]!, via: "forward" },
+  { name: "Blackboard Manage link", target: all[2]!, via: "link" },
+])("never exposes old Canvas values across $name, including a delayed refresh", async ({ target, via }) => {
+  const targetPath = `/integrations/${target.lms}/${target.id}`;
+  const traverse = async (direction: "back" | "forward") => {
+    const completed = new Promise<void>((resolve) => window.addEventListener("popstate", () => resolve(), { once: true }));
+    window.history[direction]();
+    await completed;
+  };
+  window.history.replaceState(null, "", "/integrations/canvas/canvas");
+  if (via === "back") {
+    window.history.replaceState(null, "", targetPath);
+    window.history.pushState(null, "", "/integrations/canvas/canvas");
+  } else if (via === "forward") {
+    window.history.pushState(null, "", targetPath);
+    await traverse("back");
+  }
+  let canvasReads = 0;
+  let finishRefresh!: (value: Response) => void;
+  let refreshSignal: AbortSignal | undefined;
+  let finishDestination!: (value: Response) => void;
+  fetchMock.mockImplementation((url: string, options?: RequestInit) => {
+    if (url === "/app-api/connections/canvas" && ++canvasReads > 1) {
+      refreshSignal = options?.signal ?? undefined;
+      return new Promise<Response>((resolve) => { finishRefresh = resolve; });
+    }
+    if (url === `/app-api/connections/${target.id}`)
+      return new Promise<Response>((resolve) => { finishDestination = resolve; });
+    if (url === "/app-api/connections")
+      return Promise.resolve(json({ connections: all.some((c) => c.id === target.id) ? all : [...all, target] }));
+    return Promise.resolve(defaultFetch(url));
+  });
+  render(h(Portal));
+  await screen.findByRole("heading", { name: "Add deployment ID" });
+  const oldValues = ["https://canvas.school.test", "https://canvas.service.test", "dep_canvas"];
+  const staleSeen = new Set<string>();
+  let observations = 0;
+  const observe = () => {
+    if (window.location.pathname !== targetPath) return;
+    observations++;
+    for (const value of oldValues) if (document.body.textContent?.includes(value)) staleSeen.add(value);
+  };
+  const observer = new MutationObserver(observe);
+  observer.observe(document.body, { childList: true, characterData: true, attributes: true, subtree: true });
+  const afterHistory = () => queueMicrotask(observe);
+  window.addEventListener("popstate", afterHistory);
+  const push = window.history.pushState.bind(window.history);
+  vi.spyOn(window.history, "pushState").mockImplementation((...args) => {
+    push(...args);
+    // Observe the browser location between the navigation event and a concurrent route commit.
+    queueMicrotask(observe);
+  });
+  try {
+    fireEvent.click(screen.getByRole("button", { name: "Refresh status" }));
+    await waitFor(() => expect(canvasReads).toBe(2));
+    if (via === "select") {
+      const select = screen.getByLabelText("LMS connection") as HTMLSelectElement;
+      await act(async () => {
+        select.value = target.id;
+        select.dispatchEvent(new Event("change", { bubbles: true }));
+        await Promise.resolve();
+      });
+    } else if (via === "back" || via === "forward") {
+      await act(async () => { await traverse(via); });
+    } else {
+      fireEvent.click(within(screen.getByRole("main")).getByRole("link", { name: "Integrations" }));
+      await screen.findByRole("heading", { name: "Integrations" });
+      const card = within(screen.getByRole("article", { name: "Blackboard" }));
+      fireEvent.click(await card.findByRole("link", { name: /Manage/ }));
+    }
+    expect(window.location.pathname).toBe(targetPath);
+    expect(refreshSignal?.aborted).toBe(true);
+    await act(async () => finishRefresh(json(all[1])));
+    expect(screen.queryByText("https://canvas.school.test")).toBeNull();
+    await act(async () => finishDestination(json(target)));
+    await screen.findByText(target.siteUrl);
+    observe();
+    expect(observations).toBeGreaterThan(0);
+    expect([...staleSeen]).toEqual([]);
+  } finally {
+    observer.disconnect();
+    window.removeEventListener("popstate", afterHistory);
+    cleanup();
+    window.history.replaceState(null, "", "/");
+  }
 });
 
 it("does not let an older pending poll replace a successful binding", async () => {

@@ -4,6 +4,7 @@ import { Button, buttonVariants } from "./ui/button.tsx";
 import { createContext, useContext, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import {
+  BrowserRouter,
   Link,
   NavLink,
   Navigate,
@@ -38,6 +39,11 @@ import { NotFound } from "./NotFound.tsx";
 
 const SessionContext = createContext<Session | null>(null);
 export const useSession = (): Session => useContext(SessionContext)!;
+
+export function Portal() {
+  // Connection settings must leave the DOM with the URL, not in a deferred transition.
+  return <BrowserRouter useTransitions={false}><App /></BrowserRouter>;
+}
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
