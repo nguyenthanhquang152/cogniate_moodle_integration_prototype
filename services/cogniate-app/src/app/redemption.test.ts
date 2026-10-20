@@ -1,9 +1,11 @@
 // The common grant redemption and cleanup engine (app contract §4.7 to §4.9, ADR-011 §4a, §4b), unit level: the fake
 // LTI service models deployments, binding refs, generations and the M3 §3.3 fault actions (fail_before, drop_after,
 // late write, live schedules). Black-box evidence is QA's (AC-M1-28, -29, -37, -38).
-import { createLogger } from '@cogniate/shared';
+import { EventEmitter } from 'node:events';
+import type { ClientRequest } from 'node:http';
+import { createLogger, createOutboundClient } from '@cogniate/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { LtiServiceError } from '../clients/lti-client.ts';
+import { createLtiClient, LtiServiceError } from '../clients/lti-client.ts';
 import type { LtiIdToken } from '../clients/lti-client.ts';
 import { getGrant, grantsOfConnection, insertGrant, reservationOfConnection } from '../domain/bindings.ts';
 import { getConnectionAnyLibrary } from '../domain/connections.ts';
@@ -11,6 +13,7 @@ import type { TestApp } from '../testkit.ts';
 import { INSTRUCTOR, LEARNER, QA_B, TEST_URLS, THANH, testApp } from '../testkit.ts';
 import { createBindingCleanup } from './binding-cleanup.ts';
 import { createOperator } from './operator.ts';
+import { createRedemptionEngine } from './redemption.ts';
 
 const LEARN_A = 'https://learn-a.blackboard.sim.test';
 const LEARN_B = 'https://learn-b.blackboard.sim.test';
@@ -20,7 +23,7 @@ const BB = 'qa-bb-app';
 type Json = Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
 
 let t: TestApp;
-afterEach(async () => { await t?.app.close(); });
+afterEach(async () => { vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); await t?.app.close(); });
 
 /** A Moodle web services client that must never be called for another LMS (no outbound call). */
 const noWs = {
@@ -41,8 +44,9 @@ async function setup() {
   return { shared, op, a, b, libA: libraryOf(THANH.library), libB: libraryOf(QA_B.library) };
 }
 
-async function call(method: 'GET' | 'POST' | 'PUT' | 'DELETE', url: string, cookie: string, payload?: unknown) {
-  const res = await t.app.inject({ method, url, headers: method === 'GET' ? { cookie } : t.writeHeaders(cookie), ...(payload !== undefined ? { payload: payload as Json } : {}) });
+async function call(method: 'GET' | 'POST' | 'PUT' | 'DELETE', url: string, cookie: string, payload?: unknown, traceId?: string) {
+  const headers = { ...(method === 'GET' ? { cookie } : t.writeHeaders(cookie)), ...(traceId ? { 'x-trace-id': traceId } : {}) };
+  const res = await t.app.inject({ method, url, headers, ...(payload !== undefined ? { payload: payload as Json } : {}) });
   return { status: res.statusCode, json: (res.body ? res.json() : null) as Json };
 }
 const code = (r: { json: Json }) => r.json?.details?.message;
@@ -233,7 +237,9 @@ describe('redemption faults and races (§4.7.1 outcome table; AC-M1-37 unit leve
       .run(con.id, g.id, BB, t.clock.now);
     t.db.prepare('UPDATE connection SET redeeming_attempt = ?, redeeming_since = ? WHERE id = ?').run('att_dead', t.clock.now, con.id);
     expect(code(await putBb(a, con, 'dA', g.code))).toBe('GRANT_IN_USE');
-    t.clock.now += 60_000;
+    t.clock.now += 59_999;
+    expect(code(await putBb(a, con, 'dA', g.code))).toBe('GRANT_IN_USE');
+    t.clock.now += 1;
     expect((await putBb(a, con, 'dA', g.code)).status).toBe(200);
     expect(t.db.prepare("SELECT state FROM binding_attempt WHERE attempt_id = 'att_dead'").get()?.state).toBe('abandoned');
   });
@@ -546,7 +552,15 @@ describe('signed product family path (AC-M1-39 unit level)', () => {
     expect(m.status).toBe(200);
     const canvas = (await call('POST', '/app-api/connections', a, { name: 'C', siteUrl: self, method: 'manual', lms: 'canvas', profile: 'canvas-self-hosted' })).json;
     const g = await grant(op, libA, canvas, 'dS', { clientId: 'cS' });
+    const originalPlatform = structuredClone(t.lti.platforms.get(m.json.platform.id));
+    const read = vi.spyOn(t.lti.client, 'findPlatforms');
+    t.lti.calls.length = 0;
     expect(code(await putCanvas(a, canvas, 'dS', g.code, 'cS'))).toBe('PLATFORM_IN_USE');
+    expect(read).toHaveBeenCalledExactlyOnceWith({ url: self, clientId: 'cS', profile: 'canvas-self-hosted' }, expect.any(String), { singleAttempt: true });
+    expect(t.lti.calls).toHaveLength(2); // S1 conflict and one qualified S2; no standard lookup or activation.
+    expect(t.lti.platforms.get(m.json.platform.id)).toEqual(originalPlatform);
+    expect(getConnectionAnyLibrary(t.db, canvas.id)?.redeemingAttempt).toBeNull();
+    read.mockRestore();
     expect(getGrant(t.db, g.id)?.redeemedAt).toBeNull();
     expect((await op.suspend(moodle.id, 'n', 't')).exitCode).toBe(0);
     expect((await op.release(moodle.id, 'n', 't')).lines[0]).toMatch(/^deleted/);
@@ -692,9 +706,9 @@ async function endpoint(kind: Endpoint) {
   if (kind === 'add_deployment') expect((await putCanvas(base.a, con, 'dA', initial.code)).status).toBe(200);
   const g = kind === 'add_deployment' ? await grant(base.op, base.libA, con, 'dB', { purpose: 'add_deployment' }) : initial;
   const deploymentId = kind === 'add_deployment' ? 'dB' : 'dA';
-  const submit = (body: Json = {}) => call(kind === 'add_deployment' ? 'POST' : 'PUT',
+  const submit = (body: Json = {}, traceId?: string) => call(kind === 'add_deployment' ? 'POST' : 'PUT',
     `/app-api/connections/${con.id}/${kind === 'add_deployment' ? 'deployments' : 'platform'}`, base.a,
-    { ...(kind === 'canvas' ? { clientId: 'cA' } : {}), deploymentId, grantCode: g.code, ...body });
+    { ...(kind === 'canvas' ? { clientId: 'cA' } : {}), deploymentId, grantCode: g.code, ...body }, traceId);
   t.lti.calls.length = 0;
   t.logs.length = 0;
   return { ...base, con, g, submit, deploymentId };
@@ -1177,5 +1191,213 @@ describe('supplemental snapshot boundaries and retained cleanup history', () => 
     expect((await op.release(con.id, 'release', 't')).exitCode).toBe(0);
     expect(reservationOfConnection(t.db, con.id)).toBeUndefined();
     expect(deployment(shared.id, 'dB')).toEqual(otherRemote);
+  });
+});
+
+describe('A-M1-03/04: bounded calls and cancellation at S2', () => {
+  it.each(['empty', 'revoke', 'replace', 'connection', 'takeover', 'lease_cleared', 'lease_short'] as const)(
+    'Canvas empty qualified lookup after %s never sends a fallback or activation', async (change) => {
+      const { con, g, submit } = await endpoint('canvas');
+      vi.spyOn(t.lti.client, 'createProviderPlatform').mockRejectedValue(new LtiServiceError(409, 'PLATFORM_ALREADY_EXISTS', ''));
+      const read = vi.spyOn(t.lti.client, 'findPlatforms').mockImplementation(async () => {
+        if (change === 'revoke' || change === 'replace') t.db.prepare('UPDATE binding_grant SET revoked_at = ?, revoked_reason = ? WHERE id = ?')
+          .run(t.clock.now, change === 'replace' ? 'replaced' : 'operator', g.id);
+        if (change === 'connection') t.db.prepare("UPDATE connection SET status = 'disabled' WHERE id = ?").run(con.id);
+        if (change === 'takeover') t.db.prepare('UPDATE connection SET redeeming_attempt = ?, redeeming_since = ? WHERE id = ?').run('att_newer', t.clock.now, con.id);
+        if (change === 'lease_cleared') t.db.prepare('UPDATE connection SET redeeming_attempt = NULL, redeeming_since = NULL WHERE id = ?').run(con.id);
+        if (change === 'lease_short') t.clock.now += 54_001;
+        return [];
+      });
+      const result = await submit();
+      expect(read).toHaveBeenCalledTimes(1);
+      expect(read.mock.calls[0]![0]).toEqual({ url: 'https://canvas.sim.test', clientId: 'cA', profile: 'canvas-sim-cloud' });
+      const expected = change === 'empty' ? 'PLATFORM_IN_USE' : change === 'connection' ? 'CONNECTION_NOT_PENDING'
+        : change === 'lease_short' || change === 'lease_cleared' ? 'LTI_SERVICE_ERROR' : 'GRANT_INVALID';
+      expect(code(result)).toBe(expected);
+      expect(t.lti.calls).toEqual([]); // Both controlled wire boundaries above are spies; no later call reached the fake.
+      expect(getGrant(t.db, g.id)?.redeemedAt).toBeNull();
+      expect(getConnectionAnyLibrary(t.db, con.id)?.redeemingAttempt).toBe(change === 'takeover' ? 'att_newer' : null);
+      expect(attempts(con.id).at(-1)?.state).toBe(change === 'lease_short' || change === 'lease_cleared' ? 'failed' : 'cancelled');
+      expect(t.db.prepare('SELECT 1 FROM approved_deployment WHERE connection_id = ?').get(con.id)).toBeUndefined();
+      if (['revoke', 'replace', 'connection', 'takeover'].includes(change)) expect(events('grant_redemption_cancelled').at(-1)?.reason)
+        .toBe(change === 'connection' ? 'connection_changed' : change === 'takeover' ? 'taken_over' : change === 'replace' ? 'replaced' : 'revoked');
+    });
+
+  it('Canvas removal during the qualified lookup is a non-adoptable result, with no unqualified lookup', async () => {
+    const { con, g, submit } = await endpoint('canvas');
+    t.lti.faults.push({ op: 'POST platform', action: 'drop_after' });
+    expect((await submit()).status).toBe(502);
+    const original = t.lti.client.findPlatforms;
+    const read = vi.spyOn(t.lti.client, 'findPlatforms').mockImplementation(async (...args) => {
+      for (const [id, p] of t.lti.platforms) if (p.profile === 'canvas-sim-cloud') t.lti.platforms.delete(id);
+      return original(...args);
+    });
+    t.lti.calls.length = 0;
+    expect(code(await submit())).toBe('PLATFORM_IN_USE');
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(t.lti.calls).toHaveLength(2); // S1 conflict, one S2 lookup.
+    expect(attempts(con.id).at(-1)?.state).toBe('cancelled');
+    expect(getGrant(t.db, g.id)?.redeemedAt).toBeNull();
+  });
+
+  it.each(['blackboard', 'canvas', 'add_deployment'] as const)('%s stays within its call bound through both S2/S3 rounds', async (kind) => {
+    const { con, submit, deploymentId } = await endpoint(kind);
+    const platformTarget = kind === 'canvas';
+    t.lti.faults.push({ op: platformTarget ? 'POST platform' : 'POST deployment', action: 'drop_after' });
+    expect((await submit()).status).toBe(502);
+    const p = [...t.lti.platforms.values()].find((row) => row.profile === (kind === 'blackboard' ? 'blackboard-sim' : 'canvas-sim-cloud'))!;
+    t.lti.faults.push({ op: platformTarget ? 'PATCH platform' : 'PATCH deployment', action: 'before', run: () => {
+      if (platformTarget) p.bindingRef = 'foreign-after-S2';
+      else p.deployments.find((row) => row.deploymentId === deploymentId)!.bindingRef = 'foreign-after-S2';
+    } });
+    t.lti.calls.length = 0;
+    expect((await submit()).status).toBe(200);
+    expect(t.lti.calls).toHaveLength(kind === 'blackboard' ? 6 : 5);
+    expect(t.lti.calls.filter((line) => line.startsWith('PATCH '))).toHaveLength(2);
+    expect(attempts(con.id).at(-1)?.state).toBe('committed');
+  });
+
+  it.each(['canvas', 'add_deployment'] as const)('%s S2 GET-by-id 404 stays an LTI failure', async (kind) => {
+    const { con, g, submit } = await endpoint(kind);
+    if (kind === 'canvas') {
+      t.lti.faults.push({ op: 'PATCH platform', action: 'before', run: () => { throw new LtiServiceError(409, 'BINDING_REF_MISMATCH', ''); } });
+    } else {
+      vi.spyOn(t.lti.client, 'addDeployment').mockRejectedValue(new LtiServiceError(409, 'DEPLOYMENT_ALREADY_EXISTS', ''));
+    }
+    const read = vi.spyOn(t.lti.client, 'getPlatform').mockRejectedValue(new LtiServiceError(404, 'UNREGISTERED_PLATFORM', ''));
+    expect(code(await submit())).toBe('LTI_SERVICE_ERROR');
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(attempts(con.id).at(-1)?.state).toBe('failed');
+    expect(getGrant(t.db, g.id)?.redeemedAt).toBeNull();
+    expect(getConnectionAnyLibrary(t.db, con.id)?.redeemingAttempt).toBeNull();
+    expect(events('grant_redeemed')).toEqual([]);
+  });
+
+  it.each([54_000, 54_001])('S2 still requires six seconds of the unchanged 60-second lease (elapsed %s ms)', async (elapsed) => {
+    const { con, submit } = await endpoint('canvas');
+    t.lti.faults.push({ op: 'POST platform', action: 'drop_after' });
+    expect((await submit()).status).toBe(502);
+    const original = t.lti.client.findPlatforms;
+    vi.spyOn(t.lti.client, 'findPlatforms').mockImplementation(async (...args) => {
+      const result = await original(...args);
+      t.clock.now += elapsed;
+      return result;
+    });
+    t.lti.calls.length = 0;
+    const result = await submit();
+    expect(result.status).toBe(elapsed === 54_000 ? 200 : 502);
+    expect(t.lti.calls.filter((line) => line.startsWith('PATCH '))).toHaveLength(elapsed === 54_000 ? 1 : 0);
+    expect(getConnectionAnyLibrary(t.db, con.id)?.redeemingAttempt).toBeNull();
+  });
+
+  it.each(['blackboard', 'canvas', 'add_deployment'] as const)('%s makes no retry wire call when a grant is revoked before a delayed read error', async (kind) => {
+    const { con, g, libA, deploymentId } = await endpoint(kind);
+    const logger = createLogger({ service: 'cogniate-app', write: (line) => t.logs.push(JSON.parse(line)) });
+    let wireCount = 0;
+    const outbound = createOutboundClient({ logger, requestImpl: () => {
+      wireCount += 1;
+      const req = Object.assign(new EventEmitter(), { write: vi.fn(), destroy: vi.fn(), end: () => {
+        setTimeout(() => req.emit('error', Object.assign(new Error('reset'), { code: 'ECONNRESET' })), 4100);
+      } });
+      return req as unknown as ClientRequest;
+    } });
+    const remote = createLtiClient({ outbound, ltiUrl: 'https://lti.test', apiKeyFile: 'unused', readKey: () => 'test-key' });
+    const lti = { ...t.lti.client, getProviders: remote.getProviders, getPlatform: remote.getPlatform, findPlatforms: remote.findPlatforms };
+    if (kind === 'canvas') lti.createProviderPlatform = async () => { throw new LtiServiceError(409, 'PLATFORM_ALREADY_EXISTS', ''); };
+    if (kind === 'add_deployment') lti.addDeployment = async () => { throw new LtiServiceError(409, 'DEPLOYMENT_ALREADY_EXISTS', ''); };
+    const engine = createRedemptionEngine({ db: t.db, lti, logger, now: () => t.clock.now });
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    let settled = false;
+    const pending = engine.redeem({ connectionId: con.id, libraryId: libA, purpose: kind === 'add_deployment' ? kind : 'initial',
+      values: { clientId: kind === 'blackboard' ? BB : 'cA', deploymentId, grantCode: g.code }, traceId: 'wire-cancel-trace' })
+      .catch((err: unknown) => { settled = true; return err; });
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(wireCount).toBe(1);
+    t.db.prepare("UPDATE binding_grant SET revoked_at = ?, revoked_reason = 'operator' WHERE id = ?").run(t.clock.now, g.id);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(wireCount).toBe(1);
+    expect(settled).toBe(true);
+    expect(await pending).toMatchObject({ code: kind === 'blackboard' ? 'GRANT_INVALID' : 'LTI_SERVICE_ERROR' });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(wireCount).toBe(1);
+    expect(t.lti.calls).toEqual([]);
+    expect(getGrant(t.db, g.id)?.redeemedAt).toBeNull();
+    expect(getConnectionAnyLibrary(t.db, con.id)?.redeemingAttempt).toBeNull();
+  });
+});
+
+describe('A-M1-05/06: HTTP-correlated refusals and committed success audit', () => {
+  it.each(['blackboard', 'canvas', 'add_deployment'] as const)('%s logs the HTTP trace and precise reason for every phase-1 rejection', async (kind) => {
+    const { con, g, submit, a } = await endpoint(kind);
+    const original = getGrant(t.db, g.id)!;
+    const traceId = `round3-rejection-${kind.replace('_', '-')}`;
+    const checks = [
+      { reason: 'not_found', body: { grantCode: UNKNOWN_CODE } },
+      { reason: 'revoked', sql: "UPDATE binding_grant SET revoked_at = 1 WHERE id = ?" },
+      { reason: 'redeemed', sql: "UPDATE binding_grant SET redeemed_at = 1 WHERE id = ?" },
+      { reason: 'expired', sql: "UPDATE binding_grant SET expires_at = 1 WHERE id = ?" },
+      { reason: 'other_library', sql: "UPDATE binding_grant SET library_id = (SELECT id FROM library WHERE id != binding_grant.library_id LIMIT 1) WHERE id = ?" },
+      { reason: 'other_connection', sql: "UPDATE binding_grant SET connection_id = ? WHERE id = ?" },
+      { reason: 'purpose', sql: "UPDATE binding_grant SET purpose = CASE purpose WHEN 'initial' THEN 'add_deployment' ELSE 'initial' END WHERE id = ?" },
+      { reason: 'mismatch', sql: "UPDATE binding_grant SET site_url = 'https://different.test' WHERE id = ?" },
+      { reason: 'mismatch', body: { deploymentId: 'different-deployment' } },
+    ];
+    // A real second connection keeps the foreign-key constraints enabled for the other_connection refusal.
+    const other = await bbConnection(a);
+    const codeHash = String(t.db.prepare('SELECT code_hash FROM binding_grant WHERE id = ?').get(g.id)!.code_hash);
+    t.lti.calls.length = 0;
+    for (const check of checks) {
+      t.db.prepare('UPDATE binding_grant SET revoked_at = NULL, redeemed_at = NULL, expires_at = ?, library_id = ?, connection_id = ?, purpose = ?, site_url = ? WHERE id = ?')
+        .run(original.expiresAt, original.libraryId, original.connectionId, original.purpose, original.siteUrl, g.id);
+      if (check.sql) t.db.prepare(check.sql).run(...(check.reason === 'other_connection' ? [other.id, g.id] : [g.id]));
+      const before = events('grant_rejected').length;
+      const result = await submit(check.body ?? {}, traceId);
+      expect(result.status, check.reason).toBe(check.reason === 'mismatch' ? 422 : 403);
+      expect(events('grant_rejected')).toHaveLength(before + 1);
+      const event = events('grant_rejected').at(-1)!;
+      expect(event).toMatchObject({ trace_id: traceId, reason: check.reason, connection_id: con.id });
+      expect(Object.keys(event).sort()).toEqual(['connection_id', 'event', 'level', 'reason', 'service', 'trace_id', 'ts']);
+      expect(JSON.stringify(event)).not.toContain(g.code);
+      expect(JSON.stringify(event)).not.toContain(codeHash);
+    }
+    expect(t.lti.calls).toEqual([]);
+    expect(events('grant_attempt_started')).toEqual([]);
+  });
+
+  it.each(['blackboard', 'canvas', 'add_deployment'] as const)('%s emits grant_redeemed only after the approval commit', async (kind) => {
+    const { con, g, submit } = await endpoint(kind);
+    const observed: boolean[] = [];
+    const push = t.logs.push.bind(t.logs);
+    vi.spyOn(t.logs, 'push').mockImplementation((...lines) => {
+      for (const line of lines) if (line.event === 'grant_redeemed') {
+        observed.push(t.db.isTransaction);
+        expect(getGrant(t.db, g.id)?.redeemedAt).not.toBeNull();
+        expect(attempts(con.id).at(-1)?.state).toBe('committed');
+      }
+      return push(...lines);
+    });
+    expect((await submit({}, 'round3-success-trace')).status).toBe(200);
+    expect(observed).toEqual([false]);
+    expect(events('grant_redeemed')).toEqual([expect.objectContaining({ trace_id: 'round3-success-trace', grant_id: g.id, connection_id: con.id })]);
+  });
+
+  it.each(['blackboard', 'canvas', 'add_deployment'] as const)('%s phase-2 COMMIT failure rolls back without a false grant_redeemed event', async (kind) => {
+    const { con, g, submit } = await endpoint(kind);
+    const prior = getConnectionAnyLibrary(t.db, con.id)!;
+    const approvals = t.db.prepare('SELECT * FROM approved_deployment WHERE connection_id = ?').all(con.id);
+    // Disposable database only: all statements succeed, then SQLite refuses the deferred constraint at COMMIT.
+    t.db.exec(`CREATE TABLE fail_phase2_commit (connection_id TEXT REFERENCES connection(id) DEFERRABLE INITIALLY DEFERRED);
+      CREATE TRIGGER reject_phase2_commit AFTER INSERT ON approved_deployment BEGIN
+        INSERT INTO fail_phase2_commit VALUES ('missing-connection');
+      END;`);
+    expect((await submit()).status).toBe(500);
+    expect(t.db.isTransaction).toBe(false);
+    expect(events('grant_redeemed')).toEqual([]);
+    expect(events('grant_attempt_started')).toHaveLength(1);
+    expect(getGrant(t.db, g.id)?.redeemedAt).toBeNull();
+    expect(getConnectionAnyLibrary(t.db, con.id)).toMatchObject({ status: prior.status, platform: prior.platform });
+    expect(t.db.prepare('SELECT * FROM approved_deployment WHERE connection_id = ?').all(con.id)).toEqual(approvals);
+    expect(t.db.prepare('SELECT * FROM fail_phase2_commit').all()).toEqual([]);
+    expect(attempts(con.id).at(-1)?.state).toBe('open');
   });
 });

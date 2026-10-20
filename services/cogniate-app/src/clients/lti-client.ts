@@ -4,7 +4,7 @@
 //  - every call sends X-Trace-Id and goes through the guarded outbound client (security §9; allowlist: the LTI host);
 //  - every answer is parsed with zod: an answer that does not match the contract is an error (502 in the app API).
 import { readFileSync } from 'node:fs';
-import type { OutboundClient } from '@cogniate/shared';
+import type { OutboundClient, OutboundRequest } from '@cogniate/shared';
 import { z } from 'zod';
 
 const Registration = z.object({
@@ -176,11 +176,17 @@ export interface LtiClientDeps {
   readKey?: (file: string) => string;
 }
 
+export interface LtiReadOptions {
+  /** Binding S0 owns every call: one five-second wire attempt, without an automatic GET retry. */
+  singleAttempt?: boolean;
+}
+
 export function createLtiClient(deps: LtiClientDeps) {
   const readKey = deps.readKey ?? ((f: string) => readFileSync(f, 'utf8').trim());
+  const readOptions = (options?: LtiReadOptions) => options?.singleAttempt ? { timeoutMs: 5000, retryNetworkError: false } : undefined;
 
   /** Auth (contract §1.2): `ltik` -> LTIK-AUTH-V2; `serviceKey` -> SERVICE-AUTH-V1; else Bearer. */
-  async function call<S extends z.ZodType>(schema: S, method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, traceId: string, body?: unknown, ltik?: string, serviceKey?: string, timeoutMs?: number): Promise<z.output<S>> {
+  async function call<S extends z.ZodType>(schema: S, method: 'GET' | 'POST' | 'PATCH' | 'DELETE', path: string, traceId: string, body?: unknown, ltik?: string, serviceKey?: string, options?: Pick<OutboundRequest, 'timeoutMs' | 'retryNetworkError'>): Promise<z.output<S>> {
     let key: string;
     try {
       key = readKey(deps.apiKeyFile);
@@ -192,7 +198,7 @@ export function createLtiClient(deps: LtiClientDeps) {
     try {
       res = await deps.outbound.request(`${path.startsWith('/api/') ? (deps.apiUrl ?? deps.ltiUrl) : deps.ltiUrl}${path}`, {
         method, traceId, ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-        ...(timeoutMs !== undefined ? { timeoutMs } : {}),
+        ...options,
         headers: { authorization, 'x-trace-id': traceId, accept: 'application/json', ...(body !== undefined ? { 'content-type': 'application/json' } : {}) },
       });
     } catch {
@@ -219,14 +225,16 @@ export function createLtiClient(deps: LtiClientDeps) {
     getRegistration: (regId: string, traceId: string) => call(Registration, 'GET', `/api/registrations/${id(regId)}`, traceId),
     completeRegistration: (regId: string, body: { platformName: string; privacyLevel: string; autoActivate: boolean }, traceId: string) =>
       // Give the LTI service's 5 s Moodle call time to return its uncertain-registration result (P1).
-      call(Completed, 'POST', `/api/registrations/${id(regId)}/complete`, traceId, body, undefined, undefined, 15_000),
+      call(Completed, 'POST', `/api/registrations/${id(regId)}/complete`, traceId, body, undefined, undefined, { timeoutMs: 15_000 }),
     createPlatform: (body: NewPlatform, traceId: string) => call(Platform, 'POST', '/api/platforms', traceId, body),
-    getPlatform: (platformId: string, traceId: string) => call(Platform, 'GET', `/api/platforms/${id(platformId)}`, traceId),
+    getPlatform: (platformId: string, traceId: string, options?: LtiReadOptions) =>
+      call(Platform, 'GET', `/api/platforms/${id(platformId)}`, traceId, undefined, undefined, undefined, readOptions(options)),
     patchPlatform: (platformId: string, body: { active?: boolean; name?: string } & Partial<RefChange>, traceId: string) => call(Platform, 'PATCH', `/api/platforms/${id(platformId)}`, traceId, body),
     // M1 (LTI contract §9.4 to §9.6, §9.15): provider platforms, deployments and conditional changes.
     createProviderPlatform: (body: NewProviderPlatform, traceId: string) => call(Platform, 'POST', '/api/platforms', traceId, body),
-    findPlatforms: (q: { url: string; clientId: string; profile?: string }, traceId: string) =>
-      call(PlatformList, 'GET', `/api/platforms?${new URLSearchParams(Object.entries(q).filter((e): e is [string, string] => e[1] !== undefined))}`, traceId).then((r) => r.platforms),
+    findPlatforms: (q: { url: string; clientId: string; profile?: string }, traceId: string, options?: LtiReadOptions) =>
+      call(PlatformList, 'GET', `/api/platforms?${new URLSearchParams(Object.entries(q).filter((e): e is [string, string] => e[1] !== undefined))}`, traceId,
+        undefined, undefined, undefined, readOptions(options)).then((r) => r.platforms),
     /** Conditional delete (`ifBindingRef`), or unconditional without it. 204 → undefined. */
     deletePlatform: (platformId: string, ifBindingRef: string | null, traceId: string) =>
       call(NoContent, 'DELETE', `/api/platforms/${id(platformId)}${ifBindingRef !== null ? `?${new URLSearchParams({ ifBindingRef })}` : ''}`, traceId),
@@ -235,7 +243,8 @@ export function createLtiClient(deps: LtiClientDeps) {
     patchDeployment: (platformId: string, deploymentId: string, body: { active: boolean; siteUrl?: string } & RefChange, traceId: string) =>
       call(Deployment, 'PATCH', `/api/platforms/${id(platformId)}/deployments/${id(deploymentId)}`, traceId, body),
     /** Provider profiles (LTI contract §9.3, M1). */
-    getProviders: (traceId: string) => call(Providers, 'GET', '/api/providers', traceId).then((r) => r.profiles),
+    getProviders: (traceId: string, options?: LtiReadOptions) =>
+      call(Providers, 'GET', '/api/providers', traceId, undefined, undefined, undefined, readOptions(options)).then((r) => r.profiles),
     /** Public tool keys of the tool account (LTI contract §2.3); the first key is the active one (Canvas inline JWK). */
     getToolKeys: (account: string, traceId: string) => call(ToolKeys, 'GET', `/lti/keys/${id(account)}`, traceId).then((r) => r.keys),
     /** The launch behind a ltik (T4b2 handoff). */

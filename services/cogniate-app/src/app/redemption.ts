@@ -59,8 +59,8 @@ class LtiFailure extends Error {
 export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
   const { db, lti, logger: log, now } = deps;
 
-  const reject = (reason: string, connectionId: string, err: ApiError): never => {
-    log.warn('grant_rejected', { reason, connection_id: connectionId });
+  const reject = (reason: string, connectionId: string, traceId: string, err: ApiError): never => {
+    log.warn('grant_rejected', { trace_id: traceId, reason, connection_id: connectionId });
     throw err;
   };
   const notReady = (c: Connection, cause: ReadinessCause, traceId: string): never => {
@@ -84,7 +84,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       const t = now();
       const connection = getConnection(db, req.libraryId, req.connectionId);
       if (!connection) throw new ApiError('NOT_FOUND', 'The connection does not exist in your library.');
-      const invalid = (reason: string) => reject(reason, connection.id, new ApiError('GRANT_INVALID', 'This approval code is not valid, was used, or expired.'));
+      const invalid = (reason: string) => reject(reason, connection.id, req.traceId, new ApiError('GRANT_INVALID', 'This approval code is not valid, was used, or expired.'));
       // 1. form and hash
       const grant = grantByCode(db, req.values.grantCode);
       if (!grant) return invalid('not_found');
@@ -105,11 +105,11 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       // 5. values
       const target = resolved.target;
       if (grant.lms !== connection.lms || grant.profile !== connection.profile || grant.siteUrl !== connection.siteUrl || grant.serviceUrl !== connection.serviceUrl) {
-        return reject('mismatch', connection.id, new ApiError('GRANT_MISMATCH', 'The values do not match the approval.', { details: { fields: ['connection'] } }));
+        return reject('mismatch', connection.id, req.traceId, new ApiError('GRANT_MISMATCH', 'The values do not match the approval.', { details: { fields: ['connection'] } }));
       }
       const clientId = resolved.clientId;
       const fields = [...(grant.clientId !== clientId ? ['clientId'] : []), ...(grant.deploymentId !== req.values.deploymentId ? ['deploymentId'] : [])];
-      if (fields.length > 0) return reject('mismatch', connection.id, new ApiError('GRANT_MISMATCH', 'The values do not match the approval.', { details: { fields } }));
+      if (fields.length > 0) return reject('mismatch', connection.id, req.traceId, new ApiError('GRANT_MISMATCH', 'The values do not match the approval.', { details: { fields } }));
       // 6. the connection lease (also for a replacement grant)
       if (leaseLive(connection, t)) throw new ApiError('GRANT_IN_USE', 'Cogniate is already saving this connection. Wait a moment, then reload the page.');
       // 7. Blackboard reservation: free, ours (retry) or of a disabled connection of the same library (move); one per connection.
@@ -183,6 +183,12 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       }
       return fail(new Error('lease lost'));
     };
+    const inUse = (): never => {
+      transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });
+      throw target.kind === 'shared_deployment'
+        ? new ApiError('DEPLOYMENT_IN_USE')
+        : new ApiError('PLATFORM_IN_USE', 'This Canvas developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.');
+    };
     const call = async <T>(fn: () => Promise<T>): Promise<T> => {
       try {
         return await fn();
@@ -228,7 +234,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
         else {
           let result: Parameters<typeof afterReadiness>[0];
           try {
-            const rows = await lti.getProviders(traceId);
+            const rows = await lti.getProviders(traceId, { singleAttempt: true });
             const cause = sharedReadiness(rows.find((p) => p.id === c.profile), completeSnapshot(c)!);
             result = cause ? { kind: 'not_ready', cause } : { kind: 'matched' };
           } catch (error) {
@@ -263,15 +269,18 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
           if (g2 === 'taken_over' || g2 === 'lease_lost') return leaseStop(g2);
           if (g2 === 'stop') { stop = true; break; }
           const rec = await call(() => readTarget(target, platformId, attempt, traceId));
+          if (!rec && target.kind === 'exclusive_platform' && platformId === null) {
+            // S1 conflicted, but the one qualified lookup found no adoptable record (including a standard
+            // collision). Recheck local cancellation/lease state; never make an unqualified fallback call.
+            const guard = s0(c, attempt, grant.id, 'step');
+            if (guard === 'taken_over' || guard === 'lease_lost') return leaseStop(guard);
+            if (guard === 'stop') { stop = true; break; }
+            return inUse();
+          }
           if (!rec) return fail(new Error('target vanished'));
           platformId = rec.platformId;
           setAttemptPlatform(db, attempt.attemptId, platformId);
-          if (!adoptable(c, attempt, target, rec)) {
-            transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });
-            throw target.kind === 'shared_deployment'
-              ? new ApiError('DEPLOYMENT_IN_USE')
-              : new ApiError('PLATFORM_IN_USE', 'This Canvas developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.');
-          }
+          if (!adoptable(c, attempt, target, rec)) return inUse();
           expected = rec.ref;
         }
         const g3 = s0(c, attempt, grant.id, 'step');
@@ -294,8 +303,11 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
         }
       }
       // ---------------------------------------------------------------- phase 2
-      const outcome = phase2(c, attempt, grant, target, platformId, activationRef, resolved, traceId);
-      if (outcome.ok) return outcome.connection;
+      const outcome = phase2(c, attempt, grant, target, platformId, activationRef, resolved);
+      if (outcome.ok) {
+        log.info('grant_redeemed', { trace_id: traceId, grant_id: grant.id, connection_id: c.id, purpose: attempt.purpose, platform_id: platformId, deployment_id: attempt.deploymentId, attempt_id: attempt.attemptId });
+        return outcome.connection;
+      }
       if (activationRef !== null) await compensate(c, attempt, grant, target, platformId!, activationRef, traceId);
       transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });
       log.warn('grant_redemption_cancelled', { trace_id: traceId, grant_id: grant.id, connection_id: c.id, reason: outcome.reason });
@@ -310,16 +322,13 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
   /** S2: read the remote record of the target. Null when it is absent. */
   async function readTarget(target: BindingTarget, platformId: string | null, attempt: Attempt, traceId: string): Promise<ReadRecord | null> {
     if (target.kind === 'exclusive_platform') {
-      // The target lookup of §4.7.1 Terms (issuer, client id, profile). A platform with the same issuer and client id
-      // but ANOTHER profile (for example a `standard` one made by a Moodle connection) is read too: it is not
-      // adoptable (other values), so the answer is 409 PLATFORM_IN_USE (AC-M1-39), not a lost record.
+      // The single target lookup of §4.7.1 Terms (issuer, client id, profile).
       const p = platformId
-        ? await lti.getPlatform(platformId, traceId).catch((err: unknown) => { if (err instanceof LtiServiceError && err.status === 404) return null; throw err; })
-        : (await lti.findPlatforms({ url: target.issuer, clientId: target.clientId, profile: target.profile }, traceId))[0]
-          ?? (await lti.findPlatforms({ url: target.issuer, clientId: target.clientId }, traceId))[0] ?? null;
+        ? await lti.getPlatform(platformId, traceId, { singleAttempt: true }).catch((err: unknown) => { if (err instanceof LtiServiceError && err.status === 404) return null; throw err; })
+        : (await lti.findPlatforms({ url: target.issuer, clientId: target.clientId, profile: target.profile }, traceId, { singleAttempt: true }))[0] ?? null;
       return p ? { platformId: p.id, ref: p.bindingRef, active: p.active, platform: p } : null;
     }
-    const p = await lti.getPlatform(target.platformId, traceId).catch((err: unknown) => { if (err instanceof LtiServiceError && err.status === 404) return null; throw err; });
+    const p = await lti.getPlatform(target.platformId, traceId, { singleAttempt: true }).catch((err: unknown) => { if (err instanceof LtiServiceError && err.status === 404) return null; throw err; });
     const d = p?.deployments.find((x) => x.deploymentId === attempt.deploymentId);
     return p && d ? { platformId: p.id, ref: d.bindingRef, active: d.active, platform: p } : null;
   }
@@ -360,7 +369,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
   }
 
   /** Phase 2 (§4.7.1). On success the approval and the connection change commit together. */
-  function phase2(c: Connection, attempt: Attempt, grant: Grant, target: BindingTarget, platformId: string | null, activationRef: string | null, resolved: LocalTarget, traceId: string)
+  function phase2(c: Connection, attempt: Attempt, grant: Grant, target: BindingTarget, platformId: string | null, activationRef: string | null, resolved: LocalTarget)
     : { ok: true; connection: Connection } | { ok: false; reason: CancelReason } {
     return transaction(db, () => {
       const t = now();
@@ -389,7 +398,6 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
         db.prepare('UPDATE connection SET platform_json = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(info), t, c.id);
       }
       endAttempt(db, attempt.attemptId, 'committed', t);
-      log.info('grant_redeemed', { trace_id: traceId, grant_id: g.id, connection_id: c.id, purpose: attempt.purpose, platform_id: platformId, deployment_id: attempt.deploymentId, attempt_id: attempt.attemptId });
       return { ok: true, connection: getConnectionAnyLibrary(db, c.id)! };
     });
   }
