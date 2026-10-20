@@ -1548,10 +1548,45 @@ backend Author `task_3b908985fd0b` and independent common QA preparation `task_5
 They may run in parallel after an accepted frozen design. Neither has a Docker window.
 Their completion does not replace retries of the failed full verification tasks.
 
-The verification tasks are also queued behind both implementation and test-preparation tasks.
+The bounded correction is frozen at `a65a4eec669c4a98aac80ff6b3dc3d1f55813dd0`.
+All paths outside `docs/**` still match `8138097`.
+The three original Claude sessions received parallel checks of that exact commit:
+
+| Owner | Task | Dispatch | Launch | Start |
+| --- | --- | --- | --- | --- |
+| Reviewer-A | `task_07487a8a99ff` | `ctx_560fb486e649` | `msg_1beb28379a7b` | `msg_88ad05655d36` |
+| Reviewer-B | `task_95e51fff8e37` | `ctx_60080f82e427` | `msg_52f25b64a059` | `msg_62cd8b6bb10e` |
+| Common QA | `task_9266d07c15ec` | `ctx_39c390bc5118` | `msg_604d16f42d6d` | `msg_a92522bea197` |
+
+G1 and the implementation gate remain unresolved pending all three verdicts.
+
+All three bounded checks are submitted. The Lead checked each held hash and preserved history, then retained the workers before acknowledgment.
+Reviewer-A `msg_3178c8300180`: APPROVE; A-S-12 closes, A-S-09/10 remain closed.
+Its report hash is `89955081e57ab49caea679c6cf43dba9dc418a26c55ed161b2a57af8e26889c0`.
+New MINOR A-S-13 requires a real Docker client-group measurement before implementation acceptance and a safe result if it fails.
+Reviewer-B `msg_65712a6368f7`: APPROVE; B-S-20/21 close and earlier findings stay closed.
+Its report hash is `c18278e6db0fa287efbe80bc0bc8ad41d8de41114a80aeebc59b18dc8f10394b`.
+New NIT B-S-22 specifies `LC_ALL=C ps -A -o pid= -o pgid=`.
+Common QA `msg_383fe712a02f`: FAIL for bounded design testability; R3-01 through R3-07 close.
+Its report hash is `5ae7988ddcf37cff10cb336b85bc115abd2d9b23315433378382715a2e3fd12d`.
+New MAJOR R3B-01 blocks two fresh-volume fixture rows and reliable cleanup accounting.
+After quarantine, mounting absent volume names would create unlabeled, root-owned volumes that QA cannot write.
+A label-only boundary check would miss those leftovers. This finding joins G1; it is not waived.
+
+Required bounded correction: QA must not mount absent volumes. Product preflight creates the FIRST_START fixtures under the operation lock.
+QA then checks exact volume names, labels, ownership and state independently; partial-state setup removes one identity as the service user.
+Fresh-lane and cleanup checks must include exact names and preserve any unproven pre-existing resource.
+The Architect must check all fixture setup paths affected by this rule, not only the two named rows.
+A-S-13 will be measured in a separate bounded Author diagnostic, with no implementation or acceptance credit.
+A false or unmeasured client-group guarantee blocks implementation acceptance; no unreviewed fallback is authorized.
+B-S-22 is included in the bounded specification correction.
+The two planned source tasks remain held despite their completed orchestration dependencies.
+
+The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
-Each needs a frozen candidate and an assigned stack lane before dispatch.
+Each requires a proper retry after implementation, independent test preparation and both source reviews pass.
+The Lead must supply one frozen candidate and assign the sole stack window before a retry starts.
 QA owns the combined M3 report; QA-E2E owns its separate M3 browser report and live matrix.
 The Lead added Q19 to Q22 and D-1 to D-12 to `docs/human_review/decisions-needed.md` in `7a9734a`.
 These are open human decisions from the approved design, not implementation or live-test evidence.

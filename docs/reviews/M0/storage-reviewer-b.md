@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 3 (bounded disposition check of revision 3.1 at a65a4ee; see the last section)
 
 # Storage design review — Reviewer-B (operability, minimality, test claims)
 
@@ -418,3 +418,82 @@ The approval covers the storage **design** only. It is not an implementation app
 - Design: no open BLOCKER or MAJOR from this reviewer. B-S-20 must be applied before or with the implementation brief. B-S-21 is optional wording.
 - Implementation of ADR-012, its independent source reviews, the 72 AC-M1-41 rows (488 rows per full round), and every stack-level rerun at the new candidate (both full M1 rounds, both old routes, the legacy suites, M2 and three T7 runs) remain separate gates.
 - §17 assumptions 1–9 remain unmeasured until the build step. All 32 live LMS rows stay UNVERIFIED. Historical evidence keeps its labels and SHAs.
+
+
+## Round 3 bounded-disposition addendum — revision 3.1
+
+Verdict for the bounded correction: **APPROVE** (design only)
+
+Reviewer: the same dedicated Reviewer-B, Claude Code `claude-opus-5-5`, xhigh, retained session `c75b96cd-c1da-42ea-9b53-c5207e508e49`. Task `task_95e51fff8e37`, dispatch `ctx_60080f82e427`. Date: 2026-10-21.
+
+This is a bounded check of my Round 3 findings and of regressions caused by the corrections. It is not a fourth general review.
+
+**Changes to earlier bytes:**
+- Lines 1–2 of this file are the current top verdict header. They were "Verdict: CHANGES_REQUESTED / Round: 1" (the Round 1 header, never updated). They now state the current verdict.
+- Every other earlier byte is unchanged: lines 3–420 equal the committed Round 3 report at `a65a4ee` (SHA-256 of the whole committed file `42dd201aa7fdbe28f3b83681438cc3310a36106fd7daf026565d71eae6205b60`).
+
+### Scope and method
+
+- Frozen correction: `a65a4eec669c4a98aac80ff6b3dc3d1f55813dd0` (ADR-012 revision 3.1), compared with `b3bd22e2ada43f45499db5e50cfb4cafc8295fb9`. Product and test files equal `8138097889f87359d5055bb1d79766b5ed842f92`: no path outside `docs/**` changed.
+- Read:
+  - the full ADR-012 diff;
+  - the "Round 3 bounded corrections" section of `review-response-storage.md`;
+  - the M1/M3/ADR-006/ADR-011/index diffs;
+  - the Lead's Round 3 escalation in the phase plan;
+  - G1 in `docs/human_review/decisions-needed.md` (UNRESOLVED, committed at `9124cfd`).
+- Source check with `git show`: `stack-down.sh` and `lib.sh` (`start_build_runner`, `stop_build_runner`) at `b0b83a8` and `9f96f7b`.
+- `git diff --check b3bd22e a65a4ee -- docs/architecture`: clean.
+- I did not read any other worker's addendum or Round 3 report. No Docker, stack, product run, edit, commit or push.
+
+### Dispositions
+
+| Id | Disposition | Evidence |
+| --- | --- | --- |
+| B-S-20 (required MINOR) | **Closed** | ADR-012 §7 "Primitives": every lock folder move and record write goes through `node:fs.renameSync`/`fsync`, never shell `mv`, with the reason (`mv` moves into an existing folder). §7 lock records: every `ps` call, for writing and comparing, runs with `LC_ALL=C`. Self-check scenarios `rename-held` and `locale` (§7 table), run once per round before the `storage` phase; a failure makes the phase `BLOCKED` (§13, M1 harness self-checks). Unit case with a non-C locale (M1 self-check list). Architect probes P1–P3 (§17) match my Round 3 schedule: `mv` nests, and `fr_FR` changes the `lstart` text. |
+| B-S-21 (NIT) | **Closed** | §7 `stack:down` row and §9 line "So both documented stops…": `down --remove-orphans` removes the service containers and the project network, and keeps the volumes and the knobs file (source fact S8, confirmed: `stack-down.sh:7` in all three trees). The row adds "Do not run it while a storage command runs" and states the unmeasured effect on a running storage container (§17 assumption 11) as a crash handled by §8. |
+| B-S-15 | **Not reopened**; strengthened | §9 step 1 now removes the command's own ended copy container (by its run label) before step 2. So the volume-user list never contains the quarantine's own container. Steps 2–5 are unchanged. |
+| B-S-16 | **Not reopened** | Owner identity (`pid`, `pidStart`) is unchanged apart from `LC_ALL=C`. The new group rule (below) only adds liveness, so it can make a command wait, never take over a live owner. `operation_lock_invalid`, "one checkout per project", and the copied and hashed helper are unchanged. |
+| B-S-17, B-S-18, B-S-19 | **Not reopened** | The §12 source fact, the fresh old-lane order and the privilege rule are unchanged by this diff. |
+
+### Operability of the changed ownership mechanism (A-S-12 group rule)
+
+The new rule keeps a record live while any process of its `pgid` remains. I traced it as an operator and a harness would meet it:
+
+- **Interactive terminal** (the normal operator path): each command line is its own job group. After a normal end, release removes the record. After a kill of the whole job (`Ctrl-C` with the trap, or `SIGHUP` on a closed terminal), the group empties. If a storage container still runs, `storage_writer_active` names it, with the documented exit. Operable.
+- **Candidate Build Runner:** `stack:up` starts it in its own group (§7 "Long-lived helpers", probe P5), so it never keeps a `stack:up` record live. Operable.
+- **Old-build wrapper** (rollback mode and the old routes):
+  - Old `lib.sh` still starts the Build Runner with a plain `nohup … &` (b0b83a8 `lib.sh:280`, 9f96f7b `:293`). So it shares the `storage-compat.sh run --` wrapper's group.
+  - After a normal end, the wrapper releases, so nothing changes.
+  - Only after a kill of the wrapper alone does the Build Runner keep that record live. The result is fail-closed (`operation_in_progress`, and the message names the group's processes). Old `npm run stack:down`, which rollback mode allows, stops the Build Runner (`stack-down.sh:6` in both old SHAs), and the record then becomes stale. So an exit exists.
+- **Harness callers that share one group:** fail-closed by design (§7 "Shared group"). The rows that kill a command start it as its own group (M1 `g-orphan-refusal`, `g-orphan-stopped`, `a-lock-stale` (4)), and §16 assigns that to QA. Operable, with a stated limit.
+
+I found no new BLOCKER or MAJOR in this mechanism. Its worst outcome is a wait or refusal that names its cause, never a takeover of a live owner.
+
+### New finding
+
+**B-S-22 — NIT — The group read uses a non-portable `ps` form.**
+
+- Location: ADR-012 §7 lock records, "A record is live" (`LC_ALL=C ps -ax -o pid=,pgid=`); §17 assumption 4.
+- Problem 1: `-ax` mixes the BSD `ax` selector into option syntax. The POSIX "all processes" option is `-A` (or `-e`), and both macOS and procps accept it.
+- Problem 2: for empty headers, both BSD and procps document one `-o` per column (`-o pid= -o pgid=`). The comma form `pid=,pgid=` relies on implementation-specific parsing of the header text after `=`.
+- Fix: use `LC_ALL=C ps -A -o pid= -o pgid=`, and name that exact command in §17 assumption 4 and in the `locale` or `orphan-client` self-check output, so the build step measures the same form on macOS and Linux.
+- This is a precision NIT; it is not a design change.
+
+### Observation (no finding)
+
+The M4 operator guide should name the two group-related exits that the design already gives:
+- end the named group processes, or wait;
+- in rollback mode, old `npm run stack:down`, which also stops the old Build Runner.
+
+The Round 3 observation that `stale-<runId>/` folders are kept also still applies.
+
+### Remaining limits
+
+- **Open findings:** no BLOCKER or MAJOR is open from this reviewer; B-S-22 is a NIT. G1 closure depends on all three owners' checks, as the escalation record states. This addendum does not close G1 by itself.
+- **Not covered by this check:** QA R3-01, QA R3-02, A-S-12 and QA R3-03 to R3-07 belong to their owners. I checked them only for regressions against my findings.
+- **Implementation and runtime gates remain separate:**
+  - the implementation and its independent source reviews;
+  - the build-step assumptions of §17 (now 1–11), including Linux behaviour and the Docker client process group;
+  - the 488 rows per full round (416 existing and 72 AC-M1-41), plus the separate lock self-check;
+  - every stack-level rerun (both full M1 rounds, both old routes, legacy, M2 and three T7 runs).
+- **Labels:** no implementation, runtime or acceptance approval follows from this check. All 32 live LMS rows stay UNVERIFIED, and historical evidence keeps its labels and SHAs.

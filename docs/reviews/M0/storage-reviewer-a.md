@@ -272,3 +272,48 @@ In a single-writer world, I found no reachable pair that leads to R6. Recovery i
 - The design gate passes from Reviewer-A's side at `b3bd22e`.
 - A-S-12 should be amended in ADR-012 §7 and its self-check, or recorded by the Lead as an accepted limit.
 - The implementation then needs its own independent review. Every runtime gate and stack-level rerun, the 488-row inventory (416 + 72), the conditional-row rule for `c-host-negative`, and the 32 `UNVERIFIED` live rows stay as stated.
+
+## Round 3 bounded-disposition addendum (2026-10-21)
+
+This is a bounded check of the revision 3.1 corrections, not a fourth review round. The top verdict line (APPROVE) stays.
+
+| Item | Value |
+| --- | --- |
+| Verdict for this bounded correction | **APPROVE.** A-S-12 is closed for its stated schedule. The changed rename and process-identity rules do not reopen A-S-09 or A-S-10; they remove two latent fail-open paths. One new **MINOR**, A-S-13, is a verification gate: A-S-12's group rule rests on the unmeasured process-group behavior of the Docker client (§17 assumption 10), and the design has no fallback for its weaker branch. No BLOCKER or MAJOR. |
+| Frozen candidate | **`a65a4eec669c4a98aac80ff6b3dc3d1f55813dd0`** (design revision 3.1; product and tests stay `8138097889f87359d5055bb1d79766b5ed842f92`), compared with `b3bd22e2ada43f45499db5e50cfb4cafc8295fb9`. Detached clone `/tmp/rva-a65a4ee`. The escalation record at `9124cfd` stays UNRESOLVED. |
+| Inputs read | My report through Round 3 (SHA-256 `c5bac73f38f3ca4f2d897b090b6195420f22bb2f54aa5993cab9eeed312429b8`, equal at `a65a4ee`); `review-response-storage.md` "Round 3 bounded corrections"; the ADR-012 diff `b3bd22e..a65a4ee` (§7 lock records, acquisition, process ownership, primitives, lock self-check, operator exit, `stack:down` row; §9 quarantine copy container; §17 S6–S8, P1–P5 and assumptions 4, 10, 11); the changed M1 oracles `a-lock-stale` (4), `g-orphan-refusal` and `g-orphan-stopped`. |
+| Reviewer | Original Reviewer-A, Claude Code Opus 5.5, xhigh, session `604b28c1-156c-4266-84c3-e0f0089004da`. Task `task_07487a8a99ff`, dispatch `ctx_560fb486e649`. |
+| Independence | I did not read any other new addendum, `storage-reviewer-b.md` or `storage-qa.md`. No Docker, stack, edit outside this report, commit or push. Source reads and reasoning only. |
+
+### Dispositions
+
+| Id | Status | Evidence at `a65a4ee` |
+| --- | --- | --- |
+| A-S-12 | **Closed** for the parent-only `SIGKILL` before container creation | §7 L229–L234: `owner.json` adds `pgid`, and a record is **live** while its owner identity is live **or** any other process has its `pgid`. §7 "Process ownership" (L255–L262): Docker clients run as foreground children or awaited jobs, with no `setsid`, `disown` or `set -m`; only the Build Runner leaves the group (S6, P5). A5 (L246) reclaims only "owner identity ended **and** group empty". In my schedule the script dies alone, and the `docker` front process (and the plugin, if it shares the group) stays in the group, so the record stays live and A4 waits, then `operation_in_progress`. This holds under both branches of §17 assumption 10 (L727: "the `docker compose` plugin process, or at least the `docker` front process that waits for it"). The probe evidence is a stub (P4); `a-lock-stale` (4) and the lock self-check `orphan-client` (L266–L276) test the rule with stubs. A shared caller group fails closed (L262). |
+| A-S-09 | **Still closed; strengthened** | A5/A6 still refuse `storage_writer_active` while any storage container of the project is active (L246–L247), whatever the group state. The takeover proof (L249–L253) is unchanged in substance. Two latent **fail-open** paths of revision 3 are now closed. (1) **Locale:** an owner identity compared under another locale could look dead while it was alive, which allowed a reclaim of a live lock. Now every `ps` runs with `LC_ALL=C` (L231–L233; P3; self-check `locale`). (2) **`mv`:** a shell `mv` onto an existing lock folder moves the folder inside it and exits 0, so A2 and the takeover would not be exclusive. Now every folder move is `rename(2)` through `node:fs.renameSync` (L264; P1–P2; self-check `rename-held`). `g-orphan-refusal`/`-stopped` now kill a detached group and check it is empty, with the container still active. |
+| A-S-10 | **Still closed** | The diff does not touch §8 "Checked move" (L377) or "R3 order" (L409). Classify first, `after` files out before `before` files back, no `rename` onto an existing name, unknown bytes → `rollback_failed`, nothing deleted. The quarantine change (§9 step 1: its own copy container is removed before the volume-user check) does not touch the rollback. |
+| A-S-11 (1)–(5), Round 1–2 closures | **Still closed** | No change to §4, §5, §6, the recovery table or §10–§12 except the lock-helper references. The `stack:down` row now states its real `down --remove-orphans` behavior. A storage container stopped that way is a crash at that point, so §8 recovery applies (L322 area; §17 assumption 11). |
+
+### New finding
+
+#### A-S-13 — MINOR — The group rule rests on the unmeasured Docker client group, and its weaker branch has no fallback
+
+- **Where:** §17 assumption 10 (L727), §7 "Process ownership" (L259), and my own Round 3 text, which said that a terminal close or a group `SIGKILL` "stop the client too". That statement holds only if the `docker compose` plugin process is in the command's group.
+- **Problem:** assumption 10 accepts a weaker branch, in which only the `docker` front process stays in the group and the plugin process does not. Under that branch, a **whole-group** kill before the container exists reopens the A-S-12 window:
+  1. A `SIGKILL` to the command's group (an operator's `kill -9 -- -<pgid>`, or a hang-up that ends the front process) removes the script and the front process.
+  2. The plugin keeps running in its own group. The recorded group is now empty, and no storage container is active yet.
+  3. A5 reclaims, and A6 passes.
+  4. The plugin then creates and starts its container next to the new holder: the same late-writer overlap as A-S-12.
+
+  The rows do not measure this. `g-orphan-refusal` kills the group only after the container is active, so A6 catches it in any case. `a-lock-stale` (4) and the self-check use stubs, not a real Docker client.
+- **Narrow fix (required before the implementation is accepted, not a design-direction change):**
+  - Make assumption 10 a **gating** build-step measurement with a real Docker client: `ps -o pid,pgid` of the script, the front process and the plugin while a storage `run` starts; then a group `SIGKILL` before container creation; then report whether any client survives.
+  - Define the fallback in the ADR now. If the plugin has its own group, record its identity and group (read from the front process's child right after the spawn) in `owner.json` and include them in liveness. Or, instead, create the storage container explicitly and start it in a second command, so that an orphaned client can act only on a container that A6 can see and remove.
+  - Until one of these is measured or adopted, the A-S-12 guarantee holds only for kills that spare the front process.
+
+### Remaining limits
+
+- The lock serializes one checkout only. Hand-typed compose starts and dockerd restarts stay unguarded (stated).
+- Every probe and self-check here is design feasibility, not acceptance. Assumptions 4, 10 and 11 are unmeasured.
+- The 488 rows (416 + 72) are unchanged. The lock self-check is a harness self-check, not a row.
+- No runtime or implementation acceptance follows. All 32 live rows stay `UNVERIFIED`.

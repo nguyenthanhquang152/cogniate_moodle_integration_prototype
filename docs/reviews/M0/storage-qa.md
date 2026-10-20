@@ -644,3 +644,77 @@ maintenance command as its own oracle (M1.md:221).
 The design is otherwise testable as written. Once R3-01 and R3-02 are fixed, I see no remaining required gap in the
 case map, the phases or the oracles. This review approves no implementation and gives no acceptance credit. Every
 stack-level gate must run again on the implemented candidate, and the §17 assumptions remain to be verified there.
+
+## Round 3 bounded-disposition addendum (revision 3.1)
+
+Verdict (bounded check): FAIL (bounded design testability) — R3-01 to R3-07 are all closed; 1 new MAJOR (a narrow text fix with no design change), found in the corrected row `h-target-state` (2); no BLOCKER.
+Task `task_9266d07c15ec`, dispatch `ctx_39c390bc5118`, 2026-10-21. This is a bounded disposition check, not a fourth review round.
+
+Rounds 1–3 above are unchanged. Their first 60,680 bytes still have SHA-256
+`ee614e70eba8aeae165533109eb36bf8089412c8a62ce42b7cad91b1b0dec1df`.
+
+| Item | Value |
+| --- | --- |
+| Frozen candidate | `a65a4eec669c4a98aac80ff6b3dc3d1f55813dd0` (ADR-012 revision 3.1); Round 3 reports and escalation at `7f2c2c5`; base design `b3bd22e` |
+| Product and test tree | identical to `8138097889f87359d5055bb1d79766b5ed842f92` (checked with `git diff --quiet`) |
+| Read | the `b3bd22e` → `a65a4ee` diffs of ADR-012, M1, M3 and ADR-011, the "Round 3 bounded corrections" section of `review-response-storage.md`, and the Lead synthesis; source traces of `tests/host/lib.mjs`, `tests/host/p5-fixture.mjs` and `tests/host/m1-migration.mjs` at `8138097` |
+| Not read | every other reviewer's Round 3 report or addendum |
+| Docker | none; no product or test change; no data access |
+
+References are at `a65a4ee`: ADR = ADR-012 revision 3.1, M1 = `docs/architecture/tasks/M1.md`.
+
+### Dispositions
+
+| Id | Disposition | Evidence |
+| --- | --- | --- |
+| R3-01 | **Closed** | M1:266: the copy list adds exactly the package folders that the copied app database names. QA reads the distinct `storage_path` values from a copy of that database, and the folders are placed before the legacy backup. The oracle records `storage_content_check` `result: "pass"` and `checked` equal to QA's own count (M1:263–267); the line is defined at ADR:367. Source trace: `package.storage_path` is relative to `DATA_DIR`, and the AC-M1-23 clone keeps its host `packages/` folder after its phase (bind folders survive the volume teardown). |
+| R3-02 | **Closed** | ADR:517: kind `storage-p5`, only `<project>_appdb` read-write, never `ltidb`. The approved stop, the stopped check, the write and the start all run inside one `storage-oplock.sh run --`. The write touches only `cogniate.db` and its SQLite sidecars, and `lti-service` may run. ADR:326 and §11 "Harness actions" accept the existing `docker compose stop`/`start` actions (P2, P5, the AC-M1-23/30 stops, Moodle). M3:93 lists the access change, and the P5 assertions and harness actions stay unchanged. This matches the source at `tests/host/p5-fixture.mjs:17–22`. No assertion is waived. |
+| R3-03 | **Closed** | ADR:459: the copy runs in one storage container of this run, and its ended container is removed by run label before step 2. |
+| R3-04 | **Closed** | M1:232: QA waits for the `storage_lock_acquired` event or the live record, whichever comes first. |
+| R3-05 | **Closed** for the wording (one lane, two points; M1:295). The fixture of point (2) has a new MAJOR: R3B-01. | — |
+| R3-06 | **Closed** | M1:293: one more quarantine, then `stack:up` makes a fresh pair whose `pairId` QA checks against `B`'s, then the restore of `B` refuses `pair_mismatch`. |
+| R3-07 | **Closed** | ADR:292: `demo` holds no lock of its own; the other `demo:*` commands start no container. |
+
+### Regression check of the added lock changes (A-S-12 group rule, B-S-20 primitives)
+
+| Row or check | Result |
+| --- | --- |
+| `a-lock-stale` (M1:234) | Consistent. Cases (1)–(3) now plant an **empty** group, so a record with an ended owner and a non-empty group cannot be reclaimed by mistake under the new rule (ADR:234). Case (4) tests the group rule. All planted values use `LC_ALL=C`. |
+| `g-orphan-refusal`, `g-orphan-stopped` (M1:285 ff.) | Consistent. The command runs as its own detached group, and QA checks that the group is empty after the `SIGKILL`. So the record becomes stale only through the group rule, and `storage_writer_active` still comes from the active container. |
+| `a-lock-wait`, `a-serialize`, `a-lock-reentry`, `a-lock-scope` | Unchanged results; normal releases are not affected by the group rule. |
+| Shared harness group | Source fact S7 (`tests/host/lib.mjs` `run` does not detach and kills the child pid only on timeout). A timed-out guarded command can therefore keep its record live through the harness group, and later commands of that phase then refuse `operation_in_progress` (fail-closed, ADR "Process ownership"). This affects only a phase that has already failed with that timeout. The next phase uses a new clone and a new `.tmp/`. Not a finding. |
+| Lock self-check | ADR:266–274: a harness self-check once per round before `storage`, and the phase is `BLOCKED` on failure. It is not a row. |
+
+### R3B-01 MAJOR — A QA fixture write into a lane without volumes is impossible, and it creates unlabeled volumes that escape the fresh-lane and cleanup checks
+
+- Location:
+  - M1:295, `h-target-state` (2), changed in this revision: "In the `FRESH` state after `g-quarantine` … QA writes two `pending` fresh identities".
+  - M1:237, `a-first-start-resume`: "in a `FRESH` lane (a new lane, or one after `stack:data-quarantine`), QA writes one identity only". This is pre-existing; I missed it in Rounds 2 and 3.
+  - ADR:512 (`storage-fixture`: user `HOST_UID:HOST_GID`; root only for `d-owner` and `d-mountpoint`).
+  - ADR:467 (quarantine removes both lane volumes).
+  - ADR:685 (fact M1: a new volume root is `root:root 0755`, and the service user cannot write in it).
+  - ADR:658 (fresh-lane rule checked "with the label `com.docker.compose.project=<lane>`").
+  - `tests/host/lib.mjs:234–240` (`projectResources`, used by the run teardown, finds volumes by that label only).
+- Schedule:
+  1. `g-quarantine` removes `<lane>_ltidb` and `<lane>_appdb`.
+  2. For `h-target-state` (2), QA's `storage-fixture` container mounts both volume names. Docker silently creates two new volumes with no Compose labels, and their roots are `root:root 0755`.
+  3. As `HOST_UID`, QA cannot create the identity files (permission denied). Root is not allowed for this step.
+  4. Even with a workaround, the unlabeled volumes stay. The run teardown and the §15 fresh-lane and cleanup checks look up volumes by label only, so they do not see these volumes. They can then survive cleanup and carry state into the next lane with the same project name, while the cleanup check reports "none". That is a false PASS of the isolation rule (AC-M3-06).
+- Consequence: two mandatory rows (`h-target-state`, `a-first-start-resume`) cannot run as written, and the run's isolation evidence can pass falsely.
+- Fix (text only):
+  1. §11: a QA container never mounts an absent lane volume. QA checks the volume by exact name before every fixture mount.
+  2. The two rows make the lane volumes through the product: one `dc --profile storage run --rm storage-preflight check --prepare …` under QA's `storage-oplock.sh run --`. Compose then creates labeled volumes with `HOST_UID 0700` roots and two `pending` fresh identities, which is exactly the `FIRST_START` state. For the partial variant, QA then removes one identity as `HOST_UID`.
+  3. The fresh-lane, cleanup and boundary checks of §15 and AC-M3-06 also list the two volumes by exact name, not only by label.
+
+### Inventory (unchanged)
+
+Each round still has **488** mandatory rows: the **416** original rows (ids, phases, labels and assertions unchanged) plus
+the **72** AC-M1-41 rows (a 10, b 3, c 2, d 7, e 13, f 6, g 20, h 7, i 2, j 2). The phases are `sim` 394,
+`snapshot-isolated` 6, `snapshot-upgrade` 6, `migration` 12 and `storage` 70, in two rounds. The lock self-check is a
+separate harness self-check, not a row, and `c-host-negative` stays the only conditional row. R3B-01 adds no row.
+
+### Remaining limits
+
+This is design testability only. It gives no implementation, runtime or acceptance credit. Every stack-level M1, legacy,
+M2 and T7 gate runs again on the implemented candidate. The ADR-012 §17 assumptions (including 10 and 11) remain
+unmeasured. All 32 live rows stay `UNVERIFIED`. The G1 escalation at `9124cfd` is not decided by this check.
