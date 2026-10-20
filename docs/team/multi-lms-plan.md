@@ -533,6 +533,16 @@ Its transcript then ended with two Claude session-limit notices, before task edi
 The Lead fenced that dispatch and marked the same task `task_1276def76f95` failed for a quota retry.
 The [Canvas QA replacement rule](multi-lms-team-brief.md#canvas-qa-quota-replacement-2026-10-20) assigns a distinct Codex GPT-6-Astra xhigh QA instance under the owner's existing fallback authorization.
 No author or common QA instance takes that independent role.
+The Canvas QA retry is `ctx_8d09d8d0f137`, effective `gpt-6-astra` / `xhigh`, handle `structworker_e1fb48fe-f341-43c3-b5b7-2aa59d1e3107`.
+Its start question received the full criteria-only handoff in `msg_dc95bbc99004`; the old Claude session received the closure notice `msg_aa550af7901f`.
+The backend's old Claude session received the equivalent closure in `msg_97a98268e4d8`.
+
+Common/Blackboard QA completed in `msg_edd4d15e4ef0` and is retained for clean execution.
+Its 21 held paths are committed at **`3fef85f51ea798ac6bf3245dba632131f4e38dda`**.
+The preparation adds 27 mandatory rows and four disjoint full-run phases, including the populated `011→012` host route.
+Its selection discovers 166 API cases and 17 host rows; 27 self-checks, typecheck and syntax checks pass.
+Full inventory correctly fails until the 11 required Canvas rows exist. No product or stack run occurred.
+The Canvas QA retry received the frozen common interface and inventory in `msg_6962666ea78b`.
 
 The verification tasks are also queued behind both implementation and test-preparation tasks.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
