@@ -8,7 +8,7 @@
   },
   "scripts": {
     "acceptance": "sh -c 'npm run acceptance:api; a=$?; npm run acceptance:ui; b=$?; exit $((a | b))'",
-    "acceptance:api": "vitest run --config acceptance/vitest.config.mts",
+    "acceptance:api": "node acceptance/run-api.mjs",
     "acceptance:ui": "QA_SUITE=acceptance playwright test --pass-with-no-tests",
     "e2e": "QA_SUITE=e2e playwright test --pass-with-no-tests",
     "typecheck": "tsc --noEmit -p tsconfig.json",

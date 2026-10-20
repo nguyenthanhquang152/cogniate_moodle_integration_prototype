@@ -1,0 +1,26 @@
+{
+  "behaviorSha": "56591df0e71939d5d62c9042c630c841d01f84e8",
+  "sources": [
+    {
+      "id": "blackboard-token",
+      "url": "https://docs.blackboard.com/docs/blackboard/lti/1.3/lti-subsystems/lti-sub-authentication",
+      "retrieved": "2026-10-20",
+      "sha256": "a26b89aaa2107aee74627f4c432394578b15497107121459886050885509664a",
+      "evidence": "Source pin only; not live interoperability"
+    },
+    {
+      "id": "blackboard-deep-link",
+      "url": "https://docs.blackboard.com/docs/blackboard/lti/1.3/dl/dl-return-token",
+      "retrieved": "2026-10-20",
+      "sha256": "ef1d68ecd8e3d1688b84fc6d293c5aafa92fd6aea828ae70a53a96e11a5d51ec",
+      "evidence": "Source pin only; not live interoperability"
+    },
+    {
+      "id": "canvas-upstream",
+      "repository": "https://github.com/instructure/canvas-lms",
+      "revision": "1c9f0bb8013ed69c4f2efe11fd483025469b7e6c",
+      "retrieved": "2026-10-20",
+      "owner": "Canvas QA must read and confirm paths before fixture use"
+    }
+  ]
+}

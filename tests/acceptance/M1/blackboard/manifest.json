@@ -1,0 +1,962 @@
+[
+  {
+    "id": "M1-01.blackboard.readiness",
+    "ac": "AC-M1-01",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-01 shared provider readiness changes after explicit creation {case:M1-01.blackboard.readiness}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-04.blackboard.fixed-endpoints",
+    "ac": "AC-M1-04",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-04 Blackboard endpoint template and forbidden overrides {case:M1-04.blackboard.fixed-endpoints}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-05.blackboard.app",
+    "ac": "AC-M1-05",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-05 both APIs reject invalid Blackboard site: app {case:M1-05.blackboard.app}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-05.blackboard.canonical",
+    "ac": "AC-M1-05",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-05 both services canonicalize the Blackboard site origin {case:M1-05.blackboard.canonical}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-05.blackboard.content",
+    "ac": "AC-M1-05",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-05 both APIs reject invalid Blackboard site: content {case:M1-05.blackboard.content}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-05.blackboard.fixed-host",
+    "ac": "AC-M1-05",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-05 both APIs reject invalid Blackboard site: fixed-host {case:M1-05.blackboard.fixed-host}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-05.blackboard.fixed-host-port",
+    "ac": "AC-M1-05",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-05 both APIs reject invalid Blackboard site: fixed-host-port {case:M1-05.blackboard.fixed-host-port}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-05.blackboard.fragment",
+    "ac": "AC-M1-05",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-05 both APIs reject invalid Blackboard site: fragment {case:M1-05.blackboard.fragment}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-05.blackboard.http",
+    "ac": "AC-M1-05",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-05 both APIs reject invalid Blackboard site: http {case:M1-05.blackboard.http}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-05.blackboard.ipv4",
+    "ac": "AC-M1-05",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-05 both APIs reject invalid Blackboard site: ipv4 {case:M1-05.blackboard.ipv4}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-05.blackboard.ipv6",
+    "ac": "AC-M1-05",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-05 both APIs reject invalid Blackboard site: ipv6 {case:M1-05.blackboard.ipv6}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-05.blackboard.localhost",
+    "ac": "AC-M1-05",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-05 both APIs reject invalid Blackboard site: localhost {case:M1-05.blackboard.localhost}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-05.blackboard.localhost-subdomain",
+    "ac": "AC-M1-05",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-05 both APIs reject invalid Blackboard site: localhost-subdomain {case:M1-05.blackboard.localhost-subdomain}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-05.blackboard.path",
+    "ac": "AC-M1-05",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-05 both APIs reject invalid Blackboard site: path {case:M1-05.blackboard.path}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-05.blackboard.query",
+    "ac": "AC-M1-05",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-05 both APIs reject invalid Blackboard site: query {case:M1-05.blackboard.query}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-05.blackboard.tool",
+    "ac": "AC-M1-05",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-05 both APIs reject invalid Blackboard site: tool {case:M1-05.blackboard.tool}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-05.blackboard.userinfo",
+    "ac": "AC-M1-05",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-05 both APIs reject invalid Blackboard site: userinfo {case:M1-05.blackboard.userinfo}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-06.blackboard.cli",
+    "ac": "AC-M1-06",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-06 shared-platform CLI repeats exactly and refuses another client {case:M1-06.blackboard.cli}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-06.blackboard.singleton",
+    "ac": "AC-M1-06",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-06 one shared platform and protected platform mutations {case:M1-06.blackboard.singleton}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-07.blackboard.alphabet",
+    "ac": "AC-M1-07",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-07 encoded deployment ids round-trip and spaces never store {case:M1-07.blackboard.alphabet}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-07.blackboard.crud",
+    "ac": "AC-M1-07",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-07 shared deployment active state, generation and site changes {case:M1-07.blackboard.crud}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-07.blackboard.fencing",
+    "ac": "AC-M1-07",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-07 binding refs rotate atomically and compare only the current ref {case:M1-07.blackboard.fencing}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-07.blackboard.staging-generation",
+    "ac": "AC-M1-07",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-07 staged deployment activates once and adoption invalidates old credentials {case:M1-07.blackboard.staging-generation}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/10-deployments.test.ts"
+  },
+  {
+    "id": "M1-10.blackboard.deep-link-isolation",
+    "ac": "AC-M1-10",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-10 signed Deep Linking isolates libraries and verifies its return at Learn {case:M1-10.blackboard.deep-link-isolation}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-11.blackboard.best-html",
+    "ac": "AC-M1-11",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-11 80, 60, 90 sends only the best final scores: html {case:M1-11.blackboard.best-html}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-11.blackboard.best-scorm12",
+    "ac": "AC-M1-11",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-11 80, 60, 90 sends only the best final scores: scorm12 {case:M1-11.blackboard.best-scorm12}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-11.blackboard.html-incomplete",
+    "ac": "AC-M1-11",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-11 grade fixture html-incomplete preserves ADR-010 values and routing {case:M1-11.blackboard.html-incomplete}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-11.blackboard.html-seven-of-ten",
+    "ac": "AC-M1-11",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-11 grade fixture html-seven-of-ten preserves ADR-010 values and routing {case:M1-11.blackboard.html-seven-of-ten}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-11.blackboard.html-zero",
+    "ac": "AC-M1-11",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-11 grade fixture html-zero preserves ADR-010 values and routing {case:M1-11.blackboard.html-zero}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-11.blackboard.scorm-incomplete",
+    "ac": "AC-M1-11",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-11 grade fixture scorm-incomplete preserves ADR-010 values and routing {case:M1-11.blackboard.scorm-incomplete}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-11.blackboard.scorm-seven-of-ten",
+    "ac": "AC-M1-11",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-11 grade fixture scorm-seven-of-ten preserves ADR-010 values and routing {case:M1-11.blackboard.scorm-seven-of-ten}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-11.blackboard.scorm-zero",
+    "ac": "AC-M1-11",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-11 grade fixture scorm-zero preserves ADR-010 values and routing {case:M1-11.blackboard.scorm-zero}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-11.blackboard.second-site",
+    "ac": "AC-M1-11",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-11 library B grade goes only to Learn B with the shared application {case:M1-11.blackboard.second-site}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-12.blackboard.ags-lineitem",
+    "ac": "AC-M1-12",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-12 signed ags_lineitem cannot address another Learn site {case:M1-12.blackboard.ags-lineitem}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-12.blackboard.ags-lineitems",
+    "ac": "AC-M1-12",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-12 signed ags_lineitems cannot address another Learn site {case:M1-12.blackboard.ags-lineitems}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-12.blackboard.dl-return",
+    "ac": "AC-M1-12",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-12 signed dl_return cannot address another Learn site {case:M1-12.blackboard.dl-return}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-12.blackboard.nrps",
+    "ac": "AC-M1-12",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-12 signed nrps cannot address another Learn site {case:M1-12.blackboard.nrps}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-13.blackboard.inactive",
+    "ac": "AC-M1-13",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-13 inactive deployment refuses login, launch, existing ltik and service key {case:M1-13.blackboard.inactive}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-13.blackboard.login-token-deployment",
+    "ac": "AC-M1-13",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-13 signed deployment must equal the login deployment {case:M1-13.blackboard.login-token-deployment}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-13.blackboard.unknown-deep-link",
+    "ac": "AC-M1-13",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-13 unknown deployment fails at login and deep-link launch {case:M1-13.blackboard.unknown-deep-link}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-13.blackboard.unknown-resource",
+    "ac": "AC-M1-13",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-13 unknown deployment fails at login and resource launch {case:M1-13.blackboard.unknown-resource}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-14.blackboard.claims",
+    "ac": "AC-M1-14",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-14 privacy allowlist removes personal, custom and nested data before storage {case:M1-14.blackboard.claims}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-14.blackboard.runtime-identity",
+    "ac": "AC-M1-14",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-14 SCORM runtime identity has an empty learner name after claim minimization {case:M1-14.blackboard.runtime-identity}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-15.blackboard.dto",
+    "ac": "AC-M1-15",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-15 Blackboard DTO is strict and contains capability values without grants {case:M1-15.blackboard.dto}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-15.blackboard.not-ready",
+    "ac": "AC-M1-15",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-15 Blackboard connection is refused before the shared application exists {case:M1-15.blackboard.not-ready}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-18.blackboard.disconnect",
+    "ac": "AC-M1-18",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-18 DELETE stops due score delivery and preserves the other deployment {case:M1-18.blackboard.disconnect}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/60-containment.test.ts"
+  },
+  {
+    "id": "M1-18.blackboard.unredeemed-revoked",
+    "ac": "AC-M1-18",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-18 DELETE revokes an issued approval without activating a deployment {case:M1-18.blackboard.unredeemed-revoked}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/60-containment.test.ts"
+  },
+  {
+    "id": "M1-19.blackboard.configuration",
+    "ac": "AC-M1-19",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-19 Blackboard export contains exactly nine ordered rows and values {case:M1-19.blackboard.configuration}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-21.blackboard.capabilities",
+    "ac": "AC-M1-21",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-21 Moodle-only operations are refused without remote calls or publication writes {case:M1-21.blackboard.capabilities}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-22.blackboard.site-check",
+    "ac": "AC-M1-22",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-22 app rejects a changed deployment site after valid LTI origin checks {case:M1-22.blackboard.site-check}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-22.blackboard.text",
+    "ac": "AC-M1-22",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-22 Blackboard deployment errors identify Blackboard {case:M1-22.blackboard.text}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-25.blackboard.site-metadata",
+    "ac": "AC-M1-25",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-25 idtoken exposes the deployment site and provider profile {case:M1-25.blackboard.site-metadata}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-27.blackboard.rebind",
+    "ac": "AC-M1-27",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-27 disconnect and same-library rebind revoke old keys and old publications across restart {case:M1-27.blackboard.rebind}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-28.blackboard.positive",
+    "ac": "AC-M1-28",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-28 operator approval binds one deployment and consumes one grant {case:M1-28.blackboard.positive}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-28.blackboard.replacement",
+    "ac": "AC-M1-28",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-28 new approval revokes the older unredeemed grant {case:M1-28.blackboard.replacement}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.b",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 first-claim squatting fails without a code and with another library code {case:M1-29.blackboard.b}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.c",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 cross-library grant redemption is refused before any remote call {case:M1-29.blackboard.c}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.d",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 a grant belongs to exactly one connection within its library {case:M1-29.blackboard.d}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.e",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 mismatched deployment leaves the valid grant usable {case:M1-29.blackboard.e}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.f",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 redeemed grant cannot bind a new connection {case:M1-29.blackboard.f}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.g",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 60-second grant expires using real wall time {case:M1-29.blackboard.g}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.h",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 revoked grant cannot authorize a deployment {case:M1-29.blackboard.h}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.j",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 valid approval cannot steal another library deployment {case:M1-29.blackboard.j}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.k-client",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 grant CLI refuses client without storing a grant {case:M1-29.blackboard.k-client}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.k-library",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 grant CLI refuses library without storing a grant {case:M1-29.blackboard.k-library}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.k-registered",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 initial grant for a registered connection is refused {case:M1-29.blackboard.k-registered}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.k-site",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 grant CLI refuses site without storing a grant {case:M1-29.blackboard.k-site}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.k-ttl",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 grant CLI refuses ttl without storing a grant {case:M1-29.blackboard.k-ttl}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.l-delete",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 other library sees 404 on connection DELETE  {case:M1-29.blackboard.l-delete}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.l-deployment",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 other library sees 404 on connection POST /deployments {case:M1-29.blackboard.l-deployment}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.l-get",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 other library sees 404 on connection GET  {case:M1-29.blackboard.l-get}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.l-put",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 other library sees 404 on connection PUT /platform {case:M1-29.blackboard.l-put}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-29.blackboard.m",
+    "ac": "AC-M1-29",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-29 the negative grant matrix emits every exact rejection reason {case:M1-29.blackboard.m}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-31.blackboard.portal-routes",
+    "ac": "AC-M1-31",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-31 Blackboard routes require sign-in and use portal security headers {case:M1-31.blackboard.portal-routes}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/30-grants.test.ts"
+  },
+  {
+    "id": "M1-31.blackboard.publication-fields",
+    "ac": "AC-M1-31",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-31 publication create, list and replacement return LMS and connection name {case:M1-31.blackboard.publication-fields}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-33.blackboard.mapping-400",
+    "ac": "AC-M1-33",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-33 LTI score API preserves permanent platform HTTP 400 {case:M1-33.blackboard.mapping-400}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-33.blackboard.mapping-422",
+    "ac": "AC-M1-33",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-33 LTI score API preserves permanent platform HTTP 422 {case:M1-33.blackboard.mapping-422}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-33.blackboard.status-400",
+    "ac": "AC-M1-33",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-33 score HTTP 400 is permanent, with explicit resend of the best result {case:M1-33.blackboard.status-400}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-33.blackboard.status-422",
+    "ac": "AC-M1-33",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-33 score HTTP 422 is permanent, with explicit resend of the best result {case:M1-33.blackboard.status-422}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/40-routing-grades.test.ts"
+  },
+  {
+    "id": "M1-34.blackboard.altered-signature",
+    "ac": "AC-M1-34",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-34 fresh signed Blackboard login rejects altered-signature {case:M1-34.blackboard.altered-signature}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-34.blackboard.expired",
+    "ac": "AC-M1-34",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-34 fresh signed Blackboard login rejects expired {case:M1-34.blackboard.expired}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-34.blackboard.future-iat",
+    "ac": "AC-M1-34",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-34 fresh signed Blackboard login rejects future-iat {case:M1-34.blackboard.future-iat}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-34.blackboard.hs256",
+    "ac": "AC-M1-34",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-34 fresh signed Blackboard login rejects hs256 {case:M1-34.blackboard.hs256}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-34.blackboard.multi-aud-no-azp",
+    "ac": "AC-M1-34",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-34 fresh signed Blackboard login rejects multi-aud-no-azp {case:M1-34.blackboard.multi-aud-no-azp}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-34.blackboard.multi-aud-wrong-azp",
+    "ac": "AC-M1-34",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-34 fresh signed Blackboard login rejects multi-aud-wrong-azp {case:M1-34.blackboard.multi-aud-wrong-azp}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-34.blackboard.no-cookie",
+    "ac": "AC-M1-34",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-34 a valid signature cannot replace the state cookie {case:M1-34.blackboard.no-cookie}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-34.blackboard.none",
+    "ac": "AC-M1-34",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-34 fresh signed Blackboard login rejects none {case:M1-34.blackboard.none}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-34.blackboard.replay",
+    "ac": "AC-M1-34",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-34 state is single-use after a successful launch {case:M1-34.blackboard.replay}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-34.blackboard.unknown-key",
+    "ac": "AC-M1-34",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-34 fresh signed Blackboard login rejects unknown-key {case:M1-34.blackboard.unknown-key}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-34.blackboard.unknown-kid",
+    "ac": "AC-M1-34",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-34 fresh signed Blackboard login rejects unknown-kid {case:M1-34.blackboard.unknown-kid}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-34.blackboard.wrong-audience",
+    "ac": "AC-M1-34",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-34 fresh signed Blackboard login rejects wrong-audience {case:M1-34.blackboard.wrong-audience}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-34.blackboard.wrong-issuer",
+    "ac": "AC-M1-34",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-34 fresh signed Blackboard login rejects wrong-issuer {case:M1-34.blackboard.wrong-issuer}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-34.blackboard.wrong-nonce",
+    "ac": "AC-M1-34",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-34 fresh signed Blackboard login rejects wrong-nonce {case:M1-34.blackboard.wrong-nonce}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-36.blackboard.encoded-dot",
+    "ac": "AC-M1-36",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-36 service key rejects encoded-dot escape without outbound calls {case:M1-36.blackboard.encoded-dot}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-36.blackboard.encoded-slash",
+    "ac": "AC-M1-36",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-36 service key rejects encoded-slash escape without outbound calls {case:M1-36.blackboard.encoded-slash}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-36.blackboard.origin",
+    "ac": "AC-M1-36",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-36 service key rejects origin escape without outbound calls {case:M1-36.blackboard.origin}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-36.blackboard.path",
+    "ac": "AC-M1-36",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-36 service key rejects path escape without outbound calls {case:M1-36.blackboard.path}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-36.blackboard.query",
+    "ac": "AC-M1-36",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-36 service key rejects query escape without outbound calls {case:M1-36.blackboard.query}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/20-protocol.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.a",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 S1 fail-before reserves the deployment and retry activates generation one {case:M1-37.blackboard.a}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.b",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 lost S1 answer leaves an inactive generation-zero record that retry adopts {case:M1-37.blackboard.b}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.d",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 dead handler retains the lease for 60 seconds and its late S3 loses to the retry {case:M1-37.blackboard.d}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.e",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 revocation during held S3 cancels approval and compensates with a new ref {case:M1-37.blackboard.e}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.f",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 replacement cannot start during a live lease and adopts after cancellation {case:M1-37.blackboard.f}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.g",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 disconnect during S3 fences the record and stale compensation cannot undo the fence {case:M1-37.blackboard.g}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.i",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 late S3 can create active remote state without app approval, then retry recovers {case:M1-37.blackboard.i}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.j",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 parallel same-grant redemptions commit exactly once {case:M1-37.blackboard.j}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.k-after-a",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 pending cancel cleans fail_before {case:M1-37.blackboard.k-after-a}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.k-after-b",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 pending cancel cleans drop_after {case:M1-37.blackboard.k-after-b}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.l",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 pending reservation cannot switch deployment through CLI or redemption {case:M1-37.blackboard.l}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.m",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 failed compensation leaves no authority and repeated revoke repairs the record {case:M1-37.blackboard.m}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.n",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 late compensation loses to a successful replacement binding {case:M1-37.blackboard.n}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.o",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 operator suspend fences a dead attempt and release waits for its lease {case:M1-37.blackboard.o}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.q",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 replacement creates first after old S1 times out and the old create cannot overwrite {case:M1-37.blackboard.q}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-37.blackboard.r",
+    "ac": "AC-M1-37",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-37 replacement rereads when old compensation wins between S2 and S3 {case:M1-37.blackboard.r}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/50-races.test.ts"
+  },
+  {
+    "id": "M1-38.blackboard.a",
+    "ac": "AC-M1-38",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-38 operator suspend stops due score delivery without a portal session {case:M1-38.blackboard.a}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/60-containment.test.ts"
+  },
+  {
+    "id": "M1-38.blackboard.b",
+    "ac": "AC-M1-38",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-38 release requires suspend, keeps remote row inactive and preserves history {case:M1-38.blackboard.b}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/60-containment.test.ts"
+  },
+  {
+    "id": "M1-38.blackboard.c",
+    "ac": "AC-M1-38",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-38 new library binding invalidates old credentials and repeated old release is harmless {case:M1-38.blackboard.c}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/60-containment.test.ts"
+  },
+  {
+    "id": "M1-38.blackboard.e",
+    "ac": "AC-M1-38",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-38 release and cross-library reuse transfer no publication, attempt or score history {case:M1-38.blackboard.e}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/60-containment.test.ts"
+  },
+  {
+    "id": "M1-38.blackboard.g-absent",
+    "ac": "AC-M1-38",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-38 late S1 after release cannot gain app authority or change the new binding {case:M1-38.blackboard.g-absent}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/60-containment.test.ts"
+  },
+  {
+    "id": "M1-38.blackboard.g-existing",
+    "ac": "AC-M1-38",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-38 late S3 after release cannot gain app authority or change the new binding {case:M1-38.blackboard.g-existing}",
+    "kind": "api",
+    "file": "acceptance/M1/blackboard/60-containment.test.ts"
+  }
+]

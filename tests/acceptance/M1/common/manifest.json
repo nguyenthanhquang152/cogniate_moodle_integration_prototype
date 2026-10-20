@@ -1,0 +1,290 @@
+[
+  {
+    "id": "M1-01.common.constants",
+    "ac": "AC-M1-01",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-01 all production and simulation profile constants and order {case:M1-01.common.constants}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-02.common.default-profile",
+    "ac": "AC-M1-02",
+    "environment": "SIM",
+    "title": "Default stack rejects simulation profiles",
+    "kind": "host",
+    "file": "host/run-m1.mjs"
+  },
+  {
+    "id": "M1-03.common.auth-origin",
+    "ac": "AC-M1-03",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-03 standard auth endpoint must stay on the issuer origin {case:M1-03.common.auth-origin}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-03.common.legacy",
+    "ac": "AC-M1-03",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-03 omitted profile keeps legacy standard generation and site defaults {case:M1-03.common.legacy}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-03.common.reject-serviceurl",
+    "ac": "AC-M1-03",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-03 standard rejects serviceUrl {case:M1-03.common.reject-serviceurl}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-03.common.reject-siteurl",
+    "ac": "AC-M1-03",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-03 standard rejects siteUrl {case:M1-03.common.reject-siteurl}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-03.common.reserved-blackboard",
+    "ac": "AC-M1-03",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-03 standard cannot reserve blackboard {case:M1-03.common.reserved-blackboard}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-03.common.reserved-blackboard-sim",
+    "ac": "AC-M1-03",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-03 standard cannot reserve blackboard-sim {case:M1-03.common.reserved-blackboard-sim}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-03.common.reserved-canvas",
+    "ac": "AC-M1-03",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-03 standard cannot reserve canvas {case:M1-03.common.reserved-canvas}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-03.common.reserved-canvas-beta",
+    "ac": "AC-M1-03",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-03 standard cannot reserve canvas-beta {case:M1-03.common.reserved-canvas-beta}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-03.common.reserved-canvas-sim",
+    "ac": "AC-M1-03",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-03 standard cannot reserve canvas-sim {case:M1-03.common.reserved-canvas-sim}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-03.common.reserved-canvas-test",
+    "ac": "AC-M1-03",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-03 standard cannot reserve canvas-test {case:M1-03.common.reserved-canvas-test}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-07.common.standard-generation",
+    "ac": "AC-M1-07",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-07 legacy generation remains zero across deployment activation {case:M1-07.common.standard-generation}",
+    "kind": "api",
+    "file": "acceptance/M1/common/80-standard-controls.test.ts"
+  },
+  {
+    "id": "M1-12.common.standard-origin-control",
+    "ac": "AC-M1-12",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-12 standard keeps the existing signed foreign-AGS launch behavior {case:M1-12.common.standard-origin-control}",
+    "kind": "api",
+    "file": "acceptance/M1/common/80-standard-controls.test.ts"
+  },
+  {
+    "id": "M1-14.common.standard-name-control",
+    "ac": "AC-M1-14",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-14 standard keeps name data while provider profiles minimize it {case:M1-14.common.standard-name-control}",
+    "kind": "api",
+    "file": "acceptance/M1/common/80-standard-controls.test.ts"
+  },
+  {
+    "id": "M1-15.common.moodle-default",
+    "ac": "AC-M1-15",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-15 omitted LMS preserves Moodle DTO and 16 configuration rows {case:M1-15.common.moodle-default}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-19.common.moodle-configuration",
+    "ac": "AC-M1-19",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-19 Moodle export keeps all 16 keys and values in order {case:M1-19.common.moodle-configuration}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-21.common.moodle-grant-refused",
+    "ac": "AC-M1-21",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-21 operator cannot issue approval grants for Moodle {case:M1-21.common.moodle-grant-refused}",
+    "kind": "api",
+    "file": "acceptance/M1/common/00-profiles.test.ts"
+  },
+  {
+    "id": "M1-23.common.backup",
+    "ac": "AC-M1-23",
+    "environment": "MOODLE-LIVE",
+    "title": "Stopped-service backup matches both databases and sidecars",
+    "kind": "host",
+    "file": "host/m1-migration.mjs"
+  },
+  {
+    "id": "M1-23.common.backup-running",
+    "ac": "AC-M1-23",
+    "environment": "MOODLE-LIVE",
+    "title": "Backup refuses running services",
+    "kind": "host",
+    "file": "host/m1-migration.mjs"
+  },
+  {
+    "id": "M1-23.common.baseline",
+    "ac": "AC-M1-23",
+    "environment": "MOODLE-LIVE",
+    "title": "Old Moodle launch, sent score and stable service key",
+    "kind": "host",
+    "file": "host/m1-migration.mjs"
+  },
+  {
+    "id": "M1-23.common.upgrade",
+    "ac": "AC-M1-23",
+    "environment": "MOODLE-LIVE",
+    "title": "Migrated Moodle data and stable key remain valid",
+    "kind": "host",
+    "file": "host/m1-migration.mjs"
+  },
+  {
+    "id": "M1-24.common.event-shapes",
+    "ac": "AC-M1-24",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-24 new app and deployment events have exactly the documented fields {case:M1-24.common.event-shapes}",
+    "kind": "api",
+    "file": "acceptance/M1/common/99-logs.test.ts"
+  },
+  {
+    "id": "M1-24.common.secrets",
+    "ac": "AC-M1-24",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-24 captured secrets never appear in service, simulator or gate logs {case:M1-24.common.secrets}",
+    "kind": "api",
+    "file": "acceptance/M1/common/99-logs.test.ts"
+  },
+  {
+    "id": "M1-25.common.standard-site-control",
+    "ac": "AC-M1-25",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-25 standard reports issuer origin for site and service {case:M1-25.common.standard-site-control}",
+    "kind": "api",
+    "file": "acceptance/M1/common/80-standard-controls.test.ts"
+  },
+  {
+    "id": "M1-30.common.postwrite",
+    "ac": "AC-M1-30",
+    "environment": "MOODLE-LIVE",
+    "title": "A later learner grade reaches Moodle",
+    "kind": "host",
+    "file": "host/m1-migration.mjs"
+  },
+  {
+    "id": "M1-30.common.reject-backup-id",
+    "ac": "AC-M1-30",
+    "environment": "MOODLE-LIVE",
+    "title": "Restore rejects damaged backup-id before changing targets",
+    "kind": "host",
+    "file": "host/m1-migration.mjs"
+  },
+  {
+    "id": "M1-30.common.reject-bytes",
+    "ac": "AC-M1-30",
+    "environment": "MOODLE-LIVE",
+    "title": "Restore rejects damaged bytes before changing targets",
+    "kind": "host",
+    "file": "host/m1-migration.mjs"
+  },
+  {
+    "id": "M1-30.common.reject-missing",
+    "ac": "AC-M1-30",
+    "environment": "MOODLE-LIVE",
+    "title": "Restore rejects damaged missing before changing targets",
+    "kind": "host",
+    "file": "host/m1-migration.mjs"
+  },
+  {
+    "id": "M1-30.common.reject-project",
+    "ac": "AC-M1-30",
+    "environment": "MOODLE-LIVE",
+    "title": "Restore rejects damaged project before changing targets",
+    "kind": "host",
+    "file": "host/m1-migration.mjs"
+  },
+  {
+    "id": "M1-30.common.restore",
+    "ac": "AC-M1-30",
+    "environment": "MOODLE-LIVE",
+    "title": "Restore matches saved bytes and removes stale sidecars",
+    "kind": "host",
+    "file": "host/m1-migration.mjs"
+  },
+  {
+    "id": "M1-30.common.rollback",
+    "ac": "AC-M1-30",
+    "environment": "MOODLE-LIVE",
+    "title": "Old code launches with old key; portal loses new write while Moodle keeps grade",
+    "kind": "host",
+    "file": "host/m1-migration.mjs"
+  },
+  {
+    "id": "M1-35.common.acceptance-off",
+    "ac": "AC-M1-35",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-35 simulation gate requires both settings: acceptance/off {case:M1-35.common.acceptance-off}",
+    "kind": "api",
+    "file": "acceptance/M1/common/90-simulation-gates.test.ts"
+  },
+  {
+    "id": "M1-35.common.default-off",
+    "ac": "AC-M1-35",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-35 simulation gate requires both settings: default/off {case:M1-35.common.default-off}",
+    "kind": "api",
+    "file": "acceptance/M1/common/90-simulation-gates.test.ts"
+  },
+  {
+    "id": "M1-35.common.default-on",
+    "ac": "AC-M1-35",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-35 simulation gate requires both settings: default/on {case:M1-35.common.default-on}",
+    "kind": "api",
+    "file": "acceptance/M1/common/90-simulation-gates.test.ts"
+  },
+  {
+    "id": "M1-39.common.missing-family-control",
+    "ac": "AC-M1-39",
+    "environment": "SIM",
+    "title": "[SIM] AC-M1-39 missing and Moodle product families pass the standard profile check {case:M1-39.common.missing-family-control}",
+    "kind": "api",
+    "file": "acceptance/M1/common/80-standard-controls.test.ts"
+  }
+]

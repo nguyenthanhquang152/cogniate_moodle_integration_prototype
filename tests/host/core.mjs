@@ -169,9 +169,25 @@ ${extraHelp}`;
     state.otherBefore = (await allContainers())
       .filter((c) => c.Config?.Labels?.['com.docker.compose.project'] !== PROJECT)
       .map((c) => ({ id: c.Id, name: c.Name, startedAt: c.State?.StartedAt, project: c.Config?.Labels?.['com.docker.compose.project'] ?? '' }));
+    if (task === 'M1' || process.env.QA_M1_LEGACY_GUARD === '1') {
+      state.otherVolumesBefore = await protectedVolumes();
+      saveText('protected-volumes-before.json', JSON.stringify(state.otherVolumesBefore, null, 2));
+    }
     notes.push(`other containers on this Docker host: ${state.otherBefore.length} (not touched by QA)`);
     record('PRE', 'Preflight: tools, free port, free subnet, no leftover QA project', pass(ok), notes);
     if (!ok) state.abort = 'preflight failed';
+  }
+
+  async function protectedVolumes() {
+    const listed = await run('docker', ['volume', 'ls', '-q']);
+    if (listed.code !== 0) throw new Error('Cannot inventory protected Docker volumes');
+    const names = listed.stdout.trim().split('\n').filter(Boolean);
+    if (!names.length) return [];
+    const inspected = await run('docker', ['volume', 'inspect', ...names]);
+    if (inspected.code !== 0) throw new Error('Cannot inspect protected Docker volumes');
+    return JSON.parse(inspected.stdout)
+      .filter((v) => v.Labels?.['com.docker.compose.project'] !== PROJECT)
+      .sort((a, b) => a.Name.localeCompare(b.Name));
   }
 
   async function cloneSha() {
@@ -292,7 +308,18 @@ ${extraHelp}`;
     if (fresh) fs.rmSync(artifacts, { recursive: true, force: true });
     const r = await npm(`test-acceptance-${label}`, ['run', 'test:acceptance'], { env: { ...STACK_ENV, ...env }, timeoutMs: 2_400_000 });
     const dest = path.join(ART, `container-${label}`);
-    if (fs.existsSync(artifacts)) fs.cpSync(artifacts, dest, { recursive: true });
+    if (process.env.QA_M1_LEGACY_GUARD === '1') {
+      // Preserve legacy assertions. Only the evidence transport changes: raw
+      // tokens and browser traces stay in the private clone, never shared.
+      for (const f of walkFiles(artifacts).filter((f) => /captured-secrets\.jsonl$/.test(f))) {
+        for (const line of fs.readFileSync(f, 'utf8').split('\n').filter(Boolean)) redact.add(JSON.parse(line).value);
+      }
+      for (const f of walkFiles(artifacts)) {
+        const rel = path.relative(artifacts, f);
+        if (/^(control|state-)|captured-secrets|\.raw\./.test(rel) || !/\.(json|jsonl|log|txt)$/.test(f)) continue;
+        saveText(path.join(`container-${label}`, rel), fs.readFileSync(f, 'utf8'));
+      }
+    } else if (fs.existsSync(artifacts)) fs.cpSync(artifacts, dest, { recursive: true });
     for (const f of walkFiles(path.join(CLONE, 'infra', '.logs'))) saveText(path.join(`container-${label}`, 'service-logs', path.basename(f)), fs.readFileSync(f, 'utf8'));
     const tests = fs.existsSync(dest) ? readTestReports(dest) : [];
     const ran = new Set(tests.filter((t) => t.status !== 'SKIP').map((t) => t.id));
@@ -328,6 +355,15 @@ ${extraHelp}`;
       const now = after.find((c) => c.Id === b.id);
       return !now || now.State?.StartedAt !== b.startedAt;
     });
+    if (state.otherVolumesBefore) {
+      const afterVolumes = await protectedVolumes();
+      const changedVolumes = state.otherVolumesBefore.filter((before) =>
+        JSON.stringify(afterVolumes.find((v) => v.Name === before.Name)) !== JSON.stringify(before));
+      saveText('protected-volumes-after.json', JSON.stringify(afterVolumes, null, 2));
+      record('M3-ISOLATION', 'Existing non-QA-run containers and volumes remain unchanged',
+        pass(changed.length === 0 && changedVolumes.length === 0),
+        [`containers changed: ${changed.length}; volumes changed: ${changedVolumes.map((v) => v.Name).join(', ') || 'none'}`]);
+    }
     notes.push(`other projects' containers that stopped or restarted: ${changed.length ? changed.map((c) => c.name).join(', ') : 'none'} (information)`);
     record('TEARDOWN', `QA stack ${PROJECT} removed with its volumes and networks`, pass(leftCount === 0), notes);
   }
@@ -365,6 +401,13 @@ ${extraHelp}`;
     if (!state.abort) {
       try {
         await steps();
+        if (process.env.QA_M1_LEGACY_GUARD === '1') {
+          const health = await Promise.all([state.urls.lti, state.urls.app].map(healthz));
+          const ok = health.every((h) => h?.profile === 'default' && Array.isArray(h.knobs) && h.knobs.length === 0)
+            && Array.isArray(health[0]?.simulation_profiles) && health[0].simulation_profiles.length === 0;
+          record('M3-LEGACY-DEFAULT', 'Legacy runner returns both services to default with no knobs or simulation profiles',
+            pass(ok), health.map((h) => JSON.stringify(h)));
+        }
       } catch (e) {
         record('ERROR', 'Runner error', 'FAIL', [e.stack ?? String(e)]);
       } finally {

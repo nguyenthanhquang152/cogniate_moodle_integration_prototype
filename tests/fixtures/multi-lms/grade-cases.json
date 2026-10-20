@@ -1,0 +1,8 @@
+[
+  {"id":"scorm-seven-of-ten","format":"scorm12","raw":7,"maximum":10,"complete":true,"expected":[7,10]},
+  {"id":"scorm-zero","format":"scorm12","raw":0,"maximum":100,"complete":true,"expected":[0,100]},
+  {"id":"scorm-incomplete","format":"scorm12","raw":80,"maximum":100,"complete":false,"expected":null},
+  {"id":"html-seven-of-ten","format":"html","raw":7,"maximum":10,"complete":true,"expected":[70,100]},
+  {"id":"html-zero","format":"html","raw":0,"maximum":10,"complete":true,"expected":[0,100]},
+  {"id":"html-incomplete","format":"html","raw":7,"maximum":10,"complete":false,"expected":null}
+]
