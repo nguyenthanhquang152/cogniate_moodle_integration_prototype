@@ -13,7 +13,31 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 16:24 UTC
+### Current checkpoint — 2026-10-21, 16:39 UTC
+
+Harness QA's host self-check report is committed at `1759ede8658476f01246f61b674d504c30f4d18c`.
+Report SHA-256: `009c2ee2cba0510c474772016b5eff7340039023ded9c6b3705ccfecfb0ddb7b`.
+Source target remains `71a5bf9`, tests tree `d574737219dffadb4447968bb0cc06393e61e5b9`.
+Both final full self-check runs passed 105/105, with zero skips, outer Docker-stub calls or temporary leftovers.
+The focused A-1 rerun detects 22/22 mutants. The combined campaign detects 133/135; the two undetected mutants stay explicit.
+The Lead read the complete report and verified all 11,985 final evidence entries (924 directories 0700, 11,027 files 0600, 34 executables or unused git-hook samples 0700).
+Manifest `evidence/manifest-final-2.tsv`: `7fc238d9b8b84807441d3487e459523535f39b55be37b3ee281ab5b237343c46`.
+QA's D-1/D-2 private source/log creation-mode deviations remain disclosed. Corrected final modes do not establish correct creation modes.
+V1-12 resolved `71a5bf9` and docs-only `f663d1d`; the Lead verified equal tests, package and infra bytes.
+QA `ctx_f189530f67c1` settled successfully and was released. Its PASS covers host self-checks only.
+
+Two independent source reviewers remain active on Opus 5.5 xhigh.
+Reviewer-A's interim report confirms two narrow scanner/cleanup gaps and four NITs, initially rated nonblocking.
+Lead `msg_f73eae3e7219` asks A to reconcile those two gaps with the frozen no-link-follow and stop-on-refusal rules and charter section 5.
+No severity disposition or source approval is final. Reviewer-B is still probing; no peer findings have been shared.
+Both reviewers now have the final QA report and evidence. M4-8f and M5-4b remain undetected, with final dispositions pending.
+The Lead has not closed the harness gate or frozen candidate C.
+
+Product Q-R1A-01 stays closed. No Docker window, push or main merge is authorized.
+Latest full runtime remains 438 PASS and 50 FAIL at `aaa823b`.
+Diagnostic, two full rounds, legacy, fresh M2/T7, final conformance and guides remain pending.
+
+### Prior checkpoint — 2026-10-21, 16:24 UTC
 
 The harness source target is now `71a5bf92608f8ee20e81363a0be987474fc59859`, tests tree `d574737219dffadb4447968bb0cc06393e61e5b9`.
 The first campaign on WIP `5f18477` has 135 named mutants: 130 detected and five undetected.
