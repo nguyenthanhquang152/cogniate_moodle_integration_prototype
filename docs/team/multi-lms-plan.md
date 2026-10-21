@@ -13,7 +13,31 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 08:11 UTC
+### Current checkpoint — 2026-10-21, 08:18 UTC
+
+The bounded Docker diagnosis is complete. The Author settled successfully in `msg_a7738432accd` and was released.
+The Lead checked the report, trial hash, result summary, cleanup record and W4 summaries.
+A new child under a deleted and recreated parent failed to bind in 20/20 trials, including retries beyond five seconds.
+A recreated child under an unchanged parent passed 20/20. New folders passed 20/20, and renamed-away children gave ENOENT 20/20.
+The observed topology matches the failed import. Docker's internal mechanism and the delay's upper bound remain unknown.
+The five-second retry proposal is withdrawn. No product source changed during diagnosis.
+W4 strict comparison passed with zero problems; zero owned containers remain. The Docker window was returned at 08:13:33 UTC.
+Evidence: `/Users/quangnguyen/cogniate-author-diagnostics/m1-41-content-missing-9cdd768-20261021T0746Z/diagnosis.md`.
+Report SHA-256: `5ebbdc4564b6c224550c3724587e73455a525d7c48d371757ea95c51e38798e2`.
+
+Architect task `task_0de615829d29`, dispatch `ctx_a3ac0d2eb594`, assesses a bounded reset repair.
+It may clarify ADR-012 and write `docs/architecture/tasks/storage-reset-parent-repair.md`; product and tests are read-only.
+Its requested and effective settings match Claude Code Opus 5.5 xhigh; acknowledgment is `msg_d1635c8cda4c`.
+The candidate approach preserves the content parent directory while deleting all contents. Data erasure and path safety must remain intact.
+No Docker window or product edit is authorized for the Architect.
+Both independent reviews of QA repair `0e83e3c` are APPROVE, with no BLOCKER or MAJOR.
+Reviewer-A report commit: `b1e79ef`; Reviewer-B report commit: `7b66c1a`. Both workers settled successfully and were released.
+A-SOR-01 and B-SOR-01 are one pre-existing MINOR: two State OK assertions can pass without check folder lines.
+Current product output supplies those lines; no current false PASS is shown. The Lead accepts deferral to the M4 human-review list.
+A-SOR-02/03 and B-SOR-02/03/04 are optional NITs. No action is required for this bounded repair.
+The earlier B-BM-01 coverage deferral also remains on the M4 list. Neither source approval nor diagnosis grants runtime acceptance.
+
+### Prior checkpoint — 2026-10-21, 08:11 UTC
 
 The full `9cdd768` attempt failed in round 1 storage at 07:40:46 UTC. All 488 row records are present: 419 PASS and 69 FAIL.
 SIM passed 394 cases, snapshot isolation six, snapshot upgrade six, and migration twelve. Storage passed one and failed 69.
