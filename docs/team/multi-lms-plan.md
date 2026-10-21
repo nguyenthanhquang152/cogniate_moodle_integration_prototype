@@ -13,7 +13,32 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 18:13 UTC
+### Current checkpoint — 2026-10-21, 18:25 UTC
+
+The owner directed one agent session to resolve all remaining failures. Claude Code Opus 5.5 xhigh worker `ctx_898acbaef3a6` is the continuing remediation owner and planner. It must stay in the same session after its harness report. Later failure fixes stay with this worker; the Lead coordinates any new file scope. Independent reviewers and runtime validators do not make repair edits.
+
+The 11 held test paths are committed at `c71912ff76965f60d92d964ac0bccf5337f59771`, tests tree `183a72b2fea5ff065fc57c96649199bc720fb6e0` (919 insertions, 49 deletions). Hold-file SHA-256: `88d8f16380c88b6d014851ec2fb632d49efc41454e1d85659a20f0f2b63160ab`. This is a source-review snapshot, not candidate C.
+The final umask-022 suite passed 142/142 in 539.1 seconds, with zero skips, Docker-stub calls or temporary leftovers. Umask-077, fresh neutrality bindings and the mutation campaign remain pending.
+The frozen campaign contains 70 unique mutants: 46 new and 24 affected Round 1 cases. Catalog SHA-256 values are `3df0c49b837bdc22932a02a061b99c7ae3ea0b83a9b16208165b782fdd469223`, `20c7894b166e72a99e8c922b1f58c28d272da399f12b30ff64418d03c7a4909e` and `ca15dc7686204eb9d8ca7e053a5f501ddcd68b28cedbfa5a8b6c53af342248da`. Driver SHA-256: `4f71150f3b20a48ac7bcd329137a4b96e3294d1df2a9d217b10e07183889de09`.
+
+Both reviewers completed their static source checks without a new BLOCKER or MAJOR. Their final verdicts still need the bound QA evidence. Prior blocking findings are not formally closed yet. Reviewers need actual failing test names, mutation-copy provenance, both complete suites and strict whole-record neutrality with imported runtime hashes. Optional NIT fixes stay outside this repair round.
+
+Claude's plan arrived in `msg_c1784c7b2cb4`. The Lead accepted its sequence in `msg_39a0ab73c8af` and corrected two status claims: Q-R1A-01 and ADR O-1 are closed, not deferred; no newly observed source fault does not close prior review findings.
+The plan overlaps source reviews with the remaining harness checks, then uses one exclusive Docker window for the migration-12/storage-70 diagnostic. Acceptance still requires two complete 488-row rounds, the 12 legacy groups, fresh M2 and T7, final conformance, guides and independent checks.
+
+The Lead reported these estimates before the promised 18:26 UTC update deadline. All times below are Vietnam time on 22 October:
+
+| Milestone | Estimate and limits |
+| --- | --- |
+| Held harness report | About 01:50; remaining checks may reveal a required fix. |
+| Source-review gate | 02:15–02:50; review proceeds as soon as evidence arrives, so this is not a minimum wait. |
+| First complete runtime result | 03:20–04:20, only if the diagnostic passes. This is not final acceptance. |
+| Full completion | Not yet measured. The second full round, legacy groups and final documentation remain required. Update after the diagnostic; do not substitute a partial handoff. |
+
+Measured inputs remain: 9 minutes for the final 142-test harness run, 42 minutes for the prior incomplete runtime run, 113 seconds for M2 browser execution and 172–174 seconds per T7 run plus resets and setup. Passing storage, legacy and documentation duration are not measured. Claude estimates 15–30 minutes for storage and at least 45–60 minutes for each complete runtime round.
+Three workers remain active, all Opus 5.5 xhigh. Product Q-R1A-01 stays closed at `9f8ac62`. Latest full runtime remains 438 PASS and 50 FAIL at `aaa823b`. No candidate C, Docker window, push or main merge is authorized. The untracked `pnpm-workspace.yaml` stays unchanged.
+
+### Prior checkpoint — 2026-10-21, 18:13 UTC
 
 Reviewer-B Round 1 is committed at `234131d0f11d2f18210ed8afa01e5c4c1ed0e909`.
 Report SHA-256: `4d2cced621335993acdf90290da12a18c7c4303604b93afa21bde5c26f0247aa` (27,688 bytes).
