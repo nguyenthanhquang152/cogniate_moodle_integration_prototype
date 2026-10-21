@@ -13,7 +13,7 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 10:23 UTC
+### Current checkpoint — 2026-10-21, 10:31 UTC
 
 Content-refusal repair candidate `aaa823b25306c5e560f7c4050238b374dec4d4e3` is committed for independent verification.
 Its scope is the restore script, its adjacent unit tests and one infrastructure README sentence.
@@ -22,15 +22,23 @@ Author checks pass: 105 focused tests, 1,123 root unit tests and 84 infrastructu
 All required mutation variants were caught. The report preserves the limits of removed optional scratch artifacts and system temporary-file coverage.
 The Author settled successfully in `msg_e1fcee1d8aff` and was released. These checks grant no runtime acceptance credit.
 
+Host QA passes all 14 subcases, with 656 assertions across 34 commands. Report commit: `18aa6005d3976ae6fa04f72844a2f5b2a6a7712d`.
+The Lead checked the report and all 107 candidate evidence-manifest entries. All six collateral checks pass for every command.
+The Docker stub records zero calls. Every command leaves its private temporary folder empty.
+The report preserves a controls-copy mode failure and its successful unchanged-tool rerun, plus one removed empty QA file outside its root.
+These QA-side items do not change the product verdict. Host QA settled successfully in `msg_ee8e268f145f` and was released.
+
 Three independent workers are active, with requested and effective Claude Code Opus 5.5 xhigh settings:
-- QA: `task_b9f5ddc04fcd`, dispatch `ctx_f4ca2198db32`. The candidate host run is complete; its held report is pending.
+- Targeted QA retry: `task_9a5781ae31f0`, dispatch `ctx_7bc9d3467a5d`. It prepares on the host only, without a Docker grant.
 - Reviewer-A: `task_18fd0f622d94`, dispatch `ctx_14983551ffcd`. It reviews correctness, security and data integrity.
 - Reviewer-B: `task_e1077b5c48d9`, dispatch `ctx_6a05801a6e0e`. It reviews simplicity, operability and test quality.
 
 QA froze its criteria before reading implementation details. Its preparation controls pass 39/39; baseline failures match the frozen predictions.
 Preparation results give no candidate credit. Both reviewers assess design `2323361` and candidate `aaa823b` independently.
+The retry preserves the original tools. A new private copy may add only the two new repair paths to its source-scope allowlist.
+Lead message `msg_7d2b84463f57` requires negative provenance controls and a host-only dry run. All runtime assertions stay unchanged.
 The tests tree remains `4c7e067feedc644f955afee37806f06e7273dd04`. No Docker window is active.
-Candidate host QA, both reviews, strict Q1/Q2 and all full-run gates remain pending. Optional Q3/Q4 runtime probes are not granted.
+Both reviews, strict Q1/Q2 and all full-run gates remain pending. Optional Q3/Q4 runtime probes are not granted.
 All 32 real-LMS rows stay UNVERIFIED. No push or main merge is authorized.
 
 ### Prior checkpoint — 2026-10-21, 09:52 UTC
