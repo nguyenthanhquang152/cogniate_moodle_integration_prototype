@@ -13,7 +13,31 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 12:45 UTC
+### Current checkpoint — 2026-10-21, 12:56 UTC
+
+The bounded design revision is frozen at `ab285856c139ddd50be8c8482eec1a330b7055da`.
+It covers the migration handoff, cleanup failures, backup-run identity, private-copy controls and the exact P-1a criteria.
+The three files are:
+- `docs/architecture/tasks/storage-full-round-triage.md`: SHA-256 `70ba4f9b5a2e61ce79296b9d689618f9a56ddc3d5a8ea0f6189c8f0514241dba`.
+- `docs/architecture/tasks/M1.md`: SHA-256 `b648853cea837284020229a99db81b699066fa916876f90905eb374fdba61057`.
+- `docs/architecture/adr/ADR-012-sqlite-volume-storage.md`: SHA-256 `57602ca4cf9dc82ea2fb874d2ef8618dad204ca7d1727bfa56ee3fa6746fa589`.
+
+The Architect settled successfully and was released. The revision remains a proposal, not an implementation approval.
+Both reviewers received the exact design commit and hashes. Each will report separate R1-A source and design verdicts.
+Independent QA starts from the criteria and freezes its test map before reading source. It assesses feasibility and the full copy/restore inventory.
+
+Three workers are active, all with requested and effective Claude Code Opus 5.5 xhigh:
+- Reviewer-A: task `task_b2f7b073d30f`, dispatch `ctx_4dd7233e0ddd`.
+- Reviewer-B: task `task_3a8def196567`, dispatch `ctx_88c9755b5411`.
+- QA testability: task `task_1fb4229dead2`, dispatch `ctx_c46c7c8e09eb`.
+
+R1-A remains `01ce5bc`; the QA tests tree remains `4c7e067feedc644f955afee37806f06e7273dd04`.
+Harness edits wait for both design confirmations, QA testability and Lead acceptance.
+No Docker window is active. The latest full runtime result remains FAIL at `aaa823b`: 438 PASS and 50 FAIL.
+The diagnostic, both full rounds, legacy, fresh M2/T7, conformance and guides remain pending.
+All 32 real-LMS rows stay UNVERIFIED; local Canvas stays DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 12:45 UTC
 
 R1-A is committed at `01ce5bc2d2d26e4fb1226c5f4f19528fb9ed576b`.
 The lock helper keeps its own acquire command and passes it to release. The embedded JavaScript is unchanged.
