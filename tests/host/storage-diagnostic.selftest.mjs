@@ -78,7 +78,9 @@ function migrationStub(root, fault) {
     if (fault === 'refused') Object.assign(points[2], { failed: true, hits: [{ path: 'x' }], refusals: [{ path: 'x', reason: 'another device or inode' }] });
     if (fault !== 'no-scans') fs.writeFileSync(env.QA_M1_SCAN_FILE, JSON.stringify({ phase: 'migration', complete: fault !== 'incomplete', points }), { mode: 0o600 });
     const art = path.join(root, 'artifacts', path.basename(clone)); fs.mkdirSync(art, { recursive: true });
-    fs.writeFileSync(path.join(art, 'summary.json'), JSON.stringify({ results: [{ id: 'TEARDOWN', status: 'PASS' }] }));
+    // Run-or-stop (d): the owned cleanup record of the migration child (A-04 (2)).
+    const teardown = { cleanup: [{ id: 'TEARDOWN', status: 'FAIL' }], 'cleanup-mixed': [{ id: 'TEARDOWN', status: 'PASS' }, { id: 'TEARDOWN', status: 'FAIL' }], 'cleanup-missing': [] }[fault] ?? [{ id: 'TEARDOWN', status: 'PASS' }];
+    if (fault !== 'cleanup-unreadable') fs.writeFileSync(path.join(art, 'summary.json'), JSON.stringify({ results: teardown }));
     fs.writeFileSync(path.join(art, 'lane-ownership.json'), JSON.stringify({ ledgerErrors: fault === 'ownership' ? ['listing failed'] : [], kept: [], failed: [] }));
     if (fault === 'expire') await pause(80);
     return { code: fault === 'exit' ? 1 : 0, stdout: '', stderr: '' };
@@ -117,6 +119,10 @@ test('HARNESS ONLY: V8-6 the diagnostic starts the storage child only when every
     refused: 'storage NOT RUN: migration scan point migration after the damage copy missing: refused correction',
     handoff: 'storage NOT RUN: handoff check failed: handoff file: mode 644 is not 0600',
     ownership: 'storage NOT RUN: migration ownership record is not unambiguous',
+    cleanup: 'storage NOT RUN: migration owned cleanup did not pass',
+    'cleanup-mixed': 'storage NOT RUN: migration owned cleanup did not pass',
+    'cleanup-missing': 'storage NOT RUN: migration owned cleanup did not pass',
+    'cleanup-unreadable': 'storage NOT RUN: migration cleanup record unreadable',
     expire: 'storage NOT RUN: the granted window has ended',
     'no-scans': 'storage NOT RUN: migration scan record unreadable (ENOENT)',
     incomplete: 'storage NOT RUN: migration scan record is not complete',

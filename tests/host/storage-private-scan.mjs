@@ -40,22 +40,65 @@ function hitRecord(area, rel, abs, st) {
     sha256: st.isFile() ? hashNoFollow(abs) : null, dev: st.dev, ino: st.ino };
 }
 
-/** A private data area: every regular file, whoever made it, has no group or other bit. No name exemption. */
-export function scanTree(root, area) {
+/**
+ * The folders from `base` down to `base/rel` ('' = `base` only), each read with lstat: a directory, not a link, of the
+ * host user. Returns { chain: [{ rel, dev, ino }] }, { absent: rel } or { problem: '<rel> (<reason>)' }.
+ */
+function realChain(base, rel, uid) {
+  const parts = rel ? rel.split(path.sep) : [], chain = [];
+  for (let i = 0; i <= parts.length; i++) {
+    const r = parts.slice(0, i).join('/') || '.';
+    let st;
+    try { st = fs.lstatSync(path.join(base, ...parts.slice(0, i))); } catch (e) { return e.code === 'ENOENT' ? { absent: r } : { problem: `${r} (${e.code ?? e.message})` }; }
+    if (st.isSymbolicLink() || !st.isDirectory()) return { problem: `${r} (${typeOf(st)})` };
+    if (st.uid !== uid) return { problem: `${r} (owner ${st.uid})` };
+    chain.push({ rel: r, dev: st.dev, ino: st.ino });
+  }
+  return { chain };
+}
+/** The first change of recorded folders `{ base, chain }` (a link, another type, owner, device or inode), or null. */
+export function folderChange({ base, chain }, uid) {
+  for (const c of chain) {
+    let st;
+    try { st = fs.lstatSync(path.join(base, c.rel)); } catch (e) { return `${c.rel} (${e.code ?? e.message})`; }
+    if (st.isSymbolicLink() || !st.isDirectory()) return `${c.rel} (${typeOf(st)})`;
+    if (st.uid !== uid) return `${c.rel} (owner ${st.uid})`;
+    if (st.dev !== c.dev || st.ino !== c.ino) return `${c.rel} (another device or inode)`;
+  }
+  return null;
+}
+/** The hit's own path: still a regular file with the recorded device and inode, or the change. */
+function pathChange(hit) {
+  const rel = path.relative(hit.base, hit.abs);
+  let st;
+  try { st = fs.lstatSync(hit.abs); } catch (e) { return `${rel} (${e.code ?? e.message})`; }
+  if (st.isSymbolicLink() || !st.isFile()) return `${rel} (${typeOf(st)})`;
+  return st.dev !== hit.dev || st.ino !== hit.ino ? `${rel} (another device or inode)` : null;
+}
+const lexists = (file) => { try { fs.lstatSync(file); return true; } catch { return false; } };
+
+/**
+ * A private data area: every regular file, whoever made it, has no group or other bit. No name exemption. The root and
+ * the folders from `base` to it must be real folders of the host user (lstat); else nothing is walked (`scanned` false).
+ * Each hit keeps its folders from `base` (device and inode) for the correction.
+ */
+export function scanTree(root, area, { uid = process.getuid(), base = root } = {}) {
   const hits = [], problems = [];
-  const walk = (dir, rel) => {
+  const top = realChain(base, path.relative(base, root), uid);
+  if (!top.chain) { problems.push(`${area}: not scanned: ${top.problem ?? `${top.absent} (missing)`}`); return { hits, problems, scanned: false }; }
+  const walk = (dir, rel, chain) => {
     let names;
     try { names = fs.readdirSync(dir).sort(); } catch (e) { problems.push(`${area}: cannot read ${rel || '.'} (${e.code ?? e.message})`); return; }
     for (const name of names) {
       const abs = path.join(dir, name), r = rel ? `${rel}/${name}` : name;
       let st;
       try { st = fs.lstatSync(abs); } catch (e) { problems.push(`${area}: cannot lstat ${r} (${e.code ?? e.message})`); continue; }
-      if (st.isDirectory()) walk(abs, r);
-      else if (st.isFile() && (modeOf(st) & 0o077) !== 0) hits.push(hitRecord(area, r, abs, st));
+      if (st.isDirectory()) walk(abs, r, [...chain, { rel: path.relative(base, abs), dev: st.dev, ino: st.ino }]);
+      else if (st.isFile() && (modeOf(st) & 0o077) !== 0) hits.push({ ...hitRecord(area, r, abs, st), base, chain });
     }
   };
-  walk(root, '');
-  return { hits, problems };
+  walk(root, '', top.chain);
+  return { hits, problems, scanned: true, chain: top.chain };
 }
 /** Lane private root closure: exactly the five folders; the root and each one a real 0700 directory of the host user. */
 export function rootClosure(root, { uid }) {
@@ -95,32 +138,51 @@ export function binRule(bin, { script, sha256 }) {
  */
 export function scanOutside(clone, ledger, { uid }) {
   const hits = [], problems = [], files = new Map();
+  // The clone, infra and infra/.data must be real folders of the host user; a link on the way is never followed.
+  const data = realChain(clone, path.join('infra', '.data'), uid);
   for (const service of ['lti-service', 'cogniate-app']) {
+    if (data.absent) continue;
+    if (!data.chain) { problems.push(`outside: infra/.data/${service}: not scanned: ${data.problem}`); continue; }
     const dir = path.join(clone, 'infra/.data', service);
     let st = null;
     try { st = fs.lstatSync(dir); } catch (e) { if (e.code !== 'ENOENT') problems.push(`outside: cannot lstat infra/.data/${service} (${e.code})`); }
     // An absent folder or a non-folder has no direct entries; a link is never followed.
     if (!st || (!st.isDirectory() && !st.isSymbolicLink())) continue;
     if (st.isSymbolicLink()) { problems.push(`outside: infra/.data/${service} is a symbolic link (not followed)`); continue; }
+    if (st.uid !== uid) { problems.push(`outside: infra/.data/${service}: not scanned: infra/.data/${service} (owner ${st.uid})`); continue; }
     let names = [];
     try { names = fs.readdirSync(dir).sort(); } catch (e) { problems.push(`outside: cannot read infra/.data/${service} (${e.code})`); }
-    for (const name of names) files.set(path.join(dir, name), `infra/.data/${service}/${name}`);
+    const chain = [...data.chain, { rel: `infra/.data/${service}`, dev: st.dev, ino: st.ino }];
+    for (const name of names) files.set(path.join(dir, name), { rel: `infra/.data/${service}/${name}`, chain });
   }
-  for (const file of ledger ?? []) files.set(file, path.relative(clone, file));
-  for (const [abs, rel] of files) {
+  for (const file of ledger ?? []) {
+    const rel = path.relative(clone, file), parent = path.dirname(rel);
+    if (rel.startsWith('..') || path.isAbsolute(rel)) { problems.push(`outside: ${file} is not inside the clone`); continue; }
+    const folders = realChain(clone, parent === '.' ? '' : parent, uid);
+    if (folders.absent) continue;
+    if (!folders.chain) { problems.push(`outside: ${rel}: not scanned: ${folders.problem}`); continue; }
+    files.set(file, { rel, chain: folders.chain });
+  }
+  for (const [abs, { rel, chain }] of files) {
     if (!protectedClass(rel)) continue;
     let st;
     try { st = fs.lstatSync(abs); } catch (e) { if (e.code !== 'ENOENT') problems.push(`outside: cannot lstat ${rel} (${e.code})`); continue; }
     if (st.isDirectory()) continue;
-    if (st.isSymbolicLink() || !st.isFile() || st.uid !== uid || (modeOf(st) & 0o077) !== 0) hits.push(hitRecord('outside', rel, abs, st));
+    if (st.isSymbolicLink() || !st.isFile() || st.uid !== uid || (modeOf(st) & 0o077) !== 0) hits.push({ ...hitRecord('outside', rel, abs, st), base: clone, chain });
   }
   return { hits, problems };
 }
 /**
- * §7.5 step 3: open the same path without a link follow; a regular file of the host user with the recorded device
- * and inode; fchmod 0600; fstat again with the same device, inode, size and SHA-256. Any other result is refused.
+ * §7.5 step 3 in bounded stages. (1) The recorded folders from the area base to the file are unchanged real folders of
+ * the host user. (2) Open the same path without a link follow: a regular file of the host user with the recorded device
+ * and inode. (3) The folders again, after the open and before any change: the open may have passed a folder that
+ * changed after (1). (4) fchmod 0600; fstat again with the same device, inode, size and SHA-256. (5) The folders and the
+ * path once more: a change after (3) is reported as a late refusal with the mode that the recorded inode has now.
+ * Any other result is refused. Nothing is deleted.
  */
 export function correctHit(hit, { uid }) {
+  const before = folderChange(hit, uid);
+  if (before) return { refused: `path changed before the correction: ${before}` };
   let fd;
   try { fd = fs.openSync(hit.abs, O_RDONLY | O_NOFOLLOW); } catch (e) { return { refused: `cannot open without a link follow (${e.code ?? e.message})` }; }
   try {
@@ -128,11 +190,15 @@ export function correctHit(hit, { uid }) {
     if (!st.isFile()) return { refused: 'not a regular file' };
     if (st.uid !== uid) return { refused: `another owner (${st.uid})` };
     if (st.dev !== hit.dev || st.ino !== hit.ino) return { refused: 'another device or inode' };
+    const opened = folderChange(hit, uid);
+    if (opened) return { refused: `path changed after the open: ${opened}` };
     fs.fchmodSync(fd, 0o600);
     const again = fs.fstatSync(fd);
     const sha256 = crypto.createHash('sha256').update(fs.readFileSync(fd)).digest('hex');
     if (modeOf(again) !== 0o600 || again.dev !== hit.dev || again.ino !== hit.ino || again.size !== hit.size || sha256 !== hit.sha256)
       return { refused: 'the file changed during the correction' };
+    const late = folderChange(hit, uid) ?? pathChange(hit);
+    if (late) return { refused: `path changed during the correction (the recorded inode now has mode ${octal(modeOf(again))}): ${late}` };
     return { corrected: { area: hit.area, path: hit.path, from: hit.mode, to: '0600', dev: hit.dev, ino: hit.ino, size: hit.size, sha256 } };
   } finally { fs.closeSync(fd); }
 }
@@ -145,7 +211,7 @@ export function correctAll(hits, { uid }) {
   }
   return { corrections, refusals };
 }
-const publicHit = ({ abs, ...hit }) => hit;
+const publicHit = ({ abs, base, chain, ...hit }) => hit;
 /** One scan record. `failed`: a hit or a problem (the step FAILs). `refusals`: a correction was refused (the phase stops). */
 export function scanRecord(point, { problems, hits, corrections, refusals }) {
   return { point, at: new Date().toISOString(), problems, hits: hits.map(publicHit), corrections, refusals,
@@ -159,8 +225,8 @@ export function scanPoint({ point, privateRoot, uid, script, scriptSha, extraRoo
   const problems = [...rootClosure(privateRoot, { uid }), ...binRule(path.join(privateRoot, 'bin'), { script, sha256: scriptSha })];
   const hits = [];
   const add = (s) => { hits.push(...s.hits); problems.push(...s.problems); };
-  for (const area of DATA_AREAS) if (fs.existsSync(path.join(privateRoot, area))) add(scanTree(path.join(privateRoot, area), area));
-  for (const root of extraRoots) add(scanTree(root, path.basename(root)));
+  for (const area of DATA_AREAS) if (lexists(path.join(privateRoot, area))) add(scanTree(path.join(privateRoot, area), area, { uid, base: privateRoot }));
+  for (const root of extraRoots) add(scanTree(root, path.basename(root), { uid }));
   if (clone) add(scanOutside(clone, ledger, { uid }));
   return scanRecord(point, { problems, hits, ...correctAll(hits, { uid }) });
 }

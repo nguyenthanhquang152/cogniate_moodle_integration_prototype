@@ -139,7 +139,7 @@ const MSHA = '0123456789abcdef0123456789abcdef01234567', MIMAGE = 'sha256:' + 'c
  * A mocked migration lane: fake runner, fake Docker CLI on PATH (for allContainers), fake fixture answers, a product
  * backup with 0600 files. The CompatRoute steps that need git or a real old build are replaced in the test only.
  */
-async function mockMigration(t, { phase = 'migration', manifestMode = 0o600 } = {}) {
+async function mockMigration(t, { phase = 'migration', manifestMode = 0o600, copyHook = null, probe = null, shell = null, afterBackup = null, backupId = null } = {}) {
   const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'qa-m1-mock-'))); t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const clone = path.join(root, `${MP}-${MSHA.slice(0, 8)}-2026-10-21T13-00-00-000Z`);
   fs.mkdirSync(path.join(clone, 'infra/compat'), { recursive: true }); fs.mkdirSync(path.join(clone, '.tmp'));
@@ -176,7 +176,7 @@ process.exit(97);
   const backupTo = (out) => {
     fs.mkdirSync(out, { mode: 0o700 });
     for (const [sub, name, b] of [['lti-service', 'lti.db', bytes.lti], ['cogniate-app', 'cogniate.db', bytes.app]]) { fs.mkdirSync(path.join(out, sub), { mode: 0o700 }); fs.writeFileSync(path.join(out, sub, name), b, { mode: 0o600 }); }
-    const manifest = { formatVersion: 1, backupId: crypto.randomUUID(), composeProject: MP, source: 'volume', pairId: 'p'.repeat(32), generation: 0,
+    const manifest = { formatVersion: 1, backupId: backupId ?? crypto.randomUUID(), composeProject: MP, source: 'volume', pairId: 'p'.repeat(32), generation: 0,
       files: [['lti-service/lti.db', bytes.lti], ['cogniate-app/cogniate.db', bytes.app]].map(([name, b]) => ({ name, size: b.length, sha256: file(b).sha256 })), migrations: ledger };
     fs.writeFileSync(path.join(out, 'manifest.json'), JSON.stringify(manifest), { mode: 0o600 }); fs.chmodSync(path.join(out, 'manifest.json'), manifestMode);
   };
@@ -193,7 +193,7 @@ process.exit(97);
     npm: async (name, args) => {
       if (name === 'storage-compat-enable') fs.writeFileSync(path.join(clone, '.tmp/compose.knobs.yaml'), 'x-cogniate-storage-compat: {}\n');
       if (name === 'storage-compat-disable') fs.rmSync(path.join(clone, '.tmp/compose.knobs.yaml'), { force: true });
-      if (name === 'data-backup' || name === 'snapshot-backup') backupTo(args[args.indexOf('--out') + 1]);
+      if (name === 'data-backup' || name === 'snapshot-backup') { backupTo(args[args.indexOf('--out') + 1]); afterBackup?.(args[args.indexOf('--out') + 1]); }
       if (name === 'restore-valid') state.restored = JSON.parse(fs.readFileSync(path.join(args[args.indexOf('--from') + 1], 'manifest.json'), 'utf8'));
       if (name === 'snapshot-start-012') state.upgraded = true;
       return { code: ['backup-refuses-running'].includes(name) || name.startsWith('restore-refuses-') ? 1 : 0, stdout: '', stderr: '', durationMs: 0 };
@@ -207,14 +207,14 @@ process.exit(97);
     async oldStart(label, command) { this.current.starts.push({ label, command: command.join(' '), throughWrapper: true, exit: 0, preflightPass: true, statusPass: true, lockHeld: true }); return ok(); },
     async configDiff(profiles) {
       return saved.configDiff.call(this, profiles, {
-        shell: async (script, o) => { fs.writeFileSync(o.env.QA_ARGS_FILE, ['compose', '-f', '.tmp/compose.knobs.yaml', 'config', ''].join('\0')); fs.writeFileSync(o.env.QA_ENV_FILE, 'A=1\0'); return ok(); },
+        shell: shell ?? (async (script, o) => { fs.writeFileSync(o.env.QA_ARGS_FILE, ['compose', '-f', '.tmp/compose.knobs.yaml', 'config', ''].join('\0')); fs.writeFileSync(o.env.QA_ENV_FILE, 'A=1\0'); return ok(); }),
         docker: async () => ok('{}') });
     },
   });
   const scans = [];
   const run = phase === 'migration'
-    ? migrationRun(r, { installTests: async () => {}, setup: async () => true, probe: async () => {}, identity: { productSha: MSHA, testSha: 'f'.repeat(40) }, scans })
-    : snapshotMigrationRun(r, { installTests: async () => {}, setup: async () => true, probe: async (stage) => [{ id: stage === 'snapshot-seed' ? 'M1-38.common.h1' : 'M1-38.common.h2', status: 'PASS' }],
+    ? migrationRun(r, { installTests: async () => {}, setup: async () => true, probe: probe ?? (async () => {}), identity: { productSha: MSHA, testSha: 'f'.repeat(40) }, scans, copyHook })
+    : snapshotMigrationRun(r, { installTests: async () => {}, setup: async () => true, probe: probe ?? (async (stage) => [{ id: stage === 'snapshot-seed' ? 'M1-38.common.h1' : 'M1-38.common.h2', status: 'PASS' }]),
       identity: { productSha: MSHA, testSha: 'f'.repeat(40) }, scans });
   return { run, scans, root };
 }
@@ -255,4 +255,139 @@ test('HARNESS ONLY: scanAt: a hit FAILs, a refused correction stops the phase, a
   assert.equal(scanAt(lane({}), 'p').point, 'p');
   assert.throws(() => scanAt(lane({ failed: true, hits: [{ area: 'out', path: 'x.db', type: 'file', mode: '0644' }] }), 'p'), (e) => e instanceof StorageFail && !(e instanceof PhaseAbort));
   assert.throws(() => scanAt(lane({ failed: true, hits: [{ area: 'out', path: 'x', type: 'file', mode: '0644' }], refusals: [{ area: 'out', path: 'x', reason: 'link' }] }), 'p'), PhaseAbort);
+});
+
+// ---------------------------------------------------------------- Round 2 (A-SH-05 #13, A-SH-02, A-SH-01)
+
+/** O-1 to O-4 of the Round 2 site controls (the same check as storage-private-copy.selftest.mjs). Returns the problems. */
+function createdProblems(records, files) {
+  const problems = [];
+  if (records.length !== files.length) problems.push(`${records.length} creation records for ${files.length} files`);
+  for (const file of files) {
+    const st = fs.lstatSync(file), mine = records.filter((h) => h.target === file), name = path.basename(file);
+    if (mine.length !== 1) { problems.push(`${mine.length ? 'more than one' : 'missing'} creation observation: ${name}`); continue; }
+    const [h] = mine;
+    if (h.regular !== true || h.mode !== '0600' || h.size !== 0) problems.push(`not an empty 0600 regular file at creation: ${name} (${h.mode}, ${h.size} bytes)`);
+    if (h.dev !== st.dev || h.ino !== st.ino) problems.push(`the created inode is not the final file: ${name}`);
+    if ((st.mode & 0o7777) !== 0o600) problems.push(`final mode ${(st.mode & 0o7777).toString(8)}: ${name}`);
+  }
+  return problems;
+}
+/** Every entry below `dir` (links not followed): path, type, mode, size, SHA-256 and the metadata that a chmod changes. */
+function entries(dir) {
+  const out = [];
+  const walk = (d, rel) => {
+    for (const n of fs.readdirSync(d).sort()) {
+      const f = path.join(d, n), r = rel ? `${rel}/${n}` : n, st = fs.lstatSync(f);
+      const type = st.isSymbolicLink() ? 'symlink' : st.isDirectory() ? 'dir' : 'file';
+      out.push({ path: r, type, mode: (st.mode & 0o7777).toString(8).padStart(4, '0'), size: type === 'file' ? st.size : null,
+        sha256: type === 'file' ? crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex') : null, ino: st.ino, ctimeMs: st.ctimeMs });
+      if (type === 'dir') walk(f, r);
+    }
+  };
+  walk(dir, '');
+  return out;
+}
+const backupRootOf = (root, phase = 'migration') => path.join(root, fs.readdirSync(root).find((n) => (phase === 'migration' ? /^qa-m1-private-backup-[A-Za-z0-9]{6}$/ : /^qa-m1-snapshot-private-[A-Za-z0-9]{6}$/).test(n)));
+const NOFOLLOW_READ = fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW;
+/** The §7.5 step 4 race: right after the first no-follow open of a matching file, it moves to `outsideDir` and a link takes its path. */
+function raceOn(t, match, outsideDir) {
+  const orig = fs.openSync, raced = [];
+  fs.openSync = function (p, flags, ...rest) {
+    const fd = orig.call(fs, p, flags, ...rest);
+    if (typeof p === 'string' && flags === NOFOLLOW_READ && match(p) && !raced.some((r) => r.path === p)) {
+      const to = path.join(outsideDir, `${raced.length}-${path.basename(p)}`); fs.renameSync(p, to); fs.symlinkSync(to, p); raced.push({ path: p, to });
+    }
+    return fd;
+  };
+  const off = () => { fs.openSync = orig; };
+  t.after(off);
+  return { raced, off };
+}
+const outsideFolder = (t) => { const d = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'qa-m1-r2-outside-'))); t.after(() => fs.rmSync(d, { recursive: true, force: true })); return d; };
+const plant644 = (file) => { fs.writeFileSync(file, 'qa planted', { mode: 0o600, flag: 'wx' }); fs.chmodSync(file, 0o644); return file; };
+const MIGRATION_POINTS = ['scratch removal compat-config', 'scratch removal compat-config', 'migration after the private backup',
+  ...['bytes', 'missing', 'backup-id', 'project'].map((d) => `migration after the damage copy ${d}`), 'scratch removal compat-config', 'scratch removal compat-config', 'migration phase end'];
+
+for (const mask of [0o022, 0o000]) {
+  test(`HARNESS ONLY: R2-05-13 site #13: each file of the four damage copies is an empty 0600 regular file at creation (umask ${mask.toString(8).padStart(3, '0')})`, async (t) => {
+    const seen = [], old = process.umask(mask);
+    try {
+      assert.equal(process.umask(mask), mask, 'umask pinned');
+      const { run, root } = await mockMigration(t, { copyHook: (h) => { const m = process.umask(0o077); process.umask(m); seen.push({ ...h, umask: m }); } });
+      await run;
+      const backupRoot = backupRootOf(root), want = entries(path.join(backupRoot, 'original')).filter((e) => e.type === 'file').length;
+      for (const d of ['bytes', 'missing', 'backup-id', 'project']) {
+        const dir = path.join(backupRoot, d), mine = seen.filter((h) => h.target.startsWith(dir + path.sep));
+        assert.equal(mine.length, want, `${d}: one creation record for each file of the backup`);
+        const files = entries(dir).filter((e) => e.type === 'file').map((e) => path.join(dir, e.path));
+        assert.deepEqual(createdProblems(mine.filter((h) => fs.existsSync(h.target)), files), [], d);
+        assert.ok(mine.every((h) => h.umask === mask), `${d}: created under the pinned umask`);
+        for (const e of entries(dir)) if (e.type === 'dir') assert.equal(e.mode, '0700', `${d}/${e.path}`);
+      }
+    } finally { process.umask(old); }
+  });
+}
+
+test('HARNESS ONLY: R2-05-N site #13 unhooked, replayed inputs: the migration evidence, scan points and damage copies; the record for the cross-version check', async (t) => {
+  // Replayed input bytes (Lead msg_c42ad04cf575): a fixed backupId, so no byte of the record depends on the run; nothing is normalized.
+  const { run, scans, root } = await mockMigration(t, { backupId: '00000000-0000-4000-8000-000000000013' });
+  const evidence = await run;
+  const backupRoot = backupRootOf(root);
+  const copies = Object.fromEntries(['original', 'bytes', 'missing', 'backup-id', 'project'].map((d) => [d, entries(path.join(backupRoot, d)).map(({ ino, ctimeMs, ...e }) => e)]));
+  const record = { evidence: evidence.map(({ id, status, notes }) => ({ id, status, notes })), points: scans.map((s) => ({ point: s.point, failed: s.failed })), copies };
+  assert.deepEqual(record.points.map((p) => p.point), MIGRATION_POINTS);
+  for (const d of ['bytes', 'missing', 'backup-id', 'project']) for (const e of copies[d]) assert.equal(e.mode, e.type === 'dir' ? '0700' : '0600', `${d}/${e.path}`);
+  if (process.env.QA_R2_NEUTRAL_OUT) fs.writeFileSync(path.join(process.env.QA_R2_NEUTRAL_OUT, 'site-13.json'), JSON.stringify(record, null, 1), { mode: 0o600, flag: 'wx' });
+});
+
+test('HARNESS ONLY: R2-01-03 migration entry: a backup root that becomes a link is not walked; the phase FAILs at its scan point; T is unchanged', async (t) => {
+  let T = null, before = null;
+  const { run, scans } = await mockMigration(t, { manifestMode: 0o644, afterBackup: (out) => {
+    const backupRoot = path.dirname(out); T = backupRoot + '-T'; fs.renameSync(backupRoot, T); fs.symlinkSync(T, backupRoot); before = entries(T);
+  } });
+  await assert.rejects(run, (e) => e instanceof StorageFail && !(e instanceof PhaseAbort) && /^scan at migration after the private backup: qa-m1-private-backup-[A-Za-z0-9]{6}: not scanned: \. \(symlink\)$/.test(e.message));
+  assert.deepEqual(entries(T), before, 'T keeps every mode, byte, inode and ctime');
+  const rec = scans.at(-1);
+  assert.deepEqual([rec.point, rec.hits, rec.corrections, rec.refusals], ['migration after the private backup', [], [], []]);
+});
+
+/** R2-02-06: a refused correction at one migration or snapshot scan point. */
+async function refusalAt(t, { phase = 'migration', match, ...opts }) {
+  const race = raceOn(t, match, outsideFolder(t));
+  const m = await mockMigration(t, { phase, ...opts });
+  let error = null;
+  try { await m.run; } catch (e) { error = e; }
+  race.off();
+  return { ...m, error, race };
+}
+const refusedText = (p, area) => `scan at ${p}: scan hit: ${area} (file 0644); correction refused: ${area}: cannot open without a link follow (ELOOP)`;
+
+// One mock per test: mockMigration replaces PATH and the CompatRoute methods until the test ends.
+const REFUSAL_CASES = [
+  { point: 'migration after the private backup', file: 'original/manifest.json', opts: { manifestMode: 0o644 } },
+  { point: 'migration after the damage copy bytes', file: 'bytes/r2.db', opts: { copyHook: (h) => { if (!h.target.includes('/bytes/')) return; const f = path.join(h.target.split('/bytes/')[0], 'bytes/r2.db'); if (!fs.existsSync(f)) plant644(f); } } },
+  { point: 'migration phase end', file: 'r2-end.db', opts: { probe: async (stage, sha, { route } = {}) => { if (stage === 'rollback') plant644(path.join(backupRootOf(path.dirname(route.r.CLONE)), 'r2-end.db')); } } },
+  { point: 'snapshot-upgrade after the snapshot backup', file: 'original/manifest.json', phase: 'snapshot-upgrade', opts: { manifestMode: 0o644 } },
+];
+for (const c of REFUSAL_CASES) {
+  test(`HARNESS ONLY: R2-02-06 a refused correction at "${c.point}" stops the phase; the record is published`, async (t) => {
+    const { error, scans, root, race } = await refusalAt(t, { phase: c.phase, match: (p) => p.endsWith('/' + c.file), ...c.opts });
+    const area = `${path.basename(backupRootOf(root, c.phase ?? 'migration'))}/${c.file}`;
+    assert.ok(error instanceof PhaseAbort, `${c.point}: ${error?.message}`);
+    assert.equal(error.message, refusedText(c.point, area));
+    const rec = scans.at(-1);
+    assert.deepEqual([rec.point, rec.refusals.length, rec.corrections.length], [c.point, 1, 0], 'The refused correction is published');
+    const all = c.phase ? ['scratch removal compat-config', 'scratch removal compat-config', 'snapshot-upgrade after the snapshot backup', 'snapshot-upgrade phase end'] : MIGRATION_POINTS;
+    assert.deepEqual(scans.map((s) => s.point), all.slice(0, all.indexOf(c.point) + 1), 'The scan points up to the stop');
+    assert.equal(fs.lstatSync(race.raced[0].to).mode & 0o7777, 0o644, 'The moved file is unchanged');
+  });
+}
+
+test('HARNESS ONLY: R2-02-06 a configDiff body error with a refused scratch correction: the body error stays first; the record is published', async (t) => {
+  const { error, scans } = await refusalAt(t, { match: (p) => /\/scratch\/compat-config-[0-9a-f]{16}\/r2\.db$/.test(p),
+    shell: async (script, o) => { fs.writeFileSync(o.env.QA_ARGS_FILE, 'x'); plant644(path.join(path.dirname(o.env.QA_ARGS_FILE), 'r2.db')); return { code: 1, stdout: '', stderr: 'injected', durationMs: 0 }; } });
+  assert.ok(error instanceof StorageFail && !(error instanceof PhaseAbort), error?.message);
+  assert.equal(error.message, 'The old dc() arguments were captured', 'The body error stays the first cause');
+  assert.deepEqual(scans.map((s) => [s.point, s.refusals.length]), [['scratch removal compat-config', 1]], 'The refused correction is published');
 });

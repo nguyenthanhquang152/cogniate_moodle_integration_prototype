@@ -416,6 +416,13 @@ class FakeWorld {
       this.event(lines, 'storage_lock_reclaimed', ctx, { owner: owner(k) });
     }
     this.event(lines, 'storage_lock_acquired', ctx, { waitedMs: waited ? 1000 : 0 });
+    // A6: an active storage container of the lane after the acquisition: refuse storage_writer_active and release.
+    const writer = this.storage.find((c) => c.State.Running);
+    if (writer) {
+      this.event(lines, 'storage_lock_refused', ctx, { reason: 'storage_writer_active', container: { name: writer.Name.slice(1), id: writer.Id } });
+      this.release(ctx, lines);
+      return { refused: `storage_writer_active: ${writer.Name.slice(1)} (${writer.Id})` };
+    }
     for (const c of this.storage.filter((x) => !x.State.Running)) { this.storage = this.storage.filter((x) => x !== c); this.event(lines, 'storage_container_removed', ctx, { container: { name: c.Name.slice(1), id: c.Id } }); }
     for (const name of fs.readdirSync(tmp).filter((n) => n.startsWith(`storage-op.${PROJECT}.cand-`) || n.startsWith(`storage-op.${PROJECT}.rel-`))) {
       const k = JSON.parse(fs.readFileSync(path.join(tmp, name, 'owner.json'), 'utf8'));
@@ -446,6 +453,8 @@ class FakeWorld {
     if (a0 === 'ps') {
       const filters = args.flatMap((a, i) => (args[i - 1] === '--filter' ? [a] : []));
       if (filters.includes('label=org.cogniate.storage')) this.storageListed();
+      // R2-03: the lock record of the killed command is gone before g-orphan-refusal records it.
+      if (this.inject === 'orphan-lock-absent' && this.lane.step === 'g-orphan-refusal' && !this.lockGone && fs.existsSync(this.lockDir())) { this.lockGone = true; fs.rmSync(this.lockDir(), { recursive: true, force: true }); }
       const list = this.all().filter((c) => filters.every((f) => {
         const [k, v] = f.replace(/^label=/, '').split('=');
         return v === undefined ? k in c.Config.Labels : c.Config.Labels[k] === v;
@@ -991,6 +1000,10 @@ class FakeWorld {
     if (site === 'orphan-earlier-removed' && label === 'orphan-backup') fs.rmSync(path.join(tmp, stale[0]), { recursive: true });
     if (site === 'orphan-earlier-changed' && label === 'orphan-up') fs.appendFileSync(path.join(tmp, stale[0], 'owner.json'), ' ');
     if (site === 'orphan-lock-changed' && label === 'orphan-up') fs.appendFileSync(path.join(this.lockDir(), 'owner.json'), ' ');
+    // R2-03-02: the lock folder is gone after one command; in the transient case it comes back, byte-equal, after the next one.
+    if (site === 'orphan-lock-gone:' + label) fs.rmSync(this.lockDir(), { recursive: true, force: true });
+    if (site === 'orphan-lock-transient' && label === 'orphan-recover') { this.heldLock = path.join(tmp, 'qa-r2-held-lock'); fs.renameSync(this.lockDir(), this.heldLock); }
+    if (site === 'orphan-lock-transient' && label === 'orphan-up' && this.heldLock) fs.renameSync(this.heldLock, this.lockDir());
     if (site === 'e-not-same-import legacy copies' && label === 'e-not-same-import') fs.appendFileSync(legacy('lti-service/lti.db'), 'x');
     if (site === 'e-hot-journal legacy journal' && label === 'e-hot-journal-backup') fs.rmSync(legacy('lti-service/lti.db-journal'));
     if (site === 'e-added-wal legacy WAL' && label === 'e-added-wal') fs.rmSync(legacy('lti-service/lti.db-wal'));
@@ -1133,9 +1146,10 @@ async function makeHandoff(world) {
   return { file, windowStart, startedAt, Cm, backup, platformId, connectionId };
 }
 /** A dry run of the storage phase on the mock lane. `stopAfter`: a step file name after which every fake call fails at once. */
-async function dryRun(t, { inject = null, stopAfter = null, hooks = {}, partial = null } = {}) {
+async function dryRun(t, { inject = null, stopAfter = null, hooks = {}, partial = null, setup = null } = {}) {
   const world = new FakeWorld(t, { inject });
   Object.assign(world, { stopAfter, hooks, partial });
+  setup?.(world);
   const h = await makeHandoff(world);
   const rows = await storagePhase(world.lane, { identity: IDENTITY, handoff: { file: h.file, windowStart: h.windowStart, startedAt: h.startedAt }, setupClone: () => world.setupClone() });
   return { world, rows, byId: Object.fromEntries(rows.map((row) => [row.id.replace('M1-41.common.', ''), row])), h };
@@ -1495,7 +1509,7 @@ test('HARNESS ONLY: LD-2 g-orphan-refusal: a reclaim after any one command, or a
   const cases = { 'orphan-transient-reclaim': /^orphan-recover: no command adds a stale-\* folder, and the earlier records are unchanged: added storage-op\.qa-multi-r1-st\.stale-[0-9a-f]{16}$/,
     'orphan-earlier-removed': /^orphan-backup: no command adds a stale-\* folder, and the earlier records are unchanged: removed storage-op\.qa-multi-r1-st\.stale-/,
     'orphan-earlier-changed': /^orphan-up: no command adds a stale-\* folder, and the earlier records are unchanged: changed storage-op\.qa-multi-r1-st\.stale-[0-9a-f]+\/owner\.json$/,
-    'orphan-lock-changed': /^The lock record is unchanged$/ };
+    'orphan-lock-changed': /^orphan-up: the lock record is unchanged$/ };
   for (const [inject, cause] of Object.entries(cases)) {
     const { byId } = await dryRun(t, { inject, stopAfter: 'g-orphan-refusal' });
     assert.equal(byId['g-orphan-refusal'].status, 'FAIL', inject);
@@ -1537,4 +1551,263 @@ test('HARNESS ONLY: LD-3 g-tamper: only state and updatedAt of the two root jour
     assert.equal(byId['g-tamper'].status, 'FAIL', inject);
     assert.ok(byId['g-tamper'].notes[0].includes(part), `${inject}: ${byId['g-tamper'].notes[0]}`);
   }
+});
+
+// ---------------------------------------------------------------- Round 2 (A-SH-02, A-SH-03, A-SH-05)
+
+const NOFOLLOW_READ = fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW;
+/**
+ * The §7.5 step 4 race on chosen planted files: right after the first no-follow open of a file (the hash of its scan
+ * record), the file moves into `outsideDir` and a link to it takes its path, so the correction must refuse.
+ */
+function raceOn(t, match, outsideDir) {
+  const orig = fs.openSync, raced = [];
+  fs.openSync = function (p, flags, ...rest) {
+    const fd = orig.call(fs, p, flags, ...rest);
+    if (typeof p === 'string' && flags === NOFOLLOW_READ && match(p) && !raced.some((r) => r.path === p)) {
+      const to = path.join(outsideDir, `${raced.length}-${path.basename(p)}`); fs.renameSync(p, to); fs.symlinkSync(to, p);
+      raced.push({ path: p, to });
+    }
+    return fd;
+  };
+  const off = () => { fs.openSync = orig; };
+  t.after(off);
+  return { raced, off, undo: () => { for (const r of raced) if (lexists(r.path) && fs.lstatSync(r.path).isSymbolicLink()) fs.unlinkSync(r.path); } };
+}
+/** A planted 0644 file (mode set after the write, so the umask never decides it). */
+const plant644 = (file) => { fs.writeFileSync(file, 'qa planted', { mode: 0o600, flag: 'wx' }); fs.chmodSync(file, 0o644); return file; };
+/** FC-1 to FC-6 of a phase stop at `step`, with its exact first cause and cleanup cause. Returns the problems. */
+function stopProblems({ world, rows }, step, firstCause, cleanupCause) {
+  const problems = [], byId = Object.fromEntries(rows.map((r) => [r.id.replace('M1-41.common.', ''), r]));
+  const fixture = (s) => world.records.filter((x) => x.id === 'STORAGE' + s.replace('@', '-').toUpperCase()).at(-1);
+  if (rows.length !== 70 || new Set(rows.map((r) => r.id)).size !== 70) problems.push(`${rows.length} results`);
+  const own = step.startsWith('@') ? fixture(step) : byId[step];
+  if (own?.status !== 'FAIL' || own.notes[0] !== firstCause) problems.push(`${step}: ${own?.status} "${own?.notes?.[0]}"`);
+  const note = `phase stopped after ${step}: ${cleanupCause}; first cause: ${firstCause}`;
+  for (const later of SEQUENCE.slice(SEQUENCE.indexOf(step) + 1)) {
+    const rec = later.startsWith('@') ? fixture(later) : byId[later], want = later.startsWith('@') ? 'FAIL' : 'BLOCKED';
+    if (rec?.status !== want || rec.notes.length !== 1 || rec.notes[0] !== note) problems.push(`${later} after the stop: ${rec?.status} "${rec?.notes?.[0]}"`);
+  }
+  const end = world.log.findIndex((e) => e.kind === 'step-end' && e.step === step.replace('@', 'fixture-'));
+  if (end < 0 || world.log.slice(end + 1).some((e) => e.kind === 'product')) problems.push('a product command ran after the stop');
+  if (!world.lane.scans.some((s) => s.point === `abort path after ${step}`)) problems.push('no abort-path scan');
+  if (segmentsOf(world).at(-1)?.label !== 'phase-end') problems.push('no phase-end log segment');
+  return problems;
+}
+/** A planted 0644 file in out/ before `beforeStep` runs, and the race on it at the scan after that step. */
+function scanRace(t, holder) {
+  return (w) => {
+    const dir = path.join(w.root, 'r2-outside'); fs.mkdirSync(dir, { mode: 0o700 });
+    holder.file = plant644(path.join(w.lane.out, 'r2-hit.db'));
+    holder.race = raceOn(t, (p) => p === holder.file, dir);
+  };
+}
+const scanCauseOf = (step) => `scan after ${step}: scan hit: out/r2-hit.db (file 0644); correction refused: out/r2-hit.db: cannot open without a link follow (ELOOP)`;
+
+test('HARNESS ONLY: R2-02-01 a refused correction at the scan after a passing step stops the phase; the scan cause is the first cause', async (t) => {
+  const h = {};
+  const run = await dryRun(t, { hooks: { 'i-candidate-guard': scanRace(t, h) } });
+  h.race.off();
+  assert.deepEqual(stopProblems(run, 'd-stale', scanCauseOf('d-stale'), scanCauseOf('d-stale')), []);
+  const scan = run.world.lane.scans.find((s) => s.point === 'after d-stale');
+  assert.deepEqual([scan.hits.map((x) => x.path), scan.refusals.map((x) => x.path)], [['r2-hit.db'], ['r2-hit.db']], 'FC-7: the hit and the refusal are recorded');
+  assert.deepEqual([fs.lstatSync(h.race.raced[0].to).mode & 0o7777, fs.lstatSync(h.file).isSymbolicLink()], [0o644, true], 'FC-7: the moved file and the link stay as evidence');
+});
+
+test('HARNESS ONLY: R2-02-02 a refused correction at the scan after a failed step stops the phase; the body error stays the first cause', async (t) => {
+  const h = {};
+  const run = await dryRun(t, { inject: 'stack-up-fails', hooks: { 'd-owner': scanRace(t, h) } });
+  h.race.off();
+  assert.deepEqual(stopProblems(run, 'd-mountpoint', 'stack:up: expected exit 0, got 1', scanCauseOf('d-mountpoint')), []);
+  assert.ok(run.byId['d-mountpoint'].notes.includes(scanCauseOf('d-mountpoint')), 'The scan cause is a later note');
+});
+
+test('HARNESS ONLY: R2-02-02b a refused correction after a BLOCKED step: the step is FAIL with its own first cause, and the phase stops', async (t) => {
+  const h = {};
+  const run = await dryRun(t, { hooks: { 'c-host-negative': (w) => { fs.mkdirSync(path.join(w.clone, 'infra/.data/cogniate-app'), { recursive: true }); scanRace(t, h)(w); } } });
+  h.race.off();
+  assert.deepEqual(stopProblems(run, 'a-fresh', 'lane not fresh: infra/.data/cogniate-app', scanCauseOf('a-fresh')), []);
+  assert.ok(run.byId['a-fresh'].notes.includes(scanCauseOf('a-fresh')));
+});
+
+/** Wraps the first private scratch of `label`: `plantIn(dir)` runs when it is made; the race is undone after its removal. */
+function scratchFault(world, label, plantIn, race) {
+  const make = world.lane.privateScratch.bind(world.lane);
+  let done = false;
+  world.lane.privateScratch = (l) => {
+    const s = make(l);
+    if (l !== label || done) return s;
+    done = true; plantIn(s.path);
+    return { ...s, remove: () => { try { return s.remove(); } finally { race.undo(); } } };
+  };
+}
+/** The dry run with a planted 0644 `name` in the first `label` scratch, raced at its removal scan (no later scan can see it). */
+async function scratchRun(t, label, name) {
+  let race = null;
+  const run = await dryRun(t, { setup: (w) => {
+    const dir = path.join(w.root, 'r2-outside'); fs.mkdirSync(dir, { mode: 0o700 });
+    race = raceOn(t, (p) => p.includes(`/scratch/${label}-`) && path.basename(p) === name, dir);
+    scratchFault(w, label, (scratch) => plant644(path.join(scratch, name)), race);
+  } });
+  race.off();
+  const where = path.dirname(race.raced[0].path), area = `scratch/${path.basename(where)}`;
+  const abort = `private scratch ${label}: scan hit: ${area}/${name} (file 0644); correction refused: ${area}/${name}: cannot open without a link follow (ELOOP); the folder is kept`;
+  return { ...run, race, where, abort };
+}
+
+test('HARNESS ONLY: R2-02-04/05 (a) a refused correction at a fixture scratch removal after a passing body stops the phase', async (t) => {
+  const run = await scratchRun(t, 'backup-read', 'x.db');
+  assert.deepEqual(stopProblems(run, '@backup-B', run.abort, run.abort), []);
+  assert.ok(!lexists(run.race.raced[0].path), 'The race is undone after the refusal: no later scan can find it');
+  assert.equal(fs.lstatSync(run.race.raced[0].to).mode & 0o7777, 0o644, 'The moved file is unchanged');
+});
+
+test('HARNESS ONLY: R2-02-04/05 (b) a refused correction at a fixture scratch removal after a body error stops the phase; the body error stays first', async (t) => {
+  const run = await scratchRun(t, 'backup-read', 'lti.db');
+  const first = `EEXIST: file already exists, open '${path.join(run.where, 'lti.db')}'`;
+  assert.deepEqual(stopProblems(run, '@backup-B', first, run.abort), []);
+  const rec = run.world.records.find((x) => x.id === 'STORAGE-BACKUP-B');
+  assert.ok(rec.notes.includes('cleanup note: ' + run.abort), rec.notes.join(' | '));
+  assert.ok(!lexists(run.race.raced[0].path), 'The race is undone after the refusal: no later scan can find it');
+});
+
+test('HARNESS ONLY: R2-02-05 (b, row) a refused correction at a row scratch removal after a body error stops the phase; the body error stays first', async (t) => {
+  const run = await scratchRun(t, 'storage-paths', 'cogniate.db');
+  const first = `EEXIST: file already exists, open '${path.join(run.where, 'cogniate.db')}'`;
+  assert.deepEqual(stopProblems(run, 'e-old-schema', first, run.abort), []);
+  assert.ok(run.byId['e-old-schema'].notes.includes('cleanup note: ' + run.abort), run.byId['e-old-schema'].notes.join(' | '));
+});
+
+/** After @old-schema-setup the AC-M1-23 app database has no package table, so storagePaths in e-old-schema is BLOCKED (G-1). */
+const noPackageTable = (w) => {
+  const db = path.join(w.runRoot, 'qa-m1-private-backup-Ab12Cd/original/cogniate-app/cogniate.db'), fresh = db + '.r2';
+  const d = new DatabaseSync(fresh); d.exec('CREATE TABLE other (id TEXT)'); d.close(); fs.renameSync(fresh, db);
+};
+test('HARNESS ONLY: R2-02-07a a BLOCKED body in a scratch with a safely corrected hit: FAIL, the body cause first, the hit note; no phase stop', async (t) => {
+  const run = await dryRun(t, { hooks: { 'fixture-old-schema-setup': noPackageTable }, setup: (w) => scratchFault(w, 'storage-paths', (dir) => plant644(path.join(dir, 'x.db')), { undo: () => {} }) });
+  const row = run.byId['e-old-schema'];
+  assert.equal(row.status, 'FAIL', row.notes.join(' | '));
+  assert.equal(row.notes[0], 'No package table in the copied app database');
+  assert.ok(row.notes.some((n) => /^cleanup note: private scratch storage-paths: scan hit: scratch\/storage-paths-[0-9a-f]{16}\/x\.db \(file 0644\); the folder is kept as evidence$/.test(n)), row.notes.join(' | '));
+  assert.deepEqual([run.byId['e-content-missing'].status, run.byId['e-content-missing'].notes[0]], ['FAIL', 'not run: prerequisite e-old-schema did not pass'], 'No phase stop');
+  assert.ok(!run.world.lane.scans.some((s) => s.point.startsWith('abort path')), 'No abort path');
+});
+test('HARNESS ONLY: R2-02-07b a BLOCKED body in a scratch with a refused correction: FAIL, the body cause first, the cleanup note; the phase stops', async (t) => {
+  let race;
+  const run = await dryRun(t, { hooks: { 'fixture-old-schema-setup': noPackageTable }, setup: (w) => {
+    const dir = path.join(w.root, 'r2-outside'); fs.mkdirSync(dir, { mode: 0o700 });
+    race = raceOn(t, (p) => p.includes('/scratch/storage-paths-') && path.basename(p) === 'x.db', dir);
+    scratchFault(w, 'storage-paths', (scratch) => plant644(path.join(scratch, 'x.db')), race);
+  } });
+  race.off();
+  const area = `scratch/${path.basename(path.dirname(race.raced[0].path))}`;
+  const abort = `private scratch storage-paths: scan hit: ${area}/x.db (file 0644); correction refused: ${area}/x.db: cannot open without a link follow (ELOOP); the folder is kept`;
+  assert.deepEqual(stopProblems(run, 'e-old-schema', 'No package table in the copied app database', abort), []);
+  assert.ok(run.byId['e-old-schema'].notes.includes('cleanup note: ' + abort), run.byId['e-old-schema'].notes.join(' | '));
+});
+
+test('HARNESS ONLY: R2-03-02 g-orphan-refusal FAILs when the lock folder is gone after any one command, also when it comes back later', async (t) => {
+  for (const [inject, cause] of [['orphan-lock-transient', 'orphan-recover: the lock record is unchanged'], ['orphan-lock-gone:orphan-recover', 'orphan-recover: the lock record is unchanged'],
+    ['orphan-lock-gone:orphan-up', 'orphan-up: the lock record is unchanged'], ['orphan-lock-gone:orphan-backup', 'orphan-backup: the lock record is unchanged']]) {
+    const { byId } = await dryRun(t, { inject, stopAfter: 'g-orphan-refusal' });
+    assert.deepEqual([byId['g-orphan-refusal'].status, byId['g-orphan-refusal'].notes[0]], ['FAIL', cause], inject);
+  }
+});
+
+test('HARNESS ONLY: R2-03-01 g-orphan-refusal FAILs when the original lock record is absent before the first command (no null comparison)', async (t) => {
+  const { byId } = await dryRun(t, { inject: 'orphan-lock-absent', stopAfter: 'g-orphan-refusal' });
+  assert.deepEqual([byId['g-orphan-refusal'].status, byId['g-orphan-refusal'].notes[0]], ['FAIL', 'The original lock record is present before the first command']);
+});
+
+/** O-1 to O-4 of the Round 2 site controls (the same check as storage-private-copy.selftest.mjs). Returns the problems. */
+function createdProblems(records, files) {
+  const problems = [];
+  if (records.length !== files.length) problems.push(`${records.length} creation records for ${files.length} files`);
+  for (const file of files) {
+    const st = fs.lstatSync(file), mine = records.filter((h) => h.target === file), name = path.basename(file);
+    if (mine.length !== 1) { problems.push(`${mine.length ? 'more than one' : 'missing'} creation observation: ${name}`); continue; }
+    const [h] = mine;
+    if (h.regular !== true || h.mode !== '0600' || h.size !== 0) problems.push(`not an empty 0600 regular file at creation: ${name} (${h.mode}, ${h.size} bytes)`);
+    if (h.dev !== st.dev || h.ino !== st.ino) problems.push(`the created inode is not the final file: ${name}`);
+    if ((st.mode & 0o7777) !== 0o600) problems.push(`final mode ${(st.mode & 0o7777).toString(8)}: ${name}`);
+  }
+  return problems;
+}
+const entriesOf = (dir) => listRoot(dir).entries.filter((e) => e.path !== '.');
+const copyNames = (backups) => fs.readdirSync(backups).filter((n) => /^(damaged-|nomanifest-|incomplete-|old-manifest-)/.test(n)).sort();
+
+for (const mask of [0o022, 0o000]) {
+  test(`HARNESS ONLY: R2-05-12 site #12: each file of the eight private copies of B and X2 is an empty 0600 regular file at creation (umask ${mask.toString(8).padStart(3, '0')})`, async (t) => {
+    const seen = []; let old = null;
+    const pin = () => { old = process.umask(mask); assert.equal(process.umask(mask), mask, 'umask pinned'); };
+    const unpin = () => { process.umask(old); };
+    const { world, byId } = await dryRun(t, { stopAfter: 'h-old-manifest',
+      setup: (w) => { w.lane.copyHook = (h) => { const m = process.umask(0o077); process.umask(m); seen.push({ ...h, umask: m }); }; },
+      hooks: { 'h-volume-manifest': pin, 'h-nomanifest': unpin, 'e-import-nonfresh': pin, 'h-old-manifest': unpin } });
+    for (const id of ['g-damaged', 'h-nomanifest', 'h-old-manifest']) assert.equal(byId[id].status, 'PASS', `${id}: ${byId[id].notes.join(' | ')}`);
+    const backups = world.lane.backups, names = fs.readdirSync(backups);
+    const source = (c) => path.join(backups, names.find((n) => (c.startsWith('old-manifest-') ? /^X2-[0-9a-f]{16}$/ : /^B-[0-9a-f]{16}$/).test(n)));
+    const copies = copyNames(backups);
+    assert.equal(copies.length, 8);
+    for (const c of copies) {
+      const dir = path.join(backups, c), mine = seen.filter((h) => h.target.startsWith(dir + path.sep));
+      assert.equal(mine.length, entriesOf(source(c)).filter((e) => e.type === 'file').length, `${c}: one creation record for each file of the source`);
+      const files = entriesOf(dir).filter((e) => e.type === 'file' && e.path !== 'INCOMPLETE').map((e) => path.join(dir, e.path));
+      assert.deepEqual(createdProblems(mine.filter((h) => lexists(h.target)), files), [], c);
+      assert.ok(mine.every((h) => h.umask === mask), `${c}: created under the pinned umask`);
+      for (const e of entriesOf(dir)) if (e.type === 'dir') assert.equal(e.mode, '0700', `${c}/${e.path}`);
+    }
+  });
+}
+
+/**
+ * R2-05-N #12 with replayed input bytes (Lead msg_c42ad04cf575): the real g-damaged, h-nomanifest and h-old-manifest
+ * procedures on a minimal fake lane, with fixed synthetic B and X2 trees and counter-named folders. No byte or name of the
+ * record depends on the run, so the cross-version check compares the whole record; nothing is normalized.
+ */
+function replayLane(root) {
+  let n = 0;
+  const lane = { backups: path.join(root, 'backups'), quarantine: path.join(root, 'quarantine'), copyHook: null, calls: [] };
+  for (const d of [lane.backups, lane.quarantine]) fs.mkdirSync(d, { mode: 0o700 });
+  const answer = (code, text) => ({ code, stdout: JSON.stringify({ event: 'storage_refusal', code: text }) + '\nno target changed\n', stderr: '', lines: [{ event: 'storage_refusal', code: text }] });
+  Object.assign(lane, {
+    newFolder: (base, label) => path.join(base, `${label}-${String(++n).padStart(16, '0')}`),
+    snapshot: async () => ({}), assertUnchanged: async () => ({}), services: async () => [],
+    state: async () => ({ fileset: { lti: { journal: { present: false } }, app: { journal: { present: false } } } }),
+    presence: async () => ({ ltidb: { state: 'absent' }, appdb: { state: 'absent' } }),
+    product: async (label, args) => {
+      lane.calls.push([label, ...args.map((a) => (a.startsWith(root) ? path.relative(root, a) : a))]);
+      if (args[0] === 'stack:data-quarantine') { fs.mkdirSync(args[args.indexOf('--out') + 1], { mode: 0o700 }); return answer(0, 'none'); }
+      if (label === 'h-old-manifest-import') return answer(0, 'none');
+      return answer(1, label.startsWith('h-old-manifest') ? 'import_target_not_fresh' : 'manifest_incomplete');
+    },
+  });
+  return lane;
+}
+function replayTree(dir, files) {
+  for (const [rel, text] of Object.entries(files)) {
+    const f = path.join(dir, rel); fs.mkdirSync(path.dirname(f), { recursive: true, mode: 0o755 });
+    fs.writeFileSync(f, text, { mode: 0o644, flag: 'wx' }); fs.chmodSync(f, 0o644);
+  }
+  return dir;
+}
+test('HARNESS ONLY: R2-05-N site #12 unhooked, replayed inputs: the eight copies of fixed B and X2 trees; the record for the cross-version check', async (t) => {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'qa-r2-replay-'))); t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const lane = replayLane(root);
+  const files = (s) => ({ 'lti-service/lti.db': `${s} lti database`, 'lti-service/lti.db-wal': `${s} lti wal`, 'cogniate-app/cogniate.db': `${s} app database` });
+  const manifest = (s, source) => JSON.stringify({ formatVersion: 1, backupId: `0000000${s.length}-0000-4000-8000-000000000012`, composeProject: 'qa-multi-r1-st', source, pairId: 'p'.repeat(32), generation: 1, files: [] });
+  const state = {
+    B: replayTree(path.join(lane.backups, 'B-0000000000000000'), { ...files('B'), 'manifest.json': manifest('B', 'volume') }),
+    X2: replayTree(path.join(lane.backups, 'X2-0000000000000000'), { ...files('X2'), 'manifest.json': manifest('X2', 'legacy') }),
+  };
+  const results = [];
+  for (const step of ['g-damaged', 'h-nomanifest', 'h-old-manifest']) {
+    try { await runRow(lane, step, state); results.push({ step, status: 'PASS', firstCause: null }); }
+    catch (e) { results.push({ step, status: e instanceof StorageBlocked ? 'BLOCKED' : 'FAIL', firstCause: e.message }); }
+  }
+  assert.deepEqual(results.map((r) => r.status), ['PASS', 'PASS', 'PASS'], JSON.stringify(results));
+  const record = { results, calls: lane.calls, folders: Object.fromEntries(fs.readdirSync(lane.backups).sort().map((n) => [n, listRoot(path.join(lane.backups, n)).entries.filter((e) => e.path !== '.')])) };
+  assert.equal(Object.keys(record.folders).length, 10, 'B, X2 and the eight copies');
+  for (const [n, list] of Object.entries(record.folders)) if (!/^(B|X2)-/.test(n)) for (const e of list) assert.equal(e.mode, e.type === 'dir' ? '0700' : '0600', `${n}/${e.path}`);
+  if (process.env.QA_R2_NEUTRAL_OUT) fs.writeFileSync(path.join(process.env.QA_R2_NEUTRAL_OUT, 'site-12.json'), JSON.stringify(record, null, 1), { mode: 0o600, flag: 'wx' });
 });

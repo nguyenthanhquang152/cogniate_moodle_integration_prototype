@@ -183,7 +183,8 @@ export function scanAt(lane, point) {
   return record;
 }
 
-export async function migrationRun(r, { installTests, setup, probe, identity, scans = [] }) {
+// copyHook: a self-test observer of the creation checks of copy site #13; null at run time.
+export async function migrationRun(r, { installTests, setup, probe, identity, scans = [], copyHook = null }) {
   const candidate = r.opt.sha, evidence = [];
   const record = (id, notes) => evidence.push({ id, environment: 'MOODLE-LIVE', status: 'PASS', ...identity, notes });
   assert.match(candidate, /^[a-f0-9]{40}$/);
@@ -231,7 +232,7 @@ export async function migrationRun(r, { installTests, setup, probe, identity, sc
   await stopServices(r);
   const targetBefore = await volumeSnapshot(candidateLane);
   for (const damage of ['bytes', 'missing', 'backup-id', 'project']) {
-    const copy = path.join(backupRoot, damage); privateCopyTree(backup, copy);
+    const copy = path.join(backupRoot, damage); privateCopyTree(backup, copy, { hook: copyHook });
     scanAt(candidateLane, `migration after the damage copy ${damage}`);
     const info = inspectBackup(copy, before, oldLedger, r.PROJECT);
     if (damage === 'bytes') fs.appendFileSync(info.listed.get(databaseNames[0]), Buffer.from([1]));

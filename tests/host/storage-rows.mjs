@@ -127,6 +127,12 @@ export async function storagePhase(lane, { identity, handoff, setupClone }) {
         status = e instanceof StorageBlocked ? 'BLOCKED' : 'FAIL';
         notes = [e.message, ...(acc[step] ?? [])];
         if (e instanceof PhaseAbort) cleanupCause = e.message;
+        // A failed scratch removal after a body error: the body error stays the first cause; a scan hit makes the step FAIL
+        // (§7.5 step 1), and a refused correction also stops the phase (§7.5 step 4).
+        else if (e?.scratchCleanup) {
+          status = 'FAIL'; notes.push('cleanup note: ' + e.scratchCleanup.message);
+          if (e.scratchCleanup instanceof PhaseAbort) cleanupCause = e.scratchCleanup.message;
+        }
       }
       // §4.0 step 9: the restore result is a separate note and never replaces the first cause.
       if (ctx.cleanup) {
@@ -140,7 +146,9 @@ export async function storagePhase(lane, { identity, handoff, setupClone }) {
     const scan = lane.scanPoint(`after ${step}`);
     if (scan.failed || scan.refusals.length) {
       const cause = `scan after ${step}: ${scanCause(scan)}`;
-      if (status === 'FAIL') notes.push(cause); else { status = 'FAIL'; notes = [cause, ...notes]; }
+      // §4.0 step 9: a failed or blocked step keeps its first cause; §7.5 step 1: the step is FAIL.
+      if (status === 'FAIL' || status === 'BLOCKED') notes.push(cause); else notes = [cause, ...notes];
+      status = 'FAIL';
       if (scan.refusals.length) cleanupCause ??= cause;
     }
     lane.step = null;
@@ -883,7 +891,7 @@ function defineRows(ctx) {
       const cases = [['bytes'], ['missing'], ['backup-id'], ['project'], ['incomplete-manifest', 'manifest_incomplete']];
       for (const [damage, code] of cases) {
         const copy = lane.newFolder(lane.backups, 'damaged-' + damage);
-        privateCopyTree(state.B, copy);
+        privateCopyTree(state.B, copy, { hook: lane.copyHook });
         const mf = path.join(copy, 'manifest.json'), m = JSON.parse(fs.readFileSync(mf, 'utf8'));
         if (damage === 'bytes') fs.appendFileSync(path.join(copy, 'lti-service/lti.db'), Buffer.from([1]));
         if (damage === 'missing') fs.rmSync(path.join(copy, 'cogniate-app/cogniate.db'));
@@ -903,9 +911,9 @@ function defineRows(ctx) {
     },
     async 'h-nomanifest'() {
       const noManifest = lane.newFolder(lane.backups, 'nomanifest');
-      privateCopyTree(state.B, noManifest); fs.rmSync(path.join(noManifest, 'manifest.json'));
+      privateCopyTree(state.B, noManifest, { hook: lane.copyHook }); fs.rmSync(path.join(noManifest, 'manifest.json'));
       const incomplete = lane.newFolder(lane.backups, 'incomplete');
-      privateCopyTree(state.B, incomplete); fs.rmSync(path.join(incomplete, 'manifest.json'));
+      privateCopyTree(state.B, incomplete, { hook: lane.copyHook }); fs.rmSync(path.join(incomplete, 'manifest.json'));
       fs.writeFileSync(path.join(incomplete, 'INCOMPLETE'), 'qa', { mode: 0o600 });
       for (const folder of [noManifest, incomplete]) for (const command of ['stack:data-restore', 'stack:data-import']) {
         const before = await lane.snapshot();
@@ -924,6 +932,8 @@ function defineRows(ctx) {
       const killed = await orphanStart('g-orphan-refusal');
       state.orphan = killed;
       const recordBefore = recordHash(lane.lockFolder());
+      // M1 LD-2: the comparisons need the original record; a missing lock record never compares equal to a missing one.
+      check(recordBefore !== null, 'The original lock record is present before the first command');
       // M1 a60ba4a (LD-2): the stale-* records that earlier rows reclaimed, with the hash of each owner.json.
       const staleBefore = staleRecords(path.join(lane.clone, '.tmp'), lane.project);
       const listingBefore = await lane.listing();
@@ -935,6 +945,7 @@ function defineRows(ctx) {
         check((res.stdout + res.stderr).includes(killed.container.name) || (res.stdout + res.stderr).includes(killed.container.id), 'Names the container');
         const changes = staleChanges(staleBefore, staleRecords(path.join(lane.clone, '.tmp'), lane.project));
         check(changes.length === 0, `${label}: no command adds a stale-* folder, and the earlier records are unchanged: ${changes.join('; ')}`);
+        check(recordHash(lane.lockFolder()) === recordBefore, `${label}: the lock record is unchanged`);
       }
       check(recordHash(lane.lockFolder()) === recordBefore, 'The lock record is unchanged');
       check(listingDiff(listingBefore, await lane.listing()).length === 0, "QA's file-set listing is unchanged by these commands");
@@ -1199,7 +1210,7 @@ function defineRows(ctx) {
     async 'h-old-manifest'() {
       await stopped();
       const copy = lane.newFolder(lane.backups, 'old-manifest');
-      privateCopyTree(state.X2, copy);
+      privateCopyTree(state.X2, copy, { hook: lane.copyHook });
       const mf = path.join(copy, 'manifest.json'), m = JSON.parse(fs.readFileSync(mf, 'utf8'));
       delete m.source; fs.writeFileSync(mf, JSON.stringify(m));
       await refusal('h-old-manifest-restore', ['stack:data-restore', '--', '--from', copy], 'import_target_not_fresh');

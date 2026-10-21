@@ -29,7 +29,7 @@ function problems(dir) {
     for (const m of text.matchAll(TOKEN)) counts[m[1]] = (counts[m[1]] ?? 0) + 1;
     const want = EXCEPTIONS[name] ?? {};
     for (const token of new Set([...Object.keys(counts), ...Object.keys(want)])) if ((counts[token] ?? 0) !== (want[token] ?? 0)) out.push(`${name}: ${token} ${counts[token] ?? 0}, expected ${want[token] ?? 0}`);
-    if (/(?:from\s*|import\s*\(\s*)['"][^'"]*\.selftest\.mjs['"]/.test(text)) out.push(`${name}: imports a self-test file`);
+    if (/\b(?:from|import)\s*(?:\(\s*)?['"][^'"]*\.selftest\.mjs['"]/.test(text)) out.push(`${name}: imports a self-test file`);
   }
   return out;
 }
@@ -52,13 +52,13 @@ const SITES = [
   ['#4', 'storage-fixture-script.mjs', 'privateCopy(file, path.join(scratch, db + suffix), { hook });'],
   ['#5', 'storage-fixture-script.mjs', 'intoVolumeWrite(file, bytes, op.mode ?'],
   ['#6', 'storage-fixture-script.mjs', "intoVolumeWrite(file, Buffer.from(op.base64 ?? '', 'base64')"],
-  ['#7', 'storage-fixture-script.mjs', 'if (negative) privateCopy(file, separate);'],
+  ['#7', 'storage-fixture-script.mjs', 'if (negative) privateCopy(file, separate, { hook });'],
   ['#8', 'storage-oracle.mjs', 'privateCopy(sourceFile, target, { hook });'],
   ['#9', 'storage-rows.mjs', 'privateReplace(target, readRegular(path.join(fromClone, rel)).bytes, { hook });'],
   ['#10', 'storage-lane.mjs', "privateCopy(path.join(src, db + suffix), path.join(scratch, db + suffix), { hook });"],
   ['#11', 'storage-rows.mjs', "privateCopy(path.join(appFolder, 'cogniate.db' + s), path.join(scratch, 'cogniate.db' + s), { hook });"],
-  ['#12', 'storage-rows.mjs', 'privateCopyTree(state.B, copy);'],
-  ['#13', 'm1-migration.mjs', 'privateCopyTree(backup, copy);'],
+  ['#12', 'storage-rows.mjs', 'privateCopyTree(state.B, copy, { hook: lane.copyHook });'],
+  ['#13', 'm1-migration.mjs', 'privateCopyTree(backup, copy, { hook: copyHook });'],
   ['#14', 'storage-compat-route.mjs', 'const ids = { [argsFile]: privateEmptyFile(argsFile'],
   ['#15', 'storage-rows.mjs', "fs.writeFileSync(file, text, { mode: 0o600, flag: 'wx' });"],
   ['#16', 'm1-migration.mjs', 'privateWrite(file, Buffer.from(JSON.stringify({ m123Backup'],
@@ -90,6 +90,17 @@ test('HARNESS ONLY: V4-9 mutations on a temporary copy: a token at any site #1â€
   const imports = copyScope(t);
   insertBefore(imports, 'storage-lane.mjs', "import { httpsLoopback, run } from './lib.mjs';", "import { NEEDS } from './storage-rows.selftest.mjs';");
   assert.deepEqual(problems(imports), ['storage-lane.mjs: imports a self-test file']);
+  // R2-04 (A-SH-04): a bare side-effect import of a self-test in each quote form, and again the existing forms.
+  for (const line of ["import './storage-x.selftest.mjs';", 'import "./storage-x.selftest.mjs"', "import'./storage-x.selftest.mjs';",
+    "import * as x from './storage-x.selftest.mjs';", 'import x from "./storage-x.selftest.mjs";', "export { a } from './storage-x.selftest.mjs';",
+    "export * from './storage-x.selftest.mjs';", "const x = await import('./storage-x.selftest.mjs');"]) {
+    const dir = copyScope(t);
+    insertBefore(dir, 'storage-lane.mjs', "import { httpsLoopback, run } from './lib.mjs';", line);
+    assert.deepEqual(problems(dir), ['storage-lane.mjs: imports a self-test file'], line);
+  }
+  const bare = copyScope(t);
+  insertBefore(bare, 'storage-rows.mjs', "import { m1HostControl } from './m1-control.mjs';", "import './storage-docker.mjs';");
+  assert.deepEqual(problems(bare), [], 'A bare import of a runtime module is allowed');
   const comment = copyScope(t);
   insertBefore(comment, 'storage-handoff.mjs', 'export const WINDOW_FORM', '// a comment that says mkdtemp(');
   assert.deepEqual(problems(comment), ['storage-handoff.mjs: mkdtemp 1, expected 0'], 'A match in a comment also counts');

@@ -3,7 +3,7 @@
 // final modes), V4-8 (the private empty file and its lstat checks) and IN-4. Each umask is pinned and asserted.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -188,4 +188,76 @@ test('HARNESS ONLY: IN-4 the container logical read uses its own temporary folde
   assert.equal(answer.lti?.markers?.m, 1, 'The read used the container temporary folder: ' + outText);
   assert.deepEqual(fs.readdirSync(evil), [], 'Nothing in the folder named by the spec');
   fs.chmodSync(evil, 0o700);
+});
+
+// ---------------------------------------------------------------- Round 2 (A-SH-05): the creation observation of site #7
+
+/**
+ * O-1 to O-4 of the Round 2 site controls: exactly one creation record for each written file, an empty 0600 regular file
+ * at creation, on the device and inode of the final file, and a final 0600 mode. Returns the problems.
+ */
+function createdProblems(records, files) {
+  const problems = [];
+  if (records.length !== files.length) problems.push(`${records.length} creation records for ${files.length} files`);
+  for (const file of files) {
+    const st = fs.lstatSync(file), mine = records.filter((h) => h.target === file), name = path.basename(file);
+    if (mine.length !== 1) { problems.push(`${mine.length ? 'more than one' : 'missing'} creation observation: ${name}`); continue; }
+    const [h] = mine;
+    if (h.regular !== true || h.mode !== '0600' || h.size !== 0) problems.push(`not an empty 0600 regular file at creation: ${name} (${h.mode}, ${h.size} bytes)`);
+    if (h.dev !== st.dev || h.ino !== st.ino) problems.push(`the created inode is not the final file: ${name}`);
+    if ((st.mode & 0o7777) !== 0o600) problems.push(`final mode ${(st.mode & 0o7777).toString(8)}: ${name}`);
+  }
+  return problems;
+}
+/** The oracle-B negative child of site #7 through /bin/sh with its own umask; the shell reports the mask that the child gets. */
+function oracleB(dbf, mask, observe) {
+  const env = { ...process.env, QA_ORACLE_NEGATIVE_CONTROL: 'separate-file' };
+  delete env.QA_ORACLE_CREATE_OBSERVE;
+  if (observe) env.QA_ORACLE_CREATE_OBSERVE = observe;
+  return spawnSync('/bin/sh', ['-c', 'umask "$1"; shift; printf "umask=%s\\n" "$(umask)" >&2; exec "$@"', 'sh', mask, process.execPath, '--no-warnings', SCRIPT, 'oracle-B', '--file', dbf], { env, encoding: 'utf8' });
+}
+function negativeDb(root, name) {
+  const dir = path.join(root, name); fs.mkdirSync(dir, { mode: 0o700 });
+  const dbf = path.join(dir, 't.db'), db = new DatabaseSync(dbf); db.exec('PRAGMA journal_mode = WAL; CREATE TABLE t (id INTEGER PRIMARY KEY, who TEXT)'); db.close(); fs.chmodSync(dbf, 0o644);
+  return { dir, dbf };
+}
+const negativeCopies = (dir) => fs.readdirSync(dir).filter((n) => /^t\.db\.qa-negative-\d+$/.test(n)).map((n) => path.join(dir, n));
+
+test('HARNESS ONLY: R2-05-D the creation check names a missing or extra record, a non-empty or 0644 create, another inode', (t) => {
+  const d = tmp(t), f = path.join(d, 'f'); fs.writeFileSync(f, 'x', { mode: 0o600, flag: 'wx' }); fs.chmodSync(f, 0o600);
+  const st = fs.lstatSync(f), good = { target: f, regular: true, mode: '0600', size: 0, dev: st.dev, ino: st.ino };
+  assert.deepEqual(createdProblems([good], [f]), []);
+  assert.deepEqual(createdProblems([], [f]), ['0 creation records for 1 files', 'missing creation observation: f']);
+  assert.deepEqual(createdProblems([good, good], [f]), ['2 creation records for 1 files', 'more than one creation observation: f']);
+  assert.deepEqual(createdProblems([{ ...good, size: 1 }], [f]), ['not an empty 0600 regular file at creation: f (0600, 1 bytes)']);
+  assert.deepEqual(createdProblems([{ ...good, mode: '0644' }], [f]), ['not an empty 0600 regular file at creation: f (0644, 0 bytes)']);
+  assert.deepEqual(createdProblems([{ ...good, ino: st.ino + 1 }], [f]), ['the created inode is not the final file: f']);
+});
+
+for (const mask of ['022', '000']) {
+  test(`HARNESS ONLY: R2-05-07 site #7: the oracle-B negative copy is an empty 0600 regular file at creation, in its own child (umask ${mask})`, (t) => {
+    const root = tmp(t), { dir, dbf } = negativeDb(root, 'neg'), observe = path.join(root, 'created.jsonl');
+    privateEmptyFile(observe);
+    const res = oracleB(dbf, mask, observe);
+    assert.equal(res.status, 2, 'oracle-B acquired on its separate copy: ' + res.stderr);
+    assert.match(res.stderr, new RegExp(`^umask=0*${mask === '000' ? '0' : '22'}$`, 'm'), 'The child runs with the pinned umask');
+    const copies = negativeCopies(dir);
+    assert.equal(copies.length, 1);
+    const records = fs.readFileSync(observe, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l));
+    assert.deepEqual(createdProblems(records, copies), []);
+    // Without the variable the child writes no record and gives the same answer.
+    const again = negativeDb(root, 'neg2'), plain = oracleB(again.dbf, mask, null);
+    assert.deepEqual([plain.status, plain.stdout, plain.stderr], [res.status, res.stdout, res.stderr], 'The same exit, answer and diagnostics without the observation');
+    assert.equal(fs.readFileSync(observe, 'utf8').split('\n').filter(Boolean).length, 1, 'No record without the variable');
+    assert.equal(mode(negativeCopies(again.dir)[0]), 0o600);
+  });
+}
+
+test('HARNESS ONLY: R2-05-N site #7 unhooked: exit 2, one answer line, one 0600 copy; the record for the cross-version check', (t) => {
+  const root = tmp(t), { dir, dbf } = negativeDb(root, 'neutral'), res = oracleB(dbf, '022', null);
+  const entries = fs.readdirSync(dir).sort().map((n) => { const f = path.join(dir, n), st = fs.lstatSync(f);
+    return { name: n, type: st.isFile() ? 'file' : 'other', mode: (st.mode & 0o7777).toString(8).padStart(4, '0'), size: st.size, sha256: st.isFile() ? sha(f) : null }; });
+  assert.deepEqual([res.status, res.stdout, negativeCopies(dir).length], [2, '{"role":"B","event":"ACQUIRED"}\n', 1]);
+  assert.equal(mode(negativeCopies(dir)[0]), 0o600);
+  if (process.env.QA_R2_NEUTRAL_OUT) fs.writeFileSync(path.join(process.env.QA_R2_NEUTRAL_OUT, 'site-7.json'), JSON.stringify({ status: res.status, stdout: res.stdout, stderr: res.stderr, entries }, null, 1), { mode: 0o600, flag: 'wx' });
 });

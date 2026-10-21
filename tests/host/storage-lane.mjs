@@ -12,7 +12,7 @@ import {
   qaContainers, serviceContainers, servicesStopped, storageContainers, volumePresence,
 } from './storage-docker.mjs';
 import { check, clockSample, fileSets, identities, jsonLines, nothingChanged, readJsonl, spawnGroup } from './storage-oracle.mjs';
-import { PhaseAbort, correctAll, scanCause, scanPoint, scanRecord, scanTree } from './storage-private-scan.mjs';
+import { PhaseAbort, correctAll, folderChange, scanCause, scanPoint, scanRecord, scanTree } from './storage-private-scan.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const SCRIPT = 'storage-fixture-script.mjs';
@@ -27,12 +27,14 @@ export class StorageLane {
    * @param r       the core.mjs runner (CLONE, PROJECT, STACK_ENV, exec, npm, observe, docker, record, saveText, state)
    * @param options { oplock: lock helper path relative to the clone, privateRoot: folder outside the checkout,
    *                  scans: the scan record list of the phase (shared by the lanes of one phase),
-   *                  request: the HTTPS function (lib.mjs httpsLoopback; a self-test records the requests) }
+   *                  request: the HTTPS function (lib.mjs httpsLoopback; a self-test records the requests),
+   *                  copyHook: a self-test observer of the creation checks of copy site #12; null at run time }
    */
-  constructor(r, { oplock = 'infra/scripts/storage-oplock.sh', privateRoot, docker, scans, request } = {}) {
+  constructor(r, { oplock = 'infra/scripts/storage-oplock.sh', privateRoot, docker, scans, request, copyHook = null } = {}) {
     this.r = r; this.project = r.PROJECT; this.clone = r.CLONE; this.oplock = oplock;
     this.docker = docker ?? r.docker;
     this.request = request ?? httpsLoopback;
+    this.copyHook = copyHook;
     this.hostUid = process.getuid(); this.hostGid = process.getgid();
     this.private = privateRoot ?? path.join(path.dirname(r.CLONE), path.basename(r.CLONE) + '-storage-private');
     this.bin = path.join(this.private, 'bin'); this.out = path.join(this.private, 'out');
@@ -259,21 +261,32 @@ export class StorageLane {
     check(st.isDirectory() && !st.isSymbolicLink() && (st.mode & 0o7777) === 0o700 && st.uid === this.hostUid, 'Private scratch is a 0700 folder of the host user: ' + dir);
     return { path: dir, remove: () => this.removeScratch(label, dir) };
   }
-  /** Zero hits: the folder is removed. A hit: the step FAILs and the folder stays as evidence, also after a safe correction. */
+  /**
+   * Zero hits: the folder is removed. A hit: the step FAILs and the folder stays as evidence, also after a safe correction.
+   * A scratch folder that is not a real folder of the host user (from the private root down) is never walked or removed:
+   * the cleanup cannot run safely, so the phase stops (triage §4.3).
+   */
   removeScratch(label, dir) {
-    const s = scanTree(dir, `scratch/${path.basename(dir)}`);
+    const s = scanTree(dir, `scratch/${path.basename(dir)}`, { uid: this.hostUid, base: this.private });
     const record = scanRecord(`scratch removal ${label}`, { problems: s.problems, hits: s.hits, ...correctAll(s.hits, { uid: this.hostUid }) });
     this.recordScan(record);
+    if (!s.scanned) throw new PhaseAbort(`private scratch ${label}: ${scanCause(record)}; the folder is not a real folder of the host user and is kept`);
     if (record.refusals.length) throw new PhaseAbort(`private scratch ${label}: ${scanCause(record)}; the folder is kept`);
     if (record.failed) throw new StorageFail(`private scratch ${label}: ${scanCause(record)}; the folder is kept as evidence`);
+    // The folders from the private root down were checked by the scan; check them again just before the removal.
+    const moved = folderChange({ base: this.private, chain: s.chain }, this.hostUid);
+    if (moved) throw new PhaseAbort(`private scratch ${label}: the folder changed before the removal: ${moved}; the folder is kept`);
     fs.rmSync(dir, { recursive: true });
   }
-  /** Runs `fn(scratchPath)` in a new private scratch; the removal scan runs also after a failure (first cause kept). */
+  /**
+   * Runs `fn(scratchPath)` in a new private scratch; the removal scan runs also after a failure (first cause kept). A
+   * removal error after a body error (a scan hit or a phase stop) stays on that error as `scratchCleanup` (§7.5, §4.3).
+   */
   async withScratch(label, fn) {
     const scratch = this.privateScratch(label);
     let value, first = null;
-    try { value = await fn(scratch.path); } catch (e) { first = e; }
-    try { scratch.remove(); } catch (e) { first ??= e; }
+    try { value = await fn(scratch.path); } catch (e) { first = e instanceof Error ? e : new StorageFail(String(e)); }
+    try { scratch.remove(); } catch (e) { if (!first) first = e; else first.scratchCleanup ??= e; }
     if (first) throw first;
     return value;
   }

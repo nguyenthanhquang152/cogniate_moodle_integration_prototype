@@ -51,7 +51,7 @@ const exists = (file) => { try { fs.lstatSync(file); return true; } catch { retu
 
 // ------------------------------------------------------------ private copies (triage §7.3)
 
-const { O_CREAT, O_EXCL, O_NOFOLLOW, O_RDONLY, O_WRONLY } = fs.constants;
+const { O_APPEND, O_CREAT, O_EXCL, O_NOFOLLOW, O_RDONLY, O_WRONLY } = fs.constants;
 const EXCLUSIVE = O_CREAT | O_EXCL | O_NOFOLLOW | O_WRONLY;
 const modeOf = (st) => st.mode & 0o7777;
 const octal = (mode) => mode.toString(8).padStart(4, '0');
@@ -426,9 +426,11 @@ async function oracleChild(role, file) {
     // Controlled negative of the oracle's decision path (host self-test only): the contender writes a separate
     // copy of the file, so it shares no lock with A; the oracle must classify that as "not enforced".
     const negative = process.env.QA_ORACLE_NEGATIVE_CONTROL === 'separate-file';
-    // Site #7: a private copy (exclusive create), one per contender process.
-    const separate = `${file}.qa-negative-${process.pid}`;
-    if (negative) privateCopy(file, separate);
+    // Site #7: a private copy (exclusive create), one per contender process. A host self-test may name an existing private
+    // file in QA_ORACLE_CREATE_OBSERVE: the creation check is then appended there as one JSON line (never created here).
+    const separate = `${file}.qa-negative-${process.pid}`, observe = process.env.QA_ORACLE_CREATE_OBSERVE;
+    const hook = observe ? (created) => { const fd = fs.openSync(observe, O_WRONLY | O_APPEND | O_NOFOLLOW); try { writeAll(fd, Buffer.from(JSON.stringify(created) + '\n')); } finally { fs.closeSync(fd); } } : undefined;
+    if (negative) privateCopy(file, separate, { hook });
     const db = await openDb(negative ? separate : file);
     try {
       db.exec('BEGIN IMMEDIATE'); db.prepare('INSERT INTO t (who) VALUES (?)').run('B'); db.exec('COMMIT');
