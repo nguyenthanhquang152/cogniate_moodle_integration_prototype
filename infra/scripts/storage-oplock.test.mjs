@@ -16,11 +16,16 @@ afterEach(() => { for (const t of temps.splice(0)) fs.rmSync(t, { recursive: tru
 
 // The fake docker: `ps` prints FAKE_PS (a file of "id<TAB>name<TAB>state<TAB>run" lines) or fails with FAKE_PS_FAIL=1;
 // `rm <id>` succeeds. Every call goes to calls.log.
+// FAKE_PS_OK_TIMES=n: the first n `ps` calls answer, then `ps` fails. FAKE_RM_FAIL=<id>: `rm <id>` fails.
 const FAKE_DOCKER = `#!/bin/sh
 echo "docker $*" >> "$CALLS"
 case "$1" in
-  ps) [ "$FAKE_PS_FAIL" = 1 ] && { echo "Cannot connect to the Docker daemon" >&2; exit 1; }; [ -s "$FAKE_PS" ] && cat "$FAKE_PS"; exit 0 ;;
-  rm) exit 0 ;;
+  ps)
+    n=$(grep -c '^docker ps' "$CALLS")
+    [ "$FAKE_PS_FAIL" = 1 ] && { echo "Cannot connect to the Docker daemon at unix:///secret.sock" >&2; exit 1; }
+    [ -n "$FAKE_PS_OK_TIMES" ] && [ "$n" -gt "$FAKE_PS_OK_TIMES" ] && { echo "raw daemon text" >&2; exit 1; }
+    [ -s "$FAKE_PS" ] && cat "$FAKE_PS"; exit 0 ;;
+  rm) [ "$2" = "$FAKE_RM_FAIL" ] && { echo "raw rm text" >&2; exit 1; }; exit 0 ;;
   *) exit 3 ;;
 esac
 `;
@@ -116,8 +121,8 @@ describe('the operation lock (ADR-012 §7)', () => {
     const r = repo();
     const down = r.run(': > "$HOME/ran"', { FAKE_PS_FAIL: '1' });
     assert.deepEqual([down.code, r.ran()], [1, false]);
-    assert.match(down.stderr, /Cannot check the storage containers: Docker does not answer\. Start Docker, then run the command again\. Nothing was changed\./);
-    assert.doesNotMatch(down.stderr, /Cannot connect|at |Error:/); // no raw Docker text or stack trace
+    assert.match(down.stderr, /Cannot check the storage containers: Docker does not answer \(docker ps: exit 1\)\. Start Docker, then run the command again\. No data was changed\./);
+    assert.doesNotMatch(down.stderr, /Cannot connect|secret\.sock|at |Error:/); // no raw Docker text or stack trace
     assert.deepEqual(r.tmpEntries(), []);
     // No docker on PATH at all: only node (a link in its own folder), /usr/bin and /bin. Never the real Docker CLI.
     if (fs.existsSync('/usr/bin/docker') || fs.existsSync('/bin/docker')) return;
@@ -127,7 +132,28 @@ describe('the operation lock (ADR-012 §7)', () => {
     fs.symlinkSync(process.execPath, path.join(nodeBin, 'node'));
     const none = spawnSync('bash', [r.script, 'run', '--', 'touch', path.join(r.root, 'ran')], { cwd: r.root, encoding: 'utf8', env: { ...r.env(), PATH: `${path.join(r.root, 'fake-bin')}:${nodeBin}:/usr/bin:/bin` } });
     assert.deepEqual([none.status, r.ran()], [1, false]);
-    assert.match(none.stderr, /Cannot check the storage containers: docker is not installed\. Nothing was changed\./);
+    assert.match(none.stderr, /Cannot check the storage containers: docker is not installed\. No data was changed\./);
+  });
+
+  it('A-SI-03: a failed docker rm in A6 names the container and what happened before; the lock is released; no raw Docker text', () => {
+    const r = repo();
+    fs.writeFileSync(r.ps, 'aaa111\toplock-unit-storage-1111111111111111\texited\t1111111111111111\nbbb222\toplock-unit-storage-2222222222222222\tdead\t2222222222222222\n');
+    plantLock(r, record(r, { pid: 999_999, pidStart: 'Thu Jan  1 00:00:00 1970', pgid: 999_999 }));
+    const res = r.run(': > "$HOME/ran"', { FAKE_RM_FAIL: 'bbb222' });
+    assert.deepEqual([res.code, r.ran()], [1, false]);
+    assert.equal(res.stderr.trim(), 'Cannot remove the inactive storage container oplock-unit-storage-2222222222222222 (bbb222): docker rm failed (exit 1). '
+      + `Before that, a stale lock record was moved to .tmp/storage-op.<project>.stale-${'0'.repeat(16)}/; inactive storage containers removed: oplock-unit-storage-1111111111111111 (aaa111). No data was changed.`);
+    assert.doesNotMatch(res.stderr, /raw rm text|Docker does not answer/);
+    assert.deepEqual(r.tmpEntries(), [`storage-op.${PROJECT}.stale-${'0'.repeat(16)}`]);
+  });
+  it('A-SI-03: a list that fails after a reclaim says that the stale record moved; a failing ps says only what is true', () => {
+    const r = repo();
+    plantLock(r, record(r, { pid: 999_999, pidStart: 'Thu Jan  1 00:00:00 1970', pgid: 999_999 }));
+    const res = r.run(': > "$HOME/ran"', { FAKE_PS_OK_TIMES: '1' });
+    assert.deepEqual([res.code, r.ran()], [1, false]);
+    assert.match(res.stderr, new RegExp(`^Cannot check the storage containers: Docker does not answer \\(docker ps: exit 1\\)\\. Start Docker, then run the command again\\. Before that, a stale lock record was moved to \\.tmp/storage-op\\.<project>\\.stale-${'0'.repeat(16)}/\\. No data was changed\\.$`, 'm'));
+    assert.doesNotMatch(res.stderr, /raw daemon text/);
+    assert.deepEqual(r.tmpEntries(), [`storage-op.${PROJECT}.stale-${'0'.repeat(16)}`]);
   });
 
   it('A5: a stale record (owner ended, empty group) is reclaimed to stale-<runId> and logged with the old owner', () => {
@@ -234,6 +260,23 @@ describe('guarded paths (ADR-012 §7): the lock in each candidate command, the g
     fs.writeFileSync(out, ['not json', JSON.stringify({ event: 'storage_preflight', folder: 'app', state: 'OK' }), JSON.stringify({ event: 'storage_preflight', folder: 'lti', state: 'FIRST_START' }),
       JSON.stringify({ event: 'storage_preflight_summary', result: 'pass', reasons: [] })].join('\n'));
     assert.equal(execFileSync(process.execPath, ['-e', program, out], { encoding: 'utf8' }).trim(), 'FIRST_START');
+  });
+  it('lib.sh refusal lines from a start script: content_path_unsafe names the command (stack:up) and the relative path, escaped JSON', () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'oplock-test-'));
+    temps.push(root);
+    fs.mkdirSync(path.join(root, 'infra/scripts'), { recursive: true });
+    for (const f of ['lib.sh', 'storage-oplock.sh']) fs.copyFileSync(path.join(HERE, f), path.join(root, 'infra/scripts', f));
+    fs.writeFileSync(path.join(root, 'infra/scripts/stack-up.sh'), '#!/usr/bin/env bash\nset -euo pipefail\nsource "$(dirname "$0")/lib.sh"\nprepare_content_folders\necho PREPARED\n');
+    fs.mkdirSync(path.join(root, 'infra/.data/cogniate-app'), { recursive: true });
+    fs.symlinkSync(os.tmpdir(), path.join(root, 'infra/.data/cogniate-app/packages'));
+    const r = spawnSync('bash', [path.join(root, 'infra/scripts/stack-up.sh')], { cwd: root, encoding: 'utf8', env: { PATH: process.env.PATH, HOME: root, COMPOSE_PROJECT_NAME: PROJECT } });
+    assert.equal(r.status, 1);
+    assert.doesNotMatch(r.stdout, /PREPARED/);
+    const lines = r.stdout.split('\n').filter((l) => l.startsWith('{')).map((l) => JSON.parse(l));
+    assert.deepEqual(lines.map((l) => [l.event, l.command, l.code, l.path]), [['storage_refused', 'stack:up', 'content_path_unsafe', 'infra/.data/cogniate-app/packages']]);
+    assert.match(r.stderr, /^content_path_unsafe: .*packages is a symbolic link, not a directory, or not owned by /m);
+    assert.ok(!r.stdout.includes(root), 'no absolute path');
+    assert.equal(fs.lstatSync(path.join(root, 'infra/.data/cogniate-app/packages')).isSymbolicLink(), true);
   });
   it('lib.sh starts the Build Runner in its own process group (set -m)', () => {
     assert.match(read('lib.sh'), /\( set -m; nohup bash "\$INFRA_DIR\/scripts\/build-runner\.sh" watch/);

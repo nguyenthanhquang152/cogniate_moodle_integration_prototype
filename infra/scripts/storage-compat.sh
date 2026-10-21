@@ -19,6 +19,14 @@ knobs="$repo/.tmp/compose.knobs.yaml"
 copies="$repo/.tmp/storage-compat"
 
 die() { echo "$1" >&2; exit 1; }
+# M1 "Refuses <code>": one storage_refused JSON line on stdout before the human text (node escapes every value; fixed
+# field names; no raw command output).   refusal_json <code> [<key> <value>]…
+refusal_json() {
+  node -e 'const [code, ...kv] = process.argv.slice(1);
+const line = { event: "storage_refused", ts: new Date().toISOString(), command: "storage-compat", code };
+for (let i = 0; i + 1 < kv.length; i += 2) line[kv[i]] = kv[i + 1];
+process.stdout.write(JSON.stringify(line) + "\n");' "$@"
+}
 has_marker() { [[ -f "$knobs" ]] && node -e 'try{const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.exit(Object.hasOwn(d,process.argv[2])?0:1)}catch{process.exit(1)}' "$knobs" "$MARKER"; }
 sha() { node -e 'process.stdout.write(require("crypto").createHash("sha256").update(require("fs").readFileSync(process.argv[1])).digest("hex"))' "$1"; }
 # The expected SHA-256 of one of the four files, from a storage-compat.sha256 file (lines "<sha>  <path>").
@@ -53,6 +61,7 @@ content_folders() {
   mkdir -p "$repo/infra/.data"
   for d in "$base" "$base/packages" "$base/uploads"; do
     if [[ -L "$d" ]] || { [[ -e "$d" ]] && { [[ ! -d "$d" ]] || [[ ! -O "$d" ]]; }; }; then
+      refusal_json content_path_unsafe path "${d#"$repo"/}"
       die "content_path_unsafe: $d is a symbolic link, not a directory, or not owned by $(id -un). Nothing was changed."
     fi
   done
@@ -60,10 +69,10 @@ content_folders() {
 }
 
 old_only() {
-  has_marker || die "wrapper_old_only: the storage-compatibility override is not enabled (.tmp/compose.knobs.yaml)."
+  has_marker || { refusal_json wrapper_old_only reason override_not_enabled; die "wrapper_old_only: the storage-compatibility override is not enabled (.tmp/compose.knobs.yaml)."; }
   local head; head="$(git -C "$repo" rev-parse HEAD 2>/dev/null || echo unknown)"
   node -e 'const d=JSON.parse(require("fs").readFileSync(process.argv[1],"utf8"));process.exit((d[process.argv[2]].revisions||[]).includes(process.argv[3])?0:1)' "$knobs" "$MARKER" "$head" \
-    || die "wrapper_old_only: HEAD $head is not one of the old builds of the override. A candidate command takes its own lock; run it without this wrapper."
+    || { refusal_json wrapper_old_only reason head_not_old head "$head"; die "wrapper_old_only: HEAD $head is not one of the old builds of the override. A candidate command takes its own lock; run it without this wrapper."; }
 }
 
 # The old dc() (the old lib.sh of this checkout), so every compose call has the old arguments plus the knobs file.
@@ -144,6 +153,7 @@ case "$sub" in
       [[ "${1:-}" == "--" ]] && shift
       cmdline="$*"
       if [[ "$cmdline" != "npm run stack:up" && "$cmdline" != "npm run test:acceptance" && "$cmdline" != "npm run test:acceptance "* ]]; then
+        refusal_json wrapper_command_not_allowed
         die "wrapper_command_not_allowed: only 'npm run stack:up' and 'npm run test:acceptance …' run through the wrapper (got: $cmdline)."
       fi
     fi

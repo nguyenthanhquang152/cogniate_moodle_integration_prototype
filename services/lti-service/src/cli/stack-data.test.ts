@@ -5,7 +5,7 @@
 // maintenance container). Real Docker acceptance is separate (AC-M1-41).
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -706,22 +706,35 @@ describe('quarantine copy (ADR-012 §9 step 1)', () => {
 // ------------------------------------------------------------------------------------------------ the shell entry
 
 // A fake Docker CLI (bash). Every call goes to calls.log. Read-only container queries find nothing, except the
-// quarantine volume users (FAKE_USERS lines id|name|project|service|oneoff|state). `compose … ps` answers by mode;
+// quarantine volume users (FAKE_USERS lines id|name|project|service|oneoff|state) and, with FAKE_OLD_LAYOUT=1, one
+// project container `old1` that mounts the legacy lti bind folder at /data. FAKE_RM_FAIL=<id> and
+// FAKE_VOLUME_RM_FAIL=1 make those removals fail (with raw text that must not be repeated). `compose … ps` answers by mode;
 // `compose … run … maintenance <args>` runs the REAL database program on the volume stand-in: each `-v host:path`
 // and the compose mounts (/check, /content/packages) map a container path back to its host path.
 const FAKE_DOCKER = `#!/bin/bash
 echo "docker $*" >> "$CALLS"
 case "$1" in
   info) [ "$FAKE_DOCKER" = info-fails ] && exit 1; exit 0 ;;
-  ps) case " $* " in *" --filter volume="*) [ -s "$FAKE_USERS" ] && cut -d'|' -f1 "$FAKE_USERS" ;; esac; exit 0 ;;
+  ps)
+    case " $* " in
+      *" --filter volume="*) [ -s "$FAKE_USERS" ] && cut -d'|' -f1 "$FAKE_USERS" ;;
+      *" -aq --filter label=com.docker.compose.project="*) [ "$FAKE_OLD_LAYOUT" = 1 ] && echo old1 ;;
+      *" -aq --filter label=org.cogniate.storage.run="*) [ "$FAKE_COPY_CONTAINER" = 1 ] && echo cc1 ;;
+    esac
+    exit 0 ;;
   inspect)
     id="\${!#}"
+    if [ "$id" = cc1 ]; then echo exited; exit 0; fi
+    if [ "$id" = old1 ]; then
+      case "$3" in *Mounts*) printf '/data|%s/infra/.data/lti-service\\n' "$FAKE_REPO" ;; *) echo /stackdata-unit-lti-service-1 ;; esac
+      exit 0
+    fi
     line="$(grep "^$id|" "$FAKE_USERS" 2>/dev/null)" || exit 1
     IFS='|' read -r _ name project service oneoff state <<< "$line"
     printf '/%s|%s|%s|%s|%s\\n' "$name" "$project" "$service" "$oneoff" "$state"
     exit 0 ;;
-  rm) exit 0 ;;
-  volume) exit 0 ;;
+  rm) [ "$2" = "$FAKE_RM_FAIL" ] && { echo "raw rm text" >&2; exit 1; }; exit 0 ;;
+  volume) [ "$FAKE_VOLUME_RM_FAIL" = 1 ] && { echo "Error response from daemon: volume is in use" >&2; exit 1; }; exit 0 ;;
   compose) ;;
   *) exit 3 ;;
 esac
@@ -966,5 +979,306 @@ describe('stack-data.sh quarantine: the exact volume-user rule (ADR-012 §9)', {
     expect(res.dockerCalls.filter((l) => /^docker (rm|volume rm) /.test(l))).toEqual([]);
     expect(existsSync(join(out, 'manifest.json'))).toBe(true);
     expect(existsSync(join(out, 'quarantine.json'))).toBe(false);
+  });
+});
+
+// ------------------------------------------------------------------------------------------------ review round 1 repairs
+
+// QA's rule (tests/host/storage-oracle.mjs namesCode, restated here: no import from tests/**): a JSON line names the code
+// when a field value equals it or starts with "<code>:".
+const valuesOf = (v: unknown): unknown[] => (v === null || v === undefined ? [] : Array.isArray(v) ? v.flatMap(valuesOf) : typeof v === 'object' ? Object.values(v).flatMap(valuesOf) : [v]);
+const namesCode = (lines: Line[], code: string) => lines.some((l) => valuesOf(l).some((v) => typeof v === 'string' && (v === code || v.startsWith(`${code}:`))));
+const REFUSAL_KEYS = new Set(['event', 'ts', 'command', 'code', 'state', 'entry', 'reasons', 'runId', 'path', 'container', 'id', 'project', 'service', 'mount', 'reason', 'head']);
+const TMP_ROOTS = [tmpdir(), realpathSync(tmpdir())];
+/** The one storage_refused line of a command: the code, fixed keys only, no absolute temp path, no message text. */
+function refusalOf(res: { stdout: string; stderr: string }, code: string): Line {
+  const all = parseLines(`${res.stdout}\n${res.stderr}`);
+  const lines = all.filter((l) => l.event === 'storage_refused');
+  expect(lines.map((l) => l.code)).toEqual([code]);
+  const line = lines[0] ?? {};
+  expect(namesCode(all, code)).toBe(true);
+  expect(Object.keys(line).filter((k) => !REFUSAL_KEYS.has(k))).toEqual([]);
+  const text = JSON.stringify(line);
+  for (const root of TMP_ROOTS) expect(text.includes(root)).toBe(false);
+  expect(text).not.toMatch(/Nothing was|No target changed|not empty\.|does not match/);
+  return line;
+}
+
+describe('A-SI-01/B-SI-01: every refusal path writes one storage_refused JSON line with its code; text, exit and precedence stay', { timeout: 120_000 }, () => {
+  it('the volume commands (every coded Refused of main): target state, source kind, pair, source state, manifest, drill, folders', () => {
+    const { data: ok, backup: vb } = restoreSetup();
+    const lb = join(temp(), 'legacy');
+    expect(cli(['backup', '--source', 'legacy', '--out', lb, '--data', makeData(), '--project', 'qa-p']).code).toBe(0);
+    const other = join(temp(), 'other');
+    expect(cli(['backup', '--source', 'volume', '--out', other, '--data', makeVolumes(), '--project', 'qa-p']).code).toBe(0);
+    // Targets with the §4 step done (a writer prepares first), so the tree snapshot covers every write.
+    const prepared = (root: string) => { for (const m of ['packages', 'uploads']) mkdirSync(join(root, 'cogniate-app', m), { mode: 0o700 }); return root; };
+    const first = prepared(makeFresh());
+    const pairId = randomBytes(16).toString('hex');
+    for (const role of ROLES) writeFileSync(join(vol(first, role), IDENTITY), JSON.stringify(identity('qa-p', role, pairId, { firstStart: 'pending' })));
+    const open = restoreSetup();
+    expect(cli(['restore', '--from', open.backup, '--data', open.data, '--project', 'qa-p', '--stop-after', 'prepared'], { STORAGE_DRILL: '1' }).code).toBe(3);
+    const damage = (fn: (dir: string) => void) => { const c = join(temp(), 'copy'); execFileSync('cp', ['-R', vb, c]); fn(c); return c; };
+    const edit = (d: string, f: (m: Record<string, unknown>) => void) => { const p = join(d, 'manifest.json'); const m = readJson(p); f(m); writeFileSync(p, JSON.stringify(m)); };
+    const full = temp();
+    writeFileSync(join(full, 'x'), 'x');
+    const cases: Array<[string[], Record<string, string>, string, RegExp, Line]> = [
+      [['restore', '--from', vb, '--data', first], {}, 'restore_target_state', /^restore_target_state: the target state is FIRST_START; next: npm run stack:up/, { state: 'FIRST_START' }],
+      [['import', '--from', lb, '--data', first], {}, 'import_target_not_fresh', /^import_target_not_fresh: the target state is FIRST_START\./, { state: 'FIRST_START' }],
+      [['import', '--from', vb, '--data', prepared(makeFresh())], {}, 'import_needs_legacy_backup', /^import_needs_legacy_backup: a volume backup is restored/, {}],
+      [['restore', '--from', lb, '--data', prepared(makeFresh())], {}, 'restore_needs_volume_backup', /^restore_needs_volume_backup: a legacy backup goes into a FRESH pair/, {}],
+      [['restore', '--from', lb, '--data', ok], {}, 'import_target_not_fresh', /^import_target_not_fresh: a legacy backup needs a FRESH target/, { state: 'OK' }],
+      [['restore', '--from', other, '--data', ok], {}, 'pair_mismatch', /^pair_mismatch: the backup is of another pair/, {}],
+      [['backup', '--source', 'volume', '--out', join(temp(), 'b'), '--data', open.data], {}, 'backup_source_not_ok:journal_open', /^backup_source_not_ok:journal_open\. Nothing was copied\./, { state: 'journal_open' }],
+      [['restore', '--from', damage((d) => writeFileSync(join(d, 'lti-service/lti.db-wal'), 'other')), '--data', ok], {}, 'backup_damaged', /does not match the manifest\. No target changed\./, {}],
+      [['restore', '--from', damage((d) => rmSync(join(d, 'cogniate-app/cogniate.db'))), '--data', ok], {}, 'backup_damaged', /^Missing backup file cogniate-app\/cogniate.db\. No target changed\./, {}],
+      [['restore', '--from', damage((d) => edit(d, (m) => { m.backupId = 'nope'; })), '--data', ok], {}, 'manifest_invalid', /^The backup id is not valid\. No target changed\./, {}],
+      [['restore', '--from', vb, '--data', ok, '--project', 'other-project'], {}, 'project_mismatch', /^The backup is of compose project qa-p, not other-project\. No target changed\./, {}],
+      [['restore', '--from', damage((d) => writeFileSync(join(d, 'INCOMPLETE'), '')), '--data', ok], {}, 'backup_incomplete', /INCOMPLETE/, {}],
+      [['restore', '--from', damage((d) => edit(d, (m) => { delete m.pairId; })), '--data', ok], {}, 'manifest_incomplete', /without pairId, generation or legacySources\. No target changed\./, {}],
+      [['restore', '--from', damage((d) => rmSync(join(d, 'manifest.json'))), '--data', ok], {}, 'no_manifest', /^The manifest is missing or is not JSON\. No target changed\./, {}],
+      [['restore', '--from', vb, '--data', ok, '--stop-after', 'swapped'], {}, 'drill_not_enabled', /need STORAGE_DRILL=1\. Nothing was changed\./, {}],
+      [['backup', '--source', 'volume', '--out', full, '--data', ok], {}, 'backup_folder_not_empty', /^The backup folder is not empty\. Nothing was copied\./, {}],
+      [['quarantine-copy', '--out', full, '--data', ok], {}, 'quarantine_folder_not_empty', /^The quarantine folder is not empty\. Nothing was copied\./, {}],
+    ];
+    for (const [args, env, code, text, extra] of cases) {
+      const target = args[args.indexOf('--data') + 1] ?? '';
+      const before = tree(target);
+      const r = cli(args.includes('--project') ? args : [...args, '--project', 'qa-p'], env);
+      expect([code, r.code]).toEqual([code, 1]);
+      expect(r.stderr).toMatch(text);
+      expect(refusalOf(r, code)).toMatchObject({ command: args[0], ...extra });
+      expect(tree(target)).toEqual(before);
+    }
+    // A usage error (exit 2) and a success write no storage_refused line.
+    const usage = cli(['restore', '--from', vb, '--data', ok, '--project', 'qa-p', '--stop-after', 'nowhere'], { STORAGE_DRILL: '1' });
+    expect([usage.code, parseLines(usage.stdout + usage.stderr).some((l) => l.event === 'storage_refused')]).toEqual([2, false]);
+    const done = cli(['restore', '--from', vb, '--data', ok, '--project', 'qa-p']);
+    expect([done.code, done.lines.some((l) => l.event === 'storage_refused')]).toEqual([0, false]);
+  });
+
+  it('the legacy backup on the host (its own catch): hot journal, unknown entry, a missing database, a folder in the checkout or not empty', () => {
+    const hot = makeData();
+    writeFileSync(join(hot, 'lti-service/lti.db-journal'), 'hot');
+    const odd = makeData();
+    writeFileSync(join(odd, 'cogniate-app/cogniate.db-old'), 'x');
+    const half = makeData();
+    rmSync(join(half, 'cogniate-app/cogniate.db'));
+    const data = makeData();
+    const full = temp();
+    writeFileSync(join(full, 'x'), 'x');
+    const cases: Array<[string[], string, RegExp, Line]> = [
+      [['--out', join(temp(), 'b'), '--data', hot], 'legacy_hot_journal', /^legacy_hot_journal: lti-service\/lti.db-journal \(a hot rollback journal/, { entry: 'lti-service/lti.db-journal' }],
+      [['--out', join(temp(), 'b'), '--data', odd], 'legacy_unknown_entry', /^legacy_unknown_entry: cogniate-app\/cogniate.db-old/, { entry: 'cogniate-app/cogniate.db-old' }],
+      [['--out', join(temp(), 'b'), '--data', half], 'legacy_database_missing', /^Missing database cogniate-app\/cogniate.db\. Nothing was copied\./, { entry: 'cogniate-app/cogniate.db' }],
+      [['--out', join(data, 'inside'), '--data', data, '--repo', data], 'backup_folder_in_checkout', /^The backup folder must be outside the checkout/, {}],
+      [['--out', full, '--data', data], 'backup_folder_not_empty', /is not empty\.$/m, {}],
+    ];
+    for (const [args, code, text, extra] of cases) {
+      const r = cli(['backup', '--source', 'legacy', ...args, '--project', 'qa-p']);
+      expect([code, r.code]).toEqual([code, 1]);
+      expect(r.stderr).toMatch(text);
+      expect(refusalOf(r, code)).toMatchObject({ command: 'backup', ...extra });
+    }
+    expect(existsSync(join(temp(), 'b', 'manifest.json'))).toBe(false);
+  });
+
+  it('a writer whose root step fails: the fixed state code first, then prepare_failed, after the privilege drop', { skip: process.getuid?.() === 0 }, () => {
+    const { data, backup } = restoreSetup();
+    const before = tree(data);
+    const r = cli(['restore', '--from', backup, '--data', data, '--project', 'qa-p'], { HOST_UID: String((process.getuid?.() ?? 0) + 1) });
+    expect(r.code).toBe(1);
+    // HOST_UID is another user: row 5 (the mountpoints are not that user's) comes before row 6 (owner_mismatch).
+    expect(r.stderr).toMatch(/^mountpoint_unsafe: the target state is mountpoint_unsafe\. prepare_failed: lti: EPERM\. Nothing was changed\./);
+    expect(refusalOf(r, 'mountpoint_unsafe')).toMatchObject({ state: 'mountpoint_unsafe', reasons: ['mountpoint_unsafe', 'prepare_failed:lti:EPERM'] });
+    expect(tree(data)).toEqual(before);
+  });
+
+  it('the shell: content_path_unsafe (lib.sh), old_layout_container (legacy backup) and volume_in_use (quarantine), each with its fields', () => {
+    const r = shellRepo();
+    const uploads = join(r.root, 'infra/.data/cogniate-app/uploads');
+    const elsewhere = temp();
+    symlinkSync(elsewhere, uploads);
+    const unsafe = r.sh('stopped', ['backup', '--out', join(temp(), 'b')]);
+    expect([unsafe.code, unsafe.nodeRan, unsafe.dockerCalls.some((l) => / run /.test(l))]).toEqual([1, false, false]);
+    expect(unsafe.stderr).toMatch(new RegExp(`content_path_unsafe: ${uploads.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} is a symbolic link, not a directory, or not owned by `));
+    const line = refusalOf(unsafe, 'content_path_unsafe');
+    expect(line).toMatchObject({ command: 'stack:data-backup', path: 'infra/.data/cogniate-app/uploads' });
+    expect(String(line.runId)).toMatch(/^[0-9a-f]{16}$/);
+    rmSync(uploads);
+    const old = r.sh('stopped', ['backup', '--out', join(temp(), 'b'), '--source', 'legacy'], { env: { FAKE_OLD_LAYOUT: '1' } });
+    expect([old.code, old.nodeRan]).toEqual([1, false]);
+    expect(old.stderr).toMatch(/old_layout_container: container stackdata-unit-lti-service-1 \(old1\) still mounts .*infra\/\.data\/lti-service at \/data\. Remove the old containers first/);
+    expect(refusalOf(old, 'old_layout_container')).toMatchObject({ command: 'stack:data-backup', container: 'stackdata-unit-lti-service-1', id: 'old1', mount: 'infra/.data/lti-service' });
+    writeFileSync(r.users, 'c4|other "lti"|other-project|lti-service||exited\n');
+    const q = r.sh('stopped', ['quarantine', '--out', join(temp(), 'q')]);
+    expect(q.code).toBe(1);
+    expect(refusalOf(q, 'volume_in_use')).toMatchObject({ command: 'stack:data-quarantine', container: 'other "lti"', id: 'c4', project: 'other-project', service: 'lti-service', state: 'exited' });
+  });
+});
+
+describe('stack-data.sh folder refusals: a coded JSON line on stderr (the folder name is read from stdout)', { timeout: 60_000 }, () => {
+  it('a backup folder inside the checkout or not empty, and a restore from a folder that does not exist', () => {
+    const r = shellRepo();
+    const inside = r.sh('stopped', ['backup', '--out', join(r.root, 'inside')]);
+    expect([inside.code, inside.nodeRan]).toEqual([1, false]);
+    expect(inside.stderr).toContain('The folder must be outside the checkout (it contains secrets). Nothing was changed.');
+    expect(refusalOf(inside, 'backup_folder_in_checkout')).toMatchObject({ command: 'stack:data-backup' });
+    const full = temp();
+    writeFileSync(join(full, 'x'), 'x');
+    const notEmpty = r.sh('stopped', ['quarantine', '--out', full]);
+    expect([notEmpty.code, notEmpty.dockerCalls.some((l) => / run /.test(l))]).toEqual([1, false]);
+    expect(refusalOf(notEmpty, 'backup_folder_not_empty')).toMatchObject({ command: 'stack:data-quarantine' });
+    const missing = r.sh('stopped', ['restore', '--from', join(temp(), 'none')]);
+    expect([missing.code, missing.nodeRan]).toEqual([1, false]);
+    expect(missing.stderr).toMatch(/No backup folder .*none\. No target changed\./);
+    expect(refusalOf(missing, 'backup_folder_missing')).toMatchObject({ command: 'stack:data-restore' });
+  });
+});
+
+describe('B-SI-05: a quarantine that stops while it removes says what happened; the copy and the volumes stay', { timeout: 60_000 }, () => {
+  const USERS = 'c1|stackdata-unit-lti-service-1|stackdata-unit|lti-service||exited\nc2|stackdata-unit-cogniate-app-1|stackdata-unit|cogniate-app||exited\n';
+  it('a service container that Docker does not remove: exit 1, the removed ones named, no volume removed, no raw Docker text', () => {
+    const r = shellRepo();
+    writeFileSync(r.users, USERS);
+    const out = join(temp(), 'q');
+    const res = r.sh('stopped', ['quarantine', '--out', out], { env: { FAKE_RM_FAIL: 'c2' } });
+    expect(res.code).toBe(1);
+    expect(res.stderr).toContain(`Quarantine stopped at the container removal: Docker did not remove stackdata-unit-cogniate-app-1 (c2). Removed before: stackdata-unit-lti-service-1 (c1). The verified copy in ${out} and both volumes stay.`);
+    expect(res.stderr).not.toContain('raw rm text');
+    expect(res.dockerCalls.filter((l) => /^docker (rm|volume rm) /.test(l))).toEqual(['docker rm c1', 'docker rm c2']);
+    expect([existsSync(join(out, 'manifest.json')), existsSync(join(out, 'quarantine.json'))]).toEqual([true, false]);
+  });
+  it('the copy container that Docker does not remove: nothing removed; the volume removal that fails names the removed containers', () => {
+    const r = shellRepo();
+    writeFileSync(r.users, USERS);
+    const copy = r.sh('stopped', ['quarantine', '--out', join(temp(), 'q')], { env: { FAKE_COPY_CONTAINER: '1', FAKE_RM_FAIL: 'cc1' } });
+    expect(copy.code).toBe(1);
+    expect(copy.stderr).toMatch(/Quarantine stopped: Docker did not remove the copy container cc1\. Nothing was removed; the verified copy is in /);
+    expect(copy.stderr).not.toContain('raw rm text');
+    expect(copy.dockerCalls.filter((l) => /^docker (rm|volume rm) /.test(l))).toEqual(['docker rm cc1']);
+    const vol = r.sh('stopped', ['quarantine', '--out', join(temp(), 'q2')], { env: { FAKE_VOLUME_RM_FAIL: '1' } });
+    expect(vol.code).toBe(1);
+    expect(vol.stderr).toContain('Quarantine stopped at the volume removal (see the Docker message above). Removed service containers: stackdata-unit-lti-service-1 (c1), stackdata-unit-cogniate-app-1 (c2). The copy and the volumes stay.');
+  });
+});
+
+describe('A-SI-02: a present journal that is not valid is R6: exit 2 and NOTHING changes; it is never read as absent', { timeout: 120_000 }, () => {
+  const INVALID = ['{"broken', 'null', 'false', '0', '""', '[]', '"text"', '{}', '{"formatVersion":1,"operation":"restore","opId":"x","state":"committed"}'];
+  const recover = (data: string) => cli(['recover', '--data', data, '--project', 'qa-p']);
+  const expectR6 = (data: string) => {
+    const before = tree(data);
+    const r = recover(data);
+    expect([r.code, tree(data)]).toEqual([2, before]);
+    expect(r.stderr).toMatch(/the rollback did not finish; do not start; keep both volumes; use stack:data-quarantine/);
+    expect(r.stderr).not.toMatch(/no target changed|nothing to recover|cancelled/i);
+  };
+  it.each(INVALID)('terminal lti journal (committed) and an app journal of %s → R6', (text) => {
+    const { data, backup } = restoreSetup();
+    expect(cli(['restore', '--from', backup, '--data', data, '--project', 'qa-p']).code).toBe(0);
+    writeFileSync(join(vol(data, 'app'), JOURNAL), text);
+    expectR6(data);
+    expect(stateOf(data)).toBe('journal_inconsistent');
+  });
+  it.each(['{"broken', 'null', '0', '{}'])('lti prepared (R1 if the app journal were absent) and an app journal of %s → R6, the lti journal stays prepared', (text) => {
+    const { data, backup } = restoreSetup();
+    expect(cli(['restore', '--from', backup, '--data', data, '--project', 'qa-p', '--stop-after', 'prepared-lti'], { STORAGE_DRILL: '1' }).code).toBe(3);
+    writeFileSync(join(vol(data, 'app'), JOURNAL), text);
+    expectR6(data);
+    expect(journalOf(data, 'lti').state).toBe('prepared');
+  });
+  it('both journals invalid, a journal that is a folder, and a journal that is a symbolic link → R6', () => {
+    const { data, backup } = restoreSetup();
+    expect(cli(['restore', '--from', backup, '--data', data, '--project', 'qa-p']).code).toBe(0);
+    const committed = readFileSync(join(vol(data, 'lti'), JOURNAL), 'utf8'); // a valid terminal journal
+    writeFileSync(join(vol(data, 'lti'), JOURNAL), 'false');
+    writeFileSync(join(vol(data, 'app'), JOURNAL), '{"broken');
+    expectR6(data);
+    // A valid terminal lti journal, so only the app entry decides: a folder, then a link to a valid journal.
+    writeFileSync(join(vol(data, 'lti'), JOURNAL), committed);
+    rmSync(join(vol(data, 'app'), JOURNAL));
+    mkdirSync(join(vol(data, 'app'), JOURNAL));
+    expectR6(data);
+    rmSync(join(vol(data, 'app'), JOURNAL), { recursive: true });
+    const real = join(temp(), 'journal.json');
+    writeFileSync(real, committed);
+    symlinkSync(real, join(vol(data, 'app'), JOURNAL));
+    expectR6(data);
+    rmSync(join(vol(data, 'app'), JOURNAL));
+    expect(recover(data).code).toBe(0); // control: the same lti journal with no app journal is R0
+  });
+  it('regression: valid journals still recover (R1 cancels, then R0 finds nothing)', () => {
+    const { data, backup, before } = restoreSetup();
+    expect(cli(['restore', '--from', backup, '--data', data, '--project', 'qa-p', '--stop-after', 'prepared-lti'], { STORAGE_DRILL: '1' }).code).toBe(3);
+    expect(recover(data).code).toBe(1);
+    expect([journalStates(data), fileSets(data)]).toEqual([['rolled_back', null], before]);
+    expect(recover(data).code).toBe(0);
+  });
+});
+
+describe('B-SI-07: the read-only modes skip §4 and drop privilege at once; the writers keep the root step', { timeout: 60_000 }, () => {
+  function unpreparedVolumes() {
+    const data = makeVolumes();
+    for (const m of ['packages', 'uploads']) rmSync(join(data, 'cogniate-app', m), { recursive: true });
+    for (const role of ROLES) chmodSync(vol(data, role), 0o755);
+    return data;
+  }
+  const modes = (data: string) => ROLES.map((r) => lstatSync(vol(data, r)).mode & 0o777);
+  const ITEMS = [{ volume: 'lti', item: '.', issue: 'mode' }, { volume: 'app', item: '.', issue: 'mode' }, { volume: 'app', item: 'packages', issue: 'absent' }, { volume: 'app', item: 'uploads', issue: 'absent' }];
+  it('a root that is not 0700 and absent mountpoints: backup and quarantine copy go on, record the items as information, change nothing', () => {
+    const data = unpreparedVolumes();
+    const before = tree(data);
+    const b = cli(['backup', '--source', 'volume', '--out', join(temp(), 'b'), '--data', data, '--project', 'qa-p']);
+    expect(b.code).toBe(0);
+    expect(b.lines.find((l) => l.event === 'storage_backup')?.unprepared).toEqual(ITEMS);
+    expect([tree(data), modes(data)]).toEqual([before, [0o755, 0o755]]);
+    const q = cli(['quarantine-copy', '--out', join(temp(), 'q'), '--data', data, '--project', 'qa-p']);
+    expect(q.code).toBe(0);
+    expect(q.lines.find((l) => l.event === 'storage_quarantine_copy')?.unprepared).toEqual(ITEMS);
+    expect([tree(data), modes(data)]).toEqual([before, [0o755, 0o755]]);
+    expect(parseLines(b.stdout + q.stdout).some((l) => l.event === 'storage_refused')).toBe(false);
+  });
+  it('a prepared volume records no item; a writer (restore) still does the §4 step', () => {
+    const data = makeVolumes();
+    const out = join(temp(), 'b');
+    const b = cli(['backup', '--source', 'volume', '--out', out, '--data', data, '--project', 'qa-p']);
+    expect(b.lines.find((l) => l.event === 'storage_backup')?.unprepared).toEqual([]);
+    const target = unpreparedVolumes();
+    const pairOfBackup = readJson(join(out, 'manifest.json')).pairId;
+    for (const role of ROLES) writeFileSync(join(vol(target, role), IDENTITY), JSON.stringify({ ...idOf(target, role), pairId: pairOfBackup }));
+    expect(cli(['restore', '--from', out, '--data', target, '--project', 'qa-p']).code).toBe(0);
+    expect(modes(target)).toEqual([0o700, 0o700]);
+    expect(['packages', 'uploads'].map((m) => lstatSync(join(target, 'cogniate-app', m)).mode & 0o777)).toEqual([0o700, 0o700]);
+  });
+  it('an entry that the host user cannot read: backup and quarantine copy fail closed (no manifest), naming the entry', { skip: process.getuid?.() === 0 }, () => {
+    const data = makeVolumes();
+    chmodSync(join(data, 'lti-service/lti.db'), 0o000);
+    try {
+      const out = join(temp(), 'b');
+      const b = cli(['backup', '--source', 'volume', '--out', out, '--data', data, '--project', 'qa-p']);
+      expect([b.code, existsSync(join(out, 'manifest.json'))]).toEqual([1, false]);
+      expect(b.stderr).toMatch(/^Cannot read lti-service\/lti.db as the host user \(EACCES\)/);
+      expect(refusalOf(b, 'source_unreadable')).toMatchObject({ command: 'backup', entry: 'lti-service/lti.db' });
+      const qo = join(temp(), 'q');
+      const q = cli(['quarantine-copy', '--out', qo, '--data', data, '--project', 'qa-p']);
+      expect([q.code, existsSync(join(qo, 'manifest.json'))]).toEqual([1, false]);
+      expect(refusalOf(q, 'source_unreadable')).toMatchObject({ command: 'quarantine-copy', entry: 'lti-service/lti.db' });
+    } finally {
+      chmodSync(join(data, 'lti-service/lti.db'), 0o600);
+    }
+    // A volume root that the host user cannot list: the same fail-closed result, naming that root.
+    chmodSync(vol(data, 'app'), 0o000);
+    try {
+      const out = join(temp(), 'b2');
+      const b = cli(['backup', '--source', 'volume', '--out', out, '--data', data, '--project', 'qa-p']);
+      expect([b.code, existsSync(join(out, 'manifest.json'))]).toEqual([1, false]);
+      const line = refusalOf(b, 'source_unreadable');
+      expect([line.command, String(line.entry)]).toEqual(['backup', expect.stringMatching(/^cogniate-app(\/|$)/)]);
+      const q = cli(['quarantine-copy', '--out', join(temp(), 'q2'), '--data', data, '--project', 'qa-p']);
+      expect(q.code).toBe(1);
+      expect(String(refusalOf(q, 'source_unreadable').entry)).toMatch(/^cogniate-app(\/|$)/);
+    } finally {
+      chmodSync(vol(data, 'app'), 0o700);
+    }
   });
 });

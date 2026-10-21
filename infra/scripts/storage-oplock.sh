@@ -25,14 +25,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const HEX16 = /^[0-9a-f]{16}$/;
 
 function psLstart(pid) {
-  try { return execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], { env: C, encoding: 'utf8' }).trim(); } catch { return ''; }
+  try { return execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], { env: C, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); } catch { return ''; }
 }
 function psPgid(pid) {
-  try { return Number(execFileSync('ps', ['-o', 'pgid=', '-p', String(pid)], { env: C, encoding: 'utf8' }).trim()); } catch { return null; }
+  try { return Number(execFileSync('ps', ['-o', 'pgid=', '-p', String(pid)], { env: C, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim()); } catch { return null; }
 }
 /** One read of `LC_ALL=C ps -A -o pid= -o pgid=`, matched here. */
 function groupMembers(pgid) {
-  const out = execFileSync('ps', ['-A', '-o', 'pid=', '-o', 'pgid='], { env: C, encoding: 'utf8' });
+  const out = execFileSync('ps', ['-A', '-o', 'pid=', '-o', 'pgid='], { env: C, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
   return out.split('\n').map((l) => l.trim().split(/\s+/).map(Number)).filter(([p, g]) => Number.isInteger(p) && g === pgid && p !== process.pid).map(([p]) => p);
 }
 const ownerLive = (rec) => rec.pidStart !== '' && psLstart(rec.pid) === rec.pidStart;
@@ -73,9 +73,11 @@ function eventLine(ctx, event, extra = {}) {
 const ownerView = (k) => (k ? { runId: k.runId, command: k.command, pid: k.pid, pidStart: k.pidStart, pgid: k.pgid, acquiredAt: k.acquiredAt } : null);
 
 /** The storage containers of the project (label com.docker.compose.project=P and the label org.cogniate.storage). */
+/** A failed child process, tagged with the step that ran it (the top-level message names the step, never its output). */
+const tagged = (step, fn, extra = {}) => { try { return fn(); } catch (err) { throw Object.assign(err, { step, ...extra }); } };
 function storageContainers(project) {
-  const out = execFileSync('docker', ['ps', '-a', '--filter', `label=com.docker.compose.project=${project}`, '--filter', 'label=org.cogniate.storage',
-    '--format', '{{.ID}}\t{{.Names}}\t{{.State}}\t{{.Label "org.cogniate.storage.run"}}'], { encoding: 'utf8', timeout: 30_000, stdio: ['ignore', 'pipe', 'ignore'] });
+  const out = tagged('list', () => execFileSync('docker', ['ps', '-a', '--filter', `label=com.docker.compose.project=${project}`, '--filter', 'label=org.cogniate.storage',
+    '--format', '{{.ID}}\t{{.Names}}\t{{.State}}\t{{.Label "org.cogniate.storage.run"}}'], { encoding: 'utf8', timeout: 30_000, stdio: ['ignore', 'pipe', 'ignore'] }));
   return out.split('\n').filter(Boolean).map((l) => { const [id, name, state, runLabel] = l.split('\t'); return { id, name, state, runLabel }; });
 }
 const ACTIVE = new Set(['running', 'paused', 'restarting', 'removing']);
@@ -84,6 +86,8 @@ class Refusal extends Error { constructor(reason, message) { super(message); thi
 
 /** A1–A6. `lister` lists storage containers (null: none, the self-check); `waitMs` bounds A4. */
 async function acquire(ctx, { lister = storageContainers, removeContainer = (id) => execFileSync('docker', ['rm', id], { stdio: 'ignore', timeout: 30_000 }), waitMs = 120_000 } = {}) {
+  ctx.reclaimed = null;
+  ctx.removed = [];
   const p = paths(ctx.repo, ctx.project);
   fs.mkdirSync(p.tmp, { recursive: true });
   const rec = { formatVersion: 1, project: ctx.project, checkout: path.resolve(ctx.repo), command: ctx.command, runId: ctx.runId, pid: ctx.pid,
@@ -126,6 +130,7 @@ async function acquire(ctx, { lister = storageContainers, removeContainer = (id)
       if (!again || again.runId !== k.runId) continue;
       try {
         fs.renameSync(p.lock, p.stale(k.runId));
+        ctx.reclaimed = k.runId;
         eventLine(ctx, 'storage_lock_reclaimed', { owner: ownerView(k), waitedMs: Date.now() - started });
       } catch { /* another command moved it first */ }
     }
@@ -138,19 +143,25 @@ async function acquire(ctx, { lister = storageContainers, removeContainer = (id)
   try {
     for (const c of lister ? lister(ctx.project) : []) {
       if (ACTIVE.has(c.state)) throw Object.assign(new Refusal('storage_writer_active', `A storage container of ${ctx.project} still runs: ${c.name} (${c.id}, ${c.state}, run ${c.runLabel}). Wait until it ends, or stop it with docker stop ${c.name}.`), { container: c });
-      removeContainer(c.id);
+      tagged('remove', () => removeContainer(c.id), { container: c });
+      ctx.removed.push(c);
       eventLine(ctx, 'storage_container_removed', { container: c });
     }
   } catch (err) {
     release(ctx, { quiet: true });
     throw err;
   }
-  for (const name of fs.readdirSync(p.tmp)) {
-    if (!name.startsWith(p.prefix) || !/\.(cand|rel)-[0-9a-f]{16}$/.test(name) || name === path.basename(p.cand(ctx.runId))) continue;
-    const r = readRecord(path.join(p.tmp, name));
-    if (r && recordLive(r)) continue;
-    fs.rmSync(path.join(p.tmp, name), { recursive: true, force: true });
-    eventLine(ctx, 'storage_lock_cleanup', { owner: ownerView(r) });
+  try {
+    for (const name of fs.readdirSync(p.tmp)) {
+      if (!name.startsWith(p.prefix) || !/\.(cand|rel)-[0-9a-f]{16}$/.test(name) || name === path.basename(p.cand(ctx.runId))) continue;
+      const r = readRecord(path.join(p.tmp, name));
+      if (r && recordLive(r)) continue;
+      fs.rmSync(path.join(p.tmp, name), { recursive: true, force: true });
+      eventLine(ctx, 'storage_lock_cleanup', { owner: ownerView(r) });
+    }
+  } catch (err) {
+    release(ctx, { quiet: true }); // a failure here (for example `ps`) never leaves this command's lock behind
+    throw err;
   }
   return rec;
 }
@@ -295,10 +306,11 @@ process.stdout.write(s === ${JSON.stringify(self.pidStart)} ? 'live' : 'not-live
   return expected.every((s) => lines.some((l) => l.scenario === s && l.ok)) ? 0 : 1;
 }
 
+let runCtx = null;
 try {
   if (cmd === 'acquire') {
-    const ctx = ctxOf(opt);
-    await acquire(ctx);
+    runCtx = ctxOf(opt);
+    await acquire(runCtx);
   } else if (cmd === 'release') {
     process.exitCode = release(ctxOf(opt)) ? 0 : 1;
   } else if (cmd === 'add-container') {
@@ -315,11 +327,20 @@ try {
     eventLine(ctx, 'storage_lock_refused', { reason: err.reason, owner: ownerView(err.owner), container: err.container ?? null });
     process.stderr.write(`${err.message}\n`);
     process.exitCode = 1;
-  } else if (err?.code === 'ENOENT' && /docker/.test(String(err.path ?? err.message))) {
-    process.stderr.write('Cannot check the storage containers: docker is not installed. Nothing was changed.\n');
+  } else if (err?.step === 'list' || err?.step === 'remove') {
+    // A6 may have reclaimed a stale lock record (A5) and removed inactive storage containers before the failure: say so.
+    // The lock is released; no database or volume entry was changed. Never the child's own output.
+    const done = [runCtx?.reclaimed ? `a stale lock record was moved to .tmp/storage-op.<project>.stale-${runCtx.reclaimed}/` : null,
+      runCtx?.removed?.length ? `inactive storage containers removed: ${runCtx.removed.map((c) => `${c.name} (${c.id})`).join(', ')}` : null].filter(Boolean);
+    const how = err.signal ? `ended by ${err.signal}` : `exit ${err.status}`;
+    const what = err.code === 'ENOENT' ? 'Cannot check the storage containers: docker is not installed'
+      : err.step === 'list' ? `Cannot check the storage containers: Docker does not answer (docker ps: ${how}). Start Docker, then run the command again`
+        : `Cannot remove the inactive storage container ${err.container.name} (${err.container.id}): docker rm failed (${how})`;
+    process.stderr.write(`${what}. ${done.length ? `Before that, ${done.join('; ')}. ` : ''}No data was changed.\n`);
     process.exitCode = 1;
   } else if (err?.status !== undefined || err?.signal) {
-    process.stderr.write('Cannot check the storage containers: Docker does not answer. Start Docker, then run the command again. Nothing was changed.\n');
+    // A failed `ps` (the process check of A3/A4) or another child: name the case, never its output.
+    process.stderr.write('Cannot read the process list (ps) for the lock check. The lock is not held. No data was changed.\n');
     process.exitCode = 1;
   } else {
     process.stderr.write(`${err?.message ?? err}\n`);

@@ -278,6 +278,40 @@ describe('the old-build wrapper (copies only; old-only; allowlist; hashes; prefl
   });
 });
 
+describe('the wrapper refusals write one storage_refused JSON line with the code (A-SI-01, M1 "Refuses <code>")', () => {
+  const refusals = (res) => res.stdout.split('\n').filter((l) => l.startsWith('{')).map((l) => JSON.parse(l)).filter((l) => l.event === 'storage_refused');
+  it('wrapper_old_only (not enabled, HEAD not old) and wrapper_command_not_allowed: the code line, then the same text', () => {
+    const r = compatRepo();
+    assert.equal(r.candidate(['enable']).code, 0);
+    const head = r.copy(['preflight']);
+    assert.deepEqual(refusals(head).map((l) => [l.command, l.code, l.reason, l.head]), [['storage-compat', 'wrapper_old_only', 'head_not_old', r.head]]);
+    assert.match(head.stderr, /wrapper_old_only: HEAD [0-9a-f]{40} is not one of the old builds/);
+    r.retarget();
+    const cmd = r.copy(['run', '--', 'npm', 'run', 'stack:reset']);
+    assert.deepEqual([cmd.code, refusals(cmd).map((l) => l.code)], [1, ['wrapper_command_not_allowed']]);
+    assert.match(cmd.stderr, /wrapper_command_not_allowed: only 'npm run stack:up'/);
+    assert.ok(!JSON.stringify(refusals(cmd)).includes('stack:reset'), 'the refused command line is not in the JSON');
+    fs.rmSync(r.knobs);
+    const disabled = r.copy(['run', '--', 'npm', 'run', 'stack:up']);
+    assert.deepEqual(refusals(disabled).map((l) => [l.code, l.reason]), [['wrapper_old_only', 'override_not_enabled']]);
+  });
+  it('content_path_unsafe in the old-build wrapper: the code line with the relative path, the text, no command, the lock released', () => {
+    const r = compatRepo();
+    assert.equal(r.candidate(['enable']).code, 0);
+    r.retarget();
+    const uploads = path.join(r.root, 'infra/.data/cogniate-app/uploads');
+    fs.rmSync(uploads, { recursive: true });
+    fs.symlinkSync(os.tmpdir(), uploads);
+    const res = r.copy(['run', '--', 'npm', 'run', 'stack:up']);
+    assert.equal(res.code, 1);
+    assert.deepEqual(refusals(res).map((l) => [l.code, l.path]), [['content_path_unsafe', 'infra/.data/cogniate-app/uploads']]);
+    assert.match(res.stderr, /content_path_unsafe: .*uploads is a symbolic link, not a directory, or not owned by /);
+    assert.equal(res.calls.some((l) => l.startsWith('npm ') || / run .*storage-preflight/.test(l)), false);
+    assert.equal(fs.existsSync(r.lockDir), false);
+    assert.ok(!res.stdout.includes(os.tmpdir()), 'no absolute path in the JSON');
+  });
+});
+
 describe('the committed override and its hash list (ADR-012 §12)', () => {
   const knobs = JSON.parse(fs.readFileSync(path.join(REPO, FILES.knobs), 'utf8'));
   it('the marker names exactly the two old builds; the override changes only the effective-config items (a)–(e)', () => {

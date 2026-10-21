@@ -7,8 +7,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { afterEach, describe, it } from 'node:test';
+import { spawn } from 'node:child_process';
 import {
-  IDENTITY, JOURNAL, allowedType, classifyJournals, evaluateState, main, newIdentity, probeFolder, readFolder, writeJsonDurable,
+  IDENTITY, JOURNAL, PROBE_BOUNDS, REAL_DRIVER, allowedType, classifyJournals, cleanLeftovers, evaluateState, main, newIdentity, probeFolder, readFolder,
+  writeJsonDurable,
 } from './sqlite-lock-probe.mjs';
 
 const UID = process.getuid();
@@ -256,5 +258,151 @@ describe('modes (main)', () => {
     await run(args('check', p, ['--prepare']));
     for (const [dir, name] of [[p.lti, 'lti.db'], [p.app, 'cogniate.db']]) { const db = new DatabaseSync(path.join(dir, name)); db.exec('PRAGMA journal_mode=WAL; CREATE TABLE t(x)'); db.close(); }
     assert.equal((await run(args('report', p))).lines[0].state, 'OK');
+  });
+});
+
+// ------------------------------------------------------------------------------------------------ injected drivers
+
+// A scripted holder (a real child process): `ok` answers like the real holder; the other modes break one step.
+const FAKE_HOLDER = `
+const mode = process.argv[1];
+const say = (l) => process.stdout.write(l + '\\n');
+if (mode === 'exit-before-held') process.exit(3);
+if (mode === 'slow-held') setTimeout(() => say('HELD'), 600);
+else if (mode !== 'silent') say(mode === 'wrong-held' ? 'HELLO' : 'HELD');
+let buf = '';
+process.stdin.on('data', (c) => {
+  buf += c;
+  let i;
+  while ((i = buf.indexOf('\\n')) >= 0) {
+    const line = buf.slice(0, i); buf = buf.slice(i + 1);
+    if (line === 'PING') {
+      if (mode === 'dies-at-ping') process.exit(4);
+      if (mode !== 'no-pong') say(mode === 'pong-0' ? 'PONG inTransaction=0' : 'PONG inTransaction=1');
+    }
+    if (line === 'COMMIT' && mode !== 'no-committed') {
+      say('COMMITTED');
+      if (mode !== 'committed-no-exit') process.exit(mode === 'committed-exit-1' ? 1 : 0);
+    }
+  }
+});
+setInterval(() => {}, 1000);
+`;
+const sqliteError = (errcode) => Object.assign(new Error('injected'), { code: 'ERR_SQLITE_ERROR', errcode });
+/** A database whose first BEGIN IMMEDIATE throws `busy` (null: it succeeds); the second throws `secondBusy`. */
+function fakeDb({ busy = sqliteError(5), secondBusy = null, row = { marker: 'm' } } = {}) {
+  const calls = [];
+  let begins = 0;
+  return {
+    calls,
+    exec(sql) {
+      calls.push(sql);
+      if (sql !== 'BEGIN IMMEDIATE') return;
+      begins += 1;
+      if (begins === 1 && busy !== null) throw busy;
+      if (begins === 2 && secondBusy !== null) throw secondBusy;
+    },
+    prepare: () => ({ get: () => row ?? undefined }),
+    close: () => calls.push('close'),
+  };
+}
+const driverOf = ({ holder = 'ok', db = fakeDb(), waitMs = 300, removeFile = () => {} } = {}) => ({
+  waitMs, removeFile, openDatabase: () => db,
+  spawnHolder: () => spawn(process.execPath, ['-e', FAKE_HOLDER, holder], { stdio: ['pipe', 'pipe', 'ignore'] }),
+});
+const probeWith = (opts) => probeFolder(tmp(), 'abcdefabcdefabcd', { driver: driverOf(opts) });
+
+describe('the lock probe with injected drivers (M1 supplemental list; ADR-012 §5 steps 7–10)', () => {
+  it('the real bounds stay: each wait 10 s, the whole run 60 s; the real driver is the default', () => {
+    assert.deepEqual(PROBE_BOUNDS, { waitMs: 10_000, runMs: 60_000 });
+    assert.equal(REAL_DRIVER.waitMs, 10_000);
+  });
+  it('only the extended code 5 (SQLITE_BUSY) is an enforced lock: 261, 517, 6 and any other result are probe_error', async () => {
+    const db = fakeDb({ busy: sqliteError(5) });
+    assert.deepEqual(await probeWith({ db }).then((r) => [r.result, r.reason]), ['pass', null]);
+    assert.deepEqual(db.calls, ['BEGIN IMMEDIATE', 'BEGIN IMMEDIATE', 'ROLLBACK', 'close']);
+    const others = [sqliteError(261), sqliteError(517), sqliteError(6), sqliteError(1), sqliteError(10), sqliteError(13), sqliteError(773), sqliteError(undefined),
+      sqliteError('5'), new Error('not sqlite'), Object.assign(new Error('primary only'), { code: 'SQLITE_BUSY' })];
+    for (const busy of others) {
+      const r = await probeWith({ db: fakeDb({ busy }) });
+      assert.deepEqual([r.result, r.reason], ['fail', 'probe_error'], `errcode ${String(busy.errcode)}`);
+    }
+  });
+  it('a lock that is always granted is lock_not_enforced (the parent rolls back)', async () => {
+    const db = fakeDb({ busy: null });
+    const r = await probeWith({ db });
+    assert.deepEqual([r.result, r.reason], ['fail', 'lock_not_enforced']);
+    assert.deepEqual(db.calls, ['BEGIN IMMEDIATE', 'ROLLBACK', 'close']);
+  });
+  it('a holder that exits or answers wrongly is probe_error, not timeout', async () => {
+    for (const holder of ['exit-before-held', 'wrong-held', 'dies-at-ping', 'pong-0', 'committed-exit-1']) {
+      const t0 = Date.now();
+      const r = await probeWith({ holder, waitMs: 5_000 });
+      assert.deepEqual([holder, r.result, r.reason], [holder, 'fail', 'probe_error']);
+      assert.ok(Date.now() - t0 < 4_000, `${holder}: decided by the answer, not by an elapsed wait`);
+    }
+  });
+  it('each elapsed wait (HELD, PONG, COMMITTED, the exit) is timeout, after the wait bound', async () => {
+    for (const holder of ['silent', 'no-pong', 'no-committed', 'committed-no-exit']) {
+      const t0 = Date.now();
+      const r = await probeWith({ holder, waitMs: 300 });
+      assert.deepEqual([holder, r.result, r.reason], [holder, 'fail', 'timeout']);
+      assert.ok(Date.now() - t0 >= 290, `${holder}: waited the bound`);
+    }
+  });
+  it('the release-positive control: a second BEGIN that fails, or no row of the holder, is probe_error', async () => {
+    assert.equal((await probeWith({ db: fakeDb({ secondBusy: sqliteError(5) }) })).reason, 'probe_error');
+    assert.equal((await probeWith({ db: fakeDb({ row: null }) })).reason, 'probe_error');
+  });
+  it('a failed scratch delete (step 10) is scratch_cleanup_failed with the path, also after a pass', async () => {
+    const r = await probeWith({ removeFile: (p) => { if (p.endsWith('-wal')) throw Object.assign(new Error('EACCES'), { code: 'EACCES' }); } });
+    assert.deepEqual([r.result, r.reason], ['fail', 'scratch_cleanup_failed']);
+    assert.equal(r.cleanup.length, 1);
+    assert.match(r.cleanup[0], /\.lock-probe-abcdefabcdefabcd\.db-wal$/);
+  });
+  it('step 5: many stale files are removed; a near-match name is never removed and refuses unknown_entry; a failed delete stops', async () => {
+    const p = pair();
+    const stale = [];
+    for (let i = 0; i < 300; i++) for (const s of ['', '-wal', '-shm']) stale.push(`.lock-probe-${i.toString(16).padStart(16, '0')}.db${s}`);
+    for (const n of stale) touch(p.lti, n);
+    const r = await run(args('check', p, ['--prepare']));
+    assert.equal(r.code, 0, JSON.stringify(r.summary));
+    assert.deepEqual(fs.readdirSync(p.lti), [IDENTITY]);
+    for (const near of ['.lock-probe-0123.db', `.lock-probe-${'a'.repeat(16)}.db-journal`, `.lock-probe-${'A'.repeat(16)}.db`, `.lock-probe-${'b'.repeat(16)}.dbx`, `lock-probe-${'c'.repeat(16)}.db`]) {
+      touch(p.app, near);
+      const n = await run(args('check', p, ['--prepare']));
+      assert.deepEqual([n.code, n.summary.reasons], [1, [`unknown_entry:app:${near}`]], near);
+      assert.ok(fs.existsSync(path.join(p.app, near)), `${near} is kept`);
+      fs.rmSync(path.join(p.app, near));
+    }
+    touch(p.lti, `.lock-probe-${'d'.repeat(16)}.db`);
+    assert.deepEqual(cleanLeftovers(p.lti, { removeFile: () => { throw new Error('EPERM'); } }), [path.join(p.lti, `.lock-probe-${'d'.repeat(16)}.db`)]);
+    const lines = [];
+    const code = await main(args('check', p, ['--prepare']), { env: { ...process.env, HOST_UID: String(UID), HOST_GID: String(GID) }, emit: (ls) => lines.push(...ls),
+      driver: { ...REAL_DRIVER, removeFile: () => { throw new Error('EPERM'); } } });
+    assert.deepEqual([code, lines.at(-1).reasons], [1, [`scratch_cleanup_failed:${path.join(p.lti, `.lock-probe-${'d'.repeat(16)}.db`)}`]]);
+  });
+  it('the whole-run bound: one storage_preflight line per folder (timeout), the summary LAST, exit 1; nothing is written afterwards', async () => {
+    const p = pair();
+    const lines = [];
+    const t0 = Date.now();
+    const code = await main(args('check', p, ['--prepare']), { env: { ...process.env, HOST_UID: String(UID), HOST_GID: String(GID) }, emit: (ls) => lines.push(...ls),
+      runMs: 300, driver: driverOf({ holder: 'silent', waitMs: 700, removeFile: REAL_DRIVER.removeFile }) });
+    assert.equal(code, 1);
+    assert.ok(Date.now() - t0 < 650, 'decided by the run bound');
+    assert.deepEqual(lines.map((l) => [l.event, l.folder ?? null, l.reason ?? null]), [
+      ['storage_preflight', 'lti', 'timeout'], ['storage_preflight', 'app', 'timeout'], ['storage_preflight_summary', null, null]]);
+    assert.deepEqual([lines.at(-1).result, lines.at(-1).reasons], ['fail', ['timeout']]);
+    await new Promise((r) => setTimeout(r, 1_200)); // the stopped probe ends in the background
+    assert.equal(lines.length, 3, 'no second report');
+    assert.deepEqual([fs.readdirSync(p.lti), fs.readdirSync(p.app).sort()], [[], ['packages', 'uploads']], 'no identity and no scratch');
+    // A probe that would still pass after the deadline (the holder answers late) writes no identity either.
+    const late = pair();
+    const later = [];
+    assert.equal(await main(args('check', late, ['--prepare']), { env: { ...process.env, HOST_UID: String(UID), HOST_GID: String(GID) }, emit: (ls) => later.push(...ls),
+      runMs: 300, driver: { ...driverOf({ holder: 'slow-held', waitMs: 2_000 }), openDatabase: () => fakeDb(), removeFile: REAL_DRIVER.removeFile } }), 1);
+    await new Promise((r) => setTimeout(r, 2_000)); // both late probes pass in the background (each holder answers at 600 ms)
+    assert.deepEqual([later.length, later.at(-1).reasons], [3, ['timeout']]);
+    assert.deepEqual(fs.readdirSync(late.lti), [], 'no identity after the deadline');
   });
 });

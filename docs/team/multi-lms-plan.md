@@ -1848,6 +1848,18 @@ The existing design does not permit a root copy of unreadable data. Writers keep
 The Author must add positive read-only and unreadable-entry controls. Both source reviewers check this implementation disposition.
 Required operator fields remain present and safely escaped; unrelated raw process output and secrets must not be exposed.
 
+The Author submitted the repaired source in `msg_8e2a41e30573` for `task_81a4c5dab4dc`, dispatch `ctx_4f87059bdeaf`.
+The Lead checked all 12 held files, eight evidence files, the unchanged earlier evidence and all 214 prior stack-data assertion lines.
+QA and architecture files still match `f8a869b`; the committed review reports are unchanged.
+The Author was retained before acknowledgment. Its report names the task's starting HEAD; later commits contain only team records.
+Evidence: `.tmp/author-handoff/task_81a4c5dab4dc/`.
+Held-list SHA-256: `73a39c77b1f1370635ac3a0fc41c1a1eb0ae3afc06a30be727487dfb67661240`.
+Evidence-manifest SHA-256: `e547a151f34fab04ca0d00acf2aae06f9af5693dc1242fb54bced458ecf4098d`.
+Author checks pass: 1,111 unit tests in 70 files, 76 infrastructure tests and 21 targeted mutation controls.
+The exact error-code mutation from B-SI-02 now fails its test. Six real outputs also pass the frozen QA oracle in a scratch check.
+These are host-only Author results. The held repair covers all assigned findings, including B-SI-07; independent closure is still required.
+No Docker command, stack, commit or push was run by the Author, and all runtime and live rows remain unverified.
+
 The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.

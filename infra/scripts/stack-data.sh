@@ -27,6 +27,7 @@ while (( $# )); do
 done
 case "$source_kind" in volume|legacy) ;; *) echo "--source must be volume or legacy" >&2; exit 2 ;; esac
 
+STORAGE_COMMAND="stack:data-$cmd"   # the command name of its JSON refusal lines (lib.sh storage_refusal_json)
 storage_compat_guard
 storage_lock_acquire "stack:data-$cmd"
 require_services_stopped
@@ -36,8 +37,9 @@ abs() { node -e 'process.stdout.write(require("path").resolve(process.argv[1]))'
 # A new or empty folder outside the checkout, mode 0700 (it will hold secrets).
 new_folder() {
   local dir; dir="$(abs "$1")"
-  case "$dir/" in "$REPO_ROOT/"*) echo "The folder must be outside the checkout (it contains secrets). Nothing was changed." >&2; exit 1 ;; esac
-  if [[ -e "$dir" ]] && [[ -n "$(ls -A "$dir" 2>/dev/null)" ]]; then echo "The folder $dir is not empty. Nothing was changed." >&2; exit 1; fi
+  # It runs inside $(…): its JSON refusal line goes to stderr, so it is never read as the folder name.
+  case "$dir/" in "$REPO_ROOT/"*) storage_refusal_json backup_folder_in_checkout >&2; echo "The folder must be outside the checkout (it contains secrets). Nothing was changed." >&2; exit 1 ;; esac
+  if [[ -e "$dir" ]] && [[ -n "$(ls -A "$dir" 2>/dev/null)" ]]; then storage_refusal_json backup_folder_not_empty >&2; echo "The folder $dir is not empty. Nothing was changed." >&2; exit 1; fi
   mkdir -p "$dir"; chmod 700 "$dir"
   echo "$dir"
 }
@@ -50,7 +52,7 @@ case "$cmd" in
       old_layout_check
       code=0
       # Host side: the legacy bind folders are only read.
-      node "$INFRA_DIR/scripts/stack-data.mjs" backup --source legacy --out "$out" --data "$INFRA_DIR/.data" --project "$COMPOSE_PROJECT_NAME" --revision "$revision" --repo "$REPO_ROOT" || code=$?
+      STORAGE_LOG_DIR="$LOGS_DIR" node "$INFRA_DIR/scripts/stack-data.mjs" backup --source legacy --out "$out" --data "$INFRA_DIR/.data" --project "$COMPOSE_PROJECT_NAME" --revision "$revision" --repo "$REPO_ROOT" || code=$?
       dir="$(abs "$out")"
     else
       prepare_content_folders
@@ -79,7 +81,7 @@ case "$cmd" in
     fi
     [[ -n "$from" ]] || { echo "Usage: stack:data-$cmd -- --from <folder>" >&2; exit 2; }
     dir="$(abs "$from")"
-    [[ -d "$dir" ]] || { echo "No backup folder $dir. No target changed." >&2; exit 1; }
+    [[ -d "$dir" ]] || { storage_refusal_json backup_folder_missing; echo "No backup folder $dir. No target changed." >&2; exit 1; }
     STORAGE_RUN_OPTS=(-v "$dir:/backup:ro")
     code=0
     # The content check reads the read-only packages bind of the maintenance service (/content/packages).
@@ -97,7 +99,10 @@ case "$cmd" in
     copy_run="$STORAGE_RUN_ID"
     for id in $(docker ps -aq --filter "label=org.cogniate.storage.run=$copy_run"); do
       state="$(docker inspect -f '{{.State.Status}}' "$id")"
-      case "$state" in created|exited|dead) docker rm "$id" >/dev/null ;; *) echo "Quarantine stopped: the copy container $id is $state. Nothing was removed." >&2; exit 1 ;; esac
+      case "$state" in
+        created|exited|dead) docker rm "$id" >/dev/null 2>&1 || { echo "Quarantine stopped: Docker did not remove the copy container $id. Nothing was removed; the verified copy is in $dir." >&2; exit 1; } ;;
+        *) echo "Quarantine stopped: the copy container $id is $state. Nothing was removed." >&2; exit 1 ;;
+      esac
     done
     [[ -z "$(docker ps -aq --filter "label=org.cogniate.storage.run=$copy_run")" ]] || { echo "Quarantine stopped: the copy container still exists. Nothing was removed." >&2; exit 1; }
     # Step 2: every container, in any state, that references a lane volume.
@@ -109,20 +114,26 @@ case "$cmd" in
       if [[ "$project" == "$COMPOSE_PROJECT_NAME" && ( "$service" == lti-service || "$service" == cogniate-app ) && "$oneoff" != True && ( "$state" == exited || "$state" == created || "$state" == dead ) ]]; then
         allowed+=("$id|${name#/}|$service")
       else
+        storage_refusal_json volume_in_use container "${name#/}" id "$id" project "$project" service "$service" state "$state"
         echo "volume_in_use: ${name#/} ($id, project ${project:-none}, service ${service:-none}, state $state) uses a lane volume. Nothing was removed; the verified copy is in $dir." >&2
         exit 1
       fi
     done
     # Step 3: the allowed users (never -f, never -v).
-    removed="[]"
+    removed="[]"; removed_names=""
     for entry in ${allowed[@]+"${allowed[@]}"}; do
       IFS='|' read -r id name service <<< "$entry"
-      docker rm "$id" >/dev/null
+      if ! docker rm "$id" >/dev/null 2>&1; then
+        # Say what happened: which service containers are already removed. The copy and both volumes stay.
+        echo "Quarantine stopped at the container removal: Docker did not remove $name ($id). Removed before: ${removed_names:-none}. The verified copy in $dir and both volumes stay. Run the command again with a new --out folder when the cause is fixed." >&2
+        exit 1
+      fi
+      removed_names="${removed_names:+$removed_names, }$name ($id)"
       removed="$(node -e 'const a=JSON.parse(process.argv[1]);a.push({name:process.argv[2],id:process.argv[3],service:process.argv[4]});process.stdout.write(JSON.stringify(a))' "$removed" "$name" "$id" "$service")"
     done
     # Step 4: the volumes.
     if ! docker volume rm "${COMPOSE_PROJECT_NAME}_ltidb" "${COMPOSE_PROJECT_NAME}_appdb" >/dev/null; then
-      echo "Quarantine stopped at the volume removal (see the Docker message above). The copy and the volumes stay." >&2
+      echo "Quarantine stopped at the volume removal (see the Docker message above). Removed service containers: ${removed_names:-none}. The copy and the volumes stay." >&2
       exit 1
     fi
     # Step 5: the record.

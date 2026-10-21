@@ -328,6 +328,19 @@ stop_build_runner() {
 # shellcheck source=storage-oplock.sh
 source "$INFRA_DIR/scripts/storage-oplock.sh"   # storage_lock_acquire, storage_lock_release, storage_lock_add_container, storage_run_id
 
+# M1 "Refuses <code>": the code in the command's JSON output. One storage_refused line on stdout, next to the human
+# text on stderr (which stays as it is). node builds the line, so every value is JSON-escaped; the fields are fixed
+# names and safe values only (a path relative to the checkout, a container name and id), never raw command output.
+#   storage_refusal_json <code> [<key> <value>]…
+storage_refusal_json() {
+  local command="${STORAGE_COMMAND:-$(basename "$0" .sh | sed 's/^stack-/stack:/')}"
+  node -e 'const [code, command, runId, ...kv] = process.argv.slice(1);
+const line = { event: "storage_refused", ts: new Date().toISOString(), command, code };
+if (runId) line.runId = runId;
+for (let i = 0; i + 1 < kv.length; i += 2) line[kv[i]] = kv[i + 1];
+process.stdout.write(JSON.stringify(line) + "\n");' "$1" "$command" "${STORAGE_LOCK_RUN_ID:-}" "${@:2}"
+}
+
 # Candidate guard (ADR-012 §12): every candidate command that can start a container or touch the databases refuses
 # while .tmp/compose.knobs.yaml holds the storage-compatibility marker.
 storage_compat_guard() { bash "$INFRA_DIR/scripts/storage-compat.sh" guard; }
@@ -340,6 +353,7 @@ prepare_content_folders() {
   mkdir -p "$INFRA_DIR/.data"
   for d in "$base" "$base/packages" "$base/uploads"; do
     if [[ -L "$d" ]] || { [[ -e "$d" ]] && { [[ ! -d "$d" ]] || [[ ! -O "$d" ]]; }; }; then
+      storage_refusal_json content_path_unsafe path "${d#"$REPO_ROOT"/}"
       echo "content_path_unsafe: $d is a symbolic link, not a directory, or not owned by $(id -un). Nothing was changed." >&2
       return 1
     fi
@@ -395,7 +409,9 @@ old_layout_check() {
     while IFS='|' read -r dest src; do
       [[ "$dest" == /data ]] || continue
       if [[ "$src" == "$lti" || "$src" == "$app" || "$src" == "$INFRA_DIR/.data/lti-service" || "$src" == "$INFRA_DIR/.data/cogniate-app" ]]; then
-        echo "old_layout_container: container $(docker inspect -f '{{.Name}}' "$id" | sed 's#^/##') ($id) still mounts $src at /data. Remove the old containers first (npm run stack:down). Nothing was changed." >&2
+        local name; name="$(docker inspect -f '{{.Name}}' "$id" | sed 's#^/##')"
+        storage_refusal_json old_layout_container container "$name" id "$id" mount "infra/.data/$(basename "$src")"
+        echo "old_layout_container: container $name ($id) still mounts $src at /data. Remove the old containers first (npm run stack:down). Nothing was changed." >&2
         return 1
       fi
     done < <(docker inspect -f '{{range .Mounts}}{{.Destination}}|{{.Source}}{{println}}{{end}}' "$id")

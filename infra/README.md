@@ -89,7 +89,13 @@ The two SQLite databases are in project volumes. The course content stays on the
 
 - The scripts make the host folders with mode `0700`. They never `chown` a host folder. A symbolic link, a file, or a folder of another user at one of these paths stops the command (`content_path_unsafe`). Nothing changes.
 - Each volume also holds `.storage-identity.json` (pair id, generation, first start, provenance, legacy sources). A restore or an import writes `.storage-journal.json`, `.restore-<opId>/` and `.previous-<opId>/`. Do not edit these files.
-- `stack:down` keeps the volumes. `stack:reset` deletes them. Docker Desktop "Clean / Purge data" also deletes them.
+- Cleanup (ADR-012 §15):
+  - `stack:down` keeps the volumes.
+  - `stack:reset` deletes both volumes, the old bind folders and the content folders of this project.
+  - `docker volume prune` (without `--all`) deletes only unused anonymous volumes, so it keeps these volumes.
+  - `docker volume prune --all` deletes every unused named volume: these databases and the Moodle volumes too.
+  - `docker system prune --volumes` deletes only anonymous volumes, so it keeps these volumes.
+  - Docker Desktop "Clean / Purge data" deletes every volume.
 
 ### Start check (preflight)
 
@@ -102,7 +108,8 @@ The two SQLite databases are in project volumes. The course content stays on the
 | `legacy_present` | Old databases are in `infra/.data/lti-service` or `infra/.data/cogniate-app`, and the volumes are empty. Import them (`stack:data-backup -- --source legacy`, then `stack:data-import`), or move them out of the checkout. |
 | `legacy_conflict` | Old databases and volume databases both exist, and they are not the same import. Move the old files out of the checkout. |
 | `old_layout_container` | A container still mounts an old bind folder at `/data`. Run `npm run stack:down`. |
-| `lock_not_enforced`, `probe_error` | The SQLite lock does not work on this storage. Do not start. |
+| `lock_not_enforced`, `probe_error` | The SQLite lock does not work on this storage (only the extended code 5 counts as a lock), or the test holder ended or answered wrongly. Do not start. |
+| `timeout` | A probe wait (10 s) or the whole run (60 s) elapsed. The run then writes one `storage_preflight` line per volume and the summary last. |
 | `unknown_entry`, `mountpoint_unsafe`, `owner_mismatch`, `identity_*`, `half_pair`, `no_databases`, `db_without_identity` | The message names the path or the state. Do not start until the cause is clear. |
 
 - `prepare_failed` (a root step failed) comes after any state code in the list of reasons.
@@ -136,6 +143,8 @@ Every `stack:data-*` command first takes the candidate guard and the lock. Then 
 - Exit codes: `0` done; `1` refused before a change, or cancelled or rolled back (verified); `2` not resolved (do not start, keep both volumes, quarantine); `3` stopped by a drill.
 - Drills (QA only, `STORAGE_DRILL=1`): `--stop-after <point>` or `--pause-after <point>` (with `STORAGE_DRILL_PAUSE_SECONDS` from 1 to 300). Points: `prepared-lti`, `prepared`, `staged`, `swap-lti-mid`, `swapped-lti`, `swap-app-mid`, `swapped`, `identity-lti`, `identity-app`, `committed-lti`, and `rollback-mid` (only with `STORAGE_DRILL_FAIL=after-swapped`).
 - Log: `infra/.logs/storage-maintenance.jsonl` (for example `storage_content_check`, `storage_backup`, `storage_recover`, `storage_quarantine`).
+- Every refusal (exit 1, nothing changed) also prints one JSON line `{"event":"storage_refused","ts","command","code",…}` on stdout, next to the human text on stderr. It has the code (for example `pair_mismatch`, `restore_target_state`, `backup_source_not_ok:<state>`, `content_path_unsafe`, `old_layout_container`, `volume_in_use`) and only safe fields: a §6 `state`, an `entry` or `path` relative to its root, the container `name`, `id` and labels. It never holds the message, a raw command output or an absolute host path.
+- Backup and the quarantine copy only read the volumes. They do no root step (§4) and switch to the host user at once. An item that the next `stack:up` prepares (the root folder owner or mode, an absent or root-owned mountpoint) is listed as `unprepared` in their output line. An entry that the host user cannot read stops them with `source_unreadable` (exit 1, no manifest; quarantine removes nothing).
 
 WARNING: a restore loses every write after the backup. A backup holds secrets (encrypted rows, hashes): keep it outside the checkout. `stack:reset` is never a recovery step.
 
@@ -156,6 +165,14 @@ This applies only to the old builds `b0b83a8` and `9f96f7b` (ADR-012 §12).
 1. In the candidate tree, before `git checkout <old>`: `npm run stack:storage-compat -- enable`. It copies `infra/compat/storage-compat.knobs.json` to `.tmp/compose.knobs.yaml`, and the probe, the runner and the lock helper to `.tmp/storage-compat/`. Then it checks every hash against `infra/compat/storage-compat.sha256`. It refuses when test knobs are active.
 2. In the old checkout: `bash .tmp/storage-compat/storage-compat.sh run -- npm run stack:up` (or `npm run test:acceptance …`). Any other command stops with `wrapper_command_not_allowed`. The wrapper runs only when `HEAD` is one of the two old builds (`wrapper_old_only`). Steps: hash check, lock, hash check, preflight, the command, the mount check, release. A failed check: exit 1, "stop now".
 3. `bash .tmp/storage-compat/storage-compat.sh preflight`, `… status` and `… disable` do one step each.
+
+The command rule while the override is enabled (ADR-012 §12). Do not run an old command that creates, recreates, starts or restarts a service container, or that deletes or rewrites `.tmp/compose.knobs.yaml`. Such a command can start a service without the override, on an empty bind folder.
+
+| Allowed | Forbidden |
+| --- | --- |
+| `git checkout` of the two old builds; the frozen test install; old `npm ci`, `npm run build`, `npm run gen-env` (it keeps an existing `.env`); `docker compose … config`; `docker compose … exec` and `stop` | old `npm run stack:restart`, `stack:reset`, `e2e:reset`, `test:e2e`, `demo`, `demo:prepare`, `demo:users`, `demo:browser` |
+| old `npm run stack:up` and old `npm run test:acceptance …`, **only** through `bash .tmp/storage-compat/storage-compat.sh run -- …` | any `docker compose up`, `create`, `run`, `start` or `restart` of a service without the knobs file |
+| old `npm run seed` (it uses `exec` only); old `npm run stack:down` (it keeps the volumes and the knobs file); the copied `storage-compat.sh run`, `preflight` and `status` | every candidate start or database command (the candidate guard stops it); the QA host-control actions `m1-restart` and `m1-profile` |
 
 While the override is enabled, every candidate start or database command stops: run `npm run stack:storage-compat -- disable` first. When you change one of the four files, write `infra/compat/storage-compat.sha256` again (`npm run test:infra` checks it).
 

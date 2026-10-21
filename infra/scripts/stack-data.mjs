@@ -17,12 +17,12 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { appendFileSync, chmodSync, closeSync, copyFileSync, existsSync, fsyncSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve, sep } from 'node:path';
+import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
 import {
-  IDENTITY, JOURNAL, ROLES, HEX32, classifyJournals, dropPrivilege, evaluateState, fsyncDir, hostIds, journalOf, prepareFolder, readFolder, validIdentity,
+  IDENTITY, JOURNAL, ROLES, HEX32, classifyJournals, dropPrivilege, evaluateState, fsyncDir, hostIds, prepareFolder, readFolder, validIdentity, validJournal,
   writeJsonDurable,
 } from './sqlite-lock-probe.mjs';
 
@@ -36,9 +36,16 @@ export const VOLUMES = { lti: { folder: 'lti-service', db: ROLES.lti.db }, app: 
 
 const sha256 = (file) => createHash('sha256').update(readFileSync(file)).digest('hex');
 
+/**
+ * A refusal: exit 1 before any change. `code` is the contract code (or a diagnostic code for a case that the contract
+ * leaves unnamed); `details` holds only safe fields for the JSON line (a §6 state, an entry relative to its root).
+ */
 export class Refused extends Error {
-  constructor(message, code = null) { super(message); this.code = code; }
+  constructor(message, code, details = {}) { super(message); this.code = code; this.details = details; }
 }
+
+/** The JSON refusal line (M1 "Refuses <code>": the code in the command's JSON output). Never the message text. */
+export const refusalLine = (command, err) => ({ event: 'storage_refused', ts: new Date().toISOString(), command, code: err.code, ...err.details });
 
 /** The schema_migration names of a database (read from a scratch copy, so the source and the backup never change). */
 function migrationNames(dataDir, db) {
@@ -130,11 +137,11 @@ export function legacyDecide(dataDir, reportLines) {
 
 export function backup({ out, data, project, revision, repo }) {
   const outDir = resolve(out);
-  if (repo && (outDir === resolve(repo) || outDir.startsWith(`${resolve(repo)}${sep}`))) throw new Refused('The backup folder must be outside the checkout (it contains secrets).');
-  if (existsSync(outDir) && readdirSync(outDir).length > 0) throw new Refused(`The backup folder ${outDir} is not empty.`);
+  if (repo && (outDir === resolve(repo) || outDir.startsWith(`${resolve(repo)}${sep}`))) throw new Refused('The backup folder must be outside the checkout (it contains secrets).', 'backup_folder_in_checkout');
+  if (existsSync(outDir) && readdirSync(outDir).length > 0) throw new Refused(`The backup folder ${outDir} is not empty.`, 'backup_folder_not_empty');
   const { refusal } = legacySets(data);
-  if (refusal) throw new Refused(`${refusal.code}: ${refusal.entry} (a hot rollback journal or an unknown entry is not supported). Nothing was copied.`, refusal.code);
-  for (const db of DATABASES) if (!existsSync(join(data, db))) throw new Refused(`Missing database ${db}. Nothing was copied.`);
+  if (refusal) throw new Refused(`${refusal.code}: ${refusal.entry} (a hot rollback journal or an unknown entry is not supported). Nothing was copied.`, refusal.code, { entry: refusal.entry });
+  for (const db of DATABASES) if (!existsSync(join(data, db))) throw new Refused(`Missing database ${db}. Nothing was copied.`, 'legacy_database_missing', { entry: db });
   const migrations = Object.fromEntries(DATABASES.map((db) => [db, migrationNames(data, db)]));
   mkdirSync(outDir, { recursive: true, mode: 0o700 });
   const files = [];
@@ -150,7 +157,7 @@ export function backup({ out, data, project, revision, repo }) {
   }
   const manifest = { formatVersion: 1, backupId: randomUUID(), createdAt: new Date().toISOString(), composeProject: project, sourceRevision: revision, files, migrations, source: 'legacy' };
   // The copies are re-hashed against the source hashes before the manifest exists.
-  for (const f of files) if (sha256(join(outDir, f.name)) !== f.sha256) throw new Refused(`The copy of ${f.name} does not match its source.`);
+  for (const f of files) if (sha256(join(outDir, f.name)) !== f.sha256) throw new Refused(`The copy of ${f.name} does not match its source.`, 'backup_copy_mismatch', { entry: f.name });
   writeManifest(outDir, manifest);
   validate(outDir, project);
   return manifest;
@@ -243,10 +250,21 @@ function inPlaceEquals(dir, role, list, identityRule) {
 class Unresolved extends Error {}
 
 function journalPath(dir) { return join(dir, JOURNAL); }
+/**
+ * The journal of a volume: null only when the name is absent. A present journal that is not a regular file, does not
+ * parse, parses to null, false, 0, "" or another non-object, or does not validate is { invalid: true } (R6), never absent.
+ */
 function readJournal(dir) {
   const p = journalPath(dir);
-  if (!existsSync(p)) return null;
-  try { return JSON.parse(readFileSync(p, 'utf8')); } catch { return { invalid: true }; }
+  let st;
+  try { st = lstatSync(p); } catch (err) { if (err.code === 'ENOENT') return null; return { invalid: true }; }
+  if (!st.isFile()) return { invalid: true };
+  try {
+    const v = JSON.parse(readFileSync(p, 'utf8'));
+    return v !== null && typeof v === 'object' && !Array.isArray(v) && validJournal(v) ? v : { invalid: true };
+  } catch {
+    return { invalid: true };
+  }
 }
 function writeJournal(dir, j, state) {
   const next = { ...j, state, updatedAt: new Date().toISOString() };
@@ -516,12 +534,11 @@ export function createEngine({ dirs, log, point = () => {}, fail = null, io = RE
 
   /** The recovery table (§8) from the observed journals. Returns {code, message}. */
   function recover() {
+    // null (absent), { invalid } (present but not a valid journal: R6) or a valid journal.
     const lti = readJournal(dirs.lti);
     const app = readJournal(dirs.app);
-    const lj = lti && !lti.invalid && journalOf({ journal: { present: true, ok: true, value: lti } });
-    const aj = app && !app.invalid && journalOf({ journal: { present: true, ok: true, value: app } });
-    const { row } = classifyJournals(lti === null ? null : lj, app === null ? null : aj);
-    const js = { lti: lj && !lj.invalid ? lj : null, app: aj && !aj.invalid ? aj : null };
+    const { row } = classifyJournals(lti, app);
+    const js = { lti: lti && !lti.invalid ? lti : null, app: app && !app.invalid ? app : null };
     try {
       if (row === 'R0') return { code: 0, message: 'nothing to recover' };
       if (row === 'R5' || row === 'R6') return { code: 2, message: 'the rollback did not finish; do not start; keep both volumes; use stack:data-quarantine' };
@@ -591,6 +608,43 @@ function logTo(dir) {
   };
 }
 
+/**
+ * A read-only mode reads as HOST_UID (§4). An entry that this user cannot read fails closed (backup: no manifest;
+ * quarantine: nothing removed), naming the entry relative to the volume root.
+ */
+function readable(fn, entryOf) {
+  try {
+    return fn();
+  } catch (err) {
+    const entry = typeof entryOf === 'function' ? entryOf(err) : entryOf;
+    if (err?.code === 'EACCES' || err?.code === 'EPERM') throw new Refused(`Cannot read ${entry} as the host user (${err.code}). An entry that only root can read is not copied (ADR-012 §4).`, 'source_unreadable', { entry });
+    throw err;
+  }
+}
+
+/** The entry of a failed read, relative to the mount root of the two volumes (never an absolute host path). */
+const entryIn = (dirs, err) => (typeof err?.path === 'string' ? relative(dirname(dirs.lti), err.path) || '.' : '.');
+
+/**
+ * The §4 items that a read-only mode does not prepare (B-SI-07 reading): the root folder owner or mode, and an absent
+ * or root-owned empty appdb mountpoint. Information only; the next guarded start (`check --prepare`) fixes them.
+ */
+export function unpreparedItems(dirs, { uid, gid }) {
+  const out = [];
+  for (const role of ['lti', 'app']) {
+    const st = lstatSync(dirs[role]);
+    if (st.uid !== uid || st.gid !== gid) out.push({ volume: role, item: '.', issue: 'owner' });
+    if ((st.mode & 0o7777) !== 0o700) out.push({ volume: role, item: '.', issue: 'mode' });
+    for (const m of ROLES[role].mountpoints) {
+      let e = null;
+      try { e = lstatSync(join(dirs[role], m)); } catch (err) { if (err.code !== 'ENOENT') throw err; }
+      if (e === null) out.push({ volume: role, item: m, issue: 'absent' });
+      else if (e.isDirectory() && (e.uid !== uid || e.gid !== gid || (e.mode & 0o7777) !== 0o700)) out.push({ volume: role, item: m, issue: e.uid === 0 ? 'root_owned' : 'owner_or_mode' });
+    }
+  }
+  return out;
+}
+
 /** The §6 state of the two volumes, as `report` reads it. */
 function pairState(dirs, project, ids) {
   return evaluateState({ lti: readFolder(dirs.lti, 'lti'), app: readFolder(dirs.app, 'app') }, { project, hostUid: ids.uid, hostGid: ids.gid });
@@ -598,8 +652,8 @@ function pairState(dirs, project, ids) {
 
 /** §8 volume backup (volumes read-only): state OK, byte copy, re-hash, manifest last. */
 export function volumeBackup({ dirs, out, project, revision, ids, io = REAL_IO }) {
-  const st = pairState(dirs, project, ids);
-  if (st.state !== 'OK') throw new Refused(`backup_source_not_ok:${st.state}. Nothing was copied.`, `backup_source_not_ok:${st.state}`);
+  const st = readable(() => pairState(dirs, project, ids), (err) => entryIn(dirs, err));
+  if (st.state !== 'OK') throw new Refused(`backup_source_not_ok:${st.state}. Nothing was copied.`, `backup_source_not_ok:${st.state}`, { state: st.state });
   if (existsSync(out) && readdirSync(out).length > 0) throw new Refused('The backup folder is not empty. Nothing was copied.', 'backup_folder_not_empty');
   mkdirSync(out, { recursive: true, mode: 0o700 });
   const files = [];
@@ -608,15 +662,15 @@ export function volumeBackup({ dirs, out, project, revision, ids, io = REAL_IO }
   for (const role of ['lti', 'app']) {
     const { folder, db } = VOLUMES[role];
     mkdirSync(join(out, folder), { recursive: true, mode: 0o700 });
-    for (const f of dbFiles(dirs[role], role)) {
+    for (const f of readable(() => dbFiles(dirs[role], role), (err) => `${folder}/${typeof err?.path === 'string' ? basename(err.path) : db}`)) {
       const dst = join(out, folder, f.name);
-      io.copyFile(join(dirs[role], f.name), dst);
+      readable(() => io.copyFile(join(dirs[role], f.name), dst), `${folder}/${f.name}`);
       chmodSync(dst, 0o600);
       // A partial copy is found here, before the manifest exists (no manifest: not a backup).
       if (sha256(dst) !== f.sha256) throw new Refused(`The copy of ${folder}/${f.name} does not match its source. No manifest was written.`, 'backup_copy_mismatch');
       files.push({ name: `${folder}/${f.name}`, size: f.size, sha256: f.sha256 });
     }
-    migrations[`${folder}/${db}`] = migrationNames(dirs[role], db);
+    migrations[`${folder}/${db}`] = readable(() => migrationNames(dirs[role], db), `${folder}/${db}`);
     if (role === 'lti') identity = readIdentityAt(join(dirs[role], IDENTITY));
   }
   const manifest = { formatVersion: 1, backupId: randomUUID(), createdAt: new Date().toISOString(), composeProject: project, sourceRevision: revision, files, migrations,
@@ -649,18 +703,18 @@ export function volumeRestore({ dirs, from, project, operation, ids, log, drill 
       : operation === 'restore' && ['FIRST_START', 'FRESH_INIT_PARTIAL'].includes(st.state) ? 'npm run stack:up to finish the first start'
         : 'quarantine first (npm run stack:data-quarantine, ADR-012 §9)';
   if (operation === 'import') {
-    if (st.state !== 'FRESH') throw new Refused(`import_target_not_fresh: the target state is ${st.state}. Import only into a FRESH pair; next: ${next}. Nothing was changed.`, 'import_target_not_fresh');
+    if (st.state !== 'FRESH') throw new Refused(`import_target_not_fresh: the target state is ${st.state}. Import only into a FRESH pair; next: ${next}. Nothing was changed.`, 'import_target_not_fresh', { state: st.state });
     if (source !== 'legacy') throw new Refused('import_needs_legacy_backup: a volume backup is restored with `npm run stack:data-restore`, not imported. Nothing was changed.', 'import_needs_legacy_backup');
     pairId = randomBytes(16).toString('hex');
     generation = 1;
     legacySources = m.files.map(({ name, size, sha256: s }) => ({ name, size, sha256: s }));
     provenance = { kind: 'import', opId, backupId: m.backupId, manifestSha256, restoredFromPairId: null, restoredFromGeneration: null };
   } else {
-    if (st.state !== 'OK' && st.state !== 'FRESH') throw new Refused(`restore_target_state: the target state is ${st.state}; next: ${next}. Nothing was changed.`, 'restore_target_state');
+    if (st.state !== 'OK' && st.state !== 'FRESH') throw new Refused(`restore_target_state: the target state is ${st.state}; next: ${next}. Nothing was changed.`, 'restore_target_state', { state: st.state });
     if (source === 'legacy') {
       throw st.state === 'FRESH'
         ? new Refused('restore_needs_volume_backup: a legacy backup goes into a FRESH pair with `npm run stack:data-import`. Nothing was changed.', 'restore_needs_volume_backup')
-        : new Refused('import_target_not_fresh: a legacy backup needs a FRESH target; the target state is OK. Nothing was changed.', 'import_target_not_fresh');
+        : new Refused('import_target_not_fresh: a legacy backup needs a FRESH target; the target state is OK. Nothing was changed.', 'import_target_not_fresh', { state: 'OK' });
     }
     if (st.state === 'OK') {
       const target = readIdentityAt(join(dirs.lti, IDENTITY));
@@ -693,13 +747,13 @@ export function quarantineCopy({ dirs, out, project, io = REAL_IO }) {
   mkdirSync(out, { recursive: true, mode: 0o700 });
   const files = [];
   const walk = (src, dst, rel) => {
-    for (const n of readdirSync(src).sort()) {
+    for (const n of readable(() => readdirSync(src), rel).sort()) {
       const s = join(src, n);
       const d = join(dst, n);
-      const st = lstatSync(s);
+      const st = readable(() => lstatSync(s), `${rel}/${n}`);
       if (st.isSymbolicLink()) { symlinkSync(readlinkSync(s), d); files.push({ name: `${rel}/${n}`, type: 'symlink', target: readlinkSync(s) }); continue; }
       if (st.isDirectory()) { mkdirSync(d, { mode: 0o700 }); files.push({ name: `${rel}/${n}`, type: 'dir' }); walk(s, d, `${rel}/${n}`); continue; }
-      if (st.isFile()) { io.copyFile(s, d); chmodSync(d, 0o600); files.push({ name: `${rel}/${n}`, type: 'file', size: st.size, sha256: sha256(s) }); continue; }
+      if (st.isFile()) { readable(() => io.copyFile(s, d), `${rel}/${n}`); chmodSync(d, 0o600); files.push({ name: `${rel}/${n}`, type: 'file', size: st.size, sha256: sha256(s) }); continue; }
       files.push({ name: `${rel}/${n}`, type: 'other' });
     }
   };
@@ -754,7 +808,7 @@ export async function main(argv, { env = process.env } = {}) {
       console.log(`Backup ${m.backupId} (source legacy) written to ${resolve(values.out)}: ${m.files.map((f) => f.name).join(', ')}. Keep it outside the checkout; it contains secrets.`);
       return 0;
     } catch (err) {
-      if (err instanceof Refused) { console.error(err.message); return 1; }
+      if (err instanceof Refused) { logTo(env.STORAGE_LOG_DIR ?? '/logs')(refusalLine('backup', err)); console.error(err.message); return 1; }
       throw err;
     }
   }
@@ -770,15 +824,19 @@ export async function main(argv, { env = process.env } = {}) {
   const root = resolve(values.data);
   const dirs = { lti: join(root, VOLUMES.lti.folder), app: join(root, VOLUMES.app.folder) };
   const log = logTo(env.STORAGE_LOG_DIR ?? '/logs');
-  // §4: every maintenance writer does only the volume-side steps as root, keeps a failure in memory, then drops privilege.
+  // §4: the writers (restore, import, recover) do only the volume-side steps as root, keep a failure in memory, then
+  // drop privilege. The read-only modes (volume backup, quarantine copy) do no §4 step and drop privilege at once.
+  const writes = ['restore', 'import', 'recover'].includes(command);
   let rootFailure = null;
-  for (const role of ['lti', 'app']) rootFailure ??= prepareFolder(dirs[role], role, ids).failure;
+  if (writes) for (const role of ['lti', 'app']) rootFailure ??= prepareFolder(dirs[role], role, ids).failure;
+  else dropPrivilege(ids);
   let drill = { point: () => {} };
   try {
     if (['restore', 'import'].includes(command)) drill = drillOptions(values, env);
     else if (values['stop-after'] || values['pause-after']) throw new Refused(`--stop-after and --pause-after are only for restore and import.`, 'usage');
   } catch (err) {
     dropPrivilege(ids);
+    if (err.code !== 'usage') log(refusalLine(command, err));
     console.error(err.message);
     return err.code === 'usage' ? 2 : 1;
   }
@@ -787,18 +845,22 @@ export async function main(argv, { env = process.env } = {}) {
     // A fixed §6 code of the volumes comes first; prepare_failed never displaces it (read after the drop).
     let fixed = null;
     try { const st = pairState(dirs, values.project, ids); if (!st.allowed) fixed = st.state; } catch { /* the folders cannot be read */ }
+    const reasons = [...(fixed ? [fixed] : []), `prepare_failed:${rootFailure.replace(/: /g, ':')}`];
+    log({ event: 'storage_refused', ts: new Date().toISOString(), command, code: fixed ?? 'prepare_failed', ...(fixed ? { state: fixed } : {}), reasons });
     console.error(`${fixed ? `${fixed}: the target state is ${fixed}. ` : ''}prepare_failed: ${rootFailure}. Nothing was changed.`);
     return 1;
   }
   try {
     if (command === 'backup') {
+      const unprepared = readable(() => unpreparedItems(dirs, ids), (err) => entryIn(dirs, err));
       const m = volumeBackup({ dirs, out: resolve(values.out), project: values.project, revision: values.revision ?? 'unknown', ids });
-      log({ event: 'storage_backup', ts: new Date().toISOString(), backupId: m.backupId, source: 'volume', pairId: m.pairId, generation: m.generation, files: m.files.map((f) => f.name) });
+      log({ event: 'storage_backup', ts: new Date().toISOString(), backupId: m.backupId, source: 'volume', pairId: m.pairId, generation: m.generation, files: m.files.map((f) => f.name), unprepared });
       return 0;
     }
     if (command === 'quarantine-copy') {
+      const unprepared = readable(() => unpreparedItems(dirs, ids), (err) => entryIn(dirs, err));
       const r = quarantineCopy({ dirs, out: resolve(values.out), project: values.project });
-      log({ event: 'storage_quarantine_copy', ts: new Date().toISOString(), manifestSha256: r.manifestSha256, entries: r.manifest.files.length });
+      log({ event: 'storage_quarantine_copy', ts: new Date().toISOString(), manifestSha256: r.manifestSha256, entries: r.manifest.files.length, unprepared });
       return 0;
     }
     if (command === 'recover') {
@@ -814,7 +876,11 @@ export async function main(argv, { env = process.env } = {}) {
     return code;
   } catch (err) {
     if (err.drillStop) return 3;
-    if (err instanceof Refused) { console.error(`${err.message}${/no target changed|Nothing was/.test(err.message) ? '' : ' No target changed.'}`); return 1; }
+    if (err instanceof Refused) {
+      log(refusalLine(command, err));
+      console.error(`${err.message}${/no target changed|Nothing was/.test(err.message) ? '' : ' No target changed.'}`);
+      return 1;
+    }
     // Backup and quarantine-copy only read the volumes. A writer with an unexpected failure is unresolved (exit 2):
     // exit 1 follows only a verification, and exit 2 never says "no target changed".
     if (['backup', 'quarantine-copy'].includes(command)) { console.error(`Failed: ${err?.message ?? err}. The volumes were only read.`); return 1; }

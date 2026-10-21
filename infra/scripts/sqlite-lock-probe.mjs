@@ -300,6 +300,11 @@ process.stdin.on('data', (c) => {
 });
 `;
 
+/**
+ * The waits of the probe (§5 bounds). Each wait gives {line}, {ended} (the holder exited or its stream closed) or
+ * {timeout} (the wait elapsed), so an elapsed wait (`timeout`) is never mixed up with a crashed or wrong holder
+ * (`probe_error`).
+ */
 function lineWaiter(child) {
   const lines = [];
   const waiters = [];
@@ -310,101 +315,127 @@ function lineWaiter(child) {
     let i;
     while ((i = buf.indexOf('\n')) >= 0) {
       lines.push(buf.slice(0, i)); buf = buf.slice(i + 1);
-      while (waiters.length && lines.length) waiters.shift().resolve(lines.shift());
+      while (waiters.length && lines.length) waiters.shift().settle({ line: lines.shift() });
     }
   });
-  const end = () => { ended = true; while (waiters.length) waiters.shift().resolve(null); };
+  const end = () => { ended = true; while (waiters.length) waiters.shift().settle({ ended: true }); };
   child.on('exit', end);
   child.on('error', end);
   return (ms) => new Promise((resolve) => {
-    if (lines.length) return resolve(lines.shift());
-    if (ended) return resolve(null);
-    const w = { resolve };
+    if (lines.length) return resolve({ line: lines.shift() });
+    if (ended) return resolve({ ended: true });
+    let t;
+    const w = { settle: (r) => { clearTimeout(t); resolve(r); } };
     waiters.push(w);
-    setTimeout(() => { const k = waiters.indexOf(w); if (k >= 0) { waiters.splice(k, 1); resolve(null); } }, ms);
+    t = setTimeout(() => { const k = waiters.indexOf(w); if (k >= 0) { waiters.splice(k, 1); resolve({ timeout: true }); } }, ms);
   });
 }
 
+/** The exit of the holder: {code} or {timeout}. */
 const exitOf = (child, ms) => new Promise((resolve) => {
-  if (child.exitCode !== null) return resolve(child.exitCode);
-  const t = setTimeout(() => resolve(null), ms);
-  child.on('exit', (code) => { clearTimeout(t); resolve(code); });
+  if (child.exitCode !== null) return resolve({ code: child.exitCode });
+  const t = setTimeout(() => resolve({ timeout: true }), ms);
+  child.on('exit', (code) => { clearTimeout(t); resolve({ code }); });
 });
+
+/** One expected holder answer: an elapsed wait → `timeout`; an ended holder or another answer → `probe_error`. */
+const answer = (r, want) => (r.timeout ? 'timeout' : r.line === want ? null : 'probe_error');
+
+/**
+ * The real driver of the lock probe. A unit test passes another one to probeFolder (an internal library seam; no CLI
+ * flag or environment variable selects it): a scripted holder, a database whose `BEGIN IMMEDIATE` fails with a chosen
+ * extended code, a file delete that fails, or shorter waits.
+ */
+export const REAL_DRIVER = Object.freeze({
+  waitMs: WAIT_MS,
+  spawnHolder: (base, runId, scenario) => spawn(process.execPath, ['-e', HOLDER, base, runId, scenario], { stdio: ['pipe', 'pipe', 'ignore'] }),
+  openDatabase: (file) => new DatabaseSync(file, { timeout: 0 }),
+  removeFile: (p) => fs.rmSync(p, { force: true }),
+});
+export const PROBE_BOUNDS = Object.freeze({ waitMs: WAIT_MS, runMs: RUN_MS });
 
 /**
  * Steps 7–10 on one folder: a live holder, the negative oracle (extended code 5 exactly), the release-positive control,
  * and the cleanup of the run's scratch files. Returns {result: 'pass'|'fail', reason, waits}.
  */
-export async function probeFolder(dir, runId, { scenario = 'normal' } = {}) {
+export async function probeFolder(dir, runId, { scenario = 'normal', driver = REAL_DRIVER } = {}) {
   const base = path.join(dir, `.lock-probe-${runId}.db`);
   const waits = { busyMs: null, releaseMs: null };
   let child = null;
   let result;
   try {
-    result = await probeSteps(base, runId, scenario, waits, (c) => { child = c; });
+    result = await probeSteps(base, runId, scenario, waits, driver, (c) => { child = c; });
   } catch {
     result = { result: 'fail', reason: 'probe_error', waits };
   }
-  if (child && child.exitCode === null) child.kill('SIGKILL');
-  if (child) await exitOf(child, WAIT_MS);
+  if (child && child.exitCode === null) { try { child.kill('SIGKILL'); } catch { /* already gone */ } }
+  if (child) await exitOf(child, driver.waitMs);
   // Step 10: the cleanup always runs; a failed delete wins over the probe result.
   const failed = [];
   for (const s of ['', '-wal', '-shm']) {
-    try { fs.rmSync(`${base}${s}`, { force: true }); } catch { failed.push(`${base}${s}`); }
+    try { driver.removeFile(`${base}${s}`); } catch { failed.push(`${base}${s}`); }
   }
   if (failed.length) return { result: 'fail', reason: 'scratch_cleanup_failed', waits, cleanup: failed };
   return result;
 }
 
 /** Steps 7–9 (the caller cleans up in step 10). */
-async function probeSteps(base, runId, scenario, waits, setChild) {
-  const child = spawn(process.execPath, ['-e', HOLDER, base, runId, scenario], { stdio: ['pipe', 'pipe', 'ignore'] });
+async function probeSteps(base, runId, scenario, waits, driver, setChild) {
+  const fail = (reason) => ({ result: 'fail', reason, waits });
+  const child = driver.spawnHolder(base, runId, scenario);
   setChild(child);
   const next = lineWaiter(child);
-  if ((await next(WAIT_MS)) !== 'HELD') return { result: 'fail', reason: 'probe_error', waits };
+  let bad = answer(await next(driver.waitMs), 'HELD');
+  if (bad) return fail(bad);
   // Step 8: the negative oracle.
-  const db = new DatabaseSync(base, { timeout: 0 });
+  const db = driver.openDatabase(base);
   try {
     const t0 = Date.now();
     let busy = null;
     try {
       db.exec('BEGIN IMMEDIATE');
     } catch (err) {
-      busy = err;
+      busy = err ?? new Error('unknown');
     }
     waits.busyMs = Date.now() - t0;
     if (busy === null) {
       db.exec('ROLLBACK');
-      return { result: 'fail', reason: 'lock_not_enforced', waits };
+      return fail('lock_not_enforced');
     }
-    if (busy.errcode !== 5) return { result: 'fail', reason: 'probe_error', waits };
+    // Only the extended code 5 (SQLITE_BUSY) is an enforced lock; 261, 517, 6 and every other result are probe_error.
+    if (busy.errcode !== 5) return fail('probe_error');
     child.stdin.write('PING\n');
-    if ((await next(WAIT_MS)) !== 'PONG inTransaction=1') return { result: 'fail', reason: 'probe_error', waits };
+    bad = answer(await next(driver.waitMs), 'PONG inTransaction=1');
+    if (bad) return fail(bad);
     // Step 9: the release-positive control.
     const t1 = Date.now();
     child.stdin.write('COMMIT\n');
-    if ((await next(WAIT_MS)) !== 'COMMITTED' || (await exitOf(child, WAIT_MS)) !== 0) return { result: 'fail', reason: 'probe_error', waits };
+    bad = answer(await next(driver.waitMs), 'COMMITTED');
+    if (bad) return fail(bad);
+    const exit = await exitOf(child, driver.waitMs);
+    if (exit.timeout) return fail('timeout');
+    if (exit.code !== 0) return fail('probe_error');
     db.exec('BEGIN IMMEDIATE');
     waits.releaseMs = Date.now() - t1;
     const row = db.prepare('SELECT marker FROM probe WHERE marker = ?').get(runId);
     db.exec('ROLLBACK');
-    if (!row) return { result: 'fail', reason: 'probe_error', waits };
+    if (!row) return fail('probe_error');
     return { result: 'pass', reason: null, waits };
   } catch {
-    return { result: 'fail', reason: 'probe_error', waits };
+    return fail('probe_error');
   } finally {
     try { db.close(); } catch { /* closed */ }
   }
 }
 
 /** Step 5: delete probe scratch files and the identity/journal `.tmp` files of earlier runs. */
-export function cleanLeftovers(dir) {
+export function cleanLeftovers(dir, { removeFile = (p) => fs.rmSync(p) } = {}) {
   const failed = [];
   for (const name of fs.readdirSync(dir)) {
     if (!(PROBE_SCRATCH.test(name) || name === `${IDENTITY}.tmp` || name === `${JOURNAL}.tmp`)) continue;
     const p = path.join(dir, name);
     try {
-      if (fs.lstatSync(p).isFile()) fs.rmSync(p);
+      if (fs.lstatSync(p).isFile()) removeFile(p);
     } catch {
       failed.push(p);
     }
@@ -511,10 +542,16 @@ export async function main(argv, deps = {}) {
     return reasons.length ? 1 : 0;
   }
 
-  // report, check, mark-started: the pair.
+  // report, check, mark-started: the pair, under the whole-run bound of §5 (60 s; `runMs` and `driver` are internal
+  // unit-test seams of this function, never a CLI flag or an environment variable).
   const project = values.project;
+  const driver = deps.driver ?? REAL_DRIVER;
+  let expired = false;
+  let settled = false;
   const read = () => ({ lti: readFolder(folders.lti, 'lti'), app: readFolder(folders.app, 'app') });
   const done = (state, perFolder, reasons, extra = []) => {
+    if (settled) return null; // the deadline has already reported this run
+    settled = true;
     const lines = ['lti', 'app'].map((f) => ({
       event: 'storage_preflight', ts: ts(), runId, mode, project, folder: f, path: folders[f], fsType: fsTypeOf(folders[f]), state,
       result: perFolder[f]?.result ?? (reasons.length ? 'fail' : 'pass'), reason: perFolder[f]?.reason ?? null,
@@ -524,88 +561,99 @@ export async function main(argv, deps = {}) {
     for (const r of reasons) if (MESSAGES[r.split(':')[0]]) process.stderr.write(`${MESSAGES[r.split(':')[0]]}\n`);
     return reasons.length ? 1 : 0;
   };
-  const deadline = setTimeout(() => {
-    dropPrivilege(ids);
-    emit([{ event: 'storage_preflight_summary', ts: ts(), runId, mode, result: 'fail', reasons: ['probe_error'] }]);
-    process.exit(1);
-  }, RUN_MS);
-  deadline.unref();
+  const work = async () => {
+    let snap;
+    try {
+      snap = read(); // step 1, as root: read only
+    } catch (err) {
+      dropPrivilege(ids);
+      return done(null, {}, [`probe_error:${err.code ?? err.name}`]);
+    }
+    if (mode !== 'check') {
+      dropPrivilege(ids);
+      const st = evaluateState(snap, { project, hostUid: ids.uid, hostGid: ids.gid });
+      if (mode === 'report') {
+        // The §10 legacy scan of stack-up.sh compares legacySources: report adds one line per valid identity.
+        const extra = ['lti', 'app'].filter((r) => snap[r].identity.ok && validIdentity(snap[r].identity.value, r)).map((r) => {
+          const id = snap[r].identity.value;
+          return { event: 'storage_report_identity', ts: ts(), runId, folder: r, pairId: id.pairId, generation: id.generation, firstStart: id.firstStart,
+            provenanceKind: id.provenance.kind,
+            // Identity metadata only (name, size, SHA-256 of each legacy file), never another field or file content.
+            legacySources: id.legacySources.map((x) => ({ name: x?.name ?? null, size: x?.size ?? null, sha256: x?.sha256 ?? null })) };
+        });
+        return done(st.state, {}, st.allowed ? [] : [st.entry ? `${st.state}:${st.entry}` : st.state], extra);
+      }
+      // mark-started: both identities valid and equal, both databases present.
+      if (st.state !== 'OK') return done(st.state, {}, [`mark_started_state:${st.state}`]);
+      for (const role of ['lti', 'app']) {
+        const id = snap[role].identity.value;
+        if (id.firstStart !== 'completed') writeJsonDurable(folders[role], IDENTITY, { ...id, firstStart: 'completed' });
+      }
+      return done(st.state, {}, []);
+    }
 
-  let snap;
-  try {
-    snap = read(); // step 1, as root: read only
-  } catch (err) {
+    // check: step 2, the journal gate (rows 1–3), before any change.
+    const gate = evaluateState(snap, { project, hostUid: ids.uid, hostGid: ids.gid });
+    if (['rollback_failed', 'journal_inconsistent', 'journal_open'].includes(gate.state)) {
+      dropPrivilege(ids);
+      return done(gate.state, {}, [gate.state]);
+    }
+    // Step 3: prepare (root only), step 4: drop privilege.
+    const prep = values.prepare ? { lti: prepareFolder(folders.lti, 'lti', ids), app: prepareFolder(folders.app, 'app', ids) } : { lti: {}, app: {} };
     dropPrivilege(ids);
-    return done(null, {}, [`probe_error:${err.code ?? err.name}`]);
-  }
-  if (mode !== 'check') {
-    dropPrivilege(ids);
+    const rootFailures = ['lti', 'app'].map((f) => prep[f].failure).filter(Boolean);
+    if (rootFailures.length) {
+      // A fixed §6 code of the step-1 snapshot (rows 4–18) comes first; prepare_failed never displaces it.
+      const fixed = gate.allowed ? [] : [gate.entry ? `${gate.state}:${gate.entry}` : gate.state];
+      return done(gate.allowed ? null : gate.state, {}, [...fixed, ...rootFailures.map((x) => `prepare_failed:${x}`)]);
+    }
+    // Step 5: leftovers.
+    const leftovers = [...cleanLeftovers(folders.lti, { removeFile: driver.removeFile }), ...cleanLeftovers(folders.app, { removeFile: driver.removeFile })];
+    if (leftovers.length) return done(null, {}, leftovers.map((p) => `scratch_cleanup_failed:${p}`));
+    // Step 6: rows 4–18.
+    snap = read();
     const st = evaluateState(snap, { project, hostUid: ids.uid, hostGid: ids.gid });
-    if (mode === 'report') {
-      // The §10 legacy scan of stack-up.sh compares legacySources: report adds one line per valid identity.
-      const extra = ['lti', 'app'].filter((r) => snap[r].identity.ok && validIdentity(snap[r].identity.value, r)).map((r) => {
-        const id = snap[r].identity.value;
-        return { event: 'storage_report_identity', ts: ts(), runId, folder: r, pairId: id.pairId, generation: id.generation, firstStart: id.firstStart,
-          provenanceKind: id.provenance.kind,
-          // Identity metadata only (name, size, SHA-256 of each legacy file), never another field or file content.
-          legacySources: id.legacySources.map((x) => ({ name: x?.name ?? null, size: x?.size ?? null, sha256: x?.sha256 ?? null })) };
-      });
-      return done(st.state, {}, st.allowed ? [] : [st.entry ? `${st.state}:${st.entry}` : st.state], extra);
-    }
-    // mark-started: both identities valid and equal, both databases present.
-    if (st.state !== 'OK') return done(st.state, {}, [`mark_started_state:${st.state}`]);
+    if (!st.allowed) return done(st.state, {}, [st.entry ? `${st.state}:${st.entry}` : st.state]);
+    // Steps 7–10: the lock probe, on both folders.
+    const perFolder = {};
     for (const role of ['lti', 'app']) {
-      const id = snap[role].identity.value;
-      if (id.firstStart !== 'completed') writeJsonDurable(folders[role], IDENTITY, { ...id, firstStart: 'completed' });
+      perFolder[role] = await probeFolder(folders[role], runId, { driver });
     }
-    return done(st.state, {}, []);
-  }
-
-  // check: step 2, the journal gate (rows 1–3), before any change.
-  const gate = evaluateState(snap, { project, hostUid: ids.uid, hostGid: ids.gid });
-  if (['rollback_failed', 'journal_inconsistent', 'journal_open'].includes(gate.state)) {
-    dropPrivilege(ids);
-    return done(gate.state, {}, [gate.state]);
-  }
-  // Step 3: prepare (root only), step 4: drop privilege.
-  const prep = values.prepare ? { lti: prepareFolder(folders.lti, 'lti', ids), app: prepareFolder(folders.app, 'app', ids) } : { lti: {}, app: {} };
-  dropPrivilege(ids);
-  const rootFailures = ['lti', 'app'].map((f) => prep[f].failure).filter(Boolean);
-  if (rootFailures.length) {
-    // A fixed §6 code of the step-1 snapshot (rows 4–18) comes first; prepare_failed never displaces it.
-    const fixed = gate.allowed ? [] : [gate.entry ? `${gate.state}:${gate.entry}` : gate.state];
-    return done(gate.allowed ? null : gate.state, {}, [...fixed, ...rootFailures.map((x) => `prepare_failed:${x}`)]);
-  }
-  // Step 5: leftovers.
-  const leftovers = [...cleanLeftovers(folders.lti), ...cleanLeftovers(folders.app)];
-  if (leftovers.length) return done(null, {}, leftovers.map((p) => `scratch_cleanup_failed:${p}`));
-  // Step 6: rows 4–18.
-  snap = read();
-  const st = evaluateState(snap, { project, hostUid: ids.uid, hostGid: ids.gid });
-  if (!st.allowed) return done(st.state, {}, [st.entry ? `${st.state}:${st.entry}` : st.state]);
-  // Steps 7–10: the lock probe, on both folders.
-  const perFolder = {};
-  for (const role of ['lti', 'app']) {
-    perFolder[role] = await probeFolder(folders[role], runId);
-  }
-  const failed = ['lti', 'app'].filter((r) => perFolder[r].result !== 'pass').map((r) => `${r}:${perFolder[r].reason}`);
-  if (failed.length) return done(st.state, perFolder, failed);
-  // Step 11: initialization.
-  if (st.state === 'FRESH') {
-    const pairId = randomBytes(16).toString('hex');
-    writeJsonDurable(folders.lti, IDENTITY, newIdentity({ project, role: 'lti', pairId }));
-    writeJsonDurable(folders.app, IDENTITY, newIdentity({ project, role: 'app', pairId }));
-  } else if (st.state === 'FRESH_INIT_PARTIAL') {
-    const have = snap.lti.identity.present ? 'lti' : 'app';
-    const missing = have === 'lti' ? 'app' : 'lti';
-    writeJsonDurable(folders[missing], IDENTITY, newIdentity({ project, role: missing, pairId: snap[have].identity.value.pairId }));
-  } else if (st.state === 'OK') {
-    for (const role of ['lti', 'app']) {
-      const id = snap[role].identity.value;
-      if (id.firstStart !== 'completed') writeJsonDurable(folders[role], IDENTITY, { ...id, firstStart: 'completed' });
+    const failed = ['lti', 'app'].filter((r) => perFolder[r].result !== 'pass').map((r) => `${r}:${perFolder[r].reason}`);
+    if (failed.length) return done(st.state, perFolder, failed);
+    if (expired) return null; // the run is over (timeout): nothing is written after its summary
+    // Step 11: initialization.
+    if (st.state === 'FRESH') {
+      const pairId = randomBytes(16).toString('hex');
+      writeJsonDurable(folders.lti, IDENTITY, newIdentity({ project, role: 'lti', pairId }));
+      writeJsonDurable(folders.app, IDENTITY, newIdentity({ project, role: 'app', pairId }));
+    } else if (st.state === 'FRESH_INIT_PARTIAL') {
+      const have = snap.lti.identity.present ? 'lti' : 'app';
+      const missing = have === 'lti' ? 'app' : 'lti';
+      writeJsonDurable(folders[missing], IDENTITY, newIdentity({ project, role: missing, pairId: snap[have].identity.value.pairId }));
+    } else if (st.state === 'OK') {
+      for (const role of ['lti', 'app']) {
+        const id = snap[role].identity.value;
+        if (id.firstStart !== 'completed') writeJsonDurable(folders[role], IDENTITY, { ...id, firstStart: 'completed' });
+      }
     }
+    return done(st.state, perFolder, []);
+  };
+  // The whole-run bound: on expiry, one storage_preflight line per folder (reason timeout), then the summary, exit 1.
+  let timer;
+  const deadline = new Promise((resolve) => {
+    timer = setTimeout(() => {
+      expired = true;
+      dropPrivilege(ids);
+      const timedOut = { result: 'fail', reason: 'timeout', waits: { busyMs: null, releaseMs: null } };
+      resolve(done(null, { lti: timedOut, app: timedOut }, ['timeout']));
+    }, deps.runMs ?? RUN_MS);
+  });
+  try {
+    return await Promise.race([work(), deadline]);
+  } finally {
+    clearTimeout(timer);
   }
-  return done(st.state, perFolder, []);
 }
 
 const isMain = process.argv[1] !== undefined && fs.realpathSync(path.resolve(process.argv[1])) === fs.realpathSync(fileURLToPath(import.meta.url));
