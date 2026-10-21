@@ -1,0 +1,40 @@
+{
+  "x-cogniate-storage-compat": {
+    "formatVersion": 1,
+    "revisions": ["b0b83a8289e1bf9cf349068aca184f0879e9aaf0", "9f96f7b24cd0aed702e4dc40373bdda4307aad31"]
+  },
+  "services": {
+    "lti-service": {
+      "volumes": [
+        { "type": "volume", "source": "ltidb", "target": "/data" }
+      ]
+    },
+    "cogniate-app": {
+      "volumes": [
+        { "type": "volume", "source": "appdb", "target": "/data" },
+        { "type": "bind", "source": "./.data/cogniate-app/packages", "target": "/data/packages", "bind": { "create_host_path": false } },
+        { "type": "bind", "source": "./.data/cogniate-app/uploads", "target": "/data/uploads", "bind": { "create_host_path": false } }
+      ]
+    },
+    "storage-preflight": {
+      "image": "node:24.22.0-alpine3.24",
+      "profiles": ["storage"],
+      "user": "0:0",
+      "network_mode": "none",
+      "restart": "no",
+      "entrypoint": ["node", "/probe/sqlite-lock-probe.mjs"],
+      "environment": { "HOST_UID": "${HOST_UID}", "HOST_GID": "${HOST_GID}" },
+      "volumes": [
+        "ltidb:/check/lti-service",
+        "appdb:/check/cogniate-app",
+        "../.tmp/storage-compat/sqlite-lock-probe.mjs:/probe/sqlite-lock-probe.mjs:ro",
+        "./.logs:/logs"
+      ],
+      "labels": { "org.cogniate.storage": "preflight" }
+    }
+  },
+  "volumes": {
+    "ltidb": {},
+    "appdb": {}
+  }
+}

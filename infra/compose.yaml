@@ -127,7 +127,7 @@ services:
       NODE_EXTRA_CA_CERTS: /certs/root.crt
       LTI_MASTER_KEY: ${LTI_MASTER_KEY:?run npm run gen-env}
       LOG_DIR: /logs
-      DATA_DIR: /data                          # lti.db (ADR-006); host: infra/.data/lti-service (stack:reset deletes it)
+      DATA_DIR: /data                          # lti.db (ADR-006): the named volume ltidb (ADR-012 §3; stack:reset deletes it)
       STACK_PROFILE: ${ACTIVE_STACK_PROFILE:-default}   # set by infra/scripts/lib.sh from the saved profile
       # Hosts that may resolve to private addresses (security §9). The acceptance profile adds ",qa-platform.test,evil.test"
       # (ACCEPTANCE_ALLOWLIST_EXTRA, set by infra/scripts/lib.sh from the saved stack profile).
@@ -143,7 +143,7 @@ services:
       - ../services:/repo/services:ro
       - ./.certs/root.crt:/certs/root.crt:ro
       - ./.logs:/logs
-      - ./.data/lti-service:/data
+      - ltidb:/data                            # ADR-012: SQLite only on the project-scoped named volume (never a host bind)
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4100/healthz"]
       interval: 10s
@@ -161,7 +161,7 @@ services:
       NODE_EXTRA_CA_CERTS: /certs/root.crt
       APP_MASTER_KEY: ${APP_MASTER_KEY:?run npm run gen-env}
       LOG_DIR: /logs
-      DATA_DIR: /data                          # cogniate.db, packages/, uploads/ (ADR-006); host: infra/.data/cogniate-app
+      DATA_DIR: /data                          # cogniate.db on the named volume appdb; packages/ and uploads/ are host binds (ADR-012 §3)
       STACK_PROFILE: ${ACTIVE_STACK_PROFILE:-default}   # set by infra/scripts/lib.sh from the saved profile
       # Security §9: the app may call the LTI service host (private address behind the proxy); acceptance adds QA hosts.
       # T8 (course shell): the app also calls Moodle web services on the local Moodle host.
@@ -180,7 +180,19 @@ services:
       - ../apps:/repo/apps:ro                  # Player and portal builds served on their public origins.
       - ./.certs/root.crt:/certs/root.crt:ro
       - ./.logs:/logs
-      - ./.data/cogniate-app:/data
+      # ADR-012 §3: cogniate.db and its -wal/-shm on the named volume appdb; the content stays on the host folders
+      # infra/.data/cogniate-app/packages and …/uploads as nested binds (made by the host scripts, §4; never by Docker).
+      - appdb:/data
+      - type: bind
+        source: ./.data/cogniate-app/packages
+        target: /data/packages
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./.data/cogniate-app/uploads
+        target: /data/uploads
+        bind:
+          create_host_path: false
       # T8 Build Runner queue (host-side runner, infra/scripts/build-runner.sh). NO Docker socket in this container:
       # the app may only WRITE build requests; status and .mbz files are read-only for it.
       - ./.data/build-queue/requests:/build-queue/requests
@@ -339,6 +351,58 @@ services:
       retries: 12
       start_period: 3s
 
+  # ADR-012 §5: the storage preflight, a fresh one-shot container under the operation lock (profile storage, so a
+  # plain `up` never starts it). Callers: dc --profile storage run --rm -T --name <project>-storage-<runId>
+  #   --label org.cogniate.storage.run=<runId> storage-preflight <mode> … (infra/scripts/lib.sh storage_preflight).
+  storage-preflight:
+    image: node:24.22.0-alpine3.24
+    profiles: ["storage"]
+    user: "0:0"                                # only the §4 volume-side steps; then it drops to HOST_UID:HOST_GID
+    network_mode: none
+    restart: "no"
+    entrypoint: ["node", "/probe/sqlite-lock-probe.mjs"]
+    environment:
+      HOST_UID: ${HOST_UID}
+      HOST_GID: ${HOST_GID}
+    volumes:
+      - ltidb:/check/lti-service
+      - appdb:/check/cogniate-app
+      - ./scripts/sqlite-lock-probe.mjs:/probe/sqlite-lock-probe.mjs:ro
+      - ./.logs:/logs
+    labels:
+      org.cogniate.storage: "preflight"
+
+  # ADR-012 §8, §9: backup, restore, import and quarantine of the volumes, in one storage container of the command's
+  # run (infra/scripts/stack-data.sh). The volumes are read-only unless the command sets STORAGE_MAINT_VOLUME_MODE=rw
+  # (restore, import, recover); the host backup folder is added with `run -v <folder>:/backup[:ro]`.
+  maintenance:
+    image: node:24.22.0-alpine3.24
+    profiles: ["storage"]
+    user: "0:0"                                # only the §4 volume-side steps; then it drops to HOST_UID:HOST_GID
+    network_mode: none
+    restart: "no"
+    entrypoint: ["node", "/maint/stack-data.mjs"]
+    environment:
+      HOST_UID: ${HOST_UID}
+      HOST_GID: ${HOST_GID}
+      STORAGE_DRILL: ${STORAGE_DRILL:-}
+      STORAGE_DRILL_FAIL: ${STORAGE_DRILL_FAIL:-}
+      STORAGE_DRILL_PAUSE_SECONDS: ${STORAGE_DRILL_PAUSE_SECONDS:-}
+    volumes:
+      - ltidb:/check/lti-service:${STORAGE_MAINT_VOLUME_MODE:-ro}
+      - appdb:/check/cogniate-app:${STORAGE_MAINT_VOLUME_MODE:-ro}
+      - ./scripts/stack-data.mjs:/maint/stack-data.mjs:ro
+      - ./scripts/sqlite-lock-probe.mjs:/maint/sqlite-lock-probe.mjs:ro
+      - type: bind
+        source: ./.data/cogniate-app/packages
+        target: /content/packages
+        read_only: true
+        bind:
+          create_host_path: false
+      - ./.logs:/logs
+    labels:
+      org.cogniate.storage: "maintenance"
+
   # Independent Python SDK client (T3c). QA owns the read-only runner; no SDK source is used in the product.
   compat:
     profiles: ["compat"]
@@ -415,3 +479,5 @@ volumes:
   e2e_tests_node_modules:
   pgdata:
   moodledata:
+  ltidb:          # ADR-012: lti.db, -wal, -shm and the storage identity (Docker name <project>_ltidb)
+  appdb:          # ADR-012: cogniate.db, -wal, -shm, the identity, and the empty mountpoints packages/ uploads/

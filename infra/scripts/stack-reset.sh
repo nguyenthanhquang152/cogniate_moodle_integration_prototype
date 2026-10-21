@@ -6,8 +6,12 @@
 # Keeps .env (same passwords), infra/.certs/ (same CA, so trust stays valid) and infra/.data/fixtures/.
 # Works without .env too (for example after .env was lost): it then removes the project by its Docker labels.
 # Next: npm run stack:up && npm run seed
+# ADR-012 §7: guarded by the operation lock only (it is never a recovery step: §9 quarantine is the exit). It also
+# removes the volumes ltidb and appdb (down -v), the legacy bind folders and the content folders of this project.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
+storage_compat_guard
+storage_lock_acquire "stack:reset"
 require_docker
 require_own_project   # A-T1-09: never delete another checkout's stack
 stop_build_runner

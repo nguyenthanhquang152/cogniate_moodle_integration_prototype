@@ -1781,7 +1781,20 @@ Held SHA-256: `84b95ce1992885fe9ca93597bd3dda53052b46900f7400f06d9db4ae1e1b8ae4`
 The Lead checked the scoped diff, hash and preserved earlier sections, then released the worker before acknowledgment.
 The record keeps escalation history, both diagnostics, the QA disclosure, four open nonblocking items and every remaining verification gate.
 
-Storage implementation reviews are queued behind the two source-preparation tasks and an exact committed candidate:
+The Author submitted its held implementation in `msg_bb37b8dffffa` for `task_3b908985fd0b`, dispatch `ctx_f1299da8103d`.
+The Lead verified all 20 source hashes, all seven evidence files, an empty index and the exact allowed path set.
+The Author was retained before acknowledgment. No Docker command, commit or push was run by the Author.
+Evidence is held in `.tmp/author-handoff/task_3b908985fd0b/`; its manifest SHA-256 is `c988b541ed2faf5718c669acf1722cd896b5523550708a3e12e19a18d8c22df3`.
+The source hash-list SHA-256 is `53f4c79d1bb9a79dad184cdc54b1cad3aaf473350ab5c70b62f95bc07f55c9b3`.
+The Author's final root check passes lint, typecheck, 1,086 unit tests and 62 infrastructure tests.
+All 24 source mutations fail their targeted tests in a scratch mirror with matching final source bytes.
+The separate WAL probe controlled negative is not counted as a source mutation.
+The Option C map preserves 30 original assertion lines: 27 unchanged, three adding only the required legacy-source argument.
+Reviewers must assess those guarantees, the QA interface assumptions and the unmeasured container behavior independently.
+QA's journal follow-up is committed at `8a66a337b0486028cc5af1e265a1d12255cfd2f6`.
+All 488 runtime rows and 32 live rows remain unverified. The unrelated `pnpm-workspace.yaml` remains unstaged.
+
+Storage implementation reviews are queued behind the completed source-preparation tasks and an exact committed candidate:
 Reviewer-A `task_5580d3cb79c5`, Reviewer-B `task_94536ec30f9a`.
 They own only their separate M1 storage-review reports and remain independent of the authors and QA.
 Both approvals and the Author/QA source checks are required before any full verification retry or final conformance starts.

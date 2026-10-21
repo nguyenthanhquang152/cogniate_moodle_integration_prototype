@@ -46,7 +46,7 @@ All commands run from the repo root.
 | `npm run demo:browser` | Look at the stack in Chrome without any change to your Mac. | nothing | A throwaway profile in `.tmp/demo-browser-profile` (delete it any time). |
 | `npm run stack:down` | Stop the containers. | containers | volumes (Moodle site, database), `.env`, certificates, `infra/.secrets`, `infra/.logs` |
 | `npm run seed:lti-activity -- --type <typeId> --course <shortname> --name <name> --url <toolUrl>` | T4b2 dev helper: add one External tool activity without the Moodle UI (QA AC-T4-18 "QA foreign"). Idempotent by name: a rerun updates the tool type and URL. | nothing | the activity (grade maximum 100, accept grades on). Prints `{cmid, instanceid, courseid, typeid, launchurl}`. |
-| `npm run stack:reset` | Start again with an empty Moodle site and an empty LTI service. Then run `stack:up`, `seed` and `seed:lti-manual`. | volumes (Moodle site, database), the LTI service database (`infra/.data/lti-service/`), the Cogniate app database and package store (`infra/.data/cogniate-app/`), `infra/.secrets/seed.json`, `infra/.secrets/lti-api-key.*`, `infra/.logs/`, `infra/.data/backups/`, test knobs, the saved stack profile | `.env` (same passwords), `infra/.certs/` (same CA), `infra/.data/fixtures/`. It refuses a project that belongs to another checkout, and without `.env` it needs an explicit `COMPOSE_PROJECT_NAME`. |
+| `npm run stack:reset` | Start again with an empty Moodle site and an empty LTI service. Then run `stack:up`, `seed` and `seed:lti-manual`. | volumes (Moodle site, database, and the SQLite volumes `<project>_ltidb` and `<project>_appdb`), the old bind folders `infra/.data/lti-service/` and `infra/.data/cogniate-app/` (with the package store), `infra/.secrets/seed.json`, `infra/.secrets/lti-api-key.*`, `infra/.logs/`, `infra/.data/backups/`, test knobs, the saved stack profile | `.env` (same passwords), `infra/.certs/` (same CA), `infra/.data/fixtures/`. It refuses a project that belongs to another checkout, and without `.env` it needs an explicit `COMPOSE_PROJECT_NAME`. |
 | `npm run stack:restart -- <service> [--env K=V ...]` | Restart one service with test knobs (registered knobs only). Without `--env`, the defaults come back. | The knobs of that service (when you restore the defaults) | everything else |
 | `npm run stack:logs [-- <service>...]` | Follow the container logs. | nothing | everything |
 | `npm run stack:moodle-reach-check` | Check that Moodle's own HTTP client reaches the LTI service (curl security + CA), and that seven other targets stay BLOCKED. Host rule (https, port 443): metadata IP, loopback, `10.0.0.0/8`, the Docker Desktop host, another Docker range. Port rule: port 80, the database port. Exit 1 if one is ALLOWED. | nothing | everything |
@@ -59,9 +59,13 @@ All commands run from the repo root.
 | `npm run stack:doctor` | Before the first start, or when something does not work. One line per check (OK, FIX with the exact fix, or INFO): Docker running and its memory, Node.js and the npm packages, `.env` and its URLs, the certificates (names and days left), port `PUBLIC_PORT`, subnet `STACK_SUBNET`, the images (incl. the Build Runner image), the two course zips, and (when the stack is up) the health of each service, the Build Runner, test knobs, the profile and the seed. Exit 1 if a check needs a fix. | nothing | everything |
 | `npm run demo:users` | The demo URLs, the Moodle and portal user names with their roles, and the `.env` variable that holds each password (it never prints a password). With the stack up, it also lists the Cogniate activities in Moodle. | nothing | everything |
 | `npm run moodle:cron` | T7 fallback (H13): run the Moodle cron once, for example when a report or the completion state waits for it. | nothing | everything |
-| `npm run check` | Lint, type check and unit tests (on the host). | nothing | everything |
-| `npm run stack:data-backup -- --out <folder>` | M1 upgrade (ADR-011 §14): with `cogniate-app` and `lti-service` STOPPED, after the new revision is installed and before its first start. The folder must be new and outside the checkout (it holds secrets). | nothing | everything. It copies `infra/.data/lti-service/lti.db` and `infra/.data/cogniate-app/cogniate.db` with their present `-wal` / `-shm` files, records each database's `schema_migration` names, writes `manifest.json` (backup id, time, compose project, revision, per-file name, size and SHA-256) and verifies the copies. It runs only when both services are known to be stopped (stopped or no container); it refuses when Docker or `docker compose ps` does not answer, or a service is in any other state. |
-| `npm run stack:data-restore -- --from <folder>` | M1 rollback (ADR-011 §14): with both services STOPPED (the same stop check as the backup), before the old revision starts. **Every write after the backup is lost.** | target `-wal` / `-shm` files that the backup does not list | everything else. It validates the whole backup first (manifest form, backup id, compose project, every file with size and SHA-256); any failure: exit 1 and no file changes. Then it replaces exactly the two databases and their listed sidecars. It never edits a migration ledger row. |
+| `npm run check` | Lint, type check, unit tests and the infra host tests (`npm run test:infra`: `infra/scripts/*.test.mjs`, no Docker). | nothing | everything |
+| `npm run stack:data-backup -- --out <folder> [--source legacy]` | M1 upgrade (ADR-011 §14, ADR-012 §8): with `cogniate-app` and `lti-service` STOPPED. The folder must be new and outside the checkout (it holds secrets). Default: the two SQLite volumes (the pair state must be `OK`). `--source legacy`: the old bind folders `infra/.data/lti-service` and `infra/.data/cogniate-app` (read only), before an import. | nothing | everything. See [SQLite storage](#sqlite-storage-adr-012). |
+| `npm run stack:data-restore -- --from <folder>` | M1 rollback: restore a volume backup into the volumes, with both services STOPPED. **Every write after the backup is lost.** | the current databases (they move to `.previous-<opId>/` in each volume) | everything else. It validates the whole backup first; any failure: exit 1 and no change. See [SQLite storage](#sqlite-storage-adr-012). |
+| `npm run stack:data-restore -- --recover` | After a restore or an import that did not finish (`journal_open`). | as the journals decide (R0–R6) | everything that the journals do not name |
+| `npm run stack:data-import -- --from <folder>` | Put a legacy backup (`--source legacy`) into an empty (`FRESH`) volume pair. | nothing | everything |
+| `npm run stack:data-quarantine -- --out <folder>` | The exit from `rollback_failed`, `journal_inconsistent` or a refusal that you cannot repair. It copies both volumes first. | the stopped `lti-service` and `cogniate-app` containers and the two SQLite volumes (after a verified copy) | the copy in `<folder>` |
+| `npm run stack:storage-compat -- enable\|disable` | Run one of the two old builds on the volumes (ADR-012 §12). | `disable`: the override and its copies | everything else |
 | `npm run lti:shared-platform -w services/lti-service -- --account cogniate --profile blackboard --client-id <Application ID> [--name "Cogniate"]` | M1 operator step (once per LTI host): make the shared Blackboard platform. Run it in the container: `docker compose exec lti-service npm run lti:shared-platform -w services/lti-service -- …`. | nothing | everything. Prints `{platformId, created}`; the same client id again changes nothing; another client id: exit 1. |
 | `npm run app:grant -w services/cogniate-app -- issue\|revoke\|list …` / `npm run app:binding -w services/cogniate-app -- suspend\|release …` | M1 operator approval grants and binding containment (app contract §4.8, §4.9). Run in the app container (`docker compose exec cogniate-app …`); not reachable over HTTP. `issue` prints the approval code once. | nothing local except what the command states | everything else |
 
@@ -72,6 +76,88 @@ Advanced helpers in `infra/scripts/`:
 - `e2e-run.sh <command>`: run a command in the e2e container. Example: `infra/scripts/e2e-run.sh node infra/e2e/smoke.mjs`.
 - `stage-fixture.sh <zip> <name.zip>`: copy a zip to `infra/.data/fixtures/` for Moodle.
 - `moodle-backup.sh <courseid> [--nousers]`: make an `.mbz` in `infra/.data/backups/`.
+
+## SQLite storage (ADR-012)
+
+The two SQLite databases are in project volumes. The course content stays on the host.
+
+| Path in the container | Storage |
+| --- | --- |
+| `lti-service` `/data` | volume `<project>_ltidb`: `lti.db` (with `-wal`, `-shm`) |
+| `cogniate-app` `/data` | volume `<project>_appdb`: `cogniate.db` (with `-wal`, `-shm`) |
+| `cogniate-app` `/data/packages`, `/data/uploads` | host folders `infra/.data/cogniate-app/packages`, `…/uploads` |
+
+- The scripts make the host folders with mode `0700`. They never `chown` a host folder. A symbolic link, a file, or a folder of another user at one of these paths stops the command (`content_path_unsafe`). Nothing changes.
+- Each volume also holds `.storage-identity.json` (pair id, generation, first start, provenance, legacy sources). A restore or an import writes `.storage-journal.json`, `.restore-<opId>/` and `.previous-<opId>/`. Do not edit these files.
+- `stack:down` keeps the volumes. `stack:reset` deletes them. Docker Desktop "Clean / Purge data" also deletes them.
+
+### Start check (preflight)
+
+`stack:up` and `stack:restart` run the storage preflight before a service starts. It runs in a one-shot container (`storage-preflight`, profile `storage`, no network). It reads both volumes, finds the start state, and tests a real SQLite WAL lock with two processes on each volume. A refusal stops the command with exit 1.
+
+| Code | What to do |
+| --- | --- |
+| `journal_open` | A restore or an import did not finish. Run `npm run stack:data-restore -- --recover`. |
+| `rollback_failed`, `journal_inconsistent`, `state_unclassified` | Do not start. Keep both volumes. Run `npm run stack:data-quarantine -- --out <folder>`. |
+| `legacy_present` | Old databases are in `infra/.data/lti-service` or `infra/.data/cogniate-app`, and the volumes are empty. Import them (`stack:data-backup -- --source legacy`, then `stack:data-import`), or move them out of the checkout. |
+| `legacy_conflict` | Old databases and volume databases both exist, and they are not the same import. Move the old files out of the checkout. |
+| `old_layout_container` | A container still mounts an old bind folder at `/data`. Run `npm run stack:down`. |
+| `lock_not_enforced`, `probe_error` | The SQLite lock does not work on this storage. Do not start. |
+| `unknown_entry`, `mountpoint_unsafe`, `owner_mismatch`, `identity_*`, `half_pair`, `no_databases`, `db_without_identity` | The message names the path or the state. Do not start until the cause is clear. |
+
+- `prepare_failed` (a root step failed) comes after any state code in the list of reasons.
+- Log: `infra/.logs/storage-preflight.jsonl`. Each run writes one `storage_preflight` line per volume, then one `storage_preflight_summary` line.
+- The `report` mode (the legacy scan of `stack:up`) also writes one `storage_report_identity` line per valid identity, before the summary: `{event, ts, runId, folder, pairId, generation, firstStart, provenanceKind, legacySources: [{name, size, sha256}]}`. It holds identity data only, never file content. It is never a `storage_preflight` line.
+
+### The operation lock
+
+These commands hold one lock for the whole command: `stack:up`, `stack:restart`, `stack:reset`, every `stack:data-*`, and `stack:storage-compat -- enable` or `disable`. The lock is the folder `.tmp/storage-op.<project>.lock/` with `owner.json` (one checkout, one project). `test:acceptance` and `e2e:reset` take no lock of their own; the commands that they start take it.
+
+| Message | Meaning and next step |
+| --- | --- |
+| `operation_in_progress` | Another storage command holds the lock. The command waits up to 120 s, then stops. A lock stays live while any process of its process group runs (for example a Docker client). Wait for it, or end it. |
+| `operation_lock_reentry` | A guarded command started inside another one. Run the commands one after the other. |
+| `storage_writer_active` | A storage container of the project still runs. Wait until it ends, or run `docker stop <name>`. |
+| `operation_lock_invalid` | The lock folder has no valid record for 10 s. Use the manual exit of the operator guide (M4), and only when no storage command of this checkout runs. |
+
+- A lock of a command that ended is taken over (`storage_lock_reclaimed`). The old record stays in `.tmp/storage-op.<project>.stale-<runId>/`.
+- Log: `infra/.logs/storage-lock.jsonl`. Self-check without Docker: `bash infra/scripts/storage-oplock.sh selftest`.
+- QA fixture writes: `bash infra/scripts/storage-oplock.sh run -- <command>`.
+
+### Backup, restore, import, recovery
+
+Every `stack:data-*` command first takes the candidate guard and the lock. Then it checks that `cogniate-app` and `lti-service` are stopped (exited, created, dead or absent). Then one `maintenance` container (name `<project>-storage-<runId>`, label `org.cogniate.storage.run=<runId>`, no network) does the work.
+
+- **Backup** (`stack:data-backup`): the volumes are read-only. The manifest is written last (`source: "volume"`, `pairId`, `generation`, `legacySources`). A service that starts during the copy marks the folder `INCOMPLETE`. That folder is not a backup.
+- **Restore** (`stack:data-restore`): the checks come in this order: the whole backup, the target state, the backup source, the pair. A target `OK` of the same pair gets `generation + 1`. A `FRESH` target takes the pair of the backup. Another pair: `pair_mismatch` (quarantine first). Any other target state: `restore_target_state`, with the next step.
+- **Import** (`stack:data-import`): only a legacy backup, only into a `FRESH` pair (`import_target_not_fresh`). It makes a new pair, generation 1.
+- A restore and an import write a journal in each volume: `prepared`, `staged`, `swapping`, `swapped`, `committed`. Before the swap, a content check makes sure that every `package.storage_path` exists under `infra/.data/cogniate-app/packages` (else `content_missing`; nothing changes). The current files move to `.previous-<opId>/`. One previous generation is kept.
+- **Recovery** (`stack:data-restore -- --recover`) reads only the journals and the file locations. It finishes a cut commit, or rolls back both volumes. It never overwrites a file that it does not know (`rollback_failed`).
+- Exit codes: `0` done; `1` refused before a change, or cancelled or rolled back (verified); `2` not resolved (do not start, keep both volumes, quarantine); `3` stopped by a drill.
+- Drills (QA only, `STORAGE_DRILL=1`): `--stop-after <point>` or `--pause-after <point>` (with `STORAGE_DRILL_PAUSE_SECONDS` from 1 to 300). Points: `prepared-lti`, `prepared`, `staged`, `swap-lti-mid`, `swapped-lti`, `swap-app-mid`, `swapped`, `identity-lti`, `identity-app`, `committed-lti`, and `rollback-mid` (only with `STORAGE_DRILL_FAIL=after-swapped`).
+- Log: `infra/.logs/storage-maintenance.jsonl` (for example `storage_content_check`, `storage_backup`, `storage_recover`, `storage_quarantine`).
+
+WARNING: a restore loses every write after the backup. A backup holds secrets (encrypted rows, hashes): keep it outside the checkout. `stack:reset` is never a recovery step.
+
+### Quarantine
+
+`npm run stack:data-quarantine -- --out <folder outside the checkout>`:
+1. It copies every entry of both volumes into the folder and verifies the copy (manifest last).
+2. It finds every container, in any state, that uses one of the two volumes.
+3. It removes only the stopped `lti-service` and `cogniate-app` containers of this project (`docker rm`, never `-f`, never `-v`). Any other user (a one-off container, another project or service, a running container) stops it with `volume_in_use`. Then nothing is removed, and the copy stays.
+4. It removes both volumes.
+5. It writes `quarantine.json` in the folder and one line in the log.
+
+The lane is then `FRESH`. Restore a known backup into it, or import.
+
+### Old builds (storage-compatibility override)
+
+This applies only to the old builds `b0b83a8` and `9f96f7b` (ADR-012 §12).
+1. In the candidate tree, before `git checkout <old>`: `npm run stack:storage-compat -- enable`. It copies `infra/compat/storage-compat.knobs.json` to `.tmp/compose.knobs.yaml`, and the probe, the runner and the lock helper to `.tmp/storage-compat/`. Then it checks every hash against `infra/compat/storage-compat.sha256`. It refuses when test knobs are active.
+2. In the old checkout: `bash .tmp/storage-compat/storage-compat.sh run -- npm run stack:up` (or `npm run test:acceptance …`). Any other command stops with `wrapper_command_not_allowed`. The wrapper runs only when `HEAD` is one of the two old builds (`wrapper_old_only`). Steps: hash check, lock, hash check, preflight, the command, the mount check, release. A failed check: exit 1, "stop now".
+3. `bash .tmp/storage-compat/storage-compat.sh preflight`, `… status` and `… disable` do one step each.
+
+While the override is enabled, every candidate start or database command stops: run `npm run stack:storage-compat -- disable` first. When you change one of the four files, write `infra/compat/storage-compat.sha256` again (`npm run test:infra` checks it).
 
 ## Configuration
 
@@ -85,7 +171,7 @@ Advanced helpers in `infra/scripts/`:
   - `STACK_SUBNET`: default `172.28.0.0/16`. It must be inside a private range of Moodle's default blocked list (`10.0.0.0/8`, `172.16.0.0/12` or `192.168.0.0/16`); seed cuts only this subnet out of that list.
   - `COURSE_FIXTURES_DIR`: default `docs/raw/data/courses`.
 
-All state is inside the checkout: `.env`, `infra/.certs/`, `infra/.secrets/`, `infra/.logs/`, `infra/.data/`, `.tmp/`. The only exception is the Docker volumes `<project>_pgdata` and `<project>_moodledata`.
+All state is inside the checkout: `.env`, `infra/.certs/`, `infra/.secrets/`, `infra/.logs/`, `infra/.data/`, `.tmp/`. The only exception is the Docker volumes `<project>_pgdata`, `<project>_moodledata`, `<project>_ltidb` and `<project>_appdb`.
 
 ## TLS and trust
 
@@ -280,7 +366,7 @@ The certificate check never turns TLS verification off. QA's script exit status 
 | Item | Value |
 | --- | --- |
 | Code | `services/lti-service` (Fastify, `jose`, Zod, `node:sqlite`). Contract: `docs/architecture/contracts/lti-service-api.md`. |
-| Database | `infra/.data/lti-service/lti.db` (SQLite, plain SQL migrations in `src/db/migrations/` at start, shared runner `packages/shared/src/migrations.ts`). Each applied migration is stored with its SHA-256: if you edit an applied file, the service does not start (add a new file instead, or `stack:reset`). `stack:reset` deletes it. |
+| Database | `/data/lti.db` in the Docker volume `<project>_ltidb` (SQLite, ADR-012; plain SQL migrations in `src/db/migrations/` at start, shared runner `packages/shared/src/migrations.ts`). Each applied migration is stored with its SHA-256: if you edit an applied file, the service does not start (add a new file instead, or `stack:reset`). `stack:reset` deletes it. |
 | Tool keys | One RSA 2048 key per tool account (RS256). The private JWK is encrypted with `LTI_MASTER_KEY` (AES-256-GCM). Public keys: `{PUBLIC_LTI_URL}/lti/keys/<account>`. |
 | Outbound calls | Only through the guarded client in `packages/shared/src/outbound.ts` (https only, no redirects, 5 s, 1 MB, private IPs blocked inside the connection lookup). Allowlist: `OUTBOUND_PRIVATE_HOST_ALLOWLIST=moodle.test` (compose). Every attempt logs exactly one event: `outbound_request` or `outbound_blocked`. |
 | Platform JWKS | Refreshed after 10 min. An unknown `kid` causes one refetch, at most one attempt per minute. If a refresh fails, the cached keys stay usable up to 24 h after the last good fetch (security §2.4). One fetch at a time per JWKS URL: launches that arrive during a fetch wait for it. |
@@ -295,7 +381,7 @@ The certificate check never turns TLS verification off. QA's script exit status 
 | Item | Value |
 | --- | --- |
 | Code | `services/cogniate-app` (Fastify, `@fastify/multipart`, Zod, `node:sqlite`) and `packages/package-inspector` (`yauzl`, `fast-xml-parser`, `parse5`). Contract: `docs/architecture/contracts/cogniate-app-api.md`. |
-| Data folder | `infra/.data/cogniate-app/` on the host = `/data` in the container (`DATA_DIR`). `stack:reset` deletes it. |
+| Data folder | `/data` in the container (`DATA_DIR`) is the Docker volume `<project>_appdb` (ADR-012). `/data/packages` and `/data/uploads` are binds of the host folders `infra/.data/cogniate-app/packages` and `…/uploads`. `stack:reset` deletes all of them. |
 | Database | `/data/cogniate.db` (SQLite). Plain SQL migrations in `src/domain/migrations/` at start. Each applied migration is stored with its SHA-256: if you edit an applied file, the service does not start (add a new file instead, or `stack:reset`). |
 | Package store | `/data/packages/<pkg_id>/` (extracted files), `/data/uploads/<sha256>.zip` (original upload), `/data/uploads/.tmp/` (uploads in progress; emptied at start). A rejected upload leaves nothing here. Count the packages: `docker compose -p <project> exec cogniate-app ls /data/packages \| wc -l` (the path is absolute: the working folder of the container is `/repo/services/cogniate-app`). |
 | Upload limits | Zip ≤ 200 MB (200,000,000 bytes), uncompressed ≤ 500 MB, ≤ 5,000 entries, ratio ≤ 100 per entry (security §7). |

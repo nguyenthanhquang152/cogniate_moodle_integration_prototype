@@ -7,8 +7,10 @@
 #   4. wait until every /healthz answers with "profile":"default" and "knobs":[] and the Moodle admin can log in
 # B-T7-01: it prints the warning first; in a terminal it asks for "yes" (skip the question: -- --yes or E2E_CONFIRM=1).
 # A-T7-04: without a terminal it needs --yes or E2E_CONFIRM=1, else it stops and deletes nothing.
+# ADR-012 §7: no lock of its own (its stack-reset.sh and stack-up.sh runs take it); the §12 candidate guard applies.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
+storage_compat_guard
 confirmed=0
 for a in "$@"; do
   case "$a" in
