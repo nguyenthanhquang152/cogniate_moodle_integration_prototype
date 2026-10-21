@@ -13,7 +13,21 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 19:12 UTC
+### Current checkpoint — 2026-10-21, 19:37 UTC
+
+**Candidate C diagnostic failed.** Runtime QA returned the exclusive window at `19:29:48Z`. Total time was 18 minutes 21 seconds: migration about four minutes, storage about fourteen minutes, then cleanup and strict W4. Migration passed all 12 rows. Storage recorded all 70 rows: 33 PASS, 37 FAIL and zero NOT_APPLICABLE. All 37 failed rows were blocked by fixture `@backup-B`, which returned HTTP 502. The 81 step files include fixtures; they are not the 70-row result count.
+
+The harness checked whether any lane container was running. Proxy, PostgreSQL and Moodle were running, but the two app services had stopped. It skipped the required start and called an unavailable LTI service. The same condition also affects `postB`; a refusal assertion must distinguish app services from already running platform services. This point was not reached in the prior full runtime. No product fault is established by this diagnostic.
+
+Migration and storage scan points (10 and 82) were clean. Both owned teardowns passed. Strict W4 passed with unchanged protected volumes, anonymous volumes and built-in network identities; zero containers remained. The independent secret scan found no problems. The Lead read and hashed W4 (`9e88a2b63c08c1c0588db27e658478ffea327b01c8e82b899b63cf5a6f05c21e`), the secret scan (`dd9cf887e8416b0ad789ab0a85c630281977265805243d85ab7a7552dee1e782`) and diagnostic result (`3c746a839d55fcb2fc461a125f0ed308b0d00fff5bb556a953117a3d895553dd`). Runtime QA is appending the full evidence report, including the two result files created at 0644 inside private 0700 D. No runtime acceptance credit is awarded.
+
+Lead grant `msg_8fee425d4749` keeps all repairs in **the same Claude session `ctx_898acbaef3a6`**. It grants exactly `tests/host/storage-rows.mjs`, `storage-rows.selftest.mjs`, `run-m1.mjs`, and the append-only harness QA report. The batch corrects three service-state checks, models the running platform services in the fake world, proves old/new discrimination and three mutants, and raises only the harness-only self-test call bound to 30 minutes. Criteria, all-container unchanged checks and the 70-row map stay fixed. No Docker or product edit is granted.
+
+The owner estimates held source by 19:57 UTC and final local evidence by 20:17 UTC (03:17 Vietnam time), subject to findings. The complete harness-only run under 022 may also satisfy that mask's full suite when file selection and complete results are proved. The 077 suite uses isolated mutable state. No redundant third full suite is required.
+
+Both independent source reviews will overlap the final local checks. Runtime QA will close its failed C attempt after its report is accepted. Docs will close its attempt with final prerequisites unmet; its accepted draft and evidence remain committed at `82aff91`. Final Docs is still required after runtime and Architect conformance, and is not marked complete. These two settled attempts free review slots while the sole repair session stays active. No new Docker window is active. Full rounds, legacy, fresh M2/T7 and final conformance/documentation checks remain pending. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 19:12 UTC
 
 **Candidate C diagnostic is running.** Lead grant `msg_c18858e1a424` gives only `ctx_1183f38cf351` the exclusive Docker window through `2026-10-21T21:15:00.000Z`. Actual runtime start: `2026-10-21T19:11:27.000Z`. Base lane `qa-multi-r1`; conditional storage lane `qa-multi-r1-st`; port 8443, subnet 172.29.0.0/16. Root: `/Users/quangnguyen/cogniate-qa-runs/qa-common-c-d3296dd-20261021T1842Z/diag`. No full round, legacy, M2 or T7 is granted yet.
 
