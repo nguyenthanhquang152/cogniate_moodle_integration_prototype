@@ -13,7 +13,31 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 16:39 UTC
+### Current checkpoint — 2026-10-21, 16:46 UTC
+
+Source Reviewer-A requests changes at `bf8d897aa312e7faba15530399e26aa9fe8fd9b7`.
+Report SHA-256: `8f5491d9e9dbf422486cf20ae826c3011dc3849e2153468a57ced63f83603d24`.
+A-SH-01 and A-SH-02 are BLOCKERs under charter section 5: the scanner follows a linked area and corrects an outside file; a body error can suppress the required abort after a refused correction.
+A-SH-05 is MAJOR: copy-site controls #7, #12 and #13 miss a local read/write-then-chmod mutation.
+The current copy code is correct, but the controls do not prove its creation modes.
+A-SH-04 is a MINOR bare-import gap; A-SH-03 is a NIT missing non-null lock-record precondition.
+A-SH-06 records M5-4b as masked by the synchronous precondition, not detected or equivalent.
+A accepts M4-8f as equivalent and the eight error-based detections as honest. B's independent assessment remains pending.
+The Lead verified all 763 entries of A's corrected MANIFEST-2 (`c22a6bb6a17c1d0d6b8a4f3ccbdf797f864e8b4f2ae908c90fdf6545d81322a4`).
+The first manifest's missing temporary-file entry stays disclosed. A settled successfully as a review task and was released.
+
+Fresh QA Round 2 task `task_d018895ca985` / `ctx_898acbaef3a6` is active, requested and effective Claude Code Opus 5.5 xhigh.
+It first writes a private criteria/control map. No implementation read or repository edit is authorized until the map is held and the Lead grants exact paths.
+The bounded brief covers A-SH-01/02/05 and the small A-SH-03/04 checks. It preserves all previous criteria, row counts and evidence.
+Its report must append Round 2 to `storage-harness-repair-qa.md`; Round 1 stays unchanged.
+Reviewer-B `ctx_47285c0af009` remains active on fixed source `71a5bf9`. Its last visible Bash probe is still running; no exit is proven, so no replacement or stop is authorized.
+No peer findings were shared with B. There are two active workers and no Docker window.
+
+The harness gate is blocked on repair and both independent reviews. The 105/105 self-checks at each umask and 133/135 mutation result remain valid host-only evidence at their source revision.
+Product Q-R1A-01 stays closed. No candidate C, push or main merge is authorized.
+Latest full runtime remains 438 PASS and 50 FAIL at `aaa823b`; all final runtime, conformance and guide gates remain pending.
+
+### Prior checkpoint — 2026-10-21, 16:39 UTC
 
 Harness QA's host self-check report is committed at `1759ede8658476f01246f61b674d504c30f4d18c`.
 Report SHA-256: `009c2ee2cba0510c474772016b5eff7340039023ded9c6b3705ccfecfb0ddb7b`.
