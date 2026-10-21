@@ -13,7 +13,27 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 20:14 UTC
+### Current checkpoint — 2026-10-21, 20:43 UTC
+
+**C2 diagnostic failed; the sole repair session is blocked by its Claude quota.** The session reports a reset at 04:40 Vietnam time on 22 October (21:40 UTC). The Lead found the quota messages in the session's public transcript and informed the owner. The same session `ctx_898acbaef3a6` is preserved. The owner was asked whether to wait for that reset or authorize one GPT-6-Astra xhigh replacement session. No substitution, source edit or new diagnostic is authorized at this checkpoint.
+
+The C2 runner ran from 20:14:11 to 20:38:51 UTC (24 minutes 40 seconds). Migration passed all 12 rows. Storage produced all 70 row ids exactly once: **64 PASS, 6 FAIL, zero NOT_APPLICABLE**. All 11 fixture runs passed, including `@backup-B`, all three `@post-B` runs and the old-schema setup. The prior backup-start repair works in this run. Diagnostic evidence gives no full acceptance credit.
+
+| First failed check | Recorded facts for the one repair batch | Dependent checks not run |
+| --- | --- | --- |
+| `g-prepared-lti` | Recovery exits 1 and verifies the original pair. The LTI journal is `rolled_back`; the app journal is absent at this first-write point. The harness requires both journals. | `g-recover-idempotent`; its result is prerequisite-blocked, not an executed count assertion. |
+| `g-orphan-stopped` | The wait can accept an earlier operation's `storage_drill_pause` from accumulated logs. The current restore acquired a lock but had no current pause before the process group was killed. | None. |
+| `e-import` | The identity and import manifest have the same full source names and digests. The assertion compares identity names with manifest basenames. | `e-kept` and `e-provenance-restore`. |
+
+These are runtime QA's causal facts, routed to the same repair owner in `msg_c5b104978f9c`. No product fault is established. A single proposal must cover all three causes and preserve the contracts, data-equality checks and operation-specific evidence. The final repair scope and checks remain pending.
+
+The window was returned at about 20:40 UTC. Migration's 10 scan points and storage's 92 scan points were clean, with zero corrections or refusals. Owned cleanup removed five and four resources with zero errors. Strict W4 passed: zero containers, nine unchanged volume records, unchanged built-in networks and the bound runtime identity. The Lead read and verified W4 (`5635499933f0039fde2333290e407695435b8fbfaaa3e38bd57deb020394dd36`), the secret scan (`0e01aed7f3291fb8ae846dc40a2e3bc083d06b78ac1881eed9e8f1bc16d9982c`) and clone guard (`fd94ef7dceb196ed6ca5a6353ff02f734cf9f8739da2f5b24ba7aa6e36659eb8`). Runtime QA is appending the evidence reports. No Docker window is active.
+
+Canvas host preparation is accepted and preserved at `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-0938ea1-gjHfDbvW`. The Lead verified its 91-entry manifest and amended window plan v2 (`7bbeec1862f4aa03933fbf2e372149c927d0b2a8f72d66aa7140f3fe1122c6f2`). It reuses Common's qualified boundary tools around the existing lane wrapper; the sampler stays active through the W4 capture. Host npm is offline with its notifier disabled; runtime retains real HOME for Docker context. The two anonymous volume records are checked, and all used base images must exist before a later launch. The unused new row-count helper is not an acceptance tool. Creation-mode and removed-draft disclosures remain in its private record.
+
+Canvas task `task_0072ba7a8b83` settled FAILED for the unmet C2 runtime prerequisite and was released; host preparation succeeded, but Canvas judgment, M2 and T7 did not run. Its next attempt must reuse the qualified preparation with only the necessary candidate bindings and changed-scope checks. All fixes remain assigned to the one preserved remediation session. Two full rounds, legacy groups, fresh M2/T7, final conformance and documentation still remain. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 20:14 UTC
 
 **Candidate C2 is frozen at `0938ea1bd29acd00a67c7fc1cc8d7606edf2802d`.** Its tests tree is `290a773f1c9779693153ae77b46cc8ceb7eb83f4`, equal to reviewed repair `c4de96f`. Product and build paths still equal `9f8ac62`. The tests delta from C contains only the three granted files. The Lead verified these bindings and the unchanged untracked `pnpm-workspace.yaml`.
 
