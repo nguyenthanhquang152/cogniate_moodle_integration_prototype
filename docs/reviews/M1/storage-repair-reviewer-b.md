@@ -186,3 +186,124 @@ Prior MINOR conditions B-SFT-05 to B-SFT-07 and B-SFT-10 to B-SFT-12 are also me
 - P-1a leaves both content children new and empty after `d-content-folder`, as the old harness did. The effect on later rows is unchanged and still unknown until a storage run (triage N-4).
 - A-SFT-08 stays an accepted MINOR for M4. The historical deferrals B-BM-01, A-SOR-01/B-SOR-01, post-reset build-request coverage and A-T9-C01 stay unchanged.
 - The untracked `pnpm-workspace.yaml` is unchanged.
+
+## Round 2 — fresh Reviewer-B: triage revision 4 design confirmation
+
+Verdict: **APPROVE** (triage revision 4 design only). No BLOCKER, no MAJOR. One MINOR (B-SR-04) and three NIT (B-SR-05 to B-SR-07).
+
+Reviewer: a **fresh** Reviewer-B instance (lens: simplicity, operability, test quality). Claude Code Opus 5.5, xhigh, no subworkers. Task `task_e6e2cdd4bea9`, dispatch `ctx_33a4238fc02b`, run `run_ebe671ad72a9`. Date: 2026-10-21. I did not write Round 1. Round 1, its findings B-SR-01 to B-SR-03 and its probes belong to an earlier Reviewer-B instance. I read them as input only (`git show 0a97fe9`).
+
+Status: bounded design confirmation. It gives no runtime or acceptance credit. It changes no product, test, architecture, team, settings or evidence file.
+
+### R2.1 Objects and inputs
+
+| Object | Identity (I recomputed each hash) |
+| --- | --- |
+| Target | `docs/architecture/tasks/storage-full-round-triage.md` at `2d763fec502f6b7758b7ed56f51613183e5021ce`: `ade4e8a0f9e54823040828758b7683d5c9b230587747f3ef3c89ef8e99f9a032` (equal in the work tree) |
+| Baseline | revision 3 at `ab285856`: `70ba4f9b5a2e61ce79296b9d689618f9a56ddc3d5a8ea0f6189c8f0514241dba` |
+| Unchanged criteria (not reviewed again) | At `2d763fe`: `M1.md` `b648853cea837284020229a99db81b699066fa916876f90905eb374fdba61057`; ADR-012 `57602ca4cf9dc82ea2fb874d2ef8618dad204ca7d1727bfa56ee3fa6746fa589`. Both equal `ab28585`. |
+| Tests tree | `4c7e067feedc644f955afee37806f06e7273dd04` at `ab28585`, `2d763fe` and `HEAD` |
+| Product R1-A | `01ce5bc`. Both source approvals stay. I did not review or test it again. |
+| Inputs (historical, through `git show`) | Reviewer-A `7fbf7c8`: `9b21a285faf78521b3060c454779f9503f87dbac303f1f383d5637c66c136748`. Reviewer-B `0a97fe9`: `28cf870e126f3f52cf9e3b5a4fefa81b2b1c1db8e8f43876e17501cca29d4cc7`. QA testability `0468b19`: `de4116bf4f30dc019fdf76a9d18bf6c35fa7f0737b4e0ae6434d8cd653e91af3`. |
+
+Blind review: I did not read a current or later version of the other reviewer's report, a QA Round 2 addendum or output, the content of `be41847` (`storage-command-qa.md`), or a message of another worker. My inbox had no message.
+
+### R2.2 Method
+
+- Host-only reads with `git show` and `git diff ab28585 2d763fe`. The diff changes only the sections that triage §15 lists (`:624`). No §14 row changes.
+- Three probes in a new private root (mode `0700` from creation, umask `077`; 145 entries, none with a group or other bit). A Docker stub that logs each call and exits `97` was first on `PATH`. It recorded one call (P1). No real Docker or Compose command ran. No runtime suite ran.
+  - P1, the V1-12 path: `git archive 01ce5bc package.json infra` (no `.env`); `spawn('npm', ['run', 'stack:data-backup', '--', '--out', <root>/out-backup], { detached: true })`. Environment: `PATH` (stub first), a private `HOME`, `COMPOSE_PROJECT_NAME=qa-rb2probe`, `PUBLIC_PORT`, `STACK_SUBNET`; no `npm_*` variable.
+  - P2: the exact §7.2 token pattern over the nine runtime modules at `ab28585`.
+  - P3: the time resolution of `w` and `s` against `birthtimeMs` and `mtimeMs` (200 trials).
+
+### R2.3 Closure map
+
+"Closed" means: revision 4 has the requested text, and I found it consistent and feasible on the pinned source. The Lead decides closure. Runtime evidence stays pending for every item.
+
+| Finding | Revision 4 | Result |
+| --- | --- | --- |
+| A-SRR-02 = QA-SRT-01 (MAJOR) | §7.2 scope, token, X1–X8 and counts; #4 without a default `scratchBase`; V4-1, V4-9 | Closed. P2: 30 matches, each at site #1–#5, #7–#14 or X1–X4, X7, X8. After the repair, the table allows 10 matches (`:333`). See §R2.4 item 1 and B-SR-06. |
+| A-SRR-03 (MINOR) | §7.4 closure row; V4-10 | Closed. §R2.4 item 2. |
+| A-SRR-04 + QA-SRT-04 (MINOR) | §9.1; V8-1 to V8-5 | Closed in design. §R2.4 item 7. Control precision: B-SR-04. |
+| A-SRR-05 = B-SR-01 (+ PR-5) | V1-12 | Closed, and feasible on this host (P1, §R2.4 item 6). |
+| A-SRR-06 and B-SR-03 (NIT) | §5 `app.test.ts:123–126`; §7.3 private empty file; V4-8 | Closed. At `aaa823b` (file `1a44d90b…`): test `:123`, request `:125`, assertion `:126`. |
+| B-SR-02 (MINOR) | §0; §9 step 7 run-or-stop rule; V8-6 | Closed. The Lead chose a stop rule. It is written before any grant and keeps the owned teardown and strict W4. |
+| QA-SRT-02 (MINOR) | V4-1 | Closed. One mutation entry is in the wrong control (B-SR-05). |
+| QA-SRT-03 (MINOR) | §4.0 step 8; V2-10 | Closed. §R2.4 item 5. |
+| QA-SRT-05 (MINOR) | §4.3 definition, 21 sites; V2-8 (27 injections) | Closed. §R2.4 item 5. |
+
+### R2.4 Checks of the changed controls
+
+1. **Token rule X1–X8.** P2 agrees with the per-file list of §7.2 and with Reviewer-A's Round 1 listing. The helpers need no token: `open`, `mkdir`, `readdir`, `lstat`, and `readFileSync` for the bytes. Every runtime call of the fixture script's `main()` runs in a container (`/qa/bin/…`: `storage-rows.mjs:268`, `p5-step.mjs:23`, `storage-lane.mjs:135` through `script()`). So X6 is never a host path. The only host caller of `logicalRead` is `storage-lane.mjs:225` (#10). No runtime module imports a self-test. The pattern also counts comments; this is a stated, fail-closed choice (`:315`).
+2. **Private root closure.** Only `boot()` writes the root (`storage-lane.mjs:34`, `:41–44`). No other runtime code uses `lane.private`. The two migration lanes share one root per clone. The host has nine lane private roots (names only), as the text says. A kept scratch folder stays inside `scratch/`, so it does not break the closure.
+3. **Empty create and keep-after-hit.** The private empty file fits `configDiff`: the shell writes with `>` into the existing files (`storage-compat-route.mjs:205`), which keeps the mode, and the two `lstat` checks bracket the shell. `privateScratch.remove()` keeps the folder after a hit; the step stays FAIL; a refused correction stops the phase (§7.5 step 4). A scratch folder is helper-internal, like `.qa-scratch-*` (§4.3). So a kept folder is evidence, not a failed cleanup. The rules agree.
+4. **Creation and restored modes.** Private-helper sites end at `0600`. Into-volume sites create at `0600`, then `fchmod` to the recorded or planted mode (§7.3). V4-1 checks the creation at every site. V4-2 checks the final into-volume mode. One mutation entry is in the wrong control (B-SR-05).
+5. **Partial plant, 21 sites, 27 injections.** One fixture container applies both `chown` operations in order (`storage-fixture-script.mjs:147`, `:171`), so a partial plant can occur. The restore finds only root-owned entries with `meta` and changes each one with `lchown` (not recursive). If a timed-out plant still holds QA's lock, the restore cannot run, and the phase stops (fail closed). The 21 lines match the pinned `finally` sites. Site 14 is seven `identityCase` calls in five rows (`storage-rows.mjs:583–611`). 20 + 7 = 27.
+6. **Exact `npm` path (P1).** The log has exactly one `storage_lock_acquired` event: `command` `stack:data-backup`, `pgid` = the spawned pid `88387` (the event `pid` `88414` is the `stack-data.sh` shell). The only Docker call was `docker ps -a …`, after A6 (`storage-oplock.sh:141–144`), with the lock folder present. The stub refused it, the helper released quietly, and the command exited `1`. No lock folder stayed, and no `out` folder was made. npm `11.19.0`, Node `v24.21.0`. A copy without `.env` reaches A6, because `lib.sh` reads `.env` only when it exists and the candidate guard uses no Docker.
+7. **Window binding.** I checked each fact that §9.1 uses: `RUN_ID` and the default clone folder (`core.mjs:84–85`); the `<b>-st` lane (`run-m1.mjs:144`, `:153`); the phase order (`m1-phases.mjs:4`: `migration` directly before `storage`); the backup root (`m1-migration.mjs:204–206`); the manifest `composeProject` (`infra/scripts/stack-data.mjs:703`). In one run root, the earlier phases of a round make clones with the same `b` and SHA. Only `w` rejects them; the host folder names show such clones. The diagnostic takes `w` after `D`, gives it to both children, and runs the same check before the storage child and again in `@old-schema-setup`. The `full` mode takes a new `w` for each round, and the round paths differ. The production rule is sound. The synthetic controls need one precision (B-SR-04).
+8. **Predeclared mock outcomes.** V7-1 is stricter than revision 3, which had no rule for a row FAIL. "Each §4.3 restore runs" stays, so a declared FAIL cannot hide a missing restore. One precision: B-SR-07.
+
+**No weakening and no new exemption.** The narrower V4-9 scope removes an impossible match on synthetic self-tests, and the name rule still finds new runtime modules. X5–X8 come from a reviewed text change, which is the path that §7.4 requires. X7 and X8 are §7.4 private data areas, not host temp. The rule now counts every `mkdtempSync`, which is stricter than revision 3. V1-12, V2-8, V7-1 and §9.1 add checks. No criterion, row id, row count or product file changes. A-SFT-08 and A-SRR-01 stay as accepted.
+
+### R2.5 Findings (revision 4)
+
+#### B-SR-04 — MINOR — V8-1 and V8-2 mix millisecond and sub-millisecond times
+
+- File: `docs/architecture/tasks/storage-full-round-triage.md:539–540` (V8-1, V8-2); rule `:416`, `:425–427` (§9.1).
+- Problem: `w` and `s` are millisecond values (`toISOString()`; `s` is a host time). On APFS, `birthtimeMs` and `mtimeMs` have sub-millisecond parts. V8-1 and V8-2 make each entry "in the order that a case needs" and "never set a time". In a fast host test, two steps often fall in the same millisecond. Then the V8-2 case "clone made before `w`" still has `w ≤ birthtime(Cm)`, so it is not BLOCKED. And the V8-1 pass case has `H.mtime > s`, so the valid handoff is BLOCKED.
+- Evidence: P3 (`ev/timing-probe.json`), 200 trials: every birth time had a fraction; the stale clone was not detected 195 times; the valid handoff was blocked 199 times.
+- Effect: both controls fail at random on a correct check. In real runs, the steps are seconds or minutes apart, so the production check gives no false PASS. The risk is a wrong local fix, for example a time tolerance in the check. That would weaken the A-SRR-04 binding.
+- Fix (one sentence in V8-1): "Before each ordered step of a V8 case (the next entry, `w` or `s`), the control waits until the host clock is at least 2 ms after the time of the previous entry. The check keeps exact `≤` and has no tolerance."
+
+#### B-SR-05 — NIT — V4-1 names a mutation that it cannot fail
+
+- File: `storage-full-round-triage.md:522` (V4-1).
+- Problem: at the into-volume sites #2, #5 and #6, V4-1 "checks only the creation hook". But its mutation column also names "an into-volume site that ends at `0600`". V4-1 does not assert that final mode, so this mutation cannot fail it (§12 rule: the named mutation fails the control). V4-2 asserts the final mode and already names "a return that keeps `0600`".
+- Fix: move this mutation to V4-2. Or let V4-1 also assert the V4-2 final mode at #2, #5 and #6.
+
+#### B-SR-06 — NIT — The diagnostic folder `D` has no place in the exact `run-m1.mjs` count
+
+- File: `storage-full-round-triage.md:333` (counts), `:327` (X4), `:400` (§9 step 7), `:464` (§10.2).
+- Problem: `run-m1.mjs` may have exactly one `mkdtempSync` and one `tmpdir`, and X4 (the `full` branch) uses both. The new diagnostic call in the same file makes the folder `D` and needs result files for both children (run-or-stop item (a)). The text does not say how QA makes `D`. A plain `mkdtempSync(path.join(os.tmpdir(), …))` makes the count 2. Then V4-9 FAILs, and §7.4 forbids a new exception during the work.
+- Effect: no safety effect. V4-9 finds it host-only. It can cost one more Architect round.
+- Fix: one sentence that names the way. Two ways keep the count without an exception: one shared X4 call for both modes (the check binds a count to the file, `:335`; then update the X4 "Function" cell), or `D` made with `mkdirSync`, a random suffix and no `tmpdir` call, as `privateScratch` does.
+
+#### B-SR-07 — NIT — V7-1 does not say how a declared FAIL matches
+
+- File: `storage-full-round-triage.md:538` (V7-1).
+- Problem: a row FAIL that a fake answer causes is allowed "only when the dry run declares it first, with its row id and cause". The text does not say how the cause matches (the exact text or a pattern). It also does not say what a declaration that does not occur means. A broad pattern can hide a real fixture-logic FAIL under a declared row id.
+- Fix: match the exact row id and the exact first-cause text. Report each declaration that does not occur (optional: FAIL on it, so that the list stays exact).
+
+### R2.6 Observations (no finding)
+
+- `logicalRead` removes its own nested folder (`storage-fixture-script.mjs:111`, `:138`) without a scan. So no runtime scan sees these host copies; the creation check of the helper (V4-1) protects them. This is unchanged from revision 3.
+- The QA-plant definition also covers the `a-lock-wait` holder group (`storage-rows.mjs:372`, wait at `:389`). Its cleanup is a wait for `sleep 150` and cannot fail, so the 21-site list stays exact. The `a-serialize` backup (`:397`) is the product command under test, not a plant. On the new §3.1 step 3 FAIL path, the implementation should still wait for `backup.done` before the row ends (implementation note, not a design change).
+- V1-5 (SD-7) puts the `storage_lock_selftest` line outside the field-list check. ADR-012 `:284` gives that line its own shape, although `:318` lists it with the lock events. The self-check writes stdout only (`storage-oplock.sh:210`, `:212` at `01ce5bc`), so the R1-A lock-log check never saw it. No test or behavior changes.
+
+### R2.7 Evidence
+
+Root: `/Users/quangnguyen/cogniate-review-runs/rb2-fresh-v112-task_e6e2cdd4bea9-20261021T134457Z/` (`0700`). Evidence and probe files are `0600`; the stub is `0700`.
+
+| File | SHA-256 |
+| --- | --- |
+| `ev/v112-summary.json` (P1) | `71a16407aca05dbdb43c1dee82b8c139be9700a44249a5b43b071c3afdda87f9` |
+| `ev/docker-calls.txt` (P1) | `1e5cf80748719712a6c8649e4b3778fb244123ea84d5a6d7c85227f26156f3b9` |
+| `ev/v112-stdout.txt` (P1) | `4832a6cc733bf030175d349099b23e2022df47d0a82a388f45460e976b2cbc48` |
+| `ev/v112-stderr.txt` (P1) | `179a04636ab6412d5ba7407215c498aab20520f4aad90999217c528ee188bfd8` |
+| `ev/tokens-ab28585.json` (P2) | `aa55ec55ea886615149ceb392370fa1b1ae00af6666a23f2e2ba188489b61588` |
+| `ev/timing-probe.json` (P3) | `7a44ac0e4456416a9582ebc017a87da8b792b27852b3e8ec005fec8d279bc4f5` |
+| `probe/v112.mjs` | `0ccccff7451c716f1a30d06b1235565e7384e294fd73324330d43900c855b3d6` |
+| `probe/tokens.mjs` | `247ba23951ad341833ca8df4a1c85c613e5e52a2c406286e8746725917f45b71` |
+| `probe/timing.mjs` | `efd1c19771bb401f42f1b2b299ed0e9bb9991c6daddc93075551b37fcc681156` |
+| `stub/docker` | `5ab87e2232bb786b85bfec65886308280260b7fd2f80fae5887f8bbcf2056b02` |
+| `ev/manifest.txt` (the ten files above) | `e488264667c2f8438fd0099c8f0698b883c5eca2cfc554b0b6e07db6e8a071c2` |
+
+No output has a secret. The probes used no `.env`, no key and no live service.
+
+### R2.8 Limits
+
+- No runtime claim and no acceptance credit. The full result at `aaa823b` stays FAIL (438 PASS, 50 FAIL). The diagnostic, both full rounds, all 12 legacy groups, fresh M2 and T7 stay pending on the frozen candidate. All 32 real-LMS rows stay UNVERIFIED. Local Canvas stays DEFERRED. No push or main merge is implied.
+- There is no harness diff yet. P1 used the `01ce5bc` product files; the frozen candidate needs V1-12 on its own SHA. P1 used a private `HOME`; the row uses the real one. P2 reads the current tree; the post-repair count is my reading of the text. P3 is one host (APFS, Node `v24.21.0`).
+- Probe deviations: npm printed a "new major version" notice, so its default update check most likely read the public npm registry (no project data). By mistake, I made one 90-byte `0600` file with only the root path in `/tmp`, and I deleted it at once. The stub was made `0600`, then got owner execute only.
+- A-SFT-08 stays an accepted MINOR for M4. A-SRR-01 stays an accepted NIT outside R1-A. The historical deferrals stay unchanged.
+- The untracked `pnpm-workspace.yaml` is unchanged.
