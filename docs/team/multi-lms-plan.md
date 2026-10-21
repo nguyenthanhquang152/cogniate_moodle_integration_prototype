@@ -13,9 +13,9 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 04:15 UTC
+### Current checkpoint — 2026-10-21, 04:19 UTC
 
-The new test candidate is `82e2dab6d26915c90070a4aae8ac0c4472706c2d`; two focused reviews are in progress.
+The frozen product/test candidate is `82e2dab6d26915c90070a4aae8ac0c4472706c2d`; both focused source reviews approve it.
 Product code is unchanged from `a784522`. Both storage source reviews approve that product code.
 The earlier clean-clone check passed 1,111 unit and 76 infrastructure tests, with no skips.
 Candidate `55c33a3` repaired the oracle for `M1-17.canvas.repeat`. Both independent source reviews approve that earlier repair.
@@ -29,11 +29,16 @@ The case took about 365 milliseconds, not 365 seconds. Reports preserve the corr
 Cleanup left no owned containers, volumes or networks. All seven protected volume records were unchanged.
 The outer network comparison failed because its initial Docker view was cached. That raw failure remains recorded.
 
-The attempt at `55c33a3` stopped with exit 1 at 03:51 UTC. No Docker window is active.
+The attempt at `55c33a3` stopped with exit 1 at 03:51 UTC. Common QA now owns the sole Docker window for the new retry.
 Both runtime workers settled with outcome failed; their reports are committed in `a928064` and `fda7ec6`.
 Their owned sessions were released. M2 and T7 wait for the accepted candidate.
 The focused QA repair settled successfully under `task_e3b78fb1a605` / `ctx_56fe09e67789`; its session was released.
-Reviewer-A (`ctx_95f5cc04ec0f`) and Reviewer-B (`ctx_b79580197a2f`) are active, both Claude Code Opus 5.5 xhigh.
+Reviewer-A (`ctx_95f5cc04ec0f`) and Reviewer-B (`ctx_b79580197a2f`) both settled successfully; their report commits are `dee08f4` and `c9b6852`.
+Release checks found no owned terminal resources for these reused review sessions.
+Fresh Common retry `ctx_b36c97b882dd` prepares full M1 and legacy under authority `msg_9c661cdcd106`.
+Fresh Canvas retry `ctx_33862fcfa6d1` prepares host-only independent checks under authority `msg_40eca66674cd`.
+Requested and effective settings match Claude Code Opus 5.5 xhigh for both workers. They cannot claim predecessor evidence as their own.
+Common must send fresh W1–W3 live boundary evidence before the authorized launch. Canvas waits for an explicit Docker window transfer.
 
 The full runner started at 03:25:14 UTC after W1–W3 passed. Round 1 SIM passed all 394 cases; snapshot isolation passed all six.
 The Lead checked the 394 PASS rows and their single product/test SHA. `M1-17.canvas.repeat` now passes in the runtime run.
@@ -44,7 +49,8 @@ Commit `82e2dab` sets the same explicit resource link for both launches. No prod
 It changes two lines in the common probe and adds `docs/reviews/M1/snapshot-key-qa.md`.
 QA's host controls reproduce the old failure, pass the repaired h1–h5 path, and reject same-tuple key changes.
 The harness passes 70 checks and typechecking. The 488-row inventory and 233 Canvas rows are unchanged.
-Both reviewers reproduced the diagnosis independently. Their final verdicts on the committed repair are pending.
+Both reviewers reproduced the diagnosis independently and approve the exact committed repair, with no blocking findings.
+Their controls preserve the positive same-tuple comparison and reject unexpected key changes. No runtime acceptance is implied.
 The remaining 87 round-1 rows, all 488 round-2 rows and legacy did not run. This attempt remains FAIL.
 The fresh source clone is `~/cogniate-qa-runs/m3-frozen-55c33a3-20261021T0315Z/source`.
 Outer evidence is `~/cogniate-qa-runs/m1-full-55c33a3-20261021T0324Z`.
