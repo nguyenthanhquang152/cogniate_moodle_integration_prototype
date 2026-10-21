@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2 (triage revision 4 design only, fresh Reviewer-A instance; see "Round 2" at the end. The Round 1 text below is unchanged, including its CHANGES_REQUESTED decision for revision 3.)
 
 # Reviewer-A: R1-A source repair and storage triage revision 3
 
@@ -183,3 +183,130 @@ I confirm the exact text as correct, bounded and testable:
 - The P-1a deletion uses measured topology R3. A rename or hand move of `P` stays unmeasured and outside the ADR-012 §15 guarantee, as the text states.
 - The Author evidence mode deviation (three files at `0644` under a `0700` parent, later `0600`) is recorded, not repaired by this review. Product copy-then-`chmod` (A-SFT-08) stays a MINOR for M4.
 - No push or main merge is implied.
+
+## Round 2 (2026-10-21) — bounded design confirmation of triage revision 4
+
+Round 2 decision: **APPROVE** (revision 4 design only). No BLOCKER and no MAJOR finding. One MINOR (A-SRR-07) and one NIT (A-SRR-08). Neither blocks QA step 3.
+
+Reviewer: a **fresh** Reviewer-A instance (lens: right and safe). Claude Code Opus 5.5, xhigh, no subworker. Task `task_0bf223a0ef67`, dispatch `ctx_5f33a90989cb`, run `run_ebe671ad72a9`. I did not write Round 1. Round 1 (§1–§5 above) and its probes belong to the earlier Reviewer-A instance. I used them as input only. Every Round 2 result below comes from my own reads and probes.
+
+Status: design confirmation only. It gives no runtime or acceptance credit. It authorizes no implementation, criterion change or runtime action. The full result at `aaa823b` stays FAIL (438 PASS, 50 FAIL). All 32 real-LMS rows stay UNVERIFIED. Local Canvas stays DEFERRED.
+
+### R2.1 Reviewed objects
+
+| Object | Identity (I computed each value) |
+| --- | --- |
+| Target | `docs/architecture/tasks/storage-full-round-triage.md`, revision 4 at `2d763fec502f6b7758b7ed56f51613183e5021ce`. SHA-256 `ade4e8a0f9e54823040828758b7683d5c9b230587747f3ef3c89ef8e99f9a032` (commit and work tree are equal). |
+| Baseline | Revision 3 at `ab285856`. SHA-256 `70ba4f9b5a2e61ce79296b9d689618f9a56ddc3d5a8ea0f6189c8f0514241dba`. |
+| Diff scope | `git diff --stat ab28585 2d763fe -- docs/architecture tests infra services packages apps package.json` changes only the target file (182 lines added, 48 removed). The product is equal to `01ce5bc` outside `docs/`. The tests tree stays `4c7e067feedc644f955afee37806f06e7273dd04`. |
+| Unchanged, not reviewed again | `M1.md` P-1a: `b648853cea837284020229a99db81b699066fa916876f90905eb374fdba61057`. ADR-012 O-1: `57602ca4cf9dc82ea2fb874d2ef8618dad204ca7d1727bfa56ee3fa6746fa589`. I recomputed both at `2d763fe`; they are equal. The R1-A (`01ce5bc`) source approvals stay. I did not repeat that review or its tests. |
+| Inputs (historical, read with `git show`) | Reviewer-A Round 1 at `7fbf7c8` (`9b21a285faf78521b3060c454779f9503f87dbac303f1f383d5637c66c136748`; this file before Round 2, unchanged at `2d763fe`). Reviewer-B at `0a97fe9` (`28cf870e126f3f52cf9e3b5a4fefa81b2b1c1db8e8f43876e17501cca29d4cc7`). QA testability Round 1 at `0468b19` (`de4116bf4f30dc019fdf76a9d18bf6c35fa7f0737b4e0ae6434d8cd653e91af3`). All values equal the Lead's values. |
+
+Blind review: I did not read the current work-tree `storage-repair-reviewer-b.md`, a QA Round 2 addendum or output, or a message of another reviewer. My inbox had no message for this dispatch.
+
+### R2.2 Method
+
+- Host only. I read source with `git show` at `2d763fe` (tests tree `4c7e067`, product `01ce5bc`). I listed only metadata (names, types, modes, owners) under `/Users/quangnguyen/cogniate-qa-runs`.
+- Probes ran in a new private root: `/Users/quangnguyen/cogniate-review-runs/storage-repair-r2-reviewer-a-task_0bf223a0ef67-20261021T133941Z` (mode `0700` from creation, umask `077`). Every file is `0600`, except the Docker stub (R2.6). Evidence manifest `ev/MANIFEST.sha256`: `8cc25171205d16b7929e0199a9c8067418c8414125a1fbcb6a2a5344626911bf`.
+- A fail-closed Docker stub was first on `PATH` for the one probe that could reach Docker. It records each call and exits `97`. It recorded one call (`docker ps`), which it refused. No real Docker or Compose command ran.
+- No test suite, no product stack, no `.env`, no secret, no settings change and no shared-evidence change.
+
+### R2.3 Closure map
+
+"Closed" means: the revision 4 text meets the condition, and the pinned source makes it feasible. The Lead decides closure.
+
+| Finding | Condition | Revision 4 text | Status |
+| --- | --- | --- | --- |
+| A-SRR-02 (MAJOR) = QA-SRT-01 (MAJOR) | Runtime-module scope; self-tests outside; a named in-container scratch; every host call passes `privateScratch`; no exception during implementation | §7.2 source inventory (`:311–335`), X1–X8, #4 without a default (`:297`), V4-1 (`:522`), V4-9 (`:530`) | **Closed** (R2.4.1) |
+| A-SRR-03 (MINOR) | The root holds exactly five folders; any other entry FAILs; one more control case | §7.4 closure row (`:355`), V4-10 (`:531`) | **Closed** (R2.4.2) |
+| A-SRR-04 (MINOR) = QA-SRT-04 (MINOR) | Name the binding; a host-only V8 unit without a real migration child | §9.1 (`:410–434`), V8-1 to V8-5 (`:539–543`) | **Closed**, with one control precision: A-SRR-07 (MINOR) (R2.4.6) |
+| A-SRR-05 (NIT) = B-SR-01 (MINOR) | V1-12 through the `npm` hop | V1-12 (`:505`) | **Closed.** My probe gives every expected value (R2.4.5). |
+| A-SRR-06 (NIT) = B-SR-03 (NIT) | The `app.test.ts` citation; a defined empty-create helper | §5 `:123–126`; §7.3 private empty file (`:343`); V4-8 | **Closed.** At `2d763fe` the test starts at `:123`, the request is at `:125` and the assertion is at `:126`. So Round 1's `:122–125` was wrong, and revision 4 is right. |
+| B-SR-02 (MINOR) | A written run-or-stop rule before the grant | §0; §9 step 7 (`:402`); V8-6 | **Closed** (R2.4.7) |
+| QA-SRT-02 (MINOR) | One final mode for each site | V4-1 (`:522`) | **Closed** (R2.4.4) |
+| QA-SRT-03 (MINOR) | Trigger "step 3 started" | §4.0 step 8 (`:152`), V2-10 | **Closed** (R2.4.3) |
+| QA-SRT-05 (MINOR) | "QA plant" defined; an exact site list | §4.3 (`:187–211`), V2-8 (`:517`) | **Closed** (R2.4.3) |
+
+Accepted deferrals stay unchanged in the text: A-SRR-01 (NIT, outside R1-A, §0); A-SFT-08 (MINOR, product copy-then-`chmod`, M4, §7.6); B-BM-01, A-SOR-01/B-SOR-01, post-reset build-request coverage and A-T9-C01 (§13). The QA items SD-3 to SD-6 stay as recorded (§13). IR-1 to IR-6 stay implementation notes.
+
+### R2.4 Checks of the changed controls
+
+#### R2.4.1 Token rule and exceptions X1–X8 (V4-9)
+
+- I ran the exact pattern `/\b(copyFileSync|copyFile|cpSync|cp|mkdtempSync|mkdtemp|tmpdir)\s*\(/g` with Node over the nine runtime modules at `2d763fe` (`ev/v4-9-tokens.json`). Counts today: `storage-lane` `copyFileSync` 2, `mkdtempSync` 1, `tmpdir` 1; `storage-rows` `cpSync` 5, `copyFileSync` 2, `mkdtempSync` 1, `tmpdir` 1; `storage-compat-route` `mkdtempSync` 2, `tmpdir` 2; `storage-fixture-script` `copyFileSync` 5, `mkdtempSync` 1 (`:111`), `tmpdir` 1 (`:107`); `storage-oracle` `copyFileSync` 1; `m1-migration` `mkdtempSync` 2, `cpSync` 1; `run-m1` `mkdtempSync` 1, `tmpdir` 1; `storage-docker` and `storage-inventory` 0.
+- Each match is at a site #1–#5 or #7–#14 (#1 and #2 share `:190`), or at X1–X4, X7 or X8. The triage statement at `:333` is correct.
+- The target counts are reachable without an exemption. QA removes the calls of sites #1–#5 and #7–#14. X1–X4, X7 and X8 stay. The one `tmpdir` moves from the `logicalRead` default (`:107`) to `main()`, operation `logical` (X6). The helpers need only `open`, `mkdir`, `readdir` and `lstat`.
+- X6 is sound. The only host call of `logicalRead` is `storage-lane.mjs:225` (#10). Every other logical read runs `main()` in a `storage-fixture` container. That container uses `--rm`, the pinned image `node:24.22.0-alpine3.24`, no `--env`, and only the two lane volumes, `/qa/bin` and `/qa/out` (`storage-docker.mjs:12`, `:16`, `:130–131`). So its `os.tmpdir()` is in the container layer.
+- The scope removes the eight self-test `mkdtempSync` calls (four storage self-tests). This weakens no site check: the V4-9 mutation "default `scratchBase` put back" and the V4-1 "throws without `scratchBase`" check both cover the one real bypass of #4.
+- Note (no finding): the diagnostic folder `D` and the §8 log segments must add no token to `run-m1.mjs` or `storage-rows.mjs`. `mkdirSync` with random hex (as in `privateScratch`), a reuse of the X4 call, and `saveText` all fit. V4-9 enforces this.
+- One residual limit is not stated: A-SRR-08 (NIT).
+
+#### R2.4.2 Private root closure (V4-10)
+
+- `StorageLane.boot()` makes the root and `bin/`, `out/`, `backups/` and `quarantine/`, each with `mkdirSync` and `chmodSync 0700` (`storage-lane.mjs:41–44`). No host module writes another entry into the root (`git grep` of `.private` and `storage-private`). Product output goes into folders under `backups/` and `quarantine/` (`newFolder`). QA holds go under `out/`.
+- `migrationRun` and `snapshotMigrationRun` each make two `StorageLane` objects with one runner. They share one root, and only `candidateLane.boot()` runs (`m1-migration.mjs:180`, `:280`). The closure row covers that root.
+- The verified set is correct. I listed nine roots. Each root is `0700` and has exactly `backups/`, `bin/`, `out/` and `quarantine/`, each a `0700` folder of the host user (metadata only).
+- The V4-10 variants (a)–(f) fail a scan of the named areas only, and a name check without type, owner and mode.
+
+#### R2.4.3 Partial plant, QA plant, 21 sites and 27 injections
+
+- The root plant is one fixture container with two `lchown` operations in order (`storage-rows.mjs:532`). "Step 3 started" covers a failure after the first operation. On a timeout, QA removes the container by name before it throws (`storage-lane.mjs:95–98`). So the restore does not race a live plant container. If that removal fails, the lock or listing step of the restore fails, and §4.3 stops the phase (fail closed).
+- I checked all 21 line references at `4c7e067`: `:282`, `:351`, `:472`, `:488`, `:496`, `:506–516`, `:527`, `:532`, `:549`, `:552`, `:570`, `:651`, `:803`, `:874`, `:885`, `:976`, `:983`, `:1051`, `:1221`, `:1254` and `:1119–1128`. Each is the stated restore. `identityCase` has seven calls in five rows (`:583`, `:588`, `:592`, `:597` with `:601`, `:607` with `:611`). 20 sites + 7 calls = 27 injections.
+- The QA-plant definition keeps the in-volume `.qa-scratch-*` of `b-oracle-*` with its existing check. It drops no restore site.
+
+#### R2.4.4 Creation mode and restored mode
+
+- V4-1 checks the creation hook (`0600`, size 0, the same device and inode) at every copy site #1–#13. The final mode `0600` applies only to the private-helper sites. Sites #2, #5 and #6 end at the V4-2 mode. The two controls now agree.
+- The into-volume helper sets the target mode with `fchmod` before it closes the file, so the creation hook and the final mode do not conflict. For `identityCase`, the return mode must come from the `copyout` record, because the held copy is now `0600` (IR-2). V4-2 already compares the result with QA's listing before the row.
+
+#### R2.4.5 Exact `npm` path (V1-12)
+
+- Source: `stack-data.sh` sources `lib.sh` (no Docker; `.env` is optional and defaults apply), runs `storage_compat_guard` (a file check), then `storage_lock_acquire "stack:data-backup"`, before any Docker call. A6 logs `storage_lock_acquired` at `storage-oplock.sh:142`, before the lister at `:144`. A lister failure takes the quiet release (no lock folder remains) and exits 1.
+- Probe (`ev/v1-12-npm-path.json`): the row's spawn shape, `detached` `npm run stack:data-backup -- --out <ev>/backup-out`. Its `cwd` is a scratch copy of `package.json` and four `infra/scripts` files of `2d763fe`; no `.env`, no `npm_*` variable, project `qa-r2a-probe`, the stub first on `PATH`. Result: exit 1; exactly one `storage_lock_acquired` event; `command` = `stack:data-backup`; `pgid` = the spawned pid; the stub's only call (`docker ps`) came after the acquire line was written; no `storage-op.*` folder remains; no output folder was made. Node `v24.21.0`, npm `11.19.0`.
+- So V1-12 can pass as written on this host, and its stated mutations change the result.
+
+#### R2.4.6 Window binding (§9.1), diagnostic and `full` rounds
+
+- The check uses facts that do not come from the handoff. The parent gives `w`. The storage child knows its run root, project, candidate SHA, `s` and uid. Both children use `core.mjs:84–85`, so the clone name is `<project>-<first 8 hex>-<ISO time with ':' and '.' replaced by '-'>`, and item 3's pattern matches it. The real backup roots under `~/cogniate-qa-runs` match item 4's pattern.
+- The `full` mode is feasible without a phase change. `FULL_PHASES` is `sim`, `snapshot-isolated`, `snapshot-upgrade`, `migration`, `storage` (`m1-phases.mjs:4`), one child each (`run-m1.mjs:139–158`). A new `w` before each migration child rejects the clones of the earlier phases. The accounting folder is `0700`. `writeHandoff` is the last write of `H`. The product manifest has `composeProject` and is written `0600` (`stack-data.mjs:72–78`, `:703`).
+- Birth times work on this host (macOS, APFS). `os.tmpdir()` is under a link (`/var` → `/private/var`), so the `realpath` note of V8-1 is right. The home folder has no link.
+- One precision gap: A-SRR-07 (MINOR).
+
+#### R2.4.7 Run-or-stop rule, mock outcomes, keep-after-hit, empty files
+
+- Run-or-stop: the parent can observe each of (a)–(f) (exit code, result file, scan record, cleanup result, ownership record, grant). Any doubt gives "storage NOT RUN", then teardown and strict W4. This is stricter than revision 3 and drops no requirement. The diagnostic has no credit.
+- V7-1: a row FAIL that a fake answer causes is allowed only when the dry run declares it first, with its row id and cause. Any other FAIL still FAILs the dry run, and "each §4.3 restore runs" stays. So a declared FAIL cannot hide a missing hook, restore, row or exception. The fake must bring each restore-site row to its plant. This is QA work, not a conflict.
+- Keep-after-hit (§7.3): a kept scratch stays in the `0700` root, inside the scanned `scratch/` area. A safe correction leaves `0600`, so later scans do not hit again. A refused correction stops the phase. This agrees with §7.5 "no deletion".
+- Private empty file (#14): the capture shell writes only the two files that QA made first, with `>` (`storage-compat-route.mjs:204–206`). `>` keeps the inode and the mode. So the `lstat` checks before and after the shell can pass on a correct tree.
+
+### R2.5 Findings
+
+#### A-SRR-07 — MINOR — §9.1 compares whole-millisecond host times with sub-millisecond file times
+
+- File: `docs/architecture/tasks/storage-full-round-triage.md:416` (form of `w`), `:424–430` (items 1–4), `:539–540` (V8-1, V8-2).
+- Problem: `w` and `s` have millisecond resolution (`toISOString`). `H.mtimeMs` and `birthtimeMs` have sub-millisecond resolution. The text does not state the unit of the compare, or how a control separates two ordered events. So two V8 cases do not pass reliably on a correct check:
+  - V8-1, positive case: when the control writes `H` and takes `s` in the same millisecond, raw `H.mtimeMs ≤ Date.parse(s)` is false, so the check gives BLOCKED.
+  - V8-2, "the clone made before `w`": when the clone and `w` are in the same millisecond, `w ≤ birthtime` is true, so the check does not give BLOCKED. This is true for raw and for floored times.
+- Evidence (500 samples each): `ev/ms-window.json`: raw `H.mtimeMs > Date.parse(s)` in 496 of 500; floored, 0 of 500. `ev/ms-window-stale.json`: the stale clone is accepted in 500 of 500 (raw and floored), and in 0 of 500 when the control waits for the next millisecond.
+- Effect: no runtime verdict changes. In real runs, `s` comes seconds after `H`, and the clones of earlier phases are minutes older. The risk is a mandatory host control that fails on a correct implementation, so QA must choose the unit while it writes the control. It is not a safety gap.
+- Fix (text only; no rule change): (1) "The check compares whole milliseconds: `Math.floor` of each file time against `Date.parse(w)` and `Date.parse(s)`." (2) "In V8-1 to V8-5, the control waits until `Date.now()` changes between two ordered events. It still never sets a time."
+
+#### A-SRR-08 — NIT — the V4-9 limit does not name aliased or computed access
+
+- File: `docs/architecture/tasks/storage-full-round-triage.md:335`, `:553` (limits); `:596` ("fails closed").
+- Problem: the text pattern needs the name directly before `(`. These forms give no match: an aliased import (`import { copyFileSync as c }`), a renamed destructure (`const { cpSync: c } = fs`), and computed access (`fs['cpSync'](…)`, `fs.cpSync.call(…)`). "Fails closed" is true for extra matches, but not for these forms.
+- Evidence: my search found none of these forms in the nine runtime modules at `2d763fe`. So the gap is latent. V4-1 and the §7.4 scans find a wrong mode at run time, and the §9 step 5 source reviews read the QA diff.
+- Fix: add one limit sentence, for example "An aliased or computed access is not matched; the lens-A source review of §9 step 5 checks for it." Optional, still without a parser: also FAIL on `\b(copyFileSync|copyFile|cpSync|mkdtempSync|mkdtemp|tmpdir)\b(?!\s*\()` in the runtime modules. That count is zero today.
+
+### R2.6 Probe limits and deviations
+
+- The V1-12 probe used a copy of `package.json` and four `infra/scripts` files, not the full `infra/` archive that V1-12 names. The lock path reads no other file, so the result applies. QA's control must still use the archive.
+- I made the Docker stub with mode `0600` and then set `0700`, because a `PATH` lookup needs the owner execute bit. It never had a group or other bit.
+- npm wrote its default debug log `~/.npm/_logs/2026-10-21T13_39_56_252Z-debug-0.log` (`0600`, outside my private root; command line and paths only; no secret). I left it in place.
+- During setup, one helper file in `/tmp` (`0600`; it held only the private-root path) existed for some seconds. I deleted it. It is absent now.
+- The timing results are for this host only (macOS, APFS, Node `v24.21.0`). I did not test another file system.
+- I did not review `M1.md` P-1a, ADR-012 O-1 or R1-A again, and I ran no test suite. Round 1 §5 stays as stated.
+
+### R2.7 Round 2 decision
+
+**APPROVE** for the revision 4 design (`ade4e8a0f9e54823040828758b7683d5c9b230587747f3ef3c89ef8e99f9a032`). Each listed finding is closed in the text. The changed controls are feasible on the pinned source, with no weaker requirement and no new exemption. A-SRR-07 (MINOR) and A-SRR-08 (NIT) do not block QA step 3. The Lead can apply both as text precisions or defer them. No runtime or acceptance credit. No push or main merge is implied.
