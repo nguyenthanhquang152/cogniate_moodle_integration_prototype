@@ -1754,3 +1754,205 @@ The guard changed modes only, at exact names. Record: `public/clone-guard.json` 
 ### Next
 
 The Lead decides on the two common harness repairs above and on the diagnosis of the import failure. A repair needs a new frozen candidate, independent source review and a new window. Then both complete 488-row rounds and all legacy groups must run again from a fresh clone. This attempt and its failed rows stay in the record. All 32 live rows stay `UNVERIFIED`.
+
+## Retry at `aaa823b`: FAIL in round 1, phase `storage` (AC-M1-41), 2026-10-21
+
+Verdict for this attempt: **FAIL**. Round 1 `sim` (394 rows), `snapshot-isolated` (6), `snapshot-upgrade` (6) and `migration` (12) passed completely. In `storage`, 20 of 70 rows passed and 50 rows failed. Round 1 has a record for all 488 rows: 438 PASS and 50 FAIL. Round 2 and legacy did not run. No M1 criterion gets full-run credit. All sections above stay as history.
+
+Owner: a new, independent common/Blackboard QA session. Requested and effective settings: Claude Code Opus 5.5 (`claude-opus-5-5`) at xhigh effort, no subworkers. Task `task_ed3b08aa45ea`, dispatch `ctx_b4253986bb55`, session `orca_session_id:207d2a5d-cc4e-4131-9eef-b42ff30da8f1`. The task text calls this role "Codex QA, GPT-6-Astra" and gives an old `--runs` example. Lead message `msg_4d1763091492` supersedes both. This session did not write the product, the tests of this candidate or any review. It does not claim the evidence of earlier sessions or of Canvas QA.
+
+### Identity and command
+
+| Item | Value |
+| --- | --- |
+| Product SHA = test SHA | `aaa823b25306c5e560f7c4050238b374dec4d4e3` (tests tree `4c7e067feedc644f955afee37806f06e7273dd04`) |
+| Changes since `9cdd768` (non-docs) | 9 files, exactly the approved repairs: `0e83e3c` harness (`tests/host/storage-oracle.mjs`, `storage-rows.mjs` and their self-tests); `89fb4b4` reset (`infra/scripts/stack-reset.sh`, its test, `infra/README.md`); `aaa823b` content refusal (`infra/scripts/stack-data.mjs`, `services/lti-service/src/cli/stack-data.test.ts`, `infra/README.md`). All other harness files and the four manifests equal the `9cdd768` provenance. |
+| Gates before the run | Host QA PASS `18aa600`; both combined reviews APPROVE (`a4488ac`, `a32fb10`); targeted Q1/Q2 PASS 22/22 (Lead `msg_a33783fa968c`) |
+| Window | Lead `msg_a33783fa968c` (sole conditional Docker window). Returned at 11:37:11Z (`msg_866d50ebe5de`); the Lead confirmed in `msg_1ecdfb016045`. |
+| Lane | `qa-multi-r1` (storage lane `qa-multi-r1-st`), port 8443, subnet `172.29.0.0/16` |
+| Source | `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-aaa823b-20261021T1040Z/source`: `git clone --no-hardlinks` under umask 077, born 10:40:34.666Z, detached at the exact SHA. 0 status lines; the only ignored path is `tests/node_modules/`; no `.env`; no root `node_modules`; push URL disabled; pins `9f96f7b` and `b0b83a8` present. Provenance `provenance.json` SHA-256 `f4bf5fc6…`. |
+| Run root | `/Users/quangnguyen/cogniate-qa-runs/m1-full-aaa823b-20261021T1054Z`. The root, `public/`, `private/` and `tmp/` are 0700. |
+| Phase runs | `sim` `qa-multi-r1-aaa823b2-2026-10-21T10-54-48-482Z`; `snapshot-isolated` `…-11-17-41-577Z`; `snapshot-upgrade` `…-11-19-17-179Z`; `migration` `…-11-21-08-271Z`; `storage` `qa-multi-r1-st-aaa823b2-2026-10-21T11-24-56-069Z` |
+| Time | Runner start 10:54:48Z; identities: `sim` 11:17:35.675Z, `snapshot-isolated` 11:19:12.889Z, `snapshot-upgrade` 11:21:03.963Z, `migration` 11:24:51.789Z, `storage` 11:36:43.914Z; parent exit 1 at 11:36:48Z |
+| Tools | Node 24.21.0; Docker CLI and engine 29.9.1; Compose 5.6.0. `G1-IDENTITY` PASS in all five phases. |
+
+```sh
+cd /Users/quangnguyen/cogniate-qa-runs/m3-frozen-aaa823b-20261021T1040Z/source
+umask 022
+COMPOSE_PROJECT_NAME=qa-multi-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 \
+STACK_PROFILE=default \
+COURSE_FIXTURES_DIR=/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses \
+TMPDIR=/Users/quangnguyen/cogniate-qa-runs/m1-full-aaa823b-20261021T1054Z/tmp \
+node tests/host/run-m1.mjs --sha aaa823b25306c5e560f7c4050238b374dec4d4e3 \
+  --test-sha aaa823b25306c5e560f7c4050238b374dec4d4e3 \
+  --source /Users/quangnguyen/cogniate-qa-runs/m3-frozen-aaa823b-20261021T1040Z/source
+```
+
+The runner has no `--runs` option, and this run used no phase filter. The default `full` phase runs the five phases twice and then legacy. It stops after a failed required phase. The external launcher `launch-full.sh` ran the gates, this command, the end boundary and the scan. It did not change the frozen suite.
+
+### Preparation (host only, no Docker)
+
+All preparation ran before the window. No Docker or Compose binary was executed; identities were checked by file hash only. The Lead accepted it in `msg_a33783fa968c`. It gives no product credit.
+
+- `npm --prefix tests ci --no-audit --no-fund` (umask 077): exit 0. npm skipped the esbuild and fsevents install scripts, as in earlier preparations.
+- `node tests/host/run-m1.mjs --harness-only --provider all` (umask 022, 10:41:26–10:41:32Z): exit 0. 77 of 77 self-checks (the 73 of `9cdd768` plus 4 from `0e83e3c`), 0 failed, skipped, cancelled or todo. Typecheck PASS. 392 API plus 96 host rows = 488 per round: `sim` 394, `snapshot-isolated` 6, `snapshot-upgrade` 6, `migration` 12, `storage` 70. The only conditional row is `M1-41.common.c-host-negative`. The `c-selftest` self-test made one `/tmp/qa-selftest-<16 hex>` folder on the host and removed it.
+- Old-build overrides: `infra/compat/storage-compat.sha256` (`2eea8dda…`) lists four files; `shasum -c` gives 4 of 4 OK.
+- Fixtures: SCORM `a685744e…`, HTML `9f04d3ab…`. Protected baseline file `219da30b…`. Port 8443 had no host listener.
+- Old evidence: every recorded hash of the `9cdd768` attempt (round rows, summary, scan, W4, all 20 phase-file prefixes) is unchanged. All earlier attempt roots are present.
+- **Tools:** `/Users/quangnguyen/cogniate-qa-runs/claude-common-qa-tools-aaa823b` (0700), copied from `claude-common-qa-tools-9cdd768`. Before the copy, all 16 old hashes equal that folder's own after-edit ledger. 15 of 16 files are byte-identical. Only `launch-full.sh` changed (`d9424447…` → `f68407ee…`): line 16 now has this session's `FROM` and `DISPATCH`; `TASK` is unchanged; 40 bytes differ. The header comments still name `9cdd768` and old message ids, as the Lead required. `progress.sh` and `watch-events.sh` still hard-code the old tool path; the launcher does not call them, and this session did not use them.
+- Ledger location: in `prep/prep-hashes.txt`, each `tools-ledger/<file>` entry is the file `claude-common-qa-tools-aaa823b/ledger/ctx_b4253986bb55/<file>`. It is not a subfolder of `prep/`. The accepted files were not rewritten.
+- Tool controls on the copies: live-boundary 30 of 30 (Docker stub only), clone-guard 25 of 25 (temporary folders only).
+
+### Live boundary before the run (W1–W3, all PASS)
+
+| Step | Result | Evidence (`public/`) |
+| --- | --- | --- |
+| Ancestor check | Home 0750 `quangnguyen:staff`; group members `quangnguyen root` of 133 accounts; ACL `group:everyone deny delete` only | `ancestor-boundary.json` `3faf1ff0…` |
+| Pre-wake (not boundary evidence) | The idle VM answered with a stale clock (10:46:10Z at host 10:54:33Z); bridge `cf6b8ae191bc`, created 10:37:37Z; 0 containers | `w1-wake.json` (`preWake`) |
+| W1 wake | `qa-wake-20261021105433-ed913110` on cached image `sha256:44fce696…`, `--pull never --rm --network none`, one label. Exit 0; 0 wake containers remain. The wake recreated the bridge (`49b8d9d5b39c`, created 10:54:34Z). | `w1-wake.json` `045c00f0…` |
+| W2 liveness | Two advancing reads; worst skews 87 ms and 80 ms | `w2-liveness.json` `7c7945bf…` |
+| W3 formal start | `runStartSecond` 1792580085 (live `SystemTime` 10:54:45.539Z). Bound identities match; image present. Networks: bridge `49b8d9d5b39c`, host `b9266a37c45a`, none `d2863b51ad44`. 0 containers. 9 volumes: the 7 protected FULL records equal the original baseline, plus the anonymous volumes `a17056b8…` (05:26:47Z) and `d5df35bd…` (05:32:46Z). Both lanes fresh (no exact name, no label); port 8443 free; no subnet clash; 0 problems. | `w3-formal-start.json` `bed6c788…` |
+| Gate message | Sent to the Lead before the runner started | `msg_b97f5af29f58` |
+
+### Result of round 1
+
+| Phase | Rows | Result | Run id |
+| --- | ---: | --- | --- |
+| `sim` | 394 of 394 | 394 PASS (common 26, Blackboard 136, Canvas 232) | `…-10-54-48-482Z` |
+| `snapshot-isolated` | 6 of 6 | 6 PASS (Blackboard `M1-37` w, y2; `M1-29` k1–k3; Canvas `M1-37` aa) | `…-11-17-41-577Z` |
+| `snapshot-upgrade` | 6 of 6 | 6 PASS: `M1-38.common` h1–h5, `M1-41.common.j-snapshot` | `…-11-19-17-179Z` |
+| `migration` | 12 of 12 | 12 PASS: AC-M1-23 (4) and AC-M1-30 (7) `MOODLE-LIVE`, `M1-41.common.j-migration` `SIM` | `…-11-21-08-271Z` |
+| `storage` | 70 of 70 | **20 PASS**, **50 FAIL** | `qa-multi-r1-st-…-11-24-56-069Z` |
+
+- Row record (`round-report.mjs`): 488 rows, 488 distinct, 0 missing, 0 duplicate, 0 unmanifested, 0 label mismatch. All rows have one SHA (`aaa823b2…` for product and tests). 438 PASS and 50 FAIL. By owner: common 64 PASS and 50 FAIL, Blackboard 141 PASS, Canvas 233 PASS.
+- `sim`: runner aggregate 400 PASS (394 rows plus `G1-IDENTITY`, `PRE`, `CLONE`, `H1`, `M3-ISOLATION`, `TEARDOWN`). Vitest 21 files: 386 passed, 0 failed, 6 pending. The 6 pending tests are exactly the six `snapshot-isolated` rows, which passed in the next phase. Health: app and LTI service `profile: default`, `knobs: []`; LTI `simulation_profiles: []`.
+- `snapshot-isolated`: aggregate 12 PASS; Vitest 6 passed, 0 failed, 386 pending.
+- `snapshot-upgrade`: the seed stage on the pinned `9f96f7b` build passed (1 test). The upgrade stage passed 4 of 4 tests. The host control has 33 requests, 33 outputs and 33 acknowledgments in the phase clone, one of each per request; no request ran twice. The phase identity records `health` as null for this two-stage phase; no row depends on it.
+- `migration`: aggregate 11 PASS, including `MIGRATION` (upgrade and rollback lifecycle).
+- `storage`: `HARNESS-LOCK-SELFTEST`, `STORAGE-PREPARE`, `HARNESS-MARKER-HOSTCTL` and `STORAGE-OLD-SCHEMA-SETUP` passed; they are not rows. The runner aggregate (30 PASS, 57 FAIL) also counts harness steps and fixtures; it is diagnostic only.
+- The storage rows that passed: `a-fresh`, `a-second-start`, `a-restart`, `a-restart-refusal`, `a-lock-reentry`, `a-lock-wait`, `a-lock-stale`, `a-lock-scope`, `b-oracle-lti`, `b-oracle-app`, `b-sequence`, `c-selftest`, `c-host-negative`, `d-clean`, `d-stale`, `d-unknown`, `d-symlink`, `d-owner`, `i-enable-refusal`, `i-candidate-guard`. `c-host-negative` is PASS with the oracle verdict "LOCK NOT ENFORCED (B acquired while A held)". Round 2 did not run, so the same-result rule of the two rounds is not met.
+- Canvas rows keep Canvas QA's separate verdict. This QA does not judge them.
+
+### Storage failures (read-only diagnosis)
+
+The diagnosis used file reads of the artifacts, the frozen source and the approved contracts only. No Docker command, rerun, tool, test or product edit, or mode change of evidence was made. Full record: `public/diagnosis-storage-round1.md` (SHA-256 `dc167072…`). It was shared with the Architect triage (`msg_cd6b203f3b09`), which classifies independently.
+
+| Group | First failure | Rows | Classification |
+| --- | --- | ---: | --- |
+| 1 | `a-serialize`: check "Backup storage_lock_released logged" | 1 | Contract mismatch; product behavior proven |
+| 2 | `d-mountpoint`: QA listing `EACCES` on `/v/appdb/packages` | 47 | QA harness defect, proven |
+| 3 | `a-first-start-resume`: `stack:data-quarantine` exit 1 | (in group 2) | Cascade of group 2; correct product refusal |
+| 4 | `e-old-schema`: portal sign-in HTTP 403 | 2 | QA harness defect, proven |
+
+1. **`a-serialize`.** The QA oracle selects the backup's release event by `command` (`/backup/`). All 87 observed `storage_lock_released` events have `"command": null` (81 in the phase command logs, 6 in the final lane log). Acquire and wait events always name the command. ADR-012 "Lock events" lists `command` as a field and marks only `owner` and `reason` as nullable. The surviving order evidence is consistent with serialization: `stack:up` logged `storage_lock_wait` on the backup at 11:32:14.041Z and acquired the exclusive lock at 11:32:15.044Z (`cmd/59-a-serialize-up.log`, `1c498b3c…`). The backup's own release line was not kept, because the harness did not save the background backup output and later resets replaced the lane log. The backup exit and manifest checks passed; the start-time checks did not run. A decision is needed: release events carry `command` (product), or the oracle matches the backup's `runId` (QA). QA does not choose.
+2. **`d-mountpoint` EACCES.** The row first plants `root:root` on `packages` and `uploads` with the root fixture (`cmd/130-fixture-plant.log`, `16207579…`, exit 0). Its own "before" listing then runs as `501:20` and fails with `EACCES` (`cmd/131-fixture-list.log`, `fae55fd7…`). This is before any product command. The row has no `finally` that restores the mountpoints, so the lane keeps them root-owned. `a-fresh` had passed the `HOST_UID:HOST_GID 0700` mountpoint check, so QA's plant made the change. The same `EACCES` failed `d-content-folder`, `f-pairid`, `f-identity-missing`, `f-db-without-identity`, `f-project` and `f-half-pair`. `f-originals-back` did not run.
+3. **`a-first-start-resume`.** `stack:data-quarantine` refused `source_unreadable` for `cogniate-app/packages` and changed no target (`cmd/185-a-first-start-partial.log`, `ad4e68cc…`). ADR-012 §4 requires this refusal for an entry that only root can read. The row's own behavior was not exercised. The second `@seed` then exited 1 because `lti-service` was not running (`cmd/186-seed.log`, `7cbf4a4e…`). 38 more rows did not run behind `@seed`, `@backup-B`, `@post-B`, `@legacy-place`, `@legacy-remove` and `@legacy-import-lane`. Group 2 has 7 + 1 + 1 + 38 = 47 rows.
+4. **`e-old-schema` 403.** The repaired content check worked: the `content_missing` import refused and kept the target FRESH (`cmd/208-content-import.log`, `069cdaaf…`, checked 3). The import into FRESH passed with `storage_content_check` `pass`, checked 3 = QA count 3 (`cmd/212-old-schema-import.log`, `ddd471d4…`). `stack:up` exit 0, and the v10 platform was listed. Then `POST /app-api/session` returned 403. The app logged `csrf_rejected` at 11:36:43.868Z (`service-logs/cogniate-app.jsonl`, `389ff661…`). `security.md` §6 and the app API contract require `Origin` = `PUBLIC_APP_URL` for portal API writes. The QA helper `portal()` in `tests/host/storage-lane.mjs` sends no `Origin`. `e-content-missing` did not run. Predicted, not observed: `writeMarkers()` in the fixtures `@backup-B` and `@post-B` will get the same 403 after a group-2 repair.
+
+No product defect is proven in groups 2–4. Group 1 needs a contract decision. No acceptance value was changed to fit a result.
+
+**Not run:** round 2 (488 rows) and all twelve legacy groups.
+
+Common and Blackboard rows of round 1, by criterion (each needs a second complete round):
+
+| AC | Common | Blackboard |
+| --- | --- | --- |
+| M1-01 | 1 PASS | 1 PASS |
+| M1-02 | 1 PASS | – |
+| M1-03 | 10 PASS | – |
+| M1-04 | – | 1 PASS |
+| M1-05 | – | 15 PASS |
+| M1-06 | – | 2 PASS |
+| M1-07 | 1 PASS | 4 PASS |
+| M1-10 | – | 1 PASS |
+| M1-11 | – | 9 PASS |
+| M1-12 | 1 PASS | 4 PASS |
+| M1-13 | – | 4 PASS |
+| M1-14 | 1 PASS | 2 PASS |
+| M1-15 | 1 PASS | 2 PASS |
+| M1-18 | – | 2 PASS |
+| M1-19 | 1 PASS | 1 PASS |
+| M1-21 | 1 PASS | 1 PASS |
+| M1-22 | – | 2 PASS |
+| M1-23 | 4 PASS (`MOODLE-LIVE`) | – |
+| M1-24 | 2 PASS | – |
+| M1-25 | 1 PASS | 1 PASS |
+| M1-27 | – | 1 PASS |
+| M1-28 | – | 2 PASS |
+| M1-29 | – | 21 PASS, including k1–k3 |
+| M1-30 | 7 PASS (`MOODLE-LIVE`) | – |
+| M1-31 | – | 2 PASS |
+| M1-33 | – | 4 PASS |
+| M1-34 | – | 14 PASS |
+| M1-35 | 3 PASS (profile off/on routes) | – |
+| M1-36 | – | 5 PASS |
+| M1-37 | – | 32 PASS, including v2, v5, v7, v9, v11, v12, w, x1, x2, y1, y2, z1–z5 |
+| M1-38 | 6 PASS: h1–h5, i5 | 8 PASS, including i3 and i4 |
+| M1-39 | 1 PASS | – |
+| M1-41 | 22 PASS (`j-snapshot`, `j-migration` and the 20 storage rows above); **50 FAIL** (storage) | – |
+
+AC-M1-08, -09, -16, -17, -20, -26, -32 and -40 have no common or Blackboard row; their rows belong to Canvas QA.
+
+Per-row records (id, AC, owner, phase, status, label, both SHAs, run id, command, start time, artifact path): `public/round-1-rows.json` (SHA-256 `134bafe2…`) and `public/round-1-summary.json` (`b5d0d596…`).
+
+### Health, images and timings
+
+- Images (phase `images.json`): `erseco/alpine-moodle:v5.2.4` `sha256:3a310197…`, `node:24.22.0-alpine3.24` `sha256:44fce696…` (app, LTI service and helpers), `postgres:16-alpine` `sha256:721873c3…`, `caddy:2.11.7-alpine` `sha256:d8542f48…`.
+- Host control (all actions exit 0):
+  - `sim`: 32 `m1-restart` actions, 5,893–8,641 ms (median 6,050 ms); 6 `m1-profile` actions, 5,934–6,503 ms; 440 CLI calls (20 with the expected exit 1).
+  - `snapshot-isolated`: 1 restart (6,067 ms) and 2 profile actions (6,017 and 6,048 ms).
+  - `snapshot-upgrade`: 33 CLI calls, no replay.
+  - `storage`: 1 restart (6,100 ms), from `a-lock-scope`.
+- Sink capture (AC-M1-12, for the Canvas judge): complete in every SIM-bearing phase, with `service_started` and `service_stopping`, a trailing newline and zero `sink_hit`.
+  - `sim`: 10:55:31.721Z–11:17:25.272Z, SHA-256 `0f1e7674…`.
+  - `snapshot-isolated`: 11:18:25.150Z–11:19:05.768Z, `c58307f6…`.
+  - `snapshot-upgrade`: 4 lines (two boots), 11:20:00.767Z–11:20:56.157Z, `5bdc974e…`.
+  - `migration`: 14 lines (seven boots), 11:21:52.130Z–11:24:45.000Z, `bed7a412…`.
+  - `storage`: no sink (no LMS simulation in this phase).
+  - Canvas QA received each phase in `msg_79752e648fce`, `msg_3816b95c668e`, `msg_f0a0aaab3d75`, `msg_a4df578931ce` and `msg_295643a96c6e`, and the run end in `msg_e7b3059ffea0`.
+
+### Privacy (AC-M3-07 method)
+
+- The private capability union holds 1,466 captured values and 53 stack values (`private/watch`, 0700).
+- 0 hits in 52 raw service, simulator and gate logs.
+- 0 hits and 0 JWT-shaped strings in 1,313 public files, including 5 binary public files (byte scan). `public/secret-scan.json` SHA-256 `c07a29f0…`.
+- Private browser artifacts (160 files: 113 trace entries and 15 screenshots) stay in the phase clones. 27 of them contain captured values, as expected for raw traces. They are not shared evidence; Canvas QA owns their redaction.
+
+### Observed permissions (Lead permission contract)
+
+| Path | Observed |
+| --- | --- |
+| Source root, `source/`, run root, `public/`, `private/`, `tmp/`, tool folder | 0700 (umask 077) |
+| Phase clone roots (runner, umask 022) | Each born 0755, then set to 0700 by the guard: `sim` after 113 ms, `snapshot-isolated` 208 ms, `snapshot-upgrade` 163 ms, `migration` 232 ms, `storage` 32 ms. Not private from creation. |
+| Captured-secret files | One `captured-secrets.jsonl` per clone was 0644; the guard set it to 0600 at each phase checkpoint (4 files). The storage clone had none. |
+| Private folders of this run | `qa-m1-private-backup-wxSm26`, `qa-m1-snapshot-private-Vf77Ga` and the three `-storage-private` folders: root 0700. |
+| Inside those private folders | All files of the backup and snapshot folders are 0600. 12 subfolders of `qa-m1-private-backup-wxSm26` are 0755. In `qa-multi-r1-st-…-storage-private`, two files were 0644 during and after the run: a QA hold copy `out/hold-f-half-…/cogniate.db` (315,392 bytes) and the 2-byte QA file `out/content-target-…/qa.txt`. Their folders are 0700. **Deviation:** the private database copy did not meet the secret-0600 rule during the run. The clone guard does not cover these paths, and this run was not compliant for that file. |
+| Diagnosis file | `public/diagnosis-storage-round1.md` was written after the scan as 0644 and then set to 0600 by this session. It holds no captured value. |
+
+The guard changed modes only, at exact names. Record: `public/clone-guard.json` (`38b7ee36…`), 5 clones, 5 checkpoints, 0 problems.
+
+Post-run correction (Lead `msg_6b7ada30298a`, host only, after the scan and the diagnosis): this session set only the hold copy `qa-multi-r1-st-aaa823b2-2026-10-21T11-24-56-069Z-storage-private/out/hold-f-half-f50d1dc235febf0e/cogniate.db` from 0644 to 0600 at 11:47:11.753Z. Method: open with `O_NOFOLLOW`; check a regular file of the QA user with the same device and inode as `lstat`; `fchmod` on that descriptor only. Before and after: uid 501, gid 20, device 16777233, inode 8714706, 315,392 bytes, one link, SHA-256 `b81ce769570b56eeb8f06129758df82e01898a26c4b2391e540023453cfcb1c0`; only the mode changed. Record: `public/permission-correction-hold-db.json` (SHA-256 `f99bdcf000bd789df6f001e1b3264368fd1aa15a6a96444113bdc2df83ca0fd3`, 0600). `qa.txt`, the backup subfolders, the scan, the guard record, the diagnosis and all logs were not changed. The correction does not make the run compliant after the fact.
+
+### Isolation and cleanup (AC-M3-06)
+
+- The runner teardown removed only resources from its ownership record in all five phases. `M3-ISOLATION` and `TEARDOWN` PASS ("left after cleanup: 0 containers, 0 volumes (exact lane names included), 0 networks").
+- W4 live end boundary at 11:36:55Z (`w4-end.json` `93a5494a…`, live `SystemTime` 11:36:53.199Z): identities unchanged; 0 containers; both lanes fresh; the 7 protected FULL records equal W3 and the original baseline; `a17056b8…` and `d5df35bd…` unchanged.
+- **Strict W3-to-end comparison: PASS** (`w4-compare.json` `8e79dea1…`, 0 problems). Bridge `49b8d9d5b39c`, host and none have the same Ids.
+- Sampler (167 samples): one bridge Id, zero clock-skew violations, zero failed reads, at most one compose project (`sampler/lane-containers.json` `6ae2dcb1…`). Apart from QA's own oracle and fixture containers, no non-lane container appeared.
+- No owned process remains. The five phase clones, three `-storage-private` folders and the two private folders are kept for review.
+
+### Evidence
+
+- Phase artifacts (redacted): `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-aaa823b-20261021T1040Z/source/tests/host/artifacts/<run id>/`. SHA-256 prefixes of `m1-case-results.json`, `summary.json`, `m1-identity.json` and `lane-ownership.json`:
+  - `sim`: `53394632`, `fe6755db`, `0959aa80`, `35aa8532`.
+  - `snapshot-isolated`: `6ded3fb4`, `a42c0d93`, `4cce238e`, `8cecf693`.
+  - `snapshot-upgrade`: `627cd19c`, `9267ce47`, `0d71ce2f`, `dfeb530b`.
+  - `migration`: `6d9395e5`, `f00c9bda`, `66fc85fb`, `22b94c47`.
+  - `storage`: `e3a4f381`, `81214d35`, `eb70904e`, `2e940a84`; step records `storage/steps/`; commands `cmd/`.
+- Run root `public/`: `ancestor-boundary.json`, `w1-wake.json`, `w2-liveness.json`, `w3-formal-start.json`, `w4-end.json`, `w4-compare.json`, `sampler/`, `clone-guard.json`, `secret-scan.json`, `round-1-rows.json`, `round-1-summary.json`, `diagnosis-storage-round1.md`, `permission-correction-hold-db.json`, `command.txt` (`bbebb8c8…`), `tool-hashes.txt` (`20200c5c…`), `launcher.log` (`a5bc4373…`), `full-run-exit.json`.
+- Source root `prep/`: preparation logs and `prep-hashes.txt`; `provenance.json`.
+- Messages to the Lead: ACK `msg_f582c5c3931e`, readiness `msg_942429d39248`, grant ACK `msg_4fd40d9d2f86`, gate `msg_b97f5af29f58`, `sim` result `msg_26e04f827018`, failure and window return `msg_866d50ebe5de`. Heartbeats every 5 minutes.
+
+### Next
+
+The Lead decides on the two QA harness repairs (`d-mountpoint` listing and restore; `Origin` in `storage-lane.mjs` `portal()` and `app()`) and on the `a-serialize` contract question. A repair needs a new frozen candidate, independent source review and a new window. Then both complete 488-row rounds and all legacy groups must run again from a fresh clone. This attempt and its failed rows stay in the record. All 32 live rows stay `UNVERIFIED`.
