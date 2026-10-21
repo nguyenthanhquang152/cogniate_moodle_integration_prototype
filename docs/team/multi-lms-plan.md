@@ -13,7 +13,10 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 06:21 UTC
+### Current checkpoint — 2026-10-21, 06:44 UTC
+
+Source candidate `9cdd768` is approved by both independent reviewers. Fresh host-only preparation also passed.
+Full runtime verification waits for the owner's quiet-Docker-window choice. No runtime grant is active.
 
 The full attempt at `51a80b51de2c7491466a21a678418ff8178d247d` failed at 05:57:35 UTC.
 SIM passed 394 cases and snapshot isolation passed six. The snapshot-upgrade phase recorded three passes and one failure.
@@ -45,10 +48,21 @@ The controller skips acknowledged requests and requires the request id to match 
 QA reproduces the seven-command replay on the old source. The fixed sequential-restart controls pass and preserve the old action records.
 Focused tests pass 5/5; full harness checks pass 73/73. Typechecking passes, and the 488/233 inventory is unchanged.
 Unacknowledged requests can run again after a crash. The repair does not promise exactly-once execution after process failure.
-Reviewer-A `ctx_c0efa63d7f79` and Reviewer-B `ctx_394aae19ddba` are reviewing this exact candidate independently.
-Common retry `ctx_686fb4062feb` has host-only preparation authority under `msg_e517b9b463d1`.
+Reviewer-A `ctx_c0efa63d7f79` APPROVES this exact candidate; its report is committed in `42a6728`.
+Reviewer-B `ctx_394aae19ddba` also APPROVES; its report is committed in `0b29d63`.
+Neither review has a BLOCKER, MAJOR or MINOR. A-HCR-01 and B-HCR-01/02 are optional NITs; no action is required for this repair.
+Both reviewers settled successfully and their sessions were released. These reviews give no runtime credit.
+Common retry `ctx_686fb4062feb` completed host-only preparation under `msg_e517b9b463d1`.
 All three requested and effective settings match Claude Code Opus 5.5 xhigh.
-Both review approvals and a quiet Docker window remain required before a runtime grant. No Docker window is active.
+Its clean detached source is `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-9cdd768-20261021T0622Z/source`.
+Preparation passed 73/73 harness checks, typechecking and the 488-row inventory. The Lead verified source and tool hashes.
+Only expected session identifiers, comments and paths changed in the copied tools. No Docker daemon command ran.
+The worker saved its handoff at `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-9cdd768-20261021T0622Z/prep/handoff.md`.
+Its SHA-256 is `168c94ddf659c7a43ea0a5ee08d7b17e04ebe2b087523bffbd502d354d6b97d7`; the Lead checked the file and hash.
+Message `msg_8ffe2eb31001` settles the retry with outcome failed because runtime is NOT RUN. Preparation succeeded and remains available.
+The Lead accepted that outcome, released the session and acknowledged the delivery. All 144 worker records have no active or reclaimable resources.
+Runtime remains NOT RUN while the quiet-window decision is pending.
+The seven protected volumes and both unrelated anonymous volumes must remain untouched; fresh W1–W4 checks are still required.
 Product code remains unchanged from `a784522`. Final conformance and guides remain queued.
 B-BM-01 remains an accepted M4 test-coverage deferral. All 32 real-LMS rows remain UNVERIFIED.
 No push or main merge is authorized for this phase.
