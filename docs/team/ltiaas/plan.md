@@ -1,6 +1,6 @@
 # Milestone LA plan: LTI as a Service v1
 
-Status: **v1** (Lead, 2026-10-22). It replaces draft v0. Inputs: [R1 spec coverage](../../research/ltiaas/R1-spec-coverage.md), [R2 LMS landscape](../../research/ltiaas/R2-lms-landscape.md) (pending at v1; the Lead patches §3 E2 when it lands), [R3 extensibility audit](../../research/ltiaas/R3-extensibility-audit.md), [R4 ops readiness](../../research/ltiaas/R4-ops-readiness.md), [R5 test baseline](../../research/ltiaas/R5-test-baseline.md), [DataCamp facts](../../research/ltiaas/inputs-datacamp.md). Rules: [charter-LA](charter-LA.md).
+Status: **v1.1** (Lead, 2026-10-22). v1 replaced draft v0; v1.1 adds the R2 facts to §2, E2, LA-H3 and LA-H6. Inputs: [R1 spec coverage](../../research/ltiaas/R1-spec-coverage.md), [R2 LMS landscape](../../research/ltiaas/R2-lms-landscape.md) (v1.1 patch: E2, LA-H3, LA-H6), [R3 extensibility audit](../../research/ltiaas/R3-extensibility-audit.md), [R4 ops readiness](../../research/ltiaas/R4-ops-readiness.md), [R5 test baseline](../../research/ltiaas/R5-test-baseline.md), [DataCamp facts](../../research/ltiaas/inputs-datacamp.md). Rules: [charter-LA](charter-LA.md).
 
 ## 1. Goal
 
@@ -29,6 +29,11 @@ Make the Cogniate LTI service a multi-LMS, multi-tenant "LTI as a service" with 
 | M1 and M2 assert closed lists (6 profiles, 2 sim profiles, 6 capability keys, 3 cards). | R5 §4c |
 | The Docker VM (7.75 GiB) allows 2 stacks at the same time. | R5 §4d |
 | The storage harness (8,076 lines) and serial windows made the last phase slow. | R5 §5 |
+| 14 of 18 LMSs launch LTI 1.3 tools. Google Classroom, Microsoft Teams, SAP SuccessFactors and Workday have no LTI 1.3 platform (backlog LF/LC). All fixed values in our 3 profiles still match. | R2 §Summary |
+| Two code rules stricter than the specs block a generic profile: every endpoint must be on the issuer origin, and Dynamic Registration expects a Moodle-style registration token. | R2 §Summary 5 |
+| A profile needs more data than the 4 flags: client assertion `aud`, endpoint-origin policy, platform storage data, Deep Linking item limit, launch target rule, product family from data. | R2 §Summary 6 |
+| D2L Brightspace has only 2 quirks: the token host `auth.brightspace.com` and the audience `https://api.brightspace.com/auth/token`. Product family `desire2learn` is UNVERIFIED. | R2 §5.4 |
+| Free test sites: only Moodle, Sakai, Open edX and self-hosted Canvas. Canvas Free-for-Teacher is gone. The Blackboard VMDK costs about USD 0.05/hour plus AWS. D2L and Canvas cloud need a partner program. | R2 §Summary 8 |
 
 ## 3. Scope
 
@@ -57,7 +62,9 @@ Priority: **Must** = needed for LA done. **Should** = in LA if the Must work is 
 - A generic LTI 1.3 channel on the `standard` profile path: manual registration, and Dynamic Registration where the platform supports it.
 - Generic Dynamic Registration fixes: issuer with a path (Q18), `authorization_server` as token audience, capability checks, neutral texts, stored granted scopes.
 - Profile data additions: token audience, product family for every profile, `deployment_id` in the client assertion behind a flag.
-- One new named LMS profile on the simulator. Candidate: D2L Brightspace (LA-H6; R2 confirms the facts).
+- Remove the two rules that are stricter than the specs: endpoints only on the issuer origin (replace with an endpoint-origin policy in profile data), and the Moodle-style Dynamic Registration token.
+- Profile data that R2 lists: client assertion `aud`, endpoint-origin policy, platform storage data, Deep Linking item limit, launch target rule, product family.
+- One new named LMS profile on the simulator: **D2L Brightspace** (R2 recommendation; LA-H6 confirms). The token URL and the audience come from the admin values on the D2L registration page; fixed values are defaults only.
 - A generic LTI provider in the simulator.
 - Could: the DR management flow (`registration_client_uri`).
 
@@ -195,10 +202,10 @@ Docker: at most 2 stacks at the same time, by booked slot (Lead decision LD-2). 
 | --- | --- | --- | --- |
 | LA-H1 | Approve the LA scope, design and breakdown (G-DEV) | — | P4 start |
 | LA-H2 | Q1 legal: the LTIAAS compatibility claim | Keep "API-shape compatible" wording until legal review | Release claim |
-| LA-H3 | Q19, Q20: real Canvas and Blackboard test sites; owner of the Blackboard app | Get them before LA ends, for the live rows | Live rows |
+| LA-H3 | Q19, Q20: real test sites and budget (Canvas, Blackboard, D2L); owner of the Blackboard app | Free now: self-hosted Canvas and Moodle. Budget for the Blackboard VMDK (about USD 0.05/hour plus AWS; image expires 2026-12-04). Ask D2L for partner access. | Live rows |
 | LA-H4 | Q3 privacy: claims a channel may receive; retention periods; learner erase scope | Pseudonymous default; claim policy per tool account | E3 claim policy, E4 |
 | LA-H5 | Postgres in LA or LG | Engine in LG; async storage port in LA (LTI service first) | E5 design |
-| LA-H6 | First new named LMS for E2 | D2L Brightspace, pending R2 | E2 design |
+| LA-H6 | First new named LMS for E2 | D2L Brightspace (R2 §5.4: 2 quirks, LTI Advantage Complete, Dynamic Registration) | E2 design |
 | LA-H7 | The v1 tenant: only Cogniate libraries, or external tool vendors (the LTIAAS model); host per tool account or path per account | Build the vendor-model controls in E5; sell only to Cogniate libraries in v1; one host per tool account | E5 design |
 | LA-H8 | Pilot RPO, RTO and SLO | RPO 1 h, RTO 4 h for the pilot | E5 backup |
 | LA-H9 | 1EdTech membership and the certified product shape (service plus reference tool, or the Cogniate app) | Certify the service with a reference tool | E7 reference tool |
@@ -211,5 +218,5 @@ Docker: at most 2 stacks at the same time, by booked slot (Lead decision LD-2). 
 | Scope is large for one milestone | LA takes too long | Strict Must/Should/Could; the Lead cuts Should items at the end of B2 if Must items slip |
 | The Blackboard and Canvas run changes product code after the LA rebase | Merge conflicts in E1 files | LA-H10; rebase at each wave end; E1 lane K owns the conflict merge |
 | Two Docker stacks only | QA waits | LD-2 slots; no-Docker K0 first; targeted re-runs |
-| Brightspace facts unverified (token host, audience, family) | E2 profile wrong | R2 checks them; the simulator first; live rows need LA-H3 |
+| Brightspace product family unverified (R2 §5.4) | E2 profile wrong | Token URL and audience from admin values; the simulator first; confirm at the first live launch (LA-H3) |
 | The refactor changes behaviour without notice | Regression in Moodle, Canvas, Blackboard | E0 baseline and golden outputs; M1, M2, T7 at each wave end |
