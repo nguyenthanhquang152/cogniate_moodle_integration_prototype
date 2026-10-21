@@ -13,7 +13,7 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 14:22 UTC
+### Current checkpoint — 2026-10-21, 14:35 UTC
 
 The Lead accepts release-status design revision 2 for implementation at `2362a20fc4cdd9c21c9283dc7099068c6565eb31`.
 The conformance document hash is `1128b9c198ba79d9cac6471874eecdd2c48b40bc555e525f107d31846b8265de`.
@@ -33,7 +33,15 @@ The frozen harness triage at `2d763fe` is unchanged. R1-A QA O-1 stays a conditi
 Active workers, all requested and effective Claude Code Opus 5.5 xhigh:
 - Harness QA `task_6c53cbbc403c` / `ctx_f189530f67c1` continues its granted 22-path implementation and host controls.
 - Product Author `task_bd459d584596` / `ctx_d30dc937ad9f` owns only the helper bash, adjacent unit test and helper hash line.
-- Independent host QA `task_720f8d0e6d3a` / `ctx_5e5d6972f72d` prepares its private criteria map before source reads.
+- Independent host QA `task_720f8d0e6d3a` / `ctx_5e5d6972f72d` froze its private criteria map before source reads.
+Map: `/Users/quangnguyen/cogniate-qa-runs/r2-storage-command-qa-20261021T1424Z/map/TEST-MAP.md`.
+Map SHA-256: `78fb5fda7baaa5ca5b262f7209de887d70089bd87544b937f5af45692ac23bb5`; 29,440 bytes, file 0600, map and root folders 0700.
+The Lead read the map and granted Stage 2 in `msg_f37b800e6739`.
+QA may read pinned interfaces and historical evidence, build stubs, and run the parent baseline. The final repair SHA is pending.
+The original map stays immutable; dated amendments record interface choices before the affected cases.
+Release-error cases stay REQUIRED, with their specified exit change allowed. Synthetic setup stays private and uses no real service.
+Known diagnostic source-line numbers may be normalized before tests; message content and extra errors remain strict.
+The production 120-second lock wait stays unchanged. The Author commit scope is checked separately from any authorized harness commit.
 The Author must pass its self-checks and hold exact hashes before the Lead commits.
 Two blind source reviews and independent host QA remain required for each applicable repair gate.
 
