@@ -13,7 +13,21 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 18:39 UTC
+### Current checkpoint — 2026-10-21, 19:03 UTC
+
+The complete M4 guide draft is committed at **`82aff912ff1dc31dce444ff93a01452cb51ca18c`** (nine owned files). It adds Canvas and Blackboard admin guides, the operator guide and an offline walkthrough, and updates the teacher guide, troubleshooting, README and human handoff links. Every new procedure step has an evidence label. All 32 real-LMS checks remain UNVERIFIED.
+
+Docs observed six minutes of reading, about eleven minutes of drafting, and six minutes of self-checking (18:36–18:58 UTC). This replaces its earlier estimate. After two bounded text corrections, the held draft passed its author checks: 148 links; offline file load with zero network requests or console errors; zero axe violations at desktop and mobile widths; procedure segments at most 20 words, descriptions at most 24, paragraphs at most five sentences. This is author evidence, not independent Docs QA or final M4 acceptance.
+
+The Lead verified the nine held file hashes and all 17 evidence entries. Evidence root: `/Users/quangnguyen/cogniate-docs-runs/m4-draft-20261021T1900Z`. Corrected manifest v3 SHA-256: `7e32988f9f83527435ab468bfe25ba91b89081f1549cae5801ddc4fc47e370ed`. The original manifest included its own empty-file hash; v2 repeated that error through a temporary file. Both remain as disclosed history. No test rerun was needed to correct the manifest.
+
+The proposed manual recovery for `operation_lock_invalid` needs Architect and QA validation. ADR-012 A3 states a necessary condition, but does not specify the folder-move procedure. The draft tells readers to stop and contact the engineering owner. Docs retained the proposal separately for conformance. Its inline-key API instruction cites the registered-connection case `M1-19.canvas.inline-key`; key rotation remains explicitly unverified.
+
+The sole remediation session `ctx_898acbaef3a6` prepared the bounded A-SI-05/B-SI-09 infrastructure README correction without repository edits. Proposal SHA-256: `f64a84ddb8f6eba12e65df511fbaa269fc700077a7f2c3e305d103ff26c7e9f7`, in its private `readme-proposal/infra-readme-line146.md`. Final application stays in the conformance wave; no separate Author will start.
+
+Candidate C remains `d3296dd`, unchanged. Runtime QA `ctx_1183f38cf351` is finishing its bounded W4-wrapper controls. No Docker window is active. The two full rounds, legacy groups, fresh M2/T7, conformance and independent documentation checks remain pending. All three workers stay active in their existing sessions.
+
+### Prior checkpoint — 2026-10-21, 18:39 UTC
 
 The Lead accepts the Round 2 harness gate and freezes combined candidate **C = `d3296dd6eddbe723364a639d8e2db0adf12ab183`**, tests tree `183a72b2fea5ff065fc57c96649199bc720fb6e0`. Git comparison confirms all product and build paths equal verified product `9f8ac62`; all test paths equal reviewed harness `c71912f`. Runtime acceptance is still pending.
 
