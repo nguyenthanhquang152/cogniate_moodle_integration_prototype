@@ -1892,6 +1892,31 @@ The Lead records two nonblocking NIT dispositions under charter §5:
   Clarify that coded refusals emit JSON; some safe wrapper stops use text only.
   This is a text correction and grants no runtime acceptance.
 
+Reviewer-B returned round 2 in `msg_bdf59170585a`: APPROVE for source at `a784522`.
+Its report is committed at `9bf6100d772567baaa03201b9654521fe5a335ca`.
+Report SHA-256: `37dbb6ad8bf1e199cc25b9b51b8475407be60cda7a861a74f34d8a5d9e46cfd0`.
+The Lead verified the hash, the unchanged 194-line first round, the source freeze and the clean diff.
+The reviewer was retained before acknowledgment. All required source findings now close in both independent reports.
+Reviewer-B verified the Author's mutation evidence and traced the test; it did not rerun its scratch mutation command.
+Reviewer-A independently killed five probe mutants. These evidence sources remain distinct.
+
+The Lead records the remaining Reviewer-B observations and NIT dispositions:
+- B-SI-08: defer the partial-volume-removal message improvement to future Author maintenance.
+  The verified copy stays, but a failed two-volume removal can remove only one volume.
+  Docs must record this limit in M4. Operators must inspect each volume before another quarantine attempt.
+- B-SI-09: add the output stream and field corrections to Author task `task_56d87414a1f6`, alongside A-SI-05.
+  Folder refusals use stderr; the container field is `container`. QA reads both output streams.
+- O-1: retain current timing controls. The Author owns a wider timing margin if CI shows failures caused by load.
+- O-2: include text-only safe stops in the A-SI-05 guide correction; no new refusal code is required.
+- O-3: unreadable-entry and preparation controls ran on the non-root host, including the Lead's zero-skip clean-clone check.
+  A root CI run skips them and cannot replace that evidence. Docker privilege behavior still needs runtime evidence.
+
+Both source approvals and the Lead's host check now pass at `a784522a3cdd9bb67453b03093092cac24e87402`.
+Later commits change only review and team records. The 488-row runtime gate remains unverified.
+The original failed QA tasks can now receive proper retries. No final conformance or documentation gate opens yet.
+Common QA receives the first exclusive Docker window; Canvas QA starts with host-only preparation and independent evidence review.
+Fresh M2 and T7 runs require a later explicit transfer of that sole window.
+
 The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
