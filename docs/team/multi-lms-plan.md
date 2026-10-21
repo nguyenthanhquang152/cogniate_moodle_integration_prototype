@@ -13,7 +13,24 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 16:46 UTC
+### Current checkpoint — 2026-10-21, 16:58 UTC
+
+Round 2 QA's private control map is frozen at SHA-256 `6e28a020c3c702f09894b82d335486bc3620bff74164263801d664152cd68f8a`.
+The Lead read the map and verified its bytes and private modes. Grant `msg_c671d53d5d30` permits source reads and a bounded repair in the 13 named test paths, plus an append-only Round 2 report.
+QA acknowledged the grant and is reading source to bind amendment A-01. Before edits, it must freeze and send A-01 and preserve the gap-specific failing baselines.
+No second wait is needed if A-01 stays inside the grant and preserves or strengthens every control.
+The grant requires a parent-link race introduced before file opening to cause refusal before any permission correction. A post-operation check alone does not meet this control.
+Copy controls must observe actual sites #7, #12 and #13 at child umasks 022 and 000.
+The map's future end-time typo and initial 0644 creation inside its private directory must remain disclosed in A-01; replacement with a 0600 file does not prove correct initial creation.
+
+Reviewer-B `ctx_47285c0af009` remains active on fixed source `71a5bf9`. The execution host still reports the exact worker live; the pending probe has no completion or exit evidence.
+The Lead did not stop, replace or duplicate it. The two reviews remain blind. Two workers are active, both Claude Code Opus 5.5 xhigh.
+The working tree has only the preserved untracked `pnpm-workspace.yaml`; no Round 2 source edit is present yet.
+
+Product Q-R1A-01 remains closed. Harness repair, source review and all final runtime gates remain open.
+Latest full runtime remains 438 PASS and 50 FAIL at `aaa823b`. No candidate C, Docker window, push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 16:46 UTC
 
 Source Reviewer-A requests changes at `bf8d897aa312e7faba15530399e26aa9fe8fd9b7`.
 Report SHA-256: `8f5491d9e9dbf422486cf20ae826c3011dc3849e2153468a57ced63f83603d24`.
