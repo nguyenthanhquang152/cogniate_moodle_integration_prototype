@@ -119,3 +119,38 @@ test('HARNESS ONLY: AC-M1-35 profile restarts use the documented --env overrides
   }
   assert.equal(calls.length, 5, 'No subprocess for a refused profile');
 });
+
+test('HARNESS ONLY: with the storage-compat marker the host control refuses m1-restart and m1-profile before any command', async (t) => {
+  const clone = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-m1-marker-'));
+  const dir = path.join(clone, 'tests/acceptance/artifacts/control');
+  fs.mkdirSync(dir, { recursive: true }); fs.mkdirSync(path.join(clone, '.tmp'));
+  const knobs = path.join(clone, '.tmp/compose.knobs.yaml');
+  fs.writeFileSync(knobs, JSON.stringify({ 'x-cogniate-storage-compat': { formatVersion: 1 } }));
+  const calls = [];
+  const r = {
+    CLONE: clone, PROJECT: 'qa-marker-selfcheck', state: { h1Verified: true },
+    STACK_ENV: { COMPOSE_PROJECT_NAME: 'qa-marker-selfcheck' }, redact: { add: () => {} }, saveText: () => {},
+    record: (...args) => assert.fail(JSON.stringify(args)),
+  };
+  const stop = m1HostControl(r, async (...args) => { calls.push(args); return { code: 0, stdout: 'ok', stderr: '', durationMs: 1 }; });
+  t.after(async () => { await stop(); fs.rmSync(clone, { recursive: true, force: true }); });
+  async function invoke(req) {
+    fs.writeFileSync(path.join(dir, `req-${req.id}.json`), JSON.stringify(req));
+    const ackPath = path.join(dir, `ack-${req.id}.json`), limit = Date.now() + 3000;
+    while (!fs.existsSync(ackPath) && Date.now() < limit) await delay(10);
+    assert.ok(fs.existsSync(ackPath), 'Host control completed the request');
+    const ack = JSON.parse(fs.readFileSync(ackPath, 'utf8'));
+    return JSON.parse(fs.readFileSync(path.join(dir, ack.out), 'utf8'));
+  }
+  for (const req of [{ id: 'm1-d1', action: 'm1-restart', service: 'lti-service' }, { id: 'm1-d2', action: 'm1-profile', profile: 'default', simulation: 'off' }]) {
+    const refused = await invoke(req);
+    assert.equal(refused.code, 2); assert.match(refused.stderr, /storage-compat marker present/);
+  }
+  assert.equal(calls.length, 0, 'No command runs while the marker is present');
+  assert.equal((await invoke({ id: 'm1-d3', action: 'm1-cli', script: 'app:grant', args: ['list'] })).code, 0, 'CLI exec is not a restart');
+  assert.equal(calls.length, 1);
+  // A knobs file without the marker (ordinary test knobs) does not block restarts.
+  fs.writeFileSync(knobs, JSON.stringify({ services: { 'lti-service': { environment: { STACK_PROFILE: 'default' } } } }));
+  assert.equal((await invoke({ id: 'm1-d4', action: 'm1-restart', service: 'lti-service' })).code, 0);
+  assert.equal(calls.length, 2);
+});

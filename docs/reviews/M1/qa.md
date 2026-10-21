@@ -681,3 +681,152 @@ explained above.
 | `public/selftest-negative.json` | `b283f8cec2f7dd6268a1ff97354c8e48c5eb35537560c9d6718efedfd833506d` |
 | `public/boundary-before.json` | `0532ba0f7aca4de1b16b9be80cf949b762793fb6fcc1d92930ab7e881c14f73d` |
 | `public/boundary-after.json` | `05eac6e162bd57edf72f9acd1cb27456d3060430ed687d87d8ffbb98b28b1ded` |
+
+## Storage source preparation (ADR-012 revision 3.3), 2026-10-21
+
+Status: **source preparation only.** No Docker command, stack, image pull or build ran. This section gives no runtime, implementation or acceptance credit. The verdict line at the top of this file does not change.
+
+| Item | Value |
+| --- | --- |
+| Task | `task_58a1e33ac60f`, dispatch `ctx_e583d25c6083` (independent common QA, Claude Code Opus 5.5) |
+| Accepted contract | `89be93cc9e24f74c2b32ce72180ad4c706d000f7`: ADR-012 revision 3.3 SHA-256 `f586f1d76083297b22eae8981d9347512c313f9a0dd929bcee9f0763c0aed2fe`; `review-response-storage.md` SHA-256 `9f1999769bbcbf3ee4442411d739df23790f23a45f5a2a42097a343ded45234f` |
+| Product and test tree before this work | identical to `8138097889f87359d5055bb1d79766b5ed842f92` (`git diff --quiet` on `services apps packages infra tests` and the root build files) |
+| Written from | ADR-012 revision 3.3 (§3–§17), `tasks/M1.md` AC-M1-23, AC-M1-30, AC-M1-38 (h1)–(h5) and AC-M1-41, `tasks/M3.md` AC-M3-01 and AC-M3-06, `local-stack.md`, the charter and the research inputs |
+| Not read | any Author implementation, Author note or Author diagnostic. Read for existing interfaces only: committed pre-repair files at `8138097` (`package.json`, `infra/scripts/lib.sh`, `qa-suite.sh`, `seed.sh`, `stack-reset.sh`) and `infra/scripts/lib.sh` of the two old SHAs |
+| Ownership | `tests/host/**`; one added import line in the existing `tests/acceptance/M1/common/migration.probe.ts` and one new `storage-lock-scope.probe.ts` there, for the exact a-lock-scope case; this addendum and the M3 addendum |
+
+### What QA prepared
+
+| File | Purpose |
+| --- | --- |
+| `tests/host/m1-storage-manifest.json`, `storage-inventory.mjs` | The 72 AC-M1-41 rows in their own host manifest (`M1-41.common.<id>`, label `SIM`, kind `host`). The reader checks them against a hand copy of the ADR-012 §13 table and the group counts. `joinInventory` checks 416 + 72 = 488 and the phase totals. |
+| `storage-docker.mjs` | §11 container kinds as exact `docker run`/`docker create` arguments (pinned image id, `--network none`, QA labels, `HOST_UID:HOST_GID`, root only for `d-owner` and `d-mountpoint`). It also holds the exact-name volume gate, the Docker-clock seconds of item 6, and the A-S-14 identity binding. The ownership ledger of §15 records containers and networks by `Id`, and volumes by `Name` plus metadata; the teardown plan keeps and reports every unproven resource. |
+| `storage-fixture-script.mjs` | QA's own script inside its containers (Node built-ins only). It lists entries (owner, mode, size, SHA-256; links never followed) and reads the §8 file sets. It does logical reads on copies in the container's own layer, the planted changes, copy-out, the P5 write, and QA's two-process WAL lock oracle. |
+| `storage-oracle.mjs` | QA's oracles: "refuses" (exit 1 and the code in a JSON line), "nothing changes" with §11 item 5 for absent volumes, pair identities, the recovery oracle (file sets and logical rows), manifest file sets, legacy sets, and lock-record and process-group helpers (`LC_ALL=C ps -A -o pid= -o pgid=`). |
+| `storage-lane.mjs` | The lane context. Every lane mount passes the exact-name gate first. Every write-mode fixture runs under `storage-oplock.sh run --` with both services positively stopped, except the two §11 exceptions. |
+| `storage-rows.mjs` | The 70 storage-phase rows in one fixed order. Each step has prerequisites: a failed or blocked prerequisite gives the row FAIL or BLOCKED with the reason, and the row does not run. |
+| `storage-compat-route.mjs` | §12 for every old-build step: the enable and disable order, copy hashes against `infra/compat/storage-compat.sha256`, the exact tree rule (tests/ tree hash through a temporary index), and C1 − C0 through the old `dc()`, limited to items (a)–(e). Old starts run only through the copied wrapper, with the preflight line, QA's own mount check and the lock pair. It also keeps the forbidden-command log and the decision for `j-migration` and `j-snapshot`. |
+| `m1-migration.mjs` | AC-M1-23/30 and AC-M1-38 (h1)–(h5): database reads now go through the read-mode fixture, the stale-sidecar plant through a write-mode fixture under the lock, and old steps through the §12 route. It writes the round handoff for `e-old-schema` (ids and paths only, never `K0`). |
+| `p5-fixture.mjs`, `p5-step.mjs` | The approved P5 sequence inside one `storage-oplock.sh run --`: app stop, stopped check, the write in `storage-p5` (`appdb` only), app start. |
+| `m1-control.mjs` | Refuses `m1-restart` and `m1-profile` before any command while the knobs file holds `x-cogniate-storage-compat`. |
+| `core.mjs` | Fresh-lane boundary by exact names and label, the ownership ledger after every command, and the teardown preserve rule. It also records `G1-IDENTITY` for M1 and legacy runs. `--clean-project` is refused, because QA removes nothing at the boundary. |
+| `run-m1.mjs`, `m1-phases.mjs` | New phase `storage` after `migration`, with its own lane `<project>-st`; the round handoff; the conditional rule of §14; old suites through the wrapper; the harness-only discovery of the `storage-lock-scope` stage. |
+| `run-t1.mjs` | The information-only note: `**/.data` no longer holds database bytes. |
+| `tests/acceptance/M1/common/storage-lock-scope.probe.ts` | The QA storage case of `a-lock-scope`: a host-control `m1-restart` of `lti-service` must exit 0, without `operation_in_progress`; then `/healthz` is 200. |
+
+### Inventory (prepared, not run)
+
+- **488** mandatory rows per full round = **416** original + **72** AC-M1-41. By phase: `sim` 394, `snapshot-isolated` 6, `snapshot-upgrade` 6 (5 + `j-snapshot`), `migration` 12 (11 + `j-migration`), `storage` 70.
+- The 72 rows by group: a 10, b 3, c 2, d 7, e 13, f 6, g 20, h 7, i 2, j 2.
+- `M1-41.common.c-host-negative` is the only conditional row. It is PASS only with QA's same-round oracle evidence of the fault; NOT_APPLICABLE only with the oracle evidence of enforcement. NOT_APPLICABLE is reported apart and never counted as a PASS, and both rounds must give the same result (`storage-inventory.mjs`, `run-m1.mjs`).
+- **The original rows are unchanged.** The three M1 manifests are byte-identical to `89be93c`: common `cd40fb785ac9bb615dba16d2e264522051e6d9279081ecd9eb3c9722007846eb`, Blackboard `337524ca3e69fe313e102383c5e813593138944b99fe3ebb37e2aee13f17b194`, Canvas `c497462955a668f3158c593b5c9c821ee7da093ba7c2396d3233a846ffc9c677`.
+- No other existing test file under `tests/acceptance`, `tests/sim`, `tests/e2e`, `tests/compat` or `tests/fixtures` changed, except the one import line in `migration.probe.ts`.
+- In `m1-migration.mjs` the recorded row ids are the same 8 forms, and every original assertion message is still present. The three added `assert` calls are the §12 BLOCKED guards of AC-M1-23 step 0. The P5 guards, errors and return value are the same, and the T5b P5 spec did not change.
+
+### Storage-phase order
+
+The full order and its prerequisites are in `storage-rows.mjs` (`SEQUENCE`, `NEEDS`). The decisions that the contract leaves to QA:
+- `c-*` run first. `a-fresh` is the lane's first start.
+- `a-first-start-resume` runs after two quarantines, before any `e-*` row places legacy files. It runs the B-S-23 legacy check first; QA moves or deletes no legacy file to meet it.
+- `g-damaged` and `h-nomanifest` run before the first drill, so "no journal file" holds literally.
+- The committing drill `g-committed-lti` runs last, so every other drill rolls back to the post-B state.
+- `h-open-journal` and point (1) of `h-target-state` are checked at the `staged` drill.
+- `h-target-state` (2) uses a legacy backup X made from QA's own copies of B's database files. No legacy precondition applies there.
+- QA removes only legacy copies that it placed and that are unchanged; it never removes another legacy file. QA removes its copies after `g-fresh-target`, so `h-pair-mismatch` can make a fresh pair.
+- `e-import` checks its oracles on the final successful import of `e-import-recover`; no start runs in between.
+- `e-old-schema` runs in the last block, after QA's `stack:reset`. The import half of `e-content-missing` runs before the package copy. Its restore half reuses the end state of `e-old-schema`, so it is recorded after it.
+
+### Host-only controls (run on 2026-10-21, no Docker)
+
+| Command | Result |
+| --- | --- |
+| `node tests/host/run-m1.mjs --harness-only --provider all` | exit 0; 69 of 69 node tests pass; `tsc --noEmit` passes. Vitest discovery matches the manifests and both snapshot stages, and the `storage-lock-scope` stage lists exactly `M1-41.common.a-lock-scope`. It prints 488 rows per round with the phase totals above. |
+| `node tests/host/run-m1.mjs --harness-only --provider blackboard` | exit 0; 69 of 69; 255 rows (single-provider preparation only; a full round needs both providers) |
+| New self-tests (35 tests) | fixture script 7 (listing, file sets, logical copy with `-wal`, planted changes and path refusals, P5, and the lock oracle with its decision-path negative), Docker rules 6, oracles 7, inventory 3 (including 10 negative controls), §12 route 4, storage order and helpers 7, host control +1 |
+
+These tests prove QA's own logic on host files and recorded answers. They do not prove the product or Docker. A test stub never stands for a later runtime check.
+
+**Independence disclosure.** The Author works in this same worktree. At the end of this task, `git status` showed uncommitted Author changes in `infra/**`, `services/**` and `package.json`. I did not open, print or diff those files. The existing self-test `m1-control.selftest.mjs` reads `infra/compose.yaml` and `infra/scripts/stack-restart.sh` from the working tree to confirm two command facts. So the harness-only runs may have read those two files programmatically, possibly with Author changes in them. No assertion of mine was written from them. Nothing else in the controls reads product or infra files.
+
+### Unmeasured until a runtime window (assumptions, not checks)
+
+- Product output forms that the contract names but QA has not seen:
+  - `storage_preflight` lines with `ts`, `runId`, `fsType` and `state`;
+  - lock events with `owner`, `command` and `ts`;
+  - `storage_drill_stop`, `storage_drill_pause` and `storage_content_check` lines;
+  - the field names of `quarantine.json`;
+  - the manifest's backup id key;
+  - refusal codes as JSON values. Text alone is never accepted as a refusal.
+- Docker behaviour:
+  - the "no such volume" text of `docker volume inspect`;
+  - that `docker compose run` labels new volumes (ADR-012 §17 assumption 6);
+  - `docker system info` `SystemTime`;
+  - the compose plugin path in `docker info` `ClientInfo.Plugins`;
+  - read access of the bind-mounted QA script (mode 0555) for `HOST_UID` in QA's container.
+- Lane facts:
+  - the default profile accepts the QA platform issuer `https://qa-storage.test`;
+  - `seed` runs again after a quarantine;
+  - the AC-M1-23 app database names its packages in a `package(s).storage_path` column;
+  - the orphan checks finish inside the 120 s pause.
+- Each of these fails closed when it is wrong: the row is FAIL or BLOCKED, never a false PASS.
+
+### Later runtime instructions (separate authorization needed)
+
+- **Prerequisites:**
+  - the Author's implementation is frozen at an exact candidate SHA, and the frozen test SHA includes these files;
+  - `node:24.22.0-alpine3.24` is present locally (the harness never pulls);
+  - the host shows the A-S-14 bound identities (macOS 27.0.1 arm64, Docker CLI 29.9.1 and Compose 5.6.0 by binary SHA-256); else every lock-dependent result is `BLOCKED`;
+  - lanes `qa-multi-r1` and `qa-multi-r1-st` are fresh, on port 8443 and subnet `172.29.0.0/16`, one stack at a time;
+  - `COURSE_FIXTURES_DIR` holds the two course zips;
+  - the seven protected volumes and the baseline containers are recorded before the run.
+- **Command, from the frozen source clone:** `COMPOSE_PROJECT_NAME=qa-multi-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 COURSE_FIXTURES_DIR=<folder> node tests/host/run-m1.mjs --sha <candidate> --test-sha <frozen tests> --phase full`. It runs two rounds of the five phases (storage on `qa-multi-r1-st`) and then the legacy runners.
+- A `--phase storage` run alone needs `QA_M1_HANDOFF_FILE` from the same round's migration phase; without it, `e-old-schema` and `e-content-missing` are BLOCKED.
+- **Duration:** expect several hours per round. The storage phase alone has three `stack:reset` cycles with seeds, two 120 s lock waits, two 120 s orphan pauses and about thirty starts.
+
+### Remaining needs and open points
+
+- A separate, authorized Docker window and the later full verification retry (two rounds plus legacy) on the exact candidate. This is not a retry of `task_ed3b08aa45ea`.
+- The final source reviews `task_5580d3cb79c5` (A) and `task_94536ec30f9a` (B) remain mandatory.
+- **Decision for the Lead:** the AC-M1-30 step 3 text names "both journals committed". The original row `M1-30.common.restore` keeps its original assertions; this clause is not added to it. Adding it would change an original assertion, so it needs approval. The g drills and `e-import` check the journal states.
+- **QA-owned notes:**
+  - the oracle's controlled negative is a decision-path control (the contender writes a separate file), not a host lock fault;
+  - the "INCOMPLETE folder" of `h-nomanifest` is a copy of B without its manifest, plus an `INCOMPLETE` file;
+  - `d-stale` plants six files in each volume;
+  - a leading "v" of the Compose version is ignored.
+- All 32 live rows stay `UNVERIFIED`. M2 and the three T7 runs remain separate.
+
+### Held files for the Lead freeze (SHA-256, uncommitted)
+
+This file (`docs/reviews/M1/qa.md`) is reported in the completion message, because it cannot hold its own hash.
+
+| SHA-256 | Path |
+| --- | --- |
+| `d69d43f52e63c9729a4b2669719f24d399c0d75e186f02e1a2952622c327a4a1` | `docs/reviews/M3/qa.md` |
+| `2429cf047390dde574d0d8a07886ea536a5c5f6363908845ea05a71cdb409fb7` | `tests/acceptance/M1/common/migration.probe.ts` |
+| `f8fa0c0c6d93a7752fb78246d983dadd71856990d9833c626326ce3e09b7995e` | `tests/acceptance/M1/common/storage-lock-scope.probe.ts` |
+| `48ad2cf0af14f882acc6a95f4ab2322e092dbd5e0db23258f26a73f03df3720e` | `tests/host/core.mjs` |
+| `d4a7ee6e35439bde712410dcedeaddb3e2373eab26ed8fdee93eab9839070aa4` | `tests/host/m1-control.mjs` |
+| `cca7355e8a66fff0bde42a43bd968de46130c35da20421caf06e8bc6dd61ef8d` | `tests/host/m1-control.selftest.mjs` |
+| `a4ca91b983af6cda27cfa0bdeb86df837cbc1e7618b6006d1b1a9b6abba15901` | `tests/host/m1-migration.mjs` |
+| `9968d5f76d8fa444742aae43368e4cd44ad655dcad617e933065c0740cced244` | `tests/host/m1-phases.mjs` |
+| `e9c8a01133f17bc21fd4a15cb944450be6800bd49f430a56f3e17688d8443d0e` | `tests/host/m1-phases.selftest.mjs` |
+| `1f09ecec5586bc358b42c86690e2ea27d3a09d711ed812dc7b222ee5b412f9ee` | `tests/host/m1-storage-manifest.json` |
+| `b83e41972db07aaa9270df25bafa06bca17303110f9fb547b206c910e777f0fc` | `tests/host/p5-fixture.mjs` |
+| `ec338b5ab81a7f90e8d5d5cf35f5cadb580d287b98992c9e872e454fda12d0b4` | `tests/host/p5-step.mjs` |
+| `bb8d0c2e5fa321d2693b0177ca1be3b7c3a30aff7073bd55b2a3770a90c52542` | `tests/host/run-m1.mjs` |
+| `eccb4bd4dabfdeb131358ff2d572b86e69fff24c9d9fe764a8ce428c723a6e6f` | `tests/host/run-t1.mjs` |
+| `1075773466c2ed2d30ef89f241a0f1506219a973e46309cad0bce3ed9e9ed692` | `tests/host/storage-compat-route.mjs` |
+| `67e3bce0b65b71530b4c74c74ff4e577d4ec6cfc2e2d51dc7a450fe6c4230e61` | `tests/host/storage-compat-route.selftest.mjs` |
+| `6862cc7b480b6cb4c0828550b32fa8558dee9b0e4ed3c8d2188657fe9a2fec6e` | `tests/host/storage-docker.mjs` |
+| `f64b0b7fd319922f47266a8034e6a9e45574953831b6e96230f39307dceceddc` | `tests/host/storage-docker.selftest.mjs` |
+| `77e842f5e591fc19b1349480f295c3b7053bf5c29480741c0d6f08d6d1dfb68f` | `tests/host/storage-fixture-script.mjs` |
+| `56b04fdd411d1b8cd592af2bf2840578abe49b06ca8b26af21176e52b9940eca` | `tests/host/storage-fixture-script.selftest.mjs` |
+| `91981e7f88d899ac8820c931e38d94fbd795e513ef8f2bd2201f3765bd9342e3` | `tests/host/storage-inventory.mjs` |
+| `89fb969981082b5d9876b4ccc670727294a27fdad1d268d9c965c775f6480e11` | `tests/host/storage-inventory.selftest.mjs` |
+| `b37daf431b8045a9e97b6f16986e9699c924edae1f9f2a435c1a0348e1d178ea` | `tests/host/storage-lane.mjs` |
+| `03520081b7cdd2f9613414e78b1f7256c103e626085fef887f216f7a1cbe90b5` | `tests/host/storage-oracle.mjs` |
+| `5b123aae4812b527b2b381860c4fb7784082dcd8a0a825fd630ec31e41f94338` | `tests/host/storage-oracle.selftest.mjs` |
+| `f5dbe2363c094ff48170ddfbced14720be87aa2a46ba3667191e314ccc8582e1` | `tests/host/storage-rows.mjs` |
+| `7c617aafbdc04189e2875fc4c396b0018c922c72bc0cc587af6dc17f8a49eb8b` | `tests/host/storage-rows.selftest.mjs` |
+
+The untracked `pnpm-workspace.yaml` is preserved and not touched. No file outside `tests/**`, `docs/reviews/M1/qa.md` and `docs/reviews/M3/qa.md` was edited by QA.

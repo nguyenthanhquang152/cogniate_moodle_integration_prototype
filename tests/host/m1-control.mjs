@@ -3,6 +3,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { run } from './lib.mjs';
 
+export function compatMarkerPresent(clone) {
+  const knobs = path.join(clone, '.tmp/compose.knobs.yaml');
+  return fs.existsSync(knobs) && fs.readFileSync(knobs, 'utf8').includes('x-cogniate-storage-compat');
+}
+
 export function m1HostControl(r, runCommand = run) {
   const dir = path.join(r.CLONE, 'tests/acceptance/artifacts/control');
   const done = new Set(), active = new Set();
@@ -20,6 +25,11 @@ export function m1HostControl(r, runCommand = run) {
       return runCommand('docker', [...compose, 'exec', '-T', '--workdir', '/repo', service, 'npm', 'run', req.script,
         '-w', `services/${service}`, '--', ...req.args],
       { cwd: r.CLONE, env: r.STACK_ENV, timeoutMs: 30_000 });
+    }
+    // ADR-012 §11/§12: while the storage-compatibility marker is in the knobs file, an old build may run;
+    // its stack:restart is forbidden, so the host control refuses restarts before it runs any command.
+    if (['m1-restart', 'm1-profile'].includes(req.action) && compatMarkerPresent(r.CLONE)) {
+      return { code: 2, stdout: '', stderr: 'storage-compat marker present: m1-restart and m1-profile are refused (ADR-012 §11)', durationMs: 0 };
     }
     if (req.action === 'm1-restart' && ['cogniate-app', 'lti-service'].includes(req.service)) {
       return runCommand('npm', ['run', 'stack:restart', '--', req.service], {

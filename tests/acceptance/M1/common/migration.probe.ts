@@ -64,4 +64,5 @@ if (stage === 'rollback') m1Test('M1-30.common.rollback', 'old build launches wi
   assert.equal(await moodleGrade(seed().courses['COGNIATE-DEV-101'], seed().users.cg_student2, 'Cogniate SCORM'), 60);
 }, 180_000, 'MOODLE-LIVE');
 if (stage?.startsWith('snapshot-')) await import('./snapshot-migration.probe');
+else if (stage === 'storage-lock-scope') await import('./storage-lock-scope.probe');
 else if (!['baseline', 'upgrade', 'postwrite', 'rollback'].includes(stage ?? '')) throw new Error('Explicit migration stage required');

@@ -1749,6 +1749,24 @@ The separate event must preserve one `storage_preflight` line per folder and be 
 The `--rm -T` invocation matches the measured command form, subject to its recorded environment and runtime limits.
 These are existing-contract interpretations, not new design or runtime approval. Both source reviews still verify their implementation.
 
+Lead reply `msg_a3bf317bdc69` adds `infra/scripts/storage-compat.test.mjs` to the Author's owned files.
+It permits focused host-only wrapper tests; it grants no Docker window or wider file ownership.
+
+QA submitted source preparation in `msg_44d76502b594` for `task_58a1e33ac60f`, dispatch `ctx_e583d25c6083`.
+The Lead checked all 28 held hashes and the unchanged earlier M1/M3 report bytes.
+Host-only results: 69/69 tests, typecheck and discovery pass; the inventory remains 488 rows with the approved phase counts.
+The three original provider manifests are unchanged. This checkpoint has no product or runtime acceptance credit.
+QA disclosed that an existing self-test read two infrastructure files from the shared worktree after its tests were written.
+The two files are `infra/compose.yaml` and `infra/scripts/stack-restart.sh`; QA opened no Author implementation or notes.
+The reports preserve this disclosure and list the assumptions still needing runtime evidence.
+
+QA identified an omitted check for AC-M1-30 step 3: both restore journals must be committed.
+The Lead requires this additive check; preserving existing assertions does not prohibit adding the accepted criterion.
+Follow-up `task_fbe27ed8164d` returns to the same QA session, with no Docker window.
+It owns only `tests/host/m1-migration.mjs`, its adjacent self-test, and an appended M1 QA report correction.
+It must inspect both journals independently, preserve every earlier assertion and row, and add positive and negative host controls.
+The combined source freeze and both source reviews wait for this follow-up as well as the Author's completed implementation.
+
 Docs started in `msg_ec29e7a52a8a` and submitted G1's current design-closure record in `msg_1405db3332a1`.
 Held SHA-256: `84b95ce1992885fe9ca93597bd3dda53052b46900f7400f06d9db4ae1e1b8ae4`.
 The Lead checked the scoped diff, hash and preserved earlier sections, then released the worker before acknowledgment.

@@ -1,15 +1,22 @@
 // M1-23/M1-30: an isolated QA clone only; no SQL mutation, no ledger edits.
+// ADR-012 revision 3.3: the databases are on the lane volumes. QA reads them only through its
+// storage-fixture container (§11), and every old-build step runs with the storage-compatibility
+// override of §12 (enabled in the candidate checkout, old starts only through storage-compat.sh run --).
+// The guards and assertions of the original rows are unchanged; only the database access and the
+// old-build route change. j-migration and j-snapshot record the §12 qualifiers of every old step.
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { allContainers } from './lib.mjs';
 import { SNAPSHOT_OLD_SHA, assertSnapshotBoundary } from './m1-phases.mjs';
+import { CompatRoute, OLD_OPLOCK, qualifyRow } from './storage-compat-route.mjs';
+import { StorageLane } from './storage-lane.mjs';
 
 export const OLD_REVISION = 'b0b83a8';
 const databaseNames = ['lti-service/lti.db', 'cogniate-app/cogniate.db'];
 const sha = (file) => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+/** Host-folder form of the snapshot (kept for the host-only oracle self-test). */
 export function dataSnapshot(root) {
   const output = {};
   for (const db of databaseNames) for (const suffix of ['', '-wal', '-shm']) {
@@ -19,6 +26,23 @@ export function dataSnapshot(root) {
   assert.ok(databaseNames.every((name) => output[name]), 'Both SQLite databases exist');
   return output;
 }
+/** The same snapshot of the stopped lane volumes, through QA's read-mode fixture container (§11). */
+export async function volumeSnapshot(lane) {
+  const f = await lane.fileset(), output = {};
+  for (const [service, vol, db] of [['lti-service', 'lti', 'lti.db'], ['cogniate-app', 'app', 'cogniate.db']]) {
+    for (const suffix of ['', '-wal', '-shm']) {
+      const file = f[vol]?.files?.[db + suffix];
+      if (file?.present) output[`${service}/${db}${suffix}`] = { bytes: file.size, sha256: file.sha256 };
+    }
+  }
+  assert.ok(databaseNames.every((name) => output[name]), 'Both SQLite databases exist');
+  return output;
+}
+/** schema_migration names of both stopped databases, from copies in the fixture container's own layer. */
+export async function volumeLedger(lane) {
+  const read = await lane.script('logical', { spec: { markers: [], migrations: true } });
+  return { 'lti-service/lti.db': read.lti.schemaMigration, 'cogniate-app/cogniate.db': read.app.schemaMigration };
+}
 function files(folder) {
   return fs.readdirSync(folder, { withFileTypes: true }).flatMap((entry) =>
     entry.isDirectory() ? files(path.join(folder, entry.name)) : entry.isFile() ? [path.join(folder, entry.name)] : []);
@@ -26,24 +50,6 @@ function files(folder) {
 function objects(value) {
   if (!value || typeof value !== 'object') return [];
   return [value, ...Object.values(value).flatMap(objects)];
-}
-async function ledgerNames(root) {
-  const { DatabaseSync } = await import('node:sqlite');
-  const temporary = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-m1-ledger-'));
-  try {
-    const result = {};
-    for (const name of databaseNames) {
-      const dest = path.join(temporary, path.basename(name));
-      for (const suffix of ['', '-wal', '-shm']) {
-        const source = path.join(root, 'infra/.data', name + suffix);
-        if (fs.existsSync(source)) fs.copyFileSync(source, dest + suffix);
-      }
-      const db = new DatabaseSync(dest, { readOnly: true });
-      try { result[name] = db.prepare('SELECT name FROM schema_migration ORDER BY name').all().map((row) => row.name); }
-      finally { db.close(); }
-    }
-    return result;
-  } finally { fs.rmSync(temporary, { recursive: true, force: true }); }
 }
 export function inspectBackup(folder, snapshot, ledger, project) {
   const candidates = files(folder).filter((f) => f.endsWith('.json'));
@@ -79,11 +85,11 @@ export function inspectBackup(folder, snapshot, ledger, project) {
     'Manifest contains only the old migration names');
   return { manifestFile, manifest, listed, projectField, idField };
 }
-async function stopServices(r) {
+async function stopServices(r, route) {
   assert.ok(r.state.h1Verified, 'Own QA compose project verified before stop');
-  const result = await r.exec('migration-stop', 'docker', [
-    'compose', '-f', 'infra/compose.yaml', '--env-file', '.env', 'stop', 'cogniate-app', 'lti-service',
-  ]);
+  const args = ['compose', '-f', 'infra/compose.yaml', '--env-file', '.env', 'stop', 'cogniate-app', 'lti-service'];
+  route?.logCommand('docker', args);
+  const result = await r.exec('migration-stop', 'docker', args);
   assert.equal(result.code, 0);
   await assertServicesStopped(r);
 }
@@ -93,6 +99,32 @@ async function assertServicesStopped(r) {
     && ['cogniate-app', 'lti-service'].includes(c.Config?.Labels?.['com.docker.compose.service']));
   assert.equal(services.length, 2); assert.ok(services.every((c) => c.State.Running === false));
 }
+/** Host-control restarts that executed (not refused) since a time; the marker makes the host control refuse them. */
+function hostRestartsSince(r, since) {
+  const dir = path.join(r.ART, 'host-actions');
+  if (!fs.existsSync(dir)) return 0;
+  return fs.readdirSync(dir).map((n) => JSON.parse(fs.readFileSync(path.join(dir, n), 'utf8')))
+    .filter((a) => ['m1-restart', 'm1-profile'].includes(a.action) && a.startedAt >= since && a.code !== 2).length;
+}
+async function checkoutOld(r, route, label, oldSha, installTests) {
+  route.begin(label, oldSha);
+  route.logCommand('git', ['checkout', '--detach', '--force', oldSha]);
+  assert.equal((await r.exec(label + '-checkout', 'git', ['checkout', '--detach', '--force', oldSha])).code, 0);
+  await installTests({ exact: oldSha });
+  const tree = await route.treeRule();
+  assert.ok(tree.ok, 'BLOCKED: ADR-012 §12 tree rule: ' + tree.problem);
+  const hashes = route.compatHashes();
+  assert.ok(hashes.ok, 'BLOCKED: storage-compat copies differ from infra/compat/storage-compat.sha256');
+}
+function writeHandoff(r, backup) {
+  const file = process.env.QA_M1_HANDOFF_FILE;
+  if (!file) return;
+  // Only ids, never the service key K0 of the migration state file.
+  let platformId = null, connectionId = null;
+  const state = path.join(r.CLONE, 'tests/acceptance/artifacts/m1-migration.raw.json');
+  if (fs.existsSync(state)) { const s = JSON.parse(fs.readFileSync(state, 'utf8')); platformId = s.platformId ?? null; connectionId = s.connection?.id ?? null; }
+  fs.writeFileSync(file, JSON.stringify({ m123Backup: backup, m123Clone: r.CLONE, m123PlatformId: platformId, m123ConnectionId: connectionId }), { mode: 0o600 });
+}
 
 export async function migrationRun(r, { installTests, setup, probe, identity }) {
   const candidate = r.opt.sha, evidence = [];
@@ -100,23 +132,31 @@ export async function migrationRun(r, { installTests, setup, probe, identity }) 
   assert.match(candidate, /^[a-f0-9]{40}$/);
   const old = await r.exec('old-revision', 'git', ['rev-parse', OLD_REVISION]);
   assert.equal(old.code, 0); const oldSha = old.stdout.trim();
-  assert.equal((await r.exec('checkout-old', 'git', ['checkout', '--detach', '--force', oldSha])).code, 0);
-  await installTests();
-  assert.ok(await setup(), 'Old revision stack starts');
+  const candidateLane = new StorageLane(r), oldLane = new StorageLane(r, { oplock: OLD_OPLOCK });
+  await candidateLane.boot(); oldLane.imageId = candidateLane.imageId;
+  const route = new CompatRoute(r, { testSha: identity.testSha, lane: oldLane });
+  // Fresh old-route lane (§12 routes): enable in the candidate checkout before the old checkout.
+  await route.enable();
+  let since = Date.now();
+  await checkoutOld(r, route, 'm1-23-old', oldSha, installTests);
+  assert.ok(await setup({ route }), 'Old revision stack starts');
+  for (const profiles of [[], ['acceptance']]) assert.deepEqual((await route.configDiff(profiles)).disallowed, [], 'BLOCKED: C1 − C0 outside items (a)–(e)');
   // Reuse the unmodified baseline QA browser setup and complete a real SCORM course.
-  const baseline = await r.npm('migration-moodle-baseline', ['run', 'test:acceptance'], {
-    env: { ...r.STACK_ENV, QA_TASK: 'T5a', QA_GREP: 'SETUP-T5a|AC-T5-07' }, timeoutMs: 1_800_000,
+  const baseline = await route.oldStart('migration-moodle-baseline', ['npm', 'run', 'test:acceptance'], {
+    env: { QA_TASK: 'T5a', QA_GREP: 'SETUP-T5a|AC-T5-07' }, timeoutMs: 1_800_000,
   });
   assert.equal(baseline.code, 0);
-  await probe('baseline', oldSha); record('M1-23.common.baseline', 'Real Moodle SCORM activity, sent score and K0 captured on the old revision');
-  await stopServices(r);
-  const oldLedger = await ledgerNames(r.CLONE), before = dataSnapshot(r.CLONE);
+  await probe('baseline', oldSha, { route }); record('M1-23.common.baseline', 'Real Moodle SCORM activity, sent score and K0 captured on the old revision');
+  await stopServices(r, route);
+  route.end({ hostRestarts: hostRestartsSince(r, since) });
+  const oldLedger = await volumeLedger(oldLane), before = await volumeSnapshot(oldLane);
   assert.equal((await r.exec('checkout-candidate', 'git', ['checkout', '--detach', '--force', candidate])).code, 0);
   await installTests();
+  await route.disable();
   assert.equal((await r.npm('new-ci-no-start', ['ci', '--no-audit', '--no-fund'])).code, 0);
   assert.equal((await r.npm('new-build-no-start', ['run', 'build'])).code, 0);
   await assertServicesStopped(r); // Do not mask a build that unexpectedly starts a service.
-  assert.deepEqual(await ledgerNames(r.CLONE), oldLedger, 'No new migration before backup');
+  assert.deepEqual(await volumeLedger(candidateLane), oldLedger, 'No new migration before backup');
   const backupRoot = fs.mkdtempSync(path.join(path.dirname(r.CLONE), 'qa-m1-private-backup-'));
   fs.chmodSync(backupRoot, 0o700);
   const backup = path.join(backupRoot, 'original');
@@ -129,7 +169,7 @@ export async function migrationRun(r, { installTests, setup, probe, identity }) 
   await probe('upgrade', candidate); record('M1-23.common.upgrade', 'Moodle profile/generation/history and K0 survive migration');
   await probe('postwrite', candidate); record('M1-30.common.postwrite', 'A second learner score reached Moodle after the backup');
   await stopServices(r);
-  const targetBefore = dataSnapshot(r.CLONE);
+  const targetBefore = await volumeSnapshot(candidateLane);
   for (const damage of ['bytes', 'missing', 'backup-id', 'project']) {
     const copy = path.join(backupRoot, damage); fs.cpSync(backup, copy, { recursive: true });
     const info = inspectBackup(copy, before, oldLedger, r.PROJECT);
@@ -141,24 +181,37 @@ export async function migrationRun(r, { installTests, setup, probe, identity }) 
       fs.writeFileSync(info.manifestFile, JSON.stringify(info.manifest));
     }
     const restore = await r.npm(`restore-refuses-${damage}`, ['run', 'stack:data-restore', '--', '--from', copy]);
-    assert.equal(restore.code, 1); assert.deepEqual(dataSnapshot(r.CLONE), targetBefore, 'Invalid backup changes no target database or sidecar');
+    assert.equal(restore.code, 1); assert.deepEqual(await volumeSnapshot(candidateLane), targetBefore, 'Invalid backup changes no target database or sidecar');
     record(`M1-30.common.reject-${damage}`, 'Whole-backup validation rejects damage without changing targets');
   }
-  // A valid restore must remove even unrelated stale target sidecars.
-  for (const name of databaseNames) for (const suffix of ['-wal', '-shm']) {
-    if (!Object.hasOwn(before, name + suffix)) fs.writeFileSync(path.join(r.CLONE, 'infra/.data', name + suffix), 'QA stale sidecar');
+  // A valid restore must remove even unrelated stale target sidecars (planted in the volumes, write mode, QA's lock).
+  const stale = [];
+  for (const [service, vol, db] of [['lti-service', 'lti', 'lti.db'], ['cogniate-app', 'app', 'cogniate.db']]) for (const suffix of ['-wal', '-shm']) {
+    if (!Object.hasOwn(before, `${service}/${db}${suffix}`) && !Object.hasOwn(targetBefore, `${service}/${db}${suffix}`))
+      stale.push({ op: 'write', vol, path: db + suffix, base64: Buffer.from('QA stale sidecar').toString('base64') });
   }
+  if (stale.length) await candidateLane.plant(stale);
   assert.equal((await r.npm('restore-valid', ['run', 'stack:data-restore', '--', '--from', backup])).code, 0);
-  assert.deepEqual(dataSnapshot(r.CLONE), before);
+  assert.deepEqual(await volumeSnapshot(candidateLane), before);
   record('M1-30.common.restore', 'Valid restore reproduces every backed-up byte and removes unlisted sidecars');
-  assert.equal((await r.exec('checkout-old-restored', 'git', ['checkout', '--detach', '--force', oldSha])).code, 0);
-  await installTests();
-  assert.equal((await r.npm('old-ci-restored', ['ci', '--no-audit', '--no-fund'])).code, 0);
-  assert.equal((await r.npm('old-build-restored', ['run', 'build'])).code, 0);
-  assert.equal((await r.npm('old-start-restored', ['run', 'stack:up'], { timeoutMs: 900_000 })).code, 0);
+  // Rollback order (§12): restore done; enable in the candidate tree; check out the old SHA; install and build; start.
+  await route.enable();
+  since = Date.now();
+  await checkoutOld(r, route, 'm1-30-old', oldSha, installTests);
+  for (const [label, args] of [['old-ci-restored', ['ci', '--no-audit', '--no-fund']], ['old-build-restored', ['run', 'build']]]) {
+    route.logCommand('npm', args); assert.equal((await r.npm(label, args)).code, 0);
+  }
+  for (const profiles of [[], ['acceptance']]) assert.deepEqual((await route.configDiff(profiles)).disallowed, [], 'BLOCKED: C1 − C0 outside items (a)–(e)');
+  assert.equal((await route.oldStart('old-start-restored', ['npm', 'run', 'stack:up'], { timeoutMs: 900_000 })).code, 0);
   for (const url of [r.state.urls.app, r.state.urls.lti]) assert.ok((await r.waitHealth(url, (h) => h.status === 'ok')).ok);
-  await probe('rollback', oldSha); record('M1-30.common.rollback', 'Old build launches with K0; the portal loses the new write while Moodle retains the accepted score');
+  await probe('rollback', oldSha, { route }); record('M1-30.common.rollback', 'Old build launches with K0; the portal loses the new write while Moodle retains the accepted score');
+  route.end({ hostRestarts: hostRestartsSince(r, since) });
+  const problems = qualifyRow(route.steps, { oldSha });
+  r.saveText('storage/j-migration.json', JSON.stringify({ oldSha, steps: route.steps.map(({ commands, ...s }) => ({ ...s, commands: commands.length })), problems }, null, 2));
+  evidence.push({ id: 'M1-41.common.j-migration', environment: 'SIM', status: problems.length ? 'FAIL' : 'PASS', ...identity,
+    notes: problems.length ? problems.join('; ') : `old build ${oldSha}: ${route.steps.length} old steps with tree, hash, config, wrapper, preflight, status and lock records` });
   r.saveText('migration-hashes.json', JSON.stringify({ oldSha, candidate, oldLedger, before, restored: before, evidence }, null, 2));
+  writeHandoff(r, backup);
   // Backups contain secrets. Keep them private for investigation, outside checkout/evidence.
   r.record('MIGRATION', 'Upgrade and rollback lifecycle', 'PASS', ['Private backup retained outside shared evidence']);
   return evidence;
@@ -174,18 +227,26 @@ export async function snapshotMigrationRun(r, { installTests, setup, probe, iden
     'services/cogniate-app/src/domain/migrations/012_connection_provider_snapshot.sql']);
   assert.equal(tree.code, 0);
   assertSnapshotBoundary(tree.stdout.trim().split('\n').map((name) => path.basename(name)), 'before');
-  assert.equal((await r.exec('snapshot-checkout-011', 'git', ['checkout', '--detach', '--force', SNAPSHOT_OLD_SHA])).code, 0);
-  await installTests(); assert.ok(await setup());
-  const seedRows = await probe('snapshot-seed', SNAPSHOT_OLD_SHA);
-  await stopServices(r);
-  const oldLedger = await ledgerNames(r.CLONE), before = dataSnapshot(r.CLONE);
+  const candidateLane = new StorageLane(r), oldLane = new StorageLane(r, { oplock: OLD_OPLOCK });
+  await candidateLane.boot(); oldLane.imageId = candidateLane.imageId;
+  const route = new CompatRoute(r, { testSha: identity.testSha, lane: oldLane });
+  await route.enable();
+  const since = Date.now();
+  await checkoutOld(r, route, 'm1-38-h1-old', SNAPSHOT_OLD_SHA, installTests);
+  assert.ok(await setup({ route }));
+  for (const profiles of [[], ['acceptance']]) assert.deepEqual((await route.configDiff(profiles)).disallowed, [], 'BLOCKED: C1 − C0 outside items (a)–(e)');
+  const seedRows = await probe('snapshot-seed', SNAPSHOT_OLD_SHA, { route });
+  await stopServices(r, route);
+  route.end({ hostRestarts: hostRestartsSince(r, since) });
+  const oldLedger = await volumeLedger(oldLane), before = await volumeSnapshot(oldLane);
   assertSnapshotBoundary(oldLedger['cogniate-app/cogniate.db'], 'before');
   assert.equal((await r.exec('snapshot-checkout-candidate', 'git', ['checkout', '--detach', '--force', candidate])).code, 0);
   await installTests();
+  await route.disable();
   assert.equal((await r.npm('snapshot-ci-no-start', ['ci', '--no-audit', '--no-fund'])).code, 0);
   assert.equal((await r.npm('snapshot-build-no-start', ['run', 'build'])).code, 0);
   await assertServicesStopped(r);
-  assert.deepEqual(await ledgerNames(r.CLONE), oldLedger, 'Build cannot migrate before the stopped backup');
+  assert.deepEqual(await volumeLedger(candidateLane), oldLedger, 'Build cannot migrate before the stopped backup');
   const backupRoot = fs.mkdtempSync(path.join(path.dirname(r.CLONE), 'qa-m1-snapshot-private-'));
   fs.chmodSync(backupRoot, 0o700);
   const backup = path.join(backupRoot, 'original');
@@ -196,11 +257,15 @@ export async function snapshotMigrationRun(r, { installTests, setup, probe, iden
   assert.equal((await r.npm('snapshot-start-012', ['run', 'stack:up'], { timeoutMs: 900_000 })).code, 0);
   evidence.push(...await probe('snapshot-upgrade', candidate));
   await stopServices(r);
-  const newLedger = await ledgerNames(r.CLONE);
+  const newLedger = await volumeLedger(candidateLane);
   assertSnapshotBoundary(newLedger['cogniate-app/cogniate.db'], 'after');
   assert.deepEqual(newLedger['lti-service/lti.db'], oldLedger['lti-service/lti.db']);
   assert.deepEqual(newLedger['cogniate-app/cogniate.db'],
     [...oldLedger['cogniate-app/cogniate.db'], '012_connection_provider_snapshot.sql'].sort());
+  const problems = qualifyRow(route.steps, { oldSha: SNAPSHOT_OLD_SHA });
+  r.saveText('storage/j-snapshot.json', JSON.stringify({ oldSha: SNAPSHOT_OLD_SHA, steps: route.steps.map(({ commands, ...s }) => ({ ...s, commands: commands.length })), problems }, null, 2));
+  evidence.push({ id: 'M1-41.common.j-snapshot', environment: 'SIM', status: problems.length ? 'FAIL' : 'PASS', ...identity,
+    notes: problems.length ? problems.join('; ') : `old build ${SNAPSHOT_OLD_SHA}: tree, hash, config, wrapper, preflight, status and lock records` });
   r.saveText('snapshot-migration-hashes.json', JSON.stringify({
     ...identity, sourceSha: SNAPSHOT_OLD_SHA, oldLedger, newLedger, before,
     evidence: evidence.map(({ id, status, environment }) => ({ id, status, environment })),

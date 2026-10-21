@@ -349,3 +349,27 @@ is claimed. The bridge ID changes come from Docker Desktop's idle VM restarts.
 This is diagnostic evidence only. Attempt 3 remains a FAILED required host-gate
 assertion, and M3 stays FAIL. Details, paths and hashes:
 [M1 report](../M1/qa.md#independent-storage-lock-diagnostic-after-attempt-3-2026-10-20).
+
+## Storage source preparation for M3 gates (ADR-012 revision 3.3), 2026-10-21
+
+Status: **source preparation only** (task `task_58a1e33ac60f`, dispatch `ctx_e583d25c6083`). No Docker command ran. This gives no runtime credit. The verdict line at the top of this file does not change. The details and the file list are in the matching addendum of `docs/reviews/M1/qa.md`.
+
+| M3 gate | What QA prepared (from the accepted contract `89be93c`) |
+| --- | --- |
+| AC-M3-06 fresh lane | `tests/host/core.mjs` preflight: neither exact name `<lane>_ltidb` nor `<lane>_appdb` (by `docker volume inspect`, with any labels or none), and no container, network or volume with the project label. Else the run is BLOCKED and QA removes nothing. `--clean-project` is refused. |
+| AC-M3-06 ownership record | One lane listing after every harness command: containers and networks by Docker `Id`, name, labels and `Created`; volumes by `Name` plus `CreatedAt`, `Driver`, `Labels`, `Mountpoint`, `Options` and `Scope`. A resource is made by the run only when it was absent in the listing before, has the project labels (and the volume key label for the two lane volumes), and has a creation second not earlier than the run's start second on the Docker clock. |
+| AC-M3-06 teardown | Removes only recorded resources whose fresh inspect matches the latest record: containers and networks by `Id`, volumes by exact name. A mismatch, a missing record, a failed listing or an unlabeled lane name is kept, reported and fails `TEARDOWN`. After cleanup, neither exact name and no labeled resource may exist. Per ADR-012 §15, a same-name, same-second, same-metadata re-creation inside the run cannot be told apart. |
+| AC-M3-06 QA mounts | QA never mounts an absent lane volume; the exact-name gate runs before every QA container mount (`storage-docker.mjs`, `storage-lane.mjs`). |
+| AC-M3-01 G-1 identity binding | `core.mjs` records `G1-IDENTITY` for M1 and legacy-guard runs: OS version and architecture, Docker CLI version and binary SHA-256, and Compose plugin version and binary SHA-256, compared with the ADR-012 §17 table. Any difference aborts the run as BLOCKED before any stack command. |
+| Legacy runners | They share `core.mjs`. Their assertions and their label-scoped `M3-ISOLATION` record are unchanged; only the boundary, ownership and teardown rules above are added. The T5b P5 fixture now uses the `storage-p5` container under QA's lock, with unchanged assertions. |
+
+Host-only controls:
+- `node tests/host/run-m1.mjs --harness-only --provider all` exits 0.
+- The ownership-ledger tests in `storage-docker.selftest.mjs` cover: a fresh boundary; a same-second product volume; an unlabeled re-created lane name; a volume replaced without an absent listing; an Id that is not recorded; a resource older than the run start; and removal by Id and by exact name. These test QA's decisions only, not Docker.
+
+Still open:
+- the runtime proof under a separate authorization;
+- the Author implementation and its final reviews;
+- the full QA retry on the exact candidate.
+
+All 32 live rows stay `UNVERIFIED`.

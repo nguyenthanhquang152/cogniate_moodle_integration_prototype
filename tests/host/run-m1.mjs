@@ -12,6 +12,12 @@ import { allContainers, httpsLoopback, run, walkFiles } from './lib.mjs';
 import { m1HostControl } from './m1-control.mjs';
 import { migrationRun, snapshotMigrationRun } from './m1-migration.mjs';
 import { FULL_PHASES, SNAPSHOT_OLD_SHA, SNAPSHOT_CONTRACT_SHA, phaseRows, casePattern, snapshotStageRows } from './m1-phases.mjs';
+import { WRAPPER } from './storage-compat-route.mjs';
+import {
+  CONDITIONAL_ID, checkConditional, countResults, joinInventory, readStorageManifest, sameConditionalInBothRounds, splitConditional,
+} from './storage-inventory.mjs';
+import { StorageLane } from './storage-lane.mjs';
+import { storagePhase } from './storage-rows.mjs';
 import { readManifests, verifyResults, vitestResults, playwrightResults } from '../acceptance/M1/common/coverage.mjs';
 import { createRuntime } from '../sim/core/runtime.mjs';
 import { loadProviders } from '../sim/server.mjs';
@@ -40,9 +46,9 @@ async function checked(command, args, extra = {}) {
   return result;
 }
 if (opt.help) {
-  print('M1: --sha <40 hex> --test-sha <40 hex> [--phase full|sim|snapshot-isolated|snapshot-upgrade|migration|legacy] [--provider all|blackboard|canvas]');
+  print('M1: --sha <40 hex> --test-sha <40 hex> [--phase full|sim|snapshot-isolated|snapshot-upgrade|migration|storage|legacy] [--provider all|blackboard|canvas]');
   print('Preparation only: --harness-only --provider blackboard (no Docker or product calls).');
-  print('Full = SIM + snapshot-isolated + populated 011-to-012 + Moodle migration twice at the same SHAs, then legacy; it requires Canvas.');
+  print('Full = SIM + snapshot-isolated + populated 011-to-012 + Moodle migration + storage (AC-M1-41, own lane) twice at the same SHAs, then legacy; it requires Canvas.');
   process.exit(0);
 }
 if (opt['harness-only']) {
@@ -52,7 +58,7 @@ if (opt['harness-only']) {
   selftests.push(...walkFiles(path.join(testsDir, 'acceptance/M1/common')).filter((f) => f.endsWith('.selftest.mjs')));
   await checked(process.execPath, ['--test', ...selftests]);
   await checked('npm', ['--prefix', testsDir, 'run', 'typecheck']);
-  const manifest = readManifests(testsDir, owners);
+  const manifest = joinInventory(readManifests(testsDir, owners), readStorageManifest(testsDir), { full: opt.provider === 'all' });
   const providers = await loadProviders(loadingRuntime(),
     opt.provider === 'all' ? ['blackboard', 'canvas'] : [opt.provider]);
   const discovery = await run(process.execPath, [
@@ -77,13 +83,31 @@ if (opt['harness-only']) {
     assert.deepEqual(JSON.parse(probe.stdout).map((row) => row.name.match(/\{case:([^}]+)\}/)?.[1]).sort(),
       wanted.map((row) => row.id).sort(), 'Snapshot host probe discovery: ' + stage);
   }
-  print(`HARNESS ONLY: ${api.length} API cases, ${manifest.length - api.length} host rows; providers ${providers.map((p) => p.id).join(', ')}.`);
+  // a-lock-scope runs one QA storage case through the candidate test:acceptance; its own stage selects it.
+  const lockScope = await run(process.execPath, [
+    path.join(testsDir, 'node_modules/vitest/vitest.mjs'), 'list', '--config',
+    path.join(testsDir, 'acceptance/M1/vitest.config.mts'), '--json',
+  ], { cwd: source, env: { ...process.env, QA_M1_PROVIDER: opt.provider, QA_M1_MIGRATION_STAGE: 'storage-lock-scope',
+    QA_GREP: '\\{case:M1-41\\.common\\.a-lock-scope\\}' }, timeoutMs: 120_000 });
+  assert.equal(lockScope.code, 0, lockScope.stderr);
+  assert.deepEqual(JSON.parse(lockScope.stdout).map((row) => row.name.match(/\{case:([^}]+)\}/)?.[1]), ['M1-41.common.a-lock-scope'],
+    'a-lock-scope QA storage case discovery');
+  const byPhase = {};
+  for (const row of manifest) { const ph = row.phase ?? (row.environment === 'MOODLE-LIVE' ? 'migration' : 'sim'); byPhase[ph] = (byPhase[ph] ?? 0) + 1; }
+  print(`HARNESS ONLY: ${api.length} API cases, ${manifest.length - api.length} host rows (${manifest.filter((r) => r.ac === 'AC-M1-41').length} AC-M1-41); `
+    + `${manifest.length} mandatory rows per round; phases ${JSON.stringify(byPhase)}; conditional ${CONDITIONAL_ID} only; providers ${providers.map((p) => p.id).join(', ')}.`);
   print('No product acceptance or live provider check was executed.');
   process.exit(0);
 }
 
 // Fail closed before Docker: a full suite cannot silently omit either provider.
-const expected = readManifests(testsDir, owners);
+const expected = joinInventory(readManifests(testsDir, owners), readStorageManifest(testsDir), { full: opt.provider === 'all' });
+/** verifyResults for every row except c-host-negative, plus the conditional rule of ADR-012 §14. */
+function verifyWithConditional(selection, actual) {
+  const split = splitConditional(selection, actual);
+  if (split.expected.length) verifyResults(split.expected, split.actual, identity);
+  return checkConditional(split.conditionalExpected, split.conditionalActual);
+}
 await loadProviders(loadingRuntime(),
   opt.provider === 'all' ? ['blackboard', 'canvas'] : [opt.provider]);
 assert.match(opt.sha ?? '', /^[a-f0-9]{40}$/, 'Exact product SHA required');
@@ -115,24 +139,33 @@ async function childRun(script, args, environment, resultFile) {
 if (opt.phase === 'full') {
   assert.equal(opt.provider, 'all', 'Full acceptance requires both providers');
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-m1-accounting-'));
+  fs.chmodSync(scratch, 0o700);
   const runs = [];
+  const baseProject = process.env.COMPOSE_PROJECT_NAME ?? 'qa-multi-r1';
   for (let round = 1; round <= 2; round++) {
     const rows = [];
+    // The migration phase records this round's AC-M1-23 backup and clone for e-old-schema (ids only, no secret).
+    const handoff = path.join(scratch, `round-${round}-handoff.json`);
     for (const phase of FULL_PHASES) {
       print(`Starting M1 round ${round}, ${phase}; one stack at a time.`);
       const resultFile = path.join(scratch, `round-${round}-${phase}.json`);
+      // The storage phase has its own fresh clone and its own lane (project name), ADR-012 §13.
+      const lane = phase === 'storage' ? { COMPOSE_PROJECT_NAME: `${baseProject}-st` } : {};
       rows.push(...await childRun(fileURLToPath(import.meta.url), [
         '--phase', phase, '--sha', identity.productSha, '--test-sha', identity.testSha, '--source', source,
-      ], { QA_M1_RESULTS_FILE: resultFile }, resultFile));
+      ], { QA_M1_RESULTS_FILE: resultFile, QA_M1_HANDOFF_FILE: handoff, ...lane }, resultFile));
     }
-    verifyResults(expected, rows, identity); runs.push(rows);
+    verifyWithConditional(expected, rows); runs.push(rows);
+    const count = countResults(rows);
+    print(`Round ${round}: ${rows.length} rows; PASS ${count.PASS}; NOT_APPLICABLE ${count.NOT_APPLICABLE} (reported apart, never a PASS).`);
   }
   const outcome = (rows) => rows.map(({ id, status, environment }) => ({ id, status, environment })).sort((a, b) => a.id.localeCompare(b.id));
   assert.deepEqual(outcome(runs[0]), outcome(runs[1]), 'Two full runs must have the same per-case results');
+  print(`c-host-negative in both rounds: ${sameConditionalInBothRounds(runs[0], runs[1])}.`);
   await childRun(fileURLToPath(import.meta.url), [
     '--phase', 'legacy', '--sha', identity.productSha, '--test-sha', identity.testSha, '--source', source,
   ], {});
-  print('M1 SIM, isolated drift, populated 011-to-012, Moodle rollback and legacy accounting passed; M2, T7 and live checks remain separate.');
+  print('M1 SIM, isolated drift, populated 011-to-012, Moodle rollback, storage (AC-M1-41) and legacy accounting passed; M2, T7 and live checks remain separate.');
   process.exit(0);
 }
 if (opt.phase === 'legacy') {
@@ -160,8 +193,14 @@ const record = (id, notes) => {
   const row = { id, status: 'PASS', environment: entry.environment, ...identity, notes };
   rows.push(row); r.record(id, entry.title, 'PASS', [notes]); return row;
 };
-async function installTests() {
+async function installTests({ exact } = {}) {
   // git archive reads only the frozen tests tree. Product checkouts cannot replace it.
+  if (exact) {
+    // ADR-012 §12 tree rule: tests/ must equal the frozen tree, so tracked old-only test files leave first.
+    const list = async (rev) => new Set((await run('git', ['ls-tree', '-r', '--name-only', rev, '--', 'tests'], { cwd: r.CLONE })).stdout.split('\n').filter(Boolean));
+    const oldFiles = await list(exact), frozen = await list(identity.testSha);
+    for (const file of oldFiles) if (!frozen.has(file)) fs.rmSync(path.join(r.CLONE, file), { force: true });
+  }
   const archive = path.join(path.dirname(r.CLONE), path.basename(r.CLONE) + '-tests.tar');
   const exported = await run('git', ['archive', '--format=tar', '--output', archive, identity.testSha, 'tests'], { cwd: source });
   assert.equal(exported.code, 0);
@@ -189,14 +228,24 @@ function shareEvidence(label) {
     r.saveText(path.join('evidence', label, relative), fs.readFileSync(file, 'utf8'));
   }
 }
-async function setup() {
+async function setup({ route } = {}) {
+  const npmStep = async (name, args, o) => { route?.logCommand('npm', args); return r.npm(name, args, o); };
+  assert.equal((await npmStep('root-ci', ['ci', '--no-audit', '--no-fund'], { timeoutMs: 900_000 })).code, 0);
+  assert.equal((await npmStep('gen-env', ['run', 'gen-env'])).code, 0);
+  r.loadStackFiles(); await r.composeNameGuard(); assert.equal(r.state.abort, null);
+  // Old builds start only through the copied storage-compat.sh run -- (ADR-012 §12).
+  if (route) assert.equal((await route.oldStart('stack-up-old', ['npm', 'run', 'stack:up'], { timeoutMs: 900_000 })).code, 0);
+  else assert.equal((await r.npm('stack-up', ['run', 'stack:up'], { timeoutMs: 900_000 })).code, 0);
+  assert.equal((await npmStep('seed', ['run', 'seed'], { timeoutMs: 900_000 })).code, 0);
+  r.loadStackFiles(); await r.checkProject(); assert.ok(r.state.h1Verified);
+  return !r.state.abort;
+}
+/** The storage phase clone preparation: frozen tests, install, gen-env and the name guard; no stack start. */
+async function setupStorageClone() {
+  await installTests();
   assert.equal((await r.npm('root-ci', ['ci', '--no-audit', '--no-fund'], { timeoutMs: 900_000 })).code, 0);
   assert.equal((await r.npm('gen-env', ['run', 'gen-env'])).code, 0);
   r.loadStackFiles(); await r.composeNameGuard(); assert.equal(r.state.abort, null);
-  assert.equal((await r.npm('stack-up', ['run', 'stack:up'], { timeoutMs: 900_000 })).code, 0);
-  assert.equal((await r.npm('seed', ['run', 'seed'], { timeoutMs: 900_000 })).code, 0);
-  r.loadStackFiles(); await r.checkProject(); assert.ok(r.state.h1Verified);
-  return !r.state.abort;
 }
 async function defaultGate() {
   for (const url of [r.state.urls.app, r.state.urls.lti]) {
@@ -220,7 +269,7 @@ async function defaultGate() {
   }
   record('M1-02.common.default-profile', 'Default stack exposes six real profiles, no simulation profiles or helper containers');
 }
-async function suite(label, selection, environment = {}) {
+async function suite(label, selection, environment = {}, { route } = {}) {
   const reportFile = path.join(artifactDir, 'm1-vitest-results.json');
   const browserReport = path.join(artifactDir, 'playwright-results.json');
   fs.rmSync(reportFile, { force: true }); // A stale report must never satisfy a failed/empty command.
@@ -228,17 +277,15 @@ async function suite(label, selection, environment = {}) {
   const stop = m1HostControl(r);
   const startedAt = new Date().toISOString();
   let result;
+  const suiteEnv = { QA_TASK: 'M1', QA_M1_PROVIDER: opt.provider, QA_GREP: casePattern(selection),
+    QA_PRODUCT_SHA: identity.productSha, QA_TEST_SHA: identity.testSha, ...environment };
   try {
-    result = await run('npm', ['run', 'test:acceptance'], {
-      cwd: r.CLONE,
-      env: { ...r.STACK_ENV, QA_TASK: 'M1', QA_M1_PROVIDER: opt.provider,
-        QA_GREP: casePattern(selection),
-        QA_PRODUCT_SHA: identity.productSha, QA_TEST_SHA: identity.testSha, ...environment },
-      timeoutMs: 7_200_000,
-    });
+    // An old-build suite runs only through the copied wrapper (ADR-012 §12); the candidate suite runs directly.
+    result = route ? await route.oldStart('acceptance-' + label, ['npm', 'run', 'test:acceptance'], { env: suiteEnv, timeoutMs: 7_200_000 })
+      : await run('npm', ['run', 'test:acceptance'], { cwd: r.CLONE, env: { ...r.STACK_ENV, ...suiteEnv }, timeoutMs: 7_200_000 });
   } finally { await stop(); loadCapturedSecrets(); }
   r.saveText(`cmd/acceptance-${label}.log`, JSON.stringify({
-    command: 'npm run test:acceptance', ...identity, label, code: result.code,
+    command: route ? `bash ${WRAPPER} run -- npm run test:acceptance` : 'npm run test:acceptance', ...identity, label, code: result.code,
     startedAt, durationMs: result.durationMs, stdout: result.stdout, stderr: result.stderr,
   }, null, 2));
   assert.ok(fs.existsSync(reportFile), 'No M1 JSON report was produced');
@@ -284,10 +331,10 @@ await r.main(async () => {
       await suite('snapshot-isolated', selected, { QA_M1_ISOLATED: '1' });
       verifyResults(selected, rows, identity);
     } else if (opt.phase === 'snapshot-upgrade') {
-      const probe = async (stage, executingSha) => {
+      const probe = async (stage, executingSha, { route } = {}) => {
         const count = rows.length;
         const actual = await suite(stage, snapshotStageRows(expected, stage),
-          { QA_M1_MIGRATION_STAGE: stage, QA_M1_EXECUTING_SHA: executingSha });
+          { QA_M1_MIGRATION_STAGE: stage, QA_M1_EXECUTING_SHA: executingSha }, { route });
         rows.splice(count); return actual;
       };
       rows.push(...await snapshotMigrationRun(r, { installTests, setup, probe, identity }));
@@ -296,16 +343,23 @@ await r.main(async () => {
       copyCourseFixtures();
       // migrationRun records each successful stage once. Probe results are used
       // as assertions here, then included in the host inventory by that runner.
-      const probe = async (stage, executingSha) => {
+      const probe = async (stage, executingSha, { route } = {}) => {
         const id = stage === 'baseline' || stage === 'upgrade' ? `M1-23.common.${stage}` : `M1-30.common.${stage}`;
         const count = rows.length;
         await suite('migration-' + stage, expected.filter((row) => row.id === id),
           { QA_M1_MIGRATION_STAGE: stage, QA_M1_EXECUTING_SHA: executingSha,
-            QA_GREP: `\\{case:${id.replaceAll('.', '\\.')}\\}` });
+            QA_GREP: `\\{case:${id.replaceAll('.', '\\.')}\\}` }, { route });
         rows.splice(count);
       };
       rows.push(...await migrationRun(r, { installTests, setup, probe, identity }));
-      verifyResults(expected.filter((row) => row.environment === 'MOODLE-LIVE'), rows, identity);
+      verifyResults(phaseRows(expected, 'migration'), rows, identity);
+    } else if (opt.phase === 'storage') {
+      // AC-M1-41 rows of the storage phase: own fresh clone and lane, QA fixture containers only (ADR-012 §11).
+      const lane = new StorageLane(r);
+      const handoff = () => process.env.QA_M1_HANDOFF_FILE && fs.existsSync(process.env.QA_M1_HANDOFF_FILE)
+        ? JSON.parse(fs.readFileSync(process.env.QA_M1_HANDOFF_FILE, 'utf8')) : null;
+      rows.push(...await storagePhase(lane, { identity, handoff, setupClone: setupStorageClone }));
+      verifyWithConditional(phaseRows(expected, 'storage'), rows);
     }
   } finally {
     loadCapturedSecrets(); shareEvidence('final');

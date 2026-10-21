@@ -769,6 +769,7 @@ async function acT111() {
     `in-scope values found in tracked files: ${findings.length ? findings.join('; ') : 'none'}`,
     `not git-ignored: ${notIgnored.join(', ') || 'none'}; tracked secret paths: ${tracked.join(', ') || 'none'}; .env.example secret keys with a value: ${exampleSecrets.join(', ') || 'none'}`,
     `information only (outside Lead scope): ${new Set(extra.map((c) => c.value)).size} values from **/.data and source workspace env files; found in tracked files: ${extraFindings.length ? extraFindings.join('; ') : 'none'}`,
+    'note (ADR-012): the SQLite databases are on the named volumes <project>_ltidb and <project>_appdb, so this information-only **/.data scan no longer sees database bytes; it still sees legacy files, content folders and backups',
   );
   const ok = findings.length === 0 && notIgnored.length === 0 && tracked.length === 0 && exampleSecrets.length === 0;
   record('AC-T1-11', 'No secret value (.env secret keys, infra/.secrets/**, infra/.certs/*.key) is in tracked files; secret paths are ignored', pass(ok), notes);
