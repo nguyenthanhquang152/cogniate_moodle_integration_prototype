@@ -13,7 +13,38 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 13:37 UTC
+### Current checkpoint — 2026-10-21, 13:46 UTC
+
+Revision 4 testability is PASS for design scope only at `83a0eb9adaa8e3212dc7873d22c83ee533ff1c7d`.
+Report: `docs/reviews/M1/storage-repair-testability-qa.md`; SHA-256 `834c30139ad344839f54cc4be19ad8b307bcda4f012f84c3b4ff4024d0dabc94`.
+All five QA-SRT findings are closed. The Lead verified the preserved Round 1 text and both map records.
+The fresh QA instance froze its changed-criterion map before source checks; its hash is `b95456ebb1b8af079330ff43ad484d863dce8a302dac3fbf3fbc141ce2f6bbe9`.
+Its task settled successfully and the worker was released. This gives no runtime acceptance credit.
+
+The Lead will apply these bounded implementation decisions before harness edits:
+- R2-01: V4-8 must prove that a hit keeps the scratch and file, including after a safe correction. The step stays FAIL. A delete-after-hit mutation must fail.
+- R2-02: V7-1 must compare all 70 observed statuses and causes with the declared expectations in both directions. An absent declared FAIL or an undeclared BLOCKED result fails the dry run.
+- R2-03: A behavior-neutral child-spawn seam is permitted for V8-5. It changes no phase, order, variable, result file or assertion of the full mode.
+- R2-04: The helper restriction forbids the listed token calls. Required metadata, rename and removal operations remain permitted.
+- R2-05: The bounded self-releasing `a-lock-wait` holder is a self-removing exception. The 21 restore sites and 27 failure injections remain unchanged.
+- IN-1 through IN-4 accompany the implementation brief: source-count discipline, stable clock ordering in controls, explicit migration scan results, and a container scratch value that the operation spec cannot override.
+
+These are Lead decisions on nonblocking findings, not changes to the frozen report or triage file.
+Both independent design confirmations remain pending. No harness edit is authorized yet.
+
+The released QA slot now runs a bounded Architect conformance task:
+`task_e2539d24287c` / `ctx_98db334b4b83`.
+It owns only `docs/architecture/tasks/storage-command-conformance.md`.
+It will assess Q-R1A-01 and INFO O-1 against ADR-012 and the supported wrapper contract.
+The frozen R1-A host-QA FAIL stays unchanged; pre-existing behavior alone does not justify a deferral.
+
+Reviewer-A `ctx_5f33a90989cb`, Reviewer-B `ctx_33a4238fc02b` and the Architect are active.
+All three have requested and effective Claude Code Opus 5.5 xhigh.
+No Docker window is active. The product and tests trees are unchanged.
+The latest full result remains 438 PASS and 50 FAIL at `aaa823b`; all runtime gates, conformance and guides remain pending.
+The 32 live-LMS rows remain UNVERIFIED. Local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 13:37 UTC
 
 Revision 4 of the storage repair plan is frozen at `2d763fec502f6b7758b7ed56f51613183e5021ce`.
 Triage SHA-256: `ade4e8a0f9e54823040828758b7683d5c9b230587747f3ef3c89ef8e99f9a032`.
