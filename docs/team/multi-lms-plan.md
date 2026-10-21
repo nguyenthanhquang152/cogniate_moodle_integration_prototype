@@ -13,7 +13,39 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 10:31 UTC
+### Current checkpoint — 2026-10-21, 10:40 UTC
+
+Both combined source and design reviews APPROVE candidate `aaa823b`, with no BLOCKER or MAJOR.
+Reviewer-A report: `a4488aceea28137c5d7c8459d50dc2742a9459aa`. Reviewer-B report: `a32fb1003324b6cc940f5f87e3608cd047559f04`.
+The Lead checked the held report hashes, A's evidence manifest, and B's mutation and probe records.
+Both reviewers settled successfully and were released. Host QA remains PASS at `18aa600`; these results grant no runtime acceptance credit.
+
+The Lead accepts five distinct MINOR items for the M4 deferred list:
+- A-CR-01: a package-folder lookup error can be reported as missing content. It still refuses without target writes.
+- A-CR-02 / B-CRR-02: unit assertions do not detect a future cleanup omission after a copy or verification failure.
+- A-CR-03: the frozen H1–H7 plan has no independent `content_check_failed` case; reviewer probes cover examples.
+- A-CR-04: the older path rule accepts `packages/.` and `packages/..` in a crafted backup. This repair preserves that rule.
+- B-CRR-01: unit tests do not distinguish a size-only copy check from the required size-and-hash check.
+
+Current product code performs the required hash check and cleanup. No new product or test edit is requested for these deferrals.
+B-CRR-03/04/05 remain optional NITs. A-CR-05 / B-CRR-06 go to the later README owner for order and error guidance.
+
+Targeted QA retry `task_9a5781ae31f0`, dispatch `ctx_7bc9d3467a5d`, owns the sole Docker window under grant `msg_14b51cbbe615`.
+Its preparation passed: the Lead verified all 52 manifest entries, the exact allowlist change, 20 provenance controls and the dry run.
+W1–W3 passed at 10:37:48 UTC. The Lead verified the W3 capture hash `f6433ad9118fbe45728d9760889fecc2bab74cf9e4e8ea0cb59bc5043260178f`.
+The runner uses exact candidate `aaa823b`, lane `qa-reset-parent-r1`, port 8743 and subnet `172.28.0.0/16`.
+Its private root is `/Users/quangnguyen/cogniate-qa-runs/qa-reset-parent-r1-aaa823b2-20261021T1037Z`. Q1/Q2, W4 and cleanup remain pending.
+
+Two fresh QA retries prepare on the host in parallel, with no Docker grant:
+- Common/Blackboard: task `task_ed3b08aa45ea`, dispatch `ctx_b4253986bb55`.
+- Canvas/M2/T7: task `task_e28388df4dcc`, dispatch `ctx_e7de4ddd7504`.
+
+Both requested and effective settings match Claude Code Opus 5.5 xhigh. Their exact candidate is `aaa823b`; the tests tree remains `4c7e067`.
+Private tool copies may update only lifecycle and source/path metadata. Runtime assertions, inventory and cleanup rules stay unchanged.
+The two full 488-row rounds, legacy suites, fresh M2 and T7, conformance and guides remain pending.
+All 32 real-LMS rows stay UNVERIFIED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 10:31 UTC
 
 Content-refusal repair candidate `aaa823b25306c5e560f7c4050238b374dec4d4e3` is committed for independent verification.
 Its scope is the restore script, its adjacent unit tests and one infrastructure README sentence.
