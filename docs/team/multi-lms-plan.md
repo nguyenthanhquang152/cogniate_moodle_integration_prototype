@@ -13,20 +13,83 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 02:39 UTC
+### Current checkpoint — 2026-10-21, 03:00 UTC
 
-The current product and test candidate is `a784522a3cdd9bb67453b03093092cac24e87402`.
-Both storage source reviews approve it. The Lead's clean-clone check passes 1,111 unit and 76 infrastructure tests, with no skips.
-Runtime acceptance remains open. Two complete 488-row rounds, legacy suites, fresh M2 and three T7 runs are still required.
-The first SIM phase has one reported Canvas grant failure. Final case identification and independent diagnosis are pending.
-The existing phase will finish its evidence report and clean up; no blind retry is authorized.
-Replacement Claude Code Opus 5.5 xhigh workers own the two active QA retries:
-- Common and Blackboard: `ctx_75f7ef7a9240`, sole Docker window, port 8443 and subnet 172.29.
-- Canvas and browser QA: `ctx_f3f20494787a`, host-only until the Lead transfers that window.
+The new test candidate is `55c33a3e2d60670b5e759a79144c96bd213fca1f`.
+Product code is unchanged from `a784522`. Both storage source reviews approve that product code.
+The earlier clean-clone check passed 1,111 unit and 76 infrastructure tests, with no skips.
+The only test change repairs the oracle for `M1-17.canvas.repeat`. Independent reviews are active.
 
-Later commits contain review and team records only. Final conformance and guides remain queued behind runtime acceptance.
+The completed attempt at `a784522` remains FAIL: SIM has 393 PASS and one FAIL from 394 rows.
+The remaining 94 round-1 rows, round 2 and legacy did not run.
+Canvas QA traced the failure to an inclusive timestamp that counted the first redemption again.
+The captured repeat shows no extra redemption or remote call. No product defect was shown.
+The case took about 365 milliseconds, not 365 seconds. Reports preserve the correction in `fa17d51`.
+Cleanup left no owned containers, volumes or networks. All seven protected volume records were unchanged.
+The outer network comparison failed because its initial Docker view was cached. That raw failure remains recorded.
+
+No Docker window is open. Three Claude Code Opus 5.5 xhigh workers are active:
+- Canvas QA: `ctx_f3f20494787a`, external T7 wrapper repairs, host only.
+- Reviewer-A: `ctx_783345df22cc`, the one-case test repair.
+- Reviewer-B: `ctx_cb93cc372be0`, an independent review of the same repair.
+
+Two complete 488-row rounds, legacy suites, fresh M2 and three T7 runs are still required at one accepted candidate.
+Final conformance and guides remain queued behind runtime acceptance.
 All 32 real-LMS rows remain UNVERIFIED. No push or main merge is authorized for this phase.
-Older role tables and run results below are history; current handoffs and this checkpoint govern the active retries.
+Older role tables and run results below are history; current handoffs and this checkpoint govern active work.
+
+### Failed attempt, oracle repair and external wrapper review — 2026-10-21
+
+Common QA settled `task_ed3b08aa45ea` / `ctx_75f7ef7a9240` as failed in `msg_65539ccb5e72`.
+The run is `qa-multi-r1-a784522a-2026-10-21T02-21-14-202Z`.
+Its reports are committed in `84ea118`; the duration correction is committed in `fa17d51`.
+Both report tasks settled. Their reused dispatches own no new terminal resource.
+The next runtime attempt must retry the original task after review; it must not substitute a new acceptance task.
+
+Canvas diagnosis `msg_6245a961f22b` identifies a test-oracle defect, not a product repair.
+The Lead authorized only the repeat case in `msg_415316b9ae64`.
+QA held that repair and its report in `msg_30af63f1a0fe`; the Lead committed them as `55c33a3`.
+The test counts completed redemption lines for the connection before and after the repeat.
+It preserves the status, platform identity and no-remote-call assertions, and requires exactly one initial redemption.
+QA reports 10 focused controls and two 70-check harness runs passing. These are not runtime acceptance.
+The Canvas inventory remains 233 rows; the full inventory remains 488 per round.
+Independent review tasks are `task_6f727569298d` and `task_2c91a45a4577`.
+
+Reviewer-A's external wrapper review settled `task_0a7286893be2` with CHANGES_REQUESTED.
+Messages `msg_e55c6aa0054c` and `msg_a0944540c23e` contain the findings.
+The held R2 manifest has SHA-256 `0b2a39e37a20696dcd5318db9c294e331bd271c91567ff1042e68d54ef3bfd77`.
+The Lead checked all 13 entries. The older manifest is retained as history and does not describe R2.
+
+| Finding | Severity | Required disposition |
+| --- | --- | --- |
+| A-TW-01 | MAJOR | Prove `--keep` from the command and summary; reject runner cleanup. Require runner success, wrapper PASS and scan PASS. |
+| A-TW-02 | MINOR | Treat unknown or failed BuildRunner counts as failure. Write a failure summary after counter errors. |
+| A-TW-03 | MINOR | Decode streamed UTF-8 correctly, preserve signal status and record exact safe arguments. |
+| A-TW-04 | NIT | Identify lane networks by labels. Do not exclude unrelated networks by name prefix. |
+| A-TW-05 | NIT | Keep raw Docker error output private; do not copy it into public ownership records. |
+| A-TW-06 | NIT | Use a fresh exact checkout before READY. Reject delayed prefix binding as proof. |
+| A-TW-07 | NIT | Use fresh temporary directories or refuse nonempty scratch directories. |
+| A-TW-08 | MINOR | Wake Docker and prove a live baseline before any lane command. Compare that baseline strictly at the end. |
+
+The Lead authorized these external-tool repairs in `msg_c2d16837f83e`. No runtime window was granted.
+QA must retain R2, hold R3 hashes and controls, and obtain independent re-review.
+Existing sticky ownership failures and event-watcher failures remain mandatory.
+The runner must use a fresh detached exact-SHA checkout with `--checkout`, three runs, demo, confirmation and `--keep`.
+Record clean HEAD, no `.env` and no `node_modules` before READY. Bind the final summary to the same checkout, SHA and project.
+Only request wrapper cleanup after the runner exits. Product reset deletions still need observed absence and reappearance.
+
+Architect task `task_dfe70ffe2864` settled in `msg_6a8f681e8f6e` with this existing-contract interpretation:
+
+1. Wake Docker with one pinned, cached QA container: `--pull never`, `--rm`, `--network none` and label `org.cogniate.qa=wake`.
+2. Prove that the wake container is gone. Require Docker time within five seconds of host UTC, with bounded retries.
+3. Before any lane command, record the live clock, fresh lane, identities, seven protected FULL records, all networks and non-lane container IDs.
+4. Require a live end boundary. Compare strictly, including built-in network IDs, settings and all protected records. Any difference fails.
+
+A baseline first taken at a lane-create event is too late. It does not prove the required pre-start absence.
+The cached-to-live bridge change from the failed attempt remains separate evidence; it does not relabel the raw comparison as PASS.
+Common QA may assemble a separate transition record only if all Architect conditions T1–T5 are proven.
+They require cached-time proof, only the allowed bridge transition, creation ordering, unchanged live-to-end resources and every lane birth after boot.
+Missing evidence fails that separate isolation claim. The complete runtime attempt remains FAIL in every case.
 
 ## Sources and scope
 
