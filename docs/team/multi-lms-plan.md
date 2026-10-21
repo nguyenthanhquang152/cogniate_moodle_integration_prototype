@@ -13,7 +13,25 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 12:03 UTC
+### Current checkpoint — 2026-10-21, 12:09 UTC
+
+The revised storage triage is committed at `2b0081d8c1bcd404c044363d5385693b9e41ae12`.
+Report: `docs/architecture/tasks/storage-full-round-triage.md`.
+SHA-256: `d0f013ce3b44705f5460c196b834d7c3ea760ae8f68ebc6760bd8a82a10b2597`.
+It is an unaccepted proposal. The Architect settled successfully and was released.
+
+Two fresh blind design reviewers are active:
+- Reviewer-A: task `task_258c14eec9f8`, dispatch `ctx_070c92998668`.
+- Reviewer-B: task `task_a574d344c4aa`, dispatch `ctx_1efdadcf9b2c`.
+
+Both requested and effective settings are Claude Code Opus 5.5 xhigh.
+Each owns only its separate report and reads existing source and evidence.
+They assess the log-contract repair, fixture repairs, folder-coverage proposal, private-copy permissions and verification controls.
+No implementation, requirement change or runtime action is authorized by this review wave.
+The product and test candidate remains `aaa823b`; the full result remains FAIL.
+No Docker window is active. All remaining acceptance gates and live-LMS limits below remain unchanged.
+
+### Prior checkpoint — 2026-10-21, 12:03 UTC
 
 The full round-one result remains FAIL: 438 PASS and 50 FAIL on candidate `aaa823b`.
 Common QA reports are committed at `ef787d1`. Canvas reports are committed at `fcb1041`.
