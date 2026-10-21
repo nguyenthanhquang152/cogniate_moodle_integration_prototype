@@ -87,12 +87,18 @@ for (const [variant, extra, fields] of [
   });
 }
 m1Test('M1-17.canvas.repeat', 'repeating the registering call answers 200 with the same platform and no new redemption', async () => {
-  const b = await canvasBound(), since = Date.now();
+  const b = await canvasBound();
+  // Line counts, not a time window: the first redemption's lines come before its own http_request line (R3.7), so after
+  // a completed later request of this test they are already counted. A millisecond timestamp cannot separate them.
+  await completed(await app(b.s, 'GET', connPath(b.connection.id)), 'GET');
+  const first = redeemedLines(b.connection.id);
+  assert.deepEqual(first.map((e) => e.grant_id), [b.grant.id], 'The first call wrote one grant_redeemed line, for its grant');
   await noRemoteCall(async () => {
     const again = await canvasRedeem(b.s, b.connection, b.clientId, b.deploymentId, b.grant); expectStatus(again, 200);
     assert.equal(again.json.platform.id, b.connection.platform.id);
+    await completed(again, 'PUT');
   });
-  assert.equal(logEvents('grant_redeemed', since, { grant_id: b.grant.id }).length, 0);
+  assert.equal(redeemedLines(b.connection.id).length, first.length, 'No new grant_redeemed line from the repeat');
 });
 m1Test('M1-17.canvas.other-library-conflict', 'another library cannot bind a Canvas client id that a connection owns', async () => {
   const a = await canvasBound(), b = await pendingCanvas('B');

@@ -1,6 +1,6 @@
-Verdict: FAIL / HOLD for round 1 SIM at `aff4882` — 232 selected Canvas rows: 229 PASS, 3 FAIL (all QA oracle or request defects; no product defect); bounded repairs held, not run
-Round: 7 (task `task_e28388df4dcc`, dispatch `ctx_4a94125660be`; see §13)
-Owner: original Claude Canvas QA (`claude-opus-5-5`, xhigh), resumed by owner request; rounds 5–6 by the independent Codex Canvas QA quota replacement; earlier Claude reports remain below
+Verdict: FAIL / HOLD for round 1 SIM at storage candidate `a784522` — 232 SIM Canvas rows: 231 PASS, 1 FAIL (`M1-17.canvas.repeat`, a QA oracle defect; no product defect shown); round incomplete; one-case repair held, not run (see §14)
+Round: 8 (task `task_e28388df4dcc`, dispatch `ctx_f3f20494787a`; see §14). Round 7 header: "FAIL / HOLD for round 1 SIM at `aff4882` — 232 selected Canvas rows: 229 PASS, 3 FAIL (all QA oracle or request defects; no product defect); bounded repairs held, not run" (dispatch `ctx_4a94125660be`, §13)
+Owner: round 8 by a new Claude Canvas QA-E2E session (`claude-opus-5-5`, xhigh; Orca session `228bb341-1217-4df5-bc56-664d1f41faa3`), which did not run the earlier rounds; earlier rounds by the original Claude Canvas QA and, for rounds 5–6, the independent Codex Canvas QA quota replacement remain below
 Behavior baseline: `56591df0e71939d5d62c9042c630c841d01f84e8` (ADR-011 revision 6). Plan: [M1 QA plan](qa-plan.md) at `6733e57`.
 
 ## 1. Independence and inputs
@@ -320,3 +320,56 @@ Evidence (synthetic or harness only; `/Users/quangnguyen/cogniate-canvas-qa-runs
 - Independent judge: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-aff4882-eFk7FU4s/canvas-judge/` (`canvas-judge.mjs`, its synthetic self-test, `round1-sim-judge.json`, `round1-canvas-classification.json`).
 
 No product edit, stack or partial product run. A new frozen SHA and a complete M1 round are needed for any Canvas M1 verdict; `M1-37.canvas.aa` still needs its snapshot-isolated phase.
+
+## 14. Round 8 — storage candidate `a784522`: round 1 SIM partial result and one-case oracle repair (2026-10-21)
+
+**FAIL / HOLD. No M1 acceptance credit.** A new Claude QA-E2E session wrote this round. It did not execute rounds 1–7, and their provenance stays as written above.
+
+Common QA ran full M1 round 1 at product = test `a784522a3cdd9bb67453b03093092cac24e87402` (ADR-012 storage candidate). The runner stopped after the SIM phase. Run `qa-multi-r1-a784522a-2026-10-21T02-21-14-202Z`; project `qa-multi-r1`; app and LTI health `default` after the phase. Artifact directory: `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-a784522-20261021T0217Z/source/tests/host/artifacts/qa-multi-r1-a784522a-2026-10-21T02-21-14-202Z`. The snapshot-isolated, snapshot-upgrade, migration and storage phases, all of round 2 and legacy did not run. This worker had no stack. It read only the redacted artifacts and the frozen source.
+
+### 14.1 Independent Canvas judgement (partial)
+
+The judge `canvas-judge-round.mjs` reads `m1-identity.json`, `m1-case-results.json`, the scan record and the raw Vitest/Playwright reports. It requires one artifact per phase and one raw result per row, with no retry. Its synthetic self-test passes 1 positive and 10 negative controls, plus 2 round-comparison controls. Tools and hashes: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-a784522-wgLHNZc0/tools/` (`tool-hashes-r2-abs.sha256`).
+
+| Set | Result |
+| --- | --- |
+| Canvas inventory | 233 = 226 API + 7 browser; 232 in `sim`, 1 in `snapshot-isolated` (`M1-37.canvas.aa`). AC-M1-41 has no Canvas row. |
+| SIM phase | 232 rows: **231 PASS** (224 API + 7 browser), **1 FAIL** (`M1-17.canvas.repeat`). Runner and raw reports agree. Product = test = `a784522`, label `SIM`, one result each, no retry. |
+| Not run | `M1-37.canvas.aa` (its phase did not run). |
+| Scan record | 1,300 captured values, 637 files, 0 hits. |
+
+Record: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-a784522-wgLHNZc0/diag/m1-r1-sim/canvas-judge-r1-sim.json`. AC-M3-01 needs two complete matching rounds, so this result gives no Canvas PASS.
+
+### 14.2 The failure: `M1-17.canvas.repeat`
+
+- **Assertion:** `31-canvas-grants.test.ts:95`: `assert.equal(logEvents('grant_redeemed', since, { grant_id }).length, 0)` gave `1 !== 0`. Duration **364.97 ms** (milliseconds).
+- **Criterion (AC-M1-17):** "The first call repeated (same values) → `200`, same platform, no new `grant_redeemed`."
+- **Evidence** (redacted `service-logs`): connection `con_-R7GysmAldDXKoFBdHhUJA`, grant `grt_CvinaGi2dWckKum02T9aQQ`.
+  - First PUT, trace `6ec9ef43…`: `grant_attempt_started` 02:23:45.209Z, LTI `POST /api/platforms` 201 and `PATCH` 200, `grant_redeemed` .215Z, `http_request PUT …/platform 200` .215Z.
+  - The test takes `since = Date.now()` after that response and before the next request (`GET /__sim/records` at .217Z). The count of 1 needs `since ≤ .215Z`, so `since` is exactly .215Z.
+  - `eventsSince` counts `ts >= since` (`tests/acceptance/lib/lti.ts:209`), so it counted the first redemption.
+  - Repeat PUT, trace `4efb6d9b…`: one `http_request PUT …/platform 200` at .226Z. It has no `grant_*` line, no `outbound_request` and no LTI service line. The gate logged zero events while the all-method pass rules were armed. `noRemoteCall` and the same-platform check passed.
+  - In the whole round log this grant has only `grant_issued`, `grant_attempt_started` and one `grant_redeemed`. Of 179 redeemed grants, none has two `grant_redeemed` lines.
+- **Classification:** QA test-oracle defect in this worker's file. It is a same-millisecond inclusive time window: the same class as `M1-20.canvas.repeat` (§13.2, repaired at `8138097`). That repair missed this sibling case. The logs show no product defect: the repeat met all three AC-M1-17 expectations.
+- **Other cursors:** all other Canvas `since = Date.now()` uses count another event type or id, or test only presence. None can count its own earlier request's line. Read-only check: `M1-28.blackboard.positive` takes `since` before the grant and expects the count to stay 1.
+- Diagnosis record: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-a784522-wgLHNZc0/diag/m1-r1-sim/M1-17.canvas.repeat-diagnosis.json`.
+
+### 14.3 Authorized repair (held, not run)
+
+Lead authorized one case in one file in `msg_415316b9ae64`. The change record is `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-a784522-wgLHNZc0/repair-m1-17/test-id-change-record.md`.
+
+- `M1-17.canvas.repeat` now uses line counts, not a time window. First, a completed later `GET` of the connection is a same-process barrier (the `attemptBaseline` pattern). Then the connection must have exactly one `grant_redeemed` line, for its grant. The repeat runs inside the unchanged `noRemoteCall`, with the unchanged `200` and same-platform assertions, then waits for its own completion (`completed(again, 'PUT')`). After that, the connection's `grant_redeemed` count must not increase.
+- Case id, title, manifest and inventory are unchanged. There is no sleep and no slack. No assertion became weaker, and the baseline-is-one check is new.
+- Held file SHA-256: `888fd4c2e9814defd9ac8912a330122a2eac0ac596f9c18128081613a4240ed0` (was `e2ac98119df268f48aa439c2b36fe1e46c45c907786e92bed5a16603d213e262`). Patch: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-a784522-wgLHNZc0/repair-m1-17/held.patch` (8 insertions, 2 deletions; `git diff --check` clean).
+
+Evidence (harness and synthetic only):
+- In a scratch clone of `a784522` with the patch, `run-m1.mjs --harness-only --provider canvas` and the all-provider run each pass 70/70 self-checks with zero skips, plus typecheck and discovery. Canvas selection: 251 API + 96 host rows. All providers: 392 API + 96 host rows. Both give 488 rows per round (`sim` 394, `snapshot-isolated` 6, `snapshot-upgrade` 6, `migration` 12, `storage` 70) and 233 Canvas rows, unchanged.
+- `m1-17-controls.mjs` compiles the exact `readLog`, `redeemedLines` and `eventsSince` sources and runs the old and new assertions on synthetic logs. Results:
+  - The observed same-millisecond sequence: the old oracle gives FAIL, which reproduces the run; the new oracle gives PASS.
+  - A later same-millisecond `grant_redeemed` of the same grant, or of another grant of the connection: FAIL.
+  - Another connection's redemption in the same millisecond: PASS.
+  - A first call with zero, two or another grant's redemption line: FAIL.
+  - A malformed line: BLOCKED. A partial last line: tolerated.
+  - All 10 controls behave as stated. Output: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-a784522-wgLHNZc0/repair-m1-17/m1-17-controls-output.json`.
+
+No product edit, stack, Docker diagnostic or partial product run. The repair needs a Lead commit, a new reviewed freeze and fresh runs of both complete M1 rounds, legacy, M2 and T7 at that SHA. `a784522` stays a recorded failed attempt.
