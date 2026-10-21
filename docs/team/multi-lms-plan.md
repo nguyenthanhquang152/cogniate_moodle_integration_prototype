@@ -13,7 +13,24 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 08:18 UTC
+### Current checkpoint — 2026-10-21, 08:36 UTC
+
+The bounded reset design is committed in `35d093d7a807391e779edf514d4ad2b63e8e0e66`.
+ADR-012 revision 3.4 and `docs/architecture/tasks/storage-reset-parent-repair.md` remain proposed, pending joint design and implementation reviews.
+The Architect found no conflict with existing reset assertions. It settled successfully in `msg_ac18e22b5ffb` and was released.
+Option A keeps a real host-owned content parent directory, removes every entry, and leaves it empty with mode 0700.
+An absent parent stays absent; other entry types are removed as before. All earlier guards and Docker-removal ordering remain unchanged.
+The Lead approved RD alongside RA/RC in the next Author diagnostic window. It tests the separate mandatory parent-move fixture.
+A refusal there needs a further Architect decision; no assertion or row is changed now. Option B remains deferred.
+
+Backend Author `task_3fcf726eb0ae`, dispatch `ctx_509f433b4916`, owns the three product paths named in the brief.
+It implements and checks the repair, then holds it for a source commit before requesting the diagnostic window.
+Independent QA preparation `task_4cd51deb8aab`, dispatch `ctx_09f968c5722d`, prepares Q1/Q2 from the acceptance criteria.
+QA preparation is host-only, with no repository edits. It will hand off private tools for a later fresh runtime dispatch.
+Both requested and effective settings match Claude Code Opus 5.5 xhigh. Starting acknowledgments are `msg_ad6bd745c881` and `msg_e30fa3afad21`.
+Neither worker has a Docker window. No runtime gate is waived.
+
+### Prior checkpoint — 2026-10-21, 08:18 UTC
 
 The bounded Docker diagnosis is complete. The Author settled successfully in `msg_a7738432accd` and was released.
 The Lead checked the report, trial hash, result summary, cleanup record and W4 summaries.
