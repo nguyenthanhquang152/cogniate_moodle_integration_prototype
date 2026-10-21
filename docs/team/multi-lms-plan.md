@@ -13,7 +13,39 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 11:40 UTC
+### Current checkpoint — 2026-10-21, 12:03 UTC
+
+The full round-one result remains FAIL: 438 PASS and 50 FAIL on candidate `aaa823b`.
+Common QA reports are committed at `ef787d1`. Canvas reports are committed at `fcb1041`.
+Both workers settled with explicit failed outcomes and were released.
+Canvas completed its independent five-phase evidence check: 233/233 Canvas rows PASS as partial evidence.
+Round two, legacy, fresh M2 and T7 remain pending.
+
+The independent QA diagnosis identifies three groups:
+- The serialization oracle requires a backup command label, but release records contain a null command.
+- The mountpoint fixture changes ownership, then cannot list the private directory. Later cases inherit that state.
+- The storage HTTP helper omits Origin on writes, so the application correctly refuses the request.
+
+The Architect has submitted a repair proposal. The Lead requested corrections before blind design review.
+Lock ordering supports serialization; it does not resolve compliance with the required event fields.
+Any change to command nullability or content-folder coverage remains a proposal.
+The exact manual-rename bind behavior is unmeasured. Related deletion evidence cannot prove that case.
+No contract, assertion, permission or acceptance requirement is waived.
+
+One private QA database copy had mode 0644 during the full run, under a 0700 parent.
+QA corrected it to 0600 at 11:47:11.753 UTC. Its identity and content hash stayed unchanged.
+The Lead checked the correction record and actual file. This does not establish compliance during the run.
+The repair proposal must require private database copies to have mode 0600 from creation.
+
+Only Architect dispatch `ctx_a6965f1fbc80` remains active, with Claude Code Opus 5.5 xhigh.
+It may revise only the triage report. No product edit, test edit or runtime action is authorized.
+The next design gate is two fresh independent reviews. A full 70-row storage diagnostic is proposed before both full runs.
+That diagnostic needs a separate runtime grant and gives no acceptance credit.
+
+No Docker window is active. All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED.
+Conformance and guides remain pending. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 11:40 UTC
 
 The full run on `aaa823b` FAILED in round-one storage validation. It ran once from 10:54:48 to 11:36:48 UTC.
 Round one has 438 PASS and 50 FAIL across all 488 required rows:
