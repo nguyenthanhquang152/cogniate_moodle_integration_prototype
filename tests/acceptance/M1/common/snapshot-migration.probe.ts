@@ -28,7 +28,7 @@ async function preserve(state: Json) {
   }
   // Fresh signed launches prove approvals and restore simulator scenarios after
   // a host upgrade. The saved service keys remain the expected values.
-  const canvas = await canvasPlay(state.a, state.canvasPub), blackboard = await openPlay(state.b, state.blackboardPub);
+  const canvas = await canvasPlay(state.a, state.canvasPub, { resourceLinkId: state.canvasPub.id }), blackboard = await openPlay(state.b, state.blackboardPub);
   assert.equal(canvas.token.services.serviceKey, state.canvasKey);
   assert.equal(blackboard.token.services.serviceKey, state.blackboardKey);
   expectStatus(await service(state.canvasKey, 'GET', '/api/lineitems'), 200);
@@ -50,7 +50,7 @@ if (stage === 'snapshot-seed') m1Test('M1-38.common.h1', 'seed public 011 states
   assert.equal(process.env.QA_M1_EXECUTING_SHA, '9f96f7b24cd0aed702e4dc40373bdda4307aad31');
   await gateReset(); await watchAll();
   const a = await canvasBound(), b = await bound();
-  const canvasPub = await publication(a), canvasRun = await canvasPlay(a, canvasPub);
+  const canvasPub = await publication(a), canvasRun = await canvasPlay(a, canvasPub, { resourceLinkId: canvasPub.id });
   const blackboardPub = await publication(b), blackboardRun = await openPlay(b, blackboardPub);
   const canvasKey = canvasRun.token.services.serviceKey, blackboardKey = blackboardRun.token.services.serviceKey;
   assert.ok(canvasKey && blackboardKey); rememberSecret(canvasKey); rememberSecret(blackboardKey);
