@@ -28,7 +28,12 @@ It implements and checks the repair, then holds it for a source commit before re
 Independent QA preparation `task_4cd51deb8aab`, dispatch `ctx_09f968c5722d`, prepares Q1/Q2 from the acceptance criteria.
 QA preparation is host-only, with no repository edits. It will hand off private tools for a later fresh runtime dispatch.
 Both requested and effective settings match Claude Code Opus 5.5 xhigh. Starting acknowledgments are `msg_ad6bd745c881` and `msg_e30fa3afad21`.
-Neither worker has a Docker window. No runtime gate is waived.
+Neither implementation nor QA preparation has a Docker window. No runtime gate is waived.
+The Author's host-only find probe completed after a tool-delivery delay (`msg_1a807458fa98`); implementation resumed.
+The Lead transferred RD only to independent diagnostic task `task_faed46791ab7`, dispatch `ctx_ea4b389b5b61`.
+Its requested and effective settings match Claude Code Opus 5.5 xhigh; acknowledgment is `msg_5e5f9f5a7b89`.
+It has a sole conditional window for 20 scratch parent-move trials, with fresh G1/W1–W3 and strict W4 required.
+No repository edits, Compose or product stack are allowed in that window. The implementation Author retains RA/RC for a later grant.
 
 ### Prior checkpoint — 2026-10-21, 08:18 UTC
 
