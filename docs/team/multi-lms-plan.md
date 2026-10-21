@@ -13,7 +13,33 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 09:20 UTC
+### Current checkpoint — 2026-10-21, 09:36 UTC
+
+Targeted QA on `89fb4b4` finished with Q1 PASS and Q2 FAIL. Report commit: `faa77a2`.
+All three reset and startup cycles passed. Of 22 detailed checks, 17 passed, one failed and four did not run.
+The import correctly refused missing content, with one content-check record and no bind error.
+However, both new volumes kept rollback journals. The approved empty-target and unchanged-state assertions failed.
+QA-RP-01 is a BLOCKER for the content-refusal acceptance rows, not a regression in the reset repair.
+ADR-012 allows rollback journals in one state definition, but its refusal contract requires unchanged targets.
+QA reproduced the conflict on the host and predicted failures in `e-old-schema` and `e-content-missing`.
+No assertion was waived. Runtime journal contents were inferred from the code and reproduction; their bytes were not read.
+
+The Lead checked the report hash and all 69 evidence-manifest entries.
+Strict W4 passed with no problems. Cleanup left zero lane resources and preserved all baseline resources.
+The Docker window returned at 09:22:07 UTC. The scan found no hits in its covered files.
+Its expected lack of captured values remains a coverage limit, not a broad secret-scan PASS.
+QA settled with outcome failed in `msg_7a19492ed30b`; dispatch `ctx_0ecac0d6ef69` was released.
+
+Architect task `task_d4c38a8b5bf7`, dispatch `ctx_cf7145c20d37`, now resolves the contract conflict.
+Requested and effective settings match Claude Code Opus 5.5 xhigh. It has no Docker window.
+The brief requires a small proposal that preserves strict content refusals and crash recovery, with independent validation.
+No product edit or runtime retry is authorized yet.
+Earlier reset text clarifications are committed in `51505bc`; that Architect settled and was released.
+The post-reset build-request coverage gap remains unmeasured for M4.
+Two full 488-row rounds, legacy suites, fresh M2/T7, conformance and guides remain pending.
+All 32 real-LMS rows stay UNVERIFIED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 09:20 UTC
 
 Both combined design and implementation reviews APPROVE candidate `89fb4b4`, with no BLOCKER or MAJOR.
 Reviewer-A report commit: `9168fed`. Reviewer-B report commit: `9f0d9ec`. Both sessions settled successfully and were released.
