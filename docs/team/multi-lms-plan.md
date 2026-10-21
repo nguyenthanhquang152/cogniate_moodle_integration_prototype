@@ -13,7 +13,7 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 17:12 UTC
+### Current checkpoint — 2026-10-21, 17:24 UTC
 
 Round 2 QA's private control map is frozen at SHA-256 `6e28a020c3c702f09894b82d335486bc3620bff74164263801d664152cd68f8a`.
 The Lead read the map and verified its bytes and private modes. Grant `msg_c671d53d5d30` permits source reads and a bounded repair in the 13 named test paths, plus an append-only Round 2 report.
@@ -28,7 +28,9 @@ The map's initial 0644 creation and the estimated future end times in the map an
 
 Reviewer-B `ctx_47285c0af009` remains active on fixed source `71a5bf9`. The execution host still reports the exact worker live; the pending probe has no completion or exit evidence.
 The Lead did not stop, replace or duplicate it. After about 50 minutes without a probe result, the Lead asked the owner whether to stop and restart B; the answer is pending. No interruption is authorized by elapsed time.
-The two reviews remain blind. Two workers are active, both Claude Code Opus 5.5 xhigh.
+Fresh Round 2 Reviewer-A task `task_67e836c13f1b` / `ctx_426e6f466ac4` started in the third worker slot. Requested and effective model are Claude Code Opus 5.5 xhigh; the start receipt observed its turn.
+A first reviews the frozen criteria and control maps while QA prepares the repair. It must wait for the held source commit and final evidence before a source verdict. It owns only an append-only Round 2 section in `storage-harness-reviewer-a.md`.
+The reviews remain blind. Three workers are active, all Claude Code Opus 5.5 xhigh. No extra worker is authorized before a slot is free.
 The working tree has only the preserved untracked `pnpm-workspace.yaml`; no Round 2 source edit is present yet.
 
 Product Q-R1A-01 remains closed. Harness repair, source review and all final runtime gates remain open.
