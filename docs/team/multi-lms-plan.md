@@ -13,7 +13,41 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 13:25 UTC
+### Current checkpoint — 2026-10-21, 13:37 UTC
+
+Revision 4 of the storage repair plan is frozen at `2d763fec502f6b7758b7ed56f51613183e5021ce`.
+Triage SHA-256: `ade4e8a0f9e54823040828758b7683d5c9b230587747f3ef3c89ef8e99f9a032`.
+Only the triage file changed. M1 P-1a and ADR-012 O-1 remain byte-identical at their recorded hashes.
+The Architect settled successfully and was released. The revision remains proposed, pending independent confirmation.
+
+R1-A independent host QA is committed unchanged at `be418479b1f8e5b2c267086e99b0a661b48c531f`.
+Report: `docs/reviews/M1/storage-command-qa.md`; SHA-256 `bdc727ed97a9e4b79f11b40c8275144751a3b1dd6265e7f1c1f1c02049b5dd4a`.
+Its verdict is FAIL. Of 973 frozen driver assertions, 972 pass; all 175 route assertions pass.
+The command-field repair passes its checks, and all eight mutants are detected.
+C6.exit1 fails on both the target and its parent: after `storage_lock_lost`, the wrapper keeps the child's exit code.
+ADR-012 release step 1 states exit 1. The unchanged `|| true` context suppresses that status.
+Q-R1A-01 is a proposed MINOR; INFO O-1 also records a silent A6 error release.
+Both need a bounded conformance disposition. No contract waiver, product fix or overall QA PASS is implied.
+The Lead chose to preserve the frozen FAIL verdict, not reclassify the assertion after the result.
+
+The Lead verified the report, frozen boundary and all 3,367 file entries plus one symlink in the evidence manifest.
+Evidence root: `/Users/quangnguyen/cogniate-qa-runs/r1a-storage-command-qa-20261021T1305Z`.
+Manifest SHA-256: `57039ac7e02a9880cf9d28ab2293cc189c57994415dfb3ff0bb2a84ae0692d4b`.
+The final stub log has 521 calls (492 simulated, 29 fail-closed); no real Docker call.
+The earlier comparison snapshot has 483 calls, before the route probes. Both records are preserved.
+QA disclosed two design-review lines seen after its criterion freeze and the deliberate umask-022 case modes.
+The assessment task settled successfully while retaining QA FAIL; its worker was released.
+
+Three fresh confirmation workers are active, all requested and effective Claude Code Opus 5.5 xhigh:
+- Reviewer-A: `task_0bf223a0ef67` / `ctx_5f33a90989cb`.
+- Reviewer-B: `task_e6e2cdd4bea9` / `ctx_33a4238fc02b`.
+- Testability QA: `task_f8174e4a191e` / `ctx_b079f49025d8`.
+
+No harness edit or Docker window is active. The tests tree remains `4c7e067feedc644f955afee37806f06e7273dd04`.
+The latest full result remains FAIL at `aaa823b` (438 PASS, 50 FAIL). All runtime gates, conformance and guides remain pending.
+All 32 live-LMS rows stay UNVERIFIED; local Canvas stays DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 13:25 UTC
 
 Independent design testability is FAIL for revision 3 at `ab285856`.
 The report is committed unchanged at `0468b198d2e1cdb92b6b4bb243cb7fc2e3ac40c8`.
