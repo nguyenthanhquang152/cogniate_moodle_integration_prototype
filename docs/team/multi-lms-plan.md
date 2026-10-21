@@ -13,7 +13,39 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 12:29 UTC
+### Current checkpoint — 2026-10-21, 12:45 UTC
+
+R1-A is committed at `01ce5bc2d2d26e4fb1226c5f4f19528fb9ed576b`.
+The lock helper keeps its own acquire command and passes it to release. The embedded JavaScript is unchanged.
+The commit contains only the helper, its unit tests and the helper's compatibility hash.
+The QA tests tree remains `4c7e067feedc644f955afee37806f06e7273dd04`.
+
+Author self-checks pass: 18 focused tests, 84 infrastructure tests and root lint/type checks plus 1,123 unit tests.
+Five existing course-fixture tests skip because the ZIP files are absent. The compatibility hash guard passes.
+All seven mutation variants fail as intended; the unchanged control passes. The Docker guard recorded zero calls.
+These are self-checks, not independent verification or runtime acceptance.
+
+The Lead checked the exact diff, three file hashes and all 36 Author evidence-manifest entries.
+Evidence root: `/Users/quangnguyen/cogniate-author-diagnostics/storage-command-repair-task_9568f8506827-20261021T1230Z`.
+Manifest SHA-256: `8c26129bfe248f992e929e1e827647651ae38535e3046d8fcc30da85d8d10b28`.
+Three evidence files had mode 0644 at creation under a 0700 parent. They are now 0600.
+The two log corrections retain the recorded inodes and hashes; the report discloses its editor-created mode.
+No compliance from creation is claimed. The Author settled successfully and was released.
+
+Three workers are active, all with requested and effective Claude Code Opus 5.5 xhigh:
+- Architect `ctx_6c7e0616e09b`: the three bounded design revisions.
+- Reviewer-A: task `task_b2f7b073d30f`, dispatch `ctx_4dd7233e0ddd`.
+- Reviewer-B: task `task_3a8def196567`, dispatch `ctx_88c9755b5411`.
+
+Both reviewers start with the frozen R1-A diff. They must wait for the Architect's final commit and hashes before reading its revisions.
+They will give separate source and design decisions. QA testability and harness implementation remain pending.
+The Architect's copy inventory includes compatibility diagnostics that capture exported environment values; the proposed privacy scope must include them.
+
+No Docker window is active. The failed `aaa823b` run remains the latest full runtime result.
+The migration-plus-storage diagnostic, both full rounds, legacy, fresh M2/T7, conformance and guides remain pending.
+All 32 real-LMS rows stay UNVERIFIED; local Canvas stays DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 12:29 UTC
 
 Both blind triage reviews request changes. Reviewer-A is committed at `a58b477`; Reviewer-B at `badde65`.
 Their held hashes were checked. Both workers settled successfully for review scope and were released.
