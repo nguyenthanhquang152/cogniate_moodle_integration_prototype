@@ -13,7 +13,32 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 04:30 UTC
+### Current checkpoint — 2026-10-21, 05:02 UTC
+
+The full attempt at `82e2dab` failed after the snapshot-upgrade seed stage.
+SIM passed 394 cases and snapshot isolation passed six. All 400 recorded rows use the same product and test SHA.
+The repaired h1 seed stage passed, but the phase stopped before it published that case row.
+The common host oracle rejected the existing backup manifest because migration names are grouped by database.
+Its collector expected a flat array. No product defect is shown.
+The remaining 88 row records are absent. Round 2, legacy, fresh M2 and T7 did not run.
+Canvas QA independently confirms its 233 cases and sink checks PASS across the two completed phases. These are partial results.
+
+The Lead checked the exit record, row summary, W4 end and comparison summaries, and public scan summary.
+The strict environment comparison passed. QA reports zero owned resources and seven unchanged protected volume records.
+The scan found no captured values in 33 raw logs or 841 public files. Raw traces remain private.
+Common QA settled `ctx_b36c97b882dd` with outcome failed; its owned session was released.
+Its reports are committed in `1c2a61a`.
+Canvas QA settled `ctx_33862fcfa6d1` with outcome failed; its reports are committed in `c1a90a6` and its session was released.
+No worker currently owns a Docker window.
+
+Task `task_c535a6bc68c8`, dispatch `ctx_f082183d3eb8`, owns the bounded backup-oracle repair.
+Requested and effective settings match Claude Code Opus 5.5 xhigh.
+Its scope is `tests/host/m1-migration.mjs`, its self-test and `docs/reviews/M1/backup-manifest-qa.md`.
+Both independent reviews and a new frozen candidate are required before the full runtime retry.
+Product code remains unchanged from `a784522`. Final conformance and guides remain queued.
+All 32 real-LMS rows remain UNVERIFIED. No push or main merge is authorized for this phase.
+
+### Prior checkpoint — 2026-10-21, 04:30 UTC
 
 The frozen product/test candidate is `82e2dab6d26915c90070a4aae8ac0c4472706c2d`; both focused source reviews approve it.
 Product code is unchanged from `a784522`. Both storage source reviews approve that product code.
