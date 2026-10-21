@@ -13,7 +13,27 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 09:52 UTC
+### Current checkpoint — 2026-10-21, 10:23 UTC
+
+Content-refusal repair candidate `aaa823b25306c5e560f7c4050238b374dec4d4e3` is committed for independent verification.
+Its scope is the restore script, its adjacent unit tests and one infrastructure README sentence.
+The Lead checked the held file hashes and all 256 Author evidence-manifest entries.
+Author checks pass: 105 focused tests, 1,123 root unit tests and 84 infrastructure tests. Five existing fixture tests remain skipped.
+All required mutation variants were caught. The report preserves the limits of removed optional scratch artifacts and system temporary-file coverage.
+The Author settled successfully in `msg_e1fcee1d8aff` and was released. These checks grant no runtime acceptance credit.
+
+Three independent workers are active, with requested and effective Claude Code Opus 5.5 xhigh settings:
+- QA: `task_b9f5ddc04fcd`, dispatch `ctx_f4ca2198db32`. The candidate host run is complete; its held report is pending.
+- Reviewer-A: `task_18fd0f622d94`, dispatch `ctx_14983551ffcd`. It reviews correctness, security and data integrity.
+- Reviewer-B: `task_e1077b5c48d9`, dispatch `ctx_6a05801a6e0e`. It reviews simplicity, operability and test quality.
+
+QA froze its criteria before reading implementation details. Its preparation controls pass 39/39; baseline failures match the frozen predictions.
+Preparation results give no candidate credit. Both reviewers assess design `2323361` and candidate `aaa823b` independently.
+The tests tree remains `4c7e067feedc644f955afee37806f06e7273dd04`. No Docker window is active.
+Candidate host QA, both reviews, strict Q1/Q2 and all full-run gates remain pending. Optional Q3/Q4 runtime probes are not granted.
+All 32 real-LMS rows stay UNVERIFIED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 09:52 UTC
 
 The QA-RP-01 design proposal is committed at `2323361f91846a1fa21018d36694639d33ab2648`.
 ADR-012 revision 3.5 preserves strict content refusals and moves the content check before engine target writes.
