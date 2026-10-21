@@ -13,12 +13,13 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 03:00 UTC
+### Current checkpoint — 2026-10-21, 03:11 UTC
 
 The new test candidate is `55c33a3e2d60670b5e759a79144c96bd213fca1f`.
 Product code is unchanged from `a784522`. Both storage source reviews approve that product code.
 The earlier clean-clone check passed 1,111 unit and 76 infrastructure tests, with no skips.
-The only test change repairs the oracle for `M1-17.canvas.repeat`. Independent reviews are active.
+The only test change repairs the oracle for `M1-17.canvas.repeat`. Both independent source reviews approve it.
+The reports are committed in `28b2fd4` and `bea9f0e`. They give no runtime acceptance credit.
 
 The completed attempt at `a784522` remains FAIL: SIM has 393 PASS and one FAIL from 394 rows.
 The remaining 94 round-1 rows, round 2 and legacy did not run.
@@ -29,9 +30,9 @@ Cleanup left no owned containers, volumes or networks. All seven protected volum
 The outer network comparison failed because its initial Docker view was cached. That raw failure remains recorded.
 
 No Docker window is open. Three Claude Code Opus 5.5 xhigh workers are active:
-- Canvas QA: `ctx_f3f20494787a`, external T7 wrapper repairs, host only.
-- Reviewer-A: `ctx_783345df22cc`, the one-case test repair.
-- Reviewer-B: `ctx_cb93cc372be0`, an independent review of the same repair.
+- Canvas QA: `ctx_f3f20494787a`, holds external T7 wrapper R3 for review, host only.
+- Reviewer-A: `ctx_be58e83a43d7`, assesses existing timestamp-based absence checks, read only.
+- Reviewer-B: `ctx_b55aea8ad9bd`, reviews external T7 wrapper R3, read only.
 
 Two complete 488-row rounds, legacy suites, fresh M2 and three T7 runs are still required at one accepted candidate.
 Final conformance and guides remain queued behind runtime acceptance.
@@ -54,6 +55,12 @@ It preserves the status, platform identity and no-remote-call assertions, and re
 QA reports 10 focused controls and two 70-check harness runs passing. These are not runtime acceptance.
 The Canvas inventory remains 233 rows; the full inventory remains 488 per round.
 Independent review tasks are `task_6f727569298d` and `task_2c91a45a4577`.
+Both settled with APPROVE. They independently reproduced the old failure and tested the real repaired case with log helpers.
+Reviewer-A's optional count/truncation NIT and Reviewer-B's diagnostic NIT do not block this repair.
+The R3.7 one-process logging-order limit is met by the product source; runtime file-sharing behavior is not yet measured.
+Reviewer-A also identified a separate possible false-PASS path in other timestamp-based absence checks.
+Task `task_622f866b9127` must identify exact affected claims and any existing independent checks before the runtime gate opens.
+It authorizes no edits and no broad audit. Missing-log evidence and host/container clock differences are in scope.
 
 Reviewer-A's external wrapper review settled `task_0a7286893be2` with CHANGES_REQUESTED.
 Messages `msg_e55c6aa0054c` and `msg_a0944540c23e` contain the findings.
@@ -73,6 +80,10 @@ The Lead checked all 13 entries. The older manifest is retained as history and d
 
 The Lead authorized these external-tool repairs in `msg_c2d16837f83e`. No runtime window was granted.
 QA must retain R2, hold R3 hashes and controls, and obtain independent re-review.
+QA held R3 in `msg_550f81690f27`. The Lead verified all 22 entries in its absolute manifest.
+Manifest SHA-256: `3f7b18016d0c51ba40e16d4ad17e19a16cb6c53aa5a575c4146f9da7a93fba24`.
+QA reports lane controls 30/30, stream controls 7/7 and T7 tool controls 5/5. These are synthetic checks only.
+Reviewer-B owns independent R3 re-review task `task_b6b7426391a6`; Reviewer-A handles the separate absence-check assessment.
 Existing sticky ownership failures and event-watcher failures remain mandatory.
 The runner must use a fresh detached exact-SHA checkout with `--checkout`, three runs, demo, confirmation and `--keep`.
 Record clean HEAD, no `.env` and no `node_modules` before READY. Bind the final summary to the same checkout, SHA and project.
