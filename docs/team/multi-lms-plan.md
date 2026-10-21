@@ -13,7 +13,34 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 07:23 UTC
+### Current checkpoint — 2026-10-21, 07:54 UTC
+
+The full `9cdd768` attempt failed in round 1 storage at 07:40:46 UTC. All 488 row records are present: 419 PASS and 69 FAIL.
+SIM passed 394 cases, snapshot isolation six, snapshot upgrade six, and migration twelve. Storage passed one and failed 69.
+The repaired h4 replay case passed. All 33 upgrade-stage requests had one acknowledgment each, with no rewritten acknowledgments.
+Canvas independently reports 233/233 PASS and sink checks PASS for round 1. This cannot approve the failed full round.
+Round 2, legacy, fresh M2 and T7 did not run. Prior failed attempts remain unchanged.
+
+Both QA workers independently found two harness defects: the probe self-test folder was not created, and the preflight oracle selected the wrong summary.
+The oracle selected the post-start `mark-started` record. The actual check-mode pass preceded service-container creation.
+A separate import check received a Docker bind-source error for a newly recreated content folder, instead of `content_missing`.
+Its cause remains unproven. Product source remains frozen; no runtime rerun is authorized yet.
+Backend Author task `task_dc3b05bb34ef`, dispatch `ctx_798816f87982`, investigates that mount error read-only.
+Requested and effective settings match Claude Code Opus 5.5 xhigh. It has no Docker window and may not edit repository files.
+
+W4 live end and strict W3 comparison both passed. The Lead checked their summaries and the runner exit record.
+QA confirms zero owned resources, unchanged protected and anonymous volumes, and unchanged baseline networks.
+The secret scan found zero hits in 45 raw logs and 1,096 public files. Raw browser traces remain private.
+Common returned the Docker window in `msg_7db50c6c9ae1`; no runtime window is active.
+Both QA workers settled with outcome failed, and their sessions were released.
+Canvas reports are committed in `ef550a2`; Common reports are committed in `cee6258`.
+Fresh QA task `task_d0bbcedfb6d3`, dispatch `ctx_499b214ba557`, owns the two confirmed harness repairs.
+Its requested and effective settings match Claude Code Opus 5.5 xhigh; its starting acknowledgment is `msg_1b4b3acb009e`.
+Its scope is the storage rows and oracle files, their self-tests, and a new QA repair report.
+It has no Docker window. Meaningful host-only regression checks, two independent reviews, and a new frozen candidate are required.
+Final conformance and guides remain queued. All 32 real-LMS rows remain UNVERIFIED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 07:23 UTC
 
 Source candidate `9cdd768` is approved by both independent reviewers. Fresh host-only preparation also passed.
 Common QA has resumed with a conditional runtime grant. Canvas QA has resumed as the independent host-only judge.
