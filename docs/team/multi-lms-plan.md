@@ -13,12 +13,12 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 03:57 UTC
+### Current checkpoint — 2026-10-21, 04:15 UTC
 
-The new test candidate is `55c33a3e2d60670b5e759a79144c96bd213fca1f`.
+The new test candidate is `82e2dab6d26915c90070a4aae8ac0c4472706c2d`; two focused reviews are in progress.
 Product code is unchanged from `a784522`. Both storage source reviews approve that product code.
 The earlier clean-clone check passed 1,111 unit and 76 infrastructure tests, with no skips.
-The only test change repairs the oracle for `M1-17.canvas.repeat`. Both independent source reviews approve it.
+Candidate `55c33a3` repaired the oracle for `M1-17.canvas.repeat`. Both independent source reviews approve that earlier repair.
 The reports are committed in `28b2fd4` and `bea9f0e`. They give no runtime acceptance credit.
 
 The completed attempt at `a784522` remains FAIL: SIM has 393 PASS and one FAIL from 394 rows.
@@ -30,17 +30,21 @@ Cleanup left no owned containers, volumes or networks. All seven protected volum
 The outer network comparison failed because its initial Docker view was cached. That raw failure remains recorded.
 
 The attempt at `55c33a3` stopped with exit 1 at 03:51 UTC. No Docker window is active.
-Two Claude Code Opus 5.5 xhigh workers are finishing their reports:
-- Common QA: `ctx_4446d0034a39`, records the failure, cleanup and private-artifact permission correction.
-- Canvas QA: `ctx_f3f20494787a`, completes its independent partial evidence. M2 and T7 wait for the next candidate.
+Both runtime workers settled with outcome failed; their reports are committed in `a928064` and `fda7ec6`.
+Their owned sessions were released. M2 and T7 wait for the accepted candidate.
+The focused QA repair settled successfully under `task_e3b78fb1a605` / `ctx_56fe09e67789`; its session was released.
+Reviewer-A (`ctx_95f5cc04ec0f`) and Reviewer-B (`ctx_b79580197a2f`) are active, both Claude Code Opus 5.5 xhigh.
 
 The full runner started at 03:25:14 UTC after W1–W3 passed. Round 1 SIM passed all 394 cases; snapshot isolation passed all six.
 The Lead checked the 394 PASS rows and their single product/test SHA. `M1-17.canvas.repeat` now passes in the runtime run.
-Canvas QA independently confirms all 232 SIM Canvas rows and the sink evidence PASS. Its final isolated-row judgement is pending.
+Canvas QA independently confirms all 233 Canvas rows and the sink evidence PASS, including the isolated row.
 Snapshot upgrade failed on `M1-38.common.h1` during the pinned 011 seed stage.
 The test compares service keys from Canvas launches with different resource links; the contract makes that identity part of the key.
-Common QA proposes the same explicit resource link for both launches. No product defect is shown.
-Repair task `task_e3b78fb1a605` owns only the common probe and its new QA report. Both independent reviews must follow.
+Commit `82e2dab` sets the same explicit resource link for both launches. No product defect is shown.
+It changes two lines in the common probe and adds `docs/reviews/M1/snapshot-key-qa.md`.
+QA's host controls reproduce the old failure, pass the repaired h1–h5 path, and reject same-tuple key changes.
+The harness passes 70 checks and typechecking. The 488-row inventory and 233 Canvas rows are unchanged.
+Both reviewers reproduced the diagnosis independently. Their final verdicts on the committed repair are pending.
 The remaining 87 round-1 rows, all 488 round-2 rows and legacy did not run. This attempt remains FAIL.
 The fresh source clone is `~/cogniate-qa-runs/m3-frozen-55c33a3-20261021T0315Z/source`.
 Outer evidence is `~/cogniate-qa-runs/m1-full-55c33a3-20261021T0324Z`.
@@ -56,7 +60,8 @@ Failure report: `msg_294eb3092b5d`. The Lead checked 394 PASS, six PASS and one 
 The Lead also checked the W4 end and strict comparison summaries: both pass with no problems.
 QA reports zero remaining containers or lane resources, unchanged built-in networks, and all seven protected volume records unchanged.
 The public byte scan reports no captured-value hits in 826 public files or 32 raw logs.
-Raw browser traces remain private. Canvas QA found clone permissions wider than reported; Common QA must record the narrow correction.
+Raw browser traces remain private. Common QA corrected the clone permissions and the earlier inaccurate claim in `a928064`.
+The Lead verified all three clone roots and artifact directories are 0700, and all 526 raw or captured-secret files are 0600.
 
 Two complete 488-row rounds, legacy suites, fresh M2 and three T7 runs are still required at one accepted candidate.
 Final conformance and guides remain queued behind runtime acceptance.
