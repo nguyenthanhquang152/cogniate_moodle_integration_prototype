@@ -1013,3 +1013,166 @@ Canvas QA diagnoses `M1-17.canvas.repeat`. Any repair needs the Lead's dispositi
 - **Duration unit.** The failed-row table above says "duration 365 s" for `M1-17.canvas.repeat`. That is wrong. Vitest reports `duration` in milliseconds. The value in `evidence/sim/m1-vitest-results.json` is `364.96579199999996`, so the duration is about **365 ms**. The Lead checked the same file independently. The text above stays as history.
 - **Canvas diagnosis (not performed by this QA).** Canvas QA owns the diagnosis of this row (`msg_6245a961f22b`, as relayed by the Lead). It reports that the test oracle used an inclusive timestamp and counted the original redemption in the same millisecond. It reports no second redemption and no remote call. The Lead authorized only a one-case QA repair (`msg_415316b9ae64`). No product repair is authorized, and the repair gives no runtime rerun credit.
 - **Unchanged.** The attempt stays **FAIL**. The row stays FAIL in this run. The 94 not-run round-1 rows, round 2 and all legacy groups still need a new window.
+
+## Retry at `55c33a3`: FAIL in round 1, phase `snapshot-upgrade`, 2026-10-21
+
+Verdict for this attempt: **FAIL**. The run stopped in round 1, phase `snapshot-upgrade`, because the common row `M1-38.common.h1` failed. Before that row, `sim` (394 rows) and `snapshot-isolated` (6 rows) passed completely. Round 1 is **incomplete**: 87 of its 488 rows did not run. Round 2 and legacy did not start. No M1 criterion gets full-run credit. The verdict line at the top of this file and all sections above stay as history.
+
+Owner: a new, independent common/Blackboard QA session. Requested and effective settings: Claude Code Opus 5.5 (`claude-opus-5-5`) at xhigh effort. Task `task_ed3b08aa45ea`, dispatch `ctx_4446d0034a39` (a retry of `ctx_75f7ef7a9240`). Authority: Lead `msg_405608b347b5` (candidate, sole Docker window, mandatory live boundary). That message supersedes the model, SHA, count and window text of the original task. This session did not write the product, the tests of this candidate, or any review, and it did not read Author code or notes. The evidence of earlier sessions is not claimed here.
+
+### Identity and command
+
+| Item | Value |
+| --- | --- |
+| Product SHA = test SHA | `55c33a3e2d60670b5e759a79144c96bd213fca1f` (tests tree `778bdb2c`); product code equals `a784522` |
+| Source reviews | Storage: Reviewer-A `a9fe7ed`, Reviewer-B `9bf6100`. One-case Canvas repair: Reviewer-A `28b2fd4`, Reviewer-B `bea9f0e` |
+| Window | Lead `msg_405608b347b5`: sole fleet-wide Docker window. Returned at 03:51Z in `msg_294eb3092b5d`. |
+| Lane | `qa-multi-r1` (storage lane `qa-multi-r1-st` not reached), port 8443, subnet `172.29.0.0/16` |
+| Source | `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-55c33a3-20261021T0315Z/source`: fresh `git clone --no-hardlinks`, detached at the exact SHA, 0 status lines, no `.env`, push URL disabled. `npm --prefix tests ci` exit 0. Provenance: `provenance.json` beside the source. |
+| Clone check (no Docker) | `node tests/host/run-m1.mjs --harness-only --provider all`: 70 of 70 self-checks, typecheck PASS, 488 rows per round (`sim` 394, `snapshot-isolated` 6, `snapshot-upgrade` 6, `migration` 12, `storage` 70). Harness only; no product credit. `run-m1.mjs` SHA-256 `bb8d0c2e…` equals the `a784522` runner. |
+| Run root | `/Users/quangnguyen/cogniate-qa-runs/m1-full-55c33a3-20261021T0324Z` (`public/`; `private/` and `tmp/` mode 0700) |
+| Phase runs | `sim` `qa-multi-r1-55c33a3e-2026-10-21T03-25-15-066Z`; `snapshot-isolated` `…-03-48-17-759Z`; `snapshot-upgrade` `…-03-49-53-008Z` |
+| Time | Runner start 03:25:14Z; `sim` identity 03:48:11.711Z; h1 started 03:50:34.459Z, 2,930 ms; parent exit 1 at 03:51:00Z |
+| Tools | Node 24.21.0; Docker CLI and engine 29.9.1; Compose 5.6.0 |
+
+```sh
+cd /Users/quangnguyen/cogniate-qa-runs/m3-frozen-55c33a3-20261021T0315Z/source
+COMPOSE_PROJECT_NAME=qa-multi-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 \
+STACK_PROFILE=default \
+COURSE_FIXTURES_DIR=/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses \
+TMPDIR=/Users/quangnguyen/cogniate-qa-runs/m1-full-55c33a3-20261021T0324Z/tmp \
+node tests/host/run-m1.mjs --sha 55c33a3e2d60670b5e759a79144c96bd213fca1f \
+  --test-sha 55c33a3e2d60670b5e759a79144c96bd213fca1f \
+  --source /Users/quangnguyen/cogniate-qa-runs/m3-frozen-55c33a3-20261021T0315Z/source
+```
+
+The runner has no `--runs` option (help checked). The default `full` phase runs five phases twice and then legacy. A new external launcher ran the live boundary, then this command, then the end boundary. It did not change the frozen suite.
+
+### Live boundary before the run (W1–W3, all PASS)
+
+New external tools: `/Users/quangnguyen/cogniate-qa-runs/claude-common-qa-tools-55c33a3` (new ledger; hashes in `public/tool-hashes.txt`). The tools do not edit runner bytes.
+
+| Step | Result | Evidence |
+| --- | --- | --- |
+| Pre-wake (not boundary evidence) | The cached view had Docker `SystemTime` 02:49:16.608Z, about 36 minutes behind the host, and the bridge `0a08578afbf9` of the last run. | `public/w1-wake.json` (`preWake`) |
+| W1 wake | One container on cached image `sha256:44fce696…`, `--pull never --rm --network none`, label `org.cogniate.qa=wake` only, unique `qa-wake-*` name outside the lane prefix. Exit 0 in 1,230 ms. Zero wake containers remain. | `w1-wake.json` SHA-256 `fb72eee1…` |
+| W2 liveness | `docker info` answered. Two advancing reads; worst-case skew within 5 s. | `w2-liveness.json` `06ce97ee…` |
+| W3 formal start | `runStartSecond` 1792553112 (live `SystemTime` 03:25:12.190Z). Identities match the bound values: macOS 27.0.1 arm64, CLI 29.9.1 `678271…`, Compose 5.6.0 `1ec064…`, image present. Engine 29.9.1, `MemTotal` 8,319,238,144, `NCPU` 12, engine ID `2c7a7bff…`; settings normalized SHA-256 `8d959def…`. Networks: bridge `bd7a597c5ae1` (new after the wake), host `b9266a37c45a`, none `d2863b51ad44`. 0 containers. 7 volumes; all 7 protected FULL records equal the original baseline (file `219da30b…`). Both lanes fresh by exact names and labels; port 8443 free; no subnet clash. | `w3-formal-start.json` `546e6e31…` |
+| Gate message | Sent to the Lead before the runner started. | `msg_ecc8aad1e9a9`, `msg_13b3297a351c` |
+
+Focused synthetic controls (Docker stub, no Docker): 30 of 30 PASS. A stale, frozen, failed or 6-second-skewed clock, a missing image, a remaining or failed wake container, an exact lane name, a lane label, a wrong identity hash, a protected record that differs from the original, and a missing protected volume all **block** the start. A stale end clock, a replaced bridge, a changed protected FULL record, changed memory, changed settings, a lane leftover, a new unrelated volume, a changed unrelated container, a sampler with two bridge Ids or skew, and a non-formal start record all **reject** the end. The positive cases pass. These are harness checks only.
+
+### Result of round 1
+
+| Phase | Rows | Result | Run id |
+| --- | ---: | --- | --- |
+| `sim` | 394 of 394 | 394 PASS (common 26, Blackboard 136, Canvas 232) | `…-03-25-15-066Z` |
+| `snapshot-isolated` | 6 of 6 | 6 PASS (Blackboard `M1-37` w, y2; `M1-29` k1–k3; Canvas `M1-37` aa) | `…-03-48-17-759Z` |
+| `snapshot-upgrade` | 1 of 6 | `M1-38.common.h1` FAIL | `…-03-49-53-008Z` |
+| `migration` | 0 of 12 | not run | – |
+| `storage` | 0 of 70 | not run | – |
+
+All 401 recorded rows have one SHA pair and the label `SIM`. There are no duplicate, unmanifested or wrong-label rows. The runner's `sim` aggregate was 400 PASS; `snapshot-isolated` 12 PASS. Canvas rows keep Canvas QA's separate verdict; this QA does not judge them.
+
+| Row | Label | Result | Classification | Evidence |
+| --- | --- | --- | --- | --- |
+| M1-38.common.h1 | SIM | FAIL | QA oracle defect in a common QA file (no product defect shown) | `tests/acceptance/M1/common/snapshot-migration.probe.ts:32` in `preserve()`: `assert.equal(canvas.token.services.serviceKey, state.canvasKey)` got two different 43-character keys (redacted). Seed stage on the pinned 011 build `9f96f7b`. |
+
+Diagnosis:
+
+- `canvasPlay` (`tests/acceptance/M1/canvas/canvas.ts:106`) launches with `resourceLinkId: unique('rl')` on every call. `openPlay` (`common/course.ts:43`) uses `resourceLinkId: pub.id`.
+- The LTI contract (`lti-service-api.md:218` and §9.14) makes `services.serviceKey` stable per (platform, deployment, context, resource link). Two Canvas launches with two resource links must give two keys. The product followed the contract.
+- The redacted service log agrees. The second Canvas launch made a new app attempt (`att_c_9O0…`, first was `att_snWv…`). The second Blackboard launch reused `att_crMi5…`. No `deployment_updated` or generation event touched the Canvas platform `plt_5rZC…` between the two launches.
+- The Blackboard key check (line 33) and the `preserve()` calls of h2–h5 did not run. The defect is deterministic.
+
+Proposed smallest repair (held for Lead authority; no repository edit was made): in `snapshot-migration.probe.ts`, pass a stable resource link to the two Canvas launches that the key comparison uses: line 53 `canvasPlay(a, canvasPub, { resourceLinkId: canvasPub.id })` and line 31 `canvasPlay(state.a, state.canvasPub, { resourceLinkId: state.canvasPub.id })`. This mirrors `openPlay`. Every assertion, id, title and inventory stays the same, and the check then tests the contracted tuple. It needs a new frozen SHA, independent review and a new window.
+
+**Not run (87 of 488 round-1 rows):** `snapshot-upgrade` 5 (`M1-38.common` h2–h5 and `M1-41.common.j-snapshot`), `migration` 12 (AC-M1-23 4, AC-M1-30 7, `M1-41.common.j-migration`) and `storage` 70 (AC-M1-41). Round 2 (488 rows) and all legacy groups did not start.
+
+Common and Blackboard rows of round 1, by criterion (each needs a second complete round):
+
+| AC | Common | Blackboard |
+| --- | --- | --- |
+| M1-01 | 1 PASS | 1 PASS |
+| M1-02 | 1 PASS | – |
+| M1-03 | 10 PASS | – |
+| M1-04 | – | 1 PASS |
+| M1-05 | – | 15 PASS |
+| M1-06 | – | 2 PASS |
+| M1-07 | 1 PASS | 4 PASS |
+| M1-10 | – | 1 PASS |
+| M1-11 | – | 9 PASS |
+| M1-12 | 1 PASS | 4 PASS |
+| M1-13 | – | 4 PASS |
+| M1-14 | 1 PASS | 2 PASS |
+| M1-15 | 1 PASS | 2 PASS |
+| M1-18 | – | 2 PASS |
+| M1-19 | 1 PASS | 1 PASS |
+| M1-21 | 1 PASS | 1 PASS |
+| M1-22 | – | 2 PASS |
+| M1-23 | 4 not run (`migration`) | – |
+| M1-24 | 2 PASS | – |
+| M1-25 | 1 PASS | 1 PASS |
+| M1-27 | – | 1 PASS |
+| M1-28 | – | 2 PASS |
+| M1-29 | – | 21 PASS, including k1–k3 |
+| M1-30 | 7 not run (`migration`) | – |
+| M1-31 | – | 2 PASS |
+| M1-33 | – | 4 PASS |
+| M1-34 | – | 14 PASS |
+| M1-35 | 3 PASS (profile off/on routes) | – |
+| M1-36 | – | 5 PASS |
+| M1-37 | – | 32 PASS, including v2, v5, v7, v9, v11, v12, w, x1, x2, y1, y2, z1–z5 |
+| M1-38 | i5 PASS; h1 FAIL; h2–h5 not run | 8 PASS, including i3 and i4 |
+| M1-39 | 1 PASS | – |
+| M1-41 | 72 not run | – |
+
+Per-row records (id, AC, owner, phase, status, label, both SHAs, run id, command, start time, artifact path): `public/round-1-rows.json` (SHA-256 `60a53234…`) and `public/round-1-summary.json` (`2b8cf323…`).
+
+### Health, images and timings
+
+- Health after each phase: app and LTI service `profile: default`, `knobs: []`; LTI `simulation_profiles: []`.
+- Images (sampler): `node:24-alpine` `sha256:44fce696…` (app, LTI service, simulation helpers), `erseco/alpine-moodle:v5.2.4` `sha256:3a310197…`, `postgres:16-alpine` `sha256:721873c3…`, `caddy:2-alpine` `sha256:d8542f48…`, local `qa-multi-r1-e2e:1.56.0` (one image remains, created 2026-10-16; not rebuilt; no dangling image). The sampler saw at most one Compose project and no other project.
+- Host control: `sim` 32 `m1-restart` 5,925–8,580 ms (median 6,446 ms) and 6 `m1-profile` 5,942–6,468 ms, all exit 0; `snapshot-isolated` 1 restart 6,084 ms and 2 profile actions about 6,037 ms. No common or Blackboard lease or deadline row failed.
+- Sink capture (AC-M1-12, for the Canvas judge): `service-logs/sink.jsonl` was complete in each phase: `service_started` and `service_stopping` present, trailing newline, zero `sink_hit`. `sim`: 03:26:03.386Z–03:48:01.274Z, SHA-256 `b05a2e01…`.
+
+### Privacy (AC-M3-07 method)
+
+- The private capability union holds 1,335 captured values and 36 stack values (`private/watch`, 0700).
+- 0 hits in 32 raw service, simulator and gate logs. 0 hits and 0 JWT-shaped strings in 826 public files, which include the phase artifacts, observer logs and the 3 binary public files (byte scan). `public/secret-scan.json` SHA-256 `c62c63ba…`.
+- Private browser artifacts (153 files: 110 decompressed trace entries and 15 screenshots) stay in the 0700 phase clones. They contain captured values, as expected for raw traces; they are not shared evidence. Canvas QA owns their redaction.
+
+### Isolation and cleanup (AC-M3-06)
+
+- The runner teardown removed only resources from its ownership record in all three phases. `M3-ISOLATION` and `TEARDOWN` PASS.
+- W4 live end boundary at 03:51:05.601Z (`w4-end.json` `9c5483db…`) and the strict W3-to-end comparison (`w4-compare.json` `05e2ed79…`) PASS, with zero problems. Bridge `bd7a597c5ae1`, host and none have the same Ids. All 7 protected FULL records equal W3 and the original baseline. Memory, CPUs, engine identity and settings are unchanged. 0 containers and 0 lane resources remain.
+- Sampler (103 samples): one bridge Id, zero clock-skew violations, zero failed reads (`sampler/lane-containers.json` `3e3c0127…`).
+- No owned process remains. The private phase clones are kept at mode 0700 for review.
+
+### Evidence
+
+- Phase artifacts (redacted): `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-55c33a3-20261021T0315Z/source/tests/host/artifacts/<run id>/`. For h1: `m1-case-results.json` (`f8937f73…`), `summary.json` (`a6bcdc62…`), `evidence/snapshot-seed/m1-vitest-results.json` (`c20d8a25…`), `m1-identity.json` (`7f20ac0a…`), `lane-ownership.json` (`a1cf37df…`), `service-logs/`.
+- Run root `public/`: `w1-wake.json`, `w2-liveness.json`, `w3-formal-start.json`, `w4-end.json`, `w4-compare.json`, `sampler/`, `secret-scan.json`, `round-1-rows.json`, `round-1-summary.json`, `command.txt`, `launcher.log`, `full-run-exit.json`.
+- The Lead and Canvas QA received the round-1 `sim` artifact identity (`msg_1681eae62d2a`, `msg_4c6ec97cc9bb`) and the failure report (`msg_294eb3092b5d`).
+
+### Next
+
+The Lead decides on the one-file common repair above. A repair needs a new frozen candidate, independent source review and a new window. Then both complete 488-row rounds and all legacy groups must run again from a fresh clone. This attempt and its not-run rows stay in the record. All 32 live rows stay `UNVERIFIED`.
+
+### Correction: private clone permissions (Lead `msg_f305b4f51323`), 2026-10-21
+
+- **The earlier claim was wrong.** My round-1 `sim` milestone message (`msg_1681eae62d2a`) called the `sim` phase clone `(0700)`. I did not check that, and it was not true then. Canvas QA found the discrepancy (`msg_e0a0d3370c7d`).
+- **Before (observed):**
+  - The three phase clone roots of this run were `drwxr-xr-x` (0755); I saw this at about 03:52Z.
+  - In each clone, `tests/acceptance/artifacts`, its `playwright` and `playwright-report` folders, `tests/e2e/artifacts`, `tests/test-results` and `tests/playwright-report` were 0755.
+  - `captured-secrets.jsonl` was 0644 (one per clone).
+  - All `*.raw.json`/`*.raw.jsonl` files (479, 35 and 9) were already 0600, and `infra/.logs` was already 0700.
+  - The `-storage-private` folder was already 0700.
+  - The Lead reports that the home folder (0750 with an ACL) blocks traversal by other users, so no disclosure is demonstrated.
+- **Change (modes only):**
+  - At about 03:52Z, the three clone roots were set to 0700.
+  - Under `msg_f305b4f51323`, every directory in the four artifact trees was set to 0700: 17, 7 and 7 directories were not 0700 before.
+  - Each `captured-secrets.jsonl` was set to 0600.
+  - No content, tracked git byte, unrelated path, shared QA root or other clone changed. In each clone, `git rev-parse HEAD` and the `git status` digest are the same before and after.
+- **After (verified):** in all three clones, the root is 0700, zero artifact directories are not 0700, and zero raw or captured-secret files are not 0600 (480, 36 and 10 files are 0600). The owner is the QA user. Files: `public/permission-before.txt` (SHA-256 `5308bea3…`) and `public/permission-after.txt` (`3c3adf3a…`), with paths and modes only.
+- The statements above in this section ("kept at mode 0700", "stay in the 0700 phase clones") are true only after this correction.
