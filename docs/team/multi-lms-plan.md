@@ -13,7 +13,7 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 03:27 UTC
+### Current checkpoint — 2026-10-21, 03:49 UTC
 
 The new test candidate is `55c33a3e2d60670b5e759a79144c96bd213fca1f`.
 Product code is unchanged from `a784522`. Both storage source reviews approve that product code.
@@ -33,11 +33,19 @@ Common QA has the sole Docker window. Two Claude Code Opus 5.5 xhigh workers are
 - Common QA: `ctx_4446d0034a39`, runs fresh full M1 and legacy at `55c33a3`, port 8443 and subnet 172.29.
 - Canvas QA: `ctx_f3f20494787a`, has approved sink-evidence and wrapper tools, host only until the window transfers.
 
-The full runner started at 03:25:14 UTC after W1–W3 passed. It is in round 1 SIM; no complete round result is available yet.
+The full runner started at 03:25:14 UTC after W1–W3 passed. Round 1 SIM passed all 394 cases; snapshot isolation is next.
+The Lead checked the 394 PASS rows and their single product/test SHA. `M1-17.canvas.repeat` now passes in the runtime run.
+Canvas QA independently confirms all 232 SIM Canvas rows and the sink evidence PASS. The remaining Canvas row needs snapshot isolation.
+This is phase evidence only. The complete 488-row round and second matching round remain pending.
 The fresh source clone is `~/cogniate-qa-runs/m3-frozen-55c33a3-20261021T0315Z/source`.
 Outer evidence is `~/cogniate-qa-runs/m1-full-55c33a3-20261021T0324Z`.
 The Lead checked all three gate summaries and the exact W3 evidence hash reported in `msg_ecc8aad1e9a9`.
 The formal boundary follows Docker wake and uses live SystemTime 03:25:12.190 UTC. All seven protected records match the original baseline.
+
+Round 1 SIM evidence is `qa-multi-r1-55c33a3e-2026-10-21T03-25-15-066Z` under the source clone's `tests/host/artifacts/`.
+Common report: `msg_1681eae62d2a`; independent Canvas report: `msg_b0028890055b`.
+Case-results SHA-256: `744936ffffb9a66395a7fbd05ef9591d4f642a6b09411a2a32aea23791a0a00c`.
+Final phase health is default for both services, with no knobs or simulation profiles. The phase isolation and teardown checks pass.
 
 Two complete 488-row rounds, legacy suites, fresh M2 and three T7 runs are still required at one accepted candidate.
 Final conformance and guides remain queued behind runtime acceptance.
