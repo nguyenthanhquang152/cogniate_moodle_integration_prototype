@@ -1,6 +1,6 @@
-Verdict: FAIL / HOLD for round 1 SIM at storage candidate `a784522` — 232 SIM Canvas rows: 231 PASS, 1 FAIL (`M1-17.canvas.repeat`, a QA oracle defect; no product defect shown); round incomplete; one-case repair held, not run (see §14)
-Round: 8 (task `task_e28388df4dcc`, dispatch `ctx_f3f20494787a`; see §14). Round 7 header: "FAIL / HOLD for round 1 SIM at `aff4882` — 232 selected Canvas rows: 229 PASS, 3 FAIL (all QA oracle or request defects; no product defect); bounded repairs held, not run" (dispatch `ctx_4a94125660be`, §13)
-Owner: round 8 by a new Claude Canvas QA-E2E session (`claude-opus-5-5`, xhigh; Orca session `228bb341-1217-4df5-bc56-664d1f41faa3`), which did not run the earlier rounds; earlier rounds by the original Claude Canvas QA and, for rounds 5–6, the independent Codex Canvas QA quota replacement remain below
+Verdict: HOLD at candidate `55c33a3` — round 1 Canvas rows 233/233 PASS (232 SIM + `M1-37.canvas.aa` snapshot-isolated; sink gate PASS); round 1 incomplete (stopped in snapshot-upgrade on a common-row oracle issue), round 2 not run; no AC-M3-01 credit (see §15)
+Round: 9 (task `task_e28388df4dcc`, dispatch `ctx_f3f20494787a`; see §15). Round 8 header: "FAIL / HOLD for round 1 SIM at storage candidate `a784522` — 232 SIM Canvas rows: 231 PASS, 1 FAIL (`M1-17.canvas.repeat`, a QA oracle defect; no product defect shown); round incomplete; one-case repair held, not run (see §14)" (§14). Round 7 header: "FAIL / HOLD for round 1 SIM at `aff4882` — 232 selected Canvas rows: 229 PASS, 3 FAIL (all QA oracle or request defects; no product defect); bounded repairs held, not run" (dispatch `ctx_4a94125660be`, §13)
+Owner: rounds 8–9 by a new Claude Canvas QA-E2E session (`claude-opus-5-5`, xhigh; Orca session `228bb341-1217-4df5-bc56-664d1f41faa3`), which did not run the earlier rounds; earlier rounds by the original Claude Canvas QA and, for rounds 5–6, the independent Codex Canvas QA quota replacement remain below
 Behavior baseline: `56591df0e71939d5d62c9042c630c841d01f84e8` (ADR-011 revision 6). Plan: [M1 QA plan](qa-plan.md) at `6733e57`.
 
 ## 1. Independence and inputs
@@ -373,3 +373,40 @@ Evidence (harness and synthetic only):
   - All 10 controls behave as stated. Output: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-a784522-wgLHNZc0/repair-m1-17/m1-17-controls-output.json`.
 
 No product edit, stack, Docker diagnostic or partial product run. The repair needs a Lead commit, a new reviewed freeze and fresh runs of both complete M1 rounds, legacy, M2 and T7 at that SHA. `a784522` stays a recorded failed attempt.
+
+## 15. Round 9 — candidate `55c33a3`: round 1 Canvas rows complete, round incomplete (2026-10-21)
+
+**HOLD. No M1 acceptance credit.** Candidate product = test `55c33a3e2d60670b5e759a79144c96bd213fca1f`. It is `a784522` plus the §14.3 repair; services, apps, packages and infra trees are unchanged. Common QA ran the full documented M1 entry (`run-m1.mjs`, phase `full`).
+
+Round 1 results:
+- **SIM** passed 394/394 (run `qa-multi-r1-55c33a3e-2026-10-21T03-25-15-066Z`).
+- **snapshot-isolated** passed 6/6 (run `qa-multi-r1-55c33a3e-2026-10-21T03-48-17-759Z`).
+- **snapshot-upgrade** stopped at `M1-38.common.h1` (seed on `011`), run `qa-multi-r1-55c33a3e-2026-10-21T03-49-53-008Z`. Common QA reports a common-oracle issue: each `canvasPlay` makes a new `resourceLinkId`, but the oracle expects a stable `serviceKey`. No product defect is shown. Common QA owns that case.
+- The migration and storage phases of round 1, all of round 2 and legacy did not run.
+
+Artifact root (public): `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-55c33a3-20261021T0315Z/source/tests/host/artifacts/`. This worker had no stack. It read only completed public artifacts and the completed SIM phase clone.
+
+### 15.1 Independent Canvas judgement (round 1, two Canvas phases)
+
+The judge is the approved `canvas-judge-round-v2.mjs` (manifest `1af4609e…`). It first runs the unchanged v1 judge, then the sink-capture gate.
+
+| Gate | Result |
+| --- | --- |
+| Canvas rows (v1) | **233/233 PASS**: SIM 232 (225 API + 7 browser), including `M1-17.canvas.repeat`; snapshot-isolated 1 (`M1-37.canvas.aa`). Runner and raw reports agree. Each row has one result and no retry. Product = test = `55c33a3`, label `SIM`, provider `all`. App and LTI health `default` after each phase. |
+| Scan records | SIM: 0 hits (Common reports 1,300 captured values plus 12 stack values over 680 public files). snapshot-isolated: 10 values, 65 files, 0 hits. |
+| Sink gate (AC-M1-12, four cases) | **PASS.** `sink.jsonl` SHA-256 `b05a2e010b3055fcba7b61db28b81e0d93013f796f245ef4d22d106bc983b9ca`: 2 complete lines with a trailing newline. Lifetime `boot-f6d6338e22f2`: 03:26:03.386Z to 03:48:01.274Z, inside the run. `ags-lineitems`, `ags-lineitem-evil`, `nrps` and `dl-return` each ran once and passed, in `21-canvas-protocol.test.ts`, inside 03:26:16.995Z to 03:26:24.980Z. 0 `sink_hit` in the lifetime. |
+| Canvas browser artifacts (AC-M3-07) | Independent scan with 1,316 values from the completed SIM phase clone (`.env`, `infra/.secrets`, capture files). 15 screenshots: **0 hits**. Two were inspected visually; they show no capability and no approval input. 14 trace zips (7 distinct traces): 124 hits, as expected for raw traces; they stay private and are named only by location and hash. |
+| Round completeness (AC-M3-01) | **Not met.** Round 1 snapshot-upgrade is incomplete: one FAIL (`M1-38.common.h1`) and five rows not run. The migration and storage phases did not run, and round 2 did not run. The same-result rule of two rounds cannot be checked. |
+
+Records (evidence root `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-55c33a3-o05nHi07`):
+- `judge/round1/judge-v2-r1-sim-isolated.json`
+- `judge/round1/judge-v2-sim-interim.json` and `sim-input-hashes.txt`
+- `scan/r1-sim-canvas-browser-scan.json` (counts only) and `scan/r1-sim-canvas-browser-files.sha256`
+
+Permission facts, observed and not changed: the completed SIM phase clone and its `tests/acceptance/artifacts` folders are mode 0755. `captured-secrets.jsonl` there is 0644 and holds raw values; `m1-secrets.raw.jsonl` is 0600. The home folder is 0750 with an ACL. Common QA owns these files.
+
+### 15.2 Disposition
+
+- Canvas M1 at `55c33a3`: round 1 Canvas rows 233/233 PASS (partial evidence), sink gate PASS, browser screenshots clean. **Overall HOLD.** AC-M3-01 needs two complete matching 488-row rounds at one SHA.
+- `a784522` stays a recorded failed attempt (§14). No PASS carries from it or from `aff4882`.
+- A proper retry follows a new reviewed freeze that includes Common QA's oracle repair. Then both complete rounds must be judged again with the same tools.
