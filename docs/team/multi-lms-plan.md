@@ -1917,6 +1917,21 @@ The original failed QA tasks can now receive proper retries. No final conformanc
 Common QA receives the first exclusive Docker window; Canvas QA starts with host-only preparation and independent evidence review.
 Fresh M2 and T7 runs require a later explicit transfer of that sole window.
 
+The Lead opened proper retries of both original failed tasks on 2026-10-21 at 02:14 UTC.
+Orca refused retained-chat reuse with `terminal_unsupported_for_agent_session`; the old task still showed failed with failure count zero.
+The retry path therefore uses replacement Claude sessions. Earlier sessions and their evidence remain separate historical sources.
+Both launch receipts confirm requested and effective `claude-opus-5-5`, effort `xhigh`.
+
+| QA owner | Task | Retry dispatch | Window |
+| --- | --- | --- | --- |
+| Common and Blackboard | `task_ed3b08aa45ea` | `ctx_75f7ef7a9240`, retry of `ctx_8d5f8d3984d0` | Exclusive Docker window, port 8443, subnet 172.29 |
+| Canvas and browsers | `task_e28388df4dcc` | `ctx_f3f20494787a`, retry of `ctx_4a94125660be` | Host-only preparation and independent judging; no Docker yet |
+
+Handoffs `msg_905fc87a48de` and `msg_027a758a8352` bind the retries to `a784522` and supersede stale model and run-count text.
+They require two complete matching 488-row rounds, all legacy groups, fresh M2 and three default T7 runs.
+They also retain host identity, private evidence, ownership records, secret scans and the seven-volume baseline gates.
+Both workers sent heartbeats. No runtime result is accepted yet.
+
 The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
