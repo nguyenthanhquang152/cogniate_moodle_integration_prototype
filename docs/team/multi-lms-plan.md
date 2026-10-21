@@ -13,7 +13,32 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 18:25 UTC
+### Current checkpoint — 2026-10-21, 18:39 UTC
+
+The Lead accepts the Round 2 harness gate and freezes combined candidate **C = `d3296dd6eddbe723364a639d8e2db0adf12ab183`**, tests tree `183a72b2fea5ff065fc57c96649199bc720fb6e0`. Git comparison confirms all product and build paths equal verified product `9f8ac62`; all test paths equal reviewed harness `c71912f`. Runtime acceptance is still pending.
+
+| Gate | Accepted evidence |
+| --- | --- |
+| Harness QA | Report `614baae`, SHA-256 `57005503aa133b7eb2c50565e84e7d80db6d90ab7d053891efa8cc5e7f488c2f`; 142/142 at both child umasks 022 and 077, no skips, Docker-stub calls or test temporary leftovers. |
+| Fault controls | 70/70 mutants detected: 67 by assertions, three by mutation-caused errors (MU-01-3b, M4-7c, M2-4b). All 113 private copies are bound to C's test bytes except each intended mutation. Every site-copy mutant fails both mask controls. |
+| Neutrality | Strict v4 comparison; old runtime `71a5bf9` and repaired runtime `c71912f`, equal self-tests and imported runtime inventories. Sites 12 and 13 are byte-identical; site 7 differs only in the child process id. |
+| Reviewer-A | APPROVE at `ba4b124`, report SHA-256 `d721edaae6790bddfae573160fcb9dd07dd91afc5d6cee3e40b87fa54354df9b`. A-SH-01/02/05/04/03 closed. |
+| Reviewer-B | APPROVE at `d3296dd`, report SHA-256 `a2b31180636c085aa3d95117b937e0fdcdf482fd85144548ad7c3aaa1708f385`. B-HR-01/02 closed; B-HR-03 required cleanup coverage closed. |
+
+The Lead verified the preserved report prefixes and all manifest entries: QA 6,735, A 510, B 509. Disclosed creation-mode and tooling deviations stay in the reports. QA's eight npm tool-state entries inside private fake homes are listed separately. A's editor draft and temporary hash lists, and B's uncontained import without a function call or write, remain disclosed.
+Both source reviewers settled successfully and were released. Their source approvals give no runtime row credit.
+Accepted NIT deferrals added for M4: A-SH-07 (self-test umask restoration), A-SH-08 (read-only linked-folder listing), A-SH-09/B-HR-09 (missing scratch text), B-HR-10 (unreachable double-error cleanup note). Earlier B-HR-03 published-once, B-HR-04/06 MINORs and B-HR-05/07/08 NITs remain deferred. M5-4b remains masked and NOT DETECTED, never equivalent. M4-8f remains equivalent.
+ID distinction: ADR-012 O-1 and Q-R1A-01 are closed. The separate R1-A QA O-1 (quiet A6 release) is an accepted MINOR deferral, as `storage-command-qa.md` states.
+
+Active workers (requested and effective Claude Code Opus 5.5 xhigh):
+
+- Sole remediation owner `task_d018895ca985` / `ctx_898acbaef3a6` stays in the same session. Its report is committed; no further source edit or Docker use is granted. Every new failure returns to this owner.
+- Independent runtime QA `task_d006a77c4696` / `ctx_1183f38cf351` prepares the diagnostic, two full rounds and legacy checks on C. The launch grants host-only preparation. Its exact READY commands and lane plan must precede the exclusive Docker grant.
+- Docs `task_1982339e7171` / `ctx_b4c68b337a1e` prepares verified, source-stamped guide content and the offline page in parallel. It keeps the final deliverable in this session, pending accepted runtime and conformance. It replaces the undispatched schedule of `task_ba7497546050`, now blocked as superseded; do not start another Docs editor.
+
+The source-review gate finished at about 01:38 Vietnam time, ahead of the provisional 02:15–02:50 milestone. The next timing update follows the real storage diagnostic. No Docker window is active yet. Latest full runtime remains 438 PASS and 50 FAIL at `aaa823b`; two full rounds, legacy, fresh M2/T7 and final conformance/documentation checks remain mandatory. No push or main merge is authorized. The untracked `pnpm-workspace.yaml` is unchanged.
+
+### Prior checkpoint — 2026-10-21, 18:25 UTC
 
 The owner directed one agent session to resolve all remaining failures. Claude Code Opus 5.5 xhigh worker `ctx_898acbaef3a6` is the continuing remediation owner and planner. It must stay in the same session after its harness report. Later failure fixes stay with this worker; the Lead coordinates any new file scope. Independent reviewers and runtime validators do not make repair edits.
 
