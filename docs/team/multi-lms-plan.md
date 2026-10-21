@@ -13,7 +13,7 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 15:19 UTC
+### Current checkpoint — 2026-10-21, 15:31 UTC
 
 The V7-1 mock run exposed three latent harness defects in previously unexecuted storage rows.
 Evidence: `/Users/quangnguyen/cogniate-qa-runs/storage-harness-repair-qa-20261021T1356Z/evidence/latent-defects-v7-1.md`, SHA-256 `e061d44dc542bf6d15c47015575d07bfec35bd03b07d2b23e22cc56e00b33c5b`.
@@ -43,14 +43,24 @@ They violate frozen A-13, separately from the 1,987 product/tool artifacts allow
 Lead `msg_788f5b4a88c6` requires a QA-only creation-mode repair and generation 2 rerun of the affected baseline, target, clone, comparison and mutant checks.
 Generation 1 evidence and its hygiene failure remain preserved. The product child umask, source bytes and frozen expectations stay unchanged.
 QA must freeze an amendment and prove correct creation modes before the rerun. No more inspection of other workers' real-HOME logs is allowed.
+QA froze A07 `d7035f2a087b9d59a854510efe6c5525f05c75846759f51974d2ec84b550fbc4` and started generation 2.
+Its pre-run creation-mode control reports zero broad modes among 98,652 QA-authored entries; tool/product state is listed apart.
+The Lead read A07 and verified gen1 manifest `14a26c668a71a9bf1a07e666ef0d1ee4f8344a31f97e9a4f28cb41b17b7afdd4`.
+Of 13,077 regular entries, 12,990 current paths match; all 87 changed working drivers have hash-matching preserved copies.
+Message `msg_63d46554c428` requires the final manifest to map those later copies to their originals. The gen1 manifest stays immutable.
 
 Product source Reviewer-A APPROVE is committed at `eeb9060acfbfcff656bc2cf1ee6d68417950f32d`.
 Report SHA-256: `c122f1d2b57930afc833cd8f5103c5737dd748fab94d59a981b1f294e2912d61`.
 The Lead read the report and verified all 56 probe-manifest entries (`48f5b0c784400c159d94b8570c425aa4d6219089cb1a2aeebd40d9355098a5df`).
 No BLOCKER or MAJOR. A-QR1-01 is a MINOR unit-coverage deferral to M4; independent QA R-3 remains required.
 O-A2 and O-A3 are handover context, with no new product scope. The reviewer settled successfully and was released.
-Reviewer-B `task_8eaf26787fc4` / `ctx_98ce493407e0` is active on the same pinned product diff, independent of A and current QA outputs.
-Independent QA remains pending; the product gate stays open.
+Product source Reviewer-B APPROVE is committed at `87e7036d09553972d662e99b7f40a922d88e6dd5`.
+Report SHA-256: `ef7f958ec1151a9faa5b4472945cb906f0f64bfc71933094d35158eda18a5d18`.
+The Lead read the report and verified all 37 private manifest entries (`2346afab884a0f3251d636b8982402e1dbffbe3e13d022e9a4acef8d6db3346b`).
+No BLOCKER or MAJOR. B-RR-01 joins A-QR1-01 as the same MINOR unit-coverage deferral; independent QA R-3 stays required.
+B-RR-02 and B-RR-03 are NITs for operator notes and a future separately authorized helper edit. M4 authorizes no helper-code change.
+B's early public-source probe mode/deletion deviation remains explicit; this review gives no QA credit.
+Reviewer-B settled successfully and was released. Both source reviews approve `9f8ac62`, but independent QA remains pending; the product gate stays open.
 
 The bounded product repair is committed at `9f8ac625443931242edd8da301c3d4f0d3e34290`.
 Only the helper bash, adjacent unit tests and helper hash line changed. Embedded JavaScript is byte-identical.
@@ -87,7 +97,6 @@ The frozen harness triage at `2d763fe` is unchanged. R1-A QA O-1 stays a conditi
 
 Active workers, all requested and effective Claude Code Opus 5.5 xhigh:
 - Harness QA `task_6c53cbbc403c` / `ctx_f189530f67c1` continues its granted 22-path implementation and host controls.
-- Product source Reviewer-B `task_8eaf26787fc4` / `ctx_98ce493407e0` reviews `9f8ac62` with the maintainability and error-handling lens.
 - Independent host QA `task_720f8d0e6d3a` / `ctx_5e5d6972f72d` froze its private criteria map before source reads.
 Map: `/Users/quangnguyen/cogniate-qa-runs/r2-storage-command-qa-20261021T1424Z/map/TEST-MAP.md`.
 Map SHA-256: `78fb5fda7baaa5ca5b262f7209de887d70089bd87544b937f5af45692ac23bb5`; 29,440 bytes, file 0600, map and root folders 0700.
