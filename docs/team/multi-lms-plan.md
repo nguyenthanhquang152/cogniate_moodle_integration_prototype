@@ -13,7 +13,42 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 10:54 UTC
+### Current checkpoint — 2026-10-21, 11:40 UTC
+
+The full run on `aaa823b` FAILED in round-one storage validation. It ran once from 10:54:48 to 11:36:48 UTC.
+Round one has 438 PASS and 50 FAIL across all 488 required rows:
+- SIM: 394 PASS.
+- Isolated snapshot: 6 PASS.
+- Upgrade snapshot: 6 PASS.
+- Migration: 12 PASS.
+- Storage: 20 PASS and 50 FAIL, including cases not run after earlier failures.
+
+Canvas QA independently reports 233/233 Canvas rows PASS as partial evidence. It must still finish the five-phase evidence check.
+Round two and legacy suites did not run. Fresh M2 and T7 remain pending.
+The targeted Q1/Q2 PASS at `b450a00` stands within its narrower scope; it does not override the failed full run.
+
+Common QA reports four first-failure groups and continues host-only diagnosis:
+1. `a-serialize`: the expected backup lock-release record is missing.
+2. Several content-mountpoint and pair tests: the QA fixture cannot list `/v/appdb/packages` due to EACCES.
+3. `a-first-start-resume`: quarantine fails, then seed fails; later cases cannot run.
+4. `e-old-schema`: the content count matches, but portal sign-in returns HTTP 403.
+
+These are observations, not accepted root-cause classifications. No assertion, permission or contract is waived.
+The Lead assigned Architect task `task_269579cb01c1`, dispatch `ctx_a6965f1fbc80`, to classify causes and propose bounded repairs.
+Its requested and effective model settings are Claude Code Opus 5.5 xhigh.
+It may write only `docs/architecture/tasks/storage-full-round-triage.md`; all product, test and evidence files remain read-only.
+Common and Canvas QA finish their own held reports in parallel. No new runtime or code edit is authorized.
+
+The Docker window was returned at 11:37:11 UTC. Strict W4 passes with no problems, and no lane resource remains.
+The Lead checked W4 hash `8e79dea16292806b9bf9fa906371c0e57cf010460a96a2f7c698fe0e5a078465`.
+The final scan has zero raw or public hits across 52 raw and 1,313 public files, with 1,466 captured values.
+Private browser traces remain private. The clone guard reports no problems.
+Evidence root: `/Users/quangnguyen/cogniate-qa-runs/m1-full-aaa823b-20261021T1054Z`.
+
+No Docker window is active. All full acceptance gates, conformance and guides remain pending.
+All 32 real-LMS rows stay UNVERIFIED. Local Canvas stays DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 10:54 UTC
 
 Targeted Q1/Q2 passes all 22 checks on candidate `aaa823b`. Report commit: `b450a002e6440ae84efd9be355c6b2691329aa3d`.
 Q1 passes three reset and startup cycles. Q2 refuses missing content with unchanged empty targets, then completes the valid import and startup.
