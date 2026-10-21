@@ -1875,6 +1875,22 @@ Both round-2 reviews started against this exact candidate:
 They received the held evidence, the B-SI-07 contract reading and the Lead's independent host-check result.
 The reports must preserve all earlier bytes. Both source verdicts and the separate runtime gates remain required.
 
+Reviewer-A returned round 2 in `msg_15be071b1690`: APPROVE for source at `a784522`.
+Its held report is committed at `a9fe7edf6bf01e87b067c03bf13cd846771f699f`.
+Report SHA-256: `e244e5d6b809be360afc067f17643142506d5d19c7fa4fdfaaf30a4b9aabe361`.
+The Lead verified the complete hash, the preserved 20,953-byte first round, unchanged source and tests, and the clean diff.
+The reviewer was retained before acknowledgment. All assigned required findings close in its source review.
+Its independent evidence includes invalid-journal controls, five killed probe mutants, frozen QA-output checks and read-only preservation.
+Reviewer-B's round-2 verdict is pending. No Docker window or runtime retry is open.
+
+The Lead records two nonblocking NIT dispositions under charter §5:
+- A-SI-04: defer the unreadable-metadata diagnostic improvement to the Author's future maintenance work.
+  Backup fails closed with exit 1 and no manifest, but it does not always name the unreadable metadata path.
+  Docs must carry this diagnostic limit into the M4 deferred list; runtime failure behavior still needs verification.
+- A-SI-05: assign the infrastructure README wording correction to the Author in the M4 documentation wave.
+  Clarify that coded refusals emit JSON; some safe wrapper stops use text only.
+  This is a text correction and grants no runtime acceptance.
+
 The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
