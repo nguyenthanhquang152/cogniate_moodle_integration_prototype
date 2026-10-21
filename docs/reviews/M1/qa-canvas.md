@@ -457,3 +457,68 @@ Inputs: SIM `m1-case-results.json` `9ae24368…` and `m1-identity.json` `0517b50
 - Canvas M1 at `82e2dab`: round 1 Canvas rows 233/233 PASS, sink gate PASS and clean screenshots. This is partial evidence. **Overall HOLD**; this dispatch settles as failed.
 - `55c33a3`, `a784522` and `aff4882` keep their own records. No PASS carries from one candidate to another.
 - Next: Common QA repairs its host collector under a new reviewed freeze. Then both complete rounds run. QA-E2E runs both judges again over all five phase artifacts of each round and compares the two rounds.
+
+## 17. Round 11 — candidate `51a80b5`: round 1 Canvas rows complete, round 1 stopped in snapshot-upgrade (2026-10-21)
+
+**HOLD. No M1 acceptance credit. This dispatch settles as failed.** A new Claude QA-E2E session (`claude-opus-5-5`, xhigh; Orca session `07499b81-08f3-49dd-8576-2057a21a95ac`) wrote this round. It did not execute rounds 1–10. Their provenance stays as written above.
+
+Candidate product = test `51a80b51de2c7491466a21a678418ff8178d247d` (tests tree `a47b34cd56bb3d85e4c3ef1cafef0a2b0c3210c0`). It is `82e2dab` plus Common QA's backup-oracle repair: `tests/host/m1-migration.mjs` (SHA-256 `1be7c1c9…6cc75`) and its self-test (`20745f2a…fe5a`). The `services`, `apps`, `packages` and `infra` trees equal `a784522`. Lead authority: `msg_3fc90776b450` (host only), run start `msg_cc57744668aa`, closure `msg_229e86b15fd5`.
+
+Common QA ran the full documented M1 entry from 05:30:48Z, after W1–W3 passed. Round 1:
+- **SIM** passed 394/394 (run `qa-multi-r1-51a80b51-2026-10-21T05-30-48-841Z`).
+- **snapshot-isolated** passed 6/6 (run `qa-multi-r1-51a80b51-2026-10-21T05-54-07-197Z`).
+- **snapshot-upgrade** (run `qa-multi-r1-51a80b51-2026-10-21T05-55-43-894Z`): the seed `M1-38.common.h1` and `h2`, `h3`, `h5` passed; `M1-38.common.h4` failed. The runner recorded `ERROR` and exited 1 at 05:57:35Z.
+- The migration and storage phases of round 1, all of round 2 and legacy did not run.
+
+Separate outer-environment failure (Common QA final status, relayed in `msg_f0f6b9e20bf6`): the W4 capture passed, but the W4 strict comparison **FAILED**. A new unrelated anonymous volume (`d5df35bd…`, CreatedAt 05:32:46Z) appeared. Common's sampler also saw six non-lane `fgw-*` containers during the window; they were gone at W4. No attribution is established, and the unrelated volumes are preserved. The seven protected volumes, the W3 anonymous volume, the networks, the Docker settings and the engine match. Zero containers remained at cleanup. Common's privacy scan found 0 hits in 33 raw logs and 879 public files. This worker made no Docker daemon call in this dispatch. Its only Docker binary calls were the client-only `docker --version` and `docker compose version --short` (G-1, at about 05:27:5xZ).
+
+### 17.1 Preparation (host only)
+
+- Evidence root `R` = `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-51a80b5-KfIjrKmn`. `R` and its folders are 0700; logs and records are 0600. `R/source` is a fresh `--no-hardlinks` clone under umask 022 into a pre-made 0700 folder, detached at the exact SHA, with an empty `status --porcelain --ignored`. Record: `R/notes/prep.json` (`a32064d9…`), with the path and mode chain.
+- Tool bytes: the original manifests were checked first (R4 `0f5b1e9c…` 22/22, sink-v2 `1af4609e…` 4/4), then the relocated `82e2dab` manifests (`1766bd7d…`, `a2bb0430…`). The relative path and content lists are identical. The new relocated manifests are `R/tools/tool-hashes-r4-abs.sha256` (`6cc77937…`, 22 OK) and `R/tools/tool-hashes-sink-ext-abs.sha256` (`852fff8e…`, 4 OK). All six tool self-tests reproduce their stored outputs (`R/notes/tool-selftests/compare.txt`).
+- Harness only, under umask 022: `run-m1.mjs --harness-only` gives 71/71 for `canvas` and for `all`. Each round has 488 rows (sim 394, snapshot-isolated 6, snapshot-upgrade 6, migration 12, storage 70). The Canvas manifest has 233 rows: 225 API and 7 browser in `sim`, 1 API in `snapshot-isolated`. `run-m2.mjs --harness-only` gives 6/6 and 64 cases. The T7 list has 18 tests in 6 files.
+- G-1 client identities (binary hashes, no daemon call): macOS 27.0.1 arm64, Docker CLI 29.9.1 `67827118…`, Compose 5.6.0 `1ec06408…`. They equal the bound table.
+
+### 17.2 Independent Canvas judgement (round 1, two Canvas phases)
+
+The judges are the unchanged approved `canvas-judge-round.mjs` (v1) and `canvas-judge-round-v2.mjs` (sink gate), run under umask 077.
+
+| Gate | Result |
+| --- | --- |
+| Canvas rows (v1) | **233/233 PASS**: SIM 232 (225 API + 7 browser); snapshot-isolated 1 (`M1-37.canvas.aa`). Runner and raw reports agree. Each row has one result and no retry. Product = test = `51a80b5`, label `SIM`, provider `all`. App and LTI health `default`, no knobs, LTI `simulation_profiles: []` after each phase. |
+| Scan records | SIM: 1,300 values, 637 files, 0 hits. snapshot-isolated: 10 values, 65 files, 0 hits. |
+| Sink gate (AC-M1-12, four cases) | **PASS.** `sink.jsonl` SHA-256 `b3acfbd6…bb74d`: 2 complete lines with a trailing newline. One lifetime `boot-996790377305`, 05:31:33.131Z to 05:53:50.616Z. It starts after the run start (05:30:48.841Z) and stops before the identity time (05:54:01.108Z). `ags-lineitems`, `ags-lineitem-evil`, `nrps` and `dl-return` each ran once and passed in `21-canvas-protocol.test.ts`; the raw file interval is 05:31:46.571Z to 05:31:54.233Z. 0 `sink_hit`. |
+| Canvas browser artifacts (AC-M3-07) | 1,316 values from the completed SIM phase clone: 9 `.env`, 8 secrets-file and 1,299 capture values. 15 screenshots (6 distinct): **0 hits**. QA inspected all 6 distinct screenshots visually: 4 player pages, 1 framed embedded page and 1 blank refused third-host frame. They show no token, capability or approval input. 14 trace zips (7 distinct): 124 hits in 7 files, as expected for raw traces. They stay private and are named only by location and hash. |
+| Round completeness (AC-M3-01) | **Not met.** Round 1 stopped in snapshot-upgrade with one FAIL. The migration and storage phases and round 2 did not run, so the same-result rule of two rounds cannot be checked. |
+
+Records in `R`:
+- `judge/round1/judge-v1-sim-interim.json` (`da7bc6c1…`) and `judge/round1/judge-v2-sim-interim.json` (`884f2943…`): SIM phase alone, kept unchanged. Their only problem is the missing `snapshot-isolated` artifact at that time.
+- `judge/round1/judge-v1-sim-isolated.json` (`6eed44b5…`) and `judge/round1/judge-v2-sim-isolated.json` (`2cbe2da5…`).
+- `judge/round1/sim-interim-record.json` (`aadd5cf9…`), with input hashes.
+- `scan/r1-sim-canvas-browser-scan.json` (`4266d62f…`, counts only) and `scan/r1-sim-canvas-browser-files.sha256`.
+
+Inputs: SIM `m1-case-results.json` `1e7fa2fd…` and `m1-identity.json` `649c2162…`; snapshot-isolated `m1-case-results.json` `09a0205f…` and `m1-identity.json` `3e03acbb…`.
+
+### 17.3 The snapshot-upgrade failure: `M1-38.common.h4` (Common-owned case)
+
+QA-E2E read only the redacted artifacts and the frozen source. Common QA owns the case, its oracle and the host control. Lead accepted this diagnosis as a reported Common-harness defect (`msg_229e86b15fd5`). Common QA confirmed the replay cause independently (`msg_1b76a14fcad1`, relayed in `msg_f0f6b9e20bf6`) and owns the repair.
+
+- **Assertion:** `snapshot-oracle.mjs:39` (`auditWindow`): "Scoped committed phase-1 event count", `0 !== 1`. It is in the seeded iteration of `redeemedWithOneAttempt`.
+- **Evidence** (`cogniate-app.jsonl` and `host-actions/`):
+  - 05:56:38.232Z, seed on `011`: `grant_issued` for the add grant of Canvas connection `con_9nO…` (`state.add`).
+  - 05:57:02.396Z to .406Z: seven `m1-cli` host actions start at the same time. The upgrade test file starts later, at 05:57:13.002Z. The seven calls equal the seven CLI calls of the `h1` seed, one for one. One of them is `app:grant issue --purpose add_deployment` for `con_9nO…`; it exits 0.
+  - 05:57:03.031Z: a second `grant_issued` (`add_deployment`) for `con_9nO…`.
+  - 05:57:17.439Z, `h4`: `POST …/deployments` answers 403. The app logs `grant_rejected {reason: revoked}` and no `grant_attempt_started`.
+- **Cause:** `tests/host/m1-control.mjs` keeps the answered request names only in an in-memory set. It never removes `req-m1-*.json` from `<clone>/tests/acceptance/artifacts/control`. `run-m1.mjs` `suite()` (line 277) starts a new host control for each suite. The seed and upgrade suites use one clone and one control folder. So the upgrade-stage host control ran every seed request again against the `012` stack. The replays also replaced the seed-time `host-actions/<id>.json` records.
+- **Product check:** app contract §4.8 says that a new grant for the same connection and purpose revokes older unredeemed ones. §4.7.1 phase 1 rejects a revoked grant with `403 GRANT_INVALID` and `grant_rejected {reason: revoked}`, and logs no attempt. The product followed the contract.
+- **Classification:** QA harness defect in Common-owned files. No product defect is shown. `h2`, `h3` and `h5` passed after the replay. The replayed `initial` issues exited 1 and store nothing; the `list` calls only read.
+- **Exposure:** `storage-rows.mjs:416` also starts a host control for each lane. Common QA owns the repair and its scope.
+- Record: `R/diag/m1-r1-snapshot-upgrade/M1-38.common.h4-diagnosis.json` (`2902e588…`).
+
+### 17.4 Disposition
+
+- Canvas M1 at `51a80b5`: round 1 Canvas rows 233/233 PASS, sink gate PASS and clean screenshots. This is partial evidence. **Overall HOLD**; this dispatch settles as failed.
+- Not achieved at this candidate: a complete round 1, round 2, the round comparison, legacy, M2 and T7. No runtime window was transferred to QA-E2E.
+- The W4 strict comparison failure is a separate outer-environment FAIL of this attempt. The partial Canvas PASS does not become full acceptance.
+- `82e2dab`, `55c33a3`, `a784522` and `aff4882` keep their own records. No PASS carries from one candidate to another.
+- Next: Common QA repairs the host-control replay under a new reviewed freeze, and the outer-environment change is resolved or attributed. Then both complete rounds run, and QA-E2E runs both judges over all five phase artifacts of each round and compares the two rounds.
