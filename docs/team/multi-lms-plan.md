@@ -1860,6 +1860,21 @@ The exact error-code mutation from B-SI-02 now fails its test. Six real outputs 
 These are host-only Author results. The held repair covers all assigned findings, including B-SI-07; independent closure is still required.
 No Docker command, stack, commit or push was run by the Author, and all runtime and live rows remain unverified.
 
+The repaired candidate is frozen at `a784522a3cdd9bb67453b03093092cac24e87402`.
+The Lead's clean detached clone passes `npm ci`, lint, typecheck, 1,111 unit tests and 76 infrastructure tests, with no skips.
+Real course fixtures were available, and the clone remains clean.
+Evidence: `/Users/quangnguyen/cogniate-lead-checks/storage-a784522-r2-20261021/`.
+Check-log SHA-256: `7e4744c8bdb1eca3e76ee9c52d0f8c87a1a9fcdc757f1bcc6f7504cb225d7250`.
+Both round-2 reviews started against this exact candidate:
+
+| Reviewer | Dispatch | Launch | Start |
+| --- | --- | --- | --- |
+| A | `ctx_ba60b67fd2af` | `msg_e77146badf40` | `msg_c65d4cd3519b` |
+| B | `ctx_9a557d8d1cfc` | `msg_b342ba93765f` | `msg_717e55f98c38` |
+
+They received the held evidence, the B-SI-07 contract reading and the Lead's independent host-check result.
+The reports must preserve all earlier bytes. Both source verdicts and the separate runtime gates remain required.
+
 The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
