@@ -13,7 +13,7 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 04:19 UTC
+### Current checkpoint — 2026-10-21, 04:30 UTC
 
 The frozen product/test candidate is `82e2dab6d26915c90070a4aae8ac0c4472706c2d`; both focused source reviews approve it.
 Product code is unchanged from `a784522`. Both storage source reviews approve that product code.
@@ -35,10 +35,25 @@ Their owned sessions were released. M2 and T7 wait for the accepted candidate.
 The focused QA repair settled successfully under `task_e3b78fb1a605` / `ctx_56fe09e67789`; its session was released.
 Reviewer-A (`ctx_95f5cc04ec0f`) and Reviewer-B (`ctx_b79580197a2f`) both settled successfully; their report commits are `dee08f4` and `c9b6852`.
 Release checks found no owned terminal resources for these reused review sessions.
-Fresh Common retry `ctx_b36c97b882dd` prepares full M1 and legacy under authority `msg_9c661cdcd106`.
-Fresh Canvas retry `ctx_33862fcfa6d1` prepares host-only independent checks under authority `msg_40eca66674cd`.
+Fresh Common retry `ctx_b36c97b882dd` runs full M1 and legacy under authority `msg_9c661cdcd106`.
+Fresh Canvas retry `ctx_33862fcfa6d1` has completed host-only preparation under authority `msg_40eca66674cd`.
 Requested and effective settings match Claude Code Opus 5.5 xhigh for both workers. They cannot claim predecessor evidence as their own.
-Common must send fresh W1–W3 live boundary evidence before the authorized launch. Canvas waits for an explicit Docker window transfer.
+Common sent fresh W1–W3 live boundary evidence before launch; all three gates pass with zero problems.
+The Lead checked their summaries and W3 hash `1550b0158c8fad8d38b87528aee67ffec06a63978092a086edef0e1b1696c7c4`.
+The full runner started at 04:29:22 UTC. First phase: `qa-multi-r1-82e2dab6-2026-10-21T04-29-22-551Z`.
+Its source is `~/cogniate-qa-runs/m3-frozen-82e2dab-20261021T0418Z/source`.
+Outer evidence is `~/cogniate-qa-runs/m1-full-82e2dab-20261021T0428Z`. Monitoring is armed.
+Canvas waits for completed phase artifacts and an explicit later Docker window transfer.
+
+The blanket umask 077 instruction changed a fixture's requested mode and caused one harness self-check failure.
+The normal umask 022 passes all 70 checks. Both preparation results remain recorded; neither gives runtime credit.
+Lead disposition `msg_54ccb0b5da19` keeps private outer directories while the frozen runner child uses umask 022.
+A bounded guard sets only newly owned phase clone roots and captured-secret files private, preserving container-required inner modes.
+QA reports 25 guard controls and 30 existing boundary controls passing. This changes external tools only.
+The first phase root was observed at 0755, then set to 0700 after about 137 milliseconds, within the verified home boundary.
+It is not claimed to have been 0700 from creation.
+Canvas's later runtime checkout will sit under its verified private `R/t7-clone` parent, with normal inner modes (`msg_9ee0ecb9d2e6`).
+The Lead verified all 22 wrapper files and four sink-gate files match the previously approved relative paths and hashes.
 
 The full runner started at 03:25:14 UTC after W1–W3 passed. Round 1 SIM passed all 394 cases; snapshot isolation passed all six.
 The Lead checked the 394 PASS rows and their single product/test SHA. `M1-17.canvas.repeat` now passes in the runtime run.
