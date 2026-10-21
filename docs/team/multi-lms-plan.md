@@ -13,7 +13,7 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 03:16 UTC
+### Current checkpoint — 2026-10-21, 03:25 UTC
 
 The new test candidate is `55c33a3e2d60670b5e759a79144c96bd213fca1f`.
 Product code is unchanged from `a784522`. Both storage source reviews approve that product code.
@@ -31,8 +31,8 @@ The outer network comparison failed because its initial Docker view was cached. 
 
 Common QA has the sole Docker window. Three Claude Code Opus 5.5 xhigh workers are active:
 - Common QA: `ctx_4446d0034a39`, prepares a fresh full M1 and legacy run at `55c33a3`, port 8443 and subnet 172.29.
-- Canvas QA: `ctx_f3f20494787a`, holds the external wrapper and sink-evidence extension for review, host only.
-- Reviewer-B: `ctx_b55aea8ad9bd`, reviews external T7 wrapper R3, read only.
+- Canvas QA: `ctx_f3f20494787a`, has an approved sink-evidence judge and holds wrapper R4, host only.
+- Reviewer-B: `ctx_d443917168e5`, rechecks one external cleanup guard and the recorded run procedures, read only.
 
 Two complete 488-row rounds, legacy suites, fresh M2 and three T7 runs are still required at one accepted candidate.
 Final conformance and guides remain queued behind runtime acceptance.
@@ -72,6 +72,15 @@ Canvas QA's external extension is held in `msg_15937bcbfea1`; it reports 17 focu
 The older failed run stays FAIL even though its complete sink capture passes this narrower check.
 The extension must receive independent review before acceptance. R3 wrapper files remain unchanged.
 
+Reviewer-A approved the exact sink extension in `msg_f6a952ddcee2` and settled `task_12029808ebcb` in `msg_b2e50994d208`.
+Manifest SHA-256: `1af4609e1cecf0e7b08c454a884929836faac61efd306e73e84ac14844afc1d2` (four files).
+The Lead verified all entries. Reviewer-A reproduced 17 controls and added nine controls.
+The new judge requires the unchanged 233-row judge to PASS and a complete sink lifetime to cover all four case files.
+Vitest file start and end times bound those cases. Missing, malformed, duplicate or incomplete evidence cannot PASS.
+The old failed attempt still gives overall FAIL. No runtime acceptance is implied.
+Limits remain: a silent mid-life sink append failure is not directly observed; large clock steps can cause a false BLOCK.
+An unrelated earlier lifetime may contain hits; the report shows its total separately. Nested artifact layouts fail closed.
+
 Common QA's proper retry is `task_ed3b08aa45ea` / `ctx_4446d0034a39`, replacing failed `ctx_75f7ef7a9240`.
 Orca verified requested and effective Claude Code Opus 5.5 xhigh settings for the new independent session.
 The Lead granted the sole window in `msg_405608b347b5` and confirmed it in `msg_c415524f364c`.
@@ -100,6 +109,20 @@ QA held R3 in `msg_550f81690f27`. The Lead verified all 22 entries in its absolu
 Manifest SHA-256: `3f7b18016d0c51ba40e16d4ad17e19a16cb6c53aa5a575c4146f9da7a93fba24`.
 QA reports lane controls 30/30, stream controls 7/7 and T7 tool controls 5/5. These are synthetic checks only.
 Reviewer-B owns independent R3 re-review task `task_b6b7426391a6`; Reviewer-A handles the separate absence-check assessment.
+
+Reviewer-B settled R3 with APPROVE in `msg_98883f1a2466`. All A-TW-01 through A-TW-08 are closed for source and synthetic evidence.
+It independently ran lane 30/30, stream 7/7, T7 tools 5/5 and scanner 7/7 controls, plus its own failure controls.
+Three NITs have explicit Lead dispositions in `msg_d0f9be329d3a`:
+
+- B-TW-01: repair the external guard so any record ever marked `madeByRun=false` also prevents `stack:down` and retains all lane resources.
+- B-TW-02: each accepted run needs an evidence record binding SHA, project, clone, summary paths and hashes, and secret-scan coverage. A gate PASS alone is insufficient.
+- B-TW-03: use only a fresh prepared clone. Before READY, record empty status including ignored files and absence of the knob file and infrastructure data.
+
+QA held R4 in `msg_f57821acd0c8`; the Lead verified its 22-entry manifest and the unchanged four-file sink extension.
+R4 manifest SHA-256: `0f5b1e9c794a25e71318a7d9dd3533c9e7327d4f4a6c76b8b622722eecb57017`.
+R4 changes only the cleanup guard, its self-test and output, and the setup plan. QA reports 32 lane controls passing.
+R3 files are preserved under `tools/superseded/r3/`; its old absolute-path manifest no longer describes the live R4 files.
+Reviewer-B task `task_a340dc6a6be7` owns the bounded R4 recheck. These tool reviews give no T7 runtime credit.
 Existing sticky ownership failures and event-watcher failures remain mandatory.
 The runner must use a fresh detached exact-SHA checkout with `--checkout`, three runs, demo, confirmation and `--keep`.
 Record clean HEAD, no `.env` and no `node_modules` before READY. Bind the final summary to the same checkout, SHA and project.
