@@ -13,7 +13,39 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 05:02 UTC
+### Current checkpoint — 2026-10-21, 05:24 UTC
+
+The frozen product/test candidate is `51a80b51de2c7491466a21a678418ff8178d247d`.
+Its tests tree is `a47b34cd56bb3d85e4c3ef1cafef0a2b0c3210c0`. Product code still equals `a784522`.
+The repair changes only the common backup oracle and its self-test, plus its QA report.
+The oracle now validates migration names for each database in the format that the product emits.
+QA reproduces the old failure through real host emitters. The repaired oracle and corruption controls pass.
+Harness checks pass 71/71; typechecking and the 488-row inventory, including 233 Canvas cases, are unchanged.
+
+Both independent source reviews APPROVE, with no BLOCKER or MAJOR.
+Reviewer-A's report is committed in `a259398`; Reviewer-B's report is committed in `92f0d09`.
+Both reproduce the original failure and test the repaired oracle independently. Their source approvals give no runtime credit.
+The repair worker and both review workers settled successfully; their owned sessions were released.
+
+The Lead accepts B-BM-01 as a MINOR deferral under charter section 5.
+The self-test lacks an equal-count exchange of migration names between databases. The actual oracle correctly rejects that exchange.
+Both reviewers checked the actual comparison; Reviewer-B demonstrated the missing regression case with a weakened comparison.
+Docs must add this test-coverage deferral to `docs/human_review/deferred.md` in M4. No source change is required for this candidate.
+A-BKP-01 and B-BM-02 are the same optional assertion-message formatting NIT. No action is required for this repair.
+
+Common retry `ctx_dee91bc7a4bc` started with host-only preparation under `msg_82c5f9134671`.
+After both reviews passed, `msg_9506a89ce2ca` granted it the sole Docker window for full M1 and legacy.
+It must send fresh live boundary evidence before the documented full entry. Two complete matching rounds remain required.
+Canvas retry `ctx_f8cca0cc95be` is host-only under `msg_3fc90776b450`; it prepares the independent artifact checks.
+Requested and effective settings match Claude Code Opus 5.5 xhigh for both new workers.
+The permission split is explicit: private outer roots and observers use umask 077; runtime children and fixture-sensitive checks use 022.
+The approved narrow clone guard and normal container-readable inner modes remain required. No new tool design is requested.
+
+The `82e2dab` attempt remains FAIL with 400 recorded PASS rows and 88 absent row records.
+New full runtime evidence is pending. Final conformance, guides and fresh M2/T7 checks remain queued.
+All 32 real-LMS rows remain UNVERIFIED. No push or main merge is authorized for this phase.
+
+### Prior checkpoint — 2026-10-21, 05:02 UTC
 
 The full attempt at `82e2dab` failed after the snapshot-upgrade seed stage.
 SIM passed 394 cases and snapshot isolation passed six. All 400 recorded rows use the same product and test SHA.
@@ -31,7 +63,7 @@ Its reports are committed in `1c2a61a`.
 Canvas QA settled `ctx_33862fcfa6d1` with outcome failed; its reports are committed in `c1a90a6` and its session was released.
 No worker currently owns a Docker window.
 
-Task `task_c535a6bc68c8`, dispatch `ctx_f082183d3eb8`, owns the bounded backup-oracle repair.
+Task `task_c535a6bc68c8`, dispatch `ctx_f082183d3eb8`, owned the bounded backup-oracle repair.
 Requested and effective settings match Claude Code Opus 5.5 xhigh.
 Its scope is `tests/host/m1-migration.mjs`, its self-test and `docs/reviews/M1/backup-manifest-qa.md`.
 Both independent reviews and a new frozen candidate are required before the full runtime retry.
