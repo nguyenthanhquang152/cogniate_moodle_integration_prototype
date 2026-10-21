@@ -77,11 +77,19 @@ export function inspectBackup(folder, snapshot, ledger, project) {
   }
   const serialized = JSON.stringify(manifest);
   for (const names of Object.values(ledger)) for (const name of names) assert.ok(serialized.includes(name), `Old migration named: ${name}`);
+  // stack-data.mjs (9f96f7b and later) writes `migrations` per database: { '<service>/<db>': [schema_migration names] }.
+  const perDatabase = manifest.migrations;
+  assert.ok(perDatabase && typeof perDatabase === 'object' && !Array.isArray(perDatabase), 'Manifest gives the migration names per database');
+  assert.deepEqual(Object.keys(perDatabase).sort(), Object.keys(ledger).sort(), 'Manifest gives the migration names of exactly the stopped databases');
+  for (const [db, names] of Object.entries(ledger)) {
+    assert.ok(Array.isArray(perDatabase[db]) && perDatabase[db].every((name) => typeof name === 'string'), `Manifest lists the migration names of ${db}`);
+    assert.deepEqual([...perDatabase[db]].sort(), [...names].sort(), `Manifest contains only the old migration names of ${db}`);
+  }
   const migrations = nodes.flatMap((node) => Object.entries(node)
     .filter(([key, value]) => /migration/i.test(key) && Array.isArray(value))
     .flatMap(([, value]) => value.flatMap((item) => typeof item === 'string' ? [item]
       : item && typeof item.name === 'string' ? [item.name] : [])));
-  assert.deepEqual([...new Set(migrations)].sort(), [...new Set(Object.values(ledger).flat())].sort(),
+  assert.deepEqual([...new Set([...migrations, ...Object.values(perDatabase).flat()])].sort(), [...new Set(Object.values(ledger).flat())].sort(),
     'Manifest contains only the old migration names');
   return { manifestFile, manifest, listed, projectField, idField };
 }
