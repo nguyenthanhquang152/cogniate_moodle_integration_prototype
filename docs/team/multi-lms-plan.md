@@ -13,7 +13,7 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 06:08 UTC
+### Current checkpoint — 2026-10-21, 06:21 UTC
 
 The full attempt at `51a80b51de2c7491466a21a678418ff8178d247d` failed at 05:57:35 UTC.
 SIM passed 394 cases and snapshot isolation passed six. The snapshot-upgrade phase recorded three passes and one failure.
@@ -36,11 +36,19 @@ Common QA reports zero remaining lane resources. Both runtime workers settled wi
 The Common reports are committed in `ce09703`; the Canvas reports are committed in `0596431`.
 No worker has a Docker window. The owner has been asked to arrange a quiet window for the next full run.
 
-Task `task_3a4500f57586`, dispatch `ctx_65780150196a`, owns the focused host-only repair.
+Task `task_3a4500f57586`, dispatch `ctx_65780150196a`, owned the focused host-only repair.
 Requested and effective settings match Claude Code Opus 5.5 xhigh.
 Its files are `tests/host/m1-control.mjs`, its self-test and `docs/reviews/M1/host-control-replay-qa.md`.
-The repair must prevent completed-request replay while preserving valid new requests, acknowledgements and action evidence.
-Two independent focused reviews and a new frozen candidate are required before a runtime retry.
+It settled successfully and its session was released. The repair is committed in `9cdd7687b91169a262648018ec6945efa31217dc`.
+Its tests tree is `eccd4b50aa9c0ef6a25ce7d95fd383c0f3ad817e`.
+The controller skips acknowledged requests and requires the request id to match its file name.
+QA reproduces the seven-command replay on the old source. The fixed sequential-restart controls pass and preserve the old action records.
+Focused tests pass 5/5; full harness checks pass 73/73. Typechecking passes, and the 488/233 inventory is unchanged.
+Unacknowledged requests can run again after a crash. The repair does not promise exactly-once execution after process failure.
+Reviewer-A `ctx_c0efa63d7f79` and Reviewer-B `ctx_394aae19ddba` are reviewing this exact candidate independently.
+Common retry `ctx_686fb4062feb` has host-only preparation authority under `msg_e517b9b463d1`.
+All three requested and effective settings match Claude Code Opus 5.5 xhigh.
+Both review approvals and a quiet Docker window remain required before a runtime grant. No Docker window is active.
 Product code remains unchanged from `a784522`. Final conformance and guides remain queued.
 B-BM-01 remains an accepted M4 test-coverage deferral. All 32 real-LMS rows remain UNVERIFIED.
 No push or main merge is authorized for this phase.
