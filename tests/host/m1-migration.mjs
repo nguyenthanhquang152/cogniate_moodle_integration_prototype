@@ -11,7 +11,10 @@ import path from 'node:path';
 import { allContainers } from './lib.mjs';
 import { SNAPSHOT_OLD_SHA, assertSnapshotBoundary } from './m1-phases.mjs';
 import { CompatRoute, OLD_OPLOCK, qualifyRow } from './storage-compat-route.mjs';
+import { StorageFail } from './storage-docker.mjs';
+import { privateCopyTree, privateWrite } from './storage-fixture-script.mjs';
 import { StorageLane } from './storage-lane.mjs';
+import { PhaseAbort, scanCause } from './storage-private-scan.mjs';
 
 export const OLD_REVISION = 'b0b83a8';
 const databaseNames = ['lti-service/lti.db', 'cogniate-app/cogniate.db'];
@@ -160,23 +163,34 @@ async function checkoutOld(r, route, label, oldSha, installTests) {
   const hashes = route.compatHashes();
   assert.ok(hashes.ok, 'BLOCKED: storage-compat copies differ from infra/compat/storage-compat.sha256');
 }
-function writeHandoff(r, backup) {
-  const file = process.env.QA_M1_HANDOFF_FILE;
+/** The handoff of this round (site #16): ids and paths only, exclusive create, 0600; an existing file fails and stays unchanged. */
+export function writeHandoff(r, backup, file = process.env.QA_M1_HANDOFF_FILE) {
   if (!file) return;
   // Only ids, never the service key K0 of the migration state file.
   let platformId = null, connectionId = null;
   const state = path.join(r.CLONE, 'tests/acceptance/artifacts/m1-migration.raw.json');
   if (fs.existsSync(state)) { const s = JSON.parse(fs.readFileSync(state, 'utf8')); platformId = s.platformId ?? null; connectionId = s.connection?.id ?? null; }
-  fs.writeFileSync(file, JSON.stringify({ m123Backup: backup, m123Clone: r.CLONE, m123PlatformId: platformId, m123ConnectionId: connectionId }), { mode: 0o600 });
+  privateWrite(file, Buffer.from(JSON.stringify({ m123Backup: backup, m123Clone: r.CLONE, m123PlatformId: platformId, m123ConnectionId: connectionId })));
+}
+/**
+ * One §7.4 scan point of a migration or snapshot-upgrade phase (triage revision 4 SD-1). A hit makes the phase FAIL
+ * at this point; a refused correction stops it. The caller publishes every record (`scans`).
+ */
+export function scanAt(lane, point) {
+  const record = lane.scanPoint(point);
+  if (record.refusals.length) throw new PhaseAbort(`scan at ${point}: ${scanCause(record)}`);
+  if (record.failed) throw new StorageFail(`scan at ${point}: ${scanCause(record)}`);
+  return record;
 }
 
-export async function migrationRun(r, { installTests, setup, probe, identity }) {
+export async function migrationRun(r, { installTests, setup, probe, identity, scans = [] }) {
   const candidate = r.opt.sha, evidence = [];
   const record = (id, notes) => evidence.push({ id, environment: 'MOODLE-LIVE', status: 'PASS', ...identity, notes });
   assert.match(candidate, /^[a-f0-9]{40}$/);
   const old = await r.exec('old-revision', 'git', ['rev-parse', OLD_REVISION]);
   assert.equal(old.code, 0); const oldSha = old.stdout.trim();
-  const candidateLane = new StorageLane(r), oldLane = new StorageLane(r, { oplock: OLD_OPLOCK });
+  // Both lanes share one private root and one scan record list (its configDiff scratch removals included).
+  const candidateLane = new StorageLane(r, { scans }), oldLane = new StorageLane(r, { oplock: OLD_OPLOCK, scans });
   await candidateLane.boot(); oldLane.imageId = candidateLane.imageId;
   const route = new CompatRoute(r, { testSha: identity.testSha, lane: oldLane });
   // Fresh old-route lane (§12 routes): enable in the candidate checkout before the old checkout.
@@ -203,9 +217,11 @@ export async function migrationRun(r, { installTests, setup, probe, identity }) 
   assert.deepEqual(await volumeLedger(candidateLane), oldLedger, 'No new migration before backup');
   const backupRoot = fs.mkdtempSync(path.join(path.dirname(r.CLONE), 'qa-m1-private-backup-'));
   fs.chmodSync(backupRoot, 0o700);
+  candidateLane.extraRoots = [backupRoot];
   const backup = path.join(backupRoot, 'original');
   assert.equal((await r.npm('data-backup', ['run', 'stack:data-backup', '--', '--out', backup])).code, 0);
   const verified = inspectBackup(backup, before, oldLedger, r.PROJECT);
+  scanAt(candidateLane, 'migration after the private backup');
   record('M1-23.common.backup', 'Both stopped databases and present sidecars match the verified backup; old migration names remain');
   assert.equal((await r.npm('start-new-build', ['run', 'stack:up'], { timeoutMs: 900_000 })).code, 0);
   const refused = await r.npm('backup-refuses-running', ['run', 'stack:data-backup', '--', '--out', path.join(backupRoot, 'running-refusal')]);
@@ -215,7 +231,8 @@ export async function migrationRun(r, { installTests, setup, probe, identity }) 
   await stopServices(r);
   const targetBefore = await volumeSnapshot(candidateLane);
   for (const damage of ['bytes', 'missing', 'backup-id', 'project']) {
-    const copy = path.join(backupRoot, damage); fs.cpSync(backup, copy, { recursive: true });
+    const copy = path.join(backupRoot, damage); privateCopyTree(backup, copy);
+    scanAt(candidateLane, `migration after the damage copy ${damage}`);
     const info = inspectBackup(copy, before, oldLedger, r.PROJECT);
     if (damage === 'bytes') fs.appendFileSync(info.listed.get(databaseNames[0]), Buffer.from([1]));
     if (damage === 'missing') fs.rmSync(info.listed.get(databaseNames[1]));
@@ -260,6 +277,7 @@ export async function migrationRun(r, { installTests, setup, probe, identity }) 
   evidence.push({ id: 'M1-41.common.j-migration', environment: 'SIM', status: problems.length ? 'FAIL' : 'PASS', ...identity,
     notes: problems.length ? problems.join('; ') : `old build ${oldSha}: ${route.steps.length} old steps with tree, hash, config, wrapper, preflight, status and lock records` });
   r.saveText('migration-hashes.json', JSON.stringify({ oldSha, candidate, oldLedger, before, restored: before, evidence }, null, 2));
+  scanAt(candidateLane, 'migration phase end');
   writeHandoff(r, backup);
   // Backups contain secrets. Keep them private for investigation, outside checkout/evidence.
   r.record('MIGRATION', 'Upgrade and rollback lifecycle', 'PASS', ['Private backup retained outside shared evidence']);
@@ -268,7 +286,7 @@ export async function migrationRun(r, { installTests, setup, probe, identity }) 
 
 // A distinct clean clone/project from the released-v10 Moodle rollback route.
 // Seed through the public APIs; read only stopped database copies for ledgers.
-export async function snapshotMigrationRun(r, { installTests, setup, probe, identity }) {
+export async function snapshotMigrationRun(r, { installTests, setup, probe, identity, scans = [] }) {
   const candidate = r.opt.sha, evidence = [];
   assert.match(candidate, /^[a-f0-9]{40}$/);
   const tree = await r.exec('snapshot-old-tree', 'git', ['ls-tree', '--name-only', SNAPSHOT_OLD_SHA,
@@ -276,7 +294,7 @@ export async function snapshotMigrationRun(r, { installTests, setup, probe, iden
     'services/cogniate-app/src/domain/migrations/012_connection_provider_snapshot.sql']);
   assert.equal(tree.code, 0);
   assertSnapshotBoundary(tree.stdout.trim().split('\n').map((name) => path.basename(name)), 'before');
-  const candidateLane = new StorageLane(r), oldLane = new StorageLane(r, { oplock: OLD_OPLOCK });
+  const candidateLane = new StorageLane(r, { scans }), oldLane = new StorageLane(r, { oplock: OLD_OPLOCK, scans });
   await candidateLane.boot(); oldLane.imageId = candidateLane.imageId;
   const route = new CompatRoute(r, { testSha: identity.testSha, lane: oldLane });
   await route.enable();
@@ -298,9 +316,11 @@ export async function snapshotMigrationRun(r, { installTests, setup, probe, iden
   assert.deepEqual(await volumeLedger(candidateLane), oldLedger, 'Build cannot migrate before the stopped backup');
   const backupRoot = fs.mkdtempSync(path.join(path.dirname(r.CLONE), 'qa-m1-snapshot-private-'));
   fs.chmodSync(backupRoot, 0o700);
+  candidateLane.extraRoots = [backupRoot];
   const backup = path.join(backupRoot, 'original');
   assert.equal((await r.npm('snapshot-backup', ['run', 'stack:data-backup', '--', '--out', backup])).code, 0);
   inspectBackup(backup, before, oldLedger, r.PROJECT);
+  scanAt(candidateLane, 'snapshot-upgrade after the snapshot backup');
   evidence.push(...seedRows.map((row) => ({ ...row, sourceSha: SNAPSHOT_OLD_SHA,
     notes: 'Public 011 fixtures seeded; stopped databases and sidecars verified against the private backup before 012' })));
   assert.equal((await r.npm('snapshot-start-012', ['run', 'stack:up'], { timeoutMs: 900_000 })).code, 0);
@@ -319,5 +339,6 @@ export async function snapshotMigrationRun(r, { installTests, setup, probe, iden
     ...identity, sourceSha: SNAPSHOT_OLD_SHA, oldLedger, newLedger, before,
     evidence: evidence.map(({ id, status, environment }) => ({ id, status, environment })),
   }, null, 2));
+  scanAt(candidateLane, 'snapshot-upgrade phase end');
   return evidence;
 }

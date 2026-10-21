@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { run } from './lib.mjs';
-import { StorageBlocked, laneVolumeName } from './storage-docker.mjs';
+import { StorageBlocked, StorageFail, laneVolumeName } from './storage-docker.mjs';
+import { checkCapture, privateEmptyFile } from './storage-fixture-script.mjs';
 import { check, jsonLines } from './storage-oracle.mjs';
 
 export const OLD_SHAS = ['b0b83a8289e1bf9cf349068aca184f0879e9aaf0', '9f96f7b24cd0aed702e4dc40373bdda4307aad31'];
@@ -196,27 +197,39 @@ export class CompatRoute {
     s.treeRule = { ok: !problem, problem, productTree, testsTree: workTests, frozenTests };
     return s.treeRule;
   }
-  /** C1 and C0 through the old dc() itself, with the saved stack profile environment of the old lib.sh. */
-  async configDiff(profiles) {
-    const c = this.r.CLONE;
-    const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-compat-config-'));
-    const argsFile = path.join(scratch, 'args'), envFile = path.join(scratch, 'env');
-    const script = 'set -e; source infra/scripts/lib.sh; if declare -F apply_profile >/dev/null && declare -F saved_profile >/dev/null; then apply_profile "$(saved_profile)"; fi; '
-      + `docker() { printf '%s\\0' "$@" > "$QA_ARGS_FILE"; env -0 > "$QA_ENV_FILE"; }; dc --profile storage ${profiles.map((p) => '--profile ' + p).join(' ')} config --format json`;
-    const captured = await run('bash', ['-c', script], { cwd: c, env: { ...this.r.STACK_ENV, QA_ARGS_FILE: argsFile, QA_ENV_FILE: envFile } });
-    check(captured.code === 0, 'The old dc() arguments were captured');
-    const args = fs.readFileSync(argsFile, 'utf8').split('\0').filter((x, i, a) => i < a.length - 1);
-    const env = Object.fromEntries(fs.readFileSync(envFile, 'utf8').split('\0').filter(Boolean).map((kv) => [kv.slice(0, kv.indexOf('=')), kv.slice(kv.indexOf('=') + 1)]));
-    const knobsAt = args.findIndex((a, i) => a === '-f' && (args[i + 1] ?? '').endsWith(KNOBS));
-    check(knobsAt >= 0, 'C1 includes -f .tmp/compose.knobs.yaml');
-    const c0args = [...args.slice(0, knobsAt), ...args.slice(knobsAt + 2)];
-    const c1 = await run('docker', args, { cwd: c, env }), c0 = await run('docker', c0args, { cwd: c, env });
-    check(c1.code === 0 && c0.code === 0, 'docker compose config for C1 and C0');
-    const disallowed = disallowedDifferences(JSON.parse(c0.stdout), JSON.parse(c1.stdout), { checkout: fs.realpathSync(c), project: this.r.PROJECT });
-    const record = { profiles, disallowed, c1Sha256: crypto.createHash('sha256').update(c1.stdout).digest('hex') };
-    this.current.configDiff.push(record);
-    fs.rmSync(scratch, { recursive: true, force: true });
-    return record;
+  /**
+   * C1 and C0 through the old dc() itself, with the saved stack profile environment of the old lib.sh. Site #14: the
+   * `env -0` capture holds the .env values, so both capture files are private empty files in a lane private scratch,
+   * checked before the shell starts and after it ends; the scratch removal is a scan point. `shell` and `docker` are
+   * the command runners (a self-test replaces them).
+   */
+  async configDiff(profiles, { shell = (script, opts) => run('bash', ['-c', script], opts), docker = (args, opts) => run('docker', args, opts) } = {}) {
+    return this.lane.withScratch('compat-config', async (scratch) => {
+      const c = this.r.CLONE;
+      const argsFile = path.join(scratch, 'args'), envFile = path.join(scratch, 'env');
+      const ids = { [argsFile]: privateEmptyFile(argsFile, { uid: this.lane.hostUid }), [envFile]: privateEmptyFile(envFile, { uid: this.lane.hostUid }) };
+      const problems = (when) => Object.entries(ids).flatMap(([file, id]) => checkCapture(file, id, when));
+      const beforeShell = problems('before');
+      if (beforeShell.length) throw new StorageFail('Capture files are not private: ' + beforeShell.join('; '));
+      const script = 'set -e; source infra/scripts/lib.sh; if declare -F apply_profile >/dev/null && declare -F saved_profile >/dev/null; then apply_profile "$(saved_profile)"; fi; '
+        + `docker() { printf '%s\\0' "$@" > "$QA_ARGS_FILE"; env -0 > "$QA_ENV_FILE"; }; dc --profile storage ${profiles.map((p) => '--profile ' + p).join(' ')} config --format json`;
+      const captured = await shell(script, { cwd: c, env: { ...this.r.STACK_ENV, QA_ARGS_FILE: argsFile, QA_ENV_FILE: envFile } });
+      // QA reads no captured byte unless both files are still the same private files.
+      const afterShell = problems('after');
+      if (afterShell.length) throw new StorageFail('Capture files changed during the shell: ' + afterShell.join('; '));
+      check(captured.code === 0, 'The old dc() arguments were captured');
+      const args = fs.readFileSync(argsFile, 'utf8').split('\0').filter((x, i, a) => i < a.length - 1);
+      const env = Object.fromEntries(fs.readFileSync(envFile, 'utf8').split('\0').filter(Boolean).map((kv) => [kv.slice(0, kv.indexOf('=')), kv.slice(kv.indexOf('=') + 1)]));
+      const knobsAt = args.findIndex((a, i) => a === '-f' && (args[i + 1] ?? '').endsWith(KNOBS));
+      check(knobsAt >= 0, 'C1 includes -f .tmp/compose.knobs.yaml');
+      const c0args = [...args.slice(0, knobsAt), ...args.slice(knobsAt + 2)];
+      const c1 = await docker(args, { cwd: c, env }), c0 = await docker(c0args, { cwd: c, env });
+      check(c1.code === 0 && c0.code === 0, 'docker compose config for C1 and C0');
+      const disallowed = disallowedDifferences(JSON.parse(c0.stdout), JSON.parse(c1.stdout), { checkout: fs.realpathSync(c), project: this.r.PROJECT });
+      const record = { profiles, disallowed, c1Sha256: crypto.createHash('sha256').update(c1.stdout).digest('hex') };
+      this.current.configDiff.push(record);
+      return record;
+    });
   }
   /**
    * One harness-invoked old start command through the copied wrapper. QA's own evidence: the preflight

@@ -5,10 +5,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { StorageBlocked, StorageFail } from './storage-docker.mjs';
+import { spawnSync } from 'node:child_process';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import {
-  LegacyFixtures, assertPair, assertRefuses, dbFileSets, fileSets, fileSetsEqual, freshVolume, groupMembers, hashFolder, jsonLines,
+  LegacyFixtures, assertPair, assertRefuses, clockSample, dbFileSets, fileSets, fileSetsEqual, freshVolume, groupMembers, hashFolder, jsonLines,
   legacyEmpty, legacySets, listingDiff, lockPairs, logicalShows, manifestDbSets, manifestFiles, namesCode, nothingChanged,
-  pairsDisjoint, pidStart, pgidOf, preflightOf, recordHash, spawnGroup, until, writeRecordFolder,
+  pairsDisjoint, pidStart, pgidOf, preflightOf, readJsonl, recordHash, serializeVerdict, spawnGroup, timeMs, until, waitForRun, writeRecordFolder,
 } from './storage-oracle.mjs';
 
 const tmp = (t) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-oracle-')); t.after(() => fs.rmSync(d, { recursive: true, force: true })); return d; };
@@ -167,4 +170,162 @@ test('HARNESS ONLY: QA hashes a backup folder itself', (t) => {
   fs.symlinkSync('/etc/hosts', path.join(dir, 'link'));
   const h = hashFolder(dir);
   assert.equal(h['lti-service/lti.db'].size, 1); assert.equal(h.link.type, 'symlink');
+});
+
+// ---------------------------------------------------------------- a-serialize oracle (storage repair triage revision 4 §3.1)
+
+const PG = 4242, T = Date.parse('2026-10-21T11:32:15.000Z');
+const iso = (ms) => new Date(ms).toISOString();
+const nano = (ms) => iso(ms).replace('Z', '123456Z'); // Docker form: nanoseconds
+const ev = (event, runId, ms, extra = {}) => JSON.stringify({ event, ts: iso(ms), project: 'qa-x-st', command: 'stack:data-backup', runId, pid: PG, pgid: PG,
+  owner: null, reason: null, waitedMs: 0, container: null, ...extra });
+const sample = ({ o = 0, u = 1 } = {}) => ({ ok: true, h1: 1000, h2: 1000 + 2 * u, engineText: 'x', engine: 1000 + u + o, o, u });
+/** A lock log with an older part before the offset, the run X after it, and services started 200 ms after X released. */
+function scene({ pre = [], post, startOffsetMs = 200, samples = [sample(), sample()], waitLines = [], startedAt } = {}) {
+  const head = pre.map((l) => l + '\n').join('');
+  const body = (post ?? [ev('storage_lock_acquired', 'X', T), ev('storage_lock_released', 'X', T + 1000)]).map((l) => l + '\n').join('');
+  const start = nano(T + 1000 + startOffsetMs);
+  return { log: head + body, offset: Buffer.byteLength(head), pgid: PG, waitLines, samples, startedAt: startedAt ?? { 'lti-service': start, 'cogniate-app': start } };
+}
+const verdict = (input) => serializeVerdict(input);
+
+test('HARNESS ONLY: V1 a-serialize: the backup run is identified by its pgid after the offset; PASS needs the own command and a later start', () => {
+  const ok = verdict(scene({ waitLines: [{ event: 'storage_lock_wait', owner: { runId: 'X', pgid: PG } }] }));
+  assert.deepEqual([ok.verdict, ok.selectedRunId, ok.cause], ['PASS', 'X', null]);
+  assert.ok(ok.clock.margins['lti-service'].marginToHiMs > 0 && ok.clock.lo <= ok.clock.hi, 'Offsets, uncertainty and margins are recorded');
+  assert.deepEqual(verdict(scene()).notes, ['no wait observed'], 'A missing wait line is allowed and recorded');
+  // V1-1, V1-1b: a release with command null, or another command: the schema FAIL, with the run selected.
+  for (const command of [null, '', 'stack:up']) {
+    const v = verdict(scene({ post: [ev('storage_lock_acquired', 'X', T), ev('storage_lock_released', 'X', T + 1000, { command })] }));
+    assert.deepEqual([v.verdict, v.selectedRunId, v.cause], ['FAIL', 'X', 'release event without the backup command (ADR-012 §7)'], String(command));
+  }
+  const nullAcquire = verdict(scene({ post: [ev('storage_lock_acquired', 'X', T, { command: null }), ev('storage_lock_released', 'X', T + 1000, { command: null })] }));
+  assert.equal(nullAcquire.cause, 'release event without the backup command (ADR-012 §7)', 'Two null commands are never equal');
+  // V1-2, V1-11: no release of X (a release of another run with the backup command, or only an older release before the offset).
+  assert.equal(verdict(scene({ post: [ev('storage_lock_acquired', 'X', T), ev('storage_lock_released', 'Y', T + 1000, { pgid: 7 })] })).cause, 'no release for the backup run');
+  assert.equal(verdict(scene({ pre: [ev('storage_lock_released', 'X', T - 5000)], post: [ev('storage_lock_acquired', 'X', T)] })).cause, 'no release for the backup run');
+  // V1-3: X released before the start; a later release Z of another run with the backup command after it: PASS on X.
+  const v3 = verdict(scene({ post: [ev('storage_lock_acquired', 'X', T), ev('storage_lock_released', 'X', T + 1000), ev('storage_lock_acquired', 'Z', T + 2000, { pgid: 9 }), ev('storage_lock_released', 'Z', T + 3000, { pgid: 9 })] }));
+  assert.deepEqual([v3.verdict, v3.selectedRunId], ['PASS', 'X']);
+  // V1-4: X released after a start: FAIL on time.
+  assert.equal(verdict(scene({ startOffsetMs: -500 })).cause, 'service started before the backup released the lock');
+  // V1-6: an older pair W before the offset (also with the same pgid), released before the start; X released after it.
+  const v6 = verdict(scene({ pre: [ev('storage_lock_acquired', 'W', T - 9000), ev('storage_lock_released', 'W', T - 8000)], startOffsetMs: -500 }));
+  assert.deepEqual([v6.cause, v6.selectedRunId], ['service started before the backup released the lock', 'X']);
+  // V1-8: zero or two acquire events with the spawned pgid after the offset.
+  assert.equal(verdict(scene({ post: [ev('storage_lock_acquired', 'X', T, { pgid: 5 }), ev('storage_lock_released', 'X', T + 1000)] })).cause, 'backup run not identified');
+  assert.equal(verdict(scene({ post: [ev('storage_lock_acquired', 'X', T), ev('storage_lock_acquired', 'X2', T + 1), ev('storage_lock_released', 'X', T + 1000)] })).cause, 'backup run not identified');
+  // V1-9: stack:up waited on another run (runId or pgid).
+  assert.equal(verdict(scene({ waitLines: [{ event: 'storage_lock_wait', owner: { runId: 'Y', pgid: PG } }] })).cause, 'stack:up waited on another run');
+  assert.equal(verdict(scene({ waitLines: [{ event: 'storage_lock_wait', owner: { runId: 'X', pgid: 1 } }] })).cause, 'stack:up waited on another run');
+  // V1-10: a margin inside the uncertainty; an engine offset of +2 s that hides a start 1 s before the release.
+  assert.equal(verdict(scene({ startOffsetMs: 5, samples: [sample({ u: 10 }), sample({ u: 10 })] })).cause, 'clock uncertainty');
+  const hidden = verdict(scene({ samples: [sample({ o: 2000, u: 1 }), sample({ o: 2000, u: 1 })], startedAt: { 'lti-service': nano(T + 1000 + 2000 - 1000), 'cogniate-app': nano(T + 1000 + 2000 - 1000) } }));
+  assert.equal(hidden.cause, 'service started before the backup released the lock');
+  assert.equal(verdict(scene({ samples: [sample({ o: 2000 }), sample({ o: 2000 })], startedAt: { 'lti-service': nano(T + 1000 + 2100), 'cogniate-app': nano(T + 1000 + 2100) } })).verdict, 'PASS');
+  // V1-13: a lock log shorter than its offset; V1-14: two releases of X; V1-15: one failed clock sample.
+  const s13 = scene(); assert.equal(verdict({ ...s13, offset: Buffer.byteLength(s13.log) + 1 }).cause, 'lock log truncated');
+  assert.equal(verdict(scene({ post: [ev('storage_lock_acquired', 'X', T), ev('storage_lock_released', 'X', T + 1000), ev('storage_lock_released', 'X', T + 1001)] })).cause, 'more than one release for the backup run');
+  assert.equal(verdict(scene({ samples: [sample(), { ok: false, error: 'exit 1' }] })).cause, 'clock not measured');
+  assert.equal(verdict(scene({ samples: [sample()] })).cause, 'clock not measured');
+  assert.equal(verdict(scene({ startedAt: { 'lti-service': nano(T + 2000) } })).cause, 'no StartedAt for cogniate-app');
+});
+
+test('HARNESS ONLY: V1-7 the wait ends only on a sign of the spawned pgid; an older acquire and record of W never end it', async () => {
+  const pre = ev('storage_lock_acquired', 'W', T - 9000) + '\n', offset = Buffer.byteLength(pre);
+  let log = pre, record = { runId: 'W', pgid: 77, command: 'stack:data-backup' }, polls = 0, clock = 0;
+  const readLog = () => { polls++; if (polls === 4) log += ev('storage_lock_acquired', 'X', T) + '\n'; return log; };
+  const waited = await waitForRun({ readLog, readRecord: () => record, offset, pgid: PG, timeoutMs: 60_000, now: () => clock, sleep: async () => { clock += 50; } });
+  assert.deepEqual([waited, polls], [{ by: 'event' }, 4], 'Not before the sign of this run');
+  polls = 0; log = pre;
+  const viaRecord = await waitForRun({ readLog: () => log, readRecord: () => (++polls >= 3 ? { runId: 'X', pgid: PG } : record), offset, pgid: PG, now: () => clock, sleep: async () => { clock += 50; } });
+  assert.deepEqual(viaRecord, { by: 'record' });
+  clock = 0;
+  assert.equal(await waitForRun({ readLog: () => pre, readRecord: () => record, offset, pgid: PG, timeoutMs: 1000, now: () => clock, sleep: async () => { clock += 100; } }), null, 'Deadline: not identified');
+  assert.equal(await waitForRun({ readLog: () => pre + ev('storage_lock_acquired', 'X', T, { pgid: 1 }) + '\n', readRecord: () => null, offset, pgid: PG, timeoutMs: 200, now: () => clock, sleep: async () => { clock += 100; } }), null, 'Another pgid never ends it');
+});
+
+test('HARNESS ONLY: clock samples and RFC 3339 times keep sub-millisecond precision; a failed engine read is not a sample', async () => {
+  // The fraction below the millisecond is kept (within the binary precision of an epoch millisecond number, about 0.0003 ms).
+  assert.ok(Math.abs(timeMs('2026-10-21T11:32:16.117395837Z') - Date.parse('2026-10-21T11:32:16.117Z') - 0.395837) < 0.001, 'No flooring below the millisecond');
+  assert.ok(Math.abs(timeMs('2026-10-21T13:32:16.5+02:00') - Date.parse('2026-10-21T11:32:16.500Z')) < 1e-6);
+  assert.equal(timeMs('not a time'), null);
+  let n = 0;
+  const s = await clockSample(async () => ({ code: 0, stdout: '2026-10-21T11:32:16.117395837Z\n' }), () => (n++ === 0 ? Date.parse('2026-10-21T11:32:16.100Z') : Date.parse('2026-10-21T11:32:16.110Z')));
+  assert.deepEqual([s.ok, s.u], [true, 5]); assert.ok(Math.abs(s.o - 12.395837) < 0.001);
+  assert.equal((await clockSample(async () => ({ code: 1, stdout: '', stderr: 'down' }))).ok, false);
+  assert.equal((await clockSample(async () => { throw new Error('no docker'); })).ok, false);
+});
+
+// ---------------------------------------------------------------- V1-12: the row's exact spawn path, with a fail-closed Docker stub
+
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+/** The V1-12 decision over one probe: the identity premise of §3.1 holds through the npm hop. */
+export function judgeBackupSpawn({ events, calls, exit, lockLeft, pgid }) {
+  const problems = [];
+  const acquires = events.filter((e) => e.event === 'storage_lock_acquired');
+  if (acquires.length !== 1) problems.push(`${acquires.length} storage_lock_acquired events`);
+  const a = acquires[0];
+  if (a && a.pgid !== pgid) problems.push(`acquire pgid ${a.pgid} is not the spawned pgid ${pgid}`);
+  if (a && a.command !== 'stack:data-backup') problems.push(`acquire command ${JSON.stringify(a.command)} is not stack:data-backup`);
+  if (!calls.length) problems.push('no Docker call reached the stub');
+  else if (!(calls[0].lockHeld && a && calls[0].lockLogBytes >= a.endByte)) problems.push('the first Docker call came before the acquire event');
+  if (calls.some((c) => c.answer !== 97)) problems.push('the stub answered a call with success');
+  if (exit === 0) problems.push('the command exited 0 although Docker refused');
+  if (lockLeft) problems.push('a lock folder remains');
+  return problems;
+}
+test('HARNESS ONLY: V1-12 npm run stack:data-backup through spawnGroup: one acquire with the spawned pgid and the own command; no real Docker', async (t) => {
+  const head = spawnSync('git', ['-C', REPO, 'rev-parse', 'HEAD'], { encoding: 'utf8' });
+  assert.equal(head.status, 0, 'BLOCKED (precondition not made): V1-12 needs the git checkout of the candidate');
+  const candidate = head.stdout.trim();
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'qa-v1-12-'))); t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const copy = path.join(dir, 'copy'), stubDir = path.join(dir, 'stub'), callsFile = path.join(dir, 'stub-calls.jsonl'), out = path.join(dir, 'out');
+  fs.mkdirSync(copy); fs.mkdirSync(stubDir);
+  // The tracked package.json and infra/ of the candidate SHA (committed bytes only; no .env).
+  assert.equal(spawnSync('git', ['-C', REPO, 'archive', '--format=tar', '--output', path.join(dir, 'c.tar'), candidate, 'package.json', 'infra']).status, 0);
+  assert.equal(spawnSync('tar', ['-xf', path.join(dir, 'c.tar'), '-C', copy]).status, 0);
+  assert.equal(fs.existsSync(path.join(copy, '.env')), false);
+  const project = 'qa-v112-' + crypto.randomBytes(3).toString('hex');
+  const lockDir = path.join(copy, '.tmp', `storage-op.${project}.lock`), lockLog = path.join(copy, 'infra/.logs/storage-lock.jsonl');
+  fs.writeFileSync(path.join(stubDir, 'docker'), `#!${process.execPath}
+const fs = require('node:fs');
+const size = (f) => { try { return fs.statSync(f).size; } catch { return 0; } };
+fs.appendFileSync(${JSON.stringify(callsFile)}, JSON.stringify({ argv: process.argv.slice(2), lockHeld: fs.existsSync(${JSON.stringify(lockDir)}), lockLogBytes: size(${JSON.stringify(lockLog)}), answer: 97 }) + '\\n');
+process.stderr.write('qa fail-closed docker stub: refused\\n');
+process.exit(97);
+`, { mode: 0o700 });
+  // The row's environment rule: no npm_* variable (in any case), a qa- project; npm's own temporary files stay in this probe.
+  const env = { ...Object.fromEntries(Object.entries(process.env).filter(([k]) => !/^npm_/i.test(k))), COMPOSE_PROJECT_NAME: project,
+    PUBLIC_PORT: '8443', STACK_SUBNET: '172.31.250.0/24', PATH: stubDir + path.delimiter + process.env.PATH, TMPDIR: dir };
+  assert.ok(!Object.keys(env).some((k) => /^npm_/i.test(k)), 'No npm_* environment key');
+  // Probe-only configuration, apart from the archived candidate files: a scratch .npmrc turns off npm's network checks.
+  const npmrc = path.join(copy, '.npmrc'), npmrcLines = ['update-notifier=false', 'fund=false', 'audit=false'];
+  const archived = spawnSync('tar', ['-tf', path.join(dir, 'c.tar')], { encoding: 'utf8' }).stdout.split('\n');
+  assert.ok(!archived.some((n) => /(^|\/)\.npmrc$/.test(n)), 'The candidate archive has no .npmrc');
+  fs.writeFileSync(npmrc, npmrcLines.join('\n') + '\n', { mode: 0o600, flag: 'wx' });
+  assert.equal(fs.lstatSync(npmrc).mode & 0o7777, 0o600);
+  const homeRc = path.join(os.homedir(), '.npmrc'), homeBefore = fs.existsSync(homeRc) ? crypto.createHash('sha256').update(fs.readFileSync(homeRc)).digest('hex') : null;
+  const notifier = spawnSync('npm', ['config', 'get', 'update-notifier'], { env, cwd: copy, encoding: 'utf8' }).stdout.trim();
+  assert.equal(notifier, 'false', 'npm reads the scratch .npmrc');
+  const which = spawnSync('/bin/sh', ['-c', 'command -v docker'], { env, encoding: 'utf8' });
+  assert.equal(which.stdout.trim(), path.join(stubDir, 'docker'), 'docker resolves to the fail-closed stub first on PATH');
+  const npmVersion = spawnSync('npm', ['--version'], { env, cwd: copy, encoding: 'utf8' }).stdout.trim();
+  const g = spawnGroup('npm', ['run', 'stack:data-backup', '--', '--out', out], { cwd: copy, env });
+  const timer = setTimeout(() => g.killGroup('SIGKILL'), 90_000);
+  const done = await g.done; clearTimeout(timer);
+  const text = fs.existsSync(lockLog) ? fs.readFileSync(lockLog, 'utf8') : '';
+  let at = 0; const events = text.split('\n').filter(Boolean).map((line) => { at += Buffer.byteLength(line) + 1; return { ...JSON.parse(line), endByte: at }; });
+  const calls = readJsonl(callsFile);
+  const homeAfter = fs.existsSync(homeRc) ? crypto.createHash('sha256').update(fs.readFileSync(homeRc)).digest('hex') : null;
+  assert.equal(homeAfter, homeBefore, 'The real user npm configuration is unchanged');
+  t.diagnostic(JSON.stringify({ candidate, npmVersion, argv: ['npm', 'run', 'stack:data-backup', '--', '--out', '<probe>/out'], probeConfig: { file: '<copy>/.npmrc', lines: npmrcLines, mode: '0600' },
+    project, exit: done.code, events: events.map((e) => e.event), stubCalls: calls.length, stubAnswers: [...new Set(calls.map((c) => c.answer))] }));
+  assert.deepEqual(judgeBackupSpawn({ events, calls, exit: done.code, lockLeft: fs.existsSync(lockDir), pgid: g.pgid }), [], done.stdout + done.stderr);
+  // The decision discriminates: another acquire command, a pgid premise that fails through the hop, a success answer.
+  const good = { events, calls, exit: done.code, lockLeft: false, pgid: g.pgid };
+  assert.ok(judgeBackupSpawn({ ...good, events: events.map((e) => ({ ...e, command: e.event === 'storage_lock_acquired' ? 'stack:up' : e.command })) }).length);
+  assert.ok(judgeBackupSpawn({ ...good, pgid: g.pgid + 1 }).length);
+  assert.ok(judgeBackupSpawn({ ...good, calls: [{ ...calls[0], answer: 0 }] }).length);
+  assert.ok(judgeBackupSpawn({ ...good, calls: [{ ...calls[0], lockLogBytes: 0 }] }).length);
 });

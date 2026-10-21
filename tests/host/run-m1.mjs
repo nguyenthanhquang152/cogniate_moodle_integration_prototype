@@ -13,6 +13,10 @@ import { m1HostControl } from './m1-control.mjs';
 import { migrationRun, snapshotMigrationRun } from './m1-migration.mjs';
 import { FULL_PHASES, SNAPSHOT_OLD_SHA, SNAPSHOT_CONTRACT_SHA, phaseRows, casePattern, snapshotStageRows } from './m1-phases.mjs';
 import { WRAPPER } from './storage-compat-route.mjs';
+import { diagnosticRun, fullRounds } from './storage-diagnostic.mjs';
+import { afterCleanupOk, defaultDocker, listLane } from './storage-docker.mjs';
+import { privateWrite } from './storage-fixture-script.mjs';
+import { WINDOW_FORM } from './storage-handoff.mjs';
 import {
   CONDITIONAL_ID, checkConditional, countResults, joinInventory, readStorageManifest, sameConditionalInBothRounds, splitConditional,
 } from './storage-inventory.mjs';
@@ -22,17 +26,23 @@ import { readManifests, verifyResults, vitestResults, playwrightResults } from '
 import { createRuntime } from '../sim/core/runtime.mjs';
 import { loadProviders } from '../sim/server.mjs';
 
+// The start time s of this child (storage repair triage §9.1), taken first.
+const CHILD_START = Date.now();
 const testsDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const options = {
   phase: { type: 'string', default: 'full' },
   provider: { type: 'string', default: 'all' },
   'test-sha': { type: 'string' },
   'harness-only': { type: 'boolean', default: false },
+  // The diagnostic call only (§9 step 7).
+  'window-end': { type: 'string' },
+  'w4-command': { type: 'string' },
+  'diagnostic-root': { type: 'string' },
 };
 const { values: opt } = parseArgs({ strict: false, options: {
   ...options, sha: { type: 'string' }, source: { type: 'string' }, help: { type: 'boolean' },
 } });
-assert.ok(['full', ...FULL_PHASES, 'legacy'].includes(opt.phase), 'Unknown phase');
+assert.ok(['full', ...FULL_PHASES, 'legacy', 'diagnostic'].includes(opt.phase), 'Unknown phase');
 assert.ok(['all', 'blackboard', 'canvas'].includes(opt.provider), 'Unknown provider');
 const source = path.resolve(opt.source ?? path.join(testsDir, '..'));
 const owners = opt.provider === 'all' ? ['common', 'blackboard', 'canvas'] : ['common', opt.provider];
@@ -47,6 +57,8 @@ async function checked(command, args, extra = {}) {
 }
 if (opt.help) {
   print('M1: --sha <40 hex> --test-sha <40 hex> [--phase full|sim|snapshot-isolated|snapshot-upgrade|migration|storage|legacy] [--provider all|blackboard|canvas]');
+  print('Diagnostic (storage repair §9 step 7): --phase diagnostic --window-end <ISO> --w4-command <absolute path> [--diagnostic-root <folder>].');
+  print('  It is not an authorization: it needs a Lead-granted exclusive Docker window with fresh G1 and W1-W3 records.');
   print('Preparation only: --harness-only --provider blackboard (no Docker or product calls).');
   print('Full = SIM + snapshot-isolated + populated 011-to-012 + Moodle migration + storage (AC-M1-41, own lane) twice at the same SHAs, then legacy; it requires Canvas.');
   process.exit(0);
@@ -140,25 +152,15 @@ if (opt.phase === 'full') {
   assert.equal(opt.provider, 'all', 'Full acceptance requires both providers');
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-m1-accounting-'));
   fs.chmodSync(scratch, 0o700);
-  const runs = [];
   const baseProject = process.env.COMPOSE_PROJECT_NAME ?? 'qa-multi-r1';
-  for (let round = 1; round <= 2; round++) {
-    const rows = [];
-    // The migration phase records this round's AC-M1-23 backup and clone for e-old-schema (ids only, no secret).
-    const handoff = path.join(scratch, `round-${round}-handoff.json`);
-    for (const phase of FULL_PHASES) {
-      print(`Starting M1 round ${round}, ${phase}; one stack at a time.`);
-      const resultFile = path.join(scratch, `round-${round}-${phase}.json`);
-      // The storage phase has its own fresh clone and its own lane (project name), ADR-012 §13.
-      const lane = phase === 'storage' ? { COMPOSE_PROJECT_NAME: `${baseProject}-st` } : {};
-      rows.push(...await childRun(fileURLToPath(import.meta.url), [
-        '--phase', phase, '--sha', identity.productSha, '--test-sha', identity.testSha, '--source', source,
-      ], { QA_M1_RESULTS_FILE: resultFile, QA_M1_HANDOFF_FILE: handoff, ...lane }, resultFile));
-    }
-    verifyWithConditional(expected, rows); runs.push(rows);
-    const count = countResults(rows);
-    print(`Round ${round}: ${rows.length} rows; PASS ${count.PASS}; NOT_APPLICABLE ${count.NOT_APPLICABLE} (reported apart, never a PASS).`);
-  }
+  const runs = await fullRounds({ scratch, baseProject, print,
+    args: ['--sha', identity.productSha, '--test-sha', identity.testSha, '--source', source],
+    childRun: (args, environment, resultFile) => childRun(fileURLToPath(import.meta.url), args, environment, resultFile),
+    onRound: (round, rows) => {
+      verifyWithConditional(expected, rows);
+      const count = countResults(rows);
+      print(`Round ${round}: ${rows.length} rows; PASS ${count.PASS}; NOT_APPLICABLE ${count.NOT_APPLICABLE} (reported apart, never a PASS).`);
+    } });
   const outcome = (rows) => rows.map(({ id, status, environment }) => ({ id, status, environment })).sort((a, b) => a.id.localeCompare(b.id));
   assert.deepEqual(outcome(runs[0]), outcome(runs[1]), 'Two full runs must have the same per-case results');
   print(`c-host-negative in both rounds: ${sameConditionalInBothRounds(runs[0], runs[1])}.`);
@@ -167,6 +169,33 @@ if (opt.phase === 'full') {
   ], {});
   print('M1 SIM, isolated drift, populated 011-to-012, Moodle rollback, storage (AC-M1-41) and legacy accounting passed; M2, T7 and live checks remain separate.');
   process.exit(0);
+}
+if (opt.phase === 'diagnostic') {
+  // Storage repair triage §9 step 7: migration, then storage only when every run-or-stop condition holds. The flags are
+  // necessary inputs, never an authorization: the caller needs a Lead-granted exclusive Docker window, fresh G1 and
+  // W1-W3 records and owned lanes. --w4-command is QA's strict W4 comparison; it runs also after "storage NOT RUN".
+  assert.match(opt['window-end'] ?? '', WINDOW_FORM, '--window-end <the ISO end of the granted window> is required');
+  assert.ok(opt['w4-command'] && path.isAbsolute(opt['w4-command']), '--w4-command <absolute path of the strict W4 check> is required');
+  const baseProject = process.env.COMPOSE_PROJECT_NAME ?? 'qa-multi-r1';
+  const runRoot = path.join(os.homedir(), 'cogniate-qa-runs');
+  const result = await diagnosticRun({ root: path.resolve(opt['diagnostic-root'] ?? runRoot), runRoot, windowEnd: opt['window-end'], baseProject,
+    productSha: identity.productSha, args: ['--sha', identity.productSha, '--test-sha', identity.testSha, '--source', source],
+    migrationIds: phaseRows(expected, 'migration').map((row) => row.id), artifactsDir: path.join(testsDir, 'host', 'artifacts'), print,
+    spawnChild: async (args, environment) => {
+      const child = await run(process.execPath, [fileURLToPath(import.meta.url), ...args], { cwd: source, env: { ...process.env, ...environment }, timeoutMs: 43_200_000 });
+      if (child.stdout) print(child.stdout);
+      return child;
+    },
+    // The owned teardown of each child ran in that child (core.mjs); here QA confirms that no lane resource remains.
+    teardown: async () => {
+      for (const project of [baseProject, `${baseProject}-st`]) assert.ok(afterCleanupOk(await listLane(defaultDocker, project)), `Lane resources remain: ${project}`);
+    },
+    w4: async ({ D }) => {
+      const w4 = await run(opt['w4-command'], D ? [D] : [], { timeoutMs: 1_800_000 });
+      assert.equal(w4.code, 0, `Strict W4 failed: ${w4.stderr.slice(0, 300)}`);
+    } });
+  print(JSON.stringify(result, null, 2));
+  process.exit(result.storage === 'RUN' && result.storageChild?.code === 0 && result.teardown?.ok && result.w4?.ok ? 0 : 1);
 }
 if (opt.phase === 'legacy') {
   const suites = [
@@ -188,6 +217,8 @@ if (opt.phase === 'legacy') {
 
 const r = createRunner({ task: 'M1', defaultProject: 'qa-multi-r1', extraOptions: options });
 const rows = [], artifactDir = path.join(r.CLONE, 'tests/acceptance/artifacts');
+// The §7.4 scan records of this phase (storage repair triage); published in the finally block below (IN-3).
+const phaseScans = [];
 const record = (id, notes) => {
   const entry = expected.find((row) => row.id === id); assert.ok(entry, 'Unmanifested host case ' + id);
   const row = { id, status: 'PASS', environment: entry.environment, ...identity, notes };
@@ -337,7 +368,7 @@ await r.main(async () => {
           { QA_M1_MIGRATION_STAGE: stage, QA_M1_EXECUTING_SHA: executingSha }, { route });
         rows.splice(count); return actual;
       };
-      rows.push(...await snapshotMigrationRun(r, { installTests, setup, probe, identity }));
+      rows.push(...await snapshotMigrationRun(r, { installTests, setup, probe, identity, scans: phaseScans }));
       verifyResults(phaseRows(expected, 'snapshot-upgrade'), rows, identity);
     } else if (opt.phase === 'migration') {
       copyCourseFixtures();
@@ -351,13 +382,13 @@ await r.main(async () => {
             QA_GREP: `\\{case:${id.replaceAll('.', '\\.')}\\}` }, { route });
         rows.splice(count);
       };
-      rows.push(...await migrationRun(r, { installTests, setup, probe, identity }));
+      rows.push(...await migrationRun(r, { installTests, setup, probe, identity, scans: phaseScans }));
       verifyResults(phaseRows(expected, 'migration'), rows, identity);
     } else if (opt.phase === 'storage') {
       // AC-M1-41 rows of the storage phase: own fresh clone and lane, QA fixture containers only (ADR-012 §11).
-      const lane = new StorageLane(r);
-      const handoff = () => process.env.QA_M1_HANDOFF_FILE && fs.existsSync(process.env.QA_M1_HANDOFF_FILE)
-        ? JSON.parse(fs.readFileSync(process.env.QA_M1_HANDOFF_FILE, 'utf8')) : null;
+      const lane = new StorageLane(r, { scans: phaseScans });
+      // §9.1: the facts of this storage child; @old-schema-setup checks the handoff against them.
+      const handoff = { file: process.env.QA_M1_HANDOFF_FILE, windowStart: process.env.QA_M1_WINDOW_START, startedAt: CHILD_START };
       rows.push(...await storagePhase(lane, { identity, handoff, setupClone: setupStorageClone }));
       verifyWithConditional(phaseRows(expected, 'storage'), rows);
     }
@@ -381,5 +412,10 @@ await r.main(async () => {
       health: { app: await r.healthz(r.state.urls?.app), lti: await r.healthz(r.state.urls?.lti) } }, null, 2));
     // Redaction is applied again by core.main after log collection.
     if (process.env.QA_M1_RESULTS_FILE) fs.writeFileSync(process.env.QA_M1_RESULTS_FILE, JSON.stringify(rows));
+    // IN-3: the scan records of this phase, published so that the caller can apply its stop rule.
+    const end = { migration: 'migration phase end', 'snapshot-upgrade': 'snapshot-upgrade phase end' }[opt.phase];
+    const published = { phase: opt.phase, complete: end ? phaseScans.some((p) => p.point === end) : phaseScans.length > 0, points: phaseScans };
+    if (['migration', 'snapshot-upgrade', 'storage'].includes(opt.phase)) r.saveText(`storage/${opt.phase}-scans.json`, JSON.stringify(published, null, 2));
+    if (process.env.QA_M1_SCAN_FILE) privateWrite(process.env.QA_M1_SCAN_FILE, Buffer.from(JSON.stringify(published)));
   }
 });

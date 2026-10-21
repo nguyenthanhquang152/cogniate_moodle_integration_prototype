@@ -7,7 +7,8 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { run } from './lib.mjs';
-import { StorageBlocked, StorageFail, dockerSecond } from './storage-docker.mjs';
+import { StorageBlocked, StorageFail, defaultDocker, dockerSecond } from './storage-docker.mjs';
+import { privateCopy } from './storage-fixture-script.mjs';
 
 export const SERVICES = ['lti-service', 'cogniate-app'];
 export const VOL_OF_SERVICE = { 'lti-service': 'lti', 'cogniate-app': 'app' };
@@ -230,12 +231,12 @@ export const legacyEmpty = (sets) => Object.values(sets).every((list) => list.le
  */
 export class LegacyFixtures {
   constructor(clone) { this.clone = clone; this.placed = new Map(); }
-  place(service, name, sourceFile) {
+  place(service, name, sourceFile, { hook } = {}) {
     const dir = path.join(this.clone, 'infra/.data', service);
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     const target = path.join(dir, name);
     if (fs.existsSync(target)) throw new StorageBlocked('Legacy target exists and is not QA-placed: ' + target);
-    fs.copyFileSync(sourceFile, target, fs.constants.COPYFILE_EXCL); fs.chmodSync(target, 0o600);
+    privateCopy(sourceFile, target, { hook }); // site #8: 0600 at creation, at the legacy place
     this.placed.set(target, sha(target));
     return { service, name, size: fs.statSync(target).size, sha256: this.placed.get(target) };
   }
@@ -310,5 +311,79 @@ export function lockPairs(events) {
     byRun.set(e.runId, p);
   }
   return [...byRun.values()];
+}
+
+// ------------------------------------------------------------ a-serialize oracle (storage repair triage §3.1)
+
+/** Milliseconds since the epoch of an RFC 3339 time with any fraction, without loss below the millisecond. */
+export function timeMs(text) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d+))?(Z|[+-]\d{2}:\d{2})$/.exec(String(text ?? '').trim());
+  if (!m) return null;
+  const [, y, mo, d, h, mi, sec, frac = '', zone] = m;
+  let ms = Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(h), Number(mi), Number(sec)) + (frac ? Number('0.' + frac) * 1000 : 0);
+  if (zone !== 'Z') ms -= (zone[0] === '-' ? -1 : 1) * (Number(zone.slice(1, 3)) * 60 + Number(zone.slice(4, 6))) * 60_000;
+  return ms;
+}
+/** One clock sample: host time h1, the Docker engine time E, host time h2; offset o = E − (h1 + h2) / 2, uncertainty u = (h2 − h1) / 2. */
+export async function clockSample(docker = defaultDocker, now = Date.now) {
+  const h1 = now();
+  let r;
+  try { r = await docker(['system', 'info', '--format', '{{.SystemTime}}']); } catch (e) { r = { code: -1, stdout: '', stderr: String(e?.message ?? e) }; }
+  const h2 = now();
+  const engine = r.code === 0 ? timeMs(r.stdout) : null;
+  if (engine === null) return { ok: false, h1, h2, engineText: (r.stdout ?? '').trim(), error: r.code === 0 ? 'unreadable engine time' : `exit ${r.code}` };
+  return { ok: true, h1, h2, engineText: r.stdout.trim(), engine, o: engine - (h1 + h2) / 2, u: (h2 - h1) / 2 };
+}
+/**
+ * §3.1 step 3: the wait ends only on a sign of this run — an acquire event after the offset with the spawned pgid,
+ * or a lock record with it. An event or a record of another run never ends it. `readLog` returns the whole log text.
+ */
+export async function waitForRun({ readLog, readRecord, offset, pgid, timeoutMs = 60_000, intervalMs = 50, now = Date.now, sleep }) {
+  const pause = sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const deadline = now() + timeoutMs;
+  for (;;) {
+    const log = Buffer.from(readLog() ?? '');
+    if (log.length >= offset && jsonLines(log.subarray(offset).toString('utf8')).some((e) => e.event === 'storage_lock_acquired' && e.pgid === pgid)) return { by: 'event' };
+    const record = readRecord();
+    if (record && record.pgid === pgid) return { by: 'record' };
+    if (now() > deadline) return null;
+    await pause(intervalMs);
+  }
+}
+/**
+ * §3.1 steps 1 and 4–8, one pure function. `log` is the whole lock log at evaluation, `offset` its byte length before
+ * the spawn. Returns { verdict, selectedRunId, cause, notes, clock }. It never passes on clock uncertainty.
+ */
+export function serializeVerdict({ log, offset, pgid, waitLines = [], startedAt = {}, samples = [] }) {
+  const out = { verdict: 'FAIL', selectedRunId: null, cause: null, notes: [], clock: null };
+  const fail = (cause) => ({ ...out, cause });
+  const bytes = Buffer.from(log ?? '');
+  if (bytes.length < offset) return fail('lock log truncated');
+  const events = jsonLines(bytes.subarray(offset).toString('utf8'));
+  const acquires = events.filter((e) => e.event === 'storage_lock_acquired' && e.pgid === pgid);
+  if (acquires.length !== 1) return fail('backup run not identified');
+  const { runId: X, command: C } = acquires[0];
+  out.selectedRunId = X;
+  const waits = waitLines.filter((l) => l.event === 'storage_lock_wait');
+  if (!waits.length) out.notes.push('no wait observed');
+  if (waits.some((w) => w.owner?.runId !== X || w.owner?.pgid !== pgid)) return fail('stack:up waited on another run');
+  const releases = events.filter((e) => e.event === 'storage_lock_released' && e.runId === X);
+  if (releases.length === 0) return fail('no release for the backup run');
+  if (releases.length > 1) return fail('more than one release for the backup run');
+  const R = releases[0];
+  if (typeof C !== 'string' || C === '' || typeof R.command !== 'string' || R.command !== C) return fail('release event without the backup command (ADR-012 §7)');
+  if (samples.length !== 2 || samples.some((s) => !s?.ok)) return fail('clock not measured');
+  const lo = Math.min(...samples.map((s) => s.o - s.u)), hi = Math.max(...samples.map((s) => s.o + s.u));
+  const released = timeMs(R.ts);
+  out.clock = { samples: samples.map(({ h1, h2, engineText, o, u }) => ({ h1, h2, engineText, o, u })), lo, hi, releaseTs: R.ts, margins: {} };
+  if (released === null) return fail('clock not measured');
+  for (const service of SERVICES) {
+    const start = timeMs(startedAt[service]);
+    if (start === null) return fail(`no StartedAt for ${service}`);
+    out.clock.margins[service] = { startedAt: startedAt[service], marginToHiMs: start - (released + hi), marginToLoMs: start - (released + lo) };
+    if (start >= released + hi) continue;
+    return fail(start < released + lo ? 'service started before the backup released the lock' : 'clock uncertainty');
+  }
+  return { ...out, verdict: 'PASS' };
 }
 export { assert };

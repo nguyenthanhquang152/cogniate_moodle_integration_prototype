@@ -3,15 +3,20 @@
 // listings, hashes and parsing as its oracle. Rows j-migration and j-snapshot are in storage-compat-route.mjs.
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { m1HostControl } from './m1-control.mjs';
 import { fixtureAnswer } from './storage-lane.mjs';
-import { StorageBlocked, StorageFail, createdNotBefore, hex16, laneVolumeName } from './storage-docker.mjs';
+import { StorageBlocked, StorageFail, createdNotBefore, hex16, laneVolumeName, servicesStopped } from './storage-docker.mjs';
+import { privateCopy, privateCopyTree, privateReplace, readRegular } from './storage-fixture-script.mjs';
+import { checkHandoff } from './storage-handoff.mjs';
 import {
   LegacyFixtures, assertPair, assertRefuses, check, dbFileSets, fileSetsEqual, freshVolume, groupMembers, hashFolder,
   legacyEmpty, legacySets, linesOf, listingDiff, lockPairs, logicalShows, manifestDbSets, manifestFiles, namesCode,
-  pairsDisjoint, pidStart, pgidOf, preflightOf, readManifest, recordHash, sameIdentities, spawnGroup, until, writeRecordFolder,
+  pairsDisjoint, pidStart, pgidOf, preflightOf, readJsonl, readManifest, recordHash, sameIdentities, serializeVerdict, until,
+  waitForRun, writeRecordFolder,
 } from './storage-oracle.mjs';
 import { CONDITIONAL_ID, storageId } from './storage-inventory.mjs';
+import { PhaseAbort, scanCause } from './storage-private-scan.mjs';
 
 const DRILL_POINTS = ['prepared-lti', 'prepared', 'staged', 'swap-lti-mid', 'swapped-lti', 'swap-app-mid', 'swapped',
   'identity-lti', 'identity-app', 'rollback-mid', 'committed-lti'];
@@ -29,7 +34,7 @@ export const SEQUENCE = [
   'a-lock-reentry', 'a-lock-wait', 'a-lock-stale', 'a-serialize', 'a-lock-scope', 'i-enable-refusal', 'i-candidate-guard',
   'd-stale', 'd-unknown', 'd-symlink', 'd-owner', 'd-mountpoint', 'd-content-folder',
   'f-pairid', 'f-identity-missing', 'f-db-without-identity', 'f-project', 'f-half-pair', 'f-originals-back',
-  'a-first-start-resume', '@seed', 'e-not-same-import',
+  'a-first-start-resume', '@seed-resume', 'e-not-same-import',
   '@backup-B', 'h-volume-manifest', 'g-damaged', 'h-nomanifest',
   ...DRILL_POINTS.map((p) => 'g-' + p), 'h-open-journal', 'g-recover-idempotent',
   '@post-B', 'g-orphan-refusal', 'g-orphan-complete', '@post-B', 'g-orphan-stopped',
@@ -45,14 +50,16 @@ export const SEQUENCE = [
 export const NEEDS = {
   'c-selftest': ['@prepare'], 'c-host-negative': ['@prepare'], 'a-fresh': ['@prepare'],
   '@seed': ['a-fresh'],
+  // N-5: the second seed run has its own needs; the rows after it read its status, never the first run's status.
+  '@seed-resume': ['a-fresh', 'a-first-start-resume'],
   ...Object.fromEntries(['a-second-start', 'a-restart', 'a-restart-refusal', 'b-oracle-lti', 'b-oracle-app', 'a-lock-reentry',
     'a-lock-wait', 'a-lock-stale', 'a-serialize', 'a-lock-scope', 'i-enable-refusal', 'i-candidate-guard', 'd-stale', 'd-unknown',
     'd-symlink', 'd-owner', 'd-mountpoint', 'd-content-folder', 'f-pairid', 'f-identity-missing', 'f-db-without-identity',
     'f-project', 'f-half-pair', 'a-first-start-resume'].map((id) => [id, ['a-fresh', '@seed']])),
   'd-clean': ['a-fresh', 'a-second-start', 'a-restart'],
   'f-originals-back': ['f-pairid', 'f-identity-missing', 'f-db-without-identity', 'f-project', 'f-half-pair'],
-  'e-not-same-import': ['a-first-start-resume', '@seed'],
-  '@backup-B': ['a-first-start-resume', '@seed'],
+  'e-not-same-import': ['a-first-start-resume', '@seed-resume'],
+  '@backup-B': ['a-first-start-resume', '@seed-resume'],
   ...Object.fromEntries(['h-volume-manifest', 'g-damaged', 'h-nomanifest', ...DRILL_POINTS.map((p) => 'g-' + p), '@post-B']
     .map((id) => [id, ['@backup-B']])),
   'h-open-journal': ['g-staged'], 'g-recover-idempotent': DRILL_POINTS.map((p) => 'g-' + p),
@@ -69,17 +76,43 @@ export const NEEDS = {
   'e-content-missing': ['@old-schema-setup', 'e-old-schema'],
 };
 
-/** Runs the storage phase rows in SEQUENCE order and returns one result per storage-phase row. */
+/**
+ * Runs the storage phase rows in SEQUENCE order and returns one result per storage-phase row. The first note of a
+ * row that is not PASS is its first cause. After every step the §7.4 scan point runs. A failed cleanup of a QA plant
+ * or a refused correction stops the phase (triage §4.3): every remaining step is recorded BLOCKED without running.
+ * `handoff`: { file, windowStart, startedAt } of this storage child (§9.1).
+ */
 export async function storagePhase(lane, { identity, handoff, setupClone }) {
   const results = new Map(), steps = new Map(), acc = {};
   const add = (id, note) => { (acc[id] ??= []).push(note); };
   const r = lane.r;
-  const ctx = { lane, r, identity, handoff, setupClone, add, acc, state: {} };
+  // segments and resets: the §8 log archive; restores: each §4.3 restore and its result; cleanup: a failed restore of the step.
+  const ctx = { lane, r, identity, handoff, setupClone, add, acc, state: {}, segments: [], resets: [], restores: [], cleanup: null };
+  ctx.archive = (label) => archiveLogs(lane, ctx.segments, label);
   const rows = defineRows(ctx);
+  let abort = null;
+  const save = (step, status, notes) => {
+    if (!step.startsWith('@')) {
+      const id = storageId(step);
+      const row = { id, status, environment: 'SIM', ...identity, notes };
+      if (id === CONDITIONAL_ID && ctx.state['oracle:' + step]) row.oracle = ctx.state['oracle:' + step];
+      results.set(id, row);
+      r.record(id, `AC-M1-41 ${step}`, status === 'NOT_APPLICABLE' ? 'INFO' : status === 'BLOCKED' ? 'FAIL' : status,
+        status === 'BLOCKED' ? ['BLOCKED', ...notes] : notes);
+    } else r.record('STORAGE' + step.replace('@', '-').toUpperCase(), `Storage fixture ${step}`, status === 'PASS' ? 'PASS' : 'FAIL', notes);
+    lane.r.saveText(`storage/steps/${String([...steps.keys()].length).padStart(3, '0')}-${step.replace('@', 'fixture-')}.json`,
+      JSON.stringify({ step, status, notes }, null, 2));
+  };
   for (const step of SEQUENCE) {
+    if (abort) {
+      steps.set(step, 'BLOCKED');
+      save(step, 'BLOCKED', [`phase stopped after ${abort.step}: ${abort.cleanupCause}; first cause: ${abort.firstCause}`]);
+      continue;
+    }
     const needs = NEEDS[step] ?? [];
     const missing = needs.filter((n) => steps.get(n) !== 'PASS');
-    let status, notes = [];
+    let status, notes = [], cleanupCause = null;
+    ctx.cleanup = null; lane.step = step;
     if (missing.length) {
       const blocked = missing.some((n) => steps.get(n) === 'BLOCKED');
       status = blocked ? 'BLOCKED' : 'FAIL';
@@ -92,28 +125,100 @@ export async function storagePhase(lane, { identity, handoff, setupClone }) {
         if (out?.oracle) ctx.state['oracle:' + step] = out.oracle;
       } catch (e) {
         status = e instanceof StorageBlocked ? 'BLOCKED' : 'FAIL';
-        notes = [...(acc[step] ?? []), e.message];
+        notes = [e.message, ...(acc[step] ?? [])];
+        if (e instanceof PhaseAbort) cleanupCause = e.message;
+      }
+      // §4.0 step 9: the restore result is a separate note and never replaces the first cause.
+      if (ctx.cleanup) {
+        cleanupCause ??= ctx.cleanup;
+        if (status !== 'FAIL' && status !== 'BLOCKED') { status = 'FAIL'; notes = [ctx.cleanup, ...notes]; }
+        else if (notes[0] !== ctx.cleanup) notes.push('restore note: ' + ctx.cleanup);
       }
       notes.push(`duration ${Math.round((Date.now() - started) / 1000)} s`);
     }
+    // §7.4 scan point of this step; §7.5: a hit makes the step FAIL, a refused correction stops the phase.
+    const scan = lane.scanPoint(`after ${step}`);
+    if (scan.failed || scan.refusals.length) {
+      const cause = `scan after ${step}: ${scanCause(scan)}`;
+      if (status === 'FAIL') notes.push(cause); else { status = 'FAIL'; notes = [cause, ...notes]; }
+      if (scan.refusals.length) cleanupCause ??= cause;
+    }
+    lane.step = null;
+    if (cleanupCause) abort = { step, cleanupCause, firstCause: notes[0] };
     steps.set(step, status);
-    if (!step.startsWith('@')) {
-      const id = storageId(step);
-      const row = { id, status, environment: 'SIM', ...identity, notes };
-      if (id === CONDITIONAL_ID && ctx.state['oracle:' + step]) row.oracle = ctx.state['oracle:' + step];
-      results.set(id, row);
-      r.record(id, `AC-M1-41 ${step}`, status === 'NOT_APPLICABLE' ? 'INFO' : status === 'BLOCKED' ? 'FAIL' : status,
-        status === 'BLOCKED' ? ['BLOCKED', ...notes] : notes);
-    } else r.record('STORAGE' + step.replace('@', '-').toUpperCase(), `Storage fixture ${step}`, status === 'PASS' ? 'PASS' : 'FAIL', notes);
-    lane.r.saveText(`storage/steps/${String([...steps.keys()].length).padStart(3, '0')}-${step.replace('@', 'fixture-')}.json`,
-      JSON.stringify({ step, status, notes }, null, 2));
+    save(step, status, notes);
   }
+  if (abort) {
+    const scan = lane.scanPoint(`abort path after ${abort.step}`);
+    const row = results.get(storageId(abort.step));
+    if ((scan.failed || scan.refusals.length) && row) row.notes.push(`abort-path scan: ${scanCause(scan)}`);
+    lane.r.saveText('storage/steps/abort.json', JSON.stringify({ ...abort, scan: { failed: scan.failed, cause: scanCause(scan) } }, null, 2));
+  }
+  // §8: the phase-end segment, also after a phase stop; then the absence claims over the whole phase window.
+  ctx.archive('phase-end');
+  lane.r.saveText('storage/log-archive/absence.json', JSON.stringify({ csrfRejected: absenceClaim(ctx.segments, { claim: 'csrf_rejected', resets: ctx.resets }) }, null, 2));
+  lane.r.saveText('storage/restores.json', JSON.stringify(ctx.restores, null, 2));
   return [...results.values()];
+}
+
+// ---------------------------------------------------------------- §8 log archive and absence claims
+
+/** Absence claims of the phase window: a counted line kind per log file (V3-R: zero csrf_rejected in the app log). */
+export const ABSENCE = { csrf_rejected: { file: 'cogniate-app.jsonl', test: (line) => line.includes('csrf_rejected') } };
+/** Copies every infra/.logs/*.jsonl file into the phase artifacts as one segment (through saveText), with lengths. */
+export function archiveLogs(lane, segments, label) {
+  const folder = `storage/log-archive/${String(segments.length + 1).padStart(2, '0')}-${label.replace(/[^\w.-]+/g, '_')}`;
+  const segment = { label, folder, at: new Date().toISOString(), ok: true, files: [] };
+  try {
+    const dir = path.join(lane.clone, 'infra/.logs');
+    const names = fs.existsSync(dir) ? fs.readdirSync(dir).filter((n) => n.endsWith('.jsonl')).sort() : [];
+    for (const name of names) {
+      const text = fs.readFileSync(path.join(dir, name), 'utf8'), lines = text.split('\n').filter(Boolean);
+      lane.r.saveText(`${folder}/${name}`, text);
+      const counts = Object.fromEntries(Object.entries(ABSENCE).filter(([, c]) => c.file === name).map(([k, c]) => [k, lines.filter(c.test).length]));
+      segment.files.push({ name, bytes: Buffer.byteLength(text), lines: lines.length, counts });
+    }
+  } catch (e) { segment.ok = false; segment.error = e.message; }
+  lane.r.saveText(`${folder}/index.json`, JSON.stringify(segment, null, 2));
+  segments.push(segment);
+  return segment;
+}
+/** §8: PASS only when a readable segment exists before each product stack:reset and at the phase end; else BLOCKED. */
+export function absenceClaim(segments, { claim, resets }) {
+  const needed = [...resets.map((label) => 'before-' + label), 'phase-end'];
+  const missing = needed.filter((label) => !segments.some((s) => s.label === label && s.ok));
+  if (missing.length) return { status: 'BLOCKED', cause: 'missing or unreadable log segment: ' + missing.join(', '), segments: segments.map((s) => s.label) };
+  const count = segments.reduce((n, s) => n + s.files.reduce((m, f) => m + (f.counts?.[claim] ?? 0), 0), 0);
+  return { status: count === 0 ? 'PASS' : 'FAIL', count, window: 'phase start to phase end', segments: segments.map((s) => s.label) };
 }
 
 function defineRows(ctx) {
   const { lane, r, add, state } = ctx;
-  const product = (...a) => lane.product(...a);
+  const archive = (label) => { if (!ctx.archive) throw new StorageFail('The phase log archive is not set up'); return ctx.archive(label); };
+  // §8: a product stack:reset deletes infra/.logs, so every reset follows a saved log segment.
+  const product = async (label, args, opts) => {
+    if (args[0] === 'stack:reset') { archive('before-' + label); ctx.resets?.push(label); }
+    return lane.product(label, args, opts);
+  };
+  /**
+   * One QA plant and its restore (triage §4.3). The restore always runs. A failed restore is recorded, stops the
+   * phase and never replaces the first cause of the body; a body PASS with a failed restore is FAIL.
+   */
+  const guarded = async (site, body, restore) => {
+    let first = null, failed = null;
+    try { await body(); } catch (e) { first = e; }
+    try { await restore(); } catch (e) { failed = `cleanup ${site} failed: ${e.message}`; }
+    (ctx.restores ??= []).push(failed ? { site, ok: false, cause: failed } : { site, ok: true });
+    if (failed) ctx.cleanup ??= failed;
+    if (first) throw first;
+    if (failed) throw new StorageFail(failed);
+  };
+  /** Ends a QA process group (sites 3 and 4): the group must be empty within 10 s. */
+  const endGroup = async (g) => {
+    g.killGroup('SIGKILL');
+    await until(async () => (await groupMembers(g.pgid)).length === 0, { timeoutMs: 10_000, intervalMs: 100, what: `QA process group ${g.pgid} ended` });
+    await g.done;
+  };
   const expectExit = (res, code, what) => check(res.code === code, `${what}: expected exit ${code}, got ${res.code}`);
   const up = async (label = 'stack-up') => {
     const res = await product(label, ['stack:up']); expectExit(res, 0, 'stack:up');
@@ -241,6 +346,8 @@ function defineRows(ctx) {
       const res = await lane.r.npm('seed', ['run', 'seed'], { timeoutMs: 900_000 }); expectExit(res, 0, 'seed');
       lane.loadStack(); await lane.r.checkProject(); check(lane.r.state.h1Verified, 'H1 project guard');
     },
+    // The same procedure as @seed; its own needs (N-5).
+    async '@seed-resume'() { return rows['@seed'](); },
 
     // ------------------------------------------------------------ (c) negatives
     async 'c-selftest'() {
@@ -263,7 +370,8 @@ function defineRows(ctx) {
       const dir = path.join(lane.clone, '.tmp', `qa-host-negative-${hex16()}`);
       fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
       check(fs.readdirSync(dir).length === 0, 'Scratch bind folder is empty');
-      try {
+      let result;
+      await guarded('c-host-negative scratch', async () => {
         const o = await lane.container({ kind: 'storage-oracle', hostNegativeDir: dir,
           command: ['node', '--no-warnings', `/qa/bin/storage-fixture-script.mjs`, 'oracle', '--dir', '/check/host-negative', '--spec', Buffer.from('{}').toString('base64')] });
         const oracle = fixtureAnswer(o.stdout);
@@ -275,17 +383,28 @@ function defineRows(ctx) {
         const lines = probe.stdout.split('\n').flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } });
         if (/^LOCK NOT ENFORCED/.test(oracle.verdict)) {
           check(probe.code === 1 && namesCode(lines, 'lock_not_enforced'), 'Fault shown: probe reports lock_not_enforced and exits 1');
-          return { status: 'PASS', oracle: { verdict: oracle.verdict }, notes: ['fault shown by the QA oracle; probe lock_not_enforced'] };
+          result = { status: 'PASS', oracle: { verdict: oracle.verdict }, notes: ['fault shown by the QA oracle; probe lock_not_enforced'] };
+          return;
         }
-        return { status: 'NOT_APPLICABLE', oracle: { verdict: oracle.verdict },
+        result = { status: 'NOT_APPLICABLE', oracle: { verdict: oracle.verdict },
           notes: [`QA oracle shows enforcement on this host; probe exit ${probe.code}; reported apart, never counted as PASS`] };
-      } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+      }, async () => {
+        fs.rmSync(dir, { recursive: true, force: true });
+        check(!fs.existsSync(dir), 'The host scratch folder is gone after the row');
+      });
+      return result;
     },
 
     // ------------------------------------------------------------ (a) start paths
     async 'a-fresh'() {
       const p = await lane.presence();
       check(p.ltidb.state === 'absent' && p.appdb.state === 'absent', 'Fresh lane: neither exact name exists');
+      // P-1a: P and both children are absent before the first start (a fresh clone in which no container bound P).
+      for (const rel of ['infra/.data/cogniate-app', 'infra/.data/cogniate-app/packages', 'infra/.data/cogniate-app/uploads']) {
+        let code = 'present';
+        try { fs.lstatSync(path.join(lane.clone, rel)); } catch (e) { code = e.code; }
+        if (code !== 'ENOENT') throw new StorageBlocked(`lane not fresh: ${rel}`);
+      }
       const res = await up('a-fresh-stack-up');
       const pf = preflightOf(res);   // the check pass; the mark-started summary after the healthy start is not it
       check(pf.summary?.result === 'pass', 'Preflight summary pass');
@@ -341,14 +460,14 @@ function defineRows(ctx) {
       const lti = (await lane.services()).find((s) => s.service === 'lti-service');
       // The single §11 exception while services run: one empty entry in the ltidb root, under QA's lock.
       await lane.plant([{ op: 'write', vol: 'lti', path: name, base64: '' }], { allowWhileRunning: true });
-      try {
+      await guarded('a-restart-refusal planted entry', async () => {
         const res = await product('a-restart-refusal', ['stack:restart', '--', 'lti-service']);
         assertRefuses(res, 'unknown_entry', 'stack:restart');
         check(namesCode(res.lines, name) || (res.stdout + res.stderr).includes(name), 'The refusal names the file');
         const now = (await lane.services()).find((s) => s.service === 'lti-service');
         check(now.id === lti.id && now.startedAt === lti.startedAt, 'lti-service container id and StartedAt unchanged');
         check((await lane.r.healthz(lane.r.state.urls.lti)) !== null, '/healthz answers 200');
-      } finally { await lane.plant([{ op: 'remove', vol: 'lti', path: name }], { allowWhileRunning: true }); }
+      }, async () => { await lane.plant([{ op: 'remove', vol: 'lti', path: name }], { allowWhileRunning: true }); });
       expectExit(await product('a-restart-after-removal', ['stack:restart', '--', 'lti-service']), 0, 'stack:restart after removal');
       await lane.waitHealthy();
     },
@@ -369,7 +488,7 @@ function defineRows(ctx) {
       check((lane.r.state.ledger?.records ?? []).filter((x) => x.command === 'a-lock-reentry' && x.kind === 'container').length === 0, 'No container was created');
     },
     async 'a-lock-wait'() {
-      const holder = spawnGroup('bash', [lane.oplock, 'run', '--', 'sleep', '150'], { cwd: lane.clone, env: lane.r.STACK_ENV });
+      const holder = lane.spawnGroup('bash', [lane.oplock, 'run', '--', 'sleep', '150'], { cwd: lane.clone, env: lane.r.STACK_ENV });
       try {
         const record = await until(() => { const f = path.join(lane.lockFolder(), 'owner.json'); return fs.existsSync(f) && JSON.parse(fs.readFileSync(f, 'utf8')); },
           { timeoutMs: 20_000, what: 'holder lock record' });
@@ -394,20 +513,32 @@ function defineRows(ctx) {
     async 'a-serialize'() {
       await lane.stopServices('a-serialize-stop');
       const out = lane.newFolder(lane.backups, 'serialize');
-      const backup = spawnGroup('npm', ['run', 'stack:data-backup', '--', '--out', out], { cwd: lane.clone, env: lane.r.STACK_ENV });
-      await until(() => {
-        if (lane.lockEvents().some((e) => e.event === 'storage_lock_acquired' && /data-backup|backup/.test(e.command ?? ''))) return true;
-        const f = path.join(lane.lockFolder(), 'owner.json');
-        try { return fs.existsSync(f) && /backup/.test(JSON.parse(fs.readFileSync(f, 'utf8')).command); } catch { return false; }
-      }, { timeoutMs: 60_000, intervalMs: 50, what: 'backup storage_lock_acquired' });
-      const start = await product('a-serialize-up', ['stack:up'], { timeoutMs: 900_000 });
-      const b = await backup.done;
+      const lockLog = path.join(lane.clone, 'infra/.logs/storage-lock.jsonl');
+      const readLog = () => (fs.existsSync(lockLog) ? fs.readFileSync(lockLog) : Buffer.alloc(0));
+      // §3.1 step 1: the byte length of the lock log before the spawn; no stack:reset runs inside this row.
+      const offset = readLog().length;
+      const before = await lane.clockSample();
+      const backup = lane.spawnGroup('npm', ['run', 'stack:data-backup', '--', '--out', out], { cwd: lane.clone, env: lane.r.STACK_ENV });
+      let start = null, after = null, b;
+      try {
+        // Step 3: only a sign of this run ends the wait: its acquire event after the offset, or its lock record.
+        const seen = await waitForRun({ readLog, offset, pgid: backup.pgid, timeoutMs: 60_000, intervalMs: 50, readRecord: () => {
+          try { return JSON.parse(fs.readFileSync(path.join(lane.lockFolder(), 'owner.json'), 'utf8')); } catch { return null; }
+        } });
+        check(seen, 'backup run not identified');
+        start = await product('a-serialize-up', ['stack:up'], { timeoutMs: 900_000 });
+        after = await lane.clockSample();
+      } finally {
+        b = await backup.done; // also on a failed identification: the row ends only after the backup process
+        lane.r.saveText('storage/a-serialize-backup.log', JSON.stringify({ pgid: backup.pgid, code: b.code, signal: b.signal, stdout: b.stdout, stderr: b.stderr }, null, 2));
+      }
       check(b.code === 0, 'Backup exits 0');
       check(fs.existsSync(path.join(out, 'manifest.json')) && !fs.existsSync(path.join(out, 'INCOMPLETE')), 'Manifest and no INCOMPLETE file');
-      const released = lane.lockEvents().filter((e) => e.event === 'storage_lock_released' && /backup/.test(e.command ?? '')).at(-1);
-      check(released, 'Backup storage_lock_released logged');
-      for (const s of (await lane.services()).filter((x) => ['lti-service', 'cogniate-app'].includes(x.service)))
-        check(Date.parse(s.startedAt) >= Date.parse(released.ts), `${s.service} started after the backup released the lock`);
+      const startedAt = Object.fromEntries((await lane.services()).filter((x) => ['lti-service', 'cogniate-app'].includes(x.service)).map((x) => [x.service, x.startedAt]));
+      const verdict = serializeVerdict({ log: readLog(), offset, pgid: backup.pgid, waitLines: start.lines, startedAt, samples: [before, after] });
+      lane.r.saveText('storage/a-serialize-oracle.json', JSON.stringify({ offset, pgid: backup.pgid, ...verdict }, null, 2));
+      check(verdict.verdict === 'PASS', verdict.cause);
+      add('a-serialize', `backup run ${verdict.selectedRunId}; ${verdict.notes.join('; ') || 'wait observed'}; clock lo ${verdict.clock.lo} ms, hi ${verdict.clock.hi} ms`);
       expectExit(start, 0, 'stack:up after the backup');
       await lane.waitHealthy();
     },
@@ -458,7 +589,7 @@ function defineRows(ctx) {
       expectExit(await product('i-guard-enable', ['stack:storage-compat', '--', 'enable']), 0, 'enable the override');
       const knobs = path.join(lane.clone, '.tmp/compose.knobs.yaml');
       check(fs.readFileSync(knobs, 'utf8').includes('x-cogniate-storage-compat'), 'Marker present');
-      try {
+      await guarded('i-candidate-guard override marker', async () => {
         // Harness self-check of §13: the host control refuses m1-restart and m1-profile before any command.
         await hostControlRefusesWithMarker();
         for (const args of [['stack:up'], ['stack:restart', '--', 'lti-service'], ['test:acceptance'], ['e2e:reset', '--', '--yes'],
@@ -469,7 +600,7 @@ function defineRows(ctx) {
           check((res.stdout + res.stderr).includes('stack:storage-compat -- disable'), `${args[0]} names stack:storage-compat -- disable`);
           await lane.assertUnchanged(before, 'candidate guard ' + args[0]);
         }
-      } finally { expectExit(await product('i-guard-disable', ['stack:storage-compat', '--', 'disable']), 0, 'disable the override'); }
+      }, async () => { expectExit(await product('i-guard-disable', ['stack:storage-compat', '--', 'disable']), 0, 'disable the override'); });
       check(!fs.existsSync(knobs), 'Override disabled');
     },
 
@@ -484,27 +615,29 @@ function defineRows(ctx) {
       await stopped();
       const near = `.lock-probe-${hex16().slice(0, 15)}.db`;
       await lane.plant([{ op: 'write', vol: 'lti', path: near, base64: '' }]);
-      try { const res = await refusal('d-stale-near', ['stack:up'], 'unknown_entry'); check((res.stdout + res.stderr).includes(near), 'Names the near-match'); }
-      finally { await lane.plant([{ op: 'remove', vol: 'lti', path: near }]); }
+      await guarded('d-stale near-match', async () => {
+        const res = await refusal('d-stale-near', ['stack:up'], 'unknown_entry'); check((res.stdout + res.stderr).includes(near), 'Names the near-match');
+      }, async () => { await lane.plant([{ op: 'remove', vol: 'lti', path: near }]); });
     },
     async 'd-unknown'() {
       await stopped();
       for (const op of [{ op: 'write', vol: 'lti', path: 'notes.txt', base64: '' }, { op: 'write', vol: 'lti', path: 'lti.db-journal', base64: '' },
         { op: 'copy', fromVol: 'app', from: 'cogniate.db', vol: 'lti', path: 'cogniate.db' }]) {
         await lane.plant([op]);
-        try { await refusal('d-unknown-' + op.path, ['stack:up'], 'unknown_entry'); }
-        finally { await lane.plant([{ op: 'remove', vol: 'lti', path: op.path }]); }
+        await guarded('d-unknown ' + op.path, async () => { await refusal('d-unknown-' + op.path, ['stack:up'], 'unknown_entry'); },
+          async () => { await lane.plant([{ op: 'remove', vol: 'lti', path: op.path }]); });
       }
     },
     async 'd-symlink'() {
       await stopped();
+      const pre = await lane.listing(); // the modes before the row (V4-2)
       const targetName = `d-symlink-target-${hex16()}`;
-      fs.writeFileSync(path.join(lane.out, targetName), 'QA scratch target', { mode: 0o600 });
+      writeMarker(path.join(lane.out, targetName), 'QA scratch target');
       const targetHash = hashFolder(lane.out)[targetName];
       const hasWal = (await lane.state()).fileset.lti.files['lti.db-wal'].present;
       const hold = `hold-d-symlink-${hex16()}`;
       if (hasWal) await lane.plant([{ op: 'stash', vol: 'lti', names: ['lti.db-wal'], hold }]);
-      try {
+      await guarded('d-symlink link and WAL stash', async () => {
         await lane.plant([{ op: 'symlink', vol: 'lti', path: 'lti.db-wal', target: `/qa/out/${targetName}` }]);
         const before = await lane.listing();
         await refusal('d-symlink', ['stack:up'], 'unknown_entry');
@@ -512,53 +645,107 @@ function defineRows(ctx) {
         check(link?.type === 'symlink' && link.target === `/qa/out/${targetName}`, 'The link is unchanged');
         check(JSON.stringify(hashFolder(lane.out)[targetName]) === JSON.stringify(targetHash), 'Its target is unchanged');
         check(listingDiff(before, await lane.listing()).length === 0, 'Nothing else changed');
-        await lane.plant([{ op: 'remove', vol: 'lti', path: 'lti.db-wal' }]);
-      } finally { if (hasWal) await lane.plant([{ op: 'unstash', vol: 'lti', names: ['lti.db-wal'], hold }]); }
+      }, async () => {
+        // The link is removed as a link; then the held WAL returns with its mode from before the row.
+        if ((await lane.listing()).lti.entries.some((e) => e.path === 'lti.db-wal' && e.type === 'symlink')) await lane.plant([{ op: 'remove', vol: 'lti', path: 'lti.db-wal' }]);
+        if (hasWal) {
+          await lane.plant([{ op: 'unstash', vol: 'lti', names: ['lti.db-wal'], hold }]);
+          const was = pre.lti.entries.find((e) => e.path === 'lti.db-wal'), now = (await lane.listing()).lti.entries.find((e) => e.path === 'lti.db-wal');
+          check(now?.type === 'file' && now.mode === was?.mode && now.sha256 === was?.sha256, 'lti.db-wal is back with its mode and bytes from before the row');
+        }
+      });
     },
     async 'd-owner'() {
       await stopped();
       const before = (await lane.listing()).lti.entries.find((e) => e.path === 'lti.db');
       await lane.plant([{ op: 'chown', vol: 'lti', path: 'lti.db', uid: 0, gid: 0 }], { root: true, rootReason: 'd-owner' });
-      try {
+      await guarded('d-owner lti.db owner', async () => {
         const res = await refusal('d-owner', ['stack:up'], 'owner_mismatch');
         check((res.stdout + res.stderr).includes('lti.db'), 'Names lti.db');
         const now = (await lane.listing()).lti.entries.find((e) => e.path === 'lti.db');
         check(now.uid === 0 && now.gid === 0 && now.sha256 === before.sha256, 'Owner and SHA-256 unchanged (no recursive repair)');
-      } finally { await lane.plant([{ op: 'chown', vol: 'lti', path: 'lti.db', uid: lane.hostUid, gid: lane.hostGid }], { root: true, rootReason: 'd-owner' }); }
+      }, async () => { await lane.plant([{ op: 'chown', vol: 'lti', path: 'lti.db', uid: lane.hostUid, gid: lane.hostGid }], { root: true, rootReason: 'd-owner' }); });
       await up('d-owner-up');
     },
     async 'd-mountpoint'() {
+      // Triage §4.0. Step 1: both services positively stopped. Step 2: the HOST_UID baseline listing, before the plant.
       await stopped();
-      await lane.plant(['packages', 'uploads'].map((p) => ({ op: 'chown', vol: 'app', path: p, uid: 0, gid: 0 })), { root: true, rootReason: 'd-mountpoint' });
       const before = await lane.listing();
-      await up('d-mountpoint-up');
-      await stopped();
-      const after = await lane.listing();
-      for (const p of ['packages', 'uploads']) {
-        const e = after.app.entries.find((x) => x.path === p);
-        check(e.uid === lane.hostUid && e.gid === lane.hostGid && e.mode === '0700', `${p} HOST_UID:HOST_GID 0700`);
-      }
-      const others = listingDiff(before, after).filter((d) => !/(packages|uploads)$/.test(d) && !/(lti|cogniate)\.db(-wal|-shm)?$/.test(d));
-      check(others.length === 0, 'Nothing else changed: ' + others.join('; '));
+      const mountpointsOk = (l) => ['packages', 'uploads'].every((p) => {
+        const e = l.app.entries.find((x) => x.path === p);
+        return e?.type === 'dir' && e.uid === lane.hostUid && e.gid === lane.hostGid && e.mode === '0700' && !l.app.entries.some((x) => x.path.startsWith(p + '/'));
+      });
+      let started = false, confirmed = false;
+      await guarded('d-mountpoint root plant', async () => {
+        // Step 3: the existing §11 root permission, under QA's lock, both services stopped. Then step 4: lstat only.
+        started = true;
+        await lane.plant(['packages', 'uploads'].map((p) => ({ op: 'chown', vol: 'app', path: p, uid: 0, gid: 0 })), { root: true, rootReason: 'd-mountpoint' });
+        const planted = await lane.meta('app', ['packages', 'uploads']);
+        check(planted.every((e) => e.type === 'dir' && e.uid === 0 && e.gid === 0 && e.mode === '0700'), 'precondition not made');
+        // Steps 5 and 6: the product start, then the full HOST_UID listing.
+        await up('d-mountpoint-up');
+        await stopped();
+        const after = await lane.listing();
+        for (const p of ['packages', 'uploads']) {
+          const e = after.app.entries.find((x) => x.path === p);
+          check(e.uid === lane.hostUid && e.gid === lane.hostGid && e.mode === '0700', `${p} HOST_UID:HOST_GID 0700`);
+        }
+        confirmed = mountpointsOk(after);
+        check(confirmed, 'Both mountpoints are empty directories HOST_UID:HOST_GID 0700');
+        const others = listingDiff(before, after).filter((d) => !/(lti|cogniate)\.db(-wal|-shm)?$/.test(d));
+        check(others.length === 0, 'Nothing else changed: ' + others.join('; '));
+      }, async () => {
+        // Step 8: when the plant started and step 6 did not confirm both mountpoints. Stop, lstat, chown only the
+        // root-owned names (never recursive), under QA's lock; then a full HOST_UID listing must work.
+        if (!started || confirmed) return;
+        await stopped();
+        check(servicesStopped(await lane.services()), 'Both services are positively stopped before the root restore');
+        const owned = (await lane.meta('app', ['packages', 'uploads'])).filter((e) => e.type === 'dir' && (e.uid !== lane.hostUid || e.gid !== lane.hostGid));
+        if (owned.length) await lane.plant(owned.map((e) => ({ op: 'chown', vol: 'app', path: e.path, uid: lane.hostUid, gid: lane.hostGid })), { root: true, rootReason: 'd-mountpoint' });
+        check(mountpointsOk(await lane.listing()), 'After the root restore both mountpoints are empty directories HOST_UID:HOST_GID 0700');
+        add('d-mountpoint', `root restore: ${owned.map((e) => e.path).join(', ') || 'no root-owned mountpoint'}; both mountpoints HOST_UID:HOST_GID 0700 and empty`);
+      });
+      // Step 7: the file case and the link case, each with its own cleanup.
       const file = 'uploads/qa-unsafe-file';
       await lane.plant([{ op: 'write', vol: 'app', path: file, base64: Buffer.from('qa').toString('base64') }]);
-      try {
+      await guarded('d-mountpoint file case', async () => {
         const sum = (await lane.listing()).app.entries.find((e) => e.path === file).sha256;
         await refusal('d-mountpoint-file', ['stack:up'], 'mountpoint_unsafe');
         check((await lane.listing()).app.entries.find((e) => e.path === file).sha256 === sum, 'The file is unchanged');
-      } finally { await lane.plant([{ op: 'remove', vol: 'app', path: file }]); }
+      }, async () => { await lane.plant([{ op: 'remove', vol: 'app', path: file }]); });
       await lane.plant([{ op: 'remove', vol: 'app', path: 'packages' }, { op: 'symlink', vol: 'app', path: 'packages', target: 'uploads' }]);
-      try { await refusal('d-mountpoint-symlink', ['stack:up'], 'mountpoint_unsafe'); }
-      finally { await lane.plant([{ op: 'remove', vol: 'app', path: 'packages' }, { op: 'mkdir', vol: 'app', path: 'packages', mode: '0700' }]); }
+      await guarded('d-mountpoint link case', async () => { await refusal('d-mountpoint-symlink', ['stack:up'], 'mountpoint_unsafe'); },
+        async () => { await lane.plant([{ op: 'remove', vol: 'app', path: 'packages' }, { op: 'mkdir', vol: 'app', path: 'packages', mode: '0700' }]); });
     },
     async 'd-content-folder'() {
+      // P-1a (M1.md): both services positively stopped; QA works as the host user, without a container, only in its
+      // own lane clone and private folder. It deletes children of P (never a rename) and keeps P itself.
       await stopped();
-      const uploads = path.join(lane.clone, 'infra/.data/cogniate-app/uploads');
-      const hold = path.join(lane.out, `content-hold-${hex16()}`), target = path.join(lane.out, `content-target-${hex16()}`);
-      fs.mkdirSync(target, { mode: 0o700 }); fs.writeFileSync(path.join(target, 'qa.txt'), 'qa');
-      fs.mkdirSync(hold, { mode: 0o700 }); fs.renameSync(uploads, path.join(hold, 'uploads'));
-      fs.symlinkSync(target, uploads);
-      try {
+      check(servicesStopped(await lane.services()), 'Both services are positively stopped');
+      const P = path.join(lane.clone, 'infra/.data/cogniate-app'), packages = path.join(P, 'packages'), uploads = path.join(P, 'uploads');
+      const safe = () => {
+        for (const [dir, rel] of [[P, 'infra/.data/cogniate-app'], [packages, 'packages'], [uploads, 'uploads']]) {
+          let st = null;
+          try { st = fs.lstatSync(dir); } catch { /* absent */ }
+          if (!st || st.isSymbolicLink() || !st.isDirectory() || st.uid !== lane.hostUid) throw new StorageBlocked(`setup: ${rel} is not a real directory of the host user`);
+        }
+        if (!legacyEmpty(legacySets(lane.clone))) throw new StorageBlocked('setup: P has a legacy database entry');
+      };
+      const identityOf = (dir) => { const st = fs.lstatSync(dir); return { dev: st.dev, ino: st.ino, uid: st.uid, gid: st.gid, mode: st.mode & 0o7777 }; };
+      // Before each deletion: a listing of the child as evidence (names, types, sizes, SHA-256); no copy.
+      const deleteChild = (dir, label) => {
+        lane.r.saveText(`storage/d-content-folder-${label}-${path.basename(dir)}-before.json`, JSON.stringify(childListing(dir), null, 2));
+        fs.rmSync(dir, { recursive: true });
+        let code = 'present';
+        try { fs.lstatSync(dir); } catch (e) { code = e.code; }
+        check(code === 'ENOENT', `lstat of ${path.basename(dir)} gives ENOENT after the deletion`);
+      };
+      safe();
+      const target = path.join(lane.out, `content-target-${hex16()}`);
+      fs.mkdirSync(target, { mode: 0o700 }); writeMarker(path.join(target, 'qa.txt'), 'qa');
+      await guarded('d-content-folder unsafe case', async () => {
+        deleteChild(uploads, 'unsafe');
+        fs.symlinkSync(target, uploads);
         const before = await lane.snapshot();
         const listed = lane.r.state.ledger?.records.length ?? 0;
         const res = await product('d-content-folder', ['stack:up']);
@@ -567,16 +754,28 @@ function defineRows(ctx) {
         check((lane.r.state.ledger?.records ?? []).slice(listed).every((x) => x.kind !== 'container'), 'No container was created (before any compose start command)');
         check(fs.lstatSync(uploads).isSymbolicLink() && fs.readlinkSync(uploads) === target, 'The link is unchanged');
         check(fs.readFileSync(path.join(target, 'qa.txt'), 'utf8') === 'qa' && fs.readdirSync(target).length === 1, 'Its target is unchanged');
-      } finally { fs.unlinkSync(uploads); fs.renameSync(path.join(hold, 'uploads'), uploads); }
-      const content = path.join(lane.clone, 'infra/.data/cogniate-app');
-      const moved = path.join(hold, 'cogniate-app');
-      check(legacyEmpty(legacySets(lane.clone)), 'No legacy file in the app folder before it is moved');
-      fs.renameSync(content, moved);
+      }, async () => {
+        // Remove the link as a link (never followed); make uploads again as the host user, an empty 0700 directory.
+        let st = null;
+        try { st = fs.lstatSync(uploads); } catch { /* absent */ }
+        if (st && !st.isSymbolicLink()) throw new StorageFail('uploads is not the QA link');
+        if (st) fs.unlinkSync(uploads);
+        fs.mkdirSync(uploads, { mode: 0o700 }); fs.chmodSync(uploads, 0o700);
+        const now = fs.lstatSync(uploads);
+        check(now.isDirectory() && !now.isSymbolicLink() && (now.mode & 0o7777) === 0o700 && now.uid === lane.hostUid && fs.readdirSync(uploads).length === 0,
+          'uploads is again an empty 0700 directory of the host user');
+        add('d-content-folder', `unsafe case cleanup: uploads is a new empty 0700 directory (device ${now.dev}, inode ${now.ino})`);
+      });
+      // Absent children under a kept P (topology R3).
+      safe();
+      const kept = identityOf(P);
+      deleteChild(packages, 'absent'); deleteChild(uploads, 'absent');
       await up('d-content-folder-absent');
-      for (const rel of ['', 'packages', 'uploads']) {
-        const s = fs.lstatSync(path.join(content, rel));
-        check(s.isDirectory() && (s.mode & 0o777) === 0o700 && s.uid === lane.hostUid, `infra/.data/cogniate-app/${rel} created with mode 0700`);
+      for (const rel of ['packages', 'uploads']) {
+        const s = fs.lstatSync(path.join(P, rel));
+        check(s.isDirectory() && !s.isSymbolicLink() && (s.mode & 0o777) === 0o700 && s.uid === lane.hostUid, `infra/.data/cogniate-app/${rel} created with mode 0700`);
       }
+      check(JSON.stringify(identityOf(P)) === JSON.stringify(kept), 'P has the same device, inode, owner, group and mode');
     },
 
     // ------------------------------------------------------------ (f) identity
@@ -645,10 +844,10 @@ function defineRows(ctx) {
       await lane.script('copyout', { spec: { vol: 'app', names: ['cogniate.db'], folder: folder + '/app' } });
       legacy.place('lti-service', 'lti.db', path.join(lane.out, folder, 'lti/lti.db'));
       legacy.place('cogniate-app', 'cogniate.db', path.join(lane.out, folder, 'app/cogniate.db'));
-      try {
+      await guarded('e-not-same-import legacy copies', async () => {
         check((await lane.state()).ids.lti.provenance.kind === 'fresh', 'The pair has kind: fresh');
         await refusal('e-not-same-import', ['stack:up'], 'legacy_conflict');
-      } finally { legacy.removeAll(); }
+      }, async () => { legacy.removeAll(); });
     },
 
     // ------------------------------------------------------------ drill fixture: backup B and the write after B
@@ -684,7 +883,7 @@ function defineRows(ctx) {
       const cases = [['bytes'], ['missing'], ['backup-id'], ['project'], ['incomplete-manifest', 'manifest_incomplete']];
       for (const [damage, code] of cases) {
         const copy = lane.newFolder(lane.backups, 'damaged-' + damage);
-        fs.cpSync(state.B, copy, { recursive: true });
+        privateCopyTree(state.B, copy);
         const mf = path.join(copy, 'manifest.json'), m = JSON.parse(fs.readFileSync(mf, 'utf8'));
         if (damage === 'bytes') fs.appendFileSync(path.join(copy, 'lti-service/lti.db'), Buffer.from([1]));
         if (damage === 'missing') fs.rmSync(path.join(copy, 'cogniate-app/cogniate.db'));
@@ -704,9 +903,9 @@ function defineRows(ctx) {
     },
     async 'h-nomanifest'() {
       const noManifest = lane.newFolder(lane.backups, 'nomanifest');
-      fs.cpSync(state.B, noManifest, { recursive: true }); fs.rmSync(path.join(noManifest, 'manifest.json'));
+      privateCopyTree(state.B, noManifest); fs.rmSync(path.join(noManifest, 'manifest.json'));
       const incomplete = lane.newFolder(lane.backups, 'incomplete');
-      fs.cpSync(state.B, incomplete, { recursive: true }); fs.rmSync(path.join(incomplete, 'manifest.json'));
+      privateCopyTree(state.B, incomplete); fs.rmSync(path.join(incomplete, 'manifest.json'));
       fs.writeFileSync(path.join(incomplete, 'INCOMPLETE'), 'qa', { mode: 0o600 });
       for (const folder of [noManifest, incomplete]) for (const command of ['stack:data-restore', 'stack:data-import']) {
         const before = await lane.snapshot();
@@ -725,6 +924,8 @@ function defineRows(ctx) {
       const killed = await orphanStart('g-orphan-refusal');
       state.orphan = killed;
       const recordBefore = recordHash(lane.lockFolder());
+      // M1 a60ba4a (LD-2): the stale-* records that earlier rows reclaimed, with the hash of each owner.json.
+      const staleBefore = staleRecords(path.join(lane.clone, '.tmp'), lane.project);
       const listingBefore = await lane.listing();
       const out = lane.newFolder(lane.backups, 'orphan-backup');
       for (const [label, args] of [['orphan-recover', ['stack:data-restore', '--', '--recover']], ['orphan-up', ['stack:up']],
@@ -732,9 +933,10 @@ function defineRows(ctx) {
         const res = await product(label, args);
         assertRefuses(res, 'storage_writer_active', label);
         check((res.stdout + res.stderr).includes(killed.container.name) || (res.stdout + res.stderr).includes(killed.container.id), 'Names the container');
+        const changes = staleChanges(staleBefore, staleRecords(path.join(lane.clone, '.tmp'), lane.project));
+        check(changes.length === 0, `${label}: no command adds a stale-* folder, and the earlier records are unchanged: ${changes.join('; ')}`);
       }
       check(recordHash(lane.lockFolder()) === recordBefore, 'The lock record is unchanged');
-      check(!fs.readdirSync(path.join(lane.clone, '.tmp')).some((n) => n.startsWith(`storage-op.${lane.project}.stale-`)), 'No stale-* folder');
       check(listingDiff(listingBefore, await lane.listing()).length === 0, "QA's file-set listing is unchanged by these commands");
     },
     async 'g-orphan-complete'() {
@@ -769,12 +971,14 @@ function defineRows(ctx) {
       const prev = l.lti.entries.find((e) => /^\.previous-[0-9a-f]{32}\/lti\.db$/.test(e.path));
       check(prev, 'A .previous-<opId>/lti.db exists at swapped');
       await lane.plant([{ op: 'flip', vol: 'lti', path: prev.path, offset: 100 }]);
-      const multiset = async () => { const x = await lane.listing(); return ['lti', 'app'].flatMap((v) => x[v].entries.filter((e) => e.type === 'file').map((e) => `${path.basename(e.path)}:${e.sha256}`)).sort(); };
-      const ms = await multiset();
+      // M1 a60ba4a (LD-3): QA's listing after the tamper ("before") and after --recover ("after"), and both root journals.
+      const listedBefore = await lane.listing(), journalsBefore = (await lane.state()).fileset;
       const res = await recover('g-tamper-recover');
       expectExit(res, 2, '--recover after the tamper');
-      check(journalsAre(await lane.state(), 'rollback_failed'), 'Every journal rollback_failed');
-      check(JSON.stringify(await multiset()) === JSON.stringify(ms), 'No file is deleted (multiset of name and SHA-256 equal)');
+      const after = await lane.state();
+      check(journalsAre(after, 'rollback_failed'), 'Every journal rollback_failed');
+      const changes = [...tamperChanges(listedBefore, await lane.listing()), ...rootJournalChanges(journalsBefore, after.fileset)];
+      check(changes.length === 0, `No file is deleted, and only the two root journals change: ${changes.join('; ')}`);
       const upRes = await product('g-tamper-up', ['stack:up']);
       assertRefuses(upRes, 'rollback_failed', 'stack:up');
       check((upRes.stdout + upRes.stderr).includes('stack:data-quarantine'), 'Names stack:data-quarantine');
@@ -785,7 +989,7 @@ function defineRows(ctx) {
       const user = await lane.container({ kind: 'storage-volume-user' }, { label: 'qa-volume-user' });
       check(user.code === 0, 'QA storage-volume-user created');
       const userId = user.stdout.trim();
-      try {
+      await guarded('g-quarantine-in-use QA container', async () => {
         const listing = await lane.listing();
         const services = await lane.services();
         const q1 = lane.newFolder(lane.quarantine, 'Q1');
@@ -799,10 +1003,10 @@ function defineRows(ctx) {
         check(services.every((s) => nowServices.some((n) => n.id === s.id)), 'Both service containers still exist');
         check((await lane.docker(['container', 'inspect', userId])).code === 0, 'The QA container still exists');
         coversListing(q1, listing);
-      } finally {
-        expectExit(await lane.docker(['rm', userId]), 0, 'QA removes its container by id');
+      }, async () => {
+        expectExit(await lane.removeKept(userId), 0, 'QA removes its container by id');
         await lane.r.observe('qa-volume-user-removed');
-      }
+      });
     },
     async 'g-quarantine'() {
       await lane.stopServices('g-quarantine-stop');
@@ -865,24 +1069,24 @@ function defineRows(ctx) {
     async 'e-hot-journal'() {
       const journal = path.join(lane.clone, 'infra/.data/lti-service/lti.db-journal');
       fs.writeFileSync(journal, 'qa hot journal', { mode: 0o600, flag: 'wx' });
-      try {
+      await guarded('e-hot-journal legacy journal', async () => {
         await refusal('e-hot-journal-up', ['stack:up'], 'legacy_hot_journal');
         const out = lane.newFolder(lane.backups, 'hot');
         const res = await product('e-hot-journal-backup', ['stack:data-backup', '--', '--source', 'legacy', '--out', out]);
         assertRefuses(res, 'legacy_hot_journal', 'legacy backup');
         check(!fs.existsSync(path.join(out, 'manifest.json')), 'No manifest');
-      } finally { fs.unlinkSync(journal); }
+      }, async () => { fs.unlinkSync(journal); });
     },
     async 'e-old-layout'() {
       const decoy = await lane.container({ kind: 'storage-decoy', legacyLtiDir: path.join(lane.clone, 'infra/.data/lti-service'), detach: true }, { label: 'qa-decoy' });
       check(decoy.code === 0, 'QA decoy runs');
       const id = decoy.stdout.trim();
-      try {
+      await guarded('e-old-layout QA decoy', async () => {
         await refusal('e-old-layout-up', ['stack:up'], 'old_layout_container');
         const out = lane.newFolder(lane.backups, 'old-layout');
         const res = await product('e-old-layout-backup', ['stack:data-backup', '--', '--source', 'legacy', '--out', out]);
         assertRefuses(res, 'old_layout_container', 'legacy backup');
-      } finally { await lane.docker(['rm', '-f', id]); await lane.r.observe('qa-decoy-removed'); }
+      }, async () => { expectExit(await lane.removeKept(id, ['-f']), 0, 'QA removes its decoy by id'); await lane.r.observe('qa-decoy-removed'); });
     },
     async 'g-fresh-target'() {
       const stop = await product('g-fresh-target-stop', ['stack:data-restore', '--', '--from', state.B, '--stop-after', 'swapped'], { env: drillEnv() });
@@ -969,18 +1173,24 @@ function defineRows(ctx) {
     async 'e-changed-byte'() {
       await stopped();
       const file = path.join(lane.clone, 'infra/.data/lti-service/lti.db');
+      const original = fileSha(file);
       const fd = fs.openSync(file, 'r+'); const b = Buffer.alloc(1);
-      try {
-        fs.readSync(fd, b, 0, 1, 200); b[0] ^= 1; fs.writeSync(fd, b, 0, 1, 200); state.legacy.edited('lti-service', 'lti.db');
+      let changed = false;
+      await guarded('e-changed-byte legacy byte', async () => {
+        fs.readSync(fd, b, 0, 1, 200); b[0] ^= 1; fs.writeSync(fd, b, 0, 1, 200); changed = true; state.legacy.edited('lti-service', 'lti.db');
         await refusal('e-changed-byte', ['stack:up'], 'legacy_conflict');
-      } finally { fs.readSync(fd, b, 0, 1, 200); b[0] ^= 1; fs.writeSync(fd, b, 0, 1, 200); fs.closeSync(fd); state.legacy.edited('lti-service', 'lti.db'); }
+      }, async () => {
+        try { if (changed) { fs.readSync(fd, b, 0, 1, 200); b[0] ^= 1; fs.writeSync(fd, b, 0, 1, 200); } } finally { fs.closeSync(fd); }
+        state.legacy.edited('lti-service', 'lti.db');
+        check(fileSha(file) === original, 'The legacy lti.db has its original bytes again');
+      });
     },
     async 'e-added-wal'() {
       await stopped();
       const wal = path.join(lane.clone, 'infra/.data/lti-service/lti.db-wal');
       check(!fs.existsSync(wal), 'lti.db-wal is not in legacySources');
       fs.writeFileSync(wal, 'qa added wal', { mode: 0o600, flag: 'wx' });
-      try { await refusal('e-added-wal', ['stack:up'], 'legacy_conflict'); } finally { fs.unlinkSync(wal); }
+      await guarded('e-added-wal legacy WAL', async () => { await refusal('e-added-wal', ['stack:up'], 'legacy_conflict'); }, async () => { fs.unlinkSync(wal); });
     },
     async 'e-import-nonfresh'() {
       await stopped();
@@ -989,7 +1199,7 @@ function defineRows(ctx) {
     async 'h-old-manifest'() {
       await stopped();
       const copy = lane.newFolder(lane.backups, 'old-manifest');
-      fs.cpSync(state.X2, copy, { recursive: true });
+      privateCopyTree(state.X2, copy);
       const mf = path.join(copy, 'manifest.json'), m = JSON.parse(fs.readFileSync(mf, 'utf8'));
       delete m.source; fs.writeFileSync(mf, JSON.stringify(m));
       await refusal('h-old-manifest-restore', ['stack:data-restore', '--', '--from', copy], 'import_target_not_fresh');
@@ -1021,8 +1231,12 @@ function defineRows(ctx) {
 
     // ------------------------------------------------------------ e-old-schema (last block)
     async '@old-schema-setup'() {
-      const h = ctx.handoff();
-      if (!h?.m123Backup || !h?.m123Clone) throw new StorageBlocked("This round's AC-M1-23 backup and clone are not recorded by the migration phase");
+      // §9.1: the one handoff check, with the facts of this storage child (never a path only because the handoff names it).
+      const facts = ctx.handoff ?? {};
+      const bound = checkHandoff({ file: facts.file, windowStart: facts.windowStart, runRoot: path.dirname(lane.clone), project: lane.project,
+        productSha: ctx.identity?.productSha, s: facts.startedAt, hostUid: lane.hostUid });
+      if (!bound.ok) throw new StorageBlocked(bound.cause);
+      const h = bound.handoff;
       await stopped();
       expectExit(await product('old-schema-reset', ['stack:reset']), 0, 'stack:reset before e-old-schema');
       state.legacy = new LegacyFixtures(lane.clone);
@@ -1031,7 +1245,7 @@ function defineRows(ctx) {
         const [service, file] = name.split('/');
         state.legacy.place(service, file, path.join(h.m123Backup, service, file));
       }
-      copyCredentials(lane.clone, h.m123Clone);
+      copyCredentials(lane.clone, h.m123Clone, { ledger: lane.writeLedger });
       lane.r.loadStackFiles();
       state.oldSchema = { manifest, h };
     },
@@ -1044,16 +1258,16 @@ function defineRows(ctx) {
       const folder = state.oldSchema.paths[0];
       const pkg = path.join(lane.clone, 'infra/.data/cogniate-app/packages', folder), hold = path.join(lane.out, `pkg-hold-${hex16()}`);
       fs.mkdirSync(hold, { mode: 0o700 }); fs.renameSync(pkg, path.join(hold, folder));
-      try {
+      await guarded('e-content-missing package folder hold', async () => {
         const res = await refusal('content-restore', ['stack:data-restore', '--', '--from', v], 'content_missing');
         const line = res.lines.find((l) => l.event === 'storage_content_check');
         check(line?.result === 'content_missing', 'storage_content_check content_missing');
-      } finally { fs.renameSync(path.join(hold, folder), pkg); }
+      }, async () => { fs.renameSync(path.join(hold, folder), pkg); });
     },
     async 'e-old-schema'() {
       const { h } = state.oldSchema;
       // Import half of e-content-missing: the packages are not copied yet.
-      const { values: storageValues, folders: paths } = await storagePaths(path.join(h.m123Backup, 'cogniate-app'));
+      const { values: storageValues, folders: paths } = await lane.withScratch('storage-paths', (scratch) => storagePaths(path.join(h.m123Backup, 'cogniate-app'), scratch));
       check(storageValues.length > 0, 'The AC-M1-23 app database names package folders');
       state.oldSchema.paths = paths;
       const y0 = lane.newFolder(lane.backups, 'Y0');
@@ -1114,9 +1328,9 @@ function defineRows(ctx) {
     const hold = `orig-${label}-${hex16()}`;
     const names = { lti: ['.storage-identity.json', 'lti.db', 'lti.db-wal', 'lti.db-shm'], app: ['.storage-identity.json', 'cogniate.db', 'cogniate.db-wal', 'cogniate.db-shm'] };
     const original = await lane.state();
+    const listed = await lane.listing(); // the modes before the row (V4-2)
     for (const vol of ['lti', 'app']) await lane.script('copyout', { spec: { vol, names: names[vol], folder: `${hold}/${vol}` } });
-    try { await body(); }
-    finally {
+    await guarded('identityCase ' + label, body, async () => {
       // Put the original bytes back: remove what is in place now, then copy the held originals in.
       const now = await lane.state();
       const ops = [];
@@ -1125,7 +1339,13 @@ function defineRows(ctx) {
       }
       await lane.plant(ops);
       for (const vol of ['lti', 'app']) await lane.plant([{ op: 'unstash', vol, names: names[vol], hold: `${hold}/${vol}` }]);
-    }
+      // V4-2: each returned file has its mode from QA's listing before the row.
+      const returned = await lane.listing();
+      for (const vol of ['lti', 'app']) for (const name of names[vol]) {
+        const was = listed[vol].entries.find((e) => e.path === name), now = returned[vol].entries.find((e) => e.path === name);
+        check(!was === !now && (!was || (now.type === was.type && now.mode === was.mode)), `${vol}:${name} is back with its mode from before the row`);
+      }
+    });
     const back = await lane.state();
     check(fileSetsEqual(back.sets, original.sets), 'The original bytes are back (SHA-256 equal)');
     const res = await up(`f-back-${label}`);
@@ -1172,7 +1392,7 @@ function defineRows(ctx) {
   async function orphanStart(label) {
     await stopped();
     const env = { ...lane.r.STACK_ENV, STORAGE_DRILL: '1', STORAGE_DRILL_PAUSE_SECONDS: '120' };
-    const g = spawnGroup('npm', ['run', 'stack:data-restore', '--', '--from', state.B, '--pause-after', 'swapped-lti'], { cwd: lane.clone, env });
+    const g = lane.spawnGroup('npm', ['run', 'stack:data-restore', '--', '--from', state.B, '--pause-after', 'swapped-lti'], { cwd: lane.clone, env });
     const record = await until(() => { const f = path.join(lane.lockFolder(), 'owner.json'); try { return fs.existsSync(f) && JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return false; } },
       { timeoutMs: 60_000, what: 'restore lock record' });
     await until(() => /storage_drill_pause/.test(g.output().stdout + g.output().stderr) || lane.allLogLines().some((l) => l.event === 'storage_drill_pause'),
@@ -1190,7 +1410,7 @@ function defineRows(ctx) {
     const P = lane.project, lockDir = lane.lockFolder();
     // A QA process that ends; its pidStart and pgid are read with LC_ALL=C ps while it is alive.
     const ended = async () => {
-      const c = spawnGroup('sleep', ['2']);
+      const c = lane.spawnGroup('sleep', ['2']);
       const start = await pidStart(c.pid), pgid = await pgidOf(c.pid);
       check(start && pgid === c.pid, 'Planted values read with LC_ALL=C ps');
       await c.done;
@@ -1211,14 +1431,14 @@ function defineRows(ctx) {
     await reclaimed('a-lock-stale-1', r1, writeRecordFolder(lockDir, r1));
     await stopped();
     // (2) A live QA process with another pidStart and an empty group.
-    const live = spawnGroup('sleep', ['300']);
-    try {
+    const live = lane.spawnGroup('sleep', ['300']);
+    await guarded('a-lock-stale case 2 QA process group', async () => {
       const emptyGroup = (await ended()).pgid;
       const start = await pidStart(live.pid);
       const r2 = base(live.pid, start.replace(/\d{4}$/, (y) => String(Number(y) - 1)), emptyGroup);
       check(r2.pidStart !== start, 'Planted pidStart differs');
       await reclaimed('a-lock-stale-2', r2, writeRecordFolder(lockDir, r2));
-    } finally { live.killGroup('SIGKILL'); await live.done; }
+    }, () => endGroup(live));
     await stopped();
     // (3) cand-* and rel-* folders of ended processes with empty groups.
     const e3 = await ended(), e4 = await ended();
@@ -1230,8 +1450,8 @@ function defineRows(ctx) {
     check(res3.lines.filter((l) => l.event === 'storage_lock_cleanup').length >= 1, 'storage_lock_cleanup events');
     await stopped();
     // (4) Group rule: a stub owner and a stub child in their own group; SIGKILL to the owner only.
-    const stub = spawnGroup('bash', ['-c', 'sleep 600 & wait']);
-    try {
+    const stub = lane.spawnGroup('bash', ['-c', 'sleep 600 & wait']);
+    await guarded('a-lock-stale case 4 stub group', async () => {
       await until(async () => (await groupMembers(stub.pgid)).length >= 2, { timeoutMs: 10_000, what: 'stub child in the group' });
       const r4 = base(stub.pid, await pidStart(stub.pid), await pgidOf(stub.pid));
       const hash = writeRecordFolder(lockDir, r4);
@@ -1251,7 +1471,7 @@ function defineRows(ctx) {
       await until(async () => (await groupMembers(r4.pgid)).length === 0, { timeoutMs: 10_000, what: 'stub child ended' });
       const after = await product('a-lock-stale-4-after', ['stack:up']); expectExit(after, 0, 'after the stub child ends');
       check(after.lines.some((l) => l.event === 'storage_lock_reclaimed' && l.owner?.runId === r4.runId), 'storage_lock_reclaimed');
-    } finally { stub.killGroup('SIGKILL'); }
+    }, () => endGroup(stub));
   }
   async function hostControlRefusesWithMarker() {
     const calls = [];
@@ -1300,13 +1520,15 @@ async function allContainerStates(lane) {
   if (!ids.length) return [];
   return JSON.parse((await lane.docker(['container', 'inspect', ...ids])).stdout).map((c) => ({ id: c.Id, state: c.State?.Status })).sort((a, b) => a.id.localeCompare(b.id));
 }
-/** The distinct package.storage_path values of a copied app database (read from a copy, never the original). */
-export async function storagePaths(appFolder) {
+/**
+ * The distinct package.storage_path values of a copied app database (read from a copy, never the original). `scratch`
+ * is a lane private scratch folder (site #11); its owner removes it after the scan.
+ */
+export async function storagePaths(appFolder, scratch, { hook } = {}) {
+  if (typeof scratch !== 'string' || !path.isAbsolute(scratch)) throw new StorageFail('storagePaths needs a private scratch folder');
   const { DatabaseSync } = await import('node:sqlite');
-  const os = await import('node:os');
-  const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-storage-paths-'));
-  try {
-    for (const s of ['', '-wal', '-shm']) if (fs.existsSync(path.join(appFolder, 'cogniate.db' + s))) fs.copyFileSync(path.join(appFolder, 'cogniate.db' + s), path.join(scratch, 'cogniate.db' + s));
+  {
+    for (const s of ['', '-wal', '-shm']) if (fs.existsSync(path.join(appFolder, 'cogniate.db' + s))) privateCopy(path.join(appFolder, 'cogniate.db' + s), path.join(scratch, 'cogniate.db' + s), { hook });
     const db = new DatabaseSync(path.join(scratch, 'cogniate.db'));
     try {
       const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((t) => t.name);
@@ -1318,7 +1540,7 @@ export async function storagePaths(appFolder) {
       const folders = [...new Set(values.map((p) => p.replace(/^packages\//, '').split('/')[0]).filter(Boolean))].sort();
       return { values, folders };
     } finally { db.close(); }
-  } finally { fs.rmSync(scratch, { recursive: true, force: true }); }
+  }
 }
 /** The candidate's migration file names per service, from the tracked candidate tree of the storage clone. */
 export async function candidateMigrations(lane) {
@@ -1330,8 +1552,11 @@ export async function candidateMigrations(lane) {
   check(out.lti.length > 0 && out.app.length > 0, 'Candidate migration names found for both services');
   return out;
 }
-/** e-old-schema credential copy: only the four `.env` values and the four secret files, mode 0600. */
-export function copyCredentials(clone, fromClone) {
+/**
+ * e-old-schema credential copy: only the four `.env` values and the four secret files. Site #9: each target is
+ * replaced by an exclusive 0600 temporary in its folder (fsync, rename); each target joins QA's write ledger.
+ */
+export function copyCredentials(clone, fromClone, { ledger, hook } = {}) {
   const keys = ['LTI_MASTER_KEY', 'APP_MASTER_KEY', 'PORTAL_THANH_PASSWORD', 'PORTAL_QAB_PASSWORD'];
   const read = (file) => fs.readFileSync(file, 'utf8');
   const source = Object.fromEntries(read(path.join(fromClone, '.env')).split('\n').map((l) => /^([A-Z_]+)=(.*)$/.exec(l)).filter(Boolean).map((m) => [m[1], m[2]]));
@@ -1339,12 +1564,81 @@ export function copyCredentials(clone, fromClone) {
   const envFile = path.join(clone, '.env');
   const lines = read(envFile).split('\n').map((l) => { const m = /^([A-Z_]+)=/.exec(l); return m && keys.includes(m[1]) ? `${m[1]}=${source[m[1]]}` : l; });
   for (const k of keys) if (!lines.some((l) => l.startsWith(k + '='))) throw new StorageBlocked('Storage lane .env has no ' + k);
-  fs.writeFileSync(envFile, lines.join('\n'));
+  privateReplace(envFile, Buffer.from(lines.join('\n')), { hook }); ledger?.add(envFile);
   for (const rel of ['infra/.secrets/lti-api-key.cogniate', 'infra/.secrets/lti-api-key.qa-second', 'infra/.secrets/app/lti-api-key', 'infra/.secrets/seed.json']) {
     const target = path.join(clone, rel);
     fs.mkdirSync(path.dirname(target), { recursive: true, mode: 0o700 });
-    fs.copyFileSync(path.join(fromClone, rel), target); fs.chmodSync(target, 0o600);
+    privateReplace(target, readRegular(path.join(fromClone, rel)).bytes, { hook }); ledger?.add(target);
   }
   return keys;
+}
+// ---------------------------------------------------------------- the oracles of g-orphan-refusal and g-tamper (M1 a60ba4a)
+
+/** LD-2: the `storage-op.<project>.stale-*` folders of `.tmp/`, each with the hash of its owner.json (null when absent). */
+export function staleRecords(tmpDir, project) {
+  const prefix = `storage-op.${project}.stale-`;
+  return Object.fromEntries(fs.readdirSync(tmpDir).filter((n) => n.startsWith(prefix)).sort().map((n) => [n, recordHash(path.join(tmpDir, n))]));
+}
+/** LD-2: an added, removed (or renamed) or changed stale-* record after one command. Empty: no reclaim, the evidence stays. */
+export function staleChanges(before, after) {
+  const changes = Object.keys(after).filter((n) => !(n in before)).map((n) => `added ${n}`);
+  for (const [n, h] of Object.entries(before)) {
+    if (!(n in after)) changes.push(`removed ${n}`);
+    else if (after[n] !== h) changes.push(`changed ${n}/owner.json`);
+  }
+  return changes;
+}
+const ROOT_JOURNAL = '.storage-journal.json';
+/**
+ * LD-3 (1) and (2) over QA's listings of both volumes: the multiset of names of every regular file (a name is the volume
+ * and the file name, so a move inside a volume keeps it) is equal, and every (name, SHA-256) except the two root
+ * journals is equal. A root journal is only `.storage-journal.json` directly in a volume root.
+ */
+export function tamperChanges(before, after) {
+  const files = (l) => ['lti', 'app'].flatMap((v) => (l[v]?.entries ?? []).filter((e) => e.type === 'file').map((e) => ({ name: `${v}:${path.basename(e.path)}`, sha256: e.sha256, root: e.path === ROOT_JOURNAL })));
+  const b = files(before), a = files(after), changes = [];
+  const names = (xs) => JSON.stringify(xs.map((x) => x.name).sort()), pairs = (xs) => JSON.stringify(xs.filter((x) => !x.root).map((x) => `${x.name}:${x.sha256}`).sort());
+  if (names(b) !== names(a)) changes.push('the multiset of file names changed (a file was deleted or added)');
+  if (pairs(b) !== pairs(a)) changes.push('a file other than the two root journals changed its bytes');
+  return changes;
+}
+/**
+ * LD-3 (3), each root journal on its own (fixture-script file sets): a regular file before and after; after, one JSON object
+ * with the same keys, state rollback_failed, and every other value except updatedAt unchanged (ADR-012 §8).
+ */
+export function rootJournalChanges(before, after) {
+  const changes = [];
+  const object = (j) => j?.present === true && !j.error && j.json !== null && typeof j.json === 'object' && !Array.isArray(j.json);
+  for (const v of ['lti', 'app']) {
+    const jb = before?.[v]?.journal, ja = after?.[v]?.journal;
+    if (!object(jb)) { changes.push(`${v} root journal is not a JSON object file before`); continue; }
+    if (!object(ja)) { changes.push(`${v} root journal is not a JSON object file after`); continue; }
+    const kb = Object.keys(jb.json).sort(), ka = Object.keys(ja.json).sort();
+    if (JSON.stringify(kb) !== JSON.stringify(ka)) changes.push(`${v} root journal keys changed`);
+    if (ja.json.state !== 'rollback_failed') changes.push(`${v} root journal state is ${ja.json.state}`);
+    for (const k of kb.filter((x) => x !== 'state' && x !== 'updatedAt' && ka.includes(x))) if (JSON.stringify(jb.json[k]) !== JSON.stringify(ja.json[k])) changes.push(`${v} root journal ${k} changed`);
+  }
+  return changes;
+}
+/** A QA marker or scratch file (site #15): mode 0600, never over an existing path, then a mode check. */
+export function writeMarker(file, text) {
+  fs.writeFileSync(file, text, { mode: 0o600, flag: 'wx' });
+  const st = fs.lstatSync(file);
+  check(st.isFile() && (st.mode & 0o7777) === 0o600, 'QA marker file has mode 0600: ' + path.basename(file));
+}
+const fileSha = (file) => crypto.createHash('sha256').update(readRegular(file).bytes).digest('hex');
+/** Names, types, sizes and SHA-256 of a folder (evidence before a P-1a deletion); links are not followed. */
+export function childListing(dir) {
+  const out = [];
+  const walk = (d, rel) => {
+    for (const name of fs.readdirSync(d).sort()) {
+      const file = path.join(d, name), r = rel ? `${rel}/${name}` : name, st = fs.lstatSync(file);
+      const type = st.isSymbolicLink() ? 'symlink' : st.isDirectory() ? 'dir' : st.isFile() ? 'file' : 'other';
+      out.push({ path: r, type, ...(type === 'file' ? { size: st.size, sha256: fileSha(file) } : {}) });
+      if (type === 'dir') walk(file, r);
+    }
+  };
+  walk(dir, '');
+  return out;
 }
 export { DRILL_POINTS, sleep, createdNotBefore, defineRows };

@@ -8,7 +8,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { copyOut, fileset, inside, listRoot, lockOracle, logicalRead, p5Delete, plant } from './storage-fixture-script.mjs';
+import { copyOut, fileset, inside, listRoot, lockOracle, logicalRead, meta, p5Delete, plant } from './storage-fixture-script.mjs';
 
 const SCRIPT = fileURLToPath(new URL('./storage-fixture-script.mjs', import.meta.url));
 const sha = (f) => crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
@@ -97,6 +97,7 @@ test('HARNESS ONLY: planted changes are exact; unsafe paths are refused; stash a
   plant({ lti: l.lti, app: l.app }, [{ op: 'unstash', vol: 'app', names: ['cogniate.db', 'cogniate.db-wal'], hold: 'hold/a' }], { outDir: l.out });
   assert.equal(sha(path.join(l.app, 'cogniate.db')), original, 'Bytes back');
   fs.writeFileSync(path.join(l.lti, '.storage-identity.json'), JSON.stringify({ pairId: 'a', role: 'lti' }), { mode: 0o640 });
+  fs.chmodSync(path.join(l.lti, '.storage-identity.json'), 0o640); // the source mode is explicit, never the umask
   plant({ lti: l.lti, app: l.app }, [{ op: 'editjson', vol: 'lti', path: '.storage-identity.json', set: { composeProject: 'qa-other' } }]);
   const edited = JSON.parse(fs.readFileSync(path.join(l.lti, '.storage-identity.json'), 'utf8'));
   assert.deepEqual(edited, { pairId: 'a', role: 'lti', composeProject: 'qa-other' });
@@ -144,4 +145,35 @@ test('HARNESS ONLY: command line answers one JSON line; the oracle removes its .
   assert.deepEqual(fs.readdirSync(l.lti), [], 'Nothing left in the volume root');
   const bad = Buffer.from(JSON.stringify({ scratch: 'other' })).toString('base64');
   assert.throws(() => execFileSync(process.execPath, ['--no-warnings', SCRIPT, 'oracle', '--lti', l.lti, '--spec', bad], { encoding: 'utf8', stdio: 'pipe' }));
+});
+
+test('HARNESS ONLY: V2-1 listRoot stays strict: an unreadable mountpoint or other folder fails with EACCES (non-root only)', (t) => {
+  assert.notEqual(process.getuid(), 0, 'This control refuses to run as root: root reads a 000 folder');
+  for (const name of ['packages', 'uploads', 'other-folder']) {
+    const l = lane(t);
+    if (!fs.existsSync(path.join(l.app, name))) fs.mkdirSync(path.join(l.app, name), { mode: 0o700 });
+    fs.chmodSync(path.join(l.app, name), 0o000);
+    try {
+      assert.throws(() => fs.readdirSync(path.join(l.app, name)), { code: 'EACCES' }, 'Precondition: a direct read of the folder fails');
+      assert.throws(() => listRoot(l.app), (e) => e.code === 'EACCES' && e.message.includes(name), `listRoot fails with EACCES for ${name}`);
+    } finally { fs.chmodSync(path.join(l.app, name), 0o700); }
+  }
+});
+
+test('HARNESS ONLY: V2-2 meta returns type, owner and mode of the 000 folders through lstat only, and no entry list', (t) => {
+  assert.notEqual(process.getuid(), 0, 'This control refuses to run as root');
+  const l = lane(t);
+  fs.mkdirSync(path.join(l.app, 'other-folder'), { mode: 0o700 });
+  fs.writeFileSync(path.join(l.app, 'packages/inside'), 'x');
+  for (const name of ['packages', 'uploads', 'other-folder']) fs.chmodSync(path.join(l.app, name), 0o000);
+  let entries;
+  try {
+    for (const name of ['packages', 'uploads']) assert.throws(() => fs.readdirSync(path.join(l.app, name)), { code: 'EACCES' });
+    entries = meta(l.app, ['packages', 'uploads', 'other-folder']);
+  } finally { for (const name of ['packages', 'uploads', 'other-folder']) fs.chmodSync(path.join(l.app, name), 0o700); }
+  assert.deepEqual(entries, ['packages', 'uploads', 'other-folder'].map((p) => ({ path: p, type: 'dir', uid: process.getuid(), gid: process.getgid(), mode: '0000' })));
+  for (const e of entries) assert.deepEqual(Object.keys(e).sort(), ['gid', 'mode', 'path', 'type', 'uid'], 'No entry list');
+  fs.symlinkSync('/etc', path.join(l.app, 'link'));
+  assert.deepEqual(meta(l.app, ['link'])[0].type, 'symlink', 'A link is never followed');
+  assert.throws(() => meta(l.app, ['../escape']), /Unsafe entry path/);
 });

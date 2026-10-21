@@ -3,16 +3,16 @@
 // exact-name gate first; every write-mode fixture runs under QA's operation lock.
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { httpsLoopback, run } from './lib.mjs';
-import { logicalRead } from './storage-fixture-script.mjs';
+import { logicalRead, privateCopy } from './storage-fixture-script.mjs';
 import {
   MOUNT, NODE_IMAGE, StorageBlocked, StorageFail, assertMountable, dockerClock, fixtureArgs, hex16, mountedLaneKeys,
   qaContainers, serviceContainers, servicesStopped, storageContainers, volumePresence,
 } from './storage-docker.mjs';
-import { check, fileSets, identities, jsonLines, nothingChanged, readJsonl } from './storage-oracle.mjs';
+import { check, clockSample, fileSets, identities, jsonLines, nothingChanged, readJsonl, spawnGroup } from './storage-oracle.mjs';
+import { PhaseAbort, correctAll, scanCause, scanPoint, scanRecord, scanTree } from './storage-private-scan.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const SCRIPT = 'storage-fixture-script.mjs';
@@ -25,21 +25,31 @@ export const fixtureAnswer = (stdout) => jsonLines(stdout).filter((l) => !('even
 export class StorageLane {
   /**
    * @param r       the core.mjs runner (CLONE, PROJECT, STACK_ENV, exec, npm, observe, docker, record, saveText, state)
-   * @param options { oplock: lock helper path relative to the clone, privateRoot: folder outside the checkout }
+   * @param options { oplock: lock helper path relative to the clone, privateRoot: folder outside the checkout,
+   *                  scans: the scan record list of the phase (shared by the lanes of one phase),
+   *                  request: the HTTPS function (lib.mjs httpsLoopback; a self-test records the requests) }
    */
-  constructor(r, { oplock = 'infra/scripts/storage-oplock.sh', privateRoot, docker } = {}) {
+  constructor(r, { oplock = 'infra/scripts/storage-oplock.sh', privateRoot, docker, scans, request } = {}) {
     this.r = r; this.project = r.PROJECT; this.clone = r.CLONE; this.oplock = oplock;
     this.docker = docker ?? r.docker;
+    this.request = request ?? httpsLoopback;
     this.hostUid = process.getuid(); this.hostGid = process.getgid();
     this.private = privateRoot ?? path.join(path.dirname(r.CLONE), path.basename(r.CLONE) + '-storage-private');
     this.bin = path.join(this.private, 'bin'); this.out = path.join(this.private, 'out');
     this.backups = path.join(this.private, 'backups'); this.quarantine = path.join(this.private, 'quarantine');
+    this.scratch = path.join(this.private, 'scratch');
     this.imageId = null; this.markers = []; this.evidence = {};
+    // §7.4: the scan records of the phase, QA's write ledger of protected files outside the areas, and the extra
+    // private roots of the phase (the migration roots).
+    this.scans = scans ?? []; this.writeLedger = new Set(); this.extraRoots = [];
+    // LD-1 (Lead): the exact ids of the QA containers that a row keeps (its detached decoy, its created volume user),
+    // with that row; `step` is the row that runs now (storagePhase sets it).
+    this.kept = new Map(); this.step = null;
   }
 
   /** Private folders (mode 0700, outside the checkout), QA's script copy, and the pinned image id. */
   async boot() {
-    for (const dir of [this.private, this.bin, this.out, this.backups, this.quarantine]) {
+    for (const dir of [this.private, this.bin, this.out, this.backups, this.quarantine, this.scratch]) {
       fs.mkdirSync(dir, { recursive: true, mode: 0o700 }); fs.chmodSync(dir, 0o700);
     }
     const script = path.join(this.bin, SCRIPT);
@@ -98,10 +108,19 @@ export class StorageLane {
       throw new StorageFail(`QA container ${built.name} exceeded its time bound and was removed`);
     }
     if (built.verb === 'run' && !spec.detach) {
+      // Only a container that this lane keeps for the row that runs now may stay; any other QA container fails.
       const left = await qaContainers(this.docker, this.project);
-      check(left.length === 0 || spec.kind === 'storage-decoy', 'No QA container remains after its run');
+      check(left.every((id) => this.step !== null && this.kept.get(id) === this.step), 'No QA container remains after its run');
     }
+    const keeps = (built.verb === 'run' && spec.detach && spec.kind === 'storage-decoy') || (built.verb === 'create' && spec.kind === 'storage-volume-user');
+    if (keeps && result.code === 0 && /^[0-9a-f]{64}$/.test(result.stdout.trim())) this.kept.set(result.stdout.trim(), this.step);
     return { ...result, name: built.name };
+  }
+  /** Removes a kept QA container by its id; the id is retired only after a successful removal (LD-1). */
+  async removeKept(id, flags = []) {
+    const res = await this.docker(['rm', ...flags, id]);
+    if (res.code === 0) this.kept.delete(id);
+    return res;
   }
   /** Runs QA's script in a storage-fixture container and returns its JSON answer. */
   async script(op, { spec = {}, mode = 'read', root = false, rootReason, volumes, lock, allowWhileRunning = false, beforeFirstStart } = {}) {
@@ -160,7 +179,7 @@ export class StorageLane {
   apiKey() { const k = fs.readFileSync(path.join(this.clone, 'infra/.secrets/lti-api-key.cogniate'), 'utf8').trim(); this.r.redact.add(k); return k; }
   async lti(method, route, body, key = this.apiKey()) {
     const urls = this.r.state.urls;
-    const res = await httpsLoopback(urls.lti + route, { method, ca: this.r.state.ca,
+    const res = await this.request(urls.lti + route, { method, ca: this.r.state.ca,
       headers: { authorization: 'Bearer ' + key, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
     let json = null; try { json = JSON.parse(res.body); } catch { /* not JSON */ }
     return { ...res, json };
@@ -169,8 +188,9 @@ export class StorageLane {
     const urls = this.r.state.urls;
     const pw = password ?? this.r.state.env?.[email.startsWith('thanh') ? 'PORTAL_THANH_PASSWORD' : 'PORTAL_QAB_PASSWORD'];
     this.r.redact.add(pw);
-    const res = await httpsLoopback(urls.app + '/app-api/session', { method: 'POST', ca: this.r.state.ca,
-      headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, password: pw }) });
+    // security.md: every /app-api write, also the sign-in, needs Origin = PUBLIC_APP_URL.
+    const res = await this.request(urls.app + '/app-api/session', { method: 'POST', ca: this.r.state.ca,
+      headers: { 'content-type': 'application/json', origin: urls.app }, body: JSON.stringify({ email, password: pw }) });
     const cookie = [res.headers['set-cookie'] ?? []].flat().map((c) => c.split(';')[0]).find((c) => c.startsWith('__Host-cog_session='));
     check(res.status === 204 && cookie, `Portal sign-in of ${email}: HTTP ${res.status}`);
     this.r.redact.add(cookie.split('=')[1]);
@@ -178,8 +198,9 @@ export class StorageLane {
   }
   async app(cookie, method, route, body) {
     const urls = this.r.state.urls;
-    const res = await httpsLoopback(urls.app + route, { method, ca: this.r.state.ca,
-      headers: { cookie, 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const res = await this.request(urls.app + route, { method, ca: this.r.state.ca,
+      headers: { cookie, 'content-type': 'application/json', ...(method !== 'GET' ? { origin: urls.app } : {}) },
+      body: body === undefined ? undefined : JSON.stringify(body) });
     let json = null; try { json = JSON.parse(res.body); } catch { /* not JSON */ }
     return { ...res, json };
   }
@@ -214,25 +235,74 @@ export class StorageLane {
     const dir = path.join(this.clone, 'infra/.logs');
     return fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => f.endsWith('.jsonl')).flatMap((f) => readJsonl(path.join(dir, f))) : [];
   }
-  /** Reads a backup's database copies on the host, in a scratch folder, never the backup itself. */
-  async backupLogical(folder, markers) {
+  /** Reads a backup's database copies on the host, in a private scratch folder, never the backup itself. */
+  async backupLogical(folder, markers, { hook } = {}) {
     const out = {};
     for (const [vol, sub, db] of [['lti', 'lti-service', 'lti.db'], ['app', 'cogniate-app', 'cogniate.db']]) {
       const src = path.join(folder, sub);
-      const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-backup-read-'));
-      try {
-        for (const suffix of ['', '-wal', '-shm']) if (fs.existsSync(path.join(src, db + suffix))) fs.copyFileSync(path.join(src, db + suffix), path.join(scratch, db + suffix));
-        out[vol] = await logicalRead(scratch, db, { markers: markers.map((m) => m.value) });
-      } finally { fs.rmSync(scratch, { recursive: true, force: true }); }
+      out[vol] = await this.withScratch('backup-read', async (scratch) => {
+        for (const suffix of ['', '-wal', '-shm']) if (fs.existsSync(path.join(src, db + suffix))) privateCopy(path.join(src, db + suffix), path.join(scratch, db + suffix), { hook });
+        return logicalRead(scratch, db, { markers: markers.map((m) => m.value), scratchBase: scratch, hook });
+      });
     }
     return out;
   }
+
+  // ---------------------------------------------------------------- private scratch and scans (triage §7.3–§7.5)
+
+  /** A new folder `<private root>/scratch/<label>-<16 hex>` (mode 0700). remove() scans it first. */
+  privateScratch(label) {
+    if (!/^[a-z0-9-]+$/.test(label)) throw new Error('Scratch label: ' + label);
+    const dir = path.join(this.scratch, `${label}-${hex16()}`);
+    fs.mkdirSync(dir, { mode: 0o700 }); fs.chmodSync(dir, 0o700); // a new empty folder: the mode is explicit, never the umask
+    const st = fs.lstatSync(dir);
+    check(st.isDirectory() && !st.isSymbolicLink() && (st.mode & 0o7777) === 0o700 && st.uid === this.hostUid, 'Private scratch is a 0700 folder of the host user: ' + dir);
+    return { path: dir, remove: () => this.removeScratch(label, dir) };
+  }
+  /** Zero hits: the folder is removed. A hit: the step FAILs and the folder stays as evidence, also after a safe correction. */
+  removeScratch(label, dir) {
+    const s = scanTree(dir, `scratch/${path.basename(dir)}`);
+    const record = scanRecord(`scratch removal ${label}`, { problems: s.problems, hits: s.hits, ...correctAll(s.hits, { uid: this.hostUid }) });
+    this.recordScan(record);
+    if (record.refusals.length) throw new PhaseAbort(`private scratch ${label}: ${scanCause(record)}; the folder is kept`);
+    if (record.failed) throw new StorageFail(`private scratch ${label}: ${scanCause(record)}; the folder is kept as evidence`);
+    fs.rmSync(dir, { recursive: true });
+  }
+  /** Runs `fn(scratchPath)` in a new private scratch; the removal scan runs also after a failure (first cause kept). */
+  async withScratch(label, fn) {
+    const scratch = this.privateScratch(label);
+    let value, first = null;
+    try { value = await fn(scratch.path); } catch (e) { first = e; }
+    try { scratch.remove(); } catch (e) { first ??= e; }
+    if (first) throw first;
+    return value;
+  }
+  /** One §7.4 scan point of this lane: closure, bin/, the four areas, the extra roots and the outside classes. */
+  scanPoint(point) {
+    const record = scanPoint({ point, privateRoot: this.private, uid: this.hostUid, script: SCRIPT, scriptSha: this.scriptSha,
+      extraRoots: this.extraRoots, clone: this.clone, ledger: this.writeLedger });
+    this.recordScan(record);
+    return record;
+  }
+  recordScan(record) {
+    this.scans.push(record);
+    this.r.saveText?.(`storage/scans/${String(this.scans.length).padStart(3, '0')}-${record.point.replace(/[^\w.-]+/g, '_').slice(0, 80)}.json`, JSON.stringify(record, null, 2));
+  }
+  /** The harness clock sample of a-serialize: host time, the Docker engine time, host time (triage §3.1 step 8). */
+  async clockSample() { return clockSample(this.docker); }
+  /** Starts a command as its own process group (storage-oracle.mjs spawnGroup); a self-test lane replaces it. */
+  spawnGroup(cmd, args, opts) { return spawnGroup(cmd, args, opts); }
   newFolder(base, label) {
     const folder = path.join(base, `${label}-${hex16()}`);
     check(!folder.startsWith(this.clone + path.sep), 'Backup and quarantine folders stay outside the checkout');
     return folder;
   }
   async clock() { return dockerClock(this.docker); }
+  /** Type, owner and mode of named entries of one volume (fixture op `meta`; lstat only). */
+  async meta(vol, names) {
+    const answer = await this.script('meta', { spec: { vol, names }, volumes: [vol === 'lti' ? 'ltidb' : 'appdb'] });
+    return answer.entries;
+  }
   run(cmd, args, opts) { return run(cmd, args, opts); }
   async storageContainerCheck() { return storageContainers(this.docker, this.project); }
 }

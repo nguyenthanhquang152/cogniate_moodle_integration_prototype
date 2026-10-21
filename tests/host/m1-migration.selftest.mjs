@@ -125,3 +125,134 @@ test('HARNESS ONLY: AC-M1-30 step 3 needs both restore journals committed for th
   assert.throws(() => assertRestoreJournalsCommitted(unlisted, { manifest }), /lti journal after-list equals/);
   assert.deepEqual(journalOpIds({ lti: { journal: { present: false } }, app: {} }), [], 'No journal, no prior opId');
 });
+
+// ---------------------------------------------------------------- storage repair (triage revision 4 §7.4 SD-1): migration scan points
+
+import { CompatRoute, OLD_SHAS } from './storage-compat-route.mjs';
+import { StorageFail } from './storage-docker.mjs';
+import { PhaseAbort } from './storage-private-scan.mjs';
+import { migrationRun, scanAt, snapshotMigrationRun } from './m1-migration.mjs';
+import { SNAPSHOT_OLD_SHA } from './m1-phases.mjs';
+
+const MSHA = '0123456789abcdef0123456789abcdef01234567', MIMAGE = 'sha256:' + 'c'.repeat(64), MP = 'qa-multi-r1';
+/**
+ * A mocked migration lane: fake runner, fake Docker CLI on PATH (for allContainers), fake fixture answers, a product
+ * backup with 0600 files. The CompatRoute steps that need git or a real old build are replaced in the test only.
+ */
+async function mockMigration(t, { phase = 'migration', manifestMode = 0o600 } = {}) {
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'qa-m1-mock-'))); t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const clone = path.join(root, `${MP}-${MSHA.slice(0, 8)}-2026-10-21T13-00-00-000Z`);
+  fs.mkdirSync(path.join(clone, 'infra/compat'), { recursive: true }); fs.mkdirSync(path.join(clone, '.tmp'));
+  fs.writeFileSync(path.join(clone, 'infra/compat/storage-compat.sha256'), ['storage-compat.knobs.json', 'sqlite-lock-probe.mjs', 'storage-compat.sh', 'storage-oplock.sh'].map((n) => `${'a'.repeat(64)}  infra/x/${n}`).join('\n'));
+  const bin = path.join(root, 'fake-bin'); fs.mkdirSync(bin);
+  fs.writeFileSync(path.join(bin, 'docker'), `#!${process.execPath}
+const a = process.argv.slice(2);
+if (a[0] === 'ps') { console.log('id-lti\\nid-app'); process.exit(0); }
+if (a[0] === 'inspect') { console.log(JSON.stringify(['lti-service', 'cogniate-app'].map((s, i) => ({ Id: ['id-lti', 'id-app'][i], Name: '/' + s, Config: { Labels: { 'com.docker.compose.project': ${JSON.stringify(MP)}, 'com.docker.compose.service': s } }, State: { Running: false } })))); process.exit(0); }
+process.exit(97);
+`, { mode: 0o700 });
+  const PATH = process.env.PATH; process.env.PATH = bin + path.delimiter + PATH; t.after(() => { process.env.PATH = PATH; });
+  const old = phase === 'migration' ? OLD_SHAS[0] : SNAPSHOT_OLD_SHA;
+  const ledger = phase === 'migration'
+    ? { 'lti-service/lti.db': ['001_init.sql'], 'cogniate-app/cogniate.db': ['001_init.sql', '010_score_delivery_confirmation.sql'] }
+    : { 'lti-service/lti.db': ['001_init.sql'], 'cogniate-app/cogniate.db': ['001_init.sql', '011_lms_types.sql'] };
+  const bytes = { lti: Buffer.from('lti database bytes'), app: Buffer.from('app database bytes') };
+  const file = (b) => ({ present: true, size: b.length, sha256: crypto.createHash('sha256').update(b).digest('hex') });
+  const state = { restored: null, upgraded: false };
+  const fileset = () => {
+    const journal = (vol) => (state.restored ? { present: true, sha256: 'j', json: { operation: 'restore', opId: 'd'.repeat(32), backupId: state.restored.backupId, manifestSha256: 'e'.repeat(64), state: 'committed',
+      after: [{ name: vol === 'lti' ? 'lti-service/lti.db' : 'cogniate-app/cogniate.db', ...file(bytes[vol]) }].map(({ name, size, sha256 }) => ({ name, size, sha256 })) } } : { present: false });
+    return { op: 'fileset', lti: { state: 'present', files: { 'lti.db': file(bytes.lti), 'lti.db-wal': { present: false }, 'lti.db-shm': { present: false }, '.storage-identity.json': { present: true, size: 1, sha256: 'i' } }, journal: journal('lti') },
+      app: { state: 'present', files: { 'cogniate.db': file(bytes.app), 'cogniate.db-wal': { present: false }, 'cogniate.db-shm': { present: false }, '.storage-identity.json': { present: true, size: 1, sha256: 'k' } }, journal: journal('app') } };
+  };
+  const answer = (args) => {
+    const op = args[args.indexOf(MIMAGE) + 4];
+    if (op === 'logical') return { op, lti: { schemaMigration: ledger['lti-service/lti.db'] }, app: { schemaMigration: state.upgraded ? [...ledger['cogniate-app/cogniate.db'], '012_connection_provider_snapshot.sql'].sort() : ledger['cogniate-app/cogniate.db'] } };
+    if (op === 'fileset') return fileset();
+    if (op === 'plant') return { op, results: [] };
+    throw new Error('mock fixture op ' + op);
+  };
+  const ok = (stdout = '') => ({ code: 0, stdout, stderr: '', durationMs: 0 });
+  const backupTo = (out) => {
+    fs.mkdirSync(out, { mode: 0o700 });
+    for (const [sub, name, b] of [['lti-service', 'lti.db', bytes.lti], ['cogniate-app', 'cogniate.db', bytes.app]]) { fs.mkdirSync(path.join(out, sub), { mode: 0o700 }); fs.writeFileSync(path.join(out, sub, name), b, { mode: 0o600 }); }
+    const manifest = { formatVersion: 1, backupId: crypto.randomUUID(), composeProject: MP, source: 'volume', pairId: 'p'.repeat(32), generation: 0,
+      files: [['lti-service/lti.db', bytes.lti], ['cogniate-app/cogniate.db', bytes.app]].map(([name, b]) => ({ name, size: b.length, sha256: file(b).sha256 })), migrations: ledger };
+    fs.writeFileSync(path.join(out, 'manifest.json'), JSON.stringify(manifest), { mode: 0o600 }); fs.chmodSync(path.join(out, 'manifest.json'), manifestMode);
+  };
+  const r = { opt: { sha: MSHA }, PROJECT: MP, CLONE: clone, ART: path.join(root, 'art'), STACK_ENV: {}, state: { h1Verified: true, urls: { app: 'https://a', lti: 'https://l' } },
+    redact: { add: () => {} }, saveText: () => {}, record: () => {}, waitHealth: async () => ({ ok: true }),
+    docker: async (args) => (args[0] === 'image' ? ok(MIMAGE + '\n') : args[0] === 'volume' ? ok(JSON.stringify([{ Name: args[2], Labels: { 'com.docker.compose.project': MP, 'com.docker.compose.volume': args[2].split('_').at(-1) } }])) : ok('')),
+    exec: async (name, cmd, args) => {
+      if (cmd === 'git' && args[0] === 'rev-parse') return ok(OLD_SHAS[0] + '\n');
+      if (cmd === 'git' && args[0] === 'ls-tree') return ok('services/cogniate-app/src/domain/migrations/011_lms_types.sql\n');
+      if (cmd === 'git' || (cmd === 'docker' && args[0] === 'compose')) return ok();
+      const all = cmd === 'bash' ? args.slice(4) : args;
+      return ok(JSON.stringify(answer(all)) + '\n');
+    },
+    npm: async (name, args) => {
+      if (name === 'storage-compat-enable') fs.writeFileSync(path.join(clone, '.tmp/compose.knobs.yaml'), 'x-cogniate-storage-compat: {}\n');
+      if (name === 'storage-compat-disable') fs.rmSync(path.join(clone, '.tmp/compose.knobs.yaml'), { force: true });
+      if (name === 'data-backup' || name === 'snapshot-backup') backupTo(args[args.indexOf('--out') + 1]);
+      if (name === 'restore-valid') state.restored = JSON.parse(fs.readFileSync(path.join(args[args.indexOf('--from') + 1], 'manifest.json'), 'utf8'));
+      if (name === 'snapshot-start-012') state.upgraded = true;
+      return { code: ['backup-refuses-running'].includes(name) || name.startsWith('restore-refuses-') ? 1 : 0, stdout: '', stderr: '', durationMs: 0 };
+    } };
+  // The route steps that need git or a real old build (§12) are replaced for this mock only.
+  const saved = { ...Object.fromEntries(['treeRule', 'compatHashes', 'oldStart', 'configDiff'].map((k) => [k, CompatRoute.prototype[k]])) };
+  t.after(() => Object.assign(CompatRoute.prototype, saved));
+  Object.assign(CompatRoute.prototype, {
+    async treeRule() { this.current.treeRule = { ok: true }; return this.current.treeRule; },
+    compatHashes() { return { ok: true }; },
+    async oldStart(label, command) { this.current.starts.push({ label, command: command.join(' '), throughWrapper: true, exit: 0, preflightPass: true, statusPass: true, lockHeld: true }); return ok(); },
+    async configDiff(profiles) {
+      return saved.configDiff.call(this, profiles, {
+        shell: async (script, o) => { fs.writeFileSync(o.env.QA_ARGS_FILE, ['compose', '-f', '.tmp/compose.knobs.yaml', 'config', ''].join('\0')); fs.writeFileSync(o.env.QA_ENV_FILE, 'A=1\0'); return ok(); },
+        docker: async () => ok('{}') });
+    },
+  });
+  const scans = [];
+  const run = phase === 'migration'
+    ? migrationRun(r, { installTests: async () => {}, setup: async () => true, probe: async () => {}, identity: { productSha: MSHA, testSha: 'f'.repeat(40) }, scans })
+    : snapshotMigrationRun(r, { installTests: async () => {}, setup: async () => true, probe: async (stage) => [{ id: stage === 'snapshot-seed' ? 'M1-38.common.h1' : 'M1-38.common.h2', status: 'PASS' }],
+      identity: { productSha: MSHA, testSha: 'f'.repeat(40) }, scans });
+  return { run, scans, root };
+}
+
+test('HARNESS ONLY: SD-1 the migration phase scans after the private backup, after each damage copy, at each configDiff removal and at its end', async (t) => {
+  const { run, scans, root } = await mockMigration(t);
+  const evidence = await run;
+  assert.equal(evidence.find((e) => e.id === 'M1-41.common.j-migration').status, 'PASS');
+  assert.deepEqual(scans.map((s) => s.point), ['scratch removal compat-config', 'scratch removal compat-config', 'migration after the private backup',
+    ...['bytes', 'missing', 'backup-id', 'project'].map((d) => `migration after the damage copy ${d}`),
+    'scratch removal compat-config', 'scratch removal compat-config', 'migration phase end']);
+  assert.ok(scans.every((s) => !s.failed), JSON.stringify(scans.filter((s) => s.failed)));
+  const backupRoot = fs.readdirSync(root).find((n) => /^qa-m1-private-backup-[A-Za-z0-9]{6}$/.test(n));
+  for (const d of ['bytes', 'missing', 'backup-id', 'project']) for (const f of ['manifest.json', 'lti-service', 'cogniate-app']) {
+    const p = path.join(root, backupRoot, d, f);
+    if (fs.existsSync(p)) assert.equal(fs.lstatSync(p).mode & 0o7777, f === 'manifest.json' ? 0o600 : 0o700, `Site #13 ${d}/${f}`);
+  }
+});
+
+test('HARNESS ONLY: SD-1 a 0644 product file in the migration root FAILs the phase at its scan point; the correction keeps the inode', async (t) => {
+  const { run, scans, root } = await mockMigration(t, { manifestMode: 0o644 });
+  await assert.rejects(run, (e) => e instanceof StorageFail && /^scan at migration after the private backup: scan hit: qa-m1-private-backup-[A-Za-z0-9]{6}\/original\/manifest\.json \(file 0644\)$/.test(e.message));
+  const rec = scans.at(-1);
+  assert.deepEqual([rec.point, rec.failed, rec.corrections.length], ['migration after the private backup', true, 1]);
+  const backupRoot = fs.readdirSync(root).find((n) => /^qa-m1-private-backup-/.test(n));
+  assert.equal(fs.lstatSync(path.join(root, backupRoot, 'original/manifest.json')).mode & 0o7777, 0o600, 'Corrected in place, never deleted');
+});
+
+test('HARNESS ONLY: SD-1 the snapshot-upgrade phase scans at each configDiff removal, after the snapshot backup and at its end', async (t) => {
+  const { run, scans } = await mockMigration(t, { phase: 'snapshot-upgrade' });
+  await run;
+  assert.deepEqual(scans.map((s) => s.point), ['scratch removal compat-config', 'scratch removal compat-config', 'snapshot-upgrade after the snapshot backup', 'snapshot-upgrade phase end']);
+  assert.ok(scans.every((s) => !s.failed));
+});
+
+test('HARNESS ONLY: scanAt: a hit FAILs, a refused correction stops the phase, a clean point returns its record', () => {
+  const lane = (record) => ({ scanPoint: (point) => ({ point, problems: [], hits: [], corrections: [], refusals: [], failed: false, ...record }) });
+  assert.equal(scanAt(lane({}), 'p').point, 'p');
+  assert.throws(() => scanAt(lane({ failed: true, hits: [{ area: 'out', path: 'x.db', type: 'file', mode: '0644' }] }), 'p'), (e) => e instanceof StorageFail && !(e instanceof PhaseAbort));
+  assert.throws(() => scanAt(lane({ failed: true, hits: [{ area: 'out', path: 'x', type: 'file', mode: '0644' }], refusals: [{ area: 'out', path: 'x', reason: 'link' }] }), 'p'), PhaseAbort);
+});
