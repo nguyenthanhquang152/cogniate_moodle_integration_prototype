@@ -13,7 +13,27 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 09:36 UTC
+### Current checkpoint — 2026-10-21, 09:52 UTC
+
+The QA-RP-01 design proposal is committed at `2323361f91846a1fa21018d36694639d33ab2648`.
+ADR-012 revision 3.5 preserves strict content refusals and moves the content check before engine target writes.
+The check uses a verified scratch copy of the manifest-listed app database files.
+Cleanup completes before the result record. An incomplete check refuses `content_check_failed` without changing targets.
+Crash recovery after journal creation stays unchanged. The design records the limits of concurrent content changes and volume preparation.
+One contradictory Author unit expectation may change to a stronger unchanged-tree assertion. No QA assertion changes.
+The Architect settled successfully in `msg_1cea8b2c0014` and was released.
+The design remains proposed until the combined design and implementation reviews approve it.
+
+Two fresh workers now run in parallel, with requested and effective Claude Code Opus 5.5 xhigh settings:
+- Author: task `task_54e36981ceff`, dispatch `ctx_670ab32033a9`. It owns the restore script, its unit test file and one README sentence.
+- Independent QA: task `task_b9f5ddc04fcd`, dispatch `ctx_f4ca2198db32`. It prepares H1–H7 from the criteria before reading implementation details.
+
+QA will run against a new immutable candidate after the Author commit. Both workers are host-only; neither has a Docker window.
+The source commit, host QA, two blind reviews and required Q1/Q2 retry remain pending.
+Optional Q3/Q4 runtime probes are not granted. All full-run gates remain unchanged and pending.
+All 32 real-LMS rows stay UNVERIFIED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 09:36 UTC
 
 Targeted QA on `89fb4b4` finished with Q1 PASS and Q2 FAIL. Report commit: `faa77a2`.
 All three reset and startup cycles passed. Of 22 detailed checks, 17 passed, one failed and four did not run.
