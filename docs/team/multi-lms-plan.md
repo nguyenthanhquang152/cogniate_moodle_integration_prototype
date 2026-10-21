@@ -13,7 +13,22 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 08:36 UTC
+### Current checkpoint — 2026-10-21, 08:57 UTC
+
+Reset repair candidate `89fb4b48ee388faff3060fe1a161a9f9d064de93` is committed for review.
+The Lead checked the three held file hashes and the report, mutation summary and root-check log hashes.
+The test tree stays `4c7e067feedc644f955afee37806f06e7273dd04`. The untracked workspace file remains untouched.
+Author checks pass: eight targeted cases, all nine mutation variants, 1,106 unit tests and 84 infrastructure tests.
+Five existing unit tests remain skipped. These checks give no runtime acceptance credit.
+The candidate retains a real host-owned content parent and removes its entries. It adds no retry or delay.
+The Lead selected KEEP-SPLIT in `msg_2583d56e6293`, following brief section 4.
+After a host cleanup error, later host paths are no longer attempted. The exit remains nonzero, without a success line.
+This narrow exception to the task's broad partial-failure wording remains visible for both independent reviewers.
+The Author prepares RA20/RC5 on this pinned candidate. It still has no Docker window.
+Independent Q1/Q2 preparation remains active. RD alone has the conditional scratch diagnostic window.
+Combined design and implementation reviews, targeted runtime QA and all full-run gates remain pending.
+
+### Prior checkpoint — 2026-10-21, 08:36 UTC
 
 The bounded reset design is committed in `35d093d7a807391e779edf514d4ad2b63e8e0e66`.
 ADR-012 revision 3.4 and `docs/architecture/tasks/storage-reset-parent-repair.md` remain proposed, pending joint design and implementation reviews.
