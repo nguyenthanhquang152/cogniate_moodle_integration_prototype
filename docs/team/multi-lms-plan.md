@@ -13,18 +13,22 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 16:58 UTC
+### Current checkpoint — 2026-10-21, 17:12 UTC
 
 Round 2 QA's private control map is frozen at SHA-256 `6e28a020c3c702f09894b82d335486bc3620bff74164263801d664152cd68f8a`.
 The Lead read the map and verified its bytes and private modes. Grant `msg_c671d53d5d30` permits source reads and a bounded repair in the 13 named test paths, plus an append-only Round 2 report.
-QA acknowledged the grant and is reading source to bind amendment A-01. Before edits, it must freeze and send A-01 and preserve the gap-specific failing baselines.
-No second wait is needed if A-01 stays inside the grant and preserves or strengthens every control.
+QA froze A-01 (`34864741797fb9e9bc6a1e5abf2d5dfe395e839e5701cebed63828db887bdc58`) and addendum A-01b (`39ad4463c48f1baed617caac9aa4e0d29dd9e13b6769cd9cc50d4b2697b45c0b`).
+The Lead read both files, verified their bytes and private modes, and accepted exactly 10 test paths plus the append-only report in `msg_90ee9213d2ed` and `msg_ded8c0cf6576`.
+QA is writing the new controls on a private baseline copy. It must preserve the gap-specific failing baselines before repository edits; no second approval wait is required inside this scope.
+The addendum preserves the original mutation cases, migration scan points and comparison of unhooked old and repaired copy behavior. Raw records stay; any volatile fields normalized for comparison must be listed.
+Decision D-A1 follows triage section 4.3: an invalid scan root FAILs. A linked or non-owned root is not walked. An unsafe scratch cleanup or refused correction sets the phase abort; a closure problem alone does not add a new abort rule.
 The grant requires a parent-link race introduced before file opening to cause refusal before any permission correction. A post-operation check alone does not meet this control.
 Copy controls must observe actual sites #7, #12 and #13 at child umasks 022 and 000.
-The map's future end-time typo and initial 0644 creation inside its private directory must remain disclosed in A-01; replacement with a 0600 file does not prove correct initial creation.
+The map's initial 0644 creation and the estimated future end times in the map and A-01 remain disclosed through the addendum. Replacement with a 0600 file does not prove correct initial creation.
 
 Reviewer-B `ctx_47285c0af009` remains active on fixed source `71a5bf9`. The execution host still reports the exact worker live; the pending probe has no completion or exit evidence.
-The Lead did not stop, replace or duplicate it. The two reviews remain blind. Two workers are active, both Claude Code Opus 5.5 xhigh.
+The Lead did not stop, replace or duplicate it. After about 50 minutes without a probe result, the Lead asked the owner whether to stop and restart B; the answer is pending. No interruption is authorized by elapsed time.
+The two reviews remain blind. Two workers are active, both Claude Code Opus 5.5 xhigh.
 The working tree has only the preserved untracked `pnpm-workspace.yaml`; no Round 2 source edit is present yet.
 
 Product Q-R1A-01 remains closed. Harness repair, source review and all final runtime gates remain open.
