@@ -195,6 +195,10 @@ Docker: at most 2 stacks at the same time, by booked slot (Lead decision LD-2). 
 | LD-2 | Docker by booked slot: at most 2 stacks (one simulator lane, one Moodle lane). The Lead books the slots. This replaces "own stack per Author lane" in charter-LA §3. |
 | LD-3 | ADR-012 stays a dev-stack rule. LA does not build on its open runtime gates. E5 changes no storage engine. |
 | LD-4 | Evidence stays proportional: one focused test per acceptance criterion; harness work only when an AC needs it; one full regression gate at the end of each wave. |
+| LD-5 | Test ownership (QA strategy §9.2 items 1–3): K0 is the QA channel contract suite over the public kernel and registry entry points, with no Docker. Kernel internals (controlled clock, temporary database, port fixtures, code rules) are Author unit tests; Reviewer-B checks their quality. Points that need a running service are K1 or acceptance on the SIM lane, owned by QA in `tests/ltiaas/**`. QA-E2E owns K2 and the simulator modules. The architects align the test sections of their ADRs to this rule. |
+| LD-6 | LA-IC-09: after migration `014`, the T5b P5 fixture deletes the same failed row in `record_dispatch`. The assertions do not change. Both reviewers review the fixture diff (same rule as LD-1). |
+| LD-7 | Golden outputs: one fixed golden script per channel (G2) plus the M1 `sim` assertions. A per-scenario record diff only if a reviewer shows a gap. |
+| LD-8 | A short Moodle regression ("R2-lite": T7 once plus the area groups) runs after each E1 step that moves Moodle code (S3, S5, S6, S7). Cost: about 10–25 min of the Moodle slot per step. |
 
 ### 6.2 Human decisions
 
