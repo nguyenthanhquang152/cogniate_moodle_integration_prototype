@@ -1,6 +1,6 @@
-Verdict: HOLD at candidate `55c33a3` — round 1 Canvas rows 233/233 PASS (232 SIM + `M1-37.canvas.aa` snapshot-isolated; sink gate PASS); round 1 incomplete (stopped in snapshot-upgrade on a common-row oracle issue), round 2 not run; no AC-M3-01 credit (see §15)
-Round: 9 (task `task_e28388df4dcc`, dispatch `ctx_f3f20494787a`; see §15). Round 8 header: "FAIL / HOLD for round 1 SIM at storage candidate `a784522` — 232 SIM Canvas rows: 231 PASS, 1 FAIL (`M1-17.canvas.repeat`, a QA oracle defect; no product defect shown); round incomplete; one-case repair held, not run (see §14)" (§14). Round 7 header: "FAIL / HOLD for round 1 SIM at `aff4882` — 232 selected Canvas rows: 229 PASS, 3 FAIL (all QA oracle or request defects; no product defect); bounded repairs held, not run" (dispatch `ctx_4a94125660be`, §13)
-Owner: rounds 8–9 by a new Claude Canvas QA-E2E session (`claude-opus-5-5`, xhigh; Orca session `228bb341-1217-4df5-bc56-664d1f41faa3`), which did not run the earlier rounds; earlier rounds by the original Claude Canvas QA and, for rounds 5–6, the independent Codex Canvas QA quota replacement remain below
+Verdict: HOLD at candidate `82e2dab` — round 1 Canvas rows 233/233 PASS (232 SIM + `M1-37.canvas.aa` snapshot-isolated; sink gate PASS); the full run stopped in round 1 snapshot-upgrade on a common host-collector issue; round 2 not run; partial evidence only, no AC-M3-01 credit (see §16)
+Round: 10 (task `task_e28388df4dcc`, dispatch `ctx_33862fcfa6d1`; see §16). Round 9 header: "HOLD at candidate `55c33a3` — round 1 Canvas rows 233/233 PASS (232 SIM + `M1-37.canvas.aa` snapshot-isolated; sink gate PASS); round 1 incomplete (stopped in snapshot-upgrade on a common-row oracle issue), round 2 not run; no AC-M3-01 credit" (dispatch `ctx_f3f20494787a`, §15). Round 8 header: "FAIL / HOLD for round 1 SIM at storage candidate `a784522` — 232 SIM Canvas rows: 231 PASS, 1 FAIL (`M1-17.canvas.repeat`, a QA oracle defect; no product defect shown); round incomplete; one-case repair held, not run (see §14)" (§14). Round 7 header: "FAIL / HOLD for round 1 SIM at `aff4882` — 232 selected Canvas rows: 229 PASS, 3 FAIL (all QA oracle or request defects; no product defect); bounded repairs held, not run" (dispatch `ctx_4a94125660be`, §13)
+Owner: round 10 by a new Claude Canvas QA-E2E session (`claude-opus-5-5`, xhigh; Orca session `95d4c010-ef6d-4f58-87fe-7a686ec36424`), which did not run rounds 1–9; rounds 8–9 by another new Claude Canvas QA-E2E session (`claude-opus-5-5`, xhigh; Orca session `228bb341-1217-4df5-bc56-664d1f41faa3`), which did not run the earlier rounds; earlier rounds by the original Claude Canvas QA and, for rounds 5–6, the independent Codex Canvas QA quota replacement remain below
 Behavior baseline: `56591df0e71939d5d62c9042c630c841d01f84e8` (ADR-011 revision 6). Plan: [M1 QA plan](qa-plan.md) at `6733e57`.
 
 ## 1. Independence and inputs
@@ -410,3 +410,50 @@ Permission facts, observed and not changed: the completed SIM phase clone and it
 - Canvas M1 at `55c33a3`: round 1 Canvas rows 233/233 PASS (partial evidence), sink gate PASS, browser screenshots clean. **Overall HOLD.** AC-M3-01 needs two complete matching 488-row rounds at one SHA.
 - `a784522` stays a recorded failed attempt (§14). No PASS carries from it or from `aff4882`.
 - A proper retry follows a new reviewed freeze that includes Common QA's oracle repair. Then both complete rounds must be judged again with the same tools.
+
+## 16. Round 10 — candidate `82e2dab`: round 1 Canvas rows complete again, round incomplete (2026-10-21)
+
+**HOLD. No M1 acceptance credit.** A new Claude QA-E2E session (Orca session `95d4c010-ef6d-4f58-87fe-7a686ec36424`) wrote this round. It did not execute rounds 1–9. Their provenance stays as written above.
+
+Candidate product = test `82e2dab6d26915c90070a4aae8ac0c4472706c2d` (tests tree `51b2e50e2ed02efd4553c4b09c2c4b0d28d624c5`). It is `55c33a3` plus Common QA's two-line repair in `tests/acceptance/M1/common/snapshot-migration.probe.ts` (SHA-256 `4b1276328f35…6d3`). Product files equal `a784522`. Lead authority: `msg_40eca66674cd`. Mask and checkout rules: `msg_aea8cd9e30e0`, `msg_f132bffe54dc`, `msg_9ee0ecb9d2e6`. Closure: `msg_24bc463c9067`.
+
+Common QA ran the full documented M1 entry from 04:29:22Z, after W1–W3 passed. Round 1:
+- **SIM** passed 394/394 (run `qa-multi-r1-82e2dab6-2026-10-21T04-29-22-551Z`).
+- **snapshot-isolated** passed 6/6 (run `qa-multi-r1-82e2dab6-2026-10-21T04-52-21-763Z`).
+- **snapshot-upgrade:** the repaired `M1-38.common.h1` passed. Then the runner exited 1 at 04:55:18Z. Common QA reports that its host `inspectBackup` collector expects an array, but the per-database migrations record is an object. No product defect is shown. Common QA owns this collector.
+- The rest of snapshot-upgrade, the migration and storage phases, all of round 2 and legacy did not run.
+
+Common QA reports a strict W4 comparison PASS and zero owned resources after cleanup. This worker started no stack, no wake container and no Docker diagnostic. It read the Docker client binary hashes, the completed public artifacts and the capture files of the completed SIM phase clone.
+
+### 16.1 Preparation (host only)
+
+- Evidence root `R` = `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-82e2dab-EphODiew`, made under umask 077: every folder 0700, every file 0600. `R/source` is a fresh `--no-hardlinks` detached clone of the exact SHA with an empty status.
+- Approved tool bytes come from the `55c33a3` root. First, both original manifests were checked: R4 `0f5b1e9c…` 22/22 and sink-v2 `1af4609e…` 4/4. Then the relocated `55c33a3` manifests were checked: `63b96bce…` and `4cb2eb90…`. The new relocated manifests are `R/tools/tool-hashes-r4-abs.sha256` (`1766bd7d…`, 22 OK) and `R/tools/tool-hashes-sink-ext-abs.sha256` (`a2bb0430…`, 4 OK). All six tool self-tests reproduce their stored outputs.
+- Harness only: `run-m1.mjs --harness-only` gives 70/70 for `canvas` and for `all`, with 488 rows per round (sim 394, snapshot-isolated 6, snapshot-upgrade 6, migration 12, storage 70). The Canvas manifest has 233 rows. `run-m2.mjs --harness-only` gives 6/6 and 64 cases. The T7 list has 18 tests in 6 files.
+- Umask observation: under umask 077, the Common self-check "planted changes are exact…" in `storage-fixture-script.selftest.mjs` fails (69/70, `Mode kept 384 !== 416`), because it writes a 0640 file. Under umask 022 it passes (70/70). Both logs stay in `R`. This is an effect of the environment, not a product result.
+- The G-1 client identities match the bound table: macOS 27.0.1 arm64, Docker CLI 29.9.1 `67827118…`, Compose v5.6.0 `1ec06408…`.
+
+### 16.2 Independent Canvas judgement (round 1, two Canvas phases)
+
+The judges are the unchanged approved `canvas-judge-round.mjs` (v1) and `canvas-judge-round-v2.mjs` (sink gate).
+
+| Gate | Result |
+| --- | --- |
+| Canvas rows (v1) | **233/233 PASS**: SIM 232 (225 API + 7 browser); snapshot-isolated 1 (`M1-37.canvas.aa`). Runner and raw reports agree. Each row has one result and no retry. Product = test = `82e2dab`, label `SIM`, provider `all`. App and LTI health `default` after each phase. |
+| Scan records | SIM: 1,300 values, 637 files, 0 hits. snapshot-isolated: 10 values, 65 files, 0 hits. |
+| Sink gate (AC-M1-12, four cases) | **PASS.** `sink.jsonl` SHA-256 `391b31b2f164…f7a8`: 2 complete lines with a trailing newline. One lifetime `boot-e09d8ecd64fc`, 04:30:05.777Z to 04:52:05.365Z. It starts after the run start and stops before the identity time (04:52:15.816Z). `ags-lineitems`, `ags-lineitem-evil`, `nrps` and `dl-return` each ran once and passed in `21-canvas-protocol.test.ts`; the raw file interval is 04:30:19.392Z to 04:30:27.027Z. 0 `sink_hit`. |
+| Canvas browser artifacts (AC-M3-07) | 1,316 values from the completed SIM phase clone: 9 `.env`, 8 secrets-file and 1,299 capture values. 15 screenshots (9 distinct): **0 hits**. QA inspected all 9 distinct screenshots visually: they show no token, capability or approval input. The two refused-frame screenshots are blank by design. 14 trace zips (7 distinct): 120 hits in 7 files, as expected for raw traces. They stay private and are named only by location and hash. |
+| Round completeness (AC-M3-01) | **Not met.** Round 1 stopped in snapshot-upgrade. The migration and storage phases and round 2 did not run, so the same-result rule of two rounds cannot be checked. |
+
+Records in `R`:
+- `judge/round1/judge-v1-sim-isolated.json` (`edb794e0…`) and `judge/round1/judge-v2-sim-isolated.json` (`d0784044…`)
+- `judge/round1/judge-v1-sim-interim.json` and `judge/round1/judge-v2-sim-interim.json` (SIM phase alone)
+- `scan/r1-sim-canvas-browser-scan.json` (`f95475f7…`, counts only) and `scan/r1-sim-canvas-browser-files.sha256`
+
+Inputs: SIM `m1-case-results.json` `9ae24368…` and `m1-identity.json` `0517b508…`; snapshot-isolated `m1-case-results.json` `ce4f5770…`.
+
+### 16.3 Disposition
+
+- Canvas M1 at `82e2dab`: round 1 Canvas rows 233/233 PASS, sink gate PASS and clean screenshots. This is partial evidence. **Overall HOLD**; this dispatch settles as failed.
+- `55c33a3`, `a784522` and `aff4882` keep their own records. No PASS carries from one candidate to another.
+- Next: Common QA repairs its host collector under a new reviewed freeze. Then both complete rounds run. QA-E2E runs both judges again over all five phase artifacts of each round and compares the two rounds.

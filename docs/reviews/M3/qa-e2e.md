@@ -1,11 +1,11 @@
-Verdict: HOLD at storage candidates `a784522` (failed attempt) and `55c33a3` — M2 and T7 NOT RUN (no window); Canvas M1 round 1 233/233 rows PASS at `55c33a3` but rounds incomplete; live UNVERIFIED; local Canvas DEFERRED (see §9)
-Round: 6 (2026-10-21). Round 5 verdict: "at `aff4882`: M2 64/64 functional PASS (SIM); T7 3/3 default runs + demo + confirm PASS; observer-log incident contained; M1 held by Core QA; live UNVERIFIED"
-Owner: round 6 by a new Claude QA-E2E session (`claude-opus-5-5`, xhigh; Orca session `228bb341-1217-4df5-bc56-664d1f41faa3`), which did not run rounds 1–5; round 5 by the original Claude Canvas QA, resumed by owner request; rounds 1–2 by the independent Codex replacement
-Task: `task_e28388df4dcc`; dispatch: `ctx_f3f20494787a` (round 5: `ctx_4a94125660be`; rounds 1–2: `ctx_8ec51c3aa7b5`)
+Verdict: HOLD at candidate `82e2dab` — the Common full M1 run stopped in round 1 (common host collector); Canvas M1 round 1 233/233 rows PASS (partial); M2 and T7 NOT RUN (no window); live UNVERIFIED; local Canvas DEFERRED (see §10)
+Round: 7 (2026-10-21). Round 6 verdict: "HOLD at storage candidates `a784522` (failed attempt) and `55c33a3` — M2 and T7 NOT RUN (no window); Canvas M1 round 1 233/233 rows PASS at `55c33a3` but rounds incomplete; live UNVERIFIED; local Canvas DEFERRED". Round 5 verdict: "at `aff4882`: M2 64/64 functional PASS (SIM); T7 3/3 default runs + demo + confirm PASS; observer-log incident contained; M1 held by Core QA; live UNVERIFIED"
+Owner: round 7 by a new Claude QA-E2E session (`claude-opus-5-5`, xhigh; Orca session `95d4c010-ef6d-4f58-87fe-7a686ec36424`), which did not run rounds 1–6; round 6 by another new Claude QA-E2E session (`claude-opus-5-5`, xhigh; Orca session `228bb341-1217-4df5-bc56-664d1f41faa3`), which did not run rounds 1–5; round 5 by the original Claude Canvas QA, resumed by owner request; rounds 1–2 by the independent Codex replacement
+Task: `task_e28388df4dcc`; dispatch: `ctx_33862fcfa6d1` (round 6: `ctx_f3f20494787a`; round 5: `ctx_4a94125660be`; rounds 1–2: `ctx_8ec51c3aa7b5`)
 
 # M3 QA-E2E verification checkpoint
 
-Sections 1–4 retain round 1. Sections 5–7 retain rounds 2–4. Section 8 retains round 5. Section 9 is the current round 6 result.
+Sections 1–4 retain round 1. Sections 5–7 retain rounds 2–4. Section 8 retains round 5. Section 9 retains round 6. Section 10 is the current round 7 result.
 
 Applied contract: `ccdd9ef67cdd2be4c6af374136777fda4e081943`. Executed product and test: `eb43247d02df622d5da72dafac41d919f65a91fe`. Scope and replacement authorization: team brief `910f7a48f39c5679040a8e0c98f4de54baf14f8f`. Full M2 result, command, image identities, reduced health output, timing, per-case results, masked screenshot paths and limits are in [M2 QA §5](../M2/qa.md#5-round-4--frozen-m2-execution-and-repair-preparation-2026-10-20).
 
@@ -150,3 +150,33 @@ Common QA owns a common-oracle repair for `M1-38.common.h1`. After a new reviewe
 1. Common QA runs both complete M1 rounds; QA-E2E judges the 233 Canvas rows of each round with judge v2 and compares the two rounds.
 2. After Common's cleanup and an explicit window transfer: M2 (all 64 rows) on `qa-e2e-sim-r6` / 8643 / 172.27.0.0/16.
 3. Then T7 (three default runs, demo and confirmation checks, all 15 AC) on `qa-e2e-m3-r3` / 8543 / 172.31.0.0/16, strictly in sequence.
+
+## 10. Round 7 — candidate `82e2dab` (2026-10-21)
+
+**HOLD; this dispatch settles as failed.** A new QA-E2E session did this round. It did not execute rounds 1–6; their results stay at their own SHAs and carry no credit to this candidate.
+
+Candidate product = test `82e2dab6d26915c90070a4aae8ac0c4472706c2d`. Lead authority: `msg_40eca66674cd` (host only; approved R4 and sink-v2 tool bytes). Mask and checkout rules: `msg_aea8cd9e30e0`, `msg_f132bffe54dc`, `msg_9ee0ecb9d2e6`. Closure: `msg_24bc463c9067`. Common QA held the only Docker window. This worker started no stack, no wake container and no Docker diagnostic.
+
+### 10.1 Criterion status
+
+| Criterion | Result | Evidence and limit |
+| --- | --- | --- |
+| AC-M3-01 | HOLD (partial) | The Common full run exited 1 at 04:55:18Z in round 1 snapshot-upgrade, after the repaired `M1-38.common.h1` passed. Common QA reports that its host `inspectBackup` collector expects an array and gets an object; no product defect is shown. Round 1 Canvas rows 233/233 PASS and sink gate PASS ([Canvas QA §16](../M1/qa-canvas.md#16-round-10--candidate-82e2dab-round-1-canvas-rows-complete-again-round-incomplete-2026-10-21)). The migration and storage phases, round 2 and legacy did not run. |
+| AC-M3-02(a) | NOT RUN | No window. No T7 run, demo or confirmation check at this SHA. |
+| AC-M3-02(b) | Other owner | Common QA owns the legacy suites. They did not run. |
+| AC-M3-03 | NOT RUN | No M2 run at this SHA. The 64/64 result at `aff4882` is history only. |
+| AC-M3-04 | NOT RUN (QA-E2E part) | Needs the M2 run. |
+| AC-M3-05 | UNVERIFIED | All 32 live rows stay UNVERIFIED ([live matrix](live.md)). Local Canvas stays DEFERRED. No sign-up, account, tunnel, public exposure, live-tenant write or Docker Desktop change. |
+| AC-M3-06 | No QA-E2E run evidence | No QA-E2E lane was used. Common QA reports a strict W4 comparison PASS and zero owned resources after its run. |
+| AC-M3-07 | Partial | Canvas browser artifacts of round 1 SIM: 15 screenshots (9 distinct), 0 hits against 1,316 values, clean visual inspection. The 7 distinct raw traces stay private. The M2 and T7 scans need their runs. |
+
+### 10.2 Prepared for the next window (host only; no product credit)
+
+- Evidence root `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-82e2dab-EphODiew` (`R`), private (0700 folders, 0600 files). It holds the exact-SHA source clone and the approved R4 and sink-v2 tool bytes with verified manifests. Details: [Canvas QA §16.1](../M1/qa-canvas.md#161-preparation-host-only).
+- Lead decisions for the runtime: the runner child (`run-with-ts` with `run-m2.mjs` or `run-t7.mjs`) uses umask 022. lane-watch, the observer, the capture watcher, the scans and the judges use umask 077. M2 uses `--workdir R/m2-stack`. T7 `prepare-checkout` runs under umask 022 into `R/t7-clone/<name>`; `R` and `R/t7-clone` are owned 0700 folders (option A, `msg_9ee0ecb9d2e6`).
+- Boundary: `/Users/quangnguyen` is 0750 with group staff. The only account with primary group staff is the owner. `R` blocks every other non-root user (`R/notes/boundary-host-only.json`).
+- Reserved lanes stay: M2 on `qa-e2e-sim-r6` / 8643 / `172.27.0.0/16`, then T7 on `qa-e2e-m3-r3` / 8543 / `172.31.0.0/16`, strictly in sequence and only after an explicit Lead window.
+
+### 10.3 Next gate
+
+Common QA repairs its host collector under a new reviewed freeze. Then both complete M1 rounds run, with the Canvas judges on each round and the round comparison. After that: M2 (all 64 rows) and T7 (three default runs, the demo pass, four confirmation checks, all 15 AC) under explicit windows.
