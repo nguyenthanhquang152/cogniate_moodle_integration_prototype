@@ -141,7 +141,7 @@ Priority: **Must** = needed for LA done. **Should** = in LA if the Must work is 
 
 ## 4. Success measures
 
-1. A new LTI LMS profile changes **0 core files**. The E1 branch-diff gate measures this on the E2 branch against the E1-done SHA.
+1. A new LTI LMS profile changes **0 core files**. The branch-diff gate F2 measures the add-LMS task (E2-N, D2L Brightspace) against the SHA where the E2 core work (E2-K: generic DR fixes, new profile traits) is done (README OC-1, Lead decision).
 2. No LMS name appears in core code. The lint ratchet reaches zero for core paths.
 3. M1, M2 and T7 pass. Their assertions do not change, except the closed-list rewrite of E0, which both reviewers approve.
 4. The generic LTI channel and the new named LMS pass the conformance kit (K0 + K1) on the simulator.
