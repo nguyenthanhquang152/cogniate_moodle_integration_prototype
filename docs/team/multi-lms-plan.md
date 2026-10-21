@@ -13,10 +13,11 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 07:08 UTC
+### Current checkpoint — 2026-10-21, 07:23 UTC
 
 Source candidate `9cdd768` is approved by both independent reviewers. Fresh host-only preparation also passed.
 Common QA has resumed with a conditional runtime grant. Canvas QA has resumed as the independent host-only judge.
+Fresh W1–W3 checks passed. The full runner started at 07:09:21 UTC; round 1 SIM is in progress.
 The Lead withdrew its user-confirmation hold after checking AC-M3-06. The contract requires measured isolation, not a separate user promise.
 The quiet-window question remains unanswered. Fresh W1–W4 checks and the strict environment comparison remain required.
 
@@ -81,6 +82,15 @@ Authority `msg_4b7f865b8a34` and reply `msg_cfe2bdc2fdf9` grant the sole window 
 Lane: `qa-multi-r1`, storage `qa-multi-r1-st`, port 8443, subnet `172.29.0.0/16`.
 An unrelated change still fails the environment check. No unrelated resource may be changed or removed.
 Both complete 488-row rounds, legacy, independent Canvas checks, fresh M2 and T7 remain required.
+Start evidence is in `msg_b661d2e8a9df` and `msg_47b04be4d0e4`.
+Root: `/Users/quangnguyen/cogniate-qa-runs/m1-full-9cdd768-20261021T0709Z`.
+W3 SHA-256: `e879790c64d84d5c5250e99cb7e0fe7cece6985c36b43ebb0e02d34a91424ca7`.
+The Lead checked all three preflight summaries, the W3 hash and the 16 tool hashes.
+The only launcher changes are session and dispatch identifiers plus authority comments. Their previous ledger remains intact.
+W3 records zero containers and nine volumes: the seven unchanged protected records plus both preserved anonymous volumes.
+The wake step refreshed the idle engine before the formal baseline. W3 records live Docker time and the new bridge identity.
+The first phase clone changed from 0755 to 0700 after creation; it was not private from creation.
+QA confirms that seeding passed. The acceptance child is active; its command log is written only after it exits.
 Product code remains unchanged from `a784522`. Final conformance and guides remain queued.
 B-BM-01 remains an accepted M4 test-coverage deferral. All 32 real-LMS rows remain UNVERIFIED.
 No push or main merge is authorized for this phase.
