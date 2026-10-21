@@ -2,6 +2,10 @@
 
 Source: commit `6932539`, 2026-10-19.
 
+**New: Canvas and Blackboard (draft, 2026-10-22, candidate C = `d3296dd`).** The prototype now also has Canvas and Blackboard support. It is tested against signed simulations only. Nobody has tested it on a real Canvas or Blackboard site, and the final runtime checks are pending.
+
+Open [`canvas-blackboard.html`](canvas-blackboard.html) in a browser (10 minutes, works offline). Then answer Q19 to Q22 in [decisions-needed.md](decisions-needed.md#e-canvas-and-blackboard-decisions). The rest of this page describes the Moodle release.
+
 **What it is.** A prototype that publishes Cogniate courses to Moodle with the LTI 1.3 standard. It has our own LTI service. For the endpoints listed in ADR-003, its API follows the public LTIAAS API reference, with listed differences. It also has a stand-in for the Cogniate portal and a real Moodle 5.2.4 site, all on one Mac.
 
 **Result.** All 15 end-to-end checks passed in three fresh runs at `c5683f8`, after the grade repair. Each run took about three minutes, with no retries. Grades reached Moodle in 3.3–3.9 seconds. ([proven.md](proven.md))

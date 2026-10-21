@@ -100,3 +100,70 @@ Source: [`docs/reviews/T9/architect-conformance.md`](../reviews/T9/architect-con
 Resolved and not listed: A-T7-03, A-T7-04, A-T5b-05 (= P5), P1, P11, C-T8-01 to C-T8-03, Q-T7-01 and Q-T7-02. For A-T7-03 (test traces hold raw secrets), `infra/README.md` has a WARNING in "Debug a failed E2E step". QA verified the portal texts of Q-T7-01 and Q-T7-02 ([T7 qa.md §6](../reviews/T7/qa.md#6-suite-changes-after-the-reviews-round-1-addendum)).
 
 Board notes that do not match the review files (for the Lead): the board lists Q-T1-04 as MINOR (qa.md says NIT). For T4b2, the board says the MINOR follow-ups are "in progress". The code has the fixes, but no review file closes them by name.
+
+## Canvas and Blackboard phase (M4)
+
+Source: commit `e2d58e9` (candidate C = `d3296dd`), 2026-10-22. Status: **draft**. The Lead confirmed the accepted deferrals of this phase on 2026-10-22: A-M0-10, the two storage tables, and the two engine and test NITs below. Nothing in this section closes a finding.
+
+The Moodle list above stays as it was recorded on 2026-10-19.
+
+### A-M0-10 (D-12): residual race after a release
+
+Severity: MINOR, accepted deferral ([A-M0-10](../reviews/M0/reviewer-a.md), [ADR-011 §4b and D-12](../architecture/adr/ADR-011-multi-lms.md#4b-operator-containment-and-recovery), risk R-M-16). QA case: [SIM M1-39.canvas.residual-race].
+
+- **Race:** a new Canvas or Blackboard binding always needs a grant, but a Moodle manual connect does not. After an operator release, another signed-in library can make a Moodle connection with the freed issuer and client ID before the rightful redemption.
+- **Scope:** only `canvas-self-hosted`. Hosted Canvas and Blackboard issuers are reserved, so a Moodle connect with them gets `ISSUER_RESERVED`.
+- **Impact:** setup can be blocked: the rightful redemption gets `PLATFORM_IN_USE`. There is no Canvas access, because launch check 14 refuses the Canvas-signed launches before storage.
+- **Operator order:** issue the rightful grant, suspend, release, then the rightful library redeems at once. If the race happens, suspend and release the new connection, and repeat the order.
+- **Limit:** prompt redemption makes the window short. It does not prevent the race.
+- **Needed:** a reserved-identifier or quarantine design, before an enterprise service relies on this workflow (Q21).
+
+The [operator guide](../guides/operator.md#3a-accepted-limit-d-12-self-hosted-canvas-after-a-release) and [troubleshooting](../guides/troubleshooting.md#canvas-and-blackboard) (`PLATFORM_IN_USE` after a release) say the same.
+
+### Engine and tests
+
+| Id | Severity | Finding | Suggested fix |
+| --- | --- | --- | --- |
+| A-M1-02 | NIT | `writeApproval` deletes an existing approval of **any** disabled connection for the same key. The data model names only the Blackboard move in the same library. Today both rules give the same result. Another library cannot reach phase 2 while the old reservation exists. `release` deletes the old row with the reservation. ([review](../reviews/M1/reviewer-a.md)) | Limit the delete to the same library, or state the broader rule in the data model. Safe to defer. |
+| A-M3-05 | NIT (optional) | The Canvas course-shell test case posts for a course without an uploaded version. It gets `courseShell` only because the product checks the capability first. The contract fixes no order between the two checks. ([review](../reviews/M3/reviewer-a.md)) | Upload a version in the Canvas case, as the Blackboard case does. |
+
+### Storage commands (product)
+
+| Id | Severity | Finding | Suggested fix |
+| --- | --- | --- | --- |
+| A-SFT-08 | MINOR | Backup and quarantine copy each database file, then set mode `0600`. So a copy exists for a short time at the source mode `0644`, inside a `0700` folder. A crash in that time leaves a `0644` copy without a manifest. ([review](../reviews/M1/storage-full-triage-reviewer-a.md)) | Create each copy at `0600` first, then write the bytes. |
+| R1-A QA O-1 | MINOR | Quiet A6 release: after a failed Docker listing or an active storage container, the command releases the lock but logs no `storage_lock_released` line. The lock folder is gone, and no data changes. ([QA](../reviews/M1/storage-command-qa.md)) | Log one `storage_lock_released` with the own command for each release. |
+| A-QR1-01, B-RR-01 | MINOR | The unit matrix of the lock helper has no R-3 row (not lost, then `INT` or `TERM`). Independent QA ran R-3 and it passed. ([A](../reviews/M1/storage-release-reviewer-a.md), [B](../reviews/M1/storage-release-reviewer-b.md)) | Add the R-3 rows for both option sets and the `run` path. |
+| A-SI-04 | NIT | A backup of an identity or journal file that the host user cannot read refuses with `backup_source_not_ok:<state>`, without the path. It still fails closed. ([review](../reviews/M1/storage-reviewer-a.md)) | Give an unreadable file its own result and name the path. |
+| B-SI-08 | NIT | If only one of the two volumes is removed in quarantine step 4, the message "The copy and the volumes stay" can be false. The verified copy stays, so no data is lost. The operator inspects each volume before a new quarantine. ([review](../reviews/M1/storage-reviewer-b.md)) | Remove and check the volumes one at a time, and name the volumes that stay. |
+| B-RR-02 | NIT | After a lost lock, a command exits 1 with only a JSON `storage_lock_lost` line, and no plain-text sentence on stderr. The operator guide has the note. ([review](../reviews/M1/storage-release-reviewer-b.md)) | Add one stderr sentence in a future, separately authorized helper edit. |
+| B-RR-03 | NIT | The release-failure flag lasts for the whole shell, and no comment says so. ([review](../reviews/M1/storage-release-reviewer-b.md)) | Add one comment in a future, separately authorized helper edit. |
+| O-A2 | Context | After a release error other than a lost lock, the own lock folder stays until a later command reclaims it. The stderr text then has the raw `EACCES` message with an absolute path. No terminal event is logged. ([review](../reviews/M1/storage-release-reviewer-a.md)) | Recorded for M4 context next to R1-A QA O-1. No new scope. |
+
+### Storage harness (QA tests)
+
+| Id | Severity | Finding | Suggested fix |
+| --- | --- | --- | --- |
+| B-HR-03 (rest) | MINOR | The published-once extension is missing: no control publishes a scan point zero or two times, or gives a wrong `configDiff` removal count. The required cleanup coverage is closed. ([review](../reviews/M1/storage-harness-reviewer-b.md#r2-closure-of-the-round-1-findings)) | Add the two stub faults. |
+| B-HR-04 | MINOR | Accepted coverage limit: mutant M5-4b stays masked and NOT DETECTED. It is not equivalent; only an outside-writer race shows it. The held code stays safe in that race. | Add a race variant, or keep the accepted limit. |
+| B-HR-06 | MINOR | A failed or timed-out plant outside `guarded` gets no restore and no phase stop. Later rows can then fail with other causes. | Use the same restore trigger for multi-step and root plants. |
+| B-HR-05 | NIT | `a-serialize` can name a lock-order fault when `stack:up` only failed. The FAIL status is right; the cause can mislead. | Check the `stack:up` exit first. |
+| B-HR-07 | NIT | Diagnostic details: the hook name `teardown` overstates what it does, and one results file uses the process umask. | Rename the hook. Write the file at `0600`. |
+| B-HR-08 | NIT | Some detections are clear only after reading the code (error-based detections). | Name the mutated behaviour in the message. |
+| A-SH-07 | NIT | A self-test restores the pinned umask only in two hooks, with no `finally`. ([review](../reviews/M1/storage-harness-reviewer-a.md)) | Restore it in `t.after`. |
+| A-SH-08 | NIT | Two read-only checks list a linked folder before an `lstat` guard. They change nothing, and the closure still fails. | Check `lstat` first. |
+| A-SH-09 (= B-HR-09) | NIT | A missing scratch folder gets the text "… is kept", but nothing exists. The phase stop is right. | Give the missing case its own text. |
+| B-HR-10 | NIT | A cleanup note is dropped when the body error is itself a phase abort. No current path reaches it. | Add the note in both branches. |
+
+### Not open deferrals (for clarity)
+
+| Id | State |
+| --- | --- |
+| Q-R1A-01 | CLOSED. The product repair is at `9f8ac62`. |
+| ADR-012 O-1 | CLOSED (revision 3.6 precision of ADR-012 §4). Do not confuse it with the open R1-A QA O-1 above. It is also not the timing observation O-1 of the storage source review. |
+| M4-8f | Equivalent mutant, not a finding: `O_CREAT` with `O_EXCL` refuses a final link, also without `O_NOFOLLOW`. |
+| A-SI-05, B-SI-09 | The `infra/README.md` wording correction stays open. It belongs to the sole remediation session, not to Docs. |
+| B-M3-05 | Open NIT. Its reviewer says that it needs no deferral entry. |
+| B-M3-06 | An evidence note, dispositioned in the phase plan. The M2 and T7 results stay at their actual `aff4882` SHA; the final M2 run is fresh. |
+| A-M0-11, A-M0-12, B-M0-10 | Text corrections applied (board). Not open. |
+| Moodle deferrals above | All stay open as recorded on 2026-10-19. |

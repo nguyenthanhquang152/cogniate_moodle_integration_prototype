@@ -1,0 +1,278 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Canvas and Blackboard at a glance</title>
+<!--
+  One self-contained file. No CDN, no web font, no network request, no external file. Open it from disk (file://).
+  Owner: Docs. Sources: ADR-011 sections 4, 4a, 4b, 6, 13 and 15; M3 live matrix; README evidence labels.
+  Status: draft. Final runtime checks on candidate C are pending.
+-->
+<style>
+  :root {
+    --bg: hsl(252 20% 5%);
+    --fg: hsl(0 0% 98%);
+    --card: #16161d;
+    --line: hsl(240 15% 26%);
+    --primary: hsl(270 70% 72%);
+    --secondary: hsl(240 15% 16%);
+    --muted: hsl(0 0% 72%);
+    --ok: hsl(140 55% 60%);
+    --warn: hsl(38 85% 62%);
+    --radius: .75rem;
+    --font: "DM Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.55 var(--font); }
+  a { color: var(--primary); }
+  code { font: .88em var(--mono); background: var(--secondary); border-radius: .3rem; padding: .05em .35em; }
+  :focus-visible { outline: 3px solid var(--primary); outline-offset: 2px; }
+  .skip { position: absolute; left: -999px; top: 8px; background: var(--card); padding: 8px 12px; border-radius: .5rem; }
+  .skip:focus { left: 8px; }
+  header, main, footer { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+  header { padding-top: 28px; }
+  h1 { margin: 0 0 4px; font-size: 1.7rem; }
+  h2 { margin: 0 0 10px; font-size: 1.2rem; }
+  .lead { color: var(--muted); margin: 0 0 12px; }
+  .badge { display: inline-block; border: 1px solid var(--warn); color: var(--warn); border-radius: 999px; padding: 2px 12px; font-size: .85rem; margin-right: 6px; }
+  .badge.ok { border-color: var(--ok); color: var(--ok); }
+  nav ul { list-style: none; padding: 0; margin: 14px 0 0; display: flex; flex-wrap: wrap; gap: 8px; }
+  nav a { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 4px 14px; text-decoration: none; color: var(--fg); }
+  nav a:hover { border-color: var(--primary); }
+  section { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 22px; margin: 18px 0; }
+  table { width: 100%; border-collapse: collapse; font-size: .93rem; }
+  th, td { text-align: left; vertical-align: top; border-top: 1px solid var(--line); padding: 7px 8px; }
+  th { color: var(--muted); font-weight: 600; }
+  caption { text-align: left; color: var(--muted); padding-bottom: 6px; }
+  .scroll { overflow-x: auto; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .two { grid-template-columns: 1fr; } }
+  .box { border: 1px solid var(--line); border-radius: .6rem; padding: 12px 14px; background: var(--secondary); }
+  .box h3 { margin: 0 0 6px; font-size: 1rem; }
+  .note { border-left: 4px solid var(--warn); padding: 8px 12px; background: var(--secondary); border-radius: .4rem; margin: 12px 0 0; }
+  svg text { fill: var(--fg); font: 13px var(--font); }
+  svg .sub { fill: var(--muted); font-size: 12px; }
+  svg .excl { fill: #1d1a2a; stroke: var(--primary); stroke-width: 1.5; }
+  svg .shared { fill: #2a2214; stroke: var(--warn); stroke-width: 1.5; }
+  svg .conn { fill: #16161d; stroke: hsl(0 0% 60%); stroke-width: 1.2; }
+  svg .group { fill: none; stroke: var(--line); stroke-dasharray: 5 4; }
+  svg .link { stroke: var(--warn); stroke-width: 1.5; }
+  svg .arrow { stroke: hsl(0 0% 70%); stroke-width: 1.4; fill: none; marker-end: url(#tip); }
+  ol.steps { padding-left: 1.4em; margin: 8px 0 0; }
+  ol.steps li { padding: 6px 8px; border-radius: .4rem; margin: 2px 0; }
+  ol.steps li.on { background: hsl(270 40% 20%); outline: 1px solid var(--primary); }
+  .who { color: var(--muted); font-size: .85rem; }
+  .ctl { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+  .ctl button { font: inherit; color: var(--fg); background: var(--secondary); border: 1px solid var(--line); border-radius: 999px; padding: 5px 16px; cursor: pointer; }
+  .ctl button:hover { border-color: var(--primary); }
+  .ctl button:disabled { opacity: .5; cursor: default; }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--primary); }
+  footer { padding-bottom: 40px; color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header>
+  <h1>Canvas and Blackboard at a glance</h1>
+  <p class="lead">One shared LTI engine for Moodle, Canvas and Blackboard. Read time: about 10 minutes.</p>
+  <p><span class="badge">Draft</span><span class="badge">Signed simulation only</span><span class="badge">All 32 live checks UNVERIFIED</span></p>
+  <p class="lead">Source: commit <code>e2d58e9</code>, candidate C = <code>d3296dd</code>, 2026-10-22. Final runtime checks on candidate C are pending. Nothing here was tested on a real Canvas or Blackboard site.</p>
+  <nav aria-label="Sections">
+    <ul>
+      <li><a href="#tenancy">1. Tenancy</a></li>
+      <li><a href="#grant">2. Approval grant</a></li>
+      <li><a href="#profiles">3. Provider profiles</a></li>
+      <li><a href="#evidence">4. Evidence and live status</a></li>
+      <li><a href="#decisions">5. Open decisions</a></li>
+    </ul>
+  </nav>
+</header>
+
+<main id="main">
+
+<section id="tenancy" aria-labelledby="h-tenancy">
+  <h2 id="h-tenancy">1. Tenancy: one engine, three LMS types</h2>
+  <p>The LTI service is LMS-neutral. Each LMS gets a fixed provider profile, not new launch code. The tenant key is the tool account, the issuer, the client ID and the deployment ID (<a href="../architecture/adr/ADR-011-multi-lms.md#4-tenancy-model">ADR-011 §4</a>).</p>
+  <div class="scroll" tabindex="0" role="region" aria-label="Tenancy diagram">
+  <svg viewBox="0 0 900 360" width="100%" role="img" aria-labelledby="t-svg d-svg">
+    <title id="t-svg">Tenancy diagram</title>
+    <desc id="d-svg">Four Cogniate connections on the left point to records in the LTI service on the right. The Moodle connection owns one exclusive platform. The Canvas connection owns one exclusive platform. Two Blackboard connections of two libraries each own one deployment of one shared Blackboard platform.</desc>
+    <defs><marker id="tip" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="hsl(0 0% 70%)"/></marker></defs>
+    <rect class="group" x="10" y="10" width="250" height="340" rx="12"/>
+    <text x="24" y="34">Cogniate app (connections)</text>
+    <rect class="group" x="330" y="10" width="560" height="340" rx="12"/>
+    <text x="344" y="34">LTI service, tool account "cogniate"</text>
+
+    <rect class="conn" x="26" y="52" width="218" height="52" rx="8"/><text x="38" y="74">Moodle connection</text><text class="sub" x="38" y="92">library 1</text>
+    <rect class="conn" x="26" y="122" width="218" height="52" rx="8"/><text x="38" y="144">Canvas connection</text><text class="sub" x="38" y="162">library 1, with grant</text>
+    <rect class="conn" x="26" y="200" width="218" height="52" rx="8"/><text x="38" y="222">Blackboard connection</text><text class="sub" x="38" y="240">library 1, with grant</text>
+    <rect class="conn" x="26" y="278" width="218" height="52" rx="8"/><text x="38" y="300">Blackboard connection</text><text class="sub" x="38" y="318">library 2, with grant</text>
+
+    <rect class="excl" x="350" y="52" width="250" height="52" rx="8"/><text x="362" y="74">Platform, profile standard</text><text class="sub" x="362" y="92">exclusive: one owner</text>
+    <rect class="excl" x="350" y="122" width="250" height="52" rx="8"/><text x="362" y="144">Platform, Canvas profile</text><text class="sub" x="362" y="162">exclusive: one developer key</text>
+    <rect class="shared" x="350" y="200" width="250" height="130" rx="8"/><text x="362" y="222">Platform, profile blackboard</text><text class="sub" x="362" y="240">shared: one Application ID</text>
+    <rect class="conn" x="630" y="200" width="240" height="52" rx="8"/><text x="642" y="222">deployment dA</text><text class="sub" x="642" y="240">site learn-a, generation 1</text>
+    <rect class="conn" x="630" y="278" width="240" height="52" rx="8"/><text x="642" y="300">deployment dB</text><text class="sub" x="642" y="318">site learn-b, generation 2</text>
+    <line class="link" x1="600" y1="232" x2="630" y2="226"/><line class="link" x1="600" y1="300" x2="630" y2="304"/>
+
+    <path class="arrow" d="M244,78 L350,78"/>
+    <path class="arrow" d="M244,148 L350,148"/>
+    <path class="arrow" d="M244,226 C420,190 560,190 630,222"/>
+    <path class="arrow" d="M244,304 C420,350 560,350 630,310"/>
+  </svg>
+  </div>
+  <div class="two">
+    <div class="box"><h3>Exclusive (Moodle, Canvas)</h3><p>One connection owns the platform and all its deployments. A second library needs its own Canvas developer key. Reuse gives <code>PLATFORM_IN_USE</code>.</p></div>
+    <div class="box"><h3>Shared (Blackboard)</h3><p>One Blackboard application serves all schools. Each school is one deployment that one connection owns. A disconnect switches off only that deployment.</p></div>
+  </div>
+</section>
+
+<section id="grant" aria-labelledby="h-grant">
+  <h2 id="h-grant">2. Operator approval grant and its trust boundary</h2>
+  <p>Client IDs and deployment IDs are not secrets. So every new Canvas or Blackboard binding needs a one-time approval from a Cogniate operator (<a href="../architecture/adr/ADR-011-multi-lms.md#4a-operator-approval-grant">ADR-011 §4a</a>, <a href="../guides/operator.md#2-approval-grants">operator guide</a>).</p>
+  <ol class="steps" id="grant-steps">
+    <li><span class="who">Cogniate library user</span><br>Makes a new Canvas or Blackboard connection in the portal. It is pending.</li>
+    <li><span class="who">LMS admin</span><br>Installs the tool in the LMS and reads the client ID and deployment ID.</li>
+    <li><span class="who">LMS admin → operator</span><br>Asks for an approval through an institutional channel, with the library, site, service URL and IDs.</li>
+    <li><span class="who">Operator</span><br>Checks that the request comes from the institution. Records an evidence reference.</li>
+    <li><span class="who">Operator</span><br>Runs <code>app:grant issue</code>. Reads the printed library and connection names first. Gets a one-time code.</li>
+    <li><span class="who">Operator → library user</span><br>Gives the code through a private channel. It works once and expires after 24 hours by default.</li>
+    <li><span class="who">Library user</span><br>Enters the IDs and the code, then clicks Save in a session of the same library.</li>
+    <li><span class="who">Cogniate app</span><br>Checks the code and the values, activates the record, then commits the approval. Only this approval gives launch and grade authority.</li>
+  </ol>
+  <div class="ctl" hidden id="grant-ctl">
+    <button type="button" id="g-prev">Previous step</button>
+    <button type="button" id="g-next">Next step</button>
+    <span id="g-pos" aria-live="polite"></span>
+  </div>
+  <div class="scroll" tabindex="0" role="region" aria-label="Trust boundary table" style="margin-top:14px">
+  <table>
+    <caption>Trust boundary</caption>
+    <thead><tr><th scope="col">Trusted</th><th scope="col">Not trusted</th></tr></thead>
+    <tbody>
+      <tr><td>The operator and the operator's out-of-band check (evidence reference in the note)</td><td>IDs that a portal user types</td></tr>
+      <tr><td>The app database and the operator commands (shell access to the app service)</td><td>Any LMS ID seen in a launch, a log or a browser</td></tr>
+      <tr><td>The LMS signatures on launches (unchanged checks)</td><td>An approval code alone, without the session of the bound library</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="note">Containment: the operator can <code>suspend</code>, then <code>release</code> a wrong binding without the library's session. Nothing moves to another library. Results per record: <code>fenced</code>, <code>absent</code>, <code>not_owned</code>, <code>deleted</code>, <code>kept_inactive</code>, <code>failed</code> (<a href="../guides/operator.md#3-contain-and-correct-a-binding">operator guide §3</a>).</p>
+</section>
+
+<section id="profiles" aria-labelledby="h-profiles">
+  <h2 id="h-profiles">3. Provider profiles</h2>
+  <p>Profiles are fixed in reviewed code. No portal field, token claim or admin input can set another endpoint (<a href="../architecture/adr/ADR-011-multi-lms.md#6-provider-trust-profiles">ADR-011 §6</a>). A profile is configuration, not proof that a real tenant works.</p>
+  <div class="scroll" tabindex="0" role="region" aria-label="Provider profiles table">
+  <table>
+    <thead><tr><th scope="col">Profile</th><th scope="col">LMS</th><th scope="col">Sharing</th><th scope="col">Issuer</th><th scope="col">Site and service</th></tr></thead>
+    <tbody>
+      <tr><td><code>standard</code></td><td>Moodle</td><td>exclusive</td><td>admin value, not a reserved issuer</td><td>issuer origin</td></tr>
+      <tr><td><code>canvas-cloud-production</code></td><td>Canvas</td><td>exclusive</td><td><code>https://canvas.instructure.com</code></td><td>site URL; service URL (default: site URL)</td></tr>
+      <tr><td><code>canvas-cloud-beta</code></td><td>Canvas</td><td>exclusive</td><td><code>https://canvas.beta.instructure.com</code></td><td>same</td></tr>
+      <tr><td><code>canvas-cloud-test</code></td><td>Canvas</td><td>exclusive</td><td><code>https://canvas.test.instructure.com</code></td><td>same</td></tr>
+      <tr><td><code>canvas-self-hosted</code></td><td>Canvas</td><td>exclusive</td><td>the site URL</td><td>site URL = issuer; service URL</td></tr>
+      <tr><td><code>blackboard</code></td><td>Blackboard</td><td>shared</td><td><code>https://blackboard.com</code></td><td>site URL on each deployment</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p class="lead">Test only: <code>canvas-sim-cloud</code> and <code>blackboard-sim</code> exist only in the acceptance stack with simulations on.</p>
+</section>
+
+<section id="evidence" aria-labelledby="h-evidence">
+  <h2 id="h-evidence">4. Evidence and live status</h2>
+  <div class="scroll" tabindex="0" role="region" aria-label="Evidence table">
+  <table>
+    <thead><tr><th scope="col">Evidence</th><th scope="col">Result</th><th scope="col">Status</th></tr></thead>
+    <tbody>
+      <tr><td>Portal browser tests, signed simulation (M2)</td><td>64 of 64 PASS at <code>aff4882</code></td><td>Historical. Fresh run on candidate C pending.</td></tr>
+      <tr><td>API and launch tests, signed simulation (M1, round 1)</td><td>All 394 <code>sim</code> rows and 12 snapshot rows PASS at <code>aaa823b</code></td><td>No full-run credit. Two full rounds on candidate C pending.</td></tr>
+      <tr><td>Upgrade and rollback on local Moodle (M1, round 1)</td><td>4 and 7 rows PASS at <code>aaa823b</code></td><td>Pending on candidate C.</td></tr>
+      <tr><td>Storage commands (M1, round 1)</td><td>20 of 70 rows PASS; 50 FAIL from harness defects</td><td>Harness repaired in candidate C. Pending.</td></tr>
+      <tr><td>Moodle end to end (T7)</td><td>PASS at <code>c5683f8</code> and <code>aff4882</code></td><td>Fresh run on candidate C pending.</td></tr>
+      <tr><td>Real Canvas and Blackboard (live matrix)</td><td>0 of 32 rows run</td><td><strong>UNVERIFIED</strong>.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="two" style="margin-top:14px">
+    <div class="box"><h3>Live rows by group</h3>
+      <p>Canvas hosted (<code>CANVAS-HOSTED</code>): 13 rows, UNVERIFIED.<br>Canvas local (<code>CANVAS-LOCAL</code>, L-C13): 1 row, deferred and UNVERIFIED.<br>Blackboard (<code>BLACKBOARD-LIVE</code>): 18 rows, UNVERIFIED.</p>
+      <details><summary>Show the 32 row ids</summary>
+        <p>Canvas hosted: L-C01, L-C02, L-C03, L-C04, L-C06, L-C07, L-C08, L-C09, L-C10, L-C11, L-C12, L-C14, L-C15.<br>Canvas local: L-C13.<br>Blackboard: L-B01 to L-B18.<br>Steps: <a href="../architecture/tasks/M3.md#5-live-check-matrix">M3 live matrix</a>.</p>
+      </details>
+    </div>
+    <div class="box"><h3>The three live blockers</h3>
+      <ul>
+        <li><strong>B-1:</strong> We need a Canvas tenant where we may make a developer key, a published test course and an enrolled test learner.</li>
+        <li><strong>B-2:</strong> We need a Blackboard Developer Portal account and a Learn test instance with admin rights.</li>
+        <li><strong>B-3:</strong> Blackboard needs our key URL on public HTTPS, so the owner must authorize public exposure.</li>
+      </ul>
+    </div>
+  </div>
+  <p class="note">Product claim for now: "implemented and tested against a signed simulation". Make no stronger claim until the matching live rows pass.</p>
+</section>
+
+<section id="decisions" aria-labelledby="h-decisions">
+  <h2 id="h-decisions">5. Open decisions</h2>
+  <p>Answer Q19 to Q22 in <a href="decisions-needed.md#e-canvas-and-blackboard-decisions">decisions-needed.md</a>. Until a human decides, the prototype uses the defaults below (<a href="../architecture/adr/ADR-011-multi-lms.md#15-out-of-scope-and-follow-ups">ADR-011 §15</a>).</p>
+  <div class="scroll" tabindex="0" role="region" aria-label="Open decisions table">
+  <table>
+    <thead><tr><th scope="col">Id</th><th scope="col">Decision needed</th><th scope="col">Default until decided</th></tr></thead>
+    <tbody>
+      <tr><td>D-1</td><td>Add Canvas Dynamic Registration with profile checks?</td><td>Manual Canvas setup.</td></tr>
+      <tr><td>D-2</td><td>Accept more than one Canvas page origin?</td><td>One page origin and one service origin.</td></tr>
+      <tr><td>D-3</td><td>Replace operator approval with self-service ownership proof?</td><td>One operator approval for each new binding.</td></tr>
+      <tr><td>D-4</td><td>Add LTI platform storage for frames without cookies?</td><td>A partitioned cookie, with the browser limit R4.</td></tr>
+      <tr><td>D-5</td><td>Support inherited Canvas keys across institutions?</td><td>Refuse with <code>PLATFORM_IN_USE</code>.</td></tr>
+      <tr><td>D-6</td><td>One Blackboard host for each tool account?</td><td>Blackboard only for the tool account <code>cogniate</code>.</td></tr>
+      <tr><td>D-7</td><td>Reconnect a disabled connection and keep its publications?</td><td>Make a new connection. Old items stay unavailable.</td></tr>
+      <tr><td>D-8</td><td>Remove the NRPS scope?</td><td>Keep the Moodle scope policy. Each call asks for one scope.</td></tr>
+      <tr><td>D-9</td><td>Apply the claim allowlist to Moodle?</td><td>Moodle stays unchanged.</td></tr>
+      <tr><td>D-10</td><td>Ask for a new learner window in Blackboard and Moodle?</td><td>Moodle unchanged. Blackboard follows the Learn setting.</td></tr>
+      <tr><td>D-11</td><td>Offer ungraded Canvas module items?</td><td>Not offered.</td></tr>
+      <tr><td>D-12</td><td>Reserve released self-hosted Canvas IDs, or add a quarantine period?</td><td>The operator order of ADR-011 §4b. The race stays documented.</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="note">
+    <p><strong>D-12 in plain words.</strong> Only self-hosted Canvas is affected; hosted Canvas and Blackboard issuers are reserved. After a release, a Moodle connection of another library can take the freed issuer and client ID first. This can block setup. It gives no Canvas access, because launch check 14 refuses Canvas launches before storage.</p>
+    <p>Operator order: issue the rightful grant, suspend, release, then redeem at once. Prompt redemption makes the window short, but it cannot close it. An enterprise service needs a reserved-identifier or quarantine design first.</p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p>Guides: <a href="../guides/canvas-admin.md">Canvas admin</a> · <a href="../guides/blackboard-admin.md">Blackboard admin</a> · <a href="../guides/operator.md">Operator</a> · <a href="../guides/teacher.md">Teacher</a> · <a href="../guides/troubleshooting.md#canvas-and-blackboard">Troubleshooting</a> · <a href="deferred.md#canvas-and-blackboard-phase-m4">Deferred findings</a> · <a href="START-HERE.md">Start here</a></p>
+  <noscript><p>The step buttons need JavaScript. All steps show in the list above.</p></noscript>
+</footer>
+
+<script>
+  // Progressive step control for the grant list. Without JavaScript the full list stays readable.
+  (function () {
+    var items = document.querySelectorAll('#grant-steps li');
+    var ctl = document.getElementById('grant-ctl');
+    var prev = document.getElementById('g-prev');
+    var next = document.getElementById('g-next');
+    var pos = document.getElementById('g-pos');
+    var i = 0;
+    function show() {
+      for (var k = 0; k < items.length; k++) {
+        items[k].classList.toggle('on', k === i);
+        if (k === i) items[k].setAttribute('aria-current', 'step'); else items[k].removeAttribute('aria-current');
+      }
+      prev.disabled = i === 0;
+      next.disabled = i === items.length - 1;
+      pos.textContent = 'Step ' + (i + 1) + ' of ' + items.length;
+    }
+    prev.addEventListener('click', function () { if (i > 0) { i--; show(); } });
+    next.addEventListener('click', function () { if (i < items.length - 1) { i++; show(); } });
+    ctl.hidden = false;
+    show();
+  })();
+</script>
+</body>
+</html>

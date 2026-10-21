@@ -4,9 +4,43 @@ This prototype publishes Cogniate courses (SCORM 1.2 and HTML) to Moodle with LT
 
 **Status:** all 15 end-to-end checks passed on real Moodle 5.2.4. Three fresh runs passed at `c5683f8`, after the grade repair ([T7 QA §10](docs/reviews/T7/qa.md#10-replacement-qa-e2e-repair-regression--2026-10-19)). Portal QA passed 14 checks; the listed LTIAAS-style endpoints passed 7 checks with the real `ltiaas` SDK. T8 round 2 passed AC-T8-02 to AC-T8-10 and both race checks at `8059c31` ([T8 QA](docs/reviews/T8/qa.md)). MoodleCloud, restore through Moodle pages, and the portal token form remain unverified.
 
+## Supported LMS
+
+Canvas and Blackboard phase: branch `nguyenthanhquang152/lti-multi-lms`, candidate C = `d3296dd`, 2026-10-22. Final runtime checks on candidate C are pending.
+
+| LMS | Claim | Evidence label |
+| --- | --- | --- |
+| Moodle 5.2.4 (local container) | Connect, publish, Deep Linking, SCORM and HTML grades passed end to end. | `MOODLE-LIVE` |
+| MoodleCloud | Not tested (Q5). | — |
+| Canvas, Instructure-hosted | Implemented and tested against a signed simulation only. Not yet tested on a real Canvas site. | `SIM`; `CANVAS-HOSTED` rows `UNVERIFIED` (B-1) |
+| Canvas, self-hosted | Implemented and tested against a signed simulation only. Not yet tested on a real Canvas site. | `SIM`; `CANVAS-LOCAL` row L-C13 deferred and `UNVERIFIED` |
+| Blackboard Learn | Implemented and tested against a signed simulation only. Not yet tested on a real Blackboard site. | `SIM`; `BLACKBOARD-LIVE` rows `UNVERIFIED` (B-2, B-3) |
+
+### Evidence labels
+
+The guides tag each step with one of these labels. This table gives the current status of each label.
+
+| Label in a guide | Meaning | Status on 2026-10-22 |
+| --- | --- | --- |
+| `MOODLE-LIVE AC-T7-…` | End-to-end test on the local Moodle 5.2.4 container | PASS in three runs at `c5683f8` and in one run at `aff4882` ([T7 QA](docs/reviews/T7/qa.md#m3-checkpoint-update--final-candidate-aff4882-t7-pass)). Fresh T7 on candidate C: pending. |
+| `MOODLE-LIVE AC-M1-23`, `AC-M1-30` | Upgrade and rollback on the local Moodle container (host runner) | Round 1 PASS at `aaa823b`: 4 and 7 rows ([M1 QA](docs/reviews/M1/qa.md#retry-at-aaa823b-fail-in-round-1-phase-storage-ac-m1-41-2026-10-21)). No full-run credit. Two full rounds on candidate C: pending. |
+| `SIM AC-M2-…` | Portal browser test against a signed simulation (fixed `.sim.test` hosts) | 64 of 64 PASS at `aff4882` ([M2 QA](docs/reviews/M2/qa.md#9-round-8--fifth-frozen-m2-run-at-aff4882-2026-10-20)). Fresh M2 on candidate C: pending. |
+| `SIM AC-M1-…` | API and launch test against a signed simulation | Round 1 PASS at `aaa823b` for every cited row: all 394 `sim` rows and all 12 snapshot rows ([M1 QA](docs/reviews/M1/qa.md#retry-at-aaa823b-fail-in-round-1-phase-storage-ac-m1-41-2026-10-21), [Canvas QA](docs/reviews/M1/qa-canvas.md)). No full-run credit: round 2 and the legacy groups did not run. Two full rounds on candidate C: pending. |
+| `SIM AC-M1-41` | Storage commands (ADR-012) | Round 1 at `aaa823b`: 20 of 70 rows PASS, 50 FAIL. QA found harness defects, not product defects. Candidate C has the repaired harness. Pending. |
+| `HOST-QA` | Host-only QA with simulated Docker answers | Storage-command QA Round 2 PASS at `9f8ac62` ([report](docs/reviews/M1/storage-command-qa.md)). No runtime credit. |
+| `DOC F-…` | A fact from provider documentation ([research](docs/research/multi-lms.md)) | Proves nothing about our code. |
+| `UNVERIFIED L-…` | A live check on a real LMS ([M3 live matrix](docs/architecture/tasks/M3.md#5-live-check-matrix)) | All 32 rows `UNVERIFIED`. Blockers: B-1, B-2, B-3. |
+| `PROCESS` | A human step with no product behaviour to test, for example the operator's request check (Q22) | — |
+| `Not verified by QA` | Only the builder checked it | — |
+
+A tag can name one QA case instead of a criterion, for example `SIM M1-19.canvas.inline-key`. The case has the status of its criterion row above.
+
+`SIM` means a signed simulation of the LMS. It tests our protocol handling, not real LMS behaviour.
+
 ## Start here
 
 - **Product team:** read [`docs/human_review/START-HERE.md`](docs/human_review/START-HERE.md). It takes about 30 minutes with the video, the explainer page and the decisions.
+- **Canvas and Blackboard:** open [`docs/human_review/canvas-blackboard.html`](docs/human_review/canvas-blackboard.html) in a browser (about 10 minutes, works offline).
 - **People who run it:** read [`docs/guides/run-the-stack.md`](docs/guides/run-the-stack.md).
 
 ## Quick start (Mac, Docker Desktop, Node 24)
@@ -30,7 +64,10 @@ QA measured 43 seconds for `e2e:reset` and 8.64 seconds for `demo:prepare` (AC-T
 | --- | --- |
 | [Run the stack](docs/guides/run-the-stack.md) | Start, open, reset and stop the local stack |
 | [Moodle admin](docs/guides/moodle-admin.md) | Connect a Moodle site (automatic or manual) |
-| [Teacher](docs/guides/teacher.md) | Add a Cogniate course to a Moodle course |
+| [Canvas admin](docs/guides/canvas-admin.md) | Connect a Canvas site (draft; not yet tested on a real Canvas site) |
+| [Blackboard admin](docs/guides/blackboard-admin.md) | Connect a Blackboard Learn site (draft; not yet tested on a real Blackboard site) |
+| [Operator](docs/guides/operator.md) | Cogniate staff: approval codes, suspend and release, upgrade and rollback (draft) |
+| [Teacher](docs/guides/teacher.md) | Add a Cogniate course to a Moodle, Canvas or Blackboard course |
 | [Learner view](docs/guides/learner-view.md) | What a learner sees, and what happens when… |
 | [Native channel](docs/guides/native-channel-moodlecloud.md) | Build a Moodle backup or empty course; see the guide for verified scope |
 | [Troubleshooting](docs/guides/troubleshooting.md) | Symptoms and fixes |

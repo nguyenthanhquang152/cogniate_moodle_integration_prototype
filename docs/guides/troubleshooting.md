@@ -41,6 +41,50 @@ More technical help: [`infra/README.md`](../../infra/README.md#troubleshooting).
 | The lesson link on the HTML menu page does not react | A decorative layer of the HTML export covers the link (decision Q17). | Click another part of the link. | No (not checked by hand) |
 | The player says that the player is not built | The player files are missing. | Run `npm run build`. | No |
 
+## Canvas and Blackboard
+
+Source: commit `e2d58e9` (candidate C = `d3296dd`), 2026-10-22. Status: **draft**. The last column gives the evidence label; the [evidence table](../../README.md#evidence-labels) gives its status. Nobody has tested these fixes on a real Canvas or Blackboard site.
+
+"Operator" means Cogniate staff ([operator guide](operator.md)). The operator reads the service logs in `infra/.logs/`.
+
+### Portal: connect and Save
+
+| Code and text | Cause | Fix | Evidence |
+| --- | --- | --- | --- |
+| `INVALID_SITE_URL` rule 1: "Enter only the address, … No path." | The URL has a path, a query, a fragment, user info, or is not https. | Enter only `https://` and the host. | `[SIM AC-M2-03]` |
+| `INVALID_SITE_URL` rule 2: "Enter a host name, not an IP address or localhost." | An IP address, `localhost` or a `.localhost` name. | Enter the DNS name of the LMS. | `[SIM AC-M2-03]` |
+| `INVALID_SITE_URL` rule 3: "This is a Cogniate address. …" | The URL is a Cogniate service address. | Enter your LMS address. | `[SIM AC-M2-03]` |
+| `INVALID_SITE_URL` rule 4: "This is the LMS sign-in service, not your school site. …" | The URL is a fixed provider host, for example the Canvas sign-in host. | Enter the address that teachers use. | `[SIM AC-M2-03]` |
+| `INVALID_SITE_URL` rule 5: "This is an Instructure-hosted address. …" | A self-hosted Canvas type with an `instructure.com` or `canvaslms.com` host. | Select an Instructure-hosted Canvas type. | `[SIM AC-M2-03]` |
+| `GRANT_INVALID`: "This approval code is not valid, was used, or expired. …" | Wrong, used, expired or revoked code, or a code for another connection or library. | Ask the operator for a new code. | `[SIM AC-M2-05, AC-M1-29]` |
+| `GRANT_MISMATCH`: "The values do not match the approval. …" | A marked field differs from the approved value. | Correct the marked field. Or ask the operator for a code with the right values. | `[SIM AC-M2-05, AC-M2-06]` |
+| `GRANT_IN_USE`: "Cogniate is already saving this connection. …" | Another Save of this connection is still running (at most 60 seconds). | Wait a moment, then reload the page. | API code: `[SIM M1-37.canvas.f]`. Portal text: Not verified by QA. |
+| `PLATFORM_IN_USE`: "This Canvas developer key is already connected to Cogniate. …" | Another connection uses this developer key, or one key serves many schools (D-5). | Make a new developer key for this library. For a self-hosted Canvas after a release, see the next row. | `[SIM AC-M2-05]` |
+| `PLATFORM_IN_USE` after an operator release (self-hosted Canvas only) | A Moodle connection took the freed issuer and client ID first (D-12). It can block setup. It gives no Canvas access: check 14 refuses its Canvas launches before storage. | The operator suspends and releases that connection, then repeats the order: grant, suspend, release, redeem at once. Prompt redemption makes the window short; it cannot close it. An enterprise service needs a reserved-identifier or quarantine design first (D-12). | `[SIM M1-39.canvas.residual-race, M1-39.canvas.operator-order]` |
+| `DEPLOYMENT_IN_USE`: "This Blackboard site is already connected to Cogniate." | Another connection holds this Deployment ID. | Ask the operator. If that binding is wrong, the operator suspends and releases it. | `[SIM AC-M2-06, AC-M1-29]` |
+| `DEPLOYMENT_FIXED`: "This connection already reserved another Blackboard deployment. …" | This Blackboard connection holds another Deployment ID. | Disconnect it, then make a new connection. | Portal text: Author unit test only, not verified by QA. CLI refusal: `[SIM AC-M1-29]` |
+| `PROVIDER_NOT_READY`: "This LMS setup is not ready in Cogniate. …" | The Blackboard shared setup is missing or changed, or the connection has no provider snapshot. | The operator reads `provider_not_ready {cause}` in the app log. Then: try again later, or make a new connection. | `[SIM AC-M2-05, AC-M2-06, AC-M1-29]` |
+| `LTI_SERVICE_ERROR`: "Cogniate could not save the connection. Try again. Trace id: …" | The LTI service did not answer. | Click "Save" again with the same code. | `[SIM AC-M2-05, AC-M2-06]` |
+| `CAPABILITY_NOT_SUPPORTED` | A Moodle-only feature: dynamic registration, web services, empty Moodle course. | Not available for Canvas or Blackboard. | `[SIM AC-M1-15, AC-M1-21]` |
+
+### Launch pages (learners and teachers)
+
+| Code and text | Cause | Fix | Evidence |
+| --- | --- | --- | --- |
+| `SERVICE_ORIGIN_MISMATCH`: "The {LMS} address in this launch is not the address saved in Cogniate. …" | A launch URL is not on the saved host. The log line `launch_check_failed` has `detail: "claim=<name> host=<origin>"`. | `claim=dl_return`: the host must be the site URL (the page host). `claim=ags_…` or `nrps`: the host must be the Canvas service URL. If the saved value is wrong, the operator suspends and releases the binding. Then the library makes a new connection with the right value and a new grant. | `[SIM AC-M1-12, AC-M1-32, M1-38.canvas.f]` |
+| `SERVICE_ORIGIN_MISMATCH` with `claim=dl_return` from a second page host | Teachers used a third Canvas host for Deep Linking (D-2). | Add content through the saved Canvas URL. | `[SIM AC-M1-40]` |
+| `DEPLOYMENT_NOT_ACTIVE`: "The connection to this {LMS} site is switched off. …" | The connection was disconnected or suspended. | A new connection needs a new approval, new publications and new course items. Old items stay unavailable. | `[SIM AC-M1-18, AC-M1-27, AC-M1-38]` |
+| `UNKNOWN_DEPLOYMENT` | The launch comes from a deployment without an approved binding, for example a second Canvas install. | Canvas: add the deployment ID with an approval code ([Canvas guide](canvas-admin.md#add-a-second-deployment-id)). Blackboard: finish the setup. | `[SIM AC-M1-13, AC-M1-20]` |
+| `PROVIDER_PROFILE_MISMATCH`: "This {LMS} site is connected to Cogniate in the wrong way. …" | A Canvas or Blackboard site was connected as Moodle. No claim is stored. | Connect it as Canvas or Blackboard in the portal, with an approval. If the Moodle connection blocks the right one, the operator suspends and releases it. | `[SIM AC-M1-39]` |
+| `ISSUER_RESERVED` | A Moodle connection used a hosted Canvas or Blackboard issuer. Nothing is stored. | Connect it as Canvas or Blackboard. | API: `[SIM AC-M1-03]`. Registration page text: Not verified by QA. |
+| `UNKNOWN_PLATFORM` on a Canvas or Blackboard launch | The site or service URL in the launch differs from the connection, or the LMS type differs. The log has `reason: site_mismatch` or `lms_mismatch`. | The operator compares the logged hosts with the connection. Correct as for `SERVICE_ORIGIN_MISMATCH`. | `[SIM AC-M1-22, AC-M1-39]` |
+| "This course is not available" | The item belongs to an old connection that was replaced. | Add the course again under the new connection. | `[SIM AC-M1-38]` |
+| A teacher cannot add content, or the state cookie is missing, in an LMS frame | The browser blocks the cross-site cookie in the frame. This depends on the browser, its version and its settings. | Try Chrome, Edge or Firefox; QA used Chromium only (Q16). In Canvas, keep "Load This Tool In A New Tab" on for learners. | `[SIM M1-34.canvas.cloud-no-cookie; L-C10, L-B10 UNVERIFIED]` Not yet tested on a real Canvas site. Not yet tested on a real Blackboard site. |
+| A pending grade row turns `failed` with `CONNECTION_DISABLED` | The connection was disconnected or suspended. | Resend is refused. The LMS gets no score from this connection. | `[SIM AC-M1-18, AC-M1-38]` |
+| A Canvas grade row is `failed` after a better score | The assignment allows only one attempt. | Keep "Allowed Attempts" unlimited ([teacher guide](teacher.md#canvas)). | `[SIM AC-M1-33]` |
+
+For storage lock messages (`operation_in_progress`, `storage_writer_active`, `operation_lock_invalid`, `storage_lock_lost`), see the [operator guide](operator.md#43-storage-lock-messages).
+
 ## End-to-end test
 
 If a step of `npm run test:e2e` fails, follow "Debug a failed E2E step" in [`infra/README.md`](../../infra/README.md#debug-a-failed-e2e-step).
