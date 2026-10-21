@@ -57,7 +57,8 @@ flowchart LR
 
 - P1: R1–R5 work at the same time. Each writes only its own file.
 - P2: A1, A2 and QA (test strategy) work at the same time on separate files.
-- P4: one Author lane per file-ownership lane in the epic plan. Each lane has its own worktree, branch and local stack (own `COMPOSE_PROJECT_NAME`, `PUBLIC_PORT`, `STACK_SUBNET`).
+- P4: one Author lane per file-ownership lane in the epic plan. Each lane has its own worktree and branch.
+- Docker by booked slot (plan LD-2): at most 2 stacks run at the same time (one simulator lane, one Moodle lane). Each stack has its own `COMPOSE_PROJECT_NAME`, `PUBLIC_PORT` and `STACK_SUBNET`. The Lead books the slots. Authors work without Docker (unit tests and the K0 contract suite) by default.
 - Two lanes never own the same file. A shared file has one named owner. Other lanes ask for changes through the Lead.
 - QA writes acceptance tests from the task specs while the Authors build.
 - P5: QA, Reviewer-A and Reviewer-B verify each task at the same time.

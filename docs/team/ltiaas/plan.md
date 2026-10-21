@@ -1,70 +1,215 @@
 # Milestone LA plan: LTI as a Service v1
 
-Status: **draft v0** (Lead, 2026-10-22). The Lead writes v1 after the P1 research (R1–R5). Rules: [charter-LA](charter-LA.md).
+Status: **v1** (Lead, 2026-10-22). It replaces draft v0. Inputs: [R1 spec coverage](../../research/ltiaas/R1-spec-coverage.md), [R2 LMS landscape](../../research/ltiaas/R2-lms-landscape.md) (pending at v1; the Lead patches §3 E2 when it lands), [R3 extensibility audit](../../research/ltiaas/R3-extensibility-audit.md), [R4 ops readiness](../../research/ltiaas/R4-ops-readiness.md), [R5 test baseline](../../research/ltiaas/R5-test-baseline.md), [DataCamp facts](../../research/ltiaas/inputs-datacamp.md). Rules: [charter-LA](charter-LA.md).
 
 ## 1. Goal
 
-Make the Cogniate LTI service a multi-LMS "LTI as a service" with a **channel-adapter architecture**. A new LTI LMS must be one adapter folder and a profile. It must need **zero changes in core code**.
+Make the Cogniate LTI service a multi-LMS, multi-tenant "LTI as a service" with a **channel-adapter architecture**:
 
-Moodle, Canvas and Blackboard are the baseline channels. They move into the new model with no behaviour change. One new channel proves that the model works.
+- A new LTI LMS is **one adapter folder plus profile data**. It changes **zero core files**.
+- Moodle, Canvas and Blackboard move into the model with **no behaviour change**.
+- One new named LMS and one generic LTI 1.3 channel prove the model.
+- The service is **production-shaped** for a pilot: rate limits, tenant model, admin API, audit, key lifecycle.
+- The design leaves clean ports for the backlog milestones LB–LG. LA does not build them.
 
-## 2. Why: the DataCamp lesson
+## 2. Facts that shape the plan
 
-DataCamp runs 16 LMS/LXP channels on a few shared mechanisms and a few core models. Each channel is mostly settings, a field mapper and small quirks. Facts: [inputs-datacamp](../../research/ltiaas/inputs-datacamp.md).
-
-Cogniate today:
-
-- **Good.** The LTI service does not depend on one LMS. A new LTI LMS needs one profile row and tests (ADR-011 §17). The app has one provider registry (`services/cogniate-app/src/providers/index.ts`).
-- **Gap.** `LmsType` is a closed list of 3 names (`providers/types.ts`). There are 28 product files outside the adapters that name an LMS. Capabilities have LMS names (`canvasConfiguration`, `webServices`). `lmsOfProfile` makes every unknown profile "moodle". The `attempt` and `score_sync` records are tied to LTI resource links. So a 4th LMS changes many core files.
-
-## 3. Scope (draft; P1 research confirms it)
-
-| Epic | Title | Draft priority |
-| --- | --- | --- |
-| E0 | Baseline intake: rebase on the accepted Blackboard and Canvas result; record the regression baseline | Must |
-| E1 | Channel kernel for the LTI family: channel manifest and registry, generic capabilities, core without LMS names (CI check), portal cards and setup wizard driven by the manifest; Moodle, Canvas and Blackboard as adapters with no behaviour change | Must |
-| E2 | Generic LTI 1.3 channel (manual registration, plus Dynamic Registration where the platform supports it) and one new named LMS profile on the simulator (candidate: D2L Brightspace) | Must |
-| E3 | LTI Advantage completeness: Deep Linking with more than one item and ungraded links (D-11); NRPS use or drop (D-8); Canvas Dynamic Registration (D-1); LTI platform storage (D-4); new-window launch (D-10); Moodle claim minimization (D-9) | Must: D-11, D-8. Should: the rest |
-| E4 | Learning-record core and dispatch: channel-neutral attempt and record model; generic outbox; AGS is the first reporter | Should |
-| E5 | Service operability and security: admin API for tool accounts and platforms, key rotation with a test, a KMS interface, rate limits, metrics and health, audit log, storage path after ADR-012 | Should |
-| E6 | Self-serve onboarding and connection health: a safe self-serve path in place of the operator CLI grant (D-3); a health page per connection | Could |
-| E7 | Conformance kit: contract tests per port, simulator profiles, 1EdTech certification readiness checklist | Must |
-| E8 | Docs and hand-over: admin guide per LMS, "Add a new LTI channel" developer guide, review pack | Must |
-
-Not in LA (backlog milestones, each later goes plan → design → build):
-
-| Milestone | Content |
+| Fact | Source |
 | --- | --- |
-| LB | Catalog and distribution: catalog model, catalog pull API, SFTP/CSV export |
-| LC | Learning records out: xAPI to a customer LRS, events API |
-| LD | Identity and SSO link launch: learner record, SAML/OIDC per library, account on first login |
-| LE | Packaged delivery: thin SCORM 1.2 package, AICC, cmi5, SCORM 2004, Common Cartridge |
-| LF | Vendor connectors: Degreed, Docebo, Cornerstone, Workday CCL, SAP SuccessFactors OCN, Viva Learning, 360Learning, Absorb |
-| LG | Production platform: Postgres, queue, KMS, high availability, hosting (unless E5 takes part of it) |
+| The launch and security engine is strong: 134 spec rows, YES 76, PARTIAL 34, NO 19, N-A 5. | R1 §Summary |
+| The largest protocol gap: no Platform Storage / postMessage. Canvas frames every launch; Safari blocks the state cookie. | R1 #1 |
+| Certification blocker: the app refuses a valid launch without a context. | R1 #3 |
+| Tool key retirement uses `created_at`; an old key can drop out at rotation (`services/lti-service/src/store/tool-keys.ts:36`). | R1 #7, R4 J-2 |
+| Product code has 214 code lines in 60 files that branch on an LMS name, a profile id or an LMS-only feature. 145 more lines in 19 files tie core records to LTI. | R3 §1 |
+| "Add D2L Brightspace today" changes 36 files; 25 of them are core files. | R3 §3 |
+| Two blockers for a 4th LMS: the SQLite `CHECK (lms IN (...))` on `connection`, and the closed Zod enum in `app/clients/lti-client.ts:55` (one unknown profile breaks `GET /api/providers`). | R3 §1 |
+| A non-LTI channel (for example SFTP) cannot plug in today. | R3 §1 |
+| Ops BLOCKERs for a paid service: no rate limits; every tool account launches to `PUBLIC_APP_URL` (one tenant only); single-host SQLite with cold backup. 26 MAJORs. | R4 §Summary |
+| `npm run check` passes: 1,123 tests + 5 fixture skips, 111 infra tests, 69 s. No stack suite has run at HEAD. | R5 §3 |
+| M1 and M2 assert closed lists (6 profiles, 2 sim profiles, 6 capability keys, 3 cards). | R5 §4c |
+| The Docker VM (7.75 GiB) allows 2 stacks at the same time. | R5 §4d |
+| The storage harness (8,076 lines) and serial windows made the last phase slow. | R5 §5 |
 
-The LA design must leave clean ports for LB–LF. LA does not build them.
+## 3. Scope
 
-## 4. Success measures (draft)
+Priority: **Must** = needed for LA done. **Should** = in LA if the Must work is on time. **Could** = only if there is spare capacity.
 
-1. A new LTI LMS profile changes **0 core files**. A CI check measures this.
-2. No LMS name appears in core code. A lint rule checks this.
-3. M1, M2 and T7 pass with no change to their assertions after the refactor.
-4. The generic LTI channel and the new named LMS pass the conformance kit on the simulator.
-5. The "Add a new LTI channel" guide lets a new developer add a simulator profile in less than one day.
+### E0 Baseline intake — Must
 
-Live Canvas and Blackboard rows need human test sites (Q19, Q20). They are not an LA gate unless the product owner gives access.
+- Rebase LA on the G-BASE commit (see §6 LA-H10).
+- QA records the regression baseline: `npm run check`, M1 sim rows (394), M2 64/64, T7 3×17, golden outputs, Docker engine and VM size.
+- QA rewrites the closed-list assertions in M1 and M2 to an open-world form, once, and proves the rewrite on the baseline SHA. Both reviewers review the list (Lead decision LD-1).
+- ADR-012 is a dev-stack rule only. LA tasks do not depend on its open runtime gates.
 
-## 5. Phases
+### E1 Channel kernel for the LTI family — Must
 
-See [charter-LA §2](charter-LA.md#2-phases-and-gates). P1–P3 change only docs, so they run now, in parallel with the Blackboard and Canvas run. P4 starts after G-DEV and G-BASE.
+- First: fix the two blockers (closed Zod enum; `connection.lms` CHECK through an additive change).
+- One channel registry is the only list of channels. A channel manifest describes each channel.
+- The 44 "B" sites become five generic traits: binding authority, platform sharing, capability guards, the registry, profile flags.
+- Moodle-only code moves to a Moodle adapter folder (web-services course shell, `.mbz` as a capability, Dynamic Registration).
+- The portal renders cards, routes and setup wizards from the registry ("show, collect, verify, enable").
+- `PUBLIC_MOODLE_URL` leaves the LTI service config.
+- CI fitness checks: an LMS-name lint for core paths (ratchet from today's baseline), and a branch-diff gate "an add-channel change touches only the channel folder and profile data".
+- Design constraint: no change to storage commands. Only additive schema changes, each with a migration test.
 
-## 6. Decisions for humans (draft)
+### E2 Generic LTI 1.3 channel and one new named LMS — Must
 
-| Id | Decision | Needed by |
+- A generic LTI 1.3 channel on the `standard` profile path: manual registration, and Dynamic Registration where the platform supports it.
+- Generic Dynamic Registration fixes: issuer with a path (Q18), `authorization_server` as token audience, capability checks, neutral texts, stored granted scopes.
+- Profile data additions: token audience, product family for every profile, `deployment_id` in the client assertion behind a flag.
+- One new named LMS profile on the simulator. Candidate: D2L Brightspace (LA-H6; R2 confirms the facts).
+- A generic LTI provider in the simulator.
+- Could: the DR management flow (`registration_client_uri`).
+
+### E3 LTI Advantage completeness — Must and Should
+
+- **Must:** Platform Storage and client-side postMessages for launches with no third-party cookies (D-4).
+- **Must:** accept a valid launch without a context. Keep the refusal of a missing `sub`.
+- **Must:** Deep Linking: multi-select when `accept_multiple` is true, "Cancel" with an empty response, `acceptLineItem` and `acceptMediaTypes`.
+- **Must:** a decision on D-8 (NRPS). Lead input: keep the NRPS service for the service API and certification; stop requesting the scope in the Cogniate app channel settings.
+- **Should:** ungraded links (D-11, after the E4 record model), Canvas Dynamic Registration (D-1), new-window launch (D-10), AGS score extensions and submission fields.
+- **Should:** a claim and privacy policy per tool account (custom, lis, names, email). It replaces the LMS-named `minimizeClaims` flag and covers D-9. It needs LA-H4.
+
+### E4 Learning-record core and dispatch — Must (core), Should (extras)
+
+- **Must:** additive channel-neutral tables (`placement`, `learning_record`, `record_dispatch`). They keep the existing ids and the API and log names (`resourceLinkId`, `score_sync`).
+- **Must:** AGS is the first `RecordReporter`. Keep the ADR-010 grade policy and the retry and confirmation guarantees.
+- **Must:** a generic outbox with leases, fairness per platform, bounded parallelism, and platform `429` / `Retry-After` handling.
+- **Should:** progress states (`Started`, `InProgress`, `Submitted`) and submission times.
+- Ports only, not built: `CatalogExporter`, a job scheduler, a secrets slot per connection for LB, LC and LF.
+
+### E5 Service operability and security — Must and Should
+
+- **Must**, in this order:
+  1. Rate limits.
+  2. Tenant model (LA-H7), per-account tool URLs and account status.
+  3. Operator admin API with its own credential; the CLIs become clients of it.
+  4. Append-only audit log.
+  5. API key lifecycle (scopes, two active keys, revoke, expiry).
+  6. `KeyProvider` port with versioned envelope encryption.
+  7. Signing-key lifecycle `next` → `active` → `retired`, with `retired_at` and the A-T0-16 tests.
+- **Should:**
+  - Pilot backup and restore (LA-H8).
+  - Metrics and alert rules.
+  - Tenant id in logs, and a readiness endpoint.
+  - Service key revoke.
+  - `Idempotency-Key`.
+  - A fail-closed production profile.
+  - An async storage port in the LTI service (Postgres engine in LG, LA-H5).
+
+### E6 Self-serve onboarding and connection health — Could
+
+- Self-serve onboarding where it is safe (D-3), only after E5 rate limits and audit.
+- A health view per connection: last launch, last dispatch, errors, key state.
+
+### E7 Conformance kit and CI — Must
+
+- K0: a Vitest contract suite per port, no Docker, run for every registered channel.
+- K1: a simulator protocol suite per port.
+- K2: optional browser checks.
+- Pass rule: N/A is allowed only for a false capability whose guard passes. Nothing skips.
+- A data-driven simulator: modules come from data, and one host manifest makes the compose aliases, hosts and certificate SANs.
+- The fitness checks of E1 run in `npm run check`.
+- A local CI script: `npm ci --ignore-scripts`, check, vulnerability scan, SBOM, secret scan.
+- **Should:** a certification reference tool that uses only the public service API and covers the public 1EdTech test areas (LA-H9).
+
+### E8 Docs and hand-over — Must
+
+- An "Add a new LTI channel" developer guide. A person or agent new to the repo uses it once; record the time.
+- An admin guide per LMS, including the new named LMS.
+- An operator runbook: key rotation, master key re-wrap, backup and restore drill, tenant suspend, first steps in an incident.
+- The deliberate deviations from the spec (R1 §4), and new contract §8 rows.
+- The review pack in `docs/human_review/ltiaas/`.
+
+### Not in LA (backlog milestones)
+
+| Milestone | Content | LA prerequisite |
 | --- | --- | --- |
-| LA-H1 | Approve the LA scope, design and breakdown (G-DEV) | P4 start |
-| LA-H2 | Q1 legal: the LTIAAS compatibility claim | Release claim |
-| LA-H3 | Q19, Q20: real Canvas and Blackboard test sites; owner of the Blackboard app | Live rows |
-| LA-H4 | Q3 privacy: the identifiers that a channel may receive | E4 design |
-| LA-H5 | Postgres in LA (E5) or in LG | E5 design |
-| LA-H6 | First new named LMS for E2 (candidate: D2L Brightspace) | E2 design |
+| LB | Catalog and distribution: catalog model, catalog pull API, SFTP/CSV export | E4 ports, `CatalogExporter` |
+| LC | Learning records out: xAPI to a customer LRS, events API | E4 `RecordReporter` |
+| LD | Identity and SSO link launch: learner record, SAML/OIDC per library, account on first login, the `lti1p1` claim | E4, LA-H4 |
+| LE | Packaged delivery: thin SCORM 1.2, AICC, cmi5, SCORM 2004, Common Cartridge; `.mbz` as the first `PackageExporter` | E1 capability model |
+| LF | Vendor connectors: Degreed, Docebo, Cornerstone, Workday CCL, SAP SuccessFactors OCN, Viva Learning, 360Learning, Absorb | E4, E5 secrets |
+| LG | Production platform: Postgres engine, cloud KMS, secret manager, high availability, managed backup, hosting and edge, tracing, billing, OAuth2 endpoints | E5 ports |
+
+## 4. Success measures
+
+1. A new LTI LMS profile changes **0 core files**. The E1 branch-diff gate measures this on the E2 branch against the E1-done SHA.
+2. No LMS name appears in core code. The lint ratchet reaches zero for core paths.
+3. M1, M2 and T7 pass. Their assertions do not change, except the closed-list rewrite of E0, which both reviewers approve.
+4. The generic LTI channel and the new named LMS pass the conformance kit (K0 + K1) on the simulator.
+5. A person or agent new to the repo adds a simulator LMS with the guide in less than one day.
+6. The E5 Must items pass their acceptance tests on the simulator (rate limit `429`, audit event per admin route, key rotation with a launch and a score during rotation).
+
+Live Canvas and Blackboard rows need human test sites (LA-H3). They are not an LA gate.
+
+## 5. Delivery plan
+
+### 5.1 Phases
+
+See [charter-LA §2](charter-LA.md#2-phases-and-gates). P1–P3 change only docs. They run now, in parallel with the Blackboard and Canvas run.
+
+### 5.2 Design split (P2)
+
+| Worker | Owns |
+| --- | --- |
+| A1 | Overview, terms, kernel (E1), generic LTI (E2), record core (E4), refactor and migration, data model, app API delta, overall consistency |
+| A2 | Advantage completeness (E3), operability (E5), security and tenancy, onboarding (E6), LTI service API delta, operability and security docs |
+| QA | Test strategy, conformance kit (E7), fitness checks, regression plan |
+
+### 5.3 Build lanes (draft; the P3 breakdown fixes the file ownership)
+
+| Lane | Main area | Epics |
+| --- | --- | --- |
+| K | App kernel: providers, registry, binding and connection code | E1, E2 |
+| P | Portal: registry-driven cards, routes, wizards | E1, E6 |
+| S | LTI service operations: rate limits, admin API, audit, keys | E5 |
+| L | LTI service protocol: platform storage, Dynamic Registration, Deep Linking, launch without context | E2, E3 |
+| R | App records: placement, learning record, outbox, AGS reporter | E4 |
+| QA / QA-E2E | Tests, data-driven simulator, conformance kit, CI script | E0, E7 |
+| Docs | Guides and runbook | E8 |
+
+Wave order (draft):
+
+1. **B1:** E0, E1 blockers (K), E5 Must 1–4 (S), simulator data-driven (QA-E2E).
+2. **B2:** E1 rest (K, P), E3 platform storage (L), E4 core (R), E5 Must 5–7 (S).
+3. **B3:** E2 (K, L), E3 rest (L), E4 extras (R), E5 Should (S), E6 (P).
+4. **B4:** E7 full kit run, E8 docs, regression, conformance.
+
+Docker: at most 2 stacks at the same time, by booked slot (Lead decision LD-2). Authors work without Docker (unit and K0) by default.
+
+## 6. Decisions
+
+### 6.1 Lead decisions (process; recorded here)
+
+| Id | Decision |
+| --- | --- |
+| LD-1 | Closed-list assertions in M1 and M2 get one open-world rewrite in E0. QA does it; both reviewers review it. Success measure 3 allows only this change. |
+| LD-2 | Docker by booked slot: at most 2 stacks (one simulator lane, one Moodle lane). The Lead books the slots. This replaces "own stack per Author lane" in charter-LA §3. |
+| LD-3 | ADR-012 stays a dev-stack rule. LA does not build on its open runtime gates. E5 changes no storage engine. |
+| LD-4 | Evidence stays proportional: one focused test per acceptance criterion; harness work only when an AC needs it; one full regression gate at the end of each wave. |
+
+### 6.2 Human decisions
+
+| Id | Decision | Lead recommendation | Needed by |
+| --- | --- | --- | --- |
+| LA-H1 | Approve the LA scope, design and breakdown (G-DEV) | — | P4 start |
+| LA-H2 | Q1 legal: the LTIAAS compatibility claim | Keep "API-shape compatible" wording until legal review | Release claim |
+| LA-H3 | Q19, Q20: real Canvas and Blackboard test sites; owner of the Blackboard app | Get them before LA ends, for the live rows | Live rows |
+| LA-H4 | Q3 privacy: claims a channel may receive; retention periods; learner erase scope | Pseudonymous default; claim policy per tool account | E3 claim policy, E4 |
+| LA-H5 | Postgres in LA or LG | Engine in LG; async storage port in LA (LTI service first) | E5 design |
+| LA-H6 | First new named LMS for E2 | D2L Brightspace, pending R2 | E2 design |
+| LA-H7 | The v1 tenant: only Cogniate libraries, or external tool vendors (the LTIAAS model); host per tool account or path per account | Build the vendor-model controls in E5; sell only to Cogniate libraries in v1; one host per tool account | E5 design |
+| LA-H8 | Pilot RPO, RTO and SLO | RPO 1 h, RTO 4 h for the pilot | E5 backup |
+| LA-H9 | 1EdTech membership and the certified product shape (service plus reference tool, or the Cogniate app) | Certify the service with a reference tool | E7 reference tool |
+| LA-H10 | G-BASE: wait for the full Blackboard and Canvas acceptance, or start LA build on the frozen candidate C (product `9f8ac62`) and merge the final result later | Start on the frozen candidate; E0 runs its own regression | P4 start |
+
+## 7. Risks
+
+| Risk | Effect | Control |
+| --- | --- | --- |
+| Scope is large for one milestone | LA takes too long | Strict Must/Should/Could; the Lead cuts Should items at the end of B2 if Must items slip |
+| The Blackboard and Canvas run changes product code after the LA rebase | Merge conflicts in E1 files | LA-H10; rebase at each wave end; E1 lane K owns the conflict merge |
+| Two Docker stacks only | QA waits | LD-2 slots; no-Docker K0 first; targeted re-runs |
+| Brightspace facts unverified (token host, audience, family) | E2 profile wrong | R2 checks them; the simulator first; live rows need LA-H3 |
+| The refactor changes behaviour without notice | Regression in Moodle, Canvas, Blackboard | E0 baseline and golden outputs; M1, M2, T7 at each wave end |
