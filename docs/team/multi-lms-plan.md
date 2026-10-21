@@ -13,7 +13,37 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 13:55 UTC
+### Current checkpoint — 2026-10-21, 14:02 UTC
+
+Revision 4 is accepted for the bounded harness repair: Reviewer-A APPROVE at `95617df`, Reviewer-B APPROVE at `a2d79fefad65e797897d6df9931ac6d7aeb22499`, and independent testability PASS at `83a0eb9`.
+Reviewer-B report SHA-256: `338190221fee292ff71f61fa6331a221968914b926eb3249dc1d9e440fa3d2d1`.
+The Lead verified all ten probe-manifest entries. B corrected only an arithmetic total from 29 to 30 before commit.
+Both design reviewers settled successfully and were released. No runtime acceptance credit is implied.
+
+Common QA `task_6c53cbbc403c` / `ctx_f189530f67c1` froze its private control map before source reads.
+Path: `/Users/quangnguyen/cogniate-qa-runs/storage-harness-repair-qa-20261021T1356Z/map/control-map.md`.
+SHA-256: `bf47ec74bc0e2ebadbc461407d10545342c10710ee0d00d2d0d1604d7bdaafda`; 35,836 bytes, file 0600, folders 0700.
+The Lead read the whole map and granted implementation for its exact 22 paths in message `msg_0f65fbcdf49c`.
+The immutable map, its later clarifications and the final exact edit list must remain separate.
+The grant covers host controls and repairs only. No actual Docker, candidate freeze or runtime window is granted.
+
+The existing Lead decisions apply, with these details:
+- B-SR-04: ordered host-control events must be at least 2 ms apart, with explicit premise checks. Runtime inequalities stay exact.
+- B-SR-05: the final into-volume mode mutation belongs to V4-2. B-SR-06: diagnostic D uses mkdir and a random suffix without another token.
+- B-SR-07: compare exact row id, status and first-cause text in both directions. Missing declarations fail.
+- INT-1 permits only the three triage-required stricter oracle replacements and exact P-1a. INT-2 permits occurrence-specific fixture needs without a manifest or row change. INT-3 and INT-5 are accepted.
+- INT-4 requires an explicit valid window end but never grants runtime authority. Lead window ownership and G1/W1-W4 remain separate prerequisites.
+- INT-6 resolves and records one HEAD per npm probe. A changed product requires the control on the final candidate.
+- An equivalent mutant is recorded and dispositioned; no implementation-shaped assertion may fake its detection.
+- Message `msg_df4af5d753e3` preserves V1-12's exact argv and no npm_* environment rule. A private scratch-only .npmrc suppresses update, fund and audit checks.
+
+W-1 has two fresh blind reviewers: A `task_db5c4f0024c9` / `ctx_b0bdcc62e919`, B `task_fc0aca25d597` / `ctx_a550590f5aa7`.
+Together with QA, all three workers use requested and effective Claude Code Opus 5.5 xhigh.
+The product lock-release repair still waits for these confirmations and the Author brief.
+No push or main merge is authorized. The latest full result stays 438 PASS and 50 FAIL at `aaa823b`.
+Fresh runtime gates, conformance and guides remain pending. All 32 live-LMS rows stay UNVERIFIED; local Canvas stays DEFERRED.
+
+### Prior checkpoint — 2026-10-21, 13:55 UTC
 
 Reviewer-A approves the revision 4 design in `95617dfae4183e697ac8ce2d984c269435534857`.
 Report SHA-256: `5d4083ad6ac64d6948e869487f559b7bc121d7569ed5dff28b20a8d0be898fbe`.
