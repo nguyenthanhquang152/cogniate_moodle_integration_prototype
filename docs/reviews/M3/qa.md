@@ -394,3 +394,5 @@ The documented full entry ran once at `a784522a3cdd9bb67453b03093092cac24e87402`
 Correction: the storage-lock diagnostic section above says "A's row was lost". That is not accurate. B acquired the lock while A held it, and A then could not commit. No successfully committed row of A was lost. The cause of the DELETE-mode discrepancy and any Docker-update cause remain unknown.
 
 M3 stays **FAIL**. Next: Canvas QA's diagnosis, the Lead's disposition, then a new window for two complete 488-row rounds and all legacy groups on one frozen SHA.
+
+Correction (task `task_fa95996d3ee3`): the M1 record of this retry gave the duration of `M1-17.canvas.repeat` as 365 s. The correct value is 364.97 **ms** (Vitest milliseconds). Canvas QA's own diagnosis (`msg_6245a961f22b`, relayed by the Lead) reports an inclusive-timestamp oracle that counted the original redemption in the same millisecond, with no second redemption and no remote call. Only a one-case QA repair is authorized (`msg_415316b9ae64`), with no product repair and no rerun credit. This QA did not perform that diagnosis. The attempt result and all not-run phases are unchanged; M3 stays **FAIL**.

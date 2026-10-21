@@ -1007,3 +1007,9 @@ The diagnostic table above says "A's row was lost". That claim is not accurate. 
 ### Next
 
 Canvas QA diagnoses `M1-17.canvas.repeat`. Any repair needs the Lead's disposition, a new frozen candidate or an explicit decision, and a new window. Then both complete 488-row rounds and all legacy groups must run again from a fresh clone. This attempt and its not-run phases stay in the record. All 32 live rows stay `UNVERIFIED`.
+
+### Correction to the retry record at `a784522` (task `task_fa95996d3ee3`), 2026-10-21
+
+- **Duration unit.** The failed-row table above says "duration 365 s" for `M1-17.canvas.repeat`. That is wrong. Vitest reports `duration` in milliseconds. The value in `evidence/sim/m1-vitest-results.json` is `364.96579199999996`, so the duration is about **365 ms**. The Lead checked the same file independently. The text above stays as history.
+- **Canvas diagnosis (not performed by this QA).** Canvas QA owns the diagnosis of this row (`msg_6245a961f22b`, as relayed by the Lead). It reports that the test oracle used an inclusive timestamp and counted the original redemption in the same millisecond. It reports no second redemption and no remote call. The Lead authorized only a one-case QA repair (`msg_415316b9ae64`). No product repair is authorized, and the repair gives no runtime rerun credit.
+- **Unchanged.** The attempt stays **FAIL**. The row stays FAIL in this run. The 94 not-run round-1 rows, round 2 and all legacy groups still need a new window.
