@@ -13,7 +13,38 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 15:31 UTC
+### Current checkpoint — 2026-10-21, 15:47 UTC
+
+The Lead closes Q-R1A-01 for the bounded host release-status repair at product `9f8ac625443931242edd8da301c3d4f0d3e34290`.
+Independent QA Round 2 PASS is committed at `a045bfb35ac8f08a5cec85b33e05ee2d201b8403`.
+Report SHA-256: `76f01a1dd0aca40734842ff10a25bb67166d5818d8686357254fe51cff0a5b27`.
+Both source reviewers approve: A `eeb9060` and B `87e7036`. Required Author checks are green.
+The final QA composition has 160/160 REQUIRED and 13/13 INFO passing. The 173 comparison vectors match with only 19 intended exit changes.
+All 11 mutants in eight families are detected. There are no real Docker calls, unrouted stub calls or final QA-artifact mode violations.
+The Lead verified 12,449 gen2 and 127 final manifest entries, all 92 preserved-driver mappings, the unchanged Round 1 prefix and the result composition.
+Evidence root: `/Users/quangnguyen/cogniate-qa-runs/r2-storage-command-qa-20261021T1424Z`.
+Gen2 manifest: `b5c58f78877b2f2975953d198dca94206fb46d7dffccb30259ee9e23ea95f9d1`.
+Final manifest: `7d3ad52bf9b774beb17c9f9c28b52f8a3c2481a31049f1ac54e9b561dc1fb5b8`.
+QA `task_720f8d0e6d3a` / `ctx_5e5d6972f72d` settled successfully and was released.
+
+The earlier results remain unchanged: gen1 has a QA creation-mode FAIL; gen2 has one R-13 stderr difference from the QA signal child.
+Lead `msg_edb50bb8df70` granted only the affected signal rerun.
+A08 `63c8bc94310b282736b95809d9d25d9acd56f210f39974ee430b5800d712f5e3` fixes separate child capture and defines the final composition.
+Gen2b supplies the 24 signal rows and mutant M2; gen2 supplies all other rows. Product output remains strictly compared.
+This is host-only evidence on Bash 3.2. It gives no runtime or live-LMS acceptance.
+
+Only harness QA `task_6c53cbbc403c` / `ctx_f189530f67c1` is active, requested and effective Claude Code Opus 5.5 xhigh.
+It confirmed all grants in `msg_c417b3da0839` after fixing an unacknowledged inbox batch.
+The earlier full suite has 99/101 PASS under umask 077 and 022; the two failures depend on the then-held LD-2/LD-3 criteria.
+The post-grant focused recovery checks, 70-row mock and private npm probe now pass. The complete rerun and named mutant campaign are in progress.
+M1 precision `a60ba4a` and frozen triage `2d763fe` remain the accepted criteria. No harness source review or candidate C is complete.
+
+No Docker window is active. No push or main merge is authorized.
+The latest full runtime result remains 438 PASS and 50 FAIL at `aaa823b`.
+Next: finish and review the harness, freeze C, run the diagnostic, two full rounds, legacy, fresh M2/T7, then final conformance and guides.
+All 32 live-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED.
+
+### Prior checkpoint — 2026-10-21, 15:31 UTC
 
 The V7-1 mock run exposed three latent harness defects in previously unexecuted storage rows.
 Evidence: `/Users/quangnguyen/cogniate-qa-runs/storage-harness-repair-qa-20261021T1356Z/evidence/latent-defects-v7-1.md`, SHA-256 `e061d44dc542bf6d15c47015575d07bfec35bd03b07d2b23e22cc56e00b33c5b`.
