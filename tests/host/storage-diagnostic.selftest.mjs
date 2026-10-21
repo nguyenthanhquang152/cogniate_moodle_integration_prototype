@@ -128,7 +128,7 @@ test('HARNESS ONLY: V8-6 the diagnostic starts the storage child only when every
     assert.deepEqual([run.ran.teardown, run.ran.w4], [1, 1], `${fault}: the owned teardown and strict W4 run`);
     assert.equal(JSON.parse(fs.readFileSync(path.join(run.record.D, 'diagnostic.json'), 'utf8')).cause, cause);
   }
-  for (const windowEnd of [undefined, 'tomorrow', new Date(Date.now() - 1000).toISOString()]) {
+  for (const windowEnd of [undefined, 'tomorrow', new Date(Date.now() - 1000).toISOString(), '+010000-01-01T00:00:00.000Z']) {
     const run = await diagnose(t, { windowEnd });
     assert.equal(run.record.migration, 'NOT RUN', String(windowEnd));
     assert.deepEqual([run.calls.length, run.ran.teardown, run.ran.w4], [0, 1, 1], 'No child without a valid window; teardown and W4 still run');

@@ -1517,7 +1517,7 @@ test('HARNESS ONLY: LD-3 g-tamper: only state and updatedAt of the two root jour
   assert.deepEqual(tamperChanges(base, L(base.lti.entries.slice(1, 3), base.app.entries.slice(1))), [names, bytes], 'One deleted file');
   const nested = L([...base.lti.entries.slice(1), f(`${P}/.storage-journal.json`, 'N1')], base.app.entries.slice(1));
   assert.deepEqual(tamperChanges(nested, L([...base.lti.entries.slice(1), f(`${P}/.storage-journal.json`, 'N2')], base.app.entries.slice(1))), [bytes], 'A nested journal is never exempt');
-  assert.deepEqual(tamperChanges(base, L(base.lti.entries.slice(1, 3), [...base.app.entries.slice(1), f('lti.db', 'R1')])), [names, bytes], 'A move across volumes keeps no name');
+  assert.deepEqual(tamperChanges(base, L(base.lti.entries.slice(1, 4), [...base.app.entries.slice(1), f('lti.db', 'R1')])), [names, bytes], 'A move across volumes keeps no name');
   const j = (json) => ({ present: true, sha256: 'x', json });
   const fsB = { lti: { journal: j({ opId: 'o', state: 'swapped', backupId: 'b', updatedAt: '1' }) }, app: { journal: j({ opId: 'o', state: 'swapped', backupId: 'b', updatedAt: '1' }) } };
   const after = (lti, app) => ({ lti: { journal: j(lti) }, app: { journal: j(app) } });

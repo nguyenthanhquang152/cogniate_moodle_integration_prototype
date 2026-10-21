@@ -117,5 +117,6 @@ test('HARNESS ONLY: V8-4 a link, a wrong mode or owner, or a missing or wrong wi
   blocked(w, 'window', { windowStart: w.w.replace('Z', '+00:00') });
   blocked(w, 'window', { windowStart: '2026-10-21T13:00:00Z' });
   blocked(w, 'window', { windowStart: new Date(w.s + 5).toISOString() });
+  blocked(w, 'window', { windowStart: '-000001-01-01T00:00:00.000Z' }); // a valid toISOString() time, not the exact form of §9.1
   blocked(w, 'handoff file', { file: undefined });
 });
