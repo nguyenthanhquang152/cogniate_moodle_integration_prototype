@@ -13,7 +13,7 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 03:25 UTC
+### Current checkpoint — 2026-10-21, 03:27 UTC
 
 The new test candidate is `55c33a3e2d60670b5e759a79144c96bd213fca1f`.
 Product code is unchanged from `a784522`. Both storage source reviews approve that product code.
@@ -29,10 +29,15 @@ The case took about 365 milliseconds, not 365 seconds. Reports preserve the corr
 Cleanup left no owned containers, volumes or networks. All seven protected volume records were unchanged.
 The outer network comparison failed because its initial Docker view was cached. That raw failure remains recorded.
 
-Common QA has the sole Docker window. Three Claude Code Opus 5.5 xhigh workers are active:
-- Common QA: `ctx_4446d0034a39`, prepares a fresh full M1 and legacy run at `55c33a3`, port 8443 and subnet 172.29.
-- Canvas QA: `ctx_f3f20494787a`, has an approved sink-evidence judge and holds wrapper R4, host only.
-- Reviewer-B: `ctx_d443917168e5`, rechecks one external cleanup guard and the recorded run procedures, read only.
+Common QA has the sole Docker window. Two Claude Code Opus 5.5 xhigh workers are active:
+- Common QA: `ctx_4446d0034a39`, runs fresh full M1 and legacy at `55c33a3`, port 8443 and subnet 172.29.
+- Canvas QA: `ctx_f3f20494787a`, has approved sink-evidence and wrapper tools, host only until the window transfers.
+
+The full runner started at 03:25:14 UTC after W1–W3 passed. It is in round 1 SIM; no complete round result is available yet.
+The fresh source clone is `~/cogniate-qa-runs/m3-frozen-55c33a3-20261021T0315Z/source`.
+Outer evidence is `~/cogniate-qa-runs/m1-full-55c33a3-20261021T0324Z`.
+The Lead checked all three gate summaries and the exact W3 evidence hash reported in `msg_ecc8aad1e9a9`.
+The formal boundary follows Docker wake and uses live SystemTime 03:25:12.190 UTC. All seven protected records match the original baseline.
 
 Two complete 488-row rounds, legacy suites, fresh M2 and three T7 runs are still required at one accepted candidate.
 Final conformance and guides remain queued behind runtime acceptance.
@@ -123,6 +128,10 @@ R4 manifest SHA-256: `0f5b1e9c794a25e71318a7d9dd3533c9e7327d4f4a6c76b8b622722eec
 R4 changes only the cleanup guard, its self-test and output, and the setup plan. QA reports 32 lane controls passing.
 R3 files are preserved under `tools/superseded/r3/`; its old absolute-path manifest no longer describes the live R4 files.
 Reviewer-B task `task_a340dc6a6be7` owns the bounded R4 recheck. These tool reviews give no T7 runtime credit.
+That task settled with APPROVE in `msg_bbf18de88920`. B-TW-01 is closed; B-TW-02/03 remain mandatory run procedures.
+Reviewer-B reproduced 32 controls and independently checked positive cleanup and three ownership-doubt cases.
+The Lead accepted exact R4 and sink-v2 bytes for runtime use in `msg_89998cbe1554`.
+No further optional tooling changes are required. Reviewer tasks are settled; Common QA's runtime and Canvas QA's verification remain active.
 Existing sticky ownership failures and event-watcher failures remain mandatory.
 The runner must use a fresh detached exact-SHA checkout with `--checkout`, three runs, demo, confirmation and `--keep`.
 Record clean HEAD, no `.env` and no `node_modules` before READY. Bind the final summary to the same checkout, SHA and project.
