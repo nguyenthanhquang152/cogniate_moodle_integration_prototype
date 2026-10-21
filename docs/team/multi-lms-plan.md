@@ -13,7 +13,37 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 13:03 UTC
+### Current checkpoint — 2026-10-21, 13:25 UTC
+
+Independent design testability is FAIL for revision 3 at `ab285856`.
+The report is committed unchanged at `0468b198d2e1cdb92b6b4bb243cb7fc2e3ac40c8`.
+Path: `docs/reviews/M1/storage-repair-testability-qa.md`; SHA-256 `de4116bf4f30dc019fdf76a9d18bf6c35fa7f0737b4e0ae6434d8cd653e91af3`.
+The Lead read it and checked the frozen criterion map (`c99cf106cf7abf1653e67174736749ee7d78648a25c51757af8af24a6749e808`).
+QA-SRT-01 confirms the same scan-scope MAJOR as A-SRR-02.
+QA-SRT-02 through -05 clarify final modes, partial-plant restore, handoff identity and all 21 cleanup sites.
+The Architect received the frozen report and the bounded correction decisions. No harness edit is authorized yet.
+
+The Lead accepts PR-1 through PR-4 and PR-6 as controls for existing rules; PR-5 uses the actual npm path.
+Snapshot-upgrade scan points must be explicit before full acceptance. A scan hit keeps the affected scratch as evidence.
+Structural mock results must match predeclared row/cause expectations; arbitrary assertion failures are not acceptable.
+The unchanged P-1a and O-1 text remains confirmed. R1-A retains both source approvals.
+
+The first testability task settled successfully. Orca rejected reuse of its structured chat with `terminal_unsupported_for_agent_session`.
+The Lead checked that the new task was still ready and no dispatch had been created, then released the completed worker.
+A fresh QA instance now owns the bounded follow-up; its report must state that it did not make the Round1 map.
+The earlier delivery was acknowledged before the failed reuse was resolved; the release and replacement above close that cleanup decision.
+
+Three workers are active, all Claude Code Opus 5.5 xhigh:
+- Architect: `task_72f5ba976e51` / `ctx_7d273cfa4858`.
+- Independent R1-A host QA: `task_7f8548e14769` / `ctx_f8c483b094d3`.
+- Fresh testability confirmation: `task_f8174e4a191e` / `ctx_b079f49025d8`, waiting for the exact revision freeze.
+
+Product QA disclosed two old design-review lines seen after its own criterion freeze. It will record the exposure and keep its pre-exposure criteria.
+No runtime window is active. The tests tree remains `4c7e067feedc644f955afee37806f06e7273dd04`.
+The latest full result remains FAIL at `aaa823b` (438 PASS, 50 FAIL). All full acceptance gates, conformance and guides remain pending.
+All 32 live-LMS rows stay UNVERIFIED; local Canvas stays DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 13:03 UTC
 
 Both reviewers approve the R1-A product source at `01ce5bc`.
 Reviewer-A is committed at `7fbf7c8` (report SHA-256 `9b21a285faf78521b3060c454779f9503f87dbac303f1f383d5637c66c136748`).
