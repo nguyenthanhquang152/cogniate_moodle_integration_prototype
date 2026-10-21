@@ -13,7 +13,34 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 15:47 UTC
+### Current checkpoint — 2026-10-21, 16:14 UTC
+
+The harness has a source-review freeze at `5f184771d835fcf03701053c6b11a00ec7f0ccf3`.
+All 21 authorized code and test paths are committed. The tests tree is `b7aa39ae22acd33671e09857dd66412dcc77b8fd`.
+This is a WIP review snapshot, not candidate C or acceptance.
+QA reports 105/105 self-checks PASS under umask 077 and 022, with zero skips, Docker calls or temporary leftovers.
+Both complete post-grant runs ended after the last source write. The Lead checked their summaries and held file hashes.
+The earlier 99/101 results remain preserved.
+
+Three workers are active, each requested and effective Claude Code Opus 5.5 xhigh:
+- Harness QA `task_6c53cbbc403c` / `ctx_f189530f67c1` runs the 133-mutant private campaign and writes its final report.
+- Source Reviewer-A `task_900f34785612` / `ctx_02b5d009ee21` checks correctness, safety and conformance.
+- Source Reviewer-B `task_d3984e81680f` / `ctx_47285c0af009` checks operability, error handling and test discrimination.
+
+Both reviews use the fixed WIP commit and remain blind to each other's findings.
+QA must hold the 21 source paths stable. Any fix needs a coordinated next commit and re-review.
+The Lead will send final mutation evidence to both reviewers before their verdicts.
+Equivalent or masked mutants need actual evidence and explicit review; hypotheses do not count as detected faults.
+The final QA report, mutant campaign and both source verdicts remain pending.
+
+Q-R1A-01 remains closed at product `9f8ac62`, with independent QA PASS and both source approvals.
+Accepted harness criteria remain frozen triage `2d763fe` plus M1 precision `a60ba4a`.
+No Docker window is active. No push or main merge is authorized.
+The latest full runtime result remains 438 PASS and 50 FAIL at `aaa823b`.
+Next: close the harness gates, freeze C, run the diagnostic, two full rounds, legacy, fresh M2/T7, then final conformance and guides.
+All 32 live-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED.
+
+### Prior checkpoint — 2026-10-21, 15:47 UTC
 
 The Lead closes Q-R1A-01 for the bounded host release-status repair at product `9f8ac625443931242edd8da301c3d4f0d3e34290`.
 Independent QA Round 2 PASS is committed at `a045bfb35ac8f08a5cec85b33e05ee2d201b8403`.
