@@ -13,7 +13,21 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 19:03 UTC
+### Current checkpoint — 2026-10-21, 19:12 UTC
+
+**Candidate C diagnostic is running.** Lead grant `msg_c18858e1a424` gives only `ctx_1183f38cf351` the exclusive Docker window through `2026-10-21T21:15:00.000Z`. Actual runtime start: `2026-10-21T19:11:27.000Z`. Base lane `qa-multi-r1`; conditional storage lane `qa-multi-r1-st`; port 8443, subnet 172.29.0.0/16. Root: `/Users/quangnguyen/cogniate-qa-runs/qa-common-c-d3296dd-20261021T1842Z/diag`. No full round, legacy, M2 or T7 is granted yet.
+
+Window-level W1 wake, W2 advancing clock and W3 formal start passed. W3 live SystemTime was `19:11:24.430Z`, bridge `6dad4ee68548`, zero containers, nine volumes. The seven protected FULL records equal baseline `219da30b`; the two anonymous volumes remain. W3 SHA-256: `b0d08c98aa512838d4b27a59860267df286c1ec6822b17f9f1a2c0e38dad542c`. The stale pre-wake clock is preserved but is not boundary evidence. The Lead verified the W3 hash and its records.
+
+For this zero-credit diagnostic, the grant uses the reviewed entry point with one continuous, exclusive window. W1–W3 explicitly cover both named lanes. Each child still needs its own G1 identity, advancing Docker clock, fresh lane ownership boundary, protected-volume snapshots and cleanup. Continuous observation and one strict final W4 bind both lanes. The report must distinguish these window-level and lane-level records; it must not claim two separate W1–W4 sequences. Any discontinuity or ambiguous ownership is reported, never waived.
+
+Qualified private launcher SHA-256: `f2fa6e06ffd0eee5f13f8d813997debcd9038073613411a60989b1be9966c6ba`; W4 wrapper v2: `860b072cf66208379aba840194b99401c2d643014cfce8e5720ec02fd2aa3e4f`. Boundary controls 30/30, clone guard 25/25, W4 controls 9/9. The v1 controls took about 16 minutes because their stopped synthetic children were unreaped; v2 handles that state and passed 9/9 in about two minutes. Both versions and the initial invalid PATH-stub attempt remain in evidence. Source C is unchanged.
+
+Runtime QA estimates 30–45 minutes for this diagnostic; passing storage duration is not measured. Migration must pass all 12 rows and every run-or-stop condition before the 70-row storage phase starts. The result, strict W4, scans and window return must precede another grant.
+
+The optional `--harness-only` preparation command hit its existing 120-second wrapper timeout: 145 PASS, zero FAIL, one cancelled and six interrupted files. This is not a diagnostic or full-runtime result. The accepted standalone suites remain 142/142. Sole remediation owner `ctx_898acbaef3a6` traced the cause to `run-m1.mjs:71` and proposed a finite 30-minute bound for that self-test call only. No change or rerun is granted yet; the Lead will consolidate it with the diagnostic findings before a new candidate cycle. The direct-child timeout cleanup limit is a separate observation. Runtime QA preserved the interrupted scratch listing before removing only its own synthetic scratch under the earlier cleanup grant. Unrelated orphan PID 64140 was not touched.
+
+### Prior checkpoint — 2026-10-21, 19:03 UTC
 
 The complete M4 guide draft is committed at **`82aff912ff1dc31dce444ff93a01452cb51ca18c`** (nine owned files). It adds Canvas and Blackboard admin guides, the operator guide and an offline walkthrough, and updates the teacher guide, troubleshooting, README and human handoff links. Every new procedure step has an evidence label. All 32 real-LMS checks remain UNVERIFIED.
 
