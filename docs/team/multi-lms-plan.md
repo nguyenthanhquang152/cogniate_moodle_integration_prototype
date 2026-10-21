@@ -13,7 +13,7 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 03:49 UTC
+### Current checkpoint — 2026-10-21, 03:57 UTC
 
 The new test candidate is `55c33a3e2d60670b5e759a79144c96bd213fca1f`.
 Product code is unchanged from `a784522`. Both storage source reviews approve that product code.
@@ -29,14 +29,19 @@ The case took about 365 milliseconds, not 365 seconds. Reports preserve the corr
 Cleanup left no owned containers, volumes or networks. All seven protected volume records were unchanged.
 The outer network comparison failed because its initial Docker view was cached. That raw failure remains recorded.
 
-Common QA has the sole Docker window. Two Claude Code Opus 5.5 xhigh workers are active:
-- Common QA: `ctx_4446d0034a39`, runs fresh full M1 and legacy at `55c33a3`, port 8443 and subnet 172.29.
-- Canvas QA: `ctx_f3f20494787a`, has approved sink-evidence and wrapper tools, host only until the window transfers.
+The attempt at `55c33a3` stopped with exit 1 at 03:51 UTC. No Docker window is active.
+Two Claude Code Opus 5.5 xhigh workers are finishing their reports:
+- Common QA: `ctx_4446d0034a39`, records the failure, cleanup and private-artifact permission correction.
+- Canvas QA: `ctx_f3f20494787a`, completes its independent partial evidence. M2 and T7 wait for the next candidate.
 
-The full runner started at 03:25:14 UTC after W1–W3 passed. Round 1 SIM passed all 394 cases; snapshot isolation is next.
+The full runner started at 03:25:14 UTC after W1–W3 passed. Round 1 SIM passed all 394 cases; snapshot isolation passed all six.
 The Lead checked the 394 PASS rows and their single product/test SHA. `M1-17.canvas.repeat` now passes in the runtime run.
-Canvas QA independently confirms all 232 SIM Canvas rows and the sink evidence PASS. The remaining Canvas row needs snapshot isolation.
-This is phase evidence only. The complete 488-row round and second matching round remain pending.
+Canvas QA independently confirms all 232 SIM Canvas rows and the sink evidence PASS. Its final isolated-row judgement is pending.
+Snapshot upgrade failed on `M1-38.common.h1` during the pinned 011 seed stage.
+The test compares service keys from Canvas launches with different resource links; the contract makes that identity part of the key.
+Common QA proposes the same explicit resource link for both launches. No product defect is shown.
+Repair task `task_e3b78fb1a605` owns only the common probe and its new QA report. Both independent reviews must follow.
+The remaining 87 round-1 rows, all 488 round-2 rows and legacy did not run. This attempt remains FAIL.
 The fresh source clone is `~/cogniate-qa-runs/m3-frozen-55c33a3-20261021T0315Z/source`.
 Outer evidence is `~/cogniate-qa-runs/m1-full-55c33a3-20261021T0324Z`.
 The Lead checked all three gate summaries and the exact W3 evidence hash reported in `msg_ecc8aad1e9a9`.
@@ -46,6 +51,12 @@ Round 1 SIM evidence is `qa-multi-r1-55c33a3e-2026-10-21T03-25-15-066Z` under th
 Common report: `msg_1681eae62d2a`; independent Canvas report: `msg_b0028890055b`.
 Case-results SHA-256: `744936ffffb9a66395a7fbd05ef9591d4f642a6b09411a2a32aea23791a0a00c`.
 Final phase health is default for both services, with no knobs or simulation profiles. The phase isolation and teardown checks pass.
+
+Failure report: `msg_294eb3092b5d`. The Lead checked 394 PASS, six PASS and one FAIL in the three phase result files.
+The Lead also checked the W4 end and strict comparison summaries: both pass with no problems.
+QA reports zero remaining containers or lane resources, unchanged built-in networks, and all seven protected volume records unchanged.
+The public byte scan reports no captured-value hits in 826 public files or 32 raw logs.
+Raw browser traces remain private. Canvas QA found clone permissions wider than reported; Common QA must record the narrow correction.
 
 Two complete 488-row rounds, legacy suites, fresh M2 and three T7 runs are still required at one accepted candidate.
 Final conformance and guides remain queued behind runtime acceptance.
