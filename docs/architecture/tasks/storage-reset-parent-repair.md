@@ -4,7 +4,9 @@ Owner: Architect (design). Implementation: backend Author. Verification: indepen
 
 Status on 2026-10-21 (text precision: task `task_c35a2019e5f6`):
 - Source and design: Reviewer-A (`docs/reviews/M1/storage-reset-parent-reviewer-a.md`, committed at `9168fed`) and Reviewer-B (`storage-reset-parent-reviewer-b.md`, committed at `9f0d9ec`) APPROVE design `35d093d` and implementation `89fb4b4`, for source only, with no BLOCKER or MAJOR. This text then states their three deduplicated nonblocking items more precisely (§2, §3, §8 and ADR-012 §15). No rule, row, assertion or gate changes.
-- Runtime: §6 RA, RC and RD ran (diagnostic only; results in §6). §7 Q1 and Q2 ran on `89fb4b4`. The Lead reports (`msg_47de9bb4480c`) that the three Q1 cycles passed and that Q2 failed its target `FRESH` assertion for both volumes. QA classifies the evidence; the cause is not established. There is no QA verdict and no overall Q1/Q2 PASS. The §8 item 5 gates are pending.
+- Runtime: §6 RA, RC and RD ran (diagnostic only; results in §6). §7 Q1 and Q2 ran on `89fb4b4`. The Lead reports (`msg_47de9bb4480c`) that the three Q1 cycles passed and that Q2 failed its target `FRESH` assertion for both volumes. The §8 item 5 gates are pending.
+- QA report (task `task_d4c38a8b5bf7` crosslink): `docs/reviews/M1/reset-parent-q1q2-qa.md`, committed at `faa77a2`, SHA-256 `6158c9ea47eb9074e01dc120add81516e48d59919e85e0222b062fccf23c70b5`. Verdict FAIL: Q1 PASS (3 of 3 cycles); Q2 FAIL at `Q2-IMPORT-REFUSAL` (finding QA-RP-01). QA classifies QA-RP-01 as a contract conflict in the `content_missing` refusal, not as a regression of this repair. The report stays unchanged.
+- Resolution of QA-RP-01: [storage-content-refusal-repair](storage-content-refusal-repair.md) (ADR-012 revision 3.5, proposed). The §7 Q2 text and every assertion stay the same. §8 items 4 and 5 run on the candidate SHA of that repair.
 - The design, the runtime result and the task are not accepted.
 
 ## 1. Facts
@@ -139,7 +141,7 @@ QA, independent of the Author, runs in a fresh QA lane on the repaired candidate
 
 ## 8. Acceptance and follow-ups
 
-Acceptance (no gate changes). Order: 1, then 2 in parallel with 3, then 4 and 5.
+Acceptance (no gate changes). Order: 1, then 2 in parallel with 3, then 4 and 5. Items 4 and 5 now run on the candidate SHA of [storage-content-refusal-repair](storage-content-refusal-repair.md) §8 (QA-RP-01).
 1. Author: `npm run check` is green, with the §5 cases and the mutation record.
 2. Reviewer-A and Reviewer-B, blind and independent: ADR-012 revision 3.4, this brief and the implementation diff together.
 3. §6 RA and RC (diagnostic only).
