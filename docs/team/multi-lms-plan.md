@@ -13,10 +13,12 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 06:44 UTC
+### Current checkpoint — 2026-10-21, 07:08 UTC
 
 Source candidate `9cdd768` is approved by both independent reviewers. Fresh host-only preparation also passed.
-Full runtime verification waits for the owner's quiet-Docker-window choice. No runtime grant is active.
+Common QA has resumed with a conditional runtime grant. Canvas QA has resumed as the independent host-only judge.
+The Lead withdrew its user-confirmation hold after checking AC-M3-06. The contract requires measured isolation, not a separate user promise.
+The quiet-window question remains unanswered. Fresh W1–W4 checks and the strict environment comparison remain required.
 
 The full attempt at `51a80b51de2c7491466a21a678418ff8178d247d` failed at 05:57:35 UTC.
 SIM passed 394 cases and snapshot isolation passed six. The snapshot-upgrade phase recorded three passes and one failure.
@@ -37,7 +39,7 @@ The Lead checked the exit record, row records, W4 summaries and secret-scan summ
 The scan found no captured values in 33 raw logs or 879 public files. Raw browser traces remain private.
 Common QA reports zero remaining lane resources. Both runtime workers settled with outcome failed; their sessions were released.
 The Common reports are committed in `ce09703`; the Canvas reports are committed in `0596431`.
-No worker has a Docker window. The owner has been asked to arrange a quiet window for the next full run.
+At that checkpoint, no worker had a Docker window. The owner was asked to arrange a quiet window for the next full run.
 
 Task `task_3a4500f57586`, dispatch `ctx_65780150196a`, owned the focused host-only repair.
 Requested and effective settings match Claude Code Opus 5.5 xhigh.
@@ -60,9 +62,25 @@ Only expected session identifiers, comments and paths changed in the copied tool
 The worker saved its handoff at `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-9cdd768-20261021T0622Z/prep/handoff.md`.
 Its SHA-256 is `168c94ddf659c7a43ea0a5ee08d7b17e04ebe2b087523bffbd502d354d6b97d7`; the Lead checked the file and hash.
 Message `msg_8ffe2eb31001` settles the retry with outcome failed because runtime is NOT RUN. Preparation succeeded and remains available.
-The Lead accepted that outcome, released the session and acknowledged the delivery. All 144 worker records have no active or reclaimable resources.
-Runtime remains NOT RUN while the quiet-window decision is pending.
+The Lead accepted that outcome, released the session and acknowledged the delivery. At 06:44 UTC, all 144 worker records had no active or reclaimable resources.
+That preparation attempt gives no runtime credit.
 The seven protected volumes and both unrelated anonymous volumes must remain untouched; fresh W1–W4 checks are still required.
+
+Canvas retry `ctx_374ca3cec6a5` prepared its independent tools for the same candidate, under `msg_320a8f66e700`.
+Requested and effective settings match Claude Code Opus 5.5 xhigh; acknowledgment is `msg_091d57fe3d03`.
+Its preparation passed: six tool self-tests, 73 harness checks, typechecking, 488/233 inventory and six M2 harness checks.
+The Lead verified the clean source, handoff hash and all 22 R4 plus four sink-manifest entries against predecessor bytes.
+Root: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-9cdd768-mVjZIekp`.
+Handoff SHA-256: `4a0a1b5eac174e220f67d205bacdeae0fdee5e21ce9bf9ea92d485f48cbce3e4`.
+Message `msg_a867b85d536b` continues this attempt as the independent Canvas judge; acknowledgment is `msg_7f51ff4169fc`.
+It has no Docker window. M2 and T7 need a later transfer after Common returns the window.
+
+Common retry `ctx_9e877dcb4b10` replaces the settled preparation attempt, using the same prepared source and qualified tools.
+Requested and effective settings match Claude Code Opus 5.5 xhigh; acknowledgment is `msg_98035bce3c98`.
+Authority `msg_4b7f865b8a34` and reply `msg_cfe2bdc2fdf9` grant the sole window for full M1 and legacy after fresh preflight checks pass.
+Lane: `qa-multi-r1`, storage `qa-multi-r1-st`, port 8443, subnet `172.29.0.0/16`.
+An unrelated change still fails the environment check. No unrelated resource may be changed or removed.
+Both complete 488-row rounds, legacy, independent Canvas checks, fresh M2 and T7 remain required.
 Product code remains unchanged from `a784522`. Final conformance and guides remain queued.
 B-BM-01 remains an accepted M4 test-coverage deferral. All 32 real-LMS rows remain UNVERIFIED.
 No push or main merge is authorized for this phase.
