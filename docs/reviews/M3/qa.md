@@ -544,3 +544,18 @@ Verdict for this diagnostic: **FAIL**. It gives no acceptance credit. M3 stays *
 | AC-M3-07 privacy | Secret scan 0 problems (38 captured and 17 stack values; 19 raw and 713 public files) | `secret-scan.json` `dd9cf887…` |
 
 Next: the remediation owner diagnoses `@backup-B`; then a new frozen candidate, its reviews and a new diagnostic grant. Two complete 488-row rounds, all 12 legacy groups, fresh M2 and T7 stay required. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`.
+
+## Storage-repair diagnostic at candidate C2 `0938ea1`: FAIL (zero credit), 2026-10-21
+
+Verdict for this diagnostic: **FAIL**. It gives no acceptance credit. M3 stays **FAIL** (incomplete). Full record: `docs/reviews/M1/qa.md`, section "Storage-repair diagnostic at candidate C2 `0938ea1`". Owner: fresh independent common/Blackboard runtime QA, Claude Code Opus 5.5 xhigh, task `task_b591bb888e58`, dispatch `ctx_0700abfb3430`. Candidate C2 `0938ea1bd29acd00a67c7fc1cc8d7606edf2802d`, tests tree `290a773f1c9779693153ae77b46cc8ceb7eb83f4`; product and build paths equal `9f8ac62` (README.md is the only non-docs, non-tests difference; Docs-owned). Window: Lead grant `msg_f14739b51207` (diagnostic only), runner 20:14:11Z–20:38:51Z, returned at about 20:39Z (`msg_a07d09c540e3`). Lanes `qa-multi-r1` and `qa-multi-r1-st`, port 8443, subnet `172.29.0.0/16`.
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Diagnostic result | FAIL. Migration 12/12 PASS. Storage 64 PASS, 6 FAIL of 70 rows. Three first causes: `g-prepared-lti` "A verified rolled_back", `g-orphan-stopped` "The maintenance container still runs", `e-import` "legacySources equal the manifest list". Three dependents: `g-recover-idempotent`, `e-kept`, `e-provenance-restore`. `@backup-B` and all three `@post-B` runs PASS. | phase artifacts under `<root>/source/tests/host/artifacts/`; `D/storage-results.json` `80fe2f8a…` |
+| AC-M3-01 G-1 identity binding | Both children record `G1-IDENTITY` PASS. W3 matches the bound OS, CLI and Compose hashes, engine 29.9.1 and the image `sha256:44fce696…` (0 differences). Diagnostic evidence only. | `g1-client-identity.json`, `w3-formal-start.json` `954d2c40…` |
+| AC-M3-02 (a) two full rounds | Not run (diagnostic grant only) | — |
+| AC-M3-02 (b) legacy | Not run. Test-id change record (static, no Docker): between `d3296dd` and C2, 0 files changed under `tests/acceptance`, the legacy host runners `run-t2/t3c/t4a/t4b/t5/t8.mjs`, `lib.mjs` and `core.mjs`. The tests diff has 3 files, all in the storage harness and its runner. | `git diff --name-only d3296dd 0938ea1 -- tests` |
+| AC-M3-06 isolation and cleanup | Both children: `M3-ISOLATION` PASS and `TEARDOWN` PASS (0 left; ownership 0 errors, 0 kept, 0 failed). Strict W3-to-end comparison: 0 problems. The 7 protected FULL records and the anonymous volumes `a17056b8…` and `d5df35bd…` are unchanged; the bridge, host and none Ids are unchanged. | `w4-compare.json` `56354999…`, `w4-end.json` `9b73a81f…` |
+| AC-M3-07 privacy | Secret scan 0 problems (38 captured and 17 stack values) | `secret-scan.json` `0e01aed7…` |
+
+Next: the remediation owner diagnoses the three first causes in one batch; then a new frozen candidate, its reviews and a new diagnostic grant. Two complete 488-row rounds, all 12 legacy groups, fresh M2 and T7 stay required. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`.

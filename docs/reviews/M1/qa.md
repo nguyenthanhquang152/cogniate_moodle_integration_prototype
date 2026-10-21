@@ -2085,3 +2085,128 @@ Diagnostic 18 min 21 s (runner start to exit). Migration child 4.0 min. Storage 
 ### Next
 
 The remediation owner diagnoses the `@backup-B` first cause; the Lead decides the repair. A repair needs a new frozen candidate, the reviews that triage §9 step 6 requires and a new diagnostic grant. The two complete 488-row rounds and all 12 legacy groups did not run and stay required. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`.
+
+## Storage-repair diagnostic at candidate C2 `0938ea1`: FAIL in `storage` (three first causes), zero credit, 2026-10-21
+
+Verdict for this diagnostic: **FAIL**. It gives no acceptance credit (triage revision 4 §9 step 7). Migration passed 12 of 12 rows, and the run-or-stop rule let the storage child start. In `storage`, all 70 rows ran: 64 PASS and 6 FAIL. Three FAIL rows are independent first causes. The other three are "not run: prerequisite …" behind them. The repaired `@backup-B` and all three `@post-B` runs passed. Owned cleanup and the strict W4 passed. No full round, legacy group, M2 or T7 ran. All sections above stay as history; the `d3296dd` diagnostic stays history with zero new credit.
+
+Owner: a fresh, independent common/Blackboard runtime QA session. Requested and effective settings: Claude Code Opus 5.5 (`claude-opus-5-5`) at xhigh effort, no subworkers. Task `task_b591bb888e58`, dispatch `ctx_0700abfb3430`, session `orca_session_id:e6784e80-d6ae-4416-8857-6ce9b8a16a75`, run `run_ebe671ad72a9`. This session did not write the product, the tests, the triage or any review. It does not judge Canvas rows. It proposes no fix: the remediation owner `ctx_898acbaef3a6` owns every repair.
+
+### Identity and command
+
+| Item | Value |
+| --- | --- |
+| Candidate C2 | `0938ea1bd29acd00a67c7fc1cc8d7606edf2802d` (tree `20851464`), tests tree `290a773f1c9779693153ae77b46cc8ceb7eb83f4` (= the reviewed repair `c4de96f`). Lead freeze `msg_ec77cf6a22f6`. |
+| Product and harness | Tests delta from C `d3296dd`: exactly `tests/host/run-m1.mjs` (`8e1ef65c…`), `storage-rows.mjs` (`0958cc49…`) and `storage-rows.selftest.mjs` (`9ef56478…`). Non-docs delta from `c4de96f`: none. Outside `docs/` and `tests/`, the only difference from `9f8ac62` is `README.md` (Docs-owned M4 draft `82aff91`; no test reads it, and `infra/compat` does not list it). `infra/compat/storage-compat.sha256` 4 of 4 OK. |
+| Criteria read | Charter; phase-plan top; triage revision 4 at `2d763fe` (SHA-256 `ade4e8a0f9e54823040828758b7683d5c9b230587747f3ef3c89ef8e99f9a032`, verified at C2); M1, M3, ADR-012; storage-command conformance; the accepted host repair report `7f4cc61` (`b6248d0e…`) and Reviewer-B `572fe4e` (`7527cc2a…`) as the Lead named them; the Reviewer-A approval at C2 as named in `msg_ec77cf6a22f6`. |
+| Window | Lead grant `msg_f14739b51207`: exclusive, diagnostic only, until `2026-10-21T22:15:00.000Z`. Returned at about 20:39Z (`msg_a07d09c540e3`). |
+| Lanes | Migration `qa-multi-r1`, storage `qa-multi-r1-st`; port 8443; subnet `172.29.0.0/16` |
+| Private root | `/Users/quangnguyen/cogniate-qa-runs/qa-common-c2-20261021T2006Z` (0700, made under umask 077). `source/` = `git clone --no-hardlinks --no-checkout` of the worktree, then `checkout --detach` C2. Checks: 0 status lines (the only ignored path is `tests/node_modules/`); no `.env`, infra state or `tests/host/artifacts`; no non-sample hook and no `core.hooksPath` in any scope; push URL disabled; pins `9f96f7b`, `b0b83a8` and `ccdd9ef` present (`prep/02-source-checks-C2.txt` `db91f420…`). |
+| Dependencies | No npm command ran in the preparation. `tests/package.json` (`685c10cf…`) and `package-lock.json` (`213718dd…`) are equal at C2, at `d3296dd` and in the old evidence source. So I copied that source's `tests/node_modules` (read only; it stayed at `d3296dd` with 0 status lines). The per-file SHA-256 and link-target manifest and the modes are equal (1,928 entries; `452a27f9…`). The lock comparison gives 61 installed, 0 extra and 0 mismatched packages; the 50 absent entries are optional packages for other platforms. |
+| Tools | `<root>/tools`: 19 files byte-identical to the qualified `d3296dd` tools (the 16 `aaa823b` files plus `launch-diag.sh` `f2fa6e06…`, `w4-diag.sh` v2 `860b072c…` and its control file). New: `launch-diag-c2.sh` `6b0edb6886142949a827487668472e87d11234a0271b0b423741c9f365060403`. It differs from `launch-diag.sh` only in line 18, the `FROM`/`TASK`/`DISPATCH` literals (diff `767ccd2a…`). The Lead read it before the grant. Tool behavior is unchanged, so I ran no new control. The qualified controls stand: boundary 30/30, clone guard 25/25, W4 v2 9/9. |
+| Time (UTC) | Launcher 20:13:55Z; runner 20:14:11Z–20:38:51Z; `w` 20:14:11.663Z; migration child 20:14:11.769Z–20:18:00.358Z (summary); storage child 20:18:00.498Z–20:38:29.970Z (summary); W4 20:38:30Z–20:38:51Z; runner exit 1; launcher done 20:38:52Z |
+
+Runner child (`diag/public/command.txt`, `b7b03e33…`), started by `launch-diag-c2.sh` after W1–W3:
+
+```sh
+cd /Users/quangnguyen/cogniate-qa-runs/qa-common-c2-20261021T2006Z/source
+umask 022
+COMPOSE_PROJECT_NAME=qa-multi-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 STACK_PROFILE=default \
+COURSE_FIXTURES_DIR=/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses \
+TMPDIR=<root>/diag/tmp \
+node tests/host/run-m1.mjs --phase diagnostic --sha 0938ea1bd29acd00a67c7fc1cc8d7606edf2802d \
+  --test-sha 0938ea1bd29acd00a67c7fc1cc8d7606edf2802d --source <root>/source \
+  --window-end 2026-10-21T22:15:00.000Z --w4-command <root>/tools/w4-diag.sh --diagnostic-root <root>/diag/private
+```
+
+The launcher removed every `QA_*`, `npm_*` and `NPM_CONFIG_*` variable before any child started (`public/env-names.txt`: 63 names, 0 of these). So `QA_ORACLE_CREATE_OBSERVE` was absent; in C2 it is read only at `storage-fixture-script.mjs:430–431` (opt-in) and in one self-test. Both children used the core default clone root, with no `--checkout` or `--workdir`. The launcher ran in its own process group (`nohup` and `setpgrp`), so no tool timeout could stop it.
+
+### Preparation (host only, before the grant)
+
+- Inputs: HTML `9f04d3ab…` and SCORM `a685744e…` match. The protected baseline file is `219da30b…` (7 names). Docker CLI `678271…` and Compose `1ec06408…` were checked by file hash only. macOS 27.0.1 arm64; Node 24.21.0; port 8443 had no listener. Static inventory (a `git archive` copy of the tests tree): 488 rows, 488 distinct; `sim` 394, `snapshot-isolated` 6, `snapshot-upgrade` 6, `migration` 12, `storage` 70; common 114, Blackboard 141, Canvas 233; the only conditional row is `M1-41.common.c-host-negative`. These are the same as at `d3296dd`. The V4-9 token counts of the runtime modules equal the triage rule exactly.
+- I did not repeat `--harness-only`, the host suites or the tool controls (Lead direction). The Lead accepted the host evidence of the repair.
+- Network: the preparation made no npm call. The runner's nested `npm run` commands (`stack:*`, `test:acceptance`) used the real HOME, as in every accepted run (no `~/.npmrc`). I make no runtime no-network claim. R2-D-2 of the repair report stays as recorded.
+- Disclosed: my first held-source record had two lines broken by the zsh `:t` modifier; record v2 repeats them correctly, and both files stay. The first READY (held source) is superseded by `prep/READY-C2.md` (`67fcb9e5…`; sent as `msg_e45dd76c9373`).
+- Observation: the unrelated orphan `node --test tests/host/m1-control.selftest.mjs` (PID 64140) still runs on the host. It is not mine and stayed untouched.
+
+### Window-level boundary (W1–W4) and lane-level core boundaries
+
+Lead clarification (`msg_c18858e1a424`, repeated in `msg_f14739b51207`): one W1/W2/W3 binds both lanes to this continuous exclusive window. Each child records its own core boundaries. The continuous sampler and one strict W4 bind both lanes through the end. There are not two W1–W4 sequences.
+
+| Step | Result | Evidence (`<root>/diag/public/`) |
+| --- | --- | --- |
+| Ancestor check | Home 0750; group members `quangnguyen root` only | `ancestor-boundary.json` `5b0cbe4e…` |
+| W1 wake | Pre-wake idle-VM cache (clock 19:34:35Z at host 20:13:56Z; this is not boundary evidence). Wake container on the cached image `sha256:44fce696…` with `--pull never --rm --network none`; 0 remain. The wake recreated the bridge (`6dad4ee68548` → `a06a73720d59`). | `w1-wake.json` `96088cab…` |
+| W2 liveness | PASS (advancing clock) | `w2-liveness.json` `ab68a71c…` |
+| W3 formal start | Live `SystemTime` 20:14:08.856Z (`runStartSecond` 1792613648). OS, CLI, Compose, engine 29.9.1 and image match the bound values (0 differences). 0 containers. 9 volumes: the 7 protected FULL records equal the baseline, plus anonymous `a17056b8…` (05:26:47Z) and `d5df35bd…` (05:32:46Z). Both lanes fresh; port free; no subnet clash; 0 problems. | `w3-formal-start.json` `954d2c40f407300cce9bbcb49fd30ee30d77eeb2c2c2a38cd7bdea6faa86ca5e` |
+| Lane core boundaries | Each child: `G1-IDENTITY` PASS, `PRE` PASS (fresh lane, Docker clock), protected-volume snapshots, `M3-ISOLATION` PASS, `TEARDOWN` PASS | phase `summary.json` (migration `df253ac8…`, storage `c912ebd8…`) |
+| Sampler | 98 samples, 0 failed, one bridge Id, 0 skew violations (max 0 ms), at most one compose project. The two "other" names are the storage lane's own `docker run` oracle and fixture containers (`qa-multi-r1-st-qa-oracle-…`, `qa-multi-r1-st-qa-fixture-…`). | `sampler/lane-containers.json` `c2c450eb…` |
+| W4 end and strict compare | End live 20:38:35.753Z; 0 containers; 9 volumes; both lanes fresh. Strict W3-to-end compare: **0 problems**. The 7 protected FULL records, both anonymous volumes and the bridge, host and none Ids are unchanged. | `w4-end.json` `9b73a81f…`, `w4-compare.json` `5635499933f0039fde2333290e407695435b8fbfaaa3e38bd57deb020394dd36` |
+
+### Migration phase (`qa-multi-r1-0938ea1b-2026-10-21T20-14-11-769Z`)
+
+- Child exit 0. 12 of 12 rows PASS: `M1-23.common` baseline, backup, backup-running, upgrade; `M1-30.common` postwrite, reject-bytes, reject-missing, reject-backup-id, reject-project, restore, rollback; `M1-41.common.j-migration`.
+- Scan record: complete; 10 points; 0 hits, 0 corrections, 0 refusals, 0 problems.
+- `TEARDOWN` PASS; ownership record: 0 ledger errors, 0 kept, 0 failed, 5 removed.
+- Run-or-stop rule (a)–(f): all held (`diagnostic.json`: migration code 0, storage `RUN`, cause none). `D` = `<root>/diag/private/qa-m1-diagnostic-bdf74c14c174066e` (new, 0700). `H` = `D/handoff.json` (0600, written by the migration child in the window). `m123Clone` is the migration clone, and `m123Backup` is `qa-m1-private-backup-JOym38/original` (root 0700, made 20:16:22Z). The storage child got the same `H` and `w`, and `@old-schema-setup` passed its own handoff check.
+
+### Storage phase (`qa-multi-r1-st-0938ea1b-2026-10-21T20-18-00-498Z`)
+
+- Child exit 1. 70 of 70 row ids have one result: **64 PASS, 6 FAIL**, 0 NOT_APPLICABLE (`D/storage-results.json` `80fe2f8a…`). `G1-IDENTITY`, `PRE`, `CLONE`, `H1`, `M3-ISOLATION` and `TEARDOWN` PASS (0 left). No phase stop. 92 scan points, all with 0 hits, corrections, refusals and problems. Ownership: 0 errors, 0 kept, 0 failed, 4 removed.
+- Rows and steps: 81 step records = the 70 rows + 11 fixture runs. All 11 fixture runs passed: `@prepare`, `@seed`, `@seed-resume`, `@backup-B` (18 s), `@post-B` three times, `@legacy-place`, `@legacy-remove`, `@legacy-import-lane` and `@old-schema-setup`. Fixture runs are not rows. The runner `ERROR` record is the round check at the first non-PASS row; it is not a separate cause.
+- `c-host-negative` PASS (oracle probe `lock_not_enforced`; PASS is one of its two frozen permitted results).
+- The other rows passed, including the g-drill rows other than `prepared-lti`, `h-open-journal`, `g-orphan-refusal`, `g-orphan-complete` (127 s), `g-tamper`, both quarantine rows, `h-target-state`, `e-fresh-refusal`, `g-fresh-target`, `h-pair-mismatch`, `e-import-recover`, `e-changed-byte`, `e-added-wal`, `e-import-nonfresh`, `h-old-manifest`, `b-sequence`, `e-old-schema` and `e-content-missing`.
+
+**Three first causes (facts from the artifacts; no fix proposed).**
+
+| Id | Row (step) | Failed check | Facts |
+| --- | --- | --- | --- |
+| FC-1 | `M1-41.common.g-prepared-lti` (038), 4 s | "A verified rolled_back" (`tests/host/storage-rows.mjs:1392`) | `cmd/332` drill `--stop-after prepared-lti` exit 3 with `storage_drill_stop`; `cmd/333` `stack:up` refuses `journal_open`; `cmd/334` `--recover` exit 1, "cancelled at the first journal write; the targets equal the state before (verified)". `cmd/335` file set: the lti journal has state `rolled_back`; the app journal is absent. `journalsAre` (`:332`) needs state `rolled_back` in both the lti and the app journal. ADR-012 §8 drill table: `prepared-lti` = "lti `prepared`, app not yet written". `g-prepared` (039) passed, with both journals `rolled_back` (`cmd/340`). The rest of this drill did not run. |
+| FC-2 | `M1-41.common.g-orphan-stopped` (054), 1 s | "The maintenance container still runs" (`orphanStart`, `storage-rows.mjs:1405–1416`) | The orphan restore (run `228ffa368ced145a`) took the lock at 20:34:36.445Z. The archived logs have no `storage_content_check` and no `storage_drill_pause` of that restore. The only earlier `storage_drill_pause` in `infra/.logs` is the `g-orphan-refusal` pause (20:32:25.836Z, op `afa56af2…`, resume 20:34:25.840Z). No reset came between them. `orphanStart` waits for `storage_drill_pause` in the group output or in any line of `lane.allLogLines()`, then sends SIGKILL to the group, then needs exactly one running `<lane>-storage-*` container. No `g-orphan-stopped-kill.json` was written. At 20:34:36.879Z, the next `stack:up` (`cmd/495`, run `e3358090…`) logged `storage_lock_reclaimed` with owner `228ffa368ced145a`. |
+| FC-3 | `M1-41.common.e-import` (069), 0 s | "legacySources equal the manifest list" | The identity `legacySources` (lti and app, `cmd/567`) = `lti-service/lti.db` `584617df…` and `cogniate-app/cogniate.db` `57edf5a9…`. The X2 manifest lists the same two names and digests. The check compares `name:sha256` with `path.basename(<manifest name>):sha256` (`lti.db`, `cogniate.db`). ADR-012 §8 restore table: import takes "`legacySources` from the manifest". The checks before it in that row passed. |
+
+Dependent rows (each "not run: prerequisite … did not pass"): `g-recover-idempotent` ← `g-prepared-lti`; `e-kept` ← `e-import`; `e-provenance-restore` ← `e-kept`.
+
+Notification order (disclosed): the Lead read step 038 in my artifacts and wrote first (`msg_5b8bd0a2f4ea`). My first-cause facts followed in `msg_7309dd27c6cc`. The consolidated list is `msg_66679b2e354b`. The frozen driver ran to its end unchanged; I made no retry.
+
+### Runtime checks (host read of the artifacts; `public/v-checks.json` `75bc496f…`, judge `prep/bin/vchecks.py` `359d7112…` = the `d3296dd` judge; V3-R record `public/v3-r-c2.json` `a9607d82…`)
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| V1-R `a-serialize` | **Met** | Run `X` = `70e872c5d52c9a5a`, spawned `pgid` 99609. The saved backup output has one acquire and one release of `X`. That release is the same event as the one release of `X` in the lock-log archive. `command` = `stack:data-backup` = the acquire command. The `stack:up` wait names owner `X`. Clock `lo` −7.9 ms, `hi` 59.1 ms; release 20:25:11.789Z. `StartedAt` margins over `R.ts + hi`: `lti-service` 2,328.3 ms, `cogniate-app` 2,395.6 ms. |
+| V2-R `d-mountpoint` | **Met** | Row PASS. Commands 132–136: listing → root plant → `meta` → `stack:up` → stop. 0 `EACCES` and 0 `source_unreadable` in `cmd/*.log`. Both `a-first-start-resume` quarantines (`cmd/268`, `cmd/277`) log `storage_quarantine_copy` and exit 0. No phase stop. |
+| V3-R `Origin` | **Met** | 0 `csrf_rejected` over the whole phase window: 5 segments (`absence.json` PASS; three before the `b-sequence` resets, one before the old-schema reset, the phase end) and the final copy. `e-old-schema` PASS. Platform 201 and connection 201: `@backup-B` (20:29:21Z, and the write after B at 20:29:30Z) and each `@post-B` (20:32:23Z, 20:34:34Z, 20:34:43Z). The judge printed `CHECK`, because its V3-R branch judged only the `d3296dd` failure case. So I read these facts by hand into `v3-r-c2.json`. Its `segments` field prints empty names; `absence.json` names the five segments. |
+| V4-R scans | **Met** | Migration: 10 points; storage: 92 points; all with 0 hits, corrections, refusals and problems; both records complete. |
+| V5-R P-1a | **Met by row assertions** | `a-fresh` PASS: the row asserts `ENOENT` and is BLOCKED otherwise; no separate `ENOENT` record is published. `d-content-folder` PASS; "unsafe case cleanup: uploads is a new empty 0700 directory (device 16777233, inode 10984586)"; the before-listings of the absent case are empty. |
+
+### Observed permissions
+
+| Path | Observed |
+| --- | --- |
+| Private root, `source/`, `tools/`, `prep/`, `diag/` and its `public/`, `private/`, `tmp/` | 0700 folders and 0600 files (umask 077). The copied `tests/node_modules` has 0 entries with group or other bits. |
+| Phase clone roots (runner, umask 022) | Born 0755 by the runner, then set to 0700 by the clone guard (2 clones, 2 checkpoints, 1 captured-secret file set to 0600, 0 problems). They were not private from creation; this is the accepted narrow guard. |
+| Lane private roots (migration and storage) | The root and its five entries `bin/`, `out/`, `backups/`, `quarantine/` and `scratch/` are 0700. The only entry with group or other bits is `bin/storage-fixture-script.mjs` at the required 0555. |
+| `qa-m1-private-backup-JOym38` | 0700; 30 entries; 0 with group or other bits |
+| `D` | 0700. `handoff.json`, `migration-scans.json` and `diagnostic.json` are 0600. **Observation (again, as at `d3296dd`):** the runner wrote `migration-results.json` and `storage-results.json` at 0644 (child umask 022). They hold row ids, status and notes only. I did not change them. |
+| `diag/tmp` leftovers | Two `qa-tree-*/index` files (0644, git indexes of the public `tests/` tree) and the Node compile cache. Kept. |
+
+### Privacy and cleanup
+
+- Secret scan: 0 problems (`secret-scan.json` `0e01aed7…`); 38 captured values and 17 stack values; 4 clones checked.
+- Owned cleanup: each child's teardown removed only recorded resources. The diagnostic teardown check found zero lane resources for both projects, and W4 confirms. No owned process remains (launcher, runner and the three observers ended). Clones, lane private roots, the backup root and `D` stay for review. Nothing was removed by hand.
+- Monitoring (read only, file reads only, no Docker call): `prep/bin/monitor-diag.py` (`0eb35ade…`), then v2 (`9e1b9ff8…`), which also reports the `@backup-B` and `@post-B` steps for the milestones that the Lead requested (`msg_6686312ed892`).
+
+### Evidence
+
+- Manifest of `<root>/diag` (built outside it): `<root>/prep/diag-evidence-manifest.tsv`, 949 files with SHA-256, size and mode; SHA-256 `fbe803d277a0c741aa5bd499419fc89ead6099ad49441c7aa828ffe9e78bb4bd`. Its only modes other than 0600/0700 are the four 0644 files named above.
+- Phase artifacts (redacted): `<root>/source/tests/host/artifacts/qa-multi-r1-0938ea1b-2026-10-21T20-14-11-769Z/` (`summary.json` `df253ac8…`, `m1-case-results.json` `de9a3646…`, `lane-ownership.json` `20e044a3…`) and `…/qa-multi-r1-st-0938ea1b-2026-10-21T20-18-00-498Z/` (`summary.json` `c912ebd8…`, `m1-case-results.json` `0f354e73…`, `lane-ownership.json` `5a00e596…`, `storage/storage-scans.json` `c69f2cd1…`).
+- `D`: `diagnostic.json` `95963ae5…`, `storage-results.json` `80fe2f8a…`, `migration-results.json` `ba22c6cb…`.
+- Messages: READY `msg_e45dd76c9373`; grant `msg_f14739b51207`; gate `msg_7ef67e54661a`; migration milestone `msg_4a70c77b65cd`; first failure `msg_7309dd27c6cc`; `@post-B` milestone `msg_5758c01e85e5`; consolidated list `msg_66679b2e354b`; window return `msg_a07d09c540e3`.
+
+### Measured timings
+
+Diagnostic 24 min 40 s (runner start to exit); 24 min 57 s from launcher start. W1–W3 16 s. Migration child 3.8 min. Storage child 20.5 min with all 70 rows run (6 FAIL, 3 of them not run behind a failed prerequisite, so a fully passing storage phase is still not measured). W4 21 s.
+
+### Next
+
+The remediation owner diagnoses FC-1, FC-2 and FC-3 in one batch; the Lead decides the repair. A repair needs a new frozen candidate, the reviews of triage §9 step 6 and a new diagnostic grant. The two complete 488-row rounds and all 12 legacy groups did not run and stay required. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`.
