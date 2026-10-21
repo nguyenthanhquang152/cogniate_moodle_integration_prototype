@@ -13,7 +13,28 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 16:14 UTC
+### Current checkpoint — 2026-10-21, 16:24 UTC
+
+The harness source target is now `71a5bf92608f8ee20e81363a0be987474fc59859`, tests tree `d574737219dffadb4447968bb0cc06393e61e5b9`.
+The first campaign on WIP `5f18477` has 135 named mutants: 130 detected and five undetected.
+QA found three control gaps: two extended ISO date forms and a cross-volume move fixture that also deleted a file.
+Lead `msg_ad4b0832186b` granted only three self-test-line changes. No runtime module changed.
+Private A-1 was frozen before edits: `map/amendment-A1.md`, SHA-256 `e377fc260c1cd1924675ca22e5a0ce661123a1ee59d64b458cccd0b7928ad8a3`.
+The Lead verified the exact diff and committed all three held paths. The other 18 paths remain unchanged.
+The original failed controls and survivor results stay preserved. The LD-3 volume identity rule stays as previously granted.
+QA is rerunning the affected mutants and both complete self-check masks on the fixed target.
+
+M4-8f is proposed equivalent on the measured host: exclusive creation already refuses final links.
+M5-4b is proposed masked by the synchronous safe-path check; its isolated unsafe deletion probe is preserved.
+Neither is credited as detected. Both reviewers must assess the arguments and any coverage gap.
+The report must identify eight error-based detections and the cause-only M2-7a limitation.
+
+The same three Opus 5.5 xhigh workers remain active. Both source reviewers received the mutation evidence and fixed target.
+Their private probes and written findings are pending. No harness approval or candidate C is complete.
+Product Q-R1A-01 stays closed; no Docker window, push or main merge is authorized.
+Latest full runtime remains 438 PASS and 50 FAIL at `aaa823b`; the diagnostic and all final runtime, conformance and guide gates remain pending.
+
+### Prior checkpoint — 2026-10-21, 16:14 UTC
 
 The harness has a source-review freeze at `5f184771d835fcf03701053c6b11a00ec7f0ccf3`.
 All 21 authorized code and test paths are committed. The tests tree is `b7aa39ae22acd33671e09857dd66412dcc77b8fd`.
