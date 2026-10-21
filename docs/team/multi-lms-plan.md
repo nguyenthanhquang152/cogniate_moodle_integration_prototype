@@ -13,7 +13,33 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 17:38 UTC
+### Current checkpoint — 2026-10-21, 17:52 UTC
+
+Round 2 QA `ctx_898acbaef3a6` is running the complete host suite under child umask 022 after the bounded repairs. No final result or held source exists yet.
+A-02 is frozen at SHA-256 `d28455496254693386a52263e2371081a153a67039a56e5a35f7709e2ed958ab` (7,068 bytes, mode 0600).
+The Lead read it and accepted G-1 through G-6 and G-8 within the 10 test paths. These cover cleanup evidence and abort propagation, parent-chain checks before removal, private-root and outside-file races, correction timing and all copy call sites.
+The original S3 claim for R2-03-01 is withdrawn: its injection ran before the lock existed and removed nothing. The corrected baseline and repaired runs remain separate evidence.
+With the corrected injection, the old runtime incorrectly gives the row PASS, so its negative-control test FAILs. The repaired row gives FAIL with the missing-record cause, so the test PASSes. Both runs also pass the ordinary LD-2 test.
+The fake product now models the accepted active-writer refusal after free lock acquisition. QA must show that the uninjected V7 map and all 27 restore injections stay unchanged.
+
+Round 2 Reviewer-A `ctx_426e6f466ac4` accepted the revised control design subject to source and evidence checks.
+For copy neutrality G-7, the Lead conditionally accepted N1–N5 in `msg_dbbfdb66c681`: every path in all eight copies must have an exact, byte-determining relation to its recorded source input. Missing, extra or unclassified paths fail.
+JSON comparisons must preserve all bytes outside the declared edits. Parsed-object equality alone is insufficient. Copy #13 permits only the exact recorded backup-id substitution, with a count.
+The resulting claim is bounded relation-based neutrality, not content equivalence on identical inputs. The varying inputs cannot exclude every unexercised input-dependent change.
+QA still owes the frozen comparator, representative raw and derived records, and hashes. A will assess them before final credit.
+After focused controls pass and source is held by hash, the Lead may commit a WIP source-review snapshot while the full suites and mutation checks finish. This does not freeze candidate C or close a gate.
+
+Round 1 Reviewer-B `ctx_47285c0af009` confirmed at 17:47:02 UTC that all contained probes finished. It reports zero Docker-stub calls and is writing CHANGES_REQUESTED against fixed source `71a5bf9`.
+The earlier stop-and-restart question is obsolete. No stop, restart or duplicate reviewer was performed.
+B found a required LD-2 control gap for a lock folder removed after a command, separate from the missing-original-record premise. It also found a missing diagnostic control for migration owned-cleanup failure.
+The Lead routed both to QA in `msg_eab252d09cfe`. The LD-2 controls fit the current scope; any additional diagnostic self-test path needs a frozen bounded addendum and exact-path grant first. No diagnostic runtime or full-driver change is granted.
+B must reconcile required-criterion severity with charter section 5 and hold its report. No peer findings were sent to B; the reviews remain blind.
+
+Three workers remain active, all Claude Code Opus 5.5 xhigh. Product Q-R1A-01 remains closed at `9f8ac62`.
+Harness source review and all final runtime gates remain open. Latest full runtime is still 438 PASS and 50 FAIL at `aaa823b`.
+No candidate C, Docker window, push or main merge is authorized. The untracked `pnpm-workspace.yaml` stays unchanged.
+
+### Prior checkpoint — 2026-10-21, 17:38 UTC
 
 Round 2 QA's private control map is frozen at SHA-256 `6e28a020c3c702f09894b82d335486bc3620bff74164263801d664152cd68f8a`.
 The Lead read the map and verified its bytes and private modes. Grant `msg_c671d53d5d30` permits source reads and a bounded repair in the 13 named test paths, plus an append-only Round 2 report.
