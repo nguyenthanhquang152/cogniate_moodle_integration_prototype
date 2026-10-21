@@ -1888,6 +1888,7 @@ The Lead records two nonblocking NIT dispositions under charter §5:
   Backup fails closed with exit 1 and no manifest, but it does not always name the unreadable metadata path.
   Docs must carry this diagnostic limit into the M4 deferred list; runtime failure behavior still needs verification.
 - A-SI-05: assign the infrastructure README wording correction to the Author in the M4 documentation wave.
+  Task `task_56d87414a1f6` waits for accepted final conformance and has not been dispatched.
   Clarify that coded refusals emit JSON; some safe wrapper stops use text only.
   This is a text correction and grants no runtime acceptance.
 
