@@ -68,7 +68,8 @@ if (opt['harness-only']) {
   const selftests = walkFiles(path.join(testsDir, 'sim')).filter((f) => f.endsWith('.test.mjs'));
   selftests.push(...walkFiles(path.join(testsDir, 'host')).filter((f) => f.endsWith('.selftest.mjs')));
   selftests.push(...walkFiles(path.join(testsDir, 'acceptance/M1/common')).filter((f) => f.endsWith('.selftest.mjs')));
-  await checked(process.execPath, ['--test', ...selftests]);
+  // The complete self-tests take about 9 min on the QA host (the storage mock-lane dry runs); the bound stays finite.
+  await checked(process.execPath, ['--test', ...selftests], { timeoutMs: 1_800_000 });
   await checked('npm', ['--prefix', testsDir, 'run', 'typecheck']);
   const manifest = joinInventory(readManifests(testsDir, owners), readStorageManifest(testsDir), { full: opt.provider === 'all' });
   const providers = await loadProviders(loadingRuntime(),

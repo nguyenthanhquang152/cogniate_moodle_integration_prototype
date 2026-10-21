@@ -365,6 +365,10 @@ class FakeWorld {
   running() { return this.services.length === 2 && this.services.every((s) => s.State.Running); }
   container(service) { return this.services.find((s) => s.Config.Labels['com.docker.compose.service'] === service); }
   startServices() {
+    // R2-RT-1 (opt-in `platformOn`): like the real lane, the first start also runs proxy, postgres and moodle. A harness
+    // stop and a quarantine leave them running; stack:reset removes them.
+    if (this.platformOn && !this.platform?.length) this.platform = ['proxy', 'postgres', 'moodle'].map((service) => ({ Id: rnd(32), Name: `/${PROJECT}-${service}-1`, Created: engineText(),
+      Config: { Labels: { 'com.docker.compose.project': PROJECT, 'com.docker.compose.service': service } }, State: { Status: 'running', Running: true, StartedAt: engineText() }, Mounts: [] }));
     if (this.services.length === 0) {
       for (const service of ['lti-service', 'cogniate-app']) this.services.push({ Id: rnd(32), Name: `/${PROJECT}-${service}-1`, Created: engineText(),
         Config: { Labels: { 'com.docker.compose.project': PROJECT, 'com.docker.compose.service': service } }, State: { Status: 'created', Running: false, StartedAt: '0001-01-01T00:00:00Z' }, Mounts: [] });
@@ -438,7 +442,7 @@ class FakeWorld {
   // ---------------------------------------------------------------- fake Docker CLI
   ok(stdout = '') { return { code: 0, stdout, stderr: '', durationMs: 0 }; }
   no(code, stderr = '', stdout = '') { return { code, stdout, stderr, durationMs: 0 }; }
-  all() { return [...this.services, ...this.storage, ...this.qa]; }
+  all() { return [...this.services, ...(this.platform ?? []), ...this.storage, ...this.qa]; }
   async docker(args) {
     if (this.stopped) throw new Error('mock lane stopped after ' + this.stopAfter);
     this.log.push({ kind: 'docker', args });
@@ -928,7 +932,7 @@ class FakeWorld {
     return { code: 0, text: 'quarantine done' };
   }
   reset() {
-    this.services = []; this.dropVols();
+    this.services = []; this.platform = []; this.dropVols();
     fs.rmSync(path.join(this.clone, 'infra/.data/lti-service'), { recursive: true, force: true });
     const P = path.join(this.clone, 'infra/.data/cogniate-app');
     if (fs.existsSync(P)) for (const n of fs.readdirSync(P)) fs.rmSync(path.join(P, n), { recursive: true, force: true });
@@ -1015,7 +1019,7 @@ class FakeWorld {
   async request(url, { method = 'GET', headers = {}, body } = {}) {
     if (this.stopped) throw new Error('mock lane stopped after ' + this.stopAfter);
     const u = new URL(url), route = u.pathname;
-    this.log.push({ kind: 'http', method, url, origin: headers.origin ?? null });
+    this.log.push({ kind: 'http', method, url, origin: headers.origin ?? null, appRunning: this.running() });
     if (!this.running()) throw new Error('connect ECONNREFUSED ' + u.host);
     const json = (status, value, extra = {}) => ({ status, headers: extra, body: value === undefined ? '' : JSON.stringify(value) });
     if (u.origin === URLS.lti) {
@@ -1088,7 +1092,7 @@ class FakeWorld {
     if (this.qa.length) problems.push('QA containers: ' + this.qa.map((c) => c.kind).join(', '));
     for (const c of this.children) if (c.child.exitCode === null && c.child.signalCode === null && c.lingerOk !== true) problems.push('live QA process ' + c.pid);
     if (problems.length) this.leftovers.push(`${m[1]}: ${problems.join('; ')}`);
-    this.log.push({ kind: 'step-end', step: m[1], at: Date.now() });
+    this.log.push({ kind: 'step-end', step: m[1], at: Date.now(), appRunning: this.running(), platformRunning: (this.platform ?? []).filter((c) => c.State.Running).length });
     // The paused maintenance container of g-orphan-refusal ends by itself after its pause (its restore completes).
     if (m[1] === 'g-orphan-refusal') this.completeOrphan = true;
     this.hooks?.[m[1]]?.(this);
@@ -1810,4 +1814,21 @@ test('HARNESS ONLY: R2-05-N site #12 unhooked, replayed inputs: the eight copies
   assert.equal(Object.keys(record.folders).length, 10, 'B, X2 and the eight copies');
   for (const [n, list] of Object.entries(record.folders)) if (!/^(B|X2)-/.test(n)) for (const e of list) assert.equal(e.mode, e.type === 'dir' ? '0700' : '0600', `${n}/${e.path}`);
   if (process.env.QA_R2_NEUTRAL_OUT) fs.writeFileSync(path.join(process.env.QA_R2_NEUTRAL_OUT, 'site-12.json'), JSON.stringify(record, null, 1), { mode: 0o600, flag: 'wx' });
+});
+
+// ---------------------------------------------------------------- Repair batch RT: the lane platform containers
+
+test('HARNESS ONLY: R2-RT-1 with proxy, postgres and moodle running, the full dry run keeps the declared map; the app services run before each API write', async (t) => {
+  const { world, rows } = await dryRun(t, { setup: (w) => { w.platformOn = true; } });
+  assert.equal(world.platform.length, 3, 'The platform containers exist');
+  assert.deepEqual(compareMap(rows, EXPECTED), [], 'The declared map of V7-1 holds with the platform containers');
+  const ends = world.log.map((e, i) => [e, i]).filter(([e]) => e.kind === 'step-end');
+  for (const step of ['fixture-backup-B', 'fixture-post-B']) {
+    const k = ends.findIndex(([e]) => e.step === step), [, at] = ends[k], [prev, from] = ends[k - 1];
+    assert.deepEqual([prev.appRunning, prev.platformRunning], [false, 3], `${step}: precondition made (both app services stopped, the platform running)`);
+    const http = world.log.slice(from + 1, at).filter((e) => e.kind === 'http');
+    assert.ok(http.length > 0 && http.every((e) => e.appRunning), `${step}: every API request came while both app services ran`);
+  }
+  const k = ends.findIndex(([e]) => e.step === 'e-fresh-refusal');
+  assert.deepEqual([ends[k - 1][0].platformRunning, ends[k][0].appRunning], [3, false], 'e-fresh-refusal ran with the platform running and the app services stopped');
 });

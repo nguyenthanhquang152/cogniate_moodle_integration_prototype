@@ -246,6 +246,8 @@ function defineRows(ctx) {
     return res;
   };
   const stopped = async () => { if (!(await lane.services()).every((s) => !s.running)) await lane.stopServices(); };
+  // The lane also runs proxy, postgres and moodle; the two app services are the storage users (ADR-012 §7).
+  const appRunning = (services) => ['lti-service', 'cogniate-app'].every((name) => services.some((s) => s.service === name && s.running));
   const quarantine = async (label) => {
     await stopped();
     const out = lane.newFolder(lane.quarantine, label);
@@ -293,7 +295,7 @@ function defineRows(ctx) {
   };
   /** The write after B, with QA's logical proof that the pair has it and B does not. */
   const postB = async (tag) => {
-    if (!(await lane.services()).some((s) => s.running)) await up(`stack-up-before-${tag}`);
+    if (!appRunning(await lane.services())) await up(`stack-up-before-${tag}`);
     const markers = await lane.writeMarkers(tag);
     await lane.stopServices(`stop-after-${tag}`);
     const now = await lane.logical(markers);
@@ -861,7 +863,7 @@ function defineRows(ctx) {
     // ------------------------------------------------------------ drill fixture: backup B and the write after B
     async '@backup-B'() {
       // B's own marker rows exist in the pair at B, so "equals B" has a logical side too.
-      if (!(await lane.services()).some((x) => x.running)) await up('before-B-marker');
+      if (!appRunning(await lane.services())) await up('before-B-marker');
       state.bMarkers = await lane.writeMarkers('in-b');
       await lane.stopServices('stop-before-B');
       state.B = lane.newFolder(lane.backups, 'B');
@@ -1075,7 +1077,7 @@ function defineRows(ctx) {
       assertRefuses(res, 'legacy_present', 'stack:up');
       const after = await lane.assertUnchanged(before, 'e-fresh-refusal');
       check(freshVolume('lti', after.listing.lti) && freshVolume('app', after.listing.app), 'Volumes stay FRESH');
-      check(!(await lane.services()).some((s) => s.running), 'No service starts');
+      check(!(await lane.services()).some((s) => ['lti-service', 'cogniate-app'].includes(s.service) && s.running), 'No service starts');
     },
     async 'e-hot-journal'() {
       const journal = path.join(lane.clone, 'infra/.data/lti-service/lti.db-journal');
