@@ -13,7 +13,35 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 08:57 UTC
+### Current checkpoint — 2026-10-21, 09:06 UTC
+
+Candidate `89fb4b4` is under combined design and implementation review.
+Reviewer-A: task `task_86a33c4d75b4`, dispatch `ctx_951c013113e5`.
+Reviewer-B: task `task_e3cf59427b28`, dispatch `ctx_6bc12b42a365`.
+Both requested and effective settings match Claude Code Opus 5.5 xhigh. Their reviews are blind and host-only.
+
+The RD diagnostic settled successfully in `msg_ae73efc6d527` and was released.
+All 20 parent-move trials showed fresh content on the first probe, with no refusal or stale view.
+The Lead checked the report and trial hashes, W4 comparison and teardown. Zero owned containers remain.
+Its window ended at 08:58:08.800 UTC. This is diagnostic evidence only; the mandatory row stays unchanged and pending.
+The report records timing and move-destination differences from that row, and no positive control in the same window.
+Report: `/Users/quangnguyen/cogniate-author-diagnostics/rd20-parent-move-0e83e3c-20261021T0852Z/report.md`.
+SHA-256: `7fc8cb48b5ee96a7714df5f17db39de778ad044d9668c1620b013e1d1ae9609d`.
+
+Q1/Q2 preparation settled successfully in `msg_8e2435a31607` and was released. Runtime is NOT RUN.
+The Lead checked the handoff, both ledgers and all 21 manifest entries. Host-only controls pass 93/93 under both masks.
+The focused contract plants, read-only fresh-view checks and independent identity/byte reads are accepted.
+A later fresh runtime worker will use the preserved tools, after both reviews and RA/RC pass.
+Handoff: `/Users/quangnguyen/cogniate-qa-runs/claude-reset-parent-q1q2-prep-20261021T0838Z/handoff.md`.
+SHA-256: `103d9d9ef841b346922a1d166659403783fa7c54d22580d6d99b32f4b732a08f`.
+
+Author `ctx_509f433b4916` now owns the sole conditional RA20/RC5 diagnostic window (`msg_e8949d79bbaf`).
+Fresh G1/W1–W3 passed in `msg_dcd629907542`; the Lead checked the W3 and extra-gate hashes and summaries.
+The baseline start second is 1792573526, with zero containers, nine preserved volumes and three baseline networks.
+It compares the repaired reset with frozen `a784522`, with both content children checked. W4 and cleanup remain required.
+No product-stack runtime or full-suite rerun is authorized yet. All later acceptance gates remain required.
+
+### Prior checkpoint — 2026-10-21, 08:57 UTC
 
 Reset repair candidate `89fb4b48ee388faff3060fe1a161a9f9d064de93` is committed for review.
 The Lead checked the three held file hashes and the report, mutation summary and root-check log hashes.
