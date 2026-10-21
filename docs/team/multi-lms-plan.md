@@ -13,7 +13,42 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 12:09 UTC
+### Current checkpoint — 2026-10-21, 12:29 UTC
+
+Both blind triage reviews request changes. Reviewer-A is committed at `a58b477`; Reviewer-B at `badde65`.
+Their held hashes were checked. Both workers settled successfully for review scope and were released.
+They agree on the three root causes. Their open findings concern the proposed repair and verification details.
+
+The Lead selects:
+- R1-A: repair the product's required command field. Reject R1-B/P-2a, which would allow a null value.
+- P-1a: preserve the used host parent and delete its children; assert absent-parent coverage in a fresh lane.
+- P-3: private QA copies must have mode 0600 from creation. This is mandatory before the next runtime window.
+- Diagnostic: same-candidate migration (12 rows), then storage (70 rows), with one fresh migration handoff. Neither phase gives acceptance credit.
+
+Four distinct design corrections cover the MAJOR findings:
+1. Define the migration handoff and both diagnostic lanes.
+2. Cover every protected QA copy site, all private scratch roots and exact permission-scan scope.
+3. Bind the serialization oracle to the newly spawned backup and test wrong-command and stale-log selectors.
+4. Make the fresh-lane precondition enforceable and specify deletion of children with an unchanged parent.
+
+The bounded revision also addresses cleanup failure attribution, complete logs across resets, timing uncertainty and mode controls.
+Optional broad post-step invariants must not reject intentional intermediate recovery states.
+The two MINOR items called V2-5 will receive separate control ids.
+The exact P-1a criterion text still needs independent confirmation and QA testability before QA edits it.
+
+Two workers are active, with requested and effective Claude Code Opus 5.5 xhigh:
+- Author: task `task_9568f8506827`, dispatch `ctx_df818fb3272e`. It owns only the lock helper, its unit tests and compatibility hash.
+- Architect: task `task_70d0b31626dd`, dispatch `ctx_6c7e0616e09b`. It owns only the triage, bounded M1 criterion text and ADR-012 O-1 precision text.
+
+A-SFT-08 is accepted as a MINOR for the M4 deferred list: product backup/quarantine copies use copy-then-chmod.
+This is a source observation under private parents, with no runtime failure proved. It stays outside R1-A.
+All older accepted deferrals remain unchanged.
+
+No Docker window is active. The full `aaa823b` result stays FAIL (438 PASS, 50 FAIL).
+All full acceptance gates, conformance and guides remain pending. All 32 real-LMS rows stay UNVERIFIED; local Canvas stays DEFERRED.
+No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 12:09 UTC
 
 The revised storage triage is committed at `2b0081d8c1bcd404c044363d5385693b9e41ae12`.
 Report: `docs/architecture/tasks/storage-full-round-triage.md`.
