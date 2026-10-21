@@ -1964,6 +1964,24 @@ The Lead answered QA's blocking question in `msg_69df4192f06a`: continue host-on
 Reserved later lanes are M2 `qa-e2e-sim-r6` on 8643/172.27, then T7 `qa-e2e-m3-r3` on 8543/172.31.
 These reservations do not transfer the sole Docker window. No product or test change, freeze waiver or T7 runtime acceptance is granted.
 
+Architect `msg_1d56d5d016b1` permits the external T7 wrapper at the same frozen SHA, subject to three QA repairs and a fixed procedure.
+The Lead retained the Architect before acknowledgment and confirmed unchanged product, tests and architecture bytes.
+Required wrapper repairs are:
+- Fail isolation if any ledger record ever has `madeByRun=false`, even if a later reset removes the resource.
+- Fail ownership recording if the Docker event monitor exits or errors before the stop file.
+- Require unchanged networks, Docker identity and non-lane container IDs, as well as the seven protected-volume records.
+
+Canvas QA owns these external helper repairs and focused positive and negative controls. It must hold hashes for review before use.
+The wrapper must report ready before the unchanged T7 runner starts with its documented `--keep` option.
+Its clone path must match the runner's clone. Teardown starts only after the runner exits.
+Acceptance combines all runner checks, wrapper isolation and teardown PASS, and an independent shared-evidence secret scan.
+The runner's skipped teardown gives no isolation credit. Record helper hashes, frozen source tree IDs and event-to-step timing.
+The Architect distinguishes product reset behavior from QA cleanup's record-only rule under ADR-012 §15.
+Internal resets stay unchanged; every absence and reappearance still needs actual listing evidence in the ledger.
+Raw traces stay private. Reports may name their private paths and hashes, but must not share their contents.
+QA-E2E owns a later reviewed replacement for the T7 runner's label-only preflight and teardown.
+M4 Docs must record the interim wrapper requirement. Common QA's active run and the sole-window boundary remain unchanged.
+
 The earlier full verification attempts failed after the storage blocker. Both original tasks now have active retries, as recorded above.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
