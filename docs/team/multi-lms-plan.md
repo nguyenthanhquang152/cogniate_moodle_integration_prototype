@@ -1945,6 +1945,25 @@ They require two complete matching 488-row rounds, all legacy groups, fresh M2 a
 They also retain host identity, private evidence, ownership records, secret scans and the seven-volume baseline gates.
 Both workers sent heartbeats. No runtime result is accepted yet.
 
+Common QA passed its pre-launch gates in `msg_c6a6335c0fc6` and started the full run at 02:21:14 UTC.
+The clean clone is `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-a784522-20261021T0217Z/source`.
+Evidence root: `/Users/quangnguyen/cogniate-qa-runs/m1-full-a784522-20261021T0220Z`.
+The Lead checked the exact clone HEAD, unchanged tracked files, host hashes and seven identical protected-volume records.
+The launch uses the full runner's default two rounds and legacy phase; the runner has no `--runs` option.
+Monitoring remains attached to the same process. A completed assistant turn while its event monitor waits does not mean the runtime stopped.
+
+Canvas QA completed host-only preparation in `msg_93314f0f717b`.
+Its root is `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-a784522-wgLHNZc0`.
+The Canvas judge has positive and negative controls for all 233 Canvas rows in each complete round.
+This preparation grants no runtime credit.
+QA also found that the older T7 runner uses label-only final cleanup and resets volumes inside each browser run.
+The proposed `--keep` plus external ownership wrapper is held; it must protect internal resets as well as final cleanup.
+Architect task `task_10f20561b505`, dispatch `ctx_e1453675ba10`, reads that proposal against the existing contract without edits or Docker use.
+Launch: `msg_69122673654d`; start: `msg_07081289fd04`.
+The Lead answered QA's blocking question in `msg_69df4192f06a`: continue host-only and hold the wrapper decision.
+Reserved later lanes are M2 `qa-e2e-sim-r6` on 8643/172.27, then T7 `qa-e2e-m3-r3` on 8543/172.31.
+These reservations do not transfer the sole Docker window. No product or test change, freeze waiver or T7 runtime acceptance is granted.
+
 The earlier full verification attempts failed after the storage blocker. Both original tasks now have active retries, as recorded above.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
