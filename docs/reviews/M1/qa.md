@@ -869,3 +869,141 @@ Status: **source preparation only**, no Docker and no runtime credit. The verdic
   - No other held file changed.
 - **SHA-256 (uncommitted):** `tests/host/m1-migration.mjs` `9a96656d5027285a1b3769c0da3a4aa5d3feb53911673f55c030af68f39561f6`; `tests/host/m1-migration.selftest.mjs` `80f2fd4b5e0763775edf7e12fa9d2ad0d2f39e3bf96416e21e9bfded4cf0994f`. This report's own hash is in the completion message.
 - **Still separate:** the runtime check of this clause (a real restore on the candidate), the source reviews `task_5580d3cb79c5` and `task_94536ec30f9a`, the two-round QA retry, and any Docker authorization. All 32 live rows stay `UNVERIFIED`.
+
+## Storage-candidate retry at `a784522`: FAIL in round 1, phase `sim`, 2026-10-21
+
+Verdict for this attempt: **FAIL**. The run stopped in round 1, phase `sim`, because one required Canvas row failed. The `sim` phase gives **394-row SIM evidence** only. The full round has **488** rows, so this round is **incomplete**: 94 round-1 rows did not run, and round 2 and legacy did not start. No M1 criterion gets full-run credit. The verdict line at the top of this file is unchanged history; this section is the current state.
+
+Owner: a new, independent common/Blackboard QA session, Claude Code Opus 5.5 at xhigh effort. Task `task_ed3b08aa45ea`, dispatch `ctx_75f7ef7a9240`. Authority: Lead `msg_905fc87a48de` (accepted candidate and the sole Docker window) and `msg_89d8e98e00df` (Canvas handoff). This session did not write or review the product, and it did not read Author code or notes. This is not a cross-model check of Claude-authored code. Earlier attempts and their records above stay unchanged.
+
+### Identity and command
+
+| Item | Value |
+| --- | --- |
+| Product SHA = test SHA | `a784522a3cdd9bb67453b03093092cac24e87402` (tests tree `8a94a7ff`) |
+| Source reviews | Reviewer-A `a9fe7ed`, Reviewer-B `9bf6100` (both APPROVE for source) |
+| Window | Lead `msg_905fc87a48de`: sole fleet-wide Docker window. Returned at 02:46Z in `msg_8ef31ba2211a`. |
+| Lane | `qa-multi-r1` (storage lane `qa-multi-r1-st` not reached), port 8443, subnet `172.29.0.0/16` |
+| Source | `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-a784522-20261021T0217Z/source` (clean, detached, push disabled; provenance SHA-256 `2354a7eb…`) |
+| Run root | `/Users/quangnguyen/cogniate-qa-runs/m1-full-a784522-20261021T0220Z` (`public/`; `private/` and `tmp/` mode 0700) |
+| Phase run | `qa-multi-r1-a784522a-2026-10-21T02-21-14-202Z` |
+| Time | Start 02:21:14Z; suite 02:22:00.585Z for 1,328,299 ms; parent exit 1 at 02:44:18Z |
+| Tools | Node 24.21.0; Docker CLI and engine 29.9.1; Compose 5.6.0 |
+
+```sh
+cd /Users/quangnguyen/cogniate-qa-runs/m3-frozen-a784522-20261021T0217Z/source
+COMPOSE_PROJECT_NAME=qa-multi-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 \
+STACK_PROFILE=default \
+COURSE_FIXTURES_DIR=/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses \
+TMPDIR=/Users/quangnguyen/cogniate-qa-runs/m1-full-a784522-20261021T0220Z/tmp \
+node tests/host/run-m1.mjs --sha a784522a3cdd9bb67453b03093092cac24e87402 \
+  --test-sha a784522a3cdd9bb67453b03093092cac24e87402 \
+  --source /Users/quangnguyen/cogniate-qa-runs/m3-frozen-a784522-20261021T0217Z/source
+```
+
+The runner has no `--runs` option (help checked). The default `full` phase runs five phases twice and then legacy. A launcher (`claude-common-qa-tools-a784522/launch-full.sh`, SHA-256 `0b7f6141…`) ran read-only observers in their own process groups. It did not change the suite. The observer failure-path controls passed 8 of 8.
+
+### Gates before the window (all PASS)
+
+| Gate | Result |
+| --- | --- |
+| G-1 identities (ADR-012 §17 way) | macOS 27.0.1 arm64; Docker CLI 29.9.1, SHA-256 `678271184175…`; Compose 5.6.0, SHA-256 `1ec06408b809…`. All equal the bound table. The runner's own `G1-IDENTITY` row also passed. |
+| QA image | `node:24.22.0-alpine3.24` present as `sha256:44fce696f38b…`. No pull. |
+| Boundary | 0 containers; networks `bridge`, `host`, `none`; port 8443 free; no subnet clash; no `qa-multi-r*` resource and no exact lane volume name. |
+| Protected volumes | All 7 records identical to the original baseline (file SHA-256 `219da30b…`). |
+| Course files | Both ZIP SHA-256 values match. |
+| Clone check (no Docker) | `node tests/host/run-m1.mjs --harness-only --provider all`: 70 of 70 self-checks, typecheck PASS, 488 rows per round (`sim` 394, `snapshot-isolated` 6, `snapshot-upgrade` 6, `migration` 12, `storage` 70). Harness only; no product credit. |
+
+The Docker VM was idle at the gate, so read-only calls came from its cache (the engine `SystemTime` stayed at 2026-10-20T23:02:24Z). A second read-only boundary ran when the first lane container appeared ("live start").
+
+### Result of the `sim` phase, round 1
+
+All 394 `sim` rows are present: **393 PASS, 1 FAIL**. There are no duplicate, unmanifested or wrong-label rows, and one SHA pair. Vitest: 392 API tests, 385 passed, 1 failed, 6 skipped by the selection (the six rows of the `snapshot-isolated` phase). The phase also has 7 browser rows and the host row `M1-02.common.default-profile` (PASS: six real profiles, three simulation profile ids refused).
+
+| Owner | Rows in this phase | PASS | FAIL |
+| --- | ---: | ---: | ---: |
+| Common | 26 of 42 | 26 | 0 |
+| Blackboard | 136 of 141 | 136 | 0 |
+| Canvas | 232 of 233 | 231 | 1 |
+
+| Row | Label | Result | Verdict owner | Evidence |
+| --- | --- | --- | --- | --- |
+| M1-17.canvas.repeat | SIM | FAIL | Canvas QA (diagnosis and verdict). This QA does not classify it. | `tests/acceptance/M1/canvas/31-canvas-grants.test.ts:95`: strict equal `1 !== 0`; duration 365 s. |
+
+Runner host checks: `PRE`, `CLONE`, `H1`, `G1-IDENTITY`, `M3-ISOLATION` and `TEARDOWN` PASS. `ERROR` is the runner's required-row assertion for the row above. The runner then stopped the full run, which is correct.
+
+**Not run (94 of 488 round-1 rows):** `snapshot-isolated` 6 (Blackboard `M1-37` w, y2 and `M1-29` k1–k3; Canvas `M1-37` aa), `snapshot-upgrade` 6 (`M1-38.common` h1–h5 and `M1-41.common.j-snapshot`), `migration` 12 (AC-M1-23 4, AC-M1-30 7 and `M1-41.common.j-migration`) and `storage` 70 (AC-M1-41). Round 2 (488 rows) and all legacy groups did not start.
+
+Common and Blackboard rows of this phase, by criterion (round 1 `sim` only; each needs a second complete round):
+
+| AC | Common | Blackboard |
+| --- | --- | --- |
+| M1-01 | 1 PASS | 1 PASS |
+| M1-02 | 1 PASS | – |
+| M1-03 | 10 PASS | – |
+| M1-04 | – | 1 PASS |
+| M1-05 | – | 15 PASS |
+| M1-06 | – | 2 PASS |
+| M1-07 | 1 PASS | 4 PASS |
+| M1-10 | – | 1 PASS |
+| M1-11 | – | 9 PASS |
+| M1-12 | 1 PASS | 4 PASS |
+| M1-13 | – | 4 PASS |
+| M1-14 | 1 PASS | 2 PASS |
+| M1-15 | 1 PASS | 2 PASS |
+| M1-18 | – | 2 PASS |
+| M1-19 | 1 PASS | 1 PASS |
+| M1-21 | 1 PASS | 1 PASS |
+| M1-22 | – | 2 PASS |
+| M1-23 | 4 not run (`migration`) | – |
+| M1-24 | 2 PASS | – |
+| M1-25 | 1 PASS | 1 PASS |
+| M1-27 | – | 1 PASS |
+| M1-28 | – | 2 PASS |
+| M1-29 | – | 18 PASS; k1–k3 not run (`snapshot-isolated`) |
+| M1-30 | 7 not run (`migration`) | – |
+| M1-31 | – | 2 PASS |
+| M1-33 | – | 4 PASS |
+| M1-34 | – | 14 PASS |
+| M1-35 | 3 PASS | – |
+| M1-36 | – | 5 PASS |
+| M1-37 | – | 30 PASS, including v2, v5, v7, v9, v11, v12, x1, x2, y1, z1–z5; w and y2 not run |
+| M1-38 | i5 PASS; h1–h5 not run (`snapshot-upgrade`) | 8 PASS, including i3 and i4 |
+| M1-39 | 1 PASS | – |
+| M1-41 | 72 not run (`storage` 70, `migration` 1, `snapshot-upgrade` 1) | – |
+
+Per-row records (id, AC, owner, phase, status, label, both SHAs, run id, command, start time, artifact path): `public/round-1-rows.json` (SHA-256 `075603cb…`) and `public/round-1-summary.json` (`7ca487fe…`).
+
+### Health, images and timings
+
+- Health after the suite: app and LTI service `profile: default`, `knobs: []`; LTI `simulation_profiles: []`.
+- Images (sampler digests): `node@sha256:44fce696…` for the app, LTI service and the simulation helpers; `erseco/alpine-moodle@sha256:3a310197…`; `postgres@sha256:721873c3…`; `caddy@sha256:d8542f48…`; local `qa-multi-r1-e2e@sha256:49e44f58…` (created 2026-10-16, not rebuilt). The sampler saw one Compose project at most and no other project.
+- Setup: `npm ci` 1.3 s, `stack:up` 38.8 s, `seed` 3.4 s.
+- Host control: 32 `m1-restart` actions, all exit 0, 5,924–8,597 ms (median 6,066 ms); 6 `m1-profile` actions, 5,936–6,472 ms. These restarts include the storage preflight (76 `storage_preflight` lines with `state: OK`). No common or Blackboard lease or deadline row failed in this phase. This QA does not judge whether the timings affect the Canvas row above.
+
+### Privacy (AC-M3-07 method)
+
+- The capability union holds 1,300 captured values: `id_token` 250, `state` 250, `ltik` 187, `service_key` 117, `nonce` 11, `play_id` 5, `runtime_token` 4, `api_key` 1, `picker_id` 1 and M1 raw 474. It stays private (`private/watch`, 0700). The scan also used 12 stack values.
+- The independent scan found 0 hits in 11 raw service, simulator and gate logs and in 680 public files (the phase artifacts and the observer and run-root files). It found 0 JWT-shaped strings. The runner's own scan also found 0 hits (`public/secret-scan.json`, SHA-256 `f9622f23…`).
+- The Playwright traces and screenshots of the 7 Canvas browser rows stay in the private phase clone. Canvas QA owns their redaction.
+
+### Isolation and cleanup (AC-M3-06)
+
+- The runner teardown removed only resources from its ownership record. 0 containers, 0 lane volumes and 0 lane networks were left. `M3-ISOLATION` and `TEARDOWN` PASS.
+- The independent after-boundary read found 0 containers, no `qa-multi-r*` resource, port 8443 free and no subnet clash. All **7 protected volume records are identical to the original baseline** (7 of 7, before, live start and after). Docker memory (8,319,238,144 bytes) and 12 CPUs are unchanged. No owned process remains.
+- The raw outer comparison (`boundary.mjs --compare boundary-before.json`, `public/boundary-after.summary.json`) exited 1 with one problem: `non-owned network missing: bridge`. It is not a PASS. Explanation, recorded apart from that result: the before read came from the idle-VM cache (`bridge` `2ab29a9c…`). The VM started at the first mutating call and created a new bridge at 02:21:14.816Z (`0a08578a…`). The live-start and after reads have the same bridge ID, so the bridge did not change from live start to the end. `host` and `none` are unchanged. The frozen runner's `M3-ISOLATION` PASS is a separate check (containers and volumes only).
+- The private phase clone `/Users/quangnguyen/cogniate-qa-runs/qa-multi-r1-a784522a-2026-10-21T02-21-14-202Z` is kept, mode 0700, for Canvas QA diagnosis.
+
+### Evidence
+
+- Phase artifacts (redacted): `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-a784522-20261021T0217Z/source/tests/host/artifacts/qa-multi-r1-a784522a-2026-10-21T02-21-14-202Z/`: `m1-case-results.json` (`7a9309be…`), `summary.json` (`448217ea…`), `evidence/sim/m1-vitest-results.json` (`6f839e1c…`), `m1-identity.json`, `images.json`, `g1-client-identity.json`, `lane-boundary.json`, `lane-ownership.json`, `protected-volumes-before/after.json`, `cmd/`, `host-actions/`, `service-logs/`, `docker-logs/`.
+- Run root `public/`: `host-identity.json` (`c25696d1…`), `boundary-before.json` (`33f0b3db…`), `boundary-live-start.json` (`e7e41537…`), `boundary-after.json` (`a12575ec…`), `baseline-vs-original-before.json` and `-after.json`, `sampler/lane-containers.json` (`af62b713…`), `command.txt` (`732d6277…`), `full-run-exit.json`.
+- Canvas QA received the exact paths directly (`msg_7250eafc816e`) and the Lead in `msg_8ef31ba2211a`.
+
+### Correction to the storage-lock diagnostic record above
+
+The diagnostic table above says "A's row was lost". That claim is not accurate. The oracle found that B acquired the lock while A held it, and A then could not commit. No row that A committed successfully was lost. The DELETE-mode discrepancy and any Docker-update cause remain unknown. The earlier text stays as history.
+
+### Next
+
+Canvas QA diagnoses `M1-17.canvas.repeat`. Any repair needs the Lead's disposition, a new frozen candidate or an explicit decision, and a new window. Then both complete 488-row rounds and all legacy groups must run again from a fresh clone. This attempt and its not-run phases stay in the record. All 32 live rows stay `UNVERIFIED`.

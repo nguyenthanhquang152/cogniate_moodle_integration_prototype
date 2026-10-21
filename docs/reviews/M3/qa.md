@@ -373,3 +373,24 @@ Still open:
 - the full QA retry on the exact candidate.
 
 All 32 live rows stay `UNVERIFIED`.
+
+## Storage-candidate retry at `a784522`: FAIL in round 1 `sim`, 2026-10-21
+
+Owner: a new, independent common QA session, Claude Code Opus 5.5 xhigh (task `task_ed3b08aa45ea`, dispatch `ctx_75f7ef7a9240`). The full record is in the matching section of the [M1 report](../M1/qa.md#storage-candidate-retry-at-a784522-fail-in-round-1-phase-sim-2026-10-21). Earlier sections above stay unchanged.
+
+The documented full entry ran once at `a784522a3cdd9bb67453b03093092cac24e87402` (product = test) in the sole Docker window, lane `qa-multi-r1`, port 8443. Round 1 phase `sim` gave **394-row SIM evidence: 393 PASS, 1 FAIL** (`M1-17.canvas.repeat`, Canvas QA owns its diagnosis and verdict). The runner then stopped. The 488-row round is incomplete: 94 round-1 rows did not run, and round 2 and all legacy groups did not start. The window was returned at 02:46Z.
+
+| M3 criterion | Status after this attempt |
+| --- | --- |
+| AC-M3-01 | FAIL, incomplete. Round 1 has 394 of 488 rows (one FAIL); round 2 did not run. G-1 identities matched (macOS 27.0.1 arm64, CLI 29.9.1, Compose 5.6.0, both binaries by SHA-256). Restart timings: 32 `m1-restart` actions, median 6,066 ms, max 8,597 ms. |
+| AC-M3-02 (a) T7 | Not run here. QA-E2E owns the three default-profile T7 runs on this candidate. Historical `aff4882` results are not carried. This report does not claim them. |
+| AC-M3-02 (b) legacy | Not run. The runner stops before legacy when a required M1 row fails. |
+| AC-M3-03 M2 | Not run here. QA-E2E owns all 64 M2 rows on this candidate in its own later window. |
+| AC-M3-04 hygiene | Round 1 `sim` only. No PEM private key in the phase text artifacts, raw logs or `tests/` text files (the only match is a log-check pattern in `99-logs.test.ts`). The 5 git-ignored `tests/fixtures/qa-platform/jwks-*.json` files hold public keys only. `infra/.certs` and `infra/.secrets` hold the stack's generated TLS and service keys, not simulator signing keys; they stay in the private clone. The capability union (1,300 values plus 12 stack values) gave 0 hits in 11 raw service, simulator and gate logs and 680 public files; 0 JWT-shaped strings. |
+| AC-M3-05 live | All 32 live rows stay `UNVERIFIED` (`live.md`, QA-E2E). |
+| AC-M3-06 isolation | No final verdict (incomplete attempt). The runner's `M3-ISOLATION` and `TEARDOWN` PASS. Fresh lane before the start; teardown removed only recorded resources; 0 lane resources left; all 7 protected volume records identical to the original baseline before, at live start and after; no owned process left. The raw outer boundary comparison exited 1 with one problem, `non-owned network missing: bridge`; it is not a PASS. Explanation, kept apart: the before read was the idle-VM cache (`2ab29a9c…`); the VM start created a new bridge at 02:21:14.816Z (`0a08578a…`), and the live-start and after IDs are equal. |
+| AC-M3-07 secrets | PASS for this attempt's evidence (method above). Browser traces and screenshots stay private; Canvas QA owns their redaction. |
+
+Correction: the storage-lock diagnostic section above says "A's row was lost". That is not accurate. B acquired the lock while A held it, and A then could not commit. No successfully committed row of A was lost. The cause of the DELETE-mode discrepancy and any Docker-update cause remain unknown.
+
+M3 stays **FAIL**. Next: Canvas QA's diagnosis, the Lead's disposition, then a new window for two complete 488-row rounds and all legacy groups on one frozen SHA.
