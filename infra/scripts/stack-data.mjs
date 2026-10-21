@@ -197,14 +197,17 @@ export function validate(fromDir, project) {
 // ------------------------------------------------------------------------------------------------ volumes: files and journals
 
 /**
- * The file operations of the volume backup and the journal engine. The defaults are the real ones; a unit test
- * replaces one of them through the library API to inject a partial copy, an fsync failure or a failed rename (§8).
+ * The file operations of the volume backup, the content check and the journal engine. The defaults are the real ones;
+ * a unit test replaces one of them through the library API to inject a partial copy, an fsync failure, a failed
+ * rename or a failed removal of the content check's scratch folder (§8).
  */
 export const REAL_IO = Object.freeze({
   copyFile: (src, dst) => copyFileSync(src, dst),
   fsyncFile: (p) => { const fd = openSync(p, 'r'); try { fsyncSync(fd); } finally { closeSync(fd); } },
   fsyncDir: (d) => fsyncDir(d),
   rename: (src, dst) => renameSync(src, dst),
+  checkCopy: (src, dst) => copyFileSync(src, dst),
+  checkRemove: (d) => rmSync(d, { recursive: true, force: true }),
 });
 
 const canonical = (v) => JSON.stringify(v, (_k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.entries(x).sort(([a], [b]) => a.localeCompare(b))) : x));
@@ -466,8 +469,8 @@ export function createEngine({ dirs, log, point = () => {}, fail = null, io = RE
   }
 
   /**
-   * A live restore or import (§8). `plan` = {operation, opId, backupId, manifestSha256, fromDir, filesByRole, newIds,
-   * contentCheck}. Returns the exit code.
+   * A live restore or import (§8), after step 1 (the content check included). `plan` = {operation, opId, backupId,
+   * manifestSha256, fromDir, filesByRole, newIds}. Returns the exit code.
    */
   function run(plan) {
     const js = {};
@@ -486,7 +489,7 @@ export function createEngine({ dirs, log, point = () => {}, fail = null, io = RE
     point('prepared-lti');
     js.app = writeJournal(dirs.app, js.app, 'prepared');
     point('prepared');
-    // staged: copy, fsync and verify every listed file into .restore-X/; then the content check.
+    // staged: copy, fsync and verify every listed file into .restore-X/ (the content check passed in step 1).
     try {
       for (const role of roles) {
         mkdirSync(restoreDir(role, plan.opId), { recursive: true, mode: 0o700 });
@@ -499,9 +502,6 @@ export function createEngine({ dirs, log, point = () => {}, fail = null, io = RE
         }
         io.fsyncDir(restoreDir(role, plan.opId));
       }
-      const check = plan.contentCheck(join(restoreDir('app', plan.opId), VOLUMES.app.db), restoreDir('app', plan.opId));
-      log({ event: 'storage_content_check', ts: new Date().toISOString(), opId: plan.opId, result: check.missing.length ? 'content_missing' : 'pass', checked: check.checked, missing: check.missing });
-      if (check.missing.length) throw Object.assign(new Error('content_missing'), { contentMissing: true });
       js.lti = writeJournal(dirs.lti, js.lti, 'staged');
       js.app = writeJournal(dirs.app, js.app, 'staged');
       point('staged');
@@ -513,7 +513,7 @@ export function createEngine({ dirs, log, point = () => {}, fail = null, io = RE
         markFailed(js);
         return 2;
       }
-      log({ event: 'storage_restore_cancelled', ts: new Date().toISOString(), opId: plan.opId, reason: err.contentMissing ? 'content_missing' : String(err.message) });
+      log({ event: 'storage_restore_cancelled', ts: new Date().toISOString(), opId: plan.opId, reason: String(err.message) });
       return 1;
     }
     // swap (lti, then app), commit; any failure from here on → R3.
@@ -575,28 +575,55 @@ export function createEngine({ dirs, log, point = () => {}, fail = null, io = RE
   return { run, recover, rollbackBoth, verifyBefore, verifyAfter };
 }
 
-/** The content check (§8): every package.storage_path of the staged app database exists as a folder of the content. */
-export function contentCheck(stagedDb, stagedDir, contentPackages) {
-  const scratch = mkdtempSync(join(tmpdir(), 'cogniate-content-'));
+/**
+ * The content check (§8 step 1, revision 3.5): every package.storage_path of the backup's app database exists as a
+ * folder of the content. It reads a scratch copy of exactly the app files that the manifest lists (each verified:
+ * size, SHA-256) in a new folder of the process temp folder, never a backup or target file. It removes that folder,
+ * then logs the one storage_content_check line. A check that cannot finish (also a failed removal) logs no line and
+ * refuses content_check_failed: never a pass and never content_missing. Returns {checked, missing}.
+ */
+export function contentCheck({ from, files, contentPackages, opId, log, io = REAL_IO }) {
+  let scratch = null;
+  let step = 'make its scratch folder';
+  let paths;
+  let failure = null;
   try {
-    for (const n of readdirSync(stagedDir)) if (n === VOLUMES.app.db || n.startsWith(`${VOLUMES.app.db}-`)) copyFileSync(join(stagedDir, n), join(scratch, n));
+    scratch = mkdtempSync(join(tmpdir(), 'cogniate-content-'));
+    for (const f of files) {
+      const name = `${VOLUMES.app.folder}/${f.name}`;
+      step = `copy ${name}`;
+      io.checkCopy(join(from, name), join(scratch, f.name));
+      step = `verify the copy of ${name} (manifest size and SHA-256)`;
+      const s = fileState(join(scratch, f.name));
+      if (!s || s.size !== f.size || s.sha256 !== f.sha256) throw new Error('the copy does not match the manifest');
+    }
+    step = 'read the app database';
     const conn = new DatabaseSync(join(scratch, VOLUMES.app.db), { readOnly: true });
-    let paths;
     try {
       const has = conn.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'package'").get();
       paths = has ? conn.prepare('SELECT DISTINCT storage_path FROM package ORDER BY storage_path').all().map((r) => String(r.storage_path)) : [];
     } finally {
       conn.close();
     }
-    const missing = paths.filter((p) => {
-      const m = /^packages\/([^/]+)$/.exec(p);
-      if (!m) return true;
-      try { return !lstatSync(join(contentPackages, m[1])).isDirectory(); } catch { return true; }
-    });
-    return { checked: paths.length, missing };
-  } finally {
-    rmSync(scratch, { recursive: true, force: true });
+  } catch (err) {
+    failure = { step, err };
   }
+  let left = false;
+  if (scratch !== null) {
+    try { io.checkRemove(scratch); } catch (err) { left = true; failure ??= { step: 'remove its scratch folder', err }; }
+  }
+  if (failure) {
+    const code = typeof failure.err?.code === 'string' ? ` (${failure.err.code})` : '';
+    const stays = left ? ` A copy of the app database stays in ${basename(scratch)} in the temp folder.` : '';
+    throw new Refused(`content_check_failed: the content check could not ${failure.step}${code}.${stays} Nothing was changed in the volumes.`, 'content_check_failed');
+  }
+  const missing = paths.filter((p) => {
+    const m = /^packages\/([^/]+)$/.exec(p);
+    if (!m) return true;
+    try { return !lstatSync(join(contentPackages, m[1])).isDirectory(); } catch { return true; }
+  });
+  log({ event: 'storage_content_check', ts: new Date().toISOString(), opId, result: missing.length ? 'content_missing' : 'pass', checked: paths.length, missing });
+  return { checked: paths.length, missing };
 }
 
 // ------------------------------------------------------------------------------------------------ the volume commands
@@ -680,7 +707,7 @@ export function volumeBackup({ dirs, out, project, revision, ids, io = REAL_IO }
   return manifest;
 }
 
-/** §8 restore and import: step 1 (validation, pair rule, target state), then the journal engine. */
+/** §8 restore and import: step 1 (validation, target state, source kind, pair rule, content check), then the journal engine. */
 export function volumeRestore({ dirs, from, project, operation, ids, log, drill = { point: () => {} }, fail = null, contentPackages, io = REAL_IO, opId: givenOpId = null }) {
   const m = validate(from, project);
   const manifestSha256 = sha256(join(from, MANIFEST));
@@ -730,15 +757,17 @@ export function volumeRestore({ dirs, from, project, operation, ids, log, drill 
     provenance = { kind: 'restore', opId, backupId: m.backupId, manifestSha256, restoredFromPairId: m.pairId, restoredFromGeneration: m.generation };
   }
   const id = (role) => ({ formatVersion: 1, composeProject: project, pairId, role, generation, createdAt: new Date().toISOString(), firstStart: 'completed', provenance, legacySources });
+  // The last check of step 1, before any target write (revision 3.5): a content_missing refusal changes nothing.
+  const check = contentCheck({ from, files: filesByRole.app, contentPackages, opId, log, io });
+  if (check.missing.length) {
+    throw new Refused(`content_missing: ${check.missing.length} of ${check.checked} package folders that the app database names are not in the content folder (see the storage_content_check line). Nothing was changed.`, 'content_missing');
+  }
   // Step 1 passed: only now a partial `.tmp` file of an earlier identity or journal write is removed (never renamed in).
   for (const role of ['lti', 'app']) {
     for (const n of [`${IDENTITY}.tmp`, `${JOURNAL}.tmp`]) rmSync(join(dirs[role], n), { force: true });
   }
   const engine = createEngine({ dirs, log, point: (p) => drill.point(p, opId, log), fail, io });
-  return engine.run({
-    operation, opId, backupId: m.backupId, manifestSha256, fromDir: from, filesByRole, newIds: { lti: id('lti'), app: id('app') },
-    contentCheck: (stagedDb, stagedDir) => contentCheck(stagedDb, stagedDir, contentPackages),
-  });
+  return engine.run({ operation, opId, backupId: m.backupId, manifestSha256, fromDir: from, filesByRole, newIds: { lti: id('lti'), app: id('app') } });
 }
 
 /** §9 step 1: copy every entry of both volumes (manifest last) and verify the copy. Volumes read-only. */

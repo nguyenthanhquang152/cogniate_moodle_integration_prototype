@@ -5,7 +5,7 @@
 // maintenance container). Real Docker acceptance is separate (AC-M1-41).
 import { execFileSync, spawnSync } from 'node:child_process';
 import { createHash, randomBytes } from 'node:crypto';
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -90,6 +90,17 @@ function tree(dir: string, rel = ''): string[] {
   });
 }
 const withoutJournals = (entries: string[]) => entries.filter((e) => !e.includes(`${JOURNAL} `));
+/** Every entry under a folder with its type, mode, size and SHA-256 (also journals, identities, .tmp files): "the tree is equal". */
+function listing(dir: string, rel = ''): string[] {
+  return readdirSync(join(dir, rel)).sort().flatMap((n) => {
+    const r = rel ? `${rel}/${n}` : n;
+    const st = lstatSync(join(dir, r));
+    const mode = (st.mode & 0o7777).toString(8);
+    if (st.isDirectory()) return [`${r}/ dir ${mode}`, ...listing(dir, r)];
+    if (st.isFile()) return [`${r} file ${mode} ${st.size} ${sha(join(dir, r))}`];
+    return [`${r} ${st.isSymbolicLink() ? `link ${readlinkSync(join(dir, r))}` : 'other'} ${mode}`];
+  });
+}
 
 // The CLI. The log folder is never created, so the program logs to stdout only; drill variables come only from a test.
 const NO_LOG_DIR = join(tmpdir(), `stack-data-test-no-logs-${process.pid}`);
@@ -341,8 +352,8 @@ describe('the journaled paired restore replaces the bind restore (ADR-012 §8, O
     }
   });
 
-  it('content check: a package.storage_path without its folder cancels (content_missing, verified); with the folder the restore commits', () => {
-    const data = makeVolumes();
+  it('content check (U3): a package.storage_path without its folder refuses content_missing in step 1 (tree equal, no journal); with the folder the restore commits', () => {
+    const data = makeVolumes(); // prepared (§4): the listing covers every write
     const db = new DatabaseSync(join(data, 'cogniate-app/cogniate.db'));
     db.exec("CREATE TABLE package (id TEXT PRIMARY KEY, storage_path TEXT NOT NULL); INSERT INTO package VALUES ('p1', 'packages/p1')");
     db.close();
@@ -350,10 +361,11 @@ describe('the journaled paired restore replaces the bind restore (ADR-012 §8, O
     expect(cli(['backup', '--source', 'volume', '--out', backup, '--data', data, '--project', 'qa-p']).code).toBe(0);
     const content = temp();
     const before = fileSets(data);
+    const snapshot = listing(data);
     const missing = cli(['restore', '--from', backup, '--data', data, '--project', 'qa-p', '--content', content]);
     expect(missing.code).toBe(1);
     expect(missing.lines.find((l) => l.event === 'storage_content_check')).toMatchObject({ result: 'content_missing', checked: 1, missing: ['packages/p1'] });
-    expect(journalStates(data)).toEqual(['rolled_back', 'rolled_back']);
+    expect([listing(data), journalStates(data)]).toEqual([snapshot, [null, null]]);
     expect(fileSets(data)).toEqual(before);
     mkdirSync(join(content, 'p1'));
     const ok = cli(['restore', '--from', backup, '--data', data, '--project', 'qa-p', '--content', content]);
@@ -455,11 +467,15 @@ describe('recovery drills (ADR-012 §8: --stop-after with STORAGE_DRILL=1, then 
 
 // ------------------------------------------------------------------------------------------------ the library API (§8 L451)
 
-interface Io { copyFile(src: string, dst: string): void; fsyncFile(p: string): void; fsyncDir(d: string): void; rename(src: string, dst: string): void }
+interface Io {
+  copyFile(src: string, dst: string): void; fsyncFile(p: string): void; fsyncDir(d: string): void; rename(src: string, dst: string): void;
+  checkCopy(src: string, dst: string): void; checkRemove(d: string): void;
+}
 interface Dirs { lti: string; app: string }
 interface Ids { uid: number; gid: number }
 interface Lib {
   REAL_IO: Io;
+  Refused: new (message: string, code: string) => Error & { code: string };
   volumeBackup(o: { dirs: Dirs; out: string; project: string; revision: string; ids: Ids; io?: Io }): unknown;
   volumeRestore(o: { dirs: Dirs; from: string; project: string; operation: 'restore' | 'import'; ids: Ids; log: (l: Line) => void; contentPackages: string;
     io?: Io; opId?: string; drill?: { point(p: string): void } }): number;
@@ -1279,6 +1295,252 @@ describe('B-SI-07: the read-only modes skip §4 and drop privilege at once; the 
       expect(String(refusalOf(q, 'source_unreadable').entry)).toMatch(/^cogniate-app(\/|$)/);
     } finally {
       chmodSync(vol(data, 'app'), 0o700);
+    }
+  });
+});
+
+// ------------------------------------------------------------------------------------------------ content check in step 1 (revision 3.5)
+
+// storage-content-refusal-repair §5: the content check is the last check of step 1, before any target write. Every
+// target is prepared (§4) first, so a listing covers every write. The app database names the package folder p1.
+const P1 = "CREATE TABLE package (id TEXT PRIMARY KEY, storage_path TEXT NOT NULL); INSERT INTO package VALUES ('p1', 'packages/p1')";
+const withP1 = (root: string) => { const db = new DatabaseSync(join(root, 'cogniate-app/cogniate.db')); db.exec(P1); db.close(); return root; };
+const preparedFresh = () => { const root = makeFresh(); for (const m of ['packages', 'uploads']) mkdirSync(join(root, 'cogniate-app', m), { mode: 0o700 }); return root; };
+const contentWith = (p1: boolean) => { const c = temp(); if (p1) mkdirSync(join(c, 'p1')); return c; };
+/** A legacy backup whose app database names p1. */
+function legacyP1(): string {
+  const lb = join(temp(), 'legacy');
+  expect(cli(['backup', '--source', 'legacy', '--out', lb, '--data', withP1(makeData()), '--project', 'qa-p']).code).toBe(0);
+  return lb;
+}
+/** An OK pair whose app database names p1, and its volume backup. */
+function okP1(): { data: string; backup: string } {
+  const data = withP1(makeVolumes());
+  const backup = join(temp(), 'b');
+  expect(cli(['backup', '--source', 'volume', '--out', backup, '--data', data, '--project', 'qa-p']).code).toBe(0);
+  return { data, backup };
+}
+const checkLines = (lines: Line[]) => lines.filter((l) => l.event === 'storage_content_check');
+const AFTER_STEP_1 = /^storage_(restore_cancelled|restore_rollback|restore_unresolved|drill_)/;
+/** A restore or import through the CLI with its own empty TMPDIR: no scratch copy of the check stays there. */
+function dataCmd(args: string[], env: Record<string, string> = {}) {
+  const tmp = temp();
+  const r = cli([...args, '--project', 'qa-p'], { ...env, TMPDIR: tmp });
+  expect(readdirSync(tmp)).toEqual([]);
+  return r;
+}
+/** exit 1; one storage_content_check line (content_missing, packages/p1), then one storage_refused line; nothing after step 1. */
+function expectContentMissing(r: ReturnType<typeof cli>, command: 'restore' | 'import') {
+  expect(r.code).toBe(1);
+  const checks = checkLines(r.lines);
+  expect(checks).toEqual([expect.objectContaining({ result: 'content_missing', checked: 1, missing: ['packages/p1'], opId: expect.stringMatching(/^[0-9a-f]{32}$/) })]);
+  expect(Object.keys(checks[0] ?? {}).sort()).toEqual(['checked', 'event', 'missing', 'opId', 'result', 'ts']);
+  expect(refusalOf(r, 'content_missing')).toMatchObject({ command });
+  expect(r.lines.findIndex((l) => l.event === 'storage_content_check')).toBeLessThan(r.lines.findIndex((l) => l.event === 'storage_refused'));
+  expect(r.lines.filter((l) => AFTER_STEP_1.test(String(l.event)))).toEqual([]);
+  expect(r.stderr).toContain('Nothing was changed.');
+}
+const expectOnePass = (r: ReturnType<typeof cli>) => expect(checkLines(r.lines)).toEqual([expect.objectContaining({ result: 'pass', checked: 1, missing: [] })]);
+const journalBytes = (root: string) => ROLES.map((r) => (existsSync(join(vol(root, r), JOURNAL)) ? readFileSync(join(vol(root, r), JOURNAL), 'utf8') : null));
+
+describe('the content check is the last check of step 1: a refusal writes nothing (ADR-012 §8 revision 3.5)', { timeout: 120_000 }, () => {
+  it('U1 import into an empty FRESH pair without p1: content_missing; the tree, the backup and the content are equal; no journal', () => {
+    const lb = legacyP1();
+    const target = preparedFresh();
+    const content = contentWith(false);
+    const before = [listing(target), listing(lb), listing(content)];
+    const r = dataCmd(['import', '--from', lb, '--data', target, '--content', content]);
+    expectContentMissing(r, 'import');
+    expect([listing(target), listing(lb), listing(content)]).toEqual(before);
+    expect(journalStates(target)).toEqual([null, null]);
+    expect(stateOf(target)).toBe('FRESH');
+  });
+
+  it.each([
+    ['prepared-lti', 'R1', ['rolled_back', null]],
+    ['staged', 'R2', ['rolled_back', 'rolled_back']],
+  ])('U2 import into a FRESH pair recovered after --stop-after %s (%s): content_missing keeps the tree and the journal bytes', (point, _row, states) => {
+    const lb = legacyP1();
+    const target = preparedFresh();
+    const content = contentWith(true);
+    expect(cli(['import', '--from', lb, '--data', target, '--project', 'qa-p', '--content', content, '--stop-after', point], { STORAGE_DRILL: '1' }).code).toBe(3);
+    expect(cli(['recover', '--data', target, '--project', 'qa-p']).code).toBe(1);
+    expect([journalStates(target), stateOf(target)]).toEqual([states, 'FRESH']);
+    rmSync(join(content, 'p1'), { recursive: true });
+    const [before, journals] = [listing(target), journalBytes(target)];
+    const r = dataCmd(['import', '--from', lb, '--data', target, '--content', content]);
+    expectContentMissing(r, 'import');
+    expect([listing(target), journalBytes(target)]).toEqual([before, journals]);
+    expect(ROLES.map((role) => journalOf(target, role)?.opId)).not.toContain(checkLines(r.lines)[0]?.opId);
+  });
+
+  it.each([
+    ['committed', []],
+    ['rolled_back', ['--stop-after', 'prepared']],
+  ])('U3 restore into an OK pair with %s journals: content_missing keeps journals, identities and databases; with p1 back it commits', (states, drill) => {
+    const { data, backup } = okP1();
+    const content = contentWith(true);
+    const first = dataCmd(['restore', '--from', backup, '--data', data, '--content', content, ...drill], { STORAGE_DRILL: '1' });
+    if (drill.length) expect([first.code, cli(['recover', '--data', data, '--project', 'qa-p']).code]).toEqual([3, 1]);
+    else expect(first.code).toBe(0);
+    expect([journalStates(data), stateOf(data)]).toEqual([[states, states], 'OK']);
+    rmSync(join(content, 'p1'), { recursive: true });
+    const before = listing(data);
+    const r = dataCmd(['restore', '--from', backup, '--data', data, '--content', content]);
+    expectContentMissing(r, 'restore');
+    expect(listing(data)).toEqual(before);
+    mkdirSync(join(content, 'p1'));
+    const ok = dataCmd(['restore', '--from', backup, '--data', data, '--content', content]);
+    expect(ok.code).toBe(0);
+    expectOnePass(ok);
+    expect(journalStates(data)).toEqual(['committed', 'committed']);
+    expect(checkLines(ok.lines)[0]?.opId).toBe(journalOf(data, 'lti').opId);
+  });
+
+  it.each(['import', 'restore'] as const)('U4 boundary (%s, --stop-after prepared-lti): without p1 no drill point; with p1 one pass line, then the stop', (op) => {
+    const { from, target } = op === 'import' ? { from: legacyP1(), target: preparedFresh() } : (({ data, backup }) => ({ from: backup, target: data }))(okP1());
+    const content = contentWith(false);
+    const args = [op, '--from', from, '--data', target, '--content', content, '--stop-after', 'prepared-lti'];
+    const before = listing(target);
+    const a = dataCmd(args, { STORAGE_DRILL: '1' });
+    expectContentMissing(a, op);
+    expect([listing(target), journalStates(target)]).toEqual([before, [null, null]]);
+    mkdirSync(join(content, 'p1'));
+    const b = dataCmd(args, { STORAGE_DRILL: '1' });
+    expect(b.code).toBe(3);
+    const order = b.lines.filter((l) => l.event === 'storage_content_check' || String(l.event).startsWith('storage_drill_')).map((l) => [l.event, l.result ?? l.point]);
+    expect(order).toEqual([['storage_content_check', 'pass'], ['storage_drill_stop', 'prepared-lti']]);
+    expect(journalStates(target)).toEqual(['prepared', null]);
+    expect(checkLines(b.lines)[0]?.opId).toBe(journalOf(target, 'lti').opId);
+    expect(cli(['recover', '--data', target, '--project', 'qa-p']).code).toBe(1);
+    expect(cli(['recover', '--data', target, '--project', 'qa-p']).code).toBe(0);
+  });
+
+  // U5: through the library API. p1 is present (unless named), so a check that finished would pass and the restore would go on.
+  const garbageApp = (backup: string) => {
+    const app = join(backup, 'cogniate-app/cogniate.db');
+    writeFileSync(app, 'not a database file');
+    const p = join(backup, 'manifest.json');
+    const m = readJson(p);
+    m.files = m.files.map((f: { name: string }) => (f.name === 'cogniate-app/cogniate.db' ? { ...f, size: lstatSync(app).size, sha256: sha(app) } : f));
+    writeFileSync(p, JSON.stringify(m));
+    return backup;
+  };
+  const U5: Array<[string, (b: string) => Partial<Io>, boolean, (b: string) => string]> = [
+    ['a: a partial scratch copy', () => ({ checkCopy: partialCopy }), true, (b) => b],
+    ['a: a scratch copy with other bytes (a valid database without p1)', (b) => ({ checkCopy: (src, dst) => copyFileSync(src.endsWith('/cogniate.db') ? join(b, 'lti-service/lti.db') : src, dst) }), false, (b) => b],
+    ['b: a failed scratch copy', () => ({ checkCopy: () => { throw eio('copyfile'); } }), true, (b) => b],
+    ['b: an app database that does not open (its manifest matches)', () => ({}), true, garbageApp],
+  ];
+  it.each(U5)('U5 %s: Refused content_check_failed; no storage_content_check line, no pass, no content_missing; the tree is equal', async (_name, io, p1, backupOf) => {
+    const { volumeRestore, REAL_IO, Refused } = await lib();
+    const { data, backup } = okP1();
+    const from = backupOf(backup);
+    const content = contentWith(p1);
+    const before = listing(data);
+    const lines: Line[] = [];
+    let thrown: unknown = null;
+    let code: number | null = null;
+    try {
+      code = volumeRestore({ dirs: dirsOf(data), from, project: 'qa-p', operation: 'restore', ids: IDS, log: (l) => lines.push(l), contentPackages: content, io: { ...REAL_IO, ...io(backup) }, opId: OP });
+    } catch (err) { thrown = err; }
+    expect([code, thrown instanceof Refused, (thrown as { code?: string } | null)?.code]).toEqual([null, true, 'content_check_failed']);
+    expect(String((thrown as Error).message)).toMatch(/^content_check_failed: the content check could not .*\. Nothing was changed in the volumes\.$/);
+    expect(lines).toEqual([]);
+    expect([listing(data), journalStates(data)]).toEqual([before, [null, null]]);
+  });
+
+  it.each([true, false])('U5 c: a failed removal of the scratch folder (p1 present: %s) refuses content_check_failed; the left copy holds only the listed files', async (p1) => {
+    const { volumeRestore, REAL_IO, Refused } = await lib();
+    const { data, backup } = okP1();
+    writeFileSync(join(backup, 'cogniate-app/cogniate.db-shm'), 'not listed'); // an unlisted file is never copied
+    const content = contentWith(p1);
+    const before = listing(data);
+    const lines: Line[] = [];
+    const left: string[] = [];
+    let thrown: unknown = null;
+    try {
+      volumeRestore({ dirs: dirsOf(data), from: backup, project: 'qa-p', operation: 'restore', ids: IDS, log: (l) => lines.push(l), contentPackages: content, opId: OP,
+        io: { ...REAL_IO, checkRemove: (d) => { left.push(d); throw eio('rm'); } } });
+    } catch (err) { thrown = err; }
+    expect([thrown instanceof Refused, (thrown as { code?: string } | null)?.code, lines, listing(data), journalStates(data)]).toEqual([true, 'content_check_failed', [], before, [null, null]]);
+    // The design does not promise the removal: the left scratch folder is in the process temp folder (reported here, then removed).
+    expect(left).toHaveLength(1);
+    const scratch = left[0] ?? '';
+    expect([dirname(scratch), readdirSync(scratch)]).toEqual([tmpdir(), ['cogniate.db']]);
+    expect(String((thrown as Error).message)).toContain(`A copy of the app database stays in ${scratch.split('/').pop()} in the temp folder.`);
+    REAL_IO.checkRemove(scratch);
+    expect(existsSync(scratch)).toBe(false);
+  });
+
+  it('U5 b through the CLI: an app database that does not open refuses content_check_failed (exit 1, one storage_refused line, no check line)', () => {
+    const { data, backup } = okP1();
+    const from = garbageApp(backup);
+    const before = listing(data);
+    const r = dataCmd(['restore', '--from', from, '--data', data, '--content', contentWith(true)]);
+    expect(r.code).toBe(1);
+    expect(refusalOf(r, 'content_check_failed')).toMatchObject({ command: 'restore' });
+    expect([checkLines(r.lines), r.lines.filter((l) => AFTER_STEP_1.test(String(l.event)))]).toEqual([[], []]);
+    expect(r.stderr).toMatch(/^content_check_failed: the content check could not read the app database \(ERR_SQLITE_ERROR\)\. Nothing was changed in the volumes\.$/m);
+    expect([listing(data), journalStates(data)]).toEqual([before, [null, null]]);
+  });
+
+  it('U6 .tmp leftovers in both volumes: a content_missing refusal keeps them byte for byte; the restore after p1 is back removes them', () => {
+    const { data, backup } = okP1();
+    for (const role of ROLES) {
+      writeFileSync(join(vol(data, role), `${JOURNAL}.tmp`), '{"formatVersion":1,"state":"comm');
+      writeFileSync(join(vol(data, role), `${IDENTITY}.tmp`), '{"formatVersion":1,"pairId":"');
+    }
+    const tmps = () => ROLES.flatMap((role) => [JOURNAL, IDENTITY].map((n) => { const p = join(vol(data, role), `${n}.tmp`); return existsSync(p) ? sha(p) : null; }));
+    const kept = tmps();
+    const content = contentWith(false);
+    const before = listing(data);
+    expectContentMissing(dataCmd(['restore', '--from', backup, '--data', data, '--content', content]), 'restore');
+    expect([listing(data), tmps(), kept.every((h) => h !== null)]).toEqual([before, kept, true]);
+    mkdirSync(join(content, 'p1'));
+    expect(dataCmd(['restore', '--from', backup, '--data', data, '--content', content]).code).toBe(0);
+    expect(tmps()).toEqual([null, null, null, null]);
+  });
+
+  it('U7 precedence: without p1, the backup, the target state, the source kind and the pair rule refuse first, with no check line', () => {
+    const { data: ok, backup: vb } = okP1();
+    const lb = legacyP1();
+    const other = okP1().backup; // another pair
+    const damage = (from: string, file: string) => { const c = join(temp(), 'damaged'); execFileSync('cp', ['-R', from, c]); writeFileSync(join(c, file), 'other'); return c; };
+    const first = preparedFresh();
+    const pairId = randomBytes(16).toString('hex');
+    for (const role of ROLES) writeFileSync(join(vol(first, role), IDENTITY), JSON.stringify(identity('qa-p', role, pairId, { firstStart: 'pending' })));
+    const content = contentWith(false);
+    const cases: Array<['restore' | 'import', string, string, string]> = [
+      ['restore', damage(vb, 'lti-service/lti.db-wal'), ok, 'backup_damaged'],
+      ['restore', damage(vb, 'cogniate-app/cogniate.db'), ok, 'backup_damaged'],
+      ['import', damage(lb, 'cogniate-app/cogniate.db'), preparedFresh(), 'backup_damaged'],
+      ['restore', vb, first, 'restore_target_state'],
+      ['import', lb, ok, 'import_target_not_fresh'],
+      ['import', vb, preparedFresh(), 'import_needs_legacy_backup'],
+      ['restore', lb, preparedFresh(), 'restore_needs_volume_backup'],
+      ['restore', other, ok, 'pair_mismatch'],
+    ];
+    for (const [op, from, target, code] of cases) {
+      const before = listing(target);
+      const r = dataCmd([op, '--from', from, '--data', target, '--content', content]);
+      expect([op, code, r.code]).toEqual([op, code, 1]);
+      expect(refusalOf(r, code)).toMatchObject({ command: op });
+      expect(checkLines(r.lines)).toEqual([]);
+      expect(listing(target)).toEqual(before);
+    }
+  });
+
+  it('U8 control: with p1, an import into FRESH and a restore into OK commit, each with exactly one pass line of its own opId', () => {
+    const content = contentWith(true);
+    const fresh = preparedFresh();
+    const { data, backup } = okP1();
+    for (const [op, from, target] of [['import', legacyP1(), fresh], ['restore', backup, data]] as const) {
+      const r = dataCmd([op, '--from', from, '--data', target, '--content', content]);
+      expect([op, r.code, r.lines.some((l) => l.event === 'storage_refused')]).toEqual([op, 0, false]);
+      expectOnePass(r);
+      expect(journalStates(target)).toEqual(['committed', 'committed']);
+      expect(checkLines(r.lines)[0]?.opId).toBe(journalOf(target, 'lti').opId);
     }
   });
 });
