@@ -258,3 +258,195 @@ Private clones of the exact SHAs (`git rev-parse` checked: `01ce5bc…`, `4410e8
 - I wrote only this file. No commit, push or merge.
 - `pnpm-workspace.yaml` is unchanged (SHA-256 `dfc07aac2ca34834eb425dac912bf6cfe1075b3e265b10c22368a7b99a82c064`).
 - During the run, Lead commits moved the worktree HEAD from `7fbf7c8` to `2d763fe`. I did not read them. The probes used private copies of the exact SHAs, not the worktree.
+
+## Round 2
+
+Verdict: PASS
+Round: 2
+
+Scope: the Q-R1A-01 repair only: the exit status after `storage_lock_lost` and after any other failed release (W-1), host only. Criteria: `docs/architecture/tasks/storage-command-conformance.md` revision 2 §3.6–§3.8 (R-1 to R-14 and the eight mutant families) and ADR-012 revision 3.7 §7 release step 1 and §12. Role: a new independent product host QA, Claude Code Opus 5.5, xhigh. Task `task_720f8d0e6d3a`, dispatch `ctx_5e5d6972f72d`. Date: 2026-10-21. The Round 1 section above is unchanged (its bytes have SHA-256 `bdc727ed97a9e4b79f11b40c8275144751a3b1dd6265e7f1c1f1c02049b5dd4a`).
+
+### R2.1 Result
+
+The verdict is PASS. It uses the final composition of Amendment 08: generation 2 for every case, except the 24 signal cases and mutant M2, which use generation 2b. Two earlier QA generations failed for QA reasons, not for product reasons. They stay recorded (R2.9).
+
+| Part | Result on T `9f8ac625` |
+| --- | --- |
+| Main case of W-1: a holder whose status would be 0 exits 1 after `storage_lock_lost` | **Passes** on `run` and on the sourced path, with `set -euo pipefail` and with no options. R-4 (foreign record F) and R-5 (no lock folder) exit 1. R-8 (ii), an ignored explicit release and then `exit 0`, exits 1. The §12 wrapper (R-11 LOST) exits 1. |
+| Nonzero status stays (W-1) | **Passes.** After a lost lock, 1, 2, 7, 126, 127, 137, 255 (literal and natural), 130 after INT and 143 after TERM (to the pid and to the group) all stay. R-8 (iii): a plain `storage_lock_release` under `set -euo pipefail` does not end the shell, and the saved 7 stays. |
+| Any nonzero release status fails closed (§3.7 (a)) | **Passes.** A real release error (`ENOTEMPTY` on `rel-<runId>`) and a forced release status of 3 or 2 give exit 1 from 0. 7 stays. |
+| Foreign record and events | **Pass.** F stays byte-identical, with the same inode and listing. There is no `rel-` or `stale-` folder. `lost.command`, `runId` and `pid` are the own values, and `owner` is F. Each holder has exactly one terminal event. |
+| R1-A non-regression and old route (R-9 to R-14) | **Pass.** Acquisition errors, the nested run, the copied wrapper pair, the hash list and its mutants, the R1-A command-field checks (including reclaim, cleanup, odd argv and the real `stack:data-backup`) and `selftest` all pass. |
+| R-13 against P0 `01ce5bc` | **173 of 173** normalized vectors are equal. The only differences are the 19 allowed exits 0 → 1 (D-1 lost cases, D-2 release-error cases). |
+| Mutants | **11 of 11** mutants in the **8 of 8** families are killed by their named cases, with the predicted deviation. |
+| R1-A QA O-1 (quiet A6 release) | Still present and unchanged (R-9 d/e/f log no `storage_lock_released`). It is the documented MINOR deferral to M4, outside this repair. |
+
+Key numbers (final composition):
+- T: 151 host and 22 clone cases. **160 of 160 REQUIRED** and 13 of 13 INFO pass.
+- P0 under the same oracle: it fails exactly the cases that must discriminate (R-4, R-5, R-8 (ii), the RE-*-0 cases, R-11 LOST, and CP-R4 (INFO)), each only on the exit status (0 instead of 1). So every main-case check discriminates.
+- Static: the Author commit changes only the three authorized paths. The embedded JavaScript is byte-identical. Only line 4 of the hash list changes.
+- Docker: zero real calls. Generations 2 and 2b made 952 stub calls, all on frozen routes, and zero unrouted calls.
+
+### R2.2 Identity and inputs
+
+| Item | Value |
+| --- | --- |
+| Target T (Author commit) | `9f8ac625443931242edd8da301c3d4f0d3e34290` ("M1: fail successful holders after storage lock release errors"). T^..T changes only `infra/compat/storage-compat.sha256`, `infra/scripts/storage-oplock.sh` and `infra/scripts/storage-oplock.test.mjs`. In P0..T, no other commit touches `infra`, `tests`, `apps`, `services`, `packages`, `package.json` or `pnpm-workspace.yaml`. |
+| T blob SHA-256 | helper `19d496b5e711cda8589ce7d1ad28070b59c23308f1154bf292b220dc098a4a6b`; unit test `ba14f34108f73f58c6f757797151520e588165f8888ae9bd9f9853613461fdcf`; list `7e3ae0ce88c76f18fd3871a6124c40b25a070f6e5ed194d802ce960a015e843f` |
+| Parent P0 | `01ce5bc2d2d26e4fb1226c5f4f19528fb9ed576b` (helper `90d24679…`, test `e2b2224b…`, `storage-compat.sh` `65be43f2…`, as criteria §1) |
+| Old build O | `b0b83a8289e1bf9cf349068aca184f0879e9aaf0` (R-11, R-12 e, CP) |
+| Criteria | `storage-command-conformance.md` revision 2 at `2362a20`, SHA-256 `1128b9c198ba79d9cac6471874eecdd2c48b40bc555e525f107d31846b8265de`; ADR-012 at `2362a20`, `2b3b601b771559870b2f997159c45ce366c203171c701acb4064c6dba41a1d7d` (§7, §12); charter `5289f7f7…`; triage `ade4e8a0…` (R1-A contract §3, §10.1, §15 only) |
+| Product diff (read after the map freeze and the grant) | Bash only. The `EXIT` trap calls the new `_storage_lock_exit`. It reads `$?` at entry, calls `storage_lock_release`, and exits 1 only when the entry status is 0 and a release of this holder failed. `storage_lock_release` records any nonzero release status with `\|\| STORAGE_LOCK_RELEASE_FAILED=1`. It never ends the caller. `run` keeps `exit "$code"`. |
+
+### R2.3 Independence, freeze and amendments
+
+- I froze the criteria and the test map before I read any source and before any probe. The map is `map/TEST-MAP.md` (written 14:29–14:30Z), SHA-256 `78fb5fda7baaa5ca5b262f7209de887d70089bd87544b937f5af45692ac23bb5`. The Lead verified it and granted stage 2 at 14:31:46Z (`msg_f37b800e6739`). The map is unchanged. All later choices are dated amendments, each written before the cases it affects:
+
+| Amendment | SHA-256 | Content |
+| --- | --- | --- |
+| 01 | `1ec93fa1d9390d7dc46140b37440da72c0a1f8f16a61512c3b8dbf102ff57a54` | Lead dispositions A-1 to A-20 and S-1, P0 interfaces, stub routes, R-13 normalization, R1-A coverage gap |
+| 02 | `d07bc9df288497ca5f6613c23363bbcc55399f17657eea71423cdeff6e5ce963` | R-13 sub-cases R13-RC, R13-CL, R13-ARGV, R13-C22 (REQUIRED, Lead) |
+| 03 | `1a3142ebb64375c16328acf32165e6a6c892f6bf4ff1d22c281eec41a4832a1e` | invocation of the clone cases (enable, old checkout, R-12 e bytes, CP) and R-14 |
+| 04 | `4266fc0a8fc07ab3226a3288840100319fcf502cc5dd898216a1e2003ede3a4d` | the subject helper hash in `hash_mismatch` text becomes a token |
+| 05 | `dacd2f44a7590a072cdcd00b9fc79ff4481af15fea26a2ca656f2b6c58ec088e` | two normalization fixes from the P0b-against-P0 control; one expected-value question |
+| 06 | `3c62b0cbf4d1508a32b3b0db79c3fa6b4a07d231e8dba431d24d014ecc79a305` | Lead disposition (natnx.SE = 1), knowledge note, T identity and static checks, the mutant manifest |
+| 07 | `d7035f2a087b9d59a854510efe6c5525f05c75846759f51974d2ec84b550fbc4` | generation 2: QA-only writer fixes, creation-mode control, boundaries |
+| 08 | `63c8bc94310b282736b95809d9d25d9acd56f210f39974ee430b5800d712f5e3` | generation 2b: the 24 signal cases, signal-child stderr capture, composition rule |
+
+- Lead expected-value disposition (Amendment 06): bash 3.2.57 itself exits 1, not 126, when a command fails with "Permission denied" under `set -e`. No-helper controls confirm it. So R-2.natnx.SE and R-6.natnx.SE expect 1 (REQUIRED). My original 126 and the P0 baseline results stay recorded as a QA expectation defect.
+- Read: the charter and the criteria above. After the grant: the P0 and T helper, the P0 guarded-script lock call lines, the P0 `storage-compat.sh`, the `b0b83a8` `lib.sh`, parts of the P0 `stack-data.sh` and `lib.sh`, and the T unit test lines 206–264 (S-4, INFO only). Also the historical R1-A report (Round 1 above) and the listing of its root. I verified its `MANIFEST.sha256` (`57039ac7…`), and I used it only for the coverage reconciliation of Amendment 01 §6. I reused no historical driver or oracle. I did not write or freeze the R1-A map.
+- Not read: Author notes, every source or design review file (including the untracked `docs/reviews/M1/storage-release-reviewer-a.md` in the worktree), and the harness-QA `tests/**` changes and reports.
+- Disclosures:
+  - I missed the target message `msg_81550b38ce16` (14:47:13Z) at my checkpoints. I read it after the Lead's reply to the Amendment 05 question.
+  - Amendment 05 says "No T exists yet". That means I had not read or tested T. Amendment 06 corrects the text.
+  - To attribute three real-HOME `~/.npm/_logs` files that were newer than my start, I read only their title, argv and cwd lines. They belong to other workers (the Author's `npm run lint` and `test:infra`, and the harness-QA root). None is mine, and I used none.
+
+### R2.4 Method
+
+- Private root `/Users/quangnguyen/cogniate-qa-runs/r2-storage-command-qa-20261021T1424Z` (mode 0700). The launcher runs under umask 077. Case children run under umask 022, inside the 0700 root (A-13).
+- Fresh copies:
+  - Host cases: the subject helper from `git archive`, one new folder per case.
+  - Clone cases: one pristine `git clone --no-hardlinks` per subject, then an APFS `cp -c -R` per case. HEAD and a clean status are checked each time.
+  - R-11 and CP run `npm run stack:storage-compat -- enable` with the real npm from the subject (T or P0), then `git checkout --force b0b83a8`.
+- Child environment from `env -i`: `HOME` = the scratch home (an `.npmrc` with `update-notifier=false`, `fund=false`, `audit=false`); `PATH` = a QA bin set, then `/usr/bin:/bin:/usr/sbin:/sbin`; `TMPDIR` in the root; `DOCKER_HOST` = an absent socket. There are no `npm_*`, `NODE_OPTIONS`, `COGNIATE_*` or `REPO_ROOT` variables, except where a case sets one on purpose.
+- Host: macOS 27.0.1 (26A434) arm64; GNU bash 3.2.57(1)-release (B1). B2 is not available: there is no bash 4 or later. node v24.21.0, npm 11.19.0, git 2.54.0 (Apple Git-157).
+- Paths:
+  - RUN: `bash <copy>/infra/scripts/storage-oplock.sh run -- …`, spawned detached.
+  - SE and SN: generated sourced drivers. Line 1 of SE is `set -euo pipefail`. SN has no option line. The rest is byte-identical. The driver records `$-` and pipefail: SE keeps `ehuB` with pipefail on, and SN keeps `hB` with pipefail off. So the helper does not change the caller's options.
+  - R-8: each explicit `storage_lock_release` is a plain command (`msg_564a7a62d993`).
+- Fault injection:
+  - Lost-F: a valid foreign record F, made from the own record by field substitution, of a live QA sleeper in its own group. The own lock is removed and F is put in place by `rename`.
+  - Lost-ABS: the lock folder is removed.
+  - RE-a: a non-empty `rel-<ownRunId>` makes the real release step 2 fail.
+  - RE-b: a node shim exits 3 or 2 only for the release subcommand and `exec`s the real node for everything else.
+  - Signals: TERM or INT to the holder pid (the child then runs 1 s more) or to the group (the child traps the signal, sleeps 1 s, then ends).
+- Docker: one fail-closed stub for every case. It answers only these frozen routes: the listing (empty, active, inactive, fail), `rm`, the `info` fail-closed route (R13-C22), and the R-11 preflight, `compose ps` and `inspect` routes. Any other call exits 97 and makes the case BLOCKED.
+- R-13 compares a normalized vector per case: exit, events with their key order, other stdout, stderr, markers, the `.tmp` end state with an F-identity flag, the log, leftovers and the Docker routes. Normalization replaces only these values: paths, run ids, known pids, `pidStart` by owner pid, timestamps, `waitedMs`, bash `line N:` numbers, the pid of a bash job-status line, and the subject helper and hash-mutant hashes (Amendments 01, 04, 05).
+- R-13 controls:
+  - Two P0 runs (P0b against P0): 173 of 173 equal.
+  - A negative control injected 9 changes into copies. The comparator flags all 9, and it allows only the lost-case exit change 0 → 1.
+
+### R2.5 Results by criterion (T, final composition)
+
+| Id | Cases (RUN / SE / SN) | T | P0 |
+| --- | --- | --- | --- |
+| R-1 | 3 | pass: exit 0; `acquired`, `released` with the own command; nothing left | same |
+| R-2 | 30 (literal 1, 2, 7, 126, 127, 255; natural `false`, not-found, non-executable, `kill -9`) | pass: status kept; released | same |
+| R-3 | 12 (TERM, INT × pid, group) | pass: 143 / 130; the release comes 27–42 ms after the child ends; the PID cases release after `go` | same |
+| R-4 | 3 | pass: **exit 1**; `lost` with `owner` = F; F byte- and inode-identical; own `runId` and `pid` | exit 0 (D-1) |
+| R-5 | 3 | pass: **exit 1**; `owner` null; no lock created | exit 0 (D-1) |
+| R-6 | 30 | pass: every nonzero status kept; events and F as R-4 | same |
+| R-7 | 12 | pass: 143 / 130 kept; `lost` after the child ends; F kept | same |
+| R-8 (i)–(iii) | 6 (SE, SN) | pass: (i) 0, one release; (ii) **1**, exactly one `lost`, no second release; (iii) **7**, the marker after the plain release exists | (ii) exit 0 (D-1) |
+| R-9 a–f | 18 | pass: exit 1; a: wait, then `operation_in_progress` after about 120.7 s, `owner` = F; b: `operation_lock_reentry` in 68 ms; c: `operation_lock_invalid` after about 10.1 s; d: `storage_writer_active` with the container; e, f: `acquired` only; no `lost` or `released`; F and the invalid folder kept | equal |
+| R-10 a, b | 6 | pass: nested exit 1, `operation_lock_reentry` with its own command, `owner.runId` = A; A's record unchanged; A exits 0 / 5 | equal |
+| RE (A-1) | 15 | pass: RE-a (real `ENOTEMPTY` release error) and RE-b (status 3 or 2) give **1** from 0; 7 kept; no `released`; the own lock stays (fail closed) | 0 / 7 (D-2) |
+| R-11 | CTL, LOST (REQUIRED), L7 (INFO) | pass: CTL exit 0 and `storage-compat status: OK (…)`; LOST **exit 1**, `lost` with command `storage-compat run -- npm run stack:up`, `owner` = F, F kept, empty stderr (no "stop now"), loss at the `status` step, npm stub ran once; L7 exit 7 | LOST exit 0 (D-1) |
+| R-12 | a–c static; d on 9 enable steps; e1, e2, e3 | pass: list line 4 = `19d496b5…`, other lines unchanged; the `enable` copies are byte-identical to the T files; e1 and e2 are refused before the lock (`hash_mismatch …`, then "stop now: the storage-compatibility files changed (hash).", exit 1, npm not run); e3 `enable` is refused and removes the override | equal |
+| R-13 | 173 vectors; R1-A command field on every event; R13-RC, R13-CL, R13-ARGV-1..4, R13-C22 | pass: 173 equal (19 allowed exits); reclaim, cleanup and odd argv keep the own command; C22 `stack:data-backup` acquires and releases with its command and exits 1 on the routes `list-empty`, `info-failclosed` only | — |
+| R-14 | umask 022 (REQUIRED), 077 (INFO) | pass: exit 0, five scenarios `ok`, scratch removed | same |
+| S-1, S-2, S-3, S-5 | static | pass; S-4 (INFO): the T unit test `:211` expects 1 | — |
+
+INFO rows: R-5 with 7, R-8 (iv), SU-1 (release without acquire under `set -u`: no event, no "unbound variable"), R-11 L7, CP-R1/R2-7/R4/R6-7 (the copied helper on the old build; CP-R4 exits 1 on T and 0 on P0) and R-14 at umask 077. All pass. A-17: in 157 of 167 holder checks, the event `pid` is the spawned pid. The 10 others are npm-started `enable` steps, where the holder is npm's bash child.
+
+### R2.6 Mutation (generation 2; M2 generation 2b)
+
+| Mutant | Change in the T bash part (the JS block is byte-identical) | Killed by (named) |
+| --- | --- | --- |
+| M1 | release result discarded (`\|\| true`) | R-4 and R-5 on RUN, SE, SN: exit 0 |
+| M2 | lost overrides every status | R-6 lit7 (1, not 7), R-7 TERM-PID and INT-GRP (1, not 143 / 130) on all paths |
+| M3 | only the run path repaired (P0 trap, a status branch in `run`) | SE and SN R-4: 0 |
+| M4 | only the trap path repaired (`run` forgets the failure) | RUN R-4: 0 |
+| M5e | `set -e` dependence (unguarded failing release) | SE R-6 lit7: 1, not 7 |
+| M5u | `set -u` dependence (state read without a default) | SE R-1: 1, "STORAGE_LOCK_RELEASE_FAILED: unbound variable" |
+| M5p | pipefail dependence (`release \| cat`) | SN R-4: 0 |
+| M6 | explicit release returns 1 (ends the caller under `set -e`) | SE R-8 (iii): 1, the marker after the release is absent |
+| M7 | the handler uses only its own release result | SE and SN R-8 (ii): 0 |
+| M8r, M8m | a failed release removes or moves the lock folder | R-4 on all paths: F gone (G-7), or F moved to `rel-` |
+
+A first mutant generation had a QA tool defect: JavaScript `String.replace` turned `$$` into `$`. It never ran. It is kept in `evidence/discarded/`.
+
+### R2.7 Old route, hash list and real guarded script
+
+- On `b0b83a8`, the §12 wrapper with a lost lock now exits 1 with the `storage_lock_lost` event, the foreign record kept and no "stop now" text. So the old-build route reports broken exclusion (on P0 it exited 0). The control run with the same stubs exits 0 with `storage-compat status: OK`.
+- `enable` from T copies the T helper (`19d496b5…`). The wrapper and `enable` refuse each hash mutant.
+- Upgrade note (criteria §4.5): an `enable` made before this repair keeps the old helper copy and the old hash list until `disable` and a new `enable` from the repaired SHA.
+
+### R2.8 Docker and isolation
+
+- QA ran no `docker` command. No PATH folder had a real `docker`. Every case ran with `DOCKER_HOST` set to an absent socket.
+- Stub calls in generations 2 and 2b: 952 in total. By route: `list-empty` 879, `list-active` 7, `list-fail` 6, `list-inactive` 6, `rm-fail` 6, `compose-preflight` 9, `compose-ps-lti-service` 3 (and 6 with `+lose`), `compose-ps-cogniate-app` 9, `inspect-*` 18, `info-failclosed` 3. There were zero unrouted calls, and no unrouted log exists.
+- No leftover QA process was found. My npm and git use stayed in the scratch home and `TMPDIR`.
+
+### R2.9 Generations (QA process; no product effect)
+
+| Generation | Result | QA defect and resolution |
+| --- | --- | --- |
+| 1 (`P0`, `P0b`, `T`, `mut-*`) | Behavior as the final result, but only preliminary. **QA hygiene FAIL.** | My QA child scripts created 2,091 QA-authored entries under the child umask 022: 1,664 marker, log and trigger files at 0644, and 427 planted F or relblock folders at 0755. All were inside the 0700 root, with no secret and no other owner. Sealed in `MANIFEST-gen1.sha256` (`14a26c66…`), not repaired by `chmod`. Lead decision: rerun as generation 2. |
+| 2 (`P0g2`, `Tg2`, `mut2-*`) | All REQUIRED pass. Hygiene: 0 of 210,804 QA-authored entries broader than owner-only. **R-13 FAIL in one case.** | R-7.TERM-GRP.SN stderr: T `""`, P0g2 `"Terminated: 15"`. That line is the bash job-status line of my QA signal child, not product output. It appears in 30 of 31 TERM-group runs. A no-product probe of the child alone printed it 5 of 5 times with TERM 50 ms after `ready`, and 1 of 5 times with TERM at once. Lead decision: a bounded rerun as generation 2b. |
+| 2b (`P0g2b`, `Tg2b`, `mut2b-M2`) | 24 of 24 signal cases pass on T and on P0. R-13 24 of 24 equal. M2 killed. Hygiene 0 violations. | The signal child writes only its own stderr to an exclusively created 0600 file. A fixed 50 ms setup delay follows `ready`. New checks: the signal target, the child alive at signal time, the capture mode. Helper and wrapper stderr are unchanged and compared. |
+
+Other QA findings (fixed before T grading, all recorded): (1) R-13 normalization gaps found by the P0b control: same-second `pidStart` text, and the pid in a bash job line (Amendment 05). (2) My expected 126 for `natnx.SE` was wrong; bash gives 1 (Amendment 06). (3) The `$$` defect of the mutant generator (above). (4) The missed target message (R2.3).
+
+### R2.10 Findings
+
+- **No product finding.** No BLOCKER, MAJOR, MINOR or NIT finding on the T diff.
+- Q-R1A-01 (Round 1): the observed behavior now meets ADR-012 revision 3.7 §7 release step 1 and §12 (W-1) on every supported path. Its closure is the Lead's decision.
+- R1-A QA O-1 (quiet A6 release): unchanged, as required. It is the documented MINOR deferral to M4, and it is not a new finding.
+
+### R2.11 Limits
+
+- Host only, with simulated Docker answers. This check does not measure gate G-1, any container, or the old `npm run stack:up` itself (an npm stub stands in for it on the wrapper route).
+- One shell (bash 3.2.57) and one host.
+- `SIGKILL` of the holder is not tested (the contract says: no release).
+- I did not run the Author unit suite or `npm run check`. S-4 is a static read.
+- The live LMS rows and the full runtime gates are unchanged by this check. It gives no runtime acceptance credit.
+
+### R2.12 Evidence
+
+- Root: `/Users/quangnguyen/cogniate-qa-runs/r2-storage-command-qa-20261021T1424Z` (0700).
+
+| Manifest | SHA-256 | Scope |
+| --- | --- | --- |
+| `evidence/MANIFEST-gen1.sha256` (0400, 21,904 entries) | `14a26c668a71a9bf1a07e666ef0d1ee4f8344a31f97e9a4f28cb41b17b7afdd4` | generation 1, sealed before the generation-2 changes |
+| `evidence/MANIFEST-gen2.sha256` (0400, 20,586 entries) | `b5c58f78877b2f2975953d198dca94206fb46d7dffccb30259ee9e23ea95f9d1` | generations 2 and 2b, the controls, the QA tools, the templates and the mutants |
+| `evidence/DRIVER-PROVENANCE-v2.txt` | `c154f15dc08f328e142ad0b47292c33a2c5bad5d41df285f6b00892be2bbee2b` | each of the 89 changed generation-1 driver and harness paths, and the 3 generation-2 paths, mapped to a preserved copy with the same SHA-256 (0 mismatches) |
+| `evidence/MANIFEST-final-v3.sha256` (0400, 127 entries) | `7d3ad52bf9b774beb17c9f9c28b52f8a3c2481a31049f1ac54e9b561dc1fb5b8` | map, amendments, QA tools, drivers, top-level evidence (including the two manifests and the provenance file). `MANIFEST-final.sha256` and `-v2` are superseded tool outputs, kept as they are. |
+
+| Key file | SHA-256 |
+| --- | --- |
+| `map/TEST-MAP.md` | `78fb5fda7baaa5ca5b262f7209de887d70089bd87544b937f5af45692ac23bb5` |
+| `evidence/results/Tg2-host.jsonl` / `Tg2-clone.jsonl` / `Tg2b-host.jsonl` | `a7f82ba5…a9aa` / `847abede…77a9` / `2a3766d4…11c9` |
+| `evidence/results/P0g2-host.jsonl` / `P0g2-clone.jsonl` / `P0g2b-host.jsonl` | `02c760e6…cffdb` / `7605875e…d479f` / `9756ddf1…c6117` |
+| `evidence/results/r13-Tg2-vs-P0g2.jsonl` (one QA-child difference) / `r13-Tg2b-vs-P0g2b.jsonl` | `6e7fefc5…0480` / `23708956…ef71` |
+| `evidence/results/mutants2-summary.json` / `mutants2b-summary.json` | `b10d58aa…32c9` / `aa5a08bb…9e25` |
+| `evidence/hygiene-gen2-final.json` / `hygiene-gen2b-final.json` | `31e05900…91d3` / `252cf66d…af24` |
+| `evidence/results/control-P0b-vs-P0-v2.jsonl` / `control-compare-negative.json` | `a861ea7c…b2b` / `73d0fc7e…574` |
+| `evidence/control-nolock-natural.txt` / `evidence/probe-sigchild/result.json` | `dac5c37f…f993` / `3a43a214…c0bf` |
+| `mut/manifest.json` | `14d574c25b2f62ffde209dfeffbad38d0563b73239df8aa3be6db13ca46e1691` |
+
+### R2.13 Repository state
+
+- I appended only this Round 2 section to this file. The Round 1 bytes are unchanged. I made no commit, push or merge.
+- `pnpm-workspace.yaml` is unchanged (SHA-256 `dfc07aac2ca34834eb425dac912bf6cfe1075b3e265b10c22368a7b99a82c064`).
+- The worktree HEAD moved during the run (to `b484b39`), and it has other workers' uncommitted `tests/**` changes. I did not read them. All runs used private copies of the exact SHAs.
