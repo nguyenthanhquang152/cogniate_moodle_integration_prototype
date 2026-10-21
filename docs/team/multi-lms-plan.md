@@ -13,13 +13,16 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 17:24 UTC
+### Current checkpoint — 2026-10-21, 17:38 UTC
 
 Round 2 QA's private control map is frozen at SHA-256 `6e28a020c3c702f09894b82d335486bc3620bff74164263801d664152cd68f8a`.
 The Lead read the map and verified its bytes and private modes. Grant `msg_c671d53d5d30` permits source reads and a bounded repair in the 13 named test paths, plus an append-only Round 2 report.
 QA froze A-01 (`34864741797fb9e9bc6a1e5abf2d5dfe395e839e5701cebed63828db887bdc58`) and addendum A-01b (`39ad4463c48f1baed617caac9aa4e0d29dd9e13b6769cd9cc50d4b2697b45c0b`).
 The Lead read both files, verified their bytes and private modes, and accepted exactly 10 test paths plus the append-only report in `msg_90ee9213d2ed` and `msg_ded8c0cf6576`.
-QA is writing the new controls on a private baseline copy. It must preserve the gap-specific failing baselines before repository edits; no second approval wait is required inside this scope.
+QA preserved S3 before repository edits: 33 new controls, 15 PASS and 18 FAIL against the old runtime, zero Docker-stub calls and no temporary leftovers. The separate bare-import variant has one PASS and one expected FAIL.
+Report SHA-256: `579238fba1c813d39e49d8b633d42452b56b3c508686a10fa2986d008fa4c34f`. The Lead verified all 26 baseline runtime modules equal `71a5bf9`.
+The baseline has explicit limits: some invalid-root subcases were not reached after an earlier assertion, and the damage-copy refusal needs the new observation seam. These do not get fault-detection credit.
+QA is now editing the 10 authorized paths. No second approval wait is required inside the granted scope.
 The addendum preserves the original mutation cases, migration scan points and comparison of unhooked old and repaired copy behavior. Raw records stay; any volatile fields normalized for comparison must be listed.
 Decision D-A1 follows triage section 4.3: an invalid scan root FAILs. A linked or non-owned root is not walked. An unsafe scratch cleanup or refused correction sets the phase abort; a closure problem alone does not add a new abort rule.
 The grant requires a parent-link race introduced before file opening to cause refusal before any permission correction. A post-operation check alone does not meet this control.
@@ -29,9 +32,12 @@ The map's initial 0644 creation and the estimated future end times in the map an
 Reviewer-B `ctx_47285c0af009` remains active on fixed source `71a5bf9`. The execution host still reports the exact worker live; the pending probe has no completion or exit evidence.
 The Lead did not stop, replace or duplicate it. After about 50 minutes without a probe result, the Lead asked the owner whether to stop and restart B; the answer is pending. No interruption is authorized by elapsed time.
 Fresh Round 2 Reviewer-A task `task_67e836c13f1b` / `ctx_426e6f466ac4` started in the third worker slot. Requested and effective model are Claude Code Opus 5.5 xhigh; the start receipt observed its turn.
-A first reviews the frozen criteria and control maps while QA prepares the repair. It must wait for the held source commit and final evidence before a source verdict. It owns only an append-only Round 2 section in `storage-harness-reviewer-a.md`.
+A reviewed the frozen criteria and control maps in `msg_31702b04ef24`; this is not a source verdict. The Lead routed G-1 through G-7 to QA in `msg_22aa9a71ff0b`: BLOCKED-body cleanup results, pre-removal chain revalidation, private-root and outside-hit races, precise correction timing, all copy call sites and exact behavior comparison.
+QA is writing a short A-02 binding before the added edits. It must preserve old evidence and the existing file scope. No new automatic-abort, hard-link or birth-time rule is added.
+The broad N-2 comparison omits too many file hashes and cannot establish exact content equivalence. N-3 and copy-name collisions also need precise handling. The Lead requires identical synthetic inputs or explicit volatile-field normalization, with raw records kept and stable content compared.
+A must wait for the held source commit and final evidence before a source verdict. It owns only an append-only Round 2 section in `storage-harness-reviewer-a.md`.
 The reviews remain blind. Three workers are active, all Claude Code Opus 5.5 xhigh. No extra worker is authorized before a slot is free.
-The working tree has only the preserved untracked `pnpm-workspace.yaml`; no Round 2 source edit is present yet.
+The working tree has changes in exactly the 10 authorized test and harness paths, plus the preserved untracked `pnpm-workspace.yaml`. No Round 2 source commit is held yet.
 
 Product Q-R1A-01 remains closed. Harness repair, source review and all final runtime gates remain open.
 Latest full runtime remains 438 PASS and 50 FAIL at `aaa823b`. No candidate C, Docker window, push or main merge is authorized.
