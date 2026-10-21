@@ -53,7 +53,8 @@ export function m1HostControl(r, runCommand = run) {
       const stat = fs.lstatSync(file);
       if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 8192) throw new Error('Request file');
       req = JSON.parse(fs.readFileSync(file, 'utf8'));
-      if (!/^m1-[a-f0-9]+$/.test(req.id)) throw new Error('Request id');
+      // The scan finds the ack by the file name, so the id must be the same: a different id could overwrite another answer.
+      if (req.id !== path.basename(file).slice('req-'.length, -'.json'.length)) throw new Error('Request id');
       const start = Date.now(), result = await execute(req);
       // Add once-only CLI codes before writing any command evidence.
       for (const value of result.stdout.match(/(?<![\w-])[A-Za-z0-9_-]{43}(?![\w-])/g) ?? []) r.redact.add(value);
@@ -75,6 +76,9 @@ export function m1HostControl(r, runCommand = run) {
     for (const name of fs.readdirSync(dir).filter((n) => /^req-m1-[a-f0-9]+\.json$/.test(n))) {
       if (done.has(name)) continue;
       done.add(name);
+      // Each suite starts a new controller on the same folder, and request files stay. An ack means that an
+      // earlier controller answered the request; a second run can repeat a once-only command (M1-38 h4).
+      if (fs.existsSync(path.join(dir, 'ack-' + name.slice('req-'.length)))) continue;
       const promise = answer(path.join(dir, name)).finally(() => active.delete(promise));
       active.add(promise);
     }

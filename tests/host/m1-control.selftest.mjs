@@ -154,3 +154,129 @@ test('HARNESS ONLY: with the storage-compat marker the host control refuses m1-r
   assert.equal((await invoke({ id: 'm1-d4', action: 'm1-restart', service: 'lti-service' })).code, 0);
   assert.equal(calls.length, 2);
 });
+
+// M1-38: run-m1 suite() starts a new controller for each stage on the same clone, and request files stay.
+// Synthetic grant store (App contract §4.8): an issue revokes the older unredeemed grants of the same connection
+// and purpose; an initial issue for a bound connection exits 1 and stores nothing. No container and no product.
+test('HARNESS ONLY: a new controller on the same folder never repeats an answered request (M1-38 seed, then upgrade)', async (t) => {
+  const clone = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-m1-restart-'));
+  const dir = path.join(clone, 'tests/acceptance/artifacts/control');
+  fs.mkdirSync(dir, { recursive: true });
+  const grants = [], bound = new Set(), runs = new Map(), saves = new Map();
+  let hold, release;
+  async function runCommand(command, args) {
+    const [verb, ...rest] = args.slice(args.indexOf('--') + 1), opt = {};
+    for (let i = 0; i < rest.length; i += 2) opt[rest[i].slice(2)] = rest[i + 1];
+    runs.set(opt.note, (runs.get(opt.note) ?? 0) + 1);
+    if (hold?.note === opt.note) { hold.entered(); await hold.released; }
+    if (verb === 'list') return { code: 0, stdout: `${grants.length} grants`, stderr: '', durationMs: 1 };
+    if (opt.purpose === 'initial' && bound.has(opt.connection)) return { code: 1, stdout: '', stderr: 'connection is bound', durationMs: 1 };
+    for (const g of grants) if (g.connection === opt.connection && g.purpose === opt.purpose && g.status === 'issued') g.status = 'revoked';
+    grants.push({ id: `grt_${grants.length + 1}`, connection: opt.connection, purpose: opt.purpose, status: 'issued' });
+    return { code: 0, stdout: grants.at(-1).id, stderr: '', durationMs: 1 };
+  }
+  // The product call that redeems a grant (outside the host control).
+  function redeem(id) {
+    const grant = grants.find((g) => g.id === id);
+    if (grant.status !== 'issued') return grant.status;
+    grant.status = 'redeemed'; if (grant.purpose === 'initial') bound.add(grant.connection);
+    return grant.status;
+  }
+  const r = {
+    CLONE: clone, PROJECT: 'qa-restart-selfcheck', state: { h1Verified: true },
+    STACK_ENV: { COMPOSE_PROJECT_NAME: 'qa-restart-selfcheck' }, redact: { add: () => {} },
+    saveText: (name, text) => saves.set(name, [...(saves.get(name) ?? []), JSON.parse(text)]),
+    record: (...args) => assert.fail(JSON.stringify(args)),
+  };
+  let stop = m1HostControl(r, runCommand);
+  t.after(async () => { release?.(); await stop(); fs.rmSync(clone, { recursive: true, force: true }); });
+  function write(req) {
+    const file = path.join(dir, `req-${req.id}.json`);
+    fs.writeFileSync(file + '.tmp', JSON.stringify(req)); fs.renameSync(file + '.tmp', file);
+  }
+  async function answer(id) {
+    const ackPath = path.join(dir, `ack-${id}.json`), limit = Date.now() + 3000;
+    while (!fs.existsSync(ackPath) && Date.now() < limit) await delay(10);
+    assert.ok(fs.existsSync(ackPath), `Host control answered ${id}`);
+    return JSON.parse(fs.readFileSync(path.join(dir, JSON.parse(fs.readFileSync(ackPath, 'utf8')).out), 'utf8'));
+  }
+  const invoke = async (req) => { write(req); return answer(req.id); };
+  const grantCli = (id, args) => ({ id, action: 'm1-cli', script: 'app:grant', args: [...args, '--note', id] });
+
+  // Stage 1 (snapshot-seed): success, a non-zero command, and two requests refused before any command.
+  assert.equal((await invoke(grantCli('m1-b1', ['issue', '--connection', 'con_a', '--purpose', 'initial']))).code, 0);
+  assert.equal(redeem('grt_1'), 'redeemed');
+  assert.equal((await invoke(grantCli('m1-b2', ['issue', '--connection', 'con_a', '--purpose', 'add_deployment']))).stdout, 'grt_2');
+  assert.equal((await invoke(grantCli('m1-b3', ['issue', '--connection', 'con_a', '--purpose', 'initial']))).code, 1);
+  assert.equal((await invoke({ id: 'm1-b4', action: 'm1-cli', script: 'arbitrary', args: [] })).stderr, 'CLI whitelist');
+  assert.equal((await invoke({ id: 'm1-b5', action: 'm1-reset' })).stderr, 'Unknown M1 host action');
+  // stop() while a command runs: it waits, so the ack exists before the next controller starts.
+  const entered = new Promise((resolve) => { hold = { note: 'm1-b6', entered: resolve, released: new Promise((go) => { release = go; }) }; });
+  write(grantCli('m1-b6', ['list', '--connection', 'con_a']));
+  await entered;
+  let stopped = false;
+  const stopping = stop().then(() => { stopped = true; });
+  await delay(100);
+  assert.equal(stopped, false, 'stop() waits for the running command');
+  release(); await stopping;
+  assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'ack-m1-b6.json'), 'utf8')).code, 0, 'The running command has its ack');
+  // A request that no controller took stays queued for the next controller.
+  write(grantCli('m1-b7', ['list', '--connection', 'con_a']));
+  await delay(100);
+  assert.equal(runs.has('m1-b7'), false, 'No controller runs between the stages');
+  const stage1 = Object.fromEntries(fs.readdirSync(dir).map((name) => [name, fs.readFileSync(path.join(dir, name), 'utf8')]));
+
+  // Stage 2 (snapshot-upgrade): a new controller on the same folder and the same runner object.
+  stop = m1HostControl(r, runCommand);
+  assert.equal((await answer('m1-b7')).code, 0, 'The queued request is answered');
+  assert.equal((await invoke(grantCli('m1-b8', ['issue', '--connection', 'con_b', '--purpose', 'initial']))).code, 0, 'A new request runs');
+  // M1-38 h4: the seeded add_deployment grant is still valid; then a fresh grant is issued and redeemed.
+  assert.equal(redeem('grt_2'), 'redeemed', 'No repeated issue revoked the seeded grant');
+  assert.equal(redeem((await invoke(grantCli('m1-b9', ['issue', '--connection', 'con_a', '--purpose', 'add_deployment']))).stdout), 'redeemed');
+  await stop();
+
+  const executed = ['m1-b1', 'm1-b2', 'm1-b3', 'm1-b6', 'm1-b7', 'm1-b8', 'm1-b9'];
+  assert.deepEqual([...runs.keys()].sort(), executed, 'Refused requests ran no command');
+  for (const id of executed) assert.equal(runs.get(id), 1, `${id} ran once`);
+  assert.deepEqual(grants.map((g) => g.status), ['redeemed', 'redeemed', 'issued', 'redeemed']);
+  for (const [name, text] of Object.entries(stage1)) assert.equal(fs.readFileSync(path.join(dir, name), 'utf8'), text, `${name} is unchanged`);
+  for (const n of [1, 2, 3, 4, 5, 6, 7, 8, 9]) assert.equal(saves.get(`host-actions/m1-b${n}.json`)?.length, 1, `One host-actions record for m1-b${n}`);
+});
+
+test('HARNESS ONLY: requests queued before the first controller run once; a request id must equal its file name', async (t) => {
+  const clone = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-m1-queued-'));
+  const dir = path.join(clone, 'tests/acceptance/artifacts/control');
+  fs.mkdirSync(dir, { recursive: true });
+  const notes = [], records = [];
+  const r = {
+    CLONE: clone, PROJECT: 'qa-queued-selfcheck', state: { h1Verified: true },
+    STACK_ENV: { COMPOSE_PROJECT_NAME: 'qa-queued-selfcheck' }, redact: { add: () => {} }, saveText: () => {},
+    record: (...args) => records.push(args),
+  };
+  const runCommand = async (command, args) => { notes.push(args.at(-1)); return { code: 0, stdout: 'ok', stderr: '', durationMs: 1 }; };
+  const request = (name, id) => fs.writeFileSync(path.join(dir, `req-${name}.json`),
+    JSON.stringify({ id, action: 'm1-cli', script: 'app:grant', args: ['list', '--note', name] }));
+  async function until(what, predicate) {
+    const limit = Date.now() + 3000;
+    while (!predicate() && Date.now() < limit) await delay(10);
+    assert.ok(predicate(), what);
+  }
+  // A fresh control folder can hold requests before the controller starts.
+  request('m1-e1', 'm1-e1'); request('m1-e2', 'm1-e2');
+  let stop = m1HostControl(r, runCommand);
+  t.after(async () => { await stop(); fs.rmSync(clone, { recursive: true, force: true }); });
+  await until('Both queued requests are answered', () => ['m1-e1', 'm1-e2'].every((id) => fs.existsSync(path.join(dir, `ack-${id}.json`))));
+  const ack = fs.readFileSync(path.join(dir, 'ack-m1-e1.json'), 'utf8');
+  // The ack and output names come from the id. A file with another id must not run or overwrite that answer.
+  request('m1-e3', 'm1-e1');
+  await until('The mismatched request is refused', () => records.length === 1);
+  await stop();
+  // A refused request has no ack, so the next controller refuses it again. It never runs a command.
+  stop = m1HostControl(r, runCommand);
+  await until('The next controller refuses it again', () => records.length === 2);
+  await stop();
+  for (const record of records) assert.deepEqual(record, ['HOST-CONTROL', 'M1 host request was rejected', 'FAIL', ['Request id']]);
+  assert.deepEqual(notes, ['m1-e1', 'm1-e2'], 'Each queued request ran once; the mismatched request ran no command');
+  assert.equal(fs.readFileSync(path.join(dir, 'ack-m1-e1.json'), 'utf8'), ack);
+  assert.equal(fs.existsSync(path.join(dir, 'ack-m1-e3.json')), false);
+});
