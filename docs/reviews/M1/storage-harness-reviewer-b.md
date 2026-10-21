@@ -256,3 +256,100 @@ No observation hook in the neutrality runs: `replayLane` sets `copyHook: null`, 
 ### R2 verdict
 
 APPROVE for the source of tests tree `183a72b2fea5ff065fc57c96649199bc720fb6e0` (`c71912f`), with no runtime acceptance credit. No BLOCKER or MAJOR is open. B-HR-01 and B-HR-02 are closed. B-HR-03 is closed for its required cleanup coverage. Deferred: the B-HR-03 published-once extension (MINOR), B-HR-04 (MINOR, accepted limit; M5-4b NOT DETECTED, not equivalent), B-HR-06 (MINOR), and B-HR-05, B-HR-07, B-HR-08, B-HR-09, B-HR-10 (NIT). A change to any of the 11 paths cancels this verdict.
+
+## Round 3
+
+Round 3 verdict: APPROVE (source review of tests tree `290a773f1c9779693153ae77b46cc8ceb7eb83f4`; no runtime acceptance credit)
+
+Reviewer-B, 2026-10-21 (UTC). This is a bounded source review of the Round 3 harness repair: the service-state checks of the storage fixtures after the candidate `C` diagnostic. **It gives no runtime acceptance credit.** A self-check pass count is not runtime acceptance. No M1 row changes status because of this review. The Round 1 and Round 2 text above is unchanged (prefix SHA-256 `a2b31180636c085aa3d95117b937e0fdcdf482fd85144548ad7c3aaa1708f385`, 48,745 bytes, at `d3296dd`).
+
+### R3 identity and scope
+
+| Item | Value |
+| --- | --- |
+| Role | Fresh independent Reviewer-B, Round 3. Blind: I did not read any peer review report, transcript or finding. I did not read the uncommitted QA report in the worktree. I read only §R2.13 of the committed QA report at `7f4cc61`, after my findings and evidence checks were sent and the Lead sent it as final evidence. |
+| Model | Claude Code Opus 5.5 (`claude-opus-5-5`), xhigh effort. |
+| Lifecycle | Run `run_ebe671ad72a9`, task `task_1f1e4e4466b9`, dispatch `ctx_d547c43bc41a`. Session `orca_session_id:3e4f3eee-628a-4752-a0d4-d05532373748`. |
+| Source target | `c4de96f41163a23c182f0fbcb513460086da2fd8`, tests tree `290a773f1c9779693153ae77b46cc8ceb7eb83f4`. Held SHA-256: `storage-rows.mjs` `0958cc49fdf24c447f6b8eb446b17908979e6516f186cd8343fc7a77ede215c1`, `storage-rows.selftest.mjs` `9ef56478f7099dc28a8733c163f4803f36cc8bc1f24b687cb28e388eaeec4376`, `run-m1.mjs` `8e1ef65ccac3bc593f501e6f871be3a8e987fe59e3441b0a303897629d57a076`. All three equal my `git archive` copy. |
+| Base | Old candidate `C` = `d3296dd6eddbe723364a639d8e2db0adf12ab183`, tests tree `183a72b2fea5ff065fc57c96649199bc720fb6e0`. |
+| Delta | `git diff d3296dd c4de96f -- tests`: exactly the three granted files, 32 insertions, 8 deletions (`run-m1.mjs` +2/−1, `storage-rows.mjs` +5/−3, `storage-rows.selftest.mjs` +25/−4). The other paths of the commit are documentation (`README.md`, `docs/**`). The product (every path outside `docs/**`, `tests/**` and `README.md`) is byte-equal to `9f8ac625443931242edd8da301c3d4f0d3e34290`. |
+| Criteria | Charter §5 and §6. Frozen triage `2d763fe` (SHA-256 `ade4e8a0f9e54823040828758b7683d5c9b230587747f3ef3c89ef8e99f9a032`, verified) §4.3, §12 (V2-8, V4-9, V7-1). M1 precision `a60ba4a` (SHA-256 `ac444799ae5e93706054a7e352e339bdea509a889328c15365a3535864fb37af`, verified): `e-fresh-refusal`, "nothing changes", the write after `B`. ADR-012 §7, §9, §11. The Round 3 grant in the dispatch. |
+| QA proposal | `diagnosis-c/backup-B-502.md` (SHA-256 `b0004ad12a62694b66d6509a918e2934bc004981ffa87e2561a8565f187500bd`, 5,900 bytes, 0600) and `backup-B-502-erratum.md` (SHA-256 `1205cdbcf729bad7ea4601b16f2133eac9512763322de15567675d5944904d4a`, 371 bytes, 0600; it corrects the header time to 19:31:17Z). QA root: `/Users/quangnguyen/cogniate-qa-runs/storage-harness-repair-qa-r2-20261021T1646Z`. This is QA's proposal, not a peer finding. |
+
+### R3 method
+
+- I reviewed fixed Git objects only. I extracted `d3296dd:tests` and `c4de96f:tests` with `git archive` into my private root `/Users/quangnguyen/cogniate-review-runs/harness-r3-reviewer-b-task_1f1e4e4466b9-20261021T1942Z` (0700, made under umask 077). I read the whole delta and the unchanged code that it calls: `serviceContainers` and `servicesStopped` (`storage-docker.mjs`), `stopServices`, `snapshot` and `assertUnchanged` (`storage-lane.mjs`), `nothingChanged` (`storage-oracle.mjs`), `run` (`lib.mjs`), and the FakeWorld lane, `dryRun` and `EXPECTED` (`storage-rows.selftest.mjs`). These modules, `dryRun` and `EXPECTED` are byte-equal to `C`.
+- I sent the criteria and static findings first (`msg_39a67f609c91`, `msg_a867279ca113`), then the evidence check (`msg_e866fd661968`) and the `stack:down` and R2-D-2 reconciliation (`msg_d09251f8afb0`).
+- I ran no self-test, no mutant and no probe. No concrete doubt remained that needed one. My checks of QA's evidence are three read-only Node scripts (`bin/bind-copies.mjs`, `bin/equiv-2.mjs`, `bin/tail-blocks.mjs`) and reads of QA's logs, metas and npm debug logs. The scripts import no test or product code and run no Docker command. They ran with my normal `HOME`, without a Docker stub, and wrote only into my private root under umask 077.
+- No Docker, Compose, network, service, settings change or dependency installation. No repository edit except this section.
+
+### R3 assessment of the QA diagnosis
+
+The hypothesis is correct. `serviceContainers` lists every lane container that is not a one-off and not a storage container (`storage-docker.mjs:330–343`). On a real lane these are `proxy`, `postgres`, `moodle`, `lti-service` and `cogniate-app`. The harness stop stops only the two app services (`storage-lane.mjs:85–91`). So after `e-not-same-import`, `.some((x) => x.running)` at `@backup-B` was true because of the three platform containers. The fixture skipped `stack:up` and wrote the markers through the proxy to a stopped `lti-service` (HTTP 502). All 37 failed rows depend on `@backup-B`. The same class is in `postB` (every `@post-B`) and in `e-fresh-refusal` ("No service starts" would FAIL while the platform runs). A search of the 26 runtime modules of `tests/host` finds no other running-state check over the unfiltered container list. `stopped()` (`storage-rows.mjs:248`) still issues one extra harness stop while the platform runs; this is harmless and unchanged. `bOracle` (`:1325`) already filters the app names.
+
+### R3 source review of the three sites
+
+| Site | Result |
+| --- | --- |
+| `appRunning` (`storage-rows.mjs:249–250`) | Correct. True only when **each** of `lti-service` and `cogniate-app` has a container with `running: true`. An absent, `created`, `exited` or `dead` app container, or one app down, gives false. |
+| `postB` (`:298`) and `@backup-B` (`:866`) | Correct. They now call `up()` (product `stack:up`, exit 0, then `waitHealthy`) unless both app services run. `stack:up` on a running or half-running stack is the accepted `a-second-start` path. The predicate decides only whether `up()` runs before `writeMarkers`. The marker write, the stop, the backup and the logical checks are unchanged. |
+| `e-fresh-refusal` (`:1080`) | Correct. "No service starts" now checks the two app services only. `assertUnchanged` is unchanged code; its snapshot uses `lane.services()`, which lists every lane container, and `nothingChanged` compares `id`, `startedAt` and `created` of each. So a start, restart or new container of `proxy`, `postgres` or `moodle` still FAILs the row. The change drops only the wrong condition "no platform container already runs". |
+| `run-m1.mjs:71–72` | Correct. Only the `--harness-only` self-test call gets `timeoutMs: 1_800_000`; every other bound is unchanged. A timeout still fails (`checked` asserts exit 0). The measured run took 574 s (32 % of the bound). |
+
+No refusal, start, data-integrity or lock invariant is weaker. No row, criterion, oracle, manifest, `SEQUENCE`, `NEEDS`, V7-1 map, V2-8 injection or V4-9 table changed. The delta adds no V4-9 token.
+
+### R3 controls
+
+- **FakeWorld platform (opt-in `platformOn`).** The first `startServices` makes running `proxy`, `postgres` and `moodle` containers with the lane project label (`storage-rows.selftest.mjs:368–371`). The fake `docker compose stop` and the fake quarantine act on the app services only, so the platform persists. `reset()` clears it (`:935`), and the next start makes it again. `all()` lists it (`:445`), so the fake `serviceContainers` now gives the real lane's list. When `platformOn` is not set, the default dry runs behave as in `C`; only log entries get two more fields.
+- **R2-RT-1 (`:1821–1834`).** The full dry run with the platform. It asserts: the declared V7-1 map in both directions; the discriminating precondition at the end of the step before `@backup-B` and before the first `@post-B` (both app services stopped, three platform containers running); every HTTP request of those two steps while both app services ran; and the `e-fresh-refusal` precondition (platform running before it, app services stopped after it).
+- **Old/new (QA evidence, checked).** `logs/rt-base-u022` (19:37:45Z–19:38:07Z, pattern `R2-RT-1|V7-1`): V7-1 PASS, R2-RT-1 FAIL at the declared-map assertion with exactly 37 rows "not run: prerequisite `@backup-B` did not pass". This is the shape of the `C` diagnostic. `src/rt-base/tests/host` equals `c4de96f` except `storage-rows.mjs`, which equals `C` (`run-m1.mjs` is not imported by `storage-rows.selftest.mjs`). `logs/rt-new-u022`: 2/2 PASS.
+- **Mutants (QA evidence, checked).** Catalog `bin/catalog-rt.py` (SHA-256 `818cce53851dd8e697967b023afee1e5a0382f0fd3913e3887e48bde4cd8ef80`) was made at 19:38:43Z, before the run `mutate-rt1` (19:38:54Z); driver `bin/mutate.py` `4f71150f…` is unchanged from Round 2. Each mutant puts back the exact `C` line at one site. MU-RT-1 and MU-RT-2: DETECTED, the 37-row `@backup-B` cascade (MU-RT-2 fails through `postB('b1')` inside `@backup-B`). MU-RT-3: DETECTED, exactly `e-fresh-refusal: FAIL "No service starts"`. Each detection is a failed assertion; the unmutated baseline passes. My script: each mutant copy equals my `c4de96f` `tests/host` except `storage-rows.mjs`, which is `c4de96f` with exactly one anchor (count 1) replaced; the baseline copy equals `c4de96f` (`notes/bind-copies-1.json`).
+
+### R3 complete suites (QA evidence, checked)
+
+| Run | Result |
+| --- | --- |
+| `logs/final-rt-u077` (`run-suite.sh` `4a83fbc4…`; 19:40:18Z–19:49:50Z; child umask 077; own `HOME` and `TMPDIR`; Docker stub first) | exit 0; 143/143 PASS; 0 fail, cancelled, skipped, todo; 15/15 self-test hashes equal `c4de96f`; 0 Docker-stub calls; 0 temporary leftovers. |
+| `logs/ho-rt-u022` (`node tests/host/run-m1.mjs --harness-only --provider blackboard`; 19:40:16Z–19:49:54Z; child umask 022; own `HOME` and `TMPDIR`; Docker stub first) | exit 0; 172/172 PASS; 0 fail, cancelled, skipped, todo; then `tsc` typecheck and the inventory line. One npm metadata request after the tests (R2-D-2, below). Before and after hashes of all 42 `tests/host` files equal `c4de96f`. `tmp_left=1` is Node's compile cache of the `tsc` step (tool state), not a test leftover. |
+| Equivalence (my `bin/equiv-2.mjs`, `notes/equiv-2.json`) | Every one of the 143 test names of the 077 suite appears exactly once with a pass mark in the harness-only output. The other 29 are `tests/sim` and `tests/acceptance/M1/common` tests only. So the harness-only run is a superset of the complete self-test suite at umask 022, with full results, no skipped or interrupted test, and source binding by its own before and after hashes. `notes/equiv-1.json` is an earlier output of the same check; it reported 17 false gaps because TAP escapes `#` as `\#`. Version 2 fixes only that. |
+| Network deviation R2-D-2 (QA) | Confirmed in the npm debug logs of `home/ho-rt-u022`: one `http fetch GET 200 https://registry.npmjs.org/npm 417ms` in the `npm --prefix tests run typecheck` call that started at 19:49:50.629Z, after the `node --test` child had ended (`run-m1.mjs` awaits it). Inside the self-tests, the two npm calls of each run (`config get update-notifier`, and the V1-12 `run stack:data-backup`, exit 1) have no fetch line; the 077 run has no npm typecheck and no fetch line. So the 172 results stay valid functional evidence, but the harness-only run is not a network-compliant run, and the deviation stands. No traffic capture exists, so other network use is not excluded. |
+| Corrective tail (`logs/tail-rt-u022`, 19:54:39Z–19:54:42Z, `bin/tail-replay.mjs` `d2c911fae750ed1bcddce9731658682ddbb0058b313f7a864487d1828b3998ea`) | Valid as bounded evidence of the typecheck and the four `vitest list` discoveries only. The launcher checks the `run-m1.mjs` hash and runs its literal `checked`/`loadingRuntime` definitions and tail block; my `bin/tail-blocks.mjs` on my `c4de96f` copy gives the same block hashes (`f731ea4b…`, `9d542ea3…`; `notes/tail-blocks-1.json`), and the tail has no self-test call. A new private `HOME` with `.npmrc` `update-notifier=false` and `offline=true`; its two npm debug logs have no fetch line; exit 0; the summary line equals the first run. |
+| QA final report | `docs/reviews/M1/storage-harness-repair-qa.md` at `7f4cc61396930a791991e9eef5426ebff08f673a`, SHA-256 `b6248d0e841130de35925655b802fe7e282649605ca6edfd77fe97c0df86e688`, 77,922 bytes (verified). I read only §R2.13, after the Lead sent it as final evidence (`msg_f936277acf7d`). It agrees with my checks. Manifest `evidence/manifest-r2-v4.tsv` SHA-256 `eb3a24f548afad0e3291f247afedcebe9f074f78af347ae229530738e1ee00ca` (hash verified; the Lead verified its 7,028 entries). |
+
+### R3 findings
+
+#### B-HR-11 — MINOR — no control covers partial app availability
+
+- **Where:** `tests/host/storage-rows.mjs:250` (`appRunning`); control `tests/host/storage-rows.selftest.mjs:1821–1834`.
+- **Problem:** The grant requires that `appRunning` needs **both** app services. No control has a state with exactly one app service running when `@backup-B` or `postB` checks it. The fake stop and start act on both services; the one-service fake restart (`:756`) runs only in the early `a-restart`, `a-restart-refusal` and `i-enable-refusal` rows, on a running stack. R2-RT-1 asserts that both app services are stopped before each discriminating step. So, as a static prediction, a mutant that accepts one running app service (`.some` over the two names) passes R2-RT-1 and V7-1. I did not run such a mutant; this is not observed mutation evidence.
+- **Why MINOR:** The code is correct (static). The required controls (R2-RT-1, MU-RT-1 to MU-RT-3) exist and detect their faults. A discriminating case is missing; no required control fails.
+- **Suggested fix:** one R2-RT-1 variant with a hook at the end of `e-not-same-import` that starts only `lti-service`; expect `up('before-B-marker')` and every HTTP request with both app services running.
+- **Lead disposition (`msg_e56fc43281a4`):** accepted as MINOR deferred coverage under charter §5. No source repair or survivor probe in this round. The id is kept for the M4 carry-forward.
+
+#### B-HR-12 — NIT — a harness-only timeout is not named in the failure text
+
+- **Where:** `tests/host/run-m1.mjs:52–56` (`checked`), with `run` in `tests/host/lib.mjs:12–34`.
+- **Problem:** `checked` ignores `result.timedOut`. After 30 minutes the run prints the partial output and then "`node` failed: `<stderr>`", without the word "timeout". The result stays a failure, so it is honest, but the cause is not named. `run` signals only the direct child.
+- **Note:** Pre-existing helper. No change is requested in this batch.
+- **Lead disposition (`msg_e56fc43281a4`):** accepted as NIT deferred timeout diagnostics. The id is kept for the M4 carry-forward.
+
+Observation (no finding): `appRunning` does not include `proxy`, which the API write path also uses. No harness step stops `proxy` alone, and such a fault gives a loud HTTP error, not a false PASS.
+
+### R3 deferred items
+
+Unchanged and deferred: the B-HR-03 published-once extension (MINOR), B-HR-04 (MINOR, accepted limit; M5-4b NOT DETECTED, not equivalent), B-HR-06 (MINOR), and B-HR-05, B-HR-07, B-HR-08, B-HR-09, B-HR-10 (NIT). The delta does not touch their sites. New and deferred by the Lead (`msg_e56fc43281a4`): B-HR-11 (MINOR), B-HR-12 (NIT).
+
+### R3 limits and disclosures
+
+- No runtime acceptance credit. I ran no self-test, no mutant and no probe; I rely on QA's runs. I checked their hashes, their binding to my own `git archive` copies, the test names and the failure texts.
+- The FakeWorld lane is QA's model of ADR-012 and of the platform containers. Its PASS shows harness order and decisions, not product or Docker behavior. No control asserts that `reset()` removes the platform; the code is one assignment. R2-RT-1 runs the full 70-row dry run, so it runs the fake `stack:down` of `a-second-start` (`storage-rows.mjs:448`; fake at `storage-rows.selftest.mjs:962`). The fake only stops the two app services and keeps every container, also the platform. The real `stack:down` removes all lane containers, and the next `stack:up` makes new ones with new ids. The effect on this delta is none: after `a-second-start` both app services and the three platform containers run in the fake and in the real lane, so the three predicates get the same inputs later, and no check of the delta compares container ids across `a-second-start` (`assertUnchanged` compares inside one row). R2-RT-1 does not model the re-creation of the platform by `stack:down`.
+- The rows after `@backup-B` have no real storage run on any candidate. Their runtime result stays unknown until a new diagnostic window.
+- `final-rt-u077` ran in `<worktree>/tests/host` (`run-suite.sh` `cd "$dir"`; QA §R2.13). Its meta hashes the 15 self-tests only. The runtime modules are bound by bracketing: all 42 `tests/host` files equal `c4de96f` at 19:38:43Z (`held-hashes-rt.txt`), 19:40:16Z and 19:49:54Z (the harness-only inventories) and 19:50:28Z (`evidence/worktree-inventory-rt.json`, SHA-256 `16c5ccee1241bd24f68302f9e3a435c4a0541a8078c67dd526e5f609ac663d00`). The R2-RT-1 PASS in that run also excludes the `C` `storage-rows.mjs`, which fails R2-RT-1.
+- `orca orchestration check` gave three Lead messages (19:48:57Z, 19:51:24Z, 19:53:15Z) only at 19:55Z; my filtered inbox read did not list them. I acknowledged them in `msg_d09251f8afb0`.
+- My first status message gave the delta as "+40/−6". The correct count is 32 insertions and 8 deletions (`git diff --numstat`); I corrected it in a later message.
+- At the start, `git log --oneline -15` showed commit subjects up to `01f3973`, including the Round 2 subject `ba4b124` (already disclosed in Round 2). I read no peer file.
+- Evidence manifest: `manifest-r3-v2.tsv` in my private root (mode 0600; 531 real files with type, mode, size, SHA-256, and for each Git-extracted file its Git object and blob check; 0 blob mismatches), SHA-256 `87cb10a430d50d5f622361c6d173fef5a2335e53dc518c7bce9bd4957648a00d`. It excludes itself and `notes/round3-final.md`, the final copy of this section, whose bytes are in this file. It lists the superseded `manifest-r3-v1.tsv` (SHA-256 `4d5ec01817bc853eae0db3922831cc08875174719c751e2a83a81edcda169e01`) and the drafts `notes/round3-draft-v1.md` to `-v4.md`; v4 was a first final copy with a wrong Role-row sentence, fixed only by `bin/draft-v5.py`. Every entry of the root is owner-only (`find -perm +044` finds none).
+
+### R3 verdict
+
+APPROVE for the source of tests tree `290a773f1c9779693153ae77b46cc8ceb7eb83f4` (`c4de96f`), with no runtime acceptance credit. No BLOCKER or MAJOR is open. The three sites are correct, no invariant is weaker, and R2-RT-1 with MU-RT-1 to MU-RT-3 discriminates the old and the repaired behavior by failed assertions. The complete 077 suite passes; the harness-only 022 run is a full superset of the complete 022 suite and is functional evidence, but it is not network-compliant (QA R2-D-2); the bounded corrective tail covers only its typecheck and discoveries. New and deferred by the Lead: B-HR-11 (MINOR), B-HR-12 (NIT). Earlier deferred items are unchanged. A change to any of the three paths cancels this verdict. Runtime evidence needs a new frozen candidate and a new diagnostic window.
