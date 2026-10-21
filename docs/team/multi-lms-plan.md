@@ -1839,6 +1839,15 @@ The Author continues independent fixes while that contract reading is pending.
 Round-2 source reviews are queued as `task_34365528ced3` (A) and `task_f8cfe85a1d3a` (B).
 They require the repaired frozen candidate, the clarification disposition and final source-check evidence before dispatch.
 
+Architect `msg_4286bb7f2bc0` resolves B-SI-07 as an existing-contract reading, with no file or architecture change.
+The Lead retained the Architect before acknowledgment and sent the binding direction in `msg_eefd866c15b1`.
+Volume backup and quarantine copy must skip volume preparation and drop privileges before reading volume data.
+They keep their read-only mounts. Unprepared but readable metadata is informational; backup uses the report semantics for empty mountpoints.
+An entry unreadable by `HOST_UID` still fails closed: no backup manifest, or no quarantine removal.
+The existing design does not permit a root copy of unreadable data. Writers keep their required preparation steps.
+The Author must add positive read-only and unreadable-entry controls. Both source reviewers check this implementation disposition.
+Required operator fields remain present and safely escaped; unrelated raw process output and secrets must not be exposed.
+
 The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
