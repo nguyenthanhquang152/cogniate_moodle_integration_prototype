@@ -12,6 +12,7 @@ import vm from 'node:vm';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PROJECT = 'oplock-unit';
 const temps = [];
+const repos = [];
 afterEach(() => { for (const t of temps.splice(0)) fs.rmSync(t, { recursive: true, force: true }); });
 
 // The fake docker: `ps` prints FAKE_PS (a file of "id<TAB>name<TAB>state<TAB>run" lines) or fails with FAKE_PS_FAIL=1;
@@ -55,7 +56,9 @@ function repo() {
   };
   const tmpEntries = () => (fs.existsSync(path.join(root, '.tmp')) ? fs.readdirSync(path.join(root, '.tmp')).sort() : []);
   const ran = () => fs.existsSync(path.join(root, 'ran'));
-  return { root, script, env, run, ps, lockDir, events, tmpEntries, ran };
+  const r = { root, script, env, run, ps, lockDir, events, tmpEntries, ran };
+  repos.push(r);
+  return r;
 }
 
 const C = { ...process.env, LC_ALL: 'C' };
@@ -69,19 +72,29 @@ function plantLock(r, rec) {
 const EVENT_KEYS = ['command', 'container', 'event', 'owner', 'pgid', 'pid', 'pidStart', 'project', 'reason', 'runId', 'ts', 'waitedMs'];
 
 describe('the operation lock (ADR-012 §7)', () => {
+  // §7: command is not nullable. Every lock event of every test names a command (a non-empty string).
+  afterEach(() => {
+    for (const r of repos.splice(0)) for (const e of r.events()) assert.ok(typeof e.command === 'string' && e.command !== '', `${e.event}: command ${JSON.stringify(e.command)}`);
+  });
+
   it('run -- holds the lock for the whole command (record with pid, pidStart, pgid), then releases it; the events have the §7 fields', () => {
     const r = repo();
-    const res = r.run('cp "$LOCK/owner.json" "$HOME/owner.json"; echo "run=$COGNIATE_STORAGE_LOCK_RUN"');
+    const cmd = 'cp "$LOCK/owner.json" "$HOME/owner.json"; echo "run=$COGNIATE_STORAGE_LOCK_RUN"; echo "commandVar=${STORAGE_LOCK_COMMAND-unset}"';
+    const res = r.run(cmd);
     assert.equal(res.code, 0, res.stderr);
     const rec = JSON.parse(fs.readFileSync(path.join(r.root, 'owner.json'), 'utf8'));
     const own = r.events()[0];
     assert.equal(own.event, 'storage_lock_acquired');
     assert.match(res.stdout, new RegExp(`run=${own.runId}`));
+    assert.match(res.stdout, /^commandVar=unset$/m); // the helper keeps its command in a shell variable that it does not export
     assert.deepEqual(Object.keys(rec).sort(), ['acquiredAt', 'checkout', 'command', 'containers', 'formatVersion', 'pgid', 'pid', 'pidStart', 'project', 'runId']);
     assert.deepEqual([rec.formatVersion, rec.project, rec.checkout, rec.runId, rec.pid, rec.pidStart, rec.pgid, rec.containers], [1, PROJECT, r.root, own.runId, own.pid, own.pidStart, own.pgid, []]);
     assert.ok(rec.pidStart.length > 0 && Number.isInteger(rec.pgid));
-    assert.match(rec.command, /^storage-oplock run -- bash -c /);
     assert.deepEqual(r.events().map((e) => e.event), ['storage_lock_acquired', 'storage_lock_released']);
+    // The record, the acquired event and the released event name the same command.
+    const command = `storage-oplock run -- bash -c ${cmd}`;
+    const released = r.events()[1];
+    assert.deepEqual([rec.command, own.command, released.command, released.runId], [command, command, command, own.runId]);
     for (const e of r.events()) assert.deepEqual(Object.keys(e).sort(), EVENT_KEYS);
     assert.deepEqual(r.tmpEntries(), []);
     // A6 lists the project's storage containers (both labels).
@@ -190,24 +203,33 @@ describe('the operation lock (ADR-012 §7)', () => {
     assert.deepEqual(r.tmpEntries(), [`storage-op.${PROJECT}.lock`]);
   });
 
-  it('release moves only its own lock: a lock that another run holds now is kept (storage_lock_lost)', () => {
+  it('release moves only its own lock: a lock that another run holds now is kept (storage_lock_lost, with the own command)', () => {
     const r = repo();
     const res = spawnSync('bash', ['-c', `source "${r.script}"; storage_lock_acquire test-lost
-node -e 'const fs=require("fs");const f=process.argv[1];const k=JSON.parse(fs.readFileSync(f,"utf8"));k.runId="${'9'.repeat(16)}";fs.writeFileSync(f,JSON.stringify(k))' "$LOCK/owner.json"
+node -e 'const fs=require("fs");const f=process.argv[1];const k=JSON.parse(fs.readFileSync(f,"utf8"));k.runId="${'9'.repeat(16)}";k.command="other-owner";fs.writeFileSync(f,JSON.stringify(k))' "$LOCK/owner.json"
 storage_lock_release`], { cwd: r.root, encoding: 'utf8', env: { ...r.env(), LOCK: r.lockDir() } });
     assert.equal(res.status, 0, res.stderr);
-    assert.ok(r.events().some((e) => e.event === 'storage_lock_lost' && e.owner.runId === '9'.repeat(16)));
-    assert.equal(JSON.parse(fs.readFileSync(path.join(r.lockDir(), 'owner.json'), 'utf8')).runId, '9'.repeat(16));
+    assert.deepEqual(r.events().map((e) => e.event), ['storage_lock_acquired', 'storage_lock_lost']);
+    // command, runId and pid: this process (its acquire). owner: the record that holds the lock now.
+    const [acquired, lost] = r.events();
+    assert.deepEqual([acquired.command, lost.command, lost.runId, lost.pid], ['test-lost', 'test-lost', acquired.runId, acquired.pid]);
+    assert.deepEqual([lost.owner.runId, lost.owner.command], ['9'.repeat(16), 'other-owner']);
+    const kept = JSON.parse(fs.readFileSync(path.join(r.lockDir(), 'owner.json'), 'utf8'));
+    assert.deepEqual([kept.runId, kept.command], ['9'.repeat(16), 'other-owner']);
   });
 
-  it('the EXIT trap releases the lock after a failing command and after TERM', () => {
+  it('the EXIT trap releases the lock after a failing command and after TERM; the released event names the own command', () => {
     const r = repo();
     assert.equal(r.run('exit 7').code, 7);
     assert.deepEqual(r.tmpEntries(), []);
     const term = spawnSync('bash', ['-c', `source "${r.script}"; storage_lock_acquire test-term; kill -TERM $$; sleep 5`], { cwd: r.root, encoding: 'utf8', env: r.env() });
     assert.equal(term.status, 143);
     assert.deepEqual(r.tmpEntries(), []);
-    assert.equal(r.events().filter((e) => e.event === 'storage_lock_released').length, 2);
+    const ev = r.events();
+    assert.deepEqual(ev.map((e) => [e.event, e.command]), [
+      ['storage_lock_acquired', 'storage-oplock run -- bash -c exit 7'], ['storage_lock_released', 'storage-oplock run -- bash -c exit 7'],
+      ['storage_lock_acquired', 'test-term'], ['storage_lock_released', 'test-term']]);
+    assert.deepEqual([ev[1].runId, ev[3].runId], [ev[0].runId, ev[2].runId]);
   });
 
   it('selftest: rename-held, locale, orphan-client (an orphaned Docker client keeps the group live), dead-owner, own-group', { timeout: 120_000 }, () => {

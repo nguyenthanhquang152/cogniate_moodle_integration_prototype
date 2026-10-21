@@ -366,7 +366,8 @@ storage_lock_acquire() {
   STORAGE_LOCK_REPO="$(_storage_oplock_repo)"
   STORAGE_LOCK_PROJECT="${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is not set}"
   STORAGE_LOCK_RUN_ID="$(node -e 'process.stdout.write(require("crypto").randomBytes(8).toString("hex"))')"
-  if ! _storage_oplock_js acquire --repo "$STORAGE_LOCK_REPO" --project "$STORAGE_LOCK_PROJECT" --command "$command" --run-id "$STORAGE_LOCK_RUN_ID" --pid "$$"; then
+  STORAGE_LOCK_COMMAND="$command"   # not exported: storage_lock_release logs this command (§7 lock events)
+  if ! _storage_oplock_js acquire --repo "$STORAGE_LOCK_REPO" --project "$STORAGE_LOCK_PROJECT" --command "$STORAGE_LOCK_COMMAND" --run-id "$STORAGE_LOCK_RUN_ID" --pid "$$"; then
     exit 1
   fi
   export COGNIATE_STORAGE_LOCK_RUN="$STORAGE_LOCK_RUN_ID"
@@ -383,7 +384,8 @@ storage_lock_add_container() {
 storage_lock_release() {
   [[ "${STORAGE_LOCK_HELD:-0}" == 1 ]] || return 0
   STORAGE_LOCK_HELD=0
-  _storage_oplock_js release --repo "$STORAGE_LOCK_REPO" --project "$STORAGE_LOCK_PROJECT" --run-id "$STORAGE_LOCK_RUN_ID" --pid "$$" || true
+  # The own acquire command, also for storage_lock_lost (its owner field names the other record).
+  _storage_oplock_js release --repo "$STORAGE_LOCK_REPO" --project "$STORAGE_LOCK_PROJECT" --command "$STORAGE_LOCK_COMMAND" --run-id "$STORAGE_LOCK_RUN_ID" --pid "$$" || true
 }
 
 # A new storage run id (16 lowercase hex) for a storage container name and its run label.

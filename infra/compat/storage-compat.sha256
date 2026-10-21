@@ -1,4 +1,4 @@
 54f76f4aa39069e6ad7346a8892745999e52a22be811a3c680562e1e98964d87  infra/compat/storage-compat.knobs.json
 cb665e4e21b58844ce97985f4dc15ef4b2a41cb6532e6cf2b1a0e604e61c8b38  infra/scripts/sqlite-lock-probe.mjs
 65be43f2776d935fc28080312012bc6e6dd0fb227cf21057bf388ad8ce9d8c36  infra/scripts/storage-compat.sh
-1d2be154e754b9f2c07451384b3c24e8ea483073d16d24f49b276f15d8956753  infra/scripts/storage-oplock.sh
+90d246792c41d63268411bdfec4e9e04764f89d57d51343a0f60c1b88969ca96  infra/scripts/storage-oplock.sh
