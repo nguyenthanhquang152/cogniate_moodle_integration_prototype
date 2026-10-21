@@ -244,9 +244,12 @@ function defineRows(ctx) {
 
     // ------------------------------------------------------------ (c) negatives
     async 'c-selftest'() {
+      // §11: a new folder in the container's own writable layer, never a bind or a volume. The probe needs an existing
+      // empty folder, so the container makes it (0700; mkdir fails on an existing path) and only then runs the probe.
       const folder = `/tmp/qa-selftest-${hex16()}`;
       const res = await lane.container({ kind: 'storage-probe', probeFile: path.join(lane.clone, 'infra/scripts/sqlite-lock-probe.mjs'),
-        command: ['node', '/probe/sqlite-lock-probe.mjs', 'selftest', '--run-id', hex16(), '--folder', `self=${folder}`] });
+        command: ['sh', '-c', 'umask 077 && mkdir -m 0700 "$1" && shift && exec "$@"', 'c-selftest', folder,
+          'node', '/probe/sqlite-lock-probe.mjs', 'selftest', '--run-id', hex16(), '--folder', `self=${folder}`] });
       expectExit(res, 0, 'probe selftest');
       const lines = res.stdout.split('\n').flatMap((l) => { try { return [JSON.parse(l)]; } catch { return []; } }).filter((l) => l.event === 'storage_selftest');
       const want = { normal: 'pass', 'no-hold': 'lock_not_enforced', 'holder-dies': 'probe_error' };
@@ -284,12 +287,12 @@ function defineRows(ctx) {
       const p = await lane.presence();
       check(p.ltidb.state === 'absent' && p.appdb.state === 'absent', 'Fresh lane: neither exact name exists');
       const res = await up('a-fresh-stack-up');
-      const pf = preflightOf(res);
+      const pf = preflightOf(res);   // the check pass; the mark-started summary after the healthy start is not it
       check(pf.summary?.result === 'pass', 'Preflight summary pass');
-      check(pf.lines.filter((l) => l.fsType).length >= 2 && ['lti', 'app'].every((f) => pf.lines.some((l) => l.folder === f && l.fsType)), 'Both folders record fsType');
+      check(pf.checkLines.filter((l) => l.fsType).length >= 2 && ['lti', 'app'].every((f) => pf.checkLines.some((l) => l.folder === f && l.fsType)), 'Both folders record fsType');
       const services = await lane.services();
       const firstCreated = Math.min(...services.map((s) => Date.parse(s.created)));
-      check(pf.summary.ts && Date.parse(pf.summary.ts) <= firstCreated, 'Preflight pass is logged before the first service container is created');
+      check(services.length > 0 && pf.summary.ts && Date.parse(pf.summary.ts) <= firstCreated, 'Preflight pass is logged before the first service container is created');
       const st = await lane.state();
       state.pairA = assertPair(st.ids, { kind: 'fresh', generation: 0, firstStart: 'completed', composeProject: lane.project });
       const l = await lane.listing();

@@ -8,7 +8,7 @@ import { StorageBlocked, StorageFail } from './storage-docker.mjs';
 import {
   LegacyFixtures, assertPair, assertRefuses, dbFileSets, fileSets, fileSetsEqual, freshVolume, groupMembers, hashFolder, jsonLines,
   legacyEmpty, legacySets, listingDiff, lockPairs, logicalShows, manifestDbSets, manifestFiles, namesCode, nothingChanged,
-  pairsDisjoint, pidStart, pgidOf, recordHash, spawnGroup, until, writeRecordFolder,
+  pairsDisjoint, pidStart, pgidOf, preflightOf, recordHash, spawnGroup, until, writeRecordFolder,
 } from './storage-oracle.mjs';
 
 const tmp = (t) => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-oracle-')); t.after(() => fs.rmSync(d, { recursive: true, force: true })); return d; };
@@ -24,6 +24,38 @@ test('HARNESS ONLY: refusals need exit 1 and the code in a JSON line', () => {
   assert.throws(() => assertRefuses({ code: 0, stdout: out, stderr: '' }, 'unknown_entry'), StorageFail);
   assert.throws(() => assertRefuses({ code: 1, stdout: 'unknown_entry only as text', stderr: '' }, 'unknown_entry'), StorageFail, 'Text alone is not the JSON output');
   assert.throws(() => assertRefuses({ code: 1, stdout: '{"reason":"unknown_entry_x"}', stderr: '' }, 'unknown_entry'), StorageFail, 'No near-match');
+});
+
+test('HARNESS ONLY: preflightOf takes the check pass by mode, not the last summary (report, check, mark-started)', () => {
+  // The three passes of a first stack:up, in output order (ADR-012 §5; shapes of the 9cdd768 a-fresh log).
+  const pass = (mode, runId, ts, state) => [...['lti', 'app'].map((folder) => JSON.stringify({ event: 'storage_preflight', ts, runId, mode,
+    project: 'qa-x', folder, path: `/check/${folder === 'lti' ? 'lti-service' : 'cogniate-app'}`, fsType: 'ext4', state, result: 'pass', reason: null })),
+  JSON.stringify({ event: 'storage_preflight_summary', ts, runId, mode, result: 'pass', reasons: [] })];
+  const report = pass('report', 'a'.repeat(16), '2026-10-21T07:40:08.947Z', 'FRESH');
+  const chk = pass('check', 'b'.repeat(16), '2026-10-21T07:40:09.248Z', 'FRESH');
+  const marked = pass('mark-started', 'c'.repeat(16), '2026-10-21T07:40:39.035Z', 'OK');
+  const out = (...parts) => ({ code: 0, stdout: ['Building the portal.', ...parts.flat(), 'Stack healthy in 31 s'].join('\n'), stderr: '' });
+
+  const first = preflightOf(out(report, chk, marked));
+  assert.equal(first.summary.mode, 'check');
+  assert.equal(first.summary.runId, 'b'.repeat(16), 'The check runId, not the mark-started runId');
+  assert.equal(first.summary.ts, '2026-10-21T07:40:09.248Z');
+  assert.deepEqual(first.checkLines.map((l) => l.folder), ['lti', 'app']);
+  assert.ok(first.checkLines.every((l) => l.mode === 'check' && l.runId === 'b'.repeat(16)));
+  assert.equal(first.lines.length, 6, 'lines keeps every storage_preflight line');
+  assert.deepEqual(first.runIds, ['a'.repeat(16), 'b'.repeat(16), 'c'.repeat(16)]);
+  assert.equal(preflightOf(out(report, chk)).summary.runId, 'b'.repeat(16), 'Second start: report, then check');
+  assert.equal(preflightOf(out(chk)).summary.runId, 'b'.repeat(16), 'stack:restart: check only');
+  assert.equal(preflightOf(out(marked, chk, report)).summary.runId, 'b'.repeat(16), 'Not by position');
+
+  const noCheck = preflightOf(out(report, marked));
+  assert.equal(noCheck.summary, null, 'A missing check is never replaced by another mode');
+  assert.deepEqual(noCheck.checkLines, []);
+  const failed = preflightOf(out(report, chk.map((l) => l.replace('"result":"pass"', '"result":"fail"')), marked));
+  assert.equal(failed.summary.result, 'fail', 'A failed check stays failed when mark-started passes');
+  const foreign = preflightOf(out(chk.slice(0, 1).map((l) => l.replace('b'.repeat(16), 'd'.repeat(16))), chk.slice(1)));
+  assert.deepEqual(foreign.checkLines.map((l) => l.folder), ['app'], 'Only the folder lines of the selected check');
+  assert.throws(() => preflightOf(out(chk, pass('check', 'e'.repeat(16), '2026-10-21T07:40:10.000Z', 'FRESH'))), StorageFail, 'Two checks are ambiguous');
 });
 
 test('HARNESS ONLY: "nothing changes" — listings, service containers, and §11 item 5 for absent volumes', () => {

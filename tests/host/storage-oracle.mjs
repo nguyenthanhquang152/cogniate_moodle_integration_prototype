@@ -39,9 +39,19 @@ export function assertRefuses(result, code, what = 'command') {
   check(namesCode(jsonLines(result.stdout, result.stderr), code), `${what}: exit 1 without ${code} in its JSON output`);
 }
 export const linesOf = (result, event) => jsonLines(result.stdout, result.stderr).filter((l) => l.event === event);
+/**
+ * The preflight of one guarded command: its `check` pass (ADR-012 §5). `stack:up` also prints the legacy scan's
+ * `report` before the check and, on a first start, `mark-started` after the services are healthy. Neither gates the
+ * start, so `summary` is selected by mode, never by position. `lines` keeps every storage_preflight line;
+ * `checkLines` has only the folder lines of that check.
+ */
 export function preflightOf(result) {
-  const lines = linesOf(result, 'storage_preflight'), summary = linesOf(result, 'storage_preflight_summary');
-  return { lines, summary: summary.at(-1) ?? null, runIds: [...new Set([...lines, ...summary].map((l) => l.runId))] };
+  const lines = linesOf(result, 'storage_preflight'), summaries = linesOf(result, 'storage_preflight_summary');
+  const checks = summaries.filter((s) => s.mode === 'check');
+  check(checks.length <= 1, `${checks.length} check-mode preflight summaries in one command; expected one`);
+  const summary = checks[0] ?? null;
+  return { lines, summary, checkLines: summary ? lines.filter((l) => l.mode === 'check' && l.runId === summary.runId) : [],
+    runIds: [...new Set([...lines, ...summaries].map((l) => l.runId))] };
 }
 /** Reads a JSON-lines log file from the clone (for example infra/.logs/storage-lock.jsonl). */
 export function readJsonl(file) {
