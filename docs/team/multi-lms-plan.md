@@ -13,7 +13,7 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 07:54 UTC
+### Current checkpoint — 2026-10-21, 08:11 UTC
 
 The full `9cdd768` attempt failed in round 1 storage at 07:40:46 UTC. All 488 row records are present: 419 PASS and 69 FAIL.
 SIM passed 394 cases, snapshot isolation six, snapshot upgrade six, and migration twelve. Storage passed one and failed 69.
@@ -26,18 +26,28 @@ The oracle selected the post-start `mark-started` record. The actual check-mode 
 A separate import check received a Docker bind-source error for a newly recreated content folder, instead of `content_missing`.
 Its cause remains unproven. Product source remains frozen; no runtime rerun is authorized yet.
 Backend Author task `task_dc3b05bb34ef`, dispatch `ctx_798816f87982`, investigates that mount error read-only.
-Requested and effective settings match Claude Code Opus 5.5 xhigh. It has no Docker window and may not edit repository files.
+Requested and effective settings match Claude Code Opus 5.5 xhigh. It may not edit repository files.
+Its diagnosis shows that the product creates the content folder before the Docker call. Host-share visibility remains an unproven hypothesis.
+The Lead granted bounded scratch-bind trials in `msg_b8bf1684b127`, conditional on fresh G1 and W1–W3 checks.
+The diagnostic window belongs only to `ctx_798816f87982`. Full W4 identity comparisons and scoped cleanup remain required.
 
 W4 live end and strict W3 comparison both passed. The Lead checked their summaries and the runner exit record.
 QA confirms zero owned resources, unchanged protected and anonymous volumes, and unchanged baseline networks.
 The secret scan found zero hits in 45 raw logs and 1,096 public files. Raw browser traces remain private.
-Common returned the Docker window in `msg_7db50c6c9ae1`; no runtime window is active.
+Common returned its full-suite Docker window in `msg_7db50c6c9ae1`. No full-suite rerun is authorized.
 Both QA workers settled with outcome failed, and their sessions were released.
 Canvas reports are committed in `ef550a2`; Common reports are committed in `cee6258`.
 Fresh QA task `task_d0bbcedfb6d3`, dispatch `ctx_499b214ba557`, owns the two confirmed harness repairs.
 Its requested and effective settings match Claude Code Opus 5.5 xhigh; its starting acknowledgment is `msg_1b4b3acb009e`.
 Its scope is the storage rows and oracle files, their self-tests, and a new QA repair report.
-It has no Docker window. Meaningful host-only regression checks, two independent reviews, and a new frozen candidate are required.
+The repair is committed in `0e83e3cb740f004a357449ebdcda2be14998339d`; tests tree `4c7e067feedc644f955afee37806f06e7273dd04`.
+Focused checks pass 18/18, full harness checks pass 77/77, and typechecking passes. The 488/233 inventory is unchanged.
+New tests fail on the old source and detect all 12 focused mutants. The real probe passes with the repaired command on the host.
+The worker settled successfully in `msg_0336187471d1` and was released. This gives no runtime acceptance credit.
+Independent Reviewer-A `ctx_5a53cec57452` and Reviewer-B `ctx_f734e56b84e5` now review the exact candidate.
+Both requested and effective settings match Claude Code Opus 5.5 xhigh. Neither reviewer has a Docker window.
+Backend scratch trials passed fresh G1/W1–W3 in `msg_e33236a584e9`; the Lead checked the baseline summaries and hash.
+The backend worker reports reproduction in the delete-and-recreate trials; final counts, cleanup and W4 remain pending.
 Final conformance and guides remain queued. All 32 real-LMS rows remain UNVERIFIED. No push or main merge is authorized.
 
 ### Prior checkpoint — 2026-10-21, 07:23 UTC
