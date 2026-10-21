@@ -13,7 +13,21 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 19:45 UTC
+### Current checkpoint — 2026-10-21, 20:10 UTC
+
+**Candidate C2 is frozen at `0938ea1bd29acd00a67c7fc1cc8d7606edf2802d`.** Its tests tree is `290a773f1c9779693153ae77b46cc8ceb7eb83f4`, equal to reviewed repair `c4de96f`. Product and build paths still equal `9f8ac62`. The tests delta from C contains only the three granted files. The Lead verified these bindings and the unchanged untracked `pnpm-workspace.yaml`.
+
+The Round 3 host gate is accepted. The complete harness-only run under child umask 022 passed 172/172 tests in 573.9 seconds. It includes each of the 143 host tests once, plus 29 simulator/common tests. The isolated 077 run passed 143/143 in 571.8 seconds. Neither run skipped a test or called its Docker stub. The old/new control discriminates, and all three frozen mutants fail by assertion. QA report `7f4cc61` has SHA-256 `b6248d0e841130de35925655b802fe7e282649605ca6edfd77fe97c0df86e688`; the Lead verified all 7,028 final manifest entries. These checks give no runtime row credit.
+
+Both independent reviewers APPROVE, with no BLOCKER or MAJOR. A report `0938ea1` has SHA-256 `8ba67ef4aca3a994c0d74a647b06a9b8a58146f48fb6487ec4b0f01a6f165328`; B report `572fe4e` has SHA-256 `7527cc2a6733d44c3c8aaae171639730e968d64ef08ae761f108c530d6c6f1cc`. The Lead verified preserved report prefixes, A's 1,533 manifest entries, B's 531 entries and 504 Git bindings. A's eight narrow probes pass. A-SH-10/B-HR-11 is an accepted MINOR coverage deferral: the committed test does not distinguish both app services running from only one. The source uses the correct predicate. B-HR-12 is an accepted NIT about timeout text. Both reviewers settled successfully and were released.
+
+Disclosures remain part of the accepted record. During the original 022 run, npm's update notifier fetched public metadata after the self-tests. That run is not network-compliant, and no traffic capture exists. A bounded replay of only the typecheck/discovery tail passed with npm offline and its notifier disabled. It does not rewrite the first run. The 077 runtime binding is bracketed by the 022 inventories; V1-12 recorded product-equal `caa382a`. A disclosed two path-list files created at 0644 inside its private root, later set to 0600. Its “about 20:05Z” correction time is approximate; the Lead observed inode change time 20:03:29.351Z. Corrected permissions do not prove correct creation.
+
+Fresh runtime QA `task_b591bb888e58` / `ctx_0700abfb3430` prepares C2 with requested and effective Claude Code Opus 5.5 xhigh. Handoff `msg_ec77cf6a22f6` supplies the frozen SHA. It reuses qualified tools and cached dependencies after hash checks. No repeated complete host suites or unchanged tool-control campaigns are required. Its launch grants host preparation only; exact READY commands and launcher changes must precede the exclusive Docker grant. **No Docker window is active.**
+
+All failure repairs remain in the same Claude session `ctx_898acbaef3a6`. No new edit is granted. Remaining gates are the zero-credit migration/storage diagnostic, two complete 488-row rounds on C2, 12 legacy groups, independent Canvas judgment, fresh M2 and T7, Architect conformance, the bounded infrastructure README correction, final guides and independent Docs QA/reviews. The guide draft stays at `82aff91`. All 32 live LMS checks remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 19:45 UTC
 
 **Candidate C diagnostic failed.** Runtime QA returned the exclusive window at `19:29:48Z`. Total time was 18 minutes 21 seconds: migration about four minutes, storage about fourteen minutes, then cleanup and strict W4. Migration passed all 12 rows. Storage recorded all 70 rows: 33 PASS, 37 FAIL and zero NOT_APPLICABLE. All 37 failed rows were blocked by fixture `@backup-B`, which returned HTTP 502. The 81 step files include fixtures; they are not the 70-row result count.
 
