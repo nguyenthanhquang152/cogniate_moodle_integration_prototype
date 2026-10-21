@@ -13,7 +13,25 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 14:35 UTC
+### Current checkpoint — 2026-10-21, 14:49 UTC
+
+The bounded product repair is committed at `9f8ac625443931242edd8da301c3d4f0d3e34290`.
+Only the helper bash, adjacent unit tests and helper hash line changed. Embedded JavaScript is byte-identical.
+Helper SHA-256: `19d496b5e711cda8589ce7d1ad28070b59c23308f1154bf292b220dc098a4a6b`.
+Unit file: `ba14f34108f73f58c6f757797151520e588165f8888ae9bd9f9853613461fdcf`; hash list: `7e3ae0ce88c76f18fd3871a6124c40b25a070f6e5ed194d802ce960a015e843f`.
+Author self-checks pass: focused 45/45, infra 111/111, root 1,123 tests with five absent-real-fixture skips.
+Private checks give 86/86 matrix cells, 38/38 old-wrapper/hash cells, and all eight mutant families detected.
+The comparison differs only in ten lost-lock exits changing 0 to 1.
+These are Author results only. The wrapper probes used the working repair before commit; independent QA must use the real commit.
+
+The Lead verified all 15,517 regular-file manifest entries and the six private test symlinks.
+Private report: `/Users/quangnguyen/cogniate-author-runs/q-r1a-01-repair-20261021T1423Z/REPORT.md`.
+Report SHA-256: `728277ee8c3ae5952c660242a4e4e06bc716e57fdbad92f5f00ef3ec39f95e97`.
+Manifest: `5ffb72fa2562f08157b528c3c19635e5859c804af5a000f6e4c112b690e82b0a`.
+The Author corrected a future end-time typo and stated the manifest exclusions; its original report and manifest remain preserved.
+Limits include Bash 3.2 only, an initial natural noexec expectation error, and a signal-driver race in parallel mutant probes.
+The Author settled successfully and was released. No product gate is marked done.
+
 
 The Lead accepts release-status design revision 2 for implementation at `2362a20fc4cdd9c21c9283dc7099068c6565eb31`.
 The conformance document hash is `1128b9c198ba79d9cac6471874eecdd2c48b40bc555e525f107d31846b8265de`.
@@ -32,17 +50,17 @@ The frozen harness triage at `2d763fe` is unchanged. R1-A QA O-1 stays a conditi
 
 Active workers, all requested and effective Claude Code Opus 5.5 xhigh:
 - Harness QA `task_6c53cbbc403c` / `ctx_f189530f67c1` continues its granted 22-path implementation and host controls.
-- Product Author `task_bd459d584596` / `ctx_d30dc937ad9f` owns only the helper bash, adjacent unit test and helper hash line.
+- Source Reviewer-A `task_6ba56f3cae0b` / `ctx_189e0b2fa152` reviews only the committed release repair; Reviewer-B starts when a slot opens.
 - Independent host QA `task_720f8d0e6d3a` / `ctx_5e5d6972f72d` froze its private criteria map before source reads.
 Map: `/Users/quangnguyen/cogniate-qa-runs/r2-storage-command-qa-20261021T1424Z/map/TEST-MAP.md`.
 Map SHA-256: `78fb5fda7baaa5ca5b262f7209de887d70089bd87544b937f5af45692ac23bb5`; 29,440 bytes, file 0600, map and root folders 0700.
 The Lead read the map and granted Stage 2 in `msg_f37b800e6739`.
-QA may read pinned interfaces and historical evidence, build stubs, and run the parent baseline. The final repair SHA is pending.
+QA may run the parent baseline and target `9f8ac62` in private fresh copies. Message `msg_81550b38ce16` binds the target; the Author report is not an oracle.
 The original map stays immutable; dated amendments record interface choices before the affected cases.
 Release-error cases stay REQUIRED, with their specified exit change allowed. Synthetic setup stays private and uses no real service.
 Known diagnostic source-line numbers may be normalized before tests; message content and extra errors remain strict.
 The production 120-second lock wait stays unchanged. The Author commit scope is checked separately from any authorized harness commit.
-The Author must pass its self-checks and hold exact hashes before the Lead commits.
+QA Amendment 01 `1ec93fa1d9390d7dc46140b37440da72c0a1f8f16a61512c3b8dbf102ff57a54` records interfaces and provenance. Lead `msg_ea8dd38d8767` requires four historical R-13 gaps: stale reclaim, cleanup, odd/empty argv, and real backup-command entry under a stub.
 Two blind source reviews and independent host QA remain required for each applicable repair gate.
 
 No Docker window is active. No candidate C is frozen. No push or main merge is authorized.
