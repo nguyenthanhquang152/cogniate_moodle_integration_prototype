@@ -830,3 +830,42 @@ This file (`docs/reviews/M1/qa.md`) is reported in the completion message, becau
 | `7c617aafbdc04189e2875fc4c396b0018c922c72bc0cc587af6dc17f8a49eb8b` | `tests/host/storage-rows.selftest.mjs` |
 
 The untracked `pnpm-workspace.yaml` is preserved and not touched. No file outside `tests/**`, `docs/reviews/M1/qa.md` and `docs/reviews/M3/qa.md` was edited by QA.
+
+## Follow-up: AC-M1-30 step 3 journal check (task `task_fbe27ed8164d`), 2026-10-21
+
+Status: **source preparation only**, no Docker and no runtime credit. The verdict line and every section above, including the preparation addendum and its held-file table, are unchanged.
+
+- **The open point is resolved.** The preparation addendum left one decision for the Lead: whether to check the AC-M1-30 step 3 clause "both journals committed". The Lead's scope clarification (dispatch `ctx_a97b59838a96`) decided to implement it as an **added** check inside the existing row `M1-30.common.restore`. It removes or weakens no assertion, message or row.
+- **What changed (`tests/host/m1-migration.mjs`, only additions).**
+  - Before the valid restore, QA records the opIds of any journal that exists.
+  - After `stack:data-restore -- --from <backup>` exits 0, and before any service or old build starts, QA reads both journal records itself, through its read-mode `storage-fixture` container (ADR-012 §11).
+  - `assertRestoreJournalsCommitted` then needs, in each volume:
+    - the journal is present and parses;
+    - `operation: "restore"` and `state: "committed"`;
+    - one 32-hex opId, the same for both journals, that is not an earlier operation's opId;
+    - a `backupId` that the restored manifest names;
+    - one `manifestSha256` for both journals;
+    - an `after` list equal to the database files in place, which is the ADR-012 §8 meaning of `committed`.
+  - Exit 0 alone, or another row, is not accepted as this evidence.
+  - The original exit-0 check, the byte equality with the backup, and the record text of the row are unchanged.
+- **Self-test (`tests/host/m1-migration.selftest.mjs`).** One positive case and these negative controls, each failing with its own message:
+  - a missing journal;
+  - one journal not committed (app `swapped`);
+  - an invalid (unparsable) journal;
+  - an `import` journal;
+  - two different opIds;
+  - an earlier opId;
+  - another backup id;
+  - a manifest without a backup id;
+  - a sidecar in place that `after` does not list.
+- **Controls (host only):**
+  - `node --test tests/host/m1-migration.selftest.mjs tests/host/storage-rows.selftest.mjs tests/host/storage-inventory.selftest.mjs`: 12 of 12 pass. The inventory stays 416 + 72 = 488.
+  - `node --check` and an import of `m1-migration.mjs` pass.
+  - `git diff --check` is clean.
+  - The broad harness was not rerun, because no other dependency changed.
+- **Preservation proof against the frozen `049da68`:**
+  - `m1-migration.mjs` has 41 lines added and 0 removed. Every frozen line is still present, and the 8 recorded row forms are the same. The `assert` calls go from 49 to 60.
+  - The self-test file has 33 lines added; the only changed line is its import line, which now imports two more names.
+  - No other held file changed.
+- **SHA-256 (uncommitted):** `tests/host/m1-migration.mjs` `9a96656d5027285a1b3769c0da3a4aa5d3feb53911673f55c030af68f39561f6`; `tests/host/m1-migration.selftest.mjs` `80f2fd4b5e0763775edf7e12fa9d2ad0d2f39e3bf96416e21e9bfded4cf0994f`. This report's own hash is in the completion message.
+- **Still separate:** the runtime check of this clause (a real restore on the candidate), the source reviews `task_5580d3cb79c5` and `task_94536ec30f9a`, the two-round QA retry, and any Docker authorization. All 32 live rows stay `UNVERIFIED`.

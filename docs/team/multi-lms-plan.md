@@ -1767,6 +1767,15 @@ It owns only `tests/host/m1-migration.mjs`, its adjacent self-test, and an appen
 It must inspect both journals independently, preserve every earlier assertion and row, and add positive and negative host controls.
 The combined source freeze and both source reviews wait for this follow-up as well as the Author's completed implementation.
 
+The initial QA preparation is frozen at `049da68a8958039fc3b4c22e8fa42d8e410269d2`.
+QA started the journal follow-up in `msg_1970b9f510db` and completed it in `msg_742dc7c75ab7`.
+Dispatch: `ctx_a97b59838a96`. The Lead checked all three hashes and retained the worker before acknowledgment.
+The migration harness keeps every earlier line; its self-test changes only the import line and adds controls.
+The M1 report keeps all 61,159 earlier bytes, and every other held QA file is unchanged.
+The new check reads both committed journals before any service or old build starts and ties them to the current restore.
+Focused host controls pass 12/12, including missing, uncommitted, invalid, mismatched and earlier journals.
+Inventory remains 488. This closes the preparation gap; it gives no runtime or independent source-review approval.
+
 Docs started in `msg_ec29e7a52a8a` and submitted G1's current design-closure record in `msg_1405db3332a1`.
 Held SHA-256: `84b95ce1992885fe9ca93597bd3dda53052b46900f7400f06d9db4ae1e1b8ae4`.
 The Lead checked the scoped diff, hash and preserved earlier sections, then released the worker before acknowledgment.

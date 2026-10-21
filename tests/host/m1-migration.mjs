@@ -85,6 +85,42 @@ export function inspectBackup(folder, snapshot, ledger, project) {
     'Manifest contains only the old migration names');
   return { manifestFile, manifest, listed, projectField, idField };
 }
+/** opIds of the journal records that exist now (absent journals give none). */
+export function journalOpIds(files) {
+  return ['lti', 'app'].map((vol) => files[vol]?.journal).filter((j) => j?.present && j.json?.opId).map((j) => j.json.opId);
+}
+/**
+ * AC-M1-30 step 3 (ADR-012 §8): after a valid restore both volumes hold a journal of this restore, each `committed`.
+ * QA checks each record itself: present and parsable, `operation: "restore"`, `state: "committed"`, one new opId for
+ * both, the backup id of the restored manifest, one manifest digest, and each `after` list equal to the database
+ * files in place (the meaning of `committed`). Returns the opId.
+ */
+export function assertRestoreJournalsCommitted(files, { manifest, priorOpIds = [] } = {}) {
+  const journal = {};
+  for (const vol of ['lti', 'app']) {
+    const record = files[vol]?.journal;
+    assert.ok(record?.present, `Restore journal exists in ${vol}`);
+    assert.ok(record.json && !record.error, `Restore journal of ${vol} parses`);
+    journal[vol] = record.json;
+    assert.equal(journal[vol].operation, 'restore', `Journal of ${vol} is a restore journal`);
+    assert.equal(journal[vol].state, 'committed', `Restore journal of ${vol} is committed`);
+    assert.match(String(journal[vol].opId ?? ''), /^[0-9a-f]{32}$/, `Journal of ${vol} has an opId`);
+  }
+  assert.equal(journal.lti.opId, journal.app.opId, 'Both journals belong to one restore (the same opId)');
+  assert.ok(!priorOpIds.includes(journal.lti.opId), 'The committed journals belong to this restore, not to an earlier operation');
+  const backupIds = objects(manifest).flatMap((node) => Object.entries(node))
+    .filter(([key, value]) => /^(backup_?id|backupId)$/i.test(key) && typeof value === 'string' && value).map(([, value]) => value);
+  assert.ok(backupIds.length > 0, 'The restored manifest names its backup id');
+  for (const vol of ['lti', 'app']) assert.ok(backupIds.includes(journal[vol].backupId), `Journal of ${vol} names the restored backup`);
+  assert.equal(journal.lti.manifestSha256, journal.app.manifestSha256, 'Both journals name one manifest digest');
+  for (const vol of ['lti', 'app']) {
+    const inPlace = Object.entries(files[vol]?.files ?? {}).filter(([name, f]) => name !== '.storage-identity.json' && f.present)
+      .map(([name, f]) => `${name}:${f.size}:${f.sha256}`).sort();
+    const after = (Array.isArray(journal[vol].after) ? journal[vol].after : []).map((e) => `${path.basename(String(e.name))}:${e.size}:${e.sha256}`).sort();
+    assert.deepEqual(after, inPlace, `The ${vol} journal after-list equals the database files in place`);
+  }
+  return journal.lti.opId;
+}
 async function stopServices(r, route) {
   assert.ok(r.state.h1Verified, 'Own QA compose project verified before stop');
   const args = ['compose', '-f', 'infra/compose.yaml', '--env-file', '.env', 'stop', 'cogniate-app', 'lti-service'];
@@ -191,7 +227,12 @@ export async function migrationRun(r, { installTests, setup, probe, identity }) 
       stale.push({ op: 'write', vol, path: db + suffix, base64: Buffer.from('QA stale sidecar').toString('base64') });
   }
   if (stale.length) await candidateLane.plant(stale);
+  // AC-M1-30 step 3: the journals before the valid restore, so the committed pair must belong to this restore.
+  const priorOpIds = journalOpIds(await candidateLane.fileset());
   assert.equal((await r.npm('restore-valid', ['run', 'stack:data-restore', '--', '--from', backup])).code, 0);
+  // AC-M1-30 step 3: both journals committed — QA's own read of both journal records (read-mode fixture, §11),
+  // after the restore and before any service or old build starts. Exit 0 alone is not this evidence.
+  assertRestoreJournalsCommitted(await candidateLane.fileset(), { manifest: verified.manifest, priorOpIds });
   assert.deepEqual(await volumeSnapshot(candidateLane), before);
   record('M1-30.common.restore', 'Valid restore reproduces every backed-up byte and removes unlisted sidecars');
   // Rollback order (§12): restore done; enable in the candidate tree; check out the old SHA; install and build; start.
