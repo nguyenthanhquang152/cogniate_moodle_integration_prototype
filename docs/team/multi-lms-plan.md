@@ -13,6 +13,19 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
+### Current checkpoint — 2026-10-21, 02:16 UTC
+
+The current product and test candidate is `a784522a3cdd9bb67453b03093092cac24e87402`.
+Both storage source reviews approve it. The Lead's clean-clone check passes 1,111 unit and 76 infrastructure tests, with no skips.
+Runtime acceptance remains open. Two complete 488-row rounds, legacy suites, fresh M2 and three T7 runs are still required.
+Replacement Claude Code Opus 5.5 xhigh workers own the two active QA retries:
+- Common and Blackboard: `ctx_75f7ef7a9240`, sole Docker window, port 8443 and subnet 172.29.
+- Canvas and browser QA: `ctx_f3f20494787a`, host-only until the Lead transfers that window.
+
+Later commits contain review and team records only. Final conformance and guides remain queued behind runtime acceptance.
+All 32 real-LMS rows remain UNVERIFIED. No push or main merge is authorized for this phase.
+Older role tables and run results below are history; current handoffs and this checkpoint govern the active retries.
+
 ## Sources and scope
 
 - [DataCamp Blackboard case](https://support.datacamp.com/en-us/articles/17598773-blackboard-lti-integration)
@@ -1932,11 +1945,11 @@ They require two complete matching 488-row rounds, all legacy groups, fresh M2 a
 They also retain host identity, private evidence, ownership records, secret scans and the seven-volume baseline gates.
 Both workers sent heartbeats. No runtime result is accepted yet.
 
-The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
+The earlier full verification attempts failed after the storage blocker. Both original tasks now have active retries, as recorded above.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
-Each requires a proper retry after implementation, independent test preparation and both source reviews pass.
-The Lead must supply one frozen candidate and assign the sole stack window before a retry starts.
+Each retry requires implementation, independent test preparation and both source reviews to pass.
+The Lead supplied one frozen candidate and assigned the sole stack window in the retry handoffs.
 QA owns the combined M3 report; QA-E2E owns its separate M3 browser report and live matrix.
 The Lead added Q19 to Q22 and D-1 to D-12 to `docs/human_review/decisions-needed.md` in `7a9734a`.
 These are open human decisions from the approved design, not implementation or live-test evidence.
