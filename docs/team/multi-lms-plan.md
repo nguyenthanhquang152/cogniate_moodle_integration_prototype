@@ -13,18 +13,20 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 15:04 UTC
+### Current checkpoint — 2026-10-21, 15:19 UTC
 
 The V7-1 mock run exposed three latent harness defects in previously unexecuted storage rows.
 Evidence: `/Users/quangnguyen/cogniate-qa-runs/storage-harness-repair-qa-20261021T1356Z/evidence/latent-defects-v7-1.md`, SHA-256 `e061d44dc542bf6d15c47015575d07bfec35bd03b07d2b23e22cc56e00b33c5b`.
 Lead reply `msg_9b1720e2eeb9` authorizes LD-1 in QA's existing owned files: track only exact IDs of the two supported kept fixture roles.
 Unexpected IDs, failed listings and failed removal still fail. Transient containers get no exemption; finally and teardown checks remain.
-LD-2 and LD-3 remain held. M1's literal no-stale-folder check conflicts with earlier retained stale records.
-Its full hash-equality check also conflicts with the required change of both journals to rollback_failed.
-Architect `task_4e8156d3f2cc` / `ctx_0e5381804039` is active and owns only the two affected M1 criteria plus a bounded rationale.
-The proposed oracle preserves all file names and non-journal hashes, checks exact root journals separately, and protects earlier stale records.
-This proposal is not an implementation grant. QA continues unaffected controls; V7-1 stays FAIL until the clarification and its checks pass.
-Both later harness source reviewers must inspect these bounded fixes and the criterion precision. No runtime credit is given.
+LD-2 and LD-3 precision is committed at `a60ba4a3caaf51c63a8802686a5b831372be69a8`.
+M1 SHA-256: `ac444799ae5e93706054a7e352e339bdea509a889328c15365a3535864fb37af`.
+The Architect corrected two contradictions: retained stale records must stay unchanged after each refusal; required journal updates cannot satisfy full hash equality.
+The tamper scenario explicitly uses the existing ltidb previous lti.db fixture. Appdb tamper is not covered.
+All file names and non-journal hashes remain protected. Only the two exact root journals may change state and updatedAt; each is checked separately.
+Lead grant `msg_df38477e48e2` authorizes bounded QA implementation and the declared negative controls in its existing files.
+The original V7-1 FAIL stays. A separate post-grant rerun must pass; both harness source reviewers must inspect all three latent fixes and the precision.
+Architect `task_4e8156d3f2cc` / `ctx_0e5381804039` settled successfully and was released. Frozen triage `2d763fe` is unchanged. No runtime credit is given.
 
 Independent product QA has A02-A04 frozen at `d07bc9df`, `1a3142eb` and `4266fc0a`.
 The Lead read them and accepted only precise invocation and mechanical normalization rules before target runs.
@@ -34,12 +36,21 @@ A05 `dacd2f44a7590a072cdcd00b9fc79ff4481af15fea26a2ca656f2b6c58ec088e` records a
 Lead `msg_0f1af7df0ff4` corrects two natural noexec expectations to the independent no-helper control status, 1 on Bash 3.2.
 They remain REQUIRED; literal exit 126 remains required. Original expectations and baseline results stay preserved.
 
+Independent QA generation 1 reports 144/144 host and 16/16 clone REQUIRED cases passing, plus 13 INFO cases.
+The comparison gives 173/173 equal with 19 allowed release-error exits changing from 0 to 1; all 11 mutants in eight families were detected.
+These are preliminary behavioral results. QA found 2,091 QA-authored artifacts with broad modes under its private 0700 root.
+They violate frozen A-13, separately from the 1,987 product/tool artifacts allowed under child umask 022.
+Lead `msg_788f5b4a88c6` requires a QA-only creation-mode repair and generation 2 rerun of the affected baseline, target, clone, comparison and mutant checks.
+Generation 1 evidence and its hygiene failure remain preserved. The product child umask, source bytes and frozen expectations stay unchanged.
+QA must freeze an amendment and prove correct creation modes before the rerun. No more inspection of other workers' real-HOME logs is allowed.
+
 Product source Reviewer-A APPROVE is committed at `eeb9060acfbfcff656bc2cf1ee6d68417950f32d`.
 Report SHA-256: `c122f1d2b57930afc833cd8f5103c5737dd748fab94d59a981b1f294e2912d61`.
 The Lead read the report and verified all 56 probe-manifest entries (`48f5b0c784400c159d94b8570c425aa4d6219089cb1a2aeebd40d9355098a5df`).
 No BLOCKER or MAJOR. A-QR1-01 is a MINOR unit-coverage deferral to M4; independent QA R-3 remains required.
 O-A2 and O-A3 are handover context, with no new product scope. The reviewer settled successfully and was released.
-Reviewer-B and independent QA remain pending; the product gate stays open.
+Reviewer-B `task_8eaf26787fc4` / `ctx_98ce493407e0` is active on the same pinned product diff, independent of A and current QA outputs.
+Independent QA remains pending; the product gate stays open.
 
 The bounded product repair is committed at `9f8ac625443931242edd8da301c3d4f0d3e34290`.
 Only the helper bash, adjacent unit tests and helper hash line changed. Embedded JavaScript is byte-identical.
@@ -76,7 +87,7 @@ The frozen harness triage at `2d763fe` is unchanged. R1-A QA O-1 stays a conditi
 
 Active workers, all requested and effective Claude Code Opus 5.5 xhigh:
 - Harness QA `task_6c53cbbc403c` / `ctx_f189530f67c1` continues its granted 22-path implementation and host controls.
-- Architect `task_4e8156d3f2cc` / `ctx_0e5381804039` resolves only LD-2 and LD-3. Product source Reviewer-B starts when a slot opens.
+- Product source Reviewer-B `task_8eaf26787fc4` / `ctx_98ce493407e0` reviews `9f8ac62` with the maintainability and error-handling lens.
 - Independent host QA `task_720f8d0e6d3a` / `ctx_5e5d6972f72d` froze its private criteria map before source reads.
 Map: `/Users/quangnguyen/cogniate-qa-runs/r2-storage-command-qa-20261021T1424Z/map/TEST-MAP.md`.
 Map SHA-256: `78fb5fda7baaa5ca5b262f7209de887d70089bd87544b937f5af45692ac23bb5`; 29,440 bytes, file 0600, map and root folders 0700.
