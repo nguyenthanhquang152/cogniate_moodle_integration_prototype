@@ -13,7 +13,7 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 05:24 UTC
+### Current checkpoint — 2026-10-21, 05:36 UTC
 
 The frozen product/test candidate is `51a80b51de2c7491466a21a678418ff8178d247d`.
 Its tests tree is `a47b34cd56bb3d85e4c3ef1cafef0a2b0c3210c0`. Product code still equals `a784522`.
@@ -35,8 +35,16 @@ A-BKP-01 and B-BM-02 are the same optional assertion-message formatting NIT. No 
 
 Common retry `ctx_dee91bc7a4bc` started with host-only preparation under `msg_82c5f9134671`.
 After both reviews passed, `msg_9506a89ce2ca` granted it the sole Docker window for full M1 and legacy.
-It must send fresh live boundary evidence before the documented full entry. Two complete matching rounds remain required.
-Canvas retry `ctx_f8cca0cc95be` is host-only under `msg_3fc90776b450`; it prepares the independent artifact checks.
+Fresh W1–W3 checks passed before the documented full entry, which started at 05:30:48 UTC.
+W3 records live time `2026-10-21T05:30:45.826Z` and `runStartSecond=1792560645`.
+Its SHA-256 is `295585caf6e25ad3830716f607336333f9ae4ad5ad9489ff80f3e0d67137b2e1`.
+Evidence root: `/Users/quangnguyen/cogniate-qa-runs/m1-full-51a80b5-20261021T0530Z`.
+Round 1 SIM uses `qa-multi-r1-51a80b51-2026-10-21T05-30-48-841Z`. The monitors and clone guard are armed.
+The phase clone was created with mode 0755, then changed to 0700. It was not private from creation.
+The Docker baseline includes an unattributed anonymous volume created before W1. It remains untouched and must match at W4.
+Two complete matching rounds remain required. No completed phase verdict is available yet.
+Canvas retry `ctx_f8cca0cc95be` is host-only under `msg_3fc90776b450`; its independent artifact tools passed preparation checks.
+It checks completed captures only, using the unchanged primary oracle and sink checks.
 Requested and effective settings match Claude Code Opus 5.5 xhigh for both new workers.
 The permission split is explicit: private outer roots and observers use umask 077; runtime children and fixture-sensitive checks use 022.
 The approved narrow clone guard and normal container-readable inner modes remain required. No new tool design is requested.
