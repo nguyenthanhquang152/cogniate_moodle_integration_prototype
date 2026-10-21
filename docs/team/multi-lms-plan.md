@@ -13,7 +13,29 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 17:52 UTC
+### Current checkpoint — 2026-10-21, 18:13 UTC
+
+Reviewer-B Round 1 is committed at `234131d0f11d2f18210ed8afa01e5c4c1ed0e909`.
+Report SHA-256: `4d2cced621335993acdf90290da12a18c7c4303604b93afa21bde5c26f0247aa` (27,688 bytes).
+Verdict: CHANGES_REQUESTED. B-HR-01 and B-HR-02 are BLOCKERs: absent-lock coverage and lost cleanup refusal. Both are in the active QA repair scope.
+The Lead verified all 36 corrected manifest entries, six baseline Git bindings and five saved diff outputs. Manifest `df6c72790f2e9332363d7e2fe15d81dc7d9f8af3c6d4f362acbe78464005a68e` replaces five non-file entries with real saved evidence; the first manifest stays.
+B settled successfully as a review task. Orca refused reuse of its structured session before a new dispatch existed. The Lead verified the new task was still ready, released B and started fresh Round 2 B `task_025a5ff61125` / `ctx_ec443484d5f6` with requested and effective Claude Code Opus 5.5 xhigh.
+B owns only an append-only Round 2 report. Both Round 2 reviewers wait for held source; they may review source while final QA evidence is still running.
+
+QA's first complete repaired suite passed 141/141 under umask 022 in 494.9 seconds, with zero skips, Docker-stub calls or temporary leftovers. This is pre-A-04 evidence, not the final run.
+A-04 (`e3d4a464c8a8623643393405e5736bebba67f6a18d2b159500e9df354b7712c3`) adds per-command lock checks and cleanup-failure diagnostic controls. Lead grant `msg_12f26a9f0379` adds exactly `tests/host/storage-diagnostic.selftest.mjs`; the scope is now 11 test paths. No diagnostic runtime or driver edit is granted.
+QA chose fixed inputs in A-03 (`fe69065ec37aca14a00e0a5cc1fb3d996a991d811aa09c0f98b2f076d83e2599`); the relation method is withdrawn before credit. The Lead and A verified all four site-12 records are byte-identical (`38afe9c1…`) and all four site-13 records are byte-identical (`7b68b242…`). Site 7 differs only in the process-id filename.
+Final neutrality evidence must bind imported runtime hashes to the old and held commits, include the three site-12 row results, use strict whole-record comparison and rerun on final source with hooks absent. Previous records stay preserved.
+No Round 2 source hash is held yet. Three workers are active: QA, A and B, all Opus 5.5 xhigh.
+
+The owner requested a shorter completion time and a useful estimate. Scheduling changes: batch all granted edits before another full host suite; overlap both source reviews with final QA checks; run the two host masks concurrently only with fully separate mutable state; defer optional refinements. Final acceptance gates stay unchanged.
+At the next free worker slot, bounded guide preparation may use only already verified behavior, with its source and pending verification stated. Final conformance, guides and review approval still require the final runtime evidence. This changes preparation order, not the definition of done.
+Measured timings: the latest incomplete 488-row runtime attempt took 42 minutes (many storage rows did not execute); M2 browser execution took 113 seconds; the last three T7 runs took 172–174 seconds each, plus reset, preparation and cleanup. There is no measured duration for a complete passing 488-row run yet.
+The Lead will replace the provisional 6–10-hour estimate with a measured critical-path schedule by 18:26 UTC (01:26 Vietnam time, 22 October). Reviewer-A estimates 60–90 minutes from held source and evidence; QA's remaining estimate is pending.
+B-HR-04 is an accepted MINOR coverage limit: M5-4b remains masked and NOT DETECTED, never equivalent. The named V5-4 input stays covered and the held deletion code is safe in the external-writer race. B-HR-03's published-once extension, B-HR-06 and B's NITs go to M4 as explicit deferrals.
+Product Q-R1A-01 stays closed. Latest full runtime remains 438 PASS and 50 FAIL at `aaa823b`. No candidate C, Docker window, push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 17:52 UTC
 
 Round 2 QA `ctx_898acbaef3a6` is running the complete host suite under child umask 022 after the bounded repairs. No final result or held source exists yet.
 A-02 is frozen at SHA-256 `d28455496254693386a52263e2371081a153a67039a56e5a35f7709e2ed958ab` (7,068 bytes, mode 0600).
