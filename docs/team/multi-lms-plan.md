@@ -1831,6 +1831,14 @@ The highest severity governs the shared refusal finding. A report's lower count 
 The repair must cover the union, including legacy hot-journal backup and the compatibility wrapper.
 Both reviewers require a new exact-source follow-up. Runtime, final conformance and documentation gates remain closed.
 
+The same Claude Author started repair `task_81a4c5dab4dc`, dispatch `ctx_4f87059bdeaf`, in `msg_a08b8124cb10`.
+Launch: `msg_d6889239132d`. Its brief permits only 12 named Author paths and host-only checks; no Docker window is open.
+Architect `task_1fe6a1c443cf`, dispatch `ctx_863ddd72d0b9`, reads B-SI-07 without editing files.
+Launch: `msg_c8a75d0c191a`; start: `msg_167c4a3b0334`.
+The Author continues independent fixes while that contract reading is pending.
+Round-2 source reviews are queued as `task_34365528ced3` (A) and `task_f8cfe85a1d3a` (B).
+They require the repaired frozen candidate, the clarification disposition and final source-check evidence before dispatch.
+
 The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
