@@ -1794,8 +1794,18 @@ Reviewers must assess those guarantees, the QA interface assumptions and the unm
 QA's journal follow-up is committed at `8a66a337b0486028cc5af1e265a1d12255cfd2f6`.
 All 488 runtime rows and 32 live rows remain unverified. The unrelated `pnpm-workspace.yaml` remains unstaged.
 
-Storage implementation reviews are queued behind the completed source-preparation tasks and an exact committed candidate:
+The combined source and test candidate is frozen at `f8a869bc6990d966b669352bedd8ec528adb4c08`.
+The Lead's separate clean clone passes `npm ci` and `npm run check`, with the real course fixtures available.
+Results: lint, typecheck, 70 unit-test files with 1,086 tests, and 62 infrastructure tests pass; zero skips.
+The clone remains clean. Its evidence directory is `/Users/quangnguyen/cogniate-lead-checks/storage-f8a869b-20261021T0038Z`.
+The check-log SHA-256 is `37fcac34c40cd284ffc271313d8e990a272a00f3dc434ba2a24fab05d94518ff`.
+This host-only check does not grant runtime acceptance.
+
+Both independent source reviews started against this frozen candidate:
 Reviewer-A `task_5580d3cb79c5`, Reviewer-B `task_94536ec30f9a`.
+Their dispatches are `ctx_94a0f5776563` and `ctx_127f2d72d1b0`; launches are `msg_35646e58c20d` and `msg_30146b33a1a5`.
+Both acknowledged their starts in `msg_5c25b8b5b95e` and `msg_8fc636df44bd`.
+They received the three contract clarifications, both committed QA preparation steps, and the Author's held evidence.
 They own only their separate M1 storage-review reports and remain independent of the authors and QA.
 Both approvals and the Author/QA source checks are required before any full verification retry or final conformance starts.
 These new source-review gates supplement the original final-stage dependencies; they do not replace failed verification tasks.
