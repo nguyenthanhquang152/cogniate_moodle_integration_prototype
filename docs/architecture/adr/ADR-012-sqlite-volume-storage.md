@@ -1,6 +1,6 @@
 # ADR-012: SQLite state on project-scoped named volumes, with a lock prerequisite
 
-Status: **Accepted for implementation** (design only), **revision 3.3**. The Lead accepted revision 3.2 at `5f3337a` after the bounded G1 checks (Reviewer-A APPROVE, Reviewer-B APPROVE, QA PASS; no open BLOCKER or MAJOR). Revision 3.3 adds only the four nonblocking precision items that the decision names (A-S-14, B-S-23, G1-QA-01, G1-QA-02); they are addressed pending independent implementation verification. No implementation and no runtime result is accepted. Date: 2026-10-21. Owner: Architect. Amends [ADR-006](ADR-006-storage.md) (storage location) and [ADR-011 §14](ADR-011-multi-lms.md#14-compatibility-migration-upgrade-and-rollback) (maintenance commands).
+Status: **Accepted for implementation** (design only), **revision 3.3**. The Lead accepted revision 3.2 at `5f3337a` after the bounded G1 checks (Reviewer-A APPROVE, Reviewer-B APPROVE, QA PASS; no open BLOCKER or MAJOR). Revision 3.3 adds only the four nonblocking precision items that the decision names (A-S-14, B-S-23, G1-QA-01, G1-QA-02); they are addressed pending independent implementation verification. No implementation and no runtime result is accepted. Revision 3.4 (one `stack:reset` rule, §15) is proposed and not accepted. Date: 2026-10-21. Owner: Architect. Amends [ADR-006](ADR-006-storage.md) (storage location) and [ADR-011 §14](ADR-011-multi-lms.md#14-compatibility-migration-upgrade-and-rollback) (maintenance commands).
 
 Revision history:
 - Revision 1 was frozen at `6a5eb6a` and reviewed in `docs/reviews/M0/storage-reviewer-a.md`, `storage-reviewer-b.md` and `storage-qa.md` (committed at `2bb918f`).
@@ -11,6 +11,7 @@ Revision history:
 - Revision 3.1 was frozen at `a65a4ee` and checked in the bounded Round 3 addenda (committed at `0928c88`). Revision 3.2 changes only what QA R3B-01, A-S-13 and B-S-22 ask (response: "G1 bounded correction: R3B-01, A-S-13, B-S-22" in [review-response-storage](../review-response-storage.md)). It is not a new general review round and no waiver.
 - Revision 3.2 was frozen at `d0bdda0` and checked in the bounded G1 addenda; the Lead's design acceptance decision is at `5f3337a`. Revision 3.3 states only the four nonblocking precision items and the measured G-1 scope (response: "Design acceptance: four nonblocking precision items" in [review-response-storage](../review-response-storage.md)). No mechanism, protocol, state table, lock algorithm, recovery guarantee, original assertion or row count changes.
 - The four items are addressed pending implementation verification; this text closes none of them.
+- Revision 3.4 is **proposed** (2026-10-21). It changes only how `stack:reset` treats the content parent folder `infra/.data/cogniate-app` (§3, §7, §15, §16), after a measured Docker Desktop bind failure. Brief, evidence and acceptance plan: [storage-reset-parent-repair](../tasks/storage-reset-parent-repair.md). No other mechanism, state, lock rule, recovery rule, row or row count changes. It needs independent review together with its implementation.
 
 ## 1. Context
 
@@ -56,7 +57,7 @@ The decision does not depend on any of these claims.
 | lti-service `/data` (`lti.db`, `lti.db-wal`, `lti.db-shm`) | named volume `ltidb` (Docker name `<COMPOSE_PROJECT_NAME>_ltidb`) | root folder `HOST_UID:HOST_GID`, `0700` | removed (existing `down -v`) | yes |
 | cogniate-app `/data` (`cogniate.db`, `-wal`, `-shm`) | named volume `appdb` (`<project>_appdb`) | same | removed | yes |
 | `appdb` mountpoints `packages`, `uploads` (inside the volume) | directories made by the preflight (§4) | `HOST_UID:HOST_GID`, `0700`, always empty in the volume | removed with the volume | no |
-| cogniate-app `/data/packages`, `/data/uploads` | **nested binds** of the host folders `infra/.data/cogniate-app/packages` and `…/uploads` | host user, directory, `0700`, made by the host-side scripts (§4) | removed (existing `rm -rf infra/.data/cogniate-app`) | no (as today) |
+| cogniate-app `/data/packages`, `/data/uploads` | **nested binds** of the host folders `infra/.data/cogniate-app/packages` and `…/uploads` | host user, directory, `0700`, made by the host-side scripts (§4) | removed; the parent `infra/.data/cogniate-app` stays, empty (§15 content-parent rule, revision 3.4) | no (as today) |
 | Moodle volumes, build queue, logs, secrets, certificates, fixtures, `.mbz` backups | unchanged | unchanged | unchanged | unchanged |
 
 Rules:
@@ -317,7 +318,7 @@ Each event is one JSON line on stdout and in `infra/.logs/storage-lock.jsonl`. T
 | --- | --- | --- |
 | `npm run stack:up` | **yes** | lock; §4 host-side steps; §10 legacy scan; `storage-preflight check --prepare …` (a new container and a new `runId` each time); `dc up --wait`; `mark-started` when an identity still says `pending`; release |
 | `npm run stack:restart -- <svc>` | **yes** | lock; host-side steps; preflight. A failed preflight → exit 1 **before** `up --force-recreate`, so the running container keeps its container id and start time. Then the existing restart; release. |
-| `npm run stack:reset` | **yes** (lock only) | lock; then the existing removal. It is never a recovery step (§9). |
+| `npm run stack:reset` | **yes** (lock only) | lock; then the existing removal, with the §15 content-parent rule. It is never a recovery step (§9). |
 | `test:acceptance`, `test:e2e`, `e2e:reset` | **yes**, per internal run | they start and reset the stack only through `stack-up.sh` and `stack-reset.sh` (scope table) |
 | `stack:data-backup`, `-restore`, `-import`, `-quarantine`, `--recover` | **yes** | lock; both services positively stopped; §8 and §9 |
 | `stack:storage-compat` (`enable`, `disable`) | **yes** | lock |
@@ -686,18 +687,31 @@ The databases belong to the **compose project name**, not to the checkout.
 - **One checkout per project.** The operation lock is in `.tmp/` of the checkout (§7). Two checkouts that use one project name are not supported, and nothing claims to lock across checkouts. The `stale-*` lock records stay in `.tmp/` as evidence; QA removes them with its clone.
 
 Cleanup semantics:
-- `stack:reset` (`down -v` with the project guard) removes both volumes, the legacy bind folders and the content folders of this project.
+- `stack:reset` (`down -v` with the project guard) removes both volumes, the folder `infra/.data/lti-service`, and every entry of `infra/.data/cogniate-app` (the legacy app files and the content folders) of this project. It keeps the folder `infra/.data/cogniate-app` itself (content-parent rule below).
 - `stack:down` keeps the volumes.
 - `docker volume prune` without `--all` removes only unused **anonymous** volumes.
 - `docker volume prune --all` removes every unused named volume, so these databases and the Moodle volumes too.
 - `docker system prune --volumes` prunes anonymous volumes only (Docker CLI reference), so it does not remove these named volumes.
 - Docker Desktop's clean or purge of all data removes every volume.
 
+**Content-parent rule of `stack:reset` (revision 3.4, proposed).** `P` is `infra/.data/cogniate-app`. The rule runs at the point of the old removal: after the guard, the lock, the project check and a successful Docker removal. A failure before that point changes nothing in `P`.
+
+| `P`, read with `lstat` | Action |
+| --- | --- |
+| absent | nothing; `stack:reset` does not make `P` (the next guarded command makes it, §4) |
+| a directory of the host user, not a symbolic link | remove every entry of `P`, also names that start with `.`; remove a symbolic link as a link and never follow it; then set the mode of `P` to `0700` if it is not `0700`. `P` itself stays (the same inode). |
+| any other entry (a symbolic link, not a directory, or a directory of another owner) | remove `P` itself, as before (a link is removed, never followed) |
+
+- **Result.** After exit 0, `P` is absent or an empty directory of the host user with mode `0700` (the §4 state). No entry of `P` survives, so the data erasure is the same as before.
+- **Failure.** An entry that cannot be removed → exit not 0, and no success line. There is no `chown`, no other new path and no new Docker call. The other removals of `stack:reset` do not change.
+- **Why.** On the measured host (§1), after a container had a nested bind under `P`, a deletion and re-creation of `P` made a new child of `P` invisible to the daemon for more than 5.1 s (20 of 20 trials; the upper bound is not measured). A child deleted and made again under a kept `P` was visible at once (20 of 20). Source: Author diagnostic `/Users/quangnguyen/cogniate-author-diagnostics/m1-41-content-missing-9cdd768-20261021T0746Z/diagnosis.md` §10, SHA-256 `5ebbdc4564b6c224550c3724587e73455a525d7c48d371757ea95c51e38798e2`. The cause inside Docker Desktop is not known. The rule only removes the measured trigger from the product reset.
+- **Limit.** A deletion or a move of `P` by hand is not covered. Docker can then refuse the next start or maintenance run with its own text `bind source path does not exist`, and the command exits 1. No product code maps this error, and no recovery step is claimed: the length of the window and what ends it are not measured.
+
 ## 16. Ownership and interfaces
 
 | Owner | Files |
 | --- | --- |
-| Backend Author (owns `infra/**`) | `infra/compose.yaml` (volumes, nested binds, `storage-preflight`, a `maintenance` service); `infra/scripts/sqlite-lock-probe.mjs` (new) and its unit test; `infra/scripts/storage-oplock.sh` (new: acquisition A1–A6 with the group rule, takeover, release, lock events, `run --`, `selftest`; every `rename` and record write through `node`, every `ps` with `LC_ALL=C`); `lib.sh` `start_build_runner` (its own process group); the gate G-1 diagnostic is a separate Lead-assigned Author task (§17); `infra/scripts/stack-up.sh`, `stack-restart.sh`, `stack-reset.sh` (lock only), `qa-suite.sh` and `e2e-reset.sh` (guard only; no lock of their own); `infra/scripts/stack-data.sh`, `stack-data.mjs`, `lib.sh` (storage containers with name and run label, `--source legacy`, `stack:data-import`, `stack:data-quarantine` with the volume-user rule, the journal, the checked move, the R3 order, the target-state refusals, `--recover`, `--stop-after`, `--pause-after`); `infra/compat/*`, `infra/scripts/storage-compat.sh`; root `package.json` scripts; `infra/README.md`; `services/lti-service/src/cli/stack-data.test.ts` (new cases; existing assertions unchanged) |
+| Backend Author (owns `infra/**`) | `infra/compose.yaml` (volumes, nested binds, `storage-preflight`, a `maintenance` service); `infra/scripts/sqlite-lock-probe.mjs` (new) and its unit test; `infra/scripts/storage-oplock.sh` (new: acquisition A1–A6 with the group rule, takeover, release, lock events, `run --`, `selftest`; every `rename` and record write through `node`, every `ps` with `LC_ALL=C`); `lib.sh` `start_build_runner` (its own process group); the gate G-1 diagnostic is a separate Lead-assigned Author task (§17); `infra/scripts/stack-up.sh`, `stack-restart.sh`, `stack-reset.sh` (lock; the §15 content-parent rule, with its unit test `infra/scripts/stack-reset.test.mjs`), `qa-suite.sh` and `e2e-reset.sh` (guard only; no lock of their own); `infra/scripts/stack-data.sh`, `stack-data.mjs`, `lib.sh` (storage containers with name and run label, `--source legacy`, `stack:data-import`, `stack:data-quarantine` with the volume-user rule, the journal, the checked move, the R3 order, the target-state refusals, `--recover`, `--stop-after`, `--pause-after`); `infra/compat/*`, `infra/scripts/storage-compat.sh`; root `package.json` scripts; `infra/README.md`; `services/lti-service/src/cli/stack-data.test.ts` (new cases; existing assertions unchanged) |
 | Product code | none |
 | Independent common QA (Claude) | `tests/host/m1-migration.mjs`, `tests/host/m1-migration.selftest.mjs`, `tests/host/p5-fixture.mjs` (database access through §11; guards and assertions unchanged); `tests/host/run-t1.mjs` (the information-only `**/.data` scan no longer sees database bytes; note it); `tests/host/m1-control.mjs` (refuse `m1-restart` and `m1-profile` while the compat marker is present); a detached start (own process group) for each guarded command that a row kills; the `storage-p5` P5 access; the §11 lane volume presence rule (exact-name check before every mount, the product-made `FIRST_START` setup and its independent check); `tests/host/lib.mjs` `projectResources` and the run boundary and teardown with exact volume names, the ownership record and the preserve rule of §15; the QA fixture scripts and container kinds of §11 under `tests/host/`; the QA suite case that `a-lock-scope` runs; the 72 AC-M1-41 rows and their accounting |
 | Architect | this ADR, ADR-006, `local-stack.md`, ADR-011 §14, M1, M3, the indexes, `review-response-storage.md` |
