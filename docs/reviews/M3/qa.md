@@ -419,3 +419,36 @@ The cached pre-wake Docker view (clock about 36 minutes behind, previous bridge)
 M3 stays **FAIL**. Next: the Lead's disposition of the proposed one-file common repair (`tests/acceptance/M1/common/snapshot-migration.probe.ts`, stable resource link for the two compared Canvas launches), then a new frozen candidate, review and window for two complete 488-row rounds and all legacy groups on one SHA.
 
 Correction (Lead `msg_f305b4f51323`): my round-1 milestone message called the `sim` phase clone 0700 without a check. Before the correction, the three phase clone roots and their test artifact folders were 0755, and each `captured-secrets.jsonl` was 0644. The `*.raw.*` files and `infra/.logs` were already private. No disclosure is demonstrated: the home folder blocks traversal by other users. I changed modes only: the clone roots and every artifact directory are now 0700, and every raw or captured-secret file is 0600. Content and git state are unchanged. The before and after facts are in `public/permission-before.txt` and `public/permission-after.txt` of the run root. The AC-M3-06 and AC-M3-07 rows above apply after this correction.
+
+## Retry at `82e2dab`: FAIL in round 1 `snapshot-upgrade` (backup oracle), 2026-10-21
+
+Owner: a new, independent common QA session, Claude Code Opus 5.5 (`claude-opus-5-5`) xhigh, task `task_ed3b08aa45ea`, dispatch `ctx_b36c97b882dd`. The full record is in the matching section of the [M1 report](../M1/qa.md#retry-at-82e2dab-fail-in-round-1-phase-snapshot-upgrade-backup-oracle-2026-10-21). Earlier sections above stay unchanged. This session did not run the evidence of earlier sessions, of Canvas QA or of QA-E2E.
+
+The documented full entry ran once at `82e2dab6d26915c90070a4aae8ac0c4472706c2d` (product = test). It ran in the sole Docker window, lane `qa-multi-r1`, port 8443, subnet `172.29.0.0/16`, from 04:29:22Z to 04:55:18Z. Round 1 `sim` passed 394 of 394 rows and `snapshot-isolated` passed 6 of 6.
+
+In `snapshot-upgrade`, the seed stage of `M1-38.common.h1` passed, so the snapshot-key repair works. Then the common host oracle `inspectBackup` (`tests/host/m1-migration.mjs:84`) failed: it reads only flat migration arrays. The product backup manifest groups the migration names by database, and the names are exactly the 14 expected old names. No product defect is shown. The phase stopped before it published any row, so h1 has no row credit. 88 round-1 rows, round 2 and all legacy groups did not run. The window was returned at 04:55Z (`msg_50cf6f48d777`); the Lead accepted the failure in `msg_e2e3244580ee`.
+
+| M3 criterion | Status after this attempt |
+| --- | --- |
+| AC-M3-01 | FAIL, incomplete. Round 1 has 400 of 488 manifested rows, all PASS (common 26, Blackboard 141, Canvas 233), all `SIM`, one SHA pair. The h1 seed stage passed but has no row record. The remaining 88 rows have no result: `snapshot-upgrade` 6, `migration` 12, `storage` 70. Round 2 did not run. G-1 identities matched in the runner and in the live W3 boundary (macOS 27.0.1 arm64, CLI 29.9.1, Compose 5.6.0, both binaries by SHA-256). Restart timings: `sim` 32 `m1-restart` actions, median 6,285 ms, max 8,628 ms; profile actions 5,949–6,583 ms. Canvas QA gives the verdict for the Canvas rows. |
+| AC-M3-02 (a) T7 | Not run here. QA-E2E owns the three default-profile T7 runs in its own later window. This report does not claim them. |
+| AC-M3-02 (b) legacy | Not run: the runner stops before legacy when a required M1 phase fails. Test-id change record (static, no Docker): between `55c33a3` and `82e2dab`, only `tests/acceptance/M1/common/snapshot-migration.probe.ts` changed in `tests/`. So the `55c33a3` record above still applies: no legacy suite file, setup, Vitest configuration or legacy host runner changed since the Moodle baseline, and no legacy assertion is weaker. The final default-profile check (`QA_M1_LEGACY_GUARD=1`) did not run. |
+| AC-M3-03 M2 | Not run here. QA-E2E owns all M2 rows in its own later window. |
+| AC-M3-04 hygiene | Round 1, three phases. The capability union (1,334 values plus 36 stack values) gave 0 hits in 33 raw service, simulator and gate logs and in 841 public files, and 0 JWT-shaped strings. The private backup manifest and databases stay in a 0700 folder outside the checkout (files 0600). |
+| AC-M3-05 live | All 32 live rows stay `UNVERIFIED` (`live.md`, QA-E2E). Local Canvas stays deferred. |
+| AC-M3-06 isolation | PASS for this attempt's lane. W1 wake, W2 live clock and W3 formal live start boundary passed before any lane command. The runner's `M3-ISOLATION` and `TEARDOWN` passed in all three phases. The W4 live end boundary and the strict W3-to-end comparison passed with zero problems: the same built-in network Ids (bridge `8ab2567c7b8f`), all 7 protected FULL records identical to W3 and to the original baseline, unchanged memory, CPUs, engine identity and settings, and 0 lane resources. The sampler saw one bridge Id and no clock skew. No owned process is left. The incomplete M1 round still gives no AC-M3-01 credit. |
+| AC-M3-07 secrets | PASS for this attempt's evidence. Browser traces and screenshots (110 trace entries, 15 PNG files) stay in the phase clones; Canvas QA owns their redaction. |
+
+Bounded environment correction (Lead `msg_54ccb0b5da19`, option A):
+
+- Under umask 077, the harness-only check gave 69 of 70: a self-test fixture is sensitive to the file mode. Under umask 022 it gave 70 of 70. Both are preparation evidence only.
+- The Moodle container (uid 65534) mounts files from each phase clone. For this reason, only the frozen runner child ran under umask 022.
+- The launcher, observers, scans and evidence roots ran under umask 077 and are 0700.
+- A narrow guard set each new owned phase clone root from 0755 to 0700, 137, 64 and 207 ms after its birth.
+- At each phase checkpoint, the guard set the one 0644 `captured-secrets.jsonl` file of that phase to 0600. At the end, 0 of 526 raw or captured-secret files are not 0600.
+- Inner artifact folders stay 0755 inside the 0700 roots. The home folder (0750; group `staff` has only the owner and `root`) blocks every other account.
+- The root modes were not private from creation.
+
+The cached pre-wake Docker view (clock about 31 minutes behind, previous bridge) is recorded separately in `w1-wake.json` and is not boundary evidence.
+
+M3 stays **FAIL**. Next: a separate bounded QA task repairs only the common backup oracle and its self-test. Then both independent reviews, a new frozen candidate and a new window are needed for two complete 488-row rounds and all legacy groups on one SHA.
