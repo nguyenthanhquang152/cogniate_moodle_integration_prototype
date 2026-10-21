@@ -13,7 +13,34 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 09:06 UTC
+### Current checkpoint — 2026-10-21, 09:20 UTC
+
+Both combined design and implementation reviews APPROVE candidate `89fb4b4`, with no BLOCKER or MAJOR.
+Reviewer-A report commit: `9168fed`. Reviewer-B report commit: `9f0d9ec`. Both sessions settled successfully and were released.
+Three deduplicated MINOR items are nonblocking for runtime: failure-step wording, the parent-owner scope, and overstated build-queue coverage.
+Architect task `task_c35a2019e5f6`, dispatch `ctx_e11c9b70967f`, owns text clarifications in ADR-012 and the reset brief only.
+It cannot change product behavior, tests or gates. Its requested and effective settings match Claude Code Opus 5.5 xhigh.
+The post-reset build-request coverage gap remains unmeasured for M4. No additional probe is requested now.
+A-SRP-03/B-SRP-04 operator wording and B-SRP-05 test wording are optional NITs.
+
+The Author settled successfully in `msg_4dec1166f6f1` and was released.
+RA was 20/20 fresh at the first probe, with the same parent inode; RC reproduced the bind refusal in 5/5 trials.
+The Lead verified the report and trial hashes, each trial's first result, strict W4 and empty teardown.
+The diagnostic window ended at 09:07:37 UTC. It provides no acceptance credit.
+Report: `/Users/quangnguyen/cogniate-author-diagnostics/storage-reset-parent-repair-task_3fcf726eb0ae-20261021T0839Z/docker-diag/RESULTS.md`.
+SHA-256: `a6cf9fb69f9d329a8beb59c099ffd975de2ce750a0e9bd4770e2ac31365acfa0`.
+
+Fresh independent Q1/Q2 task `task_9a5781ae31f0`, dispatch `ctx_0ecac0d6ef69`, now owns the sole Docker window.
+Its requested and effective settings match Claude Code Opus 5.5 xhigh. Host-only preflight passed on exact candidate `89fb4b48ee388faff3060fe1a161a9f9d064de93`.
+The test tree stays `4c7e067feedc644f955afee37806f06e7273dd04`. Only docs changed after the candidate.
+Grant `msg_13268913e81d` covers the immutable prepared Q1/Q2 runner only, with all fresh environment and cleanup checks.
+W1–W3 passed; the runner started at 09:19:19 UTC in lane `qa-reset-parent-r1`, port 8743, subnet `172.28.0.0/16`.
+The Lead checked the W3 capture hash and summaries: `8ce64c22bbdc3dcb46330393b7425b6e2c41977dd1872cb9e5fcb6df9ba83a3a`.
+Private run root: `/Users/quangnguyen/cogniate-qa-runs/qa-reset-parent-r1-89fb4b48-20261021T0919Z`.
+Q1/Q2 verdict, W4 and cleanup remain pending. The two full 488-row rounds, legacy suites, fresh M2 and T7 remain pending.
+Conformance and guides remain queued. All 32 real-LMS rows stay UNVERIFIED; no push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 09:06 UTC
 
 Candidate `89fb4b4` is under combined design and implementation review.
 Reviewer-A: task `task_86a33c4d75b4`, dispatch `ctx_951c013113e5`.
