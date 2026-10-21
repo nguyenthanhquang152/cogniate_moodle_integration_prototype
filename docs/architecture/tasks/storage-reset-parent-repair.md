@@ -2,6 +2,11 @@
 
 Owner: Architect (design). Implementation: backend Author. Verification: independent QA. Review: Reviewer-A and Reviewer-B review this brief, [ADR-012](../adr/ADR-012-sqlite-volume-storage.md) revision 3.4 and the implementation together. Status: **proposed, not accepted**. Date: 2026-10-21. Task `task_0de615829d29`.
 
+Status on 2026-10-21 (text precision: task `task_c35a2019e5f6`):
+- Source and design: Reviewer-A (`docs/reviews/M1/storage-reset-parent-reviewer-a.md`, committed at `9168fed`) and Reviewer-B (`storage-reset-parent-reviewer-b.md`, committed at `9f0d9ec`) APPROVE design `35d093d` and implementation `89fb4b4`, for source only, with no BLOCKER or MAJOR. This text then states their three deduplicated nonblocking items more precisely (§2, §3, §8 and ADR-012 §15). No rule, row, assertion or gate changes.
+- Runtime: §6 RA, RC and RD ran (diagnostic only; results in §6). §7 Q1 and Q2 ran on `89fb4b4`. The Lead reports (`msg_47de9bb4480c`) that the three Q1 cycles passed and that Q2 failed its target `FRESH` assertion for both volumes. QA classifies the evidence; the cause is not established. There is no QA verdict and no overall Q1/Q2 PASS. The §8 item 5 gates are pending.
+- The design, the runtime result and the task are not accepted.
+
 ## 1. Facts
 
 | Input | Value |
@@ -32,7 +37,7 @@ Exposed today (topology R2): `stack:reset`, then inside the window any container
 
 The normative rule is the content-parent rule of ADR-012 §15. In short: `stack:reset` keeps `P` when it is a real directory of the host user, removes every entry of `P` (dot names too; links as links), and sets `P` to `0700`. An absent `P` stays absent. Any other entry at `P` is removed as before. The rule replaces only the removal of `P`, at the same point.
 
-So the product reset never makes topology R2. The next command makes `packages` and `uploads` under the kept `P`: topology R3 (visible, 20/20). The trials bound only `packages` and kept no other file in the parent; that the same holds for `uploads` and for the legacy files is an inference, which §6 RA measures.
+So, for a `P` that is a real directory owned by the effective user that runs the reset, the product reset never makes topology R2. This is the same test as `prepare_content_folders`, so it is the `P` that the product binds when the same user runs both commands. The old removal still applies to a `P` of another type or owner: for example after a hand change, or when another effective user runs the reset (for example `root` through `sudo`). That case is outside this guarantee, and no recovery is claimed (ADR-012 §15 Limit). The next command makes `packages` and `uploads` under the kept `P`: topology R3 (visible, 20/20). The trials bound only `packages` and kept no other file in the parent; that the same holds for `uploads` and for the legacy files is an inference, which §6 RA measures.
 
 | Not chosen | Reason |
 | --- | --- |
@@ -45,7 +50,7 @@ So the product reset never makes topology R2. The next command makes `packages` 
 
 | Contract | Result with Option A |
 | --- | --- |
-| Data erasure | the same: no entry of `P` survives, also dot names. `lti-service`, backups, build queue, `.secrets/app`, logs, seed and key files, knobs and profile file go as before. |
+| Data erasure | after exit 0, the same: no entry of `P` survives, also dot names. `lti-service`, backups, build queue, `.secrets/app`, logs, seed and key files, knobs and profile file go as before. A failed host removal step stops the reset at that step, and the later steps (for example this rule or the removal of `infra/.logs`) are not attempted. Inside the failed step, the removal command can still remove its other paths or entries. The exit is not 0, there is no success line, and some data can stay (ADR-012 §15 "Failure"; Lead decision KEEP-SPLIT, `msg_2583d56e6293`). |
 | Links | a link inside `P` is removed as a link; its target does not change. A linked `P` is removed as a link, as before. Nothing outside the checkout changes. |
 | Absent `P` | stays absent; §4 makes it at the next guarded command (as before) |
 | Owner and mode | no `chown`. A kept `P` has the §4 state: host user, `0700`. A `P` of another owner is removed as before, so an old root-made `P` still goes. |
@@ -119,6 +124,10 @@ Decision rules:
 
 RD justification: `d-content-folder` is a mandatory row in both rounds. Its second half moves `P` away and then runs `stack:up`. Option A does not change that. Without RD, the next full round is the first measurement, and a failure there stops the round. RD adds about 2 to 4 minutes to the same window.
 
+Diagnostic results (2026-10-21; no acceptance credit). Both windows returned with a W4 strict comparison of 0 problems and 0 owned containers.
+- RA and RC: report `/Users/quangnguyen/cogniate-author-diagnostics/storage-reset-parent-repair-task_3fcf726eb0ae-20261021T0839Z/docker-diag/RESULTS.md`, SHA-256 `a6cf9fb69f9d329a8beb59c099ffd975de2ce750a0e9bd4770e2ac31365acfa0`. RA was 20/20 fresh at the first probe, for `packages` and `uploads`, and `P` kept its inode. RC was 5/5 `bind source path does not exist`, also after the bounded retry. So the rule "go to §7" applies.
+- RD: report `/Users/quangnguyen/cogniate-author-diagnostics/rd20-parent-move-0e83e3c-20261021T0852Z/report.md`, SHA-256 `7fc8cb48b5ee96a7714df5f17db39de778ad044d9668c1620b013e1d1ae9609d`. RD was 20/20 fresh at the first probe, with no refusal and no stale view, so the §8 `d-content-folder` proposal is not triggered. Limits: the window had no positive control (no RA, RC or R2); the probe ran 19–43 ms after the move, earlier than the bind of `stack:up` in the real row; the move went to a sibling folder in `infra/.data`, not to the fixture destination outside the checkout. So RD does not show that the `d-content-folder` row passes.
+
 ## 7. Independent QA (targeted check before the full runs)
 
 QA, independent of the Author, runs in a fresh QA lane on the repaired candidate SHA, with the W1–W4 boundary and the ADR-012 §15 lane rules. There are no added waits between the steps. QA's own `lstat`, listings, hashes and parsing are the oracles, not product output alone. QA writes a new report in `docs/reviews/M1/`. These checks are not AC rows and change no inventory.
@@ -144,5 +153,5 @@ Not in this repair:
 | Option B: a `storage_refused` code for this Docker error | deferred (MINOR). Condition: a measured window bound, or a measured way to end the state. Then map only this error for the two content sources, with that measured next step; never `content_missing`. |
 | Deletion or move of `P` by hand | stated limit (ADR-012 §15) |
 | `d-content-folder`, second half | no change now. If RD refuses at least once, the Architect gives the Lead a bounded M1 and QA fixture proposal (candidate: QA moves away only `packages` and `uploads`, and `P` stays; `a-fresh` still covers the creation of `P`). A stale view instead is a correctness finding. |
-| `build-queue` binds | the same delete-parent topology, but short syntax (`create_host_path` is not `false`). No failure is recorded: the T7 PASS at `aff4882` (2026-10-20) ran `e2e:reset` (reset, then up) before each run with this topology. Not measured; not changed. Q1 and T7 exercise it. |
+| `build-queue` binds | the same delete-parent topology: `stack:reset` deletes `infra/.data/build-queue`, and `stack:up` makes `requests`, `status` and `out` again before the start. These binds use the short syntax (`create_host_path` is not `false`), so a daemon that does not see a new folder can make the path itself instead of a refusal. A fault can then show at a build after `stack:reset` → `stack:up` (for example, a request that the host runner does not see, or a build with no progress), not as a failed start (inference, not measured). The start after a reset is exercised: the T7 PASS at `aff4882` (2026-10-20) ran `e2e:reset` (reset, then up) before each run, and Q1 runs `stack:up` after each reset. Neither checks a build request: Q1 inspects only the two content binds, and T7 sends no build request. The legacy T8 runner sends build requests only after a first `stack:up` in a new clone, with no reset before. So no current gate sends a build request after `stack:reset` → `stack:up` and checks that the app and the host runner see the same queue. Not measured; not changed. The risk stays open for M4. The Lead chose no added probe and no behavior change now. |
 | Index citations | `docs/architecture/README.md`, `tasks/README.md` and M1 cite revision 3.3. After acceptance, the Lead can authorize their update to 3.4. No row text changes. |
