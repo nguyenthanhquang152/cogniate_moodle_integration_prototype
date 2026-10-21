@@ -208,7 +208,7 @@ describe('the operation lock (ADR-012 §7)', () => {
     const res = spawnSync('bash', ['-c', `source "${r.script}"; storage_lock_acquire test-lost
 node -e 'const fs=require("fs");const f=process.argv[1];const k=JSON.parse(fs.readFileSync(f,"utf8"));k.runId="${'9'.repeat(16)}";k.command="other-owner";fs.writeFileSync(f,JSON.stringify(k))' "$LOCK/owner.json"
 storage_lock_release`], { cwd: r.root, encoding: 'utf8', env: { ...r.env(), LOCK: r.lockDir() } });
-    assert.equal(res.status, 0, res.stderr);
+    assert.equal(res.status, 1, res.stderr); // §7 release step 1: the status would be 0, so it is 1
     assert.deepEqual(r.events().map((e) => e.event), ['storage_lock_acquired', 'storage_lock_lost']);
     // command, runId and pid: this process (its acquire). owner: the record that holds the lock now.
     const [acquired, lost] = r.events();
@@ -231,6 +231,65 @@ storage_lock_release`], { cwd: r.root, encoding: 'utf8', env: { ...r.env(), LOCK
       ['storage_lock_acquired', 'test-term'], ['storage_lock_released', 'test-term']]);
     assert.deepEqual([ev[1].runId, ev[3].runId], [ev[0].runId, ev[2].runId]);
   });
+
+  // §7 release step 1 (W-1): after storage_lock_lost, a status of 0 becomes 1 and any nonzero status stays. The same rule
+  // on the run path and on the sourced path, with no options and with set -euo pipefail.
+  const FOREIGN = JSON.stringify(record({ root: '/elsewhere' }, { runId: '9'.repeat(16), command: 'other-owner', acquiredAt: 'x' }));
+  const PLANT = 'printf %s "$F" > "$LOCK/owner.json"'; // the foreign record F now holds the lock
+  const GONE = 'rm -rf "$LOCK"'; // the lock folder is gone
+  /** released: acquired, released; nothing left. lost: acquired, lost (owner F); F byte-identical. gone: lost, owner null; nothing left. */
+  function expectEnd(r, status, stderr, code, end) {
+    const ev = r.events();
+    assert.equal(status, code, `${stderr}${JSON.stringify(ev.map((e) => e.event))}`);
+    assert.deepEqual(ev.map((e) => e.event), ['storage_lock_acquired', end === 'released' ? 'storage_lock_released' : 'storage_lock_lost']);
+    assert.deepEqual([ev[1].command, ev[1].runId, ev[1].pid], [ev[0].command, ev[0].runId, ev[0].pid]);
+    if (end === 'lost') {
+      assert.equal(ev[1].owner.runId, '9'.repeat(16));
+      assert.equal(fs.readFileSync(path.join(r.lockDir(), 'owner.json'), 'utf8'), FOREIGN);
+      assert.deepEqual(r.tmpEntries(), [`storage-op.${PROJECT}.lock`]);
+    } else {
+      if (end === 'gone') assert.equal(ev[1].owner, null);
+      assert.deepEqual(r.tmpEntries(), []);
+    }
+  }
+  // [case, the script after storage_lock_acquire, exit status, end]
+  const SOURCED = [
+    ['R-1 not lost, the script ends with 0', 'true', 0, 'released'],
+    ['R-2 not lost, exit 7', 'exit 7', 7, 'released'],
+    ['R-4 lost (a foreign record), then 0', PLANT, 1, 'lost'],
+    ['R-5 lost (no lock folder), then 0', GONE, 1, 'gone'],
+    ['R-6 lost, then exit 7', `${PLANT}; exit 7`, 7, 'lost'],
+    ['R-6 lost, then a failing command (1)', `${PLANT}; false`, 1, 'lost'],
+    ['R-7 lost, then TERM', `${PLANT}; kill -TERM $$; sleep 5`, 143, 'lost'],
+    ['R-7 lost, then INT', `${PLANT}; kill -INT $$; sleep 5`, 130, 'lost'],
+    ['R-8 (i) storage_lock_release, then exit 0', 'storage_lock_release\nexit 0', 0, 'released'],
+    ['R-8 (ii) a lost storage_lock_release, then a command that succeeds and exit 0', `${PLANT}\nstorage_lock_release\ntrue\nexit 0`, 1, 'lost'],
+    // A plain call: a release that ended the shell through set -e would give 1, not the saved 7.
+    ['R-8 (iii) a saved 7, a lost storage_lock_release, then exit with the saved status', `saved=0; bash -c 'exit 7' || saved=$?\n${PLANT}\nstorage_lock_release\nexit "$saved"`, 7, 'lost'],
+  ];
+  for (const opts of ['', 'set -euo pipefail']) {
+    for (const [id, body, code, end] of SOURCED) {
+      it(`sourced (${opts || 'no options'}): ${id} → exit ${code}`, () => {
+        const r = repo();
+        const res = spawnSync('bash', ['-c', `${opts}\nsource "${r.script}"\nstorage_lock_acquire test-status\n${body}`], { cwd: r.root, encoding: 'utf8', env: { ...r.env(), LOCK: r.lockDir(), F: FOREIGN }, timeout: 60_000 });
+        expectEnd(r, res.status, res.stderr, code, end);
+      });
+    }
+  }
+  const RUN = [
+    ['R-4 lost (a foreign record), the command exits 0', PLANT, 1, 'lost'],
+    ['R-5 lost (no lock folder), the command exits 0', GONE, 1, 'gone'],
+    ['R-6 lost, the command exits 7', `${PLANT}; exit 7`, 7, 'lost'],
+    ['R-7 lost, then TERM', `${PLANT}; kill -TERM $PPID`, 143, 'lost'],
+    ['R-7 lost, then INT', `${PLANT}; kill -INT $PPID`, 130, 'lost'],
+  ];
+  for (const [id, body, code, end] of RUN) {
+    it(`run --: ${id} → exit ${code}`, () => {
+      const r = repo();
+      const res = r.run(body, { F: FOREIGN });
+      expectEnd(r, res.code, res.stderr, code, end);
+    });
+  }
 
   it('selftest: rename-held, locale, orphan-client (an orphaned Docker client keeps the group live), dead-owner, own-group', { timeout: 120_000 }, () => {
     const r = repo();

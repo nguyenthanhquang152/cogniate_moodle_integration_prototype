@@ -5,7 +5,7 @@
 # As a library (candidate guarded scripts):
 #   source storage-oplock.sh; storage_lock_acquire <command name>     A1–A6, then COGNIATE_STORAGE_LOCK_RUN is exported
 #   storage_lock_add_container <name>                                 before each storage container is created
-#   storage_lock_release                                              also from the EXIT/INT/TERM trap
+#   storage_lock_release                                              optional: the EXIT trap releases and sets the status
 # Self-contained on purpose: storage-compat copies this file to .tmp/storage-compat/ for the old builds (§12).
 # Every folder rename and every record write is done by node (fs.renameSync, fsync), never by shell mv; every ps call
 # runs with LC_ALL=C. The record is live when its owner (pid, pidStart) is live, or when any other process has its pgid.
@@ -372,7 +372,7 @@ storage_lock_acquire() {
   fi
   export COGNIATE_STORAGE_LOCK_RUN="$STORAGE_LOCK_RUN_ID"
   STORAGE_LOCK_HELD=1
-  trap 'storage_lock_release' EXIT
+  trap '_storage_lock_exit' EXIT
   trap 'exit 130' INT
   trap 'exit 143' TERM
 }
@@ -381,11 +381,22 @@ storage_lock_add_container() {
   _storage_oplock_js add-container --repo "$STORAGE_LOCK_REPO" --project "$STORAGE_LOCK_PROJECT" --run-id "$STORAGE_LOCK_RUN_ID" --pid "$$" --name "$1" >/dev/null
 }
 
+# Releases once. Any nonzero result (storage_lock_lost, or another release error) is a failed release of this holder:
+# it is kept for the EXIT trap, and it never ends the caller (also under set -e).
 storage_lock_release() {
   [[ "${STORAGE_LOCK_HELD:-0}" == 1 ]] || return 0
   STORAGE_LOCK_HELD=0
   # The own acquire command, also for storage_lock_lost (its owner field names the other record).
-  _storage_oplock_js release --repo "$STORAGE_LOCK_REPO" --project "$STORAGE_LOCK_PROJECT" --command "$STORAGE_LOCK_COMMAND" --run-id "$STORAGE_LOCK_RUN_ID" --pid "$$" || true
+  _storage_oplock_js release --repo "$STORAGE_LOCK_REPO" --project "$STORAGE_LOCK_PROJECT" --command "$STORAGE_LOCK_COMMAND" --run-id "$STORAGE_LOCK_RUN_ID" --pid "$$" || STORAGE_LOCK_RELEASE_FAILED=1
+}
+
+# The EXIT trap. It alone applies §7 release step 1 to the exit status: it releases when the lock is still held; after
+# a failed release of this holder (here or in an earlier storage_lock_release), a status of 0 becomes 1. Any nonzero
+# status stays (for example the command's own failure, 130 after INT, 143 after TERM). set -e, -u and pipefail do not change this.
+_storage_lock_exit() {
+  local status=$?
+  storage_lock_release
+  if [[ "$status" == 0 && "${STORAGE_LOCK_RELEASE_FAILED:-0}" == 1 ]]; then exit 1; fi
 }
 
 # A new storage run id (16 lowercase hex) for a storage container name and its run label.
