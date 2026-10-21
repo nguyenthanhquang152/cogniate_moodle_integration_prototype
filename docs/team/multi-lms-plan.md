@@ -13,7 +13,37 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 12:56 UTC
+### Current checkpoint — 2026-10-21, 13:03 UTC
+
+Both reviewers approve the R1-A product source at `01ce5bc`.
+Reviewer-A is committed at `7fbf7c8` (report SHA-256 `9b21a285faf78521b3060c454779f9503f87dbac303f1f383d5637c66c136748`).
+Reviewer-B is committed at `0a97fe9` (report SHA-256 `28cf870e126f3f52cf9e3b5a4fefa81b2b1c1db8e8f43876e17501cca29d4cc7`).
+The Lead read both reports and checked their evidence manifests. Both workers settled successfully and were released.
+These source approvals give no runtime credit.
+
+The design at `ab285856` is not accepted. Reviewer-B approves; Reviewer-A requests one MAJOR correction (A-SRR-02).
+The source-inventory rule includes synthetic self-tests and container scratch calls that have no named exception.
+The exact P-1a criteria and ADR-012 O-1 text are confirmed by both reviewers; neither needs another edit.
+
+The Architect now corrects only the triage document. It will include the QA findings when that independent judgment is held.
+It must define the scan scope, private-root contents, handoff identity and empty-file creation helper.
+V1-12 will exercise the actual npm spawn path. The cited pre-authentication test will be checked.
+For B-SR-02, the Lead selects a stop rule: storage starts only after all migration rows, required scans and cleanup pass.
+A missing or invalid fresh handoff, uncertain ownership or an invalid exclusive window also stops the diagnostic before storage.
+Storage is then NOT RUN with its cause; owned teardown and W4 still apply. This diagnostic gives no acceptance credit.
+A-SRR-01 is accepted as a NIT outside R1-A. A-SFT-08 remains a MINOR deferred to M4.
+
+Three workers are active, all with requested and effective Claude Code Opus 5.5 xhigh:
+- Architect text correction: task `task_72f5ba976e51`, dispatch `ctx_7d273cfa4858`.
+- Independent design testability QA: task `task_1fb4229dead2`, dispatch `ctx_c46c7c8e09eb`, still judging frozen `ab285856`.
+- Independent R1-A host QA: task `task_7f8548e14769`, dispatch `ctx_f8c483b094d3`.
+
+No harness edit or Docker window is active. The tests tree remains `4c7e067feedc644f955afee37806f06e7273dd04`.
+The latest full result remains FAIL at `aaa823b`: 438 PASS and 50 FAIL.
+The diagnostic, two full rounds, legacy, fresh M2/T7, conformance and guides remain pending.
+All 32 real-LMS rows stay UNVERIFIED; local Canvas stays DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 12:56 UTC
 
 The bounded design revision is frozen at `ab285856c139ddd50be8c8482eec1a330b7055da`.
 It covers the migration handoff, cleanup failures, backup-run identity, private-copy controls and the exact P-1a criteria.
