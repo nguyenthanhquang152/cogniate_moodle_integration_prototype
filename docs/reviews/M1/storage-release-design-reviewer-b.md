@@ -66,3 +66,41 @@ Lens B: operability, simplicity, and acceptance controls that discriminate. This
 ## 5. To close
 
 B-RD-01 needs a text change in §3.7 and §3.8 (about four sentences) before the Author brief. B-RD-02 and B-RD-03 can go in the same edit. After that edit, I expect APPROVE with no new review scope.
+
+## Round 2 — bounded confirmation of the frozen correction
+
+Verdict: **APPROVE** (design text only). No BLOCKER, no MAJOR, no new finding. B-RD-01 to B-RD-04 are resolved.
+
+Same Reviewer-B instance as Round 1. Round 1 above stays unchanged (committed at `0c694d8`, SHA-256 `b7e89fb2…`). Blind: I did not read the peer's report.
+
+| Item | Identity |
+| --- | --- |
+| Frozen correction | `2362a20fc4cdd9c21c9283dc7099068c6565eb31`. Under `docs/architecture/`, `git diff 3a5b61e 2362a20` changes only the two files below. |
+| Task file | `docs/architecture/tasks/storage-command-conformance.md`, SHA-256 `1128b9c198ba79d9cac6471874eecdd2c48b40bc555e525f107d31846b8265de` (revision 2) |
+| ADR-012 | SHA-256 `2b3b601b771559870b2f997159c45ce366c203171c701acb4064c6dba41a1d7d` (revision 3.7, proposed) |
+| Frozen triage | `ade4e8a0…` at `2d763fe` and at `2362a20`: unchanged |
+
+Method: read-only `git show` and `git diff`. No new probe. The Round 1 probe results are the criteria.
+
+| Round 1 item | Revision 2 text | Disposition |
+| --- | --- | --- |
+| B-RD-01 (MAJOR) | §3.7 now has "one status rule". (a) `storage_lock_release` records a failed release and "never ends the caller through `set -e`". (b) "The `EXIT` handler alone sets the final status", and it uses a failed release from the handler or from an earlier explicit call. (d) `run` keeps `exit "$code"` and "has no status branch of its own". This is the Round 1 single-rule variant (probe2 `i-explicit`, `i-runpath`: W-1 result in all 16 cells). R-8 (iii) (saved 7, lost, explicit release, `set -euo pipefail` → 7) catches the literal Round 1 design (probe2 `a-explicit` → 1). R-8 (ii) (lost, ignored, exit 0 → 1) catches a handler that uses only its own result. Both mutants are in the list. "`\|\| true` kept" is now "release result discarded". | **Resolved** |
+| B-RD-02 (MINOR) | §3.8: "Run R-1 to R-8 on the sourced path twice: with `set -euo pipefail` … and with no options. QA records `bash --version`." §3.7 (c): safe defaults under `set -u`. Mutant: "a status that changes with `set -e`, `set -u` or `pipefail` (sourced R-1, R-4 or R-6)". Sourced R-1 under `-u` catches probe2 `u-trap` (normal 0 → 1). | **Resolved** |
+| B-RD-03 (a) (MINOR) | The W-1 text in §3.6 and ADR §7 step 1 says "any nonzero status …, for example …". | **Resolved** |
+| B-RD-03 (b) (MINOR) | §3.7 (a): "any nonzero status of the release subcommand" counts as a failed release, also "another release error with no `storage_lock_lost` event". The note under §3.7 says that QA does not report this exit 1 as a deviation, and that W-1 stays limited to `storage_lock_lost`. | **Resolved** |
+| B-RD-04 (NIT) | R-11: "`enable` copies from the repair SHA". §4.5 has an M4 note: `disable`, then `enable` from the repaired SHA. | **Resolved** |
+
+Exact W-1 application in ADR-012 (revision 3.7):
+- §7 release step 1 (line 288) is identical, byte for byte, to the revision 2 quote in §3.6. I compared the two strings by script.
+- The §12 sentence (line 587), "After `storage_lock_lost`, the exit code follows §7 release step 1.", equals the §3.6 text.
+- The ADR diff changes only the status line (3.7, "proposed and not accepted"), one history entry, step 1 and that §12 sentence. The trap rule (line 292), A6, the events and the scope do not change. The history entry says that the reviewers confirmed W-1 "in principle as contract precision". That matches Round 1.
+
+Peer-origin changes that I inspected only in the diff (I did not read the peer report):
+- **Remembered earlier failed release.** §3.7 (b) and R-8 (ii) have it, with "exactly one released or lost event (the handler … does not release again)". This agrees with my criteria.
+- **R-11 paired control.** A control and a lost run use the same stubs. Control: exit 0 and `storage-compat status: OK`. Lost: exit 1, F kept, and no "stop now" text. This proves that the exit 1 comes from the lost rule and not from a failed check (`storage-compat.sh:161–178`, all `die "stop now…"`). This is a good discriminating control.
+- **Full option matrix.** This is the same change as B-RD-02.
+- **Qualified O-1 label.** "R1-A QA O-1" is now separate from triage O-1 (the ADR-012 §4 sentence, triage lines 12 and 394). This is clearer. The Round 1 O-1 disposition does not change: a MINOR deferral to M4, with the condition that it cannot waive a required row that fails only because a released event is missing.
+
+Observation, no change needed: §6 item 2 still says that the Architect did not check the AC-M1-41 oracles. The Round 1 O-1 row above contains that check (tests tree `4c7e067`).
+
+Preserved: the R1-A QA Round 1 FAIL, the approvals `7fbf7c8` and `0a97fe9`, and the frozen triage at `2d763fe`. This Round 2 gives no product or runtime acceptance. It changes only this file. `pnpm-workspace.yaml` is untouched.
