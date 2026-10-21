@@ -1,5 +1,5 @@
-Verdict: FAIL
-Round: 1
+Verdict: PASS
+Round: 2
 
 # Storage repair: design testability (independent QA)
 
@@ -393,3 +393,132 @@ Not changed: `tests/host/storage-inventory.mjs`, `tests/host/m1-storage-manifest
 - Not testable as frozen: V4-9 (QA-SRT-01, MAJOR). Ambiguous or contradictory: V4-1 against V4-2, the root-restore trigger, the handoff window rule, and the restore-site scope (QA-SRT-02 to -05, MINOR).
 - The five corrections are text only and bounded to the triage file. They do not change the architecture, a product file, R1-A, the A-SFT-08 deferral, a row id or a row count. After them, I expect a PASS. PR-1 to PR-6 are proposals; SD-1 to SD-9 are safe to defer as stated; IR-1 to IR-7 are for the implementation dispatch.
 - No acceptance credit. No implementation was done in this dispatch.
+
+## Round 2
+
+Verdict for this round: **PASS (design testability only)**. Target: revision 4 of `docs/architecture/tasks/storage-full-round-triage.md`. This is a bounded addendum. No acceptance credit.
+
+### R2.1 Provenance and frozen inputs
+
+- Owner: a **fresh** independent QA instance (Claude Code Opus 5.5, xhigh). Task `task_f8174e4a191e`, dispatch `ctx_b079f49025d8`, run `run_ebe671ad72a9`. Date: 2026-10-21.
+- Round 1 (Parts 1–7 above) is the historical evidence of the **preceding** QA instance (task `task_1fb4229dead2`, dispatch `ctx_c46c7c8e09eb`). This instance did not write the Round 1 map and did not freeze it. Round 1 text is unchanged. Only the two status lines at the top of this file changed (from `FAIL` and `1`), as charter §6 requires. Part 7 keeps the Round 1 verdict.
+- Before this edit, the file at `0468b19` had SHA-256 `de4116bf4f30dc019fdf76a9d18bf6c35fa7f0737b4e0ae6434d8cd653e91af3`. The bytes between the Round 1 `criterion-map` markers still hash to `c99cf106…e808` (checked before and after this edit).
+
+| Input | Pin | SHA-256 |
+| --- | --- | --- |
+| Triage, revision 4 (target) | `2d763fec502f6b7758b7ed56f51613183e5021ce` | `ade4e8a0f9e54823040828758b7683d5c9b230587747f3ef3c89ef8e99f9a032` (equal) |
+| Triage, revision 3 (diff base) | `ab285856c139ddd50be8c8482eec1a330b7055da` | `70ba4f9b…1dba` (equal) |
+| `docs/architecture/tasks/M1.md` | `2d763fe` | `b648853cea837284020229a99db81b699066fa916876f90905eb374fdba61057` (unchanged) |
+| `docs/architecture/adr/ADR-012-sqlite-volume-storage.md` | `2d763fe` | `57602ca4cf9dc82ea2fb874d2ef8618dad204ca7d1727bfa56ee3fa6746fa589` (unchanged) |
+| `docs/team/charter.md` | `2d763fe` | `5289f7f7…3054` (unchanged) |
+| Tests tree | `2d763fe:tests` = `4c7e067…` (= `F`; unchanged) | — |
+| Product R1-A | `01ce5bc` | as Round 1 |
+
+Commit `2d763fe` changes only the triage file (+182, −48). `M1.md` and ADR-012 are byte-identical, so the exact P-1a and O-1 criteria that Round 1 confirmed are unchanged.
+
+<!-- criterion-map-r2:begin -->
+### R2.2 Changed-criterion map (frozen before any Round 2 source read)
+
+Written from the diff `ab28585..2d763fe` of the triage file only (revision 4, SHA-256 `ade4e8a0…a032`). "T4:" = a line of revision 4. Classes as in Part 1 (H, M, R). The Round 1 map ids stay valid. A row below either changes a Round 1 id (named) or adds a new id.
+
+| Map id | Changed criterion (revision 4) | Test and observable oracle | Mutation that must fail it | Class | Round 1 id |
+| --- | --- | --- | --- | --- | --- |
+| Q2R-01 | Source-inventory scope = runtime modules only (`storage-*.mjs` without `*.selftest.mjs`, plus `m1-migration.mjs`, `run-m1.mjs`); exact token regex over the whole text; exact per-file counts X1–X8; no runtime import of a self-test (§7.2) | V4-9 over the repaired tree; mutations on a temporary copy of the scope | a token at a #1–#16 site; a new `storage-x.mjs` with a token; a default `scratchBase`; an import of a self-test; a scope that matches self-tests | H | Q4-05 (QA-SRT-01) |
+| Q2R-02 | `logicalRead` has no default `scratchBase`; a call without it throws; container `main()` passes the container temp folder (X5, X6); every host call passes a `privateScratch` path; the only host caller is #10 (§7.2 #4) | V4-1 (#4, #10): final file inside `scratch/`; call without base throws | default `scratchBase`; host scratch outside `scratch/` | H | Q4-01, Q4-06 |
+| Q2R-03 | V4-1 covers copy sites #1–#13; final `0600` at #1, #3, #4, #7–#13; at #2, #5, #6 only the creation hook; final mode = V4-2 | V4-1 per site under umask `022` and `000` | an into-volume site that ends at `0600`; copy then `chmod` | H | Q4-03 (QA-SRT-02) |
+| Q2R-04 | Private empty file: exclusive no-follow `0600` create; `fstat` regular, host user, `0600`, size 0; return dev/inode; caller `lstat` before the shell (regular, same dev/inode, `0600`, size 0, one link) and after the shell (regular, same dev/inode, `0600`); else FAIL, no captured byte read (§7.3, #14) | V4-8 variants: pre-existing target; link before the shell; non-empty target; other inode during the shell (fake shell) | create without `O_EXCL`/`O_NOFOLLOW`; no `lstat` check before or after the shell | H | Q4-11 |
+| Q2R-05 | `privateScratch` uses `mkdirSync`, mode `0700`; `remove()` scans first; zero hits → removes; a hit → step FAIL and the folder is kept, also after a safe §7.5 correction; a correction never turns FAIL into PASS (§7.3, SD-8) | a hit in a scratch, then a safe correction: the folder and the file still exist; step FAIL | `remove()` deletes after a correction; FAIL that turns PASS | H | Q4-06 (SD-8) |
+| Q2R-06 | Lane private root closure: exactly `bin/`, `out/`, `backups/`, `quarantine/`, `scratch/`; root and each entry a real directory of the host user, mode exactly `0700`; else FAIL "private root not closed: `<entry>`"; checked at each scan point of the owning phase; storage, migration and snapshot-upgrade lanes (§7.4) | V4-10 variants (a)–(f) | scan of named areas only; name check without type, mode or owner | H | new |
+| Q2R-07 | Scan points split: migration phase (after private backup, each damage copy, each `configDiff` scratch removal, phase end); snapshot-upgrade phase (each `configDiff` removal, after the snapshot backup, phase end); snapshot points required in the full gates before full acceptance; §7.5 phase FAIL and stop for both phases (§7.4, §7.5, §9 step 8) | inspection of the hook calls per phase; scan unit tests (V4-3, V4-7) | a missing snapshot phase-end scan | H (inspection) / R | Q4-08 (SD-1) |
+| Q2R-08 | QA plant definition; exact 21-site list; site 14 = seven calls; one cleanup for `d-content-folder`; 27 injections; one-op fixture scratch is not a row-level plant (§4.3) | V2-8: one injection per site and per site-14 call; phase stop as V2-4 each | a site without the abort rule; a site-14 call without it | M | Q2-09, Q5-06 (QA-SRT-05) |
+| Q2R-09 | Root-restore trigger: step 3 started (also failed or timed out); partial plant restores only the root-owned entry (§4.0 step 8) | V2-10 (fail and time-out variants) | restore only after a successful plant | M | Q2-07 (QA-SRT-03) |
+| Q2R-10 | `a-serialize` wait lines from the captured `stack:up` output (`res.lines` of `a-serialize-up`) (§3.1 step 5, SD-9) | V1-9 with the wait line given as captured output | a command match in the shared log | H | Q1-04 |
+| Q2R-11 | V1-12 on the actual row path: `spawnGroup('npm', ['run','stack:data-backup','--','--out',…])` in a `git archive` scratch copy, row environment, fail-closed Docker stub (exit 97); one acquire, `pgid` = spawned `pgid`, `command` = `stack:data-backup`; A6 before the first Docker call; non-zero exit; no lock folder left; `npm --version` recorded | V1-12 | identity premise false through the `npm` hop; acquire command not the backup's own | H (stub) | Q1-09 (PR-5) |
+| Q2R-12 | PR-1 to PR-4 as V1-13 to V1-16; SD-7 in V1-5 | V1-13 to V1-16; V1-5 | as Round 1 PR-1 to PR-4 | H / M | Q1-01, Q1-05, Q1-07, Q1-10, Q1-11 |
+| Q2R-13 | Handoff binding §9.1: window channel `QA_M1_WINDOW_START` (exact ISO form; new `w` per round in `full` mode; after `D` in the diagnostic); storage-child facts (run root, `-st` project and base `b`, candidate SHA, start `s`, host uid); items 1–5 (window; handoff file, folder, mtime, JSON, absolute real paths; clone name, owner, birth time; backup root name, mode, birth time; backup manifest `composeProject` = `b`); one shared function; else `BLOCKED` with the item | V8-1 (positive), V8-2 (stale), V8-3 (outside), V8-4 (type, owner, variable) on synthetic folders | a check that trusts the handoff path; a window per run; link follow; prefix-only check | H | Q8-01 (QA-SRT-04) |
+| Q2R-14 | `full` mode: one new `w` per round before that round's migration child; per-round handoff path unchanged; no other `full`-mode change (§9.1, §10.2) | V8-5 with a spawn recorder, two rounds | one `w` per run; shared handoff path; changed phase list | H | Q8-01 |
+| Q2R-15 | Diagnostic run-or-stop rule (a)–(f); "storage NOT RUN: `<cause>`"; owned teardown and strict W4; the storage child runs the §9.1 check again (§9 step 7) | V8-6 with child stubs | storage start after a migration failure; stop without teardown or W4 | H | Q8-01 (B-SR-02) |
+| Q2R-16 | V7-1: a fake-caused row FAIL is allowed only when declared first with row id and cause; any other FAIL, missing coverage, unsafe order, failed cleanup or unexpected exception FAILs the dry run (Lead: compare declared expected row and cause results) | V7-1 | an undeclared row FAIL accepted; a declared result that is not compared | M | Q7-01 (IR-7) |
+| Q2R-17 | Limits added: birth time needed (fails closed elsewhere); V4-9 binds per file and count, not per function; SD-3 to SD-6 recorded (§13) | inspection | — | — | — |
+
+Not normative for QA testability (checked only for consistency): the `app.test.ts` citation (§5), the header and history, §0 rows, §14 note, §15 map.
+<!-- criterion-map-r2:end -->
+
+### R2.3 Freeze boundary and independence record
+
+| Item | Value |
+| --- | --- |
+| Changed-criterion map frozen | 2026-10-21T13:33:47Z |
+| Map SHA-256 | `b95456ebb1b8af079330ff43ad484d863dce8a302dac3fbf3fbc141ce2f6bbe9` = SHA-256 of the bytes between the `criterion-map-r2` markers. The same bytes are in `/Users/quangnguyen/cogniate-qa-runs/storage-repair-testability-qa-r2-20261021T1328Z/criterion-map-r2.md` (mode `0600`, folder `0700`). |
+| Read before the map | This report; charter §5–§7; the Lead's freeze message; `git diff ab28585 2d763fe` of the triage file; the §12 control rules of revision 4. No source. |
+| Source boundary | After 13:33:47Z, targeted reads only: `git show` of tests files at `4c7e067`, of `infra/` files and `package.json` at `01ce5bc`, and of `app.test.ts` at `aaa823b`; metadata (names, types, owners, modes, birth times) of existing folders under `~/cogniate-qa-runs`. No content of a private file. |
+| Not read | The working-tree triage file before the freeze; `docs/reviews/M1/storage-repair-reviewer-a.md` and `-reviewer-b.md`; every concurrent confirmation report; R1-A Author and product-QA reports; the team-file changes of `42d14a9`. |
+| Probes and deviations | No probe. No Docker, no runtime, no write outside the private folder and this file. Private files were `0600` from creation (umask `077`). No deviation. |
+
+### R2.4 Closure of the Round 1 findings
+
+| Finding | Revision 4 change | Targeted source check | State |
+| --- | --- | --- | --- |
+| QA-SRT-01 (MAJOR) V4-9 | §7.2: scope = runtime modules; exact token regex; exact per-file counts X1–X8; `logicalRead` without a default `scratchBase`; X5, X6; V4-9 mutations | The regex finds 30 matches in the nine runtime modules at `4c7e067`. Each match is a site or X1–X4, X7, X8: `m1-migration.mjs` `:204` X7, `:218` #13, `:299` X8; `run-m1.mjs` `:141` X4; `storage-compat-route.mjs` `:186` X3, `:202` #14; `storage-fixture-script.mjs` `:107` (#4 default base), `:111` X5, `:115` #4, `:177` #5, `:190` #1/#2, `:229` #3, `:289` #7; `storage-lane.mjs` `:46` X1, `:222`, `:224` #10; `storage-oracle.mjs` `:238` #8; `storage-rows.mjs` `:687`, `:707`, `:709`, `:992` #12, `:1070` X2, `:1307`, `:1309` #11, `:1346` #9; `storage-docker.mjs` and `storage-inventory.mjs` none. No match is in a comment or a string. After the moves that §7.2 names, the counts equal the X1–X8 table. `logicalRead` has two callers only: container `main()` (`storage-fixture-script.mjs:382`) and host #10 (`storage-lane.mjs:225`). `fixtureArgs` sets no environment and mounts only the lane volumes, `/qa/bin` and `/qa/out` (`storage-docker.mjs:16`, `:103–131`), so X6 is never a host path. The text matcher with exact counts fails closed; it is an acceptable replacement for Round 1's call matcher. | **Closed** |
+| QA-SRT-02 (MINOR) V4-1 against V4-2 | V4-1: final `0600` at #1, #3, #4, #7–#13; creation hook only at #2, #5, #6; #14 in V4-8 | Text only | **Closed** |
+| QA-SRT-03 (MINOR) restore trigger | §4.0 step 8: "step 3 started" (also failed or timed out); a partial plant restores only the root-owned entry; V2-10 (PR-6 plus a time-out) | Text only; order (a)–(d) unchanged | **Closed** |
+| QA-SRT-04 (MINOR) handoff window | §9 step 7, §9.1, V8-1 to V8-6. Round 1's folder-birth rule is replaced. The reason is correct: both `full`-mode rounds share one accounting scratch (`run-m1.mjs:141`, `:148`), so a folder-based window accepts round-1 entries in round 2. | Every fact of §9.1 exists without the handoff: `identity.productSha` (`run-m1.mjs:115`); `RUN_ID` = project, first 8 of `--sha`, ISO time with `:` and `.` as `-`, and the default clone folder (`core.mjs:84–85`); migration project `baseProject`, storage project `${baseProject}-st` (`run-m1.mjs:144`, `:153`); `lane.clone` = `r.CLONE` (`storage-lane.mjs:31`); `migration` runs directly before `storage` (`m1-phases.mjs:4`), so a per-round `w` also rejects the snapshot clones of that round; backup root made next to the clone, `0700`, with `original/` (`m1-migration.mjs:204–206`); handoff written last (`:263`); backup `manifest.json` with `composeProject` = project (`stack-data.mjs:703`, `:72–76`), written after the maintenance container drops to the host user (`compose.yaml:381`). Host metadata: `~/cogniate-qa-runs` equals its real path; 12 existing clone names match the item 3 form; two existing backup root names match the item 4 form, and four snapshot root names have the other prefix that item 4 rejects; APFS birth times are non-zero; `os.tmpdir()` differs from its real path (as V8-1 says). No real migration child runs host-only. | **Closed** |
+| QA-SRT-05 (MINOR) QA plant | §4.3: definition; 21-site table; one `d-content-folder` cleanup; 27 injections | The table equals Round 1 §5.1 (steps, lines, restores). 27 = 20 sites + 7 site-14 calls. | **Closed** (NIT R2-05) |
+
+### R2.5 Changed controls: feasibility
+
+| Control | Result | Evidence or condition |
+| --- | --- | --- |
+| V1-5 (SD-7) | Testable (Author) | Wording only |
+| V1-9 with §3.1 step 5 (SD-9) | Testable H | `a-serialize-up` is a `product()` call (`storage-rows.mjs:402`); `res.lines` is used the same way in `a-lock-wait` (`:380`) |
+| V1-12 (PR-5, actual `npm` path) | Testable with the stub | At `01ce5bc`: `package.json:25` → `stack-data.sh` → `lib.sh` reads `.env` only when it exists (`lib.sh:19`) → `storage_compat_guard` reads only the marker file (`storage-compat.sh:114`) → `storage_lock_acquire "stack:data-backup"` (`stack-data.sh:32`). On a fresh copy, A1–A5 make no Docker call (the A5 lister runs only for a stale record, `storage-oplock.sh:126–127`). A6 logs first; the first Docker call is the lister after it (`:141–144`); its failure releases quietly (`:151`). So a correct candidate gives one acquire with `command` `stack:data-backup`, a non-zero exit and no lock folder. The `pgid` equality is the measured premise; a false premise FAILs the control (fail closed). |
+| V1-13 to V1-16 | Testable | Equal to PR-1 to PR-4 |
+| V2-8 | Testable on a mock lane (large) | 27 injections; the fakes must drive each row to its plant |
+| V2-10 | Testable on a mock lane | PR-6 plus a time-out variant |
+| V4-1 | Testable H | QA-SRT-02 closed |
+| V4-8 | Testable H; gap **R2-01** | The #14 variants discriminate |
+| V4-9 | Testable H | Counts verified (R2.4); IN-1 |
+| V4-10 | Testable H | Only `boot()` makes root entries (`storage-lane.mjs:34–43`; no other use of `.private` in the runtime modules), each with mode `0700`. The migration and snapshot phases boot one lane each (`m1-migration.mjs:180`, `:280`); `oldLane` uses the same root. I did not measure the nine roots of §7.4 again. |
+| V7-1 | Testable on a mock lane; gap **R2-02** | |
+| V8-1 to V8-4 | Testable H | IN-2 |
+| V8-5 | Testable H only with a seam; **R2-03** | |
+| V8-6 | Testable H | New driver code; IN-3 |
+
+The scan points of both migration phases are explicit (§7.4). The snapshot-upgrade points, and its phase-end scan, are required in the full gates before full acceptance (§9 step 8). `configDiff` runs in that phase at `m1-migration.mjs:286`, after `boot()`, so #14 has a private root there.
+
+### R2.6 Remaining items
+
+Severity follows charter §5. None blocks.
+
+**R2-01 — MINOR — the §7.3 keep rule has no control (T4 §7.3 `privateScratch`; §12 V4-8).**
+- Problem: §7.3 keeps the scratch after a hit, also after a safe correction (SD-8, Lead). V4-8 still expects "the step FAILs before the removal" and names no mutation for a deletion. V4-7 covers a deletion only at a scan point, not in `remove()`.
+- Effect: a `remove()` that deletes the folder after a hit or after a correction passes V4-8 as written.
+- Smallest correction (V4-8): Expected: "the step FAILs; `remove()` keeps the folder and the file, also after a safe §7.5 correction; the step stays FAIL." Mutation: "a `remove()` that deletes after a hit or after a correction."
+
+**R2-02 — MINOR — V7-1 compares in one direction only (T4 §12 V7-1).**
+- Problem: V7-1 allows a fake-caused FAIL only when it is declared with its row id and cause, and it FAILs on any other FAIL. It does not say what happens when a declared result does not occur, or when a row is `BLOCKED` without a declaration.
+- Effect: an allow-list implementation meets the text but does not compare declared and observed results (Lead condition). A row that is `BLOCKED` by a wrong need, or a declared FAIL that becomes PASS, does not FAIL the dry run.
+- Smallest correction (V7-1): "Before the run, the dry run declares the expected status and cause of each row that is not expected to PASS. The observed status and cause of all 70 rows must equal this map. Else the dry run FAILs." Mutation: "a declared FAIL that does not occur; an undeclared `BLOCKED` row."
+
+**R2-03 — MINOR — V8-5 needs a seam that §10.2 does not allow in words (T4 §10.2 `run-m1.mjs`; §12 V8-5).**
+- Problem: §10.2 allows "only `QA_M1_WINDOW_START` for each round; no other change of the `full` mode". V8-5 needs "the child spawn replaced by a recorder", host only. The `full` branch spawns through `childRun` → `run(process.execPath, …)` of `lib.mjs` (`run-m1.mjs:128–129`). It has no injection point, and it first runs git checks on the frozen source (`:118–125`).
+- Effect: V8-5 needs either a code seam (literally "another change") or a loader that replaces `lib.mjs` (indirect and brittle). It is possible, so the item does not block. The §9.1 "Unchanged" list already names what must not change.
+- Smallest correction (§10.2): "A behavior-neutral seam that lets V8-5 replace the child spawn is allowed. It changes no phase, order, variable, result file or assertion of the `full` mode."
+
+**R2-04 — NIT — helper call list (T4 §7.2).** §7.2 says that the §7.3 helpers "use `open`, `mkdir`, `readdir` and `lstat` calls only". §7.3 also needs `fstat`, `fchmod`, `fsync`, `rename` (#9, `editjson`) and a removal (`privateScratch.remove()`). Read it as "the helpers make no token call". No effect on a test.
+
+**R2-05 — NIT — one QA process group is not named (T4 §4.3).** `a-lock-wait` starts a QA process group that holds the lock (`storage-rows.mjs:372`, `storage-oplock.sh run -- sleep 150`) and waits for it in `finally` (`:389`). The new definition covers it ("a QA process group"), but it is not in the 21-site list, and the exception names only fixture operations. Its `finally` has no undo step that can fail: the holder ends after a bounded time and releases its own lock. Recommendation: name it under the self-removing exception, or add it as site 22 (then 28 injections). This corrects the Round 1 §5.1 inventory of the preceding instance. It is not a new design issue.
+
+Implementation notes (no design change; not requirements):
+- **IN-1** V4-9 fixes `run-m1.mjs` at `mkdtempSync` 1 and `tmpdir` 1 (X4). The diagnostic folder `D` must not add a token. Use `mkdirSync` with mode `0700` and a random name, or reuse the one X4 call. A second `mkdtempSync(os.tmpdir())` FAILs V4-9.
+- **IN-2** V8-1 to V8-4: `w` and `s` have millisecond resolution; birth times and `mtime` are finer. Where a case needs an order between a time value and a file event, the control waits until `Date.now()` is at least 1 ms past the earlier value. Else a stale case can look fresh in the same millisecond, or `H.mtime ≤ s` can fail in the positive case. The product check stays fail closed; only the control would be flaky.
+- **IN-3** Run-or-stop (c) and V8-6: the migration child must publish its scan hits and corrections (for example in its result file), so that the driver can apply (c). The stub uses the same channel.
+- **IN-4** X6: `main()` passes the operation spec to `logicalRead` (`storage-fixture-script.mjs:382`). It must set `scratchBase` after the spec, so that a spec value cannot replace the container temporary folder.
+
+### R2.7 Verdict
+
+**Verdict: PASS (design testability only), Round 2.**
+- Revision 4 closes QA-SRT-01 to QA-SRT-05. The changed scan, cleanup, oracle and handoff texts agree with each other and with the pinned source. The remaining items are R2-01 to R2-03 (MINOR) and R2-04, R2-05 (NIT). Each is a one-sentence text change or an implementation choice. I recommend that the Lead decides R2-01 to R2-03 before QA writes V4-8, V7-1 and V8-5.
+- Lead conditions: PR-1 to PR-4 and PR-6 are V1-13 to V1-16 and V2-10. PR-5 is the actual `npm` path in V1-12, and it is feasible at `01ce5bc`. The snapshot-upgrade scan points and its phase-end scan are explicit and required before full acceptance. A scan hit keeps the scratch after a safe correction (§7.3; control gap R2-01). V7-1 rejects undeclared FAILs, but its comparison is one-way (R2-02).
+- `M1.md` and ADR-012 are byte-identical to the confirmed hashes. Revision 4 changes no criterion text in them.
+- Limits: design testability only. No acceptance credit. No implementation, Docker, runtime suite or live service. The source checks covered the changed text only. The Round 1 inventories were not swept again; R2-05 came from one targeted check of the `spawnGroup` calls. The nine-root metadata of §7.4 was not measured again. V1-12 feasibility is a source reading of `01ce5bc`; the `npm` process-group premise stays a measurement of that control. The diagnostic and the full rounds are outside this dispatch.
