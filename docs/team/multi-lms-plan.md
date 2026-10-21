@@ -13,7 +13,39 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 13:46 UTC
+### Current checkpoint — 2026-10-21, 13:55 UTC
+
+Reviewer-A approves the revision 4 design in `95617dfae4183e697ac8ce2d984c269435534857`.
+Report SHA-256: `5d4083ad6ac64d6948e869487f559b7bc121d7569ed5dff28b20a8d0be898fbe`.
+The Lead verified the preserved Round 1 and all 13 probe-manifest entries.
+A closes A-SRR-02 through -06, B-SR-01 through -03 and QA-SRT-01 through -05.
+The review settled successfully and its worker was released. Reviewer-B remains active.
+
+A-SRR-07 is a MINOR timing-control issue. The Lead keeps the raw file-time inequalities and fail-closed runtime check.
+Host controls must separate ordered events across millisecond ticks and prove their timing preconditions.
+No tolerance or precision loss is authorized. This follows QA IN-2; the proposed whole-ms flooring is not selected.
+A-SRR-08 is a NIT limit of the text scan. The harness must use no aliased or computed token-call bypass.
+Both implementation source reviewers must inspect that scope. No parser expansion is requested.
+
+The Architect disposition is committed at `3a5b61ef35cda9b15f9b03db948403edbb68a8e0`.
+Path: `docs/architecture/tasks/storage-command-conformance.md`; SHA-256 `cc1b0753bf84cf94948a5f45fb523139731ffa81c9bdac96cdcef7883c6122f0`.
+It finds Q-R1A-01 to be a MAJOR supported-holder contract violation. The Lead requires repair before candidate C.
+The proposed W-1 changes an otherwise-zero status to 1 after a lost release, while keeping existing child or signal failures.
+The Lead selects W-1 for two blind, bounded confirmations before the Author brief. No ADR or product edit is authorized yet.
+O-1 is an accepted MINOR deferral to M4. A required-row failure caused by O-1 would require reassessment.
+The event requirement is not waived. The historical QA FAIL and R1-A source approvals remain unchanged.
+The Architect settled successfully and was released.
+
+Current workers, all requested and effective Claude Code Opus 5.5 xhigh:
+- Revision 4 Reviewer-B: `task_e6e2cdd4bea9` / `ctx_33a4238fc02b`.
+- Common QA harness owner: `task_6c53cbbc403c` / `ctx_f189530f67c1`. Stage 1 is criteria and a private control map only. No repository edit or source read before its map is held and the Lead grants implementation.
+- W-1 Reviewer-A: `task_db5c4f0024c9` / `ctx_b0bdcc62e919`. W-1 Reviewer-B starts when a slot frees.
+
+No runtime window is active. Full acceptance remains blocked on repairs and fresh gates.
+The latest full result stays 438 PASS and 50 FAIL at `aaa823b`.
+All 32 live-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 13:46 UTC
 
 Revision 4 testability is PASS for design scope only at `83a0eb9adaa8e3212dc7873d22c83ee533ff1c7d`.
 Report: `docs/reviews/M1/storage-repair-testability-qa.md`; SHA-256 `834c30139ad344839f54cc4be19ad8b307bcda4f012f84c3b4ff4024d0dabc94`.
