@@ -13,7 +13,36 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 14:06 UTC
+### Current checkpoint — 2026-10-21, 14:22 UTC
+
+The Lead accepts release-status design revision 2 for implementation at `2362a20fc4cdd9c21c9283dc7099068c6565eb31`.
+The conformance document hash is `1128b9c198ba79d9cac6471874eecdd2c48b40bc555e525f107d31846b8265de`.
+ADR-012 revision 3.7 hash is `2b3b601b771559870b2f997159c45ce366c203171c701acb4064c6dba41a1d7d`.
+Reviewer-A Round 2 APPROVE: `d8ca978e32e530a2e9c0946e7fae1f397312a8c5`, report `a019a3ce041d5033dffa0ab7fb310d92137482d60f51278a13da7ee1e4f17149`.
+Reviewer-B Round 2 APPROVE: `f8c0d41981d8f4c35d2572b13802a32d0e07cd63`, report `c848a256db8a168f8dbded7df7c74106182b400cf6a8705262a7cda570d218f4`.
+Both reviewers close all Round 1 findings, including B-RD-01. Their reports and the Architect task settled successfully; their workers were released.
+A sent two identical completion messages. They describe one settlement; no duplicate task was started.
+
+One EXIT handler selects the final status. Release records any failure without ending the caller through errexit.
+The handler remembers earlier explicit failure. Failed release changes 0 to 1 and keeps any nonzero status.
+The bash-only change preserves the embedded JavaScript, events, lock algorithm and R1-A command values.
+A-RD2-01 is a label-only NIT, deferred until the next Architect edit, if any.
+A-RD2-02 is explicit in both briefs: R-8(iii) calls release as a plain command under set -euo pipefail.
+The frozen harness triage at `2d763fe` is unchanged. R1-A QA O-1 stays a conditional MINOR deferral to M4.
+
+Active workers, all requested and effective Claude Code Opus 5.5 xhigh:
+- Harness QA `task_6c53cbbc403c` / `ctx_f189530f67c1` continues its granted 22-path implementation and host controls.
+- Product Author `task_bd459d584596` / `ctx_d30dc937ad9f` owns only the helper bash, adjacent unit test and helper hash line.
+- Independent host QA `task_720f8d0e6d3a` / `ctx_5e5d6972f72d` prepares its private criteria map before source reads.
+The Author must pass its self-checks and hold exact hashes before the Lead commits.
+Two blind source reviews and independent host QA remain required for each applicable repair gate.
+
+No Docker window is active. No candidate C is frozen. No push or main merge is authorized.
+The latest full result remains 438 PASS and 50 FAIL at `aaa823b`.
+The diagnostic, two full rounds, legacy, fresh M2/T7, conformance and guides remain pending.
+All 32 live-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED.
+
+### Prior checkpoint — 2026-10-21, 14:06 UTC
 
 W-1 contract precision has two independent confirmations, but the proposed release mechanism needs one correction.
 Reviewer-A APPROVE: `3b189d3e2434b4e21709333361b4767a84b2b2af`, report SHA-256 `6a349807f1cfacd7ba89fe33d26c762c2c675aa51a3c0f78a35c15186e996b43`.
