@@ -13,7 +13,33 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 10:40 UTC
+### Current checkpoint — 2026-10-21, 10:54 UTC
+
+Targeted Q1/Q2 passes all 22 checks on candidate `aaa823b`. Report commit: `b450a002e6440ae84efd9be355c6b2691329aa3d`.
+Q1 passes three reset and startup cycles. Q2 refuses missing content with unchanged empty targets, then completes the valid import and startup.
+Strict W4 passes. No lane resource remains; the protected and anonymous volumes retain identical FULL records.
+The scan has zero hits but lacks captured LTI values. This limit grants no full-run scan credit.
+Four private database copies had mode 0644 during the run, inside private folders. QA corrected them to 0600 after the run.
+The report preserves this deviation. The Lead checked the correction record, actual modes, inodes and content hashes.
+QA settled successfully in `msg_542fdf287272` and was released. Its Docker window ended at 10:41:24 UTC.
+
+Both full-QA workers completed host preparation on the same candidate and tests tree `4c7e067`.
+The Lead verified the Common provenance and tool ledgers, plus Canvas's 25 preparation, 22 R4 and four sink-tool entries.
+Common's only tool change updates its launcher lifecycle identity. Canvas's tools remain byte-identical to their accepted predecessors.
+The Canvas worker disclosed seeing two submitted reviewer summaries in a broad inbox listing. Its frozen criteria and tools remain unchanged.
+Future inbox reads use the worker's exact handle. Its independent runtime judgments remain required.
+
+Common/Blackboard dispatch `ctx_b4253986bb55` now owns the sole conditional Docker window under grant `msg_a33783fa968c`.
+It must pass fresh G1 and W1–W3 before the full runner starts, then pass strict W4 after cleanup.
+It will run two complete 488-row rounds and all 12 legacy groups on `aaa823b`, without a phase filter.
+Canvas dispatch `ctx_e7de4ddd7504` has host-only authority to judge each complete round independently.
+It has no M2 or T7 Docker grant. These windows must follow the full run in sequence.
+
+Both workers use Claude Code Opus 5.5 xhigh. Source and design approvals and the five MINOR deferrals below still apply.
+The full runtime gates, conformance and guides remain pending. All 32 real-LMS rows stay UNVERIFIED.
+No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-21, 10:40 UTC
 
 Both combined source and design reviews APPROVE candidate `aaa823b`, with no BLOCKER or MAJOR.
 Reviewer-A report: `a4488aceea28137c5d7c8459d50dc2742a9459aa`. Reviewer-B report: `a32fb1003324b6cc940f5f87e3608cd047559f04`.
