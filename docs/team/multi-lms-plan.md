@@ -13,7 +13,39 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 05:36 UTC
+### Current checkpoint — 2026-10-21, 06:08 UTC
+
+The full attempt at `51a80b51de2c7491466a21a678418ff8178d247d` failed at 05:57:35 UTC.
+SIM passed 394 cases and snapshot isolation passed six. The snapshot-upgrade phase recorded three passes and one failure.
+There are 404 distinct row records: 403 PASS and one FAIL. Another 84 row records are absent.
+The h1 seed and repaired backup oracle passed, but the phase stopped before it published the h1 row.
+Migration, storage, round 2, legacy, fresh M2 and T7 did not run.
+Canvas QA independently confirms all 233 Canvas rows and sink checks PASS across the completed phases. This remains partial evidence.
+
+Both QA workers independently traced h4 to a host-control replay defect.
+The new controller for the upgrade stage replayed seven completed seed requests from the shared control folder.
+A repeated grant command revoked the old grant that h4 needed. The product then followed its documented revocation rule.
+No product defect is shown. The source repair belongs to QA; the grant and committed-event assertions remain required.
+
+W4 also failed its strict comparison because a new unrelated anonymous volume appeared during the run.
+The sampler observed six unrelated `fgw-*` containers, which were gone at the final check. Their origin is not established.
+Both unrelated volumes remain untouched. The seven protected volumes and baseline networks, engine and settings are unchanged.
+The Lead checked the exit record, row records, W4 summaries and secret-scan summary.
+The scan found no captured values in 33 raw logs or 879 public files. Raw browser traces remain private.
+Common QA reports zero remaining lane resources. Both runtime workers settled with outcome failed; their sessions were released.
+The Common reports are committed in `ce09703`; the Canvas reports are committed in `0596431`.
+No worker has a Docker window. The owner has been asked to arrange a quiet window for the next full run.
+
+Task `task_3a4500f57586`, dispatch `ctx_65780150196a`, owns the focused host-only repair.
+Requested and effective settings match Claude Code Opus 5.5 xhigh.
+Its files are `tests/host/m1-control.mjs`, its self-test and `docs/reviews/M1/host-control-replay-qa.md`.
+The repair must prevent completed-request replay while preserving valid new requests, acknowledgements and action evidence.
+Two independent focused reviews and a new frozen candidate are required before a runtime retry.
+Product code remains unchanged from `a784522`. Final conformance and guides remain queued.
+B-BM-01 remains an accepted M4 test-coverage deferral. All 32 real-LMS rows remain UNVERIFIED.
+No push or main merge is authorized for this phase.
+
+### Prior checkpoint — 2026-10-21, 05:36 UTC
 
 The frozen product/test candidate is `51a80b51de2c7491466a21a678418ff8178d247d`.
 Its tests tree is `a47b34cd56bb3d85e4c3ef1cafef0a2b0c3210c0`. Product code still equals `a784522`.
