@@ -1572,3 +1572,185 @@ The guard changed modes only: no content, owner or executable bit changed, and i
 ### Next
 
 The Lead decides on the common host-control repair above. It needs a new frozen candidate, independent source review and a new window. The Lead also decides how to handle the unrelated `fgw-*` Docker activity and the two unattributed anonymous volumes before the next sole window. Then both complete 488-row rounds and all legacy groups must run again from a fresh clone. This attempt and its not-run rows stay in the record. All 32 live rows stay `UNVERIFIED`.
+
+## Retry at `9cdd768`: FAIL in round 1, phase `storage` (AC-M1-41), 2026-10-21
+
+Verdict for this attempt: **FAIL**. Round 1 `sim` (394 rows), `snapshot-isolated` (6), `snapshot-upgrade` (6) and `migration` (12) passed completely. In `storage`, 1 of 70 rows passed (`c-host-negative`) and 69 rows failed. Two of the three root failures are defects in common QA host files. The third failure has no established cause. Round 1 has a record for all 488 rows, but it is not a PASS round. Round 2 and legacy did not start. No M1 criterion gets full-run credit. All sections above stay as history.
+
+Owner: a new, independent common/Blackboard QA session. Requested and effective settings: Claude Code Opus 5.5 (`claude-opus-5-5`) at xhigh effort. Task `task_ed3b08aa45ea`, dispatch `ctx_9e877dcb4b10`, session `orca_session_id:39561fd6-8f4b-48e2-8c32-dc2b967c4302`. The task text calls this role "Codex QA, GPT-6-Astra". Lead message `msg_4b7f865b8a34` supersedes that model, instance and candidate text. This session did not write the product, the tests of this candidate or any review. It does not claim the evidence of earlier sessions or of Canvas QA.
+
+### Identity and command
+
+| Item | Value |
+| --- | --- |
+| Product SHA = test SHA | `9cdd7687b91169a262648018ec6945efa31217dc` (tests tree `eccd4b50aa9c0ef6a25ce7d95fd383c0f3ad817e`). Product files equal `a784522` (0 non-docs, non-tests files differ). Since `51a80b5`, only `tests/host/m1-control.mjs` and `tests/host/m1-control.selftest.mjs` changed outside `docs/`. |
+| Source reviews | Host-control replay repair: Reviewer-A `42a6728`, Reviewer-B `0b29d63`. Both APPROVE. |
+| Window | Lead `msg_4b7f865b8a34` (sole Docker window, conditional on the W1–W3 gates; W1–W4 authority `msg_6a8f681e8f6e`). The owner's quiet-window question is not answered; the Lead withdrew it as an input gate. This report claims no quiet environment. Window returned in `msg_7db50c6c9ae1` and `msg_4addd386005c`. |
+| Lane | `qa-multi-r1` (storage lane `qa-multi-r1-st`), port 8443, subnet `172.29.0.0/16` |
+| Source | `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-9cdd768-20261021T0622Z/source`, prepared by dispatch `ctx_686fb4062feb`. Re-verified before the run: HEAD and tests tree exact, 0 status lines, no `.env`, no root `node_modules`, push URL disabled, old pins `9f96f7b` and `b0b83a8` present. Handoff SHA-256 `168c94dd…` and provenance `b28c4294…` match the Lead's values. |
+| Run root | `/Users/quangnguyen/cogniate-qa-runs/m1-full-9cdd768-20261021T0709Z`. The root, `public/`, `private/` and `tmp/` are 0700. |
+| Phase runs | `sim` `qa-multi-r1-9cdd7687-2026-10-21T07-09-22-264Z`; `snapshot-isolated` `…-07-32-20-230Z`; `snapshot-upgrade` `…-07-33-55-800Z`; `migration` `…-07-35-46-368Z`; `storage` `qa-multi-r1-st-9cdd7687-2026-10-21T07-39-36-550Z` |
+| Time | Runner start 07:09:21Z; identities: `sim` 07:32:14.224Z, `snapshot-isolated` 07:33:51.528Z, `snapshot-upgrade` 07:35:42.022Z, `migration` 07:39:32.120Z, `storage` 07:40:46.231Z; parent exit 1 at 07:40:46Z |
+| Tools | Node 24.21.0; Docker CLI and engine 29.9.1; Compose 5.6.0. `G1-IDENTITY` PASS in all five phases. |
+
+```sh
+cd /Users/quangnguyen/cogniate-qa-runs/m3-frozen-9cdd768-20261021T0622Z/source
+umask 022
+COMPOSE_PROJECT_NAME=qa-multi-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 \
+STACK_PROFILE=default \
+COURSE_FIXTURES_DIR=/Users/quangnguyen/Workspaces/personal/cogniate_moodle_integration_prototype/docs/raw/data/courses \
+TMPDIR=/Users/quangnguyen/cogniate-qa-runs/m1-full-9cdd768-20261021T0709Z/tmp \
+node tests/host/run-m1.mjs --sha 9cdd7687b91169a262648018ec6945efa31217dc \
+  --test-sha 9cdd7687b91169a262648018ec6945efa31217dc \
+  --source /Users/quangnguyen/cogniate-qa-runs/m3-frozen-9cdd768-20261021T0622Z/source
+```
+
+The runner has no `--runs` option. The default `full` phase runs the five phases twice and then legacy. It stops after a failed required phase. The external launcher `launch-full.sh` ran the gates, this command, the end boundary and the scan. It did not change the frozen suite.
+
+### Preparation (host only, no Docker)
+
+- Earlier dispatch `ctx_686fb4062feb` passed the broad preparation checks: 73 of 73 harness self-checks, typecheck and the 488-row inventory. The Lead accepted them. This session did not repeat them; it verified the unchanged source and tools.
+- **Tools:** `/Users/quangnguyen/cogniate-qa-runs/claude-common-qa-tools-9cdd768`. Before the edit, all 16 file hashes equal the predecessor's after-edit ledger. The only change is in `launch-full.sh` (`517b5006…` → `d9424447…`): `FROM`, `DISPATCH` and two comment message ids. New ledger: `ledger/resume-ctx_9e877dcb4b10/` (before, diff, after). The predecessor ledgers are unchanged.
+
+### Live boundary before the run (W1–W3, all PASS)
+
+| Step | Result | Evidence (`public/`) |
+| --- | --- | --- |
+| Ancestor check | Home 0750 `quangnguyen:staff`; group members `quangnguyen root` of 133 accounts; ACL `group:everyone deny delete` only | `ancestor-boundary.json` `277a946a…` |
+| Pre-wake (not boundary evidence) | The idle VM answered with a stale clock (06:08:17Z at host 07:09:06Z); bridge `c24d1573c422`, created 06:03:17Z; 0 containers | `w1-wake.json` (`preWake`) |
+| W1 wake | `qa-wake-20261021070907-d159ed00` on cached image `sha256:44fce696…`, `--pull never --rm --network none`, one label. Exit 0; 0 wake containers remain. The wake recreated the bridge (`bfc49733cfc8`, created 07:09:08Z). | `w1-wake.json` `0697ce54…` |
+| W2 liveness | Two advancing reads; worst skews 64 ms and 105 ms | `w2-liveness.json` `adcab4d6…` |
+| W3 formal start | `runStartSecond` 1792566559 (live `SystemTime` 07:09:19.299Z). Bound identities match; image present. Networks: bridge `bfc49733cfc8`, host `b9266a37c45a`, none `d2863b51ad44`. 0 containers. 9 volumes: the 7 protected FULL records equal the original baseline (file `219da30b…`), plus the anonymous volumes `a17056b8…` (05:26:47Z) and `d5df35bd…` (05:32:46Z). Both lanes fresh; port 8443 free; no subnet clash; 0 problems. | `w3-formal-start.json` `e879790c…` |
+| Gate message | Sent to the Lead before the runner started | `msg_b661d2e8a9df`, details `msg_47b04be4d0e4` |
+
+### Result of round 1
+
+| Phase | Rows | Result | Run id |
+| --- | ---: | --- | --- |
+| `sim` | 394 of 394 | 394 PASS (common 26, Blackboard 136, Canvas 232) | `…-07-09-22-264Z` |
+| `snapshot-isolated` | 6 of 6 | 6 PASS (Blackboard `M1-37` w, y2; `M1-29` k1–k3; Canvas `M1-37` aa) | `…-07-32-20-230Z` |
+| `snapshot-upgrade` | 6 of 6 | 6 PASS: `M1-38.common` h1–h5, `M1-41.common.j-snapshot` | `…-07-33-55-800Z` |
+| `migration` | 12 of 12 | 12 PASS: AC-M1-23 (4) and AC-M1-30 (7) `MOODLE-LIVE`, `M1-41.common.j-migration` `SIM` | `…-07-35-46-368Z` |
+| `storage` | 70 of 70 | **1 PASS** (`c-host-negative`), **69 FAIL** | `qa-multi-r1-st-…-07-39-36-550Z` |
+
+- Row record (`round-report.mjs`): 488 rows, 488 distinct, 0 missing, 0 duplicate, 0 unmanifested, 0 label mismatch. All rows have one SHA pair (`9cdd7687…` for product and tests). 419 PASS and 69 FAIL. By owner: common 45 PASS and 69 FAIL, Blackboard 141 PASS, Canvas 233 PASS.
+- `sim`: runner aggregate 400 PASS (394 rows plus `G1-IDENTITY`, `PRE`, `CLONE`, `H1`, `M3-ISOLATION`, `TEARDOWN`). Vitest 21 files: 386 passed, 0 failed, 6 pending. The 6 pending tests are exactly the six `snapshot-isolated` rows, which passed in the next phase. Health: app and LTI service `profile: default`, `knobs: []`; LTI `simulation_profiles: []`.
+- `snapshot-isolated`: aggregate 12 PASS; Vitest 6 passed, 0 failed, 386 pending. Health as in `sim`.
+- `snapshot-upgrade`: the seed stage on the pinned `9f96f7b` build passed (1 test, 07:34:47–07:34:50Z). The upgrade stage passed 4 of 4 tests (07:35:22–07:35:33Z). The repaired host control ran 33 requests with 33 acknowledgments and 33 action records; no acknowledgment was written again, so no request was replayed. The phase identity records `health` as null for this two-stage phase; no row depends on it.
+- `migration`: aggregate 11 PASS, including `MIGRATION` (upgrade and rollback lifecycle). The private backup stays outside shared evidence.
+- `storage`: harness self-checks `HARNESS-LOCK-SELFTEST` (`storage-oplock.sh selftest`, every scenario ok) and `STORAGE-PREPARE` passed. They are not rows. The runner aggregate (9 PASS, 76 FAIL) also counts harness steps and fixtures; it is diagnostic only. The mandatory count is 70 rows: 1 PASS, 69 FAIL.
+- Canvas rows keep Canvas QA's separate verdict. This QA does not judge them.
+
+### Storage failures (read-only diagnosis)
+
+All 66 rows that did not run report "not run: prerequisite … did not pass". They are FAIL, never a skip. The diagnosis used file reads only; no Docker command, source edit or rerun. Commands and findings: `public/diagnosis-storage-round1.md` (SHA-256 `5d269e63…`). Canvas QA reached the same three diagnoses on its own (`msg_6fa6869f7c90`); I checked each one myself.
+
+1. **`M1-41.common.c-selftest` FAIL — QA harness defect.** The probe exits 2 with "selftest needs an existing empty folder". `tests/host/storage-rows.mjs` lines 247–249 pass `--folder self=/tmp/qa-selftest-<16 hex>` but do not create that folder. ADR-012 (selftest table, the selftest rule and §11) says that selftest runs in one empty folder and that QA uses a new folder in the container's own writable layer. So QA must create the folder.
+2. **`M1-41.common.a-fresh` FAIL — QA harness defect (first failing prerequisite).** The failed check is "Preflight pass is logged before the first service container is created". `tests/host/storage-oracle.mjs` line 42, `preflightOf()`, returns the last summary line. On a first start, `stack:up` logs three summaries: `report` (07:40:08.947Z), `check` pass (07:40:09.248Z) and `mark-started` (07:40:39.035Z, after the services became healthy). The first service container was created at 07:40:09.390Z (`lane-ownership.json`, Docker clock). So the `check` pass comes 142 ms before the first service container, as the criterion requires. The oracle compared the `mark-started` line instead. The same function also seeds `state.runIds` from that line. This failure stopped `@seed` and every row that needs a seeded lane.
+3. **`M1-41.common.e-old-schema` FAIL — cause not established.** In the import half (the `content_missing` case of `e-content-missing`), `stack:data-import` exited 1 with the daemon error "bind source path does not exist: …/infra/.data/cogniate-app/packages". The expected result was the refusal `content_missing`. The product script calls `prepare_content_folders` before its maintenance container. The host folders exist: `packages/` was born at 07:40:45.947Z and `uploads/` at 07:40:45.948Z. The import held the lock from 07:40:45.786Z to 07:40:46.136Z. `stack:reset` had removed the same folders at about 07:40:44Z. A possible cause is Docker Desktop file-sharing visibility of a host path that was just made again. A product robustness gap is also possible. This is not shown to be a QA assertion defect. It needs a backend or Lead diagnosis. `e-content-missing` then did not run.
+4. **`M1-41.common.c-host-negative` PASS (fault shown).** The QA oracle shows "LOCK NOT ENFORCED (B acquired while A held)" on the `fakeowner` bind folder. The probe reports `lock_not_enforced` and exits 1. Round 2 did not run, so the same-result rule of the two rounds is not met.
+
+Proposed smallest QA repairs (held for Lead authority; no repository edit was made):
+
+- `c-selftest`: create the empty folder inside the probe container before the probe runs, for example `sh -c 'mkdir -m 700 <folder> && exec node /probe/sqlite-lock-probe.mjs selftest …'`, with no bind and no volume for that folder.
+- `a-fresh`: select the `check`-mode summary for the ordering check and for the recorded run id. Add a self-test with all three summary lines.
+- Check every other use of `preflightOf(…).summary` for the same last-line assumption.
+- Item 3 needs a decision before the next window.
+
+**Not run:** round 2 (488 rows) and all twelve legacy groups.
+
+Common and Blackboard rows of round 1, by criterion (each needs a second complete round):
+
+| AC | Common | Blackboard |
+| --- | --- | --- |
+| M1-01 | 1 PASS | 1 PASS |
+| M1-02 | 1 PASS | – |
+| M1-03 | 10 PASS | – |
+| M1-04 | – | 1 PASS |
+| M1-05 | – | 15 PASS |
+| M1-06 | – | 2 PASS |
+| M1-07 | 1 PASS | 4 PASS |
+| M1-10 | – | 1 PASS |
+| M1-11 | – | 9 PASS |
+| M1-12 | 1 PASS | 4 PASS |
+| M1-13 | – | 4 PASS |
+| M1-14 | 1 PASS | 2 PASS |
+| M1-15 | 1 PASS | 2 PASS |
+| M1-18 | – | 2 PASS |
+| M1-19 | 1 PASS | 1 PASS |
+| M1-21 | 1 PASS | 1 PASS |
+| M1-22 | – | 2 PASS |
+| M1-23 | 4 PASS (`MOODLE-LIVE`) | – |
+| M1-24 | 2 PASS | – |
+| M1-25 | 1 PASS | 1 PASS |
+| M1-27 | – | 1 PASS |
+| M1-28 | – | 2 PASS |
+| M1-29 | – | 21 PASS, including k1–k3 |
+| M1-30 | 7 PASS (`MOODLE-LIVE`) | – |
+| M1-31 | – | 2 PASS |
+| M1-33 | – | 4 PASS |
+| M1-34 | – | 14 PASS |
+| M1-35 | 3 PASS (profile off/on routes) | – |
+| M1-36 | – | 5 PASS |
+| M1-37 | – | 32 PASS, including v2, v5, v7, v9, v11, v12, w, x1, x2, y1, y2, z1–z5 |
+| M1-38 | 6 PASS: h1–h5, i5 | 8 PASS, including i3 and i4 |
+| M1-39 | 1 PASS | – |
+| M1-41 | 3 PASS (`j-snapshot`, `j-migration`, `c-host-negative`); **69 FAIL** (storage) | – |
+
+Per-row records (id, AC, owner, phase, status, label, both SHAs, run id, command, start time, artifact path): `public/round-1-rows.json` (SHA-256 `ea0b02dc…`) and `public/round-1-summary.json` (`6bd3cdcb…`).
+
+### Health, images and timings
+
+- Images (phase `images.json`, `1029bdfa…`): `erseco/alpine-moodle:v5.2.4` `sha256:3a310197…`, `node:24.22.0-alpine3.24` `sha256:44fce696…` (app, LTI service and helpers), `postgres:16-alpine` `sha256:721873c3…`, `caddy:2.11.7-alpine` `sha256:d8542f48…`. The storage fixture image is the same Node image; the fixture script SHA-256 is `77e842f5…`.
+- Host control:
+  - `sim`: 32 `m1-restart` actions, 5,950–8,627 ms (median 6,487 ms); 6 `m1-profile` actions, 5,932–6,472 ms; 440 CLI calls (20 with the expected exit 1). All restart and profile actions exit 0.
+  - `snapshot-isolated`: 1 restart (6,489 ms) and 2 profile actions (6,037 and 6,041 ms).
+  - `snapshot-upgrade`: 33 CLI calls, no replay.
+- Sink capture (AC-M1-12, for the Canvas judge): complete in every SIM-bearing phase, with `service_started` and `service_stopping`, a trailing newline and zero `sink_hit`.
+  - `sim`: 07:10:06.118Z–07:32:03.848Z, SHA-256 `07ea7125…`. Raw Vitest file times: first start 07:10:14.592Z, last end 07:31:46.481Z.
+  - `snapshot-isolated`: 07:33:03.496Z–07:33:44.431Z, `e46ca9e8…`. Vitest: 07:33:11.756Z–07:33:42.064Z.
+  - `snapshot-upgrade`: 4 lines (two boots), 07:34:39.080Z–07:35:34.127Z, `917b86c4…`.
+  - `migration`: 14 lines (seven boots), 07:36:29.859Z–07:39:25.280Z, `7125218a…`.
+  - `storage`: no sink (no LMS simulation in this phase).
+  - Canvas QA received each identity in `msg_9e5152bafe12`, `msg_1760a953edfe`, `msg_ee946d88e28f`, `msg_4509c314b19a` and `msg_d6729b90ce8e`.
+
+### Privacy (AC-M3-07 method)
+
+- The private capability union holds 1,466 captured values and 53 stack values (`private/watch`, 0700).
+- 0 hits in 45 raw service, simulator and gate logs.
+- 0 hits and 0 JWT-shaped strings in 1,096 public files, including 5 binary public files (byte scan). `public/secret-scan.json` SHA-256 `674605af…`.
+- Private browser artifacts (159 files: 114 decompressed trace entries and 15 screenshots) stay in the phase clones. 26 of them contain captured values, as expected for raw traces. They are not shared evidence; Canvas QA owns their redaction.
+
+### Observed permissions (Lead permission contract)
+
+| Path | Observed |
+| --- | --- |
+| Source root, `source/`, run root, `public/`, `private/`, `tmp/`, tool folder | 0700 (umask 077) |
+| Phase clone roots (runner, umask 022) | Each born 0755, then set to 0700 by the guard: `sim` after 68 ms, `snapshot-isolated` 235 ms, `snapshot-upgrade` 211 ms, `migration` 20 ms, `storage` 225 ms. Not private from creation. |
+| Captured-secret files | One `captured-secrets.jsonl` per clone was 0644; the guard set it to 0600 at each phase checkpoint (4 files). The storage clone had none. |
+| Private folders of this run | `qa-m1-private-backup-YlJV8z`, `qa-m1-snapshot-private-x6B1vI` and the three `-storage-private` folders: 0700 |
+
+The guard changed modes only, at exact names. Record: `public/clone-guard.json` (`e9106231…`), 5 clones, 5 checkpoints, 0 problems.
+
+### Isolation and cleanup (AC-M3-06)
+
+- The runner teardown removed only resources from its ownership record in all five phases. `M3-ISOLATION` and `TEARDOWN` PASS ("left after cleanup: 0 containers, 0 volumes (exact lane names included), 0 networks").
+- W4 live end boundary at 07:40:54.222Z (`w4-end.json` `4ef12f48…`, live `SystemTime` 07:40:51.731Z): identities unchanged; 0 containers; both lanes fresh; the 7 protected FULL records equal W3 and the original baseline; `a17056b8…` and `d5df35bd…` unchanged.
+- **Strict W3-to-end comparison: PASS** (`w4-compare.json` `623550f4…`, 0 problems). Bridge `bfc49733cfc8`, host and none have the same Ids.
+- Sampler (125 samples): one bridge Id, zero clock-skew violations, zero failed reads, at most one compose project (`sampler/lane-containers.json` `29615356…`). Apart from QA's own oracle container, no non-lane container appeared.
+- No owned process remains. The five phase clones, three `-storage-private` folders and two private backups are kept for review.
+
+### Evidence
+
+- Phase artifacts (redacted): `/Users/quangnguyen/cogniate-qa-runs/m3-frozen-9cdd768-20261021T0622Z/source/tests/host/artifacts/<run id>/`. SHA-256 prefixes of `m1-case-results.json`, `summary.json`, `m1-identity.json` and `lane-ownership.json`:
+  - `sim`: `cdf59d9c`, `12687712`, `195c0184`, `3a9eb3ec`.
+  - `snapshot-isolated`: `94efcd76`, `a4385bfc`, `27bb5ffd`, `59fe78de`.
+  - `snapshot-upgrade`: `3d43bd26`, `e6622ead`, `b22db4bb`, `2754ea42`.
+  - `migration`: `8f03d6ae`, `b4338f63`, `a477f65c`, `a7c629de`.
+  - `storage`: `69a1be8a`, `f50117ee`, `03fdc680`, `183aaff8`; step records `storage/steps/`; commands `cmd/09`–`cmd/16`.
+- Run root `public/`: `ancestor-boundary.json`, `w1-wake.json`, `w2-liveness.json`, `w3-formal-start.json`, `w4-end.json`, `w4-compare.json`, `sampler/`, `clone-guard.json`, `secret-scan.json`, `round-1-rows.json`, `round-1-summary.json`, `diagnosis-storage-round1.md`, `command.txt`, `tool-hashes.txt`, `launcher.log` (`5ae3c324…`), `full-run-exit.json`.
+- Messages to the Lead: start check (ask, answered with `msg_4b7f865b8a34`), ACK `msg_98035bce3c98`, gates `msg_b661d2e8a9df` and `msg_47b04be4d0e4`, first run id `msg_546231cc0f62`, progress `msg_c72cf0e277e5`, phase results `msg_18f33c554957`, `msg_da7f3eef140a`, `msg_b62db06a5fc2` and `msg_794120585ad8`, failure and window return `msg_7db50c6c9ae1`, confirmation `msg_4addd386005c`.
+
+### Next
+
+The Lead decides on the two common harness repairs above and on the diagnosis of the import failure. A repair needs a new frozen candidate, independent source review and a new window. Then both complete 488-row rounds and all legacy groups must run again from a fresh clone. This attempt and its failed rows stay in the record. All 32 live rows stay `UNVERIFIED`.
