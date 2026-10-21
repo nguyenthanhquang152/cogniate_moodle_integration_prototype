@@ -253,3 +253,129 @@ The QA prep (`049da68`, follow-up `8a66a33`) lists assumptions that it did not m
 APPROVE needs **A-SI-01** fixed: every refusal path in §4 writes its code in a JSON line, with a test per path family. Then I need a re-review of that diff only.
 
 A-SI-02 and A-SI-03 may be deferred with a recorded owner. I recommend fixing A-SI-02 in the same round, because the fix is small and the tests are easy to add.
+
+---
+
+# Round 2: follow-up review of the repaired candidate
+
+Verdict: **APPROVE** (source only)
+
+Round: 2
+
+| Item | Value |
+|---|---|
+| Reviewer | Reviewer-A (Claude Code, Opus 5.5 xhigh), same retained session |
+| Date | 2026-10-21 |
+| Task / dispatch | `task_34365528ced3` / `ctx_ba60b67fd2af` |
+| Candidate (exact source) | `a784522a3cdd9bb67453b03093092cac24e87402` |
+| Diff base | `f8a869bc6990d966b669352bedd8ec528adb4c08` |
+| Contract | `89be93cc9e24f74c2b32ce72180ad4c706d000f7` (ADR-012 revision 3.3), unchanged |
+| B-SI-07 disposition | Architect `msg_4286bb7f2bc0` and Lead `msg_eefd866c15b1`, recorded at `8c4d565` |
+| Author evidence | `.tmp/author-handoff/task_81a4c5dab4dc/`: held list `73a39c77b1f1370635ac3a0fc41c1a1eb0ae3afc06a30be727487dfb67661240`, evidence manifest `e547a151f34fab04ca0d00acf2aae06f9af5693dc1242fb54bced458ecf4098d`, report `be8000fd7cedcc5916a866ceb43d9595aa83781d67325155e2175b9958e12b6e` |
+| Runtime credit | **None.** |
+
+The round-1 text above stays unchanged. This section adds the round-2 result only.
+
+## R2.1 Inputs, independence and method
+
+- I reviewed the exact candidate in a new isolated detached clone (`/tmp/rva-a784522`, `HEAD` = `a784522a3cdd9bb67453b03093092cac24e87402`).
+- I read:
+  - the diff `f8a869b..a784522` of the 12 Author files;
+  - the Author report, `controls.md`, `qa-compat.mjs` and `qa-compat.log`;
+  - the repair scope in `docs/team/multi-lms-plan.md`;
+  - the B-SI-07 disposition in the Lead dispatch;
+  - the published round-1 report of Reviewer-B at `d2b39ea`, which the dispatch allows.
+- I did not read a round-2 draft of Reviewer-B.
+- I ran no Docker, runtime or product stack command, and I did not repeat the broad root check. The Lead's clean-clone root check at `a784522` (log SHA-256 `7e4744c8bdb1eca3e76ee9c52d0f8c87a1a9fcdc757f1bcc6f7504cb225d7250`) is the Lead's evidence, not mine.
+
+**What I verified myself:**
+
+- All 12 held files match `held-files.sha256`, and all 8 evidence files match `evidence.sha256`.
+- The four compatibility copies match `infra/compat/storage-compat.sha256` (`shasum -c`: 4 of 4 OK).
+- `tests/**` and `docs/architecture/**` have no change between `f8a869b` and `a784522`.
+- `services/lti-service/src/cli/stack-data.test.ts`: all 214 `expect` lines of `f8a869b` are still present (a sorted multiset compare finds 0 missing lines; 297 now).
+- The fake Docker in that file adds only opt-in branches (`FAKE_OLD_LAYOUT`, `FAKE_COPY_CONTAINER`, `FAKE_RM_FAIL`, `FAKE_VOLUME_RM_FAIL`). Its default answers are the same as before.
+- In the three node test files, only three earlier assertion lines change, all in `storage-oplock.test.mjs`: two message texts for A-SI-03, and one "no raw text" check that is now stricter. The exit-code, "the command did not run" and lock-cleanup assertions stay.
+
+**My host-only checks** (scratch folders, fake or no Docker; the scripts are in `/tmp/rva-checks/`):
+
+| Check | `a784522` | `f8a869b` (control) |
+|---|---|---|
+| `recover` with a valid lti journal and an invalid app journal: 10 cases (`{"broken`, `null`, `0`, `[]`, `{}`, a folder, a link to a valid journal, `prepared` with `null` and with `{"broken`, both `null`) | 10 of 10: exit 2 and the tree is unchanged | 6 cases exit 0 "nothing to recover"; the 2 `prepared` cases change the tree |
+| Probe mutants in a scratch copy, each against `node --test sqlite-lock-probe.test.mjs` (baseline 43 of 43 pass) | M1 (the exact B-SI-02 mutant), M2 (`(errcode & 0xff) !== 5`, accepts 261 and 517), M3 (an elapsed wait read as `probe_error`), M4 (initialization after the deadline), M5 (an exit timeout read as `probe_error`): each killed, 1 test fails | — |
+| QA's frozen oracle (`tests/host/storage-oracle.mjs` `assertRefuses`) on real output: `content_path_unsafe` from a start script, `backup_source_not_ok:journal_open` (and no manifest), `source_unreadable` (with the entry, no manifest) | 3 of 3 PASS | 3 of 3 FAIL ("exit 1 without … in its JSON output") |
+| A readable, unprepared volume (root 0755, `packages` absent): volume backup | exit 0; `unprepared` lists the two items; the volume is unchanged | exit 0, but the volume changes: the root mode becomes 0700 and `packages` is created (the read-only mode ran the §4 step as the owner) |
+| Each refusal code that `tests/host/storage-rows.mjs` expects in `refusal()` or `assertRefuses()` (24 codes) | every code has a product path that writes it in a JSON line | — |
+
+## R2.2 Disposition of the round-1 findings
+
+| ID | Round-1 severity | Disposition | Code at `a784522` | Tests and checks |
+|---|---|---|---|---|
+| A-SI-01 / B-SI-01 | MAJOR / BLOCKER (shared) | **Closed** | `stack-data.mjs:43-48` (`Refused` with `code` and safe `details`; `refusalLine`), `:811` (legacy-backup catch), `:839` (drill refusals), `:849` (`prepare_failed`), `:880` (main catch); `lib.sh:335-342` (`storage_refusal_json`), `:356`, `:413`; `stack-data.sh:30`, `:41-42`, `:84`, `:117`; `storage-compat.sh:24-29`, `:64`, `:72`, `:75`, `:156` | `stack-data.test.ts:1007-1137` (17 volume-command cases, 5 legacy-backup cases, `prepare_failed`, the shell paths, the folder refusals); `storage-oplock.test.mjs` (stack:up `content_path_unsafe`); `storage-compat.test.mjs` (two wrapper cases); Author controls N10–N15, N21; my oracle check |
+| A-SI-02 | MINOR | **Closed** | `stack-data.mjs:253-268` (`readJournal`: `null` only for ENOENT; a non-file, a parse failure, a non-object or a failed `validJournal` → `{ invalid: true }`); `:540` (`classifyJournals(lti, app)` gets that value directly) | `stack-data.test.ts:1166-1217` (9 values with a committed lti journal, 4 with a prepared one, both invalid, a folder, a link, and the R1/R0 regression); Author controls N8, N9; my 10-case check |
+| A-SI-03 | NIT | **Closed** | `storage-oplock.sh:28-36` (`ps` stderr ignored), `:77` (`tagged`), `:133`, `:146`, `:154-165` (the cleanup loop releases on failure), `:330-345` (the message names the step, the exit status, a moved stale record and removed containers, then "No data was changed") | `storage-oplock.test.mjs` (two new A-SI-03 cases; the two changed message checks); Author controls N18, N19 |
+| B-SI-02 | MINOR (required) | **Closed** | `sqlite-lock-probe.mjs:349-355` (`REAL_DRIVER`, `PROBE_BOUNDS`; a library seam only, no CLI flag or environment variable), `:361` (`probeFolder` takes `driver`), `:406` (only errcode 5 passes), `:432` (`cleanLeftovers` takes `removeFile`) | `sqlite-lock-probe.test.mjs:315-408`: errcodes 5, 261, 517, 6, 1, 10, 13, 773, none, the string `'5'`, a non-SQLite error, a primary-only code; a lock that is always granted; five holder failures; the release control; a cleanup failure; 900 stale files and 5 near-match names; my mutants M1 and M2 |
+| B-SI-03 | MINOR (required) | **Closed** | `sqlite-lock-probe.mjs:308-332` (each wait gives a line, an end or a timeout), `:335-340` (`exitOf`), `:342` (`answer`: timeout → `timeout`, any other wrong answer → `probe_error`), `:416` | The "each elapsed wait" case (HELD, PONG, COMMITTED, exit), and the "exits or answers wrongly" case with a time bound; my mutants M3 and M5 |
+| B-SI-04 | NIT | **Closed** | `sqlite-lock-probe.mjs:553` (`settled`: only one report), `:624` (`expired`: no identity is written after the summary), `:643-656` (on the deadline: one `storage_preflight` line per folder with `reason: timeout`, then the summary, exit 1). The entry point still calls `process.exit(code)`. | The "whole-run bound" case, also with a late probe that would pass; my mutant M4 |
+| B-SI-05 | NIT | **Closed** | `stack-data.sh:103` (copy container: "Nothing was removed"), `:123-131` (step 3 names the containers already removed; the copy and both volumes stay), `:136` (step 4 names them; the Docker message stays, as §9 step 4 requires) | `stack-data.test.ts:1139-1164`; Author control N20 |
+| B-SI-06 | NIT | **Closed** | `infra/README.md:92-98` (the §15 cleanup list, with `docker volume prune --all`; it agrees with ADR-012:688-693), `:171-175` (the §12 allowed and forbidden table, with old `stack:restart`, `stack:reset`, `e2e:reset`, `test:e2e`, `demo*`) | Document review only |
+| B-SI-07 | NIT | **Closed, as the Architect disposition reads it** | See R2.3 | `stack-data.test.ts:1219-1284`; Author controls N16, N17; my unprepared-volume and `source_unreadable` checks |
+
+## R2.3 B-SI-07 against the six required behaviors
+
+The disposition is an existing-contract reading, not a design change. I checked the implementation only against its items 1–6.
+
+1. **No §4 change; drop at once.** For `backup` and `quarantine-copy`, `writes` is false (`stack-data.mjs:829`). `dropPrivilege(ids)` runs at `:832`, before any read of volume data. Before that line, the code only parses arguments, reads `HOST_UID`/`HOST_GID` and builds paths. **Met.**
+2. **Unprepared items are information.** `unpreparedItems` (`:632-646`) lists a root owner or mode and an absent or non-conforming mountpoint. The list goes into the `storage_backup` and `storage_quarantine_copy` lines (`:855-865`). It is never `prepare_failed`. **Met.**
+3. **Backup "state OK" with the row-5 report semantics.** `volumeBackup` uses `evaluateState` (`:654-656`). Row 5 (`sqlite-lock-probe.mjs`, the mountpoint rule) accepts an absent mountpoint or an empty one owned by `HOST_UID` or by root. Rows 4–18 do not check the owner or mode of the volume root. The other codes and their order do not change. **Met.**
+4. **A failed read as `HOST_UID` fails closed.** `readable` (`stack-data.mjs:615-623`) maps EACCES and EPERM to `source_unreadable` with an entry relative to the volume root. Backup: exit 1, no manifest. Quarantine copy: exit 1, and `stack-data.sh:98` then removes nothing. **Met**, with one diagnostic gap: see A-SI-04.
+5. **Mounts and command fields unchanged.** `infra/compose.yaml` has no change since `f8a869b`. `STORAGE_MAINT_VOLUME_MODE=ro` stays for backup (`stack-data.sh:61`) and quarantine (`:97`). **Met.**
+6. **Writers unchanged.** Restore, import and recover still run `prepareFolder` as root, then drop privilege (`stack-data.mjs:829-842`). The test at `stack-data.test.ts:1241` shows that a restore still prepares the root (0700) and the mountpoints. **Met.**
+
+The existing scoped limit stays as the disposition states it. A read-only mode copies only what `HOST_UID` can read. An entry that only root can read stops the mode, and nothing is removed.
+
+## R2.4 New findings
+
+No new BLOCKER, MAJOR or MINOR finding. Two NITs, both deferrable:
+
+| ID | Severity | File:line | Finding | Suggested action |
+|---|---|---|---|---|
+| A-SI-04 | NIT | `infra/scripts/sqlite-lock-probe.mjs:61-70` (`readJsonEntry`), used by `stack-data.mjs:654-656` | A volume backup does not name an identity or journal file that `HOST_UID` cannot read. `readJsonEntry` catches every read error and returns `ok: false`, so the state is `identity_invalid` or `journal_inconsistent`. The backup then refuses `backup_source_not_ok:<state>`, without `source_unreadable` and without the path. Host check: an identity or journal of mode 000 gives exit 1 and no manifest (fail closed), and the quarantine copy of the same volume names the path correctly. Only a file of the host user without a read bit reaches this case. A root-owned file stops first at row 6 (`owner_mismatch`), which is the contract code. | Optional: map EACCES in `readJsonEntry` to a distinct result, or check readability in `volumeBackup` before the state, so that disposition item 4 ("the path named") also holds for these two files. |
+| A-SI-05 | NIT | `infra/README.md:146` | "Every refusal (exit 1, nothing changed) also prints one JSON line" says too much. The service-stop check (`lib.sh` `require_services_stopped`), the candidate guard (`storage-compat.sh` `guard`), the wrapper "stop now" checks and the `INCOMPLETE` mark still print text only. The Author lists this limit, and no contract code exists for these stops, so the behavior is correct. | Say "every coded refusal", and name the text-only stops. This can move to the M4 guide. |
+
+## R2.5 Earlier guarantees (regression check)
+
+- **Refusal text, exit and order.** The human messages of the earlier refusals do not change: the diff adds only a `code` or `details` argument. The JSON line comes before the stderr text. Exit codes stay (1 for refusals, 2 for usage, 2 for unresolved, 3 for a drill stop). The precedence in `volumeRestore` (validation → target state → source kind → pair rule) does not change.
+- **No change before a refusal.** The tests compare the whole tree before and after each refusal (`stack-data.test.ts:1044-1052`).
+- **Privilege rule.** No new log line is written as root. The drill refusal line (`:839`) and the `prepare_failed` line (`:849`) come after `dropPrivilege`. The read-only modes drop at once (`:832`). The legacy backup runs on the host.
+- **Safe JSON fields.** Node builds every shell JSON line, so every value is escaped. The test with the container name `other "lti"` shows this. No line holds the message text, raw command output or an absolute host path. The `refusalOf` helper checks the fixed key set and that no temp root appears.
+- **Original LMS isolation.** The diff touches only `infra/scripts/**`, `infra/README.md`, `infra/compat/storage-compat.sha256` and one CLI test file. No provider, route or shared LTI engine code changes.
+- **Rows.** `tests/**` does not change, so the inventory stays 488 = 416 + 72, and only `c-host-negative` may be a conditional N/A. All 32 live rows stay UNVERIFIED.
+
+## R2.6 Source facts, host evidence and unmeasured assumptions
+
+**Source facts** (read in code): R2.2, R2.3 and R2.5.
+
+**Host evidence** (mine, scratch, no Docker): the checks in R2.1. The Author's 21 controls and the Lead's root check are their evidence. I read the control list and repeated five probe mutants myself.
+
+**Unmeasured Docker, privilege and filesystem assumptions** (not claimed):
+
+- `docker compose run --rm -T` passes the container's stdout, including the new `storage_refused` line, to the command's stdout. This holds only in the G-1 scope (macOS 27.0.1 arm64, Docker CLI 29.9.1, Compose 5.6.0, bound hashes).
+- Root, then `setgroups`/`setgid`/`setuid`, in `node:24.22.0-alpine3.24`. The read-only modes now drop at once, and this is also not run in a container.
+- A real new volume has a root-owned 0755 root. I assume `HOST_UID` can list it and read the files of `HOST_UID` in it. The `owner` and `root_owned` items of `unpreparedItems` cannot be produced as a non-root host user, so no unit test covers them.
+- EACCES, EPERM and EROFS behavior on the Docker Desktop volume filesystem under a `:ro` mount.
+- WAL lock enforcement and extended errcode 5 on a real volume. This is measured only on host APFS. Codes 261, 517 and 6 are injected only.
+- On the 60 s deadline, `process.exit` leaves the holder child behind. I assume that the container end stops it, and that the next `check` step 5 removes its scratch files.
+- The real `docker rm` and `docker volume rm` failure text, and `{{index .Config.Labels …}}` on an unlabeled container.
+- `ps`/`lstart` on Linux hosts, and the added preflight time per `stack:restart` and `stack:up`.
+
+## R2.7 Verdict
+
+**APPROVE** at exact source `a784522a3cdd9bb67453b03093092cac24e87402`, for source only.
+
+- No BLOCKER or MAJOR is open. A-SI-01/B-SI-01 is closed for the union of paths, including the legacy hot-journal backup and the compatibility wrapper.
+- The required B-SI-02 and B-SI-03 checks are closed with unit evidence and with my own mutants.
+- A-SI-02, A-SI-03, B-SI-04, B-SI-05 and B-SI-06 are closed. B-SI-07 is closed against the recorded Architect disposition.
+- A-SI-04 and A-SI-05 are NITs. They can be deferred with a recorded owner.
+
+This approval gives no runtime acceptance credit. The runtime gates stay closed until the Lead opens them: the two full M1 rounds, the old routes, the lock self-check and the A-S-14 identity check at each run.
