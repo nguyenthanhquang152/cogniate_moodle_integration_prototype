@@ -487,3 +487,133 @@ node, npm, the resolved `docker` path, the SHA-256 of each test file, the counts
   suite run, `mutants/run-*/results.json`, `mutants/probe-*/result.json`, `bin/` (runner, mutation driver, catalogs).
 - I hold this report and the 21 paths of section 3. I ask the Lead for an exact-path commit of this report. I do not
   commit, push or merge.
+
+## Round 2
+
+Round 2 verdict: PASS (host self-checks of the Round 2 harness repair only)
+
+Scope of this verdict: the bounded repairs A-SH-01 to A-SH-05, the Lead bindings G-1 to G-8, the LD-2 per-command lock check and the V8-6 owned-cleanup controls, checked host-only on the WIP source-review snapshot `c71912ff76965f60d92d964ac0bccf5337f59771` (tests tree `183a72b2fea5ff065fc57c96649199bc720fb6e0`). It is not runtime QA. It gives no acceptance credit, no candidate C and no closure of the independent source reviews. I observed no new source fault. The prior Reviewer-A and Reviewer-B findings stay open until their independent closure. The Round 1 section above stays unchanged.
+
+Task `task_d018895ca985`, dispatch `ctx_898acbaef3a6`, run `run_ebe671ad72a9`. Role: QA harness repair owner, Round 2 (fresh instance; sole QA editor). Model: Claude Code Opus 5.5 (`claude-opus-5-5`), xhigh. Date: 2026-10-21 (UTC).
+
+### R2.1 Provenance and independence
+
+- Before the map I read only the charter, triage `2d763fe` (SHA-256 `ade4e8a0…`, verified), M1 `a60ba4a` (SHA-256 `ac444799…`, verified), ADR-012 §7, §11 and §15, and the phase plan. I read no implementation source and no report before the map was frozen.
+- Frozen map: `map/CONTROL-MAP.md` (`6e28a020c3c702f09894b82d335486bc3620bff74164263801d664152cd68f8a`). Lead grant `msg_c671d53d5d30`. Amendments, each frozen and sent before the edits that it covers: A-01 `34864741797fb9e9bc6a1e5abf2d5dfe395e839e5701cebed63828db887bdc58`, A-01b `39ad4463c48f1baed617caac9aa4e0d29dd9e13b6769cd9cc50d4b2697b45c0b`, A-02 `d28455496254693386a52263e2371081a153a67039a56e5a35f7709e2ed958ab`, A-03 `fe69065ec37aca14a00e0a5cc1fb3d996a991d811aa09c0f98b2f076d83e2599`, A-04 `e3d4a464c8a8623643393405e5736bebba67f6a18d2b159500e9df354b7712c3`. They record errata of my own: future end times in two headers (E-1, E-4), two conditional paths not three (E-2), and a withdrawn absolute race claim (E-5).
+- After the grant I read the target source, the Round 1 QA report, and (read only) the Round 1 private catalog and runner. I read no reviewer report. The bindings G-1 to G-8, N1-N5, NB-1 to NB-4 and the LD-2/V8-6 items came to me as Lead messages; I did not read the reviewers' files.
+- All repository edits were made by an exact anchored applier (`bin/apply-edits.py`; every anchor must occur exactly once). The same self-test edit specifications were applied to a private S3 baseline tree.
+
+### R2.2 Changed paths
+
+The Lead committed exactly these 11 paths at `c71912f`; each blob equals my held SHA-256 (`evidence/held-hashes-2.txt`). This report is the 12th path.
+
+| Path | SHA-256 |
+|---|---|
+| `tests/host/storage-private-scan.mjs` | `d66b442306b15ea8dcb28cccc4b29e145ed60c259fa580038fa6e98d315aa278` |
+| `tests/host/storage-private-scan.selftest.mjs` | `d556d6b64e15b6163ee7e432f8edc5fc4ed102535dab3c62fd134d6e6063b9cd` |
+| `tests/host/storage-lane.mjs` | `23c03a87ffd7a81a2deb19e71b3b0e4dfc9aca04943978e845ea3da8565270d2` |
+| `tests/host/storage-rows.mjs` | `c2934448d422817d8f9e33242fc7c369c7d4f97464ef36c6d15b62bd7022c83b` |
+| `tests/host/storage-rows.selftest.mjs` | `25e3b6f90f749b3ad7ed240e049cd2350edec50676f08ea320f9223a0e9fd50c` |
+| `tests/host/storage-fixture-script.mjs` | `49c76c9f9bd489efc4791786518bcecc637c9562986cfb3739f35e65dd258842` |
+| `tests/host/storage-private-copy.selftest.mjs` | `42c673c1df99deaa329aaff4f754a65f1bebb17298b17716a13257fc9d27ab17` |
+| `tests/host/m1-migration.mjs` | `c749a81bab147bc5c79a17bf4479f264666636e1be9bef6dbc88442bb6eac4bf` |
+| `tests/host/m1-migration.selftest.mjs` | `6929d6216dec4beeeb0977ac43ef66028be51eec7a7c5f676471bc5adbdac5c9` |
+| `tests/host/storage-source-inventory.selftest.mjs` | `8d8d88abe5362e7c6f86b2eb42fe274a929f8498a9a8fcd6e9b317cacd23f402` |
+| `tests/host/storage-diagnostic.selftest.mjs` | `637a42182f4998fc654013d9e6e1b0e6fc5f6a50dcee5569303dbcc2c5074394` |
+
+`storage-diagnostic.selftest.mjs` is the one extra path of Lead grant `msg_12f26a9f0379`. No product file, fixture input, manifest, row id or count, `core.mjs`, `storage-docker.mjs`, `storage-handoff.mjs`, `storage-diagnostic.mjs`, `storage-compat-route.mjs`, `run-m1.mjs` or architecture text changed. `pnpm-workspace.yaml` (untracked) is not mine and I did not touch it.
+
+### R2.3 Repairs
+
+| Item | Repair |
+|---|---|
+| A-SH-01 roots | `realChain` checks the base and every folder down to an area, extra root or scratch root with `lstat` (a real directory of the host user). A root that is missing, a link, not a directory or of another owner is not walked: problem `<area>: not scanned: <rel> (<reason>)`, no hit, no correction. `scanOutside` checks `infra`, `infra/.data` and every ledger parent the same way. A 0755 area of the host user still FAILs the closure and is still scanned (A-01b C-2). |
+| A-SH-01 correction | Each hit keeps its folder chain (device and inode) from its base. Stage 1: the chain before the open; stage 2: the existing `O_RDONLY \| O_NOFOLLOW` open and `fstat` identity; stage 3: the chain again after the open and before `fchmod`; stage 4: the existing `fchmod` and re-check; stage 5: the chain and the path after the change (a late refusal that reports the recorded inode's mode). |
+| A-SH-01/G-2 scratch | `removeScratch` scans from the lane private root down. A scratch folder that is not a real folder of the host user → `PhaseAbort`, nothing walked or removed. Immediately before `rmSync` it checks the recorded chain again (no `await` and no other I/O between that check and `rmSync`); a change → `PhaseAbort`, nothing removed. |
+| A-SH-02/G-1 | `withScratch` keeps the body error as the thrown error and puts any removal error on it as `scratchCleanup`. `storagePhase` keeps the body cause first, adds `cleanup note: <removal message>`, sets the step FAIL (also from BLOCKED), and sets the abort state when the removal error is a `PhaseAbort`. After a scan hit, a FAIL or BLOCKED step keeps its first cause (the step becomes FAIL). |
+| A-SH-03, LD-2 | `g-orphan-refusal` requires a non-null original lock record, and checks the lock record after each of the three commands (`<label>: the lock record is unchanged`). The final check stays. |
+| A-SH-04 | V4-9 matches `from`, dynamic `import(` and a bare `import` of a `*.selftest.mjs` in either quote form. |
+| A-SH-05 seams | #7: `QA_ORACLE_CREATE_OBSERVE` names an existing private file; only then the oracle-B child appends its creation record (`O_WRONLY \| O_APPEND \| O_NOFOLLOW`, no create). #12: `StorageLane` option `copyHook` (default `null`) at the four calls. #13: `migrationRun` option `copyHook` (default `null`); `run-m1.mjs` passes nothing. Unused, each seam leaves behavior and output unchanged (R2.6). |
+
+### R2.4 S3 baselines (the old runtime with the new self-tests)
+
+`src/s3-base` = `71a5bf9` tests with only the Round 2 self-test edits; its runtime modules equal `71a5bf9` (checked by hash). Summary: `evidence/s3-baselines.md` (`579238fb…`) and later runs `logs/s3-base*`. Each gap-specific control failed there for its stated reason: a linked area, extra root, migration root or private root was walked and T was set 0644 → 0600; a moved parent or outside parent let the correction change the moved file; a linked scratch folder was walked and gave no `PhaseAbort`; a scratch folder whose parent changed after the scan was deleted through the link; `withScratch` dropped the refused correction after a body error; a BLOCKED step lost its first cause to the scan cause; a BLOCKED body with a corrected or refused scratch hit stayed BLOCKED without a stop; a fixture or row scratch refusal after a body error did not stop the phase; the transient lock removal and the absent lock record let `g-orphan-refusal` PASS; the old V4-9 pattern missed a bare import (separate variant `src/s3-v49`); sites #7, #12 and #13 gave 0 creation records.
+
+Limits and corrections (no gap credit for these):
+- F-1 (A-02): the first R2-03-01 injection removed nothing, so the first S3 "gap shown" entry for R2-03-01 is withdrawn. F-2: QA's fake product did not model the ADR-012 §7 A6 refusal after a free-lock acquisition; I added that model to the fake (it cannot act in an uninjected run). Corrected evidence: on the old runtime the LD-2 test PASSes and the R2-03-01 test FAILs because the row wrongly PASSes; on `c71912f` both tests PASS because the row now FAILs with the required cause (`logs/s3-base2-r203-u022`, `logs/s5-focus3-r203-u022`).
+- R2-01-04 fails on the old runtime first by the new problem text, so its later parts are not reached there. R2-02-06 "damage copy bytes" cannot be injected on the old runtime because it uses the new #13 seam. The existing LD-2 `orphan-lock-changed` case fails on the old runtime only because its expected first cause is now the earlier per-command text.
+
+### R2.5 New controls (all `HARNESS ONLY: R2-…`)
+
+| Control | File | What it proves |
+|---|---|---|
+| R2-01-01, -02, -02b, -03, -04, -05 | private-scan | normal root; each data area, `bin/` and the private root as a link; migration and snapshot roots, both legacy folders, `infra/.data` and a ledger parent as links; missing, file and other-owner roots; 0755 area; a nested link. T keeps type, mode, size, SHA-256, inode and ctime. |
+| R2-01-06, -06b | private-scan | scratch folder or `scratch/` as a link, a file in its place, and a parent swap after the removal scan: `PhaseAbort`, nothing walked, corrected or deleted. |
+| R2-01-07, -07o | private-scan | races through `scanPoint`: P (after the record), O (after stage 1, before the open), R (area moved), D, D-area, D-base (same inode under another real folder), L (after `fchmod`); outside ledger and legacy hits. Exact refusal per stage; `fchmod` 0 times, or exactly once in L; the open spy count shows both spies act; every other T entry unchanged. |
+| R2-02-01, -02, -02b, -04/05 a/b, -05 row, -07a/b | rows | per-step refusal after a PASS, FAIL and BLOCKED step; fixture and row scratch refusal after a passing body and after a body error; a BLOCKED body with a corrected and with a refused scratch hit. Exact first cause, cleanup note, BLOCKED notes of every later row and fixture, no later product command, abort-path scan, phase-end segment, 70 results. |
+| R2-02-05u | private-scan | `withScratch` unit: body error thrown, refusal carried. |
+| R2-02-06 (5 tests) | m1-migration | refused corrections at the backup, damage-copy-bytes, phase-end and snapshot-backup scan points (`PhaseAbort`, record published, scan points up to the stop), and a `configDiff` body error with a refused scratch correction (body error first, record published). |
+| R2-03-01, R2-03-02 | rows | absent original lock record; lock gone after each command; transient removal restored later. |
+| R2-04 cases | source-inventory | three bare-import forms and five existing forms FAIL; a bare runtime import is allowed. |
+| R2-05-07, -12, -13 (each at 022 and 000), R2-05-D | private-copy, rows, m1-migration | one creation record per written file: an empty 0600 regular file on the final inode, final 0600, folders 0700, the pinned umask on every record (child `sh` reports its umask for #7; in-process pinning with restoration for #12 and #13). |
+| V8-6 cleanup variants | diagnostic | TEARDOWN FAIL, mixed, missing, unreadable → exact `storage NOT RUN` cause; no storage child; teardown and W4 once. |
+
+### R2.6 Neutrality without the seams (A-03, strict comparator)
+
+- Method: replayed shared synthetic inputs. #12: the real `g-damaged`, `h-nomanifest` and `h-old-manifest` procedures on a minimal fake lane with fixed B and X2 bytes and counter folder names; the record holds the three row results (all PASS), the product calls and every entry of B, X2 and the eight copies. #13: `mockMigration` with a fixed `backupId`. #7: the unhooked child. The relation method N1-N5 was not used and gets no credit; the earlier v1 comparison (`evidence/neutral/compare-base1-base2.json`) is a broad comparison only, kept as history.
+- Comparator v4 `bin/neutral-compare-v4.py` (`0de0d348a16803a0f74116c815f509d592bd97989215ef397e3e579255cb3c9f`): strict whole-record equality; the only normalization is the child pid in the #7 copy name. v3 stays as history.
+- Final runs bound to source: `v3-final-base` (runtime modules equal `71a5bf9`) and `v3-final-new2` (all 41 `tests/host` modules equal `c71912f`); inventories before and after each run (`evidence/neutral/final-*-inventory-{before,after}.json`); the self-test files are byte-equal in both trees. Result: equal (`compare-v4-v3-final-base-v3-final-new2.json`). Raw #12 record `e363d93a5b49cda4f22ab7c3f00d7e3d2753e800ed033d85eb9e72023acdb28b` and raw #13 record `7b68b242977024757b9f58353c51a932cae4f25ae76986be9061fb82b719c32c` are byte-identical in both trees. The four earlier v3 runs (two each) also compare equal under v4.
+- No copy hook and no `QA_ORACLE_CREATE_OBSERVE` were set in these runs; the run environment had no `QA_` variable.
+
+### R2.7 Mutation campaign
+
+Catalog `bin/catalog-r2.py` (`3df0c49b…`), frozen and sent before the first run: 46 new mutants (`catalog-r2-new.py`, `20c7894b…`) and 24 Round 1 mutants on the changed surfaces, copied unchanged (`catalog-r2-round1.py`, `ca15dc76…`). Driver `bin/mutate.py` (`4f71150f…`): a fresh private copy of the held `tests/host` per mutant and per baseline, child umask 022, private HOME and TMPDIR, the fail-closed stub first on `PATH`. Every one of the 113 copies equals `c71912f` except exactly the files that its mutant edits (`evidence/mutant-copy-binding.json`). The worktree equalled `c71912f` before, during and after the runs.
+
+Result: 70 of 70 DETECTED; 0 baseline failures, 0 SETUP ERROR, 0 Docker-stub calls, 0 TMPDIR left (`mutants/run-m1-{fast,rows-a,rows-b}/results.json`, summary `evidence/mutants-summary.json`). 67 by the control's own assertion; 3 by a fail-closed error: MU-01-3b (`ENOENT` at the `readlink` of the kept link, which the mutant deleted), M4-7c and M2-4b (as in Round 1).
+
+| Group | Mutants |
+|---|---|
+| A-SH-01 | MU-01-1a/1b/1c (guard skipped only for data areas, extra roots, scratch), 3a/3b, 4 (stage 1), 5 (stage 3), 6 (stage 5), 7 (owner), 8 (type), 9 (chain device/inode), 10 (outside parents), 11 (pre-removal check), 12 (base skipped), 13 (empty outside chain) |
+| A-SH-02 | MU-02-1, 1u, 2, 2m, 3, 4 (archive), 5 (note without first cause), 6 (fixture), 7, 8 (record not published), 9 (BLOCKED first cause), 10, 11 |
+| A-SH-03, LD-2 | MU-03-1, 2 (accepts a missing record), 3 |
+| A-SH-04 | MU-04-1 |
+| A-SH-05 | MU-05-7a/7b, 12a/12b (hand-written copy-then-chmod and late observation at `g-damaged`), 12c-g, 12c-n1, 12c-n2, 12c-o (hook dropped at one call site each), 13a/13b |
+| V8-6 (d) | MU-V86-1 to 4 (on private copies of `storage-diagnostic.mjs` only) |
+| Round 1 reruns | M4-3, M4-4, M4-5a/b, M4-7a/b/c/d, M4-10a/b, M4-8a/b/c, M4-1a/b/c/d, M2-3b, M2-4a/b, M7-1a, M-LD2a/b, M-SD1 |
+
+Each A-SH-05 mutant fails both mask tests of its site control, and the failing copy names its call site (`nomanifest-*`, `incomplete-*`, `old-manifest-*`, `damaged-*`). The V4-9 inventory test PASSes on each of these mutant trees: V4-9 does not see a token-free copy, so the site controls are the detectors. Map, A-01 and catalog ids are mapped in A-01b C-4 and A-02 G-8.
+
+### R2.8 Complete host self-test suites
+
+| Run | Child umask | Tests | Pass | Fail | Skipped | Stub calls | TMPDIR left | Time (UTC) |
+|---|---|---|---|---|---|---|---|---|
+| full1-u022 (pre-A-04, earlier evidence) | 022 | 141 | 141 | 0 | 0 | 0 | 0 | 17:48:26-17:56:41 |
+| full2-u022 (final) | 022 | 142 | 142 | 0 | 0 | 0 | 0 | 18:05:22-18:14:21 |
+| final-u077 (final) | 077 | 142 | 142 | 0 | 0 | 0 | 0 | 18:15:04-18:24:09 |
+
+Outer umask 077; private HOME and TMPDIR per run; no `npm_*` or `NPM_CONFIG_*` variable. Source binding: the held hashes equalled the 11 paths before and after full2; the inventory of all 41 `tests/host` modules equalled `c71912f` at 18:19:45Z, 18:24:41Z and 18:30:15Z. The 105 Round 1 tests are among the 142, and V7-1 keeps its declared map (every row PASS except `c-host-negative` NOT_APPLICABLE and `a-lock-scope` FAIL with their exact causes), 29 restores at 21 sites, and the 27 V2-8 injections, after F-2.
+
+V1-12 (unchanged test) archived the committed `HEAD` that it resolved: `7f6da573cd0342b447f129f50e3ccb2736278e87` in full2 and `90a56395f2d254fb838942a75033a36c8bd3d325` in final-u077 (the Lead's docs-only commits moved `HEAD`). Both have `infra` tree `d4625250f391bb43fbba57a05c86a13c28ba7e61` and the same `package.json` as `9f8ac62` and `c71912f`. One stub call, answer 97, exit 1, one acquire with the spawned pgid and `stack:data-backup`.
+
+### R2.9 Correction of a Round 1 claim
+
+Round 1 §7 lists "V4-9 static" as creation evidence for site #7 only, and "—" for #12 and #13; §13 says that the final mode and the V4-9 inventory cover #7. Correction: V4-9 is a source-text check of copy tokens. It applies the same way to every site #1-#16, and it is creation evidence for no site: it cannot see a token-free plain write followed by `chmod` (R2.7 shows that V4-9 PASSes on all ten such mutants). Round 2 adds runtime creation records at #7, #12 and #13.
+
+### R2.10 Limits and dispositions
+
+- Bounded races, as specified: the correction re-checks at stages 1, 3 and 5. A move in the window between the stage-3 check and the `fchmod` call of the same descriptor is reported by stage 5 as a refused correction (late refusal; the recorded inode then has mode 0600), and the phase stops. The scratch removal has the same kind of window between its chain check and `rmSync` (and inside `rmSync`). No atomic guarantee is claimed.
+- D-A1 (Lead accepted): an invalid scan root FAILs and is not walked; it does not by itself stop the phase. A refused correction or an unsafe scratch cleanup stops it.
+- M5-4b stays NOT DETECTED, masked by the synchronous precondition under P-1a condition 4; not equivalent. M4-8f stays equivalent (`O_CREAT \| O_EXCL` refuses final links); `O_NOFOLLOW` stays. Neither was rerun; neither surface changed.
+- The mock lane is QA's model of the product (F-2 added one ADR-012 A6 behavior to it). It finds sequence and fixture-logic errors, not runtime errors.
+- Closed, not deferred: Q-R1A-01 and ADR-012 O-1. Carried as recorded: the nonblocking unit-coverage MINORs, O-A2, B-RR-02 and B-RR-03, and the harness deferrals (A-SFT-08 to M4; R1-A QA O-1).
+- Tool state outside the QA modes: npm wrote 4 folders (0755) and 4 debug logs (0644) in the private HOME of the two child-022 suites (`home/full{1,2}-u022/.npm/_logs`, during V1-12). They are not QA-authored data; they are listed apart in the manifest.
+
+### R2.11 Deviations
+
+- R2-D-1: the editor tool wrote the first map file at 0644 inside the 0700 map folder. I replaced it with an exclusively created 0600 copy (same SHA-256). The replacement does not prove a 0600 creation. After that no editor tool wrote inside the private root.
+- Tooling slips of my own shell, each recorded in `evidence/deviations.md`: one pre-edit hash list did not run (zsh did not split it; git hashes used instead); four empty compare outputs with bad names were removed and the compares rerun; one neutral run used a wrong folder (zsh `:c` modifier) and was repeated as `final-new2`.
+
+### R2.12 Evidence and hold
+
+- Private QA root: `/Users/quangnguyen/cogniate-qa-runs/storage-harness-repair-qa-r2-20261021T1646Z` (0700). Manifest: `evidence/manifest-r2-v1.tsv` (see the Lead message for its SHA-256); it excludes itself and `tmp/`. The earlier `evidence/manifest-r2-probe.tsv` stays.
+- I hold this report. I ask the Lead for an exact-path commit of it. I do not commit, push or merge. I stay in this session as the remediation owner.
