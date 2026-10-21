@@ -1,6 +1,6 @@
 Verdict: UNVERIFIED — no live LMS run authorized or performed
-Round: 2 (2026-10-20)
-Owner: original Claude Canvas QA (`claude-opus-5-5`, xhigh), resumed by owner request; round 1 by the independent Codex Canvas QA replacement
+Round: 3 (2026-10-21; round 2 2026-10-20)
+Owner: round 3 by a fresh Claude Canvas QA-E2E session (`claude-opus-5-5`, xhigh; Orca session `c9188d79-d5a7-4ab0-bc62-ac27e61ff412`); round 2 by the original Claude Canvas QA (`claude-opus-5-5`, xhigh), resumed by owner request; round 1 by the independent Codex Canvas QA replacement
 
 # M3 live LMS matrix
 
@@ -85,3 +85,11 @@ Sources: canvas-lms at the pinned commit `1c9f0bb8013ed69c4f2efe11fd483025469b7e
 4. Cleanup of all QA-owned Canvas images, volumes and networks afterwards.
 
 Without these, L-C13 stays UNVERIFIED with the reason "not feasible under the current one-stack and no-Docker-change rules".
+
+## Round 3 — candidate `aaa823b` status (no live run)
+
+Date: 2026-10-21. Candidate `aaa823b25306c5e560f7c4050238b374dec4d4e3`. Task `task_e28388df4dcc`, dispatch `ctx_e7de4ddd7504`.
+
+- All 32 rows stay **UNVERIFIED**. No live LMS run was authorized or performed. No account, sign-up, tunnel, public JWKS exposure, tenant write or Docker Desktop change happened.
+- SIM evidence at this candidate (Common's failed full M1 run, round 1 Canvas rows 233/233 PASS) fills no live row.
+- L-C13 (`CANVAS-LOCAL`) stays DEFERRED. The SIM and Moodle gates did not pass at this candidate, so no new feasibility assessment or startup happened. The Round 2 assessment above is history at `aff4882`. A `CANVAS-LOCAL` result never fills a `CANVAS-HOSTED` row.
