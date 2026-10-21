@@ -13,11 +13,13 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 02:16 UTC
+### Current checkpoint — 2026-10-21, 02:39 UTC
 
 The current product and test candidate is `a784522a3cdd9bb67453b03093092cac24e87402`.
 Both storage source reviews approve it. The Lead's clean-clone check passes 1,111 unit and 76 infrastructure tests, with no skips.
 Runtime acceptance remains open. Two complete 488-row rounds, legacy suites, fresh M2 and three T7 runs are still required.
+The first SIM phase has one reported Canvas grant failure. Final case identification and independent diagnosis are pending.
+The existing phase will finish its evidence report and clean up; no blind retry is authorized.
 Replacement Claude Code Opus 5.5 xhigh workers own the two active QA retries:
 - Common and Blackboard: `ctx_75f7ef7a9240`, sole Docker window, port 8443 and subnet 172.29.
 - Canvas and browser QA: `ctx_f3f20494787a`, host-only until the Lead transfers that window.
@@ -1981,6 +1983,14 @@ Internal resets stay unchanged; every absence and reappearance still needs actua
 Raw traces stay private. Reports may name their private paths and hashes, but must not share their contents.
 QA-E2E owns a later reviewed replacement for the T7 runner's label-only preflight and teardown.
 M4 Docs must record the interim wrapper requirement. Common QA's active run and the sole-window boundary remain unchanged.
+
+Common QA reported a required failure in `msg_6914a5bd4758` during round 1 SIM at `a784522`.
+Interim Vitest file totals were 311 tests: 310 pass and one fail in `canvas/31-canvas-grants`.
+These are provisional file totals, not accepted row results. The exact case ID was not available at that checkpoint.
+The Lead routed independent diagnosis to Canvas QA in `msg_5e4900bc26af`.
+Common QA must finish the existing phase report, capture and classify evidence, verify cleanup and return the window.
+Direction: `msg_c92104f7887b`. No new phase, blind retry or source change is authorized.
+The full 488-row round remains incomplete; no earlier results replace its missing evidence.
 
 The earlier full verification attempts failed after the storage blocker. Both original tasks now have active retries, as recorded above.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
