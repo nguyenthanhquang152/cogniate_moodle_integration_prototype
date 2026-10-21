@@ -1810,6 +1810,27 @@ They own only their separate M1 storage-review reports and remain independent of
 Both approvals and the Author/QA source checks are required before any full verification retry or final conformance starts.
 These new source-review gates supplement the original final-stage dependencies; they do not replace failed verification tasks.
 
+Both round-1 implementation reviews request changes at `f8a869bc6990d966b669352bedd8ec528adb4c08`.
+Reviewer-A submitted `msg_b0ba7fb261dc`; report SHA-256 `478ef9a871888530417d99c5c630e6c628ad591c3c59ae5bfeba780db078e6e0`.
+Reviewer-B submitted `msg_04c5c6ed9605`; report SHA-256 `6ca5e8e53575f5cfe82de8585274d021dd927ed67cae4fd9114cda955f739888`.
+The Lead verified both held reports and unchanged product and test bytes, then retained each reviewer before acknowledgment.
+Reviewer-B's report is committed at `d2b39eaf9bf9789613a531e1428ae67aa83a042e`.
+
+The consolidated repair keeps the accepted contract and all acceptance assertions unchanged:
+
+| Finding | Required action and owner |
+| --- | --- |
+| A-SI-01 / B-SI-01 | One shared BLOCKER: Author adds the required JSON refusal codes and meaningful path-family tests. |
+| B-SI-02 / B-SI-03 | Author adds the specified injected probe cases and distinguishes wait timeouts from probe errors. |
+| A-SI-02 | Author fixes malformed and non-object journals so R6 always changes nothing and exits 2. |
+| A-SI-03 / B-SI-04 / B-SI-05 | Author improves bounded failure output without exposing raw subprocess data or changing safety behavior. |
+| B-SI-06 | Author completes the infrastructure README's old-build command and cleanup limits. |
+| B-SI-07 | Read-only preparation remains an explicit source NIT. Do not skip required privilege or preparation steps without an Architect contract reading. |
+
+The highest severity governs the shared refusal finding. A report's lower count does not narrow the affected path list.
+The repair must cover the union, including legacy hot-journal backup and the compatibility wrapper.
+Both reviewers require a new exact-source follow-up. Runtime, final conformance and documentation gates remain closed.
+
 The full verification tasks remain failed and incomplete after the earlier storage-blocked attempts.
 Common/Blackboard acceptance and legacy regression: `task_ed3b08aa45ea`.
 Canvas acceptance, both portal flows, Moodle browser regression and the live matrix: `task_e28388df4dcc`.
