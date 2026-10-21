@@ -13,7 +13,31 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 14:02 UTC
+### Current checkpoint — 2026-10-21, 14:06 UTC
+
+W-1 contract precision has two independent confirmations, but the proposed release mechanism needs one correction.
+Reviewer-A APPROVE: `3b189d3e2434b4e21709333361b4767a84b2b2af`, report SHA-256 `6a349807f1cfacd7ba89fe33d26c762c2c675aa51a3c0f78a35c15186e996b43`.
+Reviewer-B CHANGES_REQUESTED: `0c694d8cab0757ba20be595489d9398600a2474b`, report SHA-256 `b7e89fb274c23fd181862051aab4a2fd3f61779613ce350c5d08bc1f4302a2ba`.
+B-RD-01 is MAJOR: an explicit failing release can trigger errexit and replace a saved child failure code.
+The Lead selects one final status rule in EXIT. An earlier release records failure safely; it cannot end the caller.
+The handler uses any failed release of this holder, including an earlier explicit release. It preserves any existing nonzero status.
+The sourced matrix uses no options and set -euo pipefail. It must retain normal and lost results under both.
+The old-wrapper test needs a paired no-loss success and must exclude a setup "stop now" failure.
+Both reviewers confirm the quiet A6 log deferral for the pinned tests tree, without waiving any later required-row failure.
+Use the name "R1-A QA O-1 (quiet A6 release)" to distinguish it from the earlier privilege-text observation.
+
+Reviewer-A settled successfully and was released.
+Reviewer-B `ctx_a550590f5aa7` remains active for one immediate bounded Round 2 confirmation after the corrected text is frozen.
+Architect `task_c344d4f36e7e` / `ctx_d1e167a975ae` owns only the conformance document and ADR-012.
+It will correct the mechanism and cases, apply the confirmed W-1 wording, and leave the frozen triage unchanged.
+A fresh Reviewer-A confirmation will follow the frozen correction. No Author repair is authorized yet.
+Common QA `ctx_f189530f67c1` continues the separately approved 22-path harness work.
+All three active workers have requested and effective Claude Code Opus 5.5 xhigh.
+
+No Docker window is active. No candidate C is frozen. No push or main merge is authorized.
+The latest full result is still 438 PASS and 50 FAIL at `aaa823b`; all fresh runtime and handover gates remain pending.
+
+### Prior checkpoint — 2026-10-21, 14:02 UTC
 
 Revision 4 is accepted for the bounded harness repair: Reviewer-A APPROVE at `95617df`, Reviewer-B APPROVE at `a2d79fefad65e797897d6df9931ac6d7aeb22499`, and independent testability PASS at `83a0eb9`.
 Reviewer-B report SHA-256: `338190221fee292ff71f61fa6331a221968914b926eb3249dc1d9e440fa3d2d1`.
