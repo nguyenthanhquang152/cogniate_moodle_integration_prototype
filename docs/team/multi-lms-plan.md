@@ -13,7 +13,7 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 03:11 UTC
+### Current checkpoint — 2026-10-21, 03:16 UTC
 
 The new test candidate is `55c33a3e2d60670b5e759a79144c96bd213fca1f`.
 Product code is unchanged from `a784522`. Both storage source reviews approve that product code.
@@ -29,9 +29,9 @@ The case took about 365 milliseconds, not 365 seconds. Reports preserve the corr
 Cleanup left no owned containers, volumes or networks. All seven protected volume records were unchanged.
 The outer network comparison failed because its initial Docker view was cached. That raw failure remains recorded.
 
-No Docker window is open. Three Claude Code Opus 5.5 xhigh workers are active:
-- Canvas QA: `ctx_f3f20494787a`, holds external T7 wrapper R3 for review, host only.
-- Reviewer-A: `ctx_be58e83a43d7`, assesses existing timestamp-based absence checks, read only.
+Common QA has the sole Docker window. Three Claude Code Opus 5.5 xhigh workers are active:
+- Common QA: `ctx_4446d0034a39`, prepares a fresh full M1 and legacy run at `55c33a3`, port 8443 and subnet 172.29.
+- Canvas QA: `ctx_f3f20494787a`, holds the external wrapper and sink-evidence extension for review, host only.
 - Reviewer-B: `ctx_b55aea8ad9bd`, reviews external T7 wrapper R3, read only.
 
 Two complete 488-row rounds, legacy suites, fresh M2 and three T7 runs are still required at one accepted candidate.
@@ -61,6 +61,22 @@ The R3.7 one-process logging-order limit is met by the product source; runtime f
 Reviewer-A also identified a separate possible false-PASS path in other timestamp-based absence checks.
 Task `task_622f866b9127` must identify exact affected claims and any existing independent checks before the runtime gate opens.
 It authorizes no edits and no broad audit. Missing-log evidence and host/container clock differences are in scope.
+
+That bounded task settled in `msg_f530a72b8fbd`; its full matrix is in `msg_ad8e732498e3`.
+Reviewer-A withdrew the host/container skew premise. The suite and services all use the Docker VM clock.
+Other listed absence claims have positive capture reads, audit barriers, gate cursors or simulator records.
+One MINOR evidence gap remains: missing sink capture can silently give zero for four AC-M1-12 cases.
+The Lead requires a complete sink lifetime covering all four cases, with zero hits, in each round's independent judgement.
+This proves the existing criterion without changing repository tests or the candidate SHA.
+Canvas QA's external extension is held in `msg_15937bcbfea1`; it reports 17 focused controls.
+The older failed run stays FAIL even though its complete sink capture passes this narrower check.
+The extension must receive independent review before acceptance. R3 wrapper files remain unchanged.
+
+Common QA's proper retry is `task_ed3b08aa45ea` / `ctx_4446d0034a39`, replacing failed `ctx_75f7ef7a9240`.
+Orca verified requested and effective Claude Code Opus 5.5 xhigh settings for the new independent session.
+The Lead granted the sole window in `msg_405608b347b5` and confirmed it in `msg_c415524f364c`.
+The worker must pass W1–W4 and send exact pre-launch evidence before starting the documented full entry.
+Two complete rounds and legacy remain required. Any failure needs capture, safe cleanup and a returned window before retry.
 
 Reviewer-A's external wrapper review settled `task_0a7286893be2` with CHANGES_REQUESTED.
 Messages `msg_e55c6aa0054c` and `msg_a0944540c23e` contain the findings.
