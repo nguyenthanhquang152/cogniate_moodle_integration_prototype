@@ -13,7 +13,22 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 14:49 UTC
+### Current checkpoint — 2026-10-21, 15:01 UTC
+
+The V7-1 mock run exposed three latent harness defects in previously unexecuted storage rows.
+Evidence: `/Users/quangnguyen/cogniate-qa-runs/storage-harness-repair-qa-20261021T1356Z/evidence/latent-defects-v7-1.md`, SHA-256 `e061d44dc542bf6d15c47015575d07bfec35bd03b07d2b23e22cc56e00b33c5b`.
+Lead reply `msg_9b1720e2eeb9` authorizes LD-1 in QA's existing owned files: track only exact IDs of the two supported kept fixture roles.
+Unexpected IDs, failed listings and failed removal still fail. Transient containers get no exemption; finally and teardown checks remain.
+LD-2 and LD-3 remain held. M1's literal no-stale-folder check conflicts with earlier retained stale records.
+Its full hash-equality check also conflicts with the required change of both journals to rollback_failed.
+Architect task `task_4e8156d3f2cc` is queued for the next free slot and owns only the two affected M1 criteria plus a bounded rationale.
+The proposed oracle preserves all file names and non-journal hashes, checks exact root journals separately, and protects earlier stale records.
+This proposal is not an implementation grant. QA continues unaffected controls; V7-1 stays FAIL until the clarification and its checks pass.
+Both later harness source reviewers must inspect these bounded fixes and the criterion precision. No runtime credit is given.
+
+Independent product QA has A02-A04 frozen at `d07bc9df`, `1a3142eb` and `4266fc0a`.
+The Lead read them and accepted only precise invocation and mechanical normalization rules before target runs.
+The target remains `9f8ac62`; Author findings are not used as the QA oracle.
 
 The bounded product repair is committed at `9f8ac625443931242edd8da301c3d4f0d3e34290`.
 Only the helper bash, adjacent unit tests and helper hash line changed. Embedded JavaScript is byte-identical.
