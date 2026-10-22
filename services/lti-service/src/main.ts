@@ -1,7 +1,7 @@
 // lti-service entry point. Public URL: PUBLIC_LTI_URL (proxy -> :4100). Contract: docs/architecture/contracts/lti-service-api.md
 import { join } from 'node:path';
 import type { JobRunner, Logger } from '@cogniate/shared';
-import { JOB_LEASE_MS, createLogger, createOutboundClient, readServiceKnobs } from '@cogniate/shared';
+import { ConfigRefusedError, JOB_LEASE_MS, createLogger, createOutboundClient, readServiceKnobs } from '@cogniate/shared';
 import type { FastifyInstance } from 'fastify';
 import type { LtiConfig } from './config.ts';
 import { hostPort, loadConfig } from './config.ts';
@@ -33,8 +33,14 @@ export interface LtiService {
 
 /** Start the service (unit tests call it with their own logger; the entry point below adds the signal handlers). */
 export async function startLtiService(options: { logger?: Logger } = {}): Promise<LtiService> {
-  const config = loadConfig();
   const sink = options.logger ?? createLogger({ service: SERVICE });
+  let config: LtiConfig;
+  try { config = loadConfig(); }
+  catch (err) {
+    // LA-ADR-06 D12: one config_refused line before any file or port is opened. The entry point exits with code 1.
+    if (err instanceof ConfigRefusedError) sink.error('config_refused', { reason: err.reason });
+    throw err;
+  }
   const db = openDb(join(config.dataDir, 'lti.db'));
   const metrics = metricsFor(db);
   const logger = metrics.logger(sink);
@@ -94,8 +100,14 @@ export function createShutdownHandler(service: Pick<LtiService, 'close' | 'logge
 }
 
 if (import.meta.main) {
-  const service = await startLtiService();
-  const stop = createShutdownHandler(service);
-  process.once('SIGTERM', () => stop('SIGTERM'));
-  process.once('SIGINT', () => stop('SIGINT'));
+  try {
+    const service = await startLtiService();
+    const stop = createShutdownHandler(service);
+    process.once('SIGTERM', () => stop('SIGTERM'));
+    process.once('SIGINT', () => stop('SIGINT'));
+  } catch (err) {
+    // The config_refused line is already written; a stack trace would add a second line.
+    if (!(err instanceof ConfigRefusedError)) throw err;
+    process.exitCode = 1;
+  }
 }

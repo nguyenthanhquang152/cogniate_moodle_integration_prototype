@@ -1,10 +1,11 @@
 // The service entry point binds the key ring to the master-key Buffer of every store caller before the first store
 // call (LA-ADR-06 D6; Reviewer-A A-LA-E5-08-01). Both listeners use port 0 here.
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { KeyProviderError, blobKeyVersion, keyProviderFor } from '@cogniate/shared';
+import { fileURLToPath } from 'node:url';
+import { ConfigRefusedError, KeyProviderError, blobKeyVersion, keyProviderFor } from '@cogniate/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LtiService } from './main.ts';
 import { createShutdownHandler, SERVICE_EXIT_AFTER_MS, startLtiService } from './main.ts';
@@ -45,6 +46,30 @@ describe('startLtiService (main.ts)', () => {
     expect(result.error).toBeUndefined();
     expect(result.status).toBe(1);
     expect(result.stderr).toContain('LTI_MASTER_KEY must be 64 hex characters');
+  });
+
+  it('LA-E5-21: a production refusal logs one config_refused line and opens no database; the entry point exits 1 with no stack trace', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lti-main-refused-'));
+    temps.push(dir);
+    const env = {
+      DATA_DIR: dir, LTI_MASTER_KEY: LEGACY, STACK_PROFILE: 'production', LTIK_TTL_SECONDS: '20', PORT: '0', OPERATOR_PORT: '0',
+      PUBLIC_MOODLE_URL: 'https://moodle.test', PUBLIC_LTI_URL: 'https://lti.cogniate.test', PUBLIC_APP_URL: 'https://app.cogniate.test',
+      PUBLIC_CONTENT_URL: 'https://content.cogniate-content.test',
+    };
+    for (const [name, value] of Object.entries(env)) vi.stubEnv(name, value);
+    const { logger, lines } = capturingLogger();
+    await expect(startLtiService({ logger })).rejects.toBeInstanceOf(ConfigRefusedError);
+    expect(lines).toEqual([expect.objectContaining({ level: 'error', event: 'config_refused', reason: 'test_knob_active' })]);
+    expect(existsSync(join(dir, 'lti.db'))).toBe(false);
+    vi.unstubAllEnvs();
+    const result = spawnSync(process.execPath, [fileURLToPath(new URL('./main.ts', import.meta.url))], {
+      cwd: dir, encoding: 'utf8', timeout: 10_000, env: { ...process.env, ...env, LOG_DIR: '', NODE_NO_WARNINGS: '1' },
+    });
+    expect([result.status, result.stderr]).toEqual([1, '']);
+    const out = result.stdout.trim().split('\n');
+    expect(out).toHaveLength(1);
+    expect(JSON.parse(out[0]!)).toMatchObject({ level: 'error', service: 'lti-service', event: 'config_refused', reason: 'test_knob_active' });
+    expect(result.stdout).not.toContain(LEGACY);
   });
 
   it('with the ring {active: "k2"}, the service master key seals k2 blobs; an unbound copy of the key fails closed', async () => {
