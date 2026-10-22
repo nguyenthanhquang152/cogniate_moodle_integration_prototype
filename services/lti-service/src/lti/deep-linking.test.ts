@@ -61,6 +61,66 @@ describe('content items (contract §3.2)', () => {
     if (accept_multiple !== false) expect(check(Array.from({ length: 20 }, () => item), { ...settings, accept_multiple })).toHaveLength(20);
   });
 
+  describe('per-type fields (LA-ADR-05 D3e)', () => {
+    const allTypes = { ...settings, accept_types: ['ltiResourceLink', 'link', 'file', 'html', 'image'] };
+    const refusal = (items: unknown[], s: Record<string, unknown> = allTypes) => {
+      try {
+        check(items, s);
+      } catch (e) {
+        return e as { code: string; status: number; description: string };
+      }
+      throw new Error('expected INVALID_CONTENT_ITEM');
+    };
+
+    it.each([
+      ['link without url', { type: 'link' }],
+      ['link with an http url', { type: 'link', url: 'http://x.test' }],
+      ['link with a null url', { type: 'link', url: null }],
+      ['link with a url that is not a string', { type: 'link', url: 7 }],
+      ['link with a url that does not parse', { type: 'link', url: 'x.test/page' }],
+      ['link with a javascript url', { type: 'link', url: 'javascript:alert(1)' }],
+      ['file without url', { type: 'file', title: 'a.pdf' }],
+      ['file with an http url', { type: 'file', url: 'http://x.test/a.pdf' }],
+      ['image without url', { type: 'image', width: 10, height: 10 }],
+      ['image with a data url', { type: 'image', url: 'data:image/png;base64,AAAA' }],
+    ])('a %s -> 400 INVALID_CONTENT_ITEM; description names the item index (AC-LA-E3-13-01)', (_n, bad) => {
+      // A valid first item proves the index is the index of the bad item, not always 0.
+      const e = refusal([item, bad]);
+      expect(e).toMatchObject({ code: 'INVALID_CONTENT_ITEM', status: 400 });
+      expect(e.description).toBe(`contentItems[1]: type ${String(bad.type)} needs an https url`);
+    });
+
+    it.each([
+      ['without html', { type: 'html', title: 'x' }],
+      ['with a null html', { type: 'html', html: null }],
+      ['with an html that is not a string', { type: 'html', html: { p: 'x' } }],
+      ['with only a url', { type: 'html', url: 'https://x.test/a.html' }],
+    ])('an html item %s -> 400 INVALID_CONTENT_ITEM with the index (AC-LA-E3-13-02)', (_n, bad) => {
+      const e = refusal([bad]);
+      expect(e).toMatchObject({ code: 'INVALID_CONTENT_ITEM', status: 400 });
+      expect(e.description).toBe('contentItems[0]: type html needs a string html');
+    });
+
+    it('keeps valid link, file, image and html items exactly as sent (no default url for these types)', () => {
+      const items = [
+        { type: 'link', url: 'https://x.test/page#part-2', title: 'Page' },
+        { type: 'file', url: 'https://x.test/a.pdf' },
+        { type: 'image', url: 'https://x.test/a.png', width: 10, height: 10 },
+        { type: 'html', html: '<p>Hello</p>' },
+        { type: 'html', html: '' },
+      ];
+      expect(check(items, allTypes)).toEqual(items);
+    });
+
+    it('does not change ltiResourceLink items (AC-LA-E3-13-04 at unit level)', () => {
+      expect(check([item, { type: 'ltiResourceLink', title: 'x' }], allTypes)).toEqual([item, { type: 'ltiResourceLink', title: 'x', url: LAUNCH }]);
+    });
+
+    it('checks accept_types before the per-type fields', () => {
+      expect(refusal([{ type: 'file' }], settings).description).toBe('contentItems[0]: the platform does not accept type file');
+    });
+  });
+
   it('allows cancellation and rejects line items only when explicitly refused', () => {
     expect(check([])).toEqual([]);
     expect(() => check([item], { ...settings, accept_lineitem: false })).toThrow(expect.objectContaining({ status: 400, code: 'INVALID_CONTENT_ITEM' }));
