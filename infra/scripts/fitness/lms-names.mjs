@@ -62,11 +62,9 @@ export function checkText({ path, text }, words = bannedWords()) {
   const hits = [];
   const add = (token, offset, identifier = false) => {
     if (identifier && WEB_API.has(token)) return;
-    // This exception covers only the dev-stack URL, not other LMS tokens in config.ts.
-    if (path === 'packages/shared/src/config.ts' && ['moodle', 'PUBLIC_MOODLE_URL'].includes(token)) return;
     for (const word of tokenHits(token, words)) hits.push({ ...position(text, offset), token, word });
   };
-  if (/\.(?:[jt]sx?|mts|mjs|json)$/.test(path)) {
+  if (/\.(?:[jt]sx?|[cm][jt]s|json)$/.test(path)) {
     const kind = path.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
     const source = path.endsWith('.json') ? ts.parseJsonText(path, text) : ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true, kind);
     function visit(node) {
@@ -128,6 +126,7 @@ export function main() {
   const deltas = compareCounts(counts, limits);
   for (const item of deltas.filter((item) => item.count || item.allowed)) {
     console.log(`${item.path}: count ${item.count}, baseline ${item.allowed}, delta ${item.delta >= 0 ? '+' : ''}${item.delta}`);
+    if (item.delta < 0) console.log(`lower f1-baseline.json for ${item.path} to ${item.count}`);
   }
   const failed = deltas.some((item) => item.delta > 0);
   console.log(`F1 ${failed ? 'FAIL' : 'PASS'}: ${deltas.filter((item) => item.count > 0).length} files with hits, ${Object.values(counts).reduce((sum, count) => sum + count, 0)} hits`);

@@ -9,7 +9,10 @@ function invalid(file, reason) {
 }
 
 export async function loadRules(folder = new URL('./rules/', import.meta.url)) {
-  const files = readdirSync(folder, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.endsWith('.mjs')).map((entry) => entry.name).sort();
+  const files = readdirSync(folder, { withFileTypes: true }).filter((entry) => entry.name.endsWith('.mjs')).map((entry) => {
+    if (!entry.isFile()) throw invalid(entry.name, 'rule module must be a regular file, not a symlink or directory');
+    return entry.name;
+  }).sort();
   const rules = [];
   for (const name of files) {
     const url = folder instanceof URL ? new URL(name, folder) : pathToFileURL(resolve(folder, name));

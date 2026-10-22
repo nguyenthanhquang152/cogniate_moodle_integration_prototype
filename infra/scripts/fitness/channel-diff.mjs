@@ -33,7 +33,7 @@ export function diffPaths(base, root = ROOT) {
 }
 
 export function main() {
-  const { values } = parseArgs({ options: { base: { type: 'string' }, channel: { type: 'string' }, 'paths-from': { type: 'string' }, 'report-only': { type: 'boolean' } } });
+  const { values } = parseArgs({ options: { base: { type: 'string' }, channel: { type: 'string' }, 'paths-from': { type: 'string' }, 'no-renames': { type: 'boolean' } } });
   if (!values.channel || !/^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/.test(values.channel)) throw new Error('Use --channel <channel id>.');
   if (Boolean(values.base) === Boolean(values['paths-from'])) throw new Error('Use exactly one of --base <sha> or --paths-from <file>.');
   const paths = values['paths-from'] ? readPaths(readFileSync(values['paths-from'], 'utf8')) : diffPaths(values.base);
@@ -44,8 +44,8 @@ export function main() {
     console.log(`${category}\t${path}`);
   }
   const failed = (counts.core ?? 0) > 0;
-  console.log(`F2 ${failed ? 'FAIL' : 'PASS'}: core = ${counts.core ?? 0}, paths = ${paths.length}${values['report-only'] ? ' (report only)' : ''}`);
-  process.exitCode = failed && !values['report-only'] ? 1 : 0;
+  console.log(`F2 ${failed ? 'FAIL' : 'PASS'}: core = ${counts.core ?? 0}, paths = ${paths.length}`);
+  process.exitCode = failed ? 1 : 0;
 }
 
 if (import.meta.main) runCli(main);

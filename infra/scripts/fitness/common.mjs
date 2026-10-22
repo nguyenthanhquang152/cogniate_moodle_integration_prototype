@@ -4,7 +4,7 @@ import { extname, isAbsolute, matchesGlob, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
-export const TEXT_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.js', '.mjs', '.sql', '.json', '.css', '.html']);
+export const TEXT_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.cts', '.js', '.jsx', '.mjs', '.cjs', '.sql', '.json', '.css', '.html']);
 export const SCOPE = JSON.parse(readFileSync(new URL('../../../packages/channel-kernel/fitness-scope.json', import.meta.url), 'utf8'));
 export const APPLIED_MIGRATIONS = new Set(JSON.parse(readFileSync(new URL('./applied-migrations.json', import.meta.url), 'utf8')).paths);
 
