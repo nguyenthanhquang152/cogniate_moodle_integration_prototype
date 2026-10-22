@@ -13,7 +13,27 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 09:45 UTC
+### Current directive — 2026-10-22, 10:28 UTC
+
+Product remains C4 bf09cdad91ca548e1ecbc14428b55180d35d5360.
+The test-only correction is C5 e1a057be9624a82949007b772e2bdf19bc55638b, tests tree 9e57d42f9e4cfe82b8058681ba6a81396abd2acc.
+Lead accepted Claude's [D-T6L plan](t6-label-repair-2026-10-22.md): preserve the two accepted C4 engine rounds at their true identity, and rerun all 12 legacy groups with the corrected T6/T8 labels.
+Full2 stays FAILED. T8 and unreached T6 assertions remain unverified.
+Common Gemini preparation task_e72553697ead / ctx_df612265827a succeeded; its external terminal is retained for a later runtime dispatch.
+Root reconciled the exact 13 literals across three files, unchanged title inventories, and all 57 maintenance-index entries.
+The launcher is frozen at SHA-256 51963fdfc2ad3dbe2c4f7012babb5714a20b4099102c4ca18ce6dd7ac58727a9.
+Claude Reviewer-A ctx_add3b8fd9bd4 and Reviewer-B ctx_3bb7b60adf5c review it and the patch independently.
+Canvas Gemini ctx_296da6e34f11 performs preliminary host-only guide QA (msg_418765f36a30) and later independent T6/T8 judgment.
+The same Codex executor session is retained for product repairs and final Docs; its previous checkpoint is settled.
+
+No LTI Docker run is authorized. Savoy expects its owner-authorized jobs to finish at 11:15–11:30 UTC.
+Lead requested a nonoverlap LTI window after Savoy cleanup through 14:00 UTC; confirmation is pending.
+LA remains host-only and acknowledges a provisional handoff target of 14:00–16:00 UTC, not a live grant.
+The runtime-verification target is about 13:45–14:00 UTC (20:45–21:00 Vietnam), if source reviews and tests pass.
+Final conformance, guide finalization, Docs QA and final blind reviews remain required.
+All 32 real LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 09:45 UTC
 
 Full2 closed FAILED on three stale T6 UI selectors. Both 488-row rounds and exact equality passed; 10 of 12 legacy groups passed. T6 failed and T8 did not run. The approved M2 label is Publish to an LMS, but two legacy test files still select Publish to Moodle. Codex diagnosed nine obsolete literals across five lines, without edits. Claude will determine the bounded correction, QA file ownership and minimum sufficient revalidation. No retry, fresh M2/T7 or new Docker work is authorized yet. The earlier regression ETA is withdrawn.
 
