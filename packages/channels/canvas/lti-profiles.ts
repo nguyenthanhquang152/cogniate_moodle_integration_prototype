@@ -1,4 +1,5 @@
 // Reviewed Canvas profile data (ADR-011 §6). All profiles use one shared LTI engine.
+import type { ProfileSource } from '@cogniate/channel-kernel';
 
 const flags = {
   deepLinkingResponseSub: false,
@@ -49,6 +50,6 @@ const profiles = [
     jwksUrl: 'https://sso.canvas.sim.test/api/lti/security/jwks',
     sources: ['ADR-011 §6 (simulation copy of canvas-cloud-production)'],
   },
-] as const;
+] as const satisfies readonly ProfileSource[];
 
 export default profiles;
