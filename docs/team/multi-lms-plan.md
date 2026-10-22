@@ -13,7 +13,17 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 07:18 UTC
+### Current checkpoint — 2026-10-22, 07:50 UTC
+
+**C4 full retry round 1 has 418 PASS in four closed phases.** Simulation passed 394/394; isolated snapshot 6/6; upgrade snapshot 6/6; migration 12/12. The Lead read the result files and checked the counts. The storage phase is running. Full-round accounting and acceptance wait for all 488 cases. The expected first-round result remains 08:05–08:15 UTC (15:05–15:15 Vietnam).
+
+A separate Savoy Transaction Orchestrator session started `sto-rmq-probe` at 07:32:01 UTC during simulation. Common QA reported it promptly. It was gone before the isolated-snapshot PRE at 07:37:53 UTC. Both phases passed their isolation checks; all four completed phases passed their feature rows. The sampler preserves the probe's appearance. The whole window must not be described as exclusive. Final acceptance still requires strict W4, all ten starting volume records unchanged, no unrelated leftovers, complete rows, equality and legacy.
+
+The Lead traced the probe to Savoy run `run_19ba834d7b9f`. Message `msg_43e761067b96` at 07:49:53 UTC is the coordinator and actual owner's acknowledgment. That owner confirms both probes are gone and holds all Docker and volume work until an explicit handoff. The owner will preserve the tenth anonymous volume, which may come from its earlier PostgreSQL probe. Ownership of that volume is not proven. LA's existing hold remains active. Both coordinators receive the next scheduling update by 09:15 UTC or earlier full/legacy closure. A scheduling update does not transfer the Docker window.
+
+Source, tools, test criteria, the Common grant and the sole fixer are unchanged. No additional diagnostic or control run is requested. Canvas QA preserves its old evidence and waits for new exact round paths. Later M2/T7 grants must preserve all ten baseline records. All 32 live rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 07:18 UTC
 
 **C4 full retry is running.** The runner started at 07:14:45 UTC (14:14:45 Vietnam). Grant `msg_6218a54231e9` gives only Common QA `ctx_e23ced3dd1fa` the full/legacy window through 11:30 UTC. This is an operational deadline. The first complete round is expected around 08:05–08:15 UTC (15:05–15:15 Vietnam), based on the measured duration of about 53 minutes. Legacy duration remains unmeasured. Final project acceptance is pending.
 
