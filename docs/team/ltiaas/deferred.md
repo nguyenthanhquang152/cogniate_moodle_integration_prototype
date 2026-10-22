@@ -68,3 +68,6 @@ Open MINOR and NIT items after round 2. The ones marked "before build" are one-l
 | B-LA-E3-02-01 | MINOR | login and check page scripts are two hand-kept copies of the same postMessage handshake (storage-pages.ts:16-44, :78-116) | L | Next L edit of storage-pages.ts |
 | B-LA-E3-02 NITs | NIT | end-to-end flow map; account gate in launch.ts with an account! assertion | L | Same |
 | B-LA-E5-03 R2 NIT | NIT | trusted_proxy_unresolved repeats every 5 s in a long DNS outage; BD-A2-29 audit comment lacks the refused-event rule | S1 | Next S1 edit |
+| B-LA-E5-05-01 | MINOR | a 401 (revoked/expired operator key) prints "Run npm run seed again", but seed recopies the rejected key: name the host file and the real fix (put the current key there, or init --replace) | S1 | LA-E5-05 fix round |
+| A-LA-E5-05 NITs | NIT | a lost answer to --rotate-api-key says "Cannot reach the operator API" though the rotation may have committed; every seed writes account.update for an unchanged name | S1 | LA-E5-05 fix round |
+| A-LA-E5-09 NITs | NIT | the 202 traceId does not join the job-end event; skipped_lease still answers 202; a malformed key_provider setting makes every open throw a parse error | S2 | LA-E5-09 fix round (with Reviewer-B items) |

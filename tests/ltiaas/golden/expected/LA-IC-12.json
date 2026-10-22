@@ -1,0 +1,40 @@
+{
+  "id": "LA-IC-12",
+  "approval": "docs/reviews/LA-E3-04/qa.md",
+  "ld9": {
+    "epic": "E3 (LA-E3-04 service part, lane L; LA-E3-05 app picker part)",
+    "design": [
+      "docs/architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn",
+      "docs/architecture/ltiaas/adr/LA-ADR-05-lti-advantage-completeness.md#d3-deep-linking-completeness-must-except-d3e",
+      "docs/architecture/ltiaas/contracts/lti-service-api-delta.md#41-get-apiidtoken-31",
+      "docs/architecture/ltiaas/contracts/lti-service-api-delta.md#42-deep-linking-32"
+    ],
+    "goldenFields": [],
+    "goldenFieldsPendingAppPart": [
+      "G4.blackboard.pages.picker.text",
+      "G4.canvas.pages.picker.text"
+    ],
+    "authorUnitTestChanges": [
+      "services/lti-service/src/lti/deep-linking.test.ts (removes old empty-list rejection row; adds positive contentItems: [] and accept_lineitem: false coverage)",
+      "services/lti-service/src/http/routes/compat.test.ts (replaces old empty-list negative with null; adds positive signed-empty coverage for /api/deeplinking, /api/deeplinking/message, and /api/deeplinking/form)",
+      "services/lti-service/src/lti/idtoken.test.ts (adds acceptLineItem and acceptMediaTypes coverage on launch.deepLinkingSettings)"
+    ],
+    "testChanges": [
+      "tests/ltiaas/golden/expected/LA-IC-12.json",
+      "tests/ltiaas/golden/golden.k0.test.mjs"
+    ],
+    "frozenTestsTouched": [],
+    "scanChecked": [
+      "tests/acceptance/T3a/1-deep-linking.spec.ts:46-54 (reads launch.deepLinkingSettings?.acceptTypes via property access, not whole-object equality)",
+      "tests/acceptance/T3a/3-negative.spec.ts:57-78 (AC-T3-10 checks evil.test item, 1-item control, 2 items with acceptMultiple=false -> 400 INVALID_CONTENT_ITEM, and resource-link ltik -> 403; does not send contentItems: [])",
+      "tests/acceptance/T3c/1-endpoints.spec.ts:80-115,229-236 (AC-T3-09 checks /api/deeplinking/form and /message with 1 item and url: null / custom: null; does not send contentItems: [])",
+      "tests/acceptance/M1/canvas/21-canvas-protocol.test.ts:40-46 (checks simulator record settings, not GET /api/idtoken deepLinkingSettings)",
+      "tests/acceptance/lib/moodle-dl.ts:330 (clicks form button[type=\"submit\"], form input[type=\"submit\"] .first() in the pick form)",
+      "tests/e2e/lib/moodle.ts:413 (clicks getByRole('button', { name: 'Add to Moodle', exact: true }))",
+      "tests/e2e/M2/07-sim-scenario.m2.ts:36 (clicks picker.getByRole('button').first() — stays green when 'Add to {LMS}' precedes 'Cancel' in DOM order)",
+      "tests/ltiaas/golden/capture.golden.ts:90-105 (G1-G4 do not capture GET /api/idtoken of a Deep Linking launch or an empty Deep Linking call; G4.{blackboard,canvas}.pages.picker.text will add 'Cancel' when LA-E3-05 lands)"
+    ],
+    "scanResult": "Service part (LA-E3-04, 3344520): 0 golden changes and 0 frozen-test changes (no frozen acceptance, e2e, or host test sends contentItems: [] expecting 400 or asserts whole-object equality on launch.deepLinkingSettings; the 3 Author unit test files lti/deep-linking.test.ts, http/routes/compat.test.ts, and lti/idtoken.test.ts updated for positive empty-list and acceptLineItem/acceptMediaTypes coverage). App picker part (LA-E3-05, when it lands): will add the Cancel button text to G4.{blackboard,canvas}.pages.picker.text."
+  },
+  "changes": []
+}

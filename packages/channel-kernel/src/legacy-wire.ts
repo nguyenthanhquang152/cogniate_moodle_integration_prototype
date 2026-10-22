@@ -77,3 +77,6 @@ export const LEGACY_SELF_BINDING_TEXT = {
 export function pendingToolText(toolName: string): string {
   return `Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool '${toolName}', then connect again.`;
 }
+
+/** Frozen recovery text (LA-E4-02); keep the pre-migration wire value byte for byte. */
+export const LEGACY_SCORE_INTERRUPTED = 'The score send was interrupted. Moodle may have received it.';

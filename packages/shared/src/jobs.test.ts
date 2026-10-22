@@ -104,7 +104,12 @@ function dispatchJob(db: DatabaseSync, send: (id: string) => Promise<void>, conf
           .run(ctx.now(), item.id, owner).changes > 0;
       });
       if (!began) return;
-      await send(item.id);
+      try { await send(item.id); }
+      catch {
+        db.prepare(`UPDATE dispatch SET send_started_at = NULL, delivery_uncertain = 1, next_try_at = ?
+          WHERE id = ? AND lease_owner = ?`).run(ctx.now() + 5000, item.id, owner);
+        return;
+      }
       const now = ctx.now();
       transaction(db, () => {
         const row = db.prepare('SELECT key, score, confirmation_after FROM dispatch WHERE id = ? AND lease_owner = ? AND send_started_at IS NOT NULL').get(item.id, owner);
@@ -150,9 +155,9 @@ function referenceFixture(): QueueStoreFixture {
       return id;
     },
     readRow(id) {
-      const r = main.prepare('SELECT status, lease_owner, lease_until, send_started_at, delivery_uncertain, confirmation_after FROM dispatch WHERE id = ?').get(id)!;
+      const r = main.prepare('SELECT status, tries, next_try_at, lease_owner, lease_until, send_started_at, delivery_uncertain, confirmation_after FROM dispatch WHERE id = ?').get(id)!;
       return {
-        status: String(r.status), leaseOwner: r.lease_owner === null ? null : String(r.lease_owner), leaseUntil: num(r.lease_until),
+        tries: Number(r.tries), nextTryAt: num(r.next_try_at), status: String(r.status), leaseOwner: r.lease_owner === null ? null : String(r.lease_owner), leaseUntil: num(r.lease_until),
         sendStartedAt: num(r.send_started_at), deliveryUncertain: Number(r.delivery_uncertain) === 1, confirmationAfter: num(r.confirmation_after),
       };
     },
@@ -418,6 +423,21 @@ describe('job runner', () => {
     expect([...seen]).toEqual(ids);
     expect(jobRuns().filter((line) => line.result === 'failed')).toHaveLength(30);
     expect(Date.now()).toBe(T0);
+  });
+
+  it('drops cooling entries after a failed row moves out of the complete due set', async () => {
+    let due = true;
+    const limits: number[] = [];
+    const job: QueueJob<string> = {
+      name: 'cooling-prune', due: (_now, limit) => { limits.push(limit); return due ? ['row'] : []; },
+      id: (id) => id, partition: () => 'p', lease: () => true, release: () => undefined, recover: () => 0,
+      run: async () => { throw new Error('failed row'); },
+    };
+    const r = runner(); r.addQueue(job); r.start(); await settle();
+    expect(limits.at(-1)).toBe(21);
+    due = false; r.kick(job.name); await settle();
+    r.kick(job.name); await settle();
+    expect(limits.at(-1)).toBe(20);
   });
 
   it('interval jobs run at start and every everyMs, each run with one lease (25 min with 10 min: 3 runs)', async () => {

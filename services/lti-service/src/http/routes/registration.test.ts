@@ -3,12 +3,14 @@ import { OutboundError } from '@cogniate/shared';
 import { describe, expect, it } from 'vitest';
 import { openDb } from '../../db/index.ts';
 import { createPlatformKeys } from '../../lti/jwks.ts';
-import { PLATFORM_CONFIG_CLAIM, TOOL_CONFIG_CLAIM } from '../../lti/registration.ts';
+import { PLATFORM_CONFIG_CLAIM, REGISTRATION_SCOPES, TOOL_CONFIG_CLAIM } from '../../lti/registration.ts';
 import { createAgsClient } from '../../platform/ags.ts';
 import { createNrpsClient } from '../../platform/nrps.ts';
 import { createScoreClock } from '../../platform/score-clock.ts';
 import { createTokenClient } from '../../platform/token-client.ts';
 import { ensureAccount } from '../../store/accounts.ts';
+import { listApiKeys } from '../../store/api-keys.ts';
+import { listAuditEvents } from '../../store/audit.ts';
 import { getPlatform } from '../../store/platforms.ts';
 import { ensureToolKey } from '../../store/tool-keys.ts';
 import { MASTER_KEY, URLS, capturingLogger, makeKey, sign } from '../../testkit.ts';
@@ -19,7 +21,7 @@ const CONFIG_URL = `${M}/mod/lti/openid-configuration.php`;
 const CONFIG = {
   issuer: M, token_endpoint: `${M}/mod/lti/token.php`, jwks_uri: `${M}/mod/lti/certs.php`, authorization_endpoint: `${M}/mod/lti/auth.php`,
   registration_endpoint: `${M}/mod/lti/openid-registration.php`,
-  scopes_supported: ['https://purl.imsglobal.org/spec/lti-ags/scope/score', 'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem'],
+  scopes_supported: [...REGISTRATION_SCOPES],
   [PLATFORM_CONFIG_CLAIM]: { product_family_code: 'moodle', version: '5.2.4 (Build: 20261005)', messages_supported: [{ type: 'LtiResourceLinkRequest' }, { type: 'LtiDeepLinkingRequest', placements: ['ContentArea'] }] },
 };
 
@@ -94,6 +96,7 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
       privacyLevel: 'anonymous', operation: 'new', existingPlatformId: null,
     });
     expect((await s.app.inject({ method: 'GET', url: `/api/registrations/${id}?raw=true`, headers: s.bearer() })).json().raw.issuer).toBe(M);
+    expect(listAuditEvents(s.db, { action: 'registration.complete', limit: 10 }).events).toEqual([]);
 
     const c = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: { platformName: 'QA dyn 1' } });
     expect(c.statusCode).toBe(200);
@@ -102,7 +105,7 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
     expect(platform).toMatchObject({ issuer: M, clientId: 'client-dyn-1', name: 'QA dyn 1', active: true, deploymentIds: ['11'], productFamilyCode: 'moodle', tokenEndpoint: CONFIG.token_endpoint });
     const sent = s.state.registrations[0]!;
     expect(sent.auth).toMatch(/^Bearer ey/);
-    expect(sent.body).toMatchObject({ client_name: 'QA dyn 1', token_endpoint_auth_method: 'private_key_jwt', jwks_uri: `${URLS.lti}/lti/keys/cogniate` });
+    expect(sent.body).toMatchObject({ client_name: 'QA dyn 1', token_endpoint_auth_method: 'private_key_jwt', jwks_uri: `${URLS.lti}/lti/keys/cogniate`, scope: REGISTRATION_SCOPES.join(' ') });
     expect((sent.body[TOOL_CONFIG_CLAIM] as { claims: string[] }).claims).toEqual(['iss', 'sub']);
     expect(s.lines).toContainEqual(expect.objectContaining({ event: 'registration_completed', platform_id: platform.id, operation: 'new' }));
 
@@ -113,6 +116,55 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
     expect((await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, payload: {} })).statusCode).toBe(401);
     expect((await s.app.inject({ method: 'GET', url: `/api/registrations/${id}`, headers: s.bearer(s.apiKey2) })).statusCode).toBe(404); // other account
     expect(JSON.stringify(s.lines)).not.toContain(String(sent.auth).slice(7));
+    const events = listAuditEvents(s.db, { action: 'registration.complete', limit: 10 }).events;
+    expect(events).toHaveLength(2); // Reads and the unauthenticated POST write no event.
+    const context = { actor: { type: 'api_key', id: listApiKeys(s.db, 'cogniate')[0]!.id }, toolAccountId: 'cogniate', target: { type: 'registration', id } };
+    expect(events.find((event) => event.result === 'ok')).toMatchObject({ ...context, code: null, traceId: c.headers['x-trace-id'], clientIp: '127.0.0.1', details: { platformId: platform.id, operation: 'new' } });
+    expect(events.find((event) => event.result === 'refused')).toMatchObject({ ...context, code: 'REGISTRATION_ALREADY_COMPLETED', traceId: again.headers['x-trace-id'] });
+    expect(JSON.stringify(events)).not.toContain(String(sent.auth).slice(7));
+  });
+
+  it.each([
+    ['empty list', []], ['unknown scope', ['openid']], ['mixed scopes', [REGISTRATION_SCOPES[0], 'admin']],
+    ['not a list', REGISTRATION_SCOPES[0]], ['null', null], ['non-string member', [1]],
+  ])('refuses %s before sending or claiming the session (LA-E3-06 AC-04)', async (_name, scopes) => {
+    const s = await setup();
+    const id = idOf(String((await s.start(undefined)).headers.location));
+    const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: { scopes } });
+    expect([r.statusCode, r.json().details.message]).toEqual([400, 'INVALID_REQUEST']);
+    expect(r.json().details.description).toContain('Invalid field: scopes');
+    expect(s.state.registrations).toEqual([]);
+    expect(s.db.prepare('SELECT status FROM registration_session WHERE id = ?').get(id)?.status).toBe('open');
+    expect(listAuditEvents(s.db, { action: 'registration.complete', limit: 10 }).events).toMatchObject([
+      { target: { type: 'registration', id }, result: 'refused', code: 'INVALID_REQUEST' },
+    ]);
+  });
+
+  it.each([true, false])('checks advertised scopes for an explicit list = %s before sending', async (explicit) => {
+    const s = await setup();
+    s.state.config = { ...CONFIG, scopes_supported: [REGISTRATION_SCOPES[3]] };
+    const id = idOf(String((await s.start(undefined)).headers.location));
+    const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: explicit ? { scopes: [REGISTRATION_SCOPES[0]] } : {} });
+    expect([r.statusCode, r.json().details.message]).toEqual([400, 'INVALID_REQUEST']);
+    expect(r.json().details.description).toContain('Invalid field: scopes');
+    expect(s.state.registrations).toEqual([]);
+    const ok = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: { scopes: [REGISTRATION_SCOPES[3]] } });
+    expect(ok.statusCode).toBe(200);
+    expect(s.state.registrations.map((call) => call.body.scope)).toEqual([REGISTRATION_SCOPES[3]]);
+  });
+
+  it('rolls back the platform and session completion if the audit insert fails', async () => {
+    const s = await setup();
+    const id = idOf(String((await s.start(await s.regToken({ scope: 'reg', sub: 'c' }))).headers.location));
+    s.db.exec("CREATE TRIGGER fail_registration_audit BEFORE INSERT ON audit_event WHEN NEW.action = 'registration.complete' BEGIN SELECT RAISE(ABORT, 'fixture failure'); END");
+    const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: {} });
+    expect(r.statusCode).toBe(500);
+    expect(s.state.registrations).toHaveLength(1);
+    expect(s.db.prepare('SELECT COUNT(*) AS n FROM platform').get()?.n).toBe(0);
+    expect(s.db.prepare('SELECT status, platform_id, registration_token_encrypted FROM registration_session WHERE id = ?').get(id))
+      .toMatchObject({ status: 'open', platform_id: null, registration_token_encrypted: expect.any(Uint8Array) });
+    expect(listAuditEvents(s.db, { action: 'registration.complete', limit: 10 }).events).toEqual([]);
+    expect(s.lines.some((line) => line.event === 'registration_completed')).toBe(false);
   });
 
   it('update (AC-T3-25, AC-T3-26): only with updatePlatformId = existingPlatformId; refused updates send nothing to Moodle', async () => {

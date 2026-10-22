@@ -9,7 +9,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
-  G1_LMS_PROVIDERS_AND_CONNECTIONS, captureDocuments, cliBinding, compareCaptures, diff, differingPaths, loadExpectedDelta, report,
+  G1_LMS_PROVIDERS_AND_CONNECTIONS, captureDocuments, checkAcceptanceOutboundAllowlist, cliBinding, compareCaptures, diff, differingPaths, loadExpectedDelta, loadSimAllowlist, report,
 } from './lib/compare.mjs';
 import { DROP, normalize, normalizeFile, secretScan } from './lib/normalize.mjs';
 
@@ -149,4 +149,133 @@ test('cliBinding: compare, differingPaths, captureDocuments and expected-delta f
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('LA-IC-16 (BD-A1-36): acceptance.ltiHealth.outbound_allowlist compares .sim.test hosts as a set against hosts.json; non-sim and default profile stay strict', () => {
+  const base = load(baseDir);
+  const baseAllowlist = base.G1.acceptance.ltiHealth.outbound_allowlist;
+  const baseNonSim = baseAllowlist.filter((h) => !h.endsWith('.sim.test'));
+  assert.deepEqual(baseNonSim, ['moodle.test', 'qa-platform.test', 'evil.test']);
+
+  const repoSimHosts = loadSimAllowlist();
+  assert.ok(repoSimHosts.length >= 8 && repoSimHosts.every((h) => h.endsWith('.sim.test')));
+  const ic16Delta = loadExpectedDelta('LA-IC-16');
+  assert.equal(ic16Delta.id, 'LA-IC-16');
+
+  // 1. Candidate matching repo tests/sim/hosts.json (even with reversed .sim.test order) passes compareCaptures and diff.
+  const cloneWithAllowlist = (allowlist) => {
+    const c = structuredClone(base);
+    c.G1.acceptance.ltiHealth.outbound_allowlist = allowlist;
+    return c;
+  };
+  const candRepoHosts = cloneWithAllowlist([...baseNonSim, ...[...repoSimHosts].reverse()]);
+  assert.equal(checkAcceptanceOutboundAllowlist(baseAllowlist, candRepoHosts.G1.acceptance.ltiHealth.outbound_allowlist).ok, true);
+  assert.deepEqual(diff(base.G1.acceptance.ltiHealth, candRepoHosts.G1.acceptance.ltiHealth, 'acceptance.ltiHealth'), []);
+  const resAuto = compareCaptures(base, candRepoHosts);
+  assert.equal(resAuto.ok, true);
+  assert.equal(resAuto.differences.length, 1);
+  assert.equal(resAuto.differences[0].explainedBy, 'LA-IC-16');
+  const resExplicit = compareCaptures(base, candRepoHosts, [ic16Delta]);
+  assert.equal(resExplicit.ok, true);
+  assert.deepEqual(resExplicit.missing, []);
+
+  // 2. Adding a new .sim.test host in hosts.json and in acceptance.ltiHealth.outbound_allowlist passes (library + CLI).
+  const customSimHosts = [...repoSimHosts, 'zz-new-lms.sim.test'];
+  const candNewSim = cloneWithAllowlist([...baseNonSim, ...customSimHosts]);
+  assert.equal(compareCaptures(base, candNewSim, [ic16Delta], { simHosts: customSimHosts }).ok, true);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'golden-ic16-'));
+  try {
+    for (const f of FILES) fs.copyFileSync(path.join(baseDir, `${f}.json`), path.join(dir, `${f}.json`));
+    fs.writeFileSync(path.join(dir, 'G1.json'), JSON.stringify(candNewSim.G1, null, 2));
+    const customHostsFile = path.join(dir, 'hosts.json');
+    fs.writeFileSync(customHostsFile, JSON.stringify({
+      version: 1,
+      providers: [{ id: 'custom-sim', aliases: customSimHosts, allowlist: customSimHosts }],
+    }, null, 2));
+    const cliPass = spawnSync(
+      process.execPath,
+      [path.join(here, 'compare.mjs'), '--base', baseDir, '--candidate', dir, '--expected', 'LA-IC-16', '--sim-hosts', customHostsFile],
+      { encoding: 'utf8' },
+    );
+    assert.equal(cliPass.status, 0, cliPass.stdout + cliPass.stderr);
+    assert.match(cliPass.stdout, /^EXPECTED G1 acceptance\.ltiHealth\.outbound_allowlist \(changed\): .* \[LA-IC-16\]$/m);
+    assert.match(cliPass.stdout, /^EQUAL: 1 differences \(0 not explained\)/m);
+
+    // 3. An unlisted .sim.test host (not in hosts.json) fails even when --expected LA-IC-16 is passed.
+    const candUnlisted = cloneWithAllowlist([...baseNonSim, ...repoSimHosts, 'unlisted-rogue.sim.test']);
+    assert.equal(checkAcceptanceOutboundAllowlist(baseAllowlist, candUnlisted.G1.acceptance.ltiHealth.outbound_allowlist).ok, false);
+    assert.equal(compareCaptures(base, candUnlisted, [ic16Delta]).ok, false);
+    assert.equal(diff(base.G1.acceptance.ltiHealth, candUnlisted.G1.acceptance.ltiHealth, 'acceptance.ltiHealth').length, 1);
+    fs.writeFileSync(path.join(dir, 'G1.json'), JSON.stringify(candUnlisted.G1, null, 2));
+    const cliUnlisted = spawnSync(
+      process.execPath,
+      [path.join(here, 'compare.mjs'), '--base', baseDir, '--candidate', dir, '--expected', 'LA-IC-16'],
+      { encoding: 'utf8' },
+    );
+    assert.equal(cliUnlisted.status, 1);
+    assert.match(cliUnlisted.stdout, /^DIFF G1 acceptance\.ltiHealth\.outbound_allowlist \(changed\):/m);
+
+    // 4. A missing .sim.test host (in hosts.json but absent from acceptance.ltiHealth.outbound_allowlist) or duplicate .sim.test host fails.
+    const candMissingSim = cloneWithAllowlist([...baseNonSim, ...repoSimHosts.slice(1)]);
+    assert.equal(compareCaptures(base, candMissingSim, [ic16Delta]).ok, false);
+    const candDupSim = cloneWithAllowlist([...baseNonSim, ...repoSimHosts, repoSimHosts[0]]);
+    assert.equal(compareCaptures(base, candDupSim, [ic16Delta]).ok, false);
+
+    // 5. A non-sim host change (replaced, removed, reordered, or added) in acceptance.ltiHealth.outbound_allowlist fails.
+    for (const badNonSim of [
+      ['other-moodle.test', 'qa-platform.test', 'evil.test'],
+      ['moodle.test', 'qa-platform.test'],
+      ['qa-platform.test', 'moodle.test', 'evil.test'],
+      ['moodle.test', 'qa-platform.test', 'evil.test', 'extra.test'],
+    ]) {
+      const candBadNonSim = cloneWithAllowlist([...badNonSim, ...repoSimHosts]);
+      assert.equal(checkAcceptanceOutboundAllowlist(baseAllowlist, candBadNonSim.G1.acceptance.ltiHealth.outbound_allowlist).ok, false);
+      assert.equal(compareCaptures(base, candBadNonSim, [ic16Delta]).ok, false);
+      assert.equal(diff(base.G1.acceptance.ltiHealth, candBadNonSim.G1.acceptance.ltiHealth, 'acceptance.ltiHealth').length, 1);
+    }
+
+    // 6. Adding a .sim.test host to acceptance.appHealth.outbound_allowlist fails (appHealth has no simulator hosts).
+    const candAppSim = structuredClone(candRepoHosts);
+    candAppSim.G1.acceptance.appHealth.outbound_allowlist.push(repoSimHosts[0]);
+    const resAppSim = compareCaptures(base, candAppSim, [ic16Delta]);
+    assert.equal(resAppSim.ok, false);
+    assert.ok(resAppSim.differences.some((d) => !d.explainedBy && d.path.startsWith('acceptance.appHealth.outbound_allowlist')));
+
+    // 7. A default-profile outbound_allowlist change (ltiHealth or appHealth) fails strictly.
+    for (const section of ['ltiHealth', 'appHealth']) {
+      const candDefaultChange = structuredClone(candRepoHosts);
+      candDefaultChange.G1.default[section].outbound_allowlist.push(repoSimHosts[0]);
+      const resDefault = compareCaptures(base, candDefaultChange, [ic16Delta]);
+      assert.equal(resDefault.ok, false, `default.${section}.outbound_allowlist must stay strictly equal to G-BASE`);
+      assert.ok(
+        resDefault.differences.some((d) => !d.explainedBy && d.path.startsWith(`default.${section}.outbound_allowlist`)),
+        `unexplained diff on default.${section}.outbound_allowlist`,
+      );
+    }
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('LA-IC-12 (LA-E3-04 service part) and LA-IC-17 (BD-A1-41): expected-delta LD-9 records load cleanly with 0 golden and 0 frozen-test changes', () => {
+  const base = load(baseDir);
+  for (const id of ['LA-IC-12', 'LA-IC-17']) {
+    const delta = loadExpectedDelta(id);
+    assert.equal(delta.id, id);
+    assert.deepEqual(delta.changes, []);
+    assert.deepEqual(delta.ld9.goldenFields, []);
+    assert.deepEqual(delta.ld9.frozenTestsTouched, []);
+    assert.ok(Array.isArray(delta.ld9.scanChecked) && delta.ld9.scanChecked.length > 0, `${id} scanChecked`);
+    const res = compareCaptures(base, base, [delta]);
+    assert.equal(res.ok, true);
+    assert.deepEqual(res.differences, []);
+    assert.deepEqual(res.missing, []);
+  }
+  const ic12 = loadExpectedDelta('LA-IC-12');
+  assert.equal(ic12.ld9.authorUnitTestChanges.length, 3);
+  assert.deepEqual(ic12.ld9.goldenFieldsPendingAppPart, [
+    'G4.blackboard.pages.picker.text',
+    'G4.canvas.pages.picker.text',
+  ]);
 });
