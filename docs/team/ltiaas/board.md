@@ -161,4 +161,4 @@ LTI migration numbers (Lead, RQ-5): 011 S2 `api_key` (LA-E5-07), 012 S1 `service
 
 Incident 2026-10-22 10:20Z: the integration branch was red on F1 at `b5069f6` (app migration 013 of LA-E1-06 has 2 frozen LMS strings; lane K's self-check ran before lane P's stricter F1 landed). A1 ruled BD-A1-19 (exact-token exception), lane P fixed it in `e5a687a`, merged `8a1ef2d`. Process fix: the Lead runs the full check on each merge SHA at once and tells all lanes about a known red line.
 
-Integration branch: `8a1ef2d`; last full check green at `a00c090`.
+Integration branch: `8a1ef2d`; last full check green at `8a1ef2d` (1391 unit, 109 K0, F1 590 hits, F5 3 rules).
