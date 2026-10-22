@@ -1,0 +1,4 @@
+{
+  "extends": "../../tsconfig.json",
+  "include": ["./**/*.ts", "../LA-E5-01/operator.ts", "../../golden/lib/compare.d.mts"]
+}

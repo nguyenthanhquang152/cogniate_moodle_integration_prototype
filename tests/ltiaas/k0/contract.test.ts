@@ -64,6 +64,7 @@ import type {
   LocalProfileView,
   PlatformBodyContext,
   PlatformBodyValues,
+  PortContext,
   ProfileView,
   SetupConnection,
   StagedCreate,
@@ -72,6 +73,23 @@ import type {
 } from '../../../services/cogniate-app/src/kernel/ports.ts';
 
 const VALID_GRANT_CODE_43 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopq';
+
+interface BdA140ToolUrls {
+  readonly login: string;
+  readonly launch: string;
+  readonly keys: string;
+  readonly register: string;
+  readonly ltiOrigin: string;
+}
+
+const SAMPLE_TOOL_ACCOUNT_ID = 'cogniate';
+const SAMPLE_TOOL_URLS: BdA140ToolUrls = Object.freeze({
+  login: 'https://lti.cogniate.test/lti/login/cogniate',
+  launch: 'https://lti.cogniate.test/lti/launch/cogniate',
+  keys: 'https://lti.cogniate.test/lti/keys/cogniate',
+  register: 'https://lti.cogniate.test/lti/register/cogniate',
+  ltiOrigin: 'https://lti.cogniate.test',
+});
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../..');
@@ -1102,7 +1120,7 @@ function defineChannelContractCases(
       `K-ADAPTER.${channelId}: pending LA-E1-07 (packages/channels/${channelId}/app.ts ConnectionSetup)`,
     );
   } else {
-    it(`K-ADAPTER.${channelId}: D5 ConnectionSetup members, strict parseBindingBody, toolConfiguration array, and throwing db/lti stubs (BD-A1-20, BD-A1-28)`, () => {
+    it(`K-ADAPTER.${channelId}: D5 ConnectionSetup members, strict parseBindingBody, toolConfiguration array, and throwing db/lti stubs (BD-A1-20, BD-A1-28)`, async () => {
       const { loaded, reg } = getContext();
       expect(Array.isArray(manifest.setup.createFields)).toBe(true);
       expect(Array.isArray(manifest.setup.bindingFields)).toBe(true);
@@ -1146,31 +1164,103 @@ function defineChannelContractCases(
         | undefined;
       const caps = reg.capabilities(channelId, defaultProfile);
 
-      // Extension-port assertions (`extensionRoutes`, `publishHooks`, `packageExporters`) are "pending: LA-E1-08"
-      // for baseline channels when not yet defined on `adapter`; the canary and new channels keep the full rule (BD-A1-28).
+      // LA-E1-08 (e29f574): extension-port assertions (`extensionRoutes`, `publishHooks`, `packageExporters`)
+      // are active across all channels (product and canary, BD-A1-28).
       if (caps['setup.artifacts'].length > 0 || caps['siteApi.token'] === true) {
-        if (!isBaselineChannel || adapter.extensionRoutes !== undefined) {
-          expect(
-            Array.isArray(adapter.extensionRoutes) && adapter.extensionRoutes.length > 0,
-            `${channelId}: extensionRoutes required when setup.artifacts or siteApi.token is enabled`,
-          ).toBe(true);
-        }
+        expect(
+          Array.isArray(adapter.extensionRoutes) && adapter.extensionRoutes.length > 0,
+          `${channelId}: extensionRoutes required when setup.artifacts or siteApi.token is enabled`,
+        ).toBe(true);
+      } else {
+        expect(adapter.extensionRoutes ?? [], `${channelId}: no extensionRoutes when capabilities are off`).toEqual([]);
       }
       if (caps['publish.createCourse'] === true) {
-        if (!isBaselineChannel || adapter.publishHooks !== undefined) {
-          expect(
-            Array.isArray(adapter.publishHooks) && adapter.publishHooks.length > 0,
-            `${channelId}: publishHooks required when publish.createCourse is enabled`,
-          ).toBe(true);
-        }
+        expect(
+          Array.isArray(adapter.publishHooks) && adapter.publishHooks.length > 0,
+          `${channelId}: publishHooks required when publish.createCourse is enabled`,
+        ).toBe(true);
+      } else {
+        expect(adapter.publishHooks ?? [], `${channelId}: no publishHooks when publish.createCourse is off`).toEqual([]);
       }
       if (caps['export.packages'].length > 0) {
-        if (!isBaselineChannel || adapter.packageExporters !== undefined) {
-          expect(
-            Array.isArray(adapter.packageExporters) && adapter.packageExporters.length > 0,
-            `${channelId}: packageExporters required when export.packages is enabled`,
-          ).toBe(true);
-        }
+        expect(
+          Array.isArray(adapter.packageExporters) && adapter.packageExporters.length > 0,
+          `${channelId}: packageExporters required when export.packages is enabled`,
+        ).toBe(true);
+        expect(
+          adapter.packageExporters!.map((e) => e.id),
+          `${channelId}: packageExporters ids match export.packages capability`,
+        ).toEqual(caps['export.packages']);
+      } else {
+        expect(adapter.packageExporters ?? [], `${channelId}: no packageExporters when export.packages is empty`).toEqual(
+          [],
+        );
+      }
+
+      // Baseline channel extension-port surface (LA-E1-08 e29f574):
+      // - Canvas: extensionRoutes GET canvas-configuration; no publishHooks or packageExporters
+      // - Moodle: extensionRoutes PUT web-services; publishHooks createMoodleCourse; packageExporters mbz with formats ['scorm12']
+      // - Blackboard: none
+      if (channelId === 'canvas') {
+        expect(
+          adapter.extensionRoutes?.map((r) => ({
+            method: r.method,
+            path: r.path,
+            capability: r.capability,
+            legacyCapabilityName: r.legacyCapabilityName,
+          })),
+        ).toEqual([
+          {
+            method: 'GET',
+            path: 'canvas-configuration',
+            capability: 'setup.artifacts',
+            legacyCapabilityName: 'canvasConfiguration',
+          },
+        ]);
+        expect(adapter.publishHooks).toBeUndefined();
+        expect(adapter.packageExporters).toBeUndefined();
+      } else if (channelId === 'moodle') {
+        expect(
+          adapter.extensionRoutes?.map((r) => ({
+            method: r.method,
+            path: r.path,
+            capability: r.capability,
+            legacyCapabilityName: r.legacyCapabilityName,
+          })),
+        ).toEqual([
+          {
+            method: 'PUT',
+            path: 'web-services',
+            capability: 'siteApi.token',
+            legacyCapabilityName: 'webServices',
+          },
+        ]);
+        expect(
+          adapter.publishHooks?.map((h) => ({
+            option: h.option,
+            capability: h.capability,
+          })),
+        ).toEqual([
+          {
+            option: 'createMoodleCourse',
+            capability: 'publish.createCourse',
+          },
+        ]);
+        expect(
+          adapter.packageExporters?.map((e) => ({
+            id: e.id,
+            formats: [...e.formats],
+          })),
+        ).toEqual([
+          {
+            id: 'mbz',
+            formats: ['scorm12'],
+          },
+        ]);
+      } else if (channelId === 'blackboard') {
+        expect(adapter.extensionRoutes).toBeUndefined();
+        expect(adapter.publishHooks).toBeUndefined();
+        expect(adapter.packageExporters).toBeUndefined();
       }
 
       const throwingGuards = {
@@ -1216,8 +1306,13 @@ function defineChannelContractCases(
         expect(typeof createBad.field === 'string' && createBad.field.length > 0).toBe(true);
       }
 
-      // 2. toolConfiguration(ctx: ToolConfigurationContext) -> ToolRow[] (an array, no .rows wrapper)
-      const toolConfigCtx: ToolConfigurationContext = {
+      // 2. toolConfiguration(ctx: ToolConfigurationContext) -> ToolRow[] (an array, no .rows wrapper; BD-A1-40 includes toolAccountId + toolUrls)
+      const toolConfigCtx: ToolConfigurationContext & {
+        toolAccountId: string;
+        toolUrls: BdA140ToolUrls;
+      } = {
+        toolAccountId: SAMPLE_TOOL_ACCOUNT_ID,
+        toolUrls: SAMPLE_TOOL_URLS,
         urls: {
           lti: 'https://lti.cogniate.test',
           app: 'https://app.cogniate.test',
@@ -1294,9 +1389,48 @@ function defineChannelContractCases(
         );
       }
 
-      const createReqCtx: CreateRequestContext = {
+      // BD-A1-40: CreateRequestContext and PortContext carry toolAccountId and toolUrls
+      const createReqCtx: CreateRequestContext & {
+        toolAccountId: string;
+        toolUrls: BdA140ToolUrls;
+      } = {
+        toolAccountId: SAMPLE_TOOL_ACCOUNT_ID,
+        toolUrls: SAMPLE_TOOL_URLS,
         libraryName: 'Library A',
       };
+      const portCtx: PortContext & {
+        toolAccountId: string;
+        toolUrls: BdA140ToolUrls;
+      } = {
+        libraryId: 'lib-1',
+        connectionId: 'conn-1',
+        sql: throwingGuards.sql as PortContext['sql'],
+        outbound: throwingGuards.outbound as PortContext['outbound'],
+        seal: makeThrowingStub('seal') as PortContext['seal'],
+        unseal: makeThrowingStub('unseal') as PortContext['unseal'],
+        logger: makeThrowingStub('logger') as PortContext['logger'],
+        traceId: 'trace-k0-1',
+        now: () => 1_700_000_000_000,
+        urls: {
+          lti: 'https://lti.cogniate.test',
+          app: 'https://app.cogniate.test',
+          content: 'https://content.cogniate-content.test',
+        },
+        libraryName: 'Library A',
+        toolAccountId: SAMPLE_TOOL_ACCOUNT_ID,
+        toolUrls: SAMPLE_TOOL_URLS,
+        publicToolKeys: makeThrowingStub('publicToolKeys') as PortContext['publicToolKeys'],
+      };
+
+      if (channelId === 'canvas' && adapter.extensionRoutes?.[0]) {
+        const cfgResult = await adapter.extensionRoutes[0].handle({ body: undefined, query: {} }, portCtx);
+        expect('status' in cfgResult && cfgResult.status === 200).toBe(true);
+        if ('status' in cfgResult) {
+          const doc = cfgResult.body as Record<string, unknown>;
+          expect(doc.oidc_initiation_url).toBe(SAMPLE_TOOL_URLS.login);
+          expect(doc.target_link_uri).toBe(SAMPLE_TOOL_URLS.launch);
+        }
+      }
 
       // 4. Authority-specific methods with throwing stubs
       if (hasManualSelf && typeof adapter.selfCreate === 'function') {
