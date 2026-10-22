@@ -242,8 +242,15 @@ In this procedure `k1` is the version in use now. On a stack without a key-ring 
 2. Put the escrow copy of `k2` in the escrow store before you change the stack.
 3. Add `k2` to the key-ring file, keep `k1`, and set `"active": "k2"`.
 4. Restart the LTI service. Check `/readyz` = 200.
-5. Start the re-wrap: `POST /operator/v1/key-provider/rewrap`.
-6. Wait until `GET /operator/v1/key-provider` shows `sealedCount` 0 for every version except `k2`.
+5. Start the re-wrap: `POST /operator/v1/key-provider/rewrap`. Write down the `traceId` and the time of the answer.
+   - `202`: a run started.
+   - `503 NOT_READY` (`job_runner_not_active`): the job runner is not active yet, for example just after a restart. Wait `Retry-After` seconds, then do step 5 again.
+   - `409 JOB_RUNNING`: a run is in progress. Wait one minute, then do step 6.
+6. Read the outcome. Get `GET /operator/v1/audit?action=key_provider.rewrap&traceId=<traceId>`. Until the trace filter exists, use `&since=<time of step 5>`, newest first. Read the event with actor `system:key-rewrap`, field `details.outcome`. If no such event exists one minute after a `202`, do step 5 again (two calls at the same time can skip one run).
+   - `complete`: check `GET /operator/v1/key-provider`: `sealedCount` is 0 for every version except `k2`. Go to step 7.
+   - `partial` (`stopReason` `lease`, `stopping` or `legacy_remains`): the run stopped safely. Do step 5 again until the outcome is `complete`.
+   - `failed` with `unreadable` above 0: `unreadableVersions` names a key version that the ring does not have. Put that version back from escrow into the key-ring file, restart the LTI service, and do step 5 again.
+   - `failed` with `errorClass`: read the LTI service log lines with that trace id. Do step 5 once more. If it fails again, start an incident (§9).
 7. Make a backup (§7.2) and record the key versions in the backup record.
 8. If `k1` has `derivedCount` 0, remove it from the key-ring file, restart the LTI service and check `/readyz` = 200. Else keep it.
 9. Keep the escrow copy of `k1` until every backup that needs it has expired.
