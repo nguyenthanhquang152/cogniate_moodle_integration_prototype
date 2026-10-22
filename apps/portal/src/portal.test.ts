@@ -12,12 +12,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router";
-import { CreateConnection } from "./connect/CreateConnection.tsx";
-import { ManualSetup } from "./connect/ManualSetup.tsx";
-import { MoodleSteps } from "./connect/MoodleSteps.tsx";
-import { ConnectionReady } from "./connect/ConnectionStatus.tsx";
 import { readFileSync } from "node:fs";
-import steps from "./connect/moodle-steps.json";
 import { ApiError } from "./api.ts";
 import {
   CopyButton,
@@ -30,8 +25,18 @@ import { Integrations } from "./Integrations.tsx";
 import { NewCourse } from "./courses/Courses.tsx";
 import { PublishDialog } from "./courses/PublishDialog.tsx";
 import { ResultTableRow, Results } from "./results/Results.tsx";
-import { validatePlatform } from "./connect/validation.ts";
 import type { Connection, Course, ResultRow, ToolRow } from "./types.ts";
+
+import type { ComponentType } from "react";
+const moved = import.meta.glob<Record<string, unknown>>("../../../packages/channels/moodle/portal/*.{ts,tsx,json}", { eager: true });
+const entry = (file: string) => moved[`../../../packages/channels/moodle/portal/${file}`]!;
+const CreateConnection = entry("CreateConnection.tsx").CreateConnection as ComponentType<{ onCreated(connection: Connection): void; opener?: string }>;
+const ManualSetup = entry("ManualSetup.tsx").ManualSetup as ComponentType<{ connection: Connection; libraryName: string; onRegistered(connection: Connection): void }>;
+const MoodleSteps = entry("MoodleSteps.tsx").MoodleSteps as ComponentType<{ method: "dynamic" | "manual"; libraryName: string }>;
+const ConnectionReady = entry("index.tsx").MoodleReady as ComponentType<{ connection: Connection; libraryName: string }>;
+const validatePlatform = entry("validation.ts").validatePlatform as (siteUrl: string, values: Record<string, string>) => Record<string, string>;
+type Step = { id: string; text: string; optional: boolean };
+const steps = entry("moodle-steps.json").default as { format: string; dynamic: Step[]; manual: Step[] };
 
 const connection: Connection = {
   id: "con_test",
@@ -271,7 +276,7 @@ describe("Moodle connection wizard", () => {
       "https://moodle.test/",
     );
     await user.click(screen.getByRole("button", { name: "Continue" }));
-    await waitFor(() => expect(created).toHaveBeenCalledWith(connection.id));
+    await waitFor(() => expect(created).toHaveBeenCalledWith({ ...connection, method: "dynamic" }));
     expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toEqual({
       name: "Example Moodle",
       siteUrl: connection.siteUrl,
@@ -363,7 +368,7 @@ describe("portal forms and contract states", () => {
   });
   it("shows eleven cards, filters them, and shows the newest connection error", async () => {
     fetchMock.mockImplementation(async (path: string) =>
-      path.endsWith("/lms-providers") ? json({ lms: [] }) : json({
+      path.endsWith("/lms-providers") ? json({ lms: [{ lms: "moodle", profiles: [{ ready: true }] }] }) : json({
         connections: [
           {
             ...connection,

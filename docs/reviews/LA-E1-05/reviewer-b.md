@@ -1,7 +1,30 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E1-05 review, Reviewer-B2 (lens: "Can a human team own it?")
+
+## Round 2
+
+Diff: `git diff 1b342e6^1 1b342e6` (the lane L fix round, with the lead QA kit line `2b7530a`), with A1's BD-A1-21 (the kernel exports the type `ProfileSource`) and A2's BD-A2-21 (privacy floor). I did not open any reviewer-a file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 new.** The three round-1 MINOR findings are **closed**. Three round-1 NIT findings stay open (deferred list).
+
+How I checked: a scratch clone of `1b342e6` (private `/tmp` folder, deleted after the run). `vitest run` on `profiles`, `lti`, `jobs` and the signing-key files: **14 files, 217 tests passed**. `tsc --noEmit -p packages/channels/tsconfig.node.json`: exit 0, so the three `lti-profiles.ts` files now typecheck against `ProfileSource`.
+
+### Round-1 findings
+
+| Finding | Status |
+| --- | --- |
+| B-LA-E1-05-01 (MINOR) | **Closed** (BD-A1-21). `ProfileSource` is a kernel type (`packages/channel-kernel/src/profiles.ts`, type-only export). Each `lti-profiles.ts` ends with `as const satisfies readonly ProfileSource[]`, and the LTI schema keeps `satisfies z.ZodType<ProfileSource>` against the same type, so editor help, the typecheck and load check 7 use one shape. The doc comments now explain `endpoints` (all four values null for `admin`), `privacyFloor` (with the frozen exception list), `listOrder` (new profiles after the baseline) and `productFamily` (not a guard). The `listOrder` rule is also a load-check error with the boundary in the text: `profile_list_order_invalid … listOrder must be greater than baseline maximum <n>`. |
+| B-LA-E1-05-02 (MINOR) | **Closed.** Every `profile_schema_invalid` detail starts with `profile "<id>":` (`"<unknown>"` when the id is missing). The endpoint rule says the expected value (`Expected null for endpoints "admin".`, `Expected a fixed value or template …`). The wire rule gives the frozen value (`wireLms must be null`) or `must omit wireLms for a new profile`. The tests assert the texts. |
+| B-LA-E1-05-03 (MINOR) | **Closed.** There is now one seam: every lookup takes `ProfileOptions` (`registryOf(opts)`), including `profileDefinition`, `lmsNameOf` and `lmsNameOfFamily`. `login.ts` passes `profiles` and lost its two `'Moodle'` literals. `service-context.ts`, `binding.ts`, `launch.ts` and `registration.ts` pass their options. A test ("uses one registry context for profile lookups and login/launch text") proves it with a test registry. |
+| B-LA-E1-05-04 (NIT) | **Open, deferred.** `lmsNameOf` still has the old comment "Canvas profiles → Canvas, Blackboard profiles → Blackboard, else Moodle" (`profiles/index.ts:120`), and `LmsName` is still `string`. |
+| B-LA-E1-05-05 (NIT) | **Open, deferred.** The AC-04 test is still `it.each([false, true])('… (other profile: %s)')` (`channel-registry.test.ts:260`). |
+| B-LA-E1-05-06 (NIT) | **Open, deferred.** The app `TEST_URLS` still keeps `moodle` without the "test fixture only" comment (`services/cogniate-app/src/testkit.ts:20`). That is a lane K file outside this diff. |
+
+New in this round, and clear: the frozen list `PRIVACY_FLOOR_NONE_PROFILES` (`legacy-wire.ts`, "new entries need an ADR and security review"), its load-check error `profile_privacy_floor_invalid`, and a launch that keeps every claim only for `privacyFloor: 'none'` and minimizes every other value (fail closed, BD-A2-21). Each has a named test. I have no new finding.
+
+## Round 1
 
 Reviewer: Reviewer-B2, the second lens-B instance (plan LD-22). Diff: `git diff aa0b200^1 aa0b200`, the content that the merge of lane L head `664ca20` added. Spec: `docs/architecture/ltiaas/tasks/LA-E1-05.md`. Design: LA-ADR-01 D4 (load checks 2, 5, 7), D6 (`wireLms`, `privacyFloor`, `listOrder`, check 14), BD-A1-06. I did not open any reviewer-a file. I did not run Docker.
 

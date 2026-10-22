@@ -1,25 +1,28 @@
 import { Notice } from "../ui/notice.tsx";
 import { Badge } from "../ui/badge.tsx";
-import { buttonVariants } from "../ui/button.tsx";
 import { Select } from "../ui/input.tsx";
 import { Card } from "../ui/card.tsx";
-import { Download } from "lucide-react";
-import { idPath } from "../api.ts";
-import type { CourseVersion } from "../types.ts";
-import { MoodleBackup } from "./MoodleBackup.tsx";
+import type { Course, CourseVersion } from "../types.ts";
+import { useChannels } from "../channels/context.tsx";
+import { createPortalSdk } from "../sdk/index.ts";
+import { useNavigate } from "react-router";
 import { formatName } from "../ui.tsx";
 
 export function CoursePackage({
-  courseId,
+  course,
+  onChanged,
   versions,
   version,
   onVersionChange,
 }: {
-  courseId: string;
+  course: Course;
+  onChanged: () => void;
   versions: CourseVersion[];
   version?: CourseVersion;
   onVersionChange: (id: string) => void;
 }) {
+  const { modules } = useChannels();
+  const sdk = createPortalSdk(useNavigate(), onChanged);
   return (
     <Card className="flex flex-col gap-5">
       <div className="flex items-center justify-between gap-5 [&>div:first-child]:min-w-0 max-[720px]:flex-wrap max-[720px]:items-start">
@@ -48,27 +51,7 @@ export function CoursePackage({
           Upload a package to add the first version.
         </p>
       )}
-      {version?.format === "scorm12" && (
-        <div className="grid justify-items-start gap-3 border-t border-border pt-5 [&_p]:text-[12px]">
-          <a
-            className={buttonVariants({
-              variant: "secondary",
-              size: "default",
-            })}
-            href={`/app-api/courses/${idPath(courseId)}/versions/${idPath(version.id)}/download?kind=original`}
-            download
-          >
-            <Download size={16} aria-hidden="true" />
-            Download SCORM package
-          </a>
-          <p className="text-muted-foreground">
-            In Moodle: Edit mode → Add content → Activity or resource → SCORM package → Add
-          </p>
-        </div>
-      )}
-      {version?.format === "scorm12" && (
-        <MoodleBackup key={version.id} courseId={courseId} versionId={version.id} />
-      )}
+      {[...modules].flatMap(([id, module]) => module.coursePanels?.map((Panel, index) => <Panel key={`${id}:${index}`} course={course} version={version ?? null} onChanged={onChanged} sdk={sdk} />) ?? [])}
     </Card>
   );
 }

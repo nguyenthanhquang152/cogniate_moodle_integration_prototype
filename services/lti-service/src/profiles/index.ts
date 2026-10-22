@@ -97,27 +97,33 @@ export function allFixedHosts(opts: ProfileOptions): string[] {
   return [...new Set(listProfiles(opts).flatMap(profileFixedHosts))];
 }
 
-/**
- * Reserved issuer origins (LTI contract §9.1): the fixed issuer origin of every profile other than `standard`
- * (`https://blackboard.com`, the Canvas cloud issuers, and the simulation issuers when they are on).
- */
+/** Profiles with a reserved issuer, in registry order. Admin values and site templates are not reserved. */
+function reservedIssuerProfiles(opts: ProfileOptions): readonly ProviderProfile[] {
+  return listProfiles(opts).filter((p) => p.endpoints === 'fixed' && p.issuer !== null && !p.issuer.startsWith('{'));
+}
+
+/** Reserved issuer origins (LTI contract §9.1), including simulation issuers only when they are on. */
 export function reservedIssuerOrigins(opts: ProfileOptions): string[] {
-  const out = new Set<string>();
-  for (const p of listProfiles(opts)) {
-    if (isStandardProfile(p) || p.issuer === null || p.issuer.startsWith('{')) continue;
-    out.add(new URL(p.issuer).origin);
-  }
-  return [...out];
+  return [...new Set(reservedIssuerProfiles(opts).map((p) => new URL(p.issuer!).origin))];
+}
+
+/** Text names of the reserved-issuer owners, once per channel in profile order (BD-A1-31). */
+export function reservedIssuerLmsNames(opts: ProfileOptions = { simulation: true }): string {
+  const channels = channelRegistry(opts);
+  const owners = [...new Set(reservedIssuerProfiles(opts).map((p) => p.channel))];
+  const names = owners.map((owner) => channels.textName(owner));
+  const last = names.pop() ?? '';
+  return names.length === 0 ? last : `${names.join(', ')} or ${last}`;
 }
 
 /** The profile whose fixed issuer has this origin (error page texts before a platform is known, security §12). */
 export function profileOfFixedIssuer(issuerOrigin: string, opts: ProfileOptions): ProviderProfile | null {
-  return listProfiles(opts).find((p) => !isStandardProfile(p) && p.issuer !== null && !p.issuer.startsWith('{') && new URL(p.issuer).origin === issuerOrigin) ?? null;
+  return reservedIssuerProfiles(opts).find((p) => new URL(p.issuer!).origin === issuerOrigin) ?? null;
 }
 
 export type LmsName = string;
 
-/** The LMS name in texts (security §12): Canvas profiles → Canvas, Blackboard profiles → Blackboard, else Moodle. */
+/** The manifest text name of the profile owner, with the standard channel as fallback (security §12). */
 export function lmsNameOf(p: ProviderProfile | null, opts: ProfileOptions = { simulation: true }): LmsName {
   return registryOf(opts).channels(true).textName(p?.channel ?? null);
 }

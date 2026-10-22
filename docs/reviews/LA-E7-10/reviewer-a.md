@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E7-10 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -76,3 +76,36 @@ Round: 1
 
 - The tests prove the npm arguments and the offline flags only with a fake `npm`. QA's real K0 run (AC-01) should confirm that `npm audit` with `npm_config_audit=false` still asks the registry and returns real counts. An empty report would be a false pass for step 3.
 - A review or doc that quotes a fake key now fails step 5 (rule 2 covers `docs/**`). Authors of review and QA files must describe such values in words.
+
+## Round 2
+
+- Diffs:
+  - Fix round 1: `git diff b5069f6^1 b5069f6` (A1 BD-A1-13).
+  - Fix round 2: `git diff 5b71bc5^1 5b71bc5`. The scanner moves to typed modules under `infra/scripts/ci-local/`, with per-step logs and a trimmed allow list.
+
+  The files at `HEAD` are the same as at `5b71bc5`.
+- References: my round-1 findings above; A1 BD-A1-13; README §4a "Step 5 rules".
+- I ran on the host (no network, no Docker):
+  - `node --test infra/scripts/ci-local.test.mjs`: 25 of 25 pass (fake `npm`).
+  - The real `secretScan` over the integration tree, read-only: `pass`, 0 findings, 0 stale entries.
+  - `scanText` on my round-1 probe forms, in memory only.
+- Blind review as before.
+- **Verdict (round 2): APPROVE.** The BLOCKER, the MINOR and NIT 04 are closed, and NIT 03 is accepted by A1 with no change. New: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+### Round-1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E7-10-01 (BLOCKER) | closed | BD-A1-13 (1): in code files (`infra/scripts/ci-local/secret-scan.mjs:104`), only a quoted literal right after the secret key is a value. So the identifier and call forms of the test env objects (the constant `LEGACY`, the call `hex(LEGACY)`) no longer count (probe: both pass), while a quoted literal in a `.ts` file still fails. Lane R re-ran step 5 on the integration tree and removed 21 stale entries. My own run of `secretScan` on the current tree gives `pass`, 0 findings, 0 stale entries. The Lead's merge check keeps step 5 green per merge SHA. |
+| A-LA-E7-10-02 (MINOR) | closed | BD-A1-13 (2): `${SECRET:-v}`, `${SECRET:=v}` (and the `-` and `=` forms) are read as values of that secret key in every file, whatever the key on the left (`:131-136`). "Not a value" is now exactly one whole placeholder (`${NAME}`, `${NAME:?…}`, `${NAME?…}`), `$NAME`, `<…>` or an empty string. Each of my four round-1 probe lines now gives `secret_assignment`: a compose default of the database password key, a `:=` default, a quoted self-default of the master key, and a quoted value with a placeholder at each end. The required form `${DB_PASS:?…}` and a single `${OTHER}` still pass. |
+| A-LA-E7-10-03 (NIT) | accepted, no change | BD-A1-13 keeps the design: README §4a already requires a clean clone, so the scan of the working tree is the documented contract. |
+| A-LA-E7-10-04 (NIT) | closed | Rule 1 now allows an optional ` BLOCK` after `PRIVATE KEY` (`:17`). A PGP armor header gives `private_key` (probe). |
+
+### Fix round 2 (checked for lens A)
+
+- No secret reaches stdout. Child output now goes only to `.tmp/ci/<step>.log`, which is git-ignored. Each log is opened with `O_NOFOLLOW` (a planted symlink is refused), mode `0600`, and `fchmod 0600` for an existing file. The summary line still has no child text, and it names the log path only when a step fails or has stale entries. A secret-scan log holds `{file, line, rule}` only.
+- The allow list is a separate module. An entry still needs the file, rule, digest and reason, and a match still needs all four.
+
+### Note (no finding)
+
+- By BD-A1-13 (1), a code-file value that is an expression is not checked, also when it holds a literal fallback. For example, a secret key set to an environment read with a quoted default after `??` passes rule 4. Rules 1–3 still catch key-shaped values. Review covers the rest.

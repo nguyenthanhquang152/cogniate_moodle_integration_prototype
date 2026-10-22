@@ -41,11 +41,12 @@ Secret files (never in git; mode `0600`; mounted read only):
 | `infra/.secrets/lti-api-key.<account>` | app (read at each use) | tool account API key (today) |
 | `infra/.secrets/lti-operator-key` | LTI service container (CLIs) | operator key of the host's operator. `npm run seed` makes it once (`lti:operator init --if-none`); `stack:up` does not |
 | `infra/.secrets/lti/keyring.json` | LTI service | key ring (when used) |
+| `infra/.secrets/lti/lti-operator-key` | LTI service container (CLIs) | a copy of `infra/.secrets/lti-operator-key` that the host wrapper writes atomically at each run (`0600`). A missing original deletes it; `stack:reset` deletes it (BD-A2-34) |
 | `infra/.secrets/operators.json` | app | allowed operator names (production) |
 
 Rules for the secret folders (build ratifications, [build decisions A2](build-decisions-A2.md) BD-A2-02, BD-A2-03):
 
-- `npm run stack:reset` deletes `seed.json`, the API key files and `lti-operator-key` together with the databases. It keeps `.env`, `infra/.certs/` and the key-ring folder `infra/.secrets/lti/`: key material, like the master key in `.env`. To remove a test ring, delete `infra/.secrets/lti/keyring.json` by hand.
+- `npm run stack:reset` deletes `seed.json`, the API key files, `lti-operator-key` and its copy `infra/.secrets/lti/lti-operator-key` together with the databases. It keeps `.env`, `infra/.certs/` and the key-ring folder `infra/.secrets/lti/`: key material, like the master key in `.env`. To remove a test ring, delete `infra/.secrets/lti/keyring.json` by hand.
 - The folder `infra/.secrets/lti/` (mode `0700`) must exist before any `docker compose up`. `npm run stack:up` and the QA runners (`prepare_e2e` in `infra/scripts/lib.sh`) make it. Without it, Docker makes the LTI service mount source as root, and the `e2e` container cannot start (its read-only bind of `infra/.secrets` cannot make the tmpfs mount point).
 - The `e2e` test container sees `infra/.secrets` read only, but never the key ring: an empty tmpfs covers `/repo/infra/.secrets/lti` ([security delta §10](security-delta.md#10-keys-and-secrets), visibility rule). QA writes a test ring only from its host clone (tasks README form (a)). Do not remove the tmpfs line to make the `e2e` container start: make the folder.
 
@@ -91,6 +92,7 @@ Rules:
 - In the `acceptance` profile only, the LTI operator listener binds the stack network, so QA's `e2e` container can call it (LA-ADR-06 D3). The `default` profile keeps loopback; `production` refuses any other bind.
 - In the pilot, a collector reads `/metrics` with `docker compose exec lti-service wget -qO- http://127.0.0.1:4110/metrics` (or a sidecar in the same network namespace). LG exposes it on a private network.
 - One LTI service process and one app process, each with one job runner. The app worker may run apart (`npm run worker`, LA-ADR-03 D7) only when the web process has `APP_JOB_RUNNER=off` and the worker has a distinct `JOB_INSTANCE_ID`. The runner then still keeps at most one send in flight per placement, learner and reporter (LA-ADR-03 D7, A-LAD-03).
+- Stop timing (BD-A2-31): a stop with no job in flight ends in about 1 s. With a job in flight, the service waits up to the job lease (60 s), and exits by itself at 70 s at the latest (`service_exit_forced`, exit code 1). Docker waits 75 s (`stop_grace_period`) before it kills. So `npm run stack:restart` can take up to about 75 s when a long job runs. Every interval job runs once at each start (BD-A2-32).
 - In-memory state (score clock, platform token cache, JWKS cache, rate-limit buckets) is per process. That is safe with one LTI service process only (LA-ADR-06 D13 item 4).
 
 ## 4. Observability signals

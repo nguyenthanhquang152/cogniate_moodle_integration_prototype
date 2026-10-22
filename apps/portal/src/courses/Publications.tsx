@@ -1,16 +1,17 @@
-import { MoodleCourse } from "./MoodleCourse.tsx";
 import { Badge } from "../ui/badge.tsx";
 import { buttonVariants, Button } from "../ui/button.tsx";
 import { Card } from "../ui/card.tsx";
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { api, idPath } from "../api.ts";
 import { useApi } from "../hooks.ts";
 import { useSession } from "../App.tsx";
 import type { Publication } from "../types.ts";
 import { ErrorNotice, Loading, Modal, formatName } from "../ui.tsx";
 import { lmsNames } from "../lms.ts";
-import { providerWizards } from "../connect/wizards.ts";
+import { useChannels } from "../channels/context.tsx";
+import { channelText } from "../channels/registry.ts";
+import { createPortalSdk } from "../sdk/index.ts";
 
 export function Publications({
   courseId,
@@ -20,6 +21,8 @@ export function Publications({
   onChanged: () => void;
 }) {
   const { library } = useSession();
+  const { modules } = useChannels();
+  const sdk = createPortalSdk(useNavigate(), onChanged);
   const pubState = useApi<{ publications: Publication[] }>(
     `/publications?courseId=${idPath(courseId)}`,
   );
@@ -85,13 +88,8 @@ export function Publications({
             <p className="text-muted-foreground">
               Version {publication.version} · {formatName(publication.format)}
             </p>
-            {publication.status === "available" && (publication.lms === "moodle" ? (
-              <p className="text-[12px] text-[#cbb9e0]">
-                Teachers: Edit mode → Add content → Activity or resource →
-                Cogniate ({library.name}) → Add → Select content
-              </p>
-            ) : <TeacherSteps lms={publication.lms} />)}
-            {publication.lms === "moodle" && <MoodleCourse publication={publication} />}
+            {publication.status === "available" && <TeacherSteps lms={publication.lms} libraryName={library.name} />}
+            {modules.get(publication.lms)?.publicationPanels?.map((Panel, index) => <Panel key={index} publication={publication} onChanged={onChanged} sdk={sdk} />)}
             <dl className="publication-stats m-0 flex gap-[25px] [&_dd]:text-[22px]">
               <div>
                 <dt>Selected in {lmsNames[publication.lms]}</dt>
@@ -180,7 +178,10 @@ export function Publications({
   );
 }
 
-function TeacherSteps({ lms }: { lms: "canvas" | "blackboard" }) {
-  const component = providerWizards[lms];
-  return component ? <component.TeacherSteps /> : null;
+function TeacherSteps({ lms, libraryName }: { lms: string; libraryName: string }) {
+  const { registry, modules } = useChannels();
+  const Teacher = modules.get(lms)?.TeacherSteps;
+  if (Teacher) return <Teacher />;
+  const manifest = registry.channel(lms);
+  return manifest ? <ol>{manifest.texts.teacherSteps.map((step, index) => <li key={index}>{channelText(manifest, step, libraryName)}</li>)}</ol> : null;
 }

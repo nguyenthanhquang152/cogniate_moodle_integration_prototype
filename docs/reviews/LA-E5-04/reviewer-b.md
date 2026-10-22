@@ -1,7 +1,39 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-04 review, Reviewer-B2 (lens: "Can a human team own it?")
+
+## Round 2
+
+Diff: `git diff 411689e^1 411689e` (lane S1 fix commits `dd0e95a`, `943c3ad`, `1b27923`, `3e5789b`, `0df1cc2`), with A2's BD-A2-25 (bootstrap keeps the stored URLs), BD-A2-26 (`claimPolicy: null` is never an input), BD-A2-27 (close stays in `PATCH`, with a runbook check) and BD-A2-29 (audit action chosen inside the change). I did not open any reviewer-a file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT.** Both round-1 MINOR findings and all round-1 NIT findings are **closed**.
+
+How I checked: a scratch clone of `411689e` (private `/tmp` folder, deleted after the run). `vitest run` on `services/lti-service/src/{http,store,cli,accounts}`: **36 files, 481 tests passed**.
+
+### Round-1 findings
+
+| Finding | Status |
+| --- | --- |
+| B-LA-E5-04-01 (MINOR) | **Closed.** `invalidAccount()` (`http/operator/accounts.ts:17-29`) keeps the field name and adds the rule for `id`, the three tool URLs, `publicBaseUrl`, `status` and `claimPolicy`, in the description and in `details.rule`. For example: `Invalid field: launchUrl. Use an https URL with no user info, fragment or surrounding spaces, at most 2048 characters, outside the LTI and content hosts.` A table test asserts field, rule and description for each case. |
+| B-LA-E5-04-02 (MINOR) | **Closed** (BD-A2-26). `claimPolicy` is no longer nullable on `POST` or `PATCH`: `null` gives `400` with the rule "null is only a stored legacy marker". `POST` without the field stores the allowlist default. A legacy `null` row still reads as `null`. The constant has the two-line comment (`store/accounts.ts:27-28`). |
+| B-LA-E5-04-03 (NIT) | **Closed by A2** (BD-A2-27). The `PATCH` form stays. Operability §8 "Close a tool account" now starts with "GET the account and check the id and the name", then uses the id from that answer. |
+| B-LA-E5-04-04 (NIT) | **Closed** by LA-E5-07. The runtime `sqlite_master` check is gone: close calls `revokeAccountApiKeys` (`store/accounts.ts:88`), and the auth test no longer builds a fake `api_key` table. |
+| B-LA-E5-04-05 (NIT) | **Closed.** The CLI prints `Unknown tool account: <id>.` again (`cli/shared-platform.ts:26`), with a test. Account create logs `signing_key_changed {tool_account_id, kid, status: 'active'}` for the first key (`accounts.ts:73`), with a test. |
+
+Also in this round, and clear:
+- BD-A2-25: `lti:bootstrap` keeps the stored tool URLs, and keeps the name unless `--name` is given. The `ensureAccount` comment says so. A test covers three accounts, also with key rotation, and operability §8 has a new row for a `PUBLIC_APP_URL` change.
+- BD-A2-29: the `PATCH` audit action is chosen from the status read inside `audit.change`. A refused request keeps `account.update` with the request field names.
+
+### New in this round
+
+#### B-LA-E5-04-06 — NIT — The `audit.change` doc does not state the rule for the new `action` override
+
+- **File:** `services/lti-service/src/store/audit.ts:110-114`.
+- **Problem:** `describe` may now return `action` (BD-A2-29), and the type is a plain `string`. BD-A2-29 adds two rules: the action must be one of the contract §5 actions of that route, and a refused event keeps the base action. Neither rule is in the doc comment of `change`. The next route author who reads the interface sees only "The event of `describe` may use the result". Nothing stops a free-text action.
+- **Suggested fix:** Add one sentence to the doc comment: "`describe` may return `action`, which must be one of the contract delta §5 actions of this route (BD-A2-29); a refused event always keeps the base action."
+
+## Round 1
 
 Reviewer: Reviewer-B2, the second lens-B instance (plan LD-22). Diff: `git diff a00c090^1 a00c090` (the merge of lane S1 for LA-E5-04, with the RQ-2 commits `5a422c9` and `1f860ad`). Spec: `docs/architecture/ltiaas/tasks/LA-E5-04.md`. Design: LA-ADR-06 D2, D7 "First key"; LA-ADR-05 D7; LA-ADR-07 D1; contract delta §1.3, §1.5, §3, §5; operability §8; BD-A2-07, BD-A2-12. I did not open any reviewer-a file. I did not run Docker.
 

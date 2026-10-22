@@ -8,8 +8,8 @@ import { Link } from "react-router";
 import { ArrowUpRight, Plus } from "lucide-react";
 import { useApi } from "./hooks.ts";
 import type { Connection, LmsProvidersResponse } from "./types.ts";
-import { BLACKBOARD_NOT_READY, isLms } from "./lms.ts";
-import { providerWizards } from "./connect/wizards.ts";
+import { channelOf, channelText, visibleChannels } from "./channels/registry.ts";
+import { useChannels } from "./channels/context.tsx";
 import {
   ConnectionBadge,
   ConnectionError,
@@ -18,7 +18,7 @@ import {
 } from "./ui.tsx";
 
 const filters = ["All", "LMS Publishing", "LLM/AI", "Creative", "Knowledge"];
-const integrations = [
+const staticIntegrations = [
   {
     name: "Kajabi",
     mark: "K",
@@ -26,28 +26,6 @@ const integrations = [
     color: "blue",
     description:
       "Publish and sell your courses directly on Kajabi with seamless content sync.",
-  },
-  {
-    name: "Moodle",
-    mark: "m",
-    category: "LMS Publishing",
-    color: "orange",
-    description:
-      "Export SCORM packages and sync course content with your Moodle LMS.",
-  },
-  {
-    name: "Canvas",
-    mark: "Cv",
-    category: "LMS Publishing",
-    color: "red",
-    description: "Publish Cogniate courses to Canvas with LTI 1.3.",
-  },
-  {
-    name: "Blackboard",
-    mark: "Bb",
-    category: "LMS Publishing",
-    color: "blue",
-    description: "Publish Cogniate courses to Blackboard Learn with LTI 1.3.",
   },
   {
     name: "Figma",
@@ -108,11 +86,15 @@ const integrations = [
 ] as const;
 export function Integrations() {
   const session = useSession();
+  const { registry } = useChannels();
   const [filter, setFilter] = useState("All");
   const { data, error, loading, reload } = useApi<{
     connections: Connection[];
   }>("/connections", 5000);
   const providers = useApi<LmsProvidersResponse>("/lms-providers");
+  const cards = visibleChannels(registry, providers.data?.lms).map((manifest) => ({ ...manifest.card, name: manifest.card.title, channel: manifest.id }));
+  const staticCards = staticIntegrations.map((card) => ({ ...card, channel: null }));
+  const integrations = [staticCards[0]!, ...cards, ...staticCards.slice(1)];
   const connections = [...(data?.connections ?? [])].sort((a, b) =>
     b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id),
   );
@@ -150,12 +132,12 @@ export function Integrations() {
         {integrations
           .filter((item) => filter === "All" || item.category === filter)
           .map((item) => {
-            const type = item.name.toLowerCase();
-            const lms = isLms(type) ? type : null;
-            const newest = lms ? connections.find((connection) => connection.lms === lms) : undefined;
-            const provider = providers.data?.lms.find((entry) => entry.lms === lms);
-            const ready = lms === "moodle" || (!!provider?.profiles.some((profile) => profile.ready) && !!providerWizards[lms as "canvas" | "blackboard"]);
-            const notReady = lms === "blackboard" && !!provider && !provider.profiles.some((profile) => profile.ready);
+            const lms = item.channel;
+            const manifest = lms ? registry.channel(lms) : null;
+            const newest = lms ? connections.find((connection) => channelOf(connection) === lms) : undefined;
+            const provider = providers.data?.lms.find((entry) => channelOf(entry) === lms);
+            const ready = !!provider?.profiles.some((profile) => profile.ready);
+            const notReady = manifest?.texts.notReady && provider && !ready ? channelText(manifest, manifest.texts.notReady) : null;
             return (
             <Card
               as="article"
@@ -212,7 +194,7 @@ export function Integrations() {
                 {item.name}
               </h2>
               <p>{item.description}</p>
-              {notReady && <p role="status">{BLACKBOARD_NOT_READY}</p>}
+              {notReady && <p role="status">{notReady}</p>}
               {lms && newest && (
                 <div className="mt-[15px] flex flex-col items-start gap-2.5 border-t border-[#ffffff12] pt-3 [&>a]:inline-flex [&>a]:items-center [&>a]:gap-1 [&>a]:text-[12px] [&>a]:text-[#d7b9ff] [&>a]:no-underline">
                   <ConnectionBadge connection={newest} />

@@ -3,7 +3,8 @@
  * table with the LMS name as a parameter (security §12): `{LMS}` is `Moodle`, `Canvas` or `Blackboard`. With
  * `Moodle` every text is byte for byte the text before M1.
  */
-import type { LmsName } from '../profiles/index.ts';
+import type { LmsName, ProfileOptions } from '../profiles/index.ts';
+import { lmsNameOf, reservedIssuerLmsNames } from '../profiles/index.ts';
 
 export type ProtocolErrorCode =
   | 'UNKNOWN_TOOL_ACCOUNT' | 'UNKNOWN_PLATFORM' | 'PLATFORM_NOT_ACTIVE' | 'UNKNOWN_DEPLOYMENT' | 'INVALID_TARGET_LINK_URI'
@@ -38,22 +39,23 @@ export const PROTOCOL_ERRORS: Record<ProtocolErrorCode, { status: number; action
   MISSING_CLAIM: { status: 400, action: RESTART },
   PLATFORM_ERROR: { status: 400, action: '{LMS} stopped the launch. Start again from {LMS}, or ask your {LMS} admin.' },
   METHOD_NOT_ALLOWED: { status: 405, action: 'Open the activity from {LMS}.' },
-  INVALID_OPENID_CONFIGURATION: { status: 400, action: 'Moodle sent a registration that Cogniate cannot use. Start the registration again from Moodle. If it happens again, give the trace id to your Cogniate admin.' },
-  ISSUER_MISMATCH: { status: 400, action: 'The platform configuration is not from the site that started the registration. Start the registration again from Moodle (Site administration > Manage tools).' },
-  FETCH_FAILED: { status: 400, action: 'Cogniate could not read the platform configuration. Check that the Moodle site can be reached, then start the registration again.' },
+  INVALID_OPENID_CONFIGURATION: { status: 400, action: '{LMS} sent a registration that Cogniate cannot use. Start the registration again from {LMS}. If it happens again, give the trace id to your Cogniate admin.' },
+  ISSUER_MISMATCH: { status: 400, action: 'The platform configuration is not from the site that started the registration. Start the registration again from {LMS} (Site administration > Manage tools).' },
+  FETCH_FAILED: { status: 400, action: 'Cogniate could not read the platform configuration. Check that the {LMS} site can be reached, then start the registration again.' },
   DEPLOYMENT_NOT_ACTIVE: { status: 403, action: 'The connection to this {LMS} site is switched off. Ask your Cogniate admin to check the connection in the Cogniate portal.' },
   PROVIDER_PROFILE_MISMATCH: { status: 400, action: 'This {LMS} site is connected to Cogniate in the wrong way. Ask your Cogniate admin to connect it as {LMS} in the Cogniate portal.' },
   SERVICE_ORIGIN_MISMATCH: { status: 400, action: 'The {LMS} address in this launch is not the address saved in Cogniate. Ask your Cogniate admin to check the site URL.' },
-  ISSUER_RESERVED: { status: 400, action: 'This address belongs to a hosted LMS. Connect it as Canvas or Blackboard in the Cogniate portal.' },
+  ISSUER_RESERVED: { status: 400, action: 'This address belongs to a hosted LMS. Connect it as {LMS} in the Cogniate portal.' },
   RATE_LIMITED: { status: 429, action: 'Too many requests. Wait one minute, then open the activity again from {LMS}.' },
 };
 
 /** Fill `{LMS}` in a text template. */
-export const withLms = (text: string, lms: LmsName): string => text.replaceAll('{LMS}', lms);
+export const withLms = (text: string, lms: LmsName): string => text.replaceAll('{LMS}', () => lms);
 
 /** The action line of a code for an LMS (default Moodle: the texts before M1). */
-export function protocolAction(code: ProtocolErrorCode, lms: LmsName = 'Moodle'): string {
-  return withLms(PROTOCOL_ERRORS[code].action, lms);
+export function protocolAction(code: ProtocolErrorCode, lms?: LmsName, profiles: ProfileOptions = { simulation: true }): string {
+  const name = code === 'ISSUER_RESERVED' ? reservedIssuerLmsNames(profiles) : lms ?? lmsNameOf(null, profiles);
+  return withLms(PROTOCOL_ERRORS[code].action, name);
 }
 
 /** Help texts for STATE_COOKIE_MISSING (security §2.2, "Other launch cases"), as templates. */
@@ -65,7 +67,7 @@ const COOKIE_HELP_TEMPLATES = {
 
 export type CookieHelpKind = keyof typeof COOKIE_HELP_TEMPLATES;
 
-export function cookieHelp(kind: CookieHelpKind, lms: LmsName = 'Moodle'): string {
+export function cookieHelp(kind: CookieHelpKind, lms: LmsName = lmsNameOf(null)): string {
   return withLms(COOKIE_HELP_TEMPLATES[kind], lms);
 }
 

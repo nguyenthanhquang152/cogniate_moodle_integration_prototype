@@ -1,7 +1,7 @@
 // lti-service entry point. Public URL: PUBLIC_LTI_URL (proxy -> :4100). Contract: docs/architecture/contracts/lti-service-api.md
 import { join } from 'node:path';
-import type { Logger } from '@cogniate/shared';
-import { createLogger, createOutboundClient, readServiceKnobs, startRetention } from '@cogniate/shared';
+import type { JobRunner, Logger } from '@cogniate/shared';
+import { createLogger, createOutboundClient, readServiceKnobs } from '@cogniate/shared';
 import type { FastifyInstance } from 'fastify';
 import type { LtiConfig } from './config.ts';
 import { hostPort, loadConfig } from './config.ts';
@@ -15,7 +15,7 @@ import { createAgsClient } from './platform/ags.ts';
 import { createNrpsClient } from './platform/nrps.ts';
 import { createScoreClock } from './platform/score-clock.ts';
 import { createTokenClient } from './platform/token-client.ts';
-import { cleanupExpired } from './store/retention.ts';
+import { createLtiJobRunner } from './jobs/index.ts';
 
 const SERVICE = 'lti-service';
 
@@ -25,7 +25,8 @@ export interface LtiService {
   logger: Logger;
   app: FastifyInstance;
   operatorApp: FastifyInstance;
-  /** Stop retention, close both listeners, then the database. */
+  jobs: JobRunner;
+  /** Drain the runner, close both listeners, then the database. */
   close: () => Promise<void>;
 }
 
@@ -50,6 +51,7 @@ export async function startLtiService(options: { logger?: Logger } = {}): Promis
   });
   // LA-ADR-06 D3: the operator API on its own listener (no proxy route).
   const operatorApp = await buildOperatorApp({ db, logger, keys: config.masterKey, urls: config.urls, simulationProfiles: config.simulationProfiles });
+  const jobs = createLtiJobRunner({ db, logger });
   await app.listen({ port: config.port, host: '0.0.0.0' });
   await operatorApp.listen({ port: config.operatorPort, host: config.operatorHost });
   logger.info('service_started', {
@@ -57,15 +59,15 @@ export async function startLtiService(options: { logger?: Logger } = {}): Promis
     outbound_allowlist: outbound.allowlist, knobs, simulation_profiles: simulationProfileIds(config.simulationProfiles),
     operator_bind: hostPort(config.operatorHost, config.operatorPort),
   });
-  // Retention (data-model §2.1): at start and every 10 min.
-  const retention = startRetention({ logger, run: () => cleanupExpired(db, Date.now()) });
+  jobs.start();
 
-  const close = async (): Promise<void> => {
-    retention.stop();
+  let closing: Promise<void> | undefined;
+  const close = (): Promise<void> => closing ??= (async () => {
+    await jobs.stop();
     await Promise.allSettled([app.close(), operatorApp.close()]);
     db.close();
-  };
-  return { config, db, logger, app, operatorApp, close };
+  })();
+  return { config, db, logger, app, operatorApp, jobs, close };
 }
 
 if (import.meta.main) {
@@ -73,7 +75,7 @@ if (import.meta.main) {
   const stop = (signal: string): void => {
     service.logger.info('service_stopping', { signal });
     service.close().finally(() => process.exit(0));
-    setTimeout(() => process.exit(0), 3000).unref();
+    // runner.stop owns the lease-based grace period; a shorter exit timer would leave its heartbeat behind.
   };
   process.once('SIGTERM', () => stop('SIGTERM'));
   process.once('SIGINT', () => stop('SIGINT'));

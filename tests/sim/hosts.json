@@ -1,0 +1,78 @@
+{
+  "version": 1,
+  "providers": [
+    {
+      "id": "blackboard-sim",
+      "aliases": [
+        "developer.blackboard.sim.test",
+        "learn-a.blackboard.sim.test",
+        "learn-b.blackboard.sim.test"
+      ],
+      "allowlist": [
+        "developer.blackboard.sim.test",
+        "learn-a.blackboard.sim.test",
+        "learn-b.blackboard.sim.test"
+      ]
+    },
+    {
+      "id": "canvas-sim-cloud",
+      "aliases": [
+        "sso.canvas.sim.test",
+        "school-a.canvas.sim.test",
+        "school-b.canvas.sim.test",
+        "canvas.school-a.sim.test"
+      ],
+      "allowlist": [
+        "sso.canvas.sim.test",
+        "school-a.canvas.sim.test",
+        "school-b.canvas.sim.test"
+      ]
+    },
+    {
+      "id": "canvas-sim-self",
+      "aliases": [
+        "canvas-self.sim.test",
+        "api.canvas-self.sim.test"
+      ],
+      "allowlist": [
+        "canvas-self.sim.test",
+        "api.canvas-self.sim.test"
+      ]
+    },
+    {
+      "id": "generic-sim",
+      "aliases": [
+        "generic.sim.test",
+        "token.generic.sim.test",
+        "school-b.generic.sim.test"
+      ],
+      "allowlist": [
+        "generic.sim.test",
+        "token.generic.sim.test",
+        "school-b.generic.sim.test"
+      ]
+    },
+    {
+      "id": "moodle-sim",
+      "aliases": [
+        "moodle.sim.test"
+      ],
+      "allowlist": [
+        "moodle.sim.test"
+      ]
+    },
+    {
+      "id": "brightspace-sim",
+      "aliases": [
+        "brightspace.sim.test",
+        "auth.brightspace.sim.test",
+        "school-b.brightspace.sim.test"
+      ],
+      "allowlist": [
+        "brightspace.sim.test",
+        "auth.brightspace.sim.test",
+        "school-b.brightspace.sim.test"
+      ]
+    }
+  ]
+}

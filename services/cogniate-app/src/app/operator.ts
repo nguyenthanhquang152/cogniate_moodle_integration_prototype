@@ -148,7 +148,8 @@ export function createOperator(deps: OperatorDeps) {
   }
 
   const bindingOf = (c: Connection): string => {
-    if (attemptsOfConnection(db, c.id).some((a) => a.targetKind === 'shared_deployment')) {
+    const attempts = attemptsOfConnection(db, c.id);
+    if (attempts.some((a) => a.targetKind === 'shared_deployment') || (attempts.length === 0 && providerOf(c.channel)?.sharingOf(c.profile) === 'shared')) {
       const r = reservationOfConnection(db, c.id);
       return r ? `Blackboard deployment ${r.deploymentId} of ${r.platformId}` : 'Blackboard: no reservation';
     }

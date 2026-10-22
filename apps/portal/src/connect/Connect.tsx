@@ -2,14 +2,21 @@ import { IntegrationLogo } from "../IntegrationLogo.tsx";
 import { useEffect } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { ArrowLeft } from "lucide-react";
-import { CreateConnection } from "./CreateConnection.tsx";
 import { ConnectionSetup } from "./ConnectionSetup.tsx";
-import type { Lms } from "../types.ts";
-import { lmsNames } from "../lms.ts";
 import { ProviderSetup } from "./ProviderSetup.tsx";
+import { useChannels } from "../channels/context.tsx";
+import { visibleChannels } from "../channels/registry.ts";
+import { useApi } from "../hooks.ts";
+import type { LmsProvidersResponse } from "../types.ts";
+import { ErrorNotice, Loading } from "../ui.tsx";
+import { NotFound } from "../NotFound.tsx";
 
-export function Connect({ lms = "moodle" }: { lms?: Lms }) {
-  const { connectionId } = useParams();
+export function Connect() {
+  const { channelId = "", connectionId } = useParams();
+  const { registry } = useChannels();
+  const manifest = registry.channel(channelId);
+  const providers = useApi<LmsProvidersResponse>("/lms-providers");
+  const lms = channelId;
   const navigate = useNavigate();
   const location = useLocation();
   const opener =
@@ -25,6 +32,11 @@ export function Connect({ lms = "moodle" }: { lms?: Lms }) {
     document.addEventListener("keydown", escape);
     return () => document.removeEventListener("keydown", escape);
   }, [navigate, opener]);
+  if (!manifest) return <NotFound />;
+  if (manifest.availability === "simulation-only") {
+    if (!providers.data) return providers.error ? <ErrorNotice error={providers.error} /> : <Loading />;
+    if (!visibleChannels(registry, providers.data.lms).some((entry) => entry.id === channelId)) return <NotFound />;
+  }
   return (
     <div className="connect-page">
       <Link
@@ -36,29 +48,19 @@ export function Connect({ lms = "moodle" }: { lms?: Lms }) {
         Integrations
       </Link>
       <div className="mt-[26px] mb-[30px] [&_h1]:mt-[7px] [&_h1]:mb-2.5 [&_p:not(.eyebrow)]:text-muted-foreground flex items-center gap-[18px]">
-        <IntegrationLogo large name={lmsNames[lms]} mark={lms === "canvas" ? "Cv" : "Bb"} color={lms === "moodle" ? "orange" : "red"} />
+        <IntegrationLogo large name={manifest.card.title} mark={manifest.card.mark} color={manifest.card.color} />
         <div>
           <p className="eyebrow mb-[5px] text-[10px] font-semibold tracking-[0.15em] text-[#b3a4c6]">
             LMS PUBLISHING
           </p>
           <h1 tabIndex={-1}>
-            {connectionId ? "Manage" : "Connect"} {lmsNames[lms]}
+            {connectionId ? "Manage" : "Connect"} {manifest.names.text}
           </h1>
-          <p>Bring your course library to your {lmsNames[lms]} site.</p>
+          <p>Bring your course library to your {manifest.names.text} site.</p>
         </div>
       </div>
       {connectionId ? (
         <ConnectionSetup key={`${lms}:${connectionId}`} id={connectionId} lms={lms} opener={opener} />
-      ) : lms === "moodle" ? (
-        <CreateConnection
-          opener={opener}
-          onCreated={(id) =>
-            navigate(`/integrations/moodle/${id}`, {
-              replace: true,
-              state: { opener },
-            })
-          }
-        />
       ) : <ProviderSetup key={`${lms}:new`} lms={lms} connection={null} opener={opener}
         onCreated={(connection) => navigate(`/integrations/${lms}/${connection.id}`, { replace: true, state: { opener } })}
         onChanged={() => undefined} />}

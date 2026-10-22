@@ -12,9 +12,11 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { LtiClient } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import type { LmsType } from '../providers/types.ts';
+import { providerOf } from '../providers/index.ts';
 import { createConnection, disableConnection } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { openDb } from '../domain/db.ts';
+import { publicationResults } from '../domain/results.ts';
 import { beginSend } from '../domain/score-syncs.ts';
 import { NO_GRADEBOOK_COLUMN, createScoreSyncWorker } from './score-sync.ts';
 
@@ -43,10 +45,10 @@ function setup() {
 
 function connection(db: Db, lms: LmsType, name: string): string {
   const c = lms === 'moodle'
-    ? createConnection(db, LIB, { channel: 'moodle', name, siteUrl: 'https://moodle.test', method: 'manual' }, null, 0, TEST_CHANNELS, 'exclusive')
+    ? createConnection(db, LIB, { channel: 'moodle', name, siteUrl: 'https://moodle.test', method: 'manual' }, null, 0, TEST_CHANNELS, providerOf(lms)!.sharingOf)
     : lms === 'canvas'
-      ? createConnection(db, LIB, { name, siteUrl: 'https://school-a.canvas.sim.test', method: 'manual', channel: lms, profile: 'canvas-sim-cloud' }, null, 0, TEST_CHANNELS, 'exclusive')
-      : createConnection(db, LIB, { name, siteUrl: 'https://learn-a.blackboard.sim.test', method: 'manual', channel: lms, profile: 'blackboard-sim' }, null, 0, TEST_CHANNELS, 'exclusive');
+      ? createConnection(db, LIB, { name, siteUrl: 'https://school-a.canvas.sim.test', method: 'manual', channel: lms, profile: 'canvas-sim-cloud' }, null, 0, TEST_CHANNELS, providerOf(lms)!.sharingOf)
+      : createConnection(db, LIB, { name, siteUrl: 'https://learn-a.blackboard.sim.test', method: 'manual', channel: lms, profile: 'blackboard-sim' }, null, 0, TEST_CHANNELS, providerOf(lms)!.sharingOf);
   db.prepare("UPDATE connection SET status = 'registered' WHERE id = ?").run(c.id);
   db.prepare("INSERT INTO publication (id, connection_id, course_id, current_version_id, status, created_at, updated_at) VALUES (?, ?, 'crs_w', 'ver_w', 'available', 0, 0)").run(`pub_${name}`, c.id);
   return c.id;
@@ -198,7 +200,7 @@ it('AC-LA-E1-06-06: disabled zz-test grant rows fail without POST; self rows sti
   const { db } = setup();
   const syncs: string[] = [];
   for (const [index, method] of (['manual', 'dynamic'] as const).entries()) {
-    const c = createConnection(db, LIB, { name: method, siteUrl: 'https://school.test', channel: 'zz-test', method }, null, 0, channels, 'exclusive');
+    const c = createConnection(db, LIB, { name: method, siteUrl: 'https://school.test', channel: 'zz-test', method }, null, 0, channels, () => 'exclusive');
     db.prepare("INSERT INTO publication (id, connection_id, course_id, current_version_id, status, created_at, updated_at) VALUES (?, ?, 'crs_w', 'ver_w', 'available', 0, 0)").run(`pub_${method}`, c.id);
     syncs.push(dueRow(db, c.id, index + 1, { lineItem: `line${index + 1}` }));
     disableConnection(db, LIB, c.id, NOW);
@@ -211,4 +213,16 @@ it('AC-LA-E1-06-06: disabled zz-test grant rows fail without POST; self rows sti
   expect(lti.posts).toEqual(['line2']);
   expect(row(db, syncs[0]!)).toMatchObject({ status: 'failed', tries: 0, last_error: 'CONNECTION_DISABLED' });
   expect(row(db, syncs[1]!)).toMatchObject({ status: 'sent', tries: 1, last_error: null });
+});
+
+// BD-A1-27: these user-visible values stay frozen until LA-IC-15.
+it.each(['moodle', 'canvas', 'blackboard'] as const)('%s keeps the frozen 409 lastError and learner fallback', async (channel) => {
+  const { db } = setup();
+  const con = connection(db, channel, 'frozen');
+  const sync = dueRow(db, con, 1, { lineItem: 'line1' });
+  const lti = fakeLti({ onPost: () => { throw new LtiServiceError(409, 'CONFLICT', 'Newer score.'); } });
+  await worker(db, lti.client).w.kick();
+  expect(row(db, sync)?.last_error).toBe('409 CONFLICT: Newer score. (Moodle has a grade with a newer time)');
+  db.prepare('UPDATE connection SET site_url = ? WHERE id = ?').run('invalid site', con);
+  expect(publicationResults(db, { connectionId: con, courseId: 'crs_w' }, TEST_CHANNELS)[0]?.learner.label).toBe('Learner u @ Moodle');
 });

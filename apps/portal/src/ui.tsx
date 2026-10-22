@@ -5,10 +5,11 @@ import { Notice } from "./ui/notice.tsx";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { Check, Copy } from "lucide-react";
-import { pendingToolText } from "../../../packages/shared/src/html.ts";
 import { ApiError } from "./api.ts";
 import type { Connection } from "./types.ts";
-import { lmsNames } from "./lms.ts";
+import { channelOf, channelRegistry, channelText } from "./channels/registry.ts";
+import { useChannels } from "./channels/context.tsx";
+import { createPortalSdk } from "./sdk/index.ts";
 
 export function ErrorNotice({ error }: { error: unknown }) {
   if (!error) return null;
@@ -43,22 +44,20 @@ export function ErrorNotice({ error }: { error: unknown }) {
     </Notice>
   );
 }
-export function ConnectionError({
-  connection,
-  libraryName,
-}: {
-  connection: Connection;
-  libraryName?: string;
-}) {
-  const error = connection.lastError;
+export function ConnectionError({ connection, libraryName = "" }: { connection: Connection; libraryName?: string }) {
+  const { modules } = useChannels();
+  const Slot = modules.get(channelOf(connection))?.ConnectionError;
+  if (!connection.lastError) return null;
+  const props = { connection, error: connection.lastError, libraryName, sdk: createPortalSdk((to) => window.location.assign(to)) };
+  return Slot ? <Slot {...props} Default={DefaultConnectionError} /> : <DefaultConnectionError {...props} />;
+}
+export function DefaultConnectionError({ connection, error = connection.lastError }: { connection: Connection; error?: Connection["lastError"] }) {
   if (!error) return null;
   return (
     <Notice variant="error" role="alert">
-      <p>{error.title ?? (connection.lms === "moodle" ? "The Moodle connection failed." : "The connection failed.")}</p>
+      <p>{error.title ?? "The connection failed."}</p>
       {error.action ? (
         <p>{error.action}</p>
-      ) : connection.lms === "moodle" && error.code === "MOODLE_TOOL_MAY_EXIST" && libraryName ? (
-        <p>{pendingToolText(`Cogniate (${libraryName})`)}</p>
       ) : null}
       <small>
         Code: {error.code}
@@ -69,8 +68,11 @@ export function ConnectionError({
   );
 }
 export function connectionStatus(connection: Connection): string {
-  if (connection.status === "registered")
-    return connection.lms === "moodle" ? "Registered — activate in Moodle" : "Registered";
+  const manifest = channelRegistry.channel(channelOf(connection));
+  if (connection.status === "registered") {
+    const registered = manifest?.texts.registered ?? "Registered";
+    return manifest ? channelText(manifest, registered) : registered;
+  }
   if (connection.status === "connected") return "Connected";
   if (connection.status === "disabled") return "Disconnected";
   if (
@@ -78,7 +80,7 @@ export function connectionStatus(connection: Connection): string {
     new Date(connection.registrationUrlExpiresAt).getTime() <= Date.now()
   )
     return "Link expired";
-  if (connection.registrationUrl) return `Waiting for ${lmsNames[connection.lms]}`;
+  if (connection.registrationUrl) return `Waiting for ${connection.channelName ?? channelRegistry.textName(channelOf(connection))}`;
   return "Pending";
 }
 export function ConnectionBadge({ connection }: { connection: Connection }) {

@@ -1,4 +1,4 @@
-import type { ChannelRegistry } from '@cogniate/channel-kernel';
+import { LEGACY_LEARNER_HOST, type ChannelRegistry } from '@cogniate/channel-kernel';
 // Publication results (app contract §5 ResultRow, T5a; H5) and the outcome stats. One row per learner per activity
 // (resource link); preview attempts are rows with preview: true. An attempt shows under the publication of its own
 // course (data-model §2: after a rebind, an old attempt stays with its own course's publication).
@@ -53,12 +53,12 @@ function syncsOf(db: Db, attemptIds: string[]): SyncRowView[] {
   }));
 }
 
-const learnerLabel = (sub: string, issuer: string | null, name: string): string => {
-  let host = name;
+const learnerLabel = (sub: string, issuer: string | null): string => {
+  let host: string = LEGACY_LEARNER_HOST;
   try {
     if (issuer) host = new URL(issuer).host;
   } catch {
-    host = name;
+    host = LEGACY_LEARNER_HOST;
   }
   return `Learner ${sub} @ ${host}`;
 };
@@ -82,7 +82,7 @@ export function gradebookDiffers(gradebook: { resultScore: number | null; result
 }
 
 /** ResultRows of one publication (the caller checked the library). Oldest activity and learner first. */
-export function publicationResults(db: Db, p: { connectionId: string; courseId: string }, channels: ChannelRegistry) {
+export function publicationResults(db: Db, p: { connectionId: string; courseId: string }, _channels: ChannelRegistry) {
   const attempts = attemptsOfPublication(db, p.connectionId, p.courseId);
   const syncs = syncsOf(db, attempts.map((a) => a.id));
   const groups = new Map<string, AttemptRow[]>();
@@ -97,7 +97,7 @@ export function publicationResults(db: Db, p: { connectionId: string; courseId: 
     const rowSyncs = syncs.filter((s) => ids.has(s.attemptId));
     const gradebook = first.preview ? null : gradebookOf(db, first.resourceLinkId, first.userSub);
     return {
-      learner: { sub: first.userSub, label: learnerLabel(first.userSub, first.issuer, channels.textName(first.channel)) },
+      learner: { sub: first.userSub, label: learnerLabel(first.userSub, first.issuer) },
       activity: { resourceLinkId: first.resourceLinkId, contextTitle: first.contextTitle, title: first.title },
       preview: first.preview,
       best: { attemptId: best.id, outcome: best.outcome, scoreGiven: best.scoreGiven, scoreMaximum: best.scoreMaximum },
