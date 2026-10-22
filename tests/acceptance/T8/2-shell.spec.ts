@@ -31,6 +31,7 @@ async function openPublishDialog(page: Page, courseId: string) {
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
   const select = dialog.getByRole('combobox', { name: 'LMS connection' });
+  await expect(select.locator('option', { hasText: `${conn.json.name} (Moodle, ` }).first()).toBeAttached();
   const label = await select.locator('option').evaluateAll((opts, name) => opts.map((o) => o.textContent ?? '').find((t) => t.startsWith(`${name} (Moodle, `)) ?? '', conn.json.name);
   expect(label, `option for the connection "${conn.json.name}"`).toBeTruthy();
   await select.selectOption({ label });
