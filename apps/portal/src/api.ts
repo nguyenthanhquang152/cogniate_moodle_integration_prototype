@@ -69,7 +69,11 @@ export const idPath = (id: string): string => encodeURIComponent(id);
 export function extension<T>(connectionId: string, path: string, options: Parameters<typeof api>[1] = {}): Promise<T> {
   const decoded = decodeURIComponent(path);
   if (!decoded.startsWith("/") || decoded.startsWith("//") || decoded.includes("..") || decoded.includes("\\")) throw new Error("Use an extension-relative path.");
-  return api<T>(`/connections/${idPath(connectionId)}/x${path}`, options);
+  const prefix = `/connections/${idPath(connectionId)}/x`;
+  // The URL parser removes tabs and line breaks before resolving dot segments.
+  const resolved = new URL(`/app-api${prefix}${path}`, window.location.origin);
+  if (!resolved.pathname.startsWith(`/app-api${prefix}/`)) throw new Error("Use an extension-relative path.");
+  return api<T>(`${prefix}${path}`, options);
 }
 
 /** Keep the exact export bytes and its snapshot header together. */
