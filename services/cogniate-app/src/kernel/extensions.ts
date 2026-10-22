@@ -5,7 +5,7 @@ import type { CapabilityId, ChannelRegistry } from '@cogniate/channel-kernel';
 import { EMPTY_PUBLICATION_EXTENSION_FIELDS, EXTENSION_CAPABILITY_MEMBERS, EXTENSION_GUARDS, PACKAGE_EXPORT_WIRE, PUBLICATION_EXTENSION_FIELDS } from '@cogniate/channel-kernel';
 import { getConnection } from '../domain/connections.ts';
 import { parseStrictBody } from '@cogniate/channel-kernel/setup';
-import type { SetupRouteDeps as ProviderRouteDeps } from './setup/deps.ts';
+import type { SetupRouteDeps } from './setup/deps.ts';
 import { ApiError } from '../app/api-errors.ts';
 import type { CourseVersionView, ExporterContext, ExtensionRoute, PackageExporter, PortContext, PublicationView } from './ports.ts';
 import { setupOf } from './setup.ts';
@@ -31,7 +31,7 @@ export function publicationExtensionFields(channels: ChannelRegistry, publicatio
 
 type IdParams = { Params: { id: string } };
 
-export function registerDeploymentRoutes(api: FastifyInstance, deps: ProviderRouteDeps): void {
+export function registerDeploymentRoutes(api: FastifyInstance, deps: SetupRouteDeps): void {
   api.post<IdParams>('/connections/:id/deployments', async (req: FastifyRequest<IdParams>) => {
     const library = req.auth!.signedIn.library;
     const c = getConnection(deps.db, library.id, req.params.id);
