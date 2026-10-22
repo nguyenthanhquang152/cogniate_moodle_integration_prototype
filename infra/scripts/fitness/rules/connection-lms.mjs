@@ -43,7 +43,7 @@ export default {
       // Blank comments and SQL string values; normalize quoted identifiers without moving their offsets.
       const normalized = sql.replace(/--[^\n]*|\/\*[\s\S]*?\*\/|'(?:''|[^'])*'/g, (m) => m.replace(/[^\n]/g, ' '))
         .replace(/["`[\]]/g, ' ');
-      const tables = [...normalized.matchAll(/\b(?:FROM|JOIN|UPDATE|INTO)\s+(?:main\s*\.\s*)?connection\b(?:\s+(?:AS\s+)?([a-z_][a-z0-9_]*))?/gi)];
+      const tables = [...normalized.matchAll(/(?:\b(?:FROM|JOIN|UPDATE|INTO)\s+|,\s*)(?:main\s*\.\s*)?connection\b(?:\s+(?:AS\s+)?([a-z_][a-z0-9_]*))?/gi)];
       if (tables.length === 0) continue;
       const aliases = new Set(['connection']);
       for (const table of tables) if (table[1] && !SQL_WORDS.has(table[1].toLowerCase())) aliases.add(table[1].toLowerCase());
