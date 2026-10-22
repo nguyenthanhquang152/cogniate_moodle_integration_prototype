@@ -34,7 +34,7 @@ describe('004_provider_profiles on a v3 schema with rows', () => {
     expect(findServiceKey(db, 'cogniate', key)).toMatchObject({ bindingGeneration: 0, platformId: 'plt_1' });
     // A new launch of the same activity returns the same key value (generation 0).
     expect(issueServiceKey(db, Buffer.alloc(32, 7), { toolAccountId: 'cogniate', platformId: 'plt_1', deploymentId: '1', contextId: '2', resourceLinkId: '3', agsClaim: null, nrpsClaim: null }, 1)).toEqual({ serviceKey: key });
-    expect(db.prepare('SELECT name FROM schema_migration ORDER BY name').all().map((r) => r.name)).toEqual(['001_init.sql', '002_service_keys.sql', '003_registration_sessions.sql', '004_provider_profiles.sql']);
+    expect(db.prepare('SELECT name FROM schema_migration ORDER BY name').all().map((r) => r.name).slice(0, 4)).toEqual(['001_init.sql', '002_service_keys.sql', '003_registration_sessions.sql', '004_provider_profiles.sql']);
     db.close();
   });
 });

@@ -9,9 +9,9 @@ Only the Lead edits this file. Orca Run: `run_06d07dc77faf`. Rules: [charter-LA]
 | P1 Plan | **done** | — | R1–R5 committed; plan v1 `1afdf56`, v1.1 (R2), v1.2 (LA-H21..H24) |
 | P2 Tech design | **done** | **G-DESIGN PASS** | Final design `54e8088`. Reviewer-A APPROVE (R4 at `54e8088`), Reviewer-B APPROVE (R3 at `88909be`), QA PASS (R3 at `88909be`; its last MINOR fixed at `54e8088`). 3 BLOCKER and 15 MAJOR found and closed over 4 rounds. Deferred: [deferred.md](deferred.md). |
 | P3 Breakdown | **done** | **G-BREAKDOWN PASS** | Final breakdown `936f707`: 94 tasks (Must 62, Should 22, Could 10). Reviewer-A APPROVE (R2), Reviewer-B APPROVE (R2), QA PASS (R2). 7 MAJOR found and closed. Open MINORs: [deferred.md](deferred.md). |
-| G-BASE | waiting | — | Blackboard and Canvas run `run_ebe671ad72a9`: product frozen `9f8ac62`, C3 storage diagnostic PASS, full rounds, M3, M4 running (checked 2026-10-22 09:45). See LA-H10. |
-| G-DEV | **waiting for the product owner** | product owner | Decision pack: [G-DEV.md](G-DEV.md) (LA-H1, LA-H10, Docker sharing, concurrency cap) |
-| P4 Build | planned | — | Lanes K, P, R, S1, S2 (LD-10), L, L2 (LD-11), QA, QA-2, QA-3 (LD-13), QA-E2E, Docs; 2 Docker slots (LD-2); rolling starts (LD-15) |
+| G-BASE | **intake done** | — | G-BASE `bd368ff` (B/C HEAD, product = `9f8ac62`); intake merge `1b17261` (LA-E0-01, Lead git-only; QA-3 verifies) |
+| G-DEV | **APPROVED** by the product owner (2026-10-22 11:2x) | product owner | LA-H1 approve; LA-H10 = frozen candidate, merge mode wave-end; Docker by agreed windows; at most 8 active sessions |
+| P4 Build | **in_progress** (wave B1) | — | Lane worktrees `la-k`, `la-s1`, `la-s2`, `la-r`, `la-qa` on `1b17261`; branches `nguyenthanhquang152/la-*` |
 | P5 Verify | planned | task done | QA + Reviewer-A + Reviewer-B in parallel |
 | P6 Integrate | planned | milestone done | Regression, conformance, docs |
 
@@ -33,6 +33,9 @@ Only the Lead edits this file. Orca Run: `run_06d07dc77faf`. Rules: [charter-LA]
 | LA-RB | Design review, lens B | Reviewer-B | R1 CHANGES_REQUESTED: B-LAD-01..08 MAJOR | `ctx_0389f26b369b` | `docs/reviews/LA-DESIGN/reviewer-b.md` |
 
 ## Incidents
+
+- 2026-10-22 04:42Z–04:55Z: the LA lead QA started stack `qa-la-sim-r1` inside the exclusive Docker window of run `run_ebe671ad72a9` (04:18Z–06:20Z), because the Lead's brief allowed one LA stack beside theirs. Their diagnostic rows passed, but their strict boundary check failed and must be repeated (about 27 minutes). The lead QA then hit its session limit, so the Lead did the owned-only cleanup at 04:55:00Z (snapshot `~/cogniate-qa-runs/LA/E0/lead-cleanup-20261022T045458Z.txt`). New rule (agreed with that run's coordinator): LA starts no Docker activity until that run returns a window. Their next scheduling update: by 07:00Z. 05:2xZ: their clean diagnostic passed; their full rounds and legacy groups have a window through 09:30Z, then M2/T7, then the Docker handoff to LA.
+- 2026-10-22 ~11:46–11:55 +07: the Claude account of the LA workers reached its session limit; all active workers (S1, R, K, QA-2, QA-3, lead QA) paused. S2 finished LA-E5-08 before it. The Lead probes every ~10 minutes and wakes each session with one message after the reset.
 
 - 2026-10-22 08:41: a Lead script error (zsh 1-based arrays) sent the Reviewer-B round-2 task to Reviewer-A's session and the QA task to Reviewer-B's session. The Lead fenced both dispatches within about 1 minute and sent cancels. Both reviewers saw the mismatch, asked before they opened any file, and read no other review; the worktree had no changes. New tasks replaced the misrouted ones. Disclosures: Reviewer-A's inbox filter printed two subject lines (no bodies) of messages to other dispatches, neither Reviewer-B content; Reviewer-B read `qa.md` once in round 1 after it wrote its findings (allowed by its retry context).
 
@@ -58,3 +61,68 @@ Only the Lead edits this file. Orca Run: `run_06d07dc77faf`. Rules: [charter-LA]
 ## Session state at G-DEV (2026-10-22)
 
 All LA workers are idle and retained for reuse: A1, A2, Reviewer-A, Reviewer-B, QA (lead). No LA worker is active. Researchers R1–R5 are released. No product code changed; no push.
+
+## P4 build — wave B1 (started 2026-10-22 11:40)
+
+Integration branch: `quang/ltiaas-milestone`. Intake `1b17261`. Lane branches `nguyenthanhquang152/la-<lane>`. Active-session cap: 8.
+
+| Task | Lane | Author dispatch | Tests | Status |
+| --- | --- | --- | --- | --- |
+| LA-E0-01 | Lead (git-only) | — | QA-3 `ctx_a8bd71d6aab9` | intake `1b17261` done; verifying |
+| LA-E0-04, LA-E0-03, LA-E0-02 | QA | — | lead QA `ctx_dc11d8c6d070` | in_progress (Docker shared with run `run_ebe671ad72a9`) |
+| LA-E5-01 | S1 | `ctx_a19acab07af9` | QA-2 `ctx_95ac62d29382` (test-first) | in_progress |
+| LA-E5-08 | S2 | `ctx_d0ad587729f1` | QA-2 (test-first) | in_progress |
+| LA-E4-01 | R | `ctx_f1c57c8eeaa2` | QA-3 (test-first) | in_progress |
+| LA-E1-01 | K | `ctx_3df1354b5616` | QA-3 (test-first) | in_progress (QA run waits for LA-E0-03, LD-19) |
+
+## Model change and pause (2026-10-22 ~14:00–14:30 +07)
+
+- The product owner paused all tasks, then changed the model plan (charter-LA §0): Claude Opus 5.5 xhigh for planning, architecture, technical design and review; Codex GPT-6-Astra xhigh for implementation; Antigravity Gemini 4 Argon (High) for QA. New agents continue the paused Claude workers from their committed files.
+- Second Docker overlap (06:4xZ–07:07Z): the Claude lead QA ignored the hold and the pause and started `qa-la-sim-r2` … `qa-la-sim-r8`; it invalidated the other run's full round 2. The Lead fenced its dispatch, closed the la-qa sessions, did the owned-only cleanup at 07:08:57Z (snapshot `~/cogniate-qa-runs/LA/E0/lead-cleanup-20261022T070855Z.txt`), and sent owner + coordinator hold ACKs; the other coordinator accepted. LA is host-only until that coordinator's explicit handoff (its window runs through 11:30Z); no Docker polling during its window.
+- Paused Claude QA-2 and QA-3 ended as "replaced"; their work and the lead QA's work are committed on `nguyenthanhquang152/la-qa` (`b63f3d1`, `9dc0e32`, `f0a7b30`). The LD-1 rewrite stays off the integration branch until both reviewers approve it.
+
+| Role | Agent | Dispatch | Work |
+| --- | --- | --- | --- |
+| Lead QA | Antigravity (terminal `term_aca45499…`) | `ctx_92db6e5febb7` | K0 config (blocks LA-E1-02 merge), R1/R2 helpers, golden README and tool (no capture) |
+| QA-2 | Antigravity (terminal `term_dae6603f…`) | `ctx_006a8306c494` | finish LA-E5-01/08 suites; test-first LA-E5-02, -04, -10, LA-E7-03 |
+| QA-3 | Antigravity (terminal `term_ec645253…`) | `ctx_0ebde95cad45` | finish LA-E1-03/04 suites; test-first LA-E1-02, -06; LA-E4-02/03 UNIT plan |
+| Author S1 | Codex `gpt-6-astra` xhigh | `ctx_bcc3b1114b98` | LA-E7-03 + B-LA-E5-08-03 + stack-up comment |
+| Author R | Codex `gpt-6-astra` xhigh | `ctx_e957d1866d5d` | LA-E7-10 |
+| Reviewer-B | Claude | `ctx_e26dd6e6dcbb` | LA-E1-02 round 1 (unblocks lanes K, P, L) |
+| Reviewer-A | Claude | `ctx_76f7c7a46efe` | LA-E5-02 round 1 |
+
+Integration branch merges since the pause: LA-E5-02 r1 `0d320c4`, LA-E4-01 r1 `89d5ec5`. LA-E1-02 (`8cf9412`) waits for the K0 config.
+
+## PAUSED (product owner, confirmed 2026-10-22 ~14:45 +07)
+
+All LA work is paused. The seven open dispatches are blocked on a "PAUSED" ask; every other LA dispatch is settled and idle. No LA Docker activity (host-only hold; no Docker polling during the other run's window). To resume, the Lead answers each ask with RESUME.
+
+| Session | Agent | Dispatch | PAUSED ask | State at pause |
+| --- | --- | --- | --- | --- |
+| Lead QA | Antigravity | `ctx_92db6e5febb7` | `msg_8a2ef7812930` | K0 config, smoke test and ld1 test written; verify on a clean clone, R1/R2, golden README left |
+| QA-2 | Antigravity | `ctx_006a8306c494` | `msg_23e375f506f4` | reading done; READMEs and new suites left |
+| QA-3 | Antigravity | `ctx_0ebde95cad45` | `msg_583d957d1aea` | reading done; suites left |
+| Author S1 | Codex | `ctx_bcc3b1114b98` | `msg_089a7ea1f4d1` | symlink guard fix + tests and stack-up comment uncommitted; LA-E7-03 wiring, self-check, commits left |
+| Author R | Codex | `ctx_e957d1866d5d` | `msg_a131f8c92925` | reads and npm ci done; implementation left |
+| Reviewer-B | Claude | `ctx_5d8fa2d0cfd3` | `msg_1e3c71090201` | LA-E1-02 diff read; tests run and review file left |
+| Reviewer-A | Claude | `ctx_2ac43aa56dcd` | `msg_c2e407deb4b8` | LA-E5-02 diff read; checks and review file left |
+
+### Hard halt verified (2026-10-22 14:28 +07)
+
+To make the pause verifiable, the Lead fenced all seven open dispatches (`worker-stop`; the four supervised sessions report `closed_agent_terminal`), closed every terminal and agent session in the LA worktrees (`la-k`, `la-s1`, `la-s2`, `la-r`, `la-qa`, `ltiaas-milestone`), and terminated three leftover LA-only processes (one idle old Claude QA session, two Codex app-servers). Verified at 14:28:34: 0 processes with a working directory in any LA worktree, 0 LA tasks dispatched or running, 0 LA lane files changed after 14:21:00, no LA Docker use. Work is preserved: commits on the lane branches and `la-qa`, and the uncommitted edits in each worktree listed in the table above. Resume = new dispatches (`--retry-of` the stopped dispatches) with a retry-context message built from that table.
+
+## RESUMED (product owner, 2026-10-22 ~16:15 +07)
+
+New agents continue the stopped tasks with retry-context notes (charter-LA §0 model plan). Docker: still host-only (the other run's hold continues).
+
+| Role | Agent | Dispatch | Work |
+| --- | --- | --- | --- |
+| Author S1 | Codex `gpt-6-astra` xhigh | `ctx_ac22dc682691` | commit symlink-guard fix; LA-E7-03 |
+| Author R | Codex `gpt-6-astra` xhigh | `ctx_a31a1320b535` | LA-E7-10 |
+| Reviewer-B | Claude Opus 5.5 xhigh | `ctx_f085ce7963a8` | LA-E1-02 round 1 |
+| Reviewer-A | Claude Opus 5.5 xhigh | `ctx_cd9a048f4e13` | LA-E5-02 round 1 |
+| Lead QA | Antigravity Gemini 4 Argon (High), terminal | `ctx_e5d6bae0cd22` | K0 config verify, R1/R2, golden README |
+| QA-2 | Antigravity, terminal | `ctx_aeeb4fce2c61` | LA-E5-01/08 READMEs; test-first LA-E5-02, -04, -10, LA-E7-03 |
+| QA-3 | Antigravity, terminal | `ctx_a305f8530c40` | LA-E1-03/04 suites; LA-E1-02/06; LA-E4-02/03 UNIT plan |
+| Architect A1 | Claude Opus 5.5 xhigh | `ctx_7a37e7830a62` | ratify hosts.json schema, fitness rule interface, matrix updates, migration numbers |
+| Architect A2 | Claude Opus 5.5 xhigh | `ctx_40535863c72d` | ratify SAVEPOINT audit atomicity; operator-key and e2e-secret doc alignment |
