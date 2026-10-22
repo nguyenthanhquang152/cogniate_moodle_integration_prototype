@@ -16,7 +16,7 @@ const { values } = parseArgs({
   },
 });
 const usage = 'Usage: app:grant issue --library L --connection K --site S [--service-url V] --client-id C --deployment-id D [--purpose initial|add_deployment] [--ttl-seconds N] --note N | revoke --grant G | list --connection K';
-const { db, operator, traceId } = operatorRuntime();
+const { db, operator, traceId } = await operatorRuntime();
 const close = () => db.close();
 
 if (command === 'issue') {

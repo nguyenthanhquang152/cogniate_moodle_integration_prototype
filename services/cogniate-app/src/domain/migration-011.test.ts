@@ -27,7 +27,7 @@ describe('011_lms_types on a v10 schema with rows', () => {
     db.prepare("INSERT INTO picker_session (id, connection_id, ltik_encrypted, issuer_origin, deployment_id, context_id, context_title, created_at, expires_at) VALUES ('pck', 'con_1', X'00', 'https://moodle.test', '1', '2', 'C', 0, 1)").run();
     db.close();
     db = openDb(file);
-    expect(getConnection(db, 'lib_1', 'con_1')).toMatchObject({ lms: 'moodle', profile: 'standard', serviceUrl: 'https://moodle.test', ltiBindingRef: null, redeemingAttempt: null });
+    expect(getConnection(db, 'lib_1', 'con_1')).toMatchObject({ channel: 'moodle', profile: 'standard', serviceUrl: 'https://moodle.test', ltiBindingRef: null, redeemingAttempt: null });
     expect(routeLaunch(db, 'plt_1', '1')).toMatchObject({ ok: true, connection: { id: 'con_1' } });
     expect(db.prepare("SELECT site_origin, issuer_origin FROM picker_session WHERE id = 'pck'").get()).toEqual({ site_origin: null, issuer_origin: 'https://moodle.test' });
     db.close();

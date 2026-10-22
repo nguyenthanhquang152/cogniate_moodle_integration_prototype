@@ -1,3 +1,4 @@
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 // GET and POST /tool/picker/{pickerId}: the content picker in the LMS Deep Linking frame (app contract §6, §6.1, flows §6b).
 // The picker id is the capability (no cookies). The POST checks: picker not used and not expired (410), Origin (403),
 // the publication belongs to this connection and is available (400, no Deep Linking call). Then it calls
@@ -14,12 +15,11 @@ import type { PickerSession } from '../domain/pickers.ts';
 import { claimPicker, clearPickerLtik, getPicker, pickablePublications, releasePicker } from '../domain/pickers.ts';
 import { httpsOrigin } from './launch-rules.ts';
 import { errorPage, escapeHtml, layout, newNonce, toolPageHeaders, withLms } from './page.ts';
-import type { LmsType } from '../domain/connections.ts';
 import { getConnectionAnyLibrary } from '../domain/connections.ts';
 import type { LmsName } from '../providers/index.ts';
-import { lmsNameOf } from '../providers/index.ts';
 
 export interface PickerPageDeps {
+  channels: ChannelRegistry;
   db: Db;
   urls: PublicUrls;
   logger: Logger;
@@ -74,15 +74,15 @@ export function contentItemFor(urls: PublicUrls, publication: { id: string; cour
 export function registerPickerPages(app: FastifyInstance, deps: PickerPageDeps): void {
   const { db, urls, logger: log, lti, masterKey, now } = deps;
 
-  const fail = (req: FastifyRequest, reply: FastifyReply, code: PickerErrorCode, reason?: PickerReason, err?: unknown, lms: LmsName = 'Moodle') => {
+  const fail = (req: FastifyRequest, reply: FastifyReply, code: PickerErrorCode, reason?: PickerReason, err?: unknown, lms: LmsName = deps.channels.textName(null)) => {
     if (reason) log.warn('picker_rejected', { trace_id: req.traceId, reason, ...ltiErrorFields(err) });
     const e = PICKER_ERRORS[code];
     return reply.code(e.status).headers(toolPageHeaders('error')).send(errorPage(HEADING, code, req.traceId, withLms(e.action, lms)));
   };
   /** The LMS type and name of a picker's connection. */
-  const lmsOfPicker = (p: PickerSession): { lms: LmsType; name: LmsName } => {
-    const lms = getConnectionAnyLibrary(db, p.connectionId)?.lms ?? 'moodle';
-    return { lms, name: lmsNameOf(lms) };
+  const lmsOfPicker = (p: PickerSession): { channel: string | null; name: string } => {
+    const channel = getConnectionAnyLibrary(db, p.connectionId)?.channel ?? null;
+    return { channel, name: deps.channels.textName(channel) };
   };
 
   /** The picker if it exists, is not used and has not expired; else the error page is sent. */
@@ -103,7 +103,7 @@ export function registerPickerPages(app: FastifyInstance, deps: PickerPageDeps):
     const rows = pickablePublications(db, picker.connectionId);
     const { name: lmsName } = lmsOfPicker(picker);
     const list = rows.length === 0
-      ? `<p data-empty>No course is published to this ${lmsName} site yet. Publish a course in Cogniate, then use Select content again.</p>`
+      ? `<p data-empty>No course is published to this ${escapeHtml(lmsName)} site yet. Publish a course in Cogniate, then use Select content again.</p>`
       : `<fieldset>
     <legend>Choose one course</legend>
 ${rows.map((p) => `    <label class="option" data-publication-id="${escapeHtml(p.id)}">
@@ -115,10 +115,10 @@ ${rows.map((p) => `    <label class="option" data-publication-id="${escapeHtml(p
       </span>
     </label>`).join('\n')}
   </fieldset>
-  <button type="submit">Add to ${lmsName}</button>`;
+  <button type="submit">Add to ${escapeHtml(lmsName)}</button>`;
     const body = `<main data-page="picker">
   <h1>Select a Cogniate course</h1>
-  ${picker.contextTitle ? `<p class="muted">${lmsName} course: <span data-context-title>${escapeHtml(picker.contextTitle)}</span></p>` : ''}
+  ${picker.contextTitle ? `<p class="muted">${escapeHtml(lmsName)} course: <span data-context-title>${escapeHtml(picker.contextTitle)}</span></p>` : ''}
   <form method="post" action="/tool/picker/${escapeHtml(req.params.pickerId)}">
   ${list}
   </form>
@@ -130,7 +130,7 @@ ${rows.map((p) => `    <label class="option" data-publication-id="${escapeHtml(p
   app.post<PickerParams & { Body: { publicationId?: unknown } }>('/tool/picker/:pickerId', async (req, reply) => {
     const picker = openPicker(req, reply);
     if (!isPicker(picker)) return picker;
-    const { lms, name: lmsName } = lmsOfPicker(picker);
+    const { channel, name: lmsName } = lmsOfPicker(picker);
     // Security §6: Origin must be PUBLIC_APP_URL (the picker page itself). Other values, null or none: 403, nothing changes.
     const origin = req.headers.origin;
     if (origin !== urls.app) {
@@ -146,7 +146,7 @@ ${rows.map((p) => `    <label class="option" data-publication-id="${escapeHtml(p
     try {
       const ltik = decrypt(masterKey, picker.ltikEncrypted);
       // M1 (§6.1 "Content item"): Canvas and Blackboard get `window` when the platform accepts the window target.
-      const window = lms !== 'moodle'
+      const window = channel !== null && deps.channels.capabilities(channel)['launch.windowHint']
         && ((await lti.getIdToken(ltik, req.traceId)).launch.deepLinkingSettings?.acceptPresentationDocumentTargets ?? []).includes('window');
       answer = await lti.deepLinking(ltik, [contentItemFor(urls, publication, { window })], req.traceId);
     } catch (err) {
@@ -164,7 +164,7 @@ ${rows.map((p) => `    <label class="option" data-publication-id="${escapeHtml(p
     clearPickerLtik(db, picker.key);
     const nonce = newNonce();
     const body = `<main data-page="picker-submit">
-  <h1>Adding the course to ${lmsName}</h1>
+  <h1>Adding the course to ${escapeHtml(lmsName)}</h1>
   <p>Course: <span data-course-title>${escapeHtml(publication.courseTitle)}</span></p>
   <form id="cogniate-dl" method="post" action="${escapeHtml(answer.target)}">
     <input type="hidden" name="JWT" value="${escapeHtml(answer.message)}">

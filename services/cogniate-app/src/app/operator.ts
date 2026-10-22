@@ -1,3 +1,4 @@
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 // Operator commands (app contract §4.8, §4.9): `app:grant issue|revoke|list` and `app:binding suspend|release`. They run
 // in the app service shell (not reachable over HTTP). Each command returns its exit code and output lines, so the
 // CLI wrappers in cli/ only parse arguments and print. The LTI side of revoke, suspend and release is the common
@@ -6,17 +7,18 @@ import { canonicalOrigin, randomToken, sha256Hex } from '@cogniate/shared';
 import type { Logger } from '@cogniate/shared';
 import type { LtiClient } from '../clients/lti-client.ts';
 import type { GrantPurpose } from '../domain/bindings.ts';
-import { getGrant, grantsOfConnection, insertGrant, leaseLive, reservationOfConnection, revokeGrant, revokeOpenGrants } from '../domain/bindings.ts';
+import { attemptsOfConnection, getGrant, grantsOfConnection, insertGrant, leaseLive, reservationOfConnection, revokeGrant, revokeOpenGrants } from '../domain/bindings.ts';
 import type { Connection } from '../domain/connections.ts';
 import { completeSnapshot, disableConnection, getConnectionAnyLibrary } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
 import { getLibrary } from '../domain/libraries.ts';
-import { PRINTABLE_ID } from '../providers/index.ts';
+import { PRINTABLE_ID, providerOf } from '../providers/index.ts';
 import type { BindingCleanup, CleanupLine } from './binding-cleanup.ts';
 import { canvasIssuerMatches, providerProfiles, sharedReadiness } from './binding-targets.ts';
 
 export interface OperatorDeps {
+  channels: ChannelRegistry;
   db: Db;
   lti: LtiClient;
   logger: Logger;
@@ -50,7 +52,7 @@ const GRANT_STATE = (g: { redeemedAt: number | null; revokedAt: number | null; e
   g.redeemedAt !== null ? 'redeemed' : g.revokedAt !== null ? 'revoked' : redeeming ? 'redeeming' : now >= g.expiresAt ? 'expired' : 'issued';
 
 export function createOperator(deps: OperatorDeps) {
-  const { db, lti, logger: log, cleanup, now } = deps;
+  const { db, lti, logger: log, cleanup, now, channels } = deps;
 
   /** `app:grant issue` (§4.8): every check before anything is stored; one approval code, shown once. */
   async function issue(input: IssueInput): Promise<CommandResult> {
@@ -63,19 +65,20 @@ export function createOperator(deps: OperatorDeps) {
     if (!c) return fail(`Unknown connection: ${input.connection}.`);
     if (c.libraryId !== input.library) return fail('--library is not the library of this connection.');
     const library = getLibrary(db, c.libraryId)!;
-    if (c.lms !== 'canvas' && c.lms !== 'blackboard') return fail('Approval grants are only for Canvas and Blackboard connections.');
+    if (c.bindingAuthority !== 'operatorGrant') return fail('Approval grants are only for Canvas and Blackboard connections.');
     if (purpose === 'initial' && c.status !== 'pending') return fail('An initial grant needs a pending connection.');
-    if (purpose === 'add_deployment' && !(c.lms === 'canvas' && (c.status === 'registered' || c.status === 'connected'))) {
+    if (purpose === 'add_deployment' && !(channels.capabilities(c.channel)['deployments.multiple'] && (c.status === 'registered' || c.status === 'connected'))) {
       return fail('An add_deployment grant needs a registered or connected Canvas connection.');
     }
     const site = canonicalOrigin(input.site);
     if (!site.ok || site.origin !== c.siteUrl) return fail('--site is not the site URL of this connection.');
     const service = input.serviceUrl === undefined ? site : canonicalOrigin(input.serviceUrl);
-    if (c.lms !== 'canvas' && input.serviceUrl !== undefined && (!service.ok || service.origin !== c.siteUrl)) return fail('--service-url is only for Canvas connections.');
+    if (!providerOf(c.channel)?.acceptsServiceUrl && input.serviceUrl !== undefined && (!service.ok || service.origin !== c.siteUrl)) return fail('--service-url is only for Canvas connections.');
     if (!service.ok || service.origin !== c.serviceUrl) return fail('--service-url is not the service URL of this connection.');
     if (purpose === 'add_deployment' && input.clientId !== c.platform?.clientId) return fail('--client-id is not the client id of this connection platform.');
     if (purpose === 'initial') {
-      const snapshot = completeSnapshot(c);
+      const sharing = providerOf(c.channel)?.sharingOf(c.profile);
+      const snapshot = sharing ? completeSnapshot(c, sharing) : null;
       if (!snapshot) return fail('This connection has no provider snapshot. Make a new connection.');
       let row;
       try {
@@ -83,10 +86,10 @@ export function createOperator(deps: OperatorDeps) {
       } catch {
         return fail('The LTI service did not answer. Nothing was stored.');
       }
-      if (c.lms === 'canvas' && !canvasIssuerMatches(row, c, snapshot)) {
+      if (sharing === 'exclusive' && !canvasIssuerMatches(row, c, snapshot)) {
         return fail('The Canvas profile changed after this connection was made. Make a new connection.');
       }
-      if (c.lms === 'blackboard') {
+      if (sharing === 'shared') {
         const cause = sharedReadiness(row, snapshot);
         if (cause === 'platform_inactive') return fail('The Blackboard shared platform is not active.');
         if (cause) return fail('The Blackboard shared platform changed after this connection was made. Make a new connection.');
@@ -101,7 +104,7 @@ export function createOperator(deps: OperatorDeps) {
       // A new grant for the same connection and purpose replaces the older unredeemed ones (also one an attempt holds).
       revokeOpenGrants(db, c.id, 'replaced', t, purpose);
       return insertGrant(db, {
-        libraryId: c.libraryId, connectionId: c.id, lms: c.lms, profile: c.profile, purpose, siteUrl: c.siteUrl, serviceUrl: c.serviceUrl,
+        libraryId: c.libraryId, connectionId: c.id, channel: c.channel, profile: c.profile, purpose, siteUrl: c.siteUrl, serviceUrl: c.serviceUrl,
         clientId: input.clientId, deploymentId: input.deploymentId, note: input.note, expiresAt: t + ttl * 1000,
       }, sha256Hex(code), t);
     });
@@ -109,7 +112,7 @@ export function createOperator(deps: OperatorDeps) {
     return {
       exitCode: 0,
       lines: [
-        `Library: ${library.name} (${library.id})`, `Connection: ${c.name} (${c.id})`, `LMS profile: ${c.lms} ${c.profile}`, `Purpose: ${purpose}`,
+        `Library: ${library.name} (${library.id})`, `Connection: ${c.name} (${c.id})`, `LMS profile: ${c.channel} ${c.profile}`, `Purpose: ${purpose}`,
         `Site URL: ${c.siteUrl}`, `Service URL: ${c.serviceUrl}`, `Client ID: ${input.clientId}`, `Deployment ID: ${input.deploymentId}`,
         `Grant id: ${grantId}`, `Approval code (shown once): ${code}`, `Expires: ${iso(t + ttl * 1000)}`,
       ],
@@ -145,11 +148,11 @@ export function createOperator(deps: OperatorDeps) {
   }
 
   const bindingOf = (c: Connection): string => {
-    if (c.lms === 'blackboard') {
+    if (attemptsOfConnection(db, c.id).some((a) => a.targetKind === 'shared_deployment')) {
       const r = reservationOfConnection(db, c.id);
       return r ? `Blackboard deployment ${r.deploymentId} of ${r.platformId}` : 'Blackboard: no reservation';
     }
-    return c.ltiPlatformId ? `${c.lms} platform ${c.ltiPlatformId}` : `${c.lms}: no platform id`;
+    return c.ltiPlatformId ? `${c.channel} platform ${c.ltiPlatformId}` : `${c.channel}: no platform id`;
   };
 
   /** `app:binding suspend` (§4.9): disabled + grants revoked in one transaction, then the fence-out. Repeatable. */
@@ -162,7 +165,7 @@ export function createOperator(deps: OperatorDeps) {
     transaction(db, () => { disableConnection(db, c.libraryId, c.id, now()); revokeOpenGrants(db, c.id, 'suspend', now()); });
     log.warn('binding_suspended', { trace_id: traceId, connection_id: c.id, note_present: true });
     const lines = await cleanup.fenceOut(getConnectionAnyLibrary(db, c.id)!, traceId);
-    if (c.lms === 'moodle') {
+    if (c.bindingAuthority === 'self') {
       for (const l of lines) log.warn('binding_fenced', { trace_id: traceId, connection_id: c.id, platform_id: l.platformId, deployment_id: l.deploymentId, result: l.result });
     }
     return { exitCode: lines.some((l) => l.result === 'failed') ? 1 : 0, lines: [...head, ...lines.map(lineOf)] };

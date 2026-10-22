@@ -1,3 +1,4 @@
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 // Results API (app contract §5): GET results (T5a), POST results/refresh and POST score-syncs/:id/resend (T5b).
 // Every id is checked against the session user's library (404 NOT_FOUND). LTI calls use SERVICE-AUTH-V1 with the
 // service key of the activity, so they work after the ltik expired.
@@ -15,6 +16,7 @@ import type { Logger } from '@cogniate/shared';
 import { ApiError } from './api-errors.ts';
 
 export interface ResultRouteDeps {
+  channels: ChannelRegistry;
   db: Db;
   lti: LtiClient;
   logger: Logger;
@@ -36,7 +38,7 @@ export function registerResultRoutes(api: FastifyInstance, deps: ResultRouteDeps
   };
 
   // One row per learner per activity, with best, attempts and every score sync (T5a, H5).
-  api.get<IdParams>('/publications/:id/results', async (req) => ({ rows: publicationResults(db, publicationOf(req)) }));
+  api.get<IdParams>('/publications/:id/results', async (req) => ({ rows: publicationResults(db, publicationOf(req), deps.channels) }));
 
   // "Refresh from Moodle": one AGS results read per learner and activity. A read that fails keeps the last value and
   // logs gradebook_refresh_failed with the contract fields (B-T5b-01, A-T5b-04); the other rows go on.
@@ -44,7 +46,7 @@ export function registerResultRoutes(api: FastifyInstance, deps: ResultRouteDeps
     const p = publicationOf(req);
     // App contract §4.7.2: no refresh for a disabled Canvas or Blackboard connection.
     const c = getConnection(db, libraryId(req), p.connectionId);
-    if (c && c.lms !== 'moodle' && c.status === 'disabled') throw new ApiError('CONNECTION_NOT_READY', 'The connection is switched off.');
+    if (c && c.bindingAuthority === 'operatorGrant' && c.status === 'disabled') throw new ApiError('CONNECTION_NOT_READY', 'The connection is switched off.');
     for (const target of gradebookTargets(db, p.connectionId, p.courseId)) {
       if (target.serviceKeyEncrypted === null) continue; // no AGS in the launch: no gradebook column
       try {
@@ -60,7 +62,7 @@ export function registerResultRoutes(api: FastifyInstance, deps: ResultRouteDeps
         log.warn('gradebook_refresh_failed', { trace_id: req.traceId, publication_id: p.id, resource_link_id: target.resourceLinkId, ...fields });
       }
     }
-    return { rows: publicationResults(db, p) };
+    return { rows: publicationResults(db, p, deps.channels) };
   });
 
   // Resend a failed or conflict row (ADR-010 rule 10). Else 409 SYNC_NOT_RESENDABLE.

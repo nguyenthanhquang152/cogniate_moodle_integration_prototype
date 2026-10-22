@@ -14,7 +14,7 @@ export function registerCanvasConfigurationRoutes(api: FastifyInstance, deps: Pr
     const library = req.auth!.signedIn.library;
     const c = getConnection(deps.db, library.id, req.params.id);
     if (!c) throw new ApiError('NOT_FOUND', 'The connection does not exist in your library.');
-    if (c.lms !== 'canvas')
+    if (!deps.channels.capabilities(c.channel)['setup.artifacts'].includes('developer-key-json'))
       throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'This connection has no Canvas configuration.', { details: { capability: 'canvasConfiguration' } });
     const mode = req.query.jwk ?? 'url';
     if (mode !== 'url' && mode !== 'inline')
