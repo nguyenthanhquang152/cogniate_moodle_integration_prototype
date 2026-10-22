@@ -100,4 +100,48 @@ describe('LA-E4-03 lti-ags record reporter, throttling, and read-back guard (K0 
       expect(unitRes.output, `unit test output cites ${acId}`).toContain(acId);
     }
   });
+
+  it('Round 2 (5f9fd55 / BD-A1-61): neutral kernel has 0 lti-ags literals, M1 values score_sync and sync_ are unchanged on lti-ags, and Round 2 unit suites pass', async () => {
+    // 1. B-LA-E4-03-01 / B-LA-E4-03-04: `services/cogniate-app/src/kernel/records/` non-test files hold no `'lti-ags'`
+    //    literal and no legacy `failDisabledSync` / `isCurrentSync` names.
+    const kernelFiles = git(['ls-files', 'services/cogniate-app/src/kernel/records/'])
+      .split('\n')
+      .map((s) => s.trim())
+      .filter((s) => Boolean(s) && !s.endsWith('.test.ts') && !s.endsWith('.testkit.ts'));
+    expect(kernelFiles.length).toBeGreaterThan(0);
+    for (const rel of kernelFiles) {
+      const content = fs.readFileSync(path.join(ROOT, rel), 'utf8');
+      expect(content, `${rel} holds no lti-ags literal`).not.toContain("'lti-ags'");
+      expect(content, `${rel} holds no failDisabledSync`).not.toContain('failDisabledSync');
+      expect(content, `${rel} holds no isCurrentSync`).not.toContain('isCurrentSync');
+    }
+
+    // 2. M1 values `score_sync` and `sync_` remain unchanged on the `lti-ags` reporter / records kernel.
+    const scoreSyncHits = git(['grep', '-n', 'score_sync', '--', 'services/cogniate-app/src/drivers/lti-ags', 'services/cogniate-app/src/kernel/records']).trim();
+    const syncPrefixHits = git(['grep', '-n', 'sync_', '--', 'services/cogniate-app/src/drivers/lti-ags', 'services/cogniate-app/src/kernel/records']).trim();
+    expect(scoreSyncHits.length, 'M1 score_sync value present in lti-ags/records').toBeGreaterThan(0);
+    expect(syncPrefixHits.length, 'M1 sync_ prefix present in lti-ags/records').toBeGreaterThan(0);
+
+    // 3. Round 2 unit test suites (`drivers/lti-ags/**`, `kernel/records/**`, `app/results.test.ts`, `packages/tracking/src/tracking.test.ts`) pass.
+    const r2Res = await run(
+      'npx',
+      [
+        '--no-install',
+        'vitest',
+        'run',
+        '--reporter=verbose',
+        'services/cogniate-app/src/drivers/lti-ags/reporter.test.ts',
+        'services/cogniate-app/src/drivers/lti-ags/connection-state.test.ts',
+        'services/cogniate-app/src/kernel/records/neutral.test.ts',
+        'services/cogniate-app/src/kernel/records/outbox.test.ts',
+        'services/cogniate-app/src/kernel/records/records.test.ts',
+        'services/cogniate-app/src/kernel/records/throttling.test.ts',
+        'services/cogniate-app/src/app/results.test.ts',
+        'packages/tracking/src/tracking.test.ts',
+      ],
+      { timeoutMs: 5 * 60_000 },
+    );
+    artifact('e4-03-r2-unit-suites.log', r2Res.output);
+    expect(r2Res.code, `LA-E4-03 Round 2 unit suites exit 0:\n${r2Res.output}`).toBe(0);
+  });
 });

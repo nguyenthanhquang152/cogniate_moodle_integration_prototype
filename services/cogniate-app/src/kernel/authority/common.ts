@@ -41,10 +41,13 @@ export function invalidBindingBody(result: Extract<PlatformBodyResult, { ok: fal
     : 'Some values are missing or not valid.', { details: { fields: result.fields } });
 }
 
-/** Both authorities suspend atomically and fence the reloaded, disabled connection. */
-export async function suspendBinding(deps: AuthorityDeps, c: Connection, traceId: string) {
+/**
+ * Both authorities suspend atomically and fence the reloaded, disabled connection. `record` runs inside the same
+ * transaction (the audit event of the command).
+ */
+export async function suspendBinding(deps: AuthorityDeps, c: Connection, traceId: string, record?: () => void) {
   const { db, now, logger } = deps;
-  transaction(db, () => { disableConnection(db, c.libraryId, c.id, now()); revokeOpenGrants(db, c.id, 'suspend', now()); });
+  transaction(db, () => { disableConnection(db, c.libraryId, c.id, now()); revokeOpenGrants(db, c.id, 'suspend', now()); record?.(); });
   logger.warn('binding_suspended', { trace_id: traceId, connection_id: c.id, note_present: true });
   return deps.cleanup?.fenceOut(getConnection(db, c.libraryId, c.id)!, traceId) ?? [];
 }

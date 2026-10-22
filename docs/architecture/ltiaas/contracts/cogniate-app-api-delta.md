@@ -171,6 +171,30 @@ The 60 s cache of `GET /api/providers` that LA-ADR-06 D1 names is **Could**, not
 | `app:audit list` (new, read-only) | `npm run app:audit -w services/cogniate-app -- list [--connection <id>] [--action <a>] [--since <ISO>] [--limit <n ≤ 500>]`: one JSON line per app audit event, newest first, never the note text; it writes no event (A2 LA-ADR-07 D4) |
 | Every write command | one `audit_event` row, also for a refused run on a known grant or connection; `details` holds `evidence_channel`, `evidence_ref`, `note_present` ([data model §5](../data-model.md#5-cogniate-app-migration-015-e5-app-part-e6)) |
 
+Refused-event codes (A2 BD-A2-64; A1 BD-A1-67; LA-E5-12). A write command that refuses after it has resolved its grant or connection writes one `audit_event` with `result: refused` and one of these stable `code` values. An unknown target, a usage error, an LTI outage or an operator-policy refusal writes no event. The printed CLI lines do not change. A new code needs a new row here.
+
+| Code | Command | Cause |
+| --- | --- | --- |
+| `ttl_invalid` | `app:grant issue` | `--ttl-seconds` is not 60 to 604800 |
+| `note_invalid` | `app:grant issue`; `app:binding suspend`, `release` | `--note` is empty or longer than 500 characters |
+| `id_invalid` | `app:grant issue` | `--client-id` or `--deployment-id` is not 1 to 255 printable ASCII characters |
+| `library_mismatch` | `app:grant issue` | `--library` is not the library of the connection |
+| `authority_not_operator_grant` | `app:grant issue` | the connection's binding authority is not `operatorGrant` |
+| `connection_not_pending` | `app:grant issue` | an `initial` grant for a connection that is not `pending` |
+| `add_deployment_not_allowed` | `app:grant issue` | an `add_deployment` grant for a connection that is not registered or connected, or whose channel has no `deployments.multiple` |
+| `site_mismatch` | `app:grant issue` | `--site` is not the site URL of the connection |
+| `service_url_not_allowed` | `app:grant issue` | `--service-url` (other than the site URL) for a profile without a service URL |
+| `service_url_mismatch` | `app:grant issue` | `--service-url` is not the service URL of the connection |
+| `client_id_mismatch` | `app:grant issue` | `--client-id` is not the client id of the connection's platform (`add_deployment`) or of the shared platform |
+| `snapshot_missing` | `app:grant issue` | the connection has no provider snapshot |
+| `profile_changed` | `app:grant issue` | the connection's profile changed after the connection was made |
+| `platform_inactive` | `app:grant issue` | the shared platform of a shared profile is missing or inactive |
+| `platform_changed` | `app:grant issue` | the profile is no longer shared, or its shared platform changed |
+| `deployment_fixed` | `app:grant issue` | the connection already holds a reservation for another deployment |
+| `grant_redeemed` | `app:grant revoke` | the grant was already redeemed |
+| `binding_active` | `app:binding release` | the connection is not disabled (run `suspend` first) |
+| `redemption_running` | `app:binding release` | a redemption may still run (retry later) |
+
 The app CLIs stay shell commands in LA; they do not become clients of an operator API (Reviewer-A A-LAD-17). Plan E5 Must 3 covers the LTI service CLIs only, and the self-asserted app operator name stays residual R-LA-2 (Lead decision, plan OC-9).
 
 ## 8. Log events (base §12)

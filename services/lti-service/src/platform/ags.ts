@@ -108,7 +108,7 @@ function scoreExtensions(body: Record<string, unknown>): Record<string, unknown>
   if (Object.keys(members).length > 8) throw invalid('extensions', 'must have at most 8 URL-keyed members');
   for (const [key, value] of Object.entries(members)) {
     const json = JSON.stringify(value);
-    if (json === undefined || Buffer.byteLength(json, 'utf8') > 4096) throw invalid(key, 'must be at most 4 KB of JSON');
+    if (json === undefined || Buffer.byteLength(json, 'utf8') > 4096) throw invalid(key, 'must serialize to at most 4096 UTF-8 bytes of JSON, including quotes and escapes');
   }
   return members;
 }
@@ -172,6 +172,18 @@ function checkedUrl(ctx: AgsContext, url: string, code: 'INVALID_LINE_ITEM_ID' |
   if (!base) throw new ApiError('SERVICE_NOT_AVAILABLE', 'The launch has no AGS claim.');
   if (!isAllowedServiceUrl(url, base)) throw new ApiError(code);
   return url;
+}
+
+/**
+ * The checks of a line item create before any I/O (A2 BD-A2-71), in this order and with the refusals of the create:
+ * the line items URL of the claim (403), the AGS base URL (403), the service URL rule (400 INVALID_LINE_ITEM_ID) and
+ * the lineitem scope, never lineitem.readonly (403, AGS §3.2). Read-only: no token request and no outbound call.
+ * createLineItem calls it, and the idempotency hook calls it before its lookup (LA-E5-16).
+ */
+export function preflightCreateLineItem(ctx: AgsContext): { url: string; scope: string } {
+  if (typeof ctx.agsClaim?.lineitems !== 'string') throw new ApiError('SERVICE_NOT_AVAILABLE', 'The launch has no AGS line items URL.');
+  const url = checkedUrl(ctx, ctx.agsClaim.lineitems, 'INVALID_LINE_ITEM_ID');
+  return { url, scope: needScope(ctx, AGS_SCOPES.lineitem) };
 }
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
@@ -255,9 +267,7 @@ export function createAgsClient(deps: AgsClientDeps) {
 
     /** T3c: writes require lineitem, never lineitem.readonly (AGS §3.2). */
     async createLineItem(ctx: AgsContext, item: LineItemInput): Promise<LineItem> {
-      if (typeof ctx.agsClaim?.lineitems !== 'string') throw new ApiError('SERVICE_NOT_AVAILABLE', 'The launch has no AGS line items URL.');
-      const url = checkedUrl(ctx, ctx.agsClaim.lineitems, 'INVALID_LINE_ITEM_ID');
-      const scope = needScope(ctx, AGS_SCOPES.lineitem);
+      const { url, scope } = preflightCreateLineItem(ctx);
       return toLineItem(jsonOf(await call(ctx, scope, url, { method: 'POST', accept: MEDIA.lineItem, contentType: MEDIA.lineItem, body: JSON.stringify(item) })));
     },
 

@@ -33,7 +33,7 @@ async function setup() {
   await ensureToolKey(db, MASTER_KEY, 'cogniate');
   const moodleKey = await makeKey('moodle-kid');
   const state = { config: CONFIG as Record<string, unknown>, configurationFetches: 0, nextTypeId: 11, clientId: 'client-dyn-1', registrations: [] as Array<{ auth?: string; body: Record<string, unknown> }>, reject: null as null | number,
-    mode: null as null | 'timeout' | 'token_used' | 'server_error' | 'garbage' };
+    mode: null as null | 'timeout' | 'token_used' | 'server_error' | 'garbage', /** A slow configuration server: each fetch waits for it. */ hold: null as null | Promise<void> };
   const res = (status: number, body: unknown): OutboundResponse => {
     const buf = Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
     return { status, headers: {}, body: buf, text: () => buf.toString(), json: () => JSON.parse(buf.toString()) as unknown };
@@ -44,7 +44,11 @@ async function setup() {
       const u = new URL(url);
       if (u.protocol !== 'https:') throw new OutboundError('not_https', u.hostname, 'only https');
       if (u.hostname === '169.254.169.254') throw new OutboundError('private_ip', u.hostname, 'private');
-      if (url === CONFIG_URL || url.startsWith('https://qa-platform.test/')) { state.configurationFetches++; return res(200, state.config); }
+      if (url === CONFIG_URL || url.startsWith('https://qa-platform.test/')) {
+        state.configurationFetches++;
+        if (state.hold) await state.hold;
+        return res(200, state.config);
+      }
       if (url === CONFIG.jwks_uri) return res(200, { keys: [moodleKey.publicJwk] });
       if (url === CONFIG.registration_endpoint) {
         state.registrations.push({ auth: req.headers?.authorization, body: JSON.parse(String(req.body)) as Record<string, unknown> });
@@ -105,6 +109,30 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
       expect(s.state.configurationFetches).toBe(5);
       s.clock.now += 3600_001;
       expect((await s.start(undefined)).statusCode).toBe(303);
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
+  it('A-LA-E5-06-01: parallel starts that wait for a slow configuration fetch open at most the cap sessions', async () => {
+    const s = await setup();
+    try {
+      rateLimiterFor(s.db, capturingLogger().logger).replaceSettings({
+        registrationSessionsPerAddress: 3, classes: { registration: { ratePerMinute: 100, burst: 100 } },
+      });
+      let release!: () => void;
+      s.state.hold = new Promise<void>((resolve) => { release = resolve; });
+      const starts = Array.from({ length: 6 }, () => s.start(undefined));
+      // All six pass the first check: no session exists while they wait for their fetch.
+      for (let i = 0; i < 1000 && s.state.configurationFetches < 6; i++) await new Promise((resolve) => setImmediate(resolve));
+      expect(s.state.configurationFetches).toBe(6);
+      release();
+      const results = await Promise.all(starts);
+      expect(results.map((r) => r.statusCode).sort()).toEqual([303, 303, 303, 409, 409, 409]);
+      for (const refused of results.filter((r) => r.statusCode === 409)) {
+        expect(refused.body).toContain('data-error-code="REGISTRATION_SESSION_LIMIT"');
+        expect(refused.body).toContain('Too many registrations are open. Wait one hour, or finish the open registration in Moodle.');
+      }
+      expect(s.db.prepare("SELECT count(*) AS n FROM registration_session WHERE tool_account_id = 'cogniate'").get()?.n).toBe(3);
+      expect(s.lines.filter((l) => l.event === 'registration_started')).toHaveLength(3);
     } finally { await s.app.close(); s.db.close(); }
   });
 

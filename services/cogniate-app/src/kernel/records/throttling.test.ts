@@ -5,7 +5,8 @@ import { openDb } from '../../domain/db.ts';
 import { beginSend } from './dispatch-store.ts';
 import { createDispatchQueue, type DispatchItem } from './outbox.ts';
 import { recordReporters, registerRecordReporters, writeFinalRecord } from './records.ts';
-import { recordsFixture, testReporter } from './records.testkit.ts';
+import { recordsFixture, seedAttempt, seedLink, testReporter } from './records.testkit.ts';
+import { upsertPlacement } from './placements.ts';
 import type { RecordReporter } from './types.ts';
 
 const fixtures: ReturnType<typeof recordsFixture>[] = [];
@@ -76,13 +77,38 @@ describe('partition throttling (LA-ADR-03 D7)', () => {
     await f.run((await f.job.due(Date.now(), 10))[0]!);
     expect(f.db.prepare('SELECT status, not_before FROM record_dispatch WHERE id = ?').get(id)).toEqual({ status: 'pending', not_before: 130_000 });
     const better = writeFinalRecord(f.db, { attemptId: 'att_a', placementId: 'rl_a', learnerSubject: 'a', outcome: 'passed',
-      scoreGiven: 0.9, scoreMaximum: 1 }, ['lti-ags'], Date.now());
+      scoreGiven: 0.9, scoreMaximum: 1 }, { startedAt: 0, submittedAt: 0 }, ['lti-ags'], Date.now());
+    // The superseded row still carries the pause; the new row needs no copy of it.
     expect(f.db.prepare('SELECT id, status, not_before FROM record_dispatch ORDER BY seq').all())
-      .toEqual([{ id, status: 'superseded', not_before: 130_000 }, { id: better, status: 'pending', not_before: 130_000 }]);
+      .toEqual([{ id, status: 'superseded', not_before: 130_000 }, { id: better, status: 'pending', not_before: null }]);
     expect(await f.job.due(129_999, 10)).toEqual([]);
     expect((await f.job.due(130_000, 10)).map((r) => r.id)).toEqual([better]);
   });
-  it('A-LA-E4-03-01: the pause check reads only pending rows through the record_dispatch_due index', async () => {
+  it.each([['a new learner', 'b'], ['a better result of the same learner', 'a']])(
+    'A-LA-E4-03-03: a carrier that failed at its window end still pauses %s until exactly retryAt', async (_case, learner) => {
+      const f = fixture();
+      const carrier = await f.addRow({ key: 'a', partition: 'A', score: 0.8, nextTryAt: 0 });
+      // 20 s before the window of the carrier ends, the platform asks for 30 s: the row fails, the platform wait stays.
+      vi.setSystemTime(100_000 + 86_400_000 - 20_000);
+      await f.run((await f.job.due(Date.now(), 10))[0]!);
+      expect(f.db.prepare('SELECT status, not_before FROM record_dispatch WHERE id = ?').get(carrier)).toEqual({ status: 'failed', not_before: 86_510_000 });
+      if (learner === 'b') { seedLink(f.db, 'rl_b'); upsertPlacement(f.db, 'rl_b'); seedAttempt(f.db, 'b', 'rl_b'); }
+      const id = writeFinalRecord(f.db, { attemptId: `att_${learner}`, placementId: `rl_${learner}`, learnerSubject: learner, outcome: 'passed',
+        scoreGiven: 0.9, scoreMaximum: 1 }, { startedAt: 0, submittedAt: 0 }, ['lti-ags'], Date.now())!;
+      const item = { id, partitionKey: 'A' };
+      for (const at of [Date.now(), 86_509_999]) {
+        expect(await f.job.due(at, 10)).toEqual([]);
+        expect(await f.job.lease(item, 'b/boot', at + 60_000, at)).toBe(false);
+        f.db.prepare('UPDATE record_dispatch SET lease_owner = ? WHERE id = ?').run('b/boot', id);
+        expect(beginSend(f.db, id, at, 'b/boot')).toBe('skipped');
+        await f.job.release(item, 'b/boot');
+      }
+      expect(await f.job.due(86_510_000, 10)).toEqual([item]);
+      expect(await f.job.lease(item, 'b/boot', 86_570_000, 86_510_000)).toBe(true);
+      expect(beginSend(f.db, id, 86_510_000, 'b/boot')).toBe('started');
+      expect(f.sent).toEqual([carrier]);
+    });
+  it('A-LA-E4-03-01, A-LA-E4-03-03: the pause check reads every row status through the record_dispatch_pause index', async () => {
     const f = fixture();
     const statements: string[] = [];
     const db = new Proxy(f.db, { get(target, key) {
@@ -99,7 +125,7 @@ describe('partition throttling (LA-ADR-03 D7)', () => {
     expect(checked).toHaveLength(3);
     for (const sql of checked) {
       const plan = f.db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all().map((r) => String(r.detail));
-      expect(plan).toContain('SEARCH paused USING INDEX record_dispatch_due (status=?)');
+      expect(plan).toContain('SEARCH paused USING COVERING INDEX record_dispatch_pause (partition_key=? AND not_before>?)');
       expect(plan.filter((line) => line.startsWith('SCAN paused'))).toEqual([]);
     }
   });
