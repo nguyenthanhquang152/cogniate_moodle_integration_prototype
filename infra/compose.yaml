@@ -135,6 +135,11 @@ services:
       OUTBOUND_PRIVATE_HOST_ALLOWLIST: ${MOODLE_HOST:-moodle.test}${ACCEPTANCE_ALLOWLIST_EXTRA:-}${ACCEPTANCE_LTI_ALLOWLIST_EXTRA:-}
       # M1 (LTI contract §9.13): the simulation profiles are on only with STACK_PROFILE=acceptance AND this value "on".
       LTI_PROVIDER_SIMULATION: ${ACCEPTANCE_LTI_SIMULATION:-}
+      # LA-ADR-06 D3: the operator listener. Loopback in the default profile; the acceptance profile binds 0.0.0.0
+      # (ACCEPTANCE_OPERATOR_HOST, set by infra/scripts/lib.sh) so the e2e container reaches http://lti-service:4110.
+      # Not published on the host, and the proxy has no route to it in any profile.
+      OPERATOR_HOST: ${ACCEPTANCE_OPERATOR_HOST:-127.0.0.1}
+      OPERATOR_PORT: "4110"
       <<: *public-urls
     volumes:
       - ../package.json:/repo/package.json:ro
