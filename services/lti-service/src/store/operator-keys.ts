@@ -1,6 +1,6 @@
 // Operator keys of the operator listener (LA-ADR-06 D3, contract delta §1.2, §3). One key per person. A key is shown
 // once; only its SHA-256 hash is stored. The tenant API key grammar (ltis_) and this grammar (ltio_) never share a
-// lookup: findActiveOperatorKey accepts only ltio_ keys, findAccountByApiKey only ltis_ keys.
+// lookup: findActiveOperatorKey accepts only ltio_ keys, useApiKey only ltis_ keys.
 import { randomId, randomToken, sha256Hex } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import { transaction } from '../db/index.ts';

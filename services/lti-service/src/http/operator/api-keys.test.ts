@@ -29,6 +29,28 @@ async function fixture() {
 }
 
 describe('API key operator transactions', () => {
+  it.each(['expiresat', 'expires_at', 'unexpected'])('rejects unknown issue field %s without issuing a key', async (field) => {
+    const h = await fixture();
+    const before = listApiKeys(h.db, 'cogniate');
+    const response = await h.post('', { label: 'short-lived', scopes: ['launch'], [field]: new Date(T0 + 7200_000).toISOString() });
+    expect(response.statusCode).toBe(400);
+    expect(response.json().details).toEqual({ message: 'INVALID_REQUEST', description: `Unknown field: ${field}.`, field });
+    expect(response.json()).not.toHaveProperty('apiKey');
+    expect(listApiKeys(h.db, 'cogniate')).toEqual(before);
+    expect(h.events()).toEqual([expect.objectContaining({ action: 'api_key.issue', result: 'refused', code: 'INVALID_REQUEST',
+      target: { type: 'api_key', id: null }, traceId: response.headers['x-trace-id'] })]);
+    expect(h.lines.some((line) => line.event === 'api_key_issued')).toBe(false);
+  });
+
+  it('keeps the requested expiry when expiresAt is spelled correctly', async () => {
+    const h = await fixture();
+    const expiresAt = new Date(T0 + 7200_000).toISOString();
+    const response = await h.post('', { label: 'short-lived', scopes: ['launch'], expiresAt });
+    expect(response.statusCode).toBe(201);
+    expect(response.json().expiresAt).toBe(expiresAt);
+    expect(getApiKey(h.db, 'cogniate', response.json().id)?.expiresAt).toBe(T0 + 7200_000);
+  });
+
   it('an audit insert failure rolls back issuance and revoke, and does not expose a new secret', async () => {
     const h = await fixture();
     const before = listApiKeys(h.db, 'cogniate');
@@ -50,8 +72,13 @@ describe('API key operator transactions', () => {
     expect(getApiKey(h.db, 'cogniate', id)).toEqual(issued);
     expect(h.events()).toHaveLength(1);
     recover();
-    expect((await h.post(`/${id}/revoke`)).statusCode).toBe(200);
+    const revoked = await h.post(`/${id}/revoke`);
+    expect(revoked.statusCode).toBe(200);
     expect(h.events()).toHaveLength(2);
+    expect(h.lines.filter((line) => line.event === 'api_key_issued' || line.event === 'api_key_revoked')).toEqual([
+      expect.objectContaining({ event: 'api_key_issued', tool_account_id: 'cogniate', api_key_id: id, trace_id: created.headers['x-trace-id'] }),
+      expect.objectContaining({ event: 'api_key_revoked', tool_account_id: 'cogniate', api_key_id: id, trace_id: revoked.headers['x-trace-id'] }),
+    ]);
     const stored = JSON.stringify(h.events());
     for (const secret of [apiKey, sha256Hex(apiKey)]) {
       expect(stored).not.toContain(secret);

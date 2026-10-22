@@ -70,7 +70,7 @@ export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffe
     registrationUrlExpiresAt: showRef ? iso(c.refExpiresAt) : null,
     // M1 (§4.2)
     lms: c.channel, profile: c.profile, serviceUrl: c.serviceUrl, capabilities: channels.legacyCapabilities(c.channel),
-    channel: c.channel, channelName: channels.textName(c.channel),
+    channel: c.channel, channelName: channels.textName(c.channel), bindingAuthority: c.bindingAuthority,
     channelCapabilities: channels.capabilities(c.channel, { id: c.profile, sharing: providerOf(c.channel)?.sharingOf(c.profile) ?? undefined, serviceUrl: providerOf(c.channel)?.acceptsServiceUrl ?? false }),
     platform, createdAt: iso(c.createdAt), lastLaunchAt: iso(c.lastLaunchAt),
     // T8 course shell: set when a web services token was saved (the portal shows "Also create an empty Moodle course").
@@ -211,7 +211,7 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
       if (!isHttpsOrigin(b.siteUrl)) return invalid('siteUrl');
       if (b.serviceUrl !== undefined) return invalid('serviceUrl');
       const ref = b.method === 'dynamic' ? newRef(masterKey, deps.refTtlSeconds, now()).stored : null;
-      const c = createConnection(db, libraryOf(req).id, { name: b.name, siteUrl: b.siteUrl, method: b.method, channel, profile: profileId }, ref, now(), channels, sharing);
+      const c = createConnection(db, libraryOf(req).id, { name: b.name, siteUrl: b.siteUrl, method: b.method, channel, profile: profileId }, ref, now(), channels, adapter.sharingOf);
       return reply.code(201).send(dto(req, c));
     }
     const rows = await providerProfiles(lti, req.traceId);
@@ -237,7 +237,7 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
     const snapshot = snapshotOf(profile, { siteUrl, serviceUrl: serviceUrl ?? siteUrl });
     const c = transaction(db, () => createConnection(db, libraryOf(req).id, {
       name: b.name, siteUrl, method: b.method, channel, profile: profile.id, serviceUrl, snapshot,
-    }, null, now(), channels, sharing));
+    }, null, now(), channels, adapter.sharingOf));
     return reply.code(201).send(dto(req, c));
   });
 

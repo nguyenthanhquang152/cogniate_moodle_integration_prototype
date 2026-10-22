@@ -1,9 +1,9 @@
-// Tool accounts and their API keys (contract §7, §8 D2). Signing keys: tool-keys.ts.
+// Tool accounts and the bootstrap bridge (contract §7, §8 D2). API keys: api-keys.ts; signing keys: tool-keys.ts.
 import type { Db } from '../db/index.ts';
 import { transaction } from '../db/index.ts';
 import { createHash, randomBytes } from 'node:crypto';
 import { ApiError } from '../api-errors.ts';
-import { findActiveApiKey, issueApiKey, revokeAccountApiKeys, revokeActiveAccountApiKeys } from './api-keys.ts';
+import { issueApiKey, revokeAccountApiKeys, revokeActiveAccountApiKeys } from './api-keys.ts';
 
 export interface ToolAccount {
   id: string;
@@ -105,15 +105,9 @@ export function requireWritableAccount(db: Db, id: string): ToolAccount {
   return account;
 }
 
-/** The API key resolves to exactly one tool account (only its SHA-256 hash is stored). */
-export function findAccountByApiKey(db: Db, apiKey: string, now = Date.now()): ToolAccount | null {
-  const key = findActiveApiKey(db, apiKey, now);
-  return key ? getAccount(db, key.toolAccountId) : null;
-}
-
 export interface EnsureAccountInput {
   id: string;
-  name: string;
+  name?: string;
   appUrl: string; // PUBLIC_APP_URL
   rotateApiKey?: boolean;
 }
@@ -130,12 +124,12 @@ export function ensureAccount(db: Db, input: EnsureAccountInput): { account: Too
     const existing = getAccount(db, input.id);
     if (!existing) {
       db.prepare(`INSERT INTO tool_account (id, name, api_key_hash, launch_url, deep_linking_url, registration_url, created_at, status_changed_at, claim_policy)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(input.id, input.name, unusableApiKeyHash(), urls.launch, urls.deep, urls.reg, now, now, JSON.stringify(DEFAULT_CLAIM_POLICY));
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(input.id, input.name ?? input.id, unusableApiKeyHash(), urls.launch, urls.deep, urls.reg, now, now, JSON.stringify(DEFAULT_CLAIM_POLICY));
       const { apiKey } = issueApiKey(db, input.id, bootstrap, now);
       return { account: getAccount(db, input.id)!, created: true, apiKey };
     }
     requireWritableAccount(db, input.id);
-    db.prepare('UPDATE tool_account SET name = ? WHERE id = ?').run(input.name, input.id);
+    if (input.name !== undefined) db.prepare('UPDATE tool_account SET name = ? WHERE id = ?').run(input.name, input.id);
     let apiKey: string | null = null;
     if (input.rotateApiKey) {
       revokeActiveAccountApiKeys(db, input.id, now);

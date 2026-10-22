@@ -56,3 +56,8 @@ Open MINOR and NIT items after round 2. The ones marked "before build" are one-l
 | A-LA-E1-03-06 | NIT | `new Function` strings can still load modules in channel files: add no-eval, no-implied-eval, no-new-func to the channel fence | K | Next K edit of eslint.config.js |
 | A-LA-E5-03-01 | MINOR | While the `proxy` name does not resolve (start race, proxy recreated), proxied clients share the proxy's address buckets for up to 60 s with no log line: retry every 5 s and log | S1 | LA-E5-03 fix round (with Reviewer-B items) |
 | A-LA-E5-03-02 | NIT | settings.rate_limits audit event names the changed fields but not the new values | S1 | LA-E5-03 fix round |
+| A-LA-E5-14-01 | MINOR | No test checks the platform_rate_limited log line for AGS and NRPS responses (memberships not covered) | L | LA-E3-11 / LA-E3-12 (AGS extras), or the next L dispatch that touches platform/ |
+| A-LA-E5-14-02 | NIT | A 400-digit integer Retry-After gives 60, not 3600 | L | Same |
+| B-LA-E5-10 R2 NIT | NIT | createNextToolKey can now create an active key (BD-A2-24): rename | S2 | Next S2 edit of tool-keys.ts |
+| B-LA-E1-05-04..06 | NIT | Reviewer-B round-2 open NITs | L | Next L edit of profiles |
+| B-LA-E5-04 R2 NIT | NIT | audit.change doc comment does not state the BD-A2-29 rules (section-5 action only; refused keeps base action) | S1 | LA-E5-03 fix round |

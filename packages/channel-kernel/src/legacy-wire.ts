@@ -61,6 +61,12 @@ export function connectionBehaviourClass(channel: string, authority: 'self' | 'o
   return authority === 'self' ? 'moodle' : sharing === 'shared' ? 'blackboard' : 'canvas';
 }
 
+/** Frozen grade conflict text (BD-A1-27); per-channel copy moves in LA-IC-15. */
+export const LEGACY_GRADE_CONFLICT = '(Moodle has a grade with a newer time)';
+
+/** Frozen learner label fallback (BD-A1-27); per-channel copy moves in LA-IC-15. */
+export const LEGACY_LEARNER_HOST = 'Moodle';
+
 /** Frozen clean-up text of MOODLE_TOOL_MAY_EXIST (LA-ADR-01 D12, BD-A1-30). Keep its UI words byte for byte. */
 export function pendingToolText(toolName: string): string {
   return `Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool '${toolName}', then connect again.`;

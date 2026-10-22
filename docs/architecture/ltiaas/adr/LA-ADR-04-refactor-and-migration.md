@@ -62,7 +62,7 @@ These names stay byte for byte, although they contain an LMS word or an LTI word
 | Request fields | `lms`, `profile`, `createMoodleCourse` |
 | Paths | `/app-api/lms-providers`, `…/canvas-configuration`, `…/web-services`, `…/deployments`, `…/mbz`, `…/download?kind=mbz`, `/integrations/moodle/…`, `/integrations/canvas/…`, `/integrations/blackboard/…` |
 | Error details | `details.capability` values of the M1 guards |
-| Error and page codes | `MOODLE_TOOL_MAY_EXIST` (app contract §6; text `packages/shared/src/html.ts:8-12`), `MOODLE_WS_ERROR` (`services/cogniate-app/src/app/api-errors.ts:45`) |
+| Error and page codes | `MOODLE_TOOL_MAY_EXIST` (app contract §6; its text `pendingToolText` moves byte for byte from `packages/shared/src/html.ts:8-12` to `legacy-wire.ts`, BD-A1-30), `MOODLE_WS_ERROR` (`services/cogniate-app/src/app/api-errors.ts:45`) |
 | Values that core writes | the behaviour-class values `moodle`, `canvas`, `blackboard` of the frozen `connection.lms` column (D4 rule 2); the lists `MANUAL_SELF_LEGACY_CHANNELS` (load check 6, one entry: the Moodle channel) and `LAUNCH_GUARD_CHANNELS` (load check 8: the Canvas and Blackboard channels). The frozen `lms` value of each `GET /api/providers` profile (`null` for `standard`) is profile data `wireLms` in the channel folders (LA-ADR-01 D6; QA Q-LAD-17). The frozen map `BASELINE_PROFILE_WIRE_LMS` (eight baseline profile ids and their values) is in `legacy-wire.ts`, so load check 7 can tell the baseline profiles (build ratification BD-A1-06). |
 | Ids and records | `rl_…`, `sync_…`, `resourceLinkId`, `scoreSyncs`, `lastScoreSync` |
 | Log events | `score_sync`, `resource_link_rebound`, `launch_rejected` reasons, `provider_not_ready`, every ADR-011 event |
