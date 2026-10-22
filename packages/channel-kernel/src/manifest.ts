@@ -73,6 +73,8 @@ export interface ChannelManifest {
   };
   /** Texts with the placeholders `{LMS}`, `{tool}` and `{site}` only. */
   texts: {
+    /** Portal error texts that name an LMS (BD-A1-63), with `{LMS}` only. A key without a text gets the generic core text. */
+    errors?: Partial<Record<ErrorTextKey, string>>;
     adminSteps: readonly string[];
     teacherSteps: readonly string[];
     disconnect: string;
@@ -89,6 +91,12 @@ const TEXT = z.string().min(1).refine(
 );
 const METHOD = z.enum(['dynamic', 'manual']);
 const unique = (values: readonly string[]): boolean => new Set(values).size === values.length;
+
+/** The keys of `texts.errors` (BD-A1-63): the portal error texts that may name an LMS. A closed list. */
+export const ERROR_TEXT_KEYS = ['SITE_RULE_1', 'SITE_RULE_5', 'PLATFORM_IN_USE', 'DEPLOYMENT_IN_USE', 'DEPLOYMENT_FIXED'] as const;
+export type ErrorTextKey = (typeof ERROR_TEXT_KEYS)[number];
+/** An error text has `{LMS}` as its only placeholder: the portal error notice knows no tool name and no site. */
+const ERROR_TEXT = z.string().min(1).refine((t) => [...t.matchAll(/\{([^{}]*)\}/g)].every((m) => m[1] === 'LMS'), 'only the placeholder {LMS}');
 
 const FIELD_SPEC = z.strictObject({
   key: z.string().regex(/^[A-Za-z][A-Za-z0-9]*$/),
@@ -134,6 +142,7 @@ const MANIFEST = z.strictObject({
     columns: z.array(z.string().refine((c) => c.split('.').length === 2 && c.split('.').every((p) => NAME.test(p)), 'table.column')),
   }).optional(),
   texts: z.strictObject({
+    errors: z.partialRecord(z.enum(ERROR_TEXT_KEYS), ERROR_TEXT).optional(),
     adminSteps: z.array(TEXT),
     teacherSteps: z.array(TEXT),
     disconnect: TEXT,

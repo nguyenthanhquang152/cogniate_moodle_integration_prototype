@@ -50,6 +50,12 @@ const manifest = {
     ],
   },
   texts: {
+    // The portal error texts (BD-A1-63; before: apps/portal/src/connect/provider-errors.tsx). Other keys: the generic text.
+    errors: {
+      SITE_RULE_1: 'Enter only the address, for example https://school.instructure.com. No path.',
+      SITE_RULE_5: 'This is an Instructure-hosted address. Choose an Instructure-hosted {LMS} type.',
+      PLATFORM_IN_USE: 'This {LMS} developer key is already connected to Cogniate. Make a new developer key for this library.',
+    },
     // The administrator steps of the portal (apps/portal/src/connect/canvas/canvas-steps.json).
     adminSteps: [
       'You need a {LMS} administrator to complete the connection.',
