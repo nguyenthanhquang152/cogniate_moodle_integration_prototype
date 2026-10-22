@@ -3,6 +3,7 @@ import type { ClientRequest, IncomingMessage } from 'node:http';
 import type { OutboundRequest } from '@cogniate/shared';
 import { createLogger, createOutboundClient } from '@cogniate/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { fakeProviders } from '../testkit.ts';
 import { createLtiClient } from './lti-client.ts';
 
 afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); });
@@ -48,6 +49,27 @@ it('M1 (M3 §3.3): with apiUrl only the /api/* calls go to the transport gate; /
   await client.getToolKeys('cogniate', 't');
   await client.findPlatforms({ url: 'https://canvas.sim.test', clientId: 'c' }, 't').catch(() => undefined);
   expect(urls).toEqual(['https://lti-gate.test/api/providers', 'https://lti.test/lti/keys/cogniate', 'https://lti-gate.test/api/platforms?url=https%3A%2F%2Fcanvas.sim.test&clientId=c']);
+});
+
+it('AC-LA-E1-01-01: a providers answer with an unknown lms value parses; today\'s answer parses to the same objects', async () => {
+  let answer: unknown;
+  const client = createLtiClient({
+    ltiUrl: 'https://lti.test', apiKeyFile: 'unused', readKey: () => 'test-key',
+    outbound: {
+      allowlist: ['lti.test'],
+      async request() {
+        const body = Buffer.from(JSON.stringify(answer));
+        return { status: 200, headers: {}, body, text: () => body.toString(), json: () => JSON.parse(body.toString()) };
+      },
+    },
+  });
+  // Today's values of lms: null (standard), blackboard and canvas (LTI contract §9.3).
+  const today = fakeProviders();
+  answer = { profiles: today };
+  expect(await client.getProviders('t')).toStrictEqual(today);
+  const unknown = { ...today[3]!, id: 'x-new-cloud', lms: 'x-new', label: 'X new cloud' };
+  answer = { profiles: [today[0], unknown, ...today.slice(1)] };
+  expect(await client.getProviders('t')).toStrictEqual([today[0], unknown, ...today.slice(1)]);
 });
 
 // Exercise the real client and guarded transport. Only the wire boundary is controlled.
