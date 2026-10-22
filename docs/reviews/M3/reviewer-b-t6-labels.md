@@ -111,3 +111,50 @@ After a fix and a re-check of the new diff, I expect to approve.
 | 5. All 12 legacy groups in one `--phase legacy` invocation with C4 and `--test-sha` C5 | Met (line 59; `run-m1.mjs:201-216`) |
 | 6. M2/T7 at C4 with unchanged `tests/e2e` | Tree equal; runtime pending |
 | 7. Any other change or fresh failure voids the exception | Guarded for product and other test paths; B-T6L-03 for the test SHA |
+
+## Round 2
+
+Verdict: APPROVE
+Round: 2
+
+Date: 2026-10-22, 11:22–11:26 UTC. Reviewer-B (Claude Code Opus 5.5, xhigh). Lens B.
+Run `run_ebe671ad72a9`, task `task_f688c16c1f76`, dispatch `ctx_409a2cf60d8e`.
+This session replaces the settled Round 1 Reviewer-B session for a bounded recheck of six launcher lines. I did not do the Round 1 work. I reuse its source conclusions above, because their inputs did not change.
+This is host-only. I did not run Docker, npm, tests, the typecheck or the launcher. I did not read Reviewer-A's file or reviewer messages. This review gives no runtime credit and does not approve the product.
+
+### Identities checked
+
+| Item | Identity |
+| --- | --- |
+| v1 launcher `<M>/tools/launch-legacy-c5.sh` | `51963fdf…727a9`, 10,064 bytes, 0700 (unchanged) |
+| v2 launcher `<M>/tools/launch-legacy-c5-v2.sh` | `c53203a2b16e2c47298fea0a6b1c466840689e2ba5352b27f5037937e596ed67`, 10,091 bytes, 0700 |
+| v1→v2 diff `<M>/prep-v2/01-v1-to-v2-diff.patch` | `8b09df2124ac062f8ae51041823b95b4a419633fee0a897baa87ee2645c4efd5` |
+| Readiness `<M>/prep-v2/READY-C5-LEGACY-V2.md` | `5502c5aacb5541265b43c9c295401183c1dfa30541e6aed812cb06271f098e42` |
+| Focused checks `<M>/prep-v2/04-focused-guard-checks.txt` | `438a6f5b12009d9a80553d92a0d25e1b21350af794b4bafc8da83bf6a7337307` |
+| Syntax check `<M>/prep-v2/03-syntax-check.txt` | `cb7a5a06fa342801b3e5caad702335c971572989775fde8aa346b9b6fef10a60` (`bash -n: OK`) |
+| Maintenance index `<M>/evidence-index-maint-v2.tsv` | `d648480b3cef4b55f9722b48e9505865481eef4dd61a9a330f4e08af34455f36`, 64 entries |
+
+- My own `diff -u v1 v2` has the same hunks as `01`: the SHA-256 is equal after the two header lines with paths and times. It changes exactly six lines: 15, 26, 65, 66, 83 and 91. Both files have 111 lines, so the line numbers are the same in v1 and v2.
+- Index v2 keeps all 57 v1 rows unchanged. All 64 rows match the current file SHA-256, size and mode, and no path occurs twice. The seven new rows are `01`, `02`, `03`, `04`, `READY-C5-LEGACY-V2.md`, the v2 launcher and the earlier receipt `report/msg-tool-prep-done.txt`. The v1 index is still `c95ce099…`.
+- The C5 tests tree is `9e57d42f…` and the C4 tests tree is `8283d90d…`. `git diff --name-only C4 C5 -- tests` gives only the three D-T6L paths. `<M>/legacy-c5-src/source` is at C5 and clean (read with `GIT_OPTIONAL_LOCKS=0`).
+
+### Finding closures
+
+| Round 1 finding | Round 2 status | Evidence |
+| --- | --- | --- |
+| B-T6L-01 MAJOR | CLOSED | Line 15 sets `term_7b4cc382-f802-483a-b07e-ef8412293cb9`, `task_a33056140130`, `ctx_574663dd5b1a`. `orca orchestration dispatch-show --task task_a33056140130` (I read fields only, no message bodies) shows this dispatch with status `dispatched`, assignee handle `term_7b4cc382-…`, no Orca session id and no retry. So the `term_` handle is the correct `--from` value. The Lead reports that status `msg_8a731861cb0f` and heartbeat `msg_661b85b0d32c` routed with this tuple. I did not open them. Check 1 in `04` parsed line 15 statically and sent no gate message. |
+| B-T6L-02 MAJOR | CLOSED | Subject: "starting D-T6L legacy run: product ${SHA:0:7}, tests ${TEST_SHA:0:7}". Body: "detached $TEST_SHA … tests C5 $TEST_SHA, each child checks out product C4 $SHA" and "Projects: $PROJECT (D-T6L legacy only)". The body now gives one run-id form, `$PROJECT-${SHA:0:8}-<ISO time>`, which agrees with `core.mjs:84`. The storage project and the sim, snapshot and migration names are gone. The fixed words "C4" and "C5" are always true, because lines 25-26 pin both SHAs. "clean, no .env" stays true through lines 28 and 32. |
+| B-T6L-03 MINOR | CLOSED | Line 26 pins `TEST_SHA` to exact C5 `e1a057be9624a82949007b772e2bdf19bc55638b`. This also covers the old "not equal to C4" check. `04` shows that C4 and a random 40-hex value are rejected with exit 2. It also shows that exact C4 + C5 passes all eight source guards (lines 25-32) on the C5 source. |
+| B-T6L-04 MINOR | CLOSED (readiness disposition accepted) | Lines 83 and 91 now say "D-T6L legacy run". The three inherited file names stay for `progress.sh`. READY §2 states that they record only this `--phase legacy` child and are never full-round evidence. D-T6L line 61 records the same. This is the fix that Round 1 asked for. |
+| B-T6L-05 NIT | CLOSED (readiness disposition accepted) | READY §2 records `patch/10-typecheck.txt` (`5c2ed944…`, 70 bytes; I hashed it again) with time 10:13:08Z, folder, command, C5 tests tree `9e57d42`, exit 0 and 0 diagnostics. No rerun is needed. |
+
+### Other checks
+
+- All lines outside the six are byte-equal to v1. So the Round 1 conclusions on the guards, `--phase legacy`, the clone guard `--sha8`, W1-W4, observers, scans and the exit code stay valid.
+- `04` records its own run time as 11:13:35.588Z-11:13:35.680Z. I use these times. The Stage 1 receipt `prep-v2/05` gives a different narrative range, which does not override the artifact. `05` was written after the index and is not in it. I used it only as narrative.
+- I found no new BLOCKER, MAJOR, MINOR or NIT finding.
+
+### Conditions that stay (not source defects)
+
+- Line 15 is valid only for dispatch `ctx_574663dd5b1a`. If a different dispatch must execute the run, B-T6L-01 opens again and a new reviewed copy is necessary.
+- The Round 1 future runtime requirements stay. Full2 stays FAILED. All 32 real LMS rows stay UNVERIFIED, and local Canvas stays DEFERRED. This review grants no Docker window and no runtime authority.
