@@ -1,7 +1,9 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-15 review, Reviewer-B2 (lens: "Can a human team own it?")
+
+## Round 1
 
 Reviewer: Reviewer-B2, the second lens-B instance (plan LD-22). Diff: `git diff e67819c^1 e67819c` (the merge of lane S2 for LA-E5-15). Spec: `docs/architecture/ltiaas/tasks/LA-E5-15.md`. Design: LA-ADR-06 D8; LA-ADR-07 D7; contract delta §1.3, §3, §4.8, §5; operability §6.5; BD-A2-12, BD-A2-47. I did not open any reviewer-a file. I did not run Docker.
 
@@ -100,3 +102,35 @@ My MINORs are about two gaps. First, no test proves that the three write routes 
 
 - The K1-SIM ACs AC-01..03 and AC-05..07, and the regression areas T3a, T3c, T5a and T5b (QA).
 - Lens-A items: cache isolation across accounts beyond the key hash, the GET guard against a hostile line item URL beyond the unit row, and the race between a revoke and a launch beyond the transaction test.
+
+## Round 2
+
+Verdict: **APPROVE**. Reviewer: Codex GPT-6-Astra, xhigh, continuing the lens-B review under charter-LA §0. Counts: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open; all five Round 1 findings closed.**
+
+Reviewed `4b7bfd4`, `5c53cd0`, `5fbd89d`, `d2feeac`, `4d0df45`, `3eccb9f` and `001a3d9`, as merged by `676b7d9`, plus the `lti/service-keys.ts` line in `c521136`. References: the task spec, LA-ADR-06 D8, LA-ADR-07 D7, contract delta §3, operability §6.5, BD-A2-53, ownership matrix §5 and plan §6.1. No Reviewer-A file was opened. The companion review is [LA-E3-11 Round 1](../LA-E3-11/reviewer-b.md).
+
+### Round 1 disposition
+
+| Finding | Result and evidence |
+| --- | --- |
+| B-LA-E5-15-01 — route tests | **Closed.** `http/service-key-write-scope.test.ts:43` uses the mounted app and real SERVICE-AUTH-V1 authentication. Each POST/PUT/DELETE to another resource link gets `403 SERVICE_KEY_SCOPE` and no AGS write. Each own-link write passes without an ownership GET. A GET of the other link passes. Removing each guard separately makes its matching test fail on the unexpected outbound write (one failure and six passes per mutation). |
+| B-LA-E5-15-02 — operator platform lookup | **Closed.** `http/operator/platforms.ts:8` and the mount at `http/operator/index.ts:89` implement BD-A2-53. The exact output contains only the seven contracted fields and is filtered by account. Five tests cover the output and tenant boundary, empty account, unknown account, closed-account reads and operator-only authentication, with no audit events. Runbook §6.5 step 0 now lists platforms and matches issuer plus client id before revoke. |
+| B-LA-E5-15-03 — refusal text | **Closed.** `http/key-errors.ts:7` names line items, the `serviceKeyWriteScope: resource-link` setting and the corrective action: use a key from a launch of that resource link. |
+| B-LA-E5-15-04 — cache and required hash | **Closed.** `http/ttl-lru-cache.ts:8` owns TTL expiry and LRU bookkeeping. `http/auth.ts:54` requires `serviceKeyHash` for the service scheme, and the scope function has no missing-hash branch. Existing tests still prove exact expiry, both ownership outcomes, credential isolation, shared in-flight reads, retry after errors, URL checks before cache access and the 10,000-entry LRU bound. |
+| B-LA-E5-15-05 — comments and dead branch | **Closed.** `http/routes/service-key-admin.ts:32` explains the audited pre-check and the check under the transaction lock. `lti/service-keys.ts:24` returns `issued.serviceKey` directly. The Lead records the one-line L2 ownership grant in the LA board. |
+
+### Verification
+
+Used a private `git clone --no-hardlinks` under `/tmp`, pinned to `676b7d9`. Copied dependencies into that clone so workspace imports stayed inside it. No Docker, stack, host stack runner or commit was used.
+
+- `node node_modules/vitest/vitest.mjs run` with the nine focused files listed in the companion review: **150 tests passed**. This includes the seven mounted-route cases, five operator-platform cases, cache tests and service-key store tests.
+- Removed the score POST guard, line-item PUT guard and line-item DELETE guard in three separate runs of `http/service-key-write-scope.test.ts`: **each mutation failed the matching refusal test**, with the other six cases passing. Restored each file after its run.
+- UNIT AC-04 remains covered by `store/service-keys.test.ts:137`: epoch 0 matches the independent old HMAC input, and epoch 1 matches an independently built input with the framed epoch part. Ignoring the epoch cannot satisfy the second assertion. The test passed in this run.
+- `node node_modules/typescript/bin/tsc --noEmit -p services/lti-service/tsconfig.json`: **PASS**. The updated route fixture satisfies the required hash type.
+- F1: **PASS**, 20 files with hits, 74 hits (existing baseline-lowering notices). F5: **PASS**, 6 rules, 0 hits.
+
+### Scope and remaining verification
+
+The new operator read route is the Architect's approved BD-A2-53 addition. The S1 mount and L fixture edits have explicit RQ-2 commits; the dead L2 branch removal has the Lead's recorded grant. Other changes remain within the S2 scope. The review found no new LMS name in core paths and no behavior change outside the approved fixes. The unrelated LA-E5-09 trace change bundled into the merge and the JWKS changes in `c521136` are outside this review.
+
+There are no remaining lens-B findings for this task. The K1-SIM acceptance criteria and named stack regressions remain QA work; this host-only round does not claim them as passed.
