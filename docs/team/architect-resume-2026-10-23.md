@@ -87,3 +87,22 @@ Independent QA message `msg_01d00e1f3c50` reports seven affected dead-handler ca
 Its programmatic diagnosis is `verification-5561e8f-c8R3Prep/judge/round2/r2-s-dead-failure-analysis.json` under the existing Canvas QA root,
 177,440 bytes, SHA-256 `b5cb79bd1b36a779a0e14229139f77b67e5b57f9193ba814cd408eb1423d5d8b`.
 Its equality judgment is FAIL, with one disposition difference. Actual process exit at exactly SIGTERM plus two seconds remains an inference.
+
+## Continuation after the second session limit (20:10 UTC)
+
+Replacement `ctx_e364fb2df6f9` also hit its session limit at 20:07:43 UTC. The Lead stopped it after confirming the transcript event.
+It made no repository edits and sent no final proposal. The next retry keeps the same task and model.
+Do not repeat the broad source or historical evidence review. First send a concise interim repair recommendation based on the seven-case assessment and the relevant helper/spec code, then append the final plan.
+The required result is an actionable bounded repair plan and evidence-reuse decision; final conformance still waits for actual runtime.
+
+Independent QA's corrected round-2 report is committed at `64a1b62`.
+`docs/reviews/M1/qa-canvas.md` is 157,523 bytes, SHA-256 `159613ab9c636335476be0c524a8a5a27d6516d8d13ebf053c93e785ab91ddfb`.
+Use diagnosis v3, `judge/round2/r2-s-dead-failure-analysis-v3.json` in the existing Canvas QA root: 181,589 bytes, SHA-256 `17dec36adb1c6ddd1798ccd258847970e112c201c0b2873836c8cf4e15d7cbf4`.
+Lead verified all 12 input bindings. Prior v1/v2 artifacts remain preserved.
+The new report discloses and corrects earlier hand-entered sizes and one unsupported restart end time.
+The actual host-action record has `startedAt=1792697663322`, `durationMs=11272`, `code=0` and no `endedAt` field.
+Its derived end is 19:34:34.594 UTC. The logged SIGTERM and outbound-timeout chronology remains valid.
+Actual process exit time remains inferred. Do not repeat the unsupported 19:34:27.493 end time.
+
+Savoy's run now has no coordinator and no active workers. Its historical whole-window confirmations remain unanswered; do not infer acceptance from this absence.
+Legacy remains accepted under E-R4. E-R5 remains invalidated. No new runtime or source/test edit is granted.
