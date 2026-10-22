@@ -25,7 +25,7 @@ New and changed settings (all optional unless marked; the base settings stay as 
 | `LTI_MASTER_KEY_FILE`, `APP_MASTER_KEY_FILE` | LTI, app | unset | file forms of the master keys; required form in `production` | LA-ADR-06 D12 |
 | `LTI_RATE_LIMITS` | LTI | built-in table | JSON overrides of the default limits at start; the operator API value (`PATCH /operator/v1/rate-limits`) wins over it | LA-ADR-06 D1 |
 | `TRUSTED_PROXY_CIDRS` | LTI | `proxy` (CIDRs or host names; names resolved every 60 s) | peers whose `X-Forwarded-For` counts; required in `production` | LA-ADR-06 D1 |
-| `SIGNING_KEY_PUBLISH_LEAD_S` | LTI | `86400` (min `600`) | wait between `next` and activation | LA-ADR-06 D7 |
+| `SIGNING_KEY_PUBLISH_LEAD_S` | LTI | `86400` (min `600`) | wait between `next` and activation. Read once at start (`keys/key-config.ts`); a value that is not a whole number ≥ 600 stops the start with one line | LA-ADR-06 D7 |
 | `SIGNING_KEY_ROTATE_DAYS` | LTI | `90` | age limit for the alert and for `autoRotate` accounts | LA-ADR-06 D7 |
 | `AUDIT_RETENTION_DAYS` | both | `400` | audit retention (LA-H4) | LA-ADR-06 D4 |
 | `JOB_INSTANCE_ID` | both | `lti-1`, `app-1` | lease owner of the job runner (with a random boot id per process). A normal restart (stop, then start) keeps today's timing: `stop()` deletes the heartbeat row. After a crash without `stop()`, the new runner waits up to 30 s before its first send, and the web part serves at once. Only a second **live** process with the same id stops its runner (`job_instance_conflict`: a worker process exits 1; the web process keeps serving with its runner off). The rule holds for both runners (LA-ADR-03 D7, Q-LAD-23) | LA-ADR-03 D7 |
@@ -212,10 +212,16 @@ Procedure:
 
 Compromise of the active key:
 
-1. Make B (step 1) and activate it with `force: true` at once.
+1. Make B (step 1) and activate it with `force: true` at once. If a `next` key exists already, step 1 gives `409 SIGNING_KEY_NEXT_EXISTS`: activate that key with `force: true` instead, or, if you do not trust it, remove it first (next procedure).
 2. Retire A at once: `POST …/signing-keys/A/retire {immediate: true}`.
 3. Tell the inline-key Canvas admins to paste the new JSON.
 4. Record the incident and the audit event ids.
+
+Compromise of the next key (it is published, but it never signed):
+
+1. Remove it at once: `POST …/signing-keys/<next kid>/retire {immediate: true}`. It leaves the key set at once. No platform loses a valid JWT.
+2. Make a new next key when you need one (step 1 of the procedure).
+3. Record the incident and the audit event id.
 
 ### 6.2 Tool account API key
 

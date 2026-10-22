@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E7-03 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -57,3 +57,25 @@ Round: 1
 - `dc()` rewrites the override at every compose call in `acceptance` (atomic rename), so two scripts at the same time cannot read a half-written file.
 - A compose command typed by hand without `dc()` (for example `docker compose -f infra/compose.yaml up -d` in `acceptance`) would recreate `lms-sim` without aliases. The tasks README allowances use only `docker compose exec`, which does not recreate a container, so this is acceptable.
 - The fallback notice prints once per process tree (`SIM_HOSTS_FALLBACK_WARNED`), and the fallback goes away after LA-E7-02 (§4b "No file").
+
+## Round 2
+
+- Diff: the four fix commits `750161c`, `e282026`, `8c7bb66` and `d17e1d0` (`git diff 48d1499 d17e1d0` for their files; merged as `53472c0`). The dispatch range `a67d44f..d17e1d0` also holds `6d201e2` (round 1) and the LA-E5-02 commits, which I reviewed in LA-E5-02 round 2. These files at `HEAD` are the same as at `d17e1d0`.
+- References: my round-1 findings above; A1 `build-decisions-A1.md` BD-A1-01 (change 1: `.sim.test` only) and BD-A1-08 (where a bad file stops a command); README §4b as now committed.
+- I ran the tests on the host (no Docker): `sim-hosts.test.mjs` passes 31 of 31 with the host `bash` 3.2. `cli/operator.test.ts` and `cli/shared-platform.test.ts` pass 10 of 10.
+- Blind review as before.
+- **Verdict (round 2): APPROVE.** All four round-1 findings are closed. New: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+### Round-1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E7-03-01 (MINOR) | closed | A host must now end in `.sim.test` (`infra/scripts/lib.sh:108`). This rejects `lms-sim.test` (it ends in `-sim.test`), a stack host, and any other `.test` name without depending on the reserved list (which stays as a second check). Unknown keys fail at both levels (`:111-114`, `:117`, and the provider check), so a typo such as `allowList` cannot hide. Test rows: "non-simulator test host", "control host", "unknown manifest key", "unknown provider key". The error line names the entry and the host. A host in two providers: README §4b now merges it in the infra and lets the simulator refuse it (BD-A1-01 change 3, LA-E7-02). That replaces my request. |
+| A-LA-E7-03-02 (MINOR) | closed | As BD-A1-08 says. (1) `load_sim_hosts` starts with only the control alias and no allowlist host (`:88`), and a bad file keeps that state. So a bad file never gives a part of the list or the fixed lists, also after an earlier good load in the same shell (test "drops all hosts after a late invalid provider"). (2) Loading never exits. The error line prints once per process tree (`:160-165`). (3) `require_sim_hosts` (`:168`) stops only `stack:up` with `acceptance` (`stack-up.sh:14` before any Docker call, `:21` after `gen-env`) and `stack:restart` with the saved `acceptance` profile. Both exit 1 with no Docker call (tests). (4) `default` config and `stack:down` (both profiles) run with one warning and no simulator host. (5) `gen-certs.sh` neither issues nor changes the QA leaf while the file is bad, also through a CA renewal (`:74`, `:127`; tests). A kept QA leaf from an old CA cannot serve a stack, because acceptance `stack:up` is blocked; after the file is fixed, `leaf_ok` re-issues it because it does not chain to the new root. |
+| A-LA-E7-03-03 (MINOR) | closed | `cli/operator.ts` and `cli/shared-platform.ts` now use `import.meta.main`. Each has a spawn test through a symlinked path that must give the usage exit code, which fails on the old guard (I showed the old exit 0 with no output in round 1). No other `resolve(process.argv[1])` guard is left in `services/` or `packages/`. |
+| A-LA-E7-03-04 (NIT) | closed | `infra/README.md` rows `lms-sim` and "LTI service" now point to `tests/sim/hosts.json`, the fixed control alias and the `.tmp/compose.sim-hosts.yaml` override. |
+
+### Notes (no finding)
+
+- When a parent script has already printed the warning (for example `qa-suite.sh` before it calls `stack-up.sh`), the child stops with exit 1 and no second line. The one error line is still on stderr, as BD-A1-08 asks.
+- Other `acceptance` commands that may start a container (for example `dc run e2e`) run with a bad file, but with only the control alias and an empty simulator allowlist (BD-A1-08 rule 1). So they cannot reach a wrong host.

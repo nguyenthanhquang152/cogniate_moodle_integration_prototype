@@ -1,11 +1,9 @@
 /**
- * The four public URLs of the stack. They are the only source of public URLs (B-T0-01):
+ * The three public service URLs of the stack. They are the only source of public URLs (B-T0-01):
  * npm run gen-env writes them to .env from PUBLIC_PORT, compose passes them to every container.
  * Do not write URL literals in code. Use loadPublicUrls() and build paths from these origins.
  */
 export interface PublicUrls {
-  /** Moodle (the LTI platform), for example https://moodle.test */
-  moodle: string;
   /** LTI service, for example https://lti.cogniate.test */
   lti: string;
   /** Cogniate app and portal, for example https://app.cogniate.test */
@@ -15,13 +13,12 @@ export interface PublicUrls {
 }
 
 export const PUBLIC_URL_ENV = {
-  moodle: 'PUBLIC_MOODLE_URL',
   lti: 'PUBLIC_LTI_URL',
   app: 'PUBLIC_APP_URL',
   content: 'PUBLIC_CONTENT_URL',
 } as const satisfies Record<keyof PublicUrls, string>;
 
-/** Read and check the four URLs. Each must be an https origin (no path, query or trailing slash). */
+/** Read and check the three service URLs. Each must be an https origin (no path, query or trailing slash). */
 export function loadPublicUrls(env: Record<string, string | undefined> = process.env): PublicUrls {
   const read = (key: keyof PublicUrls): string => {
     const name = PUBLIC_URL_ENV[key];
@@ -40,5 +37,5 @@ export function loadPublicUrls(env: Record<string, string | undefined> = process
     }
     return url.origin;
   };
-  return { moodle: read('moodle'), lti: read('lti'), app: read('app'), content: read('content') };
+  return { lti: read('lti'), app: read('app'), content: read('content') };
 }

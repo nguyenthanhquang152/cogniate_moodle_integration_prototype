@@ -15,6 +15,18 @@ export const MANUAL_SELF_LEGACY_CHANNELS: readonly string[] = ['moodle'];
  */
 export const LAUNCH_GUARD_CHANNELS: readonly string[] = ['canvas', 'blackboard'];
 
+/** Frozen provider-list values of the eight baseline profiles. A change needs an ADR revision (BD-A1-06). */
+export const BASELINE_PROFILE_WIRE_LMS: Readonly<Record<string, string | null>> = Object.freeze({
+  standard: null,
+  'canvas-cloud-production': 'canvas',
+  'canvas-cloud-beta': 'canvas',
+  'canvas-cloud-test': 'canvas',
+  'canvas-self-hosted': 'canvas',
+  'canvas-sim-cloud': 'canvas',
+  blackboard: 'blackboard',
+  'blackboard-sim': 'blackboard',
+});
+
 /** The setup artifact behind the legacy flag `canvasConfiguration` (`setup.artifacts`, D3). */
 export const DEVELOPER_KEY_JSON_ARTIFACT = 'developer-key-json';
 

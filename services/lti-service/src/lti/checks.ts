@@ -6,6 +6,9 @@
  */
 import type { PublicUrls } from '@cogniate/shared';
 import { readCookie, safeEqual } from '@cogniate/shared';
+import { MANUAL_SELF_LEGACY_CHANNELS } from '@cogniate/channel-kernel';
+import type { ProfileOptions, ProviderProfile } from '../profiles/index.ts';
+import { channelRegistry } from '../profiles/index.ts';
 import type { ProtectedHeaderParameters } from 'jose';
 import { decodeProtectedHeader } from 'jose';
 import type { Db } from '../db/index.ts';
@@ -239,13 +242,19 @@ export function check13Origins(claims: Claims, origins: { site: string; service:
 }
 
 /**
- * Check 14 (every profile): a signed `tool_platform.product_family_code` of `canvas` or `blackboardlearn` (any case)
- * needs a profile of that LMS. Any other value and a missing claim pass (Moodle unchanged). Returns the refused family
- * in the error detail (`family=canvas` or `family=blackboardlearn`).
+ * Check 14: launch guards require the owning channel. Registration guards refuse a mismatch only on the legacy
+ * manual-self path. Return any other registration mismatch for the caller to log; unknown families pass.
  */
-export function check14ProductFamily(claims: Claims, profileLms: 'canvas' | 'blackboard' | null): void {
+export function check14ProductFamily(claims: Claims, profile: ProviderProfile, opts: ProfileOptions): string | null {
   const tp = claims[CLAIM.toolPlatform] as { product_family_code?: unknown } | undefined;
   const code = tp && typeof tp === 'object' && typeof tp.product_family_code === 'string' ? tp.product_family_code.toLowerCase() : null;
-  if (code === 'canvas' && profileLms !== 'canvas') fail('14', 'PROVIDER_PROFILE_MISMATCH', 'family=canvas');
-  if (code === 'blackboardlearn' && profileLms !== 'blackboard') fail('14', 'PROVIDER_PROFILE_MISMATCH', 'family=blackboardlearn');
+  if (code === null) return null;
+  const channels = channelRegistry(opts);
+  const owner = channels.ownerOfFamily(code);
+  if (owner === null || owner === profile.channel) return null;
+  const guard = channels.channel(owner)?.lti?.guardedFamilies.find((entry) => entry.family === code);
+  if (guard?.level === 'launch' || MANUAL_SELF_LEGACY_CHANNELS.includes(profile.channel)) {
+    fail('14', 'PROVIDER_PROFILE_MISMATCH', `family=${code}`);
+  }
+  return code;
 }

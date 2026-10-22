@@ -126,3 +126,29 @@ New agents continue the stopped tasks with retry-context notes (charter-LA §0 m
 | QA-3 | Antigravity, terminal | `ctx_a305f8530c40` | LA-E1-03/04 suites; LA-E1-02/06; LA-E4-02/03 UNIT plan |
 | Architect A1 | Claude Opus 5.5 xhigh | `ctx_7a37e7830a62` | ratify hosts.json schema, fitness rule interface, matrix updates, migration numbers |
 | Architect A2 | Claude Opus 5.5 xhigh | `ctx_40535863c72d` | ratify SAVEPOINT audit atomicity; operator-key and e2e-secret doc alignment |
+
+## Wave B1 progress (2026-10-22 ~18:00 +07)
+
+"Done" = QA PASS on every non-pending AC + Reviewer-A and Reviewer-B APPROVE; "pending" ACs wait for the golden tool or a Docker window (LD-21).
+
+| Task | Lane | State | Evidence |
+| --- | --- | --- | --- |
+| LA-E0-01 | Lead | **done** (AC-04/05 at wave end) | QA-3 R1 PASS |
+| LA-E1-01 | K | **done** (AC-03 golden, F1 part pending) | QA-3 R1 PASS; A, B APPROVE |
+| LA-E1-02 | K | **done** (AC-09 pending) | QA-3 R1 PASS; A, B APPROVE |
+| LA-E5-01 | S1 | reviews APPROVE; QA-2 run pending (K1-SIM needs Docker) | A, B APPROVE |
+| LA-E5-08 | S2 | reviews APPROVE (r2 + wiring); QA-2 run pending | A, B APPROVE |
+| LA-E5-02 | S1 | r1 A, B APPROVE; r2 fixes merged `8371c07`; Reviewer-A r2 check running | |
+| LA-E4-01 | R | QA-3 PASS; A APPROVE; B running | |
+| LA-E7-03 | S1 | A APPROVE, B CHANGES_REQUESTED (BLOCKER .sim.test); fix round running (A1 BD-A1-01, BD-A1-08) | |
+| LA-E7-10 | R | merged `a8b5517`; QA-3 run and Reviewer-A running | |
+| LA-E1-03 | K | merged `a9f83be`; QA-3 run running; reviews queued | |
+| LA-E1-04 | P | Author running (A1 BD-A1-07; F1 matching question with A1) | |
+| LA-E1-05 | L | Author running (A1 BD-A1-06) | |
+| LA-E1-06 | K | Author running | |
+| LA-E5-10 | S2 | Author running (A2 BD-A2-04..06) | |
+| LA-E0-02/03/04, LA-E7-01 | QA | lead QA: golden tool (no capture); LA-E0-04 waits for both reviewers on the LD-1 list | |
+| LA-E5-04 | S1 | after the LA-E7-03 fix round | |
+| LA-E7-02 | QA-E2E | starts when LA-E7-03 is approved | |
+
+Integration branch: `3364488`; last full integration check green at `a8b5517`.

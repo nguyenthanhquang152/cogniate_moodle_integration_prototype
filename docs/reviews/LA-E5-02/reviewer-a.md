@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-02 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -18,7 +18,7 @@ Round: 1
 | SAVEPOINT semantics | Correct. Success runs `RELEASE`. An error runs `ROLLBACK TO` and `RELEASE`, then rethrows, so the outer transaction decides (`packages/shared/src/migrations.ts:28-39`). The top-level path is unchanged (`BEGIN IMMEDIATE`, test with a second connection). Each name is unique per process (`nested_<n>`). Node 24.22 (compose image) has `DatabaseSync.isTransaction`. |
 | Async risk of the SAVEPOINT change | None today. I read all 35 product callers of `transaction()` in both services. Every callback is synchronous, and each `await` near them (for example `cogniate-app/src/app/connections.ts:329`, `operator.ts:164`) comes after the transaction returns. `DatabaseSync` is synchronous, so no other request can run while a transaction is open. So `isTransaction` is true only for a real nested call in the same call stack. No old path relied on the nested-call error, because such a path would have failed. A latent gap remains: A-LA-E5-02-02. |
 | Refused events | Correct. Only an `ApiErrorBase` with a 4xx status writes `refused` with its code. A 5xx error or a bug writes nothing (`store/audit.ts:104-107`). The flag `written` stops a second event when a 4xx comes after a committed change. Every route translates the store errors (`PlatformExistsError` and others) inside the frame, so the stored code is the wire code (for example `PLATFORM_ALREADY_EXISTS`, `UNREGISTERED_PLATFORM`, `UNKNOWN_DEPLOYMENT`, `OPERATOR_KEY_IN_USE`). |
-| Authentication before the frame | Yes. `ctx.auth(req, ['bearer'])` runs before `audited(...)` in all five platform routes (`http/routes/platforms.ts:174, 211, 233, 261, 300`). The operator key check runs at `onRequest`. So a `401` writes no event (tests: tenant `Bearer ltis_wrong` and an empty header; operator unknown key). |
+| Authentication before the frame | Yes. `ctx.auth(req, ['bearer'])` runs before `audited(...)` in all five platform routes (`http/routes/platforms.ts:174, 211, 233, 261, 300`). The operator key check runs at `onRequest`. So a `401` writes no event (tests: a tenant Bearer header with an unknown key, and an empty header; operator unknown key). |
 | Action names and targets (contract delta §5) | All match: `platform.create`, `platform.update`, `platform.delete`, `deployment.create`, `deployment.update`, `operator_key.issue`, `operator_key.revoke`, `audit.read`, and `init` → `operator_key.issue` with actor `system:bootstrap`. The target types are `platform`, `deployment`, `operator_key` and `audit`. The actor is `api_key:bootstrap-<account>` (B1, A-LAB-07) or `operator:<name>` from the key row. |
 | `init` | Correct. The event is inserted inside the `initOperatorKey` transaction (`store/operator-keys.ts:112`). So a failed insert leaves no key, and a key always has its event. `refuse` and `--if-none` write no event. `--replace` writes one event with `revoked: <n>` (test `cli/operator.test.ts`). |
 | Append only (rule 2, AC-07) | The trigger refuses `UPDATE` and an `UPSERT … DO UPDATE` (I checked both with `node:sqlite`). The test on a v6 database with rows fails on the old code. A `REPLACE` gap and an F5 spelling gap: A-LA-E5-02-01. |
@@ -74,3 +74,38 @@ Round: 1
 - Until LA-E5-03 adds the `admin` and `operator` limits, a caller with a valid key can write any number of `refused` rows (for example `400` answers). The retention job (LA-E5-19) and the limits bound this later.
 - The F5 `ALLOWED` list names only the LTI retention job. The app audit table (LA-E5-11) and its retention job will need their own entry.
 - The K1-SIM ACs (AC-01 to AC-06, AC-09) wait for QA-2's Docker window. The unit tests above cover their logic.
+
+## Round 2
+
+- Diff: the five fix commits `git diff 6d201e2 48d1499` (`066083e`, `fd523ce`, `ac0a702`, `fd5ada9`, `48d1499`; merged as `8371c07`). The dispatch range `fbec03d..48d1499` also holds the LA-E7-03 and B-LA-E5-08-03 commits, which I reviewed under LA-E7-03. These files at `HEAD` are the same as at `48d1499`.
+- References: my round-1 findings above; LA-ADR-06 D4 "Transaction rule" T0–T5 and A2's follow-ups C1 and C5 (`build-decisions-A2.md`).
+- I ran the tests on the host (no Docker): 6 vitest files, 57 tests pass (`migrations`, `store/audit`, `http/auth`, `platforms-audit`, `services`, `operator/audit`); the F5 rule test passes 4 of 4.
+- Blind review as before.
+- **Verdict (round 2): APPROVE.** The two round-1 MINORs and NIT 03 are closed. NIT 04 stays open (design text). New: **0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT.**
+
+### Round-1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E5-02-01 (MINOR) | closed | The new migration `008_audit_event_replace_guard.sql` adds a `BEFORE INSERT` trigger that refuses an insert whose `id` exists. `007` is not edited. The test upgrades a v7 database with a row, sets `recursive_triggers = OFF`, and shows that `REPLACE INTO` and `INSERT OR REPLACE INTO` both fail with `audit_event is append-only`. The old row is unchanged, and a new insert still works. The F5 pattern (`infra/scripts/fitness/rules/audit-event-delete.mjs:12`) now also matches single quotes, brackets, quoted `main`, `REPLACE INTO` and `INSERT OR REPLACE INTO`. A replacement is refused even in the retention job, where only `DELETE` is allowed. `audit_event_archive` in each quote form still passes. The tree has no hit. |
+| A-LA-E5-02-02 (MINOR) | closed in code | (1) `transaction()` throws `TypeError` when the callback returns a thenable (a Promise, or an object or function with `then`), on both paths, after the rollback (`packages/shared/src/migrations.ts:22-27`, A2 C1). Tests show that the outer data is gone, the nested part alone is rolled back, and `then` is never called. (2) `withAudit` refuses a second `audit.change()` before its callback runs, also a reentrant call from inside the first change, which then rolls back with no event (`store/audit.ts:130-131`). (3) A body that ends without a successful `change` now fails (`:144`): a sync or async body like that gives an error and writes no row. So a missed event is a loud `500` that a unit test catches, not a silent gap. Every current route calls `change` on each success path, so no answer changes. The design text still says "at most once": A-LA-E5-02-05. |
+| A-LA-E5-02-03 (NIT) | closed | Both rollback paths run only while `db.isTransaction` is true, inside their own `try`, and always rethrow the first error (`migrations.ts:45-51`, `:61-64`; A2 C5). Tests: an `INSERT OR ROLLBACK` conflict (SQLite ends the transaction itself) keeps `UNIQUE constraint failed`, nested and not nested. A failing `ROLLBACK`, `ROLLBACK TO` or `RELEASE` keeps the exact first error object. |
+| A-LA-E5-02-04 (NIT) | open | No change (design text). A request that Fastify refuses before the handler (bad JSON, `413`, `415`, unknown path) still writes no event. Safe to defer. |
+
+### New change: the actor comes from authentication (B-LA-E5-02-02)
+
+- `authenticate()` now returns `actor` (`services/lti-service/src/http/auth.ts:73`), and the platform frame uses `caller.actor` and `caller.account.id`. LA-E5-07 then changes the actor in one place.
+- Same wire behaviour. I compared the old and new branches. For each scheme (`bearer`, `service`, `ltik`), an unknown API key gives the same code and the same description as before (`:68-72`: Bearer keeps "Invalid API key."). A valid key goes on to the same service-key or ltik lookup. No lookup is added for an unknown key.
+- Tests: `auth.test.ts` checks the actor for two accounts. `platforms-audit.test.ts` replaces the actor through `authenticate`, and shows that both the `ok` and the `refused` event use it.
+
+### New finding
+
+- **A-LA-E5-02-05 (NIT): LA-ADR-06 D4 rules T3 and T5 lag the code.**
+  - Where: `docs/architecture/ltiaas/adr/LA-ADR-06-service-operability.md:219` (T3: "calls `audit.change` at most once") and `:221` (T5: "MINOR, deferred"). Also `build-decisions-A2.md` C5 and the Lead's `deferred.md` entry.
+  - Problem: the code now requires exactly one successful `change` on every success, and T5 is built. A developer who reads T3 can write a success path with no `change`, which now fails with a `500` at run time.
+  - Suggested fix (A2): T3 says "exactly once on every successful request; a request with no change still calls `audit.change`". T5 says "built in LA-E5-02 round 2". The Lead removes the C5 item from `deferred.md`.
+
+### Note (no finding)
+
+- The thenable guard throws without waiting for the Promise. If an async callback later rejects, nobody handles that rejection, and Node's default would end the process. This is a programming error that the `TypeError` already shows in a unit test, so it is acceptable.
+- Editorial change to round 1 (no change of meaning): the "Authentication before the frame" row quoted a test's fake key text. The new secret scan of `npm run ci:local` (LA-E7-10, rule `api_key`) flags such text in `docs/**`, so I now describe it in words ("a tenant Bearer header with an unknown key").

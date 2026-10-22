@@ -221,6 +221,7 @@ export function createLocalKeyProvider(ring: KeyRing, options: LocalKeyProviderO
   function macSync(purpose: MacPurpose, version: string, input: Uint8Array): Uint8Array {
     const key = keys.get(version);
     if (!key) throw new KeyProviderError('key_version_missing', `Key version ${version} is not in the key ring.`, [version]);
+    // The HKDF info prefix is a fixed namespace, also for runtime-token. Keep it stable to preserve derived values.
     const subkey = version === LEGACY_KEY_VERSION
       ? LEGACY_SUBKEY[purpose](key)
       : Buffer.from(hkdfSync('sha256', key, Buffer.alloc(0), `cogniate-lti/${purpose}/${version}`, KEY_BYTES));

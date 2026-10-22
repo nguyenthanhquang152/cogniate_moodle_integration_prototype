@@ -17,7 +17,7 @@
     "fitness:channel-diff": "node infra/scripts/fitness/channel-diff.mjs",
     "fitness:rules": "node infra/scripts/fitness/rules.mjs",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck --workspaces --if-present",
+    "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck --workspaces --if-present && tsc --noEmit -p packages/channels/tsconfig.node.json && tsc --noEmit -p packages/channels/tsconfig.portal.json",
     "test:unit": "vitest run",
     "test:infra": "node --test 'infra/scripts/*.test.mjs' 'infra/scripts/fitness/*.test.mjs'",
     "test:k0": "vitest run --config tests/ltiaas/k0/vitest.config.mts",

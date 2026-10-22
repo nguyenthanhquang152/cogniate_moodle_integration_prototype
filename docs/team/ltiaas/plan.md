@@ -214,6 +214,7 @@ Docker: at most 2 stacks at the same time, by booked slot (Lead decision LD-2). 
 | LD-19 | Start on a verification dependency: a task may start authoring before a dependency that only makes a baseline, golden or test artifact (for example LA-E0-02, LA-E0-03, LA-E0-04) is done. The task's QA run waits for that dependency. Product dependencies stay strict (LD-15). |
 | LD-20 | Approved start: when both reviewers APPROVE a task and only QA runs are still pending, the same lane may start its next dependent task on top of it. A later QA FAIL on the approved task becomes a fix commit on that lane before the next merge. Other lanes still wait for "done" (LD-15). |
 | LD-21 | Start during the Docker hold: when both reviewers APPROVE a task and its only open QA rows are host-only (UNIT, K0) or "pending: Docker window", dependent tasks in OTHER lanes may start on the integration SHA that holds it. A later QA FAIL becomes a fix commit in the owner lane; dependent lanes merge the fixed integration SHA. Reason: no task with a K1-SIM row can be "done" while the other run holds Docker. |
+| LD-22 | Review capacity: each lens gets a second Claude Opus 5.5 xhigh instance (Reviewer-A2, Reviewer-B2) when the review queue is longer than one task per reviewer. Each task still gets exactly one lens-A and one lens-B review; the Lead assigns tasks, not lenses, to instances. Blind rule across lenses unchanged; an instance never reviews a task that it or another instance of the other lens already reviewed for the other lens. |
 
 ### 6.2 Human decisions
 
