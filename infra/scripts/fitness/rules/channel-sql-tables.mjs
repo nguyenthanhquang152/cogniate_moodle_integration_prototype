@@ -34,7 +34,7 @@ function storageOf(channel) {
 
 function startsSql(text) {
   const withoutPrefix = text.replace(/^(?:\s+|--[^\r\n]*(?:\r?\n|$)|\/\*[\s\S]*?\*\/)*/, '');
-  return /^(SELECT|UPDATE|INSERT|DELETE|WITH)\b/i.test(withoutPrefix);
+  return /^(SELECT|UPDATE|INSERT|REPLACE|DELETE|WITH|VALUES)\b/i.test(withoutPrefix);
 }
 
 function fragments(path, text) {
@@ -57,7 +57,7 @@ export default {
   id: 'channel-sql-tables',
   description: 'Channel SQL uses only manifest storage tables and columns (LA-ADR-01 D5).',
   check({ path, text }) {
-    const channel = /^packages\/channels\/([^/]+)\/app\/.*\.[cm]?[jt]s$/.exec(path)?.[1];
+    const channel = /^packages\/channels\/([^/]+)\/app(?:\/.*)?\.[cm]?[jt]s$/.exec(path)?.[1];
     if (!channel || /\.test\.[cm]?[jt]s$/.test(path)) return [];
     const storage = storageOf(channel);
     const hits = [];
