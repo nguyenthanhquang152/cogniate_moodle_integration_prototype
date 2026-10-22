@@ -19,8 +19,9 @@ export function buildProfileRegistry(loaded: readonly LoadedChannel[]): ProfileR
     const source = parseProfileSource(value, channel);
     Object.freeze(source.flags);
     Object.freeze(source.sources);
+    if (source.platformStorage) Object.freeze(source.platformStorage);
     if (source.refusedHostSuffixes) Object.freeze(source.refusedHostSuffixes);
-    return Object.freeze({ ...source, channel, lms: source.wireLms === undefined ? channel : source.wireLms });
+    return Object.freeze({ ...source, platformStorage: source.platformStorage ?? null, channel, lms: source.wireLms === undefined ? channel : source.wireLms });
   })).sort((a, b) => Number(a.simulation) - Number(b.simulation) || a.listOrder - b.listOrder || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const baselineOrder = Math.max(-1, ...profiles.filter((profile) => Object.hasOwn(BASELINE_PROFILE_WIRE_LMS, profile.id)).map((profile) => profile.listOrder));
   for (const profile of profiles) {

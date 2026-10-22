@@ -9,11 +9,13 @@ import type { LtiClient } from '../clients/lti-client.ts';
 import type { GrantPurpose } from '../domain/bindings.ts';
 import { attemptsOfConnection, getGrant, grantsOfConnection, insertGrant, leaseLive, reservationOfConnection, revokeGrant, revokeOpenGrants } from '../domain/bindings.ts';
 import type { Connection } from '../domain/connections.ts';
-import { completeSnapshot, disableConnection, getConnectionAnyLibrary } from '../domain/connections.ts';
+import { completeSnapshot, getConnectionAnyLibrary } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
 import { getLibrary } from '../domain/libraries.ts';
-import { PRINTABLE_ID, providerOf } from '../providers/index.ts';
+import { authorityFor } from '../kernel/authority/index.ts';
+import { setupOf } from '../kernel/setup.ts';
+import { PRINTABLE_ID } from '../kernel/setup/common.ts';
 import type { BindingCleanup, CleanupLine } from './binding-cleanup.ts';
 import { canvasIssuerMatches, providerProfiles, sharedReadiness } from './binding-targets.ts';
 
@@ -73,11 +75,11 @@ export function createOperator(deps: OperatorDeps) {
     const site = canonicalOrigin(input.site);
     if (!site.ok || site.origin !== c.siteUrl) return fail('--site is not the site URL of this connection.');
     const service = input.serviceUrl === undefined ? site : canonicalOrigin(input.serviceUrl);
-    if (!providerOf(c.channel)?.acceptsServiceUrl && input.serviceUrl !== undefined && (!service.ok || service.origin !== c.siteUrl)) return fail('--service-url is only for Canvas connections.');
+    if (!setupOf(channels, c.channel)?.profiles[c.profile]?.serviceUrl && input.serviceUrl !== undefined && (!service.ok || service.origin !== c.siteUrl)) return fail('--service-url is only for Canvas connections.');
     if (!service.ok || service.origin !== c.serviceUrl) return fail('--service-url is not the service URL of this connection.');
     if (purpose === 'add_deployment' && input.clientId !== c.platform?.clientId) return fail('--client-id is not the client id of this connection platform.');
     if (purpose === 'initial') {
-      const sharing = providerOf(c.channel)?.sharingOf(c.profile);
+      const sharing = setupOf(channels, c.channel)?.sharingOf(c.profile);
       const snapshot = sharing ? completeSnapshot(c, sharing) : null;
       if (!snapshot) return fail('This connection has no provider snapshot. Make a new connection.');
       let row;
@@ -149,7 +151,7 @@ export function createOperator(deps: OperatorDeps) {
 
   const bindingOf = (c: Connection): string => {
     const attempts = attemptsOfConnection(db, c.id);
-    if (attempts.some((a) => a.targetKind === 'shared_deployment') || (attempts.length === 0 && providerOf(c.channel)?.sharingOf(c.profile) === 'shared')) {
+    if (attempts.some((a) => a.targetKind === 'shared_deployment') || (attempts.length === 0 && setupOf(channels, c.channel)?.sharingOf(c.profile) === 'shared')) {
       const r = reservationOfConnection(db, c.id);
       return r ? `Blackboard deployment ${r.deploymentId} of ${r.platformId}` : 'Blackboard: no reservation';
     }
@@ -163,9 +165,7 @@ export function createOperator(deps: OperatorDeps) {
     if (!c) return fail(`Unknown connection: ${connectionId}.`);
     const library = getLibrary(db, c.libraryId)!;
     const head = [`Library: ${library.name} (${library.id})`, `Connection: ${c.name} (${c.id})`, `Binding: ${bindingOf(c)}`];
-    transaction(db, () => { disableConnection(db, c.libraryId, c.id, now()); revokeOpenGrants(db, c.id, 'suspend', now()); });
-    log.warn('binding_suspended', { trace_id: traceId, connection_id: c.id, note_present: true });
-    const lines = await cleanup.fenceOut(getConnectionAnyLibrary(db, c.id)!, traceId);
+    const lines = await authorityFor(c, deps).suspend(c, traceId);
     if (c.bindingAuthority === 'self') {
       for (const l of lines) log.warn('binding_fenced', { trace_id: traceId, connection_id: c.id, platform_id: l.platformId, deployment_id: l.deploymentId, result: l.result });
     }
@@ -177,7 +177,7 @@ export function createOperator(deps: OperatorDeps) {
     if (note.length < 1 || note.length > 500) return fail('--note must be 1 to 500 characters (the evidence reference).');
     const c = getConnectionAnyLibrary(db, connectionId);
     if (!c) return fail(`Unknown connection: ${connectionId}.`);
-    const r = await cleanup.release(c, traceId);
+    const r = await authorityFor(c, deps).release(c, traceId);
     if (!r.ok) return fail(r.message);
     return { exitCode: r.failed ? 1 : 0, lines: r.lines.map(lineOf) };
   }
