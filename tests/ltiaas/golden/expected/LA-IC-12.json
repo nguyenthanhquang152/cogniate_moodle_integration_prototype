@@ -1,6 +1,6 @@
 {
   "id": "LA-IC-12",
-  "approval": "docs/reviews/LA-E3-04/qa.md",
+  "approval": "docs/reviews/LA-E3-04/reviewer-a.md, docs/reviews/LA-E3-04/reviewer-b.md, docs/reviews/LA-LD9/reviewer-a.md, docs/reviews/LA-LD9/reviewer-b.md",
   "ld9": {
     "epic": "E3 (LA-E3-04 service part, lane L; LA-E3-05 app picker part)",
     "design": [
