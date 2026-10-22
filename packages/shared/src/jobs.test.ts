@@ -286,6 +286,44 @@ describe('job runner', () => {
     expect(q2.stats.running).toBe(2);
   });
 
+  it('BD-A2-50: runNow keeps the request trace id in context, the job-end event and every result log', async () => {
+    const r = runner();
+    const audit: Array<{ traceId: string; result: string }> = [];
+    let fail = false;
+    r.addInterval({ name: 'unit-request', everyMs: null, runAtStart: false, async run(ctx) {
+      audit.push({ traceId: ctx.traceId, result: fail ? 'failed' : 'ok' });
+      if (fail) throw new TypeError('run failed');
+      return { result: 'ok' };
+    } });
+    expect(await r.runNow('unit-request', { traceId: 'request-before-start' })).toEqual({ result: 'skipped_lease' });
+    r.start(); await settle();
+    expect(await r.runNow('unit-request', { traceId: 'request-ok' })).toEqual({ result: 'ok' });
+    fail = true;
+    expect(await r.runNow('unit-request', { traceId: 'request-failed' })).toEqual({ result: 'failed' });
+    await fixture.store().takeJobLease('unit-request', 'other/boot', Date.now(), Date.now() + JOB_LEASE_MS);
+    expect(await r.runNow('unit-request', { traceId: 'request-lease-held' })).toEqual({ result: 'skipped_lease' });
+    expect(audit).toEqual([{ traceId: 'request-ok', result: 'ok' }, { traceId: 'request-failed', result: 'failed' }]);
+    expect(jobRuns().map((line) => [line.trace_id, line.result])).toEqual([
+      ['request-before-start', 'skipped_lease'], ['request-ok', 'ok'], ['request-failed', 'failed'], ['request-lease-held', 'skipped_lease'],
+    ]);
+  });
+
+  it('BD-A2-50: a refused concurrent request keeps its own trace and does not replace the active run trace', async () => {
+    const r = runner();
+    const gate = Promise.withResolvers<void>();
+    const traceIds: string[] = [];
+    r.addInterval({ name: 'unit-request', everyMs: null, runAtStart: false, async run(ctx) {
+      traceIds.push(ctx.traceId); await gate.promise; traceIds.push(ctx.traceId); return { result: 'ok' };
+    } });
+    r.start(); await settle();
+    const first = r.runNow('unit-request', { traceId: 'request-first' });
+    await settle();
+    expect(await r.runNow('unit-request', { traceId: 'request-second' })).toEqual({ result: 'skipped_lease' });
+    gate.resolve(); await first;
+    expect(traceIds).toEqual(['request-first', 'request-first']);
+    expect(jobRuns().map((line) => [line.trace_id, line.result])).toEqual([['request-second', 'skipped_lease'], ['request-first', 'ok']]);
+  });
+
   it('AC-LA-E4-01-08: each run has its own trace id and one job_run line; an error logs its class name only', async () => {
     class SecretLeakError extends Error {}
     const q = memoryQueue('unit-queue', ['pa', 'pb'], 1);
