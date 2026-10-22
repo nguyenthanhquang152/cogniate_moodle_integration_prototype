@@ -34,6 +34,8 @@ Only the Lead edits this file. Orca Run: `run_06d07dc77faf`. Rules: [charter-LA]
 
 ## Incidents
 
+- 2026-10-22 04:42Z–04:55Z: the LA lead QA started stack `qa-la-sim-r1` inside the exclusive Docker window of run `run_ebe671ad72a9` (04:18Z–06:20Z), because the Lead's brief allowed one LA stack beside theirs. Their diagnostic rows passed, but their strict boundary check failed and must be repeated (about 27 minutes). The lead QA then hit its session limit, so the Lead did the owned-only cleanup at 04:55:00Z (snapshot `~/cogniate-qa-runs/LA/E0/lead-cleanup-20261022T045458Z.txt`). New rule (agreed with that run's coordinator): LA starts no Docker activity until that run returns a window. Their next scheduling update: by 07:00Z.
+
 - 2026-10-22 08:41: a Lead script error (zsh 1-based arrays) sent the Reviewer-B round-2 task to Reviewer-A's session and the QA task to Reviewer-B's session. The Lead fenced both dispatches within about 1 minute and sent cancels. Both reviewers saw the mismatch, asked before they opened any file, and read no other review; the worktree had no changes. New tasks replaced the misrouted ones. Disclosures: Reviewer-A's inbox filter printed two subject lines (no bodies) of messages to other dispatches, neither Reviewer-B content; Reviewer-B read `qa.md` once in round 1 after it wrote its findings (allowed by its retry context).
 
 - 2026-10-22 02:55–04:15: Claude session limits stopped A2, Reviewer-B and QA. Stalled sessions do not resume after the reset. Recovery: `worker-stop`, then `worker-start --retry-of` with a retry-context message. No work was lost; files stayed in the shared worktree.
