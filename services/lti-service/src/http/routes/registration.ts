@@ -6,15 +6,16 @@ import { pendingToolText } from '@cogniate/channel-kernel';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
+import { createAccountResolver } from '../../accounts/resolver.ts';
 import type { ProtocolErrorCode } from '../../lti/codes.ts';
 import { withLms } from '../../lti/codes.ts';
 import { PlatformKeyError } from '../../lti/jwks.ts';
+import { protocolAccountError } from '../../lti/launch.ts';
 import type { OpenIdConfiguration } from '../../lti/registration.ts';
 import {
   PRIVACY_LEVELS, REGISTRATION_CLOSE_HTML, REGISTRATION_SCOPES, buildRegistrationRequest, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse, registrationView,
 } from '../../lti/registration.ts';
 import { outboundFailureError, shortPlatformMessage } from '../../platform/error-mapping.ts';
-import { getAccount } from '../../store/accounts.ts';
 import { withAudit } from '../../store/audit.ts';
 import type { Platform } from '../../store/platforms.ts';
 import { PlatformExistsError, applyRegistrationUpdate, createPlatform, findPlatformByDeployment, getPlatform, listPlatforms } from '../../store/platforms.ts';
@@ -24,6 +25,7 @@ import {
 } from '../../store/registrations.ts';
 import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
+import { checkRegistrationSessionCap, rateLimiterFor } from '../rate-limit.ts';
 import { isOwnLaunchTarget } from '../../lti/target.ts';
 import { lmsNameOf, lmsNameOfFamily, reservedIssuerLmsNames, reservedIssuerOrigins } from '../../profiles/index.ts';
 import { OutboundError } from '@cogniate/shared';
@@ -65,7 +67,7 @@ const RegisterQuery = z.object({
 const CompleteBody = z.object({
   platformName: z.string().trim().min(1).max(255).optional(),
   autoActivate: z.boolean().optional(),
-  scopes: z.array(z.enum(REGISTRATION_SCOPES)).min(1).optional(),
+  scopes: z.array(z.enum(REGISTRATION_SCOPES)).min(1).refine((scopes) => new Set(scopes).size === scopes.length, 'scopes must not repeat').optional(),
   messages: z.array(z.object({
     type: z.string().min(1).max(64),
     placements: z.array(z.string().min(1).max(64)).max(10).optional(),
@@ -115,6 +117,8 @@ async function readToken(ctx: RouteContext, token: string, config: OpenIdConfigu
 export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteContext): void {
   const log = ctx.logger;
   const lms = lmsNameOf(null, ctx.profiles);
+  const resolver = createAccountResolver(ctx.db, ctx.urls.lti);
+  const limiter = rateLimiterFor(ctx.db, log, ctx.now);
 
   // ---------------------------------------------------------------- GET /lti/register/:account (contract §2.4)
   app.get<{ Params: { account: string } }>('/lti/register/:account', async (req: FastifyRequest<{ Params: { account: string } }>, reply: FastifyReply) => {
@@ -125,10 +129,13 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       const help = template ? withLms(template, code === 'ISSUER_RESERVED' ? reservedIssuerLmsNames(ctx.profiles) : lms) : undefined;
       return ctx.errorPage(reply, req, code, { heading: HEADING, lms, ...(help ? { help } : {}) });
     };
-    const account = getAccount(ctx.db, req.params.account);
-    if (!account) return page('UNKNOWN_TOOL_ACCOUNT', 'unknown_tool_account');
+    const account = resolver.resolveAccount(req);
+    const accountError = protocolAccountError(account);
+    if (!account || accountError) return page(accountError ?? 'UNKNOWN_TOOL_ACCOUNT', accountError === 'TOOL_ACCOUNT_SUSPENDED' ? 'account_suspended' : 'unknown_tool_account');
     const q = RegisterQuery.safeParse(req.query ?? {});
     if (!q.success) return page('INVALID_REQUEST', `query=${q.error.issues[0]?.path.join('.') || 'query'}`);
+    const cap = checkRegistrationSessionCap(ctx.db, limiter, req.ip, account.id, now);
+    if (!cap.allowed) return page('REGISTRATION_SESSION_LIMIT', 'registration_session_limit');
     const token = q.data.registration_token;
     const config = await fetchConfiguration(ctx, q.data.openid_configuration, token, req.traceId);
     if ('code' in config) return page(config.code, config.detail);
@@ -152,7 +159,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     const passthrough = Object.fromEntries(Object.entries(q.data)
       .filter(([k, v]) => !RESERVED_QUERY.has(k) && typeof v === 'string' && k.length <= 64 && v.length <= 512).slice(0, 20)) as Record<string, string>;
     const session = createRegistrationSession(ctx.db, ctx.masterKey, {
-      toolAccountId: account.id, openidConfigurationUrl: q.data.openid_configuration, registrationToken: token ?? null,
+      toolAccountId: account.id, clientKey: cap.clientKey, openidConfigurationUrl: q.data.openid_configuration, registrationToken: token ?? null,
       platformConfiguration: config.raw, operation, existingPlatformId, privacyLevel: q.data.privacyLevel ?? 'anonymous', passthrough, expiresAt,
     }, now);
     log.info('registration_started', { trace_id: req.traceId, registration_id: session.id, operation });
@@ -184,6 +191,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
   app.post<{ Params: { id: string } }>('/api/registrations/:id/complete', async (req) => {
     const caller = ctx.auth(req, ['bearer']);
     const { account } = caller;
+    const protocolUrls = resolver.protocolUrls(account);
     return withAudit(ctx.db, ctx.now, {
       actor: caller.actor, toolAccountId: account.id, traceId: req.traceId, clientIp: req.ip,
       action: 'registration.complete', target: { type: 'registration', id: req.params.id },
@@ -205,15 +213,18 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       }
       // A-T3b-03: a message target must be our own launch URL for this account (Moodle only checks the domain).
       for (const m of body.data.messages ?? []) {
-        if (m.target_link_uri !== undefined && !isOwnLaunchTarget(m.target_link_uri, ctx.urls, account.id)) {
+        if (m.target_link_uri !== undefined && !isOwnLaunchTarget(m.target_link_uri, protocolUrls)) {
           throw new ApiError('INVALID_REQUEST', 'Invalid field: messages.target_link_uri must be the launch URL of this tool account.');
         }
       }
       const config = configOf(session);
-      // LA-E3-06: check explicit and default scopes before claiming the session or sending a request.
+      // An absent list keeps the legacy five-scope request; only an explicit list checks platform support.
       const scopes = body.data.scopes ?? REGISTRATION_SCOPES;
-      if (scopes.some((scope) => !config.scopesSupported.includes(scope))) {
-        throw new ApiError('INVALID_REQUEST', 'Invalid field: scopes. The platform does not support every requested scope.');
+      const unsupported = body.data.scopes?.filter((scope) => !config.scopesSupported.includes(scope)) ?? [];
+      if (unsupported.length) {
+        throw new ApiError('INVALID_REQUEST', `Invalid field: scopes. The platform does not support: ${unsupported.join(', ')}.`, {
+          details: { field: 'scopes', unsupported },
+        });
       }
       // M1 (§9.2): a standard platform cannot use a reserved issuer; nothing is sent to the platform.
       if (reservedIssuerOrigins(ctx.profiles).includes(new URL(config.issuer).origin)) reject(new ApiError('ISSUER_RESERVED'));
@@ -221,7 +232,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       try {
         const clientName = body.data.platformName ?? `${config.productFamilyCode || 'platform'} ${new URL(config.issuer).host}`;
         const request = buildRegistrationRequest({
-          urls: ctx.urls, accountId: account.id, clientName, scopes, privacyLevel: body.data.privacyLevel ?? session.privacyLevel, ...(body.data.messages ? { messages: body.data.messages } : {}),
+          protocolUrls, clientName, scopes, privacyLevel: body.data.privacyLevel ?? session.privacyLevel, ...(body.data.messages ? { messages: body.data.messages } : {}),
         });
         let res;
         try {
