@@ -22,7 +22,7 @@ Rules for every row:
 | C7 | Login, launch | Platform storage launch: login page, `POST /lti/launch/:account/storage-check` | E3 | Must | LA-ADR-05 D1 |
 | C8 | `GET /api/idtoken` | `deepLinkingSettings.acceptLineItem`, `acceptMediaTypes`; service key without context | E3 | Must | LA-ADR-05 D2, D3 |
 | C9 | Deep Linking | Empty `contentItems`; `accept_lineitem` rule; per-type fields (Should) | E3 | Must / Should | LA-ADR-05 D3 |
-| C10 | Registration | `complete.scopes` (D-8); `complete.profile`, DR rule per profile, `grantedScopes`, `clientAssertionAud` (E2) | E3, E2 | Must | LA-ADR-05 D4; LA-ADR-02 D2, D5 |
+| C10 | Registration | `complete.scopes` (D-8); `complete.profile`, DR rule per profile, `grantedScopes`, `clientAssertionAud`; origin binding (I-SELF): `endpointsOnIssuerOrigin`, staged `complete` with `bindingRef`, answer `active` (E2) | E3, E2 | Must | LA-ADR-05 D4; LA-ADR-02 D2, D5 |
 | C11 | `GET /api/providers` | Field `channel` per profile | E1 | Must | LA-ADR-01 D6 |
 | C12 | Platform errors | `429 PLATFORM_RATE_LIMITED` with `Retry-After` and `details.retryAfter` | E4/E5 | Must | LA-ADR-03 D7; LA-ADR-06 |
 | C13 | Account state | `403 TOOL_ACCOUNT_SUSPENDED` | E5 | Must | LA-ADR-06 D2 |
@@ -32,7 +32,7 @@ Rules for every row:
 | C17 | Scores | `submission`, `scoringUserId`, URL-keyed members | E3 | Should | LA-ADR-05 D9 |
 | C18 | Connection check | `POST /api/platforms/:id/check` | E6 | Could | LA-ADR-08 D4 |
 | C19 | Small gaps | `scoreGiven: null`; NRPS `service_versions`; `trustedAudiences` | E3 | Could | LA-ADR-05 D10 |
-| C20 | `POST /api/platforms` | Rules for the admin-value profiles `lti-generic` and `brightspace`: endpoints on other https origins (`endpointOrigins: any-https`), issuer with a path, reserved issuers | E2 | Must | LA-ADR-02 D2, D3, D6 |
+| C20 | `POST /api/platforms` | Rules for the admin-value profiles `lti-generic` and `brightspace`: issuer with a path, reserved issuers and hosts, endpoints on other https origins only in a staged create (origin binding) | E2 | Must | LA-ADR-02 D2, D3, D6 |
 | C21 | `GET /api/providers` | Trait fields `endpoints`, `issuerKind`, `endpointOrigins` per profile | E2 | Must | LA-ADR-02 D2 |
 
 ## 1. Conventions (changes to §1)
@@ -71,7 +71,7 @@ Same body `{ status, error, details: { message, description } }`. Where marked, 
 
 | HTTP | `details.message` | When | Priority |
 | --- | --- | --- | --- |
-| 429 | `RATE_LIMITED` | A rate-limit bucket is empty (§1.4). Header `Retry-After: <s>` (whole seconds, ≥ 1). | Must |
+| 429 | `RATE_LIMITED` | A hard rate-limit bucket is empty (§1.4). Header `Retry-After: <s>` (whole seconds, ≥ 1). | Must |
 | 429 | `PLATFORM_RATE_LIMITED` | The platform answered `429`, or `403` with a body that contains `Rate Limit Exceeded` (Canvas throttling, R4 B-3). Header `Retry-After` and `details.retryAfter` (seconds): the platform's `Retry-After` (seconds or HTTP date), clamped to 1–3,600; 60 when absent. Before LA this was `502 PLATFORM_ERROR`. | Must |
 | 403 | `TOOL_ACCOUNT_SUSPENDED` | The account of the API key is `suspended` (checked after authentication) | Must |
 | 403 | `API_KEY_SCOPE_MISSING` | §1.2 | Must |
@@ -97,12 +97,12 @@ New protocol page codes (security §2.1, §2.2 page rules: code, trace id, one a
 
 | Class | Routes | Key |
 | --- | --- | --- |
-| `protocol`, `protocol_account` | `GET|POST /lti/login/:account`, `POST /lti/launch/:account`, `POST /lti/launch/:account/storage-check` | client address; tool account |
-| `registration`, `registration_account` | `GET /lti/register/:account` | client address; tool account. Plus at most 20 open sessions per account |
+| `protocol` (hard), `protocol_account` (soft: log and alert, never `429`) | `GET|POST /lti/login/:account`, `POST /lti/launch/:account`, `POST /lti/launch/:account/storage-check` | client address (IPv6: /64); tool account |
+| `registration` (hard), `registration_account` (soft) | `GET /lti/register/:account` | client address; tool account. Plus at most 10 open sessions per client address (`registrationSessionsPerAddress`) |
 | `keys` | `GET /lti/keys/:account` | client address |
 | `api` | `/api/idtoken`, `/api/deeplinking*`, `/api/lineitems*`, `/api/memberships` | API key id |
 | `admin` | every Bearer route | API key id |
-| `auth_failure` | every `401` on `/api/*` and `/operator/*` | client address |
+| `auth_failure` | a `401` because the API key or operator key fails (missing, malformed, unknown, expired, revoked). An ltik or service key `401` under a valid API key spends no bucket. | client address |
 | `operator` | `/operator/v1/*` | operator key id |
 
 Default limits: [LA-ADR-06 D1](../adr/LA-ADR-06-service-operability.md#d1-rate-limits-must). An operator changes them per account (`PATCH /operator/v1/accounts/:id {limits}`) or globally for every class (`PATCH /operator/v1/rate-limits`, §3). `/healthz`, `/readyz`, `/metrics` are never limited. The client address uses `X-Forwarded-For` only from `TRUSTED_PROXY_CIDRS`.
@@ -131,7 +131,7 @@ New optional input `lti_storage_target` (query or form body; ≤ 64 characters; 
 | Case | Answer |
 | --- | --- |
 | The platform profile has `platformStorage: null`, or it is `from-login` and the login has no `lti_storage_target` | `302` exactly as §2.1 |
-| The profile has `platformStorage` and a target exists (the parameter, or the profile's fixed frame name) | `200 text/html` login page. Headers: `Set-Cookie` (the same state cookie as §2.1), `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, CSP `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'none'; base-uri 'none'`. The page sends `lti.put_data` (key `cog_state_<first 8 chars of the state hash>`) to the storage origin, waits ≤ 1.5 s, then navigates to the auth URL. The auth URL equals the `Location` that the `302` would have. |
+| The profile has `platformStorage` and a target exists (the parameter, or the profile's fixed frame name) | `200 text/html` login page. Headers: `Set-Cookie` (the same state cookie as §2.1), `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, CSP `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'none'; base-uri 'none'`. The page reads its values from one escaped JSON block, sends `lti.put_data` (key `cog_state_<d>`, `<d>` = the first hex digit of the state hash) to the storage origin, waits ≤ 1.5 s, then navigates to the auth URL. The auth URL equals the `Location` that the `302` would have. |
 
 Rate limit: class `protocol`. Suspended account: §1.5.
 
@@ -141,12 +141,13 @@ Rate limit: class `protocol`. Suspended account: §1.5.
 | --- | --- |
 | State cookie present | as §2.2 |
 | Cookie missing, state record without storage target | as §2.2 (`STATE_COOKIE_MISSING` page) |
-| Cookie missing, state record with storage target | checks 1, 3, then 4–14 and the claim policy, as §2.2. Then `200 text/html` storage-check page (CSP as §2.1 row 2, but `form-action 'self'`). No ltik yet. |
+| Cookie missing, state record with storage target | checks 1, 3, then 4–14 and the claim policy, as §2.2. Then `200 text/html` storage-check page (CSP as §2.1 row 2, but `form-action 'self'`; `Referrer-Policy: same-origin`). No ltik yet. |
 
 New: `POST /lti/launch/{toolAccountId}/storage-check` (form `check`, `value`):
 
 | Result | Answer |
 | --- | --- |
+| `Origin` is not the origin of `PUBLIC_LTI_URL` | `400` page `INVALID_STATE`, detail `storage_origin`; the check stays unused |
 | Check row unknown, used or older than 120 s | `400` page `INVALID_STATE`; log `launch_check_failed {check: "storage", code: "INVALID_STATE", detail: "storage_check_unknown_used_or_expired"}` |
 | `value` empty | `400` page `STATE_COOKIE_MISSING` with the storage help text ([LA-ADR-05 D1 rule 8](../adr/LA-ADR-05-lti-advantage-completeness.md#d1-platform-storage-launch-must-d-4)) |
 | `SHA-256(value)` ≠ the state hash | `400` page `INVALID_STATE`, detail `storage_mismatch` |
@@ -160,7 +161,7 @@ The key list is: the `active` key first, then the `next` key, then `retired` key
 
 ### 2.4 `GET /lti/register/{toolAccountId}` (§2.4)
 
-- Rate limits `registration` and `registration_account`; at most 20 open sessions per account (`409` page `REGISTRATION_SESSION_LIMIT`, no outbound fetch).
+- Rate limits `registration` and `registration_account` (soft); at most 10 open sessions per client address (`409` page `REGISTRATION_SESSION_LIMIT`, no outbound fetch).
 - E2 (A1, [LA-ADR-02 D5](../adr/LA-ADR-02-generic-lti-channel.md#d5-generic-dynamic-registration-fixes-must)): the start page applies the loosest Dynamic Registration rule of any profile (`path-prefix` issuer rule; Moodle JWT or opaque Bearer token). `complete` applies the exact rule of the chosen profile (§4.5).
 
 ### 2.5 `GET /healthz` (§2.5) and `GET /readyz` (new, Should)
@@ -181,7 +182,7 @@ Bearer, `admin` scope. Body `{ "deploymentId"?: string }`. It fetches the platfo
   "limits": null }
 ```
 
-`token.detail` values: `invalid_client`, `invalid_scope`, `http_<status>`, or an outbound reason (security §9). `limits` is `"shared-application"` for a shared platform. One check per platform and deployment per minute (`429 RATE_LIMITED`). Log `platform_check {platform_id, jwks, token}`.
+`token.detail` values: `invalid_client`, `invalid_scope`, `http_<status>`, or an outbound reason (security §9). `limits` is `"shared-application"` for a shared platform. One check per platform and deployment per minute (`429 RATE_LIMITED`). Log `platform_check {platform_id, jwks, token}`. The check runs only for an **active** platform and deployment (else `403 PLATFORM_NOT_ACTIVE` or `403 DEPLOYMENT_NOT_ACTIVE`, base codes): so a client assertion goes only to a token endpoint that the binding proved (issuer origin) or that an operator grant approved (A-LAD-01).
 
 ## 3. Operator API (new; paths are ours)
 
@@ -190,13 +191,13 @@ Listener `OPERATOR_HOST:OPERATOR_PORT` (default `127.0.0.1:4110`; the `acceptanc
 | Method and path | Request | Success | Priority |
 | --- | --- | --- | --- |
 | `GET /operator/v1/accounts` | query `status`, `cursor`, `limit` (≤ 100) | `200 { accounts: [Account], next? }` | Must |
-| `POST /operator/v1/accounts` | `{ id, name, launchUrl, deepLinkingUrl, registrationUrl, limits?, claimPolicy? }` | `201 Account`. `409 ACCOUNT_ALREADY_EXISTS`. Also makes the first `next`+`active` signing key. No API key (use the next row). | Must |
+| `POST /operator/v1/accounts` | `{ id, name, launchUrl, deepLinkingUrl, registrationUrl, limits?, claimPolicy? }` | `201 Account`. `409 ACCOUNT_ALREADY_EXISTS`. Also makes the first `active` signing key. No API key (use the next row); the frozen column `tool_account.api_key_hash` gets the hash of an unusable random value (LA-ADR-06 D5). | Must |
 | `GET /operator/v1/accounts/:id` | — | `200 Account` | Must |
 | `PATCH /operator/v1/accounts/:id` | any of `name`, tool URLs, `status`, `limits`, `claimPolicy`, `serviceKeyWriteScope` | `200 Account`. `status: closed` is final (`409 ACCOUNT_CLOSED` for a later change). | Must |
 | `GET /operator/v1/rate-limits` | — | `200 { classes: { <class>: { ratePerMinute, burst, source } } }`; `source` = `operator`, `env` or `default` | Must |
 | `PATCH /operator/v1/rate-limits` | `{ classes: { <class>: { ratePerMinute, burst } \| null } }` (`null` removes the operator value) | `200` as `GET`. Applies at once; stored in `service_setting`. Unknown class or a value below 1: `400 INVALID_REQUEST`. | Must |
 | `GET /operator/v1/accounts/:id/api-keys` | — | `200 { apiKeys: [{ id, prefix, label, scopes, createdAt, createdBy, expiresAt, lastUsedAt, revokedAt }] }` | Must |
-| `POST /operator/v1/accounts/:id/api-keys` | `{ label, scopes: ["launch","admin"], expiresAt? }` | `201 { id, apiKey, prefix, label, scopes, expiresAt }`; `apiKey` is shown only here. `409 API_KEY_LIMIT`. | Must |
+| `POST /operator/v1/accounts/:id/api-keys` | `{ label, scopes: ["launch","admin"], expiresAt? }` | `201 { id, apiKey, prefix, label, scopes, expiresAt }`; `apiKey` is shown only here. `409 API_KEY_LIMIT`. `expiresAt` outside 1 hour to 2 years from now: `400 INVALID_REQUEST` (field `expiresAt`). | Must |
 | `POST /operator/v1/accounts/:id/api-keys/:keyId/revoke` | — | `200` key metadata with `revokedAt` | Must |
 | `GET /operator/v1/accounts/:id/signing-keys` | — | `200 { signingKeys: [{ kid, status, publishedAt, activatedAt, retiredAt, removedAt }] }` (public data only) | Must |
 | `POST /operator/v1/accounts/:id/signing-keys` | — | `201 { kid, status: "next", publishedAt }`. `409 SIGNING_KEY_NEXT_EXISTS`. | Must |
@@ -207,7 +208,7 @@ Listener `OPERATOR_HOST:OPERATOR_PORT` (default `127.0.0.1:4110`; the `acceptanc
 | `POST /operator/v1/key-provider/rewrap` | — | `202 { job: "key-rewrap", traceId }` (runs the on-demand job) | Must |
 | `GET /operator/v1/audit` | query `toolAccountId`, `action`, `actorId`, `since`, `until`, `cursor`, `limit` (≤ 500) | `200 { events: [AuditEvent], next? }`, newest first | Must |
 | `GET /operator/v1/operator-keys` | — | `200 { operatorKeys: [{ id, operator, createdAt, expiresAt, lastUsedAt, revokedAt }] }` | Must |
-| `POST /operator/v1/operator-keys` | `{ operator, expiresAt? }` | `201 { id, operatorKey, operator, expiresAt }` (shown once) | Must |
+| `POST /operator/v1/operator-keys` | `{ operator, expiresAt? }` | `201 { id, operatorKey, operator, expiresAt }` (shown once). Default 90 days; `expiresAt` outside 1 hour to 1 year from now: `400 INVALID_REQUEST` (field `expiresAt`). | Must |
 | `POST /operator/v1/operator-keys/:id/revoke` | — | `200` (an operator cannot revoke the key of its own request: `409 OPERATOR_KEY_IN_USE`) | Must |
 | `POST /operator/v1/accounts/:id/service-keys/revoke` | `{ platformId, deploymentId?, contextId?, resourceLinkId? }` | `200 { revoked: <n> }` | Should |
 | `GET /operator/v1/jobs` | — | `200 { jobs: [{ name, everyMs, lastRunAt, lastResult }] }` | Should |
@@ -268,13 +269,23 @@ Unchanged (D-8 keeps the endpoint). Could: a claim whose `service_versions` exis
 | `scopes` | a non-empty subset of the five scopes of ADR-009; sent as the registration request `scope`. Absent = the five scopes (as today). The Cogniate app sends its channel's `registration.scopes` (the four AGS scopes, LA-ADR-05 D4). A scope that the platform does not list in `scopes_supported` → `400 INVALID_REQUEST` (field `scopes`) before anything is sent (LA-ADR-02 D5 item 5). | Must |
 | `profile` | the profile of the connection's channel (A1, LA-ADR-02 D5): `complete` applies that profile's Dynamic Registration rule before it sends anything. Absent = `standard`. | Must (E2) |
 
+| `bindingRef` | the connection's binding ref. Required when the profile's Dynamic Registration can be staged (every `any-https` profile, and the Canvas profiles of LA-ADR-05 D6); the service uses it only for a staged platform (base §9.15) | Must (E2) |
+
 The stored platform gets `grantedScopes` (the scope of the registration response) and, when the configuration has `authorization_server`, `clientAssertionAud` (LA-ADR-02 D5 items 4 and 7). Token requests ask only for granted scopes.
+
+**Origin binding (A-LAD-01, Must; I-SELF of [LA-ADR-02 D2a](../adr/LA-ADR-02-generic-lti-channel.md#d2a-self-invariant-must-reviewer-a-a-lad-01), D5 item 10).** The issuer host vouches only for its own origin. So a platform that `complete` makes **active** keeps the auth, token, JWKS and registration endpoints and the client assertion audience (`authorization_server`, when present) on the issuer origin, as today (`services/lti-service/src/lti/registration.ts:60-69`):
+
+- `GET /api/registrations/:registrationId` adds `endpointsOnIssuerOrigin: boolean` (`true` when I-SELF holds for the configuration), so the app can tell the user before `complete` that an operator approval will be needed.
+- `complete` checks I-SELF for the chosen profile before it sends anything. Holds: the platform is created as today (`autoActivate`, default `true`). Fails: the platform is created **inactive** with the request's `bindingRef` (a staged registration, base §9.15), whatever `autoActivate` says; a missing `bindingRef` gives `400 INVALID_REQUEST` (field `bindingRef`), and nothing is sent or stored.
+- The answer adds `active: boolean`; a staged registration logs `registration_completed {operation, staged: true}`. The app then changes the connection's authority from `self` to `operatorGrant` (A1, LA-ADR-02 D5 item 10), and only the grant redemption activates the platform (`PATCH /api/platforms/:id {active: true, ifBindingRef, bindingRef}`), as for Canvas DR ([LA-ADR-05 D6](../adr/LA-ADR-05-lti-advantage-completeness.md#d6-canvas-dynamic-registration-should-d-1)).
+- The configuration endpoints also follow §4.6.1 rules 1 to 3 (reserved hosts and issuers).
+- Fixed-endpoint profiles keep their own rule (`issuerRule: profile`): their endpoints must equal the profile values, and the platform is always staged (LA-ADR-05 D6).
 
 ### 4.6 Platforms (§3.9, §9.4)
 
 | Field | Change | Priority |
 | --- | --- | --- |
-| `clientAssertionAud` | optional admin value on create and in answers (A1, LA-ADR-02 D2) | Must (E2) |
+| `clientAssertionAud` | optional admin value on create and in answers (A1, LA-ADR-02 D2). An **active** platform of an admin-value profile has it empty or equal to the token URL (§4.6.1 rule 7) | Must (E2) |
 | `grantedScopes` | answer field; `null` for old rows (= every requested scope) | Must (E2) |
 | `trustedAudiences` | optional list of extra `aud` values that launch check 5 allows; default `[]` | Could |
 | `Idempotency-Key` | on `POST /api/platforms` and `POST /api/platforms/:id/deployments` (§4.9) | Should |
@@ -292,18 +303,19 @@ A1 decides the rules ([LA-ADR-02 D2, D3, D6](../adr/LA-ADR-02-generic-lti-channe
 
 Rules for `endpointOrigins: any-https`:
 
-1. **Issuer.** `url` is https with no user info, no query and no fragment. It **may have a path** (for example `https://lms.school.edu/sakai`). Its origin, in canonical form, passes site rules 1–4 (ADR-011 §6: rule 1 applies to the origin only). Else `400 INVALID_SITE_URL`, `details.field = "url"`, `details.rule`.
-2. **Endpoints.** `authenticationEndpoint`, `accesstokenEndpoint` and `authConfig.key` are https URLs with no user info and no fragment. They **may be on any origin** (for example the D2L token host `auth.brightspace.com`). The host of each URL passes site rules 2–4. Else `400 PLATFORM_URL_NOT_IN_PROFILE` with `description` naming the field and the rule. `PLATFORM_URL_NOT_ON_ISSUER_ORIGIN` is never used for these profiles.
-3. **Reserved issuers.** The issuer origin must not be a reserved issuer origin: `400 ISSUER_RESERVED`, as for `standard`. The reserved set is the set of issuer origins of every loaded profile with `issuerKind: fixed` (from profile data, LA-ADR-01 D6). For the baseline it equals the list of base §9.1 (the `.sim.test` issuers only when simulations are on).
+1. **Issuer.** `url` is https with no user info, no query and no fragment. It **may have a path** (for example `https://lms.school.edu/sakai`). Its origin, in canonical form, passes site rules 1–3 (ADR-011 §6: rule 1 applies to the origin only), and its host is not a fixed host of any loaded profile. Else `400 INVALID_SITE_URL`, `details.field = "url"`, `details.rule`.
+2. **Endpoints.** `authenticationEndpoint`, `accesstokenEndpoint` and `authConfig.key` are https URLs with no user info and no fragment. In a **staged** create (rule 7) they may be on any origin (for example the D2L token host `auth.brightspace.com`). The host of each URL passes site rules 2–3, and it is **not a fixed host or a fixed-issuer host of any loaded profile**, with any port (for example `sso.canvaslms.com`, `canvas.instructure.com`, `developer.blackboard.com`, `blackboard.com`; A-LAD-01). Else `400 PLATFORM_URL_NOT_IN_PROFILE` with `description` naming the field and the rule (`rule 2`, `rule 3` or `reserved host`).
+3. **Reserved issuers.** The issuer origin must not be a reserved issuer origin: `400 ISSUER_RESERVED`, as for `standard`. The reserved set is the set of fixed issuer values (an https URL, not a `{siteUrl}` template and not `null`) of every loaded profile, from profile data (LA-ADR-01 D6; if A1 keeps the trait `issuerKind`, a load check makes it agree with the issuer value, B-LAD-14). For the baseline it equals the list of base §9.1 (the `.sim.test` issuers only when simulations are on).
 4. **Later calls.** The service never fetches the URLs at create. Every later call (JWKS, token, AGS) goes through the guarded client (security §9; site rule 6).
-5. **Check order** (as base §9.4): body schema, `UNKNOWN_PROFILE`, `UNSUPPORTED_AUTH_METHOD`, rule 2 (`PLATFORM_URL_NOT_IN_PROFILE`), rule 3 (`ISSUER_RESERVED`), rule 1 (`INVALID_SITE_URL`), `PLATFORM_ALREADY_EXISTS`.
+5. **Check order** (as base §9.4): body schema, `UNKNOWN_PROFILE`, `UNSUPPORTED_AUTH_METHOD`, rule 2 (`PLATFORM_URL_NOT_IN_PROFILE`), rule 3 (`ISSUER_RESERVED`), rule 1 (`INVALID_SITE_URL`), rule 7 (`PLATFORM_URL_NOT_ON_ISSUER_ORIGIN`), `PLATFORM_ALREADY_EXISTS`.
 6. **Answer.** As base §9.4. `siteUrl` and `serviceUrl` are `null`; the site origin of every deployment is the issuer origin. The create logs `platform_created {platform_id, profile}`.
+7. **Origin binding (A-LAD-01; I-SELF, LA-ADR-02 D2a).** An **active** create (`active` absent or `true`) needs `authenticationEndpoint`, `accesstokenEndpoint` and `authConfig.key` on the issuer origin, and `clientAssertionAud` absent or equal to `accesstokenEndpoint`. Else `400 PLATFORM_URL_NOT_ON_ISSUER_ORIGIN` (`description` names the field). Values off the issuer origin need a staged create (`active: false` with a `bindingRef`); the app activates the platform only after an operator grant that binds every admin value (LA-ADR-02 D6). This service does not check the grant; the `ifBindingRef` condition of the activation ties it to the app's committed grant (base §9.15). At `complete` (§4.5) the service does not refuse: it stages the platform instead (LA-ADR-02 D5 item 10).
 
 The Cogniate app maps `PLATFORM_URL_NOT_IN_PROFILE` to `422 INVALID_PLATFORM_VALUES` with the field name, and `INVALID_SITE_URL` to `422 INVALID_SITE_URL` ([app API delta §3.4](cogniate-app-api-delta.md#34-put-app-apiconnectionsidplatform)). The operator grant binds every admin value (LA-ADR-02 D6); this service does not check grants (base §9 note).
 
 ### 4.7 `GET /api/providers` (§9.3)
 
-Each profile entry gets `channel` (the id of the channel whose folder holds the profile, LA-ADR-01 D6). `lms` stays frozen: `canvas`, `blackboard`, `null` for the baseline profiles; the channel id for new profiles. Order unchanged for the baseline profiles. Tests must not compare `label` (unchanged rule).
+Each profile entry gets `channel` (the id of the channel whose folder holds the profile, LA-ADR-01 D6). `lms` stays frozen: its value comes from the profile field `wireLms` (LA-ADR-01 D6, Q-LAD-17), so the baseline profiles keep `canvas`, `blackboard` and `null`; a profile without `wireLms` (every new profile) shows its channel id. Order unchanged for the baseline profiles. Tests must not compare `label` (unchanged rule).
 
 E2 (Must, [LA-ADR-02 D2](../adr/LA-ADR-02-generic-lti-channel.md#d2-profile-traits-added-in-e2)) adds three trait fields to every entry. The app reads `endpoints` to choose the values that a grant binds (LA-ADR-02 D6).
 
@@ -313,7 +325,7 @@ E2 (Must, [LA-ADR-02 D2](../adr/LA-ADR-02-generic-lti-channel.md#d2-profile-trai
 | `issuerKind` | `per-tenant` \| `fixed` | `per-tenant` | `fixed` | `per-tenant` | `fixed` | `per-tenant` |
 | `endpointOrigins` | `issuer` \| `any-https` \| `null` (fixed profiles) | `issuer` | `null` | `null` | `null` | `any-https` |
 
-New entries for `lti-generic` and `brightspace` have the base field shape with `issuer`, `authenticationEndpoint`, `accesstokenEndpoint` and `jwksUrl` `null` (admin values, like `standard`), `siteUrlOn: null`, `serviceUrl: false`, `sharing: "exclusive"`, `sharedPlatform: null`. They come after the baseline real profiles and before the simulation profiles (LA-ADR-01 D4 order rule). The golden `GET /api/providers` of the baseline profiles differs only by the additive fields `channel` (E1, LA-IC-01) and the three trait fields (E2-K). LA-IC-01 names only `channel` today, so the golden comparison after E2-K needs the three trait fields in LA-IC-01 (or a new id): a consistency item for A1, through the Lead.
+New entries for `lti-generic` and `brightspace` have the base field shape with `issuer`, `authenticationEndpoint`, `accesstokenEndpoint` and `jwksUrl` `null` (admin values, like `standard`), `siteUrlOn: null`, `serviceUrl: false`, `sharing: "exclusive"`, `sharedPlatform: null`. They come after the baseline real profiles and before the simulation profiles (LA-ADR-01 D4 order rule). The golden `GET /api/providers` of the baseline profiles differs only by the additive fields `channel` (E1) and the three trait fields (E2-K); LA-IC-01 names all four ([LA-ADR-04 D8](../adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn)).
 
 ### 4.8 New tenant routes (Should)
 
@@ -356,7 +368,8 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 
 | Event | Level | Fields | When |
 | --- | --- | --- | --- |
-| `rate_limited` | warn | `class`, `key_kind`, `tool_account_id`?, `client_ip`? (IP classes only), `retry_after_s` | at most once per bucket per minute |
+| `rate_limited` | warn | `class`, `key_kind`, `tool_account_id`?, `client_ip`? (address classes only), `retry_after_s` | at most once per bucket per minute |
+| `rate_limit_soft` | warn | `class`, `tool_account_id` | a soft class above its rate; at most once per minute |
 | `platform_rate_limited` | warn | `platform_id`, `status`, `retry_after_s` | a platform `429` or throttling `403` |
 | `account_status_changed` | info | `tool_account_id`, `status` | operator change |
 | `api_key_issued`, `api_key_revoked` | info | `tool_account_id`, `api_key_id` | operator change |
@@ -396,13 +409,13 @@ Changed: `http_request`, `api_auth_failed` (when the path names the account), `l
 | D32 | `Idempotency-Key` (Should) | — | Optional header on three `POST` routes |
 | D33 | `GET /api/providers` `channel` and traits | — (our addition, §9.3) | Fields `channel`, `endpoints`, `issuerKind`, `endpointOrigins`; `lms` frozen |
 | D34 | Score extras (Should) | — | `submission`, `scoringUserId`, URL-keyed members passed through |
-| D35 | Platform URL rules per profile | Platform `url` and endpoints are admin values (no origin rule in our copy of the public reference) | `standard`: endpoints on the issuer origin. Admin-value profiles with `endpointOrigins: any-https` (`lti-generic`, `brightspace`): issuer with a path allowed, endpoints on other https origins after the site rules, reserved issuers refused (§4.6.1). |
+| D35 | Platform URL rules per profile | Platform `url` and endpoints are admin values (no origin rule in our copy of the public reference) | An **active** admin-value platform keeps its endpoints and the assertion audience on the issuer origin (`PLATFORM_URL_NOT_ON_ISSUER_ORIGIN`). Admin-value profiles with `endpointOrigins: any-https` (`lti-generic`, `brightspace`) accept an issuer with a path and endpoints on other https origins only in a staged create (`active: false`, then activation after an operator grant); reserved issuers and fixed hosts of any profile are refused (§4.5, §4.6.1). |
 
 The release claim stays the ADR-003 wording until Q1 / LA-H2.
 
 ## 9. Compatibility
 
-Intended behaviour changes (each with an id of LA-ADR-04 D8 and a Lead-approved assertion list):
+Intended behaviour changes (each with an id of LA-ADR-04 D8 and its reviewed test-change list, plan LD-9):
 
 | Change | Id | Who sees it | Note |
 | --- | --- | --- | --- |
@@ -410,8 +423,9 @@ Intended behaviour changes (each with an id of LA-ADR-04 D8 and a Lead-approved 
 | Platform `429` and throttling `403` become `429 PLATFORM_RATE_LIMITED` (was `502 PLATFORM_ERROR`) | LA-IC-11 | tool back ends | The Cogniate outbox maps it to `throttled` (LA-ADR-03 D7). Today's worker retries every status that is not 2xx, 400, 403, 404, 409 or 422 (`packages/tracking/src/outcome.ts:107-115`), so a worker from before E4 also retries a `429`, as it retried the `502`. |
 | The Cogniate channels ask for four scopes, not five (D-8) | LA-IC-04 | new Moodle, Canvas, Blackboard installs | `complete.scopes`; existing installs keep their grants. |
 | Login page instead of `302` when the profile has platform storage and a target exists | LA-IC-06 | platforms that send `lti_storage_target` (Canvas, from E3) | Moodle: no change. |
-| Empty `contentItems` allowed; `accept_lineitem: false` enforced; `acceptLineItem`, `acceptMediaTypes` in the token | LA-IC-12 (proposed) | tool back ends | LA-ADR-05 §5. |
+| Empty `contentItems` allowed; `accept_lineitem: false` enforced; `acceptLineItem`, `acceptMediaTypes` in the token | LA-IC-12 | tool back ends | LA-ADR-05 §5. |
 | Service key for a launch without a context | LA-IC-05 | tool back ends | Addition: `services.serviceKey` now present where it was absent. |
+| Origin binding (I-SELF): an active admin-value platform keeps its endpoints and assertion audience on the issuer origin; off-origin values only in a staged create or a staged registration | none (new profiles only) | `lti-generic`, `brightspace` | No baseline change: `standard` already keeps every endpoint on the issuer origin, and Moodle sends every configuration value on its own origin (security §2.4). |
 
 Unchanged for clients that send no new field: every path, field and code of the base contract; the `302` login for Moodle; the ltik and service key formats; generation-0 service key values; `/healthz` in the `default` and `acceptance` profiles.
 

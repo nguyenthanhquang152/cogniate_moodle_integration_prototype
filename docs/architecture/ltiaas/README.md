@@ -1,6 +1,6 @@
 # LA target architecture: LTI as a Service v1
 
-Status: v1.1 for G-DESIGN (A1, milestone LA P2, 2026-10-22; v1.1 = consistency pass after the QA pre-review `docs/reviews/LA-DESIGN/qa.md` and A2's fixes). Owner: Architect A1 (overall consistency). Plan: [plan v1.1](../../team/ltiaas/plan.md). Terms: [terms](terms.md). Base architecture: [`../README.md`](../README.md) (M1 state); its terms stay valid.
+Status: v1.2 for G-DESIGN round 2 (A1, milestone LA P2, 2026-10-22; v1.2 = fix round 1 after the G-DESIGN round 1 reviews; response: [review-response-R1-A1](review-response-R1-A1.md)). Owner: Architect A1 (overall consistency). Plan: [plan v1.2](../../team/ltiaas/plan.md). Terms: [terms](terms.md). Base architecture: [`../README.md`](../README.md) (M1 state); its terms stay valid.
 
 ## 1. Goal
 
@@ -65,9 +65,9 @@ flowchart TB
     D2[AGS reporter lti-ags]
   end
   subgraph KE[Channel kernel]
-    K1[registry + manifest schema] --- K2[capability catalog + guards] --- K3[authority strategies<br/>self, operatorGrant] --- K4[launch router] --- K5[extension mount] --- K6[dispatch outbox + job runner] --- K7[portal shell]
+    K1[registry + manifest schema] --- K2[capability catalog + guards] --- K3[authority strategies<br/>self, operatorGrant] --- K4[launch router] --- K5[extension mount, port context] --- K6[dispatch outbox<br/>uses the job runner of packages/shared] --- K7[portal shell + portal SDK]
   end
-  subgraph CO[Core]
+  subgraph CO[Domain core]
     C1[library, course, package, publication] --- C2[placement, attempt, learning record] --- C3[grade policy ADR-010] --- C4[tenancy, keys, audit]
   end
   AD -->|ports| KE
@@ -78,10 +78,12 @@ flowchart TB
 
 | Layer | Contains | May use | Must not |
 | --- | --- | --- | --- |
-| Core | library, course, course version, package, publication, placement, attempt, learning record, the grade policy (`packages/tracking`), tenancy, keys, audit | `packages/shared` | name a channel; know LTI message details |
+| Domain core | library, course, course version, package, publication, placement, attempt, learning record, the grade policy (`packages/tracking`), tenancy, keys, audit | `packages/shared` | name a channel; know LTI message details (a review rule in LA) |
 | Channel kernel | registry, manifest schema, capability catalog and guards, authority strategies, launch router, extension mount, dispatch outbox, job runner, portal shell ([LA-ADR-01](adr/LA-ADR-01-channel-kernel.md), [LA-ADR-03](adr/LA-ADR-03-learning-record-core.md)) | core | name a channel; import a channel folder by path |
 | Shared drivers | the LTI 1.3 driver (LTI service; app `tool-pages/`, `clients/lti-client.ts`, `domain/launch.ts`); the `lti-ags` reporter | kernel ports, core | branch on a channel id or a profile id |
 | Channel adapters | manifests, LTI profiles, setup adapters, extension code, portal modules ([LA-ADR-01 D1](adr/LA-ADR-01-channel-kernel.md#decision)) | kernel types, `@cogniate/shared`, the portal UI kit | import another channel; import app `domain/**` |
+
+Two words (Reviewer-B B-LAD-12): **domain core** is the layer above. **Core** (terms §1) is every line of product code outside the channel folders: the domain core, the kernel and the drivers together. The rules N1–N9 and the checks F1–F5 use "core" in that wide sense. The other layer rules of this table are review rules in LA. The job runner is in `packages/shared`; the dispatch outbox that uses it is in the app kernel (Reviewer-B B-LAD-18).
 
 ## 4. Rules that keep core channel-neutral
 
@@ -94,9 +96,10 @@ flowchart TB
 | N5 | A new kind of feature is a new capability in the kernel catalog (an ADR revision), never a channel branch. | review |
 | N6 | Frozen wire names that contain an LMS word live only in `packages/channel-kernel/src/legacy-wire.ts` ([LA-ADR-04 D2](adr/LA-ADR-04-refactor-and-migration.md#decision)). | F1 exception |
 | N7 | Core SQL never reads the frozen `connection.lms` column; after `014`, no product SQL reads or writes `score_sync` ([LA-ADR-04 D4](adr/LA-ADR-04-refactor-and-migration.md#decision), [LA-ADR-03 D4](adr/LA-ADR-03-learning-record-core.md#decision)). | F5 |
-| N8 | A channel chooses its binding authority only from the kernel strategies, under A2's rules ([LA-ADR-07 D2](adr/LA-ADR-07-security-and-tenancy.md)); registry load check 6 enforces the shared-platform and manual rules. | registry load check |
+| N8 | A channel chooses its binding authority only from the kernel strategies, under A2's rules ([LA-ADR-07 D2](adr/LA-ADR-07-security-and-tenancy.md)); registry load checks 6 and 8 enforce the shared-platform rule, the manual rule (`MANUAL_SELF_LEGACY_CHANNELS`) and the guard levels (`LAUNCH_GUARD_CHANNELS`). | registry load check |
+| N9 | A `self` binding keeps the token endpoint, the JWKS URL, the authentication and registration endpoints and the client assertion `aud` on the issuer origin (I-SELF). Any value off the issuer origin needs an operator grant ([LA-ADR-02 D2a](adr/LA-ADR-02-generic-lti-channel.md#decision); Reviewer-A A-LAD-01). | K1 negative case; Author unit test |
 
-**Scope (the authoritative list; QA strategy §3.1 reads it).** One machine-readable copy lives in `packages/channel-kernel/fitness-scope.json` (E1 S9). If this table and the QA table differ, this table wins.
+**Scope (the authoritative list; QA strategy §3.1 reads it).** One machine-readable copy lives in `packages/channel-kernel/fitness-scope.json`; E1 step S2 creates it together with F1 and F3 (QA Q-LAD-18). If this table and the QA table differ, this table wins.
 
 | Class | Paths |
 | --- | --- |
@@ -114,7 +117,7 @@ flowchart TB
 | F2 | Add-channel gate: `git diff --name-status --no-renames` of an add-channel branch against its base; a path in core, a shared build file or another channel folder fails | `npm run fitness:channel-diff -- --base <sha> --channel <id>` | `core` = 0 on the E2-N diff against the E2-K-done SHA ([LA-ADR-02 D8](adr/LA-ADR-02-generic-lti-channel.md#decision)) |
 | F3 | Dependency direction: the import table of [LA-ADR-01 D1](adr/LA-ADR-01-channel-kernel.md#decision) | ESLint `no-restricted-imports` per glob (as the content-host fence) | 0 errors, from step S2 |
 | F4 | Canary channel: a test-only channel folder under `tests/**` that K0 passes to `loadChannelFolders` as a second root (a function argument only, [LA-ADR-01 D4](adr/LA-ADR-01-channel-kernel.md#decision)) | QA K0 | the canary passes K0 with no core edit |
-| F5 | Frozen-data rules N7, and A2's rules (no `'/lti/launch/'` literal outside the account resolver; no `DELETE FROM audit_event` outside its job; SQL portability lint) | the F1 script family | 0 hits |
+| F5 | Frozen-data rules N7; channel SQL names only the tables and columns of its manifest `storage` list (LA-ADR-01 D5); A2's rules (no `'/lti/launch/'` literal outside the account resolver; no `DELETE FROM audit_event` outside its job); the SQL portability lint for new SQL. Each rule starts with the step that makes it true ([LA-ADR-04 D1](adr/LA-ADR-04-refactor-and-migration.md#decision); QA Q-LAD-18) | the F1 script family | 0 hits from the start step of each rule |
 
 ### 4a. Local CI script (F7.6)
 
@@ -126,7 +129,7 @@ There is no CI service in the repo. One script runs the release checks on a clea
 | Steps, in order | 1. `npm ci --ignore-scripts` at the root, then in `tests/` (its own lock file). 2. `npm run check` (lint, typecheck, unit and infra tests, the fitness checks F1, F3 and F5). 3. `npm audit --omit=dev --audit-level=high`. 4. `npm sbom --sbom-format cyclonedx --omit dev` into `.tmp/ci/sbom.cdx.json`. 5. A secret scan of every tracked file (`git ls-files`) with a fixed pattern list in the script: private key blocks, `ltis_` API keys, 64-hex master keys, and a non-empty value after a key name of `.env.example`. A reviewed allow list in the script names each known non-secret hit by file, for example the private-key search pattern in `tests/acceptance/M1/common/99-logs.test.ts`; the clean tree must pass with it. |
 | Network | Steps 1 and 3 read the npm registry. No other step uses the network. If the registry cannot be reached, the script prints `network_unavailable` and exits 2. A network failure is never a pass. |
 | Result | Exit 0 only when every step passes; exit 1 when a check fails; exit 2 when the network is unavailable. One output line per step: name, result, seconds. A secret finding names the file and line, never the value. |
-| Acceptance | On a clean clone: exit 0. A planted `ltis_` key in a temporary tracked copy of a file: step 5 fails, exit 1, and the output names that file and line. |
+| Acceptance (per step; QA Q-LAD-21) | On a clean clone, steps 1, 2, 4 and 5 pass. Step 3 passes, or fails with the advisory ids in its output line: a step 3 failure is a dependency finding, not a script defect. The fixed negative control: a planted `ltis_` key in a temporary tracked copy of a file makes step 5 fail with exit 1, and the output names that file and line. |
 | Not in LA | A hosted CI service, image signing, digest pins of base images (LG; R4 SC-2). |
 
 ## 5. Module and package layout after LA
@@ -140,8 +143,10 @@ packages/
                              app/ (web-services token, course shell, .mbz exporter), portal/, README.md
     canvas/                  manifest.ts, lti-profiles.ts (5 profiles), app.ts (developer key JSON route), portal/, README.md
     blackboard/              manifest.ts, lti-profiles.ts (2 profiles), app.ts, portal/, README.md
-    lti-generic/             E2: manifest.ts, lti-profiles.ts, app.ts, README.md (no portal module)
-    brightspace/             E2: manifest.ts, lti-profiles.ts, app.ts, README.md (no portal module)
+    lti-generic/             E2: manifest.ts, lti-profiles.ts, README.md (no app.ts and no portal module:
+                             the kernel admin-value setup adapter and the manifest wizard serve it)
+    brightspace/             E2: manifest.ts, lti-profiles.ts, README.md (the same; field defaults in the manifest)
+    tsconfig.node.json, tsconfig.portal.json   the channel build model (LA-ADR-01 D1), made once in S2
   shared/                    + jobs (job runner, LA-ADR-03 D7); + key provider (A2, LA-ADR-06 D6)
   tracking/                  neutral outcome → status rules; the HTTP mapping moves to the AGS reporter
   package-inspector/         unchanged
@@ -156,11 +161,20 @@ services/
     app/, domain/, tool-pages/, worker/, clients/, cli/   stay; LMS branches leave them (E1 S4–S7)
 apps/
   portal/src/channels/       NEW: shell (cards, routes, manifest wizard); connect/ keeps shared parts only
+  portal/src/sdk/            NEW: the portal SDK (alias @cogniate/portal-sdk), the only portal code a channel module imports (P11)
   player/                    text name from the play view (no closed LMS union)
 tests/                       QA: tests/sim/<id>/ simulator modules, tests/ltiaas/ kit, fitness probes, canary channel
 ```
 
 The paths of `tool-pages/`, `domain/` and `app/` stay, to keep the merge with the Blackboard and Canvas run small ([LA-ADR-04 D9](adr/LA-ADR-04-refactor-and-migration.md#decision)).
+
+App path → layer (Reviewer-B B-LAD-12):
+
+| Path in `services/cogniate-app/src/` | Layer |
+| --- | --- |
+| `domain/` (courses, publications, attempts, records, libraries), `app/courses.ts`, `app/publications.ts`, `app/results.ts`, `app/upload.ts`, `content-host/` | domain core |
+| `kernel/`, `app/connections.ts`, `app/redemption.ts`, `app/binding-*.ts`, `app/operator.ts`, `worker/` (outbox host) | channel kernel |
+| `tool-pages/`, `clients/lti-client.ts`, `domain/launch.ts`, `domain/pickers.ts`, `drivers/lti-ags/` | LTI 1.3 driver |
 
 ## 6. Epic map
 
@@ -175,6 +189,22 @@ The paths of `tool-pages/`, `domain/` and `app/` stay, to keep the merge with th
 | E6 | Self-serve onboarding and connection health | Could | A2 | [LA-ADR-08](adr/LA-ADR-08-onboarding-and-connection-health.md) | P | B3 |
 | E7 | Conformance kit and CI | Must (one Should, one Could) | QA (+ A1 fitness scope) | [`tests/ltiaas/TEST-STRATEGY.md`](../../../tests/ltiaas/TEST-STRATEGY.md); §4 above | QA, QA-E2E | B1–B4 |
 | E8 | Docs and hand-over | Must | Docs | §7 E8 rows; [operability](operability.md) | Docs | B4 |
+
+### 6a. Hot files and owners (input for P3; Reviewer-B B-LAD-06, Reviewer-A A-LAD-12)
+
+These files need edits from more than one lane. P3 fixes one owner per file and the order of edits; the other lanes send their changes to the owner, or the owner first splits the file into new modules (charter-LA §3).
+
+| File | Lanes that need it | Proposed owner | Order or split |
+| --- | --- | --- | --- |
+| `services/cogniate-app/src/domain/score-syncs.ts`, `worker/score-sync.ts`, `app/results.ts` | K (S4 disabled rule, S5), R (E4 outbox, read-back guard) | K until S5, then R | E4 starts after S4 and S5 land |
+| `services/cogniate-app/src/tool-pages/launch.ts`, `tool-pages/picker.ts`, `domain/launch.ts` | K (S5, S7), R (E4 placement), L (E3 no context, Cancel, multi-select) | K | K first; then R; then L |
+| `services/lti-service/src/lti/{login,launch,target,checks,registration}.ts`, `http/routes/{protocol,registration}.ts`, `profiles/index.ts` | L (S3, E2-K DR fixes, E3), S (account resolver, status gate, session cap) | L | S delivers the resolver and the limit hooks as new modules that L calls |
+| `services/lti-service/src/http/{app,auth}.ts`, `config.ts`, `packages/shared/src/config.ts` | S (listener, rate limits, key ring), L (S3 `PublicUrls`, storage-check route) | S | L asks S for the route mount and the S3 config change |
+| `packages/channels/*/manifest.ts`, `*/app.ts`, `*/app/**` | K (E1, E2), L (E3 values: scopes, `content.*`, Canvas `dynamic`), P (E6 `setup.connectionCheck`) | K | L and P send value changes to K |
+| `packages/channels/*/lti-profiles.ts` | L | L | — |
+| `packages/channels/*/portal/**`, `apps/portal/**` | P | P | — |
+| App migrations | K (`013`), R (`014`), S (`015`), L (E3 `picker_pick`), P (`016`) | Lead | numbers in landing order at P3 (data model §1) |
+| LTI service migrations | L (E2-K platform fields, E3 storage), S (E5 tables) | Lead | numbers in landing order at P3 |
 
 ## 7. Features per epic
 
@@ -195,13 +225,15 @@ One line each. "Decision" links the design decision that the breakdown turns int
 | --- | --- | --- | --- |
 | F1.1 | Open the closed Zod enum (blocker 2) | Must | [LA-ADR-04 D1 S1](adr/LA-ADR-04-refactor-and-migration.md#decision) |
 | F1.2 | Kernel package: manifest schema, capability catalog, legacy projection | Must | [LA-ADR-01 D2, D3](adr/LA-ADR-01-channel-kernel.md#decision) |
+| F1.12 | Channel build model: typecheck, unit tests, lint, Tailwind source and Vite settings for `packages/channels/*`; profile schema check | Must | [LA-ADR-01 D1, D4](adr/LA-ADR-01-channel-kernel.md#decision) (load check 7) |
+| F1.13 | Port context, extension ports P5–P7, portal SDK and P11 | Must | [LA-ADR-01 D5](adr/LA-ADR-01-channel-kernel.md#decision) |
 | F1.3 | Folder-discovery registry with load checks 1–6 | Must | [LA-ADR-01 D4](adr/LA-ADR-01-channel-kernel.md#decision) |
 | F1.4 | LTI profiles in channel folders; traits `endpoints`, `privacyFloor`; generic check 14; `channel` on `GET /api/providers` | Must | [LA-ADR-01 D6](adr/LA-ADR-01-channel-kernel.md#decision) |
 | F1.5 | Migration `013`; channel and authority reads (blocker 1) | Must | [LA-ADR-04 D4](adr/LA-ADR-04-refactor-and-migration.md#decision) |
 | F1.6 | `ConnectionSetup` port for all channels; authority strategies; stored target kind | Must | [LA-ADR-01 D5, D7](adr/LA-ADR-01-channel-kernel.md#decision) |
 | F1.7 | Extension ports and capability guards (Canvas JSON, web services, course shell, `.mbz`) | Must | [LA-ADR-01 D8](adr/LA-ADR-01-channel-kernel.md#decision) |
 | F1.8 | `{LMS}` texts from manifests in every service and the player | Must | [LA-ADR-01 D12](adr/LA-ADR-01-channel-kernel.md#decision) |
-| F1.9 | Portal shell: registry routes, manifest cards, manifest wizard; modules move | Must | [LA-ADR-01 D9](adr/LA-ADR-01-channel-kernel.md#decision) |
+| F1.9 | Portal shell: registry routes, manifest cards, manifest wizard; modules move | Must | [LA-ADR-01 D9](adr/LA-ADR-01-channel-kernel.md#decision); proof: Author shell test (every manifest renders) and K2 U1–U3 (F7.7) |
 | F1.10 | `PUBLIC_MOODLE_URL` leaves the LTI service config | Must | [LA-ADR-04 D1 S3](adr/LA-ADR-04-refactor-and-migration.md#decision), LA-IC-02 |
 | F1.11 | Fitness checks F1–F5 and the canary channel (F1 and F3 from step S2) | Must | §4; [LA-ADR-04 D1](adr/LA-ADR-04-refactor-and-migration.md#decision) |
 
@@ -209,7 +241,7 @@ One line each. "Decision" links the design decision that the breakdown turns int
 
 | Id | Feature | Priority | Decision |
 | --- | --- | --- | --- |
-| F2.1 | Profile traits `issuerKind`, `endpointOrigins`, `clientAssertionAud`, `assertionDeploymentId`, `dynamicRegistration` | Must | [LA-ADR-02 D2](adr/LA-ADR-02-generic-lti-channel.md#decision) |
+| F2.1 | Profile traits `issuerKind`, `endpointOrigins`, `clientAssertionAud`, `assertionDeploymentId`, `dynamicRegistration`; the self invariant I-SELF and the refused hosts | Must | [LA-ADR-02 D2, D2a](adr/LA-ADR-02-generic-lti-channel.md#decision) |
 | F2.2 | Generic DR fixes 1–8 (issuer path, endpoint origins, token format, `authorization_server`, capability checks, profile at complete, granted scopes, texts) | Must | [LA-ADR-02 D5](adr/LA-ADR-02-generic-lti-channel.md#decision) |
 | F2.3 | Grant bound values for admin-value profiles | Must | [LA-ADR-02 D6](adr/LA-ADR-02-generic-lti-channel.md#decision) |
 | F2.4 | Channel `lti-generic`: manual with a grant, DR with `self` | Must | [LA-ADR-02 D3](adr/LA-ADR-02-generic-lti-channel.md#decision) |
@@ -218,6 +250,9 @@ One line each. "Decision" links the design decision that the breakdown turns int
 | F2.7 | Generic and D2L simulator providers; simulator host manifest | Must | [LA-ADR-02 D7](adr/LA-ADR-02-generic-lti-channel.md#decision) |
 | F2.8 | Add-channel gate F2 on the E2-N diff | Must | [LA-ADR-02 D8](adr/LA-ADR-02-generic-lti-channel.md#decision) |
 | F2.9 | DR management flow (`registration_client_uri`) | Could | [LA-ADR-02 D5](adr/LA-ADR-02-generic-lti-channel.md#decision) item 9 |
+| F2.10 | Kernel admin-value setup adapter and `FieldSpec.default` (so a kind A named LMS is data only) | Must | [LA-ADR-01 D2, D5](adr/LA-ADR-01-channel-kernel.md#decision); [LA-ADR-02 D4, D8](adr/LA-ADR-02-generic-lti-channel.md#decision) |
+| F2.11 | Staged Dynamic Registration with an operator grant when I-SELF fails | Must | [LA-ADR-02 D5](adr/LA-ADR-02-generic-lti-channel.md#decision) item 10, D6 |
+| F2.12 | Guard levels `launch` and `registration` for product families | Must | [LA-ADR-01 D6](adr/LA-ADR-01-channel-kernel.md#decision); [LA-ADR-02 D1](adr/LA-ADR-02-generic-lti-channel.md#decision) |
 
 **E3 LTI Advantage completeness (A2)**
 
@@ -288,7 +323,8 @@ One line each. "Decision" links the design decision that the breakdown turns int
 | F7.4 | Data-driven simulator and one host manifest | Must | QA strategy §2.8; [LA-ADR-02 D7](adr/LA-ADR-02-generic-lti-channel.md#decision) |
 | F7.5 | Fitness checks in `npm run check` | Must | §4; QA strategy §3 |
 | F7.6 | Local CI script (install, check, vulnerability scan, SBOM, secret scan) | Must | §4a |
-| F7.7 | K2 browser checks | Could | QA strategy §2.2 |
+| F7.7 | K2 cases U1–U4: manifest cards and wizard, one browser DL and score flow per new channel, the platform storage launch. They are the end-to-end proof of F1.9 and F3.1 (Reviewer-B B-LAD-07) | Must | QA strategy §2.4 |
+| F7.9 | Other K2 browser checks | Could | QA strategy §2.2 |
 | F7.8 | Certification reference tool (LA-H9) | Should | plan §3 E7; R1 §4 |
 
 **E8 Docs and hand-over (Must)**
@@ -311,10 +347,13 @@ Items that A1 cannot close inside its own files. Each names the owner. Closed it
 | OC-2 | AP-05-09 against today's "No gradebook column" row | A2 | **Closed:** A2 [LA-ADR-05](adr/LA-ADR-05-lti-advantage-completeness.md) AP-05-09 now expects today's `failed` row; D5 keeps it for every graded placement, and AP-05-28 checks it on a Moodle-shaped channel. |
 | OC-3 | LA-IC-09: the T5b P5 fixture after migration `014` | Lead | **Closed:** plan LD-6 (the fixture deletes the same row in `record_dispatch`). |
 | OC-4 | Admin-value `POST /api/platforms` rules and the trait fields of `GET /api/providers` | A2 | **Closed:** A2 [lti-service-api-delta](contracts/lti-service-api-delta.md) §4.6.1 and §4.7; LA-IC-01 lists the trait fields. |
-| OC-5 | Human decision ids: A1 uses only plan ids. A2 proposes LA-H21 (operator policy), LA-H22 (ungraded items) and LA-H23 (Moodle manual authority) | Lead | Open: add them to plan §6.2 or renumber. |
+| OC-5 | Human decision ids of A2 | Lead | **Closed:** plan v1.2 §6.2 has LA-H21 to LA-H24. |
 | OC-6 | Who builds the connection secrets table | A2 | **Closed:** A2 [LA-ADR-07](adr/LA-ADR-07-security-and-tenancy.md) D3 "Scope in LA": LB or LF builds it; LA keeps `connection.ws_*`. |
-| OC-7 | Two QA allowances for the tasks README §2: (a) QA writes `infra/.secrets/lti/keyring.json` in its own clone and restarts the LTI service (A2 LA-ADR-06 AP-06-24); (b) `docker compose exec -e STACK_PROFILE=production -e OPERATORS=<name> cogniate-app npm run app:grant …` (A2 LA-ADR-07 AP-07-04, AP-07-09) | Lead (P3 breakdown) | Open: add both to `docs/architecture/tasks/README.md` §2 in P3. |
-| OC-8 | The LD-1 rewrite list misses two closed-list assertions: `tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:255` and `tests/acceptance/M1/common/90-simulation-gates.test.ts:19` (QA pre-review Q-LAD-08) | QA (list owner, QA strategy §4.3); Lead approves | Open: QA adds both rows and widens the E0 scan to exact lists and counts. [LA-ADR-04 D6](adr/LA-ADR-04-refactor-and-migration.md#decision) states the rule. |
+| OC-7 | Three QA allowances for the tasks README §2: (a) QA writes `infra/.secrets/lti/keyring.json` in its own clone and restarts the LTI service (A2 LA-ADR-06 AP-06-24); (b) `docker compose exec -e STACK_PROFILE=production -e OPERATORS=<name> cogniate-app npm run app:grant …` (A2 LA-ADR-07 AP-07-04, AP-07-09); (c) `docker compose exec lti-service npm run lti:operator -- init …` (A2 LA-ADR-06 AP-06-13; QA Q-LAD-15) | Lead (P3 breakdown) | Open: add them to `docs/architecture/tasks/README.md` §2 in P3. |
+| OC-8 | The LD-1 rewrite list missed two closed-list assertions (QA pre-review Q-LAD-08) | QA | **Closed:** QA added both rows and the wider E0 scan (TEST-STRATEGY v1.1 §4.3; qa.md round 1). |
+| OC-9 | Plan E5 Must 3 ("the CLIs become clients of the operator API"): A1 keeps the app CLIs as shell commands in LA, so Must 3 covers the LTI service CLIs only, and R-LA-2 stays a residual (Reviewer-A A-LAD-17; app API delta §7) | Lead | Open: confirm, and list R-LA-2 for the human review. |
+| OC-10 | A2 files that must follow this round's A1 decisions: (a) the I-SELF rule, staged DR and refused hosts (A-LAD-01) in security-delta §2.4 and §9, LA-ADR-07 D6 (threat row), LA-ADR-08 D3 rule 6 and D4, lti-service-api-delta §4.5 and §4.6.1; (b) LA-ADR-07 D1: the kernel gives `app/` code a `PortContext` with a library-bound `ChannelSql`, and `app.ts` stays pure (LA-ADR-01 D5; B-LAD-03); (c) operability.md: `npm run worker` needs `APP_JOB_RUNNER=off` in the web process and a distinct `JOB_INSTANCE_ID` (LA-ADR-03 D7; A-LAD-03, B-LAD-09); (d) LA-ADR-07 rule A3 cites `MANUAL_SELF_LEGACY_CHANNELS` (B-LAD-17); (e) lti-service-api-delta §4.7: the frozen `lms` value comes from the profile field `wireLms` (Q-LAD-17) | A2 (through the Lead) | Open until A2's fix round. |
+| OC-11 | QA strategy alignment: R1 runs only before the PASS of runtime steps S3–S6, S8, E4 (LA-ADR-04 D6; B-LAD-11); K2 U1–U4 are Must (F7.7; B-LAD-07) | QA (through the Lead) | Open. |
 
 QA pre-review findings in A1 files (`docs/reviews/LA-DESIGN/qa.md`):
 
@@ -346,6 +385,8 @@ QA pre-review findings in A1 files (`docs/reviews/LA-DESIGN/qa.md`):
 | [contracts/lti-service-api-delta.md](contracts/lti-service-api-delta.md) | A2 | LTI service API changes |
 | [operability.md](operability.md) | A2 | runbook-level design: config, topology, signals, alerts, backup and restore, key rotation |
 | [security-delta.md](security-delta.md) | A2 | deltas to `../security.md` |
+| [review-response-R1-A1.md](review-response-R1-A1.md) | A1 | G-DESIGN round 1: one row per finding routed to A1 |
+| `review-response-R1-A2.md` | A2 | G-DESIGN round 1: one row per finding routed to A2 |
 | [`tests/ltiaas/TEST-STRATEGY.md`](../../../tests/ltiaas/TEST-STRATEGY.md) | QA | test levels, conformance kit, fitness check design, regression proof, lanes, testability checklist |
 
 ## 10. Human decisions and unknowns
@@ -362,6 +403,7 @@ No BLOCKER-level unknown is open without an id.
 | LA-H7 | v1 tenant model | path mode; vendor-model controls built | A2 LA-ADR-06 D2 |
 | LA-H10 | G-BASE timing | frozen candidate | [LA-ADR-04 D9](adr/LA-ADR-04-refactor-and-migration.md#decision) |
 | R2-2 (unknown, not blocking) | D2L product family `desire2learn`; D2L DR token format | guard `desire2learn`; D2L DR is Should | [LA-ADR-02 D4](adr/LA-ADR-02-generic-lti-channel.md#decision) |
-| LA-H21 (proposed by A2) | Operator policy: key life, roles, two-person rule | named staff; 90-day keys | A2 [LA-ADR-06](adr/LA-ADR-06-service-operability.md), [LA-ADR-07](adr/LA-ADR-07-security-and-tenancy.md) |
-| LA-H22 (proposed by A2) | Offer ungraded items (D-11) | yes for Canvas `link_selection` and `lti-generic`; no for Moodle | A2 [LA-ADR-05](adr/LA-ADR-05-lti-advantage-completeness.md) D5 |
-| LA-H23 (proposed by A2) | Moodle manual connect authority | keep `self` for the pilot (residual R-LA-1; the legacy list of load check 6) | A2 [LA-ADR-07](adr/LA-ADR-07-security-and-tenancy.md), [LA-ADR-08](adr/LA-ADR-08-onboarding-and-connection-health.md) |
+| LA-H21 | Operator policy: key life, roles, two-person rule | named staff; 90-day keys | A2 [LA-ADR-06](adr/LA-ADR-06-service-operability.md), [LA-ADR-07](adr/LA-ADR-07-security-and-tenancy.md) |
+| LA-H22 | Offer ungraded items (D-11) | yes for Canvas `link_selection` and `lti-generic`; no for Moodle | A2 [LA-ADR-05](adr/LA-ADR-05-lti-advantage-completeness.md) D5 |
+| LA-H23 | Moodle manual connect authority | keep `self` for the pilot (residual R-LA-1; the list `MANUAL_SELF_LEGACY_CHANNELS` of load check 6) | A2 [LA-ADR-07](adr/LA-ADR-07-security-and-tenancy.md), [LA-ADR-08](adr/LA-ADR-08-onboarding-and-connection-health.md) |
+| LA-H24 | Approve the verified-admin-launch authority (E6 D3, Could) after a security review | only if E6 gets capacity | A2 [LA-ADR-08](adr/LA-ADR-08-onboarding-and-connection-health.md) |

@@ -18,14 +18,14 @@ How to read: each row is one change to one section of `security.md`. "Keep" mean
 | Section | Change | Source | Priority |
 | --- | --- | --- | --- |
 | §2.1 Login | Before rule 1: the rate-limit classes `protocol` and `protocol_account`; a `suspended` account gives the page `TOOL_ACCOUNT_SUSPENDED` and no state row. New rule 6: when the profile has `platformStorage` and a storage target exists, the answer is the login page (`200`) with `lti.put_data`, not the `302`; the state record keeps the target and the storage origin. The cookie is set in both cases. | LA-ADR-05 D1; LA-ADR-06 D1, D2 | Must |
-| §2.2 Launch | Check 2 gets an alternative: **check 2s (storage check)**. When the cookie is missing and the state record has a storage target, checks 4–14 and the claim policy run first; then the storage-check page; then `POST /lti/launch/{account}/storage-check` compares `SHA-256(value)` with the state hash (constant time), single use, 120 s. No ltik before check 2s passes. New log values: `check: "storage"`, details `storage_mismatch`, `storage_check_unknown_used_or_expired`; `launch_accepted {binding}`. | LA-ADR-05 D1 | Must |
+| §2.2 Launch | Check 2 gets an alternative: **check 2s (storage check)**. When the cookie is missing and the state record has a storage target, checks 4–14 and the claim policy run first; then the storage-check page; then `POST /lti/launch/{account}/storage-check` checks `Origin` = our LTI origin and compares `SHA-256(value)` with the state hash (constant time), single use, 120 s. The storage key is `cog_state_<d>` (16 keys at most); request values reach the login page only through an escaped JSON block (A-LAD-09). No ltik before check 2s passes. New log values: `check: "storage"`, details `storage_mismatch`, `storage_check_unknown_used_or_expired`; `launch_accepted {binding}`. | LA-ADR-05 D1 | Must |
 | §2.2 Launch, check 5 | Could: refuse `aud` values other than the client id and the platform's `trustedAudiences`. | LA-ADR-05 D10; LA-ADR-07 D8 | Could |
 | §2.2 Launch, check 11 | Keep. A launch without `context` is valid; a missing `sub` is still refused (documented deviation, LTI Core allows anonymous launches). | LA-ADR-05 D2 | Must |
 | §2.2 "Other launch cases" | `STATE_COOKIE_MISSING` gets a storage help text when the storage check got no value. | LA-ADR-05 D1 rule 8 | Must |
 | §2.3 JWTs that we sign | "One active RSA 2048 key per tool account … Rotation is optional" becomes: signing key states `next` (published, never signs), `active` (exactly one; signs every tool JWT), `retired` (published 30 days from `retired_at`), `removed` (private part zeroed). Activation waits for the publish lead time (default 24 h) unless `force` (audited). | LA-ADR-06 D7 | Must |
-| §2.4 Platform URLs | Keep the `standard` rules. A1 adds the profile trait `endpointOrigins` (`issuer` or `any-https`) for admin-value profiles (LA-ADR-02 D2). With `any-https` (`lti-generic`, `brightspace`): the issuer may have a path and its origin passes site rules 1–4; each endpoint is https on any origin whose host passes site rules 2–4; reserved issuers are refused; every later call uses the guarded client ([contract delta §4.6.1](contracts/lti-service-api-delta.md#461-post-apiplatforms-for-the-admin-value-profiles-lti-generic-and-brightspace-e2-must)). The manual methods of these profiles use `operatorGrant`, because a typed JWKS URL off the issuer host proves nothing (LA-ADR-02 D3). Canvas Dynamic Registration (Should): the configuration issuer equals the Canvas profile issuer; every endpoint is in the profile's allowed set; the configuration host is the site, service or a fixed profile host. | LA-ADR-02 D2, D5; LA-ADR-05 D6 | Must (E2) / Should |
+| §2.4 Platform URLs | Keep the `standard` rules. Add the **origin binding** invariant I-SELF (A-LAD-01; A1's rule text in LA-ADR-02 D2a and D5 item 10; LA-ADR-07 rule A6): for a `self` binding, the auth, token, JWKS and registration endpoints and the client assertion audience are on the issuer origin. The issuer host vouches only for its own origin. A value off the issuer origin, or a separate audience, needs an operator grant (or a fixed value of a named profile together with a grant). The LTI service enforces it: an **active** `POST /api/platforms` that breaks it gets `400 PLATFORM_URL_NOT_ON_ISSUER_ORIGIN`, and a `complete` that breaks it creates the platform **inactive** with the connection's binding ref (a staged registration); the app then switches the connection to `operatorGrant`, and only the grant redemption activates it. `brightspace` DR is always staged (its token host is off the issuer origin). The Moodle configuration URL must be the issuer plus `/mod/lti/openid-configuration.php` (trait `configurationPath`, LA-ADR-02 D2a). For `any-https` profiles (`lti-generic`, `brightspace`): the issuer may have a path; its origin passes site rules 1–3; no admin value is a fixed host or a fixed-issuer host of any loaded profile; reserved issuers are refused; every later call uses the guarded client ([contract delta §4.5, §4.6.1](contracts/lti-service-api-delta.md#461-post-apiplatforms-for-the-admin-value-profiles-lti-generic-and-brightspace-e2-must)). Canvas Dynamic Registration (Should): the configuration issuer equals the Canvas profile issuer; every endpoint equals the filled profile value; the platform is always staged with a grant. | LA-ADR-02 D2, D5; LA-ADR-05 D6; LA-ADR-07 A6 | Must (E2) / Should |
 | §2.5 Dynamic registration update | Keep. | — | — |
-| §2.6 Platform ownership | Keep for `self` methods. Add: authority rules A1–A5 of LA-ADR-07 D2 (a channel chooses only a kernel strategy; typed values need `operatorGrant`; shared platforms never `self`). The registry load enforces A3 and A4 (LA-ADR-01 D4 load check 6; the Moodle manual method is the one frozen legacy exception). | LA-ADR-07 D2; LA-ADR-01 D4 | Must |
+| §2.6 Platform ownership | Keep for `self` methods. Add: authority rules A1–A6 of LA-ADR-07 D2 (a channel chooses only a kernel strategy; typed values need `operatorGrant`; shared platforms never `self`; a `self` binding keeps every endpoint and the audience on the issuer origin). The registry load enforces A3 and A4 (LA-ADR-01 D4 load check 6; the Moodle manual method is the one frozen legacy exception). | LA-ADR-07 D2; LA-ADR-01 D4 | Must |
 
 ## §3 Cookies and launch container
 
@@ -50,7 +50,7 @@ New rows:
 | Response | `Content-Security-Policy` (main parts) | `Referrer-Policy` | Priority |
 | --- | --- | --- | --- |
 | LTI service login page (platform storage) | `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'none'; base-uri 'none'` | `no-referrer` | Must |
-| LTI service storage-check page | `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'self'; base-uri 'none'` | `no-referrer` | Must |
+| LTI service storage-check page | `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'self'; base-uri 'none'` | `same-origin` (its form POST must carry our `Origin`) | Must |
 | `POST /tool/picker/{id}/cancel` auto-submit | as `POST /tool/picker/{id}` auto-submit | `same-origin` | Must |
 | `PLACEMENT_NOT_GRADED` page | as the other `/tool/*` error pages | `same-origin` | Must |
 | Admin code page (Could) | as `GET /tool/picker/{id}`, with `form-action 'none'` | `same-origin` | Could |
@@ -63,7 +63,7 @@ The two LTI service pages have no form fields that a framing page can read and n
 | --- | --- | --- | --- |
 | Operator API `/operator/v1/*` | No cookies. `OPERATOR-AUTH-V1` header only. No CORS. Loopback listener. | LA-ADR-06 D3 | Must |
 | `POST /tool/picker/{id}/cancel` | As the picker POST: `Origin` = `PUBLIC_APP_URL`, else `403` and no change. | LA-ADR-05 D3 | Must |
-| `POST /lti/launch/{account}/storage-check` | No ambient credentials: the check value (single use, 120 s, hash stored) is the authorization. No `Origin` rule: the browser may send `null` from the framed page. | LA-ADR-05 D1 | Must |
+| `POST /lti/launch/{account}/storage-check` | No ambient credentials: the check value (single use, 120 s, hash stored) is the authorization. `Origin` must be the origin of `PUBLIC_LTI_URL` (the page sends `Referrer-Policy: same-origin`); else `400 INVALID_STATE` (`storage_origin`) and the check stays unused (A-LAD-09; residual R-LA-6). | LA-ADR-05 D1 | Must |
 | Portal `POST …/check`, `POST …/verify` (Could) | As every portal API write: session cookie and `Origin`. | LA-ADR-08 | Could |
 
 ## §7 Untrusted package content
@@ -87,7 +87,8 @@ Keep. LA changes nothing here.
 | Change | Detail | Source | Priority |
 | --- | --- | --- | --- |
 | Platform throttling | A platform `429`, or `403` with `Rate Limit Exceeded`, maps to `429 PLATFORM_RATE_LIMITED` with `Retry-After` (clamped 1–3,600 s). No automatic retry inside the LTI service. | contract delta §1.3 | Must |
-| Connection check | `POST /api/platforms/:id/check` calls only the stored JWKS URL and token endpoint of that platform, through the guarded client; one call per minute per platform and deployment. | LA-ADR-08 D4 | Could |
+| Platform access token | The required outcome "the platform access token goes only to platform URLs" (§8) now has a precondition: a client assertion is signed and sent only for an **active** platform, whose token endpoint and audience the binding proved (issuer origin for `self`) or an operator grant bound (A-LAD-01; LA-ADR-07 rule A6). A staged platform makes no token request. | LA-ADR-07 A6; contract delta §4.6.1 rule 7 | Must |
+| Connection check | `POST /api/platforms/:id/check` calls only the stored JWKS URL and token endpoint of that platform, through the guarded client, and only when the platform and the deployment are active (A-LAD-01); one call per minute per platform and deployment. | LA-ADR-08 D4 | Could |
 | Keep | The guarded client rules (https only, no redirects, 5 s, 1 MB, IP check in the lookup). | — | — |
 
 ## §10 Keys and secrets
@@ -121,14 +122,14 @@ Replaced and new rows of the table:
 | Change | Detail | Source | Priority |
 | --- | --- | --- | --- |
 | Fixed profiles | Keep; profiles move into channel folders (A1). A profile change is still an architecture change with a QA criterion. | LA-ADR-01 D6 | Must |
-| Signed product family | Check 14 becomes generic: a guarded family must use a profile of its channel (same refused set as M1). | LA-ADR-01 D6 | Must |
-| Binding approval | Keep for `operatorGrant` methods. Authority rules A1–A5 (LA-ADR-07 D2) for every channel. The manual methods of `lti-generic` and `brightspace` use `operatorGrant` and bind every admin value. | LA-ADR-07 D2; LA-ADR-02 D3, D6 | Must |
+| Signed product family | Check 14 becomes generic, with two guard levels (LA-ADR-01 D6, B-LAD-04): `launch` (Canvas, Blackboard: a launch of their family on another profile is refused; same refused set as M1) and `registration` (new channels: refused at Dynamic Registration and at create; a launch only logs `family_guard_mismatch`, so a new named channel never breaks live `lti-generic` or `standard` connections of its LMS). | LA-ADR-01 D6 | Must |
+| Binding approval | Keep for `operatorGrant` methods. Authority rules A1–A6 (LA-ADR-07 D2) for every channel. The manual methods of `lti-generic` and `brightspace` use `operatorGrant` and bind every admin value. | LA-ADR-07 D2; LA-ADR-02 D3, D6 | Must |
 | Grant evidence | Fields `--evidence-channel`, `--evidence-ref` (required in the production profile); `--operator`. Stored in the app audit event `details` (no note text), not in the grant row. | LA-ADR-07 D4, D5 | Must |
 | Verified admin launch | Reserved third strategy; Canvas and generic only; Blackboard stays operator-only. | LA-ADR-08 D2, D3 | Could |
 
 ## New §13 Rate limits (Must)
 
-Token buckets per class and key, in memory, bounded map; classes and defaults in [LA-ADR-06 D1](adr/LA-ADR-06-service-operability.md#d1-rate-limits-must). Operators change limits per account or globally through the operator API (audited). `X-Forwarded-For` only from `TRUSTED_PROXY_CIDRS` (compose: the `proxy` service only). A failed authentication spends the `auth_failure` bucket of the address. At most 20 open registration sessions per account.
+Token buckets per class and key, in memory, bounded map; classes and defaults in [LA-ADR-06 D1](adr/LA-ADR-06-service-operability.md#d1-rate-limits-must). Operators change limits per account or globally through the operator API (audited). `X-Forwarded-For` only from `TRUSTED_PROXY_CIDRS` (compose: the `proxy` service only). Only a failed API key or operator key spends the `auth_failure` bucket of the address; an ltik or service key `401` under a valid API key spends nothing (A-LAD-02). The account-wide protocol and registration classes are soft: log and alert, never `429` (A-LAD-07, R-LA-5). IPv6 addresses count by /64. At most 10 open registration sessions per client address (a setting).
 
 ## New §14 Operator API and audit (Must)
 
@@ -146,4 +147,7 @@ Loopback listener, own credential, one audit event per call, append-only storage
 | R-LA-2 | App operator identity is self-asserted by a person with shell access. | Accountable now; SSO in LG. | LA-ADR-07 D4 |
 | R-LA-3 | Rate limits are per process. | One instance in LA and the pilot. | LA-ADR-06 D1 |
 | R-LA-4 | The storage path stores minimized, signed claims for up to 120 s before the browser binding is proven. | No ltik and no tool access before check 2s; deleted after 10 min. | LA-ADR-05 D1 |
+| R-LA-5 | The account-wide protocol and registration limits are soft (log and alert only). | A hard account bucket lets any sender block every library; per-address limits stay hard; WAF in LG. | LA-ADR-06 D1 |
+| R-LA-6 | A person who starts a login can carry the storage check to a second browser that they control. | The `Origin` rule stops foreign sites; the rest is the class of residual R2. | LA-ADR-05 D1 |
+| R-LA-7 | On a generic LMS host, a person who can serve a configuration file and a registration endpoint under an issuer path can register that path for their own library. | I-SELF keeps every token request on that host; Moodle needs its fixed configuration path. | LA-ADR-02 D2a; LA-ADR-07 T25 |
 | R4 (update) | Teacher Deep Linking in Safari | Solved for platforms with platform storage (Canvas first); still open for Moodle 5.2 (no storage target). | LA-ADR-05 D1 |

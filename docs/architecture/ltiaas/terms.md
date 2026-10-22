@@ -19,10 +19,15 @@ This file adds the terms of milestone LA. The terms of [`../README.md` §2](../R
 | **Channel registry** | The one list of channels. Each deployable builds it by folder discovery of `packages/channels/*/`. No file lists the channel ids. | `providerAdapters()` (`providers/index.ts:13`), `listProfiles()` (`profiles/index.ts:27`), `LMS_TYPES`, `providerWizards` (`apps/portal/src/connect/wizards.ts:7`) |
 | **Registry builder** | The pure kernel function `buildChannelRegistry` that runs the load checks and builds the registry from loaded channel folders. The loader `loadChannelFolders` takes its roots only as a function argument ([LA-ADR-01 D4](adr/LA-ADR-01-channel-kernel.md#decision)). | — |
 | **Channel kernel** (kernel) | The core code that runs every channel through ports and capabilities: registry, capability guards, binding authority strategies, launch router, extension mount, dispatch outbox, portal shell. | the "common engine" (`providers/types.ts:3`) |
-| **Core** | All product code outside the channel folders. Core must not name a channel (§3). | — |
+| **Core** | All product code outside the channel folders: the domain core, the kernel and the drivers. Core must not name a channel (README §4). | — |
+| **Domain core** | The layer of library, course, publication, placement, attempt, learning record and the grade policy (README §3). It is a part of core. | — |
 | **Shared driver** (driver) | A reusable mechanism that many channels use. LA drivers: the **LTI 1.3 driver** (LTI service, app LTI client, tool pages) and the **AGS reporter**. | the LTI service; the score sync worker |
 | **Port** | A typed interface between the kernel and a channel adapter or a driver ([LA-ADR-01 D5](adr/LA-ADR-01-channel-kernel.md#decision)). | — |
 | **Extension route** | An app API route that a channel folder declares. The kernel mounts it behind a capability guard. | Canvas JSON route (`app/canvas-configuration.ts`), web services route (`app/web-services.ts`) |
+| **Port context** | The object that the kernel gives to a channel's `app/` extension code at call time: the bound library id and connection id, a library-bound `ChannelSql`, the guarded outbound client, seal and unseal ([LA-ADR-01 D5](adr/LA-ADR-01-channel-kernel.md#decision)). `app.ts` gets none. | — |
+| **Channel SQL** | The only database access of channel code: statements that must use `:library_id`, which the kernel binds. There is no raw database handle. | — |
+| **Portal SDK** | `apps/portal/src/sdk/` (alias `@cogniate/portal-sdk`): the one portal folder that a channel portal module may import. | today's `apps/portal/src/api.ts`, `hooks.ts`, `types.ts`, `ui/**` |
+| **Admin-value setup adapter** | The kernel `ConnectionSetup` for channels whose profiles all have `endpoints: admin` and that have no `app.ts` (`lti-generic`, `brightspace`). | — |
 | **Canary channel** | A test-only channel folder that QA keeps outside product paths and passes to the loader as a second root. It proves on every commit that a new channel needs no core change. | — |
 
 ## 2. Capabilities and profiles
@@ -39,6 +44,9 @@ This file adds the terms of milestone LA. The terms of [`../README.md` §2](../R
 | **Admin-value profile** | A profile with trait `endpoints: 'admin'`: the LMS administrator gives the issuer and the endpoints. `standard` (Moodle) and `lti-generic`. | `isStandardProfile` (`profiles/index.ts:46`) |
 | **Fixed-endpoint profile** | A profile with trait `endpoints: 'fixed'`: the issuer and endpoints come from the profile (fixed values or templates). | the Canvas and Blackboard profiles |
 | **Guarded product family** | A signed `tool_platform.product_family_code` value that one channel owns. A launch that signs it must use a profile of that channel (generic check 14). | `productFamily` (`profiles/types.ts:45`), check 14 |
+| **Guard level** | `launch` (launch check 14 refuses a non-matching profile; only Canvas and Blackboard, list `LAUNCH_GUARD_CHANNELS`) or `registration` (only a new Dynamic Registration is refused; launches of live connections only log). New channels use `registration` ([LA-ADR-01 D6](adr/LA-ADR-01-channel-kernel.md#decision)). | check 14 |
+| **Self invariant** (I-SELF) | A `self` binding keeps the token endpoint, the JWKS URL, the authentication and registration endpoints and the client assertion `aud` on the issuer origin. Else the binding needs an operator grant ([LA-ADR-02 D2a](adr/LA-ADR-02-generic-lti-channel.md#decision)). | security §2.4 issuer-origin rule |
+| **Staged registration** | A Dynamic Registration that breaks I-SELF: the LTI service creates the platform inactive, and an operator grant activates it. | Canvas DR staging (A2 LA-ADR-05 D6) |
 | **Simulator profile** | Same as "simulation profile" (ADR-011 §6). It lives in the channel folder next to the real profile. | `blackboard-sim`, `canvas-sim-cloud` |
 | **Simulator module** | QA's per-channel module of the signed simulator, under `tests/sim/`. | `tests/sim/blackboard/index.mjs` |
 
@@ -48,7 +56,7 @@ This file adds the terms of milestone LA. The terms of [`../README.md` §2](../R
 | --- | --- | --- |
 | **Connection** | Unchanged: one link between one library and one LMS installation. LA view: one instance of one channel for one library. | README §2 |
 | **Registration method** | `dynamic` or `manual`. Unchanged values. | `connection.method` |
-| **Binding authority** | How a connection gets launch and grade authority: `self` (the registration itself proves it) or `operatorGrant` (an operator approval grant, ADR-011 §4a). Reserved third value: `verifiedAdminLaunch` (§6, Could). The manifest fixes it per registration method. The connection stores it at create. | Moodle path (`lms === 'moodle'`) versus the grant path (`lms IN ('canvas','blackboard')`) |
+| **Binding authority** | How a connection gets launch and grade authority: `self` (the registration itself proves it) or `operatorGrant` (an operator approval grant, ADR-011 §4a). Reserved third value: `verifiedAdminLaunch` (§6, Could). The manifest fixes it per registration method. The connection stores it at create; it changes once, from `self` to `operatorGrant`, for a staged registration. | Moodle path (`lms === 'moodle'`) versus the grant path (`lms IN ('canvas','blackboard')`) |
 | **Authority strategy** | The kernel code of one binding authority: bind, route launches, disconnect, suspend, release. | `app/redemption.ts`, `app/binding-cleanup.ts`, the Moodle branches in `app/connections.ts` |
 | **Target kind** | The remote record kind of a binding: `exclusive_platform`, `platform_deployment`, `shared_deployment`. LA stores it on each binding attempt. | `BindingTarget.kind` (`providers/types.ts:85-99`) |
 | **Bound values** | The values that an operator grant binds beyond the M1 columns, for example the issuer and endpoints of an admin-value platform. | — |
@@ -115,7 +123,7 @@ A2 owns the design of these items ([LA-ADR-05](adr/LA-ADR-05-lti-advantage-compl
 
 | Term | Meaning |
 | --- | --- |
-| **Fitness check** | An automatic architecture rule in `npm run check`. |
+| **Fitness check** | An automatic architecture rule. F1, F3, F4 and F5 run in `npm run check`; F2 runs on demand with a base SHA (README §4; Reviewer-B B-LAD-17). |
 | **LMS-name lint** | The fitness check "no channel id or LMS name in core code" ([README §4](README.md#4-rules-that-keep-core-channel-neutral)). |
 | **Add-channel gate** | The fitness check "an add-channel change touches only allowed paths" (plan §4 measure 1). |
 | **Ratchet** | A checked-in count per file that can only go down. |

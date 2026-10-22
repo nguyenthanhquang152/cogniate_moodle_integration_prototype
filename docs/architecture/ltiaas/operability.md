@@ -28,7 +28,8 @@ New and changed settings (all optional unless marked; the base settings stay as 
 | `SIGNING_KEY_PUBLISH_LEAD_S` | LTI | `86400` (min `600`) | wait between `next` and activation | LA-ADR-06 D7 |
 | `SIGNING_KEY_ROTATE_DAYS` | LTI | `90` | age limit for the alert and for `autoRotate` accounts | LA-ADR-06 D7 |
 | `AUDIT_RETENTION_DAYS` | both | `400` | audit retention (LA-H4) | LA-ADR-06 D4 |
-| `JOB_INSTANCE_ID` | both | `lti-1`, `app-1` | lease owner of the job runner | LA-ADR-03 D7 |
+| `JOB_INSTANCE_ID` | both | `lti-1`, `app-1` | lease owner of the job runner; two live runners with one id refuse to start (`job_instance_conflict`) | LA-ADR-03 D7 |
+| `APP_JOB_RUNNER` | app | `on` | `off` in the web process when `npm run worker` runs apart; `production` refuses both on | LA-ADR-03 D7 |
 | `OPERATOR_NAME` | app | unset | default actor of `app:grant` and `app:binding` | LA-ADR-07 D4 |
 | `OPERATORS`, `OPERATORS_FILE` | app | unset | allowed operator names (comma list, or a JSON array file); one of them required when a CLI runs with `STACK_PROFILE=production` | LA-ADR-07 D4 |
 | `PUBLIC_MOODLE_URL` | LTI | — | leaves the LTI service config in E1 (A1, LA-ADR-04 S3) | R4 C-3 |
@@ -83,7 +84,7 @@ Rules:
 - The proxy routes only the four public host names. It has no route to `:4110` or `:4210`.
 - In the `acceptance` profile only, the LTI operator listener binds the stack network, so QA's `e2e` container can call it (LA-ADR-06 D3). The `default` profile keeps loopback; `production` refuses any other bind.
 - In the pilot, a collector reads `/metrics` with `docker compose exec lti-service wget -qO- http://127.0.0.1:4110/metrics` (or a sidecar in the same network namespace). LG exposes it on a private network.
-- One LTI service process and one app process. The app worker may run apart (`npm run worker`, LA-ADR-03 D7) only with a distinct `JOB_INSTANCE_ID`.
+- One LTI service process and one app process, each with one job runner. The app worker may run apart (`npm run worker`, LA-ADR-03 D7) only when the web process has `APP_JOB_RUNNER=off` and the worker has a distinct `JOB_INSTANCE_ID`. The runner then still keeps at most one send in flight per placement, learner and reporter (LA-ADR-03 D7, A-LAD-03).
 - In-memory state (score clock, platform token cache, JWKS cache, rate-limit buckets) is per process. That is safe with one LTI service process only (LA-ADR-06 D13 item 4).
 
 ## 4. Observability signals
@@ -112,8 +113,8 @@ The audit log (tables `audit_event` in both services) is the record of who chang
 | `lti_http_request_duration_seconds` | histogram | `route_class` | latency |
 | `lti_launch_total` | counter | `result` (`accepted`, `failed`), `check`, `tool_account_id` | launch failure ratio and cause |
 | `lti_launch_binding_total` | counter | `binding` (`cookie`, `storage`) | platform storage use |
-| `lti_rate_limited_total` | counter | `class`, `key_kind` | abuse or a limit that is too low |
-| `lti_api_auth_failed_total` | counter | `scheme`, `code` | key problems |
+| `lti_rate_limited_total` | counter | `class`, `key_kind`, `mode` (`hard`, `soft`) | abuse or a limit that is too low; `soft` = an account class above its rate |
+| `lti_api_auth_failed_total` | counter | `scheme`, `code` | key problems; ltik failures under a valid key (no bucket spends them, LA-ADR-06 D1) |
 | `lti_outbound_total` | counter | `result` (`response`, `blocked`), `reason` | network and guard |
 | `lti_outbound_duration_seconds` | histogram | — | platform latency |
 | `lti_platform_token_failures_total` | counter | `platform_id` | registration problems |
@@ -173,6 +174,8 @@ Severity: **page** = act now; **ticket** = act within one working day. The pagin
 | `DispatchBacklog` | oldest pending dispatch > 1 h | ticket | Check that the worker runs (`job_run` lines), then platform throttling, then token failures. |
 | `DispatchFailures` | > 10 `failed` dispatches per hour | ticket | Group `lastError` codes; tell the library (Resend after a fix). |
 | `RateLimitedSpike` | > 100 `rate_limited` lines per minute | ticket | Abuse (one address) or a limit that is too low (one account, normal traffic): change the account `limits`. |
+| `ProtocolAccountHigh` | any `rate_limit_soft` line of `protocol_account` or `registration_account` | ticket | A flood from many addresses or a real peak. Look at the addresses in `rate_limited` lines; a real peak needs a higher soft value, a flood needs edge blocking (residual R-LA-5). |
+| `LtikFailureSpike` | `lti_api_auth_failed_total{scheme="LTIK-AUTH-V2"}` > 300 per minute for 5 min | ticket | Someone sends random ltiks to the app's `/tool/launch` (A-LAD-02). Check the app's per-address limit and its logs. |
 | `SigningKeyOld` | active key age > `SIGNING_KEY_ROTATE_DAYS` | ticket | Start §6.1. |
 | `NextKeyWaiting` | a `next` key older than 7 days | ticket | Finish §6.1, or retire the `next` key. |
 | `ApiKeyExpiring`, `OperatorKeyExpiring` | expires within 14 days | ticket | §6.2, §6.4. |
@@ -242,6 +245,8 @@ The Cogniate app follows the same steps when it uses the key provider (Should).
 1. Issue a new key for the same operator: `POST /operator/v1/operator-keys {operator}`.
 2. Write it to `infra/.secrets/lti-operator-key`.
 3. Revoke the old key with the new key: `POST /operator/v1/operator-keys/<old id>/revoke`.
+
+Key file lost: run `docker compose exec lti-service npm run lti:operator -- init --replace --name <operator>`. It revokes every operator key and makes a new one (one audit event, actor `system:bootstrap`). Write the new key to `infra/.secrets/lti-operator-key`. (`stack:up` uses `init --if-none`, which changes nothing when a key exists.)
 
 ### 6.5 Service keys (incident)
 

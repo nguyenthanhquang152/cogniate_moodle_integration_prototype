@@ -87,12 +87,13 @@ New channels (`key` stable; `label` is human text):
 | --- | --- | --- |
 | Moodle, Canvas, Blackboard | unchanged (base §4, §4.4) | unchanged |
 | `lti-generic`, `brightspace` (manual, `operatorGrant`) | `{ issuer, clientId, deploymentId, authenticationEndpoint, accessTokenEndpoint, jwksUrl, tokenAudience?, grantCode }`. `issuer` may have a path; its origin must equal `siteUrl`. | the two-phase redemption (base §4.7.1); S1 `POST /api/platforms { profile, url: issuer, clientId, name, authenticationEndpoint, accesstokenEndpoint, authConfig: { method: "JWK_SET", key: jwksUrl }, clientAssertionAud: tokenAudience, deploymentIds: [deploymentId], active: false, bindingRef }` |
+| `lti-generic`, `brightspace` after a **staged** Dynamic Registration (the configuration broke I-SELF, [LA-ADR-02 D5](../adr/LA-ADR-02-generic-lti-channel.md#decision) item 10) | `{ clientId, deploymentId, grantCode }`; the portal pre-fills both ids from the staged platform. The admin values come from the staged platform and must equal the grant's bound values. | the two-phase redemption adopts the staged inactive platform (adoption rule A3) and activates it; no S1 create |
 
 New and changed answers:
 
 | Case | Answer |
 | --- | --- |
-| A bound value differs from the grant (`bound_values`) | `422 GRANT_MISMATCH` (base check 5, extended) |
+| A bound value differs from the grant (`bound_values`) | `422 GRANT_MISMATCH` (base check 5, extended); `details.fields` names each differing field, so the portal can show it (Reviewer-B B-LAD-15) |
 | The LTI service answers `PLATFORM_URL_NOT_IN_PROFILE` or `INVALID_SITE_URL` | `422 INVALID_PLATFORM_VALUES` with the field name, or `422 INVALID_SITE_URL` |
 | A finalized repeat (same `clientId`, `deploymentId` and bound values) | `200`, nothing changes (base rule) |
 
@@ -129,10 +130,10 @@ The app serves the portal for `/integrations/:channelId/connect` and `/integrati
 | Topic | Rule after LA |
 | --- | --- |
 | Launch routing | by the stored `binding_authority` ([LA-ADR-01 D7](../adr/LA-ADR-01-channel-kernel.md#decision)); log reasons unchanged (`deployment_not_approved`, `unknown_platform`) |
-| LMS check | the profile's channel must equal the connection's channel; a signed family guarded by a channel must belong to the connection's channel; log reason `lms_mismatch` (frozen) with `connection_lms` (the channel id) and `family` |
+| LMS check | the profile's channel must equal the connection's channel; a signed family guarded at the `launch` level must belong to the connection's channel (Canvas and Blackboard, as M1); a `registration`-level guard only logs `family_guard_mismatch` ([LA-ADR-01 D6](../adr/LA-ADR-01-channel-kernel.md#decision)); log reason `lms_mismatch` (frozen) with `connection_lms` (the channel id) and `family` |
 | Content item `window` | when `launch.windowHint` is true and the platform accepts `window` (base: every non-Moodle LMS) |
 | Embedded page script | when `launch.topLevelContinue` is true (base: Canvas) |
-| `/tool/register` | for every channel with `registration.dynamic`; if the configuration family is guarded by another channel: page `PROVIDER_PROFILE_MISMATCH` ("This is a {LMS} site. Connect it as {LMS} in the Cogniate portal."); `complete` sends the connection's `lti_profile` and the channel scope set |
+| `/tool/register` | for every channel with `registration.dynamic`; if the configuration family is guarded by another channel (any level): page `PROVIDER_PROFILE_MISMATCH` ("This is a {LMS} site. Connect it as {LMS} in the Cogniate portal."); `complete` sends the connection's `lti_profile` and the channel scope set. If `complete` stages the platform (I-SELF broken), the page says "Done. Cogniate checks this connection before it works. Ask your Cogniate operator for the approval code." and the connection stays `pending` with authority `operatorGrant` |
 | Launch without context | A2 [LA-ADR-05 D2](../adr/LA-ADR-05-lti-advantage-completeness.md): allowed; placement key with context id `""` |
 | Picker cancel, multi-select | A2 [LA-ADR-05 D3](../adr/LA-ADR-05-lti-advantage-completeness.md): `POST /tool/picker/{pickerId}/cancel`; checkboxes only with `content.multiple` |
 | Texts | `{LMS}` from the manifest; the generic channel reads "your LMS" (for example "Open the activity again in your LMS.") |
@@ -148,13 +149,13 @@ The app serves the portal for `/integrations/:channelId/connect` and `/integrati
 
 | Command | Change |
 | --- | --- |
-| `app:grant issue` | Allowed for every connection whose authority is `operatorGrant` (base: `canvas`, `blackboard`). `--purpose add_deployment` needs `deployments.multiple`. New flags for admin-value profiles: `--issuer`, `--auth-url`, `--token-url`, `--jwks-url`, `--token-audience` (required for `endpoints: admin`; refused otherwise). New flags `--operator <name>` (the audit actor), `--evidence-channel` (`institution-email`, `support-call`, `lms-admin-ticket`, `other`) and `--evidence-ref` (1–200 characters). With `STACK_PROFILE=production` in the CLI process all three are required (the operator name must be in `OPERATORS` or `OPERATORS_FILE`); else exit 1, nothing stored, no audit event. In the default and acceptance profiles they are optional, so the M1 commands do not change (A2 [LA-ADR-07 D4, D5](../adr/LA-ADR-07-security-and-tenancy.md)). |
+| `app:grant issue` | Allowed for every connection whose authority is `operatorGrant` (base: `canvas`, `blackboard`). `--purpose add_deployment` needs `deployments.multiple`. New flags for admin-value profiles: `--issuer`, `--auth-url`, `--token-url`, `--jwks-url`, `--token-audience` (required for `endpoints: admin` when no staged platform exists; refused otherwise). For a connection with a staged Dynamic Registration, `--accept-staged` takes the bound values from the staged platform; the CLI prints them first, and the operator checks them against the evidence instead of typing them ([LA-ADR-02 D6](../adr/LA-ADR-02-generic-lti-channel.md#decision)). New flags `--operator <name>` (the audit actor), `--evidence-channel` (`institution-email`, `support-call`, `lms-admin-ticket`, `other`) and `--evidence-ref` (1–200 characters). With `STACK_PROFILE=production` in the CLI process all three are required (the operator name must be in `OPERATORS` or `OPERATORS_FILE`); else exit 1, nothing stored, no audit event. In the default and acceptance profiles they are optional, so the M1 commands do not change (A2 [LA-ADR-07 D4, D5](../adr/LA-ADR-07-security-and-tenancy.md)). |
 | `app:grant revoke`, `list` | unchanged; `list` also prints the bound values |
 | `app:binding suspend`, `release` | unchanged rules; the record kind comes from the stored `target_kind`; `--operator`, `--evidence-channel`, `--evidence-ref` with the same profile rule as `app:grant issue` |
 | `app:audit list` (new, read-only) | `npm run app:audit -w services/cogniate-app -- list [--connection <id>] [--action <a>] [--since <ISO>] [--limit <n ≤ 500>]`: one JSON line per app audit event, newest first, never the note text; it writes no event (A2 LA-ADR-07 D4) |
 | Every write command | one `audit_event` row, also for a refused run on a known grant or connection; `details` holds `evidence_channel`, `evidence_ref`, `note_present` ([data model §5](../data-model.md#5-cogniate-app-migration-015-e5-app-part-e6)) |
 
-The CLIs may later become clients of an app operator API; that is not in LA (A2 owns the LTI service operator API).
+The app CLIs stay shell commands in LA; they do not become clients of an operator API (Reviewer-A A-LAD-17). Plan E5 Must 3 then covers the LTI service CLIs only, and the self-asserted app operator name stays residual R-LA-2. This needs the Lead's confirmation (README §8 OC-9).
 
 ## 8. Log events (base §12)
 

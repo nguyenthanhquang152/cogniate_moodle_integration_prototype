@@ -7,12 +7,13 @@ Status: v1 (A1, milestone LA P2, 2026-10-22). Base: [`../data-model.md`](../data
 | Service | Migration | Epic, step | Owner of the design | Content |
 | --- | --- | --- | --- | --- |
 | Cogniate app | `013_channel_kernel.sql` | E1 S4 | A1 ([LA-ADR-04 D4](adr/LA-ADR-04-refactor-and-migration.md#decision)) | `connection.channel`, `connection.binding_authority`, `binding_attempt.target_kind`, `binding_grant.bound_values` |
-| Cogniate app | `014_learning_records.sql` | E4 | A1 ([LA-ADR-03](adr/LA-ADR-03-learning-record-core.md), [LA-ADR-04 D5](adr/LA-ADR-04-refactor-and-migration.md#decision)) | `placement`, `learning_record`, `record_dispatch`, `job_lease`; backfill from `resource_link` and `score_sync` |
-| Cogniate app | `015_app_audit.sql` | E5 (app part) | shape A2 ([LA-ADR-06 D4](adr/LA-ADR-06-service-operability.md)), table A1 | `audit_event`; `connection.artifact_key_kid` (E6) |
-| Cogniate app | `016_connection_health.sql` | E6 (Could) | shape A2 ([LA-ADR-08 D3, D5](adr/LA-ADR-08-onboarding-and-connection-health.md)), table A1 | `connection_event`, `admin_launch_code` |
+| Cogniate app | `014_learning_records.sql` | E4 | A1 ([LA-ADR-03](adr/LA-ADR-03-learning-record-core.md), [LA-ADR-04 D5](adr/LA-ADR-04-refactor-and-migration.md#decision)) | `placement`, `learning_record`, `record_dispatch`, `job_instance`, `job_lease`; backfill from `resource_link` and `score_sync` |
+| Cogniate app | `015_app_audit.sql` | E5 (app part) | shape A2 ([LA-ADR-06 D4](adr/LA-ADR-06-service-operability.md)), table A1 | `audit_event` |
+| Cogniate app | `016_connection_health.sql` | E6 (Could) | shape A2 ([LA-ADR-08 D3, D5](adr/LA-ADR-08-onboarding-and-connection-health.md)), table A1 | `connection_event`, `admin_launch_code`, `connection.artifact_key_kid` (moved from `015`; Reviewer-B B-LAD-13) |
+| Cogniate app | E3 migration (number: P3) | E3 Must (multi-select) | A1 (table), A2 (feature, [LA-ADR-05 D3](adr/LA-ADR-05-lti-advantage-completeness.md)) | `picker_pick` (§5b; Reviewer-A A-LAD-10) |
 | LTI service | `005_…` and later (numbers: P3) | E2-K, E3, E5 | A1 (E2 platform fields), A2 (the rest) | §4 |
 
-The P3 breakdown can merge `015` into another app migration, but each file keeps one epic.
+Each file keeps one epic. Migrations of different lanes must not depend on each other. The file number gives the apply order of the runner (`packages/shared/src/migrations.ts`); the Lead gives the numbers in landing order at P3 (README §6), so the number order equals the landing order.
 
 ```mermaid
 erDiagram
@@ -60,7 +61,7 @@ CREATE INDEX connection_channel ON connection (library_id, channel);
 
 | Rule | Detail |
 | --- | --- |
-| Writers | `POST /app-api/connections` writes `channel` and `binding_authority` in its insert (from the manifest method). Nothing updates them. Phase 1 of a redemption writes `target_kind` from the adapter's target. `app:grant issue` writes `bound_values` for an admin-value profile ([LA-ADR-02 D6](adr/LA-ADR-02-generic-lti-channel.md#decision)). |
+| Writers | `POST /app-api/connections` writes `channel` and `binding_authority` in its insert (from the manifest method). `channel` never changes. `binding_authority` changes at most once, from `self` to `operatorGrant`, when the Dynamic Registration of a pending connection breaks I-SELF and is staged ([LA-ADR-02 D5](adr/LA-ADR-02-generic-lti-channel.md#decision) item 10). Phase 1 of a redemption writes `target_kind` from the adapter's target. `app:grant issue` writes `bound_values` for an admin-value profile ([LA-ADR-02 D6](adr/LA-ADR-02-generic-lti-channel.md#decision)). |
 | `connection.lms` | Frozen. Baseline channels write their id. Other channels write the behaviour class: `moodle` (`self`), `canvas` (`operatorGrant`, exclusive), `blackboard` (`operatorGrant`, shared). Core never reads it ([LA-ADR-04 D4](adr/LA-ADR-04-refactor-and-migration.md#decision) rule 3). |
 | `binding_grant.lms` | Stores the channel id (no CHECK, `011_lms_types.sql:30`). |
 | `bound_values` | `{ "issuer", "authenticationEndpoint", "accessTokenEndpoint", "jwksUrl", "tokenAudience"? }`. Exact text compare at redemption, after the canonical-origin rule for origins. Not secret (ids are not secrets, ADR-011 §1). |
@@ -75,7 +76,7 @@ CREATE TABLE placement (
   id             TEXT PRIMARY KEY,                    -- = resource_link.id for LTI (rl_...)
   connection_id  TEXT NOT NULL REFERENCES connection (id),
   publication_id TEXT NOT NULL REFERENCES publication (id),
-  external_key   TEXT NOT NULL,                       -- LTI: JSON [deployment_id, context_id, resource_link_id]; context_id may be ""
+  external_key   TEXT NOT NULL,                       -- LTI: json_array(deployment_id, context_id, resource_link_id), one encoding function; context_id may be ""
   graded         INTEGER NOT NULL DEFAULT 1 CHECK (graded IN (0, 1)),
   created_at     INTEGER NOT NULL,
   updated_at     INTEGER NOT NULL,
@@ -106,7 +107,7 @@ CREATE TABLE record_dispatch (
   reporter           TEXT NOT NULL,                   -- 'lti-ags'
   placement_id       TEXT NOT NULL REFERENCES placement (id),
   learner_subject    TEXT NOT NULL,
-  partition_key      TEXT NOT NULL,                   -- fairness key (lti-ags: LTI platform id)
+  partition_key      TEXT NOT NULL,                   -- fairness key (lti-ags: LTI platform id; shared platform: platform id + ':' + deployment id)
   payload            TEXT NOT NULL,                   -- reporter body (lti-ags: AGS score body)
   score_given        REAL NOT NULL,
   score_maximum      REAL NOT NULL,
@@ -129,6 +130,12 @@ CREATE INDEX record_dispatch_due ON record_dispatch (status, next_try_at, partit
 CREATE INDEX record_dispatch_learner ON record_dispatch (placement_id, learner_subject, reporter);
 CREATE INDEX record_dispatch_record ON record_dispatch (record_id);
 
+CREATE TABLE job_instance (                          -- one heartbeat row per runner instance (LA-ADR-03 D7)
+  instance_id  TEXT PRIMARY KEY,                      -- JOB_INSTANCE_ID
+  started_at   INTEGER NOT NULL,
+  heartbeat_at INTEGER NOT NULL                       -- a start with the same id and a heartbeat newer than 30 s is refused
+);
+
 CREATE TABLE job_lease (
   name         TEXT PRIMARY KEY,                      -- interval job name
   owner        TEXT,
@@ -141,11 +148,11 @@ CREATE TABLE job_lease (
 
 | Rule | Detail |
 | --- | --- |
-| Placement writer | The launch transaction upserts `resource_link` and `placement` together (same id). A rebind updates `placement.publication_id` with `resource_link.publication_id`. |
+| Placement writer | The launch transaction upserts `resource_link` and `placement` together (same id; the placement upsert key is `placement.id`). A rebind updates `placement.publication_id` with `resource_link.publication_id`. |
 | Empty context | A launch without a context (A2 [LA-ADR-05 D2](adr/LA-ADR-05-lti-advantage-completeness.md)) uses `""` in `external_key` and in `resource_link.context_id`. |
 | `graded` | `1` for every row until A2's ungraded rule ships ([LA-ADR-03 D2](adr/LA-ADR-03-learning-record-core.md#decision)). |
 | Record writer | The commit transaction, in the same transaction as the attempt update ([LA-ADR-03 D3](adr/LA-ADR-03-learning-record-core.md#decision)). Records are never updated or deleted. |
-| Dispatch writer | The outbox create step (best-result rule) in the commit transaction; the outbox engine for every later change. Only the lease owner records a result. |
+| Dispatch writer | The outbox create step (best-result rule) in the commit transaction; the outbox engine for every later change. Only the lease owner records a result. For a `bestResult` reporter at most one row per (`placement_id`, `learner_subject`, `reporter`) has a live lease or `send_started_at` (the lease update checks it; [LA-ADR-03 D7](adr/LA-ADR-03-learning-record-core.md#decision)). |
 | Frozen `score_sync` | After `014` no product SQL reads or writes `score_sync` (a fitness check in `npm run check`). |
 | `gradebook_read` | Unchanged; owned by the `lti-ags` reporter (read-back). |
 | Retention | Unchanged rule ([`../data-model.md` §2.1](../data-model.md#21-retention-a-t4b2-02)): placements, records and dispatches are the record of results and are not deleted. Retention periods are LA-H4. |
@@ -189,7 +196,7 @@ CREATE INDEX audit_event_library ON audit_event (library_id, ts);
 CREATE TRIGGER audit_event_append_only BEFORE UPDATE ON audit_event
   BEGIN SELECT RAISE(ABORT, 'audit_event is append-only'); END;
 
-ALTER TABLE connection ADD COLUMN artifact_key_kid TEXT;   -- E6: key id inside the last exported setup artifact (Canvas inline key)
+-- connection.artifact_key_kid moved to 016 (E6; Reviewer-B B-LAD-13).
 ```
 
 | Rule | Detail |
@@ -197,7 +204,7 @@ ALTER TABLE connection ADD COLUMN artifact_key_kid TEXT;   -- E6: key id inside 
 | Tenant column | The app tenant is the library, so the app table has `library_id` where the LTI service table has `tool_account_id`. Every other column and rule is A2's (LA-ADR-06 D4 rules 1–3). |
 | Writers | `app:grant issue`, `revoke`; `app:binding suspend`, `release`: one event per command, in the same transaction as the local change. A refused run on a known grant or connection writes one event with `result: refused` (A2 [LA-ADR-07](adr/LA-ADR-07-security-and-tenancy.md) AP-07-06). A grant event never holds the approval code. |
 | Readers | Only the read-only CLI `app:audit list` (it writes no event); no portal route. |
-| `artifact_key_kid` | Written when a setup artifact with an embedded key snapshot is exported (today only the Canvas `jwk=inline` export, app contract §4.6). The connection health view compares it with the active signing key (A2 [LA-ADR-08](adr/LA-ADR-08-onboarding-and-connection-health.md)). Generic name on purpose: core must not have a Canvas-named column. |
+| E6 column | `connection.artifact_key_kid` is in `016` (§5a), so `015` holds one epic only. |
 
 ## 5a. Cogniate app: migration `016` (E6, Could)
 
@@ -216,6 +223,8 @@ CREATE TABLE connection_event (
 );
 CREATE INDEX connection_event_connection ON connection_event (connection_id, at);
 
+ALTER TABLE connection ADD COLUMN artifact_key_kid TEXT;   -- key id inside the last exported setup artifact (Canvas inline key)
+
 CREATE TABLE admin_launch_code (                      -- verified admin launch (D-3), one live code per connection
   code_hash      TEXT PRIMARY KEY,                    -- SHA-256 of the 80-bit code; the code is shown once in the LMS
   connection_id  TEXT NOT NULL REFERENCES connection (id),
@@ -232,9 +241,29 @@ CREATE TABLE admin_launch_code (                      -- verified admin launch (
 | Rule | Detail |
 | --- | --- |
 | `connection_event` | At most 100 rows per connection and 30 days (retention job; LA-H4). Every portal read includes `library_id`. |
+| `artifact_key_kid` | Written when a setup artifact with an embedded key snapshot is exported (today only the Canvas `jwk=inline` export, app contract §4.6). The connection health view compares it with the active signing key (A2 [LA-ADR-08](adr/LA-ADR-08-onboarding-and-connection-health.md)). Generic name on purpose: core must not have a Canvas-named column. |
 | `admin_launch_code` | Single use; a newer code of the same connection replaces an unused older one; redemption follows A2's LA-ADR-08 D3 rules. |
 
 **Reserved, not built in LA:** `connection_secret` (library, connection, purpose, version, sealed value, timestamps), the shape of A2's [LA-ADR-07 D3](adr/LA-ADR-07-security-and-tenancy.md). LA keeps the Moodle web services token on `connection.ws_*` (frozen columns; no move), so LB or LF builds the table.
+
+## 5b. Cogniate app: picker picks (E3)
+
+Multi-select Deep Linking (A2 [LA-ADR-05 D3](adr/LA-ADR-05-lti-advantage-completeness.md)) returns up to 20 publications from one picker session, but `picker_session.publication_id` holds one (`services/cogniate-app/src/domain/migrations/004_launch.sql:37`). One additive table keeps every pick (Reviewer-A A-LAD-10):
+
+```sql
+CREATE TABLE picker_pick (
+  picker_id_hash   TEXT NOT NULL REFERENCES picker_session (id),
+  publication_id   TEXT NOT NULL REFERENCES publication (id),
+  resource_link_id TEXT REFERENCES resource_link (id),   -- set at the first launch of that pick
+  PRIMARY KEY (picker_id_hash, publication_id)
+);
+```
+
+| Rule | Detail |
+| --- | --- |
+| Writer | The picker POST writes one row per picked publication in the transaction that marks the picker used. A single pick also writes `picker_session.publication_id` (unchanged). |
+| Stats | `stats.activities` counts picks from `picker_pick` that no launch has matched yet (today it counts one per session, base data model §2.1). |
+| Retention | A picker session with an unmatched pick stays (the base retention exception), now read from `picker_pick`. |
 
 ## 6. State machines
 

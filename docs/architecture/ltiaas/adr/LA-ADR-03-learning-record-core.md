@@ -99,7 +99,7 @@ export interface RecordReporter {
   policy: 'bestResult';                         // reserved: 'everyRecord' (LC); LA builds bestResult only
   appliesTo(p: PlacementView): boolean;         // lti-ags: p.graded
   prepare(r: LearningRecordView): unknown;      // the payload, stored at dispatch create (AGS body)
-  partitionKey(d: DispatchView): string;        // lti-ags: the LTI platform id of the connection
+  partitionKey(d: DispatchView): string;        // lti-ags: the LTI platform id; for a shared platform, platform id + ':' + deployment id
   deliver(d: DispatchView, ctx: DeliveryContext): Promise<DeliveryOutcome>;  // marks "send began" through ctx before the remote call
   readBack?(p: PlacementView, learnerSubject: string, ctx: DeliveryContext): Promise<ReadBackResult>;
 }
@@ -165,14 +165,16 @@ export interface JobRunner {
 
 | Rule | Detail |
 | --- | --- |
-| Lease | `lease_owner` = the instance id; `lease_until` = now + `leaseMs` (default 60 s: above every outbound timeout of the app, 5 s by default and 15 s at most). The lease is taken by a conditional update. Only the lease owner records a result. |
-| Instance id | `JOB_INSTANCE_ID` (default `app-1`, `lti-1`). At start, the runner takes back at once the leases of its own instance id (the same slot restarted), and waits for the expiry of other owners' leases. With one instance, recovery is immediate, as today (`score-syncs.ts:95-106`). |
-| Recovery | A dispatch with `send_started_at` set and a lease that the runner takes back becomes `delivery_uncertain = 1` (today's rule; R4 B-2 fixed for more than one instance). |
-| Fairness | `due` returns rows round-robin over partitions, oldest `next_try_at` first inside each partition. |
-| Parallelism | `parallel` default 4 for the whole runner; `perPartition` 1. With one platform (every M1, M2, T7 test) the sends stay sequential, as today. |
+| Lease | `lease_owner` = the instance id; `lease_until` = now + `leaseMs` (default 60 s: above every outbound timeout of the app, 5 s by default and 15 s at most). The lease is taken by one conditional update. Only the lease owner records a result. |
+| One in flight per key (Reviewer-A A-LAD-03) | For a `bestResult` reporter, at most one dispatch per (placement, learner subject, reporter) is in flight, across every runner. The lease update succeeds only when no other row with the same key has a live lease or a `send_started_at` value (one `UPDATE … WHERE NOT EXISTS (…)` statement). So a higher row waits until the lower send has a recorded result, as the single serial worker does today. |
+| Confirmation (A-LAD-03) | The confirmation rule (`needsConfirmation`, `services/cogniate-app/src/domain/score-syncs.ts:72-75`) treats a superseded row of the same key that still has `send_started_at` like an uncertain row. With the one-in-flight rule this case cannot occur in normal work; the rule covers a crash between steps. |
+| Instance id | `JOB_INSTANCE_ID` (default `app-1`, `lti-1`). Each runner keeps a heartbeat row per instance id (`job_instance`, every 10 s). A runner refuses to start when a live heartbeat (newer than 30 s) has the same id: `job_instance_conflict`, exit 1 (Reviewer-B B-LAD-09). At start, the runner takes back at once the leases of its own instance id (the same slot restarted), and waits for the expiry of other owners' leases. With one instance, recovery is immediate, as today (`score-syncs.ts:95-106`). |
+| Recovery (Reviewer-A A-LAD-05) | At start, every dispatch with `send_started_at` set and **no live lease of another instance** (its own instance id, an expired lease, or `lease_owner IS NULL`, for example a row that migration `014` copied) becomes `delivery_uncertain = 1` and loses the marker, as today (`score-syncs.ts:96-107`). A row with a live lease of another instance is left alone until that lease expires. |
+| Fairness | `due` returns rows round-robin over partitions, oldest `next_try_at` first inside each partition. For `lti-ags` the partition is the LTI platform id; for a shared platform it is platform id + deployment id, so one slow Learn host does not hold the other Blackboard schools (Reviewer-A A-LAD-13, Reviewer-B B-LAD-10). A `429` with `Retry-After` pauses only the partition of the row that got it. |
+| Parallelism | `parallel` default 4 for the whole runner. `perPartition` is fixed at 1 for `bestResult` reporters (not a setting). With one platform (every M1, M2, T7 test) the sends stay sequential, as today. |
 | `429` | The LTI service answers `429 PLATFORM_RATE_LIMITED` with `retryAfter` (A2, [lti-service-api-delta](../contracts/lti-service-api-delta.md)). The reporter returns `throttled`. The outbox keeps the row `pending`, does not count a try, does not mark it uncertain, sets `next_try_at` to the later of `retryAt` and the normal backoff, and sets `not_before` = `retryAt` on every `pending` row of that partition. The 24 h window still applies. |
 | Interval jobs | One row per job name in `job_lease` with owner, `lease_until`, `last_run_at`, `last_result`. A run starts only when the lease is free or expired; else the run is `skipped_lease`. A crash cannot block a job for ever: the lease expires. Every run (also `runNow`) gets its own trace id and logs one `job_run {job, ms, result, counts}` line (`result`: `ok`, `failed`, `skipped_lease`; an error logs its class name only). These are the needs of A2's E5 jobs ([LA-ADR-06 D11](LA-ADR-06-service-operability.md)). |
-| Worker process | The runner can run in the web process (default, as today) or alone (`npm run worker` with the same code). A second process is safe only with distinct instance ids. Production topology is A2's ([operability](../operability.md)). |
+| Worker process | The runner runs in the web process (default, as today) or alone (`npm run worker`, the same code). When `npm run worker` runs, the web process must have `APP_JOB_RUNNER=off`; the `production` profile refuses a start with both on (B-LAD-09). Two processes need two distinct instance ids; the heartbeat rule above refuses equal ids. With these rules and the one-in-flight rule, a second runner is safe. Production topology is A2's ([operability](../operability.md)). |
 
 ### D8. Guards (Must)
 
@@ -203,7 +205,7 @@ export interface JobRunner {
 
 - The record core no longer depends on AGS. A new reporter is a driver with the port; it gets retries, leases, fairness and the P2 rules from the outbox.
 - `014` is the only E4 migration. It copies delivery state, so its migration test is a Must (D5 in LA-ADR-04).
-- One slow platform no longer delays the other platforms (R4 B-1). A second worker instance becomes safe (R4 B-2).
+- One slow platform no longer delays the other platforms (R4 B-1). A second runner is safe only with a distinct instance id, `APP_JOB_RUNNER=off` in the web process, and the one-in-flight rule (D7; R4 B-2).
 - The `score_sync` table stays as a dead copy until a later clean-up (LG). Nothing reads it.
 
 ## Migration and compatibility
@@ -212,7 +214,7 @@ export interface JobRunner {
 
 ## Test impact
 
-- Author unit tests (no Docker): golden equality of dispatch rows for the T5a and T5b commit sequences; reporter mapping table; `throttled` handling; lease rules (own instance at once, other owner after expiry); fairness order; job runner single-run lock. QA covers the observable parts black-box (QA strategy §8 E4).
+- Author unit tests (no Docker): golden equality of dispatch rows for the T5a and T5b commit sequences; reporter mapping table; `throttled` handling; lease rules (own instance at once, other owner after expiry); recovery of a leaseless row with `send_started_at` (A-LAD-05); two runners with distinct ids on one temporary SQLite file: one due row gives exactly one `beginSend`, and a higher row of the same learner waits until the lower send has a result (A-LAD-03); equal instance ids refuse to start (B-LAD-09); fairness order with a shared-platform partition per deployment; job runner single-run lock. QA covers the observable parts black-box (QA strategy §8 E4).
 - Migration test for `014`: every `score_sync` row has one `record_dispatch` row with equal id and state, one `final` record, and one placement per resource link; the results API JSON is equal before and after.
 - Regression: T5a, T5b (P2, P5, P11 checks), T7, M1 score rows. QA decides the exact set ([`tests/ltiaas/TEST-STRATEGY.md`](../../../../tests/ltiaas/TEST-STRATEGY.md)).
 

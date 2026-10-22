@@ -33,7 +33,7 @@ Priority marks follow plan v1 §3: **Must**, **Should**, **Could**.
 
 | # | Decision | Priority | Plan E5 item |
 | --- | --- | --- | --- |
-| D1 | **Rate limits** in the LTI service: token buckets per rate-limit class and key; `429 RATE_LIMITED` with `Retry-After`; `trustProxy` only for configured proxy addresses. | Must | Must 1 |
+| D1 | **Rate limits** in the LTI service: token buckets per rate-limit class and key; `429 RATE_LIMITED` with `Retry-After`; `trustProxy` only for configured proxy addresses. No bucket that any sender can empty for every tenant: account-wide classes are soft, and only API key or operator key failures spend `auth_failure`. | Must | Must 1 |
 | D2 | **Tenant model**: a tool account has a status (`active`, `suspended`, `closed`) and its own tool URLs. One **account resolver** module makes every protocol URL. Path mode stays the default; host mode is a profile of the resolver for LG hosting. | Must | Must 2 |
 | D3 | **Operator API** on an internal listener with its own credential (operator key). The LTI CLIs become clients of it, except the one trust bootstrap command. | Must | Must 3 |
 | D4 | **Audit log**: an append-only `audit_event` table. Every operator call and every tenant admin call writes exactly one audit event, in the same transaction as the change. | Must | Must 4 |
@@ -77,29 +77,30 @@ flowchart LR
 | Rule | Detail |
 | --- | --- |
 | Algorithm | Token bucket per (class, key). Refill per second. Buckets live in memory in a bounded map (at most 100,000 keys; least recently used first out). One instance in LA. A shared store is LG. |
-| Order | The IP classes run in an `onRequest` hook, before any database read. The key classes run right after the API key or operator key lookup. A failed authentication spends one token of the `auth_failure` bucket of the client address. |
-| Client address | The socket address. `X-Forwarded-For` is used only when the socket peer is in `TRUSTED_PROXY_CIDRS` (Fastify `trustProxy` with that list). Values: CIDRs or host names; a host name is resolved at start and again every 60 s. Value in the compose stack (every profile): `proxy`, the Caddy service, so the `e2e` container and every other peer are untrusted. Empty list = no forwarded header is trusted. |
+| Order | The address classes run in an `onRequest` hook, before any database read. The `api` and `admin` classes run only after the **whole** authentication passes (the API key, and for `api` also the ltik or service key). The `operator` class runs after the operator key lookup. |
+| `auth_failure` | Only a request whose **API key or operator key** fails spends one token of the `auth_failure` bucket of its client address: no or a malformed `Authorization` header, or an unknown, expired or revoked key. A `401` for an ltik or a service key under a **valid** API key spends no bucket (A-LAD-02): the Cogniate app sends every learner's ltik with one API key from one address, so such a bucket would let any sender of random ltiks block every library. These `401` answers cost one indexed lookup each; they are counted in `lti_api_auth_failed_total{scheme}` with the alert `LtikFailureSpike` ([operability §5](../operability.md#5-alerts)). The abuse control for them is at the app edge (a per-address limit on `/tool/launch` and `/tool/deep-link`, A1). |
+| Client address | The socket address; an IPv6 address counts as its /64 prefix (A-LAD-07). `X-Forwarded-For` is used only when the socket peer is in `TRUSTED_PROXY_CIDRS` (Fastify `trustProxy` with that list). Values: CIDRs or host names; a host name is resolved at start and again every 60 s. Value in the compose stack (every profile): `proxy`, the Caddy service, so the `e2e` container and every other peer are untrusted. Empty list = no forwarded header is trusted. |
 | Answer, API | `429`, body `{ "status": 429, "error": "Too Many Requests", "details": { "message": "RATE_LIMITED", "description": "Too many requests. Retry after <n> s." } }`, header `Retry-After: <n>` (whole seconds, ≥ 1). |
 | Answer, protocol pages | `429` HTML error page with code `RATE_LIMITED` (security §2.2 page rules; action line: "Too many requests. Wait one minute, then open the activity again from {LMS}."). |
 | Not limited | `GET /healthz`, `GET /readyz`, `GET /metrics` (internal listener). |
-| Log | `rate_limited {class, key_kind, tool_account_id?, client_ip?, retry_after_s}` at `warn`, at most once per bucket per minute. `client_ip` only for the IP classes. |
-| Settings | Precedence, highest first: the per-account override (`PATCH /operator/v1/accounts/:id` field `limits`; account-keyed classes); the global value set through the operator API (`PATCH /operator/v1/rate-limits`, every class, also the address-keyed ones; stored in the new table `service_setting`, key `rate_limits`); `LTI_RATE_LIMITS` (JSON, optional, read at start); the built-in table below. An operator change applies at once (one process in LA) and writes one audit event (`settings.rate_limits` or `account.update`). |
+| Log | `rate_limited {class, key_kind, tool_account_id?, client_ip?, retry_after_s}` at `warn`, at most once per bucket per minute. `client_ip` only for the address classes. A soft class logs `rate_limit_soft {class, tool_account_id}` at `warn`, at most once per minute, and never refuses. |
+| Settings | Precedence, highest first: the per-account override (`PATCH /operator/v1/accounts/:id` field `limits`; account-keyed classes); the global value set through the operator API (`PATCH /operator/v1/rate-limits`, every class, also the address-keyed ones, and `registrationSessionsPerAddress`; stored in the new table `service_setting`, key `rate_limits`); `LTI_RATE_LIMITS` (JSON, optional, read at start; the same keys: every class and `registrationSessionsPerAddress`); the built-in table below. An operator change applies at once (one process in LA) and writes one audit event (`settings.rate_limits` or `account.update`). |
 
 Default limits (starting values for the pilot; the operator can change them):
 
-| Class | Routes | Key | Rate (per minute) | Burst |
-| --- | --- | --- | --- | --- |
-| `protocol` | `GET|POST /lti/login/:account`, `POST /lti/launch/:account`, `POST /lti/launch/:account/storage-check` ([LA-ADR-05 D1](LA-ADR-05-lti-advantage-completeness.md)) | client address | 600 | 200 |
-| `protocol_account` | same | tool account | 6,000 | 1,000 |
-| `registration` | `GET /lti/register/:account` | client address | 10 | 5 |
-| `registration_account` | same | tool account | 1 (= 60 per hour) | 20 |
-| `keys` | `GET /lti/keys/:account` | client address | 300 | 100 |
-| `api` | `/api/idtoken`, `/api/deeplinking*`, `/api/lineitems*`, `/api/memberships` | API key id | 1,200 | 300 |
-| `admin` | every Bearer route (`/api/platforms*`, `/api/registrations*`, `/api/providers`, the new admin routes) | API key id | 120 | 60 |
-| `auth_failure` | any `401` on `/api/*` or `/operator/*` | client address | 120 | 120 |
-| `operator` | `/operator/v1/*` | operator key id | 120 | 60 |
+| Class | Routes | Key | Rate (per minute) | Burst | Mode |
+| --- | --- | --- | --- | --- | --- |
+| `protocol` | `GET|POST /lti/login/:account`, `POST /lti/launch/:account`, `POST /lti/launch/:account/storage-check` ([LA-ADR-05 D1](LA-ADR-05-lti-advantage-completeness.md)) | client address | 600 | 200 | hard |
+| `protocol_account` | same | tool account | 6,000 | 1,000 | **soft** |
+| `registration` | `GET /lti/register/:account` | client address | 10 | 5 | hard |
+| `registration_account` | same | tool account | 1 (= 60 per hour) | 20 | **soft** |
+| `keys` | `GET /lti/keys/:account` | client address | 300 | 100 | hard |
+| `api` | `/api/idtoken`, `/api/deeplinking*`, `/api/lineitems*`, `/api/memberships` (after a successful ltik or service key check) | API key id | 1,200 | 300 | hard |
+| `admin` | every Bearer route (`/api/platforms*`, `/api/registrations*`, `/api/providers`, the new admin routes) | API key id | 600 | 200 | hard |
+| `auth_failure` | a `401` because the API key or operator key fails (row `auth_failure` above) | client address | 120 | 120 | hard |
+| `operator` | `/operator/v1/*` | operator key id | 120 | 60 | hard |
 
-A school behind one NAT address can start a class of several hundred learners in one minute. So the per-address protocol limit is high, and the per-account limit is the main control. Registration sessions also have a cap: at most 20 open sessions per account (`409 REGISTRATION_SESSION_LIMIT` page code at `GET /lti/register/:account`).
+A school behind one NAT address can start a class of several hundred learners in one minute, so the per-address protocol limit is high. Protocol and registration requests are not authenticated, and every library of a tool account shares that account's bucket. A **hard** account bucket would let one sender with many addresses block the launches of every library (A-LAD-07). So the account classes are **soft** in LA: they count, log `rate_limit_soft` and raise the alert `ProtocolAccountHigh`, and never refuse. Hard protection against a flood from many addresses is the edge (WAF) of LG. The `admin` default is 600 per minute, because all libraries share the first-party key: the app's provider list and its grant redemption steps use it (A-LAD-11; A1 also caches `GET /api/providers` in the app for 60 s). Registration sessions have a cap: at most 10 open sessions per client address (`registrationSessionsPerAddress`; `409` page `REGISTRATION_SESSION_LIMIT` at `GET /lti/register/:account`).
 
 Acceptance points (the breakdown turns them into criteria):
 
@@ -108,8 +109,10 @@ Acceptance points (the breakdown turns them into criteria):
 | AP-06-01 | With the `api` limit of account `qa-second` set to 5 per minute (burst 5), the 6th `GET /api/idtoken` within one minute gives `429 RATE_LIMITED` and `Retry-After` ≥ 1. A request of account `cogniate` in the same second gives `200`. |
 | AP-06-02 | With `protocol` set to 3 per minute, burst 3 (`PATCH /operator/v1/rate-limits`), the 4th login from one client address within one minute gives a `429` HTML page with `data-error-code="RATE_LIMITED"` and no `Set-Cookie` (no state). |
 | AP-06-03 | Untrusted peer: with `protocol` set to 3 per minute, four logins sent from the `e2e` container straight to the LTI service on the stack network, each with another `X-Forwarded-For` value (`203.0.113.1` … `.4`), give `429` on the 4th (the header is ignored). Trusted peer: a limited request through the proxy logs `rate_limited` with `client_ip` = the `e2e` container address, not the proxy address. |
-| AP-06-04 | With `auth_failure` set to 30 per minute, burst 30, 31 failed authentications from one address in one minute give `429` on the 31st, also with a valid key. |
-| AP-06-05 | With the `registration` and `registration_account` limits raised to 100 per minute (operator API), the 21st open registration session of one account gives the page `REGISTRATION_SESSION_LIMIT`; no outbound fetch happens for it. |
+| AP-06-04 | With `auth_failure` set to 30 per minute, burst 30, 31 requests with unknown API keys from one address in one minute give `429` on the 31st; a request with a valid key from that address then also gets `429` until `Retry-After` has passed. |
+| AP-06-05 | On a fresh account (`POST /operator/v1/accounts`, so no other test loses its sessions), with the `registration` limit raised to 100 per minute and `registrationSessionsPerAddress` set to 3 (operator API), the 4th open registration session from one address gives the page `REGISTRATION_SESSION_LIMIT`; no outbound fetch happens for it. |
+| AP-06-34 | (A-LAD-02) 200 `GET /api/idtoken` calls in one minute with the valid `cogniate` API key and random ltiks each give `401 INVALID_LTIK_AUTH_AUTHORIZATION_HEADER`, never `429`; the next call with a valid ltik gives `200`. |
+| AP-06-35 | (A-LAD-07) With `protocol_account` set to 3 per minute, 10 logins for `cogniate` with an unknown `iss` in one minute each get their normal error page (no `429`), one `rate_limit_soft {class: "protocol_account"}` line exists, and a valid simulator launch of `cogniate` then passes. |
 | AP-06-06 | `GET /healthz` is never limited. One `rate_limited` line per bucket per minute, at most. After `PATCH /operator/v1/rate-limits` the next request uses the new value, and one `settings.rate_limits` audit event exists. |
 
 ### D2. Tenant model (Must)
@@ -154,7 +157,7 @@ Acceptance points:
 | --- | --- |
 | Listener | A second Fastify listener on `OPERATOR_HOST:OPERATOR_PORT`, default `127.0.0.1:4110`, inside the LTI service container. The proxy has no route to it. The `service_started` log line has `operator_bind`. **`acceptance` compose profile only:** `OPERATOR_HOST=0.0.0.0`, so the `e2e` container reaches it on the stack network (`http://lti-service:4110`); still no proxy route. The `default` profile stays on loopback, and the `production` profile refuses a non-loopback bind (D12). LG may expose it on a private network with mutual TLS. |
 | Credential | `Authorization: OPERATOR-AUTH-V1 <OPERATOR_KEY>`. Operator key format `ltio_` + 43 base64url characters. Table `operator_key`: id, operator name, SHA-256 hash, created, expires (default 90 days, at most 1 year), last used, revoked. A tenant API key never works here, and an operator key never works on `/api/*`. |
-| Trust bootstrap | `npm run lti:operator -- init --name <operator>` is the only command that writes `lti.db` directly. It makes the first operator key only when no active key exists, prints it once, and the host wrapper writes `infra/.secrets/lti-operator-key` (mode `0600`; in the `acceptance` profile the same mode as `infra/.secrets/seed.json`, which the `e2e` container already reads through its read-only mount). Audit actor `system:bootstrap`. |
+| Trust bootstrap | `npm run lti:operator -- init --name <operator>` is the only command that writes `lti.db` directly. It makes the first operator key only when no active key exists (else exit 1, one line). With `--if-none` it exits 0 with the line `operator key exists` and changes nothing when an active key exists; `stack:up` always uses `--if-none`, so a restart on an existing volume works. With `--replace` (key file lost) it revokes every operator key and makes a new one, in one transaction (actor `system:bootstrap`; a person with this shell already has the database). It prints a new key once, and the host wrapper writes `infra/.secrets/lti-operator-key` (mode `0600`; in the `acceptance` profile the same mode as `infra/.secrets/seed.json`, which the `e2e` container already reads through its read-only mount). Audit actor `system:bootstrap`. |
 | CLIs | `lti:bootstrap`, `lti:shared-platform` and the new key commands call the operator API with the key file. Their arguments and their stdout lines stay the same (for example the one JSON line `{account, created, kid, apiKey}` of `lti:bootstrap`), so `infra/scripts/lti-bootstrap.sh` and the stack scripts need no change in behaviour. |
 | Paths | Ours (contract §8 D5 style). Full list: [contract delta §3](../contracts/lti-service-api-delta.md). |
 | Errors | The same error body as `/api/*`. New codes in the contract delta. |
@@ -180,7 +183,7 @@ Acceptance points:
 | --- | --- |
 | AP-06-11 | `acceptance` profile: `GET http://lti-service:4110/operator/v1/accounts` from the `e2e` container with the operator key gives `200`. The same path on `https://lti.cogniate.test` gives `404` (no route). A tenant API key on the operator listener gives `401 INVALID_OPERATOR_AUTHORIZATION_HEADER`; an operator key on `/api/platforms` gives `401`. `default` profile: the `service_started` line has `operator_bind: "127.0.0.1:4110"`. |
 | AP-06-12 | `npm run lti:bootstrap -- --account cogniate --name Cogniate` on a fresh stack prints the same JSON line shape as today, and the new run writes one audit event per change with actor `operator:<name>`. |
-| AP-06-13 | `lti:operator init` refuses (exit 1, one line) when an active operator key exists. |
+| AP-06-13 | Through `docker compose exec lti-service npm run lti:operator -- init --name qa` (command form for the tasks README §2 allowance, README OC-7): `init` refuses (exit 1, one line) when an active operator key exists; `init --if-none` exits 0 and changes nothing; a second `stack:up` on the same volume succeeds. |
 
 ### D4. Audit log (Must)
 
@@ -210,7 +213,7 @@ Acceptance points:
 | Id | Observable result |
 | --- | --- |
 | AP-06-14 | For each route in the contract delta §5 table, one successful call makes exactly one `audit_event` row with that `action`, the actor, the tenant and `result = ok`. One refused call (for example `409 PLATFORM_ALREADY_EXISTS`) makes one row with `result = refused` and that code. |
-| AP-06-15 | `UPDATE audit_event …` in a SQLite shell inside the container fails with `audit_event is append-only`. |
+| AP-06-15 | `UPDATE audit_event …` fails with `audit_event is append-only` (Author migration test on a temporary database; the service image has no SQLite shell, and QA reads no database). |
 | AP-06-16 | No row holds an API key, an operator key, a private JWK, an ltik or a service key (QA secret scan of the table). |
 | AP-06-17 | `GET /operator/v1/audit?toolAccountId=qa-second` returns only `qa-second` events. |
 
@@ -220,11 +223,11 @@ Table `api_key`: `id` (`key_` + 16 random bytes), `tool_account_id`, `prefix` (t
 
 | Rule | Detail |
 | --- | --- |
-| Migration | One row per account from `tool_account.api_key_hash`, label `bootstrap`, scopes `["launch","admin"]`, no expiry. The old column stays (additive rule) and is no longer read. |
+| Migration | One row per account from `tool_account.api_key_hash`, label `bootstrap`, scopes `["launch","admin"]`, no expiry. The old column stays (additive rule) and is no longer read. It is `NOT NULL UNIQUE` (`services/lti-service/src/db/migrations/001_init.sql:5`), so `POST /operator/v1/accounts` writes the SHA-256 of 32 new random bytes that nobody holds (an unusable key, A-LAD-14). |
 | Format | Unchanged: `ltis_` + 43 base64url characters (contract §8 D2). Only the hash is stored. |
 | Scopes | `launch` = the LTIK-AUTH-V2 and SERVICE-AUTH-V1 routes. `admin` = every Bearer route. A valid key without the needed scope gets `403 API_KEY_SCOPE_MISSING`. |
 | Active keys | At most 2 active keys per account. A third issue gives `409 API_KEY_LIMIT`. |
-| Expiry | Optional, 1 hour to 2 years. An expired or revoked key gives the same `401` as an unknown key (no hint). |
+| Expiry | Optional, 1 hour to 2 years from now; outside this range `400 INVALID_REQUEST` (field `expiresAt`). An expired or revoked key gives the same `401` as an unknown key (no hint). The same rules hold for operator keys (default 90 days, at most 1 year). |
 | Last use | Updated at most once per minute per key (in-memory throttle). |
 | Rotation (normal) | Issue a new key; put it in the tool back end (Cogniate: the key file, which the app reads at each use, `services/cogniate-app/src/clients/lti-client.ts`); check that `last_used_at` of the old key stops moving; revoke the old key. |
 | Rotation (emergency) | `lti:bootstrap --rotate-api-key` keeps today's meaning: a new key and every other key revoked at once (`services/lti-service/src/store/accounts.ts:59-62`). |
@@ -236,7 +239,7 @@ Acceptance points:
 | AP-06-18 | After the migration, the existing `cogniate` key still passes LTIK-AUTH-V2, SERVICE-AUTH-V1 and Bearer calls (regression: M1, T7 unchanged). |
 | AP-06-19 | With two active keys, both pass. After revoke of the first, it gives `401` and the second passes. A third issue with two active keys gives `409 API_KEY_LIMIT`. |
 | AP-06-20 | A key with scopes `["launch"]` gets `200` on `GET /api/idtoken` and `403 API_KEY_SCOPE_MISSING` on `GET /api/platforms`. |
-| AP-06-21 | A key past `expires_at` gives `401 INVALID_LTIK_AUTH_AUTHORIZATION_HEADER` on Bearer routes. |
+| AP-06-21 | SIM lane (no wait): an API key or operator key issue with `expiresAt` 59 minutes ahead, or 2 years and 1 day ahead, gives `400 INVALID_REQUEST` with the field `expiresAt`. Author unit test with a controlled clock: a key at `expires_at + 1 s` gives the same `401` code as an unknown key (`INVALID_LTIK_AUTH_AUTHORIZATION_HEADER` on Bearer routes, `INVALID_OPERATOR_AUTHORIZATION_HEADER` on the operator listener), and at `expires_at - 1 s` it passes (Q-LAD-14). |
 | AP-06-22 | The issue answer shows the key once. `GET …/api-keys` never shows the key or its hash; it shows `prefix`, label, scopes, dates. |
 
 ### D6. Key provider (Must)
@@ -264,6 +267,7 @@ export interface KeyProvider {
 | Purpose subkeys | `mac('service-key', 'legacy', …)` uses today's subkey `HMAC(masterKey, 'cogniate-lti/service-key/v1')` (`services/lti-service/src/store/service-keys.ts:24-38`), so every existing service key keeps its exact value (M1 rule "byte-identical"). Other versions use HKDF-SHA-256 of the key version with info `cogniate-lti/<purpose>/<version>`. |
 | Service-key version | New column `service_key.derivation_version` (default `legacy`). A new derivation version is an incident step only: it changes each activity's key at its next launch. |
 | Re-wrap | Job `key-rewrap` (D11): in batches of 100 rows per transaction, re-seal every blob whose version is not the active version (also legacy blobs). Idempotent and resumable. One audit event per run with counts. |
+| Legacy refusal | A legacy blob has no associated data, so the row binding of R4 M-2 is complete only when no legacy blob is left (A-LAD-16). When a `key-rewrap` run ends with no legacy blob in any sealed column, it stores `legacyBlobs: refused` in `service_setting` (key `key_provider`; one audit event). From then on, `open` refuses a blob without the header (log `key_open_failed {table, reason: "legacy_refused"}`). The version `legacy` stays in the ring only for `mac` (`derivedCount`). New blobs never use the legacy form. |
 | Status | `GET /operator/v1/key-provider` → `{ kind, activeVersion, versions: [{ id, state, sealedCount, derivedCount }] }`. `sealedCount` = sealed blobs of that version (the re-wrap moves them); `derivedCount` = `service_key` rows whose derivation version is that version (their values depend on it; the re-wrap does not change them). A version may leave the key ring only when both counts are 0; so `legacy` stays while old service keys exist. `ready()` fails, and `/readyz` gives `503`, when a referenced version is missing. |
 | Cache | The decrypted active private JWK is kept in memory per kid for at most 10 minutes (today it is decrypted for every signature, `services/lti-service/src/store/tool-keys.ts:46-49`). |
 | Scope in LA | LTI service: Must (`tool_key`, `registration_session`). Cogniate app (`APP_MASTER_KEY`: picker ltik, resource-link service key, ref copy, web-services token, runtime token): Should, with the same shared package; the app tables belong to A1. Cloud KMS adapter: LG. |
@@ -294,7 +298,7 @@ stateDiagram-v2
 | Rule | Detail |
 | --- | --- |
 | Terms | `next`, `active` and `retired` are the signing key states of [terms §6](../terms.md#6-tenancy-operations-and-security-shared-with-a2). `removed` is only the end mark of a row whose retention has ended ("until its retention ends"): the key is not in the JWKS and has no private part. |
-| Columns (additive) | `tool_key.published_at`, `activated_at`, `retired_at`, `removed_at`. Status values `next`, `active`, `retired`, `removed`. Migration: an `active` row gets `published_at = activated_at = created_at`; a `retired` row gets `retired_at` = the migration time (it stays published 30 more days; this is the safe side). |
+| Columns (additive) | `tool_key.published_at`, `activated_at`, `retired_at`, `removed_at`. Status values `next`, `active`, `retired`, `removed`. Migration: an `active` row gets `published_at = activated_at = created_at`. The published set must not change at the migration (A-LAD-06): a `retired` row with `migration time − created_at < 30 days` (published today) gets `retired_at` = the migration time; an older `retired` row (not published today, and maybe retired after a compromise) becomes `removed` with `removed_at` = the migration time, so it is never published again, and the `signing-key-cleanup` job zeroes its private blob at its first run. |
 | One active, one next | Exactly one `active` key per account. At most one `next` key (`409 SIGNING_KEY_NEXT_EXISTS`). |
 | JWKS | `active`, then `next`, then `retired` with `now < retired_at + 30 days`. **The active key stays first**: the Canvas inline export takes the first key (`services/cogniate-app/src/app/canvas-configuration.ts:27-28`). `Cache-Control: public, max-age=300` stays (`services/lti-service/src/http/routes/protocol.ts:14-17`). |
 | Publish lead time | Activate needs `now ≥ published_at + SIGNING_KEY_PUBLISH_LEAD_S` (default 86,400 s; minimum 600 s). Else `409 SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH`. `{force: true}` skips the wait for a compromise; the audit event has `forced: true`. |
@@ -354,7 +358,7 @@ E5 jobs (all in the LTI service):
 | --- | --- | --- | --- |
 | `retention` | at start, then every 10 min | today's cleanup (`packages/shared/src/retention.ts:14-29`); the `retention_cleanup` lines stay | Must (exists; it moves onto the runner) |
 | `audit-retention` | daily | delete `audit_event` rows older than `AUDIT_RETENTION_DAYS` | Must (with D4) |
-| `signing-key-cleanup` | daily | `retired` → `removed` after 30 days; zero the private blob | Must (with D7) |
+| `signing-key-cleanup` | at start, then daily | `retired` → `removed` after 30 days; zero the private blob of every `removed` row that still has one | Must (with D7) |
 | `key-rewrap` | on demand | D6 re-wrap | Must (with D6) |
 | `api-key-expiry` | hourly | log and count keys that expire within 14 days | Should |
 | `idempotency-cleanup` | hourly | delete records older than 24 h | Should (with D9) |
@@ -418,7 +422,7 @@ Acceptance points for the Must jobs:
 | --- | --- |
 | Schema | Additive only. Old rows keep today's behaviour: account `active`, path mode, today's tool URLs; the bootstrap API key keeps both scopes; signing key rows get the timestamps of D7; service keys keep derivation version `legacy` and epoch 0 (byte-identical values). |
 | Startup without new config | A stack without `LTI_KEYRING_FILE`, `LTI_RATE_LIMITS`, `TRUSTED_PROXY_CIDRS` or an operator key starts and behaves as today, except that rate limits apply with the D1 defaults and the trusted-proxy default of the compose stack. |
-| CLIs | Same commands, same arguments, same stdout lines. `lti:operator init` is new and runs once in `stack:up` before `lti:bootstrap` (Author: `infra/scripts/lti-bootstrap.sh`). |
+| CLIs | Same commands, same arguments, same stdout lines. `lti:operator init --if-none` is new and runs in every `stack:up` before `lti:bootstrap` (Author: `infra/scripts/lti-bootstrap.sh`); it changes nothing when an operator key exists (D3). |
 | Rollback | ADR-011 §14 procedure (cold backup and restore). A rollback to the pre-LA build loses the new rows (keys issued, audit events). An API key issued after the backup stops working after a rollback: issue it again. |
 | Behaviour changes | Only: `429` answers above the limits; `403 TOOL_ACCOUNT_SUSPENDED` for a suspended account; `403 API_KEY_SCOPE_MISSING` for a key without scope (no existing key lacks a scope). |
 
@@ -426,10 +430,10 @@ Acceptance points for the Must jobs:
 
 | E5 change | Expected value for M1, M2, T7 and the golden outputs | Golden or frozen test touched |
 | --- | --- | --- |
-| Rate limits (D1) | No `429` in any baseline run: the defaults are far above test traffic. QA records the request rate per class of one T7 run, and the `401` rate per minute of the M1 `sim` phase and the legacy suites (many expected `401` answers from one `e2e` address), at E0. If a suite goes above the `auth_failure` default (120 per minute), the `acceptance` compose sets `LTI_RATE_LIMITS` for `auth_failure` above the measured rate: no product change and no assertion change. | none expected |
+| Rate limits (D1) | No `429` in any baseline run: the defaults are far above test traffic, the account classes are soft, and ltik `401` answers under a valid API key spend no bucket. At E0, QA records the peak rate per class of one T7 run and of the M1 `sim` phase and the legacy suites, the peak `auth_failure` rate per minute, and the peak number of open registration sessions per address. If a suite goes above a default, the `acceptance` compose sets `LTI_RATE_LIMITS` for that class or for `registrationSessionsPerAddress` above the measured value (Q-LAD-20): no product change and no assertion change. | none expected |
 | API key table (D5) | The `cogniate` and `qa-second` keys keep working with both scopes; `lti:bootstrap` prints the same one JSON line | none expected |
-| Signing-key states (D7) | `GET /lti/keys/:account` is unchanged for a stack with one key (the active key only). After `--rotate-signing-key` the old key stays 30 days from its retirement; on a fresh stack this equals today's list (today: 30 days from creation, `services/lti-service/src/store/tool-keys.ts:30-36`) | none expected; a test that counts JWKS keys after a rotation of a key older than 30 days (QA scan) |
-| Operator listener and `lti:operator init` (D3) | `stack:up` runs `lti:operator init` once before `lti:bootstrap` and writes `infra/.secrets/lti-operator-key`; the `acceptance` profile binds the listener on the stack network (no proxy route); no public route changes | stack scripts that list the secret files (QA scan) |
+| Signing-key states (D7) | The migration keeps the published set: `GET /lti/keys/:account` of an upgraded stack lists the same keys before and after the upgrade; a key retired more than 30 days after its creation (not published today) is never published again (A-LAD-06). After a later `--rotate-signing-key` the old key stays 30 days from its retirement; on a fresh stack this equals today's list (today: 30 days from creation, `services/lti-service/src/store/tool-keys.ts:30-36`) | golden `GET /lti/keys/:account` of an upgraded stack: equal; a test that counts JWKS keys after a rotation of a key older than 30 days (QA scan) |
+| Operator listener and `lti:operator init` (D3) | `stack:up` runs `lti:operator init --if-none` before `lti:bootstrap`; the first run writes `infra/.secrets/lti-operator-key`, and a later run on the same volume changes nothing; the `acceptance` profile binds the listener on the stack network (no proxy route); no public route changes | stack scripts that list the secret files (QA scan) |
 | Audit log (D4) | No wire change | none |
 | `/healthz` (D10) | Unchanged in the `default` and `acceptance` profiles | none (G1 `/healthz` stays equal) |
 | Closed lists | The base contract §1.3 code table and §5 event table grow | covered by the LD-1 open-world rewrite |
@@ -441,11 +445,11 @@ Ownership follows plan LD-5 (and QA strategy §9.2 items 1–3): E5 is service-w
 
 | Level | Owner | Tests |
 | --- | --- | --- |
-| Author unit | Author | Token bucket; trusted-proxy address; account resolver; status gates; scope check; key provider: seal, open, legacy blob, associated data mismatch (AP-06-25), missing version (AP-06-26); signing-key state machine with a controlled clock: the lead-time pass of AP-06-28 and the retention of AP-06-29; audit writer rules (one event per change, append-only trigger); each E5 job with a controlled clock (AP-06-32); one migration test per LTI service migration (below). |
-| SIM-lane acceptance | QA | AP-06-01 to AP-06-24; AP-06-27; the `409` part of AP-06-28 and an activation with `force`; AP-06-30; AP-06-31; AP-06-33. AP-06-14 runs per route of the contract delta §5 table and reads `GET /operator/v1/audit`. The tests reach the operator listener from the `e2e` container in the `acceptance` profile (D3) and set limits through `PATCH /operator/v1/rate-limits` (D1); no new test knob. |
+| Author unit | Author | Token bucket; IPv6 /64 keys; soft classes; the `auth_failure` rule (only API key and operator key failures spend it); trusted-proxy address; account resolver; status gates; scope check; API key and operator key expiry with a controlled clock (AP-06-21, clock part); key provider: seal, open, legacy blob, legacy refusal after a complete re-wrap, associated data mismatch (AP-06-25), missing version (AP-06-26); signing-key state machine with a controlled clock: the lead-time pass of AP-06-28 and the retention of AP-06-29; audit writer rules (one event per change; the append-only trigger, AP-06-15); each E5 job with a controlled clock (AP-06-32); one migration test per LTI service migration (below). |
+| SIM-lane acceptance | QA | AP-06-01 to AP-06-14; AP-06-16 to AP-06-20; the `400` part of AP-06-21; AP-06-22 to AP-06-24; AP-06-27; the `409` part of AP-06-28 and an activation with `force`; AP-06-30; AP-06-31; AP-06-33 to AP-06-35. AP-06-14 runs per route of the contract delta §5 table and reads `GET /operator/v1/audit`. The tests reach the operator listener from the `e2e` container in the `acceptance` profile (D3) and set limits through `PATCH /operator/v1/rate-limits` (D1); no new test knob. |
 | Simulator modules | QA-E2E | Nothing new for D7: the simulator fetches the tool JWKS at each check (`tests/sim/core/provider.mjs:15`). A `429` answer with `Retry-After` is shared with E4 (QA strategy §2.8). |
 | Regression | QA (M1), QA-E2E (M2, T7) | M1, M2, T7 unchanged (LA-IC-10 table above; AP-06-18). |
-| Fitness (F5) | Author builds, QA verifies | No `'/lti/launch/'` literal outside the account resolver; no `DELETE FROM audit_event` outside the `audit-retention` job; SQL portability lint for new SQL. |
+| Fitness (F5) | Author builds, QA verifies | Each rule starts with the task that makes it true (Q-LAD-18): no `'/lti/launch/'` literal outside the account resolver, from the D2 task; no `DELETE FROM audit_event` outside the `audit-retention` job, from the D4 task; the SQL portability lint for new SQL files, from E1 S2 (A1 owns the start of the lint itself). |
 
 LTI service migration tests (Author unit; each from the previous schema, on a copy of an M1 fixture database):
 
@@ -454,7 +458,7 @@ LTI service migration tests (Author unit; each from the previous schema, on a co
 | `tool_account` columns (D2; LA-ADR-05 D7) | Old rows read `active`, path mode, today's tool URLs, `claim_policy` `null`, write scope `context`. |
 | `api_key` table and backfill (D5) | One `bootstrap` row per account with both scopes; the old key passes all three schemes. |
 | `operator_key`, `audit_event` with the append-only trigger (D3, D4) | An `UPDATE` of `audit_event` fails with `audit_event is append-only`. |
-| `tool_key` timestamps (D7) | An `active` row gets `published_at = activated_at = created_at`; a `retired` row gets `retired_at` = the migration time. |
+| `tool_key` timestamps (D7) | An `active` row gets `published_at = activated_at = created_at`; a `retired` row created less than 30 days ago gets `retired_at` = the migration time; a `retired` row created 30 or more days ago becomes `removed`. The public key list before and after the migration is equal. |
 | `service_key.derivation_version`, `issue_epoch` (D6, D8) | Every old row is `legacy`, epoch 0; its key value is unchanged. |
 | `oidc_state.storage_target`, `storage_origin`; `storage_check` (LA-ADR-05 D1) | Old state rows have `null` targets. |
 | `service_setting` (D1); `idempotency_record` (D9, Should); `job_lease` (D11) | Tables exist and are empty; with no `rate_limits` row the built-in limits apply. |
@@ -467,9 +471,8 @@ LTI service migration tests (Author unit; each from the previous schema, on a co
 | LA-H7 | v1 tenant model and host model | Vendor-model controls now; sell to Cogniate libraries only; host mode in LG (D2) | Product owner |
 | LA-H8 | Pilot RPO, RTO, SLO; and which of D14 (a), (b), (c) | (a) for the pilot, (b) before general sale | Product owner + CTO |
 | LA-H4 | Retention of audit events, closed accounts and idempotency records | Audit 400 days; closed account 30 days; idempotency 24 h | Product + DPO |
-| LA-H21 (proposed by A2) | Operator policy: who holds an operator key, key life, and whether account close, forced key activation and binding release need a second operator | Named staff only; 90-day keys; second operator for close and forced activation (Could in LA: a `confirmBy` field) | Product + Security; extends Q22 |
+| LA-H21 | Operator policy: who holds an operator key, key life, and whether account close, forced key activation and binding release need a second operator | Named staff only; 90-day keys; second operator for close and forced activation (Could in LA: a `confirmBy` field) | Product + Security; extends Q22 |
 | — (engineering) | Default limits of D1 | Start with the D1 table; QA records the real launch rate of a T7 run; the Lead may tune before the pilot | Lead |
-| — (consistency, A1 file) | [LA data model §4](../data-model.md#4-lti-service-changes) lacks the table `service_setting` (D1, Must) and the column `service_key.issue_epoch` (D8, Should) | Add both rows | A1 (through the Lead) |
-| — (consistency, tasks README) | QA needs two allowances for E5 and E3 tests: write `infra/.secrets/lti/keyring.json` in its own clone and restart the LTI service (AP-06-24); `docker compose exec -e STACK_PROFILE=production … cogniate-app npm run app:grant …` (LA-ADR-07 AP-07-04, AP-07-09) | Add both to `docs/architecture/tasks/README.md` §2 in the breakdown | Lead |
+| — (tasks README, README OC-7) | QA allowances for E5 tests: write `infra/.secrets/lti/keyring.json` in its own clone and restart the LTI service (AP-06-24); `docker compose exec -e STACK_PROFILE=production … cogniate-app npm run app:grant …` (LA-ADR-07 AP-07-04, AP-07-09); `docker compose exec lti-service npm run lti:operator -- init …` (AP-06-13, Q-LAD-15) | Add the three forms to `docs/architecture/tasks/README.md` §2 in P3 | Lead |
 
-A2 uses the range LA-H21 and up for new human decisions, so the ids do not collide with A1. The Lead may renumber them in the plan.
+LA-H21 to LA-H24 are in plan v1.2 §6.2.
