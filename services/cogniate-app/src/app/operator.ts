@@ -22,7 +22,7 @@ import { authorityFor } from '../kernel/authority/index.ts';
 import { setupOf } from '../kernel/setup.ts';
 import { PRINTABLE_ID } from '@cogniate/channel-kernel/setup';
 import type { BindingCleanup, CleanupLine } from './binding-cleanup.ts';
-import { canvasIssuerMatches, providerProfiles, sharedReadiness } from './binding-targets.ts';
+import { exclusiveIssuerMatches, providerProfiles, sharedReadiness } from './binding-targets.ts';
 import { insertAuditEvent } from './audit.ts';
 import type { AuditTarget } from './audit.ts';
 import { evaluateOperatorPolicy } from './operator-policy.ts';
@@ -52,6 +52,9 @@ export interface CommandResult {
 }
 
 const fail = (line: string): CommandResult => ({ exitCode: 1, lines: [line] });
+/** Channel text names in registry order, joined as "X", "X and Y" or "X, Y and Z" (the BD-A1-31 list form). */
+const joinNames = (names: readonly string[], word: 'and' | 'or'): string =>
+  names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} ${word} ${names.at(-1)!}`;
 const iso = (ms: number) => new Date(ms).toISOString();
 const lineOf = (l: CleanupLine) => `${l.result} platform=${l.platformId ?? '-'} deployment=${l.deploymentId ?? '-'}`;
 
@@ -101,6 +104,13 @@ export function createOperator(deps: OperatorDeps) {
       action, target: subject.target, result, code, details: allowed.details }, now());
   };
 
+  // Texts name the LMS with the manifest text names (LA-ADR-01 D12): the connection's channel, or the channels that
+  // offer the refused feature, from the registry (Canvas and Blackboard bytes as in M1).
+  const textNames = (offers: (id: string) => boolean): string[] => channels.channels().filter((m) => offers(m.id)).map((m) => channels.textName(m.id));
+  const grantChannels = () => textNames((id) => channels.channel(id)!.registration.some((r) => r.authority === 'operatorGrant'));
+  const multiDeploymentChannels = () => textNames((id) => channels.capabilities(id)['deployments.multiple']);
+  const serviceUrlChannels = () => textNames((id) => Object.values(setupOf(channels, id)?.profiles ?? {}).some((p) => p.serviceUrl));
+
   /** `app:grant issue` (§4.8): every check before anything is stored; one approval code, shown once. */
   async function issue(input: IssueInput): Promise<CommandResult> {
     const policy = policyOf(input, input.note, input.traceId);
@@ -119,15 +129,15 @@ export function createOperator(deps: OperatorDeps) {
     if (!c) return fail(`Unknown connection: ${input.connection}.`);
     if (c.libraryId !== input.library) return refuse('library_mismatch', '--library is not the library of this connection.');
     const library = getLibrary(db, c.libraryId)!;
-    if (c.bindingAuthority !== 'operatorGrant') return refuse('authority_not_operator_grant', 'Approval grants are only for Canvas and Blackboard connections.');
+    if (c.bindingAuthority !== 'operatorGrant') return refuse('authority_not_operator_grant', `Approval grants are only for ${joinNames(grantChannels(), 'and')} connections.`);
     if (purpose === 'initial' && c.status !== 'pending') return refuse('connection_not_pending', 'An initial grant needs a pending connection.');
     if (purpose === 'add_deployment' && !(channels.capabilities(c.channel)['deployments.multiple'] && (c.status === 'registered' || c.status === 'connected'))) {
-      return refuse('add_deployment_not_allowed', 'An add_deployment grant needs a registered or connected Canvas connection.');
+      return refuse('add_deployment_not_allowed', `An add_deployment grant needs a registered or connected ${joinNames(multiDeploymentChannels(), 'or')} connection.`);
     }
     const site = canonicalOrigin(input.site);
     if (!site.ok || site.origin !== c.siteUrl) return refuse('site_mismatch', '--site is not the site URL of this connection.');
     const service = input.serviceUrl === undefined ? site : canonicalOrigin(input.serviceUrl);
-    if (!setupOf(channels, c.channel)?.profiles[c.profile]?.serviceUrl && input.serviceUrl !== undefined && (!service.ok || service.origin !== c.siteUrl)) return refuse('service_url_not_allowed', '--service-url is only for Canvas connections.');
+    if (!setupOf(channels, c.channel)?.profiles[c.profile]?.serviceUrl && input.serviceUrl !== undefined && (!service.ok || service.origin !== c.siteUrl)) return refuse('service_url_not_allowed', `--service-url is only for ${joinNames(serviceUrlChannels(), 'or')} connections.`);
     if (!service.ok || service.origin !== c.serviceUrl) return refuse('service_url_mismatch', '--service-url is not the service URL of this connection.');
     if (purpose === 'add_deployment' && input.clientId !== c.platform?.clientId) return refuse('client_id_mismatch', '--client-id is not the client id of this connection platform.');
     if (purpose === 'initial') {
@@ -141,14 +151,15 @@ export function createOperator(deps: OperatorDeps) {
         // Not a refusal: no event (LA-ADR-06 D4 rule 1).
         return fail('The LTI service did not answer. Nothing was stored.');
       }
-      if (sharing === 'exclusive' && !canvasIssuerMatches(row, c, snapshot)) {
-        return refuse('profile_changed', 'The Canvas profile changed after this connection was made. Make a new connection.');
+      if (sharing === 'exclusive' && !exclusiveIssuerMatches(row, c, snapshot)) {
+        return refuse('profile_changed', `The ${channels.textName(c.channel)} profile changed after this connection was made. Make a new connection.`);
       }
       if (sharing === 'shared') {
         const cause = sharedReadiness(row, snapshot);
-        if (cause === 'platform_inactive') return refuse('platform_inactive', 'The Blackboard shared platform is not active.');
-        if (cause) return refuse('platform_changed', 'The Blackboard shared platform changed after this connection was made. Make a new connection.');
-        if (input.clientId !== snapshot.clientId) return refuse('client_id_mismatch', '--client-id is not the Blackboard Application ID of the shared platform.');
+        const lms = channels.textName(c.channel);
+        if (cause === 'platform_inactive') return refuse('platform_inactive', `The ${lms} shared platform is not active.`);
+        if (cause) return refuse('platform_changed', `The ${lms} shared platform changed after this connection was made. Make a new connection.`);
+        if (input.clientId !== snapshot.clientId) return refuse('client_id_mismatch', `--client-id is not the ${lms} Application ID of the shared platform.`);
         const reserved = reservationOfConnection(db, c.id);
         if (reserved && reserved.deploymentId !== input.deploymentId) return refuse('deployment_fixed', `This connection holds a reservation for deployment ${reserved.deploymentId}; --deployment-id must be that id.`);
       }
@@ -222,7 +233,8 @@ export function createOperator(deps: OperatorDeps) {
     const attempts = attemptsOfConnection(db, c.id);
     if (attempts.some((a) => a.targetKind === 'shared_deployment') || (attempts.length === 0 && setupOf(channels, c.channel)?.sharingOf(c.profile) === 'shared')) {
       const r = reservationOfConnection(db, c.id);
-      return r ? `Blackboard deployment ${r.deploymentId} of ${r.platformId}` : 'Blackboard: no reservation';
+      const lms = channels.textName(c.channel);
+      return r ? `${lms} deployment ${r.deploymentId} of ${r.platformId}` : `${lms}: no reservation`;
     }
     return c.ltiPlatformId ? `${c.channel} platform ${c.ltiPlatformId}` : `${c.channel}: no platform id`;
   };
