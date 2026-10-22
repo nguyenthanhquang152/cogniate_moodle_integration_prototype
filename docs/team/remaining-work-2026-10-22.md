@@ -2,7 +2,26 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 16:33 UTC
+## Current checkpoint — 16:49 UTC
+
+The fresh C6/C8 legacy run started at 16:38:27 UTC under `ctx_72afbef88d8c`.
+Its current reservation ends at 17:35 UTC. A timing update is due by 17:20 UTC.
+The Lead verified the starting snapshot: no containers and all 32 original full volume records unchanged.
+No fresh runtime result is accepted yet. All 12 legacy groups must complete with strict isolation and cleanup checks.
+
+The pre-launch inbox check completed at 16:37:50 UTC. A scheduling hold arrived four seconds later.
+The Lead authorized the existing invocation to continue in `msg_688d2d426edd`.
+Savoy's exact-window acknowledgment did not precede launch and remains pending at this checkpoint.
+Any external activity after the formal start must remain visible in the isolation result.
+
+Claude's architecture Stage 1 is committed at `b2d2aae`; final conformance remains PENDING.
+Independent Gemini's final C8 test and trace bindings are committed at `2039ba4`.
+Its Canvas/M2/T7 preparation is ready; it remains host-only pending separate runtime grants.
+The next runtime phases are two 258-row Canvas SIM rounds, independent Canvas judgments, M2 and T7.
+Final conformance, necessary guide edits, independent Docs QA and two final reviews follow.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 16:33 UTC
 
 Both independent Claude reviewers approved C8 and the held v4 launchers with no BLOCKER or MAJOR.
 The Lead accepted [E-R3](r3-evidence-decision-2026-10-22.md) for execution. Runtime acceptance remains pending.
