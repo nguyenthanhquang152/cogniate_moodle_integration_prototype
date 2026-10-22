@@ -170,7 +170,8 @@ See [charter-LA §2](charter-LA.md#2-phases-and-gates). P1–P3 change only docs
 | --- | --- | --- |
 | K | App kernel: providers, registry, binding and connection code | E1, E2 |
 | P | Portal: registry-driven cards, routes, wizards | E1, E6 |
-| S | LTI service operations: rate limits, admin API, audit, keys | E5 |
+| S1 | LTI service operations: rate limits, tenant model, operator API, audit | E5 |
+| S2 | LTI service key lifecycle: API keys, `KeyProvider`, signing keys, service keys | E5 |
 | L | LTI service protocol: platform storage, Dynamic Registration, Deep Linking, launch without context | E2, E3 |
 | R | App records: placement, learning record, outbox, AGS reporter | E4 |
 | QA / QA-E2E | Tests, data-driven simulator, conformance kit, CI script | E0, E7 |
@@ -200,6 +201,7 @@ Docker: at most 2 stacks at the same time, by booked slot (Lead decision LD-2). 
 | LD-7 | Golden outputs: one fixed golden script per channel (G2) plus the M1 `sim` assertions. A per-scenario record diff only if a reviewer shows a gap. |
 | LD-8 | A short Moodle regression ("R2-lite": T7 once plus the area groups) runs after each E1 step that moves Moodle code (S3, S5, S6, S7). Cost: about 10–25 min of the Moodle slot per step. |
 | LD-9 | An intended change `LA-IC-nn` (LA-ADR-04 D8) may change frozen assertions in M1, M2, T7 or other legacy suites. Each `LA-IC` lists the exact assertions it changes. QA makes the change as one reviewed list per `LA-IC`, at the task that ships the change; both reviewers approve the list. No other assertion may change (Reviewer-B B-LAD-08). |
+| LD-10 | Lane S splits into two Author lanes so E5 is not the critical path (Reviewer-B B-LAB-02): **S1** = rate limits, tenant model and account status, operator API, audit; **S2** = key lifecycle (API keys, `KeyProvider`, signing keys, service keys). `services/lti-service/src/http/operator/**` splits per endpoint group so each lane owns its files; a shared mount file has one owner (S1). |
 
 ### 6.2 Human decisions
 
