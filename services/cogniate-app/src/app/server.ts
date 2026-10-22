@@ -6,7 +6,7 @@ import formbody from '@fastify/formbody';
 import multipart from '@fastify/multipart';
 import type { Limits } from '@cogniate/package-inspector';
 import { DEFAULT_LIMITS } from '@cogniate/package-inspector';
-import type { Knob, Logger, PublicUrls } from '@cogniate/shared';
+import type { Knob, Logger, OutboundClient, PublicUrls } from '@cogniate/shared';
 import { ApiErrorBase, redactPath } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance } from 'fastify';
@@ -18,17 +18,13 @@ import { registerLaunchPages } from '../tool-pages/launch.ts';
 import { registerPickerPages } from '../tool-pages/picker.ts';
 import { registerPlayPages, registerPlayStatusRoute } from '../tool-pages/play.ts';
 import { registerRegisterPages } from '../tool-pages/register.ts';
-import { registerCanvasConfigurationRoutes } from './canvas-configuration.ts';
-import { registerCanvasDeploymentRoutes } from './canvas-deployments.ts';
 import { createBindingCleanup } from './binding-cleanup.ts';
 import type { connectionJson } from './connections.ts';
 import { connectionDto, registerConnectionRoutes } from './connections.ts';
 import { createRedemptionEngine } from './redemption.ts';
 import { registerCourseRoutes } from './courses.ts';
-import type { MoodleWsClient } from '../clients/moodle-ws.ts';
-import { registerMbzRoutes } from './mbz.ts';
+import { registerDeploymentRoutes, registerExtensionRoutes, registerExporterRoutes } from '../kernel/extensions.ts';
 import { registerPublicationRoutes } from './publications.ts';
-import { registerWebServiceRoutes } from './web-services.ts';
 import { registerResultRoutes } from './results.ts';
 import { registerPortal } from './portal.ts';
 import { ApiError, apiErrorBody } from './api-errors.ts';
@@ -76,8 +72,8 @@ export interface AppApiDeps {
   /** T8: the Build Runner queue folder (BUILD_QUEUE_DIR) and the knobs passed to each build request. */
   buildQueueDir?: string;
   buildKnobs?: { hold: boolean; failAt: string };
-  /** T8: Moodle web services client (course shell). */
-  moodleWs?: MoodleWsClient;
+  /** Guarded network access for channel extensions. */
+  outbound: OutboundClient;
 }
 
 const TRACE_ID = /^[A-Za-z0-9-]{16,64}$/;
@@ -154,18 +150,18 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
       reply.header('cache-control', 'no-store');
     });
     registerSessionRoutes(api, { db: deps.db, now });
-    registerCourseRoutes(api, { db: deps.db, logger: log, store: deps.store, limits, now, ...(deps.buildQueueDir ? { buildQueueDir: deps.buildQueueDir } : {}) });
+    const extensions = { ...deps, now };
+    registerCourseRoutes(api, { db: deps.db, logger: log, store: deps.store, limits, now, extensions });
     registerConnectionRoutes(api, { channels: deps.channels, db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, refTtlSeconds: deps.refTtlSeconds, now, engine, cleanup });
-    // Provider route modules (Canvas configuration and deployments): one shared deps object with the common engine.
+    // Deployment route dependencies share the common redemption engine.
     const providerDeps = {
       channels: deps.channels, db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, now,
       redeem: engine.redeem, connectionDto: (c: Parameters<typeof connectionJson>[0], libraryName: string) => connectionDto(deps.db, c, deps.urls, deps.masterKey, deps.channels, libraryName),
     };
-    registerCanvasConfigurationRoutes(api, providerDeps);
-    registerCanvasDeploymentRoutes(api, providerDeps);
-    registerPublicationRoutes(api, { channels: deps.channels, db: deps.db, now, masterKey: deps.masterKey, ...(deps.moodleWs ? { moodleWs: deps.moodleWs } : {}) });
-    if (deps.buildQueueDir) registerMbzRoutes(api, { db: deps.db, now, buildQueueDir: deps.buildQueueDir, buildKnobs: deps.buildKnobs ?? { hold: false, failAt: '' } });
-    if (deps.moodleWs) registerWebServiceRoutes(api, { channels: deps.channels, db: deps.db, masterKey: deps.masterKey, moodleWs: deps.moodleWs, now });
+    registerDeploymentRoutes(api, providerDeps);
+    registerExtensionRoutes(api, extensions);
+    registerPublicationRoutes(api, extensions);
+    registerExporterRoutes(api, extensions);
     registerResultRoutes(api, { channels: deps.channels, db: deps.db, lti: deps.lti, logger: log, masterKey: deps.masterKey, now, ...(deps.kickSync ? { kickSync: deps.kickSync } : {}) });
     registerPlayStatusRoute(api, { channels: deps.channels, db: deps.db, now });
   }, { prefix: '/app-api' });

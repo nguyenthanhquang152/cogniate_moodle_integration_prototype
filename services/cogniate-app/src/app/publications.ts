@@ -1,23 +1,25 @@
 import type { ChannelRegistry } from '@cogniate/channel-kernel';
-// Publications (app contract §5, without results): offer a course to a connected Moodle site. One publication per
+import { PUBLICATION_OPTION } from '@cogniate/channel-kernel';
+// Publications (app contract §5, without results): offer a course to a connected site. One publication per
 // connection + course. Every id is checked against the session user's library (404 NOT_FOUND).
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { decrypt } from '@cogniate/shared';
 import { z } from 'zod';
-import type { MoodleWsClient } from '../clients/moodle-ws.ts';
-import { MoodleWsError } from '../clients/moodle-ws.ts';
-import { getConnection, webServicesOf } from '../domain/connections.ts';
+import { getConnection } from '../domain/connections.ts';
 import { getCourse, getVersion, latestVersion } from '../domain/courses.ts';
 import type { Db } from '../domain/db.ts';
 import { launchStats } from '../domain/launch.ts';
 import { outcomeStats } from '../domain/results.ts';
 import type { Publication } from '../domain/publications.ts';
-import { getPublication, listPublications, setShell, upsertPublication, withdrawPublication } from '../domain/publications.ts';
+import { getPublication, listPublications, upsertPublication, withdrawPublication } from '../domain/publications.ts';
 import { ApiError } from './api-errors.ts';
+import type { ExtensionDeps } from '../kernel/extensions.ts';
+import { guardExtension, portContextOf, publicationExtensionFields } from '../kernel/extensions.ts';
+import type { PortContext } from '../kernel/ports.ts';
+import { setupOf } from '../kernel/setup.ts';
 
 const iso = (ms: number): string => new Date(ms).toISOString();
 
-export function publicationJson(db: Db, p: Publication, channels: ChannelRegistry) {
+export function publicationJson(db: Db, p: Publication, channels: ChannelRegistry, ctx: PortContext) {
   const { activities, learners } = launchStats(db, p);
   const { inProgress, completed, passed, failed, lastScoreSync } = outcomeStats(db, p, channels);
   return {
@@ -28,63 +30,39 @@ export function publicationJson(db: Db, p: Publication, channels: ChannelRegistr
     // activities and learners (T4b2); outcome counts by each learner's best outcome and the last sent sync (T5a).
     stats: { activities, learners, inProgress, completed, passed, failed, lastScoreSync },
     createdAt: iso(p.createdAt), updatedAt: iso(p.updatedAt),
-    // T8 course shell: set when the publish asked for createMoodleCourse.
-    moodleCourse: p.moodleCourseId !== null ? { id: p.moodleCourseId, idnumber: p.moodleCourseIdnumber, url: `${p.siteUrl}/course/view.php?id=${p.moodleCourseId}` } : null,
-    shellStatus: p.shellStatus, shellError: p.shellError,
+    ...publicationExtensionFields(channels, p, ctx),
   };
 }
 
-/** The course shell idnumber (app contract §11): cogniate:{courseId}:{variant}:{lang}. */
-export const shellIdnumber = (p: { courseId: string; courseVariant: string; courseLang: string }): string => `cogniate:${p.courseId}:${p.courseVariant || 'default'}:${p.courseLang || 'en'}`;
-
 const PublicationCreate = z.object({
   connectionId: z.string().min(1).max(64), courseId: z.string().min(1).max(64), versionId: z.string().min(1).max(64).optional(),
-  // T8: also make an empty, hidden Moodle course (needs the connection's web services token).
-  createMoodleCourse: z.object({ categoryId: z.number().int().positive().optional() }).optional(),
+  [PUBLICATION_OPTION]: z.unknown().optional(),
 });
 const PublicationQuery = z.object({ connectionId: z.string().max(64).optional(), courseId: z.string().max(64).optional() });
 
 type IdParams = { Params: { id: string } };
 
-export function registerPublicationRoutes(api: FastifyInstance, deps: { channels: ChannelRegistry; db: Db; now: () => number; masterKey?: Buffer; moodleWs?: MoodleWsClient }): void {
+export function registerPublicationRoutes(api: FastifyInstance, deps: ExtensionDeps): void {
   const { db, now } = deps;
-
-  /**
-   * T8 course shell: find the course by idnumber (exists) or make it hidden (created). A failure does not stop the
-   * publish: the publication shows shellStatus failed with the reason.
-   */
-  async function makeShell(lib: string, p: Publication, categoryId: number, traceId: string): Promise<void> {
-    const idnumber = shellIdnumber(p);
-    const ws = webServicesOf(db, lib, p.connectionId);
-    if (!ws || !deps.masterKey || !deps.moodleWs) {
-      setShell(db, p.id, { moodleCourseId: null, idnumber, status: 'failed', error: 'The connection has no web services token.' }, now());
-      return;
-    }
-    try {
-      const token = decrypt(deps.masterKey, ws.tokenEncrypted);
-      const found = await deps.moodleWs.courseByIdnumber(p.siteUrl, token, idnumber, traceId);
-      if (found) return setShell(db, p.id, { moodleCourseId: found.id, idnumber, status: 'exists', error: null }, now());
-      const id = await deps.moodleWs.createCourse(p.siteUrl, token, { fullname: p.courseTitle.slice(0, 254), shortname: idnumber, idnumber, categoryId }, traceId);
-      setShell(db, p.id, { moodleCourseId: id, idnumber, status: 'created', error: null }, now());
-    } catch (err) {
-      const reason = err instanceof MoodleWsError ? `Moodle web services: ${err.errorcode}` : `Internal error (${(err as Error).name})`;
-      setShell(db, p.id, { moodleCourseId: null, idnumber, status: 'failed', error: reason }, now());
-    }
-  }
   const libraryId = (req: FastifyRequest): string => req.auth!.signedIn.library.id;
   const notFound = (what: string) => new ApiError('NOT_FOUND', `The ${what} does not exist in your library.`);
 
   api.post('/publications', async (req, reply) => {
     const body = PublicationCreate.safeParse(req.body ?? {});
     if (!body.success) throw new ApiError('INVALID_REQUEST', `Invalid field: ${body.error.issues[0]?.path.join('.') || 'body'}.`);
+    const option = body.data[PUBLICATION_OPTION];
+    const parser = deps.channels.channels().flatMap((m) => setupOf(deps.channels, m.id)?.publishHooks ?? []).find((h) => h.option === PUBLICATION_OPTION);
+    const parsed = option !== undefined ? parser?.parseOptions(option) : undefined;
+    if (parsed && !parsed.ok) throw new ApiError('INVALID_REQUEST', `Invalid field: ${parsed.fields[0] || 'body'}.`);
     const lib = libraryId(req);
     const connection = getConnection(db, lib, body.data.connectionId);
     if (!connection) throw notFound('connection');
     const course = getCourse(db, lib, body.data.courseId);
     if (!course) throw notFound('course');
-    // M1 (§4.7.2): the course shell is a Moodle capability; nothing is stored when it is missing.
-    if (body.data.createMoodleCourse && !deps.channels.capabilities(connection.channel)['publish.createCourse']) {
-      throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'Only a Moodle connection can create a Moodle course.', { details: { capability: 'courseShell' } });
+    const hook = setupOf(deps.channels, connection.channel)?.publishHooks?.find((h) => h.option === PUBLICATION_OPTION);
+    if (option !== undefined) {
+      guardExtension(deps, connection.channel, parser?.capability ?? 'publish.createCourse', PUBLICATION_OPTION);
+      if (!hook || !parsed?.ok) throw new ApiError('CAPABILITY_NOT_SUPPORTED');
     }
     if (connection.status !== 'registered' && connection.status !== 'connected') {
       throw new ApiError('CONNECTION_NOT_READY', `The connection is not registered yet. Finish the registration in ${deps.channels.textName(connection.channel)} first.`);
@@ -93,26 +71,26 @@ export function registerPublicationRoutes(api: FastifyInstance, deps: { channels
     if (body.data.versionId !== undefined && !version) throw notFound('course version');
     if (!version) throw new ApiError('VERSION_NOT_READY', 'The course has no uploaded version yet.');
     const { publication, created } = upsertPublication(db, lib, { connectionId: connection.id, courseId: course.id, versionId: version.id }, now());
-    if (body.data.createMoodleCourse) await makeShell(lib, publication, body.data.createMoodleCourse.categoryId ?? 1, req.traceId);
-    return reply.code(created ? 201 : 200).send(publicationJson(db, getPublication(db, lib, publication.id) ?? publication, deps.channels));
+    if (option !== undefined && hook && parsed?.ok) await hook.afterPublish(publication, parsed.options, portContextOf(deps, req, connection.id));
+    return reply.code(created ? 201 : 200).send(publicationJson(db, getPublication(db, lib, publication.id) ?? publication, deps.channels, portContextOf(deps, req, connection.id)));
   });
 
   api.get('/publications', async (req) => {
     const q = PublicationQuery.safeParse(req.query ?? {});
     if (!q.success) throw new ApiError('INVALID_REQUEST', 'Invalid query.');
     const filter = Object.fromEntries(Object.entries(q.data).filter(([, v]) => v !== undefined)) as { connectionId?: string; courseId?: string };
-    return { publications: listPublications(db, libraryId(req), filter).map((x) => publicationJson(db, x, deps.channels)) };
+    return { publications: listPublications(db, libraryId(req), filter).map((x) => publicationJson(db, x, deps.channels, portContextOf(deps, req, x.connectionId))) };
   });
 
   api.get<IdParams>('/publications/:id', async (req) => {
     const p = getPublication(db, libraryId(req), req.params.id);
     if (!p) throw notFound('publication');
-    return publicationJson(db, p, deps.channels);
+    return publicationJson(db, p, deps.channels, portContextOf(deps, req, p.connectionId));
   });
 
   api.post<IdParams>('/publications/:id/withdraw', async (req) => {
     const p = withdrawPublication(db, libraryId(req), req.params.id, now());
     if (!p) throw notFound('publication');
-    return publicationJson(db, p, deps.channels);
+    return publicationJson(db, p, deps.channels, portContextOf(deps, req, p.connectionId));
   });
 }

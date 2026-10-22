@@ -54,16 +54,16 @@ const INLINE_BASELINE = [
     text: "SELECT * FROM approved_deployment WHERE connection_id = ? ORDER BY approved_at, rowid",
   },
   {
-    file: "services/cogniate-app/src/domain/mbz-builds.ts", form: 'rowid', ref: 'LA-ADR-06 D13 rule 2: legacy pre-LA SQL',
-    text: "SELECT * FROM mbz_build WHERE library_id = ? AND version_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+    file: "packages/channels/moodle/app/builds.ts", form: 'rowid', ref: 'LA-ADR-06 D13 rule 2: legacy pre-LA SQL (moved, BD-A2-46)',
+    text: "SELECT * FROM mbz_build WHERE library_id = :library_id AND version_id = :version_id ORDER BY created_at DESC, rowid DESC LIMIT 1",
   },
   {
-    file: "services/cogniate-app/src/domain/mbz-builds.ts", form: 'rowid', ref: 'LA-ADR-06 D13 rule 2: legacy pre-LA SQL',
-    text: "SELECT * FROM mbz_build WHERE library_id = ? AND version_id = ? AND status = 'ready' ORDER BY created_at DESC, rowid DESC LIMIT 1",
+    file: "packages/channels/moodle/app/builds.ts", form: 'rowid', ref: 'LA-ADR-06 D13 rule 2: legacy pre-LA SQL (moved, BD-A2-46)',
+    text: "SELECT * FROM mbz_build WHERE library_id = :library_id AND version_id = :version_id AND status = 'ready' ORDER BY created_at DESC, rowid DESC LIMIT 1",
   },
   {
-    file: "services/cogniate-app/src/domain/mbz-builds.ts", form: 'rowid', ref: 'LA-ADR-06 D13 rule 2: legacy pre-LA SQL',
-    text: "SELECT * FROM mbz_build WHERE library_id = ? AND status IN ('queued', 'running') ORDER BY created_at, rowid",
+    file: "packages/channels/moodle/app/builds.ts", form: 'rowid', ref: 'LA-ADR-06 D13 rule 2: legacy pre-LA SQL (moved, BD-A2-46)',
+    text: "SELECT * FROM mbz_build WHERE library_id = :library_id AND status IN ('queued', 'running') ORDER BY created_at, rowid",
   },
   {
     file: "services/cogniate-app/src/domain/results.ts", form: 'rowid', ref: 'LA-ADR-06 D13 rule 2: legacy pre-LA SQL',
@@ -147,7 +147,7 @@ export default {
       for (const hit of sqlForms(text)) {
         if (!ADAPTER_ALLOW_LIST.some((entry) => entry.file === path && entry.form === hit.form)) hits.push({ ...position(text, hit.offset), message: hit.message });
       }
-    } else if (/^services\/[^/]+\/src\/(?:[^/]+\/)*[^/]+\.ts$/.test(path) && !isUnitFile(path)) {
+    } else if ((/^services\/[^/]+\/src\/(?:[^/]+\/)*[^/]+\.ts$/.test(path) || /^packages\/channels\/[^/]+\/app\/.*\.ts$/.test(path)) && !isUnitFile(path)) {
       const used = new Set();
       for (const literal of inlineSql(path, text)) {
         for (const hit of sqlForms(literal.text)) {

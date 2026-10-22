@@ -1,3 +1,4 @@
+import { configurationRoute } from './app/configuration.ts';
 import type { ConnectionSetup, BindingTarget, PlatformBodyResult, StagedCreate } from '../../../services/cogniate-app/src/kernel/ports.ts';
 import { checkSiteUrl, fixedHostsOf } from '@cogniate/shared/channel';
 // Canvas setup data and pure adapter functions (app contract §4.4–§4.5).
@@ -20,7 +21,8 @@ export function parseCanvasBody(body: unknown): PlatformBodyResult {
 }
 
 const setup: ConnectionSetup = {
-  channel: 'canvas', profiles,
+  channel: 'canvas',
+  extensionRoutes: [configurationRoute], profiles,
   sharingOf: (id) => profiles[id]?.sharing ?? null,
   checkCreate: checkCreate,
   toolConfiguration: ({ urls, libraryName }) => [
