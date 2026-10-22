@@ -39,7 +39,7 @@ describe('.mbz builds (app contract §11, ADR-007)', () => {
     expect(requests()).toEqual([`${r.json().buildId}.json`]);
     const req = JSON.parse(readFileSync(join(queueDir(t.dataDir), 'requests', requests()[0]!), 'utf8'));
     expect(req).toEqual({
-      buildId: r.json().buildId, courseId: v.course, versionId: v.version, packageSha256: expect.stringMatching(/^[0-9a-f]{64}$/),
+      buildId: r.json().buildId, libraryId: expect.stringMatching(/^lib_[A-Za-z0-9_-]{22}$/), courseId: v.course, versionId: v.version, packageSha256: expect.stringMatching(/^[0-9a-f]{64}$/),
       variant: 'default', lang: 'en', title: 'AI Website Sprint — SCORM', hold: true, failAt: 'backup',
     });
     const again = await json('POST', `/app-api/courses/${v.course}/versions/${v.version}/mbz`, cookie);
@@ -194,7 +194,7 @@ describe('web services token and course shell (app contract §11)', () => {
 
 const QUEUE_MJS = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'infra', 'build-runner', 'queue.mjs');
 const runQueue = (args: string[]) => spawnSync(process.execPath, [QUEUE_MJS, ...args], { encoding: 'utf8', timeout: 5000 });
-const GOOD = { buildId: `bld_${'a'.repeat(24)}`, courseId: `crs_${'A'.repeat(22)}`, versionId: `ver_${'B'.repeat(22)}`, packageSha256: 'f'.repeat(64), variant: 'default', lang: 'en', title: 'T', hold: false, failAt: '' };
+const GOOD = { libraryId: `lib_${'L'.repeat(22)}`, buildId: `bld_${'a'.repeat(24)}`, courseId: `crs_${'A'.repeat(22)}`, versionId: `ver_${'B'.repeat(22)}`, packageSha256: 'f'.repeat(64), variant: 'default', lang: 'en', title: 'T', hold: false, failAt: '' };
 
 describe('A-T8-01: the host runner never follows a symlink and never reads a special file', () => {
   it('a symlinked request, a FIFO request and an oversized request are refused (no read of the target, no hang)', async () => {
