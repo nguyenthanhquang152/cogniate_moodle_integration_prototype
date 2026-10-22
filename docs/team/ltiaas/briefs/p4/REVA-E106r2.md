@@ -1,6 +1,6 @@
-# Review dispatch: Reviewer-A (same session), LA-E1-06 round 2
+# Review dispatch: Reviewer-A2 (same session), LA-E1-06 round 2
 
-Bounded check of Reviewer-A2's round-1 BLOCKER A-LA-E1-06-01 (A1 BD-A1-27: the frozen 409 text and the learner label fallback as frozen values in legacy-wire.ts), MINOR -02 and NITs -03..-05 (you are the same lens A): lane K fix commits cherry-picked into the integration branch as 9edd9e7, 85b5f52, eb48552, 6b79c1f. Diff: git diff e1eafff 6b79c1f. QA-3 R2 PASS. Add '## Round 2' to docs/reviews/LA-E1-06/reviewer-a.md.
+Bounded check of Reviewer-A2's round-1 BLOCKER A-LA-E1-06-01 (A1 BD-A1-27: the frozen 409 text and the learner label fallback as frozen values in legacy-wire.ts), MINOR -02 and NITs -03..-05 (you wrote round 1): lane K fix commits cherry-picked into the integration branch as 9edd9e7, 85b5f52, eb48552, 6b79c1f. Diff: git diff e1eafff 6b79c1f. QA-3 R2 PASS. Add '## Round 2' to docs/reviews/LA-E1-06/reviewer-a.md.
 
 # Common rules for LA build-task reviews (Reviewer-A, Reviewer-B)
 
