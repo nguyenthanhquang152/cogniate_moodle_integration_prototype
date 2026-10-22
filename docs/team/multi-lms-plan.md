@@ -4185,3 +4185,23 @@ The failed legacy and full2 attempts keep their FAILED outcomes.
 Both guide static reviews approve 958ee5c: Reviewer-A 4c1f67b and Reviewer-B 64d439a.
 Lead accepts A-M4P-R2-01 as a nonblocking NIT; final Docs must list it with the other deferrals.
 Final conformance, evidence binding, independent Docs QA and final blind reviews remain required.
+
+### 2026-10-22 13:30 UTC — C7 frozen; bounded launcher preparation
+
+Lead committed the exact two R2 readiness waits at 620c03d0697c72b80649d2e77a52594ad0d282f3.
+Its tests tree is 3e9368bb61d02c2cc6c3838b4aaeaedd28fffd71. Product paths equal C6 4008afb.
+Common QA settled its edit and feasibility task in msg_878fe908d376; its 27-entry raw evidence index matches.
+The report prose contains incorrect quoted code and citations. Lead did not accept that prose as proof.
+The same QA terminal now owns task_6bc986323143 / ctx_c5acede76614 to issue an artifact-derived correction and prepare private v3 launchers.
+No held report, old index, source or launcher may be overwritten.
+
+The proposed E-T5R route uses the existing runner's --phase sim --provider canvas twice.
+Each invocation selects 258 rows, including all seven Canvas browser rows, without a new filter or harness edit.
+This remains conditional on independent V1/V2, corrected exhaustive request mapping and two blind reviews.
+It does not convert either failed attempt into a pass. A final row ledger must distinguish old C4 evidence from new C6/C7 evidence and avoid duplicate counting.
+No optional trace-retention hook is granted. The launcher must state the known browser-attachment retention limit.
+Each launcher invocation requires a separate runtime grant. All 32 full baseline volume records remain protected.
+
+Independent Gemini ctx_729c0ea5fe95 has immutable C6/C7 for its host checks.
+Claude Reviewer-A ctx_38fbe94ea973 reviews the source now; the exact launcher handoff follows.
+The second independent reviewer must also approve before runtime.
