@@ -1,3 +1,5 @@
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
+import { setupOf } from './kernel/setup.ts';
 // Test helpers for the cogniate-app unit tests (not used at run time).
 import { mkdirSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -361,7 +363,7 @@ export interface TestApp {
   writeHeaders: (cookie: string) => Record<string, string>;
 }
 
-export async function testApp(opts: { limits?: Partial<Limits>; refTtlSeconds?: number; pickerTtlSeconds?: number; playTtlSeconds?: number; buildKnobs?: { hold: boolean; failAt: string }; moodleWs?: MoodleWsClient } = {}): Promise<TestApp> {
+export async function testApp(opts: { channels?: ChannelRegistry; limits?: Partial<Limits>; refTtlSeconds?: number; pickerTtlSeconds?: number; playTtlSeconds?: number; buildKnobs?: { hold: boolean; failAt: string }; moodleWs?: MoodleWsClient } = {}): Promise<TestApp> {
   const dataDir = mkdtempSync(join(tmpdir(), 'cogniate-app-'));
   const db = openDb(':memory:');
   const store = await prepareStore(dataDir);
@@ -374,7 +376,7 @@ export async function testApp(opts: { limits?: Partial<Limits>; refTtlSeconds?: 
   }
   const lti = fakeLti();
   const app = await buildAppApi({
-    channels: TEST_CHANNELS,
+    channels: opts.channels ?? TEST_CHANNELS,
     db, urls: TEST_URLS, logger, store, profile: 'default', knobs: [], now: () => clock.now, ...(opts.limits ? { limits: opts.limits } : {}),
     masterKey: TEST_MASTER_KEY, lti: lti.client, refTtlSeconds: opts.refTtlSeconds ?? 86400,
     pickerTtlSeconds: opts.pickerTtlSeconds ?? 3600, playTtlSeconds: opts.playTtlSeconds ?? 86400, playerDir: join(dataDir, 'player'),
@@ -401,3 +403,5 @@ export async function formBody(fields: Record<string, string | Buffer>): Promise
 
 /** One product registry for unit fixtures; tests can inject another registry. */
 export const TEST_CHANNELS = await loadAppChannelRegistry(createLogger({ service: 'test', write: () => {} }));
+
+export const testSetupOf = (channel: string) => setupOf(TEST_CHANNELS, channel);

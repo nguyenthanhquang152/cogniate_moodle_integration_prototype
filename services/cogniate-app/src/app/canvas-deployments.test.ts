@@ -6,8 +6,8 @@ import { getGrant, insertGrant } from '../domain/bindings.ts';
 import type { Connection } from '../domain/connections.ts';
 import { createConnection, disableConnection, getConnection, markLaunched, markRegistered } from '../domain/connections.ts';
 import { ensureLibrary } from '../domain/libraries.ts';
-import type { LmsType } from '../providers/types.ts';
-import { providerOf } from '../providers/index.ts';
+import type { ChannelId as LmsType } from '../kernel/ports.ts';
+import { testSetupOf as providerOf } from '../testkit.ts';
 import type { TestApp } from '../testkit.ts';
 import { QA_B, THANH, testApp } from '../testkit.ts';
 

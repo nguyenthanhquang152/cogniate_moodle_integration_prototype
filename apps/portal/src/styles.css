@@ -265,3 +265,5 @@
     }
   }
 }
+
+@source "../../../packages/channels/*/portal/**/*.{ts,tsx}";

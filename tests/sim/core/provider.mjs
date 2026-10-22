@@ -13,24 +13,27 @@ export function createProvider(runtime, config) {
     ...config.sites.map((s) => s.host), ...(config.pageHosts ?? [])])];
   const publicKeys = () => ({ keys: [runtime.signer.jwk] });
   const toolKeys = () => runtime.fetchJwks(`${runtime.publicLtiUrl}/lti/keys/cogniate`);
-  const byClient = (clientId) => [...runtime.scenarios.values()].find((s) => s.provider === config.id && s.clientId === clientId);
+  const byClient = (clientId) => [...runtime.scenarios.values()].reverse().find((s) => s.provider === config.id && s.clientId === clientId);
 
   function claimsFor(scenario, params) {
     const now = Math.floor(Date.now() / 1000);
+    const dlData = scenario.dlData ?? config.dlData;
+    const family = scenario.family ?? config.family;
+    const documentTarget = scenario.documentTarget ?? config.documentTarget ?? 'window';
     const lineitems = `https://${scenario.siteHost}${scenario.site.lineitems}`;
     const lineitem = `${lineitems}/${encodeURIComponent(scenario.resource)}`;
     const dlUrl = new URL(`https://${scenario.pageHost}${scenario.site.dlReturn}`);
-    if (config.dlData === 'query') dlUrl.searchParams.set('data', scenario.data);
+    if (dlData === 'query') dlUrl.searchParams.set('data', scenario.data);
     const claims = {
-      iss: config.issuer, aud: scenario.clientId, sub: scenario.subject, iat: now, exp: now + 60,
+      iss: scenario.issuer ?? config.issuer, aud: scenario.clientId, sub: scenario.subject, iat: now, exp: now + 60,
       nonce: params.get('nonce'), [LTI + 'message_type']: scenario.messageType,
       [LTI + 'version']: '1.3.0', [LTI + 'deployment_id']: scenario.deploymentId,
       [LTI + 'target_link_uri']: `${runtime.publicLtiUrl}/lti/launch/cogniate?resource=${encodeURIComponent(scenario.resource)}`,
       [LTI + 'roles']: scenario.roles,
       [LTI + 'context']: { id: scenario.contextId, title: 'QA course', label: 'QA' },
       [LTI + 'resource_link']: { id: scenario.resourceLinkId, title: 'QA resource' },
-      [LTI + 'tool_platform']: { product_family_code: config.family },
-      [LTI + 'launch_presentation']: { document_target: config.documentTarget ?? 'window', return_url: `https://${scenario.pageHost}/` },
+      [LTI + 'tool_platform']: { product_family_code: family },
+      [LTI + 'launch_presentation']: { document_target: documentTarget, return_url: `https://${scenario.pageHost}/` },
       [AGS]: { lineitems, lineitem, scope: Object.values(SCOPES).filter((s) => s !== SCOPES.nrps) },
       [NRPS]: { context_memberships_url: `https://${scenario.siteHost}${scenario.site.nrps}`, service_versions: ['2.0'] },
     };
@@ -39,7 +42,7 @@ export function createProvider(runtime, config) {
       claims[DL + 'deep_linking_settings'] = {
         deep_link_return_url: dlUrl.href, accept_types: ['ltiResourceLink'],
         accept_presentation_document_targets: ['window'], accept_multiple: false, auto_create: false,
-        ...(config.dlData === 'claim' ? { data: scenario.data } : {}),
+        ...(dlData === 'claim' ? { data: scenario.data } : {}),
       };
     }
     Object.assign(claims, structuredClone(scenario.claims));
@@ -78,10 +81,17 @@ export function createProvider(runtime, config) {
     runtime.rememberSecret(params.get('client_assertion'));
     required(params.get('grant_type') === 'client_credentials', 'Grant type');
     required(params.get('client_assertion_type') === 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer', 'Assertion type');
+    const claims = verifyJwt(params.get('client_assertion'), await toolKeys());
+    const clientScenario = byClient(claims.iss);
     const endpoint = `https://${request.host}${config.token.path}`;
-    const aud = config.token.audience === 'array' ? [endpoint] : endpoint;
-    const claims = verifyJwt(params.get('client_assertion'), await toolKeys(), { audience: aud });
-    required(claims.iss === claims.sub && Boolean(byClient(claims.iss)), 'Assertion client');
+    const audienceMode = clientScenario?.tokenAudience ?? config.token.audience;
+    const aud = audienceMode === 'array'
+      ? [endpoint]
+      : (!audienceMode || audienceMode === 'string' || audienceMode === 'token')
+        ? endpoint
+        : audienceMode;
+    required(JSON.stringify(claims.aud) === JSON.stringify(aud), 'JWT audience');
+    required(claims.iss === claims.sub && Boolean(clientScenario), 'Assertion client');
     required(typeof claims.jti === 'string' && claims.jti && !runtime.jtis.has(claims.jti), 'Assertion jti');
     const scopes = (params.get('scope') ?? '').split(' ').filter(Boolean);
     required(scopes.length > 0 && scopes.every((s) => Object.values(SCOPES).includes(s)), 'Scopes');
@@ -89,7 +99,7 @@ export function createProvider(runtime, config) {
     const value = randomBytes(32).toString('base64url');
     runtime.rememberSecret(value);
     runtime.tokens.set(value, { provider: config.id, clientId: claims.iss, scopes, expires: Date.now() + 3600_000,
-      host: config.token.hosts.length === 1 && config.token.audience === 'array' ? null : request.host });
+      host: config.sites.some((s) => s.host === request.host) ? request.host : null });
     runtime.record('token', { provider: config.id, host: request.host, method: request.method, path: request.url.pathname,
       clientId: claims.iss, audience: claims.aud, scopes, tokenRef: runtime.tokenRef(value) });
     return json(200, { access_token: value, token_type: 'Bearer', expires_in: 3600, scope: scopes.join(' ') });
@@ -164,25 +174,31 @@ export function createProvider(runtime, config) {
   async function deepLinkReturn(request) {
     const params = form(request);
     runtime.rememberSecret(params.get('JWT'));
-    const claims = verifyJwt(params.get('JWT'), await toolKeys(), { audience: config.issuer, requireNonce: true });
+    const claims = verifyJwt(params.get('JWT'), await toolKeys(), { requireNonce: true });
     const scenario = [...runtime.scenarios.values()].find((s) =>
       s.provider === config.id && s.clientId === claims.iss && s.deploymentId === claims[LTI + 'deployment_id']
       && s.pageHost === request.host && s.messageType === 'LtiDeepLinkingRequest'
-      && (config.dlData === 'query' ? request.url.searchParams.get('data') === s.data : claims[DL + 'data'] === s.data));
+      && ((s.dlData ?? config.dlData) === 'query' ? request.url.searchParams.get('data') === s.data : claims[DL + 'data'] === s.data));
+    const expectedAudience = scenario?.issuer ?? config.issuer;
+    required(JSON.stringify(claims.aud) === JSON.stringify(expectedAudience), 'JWT audience');
     required(scenario, 'DL return scenario and data');
+    const dlData = scenario.dlData ?? config.dlData;
+    const dlSubject = scenario.dlSubject ?? config.dlSubject;
+    const dlWindowHint = scenario.dlWindowHint ?? config.dlWindowHint ?? true;
     required(claims[LTI + 'message_type'] === 'LtiDeepLinkingResponse' && claims[LTI + 'version'] === '1.3.0', 'DL protocol');
-    required(config.dlSubject ? claims.sub === scenario.clientId : !Object.hasOwn(claims, 'sub'), 'DL subject');
-    if (config.dlData === 'query') required(!Object.hasOwn(claims, DL + 'data'), 'Canvas DL data must be query only');
+    required(dlSubject ? claims.sub === scenario.clientId : !Object.hasOwn(claims, 'sub'), 'DL subject');
+    if (dlData === 'query') required(!Object.hasOwn(claims, DL + 'data'), 'Canvas DL data must be query only');
     required(!runtime.dlNonces.has(claims.nonce), 'DL replay');
     const items = claims[DL + 'content_items'];
     required(Array.isArray(items) && items.length === 1, 'DL item count');
     required(items[0].type === 'ltiResourceLink' && items[0].lineItem?.scoreMaximum === 100, 'DL item');
     required(items[0].url?.startsWith(`${runtime.publicLtiUrl}/lti/launch/cogniate?resource=pub_`), 'DL resource URL');
-    required(items[0].window?.targetName === '_blank', 'DL new window');
+    if (dlWindowHint) required(items[0].window?.targetName === '_blank', 'DL new window');
+    else required(!Object.hasOwn(items[0], 'window'), 'DL window hint must be omitted');
     runtime.dlNonces.add(claims.nonce);
     runtime.record('deep-link', { provider: config.id, host: request.host, method: request.method,
       path: request.url.pathname, scenario: scenario.id, clientId: claims.iss, audience: claims.aud,
-      deploymentId: claims[LTI + 'deployment_id'], sub: claims.sub, dataMode: config.dlData, items });
+      deploymentId: claims[LTI + 'deployment_id'], sub: claims.sub, dataMode: dlData, items });
     return json(200, { accepted: true, items });
   }
 

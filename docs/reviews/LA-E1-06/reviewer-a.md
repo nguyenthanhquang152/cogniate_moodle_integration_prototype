@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E1-06 review, lens A ("Is it right and is it safe?")
 
@@ -68,3 +68,24 @@ The four lens-A focus points pass: the backfill is complete, no read of `connect
 | Registry wiring (BD-A1-11) | One registry is loaded in `main.ts` and passed to the app listener, the worker and the content listener. `startService` builds the listeners in order, so `channels` is set before the content listener uses it. The operator CLI loads it once. |
 | Ownership and "Must not edit" | `services/lti-service/**`, `apps/**`, `lti-profiles.ts` and the files of LA-E1-07 are untouched. `cli/{grant,binding,operator-runtime}.ts` are not in this task's "May edit" list, but they are lane K's files (epics §5 app row), and the new operator deps force the change. The Lead may note this. |
 | Build and tests | On the `dc67c14` tree: the app, kernel and tracking unit tests give 457 passed and 2 skipped. `eslint` exits 0, and `tsc` for the app exits 0. |
+
+## Round 2
+
+- Reviewer: Reviewer-A2 (same session as round 1). Date: 2026-10-22.
+- Diff: `git diff e1eafff 6b79c1f` (lane K fix commits, cherry-picked to the integration branch as `9edd9e7`, `85b5f52`, `eb48552`, `6b79c1f`; 14 files). Ruling: A1 BD-A1-27 (restore the frozen texts now; the per-channel text is LA-IC-15 at LA-E4-03).
+- I ran on the host (no Docker), in a throwaway `git archive 6b79c1f` copy: the app and kernel unit tests give 409 passed and 2 skipped, and `node --test infra/scripts/fitness/connection-lms.test.mjs` gives 1 of 1 pass. I also ran 6 mutants, one per round-1 finding.
+- Blind review: I did not open the other reviewer's file.
+- **Round 2 counts: 0 open findings. All five round-1 findings are closed.**
+
+| Id | Round 1 | Round 2 result |
+| --- | --- | --- |
+| A-LA-E1-06-01 | BLOCKER | **Closed.** `worker/score-sync.ts` writes `${errorText(err)} ${LEGACY_GRADE_CONFLICT}`, and `LEGACY_GRADE_CONFLICT = '(Moodle has a grade with a newer time)'` lives in `legacy-wire.ts`, the F1 exception (BD-A1-27). The result equals the G3 golden byte for byte, for every channel, with the same `slice(0, 300)`. New test: the moodle, canvas and blackboard rows each give `409 CONFLICT: Newer score. (Moodle has a grade with a newer time)`. Mutant R1 (back to `textName(row.channel)`) fails 2 tests. |
+| A-LA-E1-06-02 | MINOR | **Closed.** `attemptRecord(a, fence)` became two explicit rules. `fenceRecordOf`: `shared_deployment` → deployment, all others → platform. `revokeRecordOf`: `platform_deployment` → deployment, else `fenceRecordOf`. New tests: suspend with an `initial` and an `add_deployment` attempt sends one `PATCH platform`. Revoke of an unapproved `add_deployment` grant switches off only deployment `dB`, and the platform and `dA` stay active. Mutants R2 (the round-1 K8) and R3 (the round-1 K11) each fail 1 test. |
+| A-LA-E1-06-03 | NIT | **Closed.** `bindingOf` also uses the adapter's `sharingOf(profile)` when the connection has no attempt (BD-A1-12). A test pins `Binding: Blackboard: no reservation`. Mutant R4 fails 1 test. |
+| A-LA-E1-06-04 | NIT | **Closed.** The learner label fallback is the frozen `LEGACY_LEARNER_HOST` (`Moodle`, `legacy-wire.ts`). The test forces the fallback and expects `Learner u @ Moodle` for all three channels. Mutant R6 fails 3 tests. |
+| A-LA-E1-06-05 | NIT | **Closed.** The table pattern also accepts `, connection` (with `main.` and `AS`). A new rule test finds `con.lms` in a comma join and still ignores `g.lms` of `binding_grant`. Mutant R5 fails it. The `\b` after `connection` keeps `connection_id` from matching. |
+
+Other changes in the diff, checked:
+- `createConnection` now takes `sharingOf` and resolves the sharing of the chosen profile (`6b79c1f`). This removes a mismatch between the profile and the sharing that a caller passes (for example the old worker fixture gave `exclusive` for a Blackboard profile). The HTTP route still refuses a profile with no sharing (`invalid('profile')`, `app/connections.ts:207-208`) before the call, so the new throw cannot become a `500`. The behaviour class written to `lms` is unchanged for the baseline channels.
+- The repository comment rule moved above `toConnection` (LA-ADR-04 D4 rule 3), and the error texts name the channel, method and profile.
+- No new LMS literal in core: the two frozen values are in `legacy-wire.ts`, and the other `Moodle` words in the changed files are comments.

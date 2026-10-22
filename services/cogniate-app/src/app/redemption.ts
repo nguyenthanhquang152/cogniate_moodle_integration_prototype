@@ -20,11 +20,11 @@ import {
   recordRef, refRow, reservationOf, reservationOfConnection, setAttemptPlatform, setReservationRef, takeLease, writeApproval, writeReservation,
 } from '../domain/bindings.ts';
 import type { Connection, PlatformInfo } from '../domain/connections.ts';
-import { providerOf } from '../providers/index.ts';
+import { setupOf } from '../kernel/setup.ts';
 import { completeSnapshot, getConnection, getConnectionAnyLibrary } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
-import type { BindingTarget, GrantPurpose, PlatformBodyValues, RedemptionRequest } from '../providers/types.ts';
+import type { BindingTarget, GrantPurpose, PlatformBodyValues, RedemptionRequest } from '../kernel/ports.ts';
 import { ApiError, providerNotReady } from './api-errors.ts';
 import type { LocalTarget, ReadinessCause } from './binding-targets.ts';
 import { localTarget, s1ReadinessCause, sharedReadiness, stagedCall } from './binding-targets.ts';
@@ -60,7 +60,7 @@ class LtiFailure extends Error {
 }
 
 export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
-  const { db, lti, logger: log, now } = deps;
+  const { db, lti, logger: log, now, channels } = deps;
 
   const reject = (reason: string, connectionId: string, traceId: string, err: ApiError): never => {
     log.warn('grant_rejected', { trace_id: traceId, reason, connection_id: connectionId });
@@ -102,7 +102,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       // 4. start state
       if (!startState(req.purpose, connection)) throw stateError(req.purpose);
       // 4a. Only initial needs a complete snapshot; old registered rows can add deployments without it.
-      const adapter = providerOf(connection.channel);
+      const adapter = setupOf(channels, connection.channel);
       const sharing = adapter?.sharingOf(connection.profile);
       const snapshot = req.purpose === 'initial' && sharing ? completeSnapshot(connection, sharing) : null;
       if (req.purpose === 'initial' && !snapshot) return notReady(connection, 'no_snapshot', req.traceId);
@@ -171,7 +171,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
 
   async function runAttempt(c: Connection, attempt: Attempt, grant: Grant, resolved: LocalTarget, traceId: string): Promise<Connection> {
     const target = resolved.target;
-    const create = stagedCall({ db, lti }, c, target, traceId, providerOf(c.channel)!);
+    const create = stagedCall({ db, lti }, c, target, traceId, setupOf(channels, c.channel)!);
     let platformId: string | null = target.kind === 'exclusive_platform' ? target.platformId : target.platformId;
     let activationRef: string | null = null; // ref `a` of a successful S3
     const fail = (err: unknown): never => {

@@ -56,7 +56,7 @@ function ResultsView({ publicationId }: { publicationId: string }) {
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [message, setMessage] = useState("");
-  const lmsName = publication.data ? lmsNames[publication.data.lms] : "LMS";
+  const lmsName = publication.data ? lmsNames[publication.data.lms] ?? "LMS" : "LMS";
   async function refresh() {
     setBusy("refresh");
     setError(null);

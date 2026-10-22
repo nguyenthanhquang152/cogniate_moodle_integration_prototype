@@ -1,7 +1,7 @@
 import { Input, Select } from "./ui/input.tsx";
 import { Card } from "./ui/card.tsx";
 import { Button, buttonVariants } from "./ui/button.tsx";
-import { createContext, useContext, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import {
   BrowserRouter,
@@ -37,8 +37,8 @@ import { CourseDetail } from "./courses/CourseDetail.tsx";
 import { Results } from "./results/Results.tsx";
 import { NotFound } from "./NotFound.tsx";
 
-const SessionContext = createContext<Session | null>(null);
-export const useSession = (): Session => useContext(SessionContext)!;
+import { SessionContext, useSession } from "./sdk/session.ts";
+export { useSession } from "./sdk/session.ts";
 
 export function Portal() {
   // Connection settings must leave the DOM with the URL, not in a deferred transition.
@@ -120,15 +120,8 @@ export function App() {
         >
           <Route index element={<Navigate to="/integrations" replace />} />
           <Route path="integrations" element={<Integrations />} />
-          <Route path="integrations/moodle/connect" element={<Connect />} />
-          <Route
-            path="integrations/moodle/:connectionId"
-            element={<Connect />}
-          />
-          <Route path="integrations/canvas/connect" element={<Connect lms="canvas" />} />
-          <Route path="integrations/canvas/:connectionId" element={<Connect lms="canvas" />} />
-          <Route path="integrations/blackboard/connect" element={<Connect lms="blackboard" />} />
-          <Route path="integrations/blackboard/:connectionId" element={<Connect lms="blackboard" />} />
+          <Route path="integrations/:channelId/connect" element={<Connect />} />
+          <Route path="integrations/:channelId/:connectionId" element={<Connect />} />
           <Route path="libraries/courses" element={<Courses />} />
           <Route
             path="libraries/courses/:courseId"
@@ -252,8 +245,8 @@ function Frame({ onLogout }: { onLogout: () => void }) {
         (focusId
           ? document.getElementById(focusId)
           : document.querySelector<HTMLElement>("main h1")) ??
-        (focusId?.match(/^(moodle|canvas|blackboard)-/)
-          ? document.getElementById(`${focusId.split("-")[0]}-manage`)
+        (focusId?.match(/^[a-z][a-z0-9-]*-(?:connect|manage)/)
+          ? document.getElementById(`${focusId.replace(/-(?:connect(?:-another)?|manage)$/, "")}-manage`)
           : null);
       if (target) {
         target.focus();
