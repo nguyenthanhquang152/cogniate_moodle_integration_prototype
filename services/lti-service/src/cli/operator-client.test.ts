@@ -41,7 +41,10 @@ it('names the host file and a real recovery path when the server rejects the cop
   await expect(createOperatorClient(h.env).request('GET', '/accounts')).rejects.toThrow('npm run seed');
   await expect(createOperatorClient(h.env).request('GET', '/accounts')).rejects.toThrow('infra/.secrets/lti-operator-key');
   await expect(createOperatorClient(h.env).request('GET', '/accounts')).rejects.toThrow('Put the current operator key');
-  await expect(createOperatorClient(h.env).request('GET', '/accounts')).rejects.toThrow('--replace-operator-key (init --replace)');
+  // B-LA-E5-05-04: the revoke-all step comes last and says that it revokes every operator key.
+  const message = await createOperatorClient(h.env).request('GET', '/accounts').then(() => '', (error: Error) => error.message);
+  expect(message).toMatch(/ask another operator to issue you a new key\. Only if no operator has a working key, run npm run lti:bootstrap .* --replace-operator-key \(init --replace\)\. This revokes every operator key, also the keys of other operators and scripts\.$/);
+  expect(message).not.toContain('safely');
 });
 
 it.each(['missing', 'malformed'])('refuses a %s key before any HTTP request', (kind) => {

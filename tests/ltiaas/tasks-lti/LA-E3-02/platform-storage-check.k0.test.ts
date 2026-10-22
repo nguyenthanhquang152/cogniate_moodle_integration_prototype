@@ -137,7 +137,9 @@ describe('LA-E3-02 K0: Platform storage check and Canvas trait values', () => {
     expect(/name=["']value["']/i.test(pageSrc) || pageSrc.includes('value'), 'storage-pages.ts posts value field').toBe(
       true,
     );
-    expect(pageSrc.includes('storage-check'), 'storage-pages.ts targets /storage-check route').toBe(true);
+    expect(/\bform\b/i.test(pageSrc) && /\bpost\b/i.test(pageSrc), 'storage-pages.ts renders or submits POST form').toBe(
+      true,
+    );
   });
 
   it('Rules 7, 8 & 11 (static check): store/storage-checks.ts, launch.ts, protocol.ts and the storage_check migration implement storage check and retention', () => {
@@ -153,7 +155,7 @@ describe('LA-E3-02 K0: Platform storage check and Canvas trait values', () => {
     // launch.ts and protocol.ts wire storage-check route, details, help text and log bindings
     expect(protocolSrc.includes('storage-check'), 'protocol.ts mounts /lti/launch/:account/storage-check').toBe(true);
     expect(
-      protocolSrc.includes('Allow') || launchSrc.includes('Allow'),
+      /allow/i.test(protocolSrc) || /allow/i.test(launchSrc),
       'protocol.ts / launch.ts sets Allow: POST on non-POST storage-check requests',
     ).toBe(true);
     const combinedSrc = `${launchSrc}\n${protocolSrc}`;

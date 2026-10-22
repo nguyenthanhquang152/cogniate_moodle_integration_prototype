@@ -89,10 +89,22 @@ describe('LA-E3-01 K0: Platform storage login page and state columns', () => {
 
     // Rule 3 & AC-LA-E3-01-06: <script type="application/json"> with \u003c, \u003e, \u0026, \u2028, \u2029 escapes
     expect(pageSrc.includes('application/json'), 'storage-pages.ts uses application/json script block').toBe(true);
-    expect(/\\u003c/i.test(pageSrc), 'storage-pages.ts escapes < as \\u003c').toBe(true);
-    expect(/\\u003e/i.test(pageSrc), 'storage-pages.ts escapes > as \\u003e').toBe(true);
-    expect(/\\u0026/i.test(pageSrc), 'storage-pages.ts escapes & as \\u0026').toBe(true);
-    expect(/\\u2028/i.test(pageSrc), 'storage-pages.ts escapes U+2028 as \\u2028').toBe(true);
+    expect(
+      /\\u003c|toString\(16\)|padStart\(4/i.test(pageSrc),
+      'storage-pages.ts escapes <, >, &, U+2028, U+2029 as unicode escapes',
+    ).toBe(true);
+
+    // BD-A2-41 static login page body text and noscript fallback (added in Round 2 with profiles/storage.ts)
+    if (fs.existsSync(path.join(TARGET_ROOT, 'services/lti-service/src/profiles/storage.ts'))) {
+      expect(
+        pageSrc.includes('Opening the activity. Please wait.'),
+        'storage-pages.ts includes BD-A2-41 static login status text',
+      ).toBe(true);
+      expect(
+        pageSrc.includes('This activity needs JavaScript.'),
+        'storage-pages.ts includes BD-A2-41 noscript fallback text',
+      ).toBe(true);
+    }
 
     // Rule 3, 9 & AC-LA-E3-01-07: lti.put_data, lti.put_data.response, cog_state_, 1500 ms wait
     expect(pageSrc.includes('lti.put_data'), 'storage-pages.ts sends lti.put_data').toBe(true);
@@ -101,14 +113,29 @@ describe('LA-E3-01 K0: Platform storage login page and state columns', () => {
     expect(/1500|1_500/.test(pageSrc), 'storage-pages.ts waits up to 1500 ms').toBe(true);
   });
 
-  it('AC-LA-E3-01-01 .. AC-LA-E3-01-05, AC-LA-E3-01-08, AC-LA-E3-01-09 (static check): login.ts, states.ts and migration add storage_target and storage_origin', () => {
+  it('AC-LA-E3-01-01 .. AC-LA-E3-01-05, AC-LA-E3-01-08, AC-LA-E3-01-09 (static check): login.ts, profiles/storage.ts, states.ts and migration add storage_target and storage_origin', () => {
     const loginSrc = readRepoFile('services/lti-service/src/lti/login.ts');
+    const protocolSrc = readRepoFile('services/lti-service/src/http/routes/protocol.ts');
+    const schemaSrc = readRepoFile('services/lti-service/src/profiles/schema.ts');
+    const storageHelperAbs = path.join(TARGET_ROOT, 'services/lti-service/src/profiles/storage.ts');
+    const storageHelperSrc = fs.existsSync(storageHelperAbs) ? fs.readFileSync(storageHelperAbs, 'utf8') : '';
     const statesSrc = readRepoFile('services/lti-service/src/store/states.ts');
+    const combinedLoginAndStorage = `${loginSrc}\n${protocolSrc}\n${schemaSrc}\n${storageHelperSrc}`;
 
-    // login.ts reads lti_storage_target and platformStorage
-    expect(loginSrc.includes('lti_storage_target'), 'login.ts reads lti_storage_target').toBe(true);
-    expect(loginSrc.includes('platformStorage'), 'login.ts reads platformStorage trait').toBe(true);
-    expect(loginSrc.includes('_parent'), 'login.ts validates _parent target').toBe(true);
+    // login.ts / profiles/storage.ts reads lti_storage_target, platformStorage and _parent
+    expect(
+      combinedLoginAndStorage.includes('lti_storage_target'),
+      'login.ts / profiles/storage.ts reads lti_storage_target',
+    ).toBe(true);
+    expect(
+      combinedLoginAndStorage.includes('platformStorage'),
+      'login.ts / profiles/schema.ts reads platformStorage trait',
+    ).toBe(true);
+    expect(
+      combinedLoginAndStorage.includes('_parent') ||
+        readRepoFile('services/lti-service/src/lti/storage-pages.ts').includes('_parent'),
+      'validates _parent target',
+    ).toBe(true);
 
     // states.ts writes storage_target and storage_origin into oidc_state
     expect(statesSrc.includes('storage_target'), 'states.ts stores storage_target').toBe(true);

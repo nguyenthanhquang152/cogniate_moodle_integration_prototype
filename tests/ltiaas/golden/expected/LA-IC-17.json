@@ -21,9 +21,10 @@
       "tests/acceptance/M1/canvas/61-canvas-containment.test.ts:156-158",
       "tests/acceptance/lib/portal.ts:28",
       "tests/e2e/2-scenario-b.spec.ts:52",
-      "tests/ltiaas/golden/capture.golden.ts:276-285"
+      "tests/ltiaas/golden/capture.golden.ts:194-200 (G1 Moodle connections stay pending; golden capture makes no app PUT /app-api/connections/:id/platform call)",
+      "tests/acceptance/lib/qa-platform.ts:43 (QA platform used by golden capture is registered directly via POST /api/platforms)"
     ],
-    "scanResult": "0 golden changes and 0 frozen-test changes: every Moodle/standard PUT /app-api/connections/:id/platform body in the portal, golden capture, and frozen acceptance/e2e suites sends only the 6 documented keys (issuer, clientId, deploymentId, authenticationEndpoint, accessTokenEndpoint, jwksUrl)."
+    "scanResult": "0 golden changes and 0 frozen-test changes: every Moodle/standard PUT /app-api/connections/:id/platform body in the portal and frozen acceptance/e2e suites sends only the 6 documented keys (issuer, clientId, deploymentId, authenticationEndpoint, accessTokenEndpoint, jwksUrl), while golden capture (capture.golden.ts:194-200) leaves G1 Moodle connections pending and makes no PUT /app-api/connections/:id/platform call."
   },
   "changes": []
 }

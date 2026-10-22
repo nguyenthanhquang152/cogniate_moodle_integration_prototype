@@ -396,3 +396,29 @@ Routed in dispatch `ctx_da332f36da02`. The Lead's provisional call is ratified w
 | BD-A2-62 | (Provisional, S1.) `app:audit` keeps the event `audit_list_refused` and `traceId`, and adds `message` = one fixed sentence per code that never echoes input (no bad flag, no `DATA_DIR` path; the usage line and the default path are in the fixed text); a wrong command gives `arguments_invalid` instead of the usage text as the reason; `--help` prints the usage on stdout with exit 0. | **Ratified.** The six codes and their fixed messages are now in LA-ADR-07 D4 (`arguments_invalid`, `connection_invalid`, `action_invalid`, `limit_invalid`, `since_invalid`, `audit_read_failed`). Reviewer-B's wish to name the bad flag is refused by the BD-A2-59 rule "never echoes input". | LA-ADR-07 D4 (`app:audit list` refusals); LA-E5-11 design notes | BD-A2-59's "same shape" means the `reason` and `message` fields. `app:audit` keeps its own event name and `traceId`, because it is a read command, not the operator policy. |
 
 Changes for the Lead to route: none beyond S1's fix round.
+
+## 33. Round 32: evidence for revoke, and refused events of the app CLIs (LA-E5-12 lane K, LA-E5-11 lane S1), 2026-10-23
+
+K's question and three provisional points, routed in dispatch `ctx_8749e4ef993f`. Decisions sent to the Lead first (`msg_a9aa80ad17c2`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-63 | Q1: `app:grant revoke` takes only `--operator`, but the policy requires evidence for every production command, so a production revoke always fails. (a) A policy input flag (S1), or (b) revoke also takes the evidence flags. (Provisional: (b).) | **Changed to (a).** `OperatorPolicyInput.evidenceRequired?: boolean`, default `true` (fail closed); `false` only for revoke, which skips only the two "missing" checks. Revoke does not parse evidence flags; K drops its interim parse. | LA-ADR-07 D5; LA-E5-11 and LA-E5-12 design notes | D5 lists evidence only for issue, suspend and release. A revoke only removes access (the BD-A2-12 principle), and an emergency revoke must not wait for a ticket reference. |
+| BD-A2-64 | (Provisional.) One `refused` event per refusal after the target is resolved, also for a format error on a known target; none for an unknown target, a usage error or an LTI outage. A stable snake_case `code` per refusal, with the CLI line text unchanged. The policy line printed as given and logged with its event and reason. | **Ratified, with one precision:** a policy refusal never writes an event, even after the target was read (BD-A2-45). | LA-ADR-07 D4 "Audit events of refused CLI runs"; LA-E5-12 design notes | The code list belongs in the app API delta §7 table (A1's file); until A1 adds it, the LA-E5-12 notes hold it. |
+
+Changes for the Lead to route: **S1 (LA-E5-11 fix round):** the `evidenceRequired` input and its two unit tests. **K (LA-E5-12):** revoke with `evidenceRequired: false`, dropping the interim evidence flags. **A1:** the refusal-code list in the app API delta §7.
+
+## 34. Round 33: LA-E5-20 spec gaps (lane S1), 2026-10-23
+
+Six questions from S1, routed in dispatch `ctx_a41d37871369` (provisional: "ok to all six"). Decisions sent to the Lead first (`msg_232fe65ebc42`).
+
+| Id | Question | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-65 | Q1 `autoRotate`: the environment list `SIGNING_KEY_AUTO_ROTATE_ACCOUNTS`, or a stored field? | **Changed to a stored field:** LTI migration `019` `tool_account.auto_rotate` (default `0`); `PATCH /operator/v1/accounts/:id {autoRotate}`; `Account.autoRotate`; an `account.update` event; `409 ACCOUNT_CLOSED` on a closed account. | LA-ADR-06 D2 (column table), D7; contract delta §1.1, §3; operability §2; LA-E5-20 notes | D7 makes it an account setting, like `limits` and `claimPolicy`: changed through the API, audited, no restart. S1 owns the account files in B3. |
+| BD-A2-66 | Q2 `closedRetentionDays`: `CLOSED_ACCOUNT_RETENTION_DAYS`? | **Ratified:** default 30, a whole number ≥ 1, a bad value stops the start, counted from `status_changed_at`. | LA-ADR-06 D2; operability §2 | — |
+| BD-A2-67 | Q3 the purge scope (delete the tenant rows of ten tables; keep the tombstone and the audit rows; a log line; no audit event). | **Scope ratified; changed: one `account.purge` audit event** per purged account (actor `system:account-purge`, `details` = counts by table), in the same transaction. | LA-ADR-06 D2; contract delta §5; security-delta §8; LA-E5-20 notes | The deletion of a tenant's data is the evidence of the LA-H4 retention promise, and audit rows survive the purge. The account lifecycle lives in LA-ADR-06 D2, not LA-ADR-07. |
+| BD-A2-68 | Q4 the rotation job (the route events with actor `system:signing-key-rotation`; `SIGNING_KEY_ROTATE_DAYS` ≥ 8; never forces; respects the lead time). | **Ratified, plus:** it skips accounts that are not `active`. | LA-ADR-06 D7; contract delta §5; operability §2 | Nothing signs for a suspended or closed account. |
+| BD-A2-69 | Q5 `POST /operator/v1/jobs/:name/run` answers (as BD-A2-50; `404` for an unknown name; `key-rewrap` allowed; ISO `lastRunAt`). | **Ratified.** | LA-ADR-06 D11 "On-demand runs"; contract delta §3 | — |
+| BD-A2-70 | Q6 `api-key-expiry`: `api_key_expiring` warn lines and `job_run` counts `{expiring}`; the gauge stays the scrape query. | **Ratified.** | LA-ADR-06 D11 (job row) | Ids only, never a key. |
+
+Changes for the Lead to route: **S1 (LA-E5-20)**: the stored `autoRotate` field (migration `019`, the account PATCH and view), the `account.purge` event, and skipping accounts that are not active; the rest as S1 planned.

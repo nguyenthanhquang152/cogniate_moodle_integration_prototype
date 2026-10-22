@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-16 review, Reviewer-B (lens: "Can a human team own it?")
 
@@ -45,3 +45,28 @@ The middleware is small and easy to own. `http/idempotency.ts` (91 lines) has on
 ## Not checked
 
 - K1-SIM AC-01 to -03, -05, -07 (QA). The `idempotency-cleanup` job (LA-E5-20).
+
+## Round 2
+
+Reviewer-B: Codex GPT-6-Astra xhigh, same lens B. Verdict: **APPROVE**. Reviewed `a36d4c5` (merge `836d579`) against the task and contract delta §1.3/§4.9, including BD-A2-56/57/58. Verification used a private `git clone --no-hardlinks` at `c2426eb`. No other reviewer's report was read; no Docker or stack was run.
+
+Counts this round: **0 BLOCKER, 0 MAJOR, 1 MINOR, 0 NIT.**
+
+| Prior finding | Result |
+| --- | --- |
+| B-LA-E5-16-01 (MINOR) — refusals give no next step | **Closed.** The `409` names `Retry-After` and supplies both the header and `details.retryAfter`; a controlled clock checks 44.5 seconds remaining becomes 45. The `422` now names the 24-hour interval, route, path id, resolved target and body, and tells the client to use a new key for a new request. Both descriptions match BD-A2-58. |
+| B-LA-E5-16-02 (was NIT) — route renames silently disable idempotency | **Partly fixed; retained as MINOR below.** Missing routes and changed literal paths stop startup with a useful error. A changed parameter name still bypasses the guard. |
+
+### B-LA-E5-16-02 — MINOR — The startup check does not detect a renamed path parameter
+
+- **File:** `services/lti-service/src/http/idempotency.ts:78` and `:85`; test at `services/lti-service/src/http/idempotency.test.ts:289`.
+- **Problem:** `hasRoute()` tests route matching, but the middleware selects by the exact `req.routeOptions.url` string. A parameter-only rename can satisfy the startup check and then skip idempotency on every request to that route.
+- **Evidence:** In the pinned private clone, I registered all three POST routes but changed `/api/platforms/:id/deployments` to `/api/platforms/:platformId/deployments`. `hasRoute()` for the old template returned `true` and `app.ready()` succeeded. Two identical injected POSTs with the same key reached the dummy handler twice (create counts 1 and 2). The existing negative test omits the deployment route entirely and changes the literal line-item path, so it does not exercise this case. The current production templates still match; this is a future-maintenance gap, safe to defer. MINOR replaces the earlier NIT because the probe shows a concrete guard failure.
+- **Suggested fix:** Collect the exact registered POST templates with `onRoute` and check those strings at startup, or bind the idempotency rule to route metadata. Add a case where only `:id` becomes `:platformId`, with all three routes otherwise present.
+
+### Verification and scope
+
+- The focused six-file run across this dispatch passed **109 unit tests**, including the HTTP/store idempotency tests and unchanged UNIT AC-04/06. Root type checking and ESLint on all 13 changed TypeScript files passed.
+- Removing the new startup hook and retry detail in the private clone made the two corresponding tests fail. The parameter-rename probe above ran without a listener or stack. All source mutations were restored.
+- The resolved-target helper calls the existing read-only service-context checks; target-specific replay and inactive/deleted-platform tests cover BD-A2-56. One shared final-status predicate and the `Retry-After` exclusion cover BD-A2-57; the tests prove that a `429` frees the key and the next call reaches the platform.
+- The diff stays in S1's middleware/store, API error table and colocated unit tests. The forbidden route and `platform/**` files are unchanged; no LMS branch or name was added. K1-SIM and the task's regression gate remain separate QA evidence.

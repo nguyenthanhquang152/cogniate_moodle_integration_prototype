@@ -1,10 +1,12 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { JobContext } from '@cogniate/shared';
 import { bindKeyProvider, createLocalKeyProvider, createLogger, legacyKeyRing } from '@cogniate/shared';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../api-errors.ts';
 import { openDb, transaction } from '../db/index.ts';
+import { keyRewrapJob } from '../jobs/key-rewrap.ts';
 import { keyVersionsInUse } from '../keys/key-config.ts';
 import { createPlatformKeys } from '../lti/jwks.ts';
 import { createAgsClient } from '../platform/ags.ts';
@@ -12,7 +14,7 @@ import { createNrpsClient } from '../platform/nrps.ts';
 import { createScoreClock } from '../platform/score-clock.ts';
 import { createTokenClient } from '../platform/token-client.ts';
 import { ensureAccount } from '../store/accounts.ts';
-import { withAudit } from '../store/audit.ts';
+import { listAuditEvents, withAudit } from '../store/audit.ts';
 import { createPlatform } from '../store/platforms.ts';
 import { issueOperatorKey } from '../store/operator-keys.ts';
 import { ensureToolKey } from '../store/tool-keys.ts';
@@ -45,7 +47,7 @@ async function setup(profile = 'default', file = ':memory:') {
   });
   const operator = await buildOperatorApp({ db, keys: provider, logger, urls: URLS, now: () => clock.now });
   cleanup.push(async () => { await Promise.all([app.close(), operator.close()]); if (db.isOpen) db.close(); });
-  return { db, clock, provider, app, operator, metrics, logger, lines, apiKey: a.apiKey! };
+  return { db, clock, masterKey, provider, app, operator, metrics, logger, lines, apiKey: a.apiKey! };
 }
 
 const scrape = async (h: Awaited<ReturnType<typeof setup>>) => (await h.operator.inject('/metrics')).body;
@@ -132,9 +134,21 @@ describe('metrics collection', () => {
     expect(text).toMatch(/lti_launch_total\{result="failed",check="[^"]*",tool_account_id=""\} 1/);
     expect(text).not.toContain('unknown-person');
     expect(text).not.toContain('Personal name');
-    expect(h.lines).toContainEqual(expect.objectContaining({ event: 'http_request', path: '/lti/login/cogniate', tool_account_id: 'cogniate' }));
+    expect(h.lines).toContainEqual(expect.objectContaining({ event: 'http_request', path: '/lti/login/:account', tool_account_id: 'cogniate' }));
     await h.app.inject({ url: '/api/platforms', headers: { authorization: `Bearer ${h.apiKey}` } });
     expect(await scrape(h)).toContain('lti_http_requests_total{route_class="admin",status_class="2xx",tool_account_id="cogniate"} 1\n');
+  });
+
+  it('logs the route template as the http_request path, never an unknown, encoded or query value (BD-A2-61)', async () => {
+    const h = await setup();
+    for (const url of ['/lti/login/alice@example.test', '/lti/login/alice%40example.test?email=alice@example.test', '/no/such/alice@example.test']) {
+      await h.app.inject(url);
+    }
+    await h.operator.inject('/operator/v1/accounts/alice@example.test');
+    const lines = h.lines.filter((l) => l.event === 'http_request');
+    expect(lines.map((l) => l.path)).toEqual(['/lti/login/:account', '/lti/login/:account', '<unmatched>', '/operator/v1/accounts/:id']);
+    expect(JSON.stringify(h.lines)).not.toContain('alice');
+    expect(lines.every((l) => l.tool_account_id === undefined)).toBe(true);
   });
 
   it('counts hard refusals and soft excesses even when warnings are sampled', async () => {
@@ -153,24 +167,51 @@ describe('metrics collection', () => {
     expect(text).not.toContain('192.0.2.1');
   });
 
-  it('counts committed audit writes and refusals, never rollbacks or caller-owned transactions', async () => {
+  it('counts committed audit writes and refusals once, after the outermost commit; never a rollback (BD-A2-60)', async () => {
     const h = await setup();
     const base = { actor: { type: 'system' as const, id: 'unit' }, toolAccountId: 'cogniate', traceId: null, clientIp: null,
       action: 'account.update', target: { type: 'account', id: 'cogniate' } };
     await withAudit(h.db, () => h.clock.now, base, (audit) => audit.change(() => 1, () => ({ action: 'account.create' })));
     await expect(withAudit(h.db, () => h.clock.now, base, () => { throw new ApiError('INVALID_REQUEST'); })).rejects.toThrow();
     await expect(withAudit(h.db, () => h.clock.now, base, (audit) => audit.change(() => { throw new Error('rollback'); }))).rejects.toThrow('rollback');
-    // withAudit runs change synchronously; its promise settles after the outer transaction.
+    // A nested change in a caller-owned transaction counts when that transaction commits.
     let pending: Promise<unknown> | undefined;
-    transaction(h.db, () => { pending = withAudit(h.db, () => h.clock.now, base, (audit) => audit.change(() => 1)); });
+    transaction(h.db, () => { pending = withAudit(h.db, () => h.clock.now, { ...base, action: 'settings.rate_limits' }, (audit) => audit.change(() => 1)); });
     await pending;
+    // An outer rollback after a released savepoint counts nothing.
+    expect(() => transaction(h.db, () => {
+      void withAudit(h.db, () => h.clock.now, { ...base, action: 'api_key.issue' }, (audit) => audit.change(() => 1));
+      throw new Error('outer rollback');
+    })).toThrow('outer rollback');
     h.db.exec("CREATE TRIGGER unit_refuse_audit BEFORE INSERT ON audit_event BEGIN SELECT RAISE(ABORT, 'failed insert'); END");
     await expect(withAudit(h.db, () => h.clock.now, base, (audit) => audit.change(() => h.db.prepare("UPDATE tool_account SET name = 'changed' WHERE id = 'cogniate'").run()))).rejects.toThrow('failed insert');
     expect(h.db.prepare("SELECT name FROM tool_account WHERE id = 'cogniate'").get()?.name).toBe('Personal name');
     const text = await scrape(h);
     expect(text).toContain('lti_audit_events_total{action="account.create",result="ok"} 1\n');
     expect(text).toContain('lti_audit_events_total{action="account.update",result="refused"} 1\n');
+    expect(text).toContain('lti_audit_events_total{action="settings.rate_limits",result="ok"} 1\n');
     expect(text).not.toContain('lti_audit_events_total{action="account.update",result="ok"}');
+    expect(text).not.toContain('action="api_key.issue"');
+  });
+
+  it('counts the committed key-rewrap completion event once (BD-A2-60)', async () => {
+    const h = await setup();
+    h.db.prepare("INSERT INTO job_lease (name, owner, lease_until) VALUES ('key-rewrap', 'unit/boot', ?)").run(h.clock.now + 60_000);
+    const ctx: JobContext = { instanceId: 'unit', bootId: 'boot', leaseOwner: 'unit/boot', traceId: 'rewrap-trace-unit',
+      now: () => h.clock.now, signal: new AbortController().signal, logger: h.logger };
+    expect((await keyRewrapJob(h.db, h.provider).run(ctx)).result).toBe('ok');
+    expect(listAuditEvents(h.db, { action: 'key_provider.rewrap', limit: 10 }).events).toHaveLength(1);
+    expect(await scrape(h)).toContain('lti_audit_events_total{action="key_provider.rewrap",result="ok"} 1\n');
+  });
+
+  it('logs an audit observer failure and keeps the committed write', async () => {
+    const h = await setup();
+    const spy = vi.spyOn(h.metrics as unknown as { increment: () => void }, 'increment').mockImplementationOnce(() => { throw new RangeError('observer'); });
+    await withAudit(h.db, () => h.clock.now, { actor: { type: 'system', id: 'unit' }, toolAccountId: null, traceId: null, clientIp: null,
+      action: 'settings.rate_limits', target: { type: 'settings', id: null } }, (audit) => audit.change(() => 1));
+    spy.mockRestore();
+    expect(listAuditEvents(h.db, { action: 'settings.rate_limits', limit: 10 }).events).toHaveLength(1);
+    expect(h.lines).toContainEqual(expect.objectContaining({ event: 'metrics_observer_failed', source: 'audit', error: 'RangeError' }));
   });
 
   it('reads key gauges at scrape time and exposes only metadata', async () => {
@@ -210,5 +251,60 @@ describe('metrics collection', () => {
     expect(text).toContain(`lti_platform_rate_limited_total{platform_id="${platform.id}"} 1\n`);
     expect(text).toContain('lti_job_last_success_timestamp_seconds{job="retention"} 1800000000\n');
     for (const secret of ['private.example', 'learner', 'person@example.test', 'unregistered-path-value']) expect(text).not.toContain(secret);
+  });
+
+  describe('platform observers (BD-A2-52, BD-A2-54)', () => {
+    const platformOn = (h: Awaited<ReturnType<typeof setup>>, name: string, jwksUrl: string, active = true) => createPlatform(h.db, 'cogniate', {
+      issuer: `https://${name}.test`, clientId: name, name, authEndpoint: `https://${name}.test/auth`, tokenEndpoint: `https://${name}.test/token`,
+      jwksUrl, deploymentIds: ['1'], active,
+    });
+    const answer = (status: number, body: unknown) => {
+      const bytes = Buffer.from(JSON.stringify(body));
+      return { status, body: bytes, headers: {}, text: () => bytes.toString(), json: () => JSON.parse(bytes.toString()) as unknown };
+    };
+
+    it('counts token failures and one JWKS failure per waiting verification, for stored platforms only', async () => {
+      const h = await setup();
+      const shared = 'https://shared.test/keys';
+      const [first, second] = [platformOn(h, 'first', shared), platformOn(h, 'second', shared)];
+      await ensureToolKey(h.db, h.provider, 'cogniate');
+      let tokenStatus = 401;
+      const outbound = { ...fakeOutbound(() => []), request: async (url: string) => url === shared ? answer(500, {}) : answer(tokenStatus, { access_token: 'unit', expires_in: 60 }) };
+      const tokens = createTokenClient({ db: h.db, masterKey: h.masterKey, outbound, logger: h.logger, now: () => h.clock.now, onTokenResult: h.metrics.tokenResult });
+      await expect(tokens.getToken(first, ['scope'], 'trace-token-1')).rejects.toThrow(ApiError);
+      tokenStatus = 200;
+      await tokens.getToken(second, ['scope'], 'trace-token-2');
+      const keys = createPlatformKeys(outbound, () => h.clock.now, h.metrics.jwksFetch);
+      // The first call starts the fetch; the second joins it. Each waiting call counts for its own platform.
+      await Promise.allSettled([keys.verify('a.b.c', shared, 'trace-jwks-1', first.id), keys.verify('a.b.c', shared, 'trace-jwks-2', second.id)]);
+      h.clock.now += 61_000;
+      await expect(keys.verify('a.b.c', shared, 'trace-jwks-3', 'unregistered-platform')).rejects.toThrow();
+      h.clock.now += 61_000;
+      await expect(keys.verify('a.b.c', shared, 'trace-jwks-4')).rejects.toThrow();
+      const text = await scrape(h);
+      expect(text).toContain(`lti_platform_token_failures_total{platform_id="${first.id}"} 1\n`);
+      expect(text).not.toContain(`lti_platform_token_failures_total{platform_id="${second.id}"}`);
+      for (const platform of [first, second]) expect(text).toContain(`lti_jwks_fetch_failures_total{platform_id="${platform.id}"} 1\n`);
+      expect(text).not.toContain('unregistered-platform');
+      expect(text.match(/^lti_jwks_fetch_failures_total/gm)).toHaveLength(2);
+    });
+
+    it('reports the cache age at scrape time for every active platform whose JWKS URL has an entry', async () => {
+      const h = await setup();
+      const shared = 'https://shared.test/keys';
+      const [first, second] = [platformOn(h, 'first', shared), platformOn(h, 'second', shared)];
+      const [unfetched, inactive] = [platformOn(h, 'unfetched', 'https://unfetched.test/keys'), platformOn(h, 'inactive', shared, false)];
+      const outbound = { ...fakeOutbound(() => []), request: async () => answer(200, { keys: [] }) };
+      const keys = createPlatformKeys(outbound, () => h.clock.now, h.metrics.jwksFetch);
+      h.metrics.readJwksAges(keys);
+      expect(await scrape(h)).not.toMatch(/^lti_jwks_cache_age_seconds\{/m);
+      // Only the first platform's launch fetches; the second shares the cache entry with no own call.
+      await expect(keys.verify('a.b.c', shared, 'trace-age', first.id)).rejects.toThrow();
+      h.clock.now += 30_000;
+      const text = await scrape(h);
+      expect(text).toContain('# TYPE lti_jwks_cache_age_seconds gauge\n');
+      for (const platform of [first, second]) expect(text).toContain(`lti_jwks_cache_age_seconds{platform_id="${platform.id}"} 30\n`);
+      for (const platform of [unfetched, inactive]) expect(text).not.toContain(platform.id);
+    });
   });
 });
