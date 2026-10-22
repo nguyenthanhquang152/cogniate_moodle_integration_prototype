@@ -22,7 +22,8 @@ export async function runBootstrap(input: BootstrapInput): Promise<BootstrapResu
     // LA-ADR-06 D6: bind the key ring before the first store call, so a new signing key uses the active ring version.
     await loadKeyProvider({ db, masterKey: config.masterKey });
     const { account, created, apiKey } = ensureAccount(db, {
-      id: input.account, name: input.name ?? input.account, appUrl: config.urls.app, rotateApiKey: input.rotateApiKey,
+      id: input.account, ...(input.name !== undefined ? { name: input.name } : {}),
+      appUrl: config.urls.app, rotateApiKey: input.rotateApiKey,
     });
     const kid = await ensureToolKey(db, config.masterKey, account.id, input.rotateSigningKey);
     return { account: account.id, created, kid, apiKey };

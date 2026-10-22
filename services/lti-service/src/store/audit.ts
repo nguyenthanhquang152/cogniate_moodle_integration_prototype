@@ -111,7 +111,7 @@ export interface AuditedRequest {
    * Run the change and insert its `ok` event in one transaction (rule 1). The event of `describe` may use the result,
    * for example the id of a new row. A throw rolls back the change and the event together.
    */
-  change<T>(fn: () => T, describe?: (result: T) => { target?: AuditTarget; details?: Record<string, unknown> | null }): T;
+  change<T>(fn: () => T, describe?: (result: T) => { action?: string; target?: AuditTarget; details?: Record<string, unknown> | null }): T;
 }
 
 /**
@@ -132,7 +132,7 @@ export async function withAudit<R>(
       const result = transaction(db, () => {
         const value = fn();
         const extra = describe?.(value) ?? {};
-        insertAuditEvent(db, { ...base, target: extra.target ?? base.target, details: extra.details ?? base.details ?? null, result: 'ok' }, now());
+        insertAuditEvent(db, { ...base, action: extra.action ?? base.action, target: extra.target ?? base.target, details: extra.details ?? base.details ?? null, result: 'ok' }, now());
         return value;
       });
       written = true;

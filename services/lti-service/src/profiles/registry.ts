@@ -1,5 +1,5 @@
 import type { ChannelRegistry, LoadedChannel } from '@cogniate/channel-kernel';
-import { buildChannelRegistry } from '@cogniate/channel-kernel';
+import { BASELINE_PROFILE_WIRE_LMS, RegistryError, buildChannelRegistry } from '@cogniate/channel-kernel';
 import { parseProfileSource } from './schema.ts';
 import type { ProviderProfile } from './types.ts';
 
@@ -22,6 +22,12 @@ export function buildProfileRegistry(loaded: readonly LoadedChannel[]): ProfileR
     if (source.refusedHostSuffixes) Object.freeze(source.refusedHostSuffixes);
     return Object.freeze({ ...source, channel, lms: source.wireLms === undefined ? channel : source.wireLms });
   })).sort((a, b) => Number(a.simulation) - Number(b.simulation) || a.listOrder - b.listOrder || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const baselineOrder = Math.max(-1, ...profiles.filter((profile) => Object.hasOwn(BASELINE_PROFILE_WIRE_LMS, profile.id)).map((profile) => profile.listOrder));
+  for (const profile of profiles) {
+    if (!Object.hasOwn(BASELINE_PROFILE_WIRE_LMS, profile.id) && profile.listOrder <= baselineOrder) {
+      throw new RegistryError(profile.channel, 7, { reason: 'profile_list_order_invalid', detail: `profile "${profile.id}": listOrder must be greater than baseline maximum ${baselineOrder}` });
+    }
+  }
   const realProfiles = Object.freeze(profiles.filter((profile) => !profile.simulation && live.channel(profile.channel) !== null));
   const allProfiles = Object.freeze(profiles);
   return Object.freeze({

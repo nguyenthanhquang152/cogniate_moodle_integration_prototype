@@ -5,6 +5,7 @@ import { LtiServiceError } from '../clients/lti-client.ts';
 import { createConnection } from '../domain/connections.ts';
 import { ensureLibrary } from '../domain/libraries.ts';
 import type { LmsType } from '../providers/types.ts';
+import { providerOf } from '../providers/index.ts';
 import type { TestApp } from '../testkit.ts';
 import { QA_B, TEST_URLS, THANH, testApp } from '../testkit.ts';
 
@@ -18,7 +19,7 @@ function connection(lms: LmsType = 'canvas', libraryName = THANH.library, profil
   return createConnection(t.db, library.id, {
     name: 'School', siteUrl: 'https://school.example.test', serviceUrl: 'https://school.instructure.com',
     method: 'manual', channel: lms, profile: lms === 'canvas' ? profile : lms === 'moodle' ? 'standard' : 'blackboard',
-  }, null, t.clock.now, TEST_CHANNELS, 'exclusive');
+  }, null, t.clock.now, TEST_CHANNELS, providerOf(lms)!.sharingOf);
 }
 const pathOf = (id: string) => `/app-api/connections/${id}/canvas-configuration`;
 const get = (path: string) => t.app.inject({ method: 'GET', url: path, headers: { cookie, 'x-trace-id': 'canvas-export-trace-123' } });

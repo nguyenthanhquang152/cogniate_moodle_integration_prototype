@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { openSqlite, sha256Hex } from '@cogniate/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDb } from '../db/index.ts';
-import { findAccountByApiKey } from './accounts.ts';
+import { useApiKey } from './api-keys.ts';
 import {
   OPERATOR_KEY_DEFAULT_TTL_MS, findActiveOperatorKey, hasActiveOperatorKey, initOperatorKey, issueOperatorKey, listOperatorKeys, operatorKeyExpiryInRange,
   operatorKeyMaxExpiry, revokeOperatorKey,
@@ -36,7 +36,7 @@ describe('operator key storage', () => {
   it('keeps the two credential grammars apart: no tenant lookup of an ltio_ key, no operator lookup of an ltis_ key', () => {
     const db = openDb(':memory:');
     const { operatorKey } = issueOperatorKey(db, { operator: 'alice', expiresAt: T0 + HOUR }, T0);
-    expect(findAccountByApiKey(db, operatorKey)).toBeNull();
+    expect(useApiKey(db, operatorKey, T0)).toBeNull();
     // An ltis_ value with the hash of a stored operator key still fails: the grammar check comes first.
     const tenantForm = `ltis_${operatorKey.slice(5)}`;
     db.prepare('UPDATE operator_key SET key_hash = ?').run(sha256Hex(tenantForm));
