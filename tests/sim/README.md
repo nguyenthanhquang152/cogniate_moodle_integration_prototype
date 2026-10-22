@@ -62,9 +62,9 @@ Every new option defaults to the baseline M1/M2 behaviour when you omit it. When
 - **Core / provider overrides (`LA-E7-02`)**: `issuer`, `family`, `documentTarget`, `dlData` (`'claim'` or `'query'`), `dlSubject` (boolean), `dlWindowHint` (boolean, default `true`), `tokenAudience` (`'string'`, `'array'`, or a custom audience URI), `allowNonUuidDeployment` (boolean).
 - **Dynamic Registration (`LA-E7-05`)**: `dr` object or top-level `secondTokenHost`, `tokenHost`, `tokenEndpoint`, `authorizationServer`, `registrationTokenFormat` (`'opaque-bearer'` or `'moodle-scope-jwt'`), `dr.operation` (`'new'` or `'update'`), `scopesSupported`, `messagesSupported`.
 - **Throttling (`LA-E7-05`)**: `scoreAnswers`, `tokenAnswers` (or `tokenAnswer` / `tokenStatus` / `tokenError`), `nrpsAnswers` / `membershipsAnswers` (each item can set `status`, `retryAfter`, `headers`, `message`, `error`).
-- **Deep Linking (`LA-E7-05`)**: `acceptMultiple`, `acceptLineitem`, `acceptMediaTypes`, `dlSettings` / `deepLinkingSettings`; the return endpoint accepts `content_items: []` (Cancel) and `1..20` items when `accept_multiple` is true.
+- **Deep Linking (`LA-E7-05`)**: `acceptMultiple`, `acceptLineitem`, `acceptMediaTypes`, `dlSettings` / `deepLinkingSettings` (merged into the default `deep_linking_settings`, while `claims[DL + 'deep_linking_settings']` replaces it), `dlAllowCancel: true` (or `allowCancel: true`, which allows `content_items: []` on return; default refuses empty `content_items`), and `1..20` items when `accept_multiple` is true.
 - **NRPS (`LA-E7-05`)**: `members` (or `nrpsMembers`, default `[]`).
-- **Platform storage (`LA-E7-05`)**: `storageTarget` (or `platformStorage: true`, default omitted).
+- **Platform storage (`LA-E7-05`)**: `storageTarget` (or `platformStorage: true`, default omitted); `/__storage` partitions by the `postMessage` sender origin (`x-storage-origin`).
 - **Should / Could (`LA-E7-05`)**: `secondKey` / `useSecondKey` / `jwksKeys`, `institutionAdmin` / `adminRole`, `tokenError: 'invalid_client'`, `extraAud`, `ungradedPlacement`.
 
 ## Host-Only Self-Tests

@@ -94,14 +94,7 @@ export function createProvider(runtime, config) {
       }
       claims[DL + 'deep_linking_settings'] = dlSettings;
     }
-    const extraClaims = structuredClone(scenario.claims ?? {});
-    if (extraClaims[DL + 'deep_linking_settings'] && claims[DL + 'deep_linking_settings']) {
-      extraClaims[DL + 'deep_linking_settings'] = {
-        ...claims[DL + 'deep_linking_settings'],
-        ...extraClaims[DL + 'deep_linking_settings'],
-      };
-    }
-    Object.assign(claims, extraClaims);
+    Object.assign(claims, structuredClone(scenario.claims));
     for (const field of scenario.omit) delete claims[field];
     switch (scenario.fault) {
       case 'wrong-issuer': claims.iss = 'https://wrong-issuer.sim.test'; break;
@@ -313,16 +306,19 @@ export function createProvider(runtime, config) {
     required(!runtime.dlNonces.has(claims.nonce), 'DL replay');
     const items = claims[DL + 'content_items'];
     required(Array.isArray(items), 'DL content_items array');
-    const dlSettings = {
-      ...(scenario.dlSettings ?? scenario.deepLinkingSettings ?? {}),
-      ...(scenario.claims?.[DL + 'deep_linking_settings'] ?? {}),
-    };
+    const dlSettings = scenario.claims?.[DL + 'deep_linking_settings']
+      ?? {
+        ...(scenario.dlSettings ?? scenario.deepLinkingSettings ?? {}),
+      };
     const allowMultiple = Boolean(scenario.acceptMultiple ?? dlSettings.accept_multiple ?? scenario.dlMultiple);
+    const allowCancel = Boolean(
+      scenario.dlAllowCancel ?? scenario.allowCancel ?? scenario.allowEmptyDl ?? dlSettings.allow_cancel ?? false,
+    );
     const lineitemDisabled = scenario.acceptLineitem === false || scenario.acceptLineItem === false
       || dlSettings.accept_lineitem === false || scenario.ungradedPlacement === true
       || scenario.placement === 'ungraded' || scenario.dlUngraded === true;
     if (items.length === 0) {
-      required(scenario.dlAllowCancel !== false, 'DL cancel not allowed');
+      required(allowCancel, 'DL item count');
     } else if (allowMultiple) {
       required(items.length >= 1 && items.length <= 20, 'DL item count');
     } else {
@@ -605,8 +601,13 @@ export function createProvider(runtime, config) {
   }
 
   function storageMessage(request) {
-    const senderOrigin = String(request.headers.origin ?? request.headers['x-storage-origin'] ?? '');
-    required(senderOrigin.startsWith('https://') && senderOrigin !== 'https://*', 'Storage sender origin');
+    const senderOrigin = String(request.headers['x-storage-origin'] ?? request.headers.origin ?? '');
+    required(
+      senderOrigin.startsWith('https://')
+        && senderOrigin !== 'https://*'
+        && senderOrigin !== `https://${request.host}`,
+      'Storage sender origin',
+    );
     const data = JSON.parse(request.body || '{}');
     required(data && typeof data === 'object', 'Storage message object');
     required(data.subject === 'lti.put_data' || data.subject === 'lti.get_data', 'Storage message subject');

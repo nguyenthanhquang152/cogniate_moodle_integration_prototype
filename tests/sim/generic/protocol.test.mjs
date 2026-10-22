@@ -1,6 +1,7 @@
 // HARNESS ONLY self-tests of the generic LTI 1.3 and Moodle-shaped simulator module (LA-E7-02).
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import vm from 'node:vm';
 import { makeSigner, verifyJwt } from '../core/crypto.mjs';
 import { AGS, DL, LTI, NRPS, SCOPES, createRuntime } from '../core/runtime.mjs';
 import { loadProviders } from '../server.mjs';
@@ -501,7 +502,37 @@ test('HARNESS ONLY: LA-E7-05 Deep Linking options (accept_multiple, accept_linei
     ...extra,
   });
 
-  // 1. Empty content_items: [] (Cancel) is accepted and recorded
+  // 1a. By default (dlAllowCancel not set), an empty content_items: [] is refused
+  const refusedEmptyRes = await f.request('generic.sim.test', generic.sites[0].dlReturn, 'POST', {
+    JWT: makeDlJwt('dl-empty-refused-nonce', []),
+  });
+  assert.equal(refusedEmptyRes.status, 400);
+  assert.equal(JSON.parse(refusedEmptyRes.body).error, 'DL item count');
+
+  // 1b. Setting scenario.claims[DL + 'deep_linking_settings'] replaces the computed claim object
+  const replaceClaimScenario = {
+    id: 'gen-dl-replace-claim',
+    provider: 'generic-sim',
+    clientId: 'gen-dl-replace-client',
+    deploymentId: generic.deployments[0],
+    siteHost: 'generic.sim.test',
+    messageType: 'LtiDeepLinkingRequest',
+    claims: {
+      [DL + 'deep_linking_settings']: {
+        deep_link_return_url: 'https://generic.sim.test/lti/deep-link/return',
+        accept_types: ['ltiResourceLink'],
+      },
+    },
+  };
+  f.runtime.scenario(replaceClaimScenario);
+  const replacedClaims = await idToken(f, generic, replaceClaimScenario);
+  assert.deepEqual(replacedClaims[DL + 'deep_linking_settings'], {
+    deep_link_return_url: 'https://generic.sim.test/lti/deep-link/return',
+    accept_types: ['ltiResourceLink'],
+  });
+
+  // 1c. With dlAllowCancel: true set on the scenario, empty content_items: [] (Cancel) is accepted and recorded
+  f.runtime.scenario({ ...dlScenario, dlAllowCancel: true });
   const cancelRes = await f.request('generic.sim.test', generic.sites[0].dlReturn, 'POST', {
     JWT: makeDlJwt('dl-cancel-nonce', [], { [DL + 'msg']: 'Selection cancelled' }),
   });
@@ -579,52 +610,110 @@ test('HARNESS ONLY: LA-E7-05 platform storage (lti_storage_target, lti.put_data 
   const frameRes = await f.request('generic.sim.test', `/__frame?url=${encodeURIComponent(`${TOOL}/lti/login/cogniate`)}`);
   assert.equal(frameRes.status, 200);
   assert.match(frameRes.body, /name="post_message_forwarding"/);
-  assert.equal((await f.request('generic.sim.test', '/__storage', 'GET')).status, 200);
+  const storageFramePage = await f.request('generic.sim.test', '/__storage', 'GET');
+  assert.equal(storageFramePage.status, 200);
 
-  // lti.put_data and lti.get_data enforce sender origin and echo message_id
-  const putRes = await f.request('generic.sim.test', '/__storage', 'POST', {
+  // Execute the storage frame's inline <script> the way a browser does:
+  // the frame runs on https://generic.sim.test, so its same-origin fetch('/__storage', { method: 'POST' })
+  // sends Origin: 'https://generic.sim.test' alongside the frame's 'x-storage-origin': event.origin header.
+  const scriptMatch = /<script>([\s\S]*?)<\/script>/.exec(storageFramePage.body);
+  assert.ok(scriptMatch, 'storage frame includes inline <script>');
+  let messageListener = null;
+  const browserContext = vm.createContext({
+    Map,
+    JSON,
+    window: {
+      addEventListener(type, fn) {
+        if (type === 'message') messageListener = fn;
+      },
+    },
+    fetch: async (path, init = {}) => {
+      const headers = {
+        ...(init.headers ?? {}),
+        // A browser always sets Origin to the frame's own auth-host origin on a same-origin POST.
+        origin: `https://${generic.auth.host}`,
+      };
+      const res = await f.request(generic.auth.host, path, init.method ?? 'GET', JSON.parse(init.body ?? '{}'), headers);
+      return {
+        ok: res.status >= 200 && res.status < 300,
+        status: res.status,
+        json: async () => JSON.parse(res.body),
+      };
+    },
+  });
+  vm.runInContext(scriptMatch[1], browserContext);
+  assert.equal(typeof messageListener, 'function');
+
+  async function postToStorageFrame(senderOrigin, data) {
+    const replies = [];
+    await messageListener({
+      origin: senderOrigin,
+      data,
+      source: {
+        postMessage(msg, targetOrigin) {
+          replies.push({ msg, targetOrigin });
+        },
+      },
+    });
+    return replies;
+  }
+
+  // Browser postMessage from TOOL stores and replies to TOOL (not to the auth host Origin)
+  const putReplies = await postToStorageFrame(TOOL, {
     subject: 'lti.put_data',
     message_id: 'msg-put-1',
     key: 'state-123',
     value: 'nonce-abc',
-  }, { 'content-type': 'application/json', origin: TOOL });
-  assert.equal(putRes.status, 200);
-  const putBody = JSON.parse(putRes.body);
-  assert.deepEqual(putBody.response, { subject: 'lti.put_data.response', message_id: 'msg-put-1' });
-  assert.equal(putBody.targetOrigin, TOOL);
+  });
+  assert.deepEqual(putReplies, [
+    {
+      msg: { subject: 'lti.put_data.response', message_id: 'msg-put-1' },
+      targetOrigin: TOOL,
+    },
+  ]);
 
-  // Same origin gets the stored value with its own message_id
-  const getSame = await f.request('generic.sim.test', '/__storage', 'POST', {
+  // Same sender origin gets the stored value with its own message_id and targetOrigin === TOOL
+  const getSameReplies = await postToStorageFrame(TOOL, {
     subject: 'lti.get_data',
     message_id: 'msg-get-2',
     key: 'state-123',
-  }, { 'content-type': 'application/json', origin: TOOL });
-  assert.equal(getSame.status, 200);
-  assert.deepEqual(JSON.parse(getSame.body).response, {
-    subject: 'lti.get_data.response',
-    message_id: 'msg-get-2',
-    value: 'nonce-abc',
   });
+  assert.deepEqual(getSameReplies, [
+    {
+      msg: { subject: 'lti.get_data.response', message_id: 'msg-get-2', value: 'nonce-abc' },
+      targetOrigin: TOOL,
+    },
+  ]);
 
-  // Different sender origin does NOT get the first origin's data
-  const getOtherOrigin = await f.request('generic.sim.test', '/__storage', 'POST', {
+  // Different sender origin does NOT get the first origin's data, even though both frame POSTs
+  // carry the same browser HTTP Origin header (https://generic.sim.test)
+  const getOtherReplies = await postToStorageFrame('https://other-tool.test', {
     subject: 'lti.get_data',
     message_id: 'msg-get-3',
     key: 'state-123',
-  }, { 'content-type': 'application/json', origin: 'https://other-tool.test' });
-  assert.equal(getOtherOrigin.status, 200);
-  assert.deepEqual(JSON.parse(getOtherOrigin.body).response, {
-    subject: 'lti.get_data.response',
-    message_id: 'msg-get-3',
   });
+  assert.deepEqual(getOtherReplies, [
+    {
+      msg: { subject: 'lti.get_data.response', message_id: 'msg-get-3' },
+      targetOrigin: 'https://other-tool.test',
+    },
+  ]);
 
-  // Missing origin or missing message_id is rejected
+  // Direct same-origin POST without x-storage-origin (Origin === auth host) or missing message_id is rejected
+  assert.equal(
+    (await f.request(generic.auth.host, '/__storage', 'POST', {
+      subject: 'lti.get_data',
+      message_id: 'msg-get-self',
+      key: 'state-123',
+    }, { 'content-type': 'application/json', origin: `https://${generic.auth.host}` })).status,
+    400,
+  );
   assert.equal(
     (await f.request('generic.sim.test', '/__storage', 'POST', {
       subject: 'lti.get_data',
       message_id: '',
       key: 'state-123',
-    }, { 'content-type': 'application/json', origin: TOOL })).status,
+    }, { 'content-type': 'application/json', 'x-storage-origin': TOOL })).status,
     400,
   );
 
