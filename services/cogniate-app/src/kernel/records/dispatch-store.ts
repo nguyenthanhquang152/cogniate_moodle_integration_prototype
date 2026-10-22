@@ -45,7 +45,7 @@ function needsConfirmation(db: Db, id: string): boolean {
  * SQL condition: the partition of the row `alias` has a running 429 pause (LA-ADR-03 D7 "429"), that is, one of its
  * rows has a `not_before` after now (one `?`). Every status counts: a row that failed at the end of its own 24 h
  * window, or that a better result superseded, still carries the platform's Retry-After. The partial index
- * `record_dispatch_pause` (app migration 016) serves the check: the plan is "SEARCH paused USING COVERING INDEX
+ * `record_dispatch_pause` (app migration 017) serves the check: the plan is "SEARCH paused USING COVERING INDEX
  * record_dispatch_pause (partition_key=? AND not_before>?)", not a scan of every row ever written.
  */
 export const partitionPaused = (alias: string): string => `EXISTS (SELECT 1 FROM record_dispatch paused
