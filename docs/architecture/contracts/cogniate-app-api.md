@@ -806,7 +806,9 @@ Depends on the "Cogniate HTML export markup v1" (Q7):
 | `input[data-cog-correct="true" | "false"]` inside it | one option; `true` = correct |
 | `a[href$=".html"]` without a scheme | internal link: the runtime removes `target` and `rel` |
 
-Rules: ADR-004 "HTML: option C". The runtime does not change package bytes. It attaches to each child document when `readyState` is `interactive` or `complete` (poll and `load`), never only on `load`, because a hanging external host blocks `load`.
+Rules: ADR-004 "HTML: option C". The runtime does not change package bytes. It attaches to each child document that it observes when `readyState` is `interactive` or `complete`, never only on `load`, because a hanging external host blocks `load`.
+
+Observation (M3 repair R1, product `4008afb`): a document that a check sees while it is `loading` gets one `DOMContentLoaded` listener, and the runtime attaches at that event. A fast check runs every 10 ms on the runtime page's timers: at the start, and after `pagehide` on the window of an observed child document. It stops when a check sees a new document, or after 5 s. The 150 ms check and the frame `load` check stay as fallbacks. The runtime does not observe every document: a document that is parsed and replaced between two checks is not seen. ADR-004 "HTML: option C" lists the limits.
 
 ## 10. Score sync worker — T5a (retry schedule and Resend: T5b)
 

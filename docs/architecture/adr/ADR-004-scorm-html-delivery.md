@@ -43,7 +43,18 @@ Facts from the packages (read in full; flows §6c, §6d):
 
 **HTML: option C.**
 
-- The HTML runtime frames the package entry page on the same origin and attaches listeners to each child document as soon as it is parsed (`readyState` is `interactive` or `complete`; poll and also listen for `load`). It does **not** wait for the `load` event: a hanging external host (S3 images, Google fonts) blocks `load` forever (T5-spike, verified).
+- The HTML runtime frames the package entry page on the same origin. It attaches listeners to each child document that it observes, as soon as that document is parsed (`readyState` is `interactive` or `complete`). It does **not** wait for the `load` event: a hanging external host (S3 images, Google fonts) blocks `load` forever (T5-spike, verified).
+- How the runtime observes child documents (M3 repair R1, 2026-10-22, product `4008afb`, `watchFrame` in `apps/player/src/html/tracker.ts`):
+  - A check reads the current document of the frame. It ignores `about:blank` and a document that it cannot read (not same-origin).
+  - When a check sees a document that is still `loading`, the runtime adds one `DOMContentLoaded` listener to it and attaches at that event. When a check sees a parsed document, the runtime attaches at that check. The runtime attaches each document not more than one time.
+  - Fast check: every 10 ms, on the timers of the runtime page (not of the child). It starts when the watch starts, before the runtime sets the frame `src`. It starts again when the browser fires `pagehide` on the window of an observed child document. It stops when a check sees a new document, or after 5 s.
+  - Fallback: a check every 150 ms, and a check on each frame `load` event.
+  - `stop()` ends all checks and removes the hooks that it can reach. The production runtime does not call `stop()`.
+- Limits of this observation (nonblocking prototype residuals, deferred by the Lead on 2026-10-22):
+  - The runtime does not observe every document. It does not see a document that appears, is parsed and is replaced between two checks. The nominal check intervals are 10 ms during a fast check and 150 ms at other times. They are not guaranteed: the browser can run a check later (for example, when it is busy or the tab is hidden). So a document that exists for longer than one interval can also be missed. An answer that a learner gives before the page is parsed does not count.
+  - In the HTML standard, a document that never reaches `load` does not get `pagehide`. Then the runtime finds the next document only with the fallback checks, and with `DOMContentLoaded` if a check sees the document while it is loading. The real Chromium behavior in this case is UNVERIFIED (A-TR-01).
+  - If the first package document arrives more than 5 s after the watch starts, the runtime finds it only with the fallback checks, and with `DOMContentLoaded` if a check sees it while it is loading.
+  - The runtime keeps a record of each observed document until the runtime page closes (A-TR-02, B-M3TR-01). The frame has one window proxy, so `stop()` cannot remove a `pagehide` listener from the window of a replaced document. That listener does nothing after `stop()` (A-TR-04, B-M3TR-02). The unit tests use one window object for each document, so they do not show this browser behavior.
 - Rules (same as the SCORM package):
   - A page is seen after `minDwellMs` (10 s) of visible time and a scroll to the end (24 px slack, or the page is shorter than the viewport).
   - The menu page (`index`, when there is more than one page) is seen on visit.
