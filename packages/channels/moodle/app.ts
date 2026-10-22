@@ -39,7 +39,7 @@ const setup: ConnectionSetup = {
   },
   toolConfiguration: (ctx) => moodleToolRows(ctx.urls, ctx.libraryName),
   parseBindingBody: (body, ctx) => {
-    if (body != null && (typeof body !== 'object' || Array.isArray(body))) return { ok: false, fields: ['body'] };
+    if (body !== null && body !== undefined && (typeof body !== 'object' || Array.isArray(body))) return { ok: false, fields: ['body'] };
     const obj = body !== null && typeof body === 'object' && !Array.isArray(body) ? body as Record<string, unknown> : {};
     const bad = Object.keys(obj).filter((key) => !(PLATFORM_FIELDS as readonly string[]).includes(key));
     const values: Record<string, string> = {};
