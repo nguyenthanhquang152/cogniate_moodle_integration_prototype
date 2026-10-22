@@ -1,11 +1,118 @@
 Verdict: FAIL
-Round: 1
+Round: 2
 
 # LA design: QA testability review (G-DESIGN)
 
 Reviewer: QA (dedicated, independent; task LA-QT, retry dispatch `ctx_8ea334f6cd89`). Date: 2026-10-22. Design under review: the 15 files of `docs/architecture/ltiaas/**` at `19476fc9ae7dbb6599ee41a038bbd10fae34b9da`. Checklist: [TEST-STRATEGY §7](../../../tests/ltiaas/TEST-STRATEGY.md) (TD-01 to TD-16). Lead decisions used: plan v1.2 §6.1 LD-1 to LD-8 (`docs/team/ltiaas/plan.md:190-201`). Severity: base charter §5 and TEST-STRATEGY §7 (a Must point without an achievable oracle is MAJOR; a Should or Could gap is MINOR).
 
 Independence: QA did not read `reviewer-a.md` or `reviewer-b.md`. QA read only messages addressed to its own handle. Exposure note: while QA checked a regression question, one `grep` read about 5 lines of LTI service source (`services/lti-service/src/store/registrations.ts`, the `expires_at` field) and listed `services/lti-service/src/store/`. The tasks README §2 does not allow QA to read service source. QA did not use these lines; Q-LAD-20 cites the base contract instead.
+
+## Round 2
+
+Design under review: the 15 design files at `877d951ccce1efa29bab6867b5c102ca0407c1ed` (previous: `19476fc`), with the response files `docs/architecture/ltiaas/review-response-R1-A1.md` and `review-response-R1-A2.md`. Plan v1.2 with LD-9 (`docs/team/ltiaas/plan.md:202`) and OC-9 (commit `0b18dcb`). Task LA-QT2, dispatch `ctx_c9eff3e6fa01`. Independence: QA did not open `reviewer-a.md` or `reviewer-b.md`. The response files cite their finding ids, and QA read only those rows. QA read only messages addressed to its own handle.
+
+### R2.0 Summary
+
+All 9 open round-1 findings are closed, also the MAJOR Q-LAD-14 (the API key expiry boundary is now an Author unit test with a controlled clock). No answer was "deferred" or "disputed" for a QA finding.
+
+The verdict is FAIL because of one new MAJOR in the changed text:
+
+- **Q-LAD-23 (MAJOR):** the new instance heartbeat rule of the job runner (LA-ADR-03 D7) makes a restarted service exit 1 for up to 30 s. That contradicts "recovery is immediate, as today" in the same row, and it changes the restart behaviour that the frozen T5b and M1 restart checks use.
+
+New cheap MINOR fixes: Q-LAD-24 (two oracles for the I-SELF K1 negative case), Q-LAD-25 (manifest `storage` field missing from the sketch), Q-LAD-26 (K2 priority wording), Q-LAD-27 (AP-06-05 isolation).
+
+Open after round 2: **BLOCKER 0, MAJOR 1, MINOR 4, NIT 0.**
+
+### R2.1 Re-check of the round-1 findings at `877d951`
+
+| Id | Round-1 severity | Response | Status | Evidence at `877d951` |
+| --- | --- | --- | --- | --- |
+| Q-LAD-14 | MAJOR | fixed (A2) | **Closed** | `adr/LA-ADR-06-service-operability.md:230` (expiry 1 hour to 2 years; outside the range `400 INVALID_REQUEST`, field `expiresAt`; the same rules for operator keys); `:242` (AP-06-21: SIM lane checks only the `400` part, with no wait; the boundary at `expires_at ± 1 s` is an Author unit test with a controlled clock, for both key kinds); `:448` (Author unit row), `:449` (SIM-lane row: "the `400` part of AP-06-21"); `contracts/lti-service-api-delta.md:200`, `:211`. TD-12 is met. |
+| Q-LAD-15 | MINOR | fixed (A2; A1 for OC-7) | **Closed** | AP-06-15 is an Author migration test (`adr/LA-ADR-06-service-operability.md:216`, `:448`); `init --if-none` in every `stack:up`, `--replace` for a lost key file (`:160`, `:425`); AP-06-13 names its command and checks a second `stack:up` (`:186`); the command form is OC-7 (c) (`README.md:352`; `adr/LA-ADR-06-service-operability.md:476`). |
+| Q-LAD-16 | MINOR | fixed (A1, A2) | **Closed** | LA-IC-14 in `adr/LA-ADR-04-refactor-and-migration.md:144` and `adr/LA-ADR-05-lti-advantage-completeness.md:317`, with the three M1 lines and the K0 projection golden. |
+| Q-LAD-17 | MINOR | fixed (A1, A2) | **Closed** | `wireLms` profile data (`adr/LA-ADR-01-channel-kernel.md:343`; load check 7 at `:182` allows it only on the baseline profiles); `adr/LA-ADR-04-refactor-and-migration.md:66`; `contracts/lti-service-api-delta.md` §4.7. |
+| Q-LAD-18 | MINOR | fixed (A1, A2) | **Closed** | `fitness-scope.json` from S2 (`README.md:102`; `adr/LA-ADR-04-refactor-and-migration.md:41`); each F5 rule has a start step (`adr/LA-ADR-04-refactor-and-migration.md:53`; `README.md:120`; `adr/LA-ADR-06-service-operability.md:452`). |
+| Q-LAD-19 | MINOR | fixed (A1) | **Closed** | `adr/LA-ADR-01-channel-kernel.md:263`: `services/cogniate-app/src/kernel/ports.ts` holds every named type; it is a public interface file that QA may read and import (types only) from S5. |
+| Q-LAD-20 | MINOR | fixed (A2) | **Closed** (residual MINOR Q-LAD-27) | `LTI_RATE_LIMITS` and the operator API can set every class and `registrationSessionsPerAddress` (`adr/LA-ADR-06-service-operability.md:87`); the account classes are soft (`:103`); E0 records peak rates and open sessions (`:433`). |
+| Q-LAD-21 | MINOR | fixed (A1) | **Closed** | `README.md:132` (acceptance per step; a step 3 failure is a dependency finding). |
+| Q-LAD-22 | NIT | fixed (A2) | **Closed** | `adr/LA-ADR-05-lti-advantage-completeness.md:115` (no `303` and no ltik), `:118` (the error page, not the storage-check page). |
+
+### R2.2 New findings
+
+#### Q-LAD-23 — MAJOR — The instance heartbeat makes every same-slot restart exit 1 for up to 30 s
+
+- **Where:** `docs/architecture/ltiaas/adr/LA-ADR-03-learning-record-core.md:171` ("Instance id"); `:177` ("Worker process": the runner runs in the web process by default); `data-model.md:133-136` (`job_instance`); `operability.md:31`.
+- **Problem:** The row says: "A runner refuses to start when a live heartbeat (newer than 30 s) has the same id: `job_instance_conflict`, exit 1". The same row then says: "At start, the runner takes back at once the leases of its own instance id (the same slot restarted) … With one instance, recovery is immediate, as today". These two rules conflict. The old process writes its heartbeat every 10 s, and the design has no step that removes the row at stop. So after a crash, a deploy, or `npm run stack:restart -- cogniate-app` (`docker compose up -d --force-recreate --wait`, `infra/scripts/stack-restart.sh` line 74), the new process finds a heartbeat younger than 30 s with its own id and exits 1. The runner is in the web process, so the whole app is down until the old heartbeat is 30 s old and the restart policy starts it again.
+- **Evidence (regression proof, plan measure 3):**
+  - The frozen restart checks use this path: T5b AC-T5-30 "in flight and restart" (`tests/acceptance/T5b/8-supersede.spec.ts:70`), the T5b LTI service restart (`tests/acceptance/T5b/4-conflict-resend.spec.ts:73`, if the rule also covers the LTI service runner), and the M1 race and gate rows with `stack:restart` (`docs/architecture/tasks/README.md:59`). After E4 their timing changes by up to 30 s per restart. A deadline in a check can then fail with no `LA-IC` id.
+  - The P2 recovery (A-LAD-05, `adr/LA-ADR-03-learning-record-core.md:172`) needs exactly this same-slot restart to work at once.
+- **Fix (A1):** Keep the duplicate-id protection, but never refuse the same slot:
+  - The heartbeat row stores a random boot id.
+  - `stop()` deletes its own row.
+  - A start that finds a fresh heartbeat of its own id with another boot id does not exit. It waits until that heartbeat is 30 s old, or until the row is gone, and the web part serves at once. It exits with `job_instance_conflict` only when that other heartbeat keeps moving, which shows a second live process.
+  - State that a single-instance restart has today's timing, and add an Author unit test with a controlled clock. If the rule also applies to the LTI service runner (`operability.md:31` says "both"), say so in data-model §4.
+
+#### Q-LAD-24 — MINOR — The I-SELF K1 negative case has two launch oracles
+
+- **Where:** `adr/LA-ADR-02-generic-lti-channel.md:168` ("a launch before the grant gets `deployment_not_approved`"); `adr/LA-ADR-07-security-and-tenancy.md:83` (AP-07-11: "a learner launch of that platform gets `PLATFORM_NOT_ACTIVE`"). Also `adr/LA-ADR-05-lti-advantage-completeness.md:234` (AP-05-29, Should, Canvas DR: "`deployment_not_approved`"); QA missed this one in round 1.
+- **Problem:** A staged registration creates the platform **inactive** (`adr/LA-ADR-02-generic-lti-channel.md:118`, D5 item 10). The LTI service refuses a login to an inactive platform with `PLATFORM_NOT_ACTIVE` (`docs/architecture/security.md:27`; `docs/architecture/contracts/lti-service-api.md:81`). So the app never sees the launch, and `deployment_not_approved` cannot happen. The oracle follows from the rules, so QA uses AP-07-11. But a P3 AC copied from LA-ADR-02 or AP-05-29 would be wrong.
+- **Fix (A1 for LA-ADR-02, A2 for AP-05-29):** Change both texts to "the LTI service refuses the login with `PLATFORM_NOT_ACTIVE`", as AP-07-11 says.
+
+#### Q-LAD-25 — MINOR — The manifest sketch has no `storage` field
+
+- **Where:** `adr/LA-ADR-01-channel-kernel.md:306` ("Channel SQL may name only the tables and columns that its manifest lists in `storage`"); `README.md:120` (F5 uses that list); the `ChannelManifest` sketch at `adr/LA-ADR-01-channel-kernel.md:95-132` has no `storage` field.
+- **Problem:** K0 checks every manifest against the schema (TEST-STRATEGY §2.7), and QA's F5 probe for channel SQL needs the field's shape. Without it, the K0 schema case and the F5 probe cannot be written test-first (TD-08).
+- **Fix (A1):** Add `storage?: { tables: string[]; columns: string[] }` (or the chosen shape) to the D2 sketch, with the Moodle values.
+
+#### Q-LAD-26 — MINOR — The priority of K2 U1–U3 is stated two ways
+
+- **Where:** `README.md:326` (F7.7: K2 U1–U4 are **Must**); `adr/LA-ADR-05-lti-advantage-completeness.md:330` ("README F7.7 keeps the other K2 cases Could").
+- **Problem:** The A2 text says that U1–U3 are Could, but the README makes them Must. QA-E2E plans U1–U3 by this priority.
+- **Fix (A2):** Write "README F7.7 makes U1–U4 Must; other K2 checks (F7.9) are Could".
+
+#### Q-LAD-27 — MINOR — AP-06-05 is not isolated by a fresh account
+
+- **Where:** `adr/LA-ADR-06-service-operability.md:113` (AP-06-05: "On a fresh account …, so no other test loses its sessions"); `:103` and `contracts/lti-service-api-delta.md:101` (the cap counts open sessions per **client address**, not per account).
+- **Problem:** All QA requests come from one `e2e` address. With the cap set to 3, earlier open registration sessions of that address (K1-REG R3 Dynamic Registrations in the same lane; a session lives up to 1 hour, `docs/architecture/contracts/lti-service-api.md:159`) count too. So the "4th" session can be refused earlier, and while the cap is 3, other registration tests from that address fail. A fresh account changes nothing for a per-address cap.
+- **Fix (A2):** Either key the cap by (client address, tool account), so that a fresh account isolates the test and one sender still cannot fill another account's cap, or state the precondition "no open registration session from this address" (QA then gives AP-06-05 a run-order line: first registration test of a fresh lane) and restore the cap in the test's clean-up.
+
+### R2.3 Checklist changes since round 1 (TEST-STRATEGY §7.1)
+
+| Id | Round 1 | Round 2 | Note |
+| --- | --- | --- | --- |
+| TD-01 | met, with Q-LAD-18 | met | scope file from S2 |
+| TD-04 | met, with Q-LAD-17 | met | `wireLms`; `MANUAL_SELF_LEGACY_CHANNELS`, `LAUNCH_GUARD_CHANNELS` in `legacy-wire.ts` |
+| TD-08 | met, with Q-LAD-19 | met, with Q-LAD-25 | `ports.ts` public; the manifest `storage` field is missing |
+| TD-09 | met, with Q-LAD-16 | met | LA-IC-14; plan LD-9 test-change lists |
+| TD-12 | **missing** (Q-LAD-14) | met | expiry by a controlled clock; storage check 120 s by a unit test or one real wait |
+| TD-15 | met, except Q-LAD-14 | met, with Q-LAD-24 | the AP-07-11 oracle follows from the rules |
+| TD-13, TD-16 | met | met | build model and fitness checks from S2; extra root unchanged |
+
+The regression proof (§4 of the strategy) is affected by Q-LAD-23 (restart timing after E4).
+
+### R2.4 Can 2 Docker slots afford the proof?
+
+Yes, and with less slot time than in round 1. R1 now runs only before the PASS of the six runtime steps (`adr/LA-ADR-04-refactor-and-migration.md:113`):
+
+| Item | Count | Slot time |
+| --- | --- | --- |
+| R1 (M1 `sim`, M2, K1, golden) | 6 steps (S3, S4, S5, S6, S8, E4) | about 4 h on the SIM slot |
+| R2-lite (LD-8) | 4 steps (S3, S5, S6, S7) | about 0.7–1.7 h on the Moodle slot |
+| Migration steps (M1 `migration` and `snapshot-upgrade`, U1) | S4, E4 | about 45 min on the SIM slot |
+| Wave-end gate (also R1 for S1, S2, S7, S9) | 4 waves | about 1 h SIM in parallel with about 2.5 h Moodle each |
+
+Total: about 16–18 h of QA slot time over four waves. K2 U1–U4 are now Must, but they already were in the wave-end K2 run (QA-E2E, SIM lane, about 5 min per channel, estimate). If Q-LAD-23 stays as written, each app restart after E4 can add up to 30 s.
+
+### R2.5 QA-owned changes in this round, and open items
+
+| File | Change |
+| --- | --- |
+| `tests/ltiaas/TEST-STRATEGY.md` v1.2 | README OC-11 and plan LD-9: §2.2 K2 row (U1–U4 Must, U5 Could); §2.4 K1-LAUNCH L4 (guard levels `launch` and `registration`), new K1-REG R6 (I-SELF negative case = AP-07-11, oracle `PLATFORM_NOT_ACTIVE`); §2.6 pass rule (K2 U1–U3 per channel); §2.8 generic provider (foreign token host configuration); §4.2 and §4.4 (R1 only before the PASS of S3, S4, S5, S6, S8, E4; S1, S2, S7, S9 use R0 and the golden compare; R1 for them at the wave end); §4.3 and §4.7 (LD-9 test-change list per `LA-IC`; rows LA-IC-11 to LA-IC-14); §9.2 items 12 and 13. |
+
+| Open item | Owner |
+| --- | --- |
+| README OC-7: three QA command forms for the tasks README §2 (key-ring file and LTI restart for AP-06-24; `STACK_PROFILE=production` app CLI for AP-07-04 and AP-07-09; `lti:operator init` for AP-06-13). QA writes no test that needs them before P3 adds them (TEST-STRATEGY §9.2 item 12). | Lead, P3 breakdown |
+| TEST-STRATEGY §9.2 item 11: K1-CAP C2 joins a guarded capability only in the task that builds its route (`content.ungraded`, `setup.connectionCheck`). | Lead confirms in P3 |
 
 ## Round 1 summary
 
