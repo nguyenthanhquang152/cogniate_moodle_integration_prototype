@@ -428,6 +428,11 @@ Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-
 
 Every text that names an LMS uses `{LMS}` with the manifest text name: tool pages, player, `packages/tracking` status texts (`packages/tracking/src/status-text.ts:19`), LTI service error and registration pages, portal texts. The Moodle text name is `Moodle`, so Moodle texts stay byte for byte. Closed name unions (`'Moodle' | 'Canvas' | 'Blackboard'`, 22 lines in 13 files, R3 §1) become `string`.
 
+Build rulings (BD-A1-30, BD-A1-31, [build decisions A1](../build-decisions-A1.md)):
+
+- A text that belongs to a frozen code stays a frozen text, not an `{LMS}` template: `pendingToolText` of `MOODLE_TOOL_MAY_EXIST` (Moodle UI words "Manage tools", "Pending tool") moves byte for byte into `legacy-wire.ts` (LA-ADR-04 D2).
+- A text that lists several LMSs takes the names from data: the `ISSUER_RESERVED` action ("Connect it as Canvas or Blackboard in the Cogniate portal.") names the channels that own the reserved-issuer profiles (the same profiles as `reservedIssuerOrigins`), each once, in profile order (real before simulation, then `listOrder`, then id), joined as "X", "X or Y" or "X, Y or Z". Today this gives "Canvas or Blackboard" byte for byte. It is not derived from `LAUNCH_GUARD_CHANNELS`, which is a different, frozen concept.
+
 ## Alternatives considered
 
 | Alternative | Why not |
