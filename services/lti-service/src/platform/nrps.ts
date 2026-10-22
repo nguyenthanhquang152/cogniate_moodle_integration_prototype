@@ -1,5 +1,6 @@
 // NRPS 2.0 membership service; contract §3.7. Only identifiers, roles and status leave this client.
-import type { OutboundClient } from '@cogniate/shared';
+import type { Logger, OutboundClient } from '@cogniate/shared';
+import { createLogger } from '@cogniate/shared';
 import { z } from 'zod';
 import { ApiError } from '../api-errors.ts';
 import { isAllowedServiceUrl, withQuery } from '../lti/service-url.ts';
@@ -25,7 +26,8 @@ export interface NrpsContext {
 
 export interface MembershipsQuery { role?: string; limit?: number; resourceLinkId?: string; url?: string }
 
-export function createNrpsClient(deps: { outbound: OutboundClient; tokens: TokenClient }) {
+export function createNrpsClient(deps: { outbound: OutboundClient; tokens: TokenClient; logger?: Logger }) {
+  const logger = deps.logger ?? createLogger({ service: 'lti-service' });
   return {
     async listMemberships(ctx: NrpsContext, q: MembershipsQuery) {
       const base = ctx.nrpsClaim?.context_memberships_url;
@@ -43,7 +45,8 @@ export function createNrpsClient(deps: { outbound: OutboundClient; tokens: Token
           headers: { authorization: `Bearer ${token}`, accept: 'application/vnd.ims.lti-nrps.v2.membershipcontainer+json' },
         });
       } catch (err) { throw outboundFailureError(err); }
-      if (res.status < 200 || res.status >= 300) throw platformResponseError(res, { echoMessage: false }); // Roster errors must not echo personal data.
+      // Roster errors must not echo personal data.
+      if (res.status < 200 || res.status >= 300) throw platformResponseError(res, { echoMessage: false, context: { logger, platformId: ctx.platform.id, traceId: ctx.traceId } });
       let json: unknown;
       try { json = res.json(); } catch { throw badPlatformDataError('memberships are not JSON'); }
       const parsed = Memberships.safeParse(json);
