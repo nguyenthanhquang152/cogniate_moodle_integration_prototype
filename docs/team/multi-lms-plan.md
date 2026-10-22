@@ -4169,3 +4169,19 @@ Lead checked AC-M4-07's owned decision register against Q19-Q22 and ADR-011 sect
 All four questions and all D-1 through D-12 follow-ups are present with the required defaults.
 The decision-register SHA-256 is 84b95ce1992885fe9ca93597bd3dda53052b46900f7400f06d9db4ae1e1b8ae4.
 No human answer, tenant permission or production approval is implied. No register edit is needed.
+
+### 2026-10-22 13:16 UTC — tracker repair frozen and static guide reviews complete
+
+The same retained Codex executor completed R1 in msg_27da3a6fed26.
+Lead checked the 13-entry private artifact manifest and committed only the two held tracker paths at 4008afb92fe983d52db33442e060210b929966c8.
+Both new fail-before cases fail against C4. Author checks pass 14 tracker cases, 1,136 full unit tests and 111 infrastructure tests with zero skips.
+The initial five-skip run remains nonqualifying evidence. These author checks do not close independent acceptance.
+
+Independent Gemini ctx_729c0ea5fe95 may now check immutable C6 product and build output against C4.
+R2 remains with Common Gemini ctx_4a61106cc36c; Lead will freeze its held test paths separately.
+No Docker window is active. E-T5R remains conditional on independent build and exhaustive affected-row evidence.
+The failed legacy and full2 attempts keep their FAILED outcomes.
+
+Both guide static reviews approve 958ee5c: Reviewer-A 4c1f67b and Reviewer-B 64d439a.
+Lead accepts A-M4P-R2-01 as a nonblocking NIT; final Docs must list it with the other deferrals.
+Final conformance, evidence binding, independent Docs QA and final blind reviews remain required.
