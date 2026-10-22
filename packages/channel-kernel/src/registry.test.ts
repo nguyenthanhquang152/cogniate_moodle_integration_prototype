@@ -48,6 +48,19 @@ function failure(channels: LoadedChannel[]): RegistryError {
   throw new Error('the registry build passed');
 }
 
+it('accepts only the closed card icon name and keeps mark required', () => {
+  const original = testManifest();
+  const card = original.card as Json;
+  const valid = buildChannelRegistry([channel({ ...original, card: { ...card, icon: 'graduation-cap' } })], { simulations: false });
+  expect(valid.channel('zz-test')!.card.icon).toBe('graduation-cap');
+  expect(valid.channel('zz-test')!.card.mark).toBe('Z');
+  for (const icon of ['unknown', 'https://example.test/icon.svg', '<svg/>', () => null]) {
+    expect(failure([channel({ ...original, card: { ...card, icon } })]).message).toContain('card.icon');
+  }
+  const { mark: _mark, ...withoutMark } = card;
+  expect(failure([channel({ ...original, card: { ...withoutMark, icon: 'graduation-cap' } })]).message).toContain('card.mark');
+});
+
 describe('baseline channels (product root)', () => {
   it('loads moodle, canvas and blackboard in this order, with the M1 capability objects', async () => {
     const registry = buildChannelRegistry(await loadChannelFolders([PRODUCT_ROOT], 'app'), { simulations: false });
