@@ -1137,16 +1137,13 @@ describe('supplemental snapshot boundaries and retained cleanup history', () => 
 
   it('an unavailable adapter is refused before parsing and before any provider request', async () => {
     const { submit } = await endpoint('blackboard');
-    const { testSetupOf } = await import('../testkit.ts');
-    const blackboardProvider = testSetupOf('blackboard')!;
-    const parser = blackboardProvider.parseBindingBody;
+    const lookup = vi.spyOn(TEST_CHANNELS, 'appAdapter').mockReturnValue(null);
     try {
-      Reflect.deleteProperty(blackboardProvider, 'parseBindingBody');
       expect(code(await submit({ grantCode: '', unexpected: true }))).toBe('CAPABILITY_NOT_SUPPORTED');
       expect(t.lti.calls).toEqual([]);
       expect(events('grant_attempt_started')).toEqual([]);
     } finally {
-      blackboardProvider.parseBindingBody = parser!;
+      lookup.mockRestore();
     }
   });
 
@@ -1304,7 +1301,7 @@ describe('A-M1-03/04: bounded calls and cancellation at S2', () => {
     const lti = { ...t.lti.client, getProviders: remote.getProviders, getPlatform: remote.getPlatform, findPlatforms: remote.findPlatforms };
     if (kind === 'canvas') lti.createProviderPlatform = async () => { throw new LtiServiceError(409, 'PLATFORM_ALREADY_EXISTS', ''); };
     if (kind === 'add_deployment') lti.addDeployment = async () => { throw new LtiServiceError(409, 'DEPLOYMENT_ALREADY_EXISTS', ''); };
-    const engine = createRedemptionEngine({ channels: TEST_CHANNELS, db: t.db, lti, logger, now: () => t.clock.now });
+    const engine = createRedemptionEngine({ urls: TEST_URLS, channels: TEST_CHANNELS, db: t.db, lti, logger, now: () => t.clock.now });
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     let settled = false;
     const pending = engine.redeem({ connectionId: con.id, libraryId: libA, purpose: kind === 'add_deployment' ? kind : 'initial',

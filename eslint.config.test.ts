@@ -24,6 +24,8 @@ async function lint(file: string, code: string) {
 }
 
 const allowed: [string, string][] = [
+  ['app.ts', "import { toolName } from '@cogniate/channel-kernel/setup';"],
+  ['app/setup.ts', "import { parseStrictBody } from '@cogniate/channel-kernel/setup';"],
   ['manifest.ts', "import type { ChannelManifest } from '@cogniate/channel-kernel';"],
   ['manifest.ts', "import { type ChannelManifest } from '@cogniate/channel-kernel';"],
   ['manifest.ts', "export type { ChannelManifest } from '@cogniate/channel-kernel';"],
@@ -60,6 +62,10 @@ it.each(['helpers.ts', 'other/index.ts', 'package.json', 'helper', 'probe.test.t
 });
 
 const denied: [string, string][] = [
+  ['manifest.ts', "import { toolName } from '@cogniate/channel-kernel/setup';"],
+  ['lti-profiles.ts', "import { toolName } from '@cogniate/channel-kernel/setup';"],
+  ['portal/index.tsx', "import { toolName } from '@cogniate/channel-kernel/setup';"],
+  ['app.ts', "import { toolName } from '@cogniate/channel-kernel/src/setup.ts';"],
   ['manifest.ts', "import { buildChannelRegistry } from '@cogniate/channel-kernel';"],
   ['manifest.ts', "import type { X } from '@cogniate/channel-kernel/src/index.ts';"],
   ['manifest.ts', "import x from './app/x.ts';"],

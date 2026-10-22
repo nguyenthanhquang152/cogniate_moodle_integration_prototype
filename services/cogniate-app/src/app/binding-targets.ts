@@ -1,3 +1,5 @@
+import type { PublicUrls } from '@cogniate/shared';
+import { toolContext } from '../kernel/setup/common.ts';
 // Provider data of a binding (app contract §4.7.1 "Target", §4.7.3; accepted B-M1-03 design). The provider snapshot is
 // taken ONCE, at create, from that request's one GET /api/providers answer. Phase 1 of a redemption builds the target
 // from local rows only (the snapshot, or the persisted platform for `add_deployment`) and makes no LTI call; the S1 call
@@ -111,8 +113,8 @@ export function localTarget(c: Connection, purpose: GrantPurpose, values: Platfo
 }
 
 /** The S1 call of a committed target, built after the phase-1 commit (the engine adds `active: false` and the ref). */
-export function stagedCall(deps: { db: Db; lti: LtiClient }, c: Connection, target: BindingTarget, traceId: string, adapter: ConnectionSetup): (ref: string) => Promise<{ platformId: string }> {
-  const staged: StagedCreate = adapter.createRequest!(target, { libraryName: getLibrary(deps.db, c.libraryId)?.name ?? '' });
+export function stagedCall(deps: { db: Db; lti: LtiClient; urls: PublicUrls }, c: Connection, target: BindingTarget, traceId: string, adapter: ConnectionSetup): (ref: string) => Promise<{ platformId: string }> {
+  const staged: StagedCreate = adapter.createRequest!(target, { ...toolContext(deps.urls), libraryName: getLibrary(deps.db, c.libraryId)?.name ?? '' });
   return async (ref) => {
     if (staged.kind === 'platform') {
       if (!('profile' in staged.body)) throw new Error('operator grant create requires a profile');

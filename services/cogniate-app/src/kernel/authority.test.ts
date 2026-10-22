@@ -1,3 +1,7 @@
+import { authorityFor } from './authority/index.ts';
+import { getConnectionAnyLibrary } from '../domain/connections.ts';
+import { toolContext } from './setup/common.ts';
+import { TEST_URLS } from '../testkit.ts';
 import { buildChannelRegistry } from '@cogniate/channel-kernel';
 import type { ChannelManifest } from '@cogniate/channel-kernel';
 import { createLogger } from '@cogniate/shared';
@@ -27,12 +31,16 @@ const adapter: ConnectionSetup = {
   },
   initialTarget: ({ connection, values, profile }) => ({ kind: 'exclusive_platform', profile: connection.profile, issuer: profile.issuer!,
     clientId: values.clientId, deploymentId: values.deploymentId, siteUrl: connection.siteUrl, serviceUrl: connection.serviceUrl, platformId: null }),
-  createRequest: (target) => {
+  createRequest: (target, ctx) => {
+    expect(ctx).toMatchObject(toolContext(TEST_URLS));
     if (target.kind !== 'exclusive_platform') throw new Error('fixture needs an exclusive target');
     return { kind: 'platform', body: { profile: target.profile, url: target.issuer, clientId: target.clientId, name: 'Fixture', siteUrl: target.siteUrl, deploymentIds: [target.deploymentId] } };
   },
-  selfCreate: (v) => ({ kind: 'platform', body: { url: v.issuer, clientId: v.clientId, name: 'Fixture', authenticationEndpoint: v.authenticationEndpoint,
-    accesstokenEndpoint: v.accessTokenEndpoint, authConfig: { method: 'JWK_SET', key: v.jwksUrl }, deploymentIds: [v.deploymentId] } }),
+  selfCreate: (v, ctx) => {
+    expect(ctx).toMatchObject(toolContext(TEST_URLS));
+    return { kind: 'platform', body: { url: v.issuer, clientId: v.clientId, name: 'Fixture', authenticationEndpoint: v.authenticationEndpoint,
+    accesstokenEndpoint: v.accessTokenEndpoint, authConfig: { method: 'JWK_SET', key: v.jwksUrl }, deploymentIds: [v.deploymentId] } };
+  },
 };
 const channels = buildChannelRegistry([
   ...TEST_CHANNELS.channels().map((m) => ({ folder: `/test/${m.id}`, manifest: m, appAdapter: TEST_CHANNELS.appAdapter(m.id) })),
@@ -92,4 +100,50 @@ it('AC-04/05: zz-test stored self authority binds without a grant and disconnect
   expect((await disconnect()).statusCode).toBe(204);
   expect(t.lti.calls).toHaveLength(1);
   expect(t.lti.calls[0]).toMatch(/^PATCH platform \S+ \{"active":false\}$/);
+});
+
+it('refuses an unbuilt stored authority as a typed API error and one-line operator result', async () => {
+  const { c, op, bind, disconnect } = await setup();
+  t.db.prepare("UPDATE connection SET binding_authority = 'verifiedAdminLaunch' WHERE id = ?").run(c.id);
+  for (const response of [await bind({}), await disconnect()]) {
+    expect(response.statusCode).toBe(409);
+    expect(response.json()).toMatchObject({ details: { message: 'CAPABILITY_NOT_SUPPORTED' } });
+  }
+  for (const result of [await op.suspend(c.id, 'test', 'trace'), await op.release(c.id, 'test', 'trace')]) {
+    expect(result.exitCode).toBe(1);
+    expect(result.lines).toHaveLength(1);
+    expect(result.lines[0]).toContain('CAPABILITY_NOT_SUPPORTED');
+    expect(result.lines[0]).not.toContain('\n');
+  }
+  expect(getConnectionAnyLibrary(t.db, c.id)?.status).toBe('pending');
+});
+
+it.each(['self', 'operatorGrant'] as const)('suspends %s once and fences the reloaded disabled connection', async (authority) => {
+  const { c, op, input } = await setup();
+  expect((await op.issue(input)).exitCode).toBe(0);
+  t.db.prepare('UPDATE connection SET binding_authority = ? WHERE id = ?').run(authority, c.id);
+  const connection = getConnectionAnyLibrary(t.db, c.id)!;
+  const events: string[] = [];
+  const logger = createLogger({ service: 'test', write: (line) => events.push((JSON.parse(line) as { event: string }).event) });
+  const deps = { channels, db: t.db, lti: t.lti.client, logger, now: () => t.clock.now };
+  let fenced = 0;
+  const cleanup = { ...createBindingCleanup(deps), fenceOut: async (next: typeof connection) => {
+    fenced++;
+    expect(next).not.toBe(connection);
+    expect(next.status).toBe('disabled');
+    expect(t.db.prepare('SELECT revoked_reason FROM binding_grant WHERE connection_id = ?').get(c.id)?.revoked_reason).toBe('suspend');
+    return [];
+  } };
+  await authorityFor(connection, { ...deps, cleanup }).suspend(connection, 'trace');
+  expect(fenced).toBe(1);
+  expect(events.filter((event) => event === 'binding_suspended')).toHaveLength(1);
+});
+
+it('treats a missing redemption engine as a wiring error', async () => {
+  const { c } = await setup();
+  const connection = getConnectionAnyLibrary(t.db, c.id)!;
+  const strategy = authorityFor(connection, { channels, db: t.db, lti: t.lti.client,
+    logger: createLogger({ service: 'test', write: () => {} }), now: () => t.clock.now });
+  await expect(strategy.bind(connection, adapter, {}, { ...toolContext(TEST_URLS), libraryName: 'Library', traceId: 'trace' }))
+    .rejects.toThrow('operatorGrant bind needs the redemption engine');
 });
