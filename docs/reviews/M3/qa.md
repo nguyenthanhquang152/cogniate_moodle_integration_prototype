@@ -618,3 +618,18 @@ Verdict for this diagnostic: **PASS**. It gives no acceptance credit; the Lead v
 | AC-M3-07 privacy | Secret scan 0 problems (38 captured and 17 stack values); clone guard 0 problems | `secret-scan.json` `df6ba0b5…`, `clone-guard.json` `a4171bfc…` |
 
 Next: after Lead verification and a separate grant, two complete 488-row rounds on C4 and all 12 legacy groups from `<R>/full-src/source`. Fresh M2 and T7 stay required under another owner. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`.
+
+## Full run at candidate C4 `bf09cda`: FAIL in round 2 `snapshot-isolated` (`M3-ISOLATION`, non-owned project in the window), 2026-10-22
+
+Verdict: **FAIL**. M3 stays **FAIL** (incomplete). Full record: `docs/reviews/M1/qa.md`, section "Full run at candidate C4 `bf09cda`". Owner: task `task_ef1d19129419`, dispatch `ctx_e23ced3dd1fa` (Claude Code Opus 5.5 xhigh). Candidate C4 `bf09cdad91ca548e1ecbc14428b55180d35d5360`, tests tree `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`. Window: Lead grant `msg_b5a1d0332685` (until 09:30:00.000Z); runner 05:26:57Z–06:44:53Z (exit 1). FULL source `<R>/full-src/source`, run root `<R>/full`. Lanes `qa-multi-r1` (sim, snapshots, migration) and `qa-multi-r1-st` (storage), port 8443, subnet `172.29.0.0/16`.
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| AC-M3-01 two full rounds (488 rows each, same result per test) | **FAIL / incomplete.** Round 1 complete: 488/488 PASS (sim 394, snapshot-isolated 6, snapshot-upgrade 6, migration 12, storage 70), exact phase/id set, parsed-equal to this invocation's accounting files, time-bound; `g-tamper` used its own operation folder, and the R4 rows ran their own commands. Canvas 233 rows independently judged (one-round evidence, Lead `msg_efeab9afded9`). Round 2: sim 394/394 PASS; snapshot-isolated 6/6 rows PASS but core `M3-ISOLATION` FAIL; the other three phases and the equality check did not run. | `full-judge/round-1-*.json`, `round-2-*.json` |
+| Gate G-1 identity (ADR-012 §17; supporting environment evidence under AC-M3-01, not AC-M3-01 by itself) | Every phase that ran records `G1-IDENTITY` PASS. W3 and W4 match the bound OS, CLI and Compose hashes, engine 29.9.1 and the image `sha256:44fce696…` (0 differences). | `full/public/w3-formal-start.json` `01241136…`, `w4-end.json` `b5e63143…` |
+| AC-M3-02 (a) T7 three runs | Not run here: owned by QA-E2E under a separate owner and window | — |
+| AC-M3-02 (b) legacy | Not run (the runner stopped in round 2) | — |
+| AC-M3-06 isolation and cleanup | **FAIL for this window.** Round 2 `snapshot-isolated` `M3-ISOLATION` FAIL: the non-owned container `/qa-la-sim-r2-cogniate-app-1` was recreated at 06:44:29.9Z during the phase. The LA project `qa-la-sim-r2` started at 06:30:04Z (during round 2 `sim`). Strict W3-to-end comparison: 16 new unrelated `qa-la-sim-r2` items. Every phase `TEARDOWN` PASS (0 lane resources left; ownership 0 errors, 0 kept, 0 failed); the 7 protected FULL records, both anonymous volumes and the bridge, host and none Ids are unchanged. I did not touch the foreign resources. | `w4-compare.json` `25ac8723…`; round 2 `snapshot-isolated` `summary.json` `c09c1fd6…` |
+| AC-M3-07 privacy | Secret scan 0 problems (10 clones); clone guard 0 problems | `secret-scan.json` `b91544ae…`, `clone-guard.json` `22fe4706…` |
+
+Next: after the shared-window resolution and a new Lead grant, two complete 488-row rounds and all 12 legacy groups on the same C4. Fresh M2 and T7 stay required under another owner. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`.

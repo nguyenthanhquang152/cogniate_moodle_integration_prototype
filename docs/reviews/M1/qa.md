@@ -2687,3 +2687,100 @@ Diagnostic 25 min 44 s (runner start to exit); 26 min 00 s from launcher start. 
 ### Next
 
 The Lead verifies this diagnostic. Only a separate grant starts the two complete 488-row rounds on C4 and the 12 legacy groups, from the unused `<R>/full-src/source`; they did not run and stay required. Fresh M2 and T7 follow under another owner. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`. No certification or production claim.
+
+## Full run at candidate C4 `bf09cda`: FAIL in round 2 `snapshot-isolated` (`M3-ISOLATION`, non-owned project in the window); round 1 488/488 PASS; legacy not run, 2026-10-22
+
+Verdict for this attempt: **FAIL**. Round 1 ran all 488 rows once: **488 PASS**, 0 FAIL, 0 NOT_APPLICABLE. Round 2 ran `sim` (394/394 PASS) and `snapshot-isolated` (6/6 rows PASS). Then the core record `M3-ISOLATION` of round 2 `snapshot-isolated` failed: "containers changed: 1". The changed container is `/qa-la-sim-r2-cogniate-app-1`, which belongs to a compose project that this session does not own (`qa-la-sim-r2`, LA run). The child exited 1, so the runner stopped. Round 2 `snapshot-upgrade`, `migration` and `storage`, the two-round equality check and all 12 legacy groups did **not run**. The strict W4 comparison also failed, with 16 new unrelated `qa-la-sim-r2` items. No row failed on its own check, and no source fault is established. Round 1 alone gives no acceptance credit: two complete equal rounds and the legacy groups stay required. The C4 diagnostic attempts above stay as recorded (attempt 1 FAIL, attempt 2 PASS with zero credit). Owner, model and independence: as in the C4 diagnostic sections (task `task_ef1d19129419`, dispatch `ctx_e23ced3dd1fa`). I propose no fix; the remediation owner `ctx_898acbaef3a6` owns every repair.
+
+### Grant, source and command
+
+| Item | Value |
+| --- | --- |
+| Grant | Lead `msg_b5a1d0332685`: exclusive full + legacy window until `2026-10-22T09:30:00.000Z`, after acceptance of diagnostic attempt 2. The LA coordinator had agreed to stay host-only until an explicit window return (same message). Returned with the closeout message of this section. My last Docker activity was the launcher's W4 compare and scan at 06:45:24Z. |
+| Source | `<R>/full-src/source` (the separate FULL clone, prepared at 04:08:11Z and never used before): C4, detached, 0 status lines (only ignored `tests/node_modules/`), no `tests/host/artifacts`, no state, `.env` or hooks, push disabled. Prelaunch (`prep/30-full-prelaunch.txt` and `prep/30-tests-inventory-full-prelaunch.txt` `05:26:29.183Z`): 250 tests files and 42 `tests/host` files equal the C4 blobs, 0 extra; `tests/node_modules` manifest and modes equal the qualified `452a27f9…` / `f2c452dd…`; package `685c10cf…`, lock `213718dd…`; tools equal the READY ledger; 0 `QA_*`, `npm_*` or `NPM_CONFIG_*` names (this launcher has no removal step); port 8443 free; 0 Docker or Compose processes. Post-run (`prep/32-tests-inventory-full-postrun.txt`, 07:04:04.737Z): 250/250 and 42/42 equal, 0 extra. These two records bracket the run. |
+| Launcher | `tools/launch-full-c4.sh` `c824abeb70835c61fdac056bdc1a141f8669aed32e96d7fdce2ff62a5ff0412b` (identity-only diff to `launch-full-c3.sh`) with exactly three arguments (C4, the FULL source, `<R>/full`), detached in its own process group (PID = PGID 49819; runner node PID 52038; sampler 52031, secret watch 52032, clone guard 52033). |
+| Runner child | `umask 022; COMPOSE_PROJECT_NAME=qa-multi-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 STACK_PROFILE=default COURSE_FIXTURES_DIR=<courses> TMPDIR=<R>/full/tmp node tests/host/run-m1.mjs --sha bf09cda… --test-sha bf09cda… --source <R>/full-src/source` (`full/public/command.txt` `292d0880…`). Default phase `full`; no filter. |
+| Time (UTC) | Launcher 05:26:41Z; runner 05:26:57Z–06:44:53Z (exit 1); W4 end capture 06:45:01Z; strict compare 06:45:11Z; secret scan and done 06:45:24Z |
+
+### Boundary (one W1–W4 sequence for the run)
+
+| Step | Result | Evidence (`<R>/full/public/`) |
+| --- | --- | --- |
+| Ancestor check | PASS | `ancestor-boundary.json` `0e494ec5…` |
+| W1 wake | Pre-wake idle-VM cache (VM clock 05:26:37.788Z at host 05:26:42.256Z; not boundary evidence); 0 containers. Wake on the cached image, `--pull never`, 0 left. Bridge recreated `223a63172249` → `9577478bf0a8`. | `w1-wake.json` `4332a597…` |
+| W2 liveness | PASS | `w2-liveness.json` `909267f6…` |
+| W3 formal start | Live 05:26:54.287Z (`runStartSecond` 1792646814); identity 0 differences (CLI 29.9.1, Compose 5.6.0, engine 29.9.1, image `sha256:44fce696…`); **0 containers; exactly 9 volumes** (7 protected FULL identical + `a17056b8…` + `d5df35bd…`); networks bridge, host and none only; lanes fresh; port free; 0 problems | `w3-formal-start.json` `01241136664905fe8c059e9a7c361d0702448fe0b0e16bcabd61225d6e6f4893` |
+| Sampler | 305 samples, 0 failed, one bridge Id, 0 skew. At most 2 compose projects at the same time. Other names seen: the storage lane's own oracle and fixture containers, and three non-owned names: **`qa-la-sim-r1`**, **`/sto-pg18-probe`** and **`qa-la-sim-r2`**. The sampler records the names, not their times. | `sampler/lane-containers.json` `4686e77e…` |
+| W4 end | Capture PASS at 06:45:01.797Z (live 06:44:59.171Z): identity 0 differences; our lanes fresh; port free; 0 subnet clash; the 7 protected FULL records identical. But 10 containers and 14 volumes exist: the extra items are `qa-la-sim-r2`. | `w4-end.json` `b5e63143…` |
+| W4 strict compare | **FAIL (exit 1)**: 16 problems, all "new unrelated": network `qa-la-sim-r2_default`; volumes `qa-la-sim-r2_{appdb,e2e_tests_node_modules,ltidb,moodledata,pgdata}`; containers `qa-la-sim-r2-{cogniate-app,lms-sim,lti-gate,lti-service,moodle,postgres,proxy,qa-platform,sink}-1` and `qa-la-sim-r2-qa-acceptance-95972`. Protected records identical at the end, both anonymous volumes present, bridge, host and none Ids unchanged. | `w4-compare.json` `25ac8723…` |
+
+### Round 1 (bound to exact folders; COMPLETE, 488/488 PASS)
+
+Binding method (unchanged from C3, Lead direction; no global n-th pick): the FULL source holds only this invocation's folders. Each phase is the run folder with its identity phase, C4 product and test SHA, project, port and subnet. Its `m1-case-results.json` is parsed-equal to this invocation's accounting file `<R>/full/tmp/qa-m1-accounting-XdBX6Z/round-1-<phase>.json`. The time binding holds for every phase: folder start ≤ identity timestamp ≤ accounting mtime < next folder start. The exact `phase<TAB>id` set (`jq`, `sort`, `comm`, `uniq -d`) equals the static ids: 488 = 488, 0 missing, 0 extra, 0 duplicates. Records (`<R>/full-judge/`): `round-1-bind.json` `3da50592…`, `round-1-verify.json` `ae7773b0…` (MET), `round-1-set.txt` `bd25b776…`, `round-1-time.json` `7b2da1be…`; wrapper `prep/bin/round-judge.sh` `81517949…` (runs the unchanged `round-bind.py` `a0785333…` and `round-verify.py` `340cc5b2…`; controls on C3 evidence: the accepted C3 round 1 judgment is reproduced, and an absent round gives 488 missing).
+
+| Phase | Folder (`<R>/full-src/source/tests/host/artifacts/`) | Rows | Result | Time (UTC) | `m1-identity` / `m1-case-results` / `summary` / accounting (SHA-256 prefixes) |
+| --- | --- | --- | --- | --- | --- |
+| sim | `qa-multi-r1-bf09cdad-2026-10-22T05-26-57-277Z` | 394 | 394 PASS | 05:26:57.277Z–05:49:44.388Z | `d88b66e5…` / `1234836c…` / `2ad4f64a…` / `799d3625…` |
+| snapshot-isolated | `qa-multi-r1-bf09cdad-2026-10-22T05-49-50-379Z` | 6 | 6 PASS | 05:49:50.379Z–05:51:20.960Z | `1c465b6c…` / `b278775d…` / `f72b51b8…` / `91c4536a…` |
+| snapshot-upgrade | `qa-multi-r1-bf09cdad-2026-10-22T05-51-25-320Z` | 6 | 6 PASS | 05:51:25.320Z–05:53:11.485Z | `88bb8ad7…` / `12e8cacb…` / `06f4dad0…` / `6c22f511…` |
+| migration | `qa-multi-r1-bf09cdad-2026-10-22T05-53-15-870Z` | 12 | 12 PASS | 05:53:15.870Z–05:57:04.002Z | `4628c860…` / `4098d6ca…` / `75c3cd2d…` / `16511ce6…` |
+| storage | `qa-multi-r1-st-bf09cdad-2026-10-22T05-57-08-327Z` | 70 | 70 PASS | 05:57:08.327Z–06:19:44.633Z | `c60957b7…` / `5f63e334…` / `736fe451…` / `946df49e…` |
+
+- Total: 488 rows, 488 distinct, 488 PASS (common 114, Blackboard 141, Canvas 233). `c-host-negative` PASS (probe `lock_not_enforced`). Runner: "Round 1: 488 rows; PASS 488; NOT_APPLICABLE 0".
+- Core records of every round-1 phase: `G1-IDENTITY`, `PRE` (0 other containers on the host), `CLONE`, `H1`, `M3-ISOLATION` (0 containers changed) and `TEARDOWN` PASS; abort none; profiles default, no knobs. Storage: 87 aggregate PASS, 81 step records with 0 non-PASS, 92 scan points clean (`storage-scans.json` `113cfeaf…`). Ownership: 0 ledger errors, 0 kept, 0 failed in every phase (removed: sim 5, isolated 5, upgrade 5, migration 5, storage 4).
+- SIM clone (for Canvas): `/Users/quangnguyen/cogniate-qa-runs/qa-multi-r1-bf09cdad-2026-10-22T05-26-57-277Z`. Handoff to the Lead: `msg_3492c30536dd`. The Lead accepted the independent Canvas judgment of the 233 Canvas rows as one-round evidence (`msg_efeab9afded9`).
+
+Round 1 `g-tamper` (raw command logs read by hand; `full-judge/round-1-r5-tamper.json` `48395650…` MET): `515-g-tamper-stop` exit 3, one `storage_drill_stop` point `swapped`, opId `288cd9a56f2df56d17068ecebd5421da`; listing `516` holds `.previous-288cd9a5…` and the retained `g-orphan-refusal` generation `.previous-3cc69ff5355f623e7b4244589b4b5349` (pause 06:12:36.760Z); `517-fixture-plant` exit 0 with results exactly `.previous-288cd9a5…/lti.db`; listings `516` → `518`: the same 22 names, only the target's SHA-256 changed (`db1cb152…` → `8bad080d…`); `520-g-tamper-recover` exit 2, `storage_restore_unresolved` "other bytes" on that file; file set `521`: both journals `rollback_failed`, opId `288cd9a5…`; listing `522` against `518`: only the root journals changed; `523-g-tamper-up` exit 1, refuses `rollback_failed` and names `stack:data-quarantine`. All 17 dependents and the 3 legacy fixtures ran and passed.
+
+Round 1 R4 rows (`full-judge/round-1-r4-checks.json` `f359d5f1…`, all MET; raw read): `g-prepared-lti` drill exit 3 with own opId `5af87938eab2d8e9abc822db9123b133`, `334` exit 1 `journal_open`, `335` exit 1 "cancelled at the first journal write; the targets equal the state before (verified)", lti journal `rolled_back` with that opId, app journal absent before and after; `g-recover-idempotent` 11 `recover-again-<point>` commands (`341` … `483`) in order, each exit 0; `g-orphan-stopped` kill record (`89f56650…`): restore lock `7f854da80bf79a0e`, `pgid` 65352 = the spawned group, own pause `swapped-lti` `66ce4e858a8dc469095a341107d65324` (differs from `g-orphan-refusal` `3cc69ff5…`), `505` exit 0, `506` lock reclaimed and exit 1 "rolled back; … (verified)", `511` exit 0; `e-import` exit 0, both identities' `legacySources` = the manifest entries (`dde8454a…` 122880, `dcc1e282…` 315392); `e-kept` `584` exit 0 with the "kept" warning and no `legacy_conflict`; `e-provenance-restore` pair `63dbcd34…` kept, generation 1 → 2, provenance `restore`, `590` exit 0 with the warning.
+
+### Round 2 (INCOMPLETE; bound to exact folders)
+
+`full-judge/round-2-bind.json` `101913a7…`, `round-2-verify.json` `fddc6c80…` (NOT MET), `round-2-set.txt` `18d55cb8…` (actual 400 of 488: 88 missing = the three phases that did not run), `round-2-time.json` `20dd8369…` (ordered for the two run phases).
+
+| Phase | Folder | Rows | Result | Time (UTC) | `m1-identity` / `m1-case-results` / `summary` / accounting |
+| --- | --- | --- | --- | --- | --- |
+| sim | `qa-multi-r1-bf09cdad-2026-10-22T06-19-49-128Z` | 394 | 394 PASS; core all PASS (`PRE` 0 other containers; `M3-ISOLATION` 0 changed) | 06:19:49.128Z–06:43:06.388Z | `3fd7db85…` / `66ace8c8…` / `4cf56165…` / `ee2de701…` |
+| snapshot-isolated | `qa-multi-r1-bf09cdad-2026-10-22T06-43-12-545Z` | 6 | 6 rows PASS; **`M3-ISOLATION` FAIL**; other core PASS | 06:43:12.545Z–06:44:49.730Z | `01808385…` / `8b52268f…` / `c09c1fd6…` / `d5de9441…` |
+| snapshot-upgrade, migration, storage | — | — | not run | — | — |
+
+### First cause: round 2 `snapshot-isolated` `M3-ISOLATION` (facts only)
+
+| Item | Facts |
+| --- | --- |
+| Failed check | Core record `M3-ISOLATION` "Existing non-QA-run containers and volumes remain unchanged": FAIL, "containers changed: 1; volumes changed: none" (`summary.json` `c09c1fd6…`). Runner stdout: `FAIL   M3-ISOLATION`; stderr: `run-m1.mjs:146` "Required child failed" (`ERR_ASSERTION`, actual 1) inside `fullRounds` (`storage-diagnostic.mjs:28`). |
+| Changed container | The phase's own `TEARDOWN` (PASS; 0 lane resources left) names "other projects' containers that stopped or restarted: `/qa-la-sim-r2-cogniate-app-1`". In `w4-end.json` that container was created 06:44:29.916Z and started 06:44:32.092Z, inside this phase (06:43:12.545Z–06:44:49.730Z). |
+| The non-owned project | Compose project `qa-la-sim-r2`; labels name `working_dir` `/Users/quangnguyen/cogniate-qa-runs/LA/E0/runs/m1-sim-rw-r2/infra` and its `compose.yaml`. Creation times: network 06:30:05.093Z (subnet `172.20.0.0/16`); volumes `appdb` and `ltidb` 06:30:04Z, `moodledata` and `pgdata` 06:30:05Z, `e2e_tests_node_modules` 06:30:58Z; containers `postgres`, `proxy`, `moodle` 06:30:05Z; `lms-sim`, `lti-gate`, `qa-platform`, `sink` 06:30:52Z; `qa-acceptance-95972` 06:30:59Z; `lti-service` 06:39:39.898Z; `cogniate-app` 06:44:29.916Z. All running at W4. |
+| When it started | 06:30:04Z, during round 2 `sim` (06:19:49Z–06:43:06Z). That phase's `PRE` saw 0 other containers and its `M3-ISOLATION` passed (no pre-existing container changed). The `snapshot-isolated` `PRE` at 06:43:12Z saw 10 other containers. Every round-1 phase `PRE` saw 0 other containers. |
+| Other non-owned names | The sampler also saw `qa-la-sim-r1` and a container `/sto-pg18-probe` at times it does not record. Neither was present at any phase `PRE` (0 other containers through round 2 `sim`, and the 10 at round 2 `snapshot-isolated` are the `qa-la-sim-r2` containers), nor at W4. |
+| Interference signs in our rows | None found: every round-1 and round-2 row that ran passed; port 8443 stayed free; no subnet clash; the 7 protected records stayed identical; our lanes fresh at every teardown and at W4. I did not touch any non-owned resource. |
+
+Notification: the Lead read the stderr and the W4 record first (`msg_22503aabd8fd`, 06:46:34Z; `msg_41b494f979c5`, 06:57:49Z) and classified the overlap; I acknowledged at 07:02Z (`msg_6fd362fc7d2f`). This was later than the prompt notice the grant requires: my monitor stream ended with the launcher at 06:45:34Z, and the session usage limit held me until 07:00Z, so I read the messages and the evidence only at 07:02Z (see D-2). The frozen driver ended by itself; I made no retry.
+
+### Not run
+
+Round 2 `snapshot-upgrade`, `migration` and `storage`; the two-round per-case equality; all 12 legacy groups (T2a, T2b, T3a, T3b, T3c, T4a, T4b1, T4b2, T5a, T5b, T6, T8).
+
+### Privacy, cleanup and permissions
+
+- Secret scan 0 problems (`secret-scan.json` `b91544ae…`; 10 clones; 2,776 captured and 77 stack values). Clone guard 0 problems (`clone-guard.json` `22fe4706…`; 7 phase clones set to 0700 at 7 checkpoints, 6 captured-secret files set to 0600; 4 older clones ignored as born before `--since`).
+- Owned cleanup by the core teardown only (every phase `TEARDOWN` PASS, 0 lane resources left); W4 confirms our lanes fresh. No owned process remains (launcher, runner, observers, monitors; `prep/33-full-postrun-process.txt`). Port 8443 has no listener. PID 64140 untouched. Nothing was removed by hand. The `qa-la-sim-r2` resources are not mine; I did not touch them.
+- Modes: QA files 0600 and folders 0700. Runner-written (umask 022): the seven accounting files in `full/tmp/qa-m1-accounting-XdBX6Z/` at 0644 (the launcher's copy in `full/private/accounting/` is 0600), three `qa-tree-*/index` files at 0644, the compile-cache folder at 0755, and the phase artifact trees (2,620 files at 0644, 89 folders at 0755) inside the 0700 clone.
+
+### Measured timings
+
+Launcher 1 h 18 min 43 s; W1–W3 15 s; runner 1 h 17 min 56 s. Round 1, from each folder start to the next folder start (storage: to its identity timestamp): sim 22 min 53 s, snapshot-isolated 1 min 35 s, snapshot-upgrade 1 min 51 s, migration 3 min 52 s, storage 22 min 36 s; complete round about 52 min 47 s. Round 2: sim 23 min 23 s; snapshot-isolated 1 min 37 s. W4, compare and scans about 31 s. Legacy is still not measured.
+
+### Evidence
+
+- Evidence index v3 (outside the indexed set): `<R>/evidence-index-v3.tsv`, 8,810 entries (`diag/`, `diag2/`, `full/`, `full-judge/`, `prep/`, `tools/`, `report/`, all phase artifact folders of the three source clones) with SHA-256, size and mode; SHA-256 `b894ff80f40bd9dcaf18d2299867d4185914c8a42c87ca4ac32d2f4d40e27e03`. All 4,309 index-v2 entries are unchanged inside v3. Root files: `<R>/evidence-index-v3-root-files.tsv` (`f5b62383…`, 18 entries). Bindings: `report/bindings-v3.tsv`.
+- Messages: grant `msg_b5a1d0332685`; gate `msg_9ece72f76533`; launch `msg_bf67e84d25ba`; round 1 closed `msg_3492c30536dd`; Canvas peer accepted `msg_efeab9afded9`; Lead stop and closure requests `msg_22503aabd8fd`, `msg_41b494f979c5`; my acknowledgement `msg_6fd362fc7d2f`.
+
+### Disclosures (continued)
+
+- D-2: I gave the first-failure notice late. The runner failed at 06:44:53Z; the Lead found it from the files at 06:46:34Z. My monitor reported the FAIL lines at 06:45:04Z, but I acted on them only at 07:02Z, because this Claude session had reached its usage limit until 14:00 Asia/Saigon (07:00Z), as its public output showed (Lead `msg_04dc2d0db05c`). The evidence was not changed in between.
+- `prep/bin/round-bind.py` prints a Python 3.14 `DeprecationWarning` (`utcfromtimestamp`) on stderr; its output is unaffected. `round-verify.py` key names say "C3"; the SHA is its argument (C4 here).
+
+### Next
+
+The Lead and the LA coordinator resolve the shared Docker window; the Lead decides a new full grant on the same C4. Two complete 488-row rounds with per-case equality, all 12 legacy groups, fresh M2 and T7 stay required. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`. No certification or production claim.
