@@ -4223,3 +4223,9 @@ V2 must still prove that only dist/runtime.js changes. E-T5R is not accepted yet
 Reviewer-A's Stage 1 source and R2 verdicts are provisional APPROVE; launcher review is pending.
 Its A-TR-01, A-TR-02 and A-TR-04 residuals remain recorded for final disposition and Architect/Docs wording.
 No new product change, Chromium behavior claim or runtime grant follows from this checkpoint.
+
+Correction to the preceding entry: Reviewer-A msg_eb9fdf8e239b traced the README reader to standalone host:t1.
+The statement that the twelve-group legacy phase includes T1 was incorrect.
+Do not add a T1 run based on that statement. Preserve the existing twelve-group legacy phase.
+The requirement is proof that no M1 row proposed for reuse consumes either README.
+Reviewer-A closed the identity part of A-TR-03 and reports no open MAJOR; launcher review and independent QA confirmation remain pending.
