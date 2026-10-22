@@ -7,17 +7,18 @@ import { promisify } from 'node:util';
 import type { JWK } from 'jose';
 import { calculateJwkThumbprint } from 'jose';
 import type { KeyHandle, LocalKeyProvider } from '@cogniate/shared';
-import { associatedData, blobKeyVersion, keyProviderFor } from '@cogniate/shared';
+import { keyProviderFor } from '@cogniate/shared';
 import { ApiError } from '../api-errors.ts';
 import type { Db } from '../db/index.ts';
 import { transaction } from '../db/index.ts';
 import { KeyError } from '../http/key-errors.ts';
+import { TOOL_KEY_COLUMN, sealedVersionCounts } from '../keys/sealed-columns.ts';
 import { getAccount } from './accounts.ts';
 
 export interface PublicJwk extends JWK { kid: string; kty: 'RSA'; alg: 'RS256'; use: 'sig'; n: string; e: string }
 
 /** A blob copied to the row of another account or kid does not open (AP-06-25). */
-const privateJwkAad = (accountId: string, kid: string) => associatedData('lti', 'tool_key', 'private_jwk_encrypted', accountId, kid);
+const privateJwkAad = TOOL_KEY_COLUMN.aad;
 const generateKeyPairAsync = promisify(generateKeyPair);
 
 export const RETIRED_KEEP_MS = 30 * 24 * 3600 * 1000;
@@ -233,6 +234,5 @@ export function activePrivateJwk(db: Db, keys: KeyHandle, accountId: string, now
 
 /** Key versions of the stored private keys (key provider `ready()`). */
 export function toolKeyVersions(db: Db): string[] {
-  const rows = db.prepare('SELECT private_jwk_encrypted AS blob FROM tool_key WHERE length(private_jwk_encrypted) > 0').all() as Array<{ blob: Uint8Array }>;
-  return [...new Set(rows.map((r) => blobKeyVersion(r.blob)))];
+  return [...sealedVersionCounts(db, [TOOL_KEY_COLUMN]).keys()];
 }

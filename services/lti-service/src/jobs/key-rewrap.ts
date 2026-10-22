@@ -2,21 +2,18 @@
 // A partial run stops for lease, stopping, or legacy_remains; only complete can store legacy refusal.
 import { setImmediate as yieldToLoop } from 'node:timers/promises';
 import type { IntervalJob, JobContext, KeyHandle, LocalKeyProvider } from '@cogniate/shared';
-import { associatedData, blobKeyVersion, keyProviderFor } from '@cogniate/shared';
+import { blobKeyVersion, keyProviderFor } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import { transaction } from '../db/index.ts';
 import { insertAuditEvent } from '../store/audit.ts';
 import { refuseLegacyBlobs } from '../store/settings.ts';
+import type { SealedColumn } from '../keys/sealed-columns.ts';
+import { SEALED_COLUMNS, sealedVersionCounts } from '../keys/sealed-columns.ts';
 
 export const KEY_REWRAP_JOB = 'key-rewrap';
 export const KEY_REWRAP_BATCH_SIZE = 100;
-const SEALED_COLUMNS = [
-  { table: 'tool_key', column: 'private_jwk_encrypted', key: 'kid', present: 'length(private_jwk_encrypted) > 0' },
-  { table: 'registration_session', column: 'registration_token_encrypted', key: 'id', present: 'registration_token_encrypted IS NOT NULL' },
-] as const;
-type SealedColumn = typeof SEALED_COLUMNS[number];
 interface SealedRow { id: string; accountId: string; blob: Uint8Array }
-const aadFor = (spec: SealedColumn, row: SealedRow) => associatedData('lti', spec.table, spec.column, row.accountId, row.id);
+const aadFor = (spec: SealedColumn, row: SealedRow) => spec.aad(row.accountId, row.id);
 const errorClass = (err: unknown): string => err instanceof Error ? err.name : 'Error';
 
 /** BD-A2-36: leave ten seconds for the next synchronous batch and final audit. */
@@ -158,13 +155,7 @@ export function keyRewrapJob(db: Db, keys: KeyHandle): IntervalJob {
 /** Counts include expired sessions and removed keys with a remaining blob: their key versions are still in use. */
 export function keyProviderStatus(db: Db, keys: KeyHandle) {
   const provider = keyProviderFor(keys);
-  const sealed = new Map<string, number>();
-  for (const spec of SEALED_COLUMNS) {
-    for (const row of db.prepare(`SELECT ${spec.column} AS blob FROM ${spec.table} WHERE ${spec.present}`).iterate()) {
-      const version = blobKeyVersion(row.blob as Uint8Array);
-      sealed.set(version, (sealed.get(version) ?? 0) + 1);
-    }
-  }
+  const sealed = sealedVersionCounts(db);
   const derived = new Map((db.prepare('SELECT derivation_version AS version, count(*) AS n FROM service_key GROUP BY derivation_version')
     .all() as Array<{ version: string; n: number }>).map((row) => [row.version, row.n]));
   return { kind: provider.kind, activeVersion: provider.activeVersion(), versions: provider.versions().map((version) => ({

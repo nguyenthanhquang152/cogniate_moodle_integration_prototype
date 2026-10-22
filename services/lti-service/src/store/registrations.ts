@@ -2,8 +2,9 @@
 // The key provider seals the registration token, bound to its account and session id (LA-ADR-06 D6).
 import { randomBytes } from 'node:crypto';
 import type { KeyHandle } from '@cogniate/shared';
-import { associatedData, blobKeyVersion, keyProviderFor } from '@cogniate/shared';
+import { keyProviderFor } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
+import { REGISTRATION_TOKEN_COLUMN, sealedVersionCounts } from '../keys/sealed-columns.ts';
 
 export type RegistrationOperation = 'new' | 'update';
 export type PrivacyLevel = 'public' | 'name_only' | 'email_only' | 'anonymous';
@@ -31,7 +32,7 @@ interface Row {
   passthrough_params: string; status: RegistrationSession['status']; platform_id: string | null; expires_at: number;
 }
 
-const tokenAad = (accountId: string, id: string) => associatedData('lti', 'registration_session', 'registration_token_encrypted', accountId, id);
+const tokenAad = REGISTRATION_TOKEN_COLUMN.aad;
 
 export function createRegistrationSession(
   db: Db,
@@ -86,6 +87,5 @@ export function completeRegistrationSession(db: Db, accountId: string, id: strin
 
 /** Key versions of the stored registration tokens (key provider `ready()`). */
 export function registrationTokenVersions(db: Db): string[] {
-  const rows = db.prepare('SELECT registration_token_encrypted AS blob FROM registration_session WHERE registration_token_encrypted IS NOT NULL').all() as Array<{ blob: Uint8Array }>;
-  return [...new Set(rows.map((r) => blobKeyVersion(r.blob)))];
+  return [...sealedVersionCounts(db, [REGISTRATION_TOKEN_COLUMN]).keys()];
 }

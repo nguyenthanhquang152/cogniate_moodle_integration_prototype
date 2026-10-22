@@ -9,10 +9,10 @@ import { readFileSync } from 'node:fs';
 import type { KeyRing, LocalKeyProvider, Logger } from '@cogniate/shared';
 import { KeyProviderError, bindKeyProvider, createLocalKeyProvider, legacyKeyRing, parseKeyRing } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
-import { registrationTokenVersions } from '../store/registrations.ts';
 import { serviceKeyVersions } from '../store/service-keys.ts';
 import { legacyBlobsRefused } from '../store/settings.ts';
-import { SIGNING_KEY_PUBLISH_LEAD_S, toolKeyVersions, validatePublishLeadSeconds } from '../store/tool-keys.ts';
+import { SIGNING_KEY_PUBLISH_LEAD_S, validatePublishLeadSeconds } from '../store/tool-keys.ts';
+import { sealedVersionCounts } from './sealed-columns.ts';
 
 export const DEFAULT_KEYRING_FILE = '/run/secrets/lti/keyring.json';
 
@@ -55,7 +55,7 @@ export function readKeyRing(env: Env = process.env): KeyRing {
 
 /** Every key version that a stored row uses: the sealed blobs and the service-key derivations. */
 export function keyVersionsInUse(db: Db): string[] {
-  return [...new Set([...toolKeyVersions(db), ...registrationTokenVersions(db), ...serviceKeyVersions(db)])].sort();
+  return [...new Set([...sealedVersionCounts(db).keys(), ...serviceKeyVersions(db)])].sort();
 }
 
 export interface LoadKeyProviderDeps {
