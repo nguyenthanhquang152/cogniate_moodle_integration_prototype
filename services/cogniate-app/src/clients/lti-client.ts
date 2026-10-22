@@ -149,14 +149,22 @@ export class LtiServiceError extends Error {
   readonly description: string;
   /** details.reason of the answer, for example "tool_may_exist" (registration result unknown, A-T3b-01). */
   readonly reason: string | null;
-  constructor(status: number, code: string, description: string, reason: string | null = null) {
+  /** Normalized wait in seconds for a 429; null for other responses. */
+  readonly retryAfter: number | null;
+  constructor(status: number, code: string, description: string, reason: string | null = null, retryAfter: number | null = null) {
     super(`${status} ${code}`);
     this.name = 'LtiServiceError';
     this.status = status;
     this.code = code;
     this.description = description;
     this.reason = reason;
+    this.retryAfter = retryAfter;
   }
+}
+
+/** The service contract uses whole seconds, clamped to 1–3,600, with 60 as the fallback. */
+export function normalizeRetryAfter(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(1, Math.min(3600, Math.ceil(value))) : 60;
 }
 
 /** Safe log fields of a failed LTI call (codes only, never the description; B-T4b1-01). */
@@ -213,9 +221,9 @@ export function createLtiClient(deps: LtiClientDeps) {
       json = undefined;
     }
     if (res.status < 200 || res.status >= 300) {
-      const d = (json as { details?: { message?: unknown; description?: unknown; reason?: unknown } } | undefined)?.details;
+      const d = (json as { details?: { message?: unknown; description?: unknown; reason?: unknown; retryAfter?: unknown } } | undefined)?.details;
       throw new LtiServiceError(res.status, typeof d?.message === 'string' ? d.message : `HTTP_${res.status}`, typeof d?.description === 'string' ? d.description : '',
-        typeof d?.reason === 'string' ? d.reason : null);
+        typeof d?.reason === 'string' ? d.reason : null, res.status === 429 ? normalizeRetryAfter(d?.retryAfter) : null);
     }
     const parsed = schema.safeParse(json);
     if (!parsed.success) throw new LtiServiceError(res.status, 'INVALID_LTI_ANSWER', 'The LTI service answer does not match the contract.');
