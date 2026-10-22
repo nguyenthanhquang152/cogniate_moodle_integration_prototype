@@ -1,6 +1,6 @@
 # LA-E4-01 job runner: QA-3 notes
 
-Spec: `docs/architecture/ltiaas/tasks/LA-E4-01.md`. All ten ACs (AC-LA-E4-01-01 to -10) have the label UNIT: Author unit tests with a temporary SQLite store and a controlled clock (plan LD-5; tasks README §5). Reviewer-B checks their quality. The spec has no K0 or K1-SIM AC, so QA-3 writes no test file for this task. Docker-level proof comes with LA-E4-02 and LA-E4-03.
+Spec: `docs/architecture/ltiaas/tasks/LA-E4-01.md`. All twelve ACs (AC-LA-E4-01-01 to -12, with AC-11 and AC-12 added by BD-A1-10) have the label UNIT: Author unit tests with a temporary SQLite store and a controlled clock (plan LD-5; tasks README §5). Reviewer-B checks their quality. The spec has no K0 or K1-SIM AC, so QA-3 writes no test file for this task. Docker-level proof comes with LA-E4-02 and LA-E4-03.
 
 At the run (no Docker), QA-3 records:
 
