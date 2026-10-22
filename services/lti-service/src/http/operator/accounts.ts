@@ -61,14 +61,17 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: OperatorContext
   });
 
   app.patch<{ Params: { id: string } }>('/operator/v1/accounts/:id', async (req) => {
-    const current = getAccount(ctx.db, req.params.id);
     const parsed = Patch.safeParse(req.body);
-    const changedStatus = parsed.success && parsed.data.status !== undefined && parsed.data.status !== current?.status;
-    return ctx.audited(req, { action: changedStatus ? 'account.status' : 'account.update',
+    return ctx.audited(req, { action: 'account.update',
       target: { type: 'account', id: req.params.id }, toolAccountId: req.params.id }, (audit) => {
       const writable = requireWritableAccount(ctx.db, req.params.id);
       if (!parsed.success) throw invalid(parsed.error);
-      const account = audit.change(() => updateAccount(ctx.db, writable.id, parsed.data, ctx.now()), () => ({
+      const { account, changedStatus } = audit.change(() => {
+        const current = requireWritableAccount(ctx.db, writable.id);
+        const account = updateAccount(ctx.db, writable.id, parsed.data, ctx.now());
+        return { account, changedStatus: account.status !== current.status };
+      }, ({ changedStatus }) => ({
+        action: changedStatus ? 'account.status' : 'account.update',
         details: { fields: Object.keys(parsed.data), ...(changedStatus ? { status: parsed.data.status } : {}) },
       }));
       if (changedStatus) ctx.logger.info('account_status_changed', { tool_account_id: account.id, status: account.status, trace_id: req.traceId });

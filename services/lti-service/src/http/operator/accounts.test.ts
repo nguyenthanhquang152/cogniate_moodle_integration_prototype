@@ -139,3 +139,25 @@ describe('account field validation is atomic', () => {
   });
 });
 
+
+it('chooses the PATCH audit action from the state locked by its change transaction', async () => {
+  const h = await fixture();
+  await h.create('one');
+  const exec = h.db.exec.bind(h.db);
+  let changed = false;
+  vi.spyOn(h.db, 'exec').mockImplementation((sql) => {
+    if (!changed && sql === 'BEGIN IMMEDIATE') {
+      changed = true;
+      // Another connection committed the requested status before this request acquired its write lock.
+      exec("UPDATE tool_account SET status = 'suspended', status_changed_at = 123 WHERE id = 'one'");
+    }
+    return exec(sql);
+  });
+  const response = await h.patch('one', { status: 'suspended' });
+  expect(response.statusCode).toBe(200);
+  expect(changed).toBe(true);
+  expect(getAccount(h.db, 'one')?.statusChangedAt).toBe(123);
+  expect(h.events().filter((e) => e.action !== 'account.create')).toEqual([
+    expect.objectContaining({ action: 'account.update', result: 'ok', details: { fields: ['status'] } }),
+  ]);
+});
