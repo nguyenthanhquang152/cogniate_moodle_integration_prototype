@@ -1,7 +1,11 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-DESIGN review: Reviewer-A (lens "Is it right and is it safe?")
+
+Round 1 (below) was CHANGES_REQUESTED at `19476fc`. Round 2 (at the end of this file) is APPROVE at `877d951`: every round-1 BLOCKER and MAJOR is closed, and 5 new MINOR and 1 new NIT stay open.
+
+## Round 1
 
 - Design SHA: `19476fc` (branch `quang/ltiaas-milestone`). The design files in the shared worktree are equal to this SHA (`git diff 19476fc HEAD -- docs/architecture docs/team/ltiaas/plan.md` is empty).
 - Scope: the 15 files under `docs/architecture/ltiaas/` and plan v1.2. `tests/ltiaas/TEST-STRATEGY.md` is context only.
@@ -264,3 +268,104 @@ Three problems block G-DESIGN:
 | Parallel lanes, one owner per file | Not shown yet; see A-LAD-12 for P3. |
 | No behaviour change for Moodle, Canvas, Blackboard | E1 holds: golden outputs, frozen names, the fail-equivalent `lms` value, `privacyFloor` = today's `minimizeClaims`, generic check 14 with the same refused set, generation-0 key values, a `302` login for `platformStorage: null`. Every intended change has an LA-IC id. Gaps: A-LAD-06 (the JWKS of upgraded stacks) and A-LAD-02, A-LAD-07 (availability under the new limits). |
 | Spec correctness (LTI Core, Security Framework, DL 2.0, AGS 2.0, NRPS 2.0, DR 1.0, platform storage drafts) | No other protocol error found. The storage origin (the OIDC auth origin), the reply checks, the empty DL response, `accept_lineitem`, launch without context with a `""` context key, the `path-prefix` issuer rule (with the trailing `/`) and the opaque DR token used only as a Bearer token all match the specs. DR, and the token request behind it, is unsafe as designed (A-LAD-01). |
+
+## Round 2
+
+- Design SHA: `877d951` (diff `git diff 19476fc 877d951 -- docs/architecture/ltiaas`). The worktree design files are equal to this SHA.
+- Inputs: `review-response-R1-A1.md`, `review-response-R1-A2.md`, plan decisions LD-9 and OC-9.
+- Paths without a folder are relative to `docs/architecture/ltiaas/`. Line numbers are at `877d951`.
+- Blind review: I did not open `reviewer-b.md` or `qa.md`. On 2026-10-22 a misrouted Reviewer-B dispatch reached my terminal. I did not open that file; the Lead has the record.
+- **Verdict: APPROVE.** Every round-1 BLOCKER and MAJOR is closed. Open after round 2: **0 BLOCKER, 0 MAJOR, 5 MINOR, 1 NIT** (all new). The MINOR and NIT items can go to `docs/team/ltiaas/deferred.md` (charter-LA §5).
+
+### Status of the round-1 findings
+
+| Id | Round-1 severity | Round-2 status | Evidence at `877d951` |
+| --- | --- | --- | --- |
+| A-LAD-01 | BLOCKER | **Closed** | I-SELF: a `self` binding keeps the token, JWKS, authentication and registration endpoints and the assertion `aud` on the issuer origin (`adr/LA-ADR-02-generic-lti-channel.md:47`). A DR that breaks it is staged, inactive, with `operatorGrant` (`:118`). The LTI service enforces it: an active create is refused, `complete` stages (`contracts/lti-service-api-delta.md:276`, `:312`). Fixed hosts and fixed-issuer hosts of every profile are refused as admin values (rules 1–3). The connection check runs only for an active platform (`:185`). Rule A6, T24 and AP-07-11 (`adr/LA-ADR-07-security-and-tenancy.md:74`, `:178`, `:83`). The verified admin launch needs A6 (`adr/LA-ADR-08-onboarding-and-connection-health.md:81`). Moodle DR needs its fixed configuration path. The attack path of round 1 no longer reaches a token request without an operator grant. Hardening: A-LAD-23. |
+| A-LAD-02 | BLOCKER | **Closed** | Only a failed API key or operator key spends `auth_failure`. An ltik or service-key `401` under a valid key spends nothing (`adr/LA-ADR-06-service-operability.md:81`). AP-06-34 proves it (`:114`). The app-edge limit that the text cites is missing: A-LAD-22. |
+| A-LAD-03 | BLOCKER | **Closed** | At most one dispatch in flight per (placement, learner subject, reporter) across every runner, enforced in the lease update (`adr/LA-ADR-03-learning-record-core.md:169`). The confirmation rule covers a superseded row that is still in flight (`:170`). `perPartition` is fixed at 1 (`:174`). `APP_JOB_RUNNER=off` and the instance heartbeat (`:171`, `:177`; `operability.md:87`). There is a two-runner unit test. |
+| A-LAD-04 | MAJOR | **Closed** | The `partition_key` fallback is total (`adr/LA-ADR-04-refactor-and-migration.md:101`). A released Blackboard fixture is in the migration test (`:106`). |
+| A-LAD-05 | MAJOR | **Closed** | Recovery covers every row with no live lease of another instance, also `lease_owner IS NULL` (`adr/LA-ADR-03-learning-record-core.md:172`). |
+| A-LAD-06 | MAJOR | **Closed** | The migration keeps the published set; an older retired key becomes `removed` (`adr/LA-ADR-06-service-operability.md:301`). The cleanup job runs at start. The golden JWKS of an upgraded stack is equal (`:435`). |
+| A-LAD-07 | MAJOR | **Closed** | The account classes are soft. IPv6 counts as its /64. The session cap is per address (`adr/LA-ADR-06-service-operability.md:103`). AP-06-35 (`:115`). I accept residual R-LA-5: an edge (WAF) in LG. |
+| A-LAD-08 | MAJOR | **Closed** | Plan LD-9 (`docs/team/ltiaas/plan.md:202`); measure 3 now allows the reviewed LA-IC lists (`:146`). |
+| A-LAD-09 | MINOR | **Closed** | The storage-check POST needs our `Origin`, and the page sends `same-origin` (AP-05-32). Residual R-LA-6 is stated as the R2 class. The request values reach the page through one escaped JSON block. Key `cog_state_<d>` uses at most 16 keys. I accept the documented 1-in-16 overlap failure (`adr/LA-ADR-05-lti-advantage-completeness.md` rule 3). |
+| A-LAD-10 | MINOR | **Closed** | Table `picker_pick` with writer, stats and retention rules (`data-model.md` §5b). One new defect in it: A-LAD-21. |
+| A-LAD-11 | MINOR | **Closed** | `admin` default is 600 per minute (`adr/LA-ADR-06-service-operability.md:103`). The 60 s providers cache that the text cites is missing: A-LAD-22. |
+| A-LAD-12 | MINOR | **Closed** (A2's "deferred" accepted) | README §6a gives one proposed owner per hot file (`README.md:193`). P3 fixes the final owners. |
+| A-LAD-13 | MINOR | **Closed** | A shared platform partitions by platform + deployment (`adr/LA-ADR-03-learning-record-core.md:173`). |
+| A-LAD-14 | MINOR | **Closed** | A new account writes the hash of an unusable random value (`adr/LA-ADR-06-service-operability.md:226`). |
+| A-LAD-15 | MINOR | **Closed** | One encoding function equal to `json_array`. The upsert is on `placement.id`. `outcome` and `course_version_id` come from the attempt. A launch test after `014` (`adr/LA-ADR-04-refactor-and-migration.md:99-100`, `:106`). |
+| A-LAD-16 | MINOR | **Closed** | `legacyBlobs: refused` after a complete re-wrap (`adr/LA-ADR-06-service-operability.md:270`). |
+| A-LAD-17 | MINOR | **Closed** (A1's "deferred to the Lead" answered) | Lead decision OC-9 (`docs/team/ltiaas/plan.md:93`). R-LA-2 goes to the human review list. |
+| A-LAD-18 | NIT | **Closed** | The listed rows are fixed. New stale rows: A-LAD-24. |
+
+### New findings (round 2)
+
+#### A-LAD-19: MINOR: a registration-level family guard leaves a grant-free path to bind a named kind A LMS through Moodle manual connect
+
+- **File:** `adr/LA-ADR-01-channel-kernel.md:341` (also `adr/LA-ADR-02-generic-lti-channel.md:24`; `security-delta.md` §12 "Signed product family"; `adr/LA-ADR-07-security-and-tenancy.md:185`).
+- **Problem:** New named channels guard their product family only at registration, so a launch of a D2L site on a Moodle `standard` platform passes. The A1 response claims "Security holds because I-SELF leaves no `self` path for an off-origin LMS" (`review-response-R1-A1.md:23`), but that is not right.
+- **Evidence:**
+  - D2L serves its auth endpoint and its JWKS on the site origin; only the token endpoint is off-origin (R2 §5.4).
+  - A library can use Moodle manual connect (`self`, the legacy list) with the D2L site as issuer, the real auth and JWKS URLs, a typed token URL on the site origin, and a client id and deployment id that it learned. I-SELF holds, because every value is on the issuer origin.
+  - The real D2L launches then validate, and they route to that library. The `standard` profile has `privacyFloor: none`, so the names and e-mail addresses that D2L sends are stored. Grade return fails (wrong token URL), but the launches and the personal data flow.
+  - With a `launch`-level guard for `desire2learn`, check 14 refuses these launches. The registration-level guard only logs `family_guard_mismatch`.
+  - This is the R-LA-1 class, but R-LA-1 names only "a Moodle tool's six values" (`adr/LA-ADR-07-security-and-tenancy.md:185`).
+- **Suggested fix (cheap):** In the app LMS check, refuse a launch whose signed family is guarded by another channel when the connection's authority is `self`. Keep the registration-level behaviour (log only) for `operatorGrant` connections; that keeps the B-LAD-04 goal (grant-bound `lti-generic` connections keep working). Or keep the design, correct the claim, and widen R-LA-1 and LA-H23 to "any per-tenant-issuer LMS through Moodle manual connect".
+
+#### A-LAD-20: MINOR: the frozen `lms` behaviour class is not updated when the authority changes from `self` to `operatorGrant`
+
+- **File:** `adr/LA-ADR-04-refactor-and-migration.md:88-89` (also `data-model.md:65`).
+- **Problem:** A staged `lti-generic` DR connection keeps `lms = 'moodle'` after its authority changes to `operatorGrant`. So the claim "fail-equivalent, not fail-open" no longer holds for that connection.
+- **Evidence:**
+  - Rule 1 now allows one authority change, from `self` to `operatorGrant` (`:88`).
+  - Rule 2 writes the behaviour class only at insert (`moodle` for `self`, `:89`). It says: "A missed old read of `lms` then still selects the same authority rules".
+  - The activation is still fenced by the grant at the LTI service, so the risk is defence in depth only.
+- **Suggested fix (cheap):** The transaction that switches the authority also writes `lms = 'canvas'` (the class of `operatorGrant` with an exclusive platform). Add the case to the `013` writer rule and to its test.
+
+#### A-LAD-21: MINOR: `picker_pick` blocks the retention delete of picker sessions
+
+- **File:** `data-model.md:254-255` (also `:266`).
+- **Problem:** `picker_pick.picker_id_hash` references `picker_session (id)` with no `ON DELETE` rule. The migration runner and the app run with foreign keys on (ADR-011 §1 fact 4). So the retention job cannot delete a picker session that has `picker_pick` rows.
+- **Evidence:**
+  - The base retention deletes a picker session 24 h after it expires, unless a used pick is not yet matched (`docs/architecture/data-model.md:235`). §5b keeps that exception (`:266`).
+  - A session whose picks are all matched is deleted. Its `picker_pick` rows still reference it, so the delete fails, and the job logs an error on every run.
+- **Suggested fix (cheap):** Use `ON DELETE CASCADE` on `picker_id_hash`, or let the retention job delete the session's picks first, in the same transaction. Add one retention test.
+
+#### A-LAD-22: MINOR: two app controls that A2's text relies on are not designed in any A1 file
+
+- **File:** `adr/LA-ADR-06-service-operability.md:81` and `:103` (also `operability.md:178`; `review-response-R1-A2.md:49`).
+- **Problem:** LA-ADR-06 D1 names "a per-address limit on `/tool/launch` and `/tool/deep-link` (A1)" as the abuse control for random ltiks, and "A1 also caches `GET /api/providers` in the app for 60 s". The `LtikFailureSpike` action says "Check the app's per-address limit". But neither control is in `contracts/cogniate-app-api-delta.md`, LA-ADR-01 or LA-ADR-04 at `877d951`.
+- **Evidence:** A search of the A1 files finds no per-address limit and no providers cache. A2 lists the app-edge limit as an open A1 item (`review-response-R1-A2.md:49`). Today each random ltik also writes one `handoff` row (`services/cogniate-app/src/tool-pages/launch.ts:116`), so unauthenticated requests can grow that table until retention removes the rows.
+- **Suggested fix (cheap):** A1 adds both to the app API delta: a per-address limit on `/tool/launch` and `/tool/deep-link` (a `429` page), and the 60 s cache of the providers answer. Or A2 removes the two claims and the alert action. Track it in README §8 until one side closes it.
+
+#### A-LAD-23: MINOR: the grant step does not tell the operator to check an off-origin token host
+
+- **File:** `adr/LA-ADR-02-generic-lti-channel.md:125` (also `contracts/cogniate-app-api-delta.md` §7 `app:grant issue`; `operability.md` §8).
+- **Problem:** After A-LAD-01, the grant is the only control for off-origin values. `--accept-staged` lets the operator confirm staged values without typing them, but nothing tells the operator what to check.
+- **Evidence:**
+  - The round-1 attack now ends at a staged platform: a fake issuer, the D2L token host and audience, and another school's client id.
+  - An evidence check of "who owns the issuer" passes for the attacker, who controls the fake issuer host.
+  - The real question is whether the LMS vendor issued this client id for this issuer. Neither the CLI nor the runbook asks it.
+- **Suggested fix (cheap):**
+  - The CLI marks each bound value whose host is not the issuer host, and asks for one more explicit flag (for example `--confirm-foreign-hosts`).
+  - The operator runbook (and the Q22 evidence policy) says: confirm with the LMS administrator that the client id belongs to this issuer's registration at that token host.
+
+#### A-LAD-24: NIT: new stale open rows
+
+- **File:** `README.md:354-355` (also `contracts/cogniate-app-api-delta.md:158`).
+- **Problem:** Some rows still say "open" after this round's decisions.
+- **Evidence:**
+  - OC-9 says "Open: confirm", but plan OC-9 is decided (`docs/team/ltiaas/plan.md:93`).
+  - OC-10 says "Open until A2's fix round", but A2's round-1 fixes are in `877d951`.
+  - App delta §7 still says "This needs the Lead's confirmation".
+- **Suggested fix:** Close the rows and remove the sentence.
+
+### Round-2 checks
+
+| Check | Result |
+| --- | --- |
+| Deferred and disputed answers | A-LAD-12 (deferred to P3, with the README §6a proposal): accepted. A-LAD-17 (deferred to the Lead): answered by OC-9; accepted. No answer disputes a finding of mine. |
+| New BLOCKER or MAJOR in the changed text | None found. I checked I-SELF and the staged DR, origin binding rule 7, the soft rate-limit classes, the auth-failure rule, the one-in-flight lease rule, the recovery rule, the `014` fallbacks, the signing-key migration, legacy-blob refusal, the storage-check `Origin` rule, guard levels and `picker_pick`. |
+| No behaviour change for Moodle, Canvas, Blackboard | Holds. New intended items have ids: LA-IC-03 (Moodle DR with the fixed configuration path) and LA-IC-14 (Canvas DR). The baseline JWKS of an upgraded stack is now equal (A-LAD-06). The launch guard of Canvas and Blackboard is unchanged (`LAUNCH_GUARD_CHANNELS`). |
