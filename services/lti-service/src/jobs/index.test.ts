@@ -59,6 +59,12 @@ it('uses lti-1 by default and checks JOB_INSTANCE_ID and audit retention before 
     expect(() => createLtiJobRunner({ db, logger, keys, env: { JOB_INSTANCE_ID: 'bad/id' } })).toThrow('instance id');
     expect(() => createLtiJobRunner({ db, logger, keys, env: { AUDIT_RETENTION_DAYS: '-1' } })).toThrow('AUDIT_RETENTION_DAYS');
     expect(db.prepare('SELECT * FROM job_instance').all()).toEqual([]);
+    // LA-E5-20: the list that GET /operator/v1/jobs shows.
+    expect(createLtiJobRunner({ db, logger, keys, env: {} }).jobs).toEqual([
+      { name: 'retention', everyMs: 600_000 }, { name: 'audit-retention', everyMs: 86_400_000 },
+      { name: 'signing-key-cleanup', everyMs: 86_400_000 }, { name: 'key-rewrap', everyMs: null },
+      { name: 'api-key-expiry', everyMs: 3_600_000 }, { name: 'idempotency-cleanup', everyMs: 3_600_000 },
+    ]);
   } finally { db.close(); }
 });
 
