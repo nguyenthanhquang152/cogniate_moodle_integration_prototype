@@ -38,15 +38,15 @@ interface ProfilesModule {
   profileDefinition?: (id: string, ...rest: unknown[]) => ProfileRecord | undefined | null;
 }
 
-// Baseline F1 counts at G-BASE (1b17261be97c4701b928fa9dc2fa74c6d23028f6) for the non-channel files of LA-E1-05.
+// Baseline F1 counts at G-BASE (from infra/scripts/fitness/f1-baseline.json) for the non-channel files of LA-E1-05.
 const GBASE_F1_COUNTS: Record<string, number> = {
-  'packages/shared/src/config.ts': 1,
-  'services/lti-service/src/profiles/blackboard.ts': 4,
-  'services/lti-service/src/profiles/canvas.ts': 11,
-  'services/lti-service/src/profiles/index.ts': 3,
+  'packages/shared/src/config.ts': 0,
+  'services/lti-service/src/profiles/blackboard.ts': 21,
+  'services/lti-service/src/profiles/canvas.ts': 33,
+  'services/lti-service/src/profiles/index.ts': 19,
   'services/lti-service/src/profiles/standard.ts': 2,
   'services/lti-service/src/profiles/types.ts': 2,
-  'services/lti-service/src/lti/checks.ts': 4,
+  'services/lti-service/src/lti/checks.ts': 6,
   'services/lti-service/src/lti/claims.ts': 2,
   'services/lti-service/src/lti/launch.ts': 1,
   'services/lti-service/src/lti/login.ts': 2,
@@ -54,8 +54,8 @@ const GBASE_F1_COUNTS: Record<string, number> = {
   'services/lti-service/src/lti/target.ts': 2,
   'services/lti-service/src/http/service-context.ts': 0,
   'services/lti-service/src/http/routes/protocol.ts': 0,
-  'services/lti-service/src/http/routes/registration.ts': 2,
-  'services/lti-service/src/testkit.ts': 2,
+  'services/lti-service/src/http/routes/registration.ts': 8,
+  'services/lti-service/src/testkit.ts': 0,
   'services/lti-service/src/main.ts': 0,
   'services/cogniate-app/src/testkit.ts': 0,
 };
@@ -107,13 +107,7 @@ function callFindProfile(mod: ProfilesModule, id: string, simulationsOn: boolean
 
 function callProfileDefinition(mod: ProfilesModule, id: string, simulationsOn = true): ProfileRecord | undefined | null {
   expect(typeof mod.profileDefinition, 'profileDefinition is exported as a function').toBe('function');
-  return withSimEnv(simulationsOn, () => {
-    const first = mod.profileDefinition!(id, simulationsOn);
-    if (simulationsOn && !first) {
-      return mod.profileDefinition!(id, { simulation: true, includeSimulations: true });
-    }
-    return first;
-  });
+  return withSimEnv(simulationsOn, () => mod.profileDefinition!(id));
 }
 
 /** Runs F1 in check-one-text mode (`npm run --silent fitness:lms-names -- --stdin --as <asPath>`) in TARGET_ROOT. */
@@ -238,7 +232,7 @@ describe('LA-E1-05 LTI profiles in channel folders (K0)', () => {
     const fullF1 = checkFullF1();
     expect(fullF1.code, `npm run fitness:lms-names exits 0; output:\n${fullF1.output}`).toBe(0);
 
-    // 2. Live F1 scan of packages/shared/src/config.ts has 0 hits.
+    // 2. Live F1 scan of packages/shared/src/config.ts has 0 hits (both at its path and without any path-specific exception).
     const sharedConfigRel = 'packages/shared/src/config.ts';
     const sharedConfigAbs = path.join(TARGET_ROOT, sharedConfigRel);
     expect(fs.existsSync(sharedConfigAbs), `${sharedConfigRel} exists`).toBe(true);
@@ -246,15 +240,22 @@ describe('LA-E1-05 LTI profiles in channel folders (K0)', () => {
     const sharedConfigF1 = checkF1OnText(sharedConfigRel, sharedConfigText);
     expect(sharedConfigF1.code, `${sharedConfigRel} passes F1; output:\n${sharedConfigF1.output}`).toBe(0);
     expect(sharedConfigF1.hitsCount, `${sharedConfigRel} has F1 count 0`).toBe(0);
+    const sharedConfigUnmaskedF1 = checkF1OnText('packages/shared/src/zz-config-probe.ts', sharedConfigText);
+    expect(sharedConfigUnmaskedF1.code, `${sharedConfigRel} passes F1 without path exception; output:\n${sharedConfigUnmaskedF1.output}`).toBe(0);
+    expect(sharedConfigUnmaskedF1.hitsCount, `${sharedConfigRel} unmasked F1 count 0`).toBe(0);
 
-    // 3. If packages/channel-kernel/fitness-scope.json exists (RQ-1), packages/shared/src/config.ts is not in f1Exceptions.
+    // 3. If packages/channel-kernel/fitness-scope.json exists (RQ-1), packages/shared/src/config.ts is not in coreExceptions/f1Exceptions.
     const scopeFile = path.join(TARGET_ROOT, 'packages/channel-kernel/fitness-scope.json');
     if (fs.existsSync(scopeFile)) {
       const scopeDoc = JSON.parse(fs.readFileSync(scopeFile, 'utf8')) as {
         f1Exceptions?: Array<string | { path?: string }>;
+        classes?: { coreExceptions?: { globs?: string[] } };
       };
-      const exceptions = (scopeDoc.f1Exceptions ?? []).map((e) => (typeof e === 'string' ? e : e.path ?? ''));
-      expect(exceptions, 'packages/shared/src/config.ts removed from f1Exceptions').not.toContain(sharedConfigRel);
+      const exceptions = [
+        ...(scopeDoc.f1Exceptions ?? []).map((e) => (typeof e === 'string' ? e : e.path ?? '')),
+        ...(scopeDoc.classes?.coreExceptions?.globs ?? []),
+      ];
+      expect(exceptions, 'packages/shared/src/config.ts removed from coreExceptions').not.toContain(sharedConfigRel);
     }
 
     // 4. If f1-baseline.json exists, packages/shared/src/config.ts has count 0 and no task file exceeds G-BASE.
