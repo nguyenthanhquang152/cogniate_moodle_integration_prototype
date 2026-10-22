@@ -59,6 +59,8 @@ export function storageLoginPage(data: StorageLoginData): { status: 200; headers
 <html lang="en">
 <head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Cogniate sign-in</title></head>
 <body>
+<p>Opening the activity. Please wait.</p>
+<noscript>This activity needs JavaScript. Turn on JavaScript in your browser, then open the activity again from your course.</noscript>
 <script id="lti-storage-data" type="application/json">${json}</script>
 <script nonce="${nonce}">${LOGIN_SCRIPT}</script>
 </body>
