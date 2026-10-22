@@ -77,6 +77,31 @@ describe('trusted audiences (LA-E3-12 AC-04)', () => {
     }
     expect(db.prepare('SELECT COUNT(*) AS n FROM platform').get()?.n).toBe(1);
   });
+
+  it('bounds each entry to 1..2048 characters and the list to 20 entries on create and PATCH (BD-A2-73)', async () => {
+    const { db, post, app, headers } = await setup();
+    const created = await post(adminBody());
+    const id = created.json<{ id: string }>().id;
+    const many = (n: number) => Array.from({ length: n }, (_, i) => `aud-${i}`);
+    for (const trustedAudiences of [['a'], ['a'.repeat(2048)], many(20)]) {
+      const ok = await post({ ...adminBody(), clientId: `client-${trustedAudiences.length}-${trustedAudiences[0]!.length}`, trustedAudiences });
+      expect(ok.statusCode).toBe(201);
+      expect(ok.json().trustedAudiences).toEqual(trustedAudiences);
+      const patched = await app.inject({ method: 'PATCH', url: `/api/platforms/${id}`, headers, payload: { trustedAudiences } });
+      expect(patched.statusCode).toBe(200);
+      expect(getPlatform(db, 'unit', id)?.trustedAudiences).toEqual(trustedAudiences);
+    }
+    const stored = getPlatform(db, 'unit', id)?.trustedAudiences;
+    for (const trustedAudiences of [[''], ['a'.repeat(2049)], many(21)]) {
+      const refused = await post({ ...adminBody(), clientId: 'refused-client', trustedAudiences });
+      expect([refused.statusCode, refused.json().details.message]).toEqual([400, 'INVALID_REQUEST']);
+      expect(refused.json().details.description).toMatch(/^Invalid field: trustedAudiences/);
+      const patch = await app.inject({ method: 'PATCH', url: `/api/platforms/${id}`, headers, payload: { trustedAudiences } });
+      expect([patch.statusCode, patch.json().details.message]).toEqual([400, 'INVALID_REQUEST']);
+      expect(getPlatform(db, 'unit', id)?.trustedAudiences).toEqual(stored);
+    }
+    expect(db.prepare("SELECT COUNT(*) AS n FROM platform WHERE client_id = 'refused-client'").get()?.n).toBe(0);
+  });
 });
 
 describe('admin and fixed endpoint plans (AC-LA-E1-10-03)', () => {
