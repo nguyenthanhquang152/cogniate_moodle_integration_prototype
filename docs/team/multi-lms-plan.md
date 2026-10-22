@@ -4205,3 +4205,21 @@ Each launcher invocation requires a separate runtime grant. All 32 full baseline
 Independent Gemini ctx_729c0ea5fe95 has immutable C6/C7 for its host checks.
 Claude Reviewer-A ctx_38fbe94ea973 reviews the source now; the exact launcher handoff follows.
 The second independent reviewer must also approve before runtime.
+
+### 2026-10-22 13:38 UTC — V1 exact four-path rule and consumer proof
+
+The literal C4-to-C6 diff outside docs/** and tests/** contains exactly four paths:
+README.md, infra/README.md, apps/player/src/html/tracker.ts and apps/player/src/html/tracker.test.ts.
+Both README files belong to the already approved M4 guide candidate 958ee5c.
+Only the two tracker files are executable or adjacent unit-test changes.
+V1 must state this four-path identity rule, verify the two README hashes against 958ee5c, and reject any other path.
+
+This classification alone does not prove safe evidence reuse.
+Reviewer-A's provisional A-TR-03 notes that run-t1.mjs reads infra/README.md for LC-T1-05.
+Independent QA must trace consumers of both README paths and prove that no carried M1 row depends on them.
+All twelve legacy groups, including T1, must run fresh. Any affected M1 row joins fresh coverage; otherwise the strict route applies.
+V2 must still prove that only dist/runtime.js changes. E-T5R is not accepted yet.
+
+Reviewer-A's Stage 1 source and R2 verdicts are provisional APPROVE; launcher review is pending.
+Its A-TR-01, A-TR-02 and A-TR-04 residuals remain recorded for final disposition and Architect/Docs wording.
+No new product change, Chromium behavior claim or runtime grant follows from this checkpoint.
