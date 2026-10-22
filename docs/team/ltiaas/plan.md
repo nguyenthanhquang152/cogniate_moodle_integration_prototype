@@ -143,7 +143,7 @@ Priority: **Must** = needed for LA done. **Should** = in LA if the Must work is 
 
 1. A new LTI LMS profile changes **0 core files**. The branch-diff gate F2 measures the add-LMS task (E2-N, D2L Brightspace) against the SHA where the E2 core work (E2-K: generic DR fixes, new profile traits) is done (README OC-1, Lead decision).
 2. No LMS name appears in core code. The lint ratchet reaches zero for core paths.
-3. M1, M2 and T7 pass. Their assertions do not change, except the closed-list rewrite of E0, which both reviewers approve.
+3. M1, M2 and T7 pass. Their assertions do not change, except (a) the closed-list rewrite of E0 (LD-1) and (b) the reviewed test-change list of each intended change `LA-IC-nn` (LD-9). Both reviewers approve each list.
 4. The generic LTI channel and the new named LMS pass the conformance kit (K0 + K1) on the simulator.
 5. A person or agent new to the repo adds a simulator LMS with the guide in less than one day.
 6. The E5 Must items pass their acceptance tests on the simulator (rate limit `429`, audit event per admin route, key rotation with a launch and a score during rotation).
@@ -199,6 +199,7 @@ Docker: at most 2 stacks at the same time, by booked slot (Lead decision LD-2). 
 | LD-6 | LA-IC-09: after migration `014`, the T5b P5 fixture deletes the same failed row in `record_dispatch`. The assertions do not change. Both reviewers review the fixture diff (same rule as LD-1). |
 | LD-7 | Golden outputs: one fixed golden script per channel (G2) plus the M1 `sim` assertions. A per-scenario record diff only if a reviewer shows a gap. |
 | LD-8 | A short Moodle regression ("R2-lite": T7 once plus the area groups) runs after each E1 step that moves Moodle code (S3, S5, S6, S7). Cost: about 10–25 min of the Moodle slot per step. |
+| LD-9 | An intended change `LA-IC-nn` (LA-ADR-04 D8) may change frozen assertions in M1, M2, T7 or other legacy suites. Each `LA-IC` lists the exact assertions it changes. QA makes the change as one reviewed list per `LA-IC`, at the task that ships the change; both reviewers approve the list. No other assertion may change (Reviewer-B B-LAD-08). |
 
 ### 6.2 Human decisions
 
