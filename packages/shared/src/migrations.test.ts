@@ -65,3 +65,51 @@ describe('migrations (ADR-006)', () => {
     expect(db.prepare('SELECT COUNT(*) AS n FROM t').get()?.n).toBe(0);
   });
 });
+
+describe('transaction (nested calls use a SAVEPOINT)', () => {
+  const values = (db: DatabaseSync) => db.prepare('SELECT v FROM t ORDER BY v').all().map((r) => r.v);
+  const table = () => {
+    const db = openSqlite(':memory:', tmp('mig-'));
+    db.exec('CREATE TABLE t (v INTEGER)');
+    return db;
+  };
+
+  it('a call outside a transaction is unchanged: BEGIN IMMEDIATE (the write lock at once), COMMIT, no open transaction after', () => {
+    const file = join(tmp('db-'), 'x.db');
+    const db = openSqlite(file, tmp('mig-'));
+    db.exec('CREATE TABLE t (v INTEGER)');
+    const other = new DatabaseSync(file);
+    transaction(db, () => {
+      expect(db.isTransaction).toBe(true);
+      // IMMEDIATE: the lock is taken before any write, so another writer is busy at once.
+      expect(() => other.exec('BEGIN IMMEDIATE')).toThrow(/locked|busy/i);
+      db.exec('INSERT INTO t VALUES (1)');
+    });
+    expect(db.isTransaction).toBe(false);
+    expect(other.prepare('SELECT v FROM t').all().map((r) => r.v)).toEqual([1]);
+    other.close();
+    db.close();
+  });
+
+  it('a nested call that throws rolls back only its own part; the outer transaction goes on', () => {
+    const db = table();
+    transaction(db, () => {
+      db.exec('INSERT INTO t VALUES (1)');
+      expect(() => transaction(db, () => { db.exec('INSERT INTO t VALUES (2)'); throw new Error('inner'); })).toThrow('inner');
+      expect(db.isTransaction).toBe(true);
+      db.exec('INSERT INTO t VALUES (3)');
+    });
+    expect(values(db)).toEqual([1, 3]);
+  });
+
+  it('an outer throw rolls back all, also a nested part that succeeded', () => {
+    const db = table();
+    expect(() => transaction(db, () => {
+      db.exec('INSERT INTO t VALUES (1)');
+      expect(transaction(db, () => { db.exec('INSERT INTO t VALUES (2)'); return 'ok'; })).toBe('ok');
+      throw new Error('outer');
+    })).toThrow('outer');
+    expect(values(db)).toEqual([]);
+    expect(db.isTransaction).toBe(false);
+  });
+});
