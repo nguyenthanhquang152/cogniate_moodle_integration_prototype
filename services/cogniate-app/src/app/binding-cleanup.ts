@@ -48,18 +48,26 @@ function dedupe(list: RecordKey[]): RecordKey[] {
   return [...seen.values()];
 }
 
-/** The record of an attempt target: Canvas → the platform; Blackboard → its deployment of the shared platform. */
-function attemptRecord(a: Attempt, fence = false): RecordKey {
-  if (a.targetKind === 'shared_deployment' || (!fence && a.targetKind === 'platform_deployment')) {
-    return { kind: 'deployment', platformId: a.platformId, deploymentId: a.deploymentId };
-  }
+/** Fence an added deployment through its exclusive platform, to stop all launches of the connection. */
+function fenceRecordOf(a: Attempt): RecordKey {
+  if (a.targetKind === 'shared_deployment') return { kind: 'deployment', platformId: a.platformId, deploymentId: a.deploymentId };
   if (a.platformId) return { kind: 'platform', platformId: a.platformId, deploymentId: null };
   return { kind: 'platform', platformId: null, deploymentId: null, lookup: { url: a.issuer, clientId: a.clientId, profile: a.profile } };
 }
 
-/** Fence-out uses saved attempt kinds, including targets of interrupted attempts. */
+/** Revoke only the added deployment; the platform and its approved deployments belong to earlier grants. */
+function revokeRecordOf(a: Attempt): RecordKey {
+  return a.targetKind === 'platform_deployment'
+    ? { kind: 'deployment', platformId: a.platformId, deploymentId: a.deploymentId }
+    : fenceRecordOf(a);
+}
+
+/**
+ * Committed platforms and reservations are attempt targets, including interrupted attempts.
+ * The suspend tests in redemption.test.ts cover shared reservations and deduplicated initial/add platform targets.
+ */
 export function fenceRecords(db: Db, c: Connection): RecordKey[] {
-  return dedupe(attemptsOfConnection(db, c.id).map((a) => attemptRecord(a, true)));
+  return dedupe(attemptsOfConnection(db, c.id).map(fenceRecordOf));
 }
 
 export function createBindingCleanup(deps: CleanupDeps) {
@@ -143,7 +151,7 @@ export function createBindingCleanup(deps: CleanupDeps) {
   async function revokeCleanup(grant: Grant, c: Connection, traceId: string): Promise<CleanupLine[] | null> {
     const attempts = attemptsOfGrant(db, grant.id);
     if (leaseLive(c, now()) && attempts.some((a) => a.attemptId === c.redeemingAttempt)) return null;
-    const targets = dedupe(attempts.map((a) => attemptRecord(a)));
+    const targets = dedupe(attempts.map(revokeRecordOf));
     const lines: CleanupLine[] = [];
     for (const r of targets) {
       let line: CleanupLine;
