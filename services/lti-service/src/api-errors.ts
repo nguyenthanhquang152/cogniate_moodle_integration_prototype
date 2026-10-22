@@ -53,6 +53,7 @@ export const API_ERRORS = defineErrorTable({
   ACCOUNT_ALREADY_EXISTS: { status: 409, description: 'This tool account already exists.' },
   ACCOUNT_CLOSED: { status: 409, description: 'This tool account is closed and cannot change.' },
   PLATFORM_RATE_LIMITED: { status: 429, description: 'The platform asked us to wait before another request.' },
+  RATE_LIMITED: { status: 429, description: 'Too many requests.' },
 });
 
 export type ApiErrorCode = keyof typeof API_ERRORS;
