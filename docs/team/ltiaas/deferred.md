@@ -49,3 +49,7 @@ Open MINOR and NIT items after round 2. The ones marked "before build" are one-l
 | A2 C5 | MINOR | LA-ADR-06 D4 rule T5: keep the first error on rollback | S1 | **Closed**: built in fd523ce; A2 BD-A2-07 updated D4 T5 |
 | A-LA-E5-02-03/-04 | NIT | Reviewer-A NITs on LA-E5-02 (03 = A2 D4 T5) | S1 | With the C1 follow-up |
 | A2 FYI (LA-E5-10) | MINOR candidate | removeToolKey uses an X'' literal (LA-ADR-06 D13 rule 2 portability lint forbids it; bind an empty Uint8Array); prepareToolKey uses generateKeyPairSync (blocks the event loop per new key; async generateKeyPair) | S2 | LA-E5-10 fix round (with its review findings) |
+| A-LA-E4-01-04 | NIT | Cooling entries for rows moved elsewhere are never pruned and grow the due batch | R | LA-E4-02 |
+| A-LA-E5-10-02 | NIT | prepareToolKey uses generateKeyPairSync (blocks both listeners); use async generateKeyPair | S2 | LA-E5-10 fix round |
+| A-LA-E5-10-03 | NIT | bootstrap --rotate-signing-key fails while a next key exists | S2 | LA-E5-10 fix round |
+| B-LA-E1-03-06/-07 | NIT | Fence messages do not say what is allowed; portal project comment | K | LA-E1-03 fix round (if cheap) |

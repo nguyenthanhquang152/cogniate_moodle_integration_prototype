@@ -77,6 +77,8 @@ Same body `{ status, error, details: { message, description } }`. Where marked, 
 | 403 | `API_KEY_SCOPE_MISSING` | §1.2 | Must |
 | 403 | `SERVICE_KEY_SCOPE` | A SERVICE-AUTH-V1 write outside the key's resource link when the account has `serviceKeyWriteScope: resource-link` | Should |
 | 409 | `API_KEY_LIMIT` | A third active API key | Must |
+| 409 | `ACCOUNT_ALREADY_EXISTS` | `POST /operator/v1/accounts` with an id that exists | Must |
+| 409 | `ACCOUNT_CLOSED` | An operator write that adds, enables or changes anything on a `closed` account (LA-ADR-06 D2 "Operator writes on a closed account"). Writes that only remove access (revokes, retire immediate) and reads stay allowed. | Must |
 | 409 | `SIGNING_KEY_NEXT_EXISTS` | A second `next` signing key | Must |
 | 409 | `SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH` | Activation before the publish lead time, without `force` | Must |
 | 409 | `SIGNING_KEY_ACTIVE` | `retire` of the active key | Must |
@@ -198,8 +200,8 @@ Listener `OPERATOR_HOST:OPERATOR_PORT` (default `127.0.0.1:4110`; the `acceptanc
 | `GET /operator/v1/rate-limits` | — | `200 { classes: { <class>: { ratePerMinute, burst, source } } }`; `source` = `operator`, `env` or `default` | Must |
 | `PATCH /operator/v1/rate-limits` | `{ classes: { <class>: { ratePerMinute, burst } \| null } }` (`null` removes the operator value) | `200` as `GET`. Applies at once; stored in `service_setting`. Unknown class or a value below 1: `400 INVALID_REQUEST`. | Must |
 | `GET /operator/v1/accounts/:id/api-keys` | — | `200 { apiKeys: [{ id, prefix, label, scopes, createdAt, createdBy, expiresAt, lastUsedAt, revokedAt }] }`. `prefix` is `null` for a key from the migration backfill (label `bootstrap`, `createdBy` `system:bootstrap`); key ids are opaque (LA-ADR-06 D5 "Backfill values"). | Must |
-| `POST /operator/v1/accounts/:id/api-keys` | `{ label, scopes: ["launch","admin"], expiresAt? }` | `201 { id, apiKey, prefix, label, scopes, expiresAt }`; `apiKey` is shown only here. `409 API_KEY_LIMIT`. `expiresAt` outside 1 hour to 2 years from now: `400 INVALID_REQUEST` (field `expiresAt`). | Must |
-| `POST /operator/v1/accounts/:id/api-keys/:keyId/revoke` | — | `200` key metadata with `revokedAt` | Must |
+| `POST /operator/v1/accounts/:id/api-keys` | `{ label, scopes: ["launch","admin"], expiresAt? }` | `201 { id, apiKey, prefix, label, scopes, expiresAt }`; `apiKey` is shown only here. `409 API_KEY_LIMIT`. `expiresAt` outside 1 hour to 2 years from now: `400 INVALID_REQUEST` (field `expiresAt`). `409 ACCOUNT_CLOSED` on a closed account. | Must |
+| `POST /operator/v1/accounts/:id/api-keys/:keyId/revoke` | — | `200` key metadata with `revokedAt` Idempotent: a revoked key, also on a closed account, gives `200` and keeps the first `revokedAt`. | Must |
 | `GET /operator/v1/accounts/:id/signing-keys` | — | `200 { signingKeys: [{ kid, status, publishedAt, activatedAt, retiredAt, removedAt }] }` (public data only) | Must |
 | `POST /operator/v1/accounts/:id/signing-keys` | — | `201 { kid, status: "next", publishedAt }`. `409 SIGNING_KEY_NEXT_EXISTS`. | Must |
 | `POST /operator/v1/accounts/:id/signing-keys/:kid/activate` | `{ force?: boolean }` | `200 { kid, status: "active", activatedAt, retired: <old kid> }`. `409 SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH`. `409 SIGNING_KEY_WRONG_STATE` when the key is not `next`. | Must |
@@ -226,7 +228,7 @@ CLI mapping (same commands, same output lines; the CLIs call the API above):
 | CLI | Calls |
 | --- | --- |
 | `lti:operator init --name <n>` | none: the only direct database write (first operator key) |
-| `lti:bootstrap --account --name [--rotate-api-key] [--rotate-signing-key]` | `POST` or `PATCH /operator/v1/accounts`; `POST …/api-keys` (with `--rotate-api-key`: then revoke every other key); `POST …/signing-keys` + `activate {force: true}` (with `--rotate-signing-key`) |
+| `lti:bootstrap --account --name [--rotate-api-key] [--rotate-signing-key]` | `POST` or `PATCH /operator/v1/accounts`; `POST …/api-keys` (with `--rotate-api-key`: then revoke every other key); `POST …/signing-keys` + `activate {force: true}` (with `--rotate-signing-key`; when a `next` key exists, first `POST …/signing-keys/<next kid>/retire {immediate: true}`; LA-ADR-06 D7 "CLI") |
 | `lti:shared-platform` | `POST /operator/v1/accounts/:id/shared-platforms` |
 
 ## 4. Tenant API (changes to §3 and §9)

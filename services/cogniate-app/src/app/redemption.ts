@@ -10,15 +10,17 @@
 //
 // No database transaction is open during an LTI call; every call has the normal 5 s timeout of the outbound client.
 // Authority comes ONLY from the approval that phase 2 writes (§6.1).
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 import type { Logger } from '@cogniate/shared';
 import type { LtiClient, LtiPlatform } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import type { Attempt, Grant } from '../domain/bindings.ts';
 import {
-  LEASE_MIN_REMAINING_MS, LEASE_MS, approvalOf, clearLease, endAttempt, getAttempt, getGrant, grantByCode, insertAttempt, leaseLive, markGrantRedeemed,
+  LEASE_MIN_REMAINING_MS, LEASE_MS, attemptsOfConnection, approvalOf, clearLease, endAttempt, getAttempt, getGrant, grantByCode, insertAttempt, leaseLive, markGrantRedeemed,
   recordRef, refRow, reservationOf, reservationOfConnection, setAttemptPlatform, setReservationRef, takeLease, writeApproval, writeReservation,
 } from '../domain/bindings.ts';
 import type { Connection, PlatformInfo } from '../domain/connections.ts';
+import { providerOf } from '../providers/index.ts';
 import { completeSnapshot, getConnection, getConnectionAnyLibrary } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
@@ -33,6 +35,7 @@ export interface RedemptionEngine {
 }
 
 export interface RedemptionDeps {
+  channels: ChannelRegistry;
   db: Db;
   lti: LtiClient;
   logger: Logger;
@@ -74,7 +77,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       return c.ltiPlatformId !== null && approvalOf(db, c.ltiPlatformId, values.deploymentId)?.connectionId === c.id;
     }
     const p = c.platform;
-    return (c.status === 'registered' || c.status === 'connected') && p !== null && (c.lms === 'blackboard' || p.clientId === values.clientId)
+    return (c.status === 'registered' || c.status === 'connected') && p !== null && (attemptsOfConnection(db, c.id).some((a) => a.state === 'committed' && a.targetKind === 'shared_deployment') || p.clientId === values.clientId)
       && p.deploymentIds.includes(values.deploymentId);
   }
 
@@ -99,12 +102,14 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       // 4. start state
       if (!startState(req.purpose, connection)) throw stateError(req.purpose);
       // 4a. Only initial needs a complete snapshot; old registered rows can add deployments without it.
-      const snapshot = req.purpose === 'initial' ? completeSnapshot(connection) : null;
+      const adapter = providerOf(connection.channel);
+      const sharing = adapter?.sharingOf(connection.profile);
+      const snapshot = req.purpose === 'initial' && sharing ? completeSnapshot(connection, sharing) : null;
       if (req.purpose === 'initial' && !snapshot) return notReady(connection, 'no_snapshot', req.traceId);
-      const resolved = localTarget(connection, req.purpose, req.values, snapshot);
+      const resolved = localTarget(connection, req.purpose, req.values, snapshot, adapter);
       // 5. values
       const target = resolved.target;
-      if (grant.lms !== connection.lms || grant.profile !== connection.profile || grant.siteUrl !== connection.siteUrl || grant.serviceUrl !== connection.serviceUrl) {
+      if (grant.channel !== connection.channel || grant.profile !== connection.profile || grant.siteUrl !== connection.siteUrl || grant.serviceUrl !== connection.serviceUrl) {
         return reject('mismatch', connection.id, req.traceId, new ApiError('GRANT_MISMATCH', 'The values do not match the approval.', { details: { fields: ['connection'] } }));
       }
       const clientId = resolved.clientId;
@@ -123,7 +128,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
         }
       }
       const attempt = insertAttempt(db, {
-        connectionId: connection.id, grantId: grant.id, purpose: req.purpose,
+        connectionId: connection.id, grantId: grant.id, purpose: req.purpose, targetKind: target.kind,
         profile: connection.profile, issuer: resolved.issuer, clientId,
         deploymentId: req.values.deploymentId, platformId: target.kind === 'exclusive_platform' ? target.platformId : target.platformId,
       }, t);
@@ -166,7 +171,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
 
   async function runAttempt(c: Connection, attempt: Attempt, grant: Grant, resolved: LocalTarget, traceId: string): Promise<Connection> {
     const target = resolved.target;
-    const create = stagedCall({ db, lti }, c, target, traceId);
+    const create = stagedCall({ db, lti }, c, target, traceId, providerOf(c.channel)!);
     let platformId: string | null = target.kind === 'exclusive_platform' ? target.platformId : target.platformId;
     let activationRef: string | null = null; // ref `a` of a successful S3
     const fail = (err: unknown): never => {
@@ -235,7 +240,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
           let result: Parameters<typeof afterReadiness>[0];
           try {
             const rows = await lti.getProviders(traceId, { singleAttempt: true });
-            const cause = sharedReadiness(rows.find((p) => p.id === c.profile), completeSnapshot(c)!);
+            const cause = sharedReadiness(rows.find((p) => p.id === c.profile), completeSnapshot(c, 'shared')!);
             result = cause ? { kind: 'not_ready', cause } : { kind: 'matched' };
           } catch (error) {
             result = { kind: 'failed', error };

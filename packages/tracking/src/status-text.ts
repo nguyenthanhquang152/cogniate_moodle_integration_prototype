@@ -16,7 +16,7 @@ const formatScore = (given: number | null, maximum: number | null): string =>
   given === null ? '' : maximum === null || maximum === 100 ? number(given) : `${number(given)}/${number(maximum)}`;
 
 /** "In progress", "Completed — score 100 sent to Moodle", "Preview — no grade is sent", ... */
-export function playStatusText(s: PlayStatus, lmsName: 'Moodle' | 'Canvas' | 'Blackboard' = 'Moodle'): string {
+export function playStatusText(s: PlayStatus, lmsName: string = 'Moodle'): string {
   if (s.preview) return 'Preview — no grade is sent';
   if (s.outcome === 'not_started') return 'Not started';
   if (!isFinal(s.outcome)) return 'In progress';

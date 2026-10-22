@@ -17,9 +17,9 @@ Independence: QA wrote the golden capture and compare tool (`tests/ltiaas/golden
 
 | AC | Result | Test id | Command | Evidence |
 | --- | --- | --- | --- | --- |
-| AC-LA-E0-03-01 | pending: Docker window (stored `1b17261…/G1.json` present; re-prove in LA Docker window) | `AC-04 support: the stored capture is complete (G1-G4, meta)` | `node --test tests/ltiaas/golden/golden.k0.test.mjs` | `tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/G1.json` |
-| AC-LA-E0-03-02 | pending: Docker window (stored `1b17261…/G2.json` present; re-prove in LA Docker window) | same | same | `tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/G2.json` |
-| AC-LA-E0-03-03 | pending: Docker window (stored `1b17261…/G3.json` and `G4.json` present; re-prove in LA Docker window) | same | same | `tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/G3.json`, `G4.json` |
+| AC-LA-E0-03-01 | pending: Docker window (`1b17261…/G1.json` kept only as a tool fixture; re-capture in an LA Docker window) | `AC-04 support: the stored capture is complete (G1-G4, meta)` | `node --test tests/ltiaas/golden/golden.k0.test.mjs` | `tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/G1.json` (fixture from `r7`) |
+| AC-LA-E0-03-02 | pending: Docker window (`1b17261…/G2.json` kept only as a tool fixture; re-capture in an LA Docker window) | same | same | `tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/G2.json` (fixture from `r7`) |
+| AC-LA-E0-03-03 | pending: Docker window (`1b17261…/G3.json` and `G4.json` kept only as tool fixtures; re-capture in an LA Docker window) | same | same | `tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/G3.json`, `G4.json` (fixtures from `r7`) |
 | AC-LA-E0-03-04 | pending: Docker window (two fresh-stack captures of `1b17261…` with `settledPending` in `capture.golden.ts`) | `run-golden.mjs` + `compare.mjs` | — | Pending LA SIM Docker slot |
 | AC-LA-E0-03-05 | PASS (K0) | `AC-05 normalization`, `AC-05 drop list`, `AC-05 secret scan` | `node --test tests/ltiaas/golden/golden.k0.test.mjs` | 3/3 pass; 0 secret hits across `G1.json`–`G4.json` |
 | AC-LA-E0-03-06 | PASS (K0) | `AC-06 compare without Docker: the CLI compares the stored capture with itself in under 5 s` | `node --test tests/ltiaas/golden/golden.k0.test.mjs` | 45 ms (< 5,000 ms), `EQUAL: 0 differences` |
@@ -29,5 +29,6 @@ Independence: QA wrote the golden capture and compare tool (`tests/ltiaas/golden
 
 ## Notes
 
+- **Provenance of `tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/{G1,G2,G3,G4,meta}.json`:** These files come from the previous lead QA session's `r7` run, which ran during the other run's exclusive Docker window. They are kept in the tree **only as tool fixtures** so the host-only K0 golden tests (`AC-05..08`) and downstream K0 fixture tests can run without Docker. The real G1–G4 baseline must be re-captured from two fresh-stack runs in an authorized LA Docker window (`AC-01..04, 09` stay pending until then).
 - **Fix for row D / E `503` race (`settledPending` in `capture.golden.ts`):** `waitSync(..., 'pending', 2)` previously returned as soon as the score worker incremented `tries` to `2` in SQLite before the second HTTP POST reached `lms-sim`. When `d2` launched immediately on the same `resource`, it registered a new scenario on `lms-sim` (`scoreAnswers: []`) that answered `204` to `d1`'s in-flight second POST instead of `503`. `settledPending` now waits for both the `score_sync` log event (`tries: 2, status: 'pending'`) and at least `tries` `503` score records in `/__sim/records` for that publication before starting the next step.
 - **Measured time (K0 suite):** `node --test tests/ltiaas/golden/golden.k0.test.mjs` runs 9 tests in 212 ms (compare CLI: 5–45 ms).
