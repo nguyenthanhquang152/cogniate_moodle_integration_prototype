@@ -1,6 +1,6 @@
 # P4 dispatch: QA-3 (Antigravity), run 11: LA-E1-07 R2, LA-E1-08 R2, LA-E4-05 R1, LA-E1-11 R3 (host-only)
 
-Same terminal session and rules. Your run-10 file is committed (f973e21). Integration SHA: 5b5b3a2 (the Lead's full check result is in the dispatch message). Clone into a NEW folder (--no-hardlinks, npm ci). Then:
+Same terminal session and rules. Your run-10 file is committed (f973e21). Integration SHA: 5b5b3a2 (Lead full check green: 2625 unit, 121 K0, F1 74 hits in 20 files, F5 6 rules). Clone into a NEW folder (--no-hardlinks, npm ci). Then:
 1. LA-E1-07 Round 2 (lane K fix round 1, both parts, merge 6270d43): re-run your LA-E1-07 K0 suite and UNIT rows; add rows for the two-phase family guard (A1 BD-A1-54 table; BD-A1-55: launch phase only in the app) and the kernel contexts toolAccountId/toolUrls (BD-A1-40).
 2. LA-E1-08 Round 2 (lane K fix round 1, merge 6270d43): re-run your LA-E1-08 suite; add rows for the frozen extension paths, the named kernel port refusals and the P5 toolUrls context.
 3. LA-E4-05 Round 1 (lane R, merge 392287d: web and worker roles from one job assembly; production role refusal; worker scripts): run your test-first suite tests/ltiaas/tasks-core/LA-E4-05 and the UNIT rows. Golden AC-05 stays pending Docker.

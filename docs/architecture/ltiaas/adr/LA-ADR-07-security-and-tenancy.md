@@ -118,6 +118,21 @@ export interface ConnectionSecrets {
 
 Profile of a CLI run: the app CLIs read `STACK_PROFILE` from their **own process** environment. With `STACK_PROFILE=production` a CLI applies the production rules of D4 and D5 (operator name, evidence fields). It does not run the service start checks of [LA-ADR-06 D12](LA-ADR-06-service-operability.md#d12-production-profile-and-secrets-from-files-should). So a test stack in the `acceptance` profile can prove the CLI rules with one command, for example `docker compose exec -e STACK_PROFILE=production -e OPERATORS=qa-op cogniate-app npm run app:grant -- issue … --operator qa-op --evidence-channel support-call --evidence-ref QA-1` (the breakdown adds this command form to the tasks README §2 allowance).
 
+Refusal line of the app CLIs (BD-A2-59; `app:grant`, `app:binding`, `app:audit`): one JSON line on stderr, exit 1, nothing written: `{"event": "operator_refused" | "config_refused", "reason": "<code>", "message": "<one fixed sentence with the fix>"}`. The message is fixed text per code and never echoes input.
+
+| Event | Code | Message |
+| --- | --- | --- |
+| `config_refused` | `operators_ambiguous` | Set only one of OPERATORS and OPERATORS_FILE, then run the command again. |
+| `config_refused` | `operators_not_configured` (production; neither variable is set, or the list is empty) | Set OPERATORS or OPERATORS_FILE to the allowed operator names, then run the command again. |
+| `config_refused` | `operators_file_invalid` | OPERATORS_FILE must be a JSON array of operator names. Correct the file, then run the command again. |
+| `config_refused` | `stack_profile_invalid` | Set STACK_PROFILE to default, acceptance or production. |
+| `operator_refused` | `operator_missing` | Add --operator <your name>, then run the command again. |
+| `operator_refused` | `operator_unknown` | Your operator name is not in the allowed list. Use your listed name, or ask an administrator to add it. |
+| `operator_refused` | `evidence_channel_missing` | Add --evidence-channel (institution-email, support-call, lms-admin-ticket or other), then run the command again. |
+| `operator_refused` | `evidence_ref_missing` | Add --evidence-ref <ticket or message reference>, then run the command again. |
+| `operator_refused` | `evidence_channel_invalid` | Use one of these evidence channels: institution-email, support-call, lms-admin-ticket, other. |
+| `operator_refused` | `evidence_ref_invalid` | Give an evidence reference of 1 to 200 characters. |
+
 Residual R-LA-2: the app operator name is self-asserted by a person with shell access. The audit trail is accountable, not authenticated, until LG adds SSO for operators.
 
 Acceptance points:

@@ -28,6 +28,7 @@ const ref = z.string().regex(BINDING_REF, '1 to 64 characters [A-Za-z0-9_-]');
 const PlatformCreateBase = z.object({
   url: url.optional(),
   clientId: z.string().min(1).max(255),
+  trustedAudiences: z.array(z.string()).optional(),
   name: z.string().min(1).max(255),
   authenticationEndpoint: url.optional(),
   accesstokenEndpoint: url.optional(),
@@ -49,6 +50,7 @@ const AdminCreate = z.object({
 });
 
 const PlatformPatch = z.object({
+  trustedAudiences: z.array(z.string()).optional(),
   name: z.string().min(1).max(255).optional(),
   active: z.boolean().optional(),
   deploymentIds: z.array(z.string().min(1).max(255)).min(1).max(100).optional(),
@@ -93,7 +95,7 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
     id: p.id, url: p.issuer, clientId: p.clientId, name: p.name, authenticationEndpoint: p.authEndpoint,
     accesstokenEndpoint: p.tokenEndpoint, authConfig: { method: 'JWK_SET', key: p.jwksUrl },
     publicKey: activePublicKeyPem(ctx.db, p.toolAccountId), active: p.active, deploymentIds: p.deploymentIds,
-    productFamilyCode: p.productFamilyCode,
+    productFamilyCode: p.productFamilyCode, trustedAudiences: p.trustedAudiences,
     // M1 (§9.4)
     profile: p.profile, siteUrl: p.siteUrl, serviceUrl: p.serviceUrl, bindingRef: p.bindingRef, deployments: p.deployments.map((d) => deploymentView(p, d)),
   });
@@ -112,7 +114,7 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
     return {
       issuer: b.url, clientId: b.clientId, name: b.name, authEndpoint: b.authenticationEndpoint, tokenEndpoint: b.accesstokenEndpoint,
       jwksUrl: b.authConfig.key, deploymentIds: b.deploymentIds, active: raw.active ?? true, productFamilyCode: raw.productFamilyCode ?? null,
-      profile: profile.id, bindingRef: raw.bindingRef ?? null,
+      profile: profile.id, bindingRef: raw.bindingRef ?? null, trustedAudiences: raw.trustedAudiences ?? [],
     };
   }
 
@@ -157,7 +159,7 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteCont
       issuer: e.issuer, clientId: b.clientId, name: b.name, authEndpoint: e.authenticationEndpoint, tokenEndpoint: e.accesstokenEndpoint, jwksUrl: e.jwksUrl,
       deploymentIds: b.deploymentIds ?? [], active: b.active ?? true, productFamilyCode: b.productFamilyCode ?? null, profile: profile.id,
       siteUrl: profile.siteUrlOn === 'platform' ? siteUrl : null, serviceUrl: profile.siteUrlOn === 'platform' ? serviceUrl : null,
-      bindingRef: b.bindingRef ?? null, shared,
+      bindingRef: b.bindingRef ?? null, shared, trustedAudiences: b.trustedAudiences ?? [],
     };
   }
 
