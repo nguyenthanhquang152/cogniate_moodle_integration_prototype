@@ -1,7 +1,7 @@
 {
   "apps/player/src/lms-name.ts": 6,
   "apps/player/src/shell/main.ts": 4,
-  "apps/portal/src/App.tsx": 10,
+  "apps/portal/src/App.tsx": 13,
   "apps/portal/src/IntegrationLogo.tsx": 2,
   "apps/portal/src/Integrations.tsx": 13,
   "apps/portal/src/api.ts": 4,
@@ -77,12 +77,6 @@
   "services/cogniate-app/src/worker/score-sync.ts": 1,
   "services/lti-service/src/http/error-page.ts": 1,
   "services/lti-service/src/http/routes/registration.ts": 8,
-  "services/lti-service/src/lti/checks.ts": 6,
   "services/lti-service/src/lti/codes.ts": 7,
-  "services/lti-service/src/lti/launch.ts": 1,
-  "services/lti-service/src/lti/login.ts": 2,
-  "services/lti-service/src/profiles/blackboard.ts": 21,
-  "services/lti-service/src/profiles/canvas.ts": 33,
-  "services/lti-service/src/profiles/index.ts": 19,
-  "services/lti-service/src/profiles/types.ts": 2
+  "services/lti-service/src/lti/login.ts": 2
 }

@@ -2,14 +2,17 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import { ROOT, isMain, repoPath, trackedFiles } from './common.mjs';
+import { ROOT, repoPath, trackedFiles } from './common.mjs';
 
 function invalid(file, reason) {
   return new Error(`rule_invalid ${file}: ${String(reason).replace(/[\r\n]+/g, ' ')}`);
 }
 
 export async function loadRules(folder = new URL('./rules/', import.meta.url)) {
-  const files = readdirSync(folder, { withFileTypes: true }).filter((entry) => entry.isFile() && entry.name.endsWith('.mjs')).map((entry) => entry.name).sort();
+  const files = readdirSync(folder, { withFileTypes: true }).filter((entry) => entry.name.endsWith('.mjs')).map((entry) => {
+    if (!entry.isFile()) throw invalid(entry.name, 'rule module must be a regular file, not a symlink or directory');
+    return entry.name;
+  }).sort();
   const rules = [];
   for (const name of files) {
     const url = folder instanceof URL ? new URL(name, folder) : pathToFileURL(resolve(folder, name));
@@ -69,7 +72,7 @@ export async function main() {
   process.exitCode = count ? 1 : 0;
 }
 
-if (isMain(import.meta.url)) {
+if (import.meta.main) {
   main().catch((error) => {
     console.error(error.message.startsWith('rule_invalid ') ? error.message : invalid('rules.mjs', error.message).message);
     process.exitCode = 2;

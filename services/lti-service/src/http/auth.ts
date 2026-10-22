@@ -65,20 +65,24 @@ export function authenticate(db: Db, header: string | undefined, accepted: Schem
   }
   if (!accepted.includes(parsed.scheme)) return reject(parsed.scheme, 'INVALID_AUTHORIZATION_HEADER');
   const account = findAccountByApiKey(db, parsed.apiKey);
-  if (!account) {
+  if (!account || account.status === 'closed') {
     // ADR-003: a bad API key on Bearer endpoints uses the LTIK error code.
     return reject(parsed.scheme, parsed.scheme === 'service' ? 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER' : 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER',
       parsed.scheme === 'bearer' ? 'Invalid API key.' : undefined);
   }
   const actor: AuditActor = { type: 'api_key', id: `bootstrap-${account.id}` };
+  const statusGate = (result: AuthResult): AuthResult => {
+    if (account.status === 'suspended') throw new ApiError('TOOL_ACCOUNT_SUSPENDED');
+    return result;
+  };
   if (parsed.scheme === 'bearer') {
-    return { scheme: 'bearer', account, actor, launch: null, serviceKey: null };
+    return statusGate({ scheme: 'bearer', account, actor, launch: null, serviceKey: null });
   }
   if (parsed.scheme === 'service') {
     // T3a: the service key must belong to the account of the API key and must not be revoked (security §8).
     const serviceKey = findServiceKey(db, account.id, parsed.credential ?? '');
-    return serviceKey ? { scheme: 'service', account, actor, launch: null, serviceKey } : reject('service', 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER');
+    return serviceKey ? statusGate({ scheme: 'service', account, actor, launch: null, serviceKey }) : reject('service', 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER');
   }
   const launch = findLaunchByLtik(db, account.id, parsed.credential ?? '', now);
-  return launch ? { scheme: 'ltik', account, actor, launch, serviceKey: null } : reject('ltik', 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER');
+  return launch ? statusGate({ scheme: 'ltik', account, actor, launch, serviceKey: null }) : reject('ltik', 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER');
 }

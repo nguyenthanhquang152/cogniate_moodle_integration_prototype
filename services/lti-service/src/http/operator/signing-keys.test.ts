@@ -8,7 +8,7 @@ import { ensureAccount } from '../../store/accounts.ts';
 import { listAuditEvents } from '../../store/audit.ts';
 import { issueOperatorKey } from '../../store/operator-keys.ts';
 import { activePrivateJwk, ensureToolKey, listSigningKeys, publicJwks } from '../../store/tool-keys.ts';
-import { capturingLogger } from '../../testkit.ts';
+import { URLS, capturingLogger } from '../../testkit.ts';
 import { buildOperatorApp } from './index.ts';
 
 const T0 = Date.parse('2026-10-22T10:00:00Z');
@@ -32,7 +32,7 @@ async function fixture() {
   const a = await ensureToolKey(db, keys, 'cogniate');
   const { logger, lines } = capturingLogger();
   const clock = { now: T0 };
-  const app = await buildOperatorApp({ db, keys, logger, now: () => clock.now });
+  const app = await buildOperatorApp({ urls: URLS, db, keys, logger, now: () => clock.now });
   resources.push({ db, app });
   const { operatorKey } = issueOperatorKey(db, { operator: 'unit', expiresAt: T0 + 3600_000 }, T0);
   const post = (path = '', body?: unknown, account = 'cogniate') => app.inject({
@@ -129,6 +129,6 @@ describe('signing-key operator routes', () => {
     h.clock.now = T0 + 600_000;
     expect((await h.post(`/${b}/activate`)).statusCode).toBe(200);
     vi.stubEnv('SIGNING_KEY_PUBLISH_LEAD_S', '599');
-    await expect(buildOperatorApp({ db: h.db, keys: h.keys, logger: capturingLogger().logger })).rejects.toThrow(/SIGNING_KEY_PUBLISH_LEAD_S/);
+    await expect(buildOperatorApp({ urls: URLS, db: h.db, keys: h.keys, logger: capturingLogger().logger })).rejects.toThrow(/SIGNING_KEY_PUBLISH_LEAD_S/);
   });
 });

@@ -2,6 +2,8 @@
 import type { Db } from '../db/index.ts';
 import { transaction } from '../db/index.ts';
 import { sha256Hex } from '@cogniate/shared';
+import { createHash, randomBytes } from 'node:crypto';
+import { ApiError } from '../api-errors.ts';
 import { newApiKey } from '../crypto.ts';
 
 export interface ToolAccount {
@@ -10,19 +12,100 @@ export interface ToolAccount {
   launchUrl: string;
   deepLinkingUrl: string;
   registrationUrl: string;
+  status: AccountStatus;
+  statusChangedAt: number;
+  createdAt: number;
+  publicBaseUrl: string | null;
+  limits: AccountLimits | null;
+  claimPolicy: ClaimPolicy | null;
+  serviceKeyWriteScope: 'context' | 'resource-link';
 }
 
-interface AccountRow { id: string; name: string; launch_url: string; deep_linking_url: string; registration_url: string }
+export type AccountStatus = 'active' | 'suspended' | 'closed';
+export const RATE_LIMIT_CLASSES = ['protocol', 'protocol_account', 'registration', 'registration_account', 'keys', 'api', 'admin', 'auth_failure', 'operator'] as const;
+export type AccountLimits = Partial<Record<typeof RATE_LIMIT_CLASSES[number], { ratePerMinute: number; burst: number }>>;
+export interface ClaimPolicy { mode: 'allowlist' | 'passthrough'; keep: { names: boolean; email: boolean; custom: boolean; lis: boolean } }
+export const DEFAULT_CLAIM_POLICY: ClaimPolicy = { mode: 'allowlist', keep: { names: false, email: false, custom: false, lis: false } };
+
+interface AccountRow {
+  id: string; name: string; launch_url: string; deep_linking_url: string; registration_url: string;
+  status: AccountStatus; status_changed_at: number; created_at: number; public_base_url: string | null;
+  limits: string | null; claim_policy: string | null; service_key_write_scope: 'context' | 'resource-link';
+}
 
 const toAccount = (r: AccountRow): ToolAccount => ({
   id: r.id, name: r.name, launchUrl: r.launch_url, deepLinkingUrl: r.deep_linking_url, registrationUrl: r.registration_url,
+  status: r.status, statusChangedAt: r.status_changed_at, createdAt: r.created_at, publicBaseUrl: r.public_base_url,
+  limits: r.limits === null ? null : JSON.parse(r.limits) as AccountLimits,
+  claimPolicy: r.claim_policy === null ? null : JSON.parse(r.claim_policy) as ClaimPolicy,
+  serviceKeyWriteScope: r.service_key_write_scope,
 });
 
 export const ACCOUNT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
+/** No caller holds these random bytes; the frozen column cannot authenticate a new operator-created account. */
+const unusableApiKeyHash = (): string => createHash('sha256').update(randomBytes(32)).digest('hex');
+
+export interface NewAccount {
+  id: string; name: string; launchUrl: string; deepLinkingUrl: string; registrationUrl: string;
+  limits?: AccountLimits | null; claimPolicy?: ClaimPolicy | null;
+}
+export type AccountPatch = Partial<Omit<NewAccount, 'id'>> & { status?: AccountStatus; serviceKeyWriteScope?: ToolAccount['serviceKeyWriteScope'] };
+
+/** Call within audit.change when the account, first signing key and audit must commit together. */
+export function createAccount(db: Db, input: NewAccount, now: number): ToolAccount {
+  if (!ACCOUNT_ID.test(input.id)) throw new ApiError('INVALID_REQUEST', 'Invalid field: id.');
+  if (getAccount(db, input.id)) throw new ApiError('ACCOUNT_ALREADY_EXISTS');
+  db.prepare(`INSERT INTO tool_account (id, name, api_key_hash, launch_url, deep_linking_url, registration_url,
+    created_at, status_changed_at, limits, claim_policy) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(input.id, input.name, unusableApiKeyHash(), input.launchUrl, input.deepLinkingUrl, input.registrationUrl, now, now,
+      input.limits === undefined || input.limits === null ? null : JSON.stringify(input.limits),
+      input.claimPolicy === null ? null : JSON.stringify(input.claimPolicy ?? DEFAULT_CLAIM_POLICY));
+  return getAccount(db, input.id)!;
+}
+
+/** Stable id order; the cursor is the last id of the preceding page. */
+export function listAccounts(db: Db, filter: { status?: AccountStatus; cursor?: string; limit: number }): { accounts: ToolAccount[]; next?: string } {
+  const rows = db.prepare(`SELECT * FROM tool_account WHERE (? IS NULL OR status = ?) AND id > ? ORDER BY id LIMIT ?`)
+    .all(filter.status ?? null, filter.status ?? null, filter.cursor ?? '', filter.limit + 1) as unknown as AccountRow[];
+  const more = rows.length > filter.limit;
+  const accounts = rows.slice(0, filter.limit).map(toAccount);
+  return { accounts, ...(more ? { next: accounts.at(-1)!.id } : {}) };
+}
+
+export function updateAccount(db: Db, id: string, patch: AccountPatch, now: number): ToolAccount {
+  return transaction(db, () => {
+    const current = requireWritableAccount(db, id);
+    const next = { ...current, ...patch };
+    db.prepare(`UPDATE tool_account SET name = ?, launch_url = ?, deep_linking_url = ?, registration_url = ?,
+      status = ?, status_changed_at = ?, limits = ?, claim_policy = ?, service_key_write_scope = ? WHERE id = ?`)
+      .run(next.name, next.launchUrl, next.deepLinkingUrl, next.registrationUrl, next.status,
+        next.status === current.status ? current.statusChangedAt : now,
+        next.limits === null ? null : JSON.stringify(next.limits), next.claimPolicy === null ? null : JSON.stringify(next.claimPolicy),
+        next.serviceKeyWriteScope, id);
+    if (next.status === 'closed') {
+      db.prepare('UPDATE tool_account SET api_key_hash = ? WHERE id = ?').run(unusableApiKeyHash(), id);
+      // LA-E5-07 adds api_key. Close also revokes its rows once that migration is installed.
+      if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'api_key'").get()) {
+        db.prepare('UPDATE api_key SET revoked_at = ? WHERE tool_account_id = ? AND revoked_at IS NULL').run(now, id);
+      }
+      db.prepare('UPDATE service_key SET revoked_at = ? WHERE tool_account_id = ? AND revoked_at IS NULL').run(now, id);
+    }
+    return getAccount(db, id)!;
+  });
+}
+
 export function getAccount(db: Db, id: string): ToolAccount | null {
   const row = db.prepare('SELECT * FROM tool_account WHERE id = ?').get(id) as AccountRow | undefined;
   return row ? toAccount(row) : null;
+}
+
+/** BD-A2-12: call inside the write transaction too, so a concurrent close cannot pass the guard. */
+export function requireWritableAccount(db: Db, id: string): ToolAccount {
+  const account = getAccount(db, id);
+  if (!account) throw new ApiError('NOT_FOUND', 'Unknown tool account.');
+  if (account.status === 'closed') throw new ApiError('ACCOUNT_CLOSED');
+  return account;
 }
 
 /** The API key resolves to exactly one tool account (only its SHA-256 hash is stored). */
@@ -49,10 +132,12 @@ export function ensureAccount(db: Db, input: EnsureAccountInput): { account: Too
     const existing = getAccount(db, input.id);
     if (!existing) {
       const apiKey = newApiKey();
-      db.prepare(`INSERT INTO tool_account (id, name, api_key_hash, launch_url, deep_linking_url, registration_url, created_at)
-                  VALUES (?, ?, ?, ?, ?, ?, ?)`).run(input.id, input.name, sha256Hex(apiKey), urls.launch, urls.deep, urls.reg, Date.now());
+      const now = Date.now();
+      db.prepare(`INSERT INTO tool_account (id, name, api_key_hash, launch_url, deep_linking_url, registration_url, created_at, status_changed_at, claim_policy)
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(input.id, input.name, sha256Hex(apiKey), urls.launch, urls.deep, urls.reg, now, now, JSON.stringify(DEFAULT_CLAIM_POLICY));
       return { account: getAccount(db, input.id)!, created: true, apiKey };
     }
+    if (existing.status === 'closed') throw new ApiError('ACCOUNT_CLOSED');
     db.prepare('UPDATE tool_account SET name = ?, launch_url = ?, deep_linking_url = ?, registration_url = ? WHERE id = ?')
       .run(input.name, urls.launch, urls.deep, urls.reg, input.id);
     let apiKey: string | null = null;
