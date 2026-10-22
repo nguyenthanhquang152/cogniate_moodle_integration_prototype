@@ -13,7 +13,22 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 12:07 UTC
+### Current directive — 2026-10-22, 12:21 UTC
+
+Eight of twelve fresh legacy groups passed. T5a, T5b and T6 now run; the frozen C4 product and C5 tests are unchanged.
+The existing 13:50 UTC runtime deadline and all 32 protected volume records remain in force.
+Independent Canvas QA will judge T6/T8 as their artifacts arrive. M2 and T7 still need separate grants after accepted cleanup.
+
+Gemini Stage0 guide QA passed f185260; its report is committed at 28102a6.
+Independent Reviewer-B then found two MAJOR, two MINOR and three NIT text issues; report 724a08a is accepted and its worker released.
+The same retained Codex executor has task_0fe5bde62144 / ctx_4fd2d17166c9 to correct all seven in one pass.
+It owns only the affected operator, troubleshooting and Canvas admin prose, plus the same command-root examples in infra/README.md.
+The last grant expands to infra README lines 69–70 and their direct explanation; no product or test edit is authorized.
+The corrected candidate will receive focused independent QA and review. Prior QA remains valid only for its recorded candidate.
+Final Architect conformance, final Docs stamps, independent final QA and two final blind reviews remain required.
+All 32 real LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 12:07 UTC
 
 The C4/C5 legacy runner started at 11:53:49 UTC. W1–W3 passed; W3 SHA is 3a949d5447be62e8d81a78e1f70fabb25b18edee3d85d2b7caf8377013583982.
 All ten historical volume records are unchanged. W3 also records 22 additional anonymous volumes; all 32 full records must survive W4.
