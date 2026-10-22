@@ -499,8 +499,8 @@ describe('routing, site and LMS checks, disabled score rules and guards (§4.7.2
     t.db.prepare("INSERT INTO resource_link (id, connection_id, publication_id, deployment_id, context_id, resource_link_id, context_title, title, created_at, updated_at) VALUES ('rl_s', ?, 'pub_s', 'dA', 'c', 'r', 'C', 'T', 0, 0)").run(con.id);
     t.db.prepare("INSERT INTO attempt (id, resource_link_id, user_sub, course_version_id, preview, outcome, score_given, score_maximum, created_at, updated_at) VALUES ('att_s', 'rl_s', 'u', 'ver_s', 0, 'completed', 7, 10, 0, 0)").run();
     seedLegacyDispatch(t.db, { id: 'sync_s', attemptId: 'att_s', tries: 2, createdAt: 0, nextTryAt: t.clock.now + 30_000 });
-    const { createScoreSyncWorker } = await import('../worker/score-sync.ts');
-    const worker = createScoreSyncWorker({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client, logger: createLogger({ service: 'x', write: (l) => t.logs.push(JSON.parse(l)) }), masterKey: Buffer.alloc(32, 5), now: () => t.clock.now });
+    const { createDispatchHarness } = await import('../kernel/records/dispatch.testkit.ts');
+    const worker = createDispatchHarness({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client, logger: createLogger({ service: 'x', write: (l) => t.logs.push(JSON.parse(l)) }), masterKey: Buffer.alloc(32, 5), now: () => t.clock.now });
     await worker.kick();
     expect(t.db.prepare("SELECT status FROM record_dispatch WHERE id = 'sync_s'").get()?.status).toBe('pending');
     t.clock.now += 30_000;

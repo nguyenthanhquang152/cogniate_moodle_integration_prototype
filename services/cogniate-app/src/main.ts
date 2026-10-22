@@ -15,7 +15,8 @@ import { prepareStore } from './domain/package-store.ts';
 import { retentionJob } from './domain/retention.ts';
 import { createAppJobStore } from './kernel/records/job-store.ts';
 import { createDispatchQueue } from './kernel/records/outbox.ts';
-import { legacyAgsReporter } from './kernel/records/legacy-reporter.ts';
+import { ltiAgsReporter } from './drivers/lti-ags/index.ts';
+import { configureRecordReporters } from './kernel/records/records.ts';
 import { loadAppChannelRegistry } from './kernel/registry.ts';
 import type { JobRunner } from '@cogniate/shared';
 
@@ -42,7 +43,9 @@ async function startAppService() {
         // The acceptance profile sends the /api/* calls through the transport gate (M3 §3.3, LTI_API_URL).
         const lti = createLtiClient({ outbound, ltiUrl: deps.urls.lti, apiKeyFile: config.ltiApiKeyFile, ...(config.ltiApiUrl ? { apiUrl: config.ltiApiUrl } : {}) });
         runner = createJobRunner({ store: createAppJobStore(db), logger: deps.logger, instanceId: config.jobInstanceId });
-        runner.addQueue(createDispatchQueue(db, [legacyAgsReporter({ db, lti, masterKey: config.masterKey })]));
+        const reporters = [ltiAgsReporter({ db, lti, masterKey: config.masterKey, channels })];
+        configureRecordReporters(db, reporters);
+        runner.addQueue(createDispatchQueue(db, reporters));
         runner.addInterval(retentionJob(db));
         const app = await buildAppApi({
           channels, db, urls: deps.urls, logger: deps.logger, store, profile: deps.profile, knobs: deps.knobs, outboundAllowlist: deps.outboundAllowlist,
