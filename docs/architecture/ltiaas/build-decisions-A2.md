@@ -342,3 +342,14 @@ Changes for the Lead to route:
 - **S1 (LA-E5-17):** the limiter observer, the commit-time audit counter, and the series and label rules; your process grant for the wiring files.
 - **L (RQ-1, one commit):** the two injected observers in the token client and the JWKS cache.
 - **Owner of the platform list route** (suggested: S2 in the LA-E5-15 fix round, reading L's existing store function).
+
+## 28. Round 27: JWKS observer attribution (LA-E5-17 RQ-1, lane L) and the LA-E5-11 AC-06 text, 2026-10-23
+
+Routed in dispatch `ctx_4f9a4b12cd5a`. Decisions sent to the Lead first (`msg_8b37c4565095`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-54 | (Provisional, L's proposal.) `verify(token, jwksUrl, traceId, platformId?)`; the third constructor argument `onJwksFetch` (no-op default); one event attributed to the platform that **starts** the fetch; a cache hit and a caller with no `platformId` emit nothing; `fetchedAt` = the completion time. Open point: platforms that share one JWKS URL share one cache entry. | **Changed.** Failures: one event per verify **call that waited** on a fetch (the starter or a single-flight joiner), with its own `platformId` (same signature). Cache age: **not from events**. A read-only getter `lastSuccessAt(jwksUrl)` on the cache, and at scrape time the age is reported for every stored active platform whose stored URL has an entry. | operability §4.2 "Sources"; LA-E5-17 design notes | A shared URL is the normal case: every Canvas cloud platform uses one fixed JWKS URL. Starter-only attribution would leave most of them without an age series, so the 24 h alert would miss them. Per-waiter events count each launch that hit a failure. |
+| BD-A2-55 | LA-E5-11 Reviewer-B2: the AC-LA-E5-11-06 text ("above 4 KB is refused") is stale against BD-A2-45. | **The text changes; the code does not.** `app/audit.ts:71-75` already stores `{"truncated": true}` above 4 KB after `redact()`. The AC now says so, and that the write succeeds. | LA-E5-11 AC-06 | — |
+
+Changes for the Lead to route: **L (LA-E5-17 RQ-1):** per-waiter events and the `lastSuccessAt` getter. **S1 (LA-E5-17):** the scrape-time age join over stored platforms. No code change for LA-E5-11.
