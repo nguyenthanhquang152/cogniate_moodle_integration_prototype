@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-09 review, Reviewer-B2 (lens: "Can a human team own it?")
 
@@ -122,3 +122,24 @@ The outcome values are clear when the operator reads the job end event. My first
 
 - The K1-SIM ACs AC-01..05 (QA, with the README OC-7 key-ring procedure), and the regression areas T2a..T3c.
 - Lens-A items: the cost of the full final scan under the write lock for large tables, a corrupt `key_provider` setting value (the zod parse is inside `open`), and the `examined` set memory for large tables.
+
+## Round 2
+
+Reviewer: Reviewer-B (same lens B). Verdict for this round: **APPROVE**. This round re-checks the round-1 findings against lane S2's fix round 1. Diff: `git diff 3b14a84^1 3b14a84`. The commits are `e4cddc6` (split `run()`), `ed816ed` (setting validated at start), `31d5b22` (one sealed-column list) and `901bebd` (503/409), plus RQ-2 `153f041` (S1 files). I did not open any reviewer-a file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT (new).** All five round-1 findings are **closed** or **fixed**.
+
+### How I checked
+
+- Scratch clone of `3b14a84` (private `/tmp` folder, `--no-hardlinks`, `node_modules` copied; deleted after the run). `vitest run services/lti-service`: **78 files, 983 tests passed**. `tsc --noEmit -p services/lti-service/tsconfig.json`: exit 0.
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| B-LA-E5-09-01 (MINOR) `202` does not lead to the outcome; a run that did not start also gives `202` | **Closed** (S2 and runbook parts) | `http/operator/key-provider.ts:14-16`: a runner that is not `active` gives `503 NOT_READY` with `reasons: ['job_runner_not_active']` and `retryAfter: 30`. The test "a %s runner gives 503, Retry-After, and no event" (`key-provider.test.ts:80`) has rows for `idle`, `waiting`, `stopping`, `off` and a missing runner. `:17-24`: a live lease gives `409 JOB_RUNNING`, checked before the request event and again inside it (test `:92`, same and other owner: "one refused event and no second run"). An expired or unowned lease permits a new run (`:104`). Operability §6.3 step 5 (`:245-248`) now covers `202`, `503` (wait `Retry-After`) and `409`. Step 6 (`:249-253`) tells the operator how to read the end event (actor `system:key-rewrap`, `details.outcome`), what to do for `complete`, `partial` and both `failed` kinds, and what to do when no event comes. **Open, not a finding:** the request trace reaches the run only when the shared runner accepts `runNow(name, { traceId })` (comment at `:25-26`). Until S2's next round, step 6 uses `&since=`, and the runbook says so. |
+| B-LA-E5-09-02 (MINOR) two unconnected lists of sealed columns | **Closed** | New `keys/sealed-columns.ts` holds table, column, row key, "present" rule and associated data in one list. Readiness (`key-config.ts:58`), the stores (`tool-keys.ts:21`, `:237`; `registrations.ts:36`, `:91`), the status and the re-wrap (`key-rewrap.ts:30`, `:82`, `:102`, `:158`) all use it. `sealed-columns.test.ts:17` compares the list with every encrypted column of the migrated schema, and `:48-49` fixes both associated-data formats. |
+| B-LA-E5-09-03 (MINOR) one 96-line `run()` with two copies of the row-open code | **Closed** | `jobs/key-rewrap.ts` has one function per step: `stopReason` `:20`, `countNotReached` `:28`, `selectRows` `:45`, `openRow` `:49` (used by both loops), `rewrapBatch` `:54`, `rewrapColumns` `:81`, `verifyNoLegacy` `:101`, `finishRun` `:121`. The header `:1` states the rule: "Outcome priority is failed > partial > complete." |
+| B-LA-E5-09-04 (NIT) optional `keys` and `jobs` | **Fixed** | `jobs/index.ts:47`: `keys: KeyHandle` is required, and the job is always registered. `http/operator/index.ts:42`, `:69`: a comment says that only the re-wrap route needs `jobs`, and that without it that route gives `503 NOT_READY` (the "missing" test row). |
+| B-LA-E5-09-05 (NIT) call-count boundaries without a reason | **Fixed** | `key-rewrap.test.ts:73` uses `KEY_REWRAP_BATCH_SIZE`, `:183` has the comment "Two batch opens, then the first open of final verification.", and `:199` uses `KEY_REWRAP_BATCH_SIZE + 2`. |
+
+- **Also closed:** my round-1 "Not checked" item on a corrupt `key_provider` setting. `ed816ed` validates the setting at start and gives one clear error without the stored value.
+- **Ownership note for the Lead (not a finding):** `31d5b22` edits `store/registrations.ts`. It changes only the token associated data and `registrationTokenVersions`. These are the key-provider lines, which are S2's part of the matrix row (`epics.md:579`: "S2: key provider (B1–B2); L: E2-K (B3)"). The commit is not marked RQ-2. If this merge falls in B3, please record it as an RQ-2 line.

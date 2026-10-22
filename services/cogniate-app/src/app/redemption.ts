@@ -11,7 +11,7 @@
 // No database transaction is open during an LTI call; every call has the normal 5 s timeout of the outbound client.
 // Authority comes ONLY from the approval that phase 2 writes (§6.1).
 import type { ChannelRegistry } from '@cogniate/channel-kernel';
-import type { Logger } from '@cogniate/shared';
+import type { Logger, PublicUrls } from '@cogniate/shared';
 import type { LtiClient, LtiPlatform } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import type { Attempt, Grant } from '../domain/bindings.ts';
@@ -35,6 +35,7 @@ export interface RedemptionEngine {
 }
 
 export interface RedemptionDeps {
+  urls: PublicUrls;
   channels: ChannelRegistry;
   db: Db;
   lti: LtiClient;
@@ -171,7 +172,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
 
   async function runAttempt(c: Connection, attempt: Attempt, grant: Grant, resolved: LocalTarget, traceId: string): Promise<Connection> {
     const target = resolved.target;
-    const create = stagedCall({ db, lti }, c, target, traceId, setupOf(channels, c.channel)!);
+    const create = stagedCall({ db, lti, urls: deps.urls }, c, target, traceId, setupOf(channels, c.channel)!);
     let platformId: string | null = target.kind === 'exclusive_platform' ? target.platformId : target.platformId;
     let activationRef: string | null = null; // ref `a` of a successful S3
     const fail = (err: unknown): never => {

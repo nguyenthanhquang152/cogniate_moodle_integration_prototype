@@ -12,6 +12,8 @@ import type { ServiceKeyRecord } from '../store/service-keys.ts';
 import { findServiceKey } from '../store/service-keys.ts';
 import { agsBaseUrl, isAllowedServiceUrl } from '../lti/service-url.ts';
 import type { AgsClient, AgsContext } from '../platform/ags.ts';
+import type { TtlLruCache } from './ttl-lru-cache.ts';
+import { ttlLruCache } from './ttl-lru-cache.ts';
 
 export type Scheme = 'ltik' | 'service' | 'bearer';
 
@@ -39,8 +41,7 @@ export function parseAuthorization(header: string | undefined): ParsedAuth {
   return { scheme, apiKey: value.slice(0, i), credential: value.slice(i + 1) };
 }
 
-export interface AuthResult {
-  scheme: Scheme;
+interface AuthContext {
   account: ToolAccount;
   /** The actual API key id, including for migrated bootstrap keys. */
   actor: AuditActor;
@@ -48,9 +49,13 @@ export interface AuthResult {
   launch: LaunchRecord | null;
   /** SERVICE-AUTH-V1 (T3a): the service key record. */
   serviceKey: ServiceKeyRecord | null;
-  /** Internal cache identity. The service credential itself is never kept in the write-scope cache. */
-  serviceKeyHash?: string;
 }
+
+export type AuthResult = AuthContext & (
+  // Internal cache identity. The service credential itself is never kept in the write-scope cache.
+  | { scheme: 'service'; serviceKeyHash: string }
+  | { scheme: 'ltik' | 'bearer'; serviceKeyHash?: never }
+);
 
 /**
  * Resolve the header for an endpoint that accepts `accepted` schemes. Invalid credentials give 401; status and scope refusals give 403.
@@ -104,9 +109,8 @@ export function authenticate(
 
 const WRITE_SCOPE_TTL_MS = 10 * 60_000;
 const WRITE_SCOPE_CACHE_LIMIT = 10_000;
-interface ScopeLookup { expiresAt: number; allowed: Promise<boolean> }
 // One cache per AGS client (and thus per application), never across tenants' service instances.
-const writeScopeCaches = new WeakMap<Pick<AgsClient, 'getLineItem'>, Map<string, ScopeLookup>>();
+const writeScopeCaches = new WeakMap<Pick<AgsClient, 'getLineItem'>, TtlLruCache<Promise<boolean>>>();
 
 /** LA-ADR-06 D8: called after platform/deployment checks, for score POST and line item PUT/DELETE only. */
 export async function checkServiceKeyWriteScope(
@@ -122,26 +126,23 @@ export async function checkServiceKeyWriteScope(
   if (lineItemId === key.agsClaim?.lineitem) return;
 
   let cache = writeScopeCaches.get(ctx.ags);
-  if (!cache) { cache = new Map(); writeScopeCaches.set(ctx.ags, cache); }
-  const cacheId = caller.serviceKeyHash ? JSON.stringify([caller.serviceKeyHash, lineItemId]) : undefined;
+  if (!cache) {
+    cache = ttlLruCache({ ttlMs: WRITE_SCOPE_TTL_MS, limit: WRITE_SCOPE_CACHE_LIMIT });
+    writeScopeCaches.set(ctx.ags, cache);
+  }
+  const cacheId = JSON.stringify([caller.serviceKeyHash, lineItemId]);
   const now = ctx.now();
-  let lookup = cacheId === undefined ? undefined : cache.get(cacheId);
-  if (lookup && lookup.expiresAt <= now) { cache.delete(cacheId!); lookup = undefined; }
-  if (lookup && cacheId !== undefined) { cache.delete(cacheId); cache.set(cacheId, lookup); }
+  let lookup = cache.get(cacheId, now);
   if (!lookup) {
-    lookup = { expiresAt: now + WRITE_SCOPE_TTL_MS,
-      allowed: ctx.ags.getLineItem(ags, lineItemId).then((item) => item.resourceLinkId === key.resourceLinkId) };
-    if (cacheId !== undefined) {
-      if (cache.size >= WRITE_SCOPE_CACHE_LIMIT) cache.delete(cache.keys().next().value!);
-      cache.set(cacheId, lookup);
-    }
+    lookup = ctx.ags.getLineItem(ags, lineItemId).then((item) => item.resourceLinkId === key.resourceLinkId);
+    cache.set(cacheId, lookup, now);
   }
   let allowed: boolean;
   try {
-    allowed = await lookup.allowed;
+    allowed = await lookup;
   } catch (err) {
     // Failed GETs do not establish scope. Keep the existing guarded client's error and permit a later retry.
-    if (cacheId !== undefined && cache.get(cacheId) === lookup) cache.delete(cacheId);
+    if (cache.get(cacheId, ctx.now()) === lookup) cache.delete(cacheId);
     throw err;
   }
   if (!allowed) throw new ApiError('SERVICE_KEY_SCOPE');

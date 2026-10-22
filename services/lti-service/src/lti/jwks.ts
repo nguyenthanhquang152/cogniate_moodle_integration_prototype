@@ -9,6 +9,9 @@ export const JWKS_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 /** At most one fetch attempt per minute per JWKS URL (unknown kid, or a refresh after a failure). */
 export const JWKS_ATTEMPT_MIN_MS = 60 * 1000;
 
+/** One result per verification call that waits on a fetch; fetchedAt is its completion time in epoch ms. */
+export type JwksFetchObserver = (result: { platformId: string; ok: boolean; fetchedAt: number }) => void;
+
 /** Safe reason for launch_check_failed.detail (contract §5). Never a token, claim value or key. */
 export type KeyFailure = 'kid_unknown' | 'jwks_fetch_failed' | 'jwks_unavailable' | 'jwks_invalid' | 'bad_signature';
 
@@ -21,6 +24,8 @@ export class PlatformKeyError extends Error {
   }
 }
 
+interface FetchResult { ok: boolean; fetchedAt: number }
+
 interface CacheEntry {
   jwks: JSONWebKeySet | null;
   /** Time of the last good fetch. */
@@ -29,7 +34,7 @@ interface CacheEntry {
   attemptAt: number;
   lastFailed: boolean;
   /** The fetch that runs now: parallel launches wait for it (single-flight, A-T2b-01). */
-  inFlight: Promise<boolean> | null;
+  inFlight: Promise<FetchResult> | null;
 }
 
 /**
@@ -42,18 +47,24 @@ interface CacheEntry {
  * Single-flight (A-T2b-01): while a fetch runs, other launches for the same JWKS URL wait for it and use its result,
  * so a class that starts at the same time on an empty cache does not fail with jwks_unavailable.
  */
-export function createPlatformKeys(outbound: OutboundClient, now: () => number = Date.now) {
+export function createPlatformKeys(outbound: OutboundClient, now: () => number = Date.now, onJwksFetch: JwksFetchObserver = () => {}) {
   const cache = new Map<string, CacheEntry>();
 
-  /** One fetch attempt (or the one that runs now). True if the entry now holds new keys. */
-  function attempt(url: string, entry: CacheEntry, traceId: string): Promise<boolean> {
+  function observe(platformId: string | undefined, ok: boolean, fetchedAt: number): void {
+    // Legacy callers have no stored platform identity.
+    if (platformId === undefined) return;
+    try { onJwksFetch({ platformId, ok, fetchedAt }); } catch { /* An observer must not change key verification. */ }
+  }
+
+  /** One fetch attempt (or the one that runs now), with one completion time for all waiters. */
+  function attempt(url: string, entry: CacheEntry, traceId: string): Promise<FetchResult> {
     if (entry.inFlight) return entry.inFlight;
     entry.attemptAt = now();
     entry.inFlight = fetchInto(url, entry, traceId).finally(() => { entry.inFlight = null; });
     return entry.inFlight;
   }
 
-  async function fetchInto(url: string, entry: CacheEntry, traceId: string): Promise<boolean> {
+  async function fetchInto(url: string, entry: CacheEntry, traceId: string): Promise<FetchResult> {
     try {
       const res = await outbound.request(url, { traceId, headers: { accept: 'application/json' } });
       if (res.status !== 200) throw new Error(`JWKS answered ${res.status}`);
@@ -64,10 +75,10 @@ export function createPlatformKeys(outbound: OutboundClient, now: () => number =
       entry.jwks = { keys: body.keys } as JSONWebKeySet;
       entry.goodAt = now();
       entry.lastFailed = false;
-      return true;
+      return { ok: true, fetchedAt: entry.goodAt };
     } catch {
       entry.lastFailed = true;
-      return false;
+      return { ok: false, fetchedAt: now() };
     }
   }
 
@@ -83,41 +94,49 @@ export function createPlatformKeys(outbound: OutboundClient, now: () => number =
     return 'bad_signature';
   };
 
-  /** Verify a compact JWS (RS256 only). Throws PlatformKeyError with a safe reason. */
-  async function verify(token: string, jwksUrl: string, traceId: string): Promise<CompactVerifyResult> {
-    let entry = cache.get(jwksUrl);
-    if (!entry) {
-      entry = { jwks: null, goodAt: null, attemptAt: Number.NEGATIVE_INFINITY, lastFailed: false, inFlight: null };
-      cache.set(jwksUrl, entry);
-    }
-    if (entry.goodAt !== null && now() - entry.goodAt > JWKS_MAX_AGE_MS) {
-      entry.jwks = null; // 24 h without a good fetch: drop the cache
-      entry.goodAt = null;
-    }
-    const due = entry.goodAt === null || now() - entry.goodAt > JWKS_REFRESH_MS;
-    if (entry.inFlight) await entry.inFlight; // a fetch runs now: wait for its keys
-    else if (due && canAttempt(entry)) await attempt(jwksUrl, entry, traceId);
-    if (!entry.jwks) throw new PlatformKeyError('jwks_unavailable');
-
+  /** Verify RS256. The optional platformId must come from a stored Platform, never the token or URL. */
+  async function verify(token: string, jwksUrl: string, traceId: string, platformId?: string): Promise<CompactVerifyResult> {
+    let fetched: FetchResult | undefined;
     try {
-      return await check(token, entry.jwks);
-    } catch (err) {
-      if (!(err instanceof errors.JWKSNoMatchingKey)) throw new PlatformKeyError(classify(err));
-    }
-    // Unknown kid: one refetch, at most one attempt per minute (or the fetch that runs now).
-    if (entry.inFlight || canAttempt(entry)) {
-      if (!(await attempt(jwksUrl, entry, traceId))) throw new PlatformKeyError('jwks_fetch_failed');
-      if (!entry.jwks) throw new PlatformKeyError('jwks_unavailable');
-      try {
-        return await check(token, entry.jwks!);
-      } catch (err) {
-        throw new PlatformKeyError(err instanceof errors.JWKSNoMatchingKey ? 'kid_unknown' : classify(err));
+      let entry = cache.get(jwksUrl);
+      if (!entry) {
+        entry = { jwks: null, goodAt: null, attemptAt: Number.NEGATIVE_INFINITY, lastFailed: false, inFlight: null };
+        cache.set(jwksUrl, entry);
       }
+      if (entry.goodAt !== null && now() - entry.goodAt > JWKS_MAX_AGE_MS) {
+        entry.jwks = null; // 24 h without a good fetch: drop the cache
+      }
+      const due = entry.goodAt === null || now() - entry.goodAt > JWKS_REFRESH_MS;
+      if (entry.inFlight) fetched = await entry.inFlight; // a fetch runs now: wait for its keys
+      else if (due && canAttempt(entry)) fetched = await attempt(jwksUrl, entry, traceId);
+      if (!entry.jwks) throw new PlatformKeyError('jwks_unavailable');
+
+      try {
+        return await check(token, entry.jwks);
+      } catch (err) {
+        if (!(err instanceof errors.JWKSNoMatchingKey)) throw new PlatformKeyError(classify(err));
+      }
+      // Unknown kid: one refetch, at most one attempt per minute (or the fetch that runs now).
+      if (entry.inFlight || canAttempt(entry)) {
+        fetched = await attempt(jwksUrl, entry, traceId);
+        if (!fetched.ok) throw new PlatformKeyError('jwks_fetch_failed');
+        if (!entry.jwks) throw new PlatformKeyError('jwks_unavailable');
+        try {
+          return await check(token, entry.jwks!);
+        } catch (err) {
+          throw new PlatformKeyError(err instanceof errors.JWKSNoMatchingKey ? 'kid_unknown' : classify(err));
+        }
+      }
+      throw new PlatformKeyError(entry.lastFailed ? 'jwks_fetch_failed' : 'kid_unknown');
+    } finally {
+      if (fetched) observe(platformId, fetched.ok, fetched.fetchedAt);
     }
-    throw new PlatformKeyError(entry.lastFailed ? 'jwks_fetch_failed' : 'kid_unknown');
   }
 
-  return { verify };
+  /** Last successful fetch in epoch milliseconds, also after the usable keys expire. Reading does not fetch. */
+  const lastSuccessAt = (jwksUrl: string): number | null => cache.get(jwksUrl)?.goodAt ?? null;
+
+  return { verify, lastSuccessAt };
 }
 
 export type PlatformKeys = ReturnType<typeof createPlatformKeys>;

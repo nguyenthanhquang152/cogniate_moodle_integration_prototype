@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-05 review, Reviewer-B2 (lens: "Can a human team own it?")
 
@@ -60,3 +60,36 @@ The tests are good. `lti-bootstrap.test.mjs` runs the real shell wrapper with a 
 
 - K1-SIM ACs (AC-01..08) on a running stack (QA).
 - Lens-A items: the multi-call sequences (account, key, signing-key rotation) after a failure between steps, beyond the rotation-failure unit test.
+
+## Round 2
+
+Reviewer: Reviewer-B (same lens B). Verdict for this round: **APPROVE**. This round re-checks the round-1 findings against lane S1's fix round 1, commit `541e13e` (merged in `6ae0ebe`). I did not open any reviewer-a file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 1 MINOR (new), 0 NIT.** All three round-1 findings are **closed** or **fixed**.
+
+### How I checked
+
+- Scratch clone of `6ae0ebe` (private `/tmp` folder, `--no-hardlinks`, `node_modules` copied; deleted after the run). `vitest run services/lti-service` (the CLI tests included): **76 files, 956 tests passed**. `node --test infra/scripts/lti-bootstrap.test.mjs infra/scripts/sim-hosts.test.mjs`: **42 of 42**.
+- I followed each new error line to its next step. The command in the `401` line exists: `services/lti-service/package.json` maps `lti:bootstrap` to the wrapper, and the wrapper accepts `--account` and `--replace-operator-key` (`lti-bootstrap.sh:7`, `:19`, `:22`).
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| B-LA-E5-05-01 (MINOR) a revoked or expired key is told to "run npm run seed again" | **Closed** | `cli/operator-client.ts:39`: a `401` has its own line. It names the host file `infra/.secrets/lti-operator-key` and gives two real recovery paths. `:18`: a missing or malformed copy keeps "Run npm run seed again." Tests: `operator-client.test.ts:38` ("names the host file and a real recovery path when the server rejects the copied key") and `:47` (missing, malformed). |
+| B-LA-E5-05-02 (NIT) the CLI decides "active API key" by itself | **Fixed** | `cli/bootstrap.ts:31`: "Mirrors store/api-keys.ts requireApiKeySlot(): not revoked and not expired (LA-ADR-06 D5)." That is the "until then" fix that I asked for. A state field from the service is still the better long-term fix. |
+| B-LA-E5-05-03 (NIT) manual two-step recovery of a missing original | **Fixed** | `lti-bootstrap.sh:22`, `:34-35`: the new flag `--replace-operator-key` runs `init --replace`. `:48` writes the key with `umask 077`, `chmod 600` and an atomic `mv`. `:53` names the flag. Test `lti-bootstrap.test.mjs:94`: "explicit operator-key recovery saves both private files and does not pass the flag to bootstrap". |
+
+Also good: `OperatorTransportError` (`operator-client.ts:11`) lets `bootstrap.ts:43` explain a lost answer during key issuance: "API key issuance or rotation may have committed. Run the same command again with --rotate-api-key to replace the unseen key."
+
+### B-LA-E5-05-04 — MINOR — The new recovery text does not say that `--replace-operator-key` revokes every operator key
+
+- **File:** `services/lti-service/src/cli/operator-client.ts:39` ("…or run npm run lti:bootstrap … --replace-operator-key (init --replace) to save a replacement safely."); `infra/scripts/lti-bootstrap.sh:7` ("revoke old operator keys"), `:53`.
+- **Problem:**
+  - `init --replace` "revokes every operator key and makes a new one" (`cli/operator.ts:7`). Its own refusal text says so too (`:58`).
+  - The `401` case is the case from round 1 where other operator keys can still be active: one key is revoked or expired, but other operators hold valid keys.
+  - The `401` line gives the revoke-all action as an equal second choice, and calls it "safely". "Safely" is about the file write, but the reader cannot tell that.
+  - An operator who follows the line locks out every other operator and every script that holds an operator key.
+  - The wrapper help says "old" keys, which a reader can take as "my old key".
+- **Suggested fix:**
+  - `401` line: "…Put the current operator key in host file infra/.secrets/lti-operator-key and run npm run seed. If no operator key is available any more, run npm run lti:bootstrap -w services/lti-service -- --account <id> --replace-operator-key. This revokes every operator key, also the keys of other operators."
+  - Wrapper help `:7`: "revoke every operator key and save a replacement for OPERATOR_NAME". Add the same clause at `:53`.
+  - Change the expected text in `operator-client.test.ts:38`.

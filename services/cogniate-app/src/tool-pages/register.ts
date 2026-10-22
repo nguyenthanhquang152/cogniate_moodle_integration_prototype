@@ -4,7 +4,8 @@
 import type { Logger, PublicUrls } from '@cogniate/shared';
 import { sha256Hex } from '@cogniate/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { deactivateOrphan, platformInfo, toolName } from '../app/connections.ts';
+import { deactivateOrphan, platformInfo } from '../kernel/authority/common.ts';
+import { toolName } from '@cogniate/channel-kernel/setup';
 import type { LtiClient, LtiRegistration } from '../clients/lti-client.ts';
 import { LtiServiceError, ltiErrorFields } from '../clients/lti-client.ts';
 import type { Connection } from '../domain/connections.ts';
