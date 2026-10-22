@@ -58,3 +58,16 @@ Only the Lead edits this file. Orca Run: `run_06d07dc77faf`. Rules: [charter-LA]
 ## Session state at G-DEV (2026-10-22)
 
 All LA workers are idle and retained for reuse: A1, A2, Reviewer-A, Reviewer-B, QA (lead). No LA worker is active. Researchers R1–R5 are released. No product code changed; no push.
+
+## P4 build — wave B1 (started 2026-10-22 11:40)
+
+Integration branch: `quang/ltiaas-milestone`. Intake `1b17261`. Lane branches `nguyenthanhquang152/la-<lane>`. Active-session cap: 8.
+
+| Task | Lane | Author dispatch | Tests | Status |
+| --- | --- | --- | --- | --- |
+| LA-E0-01 | Lead (git-only) | — | QA-3 `ctx_a8bd71d6aab9` | intake `1b17261` done; verifying |
+| LA-E0-04, LA-E0-03, LA-E0-02 | QA | — | lead QA `ctx_dc11d8c6d070` | in_progress (Docker shared with run `run_ebe671ad72a9`) |
+| LA-E5-01 | S1 | `ctx_a19acab07af9` | QA-2 `ctx_95ac62d29382` (test-first) | in_progress |
+| LA-E5-08 | S2 | `ctx_d0ad587729f1` | QA-2 (test-first) | in_progress |
+| LA-E4-01 | R | `ctx_f1c57c8eeaa2` | QA-3 (test-first) | in_progress |
+| LA-E1-01 | K | `ctx_3df1354b5616` | QA-3 (test-first) | in_progress (QA run waits for LA-E0-03, LD-19) |
