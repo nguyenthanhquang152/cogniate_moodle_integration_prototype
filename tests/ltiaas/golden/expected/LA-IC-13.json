@@ -1,0 +1,47 @@
+{
+  "id": "LA-IC-13",
+  "approval": "docs/reviews/LA-DESIGN/reviewer-a.md, docs/reviews/LA-DESIGN/reviewer-b.md, docs/reviews/LA-BREAKDOWN/reviewer-a.md, docs/reviews/LA-BREAKDOWN/reviewer-b.md",
+  "ld9": {
+    "epic": "E3 (LA-E3-12, lane L)",
+    "design": [
+      "docs/architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn",
+      "docs/architecture/ltiaas/adr/LA-ADR-05-lti-advantage-completeness.md#d10-three-small-spec-gaps-must",
+      "docs/architecture/ltiaas/adr/LA-ADR-07-data-migration-and-indexes.md#d8-platform-trusted-extra-audiences-lti-service-migration-018",
+      "docs/architecture/ltiaas/contracts/lti-service-api-delta.md#43-scores-34",
+      "docs/architecture/ltiaas/contracts/lti-service-api-delta.md#44-memberships-35",
+      "docs/architecture/ltiaas/contracts/lti-service-api-delta.md#46-platforms-38"
+    ],
+    "goldenFields": [],
+    "authorUnitTestChanges": [
+      "services/lti-service/src/platform/ags.test.ts (adds scoreGiven: null accepted as absent -> 200 ok:true coverage)",
+      "services/lti-service/src/platform/platform.test.ts (adds NRPS service_versions without '2.0' -> 403 SERVICE_NOT_AVAILABLE coverage)",
+      "services/lti-service/src/lti/checks.test.ts (updates multi-audience check-5 test to require trustedAudiences; adds untrusted extra aud -> 401 INVALID_ID_TOKEN coverage)",
+      "services/lti-service/src/lti/idtoken.test.ts (adds trustedAudiences: [] to platform fixture)",
+      "services/lti-service/src/http/routes/platforms.test.ts (adds trusted_audiences create/read/patch/validation coverage)",
+      "services/lti-service/src/store/platforms.test.ts (adds trustedAudiences persistence and validation coverage)"
+    ],
+    "testChanges": [
+      "tests/ltiaas/golden/expected/LA-IC-13.json",
+      "tests/ltiaas/golden/golden.k0.test.mjs"
+    ],
+    "frozenTestsTouched": [],
+    "scanChecked": [
+      "tests/ltiaas/golden/capture.golden.ts:80-176,183-261 (G1-G4 do not call GET/POST/PATCH /api/platforms directly, do not call GET /api/memberships, do not post scoreGiven: null, and all golden launches use a single aud equal to clientId)",
+      "tests/acceptance/T3a/3-negative.spec.ts:95-175 (AC-T3-11..19 negative score and NRPS checks; sends negative/NaN/out-of-range/boolean/string scores and scoreMaximum: 0, never scoreGiven: null)",
+      "tests/acceptance/T3b/1-registration.spec.ts:85-93 (reads active, url, clientId, deploymentIds on GET /api/platforms/:id via property access)",
+      "tests/acceptance/T3b/2-update.spec.ts:74-76 (reads id and clientId on GET /api/platforms/:id via property access)",
+      "tests/acceptance/T3b/4-line-items.spec.ts:45-95 (posts numeric scoreGiven: 85 on /scores)",
+      "tests/acceptance/T3c/1-endpoints.spec.ts:157-260 (AC-T3-16..24 checks NRPS with no claim -> 403 SERVICE_NOT_AVAILABLE and platform endpoints via property access; never sends scoreGiven: null or NRPS service_versions without '2.0')",
+      "tests/acceptance/T2b/qa-platform.test.ts:82-90 (checks check 5 with aud: 'wrong-client-id', not a multi-audience array)",
+      "tests/acceptance/M1/common/00-profiles.test.ts:49-60 (reads profile, siteUrl, deploymentIds, deployments on POST /api/platforms via property access)",
+      "tests/acceptance/M1/blackboard/10-deployments.test.ts:17-60 (reads platform DTO fields via property access)",
+      "tests/acceptance/M1/blackboard/20-protocol.test.ts:12-29,47 (uses NRPS service_versions: ['2.0'] and single aud)",
+      "tests/acceptance/M1/blackboard/40-routing-grades.test.ts:135-144 (posts numeric scoreGiven: 11 with scoreMaximum: 10 for 400 INVALID_SCORE, never scoreGiven: null)",
+      "tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:16-70 (reads platform DTO fields via property access)",
+      "tests/acceptance/M1/canvas/21-canvas-protocol.test.ts:73,181-203 (uses NRPS service_versions: ['2.0'] and single aud)",
+      "tests/acceptance/M1/canvas/41-canvas-grades.test.ts:310-317 (posts numeric scoreGiven: 11 with scoreMaximum: 10 for 400 INVALID_SCORE, never scoreGiven: null)"
+    ],
+    "scanResult": "0 golden changes and 0 frozen-test changes: (1) no golden capture or frozen acceptance/e2e test posts scoreGiven: null expecting 400 INVALID_SCORE; (2) every frozen NRPS test and simulator launch supplies service_versions: ['2.0'] (or omits the NRPS claim to test 403 SERVICE_NOT_AVAILABLE); (3) no frozen test launches with a multi-audience aud array containing an untrusted extra audience or asserts exact Object.keys on /api/platforms DTOs (where trusted_audiences: [] is now returned); only the 6 Author unit test files in services/lti-service/src/** were updated in commit a2dfc04."
+  },
+  "changes": []
+}
