@@ -88,6 +88,8 @@ export class LtiMetrics {
   private readonly histograms = new Map<HistogramName, Map<string, Histogram>>();
   private readonly lastJobSuccess = new Map<string, number>();
   private jwksCache: Pick<PlatformKeys, 'lastSuccessAt'> | null = null;
+  /** The first sink that logger() wraps: the service log, for observer failures. */
+  private sink: Logger | null = null;
   private readonly request = new AsyncLocalStorage<FastifyRequest>();
   private readonly loggers = new WeakMap<Logger, Logger>();
 
@@ -95,7 +97,11 @@ export class LtiMetrics {
     this.db = db;
     this.now = now;
     observeRateLimits(db, (event) => this.rateLimited(event.class, event.keyKind, event.mode));
-    observeAuditEvents(db, (action, result) => this.increment('lti_audit_events', { action, result }));
+    // BD-A2-60: called after the commit that holds the insert. A failure is one log line, never an error in the commit path.
+    observeAuditEvents(db, (action, result) => {
+      try { this.increment('lti_audit_events', { action, result }); }
+      catch (error) { this.sink?.warn('metrics_observer_failed', { source: 'audit', error: error instanceof Error ? error.name : 'Error' }); }
+    });
     // These signals are wired from start; publish their zero state before the first request or launch.
     this.increment('lti_http_requests', { route_class: 'health', status_class: '2xx', tool_account_id: '' }, 0);
     this.increment('lti_launch', { result: 'accepted', check: '', tool_account_id: '' }, 0);
@@ -183,6 +189,7 @@ export class LtiMetrics {
   logger(sink: Logger): Logger {
     const existing = this.loggers.get(sink);
     if (existing) return existing;
+    this.sink ??= sink;
     const log = (level: LogLevel, event: string, fields: Record<string, unknown> = {}): void => {
       this.event(event, fields);
       sink.log(level, event, fields);

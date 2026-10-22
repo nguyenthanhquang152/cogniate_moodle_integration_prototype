@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LD-9 test-change lists: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -106,3 +106,69 @@ Round: 1
   - Where: `LA-IC-18.json` `scanChecked`: `tests/e2e/M2/00-blackboard-not-ready.m2.ts:10-49` (the file has 35 lines), `tests/e2e/M2/03-blackboard-wizard.m2.ts:37-115` (110 lines). `tests/ltiaas/TEST-STRATEGY.md` §4.7 and `tests/ltiaas/golden/README.md` §5 ("Reviewed `LD-9` Expected-Delta Records") have rows for LA-IC-12, -16 and -17, but not for LA-IC-18.
   - Problem: the scan result stays right, because I read both files whole. But the record names lines that do not exist, and an auditor who reads the tables does not find LA-IC-18.
   - Suggested fix: change the two ranges to `10-35` and `37-110` (or name the whole files), and add one LA-IC-18 row to each table.
+
+
+## Round 2
+
+### LA-IC-13, LA-IC-15 and NIT checks
+
+Reviewer-A: Codex GPT-6-Astra, lens A. Date: 2026-10-23. Reviewed commit `aa3b214`, with the product changes at `a2dfc04` (LA-E3-12) and `a285bdb` (LA-E4-03), against plan §6.1 LD-9, the task specs and LA-ADR-04 D8. The earlier findings above remain as review history; their current status is below.
+
+**Verdict: APPROVE. 0 BLOCKER, 0 MAJOR, 0 MINOR, 2 new NITs and 1 partly open earlier NIT.**
+
+| List | Verdict | Current findings |
+| --- | --- | --- |
+| LA-IC-13 | APPROVE | A-LA-LD9-05 (NIT): scan descriptions and references need correction; the zero-change conclusion is right |
+| LA-IC-15 | APPROVE | A-LA-LD9-06 (NIT): evidence references need correction; exactly two golden changes are allowed |
+| LA-IC-12 | APPROVE | A-LA-LD9-02 closed for this list |
+| LA-IC-16 | APPROVE | A-LA-LD9-01 and -02 closed; scan record added |
+| LA-IC-17 | APPROVE | A-LA-LD9-03 closed |
+| LA-IC-18 | APPROVE | A-LA-LD9-04 partly closed: both table rows added, two invalid ranges remain |
+
+#### Verification and scope
+
+- Private host-only clone `/tmp/la-reviewer-a-ctx-e49090c83184`, pinned to `aa3b214`; no Docker, stack or stack-starting runner. No other reviewer's file was opened. Only this review file changed in the integration worktree.
+- `node --test tests/ltiaas/golden/golden.k0.test.mjs`: **12/12 pass**. Restoring the parent comparator in the private clone makes the new no-expected-file assertion fail; the fixed comparator was restored afterwards.
+- **29 independent comparison probes pass**, including four CLI runs. They cover the exact two LA-IC-15 values, omission of the delta, omission of either change, a changed byte, removal, another field, publication, score row, file or third channel, LA-IC-13's empty allowance, and LA-IC-16 opt-in. All six delta files together explain exactly three changes (two conflict texts and the allowlist).
+- The six LTI Author test files named by LA-IC-13, plus `tracking.test.ts` and `drivers/lti-ags/reporter.test.ts`: **225/225 tests pass in 8 files**. Three extra private reporter probes using the real `409 PLATFORM_CONFLICT` description also pass: Moodle equals the stored G-BASE text byte for byte, and Canvas/Blackboard equal the two expected values.
+- This is a source and stored-capture review, not a fresh live golden capture or browser regression run. The coordinator confirmed that LA K2 (`tests/e2e/ltiaas/`) has **not yet landed**; this review covers existing golden captures and frozen acceptance/browser suites, including M1 and M2.
+
+#### LA-IC-13: zero golden and frozen-test changes confirmed
+
+The golden script grades with numeric scores, does not capture platform DTOs or call memberships, and uses the simulator's single-client audience. Its setup helpers can register platforms, but the added `trustedAudiences` response member is not captured. The existing platform tests inspect selected DTO properties or deployment subobjects; they do not require an exact platform key set. The product merge changes exactly the six Author test files named in the record and no frozen test.
+
+A scan of the frozen acceptance/e2e suites found no score POST with `scoreGiven: null`, including no `NaN`/`Infinity` score input that JSON serialization would turn into null. The explicit NRPS version overrides are `['2.0']`; the simulator default is also `['2.0']`. The important audience exception is `T2b/qa-platform.test.ts:82-89`: it already sends two audiences **without `azp`**, and already expects `INVALID_ISSUER_OR_AUDIENCE`. The new trust check follows the existing `azp_missing` check, so this assertion stays valid. The record's statement that no such array exists is incorrect, but its zero-change conclusion is correct.
+
+Repeat the scan at `aa3b214` with:
+
+```sh
+rg -n 'scoreGiven|scoreMaximum|NaN|Infinity|service_versions|setAudience|\baud\s*:' tests/acceptance tests/e2e tests/sim
+rg -n '/api/platforms|Object.keys|deepEqual|deepStrictEqual|toEqual' tests/acceptance tests/e2e
+git diff --name-only a2dfc04^1 a2dfc04
+```
+
+**A-LA-LD9-05 (NIT): several LA-IC-13 evidence descriptions do not match the cited source.**
+
+- Where: `tests/ltiaas/golden/expected/LA-IC-13.json:9`, `:16`, `:18`, `:20`, `:30`, `:35`, `:36`, `:39`, `:42`, `:44`; repeated scan claims in golden README §5 and TEST-STRATEGY §4.7.
+- Evidence: T2b does send the two-audience negative case above. Both M1 score references send **7/10** and expect platform `400`/`422` `PLATFORM_REJECTED_REQUEST`, not 11/10 `INVALID_SCORE`. T3a's cited range does not contain the claimed negative/NaN/boolean/string score table. M1 common's platform POST is at `:77-81`, not `:49-60`. The AGS unit test compares parser results, not an HTTP `200`; the check-5 unit test expects `INVALID_ISSUER_OR_AUDIENCE`, not `INVALID_ID_TOKEN`. The wire field is `trustedAudiences`; `trusted_audiences` is the database column. The linked `LA-ADR-07-data-migration-and-indexes.md` does not exist.
+- Suggested fix: keep `changes: []` and `frozenTestsTouched: []`, but derive the scan descriptions from the pinned source; explain the existing missing-`azp` negative case and use `LA-ADR-07-security-and-tenancy.md#d8-trusted-audiences-could`. Align the two summary tables. This is evidence cleanup, not a request to change a frozen assertion.
+
+#### LA-IC-15: exactly the two conflict texts confirmed
+
+The only G-BASE strings with the old conflict suffix are the Blackboard and Canvas `B-conflict` score-sync `lastError` values. The two entries use exact paths and exact full values, with no wildcard or permissive string rule. Missing either change fails as `MISSING`; changing another field or a third channel fails as an unexplained difference, including through `compare.mjs`.
+
+G4's `status-conflict` responses have no `lastError`. T6's exact Moodle suffix remains unchanged, and T5b checks the `PLATFORM_CONFLICT` code. M1's cited failures are platform `400`/`422`; M2's cited result cases check successful sends. No frozen assertion needs to change. Neither the stored G-BASE files nor the frozen acceptance/e2e/host suites change in `aa3b214`.
+
+**A-LA-LD9-06 (NIT): LA-IC-15's scan locations and one Author-test description are inaccurate.**
+
+- Where: `tests/ltiaas/golden/expected/LA-IC-15.json:16`, `:28`, `:29`, `:34`; the copied locations in golden README §5 and TEST-STRATEGY §4.7.
+- Evidence at `aa3b214`: the two G3 conflict strings are at `G3.json:363,1076`, not `:93,315`; the G4 conflict objects are at `G4.json:121-134,312-325`, not `:45-56,144-155`. `05-publish-results.m2.ts` has 57 lines, so `:34-90` is invalid; its result case is Canvas. The `a285bdb` change to `tracking.test.ts` replaces HTTP `syncResult` assertions with neutral `dispatchResult` assertions; it does not add `recordRuntimeScore`/`lmsName` coverage.
+- Suggested fix: use the actual lines or stable JSON paths, narrow the M2 range to `:34-57`, and describe the tracking test change accurately. Keep the two exact delta entries unchanged.
+
+#### Earlier NITs
+
+- **A-LA-LD9-01 closed.** `compareCaptures` now explains the allowlist change only with a matching expected entry. The same candidate fails with no delta, including when only `simHosts` is supplied. The new test fails with the old comparator. The low-level `diff()` remains a manifest-aware helper; the approval gate uses `compareCaptures`/the CLI.
+- **A-LA-LD9-02 closed.** LA-IC-12 now points to existing reviewer records; LA-IC-16 points to the existing LA-E7-02 QA record. All listed approval paths exist; only existence was checked for the other reviewer's paths.
+- **LA-IC-16 scan record confirmed.** The new `scanChecked` and `scanResult` identify the health/capture readers. Reading the named files and searching the frozen acceptance/e2e suites confirms that none asserts `outbound_allowlist` contents. The only golden allowance remains `G1.acceptance.ltiHealth.outbound_allowlist`.
+- **A-LA-LD9-03 closed.** LA-IC-17 now describes the pending Moodle connections at `capture.golden.ts:194-200` and direct QA platform registration at `qa-platform.ts:43`; the two summary tables match.
+- **A-LA-LD9-04 remains partly open (NIT).** Both LA-IC-18 table rows are present. However, `tests/ltiaas/golden/expected/LA-IC-18.json:15` still cites `00-blackboard-not-ready.m2.ts:10-49` (35 lines), and `:18` still cites `03-blackboard-wizard.m2.ts:37-115` (110 lines). Use `10-35` and `37-110`, or name the whole files. The delta list stays approved.

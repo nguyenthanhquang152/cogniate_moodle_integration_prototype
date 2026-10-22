@@ -1,0 +1,37 @@
+{
+  "id": "LA-IC-19",
+  "approval": "docs/reviews/LA-E1-09/reviewer-a.md, docs/reviews/LA-E1-09/reviewer-b.md",
+  "ld9": {
+    "epic": "E1 (LA-E1-09, lane K)",
+    "design": [
+      "docs/architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn",
+      "docs/architecture/ltiaas/build-decisions-A1.md (BD-A1-57)",
+      "docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md#d12-lms-display-names-in-core-text-must"
+    ],
+    "goldenFields": [],
+    "authorUnitTestChanges": [
+      "services/cogniate-app/src/tool-pages/lms-texts.test.ts (asserts 410 RUNTIME_EXPIRED body of the content host names the expired session's channel — Moodle, Canvas, Blackboard, or custom channel names.text — while unknown tokens stay 404)"
+    ],
+    "testChanges": [
+      "tests/ltiaas/golden/expected/LA-IC-19.json",
+      "tests/ltiaas/golden/golden.k0.test.mjs"
+    ],
+    "frozenTestsTouched": [],
+    "scanChecked": [
+      "tests/ltiaas/golden/capture.golden.ts:80-176,227-261 (G1-G4 capture active /rt/{token}/state and /rt/{token}/commit 200 responses and app tool error pages, never an expired content-host /rt/{token}/* 410 RUNTIME_EXPIRED response)",
+      "tests/acceptance/T5a/6-negative.spec.ts:75-84 (AC-T5-15 [knob PLAY_TTL_SECONDS=20] runs on a Moodle launch where the channel is 'moodle' -> 'Moodle', and asserts only late.status === 410 and code(late.json) === 'RUNTIME_EXPIRED')",
+      "tests/acceptance/T5a/1-content.spec.ts:69-85 (AC-T5-03 checks 200 on active /rt/{token} and 404 on a random token, not 410 RUNTIME_EXPIRED)",
+      "tests/acceptance/lib/t5.ts:305-331,364-390 (runtimeState, settledState, commitFromRuntime, and commitFromNode parse HTTP status, RuntimeState JSON, and error code without asserting the 410 RUNTIME_EXPIRED message text)",
+      "tests/acceptance/M1/common/course.ts:51-70 (playLaunch and commitGrade call GET /rt/{token}/state and POST /rt/{token}/commit on active sessions expecting 200)",
+      "tests/acceptance/M1/canvas/canvas.ts:114-120 (canvasPlay calls GET /rt/{token}/state on an active session expecting 200)",
+      "tests/acceptance/M1/canvas/browser.ts:192-199 (completeHtml calls GET /rt/{token}/state and POST /rt/{token}/commit on an active session expecting 200)",
+      "tests/acceptance/M1/canvas/70-canvas-browser.spec.ts:25-80 (waits for active /rt/ frames in Canvas browser launches; does not test expired runtime tokens)",
+      "tests/acceptance/M1/common/moodle-http.ts:63-68 (calls GET /rt/{token}/state on an active Moodle session expecting 200)",
+      "tests/e2e/lib/learner.ts:40-65 (completes active learner sessions in the /rt/ frame on Moodle)",
+      "tests/e2e/M2/07-sim-scenario.m2.ts:38-65 (completes active learner sessions in the /rt/ frame on Canvas and Blackboard; never triggers 410 RUNTIME_EXPIRED)",
+      "tests/host/run-t5.mjs:183-193 (runs AC-T5-15 in the PLAY_TTL_SECONDS=20 knob pass on Moodle)"
+    ],
+    "scanResult": "0 golden changes and 0 frozen-test changes: (1) golden capture G1-G4 never triggers or records a 410 RUNTIME_EXPIRED response on the content host (/rt/{token}/state, /rt/{token}/commit, or /rt/{token}); (2) the only frozen test that triggers 410 RUNTIME_EXPIRED is AC-T5-15 (tests/acceptance/T5a/6-negative.spec.ts:75-84), which runs on a Moodle session (where names.text is 'Moodle' so the body bytes are unchanged) and asserts only status 410 and code 'RUNTIME_EXPIRED'; (3) no M1, M2, or K2 (T1-T8 / U1-U2) test triggers or reads a 410 RUNTIME_EXPIRED body for a Canvas or Blackboard session."
+  },
+  "changes": []
+}

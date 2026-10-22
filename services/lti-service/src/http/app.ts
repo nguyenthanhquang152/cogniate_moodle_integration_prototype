@@ -4,7 +4,7 @@
 import { randomBytes } from 'node:crypto';
 import formbody from '@fastify/formbody';
 import type { Knob, Logger, OutboundClient, PublicUrls } from '@cogniate/shared';
-import { ApiErrorBase, redactPath } from '@cogniate/shared';
+import { ApiErrorBase } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ApiError, apiErrorBody } from '../api-errors.ts';
@@ -64,6 +64,8 @@ export interface AppDeps {
 }
 
 const TRACE_ID = /^[A-Za-z0-9-]{16,64}$/; // contract §1.4
+/** The http_request path of a request that matches no route (BD-A2-61). */
+export const UNMATCHED_PATH = '<unmatched>';
 
 /** `simulation_profiles` of /healthz and service_started (contract §9.13). */
 export function simulationProfileIds(on: boolean): string[] {
@@ -84,10 +86,12 @@ export function installApiBasics(app: FastifyInstance, log: Logger, metrics?: Lt
     reply.header('x-trace-id', req.traceId);
   });
   app.addHook('onResponse', async (req, reply) => {
-    const path = req.url.split('?')[0] ?? '/';
+    // BD-A2-61: the matched route template, with no ids filled in and no query. A raw path can hold an unknown account
+    // value or an encoded personal value; the tenant is in tool_account_id.
+    const path = req.routeOptions.url ?? UNMATCHED_PATH;
     const accountId = metrics?.accountFor(req);
     log.log(path === '/healthz' ? 'debug' : 'info', 'http_request', {
-      trace_id: req.traceId, method: req.method, path: redactPath(path), status: reply.statusCode, ms: Math.round(reply.elapsedTime),
+      trace_id: req.traceId, method: req.method, path, status: reply.statusCode, ms: Math.round(reply.elapsedTime),
       ...(accountId ? { tool_account_id: accountId } : {}),
     });
   });
