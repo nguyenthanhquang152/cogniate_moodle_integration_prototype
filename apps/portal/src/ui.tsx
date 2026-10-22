@@ -5,10 +5,10 @@ import { Notice } from "./ui/notice.tsx";
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { Check, Copy } from "lucide-react";
-import { pendingToolText } from "../../../packages/shared/src/html.ts";
 import { ApiError } from "./api.ts";
 import type { Connection } from "./types.ts";
-import { lmsNames } from "./lms.ts";
+import { channelOf, channelRegistry, channelText } from "./channels/registry.ts";
+import { pendingToolText } from "@cogniate/channel-kernel";
 
 export function ErrorNotice({ error }: { error: unknown }) {
   if (!error) return null;
@@ -69,8 +69,11 @@ export function ConnectionError({
   );
 }
 export function connectionStatus(connection: Connection): string {
-  if (connection.status === "registered")
-    return connection.lms === "moodle" ? "Registered — activate in Moodle" : "Registered";
+  const manifest = channelRegistry.channel(channelOf(connection));
+  if (connection.status === "registered") {
+    const registered = manifest?.texts.registered ?? "Registered";
+    return manifest ? channelText(manifest, registered) : registered;
+  }
   if (connection.status === "connected") return "Connected";
   if (connection.status === "disabled") return "Disconnected";
   if (
@@ -78,7 +81,7 @@ export function connectionStatus(connection: Connection): string {
     new Date(connection.registrationUrlExpiresAt).getTime() <= Date.now()
   )
     return "Link expired";
-  if (connection.registrationUrl) return `Waiting for ${lmsNames[connection.lms]}`;
+  if (connection.registrationUrl) return `Waiting for ${connection.channelName ?? channelRegistry.textName(channelOf(connection))}`;
   return "Pending";
 }
 export function ConnectionBadge({ connection }: { connection: Connection }) {

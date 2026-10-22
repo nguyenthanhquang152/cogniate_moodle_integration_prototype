@@ -1,21 +1,21 @@
-import { Badge } from "../ui/badge.tsx";
-import { Button, buttonVariants } from "../ui/button.tsx";
-import { Input } from "../ui/input.tsx";
-import { Card } from "../ui/card.tsx";
+import { Badge } from "@cogniate/portal-sdk";
+import { Button, buttonVariants } from "@cogniate/portal-sdk";
+import { Input } from "@cogniate/portal-sdk";
+import { Card } from "@cogniate/portal-sdk";
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { Link } from "react-router";
-import { ArrowRight, ShieldCheck } from "lucide-react";
-import { api } from "../api.ts";
-import type { Connection } from "../types.ts";
-import { ErrorNotice } from "../ui.tsx";
+import { Link } from "@cogniate/portal-sdk";
+import { ArrowRight, ShieldCheck } from "@cogniate/portal-sdk";
+import { api } from "@cogniate/portal-sdk";
+import type { Connection } from "@cogniate/portal-sdk";
+import { ErrorNotice } from "@cogniate/portal-sdk";
 import { siteError } from "./validation.ts";
 
 export function CreateConnection({
   onCreated,
   opener = "moodle-connect",
 }: {
-  onCreated: (id: string) => void;
+  onCreated: (connection: Connection) => void;
   opener?: string;
 }) {
   const [method, setMethod] = useState<"dynamic" | "manual">("dynamic");
@@ -44,7 +44,7 @@ export function CreateConnection({
           method,
         },
       });
-      onCreated(connection.id);
+      onCreated(connection);
     } catch (reason) {
       setError(reason);
     } finally {

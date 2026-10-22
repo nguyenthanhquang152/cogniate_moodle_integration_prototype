@@ -1,5 +1,7 @@
 // Browser DTOs follow docs/architecture/contracts/cogniate-app-api.md. No service imports.
-export type Lms = "moodle" | "canvas" | "blackboard";
+import type { BindingAuthority, CapabilitySet, ChannelManifest } from "@cogniate/channel-kernel";
+
+export type Lms = string;
 export interface LmsCapabilities {
   dynamicRegistration: boolean;
   operatorApproval: boolean;
@@ -16,6 +18,11 @@ export interface LmsProfile {
   clientId: string | null;
 }
 export interface LmsProvider {
+  channel?: string;
+  channelName?: string;
+  family?: ChannelManifest["family"];
+  channelCapabilities?: CapabilitySet;
+  registration?: Omit<ChannelManifest["registration"][number], "defaultProfile">[];
   lms: Lms;
   label: string;
   methods: ("dynamic" | "manual")[];
@@ -25,10 +32,16 @@ export interface LmsProvider {
 export interface LmsProvidersResponse {
   lms: LmsProvider[];
 }
-export type ConnectionCreateBody =
-  | { name: string; siteUrl: string; method: "dynamic" | "manual"; lms?: "moodle"; profile?: "standard" }
-  | { name: string; siteUrl: string; method: "manual"; lms: "canvas"; profile: string; serviceUrl?: string }
-  | { name: string; siteUrl: string; method: "manual"; lms: "blackboard"; profile: string };
+export interface ConnectionCreateBody {
+  name: string;
+  siteUrl: string;
+  method: "dynamic" | "manual";
+  channel?: string;
+  lms?: string;
+  profile?: string;
+  serviceUrl?: string;
+  [key: string]: unknown;
+}
 export interface CanvasPlatformBody {
   clientId: string;
   deploymentId: string;
@@ -52,6 +65,10 @@ export interface Session {
   library: { id: string; name: string };
 }
 export interface Connection {
+  channel?: string;
+  channelName?: string;
+  channelCapabilities?: CapabilitySet;
+  bindingAuthority?: BindingAuthority | "verifiedAdminLaunch";
   id: string;
   name: string;
   siteUrl: string;

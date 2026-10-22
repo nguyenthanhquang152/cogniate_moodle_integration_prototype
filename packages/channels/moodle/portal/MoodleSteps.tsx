@@ -1,3 +1,5 @@
+import manifest from "../manifest.ts";
+import { fillText } from "@cogniate/portal-sdk";
 import steps from "./moodle-steps.json";
 
 export function MoodleSteps({
@@ -21,7 +23,7 @@ export function MoodleSteps({
           >
             {index + 1}
           </span>
-          <p>{step.text.replaceAll("{libraryName}", libraryName)}</p>
+          <p>{method === "dynamic" ? fillText(manifest.texts.adminSteps[index]!, { LMS: manifest.names.text, tool: `Cogniate (${libraryName})` }) : step.text.replaceAll("{libraryName}", libraryName)}</p>
           {step.menuPath.length > 0 && (
             <p className="mt-[5px] text-[12px] text-[#bcb0cc]">
               {step.menuPath.join(" → ")}

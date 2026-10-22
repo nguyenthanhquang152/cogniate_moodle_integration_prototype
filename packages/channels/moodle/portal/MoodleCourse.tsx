@@ -1,6 +1,6 @@
-import type { Publication } from "../types.ts";
-import { Notice } from "../ui/notice.tsx";
-import { buttonVariants } from "../ui/button.tsx";
+import type { Publication } from "@cogniate/portal-sdk";
+import { Notice } from "@cogniate/portal-sdk";
+import { buttonVariants } from "@cogniate/portal-sdk";
 
 export function MoodleCourse({ publication }: { publication: Publication }) {
   if (!publication.shellStatus) return null;

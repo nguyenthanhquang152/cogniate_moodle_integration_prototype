@@ -1,12 +1,12 @@
+import { createPortalSdk } from "@cogniate/portal-sdk";
 // @vitest-environment jsdom
 import { createElement as h } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
-import { ApiError } from "../../api.ts";
-import type { Connection, LmsProvider } from "../../types.ts";
-import { ProviderErrorNotice, providerErrorFields, providerErrorMessage } from "../provider-errors.tsx";
-import { BlackboardBinding } from "../blackboard/BlackboardBinding.tsx";
+import { MemoryRouter } from "@cogniate/portal-sdk";
+import { ApiError } from "@cogniate/portal-sdk";
+import type { Connection, LmsProvider } from "@cogniate/portal-sdk";
+import { ProviderErrorNotice, providerErrorFields, providerErrorMessage } from "@cogniate/portal-sdk";
 import { CanvasBinding } from "./CanvasBinding.tsx";
 import { CanvasConfiguration } from "./CanvasConfiguration.tsx";
 import { CanvasWizard } from "./CanvasWizard.tsx";
@@ -40,7 +40,7 @@ function field(label: string, value: string) { fireEvent.change(screen.getByLabe
 it("creates Canvas with the selected API profile and optional service origin, without endpoint inputs", async () => {
   fetchMock.mockResolvedValue(json(connection));
   const onCreated = vi.fn();
-  const view = render(h(MemoryRouter, null, h(CanvasWizard, { provider, connection: null, libraryName: "School", opener: "canvas-connect", onCreated, onChanged: vi.fn() })));
+  const view = render(h(MemoryRouter, null, h(CanvasWizard, { provider, connection: null, libraryName: "School", opener: "canvas-connect", onCreated, onChanged: vi.fn(), sdk: createPortalSdk(() => undefined) })));
   expect(steps.steps).toHaveLength(4);
   expect(steps.steps.every((step) => step.verified === false)).toBe(true);
   expect(screen.getByRole("option", { name: "Canvas (simulation)" })).toBeTruthy();
@@ -59,7 +59,7 @@ it("creates Canvas with the selected API profile and optional service origin, wi
 
 it("marks the server-selected URL field and sends an omitted service URL unchanged", async () => {
   fetchMock.mockResolvedValue(json({ details: { message: "INVALID_SITE_URL", rule: 4, field: "siteUrl" } }, 422));
-  render(h(MemoryRouter, null, h(CanvasWizard, { provider, connection: null, libraryName: "School", opener: "canvas-connect", onCreated: vi.fn(), onChanged: vi.fn() })));
+  render(h(MemoryRouter, null, h(CanvasWizard, { provider, connection: null, libraryName: "School", opener: "canvas-connect", onCreated: vi.fn(), onChanged: vi.fn(), sdk: createPortalSdk(() => undefined) })));
   field("Connection name", "School");
   field("Canvas URL", "https://canvas.instructure.com");
   fireEvent.click(screen.getByRole("button", { name: "Next" }));
@@ -105,11 +105,11 @@ it("adds a deployment with a distinct endpoint and no client id", async () => {
   expect(JSON.parse(fetchMock.mock.calls[0]![1].body as string)).toEqual({ deploymentId: "next-deployment", grantCode: "add-code" });
 });
 
-it.each(["canvas", "blackboard"] as const)("shows the neutral readiness title and action after %s binding fails", async (lms) => {
+it.each(["canvas"] as const)("shows the neutral readiness title and action after %s binding fails", async (lms) => {
   fetchMock.mockResolvedValue(json({ details: { message: "PROVIDER_NOT_READY", traceId: "trace-readiness" } }, 409));
   const onChanged = vi.fn();
   const current: Connection = { ...connection, lms, id: `con_${lms}` };
-  render(lms === "canvas" ? h(CanvasBinding, { connection: current, onChanged }) : h(BlackboardBinding, { connection: current, onChanged }));
+  render(h(CanvasBinding, { connection: current, onChanged }));
   if (lms === "canvas") field("Client ID", "client");
   field("Deployment ID", "deployment");
   field("Approval code", "one-use-code");
