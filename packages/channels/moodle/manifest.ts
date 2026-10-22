@@ -7,7 +7,7 @@ const manifest = {
   family: 'lti13',
   names: { text: 'Moodle', label: 'Moodle' },
   card: {
-    title: 'Moodle', description: 'Export SCORM packages and sync course content with your Moodle LMS.', mark: 'm', color: 'orange',
+    title: 'Moodle', description: 'Export SCORM packages and sync course content with your Moodle LMS.', mark: 'm', icon: 'graduation-cap', color: 'orange',
     category: 'LMS Publishing', order: 1,
   },
   availability: 'ga',

@@ -1,11 +1,11 @@
 {
   "apps/player/src/lms-name.ts": 6,
   "apps/player/src/shell/main.ts": 4,
-  "apps/portal/src/api.ts": 4,
+  "apps/portal/src/api.ts": 0,
   "apps/portal/src/connect/provider-errors.tsx": 6,
   "apps/portal/src/courses/PublishDialog.tsx": 1,
   "apps/portal/src/results/Results.tsx": 2,
-  "apps/portal/src/types.ts": 5,
+  "apps/portal/src/types.ts": 2,
   "packages/shared/src/html.ts": 1,
   "packages/tracking/src/status-text.ts": 4,
   "services/cogniate-app/src/app/api-errors.ts": 6,
