@@ -1,5 +1,7 @@
 // Runner unit tests use a fake npm in temporary git repositories. No network or stack is used.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { literalValue, scanText, secretKeysOf, secretScan } from './ci-local/secret-scan.mjs';
 import { execFileSync, spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -7,6 +9,7 @@ import path from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
+const digest = (value) => createHash('sha256').update(value).digest('base64');
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const apiKey = ['ltis', '_', 'planted'.repeat(7)].join('');
 const privateKey = ['-----BEGIN', 'PRIVATE KEY-----'].join(' ');
@@ -41,6 +44,7 @@ function fixture(t) {
   fs.mkdirSync(path.join(root, 'tests'));
   fs.mkdirSync(bin);
   fs.copyFileSync(path.join(HERE, 'ci-local.sh'), path.join(root, 'infra/scripts/ci-local.sh'));
+  fs.cpSync(path.join(HERE, 'ci-local'), path.join(root, 'infra/scripts/ci-local'), { recursive: true });
   fs.writeFileSync(path.join(bin, 'npm'), fakeNpm, { mode: 0o755 });
   // A fail-fast guard also protects against an accidental future stack command.
   fs.writeFileSync(path.join(bin, 'docker'), '#!/bin/sh\nexit 99\n', { mode: 0o755 });
@@ -54,7 +58,7 @@ function fixture(t) {
   };
   put('.env.example', example);
   put('package.json', '{}\n');
-  git('add', 'infra/scripts/ci-local.sh');
+  git('add', 'infra/scripts/ci-local.sh', 'infra/scripts/ci-local');
   const run = (scenario = {}) => {
     const calls = path.join(base, 'calls');
     fs.writeFileSync(calls, '');
@@ -68,7 +72,7 @@ function fixture(t) {
     lines.forEach((line, i) => { assert.equal(line.step, i + 1); assert.ok(line.seconds >= 0); });
     return { ...result, lines, calls: fs.readFileSync(calls, 'utf8').trim().split('\n').filter(Boolean).map((line) => JSON.parse(line)) };
   };
-  return { root, put, run, git };
+  return { root, put, run, git, scan: (allowList) => secretScan({ root, allowList }) };
 }
 
 test('runs the five steps in order and keeps only install and audit online', (t) => {
@@ -140,22 +144,22 @@ test('scans tracked text, binary data and unusual names, and reports locations w
   const f = fixture(t);
   f.put('probe file\nname.bin', Buffer.from(`safe\n\0${apiKey}\n${privateKey}\n${masterKey}\n`));
   f.put('untracked.txt', apiKey, false);
-  const result = f.run();
-  assert.equal(result.status, 1);
-  assert.deepEqual(result.lines[4].findings, [
+  const result = f.scan();
+  assert.equal(result.result, 'fail');
+  assert.deepEqual(result.findings, [
     { file: 'probe file\nname.bin', line: 2, rule: 'api_key' },
     { file: 'probe file\nname.bin', line: 3, rule: 'private_key' },
     { file: 'probe file\nname.bin', line: 4, rule: 'master_key' },
   ]);
-  for (const value of [apiKey, privateKey, masterKey]) assert.ok(!result.stdout.includes(value));
+  for (const value of [apiKey, privateKey, masterKey]) assert.ok(!JSON.stringify(result).includes(value));
 });
 
 test('documentation excludes only the 64-hex rule', (t) => {
   const f = fixture(t);
   f.put('docs/probe.md', `${masterKey}\n${apiKey}\n${privateKey}\n${secretName}=bad\n`);
-  const result = f.run();
-  assert.equal(result.status, 1);
-  assert.deepEqual(result.lines[4].findings.map((hit) => hit.rule), ['api_key', 'private_key', 'secret_assignment']);
+  const result = f.scan();
+  assert.equal(result.result, 'fail');
+  assert.deepEqual(result.findings.map((hit) => hit.rule), ['api_key', 'private_key', 'secret_assignment']);
 });
 
 test('discovers secret names and catches shell, YAML, JSON and export assignments', (t) => {
@@ -163,18 +167,18 @@ test('discovers secret names and catches shell, YAML, JSON and export assignment
   const custom = 'CUSTOM_PASSWORD';
   f.put('.env.example', example.replace(`${secretName}=`, `${custom}=\n${secretName}=`));
   f.put('probe.txt', `${custom}=alpha\n${secretName}: bravo\n"${secretName}": "charlie"\nexport ${secretName}='delta'\n${publicName}=8443\n`);
-  const result = f.run();
-  assert.equal(result.status, 1);
-  assert.deepEqual(result.lines[4].findings.map((hit) => [hit.line, hit.rule]), [1, 2, 3, 4].map((line) => [line, 'secret_assignment']));
+  const result = f.scan();
+  assert.equal(result.result, 'fail');
+  assert.deepEqual(result.findings.map((hit) => [hit.line, hit.rule]), [1, 2, 3, 4].map((line) => [line, 'secret_assignment']));
 });
 
 test('ignores empty values and placeholders outside the names-only example', (t) => {
   const f = fixture(t);
   const values = ['', '""', "''", '$VALUE', '${VALUE}', '${VALUE:?required}', '${VALUE?required}', '${VALUE:?need ${OTHER}}', '<value>', '<value with spaces>', '"${VALUE}"'];
   f.put('probe.txt', values.map((value) => `${secretName}=${value}\n`).join(''));
-  assert.equal(f.run().status, 0);
+  assert.equal(f.scan().result, 'pass');
   f.put('.env.example', example.replace(`${publicName}=`, `${publicName}=8443`));
-  assert.deepEqual(f.run().lines[4].findings, [{ file: '.env.example', line: 4, rule: 'example_value' }]);
+  assert.deepEqual(f.scan().findings, [{ file: '.env.example', line: 4, rule: 'example_value' }]);
 });
 
 test('code files check quoted literals but not identifiers or other expressions', (t) => {
@@ -184,25 +188,25 @@ test('code files check quoted literals but not identifiers or other expressions'
   for (const extension of extensions) {
     f.put(`probe.${extension}`, expressions.map((value) => `${secretName}: ${value},`).join('\n'));
   }
-  assert.equal(f.run().status, 0);
+  assert.equal(f.scan().result, 'pass');
   for (const extension of extensions) {
     f.put(`probe.${extension}`, ['"alpha"', "'bravo'", '`charlie`', '"delta" + suffix'].map((value) => `${secretName}: ${value},`).join('\n'));
   }
-  const result = f.run();
-  assert.equal(result.status, 1);
+  const result = f.scan();
+  assert.equal(result.result, 'fail');
   for (const extension of extensions) {
-    assert.deepEqual(result.lines[4].findings.filter((hit) => hit.file === `probe.${extension}`),
+    assert.deepEqual(result.findings.filter((hit) => hit.file === `probe.${extension}`),
       [1, 2, 3, 4].map((line) => ({ file: `probe.${extension}`, line, rule: 'secret_assignment' })));
   }
-  for (const value of ['alpha', 'bravo', 'charlie', 'delta']) assert.ok(!result.stdout.includes(value));
+  for (const value of ['alpha', 'bravo', 'charlie', 'delta']) assert.ok(!JSON.stringify(result).includes(value));
 });
 
 test('non-code files still check bare tokens as values', (t) => {
   const f = fixture(t);
   for (const extension of ['json', 'yaml', 'sh']) f.put(`probe.${extension}`, `${secretName}: LEGACY`);
-  const result = f.run();
-  assert.equal(result.status, 1);
-  assert.deepEqual(result.lines[4].findings.map((hit) => hit.file), ['probe.json', 'probe.sh', 'probe.yaml']);
+  const result = f.scan();
+  assert.equal(result.result, 'fail');
+  assert.deepEqual(result.findings.map((hit) => hit.file), ['probe.json', 'probe.sh', 'probe.yaml']);
 });
 
 test('only a whole placeholder is exempt; mixed text is a secret value', (t) => {
@@ -210,9 +214,9 @@ test('only a whole placeholder is exempt; mixed text is a secret value', (t) => 
   const values = ['${A}text${B}', '"${A}text${B}"', "'${A}text${B}'", '${A}${B}', '${A:?message}text${B}', '<one>text<two>'];
   f.put('probe.txt', values.map((value) => `${secretName}=${value}`).join('\n'));
   f.put('probe.ts', values.slice(1, 3).map((value) => `${secretName}: ${value},`).join('\n'));
-  const result = f.run();
-  assert.equal(result.status, 1);
-  assert.deepEqual(result.lines[4].findings, [
+  const result = f.scan();
+  assert.equal(result.result, 'fail');
+  assert.deepEqual(result.findings, [
     ...[1, 2].map((line) => ({ file: 'probe.ts', line, rule: 'secret_assignment' })),
     ...values.map((_, i) => ({ file: 'probe.txt', line: i + 1, rule: 'secret_assignment' })),
   ]);
@@ -226,50 +230,51 @@ test('all four secret default operators are checked in every file regardless of 
     f.put(`probe.${extension}`, operators.map((operator) => `${publicName}="\${${secretName}${operator}fake-default}"`).join('\n'));
   }
   f.put('no-assignment.txt', `use(\`\${${secretName}:-fake-default}\`)`);
-  const result = f.run();
-  assert.equal(result.status, 1);
-  assert.equal(result.lines[4].findings.length, extensions.length * operators.length + 1);
+  const result = f.scan();
+  assert.equal(result.result, 'fail');
+  assert.equal(result.findings.length, extensions.length * operators.length + 1);
   for (const extension of extensions) {
-    assert.deepEqual(result.lines[4].findings.filter((hit) => hit.file === `probe.${extension}`),
+    assert.deepEqual(result.findings.filter((hit) => hit.file === `probe.${extension}`),
       operators.map((_, i) => ({ file: `probe.${extension}`, line: i + 1, rule: 'secret_assignment' })));
   }
-  assert.ok(!result.stdout.includes('fake-default'));
+  assert.ok(!JSON.stringify(result).includes('fake-default'));
 });
 
 test('secret defaults apply the empty and whole-placeholder rules to their fallback', (t) => {
   const f = fixture(t);
   const values = ['', '""', "''", '$OTHER', '${OTHER}', '${OTHER:?required}', '<unset>'];
   f.put('probe.sh', values.map((value) => `${secretName}=\${${secretName}:-${value}}`).join('\n'));
-  assert.equal(f.run().status, 0);
+  assert.equal(f.scan().result, 'pass');
   f.put('probe.sh', `${secretName}=\${${secretName}:-\${OTHER}text}\n${publicName}=\${${secretName}:-\${${secretName}:=fake-nested}}`);
-  const result = f.run();
-  assert.equal(result.status, 1);
-  assert.deepEqual(result.lines[4].findings, [1, 2].map((line) => ({ file: 'probe.sh', line, rule: 'secret_assignment' })));
-  assert.ok(!result.stdout.includes('fake-nested'));
+  const result = f.scan();
+  assert.equal(result.result, 'fail');
+  assert.deepEqual(result.findings, [1, 2].map((line) => ({ file: 'probe.sh', line, rule: 'secret_assignment' })));
+  assert.ok(!JSON.stringify(result).includes('fake-nested'));
 });
 
 test('fails closed when the secrets section or a tracked file is missing', (t) => {
   const f = fixture(t);
   f.put('.env.example', `${secretName}=\n`);
-  assert.equal(f.run().lines[4].reason, 'secret_names_unavailable');
+  assert.equal(f.scan().reason, 'secret_names_unavailable');
   f.put('.env.example', example);
   f.put('missing.txt', 'safe');
   fs.unlinkSync(path.join(f.root, 'missing.txt'));
-  assert.deepEqual(f.run().lines[4].findings, [{ file: 'missing.txt', line: 1, rule: 'unreadable_file' }]);
+  assert.deepEqual(f.scan().findings, [{ file: 'missing.txt', line: 1, rule: 'unreadable_file' }]);
 });
 
 test('an exact file and value exception permits the known fake, and rejects a new value', (t) => {
   const f = fixture(t);
-  const allowed = 'packages/shared/src/logger.test.ts';
-  const fakeKey = ['ltis', '_0123456789abcdef'].join('');
+  const allowed = 'probe.txt';
+  const fakeKey = apiKey + '-allowed';
+  const allowList = [{ file: allowed, rule: 'api_key', fingerprint: digest(fakeKey), reason: 'Fake key owned by this test.' }];
   f.put(allowed, `moved to a new line\n${fakeKey}\n`);
-  const clean = f.run();
-  assert.equal(clean.status, 0);
-  assert.ok(clean.lines[4].notes.some((note) => note.note === 'stale_allow_list_entry'));
+  const clean = f.scan([...allowList, { ...allowList[0], file: 'absent.txt' }]);
+  assert.equal(clean.result, 'pass');
+  assert.ok(clean.notes.some((note) => note.note === 'stale_allow_list_entry'));
   f.put(allowed, `${fakeKey}\n${apiKey}\n`);
-  assert.deepEqual(f.run().lines[4].findings, [{ file: allowed, line: 2, rule: 'api_key' }]);
+  assert.deepEqual(f.scan(allowList).findings, [{ file: allowed, line: 2, rule: 'api_key' }]);
   f.put('copied.txt', fakeKey);
-  assert.ok(f.run().lines[4].findings.some((hit) => hit.file === 'copied.txt'));
+  assert.ok(f.scan(allowList).findings.some((hit) => hit.file === 'copied.txt'));
 });
 
 test('integration unit-test fakes have exact exceptions that reject changed values', (t) => {
@@ -282,13 +287,13 @@ test('integration unit-test fakes have exact exceptions that reject changed valu
   f.put(config, `${secretName}: '0'.repeat(64)`);
   f.put(platforms, wrong);
   f.put(audit, redacted);
-  assert.equal(f.run().status, 0);
+  assert.equal(f.scan().result, 'pass');
   f.put(config, `${secretName}: '1'.repeat(64)`);
   f.put(platforms, `${wrong}x`);
   f.put(audit, `${redacted}x`);
-  const result = f.run();
-  assert.equal(result.status, 1);
-  assert.deepEqual(result.lines[4].findings, [
+  const result = f.scan();
+  assert.equal(result.result, 'fail');
+  assert.deepEqual(result.findings, [
     { file: config, line: 1, rule: 'secret_assignment' },
     { file: platforms, line: 1, rule: 'api_key' },
     { file: audit, line: 1, rule: 'api_key' },
@@ -297,15 +302,16 @@ test('integration unit-test fakes have exact exceptions that reject changed valu
 
 test('a complete private-key block cannot use an exception for a header search string', (t) => {
   const f = fixture(t);
-  const allowed = 'tests/acceptance/M1/common/99-logs.test.ts';
+  const allowed = 'probe.txt';
+  const allowList = [{ file: allowed, rule: 'private_key', fingerprint: digest(privateKey), reason: 'Header search string owned by this test.' }];
   f.put(allowed, privateKey);
-  assert.equal(f.run().status, 0);
+  assert.equal(f.scan(allowList).result, 'pass');
   const block = `${privateKey}\nZmFrZS1rZXktZm9yLXRoZS11bml0LXRlc3Q=\n${privateKey.replace('BEGIN', 'END')}`;
   f.put(allowed, `safe\n${block}\n`);
-  const result = f.run();
-  assert.equal(result.status, 1);
-  assert.deepEqual(result.lines[4].findings, [{ file: allowed, line: 2, rule: 'private_key' }]);
-  assert.ok(!result.stdout.includes('ZmFrZS1rZXktZm9yLXRoZS11bml0LXRlc3Q='));
+  const result = f.scan(allowList);
+  assert.equal(result.result, 'fail');
+  assert.deepEqual(result.findings, [{ file: allowed, line: 2, rule: 'private_key' }]);
+  assert.ok(!JSON.stringify(result).includes('ZmFrZS1rZXktZm9yLXRoZS11bml0LXRlc3Q='));
 });
 
 test('detects PGP private-key blocks and leaves public-key blocks alone', (t) => {
@@ -313,14 +319,24 @@ test('detects PGP private-key blocks and leaves public-key blocks alone', (t) =>
   const header = ['-----BEGIN PGP', 'PRIVATE KEY BLOCK-----'].join(' ');
   const block = `${header}\nZmFrZS1wZ3Ata2V5\n${header.replace('BEGIN', 'END')}`;
   f.put('probe.asc', block.replaceAll('PRIVATE', 'PUBLIC'));
-  assert.equal(f.run().status, 0);
+  assert.equal(f.scan().result, 'pass');
   f.put('probe.asc', `safe\n${block}`);
   f.put('docs/header.md', header);
-  const result = f.run();
-  assert.equal(result.status, 1);
-  assert.deepEqual(result.lines[4].findings, [
+  const result = f.scan();
+  assert.equal(result.result, 'fail');
+  assert.deepEqual(result.findings, [
     { file: 'docs/header.md', line: 1, rule: 'private_key' },
     { file: 'probe.asc', line: 2, rule: 'private_key' },
   ]);
-  assert.ok(!result.stdout.includes('ZmFrZS1wZ3Ata2V5'));
+  assert.ok(!JSON.stringify(result).includes('ZmFrZS1wZ3Ata2V5'));
+});
+
+// Pure rule checks require no child process or repository.
+test('pure scanner helpers keep rule values inside the scanner', () => {
+  const keys = secretKeysOf(example);
+  assert.deepEqual(keys, [secretName]);
+  assert.equal(literalValue('"${VALUE}"', keys), null);
+  assert.equal(literalValue('"${A}text${B}"', keys), '${A}text${B}');
+  assert.deepEqual(scanText('probe.ts', `${secretName}: "fake-value"`, keys),
+    [{ line: 1, rule: 'secret_assignment', fingerprint: digest('fake-value') }]);
 });
