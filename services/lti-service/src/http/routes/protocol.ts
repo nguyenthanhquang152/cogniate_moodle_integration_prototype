@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ApiError } from '../../api-errors.ts';
 import { handleLaunch } from '../../lti/launch.ts';
 import { initiateLogin } from '../../lti/login.ts';
+import { lmsNameOf } from '../../profiles/index.ts';
 import { getAccount } from '../../store/accounts.ts';
 import { publicJwks } from '../../store/tool-keys.ts';
 import type { RouteContext } from '../context.ts';
@@ -50,6 +51,6 @@ export function registerProtocolRoutes(app: FastifyInstance, ctx: RouteContext):
   });
   app.get('/lti/launch/:account', async (req, reply) => {
     reply.header('allow', 'POST');
-    return ctx.errorPage(reply, req, 'METHOD_NOT_ALLOWED');
+    return ctx.errorPage(reply, req, 'METHOD_NOT_ALLOWED', { lms: lmsNameOf(null, ctx.profiles) });
   });
 }
