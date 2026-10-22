@@ -375,3 +375,35 @@ Reviewer-B B-LA-E5-16-01 and B-LA-E5-11-01 (MINOR), routed in dispatch `ctx_3e11
 | BD-A2-59 | The app CLI refusal lines give only a code; production with no operator list gives `operator_unknown`, which points at the wrong cause. (Provisional: `{reason, message}`, `operators_not_configured`, LA-E5-12 prints the line as it gets it.) | **Ratified.** The existing line keeps `event` and `reason` and adds `message`: one fixed sentence per code, never echoing input. New code `operators_not_configured` (production; no list, or an empty one). The ten codes and their messages are in LA-ADR-07 D4. `app:audit` uses the same shape. LA-E5-12 prints the line unchanged (stderr, exit 1). | LA-ADR-07 D4 "Refusal line of the app CLIs"; LA-E5-11 and LA-E5-12 design notes | Fixed messages keep the line safe to log and easy to test. Every code now names its own fix. |
 
 Changes for the Lead to route: **S1 (LA-E5-16 and LA-E5-11 fix rounds):** the two descriptions and `retryAfter`; the `message` field, the new code and its unit tests. **K (LA-E5-12):** print the policy line unchanged.
+
+## 31. Round 30: audit counted at commit, and the request path in logs (LA-E5-17 review, lane S1), 2026-10-23
+
+Review findings A-/B-LA-E5-17-01 (MAJOR) and A-LA-E5-17-02 (BLOCKER), routed in dispatch `ctx_6769e4895e4c`. Decisions sent to the Lead first (`msg_0080b75fdb6a`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-60 | A committed audit insert inside a caller-owned transaction is never counted. My BD-A2-52 accepted that ("no such route today"), but the `key-rewrap` end event does it. (Provisional: a per-transaction buffer, publish after the outermost commit, discard on rollback.) | **Ratified; my BD-A2-52 exception is removed.** A commit hook `afterCommit(db, fn)` in the shared transaction helper (S1 holds `migrations.ts` by RQ-2): per-scope buffers (merge at `RELEASE`; drop at `ROLLBACK TO` and `ROLLBACK`; run once after the outermost `COMMIT`; at once in autocommit); synchronous callbacks that never throw into the commit path. `insertAuditEvent` registers the count at every insert. | LA-ADR-06 D4 T0, D10 "Metrics"; operability §4.2 "Sources"; LA-E5-17 design notes | I was wrong in BD-A2-52: a product path already commits an event in its own transaction. One hook at the insert counts every path the same way. The app shares the helper (A1 FYI); with no callbacks nothing changes. |
+| BD-A2-61 | `http_request` logs the raw `req.url` path (after `redactPath`, which masks only long segments), so `/lti/login/alice@example.test` reaches the log. (Provisional: the route template, `<unmatched>` for no match.) | **Ratified.** `path` = the matched route template with no ids filled in; `<unmatched>` when no route matches; no query; the tenant stays in `tool_account_id`. Readers checked: base contract §5 says "path (no query)"; the M1 oracle does not read `path`; T1 H7 matches by trace id (the service sends `x-trace-id`). `redactPath` stays in `packages/shared` for the app. | operability §4.1; LA-ADR-06 D10 "Tenant id in logs"; contract delta §6; LA-E5-17 design notes | A template is bounded and holds no personal data; filled-in ids would add nothing that `tool_account_id` does not already hold. A1 FYI: the app's unmatched requests still log `redactPath(raw url)` (`server.ts:107`, `content-host/server.ts:122`); the same rule is recommended there (app contract, A1's call). |
+
+Changes for the Lead to route: **S1 (LA-E5-17 fix round):** the commit hook and its four tests; the route-template path and its two tests. **A1 FYI:** the shared commit hook; the app's unmatched-path log line.
+
+## 32. Round 31: the `app:audit` refusal line (LA-E5-11 fix round, lane S1), 2026-10-23
+
+Routed in dispatch `ctx_da332f36da02`. The Lead's provisional call is ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-62 | (Provisional, S1.) `app:audit` keeps the event `audit_list_refused` and `traceId`, and adds `message` = one fixed sentence per code that never echoes input (no bad flag, no `DATA_DIR` path; the usage line and the default path are in the fixed text); a wrong command gives `arguments_invalid` instead of the usage text as the reason; `--help` prints the usage on stdout with exit 0. | **Ratified.** The six codes and their fixed messages are now in LA-ADR-07 D4 (`arguments_invalid`, `connection_invalid`, `action_invalid`, `limit_invalid`, `since_invalid`, `audit_read_failed`). Reviewer-B's wish to name the bad flag is refused by the BD-A2-59 rule "never echoes input". | LA-ADR-07 D4 (`app:audit list` refusals); LA-E5-11 design notes | BD-A2-59's "same shape" means the `reason` and `message` fields. `app:audit` keeps its own event name and `traceId`, because it is a read command, not the operator policy. |
+
+Changes for the Lead to route: none beyond S1's fix round.
+
+## 33. Round 32: evidence for revoke, and refused events of the app CLIs (LA-E5-12 lane K, LA-E5-11 lane S1), 2026-10-23
+
+K's question and three provisional points, routed in dispatch `ctx_8749e4ef993f`. Decisions sent to the Lead first (`msg_a9aa80ad17c2`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-63 | Q1: `app:grant revoke` takes only `--operator`, but the policy requires evidence for every production command, so a production revoke always fails. (a) A policy input flag (S1), or (b) revoke also takes the evidence flags. (Provisional: (b).) | **Changed to (a).** `OperatorPolicyInput.evidenceRequired?: boolean`, default `true` (fail closed); `false` only for revoke, which skips only the two "missing" checks. Revoke does not parse evidence flags; K drops its interim parse. | LA-ADR-07 D5; LA-E5-11 and LA-E5-12 design notes | D5 lists evidence only for issue, suspend and release. A revoke only removes access (the BD-A2-12 principle), and an emergency revoke must not wait for a ticket reference. |
+| BD-A2-64 | (Provisional.) One `refused` event per refusal after the target is resolved, also for a format error on a known target; none for an unknown target, a usage error or an LTI outage. A stable snake_case `code` per refusal, with the CLI line text unchanged. The policy line printed as given and logged with its event and reason. | **Ratified, with one precision:** a policy refusal never writes an event, even after the target was read (BD-A2-45). | LA-ADR-07 D4 "Audit events of refused CLI runs"; LA-E5-12 design notes | The code list belongs in the app API delta §7 table (A1's file); until A1 adds it, the LA-E5-12 notes hold it. |
+
+Changes for the Lead to route: **S1 (LA-E5-11 fix round):** the `evidenceRequired` input and its two unit tests. **K (LA-E5-12):** revoke with `evidenceRequired: false`, dropping the interim evidence flags. **A1:** the refusal-code list in the app API delta §7.

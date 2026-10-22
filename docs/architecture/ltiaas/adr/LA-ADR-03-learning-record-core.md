@@ -86,7 +86,7 @@ erDiagram
 ### D5. Record reporter port (Must: the port and `lti-ags`)
 
 ```ts
-// services/cogniate-app/src/kernel/records.ts (sketch)
+// services/cogniate-app/src/kernel/records/ (sketch; the code and its doc comments are the reference; BD-A1-61)
 export type DeliveryOutcome =
   | { kind: 'accepted' }
   | { kind: 'conflict'; text: string }                    // AGS 409
@@ -99,10 +99,13 @@ export interface RecordReporter {
   policy: 'bestResult';                         // reserved: 'everyRecord' (LC); LA builds bestResult only
   appliesTo(p: PlacementView): boolean;         // lti-ags: p.graded
   prepare(r: LearningRecordView): unknown;      // the payload, stored at dispatch create (AGS body)
-  partitionKey(d: DispatchView): string;        // lti-ags: the LTI platform id; for a shared platform, platform id + ':' + deployment id
+  partitionKey(p: PlacementView): string;       // lti-ags: the LTI platform id; for a shared platform, platform id + ':' + deployment id.
+                                                // The platform and deployment lookup lives in drivers/lti-ags, not in the kernel.
   deliver(d: DispatchView, ctx: DeliveryContext): Promise<DeliveryOutcome>;  // marks "send began" through ctx before the remote call
   readBack?(p: PlacementView, learnerSubject: string, ctx: DeliveryContext): Promise<ReadBackResult>;
 }
+// One registration call: it checks the reporters and gives the outbox queue job for the job runner (D7).
+export function registerRecordReporters(db: Db, reporters: readonly RecordReporter[]): QueueJob<DispatchItem>;
 ```
 
 The `lti-ags` reporter (`services/cogniate-app/src/drivers/lti-ags/`):

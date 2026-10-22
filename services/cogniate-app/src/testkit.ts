@@ -1,5 +1,5 @@
 import type { OutboundClient } from '@cogniate/shared';
-import { configureRecordReporters } from './kernel/records/records.ts';
+import { registerRecordReporters } from './kernel/records/records.ts';
 import { ltiAgsReporter } from './drivers/lti-ags/index.ts';
 import type { ChannelRegistry } from '@cogniate/channel-kernel';
 import { setupOf } from './kernel/setup.ts';
@@ -377,7 +377,7 @@ export async function testApp(opts: { channels?: ChannelRegistry; limits?: Parti
     await upsertUser(db, { email: u.email, name: u.name, role: 'owner', libraryId: lib.id, password: u.password }, clock.now);
   }
   const lti = fakeLti();
-  configureRecordReporters(db, [ltiAgsReporter({ db, lti: lti.client, masterKey: TEST_MASTER_KEY, channels: opts.channels ?? TEST_CHANNELS })]);
+  registerRecordReporters(db, [ltiAgsReporter({ db, lti: lti.client, masterKey: TEST_MASTER_KEY, channels: opts.channels ?? TEST_CHANNELS })]);
   const app = await buildAppApi({
     channels: opts.channels ?? TEST_CHANNELS,
     db, urls: TEST_URLS, logger, store, profile: 'default', knobs: [], now: () => clock.now, ...(opts.limits ? { limits: opts.limits } : {}),

@@ -111,6 +111,8 @@ Every service writes JSON lines (security §11). Key events for operators:
 | Start | `service_started`, `config_refused`, `test_knob_active` |
 | App (A1 names) | `launch_rejected {reason}`, `score_sync`, `grant_*`, `binding_*`, `connection_check` |
 
+Request lines (BD-A2-61): in the LTI service, `http_request.path` is the matched route template (for example `/lti/login/:account`), with no ids filled in and no query. A request that matches no route logs the fixed value `<unmatched>`. The resolved tenant is in `tool_account_id`. So an unknown account, an encoded segment or a raw path value never reaches the log.
+
 The audit log (tables `audit_event` in both services) is the record of who changed what. Logs are for diagnosis; audit events are for accountability.
 
 ### 4.2 Metrics (LTI service, `/metrics`)
@@ -145,7 +147,7 @@ Sources (BD-A2-52; LA-E5-17):
 | Metrics | Source |
 | --- | --- |
 | `lti_rate_limited_total` | an observer in the limiter, before the log sampling: every hard refusal and every soft-class excess |
-| `lti_audit_events_total` | the audit writer, after the commit that holds the insert (the outermost transaction of `withAudit`; the autocommit insert of a refused event). A rolled-back insert never counts. Not a table count: retention deletes rows. |
+| `lti_audit_events_total` | every audit insert counts once when its outermost transaction **commits** (BD-A2-60): `insertAuditEvent` registers `afterCommit(db, fn)` of the shared transaction helper. A savepoint scope keeps its own buffer (`RELEASE` merges it into the parent; `ROLLBACK TO` drops it); the outermost `COMMIT` runs the buffer once after it succeeds; `ROLLBACK` drops it; with no open transaction it counts at once. So `withAudit`, the refused path and the `key-rewrap` end event count the same way, and a rolled-back insert never counts. Not a table count: retention deletes rows. |
 | `lti_platform_token_failures_total`, `lti_jwks_fetch_failures_total` | injected observers in the platform token client (`onTokenResult({platformId, ok})`) and the JWKS cache (`onJwksFetch({platformId, ok, fetchedAt})`). A JWKS event is emitted once per verify call that waited on a fetch (the starter or a single-flight joiner), with that call's own platform id; a cache hit or a caller with no platform id emits none (BD-A2-54). **Pending instrumentation (LA-E5-17 RQ-1, lane L):** not exposed until that commit lands. |
 | `lti_jwks_cache_age_seconds` | at scrape time, not from events: for each stored active platform, its stored JWKS URL and the cache getter `lastSuccessAt(jwksUrl)` give age = now − last success. Every platform that shares a cache entry (for example every Canvas cloud platform, one fixed URL) gets an accurate age, also when all its own calls were cache hits. No entry yet = no series (BD-A2-54). Pending with the same RQ-1. |
 | `lti_http_*`, `lti_launch_*`, `lti_outbound_*`, `lti_platform_rate_limited_total`, `lti_job_*`, `lti_api_auth_failed_total` | the existing log events and the HTTP hook |

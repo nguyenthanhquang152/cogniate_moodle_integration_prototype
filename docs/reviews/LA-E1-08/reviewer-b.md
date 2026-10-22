@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E1-08 review, Reviewer-B (lens: "Can a human team own it?")
 
@@ -72,3 +72,49 @@ F5 `channel-sql-tables` checks channel SQL against the manifest `storage` list, 
 
 - K1-SIM and MOODLE ACs (QA); the F1 counts of AC-09 (K0).
 - Lens-A depth of the queue file checks and of the SQL binding beyond the unit cases.
+
+## Round 2
+
+Verdict: APPROVE
+Round: 2
+
+Reviewer: Codex, Reviewer-B. The round 1 record above is unchanged apart from the file's current verdict header. Reviewed `ebc5e7d`, `1225080`, `5b4b39c` and the P5 context fix `b6ec001`, as merged in `6270d43`. Source and test candidate: `6270d43`. Applied the task spec, LA-ADR-01 D3/D5/D8, BD-A1-40/42/45/47/52, and plan §6.1. No Reviewer-A file was opened.
+
+**Open counts: 0 BLOCKER, 0 MAJOR, 1 MINOR, 1 NIT.** No new finding ID. The path part of B-LA-E1-08-02 remains, and B-LA-E1-08-04 has only its A1 documentation follow-up.
+
+### Round 1 findings
+
+| Finding | Result and evidence |
+| --- | --- |
+| B-LA-E1-08-01 — MAJOR | **Closed.** `PortContext.toolUrls` is built by `createPortContext` through the common kernel helper. The Canvas artifact uses the injected login, launch, keys and origin values, plus the injected account id. No protocol path remains in that channel route. The injected URLs deliberately differ from `ctx.urls.lti`; restoring the old construction fails its regression test. |
+| B-LA-E1-08-02 — MINOR | **Partly closed.** The header now describes all four kernel jobs. The short extension guide covers path rules, guard names, scoped SQL, storage declarations, errors as values and the web-services example. Ordinary new bare paths are refused. One body-flag key is still accepted as a frozen route; see the residual below. |
+| B-LA-E1-08-03 — NIT | **Closed.** Named errors distinguish unscoped SQL, invalid parameters, build queue faults, DTO fields and extension paths. Tests assert the error names and messages. The runtime can identify the rule without logging statement text or secrets. |
+| B-LA-E1-08-04 — NIT | **Code note closed; A1 follow-up remains.** `kernel/ports.ts:404` explicitly says the queue serves `.mbz` only and a second exporter needs ownership-table and status-step changes. The architecture note requested in round 1 is still absent. No general queue redesign is required for LA. |
+
+### Residual B-LA-E1-08-02 — MINOR — The route allow-list includes a publication body flag
+
+- **File:** `services/cogniate-app/src/kernel/extensions.ts:95`; `services/cogniate-app/src/kernel/extensions.test.ts:27`; `services/cogniate-app/src/kernel/ports.ts:7`.
+- **Problem:** `EXTENSION_GUARDS` is not a list of frozen P5 paths. It also contains `createMoodleCourse`, the P6 body flag, so the new path check accepts a bare route that the baseline never had.
+- **Evidence:** `packages/channel-kernel/src/legacy-wire.ts:37` declares the body flag; `:45` puts its guard in the same map as the two P5 paths. The new table test expands every map key as allowed and passes for `GET /connections/:id/createMoodleCourse`. Thus the test repeats the allow-list mistake. No product channel currently mounts this route, so this is safe to defer.
+- **Suggested fix:** Define the actual frozen extension paths separately, or distinguish path guards from body-option guards. Use that path list in the mount and guide. Test the two frozen P5 paths explicitly, reject `createMoodleCourse`, and keep `x/<name>` for new routes. Round 1's suggestion to use every `EXTENSION_GUARDS` key was too broad; this narrows that same finding.
+
+### Residual B-LA-E1-08-04 — NIT — Architecture note remains with A1
+
+- **File:** `docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md:350` (Build queue rule); `services/cogniate-app/src/kernel/ports.ts:404` (completed code note).
+- **Problem:** The public code documents the single-exporter limit, but the corresponding architecture follow-up from round 1 is not recorded yet.
+- **Evidence:** Queue ownership still uses `EXPORT_BUILD_SCOPE_SQL` over `mbz_build`, and status validation still names the `.mbz` steps. The new code comment states both limits correctly.
+- **Suggested fix:** A1 adds the same known limit to its architecture guidance, including the requested D9 follow-up. This is not a lane K implementation blocker.
+
+### Checks and evidence
+
+- Used a private `git clone --no-hardlinks` at `6270d43`, with copied dependencies. No Docker, stack or host runner ran. No product or test file changed in the integration worktree.
+- Focused app, channel, kernel and import-fence suite: **50 files, 1,130 passed, 2 skipped**. The skips are the missing HTML and SCORM archive upload fixtures. K0: **3 files, 121 passed, no skips**. Root typecheck and lint of the reviewed areas passed.
+- SQL fitness tests: **9 passed**. They cover forbidden and permitted storage for `SELECT`, `REPLACE` and `VALUES`, both under `app/` and in root `app.ts`. Restoring the old SQL detection and path scope caused **5 failures**. F5: **6 rules, 0 hits**. F1: **PASS, 20 files with hits, 74 hits**.
+- Private negative controls: old Canvas URL construction caused **1 context test failure**. Restoring the old bare-path rule and raw Canvas title caused **8 failures**: three forbidden bare routes, the map's body-flag row, and four non-ASCII title cases. All temporary mutations were restored; the private clone's tracked tree is clean.
+- Queue status now accepts `step: ''` from the runner's early stop trap and exposes `step: null`. The test also keeps refusals for unknown fields, invalid steps, oversized files and symlinks. The Canvas title uses the shared ASCII formatter in both JWK modes, with accented, whitespace and non-ASCII-only examples.
+- UNIT AC-03 tests scope refusal and library/connection rebinding for reads and writes. AC-05 tests forbidden DTO additions, frozen fields and defaults. AC-06 pins the six legacy route/method pairs, including download, in the authenticated scope. These tests remain executable and passed; the relevant contrary behaviors produce assertion failures.
+- The reviewed commits stay within lane K's B2 files and the shared P5 context work. They change no `tests/**`, `docs/**`, R-owned file, LTI-service file or portal file. The six removed core files remain absent. No additional LMS-name branch was added in core.
+
+### Verification boundary
+
+K1-SIM AC-01/02/07 and MOODLE-LIVE AC-08 remain QA work pending the permitted stack window. This review does not claim golden-output or live-runner verification.

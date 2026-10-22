@@ -172,7 +172,7 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
   registerLaunchPages(app, { ...pageDeps, pickerTtlSeconds: deps.pickerTtlSeconds, playTtlSeconds: deps.playTtlSeconds });
   registerPickerPages(app, pageDeps);
   registerPlayPages(app, { ...pageDeps, playerDir: deps.playerDir });
-  registerPortal(app, { db: deps.db, now });
+  registerPortal(app, { channels: deps.channels, db: deps.db, now });
 
   return app;
 }

@@ -133,6 +133,19 @@ Refusal line of the app CLIs (BD-A2-59; `app:grant`, `app:binding`, `app:audit`)
 | `operator_refused` | `evidence_channel_invalid` | Use one of these evidence channels: institution-email, support-call, lms-admin-ticket, other. |
 | `operator_refused` | `evidence_ref_invalid` | Give an evidence reference of 1 to 200 characters. |
 
+Audit events of refused CLI runs (BD-A2-64): every refusal after the target grant or connection is resolved writes one `refused` event (the command's action, the target, `connection_id`, the actor), also for a format error on a known target. Its `code` is a stable snake_case code per refusal (for example `grant_redeemed`, `site_mismatch`, `connection_not_pending`, `platform_inactive`), and the CLI line text does not change (M1). An unknown target, a usage error or an LTI service outage writes no event. An operator-policy refusal never writes an event, even after the target was read (BD-A2-45). The CLI prints the policy line as given and logs it with its event and reason.
+
+`app:audit list` refusals (BD-A2-62) keep their own event and `traceId`: `{"event": "audit_list_refused", "reason": "<code>", "message": "<fixed sentence>", "traceId": "<id>"}` on stderr, exit 1. The message never echoes input, so it does not name an unknown flag or the `DATA_DIR` value. A wrong command gives `arguments_invalid`. `app:audit --help` prints the usage on stdout and exits 0.
+
+| Code | Message |
+| --- | --- |
+| `arguments_invalid` | Usage: app:audit list [--connection <id>] [--action <action>] [--since <ISO time>] [--limit <1-500>]. Run app:audit --help for the options. |
+| `connection_invalid` | Give --connection a connection id that is not empty. |
+| `action_invalid` | Give --action an audit action name that is not empty, for example grant.issue. |
+| `limit_invalid` | Give --limit a whole number from 1 to 500 (default 100). |
+| `since_invalid` | Give --since an ISO 8601 time with a time zone, for example 2026-10-23T08:00:00Z. |
+| `audit_read_failed` | The app database could not be opened read-only. Run the command in the cogniate-app container, where the database is /data/cogniate.db (DATA_DIR). |
+
 Residual R-LA-2: the app operator name is self-asserted by a person with shell access. The audit trail is accountable, not authenticated, until LG adds SSO for operators.
 
 Acceptance points:
@@ -151,7 +164,8 @@ Acceptance points:
 | `--evidence-ref` | 1–200 characters: a ticket id or message id, not the message itself | same |
 | `--note` | unchanged (1–500 characters) | same |
 
-- Production profile: `--evidence-channel` and `--evidence-ref` are required. Default and acceptance profiles: optional (M1 commands unchanged).
+- Production profile: `--evidence-channel` and `--evidence-ref` are required for `app:grant issue`, `app:binding suspend` and `release`. Default and acceptance profiles: optional (M1 commands unchanged).
+- `app:grant revoke` takes no evidence (BD-A2-63): a revoke only removes access, and an emergency revoke must not wait for a ticket reference. It does not parse the evidence flags. The policy input `evidenceRequired?: boolean` (default `true`) is `false` only for revoke: production still requires `--operator` with a listed name, and only the two "missing" checks are skipped. Evidence values given anyway are still validated and recorded.
 - Storage: the evidence lives in the app audit event of the command ([LA data model §5](../data-model.md#5-cogniate-app-migration-015-e5-app-part-e6), table `audit_event`): `details` holds `evidence_channel`, `evidence_ref` and `note_present: true`, never the note text, because a note can hold personal data. The grant row gets **no** new column (no extra schema change). The note stays where M1 keeps it: `binding_grant.note` for a grant (`services/cogniate-app/src/domain/migrations/011_lms_types.sql:37`); suspend and release log only `note_present` (`services/cogniate-app/src/app/operator.ts:163`).
 - The evidence **policy** (what the operator must check, through which channel) is the human decision Q22. The recommendation stays as in `docs/architecture/open-questions.md:31`, plus one check: for a bound value whose host is not the issuer host, the operator confirms with the LMS administrator that the vendor issued this client id for this issuer at that host, and only then uses `--confirm-foreign-hosts` (LA-ADR-02 D6, A-LAD-23).
 

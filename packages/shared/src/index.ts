@@ -2,7 +2,7 @@ export { PUBLIC_URL_ENV, loadPublicUrls } from './config.ts';
 export type { PublicUrls } from './config.ts';
 export { closeOnSignal, listen, portFromEnv, readCookie, sendJson } from './http.ts';
 export type { HealthBody } from './http.ts';
-export { escapeHtml, pendingToolText } from './html.ts';
+export { escapeHtml } from './html.ts';
 export { decrypt, encrypt, randomId, randomToken, safeEqual, sha256Hex } from './crypto.ts';
 export { JOB_HEARTBEAT_MS, JOB_HEARTBEAT_STALE_MS, JOB_INSTANCE_RECHECK_MS, JOB_LEASE_MS, JOB_PARALLEL, JOB_POLL_MS, createJobRunner } from './jobs.ts';
 export type { Awaitable, IntervalJob, JobContext, JobInstanceRow, JobLeaseRow, JobRole, JobRunResult, JobRunner, JobRunnerOptions, JobRunnerState, JobStore, QueueJob, QueueLimits, RecoveryScope, RunNowResult } from './jobs.ts';

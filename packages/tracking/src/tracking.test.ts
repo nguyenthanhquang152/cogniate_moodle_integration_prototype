@@ -143,15 +143,15 @@ describe('shell status text', () => {
   const base = { outcome: 'passed' as const, scoreGiven: 100, scoreMaximum: 100, preview: false, scoreSync: { status: 'sent', scoreGiven: 100, scoreMaximum: 100 } };
   const none = { status: null, scoreGiven: null, scoreMaximum: null };
   it('the texts of T5a', () => {
-    expect(playStatusText(base)).toBe('Completed — score 100 sent to Moodle');
-    expect(playStatusText({ ...base, outcome: 'in_progress', scoreGiven: null, scoreSync: none })).toBe('In progress');
-    expect(playStatusText({ ...base, preview: true })).toBe('Preview — no grade is sent');
-    expect(playStatusText({ ...base, outcome: 'failed', scoreGiven: 0, scoreSync: { ...base.scoreSync, scoreGiven: 0 } })).toBe('Completed — score 0 sent to Moodle');
-    expect(playStatusText({ ...base, scoreSync: { ...base.scoreSync, status: 'pending' } })).toBe('Completed — sending score 100 to Moodle');
-    expect(playStatusText({ ...base, scoreSync: { ...base.scoreSync, status: 'failed' } })).toBe('Completed — score 100 not sent to Moodle');
-    expect(playStatusText({ ...base, outcome: 'not_started', scoreSync: none })).toBe('Not started');
-    expect(playStatusText({ ...base, scoreSync: none })).toBe('Completed — score 100');
-    expect(playStatusText({ ...base, scoreGiven: null, scoreSync: none })).toBe('Completed');
+    expect(playStatusText(base, 'Moodle')).toBe('Completed — score 100 sent to Moodle');
+    expect(playStatusText({ ...base, outcome: 'in_progress', scoreGiven: null, scoreSync: none }, 'Moodle')).toBe('In progress');
+    expect(playStatusText({ ...base, preview: true }, 'Moodle')).toBe('Preview — no grade is sent');
+    expect(playStatusText({ ...base, outcome: 'failed', scoreGiven: 0, scoreSync: { ...base.scoreSync, scoreGiven: 0 } }, 'Moodle')).toBe('Completed — score 0 sent to Moodle');
+    expect(playStatusText({ ...base, scoreSync: { ...base.scoreSync, status: 'pending' } }, 'Moodle')).toBe('Completed — sending score 100 to Moodle');
+    expect(playStatusText({ ...base, scoreSync: { ...base.scoreSync, status: 'failed' } }, 'Moodle')).toBe('Completed — score 100 not sent to Moodle');
+    expect(playStatusText({ ...base, outcome: 'not_started', scoreSync: none }, 'Moodle')).toBe('Not started');
+    expect(playStatusText({ ...base, scoreSync: none }, 'Moodle')).toBe('Completed — score 100');
+    expect(playStatusText({ ...base, scoreGiven: null, scoreSync: none }, 'Moodle')).toBe('Completed');
   });
 
   it.each([
@@ -160,13 +160,13 @@ describe('shell status text', () => {
     ['failed', 'Completed — score 60. Your best score, 80, was not sent to Moodle'],
     ['conflict', 'Completed — Moodle has a grade with a newer time'],
   ])('P11: %s names the best score separately from the current attempt', (status, text) => {
-    expect(playStatusText({ ...base, scoreGiven: 60, scoreSync: { status, scoreGiven: 80, scoreMaximum: 100 } })).toBe(text);
+    expect(playStatusText({ ...base, scoreGiven: 60, scoreSync: { status, scoreGiven: 80, scoreMaximum: 100 } }, 'Moodle')).toBe(text);
   });
 
   it('P11: compares normalized scores and retains the existing score format', () => {
-    expect(playStatusText({ ...base, scoreGiven: 40, scoreMaximum: 50, scoreSync: { status: 'sent', scoreGiven: 80, scoreMaximum: 100 } })).toBe('Completed — score 40/50 sent to Moodle');
-    expect(playStatusText({ ...base, scoreGiven: 40, scoreMaximum: 100, scoreSync: { status: 'sent', scoreGiven: 40, scoreMaximum: 50 } })).toBe('Completed — score 40. Moodle keeps your best score: 40/50');
-    expect(playStatusText({ ...base, scoreGiven: 0, scoreSync: { status: 'sent', scoreGiven: 80.25, scoreMaximum: 100 } })).toBe('Completed — score 0. Moodle keeps your best score: 80.25');
+    expect(playStatusText({ ...base, scoreGiven: 40, scoreMaximum: 50, scoreSync: { status: 'sent', scoreGiven: 80, scoreMaximum: 100 } }, 'Moodle')).toBe('Completed — score 40/50 sent to Moodle');
+    expect(playStatusText({ ...base, scoreGiven: 40, scoreMaximum: 100, scoreSync: { status: 'sent', scoreGiven: 40, scoreMaximum: 50 } }, 'Moodle')).toBe('Completed — score 40. Moodle keeps your best score: 40/50');
+    expect(playStatusText({ ...base, scoreGiven: 0, scoreSync: { status: 'sent', scoreGiven: 80.25, scoreMaximum: 100 } }, 'Moodle')).toBe('Completed — score 0. Moodle keeps your best score: 80.25');
   });
 
   it.each([
@@ -174,7 +174,7 @@ describe('shell status text', () => {
     ['pending', 'Completed. Sending your best score, 80, to Moodle'],
     ['failed', 'Completed. Your best score, 80, was not sent to Moodle'],
   ])('B-FIX-03: %s with no attempt score has no empty score label', (status, text) => {
-    expect(playStatusText({ ...base, scoreGiven: null, scoreMaximum: null, scoreSync: { status, scoreGiven: 80, scoreMaximum: 100 } })).toBe(text);
+    expect(playStatusText({ ...base, scoreGiven: null, scoreMaximum: null, scoreSync: { status, scoreGiven: 80, scoreMaximum: 100 } }, 'Moodle')).toBe(text);
   });
 });
 
