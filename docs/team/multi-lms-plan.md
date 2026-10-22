@@ -13,7 +13,21 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 15:18 UTC
+### Current directive — 2026-10-22, 18:04 UTC
+
+The Lead accepts [E-R4](r4-evidence-decision-2026-10-22.md), following Claude Architect's P1 proposal at `a8354f2`.
+All twelve fresh C6/C8 legacy groups passed. Functional and criterion evidence is accepted with the non-exclusive window disclosed.
+E-R3 remains VOID as a historical grant. Savoy's complete activity confirmation and LA's host-only confirmation are recorded in E-R4.
+QA's append at `e8a1947` preserves the exposure ledger, count correction and temporary derived-file revision history.
+No legacy rerun is required. Product C6 and tests C8 stay frozen; no product or test edits are granted.
+
+Remaining runtime requires two fresh Canvas SIM rounds, independent Canvas judgments and equality, then M2 and T7.
+Each invocation needs a separate Lead grant after confirmed host scheduling. No new runtime is currently granted.
+The user has a pending scheduling choice because Savoy expects further short Docker work.
+Final conformance, necessary guide updates, independent Docs QA and two blind final reviews remain required.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior directive — 2026-10-22, 15:18 UTC
 
 The C6/C7 legacy attempt is FAILED. E-T5R is VOID. No further runtime invocation is granted.
 The run lasted 14:21:27–15:06:57 UTC: ten groups passed, T6 failed AC-T6-09, and T8 did not run.

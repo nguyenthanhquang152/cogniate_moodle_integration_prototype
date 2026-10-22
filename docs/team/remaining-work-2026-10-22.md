@@ -2,16 +2,17 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 18:03 UTC
+## Current checkpoint — 18:04 UTC
 
 All twelve legacy groups passed: 304 raw entries and 251 as the sum of unique IDs within each subrun.
 The QA disclosure is committed at `e8a1947`. It records the non-exclusive window, exposure ledger and corrected counts.
 The Lead verified all 74 evidence entries against their restored original hashes.
 Two derived files were temporarily revised and restored; the disclosure preserves that history. All 72 underlying entries stayed unchanged.
 
-Claude Architect's P1 proposal at `a8354f2` can accept these functional results without a legacy rerun.
-Savoy supplied its whole-window activity confirmation in `msg_779552416a56`. LA's retrospective confirmation is pending.
-P1 is not accepted yet. E-R3 remains VOID. No new runtime is granted.
+The Lead accepted Claude Architect's P1 proposal at `a8354f2` under [E-R4](r4-evidence-decision-2026-10-22.md).
+Savoy supplied its whole-window activity confirmation in `msg_779552416a56`; LA confirmed its hold in `msg_25fb37c37283`.
+The legacy functional and criterion results are accepted with the non-exclusive window disclosed. No legacy rerun is required.
+E-R3 remains VOID as a historical grant. No new runtime is granted by E-R4 alone.
 Savoy expects further short Docker runs. The user's scheduling choice remains pending.
 
 The remaining runtime is two 258-row Canvas SIM rounds, independent 232-row Canvas judgments and equality, then M2 and T7.
