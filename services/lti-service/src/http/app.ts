@@ -17,6 +17,7 @@ import type { NrpsClient } from '../platform/nrps.ts';
 import { authenticate } from './auth.ts';
 import type { RouteContext } from './context.ts';
 import { ERROR_PAGE_HEADERS, renderErrorPage } from './error-page.ts';
+import { retryAfterSeconds, setRetryAfter } from './retry-after.ts';
 import { registerIdTokenRoutes } from './routes/idtoken.ts';
 import { registerPlatformRoutes } from './routes/platforms.ts';
 import { registerRegistrationRoutes } from './routes/registration.ts';
@@ -81,8 +82,13 @@ export function installApiBasics(app: FastifyInstance, log: Logger): void {
 
   app.setErrorHandler((err: Error & { statusCode?: number; code?: string }, req, reply) => {
     if (err instanceof ApiErrorBase) {
-      if (err.code === 'PLATFORM_RATE_LIMITED') reply.header('Retry-After', String(err.details.retryAfter));
-      return reply.code(err.status).send(err.body());
+      const body = err.body();
+      if (Object.hasOwn(body.details, 'retryAfter')) {
+        const seconds = retryAfterSeconds(body.details.retryAfter);
+        setRetryAfter(reply, seconds);
+        body.details.retryAfter = seconds;
+      }
+      return reply.code(err.status).send(body);
     }
     // 413 keeps the INVALID_REQUEST code (contract §1.4: max 256 KB).
     if (err.code === 'FST_ERR_CTP_BODY_TOO_LARGE') return reply.code(413).send(apiErrorBody(413, 'INVALID_REQUEST', 'Body is larger than 256 KB.'));

@@ -3,6 +3,7 @@
 import type { Logger, OutboundResponse } from '@cogniate/shared';
 import { OutboundError } from '@cogniate/shared';
 import { ApiError } from '../api-errors.ts';
+import { retryAfterSeconds } from '../http/retry-after.ts';
 
 const HTTP_DATE_FORMATS = [
   /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), \d{2} (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{4} \d{2}:\d{2}:\d{2} GMT$/i,
@@ -13,13 +14,13 @@ const HTTP_DATE_FORMATS = [
 /** Retry-After uses whole seconds or an HTTP date. Never ask a caller to wait less than 1 s or more than 1 h. */
 export function platformRetryAfter(value: string | undefined, now = Date.now()): number {
   const text = value?.trim();
-  if (!text) return 60;
-  if (/^\d+$/.test(text)) return Math.max(1, Math.min(3600, Number(text)));
+  if (!text) return retryAfterSeconds(undefined);
+  if (/^\d+$/.test(text)) return retryAfterSeconds(Number(text));
   // Date.parse also accepts values such as "1.5". Only the three HTTP date forms are dates here.
-  if (!HTTP_DATE_FORMATS.some((format) => format.test(text))) return 60;
+  if (!HTTP_DATE_FORMATS.some((format) => format.test(text))) return retryAfterSeconds(undefined);
   // The old asctime form has no zone; HTTP dates always use GMT.
   const date = Date.parse(/GMT$/i.test(text) ? text : `${text} GMT`);
-  return Number.isFinite(date) ? Math.max(1, Math.min(3600, Math.ceil((date - now) / 1000))) : 60;
+  return retryAfterSeconds((date - now) / 1000);
 }
 
 export interface PlatformErrorContext {
