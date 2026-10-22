@@ -4,6 +4,8 @@ export { closeOnSignal, listen, portFromEnv, readCookie, sendJson } from './http
 export type { HealthBody } from './http.ts';
 export { escapeHtml, pendingToolText } from './html.ts';
 export { decrypt, encrypt, randomId, randomToken, safeEqual, sha256Hex } from './crypto.ts';
+export { JOB_HEARTBEAT_MS, JOB_HEARTBEAT_STALE_MS, JOB_INSTANCE_RECHECK_MS, JOB_LEASE_MS, JOB_PARALLEL, JOB_POLL_MS, createJobRunner } from './jobs.ts';
+export type { Awaitable, IntervalJob, JobContext, JobInstanceRow, JobLeaseRow, JobRole, JobRunResult, JobRunner, JobRunnerOptions, JobRunnerState, JobStore, QueueJob, QueueLimits, RecoveryScope, RunNowResult } from './jobs.ts';
 export { ApiErrorBase, apiErrorBody, defineErrorTable } from './errors.ts';
 export type { ApiErrorBody, ApiErrorOptions, ApiErrorSpec, ApiErrorTable } from './errors.ts';
 export { BUILD_STEPS, KNOB_REGISTRY, knobString, knobValue, readServiceKnobs } from './knobs.ts';
