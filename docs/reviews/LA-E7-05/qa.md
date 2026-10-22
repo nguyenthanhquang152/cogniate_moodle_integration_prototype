@@ -1,9 +1,9 @@
 Verdict: PASS
-Round: 1
+Round: 2
 
-# LA-E7-05 Simulator scenario options and the platform side of Dynamic Registration — QA verification (Round 1, host-only)
+# LA-E7-05 Simulator scenario options and the platform side of Dynamic Registration — QA verification (Round 2, host-only)
 
-Tester: QA-E2E (Orca task `task_5a1930354a1f`, dispatch `ctx_27c70bf6d702`), 2026-10-22. Spec: `docs/architecture/ltiaas/tasks/LA-E7-05.md`. Design: `docs/architecture/ltiaas/adr/LA-ADR-02-generic-lti-channel.md` D5 and D7, `docs/architecture/ltiaas/adr/LA-ADR-05-lti-advantage-completeness.md` D1–D9, `docs/architecture/ltiaas/adr/LA-ADR-08-onboarding-and-connection-health.md` D1, and `tests/ltiaas/TEST-STRATEGY.md` §2.8.
+Tester: QA-E2E (Orca tasks `task_5a1930354a1f` and `task_d53f1b5cb520`, dispatches `ctx_27c70bf6d702` and `ctx_c2fa74121b7b`), 2026-10-22. Spec: `docs/architecture/ltiaas/tasks/LA-E7-05.md`. Design: `docs/architecture/ltiaas/adr/LA-ADR-02-generic-lti-channel.md` D5 and D7, `docs/architecture/ltiaas/adr/LA-ADR-05-lti-advantage-completeness.md` D1–D9, `docs/architecture/ltiaas/adr/LA-ADR-08-onboarding-and-connection-health.md` D1, and `tests/ltiaas/TEST-STRATEGY.md` §2.8.
 
 Independence: QA-E2E built the simulator scenario options, Dynamic Registration platform endpoints, platform storage frame, and host-only self-tests from `LA-E7-05.md`, `LA-ADR-02`, `LA-ADR-05`, `LA-ADR-08`, `TEST-STRATEGY.md` §2.8, and `tests/sim/**`. QA-E2E read no product source files (`services/**`, `apps/**`, `packages/**`), Author notes, or Author branches.
 
@@ -38,3 +38,21 @@ All seven `LA-E7-05` acceptance criteria (`AC-LA-E7-05-01`..`AC-LA-E7-05-07`) ha
 | Baseline simulator self-tests (M1/M2 + loader/manifest fail-closed checks) | `node --test tests/sim/core/*.test.mjs tests/sim/canvas/protocol.test.mjs tests/sim/blackboard/protocol.test.mjs` | 10 passed, 0 failed | 0.88 s |
 | `LA-E7-02` + `LA-E7-05` provider and scenario-option self-tests (`generic`, `moodle-sim`, `brightspace`, `canvas` DR) | `node --test tests/sim/generic/protocol.test.mjs tests/sim/brightspace/protocol.test.mjs` | 13 passed, 0 failed | 0.99 s |
 | Combined simulator self-tests (all 5 test files) | `node --test tests/sim/core/*.test.mjs tests/sim/blackboard/protocol.test.mjs tests/sim/canvas/protocol.test.mjs tests/sim/generic/protocol.test.mjs tests/sim/brightspace/protocol.test.mjs` | 23 passed, 0 failed | 1.32 s |
+
+## Round 2 (Reviewer-A2 Round-1 Fixes, Host-Only)
+
+| Item | Value |
+| --- | --- |
+| Integration SHA | `0e65ab1` (`LA-E7-05` Round 1) |
+| Worktree | `la-qa` (`nguyenthanhquang152/la-qa`) |
+| Lane and slot | Host-only (Docker ban active; K1-SIM stack runs stay `pending: Docker window`) |
+| Reviewer findings addressed | `A-LA-E7-05-01` (BLOCKER), `A-LA-E7-05-02` (MINOR) from `docs/reviews/LA-E7-05/reviewer-a.md` |
+| Files updated | `tests/sim/core/provider.mjs`, `tests/sim/generic/protocol.test.mjs`, `tests/sim/README.md`, `docs/reviews/LA-E7-05/qa.md` |
+| Artifacts | `~/cogniate-qa-runs/LA/LA-E7-05/r2/sim-all-self-tests.log` (56/56 tests pass in 3.59 s) |
+
+### Reviewer-A2 Finding Dispositions
+
+| Finding | Severity | Fix and Verification |
+| --- | --- | --- |
+| `A-LA-E7-05-01` | BLOCKER | In `tests/sim/core/provider.mjs` (`storageMessage`), `senderOrigin` now takes the explicit `x-storage-origin` header set by the storage frame's `postMessage` listener (`event.origin`) before falling back to `request.headers.origin`, and refuses `senderOrigin === 'https://' + request.host` so the browser's same-origin `Origin` header on the frame's own `POST /__storage` can never partition storage by or target the auth host. In `tests/sim/generic/protocol.test.mjs`, the platform-storage test now extracts and runs the `<script>` returned by `GET /__storage` inside a browser-like `vm` context whose `fetch('/__storage', { method: 'POST' })` injects `Origin: https://generic.sim.test` (the frame's own auth-host origin), verifying that `lti.put_data` and `lti.get_data` partition by `event.origin` (`https://lti.cogniate.test` vs `https://other-tool.test`) and reply via `event.source.postMessage(response, event.origin)`. |
+| `A-LA-E7-05-02` | MINOR | Restored both M1/M2 defaults in `tests/sim/core/provider.mjs`: (1) `deepLinkReturn` now refuses an empty `content_items: []` with `'DL item count'` unless the scenario opts in with `dlAllowCancel: true` (or `allowCancel: true` / `allowEmptyDl: true`), and (2) `scenario.claims[DL + 'deep_linking_settings']` replaces the computed `deep_linking_settings` claim object completely (while `scenario.dlSettings` / `scenario.deepLinkingSettings` merges into the default object). Verified both rules in `tests/sim/generic/protocol.test.mjs`. |
