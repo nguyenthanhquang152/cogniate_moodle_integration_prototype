@@ -1,6 +1,6 @@
 import manifest from "../manifest.ts";
 import type { ChannelUiModule, ChannelWizardProps } from "@cogniate/portal-sdk";
-import { Card, Notice, Link, buttonVariants, ArrowRight, Download, idPath, useSession, fillText, ConnectionDetailBlock } from "@cogniate/portal-sdk";
+import { Card, Notice, Link, buttonVariants, ArrowRight, Download, idPath, useSession, fillText, ConnectionDetailBlock, pendingToolText } from "@cogniate/portal-sdk";
 import { CreateConnection } from "./CreateConnection.tsx";
 import { DynamicSetup } from "./DynamicSetup.tsx";
 import { ManualSetup } from "./ManualSetup.tsx";
@@ -36,6 +36,9 @@ const module: ChannelUiModule = {
     return <p className="text-[12px] text-[#cbb9e0]">Teachers: {manifest.texts.teacherSteps.map((step) => fillText(step, { LMS: manifest.names.text, tool: `Cogniate (${session?.library.name ?? ""})`, site: "" })).join(" ")}</p>;
   },
   ConnectionDetails: ({ connection }) => <ConnectionDetailBlock connection={connection} openUrl={`${connection.siteUrl}/mod/lti/toolconfigure.php`} />,
+  ConnectionError: ({ Default, ...props }) => <Default {...props} error={{
+    ...props.error, title: props.error.title ?? "The Moodle connection failed.", action: props.error.action ?? (props.error.code === "MOODLE_TOOL_MAY_EXIST" && props.libraryName ? pendingToolText(`Cogniate (${props.libraryName})`) : undefined),
+  }} />,
   connectionPanels: [({ connection, sdk }) => connection.capabilities.webServices ? <WebServices key={connection.id} connection={connection} onSaved={sdk.refresh} /> : null],
   coursePanels: [({ course, version }) => version?.format === "scorm12" ? <>
     <div className="grid justify-items-start gap-3 border-t border-border pt-5 [&_p]:text-[12px]">

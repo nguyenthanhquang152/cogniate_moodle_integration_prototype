@@ -43,6 +43,12 @@ export interface ChannelWizardProps {
 }
 export type ProviderWizardProps = ChannelWizardProps;
 export type WizardStep = "show" | "collect" | "verify" | "enable";
+export interface ConnectionErrorProps {
+  connection: ConnectionView;
+  error: NonNullable<ConnectionView["lastError"]>;
+  libraryName: string;
+  sdk: PortalSdk;
+}
 export interface ChannelUiModule {
   Wizard?: ComponentType<ChannelWizardProps>;
   steps?: Partial<Record<WizardStep, ComponentType<ChannelWizardProps>>>;
@@ -51,6 +57,7 @@ export interface ChannelUiModule {
   coursePanels?: ComponentType<{ course: CourseView; version: CourseVersionView | null; onChanged(): void; sdk: PortalSdk }>[];
   publicationPanels?: ComponentType<{ publication: PublicationView; onChanged(): void; sdk: PortalSdk }>[];
   ConnectionDetails?: ComponentType<{ connection: ConnectionView; sdk: PortalSdk }>;
+  ConnectionError?: ComponentType<ConnectionErrorProps & { Default: ComponentType<ConnectionErrorProps> }>;
 }
 export function createPortalSdk(navigate: (to: string) => void, refresh: () => void = () => undefined): PortalSdk {
   return { api: apiClient, useApi, navigate, refresh, ui };

@@ -8,7 +8,8 @@ import { Check, Copy } from "lucide-react";
 import { ApiError } from "./api.ts";
 import type { Connection } from "./types.ts";
 import { channelOf, channelRegistry, channelText } from "./channels/registry.ts";
-import { pendingToolText } from "@cogniate/channel-kernel";
+import { useChannels } from "./channels/context.tsx";
+import { createPortalSdk } from "./sdk/index.ts";
 
 export function ErrorNotice({ error }: { error: unknown }) {
   if (!error) return null;
@@ -43,22 +44,20 @@ export function ErrorNotice({ error }: { error: unknown }) {
     </Notice>
   );
 }
-export function ConnectionError({
-  connection,
-  libraryName,
-}: {
-  connection: Connection;
-  libraryName?: string;
-}) {
-  const error = connection.lastError;
+export function ConnectionError({ connection, libraryName = "" }: { connection: Connection; libraryName?: string }) {
+  const { modules } = useChannels();
+  const Slot = modules.get(channelOf(connection))?.ConnectionError;
+  if (!connection.lastError) return null;
+  const props = { connection, error: connection.lastError, libraryName, sdk: createPortalSdk((to) => window.location.assign(to)) };
+  return Slot ? <Slot {...props} Default={DefaultConnectionError} /> : <DefaultConnectionError {...props} />;
+}
+export function DefaultConnectionError({ connection, error = connection.lastError }: { connection: Connection; error?: Connection["lastError"] }) {
   if (!error) return null;
   return (
     <Notice variant="error" role="alert">
-      <p>{error.title ?? (connection.lms === "moodle" ? "The Moodle connection failed." : "The connection failed.")}</p>
+      <p>{error.title ?? "The connection failed."}</p>
       {error.action ? (
         <p>{error.action}</p>
-      ) : connection.lms === "moodle" && error.code === "MOODLE_TOOL_MAY_EXIST" && libraryName ? (
-        <p>{pendingToolText(`Cogniate (${libraryName})`)}</p>
       ) : null}
       <small>
         Code: {error.code}
