@@ -7,6 +7,7 @@ ENV_FILE="$REPO_ROOT/.env"
 CERTS_DIR="$INFRA_DIR/.certs"
 LOGS_DIR="$INFRA_DIR/.logs"
 KNOBS_FILE="$REPO_ROOT/.tmp/compose.knobs.yaml"   # written by stack-restart.sh
+SIM_HOSTS_COMPOSE_FILE="$REPO_ROOT/.tmp/compose.sim-hosts.yaml"   # generated, acceptance only
 COURSE_FIXTURES_DIR="${COURSE_FIXTURES_DIR:-$REPO_ROOT/docs/raw/data/courses}"
 
 # Stack identity. On the first gen-env these come from the shell (or the defaults); gen-env then saves them
@@ -79,15 +80,98 @@ saved_profile() {
 # M1 (M3 §3.1, §3.3, LTI contract §9.13), acceptance only: the simulation profiles of the LTI service
 # (LTI_PROVIDER_SIMULATION=on), the simulator hosts that the LTI service calls, and the app's /api/* route through the
 # transport gate (LTI_API_URL, allowlisted for the app only). The default profile sets none of them.
-SIM_LTI_HOSTS=(developer.blackboard.sim.test learn-a.blackboard.sim.test learn-b.blackboard.sim.test sso.canvas.sim.test
-  school-a.canvas.sim.test school-b.canvas.sim.test canvas-self.sim.test api.canvas-self.sim.test)
-SIM_ALIASES=(lms-sim.test "${SIM_LTI_HOSTS[@]}" canvas.school-a.sim.test)
 GATE_HOST=lti-gate.test
+# LA-E7-03: QA owns the manifest. Read it once per source for aliases, SANs and the LTI allowlist.
+# Keep the old hosts until LA-E7-02 supplies the manifest. A bad file must never select this fallback.
+load_sim_hosts() {
+  local manifest="$REPO_ROOT/tests/sim/hosts.json" rows kind host
+  if [[ ! -e "$manifest" && ! -L "$manifest" ]]; then
+    SIM_LTI_HOSTS=(developer.blackboard.sim.test learn-a.blackboard.sim.test learn-b.blackboard.sim.test sso.canvas.sim.test
+      school-a.canvas.sim.test school-b.canvas.sim.test canvas-self.sim.test api.canvas-self.sim.test)
+    SIM_ALIASES=(lms-sim.test "${SIM_LTI_HOSTS[@]}" canvas.school-a.sim.test)
+    if [[ "${SIM_HOSTS_FALLBACK_WARNED:-}" != "$REPO_ROOT" ]]; then
+      echo "Simulator host manifest tests/sim/hosts.json is absent; using the fixed simulator hosts until LA-E7-02." >&2
+      export SIM_HOSTS_FALLBACK_WARNED="$REPO_ROOT"   # one notice, also across gen-env and gen-certs
+    fi
+    return 0
+  fi
+  if ! rows="$(node - "$manifest" "${STACK_HOSTS[@]}" evil.test qa-platform.test "$GATE_HOST" <<'NODE'
+const fs = require('node:fs');
+const [file, ...reserved] = process.argv.slice(2);
+const fail = (message) => { throw new Error(message); };
+const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+const dnsName = (host) => typeof host === 'string' && host.length <= 253 && host.endsWith('.test') &&
+  host.split('.').every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label));
+try {
+  let manifest;
+  try { manifest = JSON.parse(fs.readFileSync(file, 'utf8')); }
+  catch { fail('cannot read valid JSON'); }
+  if (!object(manifest) || manifest.version !== 1 || !Array.isArray(manifest.providers)) {
+    fail('expected version 1 and a providers array');
+  }
+  const ids = new Set();
+  const aliases = new Set(['lms-sim.test']); // the simulator control alias stays
+  const allowlist = new Set();
+  for (const [index, provider] of manifest.providers.entries()) {
+    const at = `providers[${index}]`;
+    if (!object(provider) || typeof provider.id !== 'string' || !provider.id.trim() || ids.has(provider.id)) {
+      fail(`${at} needs a non-empty, unique id`);
+    }
+    ids.add(provider.id);
+    if (!Array.isArray(provider.aliases) || provider.aliases.length === 0 || !Array.isArray(provider.allowlist)) {
+      fail(`${at} needs a non-empty aliases array and an allowlist array`);
+    }
+    for (const host of [...provider.aliases, ...provider.allowlist]) {
+      if (!dnsName(host) || reserved.includes(host)) fail(`${at} has an invalid or reserved .test host`);
+    }
+    for (const host of provider.aliases) aliases.add(host);
+    for (const host of provider.allowlist) {
+      if (!provider.aliases.includes(host)) fail(`${at} allowlist host must be in its aliases`);
+      allowlist.add(host);
+    }
+  }
+  for (const host of aliases) console.log(`alias ${host}`);
+  for (const host of allowlist) console.log(`allow ${host}`);
+} catch (error) {
+  console.error(`Invalid simulator host manifest tests/sim/hosts.json: ${error.message}.`);
+  process.exitCode = 1;
+}
+NODE
+)"; then
+    return 1
+  fi
+  SIM_ALIASES=(); SIM_LTI_HOSTS=()
+  while read -r kind host; do
+    case "$kind" in
+      alias) SIM_ALIASES+=("$host") ;;
+      allow) SIM_LTI_HOSTS+=("$host") ;;
+    esac
+  done <<< "$rows"
+}
+load_sim_hosts || exit 1
+
+# JSON is valid YAML. No tracked file changes when a provider adds or removes a host.
+write_sim_compose() {
+  node - "$SIM_HOSTS_COMPOSE_FILE" "${SIM_ALIASES[@]}" <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const [file, ...aliases] = process.argv.slice(2);
+const config = { services: { 'lms-sim': { networks: { default: { aliases } } } } };
+fs.mkdirSync(path.dirname(file), { recursive: true });
+const temp = `${file}.${process.pid}.tmp`;
+fs.writeFileSync(temp, JSON.stringify(config, null, 2) + '\n');
+fs.renameSync(temp, file);
+NODE
+}
+
 apply_profile() {
   ACTIVE_STACK_PROFILE="$1"
   if [[ "$ACTIVE_STACK_PROFILE" == acceptance ]]; then
     COMPOSE_PROFILES=acceptance; ACCEPTANCE_ALLOWLIST_EXTRA=",qa-platform.test,evil.test"
-    ACCEPTANCE_LTI_ALLOWLIST_EXTRA="$(printf ',%s' "${SIM_LTI_HOSTS[@]}")"
+    ACCEPTANCE_LTI_ALLOWLIST_EXTRA=""
+    if [[ -n "${SIM_LTI_HOSTS[*]:-}" ]]; then
+      ACCEPTANCE_LTI_ALLOWLIST_EXTRA="$(printf ',%s' "${SIM_LTI_HOSTS[@]}")"
+    fi
     ACCEPTANCE_APP_ALLOWLIST_EXTRA=",$GATE_HOST"
     ACCEPTANCE_LTI_SIMULATION=on
     ACCEPTANCE_LTI_API_URL="https://$GATE_HOST"
@@ -103,9 +187,13 @@ apply_profile() {
 apply_profile "$(saved_profile)"
 
 # docker compose for this stack: project $COMPOSE_PROJECT_NAME, env from the repo root .env,
-# plus the test-knob override file if stack:restart made one.
+# plus simulator aliases in acceptance and the test-knob override if stack:restart made one.
 dc() {
   local args=(--project-directory "$INFRA_DIR" -p "$COMPOSE_PROJECT_NAME" -f "$INFRA_DIR/compose.yaml")
+  if [[ "$ACTIVE_STACK_PROFILE" == acceptance ]]; then
+    write_sim_compose || return 1
+    args+=(-f "$SIM_HOSTS_COMPOSE_FILE")
+  fi
   [[ -f "$KNOBS_FILE" ]] && args+=(-f "$KNOBS_FILE")
   [[ -f "$ENV_FILE" ]] && args+=(--env-file "$ENV_FILE")
   docker compose "${args[@]}" "$@"
