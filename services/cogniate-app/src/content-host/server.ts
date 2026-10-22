@@ -8,7 +8,7 @@ import { lstat, readFile, realpath } from 'node:fs/promises';
 import type { Server } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import type { Knob, Logger, PublicUrls } from '@cogniate/shared';
-import { apiErrorBody, escapeHtml, redactPath, sha256Hex } from '@cogniate/shared';
+import { apiErrorBody, escapeHtml, sha256Hex } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Db } from '../domain/attempts.ts';
@@ -119,7 +119,8 @@ export async function buildContentApp(deps: ContentServerDeps): Promise<FastifyI
     reply.removeHeader('set-cookie');
   });
   app.addHook('onResponse', async (req, reply) => {
-    const path = req.routeOptions.url ?? redactPath(req.url.split('?')[0] ?? '/');
+    // BD-A1-62 (app API delta §8): the route template (no ids, no query), or "<unmatched>"; never the raw path.
+    const path = req.routeOptions.url ?? '<unmatched>';
     log.log(path === '/healthz' ? 'debug' : 'info', 'http_request', { trace_id: req.traceId, method: req.method, path, status: reply.statusCode, ms: Math.round(reply.elapsedTime) });
   });
   app.setErrorHandler((err: Error & { statusCode?: number; code?: string }, req, reply) => {

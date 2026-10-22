@@ -8,13 +8,18 @@ type Obj = Record<string, unknown>;
 const obj = (v: unknown): Obj | null => (v !== null && typeof v === 'object' && !Array.isArray(v) ? (v as Obj) : null);
 
 /**
- * The service key of a launch when AGS or NRPS is available and the launch has a context and a resource link (a
- * deep-linking launch has none: no key). The same activity gives the same key; re-issuing refreshes the stored claims.
+ * The service key of a launch when AGS or NRPS is available and the launch has a resource link (a deep-linking launch
+ * has none: no key). The same activity gives the same key; re-issuing refreshes the stored claims.
+ * LA-ADR-05 D2: a launch without a context uses context id "" in the scope. A resource link id is unique in its
+ * deployment (LTI Core §5.3.5), so the scope still names one activity. "No context" is the same rule as
+ * GET /api/idtoken: the claim is not an object, so launch.context is absent there too. A context object without a
+ * string id still gives no key.
  */
 export function serviceKeyForLaunch(db: Db, masterKey: Buffer, launch: LaunchRecord, now: number): string | undefined {
   const ags = obj(launch.claims[CLAIM.ags]);
   const nrps = obj(launch.claims[CLAIM.nrps]);
-  const contextId = obj(launch.claims[CLAIM.context])?.id;
+  const context = obj(launch.claims[CLAIM.context]);
+  const contextId = context ? context.id : '';
   const resourceLinkId = obj(launch.claims[CLAIM.resourceLink])?.id;
   if ((!ags && !nrps) || typeof contextId !== 'string' || typeof resourceLinkId !== 'string') return undefined;
   const issued = issueServiceKey(db, masterKey, {
