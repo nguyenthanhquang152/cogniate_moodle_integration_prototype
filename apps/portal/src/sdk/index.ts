@@ -22,8 +22,12 @@ export { ConnectionDetailBlock, ConnectionOpenLink, ConnectionReady } from "../c
 export { ToolConfiguration } from "../connect/ToolConfiguration.tsx";
 export { Link, MemoryRouter, useNavigate } from "react-router";
 export { ArrowRight, ExternalLink, Link2, ShieldCheck, Download, GraduationCap } from "lucide-react";
-// Error helpers: safe field errors, descriptions and the existing pending-tool action.
+// Error helpers: safe field errors, descriptions and the existing pending-tool action. Texts that can name an LMS
+// come from the channel's manifest `texts.errors`: providerErrorMessage takes the channel, and ProviderErrorNotice
+// uses the channel of ChannelScope (the shell sets it on the connect routes), else generic texts (BD-A1-63).
 export { providerErrorMessage, providerErrorFields, ProviderErrorNotice } from "../connect/provider-errors.tsx";
+export type { ChannelErrorTexts } from "../connect/provider-errors.tsx";
+export { ChannelScope } from "../channels/context.tsx";
 export { pendingToolText } from "@cogniate/channel-kernel";
 // Manifest helpers and default wizard parts; they share the shell's authority and text rules.
 export type { ChannelManifest, CapabilitySet, BindingAuthority } from "@cogniate/channel-kernel";
