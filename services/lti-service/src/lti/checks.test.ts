@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { sha256Hex } from '@cogniate/shared';
 import { openDb } from '../db/index.ts';
 import { ensureAccount } from '../store/accounts.ts';
@@ -101,6 +101,12 @@ describe('check 6: signature with the platform JWKS', async () => {
   const keys = createPlatformKeys(fakeOutbound(() => [key.publicJwk]));
   it('passes for a token signed by the platform key', async () => {
     await expect(check6Signature(keys, await sign(key, moodleClaims()), platform, 't')).resolves.toBeUndefined();
+  });
+  it('passes the resolved platform ID to the JWKS observer', async () => {
+    const observe = vi.fn();
+    const observedKeys = createPlatformKeys(fakeOutbound(() => [key.publicJwk]), () => 123_000, observe);
+    await check6Signature(observedKeys, await sign(key, moodleClaims()), platform, 'trace');
+    expect(observe).toHaveBeenCalledExactlyOnceWith({ platformId: platform.id, ok: true, fetchedAt: 123_000 });
   });
   it('fails INVALID_SIGNATURE for another key, and for a tampered payload', async () => {
     await expect(check6Signature(keys, await sign(stranger, moodleClaims()), platform, 't')).rejects.toMatchObject({ check: '6', code: 'INVALID_SIGNATURE' });

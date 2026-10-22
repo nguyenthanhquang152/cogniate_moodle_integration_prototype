@@ -15,12 +15,16 @@ export const TOKEN_EARLY_EXPIRY_MS = 60_000;
 export const TOKEN_MAX_CACHE_S = 3600;
 const ASSERTION_TYPE = 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer';
 
+/** One result per token request, including failures; cache hits do not emit a result. */
+export type TokenResultObserver = (result: { platformId: string; ok: boolean }) => void;
+
 export interface TokenClientDeps {
   db: Db;
   masterKey: Buffer;
   outbound: OutboundClient;
   logger: Logger;
   now?: () => number;
+  onTokenResult?: TokenResultObserver;
 }
 
 export interface TokenClient {
@@ -29,8 +33,13 @@ export interface TokenClient {
 
 export function createTokenClient(deps: TokenClientDeps): TokenClient {
   const now = deps.now ?? Date.now;
+  const onTokenResult = deps.onTokenResult ?? (() => {});
   const cache = new Map<string, { token: string; expiresAt: number }>();
   const inFlight = new Map<string, Promise<string>>();
+
+  function observe(platformId: string, ok: boolean): void {
+    try { onTokenResult({ platformId, ok }); } catch { /* An observer must not change the token result. */ }
+  }
 
   async function fetchToken(platform: Platform, scopes: string[], key: string, traceId: string): Promise<string> {
     // Profiles with clientAssertionAudArray (Blackboard, F-BB-5): aud = [token endpoint].
@@ -75,7 +84,10 @@ export function createTokenClient(deps: TokenClientDeps): TokenClient {
       // One request per key at a time: parallel callers share it.
       let pending = inFlight.get(key);
       if (!pending) {
-        pending = fetchToken(platform, sorted, key, traceId).finally(() => inFlight.delete(key));
+        pending = fetchToken(platform, sorted, key, traceId).then(
+          (token) => { observe(platform.id, true); return token; },
+          (error: unknown) => { observe(platform.id, false); throw error; },
+        ).finally(() => inFlight.delete(key));
         inFlight.set(key, pending);
       } else {
         deps.logger.info('platform_token', { trace_id: traceId, platform_id: platform.id, cache: 'hit' });
