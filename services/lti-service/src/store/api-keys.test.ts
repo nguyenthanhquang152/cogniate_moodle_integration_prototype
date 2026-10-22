@@ -42,7 +42,7 @@ describe('API key store', () => {
   it('counts only unrevoked, unexpired keys for the two-key limit', () => {
     const { db, issue } = fixture();
     const a = issue('one', T0 + HOUR); const b = issue();
-    expect(() => issue()).toThrow(expect.objectContaining({ code: 'API_KEY_LIMIT', status: 409 }));
+    expect(() => issue()).toThrow(expect.objectContaining({ code: 'API_KEY_LIMIT', status: 409, description: expect.stringContaining('Revoke one') }));
     revokeApiKey(db, 'one', b.record.id, T0 + 1);
     issue();
     expect(() => issue()).toThrow(expect.objectContaining({ code: 'API_KEY_LIMIT' }));

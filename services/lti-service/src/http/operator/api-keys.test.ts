@@ -72,8 +72,13 @@ describe('API key operator transactions', () => {
     expect(getApiKey(h.db, 'cogniate', id)).toEqual(issued);
     expect(h.events()).toHaveLength(1);
     recover();
-    expect((await h.post(`/${id}/revoke`)).statusCode).toBe(200);
+    const revoked = await h.post(`/${id}/revoke`);
+    expect(revoked.statusCode).toBe(200);
     expect(h.events()).toHaveLength(2);
+    expect(h.lines.filter((line) => line.event === 'api_key_issued' || line.event === 'api_key_revoked')).toEqual([
+      expect.objectContaining({ event: 'api_key_issued', tool_account_id: 'cogniate', api_key_id: id, trace_id: created.headers['x-trace-id'] }),
+      expect.objectContaining({ event: 'api_key_revoked', tool_account_id: 'cogniate', api_key_id: id, trace_id: revoked.headers['x-trace-id'] }),
+    ]);
     const stored = JSON.stringify(h.events());
     for (const secret of [apiKey, sha256Hex(apiKey)]) {
       expect(stored).not.toContain(secret);
