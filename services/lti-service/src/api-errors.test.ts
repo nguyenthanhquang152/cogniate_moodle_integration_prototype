@@ -26,6 +26,8 @@ const CONTRACT_1_3: Array<[number, string]> = [
   [403, 'TOOL_ACCOUNT_SUSPENDED'], [409, 'ACCOUNT_ALREADY_EXISTS'], [409, 'ACCOUNT_CLOSED'],
   [429, 'PLATFORM_RATE_LIMITED'],
   [429, 'RATE_LIMITED'],
+  [422, 'IDEMPOTENCY_KEY_REUSED'],
+  [409, 'IDEMPOTENCY_IN_PROGRESS'],
 ];
 
 describe('LTI service API codes (contract §1.3)', () => {
