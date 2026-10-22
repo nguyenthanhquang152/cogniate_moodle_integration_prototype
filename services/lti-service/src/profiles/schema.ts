@@ -1,7 +1,7 @@
 // Load check 7. Profile data has one closed schema; unknown fields are errors, also inside flags.
 import { BASELINE_PROFILE_WIRE_LMS, PRIVACY_FLOOR_NONE_PROFILES, RegistryError } from '@cogniate/channel-kernel';
 import { z } from 'zod';
-import type { ProfileSource } from './types.ts';
+import type { ProfileSource } from '@cogniate/channel-kernel';
 
 export const profileSourceSchema = z.strictObject({
   id: z.string().min(1),
