@@ -12,7 +12,7 @@ const IssueBody = z.object({
   label: z.string().min(1).max(128),
   scopes: z.array(z.enum(['launch', 'admin'])).min(1).max(2),
   expiresAt: z.iso.datetime({ offset: true }).optional(),
-});
+}).strict();
 const iso = (ms: number | null): string | null => ms === null ? null : new Date(ms).toISOString();
 const toApi = (key: ApiKeyRecord) => ({
   id: key.id, prefix: key.prefix, label: key.label, scopes: key.scopes, createdAt: iso(key.createdAt), createdBy: key.createdBy,
@@ -28,7 +28,11 @@ export function registerApiKeyRoutes(app: FastifyInstance, ctx: OperatorContext)
   }, (audit) => {
     requireWritableAccount(ctx.db, req.params.id);
     const parsed = IssueBody.safeParse(req.body);
-    if (!parsed.success) throw invalid(parsed.error);
+    if (!parsed.success) {
+      const field = parsed.error.issues.find((issue) => issue.code === 'unrecognized_keys')?.keys[0];
+      if (field !== undefined) throw new ApiError('INVALID_REQUEST', `Unknown field: ${field}.`, { details: { field } });
+      throw invalid(parsed.error);
+    }
     const now = ctx.now();
     const input = { label: parsed.data.label, scopes: parsed.data.scopes, createdBy: `operator:${ctx.operator(req).operator}`,
       expiresAt: parsed.data.expiresAt === undefined ? null : Date.parse(parsed.data.expiresAt) };
