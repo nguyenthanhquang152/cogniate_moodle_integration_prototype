@@ -1,6 +1,6 @@
 # Review response, G-BREAKDOWN round 1 (Part 1): Architect A2
 
-Status: fix round 1 (task LA-B2b, 2026-10-22). Reviewed SHA: `ec1afc5`. Reviews: [Reviewer-A](../../../reviews/LA-BREAKDOWN/reviewer-a.md) (APPROVE), [Reviewer-B](../../../reviews/LA-BREAKDOWN/reviewer-b.md) (CHANGES_REQUESTED), [QA](../../../reviews/LA-BREAKDOWN/qa.md) (FAIL). A2 changed only its files: `tasks/A2-lanes.md`, the specs LA-E3-*, LA-E5-*, LA-E6-*, and (for B-LAB-03) `operability.md` §7.3 and LA-ADR-06 D14. New specs: LA-E3-14, LA-E3-15, LA-E6-04, LA-E6-05, LA-E6-06, LA-E6-07. Items for A1 went through the Lead; A1 already added forms (d)–(g) to `tasks/README.md` §2, and A2 sent one correction for form (g) (no `stack:reset`).
+Status: fix round 1 (task LA-B2b, 2026-10-22); §4 is the alignment with A1's fix round (task LA-B2c). Reviewed SHA: `ec1afc5`. Reviews: [Reviewer-A](../../../reviews/LA-BREAKDOWN/reviewer-a.md) (APPROVE), [Reviewer-B](../../../reviews/LA-BREAKDOWN/reviewer-b.md) (CHANGES_REQUESTED), [QA](../../../reviews/LA-BREAKDOWN/qa.md) (FAIL). A2 changed only its files: `tasks/A2-lanes.md`, the specs LA-E3-*, LA-E5-*, LA-E6-*, and (for B-LAB-03) `operability.md` §7.3 and LA-ADR-06 D14. New specs: LA-E3-14, LA-E3-15, LA-E6-04, LA-E6-05, LA-E6-06, LA-E6-07. Items for A1 went through the Lead; A1 already added forms (d)–(g) to `tasks/README.md` §2, and A2 sent one correction for form (g) (no `stack:reset`).
 
 ## 1. MAJOR findings
 
@@ -46,3 +46,18 @@ Status: fix round 1 (task LA-B2b, 2026-10-22). Reviewed SHA: `ec1afc5`. Reviews:
 | `store/retention.ts` in B2 | LA-E3-02, LA-E5-19, A2-lanes §4 note 1 | LA-E5-19 moved to B2 (S1), so LA-E3-02 no longer edits `store/retention.ts`: it exports its cleanup function from `store/storage-checks.ts`, and S1's retention job calls it (RQ-1). |
 | Cycle LA-E3-09 / LA-E3-15 | LA-E3-15 header | LA-E3-09 depends on LA-E3-15, not the other way round. |
 | epics OI-3, OI-4, OI-5 | LA-E5-19, LA-E5-21, every spec header | Closed in the specs. |
+
+## 4. Alignment with A1's fix round (task LA-B2c)
+
+A1's list in [review-response-B1-A1.md §3](review-response-B1-A1.md#3-a2-spec-changes-needed-sent-to-the-lead), with Lead decisions LD-11, LD-14 and LD-16 (plan §6.1).
+
+| Item | Decision | Where | Note |
+| --- | --- | --- | --- |
+| LD-11 (lane L2) | done | LA-E3-03, -05, -08, -10, -13, LA-E5-18, LA-E6-06 headers; A2-lanes header, §1, §2, §3, §4 note 1; lane names in LA-E3-12, LA-E3-14, LA-E5-15, LA-E5-17, LA-E6-02, LA-E6-03 | Owner lane L2. The "May edit" files of the seven tasks are all in L2's B3 cells (epics §5). Other B3 and B4 specs that named L as the owner of `lti/{login,launch,service-keys}.ts` or `tool-pages/{launch,picker}.ts` now name L2. A2-lanes §2 splits L (12.5 Must, 17 all) and L2 (3.5 Must, 11.5 all; 10.5 without the deferred LA-E6-06, as in epics §8). |
+| LD-14 (LA-E5-03, LA-E5-06 to B2) | done | LA-E5-03 header, Files, requests 1–2, scope; LA-E5-06 header, Files, Needs, scope; LA-E5-04 Needs; LA-E5-01 and LA-E5-14 Files notes; A2-lanes §1, §2, §4 note 1 | LA-E5-03 no longer edits `lti/codes.ts` or `http/auth.ts`. By RQ-1, L adds the page code `RATE_LIMITED` (request 1) and S2 adds the `auth_failure` call line (request 2); the limiter stays in `http/rate-limit.ts` (RQ-4). LA-E5-03 now also lists `http/operator/index.ts` (S1) for the `operator` class and the operator key failure call; it was missing. LA-E5-06 (L owns `lti/codes.ts` in B2) adds `TOOL_ACCOUNT_SUSPENDED` and `REGISTRATION_SESSION_LIMIT` itself. LA-E5-04 adds its `http/auth.ts` status gate in B1 and does not wait for LA-E5-03 (after LD-14 that wait was a loop). S1 has 9.5 Must days in B1 and 10.5 in B2. |
+| OI-11 (LD-16) | done | LA-E6-02 header, Needs, AC-01..03; LA-E6-03 header, Needs, AC-03; LA-E6-05, LA-E6-06, LA-E6-07 headers; A2-lanes §1 (LA-E6-02, LA-E6-03), §3 | The partners LA-E6-02 and LA-E6-03 no longer depend on their companions. LA-E6-02 AC-01 is "pending: LA-E6-06", and AC-02 and AC-03 are "pending: LA-E6-05". All three tasks are B3, so the done rule allows this. LA-E6-03 has no pending AC: AC-03 to AC-05 call the verify route directly, and AC-03 now says so. |
+| OI-13 (form letters) | done | LA-E5-03 design notes; A2-lanes §4 note 6 | `AL-4` → form (h); `AL-1`–`AL-5` → forms (a), (b), (c), (h), (i). |
+| A-LAB-10 follow-up | done | LA-E5-19 AC-06 | AC-06 runs the interval-lease part of the LA-E4-01 store-contract suite (AC-LA-E4-01-07) on the LTI job store, after this task's migration. |
+| Own fix | done | A2-lanes §1 row LA-E3-15 | The row still had LA-E3-09 as a dependency (left over from LA-B2b; the spec header and epics were already right). Removed: no loop. |
+
+For A1 (epics §5, not an A2 file): the note on the `lti/codes.ts` row ("S1: page codes (B1)") is out of date. S1 has no B1 edit of that file now: LA-E5-06 (L, B2) adds two page codes, and L adds `RATE_LIMITED` for LA-E5-03 by RQ-1.
