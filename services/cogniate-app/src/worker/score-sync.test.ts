@@ -15,6 +15,7 @@ import type { LmsType } from '../providers/types.ts';
 import { createConnection, disableConnection } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { openDb } from '../domain/db.ts';
+import { publicationResults } from '../domain/results.ts';
 import { beginSend } from '../domain/score-syncs.ts';
 import { NO_GRADEBOOK_COLUMN, createScoreSyncWorker } from './score-sync.ts';
 
@@ -211,4 +212,16 @@ it('AC-LA-E1-06-06: disabled zz-test grant rows fail without POST; self rows sti
   expect(lti.posts).toEqual(['line2']);
   expect(row(db, syncs[0]!)).toMatchObject({ status: 'failed', tries: 0, last_error: 'CONNECTION_DISABLED' });
   expect(row(db, syncs[1]!)).toMatchObject({ status: 'sent', tries: 1, last_error: null });
+});
+
+// BD-A1-27: these user-visible values stay frozen until LA-IC-15.
+it.each(['moodle', 'canvas', 'blackboard'] as const)('%s keeps the frozen 409 lastError and learner fallback', async (channel) => {
+  const { db } = setup();
+  const con = connection(db, channel, 'frozen');
+  const sync = dueRow(db, con, 1, { lineItem: 'line1' });
+  const lti = fakeLti({ onPost: () => { throw new LtiServiceError(409, 'CONFLICT', 'Newer score.'); } });
+  await worker(db, lti.client).w.kick();
+  expect(row(db, sync)?.last_error).toBe('409 CONFLICT: Newer score. (Moodle has a grade with a newer time)');
+  db.prepare('UPDATE connection SET site_url = ? WHERE id = ?').run('invalid site', con);
+  expect(publicationResults(db, { connectionId: con, courseId: 'crs_w' }, TEST_CHANNELS)[0]?.learner.label).toBe('Learner u @ Moodle');
 });
