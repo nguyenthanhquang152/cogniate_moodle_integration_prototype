@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # WARNING: deletes all stack data: Moodle site, database, the LTI service database (infra/.data/lti-service/),
 # the Cogniate app database and package store (every entry of infra/.data/cogniate-app/; the folder itself stays, empty),
-# infra/.secrets/seed.json and the LTI API key files, infra/.logs/, infra/.data/backups/ and the test knobs
+# infra/.secrets/seed.json, the LTI API key files and the LTI operator key file, infra/.logs/, infra/.data/backups/ and the test knobs
 # (.tmp/compose.knobs.yaml).
 # Keeps .env (same passwords), infra/.certs/ (same CA, so trust stays valid), infra/.data/fixtures/ and the empty
 # folder infra/.data/cogniate-app/ (ADR-012 §15 content-parent rule).
@@ -33,7 +33,7 @@ else
   nets="$(docker network ls -q --filter "$label")"; [[ -z "$nets" ]] || docker network rm $nets >/dev/null
   echo "No .env: removed project '$COMPOSE_PROJECT_NAME' by its Docker labels."
 fi
-rm -f "$INFRA_DIR/.secrets/seed.json" "$INFRA_DIR/.secrets/moodle-ws.json" "$INFRA_DIR/.secrets"/lti-api-key.* "$KNOBS_FILE" \
+rm -f "$INFRA_DIR/.secrets/seed.json" "$INFRA_DIR/.secrets/moodle-ws.json" "$INFRA_DIR/.secrets"/lti-api-key.* "$INFRA_DIR/.secrets/lti-operator-key" "$KNOBS_FILE" \
   "$REPO_ROOT/.tmp/certs-in-use.$COMPOSE_PROJECT_NAME.sha256" "$REPO_ROOT/.tmp/qa-certs-in-use.$COMPOSE_PROJECT_NAME.sha256" "$PROFILE_FILE"
 rm -rf "$INFRA_DIR/.secrets/app" "$INFRA_DIR/.data/build-queue" "$INFRA_DIR/.data/backups" "$INFRA_DIR/.data/lti-service"
 # ADR-012 §15 content-parent rule: Docker Desktop did not see a new packages/ or uploads/ under a deleted and re-made
