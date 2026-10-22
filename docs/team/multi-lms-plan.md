@@ -13,7 +13,21 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 11:30 UTC
+### Current directive — 2026-10-22, 11:48 UTC
+
+Lead granted Common Gemini task_a33056140130 / ctx_574663dd5b1a the C4/C5 legacy window from 11:48 to 13:50 UTC (msg_d21ecaf2c08f).
+The reviewed v2 launcher and the D-T6L scope stay frozen. A fresh comparison of all ten protected full volume records must pass before launch.
+Savoy confirms cleanup at 11:40 UTC, zero owned containers and networks, and no planned further Docker job.
+LA's existing commitment in msg_4d4f2f34e314 remains host-only until an explicit handoff. No handoff was issued.
+The proposed LA window is 15:00–17:00 UTC; it is not a grant. M2/T7 need a separate grant after legacy cleanup.
+
+The preliminary static guide review is committed at 8dcb6cd. It found one final-pack BLOCKER for missing accepted deferral records, five MINOR prose issues and three NITs.
+The same retained Codex session now owns one bounded correction, task_b3cb32d943bb / ctx_d352d7240f33, for all nine findings in the five named prose files.
+It will keep final runtime stamps pending. Independent QA and final blind reviews remain required.
+Architect's held source checkpoint has no BLOCKER or MAJOR; final source/runtime conformance follows the remaining evidence.
+All 32 real LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 11:30 UTC
 
 Both independent source rechecks APPROVE the corrected launcher v2 c53203a2.
 Reviewer-A's report is committed at 7f05e1c; Reviewer-B's report at 90016bd.
