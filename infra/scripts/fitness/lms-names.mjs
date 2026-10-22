@@ -55,6 +55,16 @@ export function isF1Path(path) {
   return inClass(path, 'core') && !inClass(path, 'channel') && !isUnitFile(path) && TEXT_EXTENSIONS.has(extname(path)) && !APPLIED_MIGRATIONS.has(path);
 }
 
+function outOfScopeReason(path) {
+  if (path === 'packages/channel-kernel/src/legacy-wire.ts') return 'frozen-wire file exception';
+  if (isF1Path(path)) return null;
+  if (inClass(path, 'channel')) return 'channel folder';
+  if (isUnitFile(path)) return 'unit test or test helper';
+  if (APPLIED_MIGRATIONS.has(path)) return 'applied migration';
+  if (!inClass(path, 'core')) return 'not core product code';
+  return 'unsupported file type';
+}
+
 function tokenHits(token, words) {
   const tokens = parts(token);
   return words.filter((word) => {
@@ -64,7 +74,7 @@ function tokenHits(token, words) {
 }
 
 export function checkText({ path, text }, words = bannedWords()) {
-  if (!isF1Path(path) || path === 'packages/channel-kernel/src/legacy-wire.ts') return [];
+  if (outOfScopeReason(path)) return [];
   const hits = [];
   const add = (token, offset, identifier = false, matchText = token) => {
     if (identifier && WEB_API.has(token)) return;
@@ -171,6 +181,13 @@ export function main() {
   const { values } = parseArgs({ options: { stdin: { type: 'boolean' }, as: { type: 'string' }, all: { type: 'boolean' } } });
   if (Boolean(values.stdin) !== Boolean(values.as)) throw new Error('Use --stdin with --as <repo path>.');
   const probe = values.stdin ? { path: repoPath(values.as), text: readFileSync(0, 'utf8') } : null;
+  const reason = probe && outOfScopeReason(probe.path);
+  if (reason) {
+    console.log(`F1 SKIP: ${probe.path} is out of scope (${reason}); text was not checked.`);
+    // This is an output distinction, not a change to the existing exception exit codes.
+    process.exitCode = 0;
+    return;
+  }
   const words = bannedWords();
   const baseline = JSON.parse(readFileSync(new URL('./f1-baseline.json', import.meta.url), 'utf8'));
   const files = probe ? [probe]

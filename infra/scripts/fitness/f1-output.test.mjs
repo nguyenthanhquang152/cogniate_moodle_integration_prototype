@@ -69,3 +69,35 @@ describe('F1 diagnostics', () => {
     assert.ok(result.stdout.includes('F1 FAIL: 1 files with hits, 1 hits'));
   });
 });
+
+
+describe('F1 stdin scope diagnostics', () => {
+  for (const [path, reason] of [
+    ['packages/channels/example/portal/index.tsx', 'channel folder'],
+    ['services/example/src/example.test.ts', 'unit test or test helper'],
+    ['apps/example/src/example.test.tsx', 'unit test or test helper'],
+    ['services/example/src/testkit.ts', 'unit test or test helper'],
+    ['services/lti-service/src/db/migrations/001_init.sql', 'applied migration'],
+    ['packages/channel-kernel/src/legacy-wire.ts', 'frozen-wire file exception'],
+    ['docs/example.ts', 'not core product code'],
+    ['services/example/src/example.txt', 'unsupported file type'],
+  ]) {
+    it(`labels the unexamined probe at ${path}`, () => {
+      const result = probe(path, 'const moodleAdded = 1;');
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(result.stdout, `F1 SKIP: ${path} is out of scope (${reason}); text was not checked.\n`);
+      assert.ok(!result.stdout.includes('F1 PASS'));
+    });
+  }
+  it('distinguishes clean core text from an excluded probe', () => {
+    const result = probe('services/example/src/clean.ts', '// moodle is in a comment');
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, 'F1 PASS: 0 files with hits, 0 hits\n');
+  });
+  it('still checks new migrations instead of exempting the whole folder', () => {
+    const result = probe('services/lti-service/src/db/migrations/001_new.sql', 'SELECT moodle_x;');
+    assert.equal(result.status, 1, result.stderr);
+    assert.ok(result.stdout.includes('"moodle_x"  banned "moodle"'));
+    assert.ok(!result.stdout.includes('out of scope'));
+  });
+});
