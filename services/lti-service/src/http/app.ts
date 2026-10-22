@@ -24,6 +24,7 @@ import { registerRegistrationRoutes } from './routes/registration.ts';
 import { registerProtocolRoutes } from './routes/protocol.ts';
 import { registerCompatRoutes } from './routes/compat.ts';
 import { registerServiceRoutes } from './routes/services.ts';
+import { registerServiceKeyAdminRoutes } from './routes/service-key-admin.ts';
 import { getAccount } from '../store/accounts.ts';
 import { ADDRESS_ROUTE_CLASSES, createTrustedProxy, rateLimiterFor, recordAuthFailure } from './rate-limit.ts';
 
@@ -163,6 +164,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerProtocolRoutes(app, ctx);
   registerIdTokenRoutes(app, ctx);
   registerServiceRoutes(app, ctx);
+  registerServiceKeyAdminRoutes(app, ctx);
   registerCompatRoutes(app, ctx);
   registerPlatformRoutes(app, ctx);
   registerRegistrationRoutes(app, ctx);
