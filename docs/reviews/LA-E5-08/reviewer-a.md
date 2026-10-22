@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-08 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -57,3 +57,46 @@ Round: 1
 
 - `toolKeyVersions` counts only non-empty blobs (`tool-keys.ts`, `length(private_jwk_encrypted) > 0`). LA-E5-10 should "zero" a removed key's blob by emptying it. A zero-filled blob of the same length would read as version `legacy`, and `ready()` would then need `legacy` for ever.
 - The K1-SIM ACs (AC-01, AC-02) wait for QA-2's Docker window.
+
+## Round 2 (S1 wiring and S2 fix)
+
+- Diffs:
+  - S1 wiring: `git diff dbee32b 29cd178` (merged as `43ccc6f`).
+  - S2 fix: `git diff 3f9120b c5f1a6e`.
+- References: the LA-E5-08 spec and its RQ-1 list (`loadKeyProvider` in `main.ts`, the secret mount in `infra/compose.yaml`); my round-1 findings above. The `stack-up.sh` folder line is an RQ-2 edit.
+- Blind review as before.
+- **Verdict (round 2): APPROVE.** The round-1 MINOR and NIT are closed, and the wiring is right. New: **0 BLOCKER, 0 MAJOR, 1 MINOR** (A-LA-E5-08-03: the known open point, which I confirm and size here).
+
+### Round-1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E5-08-01 (MINOR) | closed | The two failure paths I named are gone. (1) Both entry points now bind before their first store call: `services/lti-service/src/main.ts:43` (right after `openDb`, before the token client, the routes and the operator app) and `services/lti-service/src/cli/bootstrap.ts:24` (before `ensureToolKey` at `:28`). Each has a test with a ring file `{active: "k2"}`: `main.test.ts:28-59` (the service key seals a `k2` blob) and `cli/bootstrap.test.ts` (the first and a rotated signing key are `k2`; with no ring file, `legacy`). (2) A missed binding now fails closed. After any binding in the process, an unbound master key throws `key_provider_not_bound` (`packages/shared/src/key-provider.ts:254`, `:272-274`). This includes a Buffer with the same bytes and one used before the binding (tests `key-provider.test.ts`, "fail closed after a binding"; `main.test.ts:50-58`). I traced every store caller: each gets `config.masterKey` of its own process (routes, token client, bootstrap), so no product path hits the new error. |
+| A-LA-E5-08-02 (NIT) | closed | `services/lti-service/src/store/tool-keys.ts:58-59` removes every expired entry at each call, also those of accounts that stopped signing. |
+
+### Wiring checks
+
+| Check | Result |
+| --- | --- |
+| Order | `loadKeyProvider` runs before any key use in both processes. A bad or unreadable ring file makes `startLtiService` reject, so the process exits (fail closed). `cli/operator.ts` and `cli/shared-platform.ts` use no key material. |
+| Mount | `./.secrets/lti:/run/secrets/lti:ro` on `lti-service` only (`infra/compose.yaml:152`), which matches `DEFAULT_KEYRING_FILE`. `stack-up.sh` creates `infra/.secrets/lti` with mode `0700` before compose runs, so Docker does not make it as root. With no ring file, today's stack is unchanged (`legacy` from `LTI_MASTER_KEY`). |
+| Entry-point guard | The `resolve(argv[1]) === fileURLToPath(import.meta.url)` guard is the pattern that `cli/shared-platform.ts` already uses. `node --watch src/main.ts` keeps the script as `argv[1]`. If the guard ever failed, the compose healthcheck would show it. |
+| Behaviour | Moving the code into `startLtiService()` and `runBootstrap()` keeps the start order, the `service_started` fields, retention and the signal handling (close both listeners, then the database; 3 s fallback exit). |
+
+### New finding
+
+- **A-LA-E5-08-03 (MINOR, the known open point): the test container can read the key ring.**
+  - Where: `infra/compose.yaml:471` (`e2e`: `./.secrets:/repo/infra/.secrets:ro`, no `user:`, so it runs as root). The new ring folder lives under that path (`:152`).
+  - Problem:
+    - Until now, the `e2e` container saw only QA's own credentials under `infra/.secrets` (`seed.json`, API-key copies, the operator key). `.env` is replaced by the public copy, so `LTI_MASTER_KEY` was out of reach (my T1 resolution of A-T1-03).
+    - When a `keyring.json` exists (QA form (a) for AP-06-24, or any operator ring), the root `e2e` container can read every ring key. Mode `0600` does not stop root. With the ring, it can open every sealed blob and compute every service key.
+    - The `e2e` install still runs npm lifecycle scripts (A-T1-03 rest, deferred). So a test dependency could read the ring.
+    - This affects dev and acceptance stacks only (production has no `e2e` service).
+  - Suggested fix (the Lead's proposal is right):
+    - Add `tmpfs: /repo/infra/.secrets/lti` (or an empty read-only volume) to the `e2e` service. Docker mounts the parent bind first and then the nested mount, because it sorts mounts by path, and `stack-up.sh` already creates the folder.
+    - Add one check to the S1 follow-up: inside `e2e`, `ls -A /repo/infra/.secrets/lti` prints nothing while the host folder holds `keyring.json`.
+
+### Notes (no finding)
+
+- No product caller passes a logger to `keyProviderFor`, so `key_provider_legacy_fallback` (`key-provider.ts:277`) never logs from product code. That is acceptable now, because both entry points bind and the fail-closed rule covers a missed binding. The parameter can go when LA-E5-23 removes the fallback.
+- `runBootstrap` calls `loadKeyProvider` without a logger, so a missing ring version is not logged by `lti:bootstrap`. The web process logs it at its own start (`main.ts:43` passes the logger), and `ready()` is the operator signal.
