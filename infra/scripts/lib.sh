@@ -110,8 +110,8 @@ try {
   const allowlist = new Set();
   for (const [index, provider] of manifest.providers.entries()) {
     const at = `providers[${index}]${object(provider) ? ` (id ${JSON.stringify(provider.id)})` : ''}`;
-    if (!object(provider) || typeof provider.id !== 'string' || !provider.id.trim() || ids.has(provider.id)) {
-      fail(`${at} needs a non-empty, unique id`);
+    if (!object(provider) || typeof provider.id !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(provider.id) || ids.has(provider.id)) {
+      fail(`${at} needs a unique id matching ^[a-z0-9][a-z0-9-]*$`);
     }
     ids.add(provider.id);
     knownKeys(provider, ['id', 'aliases', 'allowlist'], at);
@@ -121,9 +121,13 @@ try {
     for (const host of [...provider.aliases, ...provider.allowlist]) {
       if (!dnsName(host) || reserved.includes(host)) fail(`${at} has invalid host ${JSON.stringify(host)}; expected a DNS name ending in .sim.test`);
     }
-    for (const host of provider.aliases) aliases.add(host);
+    for (const host of provider.aliases) {
+      if (aliases.has(host)) fail(`${at} repeats alias ${JSON.stringify(host)}; each alias must occur once in the file`);
+      aliases.add(host);
+    }
     for (const host of provider.allowlist) {
       if (!provider.aliases.includes(host)) fail(`${at} allowlist host ${JSON.stringify(host)} must be in its aliases`);
+      if (allowlist.has(host)) fail(`${at} repeats allowlist host ${JSON.stringify(host)}`);
       allowlist.add(host);
     }
   }

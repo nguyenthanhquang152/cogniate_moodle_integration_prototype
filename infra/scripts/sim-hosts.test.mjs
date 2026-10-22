@@ -157,13 +157,15 @@ describe('simulator host manifest (LA-E7-03)', () => {
     assert.match(base, /OUTBOUND_PRIVATE_HOST_ALLOWLIST:.*\$\{ACCEPTANCE_LTI_ALLOWLIST_EXTRA:-\}/);
   });
 
-  it('deduplicates aliases and allowlist hosts, and permits an empty allowlist', () => {
+  it('refuses duplicate hosts, and permits an empty allowlist or provider list (BD-A1-53)', () => {
     const c = checkout({ version: 1, providers: [
       { id: 'one', aliases: ['one.sim.test', 'one.sim.test'], allowlist: ['one.sim.test', 'one.sim.test'] },
       { id: 'two', aliases: ['one.sim.test', 'two.sim.test'], allowlist: ['one.sim.test'] },
     ] });
-    assert.equal(config(c.compose()).lti, ',one.sim.test');
-    assert.deepEqual(c.aliases(), ['lms-sim.test', 'one.sim.test', 'two.sim.test']);
+    const duplicate = c.compose();
+    assert.equal(config(duplicate).lti, '');
+    assert.match(duplicate.stderr, /repeats alias/);
+    assert.deepEqual(c.aliases(), ['lms-sim.test']);
     c.putManifest({ version: 1, providers: [{ id: 'browser-only', aliases: ['one.sim.test'], allowlist: [] }] });
     assert.equal(config(c.compose()).lti, '');
     c.putManifest({ version: 1, providers: [] });
@@ -179,7 +181,13 @@ describe('simulator host manifest (LA-E7-03)', () => {
     ['missing providers', { version: 1 }],
     ['null provider', { version: 1, providers: [null] }],
     ['empty id', entry({ id: ' ' })],
+    ['uppercase id', entry({ id: 'Canvas' })],
+    ['underscore id', entry({ id: 'canvas_cloud' })],
+    ['leading hyphen id', entry({ id: '-canvas' })],
     ['duplicate ids', { version: 1, providers: [provider, provider] }, /providers\[1\] \(id "one"\)/],
+    ['duplicate alias in one provider', entry({ aliases: ['one.sim.test', 'one.sim.test'] }), /repeats alias/],
+    ['alias claimed by two providers', { version: 1, providers: [provider, { ...provider, id: 'two' }] }, /providers\[1\].*repeats alias/],
+    ['duplicate allowlist host', entry({ allowlist: ['one.sim.test', 'one.sim.test'] }), /repeats allowlist/],
     ['empty aliases', entry({ aliases: [] })],
     ['missing allowlist', entry({ allowlist: undefined })],
     ['non-string host', entry({ aliases: [3] })],
