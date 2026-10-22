@@ -15,7 +15,11 @@ import { registerAuditRoutes } from './audit.ts';
 import { registerOperatorKeyRoutes } from './operator-keys.ts';
 import { registerSigningKeyRoutes } from './signing-keys.ts';
 import { registerAccountRoutes } from './accounts.ts';
+import { registerApiKeyRoutes } from './api-keys.ts';
 import { registerSharedPlatformRoutes } from './shared-platforms.ts';
+import type { RateLimiter } from '../rate-limit.ts';
+import { createTrustedProxy, rateLimiterFor, recordAuthFailure } from '../rate-limit.ts';
+import { registerRateLimitRoutes } from './rate-limits.ts';
 
 /** The operator of an accepted request. The audit actor is operator:<operator>. */
 export interface OperatorIdentity {
@@ -37,6 +41,7 @@ export interface OperatorContext {
   simulationProfiles: boolean;
   logger: Logger;
   now: () => number;
+  limiter: RateLimiter;
   /** The operator of the request. The auth hook sets it before a route runs. */
   operator: (req: FastifyRequest) => OperatorIdentity;
   /**
@@ -68,7 +73,9 @@ const MOUNTS: Array<(app: FastifyInstance, ctx: OperatorContext) => void> = [
   registerAuditRoutes,
   registerSigningKeyRoutes,
   registerAccountRoutes,
+  registerApiKeyRoutes,
   registerSharedPlatformRoutes,
+  registerRateLimitRoutes,
 ];
 
 /**
@@ -83,8 +90,11 @@ export function parseOperatorAuthorization(header: string | undefined): string |
 export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInstance> {
   const now = deps.now ?? Date.now;
   const log = deps.logger;
-  const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, return503OnClosing: false });
+  const limiter = rateLimiterFor(deps.db, log, now);
+  const proxy = await createTrustedProxy();
+  const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, return503OnClosing: false, trustProxy: proxy.trust });
   installApiBasics(app, log);
+  app.addHook('onClose', async () => proxy.close());
   // A POST without a body (for example …/revoke) may still send Content-Type: application/json.
   const json = app.getDefaultJsonParser('error', 'error');
   app.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
@@ -98,9 +108,8 @@ export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInsta
     return req.operator;
   };
   const ctx: OperatorContext = {
-    db: deps.db, keys: deps.keys, logger: log, now, operator,
+    db: deps.db, keys: deps.keys, logger: log, now, operator, limiter,
     urls: deps.urls, simulationProfiles: deps.simulationProfiles ?? false,
-    // Client address: the socket address until LA-E5-03 (LA-ADR-06 D1).
     audited: (req, event, body) => withAudit(deps.db, now, {
       actor: { type: 'operator', id: operator(req).operator }, toolAccountId: event.toolAccountId ?? null, traceId: req.traceId, clientIp: req.ip,
       action: event.action, target: event.target, details: event.details ?? null,
@@ -111,13 +120,16 @@ export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInsta
   await app.register(async (scope) => {
     // Every failure (no header, another scheme, wrong grammar, unknown, expired, revoked key) gives the same 401.
     scope.addHook('onRequest', async (req) => {
+      limiter.check('auth_failure', req.ip, undefined, false);
       const presented = parseOperatorAuthorization(req.headers.authorization);
       const key = presented ? findActiveOperatorKey(deps.db, presented, now()) : null;
       if (!key) {
         log.warn('api_auth_failed', { trace_id: req.traceId, scheme: 'operator', code: 'INVALID_OPERATOR_AUTHORIZATION_HEADER' });
+        recordAuthFailure(limiter, req.ip);
         throw new ApiError('INVALID_OPERATOR_AUTHORIZATION_HEADER');
       }
       req.operator = { keyId: key.id, operator: key.operator };
+      limiter.check('operator', key.id);
     });
     for (const mount of MOUNTS) mount(scope, ctx);
   });

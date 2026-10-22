@@ -116,10 +116,10 @@ export async function harness(opts: { ltikTtlSeconds?: number; simulationProfile
   const { logger, lines } = capturingLogger();
   const clock = { now: Date.now() };
   const tokens = createTokenClient({ db, masterKey: MASTER_KEY, outbound, logger, now: () => clock.now });
-  const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(() => clock.now) });
+  const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(() => clock.now), logger });
   const app = await buildApp({
     db, urls: URLS, logger, keys: createPlatformKeys(outbound, () => clock.now), ltikTtlSeconds: opts.ltikTtlSeconds ?? 86400,
-    masterKey: MASTER_KEY, ags, nrps: createNrpsClient({ outbound, tokens }), outbound, profile: opts.simulationProfiles ? 'acceptance' : 'default', knobs: [], now: () => clock.now,
+    masterKey: MASTER_KEY, ags, nrps: createNrpsClient({ outbound, tokens, logger }), outbound, profile: opts.simulationProfiles ? 'acceptance' : 'default', knobs: [], now: () => clock.now,
     simulationProfiles: opts.simulationProfiles ?? false,
   });
   return { db, platform, apiKey: a.apiKey!, otherApiKey: b.apiKey!, key, outbound, lines, clock, app };
