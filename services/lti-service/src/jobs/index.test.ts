@@ -2,7 +2,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openSqlite } from '@cogniate/shared';
+import { createLocalKeyProvider, legacyKeyRing, openSqlite } from '@cogniate/shared';
 import { describeJobStoreContract } from '@cogniate/shared/jobs.testkit';
 import { expect, it } from 'vitest';
 import type { Db } from '../db/index.ts';
@@ -52,11 +52,12 @@ it('AC-LA-E5-19-05: adds the runner tables to an upgraded M1 fixture without cha
 it('uses lti-1 by default and checks JOB_INSTANCE_ID and audit retention before start', () => {
   const db = openDb(':memory:');
   const logger = capturingLogger().logger;
+  const keys = createLocalKeyProvider(legacyKeyRing(Buffer.alloc(32, 7)));
   try {
-    expect(createLtiJobRunner({ db, logger, env: {} }).instanceId).toBe('lti-1');
-    expect(createLtiJobRunner({ db, logger, env: { JOB_INSTANCE_ID: 'lti-test' } }).instanceId).toBe('lti-test');
-    expect(() => createLtiJobRunner({ db, logger, env: { JOB_INSTANCE_ID: 'bad/id' } })).toThrow('instance id');
-    expect(() => createLtiJobRunner({ db, logger, env: { AUDIT_RETENTION_DAYS: '-1' } })).toThrow('AUDIT_RETENTION_DAYS');
+    expect(createLtiJobRunner({ db, logger, keys, env: {} }).instanceId).toBe('lti-1');
+    expect(createLtiJobRunner({ db, logger, keys, env: { JOB_INSTANCE_ID: 'lti-test' } }).instanceId).toBe('lti-test');
+    expect(() => createLtiJobRunner({ db, logger, keys, env: { JOB_INSTANCE_ID: 'bad/id' } })).toThrow('instance id');
+    expect(() => createLtiJobRunner({ db, logger, keys, env: { AUDIT_RETENTION_DAYS: '-1' } })).toThrow('AUDIT_RETENTION_DAYS');
     expect(db.prepare('SELECT * FROM job_instance').all()).toEqual([]);
   } finally { db.close(); }
 });

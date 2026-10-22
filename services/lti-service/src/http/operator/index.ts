@@ -39,6 +39,7 @@ declare module 'fastify' {
 export interface OperatorContext {
   db: Db;
   keys: KeyHandle;
+  /** Only the re-wrap route needs jobs; without it that route gives 503 NOT_READY. */
   jobs?: JobRunner;
   urls: PublicUrls;
   simulationProfiles: boolean;
@@ -65,6 +66,7 @@ export interface OperatorAuditEvent {
 export interface OperatorDeps {
   db: Db;
   keys: KeyHandle;
+  /** Only re-wrap needs the LTI runner with key-rewrap registered; absent means 503 NOT_READY on that route. */
   jobs?: JobRunner;
   urls: PublicUrls;
   simulationProfiles?: boolean;

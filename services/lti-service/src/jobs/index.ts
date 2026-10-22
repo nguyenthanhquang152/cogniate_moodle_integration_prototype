@@ -43,7 +43,8 @@ export function createLtiJobStore(db: Db): JobStore {
   };
 }
 
-export function createLtiJobRunner(options: { db: Db; logger: Logger; keys?: KeyHandle; now?: () => number; env?: Record<string, string | undefined> }): JobRunner {
+/** Keys are required so every LTI runner has the on-demand key-rewrap job. */
+export function createLtiJobRunner(options: { db: Db; logger: Logger; keys: KeyHandle; now?: () => number; env?: Record<string, string | undefined> }): JobRunner {
   const env = options.env ?? process.env;
   const auditDays = auditRetentionDays(env.AUDIT_RETENTION_DAYS);
   const runner = createJobRunner({ store: createLtiJobStore(options.db), logger: options.logger,
@@ -51,6 +52,6 @@ export function createLtiJobRunner(options: { db: Db; logger: Logger; keys?: Key
   runner.addInterval(retentionJob(options.db));
   runner.addInterval(auditRetentionJob(options.db, auditDays));
   runner.addInterval(signingKeyCleanupJob(options.db));
-  if (options.keys) runner.addInterval(keyRewrapJob(options.db, options.keys));
+  runner.addInterval(keyRewrapJob(options.db, options.keys));
   return runner;
 }

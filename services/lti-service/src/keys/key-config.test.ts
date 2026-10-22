@@ -88,6 +88,17 @@ describe('key-ring settings (LTI_KEYRING_FILE, LTI_MASTER_KEY, LTI_MASTER_KEY_FI
 });
 
 describe('loadKeyProvider', () => {
+  it.each(['{broken-fixture-secret', '{"legacyBlobs":"allowed"}', 'null', '[]'])('fails once at start for a malformed persisted key-provider setting: %s', async (value) => {
+    const { db } = database();
+    try {
+      db.prepare("INSERT INTO service_setting (key, value) VALUES ('key_provider', ?)").run(value);
+      const { logger, lines } = capturingLogger();
+      await expect(loadKeyProvider({ db, logger, masterKey: Buffer.from(LEGACY), env: { LTI_KEYRING_FILE: ringFile('legacy', { legacy: LEGACY }) } }))
+        .rejects.toThrow('key_provider_setting_invalid: cannot read the key_provider service setting.');
+      expect(lines).toEqual([]);
+    } finally { db.close(); }
+  });
+
   it('all loaded providers observe committed legacy refusal, keep other settings, and restore refusal after restart', async () => {
     const { db } = database();
     try {
