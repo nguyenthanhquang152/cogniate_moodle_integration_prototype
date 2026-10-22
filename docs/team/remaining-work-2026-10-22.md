@@ -2,7 +2,25 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 17:33 UTC
+## Current checkpoint — 18:03 UTC
+
+All twelve legacy groups passed: 304 raw entries and 251 as the sum of unique IDs within each subrun.
+The QA disclosure is committed at `e8a1947`. It records the non-exclusive window, exposure ledger and corrected counts.
+The Lead verified all 74 evidence entries against their restored original hashes.
+Two derived files were temporarily revised and restored; the disclosure preserves that history. All 72 underlying entries stayed unchanged.
+
+Claude Architect's P1 proposal at `a8354f2` can accept these functional results without a legacy rerun.
+Savoy supplied its whole-window activity confirmation in `msg_779552416a56`. LA's retrospective confirmation is pending.
+P1 is not accepted yet. E-R3 remains VOID. No new runtime is granted.
+Savoy expects further short Docker runs. The user's scheduling choice remains pending.
+
+The remaining runtime is two 258-row Canvas SIM rounds, independent 232-row Canvas judgments and equality, then M2 and T7.
+These need about 50–60 minutes of reserved Docker time, excluding handoffs or new failures.
+Final conformance, necessary guide updates, independent Docs QA and two blind reviews follow.
+There is no reliable completion time until the host schedule is resolved.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 17:33 UTC
 
 The C6/C8 legacy runner finished with exit 0 at 17:23:51 UTC. All twelve functional groups passed.
 The previously failing AC-T5-36, AC-T6-07 and AC-T6-09 passed without retries.
