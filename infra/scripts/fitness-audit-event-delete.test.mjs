@@ -36,9 +36,23 @@ describe('F5 rule audit-event-delete', () => {
   it('a probe at a product path fails with line and column; spellings with case, quotes, schema and line breaks too', () => {
     const at = 'services/lti-service/src/store/probe.ts';
     assert.deepEqual(rule.check({ path: at, text: "const x = 1;\ndb.exec('DELETE FROM audit_event WHERE ts < 1');" }).map((h) => [h.line, h.col]), [[2, 10]]);
-    for (const text of ['delete from audit_event', 'DELETE\n  FROM "audit_event"', 'DELETE FROM main.audit_event', 'Delete From `audit_event`']) {
+    for (const text of ['delete from audit_event', 'DELETE\n  FROM "audit_event"', 'DELETE FROM main.audit_event', 'Delete From `audit_event`',
+      "DELETE FROM 'audit_event'", 'DELETE FROM [audit_event]', 'DELETE FROM "main"."audit_event"', "DELETE FROM 'main'.'audit_event'"]) {
       assert.equal(rule.check({ path: 'packages/shared/src/probe.ts', text }).length, 1, text);
       assert.equal(rule.check({ path: 'services/cogniate-app/src/domain/migrations/999_probe.sql', text }).length, 1, text);
+    }
+  });
+
+  it('refuses replacement forms and quoted table names, also in the retention job', () => {
+    for (const command of ['REPLACE INTO', 'insert or replace into']) {
+      for (const table of ['audit_event', "'audit_event'", '"audit_event"', '`audit_event`', '[audit_event]', 'main.audit_event', '"main"."audit_event"']) {
+        const text = `${command} ${table} (id) VALUES ('existing')`;
+        for (const at of ['services/lti-service/src/store/probe.ts', ...ALLOWED]) {
+          const hits = rule.check({ path: at, text });
+          assert.equal(hits.length, 1, text);
+          assert.match(hits[0].message, /must not be replaced/);
+        }
+      }
     }
   });
 
@@ -48,6 +62,10 @@ describe('F5 rule audit-event-delete', () => {
       assert.deepEqual(rule.check({ path: p, text }), [], p);
     }
     assert.deepEqual(rule.check({ path: 'services/lti-service/src/store/x.ts', text: 'DELETE FROM audit_event_archive; SELECT * FROM audit_event' }), []);
+    for (const text of ["DELETE FROM 'audit_event_archive'", 'REPLACE INTO "audit_event archive"', 'INSERT OR REPLACE INTO audit_event_archive',
+      'REPLACE INTO [audit_event_archive]']) {
+      assert.deepEqual(rule.check({ path: 'services/lti-service/src/store/x.ts', text }), [], text);
+    }
     assert.equal(rule.id, 'audit-event-delete');
   });
 });
