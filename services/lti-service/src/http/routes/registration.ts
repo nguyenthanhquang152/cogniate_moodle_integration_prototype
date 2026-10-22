@@ -67,7 +67,7 @@ const RegisterQuery = z.object({
 const CompleteBody = z.object({
   platformName: z.string().trim().min(1).max(255).optional(),
   autoActivate: z.boolean().optional(),
-  scopes: z.array(z.enum(REGISTRATION_SCOPES)).min(1).optional(),
+  scopes: z.array(z.enum(REGISTRATION_SCOPES)).min(1).refine((scopes) => new Set(scopes).size === scopes.length, 'scopes must not repeat').optional(),
   messages: z.array(z.object({
     type: z.string().min(1).max(64),
     placements: z.array(z.string().min(1).max(64)).max(10).optional(),

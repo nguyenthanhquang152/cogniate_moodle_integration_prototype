@@ -157,6 +157,7 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
   it.each([
     ['empty list', []], ['unknown scope', ['openid']], ['mixed scopes', [REGISTRATION_SCOPES[0], 'admin']],
     ['not a list', REGISTRATION_SCOPES[0]], ['null', null], ['non-string member', [1]],
+    ['repeated scope', [REGISTRATION_SCOPES[0], REGISTRATION_SCOPES[0]]],
   ])('refuses %s before sending or claiming the session (LA-E3-06 AC-04)', async (_name, scopes) => {
     const s = await setup();
     const id = idOf(String((await s.start(undefined)).headers.location));
