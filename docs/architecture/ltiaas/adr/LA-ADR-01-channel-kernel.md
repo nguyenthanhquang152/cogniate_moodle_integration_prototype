@@ -134,6 +134,7 @@ export interface ChannelManifest {
   texts: {
     adminSteps: string[]; teacherSteps: string[];
     disconnect: string; notReady: string | null; // all with {LMS}, {tool}, {site} placeholders only
+    registered?: string;                         // status text of a registered connection; default "Registered" (BD-A1-25)
   };
 }
 export interface FieldSpec { key: string; label: string; kind: 'origin' | 'id' | 'grantCode' | 'url' | 'choice'; required: boolean; method?: 'dynamic' | 'manual';
@@ -327,7 +328,11 @@ export interface ChannelUiModule {
   steps?: Partial<Record<'show' | 'collect' | 'verify' | 'enable', ComponentType<ChannelWizardProps>>>;
   TeacherSteps?: ComponentType;                                // shown after publication
   connectionPanels?: ComponentType<{ connection: ConnectionView; sdk: PortalSdk }>[];  // Moodle web services, Canvas JSON
-  coursePanels?: ComponentType<{ course: CourseView; sdk: PortalSdk }>[];             // Moodle .mbz and course shell
+  coursePanels?: ComponentType<{ course: CourseView; version: CourseVersionView | null; onChanged(): void; sdk: PortalSdk }>[]; // Moodle .mbz
+  // BD-A1-25: optional slots; the shell has a default for each and never tests a channel id.
+  publicationPanels?: ComponentType<{ publication: PublicationView; onChanged(): void; sdk: PortalSdk }>[]; // Moodle course shell
+  ConnectionError?: ComponentType<{ connection: ConnectionView; error: ApiErrorView; libraryName: string; sdk: PortalSdk }>; // null = shell default
+  ConnectionDetails?: ComponentType<{ connection: ConnectionView; sdk: PortalSdk }>; // replaces the default detail block and its "Open {LMS}" link
 }
 export interface ChannelWizardProps {        // today's ProviderWizardProps (wizard-types.ts:11-18) plus the SDK
   provider: ProviderView; connection: ConnectionView | null; libraryName: string; opener: string;
@@ -338,7 +343,8 @@ export interface PortalSdk {                 // re-exports of today's portal cod
   useApi: typeof useApi; navigate(to: string): void;
   ui: PortalUiKit;                           // Button, Card, Tabs, ErrorNotice, Loading, ConnectionBadge, provider error texts
 }
-// ProviderView, ConnectionView, CourseView = today's DTO types of apps/portal/src/types.ts, re-exported.
+// ProviderView, ConnectionView, CourseView, CourseVersionView, PublicationView, ApiErrorView = today's DTO types of
+// apps/portal/src/types.ts, re-exported.
 ```
 
 S8 first moves the needed helpers into `apps/portal/src/sdk/`, then moves the modules. A module that needs more than the SDK gives an SDK addition in S8, not a deep import.
@@ -393,7 +399,8 @@ Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-
 - **Cards.** The Integrations page shows one card per channel from `manifest.card`, plus the static cards that are not channels (Kajabi, Figma, …, `Integrations.tsx:21-108`). The baseline manifests keep today's title, text, mark and colour.
 - **Routes.** One route pair: `/integrations/:channelId/connect` and `/integrations/:channelId/:connectionId`. An unknown channel id, or a connection of another channel, shows "not found" (app contract §4.2 rule). The app server allowlist uses the same pattern with the registry (`app/portal.ts:29-30`).
 - **Wizard.** The shell renders the four steps of every channel from the manifest: **show** (`GET …/tool-configuration` rows and setup artifacts), **collect** (`setup.createFields`, `setup.bindingFields`), **verify** (from the binding authority: the connection's stored `binding_authority`, or before create the chosen method's authority: `self` → first launch, `operatorGrant` → approval code, `verifiedAdminLaunch` → admin launch code; a staged DR therefore shows the approval code step), **enable** (status and teacher steps). A channel module (P11) may replace one step or add panels. The Moodle, Canvas and Blackboard modules move into their folders with no visible change. A new channel needs no module.
-- **Texts.** Status, disconnect and not-ready texts come from `manifest.texts` with `{LMS}` filled.
+- **Texts.** Status, disconnect and not-ready texts come from `manifest.texts` with `{LMS}` filled (`texts.registered` for the registered status, BD-A1-25). The logo comes from `manifest.card` (`mark`, `color`); no module supplies a logo. Code that needs connection, error or publication context is an optional P11 slot (`ConnectionError`, `ConnectionDetails`, `publicationPanels`, `coursePanels`), each with a shell default.
+- **Availability.** The portal discovers every manifest at build time. A `simulation-only` channel gets a card and routes only when `GET /app-api/lms-providers` lists it; `ga` and `preview` channels show at once. A direct route to a `simulation-only` channel waits for the list, then shows "not found" when the channel is absent (BD-A1-26).
 - **Ready rule.** `ready` comes from `GET /app-api/lms-providers` (profile ready) for every channel. The Moodle-only rule `lms === "moodle"` (`Integrations.tsx:157`) goes away; the Moodle profile is always ready, so the result does not change.
 
 ### D10. "No LMS name in core"
