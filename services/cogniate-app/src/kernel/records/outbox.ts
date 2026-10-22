@@ -3,7 +3,7 @@ import type { QueueJob, RecoveryScope } from '@cogniate/shared';
 import { dispatchResult, nextRetryAt, type SyncStatus } from '@cogniate/tracking';
 import type { Db } from '../../domain/db.ts';
 import { transaction } from '../../domain/db.ts';
-import { beginSend, failDisabledSync, isCurrentSync, ownsDispatch, partitionPaused, recordSend } from './dispatch-store.ts';
+import { beginSend, failDisabledDispatch, isCurrentDispatch, ownsDispatch, partitionPaused, recordSend } from './dispatch-store.ts';
 import type { DeliveryOutcome, DispatchView, RecordReporter } from './types.ts';
 
 export interface DispatchItem { id: string; partitionKey: string }
@@ -54,11 +54,17 @@ function result(outcome: DeliveryOutcome, tries: number, from: number, now: numb
     uncertain: outcome.kind === 'retryable' && outcome.uncertain };
 }
 
+/** The outbox queue job. Refuses a reporter policy other than bestResult (AC-LA-E4-03-08). Services use registerRecordReporters. */
 export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]): QueueJob<DispatchItem> {
   for (const reporter of reporters) {
     if (reporter.policy !== 'bestResult') throw new Error(`Unsupported record reporter policy: ${reporter.id}/${reporter.policy}`);
   }
   const registry = new Map(reporters.map((r) => [r.id, r]));
+  /** The send result log line: the reporter's own names, else the neutral `record_dispatch` names. */
+  const resultLog = (reporter: string, id: string) => {
+    const names = registry.get(reporter)?.logNames;
+    return { event: names?.event ?? 'record_dispatch', idFields: names ? { [names.idField]: id } : { dispatch_id: id, reporter } };
+  };
   return {
     name: 'record-dispatch', id: (r) => r.id, partition: (r) => r.partitionKey,
     due(now, limit) {
@@ -92,7 +98,7 @@ export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]
       let posted = false;
       try {
         if (!ownsDispatch(db, item.id, ctx.leaseOwner) || ctx.signal.aborted) return;
-        if (!isCurrentSync(db, item.id)) {
+        if (!isCurrentDispatch(db, item.id)) {
           // Supersede only for a higher dispatch. An attempt without a dispatch leaves the lower row unchanged.
           db.prepare(`UPDATE record_dispatch SET status = 'superseded', next_try_at = NULL, updated_at = ?
             WHERE id = ? AND status = 'pending' AND lease_owner = ? AND EXISTS (SELECT 1 FROM record_dispatch other
@@ -103,11 +109,12 @@ export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]
           return;
         }
         const raw = read(db, item.id)!;
-        const log = (status: SyncStatus, tries: number, sendResult?: SyncStatus) => ctx.logger.info(raw.reporter === 'lti-ags' ? 'score_sync' : 'record_dispatch', {
-          trace_id: ctx.traceId, ...(raw.reporter === 'lti-ags' ? { sync_id: item.id } : { dispatch_id: item.id, reporter: String(raw.reporter) }), status, tries, phase: raw.confirmation_after === null ? 'send' : 'confirmation',
+        const names = resultLog(String(raw.reporter), item.id);
+        const log = (status: SyncStatus, tries: number, sendResult?: SyncStatus) => ctx.logger.info(names.event, {
+          trace_id: ctx.traceId, ...names.idFields, status, tries, phase: raw.confirmation_after === null ? 'send' : 'confirmation',
           ...(sendResult && sendResult !== status ? { send_result: sendResult } : {}),
         });
-        if (failDisabledSync(db, item.id, ctx.now(), ctx.leaseOwner)) { log('failed', Number(raw.tries)); return; }
+        if (failDisabledDispatch(db, item.id, ctx.now(), ctx.leaseOwner)) { log('failed', Number(raw.tries)); return; }
         const row = view(raw);
         if (ctx.now() > row.retryFrom + WINDOW_MS) {
           recordSend(db, row, { status: 'failed', nextTryAt: null, uncertain: false, lastError: 'The score retry window has ended.' }, ctx.now(), ctx.leaseOwner);
@@ -127,7 +134,7 @@ export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]
         } });
         // Every later write checks the lease owner itself (a lost lease changes nothing).
         if (!outcome) return;
-        if (!posted && failDisabledSync(db, item.id, ctx.now(), ctx.leaseOwner)) { log('failed', row.tries); return; }
+        if (!posted && failDisabledDispatch(db, item.id, ctx.now(), ctx.leaseOwner)) { log('failed', row.tries); return; }
         // A completed POST still records its result after stop. Only an unstarted next step is stopped.
         if (!posted && ctx.signal.aborted) return;
         const throttled = outcome.kind === 'throttled';
@@ -162,7 +169,7 @@ export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]
           const row = view({ ...raw, payload: '{}' });
           const r = result({ kind: 'retryable', text: `Internal error (${name}).`, uncertain: posted }, tries, row.retryFrom, ctx.now());
           recordSend(db, row, r, ctx.now(), ctx.leaseOwner);
-          ctx.logger.error('internal_error', { trace_id: ctx.traceId, method: 'WORKER', path: 'score_sync', error: name });
+          ctx.logger.error('internal_error', { trace_id: ctx.traceId, method: 'WORKER', path: resultLog(row.reporter, row.id).event, error: name });
         });
       }
     },

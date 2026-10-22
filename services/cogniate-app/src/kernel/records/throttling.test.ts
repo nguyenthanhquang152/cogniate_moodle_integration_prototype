@@ -1,11 +1,11 @@
 import { createLogger, type JobContext, type LogLine } from '@cogniate/shared';
 import { dispatchResult } from '@cogniate/tracking';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ltiAgsPolicy } from '../../drivers/lti-ags/index.ts';
+import { openDb } from '../../domain/db.ts';
 import { beginSend } from './dispatch-store.ts';
 import { createDispatchQueue, type DispatchItem } from './outbox.ts';
-import { configureRecordReporters, writeFinalRecord } from './records.ts';
-import { recordsFixture } from './records.testkit.ts';
+import { recordReporters, registerRecordReporters, writeFinalRecord } from './records.ts';
+import { recordsFixture, testReporter } from './records.testkit.ts';
 import type { RecordReporter } from './types.ts';
 
 const fixtures: ReturnType<typeof recordsFixture>[] = [];
@@ -17,11 +17,11 @@ function fixture() {
   const ctx: JobContext = { instanceId: 'a', bootId: 'boot', leaseOwner: 'a/boot', now: Date.now,
     signal: new AbortController().signal, traceId: 'trace', logger: createLogger({ service: 'test', write: (line) => logs.push(JSON.parse(line) as LogLine) }) };
   const sent: string[] = [];
-  const job = createDispatchQueue(f.db, [{ ...ltiAgsPolicy, async deliver(row, c) {
+  const job = registerRecordReporters(f.db, [testReporter(async (row, c) => {
     if (c.beginSend() !== 'started') return null;
     sent.push(row.id);
     return { kind: 'throttled', text: 'Wait', retryAt: Date.now() + 30_000 };
-  } }]);
+  }, 'A')]);
   const run = async (item: DispatchItem) => {
     expect(await job.lease(item, ctx.leaseOwner, Date.now() + 60_000, Date.now())).toBe(true);
     await job.run(item, ctx); await job.release(item, ctx.leaseOwner);
@@ -72,10 +72,7 @@ describe('partition throttling (LA-ADR-03 D7)', () => {
   });
   it('A-LA-E4-03-01: a new better row keeps the pause of the row that it supersedes', async () => {
     const f = fixture();
-    const reporter = { ...ltiAgsPolicy, deliver: async () => null };
-    configureRecordReporters(f.db, [reporter]);
-    // writeFinalRecord computes the partition of the seeded connection: its LTI platform id.
-    const id = await f.addRow({ key: 'a', partition: 'platform', score: 0.4, nextTryAt: 0 });
+    const id = await f.addRow({ key: 'a', partition: 'A', score: 0.4, nextTryAt: 0 });
     await f.run((await f.job.due(Date.now(), 10))[0]!);
     expect(f.db.prepare('SELECT status, not_before FROM record_dispatch WHERE id = ?').get(id)).toEqual({ status: 'pending', not_before: 130_000 });
     const better = writeFinalRecord(f.db, { attemptId: 'att_a', placementId: 'rl_a', learnerSubject: 'a', outcome: 'passed',
@@ -93,7 +90,7 @@ describe('partition throttling (LA-ADR-03 D7)', () => {
       const value = Reflect.get(target, key) as unknown;
       return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
     } });
-    const job = createDispatchQueue(db, [{ ...ltiAgsPolicy, deliver: async () => null }]);
+    const job = createDispatchQueue(db, [testReporter(async () => null)]);
     const id = await f.addRow({ key: 'a', partition: 'A', score: 0.8, nextTryAt: 0 });
     const [item] = await job.due(Date.now(), 10);
     await job.lease(item!, 'a/boot', Date.now() + 60_000, Date.now());
@@ -110,12 +107,12 @@ describe('partition throttling (LA-ADR-03 D7)', () => {
     const f = fixture();
     const id = await f.addRow({ key: 'a', partition: 'A', score: 0.8, nextTryAt: 0 });
     const other = await f.addRow({ key: 'b', partition: 'A', score: 0.8, nextTryAt: 1 });
-    const job = createDispatchQueue(f.db, [{ ...ltiAgsPolicy, async deliver(row, c) {
+    const job = createDispatchQueue(f.db, [testReporter(async (row, c) => {
       if (c.beginSend() !== 'started') return null;
       // Another instance takes the row over while the POST waits (running recovery after an expired lease).
       f.db.prepare('UPDATE record_dispatch SET lease_owner = ? WHERE id = ?').run('b/boot', row.id);
       return { kind: 'throttled', text: 'Wait', retryAt: Date.now() + 30_000 };
-    } }]);
+    }, 'A')]);
     const item = (await job.due(Date.now(), 10)).find((r) => r.id === id)!;
     expect(await job.lease(item, f.ctx.leaseOwner, Date.now() + 60_000, Date.now())).toBe(true);
     await job.run(item, f.ctx);
@@ -123,9 +120,12 @@ describe('partition throttling (LA-ADR-03 D7)', () => {
     expect(f.db.prepare('SELECT not_before FROM record_dispatch WHERE id IN (?, ?)').all(id, other)).toEqual([{ not_before: null }, { not_before: null }]);
     expect(f.logs.filter((l) => l.event === 'dispatch_throttled' || l.event === 'score_sync')).toEqual([]);
   });
-  it('AC-LA-E4-03-08: refuses everyRecord at outbox registration', () => {
-    const f = fixture();
-    const reporter = { ...ltiAgsPolicy, policy: 'everyRecord', deliver: async () => ({ kind: 'accepted' }) } as unknown as RecordReporter;
-    expect(() => createDispatchQueue(f.db, [reporter])).toThrow('Unsupported record reporter policy: lti-ags/everyRecord');
+  it('AC-LA-E4-03-08: refuses everyRecord at outbox registration and registers nothing', () => {
+    const db = openDb(':memory:');
+    try {
+      const reporter = { ...testReporter(async () => ({ kind: 'accepted' })), policy: 'everyRecord' } as unknown as RecordReporter;
+      expect(() => registerRecordReporters(db, [reporter])).toThrow('Unsupported record reporter policy: lti-ags/everyRecord');
+      expect(() => recordReporters(db)).toThrow('Record reporters are not configured');
+    } finally { db.close(); }
   });
 });
