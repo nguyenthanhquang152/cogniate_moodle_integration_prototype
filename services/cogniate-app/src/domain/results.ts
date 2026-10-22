@@ -27,7 +27,7 @@ interface AttemptRow {
 
 function attemptsOfPublication(db: Db, connectionId: string, courseId: string): AttemptRow[] {
   return db.prepare(`SELECT a.id, a.resource_link_id, a.user_sub, a.course_version_id, a.preview, a.outcome, a.score_given, a.score_maximum,
-      a.created_at, a.updated_at, rl.context_title, rl.title, con.site_url, con.channel
+      a.created_at, a.updated_at, rl.context_id, rl.context_title, rl.title, con.site_url, con.channel
     FROM attempt a JOIN course_version v ON v.id = a.course_version_id JOIN resource_link rl ON rl.id = a.resource_link_id
     JOIN connection con ON con.id = rl.connection_id
     WHERE rl.connection_id = ? AND v.course_id = ? ORDER BY a.created_at, a.rowid`).all(connectionId, courseId).map((r) => {
@@ -37,7 +37,7 @@ function attemptsOfPublication(db: Db, connectionId: string, courseId: string): 
       id: String(r.id), resourceLinkId: String(r.resource_link_id), userSub: String(r.user_sub), versionId: String(r.course_version_id),
       preview: Number(r.preview) === 1, outcome: r.outcome as Outcome, scoreGiven: r.score_given === null ? null : Number(r.score_given),
       scoreMaximum: r.score_maximum === null ? null : Number(r.score_maximum), createdAt: Number(r.created_at), updatedAt: Number(r.updated_at),
-      contextTitle: String(r.context_title), title: String(r.title), issuer, channel: String(r.channel),
+      contextTitle: r.context_id === '' ? '—' : String(r.context_title), title: String(r.title), issuer, channel: String(r.channel),
     };
   });
 }
@@ -46,7 +46,7 @@ interface SyncRowView { id: string; attemptId: string; status: SyncStatus; tries
 
 function syncsOf(db: Db, attemptIds: string[]): SyncRowView[] {
   if (attemptIds.length === 0) return [];
-  return db.prepare(`SELECT * FROM score_sync WHERE attempt_id IN (${attemptIds.map(() => '?').join(', ')}) ORDER BY created_at, rowid`).all(...attemptIds).map((r) => ({
+  return db.prepare(`SELECT s.*, r.attempt_id FROM record_dispatch s JOIN learning_record r ON r.id = s.record_id WHERE s.reporter = 'lti-ags' AND r.attempt_id IN (${attemptIds.map(() => '?').join(', ')}) ORDER BY s.created_at, s.seq`).all(...attemptIds).map((r) => ({
     id: String(r.id), attemptId: String(r.attempt_id), status: r.status as SyncStatus, tries: Number(r.tries), scoreGiven: Number(r.score_given),
     scoreMaximum: Number(r.score_maximum), createdAt: Number(r.created_at), sentAt: r.sent_at === null ? null : Number(r.sent_at),
     lastError: r.last_error === null ? null : String(r.last_error),

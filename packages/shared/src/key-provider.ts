@@ -33,6 +33,8 @@ export interface LocalKeyProvider extends KeyProvider {
   readonly kind: 'local-keyring';
   sealSync(plaintext: Uint8Array, aad: string): SealedBlob;
   openSync(blob: SealedBlob, aad: string): Uint8Array;
+  /** Authenticated metadata for re-wrap: a legacy IV can resemble a valid header. */
+  openWithMetadataSync(blob: SealedBlob, aad: string): { plaintext: Uint8Array; version: string; legacyFormat: boolean };
   macSync(purpose: MacPurpose, version: string, input: Uint8Array): Uint8Array;
 }
 
@@ -47,6 +49,8 @@ export interface LocalKeyProviderOptions {
   referencedVersions?: () => Iterable<string> | Promise<Iterable<string>>;
   /** Gets `key_provider_not_ready {version}` and `key_open_failed {table, reason}`. */
   logger?: Pick<Logger, 'error'>;
+  /** Live persisted policy. Once a complete re-wrap refuses legacy blobs, no open may use the old format. */
+  legacyBlobsRefused?: () => boolean;
 }
 
 export type KeyProviderErrorCode = 'key_ring_invalid' | 'key_version_missing' | 'key_open_failed' | 'key_provider_not_bound';
@@ -168,7 +172,7 @@ export function createLocalKeyProvider(ring: KeyRing, options: LocalKeyProviderO
   if (!keys.has(active)) throw invalidRing('the active version is not in the ring');
   const log = options.logger;
 
-  function openFailed(aad: string, reason: 'version_missing' | 'auth_failed'): KeyProviderError {
+  function openFailed(aad: string, reason: 'version_missing' | 'auth_failed' | 'legacy_refused'): KeyProviderError {
     const table = aad.split(':')[1] || 'unknown';
     log?.error('key_open_failed', { table, reason });
     return new KeyProviderError('key_open_failed', `A sealed value of table ${table} did not open (${reason}).`);
@@ -188,7 +192,7 @@ export function createLocalKeyProvider(ring: KeyRing, options: LocalKeyProviderO
     }
   }
 
-  function openSync(blob: SealedBlob, aad: string): Uint8Array {
+  function openWithMetadataSync(blob: SealedBlob, aad: string): { plaintext: Uint8Array; version: string; legacyFormat: boolean } {
     const header = parseHeader(blob.bytes);
     let reason: 'version_missing' | 'auth_failed' = 'auth_failed';
     if (header) {
@@ -197,7 +201,7 @@ export function createLocalKeyProvider(ring: KeyRing, options: LocalKeyProviderO
         try {
           const dataKey = gcmOpen(versionKey, header.wrapped, header.head);
           try {
-            return gcmOpen(dataKey, header.value, Buffer.from(aad, 'utf8'));
+            return { plaintext: gcmOpen(dataKey, header.value, Buffer.from(aad, 'utf8')), version: header.version, legacyFormat: false };
           } finally {
             dataKey.fill(0);
           }
@@ -208,14 +212,20 @@ export function createLocalKeyProvider(ring: KeyRing, options: LocalKeyProviderO
         reason = 'version_missing';
       }
     }
+    // The policy also disables the magic-collision fallback. Headered blobs still require their row's associated data.
+    if (options.legacyBlobsRefused?.()) throw openFailed(aad, header ? reason : 'legacy_refused');
     // The GCM tag proves the result of the legacy form too.
     const legacy = keys.get(LEGACY_KEY_VERSION);
     if (!legacy) throw openFailed(aad, header ? reason : 'version_missing');
     try {
-      return gcmOpen(legacy, asBuffer(blob.bytes), null);
+      return { plaintext: gcmOpen(legacy, asBuffer(blob.bytes), null), version: LEGACY_KEY_VERSION, legacyFormat: true };
     } catch {
       throw openFailed(aad, reason);
     }
+  }
+
+  function openSync(blob: SealedBlob, aad: string): Uint8Array {
+    return openWithMetadataSync(blob, aad).plaintext;
   }
 
   function macSync(purpose: MacPurpose, version: string, input: Uint8Array): Uint8Array {
@@ -243,6 +253,7 @@ export function createLocalKeyProvider(ring: KeyRing, options: LocalKeyProviderO
     versions: () => [active, ...[...keys.keys()].filter((id) => id !== active)].map((id) => ({ id, state: id === active ? 'active' : 'decrypt-only' })),
     sealSync,
     openSync,
+    openWithMetadataSync,
     macSync,
   };
 }
