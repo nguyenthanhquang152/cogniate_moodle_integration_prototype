@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-06 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -57,3 +57,27 @@ Round: 1
 
 - A launch refused by the status gate leaves the browser's state cookie and the unused state row. The row expires with `STATE_TTL_MS`, and the account cannot use it while it is suspended or closed.
 - AC-01 to AC-07 and AC-10 are K1-SIM and AC-08 is K0, and they wait for QA. The unit tests above cover their logic.
+
+## Round 2
+
+Reviewer: Codex GPT-6-Astra xhigh, lens A. **APPROVE: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.**
+
+Reviewed `13634b9`, `eff1f97`, `a9a7765`, `35c3f26` and `bfeb216`, merged at `0a46ca0`, against the task spec, LA-ADR-07 D2, LA-ADR-06 D1/D2, BD-A2-20/48/49 and plan §6.1. The private clone is at `380d6e4`; the reviewed product files match the merge. Blind review: no other reviewer's file was opened.
+
+| Check | Result |
+| --- | --- |
+| A-LA-E5-06-01 | Closed. The early count still prevents a fetch when full. After the last await, a `BEGIN IMMEDIATE` transaction rechecks the current count and synchronously inserts the session. Six held parallel starts with cap 3 produce three redirects and three 409 pages. Removing only the second check makes that test fail with six redirects. |
+| A-LA-E5-06-02 | Closed. The rule catches end-of-literal and relative endpoint forms, preserves route-pattern and module-import exclusions, and documents the segment-join limit. All four fitness tests pass. Substituting the old rule makes the new test fail on the formerly missed literal, and the limit-description test fails too. |
+| Account isolation | The shared resolver captures only the database and URL base; it keeps no account state. Login, launch and storage-check resolve the real request path once. Registration completion and all three Deep Linking routes derive URLs from the authenticated caller's account. All state, platform and storage-check lookups retain that account id. A private route probe alternates two accounts using the same issuer/client id and confirms each redirect URI and saved state belong to the right account; another account's target is refused. |
+| Status before side effects | `statusGate` preserves the exact page code and log detail for missing, closed and suspended accounts. It precedes cookie/state writes, state consumption and outbound calls. Protocol and storage tests pass; the private route probe also suspends one account after earlier requests and confirms immediate refusal without a cookie, state insert or fetch, while the other account still logs in. Suspended-account JWKS remains available. |
+| Text and scope | The resolver refactor and `lmsNameFor` extraction preserve URL, page and log values. `35c3f26` intentionally clarifies only the AGS extension error text; its UTF-8 boundary test passes and the 4096-byte check is unchanged. The named RQ-2 imports/account-id lines and extra NIT commits match the dispatch. No protected account, rate-limit, app/auth or Cogniate app implementation was changed; no LMS name was added to a core path. |
+
+Verification in `/tmp/la-review-a-03baae72b0b6` (`git clone --no-hardlinks`, no Docker or stack):
+
+- Vitest on `services/lti-service/src/lti`, protocol/registration/services/compat routes, error pages, registration/settings stores, channel registry and AGS: **23 files, 388 tests passed**. This includes UNIT AC-09's same-account target checks and cross-account refusals.
+- Private alternating-account route probe: **1 passed**.
+- `node --test infra/scripts/fitness/protocol-urls.test.mjs`: **4 passed**. `node infra/scripts/fitness/rules.mjs`: **6 rules, 0 hits**.
+- `npx tsc --noEmit -p services/lti-service/tsconfig.json`: **passed**.
+- Negative controls: removing the post-fetch cap check fails the parallel-start test; the old F5 rule fails two tests. Product files in the private clone were restored after these checks.
+
+No new finding. K1-SIM/K0 and the M1 golden/acceptance runs remain QA gates; these host tests do not replace them.
