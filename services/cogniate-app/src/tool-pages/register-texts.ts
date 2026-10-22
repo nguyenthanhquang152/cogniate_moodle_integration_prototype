@@ -27,5 +27,6 @@ export const REGISTER_HEADING = 'Cogniate could not connect this {LMS} site';
 /** Title and action line of a code, with `{LMS}` and the tool name filled in (`<tool>` in the tool-may-exist text). */
 export function registerErrorText(code: string, toolName: string, lms: string): { title: string; action: string } | null {
   const e = (REGISTER_ERRORS as Record<string, { action: string } | undefined>)[code];
-  return e ? { title: withLms(REGISTER_HEADING, lms), action: withLms(e.action, lms).replace('<tool>', toolName) } : null;
+  // A callback inserts the tool name literally (a library name may hold `$&`).
+  return e ? { title: withLms(REGISTER_HEADING, lms), action: withLms(e.action, lms).replace('<tool>', () => toolName) } : null;
 }

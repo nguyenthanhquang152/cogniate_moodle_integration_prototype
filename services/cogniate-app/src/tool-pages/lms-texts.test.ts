@@ -13,6 +13,8 @@ import { buildContentApp } from '../content-host/server.ts';
 import type { TestApp } from '../testkit.ts';
 import { TEST_CHANNELS, TEST_MASTER_KEY, TEST_URLS, THANH, formBody, launchToken, testApp } from '../testkit.ts';
 import { runtimeTokenFor } from './launch-rules.ts';
+import { escapeHtml } from './page.ts';
+import { registerErrorText } from './register-texts.ts';
 
 const TEXT_CHANNEL = 'zz-text';
 
@@ -155,6 +157,23 @@ describe('AC-LA-E1-09-02: register pages and the connection error texts', () => 
     const page = (await register(t.lti.addRegistration(), p.ref)).body;
     expect(page).toContain('<h1>Connect this O&#39;Brien &lt;LMS&gt; site to Cogniate</h1>');
     expect(page).toContain("textContent = 'Connecting to O\\u0027Brien \\u003cLMS\\u003e. This can take up to 15 seconds. Do not close this window.';");
+  });
+
+  it.each(['A$&B', 'A$$B', "A$'B"])('B-LA-E1-09-01: the name %s goes literally into the error page and the stored lastError', async (name) => {
+    t = await testApp({ channels: withTextChannel(name) });
+    const cookie = await t.login(THANH);
+    const p = await pending(cookie, 'https://other.test');
+    toChannel(p.id, TEXT_CHANNEL);
+    const action = `This registration link is for another ${name} site. Use the link on the ${name} site that the Cogniate connection names.`;
+    const page = (await register(t.lti.addRegistration(), p.ref)).body;
+    expect(actionOf(page)).toBe(escapeHtml(action));
+    expect(page).toContain(`Cogniate could not connect this ${escapeHtml(name)} site`);
+    expect((await json('GET', `/app-api/connections/${p.id}`, cookie)).json().lastError).toMatchObject({ title: `Cogniate could not connect this ${name} site`, action });
+  });
+
+  it('B-LA-E1-09-01: a tool name with $ sequences goes literally into the tool-may-exist text', () => {
+    expect(registerErrorText('MOODLE_TOOL_MAY_EXIST', 'Cogniate (Lib $& $$)', 'Moodle')!.action)
+      .toBe("Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool 'Cogniate (Lib $& $$)', then connect again.");
   });
 
   it('error pages and the stored lastError texts fill {LMS}; a page with no connection uses the no-context name', async () => {
