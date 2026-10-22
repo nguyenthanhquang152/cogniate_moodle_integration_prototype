@@ -13,7 +13,13 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 09:15 UTC
+### Current directive — 2026-10-22, 09:45 UTC
+
+Full2 closed FAILED on three stale T6 UI selectors. Both 488-row rounds and exact equality passed; 10 of 12 legacy groups passed. T6 failed and T8 did not run. The approved M2 label is Publish to an LMS, but two legacy test files still select Publish to Moodle. Codex diagnosed nine obsolete literals across five lines, without edits. Claude will determine the bounded correction, QA file ownership and minimum sufficient revalidation. No retry, fresh M2/T7 or new Docker work is authorized yet. The earlier regression ETA is withdrawn.
+
+The driver exited at 09:36:39 UTC. The Lead verified final strict W4, all ten full volume records unchanged, zero containers and a clean final secret scan. Common QA is closing the failed evidence and reports. LA and Savoy were updated at 09:43 UTC; their Docker hold continues. Next update: 10:15 UTC or the repair/window decision, whichever comes first.
+
+### Prior checkpoint — 2026-10-22, 09:15 UTC
 
 The product owner resumed work with new model assignments. Claude Opus 5.5 xhigh owns planning, architecture, technical design and reviews. Codex GPT-6-Astra xhigh owns implementation. Antigravity Gemini 4 Argon (High) owns QA, testing and verification. The [continuation handoff](model-transition-2026-10-22.md) supersedes earlier model and initial-preparation instructions. Preserve the running full2 driver and all accepted evidence. No new source failure is reported. The old implementation session exited and is fenced. Common QA is now Gemini dispatch ctx_77546b08ce17; independent Canvas QA is Gemini dispatch ctx_296da6e34f11. Codex dispatch ctx_131c9c349fd8 owns later implementation repairs and the bounded Docs delta. Both Gemini workers use the installed Antigravity CLI because the native chat runtime is unavailable. Claude completed the [remaining-work plan](remaining-work-2026-10-22.md). Both full2 rounds passed all 488 cases on C4. The second storage phase closed at 08:58:28 UTC. The Lead accepted exact phase/accounting bindings, case equality and raw R4/R5 evidence in msg_bdb3feab05d2. Independent Canvas round-2 judgment passed 233/233; all 233 Canvas and 488 total case results match across both rounds. The Lead accepted the manifest and browser bindings in msg_486a0d5f48c7. The unchanged driver runs legacy regression. Final W4, scans, cleanup and overall acceptance remain pending.
 
@@ -3957,3 +3963,13 @@ The Lead directed it to proceed in `msg_c1e60694db20`; this is not independent a
 The proposed shape uses one attempt lease per connection, changing refs on conditional writes, inactive staging, committed deployment approvals, and saved attempt targets and ref history.
 The final contracts must distinguish denied app authority from a remote record that still needs cleanup.
 They must also define exact generation changes, replacement-request refusals, discovery of late records, and preservation of another connection's binding.
+
+### 2026-10-22 09:54 UTC — full2 failed closeout accepted
+
+Full2 remains FAILED: both 488-case rounds passed with exact equality; ten legacy groups passed, T6 failed three cases, and T8 did not run.
+Lead accepted the final evidence in msg_08c8f029dab8 after checking 16,271 index entries, 27 root entries and two report supplement entries.
+All 8,810 previous index entries remain unchanged. Report prefixes remain unchanged.
+Final W4, scan and owned cleanup passed. All ten protected volume records remain unchanged.
+The bindings-v4 receipt hash is corrected to ae5e3110af2daf2512ea18fe1801cf650d6872b73ddda298f9949bb74274ca09; the indexed file did not change.
+Common QA must settle this attempt with outcome failed. A fresh Claude planner will decide the bounded test correction, ownership and required revalidation.
+No new Docker run or test edit is authorized by this closeout.
