@@ -1,6 +1,6 @@
 # LA-E1-08 Extension ports P5–P7, PortContext and Moodle/Canvas channel features: QA-3 acceptance tests
 
-Spec: `docs/architecture/ltiaas/tasks/LA-E1-08.md`. Design: `docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md` D5, D6, D10; `docs/architecture/ltiaas/adr/LA-ADR-07-security-and-tenancy.md` D2; `docs/architecture/ltiaas/contracts/cogniate-app-api-delta.md` §3, §4, §7; `docs/architecture/ltiaas/build-decisions-A1.md` BD-A1-20, BD-A1-28, BD-A1-29; `tests/ltiaas/TEST-STRATEGY.md` §2.7, §3.2, §4.6, §4.7. QA-3 wrote these tests from the spec and design only (test-first).
+Spec: `docs/architecture/ltiaas/tasks/LA-E1-08.md`. Design: `docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md` D3, D5, D6, D10; `docs/architecture/ltiaas/adr/LA-ADR-07-security-and-tenancy.md` D2; `docs/architecture/ltiaas/contracts/cogniate-app-api-delta.md` §3, §4, §7; `docs/architecture/ltiaas/build-decisions-A1.md` BD-A1-20, BD-A1-28, BD-A1-29, BD-A1-37, BD-A1-38, BD-A1-40, BD-A1-42; `tests/ltiaas/TEST-STRATEGY.md` §2.7, §3.2, §4.6, §4.7. QA-3 wrote these tests from the spec and design only (test-first).
 
 | AC | Label | Status | Owner / Test | Oracle |
 | --- | --- | --- | --- | --- |

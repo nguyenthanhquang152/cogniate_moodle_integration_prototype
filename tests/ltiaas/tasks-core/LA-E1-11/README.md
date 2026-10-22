@@ -4,11 +4,11 @@ Spec: `docs/architecture/ltiaas/tasks/LA-E1-11.md`. Design: `docs/architecture/l
 
 | AC | Label | Status | Owner / Test | Oracle |
 | --- | --- | --- | --- | --- |
-| AC-LA-E1-11-01 | UNIT | ready | Author unit test (`vitest run -t "AC-LA-E1-11-"`) | A registry with a new test channel `zz-test` renders a card for `zz-test` on the Integrations page with `manifest.card.title`, `description`, `mark` and `color` and a working `/integrations/zz-test/connect` route, with no edit of a portal core file. |
-| AC-LA-E1-11-02 | UNIT | ready | Author unit test (`vitest run -t "AC-LA-E1-11-"`) | On a `zz-test` connection with no `portal/` module, the generic wizard renders `manifest.setup.createFields`, `bindingFields` and `texts.adminSteps`. |
-| AC-LA-E1-11-03 | UNIT | ready | Author unit test (`vitest run -t "AC-LA-E1-11-"`) | The publish dialog shows the course-shell option only when `channelCapabilities['publish.createCourse']` is true, and the package view shows the `.mbz` export only when `channelCapabilities['export.packages']` has `"mbz"`. |
-| AC-LA-E1-11-04 | K2 | pending: Docker window | QA-E2E U1 | One Integrations card per registered channel, rendered from the manifest (browser test U1). |
-| AC-LA-E1-11-05 | K2 | pending: Docker window | QA-E2E U2 | The setup wizard steps "show, collect, verify, enable" from the manifest (browser test U2). |
+| AC-LA-E1-11-01 | UNIT | ready | Author unit test (`apps/portal/src/channels/shell.test.tsx`) | Shell test (Vitest and Testing Library): every registered manifest, and a test manifest with no portal module, renders one card and the four wizard steps. |
+| AC-LA-E1-11-02 | UNIT | ready | Author unit test (`apps/portal/src/channels/shell.test.tsx`, `multi-lms.test.ts`) | Routes: `/integrations/:channelId/connect` and `/integrations/:channelId/:connectionId`; an unknown channel id, or a connection of another channel, shows the "not found" view. |
+| AC-LA-E1-11-03 | UNIT | ready | Author unit test (`apps/portal/src/channels/shell.test.tsx`) | The verify step follows the binding authority: Moodle (`self`) shows the first-launch step; Canvas and Blackboard (`operatorGrant`) show the approval-code step. |
+| AC-LA-E1-11-04 | K2 | pending: Docker window | QA-E2E U1 | K2 U1: the Integrations page shows one card per registered channel; the three baseline cards keep their title, text, mark and colour. |
+| AC-LA-E1-11-05 | K2 | pending: Docker window | QA-E2E U2 | K2 U2: the wizard steps of the three baseline channels come from their manifests and give the M2 screens. |
 | AC-LA-E1-11-06 | K1-SIM | pending: Docker window | Lead QA R1 + T6 subset | R1 (M1 `sim` phase + M2) and the portal subset of T6 pass. |
 | AC-LA-E1-11-07 | K0 | ready | `portal-shell.k0.test.ts > AC-LA-E1-11-07` | `npm run build -w apps/portal` passes, and the built CSS contains a utility class used in `packages/channels/moodle/portal/**` (plus a unique probe class placed only in `packages/channels/moodle/portal/`). |
 | AC-LA-E1-11-08 | K0 | ready | `portal-shell.k0.test.ts > AC-LA-E1-11-08` | F3: the clean tree has 0 ESLint errors on `packages/channels/*/portal/**` (no import into portal code outside `apps/portal/src/sdk/`), and the LA-E1-03 probe (5) still fails. |

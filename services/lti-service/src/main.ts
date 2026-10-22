@@ -1,7 +1,7 @@
 // lti-service entry point. Public URL: PUBLIC_LTI_URL (proxy -> :4100). Contract: docs/architecture/contracts/lti-service-api.md
 import { join } from 'node:path';
 import type { JobRunner, Logger } from '@cogniate/shared';
-import { createLogger, createOutboundClient, readServiceKnobs } from '@cogniate/shared';
+import { JOB_LEASE_MS, createLogger, createOutboundClient, readServiceKnobs } from '@cogniate/shared';
 import type { FastifyInstance } from 'fastify';
 import type { LtiConfig } from './config.ts';
 import { hostPort, loadConfig } from './config.ts';
@@ -70,13 +70,26 @@ export async function startLtiService(options: { logger?: Logger } = {}): Promis
   return { config, db, logger, app, operatorApp, jobs, close };
 }
 
+// BD-A2-31: allow the runner's longest lease, then ten seconds for listeners and database close.
+export const SERVICE_EXIT_AFTER_MS = JOB_LEASE_MS + 10_000;
+
+export function createShutdownHandler(service: Pick<LtiService, 'close' | 'logger'>, exit: (code: number) => void = (code) => process.exit(code)): (signal: string) => void {
+  let stopping = false;
+  return (signal) => {
+    if (stopping) return;
+    stopping = true;
+    service.logger.info('service_stopping', { signal });
+    const fallback = setTimeout(() => {
+      service.logger.error('service_exit_forced', { after_ms: SERVICE_EXIT_AFTER_MS });
+      exit(1);
+    }, SERVICE_EXIT_AFTER_MS);
+    void service.close().then(() => { clearTimeout(fallback); exit(0); }, () => { clearTimeout(fallback); exit(1); });
+  };
+}
+
 if (import.meta.main) {
   const service = await startLtiService();
-  const stop = (signal: string): void => {
-    service.logger.info('service_stopping', { signal });
-    service.close().finally(() => process.exit(0));
-    // runner.stop owns the lease-based grace period; a shorter exit timer would leave its heartbeat behind.
-  };
+  const stop = createShutdownHandler(service);
   process.once('SIGTERM', () => stop('SIGTERM'));
   process.once('SIGINT', () => stop('SIGINT'));
 }

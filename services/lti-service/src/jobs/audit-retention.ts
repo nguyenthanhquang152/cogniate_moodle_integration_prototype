@@ -13,9 +13,9 @@ export function auditRetentionDays(value: string | undefined): number {
 }
 
 /** The only product module allowed to delete audit rows (LA-ADR-06 D4, fitness F5). */
-export function auditRetentionJob(db: Db, days = auditRetentionDays(process.env.AUDIT_RETENTION_DAYS)): IntervalJob {
+export function auditRetentionJob(db: Db, days: number): IntervalJob {
   return {
-    name: 'audit-retention', everyMs: DAY_MS, runAtStart: false,
+    name: 'audit-retention', everyMs: DAY_MS, runAtStart: true,
     async run(ctx) {
       const deleted = Number(db.prepare('DELETE FROM audit_event WHERE ts < ?').run(ctx.now() - days * DAY_MS).changes);
       return { result: 'ok', counts: { audit_event: deleted } };
