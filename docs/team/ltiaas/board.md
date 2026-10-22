@@ -7,8 +7,8 @@ Only the Lead edits this file. Orca Run: `run_06d07dc77faf`. Rules: [charter-LA]
 | Phase | Status | Gate | Notes |
 | --- | --- | --- | --- |
 | P1 Plan | **done** | — | R1–R5 committed; plan v1 `1afdf56`, v1.1 (R2), v1.2 (LA-H21..H24) |
-| P2 Tech design | **round 2 re-check** at `877d951` (RA2 `ctx_0afe84599126`, RB2 `ctx_9be52e431d9f`, QT2 `ctx_c9eff3e6fa01`) | G-DESIGN round 1: A CHANGES_REQUESTED (3 B, 5 M), B CHANGES_REQUESTED (8 M), QA FAIL (1 M) | 15 design files under `docs/architecture/ltiaas/`; test strategy `tests/ltiaas/TEST-STRATEGY.md` |
-| P3 Breakdown | planned | G-BREAKDOWN | Briefs ready: `briefs/LA-B1.md` (A1), `briefs/LA-B2.md` (A2) |
+| P2 Tech design | **done** | **G-DESIGN PASS** | Final design `54e8088`. Reviewer-A APPROVE (R4 at `54e8088`), Reviewer-B APPROVE (R3 at `88909be`), QA PASS (R3 at `88909be`; its last MINOR fixed at `54e8088`). 3 BLOCKER and 15 MAJOR found and closed over 4 rounds. Deferred: [deferred.md](deferred.md). |
+| P3 Breakdown | **in_progress** | G-BREAKDOWN | A1 `ctx_21d0c24a9168` (epics, matrix, E0 E1 E2 E4 E7 E8), A2 `ctx_4f0492774244` (E3 E5 E6; lanes in `tasks/A2-lanes.md`) |
 | G-BASE | waiting | — | Blackboard and Canvas run `run_ebe671ad72a9`; see plan LA-H10 |
 | G-DEV | waiting | product owner | Approves plan, design and breakdown (LA-H1) |
 | P4 Build | planned | — | Lanes K, P, S, L, R, QA, QA-E2E, Docs; 2 Docker slots (LD-2) |

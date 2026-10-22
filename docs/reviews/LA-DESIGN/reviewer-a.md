@@ -1,9 +1,9 @@
-Verdict: CHANGES_REQUESTED
-Round: 3
+Verdict: APPROVE
+Round: 4
 
 # LA-DESIGN review: Reviewer-A (lens "Is it right and is it safe?")
 
-Round 1 (below) was CHANGES_REQUESTED at `19476fc`. Round 2 was APPROVE at `877d951`. Round 3 (at the end of this file) is CHANGES_REQUESTED at `88909be`: all round-2 items are closed, but the diff adds one MAJOR (A-LAD-25, the app-edge limit value) and one NIT.
+Round 1 (below) was CHANGES_REQUESTED at `19476fc`. Round 2 was APPROVE at `877d951`. Round 3 was CHANGES_REQUESTED at `88909be` (A-LAD-25, A-LAD-26). Round 4 (at the end of this file) is APPROVE at `54e8088`: no finding of mine is open.
 
 ## Round 1
 
@@ -417,3 +417,17 @@ Note (no finding): `stop()` deletes the heartbeat row (`:171`). The text does no
 - **File:** `README.md:358`.
 - **Problem:** OC-12 says "Open", but A2 made the four alignments (a)–(d) in the same commit (`review-response-R2-A2.md`, section "Alignment lines of README §8 OC-12").
 - **Suggested fix:** Close the row with the reference.
+
+## Round 4
+
+- Design SHA: `54e8088` (diff `git diff 88909be 54e8088 -- docs/architecture/ltiaas`: 4 files). Input: `review-response-R3-A1.md`.
+- Scope (one-item check): A-LAD-25 and A-LAD-26 only, and whether the diff adds a BLOCKER or MAJOR. Blind review as before.
+- **Verdict: APPROVE.** Open findings of Reviewer-A: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+| Id | Round-3 severity | Round-4 status | Evidence at `54e8088` |
+| --- | --- | --- | --- |
+| A-LAD-25 | MAJOR | **Closed** | `contracts/cogniate-app-api-delta.md:149`: the bucket on `/tool/launch` and `/tool/deep-link` now has the LTI `protocol` values (600 per minute, burst 200 per address), with the NAT reason. The order rule stays. `:152`: point (1), 300 valid launches from one address in one minute, all pass (refill 10 per second plus the burst of 200, so they pass even when they arrive faster). Point (2), 400 random ltiks in 10 s: at most 300 pass (200 + 100), and the rest get `429`. Both points are right. |
+| A-LAD-26 | NIT | **Closed** | `README.md:358`: OC-12 is closed with the reference to A2's round-2 alignment lines. OC-11 is also closed. |
+| Build note (round 3) | — | Accepted in P3 | `review-response-R3-A1.md`: the `stop()` order rule is a design note and an AC in task LA-E4-01. |
+
+Other change in the diff: the K1 negative case of LA-ADR-02 (test impact) now expects `PLATFORM_NOT_ACTIVE` for a launch on a staged, inactive DR platform. This is right, because the platform is inactive at the LTI service. It now agrees with AP-07-11, AP-05-29 and contract delta §4.5. The diff adds no BLOCKER or MAJOR.
