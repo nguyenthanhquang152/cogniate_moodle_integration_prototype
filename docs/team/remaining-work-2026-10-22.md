@@ -43,3 +43,7 @@ Codex prepared the nine granted draft paths and held final claims for QA. The Le
 ## Runtime checkpoint (09:03 UTC)
 
 Both full2 rounds passed all 488 unique cases on C4. Round 2 storage closed at 08:58:28 UTC. The Lead checked exact phase/accounting bindings, case equality and raw R4/R5 evidence, then accepted the round in msg_bdb3feab05d2. Independent Canvas round-2 judgment is running under msg_8a7fc83b1a13 while the existing driver runs all 12 legacy groups. Final W4, scans, inventories, cleanup and overall acceptance remain pending. The guide draft has nine changed files plus the one-row infra clarification. Its final claims remain held.
+
+## Canvas and host checkpoint (09:15 UTC)
+
+Independent Canvas round 2 passed 233/233. Both 233-case and 488-case comparisons passed. The Lead accepted 89 input bindings, 16 record bindings, all 119+17+23 manifest entries and 29 browser artifact hashes. D-5 retains the initial binder error and corrected summary.sha check. The two authorized Canvas reports now record this milestone; overall acceptance remains pending. LA and Savoy received scheduling updates at 09:08 UTC. LA acknowledged its hold. The next host update is due by 09:45 UTC or full/legacy closure, whichever comes first; no Docker handoff was made.
