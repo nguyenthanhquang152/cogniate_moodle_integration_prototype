@@ -9,6 +9,11 @@ export interface OperatorPolicyInput {
   evidenceRef?: string;
   /** The note stays in the grant or binding store. Only its presence goes to audit details. */
   note?: string;
+  /**
+   * BD-A2-63: default true (fail closed). False only for app:grant revoke: production still needs a listed
+   * --operator, but no evidence flags. Evidence flags that are given anyway are still checked and recorded.
+   */
+  evidenceRequired?: boolean;
 }
 
 export type OperatorPolicyDecision = {
@@ -62,8 +67,10 @@ export function evaluateOperatorPolicy(input: OperatorPolicyInput, env: NodeJS.P
     // No list, or an empty one: the configuration is wrong, not the name.
     if (operators.length === 0) return refuse('operators_not_configured');
     if (!operators.includes(explicitOperator)) return refuse('operator_unknown');
-    if (input.evidenceChannel === undefined) return refuse('evidence_channel_missing');
-    if (input.evidenceRef === undefined) return refuse('evidence_ref_missing');
+    if (input.evidenceRequired !== false) {
+      if (input.evidenceChannel === undefined) return refuse('evidence_channel_missing');
+      if (input.evidenceRef === undefined) return refuse('evidence_ref_missing');
+    }
   }
   if (input.evidenceChannel !== undefined && !EVIDENCE_CHANNELS.some((channel) => channel === input.evidenceChannel)) {
     return refuse('evidence_channel_invalid');

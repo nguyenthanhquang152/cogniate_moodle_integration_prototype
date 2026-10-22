@@ -33,6 +33,25 @@ describe('operator policy (LA-E5-11 AC-02..05, BD-A2-45)', () => {
     expect(evaluateOperatorPolicy(valid, { ...production, OPERATORS: ' first, qa-op,third ' }).allowed).toBe(true);
   });
 
+  it('BD-A2-63: evidenceRequired false skips only the missing-evidence checks in production; the default stays true', () => {
+    const revoke = { operator: 'qa-op', evidenceRequired: false };
+    expect(evaluateOperatorPolicy(revoke, production)).toEqual({
+      allowed: true, actor: { type: 'operator', id: 'qa-op' }, details: { note_present: false },
+    });
+    expect(evaluateOperatorPolicy({ ...revoke, evidenceChannel: 'support-call', evidenceRef: 'CALL-7' }, production)).toMatchObject({
+      allowed: true, details: { evidence_channel: 'support-call', evidence_ref: 'CALL-7' },
+    });
+    refusal(evaluateOperatorPolicy({ ...revoke, evidenceChannel: 'verified-admin-launch' }, production), 'evidence_channel_invalid');
+    refusal(evaluateOperatorPolicy({ ...revoke, evidenceRef: 'x'.repeat(201) }, production), 'evidence_ref_invalid');
+    refusal(evaluateOperatorPolicy({ evidenceRequired: false }, production), 'operator_missing');
+    refusal(evaluateOperatorPolicy({ ...revoke, operator: 'other' }, production), 'operator_unknown');
+    refusal(evaluateOperatorPolicy(revoke, { STACK_PROFILE: 'production' }), 'operators_not_configured', 'config_refused');
+    for (const evidenceRequired of [true, undefined]) {
+      refusal(evaluateOperatorPolicy({ operator: 'qa-op', evidenceRequired }, production), 'evidence_channel_missing');
+      refusal(evaluateOperatorPolicy({ operator: 'qa-op', evidenceChannel: 'other', evidenceRequired }, production), 'evidence_ref_missing');
+    }
+  });
+
   it('refuses production with no operator list, or an empty one, as operators_not_configured (BD-A2-59)', () => {
     for (const env of [{ STACK_PROFILE: 'production' }, { STACK_PROFILE: 'production', OPERATORS: '' }, { STACK_PROFILE: 'production', OPERATORS: ' , ' }]) {
       refusal(evaluateOperatorPolicy(valid, env), 'operators_not_configured', 'config_refused');
