@@ -54,11 +54,20 @@ describe('baseline channels (product root)', () => {
   it('lookups: family owners, text names, profile owners; the manifests are frozen', async () => {
     const registry = buildChannelRegistry(await loadChannelFolders([PRODUCT_ROOT], 'app'), { simulations: false });
     expect([registry.ownerOfFamily('canvas'), registry.ownerOfFamily('BlackboardLearn'), registry.ownerOfFamily('moodle')]).toEqual(['canvas', 'blackboard', null]);
-    expect([registry.textName(null), registry.textName('canvas'), registry.textName('blackboard'), registry.textName('zz-unknown')]).toEqual(['Moodle', 'Canvas', 'Blackboard', 'Moodle']);
+    expect([registry.textName(null), registry.textName('canvas'), registry.textName('blackboard')]).toEqual(['Moodle', 'Canvas', 'Blackboard']);
     expect([registry.channelOfProfile('standard'), registry.channelOfProfile('canvas-sim-cloud'), registry.channelOfProfile('blackboard'), registry.channelOfProfile('zz')])
       .toEqual(['moodle', 'canvas', 'blackboard', null]);
     expect(registry.channel('zz')).toBeNull();
     expect(Object.isFrozen(registry.channel('canvas')!.registration[0]!.profiles)).toBe(true);
+  });
+
+  it('uses neutral text for an unknown non-null id, and the manifest name for a known id', async () => {
+    const registry = buildChannelRegistry([
+      ...await loadChannelFolders([PRODUCT_ROOT], 'app'), channel(testManifest()),
+    ], { simulations: false });
+    expect(registry.textName('zz-unknown')).toBe('your LMS');
+    expect(registry.textName('zz-test')).toBe('ZZ');
+    expect(registry.textName(null)).toBe('Moodle');
   });
 });
 

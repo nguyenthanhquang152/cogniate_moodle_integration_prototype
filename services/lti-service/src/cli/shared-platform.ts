@@ -3,8 +3,7 @@
 // Makes the shared platform if it does not exist and prints one JSON line {platformId, created}. The same client id
 // again: prints the id and changes nothing (exit 0). Another client id: exit 1 with one line. It prints no secret.
 // A create logs `platform_created {platform_id, profile}` (§9.4, like the API) to the service log (createCliLogger).
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { createCliLogger } from '@cogniate/shared';
 import type { Logger } from '@cogniate/shared';
@@ -44,7 +43,7 @@ export function ensureSharedPlatform(db: Db, opts: ProfileOptions, input: { acco
   }
 }
 
-if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   const { values } = parseArgs({ options: { account: { type: 'string' }, profile: { type: 'string' }, 'client-id': { type: 'string' }, name: { type: 'string' } } });
   if (!values.account || !values.profile || !values['client-id']) {
     console.error('Usage: shared-platform.ts --account <id> --profile <shared profile> --client-id <Application ID> [--name <name>]');

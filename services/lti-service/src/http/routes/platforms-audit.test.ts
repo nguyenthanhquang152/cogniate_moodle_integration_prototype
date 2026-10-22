@@ -1,9 +1,10 @@
 // Audit events of the tenant admin routes (LA-ADR-06 D4 rule 1; contract delta §5). QA proves the same through
 // GET /operator/v1/audit on the SIM lane; these unit tests read the writer directly.
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { listAuditEvents } from '../../store/audit.ts';
 import type { Harness } from '../../testkit.ts';
 import { harness } from '../../testkit.ts';
+import * as auth from '../auth.ts';
 
 // One millisecond later per call, so the events of one test sort in call order (newest first: ts, then id).
 const call = (h: Harness, method: 'GET' | 'POST' | 'PATCH' | 'DELETE', url: string, payload?: unknown, auth = `Bearer ${h.apiKey}`) => {
@@ -19,6 +20,18 @@ const body = (over: Record<string, unknown> = {}) => ({
 });
 
 describe('audit events of /api/platforms*', () => {
+  it('uses the actor from authentication for successful and refused changes', async () => {
+    const h = await harness();
+    const caller = auth.authenticate(h.db, `Bearer ${h.apiKey}`, ['bearer'], h.clock.now, () => { throw new Error('authentication failed'); });
+    const actor = { type: 'api_key' as const, id: 'key-id-from-auth' };
+    const spy = vi.spyOn(auth, 'authenticate').mockReturnValue({ ...caller, actor });
+    try {
+      expect((await call(h, 'POST', '/api/platforms', body())).statusCode).toBe(201);
+      expect((await call(h, 'POST', '/api/platforms', body())).statusCode).toBe(409);
+      expect(events(h).map((e) => [e.result, e.actor])).toEqual([['ok', actor], ['refused', actor]]);
+    } finally { spy.mockRestore(); await h.app.close(); h.db.close(); }
+  });
+
   it('AC-LA-E5-02-01: one POST /api/platforms makes one platform.create event (actor api_key:bootstrap-<account>, tenant, ok)', async () => {
     const h = await harness();
     const res = await call(h, 'POST', '/api/platforms', body());

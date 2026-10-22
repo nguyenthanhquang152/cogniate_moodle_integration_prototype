@@ -57,9 +57,9 @@ async function setup() {
     const who = String(req.headers['x-test-caller']);
     if (who === 'service') {
       if (!schemes.includes('service')) throw new ApiError('INVALID_AUTHORIZATION_HEADER');
-      return { scheme: 'service', account, launch: null, serviceKey: { toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', contextId: '2', resourceLinkId: 'rl-3', agsClaim: AGS, nrpsClaim: null, bindingGeneration: 0 } };
+      return { scheme: 'service', account, actor: { type: 'api_key', id: 'bootstrap-cogniate' }, launch: null, serviceKey: { toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', contextId: '2', resourceLinkId: 'rl-3', agsClaim: AGS, nrpsClaim: null, bindingGeneration: 0 } };
     }
-    return { scheme: 'ltik', account, launch: who === 'dl' ? dlLaunch : rlLaunch, serviceKey: null };
+    return { scheme: 'ltik', account, actor: { type: 'api_key', id: 'bootstrap-cogniate' }, launch: who === 'dl' ? dlLaunch : rlLaunch, serviceKey: null };
   };
   const app = Fastify({ maxParamLength: 2048 });
   app.decorateRequest('traceId', 'trace-test');

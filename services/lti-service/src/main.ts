@@ -1,6 +1,5 @@
 // lti-service entry point. Public URL: PUBLIC_LTI_URL (proxy -> :4100). Contract: docs/architecture/contracts/lti-service-api.md
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import type { Logger } from '@cogniate/shared';
 import { createLogger, createOutboundClient, readServiceKnobs, startRetention } from '@cogniate/shared';
 import type { FastifyInstance } from 'fastify';
@@ -50,7 +49,7 @@ export async function startLtiService(options: { logger?: Logger } = {}): Promis
     profile: config.profile, knobs, outboundAllowlist: outbound.allowlist, simulationProfiles: config.simulationProfiles,
   });
   // LA-ADR-06 D3: the operator API on its own listener (no proxy route).
-  const operatorApp = await buildOperatorApp({ db, logger });
+  const operatorApp = await buildOperatorApp({ db, logger, keys: config.masterKey });
   await app.listen({ port: config.port, host: '0.0.0.0' });
   await operatorApp.listen({ port: config.operatorPort, host: config.operatorHost });
   logger.info('service_started', {
@@ -69,7 +68,7 @@ export async function startLtiService(options: { logger?: Logger } = {}): Promis
   return { config, db, logger, app, operatorApp, close };
 }
 
-if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   const service = await startLtiService();
   const stop = (signal: string): void => {
     service.logger.info('service_stopping', { signal });

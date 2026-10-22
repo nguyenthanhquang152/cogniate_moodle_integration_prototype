@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { MigrationChangedError, openSqlite, transaction } from './migrations.ts';
 
 const tmp = (p: string) => mkdtempSync(join(tmpdir(), p));
@@ -73,6 +73,85 @@ describe('transaction (nested calls use a SAVEPOINT)', () => {
     db.exec('CREATE TABLE t (v INTEGER)');
     return db;
   };
+
+  const thenables = [
+    ['async result', async () => 'later'],
+    ['object thenable', () => ({ then() { throw new Error('must not call then'); } })],
+    ['function thenable', () => Object.assign(() => 'value', { then() { throw new Error('must not call then'); } })],
+  ] as const;
+
+  it.each(thenables)('rolls back an outer transaction that returns an %s', (_name, result) => {
+    const db = table();
+    try {
+      expect(() => transaction(db, () => {
+        db.exec('INSERT INTO t VALUES (1)');
+        return result();
+      })).toThrow(new TypeError('transaction() callback must be synchronous; it returned a thenable'));
+      expect(db.isTransaction).toBe(false);
+      expect(values(db)).toEqual([]);
+    } finally { db.close(); }
+  });
+
+  it.each(thenables)('rolls back a nested %s but lets the outer transaction continue', (_name, result) => {
+    const db = table();
+    try {
+      transaction(db, () => {
+        db.exec('INSERT INTO t VALUES (1)');
+        expect(() => transaction(db, () => {
+          db.exec('INSERT INTO t VALUES (2)');
+          return result();
+        })).toThrow(new TypeError('transaction() callback must be synchronous; it returned a thenable'));
+        expect(db.isTransaction).toBe(true);
+        db.exec('INSERT INTO t VALUES (3)');
+      });
+      expect(values(db)).toEqual([1, 3]);
+      expect(db.isTransaction).toBe(false);
+    } finally { db.close(); }
+  });
+
+  it.each([false, true])('keeps the constraint error when SQLite ends the transaction (nested: %s)', (nested) => {
+    const db = table();
+    db.exec('CREATE UNIQUE INDEX t_unique ON t (v); INSERT INTO t VALUES (1)');
+    const conflict = () => db.exec('INSERT OR ROLLBACK INTO t VALUES (1)');
+    try {
+      expect(() => transaction(db, () => {
+        db.exec('INSERT INTO t VALUES (2)');
+        return nested ? transaction(db, conflict) : conflict();
+      })).toThrow('UNIQUE constraint failed: t.v');
+      expect(values(db)).toEqual([1]);
+      expect(db.isTransaction).toBe(false);
+    } finally { db.close(); }
+  });
+
+  it.each(['ROLLBACK', 'ROLLBACK TO', 'RELEASE'])('keeps the exact first error when cleanup fails at %s', (step) => {
+    const db = table();
+    const first = new Error('change failed first');
+    const exec = db.exec.bind(db);
+    let cleanupFailed = false;
+    const spy = vi.spyOn(db, 'exec').mockImplementation((sql) => {
+      if (sql === step || sql.startsWith(`${step} nested_`)) {
+        cleanupFailed = true;
+        throw new Error('cleanup failed later');
+      }
+      exec(sql);
+    });
+    try {
+      let caught: unknown;
+      try {
+        transaction(db, () => {
+          const fail = () => { db.exec('INSERT INTO t VALUES (1)'); throw first; };
+          return step === 'ROLLBACK' ? fail() : transaction(db, fail);
+        });
+      } catch (err) { caught = err; }
+      expect(caught).toBe(first);
+      expect(cleanupFailed).toBe(true);
+    } finally {
+      spy.mockRestore();
+      if (db.isTransaction) db.exec('ROLLBACK');
+      expect(values(db)).toEqual([]);
+      db.close();
+    }
+  });
 
   it('a call outside a transaction is unchanged: BEGIN IMMEDIATE (the write lock at once), COMMIT, no open transaction after', () => {
     const file = join(tmp('db-'), 'x.db');

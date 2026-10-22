@@ -1,6 +1,7 @@
 // lti:bootstrap binds the key ring before its first store call (LA-ADR-06 D6; Reviewer-A A-LA-E5-08-01): a new
 // signing key is sealed with the active ring version, not with LTI_MASTER_KEY as "legacy".
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { blobKeyVersion } from '@cogniate/shared';
@@ -38,6 +39,22 @@ function blobVersions(dir: string): string[] {
 }
 
 describe('runBootstrap (cli/bootstrap.ts)', () => {
+  it('bootstraps an account when the CLI entry path is a symlink', () => {
+    const dir = stack({ active: 'k2', keys: { legacy: LEGACY, k2: K2 } });
+    const entry = join(dir, 'bootstrap.ts');
+    symlinkSync(new URL('./bootstrap.ts', import.meta.url), entry);
+    const result = spawnSync(process.execPath, [entry, '--account', 'linked-account'], {
+      cwd: dir, encoding: 'utf8', timeout: 10_000,
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(0);
+    expect(result.stdout.trim()).not.toBe('');
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      account: 'linked-account', created: true, kid: expect.any(String), apiKey: expect.stringMatching(/^ltis_/),
+    });
+    expect(blobVersions(dir)).toEqual(['k2']);
+  });
+
   it('with the ring {active: "k2"}, the first signing key and a rotated one are k2 blobs', async () => {
     const dir = stack({ active: 'k2', keys: { legacy: LEGACY, k2: K2 } });
     const first = await runBootstrap({ account: 'cogniate', name: 'Cogniate', rotateApiKey: false, rotateSigningKey: false });

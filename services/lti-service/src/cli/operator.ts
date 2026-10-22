@@ -7,8 +7,7 @@
 //   init --replace   (key file lost) revokes every operator key and makes a new one, in one transaction
 // A new key is printed once, as the only stdout line. infra/scripts/lti-bootstrap.sh writes it to
 // infra/.secrets/lti-operator-key.
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { loadConfig } from '../config.ts';
 import { openDb } from '../db/index.ts';
@@ -61,7 +60,7 @@ export function runInit(db: Db, mode: InitMode, name: string | null, now: number
 }
 
 // exitCode, not exit(): the process ends after stdout is flushed (the key line goes to a pipe).
-if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   const parsed = parseOperatorArgs(process.argv.slice(2));
   if (!parsed.ok) {
     console.error(parsed.message);

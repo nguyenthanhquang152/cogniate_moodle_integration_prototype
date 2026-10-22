@@ -229,8 +229,9 @@ export function buildChannelRegistry(channels: readonly LoadedChannel[], opts: R
     channel: (id) => byId.get(id) ?? null,
     channelOfProfile: (profileId) => visibleOwner(profileOwner, profileId),
     ownerOfFamily: (family) => visibleOwner(familyOwner, family.toLowerCase()),
-    textName: (channelId) => (channelId === null ? undefined : byId.get(channelId)?.names.text)
-      ?? (standardChannel === null ? undefined : byId.get(standardChannel)?.names.text) ?? GENERIC_TEXT_NAME,
+    textName: (channelId) => (channelId === null
+      ? (standardChannel === null ? undefined : byId.get(standardChannel)?.names.text)
+      : byId.get(channelId)?.names.text) ?? GENERIC_TEXT_NAME,
     capabilities,
     legacyCapabilities: (channelId, profile) => legacyProjection(capabilities(channelId, profile)),
   };
