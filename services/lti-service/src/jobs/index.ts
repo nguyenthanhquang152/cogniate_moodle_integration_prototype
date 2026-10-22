@@ -2,6 +2,7 @@ import type { IntervalJob, JobInstanceRow, JobLeaseRow, JobRunner, JobStore, Key
 import { createJobRunner } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import { readSigningKeyPublishLeadSeconds } from '../keys/key-config.ts';
+import { accountPurgeJob, closedAccountRetentionDays } from './account-purge.ts';
 import { apiKeyExpiryJob } from './api-key-expiry.ts';
 import { auditRetentionDays, auditRetentionJob } from './audit-retention.ts';
 import { idempotencyCleanupJob } from './idempotency-cleanup.ts';
@@ -56,6 +57,7 @@ export interface LtiJobRunner extends JobRunner {
 export function createLtiJobRunner(options: { db: Db; logger: Logger; keys: KeyHandle; now?: () => number; env?: Record<string, string | undefined> }): LtiJobRunner {
   const env = options.env ?? process.env;
   const auditDays = auditRetentionDays(env.AUDIT_RETENTION_DAYS);
+  const closedDays = closedAccountRetentionDays(env.CLOSED_ACCOUNT_RETENTION_DAYS);
   const rotation = { rotateDays: signingKeyRotateDays(env.SIGNING_KEY_ROTATE_DAYS), publishLeadSeconds: readSigningKeyPublishLeadSeconds(env) };
   const runner = createJobRunner({ store: createLtiJobStore(options.db), logger: options.logger,
     instanceId: env.JOB_INSTANCE_ID ?? 'lti-1', now: options.now ?? Date.now });
@@ -67,6 +69,7 @@ export function createLtiJobRunner(options: { db: Db; logger: Logger; keys: KeyH
     apiKeyExpiryJob(options.db),
     idempotencyCleanupJob(options.db),
     signingKeyRotationJob(options.db, options.keys, rotation),
+    accountPurgeJob(options.db, closedDays),
   ];
   for (const job of jobs) runner.addInterval(job);
   return Object.assign(runner, { jobs: jobs.map(({ name, everyMs }) => ({ name, everyMs })) });
