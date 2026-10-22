@@ -90,7 +90,7 @@ Priority: **Must** = needed for LA done. **Should** = in LA if the Must work is 
 - **Must**, in this order:
   1. Rate limits.
   2. Tenant model (LA-H7), per-account tool URLs and account status.
-  3. Operator admin API with its own credential; the CLIs become clients of it.
+  3. Operator admin API with its own credential; the LTI service CLIs become clients of it. The app CLIs (`app:grant`, `app:binding`, `app:audit`) stay shell commands in LA and write audit events (Lead decision OC-9, A-LAD-17).
   4. Append-only audit log.
   5. API key lifecycle (scopes, two active keys, revoke, expiry).
   6. `KeyProvider` port with versioned envelope encryption.
