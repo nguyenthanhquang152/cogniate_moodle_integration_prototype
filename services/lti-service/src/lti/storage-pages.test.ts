@@ -1,7 +1,7 @@
 import { runInNewContext } from 'node:vm';
 import { sha256Hex } from '@cogniate/shared';
 import { describe, expect, it, vi } from 'vitest';
-import { storageLoginPage } from './storage-pages.ts';
+import { storageCheckPage, storageLoginPage } from './storage-pages.ts';
 
 const input = { authUrl: 'https://auth.example.edu/login?state=state&nonce=nonce', state: 'state', target: 'forwarding', origin: 'https://auth.example.edu' };
 const dataBlock = (html: string) => html.match(/<script id="lti-storage-data" type="application\/json">([^]*?)<\/script>/)![1]!;
@@ -81,5 +81,76 @@ describe('storage login page (LA-ADR-05 D1 rules 2, 3, 9)', () => {
     const b = browser('forwarding', false, true);
     expect(b.postMessage).not.toHaveBeenCalled();
     expect(b.window.location.replace).toHaveBeenCalledExactlyOnceWith(input.authUrl);
+  });
+});
+
+function checkBrowser(target = 'forwarding', topLevel = false) {
+  const page = storageCheckPage({ postUrl: 'https://tool.test/lti/launch/unit/storage-check', check: 'check-token', stateHash: sha256Hex('secret-state'), target, origin: input.origin });
+  const data = JSON.parse(dataBlock(page.html)) as { check: string; key: string; messageId: string; origin: string; postUrl: string };
+  let receive: ((event: { origin: string; data: unknown }) => void) | undefined;
+  let timeout: (() => void) | undefined;
+  const postMessage = vi.fn();
+  const form = {
+    method: '', action: '', hidden: false, submit: vi.fn(), children: [] as Array<{ type: string; name: string; value: string }>,
+    appendChild(child: { type: string; name: string; value: string }) { this.children.push(child); },
+  };
+  const document = {
+    getElementById: () => ({ textContent: dataBlock(page.html) }),
+    createElement: (name: string) => name === 'form' ? form : { type: '', name: '', value: '' },
+    body: { appendChild: vi.fn() },
+  };
+  const window = { parent: {} as unknown, addEventListener: vi.fn((_type: string, fn: typeof receive) => { receive = fn; }), removeEventListener: vi.fn() };
+  window.parent = topLevel ? window : { postMessage, frames: { [target]: { postMessage } } };
+  const setTimeout = vi.fn((fn: () => void, _ms: number) => { timeout = fn; return 1; });
+  const script = page.html.match(/<script nonce="[^"]+">([^]*?)<\/script>/)![1]!;
+  runInNewContext(script, { window, document, setTimeout, clearTimeout: vi.fn() });
+  return { page, data, postMessage, form, document, setTimeout, expire: () => timeout!(), reply: (reply: unknown, origin = input.origin) => receive!({ data: reply, origin }) };
+}
+
+describe('storage check page', () => {
+  it.each(['forwarding', '_parent'])('gets the bounded key from %s and submits only the check and matching value once', (target) => {
+    const b = checkBrowser(target);
+    expect(b.postMessage).toHaveBeenCalledExactlyOnceWith({ subject: 'lti.get_data', key: `cog_state_${sha256Hex('secret-state')[0]}`, message_id: b.data.messageId }, input.origin);
+    expect(b.page.html).not.toContain('secret-state');
+    expect(b.page.html).not.toContain(sha256Hex('secret-state'));
+    expect(b.form.submit).not.toHaveBeenCalled();
+    b.reply({ subject: 'lti.get_data.response', message_id: b.data.messageId, value: 'stored-state' });
+    expect(b.form).toMatchObject({ method: 'POST', action: b.data.postUrl, hidden: true, children: [
+      { type: 'hidden', name: 'check', value: b.data.check }, { type: 'hidden', name: 'value', value: 'stored-state' },
+    ] });
+    expect(b.document.body.appendChild).toHaveBeenCalledExactlyOnceWith(b.form);
+    b.expire();
+    expect(b.form.submit).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores invalid replies and submits an empty value at 1500 ms', () => {
+    const b = checkBrowser();
+    const valid = { subject: 'lti.get_data.response', message_id: b.data.messageId, value: 'state' };
+    b.reply(valid, 'https://evil.test');
+    for (const value of [null, [], {}, { ...valid, message_id: 'other' }, { ...valid, subject: 'lti.put_data.response' }, { ...valid, error: false }, { ...valid, value: 4 }]) b.reply(value);
+    expect(b.form.submit).not.toHaveBeenCalled();
+    expect(b.setTimeout).toHaveBeenCalledWith(expect.any(Function), 1500);
+    b.expire();
+    expect(b.form.children[1]).toMatchObject({ name: 'value', value: '' });
+    expect(b.form.submit).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses the self-only form CSP and same-origin referrer, with escaped data and a fresh nonce', () => {
+    const data = { postUrl: 'https://tool.test/</script>&\u2028\u2029', check: 'check', stateHash: sha256Hex('state'), target: '_parent', origin: input.origin };
+    const page = storageCheckPage(data);
+    const nonce = page.html.match(/<script nonce="([^"]+)">/)![1];
+    expect(page.headers).toMatchObject({ 'cache-control': 'no-store', 'referrer-policy': 'same-origin', 'content-security-policy': `default-src 'none'; script-src 'nonce-${nonce}'; frame-ancestors https:; form-action 'self'; base-uri 'none'` });
+    expect(storageCheckPage(data).headers['content-security-policy']).not.toBe(page.headers['content-security-policy']);
+    expect(JSON.parse(dataBlock(page.html)).postUrl).toBe(data.postUrl);
+    for (const escaped of ['\\u003c', '\\u003e', '\\u0026', '\\u2028', '\\u2029']) expect(dataBlock(page.html)).toContain(escaped);
+    expect(page.html.replace(dataBlock(page.html), '')).not.toContain(data.postUrl);
+  });
+
+  it('posts an empty value at once outside a frame', () => {
+    const b = checkBrowser('_parent', true);
+    expect(b.postMessage).not.toHaveBeenCalled();
+    expect(b.setTimeout).not.toHaveBeenCalled();
+    expect(b.form.children[1]).toMatchObject({ name: 'value', value: '' });
+    expect(b.form.submit).toHaveBeenCalledTimes(1);
   });
 });

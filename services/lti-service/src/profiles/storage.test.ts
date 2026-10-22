@@ -5,8 +5,10 @@ import { parseProfileSource } from './schema.ts';
 const source = Object.fromEntries(Object.entries(profileDefinition('standard')!).filter(([key]) => key !== 'channel' && key !== 'lms'));
 
 describe('platformStorage trait (BD-A1-33)', () => {
-  it('normalizes every absent baseline value to null', () => {
-    expect(listProfiles({ simulation: true }).every((p) => p.platformStorage === null)).toBe(true);
+  it('enables every Canvas profile and normalizes other absent values to null', () => {
+    for (const p of listProfiles({ simulation: true })) {
+      expect(p.platformStorage).toEqual(p.channel === 'canvas' ? { targetFrame: 'from-login', origin: 'authOrigin' } : null);
+    }
     const absent = { ...source };
     delete absent.platformStorage;
     expect(parseProfileSource(absent, 'moodle').platformStorage).toBeUndefined();
