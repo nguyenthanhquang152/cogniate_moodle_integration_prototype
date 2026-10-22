@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { LtiClient } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import type { LmsType } from '../providers/types.ts';
+import { providerOf } from '../providers/index.ts';
 import { createConnection, disableConnection } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { openDb } from '../domain/db.ts';
@@ -44,10 +45,10 @@ function setup() {
 
 function connection(db: Db, lms: LmsType, name: string): string {
   const c = lms === 'moodle'
-    ? createConnection(db, LIB, { channel: 'moodle', name, siteUrl: 'https://moodle.test', method: 'manual' }, null, 0, TEST_CHANNELS, 'exclusive')
+    ? createConnection(db, LIB, { channel: 'moodle', name, siteUrl: 'https://moodle.test', method: 'manual' }, null, 0, TEST_CHANNELS, providerOf(lms)!.sharingOf)
     : lms === 'canvas'
-      ? createConnection(db, LIB, { name, siteUrl: 'https://school-a.canvas.sim.test', method: 'manual', channel: lms, profile: 'canvas-sim-cloud' }, null, 0, TEST_CHANNELS, 'exclusive')
-      : createConnection(db, LIB, { name, siteUrl: 'https://learn-a.blackboard.sim.test', method: 'manual', channel: lms, profile: 'blackboard-sim' }, null, 0, TEST_CHANNELS, 'exclusive');
+      ? createConnection(db, LIB, { name, siteUrl: 'https://school-a.canvas.sim.test', method: 'manual', channel: lms, profile: 'canvas-sim-cloud' }, null, 0, TEST_CHANNELS, providerOf(lms)!.sharingOf)
+      : createConnection(db, LIB, { name, siteUrl: 'https://learn-a.blackboard.sim.test', method: 'manual', channel: lms, profile: 'blackboard-sim' }, null, 0, TEST_CHANNELS, providerOf(lms)!.sharingOf);
   db.prepare("UPDATE connection SET status = 'registered' WHERE id = ?").run(c.id);
   db.prepare("INSERT INTO publication (id, connection_id, course_id, current_version_id, status, created_at, updated_at) VALUES (?, ?, 'crs_w', 'ver_w', 'available', 0, 0)").run(`pub_${name}`, c.id);
   return c.id;
@@ -199,7 +200,7 @@ it('AC-LA-E1-06-06: disabled zz-test grant rows fail without POST; self rows sti
   const { db } = setup();
   const syncs: string[] = [];
   for (const [index, method] of (['manual', 'dynamic'] as const).entries()) {
-    const c = createConnection(db, LIB, { name: method, siteUrl: 'https://school.test', channel: 'zz-test', method }, null, 0, channels, 'exclusive');
+    const c = createConnection(db, LIB, { name: method, siteUrl: 'https://school.test', channel: 'zz-test', method }, null, 0, channels, () => 'exclusive');
     db.prepare("INSERT INTO publication (id, connection_id, course_id, current_version_id, status, created_at, updated_at) VALUES (?, ?, 'crs_w', 'ver_w', 'available', 0, 0)").run(`pub_${method}`, c.id);
     syncs.push(dueRow(db, c.id, index + 1, { lineItem: `line${index + 1}` }));
     disableConnection(db, LIB, c.id, NOW);
