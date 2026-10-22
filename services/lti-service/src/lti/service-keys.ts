@@ -21,5 +21,5 @@ export function serviceKeyForLaunch(db: Db, masterKey: Buffer, launch: LaunchRec
     toolAccountId: launch.toolAccountId, platformId: launch.platformId, deploymentId: launch.deploymentId, contextId, resourceLinkId,
     agsClaim: ags, nrpsClaim: nrps, bindingGeneration: launch.bindingGeneration,
   }, now);
-  return 'serviceKey' in issued ? issued.serviceKey : undefined;
+  return issued.serviceKey;
 }
