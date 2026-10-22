@@ -585,3 +585,26 @@ This compact addendum is appended after byte `125,189` (SHA-256 `f65f0b6484e1d2c
   - `judge/legacy-c6-independent-judgment.json`: `4714de471a1361965924d6116a4642eb2f48b6121f58bd236c62ff466f32327b`
   - `notes/handoff.md`: `dadaa49a025ade68b8499f40705961fe7c5dd7ebf33a4f4f28a4a21d27c1fc8b`
   - `notes/MANIFEST-legacy-c6-failure-closeout.sha256`: `5172c081dbf3384b4a9fb14bfb5152a4e42393b42c25b0aaae0cb66b565d2114` (`87` entries)
+
+
+---
+
+## 14. Factual Errata for §13 & R3 Test-Only Synchronization Repair Validation (2026-10-22)
+
+### 14.1 Factual Corrections to §13
+1. **`C6` vs `C7` Tree Scope (§13.1)**: `C6 = 4008afb92fe983d52db33442e060210b929966c8` and `C7 = 620c03d0697c72b80649d2e77a52594ad0d282f3` are byte-equal outside `docs/**` **and** `tests/**`; their `tests/**` trees differ at the two R2 paths (`tests/acceptance/T6/3-courses.spec.ts` and `tests/acceptance/T8/2-shell.spec.ts`).
+2. **Analogous M2 Keyboard Path (§13.3)**: The analogous M2 keyboard spec path is `tests/e2e/M2/06-keyboard-axe.m2.ts` (not `tests/acceptance/M2/06-keyboard-axe.m2.ts`).
+3. **Route-Focus Mechanism Inference (§13.3)**: The recovered current trace (`/Users/quangnguyen/cogniate-qa-runs/qa-multi-r1-4008afb9-2026-10-22T14-43-55-730Z/tests/acceptance/artifacts/playwright/T6-5-xss-a11y-AC-T6-09-axe-e53e7-focus-returns-to-the-opener/trace.zip`, `9,290,291` B, SHA-256 `5b655b0015331abf48342db9ecce599fd35ca08086cdbf84a014dd99815d9c3c`, trace context `wallTime = 1792681575174` matching `2026-10-22T15:06:15.174Z` and `AC-T6-09`) directly proves that `siteUrl` remained empty after `page.keyboard.type(urls.moodle)` (`call@6947`, DOM snapshot `739`), that a single forward `Tab` (`call@6953`) then focused `<input name="name">`, and that `Enter` (`call@6985`) triggered native HTML5 `required` validation on empty `siteUrl` with zero `POST /app-api/connections` requests. However, a tab-order deduction alone is not direct proof of which internal callback (`MutationObserver` vs `requestAnimationFrame` in `apps/portal/src/App.tsx:243-273` vs `CreateConnection.tsx:73` `autoFocus`) ran at each sub-millisecond boundary; the internal callback sequence remains an inference from source and trace snapshots.
+4. **Original `w4-compare.json` Hash (§13.4)**: In `/Users/quangnguyen/cogniate-qa-runs/qa-common-c6-v3-20261022T1340Z/legacy-c6/public/`, the original `w4-compare.json` has SHA-256 `47bf358d859eedaba47d819c3514a624c9825bc494843273c9d2039725383eeb` (and `w4-compare.summary.json` has SHA-256 `38f0262582c5a4fe9ce2e8910dac1113bc5a4a661c3e7da1f1e5a909f3dac492`). The hash `cc570ec9e3e948eb8554958e333a8b891511c48b2a19faefac0b12b0312142f6` cited in §13.4 was the initial v1 revision of `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-620c03d-jIA25tGg/judge/legacy-c6-independent-judgment.json` prior to its trace-binding update (`4714de471a1361965924d6116a4642eb2f48b6121f58bd236c62ff466f32327b`).
+5. **Closeout Manifest Entry Count (§13.5)**: In `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-620c03d-jIA25tGg`, `notes/MANIFEST-legacy-c6-failure-closeout.sha256` (`5172c081dbf3384b4a9fb14bfb5152a4e42393b42c25b0aaae0cb66b565d2114`) has **`89`** entries (all `89/89` verified), and `notes/MANIFEST-host-ready.sha256` (`f008acac1997bbd9b6130688a35ba0cfc23023234be1e3788f3084e4b393052e`) has **`85`** entries (all `85/85` verified).
+
+### 14.2 R3 Test-Only Synchronization Repair Implementation & Host Validation (`task_c95630142d55` / `ctx_8d0c51ab2342`)
+- **Plan Applied**: `docs/reviews/M3/t6-09-failure-plan.md` §6 (`13,356` B, SHA-256 `ece4248bad58989f34e76bcde65a513e08069d8620b125373b981e393ba68ff0`), add-lines-only across the two authorized test files:
+  1. `tests/acceptance/T6/5-xss-a11y.spec.ts`: `6917` B (`d28884e120eea572bfdeead17f0bd7783921cfca1ea53b655b73c1bfe84f3b0b`) -> **`7745` B** (SHA-256 **`b7d97326b90bb73044751c8019f379199ecd2e76e35b2c3edeae96f9e274db28`**), `+11 / -0` lines.
+  2. `tests/e2e/M2/06-keyboard-axe.m2.ts`: `7569` B (`c0f297ec6c5bb13774c04a5de98b45fd63ce709367e4b162a9cbab265da32b04`) -> **`9031` B** (SHA-256 **`a149c99498773dbcf766851c6f24dc27b0e573326794d3ebcc76539df5536299`**), `+22 / -0` lines.
+- **Validation Evidence Root**: `/Users/quangnguyen/cogniate-canvas-qa-runs/r3-test-repair-20261022T1537Z` (`0700` dirs, `0600` files, `0700` scripts)
+  - Diff vs `C7` (`diffs/c7-to-r3-tests.patch`): `8599` B, SHA-256 `9f395eaed9bc38b6cc3e2f8e2d653c1a32a8bf9ad107e7d90b646b60230f7b9e` (`2 files changed, 33 insertions(+), 0 deletions(-)`).
+  - `tests` project typecheck (`logs/tests-typecheck.exit`): `tsc_exit=0`.
+  - Unchanged Playwright title inventories: T6 (`18 tests in 6 files`, SHA-256 `44ec3a04d504969a35886633e27a32bd5dc9d46dc1ad91e72466aba37e690f62`), M2 (`64 tests`, SHA-256 `4fc54d6ed43b3d3b46c7535ca0263d9147f9fa154058b885b4977f55b511fc17`).
+  - Guard verification (`validation-summary.json` `b7c2e3efa5ceed36ecc804aadcf21098edf5882c97c9ca326880b75a43addfc7`, `report.md` `784747cac90b6d7b6be0f2c8fe8b9f04636d40cb57cdd690aca97a116b5ef535`, `MANIFEST.sha256` `9a1c4511bdd61722b37f7e2eafcd76f5fcf3fe21edc6a6e6d14fc580cf459e2a`): `allForbiddenFalse = true`.
+  - **Scope Limit**: Host-only static/typecheck/inventory validation of the R3 test repair; no runtime `PASS` is claimed, `E-T5R` remains `VOID`, all **32** real-LMS rows remain `UNVERIFIED`, and local Canvas remains `DEFERRED`.

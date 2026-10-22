@@ -88,6 +88,7 @@ test('AC-T6-09 axe: no serious or critical violation on Integrations, wizard, Co
 
   // Keyboard only: the Publish dialog opens with Enter, closes with Esc, and focus returns to its opener.
   await page.goto(`${APP}${PORTAL_ROUTES.course(courseId)}`);
+  await routeFocusSettled(page);
   const opener = page.getByRole('button', { name: /Publish to an LMS/ }).or(page.getByRole('link', { name: /Publish to an LMS/ })).first();
   await tabTo(page, opener);
   await page.keyboard.press('Enter');
@@ -99,10 +100,13 @@ test('AC-T6-09 axe: no serious or critical violation on Integrations, wizard, Co
   // Keyboard only: the wizard (QA Library B, Automatic) reaches the registration URL step.
   await portalSignIn(page, QA_B);
   await page.goto(`${APP}${PORTAL_ROUTES.connect}`);
+  await routeFocusSettled(page, 'Connect Moodle');
   await tabTo(page, page.getByLabel(/url/i).first());
   await page.keyboard.type(urls.moodle);
+  await expect(page.locator(':focus'), 'the typed site URL stays in the focused field').toHaveValue(urls.moodle);
   await tabTo(page, page.getByLabel(/name/i).first());
   await page.keyboard.type(`QA keyboard ${Date.now().toString(36)}`);
+  await expect(page.locator(':focus'), 'the typed name stays in the focused field').toHaveValue(/^QA keyboard [0-9a-z]+$/);
   const auto = page.getByRole('radio', { name: /Automatic \(recommended\)/ });
   await tabTo(page, auto.or(page.getByRole('radio', { name: /^Manual/ })).first());
   if (!(await auto.isChecked())) await page.keyboard.press('ArrowUp');
@@ -112,6 +116,13 @@ test('AC-T6-09 axe: no serious or critical violation on Integrations, wizard, Co
   await page.keyboard.press('Enter');
   await expect(page.getByText(new RegExp(`${urls.lti.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/lti/register/`)).first().or(page.locator('input[value*="/lti/register/"]')).first()).toBeVisible({ timeout: 15_000 });
 });
+
+/** The portal moves focus to the page heading after a route change (App.tsx Frame: a content observer and one
+ *  animation frame). Wait for the move, then for one frame, so no later move can take keystrokes. */
+async function routeFocusSettled(page: Page, heading?: string) {
+  await expect(page.getByRole('heading', heading ? { level: 1, name: heading, exact: true } : { level: 1 }), heading ? `the "${heading}" heading has the focus` : 'the page heading has the focus').toBeFocused();
+  await page.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => resolve())));
+}
 
 /** Press Tab until `target` has the focus (at most 60 times). */
 async function tabTo(page: Page, target: import('@playwright/test').Locator): Promise<void> {
