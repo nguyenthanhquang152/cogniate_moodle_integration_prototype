@@ -42,3 +42,18 @@ Changes for the Lead to route:
 | C7 | `services/lti-service/src/http/operator/signing-keys.ts`, `keys/key-config.ts`, `http/key-errors.ts` | BD-A2-04 signature (`ctx.keys`, optional `opts`); BD-A2-05 parser in `key-config.ts`; BD-A2-06 code `SIGNING_KEY_WRONG_STATE`, `next` → `removed`, `404` for a kid of another account. | LA-E5-10 | S2 | Part of the task. |
 | C8 | `docs/architecture/ltiaas/tasks/LA-E5-10.md` | New AC-LA-E5-10-13 (UNIT, Author test). No K1-SIM AC changed. | LA-E5-10 | S2; QA-2 FYI | None for QA-2: AC-01 to AC-12 do not change. |
 | C9 | — (A1 FYI) | `removed` can now also follow `next`. Terms §6 names `next`, `active`, `retired` as states and `removed` as an end mark; the meaning does not change. | — | A1 | None. |
+
+## 4. Round 3: first signing key of a new account (LA-E5-04, lane S1), 2026-10-22
+
+Lead call routed in dispatch `ctx_9ad8b08aec7b`. Decision sent to the Lead at once (`msg_67142d4d72a2`).
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-07 | Lane S1 needs the first tool key of a new account inside the one `audit.change` of `POST /operator/v1/accounts`. In `store/tool-keys.ts`, `insertKey` is private, `ensureToolKey` is async and commits by itself, and `createNextToolKey` needs an active key. Lead call (provisional, RQ-2 to S1): export a synchronous `createFirstToolKey(db, prepared, now)`, guarded (the account exists and has no signing key, else throw), that calls `insertKey`. | **Ratified, with exact rules.** (1) No `accountId` parameter: the prepared key is sealed for `prepared.accountId`. It returns the `SigningKeyRecord`, like `createNextToolKey`, and runs in `transaction()`. (2) The guard means **no `tool_key` row in any state**, not only "no active key", so the function never skips the publish lead time of an account that has keys. A failed guard is a caller bug: a plain error (`500`, no `refused` event). (3) Status `active`, with `published_at = activated_at = created_at`. (4) Route order: pre-check the id (`409` before any RSA work); `prepareToolKey` before `audit.change`; one `audit.change` with the account insert and `createFirstToolKey`; one `account.create` event with `details.kid`. | LA-ADR-06 D7 row "First key", D4 T3 (example); contract delta §3 `POST /operator/v1/accounts`; LA-E5-04 scope | The first key needs no lead time, because no platform knows a new account yet. `tool-keys.ts` stays S2's file; the S1 edit is the Lead's RQ-2 grant (process). Unit test in `tool-keys.test.ts`: both guards; the key is `active` and first in the JWKS. Optional NIT: the first-key branch of `ensureToolKey` can call `createFirstToolKey` (only with the stricter guard). |
+| BD-A2-08 | Reviewer-A NIT A-LA-E5-02-05: D4 T3 and T5 lag the code. | **Done (text).** T3 is now "exactly one successful `audit.change` on every successful request": a second call throws, and a body with no change gives `500`. T5 is built. The T2 guard (C1) is built. | LA-ADR-06 D4 T2, T3, T5 | C1 and C5 of §2 are built in LA-E5-02 round 2 (Reviewer-A A-LA-E5-02-02 and -03 closed). The Lead removes the C5 entry from `deferred.md`. |
+
+Changes for the Lead to route: none beyond the Lead call itself (S1 builds `createFirstToolKey` under RQ-2; S1 adds `details.kid` to the `account.create` event).
+
+FYI for the LA-E5-10 review (S2), not decisions of this round:
+- `removeToolKey` writes the SQL literal `X''`. LA-ADR-06 D13 rule 2 (portability lint) does not allow `X''` literals. Bind an empty `Uint8Array` as a parameter instead.
+- `prepareToolKey` uses `generateKeyPairSync`. It blocks the event loop of both listeners for every new key. MINOR candidate: the async `generateKeyPair`.
