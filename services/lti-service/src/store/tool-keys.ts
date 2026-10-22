@@ -67,10 +67,11 @@ const activeKid = (db: Db, accountId: string): string | undefined =>
 /** Check before key generation, then again in the write transaction after async work. */
 export function requireNextKeySlot(db: Db, accountId: string): void {
   requireSigningKeyAccount(db, accountId);
-  if (db.prepare("SELECT 1 FROM tool_key WHERE tool_account_id = ? AND status = 'next'").get(accountId)) {
-    throw new KeyError('SIGNING_KEY_NEXT_EXISTS');
+  const next = db.prepare("SELECT kid, published_at FROM tool_key WHERE tool_account_id = ? AND status = 'next'").get(accountId) as
+    { kid: string; published_at: number } | undefined;
+  if (next) {
+    throw new KeyError('SIGNING_KEY_NEXT_EXISTS', { details: { kid: next.kid, publishedAt: new Date(next.published_at).toISOString() } });
   }
-  if (!activeKid(db, accountId)) throw new KeyError('SIGNING_KEY_WRONG_STATE');
 }
 
 export interface PreparedToolKey {
@@ -109,11 +110,11 @@ export function createFirstToolKey(db: Db, prepared: PreparedToolKey, now: numbe
   });
 }
 
-/** Publish the prepared key. It cannot sign until activation. */
+/** Publish a waiting key, or activate it at once when the account has no active key (BD-A2-24). */
 export function createNextToolKey(db: Db, key: PreparedToolKey, now = Date.now()): SigningKeyRecord {
   return transaction(db, () => {
     requireNextKeySlot(db, key.accountId);
-    insertKey(db, key, 'next', now);
+    insertKey(db, key, activeKid(db, key.accountId) ? 'next' : 'active', now);
     return signingKey(db, key.accountId, key.kid);
   });
 }
@@ -127,10 +128,10 @@ export function validatePublishLeadSeconds(seconds: number): number {
 
 export function activateToolKey(
   db: Db, accountId: string, kid: string, options: { force?: boolean; publishLeadSeconds?: number } = {}, now = Date.now(),
-): { kid: string; status: 'active'; activatedAt: number; retired: string } {
+): { kid: string; status: 'active'; activatedAt: number; retired: string | null } {
   return transaction(db, () => {
     const old = checkToolKeyActivation(db, accountId, kid, options, now);
-    db.prepare("UPDATE tool_key SET status = 'retired', retired_at = ? WHERE tool_account_id = ? AND kid = ?").run(now, accountId, old);
+    if (old !== null) db.prepare("UPDATE tool_key SET status = 'retired', retired_at = ? WHERE tool_account_id = ? AND kid = ?").run(now, accountId, old);
     db.prepare("UPDATE tool_key SET status = 'active', activated_at = ? WHERE tool_account_id = ? AND kid = ?").run(now, accountId, kid);
     return { kid, status: 'active', activatedAt: now, retired: old };
   });
@@ -139,20 +140,24 @@ export function activateToolKey(
 /** Route preflight; the store repeats it in the transaction for callers outside HTTP. */
 export function checkToolKeyActivation(
   db: Db, accountId: string, kid: string, options: { force?: boolean; publishLeadSeconds?: number }, now: number,
-): string {
+): string | null {
   const lead = validatePublishLeadSeconds(options.publishLeadSeconds ?? SIGNING_KEY_PUBLISH_LEAD_S) * 1000;
   const key = signingKey(db, accountId, kid);
-  if (key.status !== 'next') throw new KeyError('SIGNING_KEY_WRONG_STATE');
-  if (!options.force && now - key.publishedAt < lead) throw new KeyError('SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH');
-  const old = activeKid(db, accountId);
-  if (!old) throw new KeyError('SIGNING_KEY_WRONG_STATE');
-  return old;
+  if (key.status !== 'next') throw new KeyError('SIGNING_KEY_WRONG_STATE', { details: { kid, keyStatus: key.status } });
+  if (!options.force && now - key.publishedAt < lead) {
+    throw new KeyError('SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH', {
+      details: { kid, activatableAt: new Date(key.publishedAt + lead).toISOString() },
+    });
+  }
+  return activeKid(db, accountId) ?? null;
 }
 
 export function checkToolKeyRemoval(db: Db, accountId: string, kid: string): void {
   const key = signingKey(db, accountId, kid);
-  if (key.status === 'active') throw new KeyError('SIGNING_KEY_ACTIVE');
-  if (key.status !== 'retired' && key.status !== 'next') throw new KeyError('SIGNING_KEY_WRONG_STATE');
+  if (key.status === 'active') throw new KeyError('SIGNING_KEY_ACTIVE', { details: { kid } });
+  if (key.status !== 'retired' && key.status !== 'next') {
+    throw new KeyError('SIGNING_KEY_WRONG_STATE', { details: { kid, keyStatus: key.status } });
+  }
 }
 
 /** Emergency removal keeps the public record for audit and clears the private part at once. */
