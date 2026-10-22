@@ -13,7 +13,23 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 06:55 UTC
+### Current checkpoint — 2026-10-22, 07:18 UTC
+
+**C4 full retry is running.** The runner started at 07:14:45 UTC (14:14:45 Vietnam). Grant `msg_6218a54231e9` gives only Common QA `ctx_e23ced3dd1fa` the full/legacy window through 11:30 UTC. This is an operational deadline. The first complete round is expected around 08:05–08:15 UTC (15:05–15:15 Vietnam), based on the measured duration of about 53 minutes. Legacy duration remains unmeasured. Final project acceptance is pending.
+
+The failed full attempt is closed and committed at `4df99cb8a2deecb08409765b7eea7240579a14df`. The Lead verified 8,832 final index entries and all 4,309 preserved diagnostic-v2 bindings. The window returned at 07:07:40 UTC. Canvas round-1 evidence is committed at `1399f60aeaa00b9f2d5eb93f22b99780d0b0a0cf`; its final index has 119 verified entries. Both failed attempts remain failed history. A Claude session limit delayed Common's failure notice until the 14:00 Vietnam reset. The Lead resumed the same session; no worker replacement was made.
+
+The LA coordinator fenced and closed the prior LA owner after the second overlap. The LA Lead took resource ownership, cleaned its remaining stack at 07:08:57 UTC and explicitly confirmed the host-only hold. The Lead read cleanup snapshot `5f950c55e70ced63b411a92ba2d7b195f5882c44b955d5d4ba1a1c7e6ffcb682`. Message `msg_74a638dc97ed` records the coordinator and acting-owner hold. LA starts no Docker work until an explicit handoff. Its next scheduling update is due by 09:15 UTC or full/legacy closure, whichever comes first.
+
+The retry uses new source `qa-common-c4-20261022T0408Z/full2-src/source` and run root `full2`. Candidate C4 and tests tree are unchanged. The Lead verified all 417 preparation entries, 250 tracked test files, 42 host files and 1,928 cached dependency entries. No diagnostic, host suite or control campaign was repeated. The qualified launcher is unchanged. Launcher PID/PGID: 37365; runner PID: 39819; observer PIDs: 39812, 39813 and 39814.
+
+W3 SHA-256 `ee6a4afa6d2cbc295c99ca370d7adc6b1122fae79b04698fb8abf684fd6a45ee` records live time 07:14:42.595 UTC, zero containers, unchanged built-in networks and fresh lanes. All original nine volume records are identical. It also records a tenth anonymous volume, `fe8dff0f445d4278a3434d40a3d7a3a955c5b37a437dee1f69168465751ff793`, created at 06:57:16 UTC before this window. The automatic gate passed before Common checked the expected count of nine. That grant precondition deviation remains recorded.
+
+Lead decision `msg_1364abcfecfe` allows the same driver to continue with all ten W3 volume records protected. The unchanged strict W4 comparison checks every starting volume's full record and rejects new unrelated volumes. The Lead read that logic and confirmed the original nine records are unchanged. No volume data was read or mounted. No source, tool or isolation criterion changed. The tenth volume must remain untouched through the explicit handoff.
+
+The same fixer `ctx_898acbaef3a6` owns every later repair. Canvas QA stays ready for exact per-round evidence grants. Two complete 488-row rounds, all 12 legacy groups, fresh M2/T7, final conformance and documentation gates remain required. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 06:55 UTC
 
 **C4 full attempt 1 failed because another LA run changed the shared Docker host.** The runner stopped at 06:44:53 UTC with exit 1. Round 1 passed all 488 cases. Independent Canvas QA passed all 233 Canvas cases in that round. Round 2 passed simulation 394/394 and isolated snapshot 6/6, but its isolation check failed. Container `qa-la-sim-r2-cogniate-app-1` stopped or restarted during the snapshot phase. The remaining round-2 phases and all 12 legacy groups did not run. These partial results do not complete full acceptance.
 
