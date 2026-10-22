@@ -13,7 +13,30 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 10:28 UTC
+### Current directive — 2026-10-22, 10:55 UTC
+
+Product C4 and the test-only C5 correction remain unchanged. D-T6L remains the accepted validation plan.
+Full2 stays FAILED; its two accepted 488-case rounds and independent 233-case Canvas judgments retain their original identities.
+Fresh legacy, independent T6/T8 judgment and fresh M2/T7 remain pending.
+
+Claude Reviewer-A stopped at a provider quota limit before producing a verdict.
+Lead fenced ctx_add3b8fd9bd4 and started replacement ctx_3e704f419d7e on the same task, with the same requested and effective Opus 5.5 xhigh model.
+The replacement, Reviewer-B ctx_3bb7b60adf5c and Architect ctx_e95086e27835 now report a quota reset at 11:00 UTC (18:00 Vietnam).
+Lead will resume these exact sessions after reset; no duplicate source review or product repair is authorized.
+The Architect owns only its conformance report during host-only preparation. Final approval waits for the remaining evidence.
+
+Canvas Gemini completed preliminary guide QA: no BLOCKER, MAJOR or MINOR; Q-M4-P01 and Q-M4-P02 are accepted cosmetic deferrals.
+Its completed checkpoint is settled and the external terminal is retained.
+Task task_73d57f11a485 durably holds independent T6/T8 judgment, M2/T7 and final Docs QA for that same session.
+Common Gemini preparation is settled; its same terminal is reserved for the separately granted legacy run.
+The same Codex executor is retained for any implementation repair and final Docs.
+
+No LTI Docker run is authorized. Savoy's expected cleanup remains 11:15–11:30 UTC; the requested hold through 14:00 UTC is unconfirmed.
+LA stays host-only until explicit handoff; 14:00–16:00 UTC is a provisional target only.
+The earlier runtime estimate depends on source review completion and confirmed host availability. It is not an overall completion promise.
+All 32 real LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 10:28 UTC
 
 Product remains C4 bf09cdad91ca548e1ecbc14428b55180d35d5360.
 The test-only correction is C5 e1a057be9624a82949007b772e2bdf19bc55638b, tests tree 9e57d42f9e4cfe82b8058681ba6a81396abd2acc.
