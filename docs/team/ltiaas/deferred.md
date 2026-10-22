@@ -61,3 +61,4 @@ Open MINOR and NIT items after round 2. The ones marked "before build" are one-l
 | B-LA-E5-10 R2 NIT | NIT | createNextToolKey can now create an active key (BD-A2-24): rename | S2 | Next S2 edit of tool-keys.ts |
 | B-LA-E1-05-04..06 | NIT | Reviewer-B round-2 open NITs | L | Next L edit of profiles |
 | B-LA-E5-04 R2 NIT | NIT | audit.change doc comment does not state the BD-A2-29 rules (section-5 action only; refused keeps base action) | S1 | LA-E5-03 fix round |
+| B-LA-E7-10 R2 NIT | NIT | A step-5 finding line does not point to the allow-entry procedure | R | Next R edit of ci-local |
