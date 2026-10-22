@@ -110,11 +110,6 @@ export function latestDispatchStatus(db: Db, reporter: string, placementId: stri
   return r ? { status: r.status as SyncStatus, scoreGiven: Number(r.score_given), scoreMaximum: Number(r.score_maximum) } : null;
 }
 
-/** The newest row of a learner and activity (the shell status line), or null. */
-export function latestSyncStatus(db: Db, resourceLinkId: string, userSub: string): { status: SyncStatus; scoreGiven: number; scoreMaximum: number } | null {
-  return latestDispatchStatus(db, 'lti-ags', resourceLinkId, userSub);
-}
-
 export type ResendResult = { ok: true } | { ok: false; reason: 'not_found' | 'connection_disabled' | 'status' | 'not_best' | 'already_sent' };
 
 /**

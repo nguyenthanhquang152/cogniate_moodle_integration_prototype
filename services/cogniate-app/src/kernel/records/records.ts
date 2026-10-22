@@ -17,11 +17,6 @@ export function registerRecordReporters(db: Db, reporters: readonly RecordReport
   return job;
 }
 
-/** The service entry point gives record creation and delivery the same reporter instances. */
-export function configureRecordReporters(db: Db, reporters: readonly RecordReporter[]): void {
-  reportersByDb.set(db, reporters);
-}
-
 export function recordReporters(db: Db): readonly RecordReporter[] {
   const reporters = reportersByDb.get(db);
   if (!reporters) throw new Error('Record reporters are not configured');
