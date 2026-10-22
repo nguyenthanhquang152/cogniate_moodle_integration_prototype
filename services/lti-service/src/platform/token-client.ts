@@ -8,7 +8,7 @@ import { signToolJwt } from '../lti/tool-jwt.ts';
 import { profileDefinition } from '../profiles/index.ts';
 import type { Platform } from '../store/platforms.ts';
 import { ApiError } from '../api-errors.ts';
-import { badPlatformDataError, outboundFailureError } from './error-mapping.ts';
+import { badPlatformDataError, outboundFailureError, platformRateLimitError } from './error-mapping.ts';
 
 export const TOKEN_EARLY_EXPIRY_MS = 60_000;
 /** A token is cached at most 1 h, whatever expires_in the platform sends. */
@@ -46,7 +46,9 @@ export function createTokenClient(deps: TokenClientDeps): TokenClient {
     } catch (err) {
       throw outboundFailureError(err);
     }
-    // The app cannot fix a token failure by changing its request: always PLATFORM_ERROR (the status is in the text).
+    const throttled = platformRateLimitError(res, { logger: deps.logger, platformId: platform.id, traceId }, now());
+    if (throttled) throw throttled;
+    // Other token failures cannot be fixed by changing the app request: keep PLATFORM_ERROR.
     if (res.status !== 200) throw new ApiError('PLATFORM_ERROR', `The platform token endpoint answered ${res.status}.`);
     let data: { access_token?: unknown; expires_in?: unknown };
     try {
