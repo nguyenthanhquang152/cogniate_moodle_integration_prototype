@@ -32,7 +32,7 @@ export function registerProtocolRoutes(app: FastifyInstance, ctx: RouteContext):
   // Launch / redirect URI (contract §2.2)
   app.post<{ Params: { account: string } }>('/lti/launch/:account', async (req, reply) => {
     const form = (req.body ?? {}) as Record<string, unknown>;
-    const result = await handleLaunch({ db: ctx.db, urls: ctx.urls, keys: ctx.keys, ltikTtlSeconds: ctx.ltikTtlSeconds, now: ctx.now, profiles: ctx.profiles },
+    const result = await handleLaunch({ db: ctx.db, urls: ctx.urls, keys: ctx.keys, ltikTtlSeconds: ctx.ltikTtlSeconds, now: ctx.now, profiles: ctx.profiles, logger: log },
       req.params.account, form, req.headers.cookie, req.traceId);
     if (!result.ok) {
       log.warn('launch_check_failed', { trace_id: req.traceId, check: result.check, code: result.code, detail: result.detail });

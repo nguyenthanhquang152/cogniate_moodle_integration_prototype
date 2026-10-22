@@ -88,7 +88,7 @@ The ownership matrix gives each product path exactly one lane per wave ([epics.m
 | RQ-2 (one-commit handover) | When the owner lane has no open task on that file in the wave, the Lead may give the file to the requester for one named commit. The Lead records it in the board row of the requester's task. |
 | RQ-3 (F1 baseline) | `infra/scripts/fitness/f1-baseline.json` has one count per file. Any lane may **lower** the count of a file that it owns in that wave, in the commit that removes the hits. No lane raises a count. The owner in the matrix keeps the file format. |
 | RQ-4 (new modules) | A lane that needs new behaviour inside a hot file delivers it as a new module that it owns, and asks the owner for the call line (RQ-1). |
-| RQ-5 (migrations) | A task that adds a migration names it by content (for example "app migration: `placement`, …"). The Lead gives the number at landing, in landing order (data-model §1). Migrations of different lanes do not depend on each other. |
+| RQ-5 (migrations) | A task that adds a migration names it by content (for example "app migration: `placement`, …"). The Lead gives the number when it briefs the task, in the order that it gives them, and records it in the board row (data-model §1 number rule, §4.1; BD-A1-04). Tasks can land out of number order. This is safe because migrations of different lanes do not depend on each other and each file is additive. A number is never given twice. |
 | RQ-6 (wave change) | At a wave end the owner lane lands or hands back every open change. A file changes owner only at a wave end. |
 
 ## 5. Test knobs

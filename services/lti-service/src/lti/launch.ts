@@ -1,8 +1,8 @@
-import type { PublicUrls } from '@cogniate/shared';
+import type { Logger, PublicUrls } from '@cogniate/shared';
 import { sha256Hex } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import type { LmsName, ProfileOptions } from '../profiles/index.ts';
-import { lmsNameOfFamily } from '../profiles/index.ts';
+import { lmsNameOf, lmsNameOfFamily } from '../profiles/index.ts';
 import { getAccount } from '../store/accounts.ts';
 import type { Platform } from '../store/platforms.ts';
 import { getPlatform, serviceOriginOf, setProductFamilyCode, siteOriginOf } from '../store/platforms.ts';
@@ -24,6 +24,7 @@ export interface LaunchDeps {
   keys: PlatformKeys;
   ltikTtlSeconds: number;
   now: () => number;
+  logger: Logger;
   /** Provider profile options (simulation profiles on or off). */
   profiles?: ProfileOptions;
 }
@@ -63,7 +64,7 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
   const profiles = deps.profiles ?? { simulation: false };
   const state = form.state;
   const stateHash = typeof state === 'string' && state !== '' ? sha256Hex(state) : null;
-  let lms: LmsName = 'Moodle';
+  let lms: LmsName = lmsNameOf(null, profiles.registry);
   try {
     const account = getAccount(deps.db, accountId);
     if (!account) throw new LaunchCheckError('1', 'INVALID_STATE', 'unknown_tool_account');
@@ -104,15 +105,16 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
     // Check 13 (profiles other than standard) and check 14 (every profile).
     if (profile.flags.serviceOriginCheck) check13Origins(claims, origins);
     try {
-      check14ProductFamily(claims, profile.lms);
+      const family = check14ProductFamily(claims, profile, profiles);
+      if (family !== null) deps.logger.info('family_guard_mismatch', { platform_id: platform.id, family });
     } catch (err) {
       // The page names the LMS of the signed product family (contract §9.2).
-      if (err instanceof LaunchCheckError) lms = lmsNameOfFamily(err.detail.replace('family=', '')) ?? lms;
+      if (err instanceof LaunchCheckError) lms = lmsNameOfFamily(err.detail.replace('family=', ''), profiles.registry) ?? lms;
       throw err;
     }
 
     // All checks passed: the claim allowlist, then store the launch, make the ltik, redirect to the tool.
-    const { kept, removed } = profile.flags.minimizeClaims ? minimizeClaims(claims as Claims) : { kept: claims as Claims, removed: [] };
+    const { kept, removed } = profile.privacyFloor === 'allowlist' ? minimizeClaims(claims as Claims) : { kept: claims as Claims, removed: [] };
     const { ltik } = createLaunch(deps.db, {
       toolAccountId: accountId, platformId: platform.id, deploymentId: deployment.deploymentId, messageType, claims: kept,
       siteOrigin: origins.site, serviceOrigin: origins.service, bindingGeneration: deployment.bindingGeneration,

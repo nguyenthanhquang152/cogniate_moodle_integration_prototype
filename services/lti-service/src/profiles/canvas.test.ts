@@ -1,5 +1,4 @@
 import { expect, it } from 'vitest';
-import { CANVAS_PROFILES } from './canvas.ts';
 import { findProfile, listProfiles, profileEndpoints, reservedIssuerOrigins, siteRulesFor } from './index.ts';
 import { checkSiteUrl } from '@cogniate/shared';
 
@@ -11,11 +10,11 @@ it('defines the reviewed hosted endpoints, flags and simulation gate in registry
     ['canvas-sim-cloud', 'https://canvas.sim.test', 'https://sso.canvas.sim.test'],
   ];
   for (const [id, issuer, sso] of rows) {
-    const profile = CANVAS_PROFILES.find((p) => p.id === id)!;
+    const profile = findProfile(id!, { simulation: true })!;
     expect(profile).toMatchObject({
       issuer, authenticationEndpoint: `${sso}/api/lti/authorize_redirect`, jwksUrl: `${sso}/api/lti/security/jwks`,
-      accesstokenEndpoint: '{serviceUrl}/login/oauth2/token', lms: 'canvas', sharing: 'exclusive', siteUrlOn: 'platform', serviceUrl: true, productFamily: 'canvas',
-      flags: { deepLinkingResponseSub: false, clientAssertionAudArray: false, minimizeClaims: true, serviceOriginCheck: true },
+      accesstokenEndpoint: '{serviceUrl}/login/oauth2/token', lms: 'canvas', privacyFloor: 'allowlist', sharing: 'exclusive', siteUrlOn: 'platform', serviceUrl: true, productFamily: 'canvas',
+      flags: { deepLinkingResponseSub: false, clientAssertionAudArray: false, serviceOriginCheck: true },
     });
     expect(profile.sources.length).toBeGreaterThan(0);
   }

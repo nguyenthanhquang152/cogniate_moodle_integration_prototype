@@ -17,6 +17,7 @@ import {
   addDeployment, changeDeployment, createPlatform, deletePlatform, findSharedPlatform, getPlatform, listPlatforms, siteOriginOf, updatePlatform,
 } from '../../store/platforms.ts';
 import { activePublicKeyPem } from '../../store/tool-keys.ts';
+import type { AuthResult } from '../auth.ts';
 import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
 
@@ -77,13 +78,12 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
   const ownOrigins = [ctx.urls.lti, ctx.urls.app, ctx.urls.content];
 
   /**
-   * The audit frame of an authenticated tenant change. Actor: the API key. In B1 every account has one key, so the id
-   * is `bootstrap-<account>`; LA-E5-07 switches it to the key id (A-LAB-07). Client address: the socket address until
-   * LA-E5-03 (LA-ADR-06 D1).
+   * The audit frame of an authenticated tenant change. Authentication supplies the actor and its account.
+   * Client address: the socket address until LA-E5-03 (LA-ADR-06 D1).
    */
-  const audited = <R>(req: FastifyRequest, accountId: string, action: string, target: AuditTarget, details: Record<string, unknown> | null,
+  const audited = <R>(req: FastifyRequest, caller: AuthResult, action: string, target: AuditTarget, details: Record<string, unknown> | null,
     body: (audit: AuditedRequest) => Promise<R> | R) => withAudit(ctx.db, ctx.now, {
-    actor: { type: 'api_key', id: `bootstrap-${accountId}` }, toolAccountId: accountId, traceId: req.traceId, clientIp: req.ip, action, target, details,
+    actor: caller.actor, toolAccountId: caller.account.id, traceId: req.traceId, clientIp: req.ip, action, target, details,
   }, body);
 
   const deploymentView = (p: Platform, d: DeploymentRecord) => ({
@@ -170,8 +170,9 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
   });
 
   app.post('/api/platforms', async (req, reply) => {
-    const { account } = ctx.auth(req, ['bearer']);
-    return audited(req, account.id, 'platform.create', { type: 'platform', id: null }, null, (audit) => {
+    const caller = ctx.auth(req, ['bearer']);
+    const { account } = caller;
+    return audited(req, caller, 'platform.create', { type: 'platform', id: null }, null, (audit) => {
       const parsed = PlatformCreateBase.safeParse(req.body ?? {});
       // Keep the §3.9 field error of a standard body (for example a missing url).
       if (!parsed.success) {
@@ -207,8 +208,9 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
   });
 
   app.delete<{ Params: { id: string }; Querystring: { ifBindingRef?: string } }>('/api/platforms/:id', async (req, reply) => {
-    const { account } = ctx.auth(req, ['bearer']);
-    return audited(req, account.id, 'platform.delete', { type: 'platform', id: req.params.id }, null, (audit) => {
+    const caller = ctx.auth(req, ['bearer']);
+    const { account } = caller;
+    return audited(req, caller, 'platform.delete', { type: 'platform', id: req.params.id }, null, (audit) => {
       const current = getPlatform(ctx.db, account.id, req.params.id);
       if (!current) throw new ApiError('UNREGISTERED_PLATFORM');
       const condition: RefCondition = typeof req.query.ifBindingRef === 'string' ? req.query.ifBindingRef : undefined;
@@ -229,8 +231,9 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
   });
 
   app.patch<{ Params: { id: string } }>('/api/platforms/:id', async (req) => {
-    const { account } = ctx.auth(req, ['bearer']);
-    return audited(req, account.id, 'platform.update', { type: 'platform', id: req.params.id }, null, (audit) => {
+    const caller = ctx.auth(req, ['bearer']);
+    const { account } = caller;
+    return audited(req, caller, 'platform.update', { type: 'platform', id: req.params.id }, null, (audit) => {
       const parsed = PlatformPatch.safeParse(req.body ?? {});
       if (!parsed.success) throw invalid(parsed.error);
       const current = getPlatform(ctx.db, account.id, req.params.id);
@@ -257,8 +260,9 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
 
   // ---------------------------------------------------------------- deployments (§9.5, §9.6)
   app.post<{ Params: { id: string } }>('/api/platforms/:id/deployments', async (req, reply) => {
-    const { account } = ctx.auth(req, ['bearer']);
-    return audited(req, account.id, 'deployment.create', { type: 'deployment', id: null }, { platformId: req.params.id }, (audit) => {
+    const caller = ctx.auth(req, ['bearer']);
+    const { account } = caller;
+    return audited(req, caller, 'deployment.create', { type: 'deployment', id: null }, { platformId: req.params.id }, (audit) => {
       const parsed = DeploymentCreate.safeParse(req.body ?? {});
       if (!parsed.success) throw invalid(parsed.error);
       const b = parsed.data;
@@ -296,8 +300,9 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
   });
 
   app.patch<{ Params: { id: string; deploymentId: string } }>('/api/platforms/:id/deployments/:deploymentId', async (req) => {
-    const { account } = ctx.auth(req, ['bearer']);
-    return audited(req, account.id, 'deployment.update', { type: 'deployment', id: req.params.deploymentId }, { platformId: req.params.id }, (audit) => {
+    const caller = ctx.auth(req, ['bearer']);
+    const { account } = caller;
+    return audited(req, caller, 'deployment.update', { type: 'deployment', id: req.params.deploymentId }, { platformId: req.params.id }, (audit) => {
       const parsed = DeploymentPatch.safeParse(req.body ?? {});
       if (!parsed.success) throw invalid(parsed.error);
       const b = parsed.data;

@@ -1,5 +1,5 @@
 // The audit writer of the LTI service (LA-ADR-06 D4): the only path to the table audit_event. Insert and list only;
-// the table is append only (trigger of migration 007), and only the audit-retention job (LA-E5-19) deletes rows.
+// the table is append only (triggers of migrations 007 and 008), and only the audit-retention job (LA-E5-19) deletes rows.
 // Other lanes call this module; they never write SQL for the table.
 import { ApiErrorBase, randomId, redact } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
@@ -124,8 +124,11 @@ export async function withAudit<R>(
   body: (audit: AuditedRequest) => Promise<R> | R,
 ): Promise<R> {
   let written = false;
+  let changeCalled = false;
   const audit: AuditedRequest = {
     change(fn, describe) {
+      if (changeCalled) throw new Error('audit.change() must be called only once per withAudit()');
+      changeCalled = true;
       const result = transaction(db, () => {
         const value = fn();
         const extra = describe?.(value) ?? {};
@@ -137,7 +140,9 @@ export async function withAudit<R>(
     },
   };
   try {
-    return await body(audit);
+    const result = await body(audit);
+    if (!written) throw new Error('withAudit() body completed without a successful audit.change()');
+    return result;
   } catch (err) {
     const code = refusalCode(err);
     if (!written && code !== null) insertAuditEvent(db, { ...base, result: 'refused', code }, now());
