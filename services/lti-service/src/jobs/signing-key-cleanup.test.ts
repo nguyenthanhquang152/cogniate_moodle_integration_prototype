@@ -41,8 +41,8 @@ describe('signing-key-cleanup', () => {
     const job = signingKeyCleanupJob(db);
     expect([job.name, job.runAtStart, job.everyMs]).toEqual(['signing-key-cleanup', true, DAY]);
     expect(await job.run(context(T0))).toEqual({ result: 'ok', counts: { removed: 1, cleared: 1 } });
-    expect(db.prepare('SELECT status, removed_at, length(private_jwk_encrypted) AS bytes, public_jwk FROM tool_key WHERE kid = ?').get('expired'))
-      .toEqual({ status: 'removed', removed_at: T0, bytes: 0, public_jwk: JSON.stringify(pub('expired')) });
+    expect(db.prepare('SELECT status, removed_at, length(private_jwk_encrypted) AS bytes, typeof(private_jwk_encrypted) AS type, public_jwk FROM tool_key WHERE kid = ?').get('expired'))
+      .toEqual({ status: 'removed', removed_at: T0, bytes: 0, type: 'blob', public_jwk: JSON.stringify(pub('expired')) });
     expect(db.prepare('SELECT * FROM tool_key WHERE kid != ? ORDER BY kid').all('expired')).toEqual(before);
     expect(await job.run(context(T0 + 1000))).toEqual({ result: 'ok', counts: { removed: 0, cleared: 0 } });
     expect(listSigningKeys(db, 'cogniate').find((key) => key.kid === 'expired')?.removedAt).toBe(T0);
@@ -76,8 +76,8 @@ describe('signing-key-cleanup', () => {
       expect(db.prepare('SELECT length(private_jwk_encrypted) AS bytes FROM tool_key WHERE kid = ?').get(kid)?.bytes).toBeGreaterThan(0);
     }
     expect(await signingKeyCleanupJob(db).run(context(T0 + 1))).toEqual({ result: 'ok', counts: { removed: 0, cleared: 2 } });
-    expect(db.prepare("SELECT length(private_jwk_encrypted) AS bytes, removed_at FROM tool_key WHERE status = 'removed'").all())
-      .toEqual([{ bytes: 0, removed_at: T0 }, { bytes: 0, removed_at: T0 }]);
+    expect(db.prepare("SELECT length(private_jwk_encrypted) AS bytes, typeof(private_jwk_encrypted) AS type, removed_at FROM tool_key WHERE status = 'removed'").all())
+      .toEqual([{ bytes: 0, type: 'blob', removed_at: T0 }, { bytes: 0, type: 'blob', removed_at: T0 }]);
     expect(publicJwks(db, 'cogniate', T0 + 1)).toEqual(before);
   });
 });

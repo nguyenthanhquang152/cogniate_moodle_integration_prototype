@@ -60,7 +60,8 @@ describe('signing-key lifecycle', () => {
     expect(listSigningKeys(db, 'cogniate').find((key) => key.kid === b.kid)).toEqual({
       ...b, status: 'removed', removedAt: T0 + 1, activatedAt: null, retiredAt: null,
     });
-    expect(db.prepare('SELECT length(private_jwk_encrypted) AS bytes FROM tool_key WHERE kid = ?').get(b.kid)?.bytes).toBe(0);
+    expect(db.prepare('SELECT length(private_jwk_encrypted) AS bytes, typeof(private_jwk_encrypted) AS type FROM tool_key WHERE kid = ?').get(b.kid))
+      .toEqual({ bytes: 0, type: 'blob' });
     expect((await next(T0 + 2)).status).toBe('next');
   });
 

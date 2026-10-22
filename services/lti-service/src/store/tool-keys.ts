@@ -157,8 +157,8 @@ export function checkToolKeyRemoval(db: Db, accountId: string, kid: string): voi
 export function removeToolKey(db: Db, accountId: string, kid: string, now = Date.now()): { kid: string; status: 'removed' } {
   return transaction(db, () => {
     checkToolKeyRemoval(db, accountId, kid);
-    db.prepare("UPDATE tool_key SET status = 'removed', removed_at = ?, private_jwk_encrypted = X'' WHERE tool_account_id = ? AND kid = ?")
-      .run(now, accountId, kid);
+    db.prepare("UPDATE tool_key SET status = 'removed', removed_at = ?, private_jwk_encrypted = ? WHERE tool_account_id = ? AND kid = ?")
+      .run(now, new Uint8Array(0), accountId, kid);
     return { kid, status: 'removed' };
   });
 }
