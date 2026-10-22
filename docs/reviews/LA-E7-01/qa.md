@@ -1,11 +1,31 @@
 Verdict: PASS
-Round: 2
+Round: 3
 
 # LA-E7-01 K0 channel contract suite and the canary channel: QA verification
 
-Tester: lead QA (Round 1: `task_9eba03b67aaa` / `ctx_cb28274cfd08`; Round 2: `task_1100e1e862e3` / `ctx_02bcb0afde80`), 2026-10-22. Spec: `docs/architecture/ltiaas/tasks/LA-E7-01.md`. Design: `docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md` (D2–D6, D10–D12, test impact), `BD-A1-20`, and `tests/ltiaas/TEST-STRATEGY.md` §2.7.
+Tester: lead QA (Round 1: `task_9eba03b67aaa` / `ctx_cb28274cfd08`; Round 2: `task_1100e1e862e3` / `ctx_02bcb0afde80`; Round 3: `task_a8adccfe1547` / `ctx_7c3cb8b3db3a`), 2026-10-22. Spec: `docs/architecture/ltiaas/tasks/LA-E7-01.md`. Design: `docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md` (D2–D6, D10–D12, test impact), `BD-A1-20`, `BD-A1-28`, and `tests/ltiaas/TEST-STRATEGY.md` §2.7.
 
-Independence: Lead QA wrote `tests/ltiaas/k0/contract.test.ts` and `tests/ltiaas/canary/**` from the task spec, `LA-ADR-01`, `TEST-STRATEGY.md` §2.7, and the public entry points of `docs/architecture/ltiaas/tasks/README.md` §3 (`@cogniate/channel-kernel` and `services/lti-service/src/profiles/index.ts`). Lead QA read no product source files.
+Independence: Lead QA wrote `tests/ltiaas/k0/contract.test.ts` and `tests/ltiaas/canary/**` from the task spec, `LA-ADR-01`, `TEST-STRATEGY.md` §2.7, and the public entry points of `docs/architecture/ltiaas/tasks/README.md` §3 (`@cogniate/channel-kernel`, `services/lti-service/src/profiles/index.ts`, and `services/cogniate-app/src/kernel/ports.ts`). Lead QA read no product source files.
+
+## Round 3
+
+| Item | Value |
+| --- | --- |
+| SHA | `5770cbe` (integration `quang/ltiaas-milestone`), plus verification with `1b51999` (`services/cogniate-app/src/kernel/ports.ts` from lane `la-k`) merged locally |
+| Lane and slot | host-only (no Docker) |
+| Clone | `~/cogniate-qa-runs/LA/LA-E7-01/r3/clone` (`git clone --no-hardlinks`, push URL disabled, `npm ci --ignore-scripts`) |
+| Files delivered | `tests/ltiaas/k0/contract.test.ts`, `tests/ltiaas/canary/zz-canary/app.ts`, `tests/ltiaas/tsconfig.json`, `docs/reviews/LA-E7-01/qa.md` |
+| Artifacts | `~/cogniate-qa-runs/LA/LA-E7-01/r3/`: `a-integration-k0.log`, `d3-prose-edit-k0.log`, `m1-status.log`, `a-integration-check.log`, `b-with-1b51999-k0.log`, `b-with-1b51999-kit-typecheck.log`, `b-with-1b51999-check.log` |
+
+### Round 2 review findings and `BD-A1-28` addressed in Round 3
+
+| Item | Severity | Resolution in Round 3 |
+| --- | --- | --- |
+| `B-LA-E7-01-07` | MINOR | Removed `parseAdr01D3Tables` and `fs.readFileSync(adr01Path)` from `tests/ltiaas/k0/contract.test.ts`. Replaced runtime ADR markdown parsing with `FROZEN_D3_CATALOG_ORACLE` (frozen in the kit, each row citing its `LA-ADR-01 D3` lines `145–176`) and compared product `CAPABILITY_CATALOG` (`{ kind, source }`) and product `legacyProjection` single-capability flip directly against `CAPABILITY_GUARD_TABLE` and `FROZEN_D3_CATALOG_ORACLE`. Verified that rewording D3 prose in `docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md` (`"the picker stays single select"` → `"the picker keeps single selection"`) changes 0 K0 results (`118 passed | 3 todo`, `d3-prose-edit-k0.log`), while mutation `M1` (`status: 409` → `418` on `deployments.multiple`) still fails 4 `K-CAP` tests (`m1-status.log`). |
+| `B-LA-E7-01-08` & `BD-A1-28` | NIT / Ruling | Updated `tests/ltiaas/k0/contract.test.ts` and `tests/ltiaas/canary/zz-canary/app.ts` (`satisfies ConnectionSetup`) to `import type` from `services/cogniate-app/src/kernel/ports.ts` (`1b51999`) and fill every required context field: `ToolConfigurationContext` (`{ urls: { lti, app, content }, libraryName, sharedClientId }`), `PlatformBodyContext` (`{ siteUrl, clientId, sharedClientId }`) + `purpose: 'initial'` (`GrantPurpose`), `InitialTargetContext` (`{ connection, values, profile, sharedPlatform }`), `CreateRequestContext` (`{ libraryName }`), and `selfCreate` values (`{ issuer, authenticationEndpoint, accessTokenEndpoint, jwksUrl, tokenAudience, clientId, deploymentId }`). Fixture `grantCode` uses 43 base64url characters (`VALID_GRANT_CODE_43`), and a negative probe asserts that a malformed `grantCode` returns `{ ok: false, fields: ['grantCode'] }`. Extension-port assertions (`extensionRoutes`, `publishHooks`, `packageExporters`) are gated as pending `LA-E1-08` on baseline channels until defined on `adapter`, while the canary keeps the full rule. |
+| Baseline `K-ADAPTER` switch (`1b51999`) | Ruling | Changed the baseline `K-ADAPTER` switch so `moodle`, `canvas`, and `blackboard` register `it.todo` while `initialLoaded.appAdapter === undefined` (`LA-E1-07`), rather than checking `!fs.existsSync(appPortsPath)`. Verified both (a) on `quang/ltiaas-milestone` (`5770cbe`) as-is (`a-integration-k0.log`, `a-integration-check.log` exit `0`) and (b) with `1b51999` merged locally (`b-with-1b51999-k0.log`, `b-with-1b51999-kit-typecheck.log`, `b-with-1b51999-check.log` all exit `0`, `118 passed | 3 todo`). |
+
+---
 
 ## Round 2
 

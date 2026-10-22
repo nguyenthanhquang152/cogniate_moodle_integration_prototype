@@ -2,20 +2,153 @@ import fs from 'node:fs';
 import http from 'node:http';
 import https from 'node:https';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRuntime, json } from './core/runtime.mjs';
 
-export async function loadProviders(runtime, selection = ['blackboard', 'canvas']) {
+const SIM_HOST_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.sim\.test$/;
+const PROVIDER_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
+
+export function loadHostManifest(manifestPath = fileURLToPath(new URL('./hosts.json', import.meta.url))) {
+  let raw;
+  try {
+    raw = fs.readFileSync(manifestPath, 'utf8');
+  } catch (error) {
+    throw new Error(`Simulator host manifest unreadable (${manifestPath}): ${error.message}`);
+  }
+  let manifest;
+  try {
+    manifest = JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`Simulator host manifest invalid JSON (${manifestPath}): ${error.message}`);
+  }
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    throw new Error('Simulator host manifest must be a JSON object');
+  }
+  const topKeys = Object.keys(manifest);
+  if (topKeys.some((key) => key !== 'version' && key !== 'providers')) {
+    throw new Error(`Simulator host manifest has unknown top-level keys: ${topKeys.filter((k) => k !== 'version' && k !== 'providers').join(', ')}`);
+  }
+  if (manifest.version !== 1) {
+    throw new Error(`Unsupported simulator host manifest version: ${String(manifest.version)}`);
+  }
+  if (!Array.isArray(manifest.providers) || manifest.providers.length === 0) {
+    throw new Error('Simulator host manifest providers must be a non-empty array');
+  }
+  const seenIds = new Set();
+  const hostOwner = new Map();
+  for (const entry of manifest.providers) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw new Error('Simulator host manifest provider entry must be an object');
+    }
+    const entryKeys = Object.keys(entry);
+    if (entryKeys.some((key) => key !== 'id' && key !== 'aliases' && key !== 'allowlist')) {
+      throw new Error(`Simulator host manifest entry has unknown keys: ${entryKeys.filter((k) => k !== 'id' && k !== 'aliases' && k !== 'allowlist').join(', ')}`);
+    }
+    if (typeof entry.id !== 'string' || !PROVIDER_ID_RE.test(entry.id)) {
+      throw new Error(`Simulator host manifest entry has invalid id: ${String(entry.id)}`);
+    }
+    if (seenIds.has(entry.id)) {
+      throw new Error(`Duplicate simulator host manifest provider id: ${entry.id}`);
+    }
+    seenIds.add(entry.id);
+    if (!Array.isArray(entry.aliases) || entry.aliases.length === 0) {
+      throw new Error(`Simulator host manifest entry ${entry.id} must have a non-empty aliases array`);
+    }
+    if (!Array.isArray(entry.allowlist)) {
+      throw new Error(`Simulator host manifest entry ${entry.id} must have an allowlist array`);
+    }
+    const aliasSet = new Set();
+    for (const host of entry.aliases) {
+      if (typeof host !== 'string' || host === 'lms-sim.test' || !SIM_HOST_RE.test(host)) {
+        throw new Error(`Invalid simulator alias host ${String(host)} in ${entry.id}`);
+      }
+      if (aliasSet.has(host)) {
+        throw new Error(`Duplicate simulator alias host ${host} in ${entry.id}`);
+      }
+      if (hostOwner.has(host)) {
+        throw new Error(`Duplicate simulator host ${host} across providers ${hostOwner.get(host)} and ${entry.id}`);
+      }
+      aliasSet.add(host);
+      hostOwner.set(host, entry.id);
+    }
+    const allowSet = new Set();
+    for (const host of entry.allowlist) {
+      if (typeof host !== 'string' || host === 'lms-sim.test' || !SIM_HOST_RE.test(host)) {
+        throw new Error(`Invalid simulator allowlist host ${String(host)} in ${entry.id}`);
+      }
+      if (allowSet.has(host)) {
+        throw new Error(`Duplicate simulator allowlist host ${host} in ${entry.id}`);
+      }
+      if (!aliasSet.has(host)) {
+        throw new Error(`Simulator allowlist host ${host} in ${entry.id} is not in aliases`);
+      }
+      allowSet.add(host);
+    }
+  }
+  return manifest;
+}
+
+export async function loadProviders(runtime, selection, options = {}) {
+  const simDir = options.simDir ?? path.dirname(fileURLToPath(import.meta.url));
+  const manifest = loadHostManifest(options.manifestPath ?? path.join(simDir, 'hosts.json'));
+  const discovered = fs.readdirSync(simDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name !== 'core' && !entry.name.startsWith('.'))
+    .map((entry) => entry.name)
+    .sort();
+  const names = selection ?? discovered;
+  if (!Array.isArray(names) || names.length === 0) {
+    throw new Error('No simulator provider modules selected');
+  }
   const providers = [];
-  for (const name of selection) {
-    if (!['blackboard', 'canvas'].includes(name)) throw new Error(`Unknown simulator module: ${name}`);
+  for (const name of names) {
+    if (typeof name !== 'string' || !PROVIDER_ID_RE.test(name) || name === 'core') {
+      throw new Error(`Unknown simulator module: ${String(name)}`);
+    }
+    const modulePath = path.join(simDir, name, 'index.mjs');
+    if (!discovered.includes(name) || !fs.existsSync(modulePath)) {
+      throw new Error(`Unknown simulator module: ${name}`);
+    }
     let module;
-    try { module = await import(`./${name}/index.mjs`); }
+    try { module = await import(pathToFileURL(modulePath).href); }
     catch (error) { throw new Error(`Required ${name} simulator is unavailable: ${error.message}`); }
     if (typeof module.createProviders !== 'function') throw new Error(`Missing ${name} createProviders(runtime)`);
     const added = module.createProviders(runtime);
     if (!Array.isArray(added) || !added.length) throw new Error(`Empty ${name} simulator`);
     providers.push(...added);
+  }
+  const providerByHost = new Map();
+  const manifestById = new Map(manifest.providers.map((entry) => [entry.id, entry]));
+  for (const provider of providers) {
+    if (!Array.isArray(provider.hosts) || provider.hosts.length === 0) {
+      throw new Error(`Simulator provider ${provider.id} has no hosts`);
+    }
+    for (const host of provider.hosts) {
+      if (typeof host !== 'string' || host === 'lms-sim.test' || !SIM_HOST_RE.test(host)) {
+        throw new Error(`Invalid simulator host ${String(host)} in provider ${provider.id}`);
+      }
+      if (providerByHost.has(host) && providerByHost.get(host) !== provider.id) {
+        throw new Error(`Duplicate simulator host ${host} across providers ${providerByHost.get(host)} and ${provider.id}`);
+      }
+      providerByHost.set(host, provider.id);
+    }
+    const entry = manifestById.get(provider.id);
+    if (!entry) {
+      throw new Error(`Unlisted simulator provider ${provider.id}: missing from hosts.json`);
+    }
+    const providerHosts = [...new Set(provider.hosts)].sort();
+    const entryAliases = [...entry.aliases].sort();
+    if (JSON.stringify(providerHosts) !== JSON.stringify(entryAliases)) {
+      throw new Error(`Simulator provider ${provider.id} hosts mismatch with hosts.json aliases`);
+    }
+  }
+  if (selection === undefined) {
+    const loadedIds = new Set(providers.map((p) => p.id));
+    for (const entry of manifest.providers) {
+      if (!loadedIds.has(entry.id)) {
+        const moduleName = entry.id.replace(/-sim(?:-.*)?$/, '');
+        throw new Error(`Required ${moduleName} simulator is unavailable: manifest entry ${entry.id} has no loaded provider`);
+      }
+    }
   }
   return providers;
 }
@@ -42,7 +175,7 @@ export async function main() {
   });
   const runtime = createRuntime({ publicLtiUrl, fetchJwks,
     log: (event) => fs.appendFileSync(path.join(logDir, 'lms-sim.jsonl'), JSON.stringify(event) + '\n') });
-  // The deployed default must have both teams' modules. No automatic partial mode.
+  // Every provider module discovered on disk must match tests/sim/hosts.json. No automatic partial mode.
   const providers = await loadProviders(runtime);
   const allowedHosts = new Set(['lms-sim.test', ...providers.flatMap((p) => p.hosts)]);
   const server = https.createServer({ key: fs.readFileSync(process.env.KEY_FILE), cert: fs.readFileSync(process.env.CERT_FILE) },

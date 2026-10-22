@@ -2,8 +2,8 @@
 // grant. The handler calls the common redemption engine (`deps.redeem`); it has no grant, adoption or cleanup logic.
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { getConnection } from '../domain/connections.ts';
-import { parseStrictBody } from '../providers/common.ts';
-import type { ProviderRouteDeps } from '../providers/types.ts';
+import { parseStrictBody } from '../kernel/setup/common.ts';
+import type { SetupRouteDeps as ProviderRouteDeps } from '../kernel/ports.ts';
 import { ApiError } from './api-errors.ts';
 
 type IdParams = { Params: { id: string } };

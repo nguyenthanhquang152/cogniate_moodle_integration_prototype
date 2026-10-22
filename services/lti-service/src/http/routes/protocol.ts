@@ -3,6 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ApiError } from '../../api-errors.ts';
 import { handleLaunch } from '../../lti/launch.ts';
 import { initiateLogin } from '../../lti/login.ts';
+import { lmsNameOf } from '../../profiles/index.ts';
 import { getAccount } from '../../store/accounts.ts';
 import { publicJwks } from '../../store/tool-keys.ts';
 import type { RouteContext } from '../context.ts';
@@ -24,6 +25,7 @@ export function registerProtocolRoutes(app: FastifyInstance, ctx: RouteContext):
       log.warn('login_rejected', { trace_id: req.traceId, code: result.code, detail: result.detail });
       return ctx.errorPage(reply, req, result.code, { lms: result.lms });
     }
+    if (result.page) return reply.code(result.page.status).headers({ ...result.page.headers, 'set-cookie': result.setCookie }).send(result.page.html);
     return reply.code(302).headers({ location: result.location, 'set-cookie': result.setCookie, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }).send();
   };
   app.get('/lti/login/:account', login);
@@ -50,6 +52,6 @@ export function registerProtocolRoutes(app: FastifyInstance, ctx: RouteContext):
   });
   app.get('/lti/launch/:account', async (req, reply) => {
     reply.header('allow', 'POST');
-    return ctx.errorPage(reply, req, 'METHOD_NOT_ALLOWED');
+    return ctx.errorPage(reply, req, 'METHOD_NOT_ALLOWED', { lms: lmsNameOf(null, ctx.profiles) });
   });
 }

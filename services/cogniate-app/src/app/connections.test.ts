@@ -42,11 +42,39 @@ it('BD-A1-11: the HTTP edge accepts lms or channel and rejects unequal aliases b
   for (const alias of [{ lms: 'moodle' }, { channel: 'moodle' }, { lms: 'moodle', channel: 'moodle' }]) {
     const answer = await create(alias);
     expect(answer.statusCode).toBe(201);
-    expect(answer.json()).toMatchObject({ lms: 'moodle', channel: 'moodle', channelName: 'Moodle' });
+    expect(answer.json()).toMatchObject({ lms: 'moodle', channel: 'moodle', channelName: 'Moodle', bindingAuthority: 'self' });
   }
   const before = t.db.prepare('SELECT count(*) AS n FROM connection').get();
   const refused = await create({ lms: 'moodle', channel: 'canvas' });
   expect(refused.statusCode).toBe(400);
   expect(refused.json()).toMatchObject({ details: { message: 'INVALID_REQUEST', field: 'channel' } });
   expect(t.db.prepare('SELECT count(*) AS n FROM connection').get()).toEqual(before);
+});
+
+it('BD-A1-24: the connection DTO reports its stored binding authority', async () => {
+  t = await testApp();
+  const cookie = await t.login(THANH);
+  const created = await t.app.inject({ method: 'POST', url: '/app-api/connections', headers: t.writeHeaders(cookie),
+    payload: { name: 'School', siteUrl: 'https://school.test', method: 'manual' } });
+  const id = created.json<{ id: string }>().id;
+  t.db.prepare("UPDATE connection SET binding_authority = 'operatorGrant' WHERE id = ?").run(id);
+  const read = await t.app.inject({ method: 'GET', url: `/app-api/connections/${id}`, headers: { cookie } });
+  expect(read.json()).toMatchObject({ channel: 'moodle', bindingAuthority: 'operatorGrant' });
+});
+
+
+it('BD-A1-35: malformed binding values and origin failures keep both frozen descriptions', async () => {
+  t = await testApp();
+  const cookie = await t.login(THANH);
+  const created = await t.app.inject({ method: 'POST', url: '/app-api/connections', headers: t.writeHeaders(cookie),
+    payload: { name: 'School', siteUrl: 'https://school.test', method: 'manual' } });
+  const id = created.json<{ id: string }>().id;
+  const bind = (payload: object) => t.app.inject({ method: 'PUT', url: `/app-api/connections/${id}/platform`, headers: t.writeHeaders(cookie), payload });
+  const missing = await bind({});
+  expect(missing.statusCode).toBe(422);
+  expect(missing.json()).toMatchObject({ details: { message: 'INVALID_PLATFORM_VALUES', description: 'Some values are missing or not valid.' } });
+  const origin = await bind({ issuer: 'https://school.test', clientId: 'c', deploymentId: 'd', authenticationEndpoint: 'https://school.test/auth',
+    accessTokenEndpoint: 'https://other.test/token', jwksUrl: 'https://school.test/keys' });
+  expect(origin.statusCode).toBe(422);
+  expect(origin.json()).toMatchObject({ details: { message: 'INVALID_PLATFORM_VALUES', description: 'The URLs must be https and on the Moodle site of this connection.', fields: ['accessTokenEndpoint'] } });
 });

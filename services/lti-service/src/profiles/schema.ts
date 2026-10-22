@@ -3,10 +3,20 @@ import { BASELINE_PROFILE_WIRE_LMS, PRIVACY_FLOOR_NONE_PROFILES, RegistryError }
 import { z } from 'zod';
 import type { ProfileSource } from '@cogniate/channel-kernel';
 
+const storageOrigin = z.string().refine((value) => {
+  if (value === 'authOrigin') return true;
+  try { const url = new URL(value); return url.protocol === 'https:' && url.origin === value; }
+  catch { return false; }
+}, 'Expected authOrigin or a canonical https origin without a path.');
+
 export const profileSourceSchema = z.strictObject({
   id: z.string().min(1),
   endpoints: z.enum(['admin', 'fixed']),
   privacyFloor: z.enum(['allowlist', 'none']),
+  platformStorage: z.strictObject({
+    targetFrame: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/, 'Expected from-login, _parent or a frame name of 1 to 64 letters, digits, _ or -.'),
+    origin: storageOrigin,
+  }).nullable().optional(),
   wireLms: z.string().min(1).nullable().optional(),
   listOrder: z.number().int().nonnegative(),
   label: z.string().min(1),

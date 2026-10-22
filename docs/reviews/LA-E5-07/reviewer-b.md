@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-07 review, Reviewer-B (lens: "Can a human team own it?")
 
@@ -67,3 +67,25 @@ The tenant audit actor now comes from `http/auth.ts` (`actor: { type: 'api_key',
 ## Not checked
 
 - K1-SIM AC-01 to -05, -07, -08, -11, -12 (QA). The emergency CLI path writes no audit event by design (BD-A2-10 rule 6; LA-E5-05 closes it).
+
+## Round 2
+
+Verdict for this round: **APPROVE**. This is a bounded re-check of my five round-1 NITs against lane S2's fix round, `git diff 1a8f031^1 1a8f031` (commits `757db94`, `3de96f8`, `1e95558`). I did not open the other reviewer's file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT (new).** All five NITs are **fixed**.
+
+### How I checked
+
+- Scratch clone of `1a8f031` in a private `/tmp` folder (`--no-hardlinks`, `node_modules` copied; removed after the run). The shared LA worktree did not change.
+- `vitest run` on `services/lti-service/src/{store,http,cli,accounts}`: **36 files, 486 tests passed**. `tsc --noEmit -p services/lti-service/tsconfig.json`: exit 0.
+- `git grep` for `findAccountByApiKey` and `findActiveApiKey` in `services/lti-service/src`: no hits.
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| B-LA-E5-07-01 `findActiveApiKey` also writes | **Fixed** | Renamed to `useApiKey`, with the doc "Validate and record use." (`store/api-keys.ts:101-102`). `auth.ts` calls it. A split into a pure lookup was not needed, because no other caller is left. |
+| B-LA-E5-07-02 repeated checks with no comment | **Fixed** | `http/operator/api-keys.ts:29`: "Refuse before audit.change (D4 T3); repeat the checks in its transaction against concurrent changes." |
+| B-LA-E5-07-03 dead `findAccountByApiKey` | **Fixed** | Removed. The `accounts.ts` header now says "Tool accounts and the bootstrap bridge … API keys: api-keys.ts", and the `operator-keys.ts:3` comment names `useApiKey`. Tests use the store lookup. |
+| B-LA-E5-07-04 key log lines without a trace id | **Fixed** | `api_key_issued`, `api_key_revoked` and S2's `signing_key_changed` (create, activate with the retired key, retire) now carry `trace_id: req.traceId`. |
+| B-LA-E5-07-05 limit error with no next step | **Fixed** | `API_KEY_LIMIT`: "This account already has two active API keys. Revoke one before issuing another." |
+
+Also in this round: the issue body is now strict. An unknown field gives `400 INVALID_REQUEST` "Unknown field: x." with `details.field` (`api-keys.ts:31-35`), with a test. That is a clear message for an operator.

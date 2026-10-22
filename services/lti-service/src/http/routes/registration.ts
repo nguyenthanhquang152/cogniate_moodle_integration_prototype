@@ -2,10 +2,12 @@
 //   GET  /lti/register/:account               Moodle opens it in the registration frame (HTML errors, 303 to the app)
 //   GET  /api/registrations/:id               Bearer: the platform data, operation, existingPlatformId
 //   POST /api/registrations/:id/complete      Bearer: send the registration to the platform, store the platform
+import { pendingToolText } from '@cogniate/channel-kernel';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
 import type { ProtocolErrorCode } from '../../lti/codes.ts';
+import { withLms } from '../../lti/codes.ts';
 import { PlatformKeyError } from '../../lti/jwks.ts';
 import type { OpenIdConfiguration } from '../../lti/registration.ts';
 import {
@@ -22,8 +24,8 @@ import {
 import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
 import { isOwnLaunchTarget } from '../../lti/target.ts';
-import { lmsNameOfFamily, reservedIssuerOrigins } from '../../profiles/index.ts';
-import { OutboundError, pendingToolText } from '@cogniate/shared';
+import { lmsNameOf, lmsNameOfFamily, reservedIssuerLmsNames, reservedIssuerOrigins } from '../../profiles/index.ts';
+import { OutboundError } from '@cogniate/shared';
 
 const HEADING = 'The registration did not work';
 
@@ -32,13 +34,13 @@ const HEADING = 'The registration did not work';
  * action line (one data-error-action each), not the launch texts written for learners and teachers.
  */
 export const REGISTRATION_HELP: Partial<Record<ProtocolErrorCode, string>> = {
-  UNKNOWN_TOOL_ACCOUNT: 'This registration URL is not valid. Copy it again in Cogniate (Integrations > Moodle > Connect) and paste it in Moodle (Manage tools > Add LTI Advantage).',
-  INVALID_REQUEST: 'Start the registration again from Moodle (Site administration > Plugins > Activity modules > External tool > Manage tools).',
-  FETCH_FAILED: 'Cogniate cannot reach this Moodle site. The site must be reachable from the internet over https (port 443). Check the firewall, then start the registration again.',
-  INVALID_OPENID_CONFIGURATION: 'Moodle sent a registration that Cogniate cannot use. Start the registration again from Manage tools. If it happens again, give the trace id to your Cogniate contact.',
-  ISSUER_MISMATCH: 'The platform configuration is not from this Moodle site. Start the registration again from Manage tools on the site itself.',
+  UNKNOWN_TOOL_ACCOUNT: 'This registration URL is not valid. Copy it again in Cogniate (Integrations > {LMS} > Connect) and paste it in {LMS} (Manage tools > Add LTI Advantage).',
+  INVALID_REQUEST: 'Start the registration again from {LMS} (Site administration > Plugins > Activity modules > External tool > Manage tools).',
+  FETCH_FAILED: 'Cogniate cannot reach this {LMS} site. The site must be reachable from the internet over https (port 443). Check the firewall, then start the registration again.',
+  INVALID_OPENID_CONFIGURATION: '{LMS} sent a registration that Cogniate cannot use. Start the registration again from Manage tools. If it happens again, give the trace id to your Cogniate contact.',
+  ISSUER_MISMATCH: 'The platform configuration is not from this {LMS} site. Start the registration again from Manage tools on the site itself.',
   // M1 (contract §9.2): the start page refuses a hosted LMS issuer and a Canvas or Blackboard platform configuration.
-  ISSUER_RESERVED: 'This address belongs to a hosted LMS. Connect it as Canvas or Blackboard in the Cogniate portal.',
+  ISSUER_RESERVED: 'This address belongs to a hosted LMS. Connect it as {LMS} in the Cogniate portal.',
 };
 
 /** M1 (contract §9.2): `This is a {LMS} site. Connect it as {LMS} in the Cogniate portal.` */
@@ -110,14 +112,16 @@ async function readToken(ctx: RouteContext, token: string, config: OpenIdConfigu
 
 export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteContext): void {
   const log = ctx.logger;
+  const lms = lmsNameOf(null, ctx.profiles);
 
   // ---------------------------------------------------------------- GET /lti/register/:account (contract §2.4)
   app.get<{ Params: { account: string } }>('/lti/register/:account', async (req: FastifyRequest<{ Params: { account: string } }>, reply: FastifyReply) => {
     const now = ctx.now();
     const page = (code: ProtocolErrorCode, detail: string) => {
       log.warn('registration_rejected', { trace_id: req.traceId, code, detail });
-      const help = REGISTRATION_HELP[code];
-      return ctx.errorPage(reply, req, code, { heading: HEADING, ...(help ? { help } : {}) });
+      const template = REGISTRATION_HELP[code];
+      const help = template ? withLms(template, code === 'ISSUER_RESERVED' ? reservedIssuerLmsNames(ctx.profiles) : lms) : undefined;
+      return ctx.errorPage(reply, req, code, { heading: HEADING, lms, ...(help ? { help } : {}) });
     };
     const account = getAccount(ctx.db, req.params.account);
     if (!account) return page('UNKNOWN_TOOL_ACCOUNT', 'unknown_tool_account');
@@ -131,7 +135,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     const family = lmsNameOfFamily(config.productFamilyCode, ctx.profiles);
     if (family) {
       log.warn('registration_rejected', { trace_id: req.traceId, code: 'PROVIDER_PROFILE_MISMATCH', detail: `family=${config.productFamilyCode.toLowerCase()}` });
-      return ctx.errorPage(reply, req, 'PROVIDER_PROFILE_MISMATCH', { heading: HEADING, help: familyHelp(family) });
+      return ctx.errorPage(reply, req, 'PROVIDER_PROFILE_MISMATCH', { heading: HEADING, help: familyHelp(family), lms: family });
     }
 
     let operation: RegistrationOperation = 'new';
@@ -190,7 +194,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     if (session.operation === 'update') {
       const allowed = session.existingPlatformId !== null && body.data.updatePlatformId === session.existingPlatformId
         && getPlatform(ctx.db, account.id, session.existingPlatformId) !== null;
-      if (!allowed) reject(new ApiError('REGISTRATION_UPDATE_NOT_ALLOWED', 'This registration updates a tool that is not this connection. Choose "Register as a new external tool" in Moodle.'));
+      if (!allowed) reject(new ApiError('REGISTRATION_UPDATE_NOT_ALLOWED', withLms('This registration updates a tool that is not this connection. Choose "Register as a new external tool" in {LMS}.', lms)));
     }
     // A-T3b-03: a message target must be our own launch URL for this account (Moodle only checks the domain).
     for (const m of body.data.messages ?? []) {

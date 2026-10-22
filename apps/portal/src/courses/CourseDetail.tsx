@@ -64,7 +64,8 @@ function CourseDetailView({ courseId, publish }: { courseId: string; publish: bo
       <div className="grid grid-cols-[minmax(0,1.7fr)_minmax(260px,1fr)] items-start gap-6 max-[1100px]:grid-cols-1">
         <div className="flex flex-col gap-5">
           <CoursePackage
-            courseId={courseId}
+            course={course}
+            onChanged={courseState.reload}
             versions={versions}
             version={version}
             onVersionChange={setSelectedVersion}

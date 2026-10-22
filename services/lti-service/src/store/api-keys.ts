@@ -98,8 +98,8 @@ export function issueApiKey(db: Db, accountId: string, input: IssueApiKeyInput, 
 // The database row is always read, so a revoke or expiry takes effect on the next call. Cache only the write time.
 const lastUse = new WeakMap<Db, Map<string, number>>();
 
-/** One result for wrong format, unknown, expired or revoked. Auth and auth_failure use this same lookup. */
-export function findActiveApiKey(db: Db, apiKey: string, now: number): ApiKeyRecord | null {
+/** Validate and record use. Wrong format, unknown, expired and revoked all return null; auth_failure shares this lookup. */
+export function useApiKey(db: Db, apiKey: string, now: number): ApiKeyRecord | null {
   if (!API_KEY.test(apiKey)) return null;
   const row = db.prepare(`SELECT ${COLUMNS} FROM api_key WHERE hash = ? AND revoked_at IS NULL
     AND (expires_at IS NULL OR expires_at > ?)`).get(sha256Hex(apiKey), now) as ApiKeyRow | undefined;

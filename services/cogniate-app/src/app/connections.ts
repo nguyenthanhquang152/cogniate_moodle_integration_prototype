@@ -6,22 +6,22 @@ import { decrypt, encrypt, randomToken, sha256Hex } from '@cogniate/shared';
 import type { Logger, PublicUrls } from '@cogniate/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import type { LtiClient, LtiPlatform } from '../clients/lti-client.ts';
-import { LtiServiceError, ltiErrorFields } from '../clients/lti-client.ts';
-import type { Connection, PlatformInfo, RefToken } from '../domain/connections.ts';
+import type { LtiClient } from '../clients/lti-client.ts';
+import type { Connection, RefToken } from '../domain/connections.ts';
 import {
-  PlatformTakenError, createConnection, disableConnection, getConnection, listConnections, markRegistered, platformOwner, replaceRef,
+  createConnection, getConnection, listConnections, replaceRef,
 } from '../domain/connections.ts';
-import { approvalsOfConnection, revokeOpenGrants } from '../domain/bindings.ts';
+import { approvalsOfConnection } from '../domain/bindings.ts';
 import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
 import { checkSiteUrl, fixedHostsOf, originHost } from '@cogniate/shared';
-import { ownedProfiles, providerOf } from '../providers/index.ts';
+import { ownedProfiles, setupOf } from '../kernel/setup.ts';
 import type { BindingCleanup } from './binding-cleanup.ts';
 import { activeShared, providerProfiles, snapshotOf } from './binding-targets.ts';
 import type { RedemptionEngine } from './redemption.ts';
-import { TOOL_ACCOUNT, toolName } from '../providers/common.ts';
-import { moodleToolRows } from '../providers/moodle.ts';
+import { TOOL_ACCOUNT, toolName } from '../kernel/setup/common.ts';
+import { authorityFor } from '../kernel/authority/index.ts';
+export { deactivateOrphan, platformInfo } from '../kernel/authority/common.ts';
 import { registerErrorText } from '../tool-pages/register-texts.ts';
 import { ApiError, providerNotReady } from './api-errors.ts';
 
@@ -70,8 +70,8 @@ export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffe
     registrationUrlExpiresAt: showRef ? iso(c.refExpiresAt) : null,
     // M1 (§4.2)
     lms: c.channel, profile: c.profile, serviceUrl: c.serviceUrl, capabilities: channels.legacyCapabilities(c.channel),
-    channel: c.channel, channelName: channels.textName(c.channel),
-    channelCapabilities: channels.capabilities(c.channel, { id: c.profile, sharing: providerOf(c.channel)?.sharingOf(c.profile) ?? undefined, serviceUrl: providerOf(c.channel)?.acceptsServiceUrl ?? false }),
+    channel: c.channel, channelName: channels.textName(c.channel), bindingAuthority: c.bindingAuthority,
+    channelCapabilities: channels.capabilities(c.channel, { id: c.profile, sharing: setupOf(channels, c.channel)?.sharingOf(c.profile) ?? undefined, serviceUrl: setupOf(channels, c.channel)?.profiles[c.profile]?.serviceUrl ?? false }),
     platform, createdAt: iso(c.createdAt), lastLaunchAt: iso(c.lastLaunchAt),
     // T8 course shell: set when a web services token was saved (the portal shows "Also create an empty Moodle course").
     webServices: c.webServices,
@@ -90,37 +90,6 @@ export function connectionDto(db: Db, c: Connection, urls: PublicUrls, masterKey
   return connectionJson(c, urls, masterKey, channels, libraryName, c.bindingAuthority === 'self' ? undefined : approvalsOfConnection(db, c.id).map((a) => a.deploymentId));
 }
 
-/**
- * Security §2.6 "orphans are switched off": the app got this platform id from the LTI service (registration complete
- * or manual create) and could not bind it to the requesting connection. If no connection owns it, set it inactive at
- * once and log platform_orphan_deactivated. A platform that a connection owns is never touched.
- */
-export async function deactivateOrphan(deps: { db: Db; lti: LtiClient; logger: Logger }, platformId: string, traceId: string): Promise<void> {
-  if (platformOwner(deps.db, platformId) !== undefined) return;
-  try {
-    await deps.lti.patchPlatform(platformId, { active: false }, traceId);
-    deps.logger.warn('platform_orphan_deactivated', { trace_id: traceId, platform_id: platformId });
-  } catch (err) {
-    // The platform stays active but is bound to no connection, so a launch from it only gets the "not available" page.
-    deps.logger.warn('platform_orphan_deactivate_failed', { trace_id: traceId, platform_id: platformId, ...ltiErrorFields(err) });
-  }
-}
-
-/** App contract §4.1: exactly these 16 rows, in this order (the Moodle adapter owns them). */
-export const toolConfiguration = moodleToolRows;
-
-export const platformInfo = (p: LtiPlatform): PlatformInfo => ({ id: p.id, issuer: p.url, clientId: p.clientId, deploymentIds: p.deploymentIds, productFamilyCode: p.productFamilyCode ?? null });
-
-const isHttpsUrl = (v: string): boolean => {
-  try {
-    const u = new URL(v);
-    return u.protocol === 'https:' && u.username === '' && u.password === '' && u.hash === '';
-  } catch {
-    return false;
-  }
-};
-const isHttpsOrigin = (v: string): boolean => isHttpsUrl(v) && new URL(v).origin === v;
-
 const ConnectionCreate = z.object({
   name: z.string().trim().min(1).max(100),
   siteUrl: z.string().max(2048),
@@ -131,23 +100,6 @@ const ConnectionCreate = z.object({
   profile: z.string().min(1).max(64).optional(),
   serviceUrl: z.string().max(2048).optional(),
 });
-
-const PLATFORM_FIELDS = ['issuer', 'clientId', 'deploymentId', 'authenticationEndpoint', 'accessTokenEndpoint', 'jwksUrl'] as const;
-const PlatformValues = z.object(Object.fromEntries(PLATFORM_FIELDS.map((f) => [f, z.string().trim().min(1).max(2048)])) as Record<(typeof PLATFORM_FIELDS)[number], z.ZodString>);
-
-/**
- * App contract §4 PUT .../platform rules: https; issuer origin = siteUrl; auth, token and JWKS URLs on the issuer
- * origin. Returns the names of the fields that break a rule (empty = fine).
- */
-export function badPlatformFields(siteUrl: string, v: Record<(typeof PLATFORM_FIELDS)[number], string>): string[] {
-  const bad = new Set<string>();
-  if (!isHttpsUrl(v.issuer) || new URL(v.issuer).origin !== siteUrl) bad.add('issuer');
-  const origin = isHttpsUrl(v.issuer) ? new URL(v.issuer).origin : siteUrl;
-  for (const f of ['authenticationEndpoint', 'accessTokenEndpoint', 'jwksUrl'] as const) {
-    if (!isHttpsUrl(v[f]) || new URL(v[f]).origin !== origin) bad.add(f);
-  }
-  return [...bad];
-}
 
 type IdParams = { Params: { id: string } };
 
@@ -161,10 +113,6 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
   };
   const dto = (req: FastifyRequest, c: Connection) => connectionDto(db, c, urls, masterKey, channels, libraryOf(req).name);
   // App contract §1: a failed LTI service call is 502 LTI_SERVICE_ERROR with the trace id.
-  const ltiFailure = (req: FastifyRequest) => (err: unknown): never => {
-    if (err instanceof LtiServiceError) throw new ApiError('LTI_SERVICE_ERROR', `The LTI service answered ${err.status || 'nothing'} (${err.code}). Trace id: ${req.traceId}`);
-    throw err;
-  };
   const ownHosts = [urls.lti, urls.app, urls.content].map(originHost);
 
   api.get('/connections', async (req) => ({ connections: listConnections(db, libraryOf(req).id).map((c) => dto(req, c)) }));
@@ -175,13 +123,13 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
     const rows = ownedProfiles(await providerProfiles(lti, req.traceId), logger, req.traceId, channels);
     return {
       lms: channels.channels().filter((m) => m.availability !== 'simulation-only' || rows.some((p) => channels.channelOfProfile(p.id) === m.id)).map((m) => {
-        const adapter = providerOf(m.id);
+        const adapter = setupOf(channels, m.id);
         return {
           lms: m.id, label: m.names.label, methods: m.registration.map((r) => r.method), capabilities: channels.legacyCapabilities(m.id),
           channel: m.id, channelName: channels.textName(m.id), channelCapabilities: channels.capabilities(m.id), family: m.family,
           registration: m.registration.map(({ method, authority, profiles }) => ({ method, authority, profiles })),
           profiles: rows.filter((p) => channels.channelOfProfile(p.id) === m.id).map((p) => ({
-            id: p.id, label: adapter?.profileLabel(p.id) ?? p.id, simulation: p.simulation, ready: p.sharing === 'exclusive' || activeShared(p) !== null,
+            id: p.id, label: adapter?.profiles[p.id]?.label ?? p.id, simulation: p.simulation, ready: p.sharing === 'exclusive' || activeShared(p) !== null,
             clientId: p.sharedPlatform?.clientId ?? null,
           })),
         };
@@ -199,37 +147,47 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
     const manifest = channel === null ? null : channels.channel(channel);
     if (!manifest || channel === null) return invalid(b.channel !== undefined ? 'channel' : 'lms');
     const registration = manifest.registration.find((r) => r.method === b.method);
-    if (!registration) throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'This LMS has no dynamic registration.', { status: 422, details: { capability: 'dynamicRegistration' } });
+    if (!registration) {
+      if (b.method !== 'dynamic') return invalid('method');
+      throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'This LMS has no dynamic registration.', { status: 422, details: { capability: 'dynamicRegistration' } });
+    }
     const profileId = b.profile ?? registration.defaultProfile;
     if (!registration.profiles.includes(profileId)) return invalid('profile');
-    const adapter = providerOf(channel);
+    const adapter = setupOf(channels, channel);
     if (!adapter) return invalid('channel');
     const sharing = adapter.sharingOf(profileId);
     if (!sharing) return invalid('profile');
     if (registration.authority === 'self') {
       // The Moodle rules of §4 do not change (no LTI call).
-      if (!isHttpsOrigin(b.siteUrl)) return invalid('siteUrl');
-      if (b.serviceUrl !== undefined) return invalid('serviceUrl');
+      const checked = adapter.checkCreate({ siteUrl: b.siteUrl, ...(b.serviceUrl !== undefined ? { serviceUrl: b.serviceUrl } : {}), profile: { id: profileId, issuer: null, sharing, serviceUrl: false } });
+      if (!checked.ok) return invalid(checked.field);
       const ref = b.method === 'dynamic' ? newRef(masterKey, deps.refTtlSeconds, now()).stored : null;
-      const c = createConnection(db, libraryOf(req).id, { name: b.name, siteUrl: b.siteUrl, method: b.method, channel, profile: profileId }, ref, now(), channels, adapter.sharingOf);
+      const c = createConnection(db, libraryOf(req).id, { name: b.name, siteUrl: checked.siteUrl, method: b.method, channel, profile: profileId }, ref, now(), channels, adapter.sharingOf);
       return reply.code(201).send(dto(req, c));
     }
     const rows = await providerProfiles(lti, req.traceId);
-    const profile = rows.find((p) => p.id === profileId && channels.channelOfProfile(p.id) === channel && adapter.profileLabel(p.id) !== null);
+    const profile = rows.find((p) => p.id === profileId && channels.channelOfProfile(p.id) === channel && adapter.profiles[p.id] !== undefined);
     if (!profile) return invalid('profile');
-    if (b.serviceUrl !== undefined && !adapter.acceptsServiceUrl) return invalid('serviceUrl');
-    const suffixes = adapter.siteRuleSuffixes(profile.id);
+    if (b.serviceUrl !== undefined && !adapter.profiles[profileId]?.serviceUrl) return invalid('serviceUrl');
+    const suffixes = adapter.profiles[profile.id]?.refusedHostSuffixes;
     const rules = {
       ownHosts, profileFixedHosts: fixedHostsOf([profile.issuer, profile.authenticationEndpoint, profile.accesstokenEndpoint, profile.jwksUrl]),
-      ...(suffixes ? { selfHosted: { refusedSuffixes: suffixes, allFixedHosts: rows.flatMap((p) => fixedHostsOf([p.issuer, p.authenticationEndpoint, p.accesstokenEndpoint, p.jwksUrl])) } } : {}),
+      ...(suffixes ? { selfHosted: { refusedSuffixes: [...suffixes], allFixedHosts: rows.flatMap((p) => fixedHostsOf([p.issuer, p.authenticationEndpoint, p.accesstokenEndpoint, p.jwksUrl])) } } : {}),
     };
     const site = (field: 'siteUrl' | 'serviceUrl', value: string): string => {
       const r = checkSiteUrl(value, rules);
       if (!r.ok) throw new ApiError('INVALID_SITE_URL', `Invalid field: ${field} breaks rule ${r.rule} of the site rules.`, { details: { rule: r.rule, field } });
       return r.origin;
     };
-    const siteUrl = site('siteUrl', b.siteUrl);
-    const serviceUrl = b.serviceUrl !== undefined ? site('serviceUrl', b.serviceUrl) : null;
+    const checkedSite = site('siteUrl', b.siteUrl);
+    const checkedService = b.serviceUrl !== undefined ? site('serviceUrl', b.serviceUrl) : undefined;
+    const checked = adapter.checkCreate({ siteUrl: checkedSite, ...(checkedService !== undefined ? { serviceUrl: checkedService } : {}), profile });
+    if (!checked.ok) {
+      if (checked.rule !== undefined) throw new ApiError('INVALID_SITE_URL', `Invalid field: ${checked.field} breaks rule ${checked.rule} of the site rules.`, { details: { rule: checked.rule, field: checked.field } });
+      return invalid(checked.field);
+    }
+    const siteUrl = checked.siteUrl;
+    const serviceUrl = b.serviceUrl !== undefined ? checked.serviceUrl : null;
     if (sharing === 'shared' && !activeShared(profile)) {
       logger.warn('provider_not_ready', { trace_id: req.traceId, connection_id: null, profile: profile.id, cause: 'platform_inactive' });
       throw providerNotReady();
@@ -256,7 +214,7 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
 
   api.get<IdParams>('/connections/:id/tool-configuration', async (req) => {
     const c = connectionOf(req);
-    const adapter = providerOf(c.channel);
+    const adapter = setupOf(channels, c.channel);
     if (!adapter) throw new ApiError('CAPABILITY_NOT_SUPPORTED');
     const clientId = adapter.sharingOf(c.profile) === 'shared' ? sharedClientIdOf(c) : null;
     if (adapter.sharingOf(c.profile) === 'shared' && clientId === null) {
@@ -266,80 +224,17 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
     return adapter.toolConfiguration({ urls, libraryName: libraryOf(req).name, sharedClientId: clientId });
   });
 
-  // Canvas and Blackboard (§4.4): a strict body and the common two-phase grant redemption.
-  async function providerPlatform(req: FastifyRequest<IdParams>, c: Connection) {
-    const adapter = providerOf(c.channel);
-    if (!adapter?.parsePlatformBody || !deps.engine) throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'This connection has no operator approval.', { details: { capability: 'operatorApproval' } });
-    const parsed = adapter.parsePlatformBody(req.body, { sharedClientId: adapter.sharingOf(c.profile) === 'shared' ? sharedClientIdOf(c) : null });
-    if (!parsed.ok) throw new ApiError('INVALID_PLATFORM_VALUES', 'Some values are missing or not valid.', { details: { fields: parsed.fields } });
-    const done = await deps.engine.redeem({ libraryId: libraryOf(req).id, connectionId: c.id, purpose: 'initial', values: parsed.values, traceId: req.traceId });
-    return dto(req, done);
-  }
-
-  // Security §2.6 "no adoption": bind only a platform that the LTI service creates in this call.
   api.put<IdParams>('/connections/:id/platform', async (req) => {
     const c = connectionOf(req);
-    if (c.bindingAuthority === 'operatorGrant') return providerPlatform(req, c);
-    if (c.method !== 'manual') throw new ApiError('CONNECTION_NOT_PENDING', 'Only a pending manual connection takes platform values.');
-    const parsed = PlatformValues.safeParse(req.body ?? {});
-    if (!parsed.success) {
-      const fields = [...new Set(parsed.error.issues.map((i) => String(i.path[0] ?? 'body')))];
-      throw new ApiError('INVALID_PLATFORM_VALUES', 'Some values are missing or not valid.', { details: { fields } });
-    }
-    const v = parsed.data;
-    const fields = badPlatformFields(c.siteUrl, v);
-    if (fields.length > 0) throw new ApiError('INVALID_PLATFORM_VALUES', 'The URLs must be https and on the Moodle site of this connection.', { details: { fields } });
-    if (c.status !== 'pending') {
-      // A repeat of the call that registered this connection: 200 with its own platform, nothing changes (AC-T4-36 (3)).
-      const own = c.platform;
-      const repeat = c.status !== 'disabled' && own !== null && own.issuer === v.issuer && own.clientId === v.clientId && own.deploymentIds.includes(v.deploymentId);
-      if (repeat) return dto(req, c);
-      throw new ApiError('CONNECTION_NOT_PENDING', 'This connection already has a platform.');
-    }
-    const traceId = req.traceId;
-    let platform: LtiPlatform;
-    try {
-      platform = await lti.createPlatform({
-        url: v.issuer, clientId: v.clientId, name: toolName(libraryOf(req).name), authenticationEndpoint: v.authenticationEndpoint,
-        accesstokenEndpoint: v.accessTokenEndpoint, authConfig: { method: 'JWK_SET', key: v.jwksUrl }, deploymentIds: [v.deploymentId],
-      }, traceId);
-    } catch (err) {
-      // An existing platform (the dev seed, another library's tool, an orphan) is never adopted (security §2.6).
-      if (err instanceof LtiServiceError && err.code === 'PLATFORM_ALREADY_EXISTS') {
-        throw new ApiError('PLATFORM_IN_USE', 'This Moodle tool is already registered with Cogniate. In Moodle, make a new tool for this library and use its values.');
-      }
-      // M1: a hosted LMS issuer cannot be a Moodle platform (LTI contract §9.2 ISSUER_RESERVED).
-      if (err instanceof LtiServiceError && err.code === 'ISSUER_RESERVED') {
-        throw new ApiError('INVALID_PLATFORM_VALUES', 'This address belongs to a hosted LMS. Connect it as Canvas or Blackboard.', { details: { fields: ['issuer'] } });
-      }
-      // A 4xx that the user can fix becomes the app's own 422 (app contract §1).
-      if (err instanceof LtiServiceError && (err.code === 'PLATFORM_URL_NOT_ON_ISSUER_ORIGIN' || err.code === 'INVALID_REQUEST')) {
-        throw new ApiError('INVALID_PLATFORM_VALUES', err.description || 'The LTI service did not accept these values.', { details: { fields: [] } });
-      }
-      return ltiFailure(req)(err);
-    }
-    try {
-      markRegistered(db, c.id, platformInfo(platform), now());
-    } catch (err) {
-      if (!(err instanceof PlatformTakenError)) throw err;
-      // The connection changed while the platform was made (for example a second PUT): the new platform is an orphan.
-      await deactivateOrphan({ db, lti, logger }, platform.id, traceId);
-      throw new ApiError('CONNECTION_NOT_PENDING', 'This connection already has a platform.');
-    }
-    return dto(req, getConnection(db, c.libraryId, c.id)!);
+    const adapter = setupOf(channels, c.channel);
+    if (!adapter) throw new ApiError('CAPABILITY_NOT_SUPPORTED');
+    const done = await authorityFor(c, deps).bind(c, adapter, req.body, { libraryName: libraryOf(req).name, traceId: req.traceId });
+    return dto(req, done);
   });
 
   api.delete<IdParams>('/connections/:id', async (req, reply) => {
     const c = connectionOf(req);
-    if (c.bindingAuthority === 'self') {
-      if (c.ltiPlatformId) await lti.patchPlatform(c.ltiPlatformId, { active: false }, req.traceId).catch(ltiFailure(req));
-      disableConnection(db, c.libraryId, c.id, now());
-      return reply.code(204).send();
-    }
-    // §4.7.2: one transaction (disabled, unredeemed grants revoked), then the fence-out of every owned record.
-    transaction(db, () => { disableConnection(db, c.libraryId, c.id, now()); revokeOpenGrants(db, c.id, 'disconnect', now()); });
-    const lines = deps.cleanup ? await deps.cleanup.fenceOut(getConnection(db, c.libraryId, c.id)!, req.traceId) : [];
-    if (lines.some((l) => l.result === 'failed')) throw new ApiError('LTI_SERVICE_ERROR', `The LTI service did not switch off every record. The operator repairs it with app:binding suspend. Trace id: ${req.traceId}`);
+    await authorityFor(c, deps).disconnect(c, req.traceId);
     return reply.code(204).send();
   });
 }

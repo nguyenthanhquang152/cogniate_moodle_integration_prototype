@@ -1,7 +1,39 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E1-06 review, Reviewer-B (lens: "Can a human team own it?")
+
+## Round 2 (Reviewer-B2)
+
+Reviewer: Reviewer-B2, the second lens-B instance (plan LD-22), on this lens's file. This is a bounded check of the round-1 MINOR and the NITs. Diff: `git diff e1eafff 6b79c1f` (lane K fix commits `9edd9e7`, `85b5f52`, `eb48552`, `6b79c1f`). I did not open the other reviewer's file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 0 MINOR, 1 new NIT.** The round-1 MINOR is **closed**. Two NITs are closed, one is accepted in part, and four stay open (deferred list).
+
+How I checked: a scratch clone of `6b79c1f` (private `/tmp` folder, deleted after the run). `vitest run services/cogniate-app packages/channel-kernel`: **25 files, 409 passed, 2 skipped**. `node --test infra/scripts/fitness/connection-lms.test.mjs`: 1 of 1 passed. `F5 PASS: 3 rules …, 0 hits`; `F1 PASS: 73 files with hits, 588 hits`.
+
+### Round-1 findings
+
+| Finding | Status |
+| --- | --- |
+| B-LA-E1-06-01 (MINOR) | **Closed.** `createConnection` takes the adapter's `sharingOf` and calls it once, for the profile it resolves itself (`domain/connections.ts:131-141`), so `sharing` and the profile cannot disagree. A missing answer throws before the INSERT. The three refusals name the channel, the method and the profile (`createConnection: channel "zz-test" has no sharing data for profile "zz-shared"`). The worker fixture now uses `providerOf(lms).sharingOf`, so the Blackboard row gets `shared`. A new test proves that the default profile is the one passed to `sharingOf` and that nothing is written on a refusal. The profile stays optional in the domain input. That is fine now, because the domain resolves the default once and derives `sharing` from that same profile. |
+| B-LA-E1-06-02 (NIT) | **Closed.** `fenceRecordOf` and `revokeRecordOf` replace the boolean, each with its reason. `fenceRecords` says that committed platforms and reservations are attempt targets, and it names the suspend tests in `redemption.test.ts`. |
+| B-LA-E1-06-03 (NIT) | **Closed in part, accepted.** `channel` and `bindingAuthority` have their own doc lines. The rule comment ("Never read connection.lms; it is a frozen behaviour class") now sits above `toConnection`. Migration `013` gets no header comment. That is correct: it is merged, and the migration runner keeps a SHA-256 of each applied file, so a comment edit would fail on a stack that already applied it. |
+| B-LA-E1-06-04 (NIT) | **Open, deferred.** A missing `manual` method still gives "This LMS has no dynamic registration." (`app/connections.ts:202`). |
+| B-LA-E1-06-05 (NIT) | **Open, deferred.** `main.ts:27`, `:37`: the content listener still depends on the app listener's build order for `channels`. |
+| B-LA-E1-06-06 (NIT) | **Open, deferred.** `domain/attempts.ts` still re-exports the kernel type for the content host without a comment. |
+| B-LA-E1-06-07 (NIT) | **Open, deferred.** The `lms-providers` filter has no named helper and still uses the literal `'standard'`. |
+
+Also in this round, and clear: the frozen texts `LEGACY_GRADE_CONFLICT` and `LEGACY_LEARNER_HOST` move into `legacy-wire.ts` with the BD-A1-27 reason and their LA-IC-15 follow-up. The F5 rule `connection-lms` now also finds `connection c, … c.lms` in a comma join, with a test.
+
+### New in this round
+
+#### B-LA-E1-06-08 — NIT — `publicationResults` keeps a parameter that it no longer reads
+
+- **File:** `services/cogniate-app/src/domain/results.ts:85` (`_channels: ChannelRegistry`).
+- **Problem:** After the frozen learner text (BD-A1-27), the function no longer reads the registry, but every caller still builds and passes one. A reader cannot tell whether the parameter is dead or kept on purpose for LA-IC-15.
+- **Suggested fix:** Remove the parameter and its call-site arguments. Or add one comment: "kept for LA-IC-15 (per-channel learner text)".
+
+## Round 1
 
 Diff: `git diff dc67c14^1 dc67c14` (lane K commits `c330b38`, `df0b927`, merged as `dc67c14`). Spec: `docs/architecture/ltiaas/tasks/LA-E1-06.md`. Design: LA-ADR-04 D4 rules 1–6, LA-ADR-01 D7 and D11, app API delta §1–§2, BD-A1-11, -12, -17. I did not open the other reviewer's file. I did not run Docker.
 

@@ -53,11 +53,20 @@ describe('signing-key operator routes', () => {
     const created = await h.post();
     expect(created.statusCode).toBe(201);
     const b = created.json().kid as string;
-    expect((await h.post(`/${b}/retire`, { immediate: true })).json()).toEqual({ kid: b, status: 'removed' });
+    const removed = await h.post(`/${b}/retire`, { immediate: true });
+    expect(removed.json()).toEqual({ kid: b, status: 'removed' });
     expect(publicJwks(h.db, 'cogniate', T0).map((key) => key.kid)).toEqual([h.a]);
     const replacement = await h.post(); expect(replacement.statusCode).toBe(201);
     const c = replacement.json().kid as string;
-    expect((await h.post(`/${c}/activate`, { force: true })).statusCode).toBe(200);
+    const activated = await h.post(`/${c}/activate`, { force: true });
+    expect(activated.statusCode).toBe(200);
+    expect(h.lines.filter((line) => line.event === 'signing_key_changed')).toEqual([
+      expect.objectContaining({ kid: b, status: 'next', trace_id: created.headers['x-trace-id'] }),
+      expect.objectContaining({ kid: b, status: 'removed', trace_id: removed.headers['x-trace-id'] }),
+      expect.objectContaining({ kid: c, status: 'next', trace_id: replacement.headers['x-trace-id'] }),
+      expect.objectContaining({ kid: h.a, status: 'retired', trace_id: activated.headers['x-trace-id'] }),
+      expect.objectContaining({ kid: c, status: 'active', trace_id: activated.headers['x-trace-id'] }),
+    ]);
 
     for (const [name, path, body, account, status, code] of [
       ['activate active', `/${c}/activate`, { force: true }, 'cogniate', 409, 'SIGNING_KEY_WRONG_STATE'],
