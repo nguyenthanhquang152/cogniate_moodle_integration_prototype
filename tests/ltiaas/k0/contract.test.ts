@@ -54,86 +54,235 @@ import {
   type ProfileRegistry,
   type ProviderProfile,
 } from '../../../services/lti-service/src/profiles/index.ts';
+import type {
+  AdminValues,
+  BindingTarget,
+  ConnectionSetup,
+  CreateRequestContext,
+  GrantPurpose,
+  InitialTargetContext,
+  LocalProfileView,
+  PlatformBodyContext,
+  PlatformBodyValues,
+  ProfileView,
+  SetupConnection,
+  StagedCreate,
+  ToolConfigurationContext,
+  ToolRow,
+} from '../../../services/cogniate-app/src/kernel/ports.ts';
+
+const VALID_GRANT_CODE_43 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopq';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../..');
 const productRoot = path.join(repoRoot, 'packages/channels');
 const canaryRoot = path.join(repoRoot, 'tests/ltiaas/canary');
-const appPortsPath = path.join(repoRoot, 'services/cogniate-app/src/kernel/ports.ts');
-const adr01Path = path.join(repoRoot, 'docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md');
 
-interface D3ParsedRow {
-  capabilityId: string;
-  guardCell: string;
-  status: number | null;
-  code: string | null;
+// Frozen LA-ADR-01 D3 oracle (lines 145–176). Kept as frozen data in the K0 kit so docs-only
+// prose edits in LA-ADR-01 never break `npm run check` (B-LA-E7-01-07).
+interface FrozenD3OracleRow {
+  readonly d3Citation: string;
+  readonly catalogKind: 'boolean' | 'list' | 'sharing' | 'authorityMap';
+  readonly catalogSource: 'manifest' | 'registration' | 'profile' | 'setup';
+  readonly guarded: boolean;
+  readonly kind: 'http' | 'behaviour' | 'none';
+  readonly status: number | null;
+  readonly code: string | null;
+  readonly detailsCapability: string | null;
+  readonly legacyFlag?: keyof LegacyCapabilities;
 }
 
-function parseAdr01D3Tables(markdown: string): {
-  rows: Map<string, D3ParsedRow>;
-  legacyByCapability: Map<string, keyof LegacyCapabilities>;
-} {
-  const rows = new Map<string, D3ParsedRow>();
-  const legacyByCapability = new Map<string, keyof LegacyCapabilities>();
+const FROZEN_D3_CATALOG_ORACLE: Readonly<Record<CapabilityId, FrozenD3OracleRow>> = Object.freeze({
+  'registration.dynamic': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:145,169,176',
+    catalogKind: 'boolean',
+    catalogSource: 'registration',
+    guarded: true,
+    kind: 'http',
+    status: 422,
+    code: 'CAPABILITY_NOT_SUPPORTED',
+    detailsCapability: 'dynamicRegistration',
+    legacyFlag: 'dynamicRegistration',
+  }),
+  'binding.authority': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:146,170',
+    catalogKind: 'authorityMap',
+    catalogSource: 'registration',
+    guarded: true,
+    kind: 'behaviour',
+    status: null,
+    code: null,
+    detailsCapability: null,
+    legacyFlag: 'operatorApproval',
+  }),
+  'registration.scopes': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:147',
+    catalogKind: 'list',
+    catalogSource: 'manifest',
+    guarded: false,
+    kind: 'none',
+    status: null,
+    code: null,
+    detailsCapability: null,
+  }),
+  'platform.sharing': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:148',
+    catalogKind: 'sharing',
+    catalogSource: 'profile',
+    guarded: false,
+    kind: 'none',
+    status: null,
+    code: null,
+    detailsCapability: null,
+  }),
+  'deployments.multiple': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:149,173,176',
+    catalogKind: 'boolean',
+    catalogSource: 'manifest',
+    guarded: true,
+    kind: 'http',
+    status: 409,
+    code: 'CAPABILITY_NOT_SUPPORTED',
+    detailsCapability: 'addDeployment',
+    legacyFlag: 'addDeployment',
+  }),
+  'site.serviceOrigin': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:150',
+    catalogKind: 'boolean',
+    catalogSource: 'profile',
+    guarded: true,
+    kind: 'http',
+    status: 400,
+    code: 'INVALID_REQUEST',
+    detailsCapability: null,
+  }),
+  'setup.artifacts': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:151,174,176',
+    catalogKind: 'list',
+    catalogSource: 'manifest',
+    guarded: true,
+    kind: 'http',
+    status: 409,
+    code: 'CAPABILITY_NOT_SUPPORTED',
+    detailsCapability: 'canvasConfiguration',
+    legacyFlag: 'canvasConfiguration',
+  }),
+  'siteApi.token': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:152,171,176',
+    catalogKind: 'boolean',
+    catalogSource: 'manifest',
+    guarded: true,
+    kind: 'http',
+    status: 409,
+    code: 'CAPABILITY_NOT_SUPPORTED',
+    detailsCapability: 'webServices',
+    legacyFlag: 'webServices',
+  }),
+  'publish.createCourse': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:153,172,176',
+    catalogKind: 'boolean',
+    catalogSource: 'manifest',
+    guarded: true,
+    kind: 'http',
+    status: 409,
+    code: 'CAPABILITY_NOT_SUPPORTED',
+    detailsCapability: 'courseShell',
+    legacyFlag: 'courseShell',
+  }),
+  'export.packages': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:154',
+    catalogKind: 'list',
+    catalogSource: 'manifest',
+    guarded: true,
+    kind: 'behaviour',
+    status: null,
+    code: null,
+    detailsCapability: null,
+  }),
+  'content.multiple': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:155',
+    catalogKind: 'boolean',
+    catalogSource: 'manifest',
+    guarded: true,
+    kind: 'behaviour',
+    status: null,
+    code: null,
+    detailsCapability: null,
+  }),
+  'content.ungraded': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:156',
+    catalogKind: 'boolean',
+    catalogSource: 'manifest',
+    guarded: true,
+    kind: 'behaviour',
+    status: null,
+    code: null,
+    detailsCapability: null,
+  }),
+  'launch.windowHint': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:157',
+    catalogKind: 'boolean',
+    catalogSource: 'manifest',
+    guarded: true,
+    kind: 'behaviour',
+    status: null,
+    code: null,
+    detailsCapability: null,
+  }),
+  'launch.topLevelContinue': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:158',
+    catalogKind: 'boolean',
+    catalogSource: 'manifest',
+    guarded: true,
+    kind: 'behaviour',
+    status: null,
+    code: null,
+    detailsCapability: null,
+  }),
+  'records.reporters': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:159',
+    catalogKind: 'list',
+    catalogSource: 'manifest',
+    guarded: true,
+    kind: 'behaviour',
+    status: null,
+    code: null,
+    detailsCapability: null,
+  }),
+  'records.readBack': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:160,176',
+    catalogKind: 'boolean',
+    catalogSource: 'manifest',
+    guarded: true,
+    kind: 'http',
+    status: 409,
+    code: 'CAPABILITY_NOT_SUPPORTED',
+    detailsCapability: 'records.readBack',
+  }),
+  'setup.connectionCheck': Object.freeze({
+    d3Citation: 'LA-ADR-01 D3:161,176',
+    catalogKind: 'boolean',
+    catalogSource: 'setup',
+    guarded: true,
+    kind: 'http',
+    status: 409,
+    code: 'CAPABILITY_NOT_SUPPORTED',
+    detailsCapability: 'setup.connectionCheck',
+  }),
+});
 
-  for (const rawLine of markdown.split('\n')) {
-    const line = rawLine.trim();
-    if (!line.startsWith('| `')) continue;
-    const cells = line
-      .split(/(?<!\\)\|/)
-      .slice(1, -1)
-      .map((c) => c.trim());
-
-    // D3 capability catalog table: | `<id>` | Type | Source | Replaces | Guard when false or absent |
-    if (cells.length === 5) {
-      const idMatch = /^`([a-zA-Z0-9_.]+)`$/.exec(cells[0]);
-      if (!idMatch) continue;
-      const capabilityId = idMatch[1];
-      if (!(CAPABILITY_IDS as readonly string[]).includes(capabilityId)) continue;
-      const guardCell = cells[4];
-      const httpMatch = /\b(4\d\d)\s+([A-Z][A-Z0-9_]+)\b/.exec(guardCell);
-      rows.set(capabilityId, {
-        capabilityId,
-        guardCell,
-        status: httpMatch ? Number(httpMatch[1]) : null,
-        code: httpMatch ? httpMatch[2] : null,
-      });
-    }
-
-    // D3 legacy projection table: | `<legacyFlag>` | `<capability expr>` |
-    if (cells.length === 2) {
-      const flagMatch = /^`(dynamicRegistration|operatorApproval|webServices|courseShell|addDeployment|canvasConfiguration)`$/.exec(
-        cells[0],
-      );
-      if (!flagMatch) continue;
-      const legacyFlag = flagMatch[1] as keyof LegacyCapabilities;
-      const rhs = cells[1];
-      if (rhs.includes('registration.dynamic')) legacyByCapability.set('registration.dynamic', legacyFlag);
-      else if (rhs.includes('operatorGrant')) legacyByCapability.set('binding.authority', legacyFlag);
-      else if (rhs.includes('siteApi.token')) legacyByCapability.set('siteApi.token', legacyFlag);
-      else if (rhs.includes('publish.createCourse')) legacyByCapability.set('publish.createCourse', legacyFlag);
-      else if (rhs.includes('deployments.multiple')) legacyByCapability.set('deployments.multiple', legacyFlag);
-      else if (rhs.includes('setup.artifacts')) legacyByCapability.set('setup.artifacts', legacyFlag);
-    }
-  }
-
-  return { rows, legacyByCapability };
-}
-
-const adr01D3 = parseAdr01D3Tables(fs.readFileSync(adr01Path, 'utf8'));
-
-// Guard table from LA-ADR-01 D3 (lines 147–180).
+// Guard table from LA-ADR-01 D3 (lines 145–176).
 // HTTP guards have `kind: 'http'` with status, code and detailsCapability;
 // behaviour / CLI guards have `kind: 'behaviour'` with status: null, code: null.
 interface CapabilityGuardSpec {
   id: string;
   catalogKey: CapabilityId;
+  d3GuardSubstring: string;
   kind: 'http' | 'behaviour';
   status: number | null;
   code: string | null;
   detailsCapability: string | null;
   legacyFlag?: keyof LegacyCapabilities;
-  d3GuardSubstring: string;
   isSupported(caps: CapabilitySet): boolean;
   enableIn(manifest: ChannelManifest, profile: ProfileTraits | undefined): {
     manifest: ChannelManifest;
@@ -583,6 +732,9 @@ function defineChannelContractCases(
       ...manifest.texts.teacherSteps,
       manifest.texts.disconnect,
       ...(manifest.texts.notReady ? [manifest.texts.notReady] : []),
+      ...((manifest.texts as { registered?: string }).registered
+        ? [(manifest.texts as { registered: string }).registered]
+        : []),
     ];
     const allowedTokens = new Set<string>(
       TEXT_PLACEHOLDERS.map((p) => (p.startsWith('{') ? p : `{${p}}`)),
@@ -648,17 +800,20 @@ function defineChannelContractCases(
       );
     }
 
-    // Verify that CAPABILITY_GUARD_TABLE covers every D3 capability row whose guard column is not "—".
-    const unguardedInD3 = new Set<string>(['registration.scopes', 'platform.sharing']);
+    // Verify that product CAPABILITY_CATALOG matches the frozen D3 oracle and CAPABILITY_GUARD_TABLE covers every guarded row.
     const guardedIdsInTable = new Set<string>(CAPABILITY_GUARD_TABLE.map((g) => g.catalogKey));
     for (const capId of CAPABILITY_IDS) {
-      const adrRow = adr01D3.rows.get(capId);
-      expect(adrRow, `LA-ADR-01 D3 table contains row for ${capId}`).toBeDefined();
-      if (unguardedInD3.has(capId)) {
-        expect(adrRow!.guardCell.startsWith('—'), `${capId} has no guard in D3`).toBe(true);
-      } else {
-        expect(guardedIdsInTable.has(capId), `${capId} is present in CAPABILITY_GUARD_TABLE`).toBe(true);
-      }
+      const oracleRow = FROZEN_D3_CATALOG_ORACLE[capId];
+      expect(oracleRow, `frozen D3 oracle contains row for ${capId}`).toBeDefined();
+      expect(CAPABILITY_CATALOG[capId], `${capId}: product CAPABILITY_CATALOG matches ${oracleRow.d3Citation}`).toEqual(
+        {
+          kind: oracleRow.catalogKind,
+          source: oracleRow.catalogSource,
+        },
+      );
+      expect(guardedIdsInTable.has(capId), `${capId}: guarded membership in CAPABILITY_GUARD_TABLE`).toBe(
+        oracleRow.guarded,
+      );
     }
 
     for (const guard of CAPABILITY_GUARD_TABLE) {
@@ -693,9 +848,9 @@ function defineChannelContractCases(
     const defaultProfileId = manifest.registration[0]?.defaultProfile;
     const defaultProfile = loaded.ltiProfiles.find((p) => p.id === defaultProfileId) as ProfileTraits | undefined;
 
-    // 1. Call product code (`reg.capabilities`, `computeCapabilities`, `reg.legacyCapabilities`, `legacyProjection`)
-    //    on the channel's actual manifest + profile (where the capability is false/absent) AND on a copy with the
-    //    capability enabled, proving the product kernel computes both states.
+    // 1. Call product code (`reg.capabilities`, `computeCapabilities`, `reg.legacyCapabilities`, `legacyProjection`,
+    //    `CAPABILITY_CATALOG`) on the channel's actual manifest + profile (where the capability is false/absent)
+    //    AND on a copy with the capability enabled, proving the product kernel computes both states.
     const caps = reg.capabilities(channelId, defaultProfile);
     const directCaps = computeCapabilities(manifest, defaultProfile);
     const legacy = reg.legacyCapabilities(channelId, defaultProfile);
@@ -718,24 +873,51 @@ function defineChannelContractCases(
       ).toBe(true);
     }
 
-    // 2. Compare the guard's status, code, detailsCapability and guard text against the authoritative
-    //    LA-ADR-01 D3 markdown table on disk (so any mutation of status, code or detailsCapability fails).
-    const adrRow = adr01D3.rows.get(guard.catalogKey);
-    expect(adrRow, `LA-ADR-01 D3 row exists for ${guard.catalogKey}`).toBeDefined();
-    expect(adrRow!.guardCell, `${guard.id}: D3 guard column matches`).toContain(guard.d3GuardSubstring);
-    expect(guard.status, `${guard.id}: status matches LA-ADR-01 D3`).toBe(adrRow!.status);
-    expect(guard.code, `${guard.id}: error code matches LA-ADR-01 D3`).toBe(adrRow!.code);
+    // Isolate the single capability flip in product `legacyProjection` (`publish.createCourse` depends on `siteApi.token`).
+    const preFlipCaps =
+      guard.catalogKey === 'publish.createCourse'
+        ? computeCapabilities(
+            {
+              ...manifest,
+              capabilities: { ...manifest.capabilities, 'siteApi.token': true, 'publish.createCourse': false },
+            },
+            defaultProfile,
+          )
+        : caps;
+    const preFlipLegacy = legacyProjection(preFlipCaps);
+    const postFlipLegacy = legacyProjection(enabledCaps);
+    const flippedLegacyFlags = (Object.keys(postFlipLegacy) as Array<keyof LegacyCapabilities>).filter(
+      (k) => !preFlipLegacy[k] && postFlipLegacy[k],
+    );
+
+    // 2. Compare the guard row against the frozen LA-ADR-01 D3 oracle and product CAPABILITY_CATALOG / legacyProjection
+    //    (without reading ADR markdown at test time, B-LA-E7-01-07).
+    const oracleRow = FROZEN_D3_CATALOG_ORACLE[guard.catalogKey];
+    expect(oracleRow, `frozen D3 oracle row exists for ${guard.catalogKey}`).toBeDefined();
+    expect(CAPABILITY_CATALOG[guard.catalogKey], `${guard.id}: product CAPABILITY_CATALOG matches D3`).toEqual({
+      kind: oracleRow.catalogKind,
+      source: oracleRow.catalogSource,
+    });
+    expect(guard.kind, `${guard.id}: kind matches ${oracleRow.d3Citation}`).toBe(oracleRow.kind);
+    expect(guard.status, `${guard.id}: status matches ${oracleRow.d3Citation}`).toBe(oracleRow.status);
+    expect(guard.code, `${guard.id}: error code matches ${oracleRow.d3Citation}`).toBe(oracleRow.code);
+    expect(guard.legacyFlag, `${guard.id}: legacyFlag matches ${oracleRow.d3Citation}`).toBe(oracleRow.legacyFlag);
+    expect(flippedLegacyFlags, `${guard.id}: product legacyProjection flipped key`).toEqual(
+      oracleRow.legacyFlag ? [oracleRow.legacyFlag] : [],
+    );
 
     if (guard.kind === 'http') {
       if (guard.catalogKey === 'site.serviceOrigin') {
         expect(guard.detailsCapability).toBeNull();
       } else {
-        // LA-ADR-01 D3 line 180: "A guard that existed in M1 keeps its details.capability value (...). A new guard uses the capability id."
-        const expectedDetailsCap = adr01D3.legacyByCapability.get(guard.catalogKey) ?? guard.catalogKey;
-        expect(guard.detailsCapability, `${guard.id}: details.capability matches D3 rule`).toBe(expectedDetailsCap);
-      }
-      if (guard.legacyFlag) {
-        expect(adr01D3.legacyByCapability.get(guard.catalogKey)).toBe(guard.legacyFlag);
+        // LA-ADR-01 D3:176: "A guard that existed in M1 keeps its details.capability value (...). A new guard uses the capability id."
+        const expectedDetailsCap = flippedLegacyFlags[0] ?? guard.catalogKey;
+        expect(guard.detailsCapability, `${guard.id}: details.capability matches product legacyProjection / D3`).toBe(
+          expectedDetailsCap,
+        );
+        expect(guard.detailsCapability, `${guard.id}: details.capability matches ${oracleRow.d3Citation}`).toBe(
+          oracleRow.detailsCapability,
+        );
       }
     } else {
       expect(guard.status).toBeNull();
@@ -903,9 +1085,9 @@ function defineChannelContractCases(
     }
   });
 
-  // K-ADAPTER (AC-LA-E7-01-07, LA-ADR-01 D5 `ConnectionSetup` contract surface, BD-A1-20).
+  // K-ADAPTER (AC-LA-E7-01-07, LA-ADR-01 D5 `ConnectionSetup` contract surface, BD-A1-20, BD-A1-28).
   const initialLoaded = initialCtx.loaded;
-  const portsExist = fs.existsSync(appPortsPath);
+  const isBaselineChannel = ['moodle', 'canvas', 'blackboard'].includes(channelId);
   const needsAdapter =
     manifest.lti?.toolConfiguration === 'channel' ||
     manifest.setup.connectionCheck === true ||
@@ -914,13 +1096,13 @@ function defineChannelContractCases(
     (Array.isArray(manifest.capabilities['setup.artifacts']) && manifest.capabilities['setup.artifacts'].length > 0) ||
     (Array.isArray(manifest.capabilities['export.packages']) && manifest.capabilities['export.packages'].length > 0);
 
-  if (needsAdapter && !portsExist && initialLoaded.appAdapter === undefined) {
-    // Pending LA-E1-07 for baseline channels until services/cogniate-app/src/kernel/ports.ts and packages/channels/*/app.ts land.
+  if (isBaselineChannel && initialLoaded.appAdapter === undefined) {
+    // Pending LA-E1-07 for baseline channels until packages/channels/<id>/app.ts exports a ConnectionSetup (BD-A1-28).
     it.todo(
-      `K-ADAPTER.${channelId}: pending LA-E1-07 (services/cogniate-app/src/kernel/ports.ts and packages/channels/${channelId}/app.ts)`,
+      `K-ADAPTER.${channelId}: pending LA-E1-07 (packages/channels/${channelId}/app.ts ConnectionSetup)`,
     );
   } else {
-    it(`K-ADAPTER.${channelId}: D5 ConnectionSetup members, strict parseBindingBody, toolConfiguration array, and throwing db/lti stubs (BD-A1-20)`, () => {
+    it(`K-ADAPTER.${channelId}: D5 ConnectionSetup members, strict parseBindingBody, toolConfiguration array, and throwing db/lti stubs (BD-A1-20, BD-A1-28)`, () => {
       const { loaded, reg } = getContext();
       expect(Array.isArray(manifest.setup.createFields)).toBe(true);
       expect(Array.isArray(manifest.setup.bindingFields)).toBe(true);
@@ -935,20 +1117,9 @@ function defineChannelContractCases(
         return;
       }
 
-      // Required for every channel with app.ts (or after LA-E1-07): no silent skips (BD-A1-20).
+      // Required for every channel with app.ts (or after LA-E1-07): no silent skips (BD-A1-20, BD-A1-28).
       expect(loaded.appAdapter, `${channelId}: exports app.ts ConnectionSetup adapter`).toBeDefined();
-      const adapter = loaded.appAdapter as {
-        channel?: unknown;
-        checkCreate?: (input: unknown) => { ok: boolean; siteUrl?: string; serviceUrl?: string; field?: string; rule?: number };
-        toolConfiguration?: (ctx: unknown) => unknown;
-        parseBindingBody?: (body: unknown, ctx: unknown) => { ok: boolean; values?: Record<string, unknown>; fields?: string[] };
-        selfCreate?: (values: unknown, ctx: unknown) => Record<string, unknown>;
-        initialTarget?: (ctx: unknown) => Record<string, unknown>;
-        createRequest?: (target: unknown, ctx: unknown) => Record<string, unknown>;
-        extensionRoutes?: readonly unknown[];
-        publishHooks?: readonly unknown[];
-        packageExporters?: readonly unknown[];
-      };
+      const adapter = loaded.appAdapter as Partial<ConnectionSetup>;
 
       expect(adapter.channel, `${channelId}: adapter.channel equals manifest.id`).toBe(channelId);
       expect(typeof adapter.checkCreate, `${channelId}: checkCreate is required`).toBe('function');
@@ -970,26 +1141,36 @@ function defineChannelContractCases(
       }
 
       const defaultProfileId = manifest.registration[0]?.defaultProfile;
-      const defaultProfile = loaded.ltiProfiles.find((p) => p.id === defaultProfileId) as ProfileTraits | undefined;
+      const defaultProfile = loaded.ltiProfiles.find((p) => p.id === defaultProfileId) as
+        | (ProfileTraits & { issuer?: string | null })
+        | undefined;
       const caps = reg.capabilities(channelId, defaultProfile);
 
+      // Extension-port assertions (`extensionRoutes`, `publishHooks`, `packageExporters`) are "pending: LA-E1-08"
+      // for baseline channels when not yet defined on `adapter`; the canary and new channels keep the full rule (BD-A1-28).
       if (caps['setup.artifacts'].length > 0 || caps['siteApi.token'] === true) {
-        expect(
-          Array.isArray(adapter.extensionRoutes) && adapter.extensionRoutes.length > 0,
-          `${channelId}: extensionRoutes required when setup.artifacts or siteApi.token is enabled`,
-        ).toBe(true);
+        if (!isBaselineChannel || adapter.extensionRoutes !== undefined) {
+          expect(
+            Array.isArray(adapter.extensionRoutes) && adapter.extensionRoutes.length > 0,
+            `${channelId}: extensionRoutes required when setup.artifacts or siteApi.token is enabled`,
+          ).toBe(true);
+        }
       }
       if (caps['publish.createCourse'] === true) {
-        expect(
-          Array.isArray(adapter.publishHooks) && adapter.publishHooks.length > 0,
-          `${channelId}: publishHooks required when publish.createCourse is enabled`,
-        ).toBe(true);
+        if (!isBaselineChannel || adapter.publishHooks !== undefined) {
+          expect(
+            Array.isArray(adapter.publishHooks) && adapter.publishHooks.length > 0,
+            `${channelId}: publishHooks required when publish.createCourse is enabled`,
+          ).toBe(true);
+        }
       }
       if (caps['export.packages'].length > 0) {
-        expect(
-          Array.isArray(adapter.packageExporters) && adapter.packageExporters.length > 0,
-          `${channelId}: packageExporters required when export.packages is enabled`,
-        ).toBe(true);
+        if (!isBaselineChannel || adapter.packageExporters !== undefined) {
+          expect(
+            Array.isArray(adapter.packageExporters) && adapter.packageExporters.length > 0,
+            `${channelId}: packageExporters required when export.packages is enabled`,
+          ).toBe(true);
+        }
       }
 
       const throwingGuards = {
@@ -999,10 +1180,24 @@ function defineChannelContractCases(
         outbound: makeThrowingStub('outbound'),
       };
 
+      const profileView: ProfileView = {
+        id: defaultProfileId ?? 'standard',
+        issuer: defaultProfile?.issuer ?? 'https://lms.school.example.edu',
+        sharing: defaultProfile?.sharing ?? 'exclusive',
+        serviceUrl: defaultProfile?.serviceUrl ?? false,
+      };
+      const localProfileView: LocalProfileView = {
+        id: profileView.id,
+        issuer: profileView.issuer,
+        sharing: profileView.sharing,
+        serviceUrl: profileView.serviceUrl,
+      };
+      const sharedClientId = profileView.sharing === 'shared' ? 'shared-client-1' : null;
+
       // 1. checkCreate(input) -> { ok: true, siteUrl, serviceUrl } | { ok: false, field, rule? }
       const createOk = adapter.checkCreate!({
         siteUrl: 'https://lms.school.example.edu',
-        profile: defaultProfile ?? { id: defaultProfileId, serviceUrl: false, sharing: 'exclusive' },
+        profile: profileView,
         ...throwingGuards,
       });
       expect(createOk.ok, `${channelId}: checkCreate accepts valid https origin`).toBe(true);
@@ -1013,7 +1208,7 @@ function defineChannelContractCases(
 
       const createBad = adapter.checkCreate!({
         siteUrl: 'not-a-url',
-        profile: defaultProfile ?? { id: defaultProfileId, serviceUrl: false, sharing: 'exclusive' },
+        profile: profileView,
         ...throwingGuards,
       });
       expect(createBad.ok, `${channelId}: checkCreate refuses invalid siteUrl with { ok: false }`).toBe(false);
@@ -1021,29 +1216,49 @@ function defineChannelContractCases(
         expect(typeof createBad.field === 'string' && createBad.field.length > 0).toBe(true);
       }
 
-      // 2. toolConfiguration(ctx) -> ToolRow[] (an array, no .rows wrapper)
-      const rows = adapter.toolConfiguration!({
-        connectionId: 'conn-1',
-        publicAppOrigin: 'https://app.cogniate.test',
-        publicLtiOrigin: 'https://lti.cogniate.test',
-        siteUrl: 'https://lms.school.example.edu',
+      // 2. toolConfiguration(ctx: ToolConfigurationContext) -> ToolRow[] (an array, no .rows wrapper)
+      const toolConfigCtx: ToolConfigurationContext = {
+        urls: {
+          lti: 'https://lti.cogniate.test',
+          app: 'https://app.cogniate.test',
+          content: 'https://content.cogniate-content.test',
+        },
+        libraryName: 'Library A',
+        sharedClientId,
+      };
+      const rows: ToolRow[] = adapter.toolConfiguration!({
+        ...toolConfigCtx,
         ...throwingGuards,
       });
       expect(Array.isArray(rows) && rows.length > 0, `${channelId}: toolConfiguration returns ToolRow[]`).toBe(true);
-      for (const row of rows as Array<{ key?: unknown; label?: unknown; value?: unknown }>) {
+      for (const row of rows) {
         expect(typeof row.key === 'string' && row.key.length > 0).toBe(true);
         expect(typeof row.label === 'string' && row.label.length > 0).toBe(true);
         expect(typeof row.value === 'string' && row.value.length > 0).toBe(true);
       }
 
-      // 3. parseBindingBody(body, ctx) -> { ok: true, values } | { ok: false, fields } (never throws)
+      // 3. parseBindingBody(body, ctx: PlatformBodyContext & { purpose: GrantPurpose }) -> PlatformBodyResult (never throws)
       const validBody: Record<string, string> = {};
       for (const f of manifest.setup.bindingFields) {
         if (!f.required) continue;
-        validBody[f.key] = f.kind === 'url' || f.kind === 'origin' ? 'https://lms.school.example.edu/lti' : `${f.key}-1`;
+        if (f.key === 'grantCode' || f.kind === 'grantCode') {
+          validBody[f.key] = VALID_GRANT_CODE_43;
+        } else if (f.kind === 'origin') {
+          validBody[f.key] = 'https://lms.school.example.edu';
+        } else if (f.kind === 'url') {
+          validBody[f.key] = `https://lms.school.example.edu/lti/${f.key}`;
+        } else {
+          validBody[f.key] = `${f.key}-1`;
+        }
       }
+      const bodyCtx: PlatformBodyContext & { purpose: GrantPurpose } = {
+        siteUrl: 'https://lms.school.example.edu',
+        clientId: 'client-1',
+        sharedClientId,
+        purpose: 'initial',
+      };
       const parsedOk = adapter.parseBindingBody!(validBody, {
-        purpose: 'initial_binding',
+        ...bodyCtx,
         ...throwingGuards,
       });
       expect(parsedOk.ok, `${channelId}: parseBindingBody accepts valid required fields`).toBe(true);
@@ -1051,7 +1266,7 @@ function defineChannelContractCases(
         expect(parsedOk.values && typeof parsedOk.values === 'object').toBe(true);
       }
 
-      const parsedMissing = adapter.parseBindingBody!({}, { purpose: 'initial_binding', ...throwingGuards });
+      const parsedMissing = adapter.parseBindingBody!({}, { ...bodyCtx, ...throwingGuards });
       expect(parsedMissing.ok, `${channelId}: parseBindingBody returns { ok: false } on empty body`).toBe(false);
       if (!parsedMissing.ok) {
         expect(Array.isArray(parsedMissing.fields) && parsedMissing.fields.length > 0).toBe(true);
@@ -1059,38 +1274,81 @@ function defineChannelContractCases(
 
       const parsedUnknown = adapter.parseBindingBody!(
         { ...validBody, __unknownExtraField: 'nope' },
-        { purpose: 'initial_binding', ...throwingGuards },
+        { ...bodyCtx, ...throwingGuards },
       );
       expect(parsedUnknown.ok, `${channelId}: parseBindingBody refuses unknown field with { ok: false }`).toBe(false);
       if (!parsedUnknown.ok) {
         expect(parsedUnknown.fields).toContain('__unknownExtraField');
       }
 
+      if (manifest.setup.bindingFields.some((f) => f.key === 'grantCode' || f.kind === 'grantCode')) {
+        const parsedBadGrant = adapter.parseBindingBody!(
+          { ...validBody, grantCode: 'not-43-base64url' },
+          { ...bodyCtx, ...throwingGuards },
+        );
+        expect(parsedBadGrant, `${channelId}: malformed grantCode returns { ok: false, fields: ['grantCode'] }`).toEqual(
+          {
+            ok: false,
+            fields: ['grantCode'],
+          },
+        );
+      }
+
+      const createReqCtx: CreateRequestContext = {
+        libraryName: 'Library A',
+      };
+
       // 4. Authority-specific methods with throwing stubs
       if (hasManualSelf && typeof adapter.selfCreate === 'function') {
-        const staged = adapter.selfCreate(
-          {
-            issuer: 'https://lms.school.example.edu',
-            authenticationEndpoint: 'https://lms.school.example.edu/auth',
-            accessTokenEndpoint: 'https://lms.school.example.edu/token',
-            jwksUrl: 'https://lms.school.example.edu/jwks',
-            deploymentId: 'dep-1',
-          },
-          { siteUrl: 'https://lms.school.example.edu', ...throwingGuards },
-        );
+        const selfValues: AdminValues & { clientId: string; deploymentId: string } = {
+          issuer: 'https://lms.school.example.edu',
+          authenticationEndpoint: 'https://lms.school.example.edu/auth',
+          accessTokenEndpoint: 'https://lms.school.example.edu/token',
+          jwksUrl: 'https://lms.school.example.edu/jwks',
+          tokenAudience: 'https://lms.school.example.edu/token',
+          clientId: 'client-1',
+          deploymentId: 'dep-1',
+        };
+        const staged: StagedCreate = adapter.selfCreate(selfValues, {
+          ...createReqCtx,
+          ...throwingGuards,
+        });
         expect(staged && typeof staged === 'object').toBe(true);
       }
 
       if (hasOperatorGrant) {
-        const target = adapter.initialTarget!({
+        const setupConnection: SetupConnection = {
+          id: 'conn-1',
+          libraryId: 'lib-1',
+          name: 'Library A',
+          channel: channelId,
+          profile: profileView.id,
           siteUrl: 'https://lms.school.example.edu',
-          profileId: defaultProfileId,
-          values: parsedOk.ok ? parsedOk.values : validBody,
+          serviceUrl: 'https://lms.school.example.edu',
+          status: 'pending',
+          ltiPlatformId: null,
+        };
+        const bindingValues: PlatformBodyValues = parsedOk.ok
+          ? parsedOk.values
+          : {
+              clientId: validBody.clientId ?? 'client-1',
+              deploymentId: validBody.deploymentId ?? 'dep-1',
+              grantCode: VALID_GRANT_CODE_43,
+            };
+        const initialTargetCtx: InitialTargetContext = {
+          connection: setupConnection,
+          values: bindingValues,
+          profile: localProfileView,
+          sharedPlatform:
+            profileView.sharing === 'shared' ? { id: 'shared-plat-1', clientId: 'shared-client-1' } : null,
+        };
+        const target: BindingTarget = adapter.initialTarget!({
+          ...initialTargetCtx,
           ...throwingGuards,
         });
         expect(target && typeof target === 'object').toBe(true);
-        const staged = adapter.createRequest!(target, {
-          siteUrl: 'https://lms.school.example.edu',
+        const staged: StagedCreate = adapter.createRequest!(target, {
+          ...createReqCtx,
           ...throwingGuards,
         });
         expect(staged && typeof staged === 'object').toBe(true);
