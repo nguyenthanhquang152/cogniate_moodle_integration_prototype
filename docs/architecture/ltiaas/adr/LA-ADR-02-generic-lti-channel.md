@@ -130,7 +130,7 @@ At the start page the LTI service does not know the connection's channel yet. It
 
 - **No simulator profile** is needed for `lti-generic` or `brightspace`. Both are admin-value profiles, so QA registers sim hosts as admin values. The D2L defaults are checked as constants in a no-Docker test (as AC-M1-01 does for the fixed Canvas and Blackboard values).
 - QA adds two simulator modules (`tests/sim/`, QA-owned): a **generic provider** (issuer with a path, token on a second host, an opaque DR token, many deployments) and a **D2L provider** (token host `auth.brightspace.sim.test`, an audience that differs from the token URL, family `desire2learn`, many UUID deployments).
-- One host manifest makes the compose aliases, the certificate SANs and the `acceptance` outbound allowlist from the simulator modules (plan E7; QA owns the generator). After E7, a new simulator LMS needs no infra edit.
+- One host manifest makes the compose aliases, the certificate SANs and the `acceptance` outbound allowlist from the simulator modules (plan E7; QA owns the generator). After E7, a new simulator LMS needs no infra edit. The file format and its fail-closed rules are in [README §4b](../README.md#4b-simulator-host-manifest-f74) (build ratification BD-A1-01).
 
 ### D8. Add-channel gate base
 

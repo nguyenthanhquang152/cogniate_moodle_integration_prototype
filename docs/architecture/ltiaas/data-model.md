@@ -1,6 +1,6 @@
 # LA data model changes
 
-Status: v1 (A1, milestone LA P2, 2026-10-22). Base: [`../data-model.md`](../data-model.md) (M1 state). Rules of [ADR-006](../adr/ADR-006-storage.md) stay: plain SQL, one migration file per step, the checksum rule, never edit an applied migration. Plan rule for LA: only **additive** changes (new tables, new nullable or defaulted columns), each with a migration test; no storage-command change (plan §3 E1, LD-3).
+Status: v1 (A1, milestone LA P2, 2026-10-22); P4 build ratification BD-A1-04 in §1 and §4.1 ([build decisions A1](build-decisions-A1.md)). Base: [`../data-model.md`](../data-model.md) (M1 state). Rules of [ADR-006](../adr/ADR-006-storage.md) stay: plain SQL, one migration file per step, the checksum rule, never edit an applied migration. Plan rule for LA: only **additive** changes (new tables, new nullable or defaulted columns), each with a migration test; no storage-command change (plan §3 E1, LD-3).
 
 ## 1. Overview
 
@@ -12,9 +12,11 @@ Status: v1 (A1, milestone LA P2, 2026-10-22). Base: [`../data-model.md`](../data
 | Cogniate app | `016_connection_health.sql` (first E6 file; number: the Lead, in landing order) | E6 (Could), LA-E6-02 (P, B3) | shape A2 ([LA-ADR-08 D5](adr/LA-ADR-08-onboarding-and-connection-health.md)), table A1 | `connection_event`, `connection.artifact_key_kid` (moved from `015`; Reviewer-B B-LAD-13) |
 | Cogniate app | second E6 file, `admin_launch_code` (number: the Lead, in landing order; plan LD-12) | E6 (Could), LA-E6-03 (K, B4) | shape A2 ([LA-ADR-08 D3](adr/LA-ADR-08-onboarding-and-connection-health.md)), table A1 | `admin_launch_code` |
 | Cogniate app | E3 migration (number: P3) | E3 Must (multi-select) | A1 (table), A2 (feature, [LA-ADR-05 D3](adr/LA-ADR-05-lti-advantage-completeness.md)) | `picker_pick` (§5b; Reviewer-A A-LAD-10) |
-| LTI service | `005_…` and later (numbers: P3) | E2-K, E3, E5 | A1 (E2 platform fields), A2 (the rest) | §4 |
+| LTI service | `005_…` and later (numbers: the Lead, §4.1) | E2-K, E3, E5 | A1 (E2 platform fields), A2 (the rest) | §4 |
 
-Each file keeps one epic. Migrations of different lanes must not depend on each other. The file number gives the apply order of the runner (`packages/shared/src/migrations.ts`); the Lead gives the numbers in landing order at P3 (README §6), so the number order equals the landing order.
+Each file keeps one epic. Migrations of different lanes must not depend on each other. File name form: `NNN_<content>.sql` (three digits), so the name order is the number order.
+
+**Number rule** (BD-A1-04, from the build practice; tasks README RQ-5). The Lead gives each number when it briefs the task, in the order that it gives them. So a task can land after a task with a higher number: LTI `006` landed before `005`. This is safe for three reasons. (1) Migrations of different lanes do not depend on each other. (2) Each file is additive (plan rule above). (3) The runner sorts the file names and applies every file that is not in `schema_migration`, also a file with a lower number than an applied one, and it accepts gaps (`packages/shared/src/migrations.ts:58-84`). So a database that got `006` before `005` has the same schema as a new database. A migration may depend only on a file that has a lower number and is already on the integration branch when it lands. A number is never given twice; the number of a cut task stays unused. A rule that must tell new migrations from applied ones uses a list of file names, never a number threshold (F5 `sql-portability`, LA-E1-04).
 
 ```mermaid
 erDiagram
@@ -162,6 +164,19 @@ CREATE TABLE job_lease (
 | Retention | Unchanged rule ([`../data-model.md` §2.1](../data-model.md#21-retention-a-t4b2-02)): placements, records and dispatches are the record of results and are not deleted. Retention periods are LA-H4. |
 
 ## 4. LTI service changes
+
+### 4.1 LTI service migration numbers (BD-A1-04)
+
+| File | Task (lane) | Content | Landed on the integration branch |
+| --- | --- | --- | --- |
+| `001`–`004` | M1 | today's tables (`004_provider_profiles.sql`: `platform.profile`) | before LA |
+| `005_operator_key.sql` | LA-E5-01 (S1) | table `operator_key` | `29c109d` |
+| `006_key_provider.sql` | LA-E5-08 (S2) | `service_key.derivation_version TEXT NOT NULL DEFAULT 'legacy'` | `85a1882` (before `005`) |
+| `007_audit_event.sql` | LA-E5-02 (S1) | table `audit_event`, its two indexes and the append-only trigger | `0d320c4` |
+
+Next numbers: `008` and up. The Lead gives one number at a time, when it briefs a task that adds an LTI service migration (RQ-5), and records it in the board row of the task. The number rule of §1 applies. The other rows of the table below still need a number when their task starts.
+
+### 4.2 Changes
 
 | Change | Epic | Design | Rule |
 | --- | --- | --- | --- |
