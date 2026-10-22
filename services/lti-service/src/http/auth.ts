@@ -2,7 +2,8 @@ import type { ApiErrorCode } from '../api-errors.ts';
 import { ApiError } from '../api-errors.ts';
 import type { Db } from '../db/index.ts';
 import type { ToolAccount } from '../store/accounts.ts';
-import { findAccountByApiKey } from '../store/accounts.ts';
+import { getAccount } from '../store/accounts.ts';
+import { findActiveApiKey } from '../store/api-keys.ts';
 import type { AuditActor } from '../store/audit.ts';
 import type { LaunchRecord } from '../store/launches.ts';
 import { findLaunchByLtik } from '../store/launches.ts';
@@ -38,7 +39,7 @@ export function parseAuthorization(header: string | undefined): ParsedAuth {
 export interface AuthResult {
   scheme: Scheme;
   account: ToolAccount;
-  /** B1: one API key per account, named bootstrap-<account>. LA-E5-07 supplies the key id here. */
+  /** The actual API key id, including for migrated bootstrap keys. */
   actor: AuditActor;
   /** LTIK-AUTH-V2: the launch of the ltik. */
   launch: LaunchRecord | null;
@@ -47,7 +48,7 @@ export interface AuthResult {
 }
 
 /**
- * Resolve the header for an endpoint that accepts `accepted` schemes. Throws ApiError 401 with the contract code.
+ * Resolve the header for an endpoint that accepts `accepted` schemes. Invalid credentials give 401; status and scope refusals give 403.
  * onFail logs api_auth_failed {scheme, code}.
  */
 export function authenticate(db: Db, header: string | undefined, accepted: Scheme[], now: number, onFail: (scheme: string, code: string) => void): AuthResult {
@@ -64,15 +65,18 @@ export function authenticate(db: Db, header: string | undefined, accepted: Schem
     return reject(parsed.scheme, parsed.error);
   }
   if (!accepted.includes(parsed.scheme)) return reject(parsed.scheme, 'INVALID_AUTHORIZATION_HEADER');
-  const account = findAccountByApiKey(db, parsed.apiKey);
-  if (!account || account.status === 'closed') {
+  const key = findActiveApiKey(db, parsed.apiKey, now);
+  const account = key ? getAccount(db, key.toolAccountId) : null;
+  if (!key || !account || account.status === 'closed') {
     // ADR-003: a bad API key on Bearer endpoints uses the LTIK error code.
     return reject(parsed.scheme, parsed.scheme === 'service' ? 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER' : 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER',
       parsed.scheme === 'bearer' ? 'Invalid API key.' : undefined);
   }
-  const actor: AuditActor = { type: 'api_key', id: `bootstrap-${account.id}` };
+  const actor: AuditActor = { type: 'api_key', id: key.id };
   const statusGate = (result: AuthResult): AuthResult => {
     if (account.status === 'suspended') throw new ApiError('TOOL_ACCOUNT_SUSPENDED');
+    const needed = parsed.scheme === 'bearer' ? 'admin' : 'launch';
+    if (!key.scopes.includes(needed)) throw new ApiError('API_KEY_SCOPE_MISSING', `The API key needs the ${needed} scope.`);
     return result;
   };
   if (parsed.scheme === 'bearer') {
