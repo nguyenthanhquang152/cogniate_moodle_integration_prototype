@@ -4,7 +4,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ChannelManifest, ChannelRegistry } from '@cogniate/channel-kernel';
-import { buildChannelRegistry } from '@cogniate/channel-kernel';
+import { buildChannelRegistry, registrationText } from '@cogniate/channel-kernel';
 import { makeZip, scormManifest } from '@cogniate/package-inspector/testing';
 import { createLogger } from '@cogniate/shared';
 import type { FastifyInstance } from 'fastify';
@@ -14,7 +14,7 @@ import type { TestApp } from '../testkit.ts';
 import { TEST_CHANNELS, TEST_MASTER_KEY, TEST_URLS, THANH, formBody, launchToken, testApp } from '../testkit.ts';
 import { runtimeTokenFor } from './launch-rules.ts';
 import { escapeHtml } from './page.ts';
-import { registerErrorText } from './register-texts.ts';
+import { REGISTER_ERRORS, registerErrorText } from './register-texts.ts';
 
 const TEXT_CHANNEL = 'zz-text';
 
@@ -169,6 +169,10 @@ describe('AC-LA-E1-09-02: register pages and the connection error texts', () => 
     expect(actionOf(page)).toBe(escapeHtml(action));
     expect(page).toContain(`Cogniate could not connect this ${escapeHtml(name)} site`);
     expect((await json('GET', `/app-api/connections/${p.id}`, cookie)).json().lastError).toMatchObject({ title: `Cogniate could not connect this ${name} site`, action });
+  });
+
+  it('BD-A1-59: the Moodle manifest sentence of UPDATE_NOT_ALLOWED is the register page text of today (LA-E2-04 moves the page to it)', () => {
+    expect(registrationText(TEST_CHANNELS.channel('moodle'), 'UPDATE_NOT_ALLOWED')).toBe(REGISTER_ERRORS.UPDATE_NOT_ALLOWED.action);
   });
 
   it('B-LA-E1-09-01: a tool name with $ sequences goes literally into the tool-may-exist text', () => {
