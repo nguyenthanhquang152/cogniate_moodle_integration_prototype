@@ -92,6 +92,9 @@ export const LEGACY_SELF_BINDING_TEXT = {
   reserved: 'This address belongs to a hosted LMS. Connect it as Canvas or Blackboard.',
 } as const;
 
+/** Frozen register page code (LA-ADR-04 D2): the LTI service does not know if the platform saved the tool. */
+export const TOOL_MAY_EXIST_CODE = 'MOODLE_TOOL_MAY_EXIST' as const;
+
 /** Frozen clean-up text of MOODLE_TOOL_MAY_EXIST (LA-ADR-01 D12, BD-A1-30). Keep its UI words byte for byte. */
 export function pendingToolText(toolName: string): string {
   return `Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool '${toolName}', then connect again.`;
@@ -102,3 +105,6 @@ export const EXTENSION_CAPABILITY_MEMBERS: Readonly<Record<string, string>> = Ob
 
 /** Frozen recovery text (LA-E4-02); keep the pre-migration wire value byte for byte. */
 export const LEGACY_SCORE_INTERRUPTED = 'The score send was interrupted. Moodle may have received it.';
+
+/** Frozen hook attribute of the player shell link "Back to {LMS}" (M1 HTML; LA-E1-09 keeps the page bytes). */
+export const BACK_LINK_ATTRIBUTE = 'data-back-to-moodle';
