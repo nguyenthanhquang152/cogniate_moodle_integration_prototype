@@ -777,7 +777,7 @@ function defineChannelContractCases(
       const rawProfile = loaded.ltiProfiles.find((p) => p.id === profileId);
       expect(rawProfile, `${channelId}: lti-profiles.ts contains ${profileId}`).toBeDefined();
 
-      const def: ProviderProfile | null = profileDefinition(profileId, profileReg);
+      const def: ProviderProfile | null = profileDefinition(profileId, { simulation: true, registry: profileReg });
       expect(def, `profileDefinition(${profileId}) is defined`).not.toBeNull();
       const profile = def!;
       expect(profile.channel).toBe(channelId);

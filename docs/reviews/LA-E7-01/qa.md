@@ -59,6 +59,13 @@ Independence: Lead QA wrote `tests/ltiaas/k0/contract.test.ts` and `tests/ltiaas
 - **M2 (rename `parseBindingBody` in `tests/ltiaas/canary/zz-canary/app.ts`):** exited `1` (`1 failed | 75 passed | 3 todo`), failing `K-ADAPTER.zz-canary: parseBindingBody is required` (`m2-method-rename.log`). Reverted after run.
 - **M3 (call `ctx.db.run()` inside `parseBindingBody` in `tests/ltiaas/canary/zz-canary/app.ts`):** exited `1` (`1 failed | 75 passed | 3 todo`), failing `K-ADAPTER.zz-canary` with `Error: K-ADAPTER forbidden db access: run` (`m3-db-touch.log`). Reverted after run.
 
+### RQ-1 alignment with `LA-E1-05` fix round 1 (`nguyenthanhquang152/la-l` `ead5edb`, `BD-A2-21`)
+
+- `tests/ltiaas/canary/zz-canary-admin/lti-profiles.ts:10` already uses `privacyFloor: 'allowlist'` from Round 2 (`7c54c33` / `3efa55a`).
+- `tests/ltiaas/k0/contract.test.ts:780` updated from `profileDefinition(profileId, profileReg)` to `profileDefinition(profileId, { simulation: true, registry: profileReg })`.
+- **With `nguyenthanhquang152/la-l` (`ead5edb`) merged locally into `quang/ltiaas-milestone` (`e6558af`) in `~/cogniate-qa-runs/LA/LA-E7-01/r2-rq1/clone`:** `npm run test:k0` passes (`3 passed`, `118 passed | 3 todo` in 581 ms, `with-l-k0.log`) and full `npm run check` exits `0` (`with-l-check.log`).
+- **Without `nguyenthanhquang152/la-l` (`ead5edb`):** `npm run typecheck` exits `0` (`without-l-typecheck.log`), and only line 780 (`profileDefinition(profileId, { simulation: true, registry: profileReg })`) requires L's merge because pre-`ead5edb` `profileDefinition(id, source)` calls `source.listProfiles(true)` directly on its second argument (`without-l-k0.log`); merge `tests/ltiaas/k0/contract.test.ts` and `nguyenthanhquang152/la-l` together.
+
 ---
 
 ## Round 1 (historical)
