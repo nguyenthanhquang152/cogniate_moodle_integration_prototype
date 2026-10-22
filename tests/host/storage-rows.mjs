@@ -1160,9 +1160,7 @@ function defineRows(ctx) {
         check(st.sets[vol][db].sha256 === sets[service].find((f) => f.name === db).sha256, `Before any start, ${db} equals the legacy bytes`);
       const pairId = assertPair(st.ids, { kind: 'import', generation: 1 });
       check(pairId !== state.bState.ids.lti.pairId, 'A new pairId');
-      const listed = (st.ids.lti.legacySources ?? []).map((x) => `${x.name}:${x.sha256}`).sort();
-      check(listed.length > 0 && JSON.stringify(listed) === JSON.stringify(Object.entries(files).map(([n, f]) => `${path.basename(n)}:${f.sha256}`).sort()),
-        'legacySources equal the manifest list');
+      for (const v of ['lti', 'app']) check(legacySourcesMatch(st.ids[v]?.legacySources, m.files), `legacySources of the ${v} identity equal the manifest list`);
       state.importIds = st.ids;
     },
     async 'e-kept'() {
@@ -1368,6 +1366,8 @@ function defineRows(ctx) {
   async function drill(point) {
     await stopped();
     const before = state.before ?? await lane.state();
+    // R1 compares the app journal with its observation just before the drill (ADR-012 §8).
+    const pre = point === 'prepared-lti' ? (await lane.state()).fileset : null;
     const env = drillEnv(point === 'rollback-mid' ? { STORAGE_DRILL_FAIL: 'after-swapped' } : {});
     const stop = await product('drill-' + point, ['stack:data-restore', '--', '--from', state.B, '--stop-after', point], { env });
     stopCheck(stop, point);
@@ -1389,7 +1389,10 @@ function defineRows(ctx) {
       state.postB = null;
     } else {
       expectExit(res, 1, '--recover at ' + point);
-      check(journalsAre(await lane.state(), 'rolled_back'), 'A verified rolled_back');
+      if (point === 'prepared-lti') {
+        const opId = linesOf(stop, 'storage_drill_stop').find((l) => l.point === point)?.opId;
+        check(firstWriteRolledBack(pre, (await lane.state()).fileset, opId), 'A verified rolled_back: lti rolled_back with the drill opId, the app journal as before (R1)');
+      } else check(journalsAre(await lane.state(), 'rolled_back'), 'A verified rolled_back');
       await equalsBefore(before);
     }
     const snap = await lane.snapshot();
@@ -1408,15 +1411,14 @@ function defineRows(ctx) {
     const g = lane.spawnGroup('npm', ['run', 'stack:data-restore', '--', '--from', state.B, '--pause-after', 'swapped-lti'], { cwd: lane.clone, env });
     const record = await until(() => { const f = path.join(lane.lockFolder(), 'owner.json'); try { return fs.existsSync(f) && JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return false; } },
       { timeoutMs: 60_000, what: 'restore lock record' });
-    await until(() => /storage_drill_pause/.test(g.output().stdout + g.output().stderr) || lane.allLogLines().some((l) => l.event === 'storage_drill_pause'),
-      { timeoutMs: 180_000, what: 'storage_drill_pause' });
+    const pause = await waitOwnPause(g);
     check(g.killGroup('SIGKILL'), 'SIGKILL to the whole group');
     await g.done;
     await until(async () => (await groupMembers(g.pgid)).length === 0, { timeoutMs: 10_000, what: 'the group is empty' });
     const active = (await lane.storageContainers()).filter((c) => c.state === 'running');
     check(active.length === 1 && active[0].name.startsWith(`${lane.project}-storage-`), 'The maintenance container still runs');
-    lane.r.saveText(`storage/${label}-kill.json`, JSON.stringify({ pgid: g.pgid, record, container: active[0] }, null, 2));
-    return { runId: record.runId, container: active[0], pgid: g.pgid };
+    lane.r.saveText(`storage/${label}-kill.json`, JSON.stringify({ pgid: g.pgid, record, container: active[0], pause }, null, 2));
+    return { runId: record.runId, container: active[0], pgid: g.pgid, pause };
   }
   async function lockStale() {
     const tmp = path.join(lane.clone, '.tmp');
@@ -1632,6 +1634,38 @@ export function rootJournalChanges(before, after) {
     for (const k of kb.filter((x) => x !== 'state' && x !== 'updatedAt' && ka.includes(x))) if (JSON.stringify(jb.json[k]) !== JSON.stringify(ja.json[k])) changes.push(`${v} root journal ${k} changed`);
   }
   return changes;
+}
+const OP_ID = /^[0-9a-f]{32}$/;
+/**
+ * g-prepared-lti after `--recover` (ADR-012 §8 R1, fixture-script file sets): the drill stopped after the first journal
+ * write, which is the lti journal only. So the lti journal is rolled_back with the drill's opId, and the app journal
+ * equals its observation just before the drill (`present: false` stays absent; a new app journal, also one of the same
+ * operation, fails). An absent app volume is an observation too.
+ */
+export function firstWriteRolledBack(pre, after, opId) {
+  const lti = after?.lti?.journal?.json, app = (f) => (f?.app?.state === 'absent' ? 'volume absent' : f?.app?.journal);
+  return OP_ID.test(String(opId)) && lti?.state === 'rolled_back' && lti.opId === opId
+    && app(pre) !== undefined && JSON.stringify(app(after)) === JSON.stringify(app(pre));
+}
+/**
+ * g-orphan-*: the storage_drill_pause of the spawned command, from its own captured output only. The product runs the
+ * maintenance container attached, so its lines reach this output. The lane logs are not used: an earlier pause stays
+ * there, and a line there has no proved link to this command.
+ */
+export function ownPause(output) {
+  return linesOf(output, 'storage_drill_pause').find((l) => l.point === 'swapped-lti' && OP_ID.test(String(l.opId))) ?? null;
+}
+/** Waits for ownPause in the finite bound (180 s in the row); without a current pause it fails closed at the deadline. */
+export const waitOwnPause = (g, { timeoutMs = 180_000 } = {}) => until(() => ownPause(g.output()), { timeoutMs, what: 'storage_drill_pause' });
+/**
+ * e-import (ADR-012 §6 legacySources [{ name, size, sha256 }]; §8 import: "from the manifest"): the list equals the manifest's files
+ * as a sorted multiset of complete entries. Names are compared in full (lti-service/lti.db); no basename or other
+ * normalization on either side.
+ */
+export function legacySourcesMatch(sources, files) {
+  if (!Array.isArray(sources) || !Array.isArray(files) || sources.length === 0) return false;
+  const key = (x) => JSON.stringify([x?.name, x?.size, x?.sha256]);
+  return JSON.stringify(sources.map(key).sort()) === JSON.stringify(files.map(key).sort());
 }
 /** A QA marker or scratch file (site #15): mode 0600, never over an existing path, then a mode check. */
 export function writeMarker(file, text) {
