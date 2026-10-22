@@ -161,3 +161,129 @@ The core safety content is right: the shared engine and trust boundary, the gran
 ## 7. Reuse rule for the final reviewer
 
 For a file whose SHA-256 still equals section 0, the checks of section 3 apply unchanged. For a changed file, review only the changed lines and the new bindings, plus the disposition of A-M4P-01..09.
+
+## Round 2 — focused static recheck of A-M4P-01..09 (provisional `958ee5c`)
+
+Verdict (Round 2): APPROVE — STATIC CONTENT of provisional `958ee5c`, for the closure of A-M4P-01..09 only. Final-pack approval: PENDING. Final binding gates: PENDING (section R2.9).
+Round: 2 (preliminary, static only). The verdict line at the top of this file stays as the Round 1 record.
+
+### R2.0 Identity, scope and inputs
+
+- Role: independent Reviewer-A, lens A ("Is it right and is it safe?"). Claude Code Opus 5.5, xhigh. Orca run `run_ebe671ad72a9`, task `task_04a67c4ee6d3`, dispatch `ctx_96b871b9bd6b`.
+- Time: 2026-10-22, 12:47–12:58 UTC.
+- I used no subworkers, Docker, npm, installs, tests, runtime or browser. I made no commit or push. I changed no guide, source, test or architecture file. I appended only this section.
+- Independence: I did not open any M4 Reviewer-B report or message. I did not read the author repair report. Disclosure: two texts that I read for scope mention Reviewer-B. `docs/team/board.md:16` gives only finding counts. Gemini `docs.md:195` names one Reviewer-B item (the missing `--workdir /repo`). I read that line after my own check of `infra/compose.yaml` and `tests/host/m1-control.mjs`.
+- Prior record: the first 22,885 bytes of this file stay byte-identical (SHA-256 `ea8fb8bce0ac18e1d28234548ec133bcc949675dada0b1a705d9943965d63d46`, commit `8dcb6cd`).
+- Boundary: the A-M4P-01..09 dispositions, the corrected lines and their source or contract basis, the 18 new `deferred.md` rows, the granted `infra/README.md` lines 69–74 and row 132, and the other lines of the guide delta `fd87bf7..958ee5c`. Round 1 §3 covers the unchanged content. I did not repeat the full guide review.
+
+### R2.1 Candidate inventory
+
+Target: commit `958ee5c1225addff7dc3d5ea3417b7d17e157bbf`. All ten files equal the Lead map at that commit (`git show` and `shasum -a 256`). The worktree and `HEAD` `60cb89d` have the same bytes.
+
+| Path | Bytes | SHA-256 | Change since `fd87bf7` |
+| --- | ---: | --- | --- |
+| `README.md` | 8,263 | `814c32dca7134ff2fff6b2a8c099aadbfd5559b672da8de7da20dd3e11469026` | none |
+| `docs/guides/blackboard-admin.md` | 7,294 | `6b4c0185f58765e835ccb60c6f419925dc71db7837dbd9acbb918c52532e8efb` | none |
+| `docs/guides/canvas-admin.md` | 11,565 | `bac615e5b02dbe01a3252efe463e72d1efab932661f75598331492d38e18cb30` | +10 / −6 |
+| `docs/guides/operator.md` | 19,229 | `fd2fc3b220a9451e8ccf8416f4d357fe276795a7d04e00a570a0be7bb6638765` | +29 / −18 |
+| `docs/guides/teacher.md` | 10,284 | `35ec285743b3febd80ecd47084e95ff4f2ce1695e901175fb21ee0b4f200dcda` | none |
+| `docs/guides/troubleshooting.md` | 14,839 | `33b6f0a20f995cda56168207e24244fd9846d4f969b4994291d9e5e1ed486127` | +8 / −5 |
+| `docs/human_review/START-HERE.md` | 6,527 | `c50777cf678c69c79b4c3e7c73ecdfd42d63b8f3fc63b11347f5ee17d4060718` | none |
+| `docs/human_review/canvas-blackboard.html` | 22,070 | `0e021663fbf73c8d906db7596d678e9cc067e1b78f883d00dd064b1bfb1501fa` | none |
+| `docs/human_review/deferred.md` | 25,305 | `f8a15a691babc9504392e24a2031fe542936926c62c8c2b74da15d041aaad493` | +25 / −0 |
+| `infra/README.md` | 61,970 | `3c27066a3307922336fbc56c0b91d40f6584fc8793d6a0f1640c6739c103c577` | +7 / −3 |
+
+Two commits change these files: `f185260` (Stage 0) and `958ee5c` (Stage 1). `docs/human_review/decisions-needed.md` and `docs/architecture/**` have no change in `fd87bf7..958ee5c`.
+
+### R2.2 Closure of A-M4P-01..09
+
+| Id | Round 1 severity | Status | Corrected lines at `958ee5c` | Basis checked |
+| --- | --- | --- | --- | --- |
+| A-M4P-01 | BLOCKER (final pack) | CLOSED | `deferred.md:144-145`, `:166-172` | All eight MINOR rows exist, with aliases, review links and the Lead dispositions (R2.3). The change is additive: 25 lines added, 0 removed. |
+| A-M4P-02 | MINOR | CLOSED | `operator.md:108`, `:135`, `:146`; `troubleshooting.md:74`, `:79`; `canvas-admin.md:145` | ADR-011 §4b (`:167`). App contract §4.9 "After a release" (`:612`) and "Recovery of an old pending connection C0" steps 1–5 (`:542-550`): new connection, grant, suspend, release, redeem. `M1-39.canvas.operator-order` (`61-canvas-containment.test.ts:179-190`) makes the rightful pending connection and its grant before suspend and release. |
+| A-M4P-03 | MINOR | CLOSED | `operator.md:212`; `infra/README.md:132`; `troubleshooting.md:89` | The quote is an exact part of the message at `infra/scripts/storage-oplock.sh:114`. Each text says: the manual exit is stop and escalate; no validated manual recovery procedure exists; do not remove or move the folder. No procedure is added. The ADR-012 A3 wording stays with AR-M4-05. |
+| A-M4P-04 | MINOR | CLOSED | `operator.md:206` | Only the first three rows are refusals. `storage_lock_lost` "is not a refusal: your command ran, and it can have changed data" (ADR-012 §7, release step 1). |
+| A-M4P-05 | MINOR | CLOSED | `operator.md:9`, `:11`, `:14-15`, `:18`, `:84-85`, `:224`; `infra/README.md:69-74` | `infra/compose.yaml:123`, `:156`: both services start in `/repo/services/<service>`. The containers mount `package.json`, `node_modules`, `packages` and `services` under `/repo`, not `infra`. `tests/host/m1-control.mjs:14`, `:25-26` run `exec -T --workdir /repo <service> npm run <script> -w services/<service>`. `infra/scripts/lib.sh:105-109` (`dc()`) gives the project and file flags of the examples. `lti:bootstrap` is a host wrapper (`services/lti-service/package.json:10`). Static check only; I ran no command. |
+| A-M4P-06 | MINOR | CLOSED | `troubleshooting.md:76-77`, `:82-83` | (a) `M1-18.canvas.disconnect` (`41-canvas-grades.test.ts:163`) and `M1-38.canvas.a` (`61-canvas-containment.test.ts:42`) assert a login `403 PLATFORM_NOT_ACTIVE`. The LTI contract checks `DEPLOYMENT_NOT_ACTIVE` after it (`lti-service-api.md:465`). The new row gives no page text, and the contract defines none for this code. (b) App contract launch routing (`cogniate-app-api.md:682`): `deployment_not_approved` when a Canvas or Blackboard connection owns the platform or holds the reservation; otherwise `unknown_platform`. AC-M1-37 (c2) gives `unknown_platform` for a lost first Canvas activation. The cases `51-canvas-races.test.ts:54-77` (c2, i, p-activate, s-retry) and `50-races.test.ts:47` (Blackboard i) match each row, its cause and its fix. |
+| A-M4P-07 | NIT | CLOSED | `operator.md:123` | `services/cogniate-app/src/app/binding-cleanup.ts:229-234`: the Moodle delete is unconditional and returns `deleted`. See O-2. |
+| A-M4P-08 | NIT | CLOSED | `canvas-admin.md:125-131`; `operator.md:226-227` | Each step names its actor. `infra/scripts/lti-bootstrap.sh:28` prints `kid=`. Portal route `integrations/canvas/:connectionId` (`apps/portal/src/App.tsx:129`); the portal calls `/app-api` on its own origin (`apps/portal/src/api.ts:43`). File name and `public_jwk.kid`: app contract `:323`; `M1-19.canvas.inline-key` (`31-canvas-grants.test.ts:151`, `:164-172`). Each step keeps `[L-C14 UNVERIFIED]` and the live note. |
+| A-M4P-09 | NIT | CLOSED | `operator.md:189`, `:191` | Same meaning as the ADR-011 §14 WARNING. The text marks it unmeasured. |
+
+Correction of my Round 1 text: the A-M4P-06 (b) example "after a lost activation answer (AC-M1-37 (c2))" was wrong. Case (c2) gives `unknown_platform`, because no connection owns the platform. The candidate rows `troubleshooting.md:82` and `:83` separate the two reasons correctly.
+
+### R2.3 The 18 new `deferred.md` rows
+
+Each row has the id with its alias, the severity, the problem, the review link and a fix. I compared each row with its source finding and with the Lead disposition in `docs/team/multi-lms-plan.md` (line numbers at `958ee5c`).
+
+| Row | Severity | Source finding | Lead disposition (plan) | Result |
+| --- | --- | --- | --- | --- |
+| `:144` A-CR-01 (Storage commands) | MINOR | `docs/reviews/M1/content-refusal-reviewer-a.md` | `:1231-1232`, `:1238` | Match |
+| `:145` A-CR-04 (Storage commands) | MINOR | same | `:1231`, `:1235` | Match ("This limit stays open") |
+| `:166` B-BM-01 (Storage harness) | MINOR | `backup-manifest-reviewer-b.md` | `:1579-1582`; also `:1444`, `:1562` | Match |
+| `:167` A-CR-02 (= B-CRR-02) | MINOR | content-refusal A and B | `:1233`, `:1238` | Match |
+| `:168` A-CR-03 | MINOR | content-refusal A | `:1234` | Match |
+| `:169` B-CRR-01 | MINOR | content-refusal B | `:1236`, `:1238` | Match |
+| `:170` A-SOR-01 (= B-SOR-01) | MINOR | storage-oracle-repair A and B | `:1441-1442` | Match |
+| `:171` B-SRP-03 (coverage part) | MINOR | `storage-reset-parent-reviewer-b.md:138` | `:1325-1326`, `:1334`, `:1337` | Match: text part done at `51505bc`; the coverage gap stays open |
+| `:172` A-SRR-01 | NIT | `storage-repair-reviewer-a.md:89` | `:1010` | Match; the fix is the finding's optional fix |
+| `:180-181` Q-M4-P01, Q-M4-P02 | NIT | Gemini `docs.md:107-108` | accepted before Round 1 | Match |
+| `:182-187` AR-M4-01..06 | NIT | `architect-conformance.md:126-131` | settled source checkpoint | Match, including AR-M4-04 (both paths store nothing; no AC covers the portal answer) and AR-M4-05 (stop and escalate) |
+| `:188` A-CR-05, B-CRR-06 | NIT | content-refusal A and B | `:1239` | Match; the fix stays with a later infra README grant |
+
+- Accepted history: `git diff --numstat` gives 25 added and 0 removed lines. The A-M0-10 (D-12) entry (`:112-123`), every earlier row and "Not open deferrals" stay byte-identical.
+- D-1..D-12: `canvas-blackboard.html` and `decisions-needed.md` are unchanged.
+- No new claim: the new section text (`:176`) authorizes no source, architecture or cosmetic change. It keeps final conformance and approval pending.
+- Completeness: I scanned each plan line that names a deferral or an accepted MINOR. Each id is in `deferred.md`, except A-S-13. A-S-13 is not a deferral: plan `:3457` closes it as a design build gate.
+
+### R2.4 Granted `infra/README.md` lines
+
+`fd87bf7..958ee5c` changes two places only (+7 / −3): lines 69–74 and row 132. Lines 69–74 are the two operator command rows, their host explanation and the QA-helper sentence (plan `:41-42`). Row 132 is the `operation_lock_invalid` row (grant `msg_ddbd419caeff`). The commands equal the operator guide form and the `dc()` flags. The cited case `M1-06.blackboard.cli` is in the Blackboard manifest and uses the same QA helper path. I did not reopen other README prose. A-CR-05 and B-CRR-06 stay deferred.
+
+### R2.5 Other changed lines (lens A)
+
+| Lines | Check | Result |
+| --- | --- | --- |
+| `operator.md:146` | App contract C0 recovery step 1 (`:542-550`). The operator-order test makes the pending connection before its grant. | Correct |
+| `operator.md:155`; `troubleshooting.md:63` | `M1-39.canvas.residual-race` (`61-canvas-containment.test.ts:191-204`) redeems the same grant after the second release and gets `200`. The `409 PLATFORM_IN_USE` does not use up the grant. The texts still say that the order does not close the window. | Correct; see A-M4P-R2-01 |
+| `canvas-admin.md:143`, `:145` | AC-M1-38: a disabled connection keeps its inactive platform. A new connection then needs a new key or a release. A release still needs a new approval. | Correct, and more exact than `fd87bf7` |
+| `operator.md:169`, `:182` | ADR-011 §14 rollback step 3 names old `npm ci` and `npm run build`. Root `package.json:19` has `build`. | Correct |
+| `operator.md:178` | `stack:down` stops the containers and keeps the volumes (`infra/README.md:47`, `:97`). | Correct |
+| `operator.md:225` | Rollback mode forbids `stack:restart` (`operator.md:195-196`; `infra/README.md:188-190`). "Outside rollback mode" agrees. Without `--env`, `stack:restart -- <service>` also restores that service's default test knobs (`infra/README.md:50`). | Correct |
+| `troubleshooting.md:82` | Revoke cleanup switches off only unapproved records of that grant (app contract §4.8). In `p-activate`, the first deployment keeps working and the old code gives `GRANT_INVALID`. | Correct |
+
+### R2.6 New finding
+
+#### A-M4P-R2-01 — NIT (optional) — the race recovery does not say what to do when the unused code is no longer valid
+
+- **Where:** `docs/guides/operator.md:155`; `docs/guides/troubleshooting.md:63`.
+- **Problem:** The text now says: "The unused code stays valid until it expires. Ask the rightful library to redeem that same code at once after the release." The `fd87bf7` text and ADR-011 §4b say "repeat the order". If the code expired, or was revoked or replaced, the operator can release first and issue the new grant later. That round then loses the grant-first property of the D-12 order.
+- **Impact:** only a longer D-12 window. Check 14 still refuses Canvas-signed launches. This stays inside the accepted A-M0-10 limit.
+- **Fix (optional):** before the release, add: "Run `app:grant list`. If the code is not `issued`, repeat the order from step 1." Do not change the accepted `deferred.md:119` text.
+
+### R2.7 Observations (no action)
+
+- O-1: `deferred.md:119` (accepted history, unchanged) keeps the ADR wording "repeat the order". The new guide path agrees in meaning: the grant already exists before the second release.
+- O-2: For a Moodle release, `M1-39.canvas.residual-race` asserts exit 0 and a freed client ID (the next redemption gives `200`). It does not assert the literal line `deleted`. The source prints `deleted`. No change is needed.
+- O-3: The Compose examples omit the test-knob override file that `dc()` adds when it exists. `exec` does not need it, and the QA helper also omits it.
+- O-4: The Gemini Stage 1 traces (concerns 1–7) agree with my independent checks. They do not replace them.
+
+### R2.8 Reused checks (not repeated)
+
+- Gemini Docs QA `docs/reviews/M4/docs.md` at `60cb89dc9f80520c61aa91df04b6f700e626b902`: 47,271 bytes, SHA-256 `a47a7e52d3ccd56d6595c4b0c5cadbd8e0ec43270a77f40556200c54c43e56a7` (verified). Its Stage 0 (`f185260`) and Stage 1 (`958ee5c`) input hashes equal R2.1. I reused: changed-line STE (AC-M4-03), links and anchors, `npm run` script names, the case-id inventory, the live-note count, and the offline HTML check of the unchanged `canvas-blackboard.html`.
+- Round 1 §3 checks stay valid for the five unchanged files and for the unchanged lines of the five changed files.
+
+### R2.9 Still PENDING (final binding gates)
+
+1. Final source stamps. Every "Draft basis `82aff91` / C4 `bf09cda` / draft" text stays (Round 1 §6 item 2). Bind product C4 `bf09cda` and the test-only correction C5 `e1a057be9624a82949007b772e2bdf19bc55638b`.
+2. Runtime status text (Round 1 §6 items 3–4), with the current facts. The full2 ATTEMPT is FAILED. Its two 488-row engine rounds, its two independent 233/233 Canvas judgments and their equality stay credited. Fresh legacy is FAILED: `AC-T5-36` (Moodle grade `null`) and `AC-T6-07` (publish dialog checked while "Loading"). T8 did not run. M2/T7 is pending. D-T6L gives no further acceptance. No text may call full2 or legacy passed.
+3. Final Architect source and runtime conformance after the runtime evidence (AC-M4-06).
+4. Final Docs binding after conformance. Then independent final Docs QA and two blind final reviews.
+5. A-SI-05 / B-SI-09 closure needs captured command output (Round 1 §5). This prose recheck does not close it. Row 132 changed only the manual-exit mapping.
+6. All 32 real-LMS rows stay `UNVERIFIED`. Local Canvas (L-C13) stays DEFERRED. L-C14 rotation and the portal texts of `GRANT_IN_USE`, `DEPLOYMENT_FIXED` and `ISSUER_RESERVED` stay unverified.
+7. Accepted deferrals are not new blockers. A-M4P-R2-01 is an optional NIT.
+
+This round gives no final prototype approval, no final pack approval and no human approval.
+
+### R2.10 Reuse rule for the final reviewer
+
+For a file whose SHA-256 equals R2.1, the checks of Round 1 §3 and of R2.2–R2.5 apply. For a later change, review only the changed lines, the final bindings and A-M4P-R2-01.
