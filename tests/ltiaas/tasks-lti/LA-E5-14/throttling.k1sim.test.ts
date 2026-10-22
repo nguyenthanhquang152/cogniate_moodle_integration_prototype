@@ -1,6 +1,6 @@
 // LA-E5-14 K1-SIM acceptance tests: Platform throttling answer 429 PLATFORM_RATE_LIMITED
 // (AC-LA-E5-14-01, AC-LA-E5-14-02, AC-LA-E5-14-03, AC-LA-E5-14-04, AC-LA-E5-14-05).
-// Source: docs/architecture/ltiaas/tasks/LA-E5-14.md; contract delta §1.3, §4.3, §6, §9; LA-ADR-03 D7; LA-ADR-04 D8 LA-IC-11.
+// Source: docs/architecture/ltiaas/tasks/LA-E5-14.md (at 4c11521); contract delta §1.3, §1.6, §4.3, §6, §9; LA-ADR-03 D7; LA-ADR-04 D8 LA-IC-11; BD-A2-15, BD-A2-16.
 // QA-4 wrote these tests from the spec, contracts and ADRs only (test-first).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -37,6 +37,8 @@ const SCOPES = {
   nrps: 'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
 } as const;
 
+const EXPECTED_DESCRIPTION = 'The platform asked us to wait before another request.';
+
 function writeArtifact(name: string, content: string): void {
   const runDir = process.env.LA_RUN_DIR;
   if (!runDir) return;
@@ -52,6 +54,11 @@ function headerValue(res: ApiResult, name: string): string | undefined {
 function retryAfterDetails(res: ApiResult): unknown {
   const j = res.json as { details?: { retryAfter?: unknown } } | null;
   return j?.details?.retryAfter;
+}
+
+function errorDescription(res: ApiResult): unknown {
+  const j = res.json as { details?: { description?: unknown } } | null;
+  return j?.details?.description;
 }
 
 /**
@@ -139,6 +146,7 @@ describe('LA-E5-14 Platform throttling answer 429 PLATFORM_RATE_LIMITED (K1-SIM)
     expect(res.status, `score POST status; body=${res.body}`).toBe(429);
     expect(hasErrorShape(res), 'response matches contract §1.3 error shape').toBe(true);
     expect(errorCode(res), 'details.message').toBe('PLATFORM_RATE_LIMITED');
+    expect(errorDescription(res), 'BD-A2-15 fixed description without platform text').toBe(EXPECTED_DESCRIPTION);
     expect(headerValue(res, 'retry-after'), 'Retry-After header').toBe('120');
     expect(retryAfterDetails(res), 'details.retryAfter').toBe(120);
 
@@ -171,6 +179,8 @@ describe('LA-E5-14 Platform throttling answer 429 PLATFORM_RATE_LIMITED (K1-SIM)
     expect(throttled.status, `403 Rate Limit Exceeded -> 429; body=${throttled.body}`).toBe(429);
     expect(hasErrorShape(throttled), 'throttled response matches error shape').toBe(true);
     expect(errorCode(throttled), 'throttled details.message').toBe('PLATFORM_RATE_LIMITED');
+    expect(errorDescription(throttled), 'BD-A2-15 fixed description without platform body').toBe(EXPECTED_DESCRIPTION);
+    expect(throttled.body.includes('Rate Limit Exceeded'), 'no platform body text leaks into answer').toBe(false);
     expect(headerValue(throttled, 'retry-after'), 'default Retry-After header when absent').toBe('60');
     expect(retryAfterDetails(throttled), 'default details.retryAfter when absent').toBe(60);
 
@@ -218,6 +228,7 @@ describe('LA-E5-14 Platform throttling answer 429 PLATFORM_RATE_LIMITED (K1-SIM)
     expect(res.status, `token 429 -> API 429; body=${res.body}`).toBe(429);
     expect(hasErrorShape(res), 'response matches contract §1.3 error shape').toBe(true);
     expect(errorCode(res), 'details.message').toBe('PLATFORM_RATE_LIMITED');
+    expect(errorDescription(res), 'BD-A2-15 fixed description').toBe(EXPECTED_DESCRIPTION);
     expect(headerValue(res, 'retry-after'), 'Retry-After defaults to 60 when absent').toBe('60');
     expect(retryAfterDetails(res), 'details.retryAfter defaults to 60 when absent').toBe(60);
 
@@ -269,9 +280,13 @@ describe('LA-E5-14 Platform throttling answer 429 PLATFORM_RATE_LIMITED (K1-SIM)
     expect(res.status, `GET /api/memberships status; body=${res.body}`).toBe(429);
     expect(hasErrorShape(res), 'response matches contract §1.3 error shape').toBe(true);
     expect(errorCode(res), 'details.message').toBe('PLATFORM_RATE_LIMITED');
+    expect(errorDescription(res), 'BD-A2-15 fixed description').toBe(EXPECTED_DESCRIPTION);
     const retryHeader = Number(headerValue(res, 'retry-after'));
-    expect(Number.isInteger(retryHeader) && retryHeader >= 1 && retryHeader <= 3600, 'Retry-After header is whole seconds in 1..3600').toBe(true);
-    expect(retryAfterDetails(res), 'details.retryAfter matches Retry-After header').toBe(retryHeader);
+    expect(
+      Number.isInteger(retryHeader) && retryHeader >= 1 && retryHeader <= 3600,
+      'Retry-After header is whole seconds in 1..3600 (BD-A2-16)',
+    ).toBe(true);
+    expect(retryAfterDetails(res), 'details.retryAfter matches Retry-After header (BD-A2-16)').toBe(retryHeader);
 
     writeArtifact(
       'e5-14-ac04.json',

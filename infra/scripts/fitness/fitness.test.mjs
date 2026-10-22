@@ -230,4 +230,82 @@ describe('F5 adapter and portability internals', () => {
         assert.equal(sqlPortability.check({ path: 'services/lti-service/src/db/migrations/001_new.sql', text }).length, 1);
         assert.deepEqual(sqlPortability.check({ path: 'services/lti-service/src/db/migrations/001_init.sql', text }), []);
     });
+    it('detects blobs, every SQLite date function, randomblob and rowid in new migrations', () => {
+        const expressions = ["X''", "x'00FF'", 'unixepoch()', 'julianday()', "strftime('%s')", 'datetime()', "date('now')", 'time()', "timediff('a', 'b')", 'randomblob(16)', 'rowid'];
+        const text = expressions.map((value) => `SELECT ${value};`).join('\n');
+        for (const path of ['services/lti-service/src/db/migrations/999_next.sql', 'services/example/src/db/migrations/999_next.sql', 'services/cogniate-app/src/domain/migrations/999_next.sql']) {
+            const hits = sqlPortability.check({ path, text });
+            assert.equal(hits.length, expressions.length, path);
+            assert.deepEqual(hits.map(({ line, col }) => [line, col]), expressions.map((_, i) => [i + 1, 8]));
+        }
+    });
+    it('ignores comments and values but detects quoted and qualified SQL identifiers', () => {
+        const path = 'services/lti-service/src/db/migrations/999_next.sql';
+        const text = "-- X'' date() rowid\n/* randomblob(4) */ SELECT 'rowid', 'X''00''', 'date() randomblob(4)', updated_at, date, time, myrandomblob(4), rowid_suffix;";
+        assert.deepEqual(sqlPortability.check({ path, text }), []);
+        const forms = 'SELECT t.ROWID, "rowid", `rowid`, [rowid], "datetime" /* comment */ (), RANDOMBLOB (4);';
+        assert.equal(sqlPortability.check({ path, text: forms }).length, 6);
+    });
+    it('limits adapter exceptions to each exact file and form without waivers', () => {
+        const folder = 'services/lti-service/src/db/migrations/';
+        for (const [file, permitted, forbidden] of [
+            ['009_signing_key_lifecycle.sql', "SELECT unixepoch('subsec'), date('now');", 'SELECT randomblob(4);'],
+            ['011_api_key.sql', 'SELECT hex(randomblob(16));', "SELECT date('now');"],
+        ]) {
+            assert.deepEqual(sqlPortability.check({ path: folder + file, text: permitted }), []);
+            assert.equal(sqlPortability.check({ path: folder + file, text: forbidden }).length, 1);
+            assert.ok(sqlPortability.check({ path: folder + file.replace('.sql', '_other.sql'), text: permitted }).length > 0);
+        }
+        const path = 'services/cogniate-app/src/domain/migrations/013_channel_kernel.sql';
+        assert.equal(sqlPortability.check({ path, text: "-- fitness-allow sql-portability\nSELECT X'';" }).length, 1);
+        const migration = folder + '009_signing_key_lifecycle.sql';
+        assert.deepEqual(sqlPortability.check({ path: migration, text: readFileSync(new URL(`../../../${migration}`, import.meta.url), 'utf8') }), []);
+    });
+    it('checks only string and template text in service TypeScript, including cooked escapes', () => {
+        const path = 'services/example/src/nested/query.ts';
+        const text = String.raw`// randomblob(4), rowid
+const date = () => 1;
+const rowid = date(); const pattern = /randomblob\(4\)/;
+const query = "SELECT \u0072owid,\nrandomblob(4)";
+const template = ` + '`SELECT date(${date()}), ${rowid}, "rowid"`;' + `
+const quoted = ` + "`SELECT 'date(${date()})', randomblob(4)`;";
+        const hits = sqlPortability.check({ path, text });
+        assert.equal(hits.length, 5);
+        assert.deepEqual(hits.slice(0, 2).map(({ line, col }) => [line, col]), [[4, 23], [4, 36]]);
+        for (const skipped of [path.replace('.ts', '.test.ts'), 'services/example/src/testkit.ts', 'packages/shared/src/query.ts', 'apps/portal/src/query.ts', 'services/example/query.ts']) {
+            assert.deepEqual(sqlPortability.check({ path: skipped, text }), [], skipped);
+        }
+    });
+    it('maps multibyte escapes and template newlines to their source positions', () => {
+        const path = 'services/example/src/query.ts';
+        const text = String.raw`const query = "SELECT '\u{1f600}', rowid";` + '\nconst template = `SELECT\r\n rowid`;';
+        const hits = sqlPortability.check({ path, text });
+        assert.deepEqual(hits.map(({ line, col }) => [line, col]), [[1, text.indexOf('rowid') + 1], [3, 2]]);
+    });
+    it('freezes only one exact occurrence of each existing inline blob query', () => {
+        const cases = [
+            ['services/cogniate-app/src/domain/pickers.ts', "UPDATE picker_session SET ltik_encrypted = X'' WHERE id = ?"],
+            ['services/cogniate-app/src/domain/retention.ts', "UPDATE picker_session SET ltik_encrypted = X'' WHERE used_at IS NOT NULL AND length(ltik_encrypted) > 0 AND expires_at < ?"],
+            ['services/lti-service/src/store/tool-keys.ts', "UPDATE tool_key SET status = 'removed', removed_at = ?, private_jwk_encrypted = X'' WHERE tool_account_id = ? AND kid = ?"],
+            ['services/lti-service/src/jobs/signing-key-cleanup.ts', "UPDATE tool_key SET private_jwk_encrypted = X'' WHERE status = 'removed' AND length(private_jwk_encrypted) > 0"],
+        ];
+        for (const [path, query] of cases) {
+            const text = `db.prepare(${JSON.stringify(query)});`;
+            assert.deepEqual(sqlPortability.check({ path, text }), []);
+            assert.equal(sqlPortability.check({ path, text: `${text}\n${text}` }).length, 1);
+            assert.equal(sqlPortability.check({ path, text: text.replace("X''", "X'00'") }).length, 1);
+            assert.equal(sqlPortability.check({ path: 'services/example/src/query.ts', text }).length, 1);
+            assert.equal(sqlPortability.check({ path, text: `${text}\nconst next = 'SELECT rowid';` }).length, 1);
+        }
+    });
+    it('freezes the nine legacy rowid statements and rejects edits or added uses', () => {
+        for (const [name, count] of [['attempts', 1], ['bindings', 2], ['mbz-builds', 3], ['results', 2], ['score-syncs', 1]]) {
+            const path = `services/cogniate-app/src/domain/${name}.ts`;
+            const text = readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8');
+            assert.deepEqual(sqlPortability.check({ path, text }), []);
+            assert.equal(sqlPortability.check({ path, text: text.replace('rowid', 'rowid + 0') }).length, 1);
+            assert.equal(sqlPortability.check({ path, text: `${text}\nconst next = 'SELECT rowid';` }).length, 1);
+            assert.equal(sqlPortability.check({ path, text: `${text}\n${text}` }).length, count);
+        }
+    });
 });

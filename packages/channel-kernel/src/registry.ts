@@ -57,7 +57,7 @@ export interface ChannelRegistry {
   channelOfProfile(profileId: string): string | null;
   /** The channel that guards a product family (any case; generic check 14), or null. */
   ownerOfFamily(family: string): string | null;
-  /** The `{LMS}` text name. Null or an unknown channel: the text name of the standard profile's channel. */
+  /** The `{LMS}` text name. Null uses the standard profile's channel; an unknown non-null id uses "your LMS". */
   textName(channelId: string | null): string;
   /** The capability set; an unknown channel gets the empty set (every guard closed). */
   capabilities(channelId: string, profile?: ProfileTraits): CapabilitySet;
@@ -67,7 +67,7 @@ export interface ChannelRegistry {
 
 /** The profile of the base LTI 1.3 platform (`lms: null` on the wire); `textName(null)` names its channel. */
 export const STANDARD_PROFILE_ID = 'standard';
-/** The text name when no loaded channel owns the standard profile (a test registry). */
+/** The text name for an unknown non-null id, or when no loaded channel owns the standard profile. */
 export const GENERIC_TEXT_NAME = 'your LMS';
 
 const ENTRY = { manifest: 'manifest.ts', lti: 'lti-profiles.ts', app: 'app.ts' } as const;
