@@ -116,8 +116,10 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
     };
     const { resourceLink, context } = token.launch;
     // A valid deep-linking ltik (or a launch without a resource link) cannot start a course: same page as a bad ltik
-    // ("Open the activity again in {LMS}"), but its own log reason (B-T4b2-03).
-    if (token.launch.type !== 'LtiResourceLinkRequest' || !resourceLink || !context) return reject('INVALID_LTIK', 'not_resource_link');
+    // ("Open the activity again in {LMS}"), but its own log reason (B-T4b2-03). A launch without a context is valid
+    // (LA-ADR-05 D2): its placement key uses context id "", as a deep-linking pick without a context does.
+    if (token.launch.type !== 'LtiResourceLinkRequest' || !resourceLink) return reject('INVALID_LTIK', 'not_resource_link');
+    const contextId = context?.id ?? '';
     // Security §8 / app contract §6.1: approval or Moodle platform -> connection -> library; site and LMS checks.
     const checked = checkLaunchConnection(db, token, channels, log, req.traceId);
     if (!checked.ok) return reject(checked.code, checked.reason, checked.fields);
@@ -136,12 +138,12 @@ export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps):
     const t = now();
     const done = transaction(db, () => {
       const link = upsertResourceLink(db, {
-        connectionId: connection.id, publicationId: publication.id, deploymentId: token.platform.deploymentId, contextId: context.id,
-        resourceLinkId: resourceLink.id, contextTitle: context.title ?? context.label ?? '', title: resourceLink.title ?? '',
+        connectionId: connection.id, publicationId: publication.id, deploymentId: token.platform.deploymentId, contextId,
+        resourceLinkId: resourceLink.id, contextTitle: context?.title ?? context?.label ?? '', title: resourceLink.title ?? '',
         lineItemId: token.services?.assignmentAndGrades?.lineItemId ?? null, serviceKeyEncrypted: serviceKey ? encrypt(masterKey, serviceKey) : null,
       }, t);
       if (link.created || link.rebound) {
-        linkPickToResourceLink(db, { connectionId: connection.id, deploymentId: token.platform.deploymentId, contextId: context.id, publicationId: publication.id, resourceLinkId: link.id });
+        linkPickToResourceLink(db, { connectionId: connection.id, deploymentId: token.platform.deploymentId, contextId, publicationId: publication.id, resourceLinkId: link.id });
       }
       const attempt = chooseAttempt(db, { resourceLinkId: link.id, userSub: token.user.id, courseId: publication.courseId, currentVersionId: publication.currentVersionId, preview }, t);
       createPlaySession(db, {

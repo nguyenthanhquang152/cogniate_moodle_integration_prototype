@@ -509,3 +509,85 @@ describe('tool page security (AC-T4-21, AC-T4-28, AC-T4-32)', () => {
     }
   });
 });
+
+// LA-E3-03 (LA-ADR-05 D2, LA-IC-05): the context claim is optional (LTI Core §5.4.1). The placement key then uses
+// context id "", and a resource link id is unique in its deployment (LTI Core §5.3.5).
+describe('launch without context (LA-E3-03)', () => {
+  /** The launch token of the test kit without launch.context, as GET /api/idtoken gives it for such a launch. */
+  const noContext = (o: Parameters<typeof launchToken>[0]) => {
+    const token = launchToken(o);
+    delete token.launch.context;
+    return token;
+  };
+  const launchNoContext = async (platformId: string, pub: string, over: Partial<Parameters<typeof launchToken>[0]> = {}) => {
+    const ltik = t.lti.addLaunch(noContext({ platformId, target: target(pub), ...over }));
+    return get(`/tool/launch?ltik=${ltik}`);
+  };
+  const links = () => t.db.prepare('SELECT deployment_id, context_id, resource_link_id, context_title, line_item_id, service_key_encrypted FROM resource_link ORDER BY created_at, id').all() as
+    Array<{ deployment_id: string; context_id: string; resource_link_id: string; context_title: string; line_item_id: string | null; service_key_encrypted: Uint8Array | null }>;
+  const externalKeys = () => (t.db.prepare('SELECT external_key FROM placement ORDER BY external_key').all() as Array<{ external_key: string }>).map((r) => r.external_key);
+
+  it('a learner launch with AGS opens the player; the resource link and the placement use context id "" (AC-LA-E3-03-01 at unit level)', async () => {
+    const w = await world();
+    const res = await launchNoContext(w.a.platformId, w.scorm);
+    const traceId = String(res.headers['x-trace-id']);
+    expect(res.statusCode).toBe(303);
+    expect(String(res.headers.location)).toMatch(/\/play\/ply_[A-Za-z0-9_-]{22}$/);
+    expect((await get(`/play/${playIdOf(res.headers.location)}`)).statusCode).toBe(200);
+    expect(events('launch_rejected', traceId)).toEqual([]);
+    expect(events('launch_accepted', traceId)).toEqual([expect.objectContaining({ preview: false })]);
+    expect(links()).toEqual([{
+      deployment_id: '1', context_id: '', resource_link_id: '3', context_title: '',
+      line_item_id: `${TEST_URLS.moodle}/mod/lti/services.php/2/lineitems/7/lineitem?type_id=1`, service_key_encrypted: expect.any(Uint8Array),
+    }]);
+    expect(externalKeys()).toEqual([JSON.stringify(['1', '', '3'])]);
+  });
+
+  it('without AGS and NRPS it still opens the player; no line item and no service key are stored (AC-LA-E3-03-04 at unit level)', async () => {
+    const w = await world();
+    const ltik = t.lti.addLaunch({ ...noContext({ platformId: w.a.platformId, target: target(w.scorm) }), services: {} });
+    const res = await get(`/tool/launch?ltik=${ltik}`);
+    expect(res.statusCode).toBe(303);
+    expect(links()).toEqual([expect.objectContaining({ context_id: '', line_item_id: null, service_key_encrypted: null })]);
+  });
+
+  it('two launches of one activity use one placement; another deployment or a context gives another (AC-LA-E3-03-05 at unit level)', async () => {
+    const w = await world();
+    expect((await launchNoContext(w.a.platformId, w.scorm, { resourceLinkId: '9' })).statusCode).toBe(303);
+    const first = String(events('launch_accepted').at(-1)!.attempt_id);
+    t.db.prepare("UPDATE attempt SET outcome = 'in_progress' WHERE id = ?").run(first);
+    expect((await launchNoContext(w.a.platformId, w.scorm, { resourceLinkId: '9' })).statusCode).toBe(303);
+    expect(events('launch_accepted').at(-1)!.attempt_id).toBe(first); // the same activity: the attempt continues
+    expect(externalKeys()).toEqual([JSON.stringify(['1', '', '9'])]);
+    expect((await launchNoContext(w.a.platformId, w.scorm, { resourceLinkId: '9', deploymentId: '2' })).statusCode).toBe(303);
+    expect((await launch(w.a.platformId, w.scorm, { resourceLinkId: '9', contextId: 'c1' })).res.statusCode).toBe(303);
+    expect(externalKeys()).toEqual([JSON.stringify(['1', '', '9']), JSON.stringify(['1', 'c1', '9']), JSON.stringify(['2', '', '9'])].sort());
+    expect(count('resource_link')).toBe(3);
+  });
+
+  it('a Deep Linking pick without a context goes to the first launch without a context of that course', async () => {
+    const w = await world();
+    const dl = await get(`/tool/deep-link?ltik=${t.lti.addLaunch(noContext({ platformId: w.a.platformId, type: 'LtiDeepLinkingRequest', roles: [INSTRUCTOR] }))}`);
+    const pickerId = /\/tool\/picker\/(pck_[A-Za-z0-9_-]+)$/.exec(String(dl.headers.location))![1]!;
+    expect((await picker(pickerId, w.scorm)).statusCode).toBe(200);
+    expect((await json('GET', `/app-api/publications/${w.scorm}`, w.thanh)).json().stats.activities).toBe(1);
+    expect((await launchNoContext(w.a.platformId, w.scorm, { resourceLinkId: '41' })).statusCode).toBe(303);
+    // The launch takes over the pick: still one activity.
+    expect((await json('GET', `/app-api/publications/${w.scorm}`, w.thanh)).json().stats.activities).toBe(1);
+    expect(t.db.prepare('SELECT COUNT(*) AS n FROM picker_session WHERE context_id = ? AND resource_link_id IS NOT NULL').get('')?.n).toBe(1);
+  });
+
+  it.each([
+    ['a deep-linking ltik (AC-LA-E3-03-08)', { type: 'LtiDeepLinkingRequest' as const }],
+    ['a deep-linking ltik without a context', { type: 'LtiDeepLinkingRequest' as const, withoutContext: true }],
+    ['a resource launch without a resource link and without a context', { withoutResourceLink: true, withoutContext: true }],
+  ])('%s on /tool/launch still gives the INVALID_LTIK page with reason not_resource_link', async (_n, o: { type?: 'LtiDeepLinkingRequest'; withoutContext?: boolean; withoutResourceLink?: boolean }) => {
+    const w = await world();
+    const token = (o.withoutContext ? noContext : launchToken)({ platformId: w.a.platformId, target: target(w.scorm), ...(o.type ? { type: o.type } : {}) });
+    if (o.withoutResourceLink) delete token.launch.resourceLink;
+    const r = await get(`/tool/launch?ltik=${t.lti.addLaunch(token)}`);
+    expect([r.statusCode, pageCode(r.body)]).toEqual([401, 'INVALID_LTIK']);
+    expect(events('launch_rejected', String(r.headers['x-trace-id']))).toEqual([expect.objectContaining({ reason: 'not_resource_link' })]);
+    expect(count('resource_link')).toBe(0);
+  });
+});
