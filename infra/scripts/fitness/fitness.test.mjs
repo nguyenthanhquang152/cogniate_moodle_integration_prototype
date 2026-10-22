@@ -38,10 +38,13 @@ describe('CLI entry points', () => {
         });
     }
     it('reports a lower baseline count without failing the probe', () => {
-        const result = spawnSync(process.execPath, [fileURLToPath(new URL('./lms-names.mjs', import.meta.url)), '--stdin', '--as', 'apps/portal/src/App.tsx'], { input: '// no hits', encoding: 'utf8', timeout: 10_000 });
+        const baseline = JSON.parse(readFileSync(new URL('./f1-baseline.json', import.meta.url), 'utf8'));
+        const [path, allowed] = Object.entries(baseline).find(([, count]) => count > 0) ?? ['services/example/src/entry-probe.ts', 0];
+        const result = spawnSync(process.execPath, [fileURLToPath(new URL('./lms-names.mjs', import.meta.url)), '--stdin', '--as', path], { input: '// no hits', encoding: 'utf8', timeout: 10_000 });
         assert.ifError(result.error);
         assert.equal(result.status, 0, result.stderr);
-        assert.ok(result.stdout.includes('lower f1-baseline.json for apps/portal/src/App.tsx to 0'), result.stdout);
+        assert.ok(result.stdout.includes('F1 PASS'), result.stdout);
+        assert.equal(result.stdout.includes(`lower f1-baseline.json for ${path} to 0`), allowed > 0, result.stdout);
     });
     it('refuses the report-only flag instead of accepting a core change', () => {
         const root = temp();
