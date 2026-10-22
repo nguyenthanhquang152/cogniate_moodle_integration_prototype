@@ -278,13 +278,17 @@ WARNING: A backup folder contains secrets in sealed form and is useless without 
 
 ### 7.3 Restore drill (once per release)
 
-1. Make a scratch compose project with its own `COMPOSE_PROJECT_NAME`, `PUBLIC_PORT` and `STACK_SUBNET`.
-2. Put the key-ring versions of the backup record into the scratch key-ring file (from escrow).
-3. Run `npm run stack:data-restore -- --from <folder>` in the scratch project.
-4. Start it. Check `/readyz` = 200.
+The restore accepts only a backup of the **same** compose project: another `COMPOSE_PROJECT_NAME` gives `project_mismatch` (`infra/scripts/stack-data.mjs:178`; ADR-011 §14). LA changes no storage command (LD-3). So the drill keeps the project name.
+
+1. Use a second host or Docker context with a copy of the checkout and the **same** `COMPOSE_PROJECT_NAME` as the backed-up stack. (QA's lane drill, LA-E5-24, uses a fresh QA project and restores into that same project.)
+2. Put the key-ring versions of the backup record into the key-ring file of that copy (from escrow).
+3. With both services stopped, run `npm run stack:data-restore -- --from <folder>`.
+4. Start it. Check `/readyz` = 200 on the LTI service and `/healthz` = 200 on the app (the app `/readyz` exists only with the app operator listener).
 5. Run one simulator learner launch and one score dispatch.
 6. Record the start and end times (the measured RTO) and the backup age (the RPO of this drill).
-7. Remove the scratch project.
+7. Remove the drill copy.
+
+CAUTION: Do not use `npm run stack:reset` in a drill: it also deletes the secret files and `infra/.data/backups/` (`infra/scripts/stack-reset.sh:2-4`).
 
 ## 8. Tenant operations
 
