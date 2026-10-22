@@ -17,8 +17,27 @@ export class MigrationChangedError extends Error {
 
 const sha256 = (text: string): string => createHash('sha256').update(text, 'utf8').digest('hex');
 
-/** Run fn in BEGIN IMMEDIATE ... COMMIT (ROLLBACK on error). */
+let savepoints = 0;
+
+/**
+ * Run fn in BEGIN IMMEDIATE ... COMMIT (ROLLBACK on error). Inside an open transaction (a store function called in the
+ * transaction of an audited change, LA-ADR-06 D4), fn runs in a SAVEPOINT instead: RELEASE on success; on error,
+ * ROLLBACK TO and RELEASE, then the error goes to the outer transaction.
+ */
 export function transaction<T>(db: Db, fn: () => T): T {
+  if (db.isTransaction) {
+    const name = `nested_${++savepoints}`;
+    db.exec(`SAVEPOINT ${name}`);
+    try {
+      const result = fn();
+      db.exec(`RELEASE ${name}`);
+      return result;
+    } catch (err) {
+      db.exec(`ROLLBACK TO ${name}`);
+      db.exec(`RELEASE ${name}`);
+      throw err;
+    }
+  }
   db.exec('BEGIN IMMEDIATE');
   try {
     const result = fn();

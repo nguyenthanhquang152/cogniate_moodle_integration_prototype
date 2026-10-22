@@ -27,7 +27,16 @@ done
 # builtin, so never on a command line). Mode 600, the same mode as seed.json, which the e2e container reads.
 op_file="$INFRA_DIR/.secrets/lti-operator-key"
 op_name="${OPERATOR_NAME:-$(id -un)}"
-op_out="$(dc exec -T lti-service node src/cli/operator.ts init --if-none --name "$op_name")"
+op_from="${OPERATOR_NAME:+OPERATOR_NAME}"; op_from="${op_from:-the host user name (id -un)}"
+# Exit 2 = the CLI refused the name (its rule: store/operator-keys.ts OPERATOR_NAME); its own line comes first.
+op_out="$(dc exec -T lti-service node src/cli/operator.ts init --if-none --name "$op_name")" || {
+  rc=$?
+  if (( rc == 2 )); then
+    echo "The operator name '$op_name' comes from $op_from. Fix: set OPERATOR_NAME to a valid name, for example" >&2
+    echo "  OPERATOR_NAME=alice npm run seed" >&2
+  fi
+  exit "$rc"
+}
 if [[ "$op_out" =~ ^ltio_[A-Za-z0-9_-]{43}$ ]]; then
   mkdir -p "$INFRA_DIR/.secrets"; chmod 700 "$INFRA_DIR/.secrets"
   ( umask 077; printf '%s\n' "$op_out" > "$op_file.tmp" ); mv "$op_file.tmp" "$op_file"

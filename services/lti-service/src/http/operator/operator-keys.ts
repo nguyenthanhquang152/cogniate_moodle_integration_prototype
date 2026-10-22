@@ -25,7 +25,7 @@ const toApi = (k: OperatorKeyRecord) => ({
 export function registerOperatorKeyRoutes(app: FastifyInstance, ctx: OperatorContext): void {
   app.get('/operator/v1/operator-keys', async () => ({ operatorKeys: listOperatorKeys(ctx.db).map(toApi) }));
 
-  app.post('/operator/v1/operator-keys', async (req, reply) => {
+  app.post('/operator/v1/operator-keys', async (req, reply) => ctx.audited(req, { action: 'operator_key.issue', target: { type: 'operator_key', id: null } }, (audit) => {
     const parsed = IssueBody.safeParse(req.body ?? {});
     if (!parsed.success) throw invalid(parsed.error);
     const now = ctx.now();
@@ -33,13 +33,16 @@ export function registerOperatorKeyRoutes(app: FastifyInstance, ctx: OperatorCon
     if (!operatorKeyExpiryInRange(expiresAt, now)) {
       throw new ApiError('INVALID_REQUEST', 'Invalid field: expiresAt. It must be 1 hour to 1 year from now.');
     }
-    const { record, operatorKey } = issueOperatorKey(ctx.db, { operator: parsed.data.operator, expiresAt }, now);
+    // The event names the new key and its operator, never the key.
+    const { record, operatorKey } = audit.change(() => issueOperatorKey(ctx.db, { operator: parsed.data.operator, expiresAt }, now),
+      (issued) => ({ target: { type: 'operator_key', id: issued.record.id }, details: { operator: issued.record.operator, expiresAt: iso(issued.record.expiresAt) } }));
     return reply.code(201).send({ id: record.id, operatorKey, operator: record.operator, expiresAt: iso(record.expiresAt) });
-  });
+  }));
 
-  app.post<{ Params: { id: string } }>('/operator/v1/operator-keys/:id/revoke', async (req) => {
-    if (req.params.id === ctx.operator(req).keyId) throw new ApiError('OPERATOR_KEY_IN_USE');
-    if (!getOperatorKey(ctx.db, req.params.id)) throw new ApiError('NOT_FOUND', 'Unknown operator key.');
-    return toApi(revokeOperatorKey(ctx.db, req.params.id, ctx.now())!);
-  });
+  app.post<{ Params: { id: string } }>('/operator/v1/operator-keys/:id/revoke', async (req) =>
+    ctx.audited(req, { action: 'operator_key.revoke', target: { type: 'operator_key', id: req.params.id } }, (audit) => {
+      if (req.params.id === ctx.operator(req).keyId) throw new ApiError('OPERATOR_KEY_IN_USE');
+      if (!getOperatorKey(ctx.db, req.params.id)) throw new ApiError('NOT_FOUND', 'Unknown operator key.');
+      return toApi(audit.change(() => revokeOperatorKey(ctx.db, req.params.id, ctx.now())!, (revoked) => ({ details: { operator: revoked.operator } })));
+    }));
 }
