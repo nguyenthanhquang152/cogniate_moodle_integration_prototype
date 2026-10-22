@@ -46,6 +46,16 @@ function needsConfirmation(db: Db, id: string): boolean {
     WHERE s.id = ? AND (old.delivery_uncertain = 1 OR (old.status = 'superseded' AND old.send_started_at IS NOT NULL)) AND old.score_given / old.score_maximum < s.score_given / s.score_maximum LIMIT 1`).get(id) !== undefined;
 }
 
+/**
+ * SQL condition: the partition of the row `alias` has a running 429 pause (LA-ADR-03 D7 "429"), that is, one of its
+ * pending rows has a `not_before` after now (one `?`). Only pending rows carry a pause, so the `record_dispatch_due`
+ * index (status, next_try_at, partition_key) serves the check: the plan is "SEARCH paused USING INDEX
+ * record_dispatch_due (status=?)", not a scan of every row ever written (rows are never deleted). A new row takes
+ * over the pause of its partition when it is created (`writeFinalRecord`), so a superseded row does not end it.
+ */
+export const partitionPaused = (alias: string): string => `EXISTS (SELECT 1 FROM record_dispatch paused
+  WHERE paused.status = 'pending' AND paused.partition_key = ${alias}.partition_key AND paused.not_before > ?)`;
+
 /** `started`: send the POST now. `skipped`: send nothing (superseded, changed or not due). `connection_disabled`: failed now. */
 export type BeginSend = 'started' | 'skipped' | 'connection_disabled';
 
@@ -61,7 +71,7 @@ export function beginSend(db: Db, id: string, now: number, owner: string): Begin
     return db.prepare(`UPDATE record_dispatch SET send_started_at = ?, tries = tries + 1, updated_at = ?
       WHERE id = ? AND status = 'pending' AND send_started_at IS NULL AND next_try_at <= ?
         AND COALESCE(resent_at, created_at) + 86400000 >= ?
-        AND NOT EXISTS (SELECT 1 FROM record_dispatch paused WHERE paused.partition_key = record_dispatch.partition_key AND paused.not_before > ?)`)
+        AND NOT ${partitionPaused('record_dispatch')}`)
       .run(now, now, id, now, now, now).changes > 0 ? 'started' : 'skipped';
   });
 }

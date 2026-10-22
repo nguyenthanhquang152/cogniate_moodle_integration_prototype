@@ -3,7 +3,7 @@ import type { QueueJob, RecoveryScope } from '@cogniate/shared';
 import { dispatchResult, nextRetryAt, type SyncStatus } from '@cogniate/tracking';
 import type { Db } from '../../domain/db.ts';
 import { transaction } from '../../domain/db.ts';
-import { beginSend, failDisabledSync, isCurrentSync, ownsDispatch, recordSend } from './dispatch-store.ts';
+import { beginSend, failDisabledSync, isCurrentSync, ownsDispatch, partitionPaused, recordSend } from './dispatch-store.ts';
 import type { DeliveryOutcome, DispatchView, RecordReporter } from './types.ts';
 
 export interface DispatchItem { id: string; partitionKey: string }
@@ -67,7 +67,7 @@ export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]
           (PARTITION BY partition_key ORDER BY next_try_at, created_at, seq) AS turn FROM record_dispatch dispatch
         WHERE status = 'pending' AND next_try_at <= ? AND (not_before IS NULL OR not_before <= ?)
           AND send_started_at IS NULL AND (lease_until IS NULL OR lease_until <= ?)
-          AND NOT EXISTS (SELECT 1 FROM record_dispatch paused WHERE paused.partition_key = dispatch.partition_key AND paused.not_before > ?)
+          AND NOT ${partitionPaused('dispatch')}
           AND NOT EXISTS (SELECT 1 FROM attempt a WHERE a.resource_link_id = dispatch.placement_id AND a.user_sub = dispatch.learner_subject
             AND a.preview = 0 AND a.outcome IN ('completed', 'passed', 'failed')
             AND CAST(a.score_given AS REAL) / a.score_maximum > dispatch.score_given / dispatch.score_maximum))
@@ -78,7 +78,7 @@ export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]
       return db.prepare(`UPDATE record_dispatch SET lease_owner = ?, lease_until = ? WHERE id = ? AND status = 'pending'
         AND next_try_at <= ? AND (not_before IS NULL OR not_before <= ?) AND send_started_at IS NULL
         AND (lease_until IS NULL OR lease_until <= ?)
-        AND NOT EXISTS (SELECT 1 FROM record_dispatch paused WHERE paused.partition_key = record_dispatch.partition_key AND paused.not_before > ?)
+        AND NOT ${partitionPaused('record_dispatch')}
         AND NOT EXISTS (SELECT 1 FROM record_dispatch other
           WHERE other.id <> record_dispatch.id AND other.placement_id = record_dispatch.placement_id
           AND other.learner_subject = record_dispatch.learner_subject AND other.reporter = record_dispatch.reporter
@@ -125,22 +125,28 @@ export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]
           if (started === 'connection_disabled') log('failed', row.tries);
           return started;
         } });
-        if (!outcome || !ownsDispatch(db, item.id, ctx.leaseOwner)) return;
+        // Every later write checks the lease owner itself (a lost lease changes nothing).
+        if (!outcome) return;
         if (!posted && failDisabledSync(db, item.id, ctx.now(), ctx.leaseOwner)) { log('failed', row.tries); return; }
         // A completed POST still records its result after stop. Only an unstarted next step is stopped.
         if (!posted && ctx.signal.aborted) return;
         const throttled = outcome.kind === 'throttled';
         const tries = row.tries + (posted && !throttled ? 1 : 0);
         const r = result(outcome, tries, row.retryFrom, ctx.now());
-        const status = transaction(db, () => {
+        const status = transaction(db, (): SyncStatus | null => {
+          // Only the lease owner records a result, also the throttle steps (another instance may own the row now).
+          if (!ownsDispatch(db, row.id, ctx.leaseOwner)) return null;
           if (outcome.kind === 'throttled') {
             // Undo only this attempt. Earlier uncertainty and the confirmation phase stay intact.
             if (posted) db.prepare('UPDATE record_dispatch SET tries = tries - 1 WHERE id = ?').run(row.id);
+            // Pause every pending row of the partition, this row included (it is still pending unless a better
+            // result superseded it during the POST; that better row is pending and gets the pause).
             db.prepare(`UPDATE record_dispatch SET not_before = MAX(COALESCE(not_before, 0), ?)
-              WHERE partition_key = ? AND (status = 'pending' OR id = ?)`).run(outcome.retryAt, row.partitionKey, row.id);
+              WHERE status = 'pending' AND partition_key = ?`).run(outcome.retryAt, row.partitionKey);
           }
           return recordSend(db, row, r, ctx.now(), ctx.leaseOwner);
         });
+        if (status === null) return;
         if (outcome.kind === 'throttled') ctx.logger.warn('dispatch_throttled', {
           dispatch_id: row.id, partition: row.partitionKey, retry_at: outcome.retryAt,
         });

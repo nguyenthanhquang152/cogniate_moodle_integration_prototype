@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ltiAgsPolicy } from '../../drivers/lti-ags/index.ts';
 import { beginSend } from './dispatch-store.ts';
 import { createDispatchQueue, type DispatchItem } from './outbox.ts';
+import { configureRecordReporters, writeFinalRecord } from './records.ts';
 import { recordsFixture } from './records.testkit.ts';
 import type { RecordReporter } from './types.ts';
 
@@ -68,6 +69,59 @@ describe('partition throttling (LA-ADR-03 D7)', () => {
     await f.run((await f.job.due(Date.now(), 10))[0]!);
     expect(await f.readRow(id)).toMatchObject({ status: 'failed', tries: 0, nextTryAt: null, deliveryUncertain: false });
     expect(f.db.prepare('SELECT created_at, resent_at FROM record_dispatch WHERE id = ?').get(id)).toEqual({ created_at: 100_000, resent_at: null });
+  });
+  it('A-LA-E4-03-01: a new better row keeps the pause of the row that it supersedes', async () => {
+    const f = fixture();
+    const reporter = { ...ltiAgsPolicy, deliver: async () => null };
+    configureRecordReporters(f.db, [reporter]);
+    // writeFinalRecord computes the partition of the seeded connection: its LTI platform id.
+    const id = await f.addRow({ key: 'a', partition: 'platform', score: 0.4, nextTryAt: 0 });
+    await f.run((await f.job.due(Date.now(), 10))[0]!);
+    expect(f.db.prepare('SELECT status, not_before FROM record_dispatch WHERE id = ?').get(id)).toEqual({ status: 'pending', not_before: 130_000 });
+    const better = writeFinalRecord(f.db, { attemptId: 'att_a', placementId: 'rl_a', learnerSubject: 'a', outcome: 'passed',
+      scoreGiven: 0.9, scoreMaximum: 1 }, ['lti-ags'], Date.now());
+    expect(f.db.prepare('SELECT id, status, not_before FROM record_dispatch ORDER BY seq').all())
+      .toEqual([{ id, status: 'superseded', not_before: 130_000 }, { id: better, status: 'pending', not_before: 130_000 }]);
+    expect(await f.job.due(129_999, 10)).toEqual([]);
+    expect((await f.job.due(130_000, 10)).map((r) => r.id)).toEqual([better]);
+  });
+  it('A-LA-E4-03-01: the pause check reads only pending rows through the record_dispatch_due index', async () => {
+    const f = fixture();
+    const statements: string[] = [];
+    const db = new Proxy(f.db, { get(target, key) {
+      if (key === 'prepare') return (sql: string) => { statements.push(sql); return target.prepare(sql); };
+      const value = Reflect.get(target, key) as unknown;
+      return typeof value === 'function' ? (value as (...args: unknown[]) => unknown).bind(target) : value;
+    } });
+    const job = createDispatchQueue(db, [{ ...ltiAgsPolicy, deliver: async () => null }]);
+    const id = await f.addRow({ key: 'a', partition: 'A', score: 0.8, nextTryAt: 0 });
+    const [item] = await job.due(Date.now(), 10);
+    await job.lease(item!, 'a/boot', Date.now() + 60_000, Date.now());
+    beginSend(db, id, Date.now(), 'a/boot');
+    const checked = statements.filter((sql) => sql.includes('record_dispatch paused'));
+    expect(checked).toHaveLength(3);
+    for (const sql of checked) {
+      const plan = f.db.prepare(`EXPLAIN QUERY PLAN ${sql}`).all().map((r) => String(r.detail));
+      expect(plan).toContain('SEARCH paused USING INDEX record_dispatch_due (status=?)');
+      expect(plan.filter((line) => line.startsWith('SCAN paused'))).toEqual([]);
+    }
+  });
+  it('A-LA-E4-03-02: a run that lost its lease during the POST neither takes back the try nor pauses the partition', async () => {
+    const f = fixture();
+    const id = await f.addRow({ key: 'a', partition: 'A', score: 0.8, nextTryAt: 0 });
+    const other = await f.addRow({ key: 'b', partition: 'A', score: 0.8, nextTryAt: 1 });
+    const job = createDispatchQueue(f.db, [{ ...ltiAgsPolicy, async deliver(row, c) {
+      if (c.beginSend() !== 'started') return null;
+      // Another instance takes the row over while the POST waits (running recovery after an expired lease).
+      f.db.prepare('UPDATE record_dispatch SET lease_owner = ? WHERE id = ?').run('b/boot', row.id);
+      return { kind: 'throttled', text: 'Wait', retryAt: Date.now() + 30_000 };
+    } }]);
+    const item = (await job.due(Date.now(), 10)).find((r) => r.id === id)!;
+    expect(await job.lease(item, f.ctx.leaseOwner, Date.now() + 60_000, Date.now())).toBe(true);
+    await job.run(item, f.ctx);
+    expect(await f.readRow(id)).toMatchObject({ status: 'pending', tries: 1, leaseOwner: 'b/boot', sendStartedAt: 100_000 });
+    expect(f.db.prepare('SELECT not_before FROM record_dispatch WHERE id IN (?, ?)').all(id, other)).toEqual([{ not_before: null }, { not_before: null }]);
+    expect(f.logs.filter((l) => l.event === 'dispatch_throttled' || l.event === 'score_sync')).toEqual([]);
   });
   it('AC-LA-E4-03-08: refuses everyRecord at outbox registration', () => {
     const f = fixture();

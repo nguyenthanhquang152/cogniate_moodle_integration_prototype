@@ -41,16 +41,19 @@ export function writeFinalRecord(db: Db, record: LearningRecordView, reporters: 
       .map((r) => ({ id: String(r.id), status: r.status as SyncStatus, scoreGiven: Number(r.score_given), scoreMaximum: Number(r.score_maximum) }));
     const decision = syncDecision(record, rows);
     if (!decision.create) continue;
-    for (const id of decision.supersede) db.prepare("UPDATE record_dispatch SET status = 'superseded', next_try_at = NULL, updated_at = ? WHERE id = ?").run(now, id);
     const id = randomId('sync_');
     const payload = reporter.prepare(record) as Record<string, unknown>;
     const partition = reporter.partitionKey({ id, reporter: reporter.id, placementId: record.placementId,
       learnerSubject: record.learnerSubject, payload, tries: 0, createdAt: now, retryFrom: now, confirmationAfter: null,
       partitionKey: placementPartition(db, record.placementId) });
+    // Read the running 429 pause of the partition before the supersede step: the superseded row can be its only carrier.
+    const pause = db.prepare(`SELECT MAX(not_before) AS until FROM record_dispatch
+      WHERE status = 'pending' AND partition_key = ? AND not_before > ?`).get(partition, now)!.until;
+    for (const old of decision.supersede) db.prepare("UPDATE record_dispatch SET status = 'superseded', next_try_at = NULL, updated_at = ? WHERE id = ?").run(now, old);
     db.prepare(`INSERT INTO record_dispatch (seq, id, record_id, reporter, placement_id, learner_subject, partition_key, payload,
-      score_given, score_maximum, status, created_at, next_try_at, updated_at) VALUES ((SELECT COALESCE(MAX(seq), 0) + 1 FROM record_dispatch), ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`)
+      score_given, score_maximum, status, created_at, next_try_at, not_before, updated_at) VALUES ((SELECT COALESCE(MAX(seq), 0) + 1 FROM record_dispatch), ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`)
       .run(id, recordId, reporter.id, record.placementId, record.learnerSubject, partition,
-        JSON.stringify(payload), record.scoreGiven, record.scoreMaximum, now, now, now);
+        JSON.stringify(payload), record.scoreGiven, record.scoreMaximum, now, now, pause ?? null, now);
     syncId = id;
   }
   return syncId;
