@@ -3,13 +3,18 @@ import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bindKeyProvider, createLocalKeyProvider, openSqlite, sha256Hex } from '@cogniate/shared';
+import { bindKeyProvider, createLocalKeyProvider, legacyKeyRing, openSqlite, sha256Hex } from '@cogniate/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDb } from '../db/index.ts';
 import { MASTER_KEY, URLS } from '../testkit.ts';
 import { ensureAccount } from './accounts.ts';
 import { createPlatform } from './platforms.ts';
 import { deriveServiceKey, findServiceKey, issueServiceKey, revokeServiceKeys, serviceKeyVersions } from './service-keys.ts';
+
+// The service binds its key ring at start; these tests bind each master key that they use, because keyProviderFor
+// refuses an unbound master key after a binding in the same process.
+const OTHER_MASTER_KEY = Buffer.alloc(32, 9);
+for (const key of [MASTER_KEY, OTHER_MASTER_KEY]) bindKeyProvider(key, createLocalKeyProvider(legacyKeyRing(key)));
 
 function setup() {
   const db = openDb(':memory:');
@@ -52,7 +57,7 @@ describe('service keys (contract §3.3)', () => {
 
   it('the key depends on the master key and on every scope field (no ambiguous joins)', () => {
     const k = deriveServiceKey(MASTER_KEY, scope('plt_1'));
-    expect(deriveServiceKey(Buffer.alloc(32, 9), scope('plt_1'))).not.toBe(k);
+    expect(deriveServiceKey(OTHER_MASTER_KEY, scope('plt_1'))).not.toBe(k);
     expect(deriveServiceKey(MASTER_KEY, { ...scope('plt_1'), contextId: '2|1', deploymentId: '' })).not.toBe(deriveServiceKey(MASTER_KEY, { ...scope('plt_1'), contextId: '2', deploymentId: '|1' }));
   });
 });

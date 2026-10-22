@@ -55,6 +55,8 @@ const privateJwkCache = new Map<string, { kid: string; provider: LocalKeyProvide
 
 /** Private JWK of the active key (for T3a signing). A blob that does not open throws (key_open_failed; the API gives 500). */
 export function activePrivateJwk(db: Db, keys: KeyHandle, accountId: string, now = Date.now()): JWK | null {
+  // Remove every expired entry, also of accounts that stopped signing (at most 10 minutes in memory, D6).
+  for (const [id, entry] of privateJwkCache) if (now >= entry.expiresAt) privateJwkCache.delete(id);
   const row = db.prepare("SELECT kid, private_jwk_encrypted FROM tool_key WHERE tool_account_id = ? AND status = 'active'").get(accountId) as
     | { kid: string; private_jwk_encrypted: Uint8Array } | undefined;
   if (!row) return null;

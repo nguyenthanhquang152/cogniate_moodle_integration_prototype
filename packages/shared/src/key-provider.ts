@@ -49,7 +49,7 @@ export interface LocalKeyProviderOptions {
   logger?: Pick<Logger, 'error'>;
 }
 
-export type KeyProviderErrorCode = 'key_ring_invalid' | 'key_version_missing' | 'key_open_failed';
+export type KeyProviderErrorCode = 'key_ring_invalid' | 'key_version_missing' | 'key_open_failed' | 'key_provider_not_bound';
 
 /** The message names versions and tables only, never key material. */
 export class KeyProviderError extends Error {
@@ -250,19 +250,36 @@ export function createLocalKeyProvider(ring: KeyRing, options: LocalKeyProviderO
 export type KeyHandle = Uint8Array | LocalKeyProvider;
 
 const providers = new WeakMap<Uint8Array, LocalKeyProvider>();
+const fallbacks = new WeakMap<Uint8Array, LocalKeyProvider>();
+let anyBound = false;
+let fallbackLogged = false;
 
 /** Make `keyProviderFor(masterKey)` give the loaded key ring (the service calls it once at start). */
 export function bindKeyProvider(masterKey: Uint8Array, provider: LocalKeyProvider): void {
   providers.set(masterKey, provider);
+  anyBound = true;
 }
 
-/** The provider of a handle. A master key that is not bound is a ring with the one version `legacy` (today's stack). */
-export function keyProviderFor(handle: KeyHandle): LocalKeyProvider {
+/**
+ * The provider of a handle. Fail closed: when the process has bound a key ring, a master key that is not bound throws
+ * (a missed binding must not seal with "legacy"). Before any binding, a master key is a ring with the one version
+ * `legacy`, active (today's stack); the first such use with a logger logs `key_provider_legacy_fallback` (once per process).
+ */
+export function keyProviderFor(handle: KeyHandle, logger?: Pick<Logger, 'warn'>): LocalKeyProvider {
   if (!(handle instanceof Uint8Array)) return handle;
-  let provider = providers.get(handle);
+  const bound = providers.get(handle);
+  if (bound) return bound;
+  if (anyBound) {
+    throw new KeyProviderError('key_provider_not_bound', 'This master key is not bound to the loaded key ring. Bind it at start (LTI service: loadKeyProvider).');
+  }
+  if (logger && !fallbackLogged) {
+    fallbackLogged = true;
+    logger.warn('key_provider_legacy_fallback', { version: LEGACY_KEY_VERSION });
+  }
+  let provider = fallbacks.get(handle);
   if (!provider) {
     provider = createLocalKeyProvider(legacyKeyRing(handle));
-    providers.set(handle, provider);
+    fallbacks.set(handle, provider);
   }
   return provider;
 }

@@ -57,37 +57,33 @@ describe('tool keys with the key provider (LA-ADR-06 D6)', () => {
   });
 
   it('AC-LA-E5-08-05: the signing call gives 500 INTERNAL_ERROR with the trace id, and the log has key_open_failed {table: "tool_key"}', async () => {
-    const h = await harness();
     const { logger, lines } = capturingLogger();
     // The service binds its ring to LTI_MASTER_KEY at start (keys/key-config.ts); here the same legacy ring with a logger.
     bindKeyProvider(MASTER_KEY, createLocalKeyProvider(legacyKeyRing(MASTER_KEY), { logger }));
-    try {
-      const qa = createPlatform(h.db, 'qa-second', {
-        issuer: ISSUER, clientId: CLIENT_ID, name: 'Moodle', authEndpoint: `${ISSUER}/mod/lti/auth.php`, tokenEndpoint: `${ISSUER}/mod/lti/token.php`,
-        jwksUrl: `${ISSUER}/mod/lti/certs.php`, deploymentIds: ['1'], active: true,
-      });
-      const { ltik } = createLaunch(h.db, {
-        toolAccountId: 'qa-second', platformId: qa.id, deploymentId: '1', messageType: 'LtiDeepLinkingRequest',
-        claims: { [CLAIM.deepLinkingSettings]: { deep_link_return_url: `${ISSUER}/mod/lti/contentitem_return.php?course=2&id=1`, accept_types: ['ltiResourceLink'] } },
-      }, 3600, h.clock.now);
-      const own = activeBlob(h.db, 'qa-second');
-      h.db.prepare("UPDATE tool_key SET private_jwk_encrypted = ? WHERE tool_account_id = 'qa-second'").run(activeBlob(h.db, 'cogniate'));
-      const traceId = 'la-e5-08-ac-05-trace';
-      const sign = () => h.app.inject({
-        method: 'POST', url: '/api/deeplinking', headers: { authorization: `LTIK-AUTH-V2 ${h.otherApiKey}:${ltik}`, 'x-trace-id': traceId },
-        payload: { contentItems: [{ type: 'ltiResourceLink', title: 'QA', url: `${URLS.lti}/lti/launch/qa-second?resource=qa-dl` }] },
-      });
-      const r = await sign();
-      expect([r.statusCode, r.json().details.message]).toEqual([500, 'INTERNAL_ERROR']);
-      expect(r.json().details.description).toContain(traceId);
-      expect(lines.filter((l) => l.event === 'key_open_failed')).toEqual([expect.objectContaining({ table: 'tool_key' })]);
-      expect(h.lines).toContainEqual(expect.objectContaining({ event: 'internal_error', trace_id: traceId, error: 'KeyProviderError' }));
-      // Control: with its own blob back, the same call signs.
-      h.db.prepare("UPDATE tool_key SET private_jwk_encrypted = ? WHERE tool_account_id = 'qa-second'").run(own);
-      expect((await sign()).statusCode).toBe(200);
-    } finally {
-      bindKeyProvider(MASTER_KEY, createLocalKeyProvider(legacyKeyRing(MASTER_KEY)));
-    }
+    const h = await harness();
+    const qa = createPlatform(h.db, 'qa-second', {
+      issuer: ISSUER, clientId: CLIENT_ID, name: 'Moodle', authEndpoint: `${ISSUER}/mod/lti/auth.php`, tokenEndpoint: `${ISSUER}/mod/lti/token.php`,
+      jwksUrl: `${ISSUER}/mod/lti/certs.php`, deploymentIds: ['1'], active: true,
+    });
+    const { ltik } = createLaunch(h.db, {
+      toolAccountId: 'qa-second', platformId: qa.id, deploymentId: '1', messageType: 'LtiDeepLinkingRequest',
+      claims: { [CLAIM.deepLinkingSettings]: { deep_link_return_url: `${ISSUER}/mod/lti/contentitem_return.php?course=2&id=1`, accept_types: ['ltiResourceLink'] } },
+    }, 3600, h.clock.now);
+    const own = activeBlob(h.db, 'qa-second');
+    h.db.prepare("UPDATE tool_key SET private_jwk_encrypted = ? WHERE tool_account_id = 'qa-second'").run(activeBlob(h.db, 'cogniate'));
+    const traceId = 'la-e5-08-ac-05-trace';
+    const sign = () => h.app.inject({
+      method: 'POST', url: '/api/deeplinking', headers: { authorization: `LTIK-AUTH-V2 ${h.otherApiKey}:${ltik}`, 'x-trace-id': traceId },
+      payload: { contentItems: [{ type: 'ltiResourceLink', title: 'QA', url: `${URLS.lti}/lti/launch/qa-second?resource=qa-dl` }] },
+    });
+    const r = await sign();
+    expect([r.statusCode, r.json().details.message]).toEqual([500, 'INTERNAL_ERROR']);
+    expect(r.json().details.description).toContain(traceId);
+    expect(lines.filter((l) => l.event === 'key_open_failed')).toEqual([expect.objectContaining({ table: 'tool_key' })]);
+    expect(h.lines).toContainEqual(expect.objectContaining({ event: 'internal_error', trace_id: traceId, error: 'KeyProviderError' }));
+    // Control: with its own blob back, the same call signs.
+    h.db.prepare("UPDATE tool_key SET private_jwk_encrypted = ? WHERE tool_account_id = 'qa-second'").run(own);
+    expect((await sign()).statusCode).toBe(200);
   });
 
   it('AC-LA-E5-08-09: under repeated signing (controlled clock) the active private JWK is decrypted at most once per 10 minutes per kid', async () => {

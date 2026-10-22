@@ -1,10 +1,8 @@
 import { createCipheriv, createHmac, hkdfSync, randomBytes } from 'node:crypto';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { encrypt } from './crypto.ts';
 import type { KeyRing, LocalKeyProvider } from './key-provider.ts';
-import {
-  KeyProviderError, associatedData, bindKeyProvider, blobKeyVersion, createLocalKeyProvider, keyProviderFor, legacyKeyRing, parseKeyRing,
-} from './key-provider.ts';
+import { KeyProviderError, associatedData, blobKeyVersion, createLocalKeyProvider, legacyKeyRing, parseKeyRing } from './key-provider.ts';
 
 // Fixture keys (test values, not secrets).
 const MASTER = Buffer.alloc(32, 7);
@@ -14,9 +12,22 @@ const AAD = associatedData('lti', 'tool_key', 'private_jwk_encrypted', 'cogniate
 const bytes = (text: string) => Buffer.from(text, 'utf8');
 const text = (value: Uint8Array) => Buffer.from(value).toString('utf8');
 
-function capture(): { logger: { error: (event: string, fields?: Record<string, unknown>) => void }; lines: Array<{ event: string; fields?: Record<string, unknown> }> } {
-  const lines: Array<{ event: string; fields?: Record<string, unknown> }> = [];
-  return { lines, logger: { error: (event, fields) => lines.push({ event, ...(fields ? { fields } : {}) }) } };
+type Line = { event: string; fields?: Record<string, unknown> };
+type LogFn = (event: string, fields?: Record<string, unknown>) => void;
+function capture(): { logger: { error: LogFn; warn: LogFn }; lines: Line[] } {
+  const lines: Line[] = [];
+  const push: LogFn = (event, fields) => { lines.push({ event, ...(fields ? { fields } : {}) }); };
+  return { lines, logger: { error: push, warn: push } };
+}
+
+/** The error that fn throws (the test fails when fn does not throw). */
+function thrown(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (err) {
+    return err;
+  }
+  throw new Error('no error');
 }
 
 function openError(provider: LocalKeyProvider, blob: Uint8Array, aad: string): KeyProviderError {
@@ -181,20 +192,51 @@ describe('key ring file', () => {
   });
 });
 
-describe('handles and associated data', () => {
-  it('an unbound master key is the ring {active: legacy}; bindKeyProvider replaces it; a provider is its own handle', () => {
+describe('master-key handles (fail closed after a binding)', () => {
+  // The binding state is per process: each test imports a new copy of the module.
+  const freshModule = async () => {
+    vi.resetModules();
+    return import('./key-provider.ts');
+  };
+
+  it('before any binding, an unbound master key is the ring {active: legacy}; the first use with a logger logs key_provider_legacy_fallback once', async () => {
+    const m = await freshModule();
+    const { logger, lines } = capture();
     const handle = Buffer.alloc(32, 7);
-    const fallback = keyProviderFor(handle);
+    const fallback = m.keyProviderFor(handle);
+    expect(lines).toEqual([]); // no logger given: no line
     expect([fallback.kind, fallback.activeVersion(), fallback.versions()]).toEqual(['local-keyring', 'legacy', [{ id: 'legacy', state: 'active' }]]);
-    expect(keyProviderFor(handle)).toBe(fallback);
+    expect(m.keyProviderFor(handle, logger)).toBe(fallback);
     expect(text(fallback.openSync({ bytes: encrypt(MASTER, 'v') }, AAD))).toBe('v');
-    const ring = createLocalKeyProvider(ringOf('k2', { legacy: MASTER, k2: K2 }));
-    bindKeyProvider(handle, ring);
-    expect(keyProviderFor(handle)).toBe(ring);
-    expect(keyProviderFor(Buffer.alloc(32, 7))).not.toBe(ring);
-    expect(keyProviderFor(ring)).toBe(ring);
+    expect(m.keyProviderFor(Buffer.alloc(32, 9), logger).activeVersion()).toBe('legacy');
+    expect(m.keyProviderFor(handle, logger)).toBe(fallback);
+    expect(lines).toEqual([{ event: 'key_provider_legacy_fallback', fields: { version: 'legacy' } }]);
   });
 
+  it('after a binding, the bound key gives its ring, and any unbound master key throws key_provider_not_bound (also one with the same bytes or one used before)', async () => {
+    const m = await freshModule();
+    const usedBefore = Buffer.alloc(32, 7);
+    expect(m.keyProviderFor(usedBefore).activeVersion()).toBe('legacy');
+    const handle = Buffer.alloc(32, 7);
+    const ring = m.createLocalKeyProvider(ringOf('k2', { legacy: MASTER, k2: K2 }));
+    m.bindKeyProvider(handle, ring);
+    expect(m.keyProviderFor(handle)).toBe(ring);
+    expect(m.keyProviderFor(ring)).toBe(ring);
+    const { logger, lines } = capture();
+    for (const unbound of [Buffer.alloc(32, 7), usedBefore]) {
+      const err = thrown(() => m.keyProviderFor(unbound, logger));
+      expect(err).toBeInstanceOf(m.KeyProviderError);
+      expect(err).toMatchObject({ code: 'key_provider_not_bound' });
+    }
+    expect(lines).toEqual([]);
+    // Another binding in the same process also works.
+    const second = Buffer.alloc(32, 7);
+    m.bindKeyProvider(second, ring);
+    expect(m.keyProviderFor(second)).toBe(ring);
+  });
+});
+
+describe('associated data', () => {
   it('associated data is lti|app:<table>:<column>:<owner>:<row key>; only the row key may contain ":"', () => {
     expect(associatedData('lti', 'tool_key', 'private_jwk_encrypted', 'cogniate', 'a:b')).toBe('lti:tool_key:private_jwk_encrypted:cogniate:a:b');
     expect(() => associatedData('lti', 'tool_key', 'private_jwk_encrypted', 'cog:niate', 'kid')).toThrow();
