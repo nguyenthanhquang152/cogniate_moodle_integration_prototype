@@ -7,7 +7,7 @@ Only the Lead edits this file. Orca Run: `run_06d07dc77faf`. Rules: [charter-LA]
 | Phase | Status | Gate | Notes |
 | --- | --- | --- | --- |
 | P1 Plan | **done** | — | R1–R5 committed; plan v1 `1afdf56`, v1.1 (R2), v1.2 (LA-H21..H24) |
-| P2 Tech design | **fix round 1** (A1 `ctx_f67220ec8638`, A2 `ctx_a0bc68da587c`) | G-DESIGN round 1: A CHANGES_REQUESTED (3 B, 5 M), B CHANGES_REQUESTED (8 M), QA FAIL (1 M) | 15 design files under `docs/architecture/ltiaas/`; test strategy `tests/ltiaas/TEST-STRATEGY.md` |
+| P2 Tech design | **round 2 re-check** at `877d951` (RA2 `ctx_0afe84599126`, RB2 `ctx_9be52e431d9f`, QT2 `ctx_c9eff3e6fa01`) | G-DESIGN round 1: A CHANGES_REQUESTED (3 B, 5 M), B CHANGES_REQUESTED (8 M), QA FAIL (1 M) | 15 design files under `docs/architecture/ltiaas/`; test strategy `tests/ltiaas/TEST-STRATEGY.md` |
 | P3 Breakdown | planned | G-BREAKDOWN | Briefs ready: `briefs/LA-B1.md` (A1), `briefs/LA-B2.md` (A2) |
 | G-BASE | waiting | — | Blackboard and Canvas run `run_ebe671ad72a9`; see plan LA-H10 |
 | G-DEV | waiting | product owner | Approves plan, design and breakdown (LA-H1) |
@@ -33,6 +33,8 @@ Only the Lead edits this file. Orca Run: `run_06d07dc77faf`. Rules: [charter-LA]
 | LA-RB | Design review, lens B | Reviewer-B | R1 CHANGES_REQUESTED: B-LAD-01..08 MAJOR | `ctx_0389f26b369b` | `docs/reviews/LA-DESIGN/reviewer-b.md` |
 
 ## Incidents
+
+- 2026-10-22 08:41: a Lead script error (zsh 1-based arrays) sent the Reviewer-B round-2 task to Reviewer-A's session and the QA task to Reviewer-B's session. The Lead fenced both dispatches within about 1 minute and sent cancels. Both reviewers saw the mismatch, asked before they opened any file, and read no other review; the worktree had no changes. New tasks replaced the misrouted ones.
 
 - 2026-10-22 02:55–04:15: Claude session limits stopped A2, Reviewer-B and QA. Stalled sessions do not resume after the reset. Recovery: `worker-stop`, then `worker-start --retry-of` with a retry-context message. No work was lost; files stayed in the shared worktree.
 - QA's first session reviewed the uncommitted draft before the Lead gave a SHA. The file is kept as a pre-review; Round 1 re-verifies it at `19476fc`.
