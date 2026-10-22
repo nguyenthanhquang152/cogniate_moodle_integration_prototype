@@ -20,10 +20,11 @@ it('migration 012 preserves existing sessions; new client keys and settings surv
   let db = openSqlite(join(dir, 'lti.db'), old);
   try {
     ensureAccount(db, { id: 'one', name: 'One', appUrl: URLS.app });
-    const session = createRegistrationSession(db, Buffer.alloc(32, 7), {
-      toolAccountId: 'one', openidConfigurationUrl: 'https://platform.test/config', registrationToken: null,
-      platformConfiguration: {}, operation: 'new', existingPlatformId: null, privacyLevel: 'anonymous', passthrough: {}, expiresAt: 2000,
-    }, 1000);
+    // This fixture uses the pre-012 schema, before client_key exists.
+    const session = { id: 'reg_before_012' };
+    db.prepare(`INSERT INTO registration_session (id, tool_account_id, openid_configuration_url, platform_configuration,
+      operation, privacy_level, passthrough_params, status, expires_at, created_at)
+      VALUES (?, 'one', 'https://platform.test/config', '{}', 'new', 'anonymous', '{}', 'open', 2000, 1000)`).run(session.id);
     db.close();
     db = openDb(join(dir, 'lti.db'));
     expect(db.prepare('SELECT id, status, client_key, expires_at FROM registration_session').get()).toEqual({ id: session.id, status: 'open', client_key: null, expires_at: 2000 });
