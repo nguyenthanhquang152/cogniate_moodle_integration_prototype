@@ -159,7 +159,7 @@ export interface JobStore {
 export interface JobRunnerOptions {
   store: JobStore;
   logger: Logger;
-  /** JOB_INSTANCE_ID (default of the services: app-1, lti-1). It must not contain "/". */
+  /** JOB_INSTANCE_ID (default of the services: app-1, lti-1). Format: ^[A-Za-z0-9-]{1,64}$. */
   instanceId: string;
   /** 'web' (default): the runner in the web process. 'worker': the runner alone (npm run worker, LA-E4-05). */
   role?: JobRole;
@@ -219,7 +219,9 @@ const newTraceId = (): string => randomBytes(16).toString('hex');
 
 export function createJobRunner(options: JobRunnerOptions): JobRunner {
   const { store, logger: log, instanceId } = options;
-  if (instanceId === '' || instanceId.includes('/')) throw new Error(`The job instance id must not be empty or contain "/" (got "${instanceId}").`);
+  if (instanceId.length < 1 || instanceId.length > 64 || /[^A-Za-z0-9-]/.test(instanceId)) {
+    throw new Error('The job instance id must have 1 to 64 letters, digits or hyphens.');
+  }
   const role = options.role ?? 'web';
   const now = options.now ?? Date.now;
   const pollMs = options.pollMs ?? JOB_POLL_MS;
@@ -265,14 +267,14 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
     const parallel = job.limits?.parallel ?? JOB_PARALLEL;
     if (!Number.isInteger(parallel) || parallel < 1) throw new Error(`parallel must be a whole number of 1 or more (job ${job.name}, got ${parallel}).`);
     const leaseMs = job.limits?.leaseMs ?? JOB_LEASE_MS;
-    if (!(leaseMs > 0)) throw new Error(`leaseMs must be above 0 (job ${job.name}).`);
+    if (!(leaseMs > 0 && leaseMs <= MAX_TIMER_MS)) throw new Error(`leaseMs must be above 0 and at most ${MAX_TIMER_MS} (job ${job.name}).`);
     queues.set(job.name, { job: job as QueueJob<unknown>, limits: { parallel, perPartition, leaseMs }, busy: new Set(), cooling: new Map(), running: 0, polling: false, again: false });
   }
 
   function addInterval(job: IntervalJob): void {
     assertNew(job.name);
     if (job.everyMs !== null && !(job.everyMs > 0 && job.everyMs <= MAX_TIMER_MS)) throw new Error(`everyMs must be null, or above 0 and at most ${MAX_TIMER_MS} (job ${job.name}).`);
-    if (job.leaseMs !== undefined && !(job.leaseMs > 0)) throw new Error(`leaseMs must be above 0 (job ${job.name}).`);
+    if (job.leaseMs !== undefined && !(job.leaseMs > 0 && job.leaseMs <= MAX_TIMER_MS)) throw new Error(`leaseMs must be above 0 and at most ${MAX_TIMER_MS} (job ${job.name}).`);
     intervals.set(job.name, { job, running: false });
   }
 

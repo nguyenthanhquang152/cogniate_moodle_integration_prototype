@@ -467,4 +467,30 @@ describe('job runner', () => {
     r.start();
     expect(() => r.addInterval({ ...job, name: 'unit-c' })).toThrow(/before start/);
   });
+
+  it('AC-LA-E4-01-12: refuses invalid instance ids and lease times above the timer maximum', async () => {
+    const invalidIds = ['', 'app/1', 'app_1', 'app%1', 'app 1', 'app.1', 'app\n', 'app\r', 'app\u2028', 'ápp-1', 'a'.repeat(65)];
+    for (const instanceId of invalidIds) {
+      expect(() => createJobRunner({ store: fixture.store(), logger, instanceId })).toThrow(/instance id/);
+      expect(await fixture.store().readInstance(instanceId)).toBeNull();
+    }
+    for (const instanceId of ['app-1', 'lti-1', 'A', 'Z9-'.repeat(21) + '0']) {
+      const r = runner(instanceId);
+      r.start();
+      await settle();
+      expect(r.state()).toBe('active');
+      await r.stop();
+    }
+
+    const r = runner();
+    const q = memoryQueue('unit-queue', ['pa'], 1);
+    const interval = { name: 'unit-interval', everyMs: null, runAtStart: false, run: async () => ({ result: 'ok' as const }) };
+    const maxLeaseMs = 2_147_483_647;
+    for (const leaseMs of [maxLeaseMs + 1, Infinity, NaN, 0, -1]) {
+      expect(() => r.addQueue({ ...q.job, limits: { leaseMs } })).toThrow(/leaseMs/);
+      expect(() => r.addInterval({ ...interval, leaseMs })).toThrow(/leaseMs/);
+    }
+    expect(() => r.addQueue({ ...q.job, limits: { leaseMs: maxLeaseMs } })).not.toThrow();
+    expect(() => r.addInterval({ ...interval, leaseMs: maxLeaseMs })).not.toThrow();
+  });
 });
