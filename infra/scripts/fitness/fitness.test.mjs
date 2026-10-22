@@ -261,4 +261,51 @@ describe('F5 adapter and portability internals', () => {
         const migration = folder + '009_signing_key_lifecycle.sql';
         assert.deepEqual(sqlPortability.check({ path: migration, text: readFileSync(new URL(`../../../${migration}`, import.meta.url), 'utf8') }), []);
     });
+    it('checks only string and template text in service TypeScript, including cooked escapes', () => {
+        const path = 'services/example/src/nested/query.ts';
+        const text = String.raw`// randomblob(4), rowid
+const date = () => 1;
+const rowid = date(); const pattern = /randomblob\(4\)/;
+const query = "SELECT \u0072owid,\nrandomblob(4)";
+const template = ` + '`SELECT date(${date()}), ${rowid}, "rowid"`;' + `
+const quoted = ` + "`SELECT 'date(${date()})', randomblob(4)`;";
+        const hits = sqlPortability.check({ path, text });
+        assert.equal(hits.length, 5);
+        assert.deepEqual(hits.slice(0, 2).map(({ line, col }) => [line, col]), [[4, 23], [4, 36]]);
+        for (const skipped of [path.replace('.ts', '.test.ts'), 'services/example/src/testkit.ts', 'packages/shared/src/query.ts', 'apps/portal/src/query.ts', 'services/example/query.ts']) {
+            assert.deepEqual(sqlPortability.check({ path: skipped, text }), [], skipped);
+        }
+    });
+    it('maps multibyte escapes and template newlines to their source positions', () => {
+        const path = 'services/example/src/query.ts';
+        const text = String.raw`const query = "SELECT '\u{1f600}', rowid";` + '\nconst template = `SELECT\r\n rowid`;';
+        const hits = sqlPortability.check({ path, text });
+        assert.deepEqual(hits.map(({ line, col }) => [line, col]), [[1, text.indexOf('rowid') + 1], [3, 2]]);
+    });
+    it('freezes only one exact occurrence of each existing inline blob query', () => {
+        const cases = [
+            ['services/cogniate-app/src/domain/pickers.ts', "UPDATE picker_session SET ltik_encrypted = X'' WHERE id = ?"],
+            ['services/cogniate-app/src/domain/retention.ts', "UPDATE picker_session SET ltik_encrypted = X'' WHERE used_at IS NOT NULL AND length(ltik_encrypted) > 0 AND expires_at < ?"],
+            ['services/lti-service/src/store/tool-keys.ts', "UPDATE tool_key SET status = 'removed', removed_at = ?, private_jwk_encrypted = X'' WHERE tool_account_id = ? AND kid = ?"],
+            ['services/lti-service/src/jobs/signing-key-cleanup.ts', "UPDATE tool_key SET private_jwk_encrypted = X'' WHERE status = 'removed' AND length(private_jwk_encrypted) > 0"],
+        ];
+        for (const [path, query] of cases) {
+            const text = `db.prepare(${JSON.stringify(query)});`;
+            assert.deepEqual(sqlPortability.check({ path, text }), []);
+            assert.equal(sqlPortability.check({ path, text: `${text}\n${text}` }).length, 1);
+            assert.equal(sqlPortability.check({ path, text: text.replace("X''", "X'00'") }).length, 1);
+            assert.equal(sqlPortability.check({ path: 'services/example/src/query.ts', text }).length, 1);
+            assert.equal(sqlPortability.check({ path, text: `${text}\nconst next = 'SELECT rowid';` }).length, 1);
+        }
+    });
+    it('freezes the nine legacy rowid statements and rejects edits or added uses', () => {
+        for (const [name, count] of [['attempts', 1], ['bindings', 2], ['mbz-builds', 3], ['results', 2], ['score-syncs', 1]]) {
+            const path = `services/cogniate-app/src/domain/${name}.ts`;
+            const text = readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8');
+            assert.deepEqual(sqlPortability.check({ path, text }), []);
+            assert.equal(sqlPortability.check({ path, text: text.replace('rowid', 'rowid + 0') }).length, 1);
+            assert.equal(sqlPortability.check({ path, text: `${text}\nconst next = 'SELECT rowid';` }).length, 1);
+            assert.equal(sqlPortability.check({ path, text: `${text}\n${text}` }).length, count);
+        }
+    });
 });
