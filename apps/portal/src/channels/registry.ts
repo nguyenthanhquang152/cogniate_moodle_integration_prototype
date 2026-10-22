@@ -7,8 +7,9 @@ export const discoveredChannels: LoadedChannel[] = Object.entries(manifests).map
   folder: path.slice(0, path.lastIndexOf("/")), manifest: entry.default,
 }));
 export const channelRegistry = buildChannelRegistry(discoveredChannels, { simulations: true });
+export const toolName = (libraryName: string): string => `Cogniate (${libraryName})`;
 export function channelText(manifest: ChannelManifest, text: string, libraryName = "", site = ""): string {
-  return fillText(text, { LMS: manifest.names.text, tool: `Cogniate (${libraryName})`, site });
+  return fillText(text, { LMS: manifest.names.text, tool: toolName(libraryName), site });
 }
 export function visibleChannels(registry: ChannelRegistry, providers: readonly LmsProvider[] = []): readonly ChannelManifest[] {
   return registry.channels().filter((manifest) => manifest.availability !== "simulation-only" || providers.some((provider) => (provider.channel ?? provider.lms) === manifest.id));

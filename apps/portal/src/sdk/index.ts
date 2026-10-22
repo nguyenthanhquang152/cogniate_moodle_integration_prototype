@@ -62,3 +62,7 @@ export interface ChannelUiModule {
 export function createPortalSdk(navigate: (to: string) => void, refresh: () => void = () => undefined): PortalSdk {
   return { api: apiClient, useApi, navigate, refresh, ui };
 }
+
+export { verificationAuthority, VerificationInstructions } from "../channels/verification.tsx";
+export { ManifestBinding } from "../channels/ManifestWizard.tsx";
+export { channelText, toolName } from "../channels/registry.ts";

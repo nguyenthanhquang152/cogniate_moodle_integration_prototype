@@ -36,7 +36,7 @@ const MoodleSteps = entry("MoodleSteps.tsx").MoodleSteps as ComponentType<{ meth
 const ConnectionReady = entry("index.tsx").MoodleReady as ComponentType<{ connection: Connection; libraryName: string }>;
 const validatePlatform = entry("validation.ts").validatePlatform as (siteUrl: string, values: Record<string, string>) => Record<string, string>;
 type Step = { id: string; text: string; optional: boolean };
-const steps = entry("moodle-steps.json").default as { format: string; dynamic: Step[]; manual: Step[] };
+const steps = entry("MoodleSteps.tsx").moodleSteps as { format: string; dynamic: Step[]; manual: Step[] };
 
 const connection: Connection = {
   id: "con_test",

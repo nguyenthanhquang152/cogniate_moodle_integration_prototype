@@ -11,10 +11,11 @@ import { CopyButton, ErrorNotice } from "../ui.tsx";
 import { ToolConfiguration } from "../connect/ToolConfiguration.tsx";
 import { channelText } from "./registry.ts";
 
-export function verificationAuthority(manifest: ChannelManifest, connection: Connection | null, method: string): NonNullable<Connection["bindingAuthority"]> {
-  return connection?.bindingAuthority ?? manifest.registration.find((entry) => entry.method === method)?.authority ?? "operatorGrant";
-}
-export function ManifestWizard({ manifest, module, ...props }: ChannelWizardProps & { manifest: ChannelManifest; module?: ChannelUiModule }) {
+import { verificationAuthority, VerificationInstructions } from "./verification.tsx";
+
+type WizardProps = ChannelWizardProps & { manifest: ChannelManifest };
+function useWizard(props: WizardProps) {
+  const { manifest } = props;
   const [method, setMethod] = useState(props.connection?.method ?? manifest.registration[0]!.method);
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);
@@ -57,22 +58,31 @@ export function ManifestWizard({ manifest, module, ...props }: ChannelWizardProp
       if (alive.current) setBusy(false);
     }
   }
-  const content: Record<WizardStep, React.ReactNode> = {
-    show: <>
+  async function renew() {
+    if (!connection) return;
+    setBusy(true); setError(null);
+    try {
+      const updated = await api<{ registrationUrl: string; expiresAt: string }>(`/connections/${idPath(connection.id)}/registration-url`, { method: "POST" });
+      if (alive.current) props.onChanged({ ...connection, registrationUrl: updated.registrationUrl, registrationUrlExpiresAt: updated.expiresAt });
+    } catch (reason) { if (alive.current) setError(reason); }
+    finally { if (alive.current) setBusy(false); }
+  }
+  return { manifest, connection, method, setMethod, error, busy, fields, text, ready, finished, hasBinding, authority, field, submit, renew };
+}
+type WizardState = ReturnType<typeof useWizard>;
+function ShowStep({ state }: { state: WizardState }) {
+  const { manifest, connection, method, busy, text, renew } = state;
+  return <>
       <h2>Tool settings</h2>
       <ol className="list-decimal space-y-3 pl-5">{manifest.texts.adminSteps.map((step, index) => <li key={index}>{text(step)}</li>)}</ol>
       {connection && manifest.lti?.toolConfiguration === "channel" && <ToolConfiguration id={connection.id} lmsName={manifest.names.text} />}
       {connection?.registrationUrl && <CopyButton label="Registration URL" value={connection.registrationUrl} />}
-      {connection && connection.status === "pending" && method === "dynamic" && <Button type="button" disabled={busy} onClick={async () => {
-        setBusy(true); setError(null);
-        try {
-          const updated = await api<Connection>(`/connections/${idPath(connection.id)}/registration-url`, { method: "POST" });
-          if (alive.current) props.onChanged(updated);
-        } catch (reason) { if (alive.current) setError(reason); }
-        finally { if (alive.current) setBusy(false); }
-      }}>Get registration URL</Button>}
-    </>,
-    collect: <>
+      {connection && connection.status === "pending" && method === "dynamic" && <Button type="button" disabled={busy} onClick={renew}>Get registration URL</Button>}
+    </>;
+}
+function CollectStep({ state }: { state: WizardState }) {
+  const { manifest, connection, method, setMethod, fields, field, ready, busy, hasBinding } = state;
+  return <>
       <h2>{connection ? "Platform values" : "Your site"}</h2>
       {!connection && <>
         <label>Connection name<Input name="name" required maxLength={100} /></label>
@@ -84,25 +94,42 @@ export function ManifestWizard({ manifest, module, ...props }: ChannelWizardProp
         <Button disabled={busy || ready.length === 0}>Continue</Button>
       </>}
       {hasBinding && fields(manifest.setup.bindingFields).filter((item) => item.kind !== "grantCode").map(field)}
-    </>,
-    verify: <>
+    </>;
+}
+function VerifyStep({ state }: { state: WizardState }) {
+  const { manifest, authority, hasBinding, fields, field, busy } = state;
+  return <>
       <h2>Verify connection</h2>
-      {authority === "self" ? <p>The first launch from {manifest.names.text} verifies this connection.</p> : authority === "verifiedAdminLaunch" ? <p>Use the admin launch code to verify this connection.</p> : <>
-        <p>Ask your Cogniate operator for an approval code. The code works once and expires.</p>
-        {hasBinding && field(fields(manifest.setup.bindingFields).find((item) => item.kind === "grantCode") ?? { key: "grantCode", label: "Approval code", kind: "grantCode", required: true })}
-      </>}
+      <VerificationInstructions authority={authority} name={manifest.names.text} />
+      {authority === "operatorGrant" && hasBinding && field(fields(manifest.setup.bindingFields).find((item) => item.kind === "grantCode") ?? { key: "grantCode", label: "Approval code", kind: "grantCode", required: true })}
       {hasBinding && <Button disabled={busy}>Save</Button>}
-    </>,
-    enable: <>
+    </>;
+}
+function EnableStep({ state }: { state: WizardState }) {
+  const { manifest, finished, text } = state;
+  return <>
       <h2>{finished ? "Your library is connected" : "Enable the connection"}</h2>
       <ol className="list-decimal space-y-3 pl-5">{manifest.texts.teacherSteps.map((step, index) => <li key={index}>{text(step)}</li>)}</ol>
-    </>,
-  };
-  return <form className="flex flex-col gap-5" onSubmit={submit}>
+    </>;
+}
+const defaultSteps: Record<WizardStep, React.ComponentType<{ state: WizardState }>> = {
+  show: ShowStep, collect: CollectStep, verify: VerifyStep, enable: EnableStep,
+};
+/** The manifest binding form for a module that uses the default verification step. */
+export function ManifestBinding(props: WizardProps) {
+  const state = useWizard(props);
+  return <form className="flex flex-col gap-5" onSubmit={state.submit}>
+    <CollectStep state={state} /><VerifyStep state={state} /><ErrorNotice error={state.error} />
+  </form>;
+}
+export function ManifestWizard({ module, ...props }: WizardProps & { module?: ChannelUiModule }) {
+  const state = useWizard(props);
+  return <form className="flex flex-col gap-5" onSubmit={state.submit}>
     {(["show", "collect", "verify", "enable"] as const).map((step) => {
       const Override = module?.steps?.[step];
-      return <Card key={step} data-channel-step={step} className="flex flex-col gap-5"><p className="eyebrow">{step}</p>{Override ? <Override {...props} /> : content[step]}</Card>;
+      const Default = defaultSteps[step];
+      return <Card key={step} data-channel-step={step} className="flex flex-col gap-5"><p className="eyebrow">{step}</p>{Override ? <Override {...props} /> : <Default state={state} />}</Card>;
     })}
-    <ErrorNotice error={error} />
+    <ErrorNotice error={state.error} />
   </form>;
 }

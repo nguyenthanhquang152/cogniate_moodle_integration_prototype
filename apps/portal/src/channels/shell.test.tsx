@@ -7,6 +7,7 @@ import { App } from "../App.tsx";
 import type { Connection, LmsProvider } from "../types.ts";
 import { ChannelProvider } from "./context.tsx";
 import { channelRegistry, discoveredChannels } from "./registry.ts";
+import { channelModules } from "./modules.ts";
 import { ManifestWizard } from "./ManifestWizard.tsx";
 import { createPortalSdk } from "../sdk/index.ts";
 
@@ -23,6 +24,7 @@ const canary: ChannelManifest = {
   },
   texts: { adminSteps: ["Open {LMS} settings."], teacherSteps: ["Select {tool} in {LMS}."], disconnect: "Disconnect {LMS}.", notReady: null },
 };
+const self: ChannelManifest = { ...canary, registration: [{ ...canary.registration[0]!, method: "dynamic", authority: "self" }] };
 const simulation: ChannelManifest = { ...canary, id: "shell-simulation", availability: "simulation-only", card: { ...canary.card, title: "Simulation learning site", order: 101 }, registration: [{ ...canary.registration[0]!, profiles: ["shell-sim"], defaultProfile: "shell-sim" }] };
 const registry = buildChannelRegistry([...discoveredChannels, ...[canary, simulation].map((manifest) => ({ folder: `/channels/${manifest.id}`, manifest }))], { simulations: true });
 function provider(manifest: ChannelManifest): LmsProvider {
@@ -54,6 +56,8 @@ beforeEach(() => {
     if (url === "/app-api/me") return json(session);
     if (url === "/app-api/lms-providers") return json({ lms: listed });
     if (url === "/app-api/connections") return json({ connections: [] });
+    if (url === `/app-api/connections/${current.id}/tool-configuration`) return json([]);
+    if (url.includes("-configuration")) return json({ title: "Test configuration" });
     if (url === `/app-api/connections/${current.id}`) return json(current);
     throw new Error(`Unexpected request: ${url}`);
   });
@@ -63,8 +67,8 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 function app(path: string) {
   return render(<ChannelProvider registry={registry}><MemoryRouter initialEntries={[path]}><App /></MemoryRouter></ChannelProvider>);
 }
-function wizard(manifest: ChannelManifest, existing: Connection | null = null) {
-  return render(<MemoryRouter><ManifestWizard manifest={manifest} provider={provider(manifest)} connection={existing} libraryName="Library" opener="test" onCreated={vi.fn()} onChanged={vi.fn()} sdk={createPortalSdk(vi.fn())} /></MemoryRouter>);
+function wizard(manifest: ChannelManifest, existing: Connection | null = null, onChanged = vi.fn()) {
+  return render(<MemoryRouter><ManifestWizard manifest={manifest} provider={provider(manifest)} connection={existing} libraryName="Library" opener="test" onCreated={vi.fn()} onChanged={onChanged} sdk={createPortalSdk(vi.fn())} /></MemoryRouter>);
 }
 
 describe("manifest portal shell", () => {
@@ -77,7 +81,7 @@ describe("manifest portal shell", () => {
       expect(card.textContent).toContain(manifest.card.description);
     }
   });
-  it.each([...channelRegistry.channels(), canary])("renders all four default steps from $id manifest data", (manifest) => {
+  it.each([...channelRegistry.channels().filter((manifest) => !channelModules.get(manifest.id)?.Wizard), canary])("renders all four default steps from $id manifest data", (manifest) => {
     const { container } = wizard(manifest);
     expect([...container.querySelectorAll("[data-channel-step]")].map((element) => element.getAttribute("data-channel-step"))).toEqual(["show", "collect", "verify", "enable"]);
     expect(container.textContent).toContain(manifest.texts.adminSteps[0]!.replaceAll("{LMS}", manifest.names.text).replaceAll("{tool}", "Cogniate (Library)"));
@@ -131,9 +135,8 @@ describe("manifest portal shell", () => {
     app(`/integrations/${simulation.id}/connect`);
     expect(await screen.findByRole("heading", { name: "Page not found" })).toBeTruthy();
   });
-  it.each(channelRegistry.channels())("selects the verification step from $id authority", (manifest) => {
-    const existing = connection(manifest);
-    wizard(manifest, existing);
+  it.each([self, canary])("selects the verification step from a test manifest's $registration.0.authority authority", (manifest) => {
+    wizard(manifest, connection(manifest));
     if (manifest.registration[0]!.authority === "self") {
       expect(screen.getByText(`The first launch from ${manifest.names.text} verifies this connection.`)).toBeTruthy();
       expect(screen.queryByLabelText("Approval code")).toBeNull();
@@ -142,11 +145,49 @@ describe("manifest portal shell", () => {
       expect(screen.queryByText(/The first launch/)).toBeNull();
     }
   });
-  it("uses stored authority after dynamic registration stages a self connection", () => {
-    const self = channelRegistry.channels().find((manifest) => manifest.registration.some((entry) => entry.method === "dynamic" && entry.authority === "self"))!;
-    wizard(self, connection(self, { method: "dynamic", bindingAuthority: "operatorGrant" }));
+  it("uses the chosen method's authority before create", () => {
+    const mixed = { ...canary, registration: [...self.registration, ...canary.registration] };
+    wizard(mixed);
+    expect(screen.getByText(/The first launch/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Connection method"), { target: { value: "manual" } });
+    expect(screen.queryByText(/The first launch/)).toBeNull();
+    expect(screen.getByText(/Ask your Cogniate operator/)).toBeTruthy();
+  });
+  it("uses stored authority after dynamic registration stages a self test connection", () => {
+    wizard(self, connection(self, { bindingAuthority: "operatorGrant" }));
     expect(screen.getByLabelText("Approval code")).toBeTruthy();
     expect(screen.queryByText(/The first launch/)).toBeNull();
+  });
+  it.each(["moodle", "canvas", "blackboard"])("routes %s through its real module with the baseline verification screen", async (id) => {
+    const manifest = channelRegistry.channel(id)!;
+    const authority = manifest.registration[0]!.authority;
+    current = connection(manifest, { bindingAuthority: authority, status: authority === "self" ? "registered" : "pending" });
+    const { container } = app(`/integrations/${id}/${current.id}`);
+    await screen.findByRole("heading", { name: `Manage ${manifest.names.text}` });
+    if (authority === "self") expect(await screen.findByText(`The first launch from ${manifest.names.text} changes the status to Connected.`)).toBeTruthy();
+    else expect(await screen.findByLabelText("Approval code")).toBeTruthy();
+    expect(container.querySelector("[data-channel-step]")).toBeNull();
+  });
+  it.each(["moodle", "canvas", "blackboard"])("the real %s module obeys stored authority even when its method is unchanged", async (id) => {
+    const manifest = channelRegistry.channel(id)!;
+    const authority = manifest.registration[0]!.authority === "self" ? "operatorGrant" : "self";
+    current = connection(manifest, { bindingAuthority: authority });
+    app(`/integrations/${id}/${current.id}`);
+    if (authority === "self") {
+      expect(await screen.findByText(`The first launch from ${manifest.names.text} verifies this connection.`)).toBeTruthy();
+      expect(screen.queryByLabelText("Approval code")).toBeNull();
+    } else {
+      expect(await screen.findByLabelText("Approval code")).toBeTruthy();
+      expect(screen.queryByText(/The first launch/)).toBeNull();
+    }
+  });
+  it("merges a renewed URL into the existing connection", async () => {
+    const existing = connection(self);
+    const onChanged = vi.fn();
+    fetchMock.mockResolvedValue(json({ registrationUrl: "https://tool.test/register", expiresAt: "2026-10-22T23:00:00Z" }));
+    wizard(self, existing, onChanged);
+    fireEvent.click(screen.getByRole("button", { name: "Get registration URL" }));
+    await waitFor(() => expect(onChanged).toHaveBeenCalledWith({ ...existing, registrationUrl: "https://tool.test/register", registrationUrlExpiresAt: "2026-10-22T23:00:00Z" }));
   });
   it("keeps the reserved admin-launch authority separate from an operator grant", () => {
     wizard(canary, connection(canary, { bindingAuthority: "verifiedAdminLaunch" }));

@@ -1,6 +1,6 @@
 import manifest from "../manifest.ts";
 import type { ChannelUiModule, ChannelWizardProps } from "@cogniate/portal-sdk";
-import { Card, Notice, Link, buttonVariants, ArrowRight, Download, idPath, useSession, fillText, ConnectionDetailBlock, pendingToolText } from "@cogniate/portal-sdk";
+import { Card, Notice, Link, buttonVariants, ArrowRight, Download, idPath, useSession, channelText, toolName, ConnectionDetailBlock, pendingToolText, verificationAuthority, ManifestBinding } from "@cogniate/portal-sdk";
 import { CreateConnection } from "./CreateConnection.tsx";
 import { DynamicSetup } from "./DynamicSetup.tsx";
 import { ManualSetup } from "./ManualSetup.tsx";
@@ -13,8 +13,11 @@ export function MoodleWizard(props: ChannelWizardProps) {
   const connection = props.connection;
   if (!connection) return <CreateConnection opener={props.opener} onCreated={props.onCreated} />;
   if (connection.status === "disabled") return <Notice>This connection is disconnected. Delete the old Cogniate tool in Moodle before you connect again.</Notice>;
+  const authority = verificationAuthority(manifest, connection, connection.method);
   return <>
-    {connection.status === "pending" ? connection.method === "dynamic"
+    {connection.status === "pending" ? authority !== "self"
+      ? <Card><ManifestBinding {...props} manifest={manifest} /></Card>
+      : connection.method === "dynamic"
       ? <DynamicSetup connection={connection} libraryName={props.libraryName} onChanged={props.onChanged} />
       : <ManualSetup connection={connection} libraryName={props.libraryName} onRegistered={props.onChanged} />
       : <MoodleReady connection={connection} libraryName={props.libraryName} />}
@@ -33,11 +36,11 @@ const module: ChannelUiModule = {
   Wizard: MoodleWizard,
   TeacherSteps() {
     const session = useSession();
-    return <p className="text-[12px] text-[#cbb9e0]">Teachers: {manifest.texts.teacherSteps.map((step) => fillText(step, { LMS: manifest.names.text, tool: `Cogniate (${session?.library.name ?? ""})`, site: "" })).join(" ")}</p>;
+    return <p className="text-[12px] text-[#cbb9e0]">Teachers: {manifest.texts.teacherSteps.map((step) => channelText(manifest, step, session?.library.name)).join(" ")}</p>;
   },
   ConnectionDetails: ({ connection }) => <ConnectionDetailBlock connection={connection} openUrl={`${connection.siteUrl}/mod/lti/toolconfigure.php`} />,
   ConnectionError: ({ Default, ...props }) => <Default {...props} error={{
-    ...props.error, title: props.error.title ?? "The Moodle connection failed.", action: props.error.action ?? (props.error.code === "MOODLE_TOOL_MAY_EXIST" && props.libraryName ? pendingToolText(`Cogniate (${props.libraryName})`) : undefined),
+    ...props.error, title: props.error.title ?? "The Moodle connection failed.", action: props.error.action ?? (props.error.code === "MOODLE_TOOL_MAY_EXIST" && props.libraryName ? pendingToolText(toolName(props.libraryName)) : undefined),
   }} />,
   connectionPanels: [({ connection, sdk }) => connection.capabilities.webServices ? <WebServices key={connection.id} connection={connection} onSaved={sdk.refresh} /> : null],
   coursePanels: [({ course, version }) => version?.format === "scorm12" ? <>

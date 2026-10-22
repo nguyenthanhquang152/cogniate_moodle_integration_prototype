@@ -6,16 +6,14 @@ import type { BlackboardPlatformBody, Connection } from "@cogniate/portal-sdk";
 import { Button } from "@cogniate/portal-sdk";
 import { Input } from "@cogniate/portal-sdk";
 import { ProviderErrorNotice, providerErrorFields } from "@cogniate/portal-sdk";
-import steps from "./blackboard-steps.json";
-
-/** The step 3 instructions (data), shown once: as the help text of the approval code field. */
-const APPROVAL_HELP = steps.steps.find((step) => step.id === "blackboard-approval")!.instructions.join(" ");
+import steps from "./steps.ts";
 
 /**
  * Step 3: the deployment id and the operator's approval code (PUT …/platform, app contract §4.4). The code stays only
  * in this one request: the field is cleared after every submit, and the code is never put in the URL or storage.
  */
 export function BlackboardBinding({ connection, onChanged }: { connection: Connection; onChanged: (connection: Connection) => void }) {
+  const approvalHelp = steps.steps.find((step) => step.id === "blackboard-approval")!.instructions.join(" ");
   const alive = useAlive();
   const [deploymentId, setDeploymentId] = useState("");
   const [grantCode, setGrantCode] = useState("");
@@ -47,7 +45,7 @@ export function BlackboardBinding({ connection, onChanged }: { connection: Conne
       <Input name="grantCode" type="text" required autoComplete="off" spellCheck={false} value={grantCode} onChange={(event) => setGrantCode(event.target.value)}
         aria-invalid={fields.includes("grantCode")} aria-describedby={`blackboard-approval-help${fields.includes("grantCode") ? " blackboard-binding-error" : ""}`} />
     </label>
-    <p id="blackboard-approval-help" className="text-muted-foreground">{APPROVAL_HELP}</p>
+    <p id="blackboard-approval-help" className="text-muted-foreground">{approvalHelp}</p>
     <div id="blackboard-binding-error"><ProviderErrorNotice error={error} /></div>
     <div className="flex flex-wrap items-center gap-3">
       <Button variant="primary" disabled={busy}>Save</Button>
