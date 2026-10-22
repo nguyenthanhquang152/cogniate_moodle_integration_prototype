@@ -3,7 +3,7 @@ import { ApiError } from '../api-errors.ts';
 import type { Db } from '../db/index.ts';
 import type { ToolAccount } from '../store/accounts.ts';
 import { getAccount } from '../store/accounts.ts';
-import { findActiveApiKey } from '../store/api-keys.ts';
+import { useApiKey } from '../store/api-keys.ts';
 import type { AuditActor } from '../store/audit.ts';
 import type { LaunchRecord } from '../store/launches.ts';
 import { findLaunchByLtik } from '../store/launches.ts';
@@ -70,7 +70,7 @@ export function authenticate(
     return reject(parsed.scheme, parsed.error, 'api_key');
   }
   if (!accepted.includes(parsed.scheme)) return reject(parsed.scheme, 'INVALID_AUTHORIZATION_HEADER', 'api_key');
-  const key = findActiveApiKey(db, parsed.apiKey, now);
+  const key = useApiKey(db, parsed.apiKey, now);
   const account = key ? getAccount(db, key.toolAccountId) : null;
   if (!key || !account || account.status === 'closed') {
     // ADR-003: a bad API key on Bearer endpoints uses the LTIK error code.

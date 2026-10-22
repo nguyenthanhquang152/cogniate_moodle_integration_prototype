@@ -26,8 +26,8 @@ type KeyParams = { Params: { id: string; kid: string } };
 export function registerSigningKeyRoutes(app: FastifyInstance, ctx: OperatorContext, opts: { publishLeadSeconds?: number } = {}): void {
   const publishLeadSeconds = opts.publishLeadSeconds === undefined
     ? readSigningKeyPublishLeadSeconds() : validatePublishLeadSeconds(opts.publishLeadSeconds);
-  const log = (accountId: string, kid: string, status: string) =>
-    ctx.logger.info('signing_key_changed', { tool_account_id: accountId, kid, status });
+  const log = (accountId: string, kid: string, status: string, traceId: string) =>
+    ctx.logger.info('signing_key_changed', { tool_account_id: accountId, kid, status, trace_id: traceId });
 
   app.get<AccountParams>(base, async (req) => ({ signingKeys: listSigningKeys(ctx.db, req.params.id).map(toApi) }));
 
@@ -45,7 +45,7 @@ export function registerSigningKeyRoutes(app: FastifyInstance, ctx: OperatorCont
       return createNextToolKey(ctx.db, prepared, ctx.now());
     },
       (created) => ({ target: { type: 'signing_key', id: created.kid }, details: { status: created.status } }));
-    log(req.params.id, key.kid, key.status);
+    log(req.params.id, key.kid, key.status, req.traceId);
     return reply.code(201).send({ kid: key.kid, status: key.status, publishedAt: iso(key.publishedAt) });
   }));
 
@@ -64,8 +64,8 @@ export function registerSigningKeyRoutes(app: FastifyInstance, ctx: OperatorCont
       return activateToolKey(ctx.db, req.params.id, req.params.kid, options, now);
     },
       (activated) => ({ details: { forced: force, retired: activated.retired } }));
-    if (key.retired !== null) log(req.params.id, key.retired, 'retired');
-    log(req.params.id, key.kid, key.status);
+    if (key.retired !== null) log(req.params.id, key.retired, 'retired', req.traceId);
+    log(req.params.id, key.kid, key.status, req.traceId);
     return { ...key, activatedAt: iso(key.activatedAt) };
   }));
 
@@ -80,7 +80,7 @@ export function registerSigningKeyRoutes(app: FastifyInstance, ctx: OperatorCont
     }
     checkToolKeyRemoval(ctx.db, req.params.id, req.params.kid);
     const key = audit.change(() => removeToolKey(ctx.db, req.params.id, req.params.kid, ctx.now()));
-    log(req.params.id, key.kid, key.status);
+    log(req.params.id, key.kid, key.status, req.traceId);
     return key;
   }));
 }
