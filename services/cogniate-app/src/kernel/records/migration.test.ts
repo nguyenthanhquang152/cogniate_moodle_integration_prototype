@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { openDb } from '../../domain/db.ts';
 import { upsertResourceLink } from '../../domain/launch.ts';
-import { externalKey, placementPartition } from './placements.ts';
+import { platformPartition } from '../../drivers/lti-ags/partition.ts';
+import { externalKey } from './placements.ts';
 import { seedAttempt, seedBase, seedLink } from './records.testkit.ts';
 
 const migrations = fileURLToPath(new URL('../../domain/migrations/', import.meta.url));
@@ -67,7 +68,7 @@ describe('records migration', () => {
         expect(db.prepare('SELECT * FROM placement WHERE id = ?').get(String(rl.id))).toEqual({ id: rl.id, connection_id: rl.connection_id,
           publication_id: rl.publication_id, external_key: JSON.stringify(['deployment', contexts[i], rl.resource_link_id]),
           graded: 1, created_at: rl.created_at, updated_at: rl.updated_at });
-        expect(placementPartition(db, String(rl.id))).toBe(partitions[i]);
+        expect(platformPartition(db, String(rl.id))).toBe(partitions[i]);
       }
       expect(db.prepare('SELECT * FROM score_sync ORDER BY rowid').all()).toEqual(before);
       const launch = upsertResourceLink(db, { connectionId: 'con', publicationId: 'pub', deploymentId: 'deployment', contextId: 'context',

@@ -7,6 +7,8 @@ import { keyProviderFor } from '@cogniate/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { Db } from '../db/index.ts';
 import { sealedVersionCounts } from '../keys/sealed-columns.ts';
+import type { JwksFetchObserver, PlatformKeys } from '../lti/jwks.ts';
+import type { TokenResultObserver } from '../platform/token-client.ts';
 import { observeAuditEvents } from '../store/audit.ts';
 import { observeRateLimits } from './rate-limit.ts';
 
@@ -46,6 +48,8 @@ const COUNTERS = {
   lti_api_auth_failed: 'Failed API authentication attempts.',
   lti_outbound: 'Outbound responses and guard refusals.',
   lti_platform_rate_limited: 'Platform responses that ask the caller to wait.',
+  lti_platform_token_failures: 'Failed platform token requests.',
+  lti_jwks_fetch_failures: 'Failed platform JWKS fetches, one per verification that waited on the fetch.',
   lti_audit_events: 'Committed audit events observed by this process.',
   lti_job_runs: 'Completed job attempts.',
 } as const;
@@ -83,6 +87,7 @@ export class LtiMetrics {
   private readonly counters = new Map<Counter, Map<string, Sample>>();
   private readonly histograms = new Map<HistogramName, Map<string, Histogram>>();
   private readonly lastJobSuccess = new Map<string, number>();
+  private jwksCache: Pick<PlatformKeys, 'lastSuccessAt'> | null = null;
   private readonly request = new AsyncLocalStorage<FastifyRequest>();
   private readonly loggers = new WeakMap<Logger, Logger>();
 
@@ -151,6 +156,23 @@ export class LtiMetrics {
       this.increment('lti_http_requests', { route_class: route, status_class: `${Math.floor(reply.statusCode / 100)}xx`, tool_account_id: this.accountFor(req) });
       this.observe('lti_http_request_duration_seconds', { route_class: route }, reply.elapsedTime / 1000);
     });
+  }
+
+  /** BD-A2-52: the injected token client observer. Only a failure of a stored platform makes a series. */
+  readonly tokenResult: TokenResultObserver = ({ platformId, ok }) => {
+    const id = ok ? '' : this.platformId(platformId);
+    if (id) this.increment('lti_platform_token_failures', { platform_id: id });
+  };
+
+  /** BD-A2-54: the injected JWKS observer; one event per verification that waited on the fetch. */
+  readonly jwksFetch: JwksFetchObserver = ({ platformId, ok }) => {
+    const id = ok ? '' : this.platformId(platformId);
+    if (id) this.increment('lti_jwks_fetch_failures', { platform_id: id });
+  };
+
+  /** BD-A2-54: the cache age comes from the cache at scrape time, not from events. */
+  readJwksAges(cache: Pick<PlatformKeys, 'lastSuccessAt'>): void {
+    this.jwksCache = cache;
   }
 
   rateLimited(name: string, keyKind: string, mode: 'hard' | 'soft'): void {
@@ -232,6 +254,15 @@ export class LtiMetrics {
       const operator = this.db.prepare('SELECT MIN(expires_at) AS expires_at FROM operator_key WHERE revoked_at IS NULL AND expires_at IS NOT NULL').get();
       gauge('lti_operator_key_expires_in_seconds', 'Time until the first unrevoked operator key expires.',
         operator?.expires_at === null || operator?.expires_at === undefined ? [] : [{ labels: {}, value: (Number(operator.expires_at) - now) / 1000 }]);
+      // Every stored active platform with a cache entry for its URL; platforms that share one URL share its age.
+      const cache = this.jwksCache;
+      if (cache) {
+        const platforms = this.db.prepare('SELECT id, jwks_url FROM platform WHERE active = 1 ORDER BY id').all();
+        gauge('lti_jwks_cache_age_seconds', 'Time since the last good fetch of the platform JWKS.', platforms.flatMap((r) => {
+          const goodAt = cache.lastSuccessAt(String(r.jwks_url));
+          return goodAt === null ? [] : [{ labels: { platform_id: String(r.id) }, value: Math.max(0, (now - goodAt) / 1000) }];
+        }));
+      }
       const sealed = sealedVersionCounts(this.db);
       for (const v of keyProviderFor(keys).versions()) if (!sealed.has(v.id)) sealed.set(v.id, 0);
       gauge('lti_key_provider_sealed_rows', 'Stored sealed values by wrapping key version.', [...sealed].map(([version, value]) => ({ labels: { version }, value })));

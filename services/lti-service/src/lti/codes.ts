@@ -1,7 +1,7 @@
 /**
  * Login and launch error codes (security §2.1, §2.2) with their HTTP status and the action line of the page. ONE text
- * table with the LMS name as a parameter (security §12): `{LMS}` is `Moodle`, `Canvas` or `Blackboard`. With
- * `Moodle` every text is byte for byte the text before M1.
+ * table with the LMS name as a parameter (security §12): `{LMS}` is the manifest text name of the channel (D12). With
+ * the standard channel (`Moodle`) every text is byte for byte the text before M1.
  */
 import type { LmsName, ProfileOptions } from '../profiles/index.ts';
 import { lmsNameOf, reservedIssuerLmsNames } from '../profiles/index.ts';
@@ -51,13 +51,24 @@ export const PROTOCOL_ERRORS: Record<ProtocolErrorCode, { status: number; action
   REGISTRATION_SESSION_LIMIT: { status: 409, action: 'Too many registrations are open. Wait one hour, or finish the open registration in {LMS}.' },
 };
 
-/** Fill `{LMS}` in a text template. */
+/** Fill `{LMS}` in a text template. A function replacer keeps `$` patterns in a name literal (for example `$&`). */
 export const withLms = (text: string, lms: LmsName): string => text.replaceAll('{LMS}', () => lms);
 
-/** The action line of a code for an LMS (default Moodle: the texts before M1). */
+/**
+ * The name that fills `{LMS}` in the texts of a code. For ISSUER_RESERVED it is the owners of the reserved issuers
+ * (BD-A1-31), and `lms` is ignored. Without `lms`, it is the standard channel of `profiles`.
+ */
+export function lmsNameFor(code: ProtocolErrorCode, lms: LmsName | undefined, profiles: ProfileOptions): LmsName {
+  if (code === 'ISSUER_RESERVED') return reservedIssuerLmsNames(profiles);
+  return lms ?? lmsNameOf(null, profiles);
+}
+
+/**
+ * The action line of a code for an LMS (lmsNameFor). Default: the product standard channel (Moodle: the texts before
+ * M1). A test with its own profile registry must give `lms` or `profiles`.
+ */
 export function protocolAction(code: ProtocolErrorCode, lms?: LmsName, profiles: ProfileOptions = { simulation: true }): string {
-  const name = code === 'ISSUER_RESERVED' ? reservedIssuerLmsNames(profiles) : lms ?? lmsNameOf(null, profiles);
-  return withLms(PROTOCOL_ERRORS[code].action, name);
+  return withLms(PROTOCOL_ERRORS[code].action, lmsNameFor(code, lms, profiles));
 }
 
 /** Help texts for STATE_COOKIE_MISSING (security §2.2, "Other launch cases"), as templates. */
@@ -69,6 +80,7 @@ const COOKIE_HELP_TEMPLATES = {
 
 export type CookieHelpKind = keyof typeof COOKIE_HELP_TEMPLATES;
 
+/** Default `lms`: the product standard channel. A test with its own profile registry must give `lms`. */
 export function cookieHelp(kind: CookieHelpKind, lms: LmsName = lmsNameOf(null)): string {
   return withLms(COOKIE_HELP_TEMPLATES[kind], lms);
 }

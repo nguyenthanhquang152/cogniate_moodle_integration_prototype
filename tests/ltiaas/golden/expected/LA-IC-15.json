@@ -1,0 +1,51 @@
+{
+  "id": "LA-IC-15",
+  "approval": "docs/reviews/LA-E4-03/qa.md, docs/reviews/LA-E4-03/reviewer-a.md, docs/reviews/LA-E4-03/reviewer-b.md",
+  "ld9": {
+    "epic": "E4 (LA-E4-03, lane R)",
+    "design": [
+      "docs/architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn",
+      "docs/architecture/ltiaas/build-decisions-A1.md (BD-A1-21)",
+      "docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md#d5-app-channel-contract-and-portal-slot-contract"
+    ],
+    "goldenFields": [
+      "G3.blackboard.publications.B-conflict.results[0].scoreSyncs[0].lastError",
+      "G3.canvas.publications.B-conflict.results[0].scoreSyncs[0].lastError"
+    ],
+    "authorUnitTestChanges": [
+      "packages/tracking/src/tracking.test.ts (adds optional lmsName coverage on recordRuntimeScore and default 'Moodle' fallback)",
+      "services/cogniate-app/src/drivers/lti-ags/reporter.test.ts (adds Canvas and Blackboard 409 conflict text coverage via channel manifest displayName)"
+    ],
+    "testChanges": [
+      "tests/ltiaas/golden/expected/LA-IC-15.json",
+      "tests/ltiaas/golden/golden.k0.test.mjs",
+      "tests/ltiaas/tasks-core/LA-E4-03/reporter.k0.test.ts",
+      "tests/ltiaas/tasks-core/LA-E4-03/reporter.k1sim.test.ts"
+    ],
+    "frozenTestsTouched": [],
+    "scanChecked": [
+      "tests/ltiaas/golden/capture.golden.ts:144-169 (captures G3.{blackboard,canvas}.publications['B-conflict'].results[0].scoreSyncs[0].lastError)",
+      "tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/G3.json:93,315 (only 2 paths across G1-G4 containing '(Moodle has a grade with a newer time)')",
+      "tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/G4.json:45-56,144-155 (G4.{blackboard,canvas}.players['status-conflict'] captures HTTP response {status:200, body:{outcome:'failed', scoreSync:{status:'conflict'}}} without lastError)",
+      "tests/acceptance/T6/4-results.spec.ts:83-85 (tests a Moodle connection; expects 'Moodle has a grade with a newer time' — unchanged for Moodle)",
+      "tests/acceptance/T5b/4-conflict-resend.spec.ts:76-81 (tests a Moodle connection; asserts String(sync!.lastError).toContain('PLATFORM_CONFLICT'))",
+      "tests/acceptance/M1/blackboard/40-routing-grades.test.ts:145-157 (tests 400 and 422 failed score syncs, not 409 conflict)",
+      "tests/acceptance/M1/canvas/41-canvas-grades.test.ts:318-329 (tests 400 and 422 failed score syncs, not 409 conflict)",
+      "tests/e2e/M2/05-publish-results.m2.ts:34-90 (tests sent score rows on Canvas and Blackboard, not 409 conflict)",
+      "tests/e2e/M2/07-sim-scenario.m2.ts:66-106 (tests sent score rows on Canvas and Blackboard, not 409 conflict)"
+    ],
+    "scanResult": "2 golden fields changed in G3 (blackboard.publications.B-conflict.results[0].scoreSyncs[0].lastError -> '(Blackboard has a grade with a newer time)'; canvas.publications.B-conflict.results[0].scoreSyncs[0].lastError -> '(Canvas has a grade with a newer time)') and 0 frozen-test changes: T6/4-results.spec.ts and T5b/4-conflict-resend.spec.ts run on a Moodle connection (where the suffix stays '(Moodle has a grade with a newer time)'), while M1 and M2 Canvas/Blackboard suites do not assert the 409 conflict lastError suffix."
+  },
+  "changes": [
+    {
+      "file": "G3",
+      "path": "blackboard.publications.B-conflict.results[0].scoreSyncs[0].lastError",
+      "value": "409 PLATFORM_CONFLICT: The platform answered 409: it has a newer value (for example a grade with a newer time). (Blackboard has a grade with a newer time)"
+    },
+    {
+      "file": "G3",
+      "path": "canvas.publications.B-conflict.results[0].scoreSyncs[0].lastError",
+      "value": "409 PLATFORM_CONFLICT: The platform answered 409: it has a newer value (for example a grade with a newer time). (Canvas has a grade with a newer time)"
+    }
+  ]
+}

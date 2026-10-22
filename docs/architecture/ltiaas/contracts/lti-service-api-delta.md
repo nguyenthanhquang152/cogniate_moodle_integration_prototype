@@ -49,6 +49,7 @@ New account fields (operator API only; never in `/api/*` answers except `GET /ap
 | `limits` | object or `null` | `null` | per-class `{ ratePerMinute, burst }`, classes of §1.4 |
 | `claimPolicy` | object or `null` | `null` = `passthrough`, only on accounts from before the column (a stored legacy marker, never an input: `null` in `POST` or `PATCH` gives `400 INVALID_REQUEST`, BD-A2-26); new accounts default to `allowlist` with every `keep` off | LA-ADR-05 D7 |
 | `serviceKeyWriteScope` | `context` \| `resource-link` | `context` | Should, C15 |
+| `autoRotate` | boolean | `false` | LA-ADR-06 D7 scheduled rotation; set by `PATCH /operator/v1/accounts/:id` (BD-A2-65) | Should |
 
 Protocol URLs come from one account resolver: in path mode `{PUBLIC_LTI_URL}/lti/{login|launch|keys|register}/{accountId}` (today's values).
 
@@ -197,7 +198,7 @@ Listener `OPERATOR_HOST:OPERATOR_PORT` (default `127.0.0.1:4110`; the `acceptanc
 | `GET /operator/v1/accounts` | query `status`, `cursor`, `limit` (≤ 100) | `200 { accounts: [Account], next? }` | Must |
 | `POST /operator/v1/accounts` | `{ id, name, launchUrl, deepLinkingUrl, registrationUrl, limits?, claimPolicy? }` | `201 Account`. `409 ACCOUNT_ALREADY_EXISTS`. Also makes the first `active` signing key, in the same transaction as the account (no publish lead time; one `account.create` audit event with `details.kid`; LA-ADR-06 D7 "First key"). No API key (use the next row); the frozen column `tool_account.api_key_hash` gets the hash of an unusable random value (LA-ADR-06 D5). | Must |
 | `GET /operator/v1/accounts/:id` | — | `200 Account` | Must |
-| `PATCH /operator/v1/accounts/:id` | any of `name`, tool URLs, `status`, `limits`, `claimPolicy`, `serviceKeyWriteScope` | `200 Account`. `status: closed` is final (`409 ACCOUNT_CLOSED` for a later change). | Must |
+| `PATCH /operator/v1/accounts/:id` | any of `name`, tool URLs, `status`, `limits`, `claimPolicy`, `serviceKeyWriteScope`, `autoRotate` | `200 Account`. `status: closed` is final (`409 ACCOUNT_CLOSED` for a later change). | Must |
 | `GET /operator/v1/rate-limits` | — | `200 { classes: { <class>: { ratePerMinute, burst, source } }, registrationSessionsPerAddress: <integer>, registrationSessionsSource }`; `source` and `registrationSessionsSource` = `operator`, `env` or `default` | Must |
 | `PATCH /operator/v1/rate-limits` | `{ classes?: { <class>: { ratePerMinute, burst } \| null }, registrationSessionsPerAddress?: <integer 1–1,000> \| null }` (`null` removes the operator value; BD-A2-18) | `200` as `GET`. Applies at once; stored in `service_setting` (key `rate_limits`, one row). Unknown class, unknown top-level field, a rate or burst below 1, or a cap outside 1–1,000: `400 INVALID_REQUEST` with the field. | Must |
 | `GET /operator/v1/accounts/:id/api-keys` | — | `200 { apiKeys: [{ id, prefix, label, scopes, createdAt, createdBy, expiresAt, lastUsedAt, revokedAt }] }`. `prefix` is `null` for a key from the migration backfill (label `bootstrap`, `createdBy` `system:bootstrap`); key ids are opaque (LA-ADR-06 D5 "Backfill values"). | Must |
@@ -216,8 +217,8 @@ Listener `OPERATOR_HOST:OPERATOR_PORT` (default `127.0.0.1:4110`; the `acceptanc
 | `POST /operator/v1/operator-keys` | `{ operator, expiresAt? }` | `201 { id, operatorKey, operator, expiresAt }` (shown once). Default 90 days; `expiresAt` outside 1 hour to 1 year from now: `400 INVALID_REQUEST` (field `expiresAt`). | Must |
 | `POST /operator/v1/operator-keys/:id/revoke` | — | `200` (an operator cannot revoke the key of its own request: `409 OPERATOR_KEY_IN_USE`) | Must |
 | `POST /operator/v1/accounts/:id/service-keys/revoke` | `{ platformId, deploymentId?, contextId?, resourceLinkId? }` | `200 { revoked: <n> }`. `404 UNREGISTERED_PLATFORM` for an unknown platform, or a platform of another account; the other fields are filters, and no match gives `{ revoked: 0 }` (BD-A2-47). | Should |
-| `GET /operator/v1/jobs` | — | `200 { jobs: [{ name, everyMs, lastRunAt, lastResult }] }` | Should |
-| `POST /operator/v1/jobs/:name/run` | — | `202 { job, traceId }`, or `409 JOB_RUNNING` (`skipped_lease`) | Should |
+| `GET /operator/v1/jobs` | — | `200 { jobs: [{ name, everyMs, lastRunAt, lastResult }] }` `lastRunAt` is ISO 8601 or `null`. | Should |
+| `POST /operator/v1/jobs/:name/run` | — | `202 { job, traceId }` (the run uses that trace id). `409 JOB_RUNNING` (lease held). `404 NOT_FOUND` (unknown job). `503 NOT_READY` (`job_runner_not_active`, `retryAfter: 30`) when the runner is not active (BD-A2-69). | Should |
 
 `Account` = the fields of §1.1 plus `id`, `name`, `createdAt`, `statusChangedAt`, `protocolUrls { login, launch, keys, register }`. It never contains a key.
 
@@ -368,6 +369,8 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `PATCH /operator/v1/rate-limits` | `settings.rate_limits` | `settings` |
 | `POST`, `…/revoke /operator/v1/operator-keys` | `operator_key.issue`, `operator_key.revoke` | `operator_key` |
 | `POST /operator/v1/jobs/:name/run` (Should) | `job.run` | `job` |
+| `account-purge` job (Should) | `account.purge` (actor `system:account-purge`, `details` = counts by table; BD-A2-67) | `account` |
+| `signing-key-rotation` job (Should) | `signing_key.create`, `signing_key.activate` (actor `system:signing-key-rotation`; BD-A2-68) | `signing_key` |
 | `GET /operator/v1/audit` | `audit.read` | `audit` |
 | `lti:operator init` | `operator_key.issue` (actor `system:bootstrap`) | `operator_key` |
 
@@ -388,7 +391,7 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `platform_check` | info | `platform_id`, `jwks`, `token` | §2.6 |
 | `config_refused` | error | `reason` | production profile start refusal |
 
-Changed: `http_request`, `api_auth_failed` (when the path names the account), `login_rejected`, `launch_check_failed`, `launch_accepted` get `tool_account_id` when it is known. `launch_check_failed` gets `check: "storage"`. `launch_accepted` gets `binding: "cookie" | "storage"`. `launch_claims_minimized` can appear for every profile (claim policy). No field holds a secret, a token or personal data.
+Changed: `http_request`, `api_auth_failed` (when the path names the account), `login_rejected`, `launch_check_failed`, `launch_accepted` get `tool_account_id` when it is known. `launch_check_failed` gets `check: "storage"`. `launch_accepted` gets `binding: "cookie" | "storage"`. `launch_claims_minimized` can appear for every profile (claim policy). No field holds a secret, a token or personal data. In the LTI service, `http_request.path` is the matched route template (for example `/lti/login/:account`), or the fixed value `<unmatched>` when no route matches; never a raw path value (BD-A2-61; base contract §5 "path (no query)" stays true).
 
 ## 7. Data retention (additions to §6)
 

@@ -47,6 +47,15 @@ describe('AGS score extras (LA-E3-11)', () => {
     }
   });
 
+  it('B-LA-E3-11-01: the refusal states the byte limit; 2048 "é" serialize to 4098 bytes', () => {
+    const value = 'é'.repeat(2048);
+    expect(Buffer.byteLength(JSON.stringify(value))).toBe(4098);
+    expect(() => parseScore({ ...SCORE, [EXTENSION]: value })).toThrow(expect.objectContaining({
+      code: 'INVALID_REQUEST',
+      description: `Invalid field: ${EXTENSION} must serialize to at most 4096 UTF-8 bytes of JSON, including quotes and escapes.`,
+    }));
+  });
+
   it.each([null, false, 17, { nested: ['a', null, true] }])('keeps each JSON extension value: %j', (value) => {
     expect(parseScore({ ...SCORE, [EXTENSION]: value })[EXTENSION]).toEqual(value);
   });

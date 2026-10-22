@@ -1,5 +1,5 @@
-Verdict: APPROVE
-Round: 1
+Verdict: CHANGES_REQUESTED
+Round: 2
 
 # LA-E4-03 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -44,3 +44,42 @@ Round: 1
 
 - `RATE_LIMITED` (the LTI service's own limit) pauses the whole partition, the same as `PLATFORM_RATE_LIMITED`. The service limit is per caller, not per platform, so other partitions keep sending until they get their own `429`. This follows AC-01.
 - AC-02 to AC-05 and AC-09 are K1-SIM or MOODLE-LIVE and wait for QA. The unit tests above cover their logic. The LD-9 G3 delta for LA-IC-15 (`canvas/` and `blackboard/` `B-conflict` `lastError`) is the lead QA's work.
+
+## Round 2
+
+Reviewer: Codex GPT-6-Astra xhigh, lens A. **CHANGES_REQUESTED: 0 BLOCKER, 1 MAJOR, 0 MINOR, 0 NIT open.**
+
+Reviewed `3692a91`, `503dfe2`, `b22fe80`, `e2e8fb5` and their merge `5f9fd55`, against the task spec, LA-ADR-03 D5–D8, BD-A1-61 and plan §6.1. Verification used a private `git clone --no-hardlinks` at `7cabc68`; the reviewed product files match the merge. No Docker or stack ran. No other reviewer's file was opened.
+
+### Earlier findings and checks
+
+| Check | Result |
+| --- | --- |
+| A-LA-E4-03-01 | The query-plan problem is fixed: all three send gates use `record_dispatch_due`. The new row takes the pending row's pause before superseding it. However, my Round 1 suggestion that only pending rows need to carry a pause was incomplete. A failed row can still carry a live platform pause; see new finding A-LA-E4-03-03. |
+| A-LA-E4-03-02 | Closed. The result transaction checks the owner before changing the try count or partition pause. A lost owner also emits no throttle/result log. The regression test passes. |
+| Reporter and M1 contract | The driver owns the platform/deployment lookup and `score_sync` / `sync_id` log names. The kernel still creates `sync_` ids. `RESULTS_REPORTER` limits the results view, play status and Resend to AGS. Resend checks the library and disabled connection in the same transaction as the update and keeps the M1 answers. |
+| Wiring and merge | One `registerRecordReporters` call provides the write/read-back registry and queue. Unsupported policy is refused before registration. The final `play.ts` import uses `domain/results.ts` and keeps `topLevelContinueScript`; runtime and embedded-session tests pass. |
+| UNIT criteria | AC-01, AC-06, AC-07 and AC-08 retain tests for mapping, read-back guards, disabled connections and policy refusal. The new tests cover the missing resource link, text limit, reporter partition, Resend answers, neutral kernel, indexed pause and stale owner. The missing boundary case is below. |
+| Scope and ownership | The changes match the dispatched neutral-kernel work and the explicit RQ-2 K-file import changes in `b22fe80`. No `tests/**`, tracking status-text/html, or LTI-service file changed. No LMS name was added to a core path. |
+
+### Finding
+
+**A-LA-E4-03-03 (MAJOR): a partition's pause ends early when its last pending row fails the 24 h retry-window check.**
+
+- Where: `services/cogniate-app/src/kernel/records/dispatch-store.ts:52` (`partitionPaused`), `kernel/records/records.ts:57` (pause inheritance), and `kernel/records/outbox.ts:154` (the result can make the pause carrier failed).
+- Problem: `recordSend` correctly fails a throttled row when its next retry lies outside its own window. Its future `not_before` still records a live platform rate limit, but both pause queries now ignore it because its status is `failed`. A new row in the same partition can start a POST immediately. The row's retry window must not shorten the platform's `Retry-After` wait (D7 Fairness/429; AC-03 timing rule).
+- Reproduction: create the only dispatch at `100000`; run it at `86480000` (20 s before its window ends); return `throttled` with `retryAt = 86510000` (30 s later). The old row becomes `failed`, with `not_before = 86510000`. At `86480000`, create a new final record through `writeFinalRecord`, either for a new learner or as a better result for the same learner. In both cases, `due` returns the new row, `lease` returns `true`, and `beginSend` returns `started`, 30 s too soon.
+- Evidence: two private regression probes fail on the reviewed code with those three results. Removing only `paused.status = 'pending'` from `partitionPaused` makes both probes pass, including release at the exact deadline. The private product file was restored after the check. The existing beyond-window test checks only the old row's failed status, so it misses this case.
+- Suggested fix: retain the pause independently of a dispatch's pending status. One option is the Round 1 alternative: a suitable index on `(partition_key, not_before)` and a status-independent pause check. A separate durable partition pause is another option. Keep the row's 24 h failure rule, and add tests for a failed last carrier followed by a new learner and by a better result; check `due`, `lease`, `beginSend`, and release at `retryAt`.
+
+### Verification
+
+All commands ran in `/tmp/la-review-a-e403-6bed80580d66`:
+
+- `npx vitest run services/cogniate-app/src/kernel/records services/cogniate-app/src/drivers/lti-ags services/cogniate-app/src/app/results.test.ts services/cogniate-app/src/worker-main.test.ts packages/tracking`: **165 passed** (before adding the probes).
+- `npx vitest run services/cogniate-app/src/runtime-path.test.ts services/cogniate-app/src/tool-pages/embedded-session-help.test.ts`: **54 passed**.
+- `npx tsc --noEmit -p services/cogniate-app/tsconfig.json`: **passed**.
+- `node --test infra/scripts/fitness/no-score-sync.test.mjs`: **4 passed**.
+- Private `kernel/records/reviewer-a-pause-probe.test.ts`: **2 failed** on the reviewed code; **2 passed** with only the old status-independent predicate restored. The reproduction above is the durable evidence; the probe is outside the integration worktree.
+
+The simulator and Moodle acceptance gates remain for QA. Only this review file was changed in the integration worktree.

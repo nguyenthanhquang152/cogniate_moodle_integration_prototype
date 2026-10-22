@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { reservedIssuerLmsNames } from '../profiles/index.ts';
 import { harness, testProfileRegistry } from '../testkit.ts';
-import { protocolAction } from './codes.ts';
+import { lmsNameFor, protocolAction } from './codes.ts';
 
 const action = 'This address belongs to a hosted LMS. Connect it as Canvas or Blackboard in the Cogniate portal.';
 
@@ -27,6 +27,11 @@ describe('reserved-issuer owner names (BD-A1-31)', () => {
     expect(protocolAction('ISSUER_RESERVED', undefined, profiles)).toBe('This address belongs to a hosted LMS. Connect it as Canvas, Blackboard or your LMS in the Cogniate portal.');
     const onlyNew = { ...registry, listProfiles: (simulation: boolean) => registry.listProfiles(simulation).filter((p) => p.channel === 'zz') };
     expect(reservedIssuerLmsNames({ registry: onlyNew, simulation: false })).toBe('your LMS');
+    // B-LA-E1-10-03: one rule for the name; ISSUER_RESERVED ignores the given name.
+    expect(lmsNameFor('ISSUER_RESERVED', 'Other', profiles)).toBe('Canvas, Blackboard or your LMS');
+    expect(protocolAction('ISSUER_RESERVED', 'Other', profiles)).toBe(protocolAction('ISSUER_RESERVED', undefined, profiles));
+    expect(lmsNameFor('UNKNOWN_PLATFORM', 'Other', profiles)).toBe('Other');
+    expect(lmsNameFor('UNKNOWN_PLATFORM', undefined, profiles)).toBe('Moodle');
     const noFixed = { ...registry, listProfiles: (simulation: boolean) => registry.listProfiles(simulation).filter((p) => p.endpoints === 'admin') };
     expect(reservedIssuerLmsNames({ registry: noFixed, simulation: false })).toBe('');
   });

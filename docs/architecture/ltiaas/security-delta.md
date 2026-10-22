@@ -74,7 +74,7 @@ Keep. LA changes nothing here.
 
 | Change | Detail | Source | Priority |
 | --- | --- | --- | --- |
-| Tool account status | `suspended` stops login, launch and API calls (`403 TOOL_ACCOUNT_SUSPENDED`); `closed` revokes every key. | LA-ADR-06 D2 | Must |
+| Tool account status | `suspended` stops login, launch and API calls (`403 TOOL_ACCOUNT_SUSPENDED`); `closed` revokes every key. After `CLOSED_ACCOUNT_RETENTION_DAYS` (default 30), the `account-purge` job (Should) deletes the account's tenant data, keeps the `tool_account` row as a tombstone (the id is never used again) and every audit event, and writes one `account.purge` audit event (BD-A2-67). | LA-ADR-06 D2 | Must |
 | Per-account tool URLs | Set only by an operator; https; no user info or fragment; not our own LTI or content host. | LA-ADR-06 D2 | Must |
 | API key scopes | `launch` and `admin`. A leaked launch-side key cannot change platforms. | LA-ADR-06 D5 | Must |
 | Four tenancy layers | Tool account, library, connection, deployment, with the rules of LA-ADR-07 D1; channel code gets a bound port context, never a database handle. | LA-ADR-07 D1; LA-ADR-01 import rules | Must |

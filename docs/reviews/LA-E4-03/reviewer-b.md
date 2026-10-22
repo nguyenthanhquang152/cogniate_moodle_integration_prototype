@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E4-03 review, Reviewer-B2 (lens: "Can a human team own it?")
 
@@ -92,3 +92,33 @@ My MINORs are about the next reporter. The neutral kernel still names `lti-ags` 
 
 - K1-SIM AC-02..05 and MOODLE-LIVE AC-09 (QA). The G3 update for LA-IC-15 (lead QA, LD-9).
 - Lens-A items: the `due` and `lease` SQL under concurrency, `Math.max(1, tries)` against the old `syncResult` input, and the 24 h cut for a long `Retry-After` beyond the unit row.
+
+## Round 2
+
+Reviewer: Codex GPT-6-Astra, xhigh. Lens: "Can a human team own it?" Reviewed commits `3692a91`, `503dfe2`, `b22fe80` and `e2e8fb5`, merged by `5f9fd55`, against the task spec, LA-ADR-03 D5–D8 and plan §6.1. The Round 1 review above is retained as history. No other reviewer's file was opened.
+
+**Verdict: APPROVE. New findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT. All four Round 1 findings are closed.**
+
+### Earlier findings
+
+| Finding | Result and evidence |
+| --- | --- |
+| B-LA-E4-03-01 — MINOR | **Closed.** `kernel/records/dispatch-store.ts:107` and `:124` take the reporter id. `domain/results.ts:10` documents the one `RESULTS_REPORTER` binding for the M1 results view, Resend and play status. `kernel/records/outbox.ts:64` uses the reporter's log names or neutral defaults. `neutral.test.ts` guards the kernel against the AGS literal and driver imports. |
+| B-LA-E4-03-02 — MINOR | **Closed.** `kernel/records/types.ts:4` gives the three addition steps; the member comments explain selection, stored payload, partition pauses, send markers, outcomes and read-back. `drivers/lti-ags/partition.ts:5` owns the platform lookup. `registerRecordReporters` at `kernel/records/records.ts:14` checks the policy and supplies the shared registry and queue in one call; `worker-main.ts:67` uses it. The old registration export is removed. |
+| B-LA-E4-03-03 — NIT | **Closed.** `drivers/lti-ags/index.ts:47` returns before constructing a row when the target is missing; `:14` defines the shared text limit. Named tests cover no target, no send and the 300-character limit. |
+| B-LA-E4-03-04 — NIT | **Closed.** The kernel functions are `failDisabledDispatch` and `isCurrentDispatch`. `kernel/records/records.ts:51` and `drivers/lti-ags/index.ts:20,56` explain the retained M1 id and log values. |
+
+### Verification
+
+Used a private `git clone --no-hardlinks` at `467e262`, with unchanged lockfile and copied dependencies. The reviewed product files were still unchanged when integration advanced to `1e36778`.
+
+- Focused Vitest run over the record kernel, AGS driver, results routes, worker entry point and tracking package: **165 passed in 13 files**. This includes UNIT AC-01, AC-06, AC-07 and AC-08, plus pause inheritance, indexed pause checks and lease-loss throttle handling. Round 1's old-behavior and mutation evidence remains applicable.
+- App TypeScript check: **passed**.
+- Private second-reporter exercise: **1 passed**. Following the port comments, one registration supported a second `bestResult` reporter alongside AGS. A final commit created both dispatches; the second reporter received its prepared payload and chosen partition, logged `record_dispatch` with its id, supported reporter-specific status and Resend, and supplied the refresh read-back hook. The M1 results view still exposed only AGS rows. No kernel edit was needed for the exercise.
+- F1: **PASS**, 9 files with hits, 29 hits; only baseline-reduction notices. F5: **PASS**, six rules, zero hits.
+
+### Scope and remaining checks
+
+The changes stay with lane R under ownership matrix §5. Commit `b22fe80` contains the authorized three-line RQ-2 update in K's `testkit.ts` and `tool-pages/play.ts`. No changes touch tracking `status-text.ts` or `html.ts`, `services/lti-service/**`, or QA's `tests/**`. No LMS name or new behavior outside the task and its review fixes was added to core paths.
+
+No Reviewer-B change remains. K1-SIM AC-02–05 and MOODLE-LIVE AC-09 remain QA evidence; this review ran no Docker, stack or stack-starting host runner. Only this review file changed in the integration worktree.
