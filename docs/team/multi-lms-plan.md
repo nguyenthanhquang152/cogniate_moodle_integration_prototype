@@ -13,7 +13,17 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 04:07 UTC
+### Current checkpoint — 2026-10-22, 04:19 UTC
+
+**The C4 diagnostic is running.** Frozen candidate `bf09cdad91ca548e1ecbc14428b55180d35d5360` has tests tree `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`. Lead grant `msg_2bed4f15a8f7` gives only Common QA `task_ef1d19129419` / `ctx_e23ced3dd1fa` the diagnostic Docker window through 06:20:00 UTC. The runner started at 04:18:22 UTC. It runs migration (12 rows) then conditional storage (70 rows), using lanes `qa-multi-r1` and `qa-multi-r1-st`, port 8443 and subnet 172.29.0.0/16. This diagnostic gives zero full acceptance credit.
+
+The Lead verified all 354 preparation-index entries, both clean C4 source copies, all 250 test files in each, both 1,928-entry dependency inventories, and the launcher changes, which alter only worker identity. W1–W3 passed. W3 SHA-256 `1ca3f7db151cccd6bbed79c200343dcc06b3d538bc139395ba21571f70008f4a` binds live time 04:18:19.919 UTC, bridge `223a63172249`, zero containers and nine volumes. The Lead compared all seven protected full records with the original baseline; every record matches and both anonymous volumes are present. Evidence root: `/Users/quangnguyen/cogniate-qa-runs/qa-common-c4-20261022T0408Z`. Diagnostic source: `diag-src/source`; the separate `full-src/source` remains unused. Launcher PID/PGID 18551, runner PID 20793. New R5 analysis is supplementary; raw command and step records remain required. No full run or legacy window is granted yet.
+
+Canvas QA `task_1eabbfbed895` / `ctx_745cb25fcb7c` is host-ready and remains host-only. The Lead verified its 84-entry manifest, clean C4 copy and 1,927-entry cache. Its preparation root is `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-bf09cda-Kb7OPU3d`. It will judge each complete full round independently, then run M2/T7 under separate windows. The same fixer `ctx_898acbaef3a6` remains active. No new repair is requested.
+
+The next diagnostic result is estimated at 04:45–04:55 UTC (11:45–11:55 Vietnam time), subject to failures and cleanup. All remaining gates in the prior checkpoint still apply. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 04:07 UTC
 
 **R5 source and host checks are accepted. Candidate C4 is frozen at `bf09cdad91ca548e1ecbc14428b55180d35d5360`.** Tests tree: `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`. Source commit `27e1f61` changes only the two storage harness files. The tamper target now belongs to the current stopped operation, and the harness proves that only this file changed. Product and build executable paths still equal `9f8ac625443931242edd8da301c3d4f0d3e34290`; the infrastructure README difference is text only. The same fixer `ctx_898acbaef3a6` remains active for all later repairs.
 
