@@ -2,7 +2,24 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 16:49 UTC
+## Current checkpoint — 17:33 UTC
+
+The C6/C8 legacy runner finished with exit 0 at 17:23:51 UTC. All twelve functional groups passed.
+The previously failing AC-T5-36, AC-T6-07 and AC-T6-09 passed without retries.
+The final comparison and secret scan also passed. All 32 original full volume records are unchanged.
+
+Savoy confirmed temporary Docker activity from 17:20:16 to 17:22:57 UTC, before the final snapshot.
+This violated the grant's exclusive-host condition despite unchanged start/end resources.
+The Lead has made E-R3 VOID; see [the runtime isolation decision](runtime-isolation-2026-10-22.md).
+The attempt preserves functional PASS results but is not accepted as complete runtime proof.
+
+Common Gemini QA is closing the evidence. Claude Architect will assess the smallest justified remediation.
+Independent Gemini Canvas/M2/T7 QA remains ready and host-only. No new runtime or automatic retry is authorized.
+The user has been asked to resolve the remaining shared Docker schedule.
+Final conformance, guide completion, Docs QA and two final reviews remain pending.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 16:49 UTC
 
 The fresh C6/C8 legacy run started at 16:38:27 UTC under `ctx_72afbef88d8c`.
 Its current reservation ends at 17:35 UTC. A timing update is due by 17:20 UTC.
