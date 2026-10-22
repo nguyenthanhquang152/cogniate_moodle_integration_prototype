@@ -1,0 +1,187 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { describe, expect, it } from 'vitest';
+import type { LoadedChannel } from './registry.ts';
+import { RegistryError, buildChannelRegistry, loadChannelFolders } from './registry.ts';
+
+/** The product root (packages/channels/). */
+const PRODUCT_ROOT = fileURLToPath(new URL('../../channels/', import.meta.url));
+
+type Json = Record<string, unknown>;
+
+/** A valid test channel `zz-test` (not a baseline channel): manual with an operator grant, a registration-level guard. */
+function testManifest(over: Json = {}): Json {
+  return {
+    id: 'zz-test', family: 'lti13', names: { text: 'ZZ', label: 'ZZ test' },
+    card: { title: 'ZZ', description: 'A test channel.', mark: 'Z', color: 'gray', category: 'LMS Publishing', order: 90 },
+    availability: 'ga',
+    registration: [{ method: 'manual', authority: 'operatorGrant', profiles: ['zz-test'], defaultProfile: 'zz-test' }],
+    capabilities: { 'deployments.multiple': true },
+    lti: { guardedFamilies: [{ family: 'zz', level: 'registration' }], toolConfiguration: 'channel' },
+    setup: { createFields: [{ key: 'siteUrl', label: 'Site URL', kind: 'origin', required: true }], bindingFields: [] },
+    texts: { adminSteps: ['Open {LMS} as {tool} on {site}.'], teacherSteps: [], disconnect: 'Cogniate stops in {LMS}.', notReady: null },
+    ...over,
+  };
+}
+
+const channel = (manifest: unknown, folder = '/x/zz-test', extra: Partial<LoadedChannel> = {}): LoadedChannel => ({ folder, manifest, ...extra });
+
+/** The error of a registry build, or a test failure when the build passes. */
+function failure(channels: LoadedChannel[]): RegistryError {
+  try {
+    buildChannelRegistry(channels, { simulations: false });
+  } catch (err) {
+    if (err instanceof RegistryError) return err;
+    throw err;
+  }
+  throw new Error('the registry build passed');
+}
+
+describe('baseline channels (product root)', () => {
+  it('loads moodle, canvas and blackboard in this order, with the M1 capability objects', async () => {
+    const registry = buildChannelRegistry(await loadChannelFolders([PRODUCT_ROOT], 'app'), { simulations: false });
+    expect(registry.channels().map((m) => m.id)).toEqual(['moodle', 'canvas', 'blackboard']);
+    expect(JSON.stringify(registry.legacyCapabilities('moodle'))).toBe(JSON.stringify(
+      { dynamicRegistration: true, operatorApproval: false, webServices: true, courseShell: true, addDeployment: false, canvasConfiguration: false }));
+    expect(JSON.stringify(registry.legacyCapabilities('canvas'))).toBe(JSON.stringify(
+      { dynamicRegistration: false, operatorApproval: true, webServices: false, courseShell: false, addDeployment: true, canvasConfiguration: true }));
+    expect(JSON.stringify(registry.legacyCapabilities('blackboard'))).toBe(JSON.stringify(
+      { dynamicRegistration: false, operatorApproval: true, webServices: false, courseShell: false, addDeployment: false, canvasConfiguration: false }));
+  });
+
+  it('lookups: family owners, text names, profile owners; the manifests are frozen', async () => {
+    const registry = buildChannelRegistry(await loadChannelFolders([PRODUCT_ROOT], 'app'), { simulations: false });
+    expect([registry.ownerOfFamily('canvas'), registry.ownerOfFamily('BlackboardLearn'), registry.ownerOfFamily('moodle')]).toEqual(['canvas', 'blackboard', null]);
+    expect([registry.textName(null), registry.textName('canvas'), registry.textName('blackboard')]).toEqual(['Moodle', 'Canvas', 'Blackboard']);
+    expect([registry.channelOfProfile('standard'), registry.channelOfProfile('canvas-sim-cloud'), registry.channelOfProfile('blackboard'), registry.channelOfProfile('zz')])
+      .toEqual(['moodle', 'canvas', 'blackboard', null]);
+    expect(registry.channel('zz')).toBeNull();
+    expect(Object.isFrozen(registry.channel('canvas')!.registration[0]!.profiles)).toBe(true);
+  });
+
+  it('uses neutral text for an unknown non-null id, and the manifest name for a known id', async () => {
+    const registry = buildChannelRegistry([
+      ...await loadChannelFolders([PRODUCT_ROOT], 'app'), channel(testManifest()),
+    ], { simulations: false });
+    expect(registry.textName('zz-unknown')).toBe('your LMS');
+    expect(registry.textName('zz-test')).toBe('ZZ');
+    expect(registry.textName(null)).toBe('Moodle');
+  });
+});
+
+describe('load checks (each failing case throws RegistryError with its check number)', () => {
+  // The baseline channels come from the product root, so a test channel can collide with them.
+  const baseline = async () => loadChannelFolders([PRODUCT_ROOT], 'app');
+  const cases: Array<[number, string, Json | (() => LoadedChannel[]), string?]> = [
+    [1, 'manifest_schema', testManifest({ registration: [{ method: 'manual', authority: 'verifiedAdminLaunch', profiles: ['zz-test'], defaultProfile: 'zz-test' }] }), 'registration.0.authority'],
+    [1, 'manifest_schema', testManifest({ family: 'xapi' }), 'family'],
+    [1, 'manifest_schema', testManifest({ setup: { createFields: [], bindingFields: [], verify: 'x' } }), 'setup'],
+    [1, 'manifest_schema', testManifest({ setup: { createFields: [{ key: 'siteUrl', label: 'Site', kind: 'origin', required: true, default: '{siteUrl}' }], bindingFields: [] } }), 'setup.createFields.0'],
+    [1, 'manifest_schema', testManifest({ texts: { adminSteps: ['Open {library}.'], teacherSteps: [], disconnect: 'x', notReady: null } }), 'texts.adminSteps.0'],
+    [1, 'manifest_schema', testManifest({ registration: [{ method: 'manual', authority: 'operatorGrant', profiles: ['zz-test'], defaultProfile: 'zz-other' }] }), 'registration.0.defaultProfile'],
+    [1, 'manifest_id_not_folder', testManifest({ id: 'zz-other' })],
+    [1, 'manifest_missing', () => [channel(undefined)]],
+    [1, 'channel_id_duplicate', () => [channel(testManifest(), '/a/zz-test'), channel(testManifest(), '/b/zz-test')]],
+    [2, 'profile_in_two_channels', testManifest({ registration: [{ method: 'manual', authority: 'operatorGrant', profiles: ['standard'], defaultProfile: 'standard' }] })],
+    [2, 'profile_id_duplicate', () => [channel(testManifest(), '/x/zz-test', { ltiProfiles: [{ id: 'zz-test' }, { id: 'zz-test' }] })]],
+    [3, 'family_guarded_twice', testManifest({ lti: { guardedFamilies: [{ family: 'canvas', level: 'registration' }], toolConfiguration: 'none' } })],
+    [4, 'capability_unknown', testManifest({ capabilities: { 'export.catalog': true } })],
+    [4, 'capability_not_manifest', testManifest({ capabilities: { 'registration.dynamic': true } })],
+    [4, 'capability_value', testManifest({ capabilities: { 'records.reporters': 'lti-ags' } })],
+    [4, 'create_course_needs_site_api_token', testManifest({ capabilities: { 'publish.createCourse': true } })],
+    [5, 'profile_not_in_lti_profiles', () => [channel(testManifest(), '/x/zz-test', { ltiProfiles: [{ id: 'zz-other' }] })]],
+    [6, 'shared_platform_self_authority', () => [channel(testManifest({ registration: [{ method: 'dynamic', authority: 'self', profiles: ['zz-test'], defaultProfile: 'zz-test' }] }),
+      '/x/zz-test', { ltiProfiles: [{ id: 'zz-test', sharing: 'shared' }] })]],
+    [6, 'manual_self_authority', testManifest({ registration: [{ method: 'manual', authority: 'self', profiles: ['zz-test'], defaultProfile: 'zz-test' }] })],
+    [8, 'launch_guard_not_allowed', testManifest({ lti: { guardedFamilies: [{ family: 'zz', level: 'launch' }], toolConfiguration: 'channel' } })],
+  ];
+  it.each(cases)('check %i: %s', async (check, reason, input, detail) => {
+    const channels = typeof input === 'function' ? input() : [...await baseline(), channel(input)];
+    const err = failure(channels);
+    expect({ check: err.check, reason: err.reason }).toEqual({ check, reason });
+    if (detail !== undefined) expect(err.detail).toContain(detail);
+    expect(err.message).toContain(`load check ${check}`);
+  });
+
+  it('AC-LA-E1-02-11: the baseline moodle manifest (manual with self) loads; the same rule refuses a test channel', async () => {
+    expect(buildChannelRegistry(await baseline(), { simulations: false }).channel('moodle')?.registration.map((r) => r.authority)).toEqual(['self', 'self']);
+    expect(failure([channel(testManifest({ registration: [{ method: 'manual', authority: 'self', profiles: ['zz-test'], defaultProfile: 'zz-test' }] }))]).reason)
+      .toBe('manual_self_authority');
+  });
+
+  it('every channel is checked, also a simulation-only channel that the options leave out', async () => {
+    const sim = testManifest({ availability: 'simulation-only', capabilities: { 'publish.createCourse': true } });
+    expect(failure([...await baseline(), channel(sim)]).check).toBe(4);
+  });
+});
+
+describe('registry contents', () => {
+  it('a simulation-only channel loads only with simulations on; order is card.order, then id', async () => {
+    const extra = [
+      channel(testManifest({ id: 'zz-sim', availability: 'simulation-only', registration: [{ method: 'manual', authority: 'operatorGrant', profiles: ['zz-sim'], defaultProfile: 'zz-sim' }], lti: undefined }), '/x/zz-sim'),
+      channel(testManifest({ card: { title: 'ZZ', description: 'A test channel.', mark: 'Z', color: 'gray', category: 'LMS Publishing', order: 0 } }), '/x/zz-test'),
+    ];
+    const off = buildChannelRegistry([...await loadChannelFolders([PRODUCT_ROOT], 'app'), ...extra], { simulations: false });
+    const on = buildChannelRegistry([...await loadChannelFolders([PRODUCT_ROOT], 'app'), ...extra], { simulations: true });
+    expect(off.channels().map((m) => m.id)).toEqual(['zz-test', 'moodle', 'canvas', 'blackboard']);
+    expect(on.channels().map((m) => m.id)).toEqual(['zz-test', 'moodle', 'canvas', 'blackboard', 'zz-sim']);
+    expect([off.channelOfProfile('zz-sim'), on.channelOfProfile('zz-sim')]).toEqual([null, 'zz-sim']);
+    expect(off.ownerOfFamily('zz')).toBe('zz-test');
+  });
+
+  it('an unknown channel gets the empty capability set; a registry without the standard profile names "your LMS"', () => {
+    const registry = buildChannelRegistry([channel(testManifest())], { simulations: false });
+    expect(registry.capabilities('zz-unknown')).toMatchObject({ 'registration.dynamic': false, 'binding.authority': {}, 'deployments.multiple': false });
+    expect(registry.legacyCapabilities('zz-unknown')).toEqual({
+      dynamicRegistration: false, operatorApproval: false, webServices: false, courseShell: false, addDeployment: false, canvasConfiguration: false,
+    });
+    expect([registry.textName(null), registry.textName('zz-test')]).toEqual(['your LMS', 'ZZ']);
+  });
+});
+
+describe('loadChannelFolders (folder discovery)', () => {
+  /** A temporary root with channel folders: name → files (file name → text). */
+  function root(folders: Record<string, Record<string, string>>): string {
+    const dir = mkdtempSync(join(tmpdir(), 'channel-root-'));
+    for (const [name, files] of Object.entries(folders)) {
+      mkdirSync(join(dir, name));
+      for (const [file, text] of Object.entries(files)) writeFileSync(join(dir, name, file), text);
+    }
+    return dir;
+  }
+  const manifestFile = (m: Json) => `export default ${JSON.stringify(m)};\n`;
+
+  it('reads every root in order: directories only, no hidden folder, in name order; each side imports its own entry files', async () => {
+    const extra = root({
+      'zz-test': { 'manifest.ts': manifestFile(testManifest()), 'lti-profiles.ts': 'export default [{ id: "zz-test", sharing: "exclusive" }];\n', 'app.ts': 'export default { kind: "app" };\n' },
+      '.hidden': { 'manifest.ts': 'throw new Error("never imported");\n' },
+    });
+    writeFileSync(join(extra, 'notes.txt'), 'not a channel');
+    const app = await loadChannelFolders([PRODUCT_ROOT, extra], 'app');
+    expect(app.map((c) => c.folder.split(/[\\/]/).pop())).toEqual(['blackboard', 'canvas', 'moodle', 'zz-test']);
+    expect(app[3]).toMatchObject({ folder: join(extra, 'zz-test'), manifest: { id: 'zz-test' }, appAdapter: { kind: 'app' } });
+    expect(app[3]).not.toHaveProperty('ltiProfiles');
+    const lti = await loadChannelFolders([extra], 'lti');
+    expect(lti).toEqual([{ folder: join(extra, 'zz-test'), manifest: expect.objectContaining({ id: 'zz-test' }), ltiProfiles: [{ id: 'zz-test', sharing: 'exclusive' }] }]);
+    expect(buildChannelRegistry(lti, { simulations: false }).channelOfProfile('zz-test')).toBe('zz-test');
+  });
+
+  it('a folder without lti-profiles.ts has no profiles on the LTI side, so load check 5 refuses it', async () => {
+    const extra = root({ 'zz-test': { 'manifest.ts': manifestFile(testManifest()) } });
+    const lti = await loadChannelFolders([extra], 'lti');
+    expect(lti[0]!.ltiProfiles).toEqual([]);
+    expect(failure(lti)).toMatchObject({ check: 5, reason: 'profile_not_in_lti_profiles' });
+  });
+
+  it('a broken folder or root stops the load (fail closed)', async () => {
+    await expect(loadChannelFolders([root({ 'zz-test': { 'manifest.ts': 'export default {;\n' } })], 'app'))
+      .rejects.toMatchObject({ name: 'RegistryError', channel: 'zz-test', check: 1, reason: 'entry_import_failed' });
+    await expect(loadChannelFolders([root({ 'zz-test': { 'manifest.ts': manifestFile(testManifest()), 'lti-profiles.ts': 'export default { id: "x" };\n' } })], 'lti'))
+      .rejects.toMatchObject({ channel: 'zz-test', check: 7, reason: 'lti_profiles_not_list' });
+    await expect(loadChannelFolders([join(tmpdir(), 'channel-root-missing-zz')], 'app')).rejects.toMatchObject({ channel: null, check: 1, reason: 'channel_root_unreadable' });
+    const noManifest = await loadChannelFolders([root({ 'zz-test': { 'README.md': '# no manifest' } })], 'app');
+    expect(failure(noManifest)).toMatchObject({ channel: 'zz-test', check: 1, reason: 'manifest_missing' });
+  });
+});

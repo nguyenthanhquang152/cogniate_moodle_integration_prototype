@@ -1,6 +1,6 @@
 # LA epic plan: epics, tasks, waves and file ownership
 
-Status: v1.1 (A1, task LA-B1b, G-BREAKDOWN fix round 1, 2026-10-22; v1 = task LA-B1). Response: [tasks/review-response-B1-A1](tasks/review-response-B1-A1.md). Design SHA: `54e8088` (G-DESIGN PASS) plus the P3 consistency edits of [review-response-R3-A1](review-response-R3-A1.md) and [tasks/review-response-B1-A1](tasks/review-response-B1-A1.md). Inputs: [plan v1.2](../../team/ltiaas/plan.md) §3, §5.3, §6.1 (LD-1 to LD-15); [README](README.md) §6, §6a, §7, §8; [TEST-STRATEGY v1.3](../../../tests/ltiaas/TEST-STRATEGY.md); A2's task specs and [A2-lanes](tasks/A2-lanes.md). Spec rules, QA rules and test knobs: [tasks/README](tasks/README.md).
+Status: v1.1 (A1, task LA-B1b, G-BREAKDOWN fix round 1, 2026-10-22; v1 = task LA-B1). Response: [tasks/review-response-B1-A1](tasks/review-response-B1-A1.md). Design SHA: `54e8088` (G-DESIGN PASS) plus the P3 consistency edits of [review-response-R3-A1](review-response-R3-A1.md) and [tasks/review-response-B1-A1](tasks/review-response-B1-A1.md). Inputs: [plan v1.2](../../team/ltiaas/plan.md) §3, §5.3, §6.1 (LD-1 to LD-15); [README](README.md) §6, §6a, §7, §8; [TEST-STRATEGY v1.3](../../../tests/ltiaas/TEST-STRATEGY.md); A2's task specs and [A2-lanes](tasks/A2-lanes.md). Spec rules, QA rules and test knobs: [tasks/README](tasks/README.md). Build ratifications (P4): [build decisions A1](build-decisions-A1.md) (§5 adjustment 12).
 
 A1 wrote the E0, E1, E2, E4, E7 and E8 specs. A2 wrote the E3, E5 and E6 specs. Where an A2 spec names an A1 step by its design name (for example "E1 S5" or "E4 placement task"), §2.1 gives the task id.
 
@@ -536,13 +536,20 @@ Adjustments to README §6a and later Lead decisions, with the reason:
 9. Lead decision LD-11: lane L2 works in B3 on LA-E3-03, LA-E3-05, LA-E3-08, LA-E3-10, LA-E3-13, LA-E5-18 and LA-E6-06 with the files of the L2 rows below; L keeps the registration, platform, profile and platform-call files. L2 stays in B3 even if the Lead cuts every E3 Should task, because LA-E3-03 and LA-E3-05 are Must (Reviewer-B B-LAB-13).
 10. Lead decision LD-14: LA-E5-03 (S1) and LA-E5-06 (L) move to B2. In B2, `lti/codes.ts` is L's and `http/auth.ts` is S2's, so LA-E5-03 sends its page code `RATE_LIMITED` to L and its `auth_failure` call line to S2 by RQ-1, and delivers the limiter as its own module `http/rate-limit.ts` (RQ-4). LA-E5-06 (L, B2) adds the two status page codes to `lti/codes.ts` itself; S1 has no edit of that file in any wave (A2 LA-B2c).
 11. `store/retention.ts`: S1 in B1–B3 (A2 LA-B2b: LA-E3-02 no longer edits it; it exports its cleanup function from `store/storage-checks.ts`, and S1's retention job calls it). This closes Reviewer-A A-LAB-15.
+12. Build decisions of the Lead (RQ-2 and RQ-4, 2026-10-22; ratified in [build decisions A1](build-decisions-A1.md) BD-A1-03):
+    - `packages/shared/src/migrations.ts` had no row (no planned LA change). Owner: S1 in every wave. For LA-E5-02, S1 made `transaction()` nest through `SAVEPOINT` (A2 LA-ADR-06 D4, transaction rule T0). Other lanes ask S1 by RQ-1; LA-E5-23 (S2, B4) does not edit it.
+    - Root `package.json` stays with K. Lane R adds the `ci:local` script line itself (RQ-2, one commit of LA-E7-10), as the last entry of `scripts`, so it does not touch K's lines.
+    - `infra/scripts/storage-compat.test.mjs` (S1, row "other `infra/**`"): K changed line 130 by RQ-2 for LA-E1-02: `'test:k0'` joins the host-only list next to `'test:unit'` and `'test:infra'`.
+    - `packages/shared/src/index.ts`: each lane's export lines have a fixed place, so merges do not conflict. R's jobs lines come directly after the `crypto.ts` line (B1, LA-E4-01). S2's two key-provider lines are at the end of the file (B1, LA-E5-08, by RQ-2 instead of RQ-1). A later export line of another lane goes at the end, by RQ-1 to the owner of the wave.
+    - `infra/scripts/stack-up.sh` and `infra/scripts/stack-reset.sh` are already S1 files (row "other `infra/**`"), so no handover was needed; the Lead approved the edits outside the task's "May edit" list. `stack-up.sh` makes `infra/.secrets/lti` with mode 700 before compose starts (key-ring mount of LA-E5-08, an S1 commit for S2's RQ-1). `stack-reset.sh` also removes `infra/.secrets/lti-operator-key` (LA-E5-01 review fix, in the LA-E5-02 dispatch).
+    - New `infra/scripts/fitness-audit-event-delete.test.mjs` (S1, LA-E5-02): the test of the F5 rule `audit-event-delete`; until LA-E1-04 lands it also runs the rule over the tree. It stays S1's file. Rule tests never go into `infra/scripts/fitness/rules/` (README §4, F5 rule modules).
 
 | Path | B1 | B2 | B3 | B4 | Request rule or note |
 | --- | --- | --- | --- | --- | --- |
 | **Root and build** | | | | | |
-| `package.json`, `package-lock.json`, `tsconfig.json`, `tsconfig.base.json`, `vitest.config.ts`, `eslint.config.js` | K | K | K | K | RQ-1 for script lines (P fitness, R `ci:local`, R `worker` via the app package, L reference-tool workspace) and lock changes (P Testing Library) |
+| `package.json`, `package-lock.json`, `tsconfig.json`, `tsconfig.base.json`, `vitest.config.ts`, `eslint.config.js` | K | K | K | K | RQ-1 for script lines (P fitness and the `test:infra` glob of `infra/scripts/fitness/`, R `worker` via the app package, L reference-tool workspace) and lock changes (P Testing Library); R `ci:local` by RQ-2 as the last script line (adjustment 12) |
 | `packages/channels/tsconfig.node.json`, `tsconfig.portal.json` | K | K | K | K |  |
-| `infra/compose.yaml`, `infra/scripts/lib.sh`, `infra/scripts/lti-bootstrap.sh`, other `infra/**` | S1 | S1 | S1 | S1 | RQ-1 for S2 (key ring secret mount, LA-E5-08) and R (app metrics bind, `APP_RATE_LIMITS` in the `acceptance` profile) |
+| `infra/compose.yaml`, `infra/scripts/lib.sh`, `infra/scripts/lti-bootstrap.sh`, other `infra/**` (also `stack-up.sh`, `stack-reset.sh`, `storage-compat.test.mjs`, `fitness-audit-event-delete.test.mjs`) | S1 | S1 | S1 | S1 | RQ-1 for S2 (key ring secret mount, LA-E5-08) and R (app metrics bind, `APP_RATE_LIMITS` in the `acceptance` profile); K line 130 of `storage-compat.test.mjs` by RQ-2 (adjustment 12) |
 | `infra/scripts/fitness/**` (F1, F2, F5 runner) | P | K | K | K | new in B1 (LA-E1-04) |
 | `infra/scripts/fitness/f1-baseline.json` | P | K | K | K | RQ-3: every lane lowers the counts of its own files |
 | `infra/scripts/fitness/rules/<rule>.mjs` | new file: its task | new file: its task | — | — | `sql-portability` P B1; `connection-lms` K B1; `channel-sql-tables` K B2; `no-score-sync` R B2; A2's two rules S1 (E5) |
@@ -556,7 +563,8 @@ Adjustments to README §6a and later Lead decisions, with the reason:
 | **Shared packages** | | | | | |
 | `packages/shared/src/jobs.ts` | R | R | R | R | new in B1 |
 | `packages/shared/src/key-provider.ts`, `packages/shared/src/crypto.ts` | S2 | S2 | S2 | S2 | new in B1 (LA-E5-08); `crypto.ts` keeps the legacy functions |
-| `packages/shared/src/index.ts` | R | S2 | S2 | S2 | export lines: R jobs (B1); S2 sends its key-provider line to R by RQ-1 in B1 |
+| `packages/shared/src/index.ts` | R | S2 | S2 | S2 | export lines: R jobs after the `crypto.ts` line (B1); S2's two key-provider lines at the end of the file by RQ-2 in B1 (adjustment 12) |
+| `packages/shared/src/migrations.ts` | S1 | S1 | S1 | S1 | adjustment 12: `transaction()` nests through `SAVEPOINT` (LA-E5-02) |
 | `packages/shared/src/config.ts` | L | L | S1 | S1 | adjustment 1 |
 | `packages/shared/src/html.ts` | K | K | K | K |  |
 | `packages/shared/src/logger.ts` | S1 | S1 | S1 | S1 | A2 LA-E5-01 (`ltio_` pattern); L sends `storageValue` by RQ-1 |
@@ -589,7 +597,7 @@ Adjustments to README §6a and later Lead decisions, with the reason:
 | `tool-pages/launch.ts`, `tool-pages/picker.ts`, `domain/pickers.ts` | K | K | L2 | K | README §6a order K, R, L2; RQ-1 for writer calls is replaced by A2's LA-E6-06 (L2) |
 | `tool-pages/{register,register-texts,play,page,launch-rules,canvas-embedded}.ts` | K | K | K | K |  |
 | `clients/lti-client.ts` | K | R | K | K | R: `429` and `Retry-After` (B2); K: `complete` with `profile` and `scopes` (B3) |
-| `app/{connections,redemption,binding-cleanup,binding-targets,operator,views,reject-info,server,portal,publications,courses,api-errors}.ts`, `domain/{connections,bindings,publications}.ts`, `cli/{grant,binding,operator-runtime}.ts`, `content-host/**`, `clients/**` (other), `providers/**` (removed in B2), `testkit.ts`, `services/cogniate-app/package.json` | K | K | K | K | RQ-1 for mount lines (S1, R, P) and script lines (S1 `app:audit`, R `worker`) |
+| `app/{connections,redemption,binding-cleanup,binding-targets,operator,views,reject-info,server,portal,publications,courses,api-errors,web-services,canvas-configuration,canvas-deployments}.ts` (the last three named by BD-A1-11; LA-E1-08 moves them), `domain/{connections,bindings,publications}.ts`, `cli/{grant,binding,operator-runtime}.ts`, `content-host/**`, `clients/**` (other), `providers/**` (removed in B2), `testkit.ts`, `services/cogniate-app/package.json` | K | K | K | K | RQ-1 for mount lines (S1, R, P) and script lines (S1 `app:audit`, R `worker`) |
 | new `app/audit.ts`, `app/operator-policy.ts`, `cli/audit.ts` | — | S1 | S1 | S1 | A2 LA-E5-11 |
 | new `app/connection-check.ts`, `app/connection-health.ts`, `domain/connection-events.ts` | — | — | P | P | A2 LA-E6-01, LA-E6-02 |
 | new `app/admin-launch.ts`, `app/sealing.ts`, `kernel/authority/verified-admin-launch.ts` | — | — | — | K | A2 LA-E6-03, LA-E5-22 |
@@ -700,7 +708,7 @@ Requests from A2's specs that the matrix closes (no decision needed):
 | --- | --- |
 | LTI `api-errors.ts` (error codes) | S1 in every wave; S2 keeps its codes in `http/key-errors.ts` (RQ-4); L sends `PLATFORM_RATE_LIMITED` by RQ-1 |
 | `services/lti-service/package.json` (`lti:operator`), `packages/shared/src/logger.ts` (`ltio_` pattern), `infra/scripts/lti-bootstrap.sh` | S1 in every wave |
-| `packages/shared/src/index.ts` (key provider export) | R in B1 (S2 sends its line by RQ-1), S2 from B2 |
+| `packages/shared/src/index.ts` (key provider export) | R in B1 (S2 added its two lines at the end by RQ-2, adjustment 12), S2 from B2 |
 | `services/cogniate-app/package.json` (`app:audit`, `worker`) | K by RQ-1 |
 | `http/routes/platforms.ts` | S1 in B1, L in B2 and B3, S2 in B4 |
 | `store/retention.ts` | S1 in B1–B3 (LA-E3-02 no longer edits it), S2 in B4 |

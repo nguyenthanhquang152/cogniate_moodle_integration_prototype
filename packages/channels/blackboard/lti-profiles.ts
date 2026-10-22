@@ -1,17 +1,15 @@
 // Blackboard Learn profiles (ADR-011 §6). One shared platform per tool account: the Cogniate Application ID is the
 // client id of every school; each school is one deployment with its own site URL.
-import type { ProfileFlags, ProviderProfile } from './types.ts';
 
-const BLACKBOARD_FLAGS: ProfileFlags = {
+const BLACKBOARD_FLAGS = {
   deepLinkingResponseSub: true, // F-BB-8: Learn needs sub = client id in the Deep Linking response
   clientAssertionAudArray: true, // F-BB-5: aud = [token endpoint]
-  minimizeClaims: true, // ADR-011 §9 (Q3)
   serviceOriginCheck: true, // ADR-011 §5
 };
 
-export const BLACKBOARD_PROFILES: readonly ProviderProfile[] = [
+const profiles = [
   {
-    id: 'blackboard', lms: 'blackboard', label: 'Blackboard Learn', sharing: 'shared',
+    id: 'blackboard', listOrder: 50, wireLms: 'blackboard', endpoints: 'fixed', privacyFloor: 'allowlist', label: 'Blackboard Learn', sharing: 'shared',
     issuer: 'https://blackboard.com', // F-BB-3
     authenticationEndpoint: 'https://developer.blackboard.com/api/v1/gateway/oidcauth', // F-BB-4
     accesstokenEndpoint: 'https://developer.blackboard.com/api/v1/gateway/oauth2/jwttoken', // F-BB-5
@@ -21,7 +19,7 @@ export const BLACKBOARD_PROFILES: readonly ProviderProfile[] = [
   },
   {
     // Copy of `blackboard` on fixed .sim.test hosts (ADR-011 §6 simulation table, M3 §3.1).
-    id: 'blackboard-sim', lms: 'blackboard', label: 'Blackboard Learn (simulation)', sharing: 'shared',
+    id: 'blackboard-sim', listOrder: 60, wireLms: 'blackboard', endpoints: 'fixed', privacyFloor: 'allowlist', label: 'Blackboard Learn (simulation)', sharing: 'shared',
     issuer: 'https://blackboard.sim.test',
     authenticationEndpoint: 'https://developer.blackboard.sim.test/api/v1/gateway/oidcauth',
     accesstokenEndpoint: 'https://developer.blackboard.sim.test/api/v1/gateway/oauth2/jwttoken',
@@ -29,4 +27,6 @@ export const BLACKBOARD_PROFILES: readonly ProviderProfile[] = [
     siteUrlOn: 'deployment', serviceUrl: false, simulation: true, productFamily: 'blackboardlearn',
     flags: BLACKBOARD_FLAGS, sources: ['ADR-011 §6 (simulation copy of blackboard)'],
   },
-];
+] as const;
+
+export default profiles;

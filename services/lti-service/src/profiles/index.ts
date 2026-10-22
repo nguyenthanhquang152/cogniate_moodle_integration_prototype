@@ -1,18 +1,37 @@
-// The ONE provider profile registry (ADR-011 §6, LTI contract §9.1, §9.3). Provider data lives in one file per LMS
-// (standard.ts, canvas.ts, blackboard.ts); this module only orders, finds and fills them.
-import { fixedHostsOf, originHost } from '@cogniate/shared';
-import type { SiteRuleInput } from '@cogniate/shared';
-import { BLACKBOARD_PROFILES } from './blackboard.ts';
-import { CANVAS_PROFILES } from './canvas.ts';
-import { STANDARD_PROFILE_ID, STANDARD_PROFILES } from './standard.ts';
+// The LTI profile registry loads channel folders once, before the service accepts requests (LA-ADR-01 D4, D6).
+import { fileURLToPath } from 'node:url';
+import { RegistryError, STANDARD_PROFILE_ID, loadChannelFolders } from '@cogniate/channel-kernel';
+import { createLogger, fixedHostsOf, originHost } from '@cogniate/shared';
+import type { Logger, SiteRuleInput } from '@cogniate/shared';
+import { buildProfileRegistry } from './registry.ts';
+import type { ProfileRegistry } from './registry.ts';
 import type { ProfileEndpoints, ProfileTemplateValues, ProviderProfile } from './types.ts';
 
-export type { ProfileEndpoints, ProfileFlags, ProfileLms, ProfileSharing, ProfileTemplateValues, ProviderProfile, SiteUrlOn } from './types.ts';
-export { STANDARD_PROFILE_ID };
+export type { ProfileEndpoints, ProfileFlags, ProfileSharing, ProfileSource, ProfileTemplateValues, ProviderProfile, SiteUrlOn } from './types.ts';
+export type { ProfileRegistry } from './registry.ts';
+export { STANDARD_PROFILE_ID, buildProfileRegistry };
+
+/** Product code has one fixed root. Tests may pass an extra root to loadProfileRegistry. */
+export const CHANNEL_ROOT = fileURLToPath(new URL('../../../../packages/channels/', import.meta.url));
+
+export async function loadProfileRegistry(roots: readonly string[], logger: Logger): Promise<ProfileRegistry> {
+  try {
+    return buildProfileRegistry(await loadChannelFolders(roots, 'lti'));
+  } catch (err) {
+    if (err instanceof RegistryError) {
+      logger.error('channel_registry_invalid', { channel: err.channel, reason: err.reason, check: err.check, detail: err.detail });
+    }
+    throw err;
+  }
+}
+
+const registry = await loadProfileRegistry([CHANNEL_ROOT], createLogger({ service: 'lti-service' }));
 
 export interface ProfileOptions {
   /** Simulation profiles are on (LTI contract §9.13). */
   simulation: boolean;
+  /** A test registry supplied by the caller. Product code uses the discovered registry. */
+  registry?: ProfileRegistry;
 }
 
 /** On only when the service profile is `acceptance` AND `LTI_PROVIDER_SIMULATION=on` (LTI contract §9.13). */
@@ -25,9 +44,7 @@ export function simulationEnabled(serviceProfile: string, env: Record<string, st
  * simulation profiles blackboard-sim and canvas-sim-cloud (only when they are on).
  */
 export function listProfiles(opts: ProfileOptions): readonly ProviderProfile[] {
-  const real = [...STANDARD_PROFILES, ...CANVAS_PROFILES, ...BLACKBOARD_PROFILES].filter((p) => !p.simulation);
-  if (!opts.simulation) return real;
-  return [...real, ...BLACKBOARD_PROFILES.filter((p) => p.simulation), ...CANVAS_PROFILES.filter((p) => p.simulation)];
+  return (opts.registry ?? registry).listProfiles(opts.simulation);
 }
 
 /** The profile with this id, or null (an unknown id, or a simulation id while simulations are off). */
@@ -39,12 +56,15 @@ export function findProfile(id: string, opts: ProfileOptions): ProviderProfile |
  * A profile by id whatever the simulation setting. Only for structure (sharing, flags, LMS name) of a STORED row:
  * every run-time permission uses findProfile, so a simulation row while simulations are off is inactive.
  */
-export function profileDefinition(id: string): ProviderProfile | null {
-  return listProfiles({ simulation: true }).find((p) => p.id === id) ?? null;
+export function profileDefinition(id: string, source: ProfileRegistry = registry): ProviderProfile | null {
+  return source.listProfiles(true).find((p) => p.id === id) ?? null;
 }
 
-export const isStandardProfile = (p: ProviderProfile): boolean => p.id === STANDARD_PROFILE_ID;
+/** Compatibility helper for callers that move to the trait in LA-E1-10. */
+export const isStandardProfile = (p: ProviderProfile): boolean => p.endpoints === 'admin';
 export const isSharedProfile = (p: ProviderProfile): boolean => p.sharing === 'shared';
+
+export const channelRegistry = (opts: ProfileOptions) => (opts.registry ?? registry).channels(opts.simulation);
 
 /** Fill `{siteUrl}`, `{serviceUrl}` (default: the site URL) and `{clientId}` (encoded) in a profile value. */
 export function fillTemplate(value: string, v: ProfileTemplateValues): string {
@@ -93,17 +113,18 @@ export function profileOfFixedIssuer(issuerOrigin: string, opts: ProfileOptions)
   return listProfiles(opts).find((p) => !isStandardProfile(p) && p.issuer !== null && !p.issuer.startsWith('{') && new URL(p.issuer).origin === issuerOrigin) ?? null;
 }
 
-export type LmsName = 'Moodle' | 'Canvas' | 'Blackboard';
+export type LmsName = string;
 
 /** The LMS name in texts (security §12): Canvas profiles → Canvas, Blackboard profiles → Blackboard, else Moodle. */
-export function lmsNameOf(p: ProviderProfile | null): LmsName {
-  return p?.lms === 'canvas' ? 'Canvas' : p?.lms === 'blackboard' ? 'Blackboard' : 'Moodle';
+export function lmsNameOf(p: ProviderProfile | null, source: ProfileRegistry = registry): LmsName {
+  return source.channels(true).textName(p?.channel ?? null);
 }
 
 /** The LMS name of a signed product family (check 14 page text), or null for any other value. */
-export function lmsNameOfFamily(family: string): LmsName | null {
-  const f = family.toLowerCase();
-  return f === 'canvas' ? 'Canvas' : f === 'blackboardlearn' ? 'Blackboard' : null;
+export function lmsNameOfFamily(family: string, source: ProfileRegistry = registry): LmsName | null {
+  const channels = source.channels(true);
+  const owner = channels.ownerOfFamily(family);
+  return owner === null ? null : channels.textName(owner);
 }
 
 /** Site rule input of the shared site-rule function for one profile (rules 3 to 5). */

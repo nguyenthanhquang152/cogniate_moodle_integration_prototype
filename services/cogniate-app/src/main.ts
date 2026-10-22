@@ -12,6 +12,7 @@ import { CONTENT_SERVICE_NAME, buildContentServer } from './content-host/server.
 import { openDb } from './domain/db.ts';
 import { prepareStore } from './domain/package-store.ts';
 import { cleanupExpired } from './domain/retention.ts';
+import { loadAppChannelRegistry } from './kernel/registry.ts';
 import type { ScoreSyncWorker } from './worker/score-sync.ts';
 import { createScoreSyncWorker } from './worker/score-sync.ts';
 
@@ -28,6 +29,9 @@ await startService(APP_SERVICE_NAME, [
     port: portFromEnv('PORT', 4200),
     publicUrl: (u) => u.app,
     build: async (deps) => {
+      // LA-ADR-01 D4: the channel registry, by folder discovery of the one product root. A load-check failure logs
+      // channel_registry_invalid and stops the start. No route reads the registry yet (LA-E1-06 passes it on).
+      await loadAppChannelRegistry(deps.logger);
       // All calls to the LTI service go through the guarded client (security §9; allowlist: the LTI service host).
       const outbound = createOutboundClient({ logger: deps.logger, allowlist: deps.outboundAllowlist });
       // The acceptance profile sends the /api/* calls through the transport gate (M3 §3.3, LTI_API_URL).

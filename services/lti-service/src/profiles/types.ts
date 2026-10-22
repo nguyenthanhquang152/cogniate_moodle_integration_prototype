@@ -1,9 +1,6 @@
 // Provider trust profiles (ADR-011 §6, LTI contract §9.1). A profile is reviewed data: the launch code reads its
 // flags and values and never branches on an LMS name. A profile change is an architecture change (ADR revision).
 
-/** LMS of a profile. `null` = `standard` (Moodle and other platforms with admin values). */
-export type ProfileLms = 'canvas' | 'blackboard';
-
 /** `exclusive`: one connection owns the platform with all its deployments. `shared`: one platform, one deployment per connection. */
 export type ProfileSharing = 'exclusive' | 'shared';
 
@@ -15,15 +12,19 @@ export interface ProfileFlags {
   readonly deepLinkingResponseSub: boolean;
   /** Client assertion `aud` = `[token endpoint]` (F-BB-5). */
   readonly clientAssertionAudArray: boolean;
-  /** Claim allowlist before the launch is stored (ADR-011 §9). */
-  readonly minimizeClaims: boolean;
   /** Launch check 13: service URL claims on the service origin, DL return URL on the site origin. */
   readonly serviceOriginCheck: boolean;
 }
 
-export interface ProviderProfile {
+/** Profile data from a channel folder. The loader supplies its owner and legacy wire value. */
+export interface ProfileSource {
   readonly id: string;
-  readonly lms: ProfileLms | null;
+  readonly endpoints: 'admin' | 'fixed';
+  readonly privacyFloor: 'allowlist' | 'none';
+  /** Frozen compatibility value, allowed only on the baseline profiles. */
+  readonly wireLms?: string | null;
+  /** Real profiles precede simulation profiles; each group sorts by this value, then id. */
+  readonly listOrder: number;
   /** Human text for `GET /api/providers`; tests must not compare it. */
   readonly label: string;
   readonly sharing: ProfileSharing;
@@ -41,13 +42,20 @@ export interface ProviderProfile {
   readonly serviceUrl: boolean;
   /** Exists only when simulations are on (LTI contract §9.13). */
   readonly simulation: boolean;
-  /** Signed `tool_platform.product_family_code` of this LMS, lower case (launch check 14); `null` for `standard`. */
+  /** Product family metadata. Launch guards come from the channel manifest. */
   readonly productFamily: string | null;
   readonly flags: ProfileFlags;
   /** Site rule 5 (`canvas-self-hosted`): refused host suffixes. The fixed hosts of every profile are refused too. */
   readonly refusedHostSuffixes?: readonly string[];
   /** Research fact ids of the values (ADR-011 §6 "Source"). */
   readonly sources: readonly string[];
+}
+
+export interface ProviderProfile extends ProfileSource {
+  /** The channel whose folder holds this profile. Never supplied by the profile source. */
+  readonly channel: string;
+  /** Legacy provider-list field. Derived from wireLms or the channel id. */
+  readonly lms: string | null;
 }
 
 /** The filled issuer and endpoints of one platform. */
