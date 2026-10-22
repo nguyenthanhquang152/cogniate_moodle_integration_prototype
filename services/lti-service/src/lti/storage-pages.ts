@@ -66,3 +66,76 @@ export function storageLoginPage(data: StorageLoginData): { status: 200; headers
 `,
   };
 }
+
+export interface StorageCheckPageData {
+  postUrl: string;
+  check: string;
+  stateHash: string;
+  target: string;
+  origin: string;
+}
+
+const CHECK_SCRIPT = `(() => {
+  const data = JSON.parse(document.getElementById('lti-storage-data').textContent);
+  let finished = false;
+  let timer;
+  const finish = (value = '') => {
+    if (finished) return;
+    finished = true;
+    clearTimeout(timer);
+    window.removeEventListener('message', receive);
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = data.postUrl;
+    form.hidden = true;
+    for (const [name, text] of [['check', data.check], ['value', value]]) {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = name;
+      input.value = text;
+      form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
+  };
+  const receive = (event) => {
+    const reply = event.data;
+    if (event.origin !== data.origin || !reply || typeof reply !== 'object' || Array.isArray(reply)
+      || reply.subject !== 'lti.get_data.response' || reply.message_id !== data.messageId || 'error' in reply
+      || typeof reply.value !== 'string') return;
+    finish(reply.value);
+  };
+  if (window.parent === window) { finish(); return; }
+  window.addEventListener('message', receive);
+  timer = setTimeout(() => finish(), 1500);
+  try {
+    const target = data.target === '_parent' ? window.parent : window.parent.frames[data.target];
+    if (!target) { finish(); return; }
+    target.postMessage({ subject: 'lti.get_data', message_id: data.messageId, key: data.key }, data.origin);
+  } catch { finish(); }
+})();`;
+
+/** The page carries only the check token and the key digit, never the state value or the launch claims. */
+export function storageCheckPage(data: StorageCheckPageData): { status: 200; headers: Record<string, string>; html: string } {
+  const nonce = randomToken();
+  const { stateHash, ...publicData } = data;
+  const json = scriptJson({ ...publicData, key: `cog_state_${stateHash[0]}`, messageId: randomToken() });
+  return {
+    status: 200,
+    headers: {
+      'content-type': 'text/html; charset=utf-8',
+      'cache-control': 'no-store',
+      'referrer-policy': 'same-origin',
+      'content-security-policy': `default-src 'none'; script-src 'nonce-${nonce}'; frame-ancestors https:; form-action 'self'; base-uri 'none'`,
+    },
+    html: `<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="robots" content="noindex"><title>Cogniate sign-in</title></head>
+<body>
+<script id="lti-storage-data" type="application/json">${json}</script>
+<script nonce="${nonce}">${CHECK_SCRIPT}</script>
+</body>
+</html>
+`,
+  };
+}
