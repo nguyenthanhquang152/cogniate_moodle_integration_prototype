@@ -227,3 +227,17 @@ Changes for the Lead to route:
 - **L (LA-E3-01):** the two AC-06 tests.
 
 No QA K1-SIM criterion changes.
+
+## 19. Round 18: the bounded key re-wrap run (LA-E5-09, lane S2) and the LA-E1-07 channel helpers (lane K), 2026-10-22
+
+Routed in dispatch `ctx_0b48c6aaf499`. Decisions sent to the Lead first (`msg_522b4cb8f44b`), because S2 waited.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-36 | LA-E5-09 item 4: the shared runner has a fixed 60 s lease and no renewal. S2 proposed a bounded run (check the live lease in each batch transaction, yield between batches, stop on the signal or the lease deadline, resume at the next operator call). What are the audit result and details of an interrupted or failed run? Does the job-end event also record `legacyBlobs: refused` (two events, no third)? | **Ratified, with rules:** one synchronous transaction per batch with a compare-and-set update; at least 10 s of lease left and `ctx.signal` not aborted at each batch start; `partial` when stopped; no automatic re-run. **Exactly two events:** the request event and one job-end event (`outcome`, counts, `stopReason`, `legacyBlobsRefused`). The setting is stored in the same transaction as the end event. A failed run: earlier batches stay; its end event has `result: failed` and the error class. | LA-ADR-06 D4 (`result` row), D6 ("Re-wrap", "Legacy refusal"); contract delta §5; LA-E5-09 design notes | It fits the BD-A2-31 stop order: batches take milliseconds and never start late, so the 70 s fallback and the 75 s Docker grace never cut one. `failed` is a new value of the audit result for job-end events only (one line in S1's type). Progress is visible in `GET /operator/v1/key-provider`. |
+| BD-A2-37 | LA-E1-07 Reviewer-B MAJOR: the channel `app.ts` files copy `TOOL_ACCOUNT`, `toolName`, `toolUrls`, `PRINTABLE_ID`, `GRANT_CODE` and `parseStrictBody`. Move them to `@cogniate/shared/channel`? | **No; none goes on that list.** `TOOL_ACCOUNT` and `toolUrls` are configuration and protocol-URL building with one owner, so the kernel passes them in the port context (no hard-coded `'cogniate'` or `/lti/launch/` in channels). `toolName`, `PRINTABLE_ID`, `GRANT_CODE` and `parseStrictBody` belong to the kernel setup contract (one definition, shared with the kernel admin-value adapter). A1 chooses context or a pure kernel value sub-path (LA-ADR-01 D1); a sub-path follows the BD-A2-11 conditions. | security-delta §8 "Channel import fence" | `@cogniate/shared` also serves the LTI service and the content host, so it must not hold the app's channel contract. The grant-code grammar is a security grammar and must have one definition. |
+
+Changes for the Lead to route:
+- **S2 (LA-E5-09):** the bounded run and its tests. **S1 (RQ-1):** the value `failed` in the audit result type, plus your approved settings and wiring requests.
+- **A1:** the import form for the kernel helpers (port context, or a kernel value sub-path under the BD-A2-11 conditions).
+- **K (LA-E1-07 fix round):** move the six helpers after A1's call.

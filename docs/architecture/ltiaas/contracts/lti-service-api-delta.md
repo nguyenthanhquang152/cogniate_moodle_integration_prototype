@@ -362,7 +362,7 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `POST …/api-keys`, `…/revoke` | `api_key.issue`, `api_key.revoke` | `api_key` |
 | `POST …/signing-keys`, `…/activate`, `…/retire` | `signing_key.create`, `signing_key.activate` (`details.forced`), `signing_key.retire` | `signing_key` |
 | `POST …/shared-platforms` | `platform.create_shared` | `platform` |
-| `POST /operator/v1/key-provider/rewrap` | `key_provider.rewrap` (one more event at the job end with counts) | `key_provider` |
+| `POST /operator/v1/key-provider/rewrap` | `key_provider.rewrap` (one more event at the job end, actor `system:key-rewrap`: `outcome` `complete`, `partial` or `failed`, counts, and `legacyBlobsRefused: true` when that run stored the setting; a failed run has `result: failed` and the error class; BD-A2-36) | `key_provider` |
 | `PATCH /operator/v1/rate-limits` | `settings.rate_limits` | `settings` |
 | `POST`, `…/revoke /operator/v1/operator-keys` | `operator_key.issue`, `operator_key.revoke` | `operator_key` |
 | `POST /operator/v1/jobs/:name/run` (Should) | `job.run` | `job` |
