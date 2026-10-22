@@ -123,9 +123,9 @@ export class RateLimiter {
       if (error instanceof z.ZodError) {
         const issue = error.issues[0]!;
         const path = [...issue.path, ...(issue.code === 'unrecognized_keys' ? issue.keys : [])].join('.') || '<root>';
-        throw new Error(`LTI_RATE_LIMITS: ${path}: ${issue.message}`);
+        throw new Error(`LTI_RATE_LIMITS: ${path}: ${issue.message}`, { cause: error });
       }
-      throw new Error('LTI_RATE_LIMITS: expected valid JSON');
+      throw new Error('LTI_RATE_LIMITS: expected valid JSON', { cause: error });
     }
     this.settings = readRateLimitSettings(db);
   }
