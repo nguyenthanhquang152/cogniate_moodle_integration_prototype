@@ -134,6 +134,7 @@ export interface ChannelManifest {
   texts: {
     adminSteps: string[]; teacherSteps: string[];
     disconnect: string; notReady: string | null; // all with {LMS}, {tool}, {site} placeholders only
+    registered?: string;                         // status text of a registered connection; default "Registered" (BD-A1-25)
   };
 }
 export interface FieldSpec { key: string; label: string; kind: 'origin' | 'id' | 'grantCode' | 'url' | 'choice'; required: boolean; method?: 'dynamic' | 'manual';
@@ -189,7 +190,7 @@ A guard that existed in M1 keeps its `details.capability` value (`webServices`, 
   4. Every capability id is in the catalog; `publish.createCourse` needs `siteApi.token`.
   5. Every `registration[].profiles` entry exists in the channel's `lti-profiles.ts` (LTI service) or in `GET /api/providers` (app, at first use).
   6. A method whose profile has `sharing: shared` must not use authority `self` (A2 [LA-ADR-07 D2](LA-ADR-07-security-and-tenancy.md) rule A4). A `manual` method must not use `self` either (rule A3), unless its channel id is in the frozen legacy list `MANUAL_SELF_LEGACY_CHANNELS` of `legacy-wire.ts`. That list has one entry, the Moodle channel (no behaviour change); a new entry needs an ADR revision and a security review.
-  7. Every profile passes one `ProviderProfile` schema with a closed trait set; `issuerKind` agrees with `issuer` (LA-ADR-02 D2); `wireLms` (D6) is allowed only on the baseline profiles. The baseline profiles are the keys of the frozen map `BASELINE_PROFILE_WIRE_LMS` of `legacy-wire.ts` (eight pairs). A baseline profile must have `wireLms` equal to its map value, and every other profile must not have `wireLms` (build ratification BD-A1-06, [build decisions A1](../build-decisions-A1.md)). `privacyFloor: 'none'` is allowed only on a profile in the frozen list `PRIVACY_FLOOR_NONE_PROFILES` of `legacy-wire.ts` (one entry: `standard`); every other profile has `allowlist` (BD-A1-22, proposal to A2 as the security owner; LA-ADR-07 T18).
+  7. Every profile passes one `ProviderProfile` schema with a closed trait set; `issuerKind` agrees with `issuer` (LA-ADR-02 D2); `wireLms` (D6) is allowed only on the baseline profiles. The baseline profiles are the keys of the frozen map `BASELINE_PROFILE_WIRE_LMS` of `legacy-wire.ts` (eight pairs). A baseline profile must have `wireLms` equal to its map value, and every other profile must not have `wireLms` (build ratification BD-A1-06, [build decisions A1](../build-decisions-A1.md)). `privacyFloor: 'none'` is allowed only on a profile in the frozen list `PRIVACY_FLOOR_NONE_PROFILES` of `legacy-wire.ts` (one entry: `standard`); every other profile has `allowlist` (BD-A1-22, ratified by A2 as BD-A2-21; LA-ADR-07 T18). A new non-baseline profile has a `listOrder` above every baseline `listOrder` (BD-A1-23).
   8. A `launch`-level guard (D6) is allowed only on a channel in the frozen list `LAUNCH_GUARD_CHANNELS` of `legacy-wire.ts` (the Canvas and Blackboard channels).
 - `availability: 'simulation-only'` channels load only when the LTI service runs with simulations on (LTI contract §9.13).
 - **Extra root.** The loader takes its roots only as a function argument. Product code passes exactly one root, a constant path to `packages/channels/` (built from `import.meta.url`). No environment variable, knob or runtime setting can add a root. Tests pass a second root for the canary channel (D10).
@@ -226,7 +227,7 @@ export interface ChannelRegistry {
 
 The portal builds the same `LoadedChannel[]` from `import.meta.glob` and calls `buildChannelRegistry`. The app runs load check 5 against `GET /api/providers` at first use, through `channelOfProfile` (a profile of a method that the LTI service does not report makes the method unavailable, log `channel_profile_unknown`).
 - Channel order: by `card.order`, then by id (moodle, canvas, blackboard for the baseline).
-- Profile order in `GET /api/providers`: real profiles first, then simulation profiles; inside each group by the profile field `listOrder`, then by id. The baseline values reproduce today's order exactly (`services/lti-service/src/profiles/index.ts:27-31`): `standard`, the four Canvas profiles, `blackboard`; then `blackboard-sim`, `canvas-sim-cloud`. A new channel's profiles take `listOrder` values above the baseline values, so they come after the baseline real profiles and before every simulation profile (A2 [lti-service-api-delta §4.7](../contracts/lti-service-api-delta.md)).
+- Profile order in `GET /api/providers`: real profiles first, then simulation profiles; inside each group by the profile field `listOrder`, then by id. The baseline values reproduce today's order exactly (`services/lti-service/src/profiles/index.ts:27-31`): `standard`, the four Canvas profiles, `blackboard`; then `blackboard-sim`, `canvas-sim-cloud`. A new channel's profiles take `listOrder` values above the baseline values, so they come after the baseline real profiles and before every simulation profile (A2 [lti-service-api-delta §4.7](../contracts/lti-service-api-delta.md)). Load check 7 enforces it (BD-A1-23): a profile whose id is not a key of `BASELINE_PROFILE_WIRE_LMS` needs a `listOrder` above the largest `listOrder` of the baseline profiles, simulation profiles included (70 today), computed from the profile definitions whatever the simulation setting.
 
 ### D5. Ports
 
@@ -327,7 +328,11 @@ export interface ChannelUiModule {
   steps?: Partial<Record<'show' | 'collect' | 'verify' | 'enable', ComponentType<ChannelWizardProps>>>;
   TeacherSteps?: ComponentType;                                // shown after publication
   connectionPanels?: ComponentType<{ connection: ConnectionView; sdk: PortalSdk }>[];  // Moodle web services, Canvas JSON
-  coursePanels?: ComponentType<{ course: CourseView; sdk: PortalSdk }>[];             // Moodle .mbz and course shell
+  coursePanels?: ComponentType<{ course: CourseView; version: CourseVersionView | null; onChanged(): void; sdk: PortalSdk }>[]; // Moodle .mbz
+  // BD-A1-25: optional slots; the shell has a default for each and never tests a channel id.
+  publicationPanels?: ComponentType<{ publication: PublicationView; onChanged(): void; sdk: PortalSdk }>[]; // Moodle course shell
+  ConnectionError?: ComponentType<{ connection: ConnectionView; error: ApiErrorView; libraryName: string; sdk: PortalSdk }>; // null = shell default
+  ConnectionDetails?: ComponentType<{ connection: ConnectionView; sdk: PortalSdk }>; // replaces the default detail block and its "Open {LMS}" link
 }
 export interface ChannelWizardProps {        // today's ProviderWizardProps (wizard-types.ts:11-18) plus the SDK
   provider: ProviderView; connection: ConnectionView | null; libraryName: string; opener: string;
@@ -338,7 +343,8 @@ export interface PortalSdk {                 // re-exports of today's portal cod
   useApi: typeof useApi; navigate(to: string): void;
   ui: PortalUiKit;                           // Button, Card, Tabs, ErrorNotice, Loading, ConnectionBadge, provider error texts
 }
-// ProviderView, ConnectionView, CourseView = today's DTO types of apps/portal/src/types.ts, re-exported.
+// ProviderView, ConnectionView, CourseView, CourseVersionView, PublicationView, ApiErrorView = today's DTO types of
+// apps/portal/src/types.ts, re-exported.
 ```
 
 S8 first moves the needed helpers into `apps/portal/src/sdk/`, then moves the modules. A module that needs more than the SDK gives an SDK addition in S8, not a deep import.
@@ -354,7 +360,7 @@ Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-
 - Text names: `lmsNameOf` and `lmsNameOfFamily` (`profiles/index.ts:96-107`) become registry lookups of `names.text`. A profile with no channel text (impossible after load check 2) uses the `standard` channel text, as today.
 - `GET /api/providers` adds the field `channel`. The field `lms` stays frozen. Its value comes from the profile field `wireLms` (QA Q-LAD-17): the baseline profiles keep today's values (`standard`: `null`; Canvas profiles: `canvas`; Blackboard profiles: `blackboard`); a profile without `wireLms` shows its channel id. The same eight values are frozen in `legacy-wire.ts` (`BASELINE_PROFILE_WIRE_LMS`), and load check 7 compares the profile data with them (BD-A1-06). So no channel name is in core outside `legacy-wire.ts`. A2 records the wire change in [lti-service-api-delta](../contracts/lti-service-api-delta.md).
 - New profile traits for E2 (token audience, client assertion `deployment_id`, DR endpoint policy) are in [LA-ADR-02](LA-ADR-02-generic-lti-channel.md).
-- Trait `privacyFloor` (`allowlist` \| `none`, required) keeps today's effect of `minimizeClaims` (`profiles/types.ts:19`): `allowlist` for every Canvas and Blackboard profile, `none` for `standard`. BD-A1-22 (proposal to A2): `none` only on the profiles of the frozen list `PRIVACY_FLOOR_NONE_PROFILES` (load check 7); the launch keeps every claim only when the value is exactly `none` and minimizes for any other value (fail closed). A2's claim policy per tool account ([LA-ADR-05](LA-ADR-05-lti-advantage-completeness.md), E3 Should) can remove more claims, never fewer. Until the claim policy exists, the floor alone decides, so E1 changes nothing.
+- Trait `privacyFloor` (`allowlist` \| `none`, required) keeps today's effect of `minimizeClaims` (`profiles/types.ts:19`): `allowlist` for every Canvas and Blackboard profile, `none` for `standard`. BD-A1-22 (ratified by A2 as BD-A2-21): `none` only on the profiles of the frozen list `PRIVACY_FLOOR_NONE_PROFILES` (load check 7); the launch keeps every claim only when the value is exactly `none` and minimizes for any other value (fail closed). A raise of `standard` to `allowlist` changes Moodle launches, so it needs its own `LA-IC-nn` (plan LD-9). The claim policy of LA-E3-10 composes fail closed: a claim stays only when both the profile floor and the account policy allow it. A2's claim policy per tool account ([LA-ADR-05](LA-ADR-05-lti-advantage-completeness.md), E3 Should) can remove more claims, never fewer. Until the claim policy exists, the floor alone decides, so E1 changes nothing.
 
 ### D7. App adapters, authority and routing
 
@@ -393,7 +399,8 @@ Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-
 - **Cards.** The Integrations page shows one card per channel from `manifest.card`, plus the static cards that are not channels (Kajabi, Figma, …, `Integrations.tsx:21-108`). The baseline manifests keep today's title, text, mark and colour.
 - **Routes.** One route pair: `/integrations/:channelId/connect` and `/integrations/:channelId/:connectionId`. An unknown channel id, or a connection of another channel, shows "not found" (app contract §4.2 rule). The app server allowlist uses the same pattern with the registry (`app/portal.ts:29-30`).
 - **Wizard.** The shell renders the four steps of every channel from the manifest: **show** (`GET …/tool-configuration` rows and setup artifacts), **collect** (`setup.createFields`, `setup.bindingFields`), **verify** (from the binding authority: the connection's stored `binding_authority`, or before create the chosen method's authority: `self` → first launch, `operatorGrant` → approval code, `verifiedAdminLaunch` → admin launch code; a staged DR therefore shows the approval code step), **enable** (status and teacher steps). A channel module (P11) may replace one step or add panels. The Moodle, Canvas and Blackboard modules move into their folders with no visible change. A new channel needs no module.
-- **Texts.** Status, disconnect and not-ready texts come from `manifest.texts` with `{LMS}` filled.
+- **Texts.** Status, disconnect and not-ready texts come from `manifest.texts` with `{LMS}` filled (`texts.registered` for the registered status, BD-A1-25). The logo comes from `manifest.card` (`mark`, `color`); no module supplies a logo. Code that needs connection, error or publication context is an optional P11 slot (`ConnectionError`, `ConnectionDetails`, `publicationPanels`, `coursePanels`), each with a shell default.
+- **Availability.** The portal discovers every manifest at build time. A `simulation-only` channel gets a card and routes only when `GET /app-api/lms-providers` lists it; `ga` and `preview` channels show at once. A direct route to a `simulation-only` channel waits for the list, then shows "not found" when the channel is absent (BD-A1-26).
 - **Ready rule.** `ready` comes from `GET /app-api/lms-providers` (profile ready) for every channel. The Moodle-only rule `lms === "moodle"` (`Integrations.tsx:157`) goes away; the Moodle profile is always ready, so the result does not change.
 
 ### D10. "No LMS name in core"

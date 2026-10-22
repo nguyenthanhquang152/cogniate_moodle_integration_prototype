@@ -1,7 +1,43 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E7-01 review, Reviewer-B2 (lens: "Can a human team own it?")
+
+## Round 2
+
+Diff: `git diff 2c1b1e0 3efa55a -- tests/ltiaas/k0 tests/ltiaas/canary docs/reviews/LA-E7-01/qa.md` (the lead QA's round-2 kit, with A1's BD-A1-20 and BD-A1-21). I did not open any reviewer-a file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 1 MINOR, 1 NIT.** Both round-1 MAJOR findings and all MINOR and NIT findings are **closed**.
+
+How I checked: a scratch clone of `3efa55a` (private `/tmp` folder, deleted after the run). `vitest run --config tests/ltiaas/k0/vitest.config.mts tests/ltiaas/k0/contract.test.ts`: **76 passed, 3 todo**, 1.8 s, including the child K0 run of AC-06. I repeated my round-1 mutant M1, which changes every documented status to 418 and every `CAPABILITY_NOT_SUPPORTED` to another code: **26 tests now fail** (round 1: 0). Renaming the canary's `checkCreate` fails `K-ADAPTER.zz-canary`. I also reworded one guard cell of LA-ADR-01 D3 in the clone (docs only; see B-LA-E7-01-07).
+
+### Round-1 findings
+
+| Finding | Status |
+| --- | --- |
+| B-LA-E7-01-01 (MAJOR) | **Closed.** The self-comparison is gone. Each `K-CAP` case now computes the capability with product code in the off state and in an enabled copy (`computeCapabilities`, `legacyProjection`, `contract.test.ts:696-719`). It checks the documented status, code and `details.capability` against the D3 table (`:721-744`). qa.md row AC-04 now says that the HTTP answer is K1 (LA-E7-02), so it no longer claims more than the test checks. |
+| B-LA-E7-01-02 (MAJOR) | **Closed.** `K-ADAPTER` uses the D5 names (BD-A1-20). A missing required member fails, with no `typeof` skip (`:953-970`). Every required method runs with throwing `db`, `sql`, `lti` and `outbound` stubs (`:995-1097`). The baseline channels are an explicit `it.todo` "pending LA-E1-07" (`:917-921`), so the report shows the gap. The canary `app.ts` implements the D5 surface. qa.md marks AC-07 "pending: LA-E1-07" for the baseline channels. |
+| B-LA-E7-01-03 (MINOR) | **Closed.** The fill values come from `TEXT_PLACEHOLDERS` (`:590-592`), and both canaries now use `{site}`. |
+| B-LA-E7-01-04 (MINOR) | **Closed.** The cross-canary import is gone. Both manifests end with `satisfies ChannelManifest`, and both profile files end with `satisfies readonly ProfileSource[]` (BD-A1-21). Each folder has a `README.md` with copy steps and a facts table. |
+| B-LA-E7-01-05 (MINOR) | **Closed.** The kernel and profile types are imported, not copied. The profile module is a static import. The `ports.ts` gap is an `it.todo` with its reason. |
+| B-LA-E7-01-06 (NIT) | **Closed.** No `export` in the test file; `'package.json'`. |
+
+### New in this round
+
+#### B-LA-E7-01-07 — MINOR — A wording change in LA-ADR-01 D3 now turns K0 red in every lane's `npm run check`
+
+- **File:** `tests/ltiaas/k0/contract.test.ts:63`, `:72-123` (`parseAdr01D3Tables` reads the ADR markdown at test time), `:136`, `:725` (`d3GuardSubstring` prose matches), `:179`, `:282`, `:299`, `:316`, `:333`, `:350`, `:367`.
+- **Problem:** The cross-check against D3 is the right idea, because it ties the oracle to the design. But it matches free prose: "the picker stays single select", "ungraded placement is not offered", "the embedded page stays static", and so on. A1 edits the ADR in docs-only commits, which do not run `npm run check`. A rewording, or a new table column, then fails K0 for the next code lane that runs the check, and that lane changed nothing related. The message names D3, so the cause can be found, but the lane that sees the failure does not own the fix.
+- **Evidence:** In the clone I changed only the D3 cell text "the picker stays single select" to "the picker keeps single selection". Result: **5 K0 tests fail** (`content.multiple: D3 guard column matches: expected 'the picker keeps single selection, …' to contain 'the picker stays single select'`), one for each channel where the capability is off.
+- **Suggested fix:** Keep the structured part of the cross-check: the `4xx CODE` pattern and the legacy-flag table. These values are contract values, so a change there should fail. Drop the prose `d3GuardSubstring` matches, or move them into one separate test named "LA-ADR-01 D3 doc consistency" whose message says "the ADR text changed: update CAPABILITY_GUARD_TABLE (QA)". The Lead can also add one line to the A1 routine: "after an edit of LA-ADR-01 D3, run K0".
+
+#### B-LA-E7-01-08 — NIT — The `toolConfiguration` context in K-ADAPTER and in the canary is not the D5 context
+
+- **File:** `tests/ltiaas/k0/contract.test.ts:1025-1031`; `tests/ltiaas/canary/zz-canary/app.ts` (`toolConfiguration(ctx: { publicLtiOrigin?, publicAppOrigin? })`); D5 ("`toolConfiguration(ctx: ToolConfigurationContext): ToolRow[]; // … (unchanged signature)`"); today's type `services/cogniate-app/src/providers/types.ts:53-55` (`{ urls: PublicUrls; libraryName: string; … }`).
+- **Problem:** BD-A1-20 fixes only names, arity and result shapes before LA-E1-07, so this is allowed. But D5 says the signature does not change, and today's context is `{ urls, libraryName, sharedClientId }`. The canary reads `ctx.publicLtiOrigin`, and the README tells a channel author to copy the folder. A copied adapter therefore reads a context field that the kernel will not pass. When LA-E1-07 lands, the K-ADAPTER call will throw on the real adapters (`ctx.urls` is undefined), and QA must rewrite the call then.
+- **Suggested fix:** Pass and read the D5 names now: `toolConfiguration({ urls: { lti, app, content }, libraryName: 'Library A', sharedClientId: null })`, and in the canary use `ctx.urls.lti`. Or mark both objects in a comment as placeholders to replace with the `ports.ts` types at LA-E1-07.
+
+## Round 1
 
 Reviewer: Reviewer-B2, the second lens-B instance (plan LD-22). Diff: commit `2c1b1e0`, the files `tests/ltiaas/k0/contract.test.ts` and `tests/ltiaas/canary/**`, with the proof `docs/reviews/LA-E7-01/qa.md`. Author: the lead QA (kit owner). Spec: `docs/architecture/ltiaas/tasks/LA-E7-01.md`. Design: TEST-STRATEGY §2.7, LA-ADR-01 D1, D4, D5, D12, README §4 F4. I did not open any reviewer-a file. I did not run Docker.
 

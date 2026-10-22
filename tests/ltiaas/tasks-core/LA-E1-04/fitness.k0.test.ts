@@ -76,6 +76,11 @@ describe('LA-E1-04 fitness tools (K0)', () => {
       [CORE_TSX, 'export const Probe = () => <p>Connect your Moodle site</p>;\n', 'moodle', /Moodle/],
       [CORE_TS, "import client from 'moodle-client';\nexport default client;\n", 'moodle', /moodle-client/],
       ['services/cogniate-app/src/domain/migrations/999_zz_qa_probe.sql', 'ALTER TABLE connection ADD COLUMN moodle_x TEXT;\n', 'moodle', /^moodle_x$/],
+      [CORE_TS, 'export const re = /canvas/;\n', 'canvas', /canvas/i],
+      [CORE_TS, 'export const reWord = /\\bcanvas\\b/i;\n', 'canvas', /canvas/i],
+      [CORE_TS, 'export const rePrefix = /^(moodle|canvas)-/;\n', 'moodle', /moodle/i],
+      [CORE_TS, 'export const rePrefix = /^(moodle|canvas)-/;\n', 'canvas', /canvas/i],
+      [CORE_TS, 'export const reHost = /\\.instructure\\.com$/i;\n', 'instructure', /instructure/i],
     ];
     const log: string[] = [];
     for (const [asPath, text, word, token] of probes) {
@@ -101,16 +106,14 @@ describe('LA-E1-04 fitness tools (K0)', () => {
     }
   });
 
-  // The words of AC-03 need the lti-generic channel folder, which an E2 task creates (LA-E2-01 / LA-E2-03).
-  // Until then qa.md records this part as pending; AC-04 probes the same multi-part rule with a zz-* folder.
-  it.skipIf(!fs.existsSync(path.join(ROOT, 'packages/channels/lti-generic')))(
-    'AC-LA-E1-04-03 (lti-generic part): ltiGeneric and "lti-generic" fail', async () => {
-      for (const text of ['export const ltiGeneric = 1;\n', 'export const id = "lti-generic";\n']) {
-        const r = await f1Text(CORE_TS, text);
-        expect(r.code, `${text.trim()} fails`).not.toBe(0);
-        expect(f1Hits(r.output).some((h) => h.word === 'lti-generic'), `banned "lti-generic"; output:\n${r.output}`).toBe(true);
-      }
-    });
+  // BD-A1-07: the F1 fixed list holds the vendor words and the planned channel id `lti-generic` before its folder exists.
+  it('AC-LA-E1-04-03 (lti-generic part): ltiGeneric and "lti-generic" fail', async () => {
+    for (const text of ['export const ltiGeneric = 1;\n', 'export const id = "lti-generic";\n']) {
+      const r = await f1Text(CORE_TS, text);
+      expect(r.code, `${text.trim()} fails`).not.toBe(0);
+      expect(f1Hits(r.output).some((h) => h.word === 'lti-generic'), `banned "lti-generic"; output:\n${r.output}`).toBe(true);
+    }
+  });
 
   it('AC-LA-E1-04-04: a new scratch folder packages/channels/zz-lms/ bans zzLms with no edit of the banned list', async () => {
     const probe = 'export const zzLms = 1;\n';
@@ -171,7 +174,7 @@ describe('LA-E1-04 fitness tools (K0)', () => {
       for (const [name, paths, code, classes] of lists) {
         const file = path.join(dir, `${name}.txt`);
         fs.writeFileSync(file, `${paths.join('\n')}\n`, { mode: 0o600 });
-        const r = await channelDiff(['--base', headSha, '--channel', 'canvas', '--paths-from', file]);
+        const r = await channelDiff(['--channel', 'canvas', '--paths-from', file]);
         log.push(`## ${name}\n${r.output}`);
         expect(r.code, `${name}: exit code; output:\n${r.output}`).toBe(code);
         paths.forEach((p, i) => {

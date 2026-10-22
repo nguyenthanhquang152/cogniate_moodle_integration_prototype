@@ -208,7 +208,7 @@ Procedure:
 4. Activate B: `POST …/signing-keys/B/activate`.
 5. Check: one teacher "Select content" works on one Moodle site, or on the simulator; the log has `signing_key_changed {kid: B, status: active}`.
 6. Tell the inline-key Canvas admins to paste the new JSON at once (Canvas admin guide, procedure 6).
-7. Do nothing more. After 30 days the `signing-key-cleanup` job removes A from the key set and zeroes its private part.
+7. Do nothing more. After 30 days the `signing-key-cleanup` job removes A from the key set and zeroes its private part. NOTE: until LA-E5-19 registers this job on the runner, A leaves the key set by time (30 days after `retired_at`), but its sealed private part stays in the database. Then, after the 30 days, run `POST …/signing-keys/A/retire {immediate: true}`; it sets `removed` and clears the private part at once (BD-A2-28).
 
 Compromise of the active key:
 
@@ -308,7 +308,8 @@ CAUTION: Do not use `npm run stack:reset` in a drill: it also deletes the seed a
 | --- | --- |
 | New tool account (vendor model, LA-H7) | `POST /operator/v1/accounts` with the tool URLs; set `limits` and `claimPolicy`; issue an API key with the needed scopes; give the key and the protocol URLs to the vendor through an approved channel. |
 | Suspend a tool account | `PATCH /operator/v1/accounts/<id> {status: "suspended"}`. Launches show `TOOL_ACCOUNT_SUSPENDED`. Undo with `active`. |
-| Close a tool account | `PATCH … {status: "closed"}` (final). Every key stops at once. The purge job deletes its data after `closedRetentionDays` (Should). |
+| Close a tool account | The close is final (BD-A2-27). 1. `GET /operator/v1/accounts/<id>` and check the id and the name with the requester. 2. Use the id from that answer in `PATCH /operator/v1/accounts/<id> {status: "closed"}`; never copy a body from another account. Every key stops at once. The purge job deletes its data after `closedRetentionDays` (Should). A second-operator confirmation is the LA-H21 follow-up. |
+| Tool URLs of `cogniate` after a change of `PUBLIC_APP_URL` | `npm run seed` keeps the stored tool URLs of an existing account (BD-A2-25). On an existing volume, set them with `PATCH /operator/v1/accounts/cogniate {launchUrl, deepLinkingUrl, registrationUrl}` (`<PUBLIC_APP_URL>/tool/launch`, `/tool/deep-link`, `/tool/register`). A fresh stack is not affected. |
 | Grant for an admin-value connection with a host off the issuer host | `app:grant issue` marks every bound value whose host is not the issuer host (for example a D2L token host). Before the issue, confirm with the LMS administrator, through the evidence channel, that the vendor issued this client id for this issuer at that host. Then add `--confirm-foreign-hosts`; without it the command exits 1 (LA-ADR-02 D6, A-LAD-23). Record the confirmation in `--evidence-ref`. |
 | Wrong library binding | `app:binding suspend`, then `release` (ADR-011 §4b), with `--operator` and the evidence fields (LA-ADR-07 D5). |
 

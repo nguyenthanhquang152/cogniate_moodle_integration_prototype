@@ -11,5 +11,7 @@ export const KEY_ERRORS = defineErrorTable({
 });
 
 export class KeyError extends ApiErrorBase<keyof typeof KEY_ERRORS> {
-  constructor(code: keyof typeof KEY_ERRORS, description?: string) { super(KEY_ERRORS, code, description); }
+  constructor(code: keyof typeof KEY_ERRORS, options: { description?: string; details?: Record<string, unknown> } = {}) {
+    super(KEY_ERRORS, code, options.description, { details: options.details });
+  }
 }

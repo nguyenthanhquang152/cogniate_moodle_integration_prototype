@@ -10,6 +10,7 @@ export default defineConfig({
     include: [
       'packages/*/src/**/*.test.ts', 'services/*/src/**/*.test.ts', 'apps/*/src/**/*.test.ts',
       'packages/channels/*/**/*.test.{ts,tsx}',
+      'eslint.config.test.ts',
     ],
     exclude: excludedPaths,
     projects: [
@@ -17,7 +18,7 @@ export default defineConfig({
       {
         // Inheriting would concatenate the root include list and run Node tests a second time in jsdom.
         extends: false,
-        // Portal tests use the same jsdom environment, including new channel modules without a pragma.
+        // Channel portal tests run in jsdom without a per-file pragma; JSX uses the automatic React runtime.
         test: { name: 'portal', include: portalTests, exclude: excludedPaths, environment: 'jsdom' },
         oxc: { jsx: { runtime: 'automatic' } },
       },

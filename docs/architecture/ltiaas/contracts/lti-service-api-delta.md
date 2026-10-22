@@ -47,7 +47,7 @@ New account fields (operator API only; never in `/api/*` answers except `GET /ap
 | `launchUrl`, `deepLinkingUrl`, `registrationUrl` | https URL | from `PUBLIC_APP_URL` (`cogniate`, unchanged) | https; no user info; no fragment; ≤ 2,048 characters; host not the `PUBLIC_LTI_URL` or `PUBLIC_CONTENT_URL` host |
 | `publicBaseUrl` | https origin or `null` | `null` (path mode) | Reserved for host mode (LG). LA refuses a non-null value with `400 INVALID_REQUEST` (field `publicBaseUrl`). |
 | `limits` | object or `null` | `null` | per-class `{ ratePerMinute, burst }`, classes of §1.4 |
-| `claimPolicy` | object or `null` | `null` = `passthrough` for old accounts; `allowlist` for new accounts | LA-ADR-05 D7 |
+| `claimPolicy` | object or `null` | `null` = `passthrough`, only on accounts from before the column (a stored legacy marker, never an input: `null` in `POST` or `PATCH` gives `400 INVALID_REQUEST`, BD-A2-26); new accounts default to `allowlist` with every `keep` off | LA-ADR-05 D7 |
 | `serviceKeyWriteScope` | `context` \| `resource-link` | `context` | Should, C15 |
 
 Protocol URLs come from one account resolver: in path mode `{PUBLIC_LTI_URL}/lti/{login|launch|keys|register}/{accountId}` (today's values).
@@ -79,10 +79,10 @@ Same body `{ status, error, details: { message, description } }`. Where marked, 
 | 409 | `API_KEY_LIMIT` | A third active API key | Must |
 | 409 | `ACCOUNT_ALREADY_EXISTS` | `POST /operator/v1/accounts` with an id that exists | Must |
 | 409 | `ACCOUNT_CLOSED` | An operator write that adds, enables or changes anything on a `closed` account (LA-ADR-06 D2 "Operator writes on a closed account"). Writes that only remove access (revokes, retire immediate) and reads stay allowed. | Must |
-| 409 | `SIGNING_KEY_NEXT_EXISTS` | A second `next` signing key | Must |
-| 409 | `SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH` | Activation before the publish lead time, without `force` | Must |
-| 409 | `SIGNING_KEY_ACTIVE` | `retire` of the active key | Must |
-| 409 | `SIGNING_KEY_WRONG_STATE` | A signing-key transition that the key's state does not allow: `activate` of a key that is not `next`; `retire` of a `removed` key (LA-ADR-06 D7) | Must |
+| 409 | `SIGNING_KEY_NEXT_EXISTS` | A second `next` signing key. `details`: `kid` and `publishedAt` of the waiting key (BD-A2-23) | Must |
+| 409 | `SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH` | Activation before the publish lead time, without `force`. `details`: `kid`, `activatableAt` (ISO 8601: `publishedAt` + lead time) | Must |
+| 409 | `SIGNING_KEY_ACTIVE` | `retire` of the active key. `details`: `kid` | Must |
+| 409 | `SIGNING_KEY_WRONG_STATE` | A signing-key transition that the key's state does not allow: `activate` of a key that is not `next`; `retire` of a `removed` key (LA-ADR-06 D7). Only this meaning: "the account has no active key" is not an error (BD-A2-24, §3). `details`: `kid`, `keyStatus` (the key's current state; not `status`, which is the HTTP status of the body) | Must |
 | 409 | `IDEMPOTENCY_IN_PROGRESS` | A request with the same `Idempotency-Key` still runs | Should |
 | 422 | `IDEMPOTENCY_KEY_REUSED` | The same `Idempotency-Key` with another body | Should |
 | 401 | `INVALID_OPERATOR_AUTHORIZATION_HEADER` | Operator listener: no header, another scheme, an unknown, expired or revoked operator key | Must |
@@ -203,9 +203,9 @@ Listener `OPERATOR_HOST:OPERATOR_PORT` (default `127.0.0.1:4110`; the `acceptanc
 | `POST /operator/v1/accounts/:id/api-keys` | `{ label, scopes: ["launch","admin"], expiresAt? }` | `201 { id, apiKey, prefix, label, scopes, expiresAt }`; `apiKey` is shown only here. `409 API_KEY_LIMIT`. `expiresAt` outside 1 hour to 2 years from now: `400 INVALID_REQUEST` (field `expiresAt`). `409 ACCOUNT_CLOSED` on a closed account. | Must |
 | `POST /operator/v1/accounts/:id/api-keys/:keyId/revoke` | — | `200` key metadata with `revokedAt` Idempotent: a revoked key, also on a closed account, gives `200` and keeps the first `revokedAt`. | Must |
 | `GET /operator/v1/accounts/:id/signing-keys` | — | `200 { signingKeys: [{ kid, status, publishedAt, activatedAt, retiredAt, removedAt }] }` (public data only) | Must |
-| `POST /operator/v1/accounts/:id/signing-keys` | — | `201 { kid, status: "next", publishedAt }`. `409 SIGNING_KEY_NEXT_EXISTS`. | Must |
-| `POST /operator/v1/accounts/:id/signing-keys/:kid/activate` | `{ force?: boolean }` | `200 { kid, status: "active", activatedAt, retired: <old kid> }`. `409 SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH`. `409 SIGNING_KEY_WRONG_STATE` when the key is not `next`. | Must |
-| `POST /operator/v1/accounts/:id/signing-keys/:kid/retire` | `{ immediate: true }` (only valid value in LA) | `200 { kid, status: "removed" }` for a `retired` or a `next` key. `409 SIGNING_KEY_ACTIVE`. `409 SIGNING_KEY_WRONG_STATE` for a `removed` key. | Must |
+| `POST /operator/v1/accounts/:id/signing-keys` | — | `201 { kid, status: "next", publishedAt }`. `409 SIGNING_KEY_NEXT_EXISTS`. On an account with **no** `active` key (a recovery case; normal paths always keep one): `201 { kid, status: "active", publishedAt }`, active at once with no publish lead time, because nothing can sign before (BD-A2-24). | Must |
+| `POST /operator/v1/accounts/:id/signing-keys/:kid/activate` | `{ force?: boolean }` | `200 { kid, status: "active", activatedAt, retired: <old kid> \| null }` (`null` when no key was active). `409 SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH`. `409 SIGNING_KEY_WRONG_STATE` when the key is not `next`. | Must |
+| `POST /operator/v1/accounts/:id/signing-keys/:kid/retire` | `{ immediate: true }` (only valid value in LA) | `200 { kid, status: "removed" }` for a `retired` or a `next` key. `409 SIGNING_KEY_ACTIVE`. `409 SIGNING_KEY_WRONG_STATE` for a `removed` key. Without `immediate: true`: `400 INVALID_REQUEST` (field `immediate`), with the text 'retire needs {"immediate": true} (removes the key at once). A key becomes retired when the next key is activated.' | Must |
 | `POST /operator/v1/accounts/:id/shared-platforms` | `{ profile, clientId, name? }` | `201` platform, or `200` for the same client id (the rules of §9.12 CLI). `409 SHARED_PLATFORM_EXISTS` for another client id. | Must |
 | `GET /operator/v1/key-provider` | — | `200 { kind, activeVersion, versions: [{ id, state, sealedCount, derivedCount }] }` | Must |
 | `POST /operator/v1/key-provider/rewrap` | — | `202 { job: "key-rewrap", traceId }` (runs the on-demand job) | Must |
@@ -358,7 +358,7 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `POST /api/registrations/:id/complete` | `registration.complete` | `registration` |
 | `POST /api/service-keys/revoke` (Should) | `service_key.revoke` | `platform` |
 | `POST /api/platforms/:id/check` (Could) | `platform.check` | `platform` |
-| `POST`, `PATCH /operator/v1/accounts[/:id]` | `account.create`, `account.update` (`account.status` when `status` changes) | `account` |
+| `POST`, `PATCH /operator/v1/accounts[/:id]` | `account.create`, `account.update` (`account.status` when `status` really changes, decided inside the change transaction; a refused `PATCH` is `account.update` with the request fields in `details`; BD-A2-29) | `account` |
 | `POST …/api-keys`, `…/revoke` | `api_key.issue`, `api_key.revoke` | `api_key` |
 | `POST …/signing-keys`, `…/activate`, `…/retire` | `signing_key.create`, `signing_key.activate` (`details.forced`), `signing_key.retire` | `signing_key` |
 | `POST …/shared-platforms` | `platform.create_shared` | `platform` |
