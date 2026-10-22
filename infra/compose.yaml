@@ -149,6 +149,7 @@ services:
       - ./.certs/root.crt:/certs/root.crt:ro
       - ./.logs:/logs
       - ltidb:/data                            # ADR-012: SQLite only on the project-scoped named volume (never a host bind)
+      - ./.secrets/lti:/run/secrets/lti:ro     # LA-ADR-06 D6: key ring keyring.json (LTI_KEYRING_FILE); no file = LTI_MASTER_KEY
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4100/healthz"]
       interval: 10s
