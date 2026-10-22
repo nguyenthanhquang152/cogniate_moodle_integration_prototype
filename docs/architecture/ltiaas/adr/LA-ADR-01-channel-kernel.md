@@ -30,8 +30,10 @@ packages/channels/<id>/
                      admin-value setup adapter serves the channel (D5).
   app/               optional: extension code that needs storage (Moodle web services, .mbz exporter).
   portal/index.tsx   optional portal module (P11, D5). Portal entry.
-  *.test.ts(x)       unit tests next to the code (run by the root Vitest).
+  *.test.ts(x)       unit tests next to the code (run by the root Vitest): *.test.ts at the root and in app/,
+                     *.test.tsx in portal/.
   README.md          channel facts with sources (the "Source" column of ADR-011 §6), and the live status.
+                     No other file kind: a helper goes into app/ or portal/ (BD-A1-16).
 packages/channel-kernel/   new workspace package: manifest types and schema, capability catalog,
                            registry builder, text fill, legacy wire projection. Pure, no I/O.
 ```
@@ -65,7 +67,7 @@ flowchart LR
 
 | Tool | Rule |
 | --- | --- |
-| Typecheck | Two configs under `packages/channels/`: `tsconfig.node.json` (`*/manifest.ts`, `*/lti-profiles.ts`, `*/app.ts`, `*/app/**`) and `tsconfig.portal.json` (`*/manifest.ts`, `*/portal/**`, `jsx`, DOM libraries). The root `npm run typecheck` runs both. |
+| Typecheck | Two configs under `packages/channels/`: `tsconfig.node.json` (`*/*.ts`, that is the root entries and root tests, and `*/app/**`; BD-A1-16) and `tsconfig.portal.json` (`*/manifest.ts`, `*/portal/**`, `jsx`, DOM libraries). The root `npm run typecheck` runs both. |
 | Unit tests | The root `vitest.config.ts` includes `packages/channels/*/**/*.test.{ts,tsx}`; portal-side tests use the portal's jsdom setup by file pattern. |
 | Lint | `eslint.config.js` gets one block per channel glob: the import table below (F3) and the LMS-name rule scope (F1). |
 | Styles and dev server | `apps/portal/src/styles.css` gets `@source "../../../packages/channels/*/portal";` (Tailwind v4 does not scan files outside the portal by itself). `apps/portal/vite.config.ts` gets `server.fs.allow` for `packages/channels` and the alias `@cogniate/portal-sdk` (P11). |
@@ -79,11 +81,13 @@ Import rules (ESLint `no-restricted-imports`, added in E1 step S2):
 | --- | --- |
 | `packages/channels/*/manifest.ts` | `@cogniate/channel-kernel` types only |
 | `packages/channels/*/lti-profiles.ts` | kernel types, its own `manifest.ts` |
-| `packages/channels/*/app.ts` | kernel types and the app port types (`services/cogniate-app/src/kernel/ports.ts`) only. `app.ts` is pure: no database, no LTI call, no context. |
+| `packages/channels/*/app.ts` | kernel types, the app port types (`services/cogniate-app/src/kernel/ports.ts`), its own `manifest.ts` and its own `app/**` (BD-A1-16, for the P5–P7 handlers of D5). `app.ts` is pure: no database, no LTI call, no context. An `app/**` module does no work when it loads (no I/O and no timer at top level); its functions get the `PortContext` at call time. |
 | `packages/channels/*/app/**` | the same, plus `@cogniate/shared` and its own files. Its functions get a `PortContext` (D5) from the kernel at call time. |
 | `packages/channels/*/portal/**` | kernel types, `@cogniate/portal-sdk` (the folder `apps/portal/src/sdk/`, P11), its own manifest, React. Never other portal code. |
 | `apps/portal/src/sdk/**` | portal code (UI kit, API client, hooks, DTO types, error helpers). It is the one portal folder that a channel module may import. |
 | A channel folder | never another channel folder; never `services/**/domain/**` directly |
+| Every file under `packages/channels/<id>/` (tests too; BD-A1-16) | Base fence that every entry rule keeps: no `@cogniate/cogniate-app`, `@cogniate/lti-service`, `@cogniate/portal` or `@cogniate/player` (or any sub-path), and no path under `services/` or `apps/`, except `services/cogniate-app/src/kernel/ports.ts` (from `app.ts` and `app/**`) and `apps/portal/src/sdk/**` (from `portal/**`). No runtime dynamic loading: no `import()` expression, no `require()`, no `import x = require()`, no `createRequire`. A type-position `import('…')` follows the table row of the file. A non-test file never imports a test file. A file that is not one of the layout kinds above is an error. A root test imports its own channel files, kernel types and test tools. |
+| Specifiers (all code) | A template literal with no `${…}` counts as a string specifier, so a core `import()` of a channel path is an error (N4); only the three registry loaders build channel paths at run time. |
 | Core | never a channel folder by path. Only the three registry loaders read channel folders (D4). |
 
 ### D2. Channel manifest
