@@ -59,27 +59,27 @@ describe('signing-key operator routes', () => {
     const c = replacement.json().kid as string;
     expect((await h.post(`/${c}/activate`, { force: true })).statusCode).toBe(200);
 
-    for (const [path, body, account, status, code] of [
-      [`/${c}/activate`, { force: true }, 'cogniate', 409, 'SIGNING_KEY_WRONG_STATE'], // active
-      [`/${h.a}/activate`, { force: true }, 'cogniate', 409, 'SIGNING_KEY_WRONG_STATE'], // retired
-      [`/${b}/activate`, { force: true }, 'cogniate', 409, 'SIGNING_KEY_WRONG_STATE'], // removed
-      [`/${b}/retire`, { immediate: true }, 'cogniate', 409, 'SIGNING_KEY_WRONG_STATE'],
-      [`/${c}/retire`, { immediate: true }, 'cogniate', 409, 'SIGNING_KEY_ACTIVE'],
-      [`/${c}/activate`, { force: true }, 'second', 404, 'NOT_FOUND'],
-      [`/${h.a}/retire`, { immediate: true }, 'second', 404, 'NOT_FOUND'],
-      ['/missing/activate', { force: true }, 'cogniate', 404, 'NOT_FOUND'],
-      [`/${c}/retire`, { immediate: true }, 'missing', 404, 'NOT_FOUND'],
-      [`/${h.a}/retire`, {}, 'cogniate', 400, 'INVALID_REQUEST'],
-      [`/${h.a}/retire`, { immediate: false }, 'cogniate', 400, 'INVALID_REQUEST'],
-      [`/${c}/activate`, { force: 'true' }, 'cogniate', 400, 'INVALID_REQUEST'],
+    for (const [name, path, body, account, status, code] of [
+      ['activate active', `/${c}/activate`, { force: true }, 'cogniate', 409, 'SIGNING_KEY_WRONG_STATE'],
+      ['activate retired', `/${h.a}/activate`, { force: true }, 'cogniate', 409, 'SIGNING_KEY_WRONG_STATE'],
+      ['activate removed', `/${b}/activate`, { force: true }, 'cogniate', 409, 'SIGNING_KEY_WRONG_STATE'],
+      ['retire removed', `/${b}/retire`, { immediate: true }, 'cogniate', 409, 'SIGNING_KEY_WRONG_STATE'],
+      ['retire active', `/${c}/retire`, { immediate: true }, 'cogniate', 409, 'SIGNING_KEY_ACTIVE'],
+      ['activate another account key', `/${c}/activate`, { force: true }, 'second', 404, 'NOT_FOUND'],
+      ['retire another account key', `/${h.a}/retire`, { immediate: true }, 'second', 404, 'NOT_FOUND'],
+      ['activate unknown key', '/missing/activate', { force: true }, 'cogniate', 404, 'NOT_FOUND'],
+      ['retire under unknown account', `/${c}/retire`, { immediate: true }, 'missing', 404, 'NOT_FOUND'],
+      ['retire without immediate', `/${h.a}/retire`, {}, 'cogniate', 400, 'INVALID_REQUEST'],
+      ['retire with immediate false', `/${h.a}/retire`, { immediate: false }, 'cogniate', 400, 'INVALID_REQUEST'],
+      ['activate with string force', `/${c}/activate`, { force: 'true' }, 'cogniate', 400, 'INVALID_REQUEST'],
     ] as const) {
       const before = listSigningKeys(h.db, 'cogniate');
       const count = h.events().length;
       const result = await h.post(path, body, account);
-      expect([result.statusCode, result.json().details.message]).toEqual([status, code]);
-      expect(listSigningKeys(h.db, 'cogniate')).toEqual(before);
-      const events = h.events(); expect(events).toHaveLength(count + 1);
-      expect(events.find((event) => event.traceId === result.headers['x-trace-id']))
+      expect([result.statusCode, result.json().details.message], name).toEqual([status, code]);
+      expect(listSigningKeys(h.db, 'cogniate'), name).toEqual(before);
+      const events = h.events(); expect(events, name).toHaveLength(count + 1);
+      expect(events.find((event) => event.traceId === result.headers['x-trace-id']), name)
         .toMatchObject({ result: 'refused', code, toolAccountId: account, target: { type: 'signing_key', id: path.split('/')[1] } });
     }
     expect(h.events().filter((event) => event.result === 'ok').map((event) => event.action).sort())
