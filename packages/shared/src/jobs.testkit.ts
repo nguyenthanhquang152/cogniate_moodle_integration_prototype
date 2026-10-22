@@ -3,8 +3,8 @@
 // - LA-E4-02: describeJobStoreContract and describeQueueStoreContract on the app tables (job_instance, job_lease, and
 //   record_dispatch with the outbox);
 // - LA-E5-19: describeJobStoreContract on the LTI tables (the interval-lease part, AC-LA-E4-01-07).
-// Test code only: it imports vitest, so index.ts does not export it. Import it by its path, for example
-//   import { describeJobStoreContract } from '../../../../packages/shared/src/jobs.testkit.ts';
+// Test code only: it imports vitest, so index.ts does not export it. Use the test subpath:
+//   import { describeJobStoreContract } from '@cogniate/shared/jobs.testkit';
 // The cases use a controlled clock: Vitest fake timers for Date, setTimeout and setInterval.
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Awaitable, IntervalJob, JobContext, JobRole, JobRunner, JobStore, QueueJob } from './jobs.ts';
@@ -43,6 +43,8 @@ export interface ContractRowState {
 }
 
 export interface QueueStoreFixture extends JobStoreFixture {
+  /** Minimum delay between the first accepted send and its P2 confirmation send. */
+  confirmationDelayMs: number;
   /**
    * The queue job (the outbox) for one runner, with limits at their defaults. Its run follows the outbox steps: a
    * row that is not current (a row of the same key has a higher score) sends nothing and becomes superseded; "send
@@ -104,10 +106,11 @@ function harness() {
       return { instanceId, bootId, leaseOwner: `${instanceId}/${bootId}`, traceId: 'contract-manual', now: () => Date.now(), logger, signal: new AbortController().signal };
     },
     /** An interval job that counts its runs; a set gate holds the next run. */
-    probe(name: string, o: { runAtStart?: boolean; everyMs?: number | null } = {}) {
+    probe(name: string, o: { runAtStart?: boolean; everyMs?: number | null; leaseMs?: number } = {}) {
       const p: { runs: number; gate: Gate | null; job: IntervalJob } = { runs: 0, gate: null, job: undefined as unknown as IntervalJob };
       p.job = {
         name, everyMs: o.everyMs ?? null, runAtStart: o.runAtStart ?? false,
+        ...(o.leaseMs !== undefined ? { leaseMs: o.leaseMs } : {}),
         run: async () => {
           p.runs += 1;
           if (p.gate) await p.gate.promise;
@@ -208,6 +211,7 @@ export function describeJobStoreContract(name: string, makeFixture: () => Awaita
       // A second run while the first holds the lease: skipped_lease, and no change.
       expect(await r2.runNow(JOB)).toEqual({ result: 'skipped_lease' });
       expect(await r1.runNow(JOB)).toEqual({ result: 'skipped_lease' });
+      expect(h.lines.filter((l) => l.event === 'job_run').map((l) => l.reason)).toEqual(['lease_held', 'already_running']);
       expect([p1.runs, p2.runs]).toEqual([1, 0]);
       expect(await s.readJobLease(JOB)).toEqual(held);
 
@@ -228,6 +232,27 @@ export function describeJobStoreContract(name: string, makeFixture: () => Awaita
       expect(await r2.runNow(JOB)).toEqual({ result: 'ok', counts: { rows: 2 } });
       expect(await s.readJobLease(JOB)).toMatchObject({ owner: null, lastRunAt: crashedAt + JOB_LEASE_MS, lastResult: 'ok' });
       expect(h.lines.filter((l) => l.event === 'job_run').map((l) => l.result)).toEqual(['skipped_lease', 'skipped_lease', 'ok', 'skipped_lease', 'skipped_lease', 'ok']);
+    });
+
+    it('AC-LA-E4-01-07: an interval run in this process blocks a second run even after its lease expires', async () => {
+      const p = h.probe(JOB);
+      const r = h.runner(f.store(), { instanceId: 'contract-1', bootId: 'boot-1' });
+      r.addInterval(p.job);
+      r.start();
+      await settle();
+      p.gate = h.gate();
+      const first = r.runNow(JOB);
+      await settle();
+      await advance(JOB_LEASE_MS + 1);
+      expect(r.state()).toBe('active');
+      let result: unknown;
+      void r.runNow(JOB).then((out) => { result = out; });
+      await settle();
+      expect(p.runs).toBe(1);
+      expect(result).toEqual({ result: 'skipped_lease' });
+      expect(h.lines.filter((l) => l.event === 'job_run').at(-1)).toMatchObject({ result: 'skipped_lease', reason: 'already_running' });
+      p.gate.open();
+      expect(await first).toEqual({ result: 'ok', counts: { rows: 2 } });
     });
 
     it('AC-LA-E4-01-04: after stop() a new start goes on at once; after a crash it waits until the old heartbeat is 30 s old', async () => {
@@ -253,7 +278,6 @@ export function describeJobStoreContract(name: string, makeFixture: () => Awaita
       // Crash: the process of boot-3 ends without stop(), so its row stays.
       const crashedAt = Date.now();
       expect(await s.claimInstance({ instanceId: 'contract-3', bootId: 'boot-3', role: 'web', now: crashedAt }, crashedAt - STALE)).toBe(true);
-      await advance(1000);
       const p4 = h.probe('contract-crash', { runAtStart: true });
       const r4 = h.runner(f.store(), { instanceId: 'contract-3', bootId: 'boot-4' });
       r4.addInterval(p4.job);
@@ -261,11 +285,13 @@ export function describeJobStoreContract(name: string, makeFixture: () => Awaita
       await settle();
       expect(r4.state()).toBe('waiting');
       expect(await r4.runNow('contract-crash')).toEqual({ result: 'skipped_lease' });
+      expect(h.lines.filter((l) => l.event === 'job_run').at(-1)).toMatchObject({ result: 'skipped_lease', reason: 'runner_not_active' });
       await advance(crashedAt + STALE - 1 - Date.now());
       expect(r4.state()).toBe('waiting');
       expect(p4.runs).toBe(0);
       expect(await s.readJobLease('contract-crash')).toBeNull();
-      await advance(1 + JOB_INSTANCE_RECHECK_MS);
+      // Start at the old heartbeat time so a recheck falls exactly on the 30 s boundary.
+      await advance(1);
       expect(r4.state()).toBe('active');
       expect(p4.runs).toBe(1);
       expect((await s.readInstance('contract-3'))?.bootId).toBe('boot-4');
@@ -379,10 +405,11 @@ export function describeJobStoreContract(name: string, makeFixture: () => Awaita
       expect(h.conflicts()).toEqual([]);
     });
 
-    it('AC-LA-E4-01-06: stop() deletes the heartbeat row after leaseMs when a run does not end', async () => {
+    it.each([JOB_LEASE_MS, 2 * JOB_LEASE_MS])('AC-LA-E4-01-06: stop() waits for the longest lease (%i ms) when a run does not end', async (leaseMs) => {
       const s = f.store();
-      const p1 = h.probe(JOB);
+      const p1 = h.probe(JOB, { leaseMs });
       const r1 = h.runner(f.store(), { instanceId: 'contract-1', bootId: 'boot-1' });
+      r1.addInterval(h.probe('contract-short').job);
       r1.addInterval(p1.job);
       r1.start();
       await settle();
@@ -391,11 +418,13 @@ export function describeJobStoreContract(name: string, makeFixture: () => Awaita
       await settle();
       let stopped = false;
       void r1.stop().then(() => { stopped = true; });
-      await advance(JOB_LEASE_MS - 1);
+      await advance(leaseMs - 1);
       expect(stopped).toBe(false);
+      expect(r1.state()).toBe('stopping');
       expect((await s.readInstance('contract-1'))?.bootId).toBe('boot-1');
       await advance(1);
       expect(stopped).toBe(true);
+      expect(r1.state()).toBe('off');
       expect(await s.readInstance('contract-1')).toBeNull();
     });
   });
@@ -611,11 +640,11 @@ export function describeQueueStoreContract(name: string, makeFixture: () => Awai
       const acceptedAt = highSends()[0]!.at;
       const afterFirst = await f.readRow(high);
       expect(afterFirst.status).toBe('pending');
-      expect(afterFirst.confirmationAfter).toBeGreaterThanOrEqual(acceptedAt + 5000);
-      // P2: exactly one confirmation send, at least 5 s after the first accepted send.
-      await advance(5000 + 2 * JOB_POLL_MS);
+      expect(afterFirst.confirmationAfter).toBeGreaterThanOrEqual(acceptedAt + f.confirmationDelayMs);
+      // P2: exactly one confirmation send, after the delay of this fixture.
+      await advance(f.confirmationDelayMs + 2 * JOB_POLL_MS);
       expect(highSends()).toHaveLength(2);
-      expect(highSends()[1]!.at).toBeGreaterThanOrEqual(acceptedAt + 5000);
+      expect(highSends()[1]!.at).toBeGreaterThanOrEqual(acceptedAt + f.confirmationDelayMs);
       expect(await f.readRow(high)).toMatchObject({ status: 'sent', deliveryUncertain: false, sendStartedAt: null });
       await advance(10 * JOB_POLL_MS);
       expect(highSends()).toHaveLength(2);

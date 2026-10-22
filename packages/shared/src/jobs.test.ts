@@ -5,8 +5,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { JobContext, JobRunner, JobStore, QueueJob } from './jobs.ts';
 import { JOB_LEASE_MS, JOB_PARALLEL, JOB_POLL_MS, createJobRunner } from './jobs.ts';
-import type { QueueStoreFixture } from './jobs.testkit.ts';
-import { describeJobStoreContract, describeQueueStoreContract } from './jobs.testkit.ts';
+import type { QueueStoreFixture } from '@cogniate/shared/jobs.testkit';
+import { describeJobStoreContract, describeQueueStoreContract } from '@cogniate/shared/jobs.testkit';
 import type { Logger, LogLine } from './logger.ts';
 import { createLogger } from './logger.ts';
 import { transaction } from './migrations.ts';
@@ -65,7 +65,7 @@ interface DispatchItem {
 }
 
 /** A small outbox: best result per key, send marker and result by the lease owner only, P2 confirmation (ADR-010). */
-function dispatchJob(db: DatabaseSync, send: (id: string) => Promise<void>): QueueJob<DispatchItem> {
+function dispatchJob(db: DatabaseSync, send: (id: string) => Promise<void>, confirmationDelayMs: number): QueueJob<DispatchItem> {
   const isCurrent = (id: string): boolean => db.prepare(`SELECT 1 FROM dispatch s WHERE s.id = ? AND s.status = 'pending'
     AND NOT EXISTS (SELECT 1 FROM dispatch o WHERE o.key = s.key AND o.status <> 'superseded' AND o.score > s.score)`).get(id) !== undefined;
   const needsConfirmation = (id: string): boolean => db.prepare(`SELECT 1 FROM dispatch s JOIN dispatch o ON o.key = s.key AND o.id <> s.id
@@ -89,8 +89,8 @@ function dispatchJob(db: DatabaseSync, send: (id: string) => Promise<void>): Que
       const set = `UPDATE dispatch SET delivery_uncertain = 1, send_started_at = NULL, lease_owner = NULL, lease_until = NULL,
         next_try_at = CASE WHEN status = 'pending' THEN ? ELSE next_try_at END WHERE send_started_at IS NOT NULL AND`;
       const changes = mode === 'start'
-        ? db.prepare(`${set} (lease_owner IS NULL OR lease_until IS NULL OR lease_until <= ? OR substr(lease_owner, 1, length(?)) = ?)`).run(now + 5000, now, `${instanceId}/`, `${instanceId}/`).changes
-        : db.prepare(`${set} (lease_owner IS NULL OR lease_until IS NULL OR lease_until <= ?) AND (lease_owner IS NULL OR lease_owner <> ?)`).run(now + 5000, now, leaseOwner).changes;
+        ? db.prepare(`${set} (lease_owner IS NULL OR lease_until IS NULL OR lease_until <= ? OR substr(lease_owner, 1, length(?)) = ?)`).run(now + confirmationDelayMs, now, `${instanceId}/`, `${instanceId}/`).changes
+        : db.prepare(`${set} (lease_owner IS NULL OR lease_until IS NULL OR lease_until <= ?) AND (lease_owner IS NULL OR lease_owner <> ?)`).run(now + confirmationDelayMs, now, leaseOwner).changes;
       return Number(changes);
     },
     async run(item, ctx) {
@@ -113,7 +113,7 @@ function dispatchJob(db: DatabaseSync, send: (id: string) => Promise<void>): Que
         if (!isCurrent(item.id)) {
           db.prepare("UPDATE dispatch SET status = 'superseded', next_try_at = NULL WHERE id = ?").run(item.id);
         } else if (row.confirmation_after === null && needsConfirmation(item.id)) {
-          db.prepare('UPDATE dispatch SET confirmation_after = ?, next_try_at = ? WHERE id = ?').run(now + 5000, now + 5000, item.id);
+          db.prepare('UPDATE dispatch SET confirmation_after = ?, next_try_at = ? WHERE id = ?').run(now + confirmationDelayMs, now + confirmationDelayMs, item.id);
         } else {
           if (row.confirmation_after !== null) db.prepare('UPDATE dispatch SET delivery_uncertain = 0 WHERE key = ? AND score <= ?').run(String(row.key), Number(row.score));
           db.prepare("UPDATE dispatch SET status = 'sent', next_try_at = NULL WHERE id = ?").run(item.id);
@@ -124,6 +124,7 @@ function dispatchJob(db: DatabaseSync, send: (id: string) => Promise<void>): Que
 }
 
 function referenceFixture(): QueueStoreFixture {
+  const confirmationDelayMs = 5000;
   const dir = mkdtempSync(join(tmpdir(), 'jobs-contract-'));
   const file = join(dir, 'jobs.db');
   const connections: DatabaseSync[] = [];
@@ -137,8 +138,9 @@ function referenceFixture(): QueueStoreFixture {
   main.exec(SCHEMA);
   let next = 0;
   return {
+    confirmationDelayMs,
     store: () => sqliteJobStore(open()),
-    queueJob: (send) => dispatchJob(open(), send) as QueueJob<unknown>,
+    queueJob: (send) => dispatchJob(open(), send, confirmationDelayMs) as QueueJob<unknown>,
     itemId: (item) => (item as DispatchItem).id,
     addRow(row) {
       next += 1;

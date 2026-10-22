@@ -4,6 +4,16 @@
 // The runner creates no table. Each service implements JobStore on its job_instance and job_lease tables, and each
 // queue job brings its own due, lease, release and recovery statements. The store-contract suite in jobs.testkit.ts
 // checks an implementation; LA-E4-02 (app) and LA-E5-19 (LTI service) run it on the stores that ship.
+// State      Event                                      Next state
+// idle       start()                                    waiting
+// waiting    free or stale instance row claimed         active
+// waiting    row still live, or store error             waiting
+// active     instance row lost                          waiting (web), off (worker)
+// waiting    another live process confirmed             waiting (web), off (worker)
+// waiting / active  stop()                              stopping
+// stopping   runs end, or longest lease time ends       off
+// idle       stop()                                     off
+// off        any start() or stop()                      off
 import { randomBytes } from 'node:crypto';
 import type { Logger } from './logger.ts';
 
@@ -173,7 +183,7 @@ export interface JobRunnerOptions {
   onConflict?: () => void;
 }
 
-/** idle: not started. waiting: another live process has the instance id. active: leases and runs. */
+/** idle: not started; waiting: checks the instance row; active: leases and runs; stopping: drains; off: finished. */
 export type JobRunnerState = 'idle' | 'waiting' | 'active' | 'stopping' | 'off';
 
 export interface JobRunner {
@@ -208,6 +218,8 @@ interface IntervalState {
   job: IntervalJob;
   running: boolean;
 }
+
+type SkippedLeaseReason = 'runner_not_active' | 'already_running' | 'lease_held';
 
 /** The class name of an error, never its message (the message can hold secrets or personal data). */
 function errorClass(err: unknown): string {
@@ -249,8 +261,8 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
   const internalError = (path: string, step: string, err: unknown, traceId?: string): void => {
     log.error('internal_error', { trace_id: traceId ?? log.bootTraceId, method: 'JOB', path, step, error: errorClass(err) });
   };
-  const logRun = (job: string, traceId: string, startedAt: number, result: RunNowResult['result'], counts?: Record<string, number>, error?: string): void => {
-    const fields = { trace_id: traceId, job, ms: Math.max(0, now() - startedAt), result, ...(counts ? { counts } : {}), ...(error ? { error } : {}) };
+  const logRun = (job: string, traceId: string, startedAt: number, result: RunNowResult['result'], counts?: Record<string, number>, error?: string, reason?: SkippedLeaseReason): void => {
+    const fields = { trace_id: traceId, job, ms: Math.max(0, now() - startedAt), result, ...(counts ? { counts } : {}), ...(error ? { error } : {}), ...(reason ? { reason } : {}) };
     if (result === 'failed') log.warn('job_run', fields);
     else log.info('job_run', fields);
   };
@@ -456,7 +468,7 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
     const traceId = newTraceId();
     const startedAt = now();
     if (state !== 'active' || s.running) {
-      logRun(s.job.name, traceId, startedAt, 'skipped_lease');
+      logRun(s.job.name, traceId, startedAt, 'skipped_lease', undefined, undefined, state !== 'active' ? 'runner_not_active' : 'already_running');
       return Promise.resolve({ result: 'skipped_lease' });
     }
     s.running = true;
@@ -470,7 +482,7 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
           return { result: 'failed' };
         }
         if (!leased) {
-          logRun(s.job.name, traceId, startedAt, 'skipped_lease');
+          logRun(s.job.name, traceId, startedAt, 'skipped_lease', undefined, undefined, 'lease_held');
           return { result: 'skipped_lease' };
         }
         let out: JobRunResult;
