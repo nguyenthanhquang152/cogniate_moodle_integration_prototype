@@ -57,7 +57,8 @@ it('accepts only the closed card icon name and keeps mark required', () => {
   for (const icon of ['unknown', 'https://example.test/icon.svg', '<svg/>', () => null]) {
     expect(failure([channel({ ...original, card: { ...card, icon } })]).message).toContain('card.icon');
   }
-  const { mark: _mark, ...withoutMark } = card;
+  const withoutMark = { ...card };
+  delete withoutMark.mark;
   expect(failure([channel({ ...original, card: { ...withoutMark, icon: 'graduation-cap' } })]).message).toContain('card.mark');
 });
 
