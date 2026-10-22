@@ -22,3 +22,9 @@ it('AC-LA-E1-07-10: offered profile data matches LTI traits and covers every reg
     for (const id of registration.profiles) expect(setup.profiles[id], id).toBeDefined();
   }
 });
+
+
+it.each([[], 1, true, 'invalid'])('keeps the manual parser body error for non-object input %j', (body) => {
+  expect(setup.parseBindingBody(body, { siteUrl: 'https://moodle.test', sharedClientId: null, purpose: 'initial' }))
+    .toEqual({ ok: false, fields: ['body'] });
+});
