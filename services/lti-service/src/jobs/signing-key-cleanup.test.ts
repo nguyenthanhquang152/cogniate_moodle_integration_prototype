@@ -54,7 +54,11 @@ describe('signing-key-cleanup', () => {
       copyFileSync(join(MIGRATIONS, file), join(oldMigrations, file));
     }
     const db = openSqlite(join(root, 'lti.db'), oldMigrations); databases.push(db);
-    ensureAccount(db, { id: 'cogniate', name: 'Cogniate', appUrl: 'https://app.test' });
+    // This fixture predates the account and API-key lifecycle migrations. Use its legacy columns.
+    db.prepare(`INSERT INTO tool_account (id, name, api_key_hash, launch_url, deep_linking_url, registration_url, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)`)
+      .run('cogniate', 'Cogniate', 'unusable-fixture-hash', 'https://app.test/tool/launch', 'https://app.test/tool/deep-link',
+        'https://app.test/tool/register', T0);
     const insert = db.prepare(`INSERT INTO tool_key (kid, tool_account_id, public_jwk, private_jwk_encrypted, status, created_at)
       VALUES (?, 'cogniate', ?, ?, ?, ?)`);
     for (const [kid, status, age] of [['active', 'active', 60], ['recent', 'retired', 10], ['old', 'retired', 40], ['boundary', 'retired', 30]] as const) {
