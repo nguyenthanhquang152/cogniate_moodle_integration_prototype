@@ -133,6 +133,17 @@ Refusal line of the app CLIs (BD-A2-59; `app:grant`, `app:binding`, `app:audit`)
 | `operator_refused` | `evidence_channel_invalid` | Use one of these evidence channels: institution-email, support-call, lms-admin-ticket, other. |
 | `operator_refused` | `evidence_ref_invalid` | Give an evidence reference of 1 to 200 characters. |
 
+`app:audit list` refusals (BD-A2-62) keep their own event and `traceId`: `{"event": "audit_list_refused", "reason": "<code>", "message": "<fixed sentence>", "traceId": "<id>"}` on stderr, exit 1. The message never echoes input, so it does not name an unknown flag or the `DATA_DIR` value. A wrong command gives `arguments_invalid`. `app:audit --help` prints the usage on stdout and exits 0.
+
+| Code | Message |
+| --- | --- |
+| `arguments_invalid` | Usage: app:audit list [--connection <id>] [--action <action>] [--since <ISO time>] [--limit <1-500>]. Run app:audit --help for the options. |
+| `connection_invalid` | Give --connection a connection id that is not empty. |
+| `action_invalid` | Give --action an audit action name that is not empty, for example grant.issue. |
+| `limit_invalid` | Give --limit a whole number from 1 to 500 (default 100). |
+| `since_invalid` | Give --since an ISO 8601 time with a time zone, for example 2026-10-23T08:00:00Z. |
+| `audit_read_failed` | The app database could not be opened read-only. Run the command in the cogniate-app container, where the database is /data/cogniate.db (DATA_DIR). |
+
 Residual R-LA-2: the app operator name is self-asserted by a person with shell access. The audit trail is accountable, not authenticated, until LG adds SSO for operators.
 
 Acceptance points:

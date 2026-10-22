@@ -386,3 +386,13 @@ Review findings A-/B-LA-E5-17-01 (MAJOR) and A-LA-E5-17-02 (BLOCKER), routed in 
 | BD-A2-61 | `http_request` logs the raw `req.url` path (after `redactPath`, which masks only long segments), so `/lti/login/alice@example.test` reaches the log. (Provisional: the route template, `<unmatched>` for no match.) | **Ratified.** `path` = the matched route template with no ids filled in; `<unmatched>` when no route matches; no query; the tenant stays in `tool_account_id`. Readers checked: base contract §5 says "path (no query)"; the M1 oracle does not read `path`; T1 H7 matches by trace id (the service sends `x-trace-id`). `redactPath` stays in `packages/shared` for the app. | operability §4.1; LA-ADR-06 D10 "Tenant id in logs"; contract delta §6; LA-E5-17 design notes | A template is bounded and holds no personal data; filled-in ids would add nothing that `tool_account_id` does not already hold. A1 FYI: the app's unmatched requests still log `redactPath(raw url)` (`server.ts:107`, `content-host/server.ts:122`); the same rule is recommended there (app contract, A1's call). |
 
 Changes for the Lead to route: **S1 (LA-E5-17 fix round):** the commit hook and its four tests; the route-template path and its two tests. **A1 FYI:** the shared commit hook; the app's unmatched-path log line.
+
+## 32. Round 31: the `app:audit` refusal line (LA-E5-11 fix round, lane S1), 2026-10-23
+
+Routed in dispatch `ctx_da332f36da02`. The Lead's provisional call is ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-62 | (Provisional, S1.) `app:audit` keeps the event `audit_list_refused` and `traceId`, and adds `message` = one fixed sentence per code that never echoes input (no bad flag, no `DATA_DIR` path; the usage line and the default path are in the fixed text); a wrong command gives `arguments_invalid` instead of the usage text as the reason; `--help` prints the usage on stdout with exit 0. | **Ratified.** The six codes and their fixed messages are now in LA-ADR-07 D4 (`arguments_invalid`, `connection_invalid`, `action_invalid`, `limit_invalid`, `since_invalid`, `audit_read_failed`). Reviewer-B's wish to name the bad flag is refused by the BD-A2-59 rule "never echoes input". | LA-ADR-07 D4 (`app:audit list` refusals); LA-E5-11 design notes | BD-A2-59's "same shape" means the `reason` and `message` fields. `app:audit` keeps its own event name and `traceId`, because it is a read command, not the operator policy. |
+
+Changes for the Lead to route: none beyond S1's fix round.
