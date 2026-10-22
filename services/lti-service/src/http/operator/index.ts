@@ -23,6 +23,7 @@ import { registerRateLimitRoutes } from './rate-limits.ts';
 import { registerKeyProviderRoutes } from './key-provider.ts';
 import { registerOperatorServiceKeyRoutes } from './service-keys.ts';
 import { metricsFor, OPENMETRICS_TYPE, registerReadiness } from '../metrics.ts';
+import { registerOperatorPlatformRoutes } from './platforms.ts';
 
 /** The operator of an accepted request. The audit actor is operator:<operator>. */
 export interface OperatorIdentity {
@@ -85,6 +86,7 @@ const MOUNTS: Array<(app: FastifyInstance, ctx: OperatorContext) => void> = [
   registerRateLimitRoutes,
   registerKeyProviderRoutes,
   registerOperatorServiceKeyRoutes,
+  registerOperatorPlatformRoutes,
 ];
 
 /**
