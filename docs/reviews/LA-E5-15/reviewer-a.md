@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-15 review, lens A ("Is it right and is it safe?")
 
@@ -42,3 +42,20 @@ There is no BLOCKER and no MAJOR finding. The lens-A points pass (see "Checks th
 | Ownership and "Must not edit" | `lti/service-keys.ts` and `platform/**` are unchanged. Its `'serviceKey' in issued` branch is still valid, but it is now always true. The edits to `http/app.ts`, `http/operator/index.ts`, `api-errors.test.ts`, `routes/services.ts` and `routes/compat.ts` are separate RQ-2 commits, as the commit message records. Migration 016 is the next free number. No app file and no LMS name in core is changed. |
 
 Note (no finding): any `GET /api/idtoken` re-issues a new key after a revoke, also with an ltik that was made before the revoke. This needs the API key and a live ltik, which are stronger credentials than the service key. The contract says "the next launch", and the key is given out at `GET /api/idtoken` as before LA. So I record this only as a note.
+
+## Round 2
+
+- Reviewer: Codex, Reviewer-A, same lens A. Date: 2026-10-23.
+- Diff: `4b7bfd4`, `5c53cd0`, `5fbd89d`, `d2feeac`, `4d0df45`, `3eccb9f`, `001a3d9` (merge `676b7d9`). References: task LA-E5-15, LA-ADR-06 D8, LA-ADR-07 D7, contract delta §3, BD-A2-47 and BD-A2-53, plan §6.1.
+- **Verdict: APPROVE. A-LA-E5-15-01 is closed. New findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+| Check | Result and evidence |
+| --- | --- |
+| A-LA-E5-15-01 — MINOR | Closed. `http/service-key-write-scope.test.ts` uses the mounted application and real SERVICE-AUTH-V1 authentication on a `resource-link` account. Each of score POST, line-item PUT and DELETE refuses another link with `403 SERVICE_KEY_SCOPE` and no AGS write. Each accepts the own-link URL without an ownership GET. Removing each guard separately fails its corresponding no-write assertion. Seven route cases pass, including unchanged cross-link GET. |
+| New operator list | `http/operator/platforms.ts:9` checks account existence, then uses the account-filtered store query and an explicit seven-field projection. The response has no binding reference, key, token or registration data. It is mounted inside the existing operator authentication hook. Tests prove exact shape, account isolation, empty list, unknown-account 404, closed-account reads, and 401 for missing/tenant credentials on known and unknown accounts. Every case checks that no audit row was written. |
+| Cache extraction | `AuthResult` requires `serviceKeyHash` for the service scheme; production authentication supplies the credential hash only after successful lookup. The cache key remains `[hash, lineItemId]`. The helper preserves the 10-minute fixed expiry, LRU refresh and 10,000-entry bound. The existing scope tests pass for positive and negative caching, concurrent lookup sharing, re-issued credentials, expiry, eviction, URL rechecks and failed-lookup retry. A failed GET still prevents the write. |
+| Error text and revoke comments | The status and code remain `403 SERVICE_KEY_SCOPE`. The added text describes the account setting and required launch. The revoke changes are comments only. |
+| UNIT AC-04 | The unchanged store test computes epoch 0 and epoch 1 HMAC inputs independently, tests generations 0 and 1, and rejects invalid epochs. The service-key store suite passes, including this golden test. |
+| Ownership and frozen behavior | The new operator module is explicitly assigned to S2 in the fix brief. The mount and L fixture changes are the named RQ-2 commits `5c53cd0` and `3eccb9f`. No production AGS route, platform client, launch issue call, app file or QA test changed in this fix. No LMS name was added to core code. |
+
+Validation: private `git clone --no-hardlinks` at `9c87853`, host-only. The combined focused Node run passed 196 tests in 11 files, including the new operator list and write routes, the scope/cache suite and existing compat routes. The additional platform/store run passed 44 tests, including all nine service-key store tests. LTI service typecheck and F1 passed. All three guard-removal mutants failed at the intended assertions. The clone's tracked files were restored. I did not open the other reviewer's file or run Docker, a stack, or stack regressions; those QA gates remain separate.

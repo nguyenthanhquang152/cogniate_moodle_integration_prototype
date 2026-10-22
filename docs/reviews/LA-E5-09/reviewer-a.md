@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # LA-E5-09 review, lens A ("Is it right and is it safe?")
 
@@ -73,3 +73,15 @@ Note (no finding): the final verification decrypts every present sealed blob in 
 
   So a stop never leaves a half re-sealed blob: a row has either its old blob or a blob of the active version. Only a `complete` outcome sets `legacyBlobsRefused`. An unreadable blob found in the final scan makes the run `failed`, and nothing is refused.
 - `SEALED_COLUMNS` (one inventory): `tool_key.private_jwk_encrypted` (present = `length > 0`) and `registration_session.registration_token_encrypted` (present = `IS NOT NULL`). These are the same predicates as before. The AAD builders give the same `associatedData('lti', table, column, accountId, rowId)` input as the old local functions, so every existing blob still opens. Readiness (`keyVersionsInUse`), the status counts and the re-wrap now read the same list, so a new sealed column cannot be missed by one of them. `createLtiJobRunner` now needs `keys`, so every LTI runner registers `key-rewrap`.
+
+## Round 3
+
+- Reviewer: Codex, Reviewer-A, same lens A. Date: 2026-10-23.
+- Diff: `git show 1c02208`. References: task LA-E5-09, BD-A2-50, LA-ADR-06 D6, plan §6.1 and rounds 1–2 above.
+- **Verdict: APPROVE. New findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.** The remaining runner dependency of A-LA-E5-09-01 is now verified.
+
+The route calls the typed `runner.runNow(KEY_REWRAP_JOB, { traceId: req.traceId })`. In the integrated runner, the option reaches `runInterval`, the job context, the job log and the re-wrap end event. The actual-runner test now compares the response trace with both the `job_run.trace_id` and the system audit event. A scratch mutant that ignores the runner option fails this test. This proves the join, beyond checking the arguments of a spy.
+
+The combined focused Node run at `9c87853` passed 196 tests in 11 files, including `http/operator/key-provider.test.ts`, `jobs/key-rewrap.test.ts` and `packages/shared/src/jobs.test.ts`. The latter retains one-argument calls and covers supplied traces on success, failure and skipped leases. UNIT AC-06–08 still pass for resume/idempotence, legacy refusal and refusal prevention. LTI service typecheck passed.
+
+Only the two S2 operator files change in this diff. Authentication, the acceptance audit, lease checks and re-wrap transactions are unchanged; no secret or new LMS name enters the trace. Tests and the mutant ran in a private clone, with all scratch changes restored. No Docker or stack, no commit, and no other reviewer's file. Stack-based QA remains separate.
