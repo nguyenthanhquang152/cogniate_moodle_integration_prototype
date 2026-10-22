@@ -11,11 +11,17 @@ import { KeyProviderError, bindKeyProvider, createLocalKeyProvider, legacyKeyRin
 import type { Db } from '../db/index.ts';
 import { registrationTokenVersions } from '../store/registrations.ts';
 import { serviceKeyVersions } from '../store/service-keys.ts';
-import { toolKeyVersions } from '../store/tool-keys.ts';
+import { SIGNING_KEY_PUBLISH_LEAD_S, toolKeyVersions, validatePublishLeadSeconds } from '../store/tool-keys.ts';
 
 export const DEFAULT_KEYRING_FILE = '/run/secrets/lti/keyring.json';
 
 type Env = Record<string, string | undefined>;
+
+/** Read once at start. Invalid settings stop the service; unit overrides use the same check. */
+export function readSigningKeyPublishLeadSeconds(env: Env = process.env): number {
+  const value = env.SIGNING_KEY_PUBLISH_LEAD_S;
+  return validatePublishLeadSeconds(value === undefined ? SIGNING_KEY_PUBLISH_LEAD_S : Number(value));
+}
 
 /** The file text, or null when the file does not exist. Any other error (for example no read access) stops the start. */
 function readIfExists(path: string): string | null {

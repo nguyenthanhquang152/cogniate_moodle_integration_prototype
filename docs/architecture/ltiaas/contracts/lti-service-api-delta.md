@@ -192,12 +192,12 @@ Listener `OPERATOR_HOST:OPERATOR_PORT` (default `127.0.0.1:4110`; the `acceptanc
 | Method and path | Request | Success | Priority |
 | --- | --- | --- | --- |
 | `GET /operator/v1/accounts` | query `status`, `cursor`, `limit` (≤ 100) | `200 { accounts: [Account], next? }` | Must |
-| `POST /operator/v1/accounts` | `{ id, name, launchUrl, deepLinkingUrl, registrationUrl, limits?, claimPolicy? }` | `201 Account`. `409 ACCOUNT_ALREADY_EXISTS`. Also makes the first `active` signing key. No API key (use the next row); the frozen column `tool_account.api_key_hash` gets the hash of an unusable random value (LA-ADR-06 D5). | Must |
+| `POST /operator/v1/accounts` | `{ id, name, launchUrl, deepLinkingUrl, registrationUrl, limits?, claimPolicy? }` | `201 Account`. `409 ACCOUNT_ALREADY_EXISTS`. Also makes the first `active` signing key, in the same transaction as the account (no publish lead time; one `account.create` audit event with `details.kid`; LA-ADR-06 D7 "First key"). No API key (use the next row); the frozen column `tool_account.api_key_hash` gets the hash of an unusable random value (LA-ADR-06 D5). | Must |
 | `GET /operator/v1/accounts/:id` | — | `200 Account` | Must |
 | `PATCH /operator/v1/accounts/:id` | any of `name`, tool URLs, `status`, `limits`, `claimPolicy`, `serviceKeyWriteScope` | `200 Account`. `status: closed` is final (`409 ACCOUNT_CLOSED` for a later change). | Must |
 | `GET /operator/v1/rate-limits` | — | `200 { classes: { <class>: { ratePerMinute, burst, source } } }`; `source` = `operator`, `env` or `default` | Must |
 | `PATCH /operator/v1/rate-limits` | `{ classes: { <class>: { ratePerMinute, burst } \| null } }` (`null` removes the operator value) | `200` as `GET`. Applies at once; stored in `service_setting`. Unknown class or a value below 1: `400 INVALID_REQUEST`. | Must |
-| `GET /operator/v1/accounts/:id/api-keys` | — | `200 { apiKeys: [{ id, prefix, label, scopes, createdAt, createdBy, expiresAt, lastUsedAt, revokedAt }] }` | Must |
+| `GET /operator/v1/accounts/:id/api-keys` | — | `200 { apiKeys: [{ id, prefix, label, scopes, createdAt, createdBy, expiresAt, lastUsedAt, revokedAt }] }`. `prefix` is `null` for a key from the migration backfill (label `bootstrap`, `createdBy` `system:bootstrap`); key ids are opaque (LA-ADR-06 D5 "Backfill values"). | Must |
 | `POST /operator/v1/accounts/:id/api-keys` | `{ label, scopes: ["launch","admin"], expiresAt? }` | `201 { id, apiKey, prefix, label, scopes, expiresAt }`; `apiKey` is shown only here. `409 API_KEY_LIMIT`. `expiresAt` outside 1 hour to 2 years from now: `400 INVALID_REQUEST` (field `expiresAt`). | Must |
 | `POST /operator/v1/accounts/:id/api-keys/:keyId/revoke` | — | `200` key metadata with `revokedAt` | Must |
 | `GET /operator/v1/accounts/:id/signing-keys` | — | `200 { signingKeys: [{ kid, status, publishedAt, activatedAt, retiredAt, removedAt }] }` (public data only) | Must |
