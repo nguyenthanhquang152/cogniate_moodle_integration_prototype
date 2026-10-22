@@ -29,7 +29,19 @@ export interface ToolRow {
   value: string;
 }
 
+/** Protocol URLs selected by the kernel; adapters do not construct account paths. */
+export interface ToolUrls {
+  readonly login: string;
+  readonly launch: string;
+  readonly keys: string;
+  readonly register: string;
+  readonly ltiOrigin: string;
+}
+
 export interface ToolConfigurationContext {
+  /** Tool account and URLs resolved by the kernel for this call (BD-A1-40). */
+  toolAccountId: string;
+  toolUrls: ToolUrls;
   urls: PublicUrls;
   libraryName: string;
   /**
@@ -129,6 +141,9 @@ export type StagedCreate =
   | { kind: 'deployment'; platformId: string; body: { deploymentId: string; siteUrl?: string } };
 
 export interface CreateRequestContext {
+  /** Tool account and URLs resolved by the kernel for this call (BD-A1-40). */
+  toolAccountId: string;
+  toolUrls: ToolUrls;
   libraryName: string;
 }
 
@@ -182,6 +197,8 @@ export interface PortContext {
   libraryName: string;
   /** The tool account selected by the kernel. */
   toolAccountId: string;
+  /** Protocol URLs resolved by the kernel; never build an account path in a channel. */
+  toolUrls: ToolUrls;
   /** Active key first; public RSA members only. */
   publicToolKeys(): Promise<{ ok: true; keys: PublicJwk[] } | { ok: false }>;
 }

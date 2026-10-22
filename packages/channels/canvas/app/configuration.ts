@@ -6,11 +6,7 @@ export const configurationRoute: ExtensionRoute = {
   async handle(input, ctx) {
     const mode = input.query.jwk ?? 'url';
     if (mode !== 'url' && mode !== 'inline') return { error: { status: 400, code: 'INVALID_REQUEST', message: 'The jwk option must be url or inline.' } };
-    const urls = {
-      login: `${ctx.urls.lti}/lti/login/${ctx.toolAccountId}`,
-      launch: `${ctx.urls.lti}/lti/launch/${ctx.toolAccountId}`,
-      keys: `${ctx.urls.lti}/lti/keys/${ctx.toolAccountId}`,
-    };
+    const urls = ctx.toolUrls;
     let key: PublicJwk | undefined;
     if (mode === 'inline') {
       const result = await ctx.publicToolKeys();
@@ -30,7 +26,7 @@ export const configurationRoute: ExtensionRoute = {
         'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
       ],
       extensions: [{
-        domain: new URL(ctx.urls.lti).host,
+        domain: new URL(urls.ltiOrigin).host,
         tool_id: ctx.toolAccountId,
         platform: 'canvas.instructure.com',
         privacy_level: 'anonymous',

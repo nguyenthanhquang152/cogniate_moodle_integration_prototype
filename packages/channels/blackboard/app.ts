@@ -1,5 +1,5 @@
 import { parseStrictBody } from '@cogniate/channel-kernel/setup';
-import type { ConnectionSetup, BindingTarget, PlatformBodyResult, StagedCreate, ToolRow } from '../../../services/cogniate-app/src/kernel/ports.ts';
+import type { ConnectionSetup, BindingTarget, PlatformBodyResult, StagedCreate, ToolRow, ToolUrls } from '../../../services/cogniate-app/src/kernel/ports.ts';
 import { checkSiteUrl, fixedHostsOf } from '@cogniate/shared/channel';
 // Blackboard Learn (ADR-011 §7, app contract §4.4, §4.5): one shared platform (the Cogniate Application ID); each
 // school is one deployment that one connection binds with an operator approval grant.
@@ -10,8 +10,7 @@ const profiles: ConnectionSetup['profiles'] = {
 };
 
 /** App contract §4.5: the 9 Learn tool registration rows, in order. */
-export function blackboardToolRows(urls: Parameters<typeof toolUrls>[0], sharedClientId: string | null): ToolRow[] {
-  const t = toolUrls(urls);
+export function blackboardToolRows(t: ToolUrls, sharedClientId: string | null): ToolRow[] {
   return [
     { key: 'client_id', label: 'Client ID', value: sharedClientId ?? '' },
     { key: 'login_initiation_url', label: 'Login Initiation URL', value: t.login },
@@ -41,7 +40,7 @@ const setup: ConnectionSetup = {
   channel: 'blackboard', profiles,
   sharingOf: (id) => profiles[id]?.sharing ?? null,
   checkCreate: checkCreate,
-  toolConfiguration: (ctx) => blackboardToolRows(ctx.urls, ctx.sharedClientId),
+  toolConfiguration: (ctx) => blackboardToolRows(ctx.toolUrls, ctx.sharedClientId),
   parseBindingBody: (body, ctx) => parseBlackboardBody(body, ctx.sharedClientId),
   // The pinned shared platform of the snapshot (app contract §4.7.1 "Target"; local data only).
   initialTarget: (ctx): BindingTarget => {
@@ -65,21 +64,6 @@ function checkCreate({ siteUrl, serviceUrl, profile }: Parameters<ConnectionSetu
   const service = serviceUrl === undefined ? site : checkSiteUrl(serviceUrl, rules);
   if (!service.ok) return { ok: false, field: 'serviceUrl', rule: service.rule };
   return { ok: true, siteUrl: site.origin, serviceUrl: service.origin };
-}
-
-// Small pieces that every provider adapter and the connection routes share (no I/O).
-type PublicUrls = Parameters<ConnectionSetup['toolConfiguration']>[0]['urls'];
-
-/** The tool account of the app in the LTI service (contract §4.1). */
-export const TOOL_ACCOUNT = 'cogniate';
-
-/** The protocol URLs of the tool account (all from PUBLIC_LTI_URL). */
-export function toolUrls(urls: PublicUrls): { launch: string; login: string; keys: string } {
-  return {
-    launch: `${urls.lti}/lti/launch/${TOOL_ACCOUNT}`,
-    login: `${urls.lti}/lti/login/${TOOL_ACCOUNT}`,
-    keys: `${urls.lti}/lti/keys/${TOOL_ACCOUNT}`,
-  };
 }
 
 export default setup;

@@ -26,9 +26,9 @@ const setup: ConnectionSetup = {
   extensionRoutes: [configurationRoute], profiles,
   sharingOf: (id) => profiles[id]?.sharing ?? null,
   checkCreate: checkCreate,
-  toolConfiguration: ({ urls, libraryName }) => [
+  toolConfiguration: ({ toolUrls, libraryName }) => [
     { key: 'key_name', label: 'Key Name', value: toolName(libraryName) },
-    { key: 'redirect_uris', label: 'Redirect URIs', value: toolUrls(urls).launch },
+    { key: 'redirect_uris', label: 'Redirect URIs', value: toolUrls.launch },
     { key: 'method', label: 'Method', value: 'Paste JSON' },
     { key: 'lti_json', label: 'LTI 1.3 Configuration', value: 'Paste the JSON from "Copy JSON" or "Download JSON". Do not edit it.' },
   ],
@@ -73,21 +73,6 @@ function checkCreate({ siteUrl, serviceUrl, profile }: Parameters<ConnectionSetu
   const service = serviceUrl === undefined ? site : checkSiteUrl(serviceUrl, rules);
   if (!service.ok) return { ok: false, field: 'serviceUrl', rule: service.rule };
   return { ok: true, siteUrl: site.origin, serviceUrl: service.origin };
-}
-
-// Small pieces that every provider adapter and the connection routes share (no I/O).
-type PublicUrls = Parameters<ConnectionSetup['toolConfiguration']>[0]['urls'];
-
-/** The tool account of the app in the LTI service (contract §4.1). */
-export const TOOL_ACCOUNT = 'cogniate';
-
-/** The protocol URLs of the tool account (all from PUBLIC_LTI_URL). */
-export function toolUrls(urls: PublicUrls): { launch: string; login: string; keys: string } {
-  return {
-    launch: `${urls.lti}/lti/launch/${TOOL_ACCOUNT}`,
-    login: `${urls.lti}/lti/login/${TOOL_ACCOUNT}`,
-    keys: `${urls.lti}/lti/keys/${TOOL_ACCOUNT}`,
-  };
 }
 
 export default setup;

@@ -10,7 +10,7 @@ import { decrypt, encrypt } from '@cogniate/shared';
 import type { Db } from '../domain/db.ts';
 import type { BuildQueue, ChannelSql, PortContext } from './ports.ts';
 import type { LtiClient } from '../clients/lti-client.ts';
-import { TOOL_ACCOUNT } from './setup/common.ts';
+import { TOOL_ACCOUNT, toolContext } from './setup/common.ts';
 import { ApiError } from '../app/api-errors.ts';
 
 /** Ignore quoted values and comments when looking for the required scope parameter. */
@@ -75,7 +75,7 @@ export function createPortContext(deps: PortContextDeps, libraryId: string, conn
     unseal: async (blob: Uint8Array) => decrypt(deps.masterKey, blob),
     logger: deps.logger,
     now: deps.now,
-    urls: Object.freeze({ ...deps.urls }), libraryName, toolAccountId: TOOL_ACCOUNT,
+    urls: Object.freeze({ ...deps.urls }), libraryName, ...toolContext(deps.urls),
     publicToolKeys: async () => {
       try {
         const keys = await deps.lti.getToolKeys(TOOL_ACCOUNT, traceId);

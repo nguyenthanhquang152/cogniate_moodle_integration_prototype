@@ -1,3 +1,5 @@
+import { toolContext } from './setup/common.ts';
+import { TEST_URLS } from '../testkit.ts';
 import { buildChannelRegistry } from '@cogniate/channel-kernel';
 import type { ChannelManifest } from '@cogniate/channel-kernel';
 import { createLogger } from '@cogniate/shared';
@@ -27,12 +29,16 @@ const adapter: ConnectionSetup = {
   },
   initialTarget: ({ connection, values, profile }) => ({ kind: 'exclusive_platform', profile: connection.profile, issuer: profile.issuer!,
     clientId: values.clientId, deploymentId: values.deploymentId, siteUrl: connection.siteUrl, serviceUrl: connection.serviceUrl, platformId: null }),
-  createRequest: (target) => {
+  createRequest: (target, ctx) => {
+    expect(ctx).toMatchObject(toolContext(TEST_URLS));
     if (target.kind !== 'exclusive_platform') throw new Error('fixture needs an exclusive target');
     return { kind: 'platform', body: { profile: target.profile, url: target.issuer, clientId: target.clientId, name: 'Fixture', siteUrl: target.siteUrl, deploymentIds: [target.deploymentId] } };
   },
-  selfCreate: (v) => ({ kind: 'platform', body: { url: v.issuer, clientId: v.clientId, name: 'Fixture', authenticationEndpoint: v.authenticationEndpoint,
-    accesstokenEndpoint: v.accessTokenEndpoint, authConfig: { method: 'JWK_SET', key: v.jwksUrl }, deploymentIds: [v.deploymentId] } }),
+  selfCreate: (v, ctx) => {
+    expect(ctx).toMatchObject(toolContext(TEST_URLS));
+    return { kind: 'platform', body: { url: v.issuer, clientId: v.clientId, name: 'Fixture', authenticationEndpoint: v.authenticationEndpoint,
+    accesstokenEndpoint: v.accessTokenEndpoint, authConfig: { method: 'JWK_SET', key: v.jwksUrl }, deploymentIds: [v.deploymentId] } };
+  },
 };
 const channels = buildChannelRegistry([
   ...TEST_CHANNELS.channels().map((m) => ({ folder: `/test/${m.id}`, manifest: m, appAdapter: TEST_CHANNELS.appAdapter(m.id) })),

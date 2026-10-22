@@ -49,6 +49,9 @@ it('seals and unseals through asynchronous functions without exposing the key or
   expect(ctx).not.toHaveProperty('db');
   expect(ctx).not.toHaveProperty('masterKey');
   expect(ctx.now()).toBe(42);
+  expect(ctx.toolAccountId).toBe('cogniate');
+  expect(ctx.toolUrls).toEqual({ login: 'https://lti.test/lti/login/cogniate', launch: 'https://lti.test/lti/launch/cogniate',
+    keys: 'https://lti.test/lti/keys/cogniate', register: 'https://lti.test/lti/register/cogniate', ltiOrigin: 'https://lti.test' });
 });
 
 it('copies only valid public key members for each call and does not cache across libraries', async () => {
