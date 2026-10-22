@@ -1,7 +1,37 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-03 review, Reviewer-B (lens: "Can a human team own it?")
+
+## Round 2 (Reviewer-B2)
+
+Reviewer: Reviewer-B2, the second lens-B instance (plan LD-22), on this lens's file. This is a bounded check of the round-1 findings. Diff: `git diff 9cbd043 8706619` limited to the LA-E5-03 files (lane S1 fix commits `511da0f`, `4e0ac6a`, `c560133`, `cf92882`, `9eb7ec7`, `5f2a57e` and the BD-A2-29 comment `ec0534e`; the LA-E5-05 part of merge `8706619` is not reviewed here). I did not open the other reviewer's file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 0 MINOR, 1 new NIT.** Every round-1 finding is **closed**.
+
+How I checked: a scratch clone of `8706619` (private `/tmp` folder, deleted after the run). `vitest run services/lti-service/src/http services/lti-service/src/store`: **33 files, 392 tests passed**.
+
+### Round-1 findings
+
+| Finding | Status |
+| --- | --- |
+| B-LA-E5-03-01 (MINOR) | **Closed.** A bad `LTI_RATE_LIMITS` names the Zod path and rule (`LTI_RATE_LIMITS: classes.api.burst: …`; unknown keys are named too) and keeps the cause. Bad JSON says "expected valid JSON". A bad `TRUSTED_PROXY_CIDRS` entry is quoted (`"192.168.1.1/40" is not a valid CIDR`). Each case has a unit row. |
+| B-LA-E5-03-02 (NIT) | **Closed** (BD-A2-30). `details.limit` is always present: `{ class, ratePerMinute, burst }` for the authenticated classes, `{ class }` only for the address classes. `rate_limited` now has `trace_id`, `key_id` for key budgets, and `key_kind` `address`, `api_key` or `operator_key`. A table test covers all seven classes. |
+| B-LA-E5-03-03 (NIT) | **Closed.** `ADDRESS_ROUTE_CLASSES` (`rate-limit.ts:24`) is the one route-to-class table, with a D1 comment per class. The hook looks the class up there and says why `keys` answers JSON. |
+| B-LA-E5-03-04 (NIT) | **Closed.** `refuseIfBlocked(address, traceId)` (`:158`) replaces `check(…, undefined, false)`. Both public methods call one private `evaluate`. |
+| B-LA-E5-03-05 (NIT) | **Closed.** `trusted_proxy_unresolved {host}` is logged at `warn` (`:235`), and a failed lookup is retried after 5 s instead of one minute (`:245`). A test covers the log and the recovery. |
+
+Also in this round: the `settings.rate_limits` audit event now records the changed values, including the removed overrides (`4e0ac6a`). The `audit.change` comment (`store/audit.ts:113`) now states the BD-A2-29 action rule and the "read inside the change" rule. That partly closes NIT B-LA-E5-04-06 in the LA-E5-04 review, which also asks for the third rule: a refused event always keeps the base action.
+
+### New in this round
+
+#### B-LA-E5-03-06 — NIT — The proxy warning repeats every 5 s during a long DNS outage
+
+- **File:** `services/lti-service/src/http/rate-limit.ts:235`, `:245`.
+- **Problem:** The warning is now logged once per refresh, and a failing host makes the refresh run every 5 s. A proxy host that stays unresolved writes 12 `trusted_proxy_unresolved` lines per minute (720 per hour) until DNS returns. The fast retry is right, but the log volume can hide other warnings, and nothing logs the recovery.
+- **Suggested fix:** Log on a change of state only: `trusted_proxy_unresolved` when a host goes from resolved to unresolved, and at most once per minute while it stays unresolved; `trusted_proxy_resolved {host}` at `info` when it comes back. Also fix the wording of the second BD-A2-29 comment line in `store/audit.ts` ("Read the current state that chooses the action inside change(), in the same transaction") and add the third rule (a refused event keeps the base action).
+
+## Round 1
 
 Diff: `git diff 9cbd043^1 9cbd043` (lane S1 commit `7299a8b`, plus the merges of S2's `onFail` part commit and L's `Retry-After` rule; merged as `9cbd043`). Spec: `docs/architecture/ltiaas/tasks/LA-E5-03.md`. Design: LA-ADR-06 D1, contract delta §1.3, §1.4, §3, §6, BD-A2-16 to -20. I did not open the other reviewer's file. I did not run Docker.
 

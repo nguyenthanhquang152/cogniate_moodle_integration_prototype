@@ -4,6 +4,8 @@
 // (and through it the library), never a session user.
 import { randomId } from '@cogniate/shared';
 import type { Db } from './db.ts';
+import { transaction } from './db.ts';
+import { upsertPlacement } from '../kernel/records/placements.ts';
 
 /** Security §4 "single use": true for the first use of this ltik hash, false for every later one. */
 export function useHandoff(db: Db, ltikHash: string, now: number): boolean {
@@ -57,22 +59,26 @@ export interface ResourceLinkResult {
  * Titles, line item and service key are refreshed on every launch.
  */
 export function upsertResourceLink(db: Db, input: ResourceLinkInput, now: number): ResourceLinkResult {
-  const existing = db.prepare('SELECT id, publication_id FROM resource_link WHERE connection_id = ? AND deployment_id = ? AND context_id = ? AND resource_link_id = ?')
-    .get(input.connectionId, input.deploymentId, input.contextId, input.resourceLinkId);
-  if (!existing) {
-    const id = randomId('rl_');
-    db.prepare(`INSERT INTO resource_link (id, connection_id, publication_id, deployment_id, context_id, resource_link_id, context_title, title,
-      line_item_id, service_key_encrypted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(id, input.connectionId, input.publicationId, input.deploymentId, input.contextId, input.resourceLinkId, input.contextTitle, input.title,
-        input.lineItemId, input.serviceKeyEncrypted, now, now);
-    return { id, created: true, rebound: null };
-  }
-  const id = String(existing.id);
-  const from = String(existing.publication_id);
-  db.prepare(`UPDATE resource_link SET publication_id = ?, context_title = ?, title = ?, line_item_id = COALESCE(?, line_item_id),
-    service_key_encrypted = COALESCE(?, service_key_encrypted), updated_at = ? WHERE id = ?`)
-    .run(input.publicationId, input.contextTitle, input.title, input.lineItemId, input.serviceKeyEncrypted, now, id);
-  return { id, created: false, rebound: from === input.publicationId ? null : { from, to: input.publicationId } };
+  return transaction(db, () => {
+    const existing = db.prepare('SELECT id, publication_id FROM resource_link WHERE connection_id = ? AND deployment_id = ? AND context_id = ? AND resource_link_id = ?')
+      .get(input.connectionId, input.deploymentId, input.contextId, input.resourceLinkId);
+    if (!existing) {
+      const id = randomId('rl_');
+      db.prepare(`INSERT INTO resource_link (id, connection_id, publication_id, deployment_id, context_id, resource_link_id, context_title, title,
+        line_item_id, service_key_encrypted, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(id, input.connectionId, input.publicationId, input.deploymentId, input.contextId, input.resourceLinkId, input.contextTitle, input.title,
+          input.lineItemId, input.serviceKeyEncrypted, now, now);
+      upsertPlacement(db, id);
+      return { id, created: true, rebound: null };
+    }
+    const id = String(existing.id);
+    const from = String(existing.publication_id);
+    db.prepare(`UPDATE resource_link SET publication_id = ?, context_title = ?, title = ?, line_item_id = COALESCE(?, line_item_id),
+      service_key_encrypted = COALESCE(?, service_key_encrypted), updated_at = ? WHERE id = ?`)
+      .run(input.publicationId, input.contextTitle, input.title, input.lineItemId, input.serviceKeyEncrypted, now, id);
+    upsertPlacement(db, id);
+    return { id, created: false, rebound: from === input.publicationId ? null : { from, to: input.publicationId } };
+  });
 }
 
 /**

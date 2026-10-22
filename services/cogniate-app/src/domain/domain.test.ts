@@ -26,8 +26,8 @@ describe('migrations (ADR-006)', () => {
     const db = openDb(':memory:');
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all().map((r) => r.name);
     expect(tables).toEqual(['app_session', 'app_user', 'approved_deployment', 'attempt', 'binding_attempt', 'binding_grant', 'binding_ref_history', 'connection',
-      'connection_deployment', 'course', 'course_version', 'gradebook_read', 'handoff', 'library', 'mbz_build', 'package', 'picker_session',
-      'play_session', 'publication', 'resource_link', 'schema_migration', 'score_sync', 'sqlite_sequence']);
+      'connection_deployment', 'course', 'course_version', 'gradebook_read', 'handoff', 'job_instance', 'job_lease', 'learning_record', 'library', 'mbz_build', 'package', 'picker_session', 'placement',
+      'play_session', 'publication', 'record_dispatch', 'resource_link', 'schema_migration', 'score_sync', 'sqlite_sequence']);
   });
 });
 

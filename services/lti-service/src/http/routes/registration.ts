@@ -11,10 +11,11 @@ import { withLms } from '../../lti/codes.ts';
 import { PlatformKeyError } from '../../lti/jwks.ts';
 import type { OpenIdConfiguration } from '../../lti/registration.ts';
 import {
-  PRIVACY_LEVELS, REGISTRATION_CLOSE_HTML, buildRegistrationRequest, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse, registrationView,
+  PRIVACY_LEVELS, REGISTRATION_CLOSE_HTML, REGISTRATION_SCOPES, buildRegistrationRequest, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse, registrationView,
 } from '../../lti/registration.ts';
 import { outboundFailureError, shortPlatformMessage } from '../../platform/error-mapping.ts';
 import { getAccount } from '../../store/accounts.ts';
+import { withAudit } from '../../store/audit.ts';
 import type { Platform } from '../../store/platforms.ts';
 import { PlatformExistsError, applyRegistrationUpdate, createPlatform, findPlatformByDeployment, getPlatform, listPlatforms } from '../../store/platforms.ts';
 import type { PrivacyLevel, RegistrationOperation, RegistrationSession } from '../../store/registrations.ts';
@@ -64,6 +65,7 @@ const RegisterQuery = z.object({
 const CompleteBody = z.object({
   platformName: z.string().trim().min(1).max(255).optional(),
   autoActivate: z.boolean().optional(),
+  scopes: z.array(z.enum(REGISTRATION_SCOPES)).min(1).optional(),
   messages: z.array(z.object({
     type: z.string().min(1).max(64),
     placements: z.array(z.string().min(1).max(64)).max(10).optional(),
@@ -180,95 +182,110 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
 
   // ---------------------------------------------------------------- POST /api/registrations/:id/complete (contract §3.8)
   app.post<{ Params: { id: string } }>('/api/registrations/:id/complete', async (req) => {
-    const { account } = ctx.auth(req, ['bearer']);
-    const body = CompleteBody.safeParse(req.body ?? {});
-    if (!body.success) throw invalid(body.error);
-    const session = sessionOf(account.id, req.params.id);
-    if (session.status !== 'open') throw new ApiError('REGISTRATION_ALREADY_COMPLETED');
-    // Same fields as the page side (B-T3b-03): code and a safe detail.
-    const reject = (err: ApiError): never => {
-      log.warn('registration_rejected', { trace_id: req.traceId, code: err.code, detail: String(err.details.reason ?? err.code.toLowerCase()) });
-      throw err;
-    };
-    // Security §2.5: an update only of this account's platform, named by the caller. Nothing is sent to Moodle otherwise.
-    if (session.operation === 'update') {
-      const allowed = session.existingPlatformId !== null && body.data.updatePlatformId === session.existingPlatformId
-        && getPlatform(ctx.db, account.id, session.existingPlatformId) !== null;
-      if (!allowed) reject(new ApiError('REGISTRATION_UPDATE_NOT_ALLOWED', withLms('This registration updates a tool that is not this connection. Choose "Register as a new external tool" in {LMS}.', lms)));
-    }
-    // A-T3b-03: a message target must be our own launch URL for this account (Moodle only checks the domain).
-    for (const m of body.data.messages ?? []) {
-      if (m.target_link_uri !== undefined && !isOwnLaunchTarget(m.target_link_uri, ctx.urls, account.id)) {
-        throw new ApiError('INVALID_REQUEST', 'Invalid field: messages.target_link_uri must be the launch URL of this tool account.');
-      }
-    }
-    // M1 (§9.2): a standard platform cannot use a reserved issuer; nothing is sent to the platform.
-    if (reservedIssuerOrigins(ctx.profiles).includes(new URL(configOf(session).issuer).origin)) reject(new ApiError('ISSUER_RESERVED'));
-    if (!claimRegistrationSession(ctx.db, account.id, session.id)) throw new ApiError('REGISTRATION_ALREADY_COMPLETED');
-    try {
-      const config = configOf(session);
-      const clientName = body.data.platformName ?? `${config.productFamilyCode || 'platform'} ${new URL(config.issuer).host}`;
-      const request = buildRegistrationRequest({
-        urls: ctx.urls, accountId: account.id, clientName, privacyLevel: body.data.privacyLevel ?? session.privacyLevel, ...(body.data.messages ? { messages: body.data.messages } : {}),
-      });
-      let res;
-      try {
-        res = await ctx.outbound.request(config.registrationEndpoint, {
-          method: 'POST', traceId: req.traceId, body: JSON.stringify(request),
-          headers: { 'content-type': 'application/json', accept: 'application/json', ...(session.registrationToken ? { authorization: `Bearer ${session.registrationToken}` } : {}) },
-        });
-      } catch (err) {
-        // A timeout or a network error after the request left: Moodle may have created the tool (A-T3b-01).
-        if (err instanceof OutboundError && (err.reason === 'timeout' || err.reason === 'network_error')) throw toolMayExist(clientName);
-        throw outboundFailureError(err);
-      }
-      // A retry after such a failure: Moodle refuses the used token (401 token_already_used). A 5xx can come after the tool was saved.
-      if ((res.status === 401 && res.text().includes('token_already_used')) || res.status >= 500) throw toolMayExist(clientName);
-      // Contract §3.8: a platform refusal is 502 PLATFORM_ERROR with its code (Moodle: for example domain_targetlinkuri_mismatch).
-      if (res.status < 200 || res.status >= 300) throw new ApiError('PLATFORM_ERROR', `The platform rejected the registration (${res.status}): ${shortPlatformMessage(res.body)}`);
-      let answer: unknown;
-      try {
-        answer = res.json();
-      } catch {
-        throw toolMayExist(clientName); // 2xx: Moodle saved something, but we cannot read what
-      }
-      const reg = parseRegistrationResponse(answer);
-      if (!reg) throw toolMayExist(clientName);
-      const values = {
-        clientId: reg.clientId, name: clientName, authEndpoint: config.authorizationEndpoint, tokenEndpoint: config.tokenEndpoint, jwksUrl: config.jwksUri,
-        active: body.data.autoActivate ?? true, productFamilyCode: config.productFamilyCode || null, deploymentId: reg.deploymentId,
+    const caller = ctx.auth(req, ['bearer']);
+    const { account } = caller;
+    return withAudit(ctx.db, ctx.now, {
+      actor: caller.actor, toolAccountId: account.id, traceId: req.traceId, clientIp: req.ip,
+      action: 'registration.complete', target: { type: 'registration', id: req.params.id },
+    }, async (audit) => {
+      const body = CompleteBody.safeParse(req.body ?? {});
+      if (!body.success) throw invalid(body.error);
+      const session = sessionOf(account.id, req.params.id);
+      if (session.status !== 'open') throw new ApiError('REGISTRATION_ALREADY_COMPLETED');
+      // Same fields as the page side (B-T3b-03): code and a safe detail.
+      const reject = (err: ApiError): never => {
+        log.warn('registration_rejected', { trace_id: req.traceId, code: err.code, detail: String(err.details.reason ?? err.code.toLowerCase()) });
+        throw err;
       };
-      let platform: Platform | null;
-      let operation: RegistrationOperation = session.operation;
+      // Security §2.5: an update only of this account's platform, named by the caller. Nothing is sent to Moodle otherwise.
       if (session.operation === 'update') {
-        platform = applyRegistrationUpdate(ctx.db, account.id, session.existingPlatformId!, values);
-      } else {
-        try {
-          platform = createPlatform(ctx.db, account.id, {
-            issuer: config.issuer, clientId: values.clientId, name: values.name, authEndpoint: values.authEndpoint, tokenEndpoint: values.tokenEndpoint,
-            jwksUrl: values.jwksUrl, deploymentIds: [values.deploymentId], active: values.active, productFamilyCode: values.productFamilyCode,
-          });
-        } catch (err) {
-          if (!(err instanceof PlatformExistsError)) throw err;
-          // B-T3b-02 (Lead decision): a "new" registration answered with a client id that this account already has for
-          // this issuer is the SAME Moodle tool (Moodle issues a new client id for every new tool, so only a re-sent or
-          // re-used registration gets here). The platform belongs to this account (security §2.5), so we update it and
-          // log operation "update".
-          // A-T4b1-03: keep the stored `active` value. A platform that was switched off (for example an orphan that the
-          // app deactivated) is never switched on again by this path.
-          const same = listPlatforms(ctx.db, account.id, { url: config.issuer, clientId: values.clientId })[0]!;
-          platform = applyRegistrationUpdate(ctx.db, account.id, same.id, { ...values, active: same.active });
-          operation = 'update';
+        const allowed = session.existingPlatformId !== null && body.data.updatePlatformId === session.existingPlatformId
+          && getPlatform(ctx.db, account.id, session.existingPlatformId) !== null;
+        if (!allowed) reject(new ApiError('REGISTRATION_UPDATE_NOT_ALLOWED', withLms('This registration updates a tool that is not this connection. Choose "Register as a new external tool" in {LMS}.', lms)));
+      }
+      // A-T3b-03: a message target must be our own launch URL for this account (Moodle only checks the domain).
+      for (const m of body.data.messages ?? []) {
+        if (m.target_link_uri !== undefined && !isOwnLaunchTarget(m.target_link_uri, ctx.urls, account.id)) {
+          throw new ApiError('INVALID_REQUEST', 'Invalid field: messages.target_link_uri must be the launch URL of this tool account.');
         }
       }
-      if (!platform) throw new ApiError('INTERNAL_ERROR', `Internal error. Trace id: ${req.traceId}`);
-      completeRegistrationSession(ctx.db, account.id, session.id, platform.id, ctx.now());
-      log.info('registration_completed', { trace_id: req.traceId, platform_id: platform.id, operation });
-      return { html: REGISTRATION_CLOSE_HTML, platformId: platform.id };
-    } catch (err) {
-      releaseRegistrationSession(ctx.db, account.id, session.id);
-      if (err instanceof ApiError) reject(err);
-      throw err;
-    }
+      const config = configOf(session);
+      // LA-E3-06: check explicit and default scopes before claiming the session or sending a request.
+      const scopes = body.data.scopes ?? REGISTRATION_SCOPES;
+      if (scopes.some((scope) => !config.scopesSupported.includes(scope))) {
+        throw new ApiError('INVALID_REQUEST', 'Invalid field: scopes. The platform does not support every requested scope.');
+      }
+      // M1 (§9.2): a standard platform cannot use a reserved issuer; nothing is sent to the platform.
+      if (reservedIssuerOrigins(ctx.profiles).includes(new URL(config.issuer).origin)) reject(new ApiError('ISSUER_RESERVED'));
+      if (!claimRegistrationSession(ctx.db, account.id, session.id)) throw new ApiError('REGISTRATION_ALREADY_COMPLETED');
+      try {
+        const clientName = body.data.platformName ?? `${config.productFamilyCode || 'platform'} ${new URL(config.issuer).host}`;
+        const request = buildRegistrationRequest({
+          urls: ctx.urls, accountId: account.id, clientName, scopes, privacyLevel: body.data.privacyLevel ?? session.privacyLevel, ...(body.data.messages ? { messages: body.data.messages } : {}),
+        });
+        let res;
+        try {
+          res = await ctx.outbound.request(config.registrationEndpoint, {
+            method: 'POST', traceId: req.traceId, body: JSON.stringify(request),
+            headers: { 'content-type': 'application/json', accept: 'application/json', ...(session.registrationToken ? { authorization: `Bearer ${session.registrationToken}` } : {}) },
+          });
+        } catch (err) {
+          // A timeout or a network error after the request left: Moodle may have created the tool (A-T3b-01).
+          if (err instanceof OutboundError && (err.reason === 'timeout' || err.reason === 'network_error')) throw toolMayExist(clientName);
+          throw outboundFailureError(err);
+        }
+        // A retry after such a failure: Moodle refuses the used token (401 token_already_used). A 5xx can come after the tool was saved.
+        if ((res.status === 401 && res.text().includes('token_already_used')) || res.status >= 500) throw toolMayExist(clientName);
+        // Contract §3.8: a platform refusal is 502 PLATFORM_ERROR with its code (Moodle: for example domain_targetlinkuri_mismatch).
+        if (res.status < 200 || res.status >= 300) throw new ApiError('PLATFORM_ERROR', `The platform rejected the registration (${res.status}): ${shortPlatformMessage(res.body)}`);
+        let answer: unknown;
+        try {
+          answer = res.json();
+        } catch {
+          throw toolMayExist(clientName); // 2xx: Moodle saved something, but we cannot read what
+        }
+        const reg = parseRegistrationResponse(answer);
+        if (!reg) throw toolMayExist(clientName);
+        const values = {
+          clientId: reg.clientId, name: clientName, authEndpoint: config.authorizationEndpoint, tokenEndpoint: config.tokenEndpoint, jwksUrl: config.jwksUri,
+          active: body.data.autoActivate ?? true, productFamilyCode: config.productFamilyCode || null, deploymentId: reg.deploymentId,
+        };
+        // The remote request is complete; keep all local writes and the ok event in one synchronous transaction.
+        const { platform, operation } = audit.change(() => {
+          let platform: Platform | null;
+          let operation: RegistrationOperation = session.operation;
+          if (session.operation === 'update') {
+            platform = applyRegistrationUpdate(ctx.db, account.id, session.existingPlatformId!, values);
+          } else {
+            try {
+              platform = createPlatform(ctx.db, account.id, {
+                issuer: config.issuer, clientId: values.clientId, name: values.name, authEndpoint: values.authEndpoint, tokenEndpoint: values.tokenEndpoint,
+                jwksUrl: values.jwksUrl, deploymentIds: [values.deploymentId], active: values.active, productFamilyCode: values.productFamilyCode,
+              });
+            } catch (err) {
+              if (!(err instanceof PlatformExistsError)) throw err;
+              // B-T3b-02 (Lead decision): a "new" registration answered with a client id that this account already has for
+              // this issuer is the SAME Moodle tool (Moodle issues a new client id for every new tool, so only a re-sent or
+              // re-used registration gets here). The platform belongs to this account (security §2.5), so we update it and
+              // log operation "update".
+              // A-T4b1-03: keep the stored `active` value. A platform that was switched off (for example an orphan that the
+              // app deactivated) is never switched on again by this path.
+              const same = listPlatforms(ctx.db, account.id, { url: config.issuer, clientId: values.clientId })[0]!;
+              platform = applyRegistrationUpdate(ctx.db, account.id, same.id, { ...values, active: same.active });
+              operation = 'update';
+            }
+          }
+          if (!platform) throw new ApiError('INTERNAL_ERROR', `Internal error. Trace id: ${req.traceId}`);
+          completeRegistrationSession(ctx.db, account.id, session.id, platform.id, ctx.now());
+          return { platform, operation };
+        }, ({ platform, operation }) => ({ details: { platformId: platform.id, operation } }));
+        log.info('registration_completed', { trace_id: req.traceId, platform_id: platform.id, operation });
+        return { html: REGISTRATION_CLOSE_HTML, platformId: platform.id };
+      } catch (err) {
+        releaseRegistrationSession(ctx.db, account.id, session.id);
+        if (err instanceof ApiError) reject(err);
+        throw err;
+      }
+    });
   });
 }

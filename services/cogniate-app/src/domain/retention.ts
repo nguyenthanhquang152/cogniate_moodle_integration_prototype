@@ -4,7 +4,7 @@
 //                   as an activity in the stats (its ltik is cleared)
 //   play_session    expires_at more than 24 h ago; its counted session time moves to the attempt first
 // Attempts, resource links, score syncs, publications and connections are the record of results: never deleted.
-import type { RetentionResult } from '@cogniate/shared';
+import type { IntervalJob, RetentionResult } from '@cogniate/shared';
 import type { Db } from './db.ts';
 import { transaction } from './db.ts';
 
@@ -23,4 +23,14 @@ export function cleanupExpired(db: Db, now: number): RetentionResult[] {
     const plays = Number(db.prepare('DELETE FROM play_session WHERE expires_at < ?').run(cut).changes);
     return [{ table: 'handoff', deleted: handoff }, { table: 'picker_session', deleted: pickers }, { table: 'play_session', deleted: plays }];
   });
+}
+
+/** Retention shares the runner lease with on-demand and other-process runs. */
+export function retentionJob(db: Db): IntervalJob {
+  return { name: 'retention', everyMs: 600_000, runAtStart: true, async run(ctx) {
+    const rows = cleanupExpired(db, ctx.now());
+    const counts = Object.fromEntries(rows.map((row) => [row.table, row.deleted]));
+    for (const row of rows) if (row.deleted > 0) ctx.logger.info('retention_cleanup', { trace_id: ctx.traceId, ...row });
+    return { result: 'ok', counts };
+  } };
 }

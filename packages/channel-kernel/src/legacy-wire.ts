@@ -99,3 +99,6 @@ export function pendingToolText(toolName: string): string {
 
 /** Array capability member required by each frozen setup route. */
 export const EXTENSION_CAPABILITY_MEMBERS: Readonly<Record<string, string>> = Object.freeze({ 'canvas-configuration': 'developer-key-json' });
+
+/** Frozen recovery text (LA-E4-02); keep the pre-migration wire value byte for byte. */
+export const LEGACY_SCORE_INTERRUPTED = 'The score send was interrupted. Moodle may have received it.';

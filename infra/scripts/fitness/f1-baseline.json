@@ -24,7 +24,7 @@
   "services/cogniate-app/src/domain/connections.ts": 15,
   "services/cogniate-app/src/domain/publications.ts": 17,
   "services/cogniate-app/src/domain/results.ts": 4,
-  "services/cogniate-app/src/domain/score-syncs.ts": 3,
+  "services/cogniate-app/src/domain/score-syncs.ts": 0,
   "services/cogniate-app/src/main.ts": 4,
   "services/cogniate-app/src/providers/blackboard.ts": 19,
   "services/cogniate-app/src/providers/canvas.ts": 26,

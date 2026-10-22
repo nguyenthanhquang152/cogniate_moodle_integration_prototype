@@ -60,3 +60,20 @@ it('uses lti-1 by default and checks JOB_INSTANCE_ID and audit retention before 
     expect(db.prepare('SELECT * FROM job_instance').all()).toEqual([]);
   } finally { db.close(); }
 });
+
+it('a late end from an expired lease owner leaves the newer lease and its result alone', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'lti-late-lease-'));
+  const file = join(dir, 'lti.db');
+  const first = openDb(file); const second = openDb(file);
+  try {
+    const a = createLtiJobStore(first); const b = createLtiJobStore(second);
+    expect(await a.takeJobLease('retention', 'instance-a/boot-a', 0, 60_000)).toBe(true);
+    expect(await b.takeJobLease('retention', 'instance-b/boot-b', 60_000, 120_000)).toBe(true);
+    const newer = await b.readJobLease('retention');
+    expect(newer).toMatchObject({ owner: 'instance-b/boot-b', leaseUntil: 120_000, lastRunAt: null, lastResult: null });
+    await a.endJobLease('retention', 'instance-a/boot-a', 61_000, 'failed');
+    expect(await b.readJobLease('retention')).toEqual(newer);
+    await b.endJobLease('retention', 'instance-b/boot-b', 62_000, 'ok');
+    expect(await a.readJobLease('retention')).toMatchObject({ owner: null, leaseUntil: null, lastRunAt: 62_000, lastResult: 'ok' });
+  } finally { first.close(); second.close(); rmSync(dir, { recursive: true, force: true }); }
+});

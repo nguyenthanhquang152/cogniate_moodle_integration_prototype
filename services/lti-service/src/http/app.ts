@@ -11,6 +11,7 @@ import { ApiError, apiErrorBody } from '../api-errors.ts';
 import type { Db } from '../db/index.ts';
 import { PROTOCOL_ERRORS, protocolAction } from '../lti/codes.ts';
 import { listProfiles } from '../profiles/index.ts';
+import type { ProfileRegistry } from '../profiles/index.ts';
 import type { PlatformKeys } from '../lti/jwks.ts';
 import type { AgsClient } from '../platform/ags.ts';
 import type { NrpsClient } from '../platform/nrps.ts';
@@ -25,7 +26,7 @@ import { registerProtocolRoutes } from './routes/protocol.ts';
 import { registerCompatRoutes } from './routes/compat.ts';
 import { registerServiceRoutes } from './routes/services.ts';
 import { getAccount } from '../store/accounts.ts';
-import { createTrustedProxy, rateLimiterFor, recordAuthFailure } from './rate-limit.ts';
+import { ADDRESS_ROUTE_CLASSES, createTrustedProxy, rateLimiterFor, recordAuthFailure } from './rate-limit.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -52,6 +53,8 @@ export interface AppDeps {
   outboundAllowlist?: readonly string[];
   /** Simulation profiles on (profile acceptance AND LTI_PROVIDER_SIMULATION=on, contract §9.13). Default off. */
   simulationProfiles?: boolean;
+  /** Optional registry for embedding and unit tests; normal startup uses the loaded channel folders. */
+  profileRegistry?: ProfileRegistry;
   now?: () => number;
 }
 
@@ -107,7 +110,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const now = deps.now ?? Date.now;
   const log = deps.logger;
   const limiter = rateLimiterFor(deps.db, log, now);
-  const proxy = await createTrustedProxy();
+  const proxy = await createTrustedProxy(undefined, undefined, log);
   const app = Fastify({
     logger: false, bodyLimit: BODY_LIMIT, maxParamLength: MAX_PARAM_LENGTH, return503OnClosing: false,
     trustProxy: proxy.trust,
@@ -118,15 +121,15 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   installApiBasics(app, log);
   app.addHook('onClose', async () => proxy.close());
 
-  const profiles = { simulation: deps.simulationProfiles ?? false };
+  const profiles = { simulation: deps.simulationProfiles ?? false, ...(deps.profileRegistry ? { registry: deps.profileRegistry } : {}) };
   const ctx: RouteContext = {
     db: deps.db, urls: deps.urls, logger: log, keys: deps.keys, ltikTtlSeconds: deps.ltikTtlSeconds, masterKey: deps.masterKey, ags: deps.ags, nrps: deps.nrps, outbound: deps.outbound, now, profiles,
     auth: (req, schemes) => {
       const result = authenticate(deps.db, req.headers.authorization, schemes, now(), (scheme, code, part) => {
         log.warn('api_auth_failed', { trace_id: req.traceId, scheme, code });
-        if (part === 'api_key') recordAuthFailure(limiter, req.ip);
+        if (part === 'api_key') recordAuthFailure(limiter, req.ip, req.traceId);
       });
-      limiter.check(result.scheme === 'bearer' ? 'admin' : 'api', result.actor.id, result.account);
+      limiter.check(result.scheme === 'bearer' ? 'admin' : 'api', result.actor.id, result.account, req.traceId);
       return result;
     },
     errorPage: (reply, req, code, opts = {}) =>
@@ -137,13 +140,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   // Address budgets use cached settings and run before account/auth database reads.
   app.addHook('onRequest', async (req, reply) => {
     const route = req.routeOptions.url ?? '';
-    if (route.startsWith('/api/')) limiter.check('auth_failure', req.ip, undefined, false);
-    const name = route === '/lti/keys/:account' ? 'keys'
-      : route === '/lti/register/:account' ? 'registration'
-        : ['/lti/login/:account', '/lti/launch/:account', '/lti/launch/:account/storage-check'].includes(route) ? 'protocol' : null;
+    if (route.startsWith('/api/')) limiter.refuseIfBlocked(req.ip, req.traceId);
+    const name = ADDRESS_ROUTE_CLASSES[route];
     if (!name) return;
-    try { limiter.check(name, req.ip); }
+    try { limiter.check(name, req.ip, undefined, req.traceId); }
     catch (err) {
+      // Public JWKS is JSON; protocol and registration use the error page.
       if (!(err instanceof ApiError) || err.code !== 'RATE_LIMITED' || name === 'keys') throw err;
       setRetryAfter(reply, retryAfterSeconds(err.details.retryAfter));
       return ctx.errorPage(reply, req, 'RATE_LIMITED');

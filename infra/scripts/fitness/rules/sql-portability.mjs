@@ -17,6 +17,7 @@ export const STATEMENTS = [
 
 // LA-ADR-06 D13 rule 2: each new adapter exception needs an ADR and rule review.
 const ADAPTER_ALLOW_LIST = [
+  { file: 'services/cogniate-app/src/domain/migrations/014_learning_records.sql', form: 'rowid', ref: 'LA-ADR-06 D13 rule 2 item (d)' },
   { file: 'services/lti-service/src/db/migrations/009_signing_key_lifecycle.sql', form: 'date-function', ref: 'LA-ADR-06 D13 rule 2' },
   { file: 'services/lti-service/src/db/migrations/011_api_key.sql', form: 'randomblob', ref: 'LA-ADR-06 D13 rule 2' },
 ];
@@ -39,7 +40,7 @@ const INLINE_BASELINE = [
     file: 'services/lti-service/src/jobs/signing-key-cleanup.ts', form: 'blob-literal', ref: 'S2 LA-E5-10 fix round',
     text: "UPDATE tool_key SET private_jwk_encrypted = X'' WHERE status = 'removed' AND length(private_jwk_encrypted) > 0",
   },
-  // BD-A2-22: these nine pre-LA statements are frozen; this baseline never grows.
+  // BD-A2-22: these seven pre-LA statements (BD-A2-40 removed two) are frozen; this baseline never grows.
   {
     file: "services/cogniate-app/src/domain/attempts.ts", form: 'rowid', ref: 'LA-ADR-06 D13 rule 2: legacy pre-LA SQL',
     text: "SELECT a.*, v.course_id AS course_id FROM attempt a JOIN course_version v ON v.id = a.course_version_id\n    WHERE a.resource_link_id = ? AND a.user_sub = ? ORDER BY a.created_at DESC, a.rowid DESC LIMIT 1",
@@ -66,15 +67,7 @@ const INLINE_BASELINE = [
   },
   {
     file: "services/cogniate-app/src/domain/results.ts", form: 'rowid', ref: 'LA-ADR-06 D13 rule 2: legacy pre-LA SQL',
-    text: "SELECT a.id, a.resource_link_id, a.user_sub, a.course_version_id, a.preview, a.outcome, a.score_given, a.score_maximum,\n      a.created_at, a.updated_at, rl.context_title, rl.title, con.site_url, con.channel\n    FROM attempt a JOIN course_version v ON v.id = a.course_version_id JOIN resource_link rl ON rl.id = a.resource_link_id\n    JOIN connection con ON con.id = rl.connection_id\n    WHERE rl.connection_id = ? AND v.course_id = ? ORDER BY a.created_at, a.rowid",
-  },
-  {
-    file: "services/cogniate-app/src/domain/results.ts", form: 'rowid', ref: 'LA-ADR-06 D13 rule 2: legacy pre-LA SQL',
-    text: "SELECT * FROM score_sync WHERE attempt_id IN ( ) ORDER BY created_at, rowid",
-  },
-  {
-    file: "services/cogniate-app/src/domain/score-syncs.ts", form: 'rowid', ref: 'LA-ADR-06 D13 rule 2: legacy pre-LA SQL',
-    text: "SELECT status, score_given, score_maximum FROM score_sync WHERE resource_link_id = ? AND user_sub = ? ORDER BY created_at DESC, rowid DESC LIMIT 1",
+    text: "SELECT a.id, a.resource_link_id, a.user_sub, a.course_version_id, a.preview, a.outcome, a.score_given, a.score_maximum,\n      a.created_at, a.updated_at, rl.context_id, rl.context_title, rl.title, con.site_url, con.channel\n    FROM attempt a JOIN course_version v ON v.id = a.course_version_id JOIN resource_link rl ON rl.id = a.resource_link_id\n    JOIN connection con ON con.id = rl.connection_id\n    WHERE rl.connection_id = ? AND v.course_id = ? ORDER BY a.created_at, a.rowid",
   },
 ];
 const DATE_FUNCTIONS = new Set(['unixepoch', 'julianday', 'strftime', 'datetime', 'date', 'time', 'timediff']);
