@@ -13,7 +13,18 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 18:04 UTC
+### Current directive — 2026-10-22, 18:48 UTC
+
+The Lead accepts [E-R5](r5-evidence-decision-2026-10-22.md) for the remaining shared-host verification.
+It amends E-R4's exclusive-hold requirement. It changes no product, test, assertion, deadline, launcher, tool or acceptance criterion.
+Claude's section 11.6 and independent Gemini's artifact check define the extra evidence required after any attributed foreign activity.
+Savoy's prospective resource boundaries and whole-window completeness confirmation replace a global reservation; no reservation is claimed.
+Each Canvas SIM, M2 and T7 invocation still needs a separate Lead grant. All original checks and the no-retry rules remain.
+Legacy results remain accepted under E-R4. Historical E-R3 remains VOID.
+Final conformance, guides, independent Docs QA and two blind reviews remain required.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior directive — 2026-10-22, 18:04 UTC
 
 The Lead accepts [E-R4](r4-evidence-decision-2026-10-22.md), following Claude Architect's P1 proposal at `a8354f2`.
 All twelve fresh C6/C8 legacy groups passed. Functional and criterion evidence is accepted with the non-exclusive window disclosed.

@@ -2,7 +2,23 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 18:40 UTC
+## Current checkpoint — 18:48 UTC
+
+The Lead accepts [E-R5](r5-evidence-decision-2026-10-22.md) for shared-host execution within the confirmed resource boundaries.
+Claude finalized the unchanged verification requirements in section 11.6 of the failure plan; Gemini confirmed the artifact types are available.
+This claims no Docker reservation and does not override Savoy's immediate-access instruction.
+The user has already authorized LTI verification. No answer to the optional exclusive-priority question is inferred.
+
+All original tests, deadlines, resource comparisons, scans and cleanup checks remain required.
+If foreign work overlaps an invocation, independent QA must supply the extra negative-check evidence in E-R5.
+M2 must prove cancellation through the specified logs; an unclear overlapped result requires a window without foreign work for M2.
+Every invocation still needs a separate Lead grant. First: Canvas SIM round 1, then round 2, M2 and T7.
+Legacy remains accepted under E-R4 with the non-exclusive window disclosed. No legacy rerun is required.
+
+Final conformance, guide updates, independent Docs QA and two blind reviews follow accepted runtime.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 18:40 UTC
 
 Legacy functional and criterion evidence remains accepted under E-R4. No legacy rerun is required.
 The two Canvas SIM rounds, independent Canvas judgments and equality, M2 and T7 have not started.
