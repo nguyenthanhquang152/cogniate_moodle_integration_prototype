@@ -13,7 +13,15 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 04:48 UTC
+### Current checkpoint — 2026-10-22, 04:56 UTC
+
+**C4 diagnostic attempt 2 is running.** The LA Lead removed its own stack at 04:55:00 UTC and confirmed no Docker activity until this run returns a window. The Lead read its cleanup snapshot (`6bdfd7d316595e91cf7fdb960369d57fb5a760e1432df5dc894d0f9d8ce0d33f`). Attempt 1 remains FAIL for environment overlap. Its reports are committed at `968baf326dab49263aa6874ad03c376e98c04581`; all 2,331 main, root and supplement index entries match.
+
+The same Common QA `ctx_e23ced3dd1fa` started the retry runner at 04:56:08 UTC under new grant `msg_e530684e807f`, through 06:20 UTC. Candidate C4 remains `bf09cdad91ca548e1ecbc14428b55180d35d5360`. Source: `qa-common-c4-20261022T0408Z/diag2-src/source`; run root: `diag2`. The Lead verified all 374 preparation entries, 250 tracked test files and 1,928 dependency entries. The qualified launcher and criteria are unchanged. W1–W3 passed. W3 `638d2ffd8bfe66f43e0fb3babc7ea35dccc773d5e10ea193adc65cf229ce1845` records live time 04:56:05.579 UTC, zero containers and all nine baseline volume records unchanged. Launcher PID/PGID: 97309; runner PID: 99506.
+
+The retry runs migration 12 then conditional storage 70. Its result is expected around 05:25–05:35 UTC (12:25–12:35 Vietnam), including cleanup and evidence checks. Full/legacy, M2/T7 and final document gates remain pending. No further source repair is requested. The same fixer remains active and Canvas stays host-ready. All 32 live rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 04:48 UTC
 
 **C4 diagnostic attempt 1 failed its environment boundary. All 82 functional rows passed.** Migration passed 12/12 and storage passed 70/70. The runner ran from 04:18:22 to 04:45:10 UTC and exited 1 only because strict W4 failed. An unrelated LA stack, `qa-la-sim-r1`, started at 04:42:05 UTC. W4 lists its nine containers, four volumes and one network as new unrelated resources. The protected records and built-in networks remained unchanged. Both owned lanes were cleaned. This attempt gives zero full acceptance credit.
 
