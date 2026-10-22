@@ -2,7 +2,26 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 18:04 UTC
+## Current checkpoint — 18:40 UTC
+
+Legacy functional and criterion evidence remains accepted under E-R4. No legacy rerun is required.
+The two Canvas SIM rounds, independent Canvas judgments and equality, M2 and T7 have not started.
+Savoy declined an exclusive Docker hold because its machine-owner instruction gives its work immediate access.
+Its latest reported block ended at 18:37:29 UTC; it reports no further work scheduled, but no reservation is agreed.
+
+Claude found no ready isolated Docker environment. A second engine would require new infrastructure and validation.
+Its conditional shared-host proposal is committed at `dfb8d24`, section 11 of the [failure plan](../reviews/M3/t6-09-failure-plan.md).
+The proposal keeps all original tests and checks. It requires extra retained evidence for specific timing-sensitive negative checks.
+Independent Gemini QA is checking whether the frozen artifacts can supply that evidence. No shared-host route or runtime grant is accepted yet.
+Savoy has confirmed resource boundaries in `msg_962e480b30de`; network-subnet and full-window chronology details remain pending.
+
+The user's scheduling question remains open. Claude recommends about 75 minutes for a reserved window, including preflight and cleanup.
+The underlying test estimate remains about 50–60 minutes, plus handoffs or new failures.
+Final conformance, necessary guide updates, independent Docs QA and two blind reviews follow accepted runtime.
+No completion time is committed while the execution route is unresolved.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 18:04 UTC
 
 All twelve legacy groups passed: 304 raw entries and 251 as the sum of unique IDs within each subrun.
 The QA disclosure is committed at `e8a1947`. It records the non-exclusive window, exposure ledger and corrected counts.
