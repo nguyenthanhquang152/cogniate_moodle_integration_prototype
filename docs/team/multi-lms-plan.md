@@ -13,7 +13,27 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 12:32 UTC
+### Current directive — 2026-10-22, 12:53 UTC
+
+The fresh C4/C5 attempt is FAILED and closed at 7a74d2f. Nine groups passed; T5b AC-T5-36 and T6 AC-T6-07 failed; T8 did not run.
+Lead verified the 1,944-entry evidence index, six root entries and unchanged prior index records.
+W4, scans and cleanup passed. All 32 starting volume records remain unchanged; no runtime window is active.
+
+Claude's consolidated plan is committed at c80a59f: [failure analysis](../reviews/M3/t5b-failure-plan.md).
+The following Lead decisions apply to that plan. They grant bounded work, not acceptance of a repaired candidate.
+
+- D1 accepted: AC-T5-36 exposes a product attach-timing defect. The exact missed progress fact remains inferred. AC-T6-07 is a test snapshot defect.
+- D2 granted: the same retained Codex session owns R1, task_12d50fc3129a / ctx_dd4f46343b34. Edit only the tracker and its unit tests; runtime main may change only if its call must change. Require fail-before proof and the prescribed self-checks.
+- D3 approved under AC-M3-02(b): QA adds exactly the two readiness waits in R2, preserving all assertions, deadlines, titles and C5 labels. Task_f39fe64fcfe6 is ready for the next slot. QA also determines trace availability and the exact affected browser-row scope.
+- D4 conditional E-T5R: prefer the bounded evidence route only if independent QA proves exact R1 paths, only dist/runtime.js changed, and an exhaustive mapping of every runtime-asset request to its M1 row. Include every affected row, twice, with independent Canvas judgment. Missing or ambiguous mapping requires the strict route. Any other product change or fresh failure voids this exception. No C4 evidence fills a new-candidate row before these conditions pass.
+- D5 deferred until the final identities and selection are known: prepare a v3 launcher with identity and path-list changes, then obtain two blind reviews before any new runtime grant. An optional trace-retention hook is not yet authorized; QA must first locate surviving evidence and identify the actual hook needed.
+- D6 deferred to final Architect conformance against the implemented behavior. Do not claim that polling observes every possible document without proof.
+
+Guide corrections are at 958ee5c. Independent Stage1 QA passed all affected workflows and changed-text checks at 60cb89d.
+Focused blind A/B guide rechecks run while R1 proceeds. Final conformance, final Docs stamps and final approvals remain pending.
+All 32 real LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 12:32 UTC
 
 Fresh legacy failed T5b AC-T5-36: the hanging-host HTML course completed, but Moodle grade stayed null instead of 100.
 T5a passed 23/23. T5b passed 23 and failed one, with no skips or retries. QA reported the first failure in msg_4cd73ea5bffb.
