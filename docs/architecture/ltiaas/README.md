@@ -1,6 +1,6 @@
 # LA target architecture: LTI as a Service v1
 
-Status: v1 for G-DESIGN (A1, milestone LA P2, 2026-10-22). Owner: Architect A1 (overall consistency). Plan: [plan v1.1](../../team/ltiaas/plan.md). Terms: [terms](terms.md). Base architecture: [`../README.md`](../README.md) (M1 state); its terms stay valid.
+Status: v1.1 for G-DESIGN (A1, milestone LA P2, 2026-10-22; v1.1 = consistency pass after the QA pre-review `docs/reviews/LA-DESIGN/qa.md` and A2's fixes). Owner: Architect A1 (overall consistency). Plan: [plan v1.1](../../team/ltiaas/plan.md). Terms: [terms](terms.md). Base architecture: [`../README.md`](../README.md) (M1 state); its terms stay valid.
 
 ## 1. Goal
 
@@ -110,11 +110,24 @@ flowchart TB
 
 | Id | Check | Mechanism (Author choice inside the rule) | Pass |
 | --- | --- | --- | --- |
-| F1 | LMS-name lint over core code tokens. Banned words: every channel id (from the folder names), the names of every named channel (manifest `names`), and a fixed vendor list (`moodle`, `canvas`, `instructure`, `blackboard`, `brightspace`, `d2l`, `desire2learn`, `schoology`, `sakai`, `totara`). Comments are not checked. Token exceptions: the HTML `canvas` element and the Canvas Web API names. | a Node script with the TypeScript compiler API, or ESLint `no-restricted-syntax`; a checked-in per-file ratchet; a check-one-text mode for QA probes | every core count 0 at E1 done (baseline: 214 code lines in 60 files, R3 §2.1) |
+| F1 | LMS-name lint over core code tokens. Banned words: every channel id (from the folder names), the names of every named channel (manifest `names`), and a fixed vendor list (`moodle`, `canvas`, `instructure`, `blackboard`, `brightspace`, `d2l`, `desire2learn`, `schoology`, `sakai`, `totara`). Comments are not checked. Token exceptions: the HTML `canvas` element and the Canvas Web API names. | a Node script with the TypeScript compiler API, or ESLint `no-restricted-syntax`; a checked-in per-file ratchet; a check-one-text mode for QA probes | installed in step S2 with today's per-file counts as the ratchet baseline (R3 §2.1: 214 code lines in 60 files); every core count 0 at E1 done (step S9) ([LA-ADR-04 D1](adr/LA-ADR-04-refactor-and-migration.md#decision)) |
 | F2 | Add-channel gate: `git diff --name-status --no-renames` of an add-channel branch against its base; a path in core, a shared build file or another channel folder fails | `npm run fitness:channel-diff -- --base <sha> --channel <id>` | `core` = 0 on the E2-N diff against the E2-K-done SHA ([LA-ADR-02 D8](adr/LA-ADR-02-generic-lti-channel.md#decision)) |
-| F3 | Dependency direction: the import table of [LA-ADR-01 D1](adr/LA-ADR-01-channel-kernel.md#decision) | ESLint `no-restricted-imports` per glob (as the content-host fence) | 0 errors |
-| F4 | Canary channel: a test-only channel folder under `tests/**` that the registry loader reads through an extra root in tests | QA K0 | the canary passes K0 with no core edit |
+| F3 | Dependency direction: the import table of [LA-ADR-01 D1](adr/LA-ADR-01-channel-kernel.md#decision) | ESLint `no-restricted-imports` per glob (as the content-host fence) | 0 errors, from step S2 |
+| F4 | Canary channel: a test-only channel folder under `tests/**` that K0 passes to `loadChannelFolders` as a second root (a function argument only, [LA-ADR-01 D4](adr/LA-ADR-01-channel-kernel.md#decision)) | QA K0 | the canary passes K0 with no core edit |
 | F5 | Frozen-data rules N7, and A2's rules (no `'/lti/launch/'` literal outside the account resolver; no `DELETE FROM audit_event` outside its job; SQL portability lint) | the F1 script family | 0 hits |
+
+### 4a. Local CI script (F7.6)
+
+There is no CI service in the repo. One script runs the release checks on a clean clone (QA pre-review Q-LAD-09; tools from QA's proposal).
+
+| Item | Design |
+| --- | --- |
+| Command | `npm run ci:local` (script `infra/scripts/ci-local.sh`), from the root of a clean clone |
+| Steps, in order | 1. `npm ci --ignore-scripts` at the root, then in `tests/` (its own lock file). 2. `npm run check` (lint, typecheck, unit and infra tests, the fitness checks F1, F3 and F5). 3. `npm audit --omit=dev --audit-level=high`. 4. `npm sbom --sbom-format cyclonedx --omit dev` into `.tmp/ci/sbom.cdx.json`. 5. A secret scan of every tracked file (`git ls-files`) with a fixed pattern list in the script: private key blocks, `ltis_` API keys, 64-hex master keys, and a non-empty value after a key name of `.env.example`. A reviewed allow list in the script names each known non-secret hit by file, for example the private-key search pattern in `tests/acceptance/M1/common/99-logs.test.ts`; the clean tree must pass with it. |
+| Network | Steps 1 and 3 read the npm registry. No other step uses the network. If the registry cannot be reached, the script prints `network_unavailable` and exits 2. A network failure is never a pass. |
+| Result | Exit 0 only when every step passes; exit 1 when a check fails; exit 2 when the network is unavailable. One output line per step: name, result, seconds. A secret finding names the file and line, never the value. |
+| Acceptance | On a clean clone: exit 0. A planted `ltis_` key in a temporary tracked copy of a file: step 5 fails, exit 1, and the output names that file and line. |
+| Not in LA | A hosted CI service, image signing, digest pins of base images (LG; R4 SC-2). |
 
 ## 5. Module and package layout after LA
 
@@ -190,7 +203,7 @@ One line each. "Decision" links the design decision that the breakdown turns int
 | F1.8 | `{LMS}` texts from manifests in every service and the player | Must | [LA-ADR-01 D12](adr/LA-ADR-01-channel-kernel.md#decision) |
 | F1.9 | Portal shell: registry routes, manifest cards, manifest wizard; modules move | Must | [LA-ADR-01 D9](adr/LA-ADR-01-channel-kernel.md#decision) |
 | F1.10 | `PUBLIC_MOODLE_URL` leaves the LTI service config | Must | [LA-ADR-04 D1 S3](adr/LA-ADR-04-refactor-and-migration.md#decision), LA-IC-02 |
-| F1.11 | Fitness checks F1–F5 and the canary channel | Must | §4 |
+| F1.11 | Fitness checks F1–F5 and the canary channel (F1 and F3 from step S2) | Must | §4; [LA-ADR-04 D1](adr/LA-ADR-04-refactor-and-migration.md#decision) |
 
 **E2 Generic LTI and D2L (Must; one Should, one Could)**
 
@@ -274,7 +287,7 @@ One line each. "Decision" links the design decision that the breakdown turns int
 | F7.3 | Pass rule: N/A only for a false capability whose guard passes | Must | QA strategy §2.6 |
 | F7.4 | Data-driven simulator and one host manifest | Must | QA strategy §2.8; [LA-ADR-02 D7](adr/LA-ADR-02-generic-lti-channel.md#decision) |
 | F7.5 | Fitness checks in `npm run check` | Must | §4; QA strategy §3 |
-| F7.6 | Local CI script (install, check, vulnerability scan, SBOM, secret scan) | Must | plan §3 E7; QA strategy |
+| F7.6 | Local CI script (install, check, vulnerability scan, SBOM, secret scan) | Must | §4a |
 | F7.7 | K2 browser checks | Could | QA strategy §2.2 |
 | F7.8 | Certification reference tool (LA-H9) | Should | plan §3 E7; R1 §4 |
 
@@ -290,16 +303,29 @@ One line each. "Decision" links the design decision that the breakdown turns int
 
 ## 8. Open consistency items
 
-Items that A1 cannot close inside its own files. Each names the owner who closes it.
+Items that A1 cannot close inside its own files. Each names the owner. Closed items stay in the table with the closing reference.
 
-| # | Item | Owner | Proposal |
+| # | Item | Owner | Status |
 | --- | --- | --- | --- |
-| OC-1 | Plan §4 measure 1 says the gate runs "against the E1-done SHA". E2 has planned core work (traits, DR fixes, grant bound values), so the base must be the E2-K-done SHA ([LA-ADR-02 D8](adr/LA-ADR-02-generic-lti-channel.md#decision)). QA already aligned (QA strategy §3.3). | Lead | Change the plan wording to "against the SHA where E1 and E2-K are done". |
-| OC-2 | A2 [LA-ADR-05](adr/LA-ADR-05-lti-advantage-completeness.md) AP-05-09 says that a launch without an AGS claim has "no dispatch row". Today a graded placement without a line item gives a `failed` row "No gradebook column" (ADR-010 rule 1), and [LA-ADR-03 D2](adr/LA-ADR-03-learning-record-core.md#decision) keeps that until the ungraded rule (LA-IC-07, Should, LA-H22) ships. | A2 | AP-05-09 expects today's `failed` row until LA-ADR-05 D5 ships, or AP-05-09 moves under D5. |
-| OC-3 | LA-IC-09: migration `014` makes the T5b P5 fixture ineffective (QA strategy §4.7). | Lead | One decision that lets the fixture delete the same row in `record_dispatch` ([LA-ADR-04 D8](adr/LA-ADR-04-refactor-and-migration.md#decision)). |
-| OC-4 | A2's [lti-service-api-delta](contracts/lti-service-api-delta.md) records `channel` on `GET /api/providers` (C11), `complete.profile` and `complete.scopes`, `grantedScopes`, `clientAssertionAud` (C10, §4.5, §4.6) and `PLATFORM_RATE_LIMITED` with `details.retryAfter` (C12). Two A1 changes are not yet in it: (a) the `POST /api/platforms` rules for the new admin-value profiles `lti-generic` and `brightspace` ([LA-ADR-02 D2, D3, D6](adr/LA-ADR-02-generic-lti-channel.md#decision)): endpoints on other https origins when the profile has `endpointOrigins: any-https` (site rules 1–4 instead of `PLATFORM_URL_NOT_ON_ISSUER_ORIGIN`), an issuer with a path, the reserved-issuer rule; (b) the new trait fields on each `GET /api/providers` profile: `endpoints`, `issuerKind`, `endpointOrigins` (the app reads `endpoints` to decide which values a grant binds). | A2 | Add both rows to the LTI service delta (§4.6, §4.7) and as contract §8 rows if they differ from LTIAAS. |
-| OC-5 | Human decision ids: A1 uses only plan ids (LA-H3, LA-H4, LA-H6, LA-H10). A2 uses LA-H21 and up (LA-H22 proposed: ungraded items). | Lead | Renumber in the plan when the list is final. |
-| OC-6 | LA-ADR-07 D3 builds the connection secrets table only "if A1 moves the Moodle web-services token". A1 does not move it in LA (no extra schema change; [data model §5a](data-model.md#5a-cogniate-app-migration-016-e6-could)). | A2 | LA-ADR-07 D3 "Scope in LA": build in LB or LF. |
+| OC-1 | Base SHA of the add-channel gate (plan §4 measure 1) | Lead | **Closed:** the plan measures E2-N against the E2-K-done SHA (`docs/team/ltiaas/plan.md:144`). |
+| OC-2 | AP-05-09 against today's "No gradebook column" row | A2 | **Closed:** A2 [LA-ADR-05](adr/LA-ADR-05-lti-advantage-completeness.md) AP-05-09 now expects today's `failed` row; D5 keeps it for every graded placement, and AP-05-28 checks it on a Moodle-shaped channel. |
+| OC-3 | LA-IC-09: the T5b P5 fixture after migration `014` | Lead | **Closed:** plan LD-6 (the fixture deletes the same row in `record_dispatch`). |
+| OC-4 | Admin-value `POST /api/platforms` rules and the trait fields of `GET /api/providers` | A2 | **Closed:** A2 [lti-service-api-delta](contracts/lti-service-api-delta.md) §4.6.1 and §4.7; LA-IC-01 lists the trait fields. |
+| OC-5 | Human decision ids: A1 uses only plan ids. A2 proposes LA-H21 (operator policy), LA-H22 (ungraded items) and LA-H23 (Moodle manual authority) | Lead | Open: add them to plan §6.2 or renumber. |
+| OC-6 | Who builds the connection secrets table | A2 | **Closed:** A2 [LA-ADR-07](adr/LA-ADR-07-security-and-tenancy.md) D3 "Scope in LA": LB or LF builds it; LA keeps `connection.ws_*`. |
+| OC-7 | Two QA allowances for the tasks README §2: (a) QA writes `infra/.secrets/lti/keyring.json` in its own clone and restarts the LTI service (A2 LA-ADR-06 AP-06-24); (b) `docker compose exec -e STACK_PROFILE=production -e OPERATORS=<name> cogniate-app npm run app:grant …` (A2 LA-ADR-07 AP-07-04, AP-07-09) | Lead (P3 breakdown) | Open: add both to `docs/architecture/tasks/README.md` §2 in P3. |
+| OC-8 | The LD-1 rewrite list misses two closed-list assertions: `tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:255` and `tests/acceptance/M1/common/90-simulation-gates.test.ts:19` (QA pre-review Q-LAD-08) | QA (list owner, QA strategy §4.3); Lead approves | Open: QA adds both rows and widens the E0 scan to exact lists and counts. [LA-ADR-04 D6](adr/LA-ADR-04-refactor-and-migration.md#decision) states the rule. |
+
+QA pre-review findings in A1 files (`docs/reviews/LA-DESIGN/qa.md`):
+
+| Finding | Change |
+| --- | --- |
+| Q-LAD-07 | [LA-ADR-01 D4](adr/LA-ADR-01-channel-kernel.md#decision): `loadChannelFolders`, `buildChannelRegistry`, `ChannelRegistry` sketch; the extra root is a function argument only. D5: `ConnectionSetup` sketch. |
+| Q-LAD-08 | OC-8 above (QA-owned list); rule in LA-ADR-04 D6. |
+| Q-LAD-09 | §4a above. |
+| Q-LAD-10 | [LA-ADR-04 D2](adr/LA-ADR-04-refactor-and-migration.md#decision): rows for the frozen error codes and for the values that core writes; LA-ADR-01 D10 points to them. |
+| Q-LAD-11 | LA-ADR-04 D1: step S2 installs F1 with the baseline ratchet and F3; S9 only brings the counts to 0. |
+| Q-LAD-12 | [LA-ADR-01 D3](adr/LA-ADR-01-channel-kernel.md#decision): the `records.reporters` and `records.readBack` guards are covered by Author unit tests and the K0 canary with the capability off. |
 
 ## 9. Design file index
 
@@ -336,4 +362,6 @@ No BLOCKER-level unknown is open without an id.
 | LA-H7 | v1 tenant model | path mode; vendor-model controls built | A2 LA-ADR-06 D2 |
 | LA-H10 | G-BASE timing | frozen candidate | [LA-ADR-04 D9](adr/LA-ADR-04-refactor-and-migration.md#decision) |
 | R2-2 (unknown, not blocking) | D2L product family `desire2learn`; D2L DR token format | guard `desire2learn`; D2L DR is Should | [LA-ADR-02 D4](adr/LA-ADR-02-generic-lti-channel.md#decision) |
-| A2 ids LA-H21+ | A2's decisions (for example LA-H22 ungraded items) | as A2 records | A2 ADRs |
+| LA-H21 (proposed by A2) | Operator policy: key life, roles, two-person rule | named staff; 90-day keys | A2 [LA-ADR-06](adr/LA-ADR-06-service-operability.md), [LA-ADR-07](adr/LA-ADR-07-security-and-tenancy.md) |
+| LA-H22 (proposed by A2) | Offer ungraded items (D-11) | yes for Canvas `link_selection` and `lti-generic`; no for Moodle | A2 [LA-ADR-05](adr/LA-ADR-05-lti-advantage-completeness.md) D5 |
+| LA-H23 (proposed by A2) | Moodle manual connect authority | keep `self` for the pilot (residual R-LA-1; the legacy list of load check 6) | A2 [LA-ADR-07](adr/LA-ADR-07-security-and-tenancy.md), [LA-ADR-08](adr/LA-ADR-08-onboarding-and-connection-health.md) |

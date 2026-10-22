@@ -1,6 +1,6 @@
 # Milestone LA plan: LTI as a Service v1
 
-Status: **v1.1** (Lead, 2026-10-22). v1 replaced draft v0; v1.1 adds the R2 facts to §2, E2, LA-H3 and LA-H6. Inputs: [R1 spec coverage](../../research/ltiaas/R1-spec-coverage.md), [R2 LMS landscape](../../research/ltiaas/R2-lms-landscape.md) (v1.1 patch: E2, LA-H3, LA-H6), [R3 extensibility audit](../../research/ltiaas/R3-extensibility-audit.md), [R4 ops readiness](../../research/ltiaas/R4-ops-readiness.md), [R5 test baseline](../../research/ltiaas/R5-test-baseline.md), [DataCamp facts](../../research/ltiaas/inputs-datacamp.md). Rules: [charter-LA](charter-LA.md).
+Status: **v1.2** (Lead, 2026-10-22). v1.2 adds LA-H21..LA-H24 from the design. v1 replaced draft v0; v1.1 adds the R2 facts to §2, E2, LA-H3 and LA-H6. Inputs: [R1 spec coverage](../../research/ltiaas/R1-spec-coverage.md), [R2 LMS landscape](../../research/ltiaas/R2-lms-landscape.md) (v1.1 patch: E2, LA-H3, LA-H6), [R3 extensibility audit](../../research/ltiaas/R3-extensibility-audit.md), [R4 ops readiness](../../research/ltiaas/R4-ops-readiness.md), [R5 test baseline](../../research/ltiaas/R5-test-baseline.md), [DataCamp facts](../../research/ltiaas/inputs-datacamp.md). Rules: [charter-LA](charter-LA.md).
 
 ## 1. Goal
 
@@ -214,6 +214,10 @@ Docker: at most 2 stacks at the same time, by booked slot (Lead decision LD-2). 
 | LA-H8 | Pilot RPO, RTO and SLO | RPO 1 h, RTO 4 h for the pilot | E5 backup |
 | LA-H9 | 1EdTech membership and the certified product shape (service plus reference tool, or the Cogniate app) | Certify the service with a reference tool | E7 reference tool |
 | LA-H10 | G-BASE: wait for the full Blackboard and Canvas acceptance, or start LA build on the frozen candidate C (product `9f8ac62`) and merge the final result later | Start on the frozen candidate; E0 runs its own regression | P4 start |
+| LA-H21 | Operator policy: who holds an operator key, key life, two-person rule for account close and forced key activation (A2, LA-ADR-06, LA-ADR-07) | Named staff only; 90-day keys; second operator as a Could | E5 build |
+| LA-H22 | Offer ungraded items (D-11) (A2, LA-ADR-05 D5) | Yes for Canvas `link_selection` and `lti-generic`; no for Moodle | E3 Should |
+| LA-H23 | Moodle manual connect authority: keep `self` (residual R-LA-1) or require a verified admin launch or a grant (A2, LA-ADR-07) | Keep `self` for the pilot | E5/E6 |
+| LA-H24 | Approve the verified-admin-launch authority (E6 D3, Could) after a security review (A2, LA-ADR-08) | Only if E6 gets capacity | E6 |
 
 ## 7. Risks
 

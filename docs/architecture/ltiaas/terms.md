@@ -17,12 +17,13 @@ This file adds the terms of milestone LA. The terms of [`../README.md` §2](../R
 | **Channel manifest** | The pure-data file `manifest.ts` of a channel folder: id, names, family, card, capabilities, setup steps, texts. All three deployables read it. | `ProviderAdapter` data fields (`providers/types.ts:136-148`) |
 | **Channel adapter** | The code of one channel folder behind the kernel ports: the app setup adapter, the LTI profiles, the portal module. | "provider adapter" (`providers/types.ts:1-4`) |
 | **Channel registry** | The one list of channels. Each deployable builds it by folder discovery of `packages/channels/*/`. No file lists the channel ids. | `providerAdapters()` (`providers/index.ts:13`), `listProfiles()` (`profiles/index.ts:27`), `LMS_TYPES`, `providerWizards` (`apps/portal/src/connect/wizards.ts:7`) |
+| **Registry builder** | The pure kernel function `buildChannelRegistry` that runs the load checks and builds the registry from loaded channel folders. The loader `loadChannelFolders` takes its roots only as a function argument ([LA-ADR-01 D4](adr/LA-ADR-01-channel-kernel.md#decision)). | — |
 | **Channel kernel** (kernel) | The core code that runs every channel through ports and capabilities: registry, capability guards, binding authority strategies, launch router, extension mount, dispatch outbox, portal shell. | the "common engine" (`providers/types.ts:3`) |
 | **Core** | All product code outside the channel folders. Core must not name a channel (§3). | — |
 | **Shared driver** (driver) | A reusable mechanism that many channels use. LA drivers: the **LTI 1.3 driver** (LTI service, app LTI client, tool pages) and the **AGS reporter**. | the LTI service; the score sync worker |
 | **Port** | A typed interface between the kernel and a channel adapter or a driver ([LA-ADR-01 D5](adr/LA-ADR-01-channel-kernel.md#decision)). | — |
 | **Extension route** | An app API route that a channel folder declares. The kernel mounts it behind a capability guard. | Canvas JSON route (`app/canvas-configuration.ts`), web services route (`app/web-services.ts`) |
-| **Canary channel** | A test-only channel folder that QA keeps outside product paths. It proves on every commit that a new channel needs no core change. | — |
+| **Canary channel** | A test-only channel folder that QA keeps outside product paths and passes to the loader as a second root. It proves on every commit that a new channel needs no core change. | — |
 
 ## 2. Capabilities and profiles
 
@@ -93,6 +94,9 @@ A2 owns the design of these items ([LA-ADR-05](adr/LA-ADR-05-lti-advantage-compl
 | **Library** | Unchanged: the tenant of the Cogniate app. | README §2 |
 | **Operator** | Cogniate staff with operator rights (ADR-011 §3). In LA the operator uses the operator admin API with an operator key; the CLIs become clients of that API. | ADR-011 §3 ("shell access") |
 | **Operator key** | The own credential of the operator admin API. It is not a tool account API key. | — |
+| **Operator listener** | The internal listener of the LTI service that serves the operator API, `/metrics` and `/readyz`; no proxy route ([LA-ADR-06](adr/LA-ADR-06-service-operability.md) D3). | — |
+| **Account resolver** | The one LTI service module that finds the tool account of a request and builds its protocol URLs ([LA-ADR-06](adr/LA-ADR-06-service-operability.md) D2). | `PUBLIC_APP_URL`-based tool URLs |
+| **Grant evidence** | The operator's record of why a grant, suspend or release is right: evidence channel and evidence reference, stored in the app audit event ([LA-ADR-07](adr/LA-ADR-07-security-and-tenancy.md) D5). | the grant `note` |
 | **API key scope** | The rights of one tool account API key: `launch` (the launch-side API) or `admin` (platforms, deployments, registrations). | the one API key per account |
 | **Key provider** | The port that wraps and unwraps stored secrets with a versioned master key. LA: a local file provider. LG: a cloud KMS. | `APP_MASTER_KEY`, the LTI service master key |
 | **Key version**, **key ring** | The id of one master key; the set of key versions that a key provider keeps to unwrap old blobs. | — |

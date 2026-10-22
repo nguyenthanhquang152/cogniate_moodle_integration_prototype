@@ -134,6 +134,9 @@ A capability is a dotted id with a typed value. The kernel owns the catalog: a c
 | `launch.topLevelContinue` | boolean | manifest (Canvas true) | `view.lms === 'canvas'` (`services/cogniate-app/src/tool-pages/play.ts:108`) | the embedded page stays static |
 | `records.reporters` | list of reporter ids | manifest | the hard-wired AGS worker (R3 S58) | no reporter = no dispatch row ([LA-ADR-03](LA-ADR-03-learning-record-core.md)) |
 | `records.readBack` | boolean | the reporter | "Refresh from Moodle" (`app/results.ts:41-60`) | `POST …/results/refresh` → `409 CAPABILITY_NOT_SUPPORTED` |
+| `setup.connectionCheck` | boolean | manifest `setup.connectionCheck` (Could, A2 [LA-ADR-08 D4](LA-ADR-08-onboarding-and-connection-health.md)) | — | `POST …/check` → `409 CAPABILITY_NOT_SUPPORTED` |
+
+Every LA channel has `records.reporters` and `records.readBack`, so no LA channel makes these two guards fire. Their guard cases are covered by Author unit tests and by the K0 canary channel with the capability off (QA pre-review Q-LAD-12). No product change is needed for that.
 
 **Legacy projection.** The connection DTO and `GET /app-api/lms-providers` keep the six legacy capability flags byte for byte. One pure kernel function makes them from the capability set:
 
@@ -158,9 +161,42 @@ A guard that existed in M1 keeps its `details.capability` value (`webServices`, 
   4. Every capability id is in the catalog; `publish.createCourse` needs `siteApi.token`.
   5. Every `registration[].profiles` entry exists in the channel's `lti-profiles.ts` (LTI service) or in `GET /api/providers` (app, at first use).
   6. A method whose profile has `sharing: shared` must not use authority `self` (A2 [LA-ADR-07 D2](LA-ADR-07-security-and-tenancy.md) rule A4). A `manual` method must not use `self` either (rule A3), unless its channel id is in the frozen legacy list of `legacy-wire.ts`. That list has one entry, the Moodle channel (no behaviour change); a new entry needs an ADR revision and a security review.
-- `availability: 'simulation-only'` channels load only when the LTI service runs with simulations on (LTI contract §9.13). Tests can give the loader an extra root (the canary channel, D10). Production code has no extra root.
+- `availability: 'simulation-only'` channels load only when the LTI service runs with simulations on (LTI contract §9.13).
+- **Extra root.** The loader takes its roots only as a function argument. Product code passes exactly one root, a constant path to `packages/channels/` (built from `import.meta.url`). No environment variable, knob or runtime setting can add a root. Tests pass a second root for the canary channel (D10).
+
+Entry points (the public kernel surface that K0 tests use, QA pre-review Q-LAD-07):
+
+```ts
+// packages/channel-kernel/src/registry.ts (sketch)
+export interface LoadedChannel {
+  folder: string;              // absolute path; its base name must equal manifest.id (load check 1)
+  manifest: unknown;           // default export of manifest.ts, not yet validated
+  ltiProfiles?: unknown[];     // side 'lti' only: export of lti-profiles.ts
+  appAdapter?: unknown;        // side 'app' only: export of app.ts
+}
+export interface RegistryOptions { simulations: boolean }
+export class RegistryError extends Error { channel: string | null; check: 1 | 2 | 3 | 4 | 5 | 6; reason: string }
+
+/** Node only (LTI service, app): readdir of each root, then import() of the entry files of that side. */
+export function loadChannelFolders(roots: readonly string[], side: 'lti' | 'app'): Promise<LoadedChannel[]>;
+
+/** Pure: runs load checks 1–6 (check 5 only on the 'lti' side, against the loaded profiles) and builds the registry, or throws RegistryError. */
+export function buildChannelRegistry(channels: readonly LoadedChannel[], opts: RegistryOptions): ChannelRegistry;
+
+export interface ChannelRegistry {
+  channels(): readonly ChannelManifest[];                    // registry order
+  channel(id: string): ChannelManifest | null;
+  channelOfProfile(profileId: string): string | null;
+  ownerOfFamily(family: string): string | null;              // lower case; generic check 14
+  textName(channelId: string | null): string;                // {LMS}; null = the standard profile's channel
+  capabilities(channelId: string, profile?: ProfileTraits): CapabilitySet;
+  legacyCapabilities(channelId: string, profile?: ProfileTraits): LegacyCapabilities; // the six M1 flags
+}
+```
+
+The portal builds the same `LoadedChannel[]` from `import.meta.glob` and calls `buildChannelRegistry`. The app runs load check 5 against `GET /api/providers` at first use, through `channelOfProfile` (a profile of a method that the LTI service does not report makes the method unavailable, log `channel_profile_unknown`).
 - Channel order: by `card.order`, then by id (moodle, canvas, blackboard for the baseline).
-- Profile order in `GET /api/providers`: real profiles first, then simulation profiles; inside each group by the profile field `listOrder`, then by id. The baseline values reproduce today's order exactly (`services/lti-service/src/profiles/index.ts:27-31`): `standard`, the four Canvas profiles, `blackboard`; then `blackboard-sim`, `canvas-sim-cloud`.
+- Profile order in `GET /api/providers`: real profiles first, then simulation profiles; inside each group by the profile field `listOrder`, then by id. The baseline values reproduce today's order exactly (`services/lti-service/src/profiles/index.ts:27-31`): `standard`, the four Canvas profiles, `blackboard`; then `blackboard-sim`, `canvas-sim-cloud`. A new channel's profiles take `listOrder` values above the baseline values, so they come after the baseline real profiles and before every simulation profile (A2 [lti-service-api-delta §4.7](../contracts/lti-service-api-delta.md)).
 
 ### D5. Ports
 
@@ -177,6 +213,32 @@ A guard that existed in M1 keeps its `details.capability` value (`webServices`, 
 | P9 `PlacementResolver` | app | driver (LTI) | Launch context → placement ([LA-ADR-03](LA-ADR-03-learning-record-core.md)) | `domain/launch.ts:35-87` |
 | P10 `ProfileSource` | LTI service | adapter (`lti-profiles.ts`) | The channel's `ProviderProfile[]` | `profiles/{standard,canvas,blackboard}.ts` |
 | P11 `ChannelUiModule` | portal | adapter, optional | Wizard parts, teacher steps, extra panels (D9) | `ProviderWizardModule` (`apps/portal/src/connect/wizard-types.ts:20-24`) |
+
+P2 `ConnectionSetup` is today's `ProviderAdapter` (`providers/types.ts:136-160`) with these changes (sketch, `services/cogniate-app/src/kernel/ports.ts`):
+
+```ts
+export interface ConnectionSetup {
+  readonly channel: string;                                   // = manifest.id
+  // Create: channel checks after the kernel checks (method, profile, site rules 1–4). Moodle: today's https-origin rule.
+  checkCreate(input: { siteUrl: string; serviceUrl?: string; profile: ProfileView }): { ok: true; siteUrl: string; serviceUrl: string } | { ok: false; field: string; rule?: number };
+  toolConfiguration(ctx: ToolConfigurationContext): ToolRow[]; // show step (unchanged signature)
+  // Collect: the strict body of PUT …/platform or POST …/deployments; `adminValues` only for `endpoints: admin` profiles.
+  parseBindingBody(body: unknown, ctx: PlatformBodyContext & { purpose: GrantPurpose }):
+    { ok: true; values: PlatformBodyValues & { adminValues?: AdminValues } } | { ok: false; fields: string[] };
+  // `self` authority with typed values (Moodle six values): the platform create, no grant.
+  selfCreate?(values: AdminValues & { deploymentId: string }, ctx: CreateRequestContext): StagedCreate;
+  // `operatorGrant` authority (unchanged names): the redemption target and its staged create.
+  initialTarget?(ctx: InitialTargetContext): BindingTarget;
+  createRequest?(target: BindingTarget, ctx: CreateRequestContext): StagedCreate;
+  // Optional extension ports P5–P7.
+  extensionRoutes?: readonly ExtensionRoute[];
+  publishHooks?: readonly PublishHook[];
+  packageExporters?: readonly PackageExporter[];
+}
+export interface AdminValues { issuer: string; authenticationEndpoint: string; accessTokenEndpoint: string; jwksUrl: string; tokenAudience?: string }
+```
+
+The fields `lms`, `lmsName`, `label`, `methods`, `capabilities`, `defaultProfile`, `acceptsServiceUrl`, `siteRuleSuffixes` and `profileLabel` of `ProviderAdapter` move into the manifest or the profile data. The adapter stays pure (no database, no LTI call), as today (`providers/types.ts:1-4`).
 
 Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-for-the-backlog-names-only)): `CatalogExporter` (LB), `ConnectionSchedule` (LB: per-connection schedules on the job runner of [LA-ADR-03 D7](LA-ADR-03-learning-record-core.md#decision)), `ConnectionSecrets` (LB, LF; shape in A2 [LA-ADR-07 D3](LA-ADR-07-security-and-tenancy.md)), `IdentityResolver` (LD).
 
@@ -233,7 +295,7 @@ Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-
 ### D10. "No LMS name in core"
 
 - **Rule.** Core code has no channel id, no LMS product name and no LMS-named identifier in code tokens. Core finds channel behaviour only through the registry, capabilities and profile traits.
-- **Allowed exceptions (closed list, reviewed):** `packages/channel-kernel/src/legacy-wire.ts` (frozen wire names, D3); applied SQL migrations (history, ADR-006 checksum rule); `packages/shared/src/config.ts` for the dev-stack Moodle URL only, until E1 S3 makes it optional. `infra/**` is not core code for this rule ([README §4](../README.md#4-rules-that-keep-core-channel-neutral)).
+- **Allowed exceptions (closed list, reviewed):** `packages/channel-kernel/src/legacy-wire.ts` (frozen wire names and values of [LA-ADR-04 D2](LA-ADR-04-refactor-and-migration.md#decision), also the frozen error codes and the behaviour-class values); applied SQL migrations (history, ADR-006 checksum rule); `packages/shared/src/config.ts` for the dev-stack Moodle URL only, until E1 S3 makes it optional. `infra/**` is not core code for this rule ([README §4](../README.md#4-rules-that-keep-core-channel-neutral)).
 - **Enforcement:** the LMS-name lint with a ratchet, the add-channel gate, and the canary channel. Scope, patterns and baseline: [README §4](../README.md#4-rules-that-keep-core-channel-neutral). QA owns the test design ([`tests/ltiaas/TEST-STRATEGY.md`](../../../../tests/ltiaas/TEST-STRATEGY.md) §3).
 
 ### D11. Wire compatibility
@@ -272,7 +334,7 @@ See [LA-ADR-04](LA-ADR-04-refactor-and-migration.md): the refactor order, migrat
 ## Test impact
 
 - Author unit tests (no Docker, `npm run check`): manifest schema; registry load checks 1–6 (each failure case); capability catalog; generic check 14 refuses exactly the M1 set.
-- QA K0 (channel contract suite over the public kernel and registry entry points, no Docker): the legacy projection of every baseline channel equals the M1 capability objects (golden, R5 §4c); one guard case per false capability (K-CAP).
+- QA K0 (channel contract suite over the public entry points of D4, `buildChannelRegistry` and `ChannelRegistry`, and the `ConnectionSetup` port of D5; no Docker): the legacy projection of every baseline channel equals the M1 capability objects (golden, R5 §4c); one guard case per false capability (K-CAP).
 - The LMS-name lint, the add-channel gate and the canary channel ([README §4](../README.md#4-rules-that-keep-core-channel-neutral)).
 - Regression: R5 §4c tiers R0–R2 at the end of E1, with LD-1 open-world assertions.
 

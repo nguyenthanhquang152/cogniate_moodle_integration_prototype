@@ -160,7 +160,9 @@ CREATE TABLE job_lease (
 | `tool_account.status`, `status_changed_at`, `public_base_url`, `limits`, `claim_policy`, `service_key_write_scope` | E5, E3 | A2 [LA-ADR-06 D2](adr/LA-ADR-06-service-operability.md) | tenant model; claim policy |
 | tables `api_key`, `operator_key`, `audit_event`, `idempotency_record` (Should) | E5 | A2 [LA-ADR-06 D3–D5, D9](adr/LA-ADR-06-service-operability.md) | operator API, keys, audit |
 | `tool_key.published_at`, `activated_at`, `retired_at`, `removed_at` and the state values | E5 | A2 [LA-ADR-06 D7](adr/LA-ADR-06-service-operability.md) | signing-key lifecycle (A-T0-16) |
-| `service_key.derivation_version` | E5 | A2 [LA-ADR-06 D6](adr/LA-ADR-06-service-operability.md) | key provider |
+| `service_key.derivation_version` (default `legacy`) | E5 | A2 [LA-ADR-06 D6](adr/LA-ADR-06-service-operability.md) | key provider |
+| `service_key.issue_epoch INTEGER NOT NULL DEFAULT 0` | E5 Should | A2 [LA-ADR-06 D8](adr/LA-ADR-06-service-operability.md) | + 1 at each re-issue after a revoke; the HMAC input gets `epoch=<n>` only when `n > 0`, so epoch 0 keeps today's key values |
+| table `service_setting` (`key TEXT PRIMARY KEY`, `value` JSON, `updated_at`, `updated_by`) | E5 Must | A2 [LA-ADR-06 D1](adr/LA-ADR-06-service-operability.md) | one row per setting; LA uses only the key `rate_limits` (set by `PATCH /operator/v1/rate-limits`); no row = the built-in limits |
 | table `job_lease` (same shape as §3) | E5 | A1 shape, A2 jobs | job runner ([LA-ADR-03 D7](adr/LA-ADR-03-learning-record-core.md#decision)) |
 
 No LTI service change is needed for a new profile: `platform.profile` has no CHECK (`services/lti-service/src/db/migrations/004_provider_profiles.sql:4`).
@@ -173,7 +175,7 @@ CREATE TABLE audit_event (
   id              TEXT PRIMARY KEY,                   -- aud_ + 16 random bytes (base64url)
   ts              INTEGER NOT NULL,                   -- epoch ms
   actor_type      TEXT NOT NULL,                      -- operator (app:grant, app:binding), system
-  actor_id        TEXT NOT NULL,                      -- the operator name (--operator, else OPERATOR_NAME)
+  actor_id        TEXT NOT NULL,                      -- the operator name (--operator, else OPERATOR_NAME, else 'unknown')
   library_id      TEXT,                               -- the app tenant, or NULL
   action          TEXT NOT NULL,                      -- for example grant.issue, grant.revoke, binding.suspend, binding.release
   target_type     TEXT,
@@ -181,7 +183,7 @@ CREATE TABLE audit_event (
   result          TEXT NOT NULL CHECK (result IN ('ok', 'refused')),
   code            TEXT,
   trace_id        TEXT,
-  details         TEXT                                -- JSON, at most 4 KB, after redact(); never a code, key or token
+  details         TEXT                                -- JSON, at most 4 KB, after redact(): evidence_channel, evidence_ref, note_present; never the note text, a code, a key or a token
 );
 CREATE INDEX audit_event_library ON audit_event (library_id, ts);
 CREATE TRIGGER audit_event_append_only BEFORE UPDATE ON audit_event
@@ -193,7 +195,8 @@ ALTER TABLE connection ADD COLUMN artifact_key_kid TEXT;   -- E6: key id inside 
 | Rule | Detail |
 | --- | --- |
 | Tenant column | The app tenant is the library, so the app table has `library_id` where the LTI service table has `tool_account_id`. Every other column and rule is A2's (LA-ADR-06 D4 rules 1–3). |
-| Writers | `app:grant issue`, `revoke`; `app:binding suspend`, `release`: one event per command, in the same transaction as the local change. A grant event never holds the approval code. |
+| Writers | `app:grant issue`, `revoke`; `app:binding suspend`, `release`: one event per command, in the same transaction as the local change. A refused run on a known grant or connection writes one event with `result: refused` (A2 [LA-ADR-07](adr/LA-ADR-07-security-and-tenancy.md) AP-07-06). A grant event never holds the approval code. |
+| Readers | Only the read-only CLI `app:audit list` (it writes no event); no portal route. |
 | `artifact_key_kid` | Written when a setup artifact with an embedded key snapshot is exported (today only the Canvas `jwk=inline` export, app contract §4.6). The connection health view compares it with the active signing key (A2 [LA-ADR-08](adr/LA-ADR-08-onboarding-and-connection-health.md)). Generic name on purpose: core must not have a Canvas-named column. |
 
 ## 5a. Cogniate app: migration `016` (E6, Could)

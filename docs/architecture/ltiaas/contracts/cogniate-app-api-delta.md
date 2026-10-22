@@ -148,10 +148,11 @@ The app serves the portal for `/integrations/:channelId/connect` and `/integrati
 
 | Command | Change |
 | --- | --- |
-| `app:grant issue` | Allowed for every connection whose authority is `operatorGrant` (base: `canvas`, `blackboard`). `--purpose add_deployment` needs `deployments.multiple`. New flags for admin-value profiles: `--issuer`, `--auth-url`, `--token-url`, `--jwks-url`, `--token-audience` (required for `endpoints: admin`; refused otherwise). New flag `--operator <name>` (the audit actor; A2 LA-ADR-06 D4 rule 4). |
+| `app:grant issue` | Allowed for every connection whose authority is `operatorGrant` (base: `canvas`, `blackboard`). `--purpose add_deployment` needs `deployments.multiple`. New flags for admin-value profiles: `--issuer`, `--auth-url`, `--token-url`, `--jwks-url`, `--token-audience` (required for `endpoints: admin`; refused otherwise). New flags `--operator <name>` (the audit actor), `--evidence-channel` (`institution-email`, `support-call`, `lms-admin-ticket`, `other`) and `--evidence-ref` (1–200 characters). With `STACK_PROFILE=production` in the CLI process all three are required (the operator name must be in `OPERATORS` or `OPERATORS_FILE`); else exit 1, nothing stored, no audit event. In the default and acceptance profiles they are optional, so the M1 commands do not change (A2 [LA-ADR-07 D4, D5](../adr/LA-ADR-07-security-and-tenancy.md)). |
 | `app:grant revoke`, `list` | unchanged; `list` also prints the bound values |
-| `app:binding suspend`, `release` | unchanged rules; the record kind comes from the stored `target_kind`; `--operator <name>` |
-| Every command | one `audit_event` row ([data model §5](../data-model.md#5-cogniate-app-migration-015-e5-app-part-e6)) |
+| `app:binding suspend`, `release` | unchanged rules; the record kind comes from the stored `target_kind`; `--operator`, `--evidence-channel`, `--evidence-ref` with the same profile rule as `app:grant issue` |
+| `app:audit list` (new, read-only) | `npm run app:audit -w services/cogniate-app -- list [--connection <id>] [--action <a>] [--since <ISO>] [--limit <n ≤ 500>]`: one JSON line per app audit event, newest first, never the note text; it writes no event (A2 LA-ADR-07 D4) |
+| Every write command | one `audit_event` row, also for a refused run on a known grant or connection; `details` holds `evidence_channel`, `evidence_ref`, `note_present` ([data model §5](../data-model.md#5-cogniate-app-migration-015-e5-app-part-e6)) |
 
 The CLIs may later become clients of an app operator API; that is not in LA (A2 owns the LTI service operator API).
 
@@ -173,7 +174,7 @@ For the runbook signals of A2's [operability §4.3](../operability.md). Same rul
 
 | Item | Rule |
 | --- | --- |
-| Endpoint | `GET /metrics` (OpenMetrics text) and `GET /readyz` on an app operator listener `127.0.0.1:4210`. The proxy does not route it. No session and no tenant data in values. |
+| Endpoint | `GET /metrics` (OpenMetrics text) and `GET /readyz` on an app operator listener, default `127.0.0.1:4210`. The proxy does not route it. Same bind rule as the LTI operator listener ([LA-ADR-06](../adr/LA-ADR-06-service-operability.md) D3): only the `acceptance` compose profile binds it on the stack network (`http://cogniate-app:4210`), so the `e2e` container can read it. No session and no tenant data in values. |
 | `app_dispatch_rows` | gauge; labels `reporter`, `status` |
 | `app_dispatch_oldest_pending_seconds` | gauge; label `reporter` |
 | `app_dispatch_sends_total` | counter; labels `reporter`, `outcome` (`accepted`, `conflict`, `rejected`, `retryable`, `throttled`, `local_failure`) |
