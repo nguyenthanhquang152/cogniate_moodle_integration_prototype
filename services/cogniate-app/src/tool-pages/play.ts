@@ -16,7 +16,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { PlayView } from '../domain/attempts.ts';
 import { getPlay } from '../domain/attempts.ts';
-import { latestSyncStatus } from '../kernel/records/dispatch-store.ts';
+import { latestSyncStatus } from '../domain/results.ts';
 import { topLevelContinueScript } from './embedded-session-help.ts';
 import { runtimeTokenFor } from './launch-rules.ts';
 import { errorPage, escapeHtml, layout, newNonce, toolPageHeaders, withLms } from './page.ts';

@@ -1,5 +1,5 @@
 import type { RecordReporter } from './types.ts';
-import { configureRecordReporters } from './records.ts';
+import { registerRecordReporters } from './records.ts';
 import { ltiAgsPolicy } from '../../drivers/lti-ags/index.ts';
 import { describe, expect, it } from 'vitest';
 import type { TrackingProfile } from '@cogniate/package-inspector';
@@ -8,11 +8,11 @@ import { openDb } from '../../domain/db.ts';
 import { publicationResults } from '../../domain/results.ts';
 import { TEST_CHANNELS } from '../../testkit.ts';
 import { upsertPlacement } from './placements.ts';
-import { seedAttempt, seedBase, seedLink } from './records.testkit.ts';
+import { seedAttempt, seedBase, seedLink, testReporter } from './records.testkit.ts';
 
 function fixture(preview = false, format: 'html' | 'scorm12' = 'scorm12', context = 'context') {
   const db = openDb(':memory:'); seedBase(db); seedLink(db, 'rl', 'con', 'pub', context); upsertPlacement(db, 'rl'); seedAttempt(db, 'user', 'rl', preview);
-  configureRecordReporters(db, [{ ...ltiAgsPolicy, async deliver() { throw new Error('No sends in commit tests'); } }]);
+  registerRecordReporters(db, [testReporter(async () => { throw new Error('No sends in commit tests'); })]);
   const profile: TrackingProfile = { format, launchPath: 'index.html', pages: ['index.html', 'page.html'], menuPage: null,
     questionIds: [], masteryScore: 70, minDwellMs: 0 };
   db.prepare('UPDATE course_version SET format = ?, tracking_profile = ?').run(format, JSON.stringify(profile));
@@ -64,8 +64,7 @@ describe('final records', () => {
   });
 });
 
-it('B-LA-E4-02-01/02: one registered reporter instance prepares and delivers through the neutral port', async () => {
-  const { createDispatchQueue } = await import('./outbox.ts');
+it('B-LA-E4-02-01/02, B-LA-E4-03-02: one registration call; the reporter instance prepares, partitions and delivers', async () => {
   const { createLogger } = await import('@cogniate/shared');
   const { db, commit } = fixture();
   const delivered: unknown[] = [];
@@ -73,9 +72,7 @@ it('B-LA-E4-02-01/02: one registered reporter instance prepares and delivers thr
     prepare: () => ({ neutral: 'payload' }), partitionKey: () => 'chosen-partition',
     async deliver(row, ctx) { delivered.push(row); expect(ctx.beginSend()).toBe('started'); return { kind: 'accepted' }; },
   };
-  const reporters = [reporter];
-  configureRecordReporters(db, reporters);
-  const job = createDispatchQueue(db, reporters);
+  const job = registerRecordReporters(db, [reporter]);
   try {
     commit({ event: 'finish', cmi: { core: { lesson_status: 'passed', score: { raw: '80', max: '100' } } } });
     const [item] = await job.due(1000, 10);
