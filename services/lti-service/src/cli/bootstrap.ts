@@ -8,7 +8,7 @@ import { parseArgs } from 'node:util';
 import { loadConfig } from '../config.ts';
 import { openDb } from '../db/index.ts';
 import { loadKeyProvider } from '../keys/key-config.ts';
-import { ensureAccount } from '../store/accounts.ts';
+import { ensureAccount, getAccount } from '../store/accounts.ts';
 import { ensureToolKey } from '../store/tool-keys.ts';
 
 export interface BootstrapInput { account: string; name?: string | undefined; rotateApiKey: boolean; rotateSigningKey: boolean }
@@ -22,7 +22,8 @@ export async function runBootstrap(input: BootstrapInput): Promise<BootstrapResu
     // LA-ADR-06 D6: bind the key ring before the first store call, so a new signing key uses the active ring version.
     await loadKeyProvider({ db, masterKey: config.masterKey });
     const { account, created, apiKey } = ensureAccount(db, {
-      id: input.account, name: input.name ?? input.account, appUrl: config.urls.app, rotateApiKey: input.rotateApiKey,
+      id: input.account, name: input.name ?? getAccount(db, input.account)?.name ?? input.account,
+      appUrl: config.urls.app, rotateApiKey: input.rotateApiKey,
     });
     const kid = await ensureToolKey(db, config.masterKey, account.id, input.rotateSigningKey);
     return { account: account.id, created, kid, apiKey };

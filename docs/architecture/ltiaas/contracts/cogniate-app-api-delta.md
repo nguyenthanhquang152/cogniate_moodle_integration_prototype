@@ -18,6 +18,7 @@ New fields on every connection answer:
 | `channel` | string | the channel id (`connection.channel`) |
 | `channelName` | string | the manifest text name, for example `Moodle`, `your LMS` |
 | `channelCapabilities` | object | the capability set of the connection: keys are capability ids ([LA-ADR-01 D3](../adr/LA-ADR-01-channel-kernel.md#d3-capability-model)), values are booleans, strings, lists or the method → authority map |
+| `bindingAuthority` | string | the stored `connection.binding_authority`: `self`, `operatorGrant` or `verifiedAdminLaunch`. The portal verify step reads it ([LA-ADR-01 D9](../adr/LA-ADR-01-channel-kernel.md#decision)); a staged Dynamic Registration shows `operatorGrant` although the method map says `self` (BD-A1-24) |
 
 Changed meaning (values unchanged for the baseline channels):
 
@@ -32,7 +33,7 @@ Example (`lti-generic`, registered by an operator grant):
 ```json
 {
   "id": "con_...", "name": "School Sakai", "siteUrl": "https://lms.school.edu", "method": "manual", "status": "registered",
-  "lms": "lti-generic", "channel": "lti-generic", "channelName": "your LMS", "profile": "lti-generic", "serviceUrl": "https://lms.school.edu",
+  "lms": "lti-generic", "channel": "lti-generic", "channelName": "your LMS", "bindingAuthority": "operatorGrant", "profile": "lti-generic", "serviceUrl": "https://lms.school.edu",
   "capabilities": { "dynamicRegistration": true, "operatorApproval": true, "webServices": false, "courseShell": false, "addDeployment": true, "canvasConfiguration": false },
   "channelCapabilities": {
     "registration.dynamic": true, "binding.authority": { "dynamic": "self", "manual": "operatorGrant" },

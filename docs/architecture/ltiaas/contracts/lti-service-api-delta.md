@@ -47,7 +47,7 @@ New account fields (operator API only; never in `/api/*` answers except `GET /ap
 | `launchUrl`, `deepLinkingUrl`, `registrationUrl` | https URL | from `PUBLIC_APP_URL` (`cogniate`, unchanged) | https; no user info; no fragment; ≤ 2,048 characters; host not the `PUBLIC_LTI_URL` or `PUBLIC_CONTENT_URL` host |
 | `publicBaseUrl` | https origin or `null` | `null` (path mode) | Reserved for host mode (LG). LA refuses a non-null value with `400 INVALID_REQUEST` (field `publicBaseUrl`). |
 | `limits` | object or `null` | `null` | per-class `{ ratePerMinute, burst }`, classes of §1.4 |
-| `claimPolicy` | object or `null` | `null` = `passthrough` for old accounts; `allowlist` for new accounts | LA-ADR-05 D7 |
+| `claimPolicy` | object or `null` | `null` = `passthrough`, only on accounts from before the column (a stored legacy marker, never an input: `null` in `POST` or `PATCH` gives `400 INVALID_REQUEST`, BD-A2-26); new accounts default to `allowlist` with every `keep` off | LA-ADR-05 D7 |
 | `serviceKeyWriteScope` | `context` \| `resource-link` | `context` | Should, C15 |
 
 Protocol URLs come from one account resolver: in path mode `{PUBLIC_LTI_URL}/lti/{login|launch|keys|register}/{accountId}` (today's values).
@@ -358,7 +358,7 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `POST /api/registrations/:id/complete` | `registration.complete` | `registration` |
 | `POST /api/service-keys/revoke` (Should) | `service_key.revoke` | `platform` |
 | `POST /api/platforms/:id/check` (Could) | `platform.check` | `platform` |
-| `POST`, `PATCH /operator/v1/accounts[/:id]` | `account.create`, `account.update` (`account.status` when `status` changes) | `account` |
+| `POST`, `PATCH /operator/v1/accounts[/:id]` | `account.create`, `account.update` (`account.status` when `status` really changes, decided inside the change transaction; a refused `PATCH` is `account.update` with the request fields in `details`; BD-A2-29) | `account` |
 | `POST …/api-keys`, `…/revoke` | `api_key.issue`, `api_key.revoke` | `api_key` |
 | `POST …/signing-keys`, `…/activate`, `…/retire` | `signing_key.create`, `signing_key.activate` (`details.forced`), `signing_key.retire` | `signing_key` |
 | `POST …/shared-platforms` | `platform.create_shared` | `platform` |

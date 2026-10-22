@@ -128,7 +128,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     if ('code' in config) return page(config.code, config.detail);
     // M1: a reserved issuer or a Canvas or Blackboard product family; nothing is stored and no session starts.
     if (reservedIssuerOrigins(ctx.profiles).includes(new URL(config.issuer).origin)) return page('ISSUER_RESERVED', 'issuer_reserved');
-    const family = lmsNameOfFamily(config.productFamilyCode);
+    const family = lmsNameOfFamily(config.productFamilyCode, ctx.profiles);
     if (family) {
       log.warn('registration_rejected', { trace_id: req.traceId, code: 'PROVIDER_PROFILE_MISMATCH', detail: `family=${config.productFamilyCode.toLowerCase()}` });
       return ctx.errorPage(reply, req, 'PROVIDER_PROFILE_MISMATCH', { heading: HEADING, help: familyHelp(family) });

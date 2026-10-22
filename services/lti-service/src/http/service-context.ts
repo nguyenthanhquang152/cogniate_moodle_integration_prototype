@@ -36,7 +36,7 @@ export function platformOf(ctx: Ctx, caller: AuthResult): Platform {
   const deployment = deploymentOf(platform, deploymentId);
   if (deployment && deployment.bindingGeneration !== generation) throw unauthorized();
   if (!isPlatformUsable(platform, ctx.profiles)) throw new ApiError('PLATFORM_NOT_ACTIVE');
-  const def = profileDefinition(platform.profile);
+  const def = profileDefinition(platform.profile, ctx.profiles);
   if (deployment ? !deployment.active : (def !== null && !isStandardProfile(def))) throw new ApiError('DEPLOYMENT_NOT_ACTIVE');
   return platform;
 }
