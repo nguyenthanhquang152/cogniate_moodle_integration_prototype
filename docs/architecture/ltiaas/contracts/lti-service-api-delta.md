@@ -343,7 +343,7 @@ New entries for `lti-generic` and `brightspace` have the base field shape with `
 
 ### 4.9 `Idempotency-Key` (Should)
 
-On `POST /api/lineitems`, `POST /api/platforms`, `POST /api/platforms/:id/deployments`: 1–64 characters `[A-Za-z0-9_-]`. For 24 hours per tool account: the same key with the same body (SHA-256) gives the stored status and body and makes no platform call; another body gives `422 IDEMPOTENCY_KEY_REUSED`; a running request gives `409 IDEMPOTENCY_IN_PROGRESS`.
+On `POST /api/lineitems`, `POST /api/platforms`, `POST /api/platforms/:id/deployments`: 1–64 characters `[A-Za-z0-9_-]`. For 24 hours per tool account: the same key with the same body (SHA-256) gives the stored status and body and makes no platform call; another body gives `422 IDEMPOTENCY_KEY_REUSED`; a running request gives `409 IDEMPOTENCY_IN_PROGRESS`. Details (BD-A2-51): the key is unique per tool account; the fingerprint is the method, the route template, the decoded path parameters and the SHA-256 of canonical JSON of the parsed body (keys sorted, no whitespace; an absent body is `null`); another fingerprint with the same key gives `422`. Only `2xx` and `4xx` answers are replayed; after a `5xx` the key is free again; a `running` record older than 60 s is replaced. On the admin routes a replay, a `409` or a `422` writes one audit event (LA-ADR-06 D9).
 
 ## 5. Audit actions (new)
 
