@@ -1,6 +1,6 @@
 # LA tasks: spec rules, QA rules and test knobs
 
-Status: v1.1 (A1, task LA-B1b, G-BREAKDOWN fix round 1, 2026-10-22; v1 = task LA-B1). Response: [review-response-B1-A1](review-response-B1-A1.md). Design SHA: `54e8088` (G-DESIGN PASS) plus the P3 consistency edits listed in [review-response-R3-A1](../review-response-R3-A1.md). Task list, DAG, waves, ownership matrix and Docker needs: [epics.md](../epics.md). Base rules: [`../../tasks/README.md`](../../tasks/README.md) (M1 state). This file adds the LA rules. Where the two files differ for an LA task, this file wins.
+Status: v1.2 (A1, task LA-B1c, 2026-10-22; v1.1 = task LA-B1b, G-BREAKDOWN fix round 1; v1 = task LA-B1). Response: [review-response-B1-A1](review-response-B1-A1.md). Design SHA: `54e8088` (G-DESIGN PASS) plus the P3 consistency edits listed in [review-response-R3-A1](../review-response-R3-A1.md). Task list, DAG, waves, ownership matrix and Docker needs: [epics.md](../epics.md). Base rules: [`../../tasks/README.md`](../../tasks/README.md) (M1 state). This file adds the LA rules. Where the two files differ for an LA task, this file wins.
 
 ## 1. Task specs
 
@@ -20,16 +20,17 @@ Status: v1.1 (A1, task LA-B1b, G-BREAKDOWN fix round 1, 2026-10-22; v1 = task LA
 
 The rules of the base [§2](../../tasks/README.md#2-qa-rules) apply. QA works from the task specs, contracts and design interfaces, and reads no Author notes or product code before it writes the tests (charter-LA §1).
 
-**QA authors and folders (plan LD-13; QA Q-LAB-10).** Three QA test authors and QA-E2E work under the same independence rules (never Authors, Architects or Reviewers). Each owns a disjoint folder:
+**QA authors and folders (plan LD-13, LD-17; QA Q-LAB-10).** Four QA test authors and QA-E2E work under the same independence rules (never Authors, Architects or Reviewers). Each owns a disjoint folder, and each test author writes **and runs** its own task suites: K0 with no Docker, K1-SIM on the simulator slot by booking (LD-2).
 
 | Author | Writes the test-first acceptance tests for | Owns |
 | --- | --- | --- |
-| QA (lead QA) | E0, the kit, the fitness probes, A2's LA-E5-13, LA-E8-02; runs every suite (also the QA-2 and QA-3 suites), all gates, the Docker slot schedule | `tests/ltiaas/{baseline,golden,k0,canary,kit,fitness,gates}/**`, `tests/ltiaas/lib/**` (shared helpers), `tests/ltiaas/tsconfig.json`, `tests/ltiaas/*.config.mts`, `tests/ltiaas/tasks-qa/<task id>/**` (its own task ACs, for example LA-E5-13), `docs/reviews/LA-*/qa.md` |
-| QA-2 | the K1-SIM and K0 ACs of lanes S1 and S2 | `tests/ltiaas/tasks-ops/<task id>/**` |
-| QA-3 | the K1-SIM and K0 ACs of lanes K, L, L2, R and P | `tests/ltiaas/tasks-core/<task id>/**` |
+| QA (lead QA) | E0, the kit, the fitness probes, A2's LA-E5-13, LA-E8-02; runs the per-step R1 runs and the migration phases with U1, and the wave-end regressions (M1, M2, T7, with QA-E2E on the Moodle lane); keeps the Moodle slot and the slot schedule; writes `docs/reviews/LA-*/qa.md` from the suite reports | `tests/ltiaas/{baseline,golden,k0,canary,kit,fitness,gates}/**`, `tests/ltiaas/lib/**` (shared helpers), `tests/ltiaas/tsconfig.json`, `tests/ltiaas/*.config.mts`, `tests/ltiaas/tasks-qa/<task id>/**` (its own task ACs, for example LA-E5-13), `docs/reviews/LA-*/qa.md` |
+| QA-2 | the K1-SIM and K0 ACs of lanes S1 and S2 (writes and runs) | `tests/ltiaas/tasks-ops/<task id>/**` |
+| QA-3 | the K1-SIM and K0 ACs of lanes K, R and P (writes and runs) | `tests/ltiaas/tasks-core/<task id>/**` |
+| QA-4 | the K1-SIM and K0 ACs of lanes L and L2 (writes and runs) | `tests/ltiaas/tasks-lti/<task id>/**` |
 | QA-E2E | K2, MOODLE-LIVE checks, the simulator | `tests/e2e/ltiaas/**`, `tests/sim/**` (the parts its brief names) |
 
-QA-2 and QA-3 import the shared helpers of `tests/ltiaas/lib/` and `kit/lib/`; they never copy them (TEST-STRATEGY L11). A change in a shared helper goes to QA by request. QA-2 and QA-3 hand their suites to QA, who runs them on the booked slot and writes the qa.md rows.
+QA-2, QA-3 and QA-4 import the shared helpers of `tests/ltiaas/lib/` and `kit/lib/`; they never copy them (TEST-STRATEGY L11). A change in a shared helper goes to QA by request. Each runs its task suites on the booked simulator slot and gives QA a suite report (task SHA, one row per AC with PASS, FAIL or pending, test id, command, artifact path, run time); QA writes the qa.md rows from it. Which suite runs where: task K0 and K1-SIM ACs, by the lane's test author; R1, migration phases, U1 and wave-end regressions, by QA; K2 and MOODLE-LIVE checks, by QA-E2E.
 
 **Lanes and stacks.** QA uses only its own clones and compose projects of TEST-STRATEGY §5.2 (`qa-la-sim-r…`, `qa-la-moodle-r…`, `qa-la-st-r…`). At most two stacks run at the same time, by a slot that the Lead books (plan LD-2). Every runner checks and cleans only resources with its own project label (TEST-STRATEGY §5.4).
 

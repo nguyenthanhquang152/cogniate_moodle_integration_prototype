@@ -57,3 +57,14 @@ Status: fix round 1 (task LA-B1b, 2026-10-22). Reviewed SHA: `971f1b1`. Reviews:
 | Q-LAB-16 | MINOR | fixed | `tasks/README.md` §1 "Done rule per AC" | "pending: <task id>" does not block the wave exit. |
 | Q-LAB-17 | MINOR | fixed | `tasks/README.md` §1 (label `DOC`); LA-E0-01, LA-E1-02, LA-E2-05, LA-E7-04, LA-E7-06, LA-E8-01, -03, -04, -05 | Git, commit-message and document checks are `DOC`; "both reviewers approve" is a done rule. The removed ACs keep their numbers; LA-E8-03, -04 and -05 got one new real AC each, so each spec keeps at least four. |
 | Q-LAB-18 | MINOR | fixed | `LA-E7-07.md` AC-05 | The oracle: the reply is ignored, the page posts an empty value after 1.5 s, and the answer is the `STATE_COOKIE_MISSING` page with the storage help text. |
+
+## 5. Consistency pass before round 2 (task LA-B1c)
+
+| Item | Decision | Where | Note |
+| --- | --- | --- | --- |
+| `lti/codes.ts` note after LD-14 (A2 LA-B2c §4) | fixed | `epics.md` §5 row `lti/codes.ts` (now L in B1–B3, S2 in B4) and adjustment 10 | S1 has no edit of this file in any wave: LA-E5-06 (L, B2) adds the two status page codes itself, and L adds `RATE_LIMITED` for LA-E5-03 by RQ-1. |
+| LD-17 (QA option Q2) | applied | `epics.md` §1 (test authors, QA days), §3 ("Tests by": QA-2 for S1 and S2, QA-3 for K, R and P, QA-4 for L and L2, each "writes and runs"; QA days = author write + run / lead QA run), §5 (QA-4 folder row), §7, §8 (one row per test author), §9; `tasks/README.md` §2 (QA-4 and its folder `tests/ltiaas/tasks-lti/<task id>/**`; who runs which suite; suite report to the lead QA) | Estimate with LD-17: about 51.5 days for the Must scope (55.8 with the Should and not-deferred Could tasks); the Must chain stays LA-E0-01 → … → LA-E2-05 → Docs. LD-13 as first written (66) and option Q1 (58.2) stay in §9 for reference. |
+| OI-10 to OI-13 | closed | `epics.md` §10 | OI-10 by LD-17; OI-11 by LD-16 and A2 LA-B2c (LA-E6-02 AC-01 to AC-03 pending; the DAG keeps the two dotted arrows to LA-E6-02 and drops the one to LA-E6-03); OI-12 and OI-13 by A2 LA-B2c. |
+| Data sync with A2-lanes | fixed | `epics.md` §3, §4 | LA-E5-23 depends on LA-E2-01 and LA-E2-02, as in A2-lanes (the B4 window still waits for the B3 gate). No other lane, wave or dependency differs. |
+| Consistency script | run, clean | epics, tasks README, all specs | 48 A1 specs: 4–12 active ACs, labels, numbering, lane and size equal §3; 46 A2 specs: lane and wave equal §3; no broken link; no dependency loop and no dependency on a later wave; 92 DAG nodes, all declared; every matrix cell has one lane per wave (the migration row names one new file per task, RQ-5); the "May edit" lists of all specs give no hot file to a lane that does not own it in the task's wave. |
+
