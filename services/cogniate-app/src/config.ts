@@ -7,6 +7,8 @@ import { loadPublicUrls } from '@cogniate/shared';
 const DEFAULT_PLAYER_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'apps', 'player', 'dist');
 
 export interface AppConfig {
+  jobInstanceId: string;
+  jobRunner: boolean;
   urls: PublicUrls;
   /** cogniate.db, packages/, uploads/ (ADR-006). Compose: /data = infra/.data/cogniate-app. */
   dataDir: string;
@@ -50,7 +52,12 @@ function ltiApiUrlFrom(raw: string | undefined, profile: string): string | null 
 
 export function loadConfig(env: Record<string, string | undefined> = process.env): AppConfig {
   const profile = env.STACK_PROFILE && env.STACK_PROFILE !== '' ? env.STACK_PROFILE : 'default';
+  const jobInstanceId = env.JOB_INSTANCE_ID ?? 'app-1';
+  if (!/^[A-Za-z0-9-]{1,64}$/.test(jobInstanceId)) throw new Error('JOB_INSTANCE_ID must contain 1 to 64 ASCII letters, digits, or hyphens.');
+  const runner = env.APP_JOB_RUNNER ?? 'on';
+  if (runner !== 'on' && runner !== 'off') throw new Error('APP_JOB_RUNNER must be on or off.');
   return {
+    jobInstanceId, jobRunner: runner === 'on',
     urls: loadPublicUrls(env),
     dataDir: env.DATA_DIR && env.DATA_DIR !== '' ? env.DATA_DIR : '/data',
     profile,
