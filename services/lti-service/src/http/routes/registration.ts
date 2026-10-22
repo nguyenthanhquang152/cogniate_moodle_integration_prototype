@@ -9,7 +9,7 @@ import { ApiError } from '../../api-errors.ts';
 import { createAccountResolver } from '../../accounts/resolver.ts';
 import { transaction } from '../../db/index.ts';
 import type { ProtocolErrorCode } from '../../lti/codes.ts';
-import { withLms } from '../../lti/codes.ts';
+import { lmsNameFor, withLms } from '../../lti/codes.ts';
 import { PlatformKeyError } from '../../lti/jwks.ts';
 import { statusGate } from '../../lti/account-status.ts';
 import type { OpenIdConfiguration } from '../../lti/registration.ts';
@@ -28,7 +28,7 @@ import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
 import { checkRegistrationSessionCap, rateLimiterFor } from '../rate-limit.ts';
 import { isOwnLaunchTarget } from '../../lti/target.ts';
-import { lmsNameOf, lmsNameOfFamily, reservedIssuerLmsNames, reservedIssuerOrigins } from '../../profiles/index.ts';
+import { lmsNameOf, lmsNameOfFamily, reservedIssuerOrigins } from '../../profiles/index.ts';
 import { OutboundError } from '@cogniate/shared';
 
 const HEADING = 'The registration did not work';
@@ -127,7 +127,7 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     const page = (code: ProtocolErrorCode, detail: string) => {
       log.warn('registration_rejected', { trace_id: req.traceId, code, detail });
       const template = REGISTRATION_HELP[code];
-      const help = template ? withLms(template, code === 'ISSUER_RESERVED' ? reservedIssuerLmsNames(ctx.profiles) : lms) : undefined;
+      const help = template ? withLms(template, lmsNameFor(code, lms, ctx.profiles)) : undefined;
       return ctx.errorPage(reply, req, code, { heading: HEADING, lms, ...(help ? { help } : {}) });
     };
     const gate = statusGate(resolver.resolveAccount(req));
