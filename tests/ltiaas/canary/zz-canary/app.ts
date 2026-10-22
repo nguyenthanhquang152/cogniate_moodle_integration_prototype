@@ -1,34 +1,21 @@
-// Canary channel app adapter (LA-E7-01, LA-ADR-01 D5 `ConnectionSetup` contract surface, BD-A1-20).
+// Canary channel app adapter (LA-E7-01, LA-ADR-01 D5 `ConnectionSetup`, BD-A1-20, BD-A1-28).
 // Pure functions with fixed data; never uses a database, LTI client, network or process globals (BD-A1-16, BD-A2-11).
-
-export interface CanaryToolRow {
-  key: string;
-  label: string;
-  value: string;
-}
-
-export interface CanaryBindingValues {
-  clientId: string;
-  deploymentId: string;
-  grantCode: string;
-}
-
-export interface CanaryBindingTarget {
-  kind: 'exclusive_platform';
-  profileId: string;
-  siteUrl: string;
-  clientId: string;
-  deploymentId: string;
-}
-
-export interface CanaryStagedCreate {
-  profileId: string;
-  siteUrl: string;
-  clientId: string;
-  deploymentId: string;
-}
+import type {
+  BindingTarget,
+  ConnectionSetup,
+  CreateRequestContext,
+  GrantPurpose,
+  InitialTargetContext,
+  PlatformBodyContext,
+  PlatformBodyResult,
+  ProfileView,
+  StagedCreate,
+  ToolConfigurationContext,
+  ToolRow,
+} from '../../../../services/cogniate-app/src/kernel/ports.ts';
 
 const ALLOWED_BINDING_KEYS = ['clientId', 'deploymentId', 'grantCode'] as const;
+const GRANT_CODE_43_BASE64URL = /^[A-Za-z0-9_-]{43}$/;
 
 const canaryAppAdapter = {
   channel: 'zz-canary',
@@ -36,7 +23,7 @@ const canaryAppAdapter = {
   checkCreate(input: {
     siteUrl: string;
     serviceUrl?: string;
-    profile: unknown;
+    profile: ProfileView;
   }): { ok: true; siteUrl: string; serviceUrl: string } | { ok: false; field: string; rule?: number } {
     if (!input || typeof input.siteUrl !== 'string' || input.siteUrl.trim().length === 0) {
       return { ok: false, field: 'siteUrl', rule: 1 };
@@ -60,11 +47,8 @@ const canaryAppAdapter = {
     };
   },
 
-  toolConfiguration(ctx: { publicLtiOrigin?: string; publicAppOrigin?: string } = {}): CanaryToolRow[] {
-    const ltiOrigin =
-      ctx && typeof ctx.publicLtiOrigin === 'string' && ctx.publicLtiOrigin.length > 0
-        ? ctx.publicLtiOrigin
-        : 'https://lti.cogniate.test';
+  toolConfiguration(ctx: ToolConfigurationContext): ToolRow[] {
+    const ltiOrigin = ctx.urls.lti;
     return [
       { key: 'issuer', label: 'Tool URL', value: ltiOrigin },
       { key: 'loginUrl', label: 'Initiate login URL', value: `${ltiOrigin}/lti/login` },
@@ -73,12 +57,12 @@ const canaryAppAdapter = {
     ];
   },
 
-  parseBindingBody(
-    body: unknown,
-    _ctx?: unknown,
-  ): { ok: true; values: CanaryBindingValues } | { ok: false; fields: string[] } {
+  parseBindingBody(body: unknown, ctx: PlatformBodyContext & { purpose: GrantPurpose }): PlatformBodyResult {
     if (!body || typeof body !== 'object' || Array.isArray(body)) {
       return { ok: false, fields: ['body'] };
+    }
+    if (ctx.purpose !== 'initial' && ctx.purpose !== 'add_deployment') {
+      return { ok: false, fields: ['purpose'] };
     }
     const record = body as Record<string, unknown>;
     const invalidFields: string[] = [];
@@ -94,6 +78,13 @@ const canaryAppAdapter = {
         if (!invalidFields.includes(reqKey)) invalidFields.push(reqKey);
       }
     }
+    if (
+      typeof record.grantCode === 'string' &&
+      record.grantCode.trim().length > 0 &&
+      !GRANT_CODE_43_BASE64URL.test(record.grantCode.trim())
+    ) {
+      if (!invalidFields.includes('grantCode')) invalidFields.push('grantCode');
+    }
     if (invalidFields.length > 0) {
       return { ok: false, fields: invalidFields };
     }
@@ -107,30 +98,42 @@ const canaryAppAdapter = {
     };
   },
 
-  initialTarget(
-    ctx: {
-      siteUrl?: string;
-      profileId?: string;
-      values?: Partial<CanaryBindingValues>;
-    } = {},
-  ): CanaryBindingTarget {
+  initialTarget(ctx: InitialTargetContext): BindingTarget {
     return {
       kind: 'exclusive_platform',
-      profileId: typeof ctx?.profileId === 'string' ? ctx.profileId : 'zz-canary-sim',
-      siteUrl: typeof ctx?.siteUrl === 'string' ? ctx.siteUrl : 'https://canary.sim.test',
-      clientId: typeof ctx?.values?.clientId === 'string' ? ctx.values.clientId : 'client-canary-1',
-      deploymentId: typeof ctx?.values?.deploymentId === 'string' ? ctx.values.deploymentId : 'dep-canary-1',
+      profile: ctx.profile.id,
+      issuer: ctx.profile.issuer ?? ctx.connection.siteUrl,
+      clientId: ctx.values.clientId,
+      deploymentId: ctx.values.deploymentId,
+      siteUrl: ctx.connection.siteUrl,
+      serviceUrl: ctx.connection.serviceUrl,
+      platformId: null,
     };
   },
 
-  createRequest(target: CanaryBindingTarget, _ctx?: unknown): CanaryStagedCreate {
+  createRequest(target: BindingTarget, ctx: CreateRequestContext): StagedCreate {
+    if (target.kind === 'exclusive_platform') {
+      return {
+        kind: 'platform',
+        body: {
+          name: `${ctx.libraryName} (Canary LMS)`,
+          profile: target.profile,
+          clientId: target.clientId,
+          deploymentIds: [target.deploymentId],
+          siteUrl: target.siteUrl,
+          serviceUrl: target.serviceUrl,
+        },
+      };
+    }
     return {
-      profileId: target.profileId,
-      siteUrl: target.siteUrl,
-      clientId: target.clientId,
-      deploymentId: target.deploymentId,
+      kind: 'deployment',
+      platformId: target.platformId,
+      body: {
+        deploymentId: target.deploymentId,
+        ...(target.kind === 'shared_deployment' ? { siteUrl: target.siteUrl } : {}),
+      },
     };
   },
-};
+} satisfies ConnectionSetup;
 
 export default canaryAppAdapter;

@@ -260,11 +260,15 @@ describe('LA-E7-10 local CI script (K0)', () => {
   });
 
   it('AC-LA-E7-10-05: the clean tree passes step 5 with the allow list; each entry names a file and a reason', () => {
-    const script = fs.readFileSync(path.join(cloneA, 'infra', 'scripts', 'ci-local.sh'), 'utf8');
+    const allowListModulePath = path.join(cloneA, 'infra', 'scripts', 'ci-local', 'allow-list.mjs');
+    const scriptPath = fs.existsSync(allowListModulePath)
+      ? allowListModulePath
+      : path.join(cloneA, 'infra', 'scripts', 'ci-local.sh');
+    const script = fs.readFileSync(scriptPath, 'utf8');
     const tracked = new Set(git(cloneA, ['ls-files']).split('\n'));
     const entries = parseAllowList(script, tracked);
     fs.writeFileSync(path.join(RUN_DIR, 'ac05-allow-list.json'), `${JSON.stringify(entries, null, 2)}\n`, { mode: 0o600, flag: 'wx' });
-    expect(entries, 'no allow-list block (a bash array or heredoc named "allow") in infra/scripts/ci-local.sh').not.toBeNull();
+    expect(entries, 'no allow-list block in infra/scripts/ci-local/allow-list.mjs or ci-local.sh').not.toBeNull();
     expect(entries!.length, 'the allow list has entries (design: the private-key pattern of 99-logs.test.ts)').toBeGreaterThan(0);
     for (const e of entries!) {
       expect(e.file, `allow-list entry names no tracked file: ${e.text}`).not.toBe('');

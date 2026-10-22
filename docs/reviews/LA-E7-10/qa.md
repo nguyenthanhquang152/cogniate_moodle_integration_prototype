@@ -1,5 +1,5 @@
-Verdict: FAIL
-Round: 1
+Verdict: PASS
+Round: 2
 
 # LA-E7-10 Local CI script: QA verification
 
@@ -49,3 +49,36 @@ Independence: QA-3 did not read product source, Author notes or reviewer files. 
 ## Regression and time
 
 R0: `npm run check` inside step 2 of `npm run ci:local` (PASS, 88.031 s) and `node --test infra/scripts/ci-local.test.mjs` (15/15 PASS, 3.85 s). Measured time of the new K0 suite: `ci-local.k0.test.ts` 175.4 s (`run-a1-clean` 91.8 s, `run-a2-planted` 81.3 s, `run-b-registry-unreachable` 0.4 s).
+
+## Round 2
+
+Verdict: PASS
+Round: 2
+
+Tester: QA-3 (Orca task `task_44bb686301fe`, dispatch `ctx_f71d95005166`), 2026-10-22. Spec: `docs/architecture/ltiaas/tasks/LA-E7-10.md` and `docs/architecture/ltiaas/build-decisions-A1.md` `BD-A1-13`.
+
+Independence: QA-3 did not read product source, Author notes or reviewer files. QA-3 updated `AC-LA-E7-10-05` in `tests/ltiaas/tasks-core/LA-E7-10/ci-local.k0.test.ts` to read `infra/scripts/ci-local/allow-list.mjs` when present (falling back to `infra/scripts/ci-local.sh`), and ran the K0 suite and infra tests in isolated `--no-hardlinks` clones of `5b71bc5`.
+
+| Item | Value |
+| --- | --- |
+| SHA | `5b71bc5b0a9741d54b24dc155ce23cc7641d113e` (`5b71bc5`: lane R fix rounds 1 and 2 — `BD-A1-13` rules, typed scanner modules `infra/scripts/ci-local/{allow-list,run,secret-scan}.mjs` + `tsconfig.json`, per-step private `.tmp/ci/*.log` logs, allow-entry procedure, and 21 stale entries removed) |
+| Lane and slot | lane R; no Docker (HOST-ONLY) |
+| Clones | `~/cogniate-qa-runs/LA/LA-E7-10/r2/k0/clone-a` and `clone-b`: `git clone --no-hardlinks --no-checkout`, detached at `5b71bc5b0a9741d54b24dc155ce23cc7641d113e`, push URL `DISABLED` |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/LA-E7-10/r2/` (umask 077): `k0-vitest.log`, `infra-ci-local-test.log`, `tsc-ci-local.log`, `k0/run-a1-clean.log`, `k0/run-a2-planted.log`, `k0/run-b-registry-unreachable.log`, `k0/ac05-allow-list.json`, `k0/summary.json` |
+
+### Round 2 acceptance criteria
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E7-10-01 | PASS (K0) | `ci-local.k0.test.ts > AC-LA-E7-10-01` | `LA_TASK_SHA=5b71bc5b0a9741d54b24dc155ce23cc7641d113e LA_RUN_DIR=~/cogniate-qa-runs/LA/LA-E7-10/r2/k0 npx --no-install vitest run --reporter=verbose --config tests/ltiaas/tasks-core/LA-E7-10/vitest.config.mts` (`npm run ci:local` in `clone-a`) | Exits `0` in 123.741 s. All five steps pass: step 1 (`install`, 5.293 s; `node_modules` and `tests/node_modules` installed), step 2 (`check`, 116.506 s; 118 unit files / 2,088 passed, 5 skipped; 211 infra tests; 118 K0 tests; `F1 PASS: 73 files with hits, 588 hits`; `F5 PASS: 3 rules, 0 hits`), step 3 (`audit`, 0.638 s, `advisoryIds: []`), step 4 (`sbom`, 0.298 s; `.tmp/ci/sbom.cdx.json` is CycloneDX), and step 5 (`secrets`, 0.744 s, `findings: [], staleEntries: 0`). `k0/run-a1-clean.log` |
+| AC-LA-E7-10-02 | PASS (K0) | `ci-local.k0.test.ts > AC-LA-E7-10-02` | `npm run ci:local` in `clone-a` with a random `ltis_` + 43 key planted on line 7 of a temporary tracked copy `qa-e710-plant-1792679498587.txt` | Exits `1` in 141.025 s; step 5 reports `{"step":5,"name":"secrets","result":"fail","findings":[{"file":"qa-e710-plant-1792679498587.txt","line":7,"rule":"api_key"}],"staleEntries":0,"log":".tmp/ci/secrets.log","seconds":0.626}`; no 12-character substring of the planted value appears in stdout/stderr or in `.tmp/ci/*.log`; `git status --porcelain` in `clone-a` is empty after clean-up. `k0/run-a2-planted.log` |
+| AC-LA-E7-10-03 | PASS (K0) | `ci-local.k0.test.ts > AC-LA-E7-10-03` | `npm run ci:local` in `clone-b` with `npm_config_registry` and proxy env vars pointed at a closed `127.0.0.1` port, empty npm cache and `npm_config_fetch_retries=0` | Prints `{"step":1,"name":"install","result":"network_unavailable","log":".tmp/ci/install.log","seconds":0.659}` (steps 2–5 report `"result":"skip","reason":"network_unavailable"`) and exits `2` in 0.883 s; no network step reports a pass. `k0/run-b-registry-unreachable.log` |
+| AC-LA-E7-10-04 | PASS (K0) | `ci-local.k0.test.ts > AC-LA-E7-10-04` | as AC-01..03 | Each run outputs exactly five JSON lines in step order (`step` 1..5) with `name`, `result` and `seconds`; exit code is `0` when all five steps pass (`run-a1-clean`) and non-zero (`1` on `run-a2-planted`, `2` on `run-b-registry-unreachable`) otherwise. `k0/summary.json` |
+| AC-LA-E7-10-05 | PASS (K0) | `ci-local.k0.test.ts > AC-LA-E7-10-05` | as AC-01 | Step 5 passes on the clean tree (`findings: [], staleEntries: 0`). All 46 entries across 28 tracked files in `infra/scripts/ci-local/allow-list.mjs` (`k0/ac05-allow-list.json`) name a tracked `file`, `rule`, SHA-256 base64 `fingerprint` and non-empty `reason` (21 stale entries from Round 1 were pruned, and `BD-A1-13` rules plus exact unit-test fake exceptions resolve all 13 Round 1 findings). `k0/run-a1-clean.log`, `k0/ac05-allow-list.json` |
+
+### Round 2 other checks and reviewed allow list
+
+- **Author infra tests and typecheck (R0):** `node --test infra/scripts/ci-local.test.mjs` passes all 25 tests in 7.96 s (`infra-ci-local-test.log`), and `npx --no-install tsc --noEmit -p infra/scripts/ci-local/tsconfig.json` exits `0` (`tsc-ci-local.log`).
+- **Reviewed allow list (`k0/ac05-allow-list.json`, 46 entries across 28 tracked files, 0 stale entries):** `infra/compat/storage-compat.sha256` (4 `master_key`), `infra/e2e/Dockerfile` (1 `master_key`), `infra/fixtures/courses.sha256` (2 `master_key`), `infra/moodle/SPIKE-NOTES.md` (1 `master_key`), `packages/shared/src/crypto.test.ts` (1 `master_key`), `packages/shared/src/jobs.test.ts` (1 `api_key`), `packages/shared/src/logger.test.ts` (2 `secret_assignment`, 1 `api_key`), `services/cogniate-app/src/config.test.ts` (1 `secret_assignment`), `services/lti-service/src/config.test.ts` (1 `secret_assignment`), `services/lti-service/src/http/auth.test.ts` (1 `api_key`), `services/lti-service/src/http/routes/platforms-audit.test.ts` (1 `api_key`), `services/lti-service/src/store/audit.test.ts` (1 `api_key`), `tests/acceptance/M1/common/99-logs.test.ts` (2 `private_key`), `tests/acceptance/T6/3-courses.spec.ts` (1 `master_key`), `tests/acceptance/lib/course-fixtures.ts` (2 `master_key`), `tests/e2e/host/run-{m2,t7}.mjs` (4 `master_key`), `tests/fixtures/multi-lms/provider-sources.json` (2 `master_key`), `tests/host/run-{m1,t1,t4a,t4b,t5,t8}.mjs` (12 `master_key`), `tests/host/storage-docker.mjs` (2 `master_key`), `tests/host/storage-lane.mjs` (1 `secret_assignment`), `tests/host/storage-lane.selftest.mjs` (1 `secret_assignment`), `tests/host/storage-rows.selftest.mjs` (1 `master_key`).
+- **Measured time (Round 2):** `ci-local.k0.test.ts` 271.2 s (`run-a1-clean` 123.7 s, `run-a2-planted` 141.0 s, `run-b-registry-unreachable` 0.9 s).
