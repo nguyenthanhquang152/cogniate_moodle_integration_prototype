@@ -13,7 +13,21 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 04:56 UTC
+### Current checkpoint — 2026-10-22, 05:31 UTC
+
+**C4 diagnostic attempt 2 passed. Full validation is running.** The clean diagnostic ran from 04:56:08 to 05:21:52 UTC: migration 12/12 and storage 70/70 PASS. Exact row sets, all 81 storage steps, raw R4/R5 evidence and pre/post source inventories passed. Strict W4 found no differences; all nine baseline volume records stayed unchanged and all owned resources were removed. The Lead verified 4,323 entries in the final main, root and supplement indexes. Reports are committed at `e19aca9516aee7ef127df8910ef637b72bed4e37`. The diagnostic window returned at 05:25:24 UTC. This pass gives no full acceptance credit.
+
+Diagnostic evidence remains under `/Users/quangnguyen/cogniate-qa-runs/qa-common-c4-20261022T0408Z/diag2`. Strict W4 SHA-256: `ded8f518f03f60462f0756ffe82a29e2c4ffd3393978e28b01d0047c517b73b0`; final index v2: `47034a96441542abb74dbb10ea4ed57a26f0fee2575f07c4ea5b0034ec01af22`. Attempt 1 remains failed history because the LA stack overlapped its window. No source change was needed after that attempt.
+
+Grant `msg_b5a1d0332685` gives Common QA `task_ef1d19129419` / `ctx_e23ced3dd1fa` the exclusive full/legacy window through 09:30 UTC. This is an operational deadline, not a completion estimate. Candidate C4 stays `bf09cdad91ca548e1ecbc14428b55180d35d5360`; tests tree stays `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`. The fresh full source is `full-src/source`, with run root `full`. Prelaunch checks found 250/250 test files and 42/42 host files equal to C4, with no extra files or prior artifacts.
+
+The runner started at **05:26:57 UTC (12:26:57 Vietnam)**. Launcher PID/PGID: 49819; runner PID: 52038. W3 SHA-256 `01241136664905fe8c059e9a7c361d0702448fe0b0e16bcabd61225d6e6f4893` binds live time 05:26:54.287 UTC, zero containers, all nine unchanged volumes and bridge `9577478bf0a8`. The bridge changed during the allowed wake step, before the formal window. The full runner must complete two 488-row rounds, prove per-case equality, then execute all 12 legacy groups. The first round is expected around 06:20–06:30 UTC (13:20–13:30 Vietnam), based on the prior measured duration of about 51 minutes. Legacy duration remains unmeasured.
+
+Canvas QA `ctx_745cb25fcb7c` stays host-ready. It will independently judge each closed round's 233 Canvas cases while the next round runs. Fresh M2 and T7 require separate later Docker windows. LA remains host-only until explicit handoff; its next scheduling update is due by 07:00 UTC or full/legacy completion, whichever comes first.
+
+All repairs remain with the same Claude Code Opus 5.5 xhigh fixer, `ctx_898acbaef3a6`. No new source repair is requested. Final conformance, guide updates, independent Docs QA and two final reviews remain pending. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 04:56 UTC
 
 **C4 diagnostic attempt 2 is running.** The LA Lead removed its own stack at 04:55:00 UTC and confirmed no Docker activity until this run returns a window. The Lead read its cleanup snapshot (`6bdfd7d316595e91cf7fdb960369d57fb5a760e1432df5dc894d0f9d8ce0d33f`). Attempt 1 remains FAIL for environment overlap. Its reports are committed at `968baf326dab49263aa6874ad03c376e98c04581`; all 2,331 main, root and supplement index entries match.
 
