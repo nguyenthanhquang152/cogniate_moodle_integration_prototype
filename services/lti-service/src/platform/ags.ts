@@ -108,7 +108,7 @@ function scoreExtensions(body: Record<string, unknown>): Record<string, unknown>
   if (Object.keys(members).length > 8) throw invalid('extensions', 'must have at most 8 URL-keyed members');
   for (const [key, value] of Object.entries(members)) {
     const json = JSON.stringify(value);
-    if (json === undefined || Buffer.byteLength(json, 'utf8') > 4096) throw invalid(key, 'must be at most 4 KB of JSON');
+    if (json === undefined || Buffer.byteLength(json, 'utf8') > 4096) throw invalid(key, 'must serialize to at most 4096 UTF-8 bytes of JSON, including quotes and escapes');
   }
   return members;
 }
