@@ -44,8 +44,9 @@ describe('resource-link service-key write guards on mounted routes', () => {
   it.each(writes)('$method refuses another resource link before any AGS write', async ({ method, suffix, payload }) => {
     const h = await fixture();
     const response = await h.app.inject({ method, url: `/api/lineitems/${encodeURIComponent(other)}${suffix}`, headers: h.headers, payload });
-    expect([response.statusCode, response.json().details.message]).toEqual([403, 'SERVICE_KEY_SCOPE']);
     expect(h.agsWrites()).toEqual([]);
+    expect(response.statusCode).toBe(403);
+    expect(response.json().details.message).toBe('SERVICE_KEY_SCOPE');
     expect(h.agsRequests()).toEqual([expect.objectContaining({ method: 'GET', url: other })]);
   });
 
