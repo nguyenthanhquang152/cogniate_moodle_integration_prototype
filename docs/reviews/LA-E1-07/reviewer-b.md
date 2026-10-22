@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E1-07 review, Reviewer-B2 (lens: "Can a human team own it?")
 
@@ -89,3 +89,46 @@ The kernel part is clean. `kernel/authority/` has one strategy per stored author
 
 - K1-SIM AC-07 and MOODLE-LIVE AC-08 (QA). K0 AC-01..03 and AC-09 ran in my clone as part of the K0 contract file and F1, but the QA record is QA's.
 - Lens-A items: the two-phase redemption and cleanup paths beyond the authority tests, and the guard decision table beyond `launch-router.test.ts`.
+
+## Round 2
+
+Verdict: APPROVE
+Round: 2
+
+Reviewer: Codex, Reviewer-B. The round 1 record above is unchanged apart from the file's current verdict header. Reviewed the eleven LA-E1-07 commits `75f9130` through `e549fbe` named in merge `6270d43`, including RQ-2 `f30aae4`. Source and test candidate: `6270d43`. Applied LA-ADR-01 D5–D7, BD-A1-38/40/41/43/54/55, the task spec, and plan §6.1. No Reviewer-A file was opened.
+
+**Open counts: 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT.** No new finding. The remaining nit belongs to lane R.
+
+### Round 1 findings
+
+| Finding | Result and evidence |
+| --- | --- |
+| B-LA-E1-07-01 — MAJOR | **Closed.** The four pure values have one definition in `packages/channel-kernel/src/setup.ts`. The package exports `./setup`; `setup.test.ts` pins its value names and parser grammar. The channel copies are gone. P2 and P5 receive the account and all five URL fields from `kernel/setup/common.ts`. This follows BD-A1-40, which replaces the earlier suggested shared-package location. |
+| B-LA-E1-07-02 — MINOR | **Closed.** `kernel/ports.ts` describes each operation, context and public view. It states the required authority methods, site-rule number, and closed `origin` refusal reason. It imports types only. Raw database, LTI client and master key dependencies are in `kernel/setup/deps.ts`, outside the channel import fence. |
+| B-LA-E1-07-03 — MINOR | **Closed.** `kernel/setup.test.ts` discovers both app and LTI channel folders and checks every adapter. It checks registration coverage and all three profile traits. Changed traits, removed app entries and missing LTI profiles are negative controls. The three channel copies are removed. |
+| B-LA-E1-07-04 — MINOR | **Closed for this task.** `familyGuardVerdict` reads the guard level from the registry and takes the call phase separately. Its 26 cases cover both phases, both levels, absent/unclaimed/own families and legacy manual-self channels. The launch router uses it and `STANDARD_PROFILE_ID`, retaining the refusal and log fields. BD-A1-43 assigns the LTI service callers to LA-E2-02; BD-A1-55 confirms there is no app registration-phase caller. |
+| B-LA-E1-07-05 — NIT | **Closed.** Both strategies call `suspendBinding`. Its test checks the disabled, reloaded connection, revoked grant, one fence call and one log event for each authority. |
+| B-LA-E1-07-06 — NIT | **Partly closed; lane R remainder.** K's aliases and the `app/connections.ts` helper re-exports are gone. The former worker test moved to `drivers/lti-ags/connection-state.test.ts`; it still aliases `ChannelId` and `testSetupOf`. See the residual below. |
+| B-LA-E1-07-07 — NIT | **Closed.** Operator bind checks only the redemption engine and reports a precise wiring error. The unavailable-adapter test now stubs registry discovery instead of deleting a required parser method. |
+
+### Checks and evidence
+
+- Used a private `git clone --no-hardlinks` at `6270d43`, with copied dependencies. No Docker, stack or host runner ran. No product or test file changed in the integration worktree.
+- `vitest run services/cogniate-app packages/channel-kernel packages/channels eslint.config.test.ts`: **50 files, 1,130 passed, 2 skipped**. The skips are the HTML and SCORM archive upload fixtures absent from the clone.
+- K0: **3 files, 121 passed, no skips**. `npm run typecheck` and lint of the app kernel, app routes, channel packages and changed SQL rule files passed.
+- F1: **PASS, 20 files with hits, 74 hits**. F5: **6 rules, 0 hits**. The task diff adds no LMS-name branch in core.
+- Private negative controls: removing the registration-phase clause caused **3 family-guard test failures**; restoring URL construction in the Canvas channel caused **1 injected-context test failure**. All temporary mutations were restored; the private clone's tracked tree is clean.
+- UNIT AC-04/05 remain covered by the `zz-test` authority tests: stored self overrides an operator-grant manifest, grant refusal stores nothing, operator binding stages then activates, and disconnect uses the correct fence. AC-06 has the launch-router table and log assertions. AC-10 has the discovery test and its drift probes. These assertions detect the contrary behavior, rather than only checking method presence.
+- The LA-IC-17 route test pins `422 INVALID_PLATFORM_VALUES`, the unknown field and zero LTI calls. Unsupported stored authority gives the typed API refusal and one CLI line. These checks passed.
+- The task commits stay in lane K's B2 ownership, including the named RQ-2 caller wiring. They change no `tests/**`, `docs/**`, `apps/**`, LTI-service or R-owned file. The public setup contract and example channel now give a newcomer the required implementation rules.
+
+### Residual B-LA-E1-07-06 — NIT — R-owned aliases remain
+
+- **File:** `services/cogniate-app/src/drivers/lti-ags/connection-state.test.ts:15` and `:16`.
+- **Problem:** The moved test still uses `ChannelId as LmsType` and `testSetupOf as providerOf`.
+- **Evidence:** Both imports remain at the reviewed candidate; the rest of K's named aliases are removed.
+- **Suggested fix:** Lane R uses the public names when it next edits this test. No lane K change is required for approval.
+
+### Verification boundary
+
+K1-SIM AC-07 and MOODLE-LIVE AC-08 remain QA work pending the permitted stack window. This review gives no runtime regression credit. The LTI-service adoption of the shared guard remains the explicit LA-E2-02 dependency.
