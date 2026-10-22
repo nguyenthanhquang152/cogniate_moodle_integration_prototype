@@ -86,6 +86,13 @@ export const LEGACY_GRADE_CONFLICT = '(Moodle has a grade with a newer time)';
 /** Frozen learner label fallback (BD-A1-27); per-channel copy moves in LA-IC-15. */
 export const LEGACY_LEARNER_HOST = 'Moodle';
 
+/** Frozen M1 default texts of three app error codes (app contract §4.4; M2 pins the two reservation texts). */
+export const LEGACY_APP_ERROR_TEXT = {
+  PLATFORM_IN_USE: 'This Moodle tool is already registered with Cogniate.',
+  DEPLOYMENT_IN_USE: 'This Blackboard site is already connected to Cogniate.',
+  DEPLOYMENT_FIXED: 'This connection already reserved another Blackboard deployment. Disconnect it, then make a new connection.',
+} as const;
+
 /** Frozen manual binding errors (security §2.6, app contract §4). */
 export const LEGACY_SELF_BINDING_TEXT = {
   collision: 'This Moodle tool is already registered with Cogniate. In Moodle, make a new tool for this library and use its values.',

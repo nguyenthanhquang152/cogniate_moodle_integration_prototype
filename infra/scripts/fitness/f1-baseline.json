@@ -8,7 +8,7 @@
   "apps/portal/src/types.ts": 2,
   "packages/shared/src/html.ts": 0,
   "packages/tracking/src/status-text.ts": 0,
-  "services/cogniate-app/src/app/api-errors.ts": 6,
+  "services/cogniate-app/src/app/api-errors.ts": 0,
   "services/cogniate-app/src/app/binding-cleanup.ts": 11,
   "services/cogniate-app/src/app/binding-targets.ts": 4,
   "services/cogniate-app/src/app/connections.ts": 0,
