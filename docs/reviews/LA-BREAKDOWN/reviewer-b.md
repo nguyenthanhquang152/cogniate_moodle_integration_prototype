@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-BREAKDOWN review, Reviewer-B (lens: "Can a human team own it?")
 
@@ -102,3 +102,49 @@ Counts for Part 2: **0 BLOCKER, 1 MAJOR, 5 MINOR, 1 NIT.**
 
 - Measure 5 allows only one first walk. If the walk fails and Docs changes the guide, a second walk needs another walker who is new to the repo. Name two candidate walkers before B4.
 - The §9 sums are Author days. The four wave-end gates (LA-E7-08, LA-E7-09: M each, about 1.5–2.5 h of Moodle-slot time per run) and the QA rounds add elapsed time. Plan with about 13–15 weeks for the Must scope at today's rules, or about 11–13 weeks with B-LAB-11 (a) and (b) (inferred).
+
+## Round 2
+
+Bounded re-check, task LA-RB-B3, at `936f707` (Part 1 was at `ec1afc5`, Part 2 at `971f1b1`). Inputs: `git diff 971f1b1 936f707 -- docs/architecture/ltiaas`, `git diff ec1afc5 936f707 -- docs/architecture/ltiaas/tasks`, `tasks/review-response-B1-A1.md`, `tasks/review-response-B1-A2.md`, plan §6.1 LD-10 to LD-17. I read the files from the commit. I did not open `reviewer-a.md` or `qa.md`.
+
+**Verdict: APPROVE.** All 16 of my round-1 findings are closed. B-LAB-06 is partly fixed, and I accept the rest of it. The diff adds no BLOCKER or MAJOR. Open: 0 BLOCKER, 0 MAJOR, 2 MINOR (new, cheap), 1 NIT (new).
+
+### Status of the round-1 findings
+
+| Id | Sev. | Status | Evidence at `936f707` |
+| --- | --- | --- | --- |
+| B-LAB-01 | MAJOR | **Closed** | New companion tasks, each with its lane, size, ACs and a "cut together with" line: LA-E3-14 (K), LA-E3-15 (K), LA-E6-04 (K), LA-E6-05 (K), LA-E6-06 (L2), LA-E6-07 (P). The R part is LA-E4-08, and the course name "—" is LA-E4-02 AC-11. LA-E3-05 names LA-E2-03 for `content.multiple: true`. LA-E3-08 keeps only picker ACs, plus one end-to-end AC after LA-E3-14 and LA-E4-08. |
+| B-LAB-02 | MAJOR | **Closed** | LD-10 (S1, S2; `http/operator/**` per endpoint group) and LD-14 (a). `epics.md` §8: S1 10.5 / 10.5 and S2 9 / 5 Must days in B1 / B2; the B1 critical chain is no longer lane S. |
+| B-LAB-03 | MAJOR | **Closed** | LA-E5-24 restores into the same fresh QA project (AC-04: "no `project_mismatch`"). Operability §7.3 uses a second host or Docker context with the same project name, and it warns against `stack:reset`. LA-ADR-06 D14 is aligned (`review-response-B1-A2.md:12`). |
+| B-LAB-04 | MINOR | **Closed** | LA-E5-01 file table lists `api-errors.ts`, `logger.ts`, the LTI `package.json`; the stale sentences are gone. |
+| B-LAB-05 | MINOR | **Closed** | LA-E5-19 adds `job_lease` and `job_instance` in one LTI migration; the runner creates no table (OI-3). |
+| B-LAB-06 | MINOR | **Partly fixed — rest accepted** | The duplicate AC-04 is gone. The storage-check and picker-cancel cases stay in LA-E5-13, because they need two tool accounts or two libraries with live data. The B1 audit read keeps its own isolation AC in LA-E5-02. Accepted. |
+| B-LAB-07 | MINOR | **Closed** | LA-E5-22 and LA-E5-23: "LG unless B3 ends early", else the first B4 step with R2 and R3 after it. |
+| B-LAB-08 | MINOR | **Closed** | A2 specs use A1 task ids; `epics.md` §2.1 maps the design names. |
+| B-LAB-09 | NIT | **Closed** | A2-lanes header names `54e8088`. |
+| B-LAB-10 | MAJOR | **Closed** | `tasks/README.md` form (g): a fresh QA drill project, backup, marker account, restore into the same project, no `stack:reset`, never another project. |
+| B-LAB-11 | MINOR | **Closed** | LD-15 rolling starts and Docs from B3 (`epics.md` §6). §9 now shows the dependency chain (41.5 days), the lane model (47.5) and the LD-17 plan (51.5), with the handover tasks named. |
+| B-LAB-12 | MINOR | **Closed** | LA-E1-08 size L, with the reason in the header; §8 and §9 updated. |
+| B-LAB-13 | MINOR | **Closed** | LD-11 and `epics.md` §5 adjustment 9: LA-E3-03 and LA-E3-05 (Must) are L2, and L2 stays in B3 even if every E3 Should task is cut. |
+| B-LAB-14 | MINOR | **Closed** | LA-E4-06 AC-01: "when the bucket of one address is empty, a second address … still gets its full burst". |
+| B-LAB-15 | MINOR | **Closed** | LA-E8-01 design notes: `GET /api/platforms` with the admin key, filtered by `profile: standard` and `productFamilyCode`; a platform with no accepted launch is checked by hand. |
+| B-LAB-16 | NIT | **Closed** | Status line `54e8088`; `key-provider.ts` new in B1; §6 and §9 agree; stray `")` gone; AC-LA-E8-01-05 removed in favour of the done rule. |
+
+### Lead decisions LD-10 to LD-17 (my lens)
+
+- **LD-10, LD-11, LD-12, LD-14:** consistent with the matrix. LD-14 moves LA-E5-03 into B2, where `lti/codes.ts` (L) and `http/auth.ts` (S2) have other owners. Adjustment 10 handles this with RQ-1 and a new S1 module `http/rate-limit.ts` (RQ-4). In B4, S2 owns S1's non-shared modules for LA-E5-23, while S1 keeps its shared files (adjustment 5). No conflict found.
+- **LD-13, LD-17:** the QA test folders are disjoint (`tests/ltiaas/tasks-ops/`, `tasks-core/`, `tasks-lti/`), the shared helpers stay with QA, and the independence rule holds. See B-LAB-19 for one stale sentence.
+- **LD-15:** a clear rule. Waves stay ownership windows and regression points, and §6 lists the handover tasks. See B-LAB-18 for reviewer time.
+- **LD-16:** sound for the done order. See B-LAB-17 for a cut gap.
+
+### New findings (cheap)
+
+| Id | Sev. | File | Problem and fix |
+| --- | --- | --- | --- |
+| B-LAB-17 | MINOR | `tasks/README.md` §1 "Done rule per AC"; plan LD-16 | A partner task can be done with ACs "pending: <companion id>". No rule says what happens when the Lead later cuts that companion (Could or Should tasks, for example LA-E6-05 or LA-E6-06 with LA-E6-02). Then the pending ACs never close, and the milestone done rule ("All in-scope epics done", charter-LA §2) is unclear. Fix: one sentence. When a companion is cut, the partner's pending ACs become "removed: <cut decision>", and the partner's feature text in the guides states the gap. Or the partner is cut too. |
+| B-LAB-18 | MINOR | `epics.md` §9 model; plan LD-15 ("done (QA PASS, both reviews)") | Under LD-15 every dependency edge waits for two reviews, and each lens has one reviewer instance (charter-LA §1). The §9 model counts no review time ("review rounds and repair rounds add elapsed time"). The Must chain has 15 steps, so a review turnaround of half a day per step adds about 7 days to the 51.5 (inferred). Fix: count a review turnaround per chain step in §9, and give tasks on the critical chain review priority. Optionally, let a dependent start on its predecessor's QA PASS while the reviews run; it lands only after both approvals. |
+| B-LAB-19 | NIT | `docs/team/ltiaas/plan.md:208` (LD-13) | LD-13 still says "QA-2 and QA-3 hand their suites to QA, who runs them". LD-17 replaces this (QA-2, QA-3 and QA-4 write and run). Mark the sentence as replaced by LD-17. |
+
+### Note for the Lead (not a finding)
+
+- SIM slot load (inferred from `epics.md` §3 and §8): the task-suite runs of the Must scope are about 17 slot-days (39 tasks), plus R1 (about 3.5), migration runs (about 1), gate SIM parts and K2. In total about 28–31 SIM-slot days within 51.5 working days, and about 40 within 55.8 for everything that is not deferred. Rolling starts make the demand bursty at handovers and wave ends. The third simulator-only slot of LD-17 is the right lever; decide it at E0 from the memory record.
