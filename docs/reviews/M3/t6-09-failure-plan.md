@@ -183,3 +183,80 @@ Handoff to Docs, through the Lead: list both findings in `docs/human_review/defe
 - The failed C6/C7 attempt and every earlier failed or void attempt.
 - Any product, test, criterion, contract, ADR, team or guide file.
 - The runtime proof: §7 last row, under E-R3. Final Architect conformance binds only accepted fresh evidence ([conformance report](../M4/architect-conformance.md)).
+
+## 10. Appended remediation proposal: external Docker activity in the C6/C8 legacy run (2026-10-22, about 17:33–17:42 UTC)
+
+Author: the same Architect dispatch as §9. Authority: Lead `msg_070e9354861e` and the [runtime isolation decision](../../team/runtime-isolation-2026-10-22.md) (3,295 B, `ba3bfd8e7bbda47d36897ec71289fea9ff312e5a30e24f8d2d001c6483d37990`, commit `db8e5c7`).
+This is a proposal only. The Lead decides. It accepts no runtime. E-R3 stays VOID. I ran no Docker, test, browser or launcher. I read only public closure files and shared result files. I opened no private log or trace.
+§0–§9 are unchanged: the first 21,113 B (SHA-256 `5beea565e17aa039858b8735026e0216033bc52a0a865e9ede9994c4240dbb47`, committed at `b2d2aae`) keep the 13,356 B `ece4248b…ff0` prefix.
+
+### 10.1 Evidence that I read
+
+Root `V4` = `/Users/quangnguyen/cogniate-qa-runs/qa-common-c6-v4-20261022T1554Z`. T8 folder `T8R` = `V4/c8-clean-src/source/tests/host/artifacts/qa-multi-r1-4008afb9-2026-10-22T17-14-43-803Z`.
+
+| File | Bytes | SHA-256 |
+| --- | --- | --- |
+| `V4/legacy-c6/REPORT-LEGACY-C6-C8-PASS.md` | 7,900 | `ee2ba4db1c235e30de0f1edad5b7237b1d1a3be5c708fd3895b3164cd88991c6` |
+| `V4/evidence-index-legacy-c6.tsv` (74 lines) | 10,452 | `7b7f63eb1696cafaeb2442e85960f58411262be0936e007b05a449524537af63` |
+| `V4/legacy-c6/public/CLOSURE-LEDGER-LEGACY-C6-C8.json` | 28,955 | `12791f3567e1816c80ae7d8f45a65a74a7bb1e5e2f49948ca80a8fa5a8dc1480` |
+| `V4/legacy-c6/public/sampler/lane-containers.json` | 132,088 | `3bb585d2a00fa01c378055b4a83f22b33c854e78fa2ea53e6f6440cb9e85d7df` |
+| `V4/legacy-c6/public/w3-formal-start.json` | 19,941 | `e1dd3dbad98c4c085f06cbabe17ae6d775786a7a631e97424f142a2a040c4a23` |
+| `V4/legacy-c6/public/w4-end.json` | 19,932 | `26751ef27a7fee096c3a38247941fd9a3c05c47cc54ab72c8ec4b525e660e1d3` |
+| `V4/legacy-c6/public/w4-compare.json` | 1,569 | `8e43950f3b11cac57b51bd8a9b4c9638e720a788d96abbb0a46806ff05686fa7` |
+| `V4/legacy-c6/public/full-run-exit.json` | 92 | `fe83c30827120a9e3a131aec096b9d69a38da1e112976113dd85075e780e19cd` |
+| `V4/legacy-c6/public/secret-scan.summary.json` | 470 | `70aafc770e4ecdf0340fa5659a0147b576d0d9fd7e12b29574b56d601e8ed553` |
+| `T8R/summary.json` | 18,493 | `0054dbed9a5ecf9fe3f722c12cc876ea69567a6acb52c6750d0ca4cd54bb4d6b` |
+| `T8R/container-T8/playwright-results.json` | 24,024 | `51f0add060e04da51cea1855b8cfab1e67f3a2dc89a84196b2a66ca1c3b87fec` |
+| `T8R/container-races/playwright-results.json` | 6,615 | `7f6d41d1fdaaee185f1373adb70a9f6ccc52166f96ce87d3f84c09dfa164684b` |
+| `T8R/container-knob-BUILD_RUNNER_HOLD/playwright-results.json` | 5,269 | `2af8e22a7b5e3bec869273d35139c150c39708f444e71243dc864ec7df98cb83` |
+| `T8R/container-knob-BUILD_RUNNER_FAIL_AT/playwright-results.json` | 5,291 | `72608efe7f82ce636b7e5834d5484604014088cd38af9af83f31f118f31a63ac` |
+| `T8R/container-runner-race/playwright-results.json` | 5,221 | `3e4af7e83db4c2bc17c30dd41201b94ad9926372b87c7458117a533e92bd46b1` |
+
+I also counted the six subrun `summary.json` files. The Savoy chronology comes from the Lead's decision (`msg_be9de4c8842a`). I did not read the Savoy messages myself.
+
+### 10.2 What failed and what did not
+
+| Check | Result | Evidence |
+| --- | --- | --- |
+| Product behavior (12 groups: T2a, T2b, T3a, T3b, T3c, T4a, T4b1, T4b2, T5a, T5b, T6, T8) | No failure | Exit 0. 304/304 raw results and 251 unique summary IDs PASS, 0 failed, 0 retries. AC-T5-36, AC-T6-07 and AC-T6-09 pass. |
+| AC-M3-06 isolation, as written | PASS | All 32 protected volume records and the built-in network records are identical at W3 and W4 (`w4-compare.json`: exit 0, `protectedIdenticalAtEnd` true, `problems` []). No container at W4. T8 `TEARDOWN`: 0 containers, 0 volumes, 0 networks left. T8 `M3-ISOLATION`: "containers changed: 0; volumes changed: none". The sampler's maximum is 2 concurrent Compose projects. |
+| AC-M3-07 secrets | PASS | Secret scan exit 0; raw and public hits 0. |
+| Grant condition: exclusive host | FAIL | Savoy ran temporary containers, one volume and an image build from 17:20:16 to about 17:22:57 UTC (Lead decision table). |
+
+So this is not a product failure and not an acceptance-criterion failure. The failed item is the grant's exclusive-host condition, a coordination control that is stronger than AC-M3-06. That failure correctly voids E-R3 under its grant. It does not by itself make a functional row wrong.
+
+### 10.3 Can the external activity make a row pass falsely?
+
+Extra load and extra containers can cause false failures (timeouts, slow builds). A false pass needs a shared resource or an action on our resources. The closed evidence and Savoy's statement exclude each such route:
+
+- Names and labels: Savoy used `/sto-local-db-quangnguyen` and `/sto-go-1792689766-96631`. They are not lane names, lane labels or `cogniate-build-*` names.
+- Images: in the sampler, each lane service image keeps one image id for the whole run (`caddy`, `alpine-moodle`, `node`, `postgres`). The e2e image ids change for each test container, by design.
+- Engine and networks: 178 samples, 0 failed samples, 0 clock or bridge read failures, one bridge id for the whole run. The W4 network records are equal to W3.
+- Volumes: all 32 protected records are equal at W4. A `docker volume prune` would have removed unused anonymous protected volumes, so none ran.
+- Actions on our resources: Savoy states that it did not use the LTI containers, networks or volumes. Our data cannot exclude a container removal between samples. This statement is the only evidence for that point.
+
+### 10.4 Exposure of each row (UTC; Savoy times have a precision of a few seconds)
+
+| Rows | Test time | Savoy activity during the test |
+| --- | --- | --- |
+| Subruns 1–5: T2a, T2b, T3a, T3b, T3c, T4a, T4b1, T4b2, T5a, T5b, T6 (225 unique IDs) | 16:38:27–17:14:43.8 | None reported or observed |
+| T8 `container-T8`: SETUP-T5a, SETUP-T8, AC-T8-02, -04, -05, -06, -08, -09, AC-T8-10 (two results); `container-races`: C-T8-01 (two results) | 17:16:00.7–17:19:39.8 | None (ended before the 17:20:10 notice) |
+| AC-T8-03 (`BUILD_RUNNER_HOLD`) | 17:20:07.161–17:21:18.020 | **Yes**: PostgreSQL and its volume, the image build and four image runs |
+| AC-T8-07 (`BUILD_RUNNER_FAIL_AT`) | 17:21:51.226–17:22:33.068 | None reported in the test body. Runner steps before it overlap 17:21:20–17:21:30. |
+| C-T8-02 (`runner-race`) | 17:22:59.635–17:23:38.953 | Boundary: the body starts 2.6 s after the last reported removal (about 17:22:57). Runner steps before it overlap 17:22:45–17:22:57. |
+| T8 `M3-LEGACY-DEFAULT`, `M3-ISOLATION`, `TEARDOWN` | after 17:23:39 | None reported |
+
+Only AC-T8-03 ran its assertions fully inside Savoy activity. Its network checks are structural Docker inspections: the build network is Internal, and the build containers have no other network. Load cannot make them pass. Its DNS-failure check alone could fail by timeout under load, but the structural checks prove the same isolation. Its "no `cogniate-build-*` container or volume remains" check depends on the Savoy no-use statement in §10.3. C-T8-02 needs a real refusal log from the second runner, so load can only make it fail.
+
+### 10.5 Proposed remediation (smallest first)
+
+**P1, recommended: no new runtime.** A new Lead decision supersedes E-R3. It keeps the E-R3 identities, reuse limits, required SIM, Canvas, M2 and T7 evidence and void rules unchanged. It binds this invocation (`legacy-c6`, gate `msg_46936ef706b8`) as the fresh C6/C8 legacy evidence, with the window stated as NOT exclusive. This is the same disposition as the transient Savoy probe in full2 round 1 (phase plan, 07:50 UTC checkpoint). The 230 C4 rows that E-R3 may carry come from that round. Host-only conditions:
+1. Savoy confirms in writing that its chronology covers the whole run, 16:38:27–17:23:59 UTC: no Docker work before 17:20:16 and none after 17:22:57. It also confirms no prune, no removal or stop of other resources, no network connect or disconnect, and no engine restart or settings change. The LA hold for the same window is also confirmed.
+2. Common QA appends, and does not rewrite: the row exposure ledger of §10.4; and a disclosed correction to its report status line, which says "258/258 unique per-subrun summary IDs". The ledger and the six `summary.json` files give 251 (67 + 31 + 18 + 43 + 66 + 26). This matters because 258 is also the Canvas SIM round size.
+3. Every record says "functional PASS; exclusive-host condition FAIL; window not exclusive". No record calls this an exclusive run.
+
+**P2, only if P1 condition 1 cannot be met, or if the Lead keeps the exclusive condition for every accepted row:** run the T8 subrun again, alone, in a confirmed exclusive window. Only T8 rows are exposed. The measured T8 subrun took about 9 minutes (17:14:43.8–17:23:51). No held launcher runs T8 alone. A T8-only variant of the v4 legacy launcher (runner command and labels only) needs its own identity review before any grant. Subruns 1–5 then carry from `legacy-c6` with the §10.4 ledger. Every repeated T8 row uses its fresh result.
+
+**Not required:** a new run of all 12 legacy groups. No concrete criterion or exposure requires it for subruns 1–5 or for the T8 rows that ended by 17:19:39.8. It is an operational choice only if the Lead prefers an already-reviewed launcher to a T8-only review.
+
+Any route still needs the remaining E-R3 evidence, and confirmed Savoy and LA holds before each later window. No product, test, criterion, contract, ADR or launcher change is proposed. The AC-M4-06 conformance verdict stays PENDING. All 32 real-LMS rows stay UNVERIFIED. Local Canvas stays DEFERRED.
