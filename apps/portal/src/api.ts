@@ -67,7 +67,8 @@ export const idPath = (id: string): string => encodeURIComponent(id);
 
 /** Call the authenticated extension namespace with the same error and session rules. */
 export function extension<T>(connectionId: string, path: string, options: Parameters<typeof api>[1] = {}): Promise<T> {
-  if (!path.startsWith("/") || path.startsWith("//") || path.includes("..") || path.includes("\\")) throw new Error("Use an extension-relative path.");
+  const decoded = decodeURIComponent(path);
+  if (!decoded.startsWith("/") || decoded.startsWith("//") || decoded.includes("..") || decoded.includes("\\")) throw new Error("Use an extension-relative path.");
   return api<T>(`/connections/${idPath(connectionId)}/x${path}`, options);
 }
 
