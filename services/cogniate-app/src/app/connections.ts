@@ -70,7 +70,7 @@ export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffe
     registrationUrlExpiresAt: showRef ? iso(c.refExpiresAt) : null,
     // M1 (§4.2)
     lms: c.channel, profile: c.profile, serviceUrl: c.serviceUrl, capabilities: channels.legacyCapabilities(c.channel),
-    channel: c.channel, channelName: channels.textName(c.channel),
+    channel: c.channel, channelName: channels.textName(c.channel), bindingAuthority: c.bindingAuthority,
     channelCapabilities: channels.capabilities(c.channel, { id: c.profile, sharing: providerOf(c.channel)?.sharingOf(c.profile) ?? undefined, serviceUrl: providerOf(c.channel)?.acceptsServiceUrl ?? false }),
     platform, createdAt: iso(c.createdAt), lastLaunchAt: iso(c.lastLaunchAt),
     // T8 course shell: set when a web services token was saved (the portal shows "Also create an empty Moodle course").
