@@ -1,9 +1,9 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-BREAKDOWN review: Reviewer-A (lens "Is it right and is it safe?")
 
-The verdict above combines both parts. Part 1 (A2's specs): APPROVE. Part 2 (A1's specs): CHANGES_REQUESTED, because of one MAJOR (A-LAB-10).
+The verdict above is for round 2 (section "Round 2" at the end). The round 1 verdicts are kept below: Part 1 (A2's specs) was APPROVE, and Part 2 (A1's specs) was CHANGES_REQUESTED because of one MAJOR (A-LAB-10). Round 2 closes A-LAB-10.
 
 ## Part 1 (A2 specs at ec1afc5927ea34f55bd3f433f550df624e40f111)
 
@@ -174,3 +174,71 @@ MINOR items, grouped. Each item has one file reference, the problem, and the fix
 - **A-LAB-18 (NIT):**
   - `LA-E4-07.md` AC-01: "a request from another container gets no answer" is labelled UNIT. A container check needs K1-SIM, or else reword the UNIT check as "the listener binds `127.0.0.1` only".
   - `LA-E4-01.md` AC-02: name the race directly: "two runners poll at the same time, with two due rows of one key; exactly one row gets a lease".
+
+## Round 2
+
+- SHA under review: `936f707318218e3188b9d6593568982f225d6085` (A1 and A2 parts together).
+- Diffs:
+  - `git diff 971f1b17c52c38d7825ef563f10905a3281852d5 936f707318218e3188b9d6593568982f225d6085 -- docs/architecture/ltiaas`
+  - Part 1: `git diff ec1afc5927ea34f55bd3f433f550df624e40f111 936f707318218e3188b9d6593568982f225d6085 -- docs/architecture/ltiaas/tasks`
+- Responses: `tasks/review-response-B1-A1.md` and `tasks/review-response-B1-A2.md`. Lead decisions: plan §6.1, LD-10 to LD-17.
+- Bounded re-check. For each of my round-1 findings, I checked the fix at its location. I also scanned the diff for new BLOCKER and MAJOR items (plus cheap MINOR items) and checked LD-10 to LD-17 for risks in my lens. I did not repeat the full review.
+- Blind review: I did not open another reviewer's file.
+- **Verdict (round 2): APPROVE.** All 18 round-1 findings are closed. New: **0 BLOCKER, 0 MAJOR, 3 MINOR, 1 NIT** (A-LAB-19..22). The new items can go to `docs/team/ltiaas/deferred.md`, or into a one-line spec edit before P4.
+
+### Round-1 findings
+
+| Id | Severity | Status | Evidence at `936f707` |
+| --- | --- | --- | --- |
+| A-LAB-01 | MINOR | closed | `LA-E5-13.md` AC-03: the right `Origin` and value are sent. The expected detail is `storage_check_unknown_used_or_expired` (not `storage_origin`) with no `303`. The control (the same value on `cogniate` then passes) also catches a check that is used up before the account test. |
+| A-LAB-02 | MINOR | closed | `LA-E6-03.md` AC-09 (tested at `PUT …/platform`; `PLATFORM_NOT_ACTIVE` at login; no code row) and new AC-11 (the three rule-2 negatives give no code page and no code row). |
+| A-LAB-03 | MINOR | closed | `LA-E3-02.md` scope ("The route checks the account status first") and AC-12 (`403 TOOL_ACCOUNT_SUSPENDED`, no `303`). Depends on LA-E5-04. `LA-E5-06.md` AC-10 covers the launch POST. |
+| A-LAB-04 | MINOR | closed | `LA-E3-05.md` scope (D3b server rule: exactly one id when `content.multiple` is false or `acceptMultiple` is not `true`) and AC-12 (two ids give `400 PUBLICATION_NOT_AVAILABLE`, nothing posted). |
+| A-LAB-05 | MINOR | closed | `LA-E5-07.md` AC-04 (an `admin`-only key on `GET /api/idtoken` gets `403`) and AC-12 (revoked and expired keys on LTIK-AUTH-V2 and SERVICE-AUTH-V1). |
+| A-LAB-06 | MINOR | closed | `LA-E5-03.md` AC-11 (`keys`) and AC-12 (`admin`, per key); `LA-E3-02.md` AC-11 (storage-check path in `protocol`). |
+| A-LAB-07 | MINOR | closed | `LA-E5-02.md` AC-01 (B1 actor `api_key:bootstrap-<account>`). `LA-E5-04.md` AC-08 now uses the bootstrap key, and the revoked rows moved to `LA-E5-07.md` AC-11. `LA-E5-03` is in B2 and depends on LA-E5-04. |
+| A-LAB-08 | MINOR | closed | Plan LD-14 (b) confirms that the Should drill may use the existing ADR-012 commands, and says that a failure from the open ADR-012 gates leads to a cut. `LA-E5-24.md` uses form (g) and `/healthz` until LA-E4-07 or LA-E5-17 exists. |
+| A-LAB-09 | NIT | closed | `A2-lanes.md` header `54e8088`. The labels are fixed: K1-SIM with K2 named in the text (LA-E3-02 AC-08, -09); UNIT with the Author test named (LA-E6-01 AC-09, LA-E6-02 AC-08); new `LA-E5-22.md` AC-06 MOODLE-LIVE. |
+| A-LAB-10 | MAJOR | closed | `LA-E4-01.md` scope (a store-contract suite that takes a store as input). `LA-E4-02.md` AC-04 runs it on the app job store after `014`, with two runners and the three cases I asked for (no two rows of one key in flight; a result from another boot id changes no row; a live foreign lease is not recovered, while own, expired and `NULL` leases are). `LA-E5-19.md` AC-06 runs the interval part on the LTI store. |
+| A-LAB-11 | MINOR | closed | `LA-E4-01.md` design note (recovery at each `due` poll) and AC-10 (controlled clock: after `leaseMs`, B's row becomes uncertain, the higher row is sent and confirmed, and B's late result changes nothing). |
+| A-LAB-12 | MINOR | closed | `LA-E4-02.md` scope (the D7 "Confirmation" rule) and AC-12. |
+| A-LAB-13 | MINOR | closed | `LA-E4-02.md` AC-01: a column-by-column compare with the sync row and attempt, plus the expected `partition_key` for the three fixtures. |
+| A-LAB-14 | MINOR | closed | `LA-E4-06.md` AC-01: a second address keeps its full burst. |
+| A-LAB-15 | MINOR | closed | `epics.md` §5 adjustment 11 and row `store/retention.ts` (S1 in B1–B3, S2 in B4). LA-E3-02 no longer edits the file; it exports its cleanup function (but see A-LAB-21). |
+| A-LAB-16 | MINOR | closed | `LA-E2-02.md` AC-03 keeps the LTI service parts. The DTO part (authority `operatorGrant`, status `pending`) is in `LA-E2-04.md` AC-04. |
+| A-LAB-17 | MINOR | closed | `LA-E1-10.md` AC-02, header and Regression now use R1, with the Canvas and Blackboard platform groups. `LA-E1-11.md` AC-06 also uses R1. |
+| A-LAB-18 | NIT | closed | `LA-E4-07.md` AC-01 checks the bound address. `LA-E4-01.md` AC-02 names the race. |
+
+No round-1 answer of mine is "deferred". A2's partly fixed B-LAB-06 is not my finding.
+
+### Lead decisions LD-10 to LD-17 (my lens)
+
+| Decision | Result |
+| --- | --- |
+| LD-10 (S1, S2) | No problem. The `auth_failure` rule (A-LAD-02) stays exact after the split. `LA-E5-03.md` request 2 tells S2 to add the call in `http/auth.ts` "at each API key failure … No call at an ltik or service key failure". AC-05 and AC-06 (AP-06-34) still prove it end to end. |
+| LD-11 (L2; Could tasks deferred) | One problem when it combines with LD-16: A-LAB-20. |
+| LD-12 | No problem. |
+| LD-13, LD-17 (QA-2, QA-3, QA-4 write and run) | No problem. The independence rules stay the same. The suite report has one row per AC with the test id, command and artifact path, so the lead QA and the reviewers can trace each PASS. |
+| LD-14 | No safety gap. Between B1 and B2, a suspended account is refused on `/api/*` (LA-E5-04, B1) but not yet at login and launch (LA-E5-06, B2). No build is released between waves, so this state never reaches a user. (b): see A-LAB-08 and A-LAB-22. |
+| LD-15 (rolling starts) | No problem. The ownership matrix still gives one lane per file and wave, and M1, M2 and T7 still run at each wave end. |
+| LD-16 (companion done order) | Correct for loops between tasks that are built. When a companion is cut, though, the rule leaves the partner AC pending for ever: A-LAB-20. |
+
+### New findings (round 2)
+
+- **A-LAB-19 (MINOR): the rewrite of LA-E4-02 AC-04 dropped the P2 step of the `014` migration test.** File: `LA-E4-02.md` AC-04; LA-ADR-04 D5 "Migration test (Must)".
+  - Required outcome: "a P2 fixture (a row with `send_started_at` set and a pending confirmation) behaves as in T5b after the restart".
+  - Problem: the round-1 AC-04 ended "… and then follows the P2 confirmation rule". The new AC-04 (3) only marks the copied row uncertain. No other AC uses a copied row: LA-E4-03 AC-05 and T5b P2 use new rows, and AC-12 uses a superseded row. Most parts are covered (AC-01 copies `confirmation_after`, and AC-04 marks the row), so the risk is small. But the end-to-end case that the design lists as Must has no AC.
+  - Fix: add to AC-04 (3): "a copied row with `send_started_at` and a pending confirmation then gets exactly one confirmation send at least 5 s after the first accepted send, inside its original 24 h window".
+- **A-LAB-20 (MINOR): by default, the health view reports "no launch refusal" because its writer is deferred.** Files: `epics.md` §3 (LA-E6-02 "Could"; LA-E6-06 "Could (deferred)"), `LA-E6-02.md` AC-01 ("Pending: LA-E6-06"), `LA-E6-06.md` header ("cut together with LA-E6-02"), `tasks/README.md` §1 "Done rule per AC".
+  - Problem:
+    - LD-11 (a) defers LA-E6-06 by default, but LA-E6-02 is not deferred. So the default plan builds the health route with `lastLaunchRefusal` and `events`, but no code writes a launch refusal. Each connection then shows no refusal, even while launches fail with `site_mismatch` or `deployment_not_approved`. That is a false health signal.
+    - Under the LD-16 rule, LA-E6-02 can still be "done" with AC-01 pending. The done rule has no end state for a pending AC whose companion is cut. This also breaks the cut group in the LA-E6-06 header.
+  - Fix:
+    - Either build or cut LA-E6-02 and LA-E6-06 together, as their headers say, or have LA-E6-02 leave out the refusal fields (or show "not recorded") until LA-E6-06 lands.
+    - Add to tasks README §1: when a companion is cut, its partner's pending ACs become "cut with <task id>", and LA-E8-05 lists them as not built.
+- **A-LAB-21 (MINOR): no AC checks that the retention job calls the `storage_check` cleanup.** Files: `LA-E3-02.md` "Needs from S1" (the call line, RQ-1) and AC-04 (the function only, unit); `LA-E5-19.md` AC-02 ("the same rows as today's cleanup") and AC-07.
+  - Problem: after the A-LAB-15 fix, the 10-minute retention of `storage_check` rows (LA-ADR-05 D1) depends on one RQ-1 call line in `jobs/retention.ts`. AC-04 tests the function alone, and the LA-E5-19 ACs compare with today's cleanup, which has no `storage_check` table. If the line is missing, every check row stays in the database for ever, and no AC fails.
+  - Fix: add to LA-E5-19 AC-02 (or to the LA-E3-02 regression): with a controlled clock, the `retention` job run also removes `storage_check` rows older than 10 minutes and keeps newer rows.
+- **A-LAB-22 (NIT): form (g) does not delete the backup folder.** File: `tasks/README.md` §2 form (g) ("Restore: none needed: the fresh drill project is removed at the end").
+  - Problem: the folder outside the checkout holds a backup that "contains secrets" (`infra/scripts/stack-data.mjs:15`). The tool makes it `0700` and its files `0600`, but the drill only removes the project.
+  - Fix: add "delete the backup folder in the clean-up; qa.md records only the SHA-256 values".
