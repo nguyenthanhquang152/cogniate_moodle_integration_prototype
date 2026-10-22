@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E3-01 review, Reviewer-B2 (lens: "Can a human team own it?")
 
@@ -57,3 +57,28 @@ The change is small, and it keeps today's `302` path untouched. One builder make
 
 - K1-SIM AC-10 (QA). The launch side, the storage-check page and the trait values (LA-E3-02).
 - Lens-A items: the CSP and `frame-ancestors` choice, the 1.5 s wait, and the reply checks beyond the unit cases.
+
+## Round 2
+
+Verdict for this round: **APPROVE**. Reviewer: Reviewer-B (the same lens B as Reviewer-B2 in round 1). This is a bounded re-check of the round-1 MINOR and NITs against lane L's fix commits `23a736e` (static login text, A2 BD-A2-41), `5fecc58` (S1 `http/app.ts` registry seam, RQ-2), `db1038f` (`storageBindingOf` and `FRAME_NAME`, registry-based tests) and `f09c3ea` (collision regression, BD-A2-44), in merge `3344520` (`git diff 3344520^1 3344520` on the LA-E3-01 files). I did not open any reviewer-a file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT (new).** The round-1 MINOR and all three NITs are **closed**.
+
+### How I checked
+
+- Scratch clone of `3344520` in a private `/tmp` folder (`--no-hardlinks`, `node_modules` copied; removed after the run). The shared LA worktree did not change.
+- `vitest run` on `services/lti-service/src/lti`, `profiles`, `store/states.test.ts` and `http/routes/compat.test.ts`: **18 files, 288 tests passed**. `tsc --noEmit -p services/lti-service/tsconfig.json`: exit 0. `eslint services/lti-service/src`: exit 0.
+
+### Round-1 findings
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| B-LA-E3-01-01 (MINOR) dense storage decision, no flow map | **Closed** | `profiles/storage.ts` has `storageBindingOf(trait, params, authEndpoint)`, with one comment per rule: "Rule 1: no trait means cookie-only; from-login reads the request …", "An absent or invalid request target counts as no target", "Rule 2: use the stored authentication endpoint origin, or the fixed origin …". `login.ts` now has one call (`:66`) and builds the page from the result. The frame-name grammar is one export, `FRAME_NAME`, and `profiles/schema.ts:18` uses it. The top of `storage-pages.ts` maps the flow: "login chooses the binding; the page posts lti.put_data; the state row keeps target and origin; the LA-E3-02 launch side reads platform storage only when the state cookie is missing." |
+| B-LA-E3-01-02 (NIT) spy on `profileDefinition` | **Fixed** | `login.test.ts` builds `testProfileRegistry('Unit LMS', storage)`, passes it with `harness({ profiles: { simulation: false, registry } })`, and points the test platform at the `zz-admin` profile. The `vi.spyOn` is gone. `http/app.ts` takes an optional `profileRegistry` (RQ-2 seam), which LA-E3-02 can reuse. |
+| B-LA-E3-01-03 (NIT) blank login page (A2) | **Fixed** (BD-A2-41) | The page shows the static `<p>Opening the activity. Please wait.</p>`, and `<noscript>This activity needs JavaScript. Turn on JavaScript in your browser, then open the activity again from your course.</noscript>`. Neither line holds a request value. Test: "shows the static waiting text and JavaScript help (BD-A2-41)". |
+| B-LA-E3-01-04 (NIT) optional state fields | **Fixed** | `StateRecord.storageTarget` and `storageOrigin` are `string \| null`, required. The state test passes explicit `null` values ("stores and returns storage metadata or explicit nulls…"). |
+
+### Note (not a finding)
+
+`storageBindingOf` reads request parameters, but it lives in `profiles/` next to the profile schema, because it shares `FRAME_NAME` with it. That is fine. If the storage launch side (LA-E3-02) grows more request logic, an `lti/storage-binding.ts` that imports `FRAME_NAME` would keep `profiles/` to profile data only.
+
