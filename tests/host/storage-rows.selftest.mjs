@@ -15,7 +15,7 @@ import { StorageLane } from './storage-lane.mjs';
 import { groupMembers, legacySets, pidStart, spawnGroup } from './storage-oracle.mjs';
 import {
   DRILL_POINTS, NEEDS, SEQUENCE, absenceClaim, copyCredentials, coversListing, defineRows, firstWriteRolledBack, legacySourcesMatch, ownPause, rootJournalChanges,
-  staleChanges, staleRecords, storagePaths, storagePhase, tamperChanges, waitOwnPause, writeMarker,
+  staleChanges, staleRecords, storagePaths, storagePhase, tamperChanges, tamperMade, tamperTarget, waitOwnPause, writeMarker,
 } from './storage-rows.mjs';
 import { volumeSnapshot, writeHandoff } from './m1-migration.mjs';
 
@@ -574,7 +574,8 @@ class FakeWorld {
           }
           answer = { op, results: spec.ops.map((o) => ({ op: o.op, vol: o.vol, path: o.path })) };
         } else {
-          answer = { op, results: plant(roots, spec.ops, { outDir: this.lane.out }) };
+          const ops = this.inject === 'tamper-no-effect' ? spec.ops.filter((o) => o.op !== 'flip') : spec.ops;
+          answer = { op, results: [...plant(roots, ops, { outDir: this.lane.out }), ...spec.ops.filter((o) => !ops.includes(o))] };
           // V4-2: a returned file whose mode drifts (the row must compare it with its listing before the row).
           const drift = { 'unstash-mode-drift:d-symlink': 'hold-d-symlink-', 'unstash-mode-drift:identity': 'orig-f-pairid-' }[this.inject];
           const u = spec.ops.find((o) => o.op === 'unstash');
@@ -845,7 +846,9 @@ class FakeWorld {
     }
     this.prepareVolumes();
   }
-  drillStop(lines, operation, point, from, m, opId = rnd(16)) {
+  /** A product opId (32 hex). R5 controls fix its first digit so that a kept generation sorts before or after the drill. */
+  newOpId(kind) { const id = rnd(16); return this.opIdFirst?.[kind] ? this.opIdFirst[kind] + id.slice(1) : id; }
+  drillStop(lines, operation, point, from, m, opId = this.newOpId('drill')) {
     // ADR-012 §8: prepared-lti is the first journal write, the lti journal only (no staging yet).
     if (point === 'prepared-lti') {
       this.writeJournal('ltidb', { operation, opId, state: 'prepared', backupId: m.backupId, from, updatedAt: new Date().toISOString() });
@@ -896,12 +899,12 @@ class FakeWorld {
     }
     if (j.ltidb.state === 'committed-lti') {
       const m = JSON.parse(fs.readFileSync(path.join(j.ltidb.from, 'manifest.json'), 'utf8'));
-      for (const key of ['ltidb', 'appdb']) for (const d of fs.readdirSync(this.vol(key)).filter((n) => /^\.(previous|restore)-/.test(n))) fs.rmSync(path.join(this.vol(key), d), { recursive: true });
+      this.keepGeneration(opId);
       this.restoreInto(m, j.ltidb.from);
       return { code: 0, text: 'recovered: committed' };
     }
     for (const key of ['ltidb', 'appdb']) {
-      for (const d of fs.readdirSync(this.vol(key)).filter((n) => /^\.(previous|restore)-/.test(n))) fs.rmSync(path.join(this.vol(key), d), { recursive: true });
+      for (const d of [`.restore-${opId}`, `.previous-${opId}`]) fs.rmSync(path.join(this.vol(key), d), { recursive: true, force: true });
       this.writeJournal(key, { ...j[key], state: 'rolled_back' });
     }
     if (j.ltidb.intoFresh) for (const key of ['ltidb', 'appdb']) for (const n of this.volumeFiles(key)) fs.rmSync(path.join(this.vol(key), n));
@@ -1012,7 +1015,7 @@ class FakeWorld {
   }
   /** LD-3 row-level negatives: one forbidden change made by the recovery. */
   injectTamper() {
-    const lti = this.vol('ltidb'), app = this.vol('appdb'), prev = fs.readdirSync(lti).find((n) => n.startsWith('.previous-'));
+    const lti = this.vol('ltidb'), app = this.vol('appdb'), prev = `.previous-${this.journal('ltidb').opId}`;
     if (this.inject === 'tamper-app-journal-not-failed') this.writeJournal('appdb', { ...this.journal('appdb'), state: 'swapped' });
     if (this.inject === 'tamper-opid-changed') this.writeJournal('ltidb', { ...this.journal('ltidb'), opId: rnd(16) });
     if (this.inject === 'tamper-nested-journal') fs.writeFileSync(path.join(lti, prev, '.storage-journal.json'), '{}');
@@ -1077,7 +1080,7 @@ class FakeWorld {
     else if (cmd === 'npm' && args[1] === 'stack:data-restore') {
       // The container and its swapped-lti journals exist only after the holder reached the pause (orphanSync); a kill before
       // it leaves no container. The earlier pauses stay in the log.
-      const opId = rnd(16), paused = path.join(this.scripts, `paused-${opId}`);
+      const opId = this.newOpId('orphan'), paused = path.join(this.scripts, `paused-${opId}`);
       handle = node('holder.mjs', [this.lockDir(), 'stack:data-restore', '-1', PROJECT, this.clone, opId, path.join(this.clone, 'infra/.logs/storage-maintenance.jsonl'), paused, '1000',
         this.inject === 'orphan-unrelated-log-pause' ? 'unrelated-log-pause' : 'pause']);
       this.orphan = { opId, paused, from: args[args.indexOf('--from') + 1] };
@@ -1093,7 +1096,7 @@ class FakeWorld {
   orphanSync() {
     const o = this.orphan;
     if (!o || !fs.existsSync(o.paused)) return;
-    this.orphan = null; this.orphanFrom = o.from;
+    this.orphan = null; this.orphanFrom = o.from; this.orphanOpId = o.opId;
     this.drillStop([], 'restore', 'swapped-lti', o.from, JSON.parse(fs.readFileSync(path.join(o.from, 'manifest.json'), 'utf8')), o.opId);
     this.storage.push({ Id: rnd(32), Name: `/${PROJECT}-storage-${rnd()}`, Created: engineText(),
       Config: { Labels: { 'com.docker.compose.project': PROJECT, 'org.cogniate.storage': 'maintenance', 'org.cogniate.storage.run': rnd() } }, State: { Status: 'running', Running: true } });
@@ -1105,8 +1108,12 @@ class FakeWorld {
     this.completeOrphan = false;
     this.storage = this.storage.filter((x) => x !== c);
     const from = this.orphanFrom, m = JSON.parse(fs.readFileSync(path.join(from, 'manifest.json'), 'utf8'));
-    for (const key of ['ltidb', 'appdb']) for (const d of fs.readdirSync(this.vol(key)).filter((n) => /^\.(previous|restore)-/.test(n))) fs.rmSync(path.join(this.vol(key), d), { recursive: true });
+    this.keepGeneration(this.orphanOpId);
     this.restoreInto(m, from);
+  }
+  /** ADR-012 §8: after a commit, one previous generation (.previous-<opId>) is kept; .restore-* and older .previous-* go. */
+  keepGeneration(opId) {
+    for (const key of ['ltidb', 'appdb']) for (const d of fs.readdirSync(this.vol(key)).filter((n) => /^\.(previous|restore)-/.test(n) && n !== `.previous-${opId}`)) fs.rmSync(path.join(this.vol(key), d), { recursive: true });
   }
   // ---------------------------------------------------------------- left-over plants after each step (V7-1)
   afterSave(rel) {
@@ -1969,4 +1976,91 @@ test('HARNESS ONLY: R4 FC3 legacySources equal the manifest files as complete en
 test('HARNESS ONLY: R4 FC3 an app identity whose legacySources differ from the manifest FAILs e-import', async (t) => {
   const { byId } = await dryRun(t, { inject: 'import-app-sources-differ', stopAfter: 'e-import' });
   assert.deepEqual([byId['e-import'].status, byId['e-import'].notes[0]], ['FAIL', 'legacySources of the app identity equal the manifest list']);
+});
+
+// ---------------------------------------------------------------- Repair batch R5: the g-tamper target of THIS drill
+
+const KEPT_FIRST = { orphan: '0', drill: 'f' }, KEPT_LAST = { orphan: 'f', drill: '0' };
+/** The kept generation of the g-orphan-complete commit and the drill's .previous-<opId>, seen after g-orphan-complete and g-tamper. */
+function tamperHooks(seen) {
+  const lti = (w) => w.vol('ltidb'), sha = (w, d) => (fs.existsSync(path.join(lti(w), d, 'lti.db')) ? fsha(path.join(lti(w), d, 'lti.db')) : null);
+  return {
+    'g-orphan-complete': (w) => { seen.kept = `.previous-${w.orphanOpId}`; seen.keptSha = sha(w, seen.kept); },
+    'g-tamper': (w) => {
+      const j = w.journal('ltidb'), drill = `.previous-${j.opId}`;
+      Object.assign(seen, { drill, folders: fs.readdirSync(lti(w)).filter((n) => n.startsWith('.previous-')).sort(),
+        keptAfter: sha(w, seen.kept), drillChanged: sha(w, drill) !== null && sha(w, drill) !== j.previous?.['lti.db'] });
+    },
+  };
+}
+
+test('HARNESS ONLY: R5 g-tamper changes .previous-<opId>/lti.db of this drill when a kept generation sorts first or last', async (t) => {
+  const runs = [];
+  for (const [name, order] of [['kept first', KEPT_FIRST], ['kept last', KEPT_LAST]]) {
+    const seen = {};
+    runs.push({ name, order, seen, ...(await dryRun(t, { stopAfter: 'g-tamper', hooks: tamperHooks(seen), setup: (w) => { w.opIdFirst = order; } })) });
+  }
+  // C3 gives "kept first: FAIL --recover after the tamper: expected exit 2, got 1" (round 1) and "kept last: PASS" (diagnostic).
+  assert.deepEqual(runs.map((r) => `${r.name}: ${r.byId['g-tamper'].status}${causeOf(r.byId['g-tamper']) ? ' ' + causeOf(r.byId['g-tamper']) : ''}`), ['kept first: PASS', 'kept last: PASS']);
+  for (const { name, order, seen, world } of runs) {
+    // The precondition was made: two .previous folders at swapped, in the intended order; only the drill's lti.db changed.
+    assert.deepEqual(seen.folders, (order === KEPT_FIRST ? [seen.kept, seen.drill] : [seen.drill, seen.kept]), name);
+    assert.notEqual(seen.kept, seen.drill, name);
+    assert.deepEqual([seen.drillChanged, seen.keptAfter === seen.keptSha], [true, true], name);
+    assert.ok(world.productCalls.some((c) => c.name === 'g-tamper-recover' && c.code === 2), name);
+  }
+});
+
+test('HARNESS ONLY: R5 the full dry run with the kept generation first keeps the declared map; the 17 rows after g-tamper run', async (t) => {
+  const { rows, byId } = await dryRun(t, { setup: (w) => { w.opIdFirst = KEPT_FIRST; } });
+  assert.equal(rows.length, 70);
+  assert.deepEqual(compareMap(rows, EXPECTED), []);
+  for (const id of ['g-quarantine-in-use', 'g-quarantine', 'h-legacy-manifest', 'h-target-state', 'e-fresh-refusal', 'e-hot-journal', 'e-old-layout', 'g-fresh-target',
+    'h-pair-mismatch', 'e-import-recover', 'e-import', 'e-kept', 'e-provenance-restore', 'e-changed-byte', 'e-added-wal', 'e-import-nonfresh', 'h-old-manifest'])
+    assert.equal(byId[id].status, 'PASS', id);
+});
+
+test('HARNESS ONLY: R5 a tamper without effect FAILs g-tamper "precondition not made" before any recovery', async (t) => {
+  const { world, byId } = await dryRun(t, { inject: 'tamper-no-effect', stopAfter: 'g-tamper' });
+  assert.equal(byId['g-tamper'].status, 'FAIL');
+  assert.match(byId['g-tamper'].notes[0], /^precondition not made: \.previous-[0-9a-f]{32}\/lti\.db did not change its bytes$/);
+  assert.ok(!world.productCalls.some((c) => c.name === 'g-tamper-recover'), 'No --recover after a precondition failure');
+});
+
+test('HARNESS ONLY: R5 tamperTarget and tamperMade: only one own swapped opId and one regular target; only the target changes', () => {
+  const X = 'a'.repeat(32), Y = 'b'.repeat(32), stop = (...ls) => ({ stdout: ls.map((l) => JSON.stringify({ event: 'storage_drill_stop', ts: 't', ...l })).join('\n') + '\n', stderr: '' });
+  const file = (p, sha256 = 'c'.repeat(64)) => ({ path: p, type: 'file', uid: 501, gid: 20, mode: '0600', size: 9, sha256 });
+  const listing = (...entries) => ({ lti: { entries: [{ path: '.', type: 'dir' }, ...entries] }, app: { entries: [file('cogniate.db')] } });
+  const both = listing(file(`.previous-${Y}/lti.db`), file(`.previous-${X}/lti.db`), file('lti.db'));
+  assert.deepEqual(tamperTarget(stop({ opId: X, point: 'swapped' }), both), { path: `.previous-${X}/lti.db` });
+  assert.deepEqual(tamperTarget(stop({ opId: X, point: 'swapped' }, { opId: X, point: 'swapped' }), both), { path: `.previous-${X}/lti.db` }, 'the same line twice');
+  const refused = {
+    'no stop line': [{ stdout: '{"event":"storage_drill_pause"}\n', stderr: '' }, both],
+    'another point': [stop({ opId: X, point: 'staged' }), both],
+    'a swapped and another point': [stop({ opId: X, point: 'swapped' }, { opId: X, point: 'swap-app-mid' }), both],
+    'no opId': [stop({ point: 'swapped' }), both],
+    'a short opId': [stop({ opId: 'abc', point: 'swapped' }), both],
+    'an upper-case opId': [stop({ opId: 'A'.repeat(32), point: 'swapped' }), both],
+    'two opIds': [stop({ opId: X, point: 'swapped' }, { opId: Y, point: 'swapped' }), both],
+    'only the kept generation': [stop({ opId: X, point: 'swapped' }), listing(file(`.previous-${Y}/lti.db`))],
+    'the target is a folder': [stop({ opId: X, point: 'swapped' }), listing({ path: `.previous-${X}/lti.db`, type: 'dir' })],
+    'the target is a link': [stop({ opId: X, point: 'swapped' }), listing({ path: `.previous-${X}/lti.db`, type: 'symlink', target: '/x' })],
+    'two target entries': [stop({ opId: X, point: 'swapped' }), listing(file(`.previous-${X}/lti.db`), file(`.previous-${X}/lti.db`))],
+    'no listing': [stop({ opId: X, point: 'swapped' }), {}],
+  };
+  for (const [name, args] of Object.entries(refused)) assert.ok(tamperTarget(...args).problem && !tamperTarget(...args).path, name);
+  const target = `.previous-${X}/lti.db`, before = listing(file(`.previous-${Y}/lti.db`), file(target), file('lti.db'));
+  const after = (fn) => { const l = JSON.parse(JSON.stringify(before)); fn(l); return l; };
+  const flip = (l) => { l.lti.entries.find((e) => e.path === target).sha256 = 'd'.repeat(64); };
+  assert.deepEqual(tamperMade(before, after(flip), target), [], 'only the target changed');
+  const failing = {
+    'the target unchanged': after(() => {}),
+    'the kept generation changed instead': after((l) => { l.lti.entries.find((e) => e.path === `.previous-${Y}/lti.db`).sha256 = 'd'.repeat(64); }),
+    'the target and another file changed': after((l) => { flip(l); l.app.entries[0].sha256 = 'd'.repeat(64); }),
+    'the target and its mode changed': after((l) => { flip(l); l.lti.entries.find((e) => e.path === 'lti.db').mode = '0644'; }),
+    'an entry added': after((l) => { flip(l); l.lti.entries.push(file('qa-extra')); }),
+    'an entry removed': after((l) => { flip(l); l.app.entries = []; }),
+    'the target gone': after((l) => { l.lti.entries = l.lti.entries.filter((e) => e.path !== target); }),
+  };
+  for (const [name, l] of Object.entries(failing)) assert.ok(tamperMade(before, l, target).length > 0, name);
 });

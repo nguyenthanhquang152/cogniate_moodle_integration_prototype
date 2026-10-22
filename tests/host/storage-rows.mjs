@@ -981,11 +981,13 @@ function defineRows(ctx) {
       const stop = await product('g-tamper-stop', ['stack:data-restore', '--', '--from', state.B, '--stop-after', 'swapped'], { env: drillEnv() });
       stopCheck(stop, 'swapped');
       const l = await lane.listing();
-      const prev = l.lti.entries.find((e) => /^\.previous-[0-9a-f]{32}\/lti\.db$/.test(e.path));
-      check(prev, 'A .previous-<opId>/lti.db exists at swapped');
-      await lane.plant([{ op: 'flip', vol: 'lti', path: prev.path, offset: 100 }]);
+      const target = tamperTarget(stop, l);
+      check(!target.problem, `A .previous-<opId>/lti.db of this drill exists at swapped${target.problem ? ': ' + target.problem : ''}`);
+      await lane.plant([{ op: 'flip', vol: 'lti', path: target.path, offset: 100 }]);
       // M1 a60ba4a (LD-3): QA's listing after the tamper ("before") and after --recover ("after"), and both root journals.
       const listedBefore = await lane.listing(), journalsBefore = (await lane.state()).fileset;
+      const made = tamperMade(l, listedBefore, target.path);
+      check(made.length === 0, `precondition not made: ${made.join('; ')}`);
       const res = await recover('g-tamper-recover');
       expectExit(res, 2, '--recover after the tamper');
       const after = await lane.state();
@@ -1666,6 +1668,37 @@ export function legacySourcesMatch(sources, files) {
   if (!Array.isArray(sources) || !Array.isArray(files) || sources.length === 0) return false;
   const key = (x) => JSON.stringify([x?.name, x?.size, x?.sha256]);
   return JSON.stringify(sources.map(key).sort()) === JSON.stringify(files.map(key).sort());
+}
+/**
+ * g-tamper (tasks/M1.md; ADR-012 §8): the file to change is `.previous-<X>/lti.db` of THIS drill. X is the one opId of the
+ * storage_drill_stop lines in the drill command's own output; each line must have point `swapped` and a 32-hex opId. The
+ * volume can also hold the kept previous generation of an earlier commit (§8), so a "first match" is wrong. The target
+ * must be exactly one regular file in the lti listing. Returns { path } or { problem }; nothing is changed before this.
+ */
+export function tamperTarget(stopResult, listing) {
+  const lines = linesOf(stopResult, 'storage_drill_stop');
+  if (lines.length === 0) return { problem: 'no storage_drill_stop line in the drill output' };
+  if (lines.some((x) => x.point !== 'swapped')) return { problem: 'a storage_drill_stop line with another point than swapped' };
+  if (lines.some((x) => !OP_ID.test(String(x.opId)))) return { problem: 'a storage_drill_stop opId that is not 32 hex' };
+  const ids = [...new Set(lines.map((x) => x.opId))];
+  if (ids.length !== 1) return { problem: `more than one opId: ${ids.join(', ')}` };
+  const target = `.previous-${ids[0]}/lti.db`, found = (listing?.lti?.entries ?? []).filter((e) => e.path === target);
+  if (found.length !== 1) return { problem: `${found.length} entries ${target} in the lti listing` };
+  if (found[0].type !== 'file') return { problem: `${target} is a ${found[0].type}, not a regular file` };
+  return { path: target };
+}
+/**
+ * The precondition of g-tamper: between QA's listings just before and just after the plant, only the target changed its
+ * bytes (SHA-256). Every other entry of both volumes, a kept previous generation included, is equal. Returns the problems.
+ */
+export function tamperMade(before, after, target) {
+  const map = (l) => new Map(['lti', 'app'].flatMap((v) => (l?.[v]?.entries ?? []).map((e) => [`${v}:${e.path}`, e])));
+  const b = map(before), a = map(after), key = `lti:${target}`, problems = [];
+  if (JSON.stringify([...b.keys()].sort()) !== JSON.stringify([...a.keys()].sort())) problems.push('the entry names changed');
+  const t = [b.get(key), a.get(key)];
+  if (!(t[0]?.type === 'file' && t[1]?.type === 'file' && t[0].sha256 !== t[1].sha256)) problems.push(`${target} did not change its bytes`);
+  for (const [k, e] of b) if (k !== key && a.has(k) && JSON.stringify(e) !== JSON.stringify(a.get(k))) problems.push(`${k} changed`);
+  return problems;
 }
 /** A QA marker or scratch file (site #15): mode 0600, never over an existing path, then a mode check. */
 export function writeMarker(file, text) {
