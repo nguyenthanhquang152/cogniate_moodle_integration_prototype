@@ -4009,3 +4009,17 @@ The former Savoy Docker hold no longer applies: its coordinator reports that the
 LTI acknowledged and requested a future nonoverlap window in msg_b2e9ab518f24.
 Lead gave LA an explicit temporary handoff through 10:45 UTC (msg_7bf64cb71e29).
 A new runtime grant requires fresh coordination and strict baseline comparison. No old hold is assumed.
+
+### 2026-10-22 10:44 UTC — preliminary guide QA accepted
+
+Canvas Gemini completed the host-only guide checks in msg_524227a9d9b8.
+The ten held files match provisional fd87bf7. Writing limits, 145 links, 121 script references, offline HTML and desktop/mobile accessibility passed.
+Root reconciled all 12 private manifest entries and the report hash.
+Lead accepted Q-M4-P01 and Q-M4-P02 as nonblocking cosmetic NIT deferrals in msg_00d52fb2bfe2.
+Final Docs must list them without changing the reviewed HTML for optional polish.
+Overall M4 remains pending final runtime, conformance and document stamps; final QA rechecks only the affected delta and bindings.
+
+Lead checked AC-M4-07's owned decision register against Q19-Q22 and ADR-011 section 15.
+All four questions and all D-1 through D-12 follow-ups are present with the required defaults.
+The decision-register SHA-256 is 84b95ce1992885fe9ca93597bd3dda53052b46900f7400f06d9db4ae1e1b8ae4.
+No human answer, tenant permission or production approval is implied. No register edit is needed.
