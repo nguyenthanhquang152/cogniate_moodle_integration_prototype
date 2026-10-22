@@ -724,3 +724,12 @@ The command is the §8.1 command with project `qa-e2e-sim-r5`, both SHAs `aff488
 | Observer repair | PASS (controls) | Lead authorized the external observer repair (`R/observe2.mjs`, SHA-256 `d60dc920f5122d2b3317ae28e071ba7885c19bb780ab287f9d027d7d05c53dc0`): tolerant per-container inspect, no printed `docker` output, error handlers that record only a code. In `R/observer-control/`, byte-identical copies ran against a fake `docker` with a planted synthetic secret. The old observer reproduces the leak and collects nothing. The new one emits no payload, collects the surviving container and image, and withholds an unexpected exception (only `observer_error: uncaught`). |
 
 QA stopped before T7 and reported in `msg_4e94792776cf`. T7 then ran under a new window with the pinned observer and passed (see [T7 QA](../T7/qa.md#m3-checkpoint-update--final-candidate-aff4882-t7-pass)).
+
+## 10. Round 9 — candidate C3 `c4c6d04`: NOT RUN (2026-10-22)
+
+**NOT RUN. No M2 result at this candidate.** A fresh Claude QA-E2E session wrote this note: `claude-opus-5-5`, xhigh; Orca session `34e03f7b-2209-4749-8db7-c5b507717b71`; task `task_5f3f8aa499cb`, dispatch `ctx_1fd6cb09010e`. It did not execute rounds 1–8.
+
+- Candidate product = test `c4c6d045b3a132f72bf059d77367d278de9222fa`. `apps/portal` and `tests/e2e` did not change since `aff4882`; the M2 manifest (64 cases) is unchanged.
+- Reason: a fresh M2 run needs the accepted complete Common full and legacy gate and a separate exclusive Docker window. Common's full round 1 failed in storage (470 PASS, 18 FAIL of 488; root row `M1-41.common.g-tamper`). Round 2 and legacy did not run, and the Lead granted no M2 window ([M3 QA-E2E §14](../M3/qa-e2e.md#14-round-11--candidate-c3-c4c6d04-2026-10-22)).
+- Prepared only (host): the M2 command of `R/plan/runbook-c4c6d04.md` section B (`32f390b5…`) on lane `qa-e2e-sim-r6`, port 8643, subnet `172.27.0.0/16`, with the window steps of `R/plan/window-commands-c4c6d04.md` (`4435163d…`). `R` = `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-c4c6d04-qA52QXut`.
+- All 64 browser cases, the 13 AC and their named subcases stay NOT RUN at this SHA. The 64/64 result at `aff4882` (§9) is history only and gives no credit to this candidate.

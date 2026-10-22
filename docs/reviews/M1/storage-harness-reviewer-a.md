@@ -274,3 +274,348 @@ Limit: the suite metas bind the self-test files by hash. The runtime modules of 
 ### R2.8 Private root and deviations
 
 Private root `/Users/quangnguyen/cogniate-review-runs/harness-r2-reviewer-a-task_67e836c13f1b-20261021T1732Z` (`0700`). `src/` and `base/` hold the `git archive` exports of `c71912f` and `71a5bf9` (`tests/` only). `notes/` holds the checkpoint bodies and this draft. Deviation D-1 (disclosed): `notes/checkpoint-1.md` (inode 10196272) was created `0644` by the editor tool inside the `0700` root; it holds review text only and no secret. I set it to `0600` and made `notes/checkpoint-1.body`, created `0600` by the shell. A later `0600` mode does not prove a `0600` creation. Every other file was created `0600` under umask `077` by shell commands (`tar`, `printf`, `cat`, `shasum`) or by an explicit `0600` exclusive create. Deviation D-2 (disclosed): to check the two suite metas, two short lists of public test file names and SHA-256 values were written to `/tmp` (umask `077`, `0600`) and deleted in the same command, in under 1 s; no secret. Manifest: `MANIFEST.sha256` in the root, SHA-256 `f2d59f171a2a14ad5992c965c628537be1fe07d688ac580257699cce923b2c4f`, 510 entries (every regular file except itself; every file `0600`, every folder `0700`, no link). It does not cover this report, which is recorded in git.
+
+## Round 3
+
+Verdict: APPROVE
+Round: 3
+
+Reviewer-A (lens A). Claude Code Opus 5.5, xhigh. Task `task_842ea419d367`, dispatch `ctx_ea4fe64fdd8b`, run `run_ebe671ad72a9`. Date: 2026-10-21 (UTC). This round reviews the bounded repair after the failed candidate C diagnostic. It is independent of the QA repair owner and of Reviewer-B. It gives no runtime acceptance and no row credit. A passing self-test count is not runtime evidence.
+
+### R3.1 Target, criteria and method
+
+| Item | Value |
+| --- | --- |
+| Source target | WIP commit `c4de96f41163a23c182f0fbcb513460086da2fd8` (parent `caa382a`), tests tree `290a773f1c9779693153ae77b46cc8ceb7eb83f4`. Held hashes (equal to my export): `storage-rows.mjs` `0958cc49fdf24c447f6b8eb446b17908979e6516f186cd8343fc7a77ede215c1`, `storage-rows.selftest.mjs` `9ef56478f7099dc28a8733c163f4803f36cc8bc1f24b687cb28e388eaeec4376`, `run-m1.mjs` `8e1ef65ccac3bc593f501e6f871be3a8e987fe59e3441b0a303897629d57a076`. |
+| Base | Candidate C `d3296dd6eddbe723364a639d8e2db0adf12ab183`, tests tree `183a72b2fea5ff065fc57c96649199bc720fb6e0` (the tests tree of my Round 2 target `c71912f`). |
+| Diff scope | `d3296dd..c4de96f -- tests` changes exactly the three granted paths: `run-m1.mjs` (+2, −1), `storage-rows.mjs` (+5, −3), `storage-rows.selftest.mjs` (+25, −4). The other paths of the range are `README.md`, `docs/guides/**`, `docs/human_review/**` and `docs/team/**`. `git diff 9f8ac62 c4de96f` has no path outside `docs/`, `README.md` and `tests/`, so the product is unchanged. `c4de96f..7f4cc61` changes documents only. The worktree `tests/` equals `c4de96f` (`git diff --quiet`). `pnpm-workspace.yaml` stays untracked and untouched. |
+| Criteria | Charter. Frozen triage `2d763fe` (`ade4e8a0f9e54823040828758b7683d5c9b230587747f3ef3c89ef8e99f9a032`). M1 precision `a60ba4a` (`ac444799ae5e93706054a7e352e339bdea509a889328c15365a3535864fb37af`). ADR-012 §7, §9 and §11 (unchanged since `a60ba4a`). Lead grant `msg_8fee425d4749`, as the dispatch and the plan checkpoint at `caa382a` state it. My Round 1 and Round 2 sections above (prefix `d721edaae6790bddfae573160fcb9dd07dd91afc5d6cee3e40b87fa54354df9b`, 58,293 bytes; unchanged). |
+| QA proposal | `diagnosis-c/backup-B-502.md` `b0004ad12a62694b66d6509a918e2934bc004981ffa87e2561a8565f187500bd` (5,900 bytes, `0600`) and `backup-B-502-erratum.md` `1205cdbcf729bad7ea4601b16f2133eac9512763322de15567675d5944904d4a` (371 bytes, `0600`). The erratum corrects the header time: the file is from 19:31:17Z, not "about 19:40Z". |
+| Method | Staged. (1) The criteria, the proposal and the C source from git objects, before the new source. I sent my initial assessment (`msg_23a24effd49b`). (2) `c4de96f` and `d3296dd` exported with `git archive` into my private root. I did not read the working-tree test code. (3) Narrow private probes, with purpose and commands sent first (`msg_f30bc0cb0922`); results in `msg_cf1f0abdfb9d`. (4) The final QA evidence (`msg_ca4e5c308e29`, `msg_9b0d6b5d47d3`, `msg_53511f162d90`). I did not read any Reviewer-B file, peer conclusion or transcript, or the text of the QA report. No Docker, Compose, network, service, settings or dependency step. |
+
+### R3.2 Result
+
+APPROVE for this bounded host source round. No BLOCKER and no MAJOR finding. One MINOR finding (A-SH-10). The Lead accepted it as a coverage deferral that does not block (`msg_45768c36f8c1`).
+
+- The hypothesis of the QA proposal is correct (R3.3). The repair corrects the three sites, and it weakens no refusal, start, write-gate or data-integrity rule (R3.4).
+- The FakeWorld platform model is opt-in. It matches the real lane in every transition that these sites can observe (R3.5).
+- The bound of 1,800,000 ms applies only to the host self-test call of the `--harness-only` branch (R3.6).
+- The required evidence is present and bound to `c4de96f` (R3.8). R2-RT-1 fails on the C runtime and passes on the repair. MU-RT-1 to MU-RT-3 are each detected by an actual failed assertion. The complete `--harness-only` run under child umask `022` also meets the complete-022 suite requirement. The complete 077 suite passes with its own state.
+- The approval covers the harness source at `c4de96f` and its host self-checks only. It gives no runtime acceptance, no row credit and no new candidate. The rows after `@backup-B` stay unknown until a new diagnostic.
+
+### R3.3 Diagnosis (independent check of the proposal)
+
+- `serviceContainers` (`storage-docker.mjs:330–343`) lists every container with the lane project label, except one-off and storage containers. So `lane.services()` also lists `proxy`, `postgres` and `moodle`.
+- At C, `@backup-B` (`storage-rows.mjs:864`) and `postB` (`:296`) start the stack only when no listed container runs. `e-fresh-refusal` (`:1078`) fails when any listed container runs.
+- Diagnostic evidence (read only: names, states, statuses). The `a-first-start-both-pending-up` log (`cmd/281`) shows `proxy`, `postgres` and `moodle` Running and Healthy. The harness stop of `e-not-same-import` (`cmd/284`) stops only `cogniate-app` and `lti-service`. No command log exists between `cmd/290` and `cmd/291`, so `before-B-marker` did not run. Step `034-fixture-backup-B.json` (`12b3027177c7ea579d98753f9f6de107f3ce227a84f1bd6e33d84b2abcd22e0d`) is FAIL with the notes "New LTI platform: HTTP 502" and "duration 0 s". `m1-case-results.json` (`a3d5c49df59e6e123e3d72aedab238a34f7251ebbe23063994fdddf3260bcf69`) has 33 PASS and 37 FAIL. Each FAIL has the first cause "not run: prerequisite …".
+- The C FakeWorld listed only the two app services (`all()`). So V7-1 always started the stack at these sites and could not see the fault.
+- The mock reproduces the real failure. The 37 mismatches of R2-RT-1 on the C runtime (QA `rt-base-u022`) are exactly the 37 FAIL row ids of the diagnostic.
+- `postB('b1')` in `@backup-B` (`:877` at `c4de96f`) runs after `stop-before-B`. So a repair of `:864` alone would still fail. The proposal names all three sites. My search of the 12 runtime modules finds no other use of `running` that counts the platform (R3.4).
+- No product, lock or storage fault is shown. The product refused correctly in `e-not-same-import`.
+
+### R3.4 The three sites and the state combinations
+
+| Site (`c4de96f`) | C | Repair | Lens-A check |
+| --- | --- | --- | --- |
+| `@backup-B` `storage-rows.mjs:866` | `up` when no lane container runs | `up` unless both app services run (`appRunning`, `:250`) | `up` runs in every case where C ran it. It also runs when one or both app services are stopped while another lane container runs. `up` is the product `stack:up` (exit 0, then `waitHealthy`). The C mock already used this path. `B` is still taken after the markers and the harness stop. |
+| `postB` `:298` (in `@backup-B` and each `@post-B`) | the same as `:864` at C | the same predicate | As above. The write after `B` and its logical proof are unchanged. |
+| `e-fresh-refusal` `:1080` | FAIL when any lane container runs | FAIL when an app service runs | `assertUnchanged` runs first. `nothingChanged` keys every listed container by `id`, `startedAt` and `created`. So a start, restart or new container of any service still FAILs, and M1 "no service starts" holds. A platform that runs and does not change passes. |
+
+| State before the step (probes on the mock) | C | `c4de96f` | Evidence |
+| --- | --- | --- | --- |
+| Both app services stopped; platform running (the diagnostic state) | no start; the write fails | `stack:up` | R2-RT-1: C FAIL, repair PASS |
+| Both app services stopped; no platform | `stack:up` | `stack:up` | V7-1 PASS on both trees |
+| Only `cogniate-app` runs before `@backup-B` (platform on, off) | no start; the write fails (37 mismatches) | `stack:up` (`before-B-marker`); map holds | PA1, PA1x |
+| Only `lti-service` runs before the first `@post-B` (platform on, off) | no start; FAIL (PA2x: 21 mismatches at `@post-B`) | `stack:up` (`stack-up-before-<tag>`); map holds | PA2, PA2x |
+| Both app services run | no start | no start | The second and third `@post-B` of the mock take this path |
+| `e-fresh-refusal`: platform runs and does not change | FAIL "No service starts" (QA MU-RT-3) | PASS | PB0 |
+| `e-fresh-refusal`: the refusal creates and starts `lti-service` | FAIL (source) | FAIL "something changed: service container created or recreated" | PB1 |
+| `e-fresh-refusal`: the refusal restarts `moodle` | FAIL (source) | FAIL "something changed" (created or recreated, and changed) | PB3 |
+| `e-fresh-refusal`: `lti-service` runs before the refusal and does not change | FAIL (source) | FAIL "No service starts" | PB4 |
+
+The other service-state checks need no change:
+- `servicesStopped` (`storage-docker.mjs:357`) already filters the two app services. It is the write-mode gate, the root-restore precondition and the `stopServices` check, and it is unchanged.
+- `stopped()` (`:248`) still counts every lane container. While the platform runs, it calls the harness stop of the two app services again. The extra stop is harmless, as the proposal states.
+- The `a-fresh` creation order, `g-quarantine-in-use` ("still exist") and `g-quarantine` ("every other container is unchanged") check all containers, so they are stricter with the platform. R2-RT-1 now also exercises them with the platform present. `bOracle` filters the app services.
+
+### R3.5 FakeWorld platform model
+
+- `platformOn` is opt-in. Only R2-RT-1 sets it. When it is not set, `all()` adds nothing and `reset()` sets an empty list. The step-end log entries get two extra fields, and the HTTP entries get one. V7-1 and its declared map are unchanged, and V7-1 passes on both trees.
+- With `platformOn`, the first successful non-restart start makes `proxy`, `postgres` and `moodle` running containers with the lane project label. `docker compose stop` and quarantine change only the app services. `stack:reset` removes the platform, and the next successful start makes it again.
+- This matches the real lane. The platform kept running through the first-start quarantine (`cmd/281`: not recreated) and through the harness stop (`cmd/284`). ADR-012 §9 says that quarantine touches no other container. `stack-reset.sh` runs `down -v --remove-orphans`.
+- R2-RT-1 asserts state at the time of each request: each HTTP entry records `appRunning`. It also asserts the precondition before `@backup-B` and the first `@post-B`: both app services stopped and three platform containers running. For `e-fresh-refusal`, it asserts a running platform before the row and no running app service at its end. So it does not rely on the command list alone.
+
+### R3.6 The finite self-test bound
+
+- `run-m1.mjs:72` is the only change: `{ timeoutMs: 1_800_000 }` on the `node --test` call. `checked` (`:52`, default 120,000 ms) has only two callers, `:72` and `:73`. Both are inside the `--harness-only` branch (`:66–113`), and that branch ends with `process.exit(0)` before any Docker, clone or product step.
+- The typecheck and the four discoveries keep 120,000 ms. The runtime children (43,200,000 ms), W4 (1,800,000 ms) and the owned cleanup are unchanged.
+- At the bound, `lib.mjs` `run()` sends `SIGTERM` and then `SIGKILL` to its own child, and the assertion fails, so the bound fails closed. The measured complete run took 573.9 s.
+
+### R3.7 Findings
+
+No BLOCKER, no MAJOR, no NIT. One MINOR.
+
+| Id | Severity | File:line (`c4de96f`) | Problem | Evidence | Suggested fix |
+| --- | --- | --- | --- | --- | --- |
+| A-SH-10 | MINOR (Lead: deferred, does not block, `msg_45768c36f8c1`) | `tests/host/storage-rows.selftest.mjs:1821–1834` (R2-RT-1); `tests/host/storage-rows.mjs:250` | No control tells the required predicate (both app services run) from a weaker one (any app service runs). The precondition of R2-RT-1 stops both services, so the two predicates give the same result there. | My private mutant `any` (`.every` → `.some` at `:250`) passes R2-RT-1. My PA probes detect it: 37 mismatches at `@backup-B` (PA1, PA1x) and 21 at `@post-B` (PA2, PA2x). The code at `c4de96f` is correct: PA 4 of 4 pass. With PB, the private probes on the repair pass 8 of 8. | A one-app-down variant of R2-RT-1 and a mutant MU-RT-4 (`.every` → `.some`). No repair is requested in this round. |
+
+Observations (no finding, no request):
+- O-1. My private mutant `drop` removes the `e-fresh-refusal` service check. It passes R2-RT-1, PB1 and PB3, because `assertUnchanged` still finds any start or restart. Only PB4 (an app service that runs before the refusal) detects it. So the M1 oracle "no service starts" does not depend on this one line.
+- O-2. The fake `stack:down` stops the app services and keeps the platform running. The real `down --remove-orphans` removes every lane container, and the next `stack:up` makes them again. Only `a-second-start` calls `stack:down`, and its next action is `stack:up`, with no service-state check between them. So no acceptance or detection in this delta changes.
+
+### R3.8 Evidence
+
+All QA files are in `/Users/quangnguyen/cogniate-qa-runs/storage-harness-repair-qa-r2-20261021T1646Z` (files `0600`, folders `0700`). I verified each hash and checked the content below myself.
+
+| Evidence | SHA-256 | What I checked |
+| --- | --- | --- |
+| `logs/rt-base-u022.meta`, `.tap` (19:37:45–19:38:07Z) | `bb72c6a6b599e584d37b74a14547f33b951fa2ce86dda332f810fb54b117dbd4`, `508f3a1d6a95c67c7244c0d3d5b68b6cb5833fa804ce4a3043ee9bca16266aeb` | Old/new discrimination, C side. The copy `src/rt-base/tests/host` has the C `storage-rows.mjs` (`c2934448d422817d8f9e33242fc7c369c7d4f97464ef36c6d15b62bd7022c83b`, equal to the C blob) and the new self-test and `run-m1.mjs`. No file in it is newer than the run start. V7-1 passes. R2-RT-1 fails at the declared-map assertion with 37 mismatches, equal to the diagnostic FAIL set. |
+| `logs/rt-new-u022.meta`, `.tap` (19:38:07–19:38:31Z) | `6ce25d5e1bf398984c1f895e4dfa19b45085e7f839e1a65cc2928e70af2121b0`, `bad18aed45937aa031066bbb48703546abe0bbac09ec2e1e0f642a4509ba8330` | V7-1 and R2-RT-1 pass. This meta binds the self-test only; `evidence/held-hashes-rt.txt` (`3aa67bfd632c2ad33f2edbbf13af8a641b7b24741d8fd47e855fa5cb73bc11e5`) is from 19:38:43Z, after this run. The new-side PASS is bound by the complete 022 run below: R2-RT-1 is one of its 172 results, and all 42 host files are hash-bound before and after it. |
+| `bin/catalog-rt.py`; `mutants/run-rt1/results.json`; `MU-RT-1/2/3/mutant.log`; `evidence/mutant-copy-binding-rt.json` | `818cce53851dd8e697967b023afee1e5a0382f0fd3913e3887e48bde4cd8ef80`; `c66c63fdf6996cc47d58da91de08fa74750425fa5098f25dc92c62a67ca44baa`; `0f1c3d887eb820ce8e54eb3d843449532b2a19cfa4ca9691e584afba511da237`, `c1cd439432279e37bcd7b483f470e2e9728a75dcfe925f6a670d718f1c3fdb43`, `fd6dd2e616532d5c5630f11e6a20a649a688afefc500e965ce03e4ca2711d653`; `55a8bd8b0bc17e838f43d34ff6fb99054185389f49f66ef15556bd241445815a` | The catalog was born at 19:38:43Z, before the mutant run (19:38:54–19:39:29Z). Each edit puts back the exact C text of one site. Each copy differs from the reference only in `storage-rows.mjs`, and the baseline passes. MU-RT-1 and MU-RT-2 each fail the map with the 37 `@backup-B` dependents. MU-RT-3 fails with exactly `e-fresh-refusal: FAIL "No service starts"`. These are 3 of 3 actual assertion failures, and no Docker stub was called. |
+| `logs/ho-rt-u022.meta`, `.stdout`, `.stderr` (child umask `022`, 19:40:16–19:49:54Z) | `ad9c48552cb5f2b2b56b6bbefee0138b8cc66ab8c64f1aad0f6577834d37aeb8`, `ba8f08e515ba671721e84335f6299e14e9c498bda659a77cce8ad513c17b6177`, empty | The complete `node tests/host/run-m1.mjs --harness-only --provider blackboard` run: exit 0; `docker_stub_calls=0`. It meets the complete-022 suite because of the four conditions below. |
+| `logs/final-rt-u077.meta`, `.tap`, `.stderr` (child umask `077`, 19:40:18–19:49:50Z) | `2a94c65c153fca8f52bf62b6faa06f8a0188620932283337c2926ddbac1b4932`, `1b659329643e00b1c3c54a6f86c105276eef1e11f7abc918a5d14c99fc9d4d67`, empty | 143 tests: 143 pass; 0 fail, cancelled, skipped or todo. Exit 0; `docker_stub_calls=0`; `tmp_left=0`. Its own HOME and TMPDIR (`final-rt-u077`), separate from the 022 run (`ho-rt-u022`). The worktree `tests/host` has no shared artifact folder. The 15 self-test hashes equal the `c4de96f` blobs. |
+| `evidence/worktree-inventory-rt.json` (19:50:28Z); `evidence/tail-rt-u022-inventory-before.json`, `-after.json` | `16c5ccee1241bd24f68302f9e3a435c4a0541a8078c67dd526e5f609ac663d00` (all three) | 41 files, `runtimeRef` and `selftestRef` `c4de96f`, no difference. |
+| `logs/tail-rt-u022.meta`, `.stdout`, `.stderr`; `bin/tail-replay.mjs` (19:54:39–19:54:42Z) | `52659007b0bba45cce3306a7e259bb4c9604d25a91d4f735a3381907ba978268`, `7c7154276bc7f933d3fe26ad1e2bed00ad07660f2fa96122ccf2480e6218cbb7`, `0b75cdc946155876e3a82b6650ffde390eaa9b666608cf8e28438112f925d36b`; `d2c911fae750ed1bcddce9731658682ddbb0058b313f7a864487d1828b3998ea` | The R2-D-2 corrective tail. The launcher checks `run-m1.mjs` against the held hash. It cuts the `checked` and `loadingRuntime` definitions and the tail (typecheck and four discoveries) as one literal block each from that text, and it runs them. It runs no self-test. HOME `.npmrc` has `update-notifier=false` and `offline=true`. Exit 0; the typecheck and the inventory line pass. |
+| `evidence/manifest-r2-v4.tsv`; QA report at `7f4cc61` | `eb3a24f548afad0e3291f247afedcebe9f074f78af347ae229530738e1ee00ca`; `b6248d0e841130de35925655b802fe7e282649605ca6edfd77fe97c0df86e688` (77,922 bytes) | Hashes only. The Lead verified the 7,028 manifest entries. I did not read the report text. |
+
+The complete `--harness-only` run under `022` meets the complete-022 suite because all four conditions hold:
+1. File selection. The branch selects `tests/host/**/*.selftest.mjs`, `tests/sim/**/*.test.mjs` and `tests/acceptance/M1/common/**/*.selftest.mjs`. In the worktree these are 15 host files (the same 15 as my `c4de96f` export and as the 077 run), 4 sim files and 3 common files. By name, all 143 test names of the 077 run occur exactly once among the 172 names of this run (I unescaped TAP `\#`). The other 29 names come from the sim and common files.
+2. Full result capture. The output has 172 top-level results, all passed, and the summary "tests 172, pass 172, fail 0, cancelled 0, skipped 0, todo 0".
+3. No skipped or interrupted test. Exit 0 after 573.9 s, under the 1,800,000 ms bound. No skip or todo marker.
+4. Source binding. The meta hashes 42 `tests/host` files before and after the run. All 84 entries equal the `c4de96f` blobs. The run started 5 s before the commit (19:40:21Z); the binding is by content.
+
+R2-D-2 (QA disclosure, Lead `msg_9b0d6b5d47d3`). During the original `--harness-only` run, the npm update notifier of the typecheck step fetched public npm metadata. By source order (`:72`, then `:73`), this step runs only after `node --test` ends. So the deviation does not change the 172 self-test results, but the original run does not meet the no-network rule. The corrective tail replay passes with the notifier off and npm offline. Limit: no traffic capture exists, so I cannot confirm independently that no other network access happened.
+
+Other limits of the evidence:
+- The 077 meta binds the self-tests by hash. The runtime modules of that run are bound by the 022 inventories before and after, which bracket it, and by the inventory at 19:50:28Z.
+- The sim and common test files are not hash-bound in the meta. They did not change since C, and the worktree `tests/` now equals `c4de96f`.
+- V1-12 in the 022 run recorded `HEAD` `caa382a`, because the run started before the commit. V1-12 copies only `package.json` and `infra/`, which are equal at `caa382a` and `c4de96f`.
+
+### R3.9 Limits
+
+- Host source review only. No runtime window and no Docker. The real behavior with one app service down is not measured. The probes use QA's fake world.
+- I did not run the complete suites or the mutation campaign. My probes are narrow: 8 probe tests on the repaired tree, 4 on the C runtime, and R2-RT-1 plus 4 probe tests on each of two private mutants.
+- I verified unchanged bytes. I did not review again the Round 2 controls, the 142-test gates or the deferred findings (Lead `msg_d04786244ff9`). The V7-1 map and the 27 V2-8 injections are unchanged in source and pass in both complete runs. My static V4-9 recount gives X1–X8 on both trees.
+- macOS APFS and Node 24.21.0 only.
+- Independence: I read no Reviewer-B file, finding or transcript, and no QA report text. I read the QA proposal, QA evidence files, and the diagnostic evidence that the proposal names (names, states and statuses only).
+
+### R3.10 Private root and deviations
+
+Private root `/Users/quangnguyen/cogniate-review-runs/harness-r3-reviewer-a-task_842ea419d367-20261021T1941Z` (`0700`, outside the repository). `c/` and `n/` hold the `git archive` exports (`tests/` only) of `d3296dd` and `c4de96f`. `probes/` holds the four probe trees (`new`, `old`, `any`, `drop`), the probe appendix (`cc09b8082f15c05b…`), the captures and the metas. `bin/` holds the fail-closed Docker stub (it records each call and exits 97; zero calls), the runner, the mutation helper (exactly one anchor), the V4-9 recount and the meta-binding check. `notes/` holds the draft, the recount, the binding and selection checks, and the evidence hashes.
+- Each writing command started with umask `077`. Captures were created `0600` before each child. Each node child ran under umask `022` inside the `0700` root, with `env -i`, its own HOME and TMPDIR, `--test-timeout=180000` and a 900 s alarm. Its output redirect was outside the umask subshell. Each run left no temporary or HOME file.
+- Now `bin/docker` and `bin/run-probe.sh` are `0700`. Every other file is `0600`, every folder is `0700`, and there is no link.
+- Deviation D-1 (disclosed): one command that compared the QA copy `src/rt-base` with C had no `umask 077`. It created `notes/c-files.txt` (inode 10798218, 250 lines) and `notes/rtbase-files.txt` (inode 10798219, 42 lines) at `0644`, born 19:47:20Z. They hold only relative file paths of the public test tree, with no secret. I recorded their metadata (`notes/deviation-d1-before-chmod.txt`) and set them to `0600` at about 20:05Z. A later `0600` does not prove a `0600` creation. Every other file was created `0600` or `0700`.
+- Disclosures: (1) to compare names, I listed test file names (not content) in the worktree `tests/`; (2) I read the QA private copy `src/rt-base` by hash and modification time only.
+
+Manifest: `MANIFEST.sha256` in the root, SHA-256 `c89e905495d4cc1ad214504ecc3a2fd1961a6ee601c095dd4239d615da4fb06f`, 1,533 entries. It lists every regular file except itself, and every entry verifies. It does not cover this report, which is recorded in git.
+
+## Round 4
+
+Verdict: APPROVE
+Round: 4
+
+Reviewer-A (lens A). Claude Code Opus 5.5, xhigh. Task `task_3c1ff1789713`, dispatch `ctx_59a980642282`, run `run_ebe671ad72a9`. Date: 2026-10-22 (UTC). This round reviews the one repair batch for the three first causes of the failed C2 diagnostic. It is independent of the sole repair owner (`ctx_898acbaef3a6`) and of Reviewer-B. It gives no runtime acceptance and no row credit. A passing host self-test is not runtime evidence.
+
+### R4.1 Target, criteria and method
+
+| Item | Value |
+| --- | --- |
+| Source target | WIP commit `cd731397fa2a5ee660b1b9575f942caec64c2f21` (parent `58cef55`), tests tree `17330479829a6b65e560afc297e2bee6777459dd`. Held hashes (equal to my `git archive` export): `storage-rows.mjs` `a9ef100d1aa0b8ba956b74a8c1d0ea8433fdc66bab8c9a1ba606068065a65f94` (120,488 bytes), `storage-rows.selftest.mjs` `4fcd18d5c7fee4bbb8e07a8a22391d591d36c8a81f152de15c290f6ce7a42ba2` (163,725 bytes). |
+| Base | Candidate C2 `0938ea1bd29acd00a67c7fc1cc8d7606edf2802d`, tests tree `290a773f1c9779693153ae77b46cc8ceb7eb83f4` (my Round 3 target tree). |
+| Diff scope | `0938ea1..cd73139 -- tests` changes exactly the two granted paths: `storage-rows.mjs` (+42, −8) and `storage-rows.selftest.mjs` (+158, −20). The other paths of the range are `docs/reviews/M1/qa.md`, `docs/reviews/M3/qa.md`, `docs/team/board.md` and `docs/team/multi-lms-plan.md`. `git diff 9f8ac62 cd73139` has no path outside `docs/`, `README.md` and `tests/`, so the product is unchanged. Lines 1–80 of `storage-rows.mjs` (`DRILL_POINTS`, `SEQUENCE`, `NEEDS`) are byte-identical to C2. `m1-storage-manifest.json`, `run-m1.mjs`, `storage-oracle.mjs` and `storage-lane.mjs` are unchanged. `pnpm-workspace.yaml` stays untracked and untouched. |
+| Criteria | Charter. Frozen triage `2d763fe` (`ade4e8a0f9e54823040828758b7683d5c9b230587747f3ef3c89ef8e99f9a032`, unchanged at C2). M1 precision `a60ba4a` (`ac444799ae5e93706054a7e352e339bdea509a889328c15365a3535864fb37af`; `tasks/M1.md` unchanged at C2): `e-import`, `e-kept`, `e-provenance-restore`, `g-<point>`, `g-recover-idempotent`, `g-orphan-refusal`, `g-orphan-stopped`. ADR-012 (unchanged since `a60ba4a`): §6 identity shape and `legacySources`, §8 journal, R1/R2/R3, drill options, `prepared-lti`, §9 manifest rules, §10 L6/L7. Lead grant `msg_864eb746fa28` and clarifications `msg_761a070e0cd3`, `msg_9442762a5a8b`, `msg_4754c85c612f`. My Rounds 1–3 above (prefix 81,006 bytes, `8ba67ef4aca3a994c0d74a647b06a9b8a58146f48fb6487ec4b0f01a6f165328`; unchanged). |
+| C2 diagnostic facts | Committed at `e4d7058`; QA report `docs/reviews/M1/qa.md` (`66e3e2fcbb3b984199a6eac5307fc78f85861f290e95b8a2ca5768880e4bc7ab`). Storage artifact `qa-multi-r1-st-0938ea1b-2026-10-21T20-18-00-498Z` (R4.3). |
+| Method | Staged. (1) Criteria, C2 source and redacted C2 evidence before the new source. I sent preliminary questions (`msg_8421b0943302`). (2) `cd73139` exported with `git archive` into my private root. I did not read the working-tree test code. (3) Source assessment sent (`msg_c490f2a0da2e`). (4) QA focused evidence, mutants and final host runs, verified by hash. (5) The QA report sections R2.14 and R2.14a, which the Lead released to me (`msg_0b4b37c66870`, `msg_9d537e6c68ee`). No private probe was necessary. I did not read any Reviewer-B file, peer conclusion or transcript. No Docker, Compose, network, service, settings or dependency step. |
+
+### R4.2 Result
+
+APPROVE for this bounded host source round. No BLOCKER and no MAJOR finding. One MINOR finding (A-SH-11), outside the grant. The Lead accepted it as a deferral (`msg_707e427ac0c9`).
+
+- Each of the three C2 first causes is a harness oracle fault, not a product fault (R4.3).
+- Each repair matches the exact contract. It is specific to its failure site, and it weakens no other check (R4.4).
+- The required evidence is present and bound to `cd73139` (R4.6). The old/new controls reproduce the exact C2 runtime result and pass on the repair. Five frozen mutants each fail by an assertion.
+- The approval covers the harness source at `cd73139` and its host self-checks only. It gives no runtime acceptance and no row credit. The diagnostic 12 → 70 rows, two complete 488-row rounds, 12 legacy groups and fresh M2/T7 remain. All 32 live LMS rows stay UNVERIFIED; local Canvas stays DEFERRED.
+
+### R4.3 C2 failure facts (independent check)
+
+I read only names, states, event lines and identity fields. No secret value.
+
+| Cause | Evidence (SHA-256) | Fact |
+| --- | --- | --- |
+| FC1 `g-prepared-lti` | `steps/038-g-prepared-lti.json` `c2ad7571464ff6c0e52d5b4a46ea6af0fa49a376310eb377efe435d793dbe7a6`; `cmd/332` `770cf97440271b245101428a766cac90ded330600f50a6721b7eff5bfc71ed8f`; `cmd/334` `5a7c7415163e63b80527835ef43f7eb47c5ad8f3c0e56655f9895dcc96710a4c`; `cmd/335` `e03fa1e5959a7c757adae76afeac72743945903685d1ef40094021a283254092` | FAIL "A verified rolled_back". The drill printed `storage_drill_stop` with opId `43c92156…` and point `prepared-lti` on its own stdout. `--recover` gave exit 1 and `storage_recover` "cancelled at the first journal write; the targets equal the state before (verified)", which is R1. After it, the lti journal is `rolled_back` with the drill opId, and the app journal is `present: false`. ADR-012 §8 R1 says: write lti `rolled_back` X; leave the app journal as it is. So the product is correct, and the C2 `journalsAre` (both journals) is wrong only at this point. `g-recover-idempotent` was "not run: prerequisite", not a failed count. |
+| FC2 `g-orphan-stopped` | `steps/054-g-orphan-stopped.json` `0bee8e648094d6ffce91537965cc137cbe3b48acbefcb4d231557167819f8c2b`; `log-archive/01-…/storage-maintenance.jsonl` `c731cade1f1db48982b4d2f718a69a955535db0dcfaeea03532ad9683fcf9c5d` | FAIL "The maintenance container still runs", duration 1 s, and no `g-orphan-stopped-kill.json`. The logs have one `storage_drill_pause` only: opId `afa56af2…` at 20:32:25.836Z, from `g-orphan-refusal`. Run `228ffa36…` acquired the lock at 20:34:36.445Z and has no pause. The C2 wait accepted the earlier pause from the accumulated logs, so QA killed the group before the current container started. |
+| FC3 `e-import` | `steps/069-e-import.json` `9e745dff76da892593166fa96600d3a26ee06a24a22d234ab66eefd1e3bcdafd`; `cmd/567` `0676227998066b70edfc389d6ad27d20de78917a433acf5c052e95f04948931b` | FAIL "legacySources equal the manifest list". Both identities (lti and app) list `lti-service/lti.db` and `cogniate-app/cogniate.db` with size and SHA-256. The product writes `legacySources` as `m.files` mapped to `{name, size, sha256}` (`stack-data.mjs:737`). C2 compared the full identity names with manifest basenames. |
+
+### R4.4 The three repairs
+
+| Cause | Repair (`cd73139`) | Lens-A check |
+| --- | --- | --- |
+| FC1 | `drill` (`storage-rows.mjs:1370`, `:1392–1395`): only for `prepared-lti`, QA observes the file sets just before the drill (`pre`, after `stopped()`). After `--recover`, `firstWriteRolledBack` (`:1645`) requires: a 32-hex opId taken from the drill command's own `storage_drill_stop` line (`linesOf(stop)`, not the merged log list of `stopCheck`); the lti journal `rolled_back` with that opId; the app journal (`present`, `sha256` and `json`, or an absent volume) equal to its observation before. | This is ADR-012 §8 R1 exactly. A same-operation app journal, an lti journal of another opId, a non-terminal lti journal, a missing pre-observation or a missing opId fails. The other nine rollback points keep `journalsAre` (both `rolled_back`). `committed-lti` is unchanged. `equalsBefore`, the second `--recover` (exit 0, "nothing to recover", `assertUnchanged`), the `g-recover-idempotent` entry, `up` and `stopServices` run for every point, and the count stays `DRILL_POINTS.length` (11). |
+| FC2 | `orphanStart` (`:1414`): `waitOwnPause` (`:1659`) reads only the spawned group's own captured stdout and stderr. `ownPause` (`:1655`) accepts only `storage_drill_pause` with point `swapped-lti` and a 32-hex opId. The selected pause is saved in `<label>-kill.json` and returned. | The lane logs are not an input, so an earlier pause or an unrelated new line cannot end the wait. The product path carries the line: `storage_run` (`lib.sh:375`) runs `dc --profile storage run --rm -T` attached, under `storage-oplock run` (`"$@"`, no capture); C2 `cmd/332` shows a drill line of the same `log` function on the client stdout. The 180 s bound and its fail-closed `Deadline` are unchanged. There is no fixed sleep. After the `SIGKILL` and the empty group, exactly one running `<lane>-storage-*` container is still required. `g-orphan-refusal` uses the same binding. |
+| FC3 | `e-import` (`:1163`): for each of the lti and app identities, `legacySourcesMatch` (`:1665`) compares `legacySources` with `m.files` as a sorted multiset of complete `[name, size, sha256]` entries; an empty or missing list fails. | M1 says "the identities have … `legacySources` equal to the manifest list"; C2 checked only `ids.lti`. Names are compared in full on both sides, so a service-folder swap with an equal digest, basenames, a missing, extra or duplicate entry, or a changed digest or size fails. The other `e-import` checks (manifest against QA's host hashes, journals `committed`, database bytes, new pair) are unchanged. |
+
+FakeWorld changes (self-test only). They make the fake follow the product where C2 differed:
+- `drillStop` writes only the lti journal at `prepared-lti`, and every stop line carries its opId. `recover` adds R1 (lti `prepared` X; app absent, or terminal with another opId). This matches ADR-012 §8 and the C2 runtime.
+- The orphan holder writes its own pause 1,000 ms after the lock, to its stdout and to the log. The fake container and the `swapped-lti` journals appear only after that (`orphanSync`). A kill before the pause leaves no container, as in C2 step 054. Earlier pauses stay in the log.
+- The import writes full `{name, size, sha256}` sources in both identities. The fake L6 compares both identities with the host set as full `[name, size, sha256]` keys, as the product does (`stack-data.mjs:122–129`). So `e-kept` and `e-provenance-restore` now run in the fake.
+- Three opt-in injections: `r1-same-op-app-journal`, `orphan-unrelated-log-pause`, `import-app-sources-differ`.
+
+### R4.5 Findings
+
+No BLOCKER, no MAJOR, no NIT. One MINOR, outside the grant.
+
+| Id | Severity | File:line (`cd73139`) | Problem | Evidence | Suggested fix |
+| --- | --- | --- | --- | --- | --- |
+| A-SH-11 | MINOR (Lead: deferred to M4 carry-forward, `msg_707e427ac0c9`) | `tests/host/storage-rows.mjs:335–339` (`stopCheck`, unchanged since accepted rounds) | "`storage_drill_stop` logged with that point" also accepts a line of an earlier operation, because `stopCheck` merges the command's own lines with `lane.allLogLines()`. | In C2 log period `01-before-b-sequence-reset-1` (`c731cade…`), point `staged` occurs twice and `swapped` four times (`g-staged`/`e-import-recover`; `g-swapped`, `g-tamper`, `g-fresh-target`, `e-import-recover`). The check still requires exit 3 of the current command (M1: "exit 3, and `storage_drill_stop` logged with that point"). So a false PASS needs a product that exits 3 without its own stop line. | Use the command's own output only, as FC1 and FC2 now do. |
+
+### R4.6 Evidence
+
+QA root `/Users/quangnguyen/cogniate-qa-runs/storage-harness-repair-qa-r2-20261021T1646Z` (files `0600`, folders `0700`; executables `0700`). I verified each hash and checked the content below myself.
+
+| Evidence | SHA-256 | What I checked |
+| --- | --- | --- |
+| `r4/evidence/r4-evidence-index-1.txt` (01:29:04Z) | `fff986c922025c9f586c7fb02f01e60f2c0a324d747aaa997a3d327cb2c1a455` | 26 entries; each SHA-256, size and mode verifies. `r4/old` equals my C2 export; `r4/held` equals my `cd73139` export. |
+| `r4/old-control/host/storage-rows.mjs` | `a7e8c788a73cdf0b000bfc36859b95b97386877049a3ef289b3c51612604cec8` | Exact provenance: the C2 file (`0958cc49…`) plus only an appended block after its last line (`export { DRILL_POINTS, … }`) with `OP_ID` and the four new helpers. C2 has no identifier of these names, and no C2 row calls them, so the block is inert at the old call sites. The other 41 host files of that copy equal `cd73139`. Modified 01:23:28Z, before the run. |
+| `r4/logs/old-control-1.meta`, `.tap` (child umask `022`, 01:23:38–01:24:39Z) | `880b6363f3a5a0d111c87b7cc768a44c7e9badfe6ab51fca2b1e2a85a65a578f`, `0a9f83e584da05b42942570060c75d128c2bf28019d7664e4a9ef5a1454ed654` | 8 tests: 3 pass (the three pure helper tables, which take the helpers as inputs), 5 fail, each by an assertion. V7-1 fails with exactly the six C2 rows and their runtime notes: `g-prepared-lti` "A verified rolled_back", `g-recover-idempotent` "not run: prerequisite …", `g-orphan-stopped` "The maintenance container still runs", `e-import` "legacySources equal the manifest list", `e-kept` and `e-provenance-restore` "not run: prerequisite …". The R4 world test fails the same way. With `r1-same-op-app-journal`, C2 PASSes `g-prepared-lti` (it cannot see the R1 violation). With `orphan-unrelated-log-pause`, C2 fails `g-orphan-refusal`. With `import-app-sources-differ`, C2 fails with its basename note, not the app-identity note. `docker_stub_calls=0`. |
+| `r4/logs/focus-new-1`, `focus-new-2`, `focus-final-1` (`.meta`, `.tap`) | `focus-final-1.tap` `320e0d59d717c3596f6b611eb44332d2068c6c762203b6f17166390f01958796` | `focus-new-1` (01:21:13Z, earlier self-test `df8c8ca0…`) had 6/7: the R4 world test compared notes with a duration note. This was a test-only fault. `focus-final-1` (01:25:29–01:26:21Z, self-test `4fcd18d5…`) passes 7/7. Its meta binds only the self-test, and it ran before the commit (01:27:52Z). So the complete 022 run below is the binding evidence. |
+| `mutants/run-r4-1/results.json`; `r4/bin/catalog-r4.py` | `f010d26e22b767847edfcad144c9422509f1f6a57866f2ce82cce32894474e8f`; `18e872c239414ea6e25e68dd1bb57f9916addafabf3fdb62138acac8b4eacbd6` | Three baselines pass. Five mutants, each DETECTED by an `AssertionError`: MU-R4-FC1 (the C2 `journalsAre` at `prepared-lti`), MU-R4-FC2 (the C2 accumulated-log wait), MU-R4-FC3 (the C2 lti-only basename comparison), MU-R4-FC1-pre (the pre-observation replaced by the state after), MU-R4-FC3-lti (lti identity only). In each copy, the self-test and the other 41 host files equal `cd73139`, and `storage-rows.mjs` differs from the held file only by the catalog edit. No Docker stub call; no temporary file left. |
+| `r4/evidence/inventory-20261022T012823Z.txt` | `04490f01630fe529d87c1586327724fb265fc1f9bf5e65b8ddde33eaaa9efb66` | 42 host files; the hash set equals my `cd73139` export. |
+| `r4/logs/complete-u022.meta`, `.tap` (child umask `022`, 01:28:03–01:38:44Z) | `80cf38e2df9dc20c7fa1d97734dd8ce0a0f384f7541ad61ff645d20d6234d45a`, `0e4d7ba5be4a4e8b99d1d16e94d74f07ea69465ccc282c80534db7c5581ff8c8` | Empty pattern; 15 self-test files, each hash equal to `cd73139`. 150 tests: 150 pass; 0 fail, cancelled, skipped or todo; exit 0; `docker_stub_calls=0`; `tmp_left=0`. The 150 names are the 143 names of my Round 3 reference run (`final-rt-u077.tap`, `1b659329…`), each once, plus the seven R4 tests. They include V7-1, R2-RT-1 and the 70-row sequence test. It started after the commit. |
+| `r4/logs/affected-u077.meta`, `.tap` (child umask `077`, 01:29:31–01:40:09Z) | `31c760b37ddf522c617bf3833ddf6c120ce79c3e47088f6d74e18be491d7dbe5`, `57b9da6415e0ace2b844cd8b9d6d62dd213cc0368298390f5b559847dfcfc3db` | The complete `storage-rows.selftest.mjs` (`4fcd18d5…`): 48 tests, 48 pass; 0 fail, cancelled, skipped or todo; exit 0; no Docker stub call; no temporary file left. Its own HOME and TMPDIR. |
+| `docs/reviews/M1/storage-harness-repair-qa.md` at `133f93e` (95,362 bytes); the held R2.14 copy `r4/held/storage-harness-repair-qa.md` | `607c6fdb91201c23a2ce73beffa6e155e12a5fc1682502ea9754c5179edd6ec9`; `d4997b964cee6bec18e2d5ef643e20c7db738e6ad510b7175f0ec5dd8c3ab461` (91,609 bytes) | I read R2.14 and the correction R2.14a. The first 91,609 bytes of the committed file equal the held copy. The text agrees with my source reading and my evidence checks. R2.14a corrects two statements of R2.14: the binding of the complete 022 run, and deviation R4-D-1 (npm, below). |
+| `r4/evidence/r4-evidence-index-2.txt`, `r4-evidence-index-3.txt` | `f505f649a2efa2ad12173e047fbb101deee7dea7907c7906505309841e7acae7`, `969a1555e2bb6d9b6d06654b572cd0b9133726aa84faaffd4edf59a237edca66` | 43 and 11 entries; each SHA-256, size and mode verifies. |
+| `r4/evidence/inventory-20261022T014015Z.txt`, `…T014820Z.txt`, `…T014829Z.txt` | `7fe46cea4262bd66f408bb8d7b18a4aa390f4d716581eb4ce23dd009cec0c34c`, `ee0f2e99091a4afdd72d4caeb9df580b480e83ecdc6899729519b5d352b30e40`, `9a353da2388ff2557a5cc325aae126e5a3349f44d68bfe965e6f6806d04157a4` | Each lists 42 host files with the hash set of `cd73139`. With the inventory at 01:28:23Z, the 077 run is bracketed. |
+| V1-12 replay: `r4/bin/run-v112.sh`, `r4/logs/v112-replay.meta`, `.tap` (child umask `022`, 01:48:21–01:48:22Z) | `d13933e6321979d5d0a7ee905c53e5b38c23fb7b00ba41a9d85519b7cf7dec28`, `80250adf92c7539a4aa14f350eec3b1295f7abd2600885c46ae169d988a40b90`, `0ebf667e4be2ee5b2a86d7b4c27c38739df9080256a9cc6b2aa0d8649964919c` | I read the runner. It makes a new private HOME and TMPDIR, writes `HOME/.npmrc` (`0600`; `offline=true`, `update-notifier=false`) before any npm call, removes `npm_*` and `NPM_CONFIG_*` variables, puts the fail-closed stub first on PATH, and calls no npm itself. It runs only the unchanged V1-12 test of `storage-oracle.selftest.mjs` (`8421d6d0…`, equal to `cd73139`). Result 1/1 PASS, exit 0; two npm debug logs, zero `http fetch` lines, no notifier marker; `.npmrc` unchanged after the run. Git HEAD `7a0bfa0` differs from `cd73139` only in `docs/team/**`. |
+
+### R4.7 Limits
+
+- Host source review only. No runtime window and no Docker. The real attached-output timing of the pause line is not measured. If the line did not reach the client, the row would fail closed at 180 s; it would not pass.
+- I ran no private probe and no suite. My evidence is my source reading, my exports and the QA files above.
+- The sim and common tests were not re-run in R4. They did not change since C2.
+- Binding of the complete 022 run (QA R2.14a). It started at 01:28:03Z, 20 s before the first full inventory, so no inventory precedes it. Its runtime modules are bound by the hold and the Lead commit before the launch (01:27:52Z), by its meta (15 self-test hashes equal to `cd73139`) and by the equal full inventories during (01:28:23Z) and after (01:40:15Z) the run. The affected 077 run is bracketed by these inventories.
+- Deviation R4-D-1 (QA, npm). The grant required npm offline and the notifier off before any npm call. In the complete 022 run, the V1-12 probe ran three npm commands (`config get update-notifier`, `--version`, `run stack:data-backup`) with the notifier off but without `offline=true`. The two debug logs have no `http fetch` line; this is not a traffic capture. The bounded replay above meets the rule; it does not make the first run compliant. The deviation does not change a self-test result or the source.
+- `file-new-1` (01:22–01:33Z) used a near-final `storage-rows.mjs` with one comment difference. It is redundant; I give it no credit.
+- I did not review again the Round 1–3 controls or the deferred findings (A-SH-10 stays an accepted MINOR deferral).
+- macOS APFS and Node 24.21.0 only.
+- Independence: I read no Reviewer-B file, finding or transcript.
+
+### R4.8 Private root and deviations
+
+Private root `/Users/quangnguyen/cogniate-review-runs/harness-r4-reviewer-a-task_3c1ff1789713-20261022T0111Z` (`0700`, outside the repository). `c2/` and `n/` hold the `git archive` exports (`tests/` only) of `0938ea1` and `cd73139`. `notes/` holds the delta, the evidence hashes, the verification lists and the drafts. `bin/` is empty: I needed no probe, no Docker stub and no runner.
+- Each writing command for a kept file started with umask `077` and `noclobber`. Every kept file is `0600` and every folder is `0700` from creation, and there is no link.
+- Deviation D-1 (disclosed): at about 01:12Z, one inbox-reading command began with `cat > bin/inbox.py.tmp 2>/dev/null; rm -f bin/inbox.py.tmp` and had no `umask 077`. It created an empty file, probably at `0644`, and removed it in the same command. The file held no content. I did not record its mode.
+
+Manifest: `MANIFEST-r4-v1.tsv` in the root, SHA-256 `c45b327f7b19ef1e404ce2b5034df7fe6338a6dcb919ac484f91f8c4f096af06`, 519 entries (SHA-256, size, mode, path). It was built outside the root and then moved in. It lists every regular file except itself, and every entry verifies. It does not cover this report, which is recorded in git.
+
+## Round 5
+
+Verdict: APPROVE
+Round: 5
+
+Reviewer-A (lens A). Claude Code Opus 5.5, xhigh. Task `task_06ff45441eb7`, dispatch `ctx_cdb29b018142`, run `run_ebe671ad72a9`. Date: 2026-10-22 (UTC). This round reviews repair batch R5 for the one executed first cause of the failed C3 full round 1 (`g-tamper`). It is independent of the sole repair owner (`ctx_898acbaef3a6`) and of Reviewer-B. It gives no runtime acceptance and no row credit. A passing host self-test is not runtime evidence.
+
+### R5.1 Target, criteria and method
+
+| Item | Value |
+| --- | --- |
+| Source target | Held WIP commit `27e1f6102409b3d6b676bc46a28150624450a444` (parent `67bd849`), tests tree `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`. Held hashes (equal to my `git archive` export and to the worktree): `tests/host/storage-rows.mjs` `fbb99131ca0dc5673006ee500c0d413d8005298efaee320d7213ecb60016ba85` (123,062 bytes), `tests/host/storage-rows.selftest.mjs` `edc2d97a1753b92c320e020c3bd6f201c476c9dca76eeea29e731911923364f6` (171,250 bytes). |
+| Base | Failed candidate C3 `c4c6d045b3a132f72bf059d77367d278de9222fa`, tests tree `17330479829a6b65e560afc297e2bee6777459dd` (my Round 4 target tree): `storage-rows.mjs` `a9ef100d…` (120,488 bytes), self-test `4fcd18d5…` (163,725 bytes). |
+| Diff scope | `c4c6d04..27e1f61 -- tests` changes exactly the two granted paths: `storage-rows.mjs` (+36, −3) and `storage-rows.selftest.mjs` (+103, −9). The other paths of the range are `docs/**` and `infra/README.md`. `services`, `apps` and `packages` have the trees of `9f8ac62`; `infra` differs from `9f8ac62` only by `infra/README.md` (WIP `5a5453c`, text only). No executable product path changed. `pnpm-workspace.yaml` stays untracked and untouched. The QA commit `5681c0f` changes only `docs/**`; its tests tree is still `8283d90`. |
+| Criteria | Charter. M1 `g-tamper`, `g-quarantine-in-use`, `g-quarantine` (`docs/architecture/tasks/M1.md:288–290`) and the `a60ba4a` oracle precision (LD-3, `:311–314`): the tamper is one byte of `.previous-<opId>/lti.db` in `ltidb`, "the identity of the current scenario". ADR-012 §8: journal states, "after a commit, one previous generation is kept, and older `.previous-*` folders are removed" (`:407`), R3 step 6 (remove `.restore-X` and an empty `.previous-X`), R5 (`rollback_failed`, exit 2), drill options (exit 3, `storage_drill_stop {ts, opId, point}`). Grant `msg_f8be5a9636b8`; plan v2 `msg_b72ab04bc19b`. M1 QA C3 first-cause facts (`docs/reviews/M1/qa.md`, committed at `6ebeeb6`). My Rounds 1–4 above (prefix 101,803 bytes, `66afb8b92d51fb60aea17b875171313378ac9d8022055e7fc44a796bdc74b30c`; unchanged). |
+| Method | Staged. (1) Criteria, the bounded plan, C3 source and the raw round-1 evidence first. (2) A read-only look at the unheld working-tree draft, reported as "not a verdict" (`msg_63c56882fb66`). (3) After the hold (`msg_3475e2a56a3f`, fixer `msg_f3a938656609`): held hashes, the two-file delta and its direct callers; bounded private re-runs and probes on my export; source assessment `msg_0cfe3691875e` (Lead acknowledged, `msg_05aa550a9638`). (4) Final QA evidence (`msg_84c5e7fba4c9`, fixer `msg_97876b6c5482`), checked by hash; QA appendix R2.15 committed at `5681c0f` (`msg_0b717a5de6cd`). I did not read any Reviewer-B file, peer conclusion or transcript. No Docker, Compose, network, service, settings or dependency step. |
+
+### R5.2 Result
+
+APPROVE for this bounded host source round. No BLOCKER and no MAJOR finding. Two NITs (A-SH-12, A-SH-13), both in self-test code only. A-SH-11 stays the accepted MINOR deferral.
+
+- The C3 round-1 `g-tamper` failure is a harness target-selection fault, not a product fault (R5.3).
+- The repair binds the tamper to the current drill's own operation. It refuses before any change when that identity is missing, malformed, ambiguous or not a regular file. It proves the effect before `--recover`. It keeps every original refusal, journal, state and quarantine assertion (R5.4).
+- The fake now keeps the committed previous generation and cleans only the current operation's rollback folders. It exercises both opId orders (R5.4).
+- The required evidence is present and bound to `27e1f61` (R5.6). The old/new controls reproduce the exact C3 round-1 result and the diagnostic result, and pass on the repair. Both frozen mutants fail by an assertion. The full kept-first dry run executes all 70 rows, including the 17 rows that the failure blocked.
+- The approval covers the harness source at `27e1f61` and its host self-checks only. It gives no runtime acceptance and no row credit. The 18 failed C3 round-1 rows stay failed history. A new frozen candidate still needs the diagnostic, two complete 488-row rounds, the 12 legacy groups and fresh M2/T7. All 32 live LMS rows stay UNVERIFIED; local Canvas stays DEFERRED.
+
+### R5.3 C3 round-1 failure facts (independent check)
+
+Storage artifact `qa-multi-r1-st-c4c6d045-2026-10-22T03-11-29-196Z` (Common QA root `qa-common-c3-20261022T0154Z`). I read only event lines, names, types, sizes and hashes. No secret value.
+
+| Item | Evidence (SHA-256) | Fact |
+| --- | --- | --- |
+| Failed check | `storage/steps/055-g-tamper.json` `2b2b88b8dacd684a476bba8f176e05a851d8ffcdb2115dcab8e2dcf5df0e85fa` | "--recover after the tamper: expected exit 2, got 1". |
+| Drill | `cmd/515-g-tamper-stop.log` `ad7cd35a7621e39bdf39e7039900d20332d0f24c5686e7eff6a834bcd988e72f` | Exit 3. Exactly one `storage_drill_stop` line in the command's own output: opId `7011aa7c703074d4650ddad2b299a689`, point `swapped`. |
+| Listing before the plant | `cmd/516-fixture-list.log` `4639edc49e90066a6673a8b461fbdfe242736bf17005bdda88971fc7edeca6fb` | In both volumes: `.previous-3f350b564a83ec6616cac1abd3db26ff/` and `.previous-7011aa7c…/`, each with the database and identity, plus an empty `.restore-7011aa7c…/`. |
+| Plant | `cmd/517-fixture-plant.log` `9b4f70b074b41f0f40f99ee2d4f3eac2705b1c7a4f317527ef63ab5bd58ce3f3` | `flip` of `.previous-3f350b56…/lti.db`: the kept generation of an earlier commit, not the file of this drill. |
+| Listing after the plant | `cmd/518-fixture-list.log` `d1adcc5b4f0f97a97abebb6bcaaf415fd198ca5e87bedfd336614888abb31675` | My entry-by-entry comparison with 516: equal names (lti 10, app 12); exactly one entry changed, `.previous-3f350b56…/lti.db` (`eb8be4af…` → `bd2ab560…`). `.previous-7011aa7c…/lti.db` stayed `616a6567…`. So the live plant adds no incidental listing change; the new precondition check is satisfiable on the real lane. |
+| Recovery | `cmd/520-g-tamper-recover.log` `e264a7607d5a48f4856873f290463729815d79c5ef346c9186ca5568b0ab6013` | Exit 1, `storage_recover` "rolled back; the targets equal the state before (verified)". For an intact `.previous-<X>` this is R3, the correct product result. |
+
+ADR-012 §8 keeps one previous generation after a commit. R3 step 6 removes only `.restore-X` and an empty `.previous-X`. So at `swapped` of a later drill, the kept generation and `.previous-X` exist together. This is conformant; no product or criteria change follows. The C3 selector (`storage-rows.mjs:984` at C3) took the first `.previous-*/lti.db` in the sorted listing. The fixture `listRoot` sorts names, so the choice depended on the order of two random opIds (round 1: kept `3f35…` < current `7011…`; diagnostic: current `035f…` < kept `f6af…`). My audit of `tests/host` (all files except artifacts; I read the self-test fake separately) finds no other operation-specific folder selection: `:317` and `:1148` check all folders, and both stay correct with a kept generation.
+
+### R5.4 The repair
+
+| Requirement (grant / plan v2) | Code at `27e1f61` | Lens-A check |
+| --- | --- | --- |
+| Bind the target to the current `g-tamper-stop`'s OWN output, exit 3, point `swapped`, one valid 32-hex opId | `storage-rows.mjs:982–985`: `stopCheck` (exit 3; unchanged), then `tamperTarget(stop, l)` (`:1678`). `tamperTarget` reads only `linesOf(stopResult, 'storage_drill_stop')` (the command's stdout and stderr). No line → refuse; any line with another point → refuse; any opId not `^[0-9a-f]{32}$` (`OP_ID`, also `undefined`) → refuse; more than one distinct opId → refuse. | The lane logs are not an input, so the A-SH-11 merge in `stopCheck` cannot choose the target. A duplicated identical line is accepted (one opId). There is no fallback to logs, no first/last sort choice, no retry and no forced id. |
+| Exactly one regular-file entry `.previous-X/lti.db` | `tamperTarget`: the exact path `.previous-<X>/lti.db` in `listing.lti.entries`; count must be 1; type must be `file`. | An absent volume, an absent target, only the kept generation, a folder, a link or two entries refuse. A linked `.previous-X` folder is not walked by `listRoot`, so its child is absent and refuses. |
+| Refuse before mutation | `:985`: `check(!target.problem, …)` throws `StorageFail` before the `plant` at `:986`. | No plant and no `--recover` run after a refusal. My row-level probes confirm this (R5.6). Without the guard, the plant would get no path, and the fixture's `inside()` throws "Unsafe entry path" for a non-string path, so it would still fail closed; the guard makes the cause explicit. |
+| Prove that only the target's hash changed, before recovery | `:988–990`: `listedBefore` (after the plant), then `tamperMade(l, listedBefore, target.path)` (`:1694`), then `check(made.length === 0, 'precondition not made: …')`, then `recover` at `:991`. `tamperMade` keys entries by volume and path over both volumes: equal key sets; the target is a `file` before and after with a different SHA-256; every other entry (type, uid, gid, mode, size, SHA-256, link target; the kept generation included) is equal. | A no-effect plant, a change of the kept generation instead, a second changed entry, an added or removed entry, or a lost target FAILs before `--recover`. `listRoot` entries have no time fields, so the equality is stable. The target's own mode, owner and size are not compared; the `flip` op keeps mode and owner, and keeps the size of a non-empty file (A-SH-13 note). |
+| Unchanged stale bytes; original assertions retained | `:992–1000`: exit 2; every journal `rollback_failed`; `tamperChanges(listedBefore, after)` and `rootJournalChanges`; `stack:up` refuses `rollback_failed` and names `stack:data-quarantine`; no output says "no target changed". `g-quarantine-in-use` and `g-quarantine` are byte-identical to C3. | Each original check is present and unchanged. The only replaced lines are the C3 selector and its weaker check message. The kept generation is covered twice: by `tamperMade` after the plant and by the LD-3 multiset after `--recover`. |
+| Fake faithful to the retained generation | Self-test: `newOpId` (`:850`) fixes only the first hex digit when `opIdFirst` is set (default random, so V7-1 is unchanged); `keepGeneration` (`:1115`) runs on a committed-lti recovery (`:902`) and on the orphan completion (`:1111`) and keeps `.previous-<its opId>` while it removes `.restore-*` and older `.previous-*`; a rollback removes only `.restore-<X>` and `.previous-<X>` (`:907`); the fake's own recovery checks only `.previous-<journal opId>`; `injectTamper` (`:1017`) now uses `.previous-<journal opId>`; injection `tamper-no-effect` (`:577`) skips only the flip. | This follows ADR-012 §8 `:407` and R3 step 6, and it reproduces the real round-1 state: two `.previous-*` folders at `g-tamper`, with the kept one from the orphan commit. The fake cannot pass the C3 selector in the kept-first order, because the fake recovery, like the product, does not read the kept generation. |
+| Both orders; all 70 rows; the 17 dependents | R5 tests at self-test `:1981–2066`. | Kept first and kept last both PASS, with exactly two folders in the intended order, only the drill's `lti.db` changed and `--recover` exit 2. The full kept-first dry run equals the declared map (70 rows) and names the 17 dependents, which equal the M1 QA list (`qa.md`, C3 first cause). |
+
+### R5.5 Findings
+
+No BLOCKER, no MAJOR, no MINOR. Two NITs. They do not affect the harness rows or the evidence. The Lead asked to keep them with stable ids (`msg_05aa550a9638`) and to not reopen the source for them.
+
+| Id | Severity | File:line (`27e1f61`) | Problem | Evidence | Suggested fix |
+| --- | --- | --- | --- | --- | --- |
+| A-SH-12 | NIT | `tests/host/storage-rows.selftest.mjs:1986`, `:2009` | In `tamperHooks`, `sha()` returns `null` for an absent `lti.db`, so `keptAfter === keptSha` is also true when the kept `lti.db` is absent in both observations. The claim "the kept folder's bytes did not change" can then be vacuous. | The folder-order assertion at `:2007` still requires the kept folder, and `tamperMade` in the row compares every entry, so no held run depends on it. My probe asserted a non-null kept hash in both orders and passed (R5.6). | Assert that `seen.keptSha` is a 64-hex string. |
+| A-SH-13 | NIT | `tests/host/storage-rows.selftest.mjs:2060` | The `tamperMade` table case "the target and its mode changed" changes the mode of the root `lti.db`, not of the target. | The case is still a valid negative (a second entry changed). No case changes only the target's mode; `tamperMade` compares only the target's type and hash, as plan v2 states. | Rename it, for example "the target and another entry's mode changed". |
+
+A-SH-11 (MINOR, `stopCheck` merges lane logs) stays the accepted M4 deferral. `g-tamper` no longer depends on it for the target identity: my log-only probe (R5.6) passes `stopCheck` through a historical log line and still FAILs before any change.
+
+Observation, not a finding (disclosed by QA R2.15): the fake makes no `.previous-*` for a normal restore or import commit, and its committed journal gets a new random opId. Real commits keep their own generation. The state that matters for `g-tamper` comes from the orphan commit, which the fake models, and the R5 order test asserts exactly two folders there. A broader fake model is outside this grant.
+
+### R5.6 Evidence
+
+QA root `/Users/quangnguyen/cogniate-qa-runs/storage-harness-repair-qa-r2-20261021T1646Z`. I verified each hash and checked the content below myself.
+
+| Evidence | SHA-256 | What I checked |
+| --- | --- | --- |
+| `r5/evidence/r5-evidence-index.txt` | `a82b8bd2f72edab154b06666d9d922f8c27e26f11b92c6d13559e77e3415c88b` | 44 entries; each SHA-256, size and mode verifies (39 at `0600`, 3 tools at `0700`, 2 npm debug logs at `0644`). `r5/old` equals C3; `r5/held` equals `27e1f61`. |
+| `r5/old-control-2/host/storage-rows.mjs` | `a91c1bc229eca78b71fc66c76274a9ff0d88560613d7439f2e0838074f3f9906` | The first 120,488 bytes equal C3 `a9ef100d…`; the tail is one comment line and the two new helpers. The other 41 host files equal `27e1f61`. |
+| `r5/logs/old-control-2.meta`, `.tap` (child umask `022`, 03:44:35–03:45:32Z) | `57e5bc08969270db1908de81341697379ab8e42f61873a32acfd9e467c4d9dad`, `1dbb4f95ef5145f33ea15415b770f6791ad24eb76b21fe510cfe54a1cff3c598` | On the held self-test: 1 pass (the helper tables), 3 fail by assertion. Order test: actual `['kept first: FAIL --recover after the tamper: expected exit 2, got 1', 'kept last: PASS']` (round 1 and diagnostic). The full kept-first run fails `g-tamper` and the 17 rows. The no-effect case gives the old cause. 0 stub calls. |
+| `r5/logs/focus-3.meta`, `.tap` | `d5014441571f60a77496234bd6cdf299ae625a0998a4f0c2706a29d8a049b316`, `2af5ce4c43a3420ea838f46a8967f48769f52d5c3281452693cafc630b8bdbeb` | R5 4/4 PASS on the held self-test. |
+| `mutants/run-r5-1/results.json`; `r5/bin/catalog-r5.py` | `3e4b8e23cc40e7640ce0f9574cf9cd3fce93e9658d2478f3b35ea47ec0de1e00`; `c0f5fba136e6005231b425143091057fc1912dcefdf544b952f3bb66c8338799` | Two baselines pass. MU-R5-1 (the exact C3 selector back) is DETECTED by the order test; MU-R5-2 (precondition check removed) is DETECTED by the no-effect test. No stub call; no temporary file left. |
+| `r5/evidence/inventory-20261022T034720Z-before-u022.txt`, `…034727Z-before-u077.txt`, `…035926Z-after.txt` | `060cc11d13d4acab923a6fb0bf192bc203dcf7ff02f490aec7694c78680dbb9c`, `82ac0d2ec33c996d6bb08357bc8ef3dda1d357a8d2f6898edf3340bdbf67ce09`, `4dd2489e48a604f0c9db1d9ae8fe8e434e80c6d3fcb22798fa5d38622d1742a8` | 42 host files each. The three lists are equal, and the hash set equals my `27e1f61` `tests/host` hash set. Each is before its launch (03:47:24Z, 03:47:30Z) or after both ends (03:59:13Z). Both runs are bracketed. |
+| `r5/logs/complete-u022.meta`, `.tap` (child umask `022`, 03:47:24–03:59:13Z) | `f441b31ac21dcfed1e3b065606ee3683887d66aa0d15e78a186ae622c91cd21e`, `e22f9e41794a9b3856df5150834b5e4d5de3b3ea0706ade5a492662751a2aaeb` | 15 self-test files (the self-test hash equals the held file). 154 tests: 154 pass; 0 fail, cancelled, skipped or todo; exit 0; 0 stub calls; 0 TMPDIR left. The names are the 150 names of the R4 complete run, each once, plus the 4 R5 tests. |
+| `r5/logs/affected-u077.meta`, `.tap` (child umask `077`, 03:47:30–03:59:13Z) | `66cc5544a6081d854ab256ed7c324380f618ae3a1a6ca38f89387112800ce9df`, `8d0c3e81cdb36eb7ee4482ecb3fc32d059de7e44cdac53715614f234bc6c5392` | The complete held `storage-rows.selftest.mjs`: 52 tests (the 48 R4 names plus the 4 R5 tests), 52 pass; 0 fail, cancelled, skipped or todo; exit 0; no stub call; no TMPDIR left; no npm call. |
+| npm settings and logs | `.npmrc` `bc272fbefa708a5bbd7ee75905375e187284f90fcaadf7cb3ab988a866d3fb1c` | Both private HOMEs have `.npmrc` `0600` with `offline=true`, `update-notifier=false`, `fund=false`, `audit=false`, made before the launch. The two debug logs of `complete-u022` show `config load:file:` of that HOME `.npmrc`, have zero `http fetch` lines, and there is no `_update-notifier-last-checked`. A log observation, not a traffic capture. R4-D-1 stays history. |
+| `docs/reviews/M1/storage-harness-repair-qa.md` at `5681c0f` | `601cfb93c2661425dba12afcdde3fa0d41ac6c02effec06abf4c844f417a357b` (104,926 bytes) | The first 95,362 bytes equal the prior committed file (`607c6fdb…`). It equals the held copy `r5/held/storage-harness-repair-qa.md`. I read R2.15; it agrees with my source reading and my evidence checks, and it discloses the zsh slip, the near-final focused runs, the npm logs and the fake normal-commit limit. |
+
+My bounded re-runs (private root R5.8; my `git archive` export of `27e1f61`; child umask `022` inside a `0700` root; private HOME with the same four npm settings, no npm call; private TMPDIR; a fail-closed `docker` stub first on PATH; `node --test`, Node 24.21.0):
+
+| Run | Log SHA-256 | Result |
+| --- | --- | --- |
+| Held R5 tests (03:50:38–03:51:32Z) | `0f520ea22db581c13b664eb5706411f4f719cda71d5d63deab6f8af9b03cc212` | 4/4 PASS. |
+| My old-C3 control (03:52:53–03:53:49Z): C3 `storage-rows.mjs` (`a9ef100d…`) plus only the two helpers appended (`1bde5c52…`, built by my own script); the held self-test and the other host files unchanged | `3027be869895c78b97806c2c7ca80e0a9d0922106b7b429e4a9208ea7f16fa68` | 1 pass, 3 fail by assertion, independent of the QA control. Order test: `['kept first: FAIL --recover after the tamper: expected exit 2, got 1', 'kept last: PASS']`. The full kept-first run: `g-tamper` and exactly the 17 rows, each "not run: prerequisite …", with the same prerequisite chain as the C3 round-1 record. The no-effect case gives the old cause. |
+| Reviewer probes (03:51:32–03:52:53Z): a scratch copy of the held self-test (`ra-probe-r5.mjs`, `f6fbf4bd…`) with one injection hook at `g-tamper-stop`; never in the repository | `7cbe8ce35b261901656d6721a83ad36a1b2687ea44261612140c78840e79b07a` | 5/5 PASS. (a) Own output with a second stop line that names the kept generation's opId, kept first and kept last: `g-tamper` FAILs "…more than one opId…"; no `plant` step and no `--recover`; the journal stays `swapped`; the drill's and the kept `lti.db` keep their bytes. (b) No stop line in the own output, but a historical `swapped` line for the kept opId in the lane log (the A-SH-11 shape), both orders: `stopCheck` passes, and `g-tamper` FAILs "no storage_drill_stop line in the drill output" with the same no-change facts. (c) Positive, both orders: the step order is own stop, `list`, one `plant flip:lti:.previous-<own opId>/lti.db`, `list`, then `--recover` exit 2; the journal is `rollback_failed`; the kept `lti.db` is present and unchanged. |
+
+All three runs: no stub call, no TMPDIR entry left.
+
+### R5.7 Limits
+
+- Host source review only. No runtime window and no Docker. The fake is a model. The order test fixes only the first hex digit of fake opIds; product opIds stay random. The real two-folder state and the product's R3 exit 1/exit 2 behaviour come from the C3 raw evidence (R5.3) and the diagnostic, not from a new runtime run.
+- The new checks have no runtime result yet. A later runtime round must show `g-tamper` PASS on the current folder and the 17 dependent rows executing.
+- My probes and controls are bounded reviewer checks on scratch copies. They give no acceptance credit and replace no QA evidence.
+- The pre-hold look at the working-tree draft is not part of the verdict. The `storage-rows.mjs` delta was the same as the held one; the self-test changed after it (the hook tolerance and the joint order assertion), and I judged only the held bytes.
+- The other 14 self-test files were not changed; I relied on the complete 022 run for them. Round 1–4 controls and the earlier deferrals were not reviewed again.
+- Host observation, not related to R5: a `node --test … tests/host/m1-control.selftest.mjs` process (pid 64140), started about 21 hours earlier from this worktree, was still alive during my checks. It is not part of the R5 runs; I did not touch it.
+- macOS APFS and Node 24.21.0 only.
+- Independence: I read no Reviewer-B file, finding or transcript.
+
+### R5.8 Private root and deviations
+
+Private root `/Users/quangnguyen/cogniate-review-scratch/r5-ra-20261022T0349Z` (`0700`, outside the repository). `src/` is the `git archive` export of `27e1f61` plus the scratch probe copy; `old/` is the same export with the old-C3 `storage-rows.mjs`; `logs/` holds the three run logs and the C3 file; `bin/` holds the runner and the two builder scripts; `stub/` holds the fail-closed `docker` stub (never called); `home/` holds the private `.npmrc`; `tmp/` is empty; `notes/` holds this draft. Every kept file is `0600` (scripts `0700`) and every folder is `0700`; there is no link. I copied no secret.
+
+- Deviation R5-D-1 (disclosed): three commands wrote temporary files in `/tmp` with my shell's default umask `022`, so probably at `0644`, and removed them in the same command: two orchestration inbox dumps (`/tmp/inbox_ra_tmp.json` at about 03:37Z, `/tmp/ra_inbox_<pid>.json` at about 03:48Z; run messages only), and three hash lists of committed `tests/host` files (at about 04:00Z). I did not record their modes. They held no credential that I know of.
+
+Manifest: `MANIFEST-r5-v1.tsv` in the root (SHA-256, size, mode, path). It was built outside the root and then moved in. It lists every regular file except itself. It does not cover this report, which is recorded in git.

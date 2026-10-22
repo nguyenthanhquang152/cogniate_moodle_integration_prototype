@@ -93,3 +93,11 @@ Date: 2026-10-21. Candidate `aaa823b25306c5e560f7c4050238b374dec4d4e3`. Task `ta
 - All 32 rows stay **UNVERIFIED**. No live LMS run was authorized or performed. No account, sign-up, tunnel, public JWKS exposure, tenant write or Docker Desktop change happened.
 - SIM evidence at this candidate (Common's failed full M1 run, round 1 Canvas rows 233/233 PASS) fills no live row.
 - L-C13 (`CANVAS-LOCAL`) stays DEFERRED. The SIM and Moodle gates did not pass at this candidate, so no new feasibility assessment or startup happened. The Round 2 assessment above is history at `aff4882`. A `CANVAS-LOCAL` result never fills a `CANVAS-HOSTED` row.
+
+## Round 4 — candidate C3 `c4c6d04` status (no live run)
+
+Date: 2026-10-22. Candidate `c4c6d045b3a132f72bf059d77367d278de9222fa`. Task `task_5f3f8aa499cb`, dispatch `ctx_1fd6cb09010e`; a fresh Claude QA-E2E session (`claude-opus-5-5`, xhigh; Orca session `34e03f7b-2209-4749-8db7-c5b507717b71`).
+
+- All 32 rows stay **UNVERIFIED**. No live LMS run was authorized or performed. No account, sign-up, tunnel, public JWKS exposure, tenant write or Docker Desktop change happened.
+- SIM evidence at this candidate (Common's failed full M1 run, round 1 Canvas rows 233/233 PASS) fills no live row.
+- L-C13 (`CANVAS-LOCAL`) stays DEFERRED. The SIM and Moodle gates did not pass at this candidate, so no new feasibility assessment or startup happened. A `CANVAS-LOCAL` result never fills a `CANVAS-HOSTED` row.

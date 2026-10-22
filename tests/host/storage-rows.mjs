@@ -246,6 +246,8 @@ function defineRows(ctx) {
     return res;
   };
   const stopped = async () => { if (!(await lane.services()).every((s) => !s.running)) await lane.stopServices(); };
+  // The lane also runs proxy, postgres and moodle; the two app services are the storage users (ADR-012 §7).
+  const appRunning = (services) => ['lti-service', 'cogniate-app'].every((name) => services.some((s) => s.service === name && s.running));
   const quarantine = async (label) => {
     await stopped();
     const out = lane.newFolder(lane.quarantine, label);
@@ -293,7 +295,7 @@ function defineRows(ctx) {
   };
   /** The write after B, with QA's logical proof that the pair has it and B does not. */
   const postB = async (tag) => {
-    if (!(await lane.services()).some((s) => s.running)) await up(`stack-up-before-${tag}`);
+    if (!appRunning(await lane.services())) await up(`stack-up-before-${tag}`);
     const markers = await lane.writeMarkers(tag);
     await lane.stopServices(`stop-after-${tag}`);
     const now = await lane.logical(markers);
@@ -861,7 +863,7 @@ function defineRows(ctx) {
     // ------------------------------------------------------------ drill fixture: backup B and the write after B
     async '@backup-B'() {
       // B's own marker rows exist in the pair at B, so "equals B" has a logical side too.
-      if (!(await lane.services()).some((x) => x.running)) await up('before-B-marker');
+      if (!appRunning(await lane.services())) await up('before-B-marker');
       state.bMarkers = await lane.writeMarkers('in-b');
       await lane.stopServices('stop-before-B');
       state.B = lane.newFolder(lane.backups, 'B');
@@ -979,11 +981,13 @@ function defineRows(ctx) {
       const stop = await product('g-tamper-stop', ['stack:data-restore', '--', '--from', state.B, '--stop-after', 'swapped'], { env: drillEnv() });
       stopCheck(stop, 'swapped');
       const l = await lane.listing();
-      const prev = l.lti.entries.find((e) => /^\.previous-[0-9a-f]{32}\/lti\.db$/.test(e.path));
-      check(prev, 'A .previous-<opId>/lti.db exists at swapped');
-      await lane.plant([{ op: 'flip', vol: 'lti', path: prev.path, offset: 100 }]);
+      const target = tamperTarget(stop, l);
+      check(!target.problem, `A .previous-<opId>/lti.db of this drill exists at swapped${target.problem ? ': ' + target.problem : ''}`);
+      await lane.plant([{ op: 'flip', vol: 'lti', path: target.path, offset: 100 }]);
       // M1 a60ba4a (LD-3): QA's listing after the tamper ("before") and after --recover ("after"), and both root journals.
       const listedBefore = await lane.listing(), journalsBefore = (await lane.state()).fileset;
+      const made = tamperMade(l, listedBefore, target.path);
+      check(made.length === 0, `precondition not made: ${made.join('; ')}`);
       const res = await recover('g-tamper-recover');
       expectExit(res, 2, '--recover after the tamper');
       const after = await lane.state();
@@ -1075,7 +1079,7 @@ function defineRows(ctx) {
       assertRefuses(res, 'legacy_present', 'stack:up');
       const after = await lane.assertUnchanged(before, 'e-fresh-refusal');
       check(freshVolume('lti', after.listing.lti) && freshVolume('app', after.listing.app), 'Volumes stay FRESH');
-      check(!(await lane.services()).some((s) => s.running), 'No service starts');
+      check(!(await lane.services()).some((s) => ['lti-service', 'cogniate-app'].includes(s.service) && s.running), 'No service starts');
     },
     async 'e-hot-journal'() {
       const journal = path.join(lane.clone, 'infra/.data/lti-service/lti.db-journal');
@@ -1158,9 +1162,7 @@ function defineRows(ctx) {
         check(st.sets[vol][db].sha256 === sets[service].find((f) => f.name === db).sha256, `Before any start, ${db} equals the legacy bytes`);
       const pairId = assertPair(st.ids, { kind: 'import', generation: 1 });
       check(pairId !== state.bState.ids.lti.pairId, 'A new pairId');
-      const listed = (st.ids.lti.legacySources ?? []).map((x) => `${x.name}:${x.sha256}`).sort();
-      check(listed.length > 0 && JSON.stringify(listed) === JSON.stringify(Object.entries(files).map(([n, f]) => `${path.basename(n)}:${f.sha256}`).sort()),
-        'legacySources equal the manifest list');
+      for (const v of ['lti', 'app']) check(legacySourcesMatch(st.ids[v]?.legacySources, m.files), `legacySources of the ${v} identity equal the manifest list`);
       state.importIds = st.ids;
     },
     async 'e-kept'() {
@@ -1366,6 +1368,8 @@ function defineRows(ctx) {
   async function drill(point) {
     await stopped();
     const before = state.before ?? await lane.state();
+    // R1 compares the app journal with its observation just before the drill (ADR-012 §8).
+    const pre = point === 'prepared-lti' ? (await lane.state()).fileset : null;
     const env = drillEnv(point === 'rollback-mid' ? { STORAGE_DRILL_FAIL: 'after-swapped' } : {});
     const stop = await product('drill-' + point, ['stack:data-restore', '--', '--from', state.B, '--stop-after', point], { env });
     stopCheck(stop, point);
@@ -1387,7 +1391,10 @@ function defineRows(ctx) {
       state.postB = null;
     } else {
       expectExit(res, 1, '--recover at ' + point);
-      check(journalsAre(await lane.state(), 'rolled_back'), 'A verified rolled_back');
+      if (point === 'prepared-lti') {
+        const opId = linesOf(stop, 'storage_drill_stop').find((l) => l.point === point)?.opId;
+        check(firstWriteRolledBack(pre, (await lane.state()).fileset, opId), 'A verified rolled_back: lti rolled_back with the drill opId, the app journal as before (R1)');
+      } else check(journalsAre(await lane.state(), 'rolled_back'), 'A verified rolled_back');
       await equalsBefore(before);
     }
     const snap = await lane.snapshot();
@@ -1406,15 +1413,14 @@ function defineRows(ctx) {
     const g = lane.spawnGroup('npm', ['run', 'stack:data-restore', '--', '--from', state.B, '--pause-after', 'swapped-lti'], { cwd: lane.clone, env });
     const record = await until(() => { const f = path.join(lane.lockFolder(), 'owner.json'); try { return fs.existsSync(f) && JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return false; } },
       { timeoutMs: 60_000, what: 'restore lock record' });
-    await until(() => /storage_drill_pause/.test(g.output().stdout + g.output().stderr) || lane.allLogLines().some((l) => l.event === 'storage_drill_pause'),
-      { timeoutMs: 180_000, what: 'storage_drill_pause' });
+    const pause = await waitOwnPause(g);
     check(g.killGroup('SIGKILL'), 'SIGKILL to the whole group');
     await g.done;
     await until(async () => (await groupMembers(g.pgid)).length === 0, { timeoutMs: 10_000, what: 'the group is empty' });
     const active = (await lane.storageContainers()).filter((c) => c.state === 'running');
     check(active.length === 1 && active[0].name.startsWith(`${lane.project}-storage-`), 'The maintenance container still runs');
-    lane.r.saveText(`storage/${label}-kill.json`, JSON.stringify({ pgid: g.pgid, record, container: active[0] }, null, 2));
-    return { runId: record.runId, container: active[0], pgid: g.pgid };
+    lane.r.saveText(`storage/${label}-kill.json`, JSON.stringify({ pgid: g.pgid, record, container: active[0], pause }, null, 2));
+    return { runId: record.runId, container: active[0], pgid: g.pgid, pause };
   }
   async function lockStale() {
     const tmp = path.join(lane.clone, '.tmp');
@@ -1630,6 +1636,69 @@ export function rootJournalChanges(before, after) {
     for (const k of kb.filter((x) => x !== 'state' && x !== 'updatedAt' && ka.includes(x))) if (JSON.stringify(jb.json[k]) !== JSON.stringify(ja.json[k])) changes.push(`${v} root journal ${k} changed`);
   }
   return changes;
+}
+const OP_ID = /^[0-9a-f]{32}$/;
+/**
+ * g-prepared-lti after `--recover` (ADR-012 §8 R1, fixture-script file sets): the drill stopped after the first journal
+ * write, which is the lti journal only. So the lti journal is rolled_back with the drill's opId, and the app journal
+ * equals its observation just before the drill (`present: false` stays absent; a new app journal, also one of the same
+ * operation, fails). An absent app volume is an observation too.
+ */
+export function firstWriteRolledBack(pre, after, opId) {
+  const lti = after?.lti?.journal?.json, app = (f) => (f?.app?.state === 'absent' ? 'volume absent' : f?.app?.journal);
+  return OP_ID.test(String(opId)) && lti?.state === 'rolled_back' && lti.opId === opId
+    && app(pre) !== undefined && JSON.stringify(app(after)) === JSON.stringify(app(pre));
+}
+/**
+ * g-orphan-*: the storage_drill_pause of the spawned command, from its own captured output only. The product runs the
+ * maintenance container attached, so its lines reach this output. The lane logs are not used: an earlier pause stays
+ * there, and a line there has no proved link to this command.
+ */
+export function ownPause(output) {
+  return linesOf(output, 'storage_drill_pause').find((l) => l.point === 'swapped-lti' && OP_ID.test(String(l.opId))) ?? null;
+}
+/** Waits for ownPause in the finite bound (180 s in the row); without a current pause it fails closed at the deadline. */
+export const waitOwnPause = (g, { timeoutMs = 180_000 } = {}) => until(() => ownPause(g.output()), { timeoutMs, what: 'storage_drill_pause' });
+/**
+ * e-import (ADR-012 §6 legacySources [{ name, size, sha256 }]; §8 import: "from the manifest"): the list equals the manifest's files
+ * as a sorted multiset of complete entries. Names are compared in full (lti-service/lti.db); no basename or other
+ * normalization on either side.
+ */
+export function legacySourcesMatch(sources, files) {
+  if (!Array.isArray(sources) || !Array.isArray(files) || sources.length === 0) return false;
+  const key = (x) => JSON.stringify([x?.name, x?.size, x?.sha256]);
+  return JSON.stringify(sources.map(key).sort()) === JSON.stringify(files.map(key).sort());
+}
+/**
+ * g-tamper (tasks/M1.md; ADR-012 §8): the file to change is `.previous-<X>/lti.db` of THIS drill. X is the one opId of the
+ * storage_drill_stop lines in the drill command's own output; each line must have point `swapped` and a 32-hex opId. The
+ * volume can also hold the kept previous generation of an earlier commit (§8), so a "first match" is wrong. The target
+ * must be exactly one regular file in the lti listing. Returns { path } or { problem }; nothing is changed before this.
+ */
+export function tamperTarget(stopResult, listing) {
+  const lines = linesOf(stopResult, 'storage_drill_stop');
+  if (lines.length === 0) return { problem: 'no storage_drill_stop line in the drill output' };
+  if (lines.some((x) => x.point !== 'swapped')) return { problem: 'a storage_drill_stop line with another point than swapped' };
+  if (lines.some((x) => !OP_ID.test(String(x.opId)))) return { problem: 'a storage_drill_stop opId that is not 32 hex' };
+  const ids = [...new Set(lines.map((x) => x.opId))];
+  if (ids.length !== 1) return { problem: `more than one opId: ${ids.join(', ')}` };
+  const target = `.previous-${ids[0]}/lti.db`, found = (listing?.lti?.entries ?? []).filter((e) => e.path === target);
+  if (found.length !== 1) return { problem: `${found.length} entries ${target} in the lti listing` };
+  if (found[0].type !== 'file') return { problem: `${target} is a ${found[0].type}, not a regular file` };
+  return { path: target };
+}
+/**
+ * The precondition of g-tamper: between QA's listings just before and just after the plant, only the target changed its
+ * bytes (SHA-256). Every other entry of both volumes, a kept previous generation included, is equal. Returns the problems.
+ */
+export function tamperMade(before, after, target) {
+  const map = (l) => new Map(['lti', 'app'].flatMap((v) => (l?.[v]?.entries ?? []).map((e) => [`${v}:${e.path}`, e])));
+  const b = map(before), a = map(after), key = `lti:${target}`, problems = [];
+  if (JSON.stringify([...b.keys()].sort()) !== JSON.stringify([...a.keys()].sort())) problems.push('the entry names changed');
+  const t = [b.get(key), a.get(key)];
+  if (!(t[0]?.type === 'file' && t[1]?.type === 'file' && t[0].sha256 !== t[1].sha256)) problems.push(`${target} did not change its bytes`);
+  for (const [k, e] of b) if (k !== key && a.has(k) && JSON.stringify(e) !== JSON.stringify(a.get(k))) problems.push(`${k} changed`);
+  return problems;
 }
 /** A QA marker or scratch file (site #15): mode 0600, never over an existing path, then a mode check. */
 export function writeMarker(file, text) {

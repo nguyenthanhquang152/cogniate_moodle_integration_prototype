@@ -14,8 +14,8 @@ import { copyOut, fileset, listRoot, logicalRead, meta, plant, privateCopyTree }
 import { StorageLane } from './storage-lane.mjs';
 import { groupMembers, legacySets, pidStart, spawnGroup } from './storage-oracle.mjs';
 import {
-  NEEDS, SEQUENCE, absenceClaim, copyCredentials, coversListing, defineRows, rootJournalChanges, staleChanges, staleRecords, storagePaths, storagePhase,
-  tamperChanges, writeMarker,
+  DRILL_POINTS, NEEDS, SEQUENCE, absenceClaim, copyCredentials, coversListing, defineRows, firstWriteRolledBack, legacySourcesMatch, ownPause, rootJournalChanges,
+  staleChanges, staleRecords, storagePaths, storagePhase, tamperChanges, tamperMade, tamperTarget, waitOwnPause, writeMarker,
 } from './storage-rows.mjs';
 import { volumeSnapshot, writeHandoff } from './m1-migration.mjs';
 
@@ -256,12 +256,16 @@ const lexists = (p) => { try { fs.lstatSync(p); return true; } catch { return fa
 
 // Small QA scripts for the real child processes of the mock lane.
 const HOLDER = `import fs from 'node:fs'; import path from 'node:path'; import { execFileSync } from 'node:child_process';
-const [lockDir, command, holdMs, project, checkout] = process.argv.slice(2);
+const [lockDir, command, holdMs, project, checkout, opId, logFile, pausedFile, pauseMs, mode] = process.argv.slice(2);
 const pidStart = execFileSync('ps', ['-o', 'lstart=', '-p', String(process.pid)], { env: { ...process.env, LC_ALL: 'C' }, encoding: 'utf8' }).trim();
 const rec = { formatVersion: 1, project, checkout, command, runId: Math.random().toString(16).slice(2, 10).padEnd(16, '0'), pid: process.pid, pidStart, pgid: process.pid, acquiredAt: new Date().toISOString(), containers: [] };
 fs.mkdirSync(lockDir + '.cand'); fs.writeFileSync(path.join(lockDir + '.cand', 'owner.json'), JSON.stringify(rec)); fs.renameSync(lockDir + '.cand', lockDir);
 process.stdout.write(JSON.stringify({ holder: rec.runId }) + '\\n');
-if (command === 'stack:data-restore') process.stdout.write(JSON.stringify({ event: 'storage_drill_pause', point: 'swapped-lti' }) + '\\n');
+// The maintenance container pauses some time after the lock (product-shaped line to its attached output and the log).
+const pauseLine = (id) => JSON.stringify({ event: 'storage_drill_pause', ts: new Date().toISOString(), opId: id, point: 'swapped-lti', seconds: 120 }) + '\\n';
+const logged = (text) => { fs.mkdirSync(path.dirname(logFile), { recursive: true }); fs.appendFileSync(logFile, text); };
+if (command === 'stack:data-restore' && mode === 'unrelated-log-pause') logged(pauseLine([...Array(32)].map(() => '0123456789abcdef'[Math.floor(Math.random() * 16)]).join('')));
+if (command === 'stack:data-restore') setTimeout(() => { fs.writeFileSync(pausedFile, opId); logged(pauseLine(opId)); process.stdout.write(pauseLine(opId)); }, Number(pauseMs));
 if (Number(holdMs) < 0) setInterval(() => {}, 1000); else setTimeout(() => { fs.rmSync(lockDir, { recursive: true, force: true }); process.exit(0); }, Number(holdMs));
 `;
 const BACKUP = `import fs from 'node:fs'; import path from 'node:path'; import { execFileSync } from 'node:child_process';
@@ -365,6 +369,10 @@ class FakeWorld {
   running() { return this.services.length === 2 && this.services.every((s) => s.State.Running); }
   container(service) { return this.services.find((s) => s.Config.Labels['com.docker.compose.service'] === service); }
   startServices() {
+    // R2-RT-1 (opt-in `platformOn`): like the real lane, the first start also runs proxy, postgres and moodle. A harness
+    // stop and a quarantine leave them running; stack:reset removes them.
+    if (this.platformOn && !this.platform?.length) this.platform = ['proxy', 'postgres', 'moodle'].map((service) => ({ Id: rnd(32), Name: `/${PROJECT}-${service}-1`, Created: engineText(),
+      Config: { Labels: { 'com.docker.compose.project': PROJECT, 'com.docker.compose.service': service } }, State: { Status: 'running', Running: true, StartedAt: engineText() }, Mounts: [] }));
     if (this.services.length === 0) {
       for (const service of ['lti-service', 'cogniate-app']) this.services.push({ Id: rnd(32), Name: `/${PROJECT}-${service}-1`, Created: engineText(),
         Config: { Labels: { 'com.docker.compose.project': PROJECT, 'com.docker.compose.service': service } }, State: { Status: 'created', Running: false, StartedAt: '0001-01-01T00:00:00Z' }, Mounts: [] });
@@ -438,9 +446,10 @@ class FakeWorld {
   // ---------------------------------------------------------------- fake Docker CLI
   ok(stdout = '') { return { code: 0, stdout, stderr: '', durationMs: 0 }; }
   no(code, stderr = '', stdout = '') { return { code, stdout, stderr, durationMs: 0 }; }
-  all() { return [...this.services, ...this.storage, ...this.qa]; }
+  all() { return [...this.services, ...(this.platform ?? []), ...this.storage, ...this.qa]; }
   async docker(args) {
     if (this.stopped) throw new Error('mock lane stopped after ' + this.stopAfter);
+    this.orphanSync();
     this.log.push({ kind: 'docker', args });
     const [a0, a1] = args;
     if (a0 === 'image' && a1 === 'inspect') return this.ok(IMAGE + '\n');
@@ -475,6 +484,7 @@ class FakeWorld {
   }
   async exec(name, cmd, args) {
     if (this.stopped) throw new Error('mock lane stopped after ' + this.stopAfter);
+    this.orphanSync();
     this.log.push({ kind: 'exec', name, cmd, args });
     if (cmd === 'docker' && args[0] === 'compose' && args.includes('stop')) {
       if (this.inject === 'restore-services-running' && this.stuck) return this.ok();
@@ -564,7 +574,8 @@ class FakeWorld {
           }
           answer = { op, results: spec.ops.map((o) => ({ op: o.op, vol: o.vol, path: o.path })) };
         } else {
-          answer = { op, results: plant(roots, spec.ops, { outDir: this.lane.out }) };
+          const ops = this.inject === 'tamper-no-effect' ? spec.ops.filter((o) => o.op !== 'flip') : spec.ops;
+          answer = { op, results: [...plant(roots, ops, { outDir: this.lane.out }), ...spec.ops.filter((o) => !ops.includes(o))] };
           // V4-2: a returned file whose mode drifts (the row must compare it with its listing before the row).
           const drift = { 'unstash-mode-drift:d-symlink': 'hold-d-symlink-', 'unstash-mode-drift:identity': 'orig-f-pairid-' }[this.inject];
           const u = spec.ops.find((o) => o.op === 'unstash');
@@ -697,10 +708,11 @@ class FakeWorld {
     if (files.some((f) => f.name.endsWith('-journal'))) return { code: 'legacy_hot_journal' };
     const ps = this.pairState();
     if (ps.state === 'FRESH' || ps.state === 'FIRST_START') return { code: 'legacy_present' };
-    const sources = ps.ids?.ltidb?.legacySources;
-    if (!Array.isArray(sources) || !sources.length) return { code: 'legacy_conflict' };
-    const want = sources.map((x) => `${x.name}:${x.sha256}`).sort(), have = files.map((f) => `${f.name}:${f.sha256}`).sort();
-    return JSON.stringify(want) === JSON.stringify(have) ? { kept: true } : { code: 'legacy_conflict' };
+    // L6 (ADR-012 §10): both identities list the host legacy set (full name, size, SHA-256; order-free), else L7.
+    const key = (list) => JSON.stringify(list.map((x) => JSON.stringify([x.name, x.size, x.sha256])).sort());
+    const have = key(files.map((f) => ({ name: `${f.svc}/${f.name}`, size: f.size, sha256: f.sha256 })));
+    const ok = [ps.ids?.ltidb, ps.ids?.appdb].every((id) => Array.isArray(id?.legacySources) && id.legacySources.length && key(id.legacySources) === have);
+    return ok ? { kept: true } : { code: 'legacy_conflict' };
   }
   guarded() { const k = path.join(this.clone, '.tmp/compose.knobs.yaml'); return fs.existsSync(k) && fs.readFileSync(k, 'utf8').includes('x-cogniate-storage-compat'); }
   pf(lines, mode, state) {
@@ -834,8 +846,15 @@ class FakeWorld {
     }
     this.prepareVolumes();
   }
-  drillStop(lines, operation, point, from, m) {
-    const opId = rnd(16);
+  /** A product opId (32 hex). R5 controls fix its first digit so that a kept generation sorts before or after the drill. */
+  newOpId(kind) { const id = rnd(16); return this.opIdFirst?.[kind] ? this.opIdFirst[kind] + id.slice(1) : id; }
+  drillStop(lines, operation, point, from, m, opId = this.newOpId('drill')) {
+    // ADR-012 §8: prepared-lti is the first journal write, the lti journal only (no staging yet).
+    if (point === 'prepared-lti') {
+      this.writeJournal('ltidb', { operation, opId, state: 'prepared', backupId: m.backupId, from, updatedAt: new Date().toISOString() });
+      lines.push({ event: 'storage_drill_stop', ts: new Date().toISOString(), opId, point });
+      return { code: 3, text: `drill stop at ${point}` };
+    }
     for (const key of ['ltidb', 'appdb']) {
       this.makeVol(key);
       this.writeFolder(path.join(this.vol(key), `.restore-${opId}`));
@@ -848,7 +867,7 @@ class FakeWorld {
         this.writeJournal(key, { operation, opId, state: point, backupId: m.backupId, from, previous: hashes, updatedAt: new Date().toISOString() });
       } else this.writeJournal(key, { operation, opId, state: point, backupId: m.backupId, from, updatedAt: new Date().toISOString() });
     }
-    lines.push({ event: 'storage_drill_stop', ts: new Date().toISOString(), point });
+    lines.push({ event: 'storage_drill_stop', ts: new Date().toISOString(), opId, point });
     return { code: 3, text: `drill stop at ${point}` };
   }
   restoreInto(m, from) {
@@ -860,8 +879,15 @@ class FakeWorld {
   }
   recover(lines) {
     const j = { ltidb: this.journal('ltidb'), appdb: this.journal('appdb') };
-    if (!j.ltidb && !j.appdb) return { code: 0, text: 'nothing to recover' };
-    if (['committed', 'rolled_back'].includes(j.ltidb?.state) && ['committed', 'rolled_back'].includes(j.appdb?.state)) return { code: 0, text: 'nothing to recover' };
+    // ADR-012 §8 R0: each journal absent or terminal. R1: lti prepared X; app absent, or terminal with another opId.
+    const terminal = (x) => !x || ['committed', 'rolled_back'].includes(x.state);
+    if (terminal(j.ltidb) && terminal(j.appdb)) return { code: 0, text: 'nothing to recover' };
+    if (j.ltidb?.state === 'prepared' && terminal(j.appdb) && j.appdb?.opId !== j.ltidb.opId) {
+      fs.rmSync(path.join(this.vol('ltidb'), `.restore-${j.ltidb.opId}`), { recursive: true, force: true });
+      this.writeJournal('ltidb', { ...j.ltidb, state: 'rolled_back' });
+      if (this.inject === 'r1-same-op-app-journal') this.writeJournal('appdb', { ...j.ltidb, state: 'rolled_back' });
+      return { code: 1, text: 'cancelled at the first journal write; the targets equal the state before (verified)' };
+    }
     const opId = j.ltidb.opId;
     for (const key of ['ltidb', 'appdb']) {
       const prev = path.join(this.vol(key), `.previous-${opId}`);
@@ -873,12 +899,12 @@ class FakeWorld {
     }
     if (j.ltidb.state === 'committed-lti') {
       const m = JSON.parse(fs.readFileSync(path.join(j.ltidb.from, 'manifest.json'), 'utf8'));
-      for (const key of ['ltidb', 'appdb']) for (const d of fs.readdirSync(this.vol(key)).filter((n) => /^\.(previous|restore)-/.test(n))) fs.rmSync(path.join(this.vol(key), d), { recursive: true });
+      this.keepGeneration(opId);
       this.restoreInto(m, j.ltidb.from);
       return { code: 0, text: 'recovered: committed' };
     }
     for (const key of ['ltidb', 'appdb']) {
-      for (const d of fs.readdirSync(this.vol(key)).filter((n) => /^\.(previous|restore)-/.test(n))) fs.rmSync(path.join(this.vol(key), d), { recursive: true });
+      for (const d of [`.restore-${opId}`, `.previous-${opId}`]) fs.rmSync(path.join(this.vol(key), d), { recursive: true, force: true });
       this.writeJournal(key, { ...j[key], state: 'rolled_back' });
     }
     if (j.ltidb.intoFresh) for (const key of ['ltidb', 'appdb']) for (const n of this.volumeFiles(key)) fs.rmSync(path.join(this.vol(key), n));
@@ -912,8 +938,12 @@ class FakeWorld {
     if (stopAfter) { const r = this.drillStop(lines, 'import', stopAfter, from, m); for (const key of ['ltidb', 'appdb']) this.writeJournal(key, { ...this.journal(key), intoFresh: true }); return r; }
     this.applyFiles(from, m);
     const id = { pairId: rnd(16), generation: 1, firstStart: 'completed', composeProject: PROJECT, provenance: { kind: 'import' },
-      legacySources: m.files.map((f) => ({ name: path.basename(f.name), sha256: f.sha256 })) };
-    for (const key of ['ltidb', 'appdb']) { this.writeId(key, id); this.writeJournal(key, { operation: 'import', opId: rnd(16), state: 'committed' }); }
+      legacySources: m.files.map((f) => ({ name: f.name, size: f.size, sha256: f.sha256 })) };
+    for (const key of ['ltidb', 'appdb']) {
+      const own = this.inject === 'import-app-sources-differ' && key === 'appdb'
+        ? { ...id, legacySources: id.legacySources.map((x, i) => (i === 0 ? { ...x, sha256: x.sha256.replace(/^./, (c) => (c === '0' ? '1' : '0')) } : x)) } : id;
+      this.writeId(key, own); this.writeJournal(key, { operation: 'import', opId: rnd(16), state: 'committed' });
+    }
     return { code: 0, text: 'import done' };
   }
   quarantine(lines, out) {
@@ -928,7 +958,7 @@ class FakeWorld {
     return { code: 0, text: 'quarantine done' };
   }
   reset() {
-    this.services = []; this.dropVols();
+    this.services = []; this.platform = []; this.dropVols();
     fs.rmSync(path.join(this.clone, 'infra/.data/lti-service'), { recursive: true, force: true });
     const P = path.join(this.clone, 'infra/.data/cogniate-app');
     if (fs.existsSync(P)) for (const n of fs.readdirSync(P)) fs.rmSync(path.join(P, n), { recursive: true, force: true });
@@ -938,6 +968,7 @@ class FakeWorld {
   // ---------------------------------------------------------------- npm run <script>: the fake product
   async npm(name, args, { env = {} } = {}) {
     const [, script, , ...rest] = args;
+    this.orphanSync();
     const opt = (k) => (rest.includes(k) ? rest[rest.indexOf(k) + 1] : undefined);
     this.productCalls.push({ name, script, rest, env: { STORAGE_DRILL: env.STORAGE_DRILL } });
     this.label = name;
@@ -984,7 +1015,7 @@ class FakeWorld {
   }
   /** LD-3 row-level negatives: one forbidden change made by the recovery. */
   injectTamper() {
-    const lti = this.vol('ltidb'), app = this.vol('appdb'), prev = fs.readdirSync(lti).find((n) => n.startsWith('.previous-'));
+    const lti = this.vol('ltidb'), app = this.vol('appdb'), prev = `.previous-${this.journal('ltidb').opId}`;
     if (this.inject === 'tamper-app-journal-not-failed') this.writeJournal('appdb', { ...this.journal('appdb'), state: 'swapped' });
     if (this.inject === 'tamper-opid-changed') this.writeJournal('ltidb', { ...this.journal('ltidb'), opId: rnd(16) });
     if (this.inject === 'tamper-nested-journal') fs.writeFileSync(path.join(lti, prev, '.storage-journal.json'), '{}');
@@ -1015,7 +1046,7 @@ class FakeWorld {
   async request(url, { method = 'GET', headers = {}, body } = {}) {
     if (this.stopped) throw new Error('mock lane stopped after ' + this.stopAfter);
     const u = new URL(url), route = u.pathname;
-    this.log.push({ kind: 'http', method, url, origin: headers.origin ?? null });
+    this.log.push({ kind: 'http', method, url, origin: headers.origin ?? null, appRunning: this.running() });
     if (!this.running()) throw new Error('connect ECONNREFUSED ' + u.host);
     const json = (status, value, extra = {}) => ({ status, headers: extra, body: value === undefined ? '' : JSON.stringify(value) });
     if (u.origin === URLS.lti) {
@@ -1047,11 +1078,12 @@ class FakeWorld {
       handle.done.then(() => { this.backupClosedAt = Date.now(); });
     }
     else if (cmd === 'npm' && args[1] === 'stack:data-restore') {
-      handle = node('holder.mjs', [this.lockDir(), 'stack:data-restore', '-1', PROJECT, this.clone]);
-      this.orphanFrom = args[args.indexOf('--from') + 1];
-      this.drillStop([], 'restore', 'swapped-lti', this.orphanFrom, JSON.parse(fs.readFileSync(path.join(this.orphanFrom, 'manifest.json'), 'utf8')));
-      this.storage.push({ Id: rnd(32), Name: `/${PROJECT}-storage-${rnd()}`, Created: engineText(),
-        Config: { Labels: { 'com.docker.compose.project': PROJECT, 'org.cogniate.storage': 'maintenance', 'org.cogniate.storage.run': rnd() } }, State: { Status: 'running', Running: true } });
+      // The container and its swapped-lti journals exist only after the holder reached the pause (orphanSync); a kill before
+      // it leaves no container. The earlier pauses stay in the log.
+      const opId = this.newOpId('orphan'), paused = path.join(this.scripts, `paused-${opId}`);
+      handle = node('holder.mjs', [this.lockDir(), 'stack:data-restore', '-1', PROJECT, this.clone, opId, path.join(this.clone, 'infra/.logs/storage-maintenance.jsonl'), paused, '1000',
+        this.inject === 'orphan-unrelated-log-pause' ? 'unrelated-log-pause' : 'pause']);
+      this.orphan = { opId, paused, from: args[args.indexOf('--from') + 1] };
     } else if (cmd === 'sleep') handle = spawnGroup('sleep', [args[0] === '2' ? '0.5' : args[0]], opts);
     else if (cmd === 'bash' && args[0] === '-c') handle = spawnGroup(cmd, args, opts);
     else throw new Error('fake spawn: unexpected ' + cmd + ' ' + args.join(' '));
@@ -1060,6 +1092,15 @@ class FakeWorld {
       || (this.inject === 'a-lock-stale case 4 stub group' && cmd === 'bash' && args[0] === '-c');
     return noKill ? { ...handle, killGroup: () => false } : handle;
   }
+  /** The paused maintenance container of g-orphan-* appears once its holder wrote the pause (before any later fake answer). */
+  orphanSync() {
+    const o = this.orphan;
+    if (!o || !fs.existsSync(o.paused)) return;
+    this.orphan = null; this.orphanFrom = o.from; this.orphanOpId = o.opId;
+    this.drillStop([], 'restore', 'swapped-lti', o.from, JSON.parse(fs.readFileSync(path.join(o.from, 'manifest.json'), 'utf8')), o.opId);
+    this.storage.push({ Id: rnd(32), Name: `/${PROJECT}-storage-${rnd()}`, Created: engineText(),
+      Config: { Labels: { 'com.docker.compose.project': PROJECT, 'org.cogniate.storage': 'maintenance', 'org.cogniate.storage.run': rnd() } }, State: { Status: 'running', Running: true } });
+  }
   /** The orphaned maintenance container of g-orphan-* ends (its restore of B completes) on the first listing after the refusal row. */
   storageListed() {
     const c = this.storage.find((x) => x.State.Running);
@@ -1067,8 +1108,12 @@ class FakeWorld {
     this.completeOrphan = false;
     this.storage = this.storage.filter((x) => x !== c);
     const from = this.orphanFrom, m = JSON.parse(fs.readFileSync(path.join(from, 'manifest.json'), 'utf8'));
-    for (const key of ['ltidb', 'appdb']) for (const d of fs.readdirSync(this.vol(key)).filter((n) => /^\.(previous|restore)-/.test(n))) fs.rmSync(path.join(this.vol(key), d), { recursive: true });
+    this.keepGeneration(this.orphanOpId);
     this.restoreInto(m, from);
+  }
+  /** ADR-012 §8: after a commit, one previous generation (.previous-<opId>) is kept; .restore-* and older .previous-* go. */
+  keepGeneration(opId) {
+    for (const key of ['ltidb', 'appdb']) for (const d of fs.readdirSync(this.vol(key)).filter((n) => /^\.(previous|restore)-/.test(n) && n !== `.previous-${opId}`)) fs.rmSync(path.join(this.vol(key), d), { recursive: true });
   }
   // ---------------------------------------------------------------- left-over plants after each step (V7-1)
   afterSave(rel) {
@@ -1088,7 +1133,7 @@ class FakeWorld {
     if (this.qa.length) problems.push('QA containers: ' + this.qa.map((c) => c.kind).join(', '));
     for (const c of this.children) if (c.child.exitCode === null && c.child.signalCode === null && c.lingerOk !== true) problems.push('live QA process ' + c.pid);
     if (problems.length) this.leftovers.push(`${m[1]}: ${problems.join('; ')}`);
-    this.log.push({ kind: 'step-end', step: m[1], at: Date.now() });
+    this.log.push({ kind: 'step-end', step: m[1], at: Date.now(), appRunning: this.running(), platformRunning: (this.platform ?? []).filter((c) => c.State.Running).length });
     // The paused maintenance container of g-orphan-refusal ends by itself after its pause (its restore completes).
     if (m[1] === 'g-orphan-refusal') this.completeOrphan = true;
     this.hooks?.[m[1]]?.(this);
@@ -1810,4 +1855,212 @@ test('HARNESS ONLY: R2-05-N site #12 unhooked, replayed inputs: the eight copies
   assert.equal(Object.keys(record.folders).length, 10, 'B, X2 and the eight copies');
   for (const [n, list] of Object.entries(record.folders)) if (!/^(B|X2)-/.test(n)) for (const e of list) assert.equal(e.mode, e.type === 'dir' ? '0700' : '0600', `${n}/${e.path}`);
   if (process.env.QA_R2_NEUTRAL_OUT) fs.writeFileSync(path.join(process.env.QA_R2_NEUTRAL_OUT, 'site-12.json'), JSON.stringify(record, null, 1), { mode: 0o600, flag: 'wx' });
+});
+
+// ---------------------------------------------------------------- Repair batch RT: the lane platform containers
+
+test('HARNESS ONLY: R2-RT-1 with proxy, postgres and moodle running, the full dry run keeps the declared map; the app services run before each API write', async (t) => {
+  const { world, rows } = await dryRun(t, { setup: (w) => { w.platformOn = true; } });
+  assert.equal(world.platform.length, 3, 'The platform containers exist');
+  assert.deepEqual(compareMap(rows, EXPECTED), [], 'The declared map of V7-1 holds with the platform containers');
+  const ends = world.log.map((e, i) => [e, i]).filter(([e]) => e.kind === 'step-end');
+  for (const step of ['fixture-backup-B', 'fixture-post-B']) {
+    const k = ends.findIndex(([e]) => e.step === step), [, at] = ends[k], [prev, from] = ends[k - 1];
+    assert.deepEqual([prev.appRunning, prev.platformRunning], [false, 3], `${step}: precondition made (both app services stopped, the platform running)`);
+    const http = world.log.slice(from + 1, at).filter((e) => e.kind === 'http');
+    assert.ok(http.length > 0 && http.every((e) => e.appRunning), `${step}: every API request came while both app services ran`);
+  }
+  const k = ends.findIndex(([e]) => e.step === 'e-fresh-refusal');
+  assert.deepEqual([ends[k - 1][0].platformRunning, ends[k][0].appRunning], [3, false], 'e-fresh-refusal ran with the platform running and the app services stopped');
+});
+
+// ---------------------------------------------------------------- Repair batch R4: the three C2 causes
+
+test('HARNESS ONLY: R4 C2 causes in the fake: R1 at prepared-lti, a delayed own pause after an earlier pause, full legacySources; dependent rows run', async (t) => {
+  const seen = {};
+  const hooks = {
+    'h-nomanifest': (w) => { seen.app = w.journal('appdb'); },
+    'g-prepared-lti': (w) => { seen.r1 = { lti: w.journal('ltidb'), app: w.journal('appdb') }; },
+    'e-import': (w) => { seen.ids = { lti: w.readId('ltidb'), app: w.readId('appdb') }; },
+  };
+  const { world, byId } = await dryRun(t, { stopAfter: 'e-provenance-restore', hooks });
+  for (const id of ['g-prepared-lti', 'g-recover-idempotent', 'g-orphan-refusal', 'g-orphan-complete', 'g-orphan-stopped', 'e-import', 'e-kept', 'e-provenance-restore'])
+    assert.equal(byId[id].status, 'PASS', `${id}: ${byId[id].notes[0]}`);
+  // FC1: the R1 precondition was made (only the lti journal, then lti rolled_back; the app journal stays absent).
+  const drill = world.productCalls.find((c) => c.name === 'drill-prepared-lti');
+  assert.equal(drill.code, 3);
+  assert.deepEqual([seen.r1.lti.state, seen.app, seen.r1.app], ['rolled_back', null, null], 'As in C2: no app journal before; R1 leaves it absent');
+  // Eleven second recoveries, one after each drill point, each exit 0 "nothing to recover".
+  const again = world.productCalls.filter((c) => c.name.startsWith('recover-again-'));
+  assert.deepEqual(again.map((c) => [c.name, c.code, c.text]), DRILL_POINTS.map((p) => [`recover-again-${p}`, 0, 'nothing to recover']));
+  assert.deepEqual(byId['g-recover-idempotent'].notes.filter((n) => !/^duration /.test(n)), DRILL_POINTS.map((p) => `${p}: nothing to recover; nothing changes`));
+  // FC2: the pause of g-orphan-refusal stays in the log; g-orphan-stopped waited for its own later pause.
+  const refusal = savedJson(world, 'storage/g-orphan-refusal-kill.json').pause, stopped = savedJson(world, 'storage/g-orphan-stopped-kill.json').pause;
+  const logged = fs.readFileSync(path.join(world.clone, 'infra/.logs/storage-maintenance.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+  assert.deepEqual(logged.filter((l) => l.event === 'storage_drill_pause').map((l) => l.opId), [refusal.opId, stopped.opId]);
+  assert.notEqual(refusal.opId, stopped.opId);
+  for (const p of [refusal, stopped]) assert.deepEqual([p.event, p.point, /^[0-9a-f]{32}$/.test(p.opId)], ['storage_drill_pause', 'swapped-lti', true]);
+  // FC3: both identities list the complete manifest names.
+  for (const v of ['lti', 'app']) assert.deepEqual(seen.ids[v].legacySources.map((x) => x.name).sort(), ['cogniate-app/cogniate.db', 'lti-service/lti.db']);
+});
+
+test('HARNESS ONLY: R4 FC1 R1 journals: lti rolled_back with the drill opId and the app journal as observed before; every other answer fails', () => {
+  const X = 'a'.repeat(32), Y = 'b'.repeat(32);
+  const journal = (state, opId, sha256 = 'c'.repeat(64)) => ({ present: true, sha256, json: { state, opId } });
+  const fsOf = (lti, app) => ({ lti: { state: 'present', journal: lti }, app: { state: 'present', journal: app } });
+  const absent = { present: false };
+  assert.equal(firstWriteRolledBack(fsOf(absent, absent), fsOf(journal('rolled_back', X), absent), X), true, 'app absent before and after');
+  assert.equal(firstWriteRolledBack(fsOf(absent, journal('committed', Y)), fsOf(journal('rolled_back', X), journal('committed', Y)), X), true, 'app terminal with another opId, unchanged');
+  assert.equal(firstWriteRolledBack({ lti: {}, app: { state: 'absent' } }, { lti: { journal: journal('rolled_back', X) }, app: { state: 'absent' } }, X), true, 'app volume absent before and after');
+  const fails = {
+    'lti rolled_back with another opId': [fsOf(absent, absent), fsOf(journal('rolled_back', Y), absent), X],
+    'lti still prepared': [fsOf(absent, absent), fsOf(journal('prepared', X), absent), X],
+    'lti journal absent': [fsOf(absent, absent), fsOf(absent, absent), X],
+    'a new same-op app journal': [fsOf(absent, absent), fsOf(journal('rolled_back', X), journal('rolled_back', X)), X],
+    'the app journal changed bytes': [fsOf(absent, journal('committed', Y)), fsOf(journal('rolled_back', X), journal('committed', Y, 'd'.repeat(64))), X],
+    'no app observation before': [{ lti: {}, app: {} }, fsOf(journal('rolled_back', X), absent), X],
+    'no drill opId': [fsOf(absent, absent), fsOf(journal('rolled_back', undefined), absent), undefined],
+    'a drill opId that is not 32 hex': [fsOf(absent, absent), fsOf(journal('rolled_back', 'x1'), absent), 'x1'],
+  };
+  for (const [name, args] of Object.entries(fails)) assert.equal(firstWriteRolledBack(...args), false, name);
+});
+
+test('HARNESS ONLY: R4 FC1 a recovery that also writes an app journal of the same operation FAILs g-prepared-lti', async (t) => {
+  const { byId } = await dryRun(t, { inject: 'r1-same-op-app-journal', stopAfter: 'g-prepared-lti' });
+  assert.deepEqual([byId['g-prepared-lti'].status, byId['g-prepared-lti'].notes[0]], ['FAIL', 'A verified rolled_back: lti rolled_back with the drill opId, the app journal as before (R1)']);
+});
+
+test('HARNESS ONLY: R4 FC2 only the own output counts: point swapped-lti and a 32-hex opId; no current pause fails closed at the deadline', async () => {
+  const X = 'a'.repeat(32), line = (o) => JSON.stringify({ event: 'storage_drill_pause', ts: '2026-10-22T01:00:00.000Z', opId: X, point: 'swapped-lti', seconds: 120, ...o });
+  assert.equal(ownPause({ stdout: `noise\n${line()}\n`, stderr: '' })?.opId, X);
+  assert.equal(ownPause({ stdout: '', stderr: line() + '\n' })?.opId, X, 'stderr is own output too');
+  for (const [name, text] of Object.entries({ 'no pause': '{"holder":"x"}\n', 'point swapped-app': line({ point: 'swapped-app' }), 'no opId': line({ opId: undefined }),
+    'a short opId': line({ opId: 'abc' }), 'an upper-case opId': line({ opId: 'A'.repeat(32) }), 'another event': line({ event: 'storage_drill_resume' }) }))
+    assert.equal(ownPause({ stdout: text + '\n', stderr: '' }), null, name);
+  // The lane logs are never an input: a group whose own output has no current pause times out (180 s in the row; 300 ms here).
+  for (const stdout of ['', line({ point: 'swapped-app' }) + '\n'])
+    await assert.rejects(waitOwnPause({ output: () => ({ stdout, stderr: '' }) }, { timeoutMs: 300 }), /Deadline: storage_drill_pause$/);
+  assert.equal((await waitOwnPause({ output: () => ({ stdout: line() + '\n', stderr: '' }) }, { timeoutMs: 300 })).opId, X);
+});
+
+test('HARNESS ONLY: R4 FC2 a pause of an unrelated operation appended to the lane log after the spawn does not end the wait', async (t) => {
+  const { world, byId } = await dryRun(t, { inject: 'orphan-unrelated-log-pause', stopAfter: 'g-orphan-stopped' });
+  for (const id of ['g-orphan-refusal', 'g-orphan-complete', 'g-orphan-stopped']) assert.equal(byId[id].status, 'PASS', `${id}: ${byId[id].notes[0]}`);
+  const pauses = fs.readFileSync(path.join(world.clone, 'infra/.logs/storage-maintenance.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l)).filter((l) => l.event === 'storage_drill_pause');
+  const own = ['g-orphan-refusal', 'g-orphan-stopped'].map((r) => savedJson(world, `storage/${r}-kill.json`).pause.opId);
+  assert.equal(pauses.length, 4, 'Each spawn: an unrelated pause in the log first, then its own pause');
+  assert.deepEqual([pauses[1].opId, pauses[3].opId], own);
+  assert.ok(!own.includes(pauses[0].opId) && !own.includes(pauses[2].opId));
+});
+
+test('HARNESS ONLY: R4 FC3 legacySources equal the manifest files as complete entries; every other list fails', () => {
+  const A = 'a'.repeat(64), B = 'b'.repeat(64);
+  const files = [{ name: 'lti-service/lti.db', size: 10, sha256: A }, { name: 'cogniate-app/cogniate.db', size: 20, sha256: B }];
+  assert.equal(legacySourcesMatch([files[1], files[0]].map((x) => ({ ...x })), files), true, 'the same entries in another order');
+  const fails = {
+    'a wrong service path with an equal digest': [{ ...files[0], name: 'cogniate-app/lti.db' }, files[1]],
+    'basenames only': files.map((x) => ({ ...x, name: path.basename(x.name) })),
+    'a missing entry': [files[0]],
+    'an extra entry': [...files, { name: 'lti-service/lti.db-wal', size: 5, sha256: A }],
+    'a duplicate entry': [...files, files[0]],
+    'a changed digest': [{ ...files[0], sha256: B }, files[1]],
+    'a changed size': [{ ...files[0], size: 11 }, files[1]],
+    'no size': files.map(({ size, ...x }) => x),
+    'an empty list': [],
+  };
+  for (const [name, sources] of Object.entries(fails)) assert.equal(legacySourcesMatch(sources, files), false, name);
+  assert.equal(legacySourcesMatch(undefined, files), false, 'no legacySources');
+  assert.equal(legacySourcesMatch(files, [...files, files[0]]), false, 'a manifest with a duplicate entry');
+});
+
+test('HARNESS ONLY: R4 FC3 an app identity whose legacySources differ from the manifest FAILs e-import', async (t) => {
+  const { byId } = await dryRun(t, { inject: 'import-app-sources-differ', stopAfter: 'e-import' });
+  assert.deepEqual([byId['e-import'].status, byId['e-import'].notes[0]], ['FAIL', 'legacySources of the app identity equal the manifest list']);
+});
+
+// ---------------------------------------------------------------- Repair batch R5: the g-tamper target of THIS drill
+
+const KEPT_FIRST = { orphan: '0', drill: 'f' }, KEPT_LAST = { orphan: 'f', drill: '0' };
+/** The kept generation of the g-orphan-complete commit and the drill's .previous-<opId>, seen after g-orphan-complete and g-tamper. */
+function tamperHooks(seen) {
+  const lti = (w) => w.vol('ltidb'), sha = (w, d) => (fs.existsSync(path.join(lti(w), d, 'lti.db')) ? fsha(path.join(lti(w), d, 'lti.db')) : null);
+  return {
+    'g-orphan-complete': (w) => { seen.kept = `.previous-${w.orphanOpId}`; seen.keptSha = sha(w, seen.kept); },
+    'g-tamper': (w) => {
+      const j = w.journal('ltidb'), drill = `.previous-${j.opId}`;
+      Object.assign(seen, { drill, folders: fs.readdirSync(lti(w)).filter((n) => n.startsWith('.previous-')).sort(),
+        keptAfter: sha(w, seen.kept), drillChanged: sha(w, drill) !== null && sha(w, drill) !== j.previous?.['lti.db'] });
+    },
+  };
+}
+
+test('HARNESS ONLY: R5 g-tamper changes .previous-<opId>/lti.db of this drill when a kept generation sorts first or last', async (t) => {
+  const runs = [];
+  for (const [name, order] of [['kept first', KEPT_FIRST], ['kept last', KEPT_LAST]]) {
+    const seen = {};
+    runs.push({ name, order, seen, ...(await dryRun(t, { stopAfter: 'g-tamper', hooks: tamperHooks(seen), setup: (w) => { w.opIdFirst = order; } })) });
+  }
+  // C3 gives "kept first: FAIL --recover after the tamper: expected exit 2, got 1" (round 1) and "kept last: PASS" (diagnostic).
+  assert.deepEqual(runs.map((r) => `${r.name}: ${r.byId['g-tamper'].status}${causeOf(r.byId['g-tamper']) ? ' ' + causeOf(r.byId['g-tamper']) : ''}`), ['kept first: PASS', 'kept last: PASS']);
+  for (const { name, order, seen, world } of runs) {
+    // The precondition was made: two .previous folders at swapped, in the intended order; only the drill's lti.db changed.
+    assert.deepEqual(seen.folders, (order === KEPT_FIRST ? [seen.kept, seen.drill] : [seen.drill, seen.kept]), name);
+    assert.notEqual(seen.kept, seen.drill, name);
+    assert.deepEqual([seen.drillChanged, seen.keptAfter === seen.keptSha], [true, true], name);
+    assert.ok(world.productCalls.some((c) => c.name === 'g-tamper-recover' && c.code === 2), name);
+  }
+});
+
+test('HARNESS ONLY: R5 the full dry run with the kept generation first keeps the declared map; the 17 rows after g-tamper run', async (t) => {
+  const { rows, byId } = await dryRun(t, { setup: (w) => { w.opIdFirst = KEPT_FIRST; } });
+  assert.equal(rows.length, 70);
+  assert.deepEqual(compareMap(rows, EXPECTED), []);
+  for (const id of ['g-quarantine-in-use', 'g-quarantine', 'h-legacy-manifest', 'h-target-state', 'e-fresh-refusal', 'e-hot-journal', 'e-old-layout', 'g-fresh-target',
+    'h-pair-mismatch', 'e-import-recover', 'e-import', 'e-kept', 'e-provenance-restore', 'e-changed-byte', 'e-added-wal', 'e-import-nonfresh', 'h-old-manifest'])
+    assert.equal(byId[id].status, 'PASS', id);
+});
+
+test('HARNESS ONLY: R5 a tamper without effect FAILs g-tamper "precondition not made" before any recovery', async (t) => {
+  const { world, byId } = await dryRun(t, { inject: 'tamper-no-effect', stopAfter: 'g-tamper' });
+  assert.equal(byId['g-tamper'].status, 'FAIL');
+  assert.match(byId['g-tamper'].notes[0], /^precondition not made: \.previous-[0-9a-f]{32}\/lti\.db did not change its bytes$/);
+  assert.ok(!world.productCalls.some((c) => c.name === 'g-tamper-recover'), 'No --recover after a precondition failure');
+});
+
+test('HARNESS ONLY: R5 tamperTarget and tamperMade: only one own swapped opId and one regular target; only the target changes', () => {
+  const X = 'a'.repeat(32), Y = 'b'.repeat(32), stop = (...ls) => ({ stdout: ls.map((l) => JSON.stringify({ event: 'storage_drill_stop', ts: 't', ...l })).join('\n') + '\n', stderr: '' });
+  const file = (p, sha256 = 'c'.repeat(64)) => ({ path: p, type: 'file', uid: 501, gid: 20, mode: '0600', size: 9, sha256 });
+  const listing = (...entries) => ({ lti: { entries: [{ path: '.', type: 'dir' }, ...entries] }, app: { entries: [file('cogniate.db')] } });
+  const both = listing(file(`.previous-${Y}/lti.db`), file(`.previous-${X}/lti.db`), file('lti.db'));
+  assert.deepEqual(tamperTarget(stop({ opId: X, point: 'swapped' }), both), { path: `.previous-${X}/lti.db` });
+  assert.deepEqual(tamperTarget(stop({ opId: X, point: 'swapped' }, { opId: X, point: 'swapped' }), both), { path: `.previous-${X}/lti.db` }, 'the same line twice');
+  const refused = {
+    'no stop line': [{ stdout: '{"event":"storage_drill_pause"}\n', stderr: '' }, both],
+    'another point': [stop({ opId: X, point: 'staged' }), both],
+    'a swapped and another point': [stop({ opId: X, point: 'swapped' }, { opId: X, point: 'swap-app-mid' }), both],
+    'no opId': [stop({ point: 'swapped' }), both],
+    'a short opId': [stop({ opId: 'abc', point: 'swapped' }), both],
+    'an upper-case opId': [stop({ opId: 'A'.repeat(32), point: 'swapped' }), both],
+    'two opIds': [stop({ opId: X, point: 'swapped' }, { opId: Y, point: 'swapped' }), both],
+    'only the kept generation': [stop({ opId: X, point: 'swapped' }), listing(file(`.previous-${Y}/lti.db`))],
+    'the target is a folder': [stop({ opId: X, point: 'swapped' }), listing({ path: `.previous-${X}/lti.db`, type: 'dir' })],
+    'the target is a link': [stop({ opId: X, point: 'swapped' }), listing({ path: `.previous-${X}/lti.db`, type: 'symlink', target: '/x' })],
+    'two target entries': [stop({ opId: X, point: 'swapped' }), listing(file(`.previous-${X}/lti.db`), file(`.previous-${X}/lti.db`))],
+    'no listing': [stop({ opId: X, point: 'swapped' }), {}],
+  };
+  for (const [name, args] of Object.entries(refused)) assert.ok(tamperTarget(...args).problem && !tamperTarget(...args).path, name);
+  const target = `.previous-${X}/lti.db`, before = listing(file(`.previous-${Y}/lti.db`), file(target), file('lti.db'));
+  const after = (fn) => { const l = JSON.parse(JSON.stringify(before)); fn(l); return l; };
+  const flip = (l) => { l.lti.entries.find((e) => e.path === target).sha256 = 'd'.repeat(64); };
+  assert.deepEqual(tamperMade(before, after(flip), target), [], 'only the target changed');
+  const failing = {
+    'the target unchanged': after(() => {}),
+    'the kept generation changed instead': after((l) => { l.lti.entries.find((e) => e.path === `.previous-${Y}/lti.db`).sha256 = 'd'.repeat(64); }),
+    'the target and another file changed': after((l) => { flip(l); l.app.entries[0].sha256 = 'd'.repeat(64); }),
+    'the target and its mode changed': after((l) => { flip(l); l.lti.entries.find((e) => e.path === 'lti.db').mode = '0644'; }),
+    'an entry added': after((l) => { flip(l); l.lti.entries.push(file('qa-extra')); }),
+    'an entry removed': after((l) => { flip(l); l.app.entries = []; }),
+    'the target gone': after((l) => { l.lti.entries = l.lti.entries.filter((e) => e.path !== target); }),
+  };
+  for (const [name, l] of Object.entries(failing)) assert.ok(tamperMade(before, l, target).length > 0, name);
 });

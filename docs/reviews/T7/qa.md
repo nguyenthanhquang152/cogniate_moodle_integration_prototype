@@ -336,3 +336,12 @@ Privacy:
 Boundary after T7 (`R/baseline-after-t7.json`, `14:38:28Z`): zero containers. The seven volume records, networks and Docker MemTotal/NCPU are exactly equal to before. No Build Runner; ports `8543` and `8643` free.
 
 The failed T7 runs at `004568b` remain history. This PASS is SIM-free Moodle regression on the local stack; it is not live LMS validation.
+
+## M3 regression — candidate C3 `c4c6d04` (2026-10-22): NOT RUN
+
+**NOT RUN. No T7 result at this candidate.** A fresh Claude QA-E2E session wrote this section: `claude-opus-5-5`, xhigh; Orca session `34e03f7b-2209-4749-8db7-c5b507717b71`; task `task_5f3f8aa499cb`, dispatch `ctx_1fd6cb09010e`. It did not execute the earlier T7 runs.
+
+- Candidate product = test `c4c6d045b3a132f72bf059d77367d278de9222fa`. `tests/e2e` did not change since `aff4882` (T7 list: 18 tests in 6 files).
+- Reason: AC-M3-02(a) runs on the final M1+M2 SHA, after the accepted complete Common full and legacy gate and a separate exclusive window. Common's full round 1 failed in storage (470 PASS, 18 FAIL of 488), and the Lead granted no T7 window ([M3 QA-E2E §14](../M3/qa-e2e.md#14-round-11--candidate-c3-c4c6d04-2026-10-22)).
+- Prepared only (host): `R/plan/runbook-c4c6d04.md` section C (`32f390b5…`) and `R/plan/window-commands-c4c6d04.md` (`4435163d…`), lane `qa-e2e-m3-r3`, port 8543, subnet `172.31.0.0/16`. The command is `node tests/e2e/host/run-t7.mjs --sha c4c6d045b3a132f72bf059d77367d278de9222fa --checkout <new DEST> --runs 3 --demo --check-confirm --keep`. The external ownership wrapper must be READY before the runner and tears down only after the runner exits. `R` = `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-c4c6d04-qA52QXut`.
+- All 15 T7 criteria, the three default runs, the demo pass and the four confirmation checks stay NOT RUN at this SHA. The PASS at `aff4882` is history only and gives no credit to this candidate.

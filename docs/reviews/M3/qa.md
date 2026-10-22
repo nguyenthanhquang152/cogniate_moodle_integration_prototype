@@ -529,3 +529,62 @@ No product defect is proven. The `a-serialize` question needs a Lead or Architec
 Permissions (Lead permission contract): the launcher, observers, scans and evidence roots ran under umask 077 and are 0700. Only the frozen runner child ran under umask 022. A narrow guard set each new owned phase clone root from 0755 to 0700, 32 to 232 ms after its birth. At each phase checkpoint it set the one 0644 `captured-secrets.jsonl` file to 0600. The root modes were not private from creation. Inside the 0700 private folders, two QA files in the storage-private folder were 0644 during the run (one QA hold copy of `cogniate.db` and a 2-byte QA file), and 12 subfolders of the private backup folder are 0755. **Deviation:** the private database copy did not meet the secret-0600 rule during the run; the clone guard does not cover that path. Post-run correction (Lead `msg_6b7ada30298a`): only that database copy was set to 0600 at 11:47:11.753Z, with the same inode, size and SHA-256 before and after. Record: `public/permission-correction-hold-db.json` (SHA-256 `f99bdcf000bd789df6f001e1b3264368fd1aa15a6a96444113bdc2df83ca0fd3`). The correction does not make the run compliant after the fact.
 
 M3 stays **FAIL**. Next: the Lead decides on the two QA harness repairs and on the `a-serialize` contract question. Then a new frozen candidate, independent reviews and a new sole window are needed. Two complete 488-row rounds and all legacy groups must then run on one SHA.
+
+## Storage-repair diagnostic at candidate C `d3296dd`: FAIL (zero credit), 2026-10-21
+
+Verdict for this diagnostic: **FAIL**. It gives no acceptance credit. M3 stays **FAIL** (incomplete). Full record: `docs/reviews/M1/qa.md`, section "Storage-repair diagnostic at candidate C `d3296dd`". Owner: fresh independent common/Blackboard runtime QA, Claude Code Opus 5.5 xhigh, task `task_d006a77c4696`, dispatch `ctx_1183f38cf351`. Candidate C `d3296dd6eddbe723364a639d8e2db0adf12ab183`, tests tree `183a72b2fea5ff065fc57c96649199bc720fb6e0`, product equal to `9f8ac62`. Window: Lead grant `msg_c18858e1a424` (diagnostic only), runner 19:11:27Z–19:29:48Z, returned at 19:29:48Z. Lanes `qa-multi-r1` and `qa-multi-r1-st`, port 8443, subnet `172.29.0.0/16`.
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Diagnostic result | FAIL. Migration 12/12 PASS. Storage 33 PASS, 37 FAIL; one first cause: fixture `@backup-B` "New LTI platform: HTTP 502"; every FAIL row is "not run: prerequisite …" behind it. | phase artifacts under `<root>/source/tests/host/artifacts/` |
+| AC-M3-01 G-1 identity binding | Both children record `G1-IDENTITY` PASS. W3 also matches the engine 29.9.1 and the image `sha256:44fce696…`. Diagnostic evidence only. | `g1-client-identity.json`, `w3-formal-start.json` `b0d08c98…` |
+| AC-M3-02 (a) two full rounds | Not run (diagnostic grant only) | — |
+| AC-M3-02 (b) legacy | Not run. Test-id change record (static, no Docker): between `aaa823b` and C, 0 files changed under the twelve legacy suite folders (`tests/acceptance/T2a`–`T8`), `tests/acceptance/lib`, the legacy host runners `run-t2/t3c/t4a/t4b/t5/t8.mjs`, `lib.mjs`, `core.mjs` and `p5-fixture.mjs`/`p5-step.mjs`. The tests diff has 21 files, all in the storage and migration harness. Outside `tests/` and `docs/`, only `infra/scripts/storage-oplock.sh`, its test and `infra/compat/storage-compat.sha256` changed (R1-A). No legacy assertion is weaker. | `git diff --name-only aaa823b d3296dd` |
+| AC-M3-06 isolation and cleanup | Both children: `M3-ISOLATION` PASS and `TEARDOWN` PASS (0 containers, 0 volumes, 0 networks left; ownership 0 errors, 0 kept, 0 failed). Strict W3-to-end comparison: 0 problems. The 7 protected FULL records and the anonymous volumes `a17056b8…` and `d5df35bd…` are unchanged; the bridge, host and none Ids are unchanged. | `w4-compare.json` `9e88a2b6…`, `w4-end.json` `6adacbef…` |
+| AC-M3-07 privacy | Secret scan 0 problems (38 captured and 17 stack values; 19 raw and 713 public files) | `secret-scan.json` `dd9cf887…` |
+
+Next: the remediation owner diagnoses `@backup-B`; then a new frozen candidate, its reviews and a new diagnostic grant. Two complete 488-row rounds, all 12 legacy groups, fresh M2 and T7 stay required. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`.
+
+## Storage-repair diagnostic at candidate C2 `0938ea1`: FAIL (zero credit), 2026-10-21
+
+Verdict for this diagnostic: **FAIL**. It gives no acceptance credit. M3 stays **FAIL** (incomplete). Full record: `docs/reviews/M1/qa.md`, section "Storage-repair diagnostic at candidate C2 `0938ea1`". Owner: fresh independent common/Blackboard runtime QA, Claude Code Opus 5.5 xhigh, task `task_b591bb888e58`, dispatch `ctx_0700abfb3430`. Candidate C2 `0938ea1bd29acd00a67c7fc1cc8d7606edf2802d`, tests tree `290a773f1c9779693153ae77b46cc8ceb7eb83f4`; product and build paths equal `9f8ac62` (README.md is the only non-docs, non-tests difference; Docs-owned). Window: Lead grant `msg_f14739b51207` (diagnostic only), runner 20:14:11Z–20:38:51Z, returned at about 20:39Z (`msg_a07d09c540e3`). Lanes `qa-multi-r1` and `qa-multi-r1-st`, port 8443, subnet `172.29.0.0/16`.
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Diagnostic result | FAIL. Migration 12/12 PASS. Storage 64 PASS, 6 FAIL of 70 rows. Three first causes: `g-prepared-lti` "A verified rolled_back", `g-orphan-stopped` "The maintenance container still runs", `e-import` "legacySources equal the manifest list". Three dependents: `g-recover-idempotent`, `e-kept`, `e-provenance-restore`. `@backup-B` and all three `@post-B` runs PASS. | phase artifacts under `<root>/source/tests/host/artifacts/`; `D/storage-results.json` `80fe2f8a…` |
+| AC-M3-01 G-1 identity binding | Both children record `G1-IDENTITY` PASS. W3 matches the bound OS, CLI and Compose hashes, engine 29.9.1 and the image `sha256:44fce696…` (0 differences). Diagnostic evidence only. | `g1-client-identity.json`, `w3-formal-start.json` `954d2c40…` |
+| AC-M3-02 (a) two full rounds | Not run (diagnostic grant only) | — |
+| AC-M3-02 (b) legacy | Not run. Test-id change record (static, no Docker): between `d3296dd` and C2, 0 files changed under `tests/acceptance`, the legacy host runners `run-t2/t3c/t4a/t4b/t5/t8.mjs`, `lib.mjs` and `core.mjs`. The tests diff has 3 files, all in the storage harness and its runner. | `git diff --name-only d3296dd 0938ea1 -- tests` |
+| AC-M3-06 isolation and cleanup | Both children: `M3-ISOLATION` PASS and `TEARDOWN` PASS (0 left; ownership 0 errors, 0 kept, 0 failed). Strict W3-to-end comparison: 0 problems. The 7 protected FULL records and the anonymous volumes `a17056b8…` and `d5df35bd…` are unchanged; the bridge, host and none Ids are unchanged. | `w4-compare.json` `56354999…`, `w4-end.json` `9b73a81f…` |
+| AC-M3-07 privacy | Secret scan 0 problems (38 captured and 17 stack values) | `secret-scan.json` `0e01aed7…` |
+
+Next: the remediation owner diagnoses the three first causes in one batch; then a new frozen candidate, its reviews and a new diagnostic grant. Two complete 488-row rounds, all 12 legacy groups, fresh M2 and T7 stay required. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`.
+
+## Storage-repair diagnostic at candidate C3 `c4c6d04`: PASS (diagnostic gate only, zero credit), 2026-10-22
+
+Verdict for this diagnostic: **PASS**. It gives no acceptance credit; the Lead verifies it before any full-run grant. M3 stays **FAIL** (incomplete): the two complete rounds and the legacy groups did not run. Full record: `docs/reviews/M1/qa.md`, section "Storage-repair diagnostic at candidate C3 `c4c6d04`". Owner: fresh independent common/Blackboard runtime QA, Claude Code Opus 5.5 xhigh, task `task_8f5644f9910e`, dispatch `ctx_2e9642c8e4be`. Candidate C3 `c4c6d045b3a132f72bf059d77367d278de9222fa`, tests tree `17330479829a6b65e560afc297e2bee6777459dd` (= R4 `cd73139`); product and build paths equal `9f8ac62` (README.md is the only non-docs, non-tests difference; Docs-owned). Window: Lead grant `msg_44c8dfacddab` (diagnostic only, until 04:05:00.000Z), runner 02:03:14Z–02:28:42Z, returned at about 02:32Z (`msg_932c80706f81`). Lanes `qa-multi-r1` and `qa-multi-r1-st`, port 8443, subnet `172.29.0.0/16`.
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Diagnostic result | PASS. Migration 12/12 PASS. Storage 70/70 PASS (0 FAIL, 0 NOT_APPLICABLE); all 11 fixture runs PASS. The C2 first causes `g-prepared-lti`, `g-orphan-stopped`, `e-import` and their dependents `g-recover-idempotent` (11 points), `e-kept`, `e-provenance-restore` ran their own commands and passed. | phase artifacts under `<root>/source/tests/host/artifacts/`; `D/storage-results.json` `e1877822…`; `diag/public/r4-checks.json` `c515d8dc…` |
+| AC-M3-01 G-1 identity binding | Both children record `G1-IDENTITY` PASS. W3 and W4 match the bound OS, CLI and Compose hashes, engine 29.9.1 and the image `sha256:44fce696…` (0 differences). Diagnostic evidence only. | `g1-client-identity.json`, `w3-formal-start.json` `06d069f7…` |
+| AC-M3-02 (a) two full rounds | Not run (diagnostic grant only) | — |
+| AC-M3-02 (b) legacy | Not run. Test-id change record (static, no Docker): between C2 and C3, 0 files changed under `tests/acceptance`, the legacy host runners `run-t2/t3c/t4a/t4b/t5/t8.mjs`, `lib.mjs` and `core.mjs`. The tests diff has 2 files, both in the storage harness. | `git diff --name-only 0938ea1 c4c6d04 -- tests` |
+| AC-M3-06 isolation and cleanup | Both children: `M3-ISOLATION` PASS and `TEARDOWN` PASS (0 left; ownership 0 errors, 0 kept, 0 failed). Strict W3-to-end comparison: 0 problems. The 7 protected FULL records and the anonymous volumes `a17056b8…` and `d5df35bd…` are unchanged; the bridge, host and none Ids are unchanged. | `w4-compare.json` `338b1549…`, `w4-end.json` `ba90d88c…` |
+| AC-M3-07 privacy | Secret scan 0 problems (38 captured and 17 stack values); clone guard 0 problems | `secret-scan.json` `c5619289…`, `clone-guard.json` `3df44eb0…` |
+
+Next: after Lead verification and a separate grant, two complete 488-row rounds on C3 and all 12 legacy groups. Fresh M2 and T7 stay required under another owner. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`.
+
+## Full run at candidate C3 `c4c6d04`: FAIL in round 1 `storage` (`g-tamper`), 2026-10-22
+
+Verdict: **FAIL**. M3 stays **FAIL** (incomplete). Full record: `docs/reviews/M1/qa.md`, section "Full run at candidate C3 `c4c6d04`". Owner: common/Blackboard runtime QA, Claude Code Opus 5.5 xhigh, task `task_8f5644f9910e`, dispatch `ctx_2e9642c8e4be`. Candidate C3 `c4c6d045b3a132f72bf059d77367d278de9222fa`, tests tree `17330479829a6b65e560afc297e2bee6777459dd`. Window: Lead grant `msg_686df6631c9d` (until 07:00:00.000Z); runner 02:40:53Z–03:31:43Z (exit 1); returned at 03:34:25Z (`msg_63ddbf48a5d1`). Lanes `qa-multi-r1` (sim, snapshots, migration) and `qa-multi-r1-st` (storage), port 8443, subnet `172.29.0.0/16`.
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| AC-M3-01 G-1 identity binding | Every round-1 phase records `G1-IDENTITY` PASS. W3 and W4 match the bound OS, CLI and Compose hashes, engine 29.9.1 and the image `sha256:44fce696…` (0 differences). | `full/public/w3-formal-start.json` `4c479999…`, `w4-end.json` `71984da0…` |
+| AC-M3-02 (a) two full rounds | **FAIL / incomplete.** Round 1: 488 rows, 470 PASS, 18 FAIL (storage: `g-tamper` and 17 dependent rows not run). sim 394/394, snapshot-isolated 6/6, snapshot-upgrade 6/6, migration 12/12 PASS. Round 2 and the equality check did not run. | `full-judge/round-1-bind.json` `e6144cc9…`, `round-1-verify.json` `f09c2b04…` |
+| AC-M3-02 (b) legacy | Not run (the runner stopped after round 1) | — |
+| AC-M3-06 isolation and cleanup | Every phase: `M3-ISOLATION` PASS and `TEARDOWN` PASS (ownership 0 errors, 0 kept, 0 failed). Strict W3-to-end comparison: 0 problems; the 7 protected FULL records, the anonymous volumes `a17056b8…` and `d5df35bd…` and the bridge, host and none Ids are unchanged. | `w4-compare.json` `bd9135dd…` |
+| AC-M3-07 privacy | Secret scan 0 problems; clone guard 0 problems | `secret-scan.json` `103159f1…`, `clone-guard.json` `9c9cfeeb…` |
+
+Next: the remediation owner diagnoses `g-tamper`; then a new frozen candidate, its reviews and new grants. Two complete 488-row rounds, all 12 legacy groups, fresh M2 and T7 stay required. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`.
