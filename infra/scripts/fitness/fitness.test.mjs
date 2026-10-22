@@ -1,8 +1,9 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { afterEach, describe, it } from 'node:test';
 import { maskComments, repoPath } from './common.mjs';
 import { bannedWords, checkText, compareCounts, parts } from './lms-names.mjs';
@@ -19,6 +20,39 @@ afterEach(() => {
     for (const folder of scratch.splice(0))
         rmSync(folder, { recursive: true, force: true });
 });
+describe('CLI entry points', () => {
+    for (const [script, label, args, input] of [
+        ['lms-names.mjs', 'F1', ['--stdin', '--as', 'services/example/src/entry-probe.ts'], 'export const moodleX = 1;'],
+        ['channel-diff.mjs', 'F2', ['--channel', 'example', '--paths-from', 'paths.txt', '--no-renames'], ''],
+        ['rules.mjs', 'F5', ['--stdin', '--as', 'services/lti-service/src/db/migrations/999_probe.sql'], 'PRAGMA foreign_keys=ON;'],
+    ]) {
+        it(`${label} runs through a symlinked folder and returns its failing result`, () => {
+            const root = temp();
+            const link = join(root, 'fitness');
+            symlinkSync(new URL('./', import.meta.url), link, 'dir');
+            writeFileSync(join(root, 'paths.txt'), 'package.json\n');
+            const result = spawnSync(process.execPath, [join(link, script), ...args], { cwd: root, input, encoding: 'utf8', timeout: 10_000 });
+            assert.ifError(result.error);
+            assert.equal(result.status, 1, result.stderr);
+            assert.ok(result.stdout.includes(`${label} FAIL`), result.stdout);
+        });
+    }
+    it('reports a lower baseline count without failing the probe', () => {
+        const result = spawnSync(process.execPath, [fileURLToPath(new URL('./lms-names.mjs', import.meta.url)), '--stdin', '--as', 'apps/portal/src/App.tsx'], { input: '// no hits', encoding: 'utf8', timeout: 10_000 });
+        assert.ifError(result.error);
+        assert.equal(result.status, 0, result.stderr);
+        assert.ok(result.stdout.includes('lower f1-baseline.json for apps/portal/src/App.tsx to 0'), result.stdout);
+    });
+    it('refuses the report-only flag instead of accepting a core change', () => {
+        const root = temp();
+        const paths = join(root, 'paths.txt');
+        writeFileSync(paths, 'package.json\n');
+        const result = spawnSync(process.execPath, [fileURLToPath(new URL('./channel-diff.mjs', import.meta.url)), '--channel', 'example', '--paths-from', paths, '--report-only'], { encoding: 'utf8', timeout: 10_000 });
+        assert.ifError(result.error);
+        assert.equal(result.status, 2, result.stderr);
+        assert.ok(result.stderr.includes('--report-only'), result.stderr);
+    });
+});
 describe('token scanner internals', () => {
     const path = 'services/example/src/probe.tsx';
     const words = ['moodle', 'canvas', 'd2l', 'lti-generic'];
@@ -27,9 +61,27 @@ describe('token scanner internals', () => {
         assert.deepEqual(checkText({ path, text: 'const canvaslike = "generic"; const x = "moodler";' }, words), []);
         assert.deepEqual(checkText({ path, text: 'const xD2L = ltiGeneric;' }, words).map((hit) => hit.word), ['d2l', 'lti-generic']);
     });
-    it('uses AST nodes so comments and regular expressions do not become identifiers', () => {
+    it('ignores comments but checks regex patterns and cooked strings at their source positions', () => {
         const text = '// canvas\n/* moodle */\nconst pattern = /canvas/; const value = "can\\u0076as";';
-        assert.deepEqual(checkText({ path, text }, words), [{ line: 3, col: 41, token: 'canvas', word: 'canvas' }]);
+        assert.deepEqual(checkText({ path, text }, words), [
+            { line: 3, col: 18, token: 'canvas', word: 'canvas' },
+            { line: 3, col: 41, token: 'canvas', word: 'canvas' },
+        ]);
+    });
+    it('uses regex escapes as separators and keeps identifier exceptions out of regex patterns', () => {
+        const patterns = [
+            [String.raw`/\.instructure\.com$/`, ['instructure']],
+            [String.raw`/\bcanvas\b/i`, ['canvas']],
+            ['/^(moodle|canvas|blackboard)-/', ['moodle', 'canvas', 'blackboard']],
+            [String.raw`/\dcanvas/`, ['canvas']],
+            [String.raw`/can\wvas/`, []],
+            ['/HTMLCanvasElement/', ['canvas']],
+            ['/canvases/', []],
+        ];
+        for (const [pattern, expected] of patterns) {
+            assert.deepEqual(checkText({ path, text: `const match = ${pattern};` }, [...words, 'instructure', 'blackboard']).map((hit) => hit.word), expected, pattern);
+        }
+        assert.deepEqual(checkText({ path, text: 'const flags = /neutral/gi;' }, ['g', 'i']), []);
     });
     it('visits expressions inside templates and JSX, retaining source positions', () => {
         const text = 'const x = `ok ${createMoodle()} canvas`;\nconst ui = <p title="moodle">canvas {ltiGeneric}</p>;';
@@ -58,8 +110,13 @@ describe('token scanner internals', () => {
     it('removes HTML comments and tag names but checks attribute and body values', () => {
         assert.deepEqual(checkText({ path: 'apps/example/src/page.html', text: '<!-- moodle --><canvas title="canvas">Moodle</canvas>' }, words).map((hit) => hit.word), ['canvas', 'moodle']);
     });
-    it('keeps the config exception limited to the dev URL', () => {
-        assert.deepEqual(checkText({ path: 'packages/shared/src/config.ts', text: 'const moodle = "PUBLIC_MOODLE_URL"; const canvas = "moodle";' }, words).map((hit) => hit.token), ['canvas']);
+    it('checks all JavaScript and TypeScript source extensions', () => {
+        for (const extension of ['jsx', 'cjs', 'cts']) {
+            assert.equal(checkText({ path: `apps/example/src/probe.${extension}`, text: 'const moodleName = "value";' }, words).length, 1);
+        }
+    });
+    it('checks the former config exception after S3 removed it from the scope', () => {
+        assert.deepEqual(checkText({ path: 'packages/shared/src/config.ts', text: 'const moodle = "PUBLIC_MOODLE_URL";' }, words).map((hit) => hit.token), ['moodle', 'PUBLIC_MOODLE_URL']);
     });
     it('reads display names as data and ignores the generic display text', () => {
         const root = temp();
@@ -105,6 +162,15 @@ describe('path boundaries', () => {
     });
 });
 describe('F5 adapter and portability internals', () => {
+    it('refuses a symlinked rule and a directory named like a rule', async () => {
+        for (const kind of ['symlink', 'directory']) {
+            const folder = temp();
+            const path = join(folder, 'probe.mjs');
+            if (kind === 'symlink') symlinkSync(new URL('./rules/sql-portability.mjs', import.meta.url), path);
+            else mkdirSync(path);
+            await assert.rejects(loadRules(folder), /rule_invalid probe\.mjs: rule module must be a regular file/);
+        }
+    });
     it('selects all product text extensions and skips ignored and binary input', () => {
         const root = temp();
         execFileSync('git', ['init', '-q', root]);

@@ -3,8 +3,7 @@
 // Makes the shared platform if it does not exist and prints one JSON line {platformId, created}. The same client id
 // again: prints the id and changes nothing (exit 0). Another client id: exit 1 with one line. It prints no secret.
 // A create logs `platform_created {platform_id, profile}` (§9.4, like the API) to the service log (createCliLogger).
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { createCliLogger } from '@cogniate/shared';
 import type { Logger } from '@cogniate/shared';
@@ -12,39 +11,24 @@ import { loadConfig } from '../config.ts';
 import { openDb } from '../db/index.ts';
 import type { Db } from '../db/index.ts';
 import type { ProfileOptions } from '../profiles/index.ts';
-import { findProfile, isSharedProfile, profileEndpoints } from '../profiles/index.ts';
-import { getAccount } from '../store/accounts.ts';
-import { SharedPlatformExistsError, createPlatform, findSharedPlatform } from '../store/platforms.ts';
+import { provisionSharedPlatform } from '../accounts/shared-platforms.ts';
+import { ApiError } from '../api-errors.ts';
 
 export type SharedPlatformResult = { ok: true; platformId: string; created: boolean } | { ok: false; message: string };
 
 /** The rules of contract §9.12 (unit-tested; the CLI below only parses arguments and prints). */
 export function ensureSharedPlatform(db: Db, opts: ProfileOptions, input: { account: string; profile: string; clientId: string; name?: string }, logger?: Logger): SharedPlatformResult {
-  if (!getAccount(db, input.account)) return { ok: false, message: `Unknown tool account: ${input.account}.` };
-  const profile = findProfile(input.profile, opts);
-  if (!profile) return { ok: false, message: `Unknown provider profile: ${input.profile} (UNKNOWN_PROFILE).` };
-  if (!isSharedProfile(profile)) return { ok: false, message: `Profile ${profile.id} is not a shared profile.` };
-  if (!/^[\x21-\x7e]{1,255}$/.test(input.clientId)) return { ok: false, message: 'The client id must be 1 to 255 printable ASCII characters without spaces.' };
-  const existing = findSharedPlatform(db, input.account, profile.id);
-  if (existing) {
-    if (existing.clientId === input.clientId) return { ok: true, platformId: existing.id, created: false };
-    return { ok: false, message: `A ${profile.id} shared platform with another client id exists (${existing.id}). Nothing changed.` };
-  }
-  const e = profileEndpoints(profile, { clientId: input.clientId });
   try {
-    const p = createPlatform(db, input.account, {
-      issuer: e.issuer, clientId: input.clientId, name: input.name ?? 'Cogniate', authEndpoint: e.authenticationEndpoint, tokenEndpoint: e.accesstokenEndpoint,
-      jwksUrl: e.jwksUrl, deploymentIds: [], active: true, profile: profile.id, shared: true,
-    });
-    logger?.info('platform_created', { platform_id: p.id, profile: p.profile });
-    return { ok: true, platformId: p.id, created: true };
+    const { platform, created } = provisionSharedPlatform(db, opts, input);
+    if (created) logger?.info('platform_created', { platform_id: platform.id, profile: platform.profile });
+    return { ok: true, platformId: platform.id, created };
   } catch (err) {
-    if (err instanceof SharedPlatformExistsError) return { ok: false, message: `A ${profile.id} shared platform exists. Run the command again.` };
+    if (err instanceof ApiError) return { ok: false, message: err.description };
     throw err;
   }
 }
 
-if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   const { values } = parseArgs({ options: { account: { type: 'string' }, profile: { type: 'string' }, 'client-id': { type: 'string' }, name: { type: 'string' } } });
   if (!values.account || !values.profile || !values['client-id']) {
     console.error('Usage: shared-platform.ts --account <id> --profile <shared profile> --client-id <Application ID> [--name <name>]');
