@@ -13,7 +13,7 @@ import { LOGS_DIR, SECRETS_DIR } from '../../../acceptance/lib/paths';
 
 /** Operator listener of the acceptance profile (LA-ADR-06 D3). */
 export const OPERATOR_URL = (process.env.QA_OPERATOR_URL ?? 'http://lti-service:4110').replace(/\/+$/, '');
-/** Written by `stack:up` (`lti:operator init --if-none`) and by the `--replace` procedure (operability §6.4). */
+/** Written by `npm run seed` (`infra/scripts/lti-bootstrap.sh` runs `lti:operator init --if-none`) and by the `--replace` procedure (operability §6.4). */
 export const OPERATOR_KEY_FILE = path.join(SECRETS_DIR, 'lti-operator-key');
 /** Contract delta §1.2: `ltio_` + 43 base64url characters. */
 export const OPERATOR_KEY_RE = /^ltio_[A-Za-z0-9_-]{43}$/;

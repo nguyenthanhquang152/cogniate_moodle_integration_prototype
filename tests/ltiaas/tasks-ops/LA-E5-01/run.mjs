@@ -10,7 +10,7 @@
 // 1. Setup: npm ci, gen-env, compose name guard, `npm run stack:up` (#1, default profile), `npm run seed`, H1 check.
 // 2. AC-LA-E5-01-04 (host): default profile; the last `service_started` line of lti-service has
 //    operator_bind "127.0.0.1:4110".
-// 3. AC-LA-E5-01-06 host part: a second `npm run stack:up` on the same volume exits 0; the key file is unchanged.
+// 3. AC-LA-E5-01-06 host part: a second `npm run seed` on the same volume exits 0; the key file is unchanged.
 // 4. In-container pass QA_TASK=LA-E5-01 (`npm run test:acceptance`: acceptance profile, the suite, then the default
 //    profile again). During the pass the runner answers one host action, only for this QA project:
 //    qa2-operator-init = QA form (c): `docker compose exec -T lti-service npm run lti:operator -- init [--if-none |
@@ -82,15 +82,15 @@ async function defaultProfileBind() {
     ]);
 }
 
-async function secondStackUp() {
+async function secondSeed() {
   const before = sha256(KEY_FILE());
-  const up = await r.npm('stack-up-2', ['run', 'stack:up'], { timeoutMs: 900_000 });
+  const seed2 = await r.npm('seed-2', ['run', 'seed'], { timeoutMs: 900_000 });
   const after = sha256(KEY_FILE());
-  r.record('AC-LA-E5-01-06', 'host part: a second npm run stack:up on the same volume exits 0, and the operator key file is unchanged',
-    r.pass(up.code === 0 && before !== null && before === after), [
-      `stack:up #2 exit ${up.code}; key file SHA-256 ${before === null ? 'missing' : before === after ? 'unchanged' : 'CHANGED'}`,
-      `stack:up output has "operator key exists": ${/operator key exists/.test(up.stdout + up.stderr)} (information)`,
-    ], [up.log]);
+  r.record('AC-LA-E5-01-06', 'host part: a second npm run seed on the same volume exits 0, and infra/.secrets/lti-operator-key is unchanged',
+    r.pass(seed2.code === 0 && before !== null && before === after), [
+      `seed #2 exit ${seed2.code}; key file SHA-256 ${before === null ? 'missing' : before === after ? 'unchanged' : 'CHANGED'}`,
+      `seed #2 output has "operator key exists": ${/operator key exists/.test(seed2.stdout + seed2.stderr)} (information)`,
+    ], [seed2.log]);
 }
 
 /** QA form (c) for the in-container tests (host-init.ts). Own QA project only: STACK_ENV and the H1 guard. */
@@ -136,7 +136,7 @@ await r.main(async () => {
   const started = Date.now();
   if (!(await setup())) return;
   await defaultProfileBind();
-  await secondStackUp();
+  await secondSeed();
   const control = createHostControl(r, { 'qa2-operator-init': operatorInit });
   const stop = control.start();
   const passStart = Date.now();

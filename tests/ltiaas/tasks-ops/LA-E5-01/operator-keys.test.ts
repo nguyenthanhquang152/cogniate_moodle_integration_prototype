@@ -198,7 +198,7 @@ it('AC-LA-E5-01-05 docker compose exec lti-service npm run lti:operator -- init 
   assert.deepEqual(stable(after.rows), stable(before.rows), 'the operator key list did not change');
 });
 
-it('AC-LA-E5-01-06 init --if-none on the same stack exits 0 with the line "operator key exists" and issues no key (the second stack:up is the host row)', async () => {
+it('AC-LA-E5-01-06 init --if-none on the same stack exits 0 with the line "operator key exists" and issues no key (the second npm run seed is the host row)', async () => {
   const before = await listOperatorKeys(primary);
   assert.equal(before.res.status, 200, 'list before');
   const r = await operatorInit('if-none');
