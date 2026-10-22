@@ -224,6 +224,9 @@ prepare_e2e() {
   # T2b: QA's qa-platform.test files (writable in e2e, served read-only by qa-platform). Another folder: QA_PLATFORM_DIR.
   [[ -n "${QA_PLATFORM_DIR:-}" ]] || mkdir -p "$REPO_ROOT/tests/fixtures/qa-platform"
   write_public_env
+  # The mount point of the tmpfs that hides the key ring in the e2e container (compose.yaml). It must exist on the host,
+  # because the read-only bind of infra/.secrets cannot make it.
+  mkdir -p "$INFRA_DIR/.secrets/lti"; chmod 700 "$INFRA_DIR/.secrets/lti"
   # Public certificates only, for /repo/infra/.certs in the e2e container (read-only, no keys).
   mkdir -p "$REPO_ROOT/.tmp/public-certs"
   find "$REPO_ROOT/.tmp/public-certs" -mindepth 1 -delete
