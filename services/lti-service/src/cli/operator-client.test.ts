@@ -35,10 +35,13 @@ it('formats an IPv6 listener and preserves operator error status/code without re
   expect(fetch.mock.calls[0]?.[0]).toBe('http://[::1]:4321/operator/v1/accounts/one/api-keys');
 });
 
-it('names a rejected operator key file and tells the operator to refresh the copy', async () => {
+it('names the host file and a real recovery path when the server rejects the copied key', async () => {
   const h = fixture(); vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 401 })));
   await expect(createOperatorClient(h.env).request('GET', '/accounts')).rejects.toThrow(`Operator key file ${h.file}`);
   await expect(createOperatorClient(h.env).request('GET', '/accounts')).rejects.toThrow('npm run seed');
+  await expect(createOperatorClient(h.env).request('GET', '/accounts')).rejects.toThrow('infra/.secrets/lti-operator-key');
+  await expect(createOperatorClient(h.env).request('GET', '/accounts')).rejects.toThrow('Put the current operator key');
+  await expect(createOperatorClient(h.env).request('GET', '/accounts')).rejects.toThrow('--replace-operator-key (init --replace)');
 });
 
 it.each(['missing', 'malformed'])('refuses a %s key before any HTTP request', (kind) => {
@@ -46,6 +49,7 @@ it.each(['missing', 'malformed'])('refuses a %s key before any HTTP request', (k
   if (kind === 'missing') rmSync(h.file); else writeFileSync(h.file, 'invalid-key');
   const fetch = vi.fn(); vi.stubGlobal('fetch', fetch);
   expect(() => createOperatorClient(h.env)).toThrow(h.file);
+  expect(() => createOperatorClient(h.env)).toThrow('Run npm run seed again.');
   expect(fetch).not.toHaveBeenCalled();
 });
 
