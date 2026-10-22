@@ -1,3 +1,4 @@
+import type { OutboundClient } from '@cogniate/shared';
 // T8 (stretch): .mbz builds through the host-side Build Runner queue, Moodle web services token, course shell.
 import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -6,8 +7,6 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { makeZip, scormManifest } from '@cogniate/package-inspector/testing';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { MoodleWsClient } from '../clients/moodle-ws.ts';
-import { MoodleWsError } from '../clients/moodle-ws.ts';
 import type { TestApp } from '../testkit.ts';
 import { QA_B, TEST_URLS, THANH, formBody, queueDir, testApp } from '../testkit.ts';
 
@@ -95,7 +94,7 @@ describe('.mbz builds (app contract §11, ADR-007)', () => {
 
   it('the host runner checks every request field (untrusted input; no path from the request is used)', () => {
     const queue = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'infra', 'build-runner', 'queue.mjs');
-    const good = { buildId: `bld_${'a'.repeat(24)}`, courseId: `crs_${'A'.repeat(22)}`, versionId: `ver_${'B'.repeat(22)}`, packageSha256: 'f'.repeat(64), variant: 'default', lang: 'en', title: 'T', hold: false, failAt: '' };
+    const good = { libraryId: `lib_${'L'.repeat(22)}`, buildId: `bld_${'a'.repeat(24)}`, courseId: `crs_${'A'.repeat(22)}`, versionId: `ver_${'B'.repeat(22)}`, packageSha256: 'f'.repeat(64), variant: 'default', lang: 'en', title: 'T', hold: false, failAt: '' };
     const run = (r: object) => {
       const file = join(t.dataDir, 'req.json');
       writeFileSync(file, JSON.stringify(r));
@@ -114,22 +113,29 @@ describe('.mbz builds (app contract §11, ADR-007)', () => {
 function fakeWs(opts: { functions?: string[]; reject?: string } = {}) {
   const courses = new Map<string, number>();
   const calls: string[] = [];
-  const ws: MoodleWsClient = {
-    async siteInfo(_s, token) {
-      calls.push(`siteInfo ${token}`);
-      if (opts.reject) throw new MoodleWsError(opts.reject, 'Invalid token - token not found');
-      return { siteName: 'Cogniate Dev Moodle', release: '5.2.4 (Build: 20261005)', functions: opts.functions ?? ['core_webservice_get_site_info', 'core_course_get_courses_by_field', 'core_course_create_courses', 'core_user_get_users'] };
-    },
-    async courseByIdnumber(_s, _t, idnumber) {
-      calls.push(`get ${idnumber}`);
-      const id = courses.get(idnumber);
-      return id ? { id, idnumber, shortname: idnumber, visible: 0 } : null;
-    },
-    async createCourse(_s, _t, c) {
-      calls.push(`create ${c.idnumber} ${c.shortname} cat=${c.categoryId}`);
-      const id = courses.size + 10;
-      courses.set(c.idnumber, id);
-      return id;
+  const ws: OutboundClient = {
+    allowlist: [],
+    async request(_url, options) {
+      const body = new URLSearchParams(String(options?.body));
+      const fn = body.get('wsfunction');
+      let value: unknown;
+      if (fn === 'core_webservice_get_site_info') {
+        calls.push('info');
+        value = opts.reject ? { exception: 'moodle_exception', errorcode: opts.reject, message: 'Invalid token - token not found' }
+          : { sitename: 'Cogniate Dev Moodle', release: '5.2.4 (Build: 20261005)', functions: (opts.functions ?? ['core_webservice_get_site_info', 'core_course_get_courses_by_field', 'core_course_create_courses', 'core_user_get_users']).map((name) => ({ name })) };
+      } else if (fn === 'core_course_get_courses_by_field') {
+        const idnumber = body.get('value')!;
+        calls.push(`get ${idnumber}`);
+        const id = courses.get(idnumber);
+        value = { courses: id ? [{ id, idnumber, shortname: idnumber, visible: 0 }] : [] };
+      } else if (fn === 'core_course_create_courses') {
+        const idnumber = body.get('courses[0][idnumber]')!;
+        calls.push(`create ${idnumber} ${body.get('courses[0][shortname]')} cat=${body.get('courses[0][categoryid]')}`);
+        const id = courses.size + 10;
+        courses.set(idnumber, id);
+        value = [{ id }];
+      } else throw new Error('Unexpected web service');
+      return { status: 200, headers: {}, body: Buffer.from(JSON.stringify(value)), text: () => JSON.stringify(value), json: () => value };
     },
   };
   return { ws, calls, courses };
@@ -145,7 +151,7 @@ const TOKEN = '0123456789abcdef0123456789abcdef';
 describe('web services token and course shell (app contract §11)', () => {
   it('AC-T8-08: PUT web-services -> 200 with release and functions; the token is stored encrypted; a wrong token -> 422 WS_TOKEN_INVALID', async () => {
     const f = fakeWs();
-    t = await testApp({ moodleWs: f.ws });
+    t = await testApp({ outbound: f.ws });
     const cookie = await t.login(THANH);
     const id = await registeredConnection(cookie);
     const r = await json('PUT', `/app-api/connections/${id}/web-services`, cookie, { token: TOKEN });
@@ -155,7 +161,7 @@ describe('web services token and course shell (app contract §11)', () => {
     const shown = (await json('GET', `/app-api/connections/${id}`, cookie)).json();
     expect(shown.webServices).toEqual({ siteName: 'Cogniate Dev Moodle', release: '5.2.4 (Build: 20261005)' }); // AC-T8-10: the checkbox shows
     expect(JSON.stringify(shown)).not.toContain(TOKEN);
-    const wrong = await testApp({ moodleWs: fakeWs({ reject: 'invalidtoken' }).ws });
+    const wrong = await testApp({ outbound: fakeWs({ reject: 'invalidtoken' }).ws });
     const c2 = await wrong.login(THANH);
     const id2 = (await wrong.app.inject({ method: 'POST', url: '/app-api/connections', headers: wrong.writeHeaders(c2), payload: { name: 'M', siteUrl: TEST_URLS.moodle, method: 'manual' } })).json().id;
     const bad = await wrong.app.inject({ method: 'PUT', url: `/app-api/connections/${id2}/web-services`, headers: wrong.writeHeaders(c2), payload: { token: TOKEN } });
@@ -164,7 +170,7 @@ describe('web services token and course shell (app contract §11)', () => {
   });
 
   it('a token without a needed function -> 422 WS_FUNCTIONS_MISSING with the list', async () => {
-    t = await testApp({ moodleWs: fakeWs({ functions: ['core_webservice_get_site_info'] }).ws });
+    t = await testApp({ outbound: fakeWs({ functions: ['core_webservice_get_site_info'] }).ws });
     const cookie = await t.login(THANH);
     const id = await registeredConnection(cookie);
     const r = await json('PUT', `/app-api/connections/${id}/web-services`, cookie, { token: TOKEN });
@@ -173,7 +179,7 @@ describe('web services token and course shell (app contract §11)', () => {
 
   it('AC-T8-09: publish with createMoodleCourse -> a hidden course with idnumber cogniate:<course>:default:en; again -> exists; without a token -> failed', async () => {
     const f = fakeWs();
-    t = await testApp({ moodleWs: f.ws });
+    t = await testApp({ outbound: f.ws });
     const cookie = await t.login(THANH);
     const id = await registeredConnection(cookie);
     const v = await version(cookie, scorm, 'Shell course');
@@ -268,7 +274,7 @@ describe('B-T8-01 / B-T8-02: interrupted builds, runner heartbeat, per-library l
     await json('POST', url, cookie);
     t.clock.now += 61_000;
     expect((await json('GET', url, cookie)).json().reason).toContain('The Build Runner is not running');
-    const hb = (image: string) => writeFileSync(join(queueDir(t.dataDir), 'status', 'runner.json'), JSON.stringify({ pid: 1, lastSeenAt: new Date(t.clock.now).toISOString(), image }));
+    const hb = (image: string) => writeFileSync(join(queueDir(t.dataDir), 'status', 'runner.json'), JSON.stringify({ pid: 1, startedAt: new Date(t.clock.now).toISOString(), lastSeenAt: new Date(t.clock.now).toISOString(), image }));
     hb('building');
     expect((await json('GET', url, cookie)).json().reason).toContain('making its build image');
     hb('failed');
@@ -300,7 +306,7 @@ describe('B-T8-01 / B-T8-02: interrupted builds, runner heartbeat, per-library l
     const b = (await json('POST', mbz(vs[1]!), cookie)).json().buildId as string;
     t.clock.now += 11 * 60_000;
     // B is held (BUILD_RUNNER_HOLD): the runner rewrites its status every 30 s, so B is not timed out.
-    writeFileSync(join(queueDir(t.dataDir), 'status', `${b}.json`), JSON.stringify({ status: 'running', step: 'copy', holdFile: `hold/${b}`, updatedAt: new Date(t.clock.now).toISOString() }));
+    writeFileSync(join(queueDir(t.dataDir), 'status', `${b}.json`), JSON.stringify({ status: 'running', step: 'copy', holdFile: `infra/.data/build-queue/hold/${b}`, updatedAt: new Date(t.clock.now).toISOString() }));
     // Nobody opened A or B: the POST for C applies the time-out to them first (A failed, B still running).
     expect((await json('POST', mbz(vs[2]!), cookie)).statusCode).toBe(202);
     expect((await json('GET', mbz(vs[0]!), cookie)).json()).toMatchObject({ status: 'failed', reason: expect.stringContaining('did not take this build in 10 min') });

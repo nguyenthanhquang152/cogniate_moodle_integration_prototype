@@ -27,14 +27,10 @@ let t: TestApp;
 afterEach(async () => { vi.clearAllTimers(); vi.useRealTimers(); vi.restoreAllMocks(); await t?.app.close(); });
 
 /** A Moodle web services client that must never be called for another LMS (no outbound call). */
-const noWs = {
-  siteInfo: () => { throw new Error('web services called'); },
-  courseByIdnumber: () => { throw new Error('web services called'); },
-  createCourse: () => { throw new Error('web services called'); },
-};
+const noWs = { allowlist: [], request: async () => { throw new Error('web services called'); } };
 
 async function setup() {
-  t = await testApp({ moodleWs: noWs });
+  t = await testApp({ outbound: noWs });
   const shared = t.lti.addSharedPlatform('blackboard-sim', BB);
   const logger = createLogger({ service: 'cogniate-app', level: 'debug', write: (l) => t.logs.push(JSON.parse(l)) });
   const cleanup = createBindingCleanup({ db: t.db, lti: t.lti.client, logger, now: () => t.clock.now });
