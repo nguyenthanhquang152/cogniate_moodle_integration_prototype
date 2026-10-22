@@ -17,9 +17,47 @@ const scope = JSON.parse(readFileSync(new URL('packages/channel-kernel/fitness-s
 const qaImports = { group: ['**/tests/**'], message: 'Do not import from tests/** (QA only).' };
 const channelImports = { group: ['**/packages/channels/**', 'packages/channels/**'], message: 'Core must use channel registry discovery (LA-ADR-01 D1).' };
 const kernelTypes = { name: '@cogniate/channel-kernel', allowTypeImports: true, message: 'Channel files may import kernel types only (LA-ADR-01 D1).' };
+const sharedTypes = { name: '@cogniate/shared', allowTypeImports: true, message: 'Use import type from @cogniate/shared; values come from @cogniate/shared/channel (BD-A2-11).' };
 const portPath = '(?:\\.\\./)+services/cogniate-app/src/kernel/ports\\.ts';
 const portTypes = { regex: `^${portPath}$`, caseSensitive: true, allowTypeImports: true, message: 'Import app port types only (LA-ADR-01 D1).' };
-const onlyImports = (allowed) => ({ regex: `^(?!(?:${allowed})$)`, caseSensitive: true, message: 'This import is outside the channel entry point API (LA-ADR-01 D1).' });
+const baseChannelImports = [qaImports, {
+  regex: '^@cogniate/(?:cogniate-app|lti-service|portal|player)(?:/|$)', caseSensitive: true,
+  message: 'Channels use kernel ports or the portal SDK, never service or app packages (LA-ADR-01 D1).',
+}];
+const kernelPath = '@cogniate/channel-kernel';
+const appPaths = `${kernelPath}|@cogniate/shared(?:/channel)?|${portPath}|\\.{1,2}/.*`;
+const portalPaths = `${kernelPath}|@cogniate/portal-sdk|react(?:/.*)?|\\.{1,2}/.*`;
+const testTools = 'vitest(?:/.*)?|@testing-library/(?:react|dom|user-event)(?:/.*)?|node:(?:assert(?:/strict)?|test)';
+const importRows = {
+  manifest: { allowed: kernelPath, message: 'A manifest imports only @cogniate/channel-kernel types.' },
+  profiles: { allowed: `${kernelPath}|\\./manifest\\.ts`, message: 'LTI profiles import kernel types and their own ./manifest.ts.' },
+  app: { allowed: appPaths, message: 'App modules import kernel/port/shared types, @cogniate/shared/channel values and their own manifest/app files.' },
+  appTest: { allowed: `${appPaths}|${testTools}`, message: 'App tests use the app import API and test tools.' },
+  portal: { allowed: portalPaths, message: 'Portal modules import kernel types, React, the portal SDK and their own manifest/portal files.' },
+  portalTest: { allowed: `${portalPaths}|${testTools}`, message: 'Portal tests use the portal import API and test tools.' },
+  rootTest: { allowed: `${kernelPath}|\\.{1,2}/.*|${testTools}`, message: 'Root tests import their own channel files, kernel types and test tools.' },
+};
+const onlyImports = (row) => ({ regex: `^(?!(?:${row.allowed})$)`, caseSensitive: true, message: `${row.message} (LA-ADR-01 D1).` });
+// Every row keeps the base fence. The path rule below resolves traversal and the two path exceptions.
+const channelImportsFor = (kind) => ['error', {
+  paths: [kernelTypes, sharedTypes], patterns: [...baseChannelImports, portTypes, onlyImports(importRows[kind])],
+}];
+const isTest = (file) => /\.test\.[^/]+$/.test(file);
+const channelKind = (entry) => {
+  if (entry === 'manifest.ts') return 'manifest';
+  if (entry === 'lti-profiles.ts') return 'profiles';
+  if (entry === 'app.ts') return 'app';
+  if (entry === 'README.md') return 'readme';
+  if (isTest(entry)) {
+    if (/^[^/]+\.test\.ts$/.test(entry)) return 'rootTest';
+    if (/^app\/.*\.test\.ts$/.test(entry)) return 'appTest';
+    if (/^portal\/.*\.test\.tsx$/.test(entry)) return 'portalTest';
+    return null;
+  }
+  if (entry.startsWith('app/')) return 'app';
+  if (entry.startsWith('portal/')) return 'portal';
+  return null;
+};
 
 const inside = (folder, file) => {
   const path = relative(folder, file);
@@ -29,25 +67,44 @@ const inside = (folder, file) => {
 // no-restricted-imports enforces the API table below. Resolve relative imports too: a glob alone cannot
 // tell if ../../ leaves the current channel at every nesting depth. No channel ids are listed here.
 const localBoundary = {
-  meta: { type: 'problem', schema: [], messages: { boundary: 'This path crosses the channel boundary (LA-ADR-01 D1).' } },
+  meta: { type: 'problem', schema: [], messages: {
+    boundary: 'Use files allowed for this channel entry: its own manifest/app/portal files, app port types or the portal SDK (LA-ADR-01 D1).',
+    core: 'Core must use channel registry discovery, never a channel path (LA-ADR-01 D1).',
+    kind: 'This is not a D1 channel file kind. Use manifest.ts, lti-profiles.ts, app.ts, app/**, portal/**, a colocated test or README.md.',
+    dynamic: 'No runtime dynamic loading in channel files, including tests (LA-ADR-01 D1).',
+    test: 'A non-test channel file must not import a test file (LA-ADR-01 D1).',
+    type: '{{allowed}} Type-position imports follow the same row (LA-ADR-01 D1).',
+  } },
   create(context) {
     const file = context.filename;
     const inChannel = inside(channelsRoot, file);
     const channel = inChannel ? resolve(channelsRoot, relative(channelsRoot, file).split('/')[0]) : null;
     const entry = channel ? relative(channel, file) : '';
+    const kind = channelKind(entry);
+    const specifier = (source) => {
+      if (typeof source?.value === 'string') return source.value;
+      if (source?.type === 'TemplateLiteral' && source.expressions.length === 0) return source.quasis[0].value.cooked;
+      return null;
+    };
     const check = (source) => {
-      if (!source || typeof source.value !== 'string') return;
-      const value = source.value;
+      const value = specifier(source);
+      if (value === null) return;
+      if (!channel && value.startsWith('packages/channels/')) context.report({ node: source, messageId: 'core' });
       if (!value.startsWith('.') && !isAbsolute(value)) return;
       const target = resolve(dirname(file), value);
       if (!channel) {
-        if (inside(channelsRoot, target)) context.report({ node: source, messageId: 'boundary' });
+        if (inside(channelsRoot, target)) context.report({ node: source, messageId: 'core' });
         return;
       }
+      if (!isTest(entry) && isTest(target)) context.report({ node: source, messageId: 'test' });
       if (inside(channel, target)) {
-        // Portal code can use its own modules and manifest, but cannot load the channel's server code.
-        if (entry.startsWith('portal/') && !/\.test\.[tj]sx?$/.test(entry)
-          && !inside(resolve(channel, 'portal'), target) && target !== resolve(channel, 'manifest.ts')) {
+        const ownEntry = relative(channel, target);
+        const ownKind = channelKind(ownEntry);
+        const allowed = kind === 'rootTest'
+          || (kind === 'profiles' && ownEntry === 'manifest.ts')
+          || ((kind === 'app' || kind === 'appTest') && (ownEntry === 'manifest.ts' || ownEntry.startsWith('app/')))
+          || ((kind === 'portal' || kind === 'portalTest') && (ownEntry === 'manifest.ts' || ownEntry.startsWith('portal/')));
+        if (!allowed || !ownKind || ownKind === 'readme') {
           context.report({ node: source, messageId: 'boundary' });
         }
         return;
@@ -56,13 +113,39 @@ const localBoundary = {
       if (entry.startsWith('portal/') && inside(resolve(root, 'apps/portal/src/sdk'), target)) return;
       context.report({ node: source, messageId: 'boundary' });
     };
+    const dynamic = (node, source) => {
+      if (channel) context.report({ node, messageId: 'dynamic' });
+      else check(source);
+    };
     return {
-      ImportDeclaration: (node) => check(node.source),
+      Program: (node) => { if (channel && !kind) context.report({ node, messageId: 'kind' }); },
+      ImportDeclaration: (node) => {
+        check(node.source);
+        if (channel && node.specifiers.some((s) => s.type === 'ImportSpecifier' && (s.imported.name ?? s.imported.value) === 'createRequire')) {
+          context.report({ node, messageId: 'dynamic' });
+        }
+      },
       ExportNamedDeclaration: (node) => check(node.source),
       ExportAllDeclaration: (node) => check(node.source),
-      ImportExpression: (node) => check(node.source),
-      TSImportType: (node) => check(node.source),
-      CallExpression: (node) => { if (node.callee.type === 'Identifier' && node.callee.name === 'require') check(node.arguments[0]); },
+      ImportExpression: (node) => dynamic(node, node.source),
+      TSImportType: (node) => {
+        check(node.source);
+        const row = importRows[kind];
+        if (channel && row && !new RegExp(`^(?:${row.allowed})$`).test(specifier(node.source))) {
+          context.report({ node, messageId: 'type', data: { allowed: row.message } });
+        }
+      },
+      TSImportEqualsDeclaration: (node) => {
+        if (node.moduleReference.type === 'TSExternalModuleReference') dynamic(node, node.moduleReference.expression);
+      },
+      CallExpression: (node) => {
+        const callee = node.callee;
+        if (callee.type === 'Identifier' && callee.name === 'require') dynamic(node, node.arguments[0]);
+        if (channel && ((callee.type === 'Identifier' && callee.name === 'createRequire')
+          || (callee.type === 'MemberExpression' && (callee.computed ? specifier(callee.property) : callee.property.name) === 'createRequire'))) {
+          context.report({ node, messageId: 'dynamic' });
+        }
+      },
     };
   },
 };
@@ -99,6 +182,22 @@ export default tseslint.config(
     rules: { 'channels/local-boundary': 'error' },
   },
   {
+    // Include non-code and extensionless files too, so an unknown file kind cannot escape lint discovery.
+    files: ['packages/channels/*/**/*.*', 'packages/channels/*/**/!(*.*)'],
+    languageOptions: {
+      parser: {
+        meta: { name: 'channel-file-kinds', version: '1' },
+        parseForESLint(code, options) {
+          const entry = relative(channelsRoot, options.filePath).split('/').slice(1).join('/');
+          // Validate the layout before parsing unknown files; README and assets have no JS import syntax.
+          const source = channelKind(entry) && /\.[cm]?[jt]sx?$/.test(entry) ? code : '';
+          return tseslint.parser.parseForESLint(source, options);
+        },
+      },
+    },
+    rules: { 'no-restricted-imports': ['error', { paths: [kernelTypes, sharedTypes], patterns: baseChannelImports }] },
+  },
+  {
     files: scope.classes.core.globs,
     rules: { 'no-restricted-imports': ['error', { patterns: [qaImports, channelImports] }] },
   },
@@ -117,28 +216,36 @@ export default tseslint.config(
   },
   {
     files: ['packages/channels/*/manifest.ts'],
-    rules: { 'no-restricted-imports': ['error', { paths: [kernelTypes], patterns: [onlyImports('@cogniate/channel-kernel')] }] },
+    rules: { 'no-restricted-imports': channelImportsFor('manifest') },
   },
   {
     files: ['packages/channels/*/lti-profiles.ts'],
-    rules: { 'no-restricted-imports': ['error', { paths: [kernelTypes], patterns: [onlyImports('@cogniate/channel-kernel|\\./manifest\\.ts')] }] },
+    rules: { 'no-restricted-imports': channelImportsFor('profiles') },
   },
   {
-    files: ['packages/channels/*/app.ts'],
-    rules: { 'no-restricted-imports': ['error', { paths: [kernelTypes], patterns: [portTypes, onlyImports(`@cogniate/channel-kernel|${portPath}`)] }] },
-  },
-  {
-    files: ['packages/channels/*/app/**'],
-    ignores: ['**/*.test.{ts,tsx}'],
-    rules: { 'no-restricted-imports': ['error', {
-      paths: [kernelTypes], patterns: [qaImports, portTypes, onlyImports(`@cogniate/(?:channel-kernel|shared)|${portPath}|\\.{1,2}/.*`)],
-    }] },
+    files: ['packages/channels/*/app.ts', 'packages/channels/*/app/**'],
+    rules: {
+      'no-restricted-imports': channelImportsFor('app'),
+      'no-restricted-globals': ['error', {
+        globals: ['fetch', 'WebSocket', 'process'].map((name) => ({ name, message: 'Channel server code uses PortContext capabilities (BD-A2-11).' })),
+        checkGlobalObject: true,
+      }],
+    },
   },
   {
     files: ['packages/channels/*/portal/**'],
-    ignores: ['**/*.test.{ts,tsx}'],
-    rules: { 'no-restricted-imports': ['error', {
-      paths: [kernelTypes], patterns: [qaImports, onlyImports('@cogniate/(?:channel-kernel|portal-sdk)|react(?:/.*)?|\\.{1,2}/.*')],
-    }] },
+    rules: { 'no-restricted-imports': channelImportsFor('portal') },
+  },
+  {
+    files: ['packages/channels/*/*.test.ts'],
+    rules: { 'no-restricted-imports': channelImportsFor('rootTest') },
+  },
+  {
+    files: ['packages/channels/*/app/**/*.test.ts'],
+    rules: { 'no-restricted-imports': channelImportsFor('appTest') },
+  },
+  {
+    files: ['packages/channels/*/portal/**/*.test.tsx'],
+    rules: { 'no-restricted-imports': channelImportsFor('portalTest') },
   },
 );

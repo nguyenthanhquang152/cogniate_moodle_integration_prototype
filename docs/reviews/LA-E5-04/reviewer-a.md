@@ -58,3 +58,14 @@ Round: 1
 
 - The K1-SIM ACs (AC-01 to AC-09) wait for QA-2's Docker window. AC-08 also waits for LA-E5-07. The unit tests above cover their logic.
 - `lti:shared-platform` (direct database write) and `lti:bootstrap` still change data without an audit event until LA-E5-05, as the spec says (Out).
+
+## Note after LA-E5-07 merge
+
+- Checked at `4d692e1` (the LA-E5-07 merge; lane S2 commit `98e40a2`). This is not a full round 2: MINOR 02 and NIT 03 stay open for S1's fix round.
+- **A-LA-E5-04-01 (BLOCKER): closed.** `POST …/signing-keys` and `POST …/signing-keys/:kid/activate` now call `requireWritableAccount` as a pre-check (before `prepareToolKey`) and again inside the `audit.change` callback, as BD-A2-12 asks (`http/operator/signing-keys.ts`).
+- I re-ran my round-1 probe (in-memory database, operator API only). On a closed account:
+  - Signing-key create gives `409 ACCOUNT_CLOSED`.
+  - A forced activate gives `409 ACCOUNT_CLOSED`.
+  - API key issue (LA-E5-07) gives `409 ACCOUNT_CLOSED`.
+  - Each refusal writes one `refused` event with that code.
+  - Retire immediate of the `next` key still gives `200`, because it only removes access.

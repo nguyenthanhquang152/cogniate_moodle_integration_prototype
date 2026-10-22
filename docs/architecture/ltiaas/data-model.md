@@ -318,3 +318,12 @@ stateDiagram-v2
 | `015` | the trigger refuses an `UPDATE` of `audit_event` |
 | `016` | old rows of `connection` keep `artifact_key_kid = NULL` (Reviewer-B note) |
 | LTI service | each migration from the previous schema; A2 lists the E3 and E5 tests |
+
+## 8. Notes for LG (not built in LA)
+
+LA records these items for the storage-engine milestone LG (LA-H5). LA builds none of them.
+
+| Item | Source | Note |
+| --- | --- | --- |
+| Insertion-order column | A2 BD-A2-22, [LA-ADR-06 D13](adr/LA-ADR-06-service-operability.md) item 6 | Nine pre-LA app statements use `rowid` to break a tie after a millisecond timestamp. Postgres has no stable `rowid`. The LG app store port adds an insertion-order column (for example a `bigint` identity `seq`) to `attempt`, `binding_grant`, `approved_deployment`, `mbz_build` and `score_sync`; the data move fills it from the SQLite `rowid`. |
+| Frozen columns and tables | [LA-ADR-04](adr/LA-ADR-04-refactor-and-migration.md) consequences; [LA-ADR-03](adr/LA-ADR-03-learning-record-core.md) consequences | `connection.lms` and `score_sync` stay frozen in LA; an LG clean-up can drop them with the Postgres move. |
