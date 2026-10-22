@@ -1,6 +1,7 @@
 // lti:operator init (LA-ADR-06 D3 "Trust bootstrap"): arguments, exit codes and output lines.
 import { describe, expect, it } from 'vitest';
 import { openDb } from '../db/index.ts';
+import { listAuditEvents } from '../store/audit.ts';
 import { findActiveOperatorKey, issueOperatorKey, listOperatorKeys } from '../store/operator-keys.ts';
 import { parseOperatorArgs, runInit } from './operator.ts';
 
@@ -75,5 +76,21 @@ describe('runInit', () => {
     expect(findActiveOperatorKey(db, old, T0 + 11)).toBeNull();
     expect(findActiveOperatorKey(db, other, T0 + 11)).toBeNull();
     expect(findActiveOperatorKey(db, r.stdout[0]!, T0 + 11)?.operator).toBe('qa');
+  });
+
+  it('AC-LA-E5-02-04 (CLI part): a new key writes one event operator_key.issue with actor system:bootstrap; a refusal and --if-none write none', () => {
+    const db = openDb(':memory:');
+    init(db, ['init', '--name', 'alice']);
+    init(db, ['init', '--name', 'qa'], T0 + 1);
+    init(db, ['init', '--if-none'], T0 + 2);
+    const replaced = init(db, ['init', '--replace', '--name', 'qa'], T0 + 3);
+    const newId = listOperatorKeys(db).find((k) => findActiveOperatorKey(db, replaced.stdout[0]!, T0 + 4)?.id === k.id)!.id;
+    const events = listAuditEvents(db, { limit: 10 }).events.reverse();
+    expect(events.map((e) => [e.actor, e.toolAccountId, e.action, e.result, e.details])).toEqual([
+      [{ type: 'system', id: 'bootstrap' }, null, 'operator_key.issue', 'ok', { operator: 'alice', replaced: false, revoked: 0 }],
+      [{ type: 'system', id: 'bootstrap' }, null, 'operator_key.issue', 'ok', { operator: 'qa', replaced: true, revoked: 1 }],
+    ]);
+    expect(events[1]!.target).toEqual({ type: 'operator_key', id: newId });
+    expect(JSON.stringify(events)).not.toContain(replaced.stdout[0]);
   });
 });

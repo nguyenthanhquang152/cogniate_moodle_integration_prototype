@@ -4,6 +4,7 @@
 import { randomId, randomToken, sha256Hex } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import { transaction } from '../db/index.ts';
+import { insertAuditEvent } from './audit.ts';
 
 /** Key format: "ltio_" + 43 base64url characters. */
 export const OPERATOR_KEY = /^ltio_[A-Za-z0-9_-]{43}$/;
@@ -95,7 +96,8 @@ export type InitResult =
 /**
  * `lti:operator init` (LA-ADR-06 D3 "Trust bootstrap"): the only direct database write of an operator key. One
  * transaction. When an active key exists: `refuse` and `if-none` change nothing and return `exists`; `replace`
- * revokes every key that is not revoked, then makes the new key. The new key expires after 90 days.
+ * revokes every key that is not revoked, then makes the new key. The new key expires after 90 days. A new key writes
+ * one audit event `operator_key.issue` with actor system:bootstrap (contract delta §5), in the same transaction.
  */
 export function initOperatorKey(db: Db, input: { operator: string; mode: InitMode }, now: number): InitResult {
   if (!OPERATOR_NAME.test(input.operator)) throw new Error(`invalid operator name: ${input.operator}`);
@@ -106,7 +108,12 @@ export function initOperatorKey(db: Db, input: { operator: string; mode: InitMod
     } else if (hasActiveOperatorKey(db, now)) {
       return { result: 'exists' } as const;
     }
-    return { result: 'issued', revoked, ...issueOperatorKey(db, { operator: input.operator, expiresAt: now + OPERATOR_KEY_DEFAULT_TTL_MS }, now) } as const;
+    const issued = issueOperatorKey(db, { operator: input.operator, expiresAt: now + OPERATOR_KEY_DEFAULT_TTL_MS }, now);
+    insertAuditEvent(db, {
+      actor: { type: 'system', id: 'bootstrap' }, toolAccountId: null, traceId: null, clientIp: null, action: 'operator_key.issue',
+      target: { type: 'operator_key', id: issued.record.id }, result: 'ok', details: { operator: input.operator, replaced: input.mode === 'replace', revoked },
+    }, now);
+    return { result: 'issued', revoked, ...issued } as const;
   });
 }
 

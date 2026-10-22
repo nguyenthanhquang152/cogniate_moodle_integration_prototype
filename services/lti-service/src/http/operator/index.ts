@@ -7,8 +7,11 @@ import Fastify from 'fastify';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ApiError } from '../../api-errors.ts';
 import type { Db } from '../../db/index.ts';
+import type { AuditTarget, AuditedRequest } from '../../store/audit.ts';
+import { withAudit } from '../../store/audit.ts';
 import { findActiveOperatorKey } from '../../store/operator-keys.ts';
 import { BODY_LIMIT, installApiBasics } from '../app.ts';
+import { registerAuditRoutes } from './audit.ts';
 import { registerOperatorKeyRoutes } from './operator-keys.ts';
 
 /** The operator of an accepted request. The audit actor is operator:<operator>. */
@@ -30,6 +33,19 @@ export interface OperatorContext {
   now: () => number;
   /** The operator of the request. The auth hook sets it before a route runs. */
   operator: (req: FastifyRequest) => OperatorIdentity;
+  /**
+   * One audit event for this operator request (LA-ADR-06 D4 rule 1; actor operator:<name>): `ok` in the transaction of
+   * `audit.change`, or `refused` with the code after a 4xx. Every non-GET route uses it, and GET /operator/v1/audit.
+   */
+  audited: <R>(req: FastifyRequest, event: OperatorAuditEvent, body: (audit: AuditedRequest) => Promise<R> | R) => Promise<R>;
+}
+
+export interface OperatorAuditEvent {
+  action: string;
+  target: AuditTarget;
+  /** The tenant of the change; null (default) for an operator-global action. */
+  toolAccountId?: string | null;
+  details?: Record<string, unknown> | null;
 }
 
 export interface OperatorDeps {
@@ -40,6 +56,7 @@ export interface OperatorDeps {
 
 const MOUNTS: Array<(app: FastifyInstance, ctx: OperatorContext) => void> = [
   registerOperatorKeyRoutes,
+  registerAuditRoutes,
 ];
 
 /**
@@ -64,12 +81,17 @@ export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInsta
     return json(req, text, done);
   });
 
+  const operator = (req: FastifyRequest): OperatorIdentity => {
+    if (!req.operator) throw new Error('operator route without the operator auth hook');
+    return req.operator;
+  };
   const ctx: OperatorContext = {
-    db: deps.db, logger: log, now,
-    operator: (req) => {
-      if (!req.operator) throw new Error('operator route without the operator auth hook');
-      return req.operator;
-    },
+    db: deps.db, logger: log, now, operator,
+    // Client address: the socket address until LA-E5-03 (LA-ADR-06 D1).
+    audited: (req, event, body) => withAudit(deps.db, now, {
+      actor: { type: 'operator', id: operator(req).operator }, toolAccountId: event.toolAccountId ?? null, traceId: req.traceId, clientIp: req.ip,
+      action: event.action, target: event.target, details: event.details ?? null,
+    }, body),
   };
 
   app.decorateRequest('operator', null);
