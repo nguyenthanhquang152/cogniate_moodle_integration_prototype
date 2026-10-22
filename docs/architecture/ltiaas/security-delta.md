@@ -125,7 +125,7 @@ Replaced and new rows of the table:
 | --- | --- | --- | --- |
 | Claim policy | A tool account `claimPolicy` (`allowlist` or `passthrough`, `keep` groups) on top of the profile `privacyFloor`. New accounts default to `allowlist`. `cogniate` moves to `allowlist` in E3 (D-9). | LA-ADR-05 D7; LA-ADR-02 D2 | Should |
 | Tenant id in logs | `tool_account_id` and `platform_id` in request and launch events when known. | LA-ADR-06 D10 | Should |
-| Client address | Only in `rate_limited` (IP classes) and in audit events. Retention: LA-H4. | LA-ADR-06 D1, D4 | Must |
+| Client address | Only in `rate_limited` (IP classes), in audit events, and as the limiter key `registration_session.client_key` of an open registration session (cleared at completion; the row is deleted after 24 h; BD-A2-20). Retention: LA-H4. | LA-ADR-06 D1, D4 | Must |
 | Audit log | Append-only table per service; no key, token or note text; `note_present` only. | LA-ADR-06 D4; LA-ADR-07 D5 | Must |
 | Redaction | The logger list (`packages/shared/src/logger.ts:46-59`) already covers names that end with `key`, `secret`, `token`. Add the exact field names `verificationCode` and `storageValue`. Do not add a `code` suffix rule: error codes use the field `code`. The operator key prefix `ltio_` gets a value pattern like `ltis_` (`logger.ts:58`). | LA-ADR-05 D1; LA-ADR-06 D3; LA-ADR-08 D3 | Must |
 

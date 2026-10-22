@@ -2,6 +2,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { readSigningKeyPublishLeadSeconds } from '../../keys/key-config.ts';
+import { requireWritableAccount } from '../../store/accounts.ts';
 import type { SigningKeyRecord } from '../../store/tool-keys.ts';
 import {
   activateToolKey, checkToolKeyActivation, checkToolKeyRemoval, createNextToolKey, listSigningKeys, prepareToolKey,
@@ -32,11 +33,16 @@ export function registerSigningKeyRoutes(app: FastifyInstance, ctx: OperatorCont
   app.post<AccountParams>(base, async (req, reply) => ctx.audited(req, {
     action: 'signing_key.create', toolAccountId: req.params.id, target: { type: 'signing_key', id: null },
   }, async (audit) => {
+    requireWritableAccount(ctx.db, req.params.id);
     requireNextKeySlot(ctx.db, req.params.id);
     const prepared = await prepareToolKey(ctx.keys, req.params.id);
     // Another request can use the slot during the await. Refuse before audit.change (D4 T3).
+    requireWritableAccount(ctx.db, req.params.id);
     requireNextKeySlot(ctx.db, req.params.id);
-    const key = audit.change(() => createNextToolKey(ctx.db, prepared, ctx.now()),
+    const key = audit.change(() => {
+      requireWritableAccount(ctx.db, req.params.id);
+      return createNextToolKey(ctx.db, prepared, ctx.now());
+    },
       (created) => ({ target: { type: 'signing_key', id: created.kid } }));
     log(req.params.id, key.kid, key.status);
     return reply.code(201).send({ kid: key.kid, status: key.status, publishedAt: iso(key.publishedAt) });
@@ -45,13 +51,17 @@ export function registerSigningKeyRoutes(app: FastifyInstance, ctx: OperatorCont
   app.post<KeyParams>(`${base}/:kid/activate`, async (req) => ctx.audited(req, {
     action: 'signing_key.activate', toolAccountId: req.params.id, target: { type: 'signing_key', id: req.params.kid },
   }, (audit) => {
+    requireWritableAccount(ctx.db, req.params.id);
     const parsed = ActivateBody.safeParse(req.body ?? {});
     if (!parsed.success) throw invalid(parsed.error);
     const force = parsed.data.force ?? false;
     const now = ctx.now();
     const options = { force, publishLeadSeconds };
     checkToolKeyActivation(ctx.db, req.params.id, req.params.kid, options, now);
-    const key = audit.change(() => activateToolKey(ctx.db, req.params.id, req.params.kid, options, now),
+    const key = audit.change(() => {
+      requireWritableAccount(ctx.db, req.params.id);
+      return activateToolKey(ctx.db, req.params.id, req.params.kid, options, now);
+    },
       (activated) => ({ details: { forced: force, retired: activated.retired } }));
     log(req.params.id, key.retired, 'retired');
     log(req.params.id, key.kid, key.status);

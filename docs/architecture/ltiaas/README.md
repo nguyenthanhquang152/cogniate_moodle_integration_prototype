@@ -105,7 +105,7 @@ Two words (Reviewer-B B-LAD-12): **domain core** is the layer above. **Core** (t
 | --- | --- |
 | Channel folders (not core) | `packages/channels/<id>/**` |
 | Core | all other product code: `services/*/src/**`, `packages/*/src/**` (also `packages/channel-kernel/src/**`), `apps/*/src/**` |
-| Allowed exceptions inside core (closed list) | `packages/channel-kernel/src/legacy-wire.ts`; applied SQL migrations (history, ADR-006); `packages/shared/src/config.ts` for the dev-stack Moodle URL only, until E1 S3 makes it optional |
+| Allowed exceptions inside core (closed list) | `packages/channel-kernel/src/legacy-wire.ts`; applied SQL migrations (history, ADR-006); `packages/shared/src/config.ts` for the dev-stack Moodle URL only, until E1 S3 makes it optional; in `services/cogniate-app/src/domain/migrations/013_channel_kernel.sql` only, a SQL string literal whose whole value is `'moodle'`, `'canvas'` or `'blackboard'` (the frozen behaviour-class values of `connection.lms` that the LA-ADR-04 D4 backfill reads; token level, BD-A1-19) |
 | Shared build files (core for F2) | root `package.json`, `package-lock.json`, `tsconfig*.json`, `eslint.config.js`, `vitest.config.ts`, every tracked `infra/**` file. The host manifest wiring (§4b) writes only untracked, git-ignored files (`.tmp/compose.sim-hosts.yaml`, `infra/.certs/**`), so F2 needs no exemption (BD-A1-07). `tests/sim/hosts.json` is class `sim`. |
 | Not core | `tests/**`, `docs/**` |
 
