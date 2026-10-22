@@ -76,3 +76,14 @@ Preserve all 32 real-LMS rows as UNVERIFIED, local Canvas as DEFERRED, and all e
 No enterprise-readiness or certification claim. No push or main merge.
 After the interim plan, remain available in the same dispatch for the real final handoff; do not send worker_done early.
 If a provider limit stops progress, report it explicitly when possible. End the final task with exactly one worker_done and an explicit outcome.
+
+## Binding correction after independent QA checkpoint (19:59 UTC)
+
+The round-2 artifact log citation above was wrong. The unchanged sealed index records
+`service-logs/cogniate-app.jsonl` as 740,688 bytes, SHA-256 `6fb0a073150e13d05541ce0c5780075c278a9343f50c6b50980009345346e2d1`.
+The Lead checked the index and file again; they match. This corrects the citation, not the evidence.
+The separate clone log in `infra/.logs/cogniate-app.jsonl` is 740,839 bytes, SHA-256 `ad3126fc24b22ff7cd25f794adc71ce89a9a19953f3b41eac361bc41e9a39fc1`.
+Independent QA message `msg_01d00e1f3c50` reports seven affected dead-handler cases across four test files.
+Its programmatic diagnosis is `verification-5561e8f-c8R3Prep/judge/round2/r2-s-dead-failure-analysis.json` under the existing Canvas QA root,
+177,440 bytes, SHA-256 `b5cb79bd1b36a779a0e14229139f77b67e5b57f9193ba814cd408eb1423d5d8b`.
+Its equality judgment is FAIL, with one disposition difference. Actual process exit at exactly SIGTERM plus two seconds remains an inference.

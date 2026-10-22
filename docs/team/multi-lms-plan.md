@@ -13,7 +13,17 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 19:46 UTC
+### Current directive — 2026-10-22, 20:00 UTC
+
+Independent Gemini confirms Canvas round 2 and round equality FAIL. Its diagnosis supports a graceful-restart test setup defect affecting seven dead-handler cases.
+Claude must assess all seven in one repair plan. No product defect is established and no edit or runtime grant is issued.
+The original Architect stopped on a confirmed session limit. Replacement `ctx_e364fb2df6f9` runs Claude Opus 5.5 xhigh on the same task.
+Read the [current continuation brief](architect-resume-2026-10-23.md), which supersedes the old task's completed Stage 1 instructions.
+Independent Gemini `ctx_806443ba13cd` remains active; the same retained Codex session owns any product repair.
+E-R5 is invalidated. Remaining runtime, conformance, guides, Docs QA and final reviews remain pending.
+All real-LMS limits and the no-push rule remain.
+
+### Prior directive — 2026-10-22, 19:46 UTC
 
 Canvas SIM round 2 FAILED `M1-37.canvas.s-dead`: HTTP 200 instead of required HTTP 409.
 The other 257 functional cases and operational cleanup passed. The failed evidence stays preserved.

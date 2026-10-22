@@ -2,7 +2,21 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 19:46 UTC
+## Current checkpoint — 20:00 UTC
+
+Independent Gemini QA confirms round 2 FAIL and round equality FAIL, with one differing case.
+Its primary-log assessment supports a test setup defect: graceful restart can let the held request time out and clear its lease before exit.
+It identifies seven related dead-handler cases across Canvas and Blackboard for one consolidated assessment.
+This diagnosis does not establish a product defect. Claude must propose the bounded repair and revalidation before any edit or run.
+
+The previous Claude Architect hit its session limit at 19:37 UTC, confirmed from its transcript.
+The Lead stopped that attempt and started replacement `ctx_e364fb2df6f9` on the same task, using Claude Opus 5.5 xhigh.
+The [continuation brief](architect-resume-2026-10-23.md) preserves all completed work and records the corrected log binding.
+Independent Gemini `ctx_806443ba13cd` remains active. Common QA's failed attempt is settled and its terminal release is accounted.
+E-R5 remains invalidated. No runtime, product edit or test edit is granted.
+All final runtime and handover gates listed below remain pending; real-LMS and no-push limits remain unchanged.
+
+## Historical checkpoint — 19:46 UTC
 
 Canvas SIM round 2 FAILED: `M1-37.canvas.s-dead` returned HTTP 200 where the lease test required HTTP 409.
 The other 257 functional cases passed. The runner ended at 19:38:16 UTC.
