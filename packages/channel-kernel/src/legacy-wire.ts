@@ -60,3 +60,8 @@ export function connectionBehaviourClass(channel: string, authority: 'self' | 'o
   if (channel === 'moodle' || channel === 'canvas' || channel === 'blackboard') return channel;
   return authority === 'self' ? 'moodle' : sharing === 'shared' ? 'blackboard' : 'canvas';
 }
+
+/** Frozen clean-up text of MOODLE_TOOL_MAY_EXIST (LA-ADR-01 D12, BD-A1-30). Keep its UI words byte for byte. */
+export function pendingToolText(toolName: string): string {
+  return `Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool '${toolName}', then connect again.`;
+}
