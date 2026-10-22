@@ -9,14 +9,16 @@
 # then the release (EXIT trap).
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
+profile="${REQUESTED_PROFILE:-default}"
+case "$profile" in default|acceptance) ;; *) echo "STACK_PROFILE must be default or acceptance, got '$profile'" >&2; exit 2 ;; esac
+require_sim_hosts "$profile"   # before any Docker call, including compose version and config
 storage_compat_guard
 storage_lock_acquire "stack:up"
 require_docker
 "$INFRA_DIR/scripts/gen-env.sh"
 source "$(dirname "$0")/lib.sh"   # load the new .env
 require_env
-profile="${REQUESTED_PROFILE:-default}"
-case "$profile" in default|acceptance) ;; *) echo "STACK_PROFILE must be default or acceptance, got '$profile'" >&2; exit 2 ;; esac
+require_sim_hosts "$profile"   # gen-env reloads the manifest too
 apply_profile "$profile"
 mkdir -p "$(dirname "$PROFILE_FILE")"; echo "$profile" > "$PROFILE_FILE"
 if [[ "$profile" == acceptance ]]; then
