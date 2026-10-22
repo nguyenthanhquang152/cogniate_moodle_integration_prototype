@@ -40,5 +40,6 @@ Open MINOR and NIT items after round 2. The ones marked "before build" are one-l
 | B-LA-E1-01 NITs | NIT | Module-level log set (move to the app instance); AC-02 uses the fake client | K | With LA-E1-02 if it fits |
 | A-E1-01-01 | NIT | Two type-only lines in connections.ts outside "the builder only" | — | Accepted |
 | B-LA-E5-08-02 | NIT | HKDF info prefix comment | S2 | Next S2 task |
-| A-LA-E5-01-01 | NIT | LA-ADR-06 D3 says `stack:up` runs `lti:operator init --if-none`; spec and code run it in `lti-bootstrap.sh` (seed) | A2 (text) | Next A2 edit |
-| A-LA-E5-01-02 | NIT | `stack:reset` leaves the dead `infra/.secrets/lti-operator-key` | S1 (RQ to the owner of `stack-reset.sh`) | Next S1 task |
+| A-LA-E5-01-01 = B-LA-E5-01-01 | NIT / MINOR | LA-ADR-06 D3 says `stack:up` runs `lti:operator init --if-none`; spec and code run it in `lti-bootstrap.sh` (seed) | A2 (text) | Next A2 edit |
+| A-LA-E5-01-02 = B-LA-E5-01-02 | NIT / MINOR | `stack:reset` leaves the dead `infra/.secrets/lti-operator-key` | S1 (RQ to the owner of `stack-reset.sh`) | Next S1 task |
+| B-LA-E5-01-03 | NIT | An invalid host user name (`id -un`) stops seed with no `OPERATOR_NAME` hint | S1 | Next S1 task |
