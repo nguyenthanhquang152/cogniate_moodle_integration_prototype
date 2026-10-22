@@ -4,6 +4,8 @@ import { API_ERRORS, ApiError } from './api-errors.ts';
 // Contract lti-service-api §1.3, copied from the table (HTTP, details.message). Update both together.
 const CONTRACT_1_3: Array<[number, string]> = [
   [403, 'API_KEY_SCOPE_MISSING'], [409, 'API_KEY_LIMIT'],
+  [403, 'SERVICE_KEY_SCOPE'],
+  [503, 'NOT_READY'], [409, 'JOB_RUNNING'],
   [409, 'SIGNING_KEY_NEXT_EXISTS'], [409, 'SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH'],
   [409, 'SIGNING_KEY_ACTIVE'], [409, 'SIGNING_KEY_WRONG_STATE'],
   [400, 'INVALID_REQUEST'], [400, 'INVALID_LINE_ITEM_ID'], [400, 'INVALID_URL_PARAMETER'], [400, 'INVALID_CONTENT_ITEM'],
@@ -25,6 +27,8 @@ const CONTRACT_1_3: Array<[number, string]> = [
   [403, 'TOOL_ACCOUNT_SUSPENDED'], [409, 'ACCOUNT_ALREADY_EXISTS'], [409, 'ACCOUNT_CLOSED'],
   [429, 'PLATFORM_RATE_LIMITED'],
   [429, 'RATE_LIMITED'],
+  [422, 'IDEMPOTENCY_KEY_REUSED'],
+  [409, 'IDEMPOTENCY_IN_PROGRESS'],
 ];
 
 describe('LTI service API codes (contract §1.3)', () => {

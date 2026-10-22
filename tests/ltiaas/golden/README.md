@@ -53,8 +53,9 @@ COMPOSE_PROJECT_NAME=qa3-la-sim-r1 PUBLIC_PORT=9443 STACK_SUBNET=172.20.0.0/16 \
 node tests/ltiaas/golden/compare.mjs \
   --base tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6 \
   --candidate /abs/path/to/capture-out \
-  [--expected LA-IC-01,LA-IC-04] \
-  [--expected-dir tests/ltiaas/golden/expected]
+  [--expected LA-IC-01,LA-IC-04,LA-IC-16] \
+  [--expected-dir tests/ltiaas/golden/expected] \
+  [--sim-hosts tests/sim/hosts.json]
 ```
 
 ### Arguments
@@ -65,6 +66,7 @@ node tests/ltiaas/golden/compare.mjs \
 | `--candidate <dir>` | Yes | Candidate capture directory containing `G1.json`–`G4.json`. |
 | `--expected <list>` | No (default `""`) | Comma-separated list of `LA-IC` ids (resolved in `--expected-dir` as `<id>.json`) **or** paths to expected-delta `.json` files. |
 | `--expected-dir <dir>` | No | Directory for `<LA-IC id>.json` files (default `tests/ltiaas/golden/expected`). |
+| `--sim-hosts <path>` | No | Override path to `tests/sim/hosts.json` for the `LA-IC-16` simulator-allowlist rule. |
 
 ### Exit Codes
 
@@ -119,8 +121,16 @@ Paths in `DIFF`, `EXPECTED`, `MISSING` and expected-delta files use dot notation
 }
 ```
 
-- Each entry in `changes` has `file` (`"G1"`–`"G4"`), `path` (supports `*` for one object key or array index), and either `value` (exact JSON value) or `rule` (`"present"`, `"removed"`, `"string"`, `"boolean"`, `"number"`, `"object"`, `"array"`).
+- Each entry in `changes` has `file` (`"G1"`–`"G4"`), `path` (supports `*` for one object key or array index), and either `value` (exact JSON value) or `rule` (`"present"`, `"removed"`, `"string"`, `"boolean"`, `"number"`, `"object"`, `"array"`, `"sim-hosts-allowlist"`).
 - Every difference must match at least one entry, and every entry must match at least one difference (otherwise it fails as `MISSING`).
+
+### Reviewed `LD-9` Expected-Delta Records (`LA-IC-12`, `LA-IC-16`, `LA-IC-17`)
+
+| Id | File | Golden fields changed | Frozen tests touched | Notes |
+| --- | --- | --- | --- | --- |
+| `LA-IC-12` | `tests/ltiaas/golden/expected/LA-IC-12.json` | **None at `LA-E3-04`** (`changes: []`; `G1`–`G4` do not capture Deep Linking `GET /api/idtoken` or empty Deep Linking calls; `LA-E3-05` will add `"Cancel"` to `G4.{blackboard,canvas}.pages.picker.text`) | **None** (`0` frozen tests; scan of `T3a/1-deep-linking.spec.ts:46-54`, `T3a/3-negative.spec.ts:57-78`, `T3c/1-endpoints.spec.ts:80-115,229-236`, `M1/canvas/21-canvas-protocol.test.ts:40-46`, `lib/moodle-dl.ts:330`, `e2e/lib/moodle.ts:413`, `e2e/M2/07-sim-scenario.m2.ts:36`, and `golden/capture.golden.ts:90-105` confirmed no frozen test sends `contentItems: []` expecting `400` or checks `launch.deepLinkingSettings` by whole-object equality; Author unit tests updated in `3344520`: `lti/deep-linking.test.ts`, `http/routes/compat.test.ts`, `lti/idtoken.test.ts`) | `LA-ADR-05` D3, `LA-ADR-04` D8 |
+| `LA-IC-16` | `tests/ltiaas/golden/expected/LA-IC-16.json` | `G1.acceptance.ltiHealth.outbound_allowlist` (rule `sim-hosts-allowlist`: `.sim.test` entries equal as a set the union of `allowlist` hosts in `tests/sim/hosts.json` at the compared SHA; non-`.sim.test` entries equal G-BASE `["moodle.test", "qa-platform.test", "evil.test"]`; `default.*Health.outbound_allowlist` and `acceptance.appHealth.outbound_allowlist` stay strictly equal to G-BASE) | **None** (`0` frozen tests; `tests/ltiaas/tasks-lti/LA-E1-05/profiles.k1sim.test.ts` `AC-LA-E1-05-07` and `AC-LA-E1-05-09` compare via `diff`/`compareCaptures` with this rule) | `BD-A1-36`, `LA-ADR-04` D8 |
+| `LA-IC-17` | `tests/ltiaas/golden/expected/LA-IC-17.json` | **None** (`changes: []`) | **None** (`0` frozen tests; scan of `tests/acceptance`, `tests/e2e`, `tests/host`, `tests/sim`, `tests/fixtures`, and `tests/ltiaas/golden` confirmed every Moodle/standard `PUT /app-api/connections/:id/platform` body sends only the 6 documented keys `issuer`, `clientId`, `deploymentId`, `authenticationEndpoint`, `accessTokenEndpoint`, `jwksUrl`) | `BD-A1-41`, `LA-ADR-04` D8 |
 
 ---
 

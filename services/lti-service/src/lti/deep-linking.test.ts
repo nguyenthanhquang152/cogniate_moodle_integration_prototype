@@ -29,7 +29,7 @@ async function setup(over: Partial<LaunchRecord> = {}) {
 }
 
 describe('content items (contract §3.2)', () => {
-  const check = (items: unknown, s: Record<string, unknown> = settings) => checkContentItems(items, s, URLS, 'cogniate');
+  const check = (items: unknown, s: Record<string, unknown> = settings) => checkContentItems(items, s, { launch: LAUNCH });
 
   it('keeps the items as sent; adds only the default url of an ltiResourceLink without url', () => {
     expect(check([item])).toEqual([item]);
@@ -37,8 +37,6 @@ describe('content items (contract §3.2)', () => {
   });
 
   it.each([
-    ['no items', []],
-    ['21 items', Array.from({ length: 21 }, () => item)],
     ['not a list', item],
     ['an item that is not an object', ['x']],
     ['an unknown type', [{ ...item, type: 'video' }]],
@@ -52,21 +50,34 @@ describe('content items (contract §3.2)', () => {
     expect(() => check(items)).toThrow(expect.objectContaining({ code: 'INVALID_CONTENT_ITEM', status: 400 }));
   });
 
-  it('two items when accept_multiple is false -> INVALID_CONTENT_ITEM; one item is fine', () => {
+  it('two items when accept_multiple is false -> INVALID_CONTENT_ITEM; zero or one item is fine (AC-03)', () => {
     expect(() => check([item, item], { ...settings, accept_multiple: false })).toThrow(expect.objectContaining({ code: 'INVALID_CONTENT_ITEM' }));
+    expect(check([], { ...settings, accept_multiple: false })).toEqual([]);
     expect(check([item], { ...settings, accept_multiple: false })).toHaveLength(1);
+  });
+
+  it.each([undefined, true, false])('keeps the twenty-item bound with accept_multiple %s (AC-03)', (accept_multiple) => {
+    expect(() => check(Array.from({ length: 21 }, () => item), { ...settings, accept_multiple })).toThrow(expect.objectContaining({ status: 400, code: 'INVALID_CONTENT_ITEM' }));
+    if (accept_multiple !== false) expect(check(Array.from({ length: 20 }, () => item), { ...settings, accept_multiple })).toHaveLength(20);
+  });
+
+  it('allows cancellation and rejects line items only when explicitly refused', () => {
+    expect(check([])).toEqual([]);
+    expect(() => check([item], { ...settings, accept_lineitem: false })).toThrow(expect.objectContaining({ status: 400, code: 'INVALID_CONTENT_ITEM' }));
+    expect(check([{ type: 'ltiResourceLink' }], { ...settings, accept_lineitem: false })).toEqual([{ type: 'ltiResourceLink', url: LAUNCH }]);
+    for (const accept_lineitem of [undefined, true]) expect(check([item], { ...settings, accept_lineitem })).toEqual([item]);
   });
 });
 
 describe('Deep Linking response (security §2.3, AC-T3-08)', () => {
   it('a resource-link launch -> 403 SERVICE_NOT_AVAILABLE', async () => {
     const { launch, platform } = await setup({ messageType: 'LtiResourceLinkRequest', claims: {} });
-    expect(() => deepLinkingResponse(launch, platform, { contentItems: [item] }, URLS)).toThrow(expect.objectContaining({ code: 'SERVICE_NOT_AVAILABLE', status: 403 }));
+    expect(() => deepLinkingResponse(launch, platform, { contentItems: [item] }, { launch: LAUNCH })).toThrow(expect.objectContaining({ code: 'SERVICE_NOT_AVAILABLE', status: 403 }));
   });
 
   it('claims: iss = client id, aud = issuer, nonce, deployment, message type, version, items, data, msg; target = return URL', async () => {
     const { launch, platform } = await setup();
-    const { claims, target } = deepLinkingResponse(launch, platform, { contentItems: [item], options: { message: 'Course added', log: '', errMessage: 'x' } }, URLS);
+    const { claims, target } = deepLinkingResponse(launch, platform, { contentItems: [item], options: { message: 'Course added', log: '', errMessage: 'x' } }, { launch: LAUNCH });
     expect(target).toBe(RETURN_URL);
     expect(claims).toMatchObject({
       iss: CLIENT_ID, aud: ISSUER, [CLAIM.deploymentId]: '1', [CLAIM.messageType]: 'LtiDeepLinkingResponse', [CLAIM.version]: '1.3.0',
@@ -80,7 +91,7 @@ describe('Deep Linking response (security §2.3, AC-T3-08)', () => {
     const { db, launch, platform } = await setup();
     const moodleNow = Date.UTC(2026, 9, 17, 10, 0, 0);
     const toolNow = moodleNow + 2000;
-    const { claims } = deepLinkingResponse(launch, platform, { contentItems: [item] }, URLS);
+    const { claims } = deepLinkingResponse(launch, platform, { contentItems: [item] }, { launch: LAUNCH });
     const jwt = await signToolJwt(db, MASTER_KEY, 'cogniate', claims, toolNow);
     // Moodle verifies with leeway 0 at its own time.
     const { payload, protectedHeader } = await jwtVerify(jwt, createLocalJWKSet({ keys: publicJwks(db, 'cogniate') }), {

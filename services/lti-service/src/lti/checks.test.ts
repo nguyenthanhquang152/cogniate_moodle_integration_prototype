@@ -18,7 +18,7 @@ const platform: Platform = {
   jwksUrl: `${ISSUER}/mod/lti/certs.php`, productFamilyCode: null, active: true, deploymentIds: ['1'],
   profile: 'standard', siteUrl: null, serviceUrl: null, bindingRef: null, deployments: [{ deploymentId: '1', siteUrl: null, active: true, bindingGeneration: 0, bindingRef: null, createdAt: null }],
 };
-const state: StateRecord = { stateHash: 'h', toolAccountId: 'cogniate', platformId: 'plt_1', nonce: 'nonce-1', targetLinkUri: `${LAUNCH}?resource=seed`, expiresAt: 0, loginDeploymentId: null };
+const state: StateRecord = { stateHash: 'h', toolAccountId: 'cogniate', platformId: 'plt_1', nonce: 'nonce-1', targetLinkUri: `${LAUNCH}?resource=seed`, expiresAt: 0, loginDeploymentId: null, storageTarget: null, storageOrigin: null };
 
 function expectFail(fn: () => unknown, check: string, code: string) {
   try {
@@ -38,7 +38,7 @@ describe('checks 1 and 3: state record (single use, same statement)', () => {
     ensureAccount(db, { id: 'other', name: 'O', appUrl: URLS.app });
     const p = createPlatform(db, 'cogniate', { issuer: ISSUER, clientId: CLIENT_ID, name: 'M', authEndpoint: `${ISSUER}/a`, tokenEndpoint: `${ISSUER}/t`, jwksUrl: `${ISSUER}/k`, deploymentIds: ['1'], active: true });
     const now = 1_000_000;
-    saveState(db, { stateHash: sha256Hex('s1'), toolAccountId: 'cogniate', platformId: p.id, nonce: 'n', targetLinkUri: LAUNCH, expiresAt: now + 600_000, loginDeploymentId: null }, now);
+    saveState(db, { stateHash: sha256Hex('s1'), toolAccountId: 'cogniate', platformId: p.id, nonce: 'n', targetLinkUri: LAUNCH, expiresAt: now + 600_000, loginDeploymentId: null, storageTarget: null, storageOrigin: null }, now);
     return { db, now };
   };
 
@@ -169,14 +169,14 @@ describe('check 11: required claims', () => {
 });
 
 describe('check 12: target_link_uri', () => {
-  it('passes for the value of the state record', () => expect(() => check12Target(moodleClaims(), state, URLS, 'cogniate')).not.toThrow());
+  it('passes for the value of the state record', () => expect(() => check12Target(moodleClaims(), state, { launch: LAUNCH })).not.toThrow());
   it.each([
     ['other value than at login', `${LAUNCH}?resource=other`],
     ['other host', 'https://evil.test/lti/launch/cogniate?resource=seed'],
   ])('fails INVALID_TARGET_LINK_URI: %s', (_n, target) =>
-    expectFail(() => check12Target(moodleClaims({ [CLAIM.targetLinkUri]: target }), state, URLS, 'cogniate'), '12', 'INVALID_TARGET_LINK_URI'));
+    expectFail(() => check12Target(moodleClaims({ [CLAIM.targetLinkUri]: target }), state, { launch: LAUNCH }), '12', 'INVALID_TARGET_LINK_URI'));
   it('fails when the state record itself holds a foreign target', () =>
-    expectFail(() => check12Target(moodleClaims({ [CLAIM.targetLinkUri]: `${LAUNCH}x` }), { ...state, targetLinkUri: `${LAUNCH}x` }, URLS, 'cogniate'), '12', 'INVALID_TARGET_LINK_URI'));
+    expectFail(() => check12Target(moodleClaims({ [CLAIM.targetLinkUri]: `${LAUNCH}x` }), { ...state, targetLinkUri: `${LAUNCH}x` }, { launch: LAUNCH }), '12', 'INVALID_TARGET_LINK_URI'));
 });
 
 describe('safe detail reasons (contract §5, B-T2a-03)', () => {
@@ -214,7 +214,7 @@ describe('safe detail reasons (contract §5, B-T2a-03)', () => {
     ['message type', () => check10Message({ [CLAIM.version]: '1.3.0', [CLAIM.messageType]: 'LtiSubmissionReviewRequest' }), 'message_type=LtiSubmissionReviewRequest'],
     ['no resource_link', () => check11Claims(moodleClaims({ [CLAIM.resourceLink]: undefined }), 'LtiResourceLinkRequest'), 'missing=resource_link'],
     ['no sub', () => check11Claims(moodleClaims({ sub: undefined }), 'LtiResourceLinkRequest'), 'missing=sub'],
-    ['target differs from login', () => check12Target(moodleClaims({ [CLAIM.targetLinkUri]: `${LAUNCH}?resource=other` }), state, URLS, 'cogniate'), 'target_differs_from_login'],
+    ['target differs from login', () => check12Target(moodleClaims({ [CLAIM.targetLinkUri]: `${LAUNCH}?resource=other` }), state, { launch: LAUNCH }), 'target_differs_from_login'],
     ['cookie missing', () => check2Cookie(undefined, 'st', 'abcdef0123'), 'cookie_missing'],
   ])('%s → %s', (_n, fn, detail) => {
     const d = detailOf(fn);

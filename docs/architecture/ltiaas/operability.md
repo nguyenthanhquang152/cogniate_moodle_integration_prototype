@@ -31,7 +31,7 @@ New and changed settings (all optional unless marked; the base settings stay as 
 | `JOB_INSTANCE_ID` | both | `lti-1`, `app-1` | lease owner of the job runner (with a random boot id per process). A normal restart (stop, then start) keeps today's timing: `stop()` deletes the heartbeat row. After a crash without `stop()`, the new runner waits up to 30 s before its first send, and the web part serves at once. Only a second **live** process with the same id stops its runner (`job_instance_conflict`: a worker process exits 1; the web process keeps serving with its runner off). The rule holds for both runners (LA-ADR-03 D7, Q-LAD-23) | LA-ADR-03 D7 |
 | `APP_JOB_RUNNER` | app | `on` | `off` in the web process when `npm run worker` runs apart; `production` refuses both on | LA-ADR-03 D7 |
 | `OPERATOR_NAME` | app | unset | default actor of `app:grant` and `app:binding` | LA-ADR-07 D4 |
-| `OPERATORS`, `OPERATORS_FILE` | app | unset | allowed operator names (comma list, or a JSON array file); one of them required when a CLI runs with `STACK_PROFILE=production` | LA-ADR-07 D4 |
+| `OPERATORS`, `OPERATORS_FILE` | app | unset | allowed operator names (comma list, or a JSON array file); one of them required when a CLI runs with `STACK_PROFILE=production` | LA-ADR-07 D4 Both set: the CLI refuses (`operators_ambiguous`, BD-A2-45). |
 | `PUBLIC_MOODLE_URL` | LTI | — | leaves the LTI service config in E1 (A1, LA-ADR-04 S3) | R4 C-3 |
 
 Secret files (never in git; mode `0600`; mounted read only):
@@ -138,7 +138,19 @@ The audit log (tables `audit_event` in both services) is the record of who chang
 | `lti_job_last_success_timestamp_seconds` | gauge | `job` | stale jobs |
 | `lti_ready` | gauge | — | 1 = ready |
 
-Label rules: no personal data; `platform_id` only on the listed failure metrics; `tool_account_id` is bounded by the account count.
+Label rules: no personal data; `platform_id` only on the listed failure metrics and only a stored platform id; `tool_account_id` only a stored account id (empty for an unknown account or before the account is resolved; never a raw path value), so it is bounded by the account count.
+
+Sources (BD-A2-52; LA-E5-17):
+
+| Metrics | Source |
+| --- | --- |
+| `lti_rate_limited_total` | an observer in the limiter, before the log sampling: every hard refusal and every soft-class excess |
+| `lti_audit_events_total` | the audit writer, after the commit that holds the insert (the outermost transaction of `withAudit`; the autocommit insert of a refused event). A rolled-back insert never counts. Not a table count: retention deletes rows. |
+| `lti_platform_token_failures_total`, `lti_jwks_fetch_failures_total`, `lti_jwks_cache_age_seconds` | injected observers in the platform token client (`onTokenResult`) and the JWKS cache (`onJwksFetch`); the age = now − the last successful fetch, computed at scrape time. **Pending instrumentation (LA-E5-17 RQ-1, lane L):** until that commit lands, these series are not exposed. |
+| `lti_http_*`, `lti_launch_*`, `lti_outbound_*`, `lti_platform_rate_limited_total`, `lti_job_*`, `lti_api_auth_failed_total` | the existing log events and the HTTP hook |
+| key gauges (`lti_signing_key_age_seconds`, `lti_api_key_expires_in_seconds`, `lti_operator_key_expires_in_seconds`, `lti_key_provider_sealed_rows`), `lti_ready` | store queries and the readiness checks at scrape time |
+
+A series with no accurate source is not exposed. It never shows a zero or a placeholder.
 
 ### 4.3 App signals (Should; names and endpoint: A1, [app API delta §8a](contracts/cogniate-app-api-delta.md#8a-app-metrics-should-with-e5-metrics))
 
@@ -242,8 +254,15 @@ In this procedure `k1` is the version in use now. On a stack without a key-ring 
 2. Put the escrow copy of `k2` in the escrow store before you change the stack.
 3. Add `k2` to the key-ring file, keep `k1`, and set `"active": "k2"`.
 4. Restart the LTI service. Check `/readyz` = 200.
-5. Start the re-wrap: `POST /operator/v1/key-provider/rewrap`.
-6. Wait until `GET /operator/v1/key-provider` shows `sealedCount` 0 for every version except `k2`.
+5. Start the re-wrap: `POST /operator/v1/key-provider/rewrap`. Write down the `traceId` and the time of the answer.
+   - `202`: a run started.
+   - `503 NOT_READY` (`job_runner_not_active`): the job runner is not active yet, for example just after a restart. Wait `Retry-After` seconds, then do step 5 again.
+   - `409 JOB_RUNNING`: a run is in progress. Wait one minute, then do step 6.
+6. Read the outcome. Get `GET /operator/v1/audit?action=key_provider.rewrap&traceId=<traceId>`. Until the trace filter exists, use `&since=<time of step 5>`, newest first. Read the event with actor `system:key-rewrap`, field `details.outcome`. If no such event exists one minute after a `202`, do step 5 again (two calls at the same time can skip one run).
+   - `complete`: check `GET /operator/v1/key-provider`: `sealedCount` is 0 for every version except `k2`. Go to step 7.
+   - `partial` (`stopReason` `lease`, `stopping` or `legacy_remains`): the run stopped safely. Do step 5 again until the outcome is `complete`.
+   - `failed` with `unreadable` above 0: `unreadableVersions` names a key version that the ring does not have. Put that version back from escrow into the key-ring file, restart the LTI service, and do step 5 again.
+   - `failed` with `errorClass`: read the LTI service log lines with that trace id. Do step 5 once more. If it fails again, start an incident (§9).
 7. Make a backup (§7.2) and record the key versions in the backup record.
 8. If `k1` has `derivedCount` 0, remove it from the key-ring file, restart the LTI service and check `/readyz` = 200. Else keep it.
 9. Keep the escrow copy of `k1` until every backup that needs it has expired.
@@ -264,6 +283,7 @@ Key file lost: run `docker compose exec lti-service npm run lti:operator -- init
 
 ### 6.5 Service keys (incident)
 
+0. Find the platform: `GET /operator/v1/accounts/<id>/platforms`, and match the issuer and the client id that the library gives you (BD-A2-53).
 1. Revoke the keys of the scope: `POST /operator/v1/accounts/<id>/service-keys/revoke {platformId, deploymentId?, contextId?, resourceLinkId?}` (Should).
 2. Tell the library: dispatches of those activities fail with `401` until a learner or teacher launches each activity again; then use Resend on the failed rows.
 

@@ -104,7 +104,12 @@ function dispatchJob(db: DatabaseSync, send: (id: string) => Promise<void>, conf
           .run(ctx.now(), item.id, owner).changes > 0;
       });
       if (!began) return;
-      await send(item.id);
+      try { await send(item.id); }
+      catch {
+        db.prepare(`UPDATE dispatch SET send_started_at = NULL, delivery_uncertain = 1, next_try_at = ?
+          WHERE id = ? AND lease_owner = ?`).run(ctx.now() + 5000, item.id, owner);
+        return;
+      }
       const now = ctx.now();
       transaction(db, () => {
         const row = db.prepare('SELECT key, score, confirmation_after FROM dispatch WHERE id = ? AND lease_owner = ? AND send_started_at IS NOT NULL').get(item.id, owner);
@@ -150,9 +155,9 @@ function referenceFixture(): QueueStoreFixture {
       return id;
     },
     readRow(id) {
-      const r = main.prepare('SELECT status, lease_owner, lease_until, send_started_at, delivery_uncertain, confirmation_after FROM dispatch WHERE id = ?').get(id)!;
+      const r = main.prepare('SELECT status, tries, next_try_at, lease_owner, lease_until, send_started_at, delivery_uncertain, confirmation_after FROM dispatch WHERE id = ?').get(id)!;
       return {
-        status: String(r.status), leaseOwner: r.lease_owner === null ? null : String(r.lease_owner), leaseUntil: num(r.lease_until),
+        tries: Number(r.tries), nextTryAt: num(r.next_try_at), status: String(r.status), leaseOwner: r.lease_owner === null ? null : String(r.lease_owner), leaseUntil: num(r.lease_until),
         sendStartedAt: num(r.send_started_at), deliveryUncertain: Number(r.delivery_uncertain) === 1, confirmationAfter: num(r.confirmation_after),
       };
     },
@@ -279,6 +284,44 @@ describe('job runner', () => {
     r2.start();
     await settle();
     expect(q2.stats.running).toBe(2);
+  });
+
+  it('BD-A2-50: runNow keeps the request trace id in context, the job-end event and every result log', async () => {
+    const r = runner();
+    const audit: Array<{ traceId: string; result: string }> = [];
+    let fail = false;
+    r.addInterval({ name: 'unit-request', everyMs: null, runAtStart: false, async run(ctx) {
+      audit.push({ traceId: ctx.traceId, result: fail ? 'failed' : 'ok' });
+      if (fail) throw new TypeError('run failed');
+      return { result: 'ok' };
+    } });
+    expect(await r.runNow('unit-request', { traceId: 'request-before-start' })).toEqual({ result: 'skipped_lease' });
+    r.start(); await settle();
+    expect(await r.runNow('unit-request', { traceId: 'request-ok' })).toEqual({ result: 'ok' });
+    fail = true;
+    expect(await r.runNow('unit-request', { traceId: 'request-failed' })).toEqual({ result: 'failed' });
+    await fixture.store().takeJobLease('unit-request', 'other/boot', Date.now(), Date.now() + JOB_LEASE_MS);
+    expect(await r.runNow('unit-request', { traceId: 'request-lease-held' })).toEqual({ result: 'skipped_lease' });
+    expect(audit).toEqual([{ traceId: 'request-ok', result: 'ok' }, { traceId: 'request-failed', result: 'failed' }]);
+    expect(jobRuns().map((line) => [line.trace_id, line.result])).toEqual([
+      ['request-before-start', 'skipped_lease'], ['request-ok', 'ok'], ['request-failed', 'failed'], ['request-lease-held', 'skipped_lease'],
+    ]);
+  });
+
+  it('BD-A2-50: a refused concurrent request keeps its own trace and does not replace the active run trace', async () => {
+    const r = runner();
+    const gate = Promise.withResolvers<void>();
+    const traceIds: string[] = [];
+    r.addInterval({ name: 'unit-request', everyMs: null, runAtStart: false, async run(ctx) {
+      traceIds.push(ctx.traceId); await gate.promise; traceIds.push(ctx.traceId); return { result: 'ok' };
+    } });
+    r.start(); await settle();
+    const first = r.runNow('unit-request', { traceId: 'request-first' });
+    await settle();
+    expect(await r.runNow('unit-request', { traceId: 'request-second' })).toEqual({ result: 'skipped_lease' });
+    gate.resolve(); await first;
+    expect(traceIds).toEqual(['request-first', 'request-first']);
+    expect(jobRuns().map((line) => [line.trace_id, line.result])).toEqual([['request-second', 'skipped_lease'], ['request-first', 'ok']]);
   });
 
   it('AC-LA-E4-01-08: each run has its own trace id and one job_run line; an error logs its class name only', async () => {
@@ -418,6 +461,21 @@ describe('job runner', () => {
     expect([...seen]).toEqual(ids);
     expect(jobRuns().filter((line) => line.result === 'failed')).toHaveLength(30);
     expect(Date.now()).toBe(T0);
+  });
+
+  it('drops cooling entries after a failed row moves out of the complete due set', async () => {
+    let due = true;
+    const limits: number[] = [];
+    const job: QueueJob<string> = {
+      name: 'cooling-prune', due: (_now, limit) => { limits.push(limit); return due ? ['row'] : []; },
+      id: (id) => id, partition: () => 'p', lease: () => true, release: () => undefined, recover: () => 0,
+      run: async () => { throw new Error('failed row'); },
+    };
+    const r = runner(); r.addQueue(job); r.start(); await settle();
+    expect(limits.at(-1)).toBe(21);
+    due = false; r.kick(job.name); await settle();
+    r.kick(job.name); await settle();
+    expect(limits.at(-1)).toBe(20);
   });
 
   it('interval jobs run at start and every everyMs, each run with one lease (25 min with 10 min: 3 runs)', async () => {

@@ -4,7 +4,7 @@
  * caller logs launch_check_failed {check, code, detail} and shows the error page. `detail` is a fixed, safe reason
  * (contract §5, B-T2a-03): never a token, a claim value or a key.
  */
-import type { PublicUrls } from '@cogniate/shared';
+import type { ProtocolUrls } from './target.ts';
 import { readCookie, safeEqual } from '@cogniate/shared';
 import { MANUAL_SELF_LEGACY_CHANNELS } from '@cogniate/channel-kernel';
 import type { ProfileOptions, ProviderProfile } from '../profiles/index.ts';
@@ -191,10 +191,10 @@ export function check11Claims(claims: Claims, messageType: (typeof MESSAGE_TYPES
 }
 
 /** Check 12: target_link_uri = the value in the state record, and it is our launch URL for this account. */
-export function check12Target(claims: Claims, state: StateRecord, urls: PublicUrls, accountId: string): void {
+export function check12Target(claims: Claims, state: StateRecord, urls: Pick<ProtocolUrls, 'launch'>): void {
   const target = claims[CLAIM.targetLinkUri];
   if (target !== state.targetLinkUri) fail('12', 'INVALID_TARGET_LINK_URI', 'target_differs_from_login');
-  if (!isOwnLaunchTarget(target, urls, accountId)) fail('12', 'INVALID_TARGET_LINK_URI', 'target_not_own');
+  if (!isOwnLaunchTarget(target, urls)) fail('12', 'INVALID_TARGET_LINK_URI', 'target_not_own');
 }
 
 // ---------------------------------------------------------------- M1: checks 13 and 14 (security §2.2, LTI contract §9.7)

@@ -2,7 +2,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { openSqlite } from '@cogniate/shared';
+import { createLocalKeyProvider, legacyKeyRing, openSqlite } from '@cogniate/shared';
 import { describeJobStoreContract } from '@cogniate/shared/jobs.testkit';
 import { expect, it } from 'vitest';
 import type { Db } from '../db/index.ts';
@@ -52,11 +52,29 @@ it('AC-LA-E5-19-05: adds the runner tables to an upgraded M1 fixture without cha
 it('uses lti-1 by default and checks JOB_INSTANCE_ID and audit retention before start', () => {
   const db = openDb(':memory:');
   const logger = capturingLogger().logger;
+  const keys = createLocalKeyProvider(legacyKeyRing(Buffer.alloc(32, 7)));
   try {
-    expect(createLtiJobRunner({ db, logger, env: {} }).instanceId).toBe('lti-1');
-    expect(createLtiJobRunner({ db, logger, env: { JOB_INSTANCE_ID: 'lti-test' } }).instanceId).toBe('lti-test');
-    expect(() => createLtiJobRunner({ db, logger, env: { JOB_INSTANCE_ID: 'bad/id' } })).toThrow('instance id');
-    expect(() => createLtiJobRunner({ db, logger, env: { AUDIT_RETENTION_DAYS: '-1' } })).toThrow('AUDIT_RETENTION_DAYS');
+    expect(createLtiJobRunner({ db, logger, keys, env: {} }).instanceId).toBe('lti-1');
+    expect(createLtiJobRunner({ db, logger, keys, env: { JOB_INSTANCE_ID: 'lti-test' } }).instanceId).toBe('lti-test');
+    expect(() => createLtiJobRunner({ db, logger, keys, env: { JOB_INSTANCE_ID: 'bad/id' } })).toThrow('instance id');
+    expect(() => createLtiJobRunner({ db, logger, keys, env: { AUDIT_RETENTION_DAYS: '-1' } })).toThrow('AUDIT_RETENTION_DAYS');
     expect(db.prepare('SELECT * FROM job_instance').all()).toEqual([]);
   } finally { db.close(); }
+});
+
+it('a late end from an expired lease owner leaves the newer lease and its result alone', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'lti-late-lease-'));
+  const file = join(dir, 'lti.db');
+  const first = openDb(file); const second = openDb(file);
+  try {
+    const a = createLtiJobStore(first); const b = createLtiJobStore(second);
+    expect(await a.takeJobLease('retention', 'instance-a/boot-a', 0, 60_000)).toBe(true);
+    expect(await b.takeJobLease('retention', 'instance-b/boot-b', 60_000, 120_000)).toBe(true);
+    const newer = await b.readJobLease('retention');
+    expect(newer).toMatchObject({ owner: 'instance-b/boot-b', leaseUntil: 120_000, lastRunAt: null, lastResult: null });
+    await a.endJobLease('retention', 'instance-a/boot-a', 61_000, 'failed');
+    expect(await b.readJobLease('retention')).toEqual(newer);
+    await b.endJobLease('retention', 'instance-b/boot-b', 62_000, 'ok');
+    expect(await a.readJobLease('retention')).toMatchObject({ owner: null, leaseUntil: null, lastRunAt: 62_000, lastResult: 'ok' });
+  } finally { first.close(); second.close(); rmSync(dir, { recursive: true, force: true }); }
 });

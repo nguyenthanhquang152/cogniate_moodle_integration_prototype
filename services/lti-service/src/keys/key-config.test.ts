@@ -3,11 +3,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { bindKeyProvider, blobKeyVersion, createLocalKeyProvider, encrypt, keyProviderFor, legacyKeyRing } from '@cogniate/shared';
 import { afterEach, describe, expect, it } from 'vitest';
-import { openDb } from '../db/index.ts';
+import { openDb, transaction } from '../db/index.ts';
 import { createPlatform } from '../store/platforms.ts';
 import { ensureAccount } from '../store/accounts.ts';
 import { createRegistrationSession, getRegistrationSession } from '../store/registrations.ts';
 import { issueServiceKey } from '../store/service-keys.ts';
+import { legacyBlobsRefused, refuseLegacyBlobs } from '../store/settings.ts';
 import { activePrivateJwk, ensureToolKey } from '../store/tool-keys.ts';
 import { URLS, capturingLogger } from '../testkit.ts';
 import { DEFAULT_KEYRING_FILE, keyVersionsInUse, loadKeyProvider, readKeyRing, readSigningKeyPublishLeadSeconds } from './key-config.ts';
@@ -87,6 +88,42 @@ describe('key-ring settings (LTI_KEYRING_FILE, LTI_MASTER_KEY, LTI_MASTER_KEY_FI
 });
 
 describe('loadKeyProvider', () => {
+  it.each(['{broken-fixture-secret', '{"legacyBlobs":"allowed"}', 'null', '[]'])('fails once at start for a malformed persisted key-provider setting: %s', async (value) => {
+    const { db } = database();
+    try {
+      db.prepare("INSERT INTO service_setting (key, value) VALUES ('key_provider', ?)").run(value);
+      const { logger, lines } = capturingLogger();
+      await expect(loadKeyProvider({ db, logger, masterKey: Buffer.from(LEGACY), env: { LTI_KEYRING_FILE: ringFile('legacy', { legacy: LEGACY }) } }))
+        .rejects.toThrow('key_provider_setting_invalid: cannot read the key_provider service setting.');
+      expect(lines).toEqual([]);
+    } finally { db.close(); }
+  });
+
+  it('all loaded providers observe committed legacy refusal, keep other settings, and restore refusal after restart', async () => {
+    const { db } = database();
+    try {
+      const env = { LTI_KEYRING_FILE: ringFile('k2', { legacy: LEGACY, k2: K2 }) };
+      const { logger, lines } = capturingLogger();
+      const load = () => loadKeyProvider({ db, logger, masterKey: Buffer.from(LEGACY), env });
+      const first = await load();
+      const second = await load();
+      const old = { bytes: encrypt(LEGACY, 'fixture token') };
+      const aad = 'lti:registration_session:registration_token_encrypted:cogniate:unit';
+      expect(Buffer.from(await first.open(old, aad)).toString()).toBe('fixture token');
+      db.prepare("INSERT INTO service_setting (key, value) VALUES ('key_provider', ?)").run(JSON.stringify({ otherSetting: 'kept' }));
+      expect(() => transaction(db, () => { refuseLegacyBlobs(db); throw new Error('rollback'); })).toThrow('rollback');
+      expect(legacyBlobsRefused(db)).toBe(false);
+      transaction(db, () => refuseLegacyBlobs(db));
+      expect(legacyBlobsRefused(db)).toBe(true);
+      expect(JSON.parse(String(db.prepare("SELECT value FROM service_setting WHERE key = 'key_provider'").get()!.value)))
+        .toEqual({ otherSetting: 'kept', legacyBlobs: 'refused' });
+      const restarted = await load();
+      for (const provider of [first, second, restarted]) await expect(provider.open(old, aad)).rejects.toThrow('legacy_refused');
+      expect(lines.filter((line) => line.event === 'key_open_failed')).toEqual(Array.from({ length: 3 }, () =>
+        expect.objectContaining({ table: 'registration_session', reason: 'legacy_refused' })));
+    } finally { db.close(); }
+  });
+
   it('AC-LA-E5-08-01 (unit part): with only LTI_MASTER_KEY, existing tool keys and registration sessions open; new blobs use "legacy"', async () => {
     const { db } = database();
     // Rows as the code before LA-E5-08 wrote them: crypto.ts encrypt with the master key (no header, no associated data).

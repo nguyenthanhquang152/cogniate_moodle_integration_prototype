@@ -4,34 +4,39 @@ import type { ChannelRegistry } from '@cogniate/channel-kernel';
 //  - content: PUBLIC_CONTENT_URL (proxy -> :4201): /pkg/*, /rt/*, /_rt/assets/*; a different site, no cookies (T5a)
 //  - worker:  sends score sync rows to the LTI service (T5a; started with the app listener)
 import { join } from 'node:path';
-import { createOutboundClient, knobString, knobValue, portFromEnv, startRetention, startService } from '@cogniate/shared';
+import { createOutboundClient, knobString, knobValue, portFromEnv, createJobRunner, startService } from '@cogniate/shared';
 import { buildAppApi } from './app/server.ts';
 import { createLtiClient } from './clients/lti-client.ts';
-import { createMoodleWsClient } from './clients/moodle-ws.ts';
 import { loadConfig } from './config.ts';
 import { CONTENT_SERVICE_NAME, buildContentServer } from './content-host/server.ts';
 import { openDb } from './domain/db.ts';
 import { prepareStore } from './domain/package-store.ts';
-import { cleanupExpired } from './domain/retention.ts';
+import { retentionJob } from './domain/retention.ts';
+import { createAppJobStore } from './kernel/records/job-store.ts';
+import { createDispatchQueue } from './kernel/records/outbox.ts';
+import { ltiAgsReporter } from './drivers/lti-ags/index.ts';
+import { configureRecordReporters } from './kernel/records/records.ts';
 import { loadAppChannelRegistry } from './kernel/registry.ts';
-import type { ScoreSyncWorker } from './worker/score-sync.ts';
-import { createScoreSyncWorker } from './worker/score-sync.ts';
+import { createShutdownHandler } from './kernel/records/shutdown.ts';
+import type { JobRunner, Logger } from '@cogniate/shared';
 
 const APP_SERVICE_NAME = 'cogniate-app';
-async function main(): Promise<void> {
+async function startAppService() {
   const config = loadConfig();
   const db = openDb(join(config.dataDir, 'cogniate.db'));
   const store = await prepareStore(config.dataDir);
   // The content listener makes score sync rows; the worker (built with the app listener) sends them.
-  let worker: ScoreSyncWorker | null = null;
+  let runner: JobRunner | null = null;
   let channels: ChannelRegistry;
+  const loggers: Logger[] = [];
 
-  await startService(APP_SERVICE_NAME, [
+  const servers = await startService(APP_SERVICE_NAME, [
     {
       name: APP_SERVICE_NAME,
       port: portFromEnv('PORT', 4200),
       publicUrl: (u) => u.app,
       build: async (deps) => {
+        loggers.push(deps.logger);
         // LA-ADR-01 D4: the channel registry, by folder discovery of the one product root. A load-check failure logs
         // channel_registry_invalid and stops the start. The same registry is passed to both listeners and the worker.
         channels = await loadAppChannelRegistry(deps.logger);
@@ -39,20 +44,22 @@ async function main(): Promise<void> {
         const outbound = createOutboundClient({ logger: deps.logger, allowlist: deps.outboundAllowlist });
         // The acceptance profile sends the /api/* calls through the transport gate (M3 §3.3, LTI_API_URL).
         const lti = createLtiClient({ outbound, ltiUrl: deps.urls.lti, apiKeyFile: config.ltiApiKeyFile, ...(config.ltiApiUrl ? { apiUrl: config.ltiApiUrl } : {}) });
-        worker = createScoreSyncWorker({ channels, db, lti, logger: deps.logger, masterKey: config.masterKey, now: Date.now });
+        runner = createJobRunner({ store: createAppJobStore(db), logger: deps.logger, instanceId: config.jobInstanceId });
+        const reporters = [ltiAgsReporter({ db, lti, masterKey: config.masterKey, channels })];
+        configureRecordReporters(db, reporters);
+        runner.addQueue(createDispatchQueue(db, reporters));
+        runner.addInterval(retentionJob(db));
         const app = await buildAppApi({
           channels, db, urls: deps.urls, logger: deps.logger, store, profile: deps.profile, knobs: deps.knobs, outboundAllowlist: deps.outboundAllowlist,
           masterKey: config.masterKey, lti, refTtlSeconds: deps.knobValues.REF_TTL_SECONDS ?? knobValue('REF_TTL_SECONDS'),
           pickerTtlSeconds: deps.knobValues.PICKER_TTL_SECONDS ?? knobValue('PICKER_TTL_SECONDS'),
-          playTtlSeconds: deps.knobValues.PLAY_TTL_SECONDS ?? knobValue('PLAY_TTL_SECONDS'), playerDir: config.playerDir, kickSync: () => void worker?.kick(),
+          playTtlSeconds: deps.knobValues.PLAY_TTL_SECONDS ?? knobValue('PLAY_TTL_SECONDS'), playerDir: config.playerDir, kickSync: () => void runner?.kick('record-dispatch'),
           // T8: builds go to the host-side Build Runner through its queue folder; the knobs travel in each request.
           buildQueueDir: config.buildQueueDir,
           buildKnobs: { hold: (deps.knobValues.BUILD_RUNNER_HOLD ?? knobValue('BUILD_RUNNER_HOLD')) === 1, failAt: deps.knobStrings.BUILD_RUNNER_FAIL_AT ?? knobString('BUILD_RUNNER_FAIL_AT') },
-          moodleWs: createMoodleWsClient({ outbound }),
+          outbound,
         });
-        worker.start();
-        // Retention (data-model §2.1): at start and every 10 min.
-        startRetention({ logger: deps.logger, run: () => cleanupExpired(db, Date.now()) });
+        if (config.jobRunner) runner.start();
         await app.ready();
         return app.server;
       },
@@ -61,11 +68,27 @@ async function main(): Promise<void> {
       name: CONTENT_SERVICE_NAME,
       port: portFromEnv('CONTENT_PORT', 4201),
       publicUrl: (u) => u.content,
-      build: (deps) => buildContentServer({
-        ...deps, channels, db, dataDir: config.dataDir, playerDir: config.playerDir, onSyncCreated: () => void worker?.kick(),
-      }),
+      build: (deps) => {
+        loggers.push(deps.logger);
+        return buildContentServer({
+          ...deps, channels, db, dataDir: config.dataDir, playerDir: config.playerDir, onSyncCreated: () => void runner?.kick('record-dispatch'),
+        });
+      },
     },
-  ]);
+  ], { handleSignals: false });
+  let closing: Promise<void> | undefined;
+  const close = (): Promise<void> => closing ??= (async () => {
+    await runner?.stop();
+    await Promise.all(servers.map((server) => new Promise<void>((resolve, reject) => {
+      server.close((err) => err ? reject(err) : resolve());
+      server.closeIdleConnections();
+    })));
+    db.close();
+  })();
+  return { close, runner, db, servers, loggers };
 }
 
-await main();
+const app = await startAppService();
+const stop = createShutdownHandler(app);
+process.once('SIGTERM', () => stop('SIGTERM'));
+process.once('SIGINT', () => stop('SIGINT'));

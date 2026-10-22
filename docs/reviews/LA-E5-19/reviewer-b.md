@@ -1,7 +1,36 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-19 review, Reviewer-B (lens: "Can a human team own it?")
+
+## Round 2 (Reviewer-B2)
+
+Reviewer: Reviewer-B2, the second lens-B instance (plan LD-22), on this lens's file. This is a bounded check of the round-1 findings, with A2's BD-A2-31 (stop order) and BD-A2-32 (every interval job runs at start). Diff: `git diff c96c837^1 c96c837` (lane S1 commits `d6886db`, `e2d36c2`, `7ee383f`, `7600b8d`, `d13dcc0`). I did not open the other reviewer's file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 0 MINOR, 1 new NIT.** Every round-1 finding is **closed**.
+
+How I checked: a scratch clone of `c96c837` (private `/tmp` folder, deleted after the run). `vitest run services/lti-service/src/jobs services/lti-service/src/main.test.ts`: **5 files, 26 tests passed**.
+
+### Round-1 findings
+
+| Finding | Status |
+| --- | --- |
+| B-LA-E5-19-01 (MINOR) | **Closed** (BD-A2-32). `audit-retention` has `runAtStart: true`, and a test pins exactly one `job_run {job: "audit-retention"}` at start. |
+| B-LA-E5-19-02 (MINOR) | **Closed** (BD-A2-31). The stop order is now written in three places: the runner grace is the longest lease (60 s); `SERVICE_EXIT_AFTER_MS = JOB_LEASE_MS + 10_000` (70 s) in `main.ts`, with `service_exit_forced {after_ms}` and exit 1; `stop_grace_period: 75s` on `lti-service` and `cogniate-app` in `infra/compose.yaml`. Each place has a comment that names BD-A2-31. The handler is now an exported, testable function, `createShutdownHandler`. Tests cover the 70 s fallback, a clean exit 0 after the grace, and exit 1 when `close` rejects. `service_stopping {signal}` marks the start of the drain. |
+| B-LA-E5-19-03 (NIT) | **Closed.** `AUDIT_RETENTION_DAYS` and `JOB_INSTANCE_ID` are in the `lti-service` environment of `infra/compose.yaml` with their defaults, and in `.env.example` with a one-line meaning each. |
+| B-LA-E5-19-04 (NIT) | **Closed.** `auditRetentionJob(db, days)` takes `days` as a required argument; the second `process.env` read is gone. |
+
+Also in this round, and clear: the shared `retention` job now also calls `cleanupStorageChecks` (the RQ line for LA-E3-02), so `storage_check` rows get the same `retention_cleanup {table, deleted}` line. A new test proves that a late end from an expired lease owner does not touch the newer lease or its result.
+
+### New in this round
+
+#### B-LA-E5-19-05 — NIT — The three stop numbers are tied only by comments, and the 70 s fallback assumes no job has a longer lease
+
+- **File:** `services/lti-service/src/main.ts` (`SERVICE_EXIT_AFTER_MS = JOB_LEASE_MS + 10_000`); `infra/compose.yaml` (`stop_grace_period: 75s` twice).
+- **Problem:** BD-A2-31 needs runner grace < service fallback < container grace. The runner grace is the **longest** lease of the added jobs, but the fallback is computed from the default `JOB_LEASE_MS`. Today no LTI job sets `leaseMs`, so the order holds. A later job with a longer lease (for example a key re-wrap job; BD-A2-36 keeps its batches short, but its lease may grow) would let the 70 s timer cut the drain, and nothing would fail. The compose literal `75s` must also be changed by hand with the code constant.
+- **Suggested fix:** Compute the fallback from the runner (the longest lease of the added jobs, plus 10 s), or refuse at start a job whose `leaseMs` is above `JOB_LEASE_MS`. Add one `infra/scripts/*.test.mjs` row that reads `compose.yaml` and checks that `stop_grace_period` is at least the fallback plus 5 s.
+
+## Round 1
 
 Diff: `git diff a50e7af^1 a50e7af` (lane S1 commit `45049fd`, plus the LA-E5-04 follow-up `bface04`, merged as `a50e7af`). Spec: `docs/architecture/ltiaas/tasks/LA-E5-19.md`. Design: LA-ADR-06 D11 (Must rows, AP-06-32, AP-06-33), D4 rule 2, LA-ADR-03 D7, operability §2. I did not open the other reviewer's file. I did not run Docker.
 

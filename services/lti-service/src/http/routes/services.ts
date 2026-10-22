@@ -6,6 +6,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { parseScore } from '../../platform/ags.ts';
 import type { RouteContext } from '../context.ts';
+import { checkServiceKeyWriteScope } from '../auth.ts';
 import { decodeLineItemId, invalid } from '../validation.ts';
 import { agsContext, signedDeepLink } from '../service-context.ts';
 
@@ -47,7 +48,10 @@ export function registerServiceRoutes(app: FastifyInstance, ctx: RouteContext): 
   app.post<ItemParams>('/api/lineitems/:lineItemId/scores', async (req, reply) => {
     const caller = ctx.auth(req, ['ltik', 'service']);
     const score = parseScore(req.body, ctx.now());
-    await ctx.ags.postScore(agsContext(ctx, caller, traceOf(req)), decodeLineItemId(req.params.lineItemId), score);
+    const ags = agsContext(ctx, caller, traceOf(req));
+    const lineItemId = decodeLineItemId(req.params.lineItemId);
+    await checkServiceKeyWriteScope(ctx, caller, ags, lineItemId);
+    await ctx.ags.postScore(ags, lineItemId, score);
     return reply.code(204).send();
   });
 

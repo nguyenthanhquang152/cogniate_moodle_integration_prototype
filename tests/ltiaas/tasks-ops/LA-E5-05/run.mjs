@@ -55,16 +55,21 @@ function redactKeysInText(text) {
  */
 async function executeBootstrapCli(account, name, { rotateApiKey = false, rotateSigningKey = false, renameOperatorKey = false } = {}) {
   const opKeyFile = path.join(SECRETS(), 'lti-operator-key');
+  const opCopyFile = path.join(SECRETS(), 'lti', 'lti-operator-key');
   const backupOpKeyFile = `${opKeyFile}.qa2-e505-bak`;
+  const backupOpCopyFile = `${opCopyFile}.qa2-e505-bak`;
 
-  if (renameOperatorKey && fs.existsSync(opKeyFile)) {
-    fs.renameSync(opKeyFile, backupOpKeyFile);
+  if (renameOperatorKey) {
+    if (fs.existsSync(opKeyFile)) fs.renameSync(opKeyFile, backupOpKeyFile);
+    if (fs.existsSync(opCopyFile)) fs.copyFileSync(opCopyFile, backupOpCopyFile);
   }
 
   let rawRes;
+  let opCopyDeletedOnMissing = false;
   try {
-    // Run `npm run lti:bootstrap -w services/lti-service -- ...` inside the lti-service container (--workdir /repo)
-    // when renameOperatorKey is set or when testing `bootstrap.ts` JSON output, or via the host script for form (d).
+    // Run `npm run lti:bootstrap -w services/lti-service -- ...` on the host (QA forms (d) and (e)).
+    // Per BD-A2-34, `infra/scripts/lti-bootstrap.sh` copies `infra/.secrets/lti-operator-key` atomically to
+    // `infra/.secrets/lti/lti-operator-key` (`0600`), and when the original is missing it deletes the copy and exits 1.
     const cliFlags = [
       '--account',
       account,
@@ -74,33 +79,25 @@ async function executeBootstrapCli(account, name, { rotateApiKey = false, rotate
       ...(rotateSigningKey ? ['--rotate-signing-key'] : []),
     ];
 
+    const args = ['run', 'lti:bootstrap', '-w', 'services/lti-service', '--', ...cliFlags];
+    rawRes = await run('npm', args, { cwd: r.CLONE, env: r.STACK_ENV, timeoutMs: 120_000 });
     if (renameOperatorKey) {
-      // QA form (e): invoke bootstrap.ts directly with the operator key file renamed so init --if-none in the host
-      // wrapper does not recreate or warn before bootstrap.ts runs.
-      const composeArgs = [
-        'compose',
-        '-f',
-        'infra/compose.yaml',
-        '--env-file',
-        '.env',
-        'exec',
-        '-T',
-        'lti-service',
-        'node',
-        'src/cli/bootstrap.ts',
-        ...cliFlags,
-      ];
-      rawRes = await run('docker', composeArgs, { cwd: r.CLONE, env: r.STACK_ENV, timeoutMs: 120_000 });
-    } else {
-      // First run `lti-bootstrap.sh` / `npm run lti:bootstrap -w services/lti-service` on the host (QA form (d)).
-      // To also verify the raw JSON stdout line of `src/cli/bootstrap.ts` on the very first cogniate run, inspect
-      // both JSON output and wrapper summary output.
-      const args = ['run', 'lti:bootstrap', '-w', 'services/lti-service', '--', ...cliFlags];
-      rawRes = await run('npm', args, { cwd: r.CLONE, env: r.STACK_ENV, timeoutMs: 120_000 });
+      opCopyDeletedOnMissing = !fs.existsSync(opCopyFile);
     }
   } finally {
-    if (renameOperatorKey && fs.existsSync(backupOpKeyFile)) {
-      fs.renameSync(backupOpKeyFile, opKeyFile);
+    if (renameOperatorKey) {
+      if (fs.existsSync(backupOpKeyFile)) {
+        fs.renameSync(backupOpKeyFile, opKeyFile);
+      }
+      if (fs.existsSync(backupOpCopyFile)) {
+        const oldUmask = process.umask(0o077);
+        try {
+          fs.renameSync(backupOpCopyFile, opCopyFile);
+          fs.chmodSync(opCopyFile, 0o600);
+        } finally {
+          process.umask(oldUmask);
+        }
+      }
     }
   }
 
@@ -178,6 +175,7 @@ async function executeBootstrapCli(account, name, { rotateApiKey = false, rotate
       kid,
       hasApiKey,
       keyFileWritten,
+      opCopyDeletedOnMissing,
       stderrLines,
     },
     rawRes,

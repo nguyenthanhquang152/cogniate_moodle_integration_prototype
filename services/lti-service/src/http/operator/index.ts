@@ -2,7 +2,7 @@
 // (default 127.0.0.1:4110). The proxy has no route to it. Every /operator/v1/* route needs
 // `Authorization: OPERATOR-AUTH-V1 <operator key>`. A tenant API key is an unknown credential here.
 // Mount list (LD-10): one line per endpoint group module. S2 delivers its modules as new files; S1 adds the line (RQ-1).
-import type { KeyHandle, Logger, PublicUrls } from '@cogniate/shared';
+import type { JobRunner, KeyHandle, Logger, PublicUrls } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ApiError } from '../../api-errors.ts';
@@ -20,6 +20,8 @@ import { registerSharedPlatformRoutes } from './shared-platforms.ts';
 import type { RateLimiter } from '../rate-limit.ts';
 import { createTrustedProxy, rateLimiterFor, recordAuthFailure } from '../rate-limit.ts';
 import { registerRateLimitRoutes } from './rate-limits.ts';
+import { registerKeyProviderRoutes } from './key-provider.ts';
+import { registerOperatorServiceKeyRoutes } from './service-keys.ts';
 
 /** The operator of an accepted request. The audit actor is operator:<operator>. */
 export interface OperatorIdentity {
@@ -37,6 +39,8 @@ declare module 'fastify' {
 export interface OperatorContext {
   db: Db;
   keys: KeyHandle;
+  /** Only the re-wrap route needs jobs; without it that route gives 503 NOT_READY. */
+  jobs?: JobRunner;
   urls: PublicUrls;
   simulationProfiles: boolean;
   logger: Logger;
@@ -62,6 +66,8 @@ export interface OperatorAuditEvent {
 export interface OperatorDeps {
   db: Db;
   keys: KeyHandle;
+  /** Only re-wrap needs the LTI runner with key-rewrap registered; absent means 503 NOT_READY on that route. */
+  jobs?: JobRunner;
   urls: PublicUrls;
   simulationProfiles?: boolean;
   logger: Logger;
@@ -76,6 +82,8 @@ const MOUNTS: Array<(app: FastifyInstance, ctx: OperatorContext) => void> = [
   registerApiKeyRoutes,
   registerSharedPlatformRoutes,
   registerRateLimitRoutes,
+  registerKeyProviderRoutes,
+  registerOperatorServiceKeyRoutes,
 ];
 
 /**
@@ -108,7 +116,7 @@ export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInsta
     return req.operator;
   };
   const ctx: OperatorContext = {
-    db: deps.db, keys: deps.keys, logger: log, now, operator, limiter,
+    db: deps.db, keys: deps.keys, jobs: deps.jobs, logger: log, now, operator, limiter,
     urls: deps.urls, simulationProfiles: deps.simulationProfiles ?? false,
     audited: (req, event, body) => withAudit(deps.db, now, {
       actor: { type: 'operator', id: operator(req).operator }, toolAccountId: event.toolAccountId ?? null, traceId: req.traceId, clientIp: req.ip,

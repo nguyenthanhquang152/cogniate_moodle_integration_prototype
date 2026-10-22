@@ -1,6 +1,7 @@
 // HARNESS ONLY self-tests of the generic LTI 1.3 and Moodle-shaped simulator module (LA-E7-02).
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import vm from 'node:vm';
 import { makeSigner, verifyJwt } from '../core/crypto.mjs';
 import { AGS, DL, LTI, NRPS, SCOPES, createRuntime } from '../core/runtime.mjs';
 import { loadProviders } from '../server.mjs';
@@ -233,8 +234,10 @@ test('HARNESS ONLY: LA-E7-05 Dynamic Registration on generic-sim, moodle-sim, an
     clientId: 'gen-dr-client-1',
     deploymentId: 'deploy-generic-2',
     siteHost: 'generic.sim.test',
-    secondTokenHost: true,
-    authorizationServer: 'https://authz.generic.sim.test/oauth2',
+    dr: {
+      secondTokenHost: true,
+      authorizationServer: 'https://authz.generic.sim.test/oauth2',
+    },
   });
   assert.equal(genDrScenario.registration.tokenFormat, 'opaque-bearer');
   assert.match(genDrScenario.registration.registrationToken, /^regtok-gen-dr-1-/);
@@ -501,7 +504,37 @@ test('HARNESS ONLY: LA-E7-05 Deep Linking options (accept_multiple, accept_linei
     ...extra,
   });
 
-  // 1. Empty content_items: [] (Cancel) is accepted and recorded
+  // 1a. By default (dlAllowCancel not set), an empty content_items: [] is refused
+  const refusedEmptyRes = await f.request('generic.sim.test', generic.sites[0].dlReturn, 'POST', {
+    JWT: makeDlJwt('dl-empty-refused-nonce', []),
+  });
+  assert.equal(refusedEmptyRes.status, 400);
+  assert.equal(JSON.parse(refusedEmptyRes.body).error, 'DL item count');
+
+  // 1b. Setting scenario.claims[DL + 'deep_linking_settings'] replaces the computed claim object
+  const replaceClaimScenario = {
+    id: 'gen-dl-replace-claim',
+    provider: 'generic-sim',
+    clientId: 'gen-dl-replace-client',
+    deploymentId: generic.deployments[0],
+    siteHost: 'generic.sim.test',
+    messageType: 'LtiDeepLinkingRequest',
+    claims: {
+      [DL + 'deep_linking_settings']: {
+        deep_link_return_url: 'https://generic.sim.test/lti/deep-link/return',
+        accept_types: ['ltiResourceLink'],
+      },
+    },
+  };
+  f.runtime.scenario(replaceClaimScenario);
+  const replacedClaims = await idToken(f, generic, replaceClaimScenario);
+  assert.deepEqual(replacedClaims[DL + 'deep_linking_settings'], {
+    deep_link_return_url: 'https://generic.sim.test/lti/deep-link/return',
+    accept_types: ['ltiResourceLink'],
+  });
+
+  // 1c. With dlAllowCancel: true set on the scenario, empty content_items: [] (Cancel) is accepted and recorded
+  f.runtime.scenario({ ...dlScenario, dlAllowCancel: true });
   const cancelRes = await f.request('generic.sim.test', generic.sites[0].dlReturn, 'POST', {
     JWT: makeDlJwt('dl-cancel-nonce', [], { [DL + 'msg']: 'Selection cancelled' }),
   });
@@ -567,11 +600,10 @@ test('HARNESS ONLY: LA-E7-05 platform storage (lti_storage_target, lti.put_data 
     siteHost: 'generic.sim.test',
     storageTarget: 'post_message_forwarding',
     secondKey: true,
-    useSecondKey: true,
     institutionAdmin: true,
     extraAud: 'https://extra-aud.sim.test',
     ungradedPlacement: true,
-    tokenError: 'invalid_client',
+    tokenAnswers: [{ status: 400, error: 'invalid_client', persistent: true }],
   });
   assert.equal(storageSc.login.lti_storage_target, 'post_message_forwarding');
   assert.match(storageSc.login.target_link_uri, /cogniate_placement=ungraded/);
@@ -579,52 +611,110 @@ test('HARNESS ONLY: LA-E7-05 platform storage (lti_storage_target, lti.put_data 
   const frameRes = await f.request('generic.sim.test', `/__frame?url=${encodeURIComponent(`${TOOL}/lti/login/cogniate`)}`);
   assert.equal(frameRes.status, 200);
   assert.match(frameRes.body, /name="post_message_forwarding"/);
-  assert.equal((await f.request('generic.sim.test', '/__storage', 'GET')).status, 200);
+  const storageFramePage = await f.request('generic.sim.test', '/__storage', 'GET');
+  assert.equal(storageFramePage.status, 200);
 
-  // lti.put_data and lti.get_data enforce sender origin and echo message_id
-  const putRes = await f.request('generic.sim.test', '/__storage', 'POST', {
+  // Execute the storage frame's inline <script> the way a browser does:
+  // the frame runs on https://generic.sim.test, so its same-origin fetch('/__storage', { method: 'POST' })
+  // sends Origin: 'https://generic.sim.test' alongside the frame's 'x-storage-origin': event.origin header.
+  const scriptMatch = /<script>([\s\S]*?)<\/script>/.exec(storageFramePage.body);
+  assert.ok(scriptMatch, 'storage frame includes inline <script>');
+  let messageListener = null;
+  const browserContext = vm.createContext({
+    Map,
+    JSON,
+    window: {
+      addEventListener(type, fn) {
+        if (type === 'message') messageListener = fn;
+      },
+    },
+    fetch: async (path, init = {}) => {
+      const headers = {
+        ...(init.headers ?? {}),
+        // A browser always sets Origin to the frame's own auth-host origin on a same-origin POST.
+        origin: `https://${generic.auth.host}`,
+      };
+      const res = await f.request(generic.auth.host, path, init.method ?? 'GET', JSON.parse(init.body ?? '{}'), headers);
+      return {
+        ok: res.status >= 200 && res.status < 300,
+        status: res.status,
+        json: async () => JSON.parse(res.body),
+      };
+    },
+  });
+  vm.runInContext(scriptMatch[1], browserContext);
+  assert.equal(typeof messageListener, 'function');
+
+  async function postToStorageFrame(senderOrigin, data) {
+    const replies = [];
+    await messageListener({
+      origin: senderOrigin,
+      data,
+      source: {
+        postMessage(msg, targetOrigin) {
+          replies.push({ msg, targetOrigin });
+        },
+      },
+    });
+    return replies;
+  }
+
+  // Browser postMessage from TOOL stores and replies to TOOL (not to the auth host Origin)
+  const putReplies = await postToStorageFrame(TOOL, {
     subject: 'lti.put_data',
     message_id: 'msg-put-1',
     key: 'state-123',
     value: 'nonce-abc',
-  }, { 'content-type': 'application/json', origin: TOOL });
-  assert.equal(putRes.status, 200);
-  const putBody = JSON.parse(putRes.body);
-  assert.deepEqual(putBody.response, { subject: 'lti.put_data.response', message_id: 'msg-put-1' });
-  assert.equal(putBody.targetOrigin, TOOL);
+  });
+  assert.deepEqual(putReplies, [
+    {
+      msg: { subject: 'lti.put_data.response', message_id: 'msg-put-1' },
+      targetOrigin: TOOL,
+    },
+  ]);
 
-  // Same origin gets the stored value with its own message_id
-  const getSame = await f.request('generic.sim.test', '/__storage', 'POST', {
+  // Same sender origin gets the stored value with its own message_id and targetOrigin === TOOL
+  const getSameReplies = await postToStorageFrame(TOOL, {
     subject: 'lti.get_data',
     message_id: 'msg-get-2',
     key: 'state-123',
-  }, { 'content-type': 'application/json', origin: TOOL });
-  assert.equal(getSame.status, 200);
-  assert.deepEqual(JSON.parse(getSame.body).response, {
-    subject: 'lti.get_data.response',
-    message_id: 'msg-get-2',
-    value: 'nonce-abc',
   });
+  assert.deepEqual(getSameReplies, [
+    {
+      msg: { subject: 'lti.get_data.response', message_id: 'msg-get-2', value: 'nonce-abc' },
+      targetOrigin: TOOL,
+    },
+  ]);
 
-  // Different sender origin does NOT get the first origin's data
-  const getOtherOrigin = await f.request('generic.sim.test', '/__storage', 'POST', {
+  // Different sender origin does NOT get the first origin's data, even though both frame POSTs
+  // carry the same browser HTTP Origin header (https://generic.sim.test)
+  const getOtherReplies = await postToStorageFrame('https://other-tool.test', {
     subject: 'lti.get_data',
     message_id: 'msg-get-3',
     key: 'state-123',
-  }, { 'content-type': 'application/json', origin: 'https://other-tool.test' });
-  assert.equal(getOtherOrigin.status, 200);
-  assert.deepEqual(JSON.parse(getOtherOrigin.body).response, {
-    subject: 'lti.get_data.response',
-    message_id: 'msg-get-3',
   });
+  assert.deepEqual(getOtherReplies, [
+    {
+      msg: { subject: 'lti.get_data.response', message_id: 'msg-get-3' },
+      targetOrigin: 'https://other-tool.test',
+    },
+  ]);
 
-  // Missing origin or missing message_id is rejected
+  // Direct same-origin POST without x-storage-origin (Origin === auth host) or missing message_id is rejected
+  assert.equal(
+    (await f.request(generic.auth.host, '/__storage', 'POST', {
+      subject: 'lti.get_data',
+      message_id: 'msg-get-self',
+      key: 'state-123',
+    }, { 'content-type': 'application/json', origin: `https://${generic.auth.host}` })).status,
+    400,
+  );
   assert.equal(
     (await f.request('generic.sim.test', '/__storage', 'POST', {
       subject: 'lti.get_data',
       message_id: '',
       key: 'state-123',
-    }, { 'content-type': 'application/json', origin: TOOL })).status,
+    }, { 'content-type': 'application/json', 'x-storage-origin': TOOL })).status,
     400,
   );
 
@@ -665,4 +755,127 @@ test('HARNESS ONLY: LA-E7-05 platform storage (lti_storage_target, lti.put_data 
   });
   assert.equal(invClientRes.status, 400);
   assert.equal(JSON.parse(invClientRes.body).error, 'invalid_client');
+});
+
+test('HARNESS ONLY: LA-E7-05 R3 default record keys stay byte-equal to baseline (A-04), unknown options fail closed (B-01), scenario scoping of secondKey and storageTarget (B-02), and exact endpoint path matching (B-03)', async () => {
+  const f = fixture();
+  const baseScenario = {
+    id: 'gen-base-shape',
+    provider: 'generic-sim',
+    clientId: 'gen-base-client',
+    deploymentId: generic.deployments[0],
+    siteHost: 'generic.sim.test',
+    resource: 'pub_base',
+  };
+  f.runtime.scenario(baseScenario);
+
+  // 1. A-LA-E7-02-04: Pin exact default record key lists when no LA-E7-05 option is set
+  await f.request('generic.sim.test', generic.jwks.path);
+  await f.request('generic.sim.test', `${generic.auth.path}?${authParams(baseScenario)}`);
+  const now = Math.floor(Date.now() / 1000);
+  const tokRes = await f.request('generic.sim.test', generic.token.path, 'POST', {
+    grant_type: 'client_credentials',
+    client_assertion_type: 'urn:ietf:params:oauth:client-assertion-type:jwt-bearer',
+    scope: `${SCOPES.lineitem} ${SCOPES.score} ${SCOPES.nrps}`,
+    client_assertion: f.tool.sign({
+      iss: baseScenario.clientId,
+      sub: baseScenario.clientId,
+      aud: 'https://generic.sim.test/lti/oauth2/token',
+      iat: now,
+      exp: now + 60,
+      jti: 'base-jti-1',
+    }),
+  });
+  const bearer = JSON.parse(tokRes.body).access_token;
+  await f.request('generic.sim.test', generic.sites[0].nrps, 'GET', {}, { authorization: `Bearer ${bearer}` });
+  await f.request('generic.sim.test', generic.sites[0].lineitems, 'GET', {}, { authorization: `Bearer ${bearer}` });
+  await f.request('generic.sim.test', `${generic.sites[0].lineitems}/pub_base/scores`, 'POST', {
+    userId: 'learner-1',
+    scoreGiven: 90,
+    scoreMaximum: 100,
+    activityProgress: 'Completed',
+    gradingProgress: 'FullyGraded',
+    timestamp: new Date().toISOString(),
+  }, {
+    authorization: `Bearer ${bearer}`,
+    'content-type': 'application/vnd.ims.lis.v1.score+json',
+  });
+  f.runtime.scenario({ ...baseScenario, messageType: 'LtiDeepLinkingRequest' });
+  await f.request('generic.sim.test', generic.sites[0].dlReturn, 'POST', {
+    JWT: f.tool.sign({
+      iss: baseScenario.clientId,
+      aud: generic.issuer,
+      nonce: 'base-dl-nonce',
+      iat: now,
+      exp: now + 60,
+      [LTI + 'message_type']: 'LtiDeepLinkingResponse',
+      [LTI + 'version']: '1.3.0',
+      [LTI + 'deployment_id']: baseScenario.deploymentId,
+      [DL + 'data']: `data-${baseScenario.id}`,
+      [DL + 'content_items']: [
+        {
+          type: 'ltiResourceLink',
+          title: 'Course',
+          url: `${TOOL}/lti/launch/cogniate?resource=pub_base`,
+          lineItem: { scoreMaximum: 100 },
+          window: { targetName: '_blank' },
+        },
+      ],
+    }),
+  });
+
+  const records = JSON.parse((await f.runtime.control({ method: 'GET', url: new URL('https://lms-sim.test/__sim/records') })).body).records;
+  const keysOf = (kind) => Object.keys(records.find((r) => r.kind === kind)).sort();
+  assert.deepEqual(keysOf('jwks'), ['host', 'kind', 'method', 'path', 'provider', 'seq', 'ts']);
+  assert.deepEqual(keysOf('auth'), ['clientId', 'deploymentId', 'host', 'kind', 'method', 'path', 'provider', 'scenario', 'seq', 'ts']);
+  assert.deepEqual(keysOf('token'), ['audience', 'clientId', 'host', 'kind', 'method', 'path', 'provider', 'scopes', 'seq', 'tokenRef', 'ts']);
+  assert.deepEqual(keysOf('nrps'), ['host', 'kind', 'method', 'path', 'provider', 'seq', 'tokenRef', 'ts']);
+  assert.deepEqual(keysOf('ags'), ['host', 'kind', 'method', 'path', 'provider', 'resource', 'seq', 'tokenRef', 'ts']);
+  assert.deepEqual(keysOf('score'), ['body', 'contentType', 'host', 'kind', 'method', 'path', 'provider', 'resource', 'seq', 'status', 'tokenRef', 'ts']);
+  assert.deepEqual(keysOf('deep-link'), ['audience', 'clientId', 'dataMode', 'deploymentId', 'host', 'items', 'kind', 'method', 'path', 'provider', 'scenario', 'seq', 'ts']);
+
+  // 2. B-LA-E7-05-01 (Probe P1): Unknown or misspelt options are refused with a clear suggestion
+  assert.throws(
+    () => f.runtime.scenario({ ...baseScenario, scoreAnswer: { status: 429 } }),
+    /Unknown scenario option "scoreAnswer" \(did you mean "scoreAnswers"\?\)/,
+  );
+  assert.throws(
+    () => f.runtime.scenario({ ...baseScenario, acceptMultple: true }),
+    /Unknown scenario option "acceptMultple" \(did you mean "acceptMultiple"\?\)/,
+  );
+  assert.throws(
+    () => f.runtime.scenario({ ...baseScenario, tokenAnswerz: [429] }),
+    /Unknown scenario option "tokenAnswerz" \(did you mean "tokenAnswers"\?\)/,
+  );
+  assert.throws(
+    () => f.runtime.scenario({ ...baseScenario, dr: { operaton: 'new' } }),
+    /Unknown scenario dr option "dr\.operaton" \(did you mean "dr\.operation"\?\)/,
+  );
+
+  // 3. B-LA-E7-05-02 (Probe P2): Scenario A with secondKey and storageTarget does not pollute a later Scenario B
+  f.runtime.scenario({
+    ...baseScenario,
+    id: 'sc-a',
+    secondKey: true,
+    storageTarget: 'post_message_forwarding',
+  });
+  f.runtime.scenario({
+    ...baseScenario,
+    id: 'sc-b',
+  });
+  const jwksB = JSON.parse((await f.request('generic.sim.test', generic.jwks.path)).body);
+  assert.equal(jwksB.keys.length, 1);
+  const frameB = await f.request('generic.sim.test', `/__frame?url=${encodeURIComponent(`${TOOL}/lti/login/cogniate`)}`);
+  assert.equal(frameB.body.includes('post_message_forwarding'), false);
+
+  // Addressing Scenario A explicitly still returns Scenario A's 2 keys and storage frame
+  const jwksA = JSON.parse((await f.request('generic.sim.test', `${generic.jwks.path}?scenario=sc-a`)).body);
+  assert.equal(jwksA.keys.length, 2);
+  const frameA = await f.request('generic.sim.test', `/__frame?scenario=sc-a&url=${encodeURIComponent(`${TOOL}/lti/login/cogniate`)}`);
+  assert.equal(frameA.body.includes('post_message_forwarding'), true);
+
+  // 4. B-LA-E7-05-03 (Probe P3): JWKS, auth and token routes refuse arbitrary path prefixes
+  assert.equal(await f.request('generic.sim.test', '/any/prefix/lti/jwks.json'), null);
+  assert.equal(await f.request('generic.sim.test', '/any/prefix/lti/oidc/auth'), null);
+  assert.equal(await f.request('generic.sim.test', '/x/lti/oauth2/token', 'POST'), null);
 });

@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { URLS } from '../testkit.ts';
-import { PLATFORM_CONFIG_CLAIM, TOOL_CONFIG_CLAIM, buildRegistrationRequest, claimsFor, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse } from './registration.ts';
+import { PLATFORM_CONFIG_CLAIM, REGISTRATION_SCOPES, TOOL_CONFIG_CLAIM, buildRegistrationRequest, claimsFor, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse } from './registration.ts';
+
+const protocolUrls = { login: `${URLS.lti}/lti/login/cogniate`, launch: `${URLS.lti}/lti/launch/cogniate`, keys: `${URLS.lti}/lti/keys/cogniate`, register: `${URLS.lti}/lti/register/cogniate` };
 
 const CONFIG_URL = 'https://moodle.test/mod/lti/openid-configuration.php';
 const MOODLE_CONFIG = {
@@ -43,8 +45,14 @@ describe('operation from the registration token (security §2.5)', () => {
 });
 
 describe('registration request (ADR-009)', () => {
+  it('sends the requested scopes in request order (LA-E3-06)', () => {
+    const scopes = [REGISTRATION_SCOPES[3], REGISTRATION_SCOPES[0], REGISTRATION_SCOPES[2], REGISTRATION_SCOPES[1]];
+    const r = buildRegistrationRequest({ protocolUrls, clientName: 'Scopes', privacyLevel: 'anonymous', scopes });
+    expect(r.scope).toBe(scopes.join(' '));
+  });
+
   it('has the ADR-009 fields; default message is deep linking in ContentArea', () => {
-    const r = buildRegistrationRequest({ urls: URLS, accountId: 'cogniate', clientName: 'Cogniate (Thanh)', privacyLevel: 'anonymous' });
+    const r = buildRegistrationRequest({ protocolUrls, clientName: 'Cogniate (Thanh)', privacyLevel: 'anonymous' });
     expect(r).toEqual({
       application_type: 'web', response_types: ['id_token'], grant_types: ['implicit', 'client_credentials'],
       initiate_login_uri: `${URLS.lti}/lti/login/cogniate`, redirect_uris: [`${URLS.lti}/lti/launch/cogniate`], jwks_uri: `${URLS.lti}/lti/keys/cogniate`,
@@ -64,7 +72,7 @@ describe('registration request (ADR-009)', () => {
     ['public', ['iss', 'sub', 'name', 'given_name', 'family_name', 'email']],
   ] as const)('privacy %s -> claims %j', (level, claims) => {
     expect(claimsFor(level)).toEqual(claims);
-    const r = buildRegistrationRequest({ urls: URLS, accountId: 'cogniate', clientName: 'x', privacyLevel: level });
+    const r = buildRegistrationRequest({ protocolUrls, clientName: 'x', privacyLevel: level });
     expect((r[TOOL_CONFIG_CLAIM] as { claims: string[] }).claims).toEqual(claims);
   });
 

@@ -14,6 +14,7 @@ import { issueApiKey, listApiKeys, useApiKey } from '../store/api-keys.ts';
 import { createNextToolKey, prepareToolKey } from '../store/tool-keys.ts';
 import { capturingLogger, MASTER_KEY, URLS } from '../testkit.ts';
 import { runBootstrap } from './bootstrap.ts';
+import { createOperatorClient, OperatorTransportError } from './operator-client.ts';
 
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const close of cleanup.splice(0)) await close(); vi.unstubAllEnvs(); });
@@ -51,6 +52,10 @@ it.each(['cogniate', 'qa-second', 'another-tool'])('creates and repeats %s throu
   await runBootstrap({ ...input, account, name: 'New name' });
   expect(getAccount(h.db, account)).toMatchObject({ ...edited, name: 'New name' });
   expect(h.events().find((e) => e.action === 'account.update')?.details).toEqual({ fields: ['name'] });
+  const afterRename = h.events();
+  await runBootstrap({ ...input, account, name: 'New name' });
+  await runBootstrap({ ...input, account, name: ' New name ' });
+  expect(h.events()).toEqual(afterRename);
   expect(useApiKey(h.db, first.apiKey!, Date.now())?.toolAccountId).toBe(account);
 });
 
@@ -82,6 +87,28 @@ it('a failed atomic rotation preserves both old keys and returns no replacement 
   expect(useApiKey(h.db, first.apiKey!, Date.now())).not.toBeNull();
   expect(useApiKey(h.db, second.apiKey, Date.now())).not.toBeNull();
   expect(h.events()).toEqual(before);
+});
+
+it('explains a lost rotation answer and repairs it on an explicit rerun', async () => {
+  const h = await fixture();
+  const first = await runBootstrap(input);
+  const client = createOperatorClient();
+  let unseen: string | undefined;
+  await expect(runBootstrap({ ...input, rotateApiKey: true }, {
+    async request<T>(method: 'GET' | 'POST' | 'PATCH', path: string, body?: unknown) {
+      const response = await client.request<T>(method, path, body);
+      if (method === 'POST' && path.endsWith('/api-keys')) {
+        unseen = (response.body as { apiKey: string }).apiKey;
+        throw new OperatorTransportError('Answer lost.');
+      }
+      return response;
+    },
+  })).rejects.toThrow('may have committed. Run the same command again with --rotate-api-key');
+  expect(useApiKey(h.db, first.apiKey!, Date.now())).toBeNull();
+  expect(useApiKey(h.db, unseen!, Date.now())).not.toBeNull();
+  const rerun = await runBootstrap({ ...input, rotateApiKey: true });
+  expect(useApiKey(h.db, unseen!, Date.now())).toBeNull();
+  expect(useApiKey(h.db, rerun.apiKey!, Date.now())).not.toBeNull();
 });
 
 it.each(['revoked_at', 'expires_at'])('issues a replacement without a flag when the old API key is inactive through %s', async (column) => {

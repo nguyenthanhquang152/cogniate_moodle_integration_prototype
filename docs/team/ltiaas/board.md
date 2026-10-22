@@ -127,46 +127,47 @@ New agents continue the stopped tasks with retry-context notes (charter-LA §0 m
 | Architect A1 | Claude Opus 5.5 xhigh | `ctx_7a37e7830a62` | ratify hosts.json schema, fitness rule interface, matrix updates, migration numbers |
 | Architect A2 | Claude Opus 5.5 xhigh | `ctx_40535863c72d` | ratify SAVEPOINT audit atomicity; operator-key and e2e-secret doc alignment |
 
-## Wave B1/B2 progress (2026-10-22 14:32Z)
+## Wave B1/B2/B3 progress (2026-10-22 18:10Z)
 
 "Done" = QA PASS on every non-pending AC + Reviewer-A and Reviewer-B APPROVE; "pending" ACs wait for the golden tool or a Docker window (LD-21).
 
-Lead outage: the Lead session was down from about 10:35Z to 13:53Z (session limit; resumed on another Claude profile). Workers that needed a Lead answer waited (L about 3 h, S2 about 2.5 h); no work was lost. The run's coordinator was re-bound with `run-use` at 13:55Z.
+Lead outages (session limit; resumed on another Claude profile each time): about 10:35-13:53Z and 15:45-18:02Z. Workers that needed an answer waited (lane K ended one dispatch 'failed' on an unanswered design ask); no work was lost; the run coordinator was re-bound with `run-use` after each restart. The other run asked LA to confirm its host-only hold for 16:38-17:23Z: confirmed (no LA Docker command; all LA reports say no Docker use).
 
-Docker: host-only. The other run holds a legacy window 14:18-15:05Z, then two SIM windows and M2/T7; the LA window (provisional 15:00-17:00Z) is not confirmed. Protected baseline: 32 volume records.
+Docker: host-only. The other run's legacy invocation ran 14:21-15:1xZ; an owner-requested Savoy Docker job follows (40-60 min); then its SIM and M2/T7 windows. The LA window is not confirmed. Protected baseline: 32 volume records.
 
 | Task | Lane | State | Evidence |
 | --- | --- | --- | --- |
 | LA-E0-01 | Lead | **done** (AC-04/05 at wave end) | QA-3 R1 PASS |
-| LA-E1-01, LA-E1-02 | K | **done** (golden / Docker ACs pending) | QA-3 PASS; A, B APPROVE |
-| LA-E1-03 | K | **done** | QA-3 R2 PASS; A r2, B r2 APPROVE |
-| LA-E1-04 | P | **done** (+ FU BD-A1-19, FU-1) | QA-3 R1 PASS; A r2, B r1 APPROVE |
-| LA-E1-05 | L | **done** except K1-SIM / MOODLE-LIVE | QA-4 R2 PASS; A r2, B r2 APPROVE |
-| LA-E4-01 | R | **done** | QA-3 R2 PASS; A r2, B r2 APPROVE |
-| LA-E7-03 | S1 | **done** except K1-SIM | A r2, B r2 APPROVE |
-| LA-E5-10 | S2 | **done** except K1-SIM | A r2, B r2 APPROVE |
-| LA-E5-04 | S1 | **done** except K1-SIM | A r2, B r2 APPROVE |
-| LA-E5-01, LA-E5-08, LA-E5-02 | S1, S2 | reviews APPROVE; K1-SIM pending Docker | |
-| LA-E5-07 | S2 | A r2 APPROVE; B r2 running; K1-SIM pending | |
-| LA-E5-14 | L | A, B APPROVE; QA-4 R1 PASS host-only; K1-SIM pending | |
-| LA-E5-03 | S1 | A, B APPROVE r1; fix round (A2 BD-A2-30) in S1's current dispatch; K1-SIM pending | |
-| LA-E7-10 | R | A r2 APPROVE; B r2 and QA-3 R2 running; ci:local 5/5 PASS at `5b71bc5` | |
-| LA-E1-06 | K | fix round cherry-picked (`9edd9e7`..`6b79c1f`); QA-3 R2 running; A r2 queued | QA-3 R1 PASS; B APPROVE |
-| LA-E7-01 | QA | A r2, B r2 APPROVE; follow-up (no ADR prose parsing; BD-A1-28 port alignment) running | |
-| LA-E1-10 | L | merged `5770cbe`; A APPROVE; B and QA-4 R1 running | |
-| LA-E5-19 | S1 | merged `a50e7af`; A2 APPROVE (3 MINOR, A2 BD-A2-31/32); B running | |
-| LA-E1-07 | K | Author running (waits for the kit alignment) | |
-| LA-E1-11 | P | Author running | |
-| LA-E5-05 | S1 | Author (after the LA-E5-03 fix round) | |
-| LA-E3-01 | L | Author running (A1 BD-A1-33/34; LTI migration 014) | |
-| LA-E7-02 | QA-E2E | Author running (host-only part) | |
+| LA-E1-01..06, LA-E1-10 | K, P, L | **done** (Docker / golden ACs pending) | QA PASS; A and B APPROVE |
+| LA-E4-01, LA-E7-10, LA-E7-01, LA-E7-03 | R, QA, S1 | **done** (K1-SIM pending where listed) | QA PASS; A and B APPROVE |
+| LA-E5-04, -07, -10, -19, -03 | S1, S2 | **done** except K1-SIM | A and B APPROVE (last rounds) |
+| LA-E3-01, LA-E3-04 | L | **done** except K1-SIM (QA-4 R1 running) | A and B APPROVE |
+| LD-9 lists LA-IC-12, -16, -17 | QA | **approved** by A and B (NITs to the lead QA) | |
+| LA-E5-01, -02, -08, -14 | S1, S2, L | reviews APPROVE; K1-SIM pending Docker | |
+| LA-E1-07 | K | fix round part 2 (A1 BD-A1-54 guard) running with LA-E1-08 fix round | QA-3 R1 PASS; A APPROVE; B CHANGES_REQUESTED |
+| LA-E1-08 | K | A and B CHANGES_REQUESTED (MAJORs: P5 toolUrls, Canvas key title); K fix round running | QA-3 R1 PASS |
+| LA-E1-11 | P | B r2 APPROVE; A r2 running | QA-3 R2 PASS |
+| LA-E3-02 | L | A, B APPROVE; QA-4 R1 running | |
+| LA-E3-06 | L | fix round merged `028c30a`; B r2 running | A APPROVE r1 |
+| LA-E4-02 | R | A, B APPROVE | QA-3 R1 PASS |
+| LA-E4-03 | R | merged `a285bdb`; A, B r1 running; QA-3 R1 running | |
+| LA-E5-05 | S1 | A, B APPROVE r1; fix round merged `6ae0ebe` | QA-2 running |
+| LA-E5-06 | L | merged `028c30a`; B running | |
+| LA-E5-09 | S2 | A, B APPROVE r1; fix round merged `3b14a84` | QA-2 running |
+| LA-E5-11 | S1 | merged `586bd01`; A running, B running | QA-2 running |
+| LA-E5-15 | S2 | B APPROVE; A running | QA-2 running |
+| LA-E5-16 | S1 | merged `6ae0ebe`; A running | QA-2 running |
+| LA-E7-02, LA-E7-04, LA-E7-05 | QA-E2E, QA | fix rounds done; final review checks queued | |
+| LA-E5-17 | S1 | Author running (A2 metrics-source ruling pending) | |
+| LA-E3-11 | L | Author running | |
+| LA-E4-05 | R | Author running (with the runner runNow traceId option) | |
 | LA-E0-02/03/04 | QA | LA-E0-03 K0 PASS, K1-SIM pending Docker; LA-E0-04 waits for both reviewers on the LD-1 list | |
 
-LTI migration numbers (Lead, RQ-5): 011 S2 `api_key`; 012 S1 `service_setting` + `registration_session.client_key`; 013 S1 `job_lease`/`job_instance` (LA-E5-19); 014 L (LA-E3-01, if needed).
+LTI migration numbers (Lead, RQ-5): 011 S2 `api_key`; 012 S1 `service_setting` + `registration_session.client_key`; 013 S1 `job_lease`/`job_instance` (LA-E5-19); 014 L (LA-E3-01, platform storage state); 015 L (LA-E3-02, storage_check); 016 S2 (LA-E5-15 service_key epoch); 017 S1 (LA-E5-16 idempotency). App migrations: 013 K, 014 R, 015 S1.
 
 Incident 2026-10-22 10:20Z: integration red on F1 at `b5069f6` (app migration 013 frozen LMS strings); A1 BD-A1-19, lane P fix `e5a687a`, merged `8a1ef2d`. Process fix: the Lead runs the full check on each merge SHA and tells all lanes about a known red line.
 
 
 Incident 2026-10-22 14:1xZ: an early merge of lane K's types-only ports.ts turned K0 red (the kit switched baseline adapter cases on when the file existed); the Lead removed that local merge commit within minutes (no other branch had it). Also, the Lead stopped its own check with a name-pattern pkill that may have stopped other agents' vitest runs on the shared host; rule now: stop only your own job by id.
 
-Integration branch: `30011f2`+; last full check green at `5770cbe` (2097 unit, 118 K0 + 3 todo, F1 572 hits, F5 3 rules); last full ci:local 5/5 PASS at `5b71bc5`.
+Integration branch: `d40826d`+; last full check green at `d40826d` (2498 unit, 121 K0, F1 74 hits in 20 files, F5 6 rules); last full ci:local 5/5 PASS at `5b71bc5`. F1 at build start: 677 hits in 80 files.
