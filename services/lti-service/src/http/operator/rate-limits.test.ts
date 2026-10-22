@@ -32,10 +32,11 @@ it('gets effective sources, patches and removes overrides, and audits one event 
   expect(change.statusCode).toBe(200);
   expect(change.json()).toMatchObject({ classes: { api: { ratePerMinute: 2, burst: 2, source: 'operator' } }, registrationSessionsPerAddress: 3, registrationSessionsSource: 'operator' });
   expect(h.limiter.view()).toEqual(change.json());
-  expect(h.events()).toEqual([expect.objectContaining({ action: 'settings.rate_limits', result: 'ok', actor: { type: 'operator', id: 'test-op' }, details: { fields: ['classes.api', 'registrationSessionsPerAddress'] } })]);
+  expect(h.events()).toEqual([expect.objectContaining({ action: 'settings.rate_limits', result: 'ok', actor: { type: 'operator', id: 'test-op' }, details: { fields: ['classes.api', 'registrationSessionsPerAddress'], classes: { api: { ratePerMinute: 2, burst: 2 } }, registrationSessionsPerAddress: 3 } })]);
   const reset = await h.patch({ classes: { api: null }, registrationSessionsPerAddress: null });
   expect(reset.json()).toMatchObject({ classes: { api: { ratePerMinute: 10, burst: 10, source: 'env' } }, registrationSessionsPerAddress: 12, registrationSessionsSource: 'env' });
   expect(readRateLimitSettings(h.db)).toEqual({ classes: {} });
+  expect(h.events()).toContainEqual(expect.objectContaining({ details: { fields: ['classes.api', 'registrationSessionsPerAddress'], classes: { api: null }, registrationSessionsPerAddress: null } }));
 });
 
 it.each([

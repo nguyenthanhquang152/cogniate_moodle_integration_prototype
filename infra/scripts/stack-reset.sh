@@ -33,7 +33,7 @@ else
   nets="$(docker network ls -q --filter "$label")"; [[ -z "$nets" ]] || docker network rm $nets >/dev/null
   echo "No .env: removed project '$COMPOSE_PROJECT_NAME' by its Docker labels."
 fi
-rm -f "$INFRA_DIR/.secrets/seed.json" "$INFRA_DIR/.secrets/moodle-ws.json" "$INFRA_DIR/.secrets"/lti-api-key.* "$INFRA_DIR/.secrets/lti-operator-key" "$KNOBS_FILE" \
+rm -f "$INFRA_DIR/.secrets/seed.json" "$INFRA_DIR/.secrets/moodle-ws.json" "$INFRA_DIR/.secrets"/lti-api-key.* "$INFRA_DIR/.secrets/lti-operator-key" "$INFRA_DIR/.secrets/lti/lti-operator-key" "$KNOBS_FILE" \
   "$REPO_ROOT/.tmp/certs-in-use.$COMPOSE_PROJECT_NAME.sha256" "$REPO_ROOT/.tmp/qa-certs-in-use.$COMPOSE_PROJECT_NAME.sha256" "$PROFILE_FILE"
 rm -rf "$INFRA_DIR/.secrets/app" "$INFRA_DIR/.data/build-queue" "$INFRA_DIR/.data/backups" "$INFRA_DIR/.data/lti-service"
 # ADR-012 §15 content-parent rule: Docker Desktop did not see a new packages/ or uploads/ under a deleted and re-made

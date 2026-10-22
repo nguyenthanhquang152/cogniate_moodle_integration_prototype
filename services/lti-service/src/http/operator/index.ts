@@ -91,7 +91,7 @@ export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInsta
   const now = deps.now ?? Date.now;
   const log = deps.logger;
   const limiter = rateLimiterFor(deps.db, log, now);
-  const proxy = await createTrustedProxy();
+  const proxy = await createTrustedProxy(undefined, undefined, log);
   const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, return503OnClosing: false, trustProxy: proxy.trust });
   installApiBasics(app, log);
   app.addHook('onClose', async () => proxy.close());
@@ -120,16 +120,16 @@ export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInsta
   await app.register(async (scope) => {
     // Every failure (no header, another scheme, wrong grammar, unknown, expired, revoked key) gives the same 401.
     scope.addHook('onRequest', async (req) => {
-      limiter.check('auth_failure', req.ip, undefined, false);
+      limiter.refuseIfBlocked(req.ip, req.traceId);
       const presented = parseOperatorAuthorization(req.headers.authorization);
       const key = presented ? findActiveOperatorKey(deps.db, presented, now()) : null;
       if (!key) {
         log.warn('api_auth_failed', { trace_id: req.traceId, scheme: 'operator', code: 'INVALID_OPERATOR_AUTHORIZATION_HEADER' });
-        recordAuthFailure(limiter, req.ip);
+        recordAuthFailure(limiter, req.ip, req.traceId);
         throw new ApiError('INVALID_OPERATOR_AUTHORIZATION_HEADER');
       }
       req.operator = { keyId: key.id, operator: key.operator };
-      limiter.check('operator', key.id);
+      limiter.check('operator', key.id, undefined, req.traceId);
     });
     for (const mount of MOUNTS) mount(scope, ctx);
   });

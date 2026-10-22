@@ -41,6 +41,8 @@ it('keeps soft protocol accounts non-blocking and registration/keys address buck
   expect((await h.app.inject('/lti/keys/cogniate')).statusCode).toBe(200);
   const keys = await h.app.inject('/lti/keys/cogniate');
   expect(keys.statusCode).toBe(429);
+  expect(keys.json().details.limit).toEqual({ class: 'keys' });
+  expect(h.lines.find((line) => line.event === 'rate_limited')).toMatchObject({ trace_id: keys.headers['x-trace-id'] });
   expect(keys.headers['retry-after']).toBe(String(keys.json().details.retryAfter));
   expect((await h.app.inject('/lti/register/cogniate')).statusCode).toBe(400);
   const registration = await h.app.inject('/lti/register/cogniate');
@@ -101,7 +103,7 @@ it('a key failure exhausts its address for both invalid and valid callers until 
   const prepare = vi.spyOn(h.db, 'prepare');
   const res = await h.api();
   expect(res.statusCode).toBe(429);
-  expect(res.json().details).toMatchObject({ message: 'RATE_LIMITED', retryAfter: 1, description: 'Too many requests. Retry after 1 s.' });
+  expect(res.json().details).toMatchObject({ message: 'RATE_LIMITED', retryAfter: 1, limit: { class: 'auth_failure' }, description: 'Too many requests. Retry after 1 s.' });
   expect(res.headers['retry-after']).toBe('1');
   expect(prepare).not.toHaveBeenCalled();
   prepare.mockRestore();
