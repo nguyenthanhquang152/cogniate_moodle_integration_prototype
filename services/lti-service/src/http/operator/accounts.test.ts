@@ -106,7 +106,7 @@ it('stores settings and audits status transitions separately from field updates;
   expect(response.json()).toMatchObject({ name: 'Renamed', claimPolicy: policy, limits: { api: { ratePerMinute: 5, burst: 5 } }, serviceKeyWriteScope: 'resource-link' });
   expect((await h.patch('one', { status: 'suspended', name: 'Paused' })).statusCode).toBe(200);
   expect(h.events().map((e) => e.action).sort()).toEqual(['account.status', 'account.update']);
-  expect((await h.patch('one', { limits: null, claimPolicy: null })).json()).toMatchObject({ limits: null, claimPolicy: null });
+  expect((await h.patch('one', { limits: null })).json()).toMatchObject({ limits: null, claimPolicy: policy });
   expect((await h.patch('one', { status: 'closed' })).statusCode).toBe(200);
   for (const body of [{ status: 'active' }, { name: 'New' }, {}]) {
     const denied = await h.patch('one', body);
@@ -168,4 +168,33 @@ it('a refused status PATCH keeps account.update and the request field names (BD-
   await h.patch('one', { status: 'closed' });
   expect((await h.patch('one', { status: 'closed' })).statusCode).toBe(409);
   expect(h.events().find((e) => e.result === 'refused')).toMatchObject({ action: 'account.update', code: 'ACCOUNT_CLOSED', details: { fields: ['status'] } });
+});
+
+it.each([
+  ['id', 'Tenant_1', 'lower-case'],
+  ['launchUrl', 'https://tool.test/l#x', 'fragment'],
+  ['deepLinkingUrl', URLS.content, 'content hosts'],
+  ['registrationUrl', 'http://tool.test/r', 'https'],
+  ['publicBaseUrl', 'https://tool.test', 'host mode'],
+  ['status', 'paused', 'active, suspended or closed'],
+])('an invalid %s names its rule as well as its field', async (field, value, rule) => {
+  const h = await fixture();
+  await h.create('one');
+  const response = field === 'id' ? await h.app.inject({ method: 'POST', url: '/operator/v1/accounts', headers: h.headers, payload: { ...input('two'), id: value } }) : await h.patch('one', { [field]: value });
+  expect(response.statusCode).toBe(400);
+  expect(response.json().details).toMatchObject({ message: 'INVALID_REQUEST', field, rule: expect.stringContaining(rule), description: expect.stringContaining(field) });
+});
+
+it('BD-A2-26: rejects explicit null on create/PATCH but keeps stored legacy null readable', async () => {
+  const h = await fixture();
+  const post = await h.app.inject({ method: 'POST', url: '/operator/v1/accounts', headers: h.headers, payload: { ...input('one'), claimPolicy: null } });
+  expect(post.statusCode).toBe(400);
+  expect(post.json().details.field).toBe('claimPolicy');
+  await h.create('one');
+  expect((await h.patch('one', { claimPolicy: null })).statusCode).toBe(400);
+  expect(getAccount(h.db, 'one')?.claimPolicy).toEqual(DEFAULT_CLAIM_POLICY);
+  h.db.prepare('UPDATE tool_account SET claim_policy = NULL WHERE id = ?').run('one');
+  expect((await h.app.inject({ url: '/operator/v1/accounts/one', headers: h.headers })).json().claimPolicy).toBeNull();
+  const explicit = { ...DEFAULT_CLAIM_POLICY, mode: 'passthrough' };
+  expect((await h.patch('one', { claimPolicy: explicit })).json().claimPolicy).toEqual(explicit);
 });

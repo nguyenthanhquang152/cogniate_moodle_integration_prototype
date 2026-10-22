@@ -24,6 +24,8 @@ export type AccountStatus = 'active' | 'suspended' | 'closed';
 export const RATE_LIMIT_CLASSES = ['protocol', 'protocol_account', 'registration', 'registration_account', 'keys', 'api', 'admin', 'auth_failure', 'operator'] as const;
 export type AccountLimits = Partial<Record<typeof RATE_LIMIT_CLASSES[number], { ratePerMinute: number; burst: number }>>;
 export interface ClaimPolicy { mode: 'allowlist' | 'passthrough'; keep: { names: boolean; email: boolean; custom: boolean; lis: boolean } }
+// Stored null is the legacy passthrough marker. LA-E3-10 reads any other unknown value as allowlist.
+// New accounts use this policy; the API requires an explicit policy and refuses null (BD-A2-26).
 export const DEFAULT_CLAIM_POLICY: ClaimPolicy = { mode: 'allowlist', keep: { names: false, email: false, custom: false, lis: false } };
 
 interface AccountRow {
