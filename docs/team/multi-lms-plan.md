@@ -13,7 +13,34 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 10:55 UTC
+### Current directive — 2026-10-22, 11:18 UTC
+
+Product C4 and test-only C5 remain unchanged. Both independent source reviews found the T6/T8 patch correct.
+Both requested a launcher correction: its gate message used old lifecycle IDs and described the wrong run/source identity.
+Lead approved the bounded correction. Common Gemini task_a33056140130 / ctx_574663dd5b1a owns the corrected launcher and its later runtime in the same dispatch.
+Stage 1 is complete: v2 c53203a2b16e2c47298fea0a6b1c466840689e2ba5352b27f5037937e596ed67 changes six lines only.
+It also pins the test SHA to C5. All controls, runner behavior and inherited artifact paths stay unchanged.
+Root verified all 64 maintenance-index bindings; all 57 prior bindings remain unchanged.
+Reviewer-A recheck ctx_c4e1e465b49f is active; the independent B recheck follows when a worker slot is free. No runtime grant exists.
+
+All three Claude sessions resumed after the 11:00 UTC quota reset. The first reviews are settled.
+The attempt to reuse Reviewer-A through terminal commands failed because it is a structured chat.
+A later manual-dispatch attempt exited when the old owned resource was released; Lead confirmed exit and fenced it.
+The current replacement recheck uses the same task with explicit retry and Claude Opus 5.5 xhigh.
+Completed reports remain intact. The Codex implementation session remains retained and untouched.
+
+Architect ctx_e95086e27835 produced a host-only checkpoint: no BLOCKER or MAJOR, six accepted NIT deferrals.
+Final source/runtime conformance waits for legacy, independent T6/T8 judgment, M2/T7 and final cleanup.
+Final Docs consumes that conformance verdict; final Docs QA and pack reviews follow. This avoids a circular prerequisite.
+No optional architecture or product cleanup is requested.
+
+Savoy reports VT-1 cleaned. Its VT-2 benchmark resumed after quota and estimates another 30–60 minutes from about 11:13 UTC.
+The previous runtime target is withdrawn. Actual cleanup and a Savoy project-level nonoverlap acknowledgment are pending.
+LA remains host-only. Lead proposed a revised 15:00–17:00 UTC handoff target; it is not a grant.
+Next shared-host scheduling update: 12:15 UTC or an earlier material boundary.
+All 32 real LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 10:55 UTC
 
 Product C4 and the test-only C5 correction remain unchanged. D-T6L remains the accepted validation plan.
 Full2 stays FAILED; its two accepted 488-case rounds and independent 233-case Canvas judgments retain their original identities.

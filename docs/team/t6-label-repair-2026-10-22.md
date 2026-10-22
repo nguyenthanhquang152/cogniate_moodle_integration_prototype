@@ -50,3 +50,21 @@ No Docker run is authorized by this decision itself.
 
 All 32 real LMS rows remain UNVERIFIED. Local Canvas remains DEFERRED.
 Final conformance, guide finalization, independent Docs QA and two blind final reviews remain required.
+
+
+## Launcher metadata correction — 2026-10-22, 11:18 UTC
+
+Both independent reviewers found the three-file C5 test patch correct.
+A-T6L-01 and B-T6L-01/02 block the original launcher: it uses old lifecycle IDs and mislabels its run and source.
+Lead approved a new v2 copy; the original launcher and evidence stay immutable.
+The six changed lines set the actual runtime identity, pin C5 and correct gate/log text.
+Inherited full-run filenames stay unchanged for tool compatibility; they mean only this legacy invocation.
+Common task_a33056140130 / ctx_574663dd5b1a owns both correction and runtime, so the identity will not change before execution.
+
+V2 SHA-256: c53203a2b16e2c47298fea0a6b1c466840689e2ba5352b27f5037937e596ed67.
+Exact v1-to-v2 diff: 8b09df2124ac062f8ae51041823b95b4a419633fee0a897baa87ee2645c4efd5.
+Maintenance index v2: d648480b3cef4b55f9722b48e9505865481eef4dd61a9a330f4e08af34455f36.
+All 64 entries bind; the prior 57 entries and original index remain unchanged.
+Focused host checks passed syntax and exact-C5 acceptance; wrong product, C4 test and random test SHAs were rejected.
+No Docker, engine test or typecheck was repeated. Both source rechecks and a fresh host grant remain required.
+The product, tests, runner, observers, W1-W4, scans, permissions and cleanup behavior remain unchanged.
