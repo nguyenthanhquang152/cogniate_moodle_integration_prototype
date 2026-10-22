@@ -1,6 +1,6 @@
 # Milestone LA test strategy and conformance kit design
 
-Status: **v1** (QA, task LA-QS, 2026-10-22). Owner: QA. Inputs: [plan v1](../../docs/team/ltiaas/plan.md) (`1afdf56`), [R5 test baseline](../../docs/research/ltiaas/R5-test-baseline.md), [R3 extensibility audit](../../docs/research/ltiaas/R3-extensibility-audit.md), [R1 spec coverage](../../docs/research/ltiaas/R1-spec-coverage.md), [R4 ops readiness](../../docs/research/ltiaas/R4-ops-readiness.md), [charter-LA](../../docs/team/ltiaas/charter-LA.md). Design files: `docs/architecture/ltiaas/**` (alignment status in §9).
+Status: **v1.1** (QA, task LA-QS, 2026-10-22; v1.1 = G-DESIGN alignment at the design SHA `19476fc`, task LA-QT: §4.3 rows 7–8 and the wider E0 scan, §9). Owner: QA. Inputs: [plan v1](../../docs/team/ltiaas/plan.md) (`1afdf56`), [R5 test baseline](../../docs/research/ltiaas/R5-test-baseline.md), [R3 extensibility audit](../../docs/research/ltiaas/R3-extensibility-audit.md), [R1 spec coverage](../../docs/research/ltiaas/R1-spec-coverage.md), [R4 ops readiness](../../docs/research/ltiaas/R4-ops-readiness.md), [charter-LA](../../docs/team/ltiaas/charter-LA.md). Design files: `docs/architecture/ltiaas/**` (alignment status in §9).
 
 This file says **how** QA proves milestone LA. It fixes test levels, the conformance kit, the CI fitness checks, the regression proof, the Docker lanes and the testability checklist. It does not fix product implementation. Where the design fixes a detail, the text cites the decision. Where a detail is still open between QA and the design, §9.2 lists it with QA's proposal.
 
@@ -346,7 +346,7 @@ After each E1 task, every frozen suite gives the **same result per test id** as 
 
 Any other change needs a Lead approval with the test id and the reason, as AC-M3-02 did (`docs/architecture/tasks/M3.md:94`).
 
-LD-1 rewrite list (from `docs/research/ltiaas/R5-test-baseline.md:235-242`, checked against LA-ADR-01 D3, D6 and D11):
+LD-1 rewrite list (rows 1–6 from `docs/research/ltiaas/R5-test-baseline.md:235-242`, checked against LA-ADR-01 D3, D6 and D11; rows 7–8 from the QA pre-review Q-LAD-08 and design README OC-8, `docs/architecture/ltiaas/README.md:317`):
 
 | # | Today | Open-world form |
 | --- | --- | --- |
@@ -356,8 +356,17 @@ LD-1 rewrite list (from `docs/research/ltiaas/R5-test-baseline.md:235-242`, chec
 | 4 | The exact capability object with 6 keys (`tests/acceptance/M1/common/00-profiles.test.ts:110-111`, `:135-136`) | **No change expected:** the six legacy flags stay byte for byte, and the new set goes into the separate field `channelCapabilities` (LA-ADR-01 D3, D11, `:138`, `:241`) |
 | 5 | `details.capability` is `webServices` or `courseShell` (`tests/acceptance/M1/canvas/31-canvas-grants.test.ts:300`, `:307`) | **No change:** the M1 guards keep their `details.capability` values (LA-ADR-01 D3, `:149`; D11, `:242`) |
 | 6 | "three LMS cards" (`tests/e2e/M2/01-cards.m2.ts:11-15`) | The 3 baseline cards with unchanged texts; each extra card belongs to a registered channel |
+| 7 | The exact `lms` list of `GET /app-api/lms-providers`: `['moodle', 'canvas', 'blackboard']` (`tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:255`) | The 3 baseline entries exist, in this relative order, with unchanged values; each extra entry belongs to a registered channel |
+| 8 | Exactly 6 profiles in `GET /api/providers` in the `default` profile (`tests/acceptance/M1/common/90-simulation-gates.test.ts:19`) | The 6 baseline real profiles exist with unchanged values; each extra profile is a real profile of a registered channel; no simulator profile in the `default` profile |
 
-**E0 scan.** LA adds fields to three wire objects: the connection DTO and each `GET /app-api/lms-providers` entry (`channel`, `channelName`, `channelCapabilities`) and each `GET /api/providers` profile (`channel`) (LA-ADR-01 D6, D11). Before the rewrite, QA searches M1, M2 and T7 for whole-object comparisons of these three objects (for example `deepEqual` on a full DTO). Each hit joins the LD-1 list with the same open-world form as row 1: baseline fields unchanged, extra fields allowed. The final list goes to both reviewers.
+**E0 scan.** LA adds fields to three wire objects: the connection DTO and each `GET /app-api/lms-providers` entry (`channel`, `channelName`, `channelCapabilities`) and each `GET /api/providers` profile (`channel`; from E2-K also `endpoints`, `issuerKind`, `endpointOrigins`) (LA-ADR-01 D6, D11; LA-IC-01). Before the rewrite, QA searches M1, M2 and T7 for:
+
+- whole-object comparisons of these three objects (for example `deepEqual` on a full DTO);
+- exact lists and exact counts of profiles, providers, LMS entries, cards and simulation profiles (for example `.length, 6` or `['moodle', 'canvas', 'blackboard']`).
+
+Each hit joins the LD-1 list with the open-world form of row 1 (baseline fields unchanged, extra fields allowed) or of row 7 (baseline entries present and unchanged, each extra entry belongs to a registered channel). A first scan at the design SHA `19476fc` found rows 7 and 8 and no other hit. Two near hits need no rewrite: `tests/acceptance/T6/1-integrations.spec.ts:24` (at least 9 cards) is already open-world, and the `simulation_profiles: []` checks of the `default` profile stay true, because the new channels have no simulator profile (LA-ADR-02 D7). E0 repeats the scan at the G-BASE SHA. The final list goes to both reviewers, and the Lead approves it (LD-1).
+
+A behaviour change of a Should or Could item (for example Canvas Dynamic Registration, LA-ADR-05 D6) is not an LD-1 row. It needs an `LA-IC` id (§4.7).
 
 Proof of the rewrite: the rewritten assertions pass on the baseline SHA, and each is at least as strict for every baseline element. Both reviewers check the second point on the diff. QA builds no mutation campaign for it.
 
@@ -567,7 +576,7 @@ QA gives PASS for testability when no item is **missing** for a Must feature. Se
 
 ## 9. Alignment with the design files
 
-QA read the design files that existed in the shared worktree while it wrote this file. The design is still in P2, and the files still change. Citations into them give the decision id (for example LA-ADR-01 D4) and the line as read on 2026-10-22; if a line moves, the decision id is the anchor. QA aligns again at G-DESIGN, when it applies §7.
+QA read the design files that existed in the shared worktree while it wrote this file. Citations into them give the decision id (for example LA-ADR-01 D4) and the line as read on 2026-10-22; if a line moves, the decision id is the anchor. At G-DESIGN, QA read all 15 design files at the design SHA `19476fc` and applied §7 (review: `docs/reviews/LA-DESIGN/qa.md`, Round 1).
 
 ### 9.1 What QA read and aligned
 
@@ -582,11 +591,21 @@ QA read the design files that existed in the shared worktree while it wrote this
 | `adr/LA-ADR-07-security-and-tenancy.md`, `adr/LA-ADR-08-onboarding-and-connection-health.md` (test sections only) | AP-07-01 to AP-07-06 (§8 E5 security row); AP-08-01 to AP-08-09 (§1.3 E6); simulator needs (§2.8) |
 | `adr/LA-ADR-05-lti-advantage-completeness.md` | AP-05-01 to AP-05-22 mapped to K1-LAUNCH L7 and L10, K1-DL, K1-NRPS, K2 U4 and the Moodle lane (§2.4, §8 E3); platform storage simulator work (§2.8); the E3 change list (§4.7) |
 
-Not read in full: `data-model.md` and `contracts/cogniate-app-api-delta.md` (they landed last; QA uses them when it writes the tests). Read for §3 only: `README.md` §4 (scope and checks F1–F5, aligned in §3). Not read in full: `contracts/lti-service-api-delta.md`. Not yet present: `operability.md`, `security-delta.md`. Until they exist, these defaults apply: the lint scope of §3.1; the U1 checks of §4.5; intended-change ids use the format that A1 chooses.
+At G-DESIGN (`19476fc`) QA read these files in full as well:
+
+| Design file | Aligned in this file |
+| --- | --- |
+| `README.md` v1.1 | §3 (scope table, F1–F5; F1 and F3 start at step S2, LA-ADR-04 D1); §4a local CI script (F7.6) for the §8 E7 row; §8 open items OC-7 (QA allowances, P3) and OC-8 (§4.3 rows 7–8) |
+| `adr/LA-ADR-01-channel-kernel.md` D4, D5 (v1.1) | The K0 surface of §1.2 and §2.7 is now named: `loadChannelFolders(roots, side)`, `buildChannelRegistry(channels, opts)`, `ChannelRegistry`, `RegistryError`, and the `ConnectionSetup` port. The canary is a second root, passed as a function argument only (F4). |
+| `adr/LA-ADR-04-refactor-and-migration.md` D2, D6, D8 (v1.1) | LA-IC-01 to LA-IC-13 (§4.7; LA-IC-12 and LA-IC-13 are the E3 Deep Linking and Could changes); the LD-1 rule for exact lists and counts (§4.3) |
+| `data-model.md`, `contracts/cogniate-app-api-delta.md`, `contracts/lti-service-api-delta.md` | U1 checks (§4.5); K1-REG R1 and R4 for the admin-value profiles (delta §4.6.1); trait fields on `GET /api/providers` (§4.3 E0 scan) |
+| `operability.md`, `security-delta.md` | Operator listener in the `acceptance` profile for the E5 acceptance tests (§8 E5); no new QA lane need |
+
+Wording alignment: in §2.4 (K2 U4) and §8 (E3 row), "third-party cookies blocked" means the setup of AP-05-03: the state cookie is removed from the framed launch request (a route rule, or a browser setting that also blocks partitioned cookies). Chromium keeps a `Partitioned` cookie in a frame when third-party cookies are blocked, so that setting alone never reaches the storage path (LA-ADR-05 D1, AP-05-03).
 
 ### 9.2 Alignment items and Lead decisions
 
-The Lead decided these items in plan §6.1 (`docs/team/ltiaas/plan.md:198-201`): items 1–3 as LD-5, item 4 as LD-6, item 7 as LD-7 and item 8 as LD-8. Items 5 and 6 were already aligned in the design. Under LD-5 the architects align the test sections of their ADRs to the ownership rule of §1.2.
+The Lead decided these items in plan §6.1 (`docs/team/ltiaas/plan.md:198-201`): items 1–3 as LD-5, item 4 as LD-6, item 7 as LD-7 and item 8 as LD-8. Items 5 and 6 were already aligned in the design. Items 9–11 come from the G-DESIGN review (task LA-QT). Under LD-5 the architects align the test sections of their ADRs to the ownership rule of §1.2.
 
 | # | Item | QA proposal | Decision |
 | --- | --- | --- | --- |
@@ -598,3 +617,6 @@ The Lead decided these items in plan §6.1 (`docs/team/ltiaas/plan.md:198-201`):
 | 6 | E2 has core work (generic DR fixes, new profile traits) and the add-LMS work. | Aligned: LA-ADR-02 D8 orders E2-K before E2-N; F2 measures E2-N (§3.3, TD-16). The Lead records the E2-N base SHA in the breakdown. | aligned (LA-ADR-02 D8) |
 | 7 | LA-ADR-04 D6 lists "simulator records per M1 scenario" as a golden output. | G2 covers the fixed golden script per channel; the M1 `sim` phase assertions cover the other scenarios (§4.6). QA builds a per-scenario record diff only if a reviewer shows a gap that the M1 assertions miss (charter-LA §5). | LD-7 |
 | 8 | LA-ADR-04 D6 runs T7 and the legacy suites at the end of E1 only. | QA adds R2-lite (T7 × 1 and the area groups) after the steps that move Moodle code (S3, S5, S6, S7), so a Moodle regression shows up in the step that caused it (§4.4). Cost: about 10–25 min of the Moodle slot per step. | LD-8 |
+| 9 | The LD-1 list missed two closed-list assertions (QA pre-review Q-LAD-08; design README OC-8). | Done in §4.3: rows 7 and 8, and the E0 scan also looks for exact lists and counts. | The Lead approves the final list at E0 (LD-1) |
+| 10 | The local CI script (F7.6) had no design (QA pre-review Q-LAD-09). | Aligned: design README §4a. QA checks its acceptance line (§8 E7 row). | aligned (README §4a) |
+| 11 | Two guarded capabilities have routes that exist only when a Should or Could item is built: `content.ungraded` (LA-ADR-05 D5) and `setup.connectionCheck` (LA-ADR-08 D4). Before that, the K1-CAP C2 case cannot run, so the §2.6 N/A rule cannot pass. | A guarded capability joins K1-CAP C2 in the task that builds its route. Before that task, the fixture marks the capability `notBuilt` with the design reference, and the kit leaves its C2 case out of the expected case list. K0 still checks the capability value on every channel. | open: QA applies it in the kit; the Lead confirms in the breakdown |
