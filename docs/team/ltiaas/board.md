@@ -166,7 +166,6 @@ LTI migration numbers (Lead, RQ-5): 011 S2 `api_key`; 012 S1 `service_setting` +
 
 Incident 2026-10-22 10:20Z: integration red on F1 at `b5069f6` (app migration 013 frozen LMS strings); A1 BD-A1-19, lane P fix `e5a687a`, merged `8a1ef2d`. Process fix: the Lead runs the full check on each merge SHA and tells all lanes about a known red line.
 
-Integration branch: `0670bf3`+; last full check green at `b3af690` (2013 unit, 118 K0 + 3 todo, F1 590 hits, F5 3 rules).
 
 Incident 2026-10-22 14:1xZ: an early merge of lane K's types-only ports.ts turned K0 red (the kit switched baseline adapter cases on when the file existed); the Lead removed that local merge commit within minutes (no other branch had it). Also, the Lead stopped its own check with a name-pattern pkill that may have stopped other agents' vitest runs on the shared host; rule now: stop only your own job by id.
 
