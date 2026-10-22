@@ -260,3 +260,75 @@ Only AC-T8-03 ran its assertions fully inside Savoy activity. Its network checks
 **Not required:** a new run of all 12 legacy groups. No concrete criterion or exposure requires it for subruns 1–5 or for the T8 rows that ended by 17:19:39.8. It is an operational choice only if the Lead prefers an already-reviewed launcher to a T8-only review.
 
 Any route still needs the remaining E-R3 evidence, and confirmed Savoy and LA holds before each later window. No product, test, criterion, contract, ADR or launcher change is proposed. The AC-M4-06 conformance verdict stays PENDING. All 32 real-LMS rows stay UNVERIFIED. Local Canvas stays DEFERRED.
+
+## 11. Proposed shared-host execution and acceptance rule for SIM, M2 and T7 (2026-10-22, about 18:22–18:35 UTC)
+
+Author: the same Architect dispatch. Authority: Lead `msg_87ebe5be7c6d`, after the accepted no-isolated-daemon result `msg_725f6ba36100`.
+This is a proposal only. It gives no runtime grant and no host reservation, and it does not answer the user's open scheduling question. I ran no Docker or runtime command. I read the C8 test source (tests at HEAD = C8), the held v4 tools, the held independent-QA window plan and one C4 result file.
+§0–§10 are unchanged: the first 30,770 B have SHA-256 `c7fd7da82be37b6107985b193584e93b62c1008a550e4b020dff3d3104fa0c03`.
+
+### 11.1 Required checks that see foreign Docker activity (all stay as written)
+
+| Check | Code | Compares | Foreign activity that fails it |
+| --- | --- | --- | --- |
+| W4 strict compare (SIM, M2, T7 windows) | `V4/tools/live-boundary-core.mjs:82-126` (M2/T7 use QA's copy in `R/tools/boundary`) | W3 with W4, plus the sampler | A foreign container, volume or network at W4 that was not at W3. A W3 container changed or gone. A resource vanishes during the W4 read. A built-in network id changes (engine restart). Docker info or Desktop settings change. More than one bridge id, or clock skew, in the sampler. |
+| `M3-ISOLATION` (SIM) | `tests/host/core.mjs:200`, `:398-410` | Phase setup with teardown | A foreign container present at setup is gone or restarted at teardown, or a protected volume changes. |
+| SIM setup subnet check | `tests/host/core.mjs:195-198` | Setup | A foreign network overlaps `172.29.0.0/16`. |
+| `M3-06-M2` | `tests/e2e/host/run-m2.mjs:86-91`, `:161-163` | M2 run start with end | Any difference in the non-lane container list (id and status text; only "Up" is normalized) or the non-lane volume list. |
+| lane-watch `isolationPass` (M2, T7) | QA `tools/lane-watch/lane-watch-core.mjs:240-251` | Lane start with lane end | Non-lane container ids, non-lane networks or Desktop settings differ. |
+
+No required check makes the shared-host route impossible. Foreign work that starts and ends between two snapshots passes them all, as in the accepted legacy run. Foreign work that spans a snapshot fails them. Such a failure is an original-check failure: it blocks acceptance and needs a Lead decision. Nobody may suppress, patch, repeat or relabel it.
+
+### 11.2 Can attributed foreign work make a row pass falsely?
+
+Shared names, images, networks, volumes and the engine: the §11.3 conditions and the §11.1 checks exclude them, as in §10.3.
+Deadlines can only fail under load. They do not pass falsely. This covers the AC-T7-15 demo `prepare` limit of 180 s (`tests/e2e/host/run-t7.mjs:274`), test timeouts, the M2 waits, the M1 polls and the lease margin. Under E-R4, such a failure voids the route with no retry. That is the main cost of this route, but not a validity risk.
+
+The exception is a row that passes because an event does NOT happen within a fixed wait. Load can delay a wrong event until after the check. At C8 these rows are:
+
+| Row | Fixed wait | Event that must not happen |
+| --- | --- | --- |
+| `M1-09.canvas.best-scorm12`, `M1-09.canvas.best-html` | 5 s (`tests/acceptance/M1/canvas/41-canvas-grades.test.ts:64`) | Score 60 replaces the best score 80 |
+| `M1-09.canvas.<fixture>` rows with no expected score | 5 s (`:49`) | Any score sync row or score POST |
+| `M1-16.canvas.graded-vs-preview` | 5 s (`:150`) | A preview score row or POST |
+| `M1-33.canvas.status-422`, `M1-33.canvas.status-400` | 60 s (`:324-325`) | An automatic retry |
+| Canvas browser rows: the framed embedded page, and the picker refused on site B | 3 s each (`70-canvas-browser.spec.ts:42`, `:92`) | The page leaves the frame; a picker or an error page shows in the refused frame |
+| `M2-13.no-stale-values` | 7 s (`tests/e2e/M2/08-routes.m2.ts:63`) | Stale Canvas values after the held 3 s answer. The test checks only that a request was held (`late.length > 0`), not that its answer arrived. |
+| T7 B-T7-01 confirm checks | "no" sent after 8 s (`run-t7.mjs:301`) | If the question comes late, the "no" can be flushed. The stop then comes from end of input, not from "no". |
+
+Extra evidence is required only for these rows, and only in an invocation whose chronology shows foreign Docker work between W3 and W4. The independent judge records it. If any item is missing, that invocation is not accepted.
+- Server rows (M1-09, M1-16, M1-33): the retained simulator score records and service logs for the whole invocation, up to teardown, show that the absent event never happened for that row's publication. Absence inside the wait is not enough.
+- Browser rows (the two Canvas browser rows, M2-13): the row's retained trace or logs show that the observed work finished before its wait ended. For the refused picker, the site-A control frame rendered. For the framed page, its load finished. For M2-13, the app log time of the held Canvas answer is before the final check (Playwright start plus duration).
+- T7: each `cmd/*-confirm-no-*.log` shows the question first, then the echoed "no".
+
+### 11.3 Conditions (the Lead's list, made exact)
+
+1. Launch only after the qualified preflight passes with no foreign container. Use unchanged C6/C8, launchers, tools, pinned images and all 32 protected records. Each phase has its own grant and an absent run root. Notify Savoy and LA before each launch.
+2. Savoy keeps its resources disjoint. Its container, image, network and volume names do not start with `qa-` or `cogniate-`. Its networks do not overlap `172.27.0.0/16`, `172.29.0.0/16` or `172.31.0.0/16`. It binds only loopback ports, never 8443, 8543 or 8643. It does no prune, takes no action on other projects' resources, does no engine restart or settings change, and does not use LTI resources.
+3. After each invocation, Savoy's chronology covers the whole window, from W1 to the end of W4, with second-level times for every container, image, network and volume operation. Any foreign activity in the sampler that the chronology does not explain is unknown activity and blocks acceptance.
+4. Every original check passes as written: W1–W4, the sampler conditions, the runner isolation and secret rows, lane-watch, the held QA watchers, scans and owned cleanup. Every functional row, equality and judgment rule of E-R4 also passes.
+5. When foreign work occurred during the invocation, the §11.2 row evidence is present.
+6. Any failure stops the invocation. The Lead decides. The E-R4 rules of no automatic retry and void on a fresh functional failure stay unchanged.
+7. Every accepted record says "window NOT exclusive" and lists the attributed foreign intervals.
+
+### 11.4 Result and the one decision needed
+
+- These conditions are sufficient for result validity, with the §11.2 evidence. No required check blocks the route. The residual risk is operational: a check fails when Savoy work spans a snapshot, or a deadline fails under load. Under E-R4 either outcome ends the route without a retry. The risk is highest for the longest invocation, T7: three runs plus the timed demo.
+- E-R4 says: "Resolve host scheduling and confirm both project holds before each later runtime window." Savoy cannot give a hold. This route therefore needs an explicit Lead amendment of that E-R4 condition, with owner agreement on the schedule. That is a decision, not a check change.
+- Recommended use: run SIM round 1, SIM round 2, M2, then T7 under separate grants. Launch each right after Savoy reports the end of a burst, so that overlap is less likely. Product, tests, criteria, deadlines, launchers and tools stay unchanged. AC-M4-06 stays PENDING.
+
+### 11.5 Savoy's prospective confirmation against §11.3 (added about 18:30 UTC)
+
+Source: Savoy `msg_962e480b30de` (18:26:36 UTC), relayed exactly in Lead `msg_8239b6908bfa`. Savoy claims no global hold.
+
+| §11.3 item | Savoy statement | Status |
+| --- | --- | --- |
+| (2) Names and images | Only its own `sto-*` containers, their anonymous volumes, and the `savoy-transaction-orchestrator:local` image and its build | Met |
+| (2) Ports | Loopback only: Docker-assigned ephemeral ports, or `127.0.0.1:5432`; never 8443, 8543 or 8643 | Met |
+| (2) No prune or other actions | No prune. No stop, remove or attach of LTI or other-project resources. No engine restart or settings change. No change to the 32 volume records. | Met |
+| (2) Networks | No network create, connect or disconnect outside its own containers. It does not say which subnets its own networks use, or that they are removed. | Partly met. Add: any Savoy network is removed inside its block and does not overlap `172.27.0.0/16`, `172.29.0.0/16` or `172.31.0.0/16`. Without this, the risk is a failed SIM setup subnet check or a failed W4 (new unrelated network), not a false pass. |
+| (2) Volumes and helpers | Volumes are removed. testcontainers-go runs without the Ryuk reaper, so no helper container starts. | Met. A crashed Savoy test can leave a container, volume or network behind. W4 then fails as written: a check failure, not a false pass. |
+| (3) Chronology | Announces each block with its start and end times | Partly met. Still needed after each invocation: a written statement that the announced blocks are complete for W1 to the end of W4, with second-level times. The sampler cross-check of §11.3(3) stays. |
+
+With these two additions the route is concrete. The Lead can decide it in one step. It still needs the explicit E-R4 amendment of §11.4, because Savoy gives no hold, and owner agreement on the schedule.
+All other conditions, checks, row evidence and stop rules of §11.1–§11.4 stay unchanged.
