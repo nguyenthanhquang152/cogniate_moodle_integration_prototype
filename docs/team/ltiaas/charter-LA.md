@@ -20,7 +20,7 @@ orca orchestration worker-start --agent claude --model claude-opus-5-5 --effort 
 | Architect-2 (A2) | 1, dedicated | Only the files in `docs/architecture/ltiaas/**` that its brief names | Edit A1 files. |
 | Author lanes | 1 per lane in the epic plan | Only the files its task brief names, in its own worktree and branch | Edit `tests/**`, `docs/**` (except files its brief names). Push. Review or test its own work. |
 | QA | 1, dedicated | `tests/ltiaas/**`, `docs/reviews/LA-*/qa.md` | Edit product code. Read Author notes before it writes tests. |
-| QA-2, QA-3 | 1 each, build phase (plan LD-13) | Their acceptance folders under `tests/ltiaas/**` (named in the breakdown) | Edit product code or another QA's folder. Run gates (QA runs them). |
+| QA-2, QA-3, QA-4 | 1 each, build phase (plan LD-13, LD-17) | Their acceptance folders under `tests/ltiaas/**` (named in the breakdown); they run their own task suites | Edit product code or another QA's folder. Run the wave-end regressions (the lead QA runs them). |
 | QA-E2E | 1, dedicated, build phase | `tests/e2e/ltiaas/**`, the `tests/sim/**` changes its brief names, e2e sections of `docs/reviews/LA-*/qa.md` | Edit product code or other `tests/**` folders. |
 | Reviewer-A | 1, dedicated | `docs/reviews/LA-*/reviewer-a.md` | Read Reviewer-B's file before it submits. |
 | Reviewer-B | 1, dedicated | `docs/reviews/LA-*/reviewer-b.md` | Read Reviewer-A's file before it submits. |

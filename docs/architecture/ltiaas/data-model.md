@@ -9,7 +9,8 @@ Status: v1 (A1, milestone LA P2, 2026-10-22). Base: [`../data-model.md`](../data
 | Cogniate app | `013_channel_kernel.sql` | E1 S4 | A1 ([LA-ADR-04 D4](adr/LA-ADR-04-refactor-and-migration.md#decision)) | `connection.channel`, `connection.binding_authority`, `binding_attempt.target_kind`, `binding_grant.bound_values` |
 | Cogniate app | `014_learning_records.sql` | E4 | A1 ([LA-ADR-03](adr/LA-ADR-03-learning-record-core.md), [LA-ADR-04 D5](adr/LA-ADR-04-refactor-and-migration.md#decision)) | `placement`, `learning_record`, `record_dispatch`, `job_instance`, `job_lease`; backfill from `resource_link` and `score_sync` |
 | Cogniate app | `015_app_audit.sql` | E5 (app part) | shape A2 ([LA-ADR-06 D4](adr/LA-ADR-06-service-operability.md)), table A1 | `audit_event` |
-| Cogniate app | `016_connection_health.sql` | E6 (Could) | shape A2 ([LA-ADR-08 D3, D5](adr/LA-ADR-08-onboarding-and-connection-health.md)), table A1 | `connection_event`, `admin_launch_code`, `connection.artifact_key_kid` (moved from `015`; Reviewer-B B-LAD-13) |
+| Cogniate app | `016_connection_health.sql` (first E6 file; number: the Lead, in landing order) | E6 (Could), LA-E6-02 (P, B3) | shape A2 ([LA-ADR-08 D5](adr/LA-ADR-08-onboarding-and-connection-health.md)), table A1 | `connection_event`, `connection.artifact_key_kid` (moved from `015`; Reviewer-B B-LAD-13) |
+| Cogniate app | second E6 file, `admin_launch_code` (number: the Lead, in landing order; plan LD-12) | E6 (Could), LA-E6-03 (K, B4) | shape A2 ([LA-ADR-08 D3](adr/LA-ADR-08-onboarding-and-connection-health.md)), table A1 | `admin_launch_code` |
 | Cogniate app | E3 migration (number: P3) | E3 Must (multi-select) | A1 (table), A2 (feature, [LA-ADR-05 D3](adr/LA-ADR-05-lti-advantage-completeness.md)) | `picker_pick` (§5b; Reviewer-A A-LAD-10) |
 | LTI service | `005_…` and later (numbers: P3) | E2-K, E3, E5 | A1 (E2 platform fields), A2 (the rest) | §4 |
 
@@ -211,7 +212,7 @@ CREATE TRIGGER audit_event_append_only BEFORE UPDATE ON audit_event
 
 ## 5a. Cogniate app: migration `016` (E6, Could)
 
-Built only if E6 is in scope. Shape from A2 ([LA-ADR-08](adr/LA-ADR-08-onboarding-and-connection-health.md) D3, D5).
+Built only if E6 is in scope. Shape from A2 ([LA-ADR-08](adr/LA-ADR-08-onboarding-and-connection-health.md) D3, D5). Two files (plan LD-12): the first holds `connection_event` and `connection.artifact_key_kid` (LA-E6-02); the second holds `admin_launch_code` (LA-E6-03). The Lead numbers both in landing order.
 
 ```sql
 -- 016_connection_health.sql (sketch)
@@ -228,6 +229,7 @@ CREATE INDEX connection_event_connection ON connection_event (connection_id, at)
 
 ALTER TABLE connection ADD COLUMN artifact_key_kid TEXT;   -- key id inside the last exported setup artifact (Canvas inline key)
 
+-- second E6 file (LA-E6-03; number in landing order)
 CREATE TABLE admin_launch_code (                      -- verified admin launch (D-3), one live code per connection
   code_hash      TEXT PRIMARY KEY,                    -- SHA-256 of the 80-bit code; the code is shown once in the LMS
   connection_id  TEXT NOT NULL REFERENCES connection (id),
