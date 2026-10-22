@@ -1,8 +1,9 @@
 // Static portal only. API, tool and player paths never fall through to the SPA.
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Db } from '../domain/db.ts';
 import { sessionOf } from './session.ts';
 
@@ -12,7 +13,7 @@ const types: Record<string, string> = {
   woff: 'font/woff', woff2: 'font/woff2', svg: 'image/svg+xml', png: 'image/png',
 };
 
-export function registerPortal(app: FastifyInstance, deps: { db: Db; now: () => number }): void {
+export function registerPortal(app: FastifyInstance, deps: { channels: ChannelRegistry; db: Db; now: () => number }): void {
   app.get<{ Params: { file: string } }>('/portal/assets/:file', async (req, reply) => {
     const name = req.params.file;
     const type = types[name.split('.').at(-1) ?? ''];
@@ -25,13 +26,15 @@ export function registerPortal(app: FastifyInstance, deps: { db: Db; now: () => 
       throw error;
     }
   });
-  // M1 (app contract §4.2): the Canvas and Blackboard routes next to the Moodle routes.
-  const routes = ['/', '/signin', '/integrations', '/integrations/moodle/connect', '/integrations/moodle/:connectionId',
-    '/integrations/canvas/connect', '/integrations/canvas/:connectionId', '/integrations/blackboard/connect', '/integrations/blackboard/:connectionId',
+  // App API delta §4 (LA-ADR-01 D9): one route pair for every registry channel. A channel id that is not in the registry
+  // keeps the answer of an unknown path, before the session check.
+  const channelRoutes = ['/integrations/:channelId/connect', '/integrations/:channelId/:connectionId'];
+  const routes = ['/', '/signin', '/integrations', ...channelRoutes,
     '/libraries/courses', '/libraries/courses/:courseId', '/libraries/courses/:courseId/publish',
     '/publications/:publicationId/results', '/prototype/:page'];
   for (const path of routes) {
-    app.get(path, async (req, reply) => {
+    app.get(path, async (req: FastifyRequest<{ Params: { channelId?: string } }>, reply: FastifyReply) => {
+      if (channelRoutes.includes(path) && deps.channels.channel(req.params.channelId ?? '') === null) return reply.callNotFound();
       reply.header('content-security-policy', "default-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'self'")
         .header('referrer-policy', 'same-origin').header('cache-control', 'no-store');
       if (path !== '/signin' && !sessionOf(deps.db, req.headers.cookie, deps.now())) return reply.redirect('/signin');
