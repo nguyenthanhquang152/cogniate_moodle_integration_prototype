@@ -8,10 +8,10 @@ Only the Lead edits this file. Orca Run: `run_06d07dc77faf`. Rules: [charter-LA]
 | --- | --- | --- | --- |
 | P1 Plan | **done** | — | R1–R5 committed; plan v1 `1afdf56`, v1.1 (R2), v1.2 (LA-H21..H24) |
 | P2 Tech design | **done** | **G-DESIGN PASS** | Final design `54e8088`. Reviewer-A APPROVE (R4 at `54e8088`), Reviewer-B APPROVE (R3 at `88909be`), QA PASS (R3 at `88909be`; its last MINOR fixed at `54e8088`). 3 BLOCKER and 15 MAJOR found and closed over 4 rounds. Deferred: [deferred.md](deferred.md). |
-| P3 Breakdown | **in_progress** | G-BREAKDOWN | A1 `ctx_21d0c24a9168` (epics, matrix, E0 E1 E2 E4 E7 E8), A2 `ctx_4f0492774244` (E3 E5 E6; lanes in `tasks/A2-lanes.md`) |
+| P3 Breakdown | **fix round 1** (A1 `ctx_11e122d81716`) | G-BREAKDOWN round 1: A CHANGES_REQUESTED (Part 1 APPROVE; A-LAB-10), B CHANGES_REQUESTED (B-LAB-01..03 fixed by A2; B-LAB-10), QA FAIL (Q-LAB-10) | 94+6 task specs; epics.md with DAG, matrix, sizes; Must about 55 Author-days before LD-15 rolling starts |
 | G-BASE | waiting | — | Blackboard and Canvas run `run_ebe671ad72a9`; see plan LA-H10 |
 | G-DEV | waiting | product owner | Approves plan, design and breakdown (LA-H1) |
-| P4 Build | planned | — | Lanes K, P, S, L, R, QA, QA-E2E, Docs; 2 Docker slots (LD-2) |
+| P4 Build | planned | — | Lanes K, P, R, S1, S2 (LD-10), L, L2 (LD-11), QA, QA-2, QA-3 (LD-13), QA-E2E, Docs; 2 Docker slots (LD-2); rolling starts (LD-15) |
 | P5 Verify | planned | task done | QA + Reviewer-A + Reviewer-B in parallel |
 | P6 Integrate | planned | milestone done | Regression, conformance, docs |
 
@@ -46,3 +46,11 @@ Only the Lead edits this file. Orca Run: `run_06d07dc77faf`. Rules: [charter-LA]
 | A1 | A-LAD-01 (rule owner), A-LAD-03, -04, -05; B-LAD-01..07 |
 | A2 | A-LAD-02, -06, -07; Q-LAD-14; A-LAD-01 alignment in A2 files |
 | Lead | A-LAD-08 = B-LAD-08: closed by LD-9 (`2740f56`) |
+
+## G-BREAKDOWN round 1 routing
+
+| Owner | Findings |
+| --- | --- |
+| A2 (done, `b4f6b9b`) | Q-LAB-01 (cites forms d–g), B-LAB-01..03, Part 1 MINORs; six companion tasks |
+| A1 (running) | B-LAB-10 (form g), Q-LAB-10 (QA cost per task), A-LAB-10 (store-contract AC); matrix updates for LD-10, LD-11, LD-14, LD-15; Part 2 MINORs |
+| Lead | LD-10 (S1/S2), LD-11 (L2), LD-12, LD-13 (QA-2, QA-3), LD-14, LD-15 (rolling starts) |
