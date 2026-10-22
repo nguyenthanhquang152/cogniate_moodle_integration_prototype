@@ -126,7 +126,7 @@ test.describe.serial('T6 Courses (Thanh)', () => {
     test.setTimeout(120_000);
     const t6 = loadState('T6') as { uiScormCourseId?: string; pendingConnectionName?: string };
     await page.goto(`${APP}${PORTAL_ROUTES.course(String(t6.uiScormCourseId))}`);
-    await page.getByRole('button', { name: /Publish to Moodle/ }).or(page.getByRole('link', { name: /Publish to Moodle/ })).first().click();
+    await page.getByRole('button', { name: /Publish to an LMS/ }).or(page.getByRole('link', { name: /Publish to an LMS/ })).first().click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
     const text = (await dialog.innerText()).replace(/\s+/g, ' ');

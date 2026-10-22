@@ -27,11 +27,11 @@ async function openPublishDialog(page: Page, courseId: string) {
   const thanh = await signIn(THANH);
   const conn = await appApi<{ name: string; siteUrl: string }>('GET', `/app-api/connections/${encodeURIComponent(String(t5().connectionId))}`, { cookie: thanh.cookie });
   await page.goto(`${APP}${PORTAL_ROUTES.course(courseId)}`);
-  await page.getByRole('button', { name: /Publish to Moodle/ }).or(page.getByRole('link', { name: /Publish to Moodle/ })).first().click();
+  await page.getByRole('button', { name: /Publish to an LMS/ }).or(page.getByRole('link', { name: /Publish to an LMS/ })).first().click();
   const dialog = page.getByRole('dialog');
   await dialog.waitFor();
-  const select = dialog.getByRole('combobox', { name: 'Moodle connection' });
-  const label = await select.locator('option').evaluateAll((opts, name) => opts.map((o) => o.textContent ?? '').find((t) => t.startsWith(`${name} ·`)) ?? '', conn.json.name);
+  const select = dialog.getByRole('combobox', { name: 'LMS connection' });
+  const label = await select.locator('option').evaluateAll((opts, name) => opts.map((o) => o.textContent ?? '').find((t) => t.startsWith(`${name} (Moodle, `)) ?? '', conn.json.name);
   expect(label, `option for the connection "${conn.json.name}"`).toBeTruthy();
   await select.selectOption({ label });
   return dialog;

@@ -41,7 +41,7 @@ test('AC-T6-13 `<b>x</b>` and the manifest title show literally in Courses, Publ
   await page.goto(`${APP}${PORTAL_ROUTES.course(String(t6.xssCourseId))}`);
   await page.waitForLoadState('networkidle');
   await check('Course report', [XSS_COURSE_TITLE, XSS_MANIFEST_TITLE]);
-  await page.getByRole('button', { name: /Publish to Moodle/ }).or(page.getByRole('link', { name: /Publish to Moodle/ })).first().click();
+  await page.getByRole('button', { name: /Publish to an LMS/ }).or(page.getByRole('link', { name: /Publish to an LMS/ })).first().click();
   await page.getByRole('dialog').waitFor();
   await check('Publish dialog', [XSS_COURSE_TITLE]);
   await page.keyboard.press('Escape');
@@ -76,7 +76,7 @@ test('AC-T6-09 axe: no serious or critical violation on Integrations, wizard, Co
   await page.waitForLoadState('networkidle');
   await scan('Courses');
   await page.goto(`${APP}${PORTAL_ROUTES.course(courseId)}`);
-  await page.getByRole('button', { name: /Publish to Moodle/ }).or(page.getByRole('link', { name: /Publish to Moodle/ })).first().click();
+  await page.getByRole('button', { name: /Publish to an LMS/ }).or(page.getByRole('link', { name: /Publish to an LMS/ })).first().click();
   await page.getByRole('dialog').waitFor();
   // A native <dialog> has the dialog role without the attribute.
   await scan('Publish dialog', (await page.locator('[role="dialog"]').count()) ? '[role="dialog"]' : 'dialog[open]');
@@ -88,13 +88,13 @@ test('AC-T6-09 axe: no serious or critical violation on Integrations, wizard, Co
 
   // Keyboard only: the Publish dialog opens with Enter, closes with Esc, and focus returns to its opener.
   await page.goto(`${APP}${PORTAL_ROUTES.course(courseId)}`);
-  const opener = page.getByRole('button', { name: /Publish to Moodle/ }).or(page.getByRole('link', { name: /Publish to Moodle/ })).first();
+  const opener = page.getByRole('button', { name: /Publish to an LMS/ }).or(page.getByRole('link', { name: /Publish to an LMS/ })).first();
   await tabTo(page, opener);
   await page.keyboard.press('Enter');
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toBeHidden();
-  await expect(opener, 'focus is back on "Publish to Moodle"').toBeFocused();
+  await expect(opener, 'focus is back on "Publish to an LMS"').toBeFocused();
 
   // Keyboard only: the wizard (QA Library B, Automatic) reaches the registration URL step.
   await portalSignIn(page, QA_B);
