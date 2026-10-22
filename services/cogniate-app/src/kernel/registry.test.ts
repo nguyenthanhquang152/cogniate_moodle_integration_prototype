@@ -52,6 +52,7 @@ vi.mock('@cogniate/channel-kernel', async (importOriginal) => {
 const tempRoots: string[] = [];
 const startLines: LogLine[] = [];
 const config: AppConfig = {
+  jobInstanceId: 'app-1', jobRunner: true,
   urls: TEST_URLS, dataDir: tmpdir(), profile: 'default', masterKey: Buffer.alloc(32, 5),
   ltiApiKeyFile: join(tmpdir(), 'app-registry-test-key'), ltiApiUrl: null,
   playerDir: join(tmpdir(), 'app-registry-test-player'), buildQueueDir: join(tmpdir(), 'app-registry-test-builds'),
