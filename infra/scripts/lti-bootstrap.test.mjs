@@ -77,6 +77,7 @@ it('a missing original stops bootstrap and deletes a stale mounted operator copy
   const result = h.run('--quiet');
   assert.equal(result.status, 1);
   assert.match(result.stderr, /infra\/\.secrets\/lti-operator-key is missing/);
+  assert.equal(result.stderr.trim().split('\n').length, 1);
   assert.equal(fs.existsSync(h.copy), false);
   assert.equal(h.calls().split('src/cli/bootstrap.ts').length, before);
 });

@@ -46,8 +46,7 @@ if [[ "$op_out" =~ ^ltio_[A-Za-z0-9_-]{43}$ ]]; then
 elif [[ "$op_out" == "operator key exists" ]]; then
   if [[ ! -s "$op_file" ]]; then
     rm -f "$op_copy"
-    echo "   ERROR: an operator key exists, but infra/.secrets/lti-operator-key is missing. Make a new one (it revokes the old):" >&2
-    echo "            docker compose exec lti-service npm run lti:operator -- init --replace --name <you>, then write it to that file." >&2
+    echo "Operator key file infra/.secrets/lti-operator-key is missing. Run docker compose exec lti-service npm run lti:operator -- init --replace --name <you>, then write the new key to that file." >&2
     exit 1
   fi
 else
