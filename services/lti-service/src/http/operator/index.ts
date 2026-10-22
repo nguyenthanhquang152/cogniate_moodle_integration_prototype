@@ -22,6 +22,7 @@ import { createTrustedProxy, rateLimiterFor, recordAuthFailure } from '../rate-l
 import { registerRateLimitRoutes } from './rate-limits.ts';
 import { registerKeyProviderRoutes } from './key-provider.ts';
 import { registerOperatorServiceKeyRoutes } from './service-keys.ts';
+import { metricsFor, OPENMETRICS_TYPE, registerReadiness } from '../metrics.ts';
 
 /** The operator of an accepted request. The audit actor is operator:<operator>. */
 export interface OperatorIdentity {
@@ -97,11 +98,15 @@ export function parseOperatorAuthorization(header: string | undefined): string |
 
 export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInstance> {
   const now = deps.now ?? Date.now;
-  const log = deps.logger;
+  const metrics = metricsFor(deps.db, now);
+  const log = metrics.logger(deps.logger);
   const limiter = rateLimiterFor(deps.db, log, now);
   const proxy = await createTrustedProxy(undefined, undefined, log);
   const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, return503OnClosing: false, trustProxy: proxy.trust });
-  installApiBasics(app, log);
+  metrics.install(app);
+  installApiBasics(app, log, metrics);
+  registerReadiness(app, deps.db, deps.keys, true);
+  app.get('/metrics', async (_req, reply) => reply.type(OPENMETRICS_TYPE).header('cache-control', 'no-store').send(await metrics.render(deps.keys)));
   app.addHook('onClose', async () => proxy.close());
   // A POST without a body (for example …/revoke) may still send Content-Type: application/json.
   const json = app.getDefaultJsonParser('error', 'error');
