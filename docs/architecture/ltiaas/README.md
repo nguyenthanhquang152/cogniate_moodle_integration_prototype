@@ -192,7 +192,7 @@ App path → layer (Reviewer-B B-LAD-12):
 
 ### 6a. Hot files and owners (input for P3; Reviewer-B B-LAD-06, Reviewer-A A-LAD-12)
 
-These files need edits from more than one lane. P3 fixes one owner per file and the order of edits; the other lanes send their changes to the owner, or the owner first splits the file into new modules (charter-LA §3).
+These files need edits from more than one lane. P3 fixes one owner per file and the order of edits; the other lanes send their changes to the owner, or the owner first splits the file into new modules (charter-LA §3). **P3 result:** the ownership matrix in [epics.md §5](epics.md#5-file-ownership-matrix) replaces this table for the build; it lists its adjustments with reasons.
 
 | File | Lanes that need it | Proposed owner | Order or split |
 | --- | --- | --- | --- |
@@ -350,7 +350,7 @@ Items that A1 cannot close inside its own files. Each names the owner. Closed it
 | OC-4 | Admin-value `POST /api/platforms` rules and the trait fields of `GET /api/providers` | A2 | **Closed:** A2 [lti-service-api-delta](contracts/lti-service-api-delta.md) §4.6.1 and §4.7; LA-IC-01 lists the trait fields. |
 | OC-5 | Human decision ids of A2 | Lead | **Closed:** plan v1.2 §6.2 has LA-H21 to LA-H24. |
 | OC-6 | Who builds the connection secrets table | A2 | **Closed:** A2 [LA-ADR-07](adr/LA-ADR-07-security-and-tenancy.md) D3 "Scope in LA": LB or LF builds it; LA keeps `connection.ws_*`. |
-| OC-7 | Three QA allowances for the tasks README §2: (a) QA writes `infra/.secrets/lti/keyring.json` in its own clone and restarts the LTI service (A2 LA-ADR-06 AP-06-24); (b) `docker compose exec -e STACK_PROFILE=production -e OPERATORS=<name> cogniate-app npm run app:grant …` (A2 LA-ADR-07 AP-07-04, AP-07-09); (c) `docker compose exec lti-service npm run lti:operator -- init …` (A2 LA-ADR-06 AP-06-13; QA Q-LAD-15) | Lead (P3 breakdown) | Open: add them to `docs/architecture/tasks/README.md` §2 in P3. |
+| OC-7 | Three QA allowances for the tasks README §2: (a) QA writes `infra/.secrets/lti/keyring.json` in its own clone and restarts the LTI service (A2 LA-ADR-06 AP-06-24); (b) `docker compose exec -e STACK_PROFILE=production -e OPERATORS=<name> cogniate-app npm run app:grant …` (A2 LA-ADR-07 AP-07-04, AP-07-09); (c) `docker compose exec lti-service npm run lti:operator -- init …` (A2 LA-ADR-06 AP-06-13; QA Q-LAD-15) | Lead (P3 breakdown) | **Closed:** QA forms (a)–(c) in [tasks/README §2](tasks/README.md#2-qa-rules-for-la), each only on QA's own compose project; the same table adds forms (d)–(g) (QA Q-LAB-01, Reviewer-B B-LAB-03, A2 LA-B2b) and (h)–(j). |
 | OC-8 | The LD-1 rewrite list missed two closed-list assertions (QA pre-review Q-LAD-08) | QA | **Closed:** QA added both rows and the wider E0 scan (TEST-STRATEGY v1.1 §4.3; qa.md round 1). |
 | OC-9 | Plan E5 Must 3 and the app CLIs (Reviewer-A A-LAD-17) | Lead | **Closed:** plan OC-9 (`docs/team/ltiaas/plan.md:93`): Must 3 covers the LTI service CLIs; R-LA-2 goes to the human review list. |
 | OC-10 | A2 alignment with the round-1 A1 decisions (I-SELF and staged DR, port context, worker rule, `MANUAL_SELF_LEGACY_CHANNELS`, `wireLms`) | A2 | **Closed:** A2's round-1 fixes at `877d951` ([review-response-R1-A2](review-response-R1-A2.md)). |
@@ -388,7 +388,11 @@ QA pre-review findings in A1 files (`docs/reviews/LA-DESIGN/qa.md`):
 | [operability.md](operability.md) | A2 | runbook-level design: config, topology, signals, alerts, backup and restore, key rotation |
 | [security-delta.md](security-delta.md) | A2 | deltas to `../security.md` |
 | [review-response-R1-A1.md](review-response-R1-A1.md) | A1 | G-DESIGN round 1: one row per finding routed to A1 |
-| `review-response-R1-A2.md` | A2 | G-DESIGN round 1: one row per finding routed to A2 |
+| `review-response-R1-A2.md`, `review-response-R2-A2.md` | A2 | G-DESIGN rounds 1 and 2: one row per finding routed to A2 |
+| [review-response-R2-A1.md](review-response-R2-A1.md), [review-response-R3-A1.md](review-response-R3-A1.md) | A1 | G-DESIGN rounds 2 and 3: one row per finding routed to A1 |
+| [epics.md](epics.md) | A1 | P3: epic → feature → task, task DAG, waves, file-ownership matrix, Docker needs, sizes, critical path, open ownership items |
+| [tasks/README.md](tasks/README.md) | A1 | P3: spec rules, QA rules and allowances (OC-7), request rules, test knobs |
+| `tasks/LA-*.md`, [tasks/A2-lanes.md](tasks/A2-lanes.md) | A1 (E0, E1, E2, E4, E7, E8), A2 (E3, E5, E6) | P3 task specs |
 | [`tests/ltiaas/TEST-STRATEGY.md`](../../../tests/ltiaas/TEST-STRATEGY.md) | QA | test levels, conformance kit, fitness check design, regression proof, lanes, testability checklist |
 
 ## 10. Human decisions and unknowns

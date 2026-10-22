@@ -173,6 +173,7 @@ See [charter-LA §2](charter-LA.md#2-phases-and-gates). P1–P3 change only docs
 | S1 | LTI service operations: rate limits, tenant model, operator API, audit | E5 |
 | S2 | LTI service key lifecycle: API keys, `KeyProvider`, signing keys, service keys | E5 |
 | L | LTI service protocol: platform storage, Dynamic Registration, Deep Linking, launch without context | E2, E3 |
+| L2 | B3 only: E3 Should tasks on the launch, picker and claims files (LD-11) | E3 |
 | R | App records: placement, learning record, outbox, AGS reporter | E4 |
 | QA / QA-E2E | Tests, data-driven simulator, conformance kit, CI script | E0, E7 |
 | Docs | Guides and runbook | E8 |
@@ -202,6 +203,8 @@ Docker: at most 2 stacks at the same time, by booked slot (Lead decision LD-2). 
 | LD-8 | A short Moodle regression ("R2-lite": T7 once plus the area groups) runs after each E1 step that moves Moodle code (S3, S5, S6, S7). Cost: about 10–25 min of the Moodle slot per step. |
 | LD-9 | An intended change `LA-IC-nn` (LA-ADR-04 D8) may change frozen assertions in M1, M2, T7 or other legacy suites. Each `LA-IC` lists the exact assertions it changes. QA makes the change as one reviewed list per `LA-IC`, at the task that ships the change; both reviewers approve the list. No other assertion may change (Reviewer-B B-LAD-08). |
 | LD-10 | Lane S splits into two Author lanes so E5 is not the critical path (Reviewer-B B-LAB-02): **S1** = rate limits, tenant model and account status, operator API, audit; **S2** = key lifecycle (API keys, `KeyProvider`, signing keys, service keys). `services/lti-service/src/http/operator/**` splits per endpoint group so each lane owns its files; a shared mount file has one owner (S1). |
+| LD-11 | Lane L in B3 (epics.md OI-1): (a) L's Could tasks (for example LA-E2-07, LA-E6-06) are deferred by default; the Lead builds them only if capacity remains at the end of B3. (b) A second protocol lane **L2** works in B3 on the E3 Should tasks, with A1's disjoint file split (L2: app `tool-pages/launch.ts`, `tool-pages/picker.ts`, `domain/pickers.ts`, `domain/launch.ts`, the `picker_pick` migration, LTI `lti/{login,launch,claims,idtoken,deep-linking,service-keys}.ts`; L keeps `lti/{registration,checks,platform-rules,codes}.ts`, `http/routes/**`, `store/**`, `profiles/**`, `platform/**`, the LTI `testkit.ts`). The Lead still cuts Should items at the end of B2 if the Must path slips (plan §7). |
+| LD-12 | epics.md OI-2: app migration `016` becomes two files, numbered by the Lead in landing order (RQ-5). OI-7: the LA-E2-07 Author proposes the operator route and audit action to A2 through the Lead before the build. OI-8: confirmed; a guarded capability whose route only a Should or Could task builds is `notBuilt` in the kit fixture until that task lands. |
 
 ### 6.2 Human decisions
 

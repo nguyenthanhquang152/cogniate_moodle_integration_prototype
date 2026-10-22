@@ -133,6 +133,7 @@ CREATE INDEX record_dispatch_record ON record_dispatch (record_id);
 CREATE TABLE job_instance (                          -- one heartbeat row per runner instance (LA-ADR-03 D7)
   instance_id  TEXT PRIMARY KEY,                      -- JOB_INSTANCE_ID
   boot_id      TEXT NOT NULL,                         -- random per process; part of lease_owner
+  role         TEXT NOT NULL DEFAULT 'web' CHECK (role IN ('web', 'worker')),  -- P3 (LA-E4-05): the production check "both on"
   started_at   INTEGER NOT NULL,
   heartbeat_at INTEGER NOT NULL                       -- stop() deletes the row; a fresh row of another boot id makes a start wait, not exit
 );
@@ -154,6 +155,7 @@ CREATE TABLE job_lease (
 | `graded` | `1` for every row until A2's ungraded rule ships ([LA-ADR-03 D2](adr/LA-ADR-03-learning-record-core.md#decision)). |
 | Record writer | The commit transaction, in the same transaction as the attempt update ([LA-ADR-03 D3](adr/LA-ADR-03-learning-record-core.md#decision)). Records are never updated or deleted. |
 | Dispatch writer | The outbox create step (best-result rule) in the commit transaction; the outbox engine for every later change. Only the lease owner records a result. For a `bestResult` reporter at most one row per (`placement_id`, `learner_subject`, `reporter`) has a live lease or `send_started_at` (the lease update checks it; [LA-ADR-03 D7](adr/LA-ADR-03-learning-record-core.md#decision)). |
+| Worker check (P3, LA-E4-05) | In the `production` profile a runner start refuses (`config_refused {reason: "job_runner_twice"}`) when a live `job_instance` row of the other `role` exists, so the web runner and `npm run worker` never both run (LA-ADR-03 D7 "Worker process"). Other profiles only log `job_runner_twice` at warn level. |
 | Frozen `score_sync` | After `014` no product SQL reads or writes `score_sync` (a fitness check in `npm run check`). |
 | `gradebook_read` | Unchanged; owned by the `lti-ags` reporter (read-back). |
 | Retention | Unchanged rule ([`../data-model.md` §2.1](../data-model.md#21-retention-a-t4b2-02)): placements, records and dispatches are the record of results and are not deleted. Retention periods are LA-H4. |

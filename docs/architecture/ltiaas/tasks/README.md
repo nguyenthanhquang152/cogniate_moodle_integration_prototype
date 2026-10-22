@@ -1,0 +1,93 @@
+# LA tasks: spec rules, QA rules and test knobs
+
+Status: v1 (A1, task LA-B1, P3 breakdown, 2026-10-22). Design SHA: `54e8088` (G-DESIGN PASS) plus the P3 consistency edits listed in [review-response-R3-A1](../review-response-R3-A1.md). Task list, DAG, waves, ownership matrix and Docker needs: [epics.md](../epics.md). Base rules: [`../../tasks/README.md`](../../tasks/README.md) (M1 state). This file adds the LA rules. Where the two files differ for an LA task, this file wins.
+
+## 1. Task specs
+
+| Item | Rule |
+| --- | --- |
+| File | One file per task: `LA-<epic>-<nn>.md`. A1 writes E0, E1, E2, E4, E7, E8; A2 writes E3, E5, E6 ([A2-lanes](A2-lanes.md)). |
+| Header | Owner lane (K, P, S1, S2, L, R, QA, QA-E2E, Docs; lane S splits into S1 and S2 by Lead decision LD-10), Wave (B1–B4), Depends on, Design links, Size (S = 1 day, M = 2–3 days, L = 4–5 days), Docker (none, SIM, MOODLE). |
+| Files | "May edit" and "Must not edit" must equal the [ownership matrix](../epics.md#5-file-ownership-matrix). A file that is not in "May edit" needs a request to its owner (§4). |
+| AC id | `AC-LA-<epic>-<nn>-<mm>`. A number is never reused. A removed AC keeps its number with the text "removed". |
+| Evidence label | `UNIT` (Author unit test, no Docker; Reviewer-B checks it), `K0` (QA, no Docker: the K0 contract suite and the static fitness probes, label `STATIC` in TEST-STRATEGY), `K1-SIM` (QA or QA-E2E on the SIM lane: K1, task acceptance, K2, golden capture, U1), `K2` (QA-E2E browser case U1–U5 on the SIM lane with Chromium; README F7.7 makes U1–U4 Must), `MOODLE-LIVE` (the local Moodle 5.2 on the Moodle lane), `LIVE` (a real LMS site; never Must, LA-H3). |
+| Regression | Each task names its tier (R0, R1, R2-lite, R2) and its area groups from TEST-STRATEGY §4.4. A task that adds a migration names U1 (TEST-STRATEGY §4.5). |
+| Intended changes | A task that ships an `LA-IC-nn` names it. QA makes the reviewed test-change list at that task (plan LD-9). |
+
+## 2. QA rules for LA
+
+The rules of the base [§2](../../tasks/README.md#2-qa-rules) apply. QA works from the task specs, contracts and design interfaces, and reads no Author notes or product code before it writes the tests (charter-LA §1).
+
+**Lanes and stacks.** QA uses only its own clones and compose projects of TEST-STRATEGY §5.2 (`qa-la-sim-r…`, `qa-la-moodle-r…`, `qa-la-st-r…`). At most two stacks run at the same time, by a slot that the Lead books (plan LD-2). Every runner checks and cleans only resources with its own project label (TEST-STRATEGY §5.4).
+
+**Allowed commands (LA additions; design README OC-7; QA Q-LAB-01).** Each form has a letter that specs cite (for example "QA form (d)"). Each one runs only on QA's own compose project, and only in the AC that names it. Forms (a)–(c) are OC-7; (d)–(g) come from QA Q-LAB-01, Reviewer-B B-LAB-03 and A2's fix round LA-B2b:
+
+| Form | Command form | Used by | Restore |
+| --- | --- | --- | --- |
+| (a) | Write `infra/.secrets/lti/keyring.json` in QA's own clone (umask 077, then mode `0600`), then `npm run stack:restart -- lti-service` | A2 AP-06-24 (key ring re-wrap) | put back the original key ring file, restart, and check `GET /healthz` |
+| (b) | `docker compose exec -e STACK_PROFILE=production -e OPERATORS=<name> cogniate-app npm run app:grant -- …` | A2 AP-07-04, AP-07-09 (operator name rules of the production profile) | none: the `-e` values live only for that one command |
+| (c) | `docker compose exec lti-service npm run lti:operator -- init …` | A2 AP-06-13 (first operator key) | the test uses a fresh stack, or revokes the key that it made |
+| (d) | `npm run lti:bootstrap -w services/lti-service -- --account <id> --name <n> [--rotate-api-key] [--rotate-signing-key]` in QA's own clone (QA Q-LAB-01) | A2 LA-E5-05 | the test uses a fresh account id; a rotated key stays valid for that account only |
+| (e) | Rename or remove `infra/.secrets/lti-operator-key` in QA's own clone for one CLI run (first a backup copy, made with umask 077), then put it back (QA Q-LAB-01) | A2 LA-E5-05 AC-07 | rename back in `finally` or a shell `trap`, then check one operator call |
+| (f) | `docker compose run --rm -e STACK_PROFILE=production [-e <knob>=<value>] lti-service npm start`, expecting exit 1 and `config_refused` (QA Q-LAB-01; A2 LA-B2b) | A2 LA-E5-21 | none: the one-off container ends; the running stack is not touched |
+| (g) | The restore drill in QA's own clone and project, as AC-M1-23 does: `stack:down`, `stack:data-backup`, `stack:reset`, `stack:data-restore --from <backup>`, `stack:up`; never another project (Reviewer-B B-LAB-03; A2 LA-B2b) | A2 LA-E5-24 (Should) | the drill ends with the restored stack up; qa.md records the backup SHA-256 values |
+| (h) | Operator API calls to the internal listener through `docker compose exec` (A2 LA-ADR-06 D3; the `acceptance` profile binds it on the stack network) and to the app operator listener `http://cogniate-app:4210` (app delta §8a) | E5 acceptance, LA-E4-07 | a test that changes a setting (for example `PATCH /operator/v1/rate-limits`) restores the old value in its clean-up |
+| (i) | `docker compose exec cogniate-app npm run app:audit -- list …` (read-only) | A2 LA-E5-11 | none |
+| (j) | The T5b P5 fixture deletes the failed row in `record_dispatch` instead of `score_sync`, with the same exact-id rule and the same assertions (plan LD-6, LA-IC-09). Both reviewers review the fixture diff. | LA-E4-02 regression | as base §2 |
+
+Not allowed: the same commands on another project; reading or changing an SQLite file, except through form (j) and the M1 sequences of the base table; a test that imports product code (K0 imports only the public kernel entry points, §3).
+
+**Frozen assertions.** Only two kinds of change are allowed in M1, M2, T7 and the legacy suites: the E0 open-world rewrite (plan LD-1, [LA-E0-04](LA-E0-04.md)), and the reviewed test-change list of an `LA-IC-nn` at the task that ships it (plan LD-9). Any other change needs the Lead, with the test id and the reason (TEST-STRATEGY §4.3).
+
+**Capabilities that are not built yet** (TEST-STRATEGY §9.2 item 11; the breakdown confirms it). A guarded capability whose route only a Should or Could task builds (`content.ungraded`, `setup.connectionCheck`) is `notBuilt` in the kit fixture, with the design reference, until that task lands. The kit leaves its K1-CAP C2 case out of the expected case list. K0 still checks its value on every channel. The task that builds the route removes `notBuilt` and adds the C2 case.
+
+**One client address.** QA sends every browser and HTTP call from the one `e2e` container address. So an AC never needs "another address"; it uses "the same address after `Retry-After`" (TEST-STRATEGY §9.2 item 14).
+
+**Test-first.** QA writes acceptance tests from the task spec while the Author builds. A test may run red until the task lands. A K0 case may run only after the task that creates its entry point lands ([LA-E1-02](LA-E1-02.md) for the registry, [LA-E1-07](LA-E1-07.md) for `kernel/ports.ts`).
+
+**Determinism.** The base rules apply: `retries: 0`, `workers: 1`, unique names per run, fresh activity per AC, poll with the deadline of the AC. A flake is a finding, never a PASS (TEST-STRATEGY §2.6).
+
+**Network negatives.** Three oracles together: the error code, zero hits on the `evil.test` sink, and no `outbound_request` or `outbound_blocked` event for that host. For a token or score call, the simulator records (`/__sim/records`) also show zero requests.
+
+## 3. Public surfaces that QA may use
+
+| Surface | From task | Rule |
+| --- | --- | --- |
+| `@cogniate/channel-kernel`: manifest schema, capability catalog, legacy projection, `loadChannelFolders`, `buildChannelRegistry`, `ChannelRegistry`, `RegistryError` | [LA-E1-02](LA-E1-02.md) | K0 imports only these (LA-ADR-01 D4) |
+| `services/cogniate-app/src/kernel/ports.ts` | [LA-E1-07](LA-E1-07.md) | types only; no logic in the file (LA-ADR-01 D5) |
+| `npm run fitness:lms-names -- --stdin --as <path>` and the F5 rule runner in the same mode | [LA-E1-04](LA-E1-04.md) | check-one-text mode for QA probes (TEST-STRATEGY §3.5) |
+| `npm run fitness:channel-diff -- --base <sha> --channel <id> [--paths-from <file>]` | [LA-E1-04](LA-E1-04.md) | F2 report and gate |
+| A second loader root for the canary | [LA-E1-02](LA-E1-02.md) | a function argument only; product code passes one root |
+
+## 4. Shared files: request rules
+
+The ownership matrix gives each product path exactly one lane per wave ([epics.md §5](../epics.md#5-file-ownership-matrix)).
+
+| Rule | Text |
+| --- | --- |
+| RQ-1 (change request) | A lane that needs a change in a file of another lane sends the exact change (file, lines, reason, own task id) to the owner through the Lead. The owner lands it as its own commit that names the requester's task id. The requester's QA round starts after that commit. |
+| RQ-2 (one-commit handover) | When the owner lane has no open task on that file in the wave, the Lead may give the file to the requester for one named commit. The Lead records it in the board row of the requester's task. |
+| RQ-3 (F1 baseline) | `infra/scripts/fitness/f1-baseline.json` has one count per file. Any lane may **lower** the count of a file that it owns in that wave, in the commit that removes the hits. No lane raises a count. The owner in the matrix keeps the file format. |
+| RQ-4 (new modules) | A lane that needs new behaviour inside a hot file delivers it as a new module that it owns, and asks the owner for the call line (RQ-1). |
+| RQ-5 (migrations) | A task that adds a migration names it by content (for example "app migration: `placement`, …"). The Lead gives the number at landing, in landing order (data-model §1). Migrations of different lanes do not depend on each other. |
+| RQ-6 (wave change) | At a wave end the owner lane lands or hands back every open change. A file changes owner only at a wave end. |
+
+## 5. Test knobs
+
+LA adds **no** test knob. The base [§3](../../tasks/README.md#3-test-knobs) knob table stays, and `/healthz` still shows `"knobs": []` in the default profile (AC-T7-13). The `production` profile refuses a start with any active knob (A2 LA-ADR-06 D12).
+
+Tests control the new LA behaviour through these settings instead. None of them is a knob.
+
+| Setting | Service | Default | How a test uses it | Restore |
+| --- | --- | --- | --- | --- |
+| Rate-limit classes (`PATCH /operator/v1/rate-limits`) | lti-service | A2 LA-ADR-06 D1 | operator API call (QA form (h)); wait up to the 60 s apply time | the test sets the old value back |
+| `APP_RATE_LIMITS` | cogniate-app | 600 per minute, burst 200 per address (app delta §5a) | read at start; only the `acceptance` compose may raise it, and only if the E0 peak record shows a frozen suite above the default ([LA-E0-02](LA-E0-02.md)) | not changed by a test |
+| `JOB_INSTANCE_ID`, `APP_JOB_RUNNER` | cogniate-app, lti-service | `app-1`, `lti-1`; runner on in the web process | only Author unit tests change them (LA-ADR-03 D7); QA uses `npm run stack:restart -- cogniate-app` for the restart ACs | — |
+| Transport gate rules (`https://lti-gate.test/__gate/*`) | lti-gate | no rule | as M3 §3.3, for the E4 fairness and hold ACs | the test clears its rules in `finally` |
+| Simulator scenario options (`tests/sim/**`) | lms-sim | today's defaults | per request or per provider config ([LA-E7-05](LA-E7-05.md)) | defaults stay unchanged for M1 and M2 |
+
+A time rule that has no black-box control (lease expiry of another instance, heartbeat age, key lead time and retention) is an Author unit test with a controlled clock (TEST-STRATEGY TD-12). QA does not import service internals to control a clock.
+
+## 6. Evidence
+
+One short `docs/reviews/LA-<task>/qa.md` per task and round (TEST-STRATEGY §6, L5): SHA, lane and slot, one row per AC (PASS or FAIL, test id, command, artifact path), the regression tier result, and the measured time of each new suite. Raw secrets stay in the private run folder (umask 077); shared evidence is redacted at capture. MINOR and NIT findings go to `docs/team/ltiaas/deferred.md`.
