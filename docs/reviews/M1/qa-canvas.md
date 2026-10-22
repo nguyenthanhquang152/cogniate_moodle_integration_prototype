@@ -845,3 +845,81 @@ Records in `R` for `full2` round 2 and comparisons (manifest `judge/full2-round2
 - Canvas M1 at C4 `bf09cda` (`full2` retry): both 488-row rounds are complete (`488/488 PASS` each, exact 488-row set, accounting parse-equal in all 10 phase files), Canvas rows pass `233/233` in round 1 and `233/233` in round 2, both sink gates pass, both browser scans and visual checks pass, and round-1 vs. round-2 per-case equality passes (`233/233` Canvas and `488/488` overall, including `M1-41.common.c-host-negative`).
 - **Overall M1 and M3 acceptance: PENDING.** Common QA's 12 legacy groups and final `full2` W4 comparison, followed by fresh M2 and fresh T7 under separate exclusive Docker windows, remain required.
 - All 32 live rows remain UNVERIFIED; local Canvas remains DEFERRED. Earlier candidates keep their own records and carry no credit to C4.
+
+
+---
+
+## 23. C6 / C8 Canvas SIM Re-Run (`E-R5`) — Round 1 Judgment and §11.6 Reconciliation Correction
+
+### 23.1 Candidate, Route and Round 1 Inputs (`canvas-sim-c6-r1`)
+
+- **Candidate & route**: Product `C6` (`4008afb92fe983d52db33442e060210b929966c8`), tests `C8` (`5561e8f72a83de36a68877c6b26ffc8288ade735`, `HEAD:tests` `65eaefab31ec6800fca06aee50e5e25c95713f8a`), accepted route `E-R5` (`docs/team/r5-evidence-decision-2026-10-22.md`, commit `a9c38765b1cbf09a565f2d753b1e8dffb9f316c1`) with Architect §11.6 (`docs/reviews/M3/t6-09-failure-plan.md`, commit `3872c0616e296241e2204dfa6df568f2e7ebdd52`).
+- **Scope accounting**: Each `--phase sim --provider canvas` round executes **258** fresh SIM rows (`251` non-browser + `7` browser = `26` Common SIM + `232` Canvas SIM). Independent Canvas QA judges the **232** fresh Canvas SIM rows per round (`225` API + `7` browser) plus the 26 fresh Common SIM rows in the phase file. This is not a fresh 488-row run and not a fresh 233-row Canvas judgment; the 230 non-selected `C4` rows (including the 1 Canvas `snapshot-isolated` row `M1-37.canvas.aa`) remain carried under `E-R5`.
+- **Phase folder & clone**:
+  - Phase artifacts (`D`): `/Users/quangnguyen/cogniate-qa-runs/qa-common-c6-v4-20261022T1554Z/c8-clean-src/source/tests/host/artifacts/qa-multi-r1-4008afb9-2026-10-22T18-54-44-439Z`
+  - Runtime clone (`CL`): `/Users/quangnguyen/cogniate-qa-runs/qa-multi-r1-4008afb9-2026-10-22T18-54-44-439Z`
+  - Judge folder (`J`): `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-5561e8f-c8R3Prep/judge/round1`
+- **Frozen Round 1 input hashes** (`judge/round1/inputs.sha256`):
+  - `m1-identity.json`: `fc871ca350465a7f3d17fd70c76f132fcb1dd5e079fa01e1882ea42a0f1dbfd7`
+  - `m1-case-results.json`: `a9060c353b1ad0b023b904de55986f554684d88d9db88e3472ade1419d277aaf`
+  - `m1-evidence-secret-scan.json`: `485b5bef3cc541f1e1abd3e7e53d46ff4a25a6fb3a07e1103d83d78b0480f37b`
+  - `summary.json`: `c04098da04b160e1176d4dc69d942ccf1f624142e7d2810c40634733963df75f`
+  - `evidence/sim/m1-vitest-results.json`: `babcf33a9d3d26f3d5a45c0445f756055e9a49af2b52b2a74867f1f9e6edb57d`
+  - `evidence/sim/playwright-results.json`: `9228d4eacde808baad98253d83e841b263b8db9969ea4b9a40aa056f7ac0ce89`
+  - `service-logs/sink.jsonl`: `3184e45211dd0636c0f6ba454121e00beb7f42b519fa253f520f269ad0eb3c18` (309 B, 2 lines)
+  - `service-logs/lms-sim.jsonl`: `0f565b7173cb88e0f1dba5599cef35f533e640c323cb714332ef14a1865a7dca` (142,800 B, 706 lines)
+  - `service-logs/lti-service.jsonl`: `6b7dc4ef912921192bae31456cbd08ca88492f4b8da5825cf8fdebc617aa7ed7` (492,090 B, 2,305 lines)
+  - `service-logs/cogniate-app.jsonl`: `7cd1e4b360f9c9f6d79455fe11dc1d454c9d29259344d7550481428bc267635e` (742,107 B, 3,283 lines)
+
+### 23.2 Round 1 Judgment (`232` Fresh Canvas SIM Rows + `26` Fresh Common SIM Rows)
+
+- **Judge artifact**: `judge/round1/sim258-judge.json` (SHA-256 `ae0bcd61663e977ffe958fd70f9be137c865b8007e0c2815d941000f10208daf`).
+- **Row counts**: `258/258 PASS` (`232/232` fresh Canvas SIM rows = `225` API + `7` browser; `26/26` fresh Common SIM rows = `25` API + `1` host `M1-02.common.default-profile`), `0` non-PASS, `problems: []`.
+- **Sink gate (AC-M1-12)**: `PASS` (`0` `sink_hit` entries in lifetime `boot-514380cb9fe9` and `0` total across all 4 `M1-12.canvas.*` cases).
+- **Canvas browser artifacts & secret scan (AC-M3-07)**: `judge/round1/canvas-browser-targets.json` (SHA-256 `a4e3c8fb45ddc734652d3dc696e66fff382849d7eacc8345cdecd0b281440aa1`, 7 folders, 15 shared PNGs, 14 private trace zips) and `scan/r1-sim-canvas-browser-scan.json` (SHA-256 `4a5b5493dd8d7bebac8ae0941d12b78bd65cd6a62f80909643602b1add1cd7f5`, `verdict: "PASS"`, `881` dynamic values, `15` shared binary files, `0` shared hits, `124` private trace hits). All 6 distinct shared PNGs (`judge/round1/distinct-pngs.sha256`) were visually inspected and are clean.
+
+### 23.3 Required §11.6 Whole-Invocation Reconciliation & Browser Trace Proof (Corrected in `v2`)
+
+Because Savoy containers (`sto-go-1792695689-77379`, `sto-it-0680bf005a3e`) overlapped the W3–W4 window during `19:01:14Z–19:01:33Z`, `E-R5` / §11.6 requires whole-invocation server-log reconciliation up to teardown and browser negative-row trace verification.
+
+- **Corrected artifact (`v2`)**: `judge/round1/s11-6-round1-reconciliation-v2.json` (`100,538` B, SHA-256 `900167a0c942da01596ca64d69e346ffc19e63d2a00a9d9c3795c8a061c0c110`).
+- **Disclosure & correction of `v1` (`judge/round1/deviations-r1-s11-6.txt`, SHA-256 `179e17a48f6d3fb8b75b9e987e1653852bc96826e59ece26f1dc4f87b4ce859c`)**:
+  - Original `judge/round1/s11-6-round1-reconciliation.json` (SHA-256 `3c34c1f7fe763316f0228b1236db1221b5625ed23894f968df9839937222617d`) is preserved unchanged.
+  - After context compaction between Step 1421 and Step 1433, the script that wrote `v1` filtered `lti-service.jsonl` and `cogniate-app.jsonl` on `e.get("msg")` instead of the actual schema key `e.get("event")`, causing `ltiServiceScoreRequests` and `cogniateAppScoreSyncs` in `v1` to record `0` while `msg_889fbfcd04ae` claimed `35/35/35`; `v1` also embedded a hardcoded dictionary with reconstructed `attempt_id`/`sync_id` strings (`att_iC7539qW25B4w3y2z5c-1g`, `sync_C22kUtyX9N2sU5lU7C-2qA`, etc.) not present in the logs, and `msg_889fbfcd04ae` prose typed three wrong service-log SHA-256s.
+  - `s11-6-round1-reconciliation-v2.json` (`900167a0...`) was generated 100% programmatically from the frozen phase logs with 1-based line numbers and verified by automated assertion that every `att_*`, `sync_*`, `pub_*`, and `trace_id` token exists verbatim in `service-logs/*.jsonl`.
+- **Whole-invocation score totals (`s11-6-round1-reconciliation-v2.json`)**:
+  - `lms-sim.jsonl` (`0f565b71...`): **35** score POSTs (`sim_hit` with `method: "POST"` and `/scores` in `path`).
+  - `lti-service.jsonl` (`6b7dc4ef...`): **35** `/scores` `http_request`s (`event: "http_request"`, `method: "POST"`).
+  - `cogniate-app.jsonl` (`7cd1e4b3...`): **35** `score_sync` events (`event: "score_sync"`).
+  - **Exact structural pairing across the 35 events**:
+    1. **33** score POSTs are initiated by `cogniate-app` and pair 1-to-1 by identical `trace_id` across `cogniate-app.jsonl` (`score_sync`), `lti-service.jsonl` (`http_request`), and `lms-sim.jsonl` (`sim_hit`).
+    2. **2** score POSTs in `lti-service.jsonl` and `lms-sim.jsonl` are direct test-client calls to `lti-service` `/api/lineitems/:id/scores` in `M1-33.canvas.mapping-422` (`pub_QXhdnH8nic6YZ_QV0t1lvw`, `lti-service.jsonl:1231` / `lms-sim.jsonl:481`, HTTP 422, `trace_id` `97a071da70838c9878442aa294ac11e1`) and `M1-33.canvas.mapping-400` (`pub_-ouKtxx56Fr1jjdkY01JYg`, `lti-service.jsonl:1264` / `lms-sim.jsonl:493`, HTTP 400, `trace_id` `98fa5b6c02f127c0ac3aaf52e71d9a05`), which bypass `cogniate-app` and emit 0 `score_sync` events.
+    3. **2** `score_sync` events in `cogniate-app.jsonl` are due-time failures (`status: "failed"`, `tries: 2`, `CONNECTION_DISABLED`) that fire 30 s after try 2 once the connection has been disconnected or suspended, making 0 outbound calls to `lti-service` or `lms-sim`:
+       - `M1-18.canvas.pending-score` (`pub_Zk0GragG50RZzTKrK7OpkQ`, `sync_lZ2OSoe3MQbefxgCu28B-A`): try 1 at `cogniate-app.jsonl:1209` (`lti-service.jsonl:1044` / `lms-sim.jsonl:424`, HTTP 503), try 2 at `cogniate-app.jsonl:1233` (`lti-service.jsonl:1047` / `lms-sim.jsonl:425`, HTTP 503), disconnect at `cogniate-app.jsonl:1237` (`binding_fenced`), and due-time failure at `cogniate-app.jsonl:1354` (`19:00:04.074Z`, `trace_id` `8fda71f9d3428e64c0232e99114163cd`).
+       - `M1-38.canvas.a` (`pub_6paMuQPLHUjOagPC94Cf0A`, `sync_eDVDG610hirhpcEEXQ2mSw`): try 1 at `cogniate-app.jsonl:2643` (`lti-service.jsonl:1888` / `lms-sim.jsonl:605`, HTTP 503), try 2 at `cogniate-app.jsonl:2666` (`lti-service.jsonl:1891` / `lms-sim.jsonl:606`, HTTP 503), suspend/fence at `cogniate-app.jsonl:2668`/`2671`, and due-time failure at `cogniate-app.jsonl:2785` (`19:08:32.084Z`, `trace_id` `d5c527f8345ddcb84a52b9600a9b80e4`).
+    4. **Unmapped events**: `0` unmapped score POSTs and `0` unmapped `score_sync` events across the entire invocation.
+- **§11.6(1) Server negative rows (exact line/record references)**:
+  - `M1-09.canvas.best-scorm12` (`pub_g2q-qjtN_SUHV7i-VvaZbg`, created at `cogniate-app.jsonl:944`): **2** score POSTs and **2** `score_sync`s:
+    - Score 80 forwarded: `launch_accepted` `att_er5AcWlSC23dnmkf8Nl9cQ` (`cogniate-app.jsonl:946`), `score_sync` `sync_JG_C61-f9YlafD7HsPhWKg` (`cogniate-app.jsonl:950`, `trace_id` `221fd5cd6216b045cd8b1d6c34a1229f`), `lti-service.jsonl:845` (204), `lms-sim.jsonl:347` (`18:59:06.459Z`, 204).
+    - Score 60 suppressed: `launch_accepted` `att_dK7BblJV9RWkADwlslx5GQ` (`cogniate-app.jsonl:955`), results poll after 5 s wait at `cogniate-app.jsonl:958`, **0** score POSTs and **0** `score_sync`s.
+    - Score 90 forwarded: `launch_accepted` `att_WTwVgqI4IaDINvrVoIEAXg` (`cogniate-app.jsonl:963`), `score_sync` `sync_rCtKQyTqw9kFHit9FTFimw` (`cogniate-app.jsonl:967`, `trace_id` `1eca99603acbb141f372f74feea04145`), `lti-service.jsonl:858` (204), `lms-sim.jsonl:353` (`18:59:11.697Z`, 204).
+  - `M1-09.canvas.best-html` (`pub_20MzkigB56gqR30Pjrj8_w`, created at `cogniate-app.jsonl:982`): **2** score POSTs and **2** `score_sync`s:
+    - Score 80 forwarded: `launch_accepted` `att_ecZtA8MOdKSDClq9pT1dYQ` (`cogniate-app.jsonl:984`), `score_sync` `sync_MXrBhMVdm7WkAjbsUj5lDQ` (`cogniate-app.jsonl:988`, `trace_id` `713046e80d08cb341cae16f5197cfd89`), `lti-service.jsonl:873` (204), `lms-sim.jsonl:361` (`18:59:12.212Z`, 204).
+    - Score 60 suppressed: `launch_accepted` `att_YwCQZYJ8kKtC8TsVgAAWfg` (`cogniate-app.jsonl:993`), results poll after 5 s wait at `cogniate-app.jsonl:996`, **0** score POSTs and **0** `score_sync`s.
+    - Score 90 forwarded: `launch_accepted` `att_OrMHkqXNXpLU3Ez-uoSsNw` (`cogniate-app.jsonl:1001`), `score_sync` `sync_sJEGOyTqEjjlCgyGtTjBeA` (`cogniate-app.jsonl:1005`, `trace_id` `c42d3b931135bfa05952d73157670c1c`), `lti-service.jsonl:886` (204), `lms-sim.jsonl:367` (`18:59:17.428Z`, 204).
+  - `M1-09.canvas.scorm-incomplete`: publication created at `cogniate-app.jsonl:856`, `launch_accepted` `att_M8jp7k0XYYLq2ilNMVFK_Q` (`cogniate-app.jsonl:858`), results poll after 5 s wait at `cogniate-app.jsonl:861`, **0** score POSTs and **0** `score_sync`s.
+  - `M1-09.canvas.html-incomplete`: publication created at `cogniate-app.jsonl:924`, `launch_accepted` `att_K0Jy0kiRZbdoqJOzjEy_Dg` (`cogniate-app.jsonl:926`), results poll after 5 s wait at `cogniate-app.jsonl:929`, **0** score POSTs and **0** `score_sync`s.
+  - `M1-16.canvas.graded-vs-preview`:
+    - Graded learner (`pub_I--T3VvBFe98fjMj18b4aA`, created at `cogniate-app.jsonl:1154`): `launch_accepted` `att_ez_yoRdNju2GbNcU-cnThQ` (`cogniate-app.jsonl:1160`, `preview: false`), `score_sync` `sync_5WgAniQmhN8gy8jBl_hx_g` (`cogniate-app.jsonl:1165`, `trace_id` `a1269f69fb19b64a7fca7385eb0b8dbd`), `lti-service.jsonl:1014` (204), `lms-sim.jsonl:414` (`18:59:21.532Z`, 204) -> **1** score POST and **1** `score_sync`.
+    - Instructor preview (publication created at `cogniate-app.jsonl:1158`): `launch_accepted` `att_hBqo5nTdFs6TjlhNkAD2oA` (`cogniate-app.jsonl:1168`, `preview: true`), results poll after 5 s wait at `cogniate-app.jsonl:1171`, **0** score POSTs and **0** `score_sync`s.
+  - `M1-33.canvas.status-422` (`pub_ulc_B2-0Ch44TUJHPxhY5Q`, created at `cogniate-app.jsonl:1631`, `launch_accepted` `att_WpJ5y4e4Ye2jPQ8NCggbEA` at `cogniate-app.jsonl:1633`, `sync_lpOu2sP7n8mvLC4D33kjVQ`): **2** score POSTs and **2** `score_sync`s:
+    - Initial failure: `cogniate-app.jsonl:1638` (`status: "failed"`, `tries: 1`, `trace_id` `b025adbb226ec58d8a149996c45de4ff`), `lti-service.jsonl:1246` (422), `lms-sim.jsonl:486` (`19:00:43.547Z`, 422).
+    - **0** automatic retries during the 60 s wait (`19:00:43.550Z`–`19:01:43.873Z`, which spans Savoy's `19:01:14Z–19:01:33Z` overlap) or later in the invocation.
+    - Manual Resend: `POST /app-api/score-syncs/:syncId/resend` at `cogniate-app.jsonl:1640` (`19:01:43.873Z`, 200), `score_sync` at `cogniate-app.jsonl:1643` (`status: "sent"`, `tries: 1`, `trace_id` `0db3d55ecdfad493040ba09336c927c6`), `lti-service.jsonl:1249` (204), `lms-sim.jsonl:488` (`19:01:43.881Z`, 204).
+  - `M1-33.canvas.status-400` (`pub_u74orGuMJTEb5R40qpUT9g`, created at `cogniate-app.jsonl:1678`, `launch_accepted` `att_yQxB1khrINy-s3yDDp1FOw` at `cogniate-app.jsonl:1680`, `sync_e7b29A8hSRktASfBRpiYTQ`): **2** score POSTs and **2** `score_sync`s:
+    - Initial failure: `cogniate-app.jsonl:1685` (`status: "failed"`, `tries: 1`, `trace_id` `c769bd8ca8e77f0234da3dee16c0f936`), `lti-service.jsonl:1279` (400), `lms-sim.jsonl:498` (`19:01:45.463Z`, 400).
+    - **0** automatic retries during the 60 s wait (`19:01:45.469Z`–`19:02:45.767Z`) or later in the invocation.
+    - Manual Resend: `POST /app-api/score-syncs/:syncId/resend` at `cogniate-app.jsonl:1687` (`19:02:45.767Z`, 200), `score_sync` at `cogniate-app.jsonl:1690` (`status: "sent"`, `tries: 1`, `trace_id` `fb7b9f58e9beec22291fc5b053964d8e`), `lti-service.jsonl:1282` (204), `lms-sim.jsonl:500` (`19:02:45.790Z`, 204).
+- **§11.6(2) Browser negative rows (trace & simulator completion-before-wait proof)**:
+  - `M1-09.canvas.browser-framed` (`trace.zip` SHA-256 `7b9c32aa3eeb3a41ac8ff59a9e699ef742a82ca86147ba9ce3a766927f91a9c9`, `startTime` `2026-10-22T19:10:28.438Z`, `duration` `4509` ms): `lms-sim.jsonl:689` (`POST /__sim/scenarios` 201 at `19:10:29.627Z`), `lms-sim.jsonl:690` (`GET /__frame` 200 at `19:10:29.651Z`), `lms-sim.jsonl:691` (`GET /api/lti/authorize_redirect` 200 at `19:10:29.708Z`), and `cogniate-app.jsonl:3194` (`launch_accepted` `att_t5-pA8ejY9h_dPQreH3Awg` at `19:10:29.765Z`); in `0-trace.trace`, `call@50` (`Frame.goto`, lines 18–45) completed at `5892.24 -> 6033.51` ms (`141.27` ms) and `call@58` (`Frame.expect` `Expect "toBeVisible"` on `Open in a new window`, lines 49–53) completed at `6039.86 -> 6067.28` ms (`27.42` ms), **before** the 3,000 ms fixed wait (`6067.28 -> 9074.54` ms, `3007.26` ms) ended at `call@60` (`Page.screenshot`, lines 55–58).
+  - `M1-40.canvas.b-frame-refused` (`trace.zip` SHA-256 `40752ce49efe2fd5d92edb79dce0de7ee2dd04dd5d4821335e651224b33b7369`, `startTime` `2026-10-22T19:10:42.519Z`, `duration` `5620` ms): `lms-sim.jsonl:700` (`POST /__sim/scenarios` 201 at `19:10:44.497Z`), `lms-sim.jsonl:701` (`GET /api/lti/authorize_redirect` 200 at `19:10:44.590Z`), `lms-sim.jsonl:702` (`GET /__frame` 200 at `19:10:44.749Z`, site-A control frame), and `lms-sim.jsonl:703` (`GET /__frame` 200 at `19:10:44.914Z`, site-B frame); in `0-trace.trace`, `call@169` (`Frame.goto` site-A, lines 18–39) completed at `20980.58 -> 21080.81` ms (`100.23` ms), `call@175` (`Frame.expect` `Expect "toBeAttached"` on site-A picker control frame, lines 41–46) completed at `21088.35 -> 21135.55` ms (`47.20` ms), and `call@177` (`Frame.goto` site-B, lines 48–68, including `call@181` `Route.continue` on `/lti/launch` with `frame-ancestors` header at `21208.35 -> 21214.40` ms) completed at `21140.88 -> 21231.99` ms (`91.11` ms), **before** the 3,000 ms fixed wait (`21231.99 -> 24249.46` ms, `3017.47` ms) ended at `call@183`/`call@185` (`Frame.queryCount` = 0 picker buttons and 0 `[data-testid="lti-error-code"]` elements, lines 71–77).
