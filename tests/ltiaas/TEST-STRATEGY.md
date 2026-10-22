@@ -1,6 +1,6 @@
 # Milestone LA test strategy and conformance kit design
 
-Status: **v1.2** (QA, task LA-QS, 2026-10-22; v1.1 = G-DESIGN alignment at `19476fc`, task LA-QT: §4.3 rows 7–8, wider E0 scan, §9; v1.2 = G-DESIGN round 2 alignment at `877d951`, task LA-QT2: README OC-11 and plan LD-9 in §2.2, §2.4, §2.6, §4.2–§4.4, §4.7, §9; v1.3 = round 3 at `88909be`, task LA-QT3: §2.4 L4, §9.2 item 14). Owner: QA. Inputs: [plan v1](../../docs/team/ltiaas/plan.md) (`1afdf56`), [R5 test baseline](../../docs/research/ltiaas/R5-test-baseline.md), [R3 extensibility audit](../../docs/research/ltiaas/R3-extensibility-audit.md), [R1 spec coverage](../../docs/research/ltiaas/R1-spec-coverage.md), [R4 ops readiness](../../docs/research/ltiaas/R4-ops-readiness.md), [charter-LA](../../docs/team/ltiaas/charter-LA.md). Design files: `docs/architecture/ltiaas/**` (alignment status in §9).
+Status: **v1.4** (QA, task LA-QS, 2026-10-22; v1.1 = G-DESIGN alignment at `19476fc`, task LA-QT: §4.3 rows 7–8, wider E0 scan, §9; v1.2 = G-DESIGN round 2 alignment at `877d951`, task LA-QT2: README OC-11 and plan LD-9 in §2.2, §2.4, §2.6, §4.2–§4.4, §4.7, §9; v1.3 = round 3 at `88909be`, task LA-QT3: §2.4 L4, §9.2 item 14; v1.4 = G-BREAKDOWN round 2 at `936f707`, task LA-QT-B3: §5.2 lanes of QA-2, QA-3, QA-4, plan LD-17). Owner: QA. Inputs: [plan v1](../../docs/team/ltiaas/plan.md) (`1afdf56`), [R5 test baseline](../../docs/research/ltiaas/R5-test-baseline.md), [R3 extensibility audit](../../docs/research/ltiaas/R3-extensibility-audit.md), [R1 spec coverage](../../docs/research/ltiaas/R1-spec-coverage.md), [R4 ops readiness](../../docs/research/ltiaas/R4-ops-readiness.md), [charter-LA](../../docs/team/ltiaas/charter-LA.md). Design files: `docs/architecture/ltiaas/**` (alignment status in §9).
 
 This file says **how** QA proves milestone LA. It fixes test levels, the conformance kit, the CI fitness checks, the regression proof, the Docker lanes and the testability checklist. It does not fix product implementation. Where the design fixes a detail, the text cites the decision. Where a detail is still open between QA and the design, §9.2 lists it with QA's proposal.
 
@@ -464,8 +464,10 @@ The table takes R5's proposal (`docs/research/ltiaas/R5-test-baseline.md:285-290
 | QA Moodle | `qa-la-moodle-r` | 9543 | `172.21.0.0/16` | `default` (legacy groups switch to `acceptance` and back) | T7, legacy T2a–T8, LA acceptance on Moodle |
 | QA storage (only if storage commands change) | `qa-la-st-r` | 9643 | `172.22.0.0/16` | `storage` | M1 storage phases; always alone |
 | Author smoke (booked slot) | `la-author-<lane>` | 9743 | `172.23.0.0/16` | any | Author checks |
+| Task suites of QA-2, QA-3, QA-4 (the booked SIM slot; plan LD-17) | `qa2-la-sim-r`, `qa3-la-sim-r`, `qa4-la-sim-r` | 9443 | `172.20.0.0/16` | `acceptance` | the K1-SIM ACs of the author's lanes |
+| Third SIM-only slot (only if the Lead adds it, plan LD-17) | the author's prefix above | 9843 | `172.24.0.0/16` | `acceptance` | the K1-SIM ACs of the author's lanes |
 
-One lane = one clone + one project, port and subnet. All state stays inside the clone (`docs/research/ltiaas/R5-test-baseline.md:268`).
+One lane = one clone + one project, port and subnet. All state stays inside the clone (`docs/research/ltiaas/R5-test-baseline.md:268`). Each QA test author (QA, QA-2, QA-3, QA-4) uses its own clone and its own prefix. The SIM slot holds one SIM stack at a time, so the authors share its port and subnet one after the other. The tasks README §2 command forms apply to each author's own project only. The §5.4 cleanup of one author never touches the project of another author.
 
 ### 5.3 What can run at the same time
 

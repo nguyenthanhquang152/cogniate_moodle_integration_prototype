@@ -1,11 +1,96 @@
-Verdict: FAIL
-Round: 1
+Verdict: PASS
+Round: 2
 
 # LA breakdown: QA testability review (G-BREAKDOWN)
 
-Reviewer: QA (dedicated, independent; Part 1: task LA-QT-B1, dispatch `ctx_4863f5e1efa7`; Part 2: task LA-QT-B2, dispatch `ctx_4aad0d389f44`). Date: 2026-10-22. Checklist: [TEST-STRATEGY §7.2](../../../tests/ltiaas/TEST-STRATEGY.md) (TB-01 to TB-12) and the TD rules of §7.1, plan LD-2, LD-4, LD-5, LD-9, and the spec rules of `docs/team/ltiaas/briefs/_common-P3.md`. Severity: base charter §5 and TEST-STRATEGY §7 (a Must AC that QA cannot run is MAJOR; a Should or Could gap is MINOR). The G-BREAKDOWN pass rule (charter-LA §2) needs every acceptance criterion to be testable.
+Reviewer: QA (dedicated, independent; Part 1: task LA-QT-B1, dispatch `ctx_4863f5e1efa7`; Part 2: task LA-QT-B2, dispatch `ctx_4aad0d389f44`; Round 2: task LA-QT-B3, dispatch `ctx_f9d220273492`). Date: 2026-10-22. Checklist: [TEST-STRATEGY §7.2](../../../tests/ltiaas/TEST-STRATEGY.md) (TB-01 to TB-12) and the TD rules of §7.1, plan LD-2, LD-4, LD-5, LD-9, and the spec rules of `docs/team/ltiaas/briefs/_common-P3.md`. Severity: base charter §5 and TEST-STRATEGY §7 (a Must AC that QA cannot run is MAJOR; a Should or Could gap is MINOR). The G-BREAKDOWN pass rule (charter-LA §2) needs every acceptance criterion to be testable.
 
-Independence: QA did not open `reviewer-a.md` or `reviewer-b.md`. QA read only messages addressed to its own handle. The shared worktree holds A1's uncommitted Part 2 files (`tasks/LA-E0-*`, `LA-E1-*`, …, `tasks/README.md`). QA read the Part 1 specs from a snapshot of `ec1afc5` and did not open the Part 2 files.
+Independence: QA did not open `reviewer-a.md` or `reviewer-b.md`. QA read only messages addressed to its own handle. The shared worktree holds A1's uncommitted Part 2 files (`tasks/LA-E0-*`, `LA-E1-*`, …, `tasks/README.md`). QA read the Part 1 specs from a snapshot of `ec1afc5` and did not open the Part 2 files. Round 2: QA read the full breakdown from a snapshot of `936f707` (`git show`), not from the worktree. QA did not open `reviewer-a.md` or `reviewer-b.md` (both have uncommitted changes in the worktree). QA did not read product code or Author notes.
+
+## Round 2
+
+Scope: bounded re-check of the full breakdown at `936f707318218e3188b9d6593568982f225d6085` (A1 and A2 parts): the round-1 findings Q-LAB-01 to Q-LAB-18, the answers in `tasks/review-response-B1-A1.md` and `tasks/review-response-B1-A2.md`, new BLOCKER or MAJOR in the diff since `971f1b1` and `ec1afc5` (plus cheap MINOR), and plan LD-10 to LD-17 in the QA lens. This is not a full review.
+
+### R2.0 Summary
+
+**PASS.** Open: **BLOCKER 0, MAJOR 0, MINOR 3, NIT 1.**
+
+- All 18 round-1 findings are closed: 17 fixed in the specs, Q-LAB-08 accepted as a QA-owned item (§R2.1). The two round-1 MAJORs are closed: Q-LAB-01 (QA command forms (d) to (g) cited by the Must ACs) and Q-LAB-10 (QA capacity: plan LD-17, option Q2, OI-10 closed).
+- QA found no new BLOCKER or MAJOR in the diff. The new companion tasks (LA-E3-14, LA-E3-15, LA-E6-04 to LA-E6-07), forms (f) to (l), LA-E5-24 and the moved B2 tasks have testable ACs with one outcome and a valid label.
+- New items: Q-LAB-19 (MINOR, A2), Q-LAB-20 (MINOR, Lead), Q-LAB-21 (MINOR, A1; QA part fixed in this round), Q-LAB-22 (NIT, A2). None blocks the gate. They go to `docs/team/ltiaas/deferred.md` or to the next spec edit, as the Lead decides.
+- QA-owned change in this round: TEST-STRATEGY v1.4, §5.2 (lanes of QA-2, QA-3, QA-4; Q-LAB-21). Uncommitted, in the worktree.
+
+### R2.1 Re-check of the round-1 findings at `936f707`
+
+| ID | Round 1 | Answer | Status | Evidence at `936f707` |
+| --- | --- | --- | --- | --- |
+| Q-LAB-01 | MAJOR | fixed | **closed** | `LA-E5-05.md:46` and AC-03, AC-04, AC-05 cite tasks README form (d) (`lti:bootstrap` with its write flags, fresh account); AC-07 cites form (e). `LA-E5-21` AC-01 cites form (f). `LA-E5-24` header and scope cite form (g) (fresh drill project, no `stack:reset`, restore into the same project). The forms are in `tasks/README.md` §2. |
+| Q-LAB-02 | MINOR | fixed | **closed** | `LA-E5-04` AC-01 (`account.create`), AC-09 (`platform.create_shared`); `LA-E6-01` AC-10 (`platform.check`). |
+| Q-LAB-03 | MINOR | fixed | **closed** | `LA-E5-04` AC-08 is the status gate on a fresh account; `LA-E5-07` AC-11 owns `revokedAt` after the close; the `LA-E5-03` header depends on `LA-E5-04`. A new gap in the AC-08 oracle is Q-LAB-19. |
+| Q-LAB-04 | MINOR | fixed | **closed** | `LA-E5-03` design notes give the restore rule; AC-01 and AC-12 use fresh accounts. Fresh accounts also in `LA-E5-04` AC-02, AC-07, AC-08, AC-09; `LA-E5-06` AC-01; `LA-E5-15` AC-05; `LA-E3-10` AC-01 (the `cogniate` change is the LA-IC-08 step). |
+| Q-LAB-05 | MINOR | fixed | **closed** | `LA-E5-02` AC-10 and `LA-E5-06` AC-08 run the F5 check in check-one-text mode with a probe text, with no product file. Label nit: Q-LAB-22. |
+| Q-LAB-06 | MINOR | fixed | **closed** | `LA-E6-01` AC-06: `limits: "shared-application"` on the LTI route of the shared Blackboard platform. |
+| Q-LAB-07 | MINOR | fixed | **closed** | `LA-E3-01` AC-06 writes the escapes out. |
+| Q-LAB-08 | MINOR | no change (QA owns) | **closed (accepted)** | `LA-E5-13` is a QA task (tasks README §2, lead QA row). QA names the route list in `tests/ltiaas/tasks-qa/LA-E5-13/` at build time. QA accepts this answer. |
+| Q-LAB-09 | MINOR | fixed | **closed** | `LA-E5-08` AC-08 meets AP-06-26 alone when LA-E5-17 is cut. |
+| Q-LAB-10 | MAJOR | fixed; capacity option open (OI-10) | **closed** | Plan LD-17 (option Q2) closes OI-10 (`epics.md:692`). `epics.md:16` gives the QA cost model (write S 0.5, M 1, L 1.5; run S 0.25, M or L 0.5). `epics.md:653-657` give the QA rows (Must days: QA-2 18.5, QA-3 27.25, QA-4 17, QA 29.25, QA-E2E 17.25). `epics.md:669` gives a 51.5-day Must estimate with LD-17. `tasks/README.md:23-33` give the QA authors, folders (`tasks-ops/`, `tasks-core/`, `tasks-lti/`, `tasks-qa/`) and the suite report format. The "open" part of the answer is now closed, so QA accepts it. |
+| Q-LAB-11 | MINOR | fixed | **closed** | `tasks/README.md:75`: the profile registry API (`listProfiles`, `findProfile`, `profileDefinition`) is a K0 surface from LA-E1-05. |
+| Q-LAB-12 | MINOR | fixed | **closed** | `tasks/README.md` §2 form (h) direct HTTP from the `e2e` container (`:48`), form (k) scratch probes in QA's own clone (`:51`), form (l) `stack:restart` (`:52`); §5 "applies at once" (`:102`). |
+| Q-LAB-13 | MINOR | fixed | **closed** | `LA-E1-10` AC-02 and `LA-E1-11` AC-06 name R1 (M1 `sim` phase and M2). |
+| Q-LAB-14 | MINOR | fixed | **closed** | `LA-E2-05` AC-10: full kit for `brightspace`. |
+| Q-LAB-15 | MINOR | fixed | **closed** | `LA-E0-02` AC-07 records the per-class peaks, peak `auth_failure` and peak open registration sessions; `epics.md` §3: LA-E0-02 depends on LA-E0-01 and LA-E0-04. |
+| Q-LAB-16 | MINOR | fixed | **closed** | `tasks/README.md:17` "Done rule per AC": "pending: <task id>" does not block the wave exit; a task is done when every AC is PASS or pending. |
+| Q-LAB-17 | MINOR | fixed | **closed** | `tasks/README.md` §1 adds the label `DOC`; the reviewer approvals are a done rule, not an AC. |
+| Q-LAB-18 | MINOR | fixed | **closed** | `LA-E7-07` AC-05: the reply is ignored, the page posts an empty value after 1.5 s, and the answer is the `STATE_COOKIE_MISSING` page with the storage help text. |
+
+Deferred answers: none of the QA findings got a "deferred" answer. Two answers were not "fixed": Q-LAB-08 ("no change, QA owns"; accepted) and the OI-10 part of Q-LAB-10 (closed by LD-17).
+
+### R2.2 New findings
+
+#### Q-LAB-19 — MINOR — LA-E5-04 AC-08 has no valid key for its fresh account in B1
+
+- Where: `LA-E5-04.md:63` (AC-08, Must, wave B1), with `LA-E5-04.md:67` (AC-12) and `contracts/lti-service-api-delta.md:194`, `:200`.
+- Problem: the Q-LAB-03 fix moved AC-08 to a fresh account. The oracle is "the account's bootstrap API key gives `401`" after the close. An account made with `POST /operator/v1/accounts` answers `201 Account` with no key. AC-12 says that no API key passes for a new account until LA-E5-07 (wave B2) issues one. So in B1 every key of a fresh account gives `401` before and after the close. A test with no positive control also passes on a tree with no status gate. Form (d) can give a fresh account a known key, but tasks README §2 allows a form only in an AC that names it, and AC-08 does not name it.
+- Why MINOR: the oracle is achievable. Under the done rule (`tasks/README.md:17`), QA can mark AC-08 "pending: LA-E5-07" and close it in B2 with a key from `POST …/api-keys`. The Must point stays covered, but its proof comes one wave later.
+- Fix (A2, one of these): (a) AC-08 names form (d) with `--rotate-api-key` on a fresh account id, and the key gives `200` before the close and `401` after it. (b) AC-08 says "pending: LA-E5-07", with the same before and after check.
+
+#### Q-LAB-20 — MINOR — Plan LD-13 and charter-LA §1 do not match LD-17
+
+- Where: `docs/team/ltiaas/plan.md:208` (LD-13), `:212` (LD-17); `docs/team/ltiaas/charter-LA.md:22-23`.
+- Problem: LD-13 still says "QA-2 and QA-3 hand their suites to QA, who runs them". LD-17 says that QA-2, QA-3 and QA-4 each write **and run** their suites. `epics.md:670` calls the first text "LD-13 as first written", but LD-13 itself has no "replaced by LD-17" note. Charter-LA §1 gives QA all of `tests/ltiaas/**`. This overlaps the disjoint folders of QA-2, QA-3 and QA-4 (`tasks/README.md:27-30`). The QA-2, QA-3, QA-4 row does not repeat "Read Author notes before it writes tests". `tasks/README.md:21` and `:23` cover that rule, so the gap is in the text only.
+- Fix (Lead): in LD-13, mark the run sentence as replaced by LD-17. In charter-LA §1, give QA "`tests/ltiaas/**` except the folders of QA-2, QA-3 and QA-4 (tasks README §2)", and add the Author-notes rule to the QA-2, QA-3, QA-4 row.
+
+#### Q-LAB-21 — MINOR — Lanes and command forms name only QA's own projects
+
+- Where: `tasks/README.md:35` ("QA uses only its own clones and compose projects of TEST-STRATEGY §5.2") and `:37` ("Each one runs only on QA's own compose project"); TEST-STRATEGY §5.2 before v1.4.
+- Problem: with LD-17, QA-2, QA-3 and QA-4 run K1-SIM suites and use the command forms. Neither text gives them a clone or a compose project prefix. If they share QA's prefix, the own-label cleanup of TEST-STRATEGY §5.4 can remove another author's stack. If the Lead adds the third SIM-only slot (LD-17), two SIM stacks would use the same port and subnet.
+- QA part, fixed in this round: TEST-STRATEGY v1.4 §5.2 gives each author a clone and a prefix (`qa2-la-sim-r`, `qa3-la-sim-r`, `qa4-la-sim-r`). It shares the SIM slot's port and subnet one stack at a time, and it gives port 9843 and subnet `172.24.0.0/16` to the optional third slot. These do not overlap the LA lanes, the Blackboard and Canvas lanes or the default subnet.
+- Fix (A1): in `tasks/README.md:35` and `:37`, change "QA" to "each QA test author" and "QA's own compose project" to "the author's own compose project (TEST-STRATEGY §5.2)".
+
+#### Q-LAB-22 — NIT — Three evidence labels do not match the AC text
+
+- `LA-E5-02.md:61` (AC-10) and `LA-E5-06.md:57` (AC-08) are QA probes in check-one-text mode (`tasks/README.md:77`: "check-one-text mode for QA probes"), but their label is `UNIT`. The label should be `K0`. Both labels give a runnable test, so the only effect is the test owner.
+- `LA-E6-07.md:34` (AC-04, Could): the text says "K2 browser case (QA-E2E)" and the header (`:11`) books the SIM slot for one K2 browser case, but the label is `K1-SIM`. The label should be `K2`.
+
+### R2.3 Plan LD-10 to LD-17 in the QA lens
+
+| Decision | QA check | Result |
+| --- | --- | --- |
+| LD-10 (lanes S1, S2) | QA-2 covers both lanes in one folder (`tasks-ops/`); the per-endpoint file split does not change any oracle. | No problem. |
+| LD-11 (L in B3; L2 lane; Could deferred) | QA-4 covers L and L2 (`tasks-lti/`). The L2 tasks have testable ACs. Deferred Could tasks are cut candidates, and no Must task depends on one. | No problem. |
+| LD-12 (two `016` app migrations; OI-7; OI-8) | The Lead numbers the files in landing order, so QA tests and U1 runs must not hard-code a file name before the landing. OI-8 keeps the `notBuilt` kit rule. | No problem. QA uses the landed name in U1 and in the LD-9 lists. |
+| LD-13 (QA authors) | Replaced in part by LD-17 (run duty). | Text conflict: Q-LAB-20. |
+| LD-14 (LA-E5-03 and LA-E5-06 to B2; form (g) drill) | The B2 moves keep every dependency before its user. Form (g) uses a fresh drill project and restores into the same project. A failure from the open ADR-012 runtime gates is not an LA defect, and then the Lead cuts LA-E5-24 (Should). | No problem. |
+| LD-15 (rolling starts) | The wave-end regressions (M1, M2, T7) stay. R1 before S3, S4, S5, S6, S8 and E4 steps stays per task (TEST-STRATEGY §4.4). A task starts only after QA PASS on all its dependencies. | No problem. |
+| LD-16 (done-order loops) | The partner's ACs that need the companion are "pending: <task id>". Each companion is in the same cut group as its partner (for example LA-E6-05 and LA-E6-06 with LA-E6-02), so a pending AC never stays open after a cut. | No problem. |
+| LD-17 (option Q2) | Each test author writes and runs its suites and gives a suite report (task SHA, one row per AC, test id, command, artifact path, run time). The lead QA writes qa.md from it and keeps the slot schedule. The shared helpers stay with QA (no copies). Docker stays at 2 slots. | No problem in the oracle or the evidence. Lane prefixes: Q-LAB-21. |
+
+Note (not a finding): `epics.md` §9 models each test lane as parallel work. The SIM slot is one slot that QA-2, QA-3, QA-4, the lead QA (R1, migration runs, wave-end runs) and QA-E2E (K2) share by booking (`epics.md` §7). The model does not include waits for the slot. The run cost per task (0.25 or 0.5 days) is small next to the write cost, so the risk is local waits near the wave ends. The lead QA orders the bookings, and the E0 memory record decides the optional third slot.
+
+### R2.4 QA-owned changes in this round
+
+- `tests/ltiaas/TEST-STRATEGY.md` v1.4: §5.2 has two new rows (task suites of QA-2, QA-3 and QA-4; the optional third SIM-only slot) and one paragraph on per-author clones, prefixes, command forms and cleanup (Q-LAB-21). The status line now says v1.4. Before this round it said v1.2 but listed v1.3.
+- No other QA file changed.
 
 ## Combined verdict (Round 1: Part 1 and Part 2)
 
