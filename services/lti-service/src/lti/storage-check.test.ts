@@ -1,4 +1,5 @@
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
+import * as shared from '@cogniate/shared';
 import { sha256Hex } from '@cogniate/shared';
 import { CLAIM, stateCookieName } from './checks.ts';
 import { handleLaunch, handleStorageCheck } from './launch.ts';
@@ -9,7 +10,7 @@ import { updateAccount } from '../store/accounts.ts';
 import { capturingLogger, CLIENT_ID, harness, LAUNCH, loginForm, moodleClaims, postLaunch, sign, URLS } from '../testkit.ts';
 
 const close: Array<() => Promise<void>> = [];
-afterEach(async () => { for (const fn of close.splice(0)) await fn(); });
+afterEach(async () => { vi.restoreAllMocks(); for (const fn of close.splice(0)) await fn(); });
 const parseData = (html: string): Record<string, string> => JSON.parse(html.match(/<script id="lti-storage-data" type="application\/json">([^]*?)<\/script>/)![1]!) as Record<string, string>;
 
 async function setup(deepLinking = false) {
@@ -119,6 +120,40 @@ it('keeps the cookie path and refuses a mismatched cookie without creating a sto
   const refused = await postLaunch(next.h, next.form, `${stateCookieName(sha256Hex(next.state))}=wrong`);
   expect(refused.statusCode).toBe(401);
   expect(next.h.db.prepare('SELECT * FROM storage_check').all()).toHaveLength(0);
+});
+
+it.each([true, false])('a parallel login overwrites the storage slot; matching cookie present: %s (BD-A2-44)', async (cookiePresent) => {
+  const { h, state, form, platform } = await setup();
+  const firstKey = `cog_state_${sha256Hex(state)[0]}`;
+  const storage = new Map([[firstKey, state]]);
+  // Choose a distinct state with the same key digit, then issue a real second login on the same platform.
+  const otherState = Array.from({ length: 1000 }, (_, i) => `parallel-${i}`.padEnd(43, 'x')).find((value) => value !== state && sha256Hex(value)[0] === sha256Hex(state)[0])!;
+  vi.spyOn(shared, 'randomToken').mockReturnValueOnce(otherState).mockReturnValueOnce('n'.repeat(43));
+  const secondLogin = await h.app.inject({ method: 'POST', url: '/lti/login/cogniate', headers: { 'content-type': 'application/x-www-form-urlencoded' }, payload: loginForm({ iss: platform.issuer, lti_storage_target: 'forwarding' }) });
+  expect(secondLogin.statusCode).toBe(200);
+  const secondData = parseData(secondLogin.body);
+  expect(secondData.key).toBe(firstKey);
+  expect(secondData.state).toBe(otherState);
+  storage.set(secondData.key!, secondData.state!);
+  const cookie = `${stateCookieName(sha256Hex(state))}=${state}`;
+  const initial = await postLaunch(h, form, cookiePresent ? cookie : undefined);
+  if (cookiePresent) {
+    expect(initial.statusCode).toBe(303);
+    expect(h.db.prepare('SELECT * FROM storage_check').all()).toHaveLength(0);
+    expect(h.lines).toContainEqual(expect.objectContaining({ event: 'launch_accepted', binding: 'cookie' }));
+  } else {
+    expect(initial.statusCode).toBe(200);
+    const data = parseData(initial.body);
+    const answer = await h.app.inject({ method: 'POST', url: '/lti/launch/cogniate/storage-check',
+      // Even a cookie restored at this point cannot authorize the storage-check route.
+      headers: { origin: URLS.lti, cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      payload: new URLSearchParams({ check: data.check!, value: storage.get(data.key!)! }).toString(),
+    });
+    expect(answer.statusCode).toBe(400);
+    expect(answer.body).toContain('data-error-code="INVALID_STATE"');
+    expect(h.lines).toContainEqual(expect.objectContaining({ event: 'launch_check_failed', check: 'storage', detail: 'storage_mismatch' }));
+    expect(h.db.prepare('SELECT * FROM launch').all()).toHaveLength(0);
+  }
 });
 
 it('runs signature verification before making a storage check and uses up the state', async () => {
