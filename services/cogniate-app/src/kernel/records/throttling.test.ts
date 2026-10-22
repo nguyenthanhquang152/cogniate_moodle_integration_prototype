@@ -76,7 +76,7 @@ describe('partition throttling (LA-ADR-03 D7)', () => {
     await f.run((await f.job.due(Date.now(), 10))[0]!);
     expect(f.db.prepare('SELECT status, not_before FROM record_dispatch WHERE id = ?').get(id)).toEqual({ status: 'pending', not_before: 130_000 });
     const better = writeFinalRecord(f.db, { attemptId: 'att_a', placementId: 'rl_a', learnerSubject: 'a', outcome: 'passed',
-      scoreGiven: 0.9, scoreMaximum: 1 }, ['lti-ags'], Date.now());
+      scoreGiven: 0.9, scoreMaximum: 1 }, { startedAt: 0, submittedAt: 0 }, ['lti-ags'], Date.now());
     expect(f.db.prepare('SELECT id, status, not_before FROM record_dispatch ORDER BY seq').all())
       .toEqual([{ id, status: 'superseded', not_before: 130_000 }, { id: better, status: 'pending', not_before: 130_000 }]);
     expect(await f.job.due(129_999, 10)).toEqual([]);
