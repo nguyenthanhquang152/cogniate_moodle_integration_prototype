@@ -110,3 +110,19 @@ All LA work is paused. The seven open dispatches are blocked on a "PAUSED" ask; 
 ### Hard halt verified (2026-10-22 14:28 +07)
 
 To make the pause verifiable, the Lead fenced all seven open dispatches (`worker-stop`; the four supervised sessions report `closed_agent_terminal`), closed every terminal and agent session in the LA worktrees (`la-k`, `la-s1`, `la-s2`, `la-r`, `la-qa`, `ltiaas-milestone`), and terminated three leftover LA-only processes (one idle old Claude QA session, two Codex app-servers). Verified at 14:28:34: 0 processes with a working directory in any LA worktree, 0 LA tasks dispatched or running, 0 LA lane files changed after 14:21:00, no LA Docker use. Work is preserved: commits on the lane branches and `la-qa`, and the uncommitted edits in each worktree listed in the table above. Resume = new dispatches (`--retry-of` the stopped dispatches) with a retry-context message built from that table.
+
+## RESUMED (product owner, 2026-10-22 ~16:15 +07)
+
+New agents continue the stopped tasks with retry-context notes (charter-LA §0 model plan). Docker: still host-only (the other run's hold continues).
+
+| Role | Agent | Dispatch | Work |
+| --- | --- | --- | --- |
+| Author S1 | Codex `gpt-6-astra` xhigh | `ctx_ac22dc682691` | commit symlink-guard fix; LA-E7-03 |
+| Author R | Codex `gpt-6-astra` xhigh | `ctx_a31a1320b535` | LA-E7-10 |
+| Reviewer-B | Claude Opus 5.5 xhigh | `ctx_f085ce7963a8` | LA-E1-02 round 1 |
+| Reviewer-A | Claude Opus 5.5 xhigh | `ctx_cd9a048f4e13` | LA-E5-02 round 1 |
+| Lead QA | Antigravity Gemini 4 Argon (High), terminal | `ctx_e5d6bae0cd22` | K0 config verify, R1/R2, golden README |
+| QA-2 | Antigravity, terminal | `ctx_aeeb4fce2c61` | LA-E5-01/08 READMEs; test-first LA-E5-02, -04, -10, LA-E7-03 |
+| QA-3 | Antigravity, terminal | `ctx_a305f8530c40` | LA-E1-03/04 suites; LA-E1-02/06; LA-E4-02/03 UNIT plan |
+| Architect A1 | Claude Opus 5.5 xhigh | `ctx_7a37e7830a62` | ratify hosts.json schema, fitness rule interface, matrix updates, migration numbers |
+| Architect A2 | Claude Opus 5.5 xhigh | `ctx_40535863c72d` | ratify SAVEPOINT audit atomicity; operator-key and e2e-secret doc alignment |

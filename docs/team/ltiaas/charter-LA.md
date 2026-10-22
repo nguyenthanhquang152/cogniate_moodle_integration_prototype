@@ -15,6 +15,8 @@ The product owner changed the model plan for the rest of LA:
 | Execution and implementation (all Author lanes K, P, R, S1, S2, L, L2; Docs) | Codex, GPT-6-Astra, xhigh (`--agent codex --model gpt-6-astra --effort xhigh`) |
 | QA, testing and verification (lead QA, QA-2, QA-3, QA-4, QA-E2E) | Antigravity, Gemini 4 Argon, high |
 
+Routing rule (product owner, 2026-10-22): during the build, every spec, interface or design question from an Author or QA goes to the Architects (A1 for its files, A2 for its files) through the Lead; the Lead decides only process items (lanes, Docker slots, merge order, ownership requests that change no design). A Lead call made to keep a lane moving is provisional until the Architect ratifies it.
+
 New agents continue the work of the paused Claude workers from the files and commits they left. Roles, file ownership, independence and gates do not change. Codex Author work always gets a cross-model review (Claude reviewers), and QA is independent of both. Docker: LA stays host-only until the Blackboard and Canvas run hands back Docker (incident record on the board); any LA Docker command before the handoff is a stop-the-line violation.
 
 ## 1. Agents and roles
