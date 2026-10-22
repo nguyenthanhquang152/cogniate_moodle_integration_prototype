@@ -13,9 +13,18 @@ import { performance } from 'node:perf_hooks';
 const root = process.cwd();
 const output = path.join(root, '.tmp/ci/sbom.cdx.json');
 const networkError = /\b(?:ENOTFOUND|EAI_AGAIN|EAI_FAIL|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ESOCKETTIMEDOUT|ENETUNREACH|EHOSTUNREACH|ENETDOWN|EHOSTDOWN|ERR_SOCKET_TIMEOUT)\b/;
+/** @type {number | undefined} */
+let stepLog;
+/** Child text stays in the private log, never in the summary.
+ * @param {string} text
+ */
+function writeLog(text) {
+  if (stepLog === undefined) throw new Error('log_unavailable');
+  fs.writeFileSync(stepLog, text);
+}
 /** @param {string[]} args @param {{cwd?: string, network?: boolean}} [options] */
 function npm(args, { cwd = root, network = false } = {}) {
-  return spawnSync('npm', args, {
+  const command = spawnSync('npm', args, {
     cwd, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024,
     env: {
       ...process.env,
@@ -24,6 +33,8 @@ function npm(args, { cwd = root, network = false } = {}) {
       npm_config_fetch_retries: '0', npm_config_fetch_timeout: '30000',
     },
   });
+  writeLog(`\n$ npm ${args.join(' ')} (cwd: ${path.relative(root, cwd) || '.'})\n${command.stdout ?? ''}\n${command.stderr ?? ''}\n${command.error?.stack ?? ''}\nexit: ${command.status}, signal: ${command.signal}\n`);
+  return command;
 }
 
 /** @param {import('node:child_process').SpawnSyncReturns<string>} command @param {boolean} [network] @returns {StepResult} */
@@ -102,14 +113,40 @@ let outputReady = true;
 try { fs.rmSync(output, { force: true }); } catch { outputReady = false; }
 for (const [index, [name, run]] of steps.entries()) {
   const start = performance.now();
+  const log = `.tmp/ci/${name}.log`;
+  let logReady = false;
+  /** @type {StepResult} */
   let result;
   try {
+    fs.mkdirSync(path.dirname(output), { recursive: true });
+    // Refuse a link and reset permissions on an existing log before writing child text.
+    stepLog = fs.openSync(path.join(root, log), fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_TRUNC | fs.constants.O_NOFOLLOW, 0o600);
+    fs.fchmodSync(stepLog, 0o600);
+    logReady = true;
     result = offline ? { result: 'skip', reason: 'network_unavailable' }
       : name === 'sbom' && !outputReady ? { result: 'fail', reason: 'artifact_unavailable' } : run();
-  } catch { result = { result: 'fail', reason: 'step_failed' }; }
+    writeLog(`\n${JSON.stringify(result, null, 2)}\n`);
+  } catch (error) {
+    result = { result: 'fail', reason: logReady ? 'step_failed' : 'log_unavailable' };
+    if (logReady) {
+      try { writeLog(`${error instanceof Error ? error.stack : String(error)}\n${JSON.stringify(result)}\n`); }
+      catch { result.reason = 'log_unavailable'; logReady = false; }
+    }
+  }
+  if (stepLog !== undefined) {
+    try { fs.closeSync(stepLog); }
+    catch { result = { result: 'fail', reason: 'log_unavailable' }; logReady = false; }
+    stepLog = undefined;
+  }
   if (name === 'install') installed = result.result === 'pass';
   if (result.result === 'network_unavailable') offline = true;
   if (result.result !== 'pass') failed = true;
-  console.log(JSON.stringify({ step: index + 1, name, ...result, seconds: Number(((performance.now() - start) / 1000).toFixed(3)) }));
+  const { notes, ...summary } = result;
+  console.log(JSON.stringify({
+    step: index + 1, name, ...summary,
+    ...(notes ? { staleEntries: notes.length } : {}),
+    ...(logReady && (result.result !== 'pass' || notes?.length) ? { log } : {}),
+    seconds: Number(((performance.now() - start) / 1000).toFixed(3)),
+  }));
 }
 process.exitCode = offline ? 2 : failed ? 1 : 0;

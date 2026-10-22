@@ -101,16 +101,56 @@ for (const step of ['install-root', 'install-tests', 'audit']) {
     assert.ok(result.lines.slice(failed + 1).every((line) => line.result === 'skip'));
     assert.equal(result.calls.at(-1).step, step);
     assert.ok(!result.stdout.includes(apiKey));
+    const log = result.lines[failed].log;
+    assert.equal(log, `.tmp/ci/${step === 'audit' ? 'audit' : 'install'}.log`);
+    assert.ok(fs.readFileSync(path.join(f.root, log), 'utf8').includes(apiKey));
+    assert.equal(fs.statSync(path.join(f.root, log)).mode & 0o777, 0o600);
     assert.equal(fs.existsSync(path.join(f.root, '.tmp/ci/sbom.cdx.json')), false);
   });
 }
 
 test('keeps a failed check as a failure while running the remaining independent checks', (t) => {
   const f = fixture(t);
+  const log = path.join(f.root, '.tmp/ci/check.log');
+  f.put('.tmp/ci/check.log', 'old log', false);
+  fs.chmodSync(log, 0o644);
   const result = f.run({ run: { code: 1, stderr: apiKey } });
   assert.equal(result.status, 1);
   assert.deepEqual(result.lines.map((line) => line.result), ['pass', 'fail', 'pass', 'pass', 'pass']);
   assert.ok(!result.stdout.includes(apiKey));
+  assert.equal(result.lines[1].log, '.tmp/ci/check.log');
+  const text = fs.readFileSync(log, 'utf8');
+  assert.ok(text.includes(apiKey));
+  assert.ok(text.includes('private child output'));
+  assert.ok(!text.includes('old log'));
+  assert.equal(fs.statSync(log).mode & 0o777, 0o600);
+  assert.equal(f.run().status, 0);
+  assert.ok(!fs.readFileSync(log, 'utf8').includes(apiKey));
+});
+
+test('keeps stale-entry details in the secret log and prints only their count', (t) => {
+  const f = fixture(t);
+  const entries = ['absent-a.txt', 'absent-b.txt'].map((file) => ({ file, rule: 'api_key', fingerprint: digest(apiKey), reason: 'Unused test entry.' }));
+  f.put('infra/scripts/ci-local/allow-list.mjs', `export const allowList = ${JSON.stringify(entries)};`);
+  const result = f.run();
+  const step = result.lines[4];
+  assert.equal(result.status, 0);
+  assert.equal(step.staleEntries, 2);
+  assert.equal(step.notes, undefined);
+  assert.equal(step.log, '.tmp/ci/secrets.log');
+  const log = JSON.parse(fs.readFileSync(path.join(f.root, step.log), 'utf8'));
+  assert.deepEqual(log.notes, entries.map(({ file, rule }) => ({ file, rule, note: 'stale_allow_list_entry' })));
+  assert.ok(!result.stdout.includes('absent-a.txt'));
+  assert.ok(!result.stdout.includes(digest(apiKey)));
+});
+
+test('refuses steps when their private log cannot be created', (t) => {
+  const f = fixture(t);
+  f.put('.tmp/ci', 'not a directory', false);
+  const result = f.run();
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.calls, []);
+  assert.ok(result.lines.every((line) => line.result === 'fail' && line.reason === 'log_unavailable' && line.log === undefined));
 });
 
 test('an install error is not treated as a network failure or a successful check', (t) => {
