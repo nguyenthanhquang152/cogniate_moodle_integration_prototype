@@ -3973,3 +3973,19 @@ Final W4, scan and owned cleanup passed. All ten protected volume records remain
 The bindings-v4 receipt hash is corrected to ae5e3110af2daf2512ea18fe1801cf650d6872b73ddda298f9949bb74274ca09; the indexed file did not change.
 Common QA must settle this attempt with outcome failed. A fresh Claude planner will decide the bounded test correction, ownership and required revalidation.
 No new Docker run or test edit is authorized by this closeout.
+
+### 2026-10-22 10:12 UTC — D-T6L maintenance and scheduling
+
+Claude planner ctx_1ab7608b533c completed read-only planning (msg_cbc082d5601b, msg_93a681f00ee9) and was released.
+Lead accepted the bounded [D-T6L decision](t6-label-repair-2026-10-22.md).
+It adds the missed T8 selector helper to the correction: three files, eight lines, 13 literals.
+Common Gemini QA task_e72553697ead / ctx_df612265827a owns the test maintenance and launcher preparation only.
+No Docker run is granted. Two blind Claude reviews follow the held diff and launcher.
+Canvas Gemini ctx_296da6e34f11 stays independent and will judge the fresh T6/T8 evidence.
+Codex ctx_131c9c349fd8 settled its bounded C4/diagnostic/provisional Docs checkpoint (msg_8231f9ca8a41).
+Its same session is retained under the owner's one-executor instruction for later product repairs and final Docs.
+
+The former Savoy Docker hold no longer applies: its coordinator reports that the machine owner lifted it (msg_0996c5b8a929).
+LTI acknowledged and requested a future nonoverlap window in msg_b2e9ab518f24.
+Lead gave LA an explicit temporary handoff through 10:45 UTC (msg_7bf64cb71e29).
+A new runtime grant requires fresh coordination and strict baseline comparison. No old hold is assumed.
