@@ -159,7 +159,7 @@ Model plan (product owner, 18:25Z; charter-LA §0): reviews on Codex GPT-6-Astra
 | LA-E3-12 | L | merged a2dfc04; Codex A, B r1 APPROVE (B: 1 MINOR docs follow-up); LA-IC-13 list with the lead QA; QA-4 next | |
 | LA-E1-09, LA-E5-12 | K | LA-E1-09 merged e770ff2 (F1 now 29 hits in 9 files; LA-IC-19); Codex A, B r1 running; LA-E5-12 Author running (Claude K) | |
 | LA-E4-04 | R | after the LA-E4-03 fix round (Claude R) | |
-| LA-E3-13, LA-E5-18 | L2 | merged 84d5679, 1e65040; Codex A, B APPROVE both (0 findings except none); QA-4 next | |
+| LA-E3-13, LA-E5-18 | L2 | merged 84d5679, 1e65040; Codex A and B r1 APPROVE both (0 findings); QA-4 next | |
 | LA-E5-20, LA-E5-21 | S1 | after the S1 fix rounds | |
 | LA-E7-02, LA-E7-05 | QA-E2E | B APPROVE; A r3 / r2 running; QA-E2E to align tests/sim/core/loading.test.mjs with BD-A1-53 (2 tests) | |
 | LA-E0-02/03/04 | QA | LA-E0-03 K0 PASS, K1-SIM pending Docker; LA-E0-04 waits for both reviewers on the LD-1 list | |
