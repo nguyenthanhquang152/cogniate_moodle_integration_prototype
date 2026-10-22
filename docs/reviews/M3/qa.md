@@ -603,3 +603,18 @@ Verdict: **FAIL** (environment overlap; Lead `msg_567da05009a2`, `msg_468b98e07a
 | AC-M3-07 privacy | Secret scan 0 problems (38 captured and 17 stack values); clone guard 0 problems | `secret-scan.json` `1193815c…`, `clone-guard.json` `cc4cc3b6…` |
 
 Next: after the LA cleanup and a new Lead grant, a bounded diagnostic retry on the same C4 (fresh `diag2` clone and run root). Then, after acceptance and a separate grant, two complete 488-row rounds and all 12 legacy groups. Fresh M2 and T7 stay required under another owner. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`.
+
+## Storage-repair diagnostic at candidate C4 `bf09cda`, attempt 2 (authorized clean retry): PASS (diagnostic gate only, zero credit), 2026-10-22
+
+Verdict for this diagnostic: **PASS**. It gives no acceptance credit; the Lead verifies it before any full-run grant. M3 stays **FAIL** (incomplete): the two complete rounds and the legacy groups did not run. Attempt 1 stays FAIL (environment overlap). Full record: `docs/reviews/M1/qa.md`, section "Storage-repair diagnostic at candidate C4 `bf09cda`, attempt 2". Owner: task `task_ef1d19129419`, dispatch `ctx_e23ced3dd1fa` (Claude Code Opus 5.5 xhigh). Candidate C4 `bf09cdad91ca548e1ecbc14428b55180d35d5360`, tests tree `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`. Window: Lead grant `msg_e530684e807f` (attempt 2 only, until 06:20:00.000Z), after the LA owner confirmed its cleanup; runner 04:56:08Z–05:21:52Z (exit 0). Fresh source `<R>/diag2-src/source`, run root `<R>/diag2`. Lanes `qa-multi-r1` and `qa-multi-r1-st`, port 8443, subnet `172.29.0.0/16`.
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| Diagnostic result | PASS. Migration 12/12 PASS. Storage 70/70 PASS (0 FAIL, 0 NOT_APPLICABLE); all 11 fixture runs PASS. `g-tamper` used its own folder `.previous-55948196…/lti.db` (the retained `g-orphan-refusal` generation `f625533a…` unchanged); recover exit 2, both journals `rollback_failed`, `stack:up` refused; all 17 dependents and the 3 legacy fixtures passed. The six R4 rows passed with their own commands. | `D/storage-results.json` `5f17d9a7…`; `diag2/public/r5-tamper.json` `f9f2ae27…`, `r4-checks.json` `8ddad8b5…` |
+| AC-M3-01 G-1 identity binding | Both children record `G1-IDENTITY` PASS. W3 and W4 match the bound OS, CLI and Compose hashes, engine 29.9.1 and the image `sha256:44fce696…` (0 differences). Diagnostic evidence only. | `w3-formal-start.json` `638d2ffd…`, `w4-end.json` `e86a63bf…` |
+| AC-M3-02 (a) two full rounds | Not run (diagnostic grant only) | — |
+| AC-M3-02 (b) legacy | Not run. Test-id change record C3 → C4: 0 files changed under `tests/acceptance`, the legacy runners, `lib.mjs` and `core.mjs` (attempt 1 section). | `prep/14-legacy-change-record.txt` |
+| AC-M3-06 isolation and cleanup | Both children: `M3-ISOLATION` PASS and `TEARDOWN` PASS (ownership 0 errors, 0 kept, 0 failed). W3 0 containers and exactly the 9 bound volumes; sampler at most 1 compose project. Strict W3-to-end comparison: 0 problems; the 7 protected FULL records, both anonymous volumes and the bridge, host and none Ids are unchanged. | `w4-compare.json` `ded8f518…` |
+| AC-M3-07 privacy | Secret scan 0 problems (38 captured and 17 stack values); clone guard 0 problems | `secret-scan.json` `df6ba0b5…`, `clone-guard.json` `a4171bfc…` |
+
+Next: after Lead verification and a separate grant, two complete 488-row rounds on C4 and all 12 legacy groups from `<R>/full-src/source`. Fresh M2 and T7 stay required under another owner. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`.
