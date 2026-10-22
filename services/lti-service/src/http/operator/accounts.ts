@@ -20,6 +20,7 @@ const FIELD_RULES: Record<string, string> = {
   launchUrl: URL_RULE, deepLinkingUrl: URL_RULE, registrationUrl: URL_RULE,
   publicBaseUrl: 'Use null; host mode is not available.',
   status: 'Use active, suspended or closed.',
+  autoRotate: 'Use true or false.',
   claimPolicy: 'Send an explicit allowlist or passthrough policy with all keep flags; null is only a stored legacy marker.',
 };
 function invalidAccount(error: z.ZodError): ApiError {
@@ -36,7 +37,9 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: OperatorContext
     publicBaseUrl: z.null().optional(),
   };
   const Create = z.object({ id: z.string().regex(ACCOUNT_ID), ...fields }).strict();
-  const Patch = z.object({ ...fields, status: AccountStatusSchema, serviceKeyWriteScope: z.enum(['context', 'resource-link']) }).partial().strict();
+  const Patch = z.object({
+    ...fields, status: AccountStatusSchema, serviceKeyWriteScope: z.enum(['context', 'resource-link']), autoRotate: z.boolean(),
+  }).partial().strict();
   const resolver = createAccountResolver(ctx.db, ctx.urls.lti);
   const view = (account: ToolAccount) => ({ ...account, createdAt: new Date(account.createdAt).toISOString(),
     statusChangedAt: new Date(account.statusChangedAt).toISOString(), protocolUrls: resolver.protocolUrls(account) });

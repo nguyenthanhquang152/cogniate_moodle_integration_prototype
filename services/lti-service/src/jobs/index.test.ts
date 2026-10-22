@@ -37,7 +37,9 @@ it('AC-LA-E5-19-05: adds the runner tables to an upgraded M1 fixture without cha
     const keys = db.prepare('SELECT * FROM api_key').all();
     db.close();
     db = openDb(file);
-    expect(db.prepare('SELECT * FROM tool_account').all()).toEqual(before);
+    // Later migrations may add columns (019: auto_rotate); the existing columns keep their values.
+    expect(db.prepare('SELECT * FROM tool_account').all().map((row) => Object.fromEntries(Object.keys(before[0]!).map((key) => [key, row[key]]))))
+      .toEqual(before);
     expect(db.prepare('SELECT * FROM api_key').all()).toEqual(keys);
     expect(db.prepare('SELECT * FROM job_instance').all()).toEqual([]);
     expect(db.prepare('SELECT * FROM job_lease').all()).toEqual([]);
