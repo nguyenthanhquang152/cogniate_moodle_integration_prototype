@@ -80,7 +80,10 @@ export function installApiBasics(app: FastifyInstance, log: Logger): void {
   });
 
   app.setErrorHandler((err: Error & { statusCode?: number; code?: string }, req, reply) => {
-    if (err instanceof ApiErrorBase) return reply.code(err.status).send(err.body());
+    if (err instanceof ApiErrorBase) {
+      if (err.code === 'PLATFORM_RATE_LIMITED') reply.header('Retry-After', String(err.details.retryAfter));
+      return reply.code(err.status).send(err.body());
+    }
     // 413 keeps the INVALID_REQUEST code (contract §1.4: max 256 KB).
     if (err.code === 'FST_ERR_CTP_BODY_TOO_LARGE') return reply.code(413).send(apiErrorBody(413, 'INVALID_REQUEST', 'Body is larger than 256 KB.'));
     if (err.statusCode && err.statusCode >= 400 && err.statusCode < 500) {
