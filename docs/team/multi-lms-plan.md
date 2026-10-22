@@ -13,7 +13,16 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 20:00 UTC
+### Current directive — 2026-10-22, 20:13 UTC
+
+Claude's architecture role is quota-blocked after three confirmed session-limit events, including an immediate stop on the latest retry.
+All three attempts are fenced. The Lead will not start duplicate Claude sessions without a quota reset or new user direction.
+The user was asked whether to wait under the current role assignment or authorize Codex GPT-6-Astra for the bounded repair plan.
+No answer or model substitution is assumed. Independent Gemini remains host-only; corrected failure evidence is committed at `64a1b62`.
+No runtime or source/test edit is granted. LTI has no active Docker reservation, and its standing LA hold is released.
+All final gates, real-LMS limits and the no-push rule remain unchanged.
+
+### Prior directive — 2026-10-22, 20:00 UTC
 
 Independent Gemini confirms Canvas round 2 and round equality FAIL. Its diagnosis supports a graceful-restart test setup defect affecting seven dead-handler cases.
 Claude must assess all seven in one repair plan. No product defect is established and no edit or runtime grant is issued.

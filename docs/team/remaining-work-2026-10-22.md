@@ -2,7 +2,22 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 20:00 UTC
+## Current checkpoint — 20:13 UTC
+
+The bounded repair plan is blocked by Claude's quota. Three Architect attempts have explicit session-limit events.
+The Lead stopped only those proven stopped attempts: `ctx_422d7f0f0928`, `ctx_e364fb2df6f9` and `ctx_0477b67db595`.
+The last retry stopped immediately. No further duplicate session will start without a quota reset or new user direction.
+The user was asked to keep Claude's architecture role and wait, or explicitly authorize Codex GPT-6-Astra for this bounded plan.
+No answer or role change is assumed. The retained Codex executor has not started architecture work.
+
+Independent Gemini's corrected failed-round and equality report is committed at `64a1b62`.
+The Lead verified its preserved prefix and all 12 primary input bindings. The report discloses earlier metadata errors.
+Gemini `ctx_806443ba13cd` remains host-only pending the planning dependency.
+E-R5 remains invalidated. No runtime, product edit or test edit is granted.
+The Lead released LTI's standing Docker hold for LA in `msg_8451370d9f2a`; LTI has no active host reservation.
+Final runtime, conformance, guides, Docs QA and reviews remain pending. Real-LMS and no-push limits remain unchanged.
+
+## Historical checkpoint — 20:00 UTC
 
 Independent Gemini QA confirms round 2 FAIL and round equality FAIL, with one differing case.
 Its primary-log assessment supports a test setup defect: graceful restart can let the held request time out and clear its lease before exit.
