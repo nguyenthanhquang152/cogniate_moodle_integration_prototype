@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-DESIGN review, Reviewer-B (lens: "Can a human team own it?")
 
@@ -206,3 +206,57 @@ I read `docs/reviews/LA-DESIGN/qa.md` only after I wrote the findings above (Lea
 
 - Reviewer-B will check the two-tenant port fixtures that LA-ADR-07 D1 asks for (one case per app port with tenant data and per new LTI table).
 - The capabilities `records.reporters` and `records.readBack` have the same value in every LA channel, and no LA channel can trigger their guards (LA-ADR-01:139). They cost a catalog entry, a guard and K0 canary variants. This is acceptable, but LC is the first milestone that needs them.
+
+## Round 2
+
+Re-check at design SHA `877d951` (previous `19476fc`), task LA-RB2. Inputs: `git diff 19476fc 877d951 -- docs/architecture/ltiaas`, `docs/architecture/ltiaas/review-response-R1-A1.md`, `review-response-R1-A2.md`, plan LD-9 and OC-9 (`docs/team/ltiaas/plan.md:93`, `:146`, `:202`). I did not open `reviewer-a.md`. Line numbers below are at `877d951`.
+
+**Verdict: APPROVE.** All 8 round-1 MAJOR findings are closed. Open: 0 BLOCKER, 0 MAJOR, 3 MINOR (one deferred, two new and cheap), 1 NIT (deferred). No open item blocks G-DESIGN.
+
+### Status of the round-1 findings
+
+| Id | Sev. | Status | Evidence at `877d951` |
+| --- | --- | --- | --- |
+| B-LAD-01 | MAJOR | **Closed** | `ltiaas/adr/LA-ADR-01-channel-kernel.md:64-77`: the build model (two channel tsconfigs in `npm run typecheck`, the Vitest include, ESLint blocks, Tailwind `@source`, Vite `server.fs.allow` and alias) is done once in S2 (`LA-ADR-04:41`). Load check 7 validates every profile against one schema (`LA-ADR-01:182`). The QA build-model probe is in place (`:76`). |
+| B-LAD-02 | MAJOR | **Closed** | Portal SDK folder `apps/portal/src/sdk/` with alias `@cogniate/portal-sdk` is the only portal code a module may import (`LA-ADR-01:84-85`). The P11 sketch (`ChannelUiModule`, `ChannelWizardProps`, `PortalSdk`) is at `:310-330`. S8 moves the helpers first (`:332`). |
+| B-LAD-03 | MAJOR | **Closed** | Sketches of `PortContext`, `ChannelSql`, P5–P7 and four rules (`LA-ADR-01:267-308`). `app.ts` stays pure, and only `app/**` gets a context (`:82-83`; A2 aligned `LA-ADR-07` D1). `moodleCourse`, `shellStatus` and `shellError` are frozen DTO fields (`LA-ADR-04:61`). The kernel parses `createMoodleCourse` (`LA-ADR-01:308`). P7 has `connectionId: null`. |
+| B-LAD-04 | MAJOR | **Closed** | Guard levels (`LA-ADR-01:341`). New channels guard at the `registration` level; at launch they only log `family_guard_mismatch`. Load check 8 keeps `launch` level for Canvas and Blackboard only (`:183`). Moving a guard to `launch` needs an ADR revision with a move plan. App side: `contracts/cogniate-app-api-delta.md:133`. A unit and K0 case is planned (`LA-ADR-02` test impact). |
+| B-LAD-05 | MAJOR | **Closed** | `FieldSpec.default` (`LA-ADR-01:129-130`), the kernel admin-value setup adapter (`:265`) and an optional `app.ts` (`:29-30`). `brightspace` has no `app.ts`, so E2-N is manifest, profiles and README only. The E2-K exit check is a canary with an admin-value profile and no `app.ts` (`LA-ADR-02` D8). |
+| B-LAD-06 | MAJOR | **Closed** | The false parallel claim is corrected (`LA-ADR-04:51`). README §6a has a hot-file table with a proposed owner and an order of edits per file, and migration numbers in landing order. P3 fixes the final owners (accepted: plan §5.3 gives file ownership to P3). One file group is missing; see B-LAD-21. |
+| B-LAD-07 | MAJOR | **Closed** | README F7.7: K2 U1–U4 are Must, the rest is Could (F7.9). F1.9 names its proof. The Author shell test renders every manifest (`LA-ADR-01` test impact). A2 aligned `LA-ADR-05` §6 (`:330`). |
+| B-LAD-08 | MAJOR | **Closed** | Plan LD-9 (`plan.md:202`), and measure 3 now allows the reviewed `LA-IC` lists (`:146`). `LA-ADR-04` D8 cites LD-9. |
+| B-LAD-09 | MINOR | **Closed** | Heartbeat row per instance id; an equal live id refuses to start (`job_instance_conflict`). `APP_JOB_RUNNER=off` in the web process, and the `production` profile refuses both on. Two-runner unit test (`LA-ADR-03` D7 rows "Instance id" and "Worker process", test impact; `operability.md:32`, `:87`). |
+| B-LAD-10 | MINOR | **Closed** | Shared platforms partition by platform + deployment, and a `429` pauses only that partition (`LA-ADR-03` D5 `partitionKey`, D7 "Fairness"; `LA-ADR-04` D5 step 4). |
+| B-LAD-11 | MINOR | **Closed** | R1 only before the PASS of S3, S4, S5, S6, S8 and E4. S1, S2, S7 and S9 use R0 plus the golden compare (`LA-ADR-04` D6 "Tiers"). QA alignment is README OC-11. |
+| B-LAD-12 | MINOR | **Closed** | "Domain core" vs "core" is explained in README §3. README §5 has an app path → layer table. Layer rules other than N1–N9 are review rules. |
+| B-LAD-13 | MINOR | **Closed** | `artifact_key_kid` moved to `016` (`data-model.md:12`, `:199`, `:207`). Rule text: one epic per file; lanes do not depend on each other; numbers in landing order (`:15`). |
+| B-LAD-14 | MINOR | **Closed** | Load check 7: `issuerKind` must agree with `issuer` (`LA-ADR-01:182`; `LA-ADR-02` D2). The reserved set comes from fixed issuer values (`lti-service-api-delta.md:308`). D3 now states "one rule per capability" and the two inputs of `registration.dynamic`. |
+| B-LAD-15 | MINOR | **Partly fixed; rest deferred — deferral accepted** | Fixed: a staged registration uses `--accept-staged`, so the operator checks the values and does not type them; `GRANT_MISMATCH` names each differing field (`LA-ADR-02` D6). Deferred: "the library stages, the operator confirms" for typed manual values. I accept the reason: the operator should bind the values from the institution's own request, not from the library's input, and D-3 (E6) is the place to revisit this. The item goes to `deferred.md`. |
+| B-LAD-16 | NIT | **Closed** | The round-1 stale notes are gone from the README, `LA-ADR-02`, `LA-ADR-06`, `LA-ADR-07` and `lti-service-api-delta.md`. The A2 "proposed" marks on LA-H21..LA-H24 are gone. |
+| B-LAD-17 | NIT | **(a), (c), (d) closed; (b) deferred — deferral accepted** | (a) Comment rule on the repository mapping (`LA-ADR-04` D4 rule 3). (c) `MANUAL_SELF_LEGACY_CHANNELS` (`LA-ADR-01:181`; `LA-ADR-07:71`). (d) terms. (b) Not renaming `binding.authority` is acceptable: the cost is higher than the gain, and the catalog types the value as a map. |
+| B-LAD-18 | NIT | **Closed** | README §3: the job runner is in `packages/shared`, the dispatch outbox in the app kernel. |
+| B-LAD-19 | NIT | **Closed** | S3 removes `moodle` from `PublicUrls`, and the exception ends at S3 (`LA-ADR-01` D10; `LA-ADR-04:42`). I checked: no product code outside the two `testkit.ts` files reads `PublicUrls.moodle`. Those testkits need their own constant at S3, which is an Author detail. |
+
+### New findings (cheap fixes only)
+
+#### B-LAD-20 — MINOR — Three small gaps in the new LA-ADR-01 sketches
+
+- **File:** `ltiaas/adr/LA-ADR-01-channel-kernel.md:104-130` (D2 manifest), `:121`, `:270-277` (`PortContext`), `:306`, `:382` (D9).
+- **Problem:** The new port and wizard text refers to manifest data and signatures that the sketches do not have, so an Author must guess.
+- **Evidence:**
+  - (a) The rule "Channel SQL may name only the tables and columns that its manifest lists in `storage`" (`:306`) and F5 (README §4) read a manifest field `storage`. But `ChannelManifest` in D2 (`:104-130`) has no `storage` member, and load check 1 validates the manifest against that schema.
+  - (b) `setup.verify` is one value per manifest (`:121`), and the shell takes the verify step from it (`:382`). But `lti-generic` has a DR method with `self` (verify = first launch) and a manual method with `operatorGrant`. Since this round, a DR registration that breaks I-SELF also turns into `operatorGrant` (`LA-ADR-02` D5 item 10; `LA-ADR-04` D4 rule 1). One value cannot say which verify step the shell shows.
+  - (c) `PortContext.seal()` and `unseal()` are synchronous (`:275`), but `KeyProvider.seal()` and `open()` are async (`LA-ADR-06:255-256`), and the app may move to the key provider (`LA-ADR-06` D6 "Scope in LA", Should). Then the port signature, which channel code uses, must change.
+- **Suggested fix:** (a) Add `storage?: { tables: string[]; columns: string[] }` to the D2 sketch and to the manifest schema. (b) Let the shell take the verify step from the connection's stored `binding_authority` (before create: from the method's authority), and remove `setup.verify` or make it a per-method value. (c) Make `seal` and `unseal` return `Promise` now.
+
+#### B-LAD-21 — MINOR — The hot-file table misses the app operator files
+
+- **File:** `ltiaas/README.md` §6a.
+- **Problem:** The app operator command files need edits from lanes K and S, but they are not in the hot-file table that P3 uses.
+- **Evidence:** Lane K changes `services/cogniate-app/src/app/operator.ts` and `src/cli/grant.ts` and `src/cli/binding.ts`: S5 "operator CLI by authority" (`LA-ADR-04` D1), and in E2-K the bound-value flags and `--accept-staged` (`LA-ADR-02` D6). Lane S changes the same files for E5: the app audit event in the same transaction as the command, `--operator`, `--evidence-channel`, `--evidence-ref` and the new `app:audit list` (`LA-ADR-07` D4, D5; `contracts/cogniate-app-api-delta.md` §7). README §6a gives migration `015` to S but lists none of these files.
+- **Suggested fix:** Add one row to §6a: these three files and `app:audit`, lanes K and S, one proposed owner (for example K, with S delivering an audit-writer module that K calls), and the order of edits.
+
+### Notes (not findings)
+
+- Stale status lines, fix with the next edit: README §8 OC-9 still says "Open: confirm", but the Lead confirmed it (`plan.md:93`). OC-10 says "Open until A2's fix round", but A2's fixes are in `877d951` (`review-response-R1-A2.md`). `data-model.md:298` still tests `artifact_key_kid` under `015`, but the column is in `016` now.
+- The new `ChannelSql` scope check (a statement must contain `:library_id`, `LA-ADR-01:305`) is a guard rail, not a proof. The two-tenant port fixtures of `LA-ADR-07` D1 stay the real control. I will check them at build time, as noted in round 1.
