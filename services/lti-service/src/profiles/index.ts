@@ -34,6 +34,8 @@ export interface ProfileOptions {
   registry?: ProfileRegistry;
 }
 
+const registryOf = (opts: ProfileOptions): ProfileRegistry => opts.registry ?? registry;
+
 /** On only when the service profile is `acceptance` AND `LTI_PROVIDER_SIMULATION=on` (LTI contract §9.13). */
 export function simulationEnabled(serviceProfile: string, env: Record<string, string | undefined>): boolean {
   return serviceProfile === 'acceptance' && env.LTI_PROVIDER_SIMULATION === 'on';
@@ -44,7 +46,7 @@ export function simulationEnabled(serviceProfile: string, env: Record<string, st
  * simulation profiles blackboard-sim and canvas-sim-cloud (only when they are on).
  */
 export function listProfiles(opts: ProfileOptions): readonly ProviderProfile[] {
-  return (opts.registry ?? registry).listProfiles(opts.simulation);
+  return registryOf(opts).listProfiles(opts.simulation);
 }
 
 /** The profile with this id, or null (an unknown id, or a simulation id while simulations are off). */
@@ -56,15 +58,15 @@ export function findProfile(id: string, opts: ProfileOptions): ProviderProfile |
  * A profile by id whatever the simulation setting. Only for structure (sharing, flags, LMS name) of a STORED row:
  * every run-time permission uses findProfile, so a simulation row while simulations are off is inactive.
  */
-export function profileDefinition(id: string, source: ProfileRegistry = registry): ProviderProfile | null {
-  return source.listProfiles(true).find((p) => p.id === id) ?? null;
+export function profileDefinition(id: string, opts: ProfileOptions = { simulation: true }): ProviderProfile | null {
+  return registryOf(opts).listProfiles(true).find((p) => p.id === id) ?? null;
 }
 
 /** Compatibility helper for callers that move to the trait in LA-E1-10. */
 export const isStandardProfile = (p: ProviderProfile): boolean => p.endpoints === 'admin';
 export const isSharedProfile = (p: ProviderProfile): boolean => p.sharing === 'shared';
 
-export const channelRegistry = (opts: ProfileOptions) => (opts.registry ?? registry).channels(opts.simulation);
+export const channelRegistry = (opts: ProfileOptions) => registryOf(opts).channels(opts.simulation);
 
 /** Fill `{siteUrl}`, `{serviceUrl}` (default: the site URL) and `{clientId}` (encoded) in a profile value. */
 export function fillTemplate(value: string, v: ProfileTemplateValues): string {
@@ -116,13 +118,13 @@ export function profileOfFixedIssuer(issuerOrigin: string, opts: ProfileOptions)
 export type LmsName = string;
 
 /** The LMS name in texts (security §12): Canvas profiles → Canvas, Blackboard profiles → Blackboard, else Moodle. */
-export function lmsNameOf(p: ProviderProfile | null, source: ProfileRegistry = registry): LmsName {
-  return source.channels(true).textName(p?.channel ?? null);
+export function lmsNameOf(p: ProviderProfile | null, opts: ProfileOptions = { simulation: true }): LmsName {
+  return registryOf(opts).channels(true).textName(p?.channel ?? null);
 }
 
 /** The LMS name of a signed product family (check 14 page text), or null for any other value. */
-export function lmsNameOfFamily(family: string, source: ProfileRegistry = registry): LmsName | null {
-  const channels = source.channels(true);
+export function lmsNameOfFamily(family: string, opts: ProfileOptions = { simulation: true }): LmsName | null {
+  const channels = registryOf(opts).channels(true);
   const owner = channels.ownerOfFamily(family);
   return owner === null ? null : channels.textName(owner);
 }

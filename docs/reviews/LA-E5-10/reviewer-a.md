@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-10 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -54,3 +54,31 @@ Round: 1
 
 - The cleanup job writes no audit event (only `job_run` counts and `signing_key_changed` lines). D4 rule 1 covers requests, and D11 jobs log `job_run`, so this follows the design.
 - AC-01 to AC-04, AC-06, AC-08 and AC-09 are K1-SIM and wait for QA-2's Docker window. The unit tests above cover their logic.
+
+## Round 2
+
+- Diff: `git diff 36032f3^1 36032f3` (lane `la-s2`: `c0a1f64`, `c60cda4`, `6ef9075`, `3b13658`, `56bad6b`). These files at `HEAD` are the same as at `36032f3`.
+- References: my round-1 findings above; A2 BD-A2-13, BD-A2-14, BD-A2-23 and BD-A2-24; LA-ADR-06 D7 (row "Error details and no active key") and D13 rule 2.
+- I ran 5 vitest files on the host: 31 tests pass (`signing-keys`, `tool-keys-lifecycle`, `signing-key-cleanup`, `tool-keys`, `cli/bootstrap`).
+- Blind review as before.
+- **Verdict (round 2): APPROVE.** All three round-1 findings are closed, and the two new A2 rules are right. New: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+### Round-1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E5-10-01 (MINOR) | closed | Both runtime blob writes now bind an empty byte array (`store/tool-keys.ts:168`; `jobs/signing-key-cleanup.ts`, `.run(new Uint8Array(0))`). `length(…) = 0` still marks a cleared blob, so `toolKeyVersions` keeps ignoring it. `git grep "X''"` over non-test `services/*/src` code finds only the two pre-LA app lines (`domain/pickers.ts:55`, `domain/retention.ts:17`), which BD-A2-13 freezes as the baseline of the planned F5 TypeScript scan. BD-A2-13 lists the `009` date expression as a SQLite-adapter item, so the applied migration stays unedited (its checksum is unchanged). The F5 rule widening (`X'…'`, date functions, `randomblob`, `rowid` for new migrations) is lane P's follow-up. |
+| A-LA-E5-10-02 (NIT) | closed | `prepareToolKey` now awaits `promisify(generateKeyPair)` (`:86`), so RSA generation no longer blocks either listener. It still runs before `audit.change` (D4 T2). A second create that runs during the `await` fails in the transaction's slot check (test "rechecks the active key after async preparation"). |
+| A-LA-E5-10-03 (NIT) | closed by BD-A2-14 | With `rotate`, `ensureToolKey` first removes a waiting `next` key with `removeToolKey`, which also empties its private blob. In the same transaction it then creates and force-activates the new key (`:183-192`). An activation failure rolls back the removal too (test). The stdout line does not change. |
+
+### New behaviour (A2 rulings), checked
+
+- BD-A2-23, `409` details:
+  - `SIGNING_KEY_NEXT_EXISTS` gives `{kid, publishedAt}` of the waiting key.
+  - `SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH` gives `{kid, activatableAt}`.
+  - `SIGNING_KEY_WRONG_STATE` gives `{kid, keyStatus}`.
+  - `SIGNING_KEY_ACTIVE` gives `{kid}`.
+
+  All of it is public data on the authenticated operator listener, and every `kid` lookup is still scoped by account, so another tenant's kid stays `404`. There is no `retryAfter`, so no `Retry-After` header (the AC-14 test checks both). The audit row still stores only the code.
+- BD-A2-24, "no active key" is not an error. `createNextToolKey` inserts `active` when the account has no active key (`:117`), and the check runs inside the write transaction. The publish lead time then protects nothing, because nothing signs. The normal API cannot reach this state: retire immediate refuses the active key, and activate always leaves one active key. So this is a repair path, not a way around the lead time. Activate of a `next` key with no active key returns `retired: null` and writes no `retired` log line. The `signing_key.create` event now has `details.status`, so the log shows whether a create skipped the wait.
+- `retire` without `{immediate: true}` gives `400 INVALID_REQUEST` with `details.field: "immediate"` and a text that names the right path.

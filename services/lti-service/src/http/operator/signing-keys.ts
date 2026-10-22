@@ -1,6 +1,7 @@
 // Signing-key lifecycle (LA-ADR-06 D7). Key generation and sealing finish before audit.change.
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { ApiError } from '../../api-errors.ts';
 import { readSigningKeyPublishLeadSeconds } from '../../keys/key-config.ts';
 import { requireWritableAccount } from '../../store/accounts.ts';
 import type { SigningKeyRecord } from '../../store/tool-keys.ts';
@@ -43,7 +44,7 @@ export function registerSigningKeyRoutes(app: FastifyInstance, ctx: OperatorCont
       requireWritableAccount(ctx.db, req.params.id);
       return createNextToolKey(ctx.db, prepared, ctx.now());
     },
-      (created) => ({ target: { type: 'signing_key', id: created.kid } }));
+      (created) => ({ target: { type: 'signing_key', id: created.kid }, details: { status: created.status } }));
     log(req.params.id, key.kid, key.status);
     return reply.code(201).send({ kid: key.kid, status: key.status, publishedAt: iso(key.publishedAt) });
   }));
@@ -63,7 +64,7 @@ export function registerSigningKeyRoutes(app: FastifyInstance, ctx: OperatorCont
       return activateToolKey(ctx.db, req.params.id, req.params.kid, options, now);
     },
       (activated) => ({ details: { forced: force, retired: activated.retired } }));
-    log(req.params.id, key.retired, 'retired');
+    if (key.retired !== null) log(req.params.id, key.retired, 'retired');
     log(req.params.id, key.kid, key.status);
     return { ...key, activatedAt: iso(key.activatedAt) };
   }));
@@ -72,7 +73,11 @@ export function registerSigningKeyRoutes(app: FastifyInstance, ctx: OperatorCont
     action: 'signing_key.retire', toolAccountId: req.params.id, target: { type: 'signing_key', id: req.params.kid },
   }, (audit) => {
     const parsed = RetireBody.safeParse(req.body);
-    if (!parsed.success) throw invalid(parsed.error);
+    if (!parsed.success) {
+      throw new ApiError('INVALID_REQUEST',
+        'retire needs {"immediate": true} (removes the key at once). A key becomes retired when the next key is activated.',
+        { details: { field: 'immediate' } });
+    }
     checkToolKeyRemoval(ctx.db, req.params.id, req.params.kid);
     const key = audit.change(() => removeToolKey(ctx.db, req.params.id, req.params.kid, ctx.now()));
     log(req.params.id, key.kid, key.status);

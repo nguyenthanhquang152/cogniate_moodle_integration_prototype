@@ -1402,3 +1402,39 @@ describe('A-M1-05/06: HTTP-correlated refusals and committed success audit', () 
     expect(attempts(con.id).at(-1)?.state).toBe('open');
   });
 });
+
+
+describe('LA-E1-06 cleanup target kinds', () => {
+  it('suspend of an initial and an add-deployment attempt fences one exclusive platform', async () => {
+    const { con, op, submit } = await endpoint('add_deployment');
+    expect((await submit()).status).toBe(200);
+    const platformId = getConnectionAnyLibrary(t.db, con.id)!.ltiPlatformId!;
+    t.lti.calls.length = 0;
+    const result = await op.suspend(con.id, 'cleanup', 't');
+    expect(result.exitCode).toBe(0);
+    expect(t.lti.calls.filter((c) => c.startsWith('PATCH'))).toEqual([expect.stringContaining(`PATCH platform ${platformId} `)]);
+    expect(t.lti.platforms.get(platformId)?.active).toBe(false);
+  });
+
+  it('revoke of an unapproved add-deployment grant switches off only its deployment', async () => {
+    const { con, op, g, submit } = await endpoint('add_deployment');
+    t.lti.faults.push({ op: 'PATCH deployment', action: 'fail_before' });
+    expect((await submit()).status).toBe(502);
+    const platformId = getConnectionAnyLibrary(t.db, con.id)!.ltiPlatformId!;
+    const added = deployment(platformId, 'dB')!;
+    // Model a remote activation with no local approval, as after a lost activation answer.
+    added.active = true;
+    t.lti.calls.length = 0;
+    expect((await op.revoke(g.id, 't')).exitCode).toBe(0);
+    expect(t.lti.calls.filter((c) => c.startsWith('PATCH'))).toEqual([expect.stringContaining(`PATCH deployment ${platformId} dB `)]);
+    expect(added.active).toBe(false);
+    expect(t.lti.platforms.get(platformId)?.active).toBe(true);
+    expect(deployment(platformId, 'dA')?.active).toBe(true);
+  });
+
+  it('a pending shared connection with no attempt keeps the frozen no-reservation line', async () => {
+    const { op, a } = await setup();
+    const con = await bbConnection(a);
+    expect((await op.suspend(con.id, 'cleanup', 't')).lines).toContain('Binding: Blackboard: no reservation');
+  });
+});

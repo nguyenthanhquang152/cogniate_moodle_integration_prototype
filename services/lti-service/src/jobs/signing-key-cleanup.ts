@@ -14,7 +14,8 @@ export function signingKeyCleanupJob(db: Db): IntervalJob {
           WHERE status = 'retired' AND retired_at <= ? RETURNING kid, tool_account_id`)
           .all(now, now - RETIRED_KEEP_MS) as Array<{ kid: string; tool_account_id: string }>;
         // Also clear old rows that migration 009 marked removed. Keep their original removed_at.
-        const cleared = Number(db.prepare("UPDATE tool_key SET private_jwk_encrypted = X'' WHERE status = 'removed' AND length(private_jwk_encrypted) > 0").run().changes);
+        const cleared = Number(db.prepare("UPDATE tool_key SET private_jwk_encrypted = ? WHERE status = 'removed' AND length(private_jwk_encrypted) > 0")
+          .run(new Uint8Array(0)).changes);
         return { removed, cleared };
       });
       for (const key of removed) ctx.logger.info('signing_key_changed', { ...key, status: 'removed' });

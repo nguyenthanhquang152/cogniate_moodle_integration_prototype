@@ -23,7 +23,7 @@ export function ensureSharedPlatform(db: Db, opts: ProfileOptions, input: { acco
     if (created) logger?.info('platform_created', { platform_id: platform.id, profile: platform.profile });
     return { ok: true, platformId: platform.id, created };
   } catch (err) {
-    if (err instanceof ApiError) return { ok: false, message: err.description };
+    if (err instanceof ApiError) return { ok: false, message: err.code === 'NOT_FOUND' ? `Unknown tool account: ${input.account}.` : err.description };
     throw err;
   }
 }

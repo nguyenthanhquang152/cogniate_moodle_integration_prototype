@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E1-05 review, lens A ("Is it right and is it safe?")
 
@@ -58,3 +58,25 @@ There is no BLOCKER and no MAJOR finding. The move is behaviour-neutral for Mood
 | No LMS name in core | The added core lines with an LMS word are only the eight pairs in `legacy-wire.ts` (the F1 exception). |
 | Must not edit | `platforms.ts`, `http/app.ts`, `http/auth.ts`, `main.ts`, `config.ts`, `lti/codes.ts` and the manifests are untouched. `legacy-wire.ts`, `fitness-scope.json` and the app `testkit.ts` are the RQ edits that the dispatch names. Two more one-line fixture edits are outside the "May edit" list: `services/cogniate-app/src/providers/canvas.test.ts` (the `urls` fixture) and `packages/shared/src/service.test.ts` (the env and the error text). The `PublicUrls` change forces both. The Lead should confirm that they are inside the approved RQ-2. |
 | Build and tests | On the `aa0b200` tree: `vitest` for `services/lti-service`, `packages/shared` and `packages/channel-kernel` gives 52 files and 755 tests passed. `eslint .` exits 0. `tsc` for the LTI service, shared and `packages/channels/tsconfig.node.json` exits 0. |
+
+## Round 2
+
+- Reviewer: Reviewer-A (the same lens as round 1; this session continues it). Diff: `git diff 1b342e6^1 1b342e6` (lane `la-l` fix round: `e281f54`, `068f560`, `06ddec7`, `510bb72`, `ead5edb`; merged with the lead QA kit line in `2b7530a`). The files at `HEAD` are the same as at `1b342e6`.
+- References: my round-1 findings above; A2 BD-A2-21 (privacy floor); A1 BD-A1-21 (kernel `ProfileSource` types) and BD-A1-23 (`listOrder` bound); LA-ADR-01 D4 and D6 (check 7).
+- I ran on the host: `vitest` for `services/lti-service/src/profiles`, `packages/channel-kernel` and the multi-LMS launch tests, 5 files and 76 tests pass.
+- Blind review as before.
+- **Verdict (round 2): APPROVE.** All three round-1 findings are closed. New: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+### Round-1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E1-05-01 (MINOR) | closed | New unit test "keeps every frozen provider-list lms value, including the explicit null". It asserts the derived `lms` of every `BASELINE_PROFILE_WIRE_LMS` key, `standard` → `null` included. So the round-1 mutant (`wireLms ?? channel`, which gives `standard` → `"moodle"`) now fails a unit test, not only the K1 golden. |
+| A-LA-E1-05-02 (MINOR) | closed | BD-A2-21:<br>(1) `PRIVACY_FLOOR_NONE_PROFILES = ['standard']`, frozen in `legacy-wire.ts` (the F1 file exception).<br>(2) Load check 7 refuses `privacyFloor: 'none'` on any other profile, with `profile_privacy_floor_invalid` naming the profile (`profiles/schema.ts`). `privacyFloor` is required, and an unknown value fails the schema. A raise of `standard` to `allowlist` passes, as the ruling allows.<br>(3) The launch keeps every claim only for an explicit `none` (`lti/launch.ts`: `privacyFloor === 'none' ? keep : minimizeClaims`), so any other value minimizes (fail closed).<br>A new channel cannot borrow the exception by naming a profile `standard`: kernel check 2 keeps one owner per profile id across all channels (`packages/channel-kernel/src/registry.ts:163-170`). |
+| A-LA-E1-05-03 (NIT) | closed | BD-A1-23: a profile that is not a baseline key needs `listOrder` above the largest loaded baseline value (70, the simulation profiles included, so the result does not depend on the simulation setting). Else check 7 gives `profile_list_order_invalid` with the profile id and the bound (`profiles/registry.ts`). Tests cover 0, 50 and 70 as refused, and the order of a new real profile after the baseline and before every simulation profile. |
+
+### Other changes (checked)
+
+- `ProfileSource` types now come from `@cogniate/channel-kernel` (BD-A1-21). Each `lti-profiles.ts` uses `import type` and `satisfies readonly ProfileSource[]`, and the LTI schema keeps `satisfies z.ZodType<ProfileSource>`, so the type and the schema cannot drift. The type-only import stays inside the BD-A1-16 channel fence.
+- One `ProfileOptions` context: `profileDefinition`, `lmsNameOf`, `lmsNameOfFamily` and `platformLmsName` now take the request's options, so a test or a non-default registry is used the same way on every path. The login fallback text now comes from `lmsNameOf(null, …)` (today "Moodle"), not from a literal, which also removes an LMS name from core.
+- Check 7 diagnostics now name the profile id and the expected value (`wireLms must be null`, `Expected null for endpoints "admin"`). The error texts hold profile data only, no secret.

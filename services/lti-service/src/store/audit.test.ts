@@ -205,3 +205,19 @@ describe('withAudit (rule 1: one event per authenticated admin request)', () => 
     expect(count(db)).toBe(0);
   });
 });
+
+it('describes the successful action inside the transaction and keeps the base action on refusal', async () => {
+  const db = openDb(':memory:');
+  try {
+    await withAudit(db, () => T0, event({ action: 'account.update' }), (audit) => audit.change(() => 'active', (status) => {
+      expect(db.isTransaction).toBe(true);
+      return { action: 'account.status', details: { status } };
+    }));
+    await expect(withAudit(db, () => T0, event({ action: 'account.update' }), (audit) => audit.change(() => {
+      throw new ApiError('ACCOUNT_CLOSED');
+    }, () => ({ action: 'account.status' })))).rejects.toThrow('ACCOUNT_CLOSED');
+    expect(listAuditEvents(db, { limit: 10 }).events.map((e) => [e.action, e.result]).sort()).toEqual([
+      ['account.status', 'ok'], ['account.update', 'refused'],
+    ]);
+  } finally { db.close(); }
+});

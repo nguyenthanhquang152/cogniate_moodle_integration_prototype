@@ -2,7 +2,8 @@
 // thumbprint. The key provider seals the private JWK, bound to its account and kid (LA-ADR-06 D6). Moved from
 // accounts.ts (B-T2a-01).
 import type { JsonWebKey } from 'node:crypto';
-import { createPublicKey, generateKeyPairSync } from 'node:crypto';
+import { createPublicKey, generateKeyPair } from 'node:crypto';
+import { promisify } from 'node:util';
 import type { JWK } from 'jose';
 import { calculateJwkThumbprint } from 'jose';
 import type { KeyHandle, LocalKeyProvider } from '@cogniate/shared';
@@ -17,6 +18,7 @@ export interface PublicJwk extends JWK { kid: string; kty: 'RSA'; alg: 'RS256'; 
 
 /** A blob copied to the row of another account or kid does not open (AP-06-25). */
 const privateJwkAad = (accountId: string, kid: string) => associatedData('lti', 'tool_key', 'private_jwk_encrypted', accountId, kid);
+const generateKeyPairAsync = promisify(generateKeyPair);
 
 export const RETIRED_KEEP_MS = 30 * 24 * 3600 * 1000;
 export const SIGNING_KEY_PUBLISH_LEAD_S = 86_400;
@@ -65,10 +67,11 @@ const activeKid = (db: Db, accountId: string): string | undefined =>
 /** Check before key generation, then again in the write transaction after async work. */
 export function requireNextKeySlot(db: Db, accountId: string): void {
   requireSigningKeyAccount(db, accountId);
-  if (db.prepare("SELECT 1 FROM tool_key WHERE tool_account_id = ? AND status = 'next'").get(accountId)) {
-    throw new KeyError('SIGNING_KEY_NEXT_EXISTS');
+  const next = db.prepare("SELECT kid, published_at FROM tool_key WHERE tool_account_id = ? AND status = 'next'").get(accountId) as
+    { kid: string; published_at: number } | undefined;
+  if (next) {
+    throw new KeyError('SIGNING_KEY_NEXT_EXISTS', { details: { kid: next.kid, publishedAt: new Date(next.published_at).toISOString() } });
   }
-  if (!activeKid(db, accountId)) throw new KeyError('SIGNING_KEY_WRONG_STATE');
 }
 
 export interface PreparedToolKey {
@@ -80,7 +83,7 @@ export interface PreparedToolKey {
 
 /** Do all async work before a synchronous transaction or audit.change (LA-ADR-06 D4 T2). */
 export async function prepareToolKey(keys: KeyHandle, accountId: string): Promise<PreparedToolKey> {
-  const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048, publicExponent: 0x10001 });
+  const { publicKey, privateKey } = await generateKeyPairAsync('rsa', { modulusLength: 2048, publicExponent: 0x10001 });
   const pub = publicKey.export({ format: 'jwk' }) as JWK;
   const kid = await calculateJwkThumbprint({ kty: 'RSA', n: pub.n!, e: pub.e! });
   const publicJwk: PublicJwk = { kty: 'RSA', kid, alg: 'RS256', use: 'sig', n: pub.n!, e: pub.e! };
@@ -107,11 +110,11 @@ export function createFirstToolKey(db: Db, prepared: PreparedToolKey, now: numbe
   });
 }
 
-/** Publish the prepared key. It cannot sign until activation. */
+/** Publish a waiting key, or activate it at once when the account has no active key (BD-A2-24). */
 export function createNextToolKey(db: Db, key: PreparedToolKey, now = Date.now()): SigningKeyRecord {
   return transaction(db, () => {
     requireNextKeySlot(db, key.accountId);
-    insertKey(db, key, 'next', now);
+    insertKey(db, key, activeKid(db, key.accountId) ? 'next' : 'active', now);
     return signingKey(db, key.accountId, key.kid);
   });
 }
@@ -125,10 +128,10 @@ export function validatePublishLeadSeconds(seconds: number): number {
 
 export function activateToolKey(
   db: Db, accountId: string, kid: string, options: { force?: boolean; publishLeadSeconds?: number } = {}, now = Date.now(),
-): { kid: string; status: 'active'; activatedAt: number; retired: string } {
+): { kid: string; status: 'active'; activatedAt: number; retired: string | null } {
   return transaction(db, () => {
     const old = checkToolKeyActivation(db, accountId, kid, options, now);
-    db.prepare("UPDATE tool_key SET status = 'retired', retired_at = ? WHERE tool_account_id = ? AND kid = ?").run(now, accountId, old);
+    if (old !== null) db.prepare("UPDATE tool_key SET status = 'retired', retired_at = ? WHERE tool_account_id = ? AND kid = ?").run(now, accountId, old);
     db.prepare("UPDATE tool_key SET status = 'active', activated_at = ? WHERE tool_account_id = ? AND kid = ?").run(now, accountId, kid);
     return { kid, status: 'active', activatedAt: now, retired: old };
   });
@@ -137,28 +140,32 @@ export function activateToolKey(
 /** Route preflight; the store repeats it in the transaction for callers outside HTTP. */
 export function checkToolKeyActivation(
   db: Db, accountId: string, kid: string, options: { force?: boolean; publishLeadSeconds?: number }, now: number,
-): string {
+): string | null {
   const lead = validatePublishLeadSeconds(options.publishLeadSeconds ?? SIGNING_KEY_PUBLISH_LEAD_S) * 1000;
   const key = signingKey(db, accountId, kid);
-  if (key.status !== 'next') throw new KeyError('SIGNING_KEY_WRONG_STATE');
-  if (!options.force && now - key.publishedAt < lead) throw new KeyError('SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH');
-  const old = activeKid(db, accountId);
-  if (!old) throw new KeyError('SIGNING_KEY_WRONG_STATE');
-  return old;
+  if (key.status !== 'next') throw new KeyError('SIGNING_KEY_WRONG_STATE', { details: { kid, keyStatus: key.status } });
+  if (!options.force && now - key.publishedAt < lead) {
+    throw new KeyError('SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH', {
+      details: { kid, activatableAt: new Date(key.publishedAt + lead).toISOString() },
+    });
+  }
+  return activeKid(db, accountId) ?? null;
 }
 
 export function checkToolKeyRemoval(db: Db, accountId: string, kid: string): void {
   const key = signingKey(db, accountId, kid);
-  if (key.status === 'active') throw new KeyError('SIGNING_KEY_ACTIVE');
-  if (key.status !== 'retired' && key.status !== 'next') throw new KeyError('SIGNING_KEY_WRONG_STATE');
+  if (key.status === 'active') throw new KeyError('SIGNING_KEY_ACTIVE', { details: { kid } });
+  if (key.status !== 'retired' && key.status !== 'next') {
+    throw new KeyError('SIGNING_KEY_WRONG_STATE', { details: { kid, keyStatus: key.status } });
+  }
 }
 
 /** Emergency removal keeps the public record for audit and clears the private part at once. */
 export function removeToolKey(db: Db, accountId: string, kid: string, now = Date.now()): { kid: string; status: 'removed' } {
   return transaction(db, () => {
     checkToolKeyRemoval(db, accountId, kid);
-    db.prepare("UPDATE tool_key SET status = 'removed', removed_at = ?, private_jwk_encrypted = X'' WHERE tool_account_id = ? AND kid = ?")
-      .run(now, accountId, kid);
+    db.prepare("UPDATE tool_key SET status = 'removed', removed_at = ?, private_jwk_encrypted = ? WHERE tool_account_id = ? AND kid = ?")
+      .run(now, new Uint8Array(0), accountId, kid);
     return { kid, status: 'removed' };
   });
 }
@@ -173,6 +180,11 @@ export async function ensureToolKey(db: Db, keys: KeyHandle, accountId: string, 
     const current = activeKid(db, accountId);
     if (current && !rotate) return current;
     const now = Date.now();
+    if (rotate) {
+      // Emergency rotation does not trust a waiting key. Remove it in the same transaction as its replacement.
+      const waiting = db.prepare("SELECT kid FROM tool_key WHERE tool_account_id = ? AND status = 'next'").get(accountId) as { kid: string } | undefined;
+      if (waiting) removeToolKey(db, accountId, waiting.kid, now);
+    }
     if (!current) insertKey(db, key, 'active', now);
     else {
       createNextToolKey(db, key, now);

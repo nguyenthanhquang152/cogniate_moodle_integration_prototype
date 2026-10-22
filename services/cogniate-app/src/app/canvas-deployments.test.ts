@@ -7,6 +7,7 @@ import type { Connection } from '../domain/connections.ts';
 import { createConnection, disableConnection, getConnection, markLaunched, markRegistered } from '../domain/connections.ts';
 import { ensureLibrary } from '../domain/libraries.ts';
 import type { LmsType } from '../providers/types.ts';
+import { providerOf } from '../providers/index.ts';
 import type { TestApp } from '../testkit.ts';
 import { QA_B, THANH, testApp } from '../testkit.ts';
 
@@ -28,7 +29,7 @@ function connection(lms: LmsType = 'canvas', libraryName = THANH.library) {
   const library = ensureLibrary(t.db, libraryName, t.clock.now);
   return createConnection(t.db, library.id, {
     name: 'School', siteUrl: 'https://school-a.canvas.sim.test', method: 'manual', channel: lms, profile: lms === 'canvas' ? 'canvas-sim-cloud' : lms === 'moodle' ? 'standard' : 'blackboard',
-  }, null, t.clock.now, TEST_CHANNELS, 'exclusive');
+  }, null, t.clock.now, TEST_CHANNELS, providerOf(lms)!.sharingOf);
 }
 const pathOf = (id: string) => `/app-api/connections/${id}/deployments`;
 const body = { deploymentId: 'deployment-two', grantCode: 'g'.repeat(43) };
