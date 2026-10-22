@@ -1,6 +1,6 @@
 # P4 dispatch: QA-2 (Antigravity), run 6: LA-E5-17 R1, LA-E5-15 R2, LA-E5-09 R2 (host-only)
 
-Same terminal session and rules. Your run-5 files are committed (673fbe5). Integration SHA: 5b5b3a2 (the Lead's full check result is in the dispatch message). Clone into a NEW folder (--no-hardlinks, npm ci). Then:
+Same terminal session and rules. Your run-5 files are committed (673fbe5). Integration SHA: 5b5b3a2 (Lead full check green: 2625 unit, 121 K0, F1 74 hits in 20 files, F5 6 rules). Clone into a NEW folder (--no-hardlinks, npm ci). Then:
 1. LA-E5-17 Round 1 (lane S1, merge 880f5d6: operator OpenMetrics, public and operator readiness, production-only health redaction, tenant HTTP logs, unsampled rate-limit totals, committed audit counts; A2 BD-A2-52, BD-A2-54). Run your test-first LA-E5-17 suite and the UNIT rows. JWKS and token series: lane L's observers are merged (f4530b9), but the scrape-time join by lane S1 is not built yet, so those series rows are "pending: S1 BD-A2-54 join", not FAIL.
 2. LA-E5-15 Round 2 (lane S2 fix round 1, merge 676b7d9: write-scope route tests, GET /operator/v1/accounts/:id/platforms (A2 BD-A2-53), clearer SERVICE_KEY_SCOPE text). Add rows for the new operator route (200 shape with no secret field, 404 unknown account, closed account readable, no audit row).
 3. LA-E5-09 Round 2 (lane S2, merge 676b7d9: the re-wrap run uses the request trace id through runNow; A2 BD-A2-50). Add the row: the 202 trace id is the trace of the job-end event.
