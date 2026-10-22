@@ -213,7 +213,7 @@ Listener `OPERATOR_HOST:OPERATOR_PORT` (default `127.0.0.1:4110`; the `acceptanc
 | `GET /operator/v1/operator-keys` | — | `200 { operatorKeys: [{ id, operator, createdAt, expiresAt, lastUsedAt, revokedAt }] }` | Must |
 | `POST /operator/v1/operator-keys` | `{ operator, expiresAt? }` | `201 { id, operatorKey, operator, expiresAt }` (shown once). Default 90 days; `expiresAt` outside 1 hour to 1 year from now: `400 INVALID_REQUEST` (field `expiresAt`). | Must |
 | `POST /operator/v1/operator-keys/:id/revoke` | — | `200` (an operator cannot revoke the key of its own request: `409 OPERATOR_KEY_IN_USE`) | Must |
-| `POST /operator/v1/accounts/:id/service-keys/revoke` | `{ platformId, deploymentId?, contextId?, resourceLinkId? }` | `200 { revoked: <n> }` | Should |
+| `POST /operator/v1/accounts/:id/service-keys/revoke` | `{ platformId, deploymentId?, contextId?, resourceLinkId? }` | `200 { revoked: <n> }`. `404 UNREGISTERED_PLATFORM` for an unknown platform, or a platform of another account; the other fields are filters, and no match gives `{ revoked: 0 }` (BD-A2-47). | Should |
 | `GET /operator/v1/jobs` | — | `200 { jobs: [{ name, everyMs, lastRunAt, lastResult }] }` | Should |
 | `POST /operator/v1/jobs/:name/run` | — | `202 { job, traceId }`, or `409 JOB_RUNNING` (`skipped_lease`) | Should |
 
@@ -336,7 +336,7 @@ New entries for `lti-generic` and `brightspace` have the base field shape with `
 
 | Method and path | Auth | Request | Success |
 | --- | --- | --- | --- |
-| `POST /api/service-keys/revoke` | Bearer `admin` | `{ platformId, deploymentId?, contextId?, resourceLinkId? }` | `200 { revoked: <n> }`. The next launch of a revoked scope gets a new key value (epoch + 1). |
+| `POST /api/service-keys/revoke` | Bearer `admin` | `{ platformId, deploymentId?, contextId?, resourceLinkId? }` | `200 { revoked: <n> }`. The next launch of a revoked scope gets a new key value (epoch + 1). `404 UNREGISTERED_PLATFORM` for an unknown platform or a platform of another account; no match gives `{ revoked: 0 }` (one audit event; BD-A2-47). |
 | `GET /api/audit` | Bearer `admin` | query as §3 audit, own account only | `200 { events, next? }` |
 | `GET /api/account` | Bearer `admin` | — | `200 { id, name, status, protocolUrls, launchUrl, deepLinkingUrl, registrationUrl }` |
 
