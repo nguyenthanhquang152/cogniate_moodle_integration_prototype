@@ -74,6 +74,41 @@ describe('transaction (nested calls use a SAVEPOINT)', () => {
     return db;
   };
 
+  const thenables = [
+    ['async result', async () => 'later'],
+    ['object thenable', () => ({ then() { throw new Error('must not call then'); } })],
+    ['function thenable', () => Object.assign(() => 'value', { then() { throw new Error('must not call then'); } })],
+  ] as const;
+
+  it.each(thenables)('rolls back an outer transaction that returns an %s', (_name, result) => {
+    const db = table();
+    try {
+      expect(() => transaction(db, () => {
+        db.exec('INSERT INTO t VALUES (1)');
+        return result();
+      })).toThrow(new TypeError('transaction() callback must be synchronous; it returned a thenable'));
+      expect(db.isTransaction).toBe(false);
+      expect(values(db)).toEqual([]);
+    } finally { db.close(); }
+  });
+
+  it.each(thenables)('rolls back a nested %s but lets the outer transaction continue', (_name, result) => {
+    const db = table();
+    try {
+      transaction(db, () => {
+        db.exec('INSERT INTO t VALUES (1)');
+        expect(() => transaction(db, () => {
+          db.exec('INSERT INTO t VALUES (2)');
+          return result();
+        })).toThrow(new TypeError('transaction() callback must be synchronous; it returned a thenable'));
+        expect(db.isTransaction).toBe(true);
+        db.exec('INSERT INTO t VALUES (3)');
+      });
+      expect(values(db)).toEqual([1, 3]);
+      expect(db.isTransaction).toBe(false);
+    } finally { db.close(); }
+  });
+
   it('a call outside a transaction is unchanged: BEGIN IMMEDIATE (the write lock at once), COMMIT, no open transaction after', () => {
     const file = join(tmp('db-'), 'x.db');
     const db = openSqlite(file, tmp('mig-'));
