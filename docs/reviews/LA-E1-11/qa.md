@@ -1,11 +1,31 @@
 Verdict: PASS (host-only K0 + UNIT; K1-SIM and K2 pending: Docker window)
-Round: 2
+Round: 3
 
 # LA-E1-11 S8 Portal shell, portal SDK and the channel portal modules: QA verification
 
-Tester: QA-3 (Round 1: task `task_ee6c6506d56e` / `ctx_4ec2a34e6c0e`; Round 2: task `task_04af42599b39` / `ctx_9a0c491be3a8`), 2026-10-22. Spec: `docs/architecture/ltiaas/tasks/LA-E1-11.md` (with `BD-A1-24`, `BD-A1-25`, `BD-A1-26`, `BD-A1-32`, `BD-A1-44`, `BD-A1-49`, `BD-A1-50`, `BD-A1-51`). Suite: `tests/ltiaas/tasks-core/LA-E1-11/` (QA-3 test-first).
+Tester: QA-3 (Round 1: task `task_ee6c6506d56e` / `ctx_4ec2a34e6c0e`; Round 2: task `task_04af42599b39` / `ctx_9a0c491be3a8`; Round 3: task `task_a50b56d70b54` / `ctx_48bb0d05458e`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E1-11.md` (with `BD-A1-24`, `BD-A1-25`, `BD-A1-26`, `BD-A1-32`, `BD-A1-44`, `BD-A1-49`, `BD-A1-50`, `BD-A1-51`). Suite: `tests/ltiaas/tasks-core/LA-E1-11/` (QA-3 test-first).
 
-Independence: QA-3 did not read product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files. QA-3 verified all K0 and UNIT ACs in isolated `--no-hardlinks` clones (`5ec8a69` in Round 1; `d2166d7` in Round 2).
+Independence: QA-3 did not read product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files. QA-3 verified all K0 and UNIT ACs in isolated `--no-hardlinks` clones (`5ec8a69` in Round 1; `d2166d7` in Round 2; `5b5b3a2` in Round 3).
+
+## Round 3
+
+| Item | Value |
+| --- | --- |
+| SHA | `5b5b3a2a91e7d8cb38b425e9c21d78b4c49cd943` (integration `5b5b3a2`; holds `LA-E1-11` fix round 2 merge `5b5b3a2` / `463f350` over `676b7d9`: `A-06` wizard assertions after failed profile list; `A-04` normalized extension URL guard) |
+| Lane and slot | lane P; no Docker (HOST-ONLY; K1-SIM and K2 rows marked `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/LA-E1-11/r3/clone`: `git clone --no-hardlinks --no-checkout`, detached at `5b5b3a2a91e7d8cb38b425e9c21d78b4c49cd943`, push URL `DISABLED`, `npm ci` at root |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/LA-E1-11/r3/` (umask 077): `npm-ci.log`, `unit-rows-portal.log`, `k0/e1-11-check-clean.log`, `status-after.txt` |
+
+### Round 3 acceptance criteria (rows touched by fix round 2)
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E1-11-01 | PASS (UNIT) | `apps/portal/src/channels/shell.test.tsx > manifest portal shell > keeps moodle available when profile discovery fails, then honors explicit not-ready data`, `keeps canvas available when profile discovery fails, then honors explicit not-ready data`, `keeps blackboard available when profile discovery fails, then honors explicit not-ready data`, `keeps shell-canary available when profile discovery fails, then honors explicit not-ready data`, `keeps an existing self connection usable when profile discovery fails` (+ 34 other `shell.test.tsx` and `presentation.test.tsx` tests) | `npx --no-install vitest run --reporter=verbose apps/portal/src/channels/shell.test.tsx apps/portal/src/channels/presentation.test.tsx` | Asserts the rendered wizard content after `GET /app-api/lms-providers` fails (`A-06`, `BD-A1-51`) as well as subsequent transition to `texts.notReady` when explicit `ready: false` arrives. `unit-rows-portal.log` |
+| AC-LA-E1-11-02 | PASS (UNIT) | `apps/portal/src/api.test.ts > rejects extension path /../courses`, `//other.test`, `/\courses`, `/%2e%2e/%2e%2e/courses`, `/%2E./courses`, `/%2fcourses`, `/%5ccourses`, `/%zz`, `/.\t./courses`, `/.\n./courses`, `/.\r./.\r./courses before sending it`, `keeps a valid escaped extension path inside the connection namespace` (12 tests) + `apps/portal/src/channels/shell.test.tsx` + `apps/portal/src/multi-lms.test.ts` | `npx --no-install vitest run --reporter=verbose apps/portal/src/api.test.ts apps/portal/src/channels/shell.test.tsx apps/portal/src/multi-lms.test.ts` | Normalized extension URL boundary (`A-04`): `api.ts` checks the WHATWG `URL`-normalized pathname (including ASCII tab/newline/CR stripping before `..` resolution, e.g. `/.\t./courses`, `/.\n./courses`, `/.\r./.\r./courses`) so no extension call can escape `/app-api/connections/:id/`. `unit-rows-portal.log` |
+| AC-LA-E1-11-03..09 | unchanged from Round 2 | see Round 2 table | — | Fix round 2 (`676b7d9..5b5b3a2`) touched only `apps/portal/src/api.ts`, `apps/portal/src/api.test.ts`, and `apps/portal/src/channels/shell.test.tsx` (3 files, `+9/-3` lines). R0 `npm run check` at `5b5b3a2` is green (`164` unit files / `2,625` passed, `252` infra passed, `121` K0 passed, F1 `74` hits in `20` files, F5 `6` rules / `0` hits). Measured time of `unit-rows-portal.log` (4 files, 67 tests): `2.54s`. |
+
+---
 
 ## Round 2
 
