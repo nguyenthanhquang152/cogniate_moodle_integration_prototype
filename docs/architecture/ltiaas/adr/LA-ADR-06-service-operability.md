@@ -375,18 +375,23 @@ The Lead fixed one job-runner interface for the LA design. A1 owns its shape in 
 
 The LTI service gets its own `job_lease` table with the same shape ([LA data model §4](../data-model.md#4-lti-service-changes)) and `JOB_INSTANCE_ID` default `lti-1`.
 
+Start and stop rules (BD-A2-31, BD-A2-32):
+
+- **Every interval job runs at start**, then on its interval (`runAtStart: true`). The runner has no catch-up from `last_run_at`, so without a start run a service that restarts more often than the interval never runs the job (A-LA-E5-19-01).
+- **Stop order: runner grace < service exit fallback < container stop grace.** The runner grace is the longest job lease (`JOB_LEASE_MS`, 60 s; LA-ADR-03 D7). `runner.stop()` returns at once when no run is in flight. At `SIGTERM` the service arms a last-resort timer of runner grace + 10 s (70 s). The clean path is `jobs.stop()`, then the listeners, then the database, then exit code 0. If it has not ended when the timer fires, the service logs `service_exit_forced {after_ms}` and exits with code 1. Compose sets `stop_grace_period: 75s` for `lti-service` and `cogniate-app` (both run a runner with the same lease grace), so `docker compose stop`, `restart` and `down` never kill a run that is inside its lease. A forced kill is still safe for the Must jobs, because each is synchronous SQLite work in its own transaction and rolls back. The rule protects longer runs (`key-rewrap`, LA-E5-09).
+
 E5 jobs (all in the LTI service):
 
 | Job | Trigger | Work | Priority |
 | --- | --- | --- | --- |
 | `retention` | at start, then every 10 min | today's cleanup (`packages/shared/src/retention.ts:14-29`); the `retention_cleanup` lines stay | Must (exists; it moves onto the runner) |
-| `audit-retention` | daily | delete `audit_event` rows older than `AUDIT_RETENTION_DAYS` | Must (with D4) |
+| `audit-retention` | at start, then daily | delete `audit_event` rows older than `AUDIT_RETENTION_DAYS` | Must (with D4) |
 | `signing-key-cleanup` | at start, then daily | `retired` → `removed` after 30 days; zero the private blob of every `removed` row that still has one | Must (with D7) |
 | `key-rewrap` | on demand | D6 re-wrap | Must (with D6) |
-| `api-key-expiry` | hourly | log and count keys that expire within 14 days | Should |
-| `idempotency-cleanup` | hourly | delete records older than 24 h | Should (with D9) |
-| `signing-key-rotation` | daily | D7 scheduled rotation for accounts with `autoRotate` | Should |
-| `account-purge` | daily | D2 purge of closed accounts | Should (LA-H4) |
+| `api-key-expiry` | at start, then hourly | log and count keys that expire within 14 days | Should |
+| `idempotency-cleanup` | at start, then hourly | delete records older than 24 h | Should (with D9) |
+| `signing-key-rotation` | at start, then daily | D7 scheduled rotation for accounts with `autoRotate` | Should |
+| `account-purge` | at start, then daily | D2 purge of closed accounts | Should (LA-H4) |
 
 Acceptance points for the Must jobs:
 
