@@ -1,4 +1,5 @@
 // Frozen developer key document (app contract §4.6).
+import { toolName } from '@cogniate/channel-kernel/setup';
 import type { ExtensionRoute, PublicJwk } from '../../../../services/cogniate-app/src/kernel/ports.ts';
 
 export const configurationRoute: ExtensionRoute = {
@@ -14,7 +15,7 @@ export const configurationRoute: ExtensionRoute = {
       if (!key) return { error: { status: 502, code: 'LTI_SERVICE_ERROR', message: `The current public key is unavailable. Trace id: ${ctx.traceId}` } };
     }
     const document = {
-      title: `Cogniate (${ctx.libraryName})`,
+      title: toolName(ctx.libraryName),
       description: 'Cogniate courses (SCORM 1.2 and HTML) with grade return.',
       oidc_initiation_url: urls.login,
       target_link_uri: urls.launch,
