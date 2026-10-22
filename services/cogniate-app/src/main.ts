@@ -7,7 +7,6 @@ import { join } from 'node:path';
 import { createOutboundClient, knobString, knobValue, portFromEnv, startRetention, startService } from '@cogniate/shared';
 import { buildAppApi } from './app/server.ts';
 import { createLtiClient } from './clients/lti-client.ts';
-import { createMoodleWsClient } from './clients/moodle-ws.ts';
 import { loadConfig } from './config.ts';
 import { CONTENT_SERVICE_NAME, buildContentServer } from './content-host/server.ts';
 import { openDb } from './domain/db.ts';
@@ -48,7 +47,7 @@ async function main(): Promise<void> {
           // T8: builds go to the host-side Build Runner through its queue folder; the knobs travel in each request.
           buildQueueDir: config.buildQueueDir,
           buildKnobs: { hold: (deps.knobValues.BUILD_RUNNER_HOLD ?? knobValue('BUILD_RUNNER_HOLD')) === 1, failAt: deps.knobStrings.BUILD_RUNNER_FAIL_AT ?? knobString('BUILD_RUNNER_FAIL_AT') },
-          moodleWs: createMoodleWsClient({ outbound }),
+          outbound,
         });
         worker.start();
         // Retention (data-model §2.1): at start and every 10 min.
