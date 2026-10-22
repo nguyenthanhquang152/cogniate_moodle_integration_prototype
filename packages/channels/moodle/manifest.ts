@@ -7,7 +7,7 @@ const manifest = {
   family: 'lti13',
   names: { text: 'Moodle', label: 'Moodle' },
   card: {
-    title: 'Moodle', description: 'Export SCORM packages and sync course content with your Moodle LMS.', mark: 'm', color: 'orange',
+    title: 'Moodle', description: 'Export SCORM packages and sync course content with your Moodle LMS.', mark: 'm', icon: 'graduation-cap', color: 'orange',
     category: 'LMS Publishing', order: 1,
   },
   availability: 'ga',
@@ -51,6 +51,8 @@ const manifest = {
   storage: {
     tables: ['mbz_build'],
     columns: [
+      'connection.id', 'connection.library_id', 'connection.site_url', 'connection.updated_at',
+      'publication.id', 'publication.connection_id', 'publication.updated_at',
       'connection.ws_token_encrypted', 'connection.ws_site_name', 'connection.ws_release', 'publication.moodle_course_id',
       'publication.moodle_course_idnumber', 'publication.shell_status', 'publication.shell_error',
     ],

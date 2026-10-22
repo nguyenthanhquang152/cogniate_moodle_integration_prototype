@@ -1,5 +1,5 @@
 Verdict: PASS
-Round: 1
+Round: 2
 
 # LA-E7-04: QA verification of the fitness checks F1–F5
 
@@ -53,3 +53,39 @@ QA writes no second scanner: `tests/ltiaas/fitness/fitness-probes.test.ts` reuse
 - **Measured time (`tests/ltiaas/fitness/fitness-probes.test.ts`):** `143.93s` (`7 passed | 3 skipped`, includes one full `npm run check` run of `~95s`, one `npm run typecheck` probe of `~10s`, 28 F1 `--stdin` runs, 31 F3 ESLint `--stdin` runs, 6 F2 runs, and 28 F5 `--stdin` runs).
 - **QA TypeScript check (`npx --no-install tsc --noEmit -p tests/tsconfig.json`):** `0` errors (`qa-typecheck.log`).
 - **Clone cleanliness:** `git status --porcelain` in `~/cogniate-qa-runs/LA/LA-E7-04/r1/clone` is empty (`status-after.txt`, 0 bytes).
+
+## Round 2
+
+Tester: Lead QA (Orca task `task_7663e1231ebb`, dispatch `ctx_c2757b1e55dd`), 2026-10-22. Re-verified in a fresh standalone clone (`~/cogniate-qa-runs/LA/LA-E7-04/r2/clone`) after resolving `A-LA-E7-04-01`, `B-LA-E7-04-01`, `B-LA-E7-04-02`, and `B-LA-E7-04-03` and after `LA-E4-02` (`no-score-sync.mjs`, `014_learning_records.sql`, and the 7-`rowid` `attempts.ts` baseline) landed on `quang/ltiaas-milestone`.
+
+| Item | Value |
+| --- | --- |
+| SHA | `b391155f7c3c2fabdaa4cadce7c07d40e23e062a` (`quang/ltiaas-milestone` HEAD `b391155`) |
+| Lane and slot | lane QA; no Docker (HOST-ONLY) |
+| Clone | `~/cogniate-qa-runs/LA/LA-E7-04/r2/clone`: `git clone --no-hardlinks`, scratch branch `la-e7-04-r2-verify` at `b391155f7c3c2fabdaa4cadce7c07d40e23e062a`, push URL `no_push`, marker `.git/la-qa-scratch-clone` = `realpath(clone)`, `npm ci --ignore-scripts` at root and in `tests/` |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/LA-E7-04/r2/` (umask 077): `tested-sha.txt`, `npm-ci.log`, `qa-typecheck.log`, `missing-marker-refusal.log`, `linked-worktree-refusal.log`, `multi-worktree-refusal.log`, `rerun-dir-refusal.log`, `k0-vitest.log`, `k0/e7-04-ac01-check-clean.log`, `k0/e7-04-ac02-f1-probes.log`, `k0/e7-04-ac03-f3-probes.log`, `k0/e7-04-ac04-f2-probes.log`, `k0/e7-04-ac05-f5-probes.log`, `k0/e7-04-ac06-scope.json`, `k0/e7-04-ac07-kit-neutrality.log`, `status-after.txt` |
+
+### Review findings resolved in Round 2
+
+| Finding | Severity | Resolution in `tests/ltiaas/fitness/fitness-probes.test.ts` and `README.md` | Round 2 verification evidence |
+| --- | --- | --- | --- |
+| `A-LA-E7-04-01` | MINOR (SAFETY) | Added `assertDedicatedScratchClone(candidateRoot)` and called it in `beforeAll` before any `git` or file mutation, plus unit-tested it inside `AC-LA-E7-04-01`. It refuses any path under `/orca/workspaces` or `/workspaces/cogniate_moodle_integration_prototype`, any repo where `.git/la-qa-scratch-clone` is missing or does not equal `fs.realpathSync(root)`, any repo where `.git` is not a directory (linked git worktrees), any repo where `git rev-parse --git-dir` !== `--git-common-dir`, any repo where `git worktree list --porcelain` reports `!= 1` worktree, and any dirty working tree. In `AC-LA-E7-04-04`, captured `startBranch = git symbolic-ref --quiet --short HEAD` (or `null` when detached) before `git checkout -B zz-qa-e7-04-f2-rename` and restored `git checkout -f <startBranch>` (or `--detach <startSha>`) in `finally`, then asserted the restored branch and `HEAD` SHA match. Updated `tests/ltiaas/fitness/README.md` setup commands to write `.git/la-qa-scratch-clone`. | (1) CLI refusal without `.git/la-qa-scratch-clone`: exit `1` (`missing-marker-refusal.log`). (2) CLI refusal inside a throwaway linked worktree (`git worktree add --detach ~/cogniate-qa-runs/LA/LA-E7-04/r2/linked-wt HEAD`): exit `1` with `.git is not a directory (linked git worktrees are forbidden, A-LA-E7-04-01)` (`linked-worktree-refusal.log`). (3) CLI refusal in the main clone while `linked-wt` was attached: exit `1` with `repository has 2 worktrees ... expected a standalone clone with 1 worktree (A-LA-E7-04-01)` (`multi-worktree-refusal.log`). (4) In-suite `AC-LA-E7-04-01` assertions verify refusal on `/Users/qa/orca/workspaces/...` and missing marker. (5) `AC-LA-E7-04-04` ran on branch `la-e7-04-r2-verify` and restored `HEAD` back to branch `la-e7-04-r2-verify` (`BRANCH_AFTER=la-e7-04-r2-verify`, `status-after.txt` 0 bytes). |
+| `B-LA-E7-04-01` | MINOR | Wrapped every AC's probe body in `try { ... } finally { writeAcEvidence(...); }` and switched probe-loop assertions to `expect.soft(...)` so a single failing probe never aborts the remaining probes in that AC or skips writing `e7-04-ac*.log`. Added a `beforeAll` check and `EEXIST` handler (`writeAcEvidence`) that fail with `LA_RUN_DIR (<dir>) already holds e7-04-ac...; use a new run folder (B-LA-E7-04-01)`. | Re-running `vitest` against the populated `~/cogniate-qa-runs/LA/LA-E7-04/r2/k0` folder exits `1` with `Error: LA_RUN_DIR (/Users/quangnguyen/cogniate-qa-runs/LA/LA-E7-04/r2/k0) already holds e7-04-ac01-check-clean.log, ...; use a new run folder (B-LA-E7-04-01)` (`rerun-dir-refusal.log`). |
+| `B-LA-E7-04-02` | NIT | Added `parseDocScopeTable(markdown)` to parse the `\| Class \| Paths \|` (`README.md` §4) and `\| Class \| Globs \|` (`TEST-STRATEGY.md` §3.1) Markdown tables directly and assert in `AC-LA-E7-04-06` that each parsed row (`channel`, `core`, `coreExceptions`, `sharedBuild`, `notCore`) equals `packages/channel-kernel/fitness-scope.json`. | `AC-LA-E7-04-06` passes (`2ms`), and `k0/e7-04-ac06-scope.json` records `scope`, `readmeTable`, and `strategyTable` side by side with identical glob arrays. |
+| `B-LA-E7-04-03` | NIT | Centralized expected tool output fragments in `TOOL_OUTPUT_CONTRACT` at the top of `tests/ltiaas/fitness/fitness-probes.test.ts` and documented `findLaunchLiteralRuleId()` (`pending: LA-E5-06`). | All F1, F2, F3, and F5 assertions reference `TOOL_OUTPUT_CONTRACT`; `qa-typecheck.log` exits `0`. |
+
+### Round 2 acceptance criteria summary (`b391155`)
+
+- **`AC-LA-E7-04-01` (`npm run check` + scratch-clone guard):** PASS (`343ms` after `beforeAll`). Clean tree at `b391155` passes `lint` (0 errors), `typecheck` (0 errors), `test:unit` (`144` files, `2,365` passed, `5` skipped), `test:infra` (`230` pass, `0` fail), `test:k0` (`3` files, `121` passed), `fitness:lms-names` (`F1 PASS: 31 files with hits, 183 hits`), and `fitness:rules` (`F5 PASS: 4 rules (audit-event-delete, connection-lms, no-score-sync, sql-portability), 0 hits`). `k0/e7-04-ac01-check-clean.log`.
+- **`AC-LA-E7-04-02` (F1 probes):** PASS (`7,662ms`). All 22 failing probes, 6 positive controls, `BD-A1-19` `013_channel_kernel.sql` token-exception checks, `N6` `legacy-wire.ts` checks, ratchet checks, and `packages/channels/zz-lms/` dynamic discovery checks pass. `k0/e7-04-ac02-f1-probes.log`.
+- **`AC-LA-E7-04-03` (F3 probes):** PASS (`17,967ms`). All 27 ESLint negative probes fail with severity 2, all 4 positive controls pass with `0` messages, and the `packages/channels/zz-probe/probe.test.ts` root test typecheck probe fails `npm run typecheck` with `TS2322`. `k0/e7-04-ac03-f3-probes.log`.
+- **`AC-LA-E7-04-04` (F2 probes + branch restoration):** PASS (`604ms`). All 5 `--paths-from` probes and the `--no-renames` scratch-branch probe pass, and `AC-LA-E7-04-04` restores branch `la-e7-04-r2-verify` cleanly. `k0/e7-04-ac04-f2-probes.log`.
+- **`AC-LA-E7-04-05` (F5 rules, including newly landed `LA-E4-02` `no-score-sync` and 7-`rowid` `attempts.ts` baseline):** PASS (`6,636ms` + `179ms` for `it.runIf(ruleExists('no-score-sync'))`).
+  - `no-score-sync.mjs` (`LA-E4-02`) is now active in `fitness:rules`: `SELECT * FROM score_sync` at `services/cogniate-app/src/domain/results.ts` fails with exit `1` (`no-score-sync`), and `014_learning_records.sql` (in `APPLIED_MIGRATIONS`) passes with `0` hits.
+  - `sql-portability.mjs` (`BD-A2-22` updated by `LA-E4-02` from 9 to 7 `rowid` hits in `services/cogniate-app/src/domain/attempts.ts` after `score_sync` removal): unchanged `attempts.ts` (7 `rowid` hits) passes with exit `0`, and duplicating one `rowid` line (8th hit) fails with exit `1` (`services/cogniate-app/src/domain/attempts.ts:289:76  sql-portability  rowid: rowid is not portable SQL`).
+  - `channel-sql-tables` (`pending: LA-E1-08` at `b391155`; subsequently verified PASS in `171ms` at `2fe06a6` after `LA-E1-08` `e29f574` merged) and `/lti/launch/` literal rule (`pending: LA-E5-06`) use `it.runIf`. `k0/e7-04-ac05-f5-probes.log`.
+- **`AC-LA-E7-04-06` (Scope table parser + glob equality):** PASS (`2ms`). `parseDocScopeTable` parses `docs/architecture/ltiaas/README.md` §4 and `tests/ltiaas/TEST-STRATEGY.md` §3.1 and matches all globs against `packages/channel-kernel/fitness-scope.json`. `k0/e7-04-ac06-scope.json`.
+- **`AC-LA-E7-04-07` (Kit neutrality Could):** `pending: LA-E7-06` (`379ms`, neutral and planted samples verified). `k0/e7-04-ac07-kit-neutrality.log`.
+- **Measured time (Round 2):** `112.11s` (`8 passed | 2 skipped`), `qa-typecheck.log` `0` errors, `status-after.txt` `0` bytes.
+

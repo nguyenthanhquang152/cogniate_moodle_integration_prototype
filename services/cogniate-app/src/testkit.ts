@@ -1,3 +1,4 @@
+import type { OutboundClient } from '@cogniate/shared';
 import { configureRecordReporters } from './kernel/records/records.ts';
 import { ltiAgsReporter } from './drivers/lti-ags/index.ts';
 import type { ChannelRegistry } from '@cogniate/channel-kernel';
@@ -16,7 +17,6 @@ import type { Db } from './domain/db.ts';
 import { openDb } from './domain/db.ts';
 import { ensureLibrary, upsertUser } from './domain/libraries.ts';
 import { randomBytes } from 'node:crypto';
-import type { MoodleWsClient } from './clients/moodle-ws.ts';
 import type { ContentItem, LtiClient, LtiIdToken, LtiPlatform, LtiProviderProfile, LtiRegistration } from './clients/lti-client.ts';
 import { LtiServiceError } from './clients/lti-client.ts';
 import type { StorePaths } from './domain/package-store.ts';
@@ -347,7 +347,7 @@ export function fakeLti(): FakeLti {
 /** The Build Runner queue of a test app (requests/, status/, out/). */
 export function queueDir(dataDir: string): string {
   const dir = join(dataDir, 'build-queue');
-  for (const sub of ['requests', 'status', 'out']) mkdirSync(join(dir, sub), { recursive: true });
+  for (const sub of ['requests', 'status', 'out']) mkdirSync(join(dir, sub), { recursive: true, mode: 0o700 });
   return dir;
 }
 
@@ -365,7 +365,7 @@ export interface TestApp {
   writeHeaders: (cookie: string) => Record<string, string>;
 }
 
-export async function testApp(opts: { channels?: ChannelRegistry; limits?: Partial<Limits>; refTtlSeconds?: number; pickerTtlSeconds?: number; playTtlSeconds?: number; buildKnobs?: { hold: boolean; failAt: string }; moodleWs?: MoodleWsClient } = {}): Promise<TestApp> {
+export async function testApp(opts: { channels?: ChannelRegistry; limits?: Partial<Limits>; refTtlSeconds?: number; pickerTtlSeconds?: number; playTtlSeconds?: number; buildKnobs?: { hold: boolean; failAt: string }; outbound?: OutboundClient } = {}): Promise<TestApp> {
   const dataDir = mkdtempSync(join(tmpdir(), 'cogniate-app-'));
   const db = openDb(':memory:');
   const store = await prepareStore(dataDir);
@@ -383,7 +383,7 @@ export async function testApp(opts: { channels?: ChannelRegistry; limits?: Parti
     db, urls: TEST_URLS, logger, store, profile: 'default', knobs: [], now: () => clock.now, ...(opts.limits ? { limits: opts.limits } : {}),
     masterKey: TEST_MASTER_KEY, lti: lti.client, refTtlSeconds: opts.refTtlSeconds ?? 86400,
     pickerTtlSeconds: opts.pickerTtlSeconds ?? 3600, playTtlSeconds: opts.playTtlSeconds ?? 86400, playerDir: join(dataDir, 'player'),
-    buildQueueDir: queueDir(dataDir), buildKnobs: opts.buildKnobs ?? { hold: false, failAt: '' }, ...(opts.moodleWs ? { moodleWs: opts.moodleWs } : {}),
+    buildQueueDir: queueDir(dataDir), buildKnobs: opts.buildKnobs ?? { hold: false, failAt: '' }, outbound: opts.outbound ?? { allowlist: [], request: async () => { throw new Error('Unexpected extension network request'); } },
   });
   const login = async (user: { email: string; password: string }): Promise<string> => {
     const res = await app.inject({ method: 'POST', url: '/app-api/session', headers: { origin: TEST_URLS.app }, payload: { email: user.email, password: user.password } });

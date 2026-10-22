@@ -10,7 +10,7 @@ import { channelOf, channelRegistry } from "../channels/registry.ts";
 import { useChannels } from "../channels/context.tsx";
 import { createPortalSdk } from "../sdk/index.ts";
 
-export function ConnectionDetailBlock({ connection, serviceLabel, openUrl }: { connection: Connection; serviceLabel?: string; openUrl?: string }) {
+export function ConnectionDetailBlock({ connection, serviceLabel }: { connection: Connection; serviceLabel?: string }) {
   const name = connection.channelName ?? channelRegistry.textName(channelOf(connection));
   return <>
     <h2>{connection.name}</h2><Badge>{name}</Badge>
@@ -19,8 +19,12 @@ export function ConnectionDetailBlock({ connection, serviceLabel, openUrl }: { c
     {!!connection.platform?.deploymentIds.length && <div><h3>Deployment IDs</h3><ul className="list-disc pl-5">
       {connection.platform.deploymentIds.map((id) => <li key={id}><code>{id}</code></li>)}
     </ul></div>}
-    {(connection.status === "registered" || connection.status === "connected") && <a className={buttonVariants({ variant: "secondary", size: "default" })} href={openUrl ?? connection.siteUrl} target="_blank" rel="noopener noreferrer">Open {name} <ExternalLink size={15} aria-hidden="true" /></a>}
   </>;
+}
+/** Open the saved site from the ready card; a channel can provide its admin page. */
+export function ConnectionOpenLink({ connection, openUrl }: { connection: Connection; openUrl?: string }) {
+  const name = connection.channelName ?? channelRegistry.textName(channelOf(connection));
+  return <a className={buttonVariants({ variant: "secondary", size: "default" })} href={openUrl ?? connection.siteUrl} target="_blank" rel="noopener noreferrer">Open {name} <ExternalLink size={15} aria-hidden="true" /></a>;
 }
 export function ConnectionOverview({ connection, connections }: { connection: Connection; connections: Connection[] }) {
   const navigate = useNavigate();
@@ -42,6 +46,6 @@ export function ConnectionReady({ connection }: { connection: Connection; librar
   return <Card className="flex flex-col gap-5">
     <h2>{connection.status === "registered" ? "Registered" : "Your library is connected"}</h2>
     {connection.status === "registered" && <p>The first launch from {channelRegistry.textName(channelOf(connection))} changes the status to Connected.</p>}
-    <div className="flex flex-wrap items-center gap-3"><Link className={buttonVariants({ variant: "primary", size: "default" })} to="/libraries/courses">Go to Courses <ArrowRight size={16} aria-hidden="true" /></Link></div>
+    <div className="flex flex-wrap items-center gap-3"><Link className={buttonVariants({ variant: "primary", size: "default" })} to="/libraries/courses">Go to Courses <ArrowRight size={16} aria-hidden="true" /></Link><ConnectionOpenLink connection={connection} /></div>
   </Card>;
 }

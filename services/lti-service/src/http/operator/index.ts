@@ -21,6 +21,7 @@ import type { RateLimiter } from '../rate-limit.ts';
 import { createTrustedProxy, rateLimiterFor, recordAuthFailure } from '../rate-limit.ts';
 import { registerRateLimitRoutes } from './rate-limits.ts';
 import { registerKeyProviderRoutes } from './key-provider.ts';
+import { registerOperatorServiceKeyRoutes } from './service-keys.ts';
 
 /** The operator of an accepted request. The audit actor is operator:<operator>. */
 export interface OperatorIdentity {
@@ -38,6 +39,7 @@ declare module 'fastify' {
 export interface OperatorContext {
   db: Db;
   keys: KeyHandle;
+  /** Only the re-wrap route needs jobs; without it that route gives 503 NOT_READY. */
   jobs?: JobRunner;
   urls: PublicUrls;
   simulationProfiles: boolean;
@@ -64,6 +66,7 @@ export interface OperatorAuditEvent {
 export interface OperatorDeps {
   db: Db;
   keys: KeyHandle;
+  /** Only re-wrap needs the LTI runner with key-rewrap registered; absent means 503 NOT_READY on that route. */
   jobs?: JobRunner;
   urls: PublicUrls;
   simulationProfiles?: boolean;
@@ -80,6 +83,7 @@ const MOUNTS: Array<(app: FastifyInstance, ctx: OperatorContext) => void> = [
   registerSharedPlatformRoutes,
   registerRateLimitRoutes,
   registerKeyProviderRoutes,
+  registerOperatorServiceKeyRoutes,
 ];
 
 /**

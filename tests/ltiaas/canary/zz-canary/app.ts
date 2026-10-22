@@ -17,8 +17,21 @@ import type {
 const ALLOWED_BINDING_KEYS = ['clientId', 'deploymentId', 'grantCode'] as const;
 const GRANT_CODE_43_BASE64URL = /^[A-Za-z0-9_-]{43}$/;
 
+const profiles: ConnectionSetup['profiles'] = {
+  'zz-canary-sim': {
+    sharing: 'exclusive',
+    serviceUrl: false,
+    label: 'Canary LMS (simulation)',
+  },
+};
+
 const canaryAppAdapter = {
   channel: 'zz-canary',
+  profiles,
+
+  sharingOf(profileId: string) {
+    return profiles[profileId]?.sharing ?? null;
+  },
 
   checkCreate(input: {
     siteUrl: string;
@@ -48,12 +61,23 @@ const canaryAppAdapter = {
   },
 
   toolConfiguration(ctx: ToolConfigurationContext): ToolRow[] {
-    const ltiOrigin = ctx.urls.lti;
+    const toolUrls = (
+      ctx as ToolConfigurationContext & {
+        toolUrls?: {
+          readonly login: string;
+          readonly launch: string;
+          readonly keys: string;
+          readonly register: string;
+          readonly ltiOrigin: string;
+        };
+      }
+    ).toolUrls;
+    const ltiOrigin = toolUrls?.ltiOrigin ?? ctx.urls.lti;
     return [
       { key: 'issuer', label: 'Tool URL', value: ltiOrigin },
-      { key: 'loginUrl', label: 'Initiate login URL', value: `${ltiOrigin}/lti/login` },
-      { key: 'launchUrl', label: 'Redirection URI(s)', value: `${ltiOrigin}/lti/launch` },
-      { key: 'jwksUrl', label: 'Public keyset URL', value: `${ltiOrigin}/lti/keys` },
+      { key: 'loginUrl', label: 'Initiate login URL', value: toolUrls?.login ?? `${ltiOrigin}/lti/login` },
+      { key: 'launchUrl', label: 'Redirection URI(s)', value: toolUrls?.launch ?? `${ltiOrigin}/lti/launch` },
+      { key: 'jwksUrl', label: 'Public keyset URL', value: toolUrls?.keys ?? `${ltiOrigin}/lti/keys` },
     ];
   },
 

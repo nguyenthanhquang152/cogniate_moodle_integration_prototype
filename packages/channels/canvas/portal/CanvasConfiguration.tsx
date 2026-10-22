@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
-import { canvasConfiguration } from "@cogniate/portal-sdk";
-import type { CanvasConfigurationSnapshot } from "@cogniate/portal-sdk";
+import { configurationSnapshot, idPath } from "@cogniate/portal-sdk";
+import type { ConfigurationSnapshot } from "@cogniate/portal-sdk";
 import { CopyButton, ErrorNotice, Loading } from "@cogniate/portal-sdk";
 import { Button } from "@cogniate/portal-sdk";
 import { ToolConfiguration } from "@cogniate/portal-sdk";
@@ -9,7 +9,7 @@ export function CanvasConfiguration({ id }: { id: string }) {
   const [inline, setInline] = useState(false);
   const [revision, setRevision] = useState(0);
   const [result, setResult] = useState<{
-    key: string; snapshot?: CanvasConfigurationSnapshot; error?: unknown;
+    key: string; snapshot?: ConfigurationSnapshot; error?: unknown;
   }>();
   const [downloadError, setDownloadError] = useState<unknown>(null);
   const key = `${id}:${inline}:${revision}`;
@@ -17,7 +17,7 @@ export function CanvasConfiguration({ id }: { id: string }) {
   useEffect(() => {
     let active = true;
     const controller = new AbortController();
-    canvasConfiguration(id, inline, controller.signal).then(
+    configurationSnapshot(`/connections/${idPath(id)}/canvas-configuration`, inline, controller.signal).then(
       (snapshot) => { if (active) setResult({ key, snapshot }); },
       (error: unknown) => { if (active) setResult({ key, error }); },
     );

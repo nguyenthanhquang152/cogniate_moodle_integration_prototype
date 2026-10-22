@@ -4,6 +4,7 @@
 # Host-side options of this wrapper:
 #   --ensure-key-file  make a new API key if infra/.secrets/lti-api-key.<account> is missing (seed uses it)
 #   --quiet            do not print the API key (it is only written to the key file)
+#   --replace-operator-key  revoke old operator keys and save a replacement for OPERATOR_NAME
 # The CLI calls the operator listener inside the lti-service container. A new or rotated API key is printed ONCE
 # and written to infra/.secrets/lti-api-key.<account> (mode 600). Only its hash is stored in the database.
 # First (LA-ADR-06 D3) it runs `lti:operator init --if-none` for the host's operator (OPERATOR_NAME, else the host
@@ -12,12 +13,13 @@ set -euo pipefail
 source "$(dirname "$0")/lib.sh"
 require_env
 require_running lti-service
-account=""; ensure=no; quiet=no; pass=()
+account=""; ensure=no; quiet=no; replace_operator=no; pass=()
 while (( $# )); do
   case "$1" in
     --account) account="${2:-}"; pass+=("$1" "${2:-}"); shift 2 ;;
     --ensure-key-file) ensure=yes; shift ;;
     --quiet) quiet=yes; shift ;;
+    --replace-operator-key) replace_operator=yes; shift ;;
     *) pass+=("$1"); shift ;;
   esac
 done
@@ -29,9 +31,11 @@ op_file="$INFRA_DIR/.secrets/lti-operator-key"
 op_copy="$INFRA_DIR/.secrets/lti/lti-operator-key"
 [[ -s "$op_file" ]] || rm -f "$op_copy"
 op_name="${OPERATOR_NAME:-$(id -un)}"
+op_mode=--if-none
+[[ "$replace_operator" == no ]] || op_mode=--replace
 op_from="${OPERATOR_NAME:+OPERATOR_NAME}"; op_from="${op_from:-the host user name (id -un)}"
 # Exit 2 = the CLI refused the name (its rule: store/operator-keys.ts OPERATOR_NAME); its own line comes first.
-op_out="$(dc exec -T lti-service node src/cli/operator.ts init --if-none --name "$op_name")" || {
+op_out="$(dc exec -T lti-service node src/cli/operator.ts init "$op_mode" --name "$op_name")" || {
   rc=$?
   if (( rc == 2 )); then
     echo "The operator name '$op_name' comes from $op_from. Fix: set OPERATOR_NAME to a valid name, for example" >&2
@@ -41,12 +45,12 @@ op_out="$(dc exec -T lti-service node src/cli/operator.ts init --if-none --name 
 }
 if [[ "$op_out" =~ ^ltio_[A-Za-z0-9_-]{43}$ ]]; then
   mkdir -p "$INFRA_DIR/.secrets"; chmod 700 "$INFRA_DIR/.secrets"
-  ( umask 077; printf '%s\n' "$op_out" > "$op_file.tmp" ); mv "$op_file.tmp" "$op_file"
+  ( umask 077; printf '%s\n' "$op_out" > "$op_file.tmp"; chmod 600 "$op_file.tmp" ); mv "$op_file.tmp" "$op_file"
   echo "   new operator key (operator $op_name) written to infra/.secrets/lti-operator-key"
 elif [[ "$op_out" == "operator key exists" ]]; then
   if [[ ! -s "$op_file" ]]; then
     rm -f "$op_copy"
-    echo "Operator key file infra/.secrets/lti-operator-key is missing. Run docker compose exec lti-service npm run lti:operator -- init --replace --name <you>, then write the new key to that file." >&2
+    echo "Operator key file infra/.secrets/lti-operator-key is missing. Put the current key there, or rerun this bootstrap command with --replace-operator-key to run init --replace and save a private replacement." >&2
     exit 1
   fi
 else
