@@ -13,7 +13,22 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 11:48 UTC
+### Current directive — 2026-10-22, 12:07 UTC
+
+The C4/C5 legacy runner started at 11:53:49 UTC. W1–W3 passed; W3 SHA is 3a949d5447be62e8d81a78e1f70fabb25b18edee3d85d2b7caf8377013583982.
+All ten historical volume records are unchanged. W3 also records 22 additional anonymous volumes; all 32 full records must survive W4.
+The pre-wake clock observation was not live. It is preserved with an appended correction; the formal post-wake clock checks passed.
+The first four legacy groups passed all 67 checks, including default profile, isolation and cleanup. The run continues under the 13:50 UTC deadline.
+
+Codex completed the five-file guide correction at f185260. Author checks passed for 88 changed prose blocks and 35 links; this is not independent acceptance.
+Claude Reviewer-B task_d2d16487d89f / ctx_a709b179a224 now reviews that provisional content.
+The Architect source checkpoint is settled and released. Its final source/runtime verdict remains required in a separate task after accepted runtime evidence.
+The same Canvas Gemini session resumed as task_73d57f11a485 / ctx_9d09ff03c8e2.
+It first checks the corrected guide text without Docker, then judges T6/T8 and runs M2/T7 only under separate grants.
+Final Docs follows final conformance. Final Docs QA and two blind reviews follow the final Docs commit.
+All 32 real LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 11:48 UTC
 
 Lead granted Common Gemini task_a33056140130 / ctx_574663dd5b1a the C4/C5 legacy window from 11:48 to 13:50 UTC (msg_d21ecaf2c08f).
 The reviewed v2 launcher and the D-T6L scope stay frozen. A fresh comparison of all ten protected full volume records must pass before launch.
