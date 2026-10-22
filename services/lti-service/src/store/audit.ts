@@ -49,6 +49,10 @@ interface AuditRow {
 
 export const AUDIT_DETAILS_MAX_BYTES = 4096;
 
+const observers = new WeakMap<Db, (action: string, result: 'ok' | 'refused') => void>();
+/** BD-A2-52: count committed writes, not rows that retention can delete. */
+export function observeAuditEvents(db: Db, observer: (action: string, result: 'ok' | 'refused') => void): void { observers.set(db, observer); }
+
 /** The stored details: redact() first; a text above 4 KB becomes {"truncated":true}. */
 export function auditDetailsText(details: Record<string, unknown> | null | undefined): string | null {
   if (!details) return null;
@@ -68,6 +72,7 @@ export function insertAuditEvent(db: Db, input: AuditEventInput, now: number): s
                 trace_id, client_ip, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(id, now, input.actor.type, input.actor.id, input.toolAccountId, input.action, input.target.type, input.target.id, input.result,
       input.code ?? null, input.traceId, input.clientIp, auditDetailsText(input.details));
+  if (!db.isTransaction) observers.get(db)?.(input.action, input.result);
   return id;
 }
 
@@ -139,13 +144,17 @@ export async function withAudit<R>(
     change(fn, describe) {
       if (changeCalled) throw new Error('audit.change() must be called only once per withAudit()');
       changeCalled = true;
+      let action = base.action;
       const result = transaction(db, () => {
         const value = fn();
         const extra = describe?.(value) ?? {};
+        action = extra.action ?? base.action;
         insertAuditEvent(db, { ...base, action: extra.action ?? base.action, target: extra.target ?? base.target, details: extra.details ?? base.details ?? null, result: 'ok' }, now());
         return value;
       });
       written = true;
+      // A caller-owned outer transaction can still roll back. Such nested writes are not counted.
+      if (!db.isTransaction) observers.get(db)?.(action, 'ok');
       return result;
     },
   };

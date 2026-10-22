@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E3-06 review, lens A ("Is it right and is it safe?")
 
@@ -43,3 +43,17 @@ There is no BLOCKER and no MAJOR finding. The lens-A points pass (see "Checks th
 | Audit atomicity (lens focus) | `withAudit` wraps the authenticated `complete`, so an unauthenticated call writes no event. The local writes (platform create or update and the session completion) and the `ok` event (`details: {platformId, operation}`) run in one synchronous `audit.change` after the remote call. The test "rolls back the platform and session completion if the audit insert fails" proves it. A refused call writes one `refused` event with its code (the scope tests check `INVALID_REQUEST`), and the session is released on any error after the claim, as before. |
 | NRPS unchanged | `platform/nrps.ts` and the memberships route are untouched (AC-06 is K1-SIM). |
 | Ownership | Only `lti/registration.ts`, `http/routes/registration.ts` and their tests change. `store/audit.ts`, the app and `packages/channels/**` are untouched. |
+
+## Round 2
+
+- Diff: the LA-E3-06 commits of merge `028c30a`: `0f52458`, `af9e8bc`, `b65c087` (`git log --oneline 028c30a^1..028c30a^2 -- services/lti-service`). The files at `HEAD` are the same. Reviewer: Reviewer-A (same lens A).
+- I ran on the host (no Docker): Vitest on `http/routes/registration.test.ts` and `lti/registration.test.ts`: 45 tests pass.
+- Blind review as before.
+- **Verdict (round 2): APPROVE.** Both round-1 findings are closed. New: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E3-06-01 (MINOR) | closed | The support check now runs only on an explicit list (`body.data.scopes?.filter(…)`). An absent `scopes` still sends the five ADR-009 scopes, as before LA (contract delta §4.5, AC-02). A new test pins this for `scopes_supported` absent, `[]`, and a one-scope list: each `complete` without `scopes` answers `200` and sends the five scopes. The old test that pinned the refusal of the default list is replaced. |
+| A-LA-E3-06-02 (NIT) | closed | `scopes` refuses a repeated value (`new Set(scopes).size === scopes.length`), with field `scopes`. The test row "repeated scope" is among the refused lists, which also assert that no registration was sent. |
+
+New behaviour, checked: the refusal now names the unsupported scopes, in `description` and in `details { field: 'scopes', unsupported }`. The values can only be the five enum strings, so the text cannot carry caller input. The check still runs before `claimRegistrationSession` and before any outbound request, as in round 1.

@@ -37,6 +37,11 @@ const ACCOUNT = new Set<RateLimitClass>(['protocol_account', 'registration_accou
 const MINUTE = 60_000;
 export const MAX_BUCKETS = 100_000;
 
+export interface RateLimitEvent { class: RateLimitClass; keyKind: 'address' | 'account' | 'operator_key' | 'api_key'; mode: 'hard' | 'soft' }
+const observers = new WeakMap<Db, (event: RateLimitEvent) => void>();
+/** One service metrics observer, independent of warning log sampling. */
+export function observeRateLimits(db: Db, observer: (event: RateLimitEvent) => void): void { observers.set(db, observer); }
+
 interface Bucket {
   tokens: number;
   at: number;
@@ -110,12 +115,14 @@ export function addressKey(address: string): string {
 }
 
 export class RateLimiter {
+  private readonly db: Db;
   readonly buckets = new TokenBuckets();
   private settings: RateLimitSettings;
   private readonly env: RateLimitSettings;
   private readonly logger: Logger;
   private readonly now: () => number;
   constructor(db: Db, logger: Logger, now: () => number = Date.now, env = process.env.LTI_RATE_LIMITS) {
+    this.db = db;
     this.logger = logger;
     this.now = now;
     try { this.env = env?.trim() ? RateLimitSettingsSchema.parse(JSON.parse(env)) : {}; }
@@ -163,6 +170,7 @@ export class RateLimiter {
     const limit = this.limit(name, account);
     const result = this.buckets.take(name, ADDRESS.has(name) ? addressKey(key) : key, limit, this.now(), spend);
     if (result.allowed) return;
+    observers.get(this.db)?.({ class: name, keyKind: SOFT.has(name) ? 'account' : ADDRESS.has(name) ? 'address' : name === 'operator' ? 'operator_key' : 'api_key', mode: SOFT.has(name) ? 'soft' : 'hard' });
     if (result.log) {
       if (SOFT.has(name)) this.logger.warn('rate_limit_soft', { class: name, tool_account_id: key });
       else this.logger.warn('rate_limited', {

@@ -12,11 +12,12 @@ import { stateCookieName } from './checks.ts';
 import type { ProtocolErrorCode } from './codes.ts';
 import { isOwnLaunchTarget, launchUri } from './target.ts';
 import { storageLoginPage } from './storage-pages.ts';
-import { protocolAccountError } from './launch.ts';
+import type { TenantLogIds } from './launch.ts';
+import { protocolAccountError, tenantLogIds } from './launch.ts';
 
 export type LoginResult =
   | { ok: true; location: string; setCookie: string; platformId: string; page?: ReturnType<typeof storageLoginPage> }
-  | { ok: false; code: ProtocolErrorCode; /** Safe reason for login_rejected.detail. */ detail: string; /** LMS name of the error page (security §12). */ lms: LmsName };
+  | { ok: false; code: ProtocolErrorCode; /** Safe reason for login_rejected.detail. */ detail: string; /** LMS name of the error page (security §12). */ lms: LmsName; /** Ids for login_rejected. */ logIds: TenantLogIds };
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
 
@@ -33,10 +34,13 @@ function lmsOfIssuer(iss: string | undefined, profiles: ProfileOptions): LmsName
 /** OIDC login initiation (security §2.1). params = query (GET) or form body (POST). */
 export function initiateLogin(db: Db, urls: PublicUrls, accountId: string, params: Record<string, unknown>, now: number, profiles: ProfileOptions = { simulation: false }): LoginResult {
   const iss = str(params.iss);
-  const fail = (code: ProtocolErrorCode, detail: string, lms: LmsName = lmsOfIssuer(iss, profiles)): LoginResult => ({ ok: false, code, detail, lms });
+  // The ids grow as the login finds the account and the platform (contract delta §6).
+  let logIds: TenantLogIds = {};
+  const fail = (code: ProtocolErrorCode, detail: string, lms: LmsName = lmsOfIssuer(iss, profiles)): LoginResult => ({ ok: false, code, detail, lms, logIds });
   // The status gate runs before state creation or any platform work (contract delta §1.5).
   const resolver = createAccountResolver(db, urls.lti);
   const account = resolver.resolveAccount({ params: { account: accountId } });
+  logIds = tenantLogIds(account);
   const accountError = protocolAccountError(account);
   if (!account || accountError) return fail(accountError ?? 'UNKNOWN_TOOL_ACCOUNT', accountError === 'TOOL_ACCOUNT_SUSPENDED' ? 'account_suspended' : 'unknown_tool_account');
   const protocolUrls = resolver.protocolUrls(account);
@@ -52,6 +56,7 @@ export function initiateLogin(db: Db, urls: PublicUrls, accountId: string, param
   if (candidates.length === 0) return fail('UNKNOWN_PLATFORM', 'platform_unknown');
   if (candidates.length > 1) return fail('UNKNOWN_PLATFORM', 'client_id_required');
   const platform = candidates[0]!;
+  logIds = tenantLogIds(account, platform);
   const lms = platformLmsName(platform, profiles);
   // A stored profile that is unknown now (a simulation row while simulations are off) is inactive (§9.1).
   if (!isPlatformUsable(platform, profiles)) return fail('PLATFORM_NOT_ACTIVE', 'platform_inactive', lms);

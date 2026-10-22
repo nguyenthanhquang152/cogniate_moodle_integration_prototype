@@ -84,8 +84,8 @@ Same body `{ status, error, details: { message, description } }`. Where marked, 
 | 409 | `SIGNING_KEY_ACTIVE` | `retire` of the active key. `details`: `kid` | Must |
 | 409 | `SIGNING_KEY_WRONG_STATE` | A signing-key transition that the key's state does not allow: `activate` of a key that is not `next`; `retire` of a `removed` key (LA-ADR-06 D7). Only this meaning: "the account has no active key" is not an error (BD-A2-24, §3). `details`: `kid`, `keyStatus` (the key's current state; not `status`, which is the HTTP status of the body) | Must |
 | 409 | `JOB_RUNNING` | An on-demand job run while another run of that job holds its lease (`POST …/key-provider/rewrap`, `POST /operator/v1/jobs/:name/run`; BD-A2-50) | Must |
-| 409 | `IDEMPOTENCY_IN_PROGRESS` | A request with the same `Idempotency-Key` still runs | Should |
-| 422 | `IDEMPOTENCY_KEY_REUSED` | The same `Idempotency-Key` with another body | Should |
+| 409 | `IDEMPOTENCY_IN_PROGRESS` | A request with the same `Idempotency-Key` still runs `details.retryAfter` = whole seconds until the 60 s claim of the running record ends (at least 1), so `Retry-After` is sent (§1.6). Description: "A request with this Idempotency-Key is still running. Retry after the time in Retry-After." The hook never stores this answer (BD-A2-58). | Should |
+| 422 | `IDEMPOTENCY_KEY_REUSED` | The same `Idempotency-Key` with another body Description: "This Idempotency-Key was used in the last 24 hours for a request with another route, path id, target (platform, deployment or course) or body. Use a new key for a new request." (BD-A2-58) | Should |
 | 401 | `INVALID_OPERATOR_AUTHORIZATION_HEADER` | Operator listener: no header, another scheme, an unknown, expired or revoked operator key | Must |
 | 503 | `NOT_READY` | `/readyz` and the operator API when the key provider or the database is not ready; `details.reasons` (list of short codes) Also `POST /operator/v1/key-provider/rewrap` when the job runner is not active (`job_runner_not_active`, BD-A2-50). | Should |
 
@@ -344,7 +344,7 @@ New entries for `lti-generic` and `brightspace` have the base field shape with `
 
 ### 4.9 `Idempotency-Key` (Should)
 
-On `POST /api/lineitems`, `POST /api/platforms`, `POST /api/platforms/:id/deployments`: 1–64 characters `[A-Za-z0-9_-]`. For 24 hours per tool account: the same key with the same body (SHA-256) gives the stored status and body and makes no platform call; another body gives `422 IDEMPOTENCY_KEY_REUSED`; a running request gives `409 IDEMPOTENCY_IN_PROGRESS`. Details (BD-A2-51): the key is unique per tool account; the fingerprint is the method, the route template, the decoded path parameters and the SHA-256 of canonical JSON of the parsed body (keys sorted, no whitespace; an absent body is `null`); another fingerprint with the same key gives `422`. Only `2xx` and `4xx` answers are replayed; after a `5xx` the key is free again; a `running` record older than 60 s is replaced. On the admin routes a replay, a `409` or a `422` writes one audit event (LA-ADR-06 D9).
+On `POST /api/lineitems`, `POST /api/platforms`, `POST /api/platforms/:id/deployments`: 1–64 characters `[A-Za-z0-9_-]`. For 24 hours per tool account: the same key with the same body (SHA-256) gives the stored status and body and makes no platform call; another body gives `422 IDEMPOTENCY_KEY_REUSED`; a running request gives `409 IDEMPOTENCY_IN_PROGRESS`. Details (BD-A2-51, BD-A2-56, BD-A2-57): the key is unique per tool account. The fingerprint is the method, the route template, the decoded path parameters, the resolved target (`POST /api/lineitems`: the credential's platform, deployment, context and line items URL) and the SHA-256 of canonical JSON of the parsed body (keys sorted, no whitespace; an absent body is `null`). Another fingerprint with the same key gives `422`, so the same key in another course never replays. The lookup runs after the platform and deployment checks. Only `2xx` answers, and `4xx` answers other than `429`, are replayed. After a `5xx`, a `429` or an answer with `Retry-After`, the key is free again. A `running` record older than 60 s is replaced. On the admin routes a replay, a `409` or a `422` writes one audit event (LA-ADR-06 D9).
 
 ## 5. Audit actions (new)
 
@@ -388,7 +388,7 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `platform_check` | info | `platform_id`, `jwks`, `token` | §2.6 |
 | `config_refused` | error | `reason` | production profile start refusal |
 
-Changed: `http_request`, `api_auth_failed` (when the path names the account), `login_rejected`, `launch_check_failed`, `launch_accepted` get `tool_account_id` when it is known. `launch_check_failed` gets `check: "storage"`. `launch_accepted` gets `binding: "cookie" | "storage"`. `launch_claims_minimized` can appear for every profile (claim policy). No field holds a secret, a token or personal data.
+Changed: `http_request`, `api_auth_failed` (when the path names the account), `login_rejected`, `launch_check_failed`, `launch_accepted` get `tool_account_id` when it is known. `launch_check_failed` gets `check: "storage"`. `launch_accepted` gets `binding: "cookie" | "storage"`. `launch_claims_minimized` can appear for every profile (claim policy). No field holds a secret, a token or personal data. In the LTI service, `http_request.path` is the matched route template (for example `/lti/login/:account`), or the fixed value `<unmatched>` when no route matches; never a raw path value (BD-A2-61; base contract §5 "path (no query)" stays true).
 
 ## 7. Data retention (additions to §6)
 

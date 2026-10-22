@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E1-07 review, lens A ("Is it right and is it safe?")
 
@@ -48,3 +48,46 @@ There is no BLOCKER and no MAJOR finding. The four lens-A points pass: the chang
 | Ports and the removed folder | `kernel/ports.ts` holds only `import type` lines and type declarations (AC-03). `services/cogniate-app/src/providers/` is gone. The registry carries each `app.ts` export (`appAdapter`, BD-A1-17). |
 | Build and tests | On the `7ee6be4` tree: the app, channel and kernel unit tests give 449 passed and 2 skipped. The K0 contract file gives 79 of 79 (K-ADAPTER is on for the three baseline channels). |
 | Ownership | Outside the "May edit" list, with import-path changes only that the removal of `providers/` forces: `app/canvas-configuration.ts` and `app/canvas-deployments.ts` (the LA-E1-08 extension files, on the "Must not edit" list), `worker/score-sync.test.ts` (R's `worker/**`, a test import), and `tool-pages/picker.ts`. Kernel files `registry.ts` and `legacy-wire.ts` are lane K's. The Lead may record these. |
+
+
+## Round 2
+
+Verdict: APPROVE
+Round: 2
+
+Reviewer: Reviewer-A (Codex GPT-6-Astra xhigh). Date: 2026-10-23.
+Scope: the eleven LA-E1-07 commits `75f9130` through `e549fbe` listed by `git log --oneline 6270d43^1..6270d43^2 --no-merges`. I read each task commit, then checked the combined merge diff. References: the task spec, LA-ADR-01 D5–D7, BD-A1-39/40/54/55 and plan §6.1. I did not open Reviewer-B's files.
+
+**Counts: 0 BLOCKER, 0 MAJOR, 1 new MINOR, 0 NIT.** Both Round 1 findings are closed. The new MINOR belongs to QA, not the Author.
+
+### Round 1 closure
+
+| Finding | Result |
+| --- | --- |
+| A-LA-E1-07-01 | Closed. LA-ADR-04 D8 records LA-IC-17, and app API delta §3.4 records the strict Moodle body. The LD-9 lens-A review accepts the empty frozen-test change list. Commit `0f5d15c` pins `422 INVALID_PLATFORM_VALUES`, `fields: ['label']` and no LTI call. |
+| A-LA-E1-07-02 | Closed. `authorityFor` throws `ApiError('CAPABILITY_NOT_SUPPORTED')`. Bind and disconnect return 409; suspend and release return exit 1 with one line. The connection stays pending. Replacing the error with the old plain `Error` makes the new test fail. |
+
+### Correctness and safety checks
+
+- **Pure helpers and contexts:** `@cogniate/channel-kernel/setup` has exactly four runtime exports: `GRANT_CODE`, `PRINTABLE_ID`, `parseStrictBody`, `toolName`. It has no imports, configuration or I/O. The export test pins the list. The parsers and ASCII formatting preserve the old functions. Channel adapters use kernel-supplied `toolAccountId` and `toolUrls`; the context reaches tool rows, self-create, staged redemption and the P5 Canvas artifact. The injected-URL tests pass.
+- **Profile parity (AC-10):** one test discovers both sides of every channel folder. It checks profile presence, registration coverage, sharing, service URL and refused suffixes. Its negative controls reject each changed trait and missing profiles. There is no hard-coded three-channel list in this invariant.
+- **Authority (AC-04/05):** the strategy still uses stored authority. Both suspension paths share one transaction, revoke open grants, log once and fence the reloaded disabled connection. Self disconnect stays unconditional; operator-grant disconnect stays fenced. The missing redemption engine is a wiring error. An unavailable adapter is now modelled by the registry lookup, without deleting a required method from a shared adapter.
+- **Family verdict (AC-06):** the 26 table cases cover both phases, both guard levels, absent/empty/unclaimed families, own channel and the manual-self exception. A mutation that ignores registration phase fails three cases. In a private probe, I compared `checkLaunchConnection` with its exact pre-`e549fbe` implementation across 1,080 combinations of connection channel, profile, family and site. Serialized results and logger arguments were byte-equal, including original-case refusal fields and lower-case mismatch logs. The app passes `'launch'`; it adds no registration-phase call or input (BD-A1-55).
+- **Contract and ownership:** `ports.ts` remains types-only, with documented contexts and views. The task commits do not edit `tests/**`, `docs/**`, R files, the LTI service or portal apps. The shared helpers and lint changes are lane K files; extension-context changes are explicitly covered by this combined LA-E1-07/08 dispatch. `f30aae4` contains the RQ-2 URL wiring and import updates. No new core LMS-name branch was added; F1 passes.
+
+### A-LA-E1-07-03 — MINOR — the task-specific QA fixture lacks the new P2 context fields
+
+- **File:** `tests/ltiaas/tasks-core/LA-E1-07/setup.k0.test.ts:165` (`buildPortContext`).
+- **Problem:** this older fixture still supplies only `urls`; it does not supply required `toolAccountId` and `toolUrls`. AC-01 and AC-02 call each adapter's `toolConfiguration` with that object.
+- **Evidence:** in the private clone at `6270d43`, I extracted and executed the two fixture functions without changing the QA source. All three adapters throw `Cannot read properties of undefined` when they read `toolUrls`. The shared K0 kit has the new fields and passes 121 tests, so this is a stale QA caller, not a product fallback to add. The task's current QA report is Round 1 and predates the context change.
+- **Suggested fix (QA-3):** supply the BD-A1-40 fields in this fixture, retain the golden rows and throwing I/O stubs, then rerun the task suite. Do not weaken the required context or the golden assertions.
+
+### Verification and limits
+
+All execution used a private `git clone --no-hardlinks`, detached at `6270d43`, under `/tmp/la-review-a-r2.Y9zbMj/repo`, with a private copy of `node_modules`. No Docker, stack, host runner, external network call or commit was used.
+
+- Focused app, channel, kernel and import-fence unit run: **890 passed, 2 skipped**. The separate launch-router and review probes: **20 passed**, including the 1,080-case comparison and extension isolation checks.
+- Shared K0: **121 passed**. SQL-rule unit tests: **9 passed**. F1 and F5 pass; root `npm run typecheck` and changed-file ESLint pass.
+- The scratch probes and all mutations were removed or restored; the private clone was clean after verification. Logs and probe sources are in `/tmp/la-review-a-r2.Y9zbMj/`.
+- UNIT ACs retain focused assertions: AC-04/05 in `authority.test.ts`, AC-06 in `launch-router.test.ts`, AC-10 in `setup.test.ts`. These reject the wrong strategy, guard decision or profile data. The Round 1 mutation evidence still applies to unchanged assertions.
+- I did not rerun the task-specific QA wrapper or `npm run check`. QA must update the fixture above and refresh its task evidence. R1 and R2-lite remain pending under the Docker hold; this review does not claim runtime acceptance.

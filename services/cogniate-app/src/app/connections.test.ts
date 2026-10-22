@@ -78,3 +78,18 @@ it('BD-A1-35: malformed binding values and origin failures keep both frozen desc
   expect(origin.statusCode).toBe(422);
   expect(origin.json()).toMatchObject({ details: { message: 'INVALID_PLATFORM_VALUES', description: 'The URLs must be https and on the Moodle site of this connection.', fields: ['accessTokenEndpoint'] } });
 });
+
+it('LA-IC-17: a strict manual body refuses an unknown key with 422 and details.fields', async () => {
+  t = await testApp();
+  const cookie = await t.login(THANH);
+  const created = await t.app.inject({ method: 'POST', url: '/app-api/connections', headers: t.writeHeaders(cookie),
+    payload: { name: 'School', siteUrl: 'https://school.test', method: 'manual' } });
+  const id = created.json<{ id: string }>().id;
+  t.lti.calls.length = 0;
+  const refused = await t.app.inject({ method: 'PUT', url: `/app-api/connections/${id}/platform`, headers: t.writeHeaders(cookie),
+    payload: { issuer: 'https://school.test', clientId: 'c', deploymentId: 'd', authenticationEndpoint: 'https://school.test/auth',
+      accessTokenEndpoint: 'https://school.test/token', jwksUrl: 'https://school.test/keys', label: 'unexpected' } });
+  expect(refused.statusCode).toBe(422);
+  expect(refused.json()).toMatchObject({ details: { message: 'INVALID_PLATFORM_VALUES', fields: ['label'] } });
+  expect(t.lti.calls).toEqual([]);
+});
