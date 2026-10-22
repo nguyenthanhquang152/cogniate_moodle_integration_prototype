@@ -1,11 +1,56 @@
 Verdict: PASS (host-only K0 + UNIT; K1-SIM and MOODLE-LIVE pending: Docker window)
-Round: 1
+Round: 2
 
 # LA-E4-03 The `lti-ags` record reporter, throttling and the read-back guard: QA verification
 
-Tester: QA-3 (Orca task `task_bdc23b632bbb`, dispatch `ctx_da00a2da9dd0`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E4-03.md` (with `LA-IC-11`, `LA-IC-15`, `BD-A1-27`). Suite: `tests/ltiaas/tasks-core/LA-E4-03/` (QA-3 test-first).
+Tester: QA-3 (Round 1: task `task_bdc23b632bbb` / `ctx_da00a2da9dd0`; Round 2: task `task_241dc471afe8` / `ctx_44be6cfd9586`), 2026-10-23. Spec: `docs/architecture/ltiaas/tasks/LA-E4-03.md` (with `LA-IC-11`, `LA-IC-15`, `BD-A1-27`, `BD-A1-61`). Suite: `tests/ltiaas/tasks-core/LA-E4-03/` (QA-3 test-first).
 
-Independence: QA-3 did not read product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files. QA-3 verified all K0 and UNIT ACs in an isolated `--no-hardlinks` clone of `d40826d`.
+Independence: QA-3 did not read product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files (except `docs/reviews/LA-E4-03/reviewer-{a,b}.md` in Round 2 to verify finding closures). QA-3 verified all K0 and UNIT ACs in isolated `--no-hardlinks` clones (`d40826d` in Round 1; `836d579` in Round 2).
+
+## Round 2
+
+| Item | Value |
+| --- | --- |
+| SHA | `836d579f2a42f7d44b6e470d1e74a17bb46aaee2` (integration `836d579`; holds `LA-E4-03` fix round 1 merge `5f9fd55` over `8083669`, including RQ-2 `b22fe80` on K files and `BD-A1-61`) |
+| Lane and slot | lane R; no Docker (HOST-ONLY; K1-SIM and MOODLE-LIVE rows marked `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/LA-E4-03/r2/clone`: `git clone --no-hardlinks --no-checkout`, detached at `836d579f2a42f7d44b6e470d1e74a17bb46aaee2`, push URL `DISABLED`, `npm ci` at root |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/LA-E4-03/r2/` (umask 077): `npm-ci.log`, `k0-vitest.log`, `unit-rows-by-id.log`, `unit-rows-files.log`, `k0/e4-03-check-clean.log`, `k0/e4-03-unit-rows.log`, `k0/e4-03-r2-unit-suites.log`, `status-after.txt` |
+
+### Round 2 acceptance criteria and fix-round checks
+
+| AC / Finding | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E4-03-01 (`B-LA-E4-03-02`, `B-LA-E4-03-03`) | PASS (UNIT + K0) | `reporter.k0.test.ts` + `services/cogniate-app/src/drivers/lti-ags/reporter.test.ts > AC-LA-E4-03-01: AGS transport mapping` (31 tests, including `B-LA-E4-03-02: the reporter computes the partition of a placement from its LTI platform`, `B-LA-E4-03-03: a dispatch whose placement has no resource link fails locally at once`, `B-LA-E4-03-03: stored texts keep the 300-character limit`) + `services/cogniate-app/src/drivers/lti-ags/connection-state.test.ts` (10 tests) + `services/cogniate-app/src/kernel/records/throttling.test.ts` (7 tests) + `packages/tracking/src/tracking.test.ts` (60 tests) | `LA_LEVEL=k0 LA_SCRATCH_CLONE=$PWD LA_RUN_DIR=~/cogniate-qa-runs/LA/LA-E4-03/r2/k0 npx --no-install vitest run --config tests/ltiaas/tasks-core/LA-E4-03/vitest.config.mts --reporter=verbose` | Mapping table (`2xx` → `accepted`, `409` → `conflict` with per-channel `"{LMS} has a grade with a newer time"`, `400`/`403`/`404`/`422` → `rejected`, `0`/`401`/`5xx` → `retryable`, `429` `PLATFORM_RATE_LIMITED`/`RATE_LIMITED` → `throttled` with normalized `Retry-After`) holds; a dispatch without a placement row returns `NO_GRADEBOOK_COLUMN` (`local_failure`) immediately without `"undefined"` strings (`B-LA-E4-03-03`); the reporter computes `partitionKey(p: PlacementView)` from its LTI platform (`B-LA-E4-03-02`, `BD-A1-61`). `k0/e4-03-unit-rows.log`, `unit-rows-files.log` |
+| AC-LA-E4-03-02..05 | pending: Docker window (K1-SIM) | `reporter.k1sim.test.ts > AC-LA-E4-03-02..05` | QA-3 SIM slot (`qa3-la-sim-r<n>`, `PUBLIC_PORT` 9443, `STACK_SUBNET` 172.20.0.0/16) | Pending Docker window. |
+| AC-LA-E4-03-06 | PASS (UNIT + K0) | `services/cogniate-app/src/app/results.test.ts > results guards and read-back > AC-LA-E4-03-06: no read-back capability or implementation gives 409 (false, true)` + `(true, false)` + `AC-LA-E4-03-06: the baseline reporter reads only the learner result and stores it` (3 tests) | as AC-01 | `POST …/results/refresh` returns `409 CAPABILITY_NOT_SUPPORTED` (`details.capability = "records.readBack"`) when `records.readBack` is absent or the reporter lacks `readBack`; baseline channels read/store only the learner result. `k0/e4-03-unit-rows.log` |
+| AC-LA-E4-03-07 | PASS (UNIT + K0) | `services/cogniate-app/src/app/results.test.ts > results guards and read-back > AC-LA-E4-03-07: a disabled operator-grant connection refuses refresh and Resend before remote calls` + `services/cogniate-app/src/drivers/lti-ags/connection-state.test.ts` (10 tests) | as AC-01 | Disabled `operatorGrant` rows become `failed` with `CONNECTION_DISABLED` and no POST; Resend and refresh return `409 CONNECTION_NOT_READY`. `k0/e4-03-unit-rows.log`, `unit-rows-files.log` |
+| AC-LA-E4-03-08 | PASS (UNIT + K0) | `services/cogniate-app/src/kernel/records/throttling.test.ts > partition throttling (LA-ADR-03 D7) > AC-LA-E4-03-08: refuses everyRecord at outbox registration and registers nothing` | as AC-01 | Outbox registration refuses any reporter whose `policy` is not `bestResult` and registers nothing. `k0/e4-03-unit-rows.log` |
+| AC-LA-E4-03-09 | pending: Docker window (MOODLE-LIVE) | Lead QA / QA-E2E Moodle slot (`T5a`, `T5b`, `T7 × 1`) | Moodle slot | Pending Docker window. |
+| `A-LA-E4-03-01` (pause check served by `record_dispatch_due`) | PASS (UNIT) | `services/cogniate-app/src/kernel/records/throttling.test.ts > partition throttling (LA-ADR-03 D7) > A-LA-E4-03-01: the pause check reads only pending rows through the record_dispatch_due index` + `A-LA-E4-03-01: a new better row keeps the pause of the row that it supersedes` | `npx --no-install vitest run --reporter=verbose services/cogniate-app/src/kernel/records/throttling.test.ts` | The paused-partition query filters `paused.status = 'pending'`, using the `record_dispatch_due` index rather than scanning `record_dispatch`, and superseding a paused row preserves the partition pause on the new row. `unit-rows-files.log` |
+| `A-LA-E4-03-02` (owner check first) | PASS (UNIT) | `services/cogniate-app/src/kernel/records/throttling.test.ts > partition throttling (LA-ADR-03 D7) > A-LA-E4-03-02: a run that lost its lease during the POST neither takes back the try nor pauses the partition` | as `A-01` | Ownership (`ownsDispatch`) is verified first inside the throttle transaction before undoing `tries - 1` or setting `not_before`. `unit-rows-files.log` |
+| `B-LA-E4-03-01`, `B-LA-E4-03-04` (neutral kernel names; M1 `score_sync` and `sync_` unchanged) | PASS (K0 + UNIT) | `reporter.k0.test.ts > Round 2 (5f9fd55 / BD-A1-61)` + `services/cogniate-app/src/kernel/records/neutral.test.ts > B-LA-E4-03-01: reporter-neutral record kernel` (8 tests) + `services/cogniate-app/src/app/results.test.ts > results guards and read-back > B-LA-E4-03-01: Resend keeps the M1 answers and shows only the rows of the results reporter` | as AC-01 | Every product file in `services/cogniate-app/src/kernel/records/` (`dispatch-store.ts`, `job-store.ts`, `outbox.ts`, `placements.ts`, `records.ts`, `shutdown.ts`, `types.ts`) has `0` `'lti-ags'` literals, `0` driver imports, and neutral function names (`failDisabledDispatch`, `isCurrentDispatch`), while the M1 values `score_sync` and `sync_` remain unchanged on the `lti-ags` reporter and results view. `k0/e4-03-r2-unit-suites.log`, `unit-rows-files.log` |
+| `B-LA-E4-03-02` (`BD-A1-61`: one `registerRecordReporters` call; `RecordReporter` docs) | PASS (UNIT) | `services/cogniate-app/src/kernel/records/records.test.ts > B-LA-E4-02-01/02, B-LA-E4-03-02: one registration call; the reporter instance prepares, partitions and delivers` | `npx --no-install vitest run --reporter=verbose services/cogniate-app/src/kernel/records/records.test.ts` | `registerRecordReporters(db, reporters)` registers reporters for both final record creation and the outbox `QueueJob` in a single call (`BD-A1-61`). `unit-rows-files.log` |
+
+### R0 `npm run check` counts at `836d579` (`k0/e4-03-check-clean.log`)
+
+| Suite | Round 1 (`d40826d`) | Round 2 (`836d579`) |
+| --- | --- | --- |
+| Vitest (`test:unit`) | 155 files; 2,498 passed, 5 skipped | 169 files; 2,743 passed, 5 skipped |
+| Infra (`test:infra`, `node --test`) | 243 pass, 0 fail | 252 pass, 0 fail |
+| K0 (`test:k0`) | 3 files; 121 passed | 3 files; 121 passed |
+| F1 (`fitness:lms-names`) | `F1 PASS: 20 files with hits, 74 hits` | `F1 PASS: 9 files with hits, 29 hits` |
+| F5 (`fitness:rules`) | `F5 PASS: 6 rules, 0 hits` | `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits` |
+
+### Round 2 other checks
+
+- **File scope (`8083669..5f9fd55^2`):** Fix round 1 touches `services/cogniate-app/src/drivers/lti-ags/{index,partition,reporter.test}.ts`, `services/cogniate-app/src/kernel/records/**`, `services/cogniate-app/src/{app,domain}/results*.ts`, and RQ-2 `b22fe80` (`services/cogniate-app/src/{testkit,tool-pages/play,worker-main}.ts`).
+- **Clone cleanliness:** `git status --porcelain` in `~/cogniate-qa-runs/LA/LA-E4-03/r2/clone` is empty after the run (`status-after.txt`, 0 bytes).
+- **Measured time (Round 2):** `reporter.k0.test.ts` (3 K0 tests) `114.47s` (`R0 & file layout` `7ms`, `UNIT rows` `6.33s`, `Round 2 checks` `1.31s`, `npm run check` in `beforeAll` `106.8s`); standalone 9 unit files (142 tests) `776ms`.
+
+---
+
+## Round 1
 
 | Item | Value |
 | --- | --- |
