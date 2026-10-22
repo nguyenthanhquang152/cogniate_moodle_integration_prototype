@@ -11,7 +11,7 @@ The product owner changed the model plan for the rest of LA:
 
 | Work | Agent and model |
 | --- | --- |
-| Planning (Lead, Architects) and review (Reviewer-A, Reviewer-B) | Claude Code, Opus 5.5, xhigh |
+| Planning (Lead), software architecture and technical design (Architects A1, A2), and review (Reviewer-A, Reviewer-B) | Claude Code, Opus 5.5, xhigh |
 | Execution and implementation (all Author lanes K, P, R, S1, S2, L, L2; Docs) | Codex, GPT-6-Astra, xhigh (`--agent codex --model gpt-6-astra --effort xhigh`) |
 | QA, testing and verification (lead QA, QA-2, QA-3, QA-4, QA-E2E) | Antigravity, Gemini 4 Argon, high |
 
