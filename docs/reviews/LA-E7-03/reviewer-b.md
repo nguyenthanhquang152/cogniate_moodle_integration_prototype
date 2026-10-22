@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E7-03 review (+ B-LA-E5-08-03 fix), Reviewer-B (lens: "Can a human team own it?")
 
@@ -74,3 +74,38 @@ The manifest consumer is short, and its tests are strong: 20 host-only cases wit
 ## Not checked
 
 - K1-SIM AC-01 to AC-03 (Docker, LA-E7-02 file). The certificate rotation details beyond the two "leaf unchanged" asserts of the tests. The `d1f7d42` e2e tmpfs commit (Reviewer-A's finding; only the `a67d44f` comment line is in this range).
+
+## Round 2
+
+Verdict for this round: **APPROVE**. Bounded re-check of B-LA-E7-03-01 (BLOCKER) and B-LA-E7-03-02 (MINOR), against BD-A1-01 v1.1 and BD-A1-08 (`build-decisions-A1.md` rows 9 and 16).
+
+Diff: `git diff a67d44f d17e1d0` (lane `la-s1`, merged as `53472c0`). The LA-E7-03 commits are `750161c`, `e282026`, `8c7bb66` and `d17e1d0`. The range also has five LA-E5-02 fix commits (`066083e` to `48d1499`); they are not part of this re-check. I did not open the other reviewer's file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 1 MINOR (new), 0 NIT.** B-LA-E7-03-01 and -02 are **closed**. NITs -03 and -06 are fixed too.
+
+### How I checked
+
+- Scratch clone of `d17e1d0` in a private `/tmp` folder (`--no-hardlinks`, `node_modules` copied; removed after the run). The shared LA worktree did not change.
+- `node --test infra/scripts/sim-hosts.test.mjs`: **31 of 31 passed** on `/bin/bash` 3.2.57. `vitest run services/lti-service/src/cli/{operator,shared-platform}.test.ts`: 10 of 10 passed.
+- Probe with a fake `docker` on `PATH` and `tests/sim/hosts.json` = `{`: `bash -c 'source infra/scripts/lib.sh; echo "-- parent did other work --" >&2; STACK_PROFILE=acceptance bash infra/scripts/stack-up.sh'`. Output: the warning line, then the parent line, then nothing. The child `stack-up.sh` exits 1 and prints no line (see B-LA-E7-03-07).
+
+### Round-1 findings
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| B-LA-E7-03-01 (BLOCKER) `.sim.test` rule | **Closed** | `dnsName` now requires `host.endsWith('.sim.test')` (`lib.sh:108`), so `lms-sim.test` and `one.test` are refused. New refusal rows: "non-simulator test host" (`one.test`) and "control host" (`lms-sim.test`, in `aliases` and `allowlist`), each with the exact error text. Also new: unknown keys are refused (`manifest has unknown key "allowlist"`, `unknown key "allowList"`), so a misspelt `allowList` can no longer leave a provider with no allowlist without a word. |
+| B-LA-E7-03-02 (MINOR) bad file blocks recovery commands | **Closed** (by BD-A1-08) | `lib.sh` no longer exits at load (`:160-165`). A bad file gives only `lms-sim.test` and no allowlist entry, never the fallback lists. `require_sim_hosts` (`:168`) stops only `stack-up.sh` with `acceptance` (`:14`, `:21`) and `stack-restart.sh` on a saved `acceptance` profile (`:13`). `gen-certs.sh` keeps or skips the QA leaf. Tests cover each BD-A1-08 work item: default `dc config` and `stack-down.sh` (both profiles) succeed with one warning; acceptance `stack-up` and `stack-restart` exit 1 with no Docker call (`docker-calls.jsonl` absent); a late bad provider drops every host; both leaves stay, also after a CA renewal; no QA leaf is issued while the file is bad. A1 chose this rule over my `SIM_HOSTS_OPTIONAL` flag, because the flag would keep the `default` profile blocked. I agree. |
+| B-LA-E7-03-03 (NIT) error line without host or id | **Fixed** | `providers[1] (id "one") …`, `invalid host "lms-sim.test"; expected a DNS name ending in .sim.test`, `allowlist host "…" must be in its aliases`. |
+| B-LA-E7-03-04 (NIT) validator in a heredoc | Open (NIT) | Not changed. It is still fine to defer. |
+| B-LA-E7-03-05 (NIT) override rewritten on every `dc` call | Open (NIT) | Not changed. |
+| B-LA-E7-03-06 (NIT) fixture ids | **Fixed** | `blackboard-sim`, `canvas-sim-cloud`, `canvas-sim-self`. |
+| Old entry guard in `cli/operator.ts`, `cli/shared-platform.ts` (round-1 Checks note) | **Fixed** | `e282026`: `import.meta.main` in both files, plus one symlink test each. |
+
+### Finding
+
+#### B-LA-E7-03-07 — MINOR — A refused `stack:up` in a child script prints no line of its own
+
+- **File:** `infra/scripts/lib.sh:160-170` (one warning per checkout and error text, exported to children; `require_sim_hosts` returns 1 with no output). The refusing callers are `infra/scripts/stack-up.sh:14`, `:21` and `infra/scripts/stack-restart.sh:13`.
+- **Problem:** The error line prints once, when a script first loads `lib.sh`, and the exported `SIM_HOSTS_ERROR_WARNED` keeps child scripts quiet. When a parent script loads `lib.sh` and later starts `stack-up.sh` in `acceptance`, the child stops with exit 1 and prints nothing. That is the one place where the bad file is fatal. `qa-suite.sh` does this: it loads `lib.sh` at `:14`, which prints the warning at the top. Then it prints "starting the acceptance profile" and runs `STACK_PROFILE=acceptance … stack-up.sh` (`:58-59`), which exits 1 silently. Its EXIT trap then restores the `default` profile (`:46-48`) and prints more lines. The person sees a warning that looked harmless, the start line, the restore lines, and a failed `test:acceptance` with no reason next to the failure.
+- **Evidence:** The probe above: the child prints no line and exits 1. Also, `require_sim_hosts` stops through `set -e` on a failed `[[ … ]]`, so a reader of `stack-up.sh` cannot see that this line ends the script.
+- **Suggested fix:** Make the refusal print its own line every time, independent of the warning dedupe. For example: `require_sim_hosts() { [[ "${1:-$ACTIVE_STACK_PROFILE}" != acceptance || -z "$SIM_HOSTS_ERROR" ]] && return 0; printf 'stack:up/restart (acceptance) stops: %s\n' "$SIM_HOSTS_ERROR" >&2; exit 1; }`. Adapt the current "one line" test asserts (`sim-hosts.test.mjs`, the acceptance-restart and refusal cases) to two lines, or skip the load warning when the refusal follows in the same process. Add one row that runs `stack-up.sh` from a parent that already loaded `lib.sh`.
