@@ -21,6 +21,16 @@ export const DEFAULT_RATE_LIMITS: Record<RateLimitClass, RateLimit> = {
   auth_failure: { ratePerMinute: 120, burst: 120 },
   operator: { ratePerMinute: 120, burst: 60 },
 };
+export const ADDRESS_ROUTE_CLASSES: Readonly<Partial<Record<string, 'protocol' | 'registration' | 'keys'>>> = {
+  // D1 protocol: login, launch and storage check share an address budget.
+  '/lti/login/:account': 'protocol',
+  '/lti/launch/:account': 'protocol',
+  '/lti/launch/:account/storage-check': 'protocol',
+  // D1 registration start has a separate address budget.
+  '/lti/register/:account': 'registration',
+  // D1 public JWKS reads have their own address budget and JSON errors.
+  '/lti/keys/:account': 'keys',
+};
 const SOFT = new Set<RateLimitClass>(['protocol_account', 'registration_account']);
 const ADDRESS = new Set<RateLimitClass>(['protocol', 'registration', 'keys', 'auth_failure']);
 const ACCOUNT = new Set<RateLimitClass>(['protocol_account', 'registration_account', 'api', 'admin']);
@@ -140,7 +150,16 @@ export class RateLimiter {
     return (ACCOUNT.has(name) ? account?.limits?.[name] : undefined) ?? this.settings.classes?.[name] ?? this.env.classes?.[name] ?? DEFAULT_RATE_LIMITS[name];
   }
 
-  check(name: RateLimitClass, key: string, account?: ToolAccount, spend = true): void {
+  check(name: RateLimitClass, key: string, account?: ToolAccount): void {
+    this.evaluate(name, key, true, account);
+  }
+
+  /** Refuse a depleted failure bucket without creating or spending one. */
+  refuseIfBlocked(address: string): void {
+    this.evaluate('auth_failure', address, false);
+  }
+
+  private evaluate(name: RateLimitClass, key: string, spend: boolean, account?: ToolAccount): void {
     const result = this.buckets.take(name, ADDRESS.has(name) ? addressKey(key) : key, this.limit(name, account), this.now(), spend);
     if (result.allowed) return;
     if (result.log) {

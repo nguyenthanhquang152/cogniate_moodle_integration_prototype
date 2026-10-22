@@ -119,10 +119,10 @@ describe('class policy', () => {
     try {
       h.limiter.replaceSettings({ classes: { auth_failure: { ratePerMinute: 60, burst: 1 } } });
       recordAuthFailure(h.limiter, '192.0.2.1');
-      expect(() => h.limiter.check('auth_failure', '192.0.2.1', undefined, false)).toThrow('RATE_LIMITED');
-      expect(() => h.limiter.check('auth_failure', '192.0.2.2', undefined, false)).not.toThrow();
+      expect(() => h.limiter.refuseIfBlocked('192.0.2.1')).toThrow('RATE_LIMITED');
+      expect(() => h.limiter.refuseIfBlocked('192.0.2.2')).not.toThrow();
       h.clock.now = 1000;
-      expect(() => h.limiter.check('auth_failure', '192.0.2.1', undefined, false)).not.toThrow();
+      expect(() => h.limiter.refuseIfBlocked('192.0.2.1')).not.toThrow();
       expect(() => recordAuthFailure(h.limiter, '192.0.2.1')).not.toThrow();
     } finally { h.db.close(); }
   });

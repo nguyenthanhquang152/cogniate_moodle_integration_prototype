@@ -120,7 +120,7 @@ export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInsta
   await app.register(async (scope) => {
     // Every failure (no header, another scheme, wrong grammar, unknown, expired, revoked key) gives the same 401.
     scope.addHook('onRequest', async (req) => {
-      limiter.check('auth_failure', req.ip, undefined, false);
+      limiter.refuseIfBlocked(req.ip);
       const presented = parseOperatorAuthorization(req.headers.authorization);
       const key = presented ? findActiveOperatorKey(deps.db, presented, now()) : null;
       if (!key) {

@@ -25,7 +25,7 @@ import { registerProtocolRoutes } from './routes/protocol.ts';
 import { registerCompatRoutes } from './routes/compat.ts';
 import { registerServiceRoutes } from './routes/services.ts';
 import { getAccount } from '../store/accounts.ts';
-import { createTrustedProxy, rateLimiterFor, recordAuthFailure } from './rate-limit.ts';
+import { ADDRESS_ROUTE_CLASSES, createTrustedProxy, rateLimiterFor, recordAuthFailure } from './rate-limit.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -137,13 +137,12 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   // Address budgets use cached settings and run before account/auth database reads.
   app.addHook('onRequest', async (req, reply) => {
     const route = req.routeOptions.url ?? '';
-    if (route.startsWith('/api/')) limiter.check('auth_failure', req.ip, undefined, false);
-    const name = route === '/lti/keys/:account' ? 'keys'
-      : route === '/lti/register/:account' ? 'registration'
-        : ['/lti/login/:account', '/lti/launch/:account', '/lti/launch/:account/storage-check'].includes(route) ? 'protocol' : null;
+    if (route.startsWith('/api/')) limiter.refuseIfBlocked(req.ip);
+    const name = ADDRESS_ROUTE_CLASSES[route];
     if (!name) return;
     try { limiter.check(name, req.ip); }
     catch (err) {
+      // Public JWKS is JSON; protocol and registration use the error page.
       if (!(err instanceof ApiError) || err.code !== 'RATE_LIMITED' || name === 'keys') throw err;
       setRetryAfter(reply, retryAfterSeconds(err.details.retryAfter));
       return ctx.errorPage(reply, req, 'RATE_LIMITED');
