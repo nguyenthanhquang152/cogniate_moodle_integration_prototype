@@ -13,7 +13,23 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 01:34 UTC
+### Current checkpoint — 2026-10-22, 01:56 UTC
+
+**The R4 host repair gate is accepted.** The same Claude Code Opus 5.5 xhigh fixer remains `task_d018895ca985` / `ctx_898acbaef3a6`. No replacement repair session was started. Source snapshot `cd731397fa2a5ee660b1b9575f942caec64c2f21` has tests tree `17330479829a6b65e560afc297e2bee6777459dd`. It changes only `tests/host/storage-rows.mjs` and its self-test. Product and build paths still match `9f8ac625443931242edd8da301c3d4f0d3e34290`.
+
+The repair fixes the three C2 harness causes together: the first journal write preserves the pre-drill app journal; orphan recovery waits for the current spawned command's pause; import provenance compares full name, size and digest entries in both identities. The fake storage model now exposes the original failures and executes the dependent checks. Focused checks passed 7/7; all five bounded fault mutants were detected by assertions. The old-C2 control reproduced the original failures. No optional source repair was added.
+
+The complete final-source host suite passed **150/150** under child umask 022 (01:28:03–01:38:44 UTC). The affected suite passed **48/48** under 077 (01:29:31–01:40:09). Both had zero failures, skips, cancellations and outer Docker-stub calls. QA report `133f93ee668661a696322c886a86841e10349230` has SHA-256 `607c6fdb91201c23a2ce73beffa6e155e12a5fc1682502ea9754c5179edd6ec9`. The Lead verified the 43-entry final index and 11-entry correction index, source hashes and report prefixes.
+
+Disclosures remain part of the accepted record. The first full inventory is 20 seconds after the 022 start, so that run is bound by the prelaunch source hold and Lead commit verification, its self-test hashes, and during/after inventories. The 077 run is bracketed. The unchanged V1-12 probe had its notifier disabled but no offline setting in its first run. This is R4-D-1; no fetch was visible in npm logs, and no traffic capture exists. A replay of only V1-12 passed 1/1 with a fresh private HOME and explicit offline/notifier settings before npm. That replay does not retroactively make the first run compliant. The report preserves the near-final redundant run, initial focused failure and all corrections.
+
+Reviewer-A APPROVE: `5d7a6ff216b27ec9b7e9d1e88156fd8e5c2b2176`, report SHA `66afb8b92d51fb60aea17b875171313378ac9d8022055e7fc44a796bdc74b30c`. Reviewer-B APPROVE: `c4c6d045b3a132f72bf059d77367d278de9222fa`, report SHA `c8d0e9248853249d7727209679afc1a59bb18224e545ed9c6263a884314940b3`. Neither has an open BLOCKER or MAJOR. A-SH-11 is an accepted MINOR deferral for M4: unchanged `stopCheck` can match a historical same-point stop in lane logs. Prior accepted deferrals remain. Both reviewers settled successfully and were released.
+
+**Candidate C3 is frozen at `c4c6d045b3a132f72bf059d77367d278de9222fa`.** The Lead verified its tests tree, the unchanged product paths and the untouched untracked `pnpm-workspace.yaml`. New independent Common runtime QA `task_8f5644f9910e` / `ctx_2e9642c8e4be` and Canvas QA-E2E `task_5f3f8aa499cb` / `ctx_1fd6cb09010e` prepare in parallel. Both requested and effective settings are Claude Code Opus 5.5 xhigh. They have host-only authority; no Docker window is active. Preparation reuses the accepted C2 tools and dependency cache. The next diagnostic is estimated at 30–45 minutes after its launch; this is a milestone estimate, not final delivery.
+
+The next runtime QA reuses qualified C2 tools and dependency caches after binding checks. It must run the new zero-credit migration/storage diagnostic, then two complete 488-row rounds on the same candidate and all 12 legacy groups. Independent Canvas judgment, fresh M2 and T7, Architect conformance, the bounded infrastructure README correction, and final guides with independent QA and two reviews remain. Source changes reopen the affected gate. All failures stay with the same fixer session. All 32 live LMS rows remain UNVERIFIED, and local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 01:34 UTC
 
 **The same Claude repair session has resumed.** The owner resumed the goal after the quota reset. Orca had restarted and first reported the worker as exited. The Lead sent a resume message to the existing dispatch, without replacing or fencing it. The worker confirmed availability in `msg_7ea0f0beb8e6` at 01:04:32 UTC. Its identity remains `task_d018895ca985` / `ctx_898acbaef3a6`, Claude Code Opus 5.5 (`claude-opus-5-5`) at xhigh effort.
 
