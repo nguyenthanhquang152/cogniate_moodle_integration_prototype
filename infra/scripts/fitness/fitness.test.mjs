@@ -303,7 +303,7 @@ const quoted = ` + "`SELECT 'date(${date()})', randomblob(4)`;";
     });
     it('freezes the nine legacy rowid statements and rejects edits or added uses', () => {
         for (const [name, count] of [['attempts', 1], ['bindings', 2], ['mbz-builds', 3], ['results', 2], ['score-syncs', 1]]) {
-            const path = `services/cogniate-app/src/domain/${name}.ts`;
+            const path = name === 'mbz-builds' ? 'packages/channels/moodle/app/builds.ts' : `services/cogniate-app/src/domain/${name}.ts`;
             const text = readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8');
             assert.deepEqual(sqlPortability.check({ path, text }), []);
             assert.equal(sqlPortability.check({ path, text: text.replace('rowid', 'rowid + 0') }).length, 1);

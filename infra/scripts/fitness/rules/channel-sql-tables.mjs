@@ -5,6 +5,14 @@ import { constants, DatabaseSync } from 'node:sqlite';
 import ts from 'typescript';
 import { ROOT } from '../common.mjs';
 
+// LA-ADR-06 D13 rule 2: legacy pre-LA SQL (moved, BD-A2-46). One occurrence of each; no new rowid uses.
+const LEGACY_ORDER = [
+  "SELECT * FROM mbz_build WHERE library_id = :library_id AND version_id = :version_id ORDER BY created_at DESC, rowid DESC LIMIT 1",
+  "SELECT * FROM mbz_build WHERE library_id = :library_id AND version_id = :version_id AND status = 'ready' ORDER BY created_at DESC, rowid DESC LIMIT 1",
+  "SELECT * FROM mbz_build WHERE library_id = :library_id AND status IN ('queued', 'running') ORDER BY created_at, rowid"
+];
+const LEGACY_ORDER_FILE = "packages/channels/moodle/app/builds.ts";
+
 function storageOf(channel) {
   const file = resolve(ROOT, 'packages/channels', channel, 'manifest.ts');
   const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true);
@@ -48,6 +56,7 @@ export default {
     if (!channel || /\.test\.[cm]?[jt]s$/.test(path)) return [];
     const storage = storageOf(channel);
     const hits = [];
+    const usedOrders = new Set();
     const report = (offset, message) => {
       const before = text.slice(0, offset);
       hits.push({ line: before.split('\n').length, col: offset - before.lastIndexOf('\n'), message });
@@ -59,6 +68,13 @@ export default {
       }
       const sql = fragment.sql.replace(/--[^\n]*|\/\*[\s\S]*?\*\/|'(?:''|[^'])*'|[:@$][A-Za-z_][A-Za-z0-9_]*/g, (s) => s.replace(/[^\n]/g, ' '))
         .replace(/["`[\]]/g, ' ');
+      if (/\b(?:rowid|_rowid_|oid)\b/i.test(sql)) {
+        if (path !== LEGACY_ORDER_FILE || !LEGACY_ORDER.includes(fragment.sql) || usedOrders.has(fragment.sql)) {
+          report(fragment.offset, 'rowid is allowed only in the three exact moved legacy statements (BD-A2-46).');
+          continue;
+        }
+        usedOrders.add(fragment.sql);
+      }
       // Compile against a synthetic schema containing only declared storage. SQLite resolves aliases,
       // comma joins, nested queries, quoted identifiers and write columns; token matching cannot do that safely.
       // Whole-table entries allow every column name. Shared tables get only their explicit columns.
