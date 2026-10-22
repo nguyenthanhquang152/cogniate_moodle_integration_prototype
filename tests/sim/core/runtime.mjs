@@ -27,13 +27,13 @@ export function postForm(action, fields) {
 
 export function createRuntime({ publicLtiUrl, fetchJwks, log = () => {} }) {
   if (!publicLtiUrl?.startsWith('https://') || typeof fetchJwks !== 'function') throw new Error('Simulator options required');
-  const signer = makeSigner(), stranger = makeSigner();
+  const signer = makeSigner(), signer2 = makeSigner(), stranger = makeSigner();
   const scenarios = new Map(), providers = new Map(), records = [], tokens = new Map(), jtis = new Set(), secrets = new Set();
-  const lineitems = new Map(), scores = new Map(), dlNonces = new Set();
+  const lineitems = new Map(), scores = new Map(), dlNonces = new Set(), storage = new Map(), registrations = new Map();
   let sequence = 0;
   const runtime = {
-    publicLtiUrl: publicLtiUrl.replace(/\/$/, ''), fetchJwks, signer, stranger,
-    scenarios, providers, tokens, jtis, lineitems, scores, dlNonces,
+    publicLtiUrl: publicLtiUrl.replace(/\/$/, ''), fetchJwks, signer, signer2, stranger,
+    scenarios, providers, tokens, jtis, lineitems, scores, dlNonces, storage, registrations,
     rememberSecret(value) { if (typeof value === 'string' && value) secrets.add(value); },
     record(kind, fields) {
       const record = { seq: ++sequence, ts: new Date().toISOString(), kind, ...structuredClone(fields) };
@@ -58,20 +58,84 @@ export function createRuntime({ publicLtiUrl, fetchJwks, log = () => {} }) {
       if (!site) throw new Error('Unknown simulator service host');
       const pageHost = input.pageHost ?? input.siteHost;
       if (![...config.sites.map((s) => s.host), ...(config.pageHosts ?? [])].includes(pageHost)) throw new Error('Unknown simulator page host');
+      const tokenAnswers = Array.isArray(input.tokenAnswers)
+        ? structuredClone(input.tokenAnswers)
+        : input.tokenAnswer !== undefined
+          ? [structuredClone(input.tokenAnswer)]
+          : input.tokenError
+            ? [{ status: 400, error: input.tokenError, persistent: true }]
+            : input.tokenStatus
+              ? [{ status: input.tokenStatus }]
+              : [];
+      const nrpsAnswers = Array.isArray(input.nrpsAnswers ?? input.membershipsAnswers)
+        ? structuredClone(input.nrpsAnswers ?? input.membershipsAnswers)
+        : (input.nrpsAnswer ?? input.membershipsAnswer) !== undefined
+          ? [structuredClone(input.nrpsAnswer ?? input.membershipsAnswer)]
+          : (input.nrpsStatus ?? input.membershipsStatus)
+            ? [{ status: input.nrpsStatus ?? input.membershipsStatus }]
+            : [];
+      const storageTarget = typeof input.storageTarget === 'string' && input.storageTarget
+        ? input.storageTarget
+        : input.platformStorage === true
+          ? 'post_message_forwarding'
+          : null;
+      const resource = input.resource ?? 'fixture';
+      let targetLinkUri = input.targetLinkUri
+        ?? `${runtime.publicLtiUrl}/lti/launch/cogniate?resource=${encodeURIComponent(resource)}`;
+      if (input.ungradedPlacement === true || input.placement === 'ungraded') {
+        const u = new URL(targetLinkUri);
+        u.searchParams.set('cogniate_placement', 'ungraded');
+        targetLinkUri = u.href;
+      }
+      const now = Math.floor(Date.now() / 1000);
+      const drInput = input.dr ?? {};
+      const tokenFormat = drInput.tokenFormat ?? drInput.registrationTokenFormat
+        ?? input.registrationTokenFormat ?? input.tokenFormat
+        ?? config.dr?.tokenFormat ?? (config.id === 'moodle-sim' ? 'moodle-scope-jwt' : 'opaque-bearer');
+      const drOperation = drInput.operation ?? input.drOperation ?? 'new';
+      const effectiveIssuer = drInput.issuer ?? input.issuer ?? config.issuer;
+      const registrationToken = drInput.registrationToken ?? input.registrationToken
+        ?? ((tokenFormat === 'moodle-scope-jwt' || tokenFormat === 'jwt')
+          ? signer.sign({
+              iss: effectiveIssuer,
+              sub: String(drOperation === 'update' ? (drInput.updateId ?? input.deploymentId) : '0'),
+              scope: drOperation === 'update' ? 'reg-update' : (drInput.scope ?? 'reg'),
+              iat: now,
+              exp: now + 3600,
+            }, drInput.tokenFault)
+          : `regtok-${input.id}-${randomBytes(8).toString('hex')}`);
+      runtime.rememberSecret(registrationToken);
       const scenario = {
         messageType: 'LtiResourceLinkRequest', subject: 'learner-1', contextId: 'context-1',
         resourceLinkId: 'resource-link-1', resource: 'fixture', roles: ['http://purl.imsglobal.org/vocab/lis/v2/membership#Learner'],
         claims: {}, omit: [], scoreAnswers: [], ...structuredClone(input),
+        tokenAnswers, nrpsAnswers, members: structuredClone(input.members ?? input.nrpsMembers ?? []),
+        storageTarget, targetLinkUri, registrationToken,
+        dr: { ...(config.dr ?? {}), ...structuredClone(drInput), tokenFormat, operation: drOperation, registrationToken },
         pageHost, site, loginHint: input.id, messageHint: `message-${input.id}`,
-        data: `data-${input.id}`, scoreIndex: 0,
+        data: `data-${input.id}`, scoreIndex: 0, tokenIndex: 0, nrpsIndex: 0,
       };
+      scenarios.delete(input.id);
       scenarios.set(input.id, scenario);
       const fields = {
         iss: scenario.issuer ?? config.issuer, client_id: scenario.clientId, lti_deployment_id: scenario.deploymentId,
         login_hint: scenario.loginHint, lti_message_hint: scenario.messageHint,
-        target_link_uri: `${runtime.publicLtiUrl}/lti/launch/cogniate?resource=${encodeURIComponent(scenario.resource)}`,
+        target_link_uri: scenario.targetLinkUri,
+        ...(storageTarget ? { lti_storage_target: storageTarget } : {}),
       };
-      return { id: scenario.id, login: fields };
+      const defaultConfigPath = drInput.configPath ?? config.dr?.configPaths?.[0] ?? '/.well-known/openid-configuration';
+      const configHost = drInput.configHost ?? input.siteHost;
+      const openidConfiguration = `https://${configHost}${defaultConfigPath}?scenario=${encodeURIComponent(scenario.id)}`;
+      return {
+        id: scenario.id,
+        login: fields,
+        registration: {
+          openidConfiguration,
+          registrationToken,
+          tokenFormat,
+          startUrl: `${runtime.publicLtiUrl}/lti/register/cogniate?openid_configuration=${encodeURIComponent(openidConfiguration)}&registration_token=${encodeURIComponent(registrationToken)}`,
+        },
+      };
     },
     async control(request) {
       const { url, method } = request;
@@ -90,6 +154,7 @@ export function createRuntime({ publicLtiUrl, fetchJwks, log = () => {} }) {
       if (url.pathname === '/__sim/secrets' && method === 'GET') return json(200, { values: [...secrets] });
       if (url.pathname === '/__sim/reset' && method === 'POST') {
         scenarios.clear(); tokens.clear(); jtis.clear(); lineitems.clear(); scores.clear(); dlNonces.clear();
+        storage.clear(); registrations.clear();
         records.length = 0; // Cursor remains monotonic, so a stale cursor cannot reuse another run's records.
         // Keep captured secrets until process exit so a reset cannot defeat the end-of-run leak scan.
         return json(200, { cursor: sequence });

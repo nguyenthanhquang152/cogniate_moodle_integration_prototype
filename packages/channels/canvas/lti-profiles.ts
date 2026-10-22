@@ -10,6 +10,7 @@ const canvas = {
   wireLms: 'canvas', endpoints: 'fixed', privacyFloor: 'allowlist', sharing: 'exclusive', siteUrlOn: 'platform', serviceUrl: true,
   simulation: false, productFamily: 'canvas', // F-CV-22.
   accesstokenEndpoint: '{serviceUrl}/login/oauth2/token', // F-CV-5, F-CV-18.
+  platformStorage: { targetFrame: 'from-login', origin: 'authOrigin' }, // LA-ADR-05 D1 rule 1a.
   flags,
 } as const;
 

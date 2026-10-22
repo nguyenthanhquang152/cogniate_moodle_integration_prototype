@@ -197,3 +197,59 @@ test('HARNESS ONLY: Brightspace Deep Linking uses claim data and no sub claim', 
   assert.equal((await post(f.tool.sign({ ...dlResponse, sub: scenario.clientId }))).status, 400);
   assert.equal((await post(f.tool.sign(dlResponse))).status, 200);
 });
+
+test('HARNESS ONLY: LA-E7-05 Brightspace Dynamic Registration serves OpenID configuration with authorization_server and records registered scopes, messages and redirect URIs', async () => {
+  const f = fixture();
+  const drScenario = f.runtime.scenario({
+    id: 'd2l-dr-1',
+    provider: 'brightspace-sim',
+    clientId: 'd2l-dr-client-1',
+    deploymentId: BRIGHTSPACE_DEPLOYMENTS[0],
+    siteHost: 'brightspace.sim.test',
+  });
+  assert.equal(drScenario.registration.tokenFormat, 'opaque-bearer');
+
+  const configRes = await f.request('brightspace.sim.test', `/d2l/.well-known/openid-configuration?scenario=${drScenario.id}`);
+  assert.equal(configRes.status, 200);
+  const configDoc = JSON.parse(configRes.body);
+  assert.equal(configDoc.issuer, 'https://brightspace.sim.test');
+  assert.equal(configDoc.token_endpoint, 'https://auth.brightspace.sim.test/core/connect/token');
+  assert.equal(configDoc.authorization_server, BRIGHTSPACE_TOKEN_AUDIENCE);
+  assert.equal(configDoc['https://purl.imsglobal.org/spec/lti-platform-configuration'].product_family_code, 'desire2learn');
+
+  const regPayload = {
+    application_type: 'web',
+    response_types: ['id_token'],
+    grant_types: ['implicit', 'client_credentials'],
+    initiate_login_uri: `${TOOL}/lti/login/cogniate`,
+    redirect_uris: [`${TOOL}/lti/launch/cogniate`],
+    client_name: 'Cogniate',
+    jwks_uri: `${TOOL}/lti/keys/cogniate`,
+    token_endpoint_auth_method: 'private_key_jwt',
+    scope: `${SCOPES.lineitem} ${SCOPES.score} ${SCOPES.result}`,
+    'https://purl.imsglobal.org/spec/lti-tool-configuration': {
+      domain: 'lti.cogniate.test',
+      target_link_uri: `${TOOL}/lti/launch/cogniate`,
+      claims: ['iss', 'sub'],
+      messages: [
+        { type: 'LtiResourceLinkRequest', target_link_uri: `${TOOL}/lti/launch/cogniate` },
+        { type: 'LtiDeepLinkingRequest', target_link_uri: `${TOOL}/lti/launch/cogniate` },
+      ],
+    },
+  };
+
+  const regRes = await f.request('brightspace.sim.test', `/d2l/lti/register?scenario=${drScenario.id}`, 'POST', regPayload, {
+    'content-type': 'application/json',
+    authorization: `Bearer ${drScenario.registration.registrationToken}`,
+  });
+  assert.equal(regRes.status, 200, regRes.body);
+  const regJson = JSON.parse(regRes.body);
+  assert.equal(regJson.client_id, 'd2l-dr-client-1');
+  assert.equal(regJson['https://purl.imsglobal.org/spec/lti-tool-configuration'].deployment_id, BRIGHTSPACE_DEPLOYMENTS[0]);
+
+  const records = JSON.parse((await f.runtime.control({ method: 'GET', url: new URL('https://lms-sim.test/__sim/records') })).body).records;
+  const regRec = records.find((r) => r.kind === 'registration');
+  assert.deepEqual(regRec.scopes, [SCOPES.lineitem, SCOPES.score, SCOPES.result]);
+  assert.equal(regRec.messages.length, 2);
+  assert.deepEqual(regRec.redirectUris, [`${TOOL}/lti/launch/cogniate`]);
+});
