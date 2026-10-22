@@ -116,7 +116,7 @@ export interface EnsureAccountInput {
   rotateApiKey?: boolean;
 }
 
-/** Make the account if missing (or update its name and URLs). Returns the API key only when it was made or rotated. */
+/** Make the account if missing; keep existing tool URLs. Returns the API key only when it was made or rotated. */
 export function ensureAccount(db: Db, input: EnsureAccountInput): { account: ToolAccount; created: boolean; apiKey: string | null } {
   if (!ACCOUNT_ID.test(input.id)) throw new Error(`invalid account id: ${input.id}`);
   const urls = {
@@ -133,8 +133,7 @@ export function ensureAccount(db: Db, input: EnsureAccountInput): { account: Too
       return { account: getAccount(db, input.id)!, created: true, apiKey };
     }
     requireWritableAccount(db, input.id);
-    db.prepare('UPDATE tool_account SET name = ?, launch_url = ?, deep_linking_url = ?, registration_url = ? WHERE id = ?')
-      .run(input.name, urls.launch, urls.deep, urls.reg, input.id);
+    db.prepare('UPDATE tool_account SET name = ? WHERE id = ?').run(input.name, input.id);
     let apiKey: string | null = null;
     if (input.rotateApiKey) {
       revokeActiveAccountApiKeys(db, input.id, now);
