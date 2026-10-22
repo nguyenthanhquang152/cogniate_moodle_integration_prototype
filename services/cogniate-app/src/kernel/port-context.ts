@@ -162,6 +162,14 @@ export function createBuildQueue(db: Db, libraryId: string, root: string, knobs:
       const result = RunnerStatus.safeParse(await readStatus(root, 'runner.json'));
       return result.success ? result.data : null;
     },
+    pending: async (id: string) => {
+      checkedId(id);
+      if (!db.prepare(EXPORT_BUILD_SCOPE_SQL).get(id, libraryId)) return false;
+      try {
+        const file = await open(join(await queueFolder(root, 'requests'), `${id}.json`), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
+        try { return (await file.stat()).isFile(); } finally { await file.close(); }
+      } catch { return false; }
+    },
   });
 }
 

@@ -249,6 +249,8 @@ export interface BuildQueue {
   status(buildId: string): Promise<unknown | null>;
   /** Read the bounded runner heartbeat file. */
   runner(): Promise<unknown | null>;
+  /** Whether this library's request is still waiting in the queue; no file content is read. */
+  pending(buildId: string): Promise<boolean>;
 }
 
 export interface PublishHook {
