@@ -2,7 +2,22 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 19:32 UTC
+## Current checkpoint — 19:46 UTC
+
+Canvas SIM round 2 FAILED: `M1-37.canvas.s-dead` returned HTTP 200 where the lease test required HTTP 409.
+The other 257 functional cases passed. The runner ended at 19:38:16 UTC.
+W4 comparison, cleanup and secret scan passed. All 32 protected volume records are unchanged.
+This fresh functional failure invalidates E-R5 for further acceptance. No retry, M2 or T7 run is granted.
+Claude Architect and the existing independent Gemini QA session are diagnosing the same frozen failure.
+The retained Codex session remains the product repair owner if the diagnosis requires a product change.
+
+Round 1's corrected independent reconciliation is committed at `09510c8`.
+The Lead checked its source records and trace citations; the original incorrect report stays preserved.
+Savoy's full-window confirmations remain pending. No link between its work and the new failure is established.
+Final conformance, guide updates, Docs QA and two blind reviews remain pending.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 19:32 UTC
 
 Canvas SIM round 1 completed with 258/258 cases PASS: 232 Canvas and 26 common-engine cases.
 Strict W4 comparison, cleanup and secret scans passed. All 32 protected volume records are unchanged.

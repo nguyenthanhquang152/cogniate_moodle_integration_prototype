@@ -13,7 +13,18 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 19:32 UTC
+### Current directive — 2026-10-22, 19:46 UTC
+
+Canvas SIM round 2 FAILED `M1-37.canvas.s-dead`: HTTP 200 instead of required HTTP 409.
+The other 257 functional cases and operational cleanup passed. The failed evidence stays preserved.
+E-R5 is invalidated for further acceptance by this fresh functional failure. No new runtime or retry is granted.
+The existing Claude Architect and independent Gemini QA session must diagnose the cause and propose the necessary repair.
+The same retained Codex session owns any product repair. No product or test edit is granted by this directive.
+Round 1's corrected extra evidence is committed at `09510c8`; source and trace citations were checked.
+Final runtime, conformance, guides, Docs QA and two blind reviews remain pending.
+All real-LMS limits and the no-push rule remain.
+
+### Prior directive — 2026-10-22, 19:32 UTC
 
 The Lead accepts [E-R5](r5-evidence-decision-2026-10-22.md) for the remaining shared-host verification.
 It amends E-R4's exclusive-hold requirement. It changes no product, test, assertion, deadline, launcher, tool or acceptance criterion.
