@@ -127,6 +127,14 @@ describe('class policy', () => {
     } finally { h.db.close(); }
   });
 
+  it('names the invalid environment setting path and integer rule', () => {
+    const db = openDb(':memory:');
+    try {
+      expect(() => new RateLimiter(db, capturingLogger().logger, Date.now, '{"classes":{"api":{"ratePerMinute":5,"burst":0.5}}}'))
+        .toThrow(/LTI_RATE_LIMITS: classes.api.burst:.*int/);
+    } finally { db.close(); }
+  });
+
   it.each(['{', '{"classes":{"unknown":{"ratePerMinute":1,"burst":1}}}', '{"classes":{"api":{"ratePerMinute":0,"burst":1}}}'])(
     'refuses invalid environment settings at start: %s', (env) => {
       const db = openDb(':memory:');
@@ -192,7 +200,8 @@ describe('trusted proxy addresses', () => {
     const proxy = await createTrustedProxy('');
     expect(proxy.trust('127.0.0.1')).toBe(false);
     proxy.close();
-    await expect(createTrustedProxy('10.0.0.0/33')).rejects.toThrow('TRUSTED_PROXY_CIDRS');
+    await expect(createTrustedProxy('10.0.0.0/8, 192.168.1.1/40')).rejects.toThrow('TRUSTED_PROXY_CIDRS: \"192.168.1.1/40\" is not a valid CIDR');
+    await expect(createTrustedProxy('proxy, bad@host')).rejects.toThrow('TRUSTED_PROXY_CIDRS: \"bad@host\" is not a valid address or host name');
     await expect(createTrustedProxy('::/129')).rejects.toThrow('TRUSTED_PROXY_CIDRS');
   });
 });

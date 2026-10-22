@@ -1,6 +1,7 @@
 // LA-ADR-06 D1: one process, bounded token buckets and explicit proxy trust.
 import { lookup } from 'node:dns/promises';
 import { BlockList, isIP } from 'node:net';
+import { z } from 'zod';
 import type { Logger } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import { ApiError } from '../api-errors.ts';
@@ -108,7 +109,14 @@ export class RateLimiter {
     this.logger = logger;
     this.now = now;
     try { this.env = env?.trim() ? RateLimitSettingsSchema.parse(JSON.parse(env)) : {}; }
-    catch { throw new Error('LTI_RATE_LIMITS must contain valid rate-limit settings'); }
+    catch (error) {
+      if (error instanceof z.ZodError) {
+        const issue = error.issues[0]!;
+        const path = [...issue.path, ...(issue.code === 'unrecognized_keys' ? issue.keys : [])].join('.') || '<root>';
+        throw new Error(`LTI_RATE_LIMITS: ${path}: ${issue.message}`);
+      }
+      throw new Error('LTI_RATE_LIMITS: expected valid JSON');
+    }
     this.settings = readRateLimitSettings(db);
   }
 
@@ -186,9 +194,9 @@ export async function createTrustedProxy(value = process.env.TRUSTED_PROXY_CIDRS
       const type = family === 4 ? 'ipv4' : 'ipv6';
       if (prefix === undefined) fixed.addAddress(address!, type);
       else if (extra === undefined && /^\d+$/.test(prefix) && Number(prefix) <= (family === 4 ? 32 : 128)) fixed.addSubnet(address!, Number(prefix), type);
-      else throw new Error('TRUSTED_PROXY_CIDRS contains an invalid CIDR');
+      else throw new Error(`TRUSTED_PROXY_CIDRS: ${JSON.stringify(entry)} is not a valid CIDR`);
     } else if (prefix === undefined && /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(entry)) { if (!hosts.includes(entry)) hosts.push(entry); }
-    else throw new Error('TRUSTED_PROXY_CIDRS contains an invalid address or host');
+    else throw new Error(`TRUSTED_PROXY_CIDRS: ${JSON.stringify(entry)} is not a valid address or host name`);
   }
   let resolved = new BlockList();
   let closed = false;
