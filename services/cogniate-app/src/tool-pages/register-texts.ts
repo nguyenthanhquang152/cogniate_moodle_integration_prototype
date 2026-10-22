@@ -24,9 +24,11 @@ export const REGISTER_ERRORS: Record<RegisterErrorCode, { status: number; action
 /** The heading of every register error page. */
 export const REGISTER_HEADING = 'Cogniate could not connect this {LMS} site';
 
-/** Title and action line of a code, with `{LMS}` and the tool name filled in (`<tool>` in the tool-may-exist text). */
+/** Title and action line of a code, with `{LMS}` and the tool name filled in. */
 export function registerErrorText(code: string, toolName: string, lms: string): { title: string; action: string } | null {
   const e = (REGISTER_ERRORS as Record<string, { action: string } | undefined>)[code];
-  // A callback inserts the tool name literally (a library name may hold `$&`).
-  return e ? { title: withLms(REGISTER_HEADING, lms), action: withLms(e.action, lms).replace('<tool>', () => toolName) } : null;
+  if (!e) return null;
+  // Each value goes once into its own template, and an inserted value is never read again as a placeholder
+  // (B-LA-E1-09-01, -02): the frozen tool-may-exist text takes the tool name, every other action takes `{LMS}`.
+  return { title: withLms(REGISTER_HEADING, lms), action: code === TOOL_MAY_EXIST_CODE ? pendingToolText(toolName) : withLms(e.action, lms) };
 }
