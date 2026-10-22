@@ -18,6 +18,14 @@ export const generic = {
   auth: { host: 'generic.sim.test', path: '/lti/oidc/auth', methods: ['GET', 'POST'] },
   jwks: { host: 'generic.sim.test', path: '/lti/jwks.json' },
   token: { hosts: ['token.generic.sim.test', 'generic.sim.test'], path: '/lti/oauth2/token', audience: 'string' },
+  dr: {
+    hosts: ['generic.sim.test', 'school-b.generic.sim.test'],
+    configPaths: ['/lti/.well-known/openid-configuration', '/.well-known/openid-configuration'],
+    registrationPaths: ['/lti/register'],
+    tokenFormat: 'opaque-bearer',
+    defaultTokenHost: 'generic.sim.test',
+    secondTokenHost: 'token.generic.sim.test',
+  },
   sites: ['generic.sim.test', 'school-b.generic.sim.test'].map((host) => ({ host, ...genericSitePaths })),
   pageHosts: [],
   dlData: 'claim',
@@ -36,6 +44,13 @@ export const moodleSim = {
   auth: { host: 'moodle.sim.test', path: '/mod/lti/auth.php', methods: ['GET', 'POST'] },
   jwks: { host: 'moodle.sim.test', path: '/mod/lti/certs.php' },
   token: { hosts: ['moodle.sim.test'], path: '/mod/lti/token.php', audience: 'string' },
+  dr: {
+    hosts: ['moodle.sim.test'],
+    configPaths: ['/mod/lti/openid-configuration.php', '/.well-known/openid-configuration'],
+    registrationPaths: ['/mod/lti/openid-registration.php'],
+    tokenFormat: 'moodle-scope-jwt',
+    defaultTokenHost: 'moodle.sim.test',
+  },
   sites: [{
     host: 'moodle.sim.test',
     lineitems: '/mod/lti/services.php/2/lineitems',
