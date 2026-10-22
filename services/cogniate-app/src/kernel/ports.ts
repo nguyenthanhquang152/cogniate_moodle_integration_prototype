@@ -1,4 +1,8 @@
-// Public app ports (LA-ADR-01 D5). Types only: a channel receives capabilities through PortContext.
+/**
+ * Public channel contract (LA-ADR-01 D5). Implement P2 in app.ts; P5–P7 get a per-call PortContext.
+ * Types only: internal route dependencies live in kernel/setup/deps.ts and are not channel capabilities.
+ * BD-A1-20/28: all context fields are required unless marked optional; callers and K0 fixtures fill them.
+ */
 import type { CapabilityId } from '@cogniate/channel-kernel';
 import type { Logger, OutboundClient, PublicUrls } from '@cogniate/shared';
 
@@ -31,18 +35,26 @@ export interface ToolRow {
 
 /** Protocol URLs selected by the kernel; adapters do not construct account paths. */
 export interface ToolUrls {
+  /** OIDC login initiation URL. */
   readonly login: string;
+  /** LTI launch and deep-link target URL. */
   readonly launch: string;
+  /** Public signing-key set URL. */
   readonly keys: string;
+  /** Dynamic registration URL before its reference query. */
   readonly register: string;
+  /** Canonical public LTI origin for artifact domain values. */
   readonly ltiOrigin: string;
 }
 
 export interface ToolConfigurationContext {
   /** Tool account and URLs resolved by the kernel for this call (BD-A1-40). */
   toolAccountId: string;
+  /** Kernel-built protocol URLs; do not reconstruct them. */
   toolUrls: ToolUrls;
+  /** Public application origins for this call. */
   urls: PublicUrls;
+  /** The current library display name. */
   libraryName: string;
   /**
    * Shared Application ID from LOCAL data (app contract §4.5): the connection's snapshot `target_client_id`, else
@@ -59,7 +71,10 @@ export interface PlatformBodyValues {
   adminValues?: AdminValues;
 }
 
-/** Parse result: the values, or the body keys that are unknown, missing or malformed (`422 INVALID_PLATFORM_VALUES`). */
+/**
+ * Values or all unknown, missing and malformed body keys (422 INVALID_PLATFORM_VALUES).
+ * reason:'origin' is only for URL-origin failures; core owns both frozen error descriptions (BD-A1-35).
+ */
 export type PlatformBodyResult = { ok: true; values: PlatformBodyValues } | { ok: false; fields: string[]; reason?: 'origin' };
 
 export interface PlatformBodyContext {
@@ -143,7 +158,9 @@ export type StagedCreate =
 export interface CreateRequestContext {
   /** Tool account and URLs resolved by the kernel for this call (BD-A1-40). */
   toolAccountId: string;
+  /** Kernel-built protocol URLs; do not reconstruct them. */
   toolUrls: ToolUrls;
+  /** The library name used for the staged platform name. */
   libraryName: string;
 }
 
@@ -157,39 +174,69 @@ export interface AdminValues {
 
 /** App-only profile metadata; kept equal to the LTI profile traits (BD-A1-29). */
 export interface AppProfileData {
+  /** Must equal the LTI profile sharing trait. */
   sharing: 'exclusive' | 'shared';
+  /** Whether create accepts a separate service origin; must equal the LTI trait. */
   serviceUrl: boolean;
+  /** App-only label in the frozen provider-list response. */
   label: string;
+  /** Optional site-rule-5 suffixes; must equal the LTI profile data. */
   refusedHostSuffixes?: readonly string[];
 }
 
-/** Pure setup functions. A rejected input is a result value, never a thrown validation error. */
+/**
+ * Pure setup functions: no database or LTI call. Validation refusals are result values, never thrown errors.
+ * Every adapter needs channel, profiles, sharingOf, checkCreate, toolConfiguration and parseBindingBody.
+ * BD-A1-20/28: manual + self requires selfCreate; operatorGrant requires initialTarget and createRequest.
+ * A true extension capability requires its corresponding P5, P6 or P7 implementation.
+ */
 export interface ConnectionSetup {
+  /** The owning manifest id. */
   readonly channel: string;
+  /** Offered profiles; traits match lti-profiles.ts and cover all manifest registrations. */
   readonly profiles: Readonly<Record<string, AppProfileData>>;
+  /** Return the offered profile sharing trait, or null when it is not offered. */
   sharingOf(profileId: string): AppProfileData['sharing'] | null;
+  /** Apply channel rules after kernel method, profile and site checks; rule is the failed site-rule number. */
   checkCreate(input: { siteUrl: string; serviceUrl?: string; profile: ProfileView }):
     { ok: true; siteUrl: string; serviceUrl: string } | { ok: false; field: string; rule?: number };
+  /** Return the ordered, frozen rows shown to an administrator. */
   toolConfiguration(ctx: ToolConfigurationContext): ToolRow[];
+  /** Strictly collect initial or add_deployment values; origin reason is only for a URL-origin failure (BD-A1-35). */
   parseBindingBody(body: unknown, ctx: PlatformBodyContext & { purpose: GrantPurpose }): PlatformBodyResult;
+  /** Required for manual + self: stage a platform from typed admin values without a grant. */
   selfCreate?(values: AdminValues & { clientId: string; deploymentId: string }, ctx: CreateRequestContext): StagedCreate;
+  /** Required for operatorGrant: select the target using local snapshot values only. */
   initialTarget?(ctx: InitialTargetContext): BindingTarget;
+  /** Required for operatorGrant: stage the target; the engine adds active:false and its binding ref. */
   createRequest?(target: BindingTarget, ctx: CreateRequestContext): StagedCreate;
+  /** P5 handlers required when setup artifacts or siteApi.token capabilities are enabled. */
   extensionRoutes?: readonly ExtensionRoute[];
+  /** P6 hooks required when publish.createCourse is enabled. */
   publishHooks?: readonly PublishHook[];
+  /** P7 exporters required for every advertised export.packages member. */
   packageExporters?: readonly PackageExporter[];
 }
 
 /** The kernel creates this context for each call. A channel must not store it. */
 export interface PortContext {
+  /** Bound session library; every SQL statement must contain :library_id. */
   libraryId: string;
+  /** Bound connection, or null for a course-version exporter. */
   connectionId: string | null;
+  /** Scoped storage access; never a raw database handle. */
   sql: ChannelSql;
+  /** The shared SSRF-guarded outbound client. */
   outbound: GuardedClient;
+  /** Asynchronously encrypt an extension secret through the kernel key owner. */
   seal(value: string): Promise<Uint8Array>;
+  /** Asynchronously decrypt a sealed extension secret. */
   unseal(blob: Uint8Array): Promise<string>;
+  /** The call logger; never include secret values. */
   logger: Logger;
+  /** Correlation id for this call. */
   traceId: string;
+  /** Kernel clock in epoch milliseconds. */
   now(): number;
   /** Public origins, resolved for this call. */
   urls: PublicUrls;
@@ -207,15 +254,23 @@ export type GuardedClient = OutboundClient;
 
 /** The kernel binds :library_id and, when present, :connection_id. */
 export interface ChannelSql {
+  /** Read one row or undefined; refuses a missing scope parameter. */
   get<T>(statement: string, params?: Record<string, unknown>): T | undefined;
+  /** Read all rows with the bound library and optional connection. */
   all<T>(statement: string, params?: Record<string, unknown>): T[];
+  /** Write with bound scope and return the changed-row count. */
   run(statement: string, params?: Record<string, unknown>): { changes: number };
 }
 export interface ExtensionRoute {
+  /** HTTP method under the connection route. */
   method: 'GET' | 'PUT' | 'POST';
+  /** Frozen legacy suffix or x/<name>; the kernel mounts it once. */
   path: string;
+  /** Capability checked before invoking the handler. */
   capability: CapabilityId;
+  /** Frozen details.capability value for a refused legacy route. */
   legacyCapabilityName?: string;
+  /** Run after ownership and capability checks; return success or an error the kernel renders. */
   handle(input: { body: unknown; query: Record<string, string> }, ctx: PortContext): Promise<
     { status: number; body: unknown; headers?: Record<string, string> } |
     { error: { status: number; code: string; message: string; details?: Record<string, unknown> } }>;
@@ -271,17 +326,27 @@ export interface BuildQueue {
 }
 
 export interface PublishHook {
+  /** Frozen request flag that selects this hook. */
   option: string;
+  /** Capability checked before publication changes. */
   capability: CapabilityId;
+  /** Validate the flag value before any write; return field names on refusal. */
   parseOptions(value: unknown): { ok: true; options: unknown } | { ok: false; fields: string[] };
+  /** Run the selected action after the core publication write with parsed options. */
   afterPublish(publication: PublicationView, options: unknown, ctx: PortContext): Promise<void>;
+  /** Return only frozen extension DTO names allowed by legacy-wire.ts. */
   dtoFields(publication: PublicationView, ctx: PortContext): Record<string, unknown>;
 }
 export interface PackageExporter {
+  /** Export kind advertised by the manifest and fixed download wire table. */
   id: string;
+  /** Accepted course package formats. */
   formats: readonly string[];
+  /** Reserve or return a build for this library and version. */
   start(version: CourseVersionView, ctx: ExporterContext): Promise<ExportBuildView>;
+  /** Refresh runner state and return the latest build, or null. */
   latest(version: CourseVersionView, ctx: ExporterContext): Promise<ExportBuildView | null>;
+  /** Return an artifact id or null; the kernel confines and streams the file. */
   download(version: CourseVersionView, ctx: ExporterContext): Promise<{ artifact: string; mediaType: string; filename: string } | null>;
 }
 
