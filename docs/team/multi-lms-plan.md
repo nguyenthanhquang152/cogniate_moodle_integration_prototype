@@ -13,7 +13,15 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 05:31 UTC
+### Current checkpoint — 2026-10-22, 06:00 UTC
+
+**C4 full round 1 has 418 PASS in four completed phases.** Simulation passed 394/394; isolated snapshot 6/6; upgrade snapshot 6/6; migration 12/12. The Lead read each result file and checked its unique identifiers and C4 product/test SHAs. These remain partial results until the complete round is bound to this invocation's accounting. No full-round acceptance is recorded yet.
+
+The final storage phase started at 05:57:08 UTC under `full-src/source/tests/host/artifacts/qa-multi-r1-st-bf09cdad-2026-10-22T05-57-08-327Z`. At 05:59:13 UTC, its first 12 step records were PASS, with no failure record. Step counts include fixtures and do not replace the required 70-row result set. The source guard reports no problems. The first full round is still expected around 06:20–06:30 UTC (13:20–13:30 Vietnam).
+
+The same full/legacy grant, frozen source and three worker assignments remain active. Canvas QA waits for the complete round's exact evidence paths. The same fixer owns every repair; no new repair is queued. The second round, all 12 legacy groups, fresh M2/T7 and final conformance/documentation gates remain pending. LA remains host-only until explicit handoff; the next scheduling update is due by 07:00 UTC. All 32 live rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 05:31 UTC
 
 **C4 diagnostic attempt 2 passed. Full validation is running.** The clean diagnostic ran from 04:56:08 to 05:21:52 UTC: migration 12/12 and storage 70/70 PASS. Exact row sets, all 81 storage steps, raw R4/R5 evidence and pre/post source inventories passed. Strict W4 found no differences; all nine baseline volume records stayed unchanged and all owned resources were removed. The Lead verified 4,323 entries in the final main, root and supplement indexes. Reports are committed at `e19aca9516aee7ef127df8910ef637b72bed4e37`. The diagnostic window returned at 05:25:24 UTC. This pass gives no full acceptance credit.
 
