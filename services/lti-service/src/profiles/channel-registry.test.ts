@@ -7,9 +7,10 @@ import { describe, expect, it } from 'vitest';
 import { CLAIM, check14ProductFamily } from '../lti/checks.ts';
 import { createPlatformKeys } from '../lti/jwks.ts';
 import { handleLaunch } from '../lti/launch.ts';
-import { createPlatform } from '../store/platforms.ts';
-import { CLIENT_ID, ISSUER, URLS, capturingLogger, doLogin, harness, moodleClaims, sign } from '../testkit.ts';
-import { CHANNEL_ROOT, buildProfileRegistry, findProfile, listProfiles, lmsNameOf, lmsNameOfFamily, loadProfileRegistry, profileEndpoints } from './index.ts';
+import { initiateLogin } from '../lti/login.ts';
+import { createPlatform, updatePlatform } from '../store/platforms.ts';
+import { CLIENT_ID, ISSUER, LAUNCH, URLS, capturingLogger, doLogin, harness, moodleClaims, sign } from '../testkit.ts';
+import { CHANNEL_ROOT, buildProfileRegistry, findProfile, listProfiles, lmsNameOf, lmsNameOfFamily, loadProfileRegistry, profileDefinition, profileEndpoints, profileOfFixedIssuer } from './index.ts';
 import type { ProfileRegistry, ProviderProfile } from './index.ts';
 
 const baseline = await loadChannelFolders([CHANNEL_ROOT], 'lti');
@@ -119,6 +120,49 @@ it('keeps every frozen provider-list lms value, including the explicit null', ()
     ['canvas-cloud-production', 'canvas'], ['canvas-cloud-beta', 'canvas'], ['canvas-cloud-test', 'canvas'], ['canvas-self-hosted', 'canvas'],
     ['blackboard', 'blackboard'], ['blackboard-sim', 'blackboard'], ['canvas-sim-cloud', 'canvas'],
   ]);
+});
+
+it('uses one registry context for profile lookups and login/launch text', async () => {
+  const entries = baselineCopy();
+  manifestOf(standardEntry(entries)).names.text = 'Test default';
+  const extra = extraChannel('zz');
+  Object.assign(firstProfile(extra), {
+    endpoints: 'fixed', issuer: 'https://zz.example.test', authenticationEndpoint: 'https://zz.example.test/auth',
+    accesstokenEndpoint: 'https://zz.example.test/token', jwksUrl: 'https://zz.example.test/keys',
+  });
+  const opts = { simulation: false, registry: buildProfileRegistry([...entries, extra]) };
+  const profile = findProfile('zz-platform', opts)!;
+  expect(profileDefinition(profile.id, opts)).toBe(profile);
+  expect(profileOfFixedIssuer('https://zz.example.test', opts)).toBe(profile);
+  expect(lmsNameOf(profile, opts)).toBe('ZZ');
+  expect(lmsNameOfFamily('zz', opts)).toBe('ZZ');
+  expect(lmsNameOf(null, opts)).toBe('Test default');
+  const h = await harness();
+  try {
+    const params = { iss: 'https://zz.example.test', login_hint: '1', target_link_uri: LAUNCH, client_id: CLIENT_ID };
+    expect(initiateLogin(h.db, URLS, 'absent', params, h.clock.now, opts)).toMatchObject({ ok: false, lms: 'ZZ' });
+    for (const iss of [undefined, 'unreadable', 'https://unknown.example.test']) {
+      expect(initiateLogin(h.db, URLS, 'absent', { iss }, h.clock.now, opts)).toMatchObject({ ok: false, lms: 'Test default' });
+    }
+    const values = profileEndpoints(profile, {});
+    const platform = createPlatform(h.db, 'cogniate', {
+      issuer: values.issuer, authEndpoint: values.authenticationEndpoint, tokenEndpoint: values.accesstokenEndpoint, jwksUrl: values.jwksUrl,
+      clientId: CLIENT_ID, name: 'Unit platform', active: false, deploymentIds: ['1'], profile: profile.id,
+    });
+    expect(initiateLogin(h.db, URLS, 'cogniate', params, h.clock.now, opts)).toMatchObject({ ok: false, code: 'PLATFORM_NOT_ACTIVE', lms: 'ZZ' });
+    updatePlatform(h.db, 'cogniate', platform.id, { active: true });
+    const login = initiateLogin(h.db, URLS, 'cogniate', params, h.clock.now, opts);
+    expect(login.ok).toBe(true);
+    if (!login.ok) throw new Error('login must succeed');
+    const result = await handleLaunch({
+      db: h.db, urls: URLS, keys: createPlatformKeys(h.outbound), ltikTtlSeconds: 86400, now: () => h.clock.now,
+      profiles: opts, logger: capturingLogger().logger,
+    }, 'cogniate', { state: new URL(login.location).searchParams.get('state'), error: 'access_denied' }, undefined, 'registry-unit');
+    expect(result).toMatchObject({ ok: false, check: 'oidc_error', lms: 'ZZ' });
+  } finally {
+    await h.app.close();
+    h.db.close();
+  }
 });
 
 describe('launch privacy floor (BD-A2-21)', () => {

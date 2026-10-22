@@ -19,11 +19,11 @@ const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== 
 
 /** Before a platform is known, a login `iss` equal to a fixed profile issuer selects that LMS name (security §12). */
 function lmsOfIssuer(iss: string | undefined, profiles: ProfileOptions): LmsName {
-  if (!iss) return 'Moodle';
+  if (!iss) return lmsNameOf(null, profiles);
   try {
-    return lmsNameOf(profileOfFixedIssuer(new URL(iss).origin, profiles));
+    return lmsNameOf(profileOfFixedIssuer(new URL(iss).origin, profiles), profiles);
   } catch {
-    return 'Moodle';
+    return lmsNameOf(null, profiles);
   }
 }
 
@@ -45,7 +45,7 @@ export function initiateLogin(db: Db, urls: PublicUrls, accountId: string, param
   if (candidates.length === 0) return fail('UNKNOWN_PLATFORM', 'platform_unknown');
   if (candidates.length > 1) return fail('UNKNOWN_PLATFORM', 'client_id_required');
   const platform = candidates[0]!;
-  const lms = platformLmsName(platform);
+  const lms = platformLmsName(platform, profiles);
   // A stored profile that is unknown now (a simulation row while simulations are off) is inactive (§9.1).
   if (!isPlatformUsable(platform, profiles)) return fail('PLATFORM_NOT_ACTIVE', 'platform_inactive', lms);
   // 3. A given deployment id must be known and (M1) active; the state keeps it for check 9.

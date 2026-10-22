@@ -38,7 +38,7 @@ const clearCookieFor = (stateHash: string) =>
 
 /** STATE_COOKIE_MISSING: checks 4 and 6 only to choose the help text; the launch never continues. */
 async function cookieHelpFor(deps: LaunchDeps, idToken: unknown, platform: Platform | null, traceId: string): Promise<string> {
-  const lms = platformLmsName(platform);
+  const lms = platformLmsName(platform, deps.profiles);
   if (!platform) return cookieHelp('other', lms);
   try {
     const { claims } = check4Token(idToken);
@@ -64,7 +64,7 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
   const profiles = deps.profiles ?? { simulation: false };
   const state = form.state;
   const stateHash = typeof state === 'string' && state !== '' ? sha256Hex(state) : null;
-  let lms: LmsName = lmsNameOf(null, profiles.registry);
+  let lms: LmsName = lmsNameOf(null, profiles);
   try {
     const account = getAccount(deps.db, accountId);
     if (!account) throw new LaunchCheckError('1', 'INVALID_STATE', 'unknown_tool_account');
@@ -72,7 +72,7 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
     const rec = check1And3State(deps.db, accountId, state, stateHash, now);
     const clearCookie = clearCookieFor(rec.stateHash);
     const platform = getPlatform(deps.db, accountId, rec.platformId);
-    lms = platformLmsName(platform);
+    lms = platformLmsName(platform, profiles);
     // OIDC error answer (Moodle: invalid_scope, unauthorized_client, access_denied ...): the state is used up.
     if (form.id_token === undefined && typeof form.error === 'string') {
       return { ok: false, check: 'oidc_error', code: 'PLATFORM_ERROR', detail: `error=${safeWord(form.error)}`, oidcError: form.error.slice(0, 64), clearCookie, lms };
@@ -109,7 +109,7 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
       if (family !== null) deps.logger.info('family_guard_mismatch', { platform_id: platform.id, family });
     } catch (err) {
       // The page names the LMS of the signed product family (contract §9.2).
-      if (err instanceof LaunchCheckError) lms = lmsNameOfFamily(err.detail.replace('family=', ''), profiles.registry) ?? lms;
+      if (err instanceof LaunchCheckError) lms = lmsNameOfFamily(err.detail.replace('family=', ''), profiles) ?? lms;
       throw err;
     }
 
