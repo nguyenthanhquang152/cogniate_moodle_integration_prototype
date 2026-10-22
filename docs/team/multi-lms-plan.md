@@ -13,7 +13,11 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 08:19 UTC
+### Current directive — 2026-10-22, 08:34 UTC
+
+The product owner resumed work with new model assignments. Claude Opus 5.5 xhigh owns planning, architecture, technical design and reviews. Codex GPT-6-Astra xhigh owns implementation. Antigravity Gemini 4 Argon (High) owns QA, testing and verification. The [continuation handoff](model-transition-2026-10-22.md) supersedes earlier model and initial-preparation instructions. Preserve the running full2 driver and all accepted evidence. No new source failure is reported. The old implementation session exited; QA ownership is transferring to new agents.
+
+### Prior checkpoint — 2026-10-22, 08:19 UTC
 
 **C4 full retry round 1 passed all 488 cases.** The five phases passed 394, 6, 6, 12 and 70 cases. The Lead verified the exact case set, accounting bindings, phase cleanup and raw R4/R5 storage evidence. All results belong to the same full2 invocation at unchanged C4 `bf09cdad91ca548e1ecbc14428b55180d35d5360`. Tests tree remains `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`.
 
