@@ -27,6 +27,9 @@ export const BASELINE_PROFILE_WIRE_LMS: Readonly<Record<string, string | null>> 
   'blackboard-sim': 'blackboard',
 });
 
+/** Load check 7 (BD-A2-21): only these profiles may keep every claim. New entries need an ADR and security review. */
+export const PRIVACY_FLOOR_NONE_PROFILES: readonly string[] = Object.freeze(['standard']);
+
 /** The setup artifact behind the legacy flag `canvasConfiguration` (`setup.artifacts`, D3). */
 export const DEVELOPER_KEY_JSON_ARTIFACT = 'developer-key-json';
 

@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ChannelManifest, LoadedChannel } from '@cogniate/channel-kernel';
-import { loadChannelFolders } from '@cogniate/channel-kernel';
+import { PRIVACY_FLOOR_NONE_PROFILES, loadChannelFolders } from '@cogniate/channel-kernel';
 import { describe, expect, it } from 'vitest';
 import { CLAIM, check14ProductFamily } from '../lti/checks.ts';
 import { createPlatformKeys } from '../lti/jwks.ts';
@@ -10,6 +10,7 @@ import { handleLaunch } from '../lti/launch.ts';
 import { createPlatform } from '../store/platforms.ts';
 import { CLIENT_ID, ISSUER, URLS, capturingLogger, doLogin, harness, moodleClaims, sign } from '../testkit.ts';
 import { CHANNEL_ROOT, buildProfileRegistry, findProfile, listProfiles, lmsNameOf, lmsNameOfFamily, loadProfileRegistry, profileEndpoints } from './index.ts';
+import type { ProfileRegistry, ProviderProfile } from './index.ts';
 
 const baseline = await loadChannelFolders([CHANNEL_ROOT], 'lti');
 const baselineCopy = () => structuredClone(baseline);
@@ -19,7 +20,7 @@ const firstProfile = (entry: LoadedChannel) => entry.ltiProfiles![0] as Record<s
 
 function extraChannel(id: string): LoadedChannel {
   const entry = standardEntry(baselineCopy());
-  const profile = { ...firstProfile(entry), id: `${id}-platform` };
+  const profile = { ...firstProfile(entry), id: `${id}-platform`, privacyFloor: 'allowlist', listOrder: 100 };
   delete (profile as Record<string, unknown>).wireLms;
   return {
     folder: `/unit/${id}`,
@@ -37,6 +38,11 @@ describe('profile load checks (AC-05 and load check 5)', () => {
     ['unknown trait', 7, 'profile_schema_invalid', (entries) => { firstProfile(standardEntry(entries)).unknownTrait = true; }],
     ['unknown flag', 7, 'profile_schema_invalid', (entries) => { (firstProfile(standardEntry(entries)).flags as Record<string, unknown>).unknownFlag = true; }],
     ['source-supplied owner', 7, 'profile_schema_invalid', (entries) => { firstProfile(standardEntry(entries)).channel = 'zz'; }],
+    ['missing privacy floor', 7, 'profile_schema_invalid', (entries) => { delete firstProfile(standardEntry(entries)).privacyFloor; }],
+    ['unknown privacy floor', 7, 'profile_schema_invalid', (entries) => { firstProfile(standardEntry(entries)).privacyFloor = 'unexpected'; }],
+    ['no privacy floor on a new profile', 7, 'profile_privacy_floor_invalid', (entries) => {
+      const extra = extraChannel('zz'); firstProfile(extra).privacyFloor = 'none'; entries.push(extra);
+    }],
     ['missing baseline wire value', 7, 'profile_wire_lms_invalid', (entries) => { delete firstProfile(standardEntry(entries)).wireLms; }],
     ['changed baseline wire value', 7, 'profile_wire_lms_invalid', (entries) => { firstProfile(standardEntry(entries)).wireLms = 'changed'; }],
     ['wire value on a new profile', 7, 'profile_wire_lms_invalid', (entries) => {
@@ -71,6 +77,57 @@ describe('profile load checks (AC-05 and load check 5)', () => {
   it('loads a new profile without a wire override and takes its owner from the folder', () => {
     const registry = buildProfileRegistry([...baselineCopy(), extraChannel('zz')]);
     expect(findProfile('zz-platform', { registry, simulation: false })).toMatchObject({ channel: 'zz', lms: 'zz' });
+  });
+
+  it('keeps the privacy exception frozen and permits raising its floor', () => {
+    expect(PRIVACY_FLOOR_NONE_PROFILES).toEqual(['standard']);
+    expect(Object.isFrozen(PRIVACY_FLOOR_NONE_PROFILES)).toBe(true);
+    expect(findProfile('standard', { registry: buildProfileRegistry(baselineCopy()), simulation: false })?.privacyFloor).toBe('none');
+    const entries = baselineCopy();
+    firstProfile(standardEntry(entries)).privacyFloor = 'allowlist';
+    expect(findProfile('standard', { registry: buildProfileRegistry(entries), simulation: false })?.privacyFloor).toBe('allowlist');
+  });
+});
+
+describe('launch privacy floor (BD-A2-21)', () => {
+  it.each(['standard', 'canvas-sim-cloud', 'blackboard-sim', 'unknown-floor'])('stores only permitted claims for %s', async (id) => {
+    const loaded = buildProfileRegistry(baselineCopy());
+    const registry: ProfileRegistry = id === 'unknown-floor' ? {
+      channels: loaded.channels,
+      // Deliberately bypass load check 7 to prove that the launch itself fails closed.
+      listProfiles: (simulation) => loaded.listProfiles(simulation).map((p) => p.id === 'standard' ? { ...p, privacyFloor: 'unexpected' as ProviderProfile['privacyFloor'] } : p),
+    } : loaded;
+    const h = await harness({ simulationProfiles: true });
+    try {
+      const profile = findProfile(id === 'unknown-floor' ? 'standard' : id, { simulation: true, registry })!;
+      let platform = h.platform;
+      if (profile.endpoints === 'fixed') {
+        const values = profileEndpoints(profile, { siteUrl: 'https://school.example.test', clientId: CLIENT_ID });
+        platform = createPlatform(h.db, 'cogniate', {
+          issuer: values.issuer, authEndpoint: values.authenticationEndpoint, tokenEndpoint: values.accesstokenEndpoint, jwksUrl: values.jwksUrl,
+          clientId: CLIENT_ID, name: 'Unit platform', active: true, deploymentIds: ['1'], profile: profile.id, siteUrl: 'https://school.example.test',
+        });
+      }
+      const login = await doLogin(h, { iss: platform.issuer });
+      const claims = moodleClaims({
+        iss: platform.issuer, nonce: login.nonce, name: 'Private name', email: 'private@example.test', extra: 'private',
+        [CLAIM.toolPlatform]: { product_family_code: profile.productFamily ?? 'moodle' },
+      }, Math.floor(h.clock.now / 1000));
+      const result = await handleLaunch({
+        db: h.db, urls: URLS, keys: createPlatformKeys(h.outbound), ltikTtlSeconds: 86400, now: () => h.clock.now,
+        profiles: { simulation: true, registry }, logger: capturingLogger().logger,
+      }, 'cogniate', { state: login.state, id_token: await sign(h.key, claims) }, login.cookie, 'privacy-unit');
+      expect(result.ok).toBe(true);
+      const stored = h.db.prepare('SELECT claims FROM launch').get() as { claims: string };
+      const kept = JSON.parse(stored.claims) as Record<string, unknown>;
+      expect(kept.sub).toBe('5');
+      for (const field of ['name', 'email', 'extra']) {
+        expect(kept[field]).toBe(id === 'standard' ? claims[field] : undefined);
+      }
+    } finally {
+      await h.app.close();
+      h.db.close();
+    }
   });
 });
 

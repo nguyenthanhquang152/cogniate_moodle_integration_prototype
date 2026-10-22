@@ -1,5 +1,5 @@
 // Load check 7. Profile data has one closed schema; unknown fields are errors, also inside flags.
-import { BASELINE_PROFILE_WIRE_LMS, RegistryError } from '@cogniate/channel-kernel';
+import { BASELINE_PROFILE_WIRE_LMS, PRIVACY_FLOOR_NONE_PROFILES, RegistryError } from '@cogniate/channel-kernel';
 import { z } from 'zod';
 import type { ProfileSource } from './types.ts';
 
@@ -47,6 +47,9 @@ export function parseProfileSource(value: unknown, channel: string): ProfileSour
   const hasWireLms = Object.hasOwn(parsed.data, 'wireLms');
   if (baseline ? !hasWireLms || parsed.data.wireLms !== BASELINE_PROFILE_WIRE_LMS[parsed.data.id] : hasWireLms) {
     throw new RegistryError(channel, 7, { reason: 'profile_wire_lms_invalid', detail: `profile "${parsed.data.id}" must keep its baseline wire value, or omit wireLms for a new profile` });
+  }
+  if (parsed.data.privacyFloor === 'none' && !PRIVACY_FLOOR_NONE_PROFILES.includes(parsed.data.id)) {
+    throw new RegistryError(channel, 7, { reason: 'profile_privacy_floor_invalid', detail: `profile "${parsed.data.id}": privacyFloor must be "allowlist"` });
   }
   return parsed.data;
 }

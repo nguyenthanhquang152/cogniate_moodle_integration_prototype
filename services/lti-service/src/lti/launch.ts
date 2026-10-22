@@ -114,7 +114,7 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
     }
 
     // All checks passed: the claim allowlist, then store the launch, make the ltik, redirect to the tool.
-    const { kept, removed } = profile.privacyFloor === 'allowlist' ? minimizeClaims(claims as Claims) : { kept: claims as Claims, removed: [] };
+    const { kept, removed } = profile.privacyFloor === 'none' ? { kept: claims as Claims, removed: [] } : minimizeClaims(claims as Claims);
     const { ltik } = createLaunch(deps.db, {
       toolAccountId: accountId, platformId: platform.id, deploymentId: deployment.deploymentId, messageType, claims: kept,
       siteOrigin: origins.site, serviceOrigin: origins.service, bindingGeneration: deployment.bindingGeneration,
