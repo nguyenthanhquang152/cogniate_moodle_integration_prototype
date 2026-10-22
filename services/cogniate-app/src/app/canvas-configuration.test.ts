@@ -1,3 +1,4 @@
+import { TEST_CHANNELS } from '../testkit.ts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LtiToolKey } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
@@ -16,8 +17,8 @@ function connection(lms: LmsType = 'canvas', libraryName = THANH.library, profil
   const library = ensureLibrary(t.db, libraryName, t.clock.now);
   return createConnection(t.db, library.id, {
     name: 'School', siteUrl: 'https://school.example.test', serviceUrl: 'https://school.instructure.com',
-    method: 'manual', lms, profile,
-  }, null, t.clock.now);
+    method: 'manual', channel: lms, profile: lms === 'canvas' ? profile : lms === 'moodle' ? 'standard' : 'blackboard',
+  }, null, t.clock.now, TEST_CHANNELS, 'exclusive');
 }
 const pathOf = (id: string) => `/app-api/connections/${id}/canvas-configuration`;
 const get = (path: string) => t.app.inject({ method: 'GET', url: path, headers: { cookie, 'x-trace-id': 'canvas-export-trace-123' } });

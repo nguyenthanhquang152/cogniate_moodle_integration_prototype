@@ -8,7 +8,7 @@ import { CLIENT_ID, ISSUER, MASTER_KEY, URLS, capturingLogger, harness } from '.
 import { ensureAccount } from './accounts.ts';
 import { createLaunch } from './launches.ts';
 import { createPlatform } from './platforms.ts';
-import { PRIVATE_JWK_CACHE_MS, activePrivateJwk, ensureToolKey, toolKeyVersions } from './tool-keys.ts';
+import { PRIVATE_JWK_CACHE_MS, activePrivateJwk, createFirstToolKey, ensureToolKey, prepareToolKey, publicJwks, toolKeyVersions } from './tool-keys.ts';
 
 // Fixture keys (test values, not secrets). Each test binds its ring to its own handle (the service binds LTI_MASTER_KEY).
 const LEGACY = Buffer.alloc(32, 7);
@@ -32,6 +32,22 @@ const activeBlob = (db: ReturnType<typeof openDb>, accountId: string) =>
 afterEach(() => { vi.useRealTimers(); });
 
 describe('tool keys with the key provider (LA-ADR-06 D6)', () => {
+  it('BD-A2-07: inserts the first active key and refuses an absent account or any existing key state', async () => {
+    const db = accounts();
+    try {
+      const key = await prepareToolKey(MASTER_KEY, 'cogniate');
+      const missing = await prepareToolKey(MASTER_KEY, 'absent');
+      expect(() => createFirstToolKey(db, missing, 1234)).toThrow('requires an account.');
+      expect(createFirstToolKey(db, key, 1234)).toMatchObject({ kid: key.kid, status: 'active', publishedAt: 1234, activatedAt: 1234 });
+      expect(publicJwks(db, 'cogniate')[0]?.kid).toBe(key.kid);
+      expect(db.prepare('SELECT created_at FROM tool_key WHERE kid = ?').get(key.kid)?.created_at).toBe(1234);
+      for (const status of ['active', 'next', 'retired', 'removed']) {
+        db.prepare('UPDATE tool_key SET status = ? WHERE kid = ?').run(status, key.kid);
+        expect(() => createFirstToolKey(db, key, 1235)).toThrow('requires an account with no signing key.');
+      }
+    } finally { db.close(); }
+  });
+
   it('a new private key is sealed with the active version and opens; the kid is in the associated data', async () => {
     const db = accounts();
     const handle = Buffer.alloc(32, 7);

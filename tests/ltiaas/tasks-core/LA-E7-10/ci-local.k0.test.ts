@@ -28,13 +28,13 @@ const RUN_DIR = process.env.LA_RUN_DIR ? path.resolve(process.env.LA_RUN_DIR) : 
 const SRC = process.env.LA_SRC_REPO ?? git(here, ['rev-parse', '--show-toplevel']);
 const RUN_TIMEOUT_MS = 20 * 60_000;
 
-type Result = 'pass' | 'fail' | 'network_unavailable';
+type Result = 'pass' | 'fail' | 'skip' | 'network_unavailable';
 interface StepLine { n: number; result: Result; line: string; index: number }
 interface Run { label: string; code: number | null; signal: string | null; seconds: number; output: string; steps: StepLine[] }
 
 // Step lines. The design fixes the content (name, result, seconds), not the layout, so the parser accepts common
-// layouts. A line is a step line when it has a step name (or "step <n>" / "[n/5]"), a result word and a number of
-// seconds. Name priority 5 > 4 > 3 > 2 > 1, so "secret check" is step 5 and "vulnerability check" is step 3.
+// layouts (including JSON lines `{"step":n,"name":"...","result":"...","seconds":...}`). A line is a step line when
+// it has a step name (or "step <n>" / "[n/5]"), a result word and a number of seconds. Name priority 5 > 4 > 3 > 2 > 1.
 const STEP_NAMES: Array<[number, RegExp]> = [
   [5, /\bsecrets?\b|\bsecret[-_ ]?scan\b/i],
   [4, /\bsbom\b/i],
@@ -42,9 +42,9 @@ const STEP_NAMES: Array<[number, RegExp]> = [
   [2, /\bcheck\b/i],
   [1, /\binstall\b|\bnpm[-_ ]ci\b|\bdeps\b|\bdependencies\b/i],
 ];
-const STEP_NUMBER = [/\bstep\s*[=:#]?\s*([1-5])\b/i, /\[([1-5])\s*\/\s*5\]/];
-const RESULT = /\b(passed|pass|ok|failed|fail|error|network_unavailable)\b/i;
-const SECONDS = /\b\d+(?:\.\d+)?\s?(?:s|secs?|seconds)\b|\b(?:seconds|secs?|duration|elapsed|time)\s*[=:]\s*\d+(?:\.\d+)?\b/i;
+const STEP_NUMBER = [/\bstep"?\s*[=:#]?\s*([1-5])\b/i, /\[([1-5])\s*\/\s*5\]/];
+const RESULT = /\b(passed|pass|ok|failed|fail|error|skip|skipped|network_unavailable)\b/i;
+const SECONDS = /\b\d+(?:\.\d+)?\s?(?:s|secs?|seconds)\b|\b(?:seconds|secs?|duration|elapsed|time)"?\s*[=:]\s*\d+(?:\.\d+)?\b/i;
 const ADVISORY = /\bGHSA(?:-[0-9a-z]{4}){3}\b|\bCVE-\d{4}-\d{4,}\b/i;
 
 function git(cwd: string, args: string[]): string {
@@ -61,6 +61,22 @@ function plainEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
 function parseSteps(output: string): StepLine[] {
   const steps: StepLine[] = [];
   output.split('\n').forEach((line, index) => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const obj = JSON.parse(trimmed) as { step?: number; name?: string; result?: string; seconds?: number };
+        if (typeof obj.step === 'number' && obj.step >= 1 && obj.step <= 5 && typeof obj.result === 'string' && typeof obj.seconds === 'number') {
+          const r = obj.result.toLowerCase();
+          const result: Result = r === 'network_unavailable' ? 'network_unavailable'
+            : ['pass', 'passed', 'ok'].includes(r) ? 'pass'
+              : ['skip', 'skipped'].includes(r) ? 'skip' : 'fail';
+          steps.push({ n: obj.step, result, line, index });
+          return;
+        }
+      } catch {
+        // Fall through to text line parser.
+      }
+    }
     const word = RESULT.exec(line);
     if (!word || !SECONDS.test(line)) return;
     let n = 0;
@@ -71,7 +87,7 @@ function parseSteps(output: string): StepLine[] {
     if (!n) n = STEP_NAMES.find(([, re]) => re.test(line))?.[0] ?? 0;
     if (!n) return;
     const w = word[1].toLowerCase();
-    const result: Result = w === 'network_unavailable' ? w : ['pass', 'passed', 'ok'].includes(w) ? 'pass' : 'fail';
+    const result: Result = w === 'network_unavailable' ? w : ['pass', 'passed', 'ok'].includes(w) ? 'pass' : ['skip', 'skipped'].includes(w) ? 'skip' : 'fail';
     steps.push({ n, result, line, index });
   });
   return steps;
@@ -140,9 +156,29 @@ function filesUnder(dir: string): string[] {
 
 interface AllowEntry { text: string; file: string; reason: string }
 
-/** The reviewed allow list inside the script: a bash array or a heredoc whose opening line names "allow". */
+/** The reviewed allow list inside the script: a JS/JSON array (`allowList = [`), bash array or heredoc whose opening line names "allow". */
 function parseAllowList(script: string, tracked: Set<string>): AllowEntry[] | null {
   const lines = script.split('\n');
+  const jsStart = lines.findIndex((l) => !/^\s*(?:#|\/\/)/.test(l) && /allow/i.test(l) && /=\s*\[/.test(l));
+  if (jsStart >= 0) {
+    const jsEnd = lines.findIndex((l, i) => i > jsStart && /^\s*\];?\s*(?:\/\/.*)?$/.test(l));
+    if (jsEnd >= 0) {
+      const entries: AllowEntry[] = [];
+      for (const raw of lines.slice(jsStart + 1, jsEnd)) {
+        const line = raw.trim().replace(/,\s*$/, '');
+        if (!line || line.startsWith('//') || line.startsWith('#')) continue;
+        try {
+          const obj = JSON.parse(line) as { file?: string; reason?: string };
+          const file = typeof obj.file === 'string' && tracked.has(obj.file) ? obj.file : '';
+          const reason = typeof obj.reason === 'string' ? obj.reason.trim() : '';
+          entries.push({ text: line, file, reason });
+        } catch {
+          entries.push({ text: line, file: '', reason: '' });
+        }
+      }
+      return entries;
+    }
+  }
   const start = lines.findIndex((l) => !/^\s*#/.test(l) && /allow/i.test(l) && (/=\(/.test(l) || /<<-?\s*['"]?\w+/.test(l)));
   if (start < 0) return null;
   const heredoc = /<<-?\s*['"]?(\w+)['"]?/.exec(lines[start]);
@@ -224,7 +260,6 @@ describe('LA-E7-10 local CI script (K0)', () => {
   });
 
   it('AC-LA-E7-10-05: the clean tree passes step 5 with the allow list; each entry names a file and a reason', () => {
-    expect(oneLine(runs.a1!, 5).result).toBe('pass');
     const script = fs.readFileSync(path.join(cloneA, 'infra', 'scripts', 'ci-local.sh'), 'utf8');
     const tracked = new Set(git(cloneA, ['ls-files']).split('\n'));
     const entries = parseAllowList(script, tracked);
@@ -235,6 +270,7 @@ describe('LA-E7-10 local CI script (K0)', () => {
       expect(e.file, `allow-list entry names no tracked file: ${e.text}`).not.toBe('');
       expect(e.reason, `allow-list entry has no reason: ${e.text}`).not.toBe('');
     }
+    expect(oneLine(runs.a1!, 5).result).toBe('pass');
   });
 
   it('AC-LA-E7-10-02: a planted ltis_ key in a temporary tracked copy fails step 5 with exit 1; the output names file and line, never the value', async () => {

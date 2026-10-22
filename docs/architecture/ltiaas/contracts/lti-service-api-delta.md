@@ -71,16 +71,18 @@ Same body `{ status, error, details: { message, description } }`. Where marked, 
 
 | HTTP | `details.message` | When | Priority |
 | --- | --- | --- | --- |
-| 429 | `RATE_LIMITED` | A hard rate-limit bucket is empty (§1.4). Header `Retry-After: <s>` (whole seconds, ≥ 1). | Must |
-| 429 | `PLATFORM_RATE_LIMITED` | The platform answered `429`, or `403` with a body that contains `Rate Limit Exceeded` (Canvas throttling, R4 B-3). Header `Retry-After` and `details.retryAfter` (seconds): the platform's `Retry-After` (seconds or HTTP date), clamped to 1–3,600; 60 when absent. Before LA this was `502 PLATFORM_ERROR`. | Must |
+| 429 | `RATE_LIMITED` | A hard rate-limit bucket is empty (§1.4). Header `Retry-After` and `details.retryAfter` (the same whole seconds, 1–3,600; §1.6 rule). | Must |
+| 429 | `PLATFORM_RATE_LIMITED` | The platform answered `429`, or `403` with a body that contains `Rate Limit Exceeded` (Canvas throttling, R4 B-3). Header `Retry-After` and `details.retryAfter` (seconds; §1.6 rule): the platform's `Retry-After` (seconds or HTTP date), clamped to 1–3,600; 60 when absent or not readable. `description` is a fixed text ("The platform asked us to wait before another request."); no platform body, header or status text goes into the answer. Before LA this was `502 PLATFORM_ERROR`. | Must |
 | 403 | `TOOL_ACCOUNT_SUSPENDED` | The account of the API key is `suspended` (checked after authentication) | Must |
 | 403 | `API_KEY_SCOPE_MISSING` | §1.2 | Must |
 | 403 | `SERVICE_KEY_SCOPE` | A SERVICE-AUTH-V1 write outside the key's resource link when the account has `serviceKeyWriteScope: resource-link` | Should |
 | 409 | `API_KEY_LIMIT` | A third active API key | Must |
-| 409 | `SIGNING_KEY_NEXT_EXISTS` | A second `next` signing key | Must |
-| 409 | `SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH` | Activation before the publish lead time, without `force` | Must |
-| 409 | `SIGNING_KEY_ACTIVE` | `retire` of the active key | Must |
-| 409 | `SIGNING_KEY_WRONG_STATE` | A signing-key transition that the key's state does not allow: `activate` of a key that is not `next`; `retire` of a `removed` key (LA-ADR-06 D7) | Must |
+| 409 | `ACCOUNT_ALREADY_EXISTS` | `POST /operator/v1/accounts` with an id that exists | Must |
+| 409 | `ACCOUNT_CLOSED` | An operator write that adds, enables or changes anything on a `closed` account (LA-ADR-06 D2 "Operator writes on a closed account"). Writes that only remove access (revokes, retire immediate) and reads stay allowed. | Must |
+| 409 | `SIGNING_KEY_NEXT_EXISTS` | A second `next` signing key. `details`: `kid` and `publishedAt` of the waiting key (BD-A2-23) | Must |
+| 409 | `SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH` | Activation before the publish lead time, without `force`. `details`: `kid`, `activatableAt` (ISO 8601: `publishedAt` + lead time) | Must |
+| 409 | `SIGNING_KEY_ACTIVE` | `retire` of the active key. `details`: `kid` | Must |
+| 409 | `SIGNING_KEY_WRONG_STATE` | A signing-key transition that the key's state does not allow: `activate` of a key that is not `next`; `retire` of a `removed` key (LA-ADR-06 D7). Only this meaning: "the account has no active key" is not an error (BD-A2-24, §3). `details`: `kid`, `keyStatus` (the key's current state; not `status`, which is the HTTP status of the body) | Must |
 | 409 | `IDEMPOTENCY_IN_PROGRESS` | A request with the same `Idempotency-Key` still runs | Should |
 | 422 | `IDEMPOTENCY_KEY_REUSED` | The same `Idempotency-Key` with another body | Should |
 | 401 | `INVALID_OPERATOR_AUTHORIZATION_HEADER` | Operator listener: no header, another scheme, an unknown, expired or revoked operator key | Must |
@@ -103,7 +105,7 @@ New protocol page codes (security §2.1, §2.2 page rules: code, trace id, one a
 | `keys` | `GET /lti/keys/:account` | client address |
 | `api` | `/api/idtoken`, `/api/deeplinking*`, `/api/lineitems*`, `/api/memberships` | API key id |
 | `admin` | every Bearer route | API key id |
-| `auth_failure` | a `401` because the API key or operator key fails (missing, malformed, unknown, expired, revoked). An ltik or service key `401` under a valid API key spends no bucket. | client address |
+| `auth_failure` | a `401` because the API key or operator key fails: every `401` before the key is proven valid (missing, malformed, a scheme the route does not accept, unknown, expired, revoked, a closed account's key). An ltik or service key `401` under a valid API key spends no bucket. | client address |
 | `operator` | `/operator/v1/*` | operator key id |
 
 Default limits: [LA-ADR-06 D1](../adr/LA-ADR-06-service-operability.md#d1-rate-limits-must). An operator changes them per account (`PATCH /operator/v1/accounts/:id {limits}`) or globally for every class (`PATCH /operator/v1/rate-limits`, §3). `/healthz`, `/readyz`, `/metrics` are never limited. The client address uses `X-Forwarded-For` only from `TRUSTED_PROXY_CIDRS`.
@@ -120,7 +122,7 @@ Default limits: [LA-ADR-06 D1](../adr/LA-ADR-06-service-operability.md#d1-rate-l
 
 | Header | Direction | Rule |
 | --- | --- | --- |
-| `Retry-After` | answer | with `429 RATE_LIMITED` and `429 PLATFORM_RATE_LIMITED` |
+| `Retry-After` | answer | with `429 RATE_LIMITED` and `429 PLATFORM_RATE_LIMITED`. **One rule** (BD-A2-16): every API error whose `details` carry `retryAfter` gets the header; header and `details.retryAfter` are the same integer, 1–3,600 seconds (one normalizer; a value that is not a number gives 60). A `429` protocol HTML page (`RATE_LIMITED`) gets the header only. |
 | `Idempotency-Key` | request | Should; §4.9 |
 
 ## 2. Protocol endpoints (changes to §2)
@@ -195,15 +197,15 @@ Listener `OPERATOR_HOST:OPERATOR_PORT` (default `127.0.0.1:4110`; the `acceptanc
 | `POST /operator/v1/accounts` | `{ id, name, launchUrl, deepLinkingUrl, registrationUrl, limits?, claimPolicy? }` | `201 Account`. `409 ACCOUNT_ALREADY_EXISTS`. Also makes the first `active` signing key, in the same transaction as the account (no publish lead time; one `account.create` audit event with `details.kid`; LA-ADR-06 D7 "First key"). No API key (use the next row); the frozen column `tool_account.api_key_hash` gets the hash of an unusable random value (LA-ADR-06 D5). | Must |
 | `GET /operator/v1/accounts/:id` | — | `200 Account` | Must |
 | `PATCH /operator/v1/accounts/:id` | any of `name`, tool URLs, `status`, `limits`, `claimPolicy`, `serviceKeyWriteScope` | `200 Account`. `status: closed` is final (`409 ACCOUNT_CLOSED` for a later change). | Must |
-| `GET /operator/v1/rate-limits` | — | `200 { classes: { <class>: { ratePerMinute, burst, source } } }`; `source` = `operator`, `env` or `default` | Must |
-| `PATCH /operator/v1/rate-limits` | `{ classes: { <class>: { ratePerMinute, burst } \| null } }` (`null` removes the operator value) | `200` as `GET`. Applies at once; stored in `service_setting`. Unknown class or a value below 1: `400 INVALID_REQUEST`. | Must |
+| `GET /operator/v1/rate-limits` | — | `200 { classes: { <class>: { ratePerMinute, burst, source } }, registrationSessionsPerAddress: <integer>, registrationSessionsSource }`; `source` and `registrationSessionsSource` = `operator`, `env` or `default` | Must |
+| `PATCH /operator/v1/rate-limits` | `{ classes?: { <class>: { ratePerMinute, burst } \| null }, registrationSessionsPerAddress?: <integer 1–1,000> \| null }` (`null` removes the operator value; BD-A2-18) | `200` as `GET`. Applies at once; stored in `service_setting` (key `rate_limits`, one row). Unknown class, unknown top-level field, a rate or burst below 1, or a cap outside 1–1,000: `400 INVALID_REQUEST` with the field. | Must |
 | `GET /operator/v1/accounts/:id/api-keys` | — | `200 { apiKeys: [{ id, prefix, label, scopes, createdAt, createdBy, expiresAt, lastUsedAt, revokedAt }] }`. `prefix` is `null` for a key from the migration backfill (label `bootstrap`, `createdBy` `system:bootstrap`); key ids are opaque (LA-ADR-06 D5 "Backfill values"). | Must |
-| `POST /operator/v1/accounts/:id/api-keys` | `{ label, scopes: ["launch","admin"], expiresAt? }` | `201 { id, apiKey, prefix, label, scopes, expiresAt }`; `apiKey` is shown only here. `409 API_KEY_LIMIT`. `expiresAt` outside 1 hour to 2 years from now: `400 INVALID_REQUEST` (field `expiresAt`). | Must |
-| `POST /operator/v1/accounts/:id/api-keys/:keyId/revoke` | — | `200` key metadata with `revokedAt` | Must |
+| `POST /operator/v1/accounts/:id/api-keys` | `{ label, scopes: ["launch","admin"], expiresAt? }` | `201 { id, apiKey, prefix, label, scopes, expiresAt }`; `apiKey` is shown only here. `409 API_KEY_LIMIT`. `expiresAt` outside 1 hour to 2 years from now: `400 INVALID_REQUEST` (field `expiresAt`). `409 ACCOUNT_CLOSED` on a closed account. | Must |
+| `POST /operator/v1/accounts/:id/api-keys/:keyId/revoke` | — | `200` key metadata with `revokedAt` Idempotent: a revoked key, also on a closed account, gives `200` and keeps the first `revokedAt`. | Must |
 | `GET /operator/v1/accounts/:id/signing-keys` | — | `200 { signingKeys: [{ kid, status, publishedAt, activatedAt, retiredAt, removedAt }] }` (public data only) | Must |
-| `POST /operator/v1/accounts/:id/signing-keys` | — | `201 { kid, status: "next", publishedAt }`. `409 SIGNING_KEY_NEXT_EXISTS`. | Must |
-| `POST /operator/v1/accounts/:id/signing-keys/:kid/activate` | `{ force?: boolean }` | `200 { kid, status: "active", activatedAt, retired: <old kid> }`. `409 SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH`. `409 SIGNING_KEY_WRONG_STATE` when the key is not `next`. | Must |
-| `POST /operator/v1/accounts/:id/signing-keys/:kid/retire` | `{ immediate: true }` (only valid value in LA) | `200 { kid, status: "removed" }` for a `retired` or a `next` key. `409 SIGNING_KEY_ACTIVE`. `409 SIGNING_KEY_WRONG_STATE` for a `removed` key. | Must |
+| `POST /operator/v1/accounts/:id/signing-keys` | — | `201 { kid, status: "next", publishedAt }`. `409 SIGNING_KEY_NEXT_EXISTS`. On an account with **no** `active` key (a recovery case; normal paths always keep one): `201 { kid, status: "active", publishedAt }`, active at once with no publish lead time, because nothing can sign before (BD-A2-24). | Must |
+| `POST /operator/v1/accounts/:id/signing-keys/:kid/activate` | `{ force?: boolean }` | `200 { kid, status: "active", activatedAt, retired: <old kid> \| null }` (`null` when no key was active). `409 SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH`. `409 SIGNING_KEY_WRONG_STATE` when the key is not `next`. | Must |
+| `POST /operator/v1/accounts/:id/signing-keys/:kid/retire` | `{ immediate: true }` (only valid value in LA) | `200 { kid, status: "removed" }` for a `retired` or a `next` key. `409 SIGNING_KEY_ACTIVE`. `409 SIGNING_KEY_WRONG_STATE` for a `removed` key. Without `immediate: true`: `400 INVALID_REQUEST` (field `immediate`), with the text 'retire needs {"immediate": true} (removes the key at once). A key becomes retired when the next key is activated.' | Must |
 | `POST /operator/v1/accounts/:id/shared-platforms` | `{ profile, clientId, name? }` | `201` platform, or `200` for the same client id (the rules of §9.12 CLI). `409 SHARED_PLATFORM_EXISTS` for another client id. | Must |
 | `GET /operator/v1/key-provider` | — | `200 { kind, activeVersion, versions: [{ id, state, sealedCount, derivedCount }] }` | Must |
 | `POST /operator/v1/key-provider/rewrap` | — | `202 { job: "key-rewrap", traceId }` (runs the on-demand job) | Must |
@@ -226,7 +228,7 @@ CLI mapping (same commands, same output lines; the CLIs call the API above):
 | CLI | Calls |
 | --- | --- |
 | `lti:operator init --name <n>` | none: the only direct database write (first operator key) |
-| `lti:bootstrap --account --name [--rotate-api-key] [--rotate-signing-key]` | `POST` or `PATCH /operator/v1/accounts`; `POST …/api-keys` (with `--rotate-api-key`: then revoke every other key); `POST …/signing-keys` + `activate {force: true}` (with `--rotate-signing-key`) |
+| `lti:bootstrap --account --name [--rotate-api-key] [--rotate-signing-key]` | `POST` or `PATCH /operator/v1/accounts`; `POST …/api-keys` (with `--rotate-api-key`: then revoke every other key); `POST …/signing-keys` + `activate {force: true}` (with `--rotate-signing-key`; when a `next` key exists, first `POST …/signing-keys/<next kid>/retire {immediate: true}`; LA-ADR-06 D7 "CLI") |
 | `lti:shared-platform` | `POST /operator/v1/accounts/:id/shared-platforms` |
 
 ## 4. Tenant API (changes to §3 and §9)

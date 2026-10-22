@@ -8,7 +8,7 @@ import { ensureAccount } from '../../store/accounts.ts';
 import { listAuditEvents } from '../../store/audit.ts';
 import { issueOperatorKey } from '../../store/operator-keys.ts';
 import { activePrivateJwk, ensureToolKey, listSigningKeys, publicJwks } from '../../store/tool-keys.ts';
-import { capturingLogger } from '../../testkit.ts';
+import { URLS, capturingLogger } from '../../testkit.ts';
 import { buildOperatorApp } from './index.ts';
 
 const T0 = Date.parse('2026-10-22T10:00:00Z');
@@ -21,10 +21,12 @@ afterEach(async () => {
 async function fixture() {
   const db = openDb(':memory:');
   const sealTransactions: boolean[] = [];
+  const sealHook = { run: () => {} };
   const provider = createLocalKeyProvider(legacyKeyRing(Buffer.alloc(32, 7)));
   const keys: LocalKeyProvider = { ...provider, async seal(plain, aad) {
     sealTransactions.push(db.isTransaction);
     await Promise.resolve();
+    sealHook.run();
     sealTransactions.push(db.isTransaction);
     return provider.seal(plain, aad);
   } };
@@ -32,7 +34,7 @@ async function fixture() {
   const a = await ensureToolKey(db, keys, 'cogniate');
   const { logger, lines } = capturingLogger();
   const clock = { now: T0 };
-  const app = await buildOperatorApp({ db, keys, logger, now: () => clock.now });
+  const app = await buildOperatorApp({ urls: URLS, db, keys, logger, now: () => clock.now });
   resources.push({ db, app });
   const { operatorKey } = issueOperatorKey(db, { operator: 'unit', expiresAt: T0 + 3600_000 }, T0);
   const post = (path = '', body?: unknown, account = 'cogniate') => app.inject({
@@ -42,7 +44,7 @@ async function fixture() {
     } }),
   });
   const events = () => listAuditEvents(db, { limit: 100 }).events;
-  return { db, keys, app, clock, a, post, events, sealTransactions, lines, operatorKey };
+  return { db, keys, app, clock, a, post, events, sealTransactions, sealHook, lines, operatorKey };
 }
 
 describe('signing-key operator routes', () => {
@@ -129,6 +131,35 @@ describe('signing-key operator routes', () => {
     h.clock.now = T0 + 600_000;
     expect((await h.post(`/${b}/activate`)).statusCode).toBe(200);
     vi.stubEnv('SIGNING_KEY_PUBLISH_LEAD_S', '599');
-    await expect(buildOperatorApp({ db: h.db, keys: h.keys, logger: capturingLogger().logger })).rejects.toThrow(/SIGNING_KEY_PUBLISH_LEAD_S/);
+    await expect(buildOperatorApp({ urls: URLS, db: h.db, keys: h.keys, logger: capturingLogger().logger })).rejects.toThrow(/SIGNING_KEY_PUBLISH_LEAD_S/);
+  });
+
+  it('BD-A2-12: closed accounts refuse create and activate before other errors; reads and removal still work', async () => {
+    const h = await fixture();
+    const next = (await h.post()).json().kid as string;
+    h.db.prepare("UPDATE tool_account SET status = 'closed' WHERE id = 'cogniate'").run();
+    const before = listSigningKeys(h.db, 'cogniate');
+    const seals = h.sealTransactions.length;
+    for (const response of [await h.post(), await h.post(`/${next}/activate`, { force: 'invalid' })]) {
+      expect([response.statusCode, response.json().details.message]).toEqual([409, 'ACCOUNT_CLOSED']);
+      expect(h.events().find((event) => event.traceId === response.headers['x-trace-id']))
+        .toMatchObject({ result: 'refused', code: 'ACCOUNT_CLOSED' });
+    }
+    expect(h.sealTransactions).toHaveLength(seals);
+    expect(listSigningKeys(h.db, 'cogniate')).toEqual(before);
+    const read = await h.app.inject({ url: '/operator/v1/accounts/cogniate/signing-keys',
+      headers: { authorization: `OPERATOR-AUTH-V1 ${h.operatorKey}` } });
+    expect(read.statusCode).toBe(200);
+    expect((await h.post(`/${next}/retire`, { immediate: true })).statusCode).toBe(200);
+  });
+
+  it('a close during async sealing prevents publication and records only a refused event', async () => {
+    const h = await fixture();
+    h.sealHook.run = () => { h.db.prepare("UPDATE tool_account SET status = 'closed' WHERE id = 'cogniate'").run(); };
+    const response = await h.post();
+    expect([response.statusCode, response.json().details.message]).toEqual([409, 'ACCOUNT_CLOSED']);
+    expect(listSigningKeys(h.db, 'cogniate').map((key) => key.kid)).toEqual([h.a]);
+    expect(h.events()).toEqual([expect.objectContaining({ action: 'signing_key.create', result: 'refused', code: 'ACCOUNT_CLOSED' })]);
+    expect(h.sealTransactions.every((inTransaction) => !inTransaction)).toBe(true);
   });
 });

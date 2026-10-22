@@ -43,13 +43,13 @@ export async function startLtiService(options: { logger?: Logger } = {}): Promis
   const outbound = createOutboundClient({ logger, allowlist: config.outboundAllowlist });
   // T3a: platform tokens (in memory, contract §4) and the score clock (in memory, floor = start + 2 s).
   const tokens = createTokenClient({ db, masterKey: config.masterKey, outbound, logger });
-  const ags = createAgsClient({ outbound, tokens, clock: createScoreClock() });
+  const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(), logger });
   const app = await buildApp({
-    db, urls: config.urls, logger, keys: createPlatformKeys(outbound), ltikTtlSeconds: config.ltikTtlSeconds, masterKey: config.masterKey, ags, nrps: createNrpsClient({ outbound, tokens }), outbound,
+    db, urls: config.urls, logger, keys: createPlatformKeys(outbound), ltikTtlSeconds: config.ltikTtlSeconds, masterKey: config.masterKey, ags, nrps: createNrpsClient({ outbound, tokens, logger }), outbound,
     profile: config.profile, knobs, outboundAllowlist: outbound.allowlist, simulationProfiles: config.simulationProfiles,
   });
   // LA-ADR-06 D3: the operator API on its own listener (no proxy route).
-  const operatorApp = await buildOperatorApp({ db, logger, keys: config.masterKey });
+  const operatorApp = await buildOperatorApp({ db, logger, keys: config.masterKey, urls: config.urls, simulationProfiles: config.simulationProfiles });
   await app.listen({ port: config.port, host: '0.0.0.0' });
   await operatorApp.listen({ port: config.operatorPort, host: config.operatorHost });
   logger.info('service_started', {

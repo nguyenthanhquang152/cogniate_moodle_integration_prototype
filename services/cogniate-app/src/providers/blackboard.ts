@@ -44,6 +44,7 @@ export const blackboardProvider: ProviderAdapter = {
   capabilities: { dynamicRegistration: false, operatorApproval: true, webServices: false, courseShell: false, addDeployment: false, canvasConfiguration: false },
   defaultProfile: 'blackboard',
   acceptsServiceUrl: false,
+  sharingOf: (id) => PROFILE_LABELS[id] ? 'shared' : null,
   siteRuleSuffixes: () => null,
   profileLabel: (id) => PROFILE_LABELS[id] ?? null,
   toolConfiguration: (ctx) => blackboardToolRows(ctx.urls, ctx.sharedClientId),

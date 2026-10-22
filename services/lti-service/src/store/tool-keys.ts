@@ -95,6 +95,18 @@ function insertKey(db: Db, key: PreparedToolKey, status: 'active' | 'next', now:
     status, now, now, status === 'active' ? now : null);
 }
 
+/** BD-A2-07: only a new account can receive an active key without the publish lead time. */
+export function createFirstToolKey(db: Db, prepared: PreparedToolKey, now: number): SigningKeyRecord {
+  return transaction(db, () => {
+    if (!getAccount(db, prepared.accountId)) throw new Error('First signing key requires an account.');
+    if (db.prepare('SELECT 1 FROM tool_key WHERE tool_account_id = ?').get(prepared.accountId)) {
+      throw new Error('First signing key requires an account with no signing key.');
+    }
+    insertKey(db, prepared, 'active', now);
+    return signingKey(db, prepared.accountId, prepared.kid);
+  });
+}
+
 /** Publish the prepared key. It cannot sign until activation. */
 export function createNextToolKey(db: Db, key: PreparedToolKey, now = Date.now()): SigningKeyRecord {
   return transaction(db, () => {

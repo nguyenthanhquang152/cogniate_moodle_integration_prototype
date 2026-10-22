@@ -1,3 +1,4 @@
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 // Publication results (app contract §5 ResultRow, T5a; H5) and the outcome stats. One row per learner per activity
 // (resource link); preview attempts are rows with preview: true. An attempt shows under the publication of its own
 // course (data-model §2: after a rebind, an old attempt stays with its own course's publication).
@@ -21,11 +22,12 @@ interface AttemptRow {
   contextTitle: string;
   title: string;
   issuer: string | null;
+  channel: string;
 }
 
 function attemptsOfPublication(db: Db, connectionId: string, courseId: string): AttemptRow[] {
   return db.prepare(`SELECT a.id, a.resource_link_id, a.user_sub, a.course_version_id, a.preview, a.outcome, a.score_given, a.score_maximum,
-      a.created_at, a.updated_at, rl.context_title, rl.title, con.site_url
+      a.created_at, a.updated_at, rl.context_title, rl.title, con.site_url, con.channel
     FROM attempt a JOIN course_version v ON v.id = a.course_version_id JOIN resource_link rl ON rl.id = a.resource_link_id
     JOIN connection con ON con.id = rl.connection_id
     WHERE rl.connection_id = ? AND v.course_id = ? ORDER BY a.created_at, a.rowid`).all(connectionId, courseId).map((r) => {
@@ -35,7 +37,7 @@ function attemptsOfPublication(db: Db, connectionId: string, courseId: string): 
       id: String(r.id), resourceLinkId: String(r.resource_link_id), userSub: String(r.user_sub), versionId: String(r.course_version_id),
       preview: Number(r.preview) === 1, outcome: r.outcome as Outcome, scoreGiven: r.score_given === null ? null : Number(r.score_given),
       scoreMaximum: r.score_maximum === null ? null : Number(r.score_maximum), createdAt: Number(r.created_at), updatedAt: Number(r.updated_at),
-      contextTitle: String(r.context_title), title: String(r.title), issuer,
+      contextTitle: String(r.context_title), title: String(r.title), issuer, channel: String(r.channel),
     };
   });
 }
@@ -51,12 +53,12 @@ function syncsOf(db: Db, attemptIds: string[]): SyncRowView[] {
   }));
 }
 
-const learnerLabel = (sub: string, issuer: string | null): string => {
-  let host = 'Moodle';
+const learnerLabel = (sub: string, issuer: string | null, name: string): string => {
+  let host = name;
   try {
     if (issuer) host = new URL(issuer).host;
   } catch {
-    host = 'Moodle';
+    host = name;
   }
   return `Learner ${sub} @ ${host}`;
 };
@@ -80,7 +82,7 @@ export function gradebookDiffers(gradebook: { resultScore: number | null; result
 }
 
 /** ResultRows of one publication (the caller checked the library). Oldest activity and learner first. */
-export function publicationResults(db: Db, p: { connectionId: string; courseId: string }) {
+export function publicationResults(db: Db, p: { connectionId: string; courseId: string }, channels: ChannelRegistry) {
   const attempts = attemptsOfPublication(db, p.connectionId, p.courseId);
   const syncs = syncsOf(db, attempts.map((a) => a.id));
   const groups = new Map<string, AttemptRow[]>();
@@ -95,7 +97,7 @@ export function publicationResults(db: Db, p: { connectionId: string; courseId: 
     const rowSyncs = syncs.filter((s) => ids.has(s.attemptId));
     const gradebook = first.preview ? null : gradebookOf(db, first.resourceLinkId, first.userSub);
     return {
-      learner: { sub: first.userSub, label: learnerLabel(first.userSub, first.issuer) },
+      learner: { sub: first.userSub, label: learnerLabel(first.userSub, first.issuer, channels.textName(first.channel)) },
       activity: { resourceLinkId: first.resourceLinkId, contextTitle: first.contextTitle, title: first.title },
       preview: first.preview,
       best: { attemptId: best.id, outcome: best.outcome, scoreGiven: best.scoreGiven, scoreMaximum: best.scoreMaximum },
@@ -110,8 +112,8 @@ export function publicationResults(db: Db, p: { connectionId: string; courseId: 
 }
 
 /** Outcome stats of a publication (app contract §5): learners (not previews) by their best outcome, and the last sent sync. */
-export function outcomeStats(db: Db, p: { connectionId: string; courseId: string }): { inProgress: number; completed: number; passed: number; failed: number; lastScoreSync: string | null } {
-  const rows = publicationResults(db, p).filter((r) => !r.preview);
+export function outcomeStats(db: Db, p: { connectionId: string; courseId: string }, channels: ChannelRegistry): { inProgress: number; completed: number; passed: number; failed: number; lastScoreSync: string | null } {
+  const rows = publicationResults(db, p, channels).filter((r) => !r.preview);
   const count = (o: Outcome) => rows.filter((r) => r.best.outcome === o).length;
   const sent = rows.flatMap((r) => r.scoreSyncs).map((s) => s.sentAt).filter((s): s is string => s !== null).sort();
   return { inProgress: count('in_progress'), completed: count('completed'), passed: count('passed'), failed: count('failed'), lastScoreSync: sent.at(-1) ?? null };

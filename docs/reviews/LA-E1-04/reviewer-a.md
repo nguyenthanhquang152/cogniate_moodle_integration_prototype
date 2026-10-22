@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E1-04 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -76,3 +76,28 @@ Round: 1
 
 - The SQL portability list does not name SQLite trigger bodies (`BEGIN … SELECT RAISE(ABORT, …); END`). The append-only triggers of LTI migrations `007` and `008` (LA-ADR-06 D4) need such a body, and Postgres cannot run them as written. Flagging them now would fail F5 on a required design. A1 may record "SQLite triggers are rewritten in LG" next to the list instead.
 - F1 skips unit tests and `testkit.ts` files, as TEST-STRATEGY §3.1 says. The pattern also skips `<name>.testkit.ts` (for example `packages/shared/src/jobs.testkit.ts`, the job store-contract suite), which is test code too.
+
+## Round 2
+
+- Diff: `git diff 3fe6c13^1 3fe6c13` (what the merge added; lane `la-p` commits `cf4de62`, `cd6317e`, `99de816`, plus two merges of integration and of the A1 ruling). These tool files at `HEAD` are the same as at `3fe6c13`.
+- References: my round-1 findings above; A1 BD-A1-15 (regex pattern text; an escape is a separator; `App.tsx` 10 → 13 as the landing count, not an RQ-3 raise); README §4 F1.
+- I ran on the host (no Docker):
+  - `node --test 'infra/scripts/fitness/*.test.mjs'`: 29 of 29 pass.
+  - `fitness:lms-names`: `F1 PASS: 80 files with hits, 680 hits` (677 + the 3 hits at `App.tsx:255`).
+  - `fitness:rules`: `F5 PASS: 2 rules, 0 hits`.
+  - My round-1 probes again, run directly and through a symlinked folder in `$TMPDIR`.
+- Blind review as before.
+- **Verdict (round 2): APPROVE.** All four round-1 findings are closed. New: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+### Round-1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E1-04-01 (MAJOR) | closed | The visitor now takes every `RegularExpressionLiteral`. It checks the pattern text between the slashes, without the flags. Each backslash with its next character becomes a separator before the part rule (BD-A1-15). My probes now fail: `/\.instructure\.com$/` gives `instructure`, `/\bcanvas\b/i` gives `canvas`, and `/^(moodle\|canvas\|blackboard)-/` gives three hits, at the pattern position. The tree run counts the real line `apps/portal/src/App.tsx:255`, and `f1-baseline.json` has `App.tsx: 13` at the landing SHA. The old test that pinned `/canvas/` as a pass is now a hit test, plus an escape test. |
+| A-LA-E1-04-02 (MINOR) | closed | `isMain` is gone. `lms-names.mjs`, `rules.mjs` and `channel-diff.mjs` use `import.meta.main`. Through a symlinked folder, the F1 probe gives `F1 FAIL`, the F5 `PRAGMA` probe gives `F5 FAIL`, and an F2 core path gives `F2 FAIL` (round 1: nothing, exit 0). A new test runs each tool through a symlinked folder. |
+| A-LA-E1-04-03 (NIT) | closed | A negative delta now prints `lower f1-baseline.json for <path> to <count>` and still passes (AC-05). The baseline in this diff also drops the entries of files that LA-E1-05 moved out of core (`profiles/*.ts`, `lti/checks.ts`, `lti/launch.ts`), so their slack is gone. |
+| A-LA-E1-04-04 (NIT) | closed | `.cts`, `.jsx` and `.cjs` are checked (my `.jsx` probe now fails). A `*.mjs` entry in `rules/` that is a symlink or a folder gives `rule_invalid`. `--report-only` is gone, and a test shows that it is now refused. `--no-renames` is accepted, and the diff always uses `--no-renames`. The expired `config.ts` exception is removed: the scope file no longer lists it, the file has no LMS token today, and a test checks it as normal core. |
+
+### Note (no finding)
+
+- A character class can still spell a word in parts that the rule does not join (for example `[Mm]oodle` gives the parts `mm` and `oodle`). That is an evasive form, not a normal spelling: a case-insensitive pattern such as `/moodle/i` hits, and review covers the rest.

@@ -127,28 +127,38 @@ New agents continue the stopped tasks with retry-context notes (charter-LA §0 m
 | Architect A1 | Claude Opus 5.5 xhigh | `ctx_7a37e7830a62` | ratify hosts.json schema, fitness rule interface, matrix updates, migration numbers |
 | Architect A2 | Claude Opus 5.5 xhigh | `ctx_40535863c72d` | ratify SAVEPOINT audit atomicity; operator-key and e2e-secret doc alignment |
 
-## Wave B1 progress (2026-10-22 ~18:00 +07)
+## Wave B1 progress (2026-10-22 10:45Z)
 
 "Done" = QA PASS on every non-pending AC + Reviewer-A and Reviewer-B APPROVE; "pending" ACs wait for the golden tool or a Docker window (LD-21).
+
+Docker: host-only. The other run gave a short temporary handoff to 10:45Z; the Lead declined it (too short for a stack run and owned-only cleanup). Provisional LA window **13:00-15:00Z** (target, not granted): one SIM stack at a time for the QA K1-SIM backlog.
 
 | Task | Lane | State | Evidence |
 | --- | --- | --- | --- |
 | LA-E0-01 | Lead | **done** (AC-04/05 at wave end) | QA-3 R1 PASS |
 | LA-E1-01 | K | **done** (AC-03 golden, F1 part pending) | QA-3 R1 PASS; A, B APPROVE |
 | LA-E1-02 | K | **done** (AC-09 pending) | QA-3 R1 PASS; A, B APPROVE |
-| LA-E5-01 | S1 | reviews APPROVE; QA-2 run pending (K1-SIM needs Docker) | A, B APPROVE |
-| LA-E5-08 | S2 | reviews APPROVE (r2 + wiring); QA-2 run pending | A, B APPROVE |
-| LA-E5-02 | S1 | r1 A, B APPROVE; r2 fixes merged `8371c07`; Reviewer-A r2 check running | |
-| LA-E4-01 | R | QA-3 PASS; A APPROVE; B running | |
-| LA-E7-03 | S1 | A APPROVE, B CHANGES_REQUESTED (BLOCKER .sim.test); fix round running (A1 BD-A1-01, BD-A1-08) | |
-| LA-E7-10 | R | merged `a8b5517`; QA-3 run and Reviewer-A running | |
-| LA-E1-03 | K | merged `a9f83be`; QA-3 run running; reviews queued | |
-| LA-E1-04 | P | Author running (A1 BD-A1-07; F1 matching question with A1) | |
-| LA-E1-05 | L | Author running (A1 BD-A1-06) | |
-| LA-E1-06 | K | Author running | |
-| LA-E5-10 | S2 | Author running (A2 BD-A2-04..06) | |
-| LA-E0-02/03/04, LA-E7-01 | QA | lead QA: golden tool (no capture); LA-E0-04 waits for both reviewers on the LD-1 list | |
-| LA-E5-04 | S1 | after the LA-E7-03 fix round | |
-| LA-E7-02 | QA-E2E | starts when LA-E7-03 is approved | |
+| LA-E4-01 | R | **done**; fix round 1 merged `06efe56`, A r2 APPROVE; B r2 and QA-3 R2 queued | QA-3 R1 PASS; A, B APPROVE |
+| LA-E1-05 | L | **done** except K1-SIM / MOODLE-LIVE ACs (Docker) | QA-4 R1 host-only PASS; A2, B2 APPROVE (MINORs to L's next dispatch and A1) |
+| LA-E1-04 | P | A r2 APPROVE, B r1 APPROVE; QA-3 R1 running; FU (A1 BD-A1-19) merged `8a1ef2d`; FU-1 (A2 BD-A2-13 F5 forms) running | |
+| LA-E5-01 | S1 | reviews APPROVE; QA-2 K1-SIM run pending Docker | A, B APPROVE |
+| LA-E5-08 | S2 | reviews APPROVE; QA-2 K1-SIM run pending Docker | A, B APPROVE |
+| LA-E5-02 | S1 | A r2, B r1 APPROVE; QA-2 suite written (run pending Docker) | |
+| LA-E5-10 | S2 | A r1 APPROVE (A2 BD-A2-13/14 for the fix round); B queued; S2 fix round after B | |
+| LA-E7-03 | S1 | A r2 APPROVE; B r2 running | |
+| LA-E7-10 | R | fix round 1 merged `b5069f6`; step 5 waits for Reviewer-A's reword of 5 example lines in its own review; then QA-3 R2, A and B r2 | QA-3 R1 FAIL, A r1 CHANGES_REQUESTED |
+| LA-E1-03 | K | A1 BD-A1-16/18 + A2 BD-A2-11 rulings; K fix round 1 running | QA-3 R1 PASS; B APPROVE; A CHANGES_REQUESTED |
+| LA-E1-06 | K | merged `dc67c14`; reviews and QA-3 R1 queued | |
+| LA-E5-04 | S1 | merged `a00c090`; A r1 running; B queued; QA-2 suite (9 K1-SIM) pending Docker | |
+| LA-E7-01 | QA | A and B CHANGES_REQUESTED (K-CAP table vs D3; adapter methods vs D5 port); A1 ruling running; lead QA fix round next | |
+| LA-E5-07 | S2 | Author running (A2 BD-A2-09/10/12; RQ-2 lines after LA-E5-04 merge) | |
+| LA-E5-14 | L | Author running (A2 BD-A2-15/16: one generic Retry-After rule, L writes http/retry-after.ts) | |
+| LA-E5-03 | S1 | Author running (LTI migration 012; interface items with A2) | |
+| LA-E0-02/03/04 | QA | LA-E0-03 K0 PASS, K1-SIM pending Docker; LA-E0-04 waits for both reviewers on the LD-1 list | |
+| LA-E7-02 | QA-E2E | starts when LA-E7-03 B r2 approves | |
 
-Integration branch: `3364488`; last full integration check green at `a8b5517`.
+LTI migration numbers (Lead, RQ-5): 011 S2 `api_key` (LA-E5-07), 012 S1 `service_setting` (LA-E5-03), 013 next free (session-cap storage, owner by A2 ruling).
+
+Incident 2026-10-22 10:20Z: the integration branch was red on F1 at `b5069f6` (app migration 013 of LA-E1-06 has 2 frozen LMS strings; lane K's self-check ran before lane P's stricter F1 landed). A1 ruled BD-A1-19 (exact-token exception), lane P fixed it in `e5a687a`, merged `8a1ef2d`. Process fix: the Lead runs the full check on each merge SHA at once and tells all lanes about a known red line.
+
+Integration branch: `8a1ef2d`; last full check green at `8a1ef2d` (1391 unit, 109 K0, F1 590 hits, F5 3 rules).
