@@ -108,6 +108,18 @@ describe('redact', () => {
     expect(redactString('/tool/launch?resource=pub_1&ltik=secret123')).toBe('/tool/launch?resource=pub_1&ltik=[redacted]');
     expect(redactString('key ltis_0123456789abcdef')).toBe('key [redacted-api-key]');
   });
+
+  it('AC-LA-E5-01-12: writes a field value that starts with ltio_ (operator key) redacted, also in an operator header', () => {
+    const lines: string[] = [];
+    const logger = createLogger({ service: 'demo', write: (l) => lines.push(l), now: fixed });
+    const operatorKey = `ltio_${'A'.repeat(21)}-_${'b'.repeat(20)}`;
+    logger.info('demo_event', { note: operatorKey, short: 'ltio_x', header: `OPERATOR-AUTH-V1 ${operatorKey}`, nested: { list: [`${operatorKey} end`] } });
+    expect(lines.join('')).not.toContain(operatorKey);
+    expect(parse(lines)[0]).toMatchObject({
+      note: '[redacted-operator-key]', short: '[redacted-operator-key]', header: 'OPERATOR-AUTH-V1 [redacted]', nested: { list: ['[redacted-operator-key] end'] },
+    });
+    expect(redactString('format ltio_ + 43 characters')).toBe('format ltio_ + 43 characters');
+  });
 });
 
 describe('redactPath', () => {

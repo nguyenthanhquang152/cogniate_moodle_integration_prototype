@@ -58,19 +58,14 @@ const TRACE_ID = /^[A-Za-z0-9-]{16,64}$/; // contract §1.4
 export function simulationProfileIds(on: boolean): string[] {
   return listProfiles({ simulation: on }).filter((p) => p.simulation).map((p) => p.id);
 }
-const BODY_LIMIT = 256 * 1024; // contract §1.4
+export const BODY_LIMIT = 256 * 1024; // contract §1.4
 const MAX_PARAM_LENGTH = 2048; // :lineItemId is a URL-encoded line item URL (contract §1.4)
 
-export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
-  const now = deps.now ?? Date.now;
-  const log = deps.logger;
-  const app = Fastify({
-    logger: false, bodyLimit: BODY_LIMIT, maxParamLength: MAX_PARAM_LENGTH, return503OnClosing: false,
-    // ltiaas-0.0.4 tolerance (contract §8 D14): fold leading slashes only; preserve route segments, encoded ids and queries.
-    rewriteUrl: (req) => (req.url ?? '/').replace(/^\/{2,}/, '/'),
-  });
-  await app.register(formbody, { bodyLimit: BODY_LIMIT });
-
+/**
+ * The setup that both listeners share (public and operator, LA-ADR-06 D3): trace id, the http_request line, the error
+ * body of contract §1.3 and the 404 answer.
+ */
+export function installApiBasics(app: FastifyInstance, log: Logger): void {
   app.decorateRequest('traceId', '');
   app.addHook('onRequest', async (req, reply) => {
     const given = req.headers['x-trace-id'];
@@ -95,6 +90,18 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     return reply.code(500).send(new ApiError('INTERNAL_ERROR', `Internal error. Trace id: ${req.traceId}`).body());
   });
   app.setNotFoundHandler((_req, reply) => reply.code(404).send(new ApiError('NOT_FOUND', 'Unknown route.').body()));
+}
+
+export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
+  const now = deps.now ?? Date.now;
+  const log = deps.logger;
+  const app = Fastify({
+    logger: false, bodyLimit: BODY_LIMIT, maxParamLength: MAX_PARAM_LENGTH, return503OnClosing: false,
+    // ltiaas-0.0.4 tolerance (contract §8 D14): fold leading slashes only; preserve route segments, encoded ids and queries.
+    rewriteUrl: (req) => (req.url ?? '/').replace(/^\/{2,}/, '/'),
+  });
+  await app.register(formbody, { bodyLimit: BODY_LIMIT });
+  installApiBasics(app, log);
 
   const profiles = { simulation: deps.simulationProfiles ?? false };
   const ctx: RouteContext = {

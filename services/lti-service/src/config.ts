@@ -5,6 +5,10 @@ import { simulationEnabled } from './profiles/index.ts';
 export interface LtiConfig {
   urls: PublicUrls;
   port: number;
+  /** Operator listener (LA-ADR-06 D3): OPERATOR_HOST, default 127.0.0.1; the acceptance compose profile sets 0.0.0.0. */
+  operatorHost: string;
+  /** OPERATOR_PORT, default 4110. */
+  operatorPort: number;
   /** Folder of lti.db (compose: /data = infra/.data/lti-service). */
   dataDir: string;
   /** AES-256-GCM key for private key material (LTI_MASTER_KEY, 64 hex characters). */
@@ -25,6 +29,8 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
   return {
     urls: loadPublicUrls(env),
     port: portFromEnv('PORT', 4100),
+    operatorHost: env.OPERATOR_HOST?.trim() || '127.0.0.1',
+    operatorPort: portFromEnv('OPERATOR_PORT', 4110),
     dataDir: env.DATA_DIR ?? '/data',
     masterKey: Buffer.from(masterHex, 'hex'),
     ltikTtlSeconds: knobValue('LTIK_TTL_SECONDS', env),
@@ -32,4 +38,9 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     outboundAllowlist: parseAllowlist(env.OUTBOUND_PRIVATE_HOST_ALLOWLIST),
     simulationProfiles: simulationEnabled(profile, env),
   };
+}
+
+/** "host:port" for logs (`operator_bind`); an IPv6 host gets brackets. */
+export function hostPort(host: string, port: number): string {
+  return host.includes(':') ? `[${host}]:${port}` : `${host}:${port}`;
 }
