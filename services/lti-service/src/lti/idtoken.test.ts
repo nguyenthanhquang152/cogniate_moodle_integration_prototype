@@ -7,7 +7,7 @@ import { toIdToken } from './idtoken.ts';
 
 const platform: Platform = {
   id: 'plt_1', toolAccountId: 'cogniate', issuer: 'https://moodle.test', clientId: 'c', name: 'Moodle seed', authEndpoint: '', tokenEndpoint: '',
-  jwksUrl: '', productFamilyCode: null, active: true, deploymentIds: ['1'],
+  jwksUrl: '', productFamilyCode: null, active: true, deploymentIds: ['1'], trustedAudiences: [],
   profile: 'standard', siteUrl: null, serviceUrl: null, bindingRef: null, deployments: [{ deploymentId: '1', siteUrl: null, active: true, bindingGeneration: 0, bindingRef: null, createdAt: null }],
 };
 const launch = (claims: Record<string, unknown>, messageType = 'LtiResourceLinkRequest'): LaunchRecord =>

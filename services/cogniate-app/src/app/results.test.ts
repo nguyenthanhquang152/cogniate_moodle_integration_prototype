@@ -2,7 +2,7 @@ import fastify from 'fastify';
 import { createLogger, encrypt } from '@cogniate/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ltiAgsReporter } from '../drivers/lti-ags/index.ts';
-import { configureRecordReporters } from '../kernel/records/records.ts';
+import { registerRecordReporters } from '../kernel/records/records.ts';
 import { recordsFixture } from '../kernel/records/records.testkit.ts';
 import { TEST_CHANNELS, fakeLti } from '../testkit.ts';
 import { ApiError } from './api-errors.ts';
@@ -21,7 +21,7 @@ async function fixture(readBack = true, reporterReadBack = true) {
   f.db.prepare('UPDATE resource_link SET line_item_id = ?, service_key_encrypted = ?').run('line', encrypt(masterKey, 'service-key'));
   const reporter = ltiAgsReporter({ db: f.db, lti: lti.client, channels, masterKey });
   if (!reporterReadBack) delete reporter.readBack;
-  configureRecordReporters(f.db, [reporter]);
+  registerRecordReporters(f.db, [reporter]);
   const app = fastify();
   app.addHook('onRequest', async (req) => {
     req.auth = { signedIn: { library: { id: 'lib' } } } as NonNullable<typeof req.auth>;
@@ -62,5 +62,23 @@ describe('results guards and read-back', () => {
     }
     expect(f.lti.calls).toEqual([]);
     expect(await f.readRow(f.id)).toMatchObject({ status: 'failed', tries: 0 });
+  });
+  it('B-LA-E4-03-01: Resend keeps the M1 answers and shows only the rows of the results reporter', async () => {
+    const f = await fixture();
+    const resend = async (id: string) => {
+      const response = await f.app.inject({ method: 'POST', url: `/score-syncs/${id}/resend` });
+      return { status: response.statusCode, body: response.json() as Record<string, unknown> };
+    };
+    expect(await resend(f.id)).toMatchObject({ status: 409, body: { details: { message: 'SYNC_NOT_RESENDABLE',
+      description: 'Only a failed or conflict score sync can be sent again.' } } });
+    expect(await resend('sync_missing')).toMatchObject({ status: 404, body: { details: { message: 'NOT_FOUND',
+      description: 'The score sync does not exist in your library.' } } });
+    f.db.prepare("UPDATE record_dispatch SET status = 'failed', tries = 3, last_error = 'Old', reporter = 'other' WHERE id = ?").run(f.id);
+    expect((await resend(f.id)).status).toBe(404);
+    f.db.prepare("UPDATE record_dispatch SET reporter = 'lti-ags' WHERE id = ?").run(f.id);
+    expect(await resend(f.id)).toEqual({ status: 200, body: { id: f.id, status: 'pending', tries: 0, scoreGiven: 0.8, scoreMaximum: 1,
+      createdAt: new Date(Number(f.db.prepare('SELECT created_at FROM record_dispatch WHERE id = ?').get(f.id)!.created_at)).toISOString(),
+      sentAt: null, lastError: null } });
+    expect(f.db.prepare('SELECT next_try_at, resent_at FROM record_dispatch WHERE id = ?').get(f.id)).toEqual({ next_try_at: 100_000, resent_at: 100_000 });
   });
 });

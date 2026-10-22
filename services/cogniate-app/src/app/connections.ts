@@ -19,13 +19,12 @@ import { ownedProfiles, setupOf } from '../kernel/setup.ts';
 import type { BindingCleanup } from './binding-cleanup.ts';
 import { activeShared, providerProfiles, snapshotOf } from './binding-targets.ts';
 import type { RedemptionEngine } from './redemption.ts';
-import { TOOL_ACCOUNT, toolName } from '../kernel/setup/common.ts';
+import { toolContext, toolUrls } from '../kernel/setup/common.ts';
+import { toolName } from '@cogniate/channel-kernel/setup';
 import { authorityFor } from '../kernel/authority/index.ts';
-export { deactivateOrphan, platformInfo } from '../kernel/authority/common.ts';
 import { registerErrorText } from '../tool-pages/register-texts.ts';
 import { ApiError, providerNotReady } from './api-errors.ts';
 
-export { TOOL_ACCOUNT, toolName };
 
 export interface ConnectionDeps {
   channels: ChannelRegistry;
@@ -49,7 +48,7 @@ export function newRef(masterKey: Buffer, ttlSeconds: number, now: number): { to
   return { token, stored: { hash: sha256Hex(token), encrypted: encrypt(masterKey, token), expiresAt: now + ttlSeconds * 1000 } };
 }
 
-export const registrationUrl = (urls: PublicUrls, ref: string): string => `${urls.lti}/lti/register/${TOOL_ACCOUNT}?ref=${ref}`;
+export const registrationUrl = (urls: PublicUrls, ref: string): string => `${toolUrls(urls).register}?ref=${ref}`;
 
 
 /**
@@ -79,8 +78,8 @@ export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffe
     lastError: c.lastError ? {
       code: c.lastError.code, ltiCode: c.lastError.ltiCode, traceId: c.lastError.traceId, at: iso(c.lastError.at),
       // The same title and action line as the register page of that code (one text table, register-texts.ts).
-      title: registerErrorText(c.lastError.code, toolName(libraryName))?.title ?? null,
-      action: registerErrorText(c.lastError.code, toolName(libraryName))?.action ?? null,
+      title: registerErrorText(c.lastError.code, toolName(libraryName), channels.textName(c.channel))?.title ?? null,
+      action: registerErrorText(c.lastError.code, toolName(libraryName), channels.textName(c.channel))?.action ?? null,
     } : null,
   };
 }
@@ -221,14 +220,14 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
       logger.warn('provider_not_ready', { trace_id: req.traceId, connection_id: c.id, profile: c.profile, cause: 'no_snapshot' });
       throw providerNotReady();
     }
-    return adapter.toolConfiguration({ urls, libraryName: libraryOf(req).name, sharedClientId: clientId });
+    return adapter.toolConfiguration({ ...toolContext(urls), urls, libraryName: libraryOf(req).name, sharedClientId: clientId });
   });
 
   api.put<IdParams>('/connections/:id/platform', async (req) => {
     const c = connectionOf(req);
     const adapter = setupOf(channels, c.channel);
     if (!adapter) throw new ApiError('CAPABILITY_NOT_SUPPORTED');
-    const done = await authorityFor(c, deps).bind(c, adapter, req.body, { libraryName: libraryOf(req).name, traceId: req.traceId });
+    const done = await authorityFor(c, deps).bind(c, adapter, req.body, { ...toolContext(urls), libraryName: libraryOf(req).name, traceId: req.traceId });
     return dto(req, done);
   });
 

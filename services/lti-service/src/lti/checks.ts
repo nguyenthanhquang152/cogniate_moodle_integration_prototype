@@ -125,12 +125,15 @@ export function check5IssuerAudience(claims: Claims, platform: Platform): void {
   if (!list || !list.includes(platform.clientId)) fail('5', 'INVALID_ISSUER_OR_AUDIENCE', 'aud_mismatch');
   if (list!.length > 1 && claims.azp === undefined) fail('5', 'INVALID_ISSUER_OR_AUDIENCE', 'azp_missing');
   if (claims.azp !== undefined && claims.azp !== platform.clientId) fail('5', 'INVALID_ISSUER_OR_AUDIENCE', 'azp_mismatch');
+  if (list!.some((audience) => audience !== platform.clientId && !platform.trustedAudiences.includes(audience))) {
+    fail('5', 'INVALID_ISSUER_OR_AUDIENCE', 'aud_untrusted');
+  }
 }
 
 /** Check 6: the signature is valid with a key of the platform JWKS (refresh, fallback and refetch rules in jwks.ts). */
 export async function check6Signature(keys: PlatformKeys, idToken: string, platform: Platform, traceId: string): Promise<void> {
   try {
-    await keys.verify(idToken, platform.jwksUrl, traceId);
+    await keys.verify(idToken, platform.jwksUrl, traceId, platform.id);
   } catch (err) {
     fail('6', 'INVALID_SIGNATURE', err instanceof PlatformKeyError ? err.detail : 'bad_signature');
   }

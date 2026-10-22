@@ -9,7 +9,7 @@ import type { HtmlProgress } from '@cogniate/tracking';
 import { agsScore, checkHtmlProgress, checkScormCmi, emptyProgress, finishStatus, htmlOutcome, improves, isFinal, outcomeFromStatus, sessionMax, totalTime } from '@cogniate/tracking';
 import type { Db } from './db.ts';
 import { transaction } from './db.ts';
-import { writeFinalRecord } from '../kernel/records/records.ts';
+import { writeCommitRecords } from '../kernel/records/records.ts';
 
 export type { Outcome } from '@cogniate/tracking';
 /** Re-exported for the content host (the ADR-008 fence lets it import only domain/attempts*). */
@@ -231,6 +231,18 @@ function evaluateScorm(s: RuntimeSession, body: Record<string, unknown>, event: 
   return { ok: true, stored: cmi, outcome, score: agsScore(outcome, cmi.core.score.raw, cmi.core.score.max) };
 }
 
+/**
+ * LA-E4-04 "the stored progress changes": compare the stored tracking state without the values of one session.
+ * SCORM drops core.session_time and core.exit (they change with each session, not with the learner's progress);
+ * HTML keeps all of its progress (pages seen, answers; already in profile order). null: nothing stored yet.
+ */
+function progressOf(format: PackageFormat, stored: unknown): string | null {
+  if (stored === null) return null;
+  if (format !== 'scorm12') return JSON.stringify(stored);
+  const cmi = stored as ScormCmi;
+  return JSON.stringify({ ...cmi, core: { ...cmi.core, session_time: '', exit: '' } });
+}
+
 /** HTML: progress rules against the tracking profile of the attempt's version (a saved answer never changes). */
 function evaluateHtml(s: RuntimeSession, body: Record<string, unknown>, saved: unknown): Evaluated {
   const checked = checkHtmlProgress(body.progress, s.profile, isRecord(saved) ? (saved as unknown as HtmlProgress) : null);
@@ -243,7 +255,8 @@ function evaluateHtml(s: RuntimeSession, body: Record<string, unknown>, saved: u
  * A commit (app contract §7), checks in this order after the token: (2) the session id of this play session,
  * (3) seq > last accepted seq (409 STALE_SEQUENCE), (4) value rules (400 INVALID_CMI or INVALID_PROGRESS,
  * details.field), (5) store, derive the outcome and maybe make a score sync row, all in one transaction (T5a
- * design note). The attempt keeps its best outcome (never lower).
+ * design note). The attempt keeps its best outcome (never lower). A non-preview commit also writes its learning
+ * records in that transaction (LA-ADR-03 D3: started, progressed, submitted, final).
  *
  * A-T5a-01: arrival order is not seq order, and a `finish` or the final `unload` must never be lost. A late
  * (not newer) `finish` or `unload` is accepted without overwriting the stored state: a late `finish` closes the
@@ -275,12 +288,18 @@ export function applyCommit(db: Db, s: RuntimeSession, body: unknown, now: numbe
     db.prepare(`UPDATE play_session SET last_seq = MAX(last_seq, ?), max_session_time_cs = ?, finished_at = COALESCE(finished_at, ?), last_cmi = ? WHERE id = ?`)
       .run(seq, sessionMax(Number(current.max_session_time_cs), sessionTime), event === 'finish' ? now : null, s.format === 'scorm12' ? JSON.stringify(r.stored) : null, s.playKey);
     const before = { outcome: a.outcome as Outcome, score: a.score_given === null ? null : { scoreGiven: Number(a.score_given), scoreMaximum: Number(a.score_maximum) } };
-    const best = improves(before, { outcome: r.outcome, score: r.score }) ? { outcome: r.outcome, score: r.score } : before;
+    const improved = improves(before, { outcome: r.outcome, score: r.score });
+    const best = improved ? { outcome: r.outcome, score: r.score } : before;
     db.prepare(`UPDATE attempt SET cmi_or_progress = ?, last_seq = MAX(last_seq, ?), outcome = ?, score_given = ?, score_maximum = ?, updated_at = ? WHERE id = ?`)
       .run(JSON.stringify(r.stored), seq, best.outcome, best.score?.scoreGiven ?? null, best.score?.scoreMaximum ?? null, now, s.attemptId);
 
-    const syncId = !s.preview && improves(before, { outcome: r.outcome, score: r.score }) && isFinal(r.outcome) && r.score
-      ? writeFinalRecord(db, { attemptId: s.attemptId, placementId: s.resourceLinkId, learnerSubject: s.userSub, outcome: r.outcome, ...r.score }, s.reporterIds, now) : null;
+    // Preview attempts write no record (ADR-010 rule 6).
+    const syncId = s.preview ? null : writeCommitRecords(db, {
+      attempt: { attemptId: s.attemptId, placementId: s.resourceLinkId, learnerSubject: s.userSub }, state: best,
+      started: a.cmi_or_progress === null, progressed: progressOf(s.format, saved) !== progressOf(s.format, r.stored),
+      submitted: !isFinal(before.outcome) && isFinal(best.outcome),
+      final: improved && isFinal(r.outcome) && r.score ? { outcome: r.outcome, score: r.score } : null, reporters: s.reporterIds,
+    }, now);
     return { ok: true, event, seq, stale, outcome: best.outcome, scoreGiven: best.score?.scoreGiven ?? null, scoreMaximum: best.score?.scoreMaximum ?? null, syncId };
   });
 }

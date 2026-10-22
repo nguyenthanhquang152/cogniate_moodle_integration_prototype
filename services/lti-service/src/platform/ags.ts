@@ -3,6 +3,7 @@
 // The platform access token goes only to the platform URLs that passed the rule (security §8).
 import type { Logger, OutboundClient, OutboundResponse } from '@cogniate/shared';
 import { createLogger } from '@cogniate/shared';
+import { z } from 'zod';
 import { ApiError } from '../api-errors.ts';
 import { agsBaseUrl, isAllowedServiceUrl, lineItemSubUrl, withQuery } from '../lti/service-url.ts';
 import type { Platform } from '../store/platforms.ts';
@@ -35,6 +36,7 @@ export interface AgsContext {
 }
 
 export interface LineItem {
+  [key: string]: unknown;
   id: string;
   label?: string;
   scoreMaximum?: number;
@@ -47,6 +49,7 @@ export interface LineItem {
 }
 
 export interface LineItemInput {
+  [key: string]: unknown;
   label: string;
   scoreMaximum: number;
   resourceLinkId?: string | null;
@@ -58,6 +61,7 @@ export interface LineItemInput {
 }
 
 export interface ScoreResult {
+  [key: string]: unknown;
   id?: string;
   userId?: string;
   scoreOf?: string;
@@ -65,12 +69,14 @@ export interface ScoreResult {
   resultScore?: number;
   resultMaximum?: number;
   comment?: string;
+  scoringUserId?: string;
 }
 
 export const ACTIVITY_PROGRESS = ['Initialized', 'Started', 'InProgress', 'Submitted', 'Completed'] as const;
 export const GRADING_PROGRESS = ['FullyGraded', 'Pending', 'PendingManual', 'Failed', 'NotReady'] as const;
 
 export interface ScoreInput {
+  [key: string]: unknown;
   userId: string;
   activityProgress: (typeof ACTIVITY_PROGRESS)[number];
   gradingProgress: (typeof GRADING_PROGRESS)[number];
@@ -78,10 +84,34 @@ export interface ScoreInput {
   scoreMaximum?: number;
   comment?: string;
   timestamp?: string;
+  submission?: { startedAt?: string; submittedAt?: string };
+  scoringUserId?: string;
 }
 
 const invalid = (field: string, why: string) => new ApiError('INVALID_REQUEST', `Invalid field: ${field} ${why}.`);
 const ISO_8601 = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
+const Submission = z.object({
+  startedAt: z.iso.datetime({ offset: true }).optional(),
+  submittedAt: z.iso.datetime({ offset: true }).optional(),
+});
+
+/** Extension keys are identifiers, not request targets. Keep the original key and value. */
+export function urlKeyedMembers(body: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(body).filter(([key]) => {
+    if (!/^https:\/\/[^/?#]/i.test(key) || /[\s\\]/.test(key)) return false;
+    try { return new URL(key).protocol === 'https:'; } catch { return false; }
+  }));
+}
+
+function scoreExtensions(body: Record<string, unknown>): Record<string, unknown> {
+  const members = urlKeyedMembers(body);
+  if (Object.keys(members).length > 8) throw invalid('extensions', 'must have at most 8 URL-keyed members');
+  for (const [key, value] of Object.entries(members)) {
+    const json = JSON.stringify(value);
+    if (json === undefined || Buffer.byteLength(json, 'utf8') > 4096) throw invalid(key, 'must serialize to at most 4096 UTF-8 bytes of JSON, including quotes and escapes');
+  }
+  return members;
+}
 
 /** Contract §3.6 (AC-T3-30): a client timestamp may be at most now + 15 min (later scores get 409 until then). */
 export const MAX_SCORE_TIMESTAMP_AHEAD_MS = 15 * 60_000;
@@ -99,7 +129,7 @@ export function parseScore(body: unknown, nowMs: number = Date.now()): ScoreInpu
     if (typeof b.scoreMaximum !== 'number' || !Number.isFinite(b.scoreMaximum) || b.scoreMaximum <= 0) throw invalid('scoreMaximum', 'must be a number > 0');
     out.scoreMaximum = b.scoreMaximum;
   }
-  if (b.scoreGiven !== undefined) {
+  if (b.scoreGiven !== undefined && b.scoreGiven !== null) {
     if (typeof b.scoreGiven !== 'number' || !Number.isFinite(b.scoreGiven) || b.scoreGiven < 0) throw invalid('scoreGiven', 'must be a number >= 0');
     if (out.scoreMaximum === undefined) throw invalid('scoreMaximum', 'is required with scoreGiven');
     out.scoreGiven = b.scoreGiven;
@@ -114,7 +144,16 @@ export function parseScore(body: unknown, nowMs: number = Date.now()): ScoreInpu
     if (Date.parse(b.timestamp) > nowMs + MAX_SCORE_TIMESTAMP_AHEAD_MS) throw invalid('timestamp', 'must not be more than 15 min in the future');
     out.timestamp = b.timestamp;
   }
-  return out;
+  if (b.submission !== undefined) {
+    const parsed = Submission.safeParse(b.submission);
+    if (!parsed.success) throw invalid('submission', 'must contain ISO 8601 startedAt and submittedAt values when present');
+    out.submission = parsed.data;
+  }
+  if (b.scoringUserId !== undefined) {
+    if (typeof b.scoringUserId !== 'string') throw invalid('scoringUserId', 'must be a string');
+    out.scoringUserId = b.scoringUserId;
+  }
+  return { ...out, ...scoreExtensions(b) };
 }
 
 const scopesOf = (ctx: AgsContext): string[] => (Array.isArray(ctx.agsClaim?.scope) ? (ctx.agsClaim!.scope as unknown[]).filter((s): s is string => typeof s === 'string') : []);
@@ -146,6 +185,7 @@ function toLineItem(v: unknown): LineItem {
     id: o.id as string, label: str(o.label), scoreMaximum: num(o.scoreMaximum), resourceLinkId: str(o.resourceLinkId), resourceId: str(o.resourceId),
     tag: str(o.tag), startDateTime: str(o.startDateTime), endDateTime: str(o.endDateTime),
     gradesReleased: typeof o.gradesReleased === 'boolean' ? o.gradesReleased : undefined,
+    ...urlKeyedMembers(o),
   });
 }
 
@@ -155,6 +195,7 @@ function toResult(v: unknown): ScoreResult {
   return compact({
     id: str(o.id), userId: str(o.userId), scoreOf: str(o.scoreOf), timestamp: str(o.timestamp),
     resultScore: num(o.resultScore), resultMaximum: num(o.resultMaximum), comment: str(o.comment),
+    scoringUserId: str(o.scoringUserId), ...urlKeyedMembers(o),
   });
 }
 
@@ -240,6 +281,7 @@ export function createAgsClient(deps: AgsClientDeps) {
       const body = JSON.stringify(compact({
         userId: score.userId, activityProgress: score.activityProgress, gradingProgress: score.gradingProgress,
         scoreGiven: score.scoreGiven, scoreMaximum: score.scoreMaximum, comment: score.comment, timestamp,
+        submission: score.submission, scoringUserId: score.scoringUserId, ...urlKeyedMembers(score),
       }));
       await call(ctx, scope, lineItemSubUrl(url, 'scores'), { method: 'POST', accept: 'application/json', contentType: MEDIA.score, body });
     },

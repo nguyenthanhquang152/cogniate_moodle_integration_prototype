@@ -4,9 +4,11 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
+import { createAccountResolver } from '../../accounts/resolver.ts';
 import { CLAIM } from '../../lti/checks.ts';
 import { deepLinkingForm } from '../../lti/deep-linking.ts';
 import type { LineItemInput } from '../../platform/ags.ts';
+import { urlKeyedMembers } from '../../platform/ags.ts';
 import type { RouteContext } from '../context.ts';
 import { checkServiceKeyWriteScope } from '../auth.ts';
 import { agsContext, claimObject, platformOf, signedDeepLink } from '../service-context.ts';
@@ -26,14 +28,15 @@ const MembershipsQuerySchema = z.object({
 const parseItem = (body: unknown): LineItemInput => {
   const parsed = LineItemBody.safeParse(body);
   if (!parsed.success) throw invalid(parsed.error);
-  return parsed.data;
+  return { ...parsed.data, ...urlKeyedMembers(body as Record<string, unknown>) };
 };
 type ItemParams = { Params: { lineItemId: string } };
 
 export function registerCompatRoutes(app: FastifyInstance, ctx: RouteContext): void {
-  app.post('/api/deeplinking/message', async (req) => signedDeepLink(ctx, ctx.auth(req, ['ltik']), req.body));
+  const resolver = createAccountResolver(ctx.db, ctx.urls.lti);
+  app.post('/api/deeplinking/message', async (req) => signedDeepLink(ctx, resolver, ctx.auth(req, ['ltik']), req.body));
   app.post('/api/deeplinking/form', async (req) => {
-    const response = await signedDeepLink(ctx, ctx.auth(req, ['ltik']), req.body);
+    const response = await signedDeepLink(ctx, resolver, ctx.auth(req, ['ltik']), req.body);
     return { form: deepLinkingForm(response) };
   });
   app.post('/api/lineitems', async (req, reply) => {

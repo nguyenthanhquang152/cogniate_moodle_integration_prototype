@@ -62,6 +62,7 @@ describe('app audit insert and list (AC-LA-E5-11-06)', () => {
     const details = {
       evidence_channel: 'support-call', evidence_ref: 'CALL-42', note_present: true, note: 'Private note',
       apiKey: 'key-value', token: 'token-value', grant_code: 'grant-value', nested: [{ NoteText: 'Nested note', approvalCode: 'approval-value' }],
+      notes: 'Notes text', operatorNote: 'Operator note', grant_note: 'Grant note', approvalCodeShown: 'shown-value', 'grant-code-hash': 'hash-value',
     };
     const id = insertAuditEvent(db, event({ details }), 42);
     const rows = listAuditEvents(db, { limit: 10 }).events;
@@ -70,12 +71,19 @@ describe('app audit insert and list (AC-LA-E5-11-06)', () => {
       details: {
         evidence_channel: 'support-call', evidence_ref: 'CALL-42', note_present: true, note: '[redacted]',
         apiKey: '[redacted]', token: '[redacted]', grant_code: '[redacted]', nested: [{ NoteText: '[redacted]', approvalCode: '[redacted]' }],
+        notes: '[redacted]', operatorNote: '[redacted]', grant_note: '[redacted]', approvalCodeShown: '[redacted]', 'grant-code-hash': '[redacted]',
       },
     }]);
     expect(id).toMatch(/^aud_[A-Za-z0-9_-]{22}$/);
     expect(details.note).toBe('Private note');
     const stored = String(db.prepare('SELECT details FROM audit_event').get()!.details);
-    for (const secret of ['Private note', 'key-value', 'token-value', 'grant-value', 'Nested note', 'approval-value']) expect(stored).not.toContain(secret);
+    for (const secret of ['Private note', 'key-value', 'token-value', 'grant-value', 'Nested note', 'approval-value',
+      'Notes text', 'Operator note', 'Grant note', 'shown-value', 'hash-value']) expect(stored).not.toContain(secret);
+  });
+
+  it('hides every code field on purpose, also an error code, and keeps note_present and evidence_ref (B-LA-E5-11-02)', () => {
+    expect(JSON.parse(auditDetailsText({ code: 'INVALID_REQUEST', Code: 'ABC-123', note_present: true, evidence_ref: 'T-1', approval: 'kept' })!))
+      .toEqual({ code: '[redacted]', Code: '[redacted]', note_present: true, evidence_ref: 'T-1', approval: 'kept' });
   });
 
   it('measures UTF-8 bytes after redaction and truncates above 4096 without blocking a change (BD-A2-45)', async () => {

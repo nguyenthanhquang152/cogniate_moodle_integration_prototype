@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-05 review, lens A ("Is it right and is it safe?")
 
@@ -45,3 +45,22 @@ There is no BLOCKER, no MAJOR and no MINOR finding. The lens-A points pass (see 
 | Failure paths are one line (lens focus) | A missing, malformed, unknown, expired or revoked operator key gives one line that names the file (the operator API answers `401` for all of these; mutant B4 is killed). An unreachable listener, invalid JSON and API refusals each give one line, and the process sets `exitCode = 1`. An unknown account on `lti:shared-platform` gives one line. |
 | Behaviour kept | The stdout line keeps `{account, created, kid, apiKey}`; `apiKey` is `null` when unchanged. A second run without flags issues no API key. `--name` changes only when given (BD-A2-25; mutant B5 is killed). New accounts get today's URLs from `PUBLIC_APP_URL`. `lti:shared-platform` keeps `{platformId, created}`, with `created` from `201`. `--ensure-key-file`, `--quiet` and `init --if-none` keep their meaning. |
 | Ownership | `http/operator/**`, `seed.sh` and the app files are untouched. The `stack-reset.sh` line is S1's own file (BD-A2-34 asks for it). |
+
+## Round 2
+
+- Reviewer: Reviewer-A2 (same session), lens A. Date: 2026-10-23.
+- Diff: `git show 541e13e` ("make key recovery and rotation failures actionable", in merge `6ae0ebe`): `cli/bootstrap.ts`, `cli/operator-client.ts`, `infra/scripts/lti-bootstrap.sh` and their tests.
+- I ran on the host (no Docker), in a throwaway `git archive 6ae0ebe` copy: `bootstrap.test.ts` and `operator-client.test.ts` 20/20, `node --test infra/scripts/lti-bootstrap.test.mjs` 5/5 (fake transport), and 2 mutants.
+- Blind review: I did not open the other reviewer's file.
+- **Round 2 counts: both round-1 NITs closed. No new finding.**
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E5-05-01 (NIT) | Closed | A failed send and an answer that is not JSON are now `OperatorTransportError`. For the API key `POST`, the CLI adds: "API key issuance or rotation may have committed. Run the same command again with --rotate-api-key to replace the unseen key." This is the right advice for both cases. After a lost rotation, the old key is already revoked. After a lost first issue, a plain rerun sees an active key and would issue nothing. In both cases `--rotate-api-key` revokes the unseen key in one server transaction (BD-A2-33). The new test drops the answer after a real commit, then shows that the old key is revoked, the unseen key is active, and the rerun revokes it and issues a working key. Mutant R2 (no added text) is killed. |
+| A-LA-E5-05-02 (NIT) | Closed | The CLI keeps the `name` from its `GET` and sends `PATCH` only when `input.name.trim()` differs. The test runs the same name, and the name with spaces around it, twice and expects no new audit event. Mutant R1 (always `PATCH`) fails 3 tests. |
+
+| Other change (lens A) | Result |
+| --- | --- |
+| `--replace-operator-key` (wrapper only) | The wrapper uses the flag itself and never passes it to `bootstrap.ts` (test). The flag runs `lti:operator init --replace`, which per LA-E5-01 revokes the existing operator keys, so it is an explicit recovery step. The new key goes to `infra/.secrets/lti-operator-key` through `umask 077`, `chmod 600` and `mv`, and the copy for the container is refreshed in the same way. The key is never on a command line and never printed (the test checks the calls log and stdout). |
+| 401 message | A rejected key now names the host file and gives the safe path first ("Put the current operator key … and run npm run seed"), then the replacement path. `npm run lti:bootstrap -w services/lti-service` is the host wrapper (`bash ../../infra/scripts/lti-bootstrap.sh`), so the command in the message works. A missing or malformed file still fails before any request. |
+| Active-key rule | The comment documents that the CLI filter mirrors `requireApiKeySlot` (not revoked, not expired). There is no behaviour change. |

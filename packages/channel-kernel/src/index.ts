@@ -2,6 +2,7 @@
 // and the legacy wire projection. Pure, no I/O, except `loadChannelFolders` (Node only; it imports Node built-ins at
 // call time). This entry is the public kernel surface that the QA K0 suite uses.
 export * from './capabilities.ts';
+export * from './family-guard.ts';
 export * from './legacy-wire.ts';
 export * from './manifest.ts';
 export * from './registry.ts';

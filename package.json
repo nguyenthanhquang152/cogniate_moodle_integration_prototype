@@ -22,6 +22,7 @@
     "test:infra": "node --test 'infra/scripts/*.test.mjs' 'infra/scripts/fitness/*.test.mjs'",
     "test:k0": "vitest run --config tests/ltiaas/k0/vitest.config.mts",
     "build": "npm run build --workspaces --if-present",
+    "worker": "npm run worker --workspace @cogniate/cogniate-app",
     "gen-env": "bash infra/scripts/gen-env.sh",
     "stack:up": "bash infra/scripts/stack-up.sh",
     "stack:down": "bash infra/scripts/stack-down.sh",

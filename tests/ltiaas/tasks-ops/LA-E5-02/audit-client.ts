@@ -33,6 +33,7 @@ export interface AuditQuery {
   toolAccountId?: string;
   action?: string;
   actorId?: string;
+  traceId?: string;
   since?: string | number;
   until?: string | number;
   cursor?: string;

@@ -2,16 +2,15 @@ import { LEGACY_SELF_BINDING_TEXT } from '@cogniate/channel-kernel';
 import type { LtiPlatform } from '../../clients/lti-client.ts';
 import { LtiServiceError } from '../../clients/lti-client.ts';
 import { PlatformTakenError, disableConnection, getConnection, markRegistered } from '../../domain/connections.ts';
-import { revokeOpenGrants } from '../../domain/bindings.ts';
-import { transaction } from '../../domain/db.ts';
 import { ApiError } from '../../app/api-errors.ts';
-import { deactivateOrphan, invalidBindingBody, ltiFailure, platformInfo } from './common.ts';
+import { deactivateOrphan, invalidBindingBody, ltiFailure, platformInfo, suspendBinding } from './common.ts';
 import type { AuthorityDeps, AuthorityStrategy } from './types.ts';
 
 export function selfAuthority(deps: AuthorityDeps): AuthorityStrategy {
   const { db, lti, logger, now } = deps;
   return {
-    async bind(c, adapter, body, { libraryName, traceId }) {
+    async bind(c, adapter, body, ctx) {
+      const { traceId } = ctx;
       if (c.method !== 'manual') throw new ApiError('CONNECTION_NOT_PENDING', 'Only a pending manual connection takes platform values.');
       const parsed = adapter.parseBindingBody(body, { siteUrl: c.siteUrl, sharedClientId: null, purpose: 'initial' });
       if (!parsed.ok) return invalidBindingBody(parsed, deps.channels.textName(c.channel));
@@ -26,7 +25,7 @@ export function selfAuthority(deps: AuthorityDeps): AuthorityStrategy {
       }
       let platform: LtiPlatform;
       try {
-        const staged = adapter.selfCreate(v, { libraryName });
+        const staged = adapter.selfCreate(v, ctx);
         if (staged.kind !== 'platform' || !('authConfig' in staged.body)) throw new Error('self authority needs an admin-value platform');
         platform = await lti.createPlatform(staged.body, traceId);
       } catch (err) {
@@ -58,14 +57,10 @@ export function selfAuthority(deps: AuthorityDeps): AuthorityStrategy {
       if (c.ltiPlatformId) await lti.patchPlatform(c.ltiPlatformId, { active: false }, traceId).catch((err: unknown) => ltiFailure(err, traceId));
       disableConnection(db, c.libraryId, c.id, now());
     },
-    async suspend(c, traceId) {
-      transaction(db, () => { disableConnection(db, c.libraryId, c.id, now()); revokeOpenGrants(db, c.id, 'suspend', now()); });
-      logger.warn('binding_suspended', { trace_id: traceId, connection_id: c.id, note_present: true });
-      return deps.cleanup?.fenceOut(c, traceId) ?? [];
-    },
-    release: (c, traceId) => {
+    suspend: (c, traceId, record) => suspendBinding(deps, c, traceId, record),
+    release: (c, traceId, record) => {
       if (!deps.cleanup) throw new Error('release needs the binding cleanup engine');
-      return deps.cleanup.release(c, traceId);
+      return deps.cleanup.release(c, traceId, record);
     },
   };
 }

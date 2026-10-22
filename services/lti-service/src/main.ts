@@ -9,6 +9,7 @@ import type { Db } from './db/index.ts';
 import { openDb } from './db/index.ts';
 import { buildApp, simulationProfileIds } from './http/app.ts';
 import { buildOperatorApp } from './http/operator/index.ts';
+import { metricsFor } from './http/metrics.ts';
 import { loadKeyProvider } from './keys/key-config.ts';
 import { createPlatformKeys } from './lti/jwks.ts';
 import { createAgsClient } from './platform/ags.ts';
@@ -33,20 +34,25 @@ export interface LtiService {
 /** Start the service (unit tests call it with their own logger; the entry point below adds the signal handlers). */
 export async function startLtiService(options: { logger?: Logger } = {}): Promise<LtiService> {
   const config = loadConfig();
-  const logger = options.logger ?? createLogger({ service: SERVICE });
+  const sink = options.logger ?? createLogger({ service: SERVICE });
+  const db = openDb(join(config.dataDir, 'lti.db'));
+  const metrics = metricsFor(db);
+  const logger = metrics.logger(sink);
   const { active: knobs } = readServiceKnobs(SERVICE);
   for (const knob of knobs) logger.warn('test_knob_active', { name: knob.name, value: knob.value });
 
-  const db = openDb(join(config.dataDir, 'lti.db'));
   // LA-ADR-06 D6: bind the key ring to config.masterKey before the first store call. Every store caller below gets
   // this Buffer, so it seals with the active ring version.
   await loadKeyProvider({ db, logger, masterKey: config.masterKey });
   const outbound = createOutboundClient({ logger, allowlist: config.outboundAllowlist });
   // T3a: platform tokens (in memory, contract §4) and the score clock (in memory, floor = start + 2 s).
-  const tokens = createTokenClient({ db, masterKey: config.masterKey, outbound, logger });
+  // BD-A2-52, BD-A2-54: the token client and the JWKS cache report to the metrics; the cache age is read at scrape time.
+  const tokens = createTokenClient({ db, masterKey: config.masterKey, outbound, logger, onTokenResult: metrics.tokenResult });
+  const keys = createPlatformKeys(outbound, Date.now, metrics.jwksFetch);
+  metrics.readJwksAges(keys);
   const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(), logger });
   const app = await buildApp({
-    db, urls: config.urls, logger, keys: createPlatformKeys(outbound), ltikTtlSeconds: config.ltikTtlSeconds, masterKey: config.masterKey, ags, nrps: createNrpsClient({ outbound, tokens, logger }), outbound,
+    db, urls: config.urls, logger, keys, ltikTtlSeconds: config.ltikTtlSeconds, masterKey: config.masterKey, ags, nrps: createNrpsClient({ outbound, tokens, logger }), outbound,
     profile: config.profile, knobs, outboundAllowlist: outbound.allowlist, simulationProfiles: config.simulationProfiles,
   });
   // LA-ADR-06 D3: the operator API on its own listener (no proxy route).

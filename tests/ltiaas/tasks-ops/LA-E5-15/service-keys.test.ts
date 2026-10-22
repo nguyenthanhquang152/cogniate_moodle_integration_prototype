@@ -610,7 +610,7 @@ it('AC-LA-E5-15-07 A key with scopes ["launch"] on POST /api/service-keys/revoke
     },
   );
   assert.equal(opRevoke.status, 200, 'operator POST /operator/v1/accounts/:id/service-keys/revoke returns 200');
-  assert.equal(opRevoke.json?.revoked, 1, 'operator revoke revokes rlB (revoked: 1)');
+  assert.equal( opRevoke.json?.revoked, 1, 'operator revoke revokes rlB (revoked: 1)');
   if (opRevoke.traceId) successfulRevokeTraceIds.push(opRevoke.traceId);
 
   // 3. Verify that every successful revoke (tenant and operator routes) wrote exactly one service_key.revoke audit event.
@@ -630,5 +630,74 @@ it('AC-LA-E5-15-07 A key with scopes ["launch"] on POST /api/service-keys/revoke
     assert.equal(matches[0].result, 'ok');
     assert.equal(matches[0].toolAccountId, ACCOUNT);
     assert.equal(matches[0].targetType, 'service_key');
+  }
+});
+
+it('BD-A2-53 GET /operator/v1/accounts/:id/platforms gives 200 { platforms } with no secret field, 404 NOT_FOUND for unknown account, 200 for closed account, and writes no audit row', async () => {
+  // 1. 200 shape with no secret field on cogniate.
+  const listPlatformsRes = await operatorApi<{
+    platforms?: {
+      id: string;
+      name: string;
+      profile: string;
+      issuer: string | null;
+      clientId: string;
+      active: boolean;
+      deploymentIds: string[];
+    }[];
+  }>('GET', `/operator/v1/accounts/${enc(ACCOUNT)}/platforms`, {
+    authorization: operatorAuth(operatorKey),
+  });
+  assert.equal(listPlatformsRes.status, 200, 'GET /operator/v1/accounts/cogniate/platforms returns 200');
+  assert.ok(Array.isArray(listPlatformsRes.json?.platforms), 'response has platforms array');
+  assert.ok(listPlatformsRes.json!.platforms!.length >= 1, 'cogniate has at least one registered platform');
+  for (const p of listPlatformsRes.json!.platforms!) {
+    assert.deepEqual(
+      Object.keys(p).sort(),
+      ['active', 'clientId', 'deploymentIds', 'id', 'issuer', 'name', 'profile'],
+      'platform summary has exact contract fields and no secret fields (BD-A2-53)',
+    );
+  }
+  if (simPlatformId) {
+    const listedSim = listPlatformsRes.json!.platforms!.find((p) => p.id === simPlatformId);
+    assert.ok(listedSim, 'operator platform list includes registered simPlatformId');
+  }
+
+  // 2. 404 NOT_FOUND for an unknown account.
+  const unknownAccPlatforms = await operatorApi(
+    'GET',
+    `/operator/v1/accounts/${enc(`qa2-missing-${runId}`)}/platforms`,
+    { authorization: operatorAuth(operatorKey) },
+  );
+  assert.equal(unknownAccPlatforms.status, 404, 'GET /operator/v1/accounts/:unknown/platforms returns 404');
+  assert.equal(errorCode(unknownAccPlatforms), 'NOT_FOUND');
+  assert.equal(hasErrorShape(unknownAccPlatforms), true);
+
+  // 3. Closed account remains readable (200).
+  const accClosed = freshId('e515-closed-plt');
+  const createdAcc = await operatorApi('POST', '/operator/v1/accounts', {
+    authorization: operatorAuth(operatorKey),
+    body: defaultAccountBody(accClosed),
+  });
+  assert.equal(createdAcc.status, 201, 'create fresh account for closed-account platform read');
+  const closeAcc = await operatorApi('PATCH', `/operator/v1/accounts/${enc(accClosed)}`, {
+    authorization: operatorAuth(operatorKey),
+    body: { status: 'closed' },
+  });
+  assert.equal(closeAcc.status, 200, 'close fresh account accClosed');
+  const closedPlatforms = await operatorApi<{ platforms?: unknown[] }>(
+    'GET',
+    `/operator/v1/accounts/${enc(accClosed)}/platforms`,
+    { authorization: operatorAuth(operatorKey) },
+  );
+  assert.equal(closedPlatforms.status, 200, 'closed account platforms remain readable (200, BD-A2-53)');
+  assert.ok(Array.isArray(closedPlatforms.json?.platforms), 'closed account platforms is an array');
+
+  // 4. Read writes no audit row.
+  for (const trace of [listPlatformsRes.traceId, unknownAccPlatforms.traceId, closedPlatforms.traceId]) {
+    if (trace) {
+      const readAudit = await listAudit(operatorKey, { traceId: trace, limit: 10 });
+      assert.equal(readAudit.events.length, 0, 'GET /operator/v1/accounts/:id/platforms writes no audit row (BD-A2-53)');
+    }
   }
 });

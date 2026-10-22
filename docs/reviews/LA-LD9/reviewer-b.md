@@ -10,6 +10,7 @@ Scope: the QA-owned LD-9 lists in `tests/ltiaas/golden/expected/`, which are `LA
 | LA-IC-12 | **APPROVE** | 0 findings |
 | LA-IC-16 | **APPROVE** | 2 NIT |
 | LA-IC-17 | **APPROVE** | 0 findings |
+| LA-IC-18 (Reviewer-B2, added later) | **APPROVE** | 1 NIT |
 
 ## How I checked
 
@@ -66,6 +67,30 @@ Scope: the QA-owned LD-9 lists in `tests/ltiaas/golden/expected/`, which are `LA
   - the two M1 Canvas self-platform bodies (`61-canvas-containment.test.ts:156`, `41-canvas-grades.test.ts:89`).
 
   The other hits are Canvas and Blackboard grant bodies (already strict in M1) or `{}` refusals. No frozen test sends an extra key to a Moodle body and expects `200`. The list is complete.
+
+## LA-IC-18 — APPROVE (1 NIT)
+
+Reviewer-B2 (same lens B), in a later dispatch. List: `tests/ltiaas/golden/expected/LA-IC-18.json` (QA-E2E, commit `f973e21`). Design: LA-ADR-04 D8 row LA-IC-18 (`:149`), A1 BD-A1-50. I did not open any reviewer-a file. I did not run Docker.
+
+- **Claim:** The three visible LA-E1-11 changes are listed, with 0 golden fields and 0 frozen-test changes:
+  - (a) the publish modal names the connection's LMS;
+  - (b) the Connect-page logo uses the card colour;
+  - (c) the logo has a `title`.
+- **Can a later reader tell what changed?** Yes, in two steps:
+  - `ld9.design[0]` links to the LA-ADR-04 D8 table. Its LA-IC-18 row states each change with "before" and "after" (for example "before: 'Moodle' for every LMS"; "Blackboard: blue, as on its card; before: red there").
+  - `scanResult` names the code for each change: `PublishDialog` `lmsNames[…]`, `Connect.tsx` → `manifest.card.color`, and `IntegrationLogo` `title={name}`.
+- **Can a later reader tell why no test moved?** Yes. `scanResult` gives one reason per change, and `scanChecked` lists 18 files with exact line ranges, so the scan can be repeated. My own scans agree:
+  - (a) `grep -i "published to|content picker"` in `tests/e2e`, `tests/acceptance`, `tests/host` and `tests/ltiaas/golden` finds only comments, and no assertion on the dialog text.
+  - (b) No test in `tests/e2e` or `tests/acceptance` looks at a logo colour class or the logo component.
+  - (c) The only `getByTitle` uses are in `tests/e2e/lib/moodle.ts:192` and `:303`, and they target Moodle's own tool card, not the portal logo.
+  - The golden capture records API DTOs, simulator records and tool pages, not portal components (`capture.golden.ts` ranges in `scanChecked`).
+- **Format:** The keys are the same as in LA-IC-17 (`goldenFields`, `testChanges`, `frozenTestsTouched`, `scanChecked`, `scanResult`), and `approval` points to `docs/reviews/LA-E1-11/qa.md`, which names LA-IC-18. The restored "Open {LMS}" button of BD-A1-50 is correctly not listed, because it returns to the baseline.
+
+### B-LD9-03 — NIT — The three changes exist in the JSON only inside one long `scanResult` string
+
+- **File:** `tests/ltiaas/golden/expected/LA-IC-18.json:34` (`scanResult`, about 1,050 characters, with (a), (b) and (c) inline); `:36` (`"changes": []`).
+- **Problem:** A reader of the JSON alone sees `goldenFields: []`, `testChanges: []` and `changes: []`. To learn what the three visible changes are, the reader must parse one long sentence, or open the ADR row. LA-IC-17 has one change, so one sentence works there. This list has three.
+- **Suggested fix:** Split `scanResult` into one entry per change. For example, a `visibleChanges` array with `{ id: "a", what, before, after, code, whyNoTestMoved }`. Or keep the string and add one short `summary` line: "(a) publish modal LMS name, (b) Connect-page logo colour, (c) logo title; no assertion reads any of them." Apply the same shape to later multi-change lists.
 
 ## Not checked
 

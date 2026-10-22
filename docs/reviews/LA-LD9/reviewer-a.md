@@ -24,6 +24,7 @@ Round: 1
 | LA-IC-12 (LA-E3-04 service part) | APPROVE | 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (A-LA-LD9-02) |
 | LA-IC-16 (simulator allowlist rule) | APPROVE | 0 BLOCKER, 0 MAJOR, 0 MINOR, 2 NIT (A-LA-LD9-01, -02) |
 | LA-IC-17 (strict Moodle `PUT …/platform`) | APPROVE | 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (A-LA-LD9-03) |
+| LA-IC-18 (three LA-E1-11 portal looks; added 2026-10-23, section "LA-IC-18") | APPROVE | 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (A-LA-LD9-04) |
 
 ## LA-IC-12: complete
 
@@ -85,3 +86,23 @@ Round: 1
 - Where: `LA-IC-12.json` `"approval": "docs/reviews/LA-E3-04/qa.md"`, and `LA-IC-16.json` `"approval": "docs/reviews/LA-E7-03/qa.md"`. Neither file exists at `HEAD`, because `docs/reviews/LA-E3-04/` and `docs/reviews/LA-E7-03/` hold only reviewer files. LA-IC-16 belongs to LA-E7-02 (BD-A1-36), whose QA record is `docs/reviews/LA-E7-02/qa.md`. `LA-IC-17.json` points to `docs/reviews/LA-E1-07/qa.md`, which exists.
 - Problem: an auditor cannot follow the approval link from the expected-delta file.
 - Suggested fix: point LA-IC-16 to `docs/reviews/LA-E7-02/qa.md` (or the LA-E7-03 QA README under `tests/ltiaas/tasks-ops/LA-E7-03/`). Land the LA-E3-04 `qa.md`, or point to the record that exists.
+
+## LA-IC-18
+
+- Reviewer: Reviewer-A2 (same session), lens A. Date: 2026-10-23.
+- List: `tests/ltiaas/golden/expected/LA-IC-18.json` (commit `f973e21`; the same at `HEAD`). References: LA-ADR-04 D8 row LA-IC-18; A1 BD-A1-50; plan LD-9.
+- I did not run Docker. I read the three product changes at `HEAD` (`apps/portal/src/courses/PublishDialog.tsx:71-73`, `apps/portal/src/connect/Connect.tsx:51`, `apps/portal/src/IntegrationLogo.tsx:29-31`) and the old code at `0d9aeda^1`. I checked every `scanChecked` file, and I ran `git grep` over `tests/e2e`, `tests/acceptance` and `tests/ltiaas`.
+- Blind review: I did not open the other reviewer's file.
+- **Verdict: APPROVE. 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (A-LA-LD9-04).** The claim "0 golden changes and 0 frozen-test changes" is right.
+
+| Change | Check |
+| --- | --- |
+| (a) Publish result modal names the connection's LMS | The result view is "Published to {LMS}" and "This course is available in the {LMS} content picker." No test contains `Published to` or `available in the`. For Moodle (U1, U2, T6) the text is still "Moodle". M2 `05-publish-results.m2.ts:10-32` checks only the pre-publish dialog (title "Publish to an LMS", the option texts) and does not click Publish. |
+| (b) Connect-page logo colour from the card | Before: `lms === "moodle" ? "orange" : "red"`. Now: `manifest.card.color`. So only Blackboard changes, from red to blue: Canvas is `red` and Moodle is `orange` in the manifests, as before. No test reads a logo class or a colour on the Connect page. The only computed-colour test is T6 `1-integrations.spec.ts` AC-T6-02, which checks the body background, the active pill, the font and the card radius, not a logo. No test compares screenshots: `shot` only attaches a file, and the test tree has no `toHaveScreenshot` or `toMatchSnapshot`. |
+| (c) Logo `title` | The span is `aria-hidden="true"`, so the title is not part of any accessible name, and `getByRole` and `getByText` do not see it. The only `getByTitle` and `[title]` uses are on Moodle pages (`tests/e2e/lib/moodle.ts:192`, `:303`), and `missingLabels` (`moodle.ts:64-75`) only checks that labels are present, so an extra title cannot make it fail. |
+| Golden | `capture.golden.ts` G4 holds only tool and player pages (picker, error pages, `/play`), G1 to G3 hold API DTOs and simulator records, and no portal page is captured. So `goldenFields: []` and `changes: []` are right. |
+
+- **A-LA-LD9-04 (NIT): two `scanChecked` ranges are past the end of their files, and the LA-IC-18 rows are missing from the two human-readable tables.**
+  - Where: `LA-IC-18.json` `scanChecked`: `tests/e2e/M2/00-blackboard-not-ready.m2.ts:10-49` (the file has 35 lines), `tests/e2e/M2/03-blackboard-wizard.m2.ts:37-115` (110 lines). `tests/ltiaas/TEST-STRATEGY.md` §4.7 and `tests/ltiaas/golden/README.md` §5 ("Reviewed `LD-9` Expected-Delta Records") have rows for LA-IC-12, -16 and -17, but not for LA-IC-18.
+  - Problem: the scan result stays right, because I read both files whole. But the record names lines that do not exist, and an auditor who reads the tables does not find LA-IC-18.
+  - Suggested fix: change the two ranges to `10-35` and `37-110` (or name the whole files), and add one LA-IC-18 row to each table.

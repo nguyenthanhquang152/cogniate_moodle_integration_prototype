@@ -8,6 +8,7 @@ const DEFAULT_PLAYER_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '
 
 export interface AppConfig {
   jobInstanceId: string;
+  /** APP_JOB_RUNNER controls jobs in the web process. The standalone worker always runs them. */
   jobRunner: boolean;
   urls: PublicUrls;
   /** cogniate.db, packages/, uploads/ (ADR-006). Compose: /data = infra/.data/cogniate-app. */

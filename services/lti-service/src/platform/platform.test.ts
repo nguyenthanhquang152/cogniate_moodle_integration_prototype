@@ -11,6 +11,7 @@ import { CLIENT_ID, ISSUER, MASTER_KEY, URLS, capturingLogger } from '../testkit
 import { AGS_SCOPES, createAgsClient, parseScore } from './ags.ts';
 import { outboundFailureError, platformResponseError, shortPlatformMessage } from './error-mapping.ts';
 import { parseLinkHeader } from './link-header.ts';
+import { createNrpsClient } from './nrps.ts';
 import { createScoreClock } from './score-clock.ts';
 import { createTokenClient } from './token-client.ts';
 
@@ -123,8 +124,9 @@ async function setup() {
   const { logger, lines } = capturingLogger();
   const clock = { now: Date.UTC(2026, 9, 17, 10, 0, 0) };
   const tokens = createTokenClient({ db, masterKey: MASTER_KEY, outbound, logger, now: () => clock.now });
-  const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(() => clock.now) });
-  return { db, platform, calls, answers, lines, clock, tokens, ags };
+  const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(() => clock.now), logger });
+  const nrps = createNrpsClient({ outbound, tokens, logger });
+  return { db, platform, calls, answers, lines, clock, tokens, ags, nrps };
 }
 
 const AGS_CLAIM = {
@@ -133,6 +135,27 @@ const AGS_CLAIM = {
   lineitem: 'https://moodle.test/mod/lti/services.php/2/lineitems/7/lineitem?type_id=1',
 };
 const LINE_ITEM = AGS_CLAIM.lineitem;
+
+describe('AGS and NRPS throttle warnings (A-LA-E5-14-01)', () => {
+  it.each([
+    ['ags', 429], ['ags', 403], ['nrps', 429], ['nrps', 403],
+  ] as const)('%s emits one safe warning for a %i service response', async (client, status) => {
+    const s = await setup();
+    s.answers.push(() => res(status, 'student@example.test: Rate Limit Exceeded', { 'retry-after': '120' }));
+    const context = { platform: s.platform, traceId: 'trace-throttle' };
+    const operation = client === 'ags'
+      ? s.ags.getLineItem({ ...context, agsClaim: AGS_CLAIM }, LINE_ITEM)
+      : s.nrps.listMemberships({ ...context, nrpsClaim: { context_memberships_url: 'https://moodle.test/memberships' } }, {});
+    await expect(operation).rejects.toMatchObject({ code: 'PLATFORM_RATE_LIMITED', status: 429, details: { retryAfter: 120 } });
+    expect(s.calls).toHaveLength(2);
+    expect(s.lines.filter((line) => line.event === 'platform_rate_limited')).toEqual([expect.objectContaining({
+      level: 'warn', trace_id: 'trace-throttle', platform_id: s.platform.id, status, retry_after_s: 120,
+    })]);
+    expect(JSON.stringify(s.lines)).not.toContain('student@example.test');
+    expect(JSON.stringify(s.lines)).not.toContain('tok-1');
+    s.db.close();
+  });
+});
 
 describe('platform token client (contract §4, security §2.3)', () => {
   it('signs a client assertion (iat 30 s in the past, 300 s life), caches per scope set until 60 s before expiry', async () => {
@@ -238,5 +261,26 @@ describe('AGS client (contract §3.5, §3.6)', () => {
     await expect(s.ags.postScore(ctx(s), LINE_ITEM, score)).rejects.toMatchObject({ code: 'PLATFORM_CONFLICT', status: 409 });
     s.answers.push(() => res(200, 'not json'));
     await expect(s.ags.getLineItem(ctx(s), LINE_ITEM)).rejects.toMatchObject({ code: 'PLATFORM_ERROR' });
+  });
+});
+
+describe('NRPS service versions (LA-E3-12)', () => {
+  it.each([[], ['1.0'], ['2'], null, '2.0', 2].map((service_versions) => ({ service_versions })))('refuses unsupported service_versions $service_versions before any outbound request', async ({ service_versions }) => {
+    const s = await setup();
+    await expect(s.nrps.listMemberships({ platform: s.platform, traceId: 'versions',
+      nrpsClaim: { context_memberships_url: 'https://moodle.test/memberships', service_versions } }, {}))
+      .rejects.toMatchObject({ code: 'SERVICE_NOT_AVAILABLE', status: 403 });
+    expect(s.calls).toEqual([]);
+    s.db.close();
+  });
+
+  it.each([{}, { service_versions: ['2.0'] }, { service_versions: ['1.0', '2.0'] }])('accepts an absent version or a list with 2.0: %j', async (version) => {
+    const s = await setup();
+    const url = 'https://moodle.test/memberships';
+    s.answers.push(() => res(200, { id: url, context: { id: '2' }, members: [] }));
+    expect(await s.nrps.listMemberships({ platform: s.platform, traceId: 'versions',
+      nrpsClaim: { context_memberships_url: url, ...version } }, {})).toEqual({ id: url, context: { id: '2' }, members: [] });
+    expect(s.calls).toHaveLength(2);
+    s.db.close();
   });
 });

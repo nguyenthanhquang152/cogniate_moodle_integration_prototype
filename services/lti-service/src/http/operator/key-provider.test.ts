@@ -61,11 +61,11 @@ it('starts the actual on-demand runner, returns 202, and records one request eve
   expect(trigger).toHaveBeenCalledWith('key-rewrap', { traceId: response.headers['x-trace-id'] });
   await vi.waitFor(() => expect(h.lines.filter((line) => line.event === 'job_run' && line.job === 'key-rewrap')).toHaveLength(1));
   const run = h.lines.find((line) => line.event === 'job_run' && line.job === 'key-rewrap')!;
-  expect(run).toMatchObject({ result: 'ok', counts: { rewrapped: 1, skippedChanged: 0, notReached: 0, unreadable: 0 } });
+  expect(run).toMatchObject({ trace_id: response.json().traceId, result: 'ok', counts: { rewrapped: 1, skippedChanged: 0, notReached: 0, unreadable: 0 } });
   expect(h.events()).toHaveLength(2);
   expect(h.events()).toEqual(expect.arrayContaining([
     expect.objectContaining({ actor: { type: 'operator', id: 'unit' }, result: 'ok', traceId: response.headers['x-trace-id'] }),
-    expect.objectContaining({ actor: { type: 'system', id: 'key-rewrap' }, result: 'ok', code: null, traceId: run.trace_id,
+    expect.objectContaining({ actor: { type: 'system', id: 'key-rewrap' }, result: 'ok', code: null, traceId: response.json().traceId,
       details: { outcome: 'complete', rewrapped: 1, skippedChanged: 0, notReached: 0, unreadable: 0, legacyBlobsRefused: true } }),
   ]));
   expect(legacyBlobsRefused(h.db)).toBe(true);

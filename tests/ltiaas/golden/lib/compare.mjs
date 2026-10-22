@@ -171,11 +171,13 @@ export function compareCaptures(base, candidate, expected = [], options = {}) {
   const candAllowlist = candidate?.G1?.acceptance?.ltiHealth?.outbound_allowlist;
   const allowlistDiff = differences.find((d) => d.file === 'G1' && d.path === ACCEPTANCE_LTI_ALLOWLIST_PATH);
   const simHostsEntry = entries.find((e) => e.file === 'G1' && pathMatches(e.path, ACCEPTANCE_LTI_ALLOWLIST_PATH) && e.rule === 'sim-hosts-allowlist');
-  if (Array.isArray(baseAllowlist) && Array.isArray(candAllowlist) && (allowlistDiff || simHostsEntry || options?.simHosts !== undefined)) {
+  if (Array.isArray(baseAllowlist) && Array.isArray(candAllowlist) && (simHostsEntry || options?.simHosts !== undefined)) {
     const check = checkAcceptanceOutboundAllowlist(baseAllowlist, candAllowlist, options?.simHosts);
     if (check.ok) {
-      if (allowlistDiff) allowlistDiff.explainedBy = simHostsEntry ? simHostsEntry.id : 'LA-IC-16';
-      if (simHostsEntry) simHostsEntry.used++;
+      if (simHostsEntry) {
+        if (allowlistDiff) allowlistDiff.explainedBy = simHostsEntry.id;
+        simHostsEntry.used++;
+      }
     } else if (!allowlistDiff) {
       differences.push({
         file: 'G1',

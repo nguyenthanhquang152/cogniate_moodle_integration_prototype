@@ -4,7 +4,7 @@
 import { randomBytes } from 'node:crypto';
 import formbody from '@fastify/formbody';
 import type { Knob, Logger, OutboundClient, PublicUrls } from '@cogniate/shared';
-import { ApiErrorBase, redactPath } from '@cogniate/shared';
+import { ApiErrorBase } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ApiError, apiErrorBody } from '../api-errors.ts';
@@ -18,6 +18,8 @@ import type { NrpsClient } from '../platform/nrps.ts';
 import { authenticate } from './auth.ts';
 import type { AuthResult } from './auth.ts';
 import { installIdempotency } from './idempotency.ts';
+import { metricsFor, registerReadiness } from './metrics.ts';
+import type { LtiMetrics } from './metrics.ts';
 import type { RouteContext } from './context.ts';
 import { ERROR_PAGE_HEADERS, renderErrorPage } from './error-page.ts';
 import { retryAfterSeconds, setRetryAfter } from './retry-after.ts';
@@ -62,6 +64,8 @@ export interface AppDeps {
 }
 
 const TRACE_ID = /^[A-Za-z0-9-]{16,64}$/; // contract §1.4
+/** The http_request path of a request that matches no route (BD-A2-61). */
+export const UNMATCHED_PATH = '<unmatched>';
 
 /** `simulation_profiles` of /healthz and service_started (contract §9.13). */
 export function simulationProfileIds(on: boolean): string[] {
@@ -74,7 +78,7 @@ const MAX_PARAM_LENGTH = 2048; // :lineItemId is a URL-encoded line item URL (co
  * The setup that both listeners share (public and operator, LA-ADR-06 D3): trace id, the http_request line, the error
  * body of contract §1.3 and the 404 answer.
  */
-export function installApiBasics(app: FastifyInstance, log: Logger): void {
+export function installApiBasics(app: FastifyInstance, log: Logger, metrics?: LtiMetrics): void {
   app.decorateRequest('traceId', '');
   app.addHook('onRequest', async (req, reply) => {
     const given = req.headers['x-trace-id'];
@@ -82,9 +86,13 @@ export function installApiBasics(app: FastifyInstance, log: Logger): void {
     reply.header('x-trace-id', req.traceId);
   });
   app.addHook('onResponse', async (req, reply) => {
-    const path = req.url.split('?')[0] ?? '/';
+    // BD-A2-61: the matched route template, with no ids filled in and no query. A raw path can hold an unknown account
+    // value or an encoded personal value; the tenant is in tool_account_id.
+    const path = req.routeOptions.url ?? UNMATCHED_PATH;
+    const accountId = metrics?.accountFor(req);
     log.log(path === '/healthz' ? 'debug' : 'info', 'http_request', {
-      trace_id: req.traceId, method: req.method, path: redactPath(path), status: reply.statusCode, ms: Math.round(reply.elapsedTime),
+      trace_id: req.traceId, method: req.method, path, status: reply.statusCode, ms: Math.round(reply.elapsedTime),
+      ...(accountId ? { tool_account_id: accountId } : {}),
     });
   });
 
@@ -111,7 +119,8 @@ export function installApiBasics(app: FastifyInstance, log: Logger): void {
 
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const now = deps.now ?? Date.now;
-  const log = deps.logger;
+  const metrics = metricsFor(deps.db, now);
+  const log = metrics.logger(deps.logger);
   const limiter = rateLimiterFor(deps.db, log, now);
   const proxy = await createTrustedProxy(undefined, undefined, log);
   const app = Fastify({
@@ -121,7 +130,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     rewriteUrl: (req) => (req.url ?? '/').replace(/^\/{2,}/, '/'),
   });
   await app.register(formbody, { bodyLimit: BODY_LIMIT });
-  installApiBasics(app, log);
+  metrics.install(app);
+  installApiBasics(app, log, metrics);
   app.addHook('onClose', async () => proxy.close());
 
   const profiles = { simulation: deps.simulationProfiles ?? false, ...(deps.profileRegistry ? { registry: deps.profileRegistry } : {}) };
@@ -136,6 +146,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
         log.warn('api_auth_failed', { trace_id: req.traceId, scheme, code });
         if (part === 'api_key') recordAuthFailure(limiter, req.ip, req.traceId);
       });
+      req.toolAccountId = result.account.id;
       limiter.check(result.scheme === 'bearer' ? 'admin' : 'api', result.actor.id, result.account, req.traceId);
       authenticated.set(req, result);
       return result;
@@ -168,10 +179,11 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   installIdempotency(app, ctx);
 
   // Health (contract §2.5)
-  app.get('/healthz', async () => ({
+  app.get('/healthz', async () => deps.profile === 'production' ? { status: 'ok', service: 'lti-service' } : ({
     status: 'ok', service: 'lti-service', profile: deps.profile, knobs: deps.knobs, outbound_allowlist: deps.outboundAllowlist ?? [],
     simulation_profiles: simulationProfileIds(profiles.simulation),
   }));
+  registerReadiness(app, deps.db, deps.masterKey);
 
   registerProtocolRoutes(app, ctx);
   registerIdTokenRoutes(app, ctx);

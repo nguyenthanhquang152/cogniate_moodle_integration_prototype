@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { sha256Hex } from '@cogniate/shared';
 import { openDb } from '../db/index.ts';
 import { ensureAccount } from '../store/accounts.ts';
@@ -15,7 +15,7 @@ import { createPlatformKeys } from './jwks.ts';
 
 const platform: Platform = {
   id: 'plt_1', toolAccountId: 'cogniate', issuer: ISSUER, clientId: CLIENT_ID, name: 'M', authEndpoint: `${ISSUER}/a`, tokenEndpoint: `${ISSUER}/t`,
-  jwksUrl: `${ISSUER}/mod/lti/certs.php`, productFamilyCode: null, active: true, deploymentIds: ['1'],
+  jwksUrl: `${ISSUER}/mod/lti/certs.php`, productFamilyCode: null, active: true, deploymentIds: ['1'], trustedAudiences: [],
   profile: 'standard', siteUrl: null, serviceUrl: null, bindingRef: null, deployments: [{ deploymentId: '1', siteUrl: null, active: true, bindingGeneration: 0, bindingRef: null, createdAt: null }],
 };
 const state: StateRecord = { stateHash: 'h', toolAccountId: 'cogniate', platformId: 'plt_1', nonce: 'nonce-1', targetLinkUri: `${LAUNCH}?resource=seed`, expiresAt: 0, loginDeploymentId: null, storageTarget: null, storageOrigin: null };
@@ -85,7 +85,8 @@ describe('check 4: compact JWS, RS256, kid', async () => {
 describe('check 5: issuer and audience', () => {
   it('passes for iss + aud string, and for aud list with azp', () => {
     expect(() => check5IssuerAudience({ iss: ISSUER, aud: CLIENT_ID }, platform)).not.toThrow();
-    expect(() => check5IssuerAudience({ iss: ISSUER, aud: [CLIENT_ID, 'x'], azp: CLIENT_ID }, platform)).not.toThrow();
+    expect(() => check5IssuerAudience({ iss: ISSUER, aud: [CLIENT_ID], azp: CLIENT_ID }, platform)).not.toThrow();
+    expect(() => check5IssuerAudience({ iss: ISSUER, aud: [CLIENT_ID, 'x'], azp: CLIENT_ID }, { ...platform, trustedAudiences: ['x'] })).not.toThrow();
   });
   it.each([
     ['other iss', { iss: 'https://evil.test', aud: CLIENT_ID }],
@@ -93,6 +94,20 @@ describe('check 5: issuer and audience', () => {
     ['two aud, no azp', { iss: ISSUER, aud: [CLIENT_ID, 'x'] }],
     ['two aud, wrong azp', { iss: ISSUER, aud: [CLIENT_ID, 'x'], azp: 'x' }],
   ])('fails INVALID_ISSUER_OR_AUDIENCE: %s', (_n, claims) => expectFail(() => check5IssuerAudience(claims, platform), '5', 'INVALID_ISSUER_OR_AUDIENCE'));
+
+  it('allows only exact trusted extras while still requiring the client id and its azp', () => {
+    const claims = { iss: ISSUER, aud: [CLIENT_ID, 'https://other.test'], azp: CLIENT_ID };
+    expectFail(() => check5IssuerAudience(claims, platform), '5', 'INVALID_ISSUER_OR_AUDIENCE');
+    const trusted = { ...platform, trustedAudiences: ['https://other.test', 'opaque-audience'] };
+    expect(() => check5IssuerAudience(claims, trusted)).not.toThrow();
+    expect(() => check5IssuerAudience({ ...claims, aud: [CLIENT_ID, 'opaque-audience'] }, trusted)).not.toThrow();
+    for (const aud of [[CLIENT_ID, 'https://other.test/'], [CLIENT_ID, 'https://other.test', 'untrusted'], ['https://other.test'], []]) {
+      expectFail(() => check5IssuerAudience({ ...claims, aud }, trusted), '5', 'INVALID_ISSUER_OR_AUDIENCE');
+    }
+    for (const azp of [undefined, 'https://other.test']) {
+      expectFail(() => check5IssuerAudience({ ...claims, azp }, trusted), '5', 'INVALID_ISSUER_OR_AUDIENCE');
+    }
+  });
 });
 
 describe('check 6: signature with the platform JWKS', async () => {
@@ -101,6 +116,12 @@ describe('check 6: signature with the platform JWKS', async () => {
   const keys = createPlatformKeys(fakeOutbound(() => [key.publicJwk]));
   it('passes for a token signed by the platform key', async () => {
     await expect(check6Signature(keys, await sign(key, moodleClaims()), platform, 't')).resolves.toBeUndefined();
+  });
+  it('passes the resolved platform ID to the JWKS observer', async () => {
+    const observe = vi.fn();
+    const observedKeys = createPlatformKeys(fakeOutbound(() => [key.publicJwk]), () => 123_000, observe);
+    await check6Signature(observedKeys, await sign(key, moodleClaims()), platform, 'trace');
+    expect(observe).toHaveBeenCalledExactlyOnceWith({ platformId: platform.id, ok: true, fetchedAt: 123_000 });
   });
   it('fails INVALID_SIGNATURE for another key, and for a tampered payload', async () => {
     await expect(check6Signature(keys, await sign(stranger, moodleClaims()), platform, 't')).rejects.toMatchObject({ check: '6', code: 'INVALID_SIGNATURE' });

@@ -3,8 +3,7 @@ import { createJobRunner, createLogger, type JobContext } from '@cogniate/shared
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { beginSend, recordSend } from './dispatch-store.ts';
 import { createDispatchQueue } from './outbox.ts';
-import { ltiAgsPolicy } from '../../drivers/lti-ags/index.ts';
-import { recordsFixture } from './records.testkit.ts';
+import { recordsFixture, testReporter } from './records.testkit.ts';
 
 describeJobStoreContract('AC-LA-E4-02-04 app migration 014', recordsFixture);
 describeQueueStoreContract('AC-LA-E4-02-04 shipped app outbox', recordsFixture);
@@ -94,9 +93,9 @@ describe('outbox row safety', () => {
     const wait = new Promise<void>((r) => { finish = r; });
     const id = await f.addRow({ key: 'one', partition: 'p', score: 0.5, nextTryAt: 0 });
     const runner = createJobRunner({ store: f.store(), logger, instanceId: 'a', bootId: 'boot' });
-    runner.addQueue(createDispatchQueue(f.db, [{ ...ltiAgsPolicy, async deliver(_, ctx) {
+    runner.addQueue(createDispatchQueue(f.db, [testReporter(async (_, ctx) => {
       expect(ctx.beginSend()).toBe('started'); await wait; return { kind: 'accepted' };
-    } }]));
+    })]));
     try {
       runner.start(); await settle();
       const stopping = runner.stop(); await settle();

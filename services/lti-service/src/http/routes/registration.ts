@@ -7,10 +7,11 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
 import { createAccountResolver } from '../../accounts/resolver.ts';
+import { transaction } from '../../db/index.ts';
 import type { ProtocolErrorCode } from '../../lti/codes.ts';
-import { withLms } from '../../lti/codes.ts';
+import { lmsNameFor, withLms } from '../../lti/codes.ts';
 import { PlatformKeyError } from '../../lti/jwks.ts';
-import { protocolAccountError } from '../../lti/launch.ts';
+import { statusGate } from '../../lti/account-status.ts';
 import type { OpenIdConfiguration } from '../../lti/registration.ts';
 import {
   PRIVACY_LEVELS, REGISTRATION_CLOSE_HTML, REGISTRATION_SCOPES, buildRegistrationRequest, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse, registrationView,
@@ -27,7 +28,7 @@ import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
 import { checkRegistrationSessionCap, rateLimiterFor } from '../rate-limit.ts';
 import { isOwnLaunchTarget } from '../../lti/target.ts';
-import { lmsNameOf, lmsNameOfFamily, reservedIssuerLmsNames, reservedIssuerOrigins } from '../../profiles/index.ts';
+import { lmsNameOf, lmsNameOfFamily, reservedIssuerOrigins } from '../../profiles/index.ts';
 import { OutboundError } from '@cogniate/shared';
 
 const HEADING = 'The registration did not work';
@@ -126,14 +127,15 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     const page = (code: ProtocolErrorCode, detail: string) => {
       log.warn('registration_rejected', { trace_id: req.traceId, code, detail });
       const template = REGISTRATION_HELP[code];
-      const help = template ? withLms(template, code === 'ISSUER_RESERVED' ? reservedIssuerLmsNames(ctx.profiles) : lms) : undefined;
+      const help = template ? withLms(template, lmsNameFor(code, lms, ctx.profiles)) : undefined;
       return ctx.errorPage(reply, req, code, { heading: HEADING, lms, ...(help ? { help } : {}) });
     };
-    const account = resolver.resolveAccount(req);
-    const accountError = protocolAccountError(account);
-    if (!account || accountError) return page(accountError ?? 'UNKNOWN_TOOL_ACCOUNT', accountError === 'TOOL_ACCOUNT_SUSPENDED' ? 'account_suspended' : 'unknown_tool_account');
+    const gate = statusGate(resolver.resolveAccount(req));
+    if (!gate.ok) return page(gate.code, gate.detail);
+    const { account } = gate;
     const q = RegisterQuery.safeParse(req.query ?? {});
     if (!q.success) return page('INVALID_REQUEST', `query=${q.error.issues[0]?.path.join('.') || 'query'}`);
+    // First check: no outbound fetch when the address is already at the cap (LA-ADR-06 D1).
     const cap = checkRegistrationSessionCap(ctx.db, limiter, req.ip, account.id, now);
     if (!cap.allowed) return page('REGISTRATION_SESSION_LIMIT', 'registration_session_limit');
     const token = q.data.registration_token;
@@ -158,10 +160,16 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
     // Pass-through parameters (for example ref): strings only, never the token or the configuration URL.
     const passthrough = Object.fromEntries(Object.entries(q.data)
       .filter(([k, v]) => !RESERVED_QUERY.has(k) && typeof v === 'string' && k.length <= 64 && v.length <= 512).slice(0, 20)) as Record<string, string>;
-    const session = createRegistrationSession(ctx.db, ctx.masterKey, {
-      toolAccountId: account.id, clientKey: cap.clientKey, openidConfigurationUrl: q.data.openid_configuration, registrationToken: token ?? null,
-      platformConfiguration: config.raw, operation, existingPlatformId, privacyLevel: q.data.privacyLevel ?? 'anonymous', passthrough, expiresAt,
-    }, now);
+    // A-LA-E5-06-01: parallel starts from one address all pass the first check while they wait for their fetch.
+    // Count again and insert in one transaction, with no await between them, so the cap holds.
+    const session = transaction(ctx.db, () => {
+      if (!checkRegistrationSessionCap(ctx.db, limiter, req.ip, account.id, ctx.now()).allowed) return null;
+      return createRegistrationSession(ctx.db, ctx.masterKey, {
+        toolAccountId: account.id, clientKey: cap.clientKey, openidConfigurationUrl: q.data.openid_configuration, registrationToken: token ?? null,
+        platformConfiguration: config.raw, operation, existingPlatformId, privacyLevel: q.data.privacyLevel ?? 'anonymous', passthrough, expiresAt,
+      }, now);
+    });
+    if (!session) return page('REGISTRATION_SESSION_LIMIT', 'registration_session_limit');
     log.info('registration_started', { trace_id: req.traceId, registration_id: session.id, operation });
     const location = new URL(account.registrationUrl);
     location.searchParams.set('registrationId', session.id);
