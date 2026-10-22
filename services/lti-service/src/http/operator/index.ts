@@ -15,6 +15,7 @@ import { registerAuditRoutes } from './audit.ts';
 import { registerOperatorKeyRoutes } from './operator-keys.ts';
 import { registerSigningKeyRoutes } from './signing-keys.ts';
 import { registerAccountRoutes } from './accounts.ts';
+import { registerApiKeyRoutes } from './api-keys.ts';
 import { registerSharedPlatformRoutes } from './shared-platforms.ts';
 
 /** The operator of an accepted request. The audit actor is operator:<operator>. */
@@ -68,6 +69,7 @@ const MOUNTS: Array<(app: FastifyInstance, ctx: OperatorContext) => void> = [
   registerAuditRoutes,
   registerSigningKeyRoutes,
   registerAccountRoutes,
+  registerApiKeyRoutes,
   registerSharedPlatformRoutes,
 ];
 

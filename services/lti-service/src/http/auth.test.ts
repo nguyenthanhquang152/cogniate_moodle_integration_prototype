@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { openDb } from '../db/index.ts';
 import { ensureAccount, updateAccount } from '../store/accounts.ts';
+import { listApiKeys } from '../store/api-keys.ts';
 import { createPlatform } from '../store/platforms.ts';
 import { createLaunch } from '../store/launches.ts';
 import { issueServiceKey, findServiceKey } from '../store/service-keys.ts';
@@ -23,14 +24,14 @@ describe('parseAuthorization (contract §1.2)', () => {
 });
 
 describe('authenticate audit actor', () => {
-  it('supplies the bootstrap actor for the account of each Bearer key', () => {
+  it('supplies the actual key id for the account of each Bearer key', () => {
     const db = openDb(':memory:');
     try {
       for (const id of ['cogniate', 'qa-second']) {
         const { apiKey } = ensureAccount(db, { id, name: id, appUrl: 'https://app.cogniate.test' });
         const result = authenticate(db, `Bearer ${apiKey}`, ['bearer'], Date.now(), () => { throw new Error('authentication failed'); });
         expect(result.account.id).toBe(id);
-        expect(result.actor).toEqual({ type: 'api_key', id: `bootstrap-${id}` });
+        expect(result.actor).toEqual({ type: 'api_key', id: listApiKeys(db, id)[0]!.id });
       }
     } finally { db.close(); }
   });
@@ -59,10 +60,7 @@ it('checks status after the whole credential, isolates tenants, and revokes all 
     for (const header of headers(b)) expect(auth(header).account.id).toBe(b.id);
     updateAccount(db, a.id, { status: 'active' }, 2001);
     for (const header of headers(a)) expect(auth(header).account.id).toBe(a.id);
-    // LA-E5-07's table is not installed yet. Its known revoke columns use the same close transaction.
-    db.exec('CREATE TABLE api_key (tool_account_id TEXT, revoked_at INTEGER)');
-    db.prepare('INSERT INTO api_key VALUES (?, NULL)').run(a.id);
-    db.prepare('INSERT INTO api_key VALUES (?, NULL)').run(b.id);
+    // The real bootstrap API-key rows take part in the same close transaction.
     db.exec("CREATE TRIGGER fail_close BEFORE UPDATE ON service_key BEGIN SELECT RAISE(ABORT, 'close failed'); END");
     expect(() => updateAccount(db, a.id, { status: 'closed' }, 2002)).toThrow('close failed');
     for (const header of headers(a)) expect(auth(header).account.id).toBe(a.id);

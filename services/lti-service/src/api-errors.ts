@@ -2,12 +2,14 @@
 // (B-T2a-02, B-T2b-02). The mechanism is generic in @cogniate/shared; the table is the service's own.
 import type { ApiErrorOptions } from '@cogniate/shared';
 import { ApiErrorBase, defineErrorTable } from '@cogniate/shared';
+import { KEY_ERRORS } from './http/key-errors.ts';
 
 export { apiErrorBody } from '@cogniate/shared';
 export type { ApiErrorBody } from '@cogniate/shared';
 
 /** Contract §1.3, in table order, then the LA codes (contract delta §1.3). */
 export const API_ERRORS = defineErrorTable({
+  ...KEY_ERRORS,
   INVALID_REQUEST: { status: 400, description: 'The request is not valid.' },
   INVALID_LINE_ITEM_ID: { status: 400, description: 'The line item id does not match the line items URL of the launch.' },
   INVALID_URL_PARAMETER: { status: 400, description: 'The url parameter does not match the service URL of the launch.' },

@@ -2,6 +2,7 @@
 // GET /operator/v1/audit on the SIM lane; these unit tests read the writer directly.
 import { describe, expect, it, vi } from 'vitest';
 import { listAuditEvents } from '../../store/audit.ts';
+import { listApiKeys } from '../../store/api-keys.ts';
 import type { Harness } from '../../testkit.ts';
 import { harness } from '../../testkit.ts';
 import * as auth from '../auth.ts';
@@ -32,7 +33,7 @@ describe('audit events of /api/platforms*', () => {
     } finally { spy.mockRestore(); await h.app.close(); h.db.close(); }
   });
 
-  it('AC-LA-E5-02-01: one POST /api/platforms makes one platform.create event (actor api_key:bootstrap-<account>, tenant, ok)', async () => {
+  it('AC-LA-E5-02-01: one POST /api/platforms makes one platform.create event (actual API key id, tenant, ok)', async () => {
     const h = await harness();
     const res = await call(h, 'POST', '/api/platforms', body());
     expect(res.statusCode).toBe(201);
@@ -40,7 +41,7 @@ describe('audit events of /api/platforms*', () => {
     const list = events(h);
     expect(list).toHaveLength(1);
     expect(list[0]).toMatchObject({
-      actor: { type: 'api_key', id: 'bootstrap-cogniate' }, toolAccountId: 'cogniate', action: 'platform.create', target: { type: 'platform', id },
+      actor: { type: 'api_key', id: listApiKeys(h.db, 'cogniate')[0]!.id }, toolAccountId: 'cogniate', action: 'platform.create', target: { type: 'platform', id },
       result: 'ok', code: null, traceId: res.headers['x-trace-id'], clientIp: '127.0.0.1', details: { profile: 'standard', active: true },
     });
   });
@@ -71,7 +72,7 @@ describe('audit events of /api/platforms*', () => {
       ['deployment.update', 'ok', { type: 'deployment', id: '8' }, { platformId: id, fields: ['active'], active: false }],
       ['platform.delete', 'ok', { type: 'platform', id }, { profile: 'standard' }],
     ]);
-    expect(events(h).every((e) => e.toolAccountId === 'cogniate' && e.actor.id === 'bootstrap-cogniate')).toBe(true);
+    expect(events(h).every((e) => e.toolAccountId === 'cogniate' && e.actor.id === listApiKeys(h.db, 'cogniate')[0]!.id)).toBe(true);
   });
 
   it('a refused PATCH, DELETE or deployment call makes one refused event with the target of the URL', async () => {
@@ -103,7 +104,7 @@ describe('audit events of /api/platforms*', () => {
     const h = await harness();
     await call(h, 'POST', '/api/platforms', body());
     await call(h, 'POST', '/api/platforms', body({ url: 'https://moodle3.test', authenticationEndpoint: 'https://moodle3.test/a', accesstokenEndpoint: 'https://moodle3.test/t', authConfig: { method: 'JWK_SET', key: 'https://moodle3.test/k' } }), `Bearer ${h.otherApiKey}`);
-    expect(listAuditEvents(h.db, { limit: 10, toolAccountId: 'qa-second' }).events.map((e) => [e.toolAccountId, e.actor.id])).toEqual([['qa-second', 'bootstrap-qa-second']]);
+    expect(listAuditEvents(h.db, { limit: 10, toolAccountId: 'qa-second' }).events.map((e) => [e.toolAccountId, e.actor.id])).toEqual([['qa-second', listApiKeys(h.db, 'qa-second')[0]!.id]]);
     expect(listAuditEvents(h.db, { limit: 10, toolAccountId: 'cogniate' }).events.map((e) => e.toolAccountId)).toEqual(['cogniate']);
   });
 });
