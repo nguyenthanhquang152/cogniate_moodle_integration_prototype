@@ -2,7 +2,8 @@
 // thumbprint. The key provider seals the private JWK, bound to its account and kid (LA-ADR-06 D6). Moved from
 // accounts.ts (B-T2a-01).
 import type { JsonWebKey } from 'node:crypto';
-import { createPublicKey, generateKeyPairSync } from 'node:crypto';
+import { createPublicKey, generateKeyPair } from 'node:crypto';
+import { promisify } from 'node:util';
 import type { JWK } from 'jose';
 import { calculateJwkThumbprint } from 'jose';
 import type { KeyHandle, LocalKeyProvider } from '@cogniate/shared';
@@ -17,6 +18,7 @@ export interface PublicJwk extends JWK { kid: string; kty: 'RSA'; alg: 'RS256'; 
 
 /** A blob copied to the row of another account or kid does not open (AP-06-25). */
 const privateJwkAad = (accountId: string, kid: string) => associatedData('lti', 'tool_key', 'private_jwk_encrypted', accountId, kid);
+const generateKeyPairAsync = promisify(generateKeyPair);
 
 export const RETIRED_KEEP_MS = 30 * 24 * 3600 * 1000;
 export const SIGNING_KEY_PUBLISH_LEAD_S = 86_400;
@@ -80,7 +82,7 @@ export interface PreparedToolKey {
 
 /** Do all async work before a synchronous transaction or audit.change (LA-ADR-06 D4 T2). */
 export async function prepareToolKey(keys: KeyHandle, accountId: string): Promise<PreparedToolKey> {
-  const { publicKey, privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048, publicExponent: 0x10001 });
+  const { publicKey, privateKey } = await generateKeyPairAsync('rsa', { modulusLength: 2048, publicExponent: 0x10001 });
   const pub = publicKey.export({ format: 'jwk' }) as JWK;
   const kid = await calculateJwkThumbprint({ kty: 'RSA', n: pub.n!, e: pub.e! });
   const publicJwk: PublicJwk = { kty: 'RSA', kid, alg: 'RS256', use: 'sig', n: pub.n!, e: pub.e! };
