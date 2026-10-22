@@ -16,7 +16,7 @@ import { claimPicker, clearPickerLtik, getPicker, pickablePublications, releaseP
 import { httpsOrigin } from './launch-rules.ts';
 import { errorPage, escapeHtml, layout, newNonce, toolPageHeaders, withLms } from './page.ts';
 import { getConnectionAnyLibrary } from '../domain/connections.ts';
-import type { LmsName } from '../providers/index.ts';
+import type { ChannelText as LmsName } from '../kernel/ports.ts';
 
 export interface PickerPageDeps {
   channels: ChannelRegistry;

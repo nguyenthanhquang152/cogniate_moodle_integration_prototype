@@ -1,6 +1,8 @@
 import { expect, it } from 'vitest';
-import { canvasProvider, parseCanvasBody } from './canvas.ts';
-import type { BindingTarget, InitialTargetContext } from './types.ts';
+import setup, { default as canvasProvider, parseCanvasBody } from './app.ts';
+import manifest from './manifest.ts';
+type BindingTarget = Parameters<NonNullable<typeof canvasProvider.createRequest>>[0];
+type InitialTargetContext = Parameters<NonNullable<typeof canvasProvider.initialTarget>>[0];
 
 const grantCode = 'g'.repeat(43);
 const context: InitialTargetContext = {
@@ -71,8 +73,23 @@ it('supplies the four exact admin rows, profile labels and capability limits', (
     { key: 'method', label: 'Method', value: 'Paste JSON' },
     { key: 'lti_json', label: 'LTI 1.3 Configuration', value: 'Paste the JSON from "Copy JSON" or "Download JSON". Do not edit it.' },
   ]);
-  expect(canvasProvider.capabilities).toEqual({ dynamicRegistration: false, operatorApproval: true, webServices: false, courseShell: false, addDeployment: true, canvasConfiguration: true });
-  expect(canvasProvider.profileLabel('canvas-sim-cloud')).toBe('Canvas cloud (simulation)');
-  expect(canvasProvider.profileLabel('blackboard')).toBeNull();
-  expect(canvasProvider.siteRuleSuffixes('canvas-self-hosted')).toEqual(['instructure.com', 'canvaslms.com']);
+  expect(manifest.capabilities).toMatchObject({ 'deployments.multiple': true, 'setup.artifacts': ['developer-key-json'] });
+  expect(canvasProvider.profiles['canvas-sim-cloud']?.label).toBe('Canvas cloud (simulation)');
+  expect(canvasProvider.profiles.blackboard).toBeUndefined();
+  expect(canvasProvider.profiles['canvas-self-hosted']?.refusedHostSuffixes).toEqual(['instructure.com', 'canvaslms.com']);
+});
+import profiles from './lti-profiles.ts';
+
+it('AC-LA-E1-07-10: offered profile data matches LTI traits and covers every registration profile', () => {
+  for (const [id, data] of Object.entries(setup.profiles)) {
+    const source = profiles.find((p) => p.id === id);
+    expect(source, id).toBeDefined();
+    expect(data.sharing, id).toBe(source!.sharing);
+    expect(data.serviceUrl, id).toBe(source!.serviceUrl);
+    expect(data.refusedHostSuffixes, id).toEqual('refusedHostSuffixes' in source! ? source!.refusedHostSuffixes : undefined);
+    expect(setup.sharingOf(id), id).toBe(source!.sharing);
+  }
+  for (const registration of manifest.registration) {
+    for (const id of registration.profiles) expect(setup.profiles[id], id).toBeDefined();
+  }
 });
