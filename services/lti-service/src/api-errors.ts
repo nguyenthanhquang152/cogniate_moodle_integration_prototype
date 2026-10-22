@@ -6,7 +6,7 @@ import { ApiErrorBase, defineErrorTable } from '@cogniate/shared';
 export { apiErrorBody } from '@cogniate/shared';
 export type { ApiErrorBody } from '@cogniate/shared';
 
-/** Contract §1.3, in table order. */
+/** Contract §1.3, in table order, then the LA codes (contract delta §1.3). */
 export const API_ERRORS = defineErrorTable({
   INVALID_REQUEST: { status: 400, description: 'The request is not valid.' },
   INVALID_LINE_ITEM_ID: { status: 400, description: 'The line item id does not match the line items URL of the launch.' },
@@ -44,6 +44,9 @@ export const API_ERRORS = defineErrorTable({
   PLATFORM_ERROR: { status: 502, description: 'The platform answered with an error.' },
   PLATFORM_TIMEOUT: { status: 504, description: 'The platform did not answer in time.' },
   INTERNAL_ERROR: { status: 500, description: 'Internal error.' },
+  // LA (contract delta §1.3)
+  INVALID_OPERATOR_AUTHORIZATION_HEADER: { status: 401, description: 'Missing or invalid operator key.' },
+  OPERATOR_KEY_IN_USE: { status: 409, description: 'An operator cannot revoke the key of its own request.' },
 });
 
 export type ApiErrorCode = keyof typeof API_ERRORS;

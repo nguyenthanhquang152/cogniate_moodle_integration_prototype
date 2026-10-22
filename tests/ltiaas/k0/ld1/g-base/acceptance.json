@@ -1,0 +1,255 @@
+{
+  "note": "Recorded at G-BASE (intake 1b17261be97c4701b928fa9dc2fa74c6d23028f6, product = 9f8ac62) on qa-la-sim-r1, 2026-10-22, by QA for LA-E0-04. No secret: the API key, the session cookie and the password are not in the answers.",
+  "profile": "acceptance",
+  "providers": {
+    "profiles": [
+      {
+        "id": "standard",
+        "lms": null,
+        "label": "Standard LTI 1.3 platform",
+        "sharing": "exclusive",
+        "issuer": null,
+        "authenticationEndpoint": null,
+        "accesstokenEndpoint": null,
+        "jwksUrl": null,
+        "siteUrlOn": null,
+        "serviceUrl": false,
+        "simulation": false,
+        "sharedPlatform": null
+      },
+      {
+        "id": "canvas-cloud-production",
+        "lms": "canvas",
+        "label": "Instructure-hosted Canvas (production)",
+        "sharing": "exclusive",
+        "issuer": "https://canvas.instructure.com",
+        "authenticationEndpoint": "https://sso.canvaslms.com/api/lti/authorize_redirect",
+        "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+        "jwksUrl": "https://sso.canvaslms.com/api/lti/security/jwks",
+        "siteUrlOn": "platform",
+        "serviceUrl": true,
+        "simulation": false,
+        "sharedPlatform": null
+      },
+      {
+        "id": "canvas-cloud-beta",
+        "lms": "canvas",
+        "label": "Instructure-hosted Canvas (beta)",
+        "sharing": "exclusive",
+        "issuer": "https://canvas.beta.instructure.com",
+        "authenticationEndpoint": "https://sso.beta.canvaslms.com/api/lti/authorize_redirect",
+        "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+        "jwksUrl": "https://sso.beta.canvaslms.com/api/lti/security/jwks",
+        "siteUrlOn": "platform",
+        "serviceUrl": true,
+        "simulation": false,
+        "sharedPlatform": null
+      },
+      {
+        "id": "canvas-cloud-test",
+        "lms": "canvas",
+        "label": "Instructure-hosted Canvas (test)",
+        "sharing": "exclusive",
+        "issuer": "https://canvas.test.instructure.com",
+        "authenticationEndpoint": "https://sso.test.canvaslms.com/api/lti/authorize_redirect",
+        "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+        "jwksUrl": "https://sso.test.canvaslms.com/api/lti/security/jwks",
+        "siteUrlOn": "platform",
+        "serviceUrl": true,
+        "simulation": false,
+        "sharedPlatform": null
+      },
+      {
+        "id": "canvas-self-hosted",
+        "lms": "canvas",
+        "label": "Self-hosted Canvas",
+        "sharing": "exclusive",
+        "issuer": "{siteUrl}",
+        "authenticationEndpoint": "{siteUrl}/api/lti/authorize_redirect",
+        "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+        "jwksUrl": "{siteUrl}/api/lti/security/jwks",
+        "siteUrlOn": "platform",
+        "serviceUrl": true,
+        "simulation": false,
+        "sharedPlatform": null
+      },
+      {
+        "id": "blackboard",
+        "lms": "blackboard",
+        "label": "Blackboard Learn",
+        "sharing": "shared",
+        "issuer": "https://blackboard.com",
+        "authenticationEndpoint": "https://developer.blackboard.com/api/v1/gateway/oidcauth",
+        "accesstokenEndpoint": "https://developer.blackboard.com/api/v1/gateway/oauth2/jwttoken",
+        "jwksUrl": "https://developer.blackboard.com/api/v1/management/applications/{clientId}/jwks.json",
+        "siteUrlOn": "deployment",
+        "serviceUrl": false,
+        "simulation": false,
+        "sharedPlatform": null
+      },
+      {
+        "id": "blackboard-sim",
+        "lms": "blackboard",
+        "label": "Blackboard Learn (simulation)",
+        "sharing": "shared",
+        "issuer": "https://blackboard.sim.test",
+        "authenticationEndpoint": "https://developer.blackboard.sim.test/api/v1/gateway/oidcauth",
+        "accesstokenEndpoint": "https://developer.blackboard.sim.test/api/v1/gateway/oauth2/jwttoken",
+        "jwksUrl": "https://developer.blackboard.sim.test/api/v1/management/applications/{clientId}/jwks.json",
+        "siteUrlOn": "deployment",
+        "serviceUrl": false,
+        "simulation": true,
+        "sharedPlatform": null
+      },
+      {
+        "id": "canvas-sim-cloud",
+        "lms": "canvas",
+        "label": "Canvas cloud (simulation)",
+        "sharing": "exclusive",
+        "issuer": "https://canvas.sim.test",
+        "authenticationEndpoint": "https://sso.canvas.sim.test/api/lti/authorize_redirect",
+        "accesstokenEndpoint": "{serviceUrl}/login/oauth2/token",
+        "jwksUrl": "https://sso.canvas.sim.test/api/lti/security/jwks",
+        "siteUrlOn": "platform",
+        "serviceUrl": true,
+        "simulation": true,
+        "sharedPlatform": null
+      }
+    ]
+  },
+  "lmsProviders": {
+    "lms": [
+      {
+        "lms": "moodle",
+        "label": "Moodle",
+        "methods": [
+          "dynamic",
+          "manual"
+        ],
+        "capabilities": {
+          "dynamicRegistration": true,
+          "operatorApproval": false,
+          "webServices": true,
+          "courseShell": true,
+          "addDeployment": false,
+          "canvasConfiguration": false
+        },
+        "profiles": [
+          {
+            "id": "standard",
+            "label": "Moodle site",
+            "simulation": false,
+            "ready": true,
+            "clientId": null
+          }
+        ]
+      },
+      {
+        "lms": "canvas",
+        "label": "Canvas",
+        "methods": [
+          "manual"
+        ],
+        "capabilities": {
+          "dynamicRegistration": false,
+          "operatorApproval": true,
+          "webServices": false,
+          "courseShell": false,
+          "addDeployment": true,
+          "canvasConfiguration": true
+        },
+        "profiles": [
+          {
+            "id": "canvas-cloud-production",
+            "label": "Instructure-hosted Canvas (production)",
+            "simulation": false,
+            "ready": true,
+            "clientId": null
+          },
+          {
+            "id": "canvas-cloud-beta",
+            "label": "Instructure-hosted Canvas (beta)",
+            "simulation": false,
+            "ready": true,
+            "clientId": null
+          },
+          {
+            "id": "canvas-cloud-test",
+            "label": "Instructure-hosted Canvas (test)",
+            "simulation": false,
+            "ready": true,
+            "clientId": null
+          },
+          {
+            "id": "canvas-self-hosted",
+            "label": "Self-hosted Canvas",
+            "simulation": false,
+            "ready": true,
+            "clientId": null
+          },
+          {
+            "id": "canvas-sim-cloud",
+            "label": "Canvas cloud (simulation)",
+            "simulation": true,
+            "ready": true,
+            "clientId": null
+          }
+        ]
+      },
+      {
+        "lms": "blackboard",
+        "label": "Blackboard Learn",
+        "methods": [
+          "manual"
+        ],
+        "capabilities": {
+          "dynamicRegistration": false,
+          "operatorApproval": true,
+          "webServices": false,
+          "courseShell": false,
+          "addDeployment": false,
+          "canvasConfiguration": false
+        },
+        "profiles": [
+          {
+            "id": "blackboard",
+            "label": "Blackboard Learn",
+            "simulation": false,
+            "ready": false,
+            "clientId": null
+          },
+          {
+            "id": "blackboard-sim",
+            "label": "Blackboard Learn (simulation)",
+            "simulation": true,
+            "ready": false,
+            "clientId": null
+          }
+        ]
+      }
+    ]
+  },
+  "ltiHealth": {
+    "status": "ok",
+    "service": "lti-service",
+    "profile": "acceptance",
+    "knobs": [],
+    "outbound_allowlist": [
+      "moodle.test",
+      "qa-platform.test",
+      "evil.test",
+      "developer.blackboard.sim.test",
+      "learn-a.blackboard.sim.test",
+      "learn-b.blackboard.sim.test",
+      "sso.canvas.sim.test",
+      "school-a.canvas.sim.test",
+      "school-b.canvas.sim.test",
+      "canvas-self.sim.test",
+      "api.canvas-self.sim.test"
+    ],
+    "simulation_profiles": [
+      "blackboard-sim",
+      "canvas-sim-cloud"
+    ]
+  }
+}

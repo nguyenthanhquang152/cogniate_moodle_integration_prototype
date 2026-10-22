@@ -61,3 +61,13 @@ A1's list in [review-response-B1-A1.md §3](review-response-B1-A1.md#3-a2-spec-c
 | Own fix | done | A2-lanes §1 row LA-E3-15 | The row still had LA-E3-09 as a dependency (left over from LA-B2b; the spec header and epics were already right). Removed: no loop. |
 
 For A1 (epics §5, not an A2 file): the note on the `lti/codes.ts` row ("S1: page codes (B1)") is out of date. S1 has no B1 edit of that file now: LA-E5-06 (L, B2) adds two page codes, and L adds `RATE_LIMITED` for LA-E5-03 by RQ-1.
+
+## 5. Before build (task LA-PRE-A2)
+
+Round-2 items for A2 in `docs/team/ltiaas/deferred.md` (G-BREAKDOWN table), after the product owner approved G-DEV (LA-H1).
+
+| Id | Severity | Decision | Where | Note |
+| --- | --- | --- | --- | --- |
+| A-LAB-21 | MINOR | fixed | LA-E5-19 new AC-09 | The task that owns the retention job proves the call: with a controlled clock, one `retention` run also deletes `storage_check` rows older than 10 minutes and keeps newer rows. If LA-E3-02 lands after LA-E5-19 (both B2), the AC is "pending: LA-E3-02". |
+| Q-LAB-19 | MINOR | fixed (option a) | LA-E5-04 AC-08 | AC-08 names form (d): the fresh account comes from `lti:bootstrap` with a new account id, so its printed `apiKey` is a positive control (`200` on `GET /api/platforms` before the close, `401` after it). The Must proof stays in B1. For A1: the "Used by" cell of tasks README §2 form (d) can add LA-E5-04 AC-08. |
+| Q-LAB-22 | NIT | fixed | LA-E5-02 AC-10, LA-E5-06 AC-08 (`K0`); LA-E6-07 AC-04 (`K2`) | Labels now match the AC text. |

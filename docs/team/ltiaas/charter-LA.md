@@ -4,6 +4,21 @@ Date: 2026-10-22. Orca Run: `run_06d07dc77faf`. Worktree: `ltiaas-milestone` (br
 
 The base charter `docs/team/charter.md` applies to milestone LA. This file adds rules for LA. When the two files conflict on LA work, this file wins.
 
+
+## 0. Model change (product owner, 2026-10-22 ~14:10 +07)
+
+The product owner changed the model plan for the rest of LA:
+
+| Work | Agent and model |
+| --- | --- |
+| Planning (Lead), software architecture and technical design (Architects A1, A2), and review (Reviewer-A, Reviewer-B) | Claude Code, Opus 5.5, xhigh |
+| Execution and implementation (all Author lanes K, P, R, S1, S2, L, L2; Docs) | Codex, GPT-6-Astra, xhigh (`--agent codex --model gpt-6-astra --effort xhigh`) |
+| QA, testing and verification (lead QA, QA-2, QA-3, QA-4, QA-E2E) | Antigravity, Gemini 4 Argon, high |
+
+Routing rule (product owner, 2026-10-22): during the build, every spec, interface or design question from an Author or QA goes to the Architects (A1 for its files, A2 for its files) through the Lead; the Lead decides only process items (lanes, Docker slots, merge order, ownership requests that change no design). A Lead call made to keep a lane moving is provisional until the Architect ratifies it.
+
+New agents continue the work of the paused Claude workers from the files and commits they left. Roles, file ownership, independence and gates do not change. Codex Author work always gets a cross-model review (Claude reviewers), and QA is independent of both. Docker: LA stays host-only until the Blackboard and Canvas run hands back Docker (incident record on the board); any LA Docker command before the handoff is a stop-the-line violation.
+
 ## 1. Agents and roles
 
 The product owner asked for Claude Code, Opus 5.5, effort xhigh, for every role. The Lead starts each worker through Orca:

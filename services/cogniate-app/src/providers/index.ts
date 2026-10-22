@@ -1,8 +1,9 @@
 // The ONE provider registry of the app. Adapter data lives in one file per LMS (moodle.ts, canvas.ts, blackboard.ts).
+import type { Logger } from '@cogniate/shared';
 import { blackboardProvider } from './blackboard.ts';
 import { canvasProvider } from './canvas.ts';
 import { moodleProvider } from './moodle.ts';
-import type { Capabilities, LmsName, LmsType, ProviderAdapter } from './types.ts';
+import type { Capabilities, LmsName, LmsType, LtiProviderProfile, ProviderAdapter } from './types.ts';
 
 export type * from './types.ts';
 export { LMS_TYPES } from './types.ts';
@@ -17,6 +18,25 @@ export function providerAdapters(): ProviderAdapter[] {
 /** The adapter of an LMS type, or null when the LMS type is not offered. */
 export function providerOf(lms: string): ProviderAdapter | null {
   return providerAdapters().find((p) => p.lms === lms) ?? null;
+}
+
+/** Profile ids that `channel_profile_unknown` named in this process (app API delta §8: at most once per profile id). */
+const unknownProfilesLogged = new Set<string>();
+
+/**
+ * The rows of `GET /api/providers` that an adapter owns, in the answer order (app API delta §2). A row with `lms: null`
+ * belongs to the default adapter (the `standard` profile, LTI contract §9.3). The app ignores every other row and logs
+ * `channel_profile_unknown {profile}` at most once per process and profile id.
+ */
+export function ownedProfiles(rows: readonly LtiProviderProfile[], logger: Logger, traceId: string): LtiProviderProfile[] {
+  return rows.filter((p) => {
+    if (p.lms === null || providerOf(p.lms) !== null) return true;
+    if (!unknownProfilesLogged.has(p.id)) {
+      unknownProfilesLogged.add(p.id);
+      logger.warn('channel_profile_unknown', { trace_id: traceId, profile: p.id });
+    }
+    return false;
+  });
 }
 
 /** The LMS type of an LTI profile id (app contract §6.1 LMS check): `canvas-*` → canvas, `blackboard*` → blackboard, else moodle. */

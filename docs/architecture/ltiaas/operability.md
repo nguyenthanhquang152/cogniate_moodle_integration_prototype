@@ -39,9 +39,15 @@ Secret files (never in git; mode `0600`; mounted read only):
 | File | Holder | Content |
 | --- | --- | --- |
 | `infra/.secrets/lti-api-key.<account>` | app (read at each use) | tool account API key (today) |
-| `infra/.secrets/lti-operator-key` | LTI service container (CLIs) | operator key of the host's operator |
+| `infra/.secrets/lti-operator-key` | LTI service container (CLIs) | operator key of the host's operator. `npm run seed` makes it once (`lti:operator init --if-none`); `stack:up` does not |
 | `infra/.secrets/lti/keyring.json` | LTI service | key ring (when used) |
 | `infra/.secrets/operators.json` | app | allowed operator names (production) |
+
+Rules for the secret folders (build ratifications, [build decisions A2](build-decisions-A2.md) BD-A2-02, BD-A2-03):
+
+- `npm run stack:reset` deletes `seed.json`, the API key files and `lti-operator-key` together with the databases. It keeps `.env`, `infra/.certs/` and the key-ring folder `infra/.secrets/lti/`: key material, like the master key in `.env`. To remove a test ring, delete `infra/.secrets/lti/keyring.json` by hand.
+- The folder `infra/.secrets/lti/` (mode `0700`) must exist before any `docker compose up`. `npm run stack:up` and the QA runners (`prepare_e2e` in `infra/scripts/lib.sh`) make it. Without it, Docker makes the LTI service mount source as root, and the `e2e` container cannot start (its read-only bind of `infra/.secrets` cannot make the tmpfs mount point).
+- The `e2e` test container sees `infra/.secrets` read only, but never the key ring: an empty tmpfs covers `/repo/infra/.secrets/lti` ([security delta §10](security-delta.md#10-keys-and-secrets), visibility rule). QA writes a test ring only from its host clone (tasks README form (a)). Do not remove the tmpfs line to make the `e2e` container start: make the folder.
 
 The `production` profile refuses to start when a rule of LA-ADR-06 D12 fails. The log line `config_refused {reason}` names the rule.
 
@@ -246,7 +252,7 @@ The Cogniate app follows the same steps when it uses the key provider (Should).
 2. Write it to `infra/.secrets/lti-operator-key`.
 3. Revoke the old key with the new key: `POST /operator/v1/operator-keys/<old id>/revoke`.
 
-Key file lost: run `docker compose exec lti-service npm run lti:operator -- init --replace --name <operator>`. It revokes every operator key and makes a new one (one audit event, actor `system:bootstrap`). Write the new key to `infra/.secrets/lti-operator-key`. (`stack:up` uses `init --if-none`, which changes nothing when a key exists.)
+Key file lost: run `docker compose exec lti-service npm run lti:operator -- init --replace --name <operator>`. It revokes every operator key and makes a new one (one audit event, actor `system:bootstrap`). Write the new key to `infra/.secrets/lti-operator-key`. (`npm run seed` uses `init --if-none`, which changes nothing when a key exists. When the file is missing, seed writes nothing and prints this `--replace` command. `npm run stack:up` makes no operator key.)
 
 ### 6.5 Service keys (incident)
 
@@ -288,7 +294,7 @@ The restore accepts only a backup of the **same** compose project: another `COMP
 6. Record the start and end times (the measured RTO) and the backup age (the RPO of this drill).
 7. Remove the drill copy.
 
-CAUTION: Do not use `npm run stack:reset` in a drill: it also deletes the secret files and `infra/.data/backups/` (`infra/scripts/stack-reset.sh:2-4`).
+CAUTION: Do not use `npm run stack:reset` in a drill: it also deletes the seed and key files (`seed.json`, the API key files, `lti-operator-key`) and `infra/.data/backups/` (`infra/scripts/stack-reset.sh:2-4`). It keeps the key-ring folder `infra/.secrets/lti/` (§2).
 
 ## 8. Tenant operations
 

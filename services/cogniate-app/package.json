@@ -11,6 +11,7 @@
     "app:binding": "node src/cli/binding.ts"
   },
   "dependencies": {
+    "@cogniate/channel-kernel": "*",
     "@cogniate/package-inspector": "*",
     "@cogniate/shared": "*",
     "@cogniate/tracking": "*",

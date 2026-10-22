@@ -32,3 +32,19 @@ Open MINOR and NIT items after round 2. The ones marked "before build" are one-l
 | Q-LAB-21 | MINOR | tasks README :35/:37 name only QA's own projects | A1 | Before build |
 | Q-LAB-22 | NIT | Three evidence labels | A2 | Before build |
 | B-LAB-06 (part) | MINOR | Two cross-account cases stay in LA-E5-13, with a reason | A2 | Accepted by Reviewer-B |
+
+## P4 build
+
+| Id | Severity | Finding | Owner | When |
+| --- | --- | --- | --- | --- |
+| B-LA-E1-01 NITs | NIT | Module-level log set (move to the app instance); AC-02 uses the fake client | K | With LA-E1-02 if it fits |
+| A-E1-01-01 | NIT | Two type-only lines in connections.ts outside "the builder only" | — | Accepted |
+| B-LA-E5-08-02 | NIT | HKDF info prefix comment | S2 | Next S2 task |
+| A-LA-E5-01-01 = B-LA-E5-01-01 | NIT / MINOR | LA-ADR-06 D3 says `stack:up` runs `lti:operator init --if-none`; spec and code run it in `lti-bootstrap.sh` (seed) | A2 (text) | Next A2 edit |
+| A-LA-E5-01-02 = B-LA-E5-01-02 | NIT / MINOR | `stack:reset` leaves the dead `infra/.secrets/lti-operator-key` | S1 (RQ to the owner of `stack-reset.sh`) | Next S1 task |
+| B-LA-E5-01-03 | NIT | An invalid host user name (`id -un`) stops seed with no `OPERATOR_NAME` hint | S1 | Next S1 task |
+| B-LA-E1-02-01 | MINOR | AC-05/AC-06 tests start a copy of the main.ts listener, so dropping the main.ts call fails no test | K | LA-E1-03 dispatch |
+| B-LA-E1-02-02 = A-LA-E1-02-01 | MINOR / NIT | textName of an unknown channel returns "Moodle", not the neutral "your LMS" | K | LA-E1-03 dispatch |
+| B-LA-E1-02 NITs (5) | NIT | hand-kept manifest/capability shape copies, shared type placement, explicit-false rule, missing positive check-6 case, misleading check-5 reason; README §4 F1 test-file exclusion (A1) | K / A1 | Later K task; A1 next edit |
+| A2 C5 | MINOR | LA-ADR-06 D4 rule T5: keep the first error on rollback | S1 | With the C1 follow-up |
+| A-LA-E5-02-03/-04 | NIT | Reviewer-A NITs on LA-E5-02 (03 = A2 D4 T5) | S1 | With the C1 follow-up |
