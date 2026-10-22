@@ -13,7 +13,19 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 03:49 UTC
+### Current checkpoint — 2026-10-22, 04:07 UTC
+
+**R5 source and host checks are accepted. Candidate C4 is frozen at `bf09cdad91ca548e1ecbc14428b55180d35d5360`.** Tests tree: `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`. Source commit `27e1f61` changes only the two storage harness files. The tamper target now belongs to the current stopped operation, and the harness proves that only this file changed. Product and build executable paths still equal `9f8ac625443931242edd8da301c3d4f0d3e34290`; the infrastructure README difference is text only. The same fixer `ctx_898acbaef3a6` remains active for all later repairs.
+
+Final host checks passed on the held source: complete suite **154/154** under 022 and affected suite **52/52** under 077, with no failure, skip, cancellation, outer Docker-stub call or temporary leftover. Both ended at 03:59:13 UTC. All 42 host-file inventories match the commit before and after both runs. Private npm settings were present before launch; the two npm logs load them and show no fetch. This is log evidence, not a traffic capture. QA report `5681c0f771fb30399d88c7059e6cf9f4286c90f9` has SHA-256 `601cfb93c2661425dba12afcdde3fa0d41ac6c02effec06abf4c844f417a357b`. The Lead verified all 44 entries in index `a82b8bd2f72edab154b06666d9d922f8c27e26f11b92c6d13559e77e3415c88b`. The bound old-code controls reproduce the folder-order fault, and both bounded mutants are detected. The early focused run alone does not bind the runtime module; the final suites and bound copies provide that proof.
+
+Both independent reviewers APPROVE with no BLOCKER or MAJOR. A report `bf09cda` has SHA-256 `ee05de3322b57025b9729a029d849f2ccc3131fdb4b7d5b277c9656ea5d0f150`; B report `f7a2d421ede7d7fa304b66d0b4cfc11eb2342eb8` has SHA-256 `2c1dea7d839ca40014bc9f911e8c62d06e79cb57812a491848b8a12754e5a42e`. The Lead checked preserved prefixes, A's 2,461 manifest entries, and B's 102 files, eight folders and 84 Git bindings. A's independent probes passed. A-SH-12 and A-SH-13 are accepted NIT deferrals: add an explicit non-null kept-file hash assertion and correct a test case name. A-SH-11 remains MINOR. The fake's normal-commit limit and A's transient-file disclosure remain recorded. Both reviewers settled successfully and were released.
+
+Fresh independent Common QA `task_ef1d19129419` / `ctx_e23ced3dd1fa` and Canvas QA `task_1eabbfbed895` / `ctx_745cb25fcb7c` are preparing C4 in parallel. Both requested and effective settings are Claude Code Opus 5.5 xhigh. They reuse qualified C3 tools and cached dependencies after binding checks. Common prepares separate clean diagnostic and full-run sources to avoid mixed artifact folders. Neither has Docker authority yet. The next result is the migration/storage diagnostic; it has zero full acceptance credit.
+
+After diagnostic acceptance, C4 still needs two complete 488-row rounds, all 12 legacy groups, independent Canvas judgments, fresh M2/T7 and final conformance/documentation gates. C3 remains failed history. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No project completion time is promised from unmeasured legacy or final-document work. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 03:49 UTC
 
 **R5 source is held and committed at `27e1f6102409b3d6b676bc46a28150624450a444`.** Tests tree: `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`. The same fixer `ctx_898acbaef3a6` changed only the two authorized storage harness files. The Lead read the delta and verified both held hashes before committing. Runtime harness SHA-256: `fbb99131ca0dc5673006ee500c0d413d8005298efaee320d7213ecb60016ba85`; self-test: `edc2d97a1753b92c320e020c3bd6f201c476c9dca76eeea29e731911923364f6`. This is a WIP snapshot, not a runtime candidate.
 
