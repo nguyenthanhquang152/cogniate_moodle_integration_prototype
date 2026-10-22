@@ -2,7 +2,19 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 18:48 UTC
+## Current checkpoint — 19:02 UTC
+
+Canvas SIM round 1 started at 18:54:44 UTC under Common Gemini dispatch `ctx_72afbef88d8c`.
+Grant: `msg_3ff504c1cbee`; startup: `msg_a4de323a84f4`. The unchanged suite has 258 cases.
+All 32 full protected volume records and Docker settings match the accepted legacy boundary.
+The preflight VM wake replaced the bridge before formal W3; the record discloses that transition.
+Savoy reports one overlapping block, 19:01:14–19:01:33 UTC, with two named containers and no build or network.
+Independent Gemini will check the required E-R5 evidence for the whole invocation. Final cleanup and whole-window confirmation remain pending.
+Round 2, M2 and T7 remain ungranted. No fresh Canvas runtime result is accepted yet.
+Final conformance, guide updates, independent Docs QA and two blind reviews remain required.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 18:48 UTC
 
 The Lead accepts [E-R5](r5-evidence-decision-2026-10-22.md) for shared-host execution within the confirmed resource boundaries.
 Claude finalized the unchanged verification requirements in section 11.6 of the failure plan; Gemini confirmed the artifact types are available.
