@@ -50,3 +50,14 @@ it('status time changes only on a transition; close prevents bootstrap rotation 
     expect(getAccount(db, 'two')).toEqual(b.account);
   } finally { db.close(); }
 });
+
+it('bootstrap supplies a new default name but does not write a name when it was omitted on an existing account', () => {
+  const db = openDb(':memory:');
+  try {
+    const input = { id: 'one', appUrl: 'https://tool.test' };
+    expect(ensureAccount(db, input).account.name).toBe('one');
+    updateAccount(db, 'one', { name: 'Operator name' }, Date.now());
+    db.exec("CREATE TRIGGER protect_omitted_name BEFORE UPDATE OF name ON tool_account BEGIN SELECT RAISE(ABORT, 'unexpected name write'); END");
+    expect(ensureAccount(db, { ...input, rotateApiKey: true }).account.name).toBe('Operator name');
+  } finally { db.close(); }
+});
