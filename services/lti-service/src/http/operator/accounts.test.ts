@@ -41,6 +41,9 @@ it('creates a private-by-default account, its active key, and exactly one audit 
     expect(Object.keys(account).some((key) => /apiKey|hash|private/i.test(key))).toBe(false);
     const key = publicJwks(h.db, id)[0]!;
     expect(activePrivateJwk(h.db, h.keys, id)?.kid).toBe(key.kid);
+    expect(h.lines.filter((l) => l.event === 'signing_key_changed' && l.tool_account_id === id)).toEqual([
+      expect.objectContaining({ kid: key.kid, status: 'active' }),
+    ]);
     expect(h.events().filter((e) => e.toolAccountId === id)).toEqual([expect.objectContaining({ action: 'account.create', result: 'ok',
       actor: { type: 'operator', id: 'test-op' }, target: { type: 'account', id }, details: { fields: Object.keys(input(id)), kid: key.kid } })]);
   }
@@ -61,6 +64,7 @@ it('prepares outside the transaction and rolls back account and first key when t
   expect(getAccount(h.db, 'one')).toBeNull();
   expect(publicJwks(h.db, 'one')).toEqual([]);
   expect(h.events()).toEqual([]);
+  expect(h.lines.filter((l) => l.event === 'signing_key_changed')).toEqual([]);
 });
 
 it('keeps account creation authoritative across async key preparation', async () => {

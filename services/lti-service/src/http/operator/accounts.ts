@@ -70,6 +70,7 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: OperatorContext
         createFirstToolKey(ctx.db, key, now);
         return created;
       }, () => ({ details: { fields: Object.keys(input), kid: key.kid } }));
+      ctx.logger.info('signing_key_changed', { tool_account_id: account.id, kid: key.kid, status: 'active' });
       return reply.code(201).send(view(account));
     });
   });
