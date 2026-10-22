@@ -1,0 +1,12 @@
+# G-DESIGN round 3: response of Architect A1
+
+Status: design fix round 3 (A1, inside task LA-B1, 2026-10-22). Design SHA under review: `88909be`. Reviews (section "Round 3"): [Reviewer-A](../../reviews/LA-DESIGN/reviewer-a.md) CHANGES_REQUESTED (A-LAD-25), [Reviewer-B](../../reviews/LA-DESIGN/reviewer-b.md) APPROVE, [QA](../../reviews/LA-DESIGN/qa.md) PASS (Q-LAD-24 A1 part open). A1 changed only the lines named below.
+
+| Id | Severity | Decision | Where | Note |
+| --- | --- | --- | --- | --- |
+| A-LAD-25 | MAJOR | fixed | `contracts/cogniate-app-api-delta.md` §5a rows "Limit" and "Test" | The app-edge bucket on `/tool/launch` and `/tool/deep-link` now has the values of the LTI `protocol` class: 600 per minute, burst 200 per address (LA-ADR-06 D1, NAT note). The order rule stays (the bucket before the `handoff` row and before any LTI call). New acceptance point: 300 valid launches from one address at an even rate within one minute all pass. The abuse point now sends 400 random ltiks in 10 s (burst 200 + 100 refill = at most 300 pass). The text cites TEST-STRATEGY §9.2 item 14 (E0 records the `/tool/launch` peak rate). The P3 task for the limit ([LA-E4-06](tasks/LA-E4-06-app-edge-limit.md)) copies both points. |
+| A-LAD-26 | NIT | fixed | `README.md` §8 OC-12 | Closed with the reference to A2's round-2 alignment lines. OC-11 also closed (TEST-STRATEGY §9.2 item 13). |
+| Q-LAD-24 (A1 part) | MINOR | fixed | `adr/LA-ADR-02-generic-lti-channel.md` test impact, K1 negative case | A launch before the grant on a staged, inactive DR platform gets `PLATFORM_NOT_ACTIVE` (A2 AP-07-11, AP-05-29). AP-08-04 keeps `deployment_not_approved`: there the staged record is active (LA-ADR-08 D3 rule 1). The P3 AC in [LA-E2-02](tasks/LA-E2-02-dr-fixes-and-staging.md) uses `PLATFORM_NOT_ACTIVE`. |
+| Reviewer-A build note (round 3) | — | in P3 | [LA-E4-01](tasks/LA-E4-01-job-runner.md) design notes and AC | `stop()` deletes its heartbeat row only after the runner has stopped leasing and its in-flight runs have ended (or `leaseMs` has passed). |
+| Reviewer-B note (2) | — | in P3 | [LA-E8-02](tasks/LA-E8-02-add-channel-guide.md) | The "Add a new LTI channel" guide has a step that finds Moodle `standard` connections of the family (`platform.productFamilyCode`) before a new named channel guards that family. |
+| Reviewer-B note (3) | — | in P3 | [LA-E4-01](tasks/LA-E4-01-job-runner.md) design notes | A runner that meets `job_instance_conflict` keeps waiting (web part serves; no lease) instead of turning its runner off; recorded as a Could AC. |
