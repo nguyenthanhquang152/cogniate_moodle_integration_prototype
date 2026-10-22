@@ -10,7 +10,17 @@
 // One entry per field path: `value` (the new value) or `rule` (a value rule). `*` in a path matches one key or one
 // array index. An entry explains each difference whose file and path match and whose new value passes. A difference
 // that no entry explains fails. An entry that explains no difference fails as "expected change missing".
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
+
+export const FILES = ['G1', 'G2', 'G3', 'G4'];
+export const G1_LMS_PROVIDERS_AND_CONNECTIONS = [
+  /^G1\.(?:default\.|acceptance\.)?lmsProviders(?:After)?\b/,
+  /^G1\.connections?\b/,
+  /^G1\.connectionList\b/,
+];
 
 const keyPart = (key) => (/^[A-Za-z_$][A-Za-z0-9_$-]*$/.test(key) ? `.${key}` : `[${JSON.stringify(key)}]`);
 const join = (base, part) => (base === '' && part.startsWith('.') ? part.slice(1) : base + part);
@@ -95,3 +105,72 @@ export function report({ differences, missing }) {
   for (const e of missing) lines.push(`MISSING ${e.file} ${e.path}: expected change missing [${e.id}] (${Object.hasOwn(e, 'value') ? 'value ' + show(e.value) : 'rule ' + e.rule})`);
   return lines;
 }
+
+/** Loads G1.json … G4.json from a capture directory. */
+export function loadCapture(dir) {
+  return Object.fromEntries(FILES.map((f) => {
+    const file = path.join(dir, `${f}.json`);
+    if (!fs.existsSync(file)) throw new Error(`Missing ${file}`);
+    return [f, JSON.parse(fs.readFileSync(file, 'utf8'))];
+  }));
+}
+
+/** Loads one expected-delta file by LA-IC id (from expectedDir/<id>.json) or by JSON file path. */
+export function loadExpectedDelta(item, expectedDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../expected')) {
+  const isPath = item.endsWith('.json') || item.includes('/') || item.includes('\\') || fs.existsSync(item);
+  const file = isPath ? path.resolve(item) : path.join(expectedDir, `${item}.json`);
+  if (!fs.existsSync(file)) throw new Error(`Missing expected-delta file ${file}`);
+  const delta = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const expectedId = isPath ? delta.id : item;
+  if (typeof delta.id !== 'string' || !delta.id || delta.id !== expectedId || !Array.isArray(delta.changes)) {
+    throw new Error(`Bad expected-delta file ${file}`);
+  }
+  return delta;
+}
+
+/** Extracts `<file>.<path>` for every unexplained difference (`DIFF ...`) and missing expected change (`MISSING ...`). */
+export function differingPaths(reportText) {
+  const out = [];
+  for (const line of String(reportText).split('\n')) {
+    const m = /^(?:DIFF|MISSING) (G[1-4]) ([^\s:]+)/.exec(line.trim());
+    if (m) out.push(`${m[1]}.${m[2]}`);
+  }
+  return out;
+}
+
+/** Lists the document identifiers (`G1`, `G1.<section>`, `G1.<section>.<subKey>`) present in `captureDir`. */
+export function captureDocuments(captureDir) {
+  const docs = new Set();
+  for (const f of FILES) {
+    const file = path.join(captureDir, `${f}.json`);
+    if (!fs.existsSync(file)) continue;
+    docs.add(f);
+    const data = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      for (const [k, v] of Object.entries(data)) {
+        docs.add(`${f}.${k}`);
+        if (v && typeof v === 'object' && !Array.isArray(v)) {
+          for (const sub of Object.keys(v)) docs.add(`${f}.${k}.${sub}`);
+        }
+      }
+      if (f === 'G1' && (data.acceptance?.lmsProviders || data.default?.lmsProviders)) {
+        docs.add('G1/app-api/lms-providers');
+      }
+    }
+  }
+  return [...docs];
+}
+
+const COMPARE_CLI = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../compare.mjs');
+
+/** Ready-to-use binding for task suites (compare CLI command, differingPaths parser, and captureDocuments). */
+export const cliBinding = {
+  compare(baseline, capture, expectedDelta) {
+    return {
+      cmd: process.execPath,
+      args: [COMPARE_CLI, '--base', baseline, '--candidate', capture, ...(expectedDelta ? ['--expected', expectedDelta] : [])],
+    };
+  },
+  differingPaths,
+  documents: captureDocuments,
+};

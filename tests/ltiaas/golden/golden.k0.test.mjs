@@ -8,7 +8,9 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { compareCaptures, diff, report } from './lib/compare.mjs';
+import {
+  G1_LMS_PROVIDERS_AND_CONNECTIONS, captureDocuments, cliBinding, compareCaptures, diff, differingPaths, loadExpectedDelta, report,
+} from './lib/compare.mjs';
 import { DROP, normalize, normalizeFile, secretScan } from './lib/normalize.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -111,4 +113,40 @@ test('AC-04 support: the stored capture is complete (G1-G4, meta)', () => {
   }
   const meta = JSON.parse(fs.readFileSync(path.join(baseDir, 'meta.json'), 'utf8'));
   assert.equal(meta.productSha, BASELINE); assert.equal(meta.secretHits, 0);
+});
+
+test('cliBinding: compare, differingPaths, captureDocuments and expected-delta file path work for task suites', () => {
+  const docs = captureDocuments(baseDir);
+  for (const re of G1_LMS_PROVIDERS_AND_CONNECTIONS) assert.ok(docs.some((d) => re.test(d)), String(re));
+  assert.ok(docs.includes('G1/app-api/lms-providers'));
+  const same = cliBinding.compare(baseDir, baseDir);
+  const sameRun = spawnSync(same.cmd, same.args, { encoding: 'utf8' });
+  assert.equal(sameRun.status, 0);
+  assert.deepEqual(differingPaths(sameRun.stdout), []);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'golden-bind-'));
+  try {
+    for (const f of FILES) fs.copyFileSync(path.join(baseDir, `${f}.json`), path.join(dir, `${f}.json`));
+    const g1 = JSON.parse(fs.readFileSync(path.join(dir, 'G1.json'), 'utf8'));
+    g1.acceptance.lmsProviders.lms[0].channel = 'moodle';
+    fs.writeFileSync(path.join(dir, 'G1.json'), JSON.stringify(g1, null, 2));
+    const diffCmd = cliBinding.compare(baseDir, dir);
+    const diffRun = spawnSync(diffCmd.cmd, diffCmd.args, { encoding: 'utf8' });
+    assert.equal(diffRun.status, 1);
+    assert.deepEqual(differingPaths(diffRun.stdout), ['G1.acceptance.lmsProviders.lms[0].channel']);
+    assert.ok(G1_LMS_PROVIDERS_AND_CONNECTIONS.some((re) => re.test('G1.acceptance.lmsProviders.lms[0].channel')));
+
+    const deltaFile = path.join(dir, 'LA-IC-01.json');
+    fs.writeFileSync(deltaFile, JSON.stringify({
+      id: 'LA-IC-01',
+      changes: [{ file: 'G1', path: 'acceptance.lmsProviders.lms[0].channel', value: 'moodle' }],
+    }));
+    assert.equal(loadExpectedDelta(deltaFile).id, 'LA-IC-01');
+    const expCmd = cliBinding.compare(baseDir, dir, deltaFile);
+    const expRun = spawnSync(expCmd.cmd, expCmd.args, { encoding: 'utf8' });
+    assert.equal(expRun.status, 0, expRun.stdout + expRun.stderr);
+    assert.deepEqual(differingPaths(expRun.stdout), []);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -39,6 +39,20 @@
         "status": 400,
         "text": "Cogniate LTI: PROVIDER_PROFILE_MISMATCH The launch did not work Error code: PROVIDER_PROFILE_MISMATCH This Canvas site is connected to Cogniate in the wrong way. Ask your Cogniate admin to connect it as Canvas in the Cogniate portal. Trace id: <trace>"
       },
+      "PUBLICATION_NOT_AVAILABLE": {
+        "action": "This course is not available for this Blackboard site. In Blackboard, use Select content again and choose one available course.",
+        "errorCode": "PUBLICATION_NOT_AVAILABLE",
+        "location": null,
+        "status": 400,
+        "text": "Cogniate: PUBLICATION_NOT_AVAILABLE Cogniate could not add the course Error code: PUBLICATION_NOT_AVAILABLE This course is not available for this Blackboard site. In Blackboard, use Select content again and choose one available course. Trace id: <trace>"
+      },
+      "PUBLICATION_NOT_IN_CONNECTION": {
+        "action": "Ask your teacher to select the course again in the activity settings.",
+        "errorCode": "PUBLICATION_NOT_IN_CONNECTION",
+        "location": null,
+        "status": 404,
+        "text": "Cogniate: PUBLICATION_NOT_IN_CONNECTION This course is not available Error code: PUBLICATION_NOT_IN_CONNECTION Ask your teacher to select the course again in the activity settings. Trace id: <trace>"
+      },
       "ROLE_NOT_ALLOWED": {
         "action": "Only a teacher can select a Cogniate course. Ask a teacher of this Blackboard course.",
         "errorCode": "ROLE_NOT_ALLOWED",
@@ -79,7 +93,7 @@
         "errorCode": null,
         "location": null,
         "status": 200,
-        "text": "Select a Cogniate course Select a Cogniate course Blackboard course: QA course Choose one course M1 course-<id:1> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:2> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:3> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:4> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:5> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:6> SCORM 1.2 Version 1 · Package: M1 QA Add to Blackboard"
+        "text": "Select a Cogniate course Select a Cogniate course Blackboard course: QA course Choose one course M1 course-<id:1> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:2> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:3> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:4> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:5> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:6> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:7> HTML Version 1 Add to Blackboard"
       }
     },
     "players": {
@@ -216,6 +230,20 @@
         "status": 400,
         "text": "Cogniate LTI: PROVIDER_PROFILE_MISMATCH The launch did not work Error code: PROVIDER_PROFILE_MISMATCH This Blackboard site is connected to Cogniate in the wrong way. Ask your Cogniate admin to connect it as Blackboard in the Cogniate portal. Trace id: <trace>"
       },
+      "PUBLICATION_NOT_AVAILABLE": {
+        "action": "This course is not available for this Canvas site. In Canvas, use Select content again and choose one available course.",
+        "errorCode": "PUBLICATION_NOT_AVAILABLE",
+        "location": null,
+        "status": 400,
+        "text": "Cogniate: PUBLICATION_NOT_AVAILABLE Cogniate could not add the course Error code: PUBLICATION_NOT_AVAILABLE This course is not available for this Canvas site. In Canvas, use Select content again and choose one available course. Trace id: <trace>"
+      },
+      "PUBLICATION_NOT_IN_CONNECTION": {
+        "action": "Ask your teacher to select the course again in the activity settings.",
+        "errorCode": "PUBLICATION_NOT_IN_CONNECTION",
+        "location": null,
+        "status": 404,
+        "text": "Cogniate: PUBLICATION_NOT_IN_CONNECTION This course is not available Error code: PUBLICATION_NOT_IN_CONNECTION Ask your teacher to select the course again in the activity settings. Trace id: <trace>"
+      },
       "ROLE_NOT_ALLOWED": {
         "action": "Only a teacher can select a Cogniate course. Ask a teacher of this Canvas course.",
         "errorCode": "ROLE_NOT_ALLOWED",
@@ -256,7 +284,7 @@
         "errorCode": null,
         "location": null,
         "status": 200,
-        "text": "Select a Cogniate course Select a Cogniate course Canvas course: QA course Choose one course M1 course-<id:7> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:8> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:9> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:10> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:11> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:12> SCORM 1.2 Version 1 · Package: M1 QA Add to Canvas"
+        "text": "Select a Cogniate course Select a Cogniate course Canvas course: QA course Choose one course M1 course-<id:8> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:9> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:10> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:11> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:12> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:13> SCORM 1.2 Version 1 · Package: M1 QA M1 course-<id:14> HTML Version 1 Add to Canvas"
       }
     },
     "players": {
@@ -265,7 +293,7 @@
         "errorCode": null,
         "location": null,
         "status": 200,
-        "text": "M1 course-<id:12> M1 course-<id:12> QA resource · QA course · Package: M1 QA Status: Not started Back to Canvas"
+        "text": "M1 course-<id:13> M1 course-<id:13> QA resource · QA course · Package: M1 QA Status: Not started Back to Canvas"
       },
       "status-before": {
         "body": {

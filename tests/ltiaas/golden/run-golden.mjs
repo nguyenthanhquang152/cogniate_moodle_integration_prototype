@@ -12,7 +12,7 @@ import path from 'node:path';
 import { createRunner } from '../../host/core.mjs';
 import { httpsLoopback, run, secretsInFile, walkFiles } from '../../host/lib.mjs';
 import { m1HostControl } from '../../host/m1-control.mjs';
-import { appLmsProviders, seedPortalUser } from '../../acceptance/lib/open-world.mjs';
+import { appLmsProviders, seedPortalUser } from '../lib/open-world.mjs';
 import { secretScan } from './lib/normalize.mjs';
 
 const r = createRunner({ task: 'GOLDEN', defaultProject: 'qa-la-sim-r1', extraOptions: {

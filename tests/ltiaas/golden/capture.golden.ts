@@ -54,9 +54,16 @@ const syncsOf = (rows: Json[]) => rows.flatMap((row) => row.scoreSyncs ?? []);
  * A pending row whose `tries`-th send is answered and stored. `tries` counts up before the POST, so the row alone
  * does not show that the answer arrived; the app's `score_sync` event of that send does (app contract §12).
  */
-async function settledPending(b: Json, pub: Json, tries: number, since: number) {
+async function settledPending(b: Json, pub: Json, tries: number, since: number, cursor: number) {
   const row = await waitSync(b, pub, 'pending', tries, 30_000);
-  await poll(async () => logEvents('score_sync', since, { sync_id: row.id, tries, status: 'pending' }).length, (n) => n > 0, 30_000, 100);
+  await poll(
+    async () =>
+      logEvents('score_sync', since, { sync_id: row.id, tries, status: 'pending' }).length > 0 &&
+      (await records(cursor)).records.filter((r: Json) => r.kind === 'score' && r.resource === pub.id && r.status === 503).length >= tries,
+    Boolean,
+    30_000,
+    100,
+  );
   return (await waitSync(b, pub, 'pending', tries, 5_000));
 }
 
@@ -123,7 +130,7 @@ async function channelSegment(c: Channel) {
   const d1 = await c.play(pubs['D-superseded'], { ...link, scoreAnswers: [503, 503] });
   const sinceD = Date.now();
   await commitGrade(d1, 'scorm12', 60, 100);
-  const lower = await settledPending(c.b, pubs['D-superseded'], 2, sinceD);
+  const lower = await settledPending(c.b, pubs['D-superseded'], 2, sinceD, cursor0);
   const d2 = await c.play(pubs['D-superseded'], link);
   await commitGrade(d2, 'scorm12', 90, 100);
   await poll(() => results(c.b, pubs['D-superseded']), (rows) => syncsOf(rows).some((s) => s.id === lower.id && s.status === 'superseded')
@@ -152,7 +159,7 @@ async function channelSegment(c: Channel) {
   const e = await c.play(pubs['E-pending'], { scoreAnswers: Array(20).fill(503) });
   const sinceE = Date.now();
   await commitGrade(e, 'scorm12', 4, 10);
-  u1.rows[`${c.id}-pending`] = await settledPending(c.b, pubs['E-pending'], 2, sinceE);
+  u1.rows[`${c.id}-pending`] = await settledPending(c.b, pubs['E-pending'], 2, sinceE, cursor0);
   g4.players['status-pending'] = json(await app(c.b.s, 'GET', `/app-api/play/${e.playId}/status`));
   for (const [name, pub] of Object.entries(pubs)) g3.publications[name].results = await results(c.b, pub);
   g2.records = (await records(cursor0)).records.filter((r: Json) => r.provider === c.provider);
