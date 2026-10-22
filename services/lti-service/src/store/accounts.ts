@@ -1,10 +1,9 @@
 // Tool accounts and their API keys (contract §7, §8 D2). Signing keys: tool-keys.ts.
 import type { Db } from '../db/index.ts';
 import { transaction } from '../db/index.ts';
-import { sha256Hex } from '@cogniate/shared';
 import { createHash, randomBytes } from 'node:crypto';
 import { ApiError } from '../api-errors.ts';
-import { newApiKey } from '../crypto.ts';
+import { findActiveApiKey, issueApiKey, revokeAccountApiKeys, revokeActiveAccountApiKeys } from './api-keys.ts';
 
 export interface ToolAccount {
   id: string;
@@ -84,11 +83,7 @@ export function updateAccount(db: Db, id: string, patch: AccountPatch, now: numb
         next.limits === null ? null : JSON.stringify(next.limits), next.claimPolicy === null ? null : JSON.stringify(next.claimPolicy),
         next.serviceKeyWriteScope, id);
     if (next.status === 'closed') {
-      db.prepare('UPDATE tool_account SET api_key_hash = ? WHERE id = ?').run(unusableApiKeyHash(), id);
-      // LA-E5-07 adds api_key. Close also revokes its rows once that migration is installed.
-      if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'api_key'").get()) {
-        db.prepare('UPDATE api_key SET revoked_at = ? WHERE tool_account_id = ? AND revoked_at IS NULL').run(now, id);
-      }
+      revokeAccountApiKeys(db, id, now);
       db.prepare('UPDATE service_key SET revoked_at = ? WHERE tool_account_id = ? AND revoked_at IS NULL').run(now, id);
     }
     return getAccount(db, id)!;
@@ -109,10 +104,9 @@ export function requireWritableAccount(db: Db, id: string): ToolAccount {
 }
 
 /** The API key resolves to exactly one tool account (only its SHA-256 hash is stored). */
-export function findAccountByApiKey(db: Db, apiKey: string): ToolAccount | null {
-  if (!/^ltis_[A-Za-z0-9_-]{43}$/.test(apiKey)) return null;
-  const row = db.prepare('SELECT * FROM tool_account WHERE api_key_hash = ?').get(sha256Hex(apiKey)) as AccountRow | undefined;
-  return row ? toAccount(row) : null;
+export function findAccountByApiKey(db: Db, apiKey: string, now = Date.now()): ToolAccount | null {
+  const key = findActiveApiKey(db, apiKey, now);
+  return key ? getAccount(db, key.toolAccountId) : null;
 }
 
 export interface EnsureAccountInput {
@@ -129,21 +123,22 @@ export function ensureAccount(db: Db, input: EnsureAccountInput): { account: Too
     launch: `${input.appUrl}/tool/launch`, deep: `${input.appUrl}/tool/deep-link`, reg: `${input.appUrl}/tool/register`,
   };
   return transaction(db, () => {
+    const now = Date.now();
+    const bootstrap = { label: 'bootstrap', scopes: ['launch', 'admin'] as const, createdBy: 'system:bootstrap' };
     const existing = getAccount(db, input.id);
     if (!existing) {
-      const apiKey = newApiKey();
-      const now = Date.now();
       db.prepare(`INSERT INTO tool_account (id, name, api_key_hash, launch_url, deep_linking_url, registration_url, created_at, status_changed_at, claim_policy)
-                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(input.id, input.name, sha256Hex(apiKey), urls.launch, urls.deep, urls.reg, now, now, JSON.stringify(DEFAULT_CLAIM_POLICY));
+                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(input.id, input.name, unusableApiKeyHash(), urls.launch, urls.deep, urls.reg, now, now, JSON.stringify(DEFAULT_CLAIM_POLICY));
+      const { apiKey } = issueApiKey(db, input.id, bootstrap, now);
       return { account: getAccount(db, input.id)!, created: true, apiKey };
     }
-    if (existing.status === 'closed') throw new ApiError('ACCOUNT_CLOSED');
+    requireWritableAccount(db, input.id);
     db.prepare('UPDATE tool_account SET name = ?, launch_url = ?, deep_linking_url = ?, registration_url = ? WHERE id = ?')
       .run(input.name, urls.launch, urls.deep, urls.reg, input.id);
     let apiKey: string | null = null;
     if (input.rotateApiKey) {
-      apiKey = newApiKey();
-      db.prepare('UPDATE tool_account SET api_key_hash = ? WHERE id = ?').run(sha256Hex(apiKey), input.id);
+      revokeActiveAccountApiKeys(db, input.id, now);
+      apiKey = issueApiKey(db, input.id, bootstrap, now).apiKey;
     }
     return { account: getAccount(db, input.id)!, created: false, apiKey };
   });

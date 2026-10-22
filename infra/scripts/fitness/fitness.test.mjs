@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -117,6 +117,15 @@ describe('token scanner internals', () => {
     });
     it('checks the former config exception after S3 removed it from the scope', () => {
         assert.deepEqual(checkText({ path: 'packages/shared/src/config.ts', text: 'const moodle = "PUBLIC_MOODLE_URL";' }, words).map((hit) => hit.token), ['moodle', 'PUBLIC_MOODLE_URL']);
+    });
+    it('exempts only whole frozen SQL string values in the channel backfill migration', () => {
+        const path = 'services/cogniate-app/src/domain/migrations/013_channel_kernel.sql';
+        const words = ['moodle', 'canvas', 'blackboard'];
+        const text = readFileSync(new URL(`../../../${path}`, import.meta.url), 'utf8');
+        assert.deepEqual(checkText({ path, text }, words), []);
+        assert.deepEqual(checkText({ path, text: "SELECT 'moodle', 'canvas', 'blackboard';" }, words), []);
+        assert.equal(checkText({ path: path.replace('013_channel_kernel', '014_next'), text: "SELECT 'moodle';" }, words).length, 1);
+        assert.deepEqual(checkText({ path, text: 'SELECT moodle_x, "canvas", \'moodle extra\';' }, words).map((hit) => hit.word), ['moodle', 'canvas', 'moodle']);
     });
     it('reads display names as data and ignores the generic display text', () => {
         const root = temp();

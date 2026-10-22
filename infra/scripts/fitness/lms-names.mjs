@@ -7,6 +7,12 @@ import { APPLIED_MIGRATIONS, ROOT, TEXT_EXTENSIONS, inClass, isUnitFile, maskCom
 // BD-A1-07 reserves the planned generic channel before its folder lands.
 const VENDORS = ['moodle', 'canvas', 'instructure', 'blackboard', 'brightspace', 'd2l', 'desire2learn', 'schoology', 'sakai', 'totara', 'lti-generic'];
 const WEB_API = new Set(['HTMLCanvasElement', 'CanvasRenderingContext2D', 'OffscreenCanvas', 'OffscreenCanvasRenderingContext2D', 'CanvasGradient', 'CanvasPattern', 'CanvasCaptureMediaStreamTrack', 'CanvasImageSource', 'CanvasImageData']);
+const TOKEN_EXCEPTIONS = [{
+  path: 'services/cogniate-app/src/domain/migrations/013_channel_kernel.sql',
+  values: ['moodle', 'canvas', 'blackboard'],
+  kind: 'sql-string',
+  reason: 'LA-ADR-04 D4 backfill reads the frozen connection.lms values',
+}];
 
 // BD-A1-09: use the same consecutive-part rule for every checked token.
 export function parts(value) {
@@ -88,7 +94,12 @@ export function checkText({ path, text }, words = bannedWords()) {
     const lex = (value, offset) => {
       // Keep a quoted SQL identifier or a string value as one token.
       const pattern = /'(?:''|\\[\s\S]|[^'\\])*'|"(?:""|\\[\s\S]|[^"\\])*"|`(?:``|[^`])*`|[A-Za-z0-9_$-]+/g;
-      for (const match of value.matchAll(pattern)) add(match[0], offset + match.index, kind === 'sql');
+      for (const match of value.matchAll(pattern)) {
+        const tokenKind = kind === 'sql' && match[0].startsWith("'") ? 'sql-string' : 'other';
+        const tokenValue = match[0].slice(1, -1).replace(/''/g, "'");
+        if (TOKEN_EXCEPTIONS.some((entry) => entry.path === path && entry.kind === tokenKind && entry.values.includes(tokenValue))) continue;
+        add(match[0], offset + match.index, kind === 'sql');
+      }
     };
     if (kind === 'html') {
       for (const match of clean.matchAll(/<(?:"[^"]*"|'[^']*'|[^'">])*>|[^<]+/g)) {

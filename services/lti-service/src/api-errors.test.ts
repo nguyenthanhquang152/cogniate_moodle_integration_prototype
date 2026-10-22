@@ -3,6 +3,9 @@ import { API_ERRORS, ApiError } from './api-errors.ts';
 
 // Contract lti-service-api §1.3, copied from the table (HTTP, details.message). Update both together.
 const CONTRACT_1_3: Array<[number, string]> = [
+  [403, 'API_KEY_SCOPE_MISSING'], [409, 'API_KEY_LIMIT'],
+  [409, 'SIGNING_KEY_NEXT_EXISTS'], [409, 'SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH'],
+  [409, 'SIGNING_KEY_ACTIVE'], [409, 'SIGNING_KEY_WRONG_STATE'],
   [400, 'INVALID_REQUEST'], [400, 'INVALID_LINE_ITEM_ID'], [400, 'INVALID_URL_PARAMETER'], [400, 'INVALID_CONTENT_ITEM'],
   [400, 'INVALID_DEEP_LINK_RETURN_URL'], // T3c round 2; Architect must add this return URL rule to §3.2.
   [400, 'UNSUPPORTED_AUTH_METHOD'], [400, 'PLATFORM_URL_NOT_ON_ISSUER_ORIGIN'],
@@ -20,6 +23,7 @@ const CONTRACT_1_3: Array<[number, string]> = [
   // LA (contract delta §1.3)
   [401, 'INVALID_OPERATOR_AUTHORIZATION_HEADER'], [409, 'OPERATOR_KEY_IN_USE'],
   [403, 'TOOL_ACCOUNT_SUSPENDED'], [409, 'ACCOUNT_ALREADY_EXISTS'], [409, 'ACCOUNT_CLOSED'],
+  [429, 'PLATFORM_RATE_LIMITED'],
 ];
 
 describe('LTI service API codes (contract §1.3)', () => {
