@@ -18,7 +18,8 @@ Orca run: `run_ebe671ad72a9`.
 Claude's architecture role is quota-blocked after three confirmed session-limit events, including an immediate stop on the latest retry.
 All three attempts are fenced. The Lead will not start duplicate Claude sessions without a quota reset or new user direction.
 The user was asked whether to wait under the current role assignment or authorize Codex GPT-6-Astra for the bounded repair plan.
-No answer or model substitution is assumed. Independent Gemini remains host-only; corrected failure evidence is committed at `64a1b62`.
+No answer or model substitution is assumed. Independent Gemini safely closed its blocked attempt with outcome FAILED; corrected failure evidence is committed at `64a1b62`.
+M2 and T7 remain unexecuted. The same external Gemini terminal can be reused after the planning dependency is resolved.
 No runtime or source/test edit is granted. LTI has no active Docker reservation, and its standing LA hold is released.
 All final gates, real-LMS limits and the no-push rule remain unchanged.
 

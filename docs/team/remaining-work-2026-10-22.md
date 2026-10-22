@@ -12,7 +12,8 @@ No answer or role change is assumed. The retained Codex executor has not started
 
 Independent Gemini's corrected failed-round and equality report is committed at `64a1b62`.
 The Lead verified its preserved prefix and all 12 primary input bindings. The report discloses earlier metadata errors.
-Gemini `ctx_806443ba13cd` remains host-only pending the planning dependency.
+Gemini `ctx_806443ba13cd` closed this attempt with outcome FAILED at 20:14:55 UTC because the planning dependency is blocked.
+Its accepted evidence remains committed. M2 and T7 were not executed. Its external terminal is released from this attempt and available for later reuse.
 E-R5 remains invalidated. No runtime, product edit or test edit is granted.
 The Lead released LTI's standing Docker hold for LA in `msg_8451370d9f2a`; LTI has no active host reservation.
 Final runtime, conformance, guides, Docs QA and reviews remain pending. Real-LMS and no-push limits remain unchanged.
