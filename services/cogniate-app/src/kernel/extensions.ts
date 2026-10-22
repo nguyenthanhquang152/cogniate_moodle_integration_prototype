@@ -4,7 +4,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CapabilityId, ChannelRegistry } from '@cogniate/channel-kernel';
 import { EMPTY_PUBLICATION_EXTENSION_FIELDS, EXTENSION_CAPABILITY_MEMBERS, EXTENSION_GUARDS, PACKAGE_EXPORT_WIRE, PUBLICATION_EXTENSION_FIELDS } from '@cogniate/channel-kernel';
 import { getConnection } from '../domain/connections.ts';
-import { parseStrictBody } from './setup/common.ts';
+import { parseStrictBody } from '@cogniate/channel-kernel/setup';
 import type { SetupRouteDeps as ProviderRouteDeps } from './setup/deps.ts';
 import { ApiError } from '../app/api-errors.ts';
 import type { CourseVersionView, ExporterContext, ExtensionRoute, PackageExporter, PortContext, PublicationView } from './ports.ts';

@@ -1,3 +1,4 @@
+import { toolName } from '@cogniate/channel-kernel/setup';
 import { mbzExporter } from './app/exporter.ts';
 import { webServicesRoute } from './app/web-services.ts';
 import { courseShellHook } from './app/course-shell.ts';
@@ -95,12 +96,6 @@ type PublicUrls = Parameters<ConnectionSetup['toolConfiguration']>[0]['urls'];
 
 /** The tool account of the app in the LTI service (contract §4.1). */
 export const TOOL_ACCOUNT = 'cogniate';
-
-/** Tool name in the LMS: `Cogniate (<library name>)`, ASCII only (flows §6a). */
-export function toolName(libraryName: string): string {
-  const ascii = libraryName.normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^\x20-\x7e]/g, '').replace(/\s+/g, ' ').trim();
-  return `Cogniate (${ascii || 'Library'})`;
-}
 
 /** The protocol URLs of the tool account (all from PUBLIC_LTI_URL). */
 export function toolUrls(urls: PublicUrls): { launch: string; login: string; keys: string } {

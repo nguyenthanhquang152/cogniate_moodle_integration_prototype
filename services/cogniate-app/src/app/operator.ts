@@ -15,7 +15,7 @@ import { transaction } from '../domain/db.ts';
 import { getLibrary } from '../domain/libraries.ts';
 import { authorityFor } from '../kernel/authority/index.ts';
 import { setupOf } from '../kernel/setup.ts';
-import { PRINTABLE_ID } from '../kernel/setup/common.ts';
+import { PRINTABLE_ID } from '@cogniate/channel-kernel/setup';
 import type { BindingCleanup, CleanupLine } from './binding-cleanup.ts';
 import { canvasIssuerMatches, providerProfiles, sharedReadiness } from './binding-targets.ts';
 
