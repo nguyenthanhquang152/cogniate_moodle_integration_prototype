@@ -77,6 +77,7 @@ function dispatchJob(db: DatabaseSync, send: (id: string) => Promise<void>): Que
         WHERE status = 'pending' AND next_try_at <= ? AND (lease_until IS NULL OR lease_until <= ?))
       ORDER BY turn, next_try_at, id LIMIT ?`).all(now, now, limit).map((r) => ({ id: String(r.id), partition: String(r.partition_key) })),
     partition: (item) => item.partition,
+    id: (item) => item.id,
     lease: (item, owner, until, now) => db.prepare(`UPDATE dispatch SET lease_owner = ?, lease_until = ?
       WHERE id = ? AND status = 'pending' AND send_started_at IS NULL AND (lease_until IS NULL OR lease_until <= ?)
         AND NOT EXISTS (SELECT 1 FROM dispatch o WHERE o.key = dispatch.key AND o.id <> dispatch.id AND (o.lease_until > ? OR o.send_started_at IS NOT NULL))`)
@@ -205,6 +206,7 @@ describe('job runner', () => {
         }).sort((a, b) => a.t - b.t).map((x) => x.i).slice(0, limit);
       },
       partition: (i) => i.partition,
+      id: (i) => i.id,
       lease: (i) => {
         if (leased.has(i.id) || done.has(i.id)) return false;
         leased.add(i.id);
@@ -315,7 +317,7 @@ describe('job runner', () => {
     expect(text).not.toContain('ltis_');
     expect(text).not.toContain('jane@example.test');
 
-    // A queue run that throws: failed, class name only. Its row stays due, but it runs again only at the next timed poll.
+    // A queue run that throws: failed, class name only. The first retry waits 2 s.
     const q2 = memoryQueue('unit-failing', ['pz'], 1);
     const r2 = runner('unit-2');
     r2.addQueue({ ...q2.job, run: async () => { throw new TypeError('secret detail'); } });
@@ -326,6 +328,94 @@ describe('job runner', () => {
     await advance(JOB_POLL_MS);
     expect(failing()).toHaveLength(2);
     expect(JSON.stringify(lines)).not.toContain('secret detail');
+  });
+
+  it('AC-LA-E4-01-11: a poison row cools with capped backoff while its good neighbours run; success and restart reset it', async () => {
+    class PoisonError extends Error {}
+    const ids = ['poison', 'good-1', 'good-2'];
+    const done = new Set<string>();
+    const attempts: { id: string; at: number }[] = [];
+    let fail = true;
+    const job: QueueJob<{ id: string }> = {
+      name: 'unit-cooling',
+      // Return new objects each time: the stable id, not object identity, controls cooling.
+      due: (_now, limit) => ids.filter((id) => !done.has(id)).slice(0, limit).map((id) => ({ id })),
+      partition: () => 'one-partition', id: (item) => item.id,
+      lease: () => true, release: () => undefined, recover: () => 0,
+      run: async (item, ctx) => {
+        attempts.push({ id: item.id, at: ctx.now() });
+        if (item.id === 'poison' && fail) throw new PoisonError('private row detail');
+        done.add(item.id);
+      },
+    };
+    const r = runner();
+    r.addQueue(job);
+    r.start();
+    await settle();
+    expect(attempts.map((a) => a.id)).toEqual(ids);
+    expect([...done]).toEqual(['good-1', 'good-2']);
+
+    const poisonRuns = (): number[] => attempts.filter((a) => a.id === 'poison').map((a) => a.at);
+    const expected = [T0];
+    // Check both sides of each boundary and repeat the cap.
+    for (const delay of [2_000, 4_000, 8_000, 16_000, 32_000, 64_000, 128_000, 256_000, 300_000, 300_000]) {
+      await advance(delay - 1);
+      r.kick(job.name);
+      await settle();
+      expect(poisonRuns()).toEqual(expected);
+      await advance(1);
+      expected.push(expected.at(-1)! + delay);
+      expect(poisonRuns()).toEqual(expected);
+    }
+    const failed = jobRuns().filter((line) => line.result === 'failed');
+    expect(failed).toHaveLength(expected.length);
+    expect(failed.every((line) => line.error === 'PoisonError' && line.job === job.name)).toBe(true);
+    expect(JSON.stringify(lines)).not.toContain('private row detail');
+
+    fail = false;
+    await advance(300_000);
+    expect(done.has('poison')).toBe(true);
+    fail = true;
+    done.delete('poison');
+    r.kick(job.name);
+    await settle();
+    const resetAt = Date.now();
+    const resetCount = poisonRuns().length;
+    await advance(1_999);
+    expect(poisonRuns()).toHaveLength(resetCount);
+    await advance(1);
+    expect(poisonRuns()).toHaveLength(resetCount + 1);
+    expect(poisonRuns().at(-1)).toBe(resetAt + 2_000);
+
+    await r.stop();
+    const restarted = runner();
+    restarted.addQueue(job);
+    restarted.start();
+    await settle();
+    expect(poisonRuns()).toHaveLength(resetCount + 2);
+    expect(poisonRuns().at(-1)).toBe(resetAt + 2_000);
+  });
+
+  it('AC-LA-E4-01-11: a due batch of cooled rows does not hide the next healthy row', async () => {
+    const ids = [...Array.from({ length: 30 }, (_, i) => `poison-${i}`), 'good'];
+    const seen = new Set<string>();
+    const job: QueueJob<string> = {
+      name: 'unit-cooling-batch',
+      due: (_now, limit) => ids.filter((id) => id !== 'good' || !seen.has(id)).slice(0, limit),
+      partition: () => 'one-partition', id: (id) => id,
+      lease: () => true, release: () => undefined, recover: () => 0,
+      run: async (id) => {
+        seen.add(id);
+        if (id !== 'good') throw new Error('row failed');
+      },
+    };
+    const r = runner();
+    r.addQueue(job);
+    r.start();
+    await settle();
+    expect([...seen]).toEqual(ids);
+    expect(jobRuns().filter((line) => line.result === 'failed')).toHaveLength(30);
+    expect(Date.now()).toBe(T0);
   });
 
   it('interval jobs run at start and every everyMs, each run with one lease (25 min with 10 min: 3 runs)', async () => {

@@ -26,6 +26,9 @@ export const JOB_INSTANCE_RECHECK_MS = 5_000;
 const DUE_BATCH = 20;
 /** Longest timer delay of Node (about 24.8 days). Node runs a longer delay after 1 ms. */
 const MAX_TIMER_MS = 2_147_483_647;
+/** A thrown row error starts at 2 s and doubles, up to 5 min (BD-A1-10). */
+const ITEM_COOLDOWN_MS = 2_000;
+const MAX_ITEM_COOLDOWN_MS = 5 * 60_000;
 
 export type JobRole = 'web' | 'worker';
 
@@ -84,6 +87,8 @@ export interface QueueJob<Item> {
   due(now: number, limit: number): Awaitable<Item[]>;
   /** Fairness key (lti-ags: the LTI platform id, or platform id + ":" + deployment id for a shared platform). */
   partition(item: Item): string;
+  /** Stable row id within this queue. A thrown run cools this row, not its partition. */
+  id(item: Item): string;
   /**
    * One conditional update: lease_owner = owner and lease_until = until, only when the row has no live lease and no
    * send marker, and (one in flight per key, Reviewer-A A-LAD-03) no other row with the same key has a live lease or
@@ -97,7 +102,8 @@ export interface QueueJob<Item> {
   /**
    * Send one leased row. A result write must check the lease owner (ctx.leaseOwner). A run must move its row (a
    * result, a later next_try_at, or an end status such as superseded): the runner polls again as soon as a run ends.
-   * After a run that throws, the runner skips that partition until the next timed poll.
+   * Catch row errors and move the row by the normal retry policy. If a run still throws, the runner skips that
+   * item for 2 s, doubled after each next throw, up to 5 min. A run that does not throw clears this backstop.
    */
   run(item: Item, ctx: JobContext): Promise<void>;
   limits?: Partial<QueueLimits>;
@@ -191,8 +197,8 @@ interface QueueState {
   limits: QueueLimits;
   /** Partitions with a run in flight in this process (perPartition = 1). */
   busy: Set<string>;
-  /** Partitions whose last run threw: skipped until the next timed poll, so that a row that stays due cannot loop. */
-  cooling: Set<string>;
+  /** Row backoff lives only in this runner. Keep the delay after expiry until the row runs without a throw. */
+  cooling: Map<string, { until: number; delayMs: number }>;
   running: number;
   polling: boolean;
   again: boolean;
@@ -260,7 +266,7 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
     if (!Number.isInteger(parallel) || parallel < 1) throw new Error(`parallel must be a whole number of 1 or more (job ${job.name}, got ${parallel}).`);
     const leaseMs = job.limits?.leaseMs ?? JOB_LEASE_MS;
     if (!(leaseMs > 0)) throw new Error(`leaseMs must be above 0 (job ${job.name}).`);
-    queues.set(job.name, { job: job as QueueJob<unknown>, limits: { parallel, perPartition, leaseMs }, busy: new Set(), cooling: new Set(), running: 0, polling: false, again: false });
+    queues.set(job.name, { job: job as QueueJob<unknown>, limits: { parallel, perPartition, leaseMs }, busy: new Set(), cooling: new Map(), running: 0, polling: false, again: false });
   }
 
   function addInterval(job: IntervalJob): void {
@@ -342,10 +348,7 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
     log.info('job_runner_started', { instance_id: instanceId, boot_id: bootId, role, recovered });
     every(JOB_HEARTBEAT_MS, () => void track(beat()));
     for (const q of queues.values()) {
-      every(pollMs, () => {
-        q.cooling.clear();
-        void poll(q);
-      });
+      every(pollMs, () => void poll(q));
       void poll(q);
     }
     for (const s of intervals.values()) {
@@ -392,18 +395,21 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
           if (q.running >= q.limits.parallel) break;
           await recoverQueue(q, 'running');
           if (state !== 'active') break;
-          const items = await q.job.due(now(), Math.max(DUE_BATCH, q.limits.parallel * 2));
+          // Ask past the cooled rows, so a full batch of them cannot hide healthy work.
+          const items = await q.job.due(now(), Math.max(DUE_BATCH, q.limits.parallel * 2) + q.cooling.size);
           for (const item of items) {
             if (state !== 'active' || q.running >= q.limits.parallel) break;
             const partition = q.job.partition(item);
-            if (q.busy.has(partition) || q.cooling.has(partition)) continue;
+            if (q.busy.has(partition)) continue;
+            const id = q.job.id(item);
             const t = now();
+            if ((q.cooling.get(id)?.until ?? -Infinity) > t) continue;
             if (!(await q.job.lease(item, leaseOwner, t + q.limits.leaseMs, t))) continue;
             if (state !== 'active') {
               await q.job.release(item, leaseOwner);
               break;
             }
-            startRun(q, item, partition);
+            startRun(q, item, partition, id);
           }
         } while (q.again && state === 'active');
       } catch (err) {
@@ -414,7 +420,7 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
     })());
   }
 
-  function startRun(q: QueueState, item: unknown, partition: string): void {
+  function startRun(q: QueueState, item: unknown, partition: string, id: string): void {
     q.busy.add(partition);
     q.running += 1;
     const traceId = newTraceId();
@@ -424,9 +430,12 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
       let error: string | undefined;
       try {
         await q.job.run(item, context(traceId));
+        q.cooling.delete(id);
       } catch (err) {
         result = 'failed';
         error = errorClass(err);
+        const delayMs = Math.min((q.cooling.get(id)?.delayMs ?? ITEM_COOLDOWN_MS / 2) * 2, MAX_ITEM_COOLDOWN_MS);
+        q.cooling.set(id, { until: now() + delayMs, delayMs });
       }
       try {
         await q.job.release(item, leaseOwner);
@@ -434,7 +443,6 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
         internalError(q.job.name, 'release', err, traceId);
       }
       q.busy.delete(partition);
-      if (result === 'failed') q.cooling.add(partition);
       q.running -= 1;
       logRun(q.job.name, traceId, startedAt, result, undefined, error);
       // A slot is free: look for more work now.
