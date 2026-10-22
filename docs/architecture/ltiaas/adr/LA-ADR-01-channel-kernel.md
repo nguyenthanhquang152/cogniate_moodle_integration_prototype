@@ -70,7 +70,7 @@ flowchart LR
 | Typecheck | Two configs under `packages/channels/`: `tsconfig.node.json` (`*/*.ts`, that is the root entries and root tests, and `*/app/**`; BD-A1-16) and `tsconfig.portal.json` (`*/manifest.ts`, `*/portal/**`, `jsx`, DOM libraries). The root `npm run typecheck` runs both. |
 | Unit tests | The root `vitest.config.ts` includes `packages/channels/*/**/*.test.{ts,tsx}`; portal-side tests use the portal's jsdom setup by file pattern. |
 | Lint | `eslint.config.js` gets one block per channel glob: the import table below (F3) and the LMS-name rule scope (F1). |
-| Styles and dev server | `apps/portal/src/styles.css` gets `@source "../../../packages/channels/*/portal";` (Tailwind v4 does not scan files outside the portal by itself). `apps/portal/vite.config.ts` gets `server.fs.allow` for `packages/channels` and the alias `@cogniate/portal-sdk` (P11). |
+| Styles and dev server | `apps/portal/src/styles.css` gets `@source "../../../packages/channels/*/portal/**/*.{ts,tsx}";` (the file-glob form, as built in LA-E1-11; the folder form did not scan the moved styles) (Tailwind v4 does not scan files outside the portal by itself). `apps/portal/vite.config.ts` gets `server.fs.allow` for `packages/channels` and the alias `@cogniate/portal-sdk` (P11). |
 | Profile data | Registry load check 7 (D4) validates every profile against one `ProviderProfile` schema with a closed trait set. |
 
 QA probe (with the canary): a type error and a failing unit test in a scratch channel folder each fail `npm run check`.
