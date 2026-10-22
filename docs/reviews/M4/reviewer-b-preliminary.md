@@ -173,3 +173,164 @@ Results:
 4. **Source stamp and Architect conformance.** Final AC-M4-06 verdict and a final source stamp. Lead `decisions-needed.md` for AC-M4-07.
 5. **Final QA.** An independent final Docs QA with a delta recheck. It appends the size correction of `docs/reviews/M4/docs.md` §1.1: `README.md` 8263 bytes and `infra/README.md` 61032 bytes at `fd87bf7` (the hashes match).
 6. **Final reviews.** Two final reviews on the exact final hashes. After the fixes, the boundaries of section 4 must stay unchanged: 32 `UNVERIFIED`, L-C13 deferred, L-C14 and the portal texts unverified, no human approval.
+
+---
+
+Round 2 verdict: **APPROVE** (static content of guide candidate `958ee5c` only: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open). Final-pack approval: **PENDING, NOT GRANTED**.
+Round: 2 (focused static recheck of B-M4-01 to B-M4-07)
+
+## R2. Round 2 — focused static recheck (appended)
+
+The Round 1 text above stays unchanged as history. Its verdict line applies to `f185260`. This section applies to `958ee5c`.
+
+### R2.1 Identity, scope and independence
+
+| Item | Value |
+| --- | --- |
+| Role | Independent Reviewer-B for documentation. Claude Opus 5.5, effort xhigh. No subworkers. |
+| Orca | Run `run_ebe671ad72a9`, task `task_676fd1f50e06`, dispatch `ctx_4c69d3c8aa14`. |
+| Time | 2026-10-22. `date -u` gave 12:55:22Z during the check and 12:57:04Z before the final edits. I did not measure the start time. |
+| Target | Guide candidate `958ee5c1225addff7dc3d5ea3417b7d17e157bbf`. Workspace `HEAD` was `7a74d2f` at the start and `90274c0` (Lead M3 commits) at the end. Between `958ee5c` and both, the ten held files, `services/`, `apps/`, `packages/`, `infra/` and `tests/` have no diff. |
+| Changed prose since `f185260` | `docs/guides/canvas-admin.md` (+9/-6), `docs/guides/operator.md` (+13/-11), `docs/guides/troubleshooting.md` (+4/-3), `infra/README.md` (+6/-2). Total 32 added and 22 removed lines. |
+| Method | Static reading only, from `git show 958ee5c:<path>`. No Docker, npm, install, runtime test, browser QA, commit or push. No source, test, guide or architecture edit. |
+| Prior report | The first 22026 bytes of this file are unchanged. SHA-256 `8e23eff30e549433ad5c639ad00e02910a3f733b5fd5544c99c4346e5347e219`, equal to the blob at `724a08a`. |
+
+All ten held files match the Lead's map at `958ee5c`:
+
+| Path | Bytes | SHA-256 | Since `f185260` |
+| --- | ---: | --- | --- |
+| `README.md` | 8263 | `814c32dca7134ff2fff6b2a8c099aadbfd5559b672da8de7da20dd3e11469026` | unchanged |
+| `docs/guides/blackboard-admin.md` | 7294 | `6b4c0185f58765e835ccb60c6f419925dc71db7837dbd9acbb918c52532e8efb` | unchanged |
+| `docs/guides/canvas-admin.md` | 11565 | `bac615e5b02dbe01a3252efe463e72d1efab932661f75598331492d38e18cb30` | changed |
+| `docs/guides/operator.md` | 19229 | `fd2fc3b220a9451e8ccf8416f4d357fe276795a7d04e00a570a0be7bb6638765` | changed |
+| `docs/guides/teacher.md` | 10284 | `35ec285743b3febd80ecd47084e95ff4f2ce1695e901175fb21ee0b4f200dcda` | unchanged |
+| `docs/guides/troubleshooting.md` | 14839 | `33b6f0a20f995cda56168207e24244fd9846d4f969b4994291d9e5e1ed486127` | changed |
+| `docs/human_review/START-HERE.md` | 6527 | `c50777cf678c69c79b4c3e7c73ecdfd42d63b8f3fc63b11347f5ee17d4060718` | unchanged |
+| `docs/human_review/canvas-blackboard.html` | 22070 | `0e021663fbf73c8d906db7596d678e9cc067e1b78f883d00dd064b1bfb1501fa` | unchanged |
+| `docs/human_review/deferred.md` | 25305 | `f8a15a691babc9504392e24a2031fe542936926c62c8c2b74da15d041aaad493` | unchanged |
+| `infra/README.md` | 61970 | `3c27066a3307922336fbc56c0b91d40f6584fc8793d6a0f1640c6739c103c577` | changed |
+
+Independence disclosure:
+
+- I did not open `docs/reviews/M4/reviewer-a-preliminary.md` or any M4 Reviewer-A message.
+- I did not read the commit message body of `958ee5c` or any author repair note. I used only the file diff `f185260..958ee5c`.
+- I read §3 of the Gemini Docs QA (`docs/reviews/M4/docs.md` at `60cb89d`) only after my own traces of all seven findings. I took no result from it.
+- A grep for A-SI-05 and B-SI-09 also printed single lines of `docs/team/board.md:16` and `docs/team/multi-lms-plan.md`. They are Lead status lines. I used them for nothing.
+- Owner routing of `infra/README.md:69-74` is a Lead grant. I checked only its content.
+
+### R2.2 Verdicts
+
+| Verdict | Result |
+| --- | --- |
+| Static content, candidate `958ee5c` | **APPROVE.** All seven Round 1 findings are closed (R2.3). The changed lines add no new finding. |
+| AC-T9-04 / AC-M4-03 STE on the changed lines | **Confirmed PASS** (R2.4). |
+| A-SI-05 / B-SI-09 final captured-output closure | **Not closed by this review.** It stays a separate gate (R2.7). |
+| Final-pack and prototype approval | **PENDING, NOT GRANTED.** The runtime gates failed or did not run (R2.7). |
+
+### R2.3 Closure of each Round 1 finding
+
+| Id | Round 1 | Changed lines at `958ee5c` | Result |
+| --- | --- | --- | --- |
+| B-M4-01 | MAJOR | `operator.md:9`, `:14-15`, `:18`, `:84-85`; `infra/README.md:69-70`, `:72`, `:74` | **CLOSED** |
+| B-M4-02 | MAJOR | `troubleshooting.md:82` (Fix cell) | **CLOSED** |
+| B-M4-03 | MINOR | `troubleshooting.md:82` (Code, Cause, Evidence cells), new row `:83` | **CLOSED** |
+| B-M4-04 | MINOR | `canvas-admin.md:127-131`, `:135` | **CLOSED** |
+| B-M4-05 | NIT | `troubleshooting.md:76` (Evidence cell) | **CLOSED** |
+| B-M4-06 | NIT | `operator.md:146`, `:155`; `troubleshooting.md:63`; `canvas-admin.md:143`, `:145` | **CLOSED** |
+| B-M4-07 | NIT | `operator.md:169`, `:178`, `:182`, `:225` | **CLOSED** |
+
+#### B-M4-01 — Compose working folder and project selection — CLOSED
+
+- **Change.** Both host examples now run `docker compose --project-directory infra -p "<project-name>" -f infra/compose.yaml --env-file .env exec -T --workdir /repo <service> npm run <script> -w services/<service> -- …`. Line 9 says to run the three CLIs "from `/repo`". Steps 1-2 of section 2.3 now give the full in-container form. `infra/README.md:69-70` give the same host command; `:72` says how to fill `<project-name>` and to use the same prefix for other operations.
+- **Evidence.**
+  - `infra/compose.yaml:123` and `:156` start each service in `/repo/services/<service>`. `:140`, `:143`, `:176` and `:179` mount the root `package.json` and `services/` under `/repo`. So the workspace selector resolves only from `/repo`.
+  - `tests/host/m1-control.mjs:23-26` runs `compose -f infra/compose.yaml --env-file .env exec -T --workdir /repo <service> npm run <script> -w services/<service> -- …`. The guide adds `--project-directory infra -p <project>`. That is the `dc()` prefix (`infra/scripts/lib.sh:105-110`), and it equals the helper default (the folder of `infra/compose.yaml`, project from `COMPOSE_PROJECT_NAME`).
+  - The repair record (`docs/reviews/M1/qa.md:160-166`) and the earlier failure (`docs/reviews/M2/qa.md:174`) agree. The evidence text at `operator.md:18` now names the QA helper, not "source inspection only".
+  - The other in-container blocks (`operator.md:62-64`, `:102-103`) take the line-9 rule. In rollback mode, `docker compose … exec` stays allowed (`infra/README.md:188`).
+
+#### B-M4-02 — escalation no longer switches off a working Canvas connection — CLOSED
+
+- **Change.** The Fix cell no longer says "suspend". After a failed retry, the operator runs `npm run app:grant -w services/cogniate-app -- revoke --grant <grt_id>` from `/repo` in `cogniate-app`, and follows the section 2.3 cleanup checks. Then the library asks for a new code.
+- **Evidence.**
+  - App contract `cogniate-app-api.md:483` and `:594`: revoke cleanup acts only on records that an attempt of that grant wrote and that have no approval. It "never changes the platform of a registered connection or an approved deployment".
+  - `51-canvas-races.test.ts:249-262` (`M1-37.canvas.p-activate`): `revoke` prints `fenced` and the first deployment works before and after (`firstWorks`, also graded). The same code then gives `403 GRANT_INVALID` (`:260`), so a new code is necessary.
+  - Contract `:478-485` (cleanup owners): a replacement grant adopts the fenced record (A2). This supports "ask for a new code".
+  - Blackboard: `50-races.test.ts:186-195` (`M1-37.blackboard.m`) shows the same revoke cleanup.
+  - The link to section 2.3 carries the `failed` retry rule and the running-redemption rule (`operator.md:86-87`, `:93`).
+
+#### B-M4-03 — the two launch reasons are now split — CLOSED
+
+- **Change.** Row `:82` now covers Blackboard "Save" and Canvas "Add deployment ID" (`reason: deployment_not_approved`). It cites `[SIM M1-37.blackboard.i, M1-37.canvas.s-retry, M1-37.canvas.p-activate]`. The new row `:83` covers a lost first Canvas "Save" (`reason: unknown_platform`): "Click "Save" again with the same code" `[SIM M1-37.canvas.c2, M1-37.canvas.i]`.
+- **Evidence.**
+  - Contract `cogniate-app-api.md:682` (launch routing): `deployment_not_approved` needs an owning Canvas or Blackboard connection or a reservation; else `unknown_platform`.
+  - `51-canvas-races.test.ts:66-78` (`unapprovedAdded`) asserts `deployment_not_approved`. `:285-293` (`s-retry`): the same code then gives 200 and one `grant_redeemed`.
+  - `50-races.test.ts:147-155` (`M1-37.blackboard.i`): `deployment_not_approved` (`:47`), then the same code gives 200.
+  - `51-canvas-races.test.ts:54-65` (`unapprovedInitial`) asserts `unknown_platform` (`:63`). `:126-131` (`c2`) and `:191-199` (`i`) then give 200 with the same code.
+  - Row `:81` (site or LMS mismatch) is unchanged and does not conflict.
+
+#### B-M4-04 — Procedure 6 is now executable for a portal user — CLOSED
+
+- **Change.** Step 1 gives the connection id source (the page address after `/integrations/canvas/`). Step 2 gives the full address on `{PUBLIC_APP_URL}`, says the browser saves `cogniate-canvas-lti.json`, and names the scheme, host and port. Step 3 compares `public_jwk.kid` in the file and gives the mismatch action ("stop and ask the operator"). The NOTE at `:135` now points to step 2.
+- **Evidence.**
+  - Portal route `integrations/canvas/:connectionId` (`apps/portal/src/App.tsx:129`; `BrowserRouter` without a base path, `:45`).
+  - Contract `cogniate-app-api.md:9` (`/app-api/*` on `PUBLIC_APP_URL`, session cookie), `:321-323` (`Content-Disposition: attachment; filename="cogniate-canvas-lti.json"`) and `:359` (`public_jwk.kid` equals `X-Cogniate-Key-Id`).
+  - `docs/architecture/security.md:160`: the `Origin` rule applies to portal API writes. A signed-in GET from the address bar sends the `SameSite=Lax` cookie and needs no `Origin`.
+  - `31-canvas-grants.test.ts:164-172` (`M1-19.canvas.inline-key`) asserts header = `public_jwk.kid`.
+  - All five steps keep `L-C14 UNVERIFIED` and "Not yet tested on a real Canvas site".
+
+#### B-M4-05 — direct evidence for `PLATFORM_NOT_ACTIVE` — CLOSED
+
+The Evidence cell now cites `[SIM M1-18.canvas.disconnect, M1-38.canvas.a]`. The tests are unchanged since Round 1 (`41-canvas-grades.test.ts:157-164`, `61-canvas-containment.test.ts:33-42`). They prove the disconnect and the suspend cause.
+
+#### B-M4-06 — self-hosted replacement order — CLOSED
+
+- **(a) Replacement connection first.** `operator.md:146` adds the precondition before step 1. `61-canvas-containment.test.ts:179-189` (`M1-39.canvas.operator-order`) makes the rightful `pending` connection before `canvasGrant`.
+- **(b) Same unused code after the race.** `operator.md:155` and `troubleshooting.md:63` say that the unused code stays valid until it expires, and ask for redemption of that same code at once. `61-canvas-containment.test.ts:191-204` (`M1-39.canvas.residual-race`): the same `grant` gives `409 PLATFORM_IN_USE`, then 200 after the second suspend and release.
+- **(c) Grant first for self-hosted Canvas.** `canvas-admin.md:143` no longer says "release first". The new NOTE at `:145` links to section 3a and says: replacement connection and grant before the release. `suspend` accepts "any LMS type and status" (contract `:609`), so section 3a also works after a user disconnect.
+- The contract (`:612`) says "repeat the order" after the race. A new grant replaces the unused code (`:593`). The guide uses the same-code path that QA proved. The two paths do not conflict.
+- The D-12 limit ("does not close it", WARNING at `operator.md:157`) is unchanged.
+
+#### B-M4-07 — concrete commands — CLOSED
+
+- **Change.** `:169` and `:182` name `npm ci`, then `npm run build`. `:178` names `npm run stack:down`. `:225` says "Outside rollback mode, run `npm run stack:restart -- lti-service`".
+- **Evidence.**
+  - ADR-011 §14 (`:399` old `npm run stack:down`; `:410` old `npm ci`, `npm run build`; `:414` old `stack:restart` forbidden in rollback mode). `operator.md:195-196` keep the same rule.
+  - Root `package.json`: `build` runs the workspace builds. Only `apps/portal` has one (`vite build`); it starts no container. `stack:down` runs `infra/scripts/stack-down.sh` (`down --remove-orphans`; it keeps the data volumes).
+  - QA restarts one service with `npm run stack:restart -- <service>` (`tests/host/m1-control.mjs:35`).
+
+### R2.4 AC-T9-04 / AC-M4-03 on the changed lines
+
+I used the Round 1 method (section 5) on every added line of `f185260..958ee5c`. I skipped the two Compose command lines in code blocks.
+
+| Measure | Result | Limit |
+| --- | --- | --- |
+| Segments measured | 81 sentences in 40 blocks | — |
+| Longest procedure or instruction sentence | 16 words (`operator.md:146`) | ≤ 20 |
+| Longest descriptive sentence | 17 words (`canvas-admin.md:143`) | ≤ 25 |
+| Sentences per block | Max 6 (`troubleshooting.md:82`, Fix cell) | ≤ 6 |
+| NOTE / WARNING / CAUTION | One new NOTE (`canvas-admin.md:145`), informational | inputs §7 |
+
+**Confirmed PASS.** Gemini's lower counts come from another split (it does not count table cells as paragraphs). Both stay inside the limits. AC-M4-01 also holds for the changed steps: each step has an evidence label, and the six changed L-C14 steps keep "Not yet tested on a real Canvas site".
+
+### R2.5 Reused Round 1 checks
+
+- Section 4 of Round 1 stays valid. Product C4 `bf09cda` and tests C5 `e1a057b` have no diff to `958ee5c` in `services/`, `apps/`, `packages/`, `infra/scripts/`, `infra/compose.yaml` and `tests/`. `docs/architecture/` has no diff since `f185260`.
+- Six held files are byte-identical to `f185260`. The HTML page is unchanged, so the earlier offline and accessibility proof applies (Gemini `docs.md` §3.3 item 2).
+- The changed lines add no "works with", certification, DataCamp or approval claim (grep: 0 hits). No removed line drops an `UNVERIFIED` label, a "Not yet tested" note or a WARNING without a tagged replacement.
+- Gemini Stage 1 Docs QA is on the right candidate. `docs/reviews/M4/docs.md` at `60cb89d` is 47271 bytes, SHA-256 `a47a7e52d3ccd56d6595c4b0c5cadbd8e0ec43270a77f40556200c54c43e56a7`, equal to `HEAD`. Its §3 targets `958ee5c1225addff7dc3d5ea3417b7d17e157bbf` with the same ten hashes. It passes all seven traces and the changed-line STE. My result agrees.
+- Round 1 section 6 item 5 (the `docs.md` §1.1 size correction) is done in `docs.md` §2.1: 8263 and 61032 bytes at `fd87bf7`.
+
+### R2.6 Observations (no severity, no action needed for this gate)
+
+- `troubleshooting.md:82` Fix cell is at the six-sentence limit. A later addition must split the cell.
+- No QA case downloaded the Canvas JSON through the browser address bar. The contract supports the step, and the step carries `L-C14 UNVERIFIED`. So the text claims no more than the evidence.
+- `infra/README.md:69-70` keep the in-container npm form in the first column, under "All commands run from the repo root" (`:36`). The second column and `:72` give the host command. A reader can follow it.
+
+### R2.7 Final gates still open (this review does not close them)
+
+1. **Runtime.** The fresh D-T6L legacy run at C4 `bf09cda` / C5 `e1a057b` FAILED `AC-T5-36` (T5b) and `AC-T6-07` (T6). T8 did not run. D-T6L is void for further acceptance (`docs/reviews/M3/qa.md:653-655`). The full2 history also FAILED. The earlier engine rounds (2 × 488) and Canvas judgments (2 × 233) stay historical bound evidence only. Fresh M2 and T7 are pending.
+2. **Stamps.** The guide, README, START-HERE and HTML stamps ("Draft basis `82aff91`", "Candidate under validation: C4 `bf09cda`") stay pending on purpose. They are not content defects. Final source, runtime and draft stamps bind only after the runtime gates.
+3. **A-SI-05 / B-SI-09.** The text correction `5a5453c` is an ancestor of `958ee5c`. The final captured-output closure (PE-7, `architect-conformance.md:152`; `deferred.md:197`) stays separate. I found no existing evidence that proves it, and I claim no runtime pass.
+4. **Conformance and decisions.** Final Architect verdict for AC-M4-06 and a final source stamp. Lead `decisions-needed.md` for AC-M4-07.
+5. **Final QA and reviews.** An independent final Docs QA and two final reviews on the exact final hashes.
+6. **Boundaries that must stay.** All 32 real-LMS rows `UNVERIFIED`. Local Canvas L-C13 `DEFERRED`. L-C14 and the portal texts unverified. The D-12 residual race with its enterprise WARNING. `operation_lock_invalid` STOP/ESCALATE. The rollback WARNINGs. The accepted deferrals. No human approval, and no final prototype or pack approval.
