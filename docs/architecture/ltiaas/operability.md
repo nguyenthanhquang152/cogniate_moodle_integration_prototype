@@ -212,7 +212,7 @@ Procedure:
 
 Compromise of the active key:
 
-1. Make B (step 1) and activate it with `force: true` at once. If a `next` key exists already, step 1 gives `409 SIGNING_KEY_NEXT_EXISTS`: activate that key with `force: true` instead, or, if you do not trust it, remove it first (next procedure).
+1. Make B (step 1) and activate it with `force: true` at once. If a `next` key exists already, step 1 gives `409 SIGNING_KEY_NEXT_EXISTS`: activate that key with `force: true` instead, or, if you do not trust it, remove it first (next procedure). The emergency CLI `lti:bootstrap --rotate-signing-key` always removes a waiting `next` key and makes a new one.
 2. Retire A at once: `POST …/signing-keys/A/retire {immediate: true}`.
 3. Tell the inline-key Canvas admins to paste the new JSON.
 4. Record the incident and the audit event ids.

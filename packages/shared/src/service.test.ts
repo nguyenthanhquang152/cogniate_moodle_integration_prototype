@@ -10,7 +10,7 @@ describe('startService', () => {
   it('logs service_started and test_knob_active for its own active knobs only, and serves them', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'cg-svc-'));
     const env = {
-      PUBLIC_MOODLE_URL: 'https://moodle.test', PUBLIC_LTI_URL: 'https://lti.cogniate.test',
+      PUBLIC_LTI_URL: 'https://lti.cogniate.test',
       PUBLIC_APP_URL: 'https://app.cogniate.test', PUBLIC_CONTENT_URL: 'https://content.cogniate-content.test',
       LOG_DIR: dir, LTIK_TTL_SECONDS: '5', REF_TTL_SECONDS: '9', STACK_PROFILE: 'acceptance',
       OUTBOUND_PRIVATE_HOST_ALLOWLIST: 'moodle.test,qa-platform.test,evil.test',
@@ -39,11 +39,11 @@ describe('startService', () => {
   });
 
   it('refuses to start without the public URLs', async () => {
-    await expect(startService('lti-service', [], { env: {}, handleSignals: false })).rejects.toThrow(/PUBLIC_MOODLE_URL is not set/);
+    await expect(startService('lti-service', [], { env: {}, handleSignals: false })).rejects.toThrow(/PUBLIC_LTI_URL is not set/);
   });
 
   it('refuses to start with a bad knob value', async () => {
-    const env = { PUBLIC_MOODLE_URL: 'https://moodle.test', PUBLIC_LTI_URL: 'https://lti.cogniate.test',
+    const env = { PUBLIC_LTI_URL: 'https://lti.cogniate.test',
       PUBLIC_APP_URL: 'https://app.cogniate.test', PUBLIC_CONTENT_URL: 'https://content.cogniate-content.test', LTIK_TTL_SECONDS: 'soon' };
     await expect(startService('lti-service', [], { env, handleSignals: false })).rejects.toThrow(/LTIK_TTL_SECONDS must be a whole number/);
   });

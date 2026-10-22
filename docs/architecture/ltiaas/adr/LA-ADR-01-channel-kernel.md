@@ -30,8 +30,10 @@ packages/channels/<id>/
                      admin-value setup adapter serves the channel (D5).
   app/               optional: extension code that needs storage (Moodle web services, .mbz exporter).
   portal/index.tsx   optional portal module (P11, D5). Portal entry.
-  *.test.ts(x)       unit tests next to the code (run by the root Vitest).
+  *.test.ts(x)       unit tests next to the code (run by the root Vitest): *.test.ts at the root and in app/,
+                     *.test.tsx in portal/.
   README.md          channel facts with sources (the "Source" column of ADR-011 §6), and the live status.
+                     No other file kind: a helper goes into app/ or portal/ (BD-A1-16).
 packages/channel-kernel/   new workspace package: manifest types and schema, capability catalog,
                            registry builder, text fill, legacy wire projection. Pure, no I/O.
 ```
@@ -65,7 +67,7 @@ flowchart LR
 
 | Tool | Rule |
 | --- | --- |
-| Typecheck | Two configs under `packages/channels/`: `tsconfig.node.json` (`*/manifest.ts`, `*/lti-profiles.ts`, `*/app.ts`, `*/app/**`) and `tsconfig.portal.json` (`*/manifest.ts`, `*/portal/**`, `jsx`, DOM libraries). The root `npm run typecheck` runs both. |
+| Typecheck | Two configs under `packages/channels/`: `tsconfig.node.json` (`*/*.ts`, that is the root entries and root tests, and `*/app/**`; BD-A1-16) and `tsconfig.portal.json` (`*/manifest.ts`, `*/portal/**`, `jsx`, DOM libraries). The root `npm run typecheck` runs both. |
 | Unit tests | The root `vitest.config.ts` includes `packages/channels/*/**/*.test.{ts,tsx}`; portal-side tests use the portal's jsdom setup by file pattern. |
 | Lint | `eslint.config.js` gets one block per channel glob: the import table below (F3) and the LMS-name rule scope (F1). |
 | Styles and dev server | `apps/portal/src/styles.css` gets `@source "../../../packages/channels/*/portal";` (Tailwind v4 does not scan files outside the portal by itself). `apps/portal/vite.config.ts` gets `server.fs.allow` for `packages/channels` and the alias `@cogniate/portal-sdk` (P11). |
@@ -79,11 +81,13 @@ Import rules (ESLint `no-restricted-imports`, added in E1 step S2):
 | --- | --- |
 | `packages/channels/*/manifest.ts` | `@cogniate/channel-kernel` types only |
 | `packages/channels/*/lti-profiles.ts` | kernel types, its own `manifest.ts` |
-| `packages/channels/*/app.ts` | kernel types and the app port types (`services/cogniate-app/src/kernel/ports.ts`) only. `app.ts` is pure: no database, no LTI call, no context. |
-| `packages/channels/*/app/**` | the same, plus `@cogniate/shared` and its own files. Its functions get a `PortContext` (D5) from the kernel at call time. |
+| `packages/channels/*/app.ts` | kernel types, the app port types (`services/cogniate-app/src/kernel/ports.ts`), values from `@cogniate/shared/channel` and types from `@cogniate/shared` (A2 BD-A2-11; A1 BD-A1-18: the pure helpers, for example the site rules of the Moodle six-value parser), its own `manifest.ts` and its own `app/**` (BD-A1-16, for the P5–P7 handlers of D5). No `fetch`, `WebSocket` or `process`. `app.ts` is pure: no database, no LTI call, no context. An `app/**` module does no work when it loads (no I/O and no timer at top level); its functions get the `PortContext` at call time. |
+| `packages/channels/*/app/**` | the same, and its own files. From `@cogniate/shared`: values only through the allow-list sub-path `@cogniate/shared/channel`, the root only with `import type`, no other sub-path ([security delta §8](../security-delta.md#8-tenant-isolation), channel import fence; BD-A2-11). No `fetch`, `WebSocket` or `process`. Its functions get a `PortContext` (D5) from the kernel at call time. |
 | `packages/channels/*/portal/**` | kernel types, `@cogniate/portal-sdk` (the folder `apps/portal/src/sdk/`, P11), its own manifest, React. Never other portal code. |
 | `apps/portal/src/sdk/**` | portal code (UI kit, API client, hooks, DTO types, error helpers). It is the one portal folder that a channel module may import. |
 | A channel folder | never another channel folder; never `services/**/domain/**` directly |
+| Every file under `packages/channels/<id>/` (tests too; BD-A1-16) | Base fence that every entry rule keeps: no `@cogniate/cogniate-app`, `@cogniate/lti-service`, `@cogniate/portal` or `@cogniate/player` (or any sub-path); `@cogniate/shared` values only from `@cogniate/shared/channel` and only where the file's row allows them (BD-A2-11); and no path under `services/` or `apps/`, except `services/cogniate-app/src/kernel/ports.ts` (from `app.ts` and `app/**`) and `apps/portal/src/sdk/**` (from `portal/**`). No runtime dynamic loading: no `import()` expression, no `require()`, no `import x = require()`, no `createRequire`. A type-position `import('…')` follows the table row of the file. A non-test file never imports a test file. A file that is not one of the layout kinds above is an error. A root test imports its own channel files, kernel types and test tools. |
+| Specifiers (all code) | A template literal with no `${…}` counts as a string specifier, so a core `import()` of a channel path is an error (N4); only the three registry loaders build channel paths at run time. |
 | Core | never a channel folder by path. Only the three registry loaders read channel folders (D4). |
 
 ### D2. Channel manifest
@@ -361,6 +365,7 @@ Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-
 | `operatorGrant` | the two-phase grant redemption (app contract §4.7.1), target kind from the adapter | `approved_deployment` (`domain/connections.ts:204-206`) | fence-out with refs | `CONNECTION_DISABLED` without a POST (`domain/score-syncs.ts:29`) |
 
 - The target kind is stored on each binding attempt, so revoke cleanup and fence-out pick the record kind without an LMS test (R3 S9, S12).
+- Source of `sharing` in the app (build ratification BD-A1-12, [build decisions A1](../build-decisions-A1.md)): code that works on an existing binding reads the stored `binding_attempt.target_kind`. A new binding (redemption phase 1, which makes no LTI call) takes the target kind from the app adapter, which declares `sharing` per profile that it offers as plain data. A unit test keeps that data equal to the `sharing` trait of the same profile in the channel's `lti-profiles.ts`. The app never infers `sharing` from a channel id or a target snapshot.
 - The manifest may combine `dynamic` with `operatorGrant` (A2's Canvas Dynamic Registration, D-1, Should, [LA-ADR-05](LA-ADR-05-lti-advantage-completeness.md)). Then the registration only stages an **inactive** platform with a binding ref, and the normal grant redemption adopts and activates it (adoption rule A3 of app contract §4.7.1). The strategy table above does not change. The same staging applies when a `self` DR method on an `any-https` profile meets a configuration that breaks the self invariant I-SELF ([LA-ADR-02 D2a, D5 item 10](LA-ADR-02-generic-lti-channel.md#decision)): the pending connection's stored authority changes once from `self` to `operatorGrant`.
 - Core reads the channel only through `connection.channel` and the registry. Core never reads `connection.lms` ([LA-ADR-04 D4](LA-ADR-04-refactor-and-migration.md#decision)).
 

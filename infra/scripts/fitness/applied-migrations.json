@@ -1,0 +1,24 @@
+{
+  "sourceSha": "1924b873f402967a0119f419dbdccd18d8e03f4f",
+  "paths": [
+    "services/cogniate-app/src/domain/migrations/001_init.sql",
+    "services/cogniate-app/src/domain/migrations/002_connections.sql",
+    "services/cogniate-app/src/domain/migrations/003_connection_last_error.sql",
+    "services/cogniate-app/src/domain/migrations/004_launch.sql",
+    "services/cogniate-app/src/domain/migrations/005_runtime_and_score_sync.sql",
+    "services/cogniate-app/src/domain/migrations/006_attempt_archived_time.sql",
+    "services/cogniate-app/src/domain/migrations/007_resend_and_gradebook.sql",
+    "services/cogniate-app/src/domain/migrations/008_session_last_cmi.sql",
+    "services/cogniate-app/src/domain/migrations/009_native_channel.sql",
+    "services/cogniate-app/src/domain/migrations/010_score_delivery_confirmation.sql",
+    "services/cogniate-app/src/domain/migrations/011_lms_types.sql",
+    "services/cogniate-app/src/domain/migrations/012_connection_provider_snapshot.sql",
+    "services/lti-service/src/db/migrations/001_init.sql",
+    "services/lti-service/src/db/migrations/002_service_keys.sql",
+    "services/lti-service/src/db/migrations/003_registration_sessions.sql",
+    "services/lti-service/src/db/migrations/004_provider_profiles.sql",
+    "services/lti-service/src/db/migrations/005_operator_key.sql",
+    "services/lti-service/src/db/migrations/006_key_provider.sql",
+    "services/lti-service/src/db/migrations/007_audit_event.sql"
+  ]
+}

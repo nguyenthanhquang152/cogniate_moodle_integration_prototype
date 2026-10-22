@@ -10,7 +10,7 @@ import { createRegistrationSession, getRegistrationSession } from '../store/regi
 import { issueServiceKey } from '../store/service-keys.ts';
 import { activePrivateJwk, ensureToolKey } from '../store/tool-keys.ts';
 import { URLS, capturingLogger } from '../testkit.ts';
-import { DEFAULT_KEYRING_FILE, keyVersionsInUse, loadKeyProvider, readKeyRing } from './key-config.ts';
+import { DEFAULT_KEYRING_FILE, keyVersionsInUse, loadKeyProvider, readKeyRing, readSigningKeyPublishLeadSeconds } from './key-config.ts';
 
 // Fixture keys (test values, not secrets).
 const LEGACY = Buffer.alloc(32, 7);
@@ -33,6 +33,14 @@ function writeSecret(name: string, content: string): string {
 }
 const ringFile = (active: string, keys: Record<string, Buffer>) =>
   writeSecret('keyring.json', JSON.stringify({ active, keys: Object.fromEntries(Object.entries(keys).map(([id, k]) => [id, hex(k)])) }));
+
+it('signing-key publish lead time defaults to 86400 s and refuses non-integers or values below 600', () => {
+  expect(readSigningKeyPublishLeadSeconds({})).toBe(86_400);
+  expect(readSigningKeyPublishLeadSeconds({ SIGNING_KEY_PUBLISH_LEAD_S: '600' })).toBe(600);
+  for (const value of ['', ' ', '599', '-1', '600.5', 'NaN', 'Infinity', 'text', '9007199254740992']) {
+    expect(() => readSigningKeyPublishLeadSeconds({ SIGNING_KEY_PUBLISH_LEAD_S: value })).toThrow(/SIGNING_KEY_PUBLISH_LEAD_S/);
+  }
+});
 
 function database() {
   const db = openDb(':memory:');

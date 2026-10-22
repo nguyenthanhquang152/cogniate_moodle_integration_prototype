@@ -1,8 +1,9 @@
 // Operator listener (LA-ADR-06 D3): the auth hook and the operator-key routes (contract delta §1.2, §3).
+import { createLocalKeyProvider, legacyKeyRing } from '@cogniate/shared';
 import { describe, expect, it } from 'vitest';
 import { openDb } from '../../db/index.ts';
 import { issueOperatorKey } from '../../store/operator-keys.ts';
-import { capturingLogger, harness } from '../../testkit.ts';
+import { URLS, capturingLogger, harness } from '../../testkit.ts';
 import { buildOperatorApp, parseOperatorAuthorization } from './index.ts';
 
 const HOUR = 3600 * 1000;
@@ -13,7 +14,7 @@ async function operatorHarness() {
   const db = openDb(':memory:');
   const { logger, lines } = capturingLogger();
   const clock = { now: T0 };
-  const app = await buildOperatorApp({ db, logger, now: () => clock.now });
+  const app = await buildOperatorApp({ urls: URLS, db, logger, now: () => clock.now, keys: createLocalKeyProvider(legacyKeyRing(Buffer.alloc(32, 7))) });
   const first = issueOperatorKey(db, { operator: 'alice', expiresAt: T0 + 90 * DAY }, T0);
   return { db, lines, clock, app, keyId: first.record.id, key: first.operatorKey };
 }

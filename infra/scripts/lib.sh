@@ -85,6 +85,7 @@ GATE_HOST=lti-gate.test
 # Keep the old hosts until LA-E7-02 supplies the manifest. A bad file must never select this fallback.
 load_sim_hosts() {
   local manifest="$REPO_ROOT/tests/sim/hosts.json" rows kind host
+  SIM_ALIASES=(lms-sim.test); SIM_LTI_HOSTS=(); SIM_HOSTS_ERROR=""
   if [[ ! -e "$manifest" && ! -L "$manifest" ]]; then
     SIM_LTI_HOSTS=(developer.blackboard.sim.test learn-a.blackboard.sim.test learn-b.blackboard.sim.test sso.canvas.sim.test
       school-a.canvas.sim.test school-b.canvas.sim.test canvas-self.sim.test api.canvas-self.sim.test)
@@ -95,12 +96,16 @@ load_sim_hosts() {
     fi
     return 0
   fi
-  if ! rows="$(node - "$manifest" "${STACK_HOSTS[@]}" evil.test qa-platform.test "$GATE_HOST" <<'NODE'
+  if ! rows="$(node - "$manifest" "${STACK_HOSTS[@]}" evil.test qa-platform.test "$GATE_HOST" 2>&1 <<'NODE'
 const fs = require('node:fs');
 const [file, ...reserved] = process.argv.slice(2);
 const fail = (message) => { throw new Error(message); };
 const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-const dnsName = (host) => typeof host === 'string' && host.length <= 253 && host.endsWith('.test') &&
+const knownKeys = (value, keys, at) => {
+  const unknown = Object.keys(value).find((key) => !keys.includes(key));
+  if (unknown !== undefined) fail(`${at} has unknown key ${JSON.stringify(unknown)}`);
+};
+const dnsName = (host) => typeof host === 'string' && host.length <= 253 && host.endsWith('.sim.test') &&
   host.split('.').every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label));
 try {
   let manifest;
@@ -109,24 +114,26 @@ try {
   if (!object(manifest) || manifest.version !== 1 || !Array.isArray(manifest.providers)) {
     fail('expected version 1 and a providers array');
   }
+  knownKeys(manifest, ['version', 'providers'], 'manifest');
   const ids = new Set();
   const aliases = new Set(['lms-sim.test']); // the simulator control alias stays
   const allowlist = new Set();
   for (const [index, provider] of manifest.providers.entries()) {
-    const at = `providers[${index}]`;
+    const at = `providers[${index}]${object(provider) ? ` (id ${JSON.stringify(provider.id)})` : ''}`;
     if (!object(provider) || typeof provider.id !== 'string' || !provider.id.trim() || ids.has(provider.id)) {
       fail(`${at} needs a non-empty, unique id`);
     }
     ids.add(provider.id);
+    knownKeys(provider, ['id', 'aliases', 'allowlist'], at);
     if (!Array.isArray(provider.aliases) || provider.aliases.length === 0 || !Array.isArray(provider.allowlist)) {
       fail(`${at} needs a non-empty aliases array and an allowlist array`);
     }
     for (const host of [...provider.aliases, ...provider.allowlist]) {
-      if (!dnsName(host) || reserved.includes(host)) fail(`${at} has an invalid or reserved .test host`);
+      if (!dnsName(host) || reserved.includes(host)) fail(`${at} has invalid host ${JSON.stringify(host)}; expected a DNS name ending in .sim.test`);
     }
     for (const host of provider.aliases) aliases.add(host);
     for (const host of provider.allowlist) {
-      if (!provider.aliases.includes(host)) fail(`${at} allowlist host must be in its aliases`);
+      if (!provider.aliases.includes(host)) fail(`${at} allowlist host ${JSON.stringify(host)} must be in its aliases`);
       allowlist.add(host);
     }
   }
@@ -138,6 +145,7 @@ try {
 }
 NODE
 )"; then
+    SIM_HOSTS_ERROR="$rows"
     return 1
   fi
   SIM_ALIASES=(); SIM_LTI_HOSTS=()
@@ -148,7 +156,18 @@ NODE
     esac
   done <<< "$rows"
 }
-load_sim_hosts || exit 1
+# BD-A1-08: loading a bad file gives no provider hosts and does not stop recovery commands.
+if load_sim_hosts; then
+  unset SIM_HOSTS_ERROR_WARNED
+elif [[ "${SIM_HOSTS_ERROR_WARNED:-}" != "$REPO_ROOT:$SIM_HOSTS_ERROR" ]]; then
+  printf '%s\n' "$SIM_HOSTS_ERROR" >&2
+  export SIM_HOSTS_ERROR_WARNED="$REPO_ROOT:$SIM_HOSTS_ERROR"   # one warning across child scripts
+fi
+
+# Only acceptance up/restart refuse a bad manifest. The error line was printed when the file was loaded.
+require_sim_hosts() {
+  [[ "${1:-$ACTIVE_STACK_PROFILE}" != acceptance || -z "$SIM_HOSTS_ERROR" ]]
+}
 
 # JSON is valid YAML. No tracked file changes when a provider adds or removes a host.
 write_sim_compose() {

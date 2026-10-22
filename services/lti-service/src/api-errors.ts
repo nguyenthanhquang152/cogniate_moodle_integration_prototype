@@ -47,6 +47,9 @@ export const API_ERRORS = defineErrorTable({
   // LA (contract delta §1.3)
   INVALID_OPERATOR_AUTHORIZATION_HEADER: { status: 401, description: 'Missing or invalid operator key.' },
   OPERATOR_KEY_IN_USE: { status: 409, description: 'An operator cannot revoke the key of its own request.' },
+  TOOL_ACCOUNT_SUSPENDED: { status: 403, description: 'This tool account is suspended.' },
+  ACCOUNT_ALREADY_EXISTS: { status: 409, description: 'This tool account already exists.' },
+  ACCOUNT_CLOSED: { status: 409, description: 'This tool account is closed and cannot change.' },
 });
 
 export type ApiErrorCode = keyof typeof API_ERRORS;

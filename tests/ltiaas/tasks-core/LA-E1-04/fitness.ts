@@ -84,9 +84,9 @@ export async function npmCheck(label: string): Promise<RunResult> {
   return r;
 }
 
-/** The npm script echo lines (`> name`) of an `npm run` log, in order. */
+/** The npm script echo lines (`> name` or `> pkg@ver name`) of an `npm run` log, in order. */
 export function scriptEchoes(output: string): string[] {
-  return output.split('\n').filter((l) => /^> \S/.test(l)).map((l) => l.slice(2).trim());
+  return output.split('\n').filter((l) => /^> \S/.test(l)).map((l) => l.slice(2).trim().replace(/^\S+@\S+\s+/, ''));
 }
 
 export interface F1Hit { path: string; line: number; col: number; token: string; word: string }

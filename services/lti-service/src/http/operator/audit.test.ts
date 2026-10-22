@@ -1,9 +1,10 @@
 // GET /operator/v1/audit and the audit events of the operator-key routes (LA-ADR-06 D4; contract delta §3, §5).
+import { createLocalKeyProvider, legacyKeyRing } from '@cogniate/shared';
 import { describe, expect, it } from 'vitest';
 import { openDb } from '../../db/index.ts';
 import { insertAuditEvent, listAuditEvents } from '../../store/audit.ts';
 import { issueOperatorKey } from '../../store/operator-keys.ts';
-import { capturingLogger } from '../../testkit.ts';
+import { URLS, capturingLogger } from '../../testkit.ts';
 import { buildOperatorApp } from './index.ts';
 
 const DAY = 24 * 3600 * 1000;
@@ -13,7 +14,7 @@ async function operatorHarness() {
   const db = openDb(':memory:');
   const { logger } = capturingLogger();
   const clock = { now: T0 };
-  const app = await buildOperatorApp({ db, logger, now: () => clock.now });
+  const app = await buildOperatorApp({ urls: URLS, db, logger, now: () => clock.now, keys: createLocalKeyProvider(legacyKeyRing(Buffer.alloc(32, 7))) });
   const alice = issueOperatorKey(db, { operator: 'alice', expiresAt: T0 + 90 * DAY }, T0);
   return { db, clock, app, keyId: alice.record.id, key: alice.operatorKey };
 }

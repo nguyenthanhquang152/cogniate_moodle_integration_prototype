@@ -63,7 +63,7 @@ it.each([
 
 it('supplies the four exact admin rows, profile labels and capability limits', () => {
   expect(canvasProvider.toolConfiguration({
-    urls: { lti: 'https://lti.test', app: 'https://app.test', content: 'https://content.test', moodle: 'https://moodle.test' },
+    urls: { lti: 'https://lti.test', app: 'https://app.test', content: 'https://content.test' },
     libraryName: 'Library A', sharedClientId: null,
   })).toEqual([
     { key: 'key_name', label: 'Key Name', value: 'Cogniate (Library A)' },

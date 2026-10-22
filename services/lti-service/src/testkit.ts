@@ -21,7 +21,8 @@ import { ensureToolKey } from './store/tool-keys.ts';
 import type { Platform } from './store/platforms.ts';
 import { createPlatform } from './store/platforms.ts';
 
-export const URLS: PublicUrls = {
+// The platform URL is a test fixture only; it is not a public service URL.
+export const URLS: PublicUrls & { moodle: string } = {
   moodle: 'https://moodle.test', lti: 'https://lti.cogniate.test', app: 'https://app.cogniate.test', content: 'https://content.cogniate-content.test',
 };
 export const MASTER_KEY = Buffer.alloc(32, 7);
