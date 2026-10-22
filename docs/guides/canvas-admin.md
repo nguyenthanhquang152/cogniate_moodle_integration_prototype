@@ -124,14 +124,15 @@ NOTE: A released self-hosted Canvas binding has a known setup race (D-12). See t
 
 The operator tells the library user and Canvas admin when the key changes, and gives them the new key id ([operator guide](operator.md#5-signing-key-rotation-and-inline-canvas-keys)). A JSON with the key URL needs no change.
 
-1. Library user: get a new inline-key JSON from your signed-in portal session: `GET /app-api/connections/<connection id>/canvas-configuration?jwk=inline` `[SIM M1-19.canvas.inline-key]`.
-2. Library user: compare `X-Cogniate-Key-Id` with the key id from the operator `[SIM M1-19.canvas.inline-key; rotation: L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
-3. Library user: give the matching JSON to the Canvas admin `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
-4. Canvas admin: paste the new JSON into the same developer key `[DOC F-CV-8; L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
+1. Library user: open the connection in the signed-in portal. Copy the connection id after `/integrations/canvas/` in the page address `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
+2. Library user: in the same signed-in browser, open `{PUBLIC_APP_URL}/app-api/connections/<connection id>/canvas-configuration?jwk=inline`. Use the portal's scheme, host and port for `{PUBLIC_APP_URL}`. Replace `<connection id>` with the id from step 1. The browser saves `cogniate-canvas-lti.json` `[SIM M1-19.canvas.inline-key; L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
+3. Library user: compare `public_jwk.kid` in the file with the key id from the operator. If they differ, stop and ask the operator `[SIM M1-19.canvas.inline-key; rotation: L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
+4. Library user: give the matching JSON to the Canvas admin `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
+5. Canvas admin: paste the new JSON into the same developer key `[DOC F-CV-8; L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
 
 NOTE: QA case `M1-19.canvas.inline-key` used this request on a registered connection: it returned the active key, with that key id in the header. No QA case changed the signing key first. So the full rotation procedure is not verified (live row L-C14).
 
-NOTE: The portal shows "Copy JSON" only while the connection is `pending`. For a registered connection, use the request in step 1.
+NOTE: The portal shows "Copy JSON" only while the connection is `pending`. For a registered connection, use the address in step 2.
 
 NOTE: A token that Canvas already issued can still work until it expires. Live row L-C14 records this. Not yet tested on a real Canvas site.
 
@@ -139,7 +140,9 @@ NOTE: A token that Canvas already issued can still work until it expires. Live r
 
 The Canvas disconnect dialog names Canvas [SIM AC-M2-09]. After you confirm, the connection is `disabled` and its Canvas platform is switched off. Its unused approval codes stop working. A pending grade row ends as `failed` with `CONNECTION_DISABLED` at its due time [SIM AC-M1-18].
 
-Connecting again does not restore old Cogniate items (D-7). A new connection needs a new developer key and a new approval, or an operator release first [SIM AC-M1-38].
+Connecting again does not restore old Cogniate items (D-7). A new connection needs a new approval and either a new developer key or an operator release [SIM AC-M1-38].
+
+NOTE: For self-hosted Canvas, follow [operator section 3a](operator.md#3a-accepted-limit-d-12-self-hosted-canvas-after-a-release). Make the replacement connection and get its grant before the operator release `[SIM M1-39.canvas.operator-order]`.
 
 ## What Canvas connections cannot do
 

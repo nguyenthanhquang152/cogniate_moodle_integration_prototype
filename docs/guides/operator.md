@@ -6,16 +6,16 @@ This guide is for Cogniate staff with shell access to the Cogniate app service a
 
 Tags: each step names its evidence label, for example `[SIM AC-M1-38]`. The [evidence table](../../README.md#evidence-labels) gives the status of each label.
 
-Run `app:grant`, `app:binding` and `lti:shared-platform` inside their service container. Run `lti:bootstrap` and every `stack:*` command on the host, in the repository folder.
+Run `app:grant`, `app:binding` and `lti:shared-platform` inside their service container, from `/repo`. Run `lti:bootstrap` and every `stack:*` command on the host, in the repository folder.
 
 Run these Compose examples on the host, in the repository folder. Replace `<project-name>` with the `COMPOSE_PROJECT_NAME` value from the root `.env`.
 
 ```sh
-docker compose --project-directory infra -p "<project-name>" -f infra/compose.yaml --env-file .env exec cogniate-app npm run app:grant -w services/cogniate-app -- list --connection <con_id>
-docker compose --project-directory infra -p "<project-name>" -f infra/compose.yaml --env-file .env exec lti-service npm run lti:shared-platform -w services/lti-service -- --account cogniate --profile blackboard --client-id <Application ID>
+docker compose --project-directory infra -p "<project-name>" -f infra/compose.yaml --env-file .env exec -T --workdir /repo cogniate-app npm run app:grant -w services/cogniate-app -- list --connection <con_id>
+docker compose --project-directory infra -p "<project-name>" -f infra/compose.yaml --env-file .env exec -T --workdir /repo lti-service npm run lti:shared-platform -w services/lti-service -- --account cogniate --profile blackboard --client-id <Application ID>
 ```
 
-Command locations: source inspection only ([Compose helper](../../infra/scripts/lib.sh), [bootstrap wrapper](../../infra/scripts/lti-bootstrap.sh)).
+M1 CLI QA uses `exec -T --workdir /repo` with these npm workspace selectors ([QA helper](../../tests/host/m1-control.mjs), [CLI repair record](../reviews/M1/qa.md)) [SIM AC-M1-28, AC-M1-38]. The [Compose helper](../../infra/scripts/lib.sh) supplies the project and file flags. The [bootstrap wrapper](../../infra/scripts/lti-bootstrap.sh) runs on the host.
 
 NOTE: The commands are not reachable over HTTP. Who may run them is a human decision (Q22, [decisions](../human_review/decisions-needed.md#e-canvas-and-blackboard-decisions)).
 
@@ -81,8 +81,8 @@ The code shows only once. It has 43 characters and works once. It expires after 
 
 ### 2.3 List and revoke
 
-1. Run `app:grant list --connection <con_id>` to see each grant and its state `[SIM AC-M1-28]`.
-2. Run `app:grant revoke --grant <grt_id>` to stop an unused code `[SIM AC-M1-29]`.
+1. From `/repo` inside `cogniate-app`, run `npm run app:grant -w services/cogniate-app -- list --connection <con_id>` `[SIM AC-M1-28]`.
+2. In the same folder, run `npm run app:grant -w services/cogniate-app -- revoke --grant <grt_id>` to stop that unused code `[SIM AC-M1-29]`.
 3. Read one line per record: `fenced`, `absent`, `not_owned` or `failed` `[SIM M1-37.canvas.m, M1-37.blackboard.m]`.
 4. If a line is `failed`, run the same `revoke` again `[SIM M1-37.canvas.m, M1-37.blackboard.m]`.
 
@@ -143,6 +143,8 @@ A new Canvas or Blackboard binding always needs a grant. A Moodle manual connect
 
 Operator order:
 
+Before you issue the grant, the rightful library makes a new connection with the correct values `[SIM M1-39.canvas.operator-order]`.
+
 1. Issue the rightful grant `[SIM M1-39.canvas.operator-order]`.
 2. Suspend the old binding `[SIM M1-39.canvas.operator-order]`.
 3. Release the old binding `[SIM M1-39.canvas.operator-order]`.
@@ -150,7 +152,7 @@ Operator order:
 
 This order makes the window short. It does not close it. Prompt redemption narrows the window but cannot prevent the race.
 
-If the race happens, suspend and release the new Moodle connection. Then repeat the order [SIM M1-39.canvas.residual-race].
+If the race happens, suspend and release the new Moodle connection. The unused code stays valid until it expires. Ask the rightful library to redeem that same code at once after the release [SIM M1-39.canvas.residual-race].
 
 WARNING: An enterprise service must not rely on this workflow before a reserved-identifier or quarantine design exists (D-12, [deferred](../human_review/deferred.md#a-m0-10-d-12-residual-race-after-a-release)).
 
@@ -164,7 +166,7 @@ The full sequences are in [ADR-011 §14](../architecture/adr/ADR-011-multi-lms.m
 2. Make sure that both containers are stopped `[MOODLE-LIVE AC-M1-23]`.
 3. Switch the checkout to the new revision. Keep both services stopped `[MOODLE-LIVE AC-M1-23]`.
 4. If the storage override was on, run `npm run stack:storage-compat -- disable` `[MOODLE-LIVE AC-M1-23]`.
-5. Install and build. Do not start a service `[MOODLE-LIVE AC-M1-23]`.
+5. Install and build (`npm ci`, then `npm run build`). Do not start a service `[MOODLE-LIVE AC-M1-23]`.
 6. Run `npm run stack:data-backup -- --out <folder outside the checkout>` `[MOODLE-LIVE AC-M1-23]`.
 7. Make sure that the command exits 0. It refuses while a service runs `[MOODLE-LIVE AC-M1-23]`.
 8. Run `npm run stack:up` `[MOODLE-LIVE AC-M1-23]`.
@@ -173,11 +175,11 @@ WARNING: The backup folder contains secrets. Keep it outside the checkout and ou
 
 ### 4.2 Rollback
 
-1. Stop the Cogniate app and the LTI service. Keep the new revision checked out `[MOODLE-LIVE AC-M1-30]`.
+1. Stop the Cogniate app and the LTI service (`npm run stack:down`). Keep the new revision checked out `[MOODLE-LIVE AC-M1-30]`.
 2. Run `npm run stack:data-restore -- --from <backup folder>` `[MOODLE-LIVE AC-M1-30]`.
 3. Make sure that it exits 0. A damaged backup gives exit 1 and changes nothing `[MOODLE-LIVE AC-M1-30]`.
 4. Run `npm run stack:storage-compat -- enable` `[MOODLE-LIVE AC-M1-30]`.
-5. Switch the checkout to the old revision. Install and build it `[MOODLE-LIVE AC-M1-30]`.
+5. Switch the checkout to the old revision. Install and build it (`npm ci`, then `npm run build`) `[MOODLE-LIVE AC-M1-30]`.
 6. Start it with `bash .tmp/storage-compat/storage-compat.sh run -- npm run stack:up` `[MOODLE-LIVE AC-M1-30]`.
 
 If a check of step 6 fails, stop. Do not use the old build.
@@ -220,7 +222,7 @@ Canvas installs that use the key URL need no change. Canvas installs with an inl
 
 1. Before the rotation, list the Canvas connections whose admins chose the inline key `[PROCESS]`.
 2. On the host, rotate the key: `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name <name> --rotate-signing-key` `[Not verified by QA]`.
-3. Restart the LTI service to empty its token cache `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
+3. Outside rollback mode, run `npm run stack:restart -- lti-service` to empty the LTI token cache `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
 4. Give each affected library user and Canvas admin the new key id (`kid=` in the `lti:bootstrap` output) `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
 5. Ask them to complete [Canvas guide, Procedure 6](canvas-admin.md#procedure-6-after-a-cogniate-key-change-inline-key-only) with a new JSON `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
 
