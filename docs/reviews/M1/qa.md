@@ -2343,3 +2343,96 @@ Diagnostic 25 min 28 s (runner start to exit); 25 min 46 s from launcher start. 
 ### Next
 
 The Lead verifies this diagnostic checkpoint. Only a separate grant starts the two complete 488-row rounds on C3 and the 12 legacy groups; they did not run and stay required. Fresh M2 and T7 follow under another owner. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`. No certification or production claim.
+
+## Full run at candidate C3 `c4c6d04`: FAIL in round 1 `storage` (`g-tamper`), round 2 and legacy not run, 2026-10-22
+
+Verdict for this attempt: **FAIL**. Round 1 ran all 488 rows once: 470 PASS and 18 FAIL, all in `storage`. One row failed on its own check (`g-tamper`); the other 17 rows were "not run: prerequisite … did not pass" behind it. The storage child exited 1, so the runner stopped. Round 2, the per-case equality check and all 12 legacy groups did **not run**. Owned cleanup, the scans and the strict W4 passed. The C3 diagnostic above stays a passing, zero-credit diagnostic. Owner, model and independence: as in the C3 diagnostic section (task `task_8f5644f9910e`, dispatch `ctx_2e9642c8e4be`). I propose no fix; the remediation owner `ctx_898acbaef3a6` owns every repair.
+
+### Grant, source and command
+
+| Item | Value |
+| --- | --- |
+| Grant | Lead `msg_686df6631c9d`: exclusive full-run window until `2026-10-22T07:00:00.000Z`; diagnostic accepted in the same message. Returned at 03:34:25Z, the creation time of `msg_63ddbf48a5d1` (Lead record; the launcher ended at 03:32:10Z). That message said "~03:40Z"; this was not correct, and the message stays as sent. |
+| Source | `<root>/source`, the diagnostic clone (C3, detached, 0 status lines; ignored paths `tests/host/artifacts/` with the two diagnostic folders and `tests/node_modules/`; 42/42 `tests/host` files equal the C3 blobs; `prep/11-full-prelaunch.txt` `465d3e07…`). |
+| Crossed messages | My proposal `msg_85b31cfa53ff` (a fresh clone `<root>/full-src/source`, so that diagnostic folders do not mix) and the grant crossed. I launched as the grant said. The Lead's hold `msg_6fedf0bcf92b` and source amendment `msg_da3a8443b972` arrived after the launch. I asked; the Lead chose to continue (`msg_1b0b8d4849c7` and the answer to my question). `<root>/full-src/source` was never launched. Nothing was stopped, restarted or moved. |
+| Launcher | `tools/launch-full-c3.sh` `af40a219…` (identity-only diff to `launch-full-c2.sh`), detached in its own process group (pgid 40977). Environment before launch: 0 `QA_*`, `npm_*` or `NPM_CONFIG_*` names. |
+| Runner child | `umask 022; COMPOSE_PROJECT_NAME=qa-multi-r1 PUBLIC_PORT=8443 STACK_SUBNET=172.29.0.0/16 STACK_PROFILE=default COURSE_FIXTURES_DIR=<courses> TMPDIR=<root>/full/tmp node tests/host/run-m1.mjs --sha c4c6d045… --test-sha c4c6d045… --source <root>/source` (`full/public/command.txt` `66b3e658…`). Default phase `full`; no filter. |
+| Time (UTC) | Launcher 02:40:36Z; runner 02:40:53Z–03:31:43Z (exit 1); W4 end capture 03:31:51Z; strict compare 03:32:05Z; secret scan and done 03:32:10Z |
+
+### Boundary (one W1–W4 sequence for the run)
+
+| Step | Result | Evidence (`<root>/full/public/`) |
+| --- | --- | --- |
+| Ancestor check | PASS | `ancestor-boundary.json` `0f3ede62…` |
+| W1 wake | Pre-wake idle-VM clock 02:33:33Z (not boundary evidence). Wake on the cached image, `--pull never`, 0 left. Bridge recreated `938ec8dc0008` → `243fcebe290a`. | `w1-wake.json` `bb85b4c1…` |
+| W2 liveness | PASS | `w2-liveness.json` `c4b29dcd…` |
+| W3 formal start | Live 02:40:50.370Z; identity 0 differences (engine 29.9.1, image `sha256:44fce696…`); 0 containers; 9 volumes (7 protected FULL identical + `a17056b8…` + `d5df35bd…`); lanes fresh; port free; 0 problems | `w3-formal-start.json` `4c479999170a5ffa2fde75f5dfae4e80da874f882e83f9138cd7ec66caaa1e40` |
+| Sampler | 201 samples, 0 failed, one bridge Id, 0 skew, at most one compose project; the two other names are the storage lane's own oracle and fixture containers | `sampler/lane-containers.json` `8ecebb81…` |
+| W4 end and strict compare | End live 03:31:48.554Z; 0 containers; 9 volumes; identity 0 differences; 7 protected identical; both anonymous volumes; bridge, host and none Ids unchanged; lanes fresh. Strict compare: 0 problems. | `w4-end.json` `71984da0…`, `w4-compare.json` `bd9135dd…` |
+
+### Round 1 (bound to exact folders)
+
+Binding method (Lead `msg_1b0b8d4849c7`, `msg_54a95f178c3b`): each phase is the run folder that started after 02:40:53Z, with its identity phase. Its `m1-case-results.json` is parsed-equal to this invocation's accounting file `<root>/full/tmp/qa-m1-accounting-QEFABY/round-1-<phase>.json`. Its id set equals the static phase ids; every row and the identity carry C3 for product and tests; project, port and subnet match; folder start ≤ identity timestamp, in phase order. The two diagnostic folders are excluded by name and time. I did not use the n-th pick of `round-report.mjs`. Records: `<root>/full-judge/round-1-bind.json` (`e6144cc9…`, by `prep/bin/round-bind.py` `a0785333…`) and `round-1-verify.json` (`f09c2b04…`, by `prep/bin/round-verify.py` `340cc5b2…`); the Lead classed both helpers as report-only.
+
+| Phase | Folder (`<root>/source/tests/host/artifacts/`) | Rows | Result | Time (UTC) | `m1-identity` / `m1-case-results` / `summary` / accounting (SHA-256 prefixes) |
+| --- | --- | --- | --- | --- | --- |
+| sim | `qa-multi-r1-c4c6d045-2026-10-22T02-40-53-303Z` | 394 | 394 PASS | 02:40:53.303Z–03:03:52.620Z | `67668833…` / `736ef8ab…` / `7ad44d19…` / `a520cc26…` |
+| snapshot-isolated | `qa-multi-r1-c4c6d045-2026-10-22T03-03-58-641Z` | 6 | 6 PASS | 03:03:58.641Z–03:05:32.041Z | `20c6eef5…` / `5c67fb8d…` / `d079d4eb…` / `98b2323c…` |
+| snapshot-upgrade | `qa-multi-r1-c4c6d045-2026-10-22T03-05-36-389Z` | 6 | 6 PASS | 03:05:36.389Z–03:07:26.246Z | `c3df6ec4…` / `e850ffd2…` / `0129bebd…` / `87d85c98…` |
+| migration | `qa-multi-r1-c4c6d045-2026-10-22T03-07-30-611Z` | 12 | 12 PASS | 03:07:30.611Z–03:11:24.290Z | `29e23ad3…` / `c3f07c35…` / `dda7c105…` / `7cba9b29…` |
+| storage | `qa-multi-r1-st-c4c6d045-2026-10-22T03-11-29-196Z` | 70 | 52 PASS, 18 FAIL, 0 NOT_APPLICABLE | 03:11:29.196Z–03:31:39.300Z | `5773f995…` / `f60f1801…` / `a556ecc5…` / `314387cb…` |
+
+- Total: 488 rows, 488 distinct; 470 PASS, 18 FAIL. `c-host-negative` PASS (probe `lock_not_enforced`).
+- Core records of every phase: `G1-IDENTITY`, `PRE`, `CLONE`, `H1`, `M3-ISOLATION` and `TEARDOWN` PASS. The storage aggregate also has FAIL for `STORAGE-LEGACY-PLACE`, `STORAGE-LEGACY-REMOVE` and `STORAGE-LEGACY-IMPORT-LANE` (fixtures not run) and `ERROR` (the round check at the first non-PASS row).
+- Ownership: 0 ledger errors, 0 kept, 0 failed in every phase (removed: sim 5, isolated 5, upgrade 5, migration 5, storage 4). Storage scans: complete, 92 points, 0 hits, corrections, refusals and problems.
+- SIM clone (for Canvas): `/Users/quangnguyen/cogniate-qa-runs/qa-multi-r1-c4c6d045-2026-10-22T02-40-53-303Z`.
+
+### First cause: `M1-41.common.g-tamper` (facts only)
+
+| Item | Facts (`<storage folder>/cmd/`) |
+| --- | --- |
+| Failed check | "--recover after the tamper: expected exit 2, got 1" (`storage/steps/055-g-tamper.json` `2b2b88b8…`) |
+| Drill | `515-g-tamper-stop` exit 3; `storage_drill_stop` point `swapped`, opId `7011aa7c703074d4650ddad2b299a689` (`ad7cd35a…`) |
+| State before the tamper | Listing `516` (`4639edc4…`): in **both** volumes, two previous folders: `.previous-3f350b564a83ec6616cac1abd3db26ff` and `.previous-7011aa7c…` (this drill), plus `.restore-7011aa7c…` and the journal |
+| Tamper | `517-fixture-plant` (`9b4f70b0…`) flipped `.previous-3f350b56…/lti.db`: the folder of another operation, not of this drill |
+| Recovery | `520-g-tamper-recover` (`e264a760…`) exit 1, "rolled back; the targets equal the state before (verified)". The current operation's previous folder was intact. |
+| Harness site | `tests/host/storage-rows.mjs:984` selects `l.lti.entries.find(/^\.previous-[0-9a-f]{32}\/lti\.db$/)`: the first match in listing order, not the folder of the drill's own stop opId |
+| Origin of `3f350b56…` | The `g-orphan-refusal` orphan restore (kill record `g-orphan-refusal-kill.json` `20f6aff1…`: lock run `edb4d346d8cd8880`, pause 03:26:23.945Z). The maintenance log shows `storage_drill_resume` of that operation at 03:28:23.948Z; then `g-orphan-complete`'s `--recover` printed "nothing to recover" (03:28:26.621Z). Its previous folder stayed in both volumes. |
+| C3 diagnostic | The same two-folder state existed at `g-tamper`: stale `.previous-f6af6f85…` (`g-orphan-refusal`) and current `.previous-035f404e…`. The plant hit the current folder only because `035f…` sorts before `f6af…`; the row passed. So the result depends on the random opId order. |
+
+Whether a `.previous-<op>` folder may stay after an orphan operation resumes and completes (ADR-012) is a question for the remediation owner and the Architect. I claim no product fault.
+
+Dependent rows (each "not run: prerequisite … did not pass"): `g-quarantine-in-use`, `g-quarantine` ← `g-tamper`; `h-legacy-manifest`, `h-target-state`, `e-hot-journal`, `e-old-layout` ← `@legacy-place` ← `g-quarantine`; `e-fresh-refusal`, `g-fresh-target` ← `h-target-state`; `h-pair-mismatch` ← `g-fresh-target`, `@legacy-remove`; `e-import-recover`, `e-changed-byte`, `e-added-wal`, `e-import-nonfresh`, `h-old-manifest` ← `@legacy-import-lane` ← `h-pair-mismatch`; `e-import` ← `e-import-recover`; `e-kept` ← `e-import`; `e-provenance-restore` ← `e-kept`. Fixture runs not run: `@legacy-place`, `@legacy-remove`, `@legacy-import-lane`. Rows after the chain that passed: `b-sequence`, `e-old-schema`, `e-content-missing` (and the `@old-schema-setup` fixture).
+
+Notification: the Lead read the storage step records first (`msg_023d6a14be97`, 03:32:16Z check). My consolidated first-cause and dependent-row message is `msg_63ddbf48a5d1`. The frozen driver ended by itself; I made no retry.
+
+### Not run
+
+Round 2 (all five phases), the two-round per-case equality, and all 12 legacy groups (T2a, T2b, T3a, T3b, T3c, T4a, T4b1, T4b2, T5a, T5b, T6, T8). Runner stderr: `run-m1.mjs:146` "Required child failed" inside `fullRounds` (`storage-diagnostic.mjs:28`).
+
+### Privacy, cleanup and permissions
+
+- Secret scan 0 problems (`secret-scan.json` `103159f1…`; 8 clones). Clone guard 0 problems (`clone-guard.json` `9c9cfeeb…`; 5 clone roots set to 0700, 4 captured-secret files to 0600).
+- Owned cleanup by the core teardown only; W4 confirms 0 containers and fresh lanes. No owned process remains (launcher, runner, observers, my monitor). Port 8443 has no listener. PID 64140 untouched. Nothing was removed by hand.
+- Modes: QA files 0600 and folders 0700. Runner-written (umask 022): the five accounting result files in `<root>/full/tmp/qa-m1-accounting-QEFABY/` at 0644 (the launcher's private copy is 0600), three `qa-tree-*/index` files at 0644, the Node compile cache at 0755, and the phase artifact trees (0644 files, 0755 folders) inside the 0700 `source/` root.
+
+### Measured timings
+
+Launcher 51 min 34 s; W1–W3 17 s; runner 50 min 50 s. Round 1, from each folder start to the next folder start (storage: to its identity timestamp): sim 23 min 05 s, snapshot-isolated 1 min 38 s, snapshot-upgrade 1 min 54 s, migration about 3 min 59 s, storage 20 min 10 s. W4, compare and scans about 27 s. A complete round is about 51 min on this host; legacy is still not measured.
+
+### Evidence
+
+- Evidence index (outside the indexed set): `<root>/evidence-index-v3.tsv`, 5,327 entries (`diag/`, `full/`, `full-judge/`, all phase artifact folders, `prep/`, `tools/`, `report/`) with SHA-256, size and mode; SHA-256 `72e27fbaf324191a613639560ff91e44228e864972c8b4fd939f83a2e8be6e10`. Indexes v1, v2 and `evidence-index-v2-supplement-1.tsv` (`5158e1dc…`) stay.
+- Messages: grant `msg_686df6631c9d`; gate `msg_1dafdc3673dd`; start `msg_f7029e355fbf`; decision `msg_41cf33d2c972`; milestone `msg_e998da47f0bd`; failure and window return `msg_63ddbf48a5d1`.
+
+### Disclosures (continued)
+
+- D-4: to read the committed R4 QA report, I wrote `git show 133f93e:…` to `/tmp/claude-r4qa-view.md` (0644) at about 01:57Z. It is a public committed document with no secret. I removed my own temp copy at 02:35:37Z.
+- D-5: the crossed-message sequence above.
+- D-6 (Lead disclosure `msg_9ec19d4a89c2`): at 02:49Z the Lead ran a second copy of my read-only monitor, which shared its state file for about 45 s; the Lead stopped only that copy. Monitor state and output are not acceptance evidence.
+- D-7: runner-written accounting files at 0644 (see "Privacy, cleanup and permissions").
+- D-8: `<root>/full-src/source` was prepared and never launched.
+
+### Next
+
+The remediation owner `ctx_898acbaef3a6` diagnoses `g-tamper` (harness target selection at `storage-rows.mjs:984`, and the question of the stale orphan `.previous-<op>` folder); the Lead decides the repair. A repair needs a new frozen candidate, its reviews and new grants. Two complete 488-row rounds, all 12 legacy groups, fresh M2 and T7 stay required. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`. No certification or production claim.

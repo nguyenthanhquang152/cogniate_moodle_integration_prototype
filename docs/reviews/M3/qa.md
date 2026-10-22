@@ -574,3 +574,17 @@ Verdict for this diagnostic: **PASS**. It gives no acceptance credit; the Lead v
 | AC-M3-07 privacy | Secret scan 0 problems (38 captured and 17 stack values); clone guard 0 problems | `secret-scan.json` `c5619289…`, `clone-guard.json` `3df44eb0…` |
 
 Next: after Lead verification and a separate grant, two complete 488-row rounds on C3 and all 12 legacy groups. Fresh M2 and T7 stay required under another owner. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`.
+
+## Full run at candidate C3 `c4c6d04`: FAIL in round 1 `storage` (`g-tamper`), 2026-10-22
+
+Verdict: **FAIL**. M3 stays **FAIL** (incomplete). Full record: `docs/reviews/M1/qa.md`, section "Full run at candidate C3 `c4c6d04`". Owner: common/Blackboard runtime QA, Claude Code Opus 5.5 xhigh, task `task_8f5644f9910e`, dispatch `ctx_2e9642c8e4be`. Candidate C3 `c4c6d045b3a132f72bf059d77367d278de9222fa`, tests tree `17330479829a6b65e560afc297e2bee6777459dd`. Window: Lead grant `msg_686df6631c9d` (until 07:00:00.000Z); runner 02:40:53Z–03:31:43Z (exit 1); returned at 03:34:25Z (`msg_63ddbf48a5d1`). Lanes `qa-multi-r1` (sim, snapshots, migration) and `qa-multi-r1-st` (storage), port 8443, subnet `172.29.0.0/16`.
+
+| Item | Status | Evidence |
+| --- | --- | --- |
+| AC-M3-01 G-1 identity binding | Every round-1 phase records `G1-IDENTITY` PASS. W3 and W4 match the bound OS, CLI and Compose hashes, engine 29.9.1 and the image `sha256:44fce696…` (0 differences). | `full/public/w3-formal-start.json` `4c479999…`, `w4-end.json` `71984da0…` |
+| AC-M3-02 (a) two full rounds | **FAIL / incomplete.** Round 1: 488 rows, 470 PASS, 18 FAIL (storage: `g-tamper` and 17 dependent rows not run). sim 394/394, snapshot-isolated 6/6, snapshot-upgrade 6/6, migration 12/12 PASS. Round 2 and the equality check did not run. | `full-judge/round-1-bind.json` `e6144cc9…`, `round-1-verify.json` `f09c2b04…` |
+| AC-M3-02 (b) legacy | Not run (the runner stopped after round 1) | — |
+| AC-M3-06 isolation and cleanup | Every phase: `M3-ISOLATION` PASS and `TEARDOWN` PASS (ownership 0 errors, 0 kept, 0 failed). Strict W3-to-end comparison: 0 problems; the 7 protected FULL records, the anonymous volumes `a17056b8…` and `d5df35bd…` and the bridge, host and none Ids are unchanged. | `w4-compare.json` `bd9135dd…` |
+| AC-M3-07 privacy | Secret scan 0 problems; clone guard 0 problems | `secret-scan.json` `103159f1…`, `clone-guard.json` `9c9cfeeb…` |
+
+Next: the remediation owner diagnoses `g-tamper`; then a new frozen candidate, its reviews and new grants. Two complete 488-row rounds, all 12 legacy groups, fresh M2 and T7 stay required. All 32 real-LMS rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`.
