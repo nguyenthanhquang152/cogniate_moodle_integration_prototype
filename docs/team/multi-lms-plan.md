@@ -13,11 +13,15 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 01:06 UTC
+### Current checkpoint — 2026-10-22, 01:15 UTC
 
 **The same Claude repair session has resumed.** The owner resumed the goal after the quota reset. Orca had restarted and first reported the worker as exited. The Lead sent a resume message to the existing dispatch, without replacing or fencing it. The worker confirmed availability in `msg_7ea0f0beb8e6` at 01:04:32 UTC. Its identity remains `task_d018895ca985` / `ctx_898acbaef3a6`, Claude Code Opus 5.5 (`claude-opus-5-5`) at xhigh effort.
 
-The session is diagnosing all three C2 first causes together. It has read-only authority until the Lead accepts a concrete repair and regression-check scope. The existing product, criteria and test assertions remain fixed. Independent reviews will overlap the bounded repair checks after the source is held. No Docker window is active.
+The Lead granted one repair batch in `msg_864eb746fa28`: exactly `tests/host/storage-rows.mjs`, `storage-rows.selftest.mjs`, and the append-only harness QA report. All three C2 causes stay with this session. Product code, acceptance criteria and other test paths stay fixed. The first-write case must use the current drill operation and preserve the pre-drill app journal; later drill points keep both-journal checks. The orphan wait must prove a pause of the current spawned operation. Import provenance must compare full `{name,size,sha256}` entries in both identities. The simulated storage behavior must expose each original fault and execute the previously blocked dependent checks.
+
+Two fresh, independent Claude Opus 5.5 xhigh reviewers are active: A `task_3c1ff1789713` / `ctx_59a980642282`; B `task_dceb2a7a9e76` / `ctx_85d74f1aba96`. Requested and effective settings match. Both confirmed the C2 failure facts in preliminary read-only checks. Their bounded regression questions were consolidated and sent to the fixer. They have no final source verdict yet. The container storage run id is distinct from the lock run id; the Lead routed that correction before any new attribution check.
+
+Required host checks are old/new discrimination, meaningful negative and mutation cases for the three fixes, the intact 70-row sequence, one complete final-byte host suite under 022 and affected checks under 077. A second complete 077 suite needs a concrete changed-scope reason; unchanged accepted privacy and mutation campaigns need no broad repeat. The fixer will hold source hashes after the focused checks, so source reviews can overlap the remaining checks. No source has been held and no Docker window is active.
 
 The failed diagnostic evidence remains committed at `e4d7058`: migration 12/12 PASS; storage 64 PASS and 6 FAIL, from three first causes and three blocked dependencies. Reports and qualified Common/Canvas preparation are preserved for reuse. Full rounds, legacy, fresh M2/T7, conformance and final documentation approval still remain. No completion or new runtime acceptance is claimed.
 
