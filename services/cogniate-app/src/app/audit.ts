@@ -50,15 +50,24 @@ interface AuditRow {
 
 export const AUDIT_DETAILS_MAX_BYTES = 4096;
 
-// Grant codes and free-text notes are app secrets in addition to the shared redaction rules.
-// Run after redact(), which also bounds object depth. Keep note_present and evidence_ref.
+/**
+ * Grant codes and free-text notes are app secrets in addition to the shared redaction rules (data model §5). The
+ * key is compared in lower case without "_" and "-", at any depth:
+ *  - notes: `note`, `notes`, `note_text`, and every key that ends with note or notes (`operatorNote`, `grant_note`);
+ *  - codes: `code`, and every key that starts with grant code or approval code (`grant_code`, `approvalCode`,
+ *    `approval-code-shown`).
+ * Every key named `code` is hidden on purpose, also when it holds an error code: put an error code in the event's
+ * `code` column, not in details. `note_present` and `evidence_ref` stay. Run after redact(), which bounds the depth.
+ */
+function isAppSecretKey(key: string): boolean {
+  const name = key.toLowerCase().replace(/[_-]/g, '');
+  return name === 'code' || name === 'notetext' || name.endsWith('note') || name.endsWith('notes')
+    || name.startsWith('grantcode') || name.startsWith('approvalcode');
+}
 function hideAppSecrets(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(hideAppSecrets);
   if (value === null || typeof value !== 'object') return value;
-  return Object.fromEntries(Object.entries(value).map(([key, field]) => [key,
-    /^(note|notetext|code|grantcode|approvalcode)$/.test(key.toLowerCase().replace(/[_-]/g, ''))
-      ? '[redacted]' : hideAppSecrets(field),
-  ]));
+  return Object.fromEntries(Object.entries(value).map(([key, field]) => [key, isAppSecretKey(key) ? '[redacted]' : hideAppSecrets(field)]));
 }
 
 function assertSynchronous(value: unknown): void {

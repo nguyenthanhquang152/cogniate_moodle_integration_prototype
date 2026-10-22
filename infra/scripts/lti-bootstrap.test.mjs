@@ -77,7 +77,9 @@ it('a missing original stops bootstrap and deletes a stale mounted operator copy
   const result = h.run('--quiet');
   assert.equal(result.status, 1);
   assert.match(result.stderr, /infra\/\.secrets\/lti-operator-key is missing/);
-  assert.match(result.stderr, /--replace-operator-key/);
+  // B-LA-E5-05-04: ask another operator first; the revoke-all step comes last and says what it revokes.
+  assert.match(result.stderr, /ask another operator to issue you a new key\. Only if no operator has a working key, rerun this bootstrap command with --replace-operator-key \(init --replace\)\. This revokes every operator key, also the keys of other operators and scripts\./);
+  assert.doesNotMatch(result.stderr, /safely/);
   assert.equal(result.stderr.trim().split('\n').length, 1);
   assert.equal(fs.existsSync(h.copy), false);
   assert.equal(h.calls().split('src/cli/bootstrap.ts').length, before);
