@@ -1,0 +1,4 @@
+{
+  "extends": "../../../tsconfig.json",
+  "include": ["./**/*.ts", "../../tasks-core/LA-E1-04/fitness.ts"]
+}

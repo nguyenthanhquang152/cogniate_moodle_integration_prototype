@@ -563,7 +563,7 @@ describe("portal forms and contract states", () => {
         h(
           "tbody",
           null,
-          h(ResultTableRow, { row, busy: false, onResend: resend }),
+          h(ResultTableRow, { row, busy: false, onResend: resend, lms: "moodle" }),
         ),
       ),
     );
@@ -785,6 +785,7 @@ describe("T5 results integration", () => {
             row: { ...row, preview: true, scoreSyncs: [] },
             busy: false,
             onResend: vi.fn(),
+            lms: "moodle",
           }),
         ),
       ),
@@ -793,6 +794,40 @@ describe("T5 results integration", () => {
     expect(screen.getByText("Preview — no grade sent")).toBeTruthy();
     expect(screen.getByText("Not applicable")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Resend" })).toBeNull();
+  });
+  // BD-A1-65: no default LMS. The publication gives the channel; the rows wait for it.
+  const neutral: ResultRow = {
+    ...row,
+    learner: { sub: "7", label: "Learner 7" },
+    activity: { ...row.activity, contextTitle: "Course" },
+    gradebook: { resultScore: 40, resultMaximum: 100, readAt: "2026-10-18T00:00:00Z" },
+    gradebookDiffers: true,
+    scoreSyncs: [{ ...row.scoreSyncs[0]!, status: "conflict", lastError: null }],
+  };
+  it("renders no rows while the publication and so its channel are unknown", async () => {
+    fetchMock.mockImplementation(async (path: string) =>
+      path.endsWith("/results")
+        ? json({ rows: [neutral] })
+        : json({ details: { message: "NOT_FOUND", description: "Publication not found in this library." } }, 404),
+    );
+    inRouter(h(Results));
+    expect(await screen.findByText("Publication not found in this library.")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByText("Passed 100")).toBeNull();
+    expect(screen.queryByText(/Moodle/)).toBeNull();
+  });
+  it("names the publication's channel in the rows", async () => {
+    fetchMock.mockImplementation(async (path: string) => {
+      if (path.endsWith("/results")) return json({ rows: [neutral] });
+      if (path.includes("/versions/")) return json({ report: { scorm: null } });
+      return json({ courseId: "crs_live", versionId: "ver_live", lms: "canvas", connectionName: "Test Canvas" });
+    });
+    inRouter(h(Results));
+    expect(await screen.findByText("Canvas has a grade with a newer time")).toBeTruthy();
+    expect(screen.getByText("Canvas keeps another grade, for example a teacher override")).toBeTruthy();
+    expect(screen.getByRole("columnheader", { name: "Canvas sync" })).toBeTruthy();
+    expect(screen.queryByText(/Moodle/)).toBeNull();
   });
 });
 

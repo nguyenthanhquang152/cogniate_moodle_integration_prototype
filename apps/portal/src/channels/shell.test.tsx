@@ -255,6 +255,37 @@ describe("manifest portal shell", () => {
       expect(screen.queryByText(/The first launch/)).toBeNull();
     }
   });
+  // BD-A1-63, LA-IC-20: the connect routes set the channel scope; a channel without its own text gets the generic text.
+  const refusal = (status: number, details: object) => new Response(JSON.stringify({ details }), { status, headers: { "Content-Type": "application/json" } });
+  it.each([
+    ["canvas", "Canvas URL", "This is an Instructure-hosted address. Choose an Instructure-hosted Canvas type."],
+    ["blackboard", "Learn URL", "This is the address of a hosted LMS. Choose a hosted type."],
+  ])("shows the %s create route's own error text, else the generic text", async (id, siteLabel, text) => {
+    const answer = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => options?.method === "POST"
+      ? refusal(422, { message: "INVALID_SITE_URL", rule: 5, field: "siteUrl" }) : answer(url, options));
+    app(`/integrations/${id}/connect`);
+    fireEvent.change(await screen.findByLabelText("Connection name"), { target: { value: "School" } });
+    fireEvent.change(screen.getByLabelText(siteLabel), { target: { value: "https://school.instructure.com" } });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByText(text)).toBeTruthy();
+  });
+  it.each([
+    ["blackboard", "This connection already reserved another Blackboard deployment. Disconnect it, then make a new connection."],
+    ["canvas", "This connection already reserved another deployment. Disconnect it, then make a new connection."],
+  ])("shows the %s connection's own error text on its manage route, else the generic text", async (id, text) => {
+    current = connection(channelRegistry.channel(id)!, { bindingAuthority: "operatorGrant" });
+    const answer = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation(async (url: string, options?: RequestInit) => options?.method === "PUT"
+      ? refusal(409, { message: "DEPLOYMENT_FIXED" }) : answer(url, options));
+    app(`/integrations/${id}/${current.id}`);
+    fireEvent.change(await screen.findByLabelText("Deployment ID"), { target: { value: "deployment-2" } });
+    fireEvent.change(screen.getByLabelText("Approval code"), { target: { value: "A".repeat(43) } });
+    const clientId = screen.queryByLabelText("Client ID");
+    if (clientId) fireEvent.change(clientId, { target: { value: "client-2" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(await screen.findByText(text)).toBeTruthy();
+  });
   it("merges a renewed URL into the existing connection", async () => {
     const existing = connection(self);
     const onChanged = vi.fn();
