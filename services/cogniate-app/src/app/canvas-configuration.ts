@@ -4,7 +4,7 @@ import type { LtiToolKey } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
 import { getConnection } from '../domain/connections.ts';
 import { TOOL_ACCOUNT, toolName, toolUrls } from '../kernel/setup/common.ts';
-import type { SetupRouteDeps as ProviderRouteDeps } from '../kernel/ports.ts';
+import type { SetupRouteDeps as ProviderRouteDeps } from '../kernel/setup/deps.ts';
 import { ApiError } from './api-errors.ts';
 
 type ConfigurationRequest = { Params: { id: string }; Querystring: { jwk?: unknown } };

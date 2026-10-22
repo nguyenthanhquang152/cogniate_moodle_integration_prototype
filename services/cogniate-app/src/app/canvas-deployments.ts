@@ -3,7 +3,7 @@
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { getConnection } from '../domain/connections.ts';
 import { parseStrictBody } from '../kernel/setup/common.ts';
-import type { SetupRouteDeps as ProviderRouteDeps } from '../kernel/ports.ts';
+import type { SetupRouteDeps as ProviderRouteDeps } from '../kernel/setup/deps.ts';
 import { ApiError } from './api-errors.ts';
 
 type IdParams = { Params: { id: string } };

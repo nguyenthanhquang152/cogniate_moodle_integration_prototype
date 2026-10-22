@@ -1,10 +1,9 @@
 // Public app ports (LA-ADR-01 D5). Types only: a channel receives capabilities through PortContext.
-import type { CapabilityId, ChannelRegistry } from '@cogniate/channel-kernel';
+import type { CapabilityId } from '@cogniate/channel-kernel';
 import type { Logger, OutboundClient, PublicUrls } from '@cogniate/shared';
-import type { LtiClient, LtiProviderProfile, NewPlatform, NewProviderPlatform } from '../clients/lti-client.ts';
-import type { Connection, ConnectionStatus } from '../domain/connections.ts';
+import type { LtiProviderProfile, NewPlatform, NewProviderPlatform } from '../clients/lti-client.ts';
+import type { ConnectionStatus } from '../domain/connections.ts';
 import type { CourseVersion } from '../domain/courses.ts';
-import type { Db } from '../domain/db.ts';
 import type { MbzBuild } from '../domain/mbz-builds.ts';
 import type { Publication } from '../domain/publications.ts';
 
@@ -214,20 +213,3 @@ export interface RedemptionRequest {
   traceId: string;
 }
 
-/**
- * Deps of the provider route modules (configuration and deployments). `redeem` is the ONLY way to bind: it
- * runs phase 1, the LTI steps, phase 2 and the compensation, and throws the contract ApiError on any refusal. It
- * also answers a finalized repeat (§4.4, §4.7.2) without a grant check or an LTI call.
- */
-export interface SetupRouteDeps {
-  channels: ChannelRegistry;
-  db: Db;
-  urls: PublicUrls;
-  masterKey: Buffer;
-  lti: LtiClient;
-  logger: Logger;
-  now: () => number;
-  redeem: (request: RedemptionRequest) => Promise<Connection>;
-  /** The connection DTO of app contract §4.2. */
-  connectionDto: (connection: Connection, libraryName: string) => unknown;
-}
