@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node src/main.ts",
+    "worker": "node src/worker-main.ts",
     "dev": "node --watch src/main.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "app:grant": "node src/cli/grant.ts",
