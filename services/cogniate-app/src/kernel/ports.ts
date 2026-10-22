@@ -3,6 +3,14 @@
  * Types only: internal route dependencies live in kernel/setup/deps.ts and are not channel capabilities.
  * BD-A1-20/28: all context fields are required unless marked optional; callers and K0 fixtures fill them.
  */
+/** Adding an extension (LA-ADR-01 D5):
+ * Use a frozen bare path from EXTENSION_GUARDS, or x/<name> for a new route.
+ * Keep frozen guards in legacy-wire.ts; a new guard uses its capability id in details.capability.
+ * Put :library_id in every SQL statement; the kernel binds it to the calling library.
+ * List all accessed tables and columns in the channel manifest's storage declaration.
+ * Return { error } for an expected route refusal; do not throw it.
+ * Example: packages/channels/moodle/app/web-services.ts.
+ */
 import type { CapabilityId } from '@cogniate/channel-kernel';
 import type { Logger, OutboundClient, PublicUrls } from '@cogniate/shared';
 
@@ -393,6 +401,7 @@ export interface ExporterContext extends PortContext {
   /** Library-bound queue operations; no filesystem paths are exposed. */
   buildQueue: BuildQueue;
 }
+/** LA: this queue serves .mbz only; a second exporter needs ownership-table and status-step changes in the kernel. */
 export interface BuildQueue {
   /** Atomically write a request; the kernel sets buildId and the configured build knobs. */
   submit(buildId: string, request: Record<string, unknown>): Promise<void>;

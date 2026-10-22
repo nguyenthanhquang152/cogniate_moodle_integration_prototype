@@ -18,11 +18,17 @@ afterEach(() => db.close());
 it('AC-03: refuses unscoped reads and writes, including a scope name only in a comment or value', () => {
   const sql = createChannelSql(db, 'library-a', 'a');
   for (const statement of ['SELECT * FROM item', "SELECT ':library_id' FROM item", 'SELECT * FROM item -- :library_id', 'SELECT * FROM item /* :library_id */']) {
-    expect(() => sql.get(statement)).toThrow('channel_sql_unscoped');
-    expect(() => sql.all(statement)).toThrow('channel_sql_unscoped');
+    expect(() => sql.get(statement)).toThrow(expect.objectContaining({ name: 'ChannelSqlUnscopedError', message: 'channel_sql_unscoped' }));
+    expect(() => sql.all(statement)).toThrow(expect.objectContaining({ name: 'ChannelSqlUnscopedError', message: 'channel_sql_unscoped' }));
   }
   expect(() => sql.run("UPDATE item SET value = 'changed'")).toThrow('channel_sql_unscoped');
   expect(db.prepare("SELECT value FROM item WHERE id = 'b'").get()?.value).toBe('two');
+});
+
+it('names invalid SQL parameter refusals for the runtime log', () => {
+  const sql = createChannelSql(db, 'library-a', 'a');
+  expect(() => sql.get('SELECT value FROM item WHERE library_id = :library_id AND id = :id', { id: {} }))
+    .toThrow(expect.objectContaining({ name: 'ChannelSqlParameterError', message: 'channel_sql_invalid_parameter' }));
 });
 
 it('AC-03: binds the library and connection on get, all and run, even if parameters try to replace them', () => {
@@ -86,12 +92,18 @@ it('binds queue reads and downloads to the submitting library and ignores channe
       await expect(queue.status(id)).rejects.toMatchObject({ status: 404 });
       await expect(openExportArtifact(db, 'library-a', root, id, 'mbz')).rejects.toMatchObject({ status: 404 });
     }
-    await expect(queue.submit('../escape', {})).rejects.toThrow('build_artifact_invalid');
+    await expect(queue.submit('../escape', {})).rejects.toMatchObject({ name: 'BuildQueueError', message: 'build_artifact_invalid' });
     writeFileSync(join(root, 'out/build-a.mbz'), 'backup');
     const file = await openExportArtifact(db, 'library-a', root, 'build-a', 'mbz');
     expect(await file.readFile('utf8')).toBe('backup');
     await file.close();
     await expect(openExportArtifact(db, 'library-a', root, 'build-a', '../../secret')).rejects.toMatchObject({ status: 404 });
+    rmSync(join(root, 'requests'), { recursive: true });
+    symlinkSync(join(root, 'out'), join(root, 'requests'));
+    await expect(queue.submit('build-a', {})).rejects.toMatchObject({ name: 'BuildQueueError', message: 'build_queue_folder_invalid' });
+    rmSync(join(root, 'out/build-a.mbz'));
+    mkdirSync(join(root, 'out/build-a.mbz'));
+    await expect(openExportArtifact(db, 'library-a', root, 'build-a', 'mbz')).rejects.toMatchObject({ name: 'BuildQueueError', message: 'build_artifact_invalid' });
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -104,6 +116,8 @@ it('refuses untrusted status fields, oversized status files and symlinked files'
     const path = join(root, 'status/build-a.json');
     writeFileSync(path, JSON.stringify({ status: 'ready', step: 'done', bytes: 12 }));
     expect(await queue.status('build-a')).toEqual({ status: 'ready', step: 'done', bytes: 12 });
+    writeFileSync(path, JSON.stringify({ status: 'failed', step: '', reason: 'runner_stopped' }));
+    expect(await queue.status('build-a')).toEqual({ status: 'failed', step: null, reason: 'runner_stopped' });
     for (const data of [{ status: 'ready', command: 'run' }, { status: 'ready', bytes: -1 }, { status: 'unknown' }, { status: 'ready', step: '../outside' }]) {
       writeFileSync(path, JSON.stringify(data));
       expect(await queue.status('build-a')).toBeNull();

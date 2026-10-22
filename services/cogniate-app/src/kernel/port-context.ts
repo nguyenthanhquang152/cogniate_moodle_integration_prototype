@@ -13,6 +13,17 @@ import type { LtiClient } from '../clients/lti-client.ts';
 import { TOOL_ACCOUNT, toolContext } from './setup/common.ts';
 import { ApiError } from '../app/api-errors.ts';
 
+// The runtime log records only the class name; keep each contract refusal identifiable.
+class ChannelSqlUnscopedError extends Error {
+  constructor() { super('channel_sql_unscoped'); this.name = 'ChannelSqlUnscopedError'; }
+}
+class ChannelSqlParameterError extends TypeError {
+  constructor() { super('channel_sql_invalid_parameter'); this.name = 'ChannelSqlParameterError'; }
+}
+class BuildQueueError extends Error {
+  constructor(reason: 'build_artifact_invalid' | 'build_queue_folder_invalid') { super(reason); this.name = 'BuildQueueError'; }
+}
+
 /** Ignore quoted values and comments when looking for the required scope parameter. */
 function parameters(statement: string): Set<string> {
   const sql = statement.replace(/--[^\n]*|\/\*[\s\S]*?\*\/|'(?:''|[^'])*'|"(?:""|[^"])*"|`[^`]*`|\[[^\]]*\]/g, ' ');
@@ -23,13 +34,13 @@ function parameters(statement: string): Set<string> {
 export function createChannelSql(db: Db, libraryId: string, connectionId: string | null): ChannelSql {
   function prepare(statement: string, params: Record<string, unknown> = {}) {
     const names = parameters(statement);
-    if (!names.has(':library_id')) throw new Error('channel_sql_unscoped');
+    if (!names.has(':library_id')) throw new ChannelSqlUnscopedError();
     const bound: Record<string, SQLInputValue> = {};
     for (const [key, value] of Object.entries(params)) {
       const name = /^[:@$]/.test(key) ? key : `:${key}`;
       if (/^[:@$](library_id|connection_id)$/.test(name)) continue;
       if (value !== null && typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'bigint' && !(value instanceof Uint8Array)) {
-        throw new TypeError('channel_sql_invalid_parameter');
+        throw new ChannelSqlParameterError();
       }
       bound[name] = value;
     }
@@ -94,7 +105,8 @@ const STATUS_LIMIT = 64 * 1024;
 const time = z.string().refine((value) => Number.isFinite(Date.parse(value)));
 const BuildStatus = z.strictObject({
   status: z.enum(['queued', 'running', 'ready', 'failed']),
-  step: z.enum(['start', 'course', 'scorm', 'backup', 'copy', 'done']).optional(),
+  // The runner's stop trap can run before its first step starts.
+  step: z.enum(['', 'start', 'course', 'scorm', 'backup', 'copy', 'done']).transform((value) => value || null).optional(),
   reason: z.string().max(4096).optional(), bytes: z.number().int().nonnegative().optional(),
   updatedAt: time.optional(), startedAt: time.optional(), finishedAt: time.optional(),
   holdFile: z.string().regex(/^infra\/\.data\/build-queue\/hold\/bld_[0-9a-f]{24}$/).optional(),
@@ -103,7 +115,7 @@ const RunnerStatus = z.strictObject({
   pid: z.number().int().positive(), startedAt: time, lastSeenAt: time, image: z.enum(['missing', 'building', 'ready', 'failed']),
 });
 function checkedId(id: string): string {
-  if (!BUILD_ID.test(id)) throw new Error('build_artifact_invalid');
+  if (!BUILD_ID.test(id)) throw new BuildQueueError('build_artifact_invalid');
   return id;
 }
 
@@ -111,7 +123,7 @@ function checkedId(id: string): string {
 async function queueFolder(root: string, folder: 'requests' | 'status' | 'out'): Promise<string> {
   const path = join(resolve(root), folder);
   const stat = await lstat(path);
-  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error('build_queue_folder_invalid');
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new BuildQueueError('build_queue_folder_invalid');
   return path;
 }
 
@@ -182,7 +194,7 @@ export async function openExportArtifact(db: Db, libraryId: string, root: string
   const file = await open(join(await queueFolder(root, 'out'), filename), constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   if (!(await file.stat()).isFile()) {
     await file.close();
-    throw new Error('build_artifact_invalid');
+    throw new BuildQueueError('build_artifact_invalid');
   }
   return file;
 }

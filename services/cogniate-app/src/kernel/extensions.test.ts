@@ -1,8 +1,10 @@
-import { buildChannelRegistry } from '@cogniate/channel-kernel';
+import { buildChannelRegistry, EXTENSION_GUARDS } from '@cogniate/channel-kernel';
+import Fastify from 'fastify';
 import { expect, it } from 'vitest';
 import { TEST_CHANNELS, TEST_URLS, testApp } from '../testkit.ts';
 import type { PortContext, PublicationView } from './ports.ts';
-import { publicationExtensionFields } from './extensions.ts';
+import { publicationExtensionFields, registerExtensionRoutes } from './extensions.ts';
+import type { ExtensionDeps } from './extensions.ts';
 
 const publication = { channel: 'moodle' } as PublicationView;
 const ctx = {} as PortContext;
@@ -15,8 +17,33 @@ function registry(fields: Record<string, unknown>) {
 
 it('AC-05: refuses hook DTO fields outside the frozen list, including core field overrides', () => {
   for (const fields of [{ extra: 1 }, { id: 'replacement' }, JSON.parse('{"__proto__":{}}') as Record<string, unknown>]) {
-    expect(() => publicationExtensionFields(registry(fields), publication, ctx)).toThrow('channel_dto_field_not_allowed');
+    expect(() => publicationExtensionFields(registry(fields), publication, ctx)).toThrow(expect.objectContaining({
+      name: 'ChannelDtoFieldError', message: `channel_dto_field_not_allowed: ${Object.keys(fields)[0]}`,
+    }));
   }
+});
+
+it.each([
+  ...Object.keys(EXTENSION_GUARDS).map((path) => [path, true] as const),
+  ['x/reports', true], ['reports', false], ['deployments', false], ['constructor', false],
+  ['x/../reports', false], ['x/reports/more', false], ['x/', false], ['/web-services', false],
+] as const)('mounts only a frozen path or x/<name>: %s allowed=%s', async (path, allowed) => {
+  const api = Fastify();
+  const manifest = TEST_CHANNELS.channel('moodle')!;
+  const channels = buildChannelRegistry([{ folder: '/test/moodle', manifest, appAdapter: {
+    extensionRoutes: [{ method: 'GET', path, capability: 'siteApi.token', handle: async () => ({ status: 200, body: {} }) }],
+  } }], { simulations: true });
+  // Mounting needs only discovery; request-time dependencies must not be accessed here.
+  const mount = () => registerExtensionRoutes(api, { channels } as ExtensionDeps);
+  try {
+    if (allowed) {
+      mount();
+      expect(api.hasRoute({ method: 'GET', url: `/connections/:id/${path}` })).toBe(true);
+    } else {
+      expect(mount).toThrow(expect.objectContaining({ name: 'ChannelExtensionPathError', message: 'channel_extension_path_invalid' }));
+      expect(api.hasRoute({ method: 'GET', url: `/connections/:id/${path}` })).toBe(false);
+    }
+  } finally { await api.close(); }
 });
 
 it('AC-05: keeps the frozen publication fields and defaults for channels without a hook', () => {

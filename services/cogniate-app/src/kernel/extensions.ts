@@ -1,5 +1,7 @@
-// POST /app-api/connections/:id/deployments (app contract §4.7.2): add a deployment with an `add_deployment`
-// grant. The handler calls the common redemption engine (`deps.redeem`); it has no grant, adoption or cleanup logic.
+// P5: mount channel routes and enforce capability guards before channel code runs.
+// P6: restrict publication DTO additions to the frozen extension fields.
+// P7: mount exporter routes and create library-bound metadata and queue contexts.
+// Core deployments: pass add_deployment grants to the common redemption engine (app contract §4.7.2).
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { CapabilityId, ChannelRegistry } from '@cogniate/channel-kernel';
 import { EMPTY_PUBLICATION_EXTENSION_FIELDS, EXTENSION_CAPABILITY_MEMBERS, EXTENSION_GUARDS, PACKAGE_EXPORT_WIRE, PUBLICATION_EXTENSION_FIELDS } from '@cogniate/channel-kernel';
@@ -16,13 +18,21 @@ import type { Course, CourseVersion } from '../domain/courses.ts';
 import { getCourse, getVersion } from '../domain/courses.ts';
 import type { Db } from '../domain/db.ts';
 
+// The runtime log records only the class name; keep each contract refusal identifiable.
+class ChannelDtoFieldError extends Error {
+  constructor(field: string) { super(`channel_dto_field_not_allowed: ${field}`); this.name = 'ChannelDtoFieldError'; }
+}
+class ChannelExtensionPathError extends Error {
+  constructor() { super('channel_extension_path_invalid'); this.name = 'ChannelExtensionPathError'; }
+}
+
 /** P6 may fill only the frozen extension fields of the publication DTO. */
 export function publicationExtensionFields(channels: ChannelRegistry, publication: PublicationView, ctx: PortContext): Record<string, unknown> {
   const fields: Record<string, unknown> = { ...EMPTY_PUBLICATION_EXTENSION_FIELDS };
   for (const hook of setupOf(channels, publication.channel)?.publishHooks ?? []) {
     const next = hook.dtoFields(publication, ctx);
     for (const key of Object.keys(next)) {
-      if (!PUBLICATION_EXTENSION_FIELDS.includes(key)) throw new Error(`channel_dto_field_not_allowed: ${key}`);
+      if (!PUBLICATION_EXTENSION_FIELDS.includes(key)) throw new ChannelDtoFieldError(key);
       fields[key] = next[key];
     }
   }
@@ -82,7 +92,7 @@ export function registerExtensionRoutes(api: FastifyInstance, deps: ExtensionDep
   const paths = new Map<string, ExtensionRoute>();
   for (const manifest of deps.channels.channels()) {
     for (const route of setupOf(deps.channels, manifest.id)?.extensionRoutes ?? []) {
-      if (!/^(?:[a-z][a-z0-9-]*|x\/[a-z][a-z0-9-]*)$/.test(route.path)) throw new Error('channel_extension_path_invalid');
+      if (!Object.hasOwn(EXTENSION_GUARDS, route.path) && !/^x\/[a-z][a-z0-9-]*$/.test(route.path)) throw new ChannelExtensionPathError();
       paths.set(`${route.method} ${route.path}`, route);
     }
   }
