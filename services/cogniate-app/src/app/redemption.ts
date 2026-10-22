@@ -193,7 +193,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       transaction(db, () => { clearLease(db, c.id, attempt.attemptId); endAttempt(db, attempt.attemptId, 'cancelled', now()); });
       throw target.kind === 'shared_deployment'
         ? new ApiError('DEPLOYMENT_IN_USE')
-        : new ApiError('PLATFORM_IN_USE', 'This Canvas developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.');
+        : new ApiError('PLATFORM_IN_USE', `This ${channels.textName(c.channel)} developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.`);
     };
     const call = async <T>(fn: () => Promise<T>): Promise<T> => {
       try {
