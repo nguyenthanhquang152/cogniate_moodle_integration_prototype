@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
-import { insertAttempt, insertGrant, recordRef, writeApproval, writeReservation } from './bindings.ts';
-import { createConnection, getConnectionAnyLibrary, routeLaunch } from './connections.ts';
+import { recordRef, writeApproval, writeReservation } from './bindings.ts';
+import { getConnectionAnyLibrary, routeLaunch } from './connections.ts';
 import type { Db } from './db.ts';
 import { MigrationChangedError, openDb } from './db.ts';
 
@@ -20,10 +20,13 @@ function legacy(version: '010' | '011') {
   const old = join(dir, 'old');
   mkdirSync(old);
   for (const name of readdirSync(migrations).filter((n) => n.slice(0, 3) <= version)) copyFileSync(join(migrations, name), join(old, name));
+  const through012 = join(dir, 'through012');
+  mkdirSync(through012);
+  for (const name of readdirSync(migrations).filter((n) => n.slice(0, 3) <= '012')) copyFileSync(join(migrations, name), join(through012, name));
   const file = join(dir, 'app.db');
   const db = openDb(file, old);
   db.prepare("INSERT INTO library VALUES ('lib_a', 'Library A', 1)").run();
-  return { db, file, old };
+  return { db, file, old, through012 };
 }
 
 function insertOldConnection(db: Db, id: string, status: string, lms = 'moodle') {
@@ -43,14 +46,14 @@ describe('additive 012 on populated old schemas', () => {
     legacyDb.db.close();
     const db = openDb(legacyDb.file);
     expect(allRows(db, 'connection')[0]).toMatchObject(before);
-    expect(getConnectionAnyLibrary(db, 'moodle')).toMatchObject({ lms: 'moodle', profile: 'standard', snapshot: { issuer: null, platformId: null, clientId: null } });
+    expect(getConnectionAnyLibrary(db, 'moodle')).toMatchObject({ channel: 'moodle', profile: 'standard', snapshot: { issuer: null, platformId: null, clientId: null } });
     expect(routeLaunch(db, 'plt_moodle', 'dA')).toMatchObject({ ok: true, connection: { id: 'moodle' } });
     expect(allRows(db, 'schema_migration').slice(0, ledger.length)).toEqual(ledger);
     db.close();
   });
 
   it('011 upgrade preserves grants, attempts, history, approvals, reservations and stored keys; no backfill or repeat migration', () => {
-    const { db: oldDb, file, old } = legacy('011');
+    const { db: oldDb, file, old, through012 } = legacy('011');
     for (const lms of ['moodle', 'canvas', 'blackboard']) {
       for (const status of ['pending', 'registered', 'connected', 'disabled']) {
         const id = `${lms}_${status}`;
@@ -59,8 +62,13 @@ describe('additive 012 on populated old schemas', () => {
       }
     }
     const connectionId = 'blackboard_pending';
-    const grant = insertGrant(oldDb, { libraryId: 'lib_a', connectionId, lms: 'blackboard', profile: 'blackboard-sim', purpose: 'initial', siteUrl: 'https://school.test', serviceUrl: 'https://school.test', clientId: 'client', deploymentId: 'dA', note: 'fixture', expiresAt: 1000 }, 'fixture-hash', 1);
-    const attempt = insertAttempt(oldDb, { connectionId, grantId: grant, purpose: 'initial', profile: 'blackboard-sim', issuer: 'https://issuer.test', clientId: 'client', deploymentId: 'dA', platformId: 'shared_old' }, 1);
+    // Historical fixture writers use the 011 schema, independent of current repository writers.
+    const grant = 'grt_fixture';
+    oldDb.prepare(`INSERT INTO binding_grant (id, code_hash, library_id, connection_id, lms, lti_profile, purpose, site_url, service_url, client_id, deployment_id, note, created_at, expires_at)
+      VALUES (?, 'fixture-hash', 'lib_a', ?, 'blackboard', 'blackboard-sim', 'initial', 'https://school.test', 'https://school.test', 'client', 'dA', 'fixture', 1, 1000)`).run(grant, connectionId);
+    const attempt = { attemptId: 'att_fixture' };
+    oldDb.prepare(`INSERT INTO binding_attempt (attempt_id, seq, connection_id, grant_id, purpose, lti_profile, issuer, client_id, deployment_id, lti_platform_id, history_floor, state, started_at)
+      VALUES (?, 1, ?, ?, 'initial', 'blackboard-sim', 'https://issuer.test', 'client', 'dA', 'shared_old', 0, 'open', 1)`).run(attempt.attemptId, connectionId, grant);
     const ref = recordRef(oldDb, { connectionId, attemptId: attempt.attemptId, grantId: grant, action: 'create', platformId: 'shared_old', deploymentId: 'dA' }, 1);
     writeReservation(oldDb, { connectionId, libraryId: 'lib_a', platformId: 'shared_old', deploymentId: 'dA', bindingRef: ref }, 1);
     writeApproval(oldDb, { connectionId: 'canvas_registered', libraryId: 'lib_a', platformId: 'plt_canvas_registered', deploymentId: 'dA', bindingRef: ref, grantId: grant, approvedAt: 1 });
@@ -76,15 +84,18 @@ describe('additive 012 on populated old schemas', () => {
     const oldConnections = allRows(oldDb, 'connection');
     const ledger = allRows(oldDb, 'schema_migration');
     oldDb.close();
-    let db = openDb(file);
+    let db = openDb(file, through012);
     for (const table of tables) expect(allRows(db, table)).toEqual(before.get(table));
     expect(allRows(db, 'connection')).toEqual(oldConnections.map((c) => ({ ...c, target_issuer: null, target_platform_id: null, target_client_id: null })));
     expect(allRows(db, 'schema_migration').slice(0, ledger.length)).toEqual(ledger);
     expect(allRows(db, 'schema_migration')).toHaveLength(ledger.length + 1);
-    const fresh = createConnection(db, 'lib_a', { name: 'New', method: 'manual', lms: 'blackboard', profile: 'blackboard-sim', siteUrl: 'https://new.test', snapshot: { issuer: 'https://issuer.test', platformId: 'new_parent', clientId: 'new_client' } }, null, 2);
+    const fresh = { id: 'con_fresh' };
+    db.prepare(`INSERT INTO connection (id, library_id, name, site_url, method, status, created_at, updated_at, lms, lti_profile, target_issuer, target_platform_id, target_client_id)
+      VALUES (?, 'lib_a', 'New', 'https://new.test', 'manual', 'pending', 2, 2, 'blackboard', 'blackboard-sim', 'https://issuer.test', 'new_parent', 'new_client')`).run(fresh.id);
+
     const upgraded = allRows(db, 'schema_migration');
     db.close();
-    db = openDb(file);
+    db = openDb(file, through012);
     expect(allRows(db, 'schema_migration')).toEqual(upgraded);
     expect(getConnectionAnyLibrary(db, fresh.id)?.snapshot).toEqual({ issuer: 'https://issuer.test', platformId: 'new_parent', clientId: 'new_client' });
     for (const table of tables) expect(allRows(db, table)).toEqual(before.get(table));

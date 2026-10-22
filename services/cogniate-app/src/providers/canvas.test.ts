@@ -4,7 +4,7 @@ import type { BindingTarget, InitialTargetContext } from './types.ts';
 
 const grantCode = 'g'.repeat(43);
 const context: InitialTargetContext = {
-  connection: { id: 'con_canvas', libraryId: 'lib_a', name: 'School', lms: 'canvas', profile: 'canvas-cloud-production', siteUrl: 'https://canvas.school.edu', serviceUrl: 'https://school.instructure.com', status: 'pending', ltiPlatformId: null },
+  connection: { id: 'con_canvas', libraryId: 'lib_a', name: 'School', channel: 'canvas', profile: 'canvas-cloud-production', siteUrl: 'https://canvas.school.edu', serviceUrl: 'https://school.instructure.com', status: 'pending', ltiPlatformId: null },
   values: { clientId: 'client', deploymentId: 'deployment', grantCode },
   profile: { id: 'canvas-cloud-production', lms: 'canvas', issuer: 'https://canvas.instructure.com' },
   sharedPlatform: null,

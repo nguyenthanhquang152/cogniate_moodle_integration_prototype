@@ -1,4 +1,5 @@
 // The ONE provider registry of the app. Adapter data lives in one file per LMS (moodle.ts, canvas.ts, blackboard.ts).
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 import type { Logger } from '@cogniate/shared';
 import { blackboardProvider } from './blackboard.ts';
 import { canvasProvider } from './canvas.ts';
@@ -28,9 +29,9 @@ const unknownProfilesLogged = new Set<string>();
  * belongs to the default adapter (the `standard` profile, LTI contract §9.3). The app ignores every other row and logs
  * `channel_profile_unknown {profile}` at most once per process and profile id.
  */
-export function ownedProfiles(rows: readonly LtiProviderProfile[], logger: Logger, traceId: string): LtiProviderProfile[] {
+export function ownedProfiles(rows: readonly LtiProviderProfile[], logger: Logger, traceId: string, channels: ChannelRegistry): LtiProviderProfile[] {
   return rows.filter((p) => {
-    if (p.lms === null || providerOf(p.lms) !== null) return true;
+    if (channels.channelOfProfile(p.id) !== null) return true;
     if (!unknownProfilesLogged.has(p.id)) {
       unknownProfilesLogged.add(p.id);
       logger.warn('channel_profile_unknown', { trace_id: traceId, profile: p.id });

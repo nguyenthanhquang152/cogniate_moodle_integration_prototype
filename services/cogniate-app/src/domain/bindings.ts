@@ -16,7 +16,8 @@ export interface Grant {
   id: string;
   libraryId: string;
   connectionId: string;
-  lms: string;
+  channel: string;
+  boundValues: Record<string, string> | null;
   profile: string;
   purpose: GrantPurpose;
   siteUrl: string;
@@ -32,22 +33,23 @@ export interface Grant {
 }
 
 const toGrant = (r: Record<string, unknown>): Grant => ({
-  id: String(r.id), libraryId: String(r.library_id), connectionId: String(r.connection_id), lms: String(r.lms), profile: String(r.lti_profile),
+  id: String(r.id), libraryId: String(r.library_id), connectionId: String(r.connection_id), channel: String(r.lms), profile: String(r.lti_profile),
+  boundValues: r.bound_values === null || r.bound_values === undefined ? null : JSON.parse(String(r.bound_values)) as Record<string, string>,
   purpose: r.purpose as GrantPurpose, siteUrl: String(r.site_url), serviceUrl: String(r.service_url), clientId: String(r.client_id),
   deploymentId: String(r.deployment_id), note: String(r.note), createdAt: Number(r.created_at), expiresAt: Number(r.expires_at),
   redeemedAt: r.redeemed_at === null ? null : Number(r.redeemed_at), revokedAt: r.revoked_at === null ? null : Number(r.revoked_at),
   revokedReason: r.revoked_reason === null ? null : (r.revoked_reason as RevokedReason),
 });
 
-export type NewGrant = Omit<Grant, 'id' | 'createdAt' | 'redeemedAt' | 'revokedAt' | 'revokedReason'>;
+export type NewGrant = Omit<Grant, 'id' | 'createdAt' | 'redeemedAt' | 'revokedAt' | 'revokedReason' | 'boundValues'> & { boundValues?: Record<string, string> | null };
 
 /** Store a grant (only the SHA-256 of the code). Returns the grant id. */
 export function insertGrant(db: Db, input: NewGrant, codeHash: string, now: number): string {
   const id = randomId('grt_');
   db.prepare(`INSERT INTO binding_grant (id, code_hash, library_id, connection_id, lms, lti_profile, purpose, site_url, service_url, client_id, deployment_id,
-      note, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-    .run(id, codeHash, input.libraryId, input.connectionId, input.lms, input.profile, input.purpose, input.siteUrl, input.serviceUrl, input.clientId,
-      input.deploymentId, input.note, now, input.expiresAt);
+      note, created_at, expires_at, bound_values) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+    .run(id, codeHash, input.libraryId, input.connectionId, input.channel, input.profile, input.purpose, input.siteUrl, input.serviceUrl, input.clientId,
+      input.deploymentId, input.note, now, input.expiresAt, input.boundValues === null || input.boundValues === undefined ? null : JSON.stringify(input.boundValues));
   return id;
 }
 
@@ -85,7 +87,10 @@ export function markGrantRedeemed(db: Db, id: string, now: number): void {
 
 export type AttemptState = 'open' | 'committed' | 'cancelled' | 'failed' | 'abandoned';
 
+export type TargetKind = 'exclusive_platform' | 'platform_deployment' | 'shared_deployment';
+
 export interface Attempt {
+  targetKind: TargetKind;
   attemptId: string;
   seq: number;
   connectionId: string;
@@ -103,6 +108,7 @@ export interface Attempt {
 }
 
 const toAttempt = (r: Record<string, unknown>): Attempt => ({
+  targetKind: r.target_kind as TargetKind,
   attemptId: String(r.attempt_id), seq: Number(r.seq), connectionId: String(r.connection_id), grantId: String(r.grant_id), purpose: r.purpose as GrantPurpose,
   profile: String(r.lti_profile), issuer: String(r.issuer), clientId: String(r.client_id), deploymentId: String(r.deployment_id),
   platformId: r.lti_platform_id === null ? null : String(r.lti_platform_id), historyFloor: Number(r.history_floor), state: r.state as AttemptState,
@@ -111,15 +117,15 @@ const toAttempt = (r: Record<string, unknown>): Attempt => ({
 
 export function insertAttempt(
   db: Db,
-  input: { connectionId: string; grantId: string; purpose: GrantPurpose; profile: string; issuer: string; clientId: string; deploymentId: string; platformId: string | null },
+  input: { targetKind: TargetKind; connectionId: string; grantId: string; purpose: GrantPurpose; profile: string; issuer: string; clientId: string; deploymentId: string; platformId: string | null },
   now: number,
 ): Attempt {
   const attemptId = randomId('att_');
   const seq = Number((db.prepare('SELECT COALESCE(MAX(seq), 0) AS m FROM binding_attempt').get() as { m: number }).m) + 1;
   const floor = Number((db.prepare('SELECT COALESCE(MAX(seq), 0) AS m FROM binding_ref_history').get() as { m: number }).m);
   db.prepare(`INSERT INTO binding_attempt (attempt_id, seq, connection_id, grant_id, purpose, lti_profile, issuer, client_id, deployment_id, lti_platform_id,
-      history_floor, state, started_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)`)
-    .run(attemptId, seq, input.connectionId, input.grantId, input.purpose, input.profile, input.issuer, input.clientId, input.deploymentId, input.platformId, floor, now);
+      history_floor, state, started_at, target_kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)`)
+    .run(attemptId, seq, input.connectionId, input.grantId, input.purpose, input.profile, input.issuer, input.clientId, input.deploymentId, input.platformId, floor, now, input.targetKind);
   return getAttempt(db, attemptId)!;
 }
 

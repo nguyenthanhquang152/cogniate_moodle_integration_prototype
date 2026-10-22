@@ -8,15 +8,17 @@ import { lstat, readFile, realpath } from 'node:fs/promises';
 import type { Server } from 'node:http';
 import { extname, join, resolve, sep } from 'node:path';
 import type { Knob, Logger, PublicUrls } from '@cogniate/shared';
-import { apiErrorBody, redactPath, sha256Hex } from '@cogniate/shared';
+import { apiErrorBody, escapeHtml, redactPath, sha256Hex } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { Db } from '../domain/attempts.ts';
+import type { ChannelRegistry } from '../domain/attempts.ts';
 import { applyCommit, findRuntimeSession, packageStoragePath, runtimeState } from '../domain/attempts.ts';
 
 export const CONTENT_SERVICE_NAME = 'cogniate-content';
 
 export interface ContentServerDeps {
+  channels: ChannelRegistry;
   logger: Logger;
   urls: PublicUrls;
   profile: string;
@@ -91,7 +93,7 @@ const runtimePage = (lmsName: string): string => `<!doctype html>
 <link rel="stylesheet" href="/_rt/assets/runtime.css">
 <script type="module" src="/_rt/assets/runtime.js"></script>
 </head>
-<body data-lms-name="${lmsName}">
+<body data-lms-name="${escapeHtml(lmsName)}">
 <p id="cogniate-runtime-message" role="status" hidden></p>
 <iframe id="cogniate-package" title="Course content"></iframe>
 </body>
@@ -171,7 +173,7 @@ export async function buildContentApp(deps: ContentServerDeps): Promise<FastifyI
   /** The session of a runtime token: 'unknown' (404), 'expired' (410) or the session. */
   const sessionOf = (req: FastifyRequest<TokenParams>) => {
     if (!RUNTIME_TOKEN.test(req.params.token)) return 'unknown' as const;
-    const s = findRuntimeSession(db, sha256Hex(req.params.token));
+    const s = findRuntimeSession(db, sha256Hex(req.params.token), deps.channels);
     if (!s) return 'unknown' as const;
     return s.expiresAt <= now() ? ('expired' as const) : s;
   };

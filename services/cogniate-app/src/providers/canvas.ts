@@ -23,6 +23,7 @@ export const canvasProvider: ProviderAdapter = {
   lms: 'canvas', lmsName: 'Canvas', label: 'Canvas', methods: ['manual'],
   capabilities: { dynamicRegistration: false, operatorApproval: true, webServices: false, courseShell: false, addDeployment: true, canvasConfiguration: true },
   defaultProfile: 'canvas-cloud-production', acceptsServiceUrl: true,
+  sharingOf: (id) => profileLabels[id] ? 'exclusive' : null,
   siteRuleSuffixes: (profileId) => profileId === 'canvas-self-hosted' ? ['instructure.com', 'canvaslms.com'] : null,
   profileLabel: (profileId) => profileLabels[profileId] ?? null,
   toolConfiguration: ({ urls, libraryName }) => [

@@ -6,6 +6,7 @@ import type { Db } from './db.ts';
 import { transaction } from './db.ts';
 
 export interface DueSync {
+  channel: string;
   id: string;
   resourceLinkId: string;
   userSub: string;
@@ -26,14 +27,14 @@ export interface DueSync {
  * it at each decision (failDisabledSync, beginSend), never from a due-row snapshot: a suspend can commit while an
  * earlier row of the batch, or this row's line item lookup, waits for the LTI service (B-M1-01).
  */
-const DISABLED_PROVIDER = "con.lms IN ('canvas', 'blackboard') AND con.status = 'disabled'";
+const DISABLED_PROVIDER = "con.binding_authority = 'operatorGrant' AND con.status = 'disabled'";
 
 /** Pending rows whose next try is due, oldest first. */
 export function dueSyncs(db: Db, now: number, limit: number): DueSync[] {
   return db.prepare(`SELECT s.id, s.resource_link_id, s.user_sub, s.payload, s.tries, s.created_at, s.resent_at, s.confirmation_after, rl.resource_link_id AS platform_rl, rl.line_item_id,
-      rl.service_key_encrypted FROM score_sync s JOIN resource_link rl ON rl.id = s.resource_link_id
+      con.channel, rl.service_key_encrypted FROM score_sync s JOIN resource_link rl ON rl.id = s.resource_link_id JOIN connection con ON con.id = rl.connection_id
     WHERE s.status = 'pending' AND s.next_try_at <= ? ORDER BY s.next_try_at, s.created_at LIMIT ?`).all(now, limit).map((r) => ({
-    id: String(r.id), resourceLinkId: String(r.resource_link_id), userSub: String(r.user_sub), payload: JSON.parse(String(r.payload)) as Record<string, unknown>,
+    channel: String(r.channel), id: String(r.id), resourceLinkId: String(r.resource_link_id), userSub: String(r.user_sub), payload: JSON.parse(String(r.payload)) as Record<string, unknown>,
     tries: Number(r.tries), createdAt: Number(r.created_at), retryFrom: r.resent_at === null ? Number(r.created_at) : Number(r.resent_at), platformResourceLinkId: String(r.platform_rl),
     confirmationAfter: r.confirmation_after === null ? null : Number(r.confirmation_after),
     lineItemId: r.line_item_id === null ? null : String(r.line_item_id), serviceKeyEncrypted: r.service_key_encrypted === null ? null : (r.service_key_encrypted as Uint8Array),
