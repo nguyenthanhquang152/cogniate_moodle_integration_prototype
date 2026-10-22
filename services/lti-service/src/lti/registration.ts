@@ -110,6 +110,7 @@ export function buildRegistrationRequest(input: {
   clientName: string;
   privacyLevel: PrivacyLevel;
   messages?: RegistrationMessage[];
+  scopes?: readonly string[];
 }): Obj {
   const launch = launchUri(input.urls, input.accountId);
   const messages = (input.messages ?? [{ type: 'LtiDeepLinkingRequest', placements: ['ContentArea'] }])
@@ -123,7 +124,7 @@ export function buildRegistrationRequest(input: {
     jwks_uri: `${input.urls.lti}/lti/keys/${encodeURIComponent(input.accountId)}`,
     token_endpoint_auth_method: 'private_key_jwt',
     client_name: input.clientName,
-    scope: REGISTRATION_SCOPES.join(' '),
+    scope: (input.scopes ?? REGISTRATION_SCOPES).join(' '),
     [TOOL_CONFIG_CLAIM]: {
       domain: new URL(input.urls.lti).host,
       target_link_uri: launch,
