@@ -1,4 +1,4 @@
-// The audit writer (LA-ADR-06 D4): migration 007, append only, list order and filters, details, one transaction.
+// The audit writer (LA-ADR-06 D4): migrations 007 and 008, append only, list order and filters, details, one transaction.
 import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -44,6 +44,34 @@ describe('007_audit_event', () => {
     expect(() => db.prepare("UPDATE audit_event SET details = NULL WHERE action = 'platform.create'").run()).toThrow('audit_event is append-only');
     expect(listAuditEvents(db, { limit: 10 }).events.map((e) => e.result)).toEqual(['ok']);
     db.close();
+  });
+});
+
+describe('008_audit_event_replace_guard', () => {
+  it('keeps v7 audit rows and refuses both replacement forms without recursive triggers', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lti-mig8-'));
+    temps.push(dir);
+    const v7 = join(dir, 'v7');
+    mkdirSync(v7);
+    for (const f of readdirSync(MIGRATIONS).filter((n) => n < '008')) copyFileSync(join(MIGRATIONS, f), join(v7, f));
+    const file = join(dir, 'lti.db');
+    let db = openSqlite(file, v7);
+    const id = insertAuditEvent(db, event({ details: { original: true } }), T0);
+    const original = listAuditEvents(db, { limit: 10 }).events;
+    db.close();
+    db = openSqlite(file, MIGRATIONS);
+    try {
+      db.exec('PRAGMA recursive_triggers = OFF');
+      expect(listAuditEvents(db, { limit: 10 }).events).toEqual(original);
+      for (const command of ['REPLACE INTO', 'INSERT OR REPLACE INTO']) {
+        expect(() => db.prepare(`${command} audit_event (id, ts, actor_type, actor_id, action, result)
+          VALUES (?, ?, 'operator', 'another-actor', 'platform.delete', 'refused')`).run(id, T0 + 1))
+          .toThrow('audit_event is append-only');
+        expect(listAuditEvents(db, { limit: 10 }).events).toEqual(original);
+      }
+      insertAuditEvent(db, event(), T0 + 2);
+      expect(count(db)).toBe(2);
+    } finally { db.close(); }
   });
 });
 
@@ -94,6 +122,44 @@ describe('withAudit (rule 1: one event per authenticated admin request)', () => 
     ensureAccount(db, { id: 'cogniate', name: 'Cogniate', appUrl: URLS.app });
     return db;
   };
+
+  it.each([
+    ['synchronous', (): string => 'missing change'],
+    ['asynchronous', async (): Promise<string> => 'missing change'],
+  ] as const)('fails a %s body that completes without a change', async (_name, body) => {
+    const db = setup();
+    try {
+      await expect(withAudit(db, () => T0, base, body)).rejects.toThrow('without a successful audit.change()');
+      expect(count(db)).toBe(0);
+      expect(db.isTransaction).toBe(false);
+    } finally { db.close(); }
+  });
+
+  it('refuses a second change before it writes data or a second event', async () => {
+    const db = setup();
+    try {
+      let secondRan = false;
+      await expect(withAudit(db, () => T0, base, (audit) => {
+        audit.change(() => createPlatform(db, 'cogniate', platformInput));
+        audit.change(() => { secondRan = true; });
+      })).rejects.toThrow('audit.change() must be called only once');
+      expect(secondRan).toBe(false);
+      expect(listPlatforms(db, 'cogniate', {})).toHaveLength(1);
+      expect(listAuditEvents(db, { limit: 10 }).events.map((e) => e.result)).toEqual(['ok']);
+    } finally { db.close(); }
+  });
+
+  it('refuses a reentrant change and rolls back the first change with no event', async () => {
+    const db = setup();
+    try {
+      await expect(withAudit(db, () => T0, base, (audit) => audit.change(() => {
+        createPlatform(db, 'cogniate', platformInput);
+        audit.change(() => undefined);
+      }))).rejects.toThrow('audit.change() must be called only once');
+      expect(listPlatforms(db, 'cogniate', {})).toEqual([]);
+      expect(count(db)).toBe(0);
+    } finally { db.close(); }
+  });
 
   it('writes ok with the target of the result, in the change transaction', async () => {
     const db = setup();

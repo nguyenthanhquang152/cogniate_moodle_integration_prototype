@@ -1,5 +1,6 @@
 {
   "name": "cogniate-moodle-lti-prototype",
+  "version": "0.0.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -46,7 +47,8 @@
     "test:acceptance": "bash infra/scripts/qa-suite.sh acceptance",
     "test:e2e": "bash infra/scripts/qa-suite.sh e2e",
     "dev:web": "node apps/portal/scripts/dev-web.mjs",
-    "test:compat": "bash infra/scripts/storage-compat.sh guard && bash infra/scripts/compat-run.sh"
+    "test:compat": "bash infra/scripts/storage-compat.sh guard && bash infra/scripts/compat-run.sh",
+    "ci:local": "bash infra/scripts/ci-local.sh"
   },
   "devDependencies": {
     "@eslint/compat": "2.1.1",

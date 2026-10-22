@@ -1,6 +1,6 @@
 # LA target architecture: LTI as a Service v1
 
-Status: v1.2 for G-DESIGN round 2 (A1, milestone LA P2, 2026-10-22; v1.2 = fix round 1 after the G-DESIGN round 1 reviews; response: [review-response-R1-A1](review-response-R1-A1.md)). Owner: Architect A1 (overall consistency). Plan: [plan v1.2](../../team/ltiaas/plan.md). Terms: [terms](terms.md). Base architecture: [`../README.md`](../README.md) (M1 state); its terms stay valid.
+Status: v1.2 for G-DESIGN round 2 (A1, milestone LA P2, 2026-10-22; v1.2 = fix round 1 after the G-DESIGN round 1 reviews; response: [review-response-R1-A1](review-response-R1-A1.md)). Owner: Architect A1 (overall consistency). Plan: [plan v1.2](../../team/ltiaas/plan.md). Terms: [terms](terms.md). Base architecture: [`../README.md`](../README.md) (M1 state); its terms stay valid. Build ratifications (P4): [build decisions A1](build-decisions-A1.md).
 
 ## 1. Goal
 
@@ -106,18 +106,29 @@ Two words (Reviewer-B B-LAD-12): **domain core** is the layer above. **Core** (t
 | Channel folders (not core) | `packages/channels/<id>/**` |
 | Core | all other product code: `services/*/src/**`, `packages/*/src/**` (also `packages/channel-kernel/src/**`), `apps/*/src/**` |
 | Allowed exceptions inside core (closed list) | `packages/channel-kernel/src/legacy-wire.ts`; applied SQL migrations (history, ADR-006); `packages/shared/src/config.ts` for the dev-stack Moodle URL only, until E1 S3 makes it optional |
-| Shared build files (core for F2) | root `package.json`, `package-lock.json`, `tsconfig*.json`, `eslint.config.js`, `vitest.config.ts`, `infra/**` except files that the simulator host manifest generates |
+| Shared build files (core for F2) | root `package.json`, `package-lock.json`, `tsconfig*.json`, `eslint.config.js`, `vitest.config.ts`, every tracked `infra/**` file. The host manifest wiring (§4b) writes only untracked, git-ignored files (`.tmp/compose.sim-hosts.yaml`, `infra/.certs/**`), so F2 needs no exemption (BD-A1-07). `tests/sim/hosts.json` is class `sim`. |
 | Not core | `tests/**`, `docs/**` |
 
 **Checks (all in `npm run check` except F2; QA designs the probes: [`tests/ltiaas/TEST-STRATEGY.md`](../../../tests/ltiaas/TEST-STRATEGY.md) §3).**
 
 | Id | Check | Mechanism (Author choice inside the rule) | Pass |
 | --- | --- | --- | --- |
-| F1 | LMS-name lint over core code tokens. Banned words: every channel id (from the folder names), the names of every named channel (manifest `names`), and a fixed vendor list (`moodle`, `canvas`, `instructure`, `blackboard`, `brightspace`, `d2l`, `desire2learn`, `schoology`, `sakai`, `totara`). Comments are not checked. Token exceptions: the HTML `canvas` element and the Canvas Web API names. | a Node script with the TypeScript compiler API, or ESLint `no-restricted-syntax`; a checked-in per-file ratchet; a check-one-text mode for QA probes | installed in step S2 with today's per-file counts as the ratchet baseline (R3 §2.1: 214 code lines in 60 files); every core count 0 at E1 done (step S9) ([LA-ADR-04 D1](adr/LA-ADR-04-refactor-and-migration.md#decision)) |
+| F1 | LMS-name lint over core code tokens. Banned words: every channel id (from the folder names), the names of every named channel (manifest `names`), and a fixed list: the vendor words (`moodle`, `canvas`, `instructure`, `blackboard`, `brightspace`, `d2l`, `desire2learn`, `schoology`, `sakai`, `totara`) and the planned channel id `lti-generic`, banned before its folder exists (BD-A1-07). Comments are not checked. Token exceptions: the HTML `canvas` element and the Canvas Web API names. | a Node script with the TypeScript compiler API, or ESLint `no-restricted-syntax`; a checked-in per-file ratchet; a check-one-text mode for QA probes | installed in step S2 with today's per-file counts as the ratchet baseline (R3 §2.1: 214 code lines in 60 files); every core count 0 at E1 done (step S9) ([LA-ADR-04 D1](adr/LA-ADR-04-refactor-and-migration.md#decision)) |
 | F2 | Add-channel gate: `git diff --name-status --no-renames` of an add-channel branch against its base; a path in core, a shared build file or another channel folder fails | `npm run fitness:channel-diff -- --base <sha> --channel <id>` | `core` = 0 on the E2-N diff against the E2-K-done SHA ([LA-ADR-02 D8](adr/LA-ADR-02-generic-lti-channel.md#decision)) |
 | F3 | Dependency direction: the import table of [LA-ADR-01 D1](adr/LA-ADR-01-channel-kernel.md#decision) | ESLint `no-restricted-imports` per glob (as the content-host fence) | 0 errors, from step S2 |
 | F4 | Canary channel: a test-only channel folder under `tests/**` that K0 passes to `loadChannelFolders` as a second root (a function argument only, [LA-ADR-01 D4](adr/LA-ADR-01-channel-kernel.md#decision)) | QA K0 | the canary passes K0 with no core edit |
-| F5 | Frozen-data rules N7; channel SQL names only the tables and columns of its manifest `storage` list (LA-ADR-01 D5); A2's rules (no `'/lti/launch/'` literal outside the account resolver; no `DELETE FROM audit_event` outside its job); the SQL portability lint for new SQL. Each rule starts with the step that makes it true ([LA-ADR-04 D1](adr/LA-ADR-04-refactor-and-migration.md#decision); QA Q-LAD-18) | the F1 script family | 0 hits from the start step of each rule |
+| F5 | Frozen-data rules N7; channel SQL names only the tables and columns of its manifest `storage` list (LA-ADR-01 D5); A2's rules (no `'/lti/launch/'` literal outside the account resolver; no `DELETE FROM audit_event` outside its job); the SQL portability lint for new SQL. Each rule starts with the step that makes it true ([LA-ADR-04 D1](adr/LA-ADR-04-refactor-and-migration.md#decision); QA Q-LAD-18) | the F1 script family; one rule module per rule (below) | 0 hits from the start step of each rule |
+
+**F5 rule modules** (build ratification BD-A1-02, [build decisions A1](build-decisions-A1.md)). Each F5 rule is one file `infra/scripts/fitness/rules/<id>.mjs`, written by the task that makes the rule true. The F5 runner of [LA-E1-04](tasks/LA-E1-04.md) finds the rule files by discovery, so a new rule needs no runner edit. The first rule file is `audit-event-delete.mjs` (S1, LA-E5-02); it landed before the runner.
+
+| Item | Rule |
+| --- | --- |
+| Module shape | `export default { id, description, check({ path, text }) }`. `id`: kebab-case, equal to the file name without `.mjs`. `description`: one line, optional. Other named exports are allowed; the runner reads only the default export. |
+| `check` | Synchronous. Input: `path` relative to the repository root, with `/`, and the file text (UTF-8). Output: an array of `{ line, col, message }` (line and column start at 1; the message is one line); `[]` = no hit. The rule selects its own paths (for example product code only) and its own allowed files. It may read repository files (read only), for example a channel manifest. It never writes a file, starts a process or uses the network. |
+| Discovery | Every `*.mjs` file directly in `rules/`, in name order; no subfolders. Only rule modules go in `rules/`. A rule's own test goes outside `rules/` (today `infra/scripts/fitness-audit-event-delete.test.mjs`). |
+| File set | The runner calls `check` once per file and rule, for each text file of `git ls-files --cached --others --exclude-standard -- services packages apps` (tracked files, and untracked files that git does not ignore; a file with a NUL byte is skipped). `--stdin --as <path>` calls every rule once, with that path and the standard input. |
+| Result | One line per hit: `path:line:col  <rule id>  <message>`. Exit 0: no hit. Exit 1: one or more hits. Exit 2: a rule file that does not load, a default export without this shape, two rules with the same `id`, a `check` that throws or does not return an array, or no git work tree; the line is `rule_invalid <file>: <reason>`. The runner never skips a rule silently. |
+| No ratchet | F5 has no baseline file: each rule has 0 hits from its start task. |
 
 ### 4a. Local CI script (F7.6)
 
@@ -126,11 +137,39 @@ There is no CI service in the repo. One script runs the release checks on a clea
 | Item | Design |
 | --- | --- |
 | Command | `npm run ci:local` (script `infra/scripts/ci-local.sh`), from the root of a clean clone |
-| Steps, in order | 1. `npm ci --ignore-scripts` at the root, then in `tests/` (its own lock file). 2. `npm run check` (lint, typecheck, unit and infra tests, the fitness checks F1, F3 and F5). 3. `npm audit --omit=dev --audit-level=high`. 4. `npm sbom --sbom-format cyclonedx --omit dev` into `.tmp/ci/sbom.cdx.json`. 5. A secret scan of every tracked file (`git ls-files`) with a fixed pattern list in the script: private key blocks, `ltis_` API keys, 64-hex master keys, and a non-empty value after a key name of `.env.example`. A reviewed allow list in the script names each known non-secret hit by file, for example the private-key search pattern in `tests/acceptance/M1/common/99-logs.test.ts`; the clean tree must pass with it. |
+| Steps, in order | 1. `npm ci --ignore-scripts` at the root, then in `tests/` (its own lock file). 2. `npm run check` (lint, typecheck, unit and infra tests, the fitness checks F1, F3 and F5). 3. `npm audit --omit=dev --audit-level=high`. 4. `npm sbom --sbom-format cyclonedx --omit dev` into `.tmp/ci/sbom.cdx.json`. 5. A secret scan of every tracked file (`git ls-files`) with a fixed pattern list in the script: private key blocks, `ltis_` API keys, 64-hex master keys, and a non-empty value of a secret key of `.env.example` (row "Step 5 rules"). A reviewed allow list in the script names each known non-secret hit by file, for example the private-key search pattern in `tests/acceptance/M1/common/99-logs.test.ts`; the clean tree must pass with it. |
+| Step 5 rules (build ratification BD-A1-05, [build decisions A1](build-decisions-A1.md)) | (1) Private key blocks and (2) `ltis_` API keys: every tracked file. (3) 64 hex characters: every tracked file except `docs/**`. In `docs/**` such a value is an evidence digest (SHA-256; about 1,130 lines in 63 files at `872521a`), and each review round adds more. (4) Secret keys of `.env.example`: in `.env.example`, every `KEY=` line has an empty value (the file has names only). In every other tracked file, a literal non-empty value assigned to a secret key fails (forms `KEY=v`, `export KEY=v`, `KEY: v`, `"KEY": "v"`). The secret keys are the keys between the line `# --- secrets` and the next `# ---` line of `.env.example`. The script reads them at run time; if it finds no such section, step 5 fails. The public config keys (`COMPOSE_PROJECT_NAME`, `STACK_SUBNET`, `PUBLIC_*`) are not secrets and are not in rule 4. Not a value: `${…}`, `$NAME`, `<…>`, an empty string. Allow list: one entry per known non-secret hit, with the file path, the rule id, the SHA-256 of the matched value and a reason; no line numbers. A hit with no entry fails. An entry with no hit prints a note and does not fail. The output names the file, the line and the rule id, never the value or its hash. |
 | Network | Steps 1 and 3 read the npm registry. No other step uses the network. If the registry cannot be reached, the script prints `network_unavailable` and exits 2. A network failure is never a pass. |
 | Result | Exit 0 only when every step passes; exit 1 when a check fails; exit 2 when the network is unavailable. One output line per step: name, result, seconds. A secret finding names the file and line, never the value. |
 | Acceptance (per step; QA Q-LAD-21) | On a clean clone, steps 1, 2, 4 and 5 pass. Step 3 passes, or fails with the advisory ids in its output line: a step 3 failure is a dependency finding, not a script defect. The fixed negative control: a planted `ltis_` key in a temporary tracked copy of a file makes step 5 fail with exit 1, and the output names that file and line. |
 | Not in LA | A hosted CI service, image signing, digest pins of base images (LG; R4 SC-2). |
+
+### 4b. Simulator host manifest (F7.4)
+
+`tests/sim/hosts.json` is the one list of simulator host names ([LA-ADR-02 D7](adr/LA-ADR-02-generic-lti-channel.md#decision)). QA-E2E writes it ([LA-E7-02](tasks/LA-E7-02.md)). The infra reads it ([LA-E7-03](tasks/LA-E7-03.md), lane S1), and the simulator reads it. Build ratification BD-A1-01 ([build decisions A1](build-decisions-A1.md)). Example entry (today's Canvas cloud provider):
+
+```json
+{ "version": 1,
+  "providers": [
+    { "id": "canvas-sim-cloud",
+      "aliases": ["sso.canvas.sim.test", "school-a.canvas.sim.test", "school-b.canvas.sim.test", "canvas.school-a.sim.test"],
+      "allowlist": ["sso.canvas.sim.test", "school-a.canvas.sim.test", "school-b.canvas.sim.test"] } ] }
+```
+
+| Item | Rule |
+| --- | --- |
+| `version` | The integer `1`. |
+| `providers[].id` | The id of one simulator provider (today `blackboard-sim`, `canvas-sim-cloud`, `canvas-sim-self`): a non-empty string, unique, kebab-case by convention. One entry per provider. A module folder `tests/sim/<folder>/` can make more than one provider. |
+| `providers[].aliases` | Every host name of the provider: a compose network alias of `lms-sim` and a SAN of the `acceptance` leaf certificate. Not empty. |
+| `providers[].allowlist` | The hosts that the LTI service may call in the `acceptance` profile (its `OUTBOUND_PRIVATE_HOST_ALLOWLIST`). A subset of `aliases`; can be empty. A host that is only in `aliases` is a browser host (today `canvas.school-a.sim.test`, the Canvas page host of M3). The app allowlist does not change. |
+| Host names | Lower case, DNS form, ending in `.sim.test`. So the file can never add `lms-sim.test`, a stack host (`moodle.test`, `lti.cogniate.test`, …), `evil.test` or another host that is not a simulator host to an allowlist. |
+| Control alias | `lms-sim.test` (the `/__sim/*` control API) stays fixed in the infra: always an alias and a SAN, never in an allowlist, never in the file. |
+| Bad file (infra) | An unknown `version`, no `providers` array, an empty or duplicate `id`, a missing or empty `aliases`, a missing `allowlist`, a bad host, or an `allowlist` host that is not in its `aliases`. One output line names the file and the bad entry. A bad file gives **no** simulator host: not a part of the list and not the fixed lists. Then the only simulator name is `lms-sim.test` (alias and SAN), with no allowlist entry. A host that is in the file twice is used once. |
+| Where a bad file stops a command (BD-A1-08) | A command that starts or recreates containers in the `acceptance` profile stops with exit 1 and the error line, before any compose call: `stack:up` and `stack:restart` with that profile (also when `qa-suite.sh` calls them). Every other command runs and prints the error line once as a warning: every command of the `default` profile, and `stack:down`, `stack:reset`, `stack:logs`, `stack:doctor` and `stack:data-*` in any profile. `gen-certs.sh` does not issue or change the QA leaf while the file is bad (it warns); the stack leaf does not change. So `lib.sh` never exits on the file when it loads. |
+| Fail closed (simulator) | The simulator refuses to start when a loaded provider has no entry, an entry has no loaded provider, or one host is in two providers (it maps each host to one provider). |
+| No file | Until LA-E7-02 commits the file, the infra uses today's fixed lists (8 allowlisted hosts and `canvas.school-a.sim.test`), so LA-E7-03 can land first. When LA-E7-02 is done, S1 removes the fixed lists in its next commit of `infra/scripts/lib.sh`. From then on, a missing file is a bad file (rows above). |
+| Default profile | No simulator host: no alias override and no allowlist entry. A bad or missing file never stops a `default`-profile command. |
+| Order | Output order is file order, then list order. The order has no meaning. |
 
 ## 5. Module and package layout after LA
 
@@ -321,7 +360,7 @@ One line each. "Decision" links the design decision that the breakdown turns int
 | F7.1 | K0 channel contract suite per port, no Docker | Must | QA strategy §2.2, §2.7 |
 | F7.2 | K1 simulator suites per port | Must | QA strategy §2.4 |
 | F7.3 | Pass rule: N/A only for a false capability whose guard passes | Must | QA strategy §2.6 |
-| F7.4 | Data-driven simulator and one host manifest | Must | QA strategy §2.8; [LA-ADR-02 D7](adr/LA-ADR-02-generic-lti-channel.md#decision) |
+| F7.4 | Data-driven simulator and one host manifest | Must | QA strategy §2.8; [LA-ADR-02 D7](adr/LA-ADR-02-generic-lti-channel.md#decision); §4b |
 | F7.5 | Fitness checks in `npm run check` | Must | §4; QA strategy §3 |
 | F7.6 | Local CI script (install, check, vulnerability scan, SBOM, secret scan) | Must | §4a |
 | F7.7 | K2 cases U1–U4: manifest cards and wizard, one browser DL and score flow per new channel, the platform storage launch. They are the end-to-end proof of F1.9 and F3.1 (Reviewer-B B-LAD-07) | Must | QA strategy §2.4 |
@@ -390,6 +429,7 @@ QA pre-review findings in A1 files (`docs/reviews/LA-DESIGN/qa.md`):
 | [review-response-R1-A1.md](review-response-R1-A1.md) | A1 | G-DESIGN round 1: one row per finding routed to A1 |
 | `review-response-R1-A2.md`, `review-response-R2-A2.md` | A2 | G-DESIGN rounds 1 and 2: one row per finding routed to A2 |
 | [review-response-R2-A1.md](review-response-R2-A1.md), [review-response-R3-A1.md](review-response-R3-A1.md) | A1 | G-DESIGN rounds 2 and 3: one row per finding routed to A1 |
+| [build-decisions-A1.md](build-decisions-A1.md) | A1 | P4: ratified or changed Lead design calls of the build (BD-A1-nn) |
 | [epics.md](epics.md) | A1 | P3: epic → feature → task, task DAG, waves, file-ownership matrix, Docker needs, sizes, critical path, open ownership items |
 | [tasks/README.md](tasks/README.md) | A1 | P3: spec rules, QA rules and allowances (OC-7), request rules, test knobs |
 | `tasks/LA-*.md`, [tasks/A2-lanes.md](tasks/A2-lanes.md) | A1 (E0, E1, E2, E4, E7, E8), A2 (E3, E5, E6) | P3 task specs |

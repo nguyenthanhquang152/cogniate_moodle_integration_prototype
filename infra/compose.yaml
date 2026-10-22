@@ -131,7 +131,7 @@ services:
       STACK_PROFILE: ${ACTIVE_STACK_PROFILE:-default}   # set by infra/scripts/lib.sh from the saved profile
       # Hosts that may resolve to private addresses (security §9). The acceptance profile adds ",qa-platform.test,evil.test"
       # (ACCEPTANCE_ALLOWLIST_EXTRA, set by infra/scripts/lib.sh from the saved stack profile).
-      # M1, acceptance only: the simulator hosts that the LTI service calls (M3 §3.1).
+      # Acceptance only: lib.sh reads the simulator allowlist from tests/sim/hosts.json (LA-E7-03).
       OUTBOUND_PRIVATE_HOST_ALLOWLIST: ${MOODLE_HOST:-moodle.test}${ACCEPTANCE_ALLOWLIST_EXTRA:-}${ACCEPTANCE_LTI_ALLOWLIST_EXTRA:-}
       # M1 (LTI contract §9.13): the simulation profiles are on only with STACK_PROFILE=acceptance AND this value "on".
       LTI_PROVIDER_SIMULATION: ${ACCEPTANCE_LTI_SIMULATION:-}
@@ -303,18 +303,8 @@ services:
       - ./.certs/root.crt:/certs/root.crt:ro
       - ./.logs:/logs
     networks:
-      default:
-        aliases:
-          - lms-sim.test
-          - developer.blackboard.sim.test
-          - learn-a.blackboard.sim.test
-          - learn-b.blackboard.sim.test
-          - sso.canvas.sim.test
-          - school-a.canvas.sim.test
-          - school-b.canvas.sim.test
-          - canvas.school-a.sim.test
-          - canvas-self.sim.test
-          - api.canvas-self.sim.test
+      # lib.sh adds the manifest aliases with .tmp/compose.sim-hosts.yaml in acceptance only (LA-E7-03).
+      default: {}
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz"]
       interval: 10s

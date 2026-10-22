@@ -3,8 +3,7 @@
 // Prints one JSON line: {account, created, kid, apiKey}. apiKey is set only when the key was made or rotated
 // (it is shown once; only its hash is stored). Use infra/scripts/lti-bootstrap.sh (npm run lti:bootstrap) from the
 // host: it writes infra/.secrets/lti-api-key.<account> (mode 600).
-import { join, resolve } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { parseArgs } from 'node:util';
 import { loadConfig } from '../config.ts';
 import { openDb } from '../db/index.ts';
@@ -32,7 +31,7 @@ export async function runBootstrap(input: BootstrapInput): Promise<BootstrapResu
   }
 }
 
-if (process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (import.meta.main) {
   const { values } = parseArgs({
     options: {
       account: { type: 'string' }, name: { type: 'string' },
