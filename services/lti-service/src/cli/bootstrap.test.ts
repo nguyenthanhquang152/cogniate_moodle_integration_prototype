@@ -7,7 +7,8 @@ import { join } from 'node:path';
 import { blobKeyVersion } from '@cogniate/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { openDb } from '../db/index.ts';
-import { findAccountByApiKey, getAccount, updateAccount } from '../store/accounts.ts';
+import { getAccount, updateAccount } from '../store/accounts.ts';
+import { useApiKey } from '../store/api-keys.ts';
 import { runBootstrap } from './bootstrap.ts';
 
 // Fixture keys (test values, not secrets).
@@ -52,14 +53,14 @@ describe('runBootstrap (cli/bootstrap.ts)', () => {
     expect(await runBootstrap(input)).toMatchObject({ created: false, apiKey: null, kid: first.kid });
     db = openDb(join(dir, 'lti.db'));
     expect(getAccount(db, account)).toMatchObject(edited);
-    expect(findAccountByApiKey(db, first.apiKey!)?.id).toBe(account);
+    expect(useApiKey(db, first.apiKey!, Date.now())?.toolAccountId).toBe(account);
     db.close();
     const rotated = await runBootstrap({ ...input, name: 'New name', rotateApiKey: true });
     db = openDb(join(dir, 'lti.db'));
     try {
       expect(getAccount(db, account)).toMatchObject({ ...edited, name: 'New name' });
-      expect(findAccountByApiKey(db, first.apiKey!)).toBeNull();
-      expect(findAccountByApiKey(db, rotated.apiKey!)?.id).toBe(account);
+      expect(useApiKey(db, first.apiKey!, Date.now())).toBeNull();
+      expect(useApiKey(db, rotated.apiKey!, Date.now())?.toolAccountId).toBe(account);
     } finally { db.close(); }
   });
 

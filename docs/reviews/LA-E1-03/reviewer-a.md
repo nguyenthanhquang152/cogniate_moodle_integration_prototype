@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E1-03 review, lens A ("Is it right and is it safe?")
 
@@ -87,3 +87,31 @@ The two LA-E1-02 fixes are correct, and their tests kill the mutants (see "Check
 | Must not edit | `apps/portal/vite.config.ts`, `apps/portal/src/styles.css`, `apps/portal/src/sdk/**` and `infra/scripts/fitness/**` are not touched. The only product source change is `packages/channel-kernel/src/registry.ts`, which is the dispatched B-02 fix. |
 | Ownership | Lane K owns all 8 files (epics §5: the root build files row, the channel tsconfig row, the `packages/channel-kernel/**` row, and the K app kernel). |
 | No LMS name in core | None added in `eslint.config.js`, `vitest.config.ts`, `package.json` or the tsconfigs. The "Moodle" values are in test files, which F1 does not check. The fence reads its globs from `packages/channel-kernel/fitness-scope.json` (one source with F1). |
+
+## Round 2
+
+- Reviewer: Reviewer-A (the same role as round 1; this session continues it). Diff: `git diff b3af690^1 b3af690` (lane `la-k` fix commits `a62d912`, `d5749d7`, `1adeafb`, `5263cf6`; merged as `b3af690`). The fence files at `HEAD` are the same as at `b3af690`.
+- References: my round-1 findings above; A1 BD-A1-16 and BD-A1-18; A2 BD-A2-11; LA-ADR-01 D1; README §4 F3; security-delta §1 and §8.
+- Method, on the integration worktree, read-only:
+  - `eslint --stdin --stdin-filename <path>` probes (the round-1 probes plus bypass tries).
+  - `vitest run eslint.config.test.ts packages/shared/src/channel.test.ts services/cogniate-app/src/kernel/registry.test.ts`: 501 tests pass.
+  - No Docker.
+- **Verdict (round 2): APPROVE.** All five round-1 findings are closed. New: **0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT.**
+
+### Round-1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E1-03-01 (BLOCKER) | closed | BD-A1-16 (1): any runtime dynamic loading in a channel file is reported, whatever the specifier (`eslint.config.js:116-119`, `:130`, `:138-148`). That covers `import()`, `require()`, `import x = require()` and `createRequire` (also an aliased import or a member call). The four round-1 probes (`app/`, `app.ts`, `manifest.ts` and `portal/` with `import('…')`) now each give `channels/local-boundary:dynamic`. A template literal with no `${…}` is read as a string, so the core probe ``import(`../../../packages/channels/moodle/app.ts`)`` now gives `core`. Type-position `import('…')` follows the file's row. |
+| A-LA-E1-03-02 (MAJOR) | closed | BD-A1-16 (2): file kinds are a closed list. A file that is not `manifest.ts`, `lti-profiles.ts`, `app.ts`, `app/**`, `portal/**`, a colocated test or `README.md` gets `kind` at `Program` (`:121`). The file block (`:186`) also covers extensionless and non-code files, and parses an unknown kind as empty text, so it cannot hide an import. The base fence (no service, app or portal package) is merged into every kind's `no-restricted-imports` options. Round-1 probes: `helpers.ts` gives `kind`; `app/zz.ts` re-exporting `../helpers.ts` gives `boundary`; `util/a.ts` importing the LTI store gives `kind`. |
+| A-LA-E1-03-03 (MINOR) | closed | BD-A1-16 (3): `app.ts` may import its own `manifest.ts` and `app/**` (`:105`). The probe with both imports gives 0 messages. |
+| A-LA-E1-03-04 (MINOR, A2) | closed | BD-A2-11 and BD-A1-18: channel server code takes values only from `@cogniate/shared/channel` (`packages/shared/src/channel.ts`: 23 re-exported pure helpers, pinned by `channel.test.ts`). From the root `@cogniate/shared`, `import type` is allowed, but a value import, a namespace import or `export *` is refused (probe: `import { openSqlite } from '@cogniate/shared'` is an error, and `randomId` from `/channel` passes). `fetch`, `WebSocket` and `process`, also through `globalThis`, are refused in `app.ts` and `app/**` (`:229-232`). |
+| A-LA-E1-03-05 (MINOR) | closed | `packages/channels/tsconfig.node.json` includes `*/*.ts` and `*/app/**/*`, so a channel-root test and a root helper are typechecked (BD-A1-16 (4)). |
+
+### New finding
+
+- **A-LA-E1-03-06 (NIT): string-built code still gets past the dynamic-loading rule.**
+  - Where: the channel blocks of `eslint.config.js` (no `no-new-func`, `no-eval` or `no-implied-eval`).
+  - Evidence: `export const f = new Function('return import("@cogniate/cogniate-app/src/domain/db.ts")');` in `packages/channels/moodle/app/zz.ts` gives 0 messages.
+  - Problem: BD-A2-11 says that the fence is a guardrail, not a sandbox, and this form is deliberate evasion, not an accident. But the three core rules cost nothing and close the last plain-text path.
+  - Suggested fix: enable `no-eval`, `no-implied-eval` and `no-new-func` (`error`) for `packages/channels/*/**`, and add the probe above to `eslint.config.test.ts`.

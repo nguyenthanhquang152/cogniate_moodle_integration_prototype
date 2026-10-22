@@ -47,7 +47,7 @@ New account fields (operator API only; never in `/api/*` answers except `GET /ap
 | `launchUrl`, `deepLinkingUrl`, `registrationUrl` | https URL | from `PUBLIC_APP_URL` (`cogniate`, unchanged) | https; no user info; no fragment; ≤ 2,048 characters; host not the `PUBLIC_LTI_URL` or `PUBLIC_CONTENT_URL` host |
 | `publicBaseUrl` | https origin or `null` | `null` (path mode) | Reserved for host mode (LG). LA refuses a non-null value with `400 INVALID_REQUEST` (field `publicBaseUrl`). |
 | `limits` | object or `null` | `null` | per-class `{ ratePerMinute, burst }`, classes of §1.4 |
-| `claimPolicy` | object or `null` | `null` = `passthrough` for old accounts; `allowlist` for new accounts | LA-ADR-05 D7 |
+| `claimPolicy` | object or `null` | `null` = `passthrough`, only on accounts from before the column (a stored legacy marker, never an input: `null` in `POST` or `PATCH` gives `400 INVALID_REQUEST`, BD-A2-26); new accounts default to `allowlist` with every `keep` off | LA-ADR-05 D7 |
 | `serviceKeyWriteScope` | `context` \| `resource-link` | `context` | Should, C15 |
 
 Protocol URLs come from one account resolver: in path mode `{PUBLIC_LTI_URL}/lti/{login|launch|keys|register}/{accountId}` (today's values).
@@ -71,7 +71,7 @@ Same body `{ status, error, details: { message, description } }`. Where marked, 
 
 | HTTP | `details.message` | When | Priority |
 | --- | --- | --- | --- |
-| 429 | `RATE_LIMITED` | A hard rate-limit bucket is empty (§1.4). Header `Retry-After` and `details.retryAfter` (the same whole seconds, 1–3,600; §1.6 rule). | Must |
+| 429 | `RATE_LIMITED` | A hard rate-limit bucket is empty (§1.4). Header `Retry-After` and `details.retryAfter` (the same whole seconds, 1–3,600; §1.6 rule). `details.limit` (BD-A2-30): `{ class, ratePerMinute, burst }` for the authenticated classes `api`, `admin`, `operator` (the caller's own budget); `{ class }` only for the address classes `protocol`, `registration`, `keys`, `auth_failure`. Never an address, a key, a key id or an account. | Must |
 | 429 | `PLATFORM_RATE_LIMITED` | The platform answered `429`, or `403` with a body that contains `Rate Limit Exceeded` (Canvas throttling, R4 B-3). Header `Retry-After` and `details.retryAfter` (seconds; §1.6 rule): the platform's `Retry-After` (seconds or HTTP date), clamped to 1–3,600; 60 when absent or not readable. `description` is a fixed text ("The platform asked us to wait before another request."); no platform body, header or status text goes into the answer. Before LA this was `502 PLATFORM_ERROR`. | Must |
 | 403 | `TOOL_ACCOUNT_SUSPENDED` | The account of the API key is `suspended` (checked after authentication) | Must |
 | 403 | `API_KEY_SCOPE_MISSING` | §1.2 | Must |
@@ -108,7 +108,7 @@ New protocol page codes (security §2.1, §2.2 page rules: code, trace id, one a
 | `auth_failure` | a `401` because the API key or operator key fails: every `401` before the key is proven valid (missing, malformed, a scheme the route does not accept, unknown, expired, revoked, a closed account's key). An ltik or service key `401` under a valid API key spends no bucket. | client address |
 | `operator` | `/operator/v1/*` | operator key id |
 
-Default limits: [LA-ADR-06 D1](../adr/LA-ADR-06-service-operability.md#d1-rate-limits-must). An operator changes them per account (`PATCH /operator/v1/accounts/:id {limits}`) or globally for every class (`PATCH /operator/v1/rate-limits`, §3). `/healthz`, `/readyz`, `/metrics` are never limited. The client address uses `X-Forwarded-For` only from `TRUSTED_PROXY_CIDRS`.
+Default limits: [LA-ADR-06 D1](../adr/LA-ADR-06-service-operability.md#d1-rate-limits-must). An operator changes them per account (`PATCH /operator/v1/accounts/:id {limits}`) or globally for every class (`PATCH /operator/v1/rate-limits`, §3). `/healthz`, `/readyz`, `/metrics` are never limited. The client address uses `X-Forwarded-For` only from `TRUSTED_PROXY_CIDRS`. A JSON `429 RATE_LIMITED` names its class in `details.limit` (§1.3), so a caller can tell the address-wide `auth_failure` limit from its own `api` budget.
 
 ### 1.5 Account status (new)
 
@@ -358,7 +358,7 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `POST /api/registrations/:id/complete` | `registration.complete` | `registration` |
 | `POST /api/service-keys/revoke` (Should) | `service_key.revoke` | `platform` |
 | `POST /api/platforms/:id/check` (Could) | `platform.check` | `platform` |
-| `POST`, `PATCH /operator/v1/accounts[/:id]` | `account.create`, `account.update` (`account.status` when `status` changes) | `account` |
+| `POST`, `PATCH /operator/v1/accounts[/:id]` | `account.create`, `account.update` (`account.status` when `status` really changes, decided inside the change transaction; a refused `PATCH` is `account.update` with the request fields in `details`; BD-A2-29) | `account` |
 | `POST …/api-keys`, `…/revoke` | `api_key.issue`, `api_key.revoke` | `api_key` |
 | `POST …/signing-keys`, `…/activate`, `…/retire` | `signing_key.create`, `signing_key.activate` (`details.forced`), `signing_key.retire` | `signing_key` |
 | `POST …/shared-platforms` | `platform.create_shared` | `platform` |
@@ -373,7 +373,8 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 
 | Event | Level | Fields | When |
 | --- | --- | --- | --- |
-| `rate_limited` | warn | `class`, `key_kind`, `tool_account_id`?, `client_ip`? (address classes only), `retry_after_s` | at most once per bucket per minute |
+| `rate_limited` | warn | `class`, `key_kind` (`address`, `api_key`, `operator_key`), `key_id`? (API key id or operator key id, never the key), `tool_account_id`?, `client_ip`? (address classes only), `retry_after_s`, `trace_id` (the request that first hit the limit in that minute) | at most once per bucket per minute |
+| `trusted_proxy_unresolved` | warn | `host` | a `TRUSTED_PROXY_CIDRS` host name does not resolve at a refresh (trust for it drops at once); at most once per failing host per refresh (BD-A2-30, B-LA-E5-03-04) |
 | `rate_limit_soft` | warn | `class`, `tool_account_id` | a soft class above its rate; at most once per minute |
 | `platform_rate_limited` | warn | `platform_id`, `status`, `retry_after_s` | a platform `429` or throttling `403` |
 | `account_status_changed` | info | `tool_account_id`, `status` | operator change |

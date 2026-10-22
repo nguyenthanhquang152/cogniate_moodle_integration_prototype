@@ -1,9 +1,9 @@
-// Tool accounts and their API keys (contract §7, §8 D2). Signing keys: tool-keys.ts.
+// Tool accounts and the bootstrap bridge (contract §7, §8 D2). API keys: api-keys.ts; signing keys: tool-keys.ts.
 import type { Db } from '../db/index.ts';
 import { transaction } from '../db/index.ts';
 import { createHash, randomBytes } from 'node:crypto';
 import { ApiError } from '../api-errors.ts';
-import { findActiveApiKey, issueApiKey, revokeAccountApiKeys, revokeActiveAccountApiKeys } from './api-keys.ts';
+import { issueApiKey, revokeAccountApiKeys, revokeActiveAccountApiKeys } from './api-keys.ts';
 
 export interface ToolAccount {
   id: string;
@@ -103,12 +103,6 @@ export function requireWritableAccount(db: Db, id: string): ToolAccount {
   if (!account) throw new ApiError('NOT_FOUND', 'Unknown tool account.');
   if (account.status === 'closed') throw new ApiError('ACCOUNT_CLOSED');
   return account;
-}
-
-/** The API key resolves to exactly one tool account (only its SHA-256 hash is stored). */
-export function findAccountByApiKey(db: Db, apiKey: string, now = Date.now()): ToolAccount | null {
-  const key = findActiveApiKey(db, apiKey, now);
-  return key ? getAccount(db, key.toolAccountId) : null;
 }
 
 export interface EnsureAccountInput {

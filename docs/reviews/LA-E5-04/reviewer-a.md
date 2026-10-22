@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E5-04 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -69,3 +69,25 @@ Round: 1
   - API key issue (LA-E5-07) gives `409 ACCOUNT_CLOSED`.
   - Each refusal writes one `refused` event with that code.
   - Retire immediate of the `next` key still gives `200`, because it only removes access.
+
+## Round 2
+
+- Diff: `git diff 411689e^1 411689e` (lane `la-s1`: `dd0e95a`, `943c3ad`, `1b27923`, `3e5789b`, `0df1cc2`). These files at `HEAD` are the same as at `411689e`.
+- References: my round-1 findings and my note after the LA-E5-07 merge (A-LA-E5-04-01 closed there); A2 BD-A2-25, BD-A2-26 and BD-A2-29; LA-ADR-06 D4 T1 and contract delta §5.
+- I ran 7 vitest files on the host: 182 tests pass (`cli/**`, `operator/accounts`, `store/audit`, `store/accounts`).
+- Blind review as before.
+- **Verdict (round 2): APPROVE.** The BLOCKER was closed in the post-merge note, and the MINOR and the NIT are closed now. New: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+### Round-1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E5-04-01 (BLOCKER) | closed earlier | See "Note after LA-E5-07 merge" above (`98e40a2`; probe on `4d692e1`). |
+| A-LA-E5-04-02 (MINOR) | closed | BD-A2-25: for an existing account, `ensureAccount` now updates only the name (`store/accounts.ts:138`). The three tool URLs stay as stored, and `PUBLIC_APP_URL` defaults are used only for a new account. `runBootstrap` passes `--name` when given, else the stored name, else the id, so a repeat seed no longer overwrites an operator's name either. Test: repeat bootstrap of `cogniate`, `qa-second` and a third account, also with key rotation, keeps operator-set URLs and an omitted name. A closed account is still refused by `requireWritableAccount`. |
+| A-LA-E5-04-03 (NIT) | closed | BD-A2-29: the `PATCH` frame always starts with the base action `account.update`. Inside `audit.change`, the route reads the current account (`requireWritableAccount`, `http/operator/accounts.ts:86`) and the store updates it. `describe` then returns `account.status` only for a real transition (`:90`), and `withAudit` uses `extra.action ?? base.action` in the same transaction (`store/audit.ts`). So two concurrent `PATCH` calls can no longer record a status change that did not happen (test "chooses the PATCH audit action from the state locked by its change transaction"). A refused `PATCH` keeps `account.update` and lists the request's field names in `details`, so a refused close stays searchable (test). The only actions described are the two contract delta §5 actions of the route. |
+
+### Other changes (checked)
+
+- BD-A2-26: `claimPolicy: null` on `POST` and `PATCH` now gives `400 INVALID_REQUEST` (field `claimPolicy`). `POST` without the field stores the private default (`allowlist`, every `keep` off), and a stored legacy `null` stays readable. So the least private mode needs the word `passthrough`, which closes a silent path to wider claims.
+- `400` answers on the account routes now add `details.field` and a fixed rule text. The texts hold no request value.
+- An account create now logs `signing_key_changed {status: "active"}` for its first key, with the public kid only.

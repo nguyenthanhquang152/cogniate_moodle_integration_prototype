@@ -1,5 +1,6 @@
 // The `standard` profile: today's Moodle rules (security §2.4). Admin values for the issuer and the endpoints; the
 // issuer must not be a reserved provider issuer (LTI contract §9.1).
+import type { ProfileSource } from '@cogniate/channel-kernel';
 
 const profiles = [
   {
@@ -9,6 +10,6 @@ const profiles = [
     flags: { deepLinkingResponseSub: false, clientAssertionAudArray: false, serviceOriginCheck: false },
     sources: ['security §2.4'],
   },
-] as const;
+] as const satisfies readonly ProfileSource[];
 
 export default profiles;

@@ -6,3 +6,4 @@ export * from './legacy-wire.ts';
 export * from './manifest.ts';
 export * from './registry.ts';
 export * from './text.ts';
+export type { ProfileFlags, ProfileSharing, ProfileSource, SiteUrlOn } from './profiles.ts';

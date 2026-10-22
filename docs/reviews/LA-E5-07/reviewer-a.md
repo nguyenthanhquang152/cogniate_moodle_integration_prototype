@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-07 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -42,3 +42,25 @@ Round: 1
 
 - `last_used_at` also moves when a valid key is then refused for scope or `suspended` status. That is still a real use of the key, so the rotation check ("`last_used_at` of the old key stops moving") stays right.
 - The K1-SIM ACs (AC-01 to AC-05, AC-07, AC-08, AC-11, AC-12) wait for QA-2's Docker window. The unit tests above cover their logic.
+
+## Round 2
+
+- Diff: `git diff 1a8f031^1 1a8f031` (lane `la-s2`: `757db94`, `3de96f8`, `1e95558`). These files at `HEAD` are the same as at `1a8f031`.
+- References: my round-1 findings above.
+- I ran on the host:
+  - 6 vitest files, 39 tests pass (`operator/api-keys`, `store/api-keys`, `api-key-auth`, `auth`, `store/accounts`, `operator/signing-keys`).
+  - My round-1 typo probe again, in-memory, outside the repo.
+- Blind review as before.
+- **Verdict (round 2): APPROVE.** Both round-1 findings are closed. New: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+### Round-1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E5-07-01 (MINOR) | closed | `IssueBody` is now `.strict()` (`http/operator/api-keys.ts`). An unknown field gives `400 INVALID_REQUEST` with `Unknown field: <name>` and `details.field`. Probe: the issue body with the mistyped `expiresat` now gives `400` naming `expiresat`, no key is issued (count 1 before and after), and one `refused` `api_key.issue` event with `INVALID_REQUEST` exists. So a typo can no longer turn a short-lived key into one that never expires. A new test covers it. |
+| A-LA-E5-07-02 (NIT) | closed | `findAccountByApiKey` is removed from `store/accounts.ts`. The one lookup is now `useApiKey` (the old `findActiveApiKey` renamed, because it also records `last_used_at`). `authenticate` is its only product caller, so every way from a key to an account goes through the scope, `suspended` and `closed` checks. `git grep` finds neither old name in `services/` or `packages/`. |
+
+### Other changes (checked)
+
+- The `api_key_issued`, `api_key_revoked` and `signing_key_changed` log lines now carry `trace_id`, which links them to the audit event. They still hold ids only, never a key.
+- The `API_KEY_LIMIT` text now says what to do ("Revoke one before issuing another."). The code and status are unchanged.

@@ -56,6 +56,7 @@ const manifest = {
     ],
   },
   texts: {
+    registered: 'Registered — activate in {LMS}',
     // The Dynamic Registration steps of the portal (apps/portal/src/connect/moodle-steps.json, Moodle 5.2.4).
     adminSteps: [
       'In {LMS}, open Manage tools.',

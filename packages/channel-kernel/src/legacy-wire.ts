@@ -27,6 +27,9 @@ export const BASELINE_PROFILE_WIRE_LMS: Readonly<Record<string, string | null>> 
   'blackboard-sim': 'blackboard',
 });
 
+/** Load check 7 (BD-A2-21): only these profiles may keep every claim. New entries need an ADR and security review. */
+export const PRIVACY_FLOOR_NONE_PROFILES: readonly string[] = Object.freeze(['standard']);
+
 /** The setup artifact behind the legacy flag `canvasConfiguration` (`setup.artifacts`, D3). */
 export const DEVELOPER_KEY_JSON_ARTIFACT = 'developer-key-json';
 
@@ -56,4 +59,15 @@ export function legacyProjection(set: CapabilitySet): LegacyCapabilities {
 export function connectionBehaviourClass(channel: string, authority: 'self' | 'operatorGrant', sharing: 'exclusive' | 'shared'): 'moodle' | 'canvas' | 'blackboard' {
   if (channel === 'moodle' || channel === 'canvas' || channel === 'blackboard') return channel;
   return authority === 'self' ? 'moodle' : sharing === 'shared' ? 'blackboard' : 'canvas';
+}
+
+/** Frozen grade conflict text (BD-A1-27); per-channel copy moves in LA-IC-15. */
+export const LEGACY_GRADE_CONFLICT = '(Moodle has a grade with a newer time)';
+
+/** Frozen learner label fallback (BD-A1-27); per-channel copy moves in LA-IC-15. */
+export const LEGACY_LEARNER_HOST = 'Moodle';
+
+/** Frozen clean-up text of MOODLE_TOOL_MAY_EXIST (LA-ADR-01 D12, BD-A1-30). Keep its UI words byte for byte. */
+export function pendingToolText(toolName: string): string {
+  return `Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool '${toolName}', then connect again.`;
 }

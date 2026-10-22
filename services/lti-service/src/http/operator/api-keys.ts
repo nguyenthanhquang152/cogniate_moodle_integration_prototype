@@ -12,7 +12,7 @@ const IssueBody = z.object({
   label: z.string().min(1).max(128),
   scopes: z.array(z.enum(['launch', 'admin'])).min(1).max(2),
   expiresAt: z.iso.datetime({ offset: true }).optional(),
-});
+}).strict();
 const iso = (ms: number | null): string | null => ms === null ? null : new Date(ms).toISOString();
 const toApi = (key: ApiKeyRecord) => ({
   id: key.id, prefix: key.prefix, label: key.label, scopes: key.scopes, createdAt: iso(key.createdAt), createdBy: key.createdBy,
@@ -26,9 +26,14 @@ export function registerApiKeyRoutes(app: FastifyInstance, ctx: OperatorContext)
   app.post<{ Params: { id: string } }>(base, async (req, reply) => ctx.audited(req, {
     action: 'api_key.issue', toolAccountId: req.params.id, target: { type: 'api_key', id: null },
   }, (audit) => {
+    // Refuse before audit.change (D4 T3); repeat the checks in its transaction against concurrent changes.
     requireWritableAccount(ctx.db, req.params.id);
     const parsed = IssueBody.safeParse(req.body);
-    if (!parsed.success) throw invalid(parsed.error);
+    if (!parsed.success) {
+      const field = parsed.error.issues.find((issue) => issue.code === 'unrecognized_keys')?.keys[0];
+      if (field !== undefined) throw new ApiError('INVALID_REQUEST', `Unknown field: ${field}.`, { details: { field } });
+      throw invalid(parsed.error);
+    }
     const now = ctx.now();
     const input = { label: parsed.data.label, scopes: parsed.data.scopes, createdBy: `operator:${ctx.operator(req).operator}`,
       expiresAt: parsed.data.expiresAt === undefined ? null : Date.parse(parsed.data.expiresAt) };
@@ -39,7 +44,7 @@ export function registerApiKeyRoutes(app: FastifyInstance, ctx: OperatorContext)
       return issueApiKey(ctx.db, req.params.id, input, now);
     },
       (issued) => ({ target: { type: 'api_key', id: issued.record.id }, details: { label: issued.record.label, scopes: issued.record.scopes, expiresAt: iso(issued.record.expiresAt) } }));
-    ctx.logger.info('api_key_issued', { tool_account_id: req.params.id, api_key_id: record.id });
+    ctx.logger.info('api_key_issued', { tool_account_id: req.params.id, api_key_id: record.id, trace_id: req.traceId });
     return reply.code(201).send({ id: record.id, apiKey, prefix: record.prefix, label: record.label, scopes: record.scopes, expiresAt: iso(record.expiresAt) });
   }));
 
@@ -49,7 +54,7 @@ export function registerApiKeyRoutes(app: FastifyInstance, ctx: OperatorContext)
     requireApiKeyAccount(ctx.db, req.params.id);
     if (!getApiKey(ctx.db, req.params.id, req.params.keyId)) throw new ApiError('NOT_FOUND', 'Unknown API key.');
     const key = audit.change(() => revokeApiKey(ctx.db, req.params.id, req.params.keyId, ctx.now())!);
-    ctx.logger.info('api_key_revoked', { tool_account_id: req.params.id, api_key_id: key.id });
+    ctx.logger.info('api_key_revoked', { tool_account_id: req.params.id, api_key_id: key.id, trace_id: req.traceId });
     return toApi(key);
   }));
 }

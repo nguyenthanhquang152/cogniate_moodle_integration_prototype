@@ -7,7 +7,7 @@ import { applyMigrations, openSqlite } from '@cogniate/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDb } from '../db/index.ts';
 import { ensureAccount } from '../store/accounts.ts';
-import { listSigningKeys, publicJwks } from '../store/tool-keys.ts';
+import { RETIRED_KEEP_MS, listSigningKeys, publicJwks } from '../store/tool-keys.ts';
 import { capturingLogger } from '../testkit.ts';
 import { signingKeyCleanupJob } from './signing-key-cleanup.ts';
 
@@ -33,7 +33,7 @@ describe('signing-key-cleanup', () => {
     ensureAccount(db, { id: 'cogniate', name: 'Cogniate', appUrl: 'https://app.test' });
     const insert = db.prepare(`INSERT INTO tool_key (kid, tool_account_id, public_jwk, private_jwk_encrypted,
       status, created_at, published_at, activated_at, retired_at) VALUES (?, 'cogniate', ?, ?, ?, ?, ?, ?, ?)`);
-    for (const [kid, status, retiredAt] of [['expired', 'retired', T0 - 30 * DAY], ['young', 'retired', T0 - 29 * DAY], ['active', 'active', null], ['next', 'next', null]] as const) {
+    for (const [kid, status, retiredAt] of [['expired', 'retired', T0 - RETIRED_KEEP_MS], ['young', 'retired', T0 - 29 * DAY], ['active', 'active', null], ['next', 'next', null]] as const) {
       insert.run(kid, JSON.stringify(pub(kid)), Buffer.from('sealed-fixture'), status, T0 - 60 * DAY, T0 - 60 * DAY,
         status === 'next' ? null : T0 - 60 * DAY, retiredAt);
     }
@@ -41,14 +41,14 @@ describe('signing-key-cleanup', () => {
     const job = signingKeyCleanupJob(db);
     expect([job.name, job.runAtStart, job.everyMs]).toEqual(['signing-key-cleanup', true, DAY]);
     expect(await job.run(context(T0))).toEqual({ result: 'ok', counts: { removed: 1, cleared: 1 } });
-    expect(db.prepare('SELECT status, removed_at, length(private_jwk_encrypted) AS bytes, public_jwk FROM tool_key WHERE kid = ?').get('expired'))
-      .toEqual({ status: 'removed', removed_at: T0, bytes: 0, public_jwk: JSON.stringify(pub('expired')) });
+    expect(db.prepare('SELECT status, removed_at, length(private_jwk_encrypted) AS bytes, typeof(private_jwk_encrypted) AS type, public_jwk FROM tool_key WHERE kid = ?').get('expired'))
+      .toEqual({ status: 'removed', removed_at: T0, bytes: 0, type: 'blob', public_jwk: JSON.stringify(pub('expired')) });
     expect(db.prepare('SELECT * FROM tool_key WHERE kid != ? ORDER BY kid').all('expired')).toEqual(before);
     expect(await job.run(context(T0 + 1000))).toEqual({ result: 'ok', counts: { removed: 0, cleared: 0 } });
     expect(listSigningKeys(db, 'cogniate').find((key) => key.kid === 'expired')?.removedAt).toBe(T0);
   });
 
-  it('AC-LA-E5-10-10/12: migration keeps the old public set; first cleanup clears migrated removed blobs', async () => {
+  it('AC-LA-E5-10-10/12: migration 009 keeps the public set, and the first cleanup clears migrated blobs', async () => {
     const root = temp(); const oldMigrations = join(root, 'migrations'); mkdirSync(oldMigrations);
     for (const file of readdirSync(MIGRATIONS).filter((name) => name.endsWith('.sql') && name < '009')) {
       copyFileSync(join(MIGRATIONS, file), join(oldMigrations, file));
@@ -62,7 +62,7 @@ describe('signing-key-cleanup', () => {
       insert.run(kid, JSON.stringify(pub(kid)), Buffer.from('sealed-fixture'), status, T0 - age * DAY);
     }
     const before = db.prepare(`SELECT public_jwk FROM tool_key WHERE tool_account_id = 'cogniate'
-      AND (status = 'active' OR created_at > ?) ORDER BY status = 'active' DESC, created_at DESC`).all(T0 - 30 * DAY)
+      AND (status = 'active' OR created_at > ?) ORDER BY status = 'active' DESC, created_at DESC`).all(T0 - RETIRED_KEEP_MS)
       .map((row) => JSON.parse(String(row.public_jwk)));
     // Only the SQL clock is replaced. The real migration runner applies and checksums the SQL file.
     db.function('unixepoch', { varargs: true }, () => T0 / 1000);
@@ -76,8 +76,8 @@ describe('signing-key-cleanup', () => {
       expect(db.prepare('SELECT length(private_jwk_encrypted) AS bytes FROM tool_key WHERE kid = ?').get(kid)?.bytes).toBeGreaterThan(0);
     }
     expect(await signingKeyCleanupJob(db).run(context(T0 + 1))).toEqual({ result: 'ok', counts: { removed: 0, cleared: 2 } });
-    expect(db.prepare("SELECT length(private_jwk_encrypted) AS bytes, removed_at FROM tool_key WHERE status = 'removed'").all())
-      .toEqual([{ bytes: 0, removed_at: T0 }, { bytes: 0, removed_at: T0 }]);
+    expect(db.prepare("SELECT length(private_jwk_encrypted) AS bytes, typeof(private_jwk_encrypted) AS type, removed_at FROM tool_key WHERE status = 'removed'").all())
+      .toEqual([{ bytes: 0, type: 'blob', removed_at: T0 }, { bytes: 0, type: 'blob', removed_at: T0 }]);
     expect(publicJwks(db, 'cogniate', T0 + 1)).toEqual(before);
   });
 });

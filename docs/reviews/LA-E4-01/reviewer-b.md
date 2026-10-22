@@ -1,7 +1,41 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E4-01 review, Reviewer-B (lens: "Can a human team own it?")
+
+## Round 2 (Reviewer-B2)
+
+Reviewer: Reviewer-B2, the second lens-B instance (plan LD-22), on Reviewer-B's file. This is a bounded check of my lens's round-1 findings. Diff: `git diff 1b17ccb 93194ec` on lane `la-r` (commits `4740b26` item cooling, `3f29f80` instance id and lease limits, `93194ec` states table, skip reasons, fixture delay, boundary cases, subpath export; merged as `06efe56`). I did not open the other reviewer's file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT.** Every round-1 finding is **closed**.
+
+How I checked: a scratch clone of `93194ec` in a private `/tmp` folder. `vitest run packages/shared/src/jobs.test.ts` gives **24 of 24 passed**. I ran the three round-1 mutants that survived, one at a time. Each one now fails tests:
+- (a) `>=` → `>` at `jobs.ts:334`: 1 failed.
+- (b) no `s.running` guard at `:470`: 2 failed.
+- (c) `graceMs = JOB_LEASE_MS` at `:541`: 1 failed.
+
+I also read the new state table against the code of `conflict()`, `check()`, `beat()`, `start()` and `stop()` (`jobs.ts:308-385`, `:521-559`).
+
+### Round-1 findings
+
+| Finding | Status |
+| --- | --- |
+| B-LA-E4-01-01 (MINOR) | **Closed.** The header table (`jobs.ts:7-16`) lists every move, and each row matches the code. A conflict while `waiting` keeps a web runner waiting and turns a worker off (`:308-324`). A lost heartbeat moves `active` to the same states (`:374-385`). `stop()` from `idle` or `off` gives `off` (`:527-531`). The `JobRunnerState` comment now names all five states (`:186`). The AC-06 rows now also assert `stopping` and `off`. |
+| B-LA-E4-01-02 (NIT) | **Closed.** `job_run … skipped_lease` has `reason`: `lease_held`, `already_running` or `runner_not_active` (`:222`, `:471`, `:485`). The contract asserts all three. |
+| B-LA-E4-01-03 (NIT) | **Closed.** `QueueStoreFixture.confirmationDelayMs` is a required field. The asserts and the reference outbox use it, so LA-E4-02 passes the app's own constant. |
+| B-LA-E4-01-04 (NIT) | **Closed.** (a) The crash case now rechecks exactly at the 30 s boundary (`jobs.testkit.ts:293`). (b) A new AC-07 case: an in-process run blocks a second run after its lease expires (`:237`). (c) AC-06 runs with `JOB_LEASE_MS` and `2 × JOB_LEASE_MS` and a second, shorter job (`:408`). The mutant results are above. |
+| B-LA-E4-01-05 (NIT) | **Closed.** `packages/shared/package.json` exports `./jobs.testkit`. `jobs.test.ts` imports `@cogniate/shared/jobs.testkit`, so the suite itself proves the subpath, and the header comment shows it. |
+| B-LA-E4-01-06 (NIT, A1) | **Closed by A1** (BD-A1-14). The LA-ADR-03 D7 sketch now says that `jobs.ts` and its doc comments are the reference. |
+
+### New in this round
+
+#### B-LA-E4-01-07 — NIT — The per-row cooling map only shrinks when a row later succeeds in this runner
+
+- **File:** `packages/shared/src/jobs.ts:211`, `:413`, `:447`, `:451-452`.
+- **Problem:** A row that throws gets an entry in `cooling`. The entry goes away only when the same id later runs without a throw in this process. Sometimes a row never comes back to this runner: a peer process fixes it, or the row becomes superseded or deleted. Its entry then stays until a restart, and each entry also raises the `due()` batch size by one (`+ q.cooling.size`, `:413`). Throws are only a backstop, because a run must catch its row errors, so the map grows slowly. But a long-lived web process can collect entries, and nothing shows the size.
+- **Suggested fix:** On each poll, drop an entry whose `until + MAX_ITEM_COOLDOWN_MS` has passed (the row did not come back for a full cap period). Add one unit row: a row throws, then leaves `due()`, and after the cap time the next batch size is back to the default.
+
+## Round 1
 
 Diff: `git diff 1b17261 dba6dd2` (lane `la-r`, merged as `89d5ec5`). Spec: `docs/architecture/ltiaas/tasks/LA-E4-01.md`. Design: LA-ADR-03 D7, data-model §3. I did not open the other reviewer's file. I did not run Docker.
 

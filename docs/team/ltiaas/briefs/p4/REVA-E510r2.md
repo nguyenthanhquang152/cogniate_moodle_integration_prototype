@@ -1,0 +1,9 @@
+# Review dispatch: Reviewer-A (same session), LA-E5-10 round 2
+
+Bounded check of your round-1 MINOR A-LA-E5-10-01 and NITs -02, -03, with the A2 rulings BD-A2-13 (bound empty blobs; 009 date functions are a listed adapter item), BD-A2-14 (CLI rotate removes a waiting next key first), BD-A2-23/24 (409 details; create with no active key makes it active): lane S2 commits c0a1f64, c60cda4, 6ef9075, 3b13658, 56bad6b (merged as 36032f3). Diff: git diff 36032f3^1 36032f3. Add '## Round 2' to docs/reviews/LA-E5-10/reviewer-a.md.
+
+# Common rules for LA build-task reviews (Reviewer-A, Reviewer-B)
+
+You are the same dedicated reviewer as in G-DESIGN and G-BREAKDOWN. Lenses: Reviewer-A "Is it right and is it safe?", Reviewer-B "Can a human team own it?" (base charter §1). Review the task diff named in the dispatch against its task spec (docs/architecture/ltiaas/tasks/<task>.md), the design (docs/architecture/ltiaas/**) and plan §6.1. Read the diff with git in the LA integration worktree /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone; do not change any file except your review file.
+Write docs/reviews/LA-<task>/<reviewer-a|reviewer-b>.md: first lines "Verdict: APPROVE | CHANGES_REQUESTED" and "Round: n"; findings with id (A-<task>-nn / B-<task>-nn), severity (base charter §5), file:line, problem, evidence, suggested fix. Proportional: small diff, short review. Check: every UNIT AC has a test that would fail on the old behaviour; the "Must not edit" list is respected; no behaviour change outside the spec; no LMS name added to core paths; ownership (matrix §5). Blind review: never open the other reviewer's file. Do not run Docker. Do not commit.
+When done: one worker_done (--outcome succeeded), three-sentence summary with the verdict and counts, --files-modified, --report-path. Then stop. Read only your own messages.

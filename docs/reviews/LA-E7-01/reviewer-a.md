@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E7-01 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -79,3 +79,37 @@ Round: 1
 
 - `K-LEGACY` and `K-CAP.catalog` use the capabilities of the default profile of `registration[0]` only. A channel whose second registration entry or another profile changes a capability is not checked for that profile. This is enough for the baseline, but worth one more loop when E2 adds profiles.
 - The canary `app.ts` keeps to its stated rule (pure functions, fixed data). Once it implements D5 (A-LA-E7-01-02), it becomes a real F4 proof that a new channel needs no kernel edit.
+
+## Round 2
+
+- Reviewer: Reviewer-A2 (the same lens A, plan LD-22). Date: 2026-10-22.
+- Diff: `git diff 2c1b1e0 3efa55a -- tests/ltiaas/k0 tests/ltiaas/canary docs/reviews/LA-E7-01/qa.md` (integration `3efa55a`, from `la-qa` `7c54c33`). References: the LA-E7-01 spec (now with the BD-A1-20 design notes and AC-07 pending), LA-ADR-01 D3 and D5, tasks README §3, BD-A1-20.
+- I ran on the host (no Docker), in a throwaway `git archive 3efa55a` copy with clones of both `node_modules` folders: `vitest run --config tests/ltiaas/k0/vitest.config.mts tests/ltiaas/k0/contract.test.ts` gives 76 passed and 3 todo (the K-ADAPTER cases of `moodle`, `canvas` and `blackboard`, pending LA-E1-07). This equals qa.md Round 2.
+- Blind review: I did not open the other reviewer's file.
+- **Round 2 counts: 0 BLOCKER, 0 MAJOR, 1 MINOR (new), 0 NIT. The five round-1 findings are closed.**
+
+### Round-1 findings
+
+| Id | Round 1 | Round 2 result |
+| --- | --- | --- |
+| A-LA-E7-01-01 | BLOCKER | **Closed.** The guard rows now equal D3: `registration.dynamic` → `422 CAPABILITY_NOT_SUPPORTED`, `dynamicRegistration`; `site.serviceOrigin` → `400 INVALID_REQUEST`; and `binding.authority`, `export.packages`, `content.*`, `launch.*` and `records.reporters` are `kind: 'behaviour'` with no code. The case no longer compares the table with itself. It calls the kernel (`reg.capabilities`, `computeCapabilities`, `legacyProjection`) for the off state and for an enabled copy. It compares status, code, `details.capability` and the guard text with the D3 table, which it parses from `LA-ADR-01-channel-kernel.md` at run time. The route-level check is K1 (LA-E7-02), and qa.md AC-04 now says so. This is the split that round 1 suggested. |
+| A-LA-E7-01-02 | MAJOR | **Closed for BD-A1-20** (names, required members, result discriminants). K-ADAPTER checks `channel`, `checkCreate`, `toolConfiguration` → array, and `parseBindingBody` → `{ ok }` with `fields` (never a throw). `selfCreate` is required for `manual` + `self`, `initialTarget` and `createRequest` for `operatorGrant`, and P5–P7 when their capability is true. A missing member fails the case. The canary `app.ts` implements D5 with pure, fixed data. Residual: the argument shapes, see A-LA-E7-01-06. |
+| A-LA-E7-01-03 | MINOR | **Closed.** The profile module is a static import. `ports.ts` is the only switch: `it.todo` until LA-E1-07, then the case is required (`contract.test.ts:908-923`). Discovery asserts that the product ids equal the folder list and include the three baseline ids, and it throws on 0 product or 0 canary channels. |
+| A-LA-E7-01-04 | MINOR | **Closed.** K-PROFILE now checks traits (`isSharedProfile`, `isStandardProfile`, `platform.sharing`, `site.serviceOrigin`), `wireLms` in both directions, fixed hosts, template fill (with the required-value throws), the reserved issuer and `profileOfFixedIssuer`, site rules 1–5, and the simulation gate. Note: tasks README §3 does not let K0 import `@cogniate/shared`. So rules 1–5 run through a kit copy of the rule (`checkSiteUrlWithProfileRules`, `:455`), fed by the product `siteRulesFor`. K0 proves the rule inputs of each profile. The rule function itself is covered by the shared unit tests. |
+| A-LA-E7-01-05 | NIT | **Closed.** AC-06 now also runs K0 in a child process with the broken copy as an extra root (test-only env `LA_K0_EXTRA_ROOT`; product roots are unchanged). It asserts a non-zero exit and both names. The child fails at collection, before its own negative-control case, so it cannot start another child. The qa.md count is corrected (`blackboard`: 11 listed; the total of 51 adds up). |
+
+### New finding
+
+- **A-LA-E7-01-06 (MINOR): the K-ADAPTER arguments do not match D5 and today's adapters, so the cases will fail falsely at LA-E1-07, and the canary proves only the kit's own argument shapes.**
+  - Where: `tests/ltiaas/k0/contract.test.ts:1026-1030` (`toolConfiguration({ connectionId, publicAppOrigin, publicLtiOrigin, siteUrl })`), `:1046`, `:1054`, `:1062` (`purpose: 'initial_binding'`), `:1085-1089` (`initialTarget({ siteUrl, profileId, values })`); the canary `app.ts` mirrors these shapes.
+  - Problem:
+    - D5 keeps `toolConfiguration(ctx: ToolConfigurationContext)` as "unchanged signature". Today that context is `{ urls, libraryName, sharedClientId }` (`services/cogniate-app/src/providers/types.ts:53`).
+    - D5 types the purpose as `GrantPurpose`, which is `'initial' | 'add_deployment'` (`providers/types.ts:164`; also the CHECK of `binding_grant.purpose`). `'initial_binding'` is not a value of it.
+    - `InitialTargetContext` is `{ connection, values, profile }` (`providers/types.ts:115`).
+    - So, when `ports.ts` lands and the three todos become hard cases, the Canvas adapter will throw. Its `toolConfiguration` reads `urls.lti`. Its `initialTarget` throws "Canvas target needs a Canvas profile issuer" without `profile.issuer`. K0 will then fail for a kit reason, not a product reason.
+    - BD-A1-20 asks only for names, arity and discriminants before LA-E1-07. But these two values are already documented, so the kit can use them now.
+  - Suggested fix:
+    - Use `purpose: 'initial'`.
+    - Build the `toolConfiguration` and `initialTarget` contexts in the documented shape, and align the canary.
+    - At LA-E1-07, type the contexts with `import type` from `kernel/ports.ts` (BD-A1-20) and typecheck `tests/ltiaas`, so that a shape drift fails at build time.
+  - This does not block: AC-07 is pending LA-E1-07 for the baseline channels, and LA-E1-07 is the task that must make these cases pass.
