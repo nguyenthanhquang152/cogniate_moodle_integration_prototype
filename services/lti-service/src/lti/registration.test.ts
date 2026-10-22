@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { URLS } from '../testkit.ts';
-import { PLATFORM_CONFIG_CLAIM, TOOL_CONFIG_CLAIM, buildRegistrationRequest, claimsFor, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse } from './registration.ts';
+import { PLATFORM_CONFIG_CLAIM, REGISTRATION_SCOPES, TOOL_CONFIG_CLAIM, buildRegistrationRequest, claimsFor, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse } from './registration.ts';
 
 const CONFIG_URL = 'https://moodle.test/mod/lti/openid-configuration.php';
 const MOODLE_CONFIG = {
@@ -43,6 +43,12 @@ describe('operation from the registration token (security §2.5)', () => {
 });
 
 describe('registration request (ADR-009)', () => {
+  it('sends the requested scopes in request order (LA-E3-06)', () => {
+    const scopes = [REGISTRATION_SCOPES[3], REGISTRATION_SCOPES[0], REGISTRATION_SCOPES[2], REGISTRATION_SCOPES[1]];
+    const r = buildRegistrationRequest({ urls: URLS, accountId: 'cogniate', clientName: 'Scopes', privacyLevel: 'anonymous', scopes });
+    expect(r.scope).toBe(scopes.join(' '));
+  });
+
   it('has the ADR-009 fields; default message is deep linking in ContentArea', () => {
     const r = buildRegistrationRequest({ urls: URLS, accountId: 'cogniate', clientName: 'Cogniate (Thanh)', privacyLevel: 'anonymous' });
     expect(r).toEqual({
