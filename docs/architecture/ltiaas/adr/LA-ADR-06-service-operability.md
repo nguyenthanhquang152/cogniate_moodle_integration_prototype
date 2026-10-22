@@ -142,6 +142,8 @@ Status effects:
 
 Closing revokes every API key and service key of the account in the same transaction. A purge job deletes a closed account's rows after `closedRetentionDays` (default 30; LA-H4) — Should, with D11.
 
+**Operator writes on a closed account** (BD-A2-12; the "read, purge" cell above). A write that adds, enables or changes anything gives `409 ACCOUNT_CLOSED`: `PATCH` of the account, API key issue, signing-key create and activate, shared-platform create, and every later write route of an account. A write that only removes access stays allowed and is idempotent: API key revoke, signing-key retire immediate, service-key revoke (Should). It writes its normal audit event. Reads stay allowed. A `suspended` account accepts every operator call; its keys get `403 TOOL_ACCOUNT_SUSPENDED` on `/api/*` until it is `active` again. One check in one place: a helper of the accounts store (S1) gives `404 NOT_FOUND` for an unknown account and `409 ACCOUNT_CLOSED` for a closed one. Every account-scoped operator write calls it inside its `audit.change` transaction, so a close cannot slip in between the check and the write. Check order: `404`, then `409 ACCOUNT_CLOSED`, then the body (`400`), then the other `409` codes. The refusal writes one `refused` event with code `ACCOUNT_CLOSED` (D4 rule 1).
+
 Acceptance points:
 
 | Id | Observable result |
@@ -241,6 +243,7 @@ Table `api_key`: `id` (`key_` + 16 random bytes), `tool_account_id`, `prefix` (t
 | Format | Unchanged: `ltis_` + 43 base64url characters (contract §8 D2). Only the hash is stored. |
 | Scopes | `launch` = the LTIK-AUTH-V2 and SERVICE-AUTH-V1 routes. `admin` = every Bearer route. A valid key without the needed scope gets `403 API_KEY_SCOPE_MISSING`. |
 | Active keys | At most 2 active keys per account. A third issue gives `409 API_KEY_LIMIT`. |
+| Closed account | Issue gives `409 ACCOUNT_CLOSED`; `GET …/api-keys` and revoke stay available (D2 "Operator writes on a closed account"). Revoke of a revoked key gives `200` and keeps the first `revoked_at`. |
 | Expiry | Optional, 1 hour to 2 years from now; outside this range `400 INVALID_REQUEST` (field `expiresAt`). An expired or revoked key gives the same `401` as an unknown key (no hint). The same rules hold for operator keys (default 90 days, at most 1 year). |
 | Last use | Updated at most once per minute per key (in-memory throttle). |
 | Rotation (normal) | Issue a new key; put it in the tool back end (Cogniate: the key file, which the app reads at each use, `services/cogniate-app/src/clients/lti-client.ts`); check that `last_used_at` of the old key stops moving; revoke the old key. |
