@@ -141,6 +141,8 @@ The [operator guide](../guides/operator.md#3a-accepted-limit-d-12-self-hosted-ca
 | B-RR-02 | NIT | After a lost lock, a command exits 1 with only a JSON `storage_lock_lost` line, and no plain-text sentence on stderr. The operator guide has the note. ([review](../reviews/M1/storage-release-reviewer-b.md)) | Add one stderr sentence in a future, separately authorized helper edit. |
 | B-RR-03 | NIT | The release-failure flag lasts for the whole shell, and no comment says so. ([review](../reviews/M1/storage-release-reviewer-b.md)) | Add one comment in a future, separately authorized helper edit. |
 | O-A2 | Context | After a release error other than a lost lock, the own lock folder stays until a later command reclaims it. The stderr text then has the raw `EACCES` message with an absolute path. No terminal event is logged. ([review](../reviews/M1/storage-release-reviewer-a.md)) | Recorded for M4 context next to R1-A QA O-1. No new scope. |
+| A-CR-01 | MINOR | A package-folder lookup error can be reported as `content_missing`. It still refuses with no target write. ([review](../reviews/M1/content-refusal-reviewer-a.md)) | Give the lookup error its own result. |
+| A-CR-04 | MINOR | The older path rule accepts `packages/.` and `packages/..` in a crafted backup. This limit stays open. ([review](../reviews/M1/content-refusal-reviewer-a.md)) | Refuse these path parts. |
 
 ### Storage harness (QA tests)
 
@@ -161,6 +163,29 @@ The [operator guide](../guides/operator.md#3a-accepted-limit-d-12-self-hosted-ca
 | A-SH-12 | NIT | The kept-file hash assertion can pass when both observed hashes are null. The folder-order and runtime entry checks still apply. ([review](../reviews/M1/storage-harness-reviewer-a.md)) | Require a non-null, 64-hex kept-file hash. |
 | A-SH-13 | NIT | A test name says the target's mode changed, but the case changes another entry's mode. ([review](../reviews/M1/storage-harness-reviewer-a.md)) | Rename the case to name the other entry. |
 | B-HR-12 | NIT | A harness-only timeout stays a failure, but its message does not name the timeout. ([review](../reviews/M1/storage-harness-reviewer-b.md)) | Name the timeout in the failure text. |
+| B-BM-01 | MINOR | The migration-name self-test has no equal-count exchange of names between the two databases. The real oracle rejects that exchange. ([review](../reviews/M1/backup-manifest-reviewer-b.md)) | Add the exchange case. |
+| A-CR-02 (= B-CRR-02) | MINOR | Unit assertions do not detect a missing cleanup after a copy or verification failure. The current product performs that cleanup. ([A](../reviews/M1/content-refusal-reviewer-a.md), [B](../reviews/M1/content-refusal-reviewer-b.md)) | Assert the cleanup in both failure cases. |
+| A-CR-03 | MINOR | The frozen H1–H7 plan has no independent `content_check_failed` case. Reviewer probes cover examples. ([review](../reviews/M1/content-refusal-reviewer-a.md)) | Add one independent case. |
+| B-CRR-01 | MINOR | Unit tests do not distinguish a size-only copy check from the required size-and-hash check. The current product checks both. ([review](../reviews/M1/content-refusal-reviewer-b.md)) | Add a case that only the hash catches. Assert that copy verification rejects it. |
+| A-SOR-01 (= B-SOR-01) | MINOR | Two State OK assertions can pass without check-folder lines. Current product output supplies the lines. ([A](../reviews/M1/storage-oracle-repair-reviewer-a.md), [B](../reviews/M1/storage-oracle-repair-reviewer-b.md)) | Require the check-folder lines. |
+| B-SRP-03 (coverage part) | MINOR | No gate sends a build request after a reset and a start. The post-reset `build-queue` binds stay unmeasured. Text clarification was committed at `51505bc`; the coverage gap stays open. ([review](../reviews/M1/storage-reset-parent-reviewer-b.md)) | Add one post-reset build request to an existing probe. |
+| A-SRR-01 | NIT | The lost-lock test keeps the own `pid` in the planted foreign record. It cannot detect an event that takes the foreign `pid`. ([review](../reviews/M1/storage-repair-reviewer-a.md)) | Give the foreign record a different `pid`. Assert that `lost.owner.pid` differs from `lost.pid`. |
+
+### Guide and source-checkpoint notes
+
+These accepted NITs remain deferred. The entries authorize no source, architecture or cosmetic change. Final conformance and document approval remain pending.
+
+| Id | Severity | Finding | Suggested fix |
+| --- | --- | --- | --- |
+| Q-M4-P01 | NIT | Decision IDs wrap at the hyphen in the review page. QA saw `D-10` wrap on desktop and all twelve IDs wrap on mobile. ([QA](../reviews/M4/docs.md)) | Keep the IDs on one line in a later cosmetic change. |
+| Q-M4-P02 | NIT | The tenancy SVG shrinks to 283 pixels on a narrow screen. Its text becomes small instead of using the surrounding horizontal scroll area. ([QA](../reviews/M4/docs.md)) | Give the SVG a minimum width in a later cosmetic change. |
+| AR-M4-01 | NIT | Production code does not call `hasStaffRole`. It keeps the old institution-role rule and a misleading preview comment. Runtime uses `isGradedLaunch` and `canSelectContent`; M1-16 passed. ([Architect](../reviews/M4/architect-conformance.md)) | Remove the helper or mark it obsolete at the next authorized product edit. |
+| AR-M4-02 | NIT | The CSP comment and option in `tool-pages/page.ts` say issuer. Callers pass the connection site origin, as the contract requires. ([Architect](../reviews/M4/architect-conformance.md)) | Rename the option and correct the comment at the next authorized edit. |
+| AR-M4-03 | NIT | The data-model comment calls `connection_deployment.binding_ref` the attempt id. It holds the attempt id after phase 1, then activation ref `a` after phase 2. No decision reads it. ([Architect](../reviews/M4/architect-conformance.md)) | State both phases in the comment when the Architect receives a grant. |
+| AR-M4-04 | NIT | A reserved issuer gives `400 ISSUER_RESERVED` at the LTI API. The portal instead gets `422 INVALID_PLATFORM_VALUES` with `fields: ["issuer"]`. Both paths store nothing; no AC covers the portal answer. The app contract omits this mapping. ([Architect](../reviews/M4/architect-conformance.md)) | Record the portal mapping in the app contract when the Architect receives a grant. |
+| AR-M4-05 | NIT | ADR-012 §7 A3 says "manual exit: the M4 guide". No validated manual recovery procedure exists; the operator must stop and escalate. The refusal behaviour stays unchanged. ([Architect](../reviews/M4/architect-conformance.md)) | Correct the ADR wording when the Architect receives a grant. |
+| AR-M4-06 | NIT | ADR-011 §4b calls both Moodle and Canvas release deletes conditional. Only Canvas uses a conditional delete; Moodle keeps the unchanged unconditional delete. ([Architect](../reviews/M4/architect-conformance.md)) | Distinguish the two deletes in the ADR when the Architect receives a grant. |
+| A-CR-05, B-CRR-06 | NIT | The infra README restore-order list omits the content check. Its error guidance omits `content_check_failed`. Both prose issues remain deferred. ([A](../reviews/M1/content-refusal-reviewer-a.md), [B](../reviews/M1/content-refusal-reviewer-b.md)) | The infra README owner adds the order and error guidance under a later grant. |
 
 ### Not open deferrals (for clarity)
 

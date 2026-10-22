@@ -122,11 +122,12 @@ NOTE: A released self-hosted Canvas binding has a known setup race (D-12). See t
 
 ## Procedure 6: After a Cogniate key change (inline key only)
 
-The operator tells you when the Cogniate signing key changes ([operator guide](operator.md#5-signing-key-rotation-and-inline-canvas-keys)). A JSON with the key URL needs no change.
+The operator tells the library user and Canvas admin when the key changes, and gives them the new key id ([operator guide](operator.md#5-signing-key-rotation-and-inline-canvas-keys)). A JSON with the key URL needs no change.
 
-1. Get a new JSON with the inline key from a signed-in portal session: `GET /app-api/connections/<connection id>/canvas-configuration?jwk=inline` `[SIM M1-19.canvas.inline-key]`.
-2. Check that the response header `X-Cogniate-Key-Id` shows the new key id `[SIM M1-19.canvas.inline-key; rotation: L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
-3. In Canvas, paste the new JSON into the same developer key `[DOC F-CV-8; L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
+1. Library user: get a new inline-key JSON from your signed-in portal session: `GET /app-api/connections/<connection id>/canvas-configuration?jwk=inline` `[SIM M1-19.canvas.inline-key]`.
+2. Library user: compare `X-Cogniate-Key-Id` with the key id from the operator `[SIM M1-19.canvas.inline-key; rotation: L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
+3. Library user: give the matching JSON to the Canvas admin `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
+4. Canvas admin: paste the new JSON into the same developer key `[DOC F-CV-8; L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
 
 NOTE: QA case `M1-19.canvas.inline-key` used this request on a registered connection: it returned the active key, with that key id in the header. No QA case changed the signing key first. So the full rotation procedure is not verified (live row L-C14).
 

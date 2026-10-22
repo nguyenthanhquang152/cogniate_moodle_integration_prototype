@@ -6,12 +6,16 @@ This guide is for Cogniate staff with shell access to the Cogniate app service a
 
 Tags: each step names its evidence label, for example `[SIM AC-M1-38]`. The [evidence table](../../README.md#evidence-labels) gives the status of each label.
 
-Run each command inside its service container. Examples:
+Run `app:grant`, `app:binding` and `lti:shared-platform` inside their service container. Run `lti:bootstrap` and every `stack:*` command on the host, in the repository folder.
+
+Run these Compose examples on the host, in the repository folder. Replace `<project-name>` with the `COMPOSE_PROJECT_NAME` value from the root `.env`.
 
 ```sh
-docker compose exec cogniate-app npm run app:grant -w services/cogniate-app -- list --connection <con_id>
-docker compose exec lti-service npm run lti:shared-platform -w services/lti-service -- --account cogniate --profile blackboard --client-id <Application ID>
+docker compose --project-directory infra -p "<project-name>" -f infra/compose.yaml --env-file .env exec cogniate-app npm run app:grant -w services/cogniate-app -- list --connection <con_id>
+docker compose --project-directory infra -p "<project-name>" -f infra/compose.yaml --env-file .env exec lti-service npm run lti:shared-platform -w services/lti-service -- --account cogniate --profile blackboard --client-id <Application ID>
 ```
+
+Command locations: source inspection only ([Compose helper](../../infra/scripts/lib.sh), [bootstrap wrapper](../../infra/scripts/lti-bootstrap.sh)).
 
 NOTE: The commands are not reachable over HTTP. Who may run them is a human decision (Q22, [decisions](../human_review/decisions-needed.md#e-canvas-and-blackboard-decisions)).
 
@@ -99,7 +103,9 @@ npm run app:binding -w services/cogniate-app -- suspend --connection <con_id> --
 npm run app:binding -w services/cogniate-app -- release --connection <con_id> --note "<evidence reference>"
 ```
 
-Order: always `suspend` first, then `release`. `release` on an active binding exits 1 and changes nothing [SIM M1-38.canvas.b, M1-38.blackboard.b].
+Always run `suspend` before `release`. `release` on an active binding exits 1 and changes nothing [SIM M1-38.canvas.b, M1-38.blackboard.b].
+
+Self-hosted Canvas: use the order of [section 3a](#3a-accepted-limit-d-12-self-hosted-canvas-after-a-release). The library makes the new connection first. Issue its grant before you suspend and release `[SIM M1-39.canvas.operator-order]`.
 
 1. Run `suspend`. It needs no library session `[SIM M1-38.canvas.a, M1-38.blackboard.a]`.
 2. Read one line per record. If a line is `failed`, run `suspend` again `[SIM AC-M1-38]`.
@@ -114,7 +120,7 @@ If `release` says "a redemption may still run; retry after <n> s", wait that tim
 | `fenced` | The command switched off a record of this connection, with a new binding ref. | `[SIM M1-38.canvas.a, M1-38.blackboard.a]` |
 | `absent` | No record exists. Nothing to do. | `[SIM M1-38.blackboard.g-absent]` |
 | `not_owned` | The record belongs to another or newer binding. It stays unchanged. | `[SIM M1-38.blackboard.c]` |
-| `deleted` | Canvas `release` deleted the switched-off platform, with its keys. Its client ID is free again. | `[SIM M1-38.canvas.b, M1-38.canvas.f]` |
+| `deleted` | A Canvas or Moodle `release` deleted the switched-off platform, with its keys. Its client ID is free again. | `[SIM M1-38.canvas.b, M1-38.canvas.f, M1-39.canvas.residual-race]` |
 | `kept_inactive` | Blackboard `release` keeps the switched-off deployment. The next binding gets a new generation, so old keys fail. | `[SIM M1-38.blackboard.b, M1-38.blackboard.c]` |
 | `failed` | An LTI call failed or timed out. Nothing local changed. Run the command again. | `[SIM M1-38.canvas.f-held-delete]` |
 
@@ -126,7 +132,7 @@ Effects:
 
 NOTE: A late record can appear after a cleanup that found nothing. A delayed request of an old attempt can still arrive. It makes only an inactive record without authority. Run the same `suspend` or `release` again: it finds the record through the saved target [SIM M1-38.blackboard.g-absent, M1-38.canvas.g-late-create].
 
-NOTE: To correct a Canvas site or service URL, you do not need a new developer key. Suspend and release the old binding. Then the library makes a new connection with the right values. It redeems a new grant for the same client ID [SIM M1-38.canvas.f; AC-M1-38].
+NOTE: To correct a Canvas site or service URL, you do not need a new developer key. For self-hosted Canvas, follow [section 3a](#3a-accepted-limit-d-12-self-hosted-canvas-after-a-release), with the grant first [SIM M1-39.canvas.operator-order]. For hosted Canvas, suspend and release the old binding. Then the library makes a new connection with the right values. It redeems a new grant for the same client ID [SIM M1-38.canvas.f; AC-M1-38].
 
 ### 3a. Accepted limit D-12: self-hosted Canvas after a release
 
@@ -178,7 +184,9 @@ If a check of step 6 fails, stop. Do not use the old build.
 
 WARNING: Rollback loses every Cogniate write after the backup. This includes connections, grants, launches, attempts, grade rows and publication changes. Revocations and suspensions after the backup are also undone: a revoked approval code is valid again until it expires. After the rollback, revoke and suspend them again.
 
-QA saw the lost attempt and the kept Moodle grade after a rollback [MOODLE-LIVE AC-M1-30]. The other losses follow from the same restore ([ADR-011 §14](../architecture/adr/ADR-011-multi-lms.md#14-compatibility-migration-upgrade-and-rollback)); no QA case checked them one by one.
+WARNING: Canvas and Blackboard records made after the upgrade stay configured in the LMS. Their launches fail with `UNKNOWN_PLATFORM` after the restore. This consequence is unmeasured ([ADR-011 §14](../architecture/adr/ADR-011-multi-lms.md#14-compatibility-migration-upgrade-and-rollback)).
+
+QA saw the lost attempt and the kept Moodle grade after a rollback [MOODLE-LIVE AC-M1-30]. The other losses and the launch consequence follow from the same restore ([ADR-011 §14](../architecture/adr/ADR-011-multi-lms.md#14-compatibility-migration-upgrade-and-rollback)). No QA case checked them one by one.
 
 While the override is on (rollback mode):
 
@@ -193,13 +201,13 @@ WARNING: Never use `npm run stack:reset` as a recovery step. It deletes the cont
 
 ### 4.3 Storage lock messages
 
-Every storage command takes one lock per checkout. These refusals change no data [HOST-QA; SIM AC-M1-41 lock rows].
+Every storage command takes one lock per checkout. The first three messages are refusals: they change no data [HOST-QA; SIM AC-M1-41 lock rows]. `storage_lock_lost` is not a refusal: your command ran, and it can have changed data ([ADR-012 §7](../architecture/adr/ADR-012-sqlite-volume-storage.md#7-guarded-paths-and-the-operation-lock)).
 
 | Message | Do this |
 | --- | --- |
 | `operation_in_progress` | Another storage command holds the lock. Wait for it, then run your command again. |
 | `storage_writer_active` | A storage container still runs. Wait until it ends, or run `docker stop <name>`. |
-| `operation_lock_invalid` | The lock folder has no valid record. Stop. Do not remove or move the folder. Send the message and the folder name to the engineering owner. The manual recovery procedure is pending Architect and QA validation. |
+| `operation_lock_invalid` | The message says "Follow the manual exit of the operator guide". In this prototype the manual exit is: stop and escalate. No validated manual recovery procedure exists. Do not remove or move the lock folder. Send the message and the folder name to the engineering owner. |
 | Exit 1 with only a `storage_lock_lost` line | Another command took the lock. The result of your command is not proven safe. The event in `infra/.logs/storage-lock.jsonl` names the other owner. Check the result before you continue. |
 
 NOTE: ADR-012 §7 (A3) requires that no storage command of this checkout runs before any manual exit. This condition is not a recovery procedure. QA tested the refusal, not a manual exit. Stop and escalate `operation_lock_invalid`; do not change the lock folder.
@@ -211,9 +219,10 @@ NOTE: Known limits ([deferred](../human_review/deferred.md#canvas-and-blackboard
 Canvas installs that use the key URL need no change. Canvas installs with an inline key do: Canvas does not refresh an inline key [SIM M1-19.canvas.inline-key; DOC F-CV-8].
 
 1. Before the rotation, list the Canvas connections whose admins chose the inline key `[PROCESS]`.
-2. Rotate the key: `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name <name> --rotate-signing-key` `[Not verified by QA]`.
+2. On the host, rotate the key: `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name <name> --rotate-signing-key` `[Not verified by QA]`.
 3. Restart the LTI service to empty its token cache `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
-4. Tell each inline-key Canvas admin to paste a new JSON ([Canvas guide, Procedure 6](canvas-admin.md#procedure-6-after-a-cogniate-key-change-inline-key-only)) `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
+4. Give each affected library user and Canvas admin the new key id (`kid=` in the `lti:bootstrap` output) `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
+5. Ask them to complete [Canvas guide, Procedure 6](canvas-admin.md#procedure-6-after-a-cogniate-key-change-inline-key-only) with a new JSON `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site.
 
 Until the new JSON is in Canvas, Deep Linking and new grade tokens fail for that install. A token that Canvas already issued can still work until it expires [L-C14 UNVERIFIED]. Not yet tested on a real Canvas site.
 
