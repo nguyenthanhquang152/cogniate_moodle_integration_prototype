@@ -8,9 +8,9 @@ Only the Lead edits this file. Orca Run: `run_06d07dc77faf`. Rules: [charter-LA]
 | --- | --- | --- | --- |
 | P1 Plan | **done** | — | R1–R5 committed; plan v1 `1afdf56`, v1.1 (R2), v1.2 (LA-H21..H24) |
 | P2 Tech design | **done** | **G-DESIGN PASS** | Final design `54e8088`. Reviewer-A APPROVE (R4 at `54e8088`), Reviewer-B APPROVE (R3 at `88909be`), QA PASS (R3 at `88909be`; its last MINOR fixed at `54e8088`). 3 BLOCKER and 15 MAJOR found and closed over 4 rounds. Deferred: [deferred.md](deferred.md). |
-| P3 Breakdown | **fix round 1** (A1 `ctx_11e122d81716`) | G-BREAKDOWN round 1: A CHANGES_REQUESTED (Part 1 APPROVE; A-LAB-10), B CHANGES_REQUESTED (B-LAB-01..03 fixed by A2; B-LAB-10), QA FAIL (Q-LAB-10) | 94+6 task specs; epics.md with DAG, matrix, sizes; Must about 55 Author-days before LD-15 rolling starts |
-| G-BASE | waiting | — | Blackboard and Canvas run `run_ebe671ad72a9`; see plan LA-H10 |
-| G-DEV | waiting | product owner | Approves plan, design and breakdown (LA-H1) |
+| P3 Breakdown | **done** | **G-BREAKDOWN PASS** | Final breakdown `936f707`: 94 tasks (Must 62, Should 22, Could 10). Reviewer-A APPROVE (R2), Reviewer-B APPROVE (R2), QA PASS (R2). 7 MAJOR found and closed. Open MINORs: [deferred.md](deferred.md). |
+| G-BASE | waiting | — | Blackboard and Canvas run `run_ebe671ad72a9`: product frozen `9f8ac62`, C3 storage diagnostic PASS, full rounds, M3, M4 running (checked 2026-10-22 09:45). See LA-H10. |
+| G-DEV | **waiting for the product owner** | product owner | Decision pack: [G-DEV.md](G-DEV.md) (LA-H1, LA-H10, Docker sharing, concurrency cap) |
 | P4 Build | planned | — | Lanes K, P, R, S1, S2 (LD-10), L, L2 (LD-11), QA, QA-2, QA-3 (LD-13), QA-E2E, Docs; 2 Docker slots (LD-2); rolling starts (LD-15) |
 | P5 Verify | planned | task done | QA + Reviewer-A + Reviewer-B in parallel |
 | P6 Integrate | planned | milestone done | Regression, conformance, docs |
@@ -54,3 +54,7 @@ Only the Lead edits this file. Orca Run: `run_06d07dc77faf`. Rules: [charter-LA]
 | A2 (done, `b4f6b9b`) | Q-LAB-01 (cites forms d–g), B-LAB-01..03, Part 1 MINORs; six companion tasks |
 | A1 (running) | B-LAB-10 (form g), Q-LAB-10 (QA cost per task), A-LAB-10 (store-contract AC); matrix updates for LD-10, LD-11, LD-14, LD-15; Part 2 MINORs |
 | Lead | LD-10 (S1/S2), LD-11 (L2), LD-12, LD-13 (QA-2, QA-3), LD-14, LD-15 (rolling starts) |
+
+## Session state at G-DEV (2026-10-22)
+
+All LA workers are idle and retained for reuse: A1, A2, Reviewer-A, Reviewer-B, QA (lead). No LA worker is active. Researchers R1–R5 are released. No product code changed; no push.
