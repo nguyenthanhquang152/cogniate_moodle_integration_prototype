@@ -5,7 +5,7 @@ import type { QueueJob } from '@cogniate/shared';
 import type { QueueStoreFixture } from '@cogniate/shared/jobs.testkit';
 import { openDb, type Db } from '../../domain/db.ts';
 import { createAppJobStore } from './job-store.ts';
-import { legacyAgsPolicy } from './legacy-reporter.ts';
+import { ltiAgsPolicy } from '../../drivers/lti-ags/index.ts';
 import { createDispatchQueue, type DispatchItem } from './outbox.ts';
 import { upsertPlacement } from './placements.ts';
 
@@ -60,7 +60,7 @@ export function recordsFixture(): QueueStoreFixture & { db: Db } {
   return {
     db, confirmationDelayMs: 5000,
     store: () => createAppJobStore(open()),
-    queueJob: (send) => createDispatchQueue(open(), [{ ...legacyAgsPolicy, async deliver(row, ctx) {
+    queueJob: (send) => createDispatchQueue(open(), [{ ...ltiAgsPolicy, async deliver(row, ctx) {
       if (ctx.beginSend() !== 'started') return null;
       await send(row.id);
       return { kind: 'accepted' };

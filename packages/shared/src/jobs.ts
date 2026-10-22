@@ -192,8 +192,8 @@ export interface JobRunner {
   readonly leaseOwner: string;
   addQueue<Item>(job: QueueJob<Item>): void;
   addInterval(job: IntervalJob): void;
-  /** The on-demand trigger of an interval job (operator API). */
-  runNow(name: string): Promise<RunNowResult>;
+  /** The on-demand trigger. An operator request may supply its trace id for the run and its logs. */
+  runNow(name: string, options?: { traceId?: string }): Promise<RunNowResult>;
   /** Poll a queue job now (for example after a new dispatch row). No effect when the runner is not active. */
   kick(name: string): void;
   start(): void;
@@ -471,8 +471,7 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
     })());
   }
 
-  function runInterval(s: IntervalState): Promise<RunNowResult> {
-    const traceId = newTraceId();
+  function runInterval(s: IntervalState, traceId = newTraceId()): Promise<RunNowResult> {
     const startedAt = now();
     if (state !== 'active' || s.running) {
       logRun(s.job.name, traceId, startedAt, 'skipped_lease', undefined, undefined, state !== 'active' ? 'runner_not_active' : 'already_running');
@@ -513,10 +512,10 @@ export function createJobRunner(options: JobRunnerOptions): JobRunner {
     })());
   }
 
-  async function runNow(name: string): Promise<RunNowResult> {
+  async function runNow(name: string, options?: { traceId?: string }): Promise<RunNowResult> {
     const s = intervals.get(name);
     if (!s) throw new Error(`Unknown interval job: ${name}.`);
-    return runInterval(s);
+    return runInterval(s, options?.traceId);
   }
 
   function kick(name: string): void {

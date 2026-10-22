@@ -1,7 +1,8 @@
 // Setup adapters come from folder discovery, never a closed channel list (BD-A1-17).
 import type { ChannelRegistry } from '@cogniate/channel-kernel';
 import type { Logger } from '@cogniate/shared';
-import type { ConnectionSetup, LtiProviderProfile } from './ports.ts';
+import type { ConnectionSetup } from './ports.ts';
+import type { LtiProviderProfile } from '../clients/lti-client.ts';
 
 export function setupOf(channels: ChannelRegistry, channel: string): ConnectionSetup | null {
   return channels.appAdapter(channel) as ConnectionSetup | null;

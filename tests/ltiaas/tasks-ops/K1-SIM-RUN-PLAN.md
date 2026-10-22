@@ -23,9 +23,13 @@ The 12 QA-2 suites run in the exact dependency and state-isolation order below:
 | 8 | `LA-E5-19` | Batch 2 | `qa2-la-sim-r2` | 3 `K1-SIM` | 5 min | 3 min | Verifies `job_run` startup lines (`retention`, `signing-key-cleanup`) and clean `npm run stack:restart -- lti-service` with zero `job_instance_conflict`. |
 | 9 | `LA-E5-05` | Batch 3a | `qa2-la-sim-r3` | 8 `K1-SIM` | 6 min | 6 min | Verifies `lti:bootstrap` (fresh before `seed`, `--rotate-api-key`, `--rotate-signing-key` with waiting `next` key per `BD-A2-14`, missing operator key file form (e), double `seed` idempotence) and `lti:shared-platform`. |
 | 10 | `LA-E5-11` | Batch 2 (or 3b) | `qa2-la-sim-r2` | 1 `K1-SIM` | 4 min | 2 min | Verifies `docker compose exec cogniate-app npm run app:audit -- list` on a fresh stack exits `0`, prints no CLI line, and writes no event. |
-| 11 | `LA-E5-09` | Batch 3b | `qa2-la-sim-r3` | 5 `K1-SIM` | 6 min | 6 min | *(When merged)* Verifies `GET /operator/v1/key-provider` (`legacy` `derivedCount`), QA form (a) `infra/.secrets/lti/keyring.json` rotation to `k2`, `POST /operator/v1/key-provider/rewrap`, post-rewrap launch/DL/token/score POST, `job_run {job: "key-rewrap"}` + 2 `key_provider.rewrap` audit events, and keyring restore in `finally`. |
+| 11 | `LA-E5-09` | Batch 3b | `qa2-la-sim-r3` | 5 `K1-SIM` | 6 min | 6 min | Verifies `GET /operator/v1/key-provider` (`legacy` `derivedCount`), QA form (a) `infra/.secrets/lti/keyring.json` rotation to `k2`, `POST /operator/v1/key-provider/rewrap`, post-rewrap launch/DL/token/score POST, `job_run {job: "key-rewrap"}` + 2 `key_provider.rewrap` audit events (`BD-A2-36/38/42/43`: `outcome: "complete"`, `rewrapped`, `skippedChanged`, `notReached`, `unreadable`, `legacyBlobsRefused: true`), and keyring restore in `finally`. |
 | 12 | `LA-E7-03` | Batch 4 | `qa2-la-sim-r4` | 1 `K0` + 3 `K1-SIM` | 8 min | 8 min | Verifies `tests/sim/hosts.json` manifest wiring across `acceptance` and `default` profiles, dynamic provider addition (`zz-qa2-sim`), and `/healthz` golden `G1` match. |
-| **Total** | **12 suites** | **4 batches** | `qa2-la-sim-r1..r4` | **2 `K0` + 74 `K1-SIM`** | **~71 min** | **~57 min** | Fits comfortably inside the 120-minute `14:00–16:00Z` window with >45 min margin. |
+| 13 | `LA-E5-15` | Batch 2 | `qa2-la-sim-r2` | 6 `K1-SIM` | 5 min | 3 min | Verifies `POST /api/service-keys/revoke` (`200 { revoked: n }`, `404 UNREGISTERED_PLATFORM`, `200 { revoked: 0 }` per `BD-A2-47`), `resourceLinkId` filter, `issue_epoch` re-issue on next launch, `serviceKeyWriteScope: "resource-link"` (`403 SERVICE_KEY_SCOPE` on cross-resource-link write, `204` on own `lineitem`, `204` on `LTIK-AUTH-V2`), `403 API_KEY_SCOPE_MISSING` for `launch`-only key, and `service_key.revoke` audit events. |
+| 14 | `LA-E5-16` | Batch 2 | `qa2-la-sim-r2` | 5 `K1-SIM` | 5 min | 3 min | Verifies `Idempotency-Key` on `POST /api/lineitems`, `POST /api/platforms`, and `POST /api/platforms/:id/deployments`: stored `201` replay with single simulator create, `422 IDEMPOTENCY_KEY_REUSED` on body mismatch, tenant isolation (`cogniate` vs `qa-second`), `400 INVALID_REQUEST` on invalid header grammar, and unchanged behaviour without the header. |
+| 15 | `LA-E5-17` | Batch 2 | `qa2-la-sim-r2` | 5 `K1-SIM` | 4 min | 2 min | Verifies `GET http://lti-service:4110/metrics` (`200` OpenMetrics text with `lti_http_requests_total`, `lti_rate_limited_total`, `lti_launch_total`, `lti_ready`), `404` on public `GET /metrics`, `200 {"status":"ready"}` with no `reasons` on public `GET /readyz`, `acceptance` `/healthz` golden `G1` match, and `tool_account_id: "cogniate"` in `http_request` with zero PII (`name`, `email`, `sub`) in logs or metrics. |
+| 16 | `LA-E5-21` | Batch 3c | `qa2-la-sim-r3` | 2 `K1-SIM` | 5 min | 4 min | Verifies tasks README §2 form (f) (`docker compose run --rm -e STACK_PROFILE=production -e <knob>=<value> lti-service npm start` exits `1` with `config_refused {reason: "test_knob_active"}`) and that `default` and `acceptance` profiles start with today's env values and match `G1` `/healthz`. |
+| **Total** | **16 suites** | **4 batches** | `qa2-la-sim-r1..r4` | **2 `K0` + 92 `K1-SIM`** | **~90 min** | **~69 min** | Fits inside the 120-minute `14:00–16:00Z` window with >45 min margin when batched. |
 
 ---
 
@@ -34,8 +38,8 @@ The 12 QA-2 suites run in the exact dependency and state-isolation order below:
 Run these host-only checks before starting the Docker window:
 
 ```sh
-# 1. Typecheck all 12 QA-2 suites
-for t in LA-E5-01 LA-E5-08 LA-E5-02 LA-E5-04 LA-E5-10 LA-E5-07 LA-E5-03 LA-E5-19 LA-E5-05 LA-E5-11 LA-E5-09 LA-E7-03; do
+# 1. Typecheck all 16 QA-2 suites
+for t in LA-E5-01 LA-E5-08 LA-E5-02 LA-E5-04 LA-E5-10 LA-E5-07 LA-E5-03 LA-E5-19 LA-E5-05 LA-E5-11 LA-E5-09 LA-E7-03 LA-E5-15 LA-E5-16 LA-E5-17 LA-E5-21; do
   npx --prefix tests tsc --noEmit -p "tests/ltiaas/tasks-ops/$t/tsconfig.json" || exit 1
 done
 

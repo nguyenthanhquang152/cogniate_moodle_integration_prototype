@@ -15,13 +15,14 @@ import { getPlatform } from '../../store/platforms.ts';
 import { ensureToolKey } from '../../store/tool-keys.ts';
 import { MASTER_KEY, URLS, capturingLogger, makeKey, sign } from '../../testkit.ts';
 import { buildApp } from '../app.ts';
+import { rateLimiterFor } from '../rate-limit.ts';
 
 const M = 'https://moodle.test';
 const CONFIG_URL = `${M}/mod/lti/openid-configuration.php`;
 const CONFIG = {
   issuer: M, token_endpoint: `${M}/mod/lti/token.php`, jwks_uri: `${M}/mod/lti/certs.php`, authorization_endpoint: `${M}/mod/lti/auth.php`,
   registration_endpoint: `${M}/mod/lti/openid-registration.php`,
-  scopes_supported: [...REGISTRATION_SCOPES],
+  scopes_supported: ['https://purl.imsglobal.org/spec/lti-ags/scope/score', 'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem'],
   [PLATFORM_CONFIG_CLAIM]: { product_family_code: 'moodle', version: '5.2.4 (Build: 20261005)', messages_supported: [{ type: 'LtiResourceLinkRequest' }, { type: 'LtiDeepLinkingRequest', placements: ['ContentArea'] }] },
 };
 
@@ -31,7 +32,7 @@ async function setup() {
   const b = ensureAccount(db, { id: 'qa-second', name: 'QA second', appUrl: URLS.app });
   await ensureToolKey(db, MASTER_KEY, 'cogniate');
   const moodleKey = await makeKey('moodle-kid');
-  const state = { config: CONFIG as Record<string, unknown>, nextTypeId: 11, clientId: 'client-dyn-1', registrations: [] as Array<{ auth?: string; body: Record<string, unknown> }>, reject: null as null | number,
+  const state = { config: CONFIG as Record<string, unknown>, configurationFetches: 0, nextTypeId: 11, clientId: 'client-dyn-1', registrations: [] as Array<{ auth?: string; body: Record<string, unknown> }>, reject: null as null | number,
     mode: null as null | 'timeout' | 'token_used' | 'server_error' | 'garbage' };
   const res = (status: number, body: unknown): OutboundResponse => {
     const buf = Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
@@ -43,7 +44,7 @@ async function setup() {
       const u = new URL(url);
       if (u.protocol !== 'https:') throw new OutboundError('not_https', u.hostname, 'only https');
       if (u.hostname === '169.254.169.254') throw new OutboundError('private_ip', u.hostname, 'private');
-      if (url === CONFIG_URL || url.startsWith('https://qa-platform.test/')) return res(200, state.config);
+      if (url === CONFIG_URL || url.startsWith('https://qa-platform.test/')) { state.configurationFetches++; return res(200, state.config); }
       if (url === CONFIG.jwks_uri) return res(200, { keys: [moodleKey.publicJwk] });
       if (url === CONFIG.registration_endpoint) {
         state.registrations.push({ auth: req.headers?.authorization, body: JSON.parse(String(req.body)) as Record<string, unknown> });
@@ -78,6 +79,35 @@ async function setup() {
 const idOf = (location: string) => new URL(location).searchParams.get('registrationId')!;
 
 describe('dynamic registration (contract §2.4, §3.8)', () => {
+  it('enforces the session cap before fetching, per account, and releases capacity on completion and expiry', async () => {
+    const s = await setup();
+    try {
+      rateLimiterFor(s.db, capturingLogger().logger).replaceSettings({
+        registrationSessionsPerAddress: 3, classes: { registration: { ratePerMinute: 100, burst: 100 } },
+      });
+      const ids: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const r = await s.start(undefined);
+        expect(r.statusCode).toBe(303);
+        ids.push(idOf(String(r.headers.location)));
+      }
+      const refused = await s.start(undefined);
+      expect(refused.statusCode).toBe(409);
+      expect(refused.body).toContain('data-error-code="REGISTRATION_SESSION_LIMIT"');
+      expect(refused.body).toContain('Too many registrations are open. Wait one hour, or finish the open registration in Moodle.');
+      expect(s.state.configurationFetches).toBe(3);
+      expect((await s.start(undefined, {}, 'qa-second')).statusCode).toBe(303);
+      const completed = await s.app.inject({ method: 'POST', url: `/api/registrations/${ids[0]}/complete`, headers: s.bearer(), payload: {} });
+      expect(completed.statusCode).toBe(200);
+      expect(s.db.prepare('SELECT client_key FROM registration_session WHERE id = ?').get(ids[0]!)?.client_key).toBeNull();
+      expect((await s.start(undefined)).statusCode).toBe(303);
+      expect((await s.start(undefined)).statusCode).toBe(409);
+      expect(s.state.configurationFetches).toBe(5);
+      s.clock.now += 3600_001;
+      expect((await s.start(undefined)).statusCode).toBe(303);
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
   it('new: 303 to the app with registrationId and ref only; GET shows the platform data; complete registers and stores the platform', async () => {
     const s = await setup();
     const r = await s.start(await s.regToken({ scope: 'reg', sub: 'new-client' }), { ref: 'qa123' });
@@ -127,6 +157,7 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
   it.each([
     ['empty list', []], ['unknown scope', ['openid']], ['mixed scopes', [REGISTRATION_SCOPES[0], 'admin']],
     ['not a list', REGISTRATION_SCOPES[0]], ['null', null], ['non-string member', [1]],
+    ['repeated scope', [REGISTRATION_SCOPES[0], REGISTRATION_SCOPES[0]]],
   ])('refuses %s before sending or claiming the session (LA-E3-06 AC-04)', async (_name, scopes) => {
     const s = await setup();
     const id = idOf(String((await s.start(undefined)).headers.location));
@@ -140,17 +171,29 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
     ]);
   });
 
-  it.each([true, false])('checks advertised scopes for an explicit list = %s before sending', async (explicit) => {
+  it('checks advertised scopes for an explicit list before sending', async () => {
     const s = await setup();
     s.state.config = { ...CONFIG, scopes_supported: [REGISTRATION_SCOPES[3]] };
     const id = idOf(String((await s.start(undefined)).headers.location));
-    const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: explicit ? { scopes: [REGISTRATION_SCOPES[0]] } : {} });
+    const unsupported = [REGISTRATION_SCOPES[0], REGISTRATION_SCOPES[1]];
+    const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: { scopes: [REGISTRATION_SCOPES[3], ...unsupported] } });
     expect([r.statusCode, r.json().details.message]).toEqual([400, 'INVALID_REQUEST']);
-    expect(r.json().details.description).toContain('Invalid field: scopes');
+    expect(r.json().details).toMatchObject({
+      field: 'scopes', unsupported, description: `Invalid field: scopes. The platform does not support: ${unsupported.join(', ')}.`,
+    });
     expect(s.state.registrations).toEqual([]);
     const ok = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: { scopes: [REGISTRATION_SCOPES[3]] } });
     expect(ok.statusCode).toBe(200);
     expect(s.state.registrations.map((call) => call.body.scope)).toEqual([REGISTRATION_SCOPES[3]]);
+  });
+
+  it.each([undefined, [], [REGISTRATION_SCOPES[3]]])('keeps all five default scopes when scopes_supported is %j (B-LA-E3-06-01)', async (scopes_supported) => {
+    const s = await setup();
+    s.state.config = { ...CONFIG, scopes_supported };
+    const id = idOf(String((await s.start(undefined)).headers.location));
+    const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: {} });
+    expect(r.statusCode).toBe(200);
+    expect(s.state.registrations.map((call) => call.body.scope)).toEqual([REGISTRATION_SCOPES.join(' ')]);
   });
 
   it('rolls back the platform and session completion if the audit insert fails', async () => {

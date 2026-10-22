@@ -195,7 +195,9 @@ export default tseslint.config(
         },
       },
     },
-    rules: { 'no-restricted-imports': ['error', { paths: [kernelTypes, sharedTypes], patterns: baseChannelImports }] },
+    rules: { 'no-restricted-imports': ['error', { paths: [kernelTypes, sharedTypes], patterns: baseChannelImports }],
+      'no-eval': 'error', 'no-implied-eval': 'error', 'no-new-func': 'error',
+    },
   },
   {
     files: scope.classes.core.globs,

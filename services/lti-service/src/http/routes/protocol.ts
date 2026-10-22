@@ -1,21 +1,23 @@
 // Protocol endpoints for Moodle and the browser (contract §2.1-§2.3): tool JWKS, OIDC login, launch (redirect URI).
 import type { FastifyInstance, FastifyReply, FastifyRequest, HTTPMethods } from 'fastify';
 import { ApiError } from '../../api-errors.ts';
+import { createAccountResolver } from '../../accounts/resolver.ts';
 import type { LaunchResult } from '../../lti/launch.ts';
 import { handleLaunch, handleStorageCheck } from '../../lti/launch.ts';
 import { initiateLogin } from '../../lti/login.ts';
 import { lmsNameOf } from '../../profiles/index.ts';
-import { getAccount } from '../../store/accounts.ts';
 import { publicJwks } from '../../store/tool-keys.ts';
 import type { RouteContext } from '../context.ts';
 
 export function registerProtocolRoutes(app: FastifyInstance, ctx: RouteContext): void {
   const log = ctx.logger;
+  const resolver = createAccountResolver(ctx.db, ctx.urls.lti);
 
   // Tool JWKS (contract §2.3)
   app.get<{ Params: { account: string } }>('/lti/keys/:account', async (req, reply) => {
-    if (!getAccount(ctx.db, req.params.account)) throw new ApiError('NOT_FOUND', 'Unknown tool account.');
-    return reply.header('cache-control', 'public, max-age=300').send({ keys: publicJwks(ctx.db, req.params.account, ctx.now()) });
+    const account = resolver.resolveAccount(req);
+    if (!account || account.status === 'closed') throw new ApiError('NOT_FOUND', 'Unknown tool account.');
+    return reply.header('cache-control', 'public, max-age=300').send({ keys: publicJwks(ctx.db, account.id, ctx.now()) });
   });
 
   // OIDC login initiation (contract §2.1)

@@ -42,12 +42,12 @@ export interface ConnectionCreateBody {
   serviceUrl?: string;
   [key: string]: unknown;
 }
-export interface CanvasPlatformBody {
+export interface ClientBindingBody {
   clientId: string;
   deploymentId: string;
   grantCode: string;
 }
-export interface BlackboardPlatformBody {
+export interface DeploymentBindingBody {
   deploymentId: string;
   grantCode: string;
   clientId?: string;
@@ -56,7 +56,7 @@ export interface AddDeploymentBody {
   deploymentId: string;
   grantCode: string;
 }
-export interface CanvasConfigurationSnapshot {
+export interface ConfigurationSnapshot {
   text: string;
   keyId: string | null;
 }

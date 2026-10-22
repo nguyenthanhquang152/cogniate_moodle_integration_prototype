@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E3-01 review, lens A ("Is it right and is it safe?")
 
@@ -26,3 +26,18 @@ Method: a throwaway `git archive 5ec8a69` copy under `/private/tmp`, with a clon
 | Ownership and "Must not edit" | `lti/launch.ts`, the rest of `protocol.ts`, `packages/channels/**`, `http/app.ts`, `http/auth.ts`, `config.ts` and the app are untouched. `packages/channel-kernel/src/profiles.ts` (the trait type) is the Lead's RQ-2 (BD-A1-33). No LMS name is added to core. |
 
 Note (no finding): the key `cog_state_<d>` gives 16 slots per tool origin (design, LA-ADR-05 D1 rule 3). Two parallel logins with the same first digit overwrite each other's stored value. The launch side (LA-E3-02) must treat a missing or other value as "no storage" and fall back to the cookie.
+
+## Round 2
+
+- Reviewer: Reviewer-A2 (same session as round 1). Date: 2026-10-22.
+- Diff: the lane L fix commits `23a736e`, `5fecc58`, `db1038f` and `f09c3ea` (in merge `3344520`). Rulings: A2 BD-A2-41 (static page text) and BD-A2-44 (cookie priority, no fallback on the storage check).
+- I ran on the host (no Docker), in a throwaway `git archive 36f70d8` copy (it contains `3344520`): the LTI service tests give 71 files and 906 passed.
+- Blind review: I did not open the other reviewer's file.
+- **Round 2 counts: 0 findings (round 1 had none).**
+
+| Commit | Lens-A check |
+| --- | --- |
+| `23a736e` (BD-A2-41) | The login page gets the static text "Opening the activity. Please wait." and a `<noscript>` line. They hold no request data. The request values still enter only the escaped JSON block, and the CSP is unchanged. The test pins the text. |
+| `5fecc58` (S1 file, RQ-2) | `buildApp` takes an optional `profileRegistry` and passes it into the protocol profile options. Product start passes none, so the discovered registry is used. No environment variable or request can set it, so it is a test and embedding seam only (the same rule as the LA-ADR-01 D4 extra root). |
+| `db1038f` | `storageBindingOf` keeps the round-1 logic. No trait gives cookie-only. `from-login` reads `lti_storage_target`, or the trait gives the frame. An absent, empty or non-matching target counts as no target, through the one shared `FRAME_NAME` grammar, which the schema also uses. The origin is `authOrigin` (the stored auth endpoint origin) or the schema-checked fixed origin. The state record fields are now required (`string \| null`), so no caller can forget them. |
+| `f09c3ea` (BD-A2-44) | The collision test makes a real second login whose state has the same key digit, so the storage slot is overwritten. With the matching cookie present, the launch answers `303 binding: cookie` and writes no `storage_check` row. Without the cookie, the storage check fails closed with `storage_mismatch` and no launch row, even when a cookie is added to the storage-check request (ambient credentials are ignored, security delta §6). This closes my round-1 note: the "fallback to the cookie" happens at the launch step. |

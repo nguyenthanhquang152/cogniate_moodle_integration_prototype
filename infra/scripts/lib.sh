@@ -82,20 +82,10 @@ saved_profile() {
 # transport gate (LTI_API_URL, allowlisted for the app only). The default profile sets none of them.
 GATE_HOST=lti-gate.test
 # LA-E7-03: QA owns the manifest. Read it once per source for aliases, SANs and the LTI allowlist.
-# Keep the old hosts until LA-E7-02 supplies the manifest. A bad file must never select this fallback.
+# LA-E7-02 supplies the manifest. A missing file follows the same rules as any other bad file.
 load_sim_hosts() {
   local manifest="$REPO_ROOT/tests/sim/hosts.json" rows kind host
   SIM_ALIASES=(lms-sim.test); SIM_LTI_HOSTS=(); SIM_HOSTS_ERROR=""
-  if [[ ! -e "$manifest" && ! -L "$manifest" ]]; then
-    SIM_LTI_HOSTS=(developer.blackboard.sim.test learn-a.blackboard.sim.test learn-b.blackboard.sim.test sso.canvas.sim.test
-      school-a.canvas.sim.test school-b.canvas.sim.test canvas-self.sim.test api.canvas-self.sim.test)
-    SIM_ALIASES=(lms-sim.test "${SIM_LTI_HOSTS[@]}" canvas.school-a.sim.test)
-    if [[ "${SIM_HOSTS_FALLBACK_WARNED:-}" != "$REPO_ROOT" ]]; then
-      echo "Simulator host manifest tests/sim/hosts.json is absent; using the fixed simulator hosts until LA-E7-02." >&2
-      export SIM_HOSTS_FALLBACK_WARNED="$REPO_ROOT"   # one notice, also across gen-env and gen-certs
-    fi
-    return 0
-  fi
   if ! rows="$(node - "$manifest" "${STACK_HOSTS[@]}" evil.test qa-platform.test "$GATE_HOST" 2>&1 <<'NODE'
 const fs = require('node:fs');
 const [file, ...reserved] = process.argv.slice(2);
@@ -120,8 +110,8 @@ try {
   const allowlist = new Set();
   for (const [index, provider] of manifest.providers.entries()) {
     const at = `providers[${index}]${object(provider) ? ` (id ${JSON.stringify(provider.id)})` : ''}`;
-    if (!object(provider) || typeof provider.id !== 'string' || !provider.id.trim() || ids.has(provider.id)) {
-      fail(`${at} needs a non-empty, unique id`);
+    if (!object(provider) || typeof provider.id !== 'string' || !/^[a-z0-9][a-z0-9-]*$/.test(provider.id) || ids.has(provider.id)) {
+      fail(`${at} needs a unique id matching ^[a-z0-9][a-z0-9-]*$`);
     }
     ids.add(provider.id);
     knownKeys(provider, ['id', 'aliases', 'allowlist'], at);
@@ -131,9 +121,13 @@ try {
     for (const host of [...provider.aliases, ...provider.allowlist]) {
       if (!dnsName(host) || reserved.includes(host)) fail(`${at} has invalid host ${JSON.stringify(host)}; expected a DNS name ending in .sim.test`);
     }
-    for (const host of provider.aliases) aliases.add(host);
+    for (const host of provider.aliases) {
+      if (aliases.has(host)) fail(`${at} repeats alias ${JSON.stringify(host)}; each alias must occur once in the file`);
+      aliases.add(host);
+    }
     for (const host of provider.allowlist) {
       if (!provider.aliases.includes(host)) fail(`${at} allowlist host ${JSON.stringify(host)} must be in its aliases`);
+      if (allowlist.has(host)) fail(`${at} repeats allowlist host ${JSON.stringify(host)}`);
       allowlist.add(host);
     }
   }
@@ -399,7 +393,9 @@ build_runner_running() {
 # B-T8-02: report "started" only when the runner really runs: the process is alive and its heartbeat
 # (infra/.data/build-queue/status/runner.json) appears. Its log is JSON lines: infra/.logs/build-runner.jsonl.
 start_build_runner() {
-  mkdir -p "$BUILD_QUEUE_DIR/requests" "$BUILD_QUEUE_DIR/status" "$BUILD_QUEUE_DIR/out" "$BUILD_QUEUE_DIR/hold" "$LOGS_DIR" "$REPO_ROOT/.tmp"
+  mkdir -p -m 700 "$BUILD_QUEUE_DIR/requests" "$BUILD_QUEUE_DIR/status" "$BUILD_QUEUE_DIR/out" "$BUILD_QUEUE_DIR/hold"
+  chmod 700 "$BUILD_QUEUE_DIR" "$BUILD_QUEUE_DIR/requests" "$BUILD_QUEUE_DIR/status" "$BUILD_QUEUE_DIR/out" "$BUILD_QUEUE_DIR/hold"
+  mkdir -p "$LOGS_DIR" "$REPO_ROOT/.tmp"
   if build_runner_running; then return 0; fi
   rm -f "$BUILD_QUEUE_DIR/status/runner.json"
   # ADR-012 §7: the runner gets its OWN process group (set -m for this one job), so it never keeps a storage lock

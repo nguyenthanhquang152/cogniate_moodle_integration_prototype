@@ -14,7 +14,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { PlayView } from '../domain/attempts.ts';
 import { getPlay } from '../domain/attempts.ts';
-import { latestSyncStatus } from '../domain/score-syncs.ts';
+import { latestSyncStatus } from '../kernel/records/dispatch-store.ts';
 import { canvasEmbeddedScript } from './canvas-embedded.ts';
 import { runtimeTokenFor } from './launch-rules.ts';
 import { errorPage, escapeHtml, layout, newNonce, toolPageHeaders } from './page.ts';

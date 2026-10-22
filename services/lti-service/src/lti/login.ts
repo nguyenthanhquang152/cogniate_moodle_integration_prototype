@@ -1,10 +1,10 @@
 import type { PublicUrls } from '@cogniate/shared';
 import { randomToken, sha256Hex } from '@cogniate/shared';
+import { createAccountResolver } from '../accounts/resolver.ts';
 import type { Db } from '../db/index.ts';
 import type { LmsName, ProfileOptions } from '../profiles/index.ts';
 import { lmsNameOf, profileDefinition, profileOfFixedIssuer } from '../profiles/index.ts';
 import { storageBindingOf } from '../profiles/storage.ts';
-import { getAccount } from '../store/accounts.ts';
 import { findDeployment, findLoginPlatforms } from '../store/platforms.ts';
 import { STATE_TTL_MS, saveState } from '../store/states.ts';
 import { isPlatformUsable, platformLmsName } from './binding.ts';
@@ -12,6 +12,7 @@ import { stateCookieName } from './checks.ts';
 import type { ProtocolErrorCode } from './codes.ts';
 import { isOwnLaunchTarget, launchUri } from './target.ts';
 import { storageLoginPage } from './storage-pages.ts';
+import { protocolAccountError } from './launch.ts';
 
 export type LoginResult =
   | { ok: true; location: string; setCookie: string; platformId: string; page?: ReturnType<typeof storageLoginPage> }
@@ -33,8 +34,12 @@ function lmsOfIssuer(iss: string | undefined, profiles: ProfileOptions): LmsName
 export function initiateLogin(db: Db, urls: PublicUrls, accountId: string, params: Record<string, unknown>, now: number, profiles: ProfileOptions = { simulation: false }): LoginResult {
   const iss = str(params.iss);
   const fail = (code: ProtocolErrorCode, detail: string, lms: LmsName = lmsOfIssuer(iss, profiles)): LoginResult => ({ ok: false, code, detail, lms });
-  // 1. The tool account in the path exists.
-  if (!getAccount(db, accountId)) return fail('UNKNOWN_TOOL_ACCOUNT', 'unknown_tool_account');
+  // The status gate runs before state creation or any platform work (contract delta §1.5).
+  const resolver = createAccountResolver(db, urls.lti);
+  const account = resolver.resolveAccount({ params: { account: accountId } });
+  const accountError = protocolAccountError(account);
+  if (!account || accountError) return fail(accountError ?? 'UNKNOWN_TOOL_ACCOUNT', accountError === 'TOOL_ACCOUNT_SUSPENDED' ? 'account_suspended' : 'unknown_tool_account');
+  const protocolUrls = resolver.protocolUrls(account);
   const loginHint = str(params.login_hint);
   const target = str(params.target_link_uri);
   if (!iss || !loginHint || !target) return fail('INVALID_REQUEST', !iss ? 'missing=iss' : !loginHint ? 'missing=login_hint' : 'missing=target_link_uri');
@@ -57,7 +62,7 @@ export function initiateLogin(db: Db, urls: PublicUrls, accountId: string, param
     if (!d.active) return fail('DEPLOYMENT_NOT_ACTIVE', 'deployment_inactive', lms);
   }
   // 4. The target is our launch URL for this account.
-  if (!isOwnLaunchTarget(target, urls, accountId)) return fail('INVALID_TARGET_LINK_URI', 'target_not_own', lms);
+  if (!isOwnLaunchTarget(target, protocolUrls)) return fail('INVALID_TARGET_LINK_URI', 'target_not_own', lms);
 
   // 5. State and nonce (32 random bytes each), state record, cookie, redirect to the platform.
   const state = randomToken();
@@ -71,7 +76,7 @@ export function initiateLogin(db: Db, urls: PublicUrls, accountId: string, param
   const auth = new URL(platform.authEndpoint);
   const q: Record<string, string> = {
     scope: 'openid', response_type: 'id_token', response_mode: 'form_post', prompt: 'none',
-    client_id: platform.clientId, redirect_uri: launchUri(urls, accountId), login_hint: loginHint,
+    client_id: platform.clientId, redirect_uri: launchUri(protocolUrls), login_hint: loginHint,
     ...(messageHint !== undefined ? { lti_message_hint: messageHint } : {}),
     state, nonce,
   };

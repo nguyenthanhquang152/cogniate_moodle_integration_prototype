@@ -1,7 +1,12 @@
 import manifest from "../manifest.ts";
-import { fillText } from "@cogniate/portal-sdk";
-import steps from "./moodle-steps.json";
+import { channelText } from "@cogniate/portal-sdk";
+import metadata from "./moodle-steps.json";
 
+// Dynamic instruction text has one source: the channel manifest.
+export const moodleSteps = {
+  ...metadata,
+  get dynamic() { return metadata.dynamic.map((step, index) => ({ ...step, text: channelText(manifest, manifest.texts.adminSteps[index]!, "{libraryName}") })); },
+};
 export function MoodleSteps({
   method,
   libraryName,
@@ -11,7 +16,7 @@ export function MoodleSteps({
 }) {
   return (
     <ol className="mt-5 grid list-none gap-[22px] p-0">
-      {steps[method].map((step, index) => (
+      {moodleSteps[method].map((step, index) => (
         <li
           key={step.id}
           data-step-id={step.id}
@@ -23,7 +28,7 @@ export function MoodleSteps({
           >
             {index + 1}
           </span>
-          <p>{method === "dynamic" ? fillText(manifest.texts.adminSteps[index]!, { LMS: manifest.names.text, tool: `Cogniate (${libraryName})` }) : step.text.replaceAll("{libraryName}", libraryName)}</p>
+          <p>{step.text.replaceAll("{libraryName}", libraryName)}</p>
           {step.menuPath.length > 0 && (
             <p className="mt-[5px] text-[12px] text-[#bcb0cc]">
               {step.menuPath.join(" → ")}

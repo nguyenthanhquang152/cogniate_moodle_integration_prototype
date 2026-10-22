@@ -318,3 +318,27 @@ Changes for the Lead to route:
 - **S2 (LA-E5-09):** the `503` and `409` checks before `runNow`, and passing the trace id.
 - **A1 / R (shared runner, LA-ADR-03 D7):** the additive `runNow(name, { traceId })` option.
 - **S1:** the `traceId` filter of `GET /operator/v1/audit`.
+
+## 26. Round 25: the Idempotency-Key contract (LA-E5-16, lane S1), 2026-10-22
+
+S1's three open contract points, routed in dispatch `ctx_76073ad82b74`. Decision sent to the Lead first (`msg_084a8a3e4f57`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-51 | (1) Does the route identity include the real `:id` (S1: the decoded platform id plus the route template)? (2) The body hash input: stable JSON key order, `JSON.stringify`, or raw bytes (S1: stable key order)? (3) Which audit event does a cache hit, or a hook-level `409` or `422`, write, since the route's `withAudit` is skipped? | (1) **Ratified, plus:** the key is unique per tool account; the fingerprint is the method, the route template, the decoded path parameters and the body hash; another fingerprint gives `422`. (2) **Ratified:** SHA-256 of canonical JSON of the parsed body (sorted keys, no whitespace, absent body = `null`). (3) **One event per admin request:** a replay mirrors the stored answer (`ok` or `refused`, `details.idempotentReplay: true`, the key); the hook `409`/`422` write one `refused` event with the route's §5 action; `POST /api/lineitems` writes none (an `api`-class route). Plus two safety rules: only `2xx`/`4xx` are stored (a `5xx` frees the key), and a `running` record older than 60 s is replaced. | LA-ADR-06 D9 "Build rules", D4 rule 1; contract delta §4.9; LA-E5-16 design notes | A key bound to the decoded id cannot replay another platform's answer. Canonical JSON avoids false `422`s on reformatting. A mirrored replay event keeps D4 rule 1 exact and shows retries in the trail. Without the stale-record rule, a crash would block a key with `409` for 24 hours. |
+
+Changes for the Lead to route: **S1 (LA-E5-16)**: the fingerprint, the canonical hash, the audit events in the hook, the two safety rules and their unit tests. The migration number and `api-errors.ts` are your process items. The LA-E7-03 hosts point belongs to A1 (README §4b, BD-A1-01).
+
+## 27. Round 26: metrics sources (LA-E5-17 lane S1) and the operator platform list (LA-E5-15), 2026-10-23
+
+Routed in dispatch `ctx_0e78a30b68aa`. Decisions sent to the Lead first (`msg_d1a1caf0fd39`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-52 | (Provisional, S1.) Metrics from the existing log events, key gauges and an HTTP hook; JWKS and token outcome observers by RQ-1 to L; an S1 rate-limit observer before sampling; audit counts from committed events only; series with no accurate source marked "pending instrumentation", never zero; account labels only for stored account ids. | **Ratified, with exact sources.** Audit: count after the commit of the outermost transaction that holds the insert (and after the autocommit refused insert); never a table count, because retention deletes rows. L adds `onTokenResult({platformId, ok})` and `onJwksFetch({platformId, ok, fetchedAt})` (injected, no-op by default), and the cache age is computed at scrape time. "Pending" means **not exposed**. Labels: only stored account and platform ids; empty for an unknown account. | operability §4.2 (label rules, new "Sources" table); LA-ADR-06 D10 "Metrics"; LA-E5-17 design notes | A rolled-back insert or a sampled-away refusal must not change a counter. A zero series would hide a gap as "no failures". Raw path ids would make the label set unbounded. |
+| BD-A2-53 | LA-E5-15 Reviewer-B B-02: the operator API cannot list an account's platforms, so runbook §6.5 has no source for `platformId`. | **A new read route:** `GET /operator/v1/accounts/:id/platforms` gives `{ platforms: [{ id, name, profile, issuer, clientId, active, deploymentIds }] }`, with no secrets and no audit event, and `404` for an unknown account. Runbook §6.5 gets step 0. | contract delta §3; operability §6.5; LA-E5-15 design notes | The tenant API needs the tenant's key, and the audit log has no issuer or client id to match a library's report. A small read route closes the runbook gap. |
+
+Changes for the Lead to route:
+- **S1 (LA-E5-17):** the limiter observer, the commit-time audit counter, and the series and label rules; your process grant for the wiring files.
+- **L (RQ-1, one commit):** the two injected observers in the token client and the JWKS cache.
+- **Owner of the platform list route** (suggested: S2 in the LA-E5-15 fix round, reading L's existing store function).

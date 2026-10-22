@@ -4,7 +4,9 @@ import { makeZip, scormManifest } from '@cogniate/package-inspector/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { TestApp } from '../testkit.ts';
 import { THANH, formBody, queueDir, testApp } from '../testkit.ts';
-import { MAX_ACTIVE_BUILDS_PER_LIBRARY, STALE_BUILD_MS } from './mbz.ts';
+// Frozen build queue limits (ADR-007); assertions drive the real HTTP exporter.
+const MAX_ACTIVE_BUILDS_PER_LIBRARY = 2;
+const STALE_BUILD_MS = 10 * 60_000;
 
 let t: TestApp;
 afterEach(async () => {
