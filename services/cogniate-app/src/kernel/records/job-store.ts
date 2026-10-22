@@ -37,4 +37,3 @@ export function createAppJobStore(db: Db): JobStore {
     },
   };
 }
-
