@@ -1,22 +1,50 @@
-import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { LogLine } from '@cogniate/shared';
-import { PUBLIC_URL_ENV, createLogger, startService } from '@cogniate/shared';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import type * as Shared from '@cogniate/shared';
+import { PUBLIC_URL_ENV, createLogger, createOutboundClient, startService } from '@cogniate/shared';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as kernel from '@cogniate/channel-kernel';
+import type * as PackageStore from '../domain/package-store.ts';
 import { TEST_URLS } from '../testkit.ts';
-import { CHANNEL_ROOT, buildAppChannelRegistry, loadAppChannelRegistry } from './registry.ts';
+import { CHANNEL_ROOT, buildAppChannelRegistry } from './registry.ts';
+
+// Execute main.ts and its real listener builder. Only the external resources are replaced.
+// Stop immediately after the registry on a valid start, before any outbound client or worker exists.
+vi.mock('../config.ts', () => ({ loadConfig: () => ({ dataDir: tmpdir() }) }));
+vi.mock('../domain/db.ts', () => ({ openDb: vi.fn() }));
+vi.mock('../domain/package-store.ts', async (importOriginal) => ({
+  ...await importOriginal<typeof PackageStore>(), prepareStore: vi.fn(),
+}));
+vi.mock('@cogniate/shared', async (importOriginal) => {
+  const original = await importOriginal<typeof Shared>();
+  return {
+    ...original,
+    startService: vi.fn((service, listeners) => original.startService(service, listeners, {
+      env: serviceEnv, handleSignals: false, write: (line) => startLines.push(JSON.parse(line) as LogLine),
+    })),
+    createOutboundClient: vi.fn(() => { throw new Error('start reached outbound client'); }),
+  };
+});
 
 vi.mock('@cogniate/channel-kernel', async (importOriginal) => {
   const original = await importOriginal<typeof kernel>();
   return { ...original, loadChannelFolders: vi.fn(original.loadChannelFolders) };
 });
 
+const tempRoots: string[] = [];
+const startLines: LogLine[] = [];
+beforeEach(() => {
+  vi.resetModules();
+  vi.clearAllMocks();
+  vi.mocked(kernel.loadChannelFolders).mockReset();
+  startLines.length = 0;
+});
 afterEach(() => {
   vi.unstubAllEnvs();
-  vi.mocked(kernel.loadChannelFolders).mockClear();
+  for (const root of tempRoots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
 type Json = Record<string, unknown>;
@@ -39,6 +67,7 @@ function testManifest(over: Json = {}): Json {
 /** A temporary root with one channel folder `zz-test`. */
 function testRoot(manifest: Json): string {
   const root = mkdtempSync(join(tmpdir(), 'app-channel-root-'));
+  tempRoots.push(root);
   mkdirSync(join(root, 'zz-test'));
   writeFileSync(join(root, 'zz-test', 'manifest.ts'), `export default ${JSON.stringify(manifest)};\n`);
   return root;
@@ -69,20 +98,16 @@ describe('AC-LA-E1-02-05: a failing load check stops the app start with one chan
 
   it.each(cases)('check %i (%s)', async (check, reason, manifest) => {
     const root = testRoot(manifest);
-    const sink = logSink();
-    // The same listener shape as main.ts: the registry loads inside the app listener build, before it listens.
-    const start = startService('cogniate-app', [{
-      name: 'cogniate-app', port: 0, publicUrl: (u) => u.app,
-      build: async (deps) => {
-        await buildAppChannelRegistry([CHANNEL_ROOT, root], deps.logger);
-        throw new Error('the start must stop at the registry');
-      },
-    }], { env: serviceEnv, handleSignals: false, write: sink.write });
-    await expect(start).rejects.toMatchObject({ name: 'RegistryError', check, reason });
-    expect(sink.lines.filter((l) => l.event === 'channel_registry_invalid')).toEqual([
+    const original = await vi.importActual<typeof kernel>('@cogniate/channel-kernel');
+    // Inject an invalid discovered channel, without changing the product start's roots or registry call.
+    vi.mocked(kernel.loadChannelFolders).mockImplementationOnce((roots, side) => original.loadChannelFolders([...roots, root], side));
+    await expect(import('../main.ts')).rejects.toMatchObject({ name: 'RegistryError', check, reason });
+    expect(startService).toHaveBeenCalledOnce();
+    expect(createOutboundClient).not.toHaveBeenCalled();
+    expect(startLines.filter((l) => l.event === 'channel_registry_invalid')).toEqual([
       expect.objectContaining({ level: 'error', service: 'cogniate-app', channel: 'zz-test', reason, check }),
     ]);
-    expect(sink.lines.some((l) => l.event === 'service_started')).toBe(false);
+    expect(startLines.some((l) => l.event === 'service_started')).toBe(false);
   });
 
   it('a valid extra root loads next to the product channels, and nothing is logged', async () => {
@@ -100,7 +125,10 @@ it('AC-LA-E1-02-06: the app start loads one constant root; no environment variab
     'EXTRA_CHANNEL_ROOT', 'EXTRA_CHANNEL_ROOTS', 'COGNIATE_CHANNEL_ROOT', 'APP_CHANNEL_ROOTS', 'LTIAAS_CHANNEL_ROOTS', 'TEST_CHANNEL_ROOT', 'CANARY_CHANNEL_ROOT']) {
     vi.stubEnv(name, extra);
   }
-  const registry = await loadAppChannelRegistry(createLogger({ service: 'cogniate-app', write: () => undefined }));
-  expect(registry.channels().map((m) => m.id)).toEqual(['moodle', 'canvas', 'blackboard']);
+  await expect(import('../main.ts')).rejects.toThrow('start reached outbound client');
+  expect(startService).toHaveBeenCalledOnce();
+  expect(createOutboundClient).toHaveBeenCalledOnce();
   expect(vi.mocked(kernel.loadChannelFolders).mock.calls).toEqual([[[CHANNEL_ROOT], 'app']]);
+  const loaded = await vi.mocked(kernel.loadChannelFolders).mock.results[0]!.value;
+  expect(kernel.buildChannelRegistry(loaded, { simulations: true }).channels().map((m) => m.id)).toEqual(['moodle', 'canvas', 'blackboard']);
 });

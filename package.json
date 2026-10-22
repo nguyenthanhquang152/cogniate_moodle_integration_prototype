@@ -14,7 +14,7 @@
   "scripts": {
     "check": "npm run lint && npm run typecheck && npm run test:unit && npm run test:infra && npm run test:k0",
     "lint": "eslint .",
-    "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck --workspaces --if-present",
+    "typecheck": "tsc --noEmit -p tsconfig.json && npm run typecheck --workspaces --if-present && tsc --noEmit -p packages/channels/tsconfig.node.json && tsc --noEmit -p packages/channels/tsconfig.portal.json",
     "test:unit": "vitest run",
     "test:infra": "node --test 'infra/scripts/*.test.mjs'",
     "test:k0": "vitest run --config tests/ltiaas/k0/vitest.config.mts",
