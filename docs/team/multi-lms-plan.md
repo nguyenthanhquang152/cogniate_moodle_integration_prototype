@@ -13,7 +13,15 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-21, 20:49 UTC
+### Current checkpoint — 2026-10-22, 01:06 UTC
+
+**The same Claude repair session has resumed.** The owner resumed the goal after the quota reset. Orca had restarted and first reported the worker as exited. The Lead sent a resume message to the existing dispatch, without replacing or fencing it. The worker confirmed availability in `msg_7ea0f0beb8e6` at 01:04:32 UTC. Its identity remains `task_d018895ca985` / `ctx_898acbaef3a6`, Claude Code Opus 5.5 (`claude-opus-5-5`) at xhigh effort.
+
+The session is diagnosing all three C2 first causes together. It has read-only authority until the Lead accepts a concrete repair and regression-check scope. The existing product, criteria and test assertions remain fixed. Independent reviews will overlap the bounded repair checks after the source is held. No Docker window is active.
+
+The failed diagnostic evidence remains committed at `e4d7058`: migration 12/12 PASS; storage 64 PASS and 6 FAIL, from three first causes and three blocked dependencies. Reports and qualified Common/Canvas preparation are preserved for reuse. Full rounds, legacy, fresh M2/T7, conformance and final documentation approval still remain. No completion or new runtime acceptance is claimed.
+
+### Prior checkpoint — 2026-10-21, 20:49 UTC
 
 **C2 diagnostic failed; the sole repair session is blocked by its Claude quota.** The session reports a reset at 04:40 Vietnam time on 22 October (21:40 UTC). The Lead found the quota messages in the session's public transcript and informed the owner. The same session `ctx_898acbaef3a6` is preserved. The owner was asked whether to wait for that reset or authorize one GPT-6-Astra xhigh replacement session. No substitution, source edit or new diagnostic is authorized at this checkpoint.
 
