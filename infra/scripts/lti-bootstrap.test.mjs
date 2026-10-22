@@ -80,3 +80,11 @@ it('a missing original stops bootstrap and deletes a stale mounted operator copy
   assert.equal(fs.existsSync(h.copy), false);
   assert.equal(h.calls().split('src/cli/bootstrap.ts').length, before);
 });
+
+it('clears a stale copy even when operator initialization fails before bootstrap', () => {
+  const h = fixture(); assert.equal(h.run('--quiet').status, 0);
+  fs.rmSync(h.original); fs.writeFileSync(path.join(h.infra, 'init-output'), 'invalid init response');
+  const result = h.run('--quiet');
+  assert.equal(result.status, 1);
+  assert.equal(fs.existsSync(h.copy), false);
+});

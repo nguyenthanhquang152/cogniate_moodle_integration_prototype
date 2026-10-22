@@ -27,6 +27,7 @@ done
 # builtin, so never on a command line). Mode 600, the same mode as seed.json, which the e2e container reads.
 op_file="$INFRA_DIR/.secrets/lti-operator-key"
 op_copy="$INFRA_DIR/.secrets/lti/lti-operator-key"
+[[ -s "$op_file" ]] || rm -f "$op_copy"
 op_name="${OPERATOR_NAME:-$(id -un)}"
 op_from="${OPERATOR_NAME:+OPERATOR_NAME}"; op_from="${op_from:-the host user name (id -un)}"
 # Exit 2 = the CLI refused the name (its rule: store/operator-keys.ts OPERATOR_NAME); its own line comes first.
