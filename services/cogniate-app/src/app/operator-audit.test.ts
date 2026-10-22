@@ -106,6 +106,21 @@ describe('operator policy before any change (AP-07-04, AP-07-09)', () => {
   });
 });
 
+describe('app:grant revoke in production (Lead provisional call: revoke also takes the evidence flags)', () => {
+  it('a production revoke needs the listed operator and both evidence fields; its event holds them', async () => {
+    const { op, input } = await setup(PRODUCTION);
+    const issued = await op.issue(input({ operator: 'qa-op', evidenceChannel: 'support-call', evidenceRef: 'QA-1' }));
+    const grantId = grantIdOf(issued.lines);
+    const refused = await op.revoke(grantId, 't', { operator: 'qa-op' });
+    expect([refused.exitCode, JSON.parse(refused.lines[0]!).reason]).toEqual([1, 'evidence_channel_missing']);
+    expect(events()).toHaveLength(1);
+    tick();
+    expect((await op.revoke(grantId, 't', { operator: 'other-op', evidenceChannel: 'other', evidenceRef: 'TKT-7' })).exitCode).toBe(0);
+    expect(events()[0]).toMatchObject({ action: 'grant.revoke', result: 'ok', actor: { id: 'other-op' },
+      details: { evidence_channel: 'other', evidence_ref: 'TKT-7', note_present: false } });
+  });
+});
+
 describe('one audit event per command (AP-07-06)', () => {
   it('issue, revoke, issue, suspend and release write one ok event each, with the operator, the connection and note_present', async () => {
     const { op, con, input, redeem } = await setup();
