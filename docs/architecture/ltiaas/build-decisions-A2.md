@@ -104,3 +104,17 @@ Changes for the Lead to route:
 - **Lane P (F5 owner; rule text S1):** the new forms and the `{file, form}` allow list for new migration files (Must); the literal scan of inline TypeScript SQL with its baseline (Should).
 - **S1, LA-E5-05:** the CLI mapping retires a waiting `next` key before create and activate.
 - **A1 FYI:** the two pre-LA `X''` uses in the app (`domain/pickers.ts`, `domain/retention.ts`) stay legacy; D13 covers new SQL only.
+
+## 9. Round 8: `PLATFORM_RATE_LIMITED` and one `Retry-After` rule (LA-E5-14 lane L, LA-E5-03 lane S1), 2026-10-22
+
+Routed in dispatch `ctx_ee0744d66ee1`. Decisions sent to the Lead first (`msg_bf9cf214e3dd`).
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-15 | (L's proposal, C12.) `PLATFORM_RATE_LIMITED` `{status: 429, description: 'The platform asked us to wait before another request.'}`; the error handler sets `Retry-After` from `details.retryAfter` for that code; `details.retryAfter` is an integer 1–3,600; no upstream body or data in the answer; one warn line `platform_rate_limited {platform_id, status, retry_after_s}` for each received response. | **Confirmed**, except the per-code header branch (BD-A2-16 replaces it). 60 s when the platform header is absent or not readable. The token request counts as a received response. `lti_platform_rate_limited_total{platform_id}` counts at the same point when the D10 metrics exist. No automatic retry. | contract delta §1.3 (`PLATFORM_RATE_LIMITED` row); LA-E5-14 scope | The fixed description and no platform data keep platform answers out of tool back ends. |
+| BD-A2-16 | (Provisional.) L adds the header line in a separate RQ-2 commit; S1 keeps its header code in one reusable helper. Question: one generic rule instead of a branch per code? Is `retryAfter` in the body part of the contract for both codes? | **Changed to one generic rule.** Every API error whose `details` carry `retryAfter` gets `Retry-After`. One S1 module `http/retry-after.ts` (`retryAfterSeconds`: an integer clamped to 1–3,600, 60 when not finite; `setRetryAfter`). The `app.ts` handler normalizes once and sends the same value in the header and the body, with no branch per code. The limiter's 429 page uses the same helper (header only). **Both** `429` codes carry `details.retryAfter`; for `RATE_LIMITED` this field is new (additive). L's RQ-2 commit becomes exactly the generic line plus this module. Whichever lane lands first writes it (S1 owns both files), and the other reuses it. | contract delta §1.3 (`RATE_LIMITED` row), §1.6 (`Retry-After` row); LA-ADR-06 D1 ("Answer, API" and the new row "`Retry-After` rule"); LA-E5-03 scope and new AC-LA-E5-03-13 (UNIT); LA-E5-14 "Needs" and scope | One rule keeps header and body equal and bounded in one place. A third code (for example `503 NOT_READY` with a wait) needs no handler change. The generic rule needs the body field, so `RATE_LIMITED` carries it too. No K1-SIM criterion changes. |
+
+Changes for the Lead to route:
+- **L (LA-E5-14):** the RQ-2 commit is the generic line plus `http/retry-after.ts`, not a branch for `PLATFORM_RATE_LIMITED`. The mapper passes its seconds through `retryAfterSeconds`.
+- **S1 (LA-E5-03):** reuse or add the same module; the 429 page path sets the header with `setRetryAfter`; `RATE_LIMITED` errors carry `details.retryAfter`; new unit AC-LA-E5-03-13.
+- **QA FYI:** a `RATE_LIMITED` body now also has `details.retryAfter`, equal to the header. No acceptance criterion requires it.

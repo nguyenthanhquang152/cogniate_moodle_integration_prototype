@@ -71,8 +71,8 @@ Same body `{ status, error, details: { message, description } }`. Where marked, 
 
 | HTTP | `details.message` | When | Priority |
 | --- | --- | --- | --- |
-| 429 | `RATE_LIMITED` | A hard rate-limit bucket is empty (§1.4). Header `Retry-After: <s>` (whole seconds, ≥ 1). | Must |
-| 429 | `PLATFORM_RATE_LIMITED` | The platform answered `429`, or `403` with a body that contains `Rate Limit Exceeded` (Canvas throttling, R4 B-3). Header `Retry-After` and `details.retryAfter` (seconds): the platform's `Retry-After` (seconds or HTTP date), clamped to 1–3,600; 60 when absent. Before LA this was `502 PLATFORM_ERROR`. | Must |
+| 429 | `RATE_LIMITED` | A hard rate-limit bucket is empty (§1.4). Header `Retry-After` and `details.retryAfter` (the same whole seconds, 1–3,600; §1.6 rule). | Must |
+| 429 | `PLATFORM_RATE_LIMITED` | The platform answered `429`, or `403` with a body that contains `Rate Limit Exceeded` (Canvas throttling, R4 B-3). Header `Retry-After` and `details.retryAfter` (seconds; §1.6 rule): the platform's `Retry-After` (seconds or HTTP date), clamped to 1–3,600; 60 when absent or not readable. `description` is a fixed text ("The platform asked us to wait before another request."); no platform body, header or status text goes into the answer. Before LA this was `502 PLATFORM_ERROR`. | Must |
 | 403 | `TOOL_ACCOUNT_SUSPENDED` | The account of the API key is `suspended` (checked after authentication) | Must |
 | 403 | `API_KEY_SCOPE_MISSING` | §1.2 | Must |
 | 403 | `SERVICE_KEY_SCOPE` | A SERVICE-AUTH-V1 write outside the key's resource link when the account has `serviceKeyWriteScope: resource-link` | Should |
@@ -122,7 +122,7 @@ Default limits: [LA-ADR-06 D1](../adr/LA-ADR-06-service-operability.md#d1-rate-l
 
 | Header | Direction | Rule |
 | --- | --- | --- |
-| `Retry-After` | answer | with `429 RATE_LIMITED` and `429 PLATFORM_RATE_LIMITED` |
+| `Retry-After` | answer | with `429 RATE_LIMITED` and `429 PLATFORM_RATE_LIMITED`. **One rule** (BD-A2-16): every API error whose `details` carry `retryAfter` gets the header; header and `details.retryAfter` are the same integer, 1–3,600 seconds (one normalizer; a value that is not a number gives 60). A `429` protocol HTML page (`RATE_LIMITED`) gets the header only. |
 | `Idempotency-Key` | request | Should; §4.9 |
 
 ## 2. Protocol endpoints (changes to §2)
