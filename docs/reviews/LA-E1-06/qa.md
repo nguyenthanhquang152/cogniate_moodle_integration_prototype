@@ -1,5 +1,5 @@
 Verdict: PASS (host-only K0 + UNIT; K1-SIM pending: Docker window)
-Round: 1
+Round: 2
 
 # LA-E1-06 S4 Migration 013 and the channel and authority reads: QA verification
 
@@ -47,3 +47,48 @@ Independence: QA-3 did not read product source (`services/**`, `packages/**`, `a
 ## Regression and time
 
 R0 (`npm run check` on the clean clone): PASS. R1 + migration phases + U1 (`AC-05`, `AC-07`, `AC-08`): `pending: Docker window`. Measured time of `migration-013.k0.test.ts`: `150.5s` (`AC-04` `1.3s`, `AC-09` `39.2s`, `npm run check` in `beforeAll` `110.0s`).
+
+## Round 2
+
+Verdict: PASS (host-only K0 + UNIT; K1-SIM pending: Docker window)
+Round: 2
+
+Tester: QA-3 (Orca task `task_44bb686301fe`, dispatch `ctx_f71d95005166`), 2026-10-22. Spec: `docs/architecture/ltiaas/tasks/LA-E1-06.md` (with `BD-A1-11`, `BD-A1-12`, `BD-A1-17`, `BD-A1-19`, `BD-A1-27`).
+
+Independence: QA-3 did not read product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files. QA-3 verified the K0 and UNIT ACs in an isolated `--no-hardlinks` clone of `6b79c1f`.
+
+| Item | Value |
+| --- | --- |
+| SHA | `6b79c1f0b3b410cf603dbc3b1a820073169dc1d2` (`6b79c1f`: lane K Round 2 fix commits cherry-picked — `9edd9e7` frozen 409 and learner texts per `BD-A1-27`, `85b5f52` F5 `connection-lms` comma joins, `eb48552` cleanup target kinds and pending shared binding text tests, `6b79c1f` resolve `sharing` from the chosen profile) |
+| Lane and slot | lane K; no Docker (HOST-ONLY; K1-SIM rows marked `pending: Docker window`) |
+| Clone | `~/cogniate-qa-runs/LA/LA-E1-06/r2/clone`: `git clone --no-hardlinks --no-checkout`, detached at `6b79c1f0b3b410cf603dbc3b1a820073169dc1d2`, push URL `DISABLED`, `npm ci` at root |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/LA-E1-06/r2/` (umask 077): `npm-ci.log`, `k0-vitest.log`, `unit-rows-by-id.log`, `unit-rows-domain.log`, `infra-connection-lms.log`, `k0/e1-06-check-clean.log`, `k0/e1-06-f5-clean.log`, `k0/e1-06-ac04-connection-lms.log`, `k0/e1-06-ac09-f1-deltas.json`, `status-after.txt` |
+
+### Round 2 acceptance criteria
+
+| AC | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E1-06-01 | PASS (UNIT) | `services/cogniate-app/src/domain/migration-013.test.ts > 013 channel migration > backfills a copy of the populated 010/011/012 fixture and keeps all old values` (3 tests) | `npx --no-install vitest run --reporter=verbose services/cogniate-app/src/domain/migration-013.test.ts` | Backfills copies of the M1 `010`, `011` and `012` fixture databases (`channel = lms`, `binding_authority` `self` vs `operatorGrant`, `target_kind`, `bound_values` `NULL`). `unit-rows-domain.log` |
+| AC-LA-E1-06-02 | PASS (UNIT) | `services/cogniate-app/src/domain/migration-013.test.ts > 013 channel migration > a 012 build refuses a database with the 013 ledger` | as AC-01 | A pre-`013` (`012`) build refuses a database whose ledger has `013`. `unit-rows-domain.log` |
+| AC-LA-E1-06-03 | PASS (UNIT) | `services/cogniate-app/src/domain/connections.test.ts > AC-LA-E1-06-03: channel writer and immutable identity` (7 tests) + `derives sharing from the resolved default profile and refuses missing profile data before writing` (1 test) | `npx --no-install vitest run --reporter=verbose -t "AC-LA-E1-06-"` and `services/cogniate-app/src/domain/connections.test.ts` | Baseline and `zz-test` connections write the frozen behaviour class; updates keep `channel` immutable; grants store `channel` and optional `bound_values`; `sharing` is derived from the resolved default profile and missing profile data is refused before writing. `unit-rows-by-id.log`, `unit-rows-domain.log` |
+| AC-LA-E1-06-04 | PASS (K0) | `migration-013.k0.test.ts > AC-LA-E1-06-04` + `infra/scripts/fitness/connection-lms.test.mjs` | `LA_LEVEL=k0 LA_SCRATCH_CLONE=$PWD LA_BASE_SHA=265d6d0 LA_RUN_DIR=~/cogniate-qa-runs/LA/LA-E1-06/r2/k0 npx --no-install vitest run --config tests/ltiaas/tasks-core/LA-E1-06/vitest.config.mts --reporter=verbose` and `node --test infra/scripts/fitness/connection-lms.test.mjs` | `infra/scripts/fitness/rules/connection-lms.mjs` refuses all 3 probe SQL texts outside `domain/connections.ts` and detects `connection.lms` reads through comma joins without flagging `grant.lms` (`infra-connection-lms.log`); `domain/connections.ts` at HEAD and the clean tree exit `0`. `k0/e1-06-ac04-connection-lms.log` |
+| AC-LA-E1-06-05 | pending: Docker window (K1-SIM) | `golden-g1.k1sim.test.ts > AC-LA-E1-06-05` | SIM golden capture + `LA_LEVEL=k1sim npx --no-install vitest run --config tests/ltiaas/tasks-core/LA-E1-06/vitest.config.mts` | Pending SIM Docker slot. (Host unit suites `services/cogniate-app/src/app/redemption.test.ts > LA-E1-06 cleanup target kinds` — 3 new tests for initial/add-deployment cleanup target kinds and pending shared binding text — and `worker/score-sync.test.ts` frozen 409/learner texts per `BD-A1-27` pass in `unit-rows-domain.log`.) |
+| AC-LA-E1-06-06 | PASS (UNIT) | `services/cogniate-app/src/domain/connections.test.ts > AC-LA-E1-06-06: the same test channel routes self and grant connections by their stored authority` + `services/cogniate-app/src/worker/score-sync.test.ts > AC-LA-E1-06-06: disabled zz-test grant rows fail without POST; self rows still send` (2 tests) | `npx --no-install vitest run --reporter=verbose -t "AC-LA-E1-06-"` | With test channel `zz-test`, `operatorGrant` routes by `approved_deployment` and a disabled `operatorGrant` connection fails its score row with `CONNECTION_DISABLED` and no POST, while `self` routes by `lti_platform_id` and sends. `unit-rows-by-id.log` |
+| AC-LA-E1-06-07 | pending: Docker window (K1-SIM) | Lead QA R1 (`M1 --phase sim` + `M2`) | Lead QA SIM slot | Pending Docker window. |
+| AC-LA-E1-06-08 | pending: Docker window (K1-SIM) | Lead QA M1 `migration` + `snapshot-upgrade` phases + U1 | Lead QA SIM slot | Pending Docker window. |
+| AC-LA-E1-06-09 | PASS (K0) | `migration-013.k0.test.ts > AC-LA-E1-06-09` | as AC-04 | Clean tree passes `npm run check` (`F1 PASS: 73 files with hits, 588 hits`, down from `80` files / `680` hits at `265d6d0`; `F5 PASS: 3 rules (audit-event-delete, connection-lms, sql-portability), 0 hits`). Every changed core file decreased or stayed (`k0/e1-06-ac09-f1-deltas.json`), and `git status --porcelain` in `~/cogniate-qa-runs/LA/LA-E1-06/r2/clone` is empty (`status-after.txt`, 0 bytes). |
+
+### R0 `npm run check` counts at `6b79c1f` (`k0/e1-06-check-clean.log`)
+
+| Suite | Count at `6b79c1f` |
+| --- | --- |
+| Vitest (`test:unit`) | 113 files; 2,063 passed, 5 skipped |
+| Infra (`test:infra`, `node --test`) | 208 pass, 0 fail |
+| K0 (`test:k0`) | 3 files; 118 passed, 3 todo |
+| F1 (`fitness:lms-names`) | `F1 PASS: 73 files with hits, 588 hits` |
+| F5 (`fitness:rules`) | `F5 PASS: 3 rules (audit-event-delete, connection-lms, sql-portability), 0 hits` |
+
+### Round 2 regression and time
+
+R0 (`npm run check` on the clean clone): PASS. R1 + migration phases + U1 (`AC-05`, `AC-07`, `AC-08`): `pending: Docker window`. Measured time of `migration-013.k0.test.ts`: `172.2s` (`AC-04` `1.8s`, `AC-09` `54.3s`, `npm run check` in `beforeAll` `116.1s`).
