@@ -2,7 +2,31 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Owners
+## Current checkpoint — 14:34 UTC
+
+The model-transition owner table and timing below are historical. This checkpoint supersedes them.
+
+- Common Gemini QA: task_6bc986323143 / ctx_c5acede76614. The fresh C6/C7 legacy run started at 14:21:27 UTC. Its grant ends at 15:05 UTC.
+- Independent Gemini QA: task_709c13882df3 / ctx_9d66e36e9919. The exact four-path identity and README consumer proof passed. Host-only guide command captures are complete; the final evidence appendix is being assembled.
+- Claude Architect: task_e34f6bb75e2d / ctx_d2821ebd6a6b. Source conformance and bounded tracker wording are committed at 0f5a9ba. Final runtime conformance is pending.
+- The same retained Codex executor owns every future product repair and final Docs. It has no active repair now.
+
+Product C6 is 4008afb; tests C7 are 620c03d. Independent host QA and both source/launcher reviews passed.
+E-T5R eligibility is accepted. Required fresh runtime is all twelve legacy groups, two Canvas SIM runs of 258 cases, all 64 M2 cases, and three T7 runs.
+Every repeated row uses its fresh result. The final ledger distinguishes reused C4 evidence from fresh C6/C7 evidence.
+A fresh failure, unequal rounds or another product change voids E-T5R. Both historical failed attempts remain FAILED.
+
+Measured planning ranges: legacy 37–40 minutes; each Canvas SIM 14–16 minutes.
+M2 has a 6–8 minute estimate; T7 has a 14–17 minute estimate.
+Together these runtime phases take about 85–97 minutes from the legacy start, excluding handoff delays or failures.
+This suggests a runtime finish around 15:46–15:58 UTC (22:46–22:58 Vietnam), not a promise of project completion.
+Final conformance, necessary Docs stamps, independent Docs QA and two final blind reviews still follow.
+Reuse prior checks for unchanged work. Do not expand optional cleanup or rerun passed suites without a new reason.
+
+All 32 full baseline volume records are protected. No pruning is authorized.
+Real-LMS rows remain UNVERIFIED, local Canvas remains DEFERRED, and no push or main merge is authorized.
+
+## Historical owners at the model transition
 
 | Work | Model | Current owner |
 | --- | --- | --- |
