@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { api, idPath } from "@cogniate/portal-sdk";
 import { useAlive } from "@cogniate/portal-sdk";
-import type { BlackboardPlatformBody, Connection } from "@cogniate/portal-sdk";
+import type { DeploymentBindingBody, Connection } from "@cogniate/portal-sdk";
 import { Button } from "@cogniate/portal-sdk";
 import { Input } from "@cogniate/portal-sdk";
 import { ProviderErrorNotice, providerErrorFields } from "@cogniate/portal-sdk";
@@ -23,7 +23,7 @@ export function BlackboardBinding({ connection, onChanged }: { connection: Conne
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-    const body: BlackboardPlatformBody = { deploymentId: deploymentId.trim(), grantCode };
+    const body: DeploymentBindingBody = { deploymentId: deploymentId.trim(), grantCode };
     setGrantCode("");
     setBusy(true);
     setError(null);

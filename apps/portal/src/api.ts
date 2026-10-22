@@ -1,4 +1,4 @@
-import type { CanvasConfigurationSnapshot, CourseVersion, ErrorDetails } from "./types.ts";
+import type { ConfigurationSnapshot, CourseVersion, ErrorDetails } from "./types.ts";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -72,13 +72,13 @@ export function extension<T>(connectionId: string, path: string, options: Parame
 }
 
 /** Keep the exact export bytes and its snapshot header together. */
-export async function canvasConfiguration(
-  connectionId: string,
+export async function configurationSnapshot(
+  path: string,
   inline: boolean,
   signal?: AbortSignal,
-): Promise<CanvasConfigurationSnapshot> {
+): Promise<ConfigurationSnapshot> {
   const response = await fetch(
-    `/app-api/connections/${idPath(connectionId)}/canvas-configuration${inline ? "?jwk=inline" : ""}`,
+    `/app-api${path}${inline ? "?jwk=inline" : ""}`,
     { credentials: "same-origin", cache: "no-store", signal },
   );
   if (!response.ok) {

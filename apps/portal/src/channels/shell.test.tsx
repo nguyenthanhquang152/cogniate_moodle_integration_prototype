@@ -9,7 +9,7 @@ import { ChannelProvider } from "./context.tsx";
 import { channelRegistry, discoveredChannels } from "./registry.ts";
 import { channelModules } from "./modules.ts";
 import { ManifestWizard } from "./ManifestWizard.tsx";
-import { createPortalSdk } from "../sdk/index.ts";
+import { CollectStep, createPortalSdk } from "../sdk/index.ts";
 
 // This channel has no folder or portal module. The shell must accept only its data.
 const canary: ChannelManifest = {
@@ -85,6 +85,18 @@ describe("manifest portal shell", () => {
     const { container } = wizard(manifest);
     expect([...container.querySelectorAll("[data-channel-step]")].map((element) => element.getAttribute("data-channel-step"))).toEqual(["show", "collect", "verify", "enable"]);
     expect(container.textContent).toContain(manifest.texts.adminSteps[0]!.replaceAll("{LMS}", manifest.names.text).replaceAll("{tool}", "Cogniate (Library)"));
+  });
+  it("lets a step override reuse the default fields and form state", async () => {
+    const onCreated = vi.fn();
+    fetchMock.mockResolvedValue(json(current));
+    render(<MemoryRouter><ManifestWizard manifest={canary} provider={provider(canary)} connection={null} libraryName="Library" opener="test" onCreated={onCreated} onChanged={vi.fn()} sdk={createPortalSdk(vi.fn())}
+      module={{ steps: { collect: () => <><p>Custom instructions</p><CollectStep /></> } }} /></MemoryRouter>);
+    expect(screen.getByText("Custom instructions")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Connection name"), { target: { value: "Shared form" } });
+    fireEvent.change(screen.getByLabelText("Site URL"), { target: { value: "https://shared.test" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await waitFor(() => expect(onCreated).toHaveBeenCalledWith(current));
+    expect(JSON.parse(fetchMock.mock.calls[0]![1].body)).toMatchObject({ name: "Shared form", siteUrl: "https://shared.test", channel: canary.id });
   });
   it("uses the generic connect route without a portal module and submits manifest fields", async () => {
     app(`/integrations/${canary.id}/connect`);

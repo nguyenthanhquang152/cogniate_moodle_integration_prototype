@@ -2,7 +2,7 @@ import manifest from "../manifest.ts";
 import { Notice, ConnectionReady, verificationAuthority, VerificationInstructions } from "@cogniate/portal-sdk";
 import type { ReactNode } from "react";
 import { Card } from "@cogniate/portal-sdk";
-import type { ProviderWizardProps } from "@cogniate/portal-sdk";
+import type { ChannelWizardProps } from "@cogniate/portal-sdk";
 import { CanvasCreate } from "./CanvasCreate.tsx";
 import { CanvasConfiguration } from "./CanvasConfiguration.tsx";
 import { CanvasBinding } from "./CanvasBinding.tsx";
@@ -22,7 +22,7 @@ function Step({ index, children }: { index: number; children?: ReactNode }) {
 export function CanvasTeacherSteps() {
   return <Step index={3} />;
 }
-export function CanvasWizard(props: ProviderWizardProps) {
+export function CanvasWizard(props: ChannelWizardProps) {
   if (!props.connection) return <Step index={0}><CanvasCreate {...props} /></Step>;
   if (props.connection.status === "disabled") return <Notice>This connection is disconnected. Connecting again does not restore its old course items.</Notice>;
   if (props.connection.status !== "pending") return <><ConnectionReady connection={props.connection} libraryName={props.libraryName} /><CanvasTeacherSteps /></>;

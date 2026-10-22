@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { createContext, useContext, useState } from "react";
 import type { FormEvent } from "react";
 import type { ChannelManifest, FieldSpec } from "@cogniate/channel-kernel";
 import type { ChannelUiModule, ChannelWizardProps, Connection, WizardStep } from "../sdk/index.ts";
@@ -13,6 +13,12 @@ import { channelText } from "./registry.ts";
 
 import { verificationAuthority, VerificationInstructions } from "./verification.tsx";
 
+function initialFieldValue(spec: FieldSpec, connection: Connection | null): string | undefined {
+  const fallback = "default" in spec && typeof spec.default === "string" ? spec.default.replaceAll("{siteUrl}", connection?.siteUrl ?? "") : undefined;
+  if (spec.key === "clientId") return connection?.platform?.clientId ?? fallback;
+  if (spec.key === "deploymentId") return connection?.platform?.deploymentIds[0] ?? fallback;
+  return fallback;
+}
 type WizardProps = ChannelWizardProps & { manifest: ChannelManifest };
 function useWizard(props: WizardProps) {
   const { manifest } = props;
@@ -29,12 +35,11 @@ function useWizard(props: WizardProps) {
   const finished = connection?.status === "registered" || connection?.status === "connected";
   const hasBinding = connection?.status === "pending" && (method === "manual" || authority !== "self");
   function field(spec: FieldSpec) {
-    const value = "default" in spec && typeof spec.default === "string" ? spec.default.replaceAll("{siteUrl}", connection?.siteUrl ?? "") : undefined;
     return <label key={spec.key}>{text(spec.label)}
       {spec.kind === "choice" ? <Select name={spec.key} required={spec.required} defaultValue={ready.find((p) => p.id === selected.defaultProfile)?.id ?? ready[0]?.id}>
         {ready.map((profile) => <option key={profile.id} value={profile.id}>{profile.label}</option>)}
       </Select> : <Input name={spec.key} required={spec.required} type={spec.kind === "origin" || spec.kind === "url" ? "url" : "text"}
-        defaultValue={spec.key === "clientId" ? connection?.platform?.clientId ?? value : spec.key === "deploymentId" ? connection?.platform?.deploymentIds[0] ?? value : value}
+        defaultValue={initialFieldValue(spec, connection)}
         autoComplete={spec.kind === "grantCode" ? "off" : undefined} />}
     </label>;
   }
@@ -70,7 +75,15 @@ function useWizard(props: WizardProps) {
   return { manifest, connection, method, setMethod, error, busy, fields, text, ready, finished, hasBinding, authority, field, submit, renew };
 }
 type WizardState = ReturnType<typeof useWizard>;
-function ShowStep({ state }: { state: WizardState }) {
+const WizardContext = createContext<WizardState | null>(null);
+function useWizardState(): WizardState {
+  const state = useContext(WizardContext);
+  if (!state) throw new Error("Render default steps inside the manifest wizard.");
+  return state;
+}
+/** Tool settings and registration URL. Use inside a shell step override to reuse the default. */
+export function ShowStep() {
+  const state = useWizardState();
   const { manifest, connection, method, busy, text, renew } = state;
   return <>
       <h2>Tool settings</h2>
@@ -80,7 +93,9 @@ function ShowStep({ state }: { state: WizardState }) {
       {connection && connection.status === "pending" && method === "dynamic" && <Button type="button" disabled={busy} onClick={renew}>Get registration URL</Button>}
     </>;
 }
-function CollectStep({ state }: { state: WizardState }) {
+/** Create fields or the pending platform fields. Use inside a shell step override to reuse the default. */
+export function CollectStep() {
+  const state = useWizardState();
   const { manifest, connection, method, setMethod, fields, field, ready, busy, hasBinding } = state;
   return <>
       <h2>{connection ? "Platform values" : "Your site"}</h2>
@@ -96,7 +111,9 @@ function CollectStep({ state }: { state: WizardState }) {
       {hasBinding && fields(manifest.setup.bindingFields).filter((item) => item.kind !== "grantCode").map(field)}
     </>;
 }
-function VerifyStep({ state }: { state: WizardState }) {
+/** Instructions and approval field selected by stored authority. Use inside a shell step override to reuse the default. */
+export function VerifyStep() {
+  const state = useWizardState();
   const { manifest, authority, hasBinding, fields, field, busy } = state;
   return <>
       <h2>Verify connection</h2>
@@ -105,31 +122,33 @@ function VerifyStep({ state }: { state: WizardState }) {
       {hasBinding && <Button disabled={busy}>Save</Button>}
     </>;
 }
-function EnableStep({ state }: { state: WizardState }) {
+/** Teacher instructions and the completion heading. Use inside a shell step override to reuse the default. */
+export function EnableStep() {
+  const state = useWizardState();
   const { manifest, finished, text } = state;
   return <>
       <h2>{finished ? "Your library is connected" : "Enable the connection"}</h2>
       <ol className="list-decimal space-y-3 pl-5">{manifest.texts.teacherSteps.map((step, index) => <li key={index}>{text(step)}</li>)}</ol>
     </>;
 }
-const defaultSteps: Record<WizardStep, React.ComponentType<{ state: WizardState }>> = {
+const defaultSteps: Record<WizardStep, React.ComponentType> = {
   show: ShowStep, collect: CollectStep, verify: VerifyStep, enable: EnableStep,
 };
 /** The manifest binding form for a module that uses the default verification step. */
 export function ManifestBinding(props: WizardProps) {
   const state = useWizard(props);
-  return <form className="flex flex-col gap-5" onSubmit={state.submit}>
-    <CollectStep state={state} /><VerifyStep state={state} /><ErrorNotice error={state.error} />
-  </form>;
+  return <WizardContext.Provider value={state}><form className="flex flex-col gap-5" onSubmit={state.submit}>
+    <CollectStep /><VerifyStep /><ErrorNotice error={state.error} />
+  </form></WizardContext.Provider>;
 }
 export function ManifestWizard({ module, ...props }: WizardProps & { module?: ChannelUiModule }) {
   const state = useWizard(props);
-  return <form className="flex flex-col gap-5" onSubmit={state.submit}>
+  return <WizardContext.Provider value={state}><form className="flex flex-col gap-5" onSubmit={state.submit}>
     {(["show", "collect", "verify", "enable"] as const).map((step) => {
       const Override = module?.steps?.[step];
       const Default = defaultSteps[step];
-      return <Card key={step} data-channel-step={step} className="flex flex-col gap-5"><p className="eyebrow">{step}</p>{Override ? <Override {...props} /> : <Default state={state} />}</Card>;
+      return <Card key={step} data-channel-step={step} className="flex flex-col gap-5"><p className="eyebrow">{step}</p>{Override ? <Override {...props} /> : <Default />}</Card>;
     })}
     <ErrorNotice error={state.error} />
-  </form>;
+  </form></WizardContext.Provider>;
 }

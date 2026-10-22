@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { api, idPath } from "@cogniate/portal-sdk";
 import { useAlive } from "@cogniate/portal-sdk";
-import type { AddDeploymentBody, CanvasPlatformBody, Connection } from "@cogniate/portal-sdk";
+import type { AddDeploymentBody, ClientBindingBody, Connection } from "@cogniate/portal-sdk";
 import { Button } from "@cogniate/portal-sdk";
 import { Input } from "@cogniate/portal-sdk";
 import { ProviderErrorNotice, providerErrorFields } from "@cogniate/portal-sdk";
@@ -24,7 +24,7 @@ export function CanvasBinding({ connection, onChanged, addDeployment = false }: 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-    const body: CanvasPlatformBody | AddDeploymentBody = addDeployment
+    const body: ClientBindingBody | AddDeploymentBody = addDeployment
       ? { deploymentId: deploymentId.trim(), grantCode }
       : { clientId: clientId.trim(), deploymentId: deploymentId.trim(), grantCode };
     // Retain the code only in this one request, including when the request fails.

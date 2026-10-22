@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { Card } from "@cogniate/portal-sdk";
 import { CopyButton } from "@cogniate/portal-sdk";
 import { ToolConfiguration } from "@cogniate/portal-sdk";
-import type { ProviderWizardProps } from "@cogniate/portal-sdk";
+import type { ChannelWizardProps } from "@cogniate/portal-sdk";
 import { BlackboardBinding } from "./BlackboardBinding.tsx";
 import { BlackboardCreate } from "./BlackboardCreate.tsx";
 import steps from "./steps.ts";
@@ -28,7 +28,7 @@ export function BlackboardTeacherSteps() {
   return <Step index={3} />;
 }
 
-export function BlackboardWizard(props: ProviderWizardProps) {
+export function BlackboardWizard(props: ChannelWizardProps) {
   if (!props.connection) return <Step index={0}><BlackboardCreate {...props} /></Step>;
   if (props.connection.status === "disabled") return <Notice>This connection is disconnected. Connecting again does not restore its old course items.</Notice>;
   if (props.connection.status !== "pending") return <><ConnectionReady connection={props.connection} libraryName={props.libraryName} /><BlackboardTeacherSteps /></>;
