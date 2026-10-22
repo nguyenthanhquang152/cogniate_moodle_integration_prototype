@@ -1,3 +1,4 @@
+import { ApiError } from './api-errors.ts';
 import type { ChannelRegistry } from '@cogniate/channel-kernel';
 // Operator commands (app contract §4.8, §4.9): `app:grant issue|revoke|list` and `app:binding suspend|release`. They run
 // in the app service shell (not reachable over HTTP). Each command returns its exit code and output lines, so the
@@ -182,5 +183,12 @@ export function createOperator(deps: OperatorDeps) {
     return { exitCode: r.failed ? 1 : 0, lines: r.lines.map(lineOf) };
   }
 
-  return { issue, revoke, list, suspend, release };
+  const bindingCommand = (command: typeof suspend): typeof suspend => async (...args) => {
+    try { return await command(...args); }
+    catch (error) {
+      if (error instanceof ApiError) return fail(`${error.code}: ${error.message}`);
+      throw error;
+    }
+  };
+  return { issue, revoke, list, suspend: bindingCommand(suspend), release: bindingCommand(release) };
 }

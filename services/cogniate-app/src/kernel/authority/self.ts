@@ -2,10 +2,8 @@ import { LEGACY_SELF_BINDING_TEXT } from '@cogniate/channel-kernel';
 import type { LtiPlatform } from '../../clients/lti-client.ts';
 import { LtiServiceError } from '../../clients/lti-client.ts';
 import { PlatformTakenError, disableConnection, getConnection, markRegistered } from '../../domain/connections.ts';
-import { revokeOpenGrants } from '../../domain/bindings.ts';
-import { transaction } from '../../domain/db.ts';
 import { ApiError } from '../../app/api-errors.ts';
-import { deactivateOrphan, invalidBindingBody, ltiFailure, platformInfo } from './common.ts';
+import { deactivateOrphan, invalidBindingBody, ltiFailure, platformInfo, suspendBinding } from './common.ts';
 import type { AuthorityDeps, AuthorityStrategy } from './types.ts';
 
 export function selfAuthority(deps: AuthorityDeps): AuthorityStrategy {
@@ -59,11 +57,7 @@ export function selfAuthority(deps: AuthorityDeps): AuthorityStrategy {
       if (c.ltiPlatformId) await lti.patchPlatform(c.ltiPlatformId, { active: false }, traceId).catch((err: unknown) => ltiFailure(err, traceId));
       disableConnection(db, c.libraryId, c.id, now());
     },
-    async suspend(c, traceId) {
-      transaction(db, () => { disableConnection(db, c.libraryId, c.id, now()); revokeOpenGrants(db, c.id, 'suspend', now()); });
-      logger.warn('binding_suspended', { trace_id: traceId, connection_id: c.id, note_present: true });
-      return deps.cleanup?.fenceOut(c, traceId) ?? [];
-    },
+    suspend: (c, traceId) => suspendBinding(deps, c, traceId),
     release: (c, traceId) => {
       if (!deps.cleanup) throw new Error('release needs the binding cleanup engine');
       return deps.cleanup.release(c, traceId);

@@ -2,9 +2,12 @@ import type { PlatformBodyResult } from '../ports.ts';
 import type { Logger } from '@cogniate/shared';
 import type { LtiClient, LtiPlatform } from '../../clients/lti-client.ts';
 import { LtiServiceError, ltiErrorFields } from '../../clients/lti-client.ts';
-import type { PlatformInfo } from '../../domain/connections.ts';
-import { platformOwner } from '../../domain/connections.ts';
+import type { Connection, PlatformInfo } from '../../domain/connections.ts';
+import { disableConnection, getConnection, platformOwner } from '../../domain/connections.ts';
 import type { Db } from '../../domain/db.ts';
+import { transaction } from '../../domain/db.ts';
+import { revokeOpenGrants } from '../../domain/bindings.ts';
+import type { AuthorityDeps } from './types.ts';
 import { ApiError } from '../../app/api-errors.ts';
 
 export function ltiFailure(err: unknown, traceId: string): never {
@@ -36,4 +39,12 @@ export function invalidBindingBody(result: Extract<PlatformBodyResult, { ok: fal
   throw new ApiError('INVALID_PLATFORM_VALUES', result.reason === 'origin'
     ? `The URLs must be https and on the ${channelName} site of this connection.`
     : 'Some values are missing or not valid.', { details: { fields: result.fields } });
+}
+
+/** Both authorities suspend atomically and fence the reloaded, disabled connection. */
+export async function suspendBinding(deps: AuthorityDeps, c: Connection, traceId: string) {
+  const { db, now, logger } = deps;
+  transaction(db, () => { disableConnection(db, c.libraryId, c.id, now()); revokeOpenGrants(db, c.id, 'suspend', now()); });
+  logger.warn('binding_suspended', { trace_id: traceId, connection_id: c.id, note_present: true });
+  return deps.cleanup?.fenceOut(getConnection(db, c.libraryId, c.id)!, traceId) ?? [];
 }
