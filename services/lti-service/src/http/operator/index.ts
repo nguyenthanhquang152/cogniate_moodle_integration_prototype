@@ -2,7 +2,7 @@
 // (default 127.0.0.1:4110). The proxy has no route to it. Every /operator/v1/* route needs
 // `Authorization: OPERATOR-AUTH-V1 <operator key>`. A tenant API key is an unknown credential here.
 // Mount list (LD-10): one line per endpoint group module. S2 delivers its modules as new files; S1 adds the line (RQ-1).
-import type { KeyHandle, Logger } from '@cogniate/shared';
+import type { KeyHandle, Logger, PublicUrls } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ApiError } from '../../api-errors.ts';
@@ -14,6 +14,8 @@ import { BODY_LIMIT, installApiBasics } from '../app.ts';
 import { registerAuditRoutes } from './audit.ts';
 import { registerOperatorKeyRoutes } from './operator-keys.ts';
 import { registerSigningKeyRoutes } from './signing-keys.ts';
+import { registerAccountRoutes } from './accounts.ts';
+import { registerSharedPlatformRoutes } from './shared-platforms.ts';
 
 /** The operator of an accepted request. The audit actor is operator:<operator>. */
 export interface OperatorIdentity {
@@ -31,6 +33,8 @@ declare module 'fastify' {
 export interface OperatorContext {
   db: Db;
   keys: KeyHandle;
+  urls: PublicUrls;
+  simulationProfiles: boolean;
   logger: Logger;
   now: () => number;
   /** The operator of the request. The auth hook sets it before a route runs. */
@@ -53,6 +57,8 @@ export interface OperatorAuditEvent {
 export interface OperatorDeps {
   db: Db;
   keys: KeyHandle;
+  urls: PublicUrls;
+  simulationProfiles?: boolean;
   logger: Logger;
   now?: () => number;
 }
@@ -61,6 +67,8 @@ const MOUNTS: Array<(app: FastifyInstance, ctx: OperatorContext) => void> = [
   registerOperatorKeyRoutes,
   registerAuditRoutes,
   registerSigningKeyRoutes,
+  registerAccountRoutes,
+  registerSharedPlatformRoutes,
 ];
 
 /**
@@ -91,6 +99,7 @@ export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInsta
   };
   const ctx: OperatorContext = {
     db: deps.db, keys: deps.keys, logger: log, now, operator,
+    urls: deps.urls, simulationProfiles: deps.simulationProfiles ?? false,
     // Client address: the socket address until LA-E5-03 (LA-ADR-06 D1).
     audited: (req, event, body) => withAudit(deps.db, now, {
       actor: { type: 'operator', id: operator(req).operator }, toolAccountId: event.toolAccountId ?? null, traceId: req.traceId, clientIp: req.ip,
