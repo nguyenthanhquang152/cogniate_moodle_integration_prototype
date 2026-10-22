@@ -22,7 +22,7 @@ async function eslintText(asPath: string, text: string): Promise<EslintResult[]>
   return JSON.parse(r.stdout) as EslintResult[];
 }
 
-const IMPORT_RULE = /no-restricted-imports|no-restricted-paths|import\/no-restricted/;
+const IMPORT_RULE = /no-restricted-imports|no-restricted-paths|import\/no-restricted|channels\/local-boundary/;
 function importErrors(results: EslintResult[]): EslintMessage[] {
   return results.flatMap((r) => r.messages).filter((m) => m.severity === 2 && m.ruleId !== null && IMPORT_RULE.test(m.ruleId));
 }
