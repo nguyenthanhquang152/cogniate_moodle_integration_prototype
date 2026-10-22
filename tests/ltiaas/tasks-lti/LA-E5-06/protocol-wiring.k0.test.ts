@@ -67,30 +67,43 @@ describe('LA-E5-06 K0: Protocol wiring (resolver, status pages, session cap, F5 
     ).toBe(true);
 
     const cleanProbe = checkF5OnText('services/lti-service/src/lti/login.ts', 'export const ok = 1;\n');
-    expect(cleanProbe.code, `Benign probe must exit 0; output:\n${cleanProbe.output}`).toBe(0);
+    expect(cleanProbe.code, 'Benign probe must exit 0').toBe(0);
+
+    const specProbe = checkF5OnText(
+      'services/lti-service/src/lti/probe.ts',
+      "export const u = base + '/lti/launch/' + id;\n",
+    );
+    expect(
+      specProbe.code !== 0,
+      "F5 must reject base + '/lti/launch/' + id in services/lti-service/src/lti/probe.ts",
+    ).toBe(true);
+    expect(
+      specProbe.output.includes('protocol-urls'),
+      "F5 output names 'protocol-urls'",
+    ).toBe(true);
 
     const probeText = "export const badUrl = 'https://lti.example.test/lti/launch/cogniate';\n";
 
     const outsideLogin = checkF5OnText('services/lti-service/src/lti/login.ts', probeText);
     expect(
       outsideLogin.code !== 0,
-      `F5 must reject literal '/lti/launch/' in services/lti-service/src/lti/login.ts; output:\n${outsideLogin.output}`,
+      "F5 must reject literal '/lti/launch/' in services/lti-service/src/lti/login.ts",
     ).toBe(true);
     expect(
-      outsideLogin.output.includes('/lti/launch/'),
-      `F5 output names '/lti/launch/'; output:\n${outsideLogin.output}`,
+      outsideLogin.output.includes('protocol-urls'),
+      "F5 output names 'protocol-urls' for login.ts probe",
     ).toBe(true);
 
     const outsideRoute = checkF5OnText('services/lti-service/src/http/routes/protocol.ts', probeText);
     expect(
       outsideRoute.code !== 0,
-      `F5 must reject literal '/lti/launch/' in services/lti-service/src/http/routes/protocol.ts; output:\n${outsideRoute.output}`,
+      "F5 must reject literal '/lti/launch/' in services/lti-service/src/http/routes/protocol.ts",
     ).toBe(true);
 
     const insideAccounts = checkF5OnText('services/lti-service/src/accounts/resolver.ts', probeText);
     expect(
       insideAccounts.code,
-      `F5 must allow '/lti/launch/' inside services/lti-service/src/accounts/resolver.ts; output:\n${insideAccounts.output}`,
+      "F5 must allow '/lti/launch/' inside services/lti-service/src/accounts/resolver.ts",
     ).toBe(0);
   });
 
