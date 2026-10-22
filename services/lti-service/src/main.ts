@@ -49,7 +49,7 @@ export async function startLtiService(options: { logger?: Logger } = {}): Promis
     profile: config.profile, knobs, outboundAllowlist: outbound.allowlist, simulationProfiles: config.simulationProfiles,
   });
   // LA-ADR-06 D3: the operator API on its own listener (no proxy route).
-  const operatorApp = await buildOperatorApp({ db, logger });
+  const operatorApp = await buildOperatorApp({ db, logger, keys: config.masterKey });
   await app.listen({ port: config.port, host: '0.0.0.0' });
   await operatorApp.listen({ port: config.operatorPort, host: config.operatorHost });
   logger.info('service_started', {
