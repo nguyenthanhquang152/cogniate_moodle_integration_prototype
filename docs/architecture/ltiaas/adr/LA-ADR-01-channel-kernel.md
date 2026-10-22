@@ -261,17 +261,26 @@ export interface ConnectionSetup {
   // `operatorGrant` authority (unchanged names): the redemption target and its staged create.
   initialTarget?(ctx: InitialTargetContext): BindingTarget;
   createRequest?(target: BindingTarget, ctx: CreateRequestContext): StagedCreate;
+  // Per-profile app data (BD-A1-29): replaces profileLabel, acceptsServiceUrl and siteRuleSuffixes.
+  readonly profiles: Readonly<Record<string, AppProfileData>>;
   // Optional extension ports P5–P7.
   extensionRoutes?: readonly ExtensionRoute[];
   publishHooks?: readonly PublishHook[];
   packageExporters?: readonly PackageExporter[];
 }
 export interface AdminValues { issuer: string; authenticationEndpoint: string; accessTokenEndpoint: string; jwksUrl: string; tokenAudience?: string }
+export interface AppProfileData {               // plain data per offered profile (BD-A1-29)
+  sharing: 'exclusive' | 'shared'; serviceUrl: boolean;
+  label: string;                               // app-only: the frozen GET /app-api/lms-providers label (for example 'Moodle site')
+  refusedHostSuffixes?: readonly string[];     // site rule 5
+}
 ```
 
 **Contract surface for K0 (build ruling BD-A1-20, [build decisions A1](../build-decisions-A1.md)).** The kit's K-ADAPTER case uses only the names and result shapes of this sketch: `channel`; `checkCreate` → `{ ok: true, siteUrl, serviceUrl }` or `{ ok: false, field, rule? }`; `toolConfiguration` → an array of rows; `parseBindingBody` → `{ ok: true, values }` or `{ ok: false, fields }` (a refusal is a value, never a throw); `selfCreate?`, `initialTarget?`, `createRequest?`; `extensionRoutes?`, `publishHooks?`, `packageExporters?`. Required members, and a missing one fails the case: `channel`, `checkCreate`, `toolConfiguration` and `parseBindingBody` for every channel with `app.ts`; `selfCreate` when a registration entry is `manual` with `self`; `initialTarget` and `createRequest` when an entry has `operatorGrant`; an extension port whose capability is true. Until LA-E1-07 creates `kernel/ports.ts`, the kit relies only on these names, the arity and the result discriminants, not on the context field names.
 
-The fields `lms`, `lmsName`, `label`, `methods`, `capabilities`, `defaultProfile`, `acceptsServiceUrl`, `siteRuleSuffixes` and `profileLabel` of `ProviderAdapter` move into the manifest or the profile data. The adapter stays pure (no database, no LTI call), as today (`providers/types.ts:1-4`).
+The fields `lms`, `lmsName`, `label`, `methods`, `capabilities`, `defaultProfile`, `acceptsServiceUrl`, `siteRuleSuffixes` and `profileLabel` of `ProviderAdapter` move into the manifest or the profile data. `profileLabel`, `acceptsServiceUrl` and `siteRuleSuffixes` become the plain-data map `profiles` of the port (BD-A1-29): one entry per offered profile. A unit test keeps `sharing`, `serviceUrl` and `refusedHostSuffixes` equal to the same profile in the channel's `lti-profiles.ts`, and every manifest registration profile has an entry; `label` is app-only. A profile that `GET /api/providers` reports but `profiles` does not list stays ignored (LA-ADR-04 D1 S1). The kernel admin-value adapter gives `sharing: 'exclusive'`, `serviceUrl: false`, the LTI profile label and no suffixes.
+
+**Published ports (BD-A1-28).** `services/cogniate-app/src/kernel/ports.ts` (LA-E1-07) is the reference for the context types: `ToolConfigurationContext { urls, libraryName, sharedClientId }`; `PlatformBodyContext { siteUrl, clientId?, sharedClientId }` with `purpose: GrantPurpose` (`'initial' | 'add_deployment'`); `InitialTargetContext { connection, values, profile, sharedPlatform }`; `CreateRequestContext { libraryName }`; `selfCreate` values add `clientId`. Once the file is on the integration branch, K0 imports these types (`import type`) and fills every required field. The adapter stays pure (no database, no LTI call), as today (`providers/types.ts:1-4`).
 
 `services/cogniate-app/src/kernel/ports.ts` holds every type that these sketches name (`ToolConfigurationContext`, `PlatformBodyContext`, `CreateRequestContext`, `InitialTargetContext`, `StagedCreate`, `BindingTarget`, `GrantPurpose`, `ToolRow`, `ProfileView`, `PlatformBodyValues`, `PortContext`, …). It is a public interface file with no logic: QA may read it and import its types (types only) as soon as step S5 creates it (QA Q-LAD-19).
 
