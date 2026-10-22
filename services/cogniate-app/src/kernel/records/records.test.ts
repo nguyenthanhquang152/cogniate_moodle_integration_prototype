@@ -19,8 +19,8 @@ function fixture(preview = false, format: 'html' | 'scorm12' = 'scorm12', contex
   db.exec(`INSERT INTO play_session (id, attempt_id, runtime_token_hash, session_id, roles, created_at, expires_at)
     VALUES ('play', 'att_user', 'token', 'session', '[]', 0, 999999)`);
   let seq = 0;
-  return { db, commit(data: Record<string, unknown>) {
-    return applyCommit(db, findRuntimeSession(db, 'token', TEST_CHANNELS)!, { kind: format, sessionId: 'session', seq: ++seq, ...data }, 1000);
+  return { db, commit(data: Record<string, unknown>, now = 1000) {
+    return applyCommit(db, findRuntimeSession(db, 'token', TEST_CHANNELS)!, { kind: format, sessionId: 'session', seq: ++seq, ...data }, now);
   } };
 }
 
@@ -38,7 +38,7 @@ describe('final records', () => {
       const rows = db.prepare('SELECT status, score_given, score_maximum, tries, payload FROM record_dispatch ORDER BY seq').all();
       expect(rows).toEqual([40, 80].map((n) => ({ status: n === 40 ? 'superseded' : 'pending', score_given: n, score_maximum: 100, tries: 0,
         payload: JSON.stringify({ userId: 'user', activityProgress: 'Completed', gradingProgress: 'FullyGraded', scoreGiven: n, scoreMaximum: 100 }) })));
-      expect(db.prepare('SELECT kind, outcome, score_given FROM learning_record ORDER BY score_given').all())
+      expect(db.prepare("SELECT kind, outcome, score_given FROM learning_record WHERE kind = 'final' ORDER BY score_given").all())
         .toEqual([{ kind: 'final', outcome: 'failed', score_given: 40 }, { kind: 'final', outcome: 'passed', score_given: 80 }]);
       expect(db.prepare('SELECT * FROM score_sync').all()).toEqual([]);
     } finally { db.close(); }
@@ -52,7 +52,8 @@ describe('final records', () => {
         expect(commit({ event: 'progress', progress: { seenPages: ['index.html', 'page.html'], answers: {} } })).toMatchObject({ ok: true, outcome: 'completed' });
         expect(commit({ event: 'unload', progress: { seenPages: ['index.html', 'page.html'], answers: {} } })).toMatchObject({ ok: true, syncId: null });
         expect(db.prepare('SELECT status, score_given, score_maximum FROM record_dispatch').all()).toEqual(preview ? [] : [{ status: 'pending', score_given: 100, score_maximum: 100 }]);
-        expect(db.prepare('SELECT count(*) AS n FROM learning_record').get()!.n).toBe(preview ? 0 : 1);
+        expect(db.prepare("SELECT count(*) AS n FROM learning_record WHERE kind = 'final'").get()!.n).toBe(preview ? 0 : 1);
+        if (preview) expect(db.prepare('SELECT count(*) AS n FROM learning_record').get()!.n).toBe(0);
       } finally { db.close(); }
     }
   });
@@ -61,6 +62,89 @@ describe('final records', () => {
     const { db } = fixture(false, 'scorm12', '');
     try { expect(publicationResults(db, { connectionId: 'con', courseId: 'crs' }, TEST_CHANNELS)[0]!.activity.contextTitle).toBe('—'); }
     finally { db.close(); }
+  });
+});
+
+/** The records of the attempt in write order (one commit writes started, progressed, submitted, final). */
+function recordsOf(db: ReturnType<typeof openDb>) {
+  return db.prepare(`SELECT kind, outcome, score_given, started_at, submitted_at, occurred_at FROM learning_record
+    ORDER BY occurred_at, CASE kind WHEN 'started' THEN 0 WHEN 'progressed' THEN 1 WHEN 'submitted' THEN 2 ELSE 3 END`).all();
+}
+const rec = (kind: string, outcome: string, score: number | null, at: number, startedAt: number, submittedAt: number | null) =>
+  ({ kind, outcome, score_given: score, started_at: startedAt, submitted_at: submittedAt, occurred_at: at });
+
+describe('progress records (LA-E4-04)', () => {
+  it('AC-LA-E4-04-01, AC-LA-E4-04-03: a SCORM attempt from launch to a final result writes started, progressed, submitted and final', () => {
+    const { db, commit } = fixture();
+    try {
+      const cmi = (core: Record<string, unknown>) => ({ cmi: { core: { session_time: '0000:00:01.00', ...core } } });
+      commit({ event: 'commit', ...cmi({ lesson_status: 'incomplete', lesson_location: 'p1' }) }, 1000);
+      // Trigger: only session values changed (session_time, exit), so the progress did not change.
+      commit({ event: 'commit', ...cmi({ lesson_status: 'incomplete', lesson_location: 'p1', session_time: '0000:00:09.00', exit: 'suspend' }) }, 2000);
+      commit({ event: 'commit', ...cmi({ lesson_status: 'incomplete', lesson_location: 'p2' }) }, 3000);
+      commit({ event: 'finish', ...cmi({ lesson_status: 'passed', lesson_location: 'p2', score: { raw: '80', max: '100' } }) }, 4000);
+      commit({ event: 'unload', ...cmi({ lesson_status: 'passed', lesson_location: 'p2', score: { raw: '80', max: '100' }, session_time: '0000:00:30.00' }) }, 5000);
+      commit({ event: 'commit', ...cmi({ lesson_status: 'passed', lesson_location: 'p2', score: { raw: '90', max: '100' } }) }, 6000);
+      expect(recordsOf(db)).toEqual([
+        rec('started', 'in_progress', null, 1000, 1000, null), rec('progressed', 'in_progress', null, 1000, 1000, null),
+        rec('progressed', 'in_progress', null, 3000, 1000, null),
+        rec('progressed', 'passed', 80, 4000, 1000, 4000), rec('submitted', 'passed', 80, 4000, 1000, 4000), rec('final', 'passed', 80, 4000, 1000, 4000),
+        rec('progressed', 'passed', 90, 6000, 1000, 4000), rec('final', 'passed', 90, 6000, 1000, 4000),
+      ]);
+      // Progress kinds create no dispatch row (AC-LA-E4-04-02 is proved on the simulator; this is its unit side).
+      expect(db.prepare('SELECT r.kind, d.score_given, d.status FROM record_dispatch d JOIN learning_record r ON r.id = d.record_id ORDER BY d.seq').all())
+        .toEqual([{ kind: 'final', score_given: 80, status: 'superseded' }, { kind: 'final', score_given: 90, status: 'pending' }]);
+    } finally { db.close(); }
+  });
+
+  it('AC-LA-E4-04-01, AC-LA-E4-04-03: an HTML attempt writes one record set; a repeated unload writes none', () => {
+    const { db, commit } = fixture(false, 'html');
+    try {
+      commit({ event: 'progress', progress: { seenPages: ['index.html'], answers: {} } }, 1000);
+      commit({ event: 'progress', progress: { seenPages: ['index.html', 'page.html'], answers: {} } }, 2000);
+      commit({ event: 'unload', progress: { seenPages: ['index.html', 'page.html'], answers: {} } }, 3000);
+      expect(recordsOf(db)).toEqual([
+        rec('started', 'in_progress', null, 1000, 1000, null), rec('progressed', 'in_progress', null, 1000, 1000, null),
+        rec('progressed', 'completed', 100, 2000, 1000, 2000), rec('submitted', 'completed', 100, 2000, 1000, 2000), rec('final', 'completed', 100, 2000, 1000, 2000),
+      ]);
+      expect(db.prepare('SELECT count(*) AS n FROM record_dispatch').get()!.n).toBe(1);
+    } finally { db.close(); }
+  });
+
+  it('AC-LA-E4-04-01: a resumed session of the same attempt writes no second started record', () => {
+    const { db, commit } = fixture();
+    try {
+      commit({ event: 'commit', cmi: { core: { lesson_status: 'incomplete', lesson_location: 'p1' } } }, 1000);
+      db.exec(`INSERT INTO play_session (id, attempt_id, runtime_token_hash, session_id, roles, created_at, expires_at)
+        VALUES ('play2', 'att_user', 'token2', 'session2', '[]', 0, 999999)`);
+      const resumed = findRuntimeSession(db, 'token2', TEST_CHANNELS)!;
+      applyCommit(db, resumed, { kind: 'scorm12', sessionId: 'session2', seq: 1, event: 'commit',
+        cmi: { core: { lesson_status: 'incomplete', lesson_location: 'p3', exit: 'suspend' } } }, 2000);
+      expect(recordsOf(db)).toEqual([rec('started', 'in_progress', null, 1000, 1000, null), rec('progressed', 'in_progress', null, 1000, 1000, null),
+        rec('progressed', 'in_progress', null, 2000, 1000, null)]);
+    } finally { db.close(); }
+  });
+
+  it('AC-LA-E4-04-03: an attempt that started and was submitted before progress records existed uses the nearest known times', () => {
+    const { db, commit } = fixture();
+    try {
+      // State of an older release: stored CMI, a final best result and the final record that migration 014 copied.
+      db.prepare(`UPDATE attempt SET created_at = 100, outcome = 'passed', score_given = 60, score_maximum = 100, cmi_or_progress = ?`)
+        .run(JSON.stringify({ core: { lesson_status: 'passed', lesson_location: 'p1', score: { raw: '60', min: '', max: '100' }, session_time: '', exit: '' },
+          suspend_data: '', comments: '', interactions: [], objectives: [] }));
+      db.exec(`INSERT INTO learning_record (id, attempt_id, placement_id, learner_subject, course_version_id, kind, outcome, score_given, score_maximum, occurred_at, created_at)
+        VALUES ('rec_old', 'att_user', 'rl', 'user', 'ver', 'final', 'passed', 60, 100, 500, 500)`);
+      commit({ event: 'commit', cmi: { core: { lesson_status: 'passed', lesson_location: 'p2', score: { raw: '75', max: '100' } } } }, 2000);
+      expect(recordsOf(db).filter((r) => r.occurred_at === 2000)).toEqual([rec('progressed', 'passed', 75, 2000, 100, 500), rec('final', 'passed', 75, 2000, 100, 500)]);
+    } finally { db.close(); }
+  });
+
+  it('previews write no progress record', () => {
+    const { db, commit } = fixture(true);
+    try {
+      commit({ event: 'finish', cmi: { core: { lesson_status: 'passed', score: { raw: '80', max: '100' } } } }, 1000);
+      expect(db.prepare('SELECT count(*) AS n FROM learning_record').get()!.n).toBe(0);
+    } finally { db.close(); }
   });
 });
 
