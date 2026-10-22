@@ -57,10 +57,10 @@ export function selfAuthority(deps: AuthorityDeps): AuthorityStrategy {
       if (c.ltiPlatformId) await lti.patchPlatform(c.ltiPlatformId, { active: false }, traceId).catch((err: unknown) => ltiFailure(err, traceId));
       disableConnection(db, c.libraryId, c.id, now());
     },
-    suspend: (c, traceId) => suspendBinding(deps, c, traceId),
-    release: (c, traceId) => {
+    suspend: (c, traceId, record) => suspendBinding(deps, c, traceId, record),
+    release: (c, traceId, record) => {
       if (!deps.cleanup) throw new Error('release needs the binding cleanup engine');
-      return deps.cleanup.release(c, traceId);
+      return deps.cleanup.release(c, traceId, record);
     },
   };
 }

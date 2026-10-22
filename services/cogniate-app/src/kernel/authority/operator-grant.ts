@@ -19,10 +19,10 @@ export function operatorGrantAuthority(deps: AuthorityDeps): AuthorityStrategy {
       const lines = deps.cleanup ? await deps.cleanup.fenceOut(getConnection(db, c.libraryId, c.id)!, traceId) : [];
       if (lines.some((l) => l.result === 'failed')) throw new ApiError('LTI_SERVICE_ERROR', `The LTI service did not switch off every record. The operator repairs it with app:binding suspend. Trace id: ${traceId}`);
     },
-    suspend: (c, traceId) => suspendBinding(deps, c, traceId),
-    release: (c, traceId) => {
+    suspend: (c, traceId, record) => suspendBinding(deps, c, traceId, record),
+    release: (c, traceId, record) => {
       if (!deps.cleanup) throw new Error('release needs the binding cleanup engine');
-      return deps.cleanup.release(c, traceId);
+      return deps.cleanup.release(c, traceId, record);
     },
   };
 }
