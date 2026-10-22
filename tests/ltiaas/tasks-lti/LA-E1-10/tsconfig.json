@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "Bundler"
+  },
+  "include": [
+    "./**/*.ts",
+    "./**/*.mts",
+    "../../lib/**/*.d.mts",
+    "../../golden/lib/**/*.d.mts",
+    "../../tasks-core/LA-E1-04/fitness.ts"
+  ]
+}

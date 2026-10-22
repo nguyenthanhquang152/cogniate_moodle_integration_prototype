@@ -13,7 +13,7 @@ const root = process.cwd();
 const output = path.join(root, '.tmp/ci/sbom.cdx.json');
 const networkError = /\b(?:ENOTFOUND|EAI_AGAIN|EAI_FAIL|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ESOCKETTIMEDOUT|ENETUNREACH|EHOSTUNREACH|ENETDOWN|EHOSTDOWN|ERR_SOCKET_TIMEOUT)\b/;
 const patterns = [
-  ['private_key', /-----BEGIN ((?:[A-Z0-9]+ )*PRIVATE KEY)-----(?:[\s\S]*?-----END \1-----)?/g],
+  ['private_key', /-----BEGIN ((?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?)-----(?:[\s\S]*?-----END \1-----)?/g],
   ['api_key', /ltis_[A-Za-z0-9_-]+/g],
   ['master_key', /(?<![a-fA-F0-9])[a-fA-F0-9]{64}(?![a-fA-F0-9])/g],
 ];
@@ -37,8 +37,11 @@ const allowList = [
   {"file":"packages/shared/src/logger.test.ts","rule":"api_key","fingerprint":"PxsTXu0iDRRpNt5gYRUuKIyfK46CXEsjqjuq1H42RJQ=","reason":"Fixed fake API key in a unit test."},
   {"file":"services/cogniate-app/src/config.test.ts","rule":"secret_assignment","fingerprint":"X+zrZv/IbzjZUnhsbWlsecLbwjndTpG0ZynXOif7V+k=","reason":"Fixed fake credential or assertion in a unit test."},
   {"file":"services/cogniate-app/src/config.ts","rule":"secret_assignment","fingerprint":"potBLEKCVV8VVGz24fxCiTt+B/JxVXzrAhghCY3WbBs=","reason":"Comment that describes the master key."},
+  {"file":"services/lti-service/src/config.test.ts","rule":"secret_assignment","fingerprint":"X+zrZv/IbzjZUnhsbWlsecLbwjndTpG0ZynXOif7V+k=","reason":"Fixed zero digit used to build the fake master key in config unit tests."},
   {"file":"services/lti-service/src/http/app.ts","rule":"secret_assignment","fingerprint":"fJu+Xsmz+3dOj6D1QkfpPDTd+OXRb+MHNCDeCugaJi0=","reason":"Comment that describes the master key."},
   {"file":"services/lti-service/src/http/auth.test.ts","rule":"api_key","fingerprint":"XnYtKiEixshBkJNFsKt7zF+K+Z8NHT6e/TlwtaI/4Vw=","reason":"Fixed fake API key in a unit test."},
+  {"file":"services/lti-service/src/http/routes/platforms-audit.test.ts","rule":"api_key","fingerprint":"F6K1X9rE8/gAVncwpHk7A7qd3Kr/TSQBqpmgNza81Zs=","reason":"Fixed invalid API key for the unauthenticated request test."},
+  {"file":"services/lti-service/src/store/audit.test.ts","rule":"api_key","fingerprint":"wcRCf8zAJ7SXyw2wuqrbvOKJoSL4g48Zv46Z3tqPLao=","reason":"Fixed fake API key for the audit redaction test."},
   {"file":"tests/acceptance/M1/common/99-logs.test.ts","rule":"private_key","fingerprint":"MCHZDrlDey2PMOg2NpXEQYteXxhwgBtcMX6TmO4PVy0=","reason":"Private-key header search string in the log safety test."},
   {"file":"tests/acceptance/M1/common/99-logs.test.ts","rule":"private_key","fingerprint":"i8rHkI65UEGVN7keGa3IPOLJy/2s9PgRV/2t/sEfcBc=","reason":"Private-key header search string in the log safety test."},
   {"file":"tests/acceptance/T6/3-courses.spec.ts","rule":"master_key","fingerprint":"3lifHXYYjkY2H58lNrvFfHeCvlG2ZtPCJgmh9sOh3Hc=","reason":"Public fixture or build integrity digest."},
@@ -181,13 +184,48 @@ function secretScan() {
   }
   if (secretKeys.length === 0) return { result: 'fail', reason: 'secret_names_unavailable' };
   // The key list is read from the secrets section at run time. Public keys are out of scope.
-  const assignmentPattern = new RegExp(String.raw`(?<![A-Za-z0-9_])['"]?(${secretKeys.join('|')})['"]?\s*(?:=(?!=|>)|:(?!:))\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\x60(?:\\.|[^\x60\\])*\x60|\$\{[^}]*\}|<[^>]*>|[^\s,;}\]#"'\x60]+)`, 'g');
+  const assignmentPattern = new RegExp(String.raw`(?<![A-Za-z0-9_])['"]?(${secretKeys.join('|')})['"]?\s*(?:=(?!=|>)|:(?!:))\s*`, 'g');
+  const defaultPattern = new RegExp(String.raw`\$\{(${secretKeys.join('|')})(?::[-=]|[-=])`, 'g');
+  const quotedPattern = /^("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/;
+  // Keep nested placeholders together, both in a bare value and in a shell default.
+  function expansionEnd(text, start) {
+    let depth = 1;
+    for (let i = start + 2; i < text.length; i += 1) {
+      if (text.startsWith('${', i)) { depth += 1; i += 1; }
+      else if (text[i] === '}' && --depth === 0) return i;
+    }
+    return -1;
+  }
+  function readValue(text) {
+    const quoted = text.match(quotedPattern);
+    if (quoted) return quoted[0];
+    let end = 0;
+    while (end < text.length) {
+      if (text.startsWith('${', end)) {
+        const close = expansionEnd(text, end);
+        if (close >= 0) { end = close + 1; continue; }
+      }
+      if (text[end] === '<') {
+        const close = text.indexOf('>', end + 1);
+        if (close >= 0) { end = close + 1; continue; }
+      }
+      if (/[\s,;}\]#"'`]/.test(text[end])) break;
+      end += 1;
+    }
+    return text.slice(0, end);
+  }
   function literal(value) {
-    if (/^["'`]/.test(value)) value = value.slice(1, -1);
-    if (value === '' || /^(?:\$\{.*\}|\$[A-Za-z_][A-Za-z0-9_]*|<.*>)$/.test(value)) return null;
+    if (value.match(quotedPattern)?.[0] === value) value = value.slice(1, -1);
+    if (value === '' || /^(?:\$[A-Za-z_][A-Za-z0-9_]*|<[^<>]*>)$/.test(value)) return null;
+    if (value.startsWith('${') && expansionEnd(value, 0) === value.length - 1) {
+      if (/^\$\{[A-Za-z_][A-Za-z0-9_]*(?:\}|:?\?)/.test(value)) return null;
+      const fallback = [...value.matchAll(defaultPattern)][0];
+      if (fallback?.index === 0) return literal(value.slice(fallback[0].length, -1));
+    }
     return value;
   }
   for (const file of files) {
+    const codeFile = /\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/.test(file);
     let text;
     try {
       const stat = fs.lstatSync(file);
@@ -214,9 +252,19 @@ function secretScan() {
         for (const match of line.matchAll(assignmentPattern)) {
           // Shell required-value expressions are not assignments.
           if (line.slice(Math.max(0, match.index - 2), match.index) === '${') continue;
-          const value = literal(match[2]);
+          const token = readValue(line.slice(match.index + match[0].length));
+          // BD-A1-13: code expressions are not literal credentials. Check only the first quoted token.
+          if (codeFile && (!quotedPattern.test(token) || (token.startsWith('`') && token.includes('${')))) continue;
+          const value = literal(token);
           if (value !== null) finding(file, index + 1, 'secret_assignment', value);
         }
+      }
+      // Defaults of secret names are values in every file, even without a secret key on the left.
+      for (const match of line.matchAll(defaultPattern)) {
+        const end = expansionEnd(line, match.index);
+        if (end < 0) continue;
+        const value = literal(line.slice(match.index + match[0].length, end));
+        if (value !== null) finding(file, index + 1, 'secret_assignment', value);
       }
     });
   }

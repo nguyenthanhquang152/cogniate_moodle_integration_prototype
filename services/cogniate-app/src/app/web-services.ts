@@ -1,3 +1,4 @@
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 // T8 course shell (app contract §11): PUT /app-api/connections/:id/web-services {token}.
 // The token is checked with core_webservice_get_site_info, it must allow every function that Cogniate uses, and it is
 // stored encrypted (APP_MASTER_KEY). The site name, release and function list come back (AC-T8-08).
@@ -8,10 +9,10 @@ import type { MoodleWsClient } from '../clients/moodle-ws.ts';
 import { MoodleWsError, REQUIRED_WS_FUNCTIONS } from '../clients/moodle-ws.ts';
 import { getConnection, setWebServices } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
-import { capabilitiesOf } from '../providers/index.ts';
 import { ApiError } from './api-errors.ts';
 
 export interface WebServiceRouteDeps {
+  channels: ChannelRegistry;
   db: Db;
   masterKey: Buffer;
   moodleWs: MoodleWsClient;
@@ -29,7 +30,7 @@ export function registerWebServiceRoutes(api: FastifyInstance, deps: WebServiceR
     const c = getConnection(db, lib, req.params.id);
     if (!c) throw new ApiError('NOT_FOUND', 'The connection does not exist in your library.');
     // M1 (§4.7.2): web services are a Moodle capability; no outbound call for another LMS.
-    if (!capabilitiesOf(c.lms).webServices) throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'Only a Moodle connection has web services.', { details: { capability: 'webServices' } });
+    if (!deps.channels.capabilities(c.channel)['siteApi.token']) throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'Only a Moodle connection has web services.', { details: { capability: 'webServices' } });
     const body = Body.safeParse(req.body ?? {});
     if (!body.success) throw new ApiError('WS_TOKEN_INVALID', 'The token must be the 32-character web services token from Moodle.');
     let info: { siteName: string; release: string; functions: string[] };

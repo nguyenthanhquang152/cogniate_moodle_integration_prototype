@@ -1,3 +1,4 @@
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 // The app listener (PUBLIC_APP_URL): /healthz, the portal API /app-api/* (contract cogniate-app-api §1-§5), the tool
 // pages /tool/*, the player shell /play/* (§6), and the built portal SPA.
 import { randomBytes } from 'node:crypto';
@@ -46,6 +47,7 @@ declare module 'fastify' {
 }
 
 export interface AppApiDeps {
+  channels: ChannelRegistry;
   db: Db;
   urls: PublicUrls;
   logger: Logger;
@@ -128,7 +130,7 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
   }));
 
   // The ONE redemption and cleanup engine of every binding (app contract §4.7.1, §4.9).
-  const engine = createRedemptionEngine({ db: deps.db, lti: deps.lti, logger: log, now });
+  const engine = createRedemptionEngine({ channels: deps.channels, db: deps.db, lti: deps.lti, logger: log, now });
   const cleanup = createBindingCleanup({ db: deps.db, lti: deps.lti, logger: log, now });
 
   // Portal API. The hooks of this scope run only for its routes, before the body is read.
@@ -153,23 +155,23 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
     });
     registerSessionRoutes(api, { db: deps.db, now });
     registerCourseRoutes(api, { db: deps.db, logger: log, store: deps.store, limits, now, ...(deps.buildQueueDir ? { buildQueueDir: deps.buildQueueDir } : {}) });
-    registerConnectionRoutes(api, { db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, refTtlSeconds: deps.refTtlSeconds, now, engine, cleanup });
+    registerConnectionRoutes(api, { channels: deps.channels, db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, refTtlSeconds: deps.refTtlSeconds, now, engine, cleanup });
     // Provider route modules (Canvas configuration and deployments): one shared deps object with the common engine.
     const providerDeps = {
-      db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, now,
-      redeem: engine.redeem, connectionDto: (c: Parameters<typeof connectionJson>[0], libraryName: string) => connectionDto(deps.db, c, deps.urls, deps.masterKey, libraryName),
+      channels: deps.channels, db: deps.db, urls: deps.urls, masterKey: deps.masterKey, lti: deps.lti, logger: log, now,
+      redeem: engine.redeem, connectionDto: (c: Parameters<typeof connectionJson>[0], libraryName: string) => connectionDto(deps.db, c, deps.urls, deps.masterKey, deps.channels, libraryName),
     };
     registerCanvasConfigurationRoutes(api, providerDeps);
     registerCanvasDeploymentRoutes(api, providerDeps);
-    registerPublicationRoutes(api, { db: deps.db, now, masterKey: deps.masterKey, ...(deps.moodleWs ? { moodleWs: deps.moodleWs } : {}) });
+    registerPublicationRoutes(api, { channels: deps.channels, db: deps.db, now, masterKey: deps.masterKey, ...(deps.moodleWs ? { moodleWs: deps.moodleWs } : {}) });
     if (deps.buildQueueDir) registerMbzRoutes(api, { db: deps.db, now, buildQueueDir: deps.buildQueueDir, buildKnobs: deps.buildKnobs ?? { hold: false, failAt: '' } });
-    if (deps.moodleWs) registerWebServiceRoutes(api, { db: deps.db, masterKey: deps.masterKey, moodleWs: deps.moodleWs, now });
-    registerResultRoutes(api, { db: deps.db, lti: deps.lti, logger: log, masterKey: deps.masterKey, now, ...(deps.kickSync ? { kickSync: deps.kickSync } : {}) });
-    registerPlayStatusRoute(api, { db: deps.db, now });
+    if (deps.moodleWs) registerWebServiceRoutes(api, { channels: deps.channels, db: deps.db, masterKey: deps.masterKey, moodleWs: deps.moodleWs, now });
+    registerResultRoutes(api, { channels: deps.channels, db: deps.db, lti: deps.lti, logger: log, masterKey: deps.masterKey, now, ...(deps.kickSync ? { kickSync: deps.kickSync } : {}) });
+    registerPlayStatusRoute(api, { channels: deps.channels, db: deps.db, now });
   }, { prefix: '/app-api' });
 
   // Tool pages (app contract §6): server-rendered, no cookies; their own headers and Origin rule.
-  const pageDeps = { db: deps.db, urls: deps.urls, logger: log, lti: deps.lti, masterKey: deps.masterKey, now };
+  const pageDeps = { channels: deps.channels, db: deps.db, urls: deps.urls, logger: log, lti: deps.lti, masterKey: deps.masterKey, now };
   registerRegisterPages(app, pageDeps);
   registerLaunchPages(app, { ...pageDeps, pickerTtlSeconds: deps.pickerTtlSeconds, playTtlSeconds: deps.playTtlSeconds });
   registerPickerPages(app, pageDeps);

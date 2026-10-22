@@ -1,3 +1,4 @@
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 // The player shell /play/{playId}, the embedded page /play/{playId}/embedded and GET /app-api/play/{playId}/status
 // (app contract §6, §6.1, security §4, §5, §7). The play id is the capability (no cookies, no ltik). The shell shows the
 // course, a status text that it polls every 5 s, "Back to {LMS}", and the runtime iframe on the content origin
@@ -19,6 +20,7 @@ import { runtimeTokenFor } from './launch-rules.ts';
 import { errorPage, escapeHtml, layout, newNonce, toolPageHeaders } from './page.ts';
 
 export interface PlayPageDeps {
+  channels: ChannelRegistry;
   db: Db;
   urls: PublicUrls;
   logger: Logger;
@@ -58,14 +60,14 @@ export function registerPlayPages(app: FastifyInstance, deps: PlayPageDeps): voi
       view.packageTitle !== null ? `Package: <span data-package-title>${escapeHtml(view.packageTitle)}</span>` : '',
     ].filter(Boolean).join(' · ');
     const runtime = `${urls.content}/rt/${runtimeTokenFor(masterKey, playId)}`;
-    return `<div data-page="play" data-format="${view.format}" data-lms-name="${view.lmsName}">
+    return `<div data-page="play" data-format="${view.format}" data-lms-name="${escapeHtml(view.lmsName)}">
   <header class="shell-bar">
     <div>
       <h1 data-course-title>${escapeHtml(view.courseTitle)}</h1>
       <p class="muted">${details}</p>
     </div>
     <p>Status: <strong data-play-status>${escapeHtml(playStatusText(statusOf(db, view), view.lmsName))}</strong>${view.preview ? ' <span class="badge" data-preview>Preview</span>' : ''}</p>
-    ${back ? `<a href="${escapeHtml(back)}" rel="noopener noreferrer" data-back-to-moodle>Back to ${view.lmsName}</a>` : ''}
+    ${back ? `<a href="${escapeHtml(back)}" rel="noopener noreferrer" data-back-to-moodle>Back to ${escapeHtml(view.lmsName)}</a>` : ''}
   </header>
   <iframe class="shell-frame" title="${escapeHtml(view.courseTitle)}" src="${escapeHtml(runtime)}" sandbox="${RUNTIME_SANDBOX}" allow="${RUNTIME_ALLOW}"></iframe>
 </div>
@@ -74,7 +76,7 @@ export function registerPlayPages(app: FastifyInstance, deps: PlayPageDeps): voi
 
   // ---------------------------------------------------------------- the player shell (top level only)
   app.get<PlayParams>('/play/:playId', async (req, reply) => {
-    const view = getPlay(db, req.params.playId, now());
+    const view = getPlay(db, req.params.playId, now(), deps.channels);
     if (!view) return notFound(req, reply);
     const nonce = newNonce();
     return reply.code(200).headers(toolPageHeaders('play', { content: urls.content, nonce }))
@@ -98,14 +100,14 @@ export function registerPlayPages(app: FastifyInstance, deps: PlayPageDeps): voi
   // connection a nonce script continues to the player when the page is the top-level page; Moodle and Blackboard keep
   // the static page without script.
   app.get<PlayParams>('/play/:playId/embedded', async (req, reply) => {
-    const view = getPlay(db, req.params.playId, now());
+    const view = getPlay(db, req.params.playId, now(), deps.channels);
     if (!view) return notFound(req, reply);
     const body = `<main data-page="play-embedded">
   <h1 data-course-title>${escapeHtml(view.courseTitle)}</h1>
   <p>This course opens in a new window.</p>
   <a class="button" href="/play/${escapeHtml(req.params.playId)}" target="_blank" rel="noopener">Open in a new window</a>
 </main>`;
-    const js = view.lms === 'canvas' ? canvasEmbeddedScript(`/play/${req.params.playId}`) : null;
+    const js = deps.channels.capabilities(view.channel)['launch.topLevelContinue'] ? canvasEmbeddedScript(`/play/${req.params.playId}`) : null;
     if (js === null) return reply.code(200).headers(toolPageHeaders('embedded', { issuer: view.siteOrigin })).send(layout(view.courseTitle, body));
     const nonce = newNonce();
     return reply.code(200).headers(toolPageHeaders('embedded', { issuer: view.siteOrigin, nonce })).send(layout(view.courseTitle, body, { nonce, js }));
@@ -113,9 +115,9 @@ export function registerPlayPages(app: FastifyInstance, deps: PlayPageDeps): voi
 }
 
 /** GET /app-api/play/{playId}/status: public (the play id is the capability). Unknown or expired: 404 NOT_FOUND. */
-export function registerPlayStatusRoute(api: FastifyInstance, deps: { db: Db; now: () => number }): void {
+export function registerPlayStatusRoute(api: FastifyInstance, deps: { channels: ChannelRegistry; db: Db; now: () => number }): void {
   api.get<PlayParams>('/play/:playId/status', { config: { public: true } }, async (req) => {
-    const view = getPlay(deps.db, req.params.playId, deps.now());
+    const view = getPlay(deps.db, req.params.playId, deps.now(), deps.channels);
     if (!view) throw new ApiError('NOT_FOUND', 'Unknown play session.');
     // scoreSync.status: the newest row of this learner and activity, null before the first one (and for a preview).
     return statusOf(deps.db, view);

@@ -1,4 +1,5 @@
-// The ONE provider registry of the app. Adapter data lives in one file per LMS (moodle.ts, canvas.ts, blackboard.ts).
+// Transitional channel-to-adapter lookup (BD-A1-17). LA-E1-07 moves these pure adapters into channel folders.
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 import type { Logger } from '@cogniate/shared';
 import { blackboardProvider } from './blackboard.ts';
 import { canvasProvider } from './canvas.ts';
@@ -15,22 +16,22 @@ export function providerAdapters(): ProviderAdapter[] {
   return [moodleProvider, canvasProvider, blackboardProvider].filter((p): p is ProviderAdapter => p !== null);
 }
 
-/** The adapter of an LMS type, or null when the LMS type is not offered. */
-export function providerOf(lms: string): ProviderAdapter | null {
-  return providerAdapters().find((p) => p.lms === lms) ?? null;
+/** The adapter of a channel id, or null when no adapter is offered. */
+export function providerOf(channel: string): ProviderAdapter | null {
+  return providerAdapters().find((p) => p.lms === channel) ?? null;
 }
 
 /** Profile ids that `channel_profile_unknown` named in this process (app API delta §8: at most once per profile id). */
 const unknownProfilesLogged = new Set<string>();
 
 /**
- * The rows of `GET /api/providers` that an adapter owns, in the answer order (app API delta §2). A row with `lms: null`
- * belongs to the default adapter (the `standard` profile, LTI contract §9.3). The app ignores every other row and logs
+ * The rows of `GET /api/providers` that the channel registry owns, in the answer order (app API delta §2).
+ * Profile ownership comes from the manifest, including the standard profile. The app ignores other rows and logs
  * `channel_profile_unknown {profile}` at most once per process and profile id.
  */
-export function ownedProfiles(rows: readonly LtiProviderProfile[], logger: Logger, traceId: string): LtiProviderProfile[] {
+export function ownedProfiles(rows: readonly LtiProviderProfile[], logger: Logger, traceId: string, channels: ChannelRegistry): LtiProviderProfile[] {
   return rows.filter((p) => {
-    if (p.lms === null || providerOf(p.lms) !== null) return true;
+    if (channels.channelOfProfile(p.id) !== null) return true;
     if (!unknownProfilesLogged.has(p.id)) {
       unknownProfilesLogged.add(p.id);
       logger.warn('channel_profile_unknown', { trace_id: traceId, profile: p.id });
@@ -63,6 +64,6 @@ export const NO_CAPABILITIES: Capabilities = {
 };
 
 /** ADR-011 §11 capabilities of an LMS type. */
-export function capabilitiesOf(lms: LmsType): Capabilities {
-  return providerOf(lms)?.capabilities ?? NO_CAPABILITIES;
+export function capabilitiesOf(channel: string): Capabilities {
+  return providerOf(channel)?.capabilities ?? NO_CAPABILITIES;
 }

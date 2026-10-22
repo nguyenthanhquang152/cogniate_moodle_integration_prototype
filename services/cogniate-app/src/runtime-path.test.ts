@@ -1,3 +1,4 @@
+import { TEST_CHANNELS } from './testkit.ts';
 // Integration tests of the runtime path (T5a SCORM, T5b HTML): launch (app) -> content host (/pkg, /rt) -> commit rules -> score sync worker
 // -> results. Outside src/content-host on purpose: the ADR-008 import fence of that folder also covers its files.
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -61,7 +62,7 @@ async function world(opts: Parameters<typeof testApp>[0] = {}) {
   const playerDir = join(t.dataDir, 'player');
   mkdirSync(playerDir, { recursive: true });
   writeFileSync(join(playerDir, 'runtime.js'), 'export {};');
-  content = await buildContentApp({
+  content = await buildContentApp({ channels: TEST_CHANNELS,
     logger: createLogger({ service: 'cogniate-content', level: 'debug', write: (l) => contentLogs.push(JSON.parse(l) as LogLine) }),
     urls: TEST_URLS, profile: 'default', knobs: [], outboundAllowlist: [], db: t.db, dataDir: t.dataDir, playerDir, now: () => t.clock.now,
   });
@@ -291,7 +292,7 @@ describe('results and score sync (app contract §5, §10)', () => {
     const w = await world();
     const { playId, token } = await launch(w.platformId, w.scorm);
     await commit(token, 'finish', cmi({ status: 'passed', raw: '100' }));
-    const worker = createScoreSyncWorker({ db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: (l) => t.logs.push(JSON.parse(l)) }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
+    const worker = createScoreSyncWorker({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: (l) => t.logs.push(JSON.parse(l)) }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
     await worker.kick();
     expect(t.lti.scores).toEqual([{ serviceKey: 's'.repeat(43), lineItemId: `${TEST_URLS.moodle}/mod/lti/services.php/2/lineitems/7/lineitem?type_id=1`, body: { userId: '5', activityProgress: 'Completed', gradingProgress: 'FullyGraded', scoreGiven: 100, scoreMaximum: 100 } }]);
     expect(t.logs).toContainEqual(expect.objectContaining({ event: 'score_sync', status: 'sent', tries: 1 }));
@@ -309,7 +310,7 @@ describe('results and score sync (app contract §5, §10)', () => {
 
   it('answers: 409 -> conflict, 400 -> failed (lastError), 502 -> retry in 5 s, no service key -> failed; a missing line item is looked up', async () => {
     const w = await world();
-    const worker = createScoreSyncWorker({ db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: () => undefined }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
+    const worker = createScoreSyncWorker({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: () => undefined }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
     const run = async (sub: string, fail: { status: number; code: string } | null) => {
       const { token } = await launch(w.platformId, w.scorm, { sub });
       await commit(token, 'finish', cmi({ status: 'passed', raw: '100' }));
@@ -351,7 +352,7 @@ async function progress(token: string, event: 'progress' | 'unload', p: { seenPa
     payload: JSON.stringify({ kind: 'html', event, sessionId: st.sessionId, seq: st.lastSeq + 1, progress: { answers: {}, ...p } }),
   });
 }
-const quietWorker = () => createScoreSyncWorker({ db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: () => undefined }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
+const quietWorker = () => createScoreSyncWorker({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: () => undefined }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
 const rowOf = (sub: string) => t.db.prepare('SELECT * FROM score_sync WHERE user_sub = ? ORDER BY created_at DESC, rowid DESC').get(sub)!;
 
 describe('P2 durable score confirmation', () => {
@@ -378,7 +379,7 @@ describe('P2 durable score confirmation', () => {
     const file = join(t.dataDir, 'restart.db');
     t.db.prepare('VACUUM INTO ?').run(file);
     const db = openDb(file);
-    const worker = createScoreSyncWorker({ db, lti: t.lti.client,
+    const worker = createScoreSyncWorker({ channels: TEST_CHANNELS, db, lti: t.lti.client,
       logger: createLogger({ service: 'cogniate-app', write: (line) => t.logs.push(JSON.parse(line)) }),
       masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
     return { db, worker };
@@ -754,7 +755,7 @@ describe('score sync: retry, outage order, conflict, Resend, refresh (ADR-010 ru
       }
       return postScore(...args);
     };
-    const worker = createScoreSyncWorker({ db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: (l) => t.logs.push(JSON.parse(l)) }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
+    const worker = createScoreSyncWorker({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client, logger: createLogger({ service: 'cogniate-app', write: (l) => t.logs.push(JSON.parse(l)) }), masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
     const running = worker.kick();
     await inFlight;
     try {
@@ -807,7 +808,7 @@ describe('score sync: retry, outage order, conflict, Resend, refresh (ADR-010 ru
       apply();
     };
     const logs: LogLine[] = [];
-    const worker = createScoreSyncWorker({ db: t.db, lti: t.lti.client,
+    const worker = createScoreSyncWorker({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client,
       logger: createLogger({ service: 'cogniate-app', write: (line) => logs.push(JSON.parse(line)) }),
       masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
     await worker.kick();
@@ -981,7 +982,7 @@ describe('A-T5a-01 / -02 / -06: ordering, cookies, worker errors', () => {
     await commit(a.token, 'finish', cmi({ status: 'passed', raw: '100' }));
     t.db.prepare("UPDATE resource_link SET service_key_encrypted = X'00112233'").run();
     const logs: LogLine[] = [];
-    const worker = createScoreSyncWorker({ db: t.db, lti: t.lti.client,
+    const worker = createScoreSyncWorker({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client,
       logger: createLogger({ service: 'cogniate-app', write: (line) => logs.push(JSON.parse(line)) }),
       masterKey: TEST_MASTER_KEY, now: () => t.clock.now });
     await worker.kick();
