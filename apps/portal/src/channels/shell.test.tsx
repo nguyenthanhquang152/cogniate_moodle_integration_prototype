@@ -81,6 +81,19 @@ describe("manifest portal shell", () => {
       expect(card.textContent).toContain(manifest.card.description);
     }
   });
+  it("keeps the graduation-cap logo on the baseline card and connect page", async () => {
+    const overview = app("/integrations");
+    const card = await screen.findByRole("article", { name: "Moodle" });
+    const logo = card.querySelector('[title="Moodle"]')!;
+    expect(logo.querySelector("svg.lucide-graduation-cap")).toBeTruthy();
+    expect(logo.textContent).toBe("");
+    const fallback = await screen.findByRole("article", { name: canary.card.title });
+    expect(fallback.querySelector(`[title="${canary.card.title}"]`)!.textContent).toBe(canary.card.mark);
+    overview.unmount();
+    const connect = app("/integrations/moodle/connect");
+    await screen.findByRole("heading", { name: "Connect Moodle" });
+    expect(connect.container.querySelector('[title="Moodle"] svg.lucide-graduation-cap')).toBeTruthy();
+  });
   it.each([...channelRegistry.channels().filter((manifest) => !channelModules.get(manifest.id)?.Wizard), canary])("renders all four default steps from $id manifest data", (manifest) => {
     const { container } = wizard(manifest);
     expect([...container.querySelectorAll("[data-channel-step]")].map((element) => element.getAttribute("data-channel-step"))).toEqual(["show", "collect", "verify", "enable"]);
@@ -127,6 +140,44 @@ describe("manifest portal shell", () => {
     app(`/integrations/${canary.id}/${current.id}`);
     expect(await screen.findByRole("heading", { name: "Page not found" })).toBeTruthy();
     expect(screen.queryByText("Verify connection")).toBeNull();
+  });
+  it.each(["moodle", "canvas", "blackboard", canary.id])("keeps %s available when profile discovery fails, then honors explicit not-ready data", async (id) => {
+    const manifest = registry.channel(id)!;
+    const normalFetch = fetchMock.getMockImplementation()!;
+    let failed = true;
+    fetchMock.mockImplementation((url: string) => url === "/app-api/lms-providers"
+      ? Promise.resolve(failed ? new Response(JSON.stringify({ details: { description: "Profile service unavailable" } }), { status: 503 })
+        : json({ lms: [ { ...provider(manifest), profiles: provider(manifest).profiles.map((entry) => ({ ...entry, ready: false })) } ] }))
+      : normalFetch(url));
+    const overview = app("/integrations");
+    const card = await screen.findByRole("article", { name: manifest.card.title });
+    expect(await within(card).findByRole("link", { name: "Connect" })).toBeTruthy();
+    expect(await screen.findByText("Profile service unavailable")).toBeTruthy();
+    expect(screen.queryByRole("article", { name: simulation.card.title })).toBeNull();
+    overview.unmount();
+    app(`/integrations/${id}/connect`);
+    expect(await screen.findByLabelText("Connection name")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeTruthy();
+    failed = false;
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    const notReady = (manifest.texts.notReady ?? "{LMS} is not set up for this Cogniate service yet. Ask your Cogniate operator.").replaceAll("{LMS}", manifest.names.text);
+    expect(await screen.findByText(notReady)).toBeTruthy();
+    expect(screen.queryByLabelText("Connection name")).toBeNull();
+  });
+  it.each(["moodle", "canvas", "blackboard"])("renders the real %s wizard while profile discovery is still pending", async (id) => {
+    const normalFetch = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((url: string) => url === "/app-api/lms-providers" ? new Promise<Response>(() => undefined) : normalFetch(url));
+    app(`/integrations/${id}/connect`);
+    expect(await screen.findByLabelText("Connection name")).toBeTruthy();
+  });
+  it("keeps an existing self connection usable when profile discovery fails", async () => {
+    const manifest = registry.channel("moodle")!;
+    current = connection(manifest, { status: "registered", bindingAuthority: "self" });
+    const normalFetch = fetchMock.getMockImplementation()!;
+    fetchMock.mockImplementation((url: string) => url === "/app-api/lms-providers" ? Promise.reject(new Error("Profile service unavailable")) : normalFetch(url));
+    app(`/integrations/${manifest.id}/${current.id}`);
+    expect(await screen.findByText("The first launch from Moodle changes the status to Connected.")).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Try again" })).toBeTruthy();
   });
   it("uses profile readiness for the standard channel too", async () => {
     listed = listed.map((entry) => ({ ...entry, profiles: entry.profiles.map((profile) => ({ ...profile, ready: false })) }));
@@ -179,6 +230,15 @@ describe("manifest portal shell", () => {
     if (authority === "self") expect(await screen.findByText(`The first launch from ${manifest.names.text} changes the status to Connected.`)).toBeTruthy();
     else expect(await screen.findByLabelText("Approval code")).toBeTruthy();
     expect(container.querySelector("[data-channel-step]")).toBeNull();
+  });
+  it.each(["moodle", "canvas", "blackboard"])("keeps the %s Open link next to Go to Courses", async (id) => {
+    const manifest = channelRegistry.channel(id)!;
+    current = connection(manifest, { status: "registered", bindingAuthority: manifest.registration[0]!.authority });
+    app(`/integrations/${id}/${current.id}`);
+    const courses = await screen.findByRole("link", { name: "Go to Courses" });
+    const link = within(courses.parentElement!).getByRole("link", { name: `Open ${manifest.names.text}` });
+    expect(link.getAttribute("href")).toBe(id === "moodle" ? `${current.siteUrl}/mod/lti/toolconfigure.php` : current.siteUrl);
+    expect(screen.getAllByRole("link", { name: `Open ${manifest.names.text}` })).toHaveLength(1);
   });
   it.each(["moodle", "canvas", "blackboard"])("the real %s module obeys stored authority even when its method is unchanged", async (id) => {
     const manifest = channelRegistry.channel(id)!;

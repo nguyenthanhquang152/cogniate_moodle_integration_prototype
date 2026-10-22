@@ -1,6 +1,6 @@
 import manifest from "../manifest.ts";
 import type { ChannelUiModule, ChannelWizardProps } from "@cogniate/portal-sdk";
-import { Card, Notice, Link, buttonVariants, ArrowRight, Download, idPath, useSession, channelText, toolName, ConnectionDetailBlock, pendingToolText, verificationAuthority, ManifestBinding } from "@cogniate/portal-sdk";
+import { Card, Notice, Link, buttonVariants, ArrowRight, Download, idPath, useSession, channelText, toolName, ConnectionDetailBlock, ConnectionOpenLink, pendingToolText, verificationAuthority, ManifestBinding } from "@cogniate/portal-sdk";
 import { CreateConnection } from "./CreateConnection.tsx";
 import { DynamicSetup } from "./DynamicSetup.tsx";
 import { ManualSetup } from "./ManualSetup.tsx";
@@ -29,7 +29,7 @@ export function MoodleReady({ connection, libraryName }: Pick<ChannelWizardProps
     <h2>{connection.status === "registered" ? "Registered" : "Your library is connected"}</h2>
     {connection.status === "registered" && connection.method === "dynamic" && <div><h3>Complete the steps in Moodle</h3><MoodleSteps method="dynamic" libraryName={libraryName} /></div>}
     {connection.status === "registered" && <p>The first launch from Moodle changes the status to Connected.</p>}
-    <div className="flex flex-wrap items-center gap-3"><Link className={buttonVariants({ variant: "primary", size: "default" })} to="/libraries/courses">Go to Courses <ArrowRight size={16} aria-hidden="true" /></Link></div>
+    <div className="flex flex-wrap items-center gap-3"><Link className={buttonVariants({ variant: "primary", size: "default" })} to="/libraries/courses">Go to Courses <ArrowRight size={16} aria-hidden="true" /></Link><ConnectionOpenLink connection={connection} openUrl={`${connection.siteUrl}/mod/lti/toolconfigure.php`} /></div>
   </Card>;
 }
 const module: ChannelUiModule = {
@@ -38,7 +38,7 @@ const module: ChannelUiModule = {
     const session = useSession();
     return <p className="text-[12px] text-[#cbb9e0]">Teachers: {manifest.texts.teacherSteps.map((step) => channelText(manifest, step, session?.library.name)).join(" ")}</p>;
   },
-  ConnectionDetails: ({ connection }) => <ConnectionDetailBlock connection={connection} openUrl={`${connection.siteUrl}/mod/lti/toolconfigure.php`} />,
+  ConnectionDetails: ({ connection }) => <ConnectionDetailBlock connection={connection} />,
   ConnectionError: ({ Default, ...props }) => <Default {...props} error={{
     ...props.error, title: props.error.title ?? "The Moodle connection failed.", action: props.error.action ?? (props.error.code === "MOODLE_TOOL_MAY_EXIST" && props.libraryName ? pendingToolText(toolName(props.libraryName)) : undefined),
   }} />,

@@ -18,7 +18,7 @@ export type {
 } from "../types.ts";
 // UI kit: stable controls, state views, navigation and icons used by channel modules.
 export { ErrorNotice, ConnectionError, DefaultConnectionError, connectionStatus, ConnectionBadge, CopyButton, Loading, Empty, formatName, Modal, Button, buttonVariants, Card, Input, Select, Textarea, Notice, Badge, Tabs } from "./ui.ts";
-export { ConnectionDetailBlock, ConnectionReady } from "../connect/ConnectionStatus.tsx";
+export { ConnectionDetailBlock, ConnectionOpenLink, ConnectionReady } from "../connect/ConnectionStatus.tsx";
 export { ToolConfiguration } from "../connect/ToolConfiguration.tsx";
 export { Link, MemoryRouter, useNavigate } from "react-router";
 export { ArrowRight, ExternalLink, Link2, ShieldCheck, Download, GraduationCap } from "lucide-react";
@@ -95,7 +95,7 @@ export interface ChannelUiModule {
   coursePanels?: ComponentType<{ course: CourseView; version: CourseVersionView | null; onChanged(): void; sdk: PortalSdk }>[];
   /** Extra publication panels and their reload callback. An absent list adds no panels. */
   publicationPanels?: ComponentType<{ publication: PublicationView; onChanged(): void; sdk: PortalSdk }>[];
-  /** Replaces connection overview details. Defaults to the generic name, site, deployments and open link. */
+  /** Replaces connection overview details. Defaults to the generic name, site and deployments. */
   ConnectionDetails?: ComponentType<{ connection: ConnectionView; sdk: PortalSdk }>;
   /** Renders only when lastError exists. Use Default for the generic safe text, code and trace ID; the shell uses it when this slot is absent. */
   ConnectionError?: ComponentType<ConnectionErrorProps & { Default: ComponentType<ConnectionErrorProps> }>;

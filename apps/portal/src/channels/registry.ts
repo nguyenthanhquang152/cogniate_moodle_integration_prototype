@@ -15,3 +15,17 @@ export function visibleChannels(registry: ChannelRegistry, providers: readonly L
   return registry.channels().filter((manifest) => manifest.availability !== "simulation-only" || providers.some((provider) => (provider.channel ?? provider.lms) === manifest.id));
 }
 export const channelOf = (value: { channel?: string; lms: string }): string => value.channel ?? value.lms;
+
+/** Public channels remain usable while profile discovery is slow or unavailable. */
+export function channelProvider(registry: ChannelRegistry, manifest: ChannelManifest, providers?: readonly LmsProvider[]): LmsProvider | undefined {
+  const configured = providers?.find((provider) => channelOf(provider) === manifest.id);
+  if (configured || manifest.availability === "simulation-only") return configured;
+  // Only offer each method's default until the server supplies profile choices and readiness.
+  const profiles = [...new Set(manifest.registration.map((entry) => entry.defaultProfile))];
+  return {
+    channel: manifest.id, lms: manifest.id, label: manifest.names.label,
+    methods: manifest.registration.map((entry) => entry.method),
+    capabilities: registry.legacyCapabilities(manifest.id),
+    profiles: profiles.map((id) => ({ id, label: id, ready: true, simulation: false, clientId: null })),
+  };
+}
