@@ -124,27 +124,61 @@ export function compareCounts(counts, baseline) {
   });
 }
 
+/** Counts do not identify an old token, so show every current hit of each raised file. */
+export function formatReport(results, baseline, { all = false, stdin = false } = {}) {
+  const byPath = new Map(results.map((file) => [file.path, file.hits]));
+  const counts = Object.fromEntries(results.map((file) => [file.path, file.hits.length]));
+  const deltas = compareCounts(counts, baseline);
+  const raised = deltas.filter((item) => item.delta > 0);
+  const lowered = deltas.filter((item) => item.delta < 0);
+  const lines = [];
+  const countLine = (item, prefix = '') => lines.push(`${prefix}${item.path}: count ${item.count}, baseline ${item.allowed}, delta ${item.delta >= 0 ? '+' : ''}${item.delta}`);
+  const hitLines = (path) => {
+    for (const hit of byPath.get(path) ?? []) {
+      lines.push(`${path}:${hit.line}:${hit.col}  ${JSON.stringify(hit.token)}  banned ${JSON.stringify(hit.word)}`);
+    }
+  };
+  for (const item of raised) {
+    countLine(item, 'RAISED ');
+    hitLines(item.path);
+  }
+  if (raised.length) lines.push('Action: remove the LMS name from core or move its code into packages/channels/<id>/; ask the Lead for any RQ-3 baseline raise, never raise it yourself.');
+  for (const item of lowered) {
+    countLine(item, 'LOWER ');
+    if (stdin) hitLines(item.path);
+    lines.push(`Action: lower f1-baseline.json for ${item.path} to ${item.count} in this commit.`);
+  }
+  if (stdin) {
+    for (const item of deltas.filter((item) => item.delta === 0 && item.count)) {
+      countLine(item);
+      hitLines(item.path);
+    }
+  } else if (all) {
+    lines.push('--- All F1 hits and counts ---');
+    for (const item of deltas.filter((item) => item.count || item.allowed)) {
+      hitLines(item.path);
+      countLine(item);
+    }
+  } else if (deltas.some((item) => item.count)) {
+    lines.push('Use --all to list all current hits and counts.');
+  }
+  const failed = raised.length > 0;
+  lines.push(`F1 ${failed ? 'FAIL' : 'PASS'}: ${deltas.filter((item) => item.count > 0).length} files with hits, ${Object.values(counts).reduce((sum, count) => sum + count, 0)} hits`);
+  return { lines, failed };
+}
+
 export function main() {
-  const { values } = parseArgs({ options: { stdin: { type: 'boolean' }, as: { type: 'string' } } });
+  const { values } = parseArgs({ options: { stdin: { type: 'boolean' }, as: { type: 'string' }, all: { type: 'boolean' } } });
   if (Boolean(values.stdin) !== Boolean(values.as)) throw new Error('Use --stdin with --as <repo path>.');
+  const probe = values.stdin ? { path: repoPath(values.as), text: readFileSync(0, 'utf8') } : null;
   const words = bannedWords();
   const baseline = JSON.parse(readFileSync(new URL('./f1-baseline.json', import.meta.url), 'utf8'));
-  const files = values.stdin ? [{ path: repoPath(values.as), text: readFileSync(0, 'utf8') }]
+  const files = probe ? [probe]
     : sourceFiles().filter(isF1Path).map((path) => ({ path, text: readFileSync(resolve(ROOT, path), 'utf8') }));
-  const counts = {};
-  for (const file of files) {
-    const hits = checkText(file, words);
-    counts[file.path] = hits.length;
-    for (const hit of hits) console.log(`${file.path}:${hit.line}:${hit.col}  ${JSON.stringify(hit.token)}  banned ${JSON.stringify(hit.word)}`);
-  }
+  const results = files.map((file) => ({ path: file.path, hits: checkText(file, words) }));
   const limits = values.stdin ? { [files[0].path]: baseline[files[0].path] ?? 0 } : baseline;
-  const deltas = compareCounts(counts, limits);
-  for (const item of deltas.filter((item) => item.count || item.allowed)) {
-    console.log(`${item.path}: count ${item.count}, baseline ${item.allowed}, delta ${item.delta >= 0 ? '+' : ''}${item.delta}`);
-    if (item.delta < 0) console.log(`lower f1-baseline.json for ${item.path} to ${item.count}`);
-  }
-  const failed = deltas.some((item) => item.delta > 0);
-  console.log(`F1 ${failed ? 'FAIL' : 'PASS'}: ${deltas.filter((item) => item.count > 0).length} files with hits, ${Object.values(counts).reduce((sum, count) => sum + count, 0)} hits`);
+  const { lines, failed } = formatReport(results, limits, { all: values.all, stdin: values.stdin });
+  for (const line of lines) console.log(line);
   process.exitCode = failed ? 1 : 0;
 }
 
