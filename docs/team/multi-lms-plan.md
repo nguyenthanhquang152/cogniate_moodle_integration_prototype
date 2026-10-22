@@ -13,7 +13,23 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 12:21 UTC
+### Current directive — 2026-10-22, 12:32 UTC
+
+Fresh legacy failed T5b AC-T5-36: the hanging-host HTML course completed, but Moodle grade stayed null instead of 100.
+T5a passed 23/23. T5b passed 23 and failed one, with no skips or retries. QA reported the first failure in msg_4cd73ea5bffb.
+The exact T5b result hash is cbe8b10d6beda73f9ff82c5d12ba507ced8efcc922038d4e6a6cc601856f41a8.
+The frozen driver finishes its existing T6, isolation, teardown, W4 and secret-scan path. No new runtime is granted.
+D-T6L no longer authorizes further acceptance. Prior evidence and both failed attempts keep their recorded outcomes.
+All 32 full baseline volume records remain protected through cleanup.
+
+Claude Opus 5.5 xhigh task_f0111da00fc4 / ctx_072d87e1a0d9 now analyzes the cause and proposes the smallest sufficient repair and verification scope.
+It may inspect held evidence and write only docs/reviews/M3/t5b-failure-plan.md. It cannot change product code, tests or acceptance criteria.
+The same retained Codex session finishes its current seven-finding Docs correction before receiving a separate failure-repair grant.
+Gemini Canvas task_73d57f11a485 settled for its completed Stage0 QA checkpoint; its external terminal remains available.
+Independent T6/T8 judgment, M2/T7 and final Docs QA need new dispatches after the failure decision.
+All 32 real LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 12:21 UTC
 
 Eight of twelve fresh legacy groups passed. T5a, T5b and T6 now run; the frozen C4 product and C5 tests are unchanged.
 The existing 13:50 UTC runtime deadline and all 32 protected volume records remain in force.
