@@ -5,13 +5,13 @@ import { constants, DatabaseSync } from 'node:sqlite';
 import ts from 'typescript';
 import { ROOT } from '../common.mjs';
 
-// LA-ADR-06 D13 rule 2: legacy pre-LA SQL (moved, BD-A2-46). One occurrence of each; no new rowid uses.
+// BD-A1-52: allow one occurrence of each exact statement, only at its new path.
+const LEGACY_ORDER_REASON = 'pre-LA statement moved 1:1, A2 BD-A2-46 / LA-ADR-06 D13 item 6 (a); LG adds an insertion-order column';
 const LEGACY_ORDER = [
   "SELECT * FROM mbz_build WHERE library_id = :library_id AND version_id = :version_id ORDER BY created_at DESC, rowid DESC LIMIT 1",
   "SELECT * FROM mbz_build WHERE library_id = :library_id AND version_id = :version_id AND status = 'ready' ORDER BY created_at DESC, rowid DESC LIMIT 1",
   "SELECT * FROM mbz_build WHERE library_id = :library_id AND status IN ('queued', 'running') ORDER BY created_at, rowid"
-];
-const LEGACY_ORDER_FILE = "packages/channels/moodle/app/builds.ts";
+].map((text) => ({ file: 'packages/channels/moodle/app/builds.ts', text, reason: LEGACY_ORDER_REASON }));
 
 function storageOf(channel) {
   const file = resolve(ROOT, 'packages/channels', channel, 'manifest.ts');
@@ -32,19 +32,24 @@ function storageOf(channel) {
   return storage;
 }
 
+function startsSql(text) {
+  const withoutPrefix = text.replace(/^(?:\s+|--[^\r\n]*(?:\r?\n|$)|\/\*[\s\S]*?\*\/)*/, '');
+  return /^(SELECT|UPDATE|INSERT|DELETE|WITH)\b/i.test(withoutPrefix);
+}
+
 function fragments(path, text) {
   const source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
   const found = [];
   function visit(node) {
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateExpression(node)) {
-      const sql = text.slice(node.getStart(source) + 1, node.end - 1);
-      if (/^\s*(SELECT|UPDATE|INSERT|DELETE|WITH)\b/i.test(sql)) found.push({ sql, offset: node.getStart(source) + 1, dynamic: ts.isTemplateExpression(node) });
+      const sql = ts.isTemplateExpression(node) ? node.head.text : node.text;
+      if (startsSql(sql)) found.push({ sql, offset: node.getStart(source) + 1, dynamic: ts.isTemplateExpression(node) });
       return;
     }
     ts.forEachChild(node, visit);
   }
   visit(source);
-  if (!found.length && /^\s*(SELECT|UPDATE|INSERT|DELETE|WITH)\b/i.test(text)) found.push({ sql: text, offset: 0, dynamic: false });
+  if (!found.length && startsSql(text)) found.push({ sql: text, offset: 0, dynamic: false });
   return found;
 }
 
@@ -69,7 +74,7 @@ export default {
       const sql = fragment.sql.replace(/--[^\n]*|\/\*[\s\S]*?\*\/|'(?:''|[^'])*'|[:@$][A-Za-z_][A-Za-z0-9_]*/g, (s) => s.replace(/[^\n]/g, ' '))
         .replace(/["`[\]]/g, ' ');
       if (/\b(?:rowid|_rowid_|oid)\b/i.test(sql)) {
-        if (path !== LEGACY_ORDER_FILE || !LEGACY_ORDER.includes(fragment.sql) || usedOrders.has(fragment.sql)) {
+        if (!LEGACY_ORDER.some((entry) => entry.file === path && entry.text === fragment.sql) || usedOrders.has(fragment.sql)) {
           report(fragment.offset, 'rowid is allowed only in the three exact moved legacy statements (BD-A2-46).');
           continue;
         }
