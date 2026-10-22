@@ -3,7 +3,7 @@ import { createJobRunner, createLogger, type JobContext } from '@cogniate/shared
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { beginSend, recordSend } from './dispatch-store.ts';
 import { createDispatchQueue } from './outbox.ts';
-import { legacyAgsPolicy } from './legacy-reporter.ts';
+import { ltiAgsPolicy } from '../../drivers/lti-ags/index.ts';
 import { recordsFixture } from './records.testkit.ts';
 
 describeJobStoreContract('AC-LA-E4-02-04 app migration 014', recordsFixture);
@@ -50,7 +50,7 @@ describe('outbox row safety', () => {
       expect(await job.lease(item, 'a/boot', 200_000, Date.now())).toBe(false);
       // Crash-state defence in recordResult itself: simulate an already accepted higher POST.
       f.db.prepare('UPDATE record_dispatch SET lease_owner = ?, send_started_at = ?, tries = 1 WHERE id = ?').run('a/boot', Date.now(), high);
-      const row = { id: high, resourceLinkId: 'rl_one', userSub: 'one', confirmationAfter: null, retryFrom: Date.now() };
+      const row = { id: high, placementId: 'rl_one', learnerSubject: 'one', confirmationAfter: null, retryFrom: Date.now() };
       const accepted = { status: 'sent' as const, nextTryAt: null, lastError: null, uncertain: false };
       recordSend(f.db, row, accepted, Date.now(), 'a/boot');
       expect(await f.readRow(high)).toMatchObject({ status: 'pending', confirmationAfter: 105_000 });
@@ -94,7 +94,7 @@ describe('outbox row safety', () => {
     const wait = new Promise<void>((r) => { finish = r; });
     const id = await f.addRow({ key: 'one', partition: 'p', score: 0.5, nextTryAt: 0 });
     const runner = createJobRunner({ store: f.store(), logger, instanceId: 'a', bootId: 'boot' });
-    runner.addQueue(createDispatchQueue(f.db, [{ ...legacyAgsPolicy, async deliver(_, ctx) {
+    runner.addQueue(createDispatchQueue(f.db, [{ ...ltiAgsPolicy, async deliver(_, ctx) {
       expect(ctx.beginSend()).toBe('started'); await wait; return { kind: 'accepted' };
     } }]));
     try {
