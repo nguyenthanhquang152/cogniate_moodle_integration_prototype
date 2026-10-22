@@ -1,0 +1,36 @@
+{
+  "goldenVersion": 1,
+  "productSha": "1b17261be97c4701b928fa9dc2fa74c6d23028f6",
+  "label": "r5",
+  "project": "qa-la-sim-r5",
+  "capturedAt": "2026-10-22T07:02:25.985Z",
+  "captureSeconds": 45,
+  "totalSeconds": 98,
+  "normalization": {
+    "G1": {
+      "ids": 13,
+      "secrets": 2,
+      "dropped": {}
+    },
+    "G2": {
+      "ids": 45,
+      "secrets": 4,
+      "dropped": {
+        "nonce": 4,
+        "timestamp": 22
+      }
+    },
+    "G3": {
+      "ids": 103,
+      "secrets": 0,
+      "dropped": {}
+    },
+    "G4": {
+      "ids": 12,
+      "secrets": 0,
+      "dropped": {}
+    }
+  },
+  "secretValuesChecked": 122,
+  "secretHits": 0
+}

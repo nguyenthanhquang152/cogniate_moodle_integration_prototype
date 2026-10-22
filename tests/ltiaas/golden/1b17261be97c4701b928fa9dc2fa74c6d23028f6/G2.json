@@ -1,0 +1,1129 @@
+{
+  "blackboard": {
+    "oidc": [
+      {
+        "endpoint": "https://developer.blackboard.sim.test/api/v1/gateway/oidcauth",
+        "params": {
+          "client_id": "qa-bb-app",
+          "login_hint": "scenario-<id:1>",
+          "lti_message_hint": "message-scenario-<id:1>",
+          "prompt": "none",
+          "redirect_uri": "https://lti.cogniate.test:9443/lti/launch/cogniate",
+          "response_mode": "form_post",
+          "response_type": "id_token",
+          "scope": "openid",
+          "state": "<redacted:43>"
+        },
+        "step": "deep-linking"
+      },
+      {
+        "endpoint": "https://developer.blackboard.sim.test/api/v1/gateway/oidcauth",
+        "params": {
+          "client_id": "qa-bb-app",
+          "login_hint": "scenario-<id:2>",
+          "lti_message_hint": "message-scenario-<id:2>",
+          "prompt": "none",
+          "redirect_uri": "https://lti.cogniate.test:9443/lti/launch/cogniate",
+          "response_mode": "form_post",
+          "response_type": "id_token",
+          "scope": "openid",
+          "state": "<redacted:43>"
+        },
+        "step": "learner launch"
+      }
+    ],
+    "records": [
+      {
+        "clientId": "qa-bb-app",
+        "deploymentId": "golden-bb-1",
+        "host": "developer.blackboard.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/v1/gateway/oidcauth",
+        "provider": "blackboard-sim",
+        "scenario": "scenario-<id:1>",
+        "seq": 1,
+        "ts": "<t>"
+      },
+      {
+        "host": "developer.blackboard.sim.test",
+        "kind": "jwks",
+        "method": "GET",
+        "path": "/api/v1/management/applications/qa-bb-app/jwks.json",
+        "provider": "blackboard-sim",
+        "seq": 2,
+        "ts": "<t>"
+      },
+      {
+        "audience": "https://blackboard.sim.test",
+        "clientId": "qa-bb-app",
+        "dataMode": "claim",
+        "deploymentId": "golden-bb-1",
+        "host": "learn-a.blackboard.sim.test",
+        "items": [
+          {
+            "lineItem": {
+              "label": "M1 course-<id:3>",
+              "resourceId": "<id:4>",
+              "scoreMaximum": 100,
+              "tag": "cogniate-score"
+            },
+            "title": "M1 course-<id:3>",
+            "type": "ltiResourceLink",
+            "url": "https://lti.cogniate.test:9443/lti/launch/cogniate?resource=<id:4>",
+            "window": {
+              "targetName": "_blank"
+            }
+          }
+        ],
+        "kind": "deep-link",
+        "method": "POST",
+        "path": "/webapps/blackboard/controller/lti/v2/deeplinking",
+        "provider": "blackboard-sim",
+        "scenario": "scenario-<id:1>",
+        "seq": 3,
+        "sub": "qa-bb-app",
+        "ts": "<t>"
+      },
+      {
+        "clientId": "qa-bb-app",
+        "deploymentId": "golden-bb-1",
+        "host": "developer.blackboard.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/v1/gateway/oidcauth",
+        "provider": "blackboard-sim",
+        "scenario": "scenario-<id:2>",
+        "seq": 4,
+        "ts": "<t>"
+      },
+      {
+        "audience": [
+          "https://developer.blackboard.sim.test/api/v1/gateway/oauth2/jwttoken"
+        ],
+        "clientId": "qa-bb-app",
+        "host": "developer.blackboard.sim.test",
+        "kind": "token",
+        "method": "POST",
+        "path": "/api/v1/gateway/oauth2/jwttoken",
+        "provider": "blackboard-sim",
+        "scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "seq": 5,
+        "tokenRef": "<id:5>",
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 7,
+          "scoreMaximum": 10,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "learn-a.blackboard.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/learn/api/v1/lti/courses/course-1/lineItems/<id:4>/scores",
+        "provider": "blackboard-sim",
+        "resource": "<id:4>",
+        "seq": 6,
+        "status": 204,
+        "tokenRef": "<id:5>",
+        "ts": "<t>"
+      },
+      {
+        "clientId": "qa-bb-app",
+        "deploymentId": "golden-bb-1",
+        "host": "developer.blackboard.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/v1/gateway/oidcauth",
+        "provider": "blackboard-sim",
+        "scenario": "scenario-<id:6>",
+        "seq": 7,
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 8,
+          "scoreMaximum": 10,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "learn-a.blackboard.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/learn/api/v1/lti/courses/course-1/lineItems/<id:7>/scores",
+        "provider": "blackboard-sim",
+        "resource": "<id:7>",
+        "seq": 8,
+        "status": 409,
+        "tokenRef": "<id:5>",
+        "ts": "<t>"
+      },
+      {
+        "clientId": "qa-bb-app",
+        "deploymentId": "golden-bb-1",
+        "host": "developer.blackboard.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/v1/gateway/oidcauth",
+        "provider": "blackboard-sim",
+        "scenario": "scenario-<id:8>",
+        "seq": 9,
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 6,
+          "scoreMaximum": 10,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "learn-a.blackboard.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/learn/api/v1/lti/courses/course-1/lineItems/<id:9>/scores",
+        "provider": "blackboard-sim",
+        "resource": "<id:9>",
+        "seq": 10,
+        "status": 400,
+        "tokenRef": "<id:5>",
+        "ts": "<t>"
+      },
+      {
+        "clientId": "qa-bb-app",
+        "deploymentId": "golden-bb-1",
+        "host": "developer.blackboard.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/v1/gateway/oidcauth",
+        "provider": "blackboard-sim",
+        "scenario": "scenario-<id:10>",
+        "seq": 11,
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 5,
+          "scoreMaximum": 10,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "learn-a.blackboard.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/learn/api/v1/lti/courses/course-1/lineItems/<id:11>/scores",
+        "provider": "blackboard-sim",
+        "resource": "<id:11>",
+        "seq": 12,
+        "status": 422,
+        "tokenRef": "<id:5>",
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 5,
+          "scoreMaximum": 10,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "learn-a.blackboard.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/learn/api/v1/lti/courses/course-1/lineItems/<id:11>/scores",
+        "provider": "blackboard-sim",
+        "resource": "<id:11>",
+        "seq": 13,
+        "status": 204,
+        "tokenRef": "<id:5>",
+        "ts": "<t>"
+      },
+      {
+        "clientId": "qa-bb-app",
+        "deploymentId": "golden-bb-1",
+        "host": "developer.blackboard.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/v1/gateway/oidcauth",
+        "provider": "blackboard-sim",
+        "scenario": "scenario-<id:12>",
+        "seq": 14,
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 60,
+          "scoreMaximum": 100,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "learn-a.blackboard.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/learn/api/v1/lti/courses/course-1/lineItems/<id:13>/scores",
+        "provider": "blackboard-sim",
+        "resource": "<id:13>",
+        "seq": 15,
+        "status": 503,
+        "tokenRef": "<id:5>",
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 60,
+          "scoreMaximum": 100,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "learn-a.blackboard.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/learn/api/v1/lti/courses/course-1/lineItems/<id:13>/scores",
+        "provider": "blackboard-sim",
+        "resource": "<id:13>",
+        "seq": 16,
+        "status": 503,
+        "tokenRef": "<id:5>",
+        "ts": "<t>"
+      },
+      {
+        "clientId": "qa-bb-app",
+        "deploymentId": "golden-bb-1",
+        "host": "developer.blackboard.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/v1/gateway/oidcauth",
+        "provider": "blackboard-sim",
+        "scenario": "scenario-<id:14>",
+        "seq": 17,
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 90,
+          "scoreMaximum": 100,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "learn-a.blackboard.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/learn/api/v1/lti/courses/course-1/lineItems/<id:13>/scores",
+        "provider": "blackboard-sim",
+        "resource": "<id:13>",
+        "seq": 18,
+        "status": 204,
+        "tokenRef": "<id:5>",
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 90,
+          "scoreMaximum": 100,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "learn-a.blackboard.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/learn/api/v1/lti/courses/course-1/lineItems/<id:13>/scores",
+        "provider": "blackboard-sim",
+        "resource": "<id:13>",
+        "seq": 19,
+        "status": 204,
+        "tokenRef": "<id:5>",
+        "ts": "<t>"
+      },
+      {
+        "clientId": "qa-bb-app",
+        "deploymentId": "golden-bb-1",
+        "host": "developer.blackboard.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/v1/gateway/oidcauth",
+        "provider": "blackboard-sim",
+        "scenario": "scenario-<id:15>",
+        "seq": 20,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "qa-bb-app",
+        "deploymentId": "golden-bb-1",
+        "host": "developer.blackboard.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/v1/gateway/oidcauth",
+        "provider": "blackboard-sim",
+        "scenario": "scenario-<id:16>",
+        "seq": 21,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "qa-bb-app",
+        "deploymentId": "golden-bb-1",
+        "host": "developer.blackboard.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/v1/gateway/oidcauth",
+        "provider": "blackboard-sim",
+        "scenario": "scenario-<id:17>",
+        "seq": 22,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "qa-bb-app",
+        "deploymentId": "golden-bb-1",
+        "host": "developer.blackboard.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/v1/gateway/oidcauth",
+        "provider": "blackboard-sim",
+        "scenario": "scenario-<id:18>",
+        "seq": 23,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "qa-bb-app",
+        "deploymentId": "golden-bb-1",
+        "host": "developer.blackboard.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/v1/gateway/oidcauth",
+        "provider": "blackboard-sim",
+        "scenario": "scenario-<id:19>",
+        "seq": 24,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "qa-bb-app",
+        "deploymentId": "golden-bb-1",
+        "host": "developer.blackboard.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/v1/gateway/oidcauth",
+        "provider": "blackboard-sim",
+        "scenario": "scenario-<id:20>",
+        "seq": 25,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "qa-bb-app",
+        "deploymentId": "golden-bb-1",
+        "host": "developer.blackboard.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/v1/gateway/oidcauth",
+        "provider": "blackboard-sim",
+        "scenario": "scenario-<id:21>",
+        "seq": 26,
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 4,
+          "scoreMaximum": 10,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "learn-a.blackboard.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/learn/api/v1/lti/courses/course-1/lineItems/<id:22>/scores",
+        "provider": "blackboard-sim",
+        "resource": "<id:22>",
+        "seq": 27,
+        "status": 503,
+        "tokenRef": "<id:5>",
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 4,
+          "scoreMaximum": 10,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "learn-a.blackboard.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/learn/api/v1/lti/courses/course-1/lineItems/<id:22>/scores",
+        "provider": "blackboard-sim",
+        "resource": "<id:22>",
+        "seq": 28,
+        "status": 503,
+        "tokenRef": "<id:5>",
+        "ts": "<t>"
+      }
+    ]
+  },
+  "canvas": {
+    "oidc": [
+      {
+        "endpoint": "https://sso.canvas.sim.test/api/lti/authorize_redirect",
+        "params": {
+          "client_id": "10000000000042",
+          "login_hint": "cvdl-<id:23>",
+          "lti_message_hint": "message-cvdl-<id:23>",
+          "prompt": "none",
+          "redirect_uri": "https://lti.cogniate.test:9443/lti/launch/cogniate",
+          "response_mode": "form_post",
+          "response_type": "id_token",
+          "scope": "openid",
+          "state": "<redacted:43>"
+        },
+        "step": "deep-linking"
+      },
+      {
+        "endpoint": "https://sso.canvas.sim.test/api/lti/authorize_redirect",
+        "params": {
+          "client_id": "10000000000042",
+          "login_hint": "scenario-<id:24>",
+          "lti_message_hint": "message-scenario-<id:24>",
+          "prompt": "none",
+          "redirect_uri": "https://lti.cogniate.test:9443/lti/launch/cogniate",
+          "response_mode": "form_post",
+          "response_type": "id_token",
+          "scope": "openid",
+          "state": "<redacted:43>"
+        },
+        "step": "learner launch"
+      }
+    ],
+    "records": [
+      {
+        "hasState": true,
+        "host": "sso.canvas.sim.test",
+        "kind": "canvas-oidc",
+        "method": "GET",
+        "missing": [],
+        "prompt": "none",
+        "provider": "canvas-sim-cloud",
+        "responseMode": "form_post",
+        "seq": 29,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "10000000000042",
+        "deploymentId": "7:<id:25>",
+        "host": "sso.canvas.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/lti/authorize_redirect",
+        "provider": "canvas-sim-cloud",
+        "scenario": "cvdl-<id:23>",
+        "seq": 30,
+        "ts": "<t>"
+      },
+      {
+        "host": "sso.canvas.sim.test",
+        "kind": "jwks",
+        "method": "GET",
+        "path": "/api/lti/security/jwks",
+        "provider": "canvas-sim-cloud",
+        "seq": 31,
+        "ts": "<t>"
+      },
+      {
+        "audience": "https://canvas.sim.test",
+        "clientId": "10000000000042",
+        "dataMode": "query",
+        "deploymentId": "7:<id:25>",
+        "host": "school-a.canvas.sim.test",
+        "items": [
+          {
+            "lineItem": {
+              "label": "M1 course-<id:26>",
+              "resourceId": "<id:27>",
+              "scoreMaximum": 100,
+              "tag": "cogniate-score"
+            },
+            "title": "M1 course-<id:26>",
+            "type": "ltiResourceLink",
+            "url": "https://lti.cogniate.test:9443/lti/launch/cogniate?resource=<id:27>",
+            "window": {
+              "targetName": "_blank"
+            }
+          }
+        ],
+        "kind": "deep-link",
+        "method": "POST",
+        "path": "/courses/course-1/deep_linking_response",
+        "provider": "canvas-sim-cloud",
+        "scenario": "cvdl-<id:23>",
+        "seq": 32,
+        "ts": "<t>"
+      },
+      {
+        "hasState": true,
+        "host": "sso.canvas.sim.test",
+        "kind": "canvas-oidc",
+        "method": "GET",
+        "missing": [],
+        "prompt": "none",
+        "provider": "canvas-sim-cloud",
+        "responseMode": "form_post",
+        "seq": 33,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "10000000000042",
+        "deploymentId": "7:<id:25>",
+        "host": "sso.canvas.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/lti/authorize_redirect",
+        "provider": "canvas-sim-cloud",
+        "scenario": "scenario-<id:24>",
+        "seq": 34,
+        "ts": "<t>"
+      },
+      {
+        "audience": "https://school-a.canvas.sim.test/login/oauth2/token",
+        "clientId": "10000000000042",
+        "host": "school-a.canvas.sim.test",
+        "kind": "token",
+        "method": "POST",
+        "path": "/login/oauth2/token",
+        "provider": "canvas-sim-cloud",
+        "scopes": [
+          "https://purl.imsglobal.org/spec/lti-ags/scope/score"
+        ],
+        "seq": 35,
+        "tokenRef": "<id:28>",
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 7,
+          "scoreMaximum": 10,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "school-a.canvas.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/api/lti/courses/course-1/line_items/<id:27>/scores",
+        "provider": "canvas-sim-cloud",
+        "resource": "<id:27>",
+        "seq": 36,
+        "status": 204,
+        "tokenRef": "<id:28>",
+        "ts": "<t>"
+      },
+      {
+        "hasState": true,
+        "host": "sso.canvas.sim.test",
+        "kind": "canvas-oidc",
+        "method": "GET",
+        "missing": [],
+        "prompt": "none",
+        "provider": "canvas-sim-cloud",
+        "responseMode": "form_post",
+        "seq": 37,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "10000000000042",
+        "deploymentId": "7:<id:25>",
+        "host": "sso.canvas.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/lti/authorize_redirect",
+        "provider": "canvas-sim-cloud",
+        "scenario": "scenario-<id:29>",
+        "seq": 38,
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 8,
+          "scoreMaximum": 10,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "school-a.canvas.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/api/lti/courses/course-1/line_items/<id:30>/scores",
+        "provider": "canvas-sim-cloud",
+        "resource": "<id:30>",
+        "seq": 39,
+        "status": 409,
+        "tokenRef": "<id:28>",
+        "ts": "<t>"
+      },
+      {
+        "hasState": true,
+        "host": "sso.canvas.sim.test",
+        "kind": "canvas-oidc",
+        "method": "GET",
+        "missing": [],
+        "prompt": "none",
+        "provider": "canvas-sim-cloud",
+        "responseMode": "form_post",
+        "seq": 40,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "10000000000042",
+        "deploymentId": "7:<id:25>",
+        "host": "sso.canvas.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/lti/authorize_redirect",
+        "provider": "canvas-sim-cloud",
+        "scenario": "scenario-<id:31>",
+        "seq": 41,
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 6,
+          "scoreMaximum": 10,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "school-a.canvas.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/api/lti/courses/course-1/line_items/<id:32>/scores",
+        "provider": "canvas-sim-cloud",
+        "resource": "<id:32>",
+        "seq": 42,
+        "status": 400,
+        "tokenRef": "<id:28>",
+        "ts": "<t>"
+      },
+      {
+        "hasState": true,
+        "host": "sso.canvas.sim.test",
+        "kind": "canvas-oidc",
+        "method": "GET",
+        "missing": [],
+        "prompt": "none",
+        "provider": "canvas-sim-cloud",
+        "responseMode": "form_post",
+        "seq": 43,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "10000000000042",
+        "deploymentId": "7:<id:25>",
+        "host": "sso.canvas.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/lti/authorize_redirect",
+        "provider": "canvas-sim-cloud",
+        "scenario": "scenario-<id:33>",
+        "seq": 44,
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 5,
+          "scoreMaximum": 10,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "school-a.canvas.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/api/lti/courses/course-1/line_items/<id:34>/scores",
+        "provider": "canvas-sim-cloud",
+        "resource": "<id:34>",
+        "seq": 45,
+        "status": 422,
+        "tokenRef": "<id:28>",
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 5,
+          "scoreMaximum": 10,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "school-a.canvas.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/api/lti/courses/course-1/line_items/<id:34>/scores",
+        "provider": "canvas-sim-cloud",
+        "resource": "<id:34>",
+        "seq": 46,
+        "status": 204,
+        "tokenRef": "<id:28>",
+        "ts": "<t>"
+      },
+      {
+        "hasState": true,
+        "host": "sso.canvas.sim.test",
+        "kind": "canvas-oidc",
+        "method": "GET",
+        "missing": [],
+        "prompt": "none",
+        "provider": "canvas-sim-cloud",
+        "responseMode": "form_post",
+        "seq": 47,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "10000000000042",
+        "deploymentId": "7:<id:25>",
+        "host": "sso.canvas.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/lti/authorize_redirect",
+        "provider": "canvas-sim-cloud",
+        "scenario": "scenario-<id:35>",
+        "seq": 48,
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 60,
+          "scoreMaximum": 100,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "school-a.canvas.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/api/lti/courses/course-1/line_items/<id:36>/scores",
+        "provider": "canvas-sim-cloud",
+        "resource": "<id:36>",
+        "seq": 49,
+        "status": 503,
+        "tokenRef": "<id:28>",
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 60,
+          "scoreMaximum": 100,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "school-a.canvas.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/api/lti/courses/course-1/line_items/<id:36>/scores",
+        "provider": "canvas-sim-cloud",
+        "resource": "<id:36>",
+        "seq": 50,
+        "status": 503,
+        "tokenRef": "<id:28>",
+        "ts": "<t>"
+      },
+      {
+        "hasState": true,
+        "host": "sso.canvas.sim.test",
+        "kind": "canvas-oidc",
+        "method": "GET",
+        "missing": [],
+        "prompt": "none",
+        "provider": "canvas-sim-cloud",
+        "responseMode": "form_post",
+        "seq": 51,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "10000000000042",
+        "deploymentId": "7:<id:25>",
+        "host": "sso.canvas.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/lti/authorize_redirect",
+        "provider": "canvas-sim-cloud",
+        "scenario": "scenario-<id:37>",
+        "seq": 52,
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 90,
+          "scoreMaximum": 100,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "school-a.canvas.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/api/lti/courses/course-1/line_items/<id:36>/scores",
+        "provider": "canvas-sim-cloud",
+        "resource": "<id:36>",
+        "seq": 53,
+        "status": 204,
+        "tokenRef": "<id:28>",
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 90,
+          "scoreMaximum": 100,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "school-a.canvas.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/api/lti/courses/course-1/line_items/<id:36>/scores",
+        "provider": "canvas-sim-cloud",
+        "resource": "<id:36>",
+        "seq": 54,
+        "status": 204,
+        "tokenRef": "<id:28>",
+        "ts": "<t>"
+      },
+      {
+        "hasState": true,
+        "host": "sso.canvas.sim.test",
+        "kind": "canvas-oidc",
+        "method": "GET",
+        "missing": [],
+        "prompt": "none",
+        "provider": "canvas-sim-cloud",
+        "responseMode": "form_post",
+        "seq": 55,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "10000000000042",
+        "deploymentId": "7:<id:25>",
+        "host": "sso.canvas.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/lti/authorize_redirect",
+        "provider": "canvas-sim-cloud",
+        "scenario": "cvdl-<id:38>",
+        "seq": 56,
+        "ts": "<t>"
+      },
+      {
+        "hasState": true,
+        "host": "sso.canvas.sim.test",
+        "kind": "canvas-oidc",
+        "method": "GET",
+        "missing": [],
+        "prompt": "none",
+        "provider": "canvas-sim-cloud",
+        "responseMode": "form_post",
+        "seq": 57,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "10000000000042",
+        "deploymentId": "7:<id:25>",
+        "host": "sso.canvas.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/lti/authorize_redirect",
+        "provider": "canvas-sim-cloud",
+        "scenario": "scenario-<id:39>",
+        "seq": 58,
+        "ts": "<t>"
+      },
+      {
+        "hasState": true,
+        "host": "sso.canvas.sim.test",
+        "kind": "canvas-oidc",
+        "method": "GET",
+        "missing": [],
+        "prompt": "none",
+        "provider": "canvas-sim-cloud",
+        "responseMode": "form_post",
+        "seq": 59,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "10000000000042",
+        "deploymentId": "7:<id:25>",
+        "host": "sso.canvas.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/lti/authorize_redirect",
+        "provider": "canvas-sim-cloud",
+        "scenario": "scenario-<id:40>",
+        "seq": 60,
+        "ts": "<t>"
+      },
+      {
+        "hasState": true,
+        "host": "sso.canvas.sim.test",
+        "kind": "canvas-oidc",
+        "method": "GET",
+        "missing": [],
+        "prompt": "none",
+        "provider": "canvas-sim-cloud",
+        "responseMode": "form_post",
+        "seq": 61,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "10000000000042",
+        "deploymentId": "7:<id:25>",
+        "host": "sso.canvas.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/lti/authorize_redirect",
+        "provider": "canvas-sim-cloud",
+        "scenario": "scenario-<id:41>",
+        "seq": 62,
+        "ts": "<t>"
+      },
+      {
+        "hasState": true,
+        "host": "sso.canvas.sim.test",
+        "kind": "canvas-oidc",
+        "method": "GET",
+        "missing": [],
+        "prompt": "none",
+        "provider": "canvas-sim-cloud",
+        "responseMode": "form_post",
+        "seq": 63,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "10000000000042",
+        "deploymentId": "7:<id:25>",
+        "host": "sso.canvas.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/lti/authorize_redirect",
+        "provider": "canvas-sim-cloud",
+        "scenario": "scenario-<id:42>",
+        "seq": 64,
+        "ts": "<t>"
+      },
+      {
+        "hasState": true,
+        "host": "sso.canvas.sim.test",
+        "kind": "canvas-oidc",
+        "method": "GET",
+        "missing": [],
+        "prompt": "none",
+        "provider": "canvas-sim-cloud",
+        "responseMode": "form_post",
+        "seq": 65,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "10000000000042",
+        "deploymentId": "7:<id:25>",
+        "host": "sso.canvas.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/lti/authorize_redirect",
+        "provider": "canvas-sim-cloud",
+        "scenario": "scenario-<id:43>",
+        "seq": 66,
+        "ts": "<t>"
+      },
+      {
+        "hasState": true,
+        "host": "sso.canvas.sim.test",
+        "kind": "canvas-oidc",
+        "method": "GET",
+        "missing": [],
+        "prompt": "none",
+        "provider": "canvas-sim-cloud",
+        "responseMode": "form_post",
+        "seq": 67,
+        "ts": "<t>"
+      },
+      {
+        "clientId": "10000000000042",
+        "deploymentId": "7:<id:25>",
+        "host": "sso.canvas.sim.test",
+        "kind": "auth",
+        "method": "GET",
+        "path": "/api/lti/authorize_redirect",
+        "provider": "canvas-sim-cloud",
+        "scenario": "scenario-<id:44>",
+        "seq": 68,
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 4,
+          "scoreMaximum": 10,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "school-a.canvas.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/api/lti/courses/course-1/line_items/<id:45>/scores",
+        "provider": "canvas-sim-cloud",
+        "resource": "<id:45>",
+        "seq": 69,
+        "status": 503,
+        "tokenRef": "<id:28>",
+        "ts": "<t>"
+      },
+      {
+        "body": {
+          "activityProgress": "Completed",
+          "gradingProgress": "FullyGraded",
+          "scoreGiven": 4,
+          "scoreMaximum": 10,
+          "userId": "learner-1"
+        },
+        "contentType": "application/vnd.ims.lis.v1.score+json",
+        "host": "school-a.canvas.sim.test",
+        "kind": "score",
+        "method": "POST",
+        "path": "/api/lti/courses/course-1/line_items/<id:45>/scores",
+        "provider": "canvas-sim-cloud",
+        "resource": "<id:45>",
+        "seq": 70,
+        "status": 503,
+        "tokenRef": "<id:28>",
+        "ts": "<t>"
+      }
+    ]
+  }
+}

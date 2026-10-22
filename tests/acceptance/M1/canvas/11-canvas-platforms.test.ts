@@ -252,7 +252,7 @@ for (const [variant, body, status, code, detail] of [
 }
 m1Test('M1-15.canvas.lms-providers', 'lms-providers lists the Canvas methods, capabilities and profiles with the simulation last', async () => {
   const s = await session(), r = await app(s, 'GET', '/app-api/lms-providers'); expectStatus(r, 200);
-  assert.deepEqual(r.json.lms.map((l: Json) => l.lms), ['moodle', 'canvas', 'blackboard']);
+  const { checkLmsEntries } = await import('../../lib/open-world.mjs'); checkLmsEntries(r.json.lms); // LD-1 open world, row 7 (LA-E0-04)
   const canvas = r.json.lms.find((l: Json) => l.lms === 'canvas');
   assert.deepEqual(canvas.methods, ['manual']);
   assert.deepEqual(canvas.capabilities, CANVAS_CAPABILITIES);

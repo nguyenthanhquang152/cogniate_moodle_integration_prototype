@@ -23,6 +23,7 @@ import {
 import { StorageLane } from './storage-lane.mjs';
 import { storagePhase } from './storage-rows.mjs';
 import { readManifests, verifyResults, vitestResults, playwrightResults } from '../acceptance/M1/common/coverage.mjs';
+import { BASELINE_REAL_PROFILES, appLmsProviders, checkProfiles, registeredChannels, seedPortalUser } from '../acceptance/lib/open-world.mjs';
 import { createRuntime } from '../sim/core/runtime.mjs';
 import { loadProviders } from '../sim/server.mjs';
 
@@ -294,12 +295,16 @@ async function defaultGate() {
       body: body === undefined ? undefined : JSON.stringify(body) });
     return { ...result, json: JSON.parse(result.body) };
   };
-  const profiles = await api('GET', '/api/providers'); assert.equal(profiles.status, 200); assert.equal(profiles.json.profiles.length, 6);
+  const profiles = await api('GET', '/api/providers'); assert.equal(profiles.status, 200);
+  // LD-1 open world (LA-E0-04, row 3): the 6 baseline real profiles keep their values and order; each extra profile
+  // is a real profile of a registered channel (GET /app-api/lms-providers); no simulation profile.
+  const lmsProviders = await appLmsProviders(httpsLoopback, { appUrl: r.state.urls.app, ca: r.state.ca, user: seedPortalUser(r.state.rawSeed) });
+  checkProfiles(profiles.json.profiles, BASELINE_REAL_PROFILES, { registered: registeredChannels(lmsProviders), realOnly: true });
   for (const profile of ['blackboard-sim', 'canvas-sim-cloud', 'nope']) {
     const answer = await api('POST', '/api/platforms', { profile, clientId: 'gate-test', name: 'gate-test' });
     assert.equal(answer.status, 400); assert.equal(answer.json.details.message, 'UNKNOWN_PROFILE');
   }
-  record('M1-02.common.default-profile', 'Default stack exposes six real profiles, no simulation profiles or helper containers');
+  record('M1-02.common.default-profile', 'Default stack exposes the six baseline real profiles (LD-1 open world), no simulation profiles or helper containers');
 }
 async function suite(label, selection, environment = {}, { route } = {}) {
   const reportFile = path.join(artifactDir, 'm1-vitest-results.json');

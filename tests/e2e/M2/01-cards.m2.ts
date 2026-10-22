@@ -1,12 +1,24 @@
 // AC-M2-01: three LMS cards; each card shows only its own LMS's newest status (also with equal names and times);
 // the Moodle card and its flow are unchanged.
+import type { Page } from '@playwright/test';
 import { THANH } from '../../acceptance/lib/app';
 import {
   APP, BLACKBOARD, CLOUD, app, canvasClientId, canvasDeploymentId, issueGrant, ok, session, sharedPlatform, unique, urls,
 } from '../../acceptance/M1/canvas/browser';
 import { TEXT, button, card, expect, integrations, m2Case, manageControl, portalSignIn, shot } from './lib/m2';
+import { checkCards, extraChannelNames } from '../../acceptance/lib/open-world.mjs';
 
 const squash = (t: string) => t.replace(/\s+/g, ' ').trim();
+/** The visible cards of the grid that holds the Moodle card (the "LMS Publishing" filter), as texts in page order. */
+const lmsCardTexts = (page: Page) => page.evaluate((moodleText) => {
+  const all = Array.from(document.querySelectorAll('body *')) as HTMLElement[];
+  let cell: HTMLElement | null = all.find((el) => el.children.length === 0 && (el.textContent ?? '').includes(moodleText)) ?? null;
+  while (cell && cell.parentElement && getComputedStyle(cell.parentElement).display !== 'grid') cell = cell.parentElement;
+  if (!cell || !cell.parentElement) return [];
+  return (Array.from(cell.parentElement.children) as HTMLElement[])
+    .filter((c) => getComputedStyle(c).display !== 'none' && c.getBoundingClientRect().height > 0)
+    .map((c) => (c.textContent ?? '').replace(/\s+/g, ' ').trim());
+}, TEXT.moodleCard);
 
 m2Case('M2-01.cards', 'the LMS Publishing filter shows the Moodle, Canvas and Blackboard cards with their texts and initials', async ({ page }) => {
   await sharedPlatform();
@@ -15,6 +27,10 @@ m2Case('M2-01.cards', 'the LMS Publishing filter shows the Moodle, Canvas and Bl
   await expect(page.getByRole('heading', { name: 'Blackboard', exact: true })).toBeVisible();
   const moodle = card(page, TEXT.moodleCard), canvas = card(page, TEXT.canvasCard), bb = card(page, TEXT.blackboardCard);
   for (const c of [moodle, canvas, bb]) await expect(c).toBeVisible();
+  // LD-1 open world (LA-E0-04, row 6): the 3 baseline cards with their texts, in this order; an extra card is the
+  // G-BASE Kajabi card or names a registered channel of GET /app-api/lms-providers.
+  const providers = await app(await session('A'), 'GET', '/app-api/lms-providers'); ok(providers, 200, 'lms-providers');
+  checkCards(await lmsCardTexts(page), [TEXT.moodleCard, TEXT.canvasCard, TEXT.blackboardCard], { names: extraChannelNames(providers.json) });
   await expect(canvas.getByText('Cv', { exact: true })).toBeVisible();
   await expect(bb.getByText('Bb', { exact: true })).toBeVisible();
   await shot(page, 'm2-01-cards');
