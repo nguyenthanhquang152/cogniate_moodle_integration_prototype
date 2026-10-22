@@ -1,11 +1,13 @@
 import type { IntervalJob, JobInstanceRow, JobLeaseRow, JobRunner, JobStore, KeyHandle, Logger } from '@cogniate/shared';
 import { createJobRunner } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
+import { readSigningKeyPublishLeadSeconds } from '../keys/key-config.ts';
 import { apiKeyExpiryJob } from './api-key-expiry.ts';
 import { auditRetentionDays, auditRetentionJob } from './audit-retention.ts';
 import { idempotencyCleanupJob } from './idempotency-cleanup.ts';
 import { retentionJob } from './retention.ts';
 import { signingKeyCleanupJob } from './signing-key-cleanup.ts';
+import { signingKeyRotateDays, signingKeyRotationJob } from './signing-key-rotation.ts';
 import { keyRewrapJob } from './key-rewrap.ts';
 
 /** The runner creates no schema. Migration 013 supplies both tables. Every ownership check is one SQL write. */
@@ -54,6 +56,7 @@ export interface LtiJobRunner extends JobRunner {
 export function createLtiJobRunner(options: { db: Db; logger: Logger; keys: KeyHandle; now?: () => number; env?: Record<string, string | undefined> }): LtiJobRunner {
   const env = options.env ?? process.env;
   const auditDays = auditRetentionDays(env.AUDIT_RETENTION_DAYS);
+  const rotation = { rotateDays: signingKeyRotateDays(env.SIGNING_KEY_ROTATE_DAYS), publishLeadSeconds: readSigningKeyPublishLeadSeconds(env) };
   const runner = createJobRunner({ store: createLtiJobStore(options.db), logger: options.logger,
     instanceId: env.JOB_INSTANCE_ID ?? 'lti-1', now: options.now ?? Date.now });
   const jobs = [
@@ -63,6 +66,7 @@ export function createLtiJobRunner(options: { db: Db; logger: Logger; keys: KeyH
     keyRewrapJob(options.db, options.keys),
     apiKeyExpiryJob(options.db),
     idempotencyCleanupJob(options.db),
+    signingKeyRotationJob(options.db, options.keys, rotation),
   ];
   for (const job of jobs) runner.addInterval(job);
   return Object.assign(runner, { jobs: jobs.map(({ name, everyMs }) => ({ name, everyMs })) });

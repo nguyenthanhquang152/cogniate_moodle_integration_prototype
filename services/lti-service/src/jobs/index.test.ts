@@ -66,7 +66,10 @@ it('uses lti-1 by default and checks JOB_INSTANCE_ID and audit retention before 
       { name: 'retention', everyMs: 600_000 }, { name: 'audit-retention', everyMs: 86_400_000 },
       { name: 'signing-key-cleanup', everyMs: 86_400_000 }, { name: 'key-rewrap', everyMs: null },
       { name: 'api-key-expiry', everyMs: 3_600_000 }, { name: 'idempotency-cleanup', everyMs: 3_600_000 },
+      { name: 'signing-key-rotation', everyMs: 86_400_000 },
     ]);
+    expect(() => createLtiJobRunner({ db, logger, keys, env: { SIGNING_KEY_ROTATE_DAYS: '7' } })).toThrow('SIGNING_KEY_ROTATE_DAYS');
+    expect(() => createLtiJobRunner({ db, logger, keys, env: { SIGNING_KEY_PUBLISH_LEAD_S: '60' } })).toThrow('SIGNING_KEY_PUBLISH_LEAD_S');
   } finally { db.close(); }
 });
 
