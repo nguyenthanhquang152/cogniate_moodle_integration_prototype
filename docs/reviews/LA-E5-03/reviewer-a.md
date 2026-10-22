@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-03 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -51,3 +51,26 @@ Round: 1
 - A tenant with many IPv6 /64 prefixes gets one full address budget per prefix. That is a property of per-address limits; D1 leaves the hard limit for many addresses to the edge (WAF, LG).
 - The `api` and `admin` buckets are keyed by the API key id, so all Cogniate libraries share the first-party key's budget. D1 accepts this (A-LAD-11). It is per tenant, not across tenants.
 - The K1-SIM ACs (AC-01 to AC-09, AC-11, AC-12) wait for QA-2's Docker window. The unit tests above cover their logic.
+
+## Round 2
+
+- Reviewer: Reviewer-A2 (the same lens A, plan LD-22). Date: 2026-10-22.
+- Diff: the S1 fix commits `511da0f`, `4e0ac6a`, `c560133`, `cf92882`, `9eb7ec7`, `5f2a57e` and `ec0534e`, inside merge `8706619`. I read each commit on its own and did not review the LA-E5-05 commits of the same merge. Rulings: A2 BD-A2-29 and BD-A2-30.
+- I ran on the host (no Docker), in a throwaway `git archive 8706619` copy: `vitest run services/lti-service/src/http` gives 21 files and 324 passed. I also ran 6 mutants on the fixes.
+- Blind review: I did not open the other reviewer's file.
+- **Round 2 counts: 0 open findings. The round-1 MINOR and NIT are closed. 1 NIT note below (no change needed).**
+
+| Id | Round 1 | Round 2 result |
+| --- | --- | --- |
+| A-LA-E5-03-01 | MINOR | **Closed.** `createTrustedProxy` now retries in 5 s while any configured host has no address, and otherwise every 60 s. A one-shot timer is set after each refresh, so refreshes never overlap. It logs `trusted_proxy_unresolved {host}` (warn) for each host without an address (BD-A2-30). The trusted set stays fail-closed: a failed lookup still adds nothing. Duplicate host entries are merged. A test with a resolver that fails once, then succeeds, gives trust after the 5 s retry. Mutants Q1 (retry after 60 s) and Q5 (no log line) are each killed. The open window shrinks from up to 60 s to about 5 s after the proxy name resolves. |
+| A-LA-E5-03-02 | NIT | **Closed.** The `settings.rate_limits` event now has `details: { fields, ...parsed.data }`: the changed classes with their new `ratePerMinute` and `burst`, `null` for a removed override, and `registrationSessionsPerAddress`. Limits are not secret, and the strict schema bounds the size. Mutant Q4 (names only) is killed. |
+
+Other fix items, checked for lens A:
+
+- **BD-A2-30 answer body.** `details.limit` is `{ class }` for the address classes (`protocol`, `registration`, `keys`, `auth_failure`), and `{ class, ratePerMinute, burst }` only for `api`, `admin` and `operator`. The values come from the validated override chain (account, then settings, then env, then default), so the body never holds an address, a key, a key id or an account. Mutant Q2 (numbers also for address classes) fails 5 tests.
+- **BD-A2-30 log.** `rate_limited` adds `trace_id` and `key_id` (for the key classes; the address classes keep `client_ip`), and `key_kind` is `address`, `api_key` or `operator_key`. Mutant Q3 (no trace id) fails 8 tests.
+- **The named peek** `refuseIfBlocked` reads the `auth_failure` bucket without creating or spending it, as before (mutant Q6, spending, fails 6 tests). `ADDRESS_ROUTE_CLASSES` keeps the same three classes and adds the storage-check path to `protocol`, as LA-ADR-05 D1 rule 10 asks.
+- **Start-up errors** name the Zod path (and an unknown key) of `LTI_RATE_LIMITS`, or the bad entry of `TRUSTED_PROXY_CIDRS`. These are operator settings, not secrets, so naming them is safe.
+- **BD-A2-29** is a doc comment only (`store/audit.ts`).
+
+- **NIT note (no change needed):** while a host stays unresolved, `trusted_proxy_unresolved` repeats every 5 s, and no line marks the recovery. A `trusted_proxy_resolved {host}` line would make the recovery visible in the log.

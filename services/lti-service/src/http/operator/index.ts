@@ -2,7 +2,7 @@
 // (default 127.0.0.1:4110). The proxy has no route to it. Every /operator/v1/* route needs
 // `Authorization: OPERATOR-AUTH-V1 <operator key>`. A tenant API key is an unknown credential here.
 // Mount list (LD-10): one line per endpoint group module. S2 delivers its modules as new files; S1 adds the line (RQ-1).
-import type { KeyHandle, Logger, PublicUrls } from '@cogniate/shared';
+import type { JobRunner, KeyHandle, Logger, PublicUrls } from '@cogniate/shared';
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ApiError } from '../../api-errors.ts';
@@ -20,6 +20,7 @@ import { registerSharedPlatformRoutes } from './shared-platforms.ts';
 import type { RateLimiter } from '../rate-limit.ts';
 import { createTrustedProxy, rateLimiterFor, recordAuthFailure } from '../rate-limit.ts';
 import { registerRateLimitRoutes } from './rate-limits.ts';
+import { registerKeyProviderRoutes } from './key-provider.ts';
 
 /** The operator of an accepted request. The audit actor is operator:<operator>. */
 export interface OperatorIdentity {
@@ -37,6 +38,7 @@ declare module 'fastify' {
 export interface OperatorContext {
   db: Db;
   keys: KeyHandle;
+  jobs?: JobRunner;
   urls: PublicUrls;
   simulationProfiles: boolean;
   logger: Logger;
@@ -62,6 +64,7 @@ export interface OperatorAuditEvent {
 export interface OperatorDeps {
   db: Db;
   keys: KeyHandle;
+  jobs?: JobRunner;
   urls: PublicUrls;
   simulationProfiles?: boolean;
   logger: Logger;
@@ -76,6 +79,7 @@ const MOUNTS: Array<(app: FastifyInstance, ctx: OperatorContext) => void> = [
   registerApiKeyRoutes,
   registerSharedPlatformRoutes,
   registerRateLimitRoutes,
+  registerKeyProviderRoutes,
 ];
 
 /**
@@ -91,7 +95,7 @@ export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInsta
   const now = deps.now ?? Date.now;
   const log = deps.logger;
   const limiter = rateLimiterFor(deps.db, log, now);
-  const proxy = await createTrustedProxy();
+  const proxy = await createTrustedProxy(undefined, undefined, log);
   const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, return503OnClosing: false, trustProxy: proxy.trust });
   installApiBasics(app, log);
   app.addHook('onClose', async () => proxy.close());
@@ -108,7 +112,7 @@ export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInsta
     return req.operator;
   };
   const ctx: OperatorContext = {
-    db: deps.db, keys: deps.keys, logger: log, now, operator, limiter,
+    db: deps.db, keys: deps.keys, jobs: deps.jobs, logger: log, now, operator, limiter,
     urls: deps.urls, simulationProfiles: deps.simulationProfiles ?? false,
     audited: (req, event, body) => withAudit(deps.db, now, {
       actor: { type: 'operator', id: operator(req).operator }, toolAccountId: event.toolAccountId ?? null, traceId: req.traceId, clientIp: req.ip,
@@ -120,16 +124,16 @@ export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInsta
   await app.register(async (scope) => {
     // Every failure (no header, another scheme, wrong grammar, unknown, expired, revoked key) gives the same 401.
     scope.addHook('onRequest', async (req) => {
-      limiter.check('auth_failure', req.ip, undefined, false);
+      limiter.refuseIfBlocked(req.ip, req.traceId);
       const presented = parseOperatorAuthorization(req.headers.authorization);
       const key = presented ? findActiveOperatorKey(deps.db, presented, now()) : null;
       if (!key) {
         log.warn('api_auth_failed', { trace_id: req.traceId, scheme: 'operator', code: 'INVALID_OPERATOR_AUTHORIZATION_HEADER' });
-        recordAuthFailure(limiter, req.ip);
+        recordAuthFailure(limiter, req.ip, req.traceId);
         throw new ApiError('INVALID_OPERATOR_AUTHORIZATION_HEADER');
       }
       req.operator = { keyId: key.id, operator: key.operator };
-      limiter.check('operator', key.id);
+      limiter.check('operator', key.id, undefined, req.traceId);
     });
     for (const mount of MOUNTS) mount(scope, ctx);
   });

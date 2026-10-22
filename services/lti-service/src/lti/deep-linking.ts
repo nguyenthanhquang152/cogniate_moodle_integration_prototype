@@ -37,12 +37,12 @@ export interface DeepLinkingOptions {
 
 /**
  * The checked content items (contract §3.2 rules). `settings` = the deep_linking_settings claim of the launch.
- * Rules: 1 to 20 items, exactly 1 if accept_multiple is false; type in accept_types; ltiResourceLink url = our launch
+ * Rules: 0 to 20 items, at most 1 if accept_multiple is false; type in accept_types; ltiResourceLink url = our launch
  * URL (set when missing or null); lineItem.scoreMaximum > 0; custom values are strings.
  */
 export function checkContentItems(items: unknown, settings: Obj, urls: PublicUrls, accountId: string): Obj[] {
-  if (!Array.isArray(items) || items.length < 1 || items.length > MAX_CONTENT_ITEMS) throw bad(null, `send 1 to ${MAX_CONTENT_ITEMS} content items`);
-  if (settings.accept_multiple === false && items.length !== 1) throw bad(null, 'the platform accepts exactly one content item (accept_multiple is false)');
+  if (!Array.isArray(items) || items.length > MAX_CONTENT_ITEMS) throw bad(null, `send 0 to ${MAX_CONTENT_ITEMS} content items`);
+  if (settings.accept_multiple === false && items.length > 1) throw bad(null, 'the platform accepts at most one content item (accept_multiple is false)');
   const accepted = Array.isArray(settings.accept_types) ? settings.accept_types.filter((t): t is string => typeof t === 'string') : [...CONTENT_ITEM_TYPES];
   return items.map((input, i) => {
     if (!isObj(input)) throw bad(i, 'must be an object');
@@ -55,6 +55,7 @@ export function checkContentItems(items: unknown, settings: Obj, urls: PublicUrl
       throw bad(i, 'custom values must be strings');
     }
     if (item.lineItem !== undefined) {
+      if (settings.accept_lineitem === false) throw bad(i, 'the platform does not accept line items');
       const li = item.lineItem;
       if (!isObj(li) || typeof li.scoreMaximum !== 'number' || !Number.isFinite(li.scoreMaximum) || li.scoreMaximum <= 0) {
         throw bad(i, 'lineItem.scoreMaximum must be a number > 0');

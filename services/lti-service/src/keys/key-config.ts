@@ -11,6 +11,7 @@ import { KeyProviderError, bindKeyProvider, createLocalKeyProvider, legacyKeyRin
 import type { Db } from '../db/index.ts';
 import { registrationTokenVersions } from '../store/registrations.ts';
 import { serviceKeyVersions } from '../store/service-keys.ts';
+import { legacyBlobsRefused } from '../store/settings.ts';
 import { SIGNING_KEY_PUBLISH_LEAD_S, toolKeyVersions, validatePublishLeadSeconds } from '../store/tool-keys.ts';
 
 export const DEFAULT_KEYRING_FILE = '/run/secrets/lti/keyring.json';
@@ -71,7 +72,8 @@ export interface LoadKeyProviderDeps {
  * then gives 503). A key ring that cannot be read or parsed stops the start.
  */
 export async function loadKeyProvider(deps: LoadKeyProviderDeps): Promise<LocalKeyProvider> {
-  const provider = createLocalKeyProvider(readKeyRing(deps.env), { referencedVersions: () => keyVersionsInUse(deps.db), logger: deps.logger });
+  const provider = createLocalKeyProvider(readKeyRing(deps.env), { referencedVersions: () => keyVersionsInUse(deps.db),
+    legacyBlobsRefused: () => legacyBlobsRefused(deps.db), logger: deps.logger });
   bindKeyProvider(deps.masterKey, provider);
   try {
     await provider.ready();

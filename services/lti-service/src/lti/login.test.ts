@@ -1,8 +1,7 @@
 import * as shared from '@cogniate/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import * as profiles from '../profiles/index.ts';
 import type { ProviderProfile } from '../profiles/index.ts';
-import { CLIENT_ID, ISSUER, LAUNCH, URLS, harness } from '../testkit.ts';
+import { CLIENT_ID, ISSUER, LAUNCH, URLS, harness, testProfileRegistry } from '../testkit.ts';
 import { STATE_TTL_MS } from '../store/states.ts';
 
 const state = 'a'.repeat(43);
@@ -12,13 +11,10 @@ const close: Array<() => Promise<void>> = [];
 afterEach(async () => { vi.restoreAllMocks(); for (const fn of close.splice(0)) await fn(); });
 
 async function setup(storage: ProviderProfile['platformStorage']) {
-  const h = await harness();
+  const registry = await testProfileRegistry('Unit LMS', storage);
+  const h = await harness({ profiles: { simulation: false, registry } });
   close.push(async () => { await h.app.close(); h.db.close(); });
-  const definition = profiles.profileDefinition;
-  vi.spyOn(profiles, 'profileDefinition').mockImplementation((id, opts) => {
-    const p = definition(id, opts);
-    return p && id === h.platform.profile ? { ...p, platformStorage: storage } : p;
-  });
+  h.db.prepare('UPDATE platform SET profile = ? WHERE id = ?').run('zz-admin', h.platform.id);
   const random = vi.spyOn(shared, 'randomToken');
   const login = (over: Record<string, string> = {}, method: 'GET' | 'POST' = 'GET') => {
     // Reuse the exact state and nonce when comparing the two response builders.

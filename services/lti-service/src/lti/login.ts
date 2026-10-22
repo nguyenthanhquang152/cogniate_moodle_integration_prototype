@@ -3,6 +3,7 @@ import { randomToken, sha256Hex } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import type { LmsName, ProfileOptions } from '../profiles/index.ts';
 import { lmsNameOf, profileDefinition, profileOfFixedIssuer } from '../profiles/index.ts';
+import { storageBindingOf } from '../profiles/storage.ts';
 import { getAccount } from '../store/accounts.ts';
 import { findDeployment, findLoginPlatforms } from '../store/platforms.ts';
 import { STATE_TTL_MS, saveState } from '../store/states.ts';
@@ -62,12 +63,10 @@ export function initiateLogin(db: Db, urls: PublicUrls, accountId: string, param
   const state = randomToken();
   const nonce = randomToken();
   const stateHash = sha256Hex(state);
-  const storage = profileDefinition(platform.profile, profiles)?.platformStorage;
-  const candidate = storage?.targetFrame === 'from-login' ? str(params.lti_storage_target) : storage?.targetFrame;
-  const storageTarget = candidate && /^[A-Za-z0-9_-]{1,64}$/.test(candidate) ? candidate : null;
-  const storageOrigin = storageTarget && storage ? (storage.origin === 'authOrigin' ? new URL(platform.authEndpoint).origin : storage.origin) : null;
+  const storage = storageBindingOf(profileDefinition(platform.profile, profiles)?.platformStorage, params, platform.authEndpoint);
   saveState(db, {
-    stateHash, toolAccountId: accountId, platformId: platform.id, nonce, targetLinkUri: target, expiresAt: now + STATE_TTL_MS, loginDeploymentId: deploymentId ?? null, storageTarget, storageOrigin,
+    stateHash, toolAccountId: accountId, platformId: platform.id, nonce, targetLinkUri: target, expiresAt: now + STATE_TTL_MS, loginDeploymentId: deploymentId ?? null,
+    storageTarget: storage?.target ?? null, storageOrigin: storage?.origin ?? null,
   }, now);
   const auth = new URL(platform.authEndpoint);
   const q: Record<string, string> = {
@@ -78,6 +77,6 @@ export function initiateLogin(db: Db, urls: PublicUrls, accountId: string, param
   };
   for (const [k, v] of Object.entries(q)) auth.searchParams.set(k, v);
   const setCookie = `${stateCookieName(stateHash)}=${state}; Path=/; Max-Age=${STATE_TTL_MS / 1000}; Secure; HttpOnly; SameSite=None; Partitioned`;
-  const page = storageTarget && storageOrigin ? storageLoginPage({ authUrl: auth.href, state, target: storageTarget, origin: storageOrigin }) : undefined;
+  const page = storage ? storageLoginPage({ authUrl: auth.href, state, ...storage }) : undefined;
   return { ok: true, location: auth.href, setCookie, platformId: platform.id, ...(page ? { page } : {}) };
 }

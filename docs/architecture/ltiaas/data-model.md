@@ -106,6 +106,7 @@ CREATE INDEX learning_record_learner ON learning_record (placement_id, learner_s
 
 CREATE TABLE record_dispatch (
   id                 TEXT PRIMARY KEY,                -- sync_... for lti-ags (the old score_sync ids)
+  seq                INTEGER NOT NULL,                -- insertion order (A2 BD-A2-40, A1 BD-A1-46): MAX(seq)+1 in the write transaction
   record_id          TEXT NOT NULL REFERENCES learning_record (id),
   reporter           TEXT NOT NULL,                   -- 'lti-ags'
   placement_id       TEXT NOT NULL REFERENCES placement (id),
@@ -132,6 +133,7 @@ CREATE TABLE record_dispatch (
 CREATE INDEX record_dispatch_due ON record_dispatch (status, next_try_at, partition_key);
 CREATE INDEX record_dispatch_learner ON record_dispatch (placement_id, learner_subject, reporter);
 CREATE INDEX record_dispatch_record ON record_dispatch (record_id);
+CREATE UNIQUE INDEX record_dispatch_seq ON record_dispatch (seq);
 
 CREATE TABLE job_instance (                          -- one heartbeat row per runner instance (LA-ADR-03 D7)
   instance_id  TEXT PRIMARY KEY,                      -- JOB_INSTANCE_ID
@@ -149,6 +151,8 @@ CREATE TABLE job_lease (
   last_result  TEXT
 );
 -- Backfill (LA-ADR-04 D5): placement from resource_link; learning_record and record_dispatch from score_sync.
+-- record_dispatch.seq = ROW_NUMBER() OVER (ORDER BY s.created_at, s.rowid) (SQLite-adapter item (d) of LA-ADR-06 D13;
+-- one exact F5 allow entry). New SQL never uses rowid; statements order by created_at, seq.
 ```
 
 | Rule | Detail |
@@ -203,16 +207,22 @@ CREATE TABLE audit_event (
   actor_type      TEXT NOT NULL,                      -- operator (app:grant, app:binding), system
   actor_id        TEXT NOT NULL,                      -- the operator name (--operator, else OPERATOR_NAME, else 'unknown')
   library_id      TEXT,                               -- the app tenant, or NULL
+  connection_id   TEXT,                               -- set by every event about a connection; NULL otherwise (A2 BD-A2-45)
   action          TEXT NOT NULL,                      -- for example grant.issue, grant.revoke, binding.suspend, binding.release
-  target_type     TEXT,
-  target_id       TEXT,
+  target_type     TEXT,                               -- the changed object: grant, binding, approval
+  target_id       TEXT,                               -- its id
   result          TEXT NOT NULL CHECK (result IN ('ok', 'refused')),
   code            TEXT,
   trace_id        TEXT,
+  client_ip       TEXT,                               -- NULL for the CLIs (A2 BD-A2-45)
   details         TEXT                                -- JSON, at most 4 KB, after redact(): evidence_channel, evidence_ref, note_present; never the note text, a code, a key or a token
 );
 CREATE INDEX audit_event_library ON audit_event (library_id, ts);
+CREATE INDEX audit_event_connection ON audit_event (library_id, connection_id, ts);
 CREATE TRIGGER audit_event_append_only BEFORE UPDATE ON audit_event
+  BEGIN SELECT RAISE(ABORT, 'audit_event is append-only'); END;
+CREATE TRIGGER audit_event_replace_guard BEFORE INSERT ON audit_event   -- the twin of LTI migration 008
+  WHEN EXISTS (SELECT 1 FROM audit_event WHERE id = NEW.id)
   BEGIN SELECT RAISE(ABORT, 'audit_event is append-only'); END;
 
 -- connection.artifact_key_kid moved to 016 (E6; Reviewer-B B-LAD-13).
@@ -222,7 +232,8 @@ CREATE TRIGGER audit_event_append_only BEFORE UPDATE ON audit_event
 | --- | --- |
 | Tenant column | The app tenant is the library, so the app table has `library_id` where the LTI service table has `tool_account_id`. Every other column and rule is A2's (LA-ADR-06 D4 rules 1–3). |
 | Writers | `app:grant issue`, `revoke`; `app:binding suspend`, `release`: one event per command, in the same transaction as the local change. A refused run on a known grant or connection writes one event with `result: refused` (A2 [LA-ADR-07](adr/LA-ADR-07-security-and-tenancy.md) AP-07-06). A grant event never holds the approval code. |
-| Readers | Only the read-only CLI `app:audit list` (it writes no event); no portal route. |
+| Readers | Only the read-only CLI `app:audit list` (it writes no event); no portal route. `--connection <id>` filters on `connection_id` (A2 BD-A2-45; A1 BD-A1-48). |
+| Target and connection | `target_type` and `target_id` name the changed object (grant, binding, approval). Every event about a connection also sets `connection_id`, so one connection's history is one indexed query. |
 | E6 column | `connection.artifact_key_kid` is in `016` (§5a), so `015` holds one epic only. |
 
 ## 5a. Cogniate app: migration `016` (E6, Could)

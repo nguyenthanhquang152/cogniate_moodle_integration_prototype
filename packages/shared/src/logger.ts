@@ -44,6 +44,7 @@ export const BOOT_TRACE_ID = `boot-${randomBytes(6).toString('hex')}`;
 // Key names that hold secrets (README security §11). Compared after normalising: lower case, no "_" or "-".
 // So "apiKey", "api_key" and "API-KEY" all match "apikey".
 const SECRET_KEYS = new Set([
+  'storagevalue', // LTI postMessage storage values are credentials (LA-E3-02).
   'authorization', 'proxyauthorization', 'cookie', 'setcookie', 'password', 'passwd', 'secret', 'token', 'jwt',
   'ltik', 'ref', 'apikey', 'servicekey', 'masterkey', 'privatekey', 'idtoken', 'accesstoken', 'refreshtoken',
   'registrationtoken', 'runtimetoken', 'clientassertion', 'key',

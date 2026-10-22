@@ -1,7 +1,7 @@
 // M1 LTI service behaviour (contract §9, ADR-011): profiles, platforms, deployments, binding refs, login and launch
 // changes, claim allowlist, generations and the providers API. Canvas profile DATA is owned by the Canvas
 // implementer; these engine tests select only the two Canvas rows they need (vi.mock below).
-import { createLogger } from '@cogniate/shared';
+import { createLocalKeyProvider, createLogger, legacyKeyRing } from '@cogniate/shared';
 import type * as Kernel from '@cogniate/channel-kernel';
 import { decodeJwt } from 'jose';
 import { describe, expect, it, vi } from 'vitest';
@@ -10,7 +10,8 @@ import { CLIENT_ID, ISSUER, LAUNCH, MASTER_KEY, URLS, harness, postLaunch, sign 
 import { CLAIM } from '../../lti/checks.ts';
 import { deriveServiceKey } from '../../store/service-keys.ts';
 import { createPlatform } from '../../store/platforms.ts';
-import { ensureSharedPlatform } from '../../cli/shared-platform.ts';
+import { buildOperatorApp } from '../operator/index.ts';
+import { issueOperatorKey } from '../../store/operator-keys.ts';
 import type { ProtocolErrorCode } from '../../lti/codes.ts';
 import { COOKIE_HELP, protocolAction } from '../../lti/codes.ts';
 
@@ -483,24 +484,35 @@ describe('Deep Linking and the token client per profile (§9.10)', () => {
   });
 });
 
-describe('lti:shared-platform CLI rules (§9.12)', () => {
-  it('creates once; the same client id prints the same id; another client id fails and changes nothing', async () => {
+describe('shared-platform operator rules (§9.12)', () => {
+  it('creates once; the same client id returns the same id; another client id fails and changes nothing', async () => {
     const h = await harness({ simulationProfiles: true });
-    const opts = { simulation: true };
     const lines: Array<Record<string, unknown>> = [];
     const logger = createLogger({ service: 'lti-service', dir: '', write: (l) => lines.push(JSON.parse(l) as Record<string, unknown>) });
-    const first = ensureSharedPlatform(h.db, opts, { account: 'cogniate', profile: 'blackboard-sim', clientId: BB_CLIENT }, logger);
-    expect(first).toMatchObject({ ok: true, created: true });
-    expect(ensureSharedPlatform(h.db, opts, { account: 'cogniate', profile: 'blackboard-sim', clientId: BB_CLIENT }, logger)).toEqual({ ok: true, platformId: (first as { platformId: string }).platformId, created: false });
-    // One platform_created line (§9.4 fields), only for the create.
-    expect(lines.map(({ ts: _ts, trace_id: _t, ...rest }) => rest)).toEqual([
-      { level: 'info', service: 'lti-service', event: 'platform_created', platform_id: (first as { platformId: string }).platformId, profile: 'blackboard-sim' },
-    ]);
-    expect(ensureSharedPlatform(h.db, opts, { account: 'cogniate', profile: 'blackboard-sim', clientId: 'other' }).ok).toBe(false);
-    expect(ensureSharedPlatform(h.db, { simulation: false }, { account: 'cogniate', profile: 'blackboard-sim', clientId: BB_CLIENT }).ok).toBe(false);
-    expect(ensureSharedPlatform(h.db, opts, { account: 'cogniate', profile: 'standard', clientId: BB_CLIENT }).ok).toBe(false);
-    const view = (await api(h, 'GET', '/api/platforms?profile=blackboard-sim')).json.platforms;
-    expect(view.map((p: Json) => p.clientId)).toEqual([BB_CLIENT]);
+    const deps = { db: h.db, keys: createLocalKeyProvider(legacyKeyRing(MASTER_KEY)), urls: URLS, logger };
+    const app = await buildOperatorApp({ ...deps, simulationProfiles: true });
+    const normal = await buildOperatorApp({ ...deps, simulationProfiles: false });
+    const { operatorKey } = issueOperatorKey(h.db, { operator: 'unit', expiresAt: Date.now() + 3600_000 }, Date.now());
+    const request = (clientId = BB_CLIENT, profile = 'blackboard-sim', server = app) => server.inject({
+      method: 'POST', url: '/operator/v1/accounts/cogniate/shared-platforms',
+      headers: { authorization: `OPERATOR-AUTH-V1 ${operatorKey}` }, payload: { profile, clientId },
+    });
+    try {
+      const first = await request();
+      expect(first.statusCode).toBe(201);
+      const again = await request();
+      expect(again.statusCode).toBe(200);
+      expect(again.json().id).toBe(first.json().id);
+      // One platform_created line (§9.4 fields), only for the create.
+      expect(lines.filter((line) => line.event === 'platform_created').map(({ ts: _ts, trace_id: _t, ...rest }) => rest)).toEqual([
+        { level: 'info', service: 'lti-service', event: 'platform_created', platform_id: first.json().id, profile: 'blackboard-sim' },
+      ]);
+      expect((await request('other')).statusCode).toBe(409);
+      expect((await request(BB_CLIENT, 'blackboard-sim', normal)).statusCode).toBe(400);
+      expect((await request(BB_CLIENT, 'standard')).statusCode).toBe(400);
+      const view = (await api(h, 'GET', '/api/platforms?profile=blackboard-sim')).json.platforms;
+      expect(view.map((p: Json) => p.clientId)).toEqual([BB_CLIENT]);
+    } finally { await app.close(); await normal.close(); }
   });
 });
 

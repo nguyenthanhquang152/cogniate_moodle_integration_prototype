@@ -31,7 +31,7 @@ New and changed settings (all optional unless marked; the base settings stay as 
 | `JOB_INSTANCE_ID` | both | `lti-1`, `app-1` | lease owner of the job runner (with a random boot id per process). A normal restart (stop, then start) keeps today's timing: `stop()` deletes the heartbeat row. After a crash without `stop()`, the new runner waits up to 30 s before its first send, and the web part serves at once. Only a second **live** process with the same id stops its runner (`job_instance_conflict`: a worker process exits 1; the web process keeps serving with its runner off). The rule holds for both runners (LA-ADR-03 D7, Q-LAD-23) | LA-ADR-03 D7 |
 | `APP_JOB_RUNNER` | app | `on` | `off` in the web process when `npm run worker` runs apart; `production` refuses both on | LA-ADR-03 D7 |
 | `OPERATOR_NAME` | app | unset | default actor of `app:grant` and `app:binding` | LA-ADR-07 D4 |
-| `OPERATORS`, `OPERATORS_FILE` | app | unset | allowed operator names (comma list, or a JSON array file); one of them required when a CLI runs with `STACK_PROFILE=production` | LA-ADR-07 D4 |
+| `OPERATORS`, `OPERATORS_FILE` | app | unset | allowed operator names (comma list, or a JSON array file); one of them required when a CLI runs with `STACK_PROFILE=production` | LA-ADR-07 D4 Both set: the CLI refuses (`operators_ambiguous`, BD-A2-45). |
 | `PUBLIC_MOODLE_URL` | LTI | — | leaves the LTI service config in E1 (A1, LA-ADR-04 S3) | R4 C-3 |
 
 Secret files (never in git; mode `0600`; mounted read only):
@@ -250,7 +250,7 @@ In this procedure `k1` is the version in use now. On a stack without a key-ring 
 
 CAUTION: The version `legacy` also derives the existing service keys (LA-ADR-06 D6): its `derivedCount` stays above 0 after the re-wrap. On an existing stack, keep `legacy` in the ring.
 
-CAUTION: Do not remove a version while its `sealedCount` or `derivedCount` is above 0. The service then refuses to become ready (`key_version_missing`).
+CAUTION: Do not remove a version while its `sealedCount` or `derivedCount` is above 0, and only after a complete re-wrap (job end `outcome: complete`; BD-A2-38). The service then refuses to become ready (`key_version_missing`).
 
 The Cogniate app follows the same steps when it uses the key provider (Should).
 

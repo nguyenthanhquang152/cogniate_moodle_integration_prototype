@@ -1,6 +1,7 @@
 // LA-ADR-06 D1: one process, bounded token buckets and explicit proxy trust.
 import { lookup } from 'node:dns/promises';
 import { BlockList, isIP } from 'node:net';
+import { z } from 'zod';
 import type { Logger } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import { ApiError } from '../api-errors.ts';
@@ -19,6 +20,16 @@ export const DEFAULT_RATE_LIMITS: Record<RateLimitClass, RateLimit> = {
   admin: { ratePerMinute: 600, burst: 200 },
   auth_failure: { ratePerMinute: 120, burst: 120 },
   operator: { ratePerMinute: 120, burst: 60 },
+};
+export const ADDRESS_ROUTE_CLASSES: Readonly<Partial<Record<string, 'protocol' | 'registration' | 'keys'>>> = {
+  // D1 protocol: login, launch and storage check share an address budget.
+  '/lti/login/:account': 'protocol',
+  '/lti/launch/:account': 'protocol',
+  '/lti/launch/:account/storage-check': 'protocol',
+  // D1 registration start has a separate address budget.
+  '/lti/register/:account': 'registration',
+  // D1 public JWKS reads have their own address budget and JSON errors.
+  '/lti/keys/:account': 'keys',
 };
 const SOFT = new Set<RateLimitClass>(['protocol_account', 'registration_account']);
 const ADDRESS = new Set<RateLimitClass>(['protocol', 'registration', 'keys', 'auth_failure']);
@@ -108,7 +119,14 @@ export class RateLimiter {
     this.logger = logger;
     this.now = now;
     try { this.env = env?.trim() ? RateLimitSettingsSchema.parse(JSON.parse(env)) : {}; }
-    catch { throw new Error('LTI_RATE_LIMITS must contain valid rate-limit settings'); }
+    catch (error) {
+      if (error instanceof z.ZodError) {
+        const issue = error.issues[0]!;
+        const path = [...issue.path, ...(issue.code === 'unrecognized_keys' ? issue.keys : [])].join('.') || '<root>';
+        throw new Error(`LTI_RATE_LIMITS: ${path}: ${issue.message}`, { cause: error });
+      }
+      throw new Error('LTI_RATE_LIMITS: expected valid JSON', { cause: error });
+    }
     this.settings = readRateLimitSettings(db);
   }
 
@@ -132,18 +150,28 @@ export class RateLimiter {
     return (ACCOUNT.has(name) ? account?.limits?.[name] : undefined) ?? this.settings.classes?.[name] ?? this.env.classes?.[name] ?? DEFAULT_RATE_LIMITS[name];
   }
 
-  check(name: RateLimitClass, key: string, account?: ToolAccount, spend = true): void {
-    const result = this.buckets.take(name, ADDRESS.has(name) ? addressKey(key) : key, this.limit(name, account), this.now(), spend);
+  check(name: RateLimitClass, key: string, account?: ToolAccount, traceId?: string): void {
+    this.evaluate(name, key, true, account, traceId);
+  }
+
+  /** Refuse a depleted failure bucket without creating or spending one. */
+  refuseIfBlocked(address: string, traceId?: string): void {
+    this.evaluate('auth_failure', address, false, undefined, traceId);
+  }
+
+  private evaluate(name: RateLimitClass, key: string, spend: boolean, account?: ToolAccount, traceId?: string): void {
+    const limit = this.limit(name, account);
+    const result = this.buckets.take(name, ADDRESS.has(name) ? addressKey(key) : key, limit, this.now(), spend);
     if (result.allowed) return;
     if (result.log) {
       if (SOFT.has(name)) this.logger.warn('rate_limit_soft', { class: name, tool_account_id: key });
       else this.logger.warn('rate_limited', {
-        class: name, key_kind: ADDRESS.has(name) ? 'client_address' : name === 'operator' ? 'operator_key' : 'api_key',
+        class: name, key_kind: ADDRESS.has(name) ? 'address' : name === 'operator' ? 'operator_key' : 'api_key',
         ...(account ? { tool_account_id: account.id } : {}),
-        ...(ADDRESS.has(name) ? { client_ip: clientAddress(key) } : {}), retry_after_s: result.retryAfter,
+        ...(ADDRESS.has(name) ? { client_ip: clientAddress(key) } : { key_id: key }), retry_after_s: result.retryAfter, trace_id: traceId,
       });
     }
-    if (!SOFT.has(name)) throw new ApiError('RATE_LIMITED', `Too many requests. Retry after ${result.retryAfter} s.`, { details: { retryAfter: result.retryAfter } });
+    if (!SOFT.has(name)) throw new ApiError('RATE_LIMITED', `Too many requests. Retry after ${result.retryAfter} s.`, { details: { retryAfter: result.retryAfter, limit: { class: name, ...(ADDRESS.has(name) ? {} : limit) } } });
   }
 }
 
@@ -156,8 +184,8 @@ export function rateLimiterFor(db: Db, logger: Logger, now: () => number = Date.
 }
 
 /** Called only when the API key or operator key fails, never for a bad secondary credential. */
-export function recordAuthFailure(limiter: RateLimiter, address: string): void {
-  limiter.check('auth_failure', address);
+export function recordAuthFailure(limiter: RateLimiter, address: string, traceId?: string): void {
+  limiter.check('auth_failure', address, undefined, traceId);
 }
 
 /**
@@ -176,7 +204,7 @@ export function checkRegistrationSessionCap(db: Db, limiter: RateLimiter, addres
 export type ProxyResolver = (host: string) => Promise<Array<{ address: string }>>;
 
 /** DNS failures remove trust until the next refresh; they never widen the trusted set. */
-export async function createTrustedProxy(value = process.env.TRUSTED_PROXY_CIDRS ?? '', resolve: ProxyResolver = (host) => lookup(host, { all: true })) {
+export async function createTrustedProxy(value = process.env.TRUSTED_PROXY_CIDRS ?? '', resolve: ProxyResolver = (host) => lookup(host, { all: true }), logger?: Logger) {
   const fixed = new BlockList();
   const hosts: string[] = [];
   for (const entry of value.split(/[\s,]+/).filter(Boolean)) {
@@ -186,31 +214,41 @@ export async function createTrustedProxy(value = process.env.TRUSTED_PROXY_CIDRS
       const type = family === 4 ? 'ipv4' : 'ipv6';
       if (prefix === undefined) fixed.addAddress(address!, type);
       else if (extra === undefined && /^\d+$/.test(prefix) && Number(prefix) <= (family === 4 ? 32 : 128)) fixed.addSubnet(address!, Number(prefix), type);
-      else throw new Error('TRUSTED_PROXY_CIDRS contains an invalid CIDR');
-    } else if (prefix === undefined && /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(entry)) hosts.push(entry);
-    else throw new Error('TRUSTED_PROXY_CIDRS contains an invalid address or host');
+      else throw new Error(`TRUSTED_PROXY_CIDRS: ${JSON.stringify(entry)} is not a valid CIDR`);
+    } else if (prefix === undefined && /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(entry)) { if (!hosts.includes(entry)) hosts.push(entry); }
+    else throw new Error(`TRUSTED_PROXY_CIDRS: ${JSON.stringify(entry)} is not a valid address or host name`);
   }
   let resolved = new BlockList();
   let closed = false;
   let refreshing: Promise<void> | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let unresolved = false;
   const refresh = (): Promise<void> => {
     refreshing ??= (async () => {
       const next = new BlockList();
       const results = await Promise.allSettled(hosts.map((host) => resolve(host)));
-      for (const result of results) {
-        if (result.status !== 'fulfilled') continue;
-        for (const { address } of result.value) {
-          const family = isIP(address);
-          if (family) next.addAddress(address, family === 4 ? 'ipv4' : 'ipv6');
+      unresolved = false;
+      for (const [index, result] of results.entries()) {
+        const addresses = result.status === 'fulfilled' ? result.value.filter(({ address }) => isIP(address)) : [];
+        if (addresses.length === 0) {
+          unresolved = true;
+          logger?.warn('trusted_proxy_unresolved', { host: hosts[index] });
         }
+        for (const { address } of addresses) next.addAddress(address, isIP(address) === 4 ? 'ipv4' : 'ipv6');
       }
       if (!closed) resolved = next;
-    })().finally(() => { refreshing = undefined; });
+    })().finally(() => {
+      refreshing = undefined;
+      clearTimeout(timer);
+      if (!closed && hosts.length) {
+        // Retry failed lookups promptly while keeping the trusted set closed.
+        timer = setTimeout(() => { void refresh(); }, unresolved ? 5_000 : MINUTE);
+        timer.unref();
+      }
+    });
     return refreshing;
   };
   await refresh();
-  const timer = hosts.length ? setInterval(() => { void refresh(); }, MINUTE) : undefined;
-  timer?.unref();
   return {
     trust: (address: string): boolean => {
       const ip = clientAddress(address);
@@ -218,6 +256,6 @@ export async function createTrustedProxy(value = process.env.TRUSTED_PROXY_CIDRS
       return family !== 0 && (fixed.check(ip, family === 4 ? 'ipv4' : 'ipv6') || resolved.check(ip, family === 4 ? 'ipv4' : 'ipv6'));
     },
     refresh,
-    close: () => { closed = true; clearInterval(timer); },
+    close: () => { closed = true; clearTimeout(timer); },
   };
 }

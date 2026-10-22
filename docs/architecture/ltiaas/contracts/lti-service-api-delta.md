@@ -134,7 +134,7 @@ New optional input `lti_storage_target` (query or form body; ≤ 64 characters; 
 | Case | Answer |
 | --- | --- |
 | The platform profile has `platformStorage: null`, or it is `from-login` and the login has no `lti_storage_target` | `302` exactly as §2.1 |
-| The profile has `platformStorage` and a target exists (the parameter, or the profile's fixed frame name) | `200 text/html` login page. Headers: `Set-Cookie` (the same state cookie as §2.1), `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, CSP `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'none'; base-uri 'none'`. The page reads its values from one escaped JSON block, sends `lti.put_data` (key `cog_state_<d>`, `<d>` = the first hex digit of the state hash) to the storage origin, waits ≤ 1.5 s, then navigates to the auth URL. The auth URL equals the `Location` that the `302` would have. |
+| The profile has `platformStorage` and a target exists (the parameter, or the profile's fixed frame name) | `200 text/html` login page. Headers: `Set-Cookie` (the same state cookie as §2.1), `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, CSP `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'none'; base-uri 'none'`. The page reads its values from one escaped JSON block, sends `lti.put_data` (key `cog_state_<d>`, `<d>` = the first hex digit of the state hash) to the storage origin, waits ≤ 1.5 s, then navigates to the auth URL. The auth URL equals the `Location` that the `302` would have. Static page text (BD-A2-41; no request data): visible "Opening the activity. Please wait."; in `<noscript>`: "This activity needs JavaScript. Turn on JavaScript in your browser, then open the activity again from your course." |
 
 Rate limit: class `protocol`. Suspended account: §1.5.
 
@@ -213,7 +213,7 @@ Listener `OPERATOR_HOST:OPERATOR_PORT` (default `127.0.0.1:4110`; the `acceptanc
 | `GET /operator/v1/operator-keys` | — | `200 { operatorKeys: [{ id, operator, createdAt, expiresAt, lastUsedAt, revokedAt }] }` | Must |
 | `POST /operator/v1/operator-keys` | `{ operator, expiresAt? }` | `201 { id, operatorKey, operator, expiresAt }` (shown once). Default 90 days; `expiresAt` outside 1 hour to 1 year from now: `400 INVALID_REQUEST` (field `expiresAt`). | Must |
 | `POST /operator/v1/operator-keys/:id/revoke` | — | `200` (an operator cannot revoke the key of its own request: `409 OPERATOR_KEY_IN_USE`) | Must |
-| `POST /operator/v1/accounts/:id/service-keys/revoke` | `{ platformId, deploymentId?, contextId?, resourceLinkId? }` | `200 { revoked: <n> }` | Should |
+| `POST /operator/v1/accounts/:id/service-keys/revoke` | `{ platformId, deploymentId?, contextId?, resourceLinkId? }` | `200 { revoked: <n> }`. `404 UNREGISTERED_PLATFORM` for an unknown platform, or a platform of another account; the other fields are filters, and no match gives `{ revoked: 0 }` (BD-A2-47). | Should |
 | `GET /operator/v1/jobs` | — | `200 { jobs: [{ name, everyMs, lastRunAt, lastResult }] }` | Should |
 | `POST /operator/v1/jobs/:name/run` | — | `202 { job, traceId }`, or `409 JOB_RUNNING` (`skipped_lease`) | Should |
 
@@ -336,7 +336,7 @@ New entries for `lti-generic` and `brightspace` have the base field shape with `
 
 | Method and path | Auth | Request | Success |
 | --- | --- | --- | --- |
-| `POST /api/service-keys/revoke` | Bearer `admin` | `{ platformId, deploymentId?, contextId?, resourceLinkId? }` | `200 { revoked: <n> }`. The next launch of a revoked scope gets a new key value (epoch + 1). |
+| `POST /api/service-keys/revoke` | Bearer `admin` | `{ platformId, deploymentId?, contextId?, resourceLinkId? }` | `200 { revoked: <n> }`. The next launch of a revoked scope gets a new key value (epoch + 1). `404 UNREGISTERED_PLATFORM` for an unknown platform or a platform of another account; no match gives `{ revoked: 0 }` (one audit event; BD-A2-47). |
 | `GET /api/audit` | Bearer `admin` | query as §3 audit, own account only | `200 { events, next? }` |
 | `GET /api/account` | Bearer `admin` | — | `200 { id, name, status, protocolUrls, launchUrl, deepLinkingUrl, registrationUrl }` |
 
@@ -362,7 +362,7 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `POST …/api-keys`, `…/revoke` | `api_key.issue`, `api_key.revoke` | `api_key` |
 | `POST …/signing-keys`, `…/activate`, `…/retire` | `signing_key.create`, `signing_key.activate` (`details.forced`), `signing_key.retire` | `signing_key` |
 | `POST …/shared-platforms` | `platform.create_shared` | `platform` |
-| `POST /operator/v1/key-provider/rewrap` | `key_provider.rewrap` (one more event at the job end with counts) | `key_provider` |
+| `POST /operator/v1/key-provider/rewrap` | `key_provider.rewrap` (one more event at the job end, actor `system:key-rewrap`, `result: ok`: `details.outcome` `complete`, `partial` or `failed`, the counts `rewrapped`, `skippedChanged`, `notReached`, `unreadable`, and `legacyBlobsRefused: true` when that run stored the setting; an exception gives `outcome: failed` with `details.errorClass`; BD-A2-36, BD-A2-42) | `key_provider` |
 | `PATCH /operator/v1/rate-limits` | `settings.rate_limits` | `settings` |
 | `POST`, `…/revoke /operator/v1/operator-keys` | `operator_key.issue`, `operator_key.revoke` | `operator_key` |
 | `POST /operator/v1/jobs/:name/run` (Should) | `job.run` | `job` |
