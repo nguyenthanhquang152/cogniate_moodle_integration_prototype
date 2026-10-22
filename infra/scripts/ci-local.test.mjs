@@ -177,6 +177,34 @@ test('ignores empty values and placeholders outside the names-only example', (t)
   assert.deepEqual(f.run().lines[4].findings, [{ file: '.env.example', line: 4, rule: 'example_value' }]);
 });
 
+test('code files check quoted literals but not identifiers or other expressions', (t) => {
+  const f = fixture(t);
+  const extensions = ['ts', 'tsx', 'mts', 'cts', 'js', 'mjs', 'cjs'];
+  const expressions = ['LEGACY', 'keys.LEGACY', 'hex(LEGACY)', '42', '{ value: "example" }', '`${VALUE}`'];
+  for (const extension of extensions) {
+    f.put(`probe.${extension}`, expressions.map((value) => `${secretName}: ${value},`).join('\n'));
+  }
+  assert.equal(f.run().status, 0);
+  for (const extension of extensions) {
+    f.put(`probe.${extension}`, ['"alpha"', "'bravo'", '`charlie`', '"delta" + suffix'].map((value) => `${secretName}: ${value},`).join('\n'));
+  }
+  const result = f.run();
+  assert.equal(result.status, 1);
+  for (const extension of extensions) {
+    assert.deepEqual(result.lines[4].findings.filter((hit) => hit.file === `probe.${extension}`),
+      [1, 2, 3, 4].map((line) => ({ file: `probe.${extension}`, line, rule: 'secret_assignment' })));
+  }
+  for (const value of ['alpha', 'bravo', 'charlie', 'delta']) assert.ok(!result.stdout.includes(value));
+});
+
+test('non-code files still check bare tokens as values', (t) => {
+  const f = fixture(t);
+  for (const extension of ['json', 'yaml', 'sh']) f.put(`probe.${extension}`, `${secretName}: LEGACY`);
+  const result = f.run();
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.lines[4].findings.map((hit) => hit.file), ['probe.json', 'probe.sh', 'probe.yaml']);
+});
+
 test('fails closed when the secrets section or a tracked file is missing', (t) => {
   const f = fixture(t);
   f.put('.env.example', `${secretName}=\n`);

@@ -188,6 +188,7 @@ function secretScan() {
     return value;
   }
   for (const file of files) {
+    const codeFile = /\.(?:ts|tsx|mts|cts|js|mjs|cjs)$/.test(file);
     let text;
     try {
       const stat = fs.lstatSync(file);
@@ -214,6 +215,8 @@ function secretScan() {
         for (const match of line.matchAll(assignmentPattern)) {
           // Shell required-value expressions are not assignments.
           if (line.slice(Math.max(0, match.index - 2), match.index) === '${') continue;
+          // BD-A1-13: code expressions are not literal credentials. Check only the first quoted token.
+          if (codeFile && (!/^["'`]/.test(match[2]) || (match[2].startsWith('`') && match[2].includes('${')))) continue;
           const value = literal(match[2]);
           if (value !== null) finding(file, index + 1, 'secret_assignment', value);
         }
