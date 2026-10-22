@@ -220,8 +220,11 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       const config = configOf(session);
       // An absent list keeps the legacy five-scope request; only an explicit list checks platform support.
       const scopes = body.data.scopes ?? REGISTRATION_SCOPES;
-      if (body.data.scopes?.some((scope) => !config.scopesSupported.includes(scope))) {
-        throw new ApiError('INVALID_REQUEST', 'Invalid field: scopes. The platform does not support every requested scope.');
+      const unsupported = body.data.scopes?.filter((scope) => !config.scopesSupported.includes(scope)) ?? [];
+      if (unsupported.length) {
+        throw new ApiError('INVALID_REQUEST', `Invalid field: scopes. The platform does not support: ${unsupported.join(', ')}.`, {
+          details: { field: 'scopes', unsupported },
+        });
       }
       // M1 (§9.2): a standard platform cannot use a reserved issuer; nothing is sent to the platform.
       if (reservedIssuerOrigins(ctx.profiles).includes(new URL(config.issuer).origin)) reject(new ApiError('ISSUER_RESERVED'));

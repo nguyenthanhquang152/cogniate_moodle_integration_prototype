@@ -174,9 +174,12 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
     const s = await setup();
     s.state.config = { ...CONFIG, scopes_supported: [REGISTRATION_SCOPES[3]] };
     const id = idOf(String((await s.start(undefined)).headers.location));
-    const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: { scopes: [REGISTRATION_SCOPES[0]] } });
+    const unsupported = [REGISTRATION_SCOPES[0], REGISTRATION_SCOPES[1]];
+    const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: { scopes: [REGISTRATION_SCOPES[3], ...unsupported] } });
     expect([r.statusCode, r.json().details.message]).toEqual([400, 'INVALID_REQUEST']);
-    expect(r.json().details.description).toContain('Invalid field: scopes');
+    expect(r.json().details).toMatchObject({
+      field: 'scopes', unsupported, description: `Invalid field: scopes. The platform does not support: ${unsupported.join(', ')}.`,
+    });
     expect(s.state.registrations).toEqual([]);
     const ok = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: { scopes: [REGISTRATION_SCOPES[3]] } });
     expect(ok.statusCode).toBe(200);
