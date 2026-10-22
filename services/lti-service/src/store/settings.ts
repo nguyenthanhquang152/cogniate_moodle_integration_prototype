@@ -40,3 +40,22 @@ export function patchRateLimitSettings(db: Db, patch: RateLimitPatch): RateLimit
     .run(JSON.stringify(next));
   return next;
 }
+
+const KeyProviderSettingsSchema = z.object({ legacyBlobs: z.literal('refused').optional() }).loose();
+function readKeyProviderSettings(db: Db): z.infer<typeof KeyProviderSettingsSchema> {
+  const row = db.prepare("SELECT value FROM service_setting WHERE key = 'key_provider'").get() as { value: string } | undefined;
+  return row ? KeyProviderSettingsSchema.parse(JSON.parse(row.value)) : {};
+}
+
+/** Read on each open, so every provider sees the committed refusal without a restart. */
+export function legacyBlobsRefused(db: Db): boolean {
+  return readKeyProviderSettings(db).legacyBlobs === 'refused';
+}
+
+/** The re-wrap job calls this in the same transaction as its final scan and audit event. */
+export function refuseLegacyBlobs(db: Db): void {
+  const current = readKeyProviderSettings(db);
+  if (current.legacyBlobs === 'refused') return;
+  db.prepare("INSERT INTO service_setting (key, value) VALUES ('key_provider', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+    .run(JSON.stringify({ ...current, legacyBlobs: 'refused' }));
+}
