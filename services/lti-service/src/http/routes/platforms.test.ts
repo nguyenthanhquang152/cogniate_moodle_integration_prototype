@@ -26,13 +26,57 @@ async function setup() {
   });
   cleanup.push(async () => { await app.close(); db.close(); });
   const post = (payload: Record<string, unknown>, url = '/api/platforms') => app.inject({ method: 'POST', url, headers: { authorization: `Bearer ${account.apiKey}` }, payload });
-  return { db, post };
+  return { db, post, app, headers: { authorization: `Bearer ${account.apiKey}` } };
 }
 
 const adminBody = (profile = 'zz-admin') => ({
   profile, name: 'Unit admin', clientId: 'client-admin', url: 'https://admin.example.edu',
   authenticationEndpoint: 'https://admin.example.edu/auth', accesstokenEndpoint: 'https://admin.example.edu/token',
   authConfig: { method: 'JWK_SET', key: 'https://admin.example.edu/jwks' }, deploymentIds: ['1'],
+});
+
+describe('trusted audiences (LA-E3-12 AC-04)', () => {
+  it.each(['standard', 'zz-fixed'])('creates, reads, updates and clears a trusted list for %s', async (profile) => {
+    const { db, post, app, headers } = await setup();
+    const trustedAudiences = ['https://other.test', 'opaque-audience'];
+    const payload = profile === 'standard' ? adminBody(profile) : {
+      profile, clientId: 'client-fixed', name: 'Unit fixed', siteUrl: 'https://site.example.edu', deploymentIds: ['1'],
+    };
+    const created = await post({ ...payload, trustedAudiences });
+    expect(created.statusCode).toBe(201);
+    const id = created.json<{ id: string }>().id;
+    expect(created.json().trustedAudiences).toEqual(trustedAudiences);
+    expect(getPlatform(db, 'unit', id)?.trustedAudiences).toEqual(trustedAudiences);
+    expect((await app.inject({ url: `/api/platforms/${id}`, headers })).json().trustedAudiences).toEqual(trustedAudiences);
+    expect((await app.inject({ url: '/api/platforms', headers })).json().platforms[0].trustedAudiences).toEqual(trustedAudiences);
+
+    const replaced = await app.inject({ method: 'PATCH', url: `/api/platforms/${id}`, headers, payload: { trustedAudiences: ['replacement'] } });
+    expect(replaced.statusCode).toBe(200);
+    expect(replaced.json().trustedAudiences).toEqual(['replacement']);
+    expect(getPlatform(db, 'unit', id)?.trustedAudiences).toEqual(['replacement']);
+    const unchanged = await app.inject({ method: 'PATCH', url: `/api/platforms/${id}`, headers, payload: { name: 'Renamed' } });
+    expect(unchanged.json().trustedAudiences).toEqual(['replacement']);
+    const cleared = await app.inject({ method: 'PATCH', url: `/api/platforms/${id}`, headers, payload: { trustedAudiences: [] } });
+    expect(cleared.statusCode).toBe(200);
+    expect(cleared.json().trustedAudiences).toEqual([]);
+    expect(getPlatform(db, 'unit', id)?.trustedAudiences).toEqual([]);
+  });
+
+  it('defaults to an empty list and refuses non-string lists without changing stored trust', async () => {
+    const { db, post, app, headers } = await setup();
+    const created = await post(adminBody());
+    expect(created.statusCode).toBe(201);
+    expect(created.json().trustedAudiences).toEqual([]);
+    const id = created.json<{ id: string }>().id;
+    for (const trustedAudiences of [null, 'https://other.test', {}, [1], ['allowed', null]]) {
+      const refused = await post({ ...adminBody(), clientId: 'another-client', trustedAudiences });
+      expect([refused.statusCode, refused.json().details.message]).toEqual([400, 'INVALID_REQUEST']);
+      const patch = await app.inject({ method: 'PATCH', url: `/api/platforms/${id}`, headers, payload: { trustedAudiences } });
+      expect([patch.statusCode, patch.json().details.message]).toEqual([400, 'INVALID_REQUEST']);
+      expect(getPlatform(db, 'unit', id)?.trustedAudiences).toEqual([]);
+    }
+    expect(db.prepare('SELECT COUNT(*) AS n FROM platform').get()?.n).toBe(1);
+  });
 });
 
 describe('admin and fixed endpoint plans (AC-LA-E1-10-03)', () => {

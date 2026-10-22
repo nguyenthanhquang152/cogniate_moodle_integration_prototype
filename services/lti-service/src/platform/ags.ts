@@ -129,7 +129,7 @@ export function parseScore(body: unknown, nowMs: number = Date.now()): ScoreInpu
     if (typeof b.scoreMaximum !== 'number' || !Number.isFinite(b.scoreMaximum) || b.scoreMaximum <= 0) throw invalid('scoreMaximum', 'must be a number > 0');
     out.scoreMaximum = b.scoreMaximum;
   }
-  if (b.scoreGiven !== undefined) {
+  if (b.scoreGiven !== undefined && b.scoreGiven !== null) {
     if (typeof b.scoreGiven !== 'number' || !Number.isFinite(b.scoreGiven) || b.scoreGiven < 0) throw invalid('scoreGiven', 'must be a number >= 0');
     if (out.scoreMaximum === undefined) throw invalid('scoreMaximum', 'is required with scoreGiven');
     out.scoreGiven = b.scoreGiven;
