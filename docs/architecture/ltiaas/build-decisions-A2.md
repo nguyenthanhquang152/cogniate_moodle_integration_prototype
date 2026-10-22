@@ -241,3 +241,22 @@ Changes for the Lead to route:
 - **S2 (LA-E5-09):** the bounded run and its tests. **S1 (RQ-1):** the value `failed` in the audit result type, plus your approved settings and wiring requests.
 - **A1:** the import form for the kernel helpers (port context, or a kernel value sub-path under the BD-A2-11 conditions).
 - **K (LA-E1-07 fix round):** move the six helpers after A1's call.
+
+## 20. Round 19: decrypt metadata, port-context security, the `record_dispatch` order, the login page text, 2026-10-22
+
+Routed in dispatch `ctx_cf668b8b25ae`. Decisions sent to the Lead first (`msg_52355f94de85`), because S2 and R waited.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-38 | LA-E5-09 (S2): a legacy blob whose IV looks like a valid `cgk1` header makes the structural check report the active version, although it opens only through the legacy fallback. S2 proposed `openWithMetadataSync(blob, aad)` (plaintext, authenticated version, `legacyFormat`), with `openSync` and `open` unchanged. | **Ratified**, in its own commit. Re-wrap and the legacy refusal use only authenticated metadata. The `hasBlobHeader` export is dropped. The structural parse stays for counts and readiness, so a version leaves the ring only after a complete re-wrap. | LA-ADR-06 D6 ("Legacy refusal", "Status"); operability §6.3 CAUTION; LA-E5-09 design notes | With a structural check, the refusal could be stored while one legacy blob remains, and that tool key would never open again. One decryption gives both the value and its true form. |
+| BD-A2-39 | A1 BD-A1-37 [A2] points: `publicToolKeys()` copies only `kty`, `kid`, `alg`, `use`, `n`, `e` for the call's library; `buildQueue` checks the build id, uses three fixed folders, writes only `requests/` (`0600`, atomic), caps the status size. Anything missing? | **The points stand; four additions.** (1) **Tenant**: a build id is bound to the submitting library; another library's id gives `404`. (2) No symlinks: regular files only, `O_EXCL` temp then rename, folders `0700`. (3) A status file is untrusted: size cap, strict closed schema, values as data only. (4) `download`: fixed extension list, attachment with `nosniff`. Also for keys: string members only, `kty` `RSA`, the published set only, no cache across libraries. | security-delta §8 new row "Channel port context" | The build runner processes untrusted course packages (security §7), so its files are untrusted input. A build id with no library binding would let one library read another library's build status or package. |
+| BD-A2-40 | LA-E4-02 (R): the frozen `rowid` statements for results and `latestSyncStatus` must now query `record_dispatch`, and the `014` backfill needs `ORDER BY s.rowid` to keep the creation order. | **`record_dispatch` gets `seq` now** (`INTEGER NOT NULL`, unique, `MAX(seq) + 1` in the write transaction; A1 adds it to the data-model `014` sketch). The two moved statements order by `created_at, seq`, and their baseline entries are **deleted**. The `014` backfill sets `seq` with `ROW_NUMBER() OVER (ORDER BY s.created_at, s.rowid)`: listed SQLite-adapter item (d), with an exact F5 allow entry. `results.ts:33` still orders the legacy `attempt` table, so its entry is **replaced one for one** (no growth). The baseline goes from 9 to 7. | LA-ADR-06 D13 rule 2 (item (d), baseline sentence) and item 6 (a) | New LA SQL has no `rowid` (BD-A2-22). `learning_record` needs no `seq`. LG makes `seq` an identity column. |
+| BD-A2-41 | LA-E3-01 Reviewer-B NIT: the platform-storage login page is blank. | **Static text**: visible "Opening the activity. Please wait."; `<noscript>`: "This activity needs JavaScript. Turn on JavaScript in your browser, then open the activity again from your course." No request data in it. | contract delta §2.1 (login page row); LA-E3-01 design notes | A learner with slow or blocked scripts sees a reason and an action. The CSP does not change. |
+
+Changes for the Lead to route:
+- **S2 (LA-E5-09):** `openWithMetadataSync` in its own commit, and the collision unit test.
+- **K (LA-E1-08):** the BD-A2-39 additions, especially the build-id library binding.
+- **A1:** `record_dispatch.seq` in the data-model `014` sketch and the LA-E4-02 spec.
+- **R (LA-E4-02):** the `seq` column, its insert, the backfill, and the exact SQL for P.
+- **P:** one F5 commit (delete two baseline entries, replace one, add the `014` migration allow entry).
+- **L (LA-E3-01):** the static page text.
