@@ -69,9 +69,12 @@ export interface LoadKeyProviderDeps {
 /**
  * Load the key ring, bind it to the master-key Buffer of the callers, and check once that the ring has every version
  * in use. A missing version logs `key_provider_not_ready {version}`, and the service still starts (LA-E5-17: `/readyz`
- * then gives 503). A key ring that cannot be read or parsed stops the start.
+ * then gives 503). A key ring or persisted key-provider setting that cannot be read or parsed stops the start.
  */
 export async function loadKeyProvider(deps: LoadKeyProviderDeps): Promise<LocalKeyProvider> {
+  // Detect a damaged policy once at start, before binding a provider. Keep the row value out of the error.
+  try { legacyBlobsRefused(deps.db); }
+  catch { throw new Error('key_provider_setting_invalid: cannot read the key_provider service setting.'); }
   const provider = createLocalKeyProvider(readKeyRing(deps.env), { referencedVersions: () => keyVersionsInUse(deps.db),
     legacyBlobsRefused: () => legacyBlobsRefused(deps.db), logger: deps.logger });
   bindKeyProvider(deps.masterKey, provider);
