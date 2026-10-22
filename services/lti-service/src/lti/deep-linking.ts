@@ -28,6 +28,28 @@ type Obj = Record<string, unknown>;
 const isObj = (v: unknown): v is Obj => v !== null && typeof v === 'object' && !Array.isArray(v);
 const bad = (index: number | null, why: string) => new ApiError('INVALID_CONTENT_ITEM', index === null ? why : `contentItems[${index}]: ${why}`);
 
+/** An https URL (WHATWG parse). The platform opens it as given, so a fragment is valid here. */
+const isHttpsItemUrl = (v: unknown): boolean => {
+  if (typeof v !== 'string') return false;
+  try {
+    return new URL(v).protocol === 'https:';
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Required fields per item type (Deep Linking 2.0 content item types, LA-ADR-05 D3e): link, file and image need an
+ * https url; html needs a string html. The service adds no value to these types.
+ */
+function checkTypeFields(item: Obj, type: string, i: number): void {
+  if (type === 'html') {
+    if (typeof item.html !== 'string') throw bad(i, 'type html needs a string html');
+    return;
+  }
+  if (!isHttpsItemUrl(item.url)) throw bad(i, `type ${type} needs an https url`);
+}
+
 export interface DeepLinkingOptions {
   message?: string;
   log?: string;
@@ -38,7 +60,8 @@ export interface DeepLinkingOptions {
 /**
  * The checked content items (contract §3.2 rules). `settings` = the deep_linking_settings claim of the launch.
  * Rules: 0 to 20 items, at most 1 if accept_multiple is false; type in accept_types; ltiResourceLink url = our launch
- * URL (set when missing or null); lineItem.scoreMaximum > 0; custom values are strings.
+ * URL (set when missing or null); link, file and image url = https; html item html = string; lineItem.scoreMaximum > 0;
+ * custom values are strings.
  */
 export function checkContentItems(items: unknown, settings: Obj, urls: Pick<ProtocolUrls, 'launch'>): Obj[] {
   if (!Array.isArray(items) || items.length > MAX_CONTENT_ITEMS) throw bad(null, `send 0 to ${MAX_CONTENT_ITEMS} content items`);
@@ -61,7 +84,10 @@ export function checkContentItems(items: unknown, settings: Obj, urls: Pick<Prot
         throw bad(i, 'lineItem.scoreMaximum must be a number > 0');
       }
     }
-    if (type !== 'ltiResourceLink') return { ...item };
+    if (type !== 'ltiResourceLink') {
+      checkTypeFields(item, type, i);
+      return { ...item };
+    }
     // ltiaas-0.0.4 tolerance (contract §8 D14): a null resource URL uses the default launch URL.
     if (item.url === undefined || item.url === null) return { ...item, url: launchUri(urls) };
     if (!isOwnLaunchTarget(item.url, urls)) throw bad(i, `url must start with ${launchUri(urls)}`);
