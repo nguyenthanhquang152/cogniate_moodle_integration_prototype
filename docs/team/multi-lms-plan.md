@@ -13,7 +13,21 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 06:23 UTC
+### Current checkpoint — 2026-10-22, 06:55 UTC
+
+**C4 full attempt 1 failed because another LA run changed the shared Docker host.** The runner stopped at 06:44:53 UTC with exit 1. Round 1 passed all 488 cases. Independent Canvas QA passed all 233 Canvas cases in that round. Round 2 passed simulation 394/394 and isolated snapshot 6/6, but its isolation check failed. Container `qa-la-sim-r2-cogniate-app-1` stopped or restarted during the snapshot phase. The remaining round-2 phases and all 12 legacy groups did not run. These partial results do not complete full acceptance.
+
+Strict W4 also failed. Its final comparison lists 16 new LA resources: ten containers, five volumes and one network. Protected volume records and built-in network records stayed unchanged. The snapshot phase reports no owned resource left after cleanup. Final source inventories, report closure and explicit window return remain pending with Common QA `ctx_e23ced3dd1fa`.
+
+Evidence stays under `/Users/quangnguyen/cogniate-qa-runs/qa-common-c4-20261022T0408Z/full`. Runner exit SHA-256: `b4d74bf677ba8ce8a1e27704aa551afb69c54a435789b023c4c31f46cf26c07b`. Strict W4 comparison: `25ac872330349d98c3bd709f1c18e483ae096e445b56896bf21b670dd67ea9ed`. The full secret scan reports no problems; its SHA-256 is `b91544ae9a4129cab09a423504e80d9f56c0d9f6355ba7e767f068617c455044`. The failed evidence must stay intact.
+
+This is the second LA overlap. Lead notices `msg_5043646490b8` and `msg_db55c1691cf9` request cleanup by the LA owner. Both the owner and its coordinator must explicitly confirm the Docker hold before a retry. A coordinator-only agreement did not prevent this overlap. No retry, diagnostic, M2, T7 or other new Docker work is granted. The earlier round-2 estimate is withdrawn. The next LA scheduling update is due by 07:45 UTC or when this attempt closes, whichever comes first.
+
+No source fault is established. C4 remains `bf09cdad91ca548e1ecbc14428b55180d35d5360`, with tests tree `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`. All repairs remain with the same Claude session, `ctx_898acbaef3a6`; no repair is requested now. Canvas QA preserves its accepted round-1 evidence and waits. The accepted clean diagnostic, host checks and source reviews need no repetition for this environment-only failure.
+
+Clean full validation, legacy, fresh M2/T7, final conformance and documentation gates remain pending. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 06:23 UTC
 
 **C4 full round 1 passed all 488 cases. Round 2 is running.** The first round finished at about 06:20:01 UTC after 53 minutes. Results: simulation 394/394, isolated snapshot 6/6, upgrade snapshot 6/6, migration 12/12 and storage 70/70. All 488 unique phase/id pairs match the frozen required set. There are no failures or NOT_APPLICABLE rows; `c-host-negative` passed.
 
