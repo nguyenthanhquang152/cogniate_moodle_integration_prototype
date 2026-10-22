@@ -106,18 +106,19 @@ describe('operator policy before any change (AP-07-04, AP-07-09)', () => {
   });
 });
 
-describe('app:grant revoke in production (Lead provisional call: revoke also takes the evidence flags)', () => {
-  it('a production revoke needs the listed operator and both evidence fields; its event holds them', async () => {
+describe('app:grant revoke in production (BD-A2-63: the operator rule without evidence)', () => {
+  it('a production revoke needs a listed operator but no evidence fields', async () => {
     const { op, input } = await setup(PRODUCTION);
     const issued = await op.issue(input({ operator: 'qa-op', evidenceChannel: 'support-call', evidenceRef: 'QA-1' }));
     const grantId = grantIdOf(issued.lines);
-    const refused = await op.revoke(grantId, 't', { operator: 'qa-op' });
-    expect([refused.exitCode, JSON.parse(refused.lines[0]!).reason]).toEqual([1, 'evidence_channel_missing']);
+    for (const [flags, reason] of [[{}, 'operator_missing'], [{ operator: 'someone' }, 'operator_unknown']] as const) {
+      const refused = await op.revoke(grantId, 't', flags);
+      expect([refused.exitCode, JSON.parse(refused.lines[0]!).reason]).toEqual([1, reason]);
+    }
     expect(events()).toHaveLength(1);
     tick();
-    expect((await op.revoke(grantId, 't', { operator: 'other-op', evidenceChannel: 'other', evidenceRef: 'TKT-7' })).exitCode).toBe(0);
-    expect(events()[0]).toMatchObject({ action: 'grant.revoke', result: 'ok', actor: { id: 'other-op' },
-      details: { evidence_channel: 'other', evidence_ref: 'TKT-7', note_present: false } });
+    expect((await op.revoke(grantId, 't', { operator: 'other-op' })).exitCode).toBe(0);
+    expect(events()[0]).toMatchObject({ action: 'grant.revoke', result: 'ok', actor: { id: 'other-op' }, details: { note_present: false } });
   });
 });
 

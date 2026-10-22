@@ -80,9 +80,13 @@ const bindingSubject = (c: Connection): Subject => ({ libraryId: c.libraryId, co
 export function createOperator(deps: OperatorDeps) {
   const { db, lti, logger: log, cleanup, now, channels } = deps;
 
-  /** The operator policy before any change. A refusal is logged with its reason and stores nothing (no row, no event). */
-  const policyOf = (flags: OperatorFlags, note: string | undefined, traceId: string): OperatorPolicyDecision => {
-    const decision = evaluateOperatorPolicy({ operator: flags.operator, evidenceChannel: flags.evidenceChannel, evidenceRef: flags.evidenceRef, note }, deps.env ?? process.env);
+  /**
+   * The operator policy before any change. A refusal is logged with its reason and stores nothing (no row, no event).
+   * `evidenceRequired` is false only for app:grant revoke (BD-A2-63): production needs the operator, not the evidence.
+   */
+  const policyOf = (flags: OperatorFlags, note: string | undefined, traceId: string, evidenceRequired = true): OperatorPolicyDecision => {
+    const decision = evaluateOperatorPolicy({ operator: flags.operator, evidenceChannel: flags.evidenceChannel, evidenceRef: flags.evidenceRef, note, evidenceRequired },
+      deps.env ?? process.env);
     if (!decision.allowed) {
       let line: { event?: unknown; reason?: unknown } = {};
       try { line = JSON.parse(decision.message) as typeof line; } catch { /* the line is printed as it is */ }
@@ -174,7 +178,7 @@ export function createOperator(deps: OperatorDeps) {
 
   /** `app:grant revoke` (§4.8): revoke an unredeemed grant, then the grant cleanup. Revoke again repeats the cleanup. */
   async function revoke(grantId: string, traceId: string, flags: OperatorFlags = {}): Promise<CommandResult> {
-    const policy = policyOf(flags, undefined, traceId);
+    const policy = policyOf(flags, undefined, traceId, false);
     if (!policy.allowed) return fail(policy.message);
     const g = getGrant(db, grantId);
     if (!g) return fail(`Unknown grant: ${grantId}.`);
