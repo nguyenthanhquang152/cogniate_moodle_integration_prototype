@@ -118,3 +118,58 @@ Full2 stays FAILED. T8 stays NOT RUN, and the unreached T6 assertions stay unver
 - `M/patch/10-typecheck.txt` (`5c2ed944…`) contains only the npm banner. `tsc` prints nothing when it succeeds, so the file itself does not record exit 0. Only Common QA's report states the exit code.
 - `M/report/msg-patch-host-check.txt` contains three `$(shasum …)` placeholders that the shell did not expand. The evidence index that the Lead verified gives those hashes.
 - `docs/reviews/M1/qa.md:2864-2866` quotes test titles and line numbers that are not in the C4 source. For example, `AC-T6-07: Publish to Moodle dialog produces dynamic registration URL…` and `:135` do not exist, and `dialog must open before scanning` has 0 hits. The quoted failing locator is correct. This record is not part of this review, and QA owns any correction.
+
+---
+
+Verdict: APPROVE
+Round: 2
+
+# Round 2: bounded recheck of launcher v2
+
+Reviewer-A, Claude Opus 5.5 (`claude-opus-5-5`), xhigh effort. Task `task_11563f602b2d`, dispatch `ctx_c4e1e465b49f`, run `run_ebe671ad72a9`. Trigger: Lead `msg_1713f90d8619` (2026-10-22T11:17:28Z).
+This session has no working memory of round 1. As the Lead instructed, I reuse the round-1 text above as accepted evidence of the same review role, and I do not repeat it. The round-1 text (bytes 1-15,955, SHA-256 `60f0669841702914b90a39f8f88b3841c1cc1c6e32eb009cee23f60ed04cce72`) is unchanged.
+Scope: only the 6 changed lines, a check that all other lines did not change, and the closure of A-T6L-01 and A-T6L-02. I ran no Docker, npm, test, `bash -n` or guard command, and I sent no gate message. My only commands on the source were read-only (`git rev-parse HEAD` and `git symbolic-ref -q HEAD`, with `GIT_OPTIONAL_LOCKS=0`). I did not read the Reviewer-B report. Disclosure: `READY-C5-LEGACY-V2.md` and `prep-v2/05` name Reviewer-B finding ids (`B-T6L-01` to `05`) with one-line QA fix notes. I saw only those notes.
+This round gives no runtime credit and no acceptance credit.
+
+## Identities (I checked each one)
+
+| Item | SHA-256 | Notes |
+| --- | --- | --- |
+| v2 launcher `M/tools/launch-legacy-c5-v2.sh` | `c53203a2b16e2c47298fea0a6b1c466840689e2ba5352b27f5037937e596ed67` | 10,091 bytes, mode 0700, 111 lines |
+| v1 launcher `M/tools/launch-legacy-c5.sh` | `51963fdfc2ad3dbe2c4f7012babb5714a20b4099102c4ca18ce6dd7ac58727a9` | Unchanged. |
+| `M/prep-v2/01-v1-to-v2-diff.patch` | `8b09df2124ac062f8ae51041823b95b4a419633fee0a897baa87ee2645c4efd5` | My own `diff -u` from v1 to v2 has the same hunks (`cmp`, file headers excluded). Changed lines: 15, 26, 65, 66, 83, 91 (6 out, 6 in). |
+| `M/prep-v2/02-full-c4-to-v2-diff.patch` | `6c15e1651522882c6a317e8dde2a502f50465bbeb00d5df21847aaa74e81f5e9` | Same hunks as my own `diff -u` from `launch-full-c4.sh` to v2. |
+| `M/prep-v2/03-syntax-check.txt` | `cb7a5a06fa342801b3e5caad702335c971572989775fde8aa346b9b6fef10a60` | Read only. |
+| `M/prep-v2/04-focused-guard-checks.txt` | `438a6f5b12009d9a80553d92a0d25e1b21350af794b4bafc8da83bf6a7337307` | Read only. |
+| `M/prep-v2/READY-C5-LEGACY-V2.md` | `5502c5aacb5541265b43c9c295401183c1dfa30541e6aed812cb06271f098e42` | Read only. |
+| `M/evidence-index-maint-v2.tsv` | `d648480b3cef4b55f9722b48e9505865481eef4dd61a9a330f4e08af34455f36` | 64 rows. All 57 v1 rows are present, byte for byte. The v1 index is still `c95ce099…`. The 7 new rows match their files (hash, size and mode). |
+| Source `M/legacy-c5-src/source` | HEAD `e1a057be9624a82949007b772e2bdf19bc55638b` | Detached, no `.env`. |
+| Run root `M/legacy-c5` | — | Absent. |
+
+## Changed lines
+
+| Line | Change | Result |
+| --- | --- | --- |
+| 15 | `FROM=term_7b4cc382-f802-483a-b07e-ef8412293cb9; TASK=task_a33056140130; DISPATCH=ctx_574663dd5b1a` | Correct. These are the runtime owner values that the Lead approved. I looked up `msg_8a731861cb0f` (status, 11:14:23Z) and `msg_661b85b0d32c` (heartbeat, 11:11:49Z) by exact id. Both have `from_handle` = this `term_…` handle, payload `taskId` and `dispatchId` = this task and dispatch, and both go to `run:run_ebe671ad72a9`. So the gate send at `:64` (`--type status`, the same three values) has the same form as a send that worked. |
+| 26 | Exact pin `[[ "$TEST_SHA" == "e1a057be9624a82949007b772e2bdf19bc55638b" ]]` | Correct. The right side is quoted, so the compare is literal, not a pattern. The old 40-hex check and the old check that `TEST_SHA` is not `$SHA` are now implied, because `:25` pins `$SHA` to C4. `04` §3-6: a wrong product SHA, C4 as test SHA and a random 40-hex test SHA each exit 2 before W1, and exact C4 + C5 pass all 8 guards. |
+| 65 | Subject `starting D-T6L legacy run: product ${SHA:0:7}, tests ${TEST_SHA:0:7} now` | Correct. With the two pins, it expands to `product bf09cda, tests e1a057b`. |
+| 66 | Body: `Clone: $SOURCE (detached $TEST_SHA, clean, no .env; tests C5 $TEST_SHA, each child checks out product C4 $SHA)` and `Projects: $PROJECT (D-T6L legacy only); phase run ids are $PROJECT-${SHA:0:8}-<ISO time>` | Correct. `:27`, `:28` and `:32` enforce HEAD = C5, a clean source and no `.env`, and the source is detached now. The C5 runner (`run-m1.mjs:201-214`) runs only the legacy runners (12 groups), passes `--sha` = product C4 and uses only `COMPOSE_PROJECT_NAME` = `qa-multi-r1`, with no `-st` lane. Each child names its run `${PROJECT}-${sha.slice(0, 8)}-<time>` under `<tests>/host/artifacts` (`core.mjs:71`, `:84-86`). That is `$SOURCE/tests/host/artifacts/qa-multi-r1-bf09cdad-…`. The other parts of the body are the same text as in v1. |
+| 83, 91 | Log text `starting D-T6L legacy run since=…` and `D-T6L legacy run exit=… end=…` | Correct and safe. No tool matches the old text: `progress.sh:17` and `watch-events.sh:26-28` show `launcher.log` lines as they are. The file names `private/full-run.stdout.log`, `private/full-run.stderr.log` and `public/full-run-exit.json` do not change, so `progress.sh:16` and `watch-events.sh:13,16,34` still find them. READY §2 discloses that these names stay and that they hold only this legacy child. |
+
+All other 105 lines are byte-equal to v1 (`diff`). So these items are the same as in round 1: the frozen runner command and environment (`:59-62`, `:87-88`), the product pin (`:25`), the other source guards (`:27-32`), course hashes, the ancestor check, W1-W4, the sampler, the secret watch, the clone guard, the umask split, the cleanup lists, the secret scan and the exit code (`:111`). Note: `:77` still gives the clone guard `$PROJECT,$PROJECT-st`. This did not change from v1. It only makes the watched set wider, and it is not a lane claim.
+
+## Finding closures
+
+- **A-T6L-01 (MAJOR): CLOSED.** Evidence: `:15` (see above), the two routing messages, and the Lead statement that this same dispatch runs Stage 2 with no later identity change. Runtime condition (not a source defect): if `ctx_574663dd5b1a` is settled or replaced before the grant, the send fails and the launcher stops after W1-W3 at `:67` (fail closed). A new tuple then needs a new reviewed version.
+- **A-T6L-02 (MINOR): CLOSED.** Evidence: `:65-66` (see above). The gate text now agrees with `command.txt`, the guards and the runner.
+- **RT-1: now enforced in the source** by `:26`. A runtime look at `public/command.txt` stays a cheap cross-check, but it is no longer the only control. RT-2, RT-3 and RT-4 do not change (RT-4: `M/legacy-c5` is still absent).
+
+## Evidence notes (no change needed)
+
+- `prep-v2/05-msg-stage1-receipt.txt` (`3cea056bef38c3c20447c3ef53899dbf466b523c566463834168cae93683550d`) gives the focused-check time as 11:13:34.918Z-11:13:35.027Z. The file `04` itself records 11:13:35.588Z-11:13:35.680Z. The file is the record.
+- `prep-v2/05` is not in index v2, because QA wrote it after the index.
+- The READY typecheck note (QA's `B-T6L-05` item) states exit 0 for `M/patch/10`. This is still a statement, not a captured exit code (see the round-1 note). It does not change this verdict.
+
+## Round-2 verdict
+
+APPROVE for launcher v2 `c53203a2b16e2c47298fea0a6b1c466840689e2ba5352b27f5037937e596ed67`, for host-only readiness. The C5 test patch verdict stays APPROVE (round 1, no finding). Full2 stays FAILED, T8 stays NOT RUN, and the runtime window stays a separate Lead grant.
