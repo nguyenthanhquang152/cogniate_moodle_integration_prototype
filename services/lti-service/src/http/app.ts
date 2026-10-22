@@ -17,12 +17,15 @@ import type { NrpsClient } from '../platform/nrps.ts';
 import { authenticate } from './auth.ts';
 import type { RouteContext } from './context.ts';
 import { ERROR_PAGE_HEADERS, renderErrorPage } from './error-page.ts';
+import { retryAfterSeconds, setRetryAfter } from './retry-after.ts';
 import { registerIdTokenRoutes } from './routes/idtoken.ts';
 import { registerPlatformRoutes } from './routes/platforms.ts';
 import { registerRegistrationRoutes } from './routes/registration.ts';
 import { registerProtocolRoutes } from './routes/protocol.ts';
 import { registerCompatRoutes } from './routes/compat.ts';
 import { registerServiceRoutes } from './routes/services.ts';
+import { getAccount } from '../store/accounts.ts';
+import { createTrustedProxy, rateLimiterFor, recordAuthFailure } from './rate-limit.ts';
 
 declare module 'fastify' {
   interface FastifyRequest {
@@ -80,7 +83,15 @@ export function installApiBasics(app: FastifyInstance, log: Logger): void {
   });
 
   app.setErrorHandler((err: Error & { statusCode?: number; code?: string }, req, reply) => {
-    if (err instanceof ApiErrorBase) return reply.code(err.status).send(err.body());
+    if (err instanceof ApiErrorBase) {
+      const body = err.body();
+      if (Object.hasOwn(body.details, 'retryAfter')) {
+        const seconds = retryAfterSeconds(body.details.retryAfter);
+        setRetryAfter(reply, seconds);
+        body.details.retryAfter = seconds;
+      }
+      return reply.code(err.status).send(body);
+    }
     // 413 keeps the INVALID_REQUEST code (contract §1.4: max 256 KB).
     if (err.code === 'FST_ERR_CTP_BODY_TOO_LARGE') return reply.code(413).send(apiErrorBody(413, 'INVALID_REQUEST', 'Body is larger than 256 KB.'));
     if (err.statusCode && err.statusCode >= 400 && err.statusCode < 500) {
@@ -95,23 +106,54 @@ export function installApiBasics(app: FastifyInstance, log: Logger): void {
 export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const now = deps.now ?? Date.now;
   const log = deps.logger;
+  const limiter = rateLimiterFor(deps.db, log, now);
+  const proxy = await createTrustedProxy();
   const app = Fastify({
     logger: false, bodyLimit: BODY_LIMIT, maxParamLength: MAX_PARAM_LENGTH, return503OnClosing: false,
+    trustProxy: proxy.trust,
     // ltiaas-0.0.4 tolerance (contract §8 D14): fold leading slashes only; preserve route segments, encoded ids and queries.
     rewriteUrl: (req) => (req.url ?? '/').replace(/^\/{2,}/, '/'),
   });
   await app.register(formbody, { bodyLimit: BODY_LIMIT });
   installApiBasics(app, log);
+  app.addHook('onClose', async () => proxy.close());
 
   const profiles = { simulation: deps.simulationProfiles ?? false };
   const ctx: RouteContext = {
     db: deps.db, urls: deps.urls, logger: log, keys: deps.keys, ltikTtlSeconds: deps.ltikTtlSeconds, masterKey: deps.masterKey, ags: deps.ags, nrps: deps.nrps, outbound: deps.outbound, now, profiles,
-    auth: (req, schemes) => authenticate(deps.db, req.headers.authorization, schemes, now(),
-      (scheme, code) => log.warn('api_auth_failed', { trace_id: req.traceId, scheme, code })),
+    auth: (req, schemes) => {
+      const result = authenticate(deps.db, req.headers.authorization, schemes, now(), (scheme, code, part) => {
+        log.warn('api_auth_failed', { trace_id: req.traceId, scheme, code });
+        if (part === 'api_key') recordAuthFailure(limiter, req.ip);
+      });
+      limiter.check(result.scheme === 'bearer' ? 'admin' : 'api', result.actor.id, result.account);
+      return result;
+    },
     errorPage: (reply, req, code, opts = {}) =>
       reply.code(opts.status ?? PROTOCOL_ERRORS[code].status).headers(ERROR_PAGE_HEADERS)
         .send(renderErrorPage(code, req.traceId, opts.help ?? protocolAction(code, opts.lms), opts.detail, opts.heading, opts.lms)),
   };
+
+  // Address budgets use cached settings and run before account/auth database reads.
+  app.addHook('onRequest', async (req, reply) => {
+    const route = req.routeOptions.url ?? '';
+    if (route.startsWith('/api/')) limiter.check('auth_failure', req.ip, undefined, false);
+    const name = route === '/lti/keys/:account' ? 'keys'
+      : route === '/lti/register/:account' ? 'registration'
+        : ['/lti/login/:account', '/lti/launch/:account', '/lti/launch/:account/storage-check'].includes(route) ? 'protocol' : null;
+    if (!name) return;
+    try { limiter.check(name, req.ip); }
+    catch (err) {
+      if (!(err instanceof ApiError) || err.code !== 'RATE_LIMITED' || name === 'keys') throw err;
+      setRetryAfter(reply, retryAfterSeconds(err.details.retryAfter));
+      return ctx.errorPage(reply, req, 'RATE_LIMITED');
+    }
+    if (name !== 'keys') {
+      const accountId = (req.params as { account: string }).account;
+      const account = getAccount(deps.db, accountId);
+      if (account) limiter.check(name === 'protocol' ? 'protocol_account' : 'registration_account', account.id, account);
+    }
+  });
 
   // Health (contract §2.5)
   app.get('/healthz', async () => ({

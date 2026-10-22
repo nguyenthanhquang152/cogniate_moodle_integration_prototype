@@ -140,6 +140,8 @@ services:
       # Not published on the host, and the proxy has no route to it in any profile.
       OPERATOR_HOST: ${ACCEPTANCE_OPERATOR_HOST:-127.0.0.1}
       OPERATOR_PORT: "4110"
+      # LA-ADR-06 D1: only the proxy may supply the client address in every profile.
+      TRUSTED_PROXY_CIDRS: proxy
       <<: *public-urls
     volumes:
       - ../package.json:/repo/package.json:ro

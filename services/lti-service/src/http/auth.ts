@@ -49,28 +49,33 @@ export interface AuthResult {
 
 /**
  * Resolve the header for an endpoint that accepts `accepted` schemes. Invalid credentials give 401; status and scope refusals give 403.
- * onFail logs api_auth_failed {scheme, code}.
+ * onFail identifies whether the 401 happened before API key validation or in the later credential check (BD-A2-17).
  */
-export function authenticate(db: Db, header: string | undefined, accepted: Scheme[], now: number, onFail: (scheme: string, code: string) => void): AuthResult {
-  const reject = (scheme: string, code: Extract<ApiErrorCode, `INVALID_${string}AUTHORIZATION_HEADER`>, description?: string): never => {
-    onFail(scheme, code);
+export function authenticate(
+  db: Db, header: string | undefined, accepted: Scheme[], now: number,
+  onFail: (scheme: string, code: string, part: 'api_key' | 'credential') => void,
+): AuthResult {
+  const reject = (
+    scheme: string, code: Extract<ApiErrorCode, `INVALID_${string}AUTHORIZATION_HEADER`>, part: 'api_key' | 'credential', description?: string,
+  ): never => {
+    onFail(scheme, code, part);
     throw new ApiError(code, description);
   };
   const parsed = parseAuthorization(header);
   if ('error' in parsed) {
     // A known scheme that this endpoint does not accept is INVALID_AUTHORIZATION_HEADER, also when it is malformed.
     if (parsed.scheme === 'ltik' || parsed.scheme === 'service') {
-      if (!accepted.includes(parsed.scheme)) return reject(parsed.scheme, 'INVALID_AUTHORIZATION_HEADER');
+      if (!accepted.includes(parsed.scheme)) return reject(parsed.scheme, 'INVALID_AUTHORIZATION_HEADER', 'api_key');
     }
-    return reject(parsed.scheme, parsed.error);
+    return reject(parsed.scheme, parsed.error, 'api_key');
   }
-  if (!accepted.includes(parsed.scheme)) return reject(parsed.scheme, 'INVALID_AUTHORIZATION_HEADER');
+  if (!accepted.includes(parsed.scheme)) return reject(parsed.scheme, 'INVALID_AUTHORIZATION_HEADER', 'api_key');
   const key = findActiveApiKey(db, parsed.apiKey, now);
   const account = key ? getAccount(db, key.toolAccountId) : null;
   if (!key || !account || account.status === 'closed') {
     // ADR-003: a bad API key on Bearer endpoints uses the LTIK error code.
     return reject(parsed.scheme, parsed.scheme === 'service' ? 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER' : 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER',
-      parsed.scheme === 'bearer' ? 'Invalid API key.' : undefined);
+      'api_key', parsed.scheme === 'bearer' ? 'Invalid API key.' : undefined);
   }
   const actor: AuditActor = { type: 'api_key', id: key.id };
   const statusGate = (result: AuthResult): AuthResult => {
@@ -85,8 +90,8 @@ export function authenticate(db: Db, header: string | undefined, accepted: Schem
   if (parsed.scheme === 'service') {
     // T3a: the service key must belong to the account of the API key and must not be revoked (security §8).
     const serviceKey = findServiceKey(db, account.id, parsed.credential ?? '');
-    return serviceKey ? statusGate({ scheme: 'service', account, actor, launch: null, serviceKey }) : reject('service', 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER');
+    return serviceKey ? statusGate({ scheme: 'service', account, actor, launch: null, serviceKey }) : reject('service', 'INVALID_SERVICE_AUTH_AUTHORIZATION_HEADER', 'credential');
   }
   const launch = findLaunchByLtik(db, account.id, parsed.credential ?? '', now);
-  return launch ? statusGate({ scheme: 'ltik', account, actor, launch, serviceKey: null }) : reject('ltik', 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER');
+  return launch ? statusGate({ scheme: 'ltik', account, actor, launch, serviceKey: null }) : reject('ltik', 'INVALID_LTIK_AUTH_AUTHORIZATION_HEADER', 'credential');
 }

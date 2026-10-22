@@ -23,6 +23,8 @@ const CONTRACT_1_3: Array<[number, string]> = [
   // LA (contract delta §1.3)
   [401, 'INVALID_OPERATOR_AUTHORIZATION_HEADER'], [409, 'OPERATOR_KEY_IN_USE'],
   [403, 'TOOL_ACCOUNT_SUSPENDED'], [409, 'ACCOUNT_ALREADY_EXISTS'], [409, 'ACCOUNT_CLOSED'],
+  [429, 'PLATFORM_RATE_LIMITED'],
+  [429, 'RATE_LIMITED'],
 ];
 
 describe('LTI service API codes (contract §1.3)', () => {

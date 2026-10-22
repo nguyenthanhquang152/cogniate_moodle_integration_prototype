@@ -134,3 +134,35 @@ Changes for the Lead to route:
 - **S2 (`http/auth.ts`, LA-E5-07 window):** the third `onFail` argument, with one Author unit test per path (`api_key` on each pre-key `401`, `credential` on the ltik and service key `401`).
 - **S1 (LA-E5-03):** the `app.ts` callback, the PATCH and GET shape, the session-cap check function and the column migration (the Lead decides the number, or puts it in the LA-E5-03 migration).
 - **L (LA-E5-06):** the cap check before the fetch, `client_key` on insert, `NULL` at completion. The owner of `store/registrations.ts` in the current window is the Lead's call.
+
+## 11. Round 10: privacy floor freeze (A1 proposal BD-A1-22; LA-E1-05, lanes K and L), 2026-10-22
+
+Reviewer-A A-LA-E1-05-02 (MINOR). A1 sent a proposal to A2 as the security owner, routed in dispatch `ctx_724e3d439fe0`. The ruling went to the Lead first, for A1 too (`msg_344e33951eab`).
+
+| Id | Proposal | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-21 | (A1 BD-A1-22.) (a) `privacyFloor` required, enum `allowlist` \| `none`. (b) Load check 7: `none` only for the profile ids in the frozen list `PRIVACY_FLOOR_NONE_PROFILES = ['standard']` (`legacy-wire.ts`); every other profile is `allowlist`; a new entry needs an ADR revision and a security review; a raise to `allowlist` is always allowed. (c) The launch fails closed: it keeps every claim only when `privacyFloor === 'none'`. | **Ratified**, with two precisions. (1) A raise of `standard` passes the load check, but it changes Moodle launches and needs its own LA-IC (LD-9); the planned Moodle change (LA-IC-08) uses the account claim policy. (2) With the claim policy (LA-E3-10, Should), the two layers compose fail-closed: a claim stays only when both layers allow it explicitly, and an unknown value in either layer minimizes (the documented `null` = `passthrough` default for existing accounts stays). | LA-ADR-07 T18; LA-ADR-05 D7 row "Privacy floor"; security-delta §12 new row "Privacy floor frozen" | Checked on the integration branch and the K and L lane branches: only `standard` is `none`. `canvas`, `canvas-sim`, `blackboard` and `blackboard-sim` are `allowlist`; `lti-generic` and `brightspace` are `allowlist` by LA-ADR-02 D2. So the freeze changes no behaviour today. |
+
+Lanes for the Lead to route: **K** adds the frozen list in `packages/channel-kernel/src/legacy-wire.ts` (or L by RQ-2 if K is busy: the Lead's call). **L** does the load check 7 rule in `services/lti-service/src/profiles/schema.ts`, the launch line `launch.ts:117` (`!== 'none'` → minimize), and unit tests: a new profile with `none` stops the start, `standard` with `none` starts, an unknown floor value minimizes, and Canvas and Blackboard still minimize. **L2 (LA-E3-10, later):** the fail-closed composition with the claim policy.
+
+## 12. Round 11: the legacy `rowid` baseline (LA-E1-04 FU-1, lane P), 2026-10-22
+
+Lane P's question about the BD-A2-13 Should scan, routed in dispatch `ctx_99275aeeead9`. Decision sent to the Lead first (`msg_4a50e9e8263a`).
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-22 | (Provisional.) Freeze the nine legacy `rowid` statements that the inline scan found (app `domain/attempts.ts:50`; `bindings.ts:67`, `:276`; `mbz-builds.ts:39`, `:45`, `:57`; `results.ts:33`, `:49`; `score-syncs.ts:147`) as exact-text, one-occurrence baseline entries with the reference "LA-ADR-06 D13 rule 2: legacy pre-LA SQL", in a commit separate from the Must part. Does LG need a migration item? | **Ratified.** All nine exist unchanged at G-BASE `bd368ff`, so they are pre-LA baseline and not D13 exceptions. The baseline never grows. A new `rowid` fails the scan, and so does an edit of a frozen statement. **LG item: yes**, recorded as D13 item 6: an insertion-order column per table, filled from the SQLite `rowid` by the data move, and the nine statements order by it. | LA-ADR-06 D13 rule 2 (baseline sentence) and new item 6 (LG port items (a)–(c)) | Each use is the tie-break after a millisecond timestamp (latest-first or creation-order lists). Postgres `ctid` is not stable, and the random text ids have no order, so the port needs a real sequence. The files are A1's app domain files; LA changes nothing in them (A1 FYI). |
+
+Changes for the Lead to route: **P** commits the nine baseline entries apart from the Must part. **A1 FYI**: D13 item 6 lists the app tables that the LG store port must extend. A1's BD-A1-22 entry can now point to A2 BD-A2-21 (ratified).
+
+## 13. Round 12: signing-key `409` details and "no active key" (LA-E5-10 review B, lane S2), 2026-10-22
+
+Reviewer-B B-LA-E5-10-01 and -02 (MINOR), and -03 (NIT), routed in dispatch `ctx_29f523cca3e5`. Decisions sent to the Lead first (`msg_e5aa2cb12834`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-23 | B-LA-E5-10-01: a signing-key `409` gives no fact to act on. | **Additive `details`** (public data, ISO 8601 times): `NOT_PUBLISHED_LONG_ENOUGH` `{kid, activatableAt}`; `NEXT_EXISTS` `{kid, publishedAt}` of the waiting key; `WRONG_STATE` `{kid, keyStatus}`; `ACTIVE` `{kid}`. Never `retryAfter`. `KeyError(code, {description?, details?})`. The audit writer does not change. | contract delta §1.3; LA-ADR-06 D7 row "Error details and no active key"; LA-E5-10 scope, AC-LA-E5-10-14 (UNIT) | The name is `keyStatus`, because `status` is the HTTP status at the top of the body. `retryAfter` would add a `Retry-After` header (BD-A2-16), which is for `429` only. |
+| BD-A2-24 | B-LA-E5-10-02: `SIGNING_KEY_WRONG_STATE` also means "the account has no active key" (create, and activate of a valid `next`). A separate code, or a clearer text? | **Neither: "no active key" is not an error.** Create on an account with no `active` key makes the new key `active` at once (`201 {status: "active"}`; no lead time). Activate of a `next` key with no active key gives `retired: null`. `WRONG_STATE` keeps one meaning. | contract delta §3 (`POST …/signing-keys`, `…/activate`); LA-ADR-06 D7 (same row); LA-E5-10 scope, AC-14 | With no active key, nothing can sign, so a publish wait protects nothing (the BD-A2-07 reason). Normal paths never reach this state, so it is a recovery path through the API. A new error code would leave the operator with no API fix, and LA-E5-05 would need a direct-write exception. |
+| — | B-LA-E5-10-03 (NIT): `retire` without `immediate: true` | Accepted as text: `400 INVALID_REQUEST` (field `immediate`) "retire needs {"immediate": true} (removes the key at once). A key becomes retired when the next key is activated." | contract delta §3 (`…/retire`) | — |
+
+Changes for the Lead to route: **S2 (LA-E5-10 fix round)**: `KeyError` options and the four `details` sets; create and activate with no active key (`requireNextKeySlot` and `checkToolKeyActivation` no longer throw for a missing active key); the retire text; AC-14 unit tests. No QA K1-SIM criterion changes.

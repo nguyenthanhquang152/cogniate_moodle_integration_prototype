@@ -1,5 +1,7 @@
-// Canary channel LTI 1.3 profile definitions (LA-E7-01, LA-ADR-01 D4, D6).
+// Canary channel LTI 1.3 profile definitions (LA-E7-01, LA-ADR-01 D4, D6, BD-A1-21).
 // Non-baseline profiles must omit `wireLms` (BD-A1-06).
+import type { ProfileSource } from '@cogniate/channel-kernel';
+
 const canaryProfiles = [
   {
     id: 'zz-canary-sim',
@@ -23,6 +25,6 @@ const canaryProfiles = [
     },
     sources: ['LA-E7-01 canary profile'],
   },
-] as const;
+] as const satisfies readonly ProfileSource[];
 
 export default canaryProfiles;

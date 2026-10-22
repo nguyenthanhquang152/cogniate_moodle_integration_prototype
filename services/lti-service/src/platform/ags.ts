@@ -1,7 +1,8 @@
 // AGS calls that the app needs (contract §3.5 GET rows, §3.6). Order in every call: (1) the line item URL rule
 // (no outbound request for a foreign URL), (2) the scope of the launch, (3) the platform token, (4) one AGS request.
 // The platform access token goes only to the platform URLs that passed the rule (security §8).
-import type { OutboundClient, OutboundResponse } from '@cogniate/shared';
+import type { Logger, OutboundClient, OutboundResponse } from '@cogniate/shared';
+import { createLogger } from '@cogniate/shared';
 import { ApiError } from '../api-errors.ts';
 import { agsBaseUrl, isAllowedServiceUrl, lineItemSubUrl, withQuery } from '../lti/service-url.ts';
 import type { Platform } from '../store/platforms.ts';
@@ -169,9 +170,11 @@ export interface AgsClientDeps {
   outbound: OutboundClient;
   tokens: TokenClient;
   clock: ScoreClock;
+  logger?: Logger;
 }
 
 export function createAgsClient(deps: AgsClientDeps) {
+  const logger = deps.logger ?? createLogger({ service: 'lti-service' });
   async function call(ctx: AgsContext, scope: string, url: string, init: { method?: 'GET' | 'POST' | 'PUT' | 'DELETE'; accept: string; contentType?: string; body?: string }): Promise<OutboundResponse> {
     const token = await deps.tokens.getToken(ctx.platform, [scope], ctx.traceId);
     let res: OutboundResponse;
@@ -183,7 +186,7 @@ export function createAgsClient(deps: AgsClientDeps) {
     } catch (err) {
       throw outboundFailureError(err);
     }
-    if (res.status < 200 || res.status >= 300) throw platformResponseError(res);
+    if (res.status < 200 || res.status >= 300) throw platformResponseError(res, { context: { logger, platformId: ctx.platform.id, traceId: ctx.traceId } });
     return res;
   }
 
