@@ -263,3 +263,24 @@ describe('AGS client (contract §3.5, §3.6)', () => {
     await expect(s.ags.getLineItem(ctx(s), LINE_ITEM)).rejects.toMatchObject({ code: 'PLATFORM_ERROR' });
   });
 });
+
+describe('NRPS service versions (LA-E3-12)', () => {
+  it.each([[], ['1.0'], ['2'], null, '2.0', 2].map((service_versions) => ({ service_versions })))('refuses unsupported service_versions $service_versions before any outbound request', async ({ service_versions }) => {
+    const s = await setup();
+    await expect(s.nrps.listMemberships({ platform: s.platform, traceId: 'versions',
+      nrpsClaim: { context_memberships_url: 'https://moodle.test/memberships', service_versions } }, {}))
+      .rejects.toMatchObject({ code: 'SERVICE_NOT_AVAILABLE', status: 403 });
+    expect(s.calls).toEqual([]);
+    s.db.close();
+  });
+
+  it.each([{}, { service_versions: ['2.0'] }, { service_versions: ['1.0', '2.0'] }])('accepts an absent version or a list with 2.0: %j', async (version) => {
+    const s = await setup();
+    const url = 'https://moodle.test/memberships';
+    s.answers.push(() => res(200, { id: url, context: { id: '2' }, members: [] }));
+    expect(await s.nrps.listMemberships({ platform: s.platform, traceId: 'versions',
+      nrpsClaim: { context_memberships_url: url, ...version } }, {})).toEqual({ id: url, context: { id: '2' }, members: [] });
+    expect(s.calls).toHaveLength(2);
+    s.db.close();
+  });
+});
