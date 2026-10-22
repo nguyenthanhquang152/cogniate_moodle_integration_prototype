@@ -100,7 +100,11 @@ const fs = require('node:fs');
 const [file, ...reserved] = process.argv.slice(2);
 const fail = (message) => { throw new Error(message); };
 const object = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-const dnsName = (host) => typeof host === 'string' && host.length <= 253 && host.endsWith('.test') &&
+const knownKeys = (value, keys, at) => {
+  const unknown = Object.keys(value).find((key) => !keys.includes(key));
+  if (unknown !== undefined) fail(`${at} has unknown key ${JSON.stringify(unknown)}`);
+};
+const dnsName = (host) => typeof host === 'string' && host.length <= 253 && host.endsWith('.sim.test') &&
   host.split('.').every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label));
 try {
   let manifest;
@@ -109,24 +113,26 @@ try {
   if (!object(manifest) || manifest.version !== 1 || !Array.isArray(manifest.providers)) {
     fail('expected version 1 and a providers array');
   }
+  knownKeys(manifest, ['version', 'providers'], 'manifest');
   const ids = new Set();
   const aliases = new Set(['lms-sim.test']); // the simulator control alias stays
   const allowlist = new Set();
   for (const [index, provider] of manifest.providers.entries()) {
-    const at = `providers[${index}]`;
+    const at = `providers[${index}]${object(provider) ? ` (id ${JSON.stringify(provider.id)})` : ''}`;
     if (!object(provider) || typeof provider.id !== 'string' || !provider.id.trim() || ids.has(provider.id)) {
       fail(`${at} needs a non-empty, unique id`);
     }
     ids.add(provider.id);
+    knownKeys(provider, ['id', 'aliases', 'allowlist'], at);
     if (!Array.isArray(provider.aliases) || provider.aliases.length === 0 || !Array.isArray(provider.allowlist)) {
       fail(`${at} needs a non-empty aliases array and an allowlist array`);
     }
     for (const host of [...provider.aliases, ...provider.allowlist]) {
-      if (!dnsName(host) || reserved.includes(host)) fail(`${at} has an invalid or reserved .test host`);
+      if (!dnsName(host) || reserved.includes(host)) fail(`${at} has invalid host ${JSON.stringify(host)}; expected a DNS name ending in .sim.test`);
     }
     for (const host of provider.aliases) aliases.add(host);
     for (const host of provider.allowlist) {
-      if (!provider.aliases.includes(host)) fail(`${at} allowlist host must be in its aliases`);
+      if (!provider.aliases.includes(host)) fail(`${at} allowlist host ${JSON.stringify(host)} must be in its aliases`);
       allowlist.add(host);
     }
   }

@@ -14,17 +14,17 @@ const FIXTURE = {
   version: 1,
   providers: [
     {
-      id: 'blackboard',
+      id: 'blackboard-sim',
       aliases: ['developer.blackboard.sim.test', 'learn-a.blackboard.sim.test', 'learn-b.blackboard.sim.test'],
       allowlist: ['developer.blackboard.sim.test', 'learn-a.blackboard.sim.test', 'learn-b.blackboard.sim.test'],
     },
     {
-      id: 'canvas-cloud',
+      id: 'canvas-sim-cloud',
       aliases: ['sso.canvas.sim.test', 'school-a.canvas.sim.test', 'school-b.canvas.sim.test', 'canvas.school-a.sim.test'],
       allowlist: ['sso.canvas.sim.test', 'school-a.canvas.sim.test', 'school-b.canvas.sim.test'],
     },
     {
-      id: 'canvas-self',
+      id: 'canvas-sim-self',
       aliases: ['canvas-self.sim.test', 'api.canvas-self.sim.test'],
       allowlist: ['canvas-self.sim.test', 'api.canvas-self.sim.test'],
     },
@@ -162,17 +162,21 @@ describe('simulator host manifest (LA-E7-03)', () => {
 
   const provider = { id: 'one', aliases: ['one.sim.test'], allowlist: ['one.sim.test'] };
   const entry = (change) => ({ version: 1, providers: [{ ...provider, ...change }] });
-  for (const [name, bad] of [
+  for (const [name, bad, detail] of [
     ['invalid JSON', '{'],
     ['unknown version', { version: 2, providers: [] }],
     ['missing providers', { version: 1 }],
     ['null provider', { version: 1, providers: [null] }],
     ['empty id', entry({ id: ' ' })],
-    ['duplicate ids', { version: 1, providers: [provider, provider] }],
+    ['duplicate ids', { version: 1, providers: [provider, provider] }, /providers\[1\] \(id "one"\)/],
     ['empty aliases', entry({ aliases: [] })],
     ['missing allowlist', entry({ allowlist: undefined })],
     ['non-string host', entry({ aliases: [3] })],
     ['non-test host', entry({ aliases: ['one.example.com'] })],
+    ['non-simulator test host', entry({ aliases: ['one.test'], allowlist: ['one.test'] }), /invalid host "one.test"/],
+    ['control host', entry({ aliases: ['lms-sim.test'], allowlist: ['lms-sim.test'] }), /invalid host "lms-sim.test"/],
+    ['unknown manifest key', { ...entry({}), allowlist: ['lms-sim.test'] }, /manifest has unknown key "allowlist"/],
+    ['unknown provider key', entry({ allowList: ['lms-sim.test'] }), /unknown key "allowList"/],
     ['invalid DNS label', entry({ aliases: ['bad_.sim.test'] })],
     ['shell text', entry({ aliases: ['$(touch unsafe).test'] })],
     ['reserved host', entry({ aliases: ['lti.cogniate.test'] })],
@@ -187,6 +191,7 @@ describe('simulator host manifest (LA-E7-03)', () => {
       assert.equal(result.status, 1);
       assert.equal(result.stdout, '', 'no Compose call');
       assert.match(result.stderr, /^Invalid simulator host manifest tests\/sim\/hosts.json:/);
+      if (detail) assert.match(result.stderr, detail);
       assert.doesNotMatch(result.stderr, /using the fixed simulator hosts/);
       assert.deepEqual(fs.readFileSync(c.at('.tmp/compose.sim-hosts.yaml')), old);
     });
