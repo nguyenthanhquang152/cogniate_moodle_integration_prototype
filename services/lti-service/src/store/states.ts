@@ -11,14 +11,14 @@ export interface StateRecord {
   expiresAt: number;
   /** M1: the `lti_deployment_id` of the login request, for check 9 (null when the login had none). */
   loginDeploymentId: string | null;
-  /** Platform storage binding; omitted values in older callers are stored as null. */
-  storageTarget?: string | null;
-  storageOrigin?: string | null;
+  /** Platform storage binding; null when the login uses only the state cookie. */
+  storageTarget: string | null;
+  storageOrigin: string | null;
 }
 
 export function saveState(db: Db, rec: StateRecord, now: number): void {
   db.prepare(`INSERT INTO oidc_state (state_hash, tool_account_id, platform_id, nonce, target_link_uri, expires_at, login_deployment_id, storage_target, storage_origin)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(rec.stateHash, rec.toolAccountId, rec.platformId, rec.nonce, rec.targetLinkUri, rec.expiresAt, rec.loginDeploymentId, rec.storageTarget ?? null, rec.storageOrigin ?? null);
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(rec.stateHash, rec.toolAccountId, rec.platformId, rec.nonce, rec.targetLinkUri, rec.expiresAt, rec.loginDeploymentId, rec.storageTarget, rec.storageOrigin);
   // Retention (contract §6): states live 10 min; old rows are removed on the way.
   db.prepare('DELETE FROM oidc_state WHERE expires_at < ?').run(now - 3600_000);
 }

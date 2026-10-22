@@ -238,6 +238,37 @@ describe('T3c compat routes with real API authorization', () => {
     expect(calls).toEqual([]);
   });
 
+  it.each([true, false])('all Deep Linking routes sign cancellation with accept_multiple %s (LA-E3-04 AC-07)', async (accept_multiple) => {
+    const headers = auth({ [CLAIM.deepLinkingSettings]: { deep_link_return_url: RETURN, accept_types: ['ltiResourceLink'], accept_multiple, data: 'cancel-data' } }, 'LtiDeepLinkingRequest');
+    for (const suffix of ['', '/message', '/form']) {
+      const response = await h.app.inject({ method: 'POST', url: `/api/deeplinking${suffix}`, headers, payload: { contentItems: [] } });
+      expect(response.statusCode, suffix).toBe(200);
+      const body = response.json();
+      const jwt = suffix === '/form' ? /name="JWT" value="([^"]+)"/.exec(body.form)![1]! : body.message;
+      const { payload } = await jwtVerify(jwt, createLocalJWKSet({ keys: publicJwks(h.db, 'cogniate') }), { issuer: CLIENT_ID, audience: ISSUER });
+      expect(payload[DL_CLAIM.contentItems]).toEqual([]);
+      expect(payload[DL_CLAIM.data]).toBe('cancel-data');
+    }
+    expect(calls).toEqual([]);
+  });
+
+  it('all Deep Linking routes refuse line items when accept_lineitem is false and accept the ungraded item (LA-E3-04 AC-07)', async () => {
+    const headers = auth({ [CLAIM.deepLinkingSettings]: { deep_link_return_url: RETURN, accept_types: ['ltiResourceLink'], accept_lineitem: false } }, 'LtiDeepLinkingRequest');
+    const contentItem = { type: 'ltiResourceLink', title: 'Ungraded', url: LAUNCH };
+    for (const suffix of ['', '/message', '/form']) {
+      const refused = await h.app.inject({ method: 'POST', url: `/api/deeplinking${suffix}`, headers, payload: { contentItems: [{ ...contentItem, lineItem: item }] } });
+      expect([refused.statusCode, refused.json().details.message], suffix).toEqual([400, 'INVALID_CONTENT_ITEM']);
+      expect(refused.body).toContain('the platform does not accept line items');
+      const accepted = await h.app.inject({ method: 'POST', url: `/api/deeplinking${suffix}`, headers, payload: { contentItems: [contentItem] } });
+      expect(accepted.statusCode, suffix).toBe(200);
+      const body = accepted.json();
+      const jwt = suffix === '/form' ? /name="JWT" value="([^"]+)"/.exec(body.form)![1]! : body.message;
+      const { payload } = await jwtVerify(jwt, createLocalJWKSet({ keys: publicJwks(h.db, 'cogniate') }), { issuer: CLIENT_ID, audience: ISSUER });
+      expect(payload[DL_CLAIM.contentItems]).toEqual([contentItem]);
+    }
+    expect(calls).toEqual([]);
+  });
+
   it.each([
     'javascript:alert(document.domain)',
     'data:text/html,<script>alert(1)</script>',
@@ -277,7 +308,7 @@ describe('T3c compat routes with real API authorization', () => {
     const service = await serviceAuth(headers);
     const dl = auth({ [CLAIM.deepLinkingSettings]: { deep_link_return_url: RETURN } }, 'LtiDeepLinkingRequest');
     for (const suffix of ['form', 'message']) {
-      for (const [credential, expected, payload] of [[headers, 403, { contentItems: [item] }], [service, 401, {}], [dl, 400, { contentItems: [] }]] as const) {
+      for (const [credential, expected, payload] of [[headers, 403, { contentItems: [item] }], [service, 401, {}], [dl, 400, { contentItems: null }]] as const) {
         const r = await h.app.inject({ method: 'POST', url: `/api/deeplinking/${suffix}`, headers: credential, payload });
         expect(r.statusCode).toBe(expected);
       }
