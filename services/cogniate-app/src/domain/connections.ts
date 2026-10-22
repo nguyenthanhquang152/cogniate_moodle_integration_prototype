@@ -44,8 +44,9 @@ export interface Connection {
   lastError: ConnectError | null;
   /** T8: a checked web services token exists (never the token itself). */
   webServices: { siteName: string; release: string } | null;
-  /** M1 (app contract §4.2): LMS type, LTI profile and the canonical service origin (= siteUrl unless Canvas sets one). */
+  /** The channel id, which never changes. */
   channel: string;
+  /** How binding is approved: the LMS administrator (self) or an operator approval code (operatorGrant). */
   bindingAuthority: BindingAuthority;
   profile: string;
   serviceUrl: string;
@@ -96,6 +97,7 @@ export interface RefToken {
 /** The connection already has a platform, or the platform belongs to another connection (unique key). */
 export class PlatformTakenError extends Error {}
 
+// Never read connection.lms; it is a frozen behaviour class (LA-ADR-04 D4).
 const toConnection = (r: Record<string, unknown>): Connection => ({
   id: String(r.id), libraryId: String(r.library_id), name: String(r.name), siteUrl: String(r.site_url), method: r.method as ConnectionMethod,
   status: r.status as ConnectionStatus, ltiPlatformId: r.lti_platform_id === null ? null : String(r.lti_platform_id),
@@ -129,16 +131,17 @@ export function createConnection(
   ref: RefToken | null,
   now: number,
   channels: ChannelRegistry,
-  sharing: PlatformSharing,
+  sharingOf: (profile: string) => PlatformSharing | null,
 ): Connection {
   const registration = channels.channel(input.channel)?.registration.find((r) => r.method === input.method);
-  if (!registration) throw new Error('channel registration method is not offered');
+  if (!registration) throw new Error(`createConnection: channel "${input.channel}" offers no method "${input.method}"`);
   const profile = input.profile ?? registration.defaultProfile;
-  if (!registration.profiles.includes(profile)) throw new Error('profile is not offered by this registration method');
+  if (!registration.profiles.includes(profile)) throw new Error(`createConnection: channel "${input.channel}" method "${input.method}" offers no profile "${profile}"`);
+  const sharing = sharingOf(profile);
+  if (!sharing) throw new Error(`createConnection: channel "${input.channel}" has no sharing data for profile "${profile}"`);
   const id = randomId('con_');
   // The snapshot is part of this one INSERT (written once; no UPDATE path exists, app contract §4.7.3).
   const snap = input.snapshot ?? NO_SNAPSHOT;
-  // never read connection.lms; it is a frozen behaviour class
   const legacyClass = connectionBehaviourClass(input.channel, registration.authority, sharing);
   db.prepare(`INSERT INTO connection (id, library_id, name, site_url, method, status, ref_token_hash, ref_token_encrypted, ref_expires_at, created_at, updated_at,
       lms, channel, binding_authority, lti_profile, service_url, target_issuer, target_platform_id, target_client_id)

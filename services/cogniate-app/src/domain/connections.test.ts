@@ -37,7 +37,7 @@ describe('AC-LA-E1-06-03: channel writer and immutable identity', () => {
     ['zz-test', 'manual', 'zz-shared', 'shared', 'operatorGrant', 'blackboard'],
   ] as const)('%s / %s / %s writes the frozen class', (channel, method, profile, sharing, authority, legacy) => {
     const db = database();
-    const c = createConnection(db, 'lib', { name: 'School', siteUrl: 'https://school.test', channel, method, profile }, null, 1, channels, sharing);
+    const c = createConnection(db, 'lib', { name: 'School', siteUrl: 'https://school.test', channel, method, profile }, null, 1, channels, () => sharing);
     expect(c).toMatchObject({ channel, bindingAuthority: authority });
     expect(c).not.toHaveProperty('lms');
     expect(db.prepare('SELECT lms, channel, binding_authority FROM connection WHERE id = ?').get(c.id))
@@ -50,7 +50,7 @@ describe('AC-LA-E1-06-03: channel writer and immutable identity', () => {
 
   it('stores the channel id and optional bound values on new grants', () => {
     const db = database();
-    const c = createConnection(db, 'lib', { name: 'School', siteUrl: 'https://school.test', channel: 'zz-test', method: 'manual' }, null, 1, channels, 'exclusive');
+    const c = createConnection(db, 'lib', { name: 'School', siteUrl: 'https://school.test', channel: 'zz-test', method: 'manual' }, null, 1, channels, () => 'exclusive');
     const id = insertGrant(db, { connectionId: c.id, libraryId: 'lib', channel: c.channel, profile: c.profile, purpose: 'initial', siteUrl: c.siteUrl,
       serviceUrl: c.serviceUrl, clientId: 'client', deploymentId: 'd', note: 'fixture', expiresAt: 100, boundValues: { clientId: 'client' } }, 'hash', 1);
     expect(db.prepare('SELECT lms, bound_values FROM binding_grant WHERE id = ?').get(id)).toEqual({ lms: 'zz-test', bound_values: '{"clientId":"client"}' });
@@ -60,7 +60,7 @@ describe('AC-LA-E1-06-03: channel writer and immutable identity', () => {
 it('AC-LA-E1-06-06: the same test channel routes self and grant connections by their stored authority', () => {
   const db = database();
   for (const [method, profile, sharing] of [['dynamic', 'zz-self', 'exclusive'], ['manual', 'zz-shared', 'shared']] as const) {
-    const c = createConnection(db, 'lib', { name: method, siteUrl: 'https://school.test', channel: 'zz-test', method, profile }, null, 1, channels, sharing);
+    const c = createConnection(db, 'lib', { name: method, siteUrl: 'https://school.test', channel: 'zz-test', method, profile }, null, 1, channels, () => sharing);
     markRegistered(db, c.id, { id: method, issuer: c.siteUrl, clientId: 'client', deploymentIds: ['approved'], productFamilyCode: null }, 2);
     db.prepare('UPDATE connection SET lms = ? WHERE id = ?').run(method === 'manual' ? 'moodle' : 'canvas', c.id);
     if (method === 'manual') {
@@ -74,4 +74,20 @@ it('AC-LA-E1-06-06: the same test channel routes self and grant connections by t
     disableConnection(db, 'lib', c.id, 3);
     expect(routeLaunch(db, method, 'approved').ok).toBe(false);
   }
+});
+
+
+it('derives sharing from the resolved default profile and refuses missing profile data before writing', () => {
+  const db = database();
+  const input = { name: 'School', siteUrl: 'https://school.test', channel: 'zz-test', method: 'manual' as const };
+  const seen: string[] = [];
+  const c = createConnection(db, 'lib', input, null, 1, channels, (profile) => {
+    seen.push(profile);
+    return profile === 'zz-exclusive' ? 'exclusive' : 'shared';
+  });
+  expect(seen).toEqual(['zz-exclusive']);
+  expect(db.prepare('SELECT lms FROM connection WHERE id = ?').get(c.id)?.lms).toBe('canvas');
+  expect(() => createConnection(db, 'lib', { ...input, profile: 'zz-shared' }, null, 1, channels, () => null))
+    .toThrow('createConnection: channel "zz-test" has no sharing data for profile "zz-shared"');
+  expect(db.prepare('SELECT COUNT(*) AS count FROM connection').get()?.count).toBe(1);
 });

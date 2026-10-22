@@ -211,7 +211,7 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
       if (!isHttpsOrigin(b.siteUrl)) return invalid('siteUrl');
       if (b.serviceUrl !== undefined) return invalid('serviceUrl');
       const ref = b.method === 'dynamic' ? newRef(masterKey, deps.refTtlSeconds, now()).stored : null;
-      const c = createConnection(db, libraryOf(req).id, { name: b.name, siteUrl: b.siteUrl, method: b.method, channel, profile: profileId }, ref, now(), channels, sharing);
+      const c = createConnection(db, libraryOf(req).id, { name: b.name, siteUrl: b.siteUrl, method: b.method, channel, profile: profileId }, ref, now(), channels, adapter.sharingOf);
       return reply.code(201).send(dto(req, c));
     }
     const rows = await providerProfiles(lti, req.traceId);
@@ -237,7 +237,7 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
     const snapshot = snapshotOf(profile, { siteUrl, serviceUrl: serviceUrl ?? siteUrl });
     const c = transaction(db, () => createConnection(db, libraryOf(req).id, {
       name: b.name, siteUrl, method: b.method, channel, profile: profile.id, serviceUrl, snapshot,
-    }, null, now(), channels, sharing));
+    }, null, now(), channels, adapter.sharingOf));
     return reply.code(201).send(dto(req, c));
   });
 
