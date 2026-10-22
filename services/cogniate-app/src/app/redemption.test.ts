@@ -1,3 +1,4 @@
+import { TEST_CHANNELS } from '../testkit.ts';
 // The common grant redemption and cleanup engine (app contract §4.7 to §4.9, ADR-011 §4a, §4b), unit level: the fake
 // LTI service models deployments, binding refs, generations and the M3 §3.3 fault actions (fail_before, drop_after,
 // late write, live schedules). Black-box evidence is QA's (AC-M1-28, -29, -37, -38).
@@ -37,7 +38,7 @@ async function setup() {
   const shared = t.lti.addSharedPlatform('blackboard-sim', BB);
   const logger = createLogger({ service: 'cogniate-app', level: 'debug', write: (l) => t.logs.push(JSON.parse(l)) });
   const cleanup = createBindingCleanup({ db: t.db, lti: t.lti.client, logger, now: () => t.clock.now });
-  const op = createOperator({ db: t.db, lti: t.lti.client, logger, cleanup, now: () => t.clock.now });
+  const op = createOperator({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client, logger, cleanup, now: () => t.clock.now });
   const a = await t.login(THANH);
   const b = await t.login(QA_B);
   const libraryOf = (name: string) => String(t.db.prepare('SELECT id FROM library WHERE name = ?').get(name)!.id);
@@ -171,7 +172,7 @@ describe('grants and Blackboard redemption (§4.7.1, §4.8; AC-M1-28, -29 unit l
     expect((await putBb(a, conA4, 'dX', gA4.code)).status).toBe(502);
     const refused = await op.issue({ library: libA, connection: conA4.id, site: conA4.siteUrl, clientId: BB, deploymentId: 'dY', note: 'x', traceId: 't' });
     expect(refused.exitCode).toBe(1);
-    insertGrant(t.db, { libraryId: libA, connectionId: conA4.id, lms: 'blackboard', profile: 'blackboard-sim', purpose: 'initial', siteUrl: conA4.siteUrl,
+    insertGrant(t.db, { libraryId: libA, connectionId: conA4.id, channel: 'blackboard', profile: 'blackboard-sim', purpose: 'initial', siteUrl: conA4.siteUrl,
       serviceUrl: conA4.siteUrl, clientId: BB, deploymentId: 'dY', note: 'x', expiresAt: t.clock.now + 60_000 }, (await import('@cogniate/shared')).sha256Hex('Y'.repeat(43)), t.clock.now);
     expect(code(await putBb(a, conA4, 'dY', 'Y'.repeat(43)))).toBe('DEPLOYMENT_FIXED');
   });
@@ -498,7 +499,7 @@ describe('routing, site and LMS checks, disabled score rules and guards (§4.7.2
     t.db.prepare("INSERT INTO attempt (id, resource_link_id, user_sub, course_version_id, preview, outcome, score_given, score_maximum, created_at, updated_at) VALUES ('att_s', 'rl_s', 'u', 'ver_s', 0, 'completed', 7, 10, 0, 0)").run();
     t.db.prepare("INSERT INTO score_sync (id, attempt_id, resource_link_id, user_sub, payload, score_given, score_maximum, status, tries, created_at, next_try_at, updated_at) VALUES ('sync_s', 'att_s', 'rl_s', 'u', '{}', 7, 10, 'pending', 2, 0, ?, 0)").run(t.clock.now + 30_000);
     const { createScoreSyncWorker } = await import('../worker/score-sync.ts');
-    const worker = createScoreSyncWorker({ db: t.db, lti: t.lti.client, logger: createLogger({ service: 'x', write: (l) => t.logs.push(JSON.parse(l)) }), masterKey: Buffer.alloc(32, 5), now: () => t.clock.now });
+    const worker = createScoreSyncWorker({ channels: TEST_CHANNELS, db: t.db, lti: t.lti.client, logger: createLogger({ service: 'x', write: (l) => t.logs.push(JSON.parse(l)) }), masterKey: Buffer.alloc(32, 5), now: () => t.clock.now });
     await worker.kick();
     expect(t.db.prepare("SELECT status FROM score_sync WHERE id = 'sync_s'").get()?.status).toBe('pending');
     t.clock.now += 30_000;
@@ -1155,7 +1156,7 @@ describe('supplemental snapshot boundaries and retained cleanup history', () => 
     const { con, submit, libA } = await endpoint('canvas');
     expect((await submit()).status).toBe(200);
     eraseSnapshot(con.id);
-    insertGrant(t.db, { libraryId: libA, connectionId: con.id, lms: 'canvas', profile: con.profile, purpose: 'initial', siteUrl: con.siteUrl, serviceUrl: con.serviceUrl,
+    insertGrant(t.db, { libraryId: libA, connectionId: con.id, channel: 'canvas', profile: con.profile, purpose: 'initial', siteUrl: con.siteUrl, serviceUrl: con.serviceUrl,
       clientId: 'cA', deploymentId: 'other', note: 'unreachable CLI fixture', expiresAt: t.clock.now + 60_000 }, (await import('@cogniate/shared')).sha256Hex(UNKNOWN_CODE), t.clock.now);
     t.lti.calls.length = 0;
     expect(code(await submit({ grantCode: UNKNOWN_CODE, deploymentId: 'other' }))).toBe('CONNECTION_NOT_PENDING');
@@ -1305,7 +1306,7 @@ describe('A-M1-03/04: bounded calls and cancellation at S2', () => {
     const lti = { ...t.lti.client, getProviders: remote.getProviders, getPlatform: remote.getPlatform, findPlatforms: remote.findPlatforms };
     if (kind === 'canvas') lti.createProviderPlatform = async () => { throw new LtiServiceError(409, 'PLATFORM_ALREADY_EXISTS', ''); };
     if (kind === 'add_deployment') lti.addDeployment = async () => { throw new LtiServiceError(409, 'DEPLOYMENT_ALREADY_EXISTS', ''); };
-    const engine = createRedemptionEngine({ db: t.db, lti, logger, now: () => t.clock.now });
+    const engine = createRedemptionEngine({ channels: TEST_CHANNELS, db: t.db, lti, logger, now: () => t.clock.now });
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     let settled = false;
     const pending = engine.redeem({ connectionId: con.id, libraryId: libA, purpose: kind === 'add_deployment' ? kind : 'initial',

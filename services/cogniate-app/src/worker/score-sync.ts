@@ -1,3 +1,4 @@
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 // Score sync worker (app contract §10, ADR-010). Sends each due `pending` row with POST /api/lineitems/:id/scores
 // (SERVICE-AUTH-V1: works after the ltik expired). One trace id per row and try. Answers:
 // The answer -> status mapping and the retry times are the grade policy in packages/tracking (syncResult).
@@ -14,6 +15,7 @@ import { beginSend, dueSyncs, failDisabledSync, isCurrentSync, recordSend, recov
 import { resolveLineItem } from './line-item.ts';
 
 export interface ScoreSyncWorkerDeps {
+  channels: ChannelRegistry;
   db: Db;
   lti: LtiClient;
   logger: Logger;
@@ -76,7 +78,7 @@ export function createScoreSyncWorker(deps: ScoreSyncWorkerDeps) {
       if (err instanceof LtiServiceError) {
         answer = { http: err.status };
         uncertain = posted && (err.status === 0 || err.status >= 500);
-        lastError = err.status === 409 ? `${errorText(err)} (Moodle has a grade with a newer time)`.slice(0, 300) : errorText(err);
+        lastError = err.status === 409 ? `${errorText(err)} (${deps.channels.textName(row.channel)} has a grade with a newer time)`.slice(0, 300) : errorText(err);
       } else if (err instanceof NoGradebookColumn) {
         answer = { local: 'no_gradebook_column' };
         lastError = NO_GRADEBOOK_COLUMN;

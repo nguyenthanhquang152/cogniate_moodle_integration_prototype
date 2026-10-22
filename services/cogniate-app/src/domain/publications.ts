@@ -25,11 +25,11 @@ export interface Publication {
   shellStatus: 'created' | 'exists' | 'failed' | null;
   shellError: string | null;
   /** M1 (app contract §5.1): the connection's LMS type and name. */
-  lms: 'moodle' | 'canvas' | 'blackboard';
+  channel: string;
   connectionName: string;
 }
 
-const SELECT = `SELECT p.*, c.title AS course_title, c.variant AS course_variant, c.lang AS course_lang, con.site_url AS site_url, con.lms AS connection_lms, con.name AS connection_name, v.version AS version, v.format AS format FROM publication p
+const SELECT = `SELECT p.*, c.title AS course_title, c.variant AS course_variant, c.lang AS course_lang, con.site_url AS site_url, con.channel AS connection_channel, con.name AS connection_name, v.version AS version, v.format AS format FROM publication p
   JOIN connection con ON con.id = p.connection_id JOIN course c ON c.id = p.course_id JOIN course_version v ON v.id = p.current_version_id`;
 
 const toPublication = (r: Record<string, unknown>): Publication => ({
@@ -40,7 +40,7 @@ const toPublication = (r: Record<string, unknown>): Publication => ({
   moodleCourseId: r.moodle_course_id === null || r.moodle_course_id === undefined ? null : Number(r.moodle_course_id),
   moodleCourseIdnumber: r.moodle_course_idnumber === null || r.moodle_course_idnumber === undefined ? null : String(r.moodle_course_idnumber),
   shellStatus: (r.shell_status ?? null) as Publication['shellStatus'], shellError: r.shell_error === null || r.shell_error === undefined ? null : String(r.shell_error),
-  lms: (r.connection_lms ?? 'moodle') as Publication['lms'], connectionName: String(r.connection_name ?? ''),
+  channel: String(r.connection_channel), connectionName: String(r.connection_name ?? ''),
 });
 
 export function getPublication(db: Db, libraryId: string, id: string): Publication | undefined {

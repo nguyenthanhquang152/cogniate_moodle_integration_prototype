@@ -13,7 +13,7 @@ export function registerCanvasDeploymentRoutes(api: FastifyInstance, deps: Provi
     const library = req.auth!.signedIn.library;
     const c = getConnection(deps.db, library.id, req.params.id);
     if (!c) throw new ApiError('NOT_FOUND', 'The connection does not exist in your library.');
-    if (c.lms !== 'canvas')
+    if (!deps.channels.capabilities(c.channel)['deployments.multiple'])
       throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'This connection cannot add a deployment.', { details: { capability: 'addDeployment' } });
     if ((c.status !== 'registered' && c.status !== 'connected') || !c.ltiPlatformId || !c.platform)
       throw new ApiError('CONNECTION_NOT_READY');

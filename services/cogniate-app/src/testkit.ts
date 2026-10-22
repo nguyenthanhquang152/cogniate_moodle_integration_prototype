@@ -6,6 +6,7 @@ import type { Limits } from '@cogniate/package-inspector';
 import type { LogLine, PublicUrls } from '@cogniate/shared';
 import { createLogger } from '@cogniate/shared';
 import type { FastifyInstance } from 'fastify';
+import { loadAppChannelRegistry } from './kernel/registry.ts';
 import { buildAppApi } from './app/server.ts';
 import type { Db } from './domain/db.ts';
 import { openDb } from './domain/db.ts';
@@ -373,6 +374,7 @@ export async function testApp(opts: { limits?: Partial<Limits>; refTtlSeconds?: 
   }
   const lti = fakeLti();
   const app = await buildAppApi({
+    channels: TEST_CHANNELS,
     db, urls: TEST_URLS, logger, store, profile: 'default', knobs: [], now: () => clock.now, ...(opts.limits ? { limits: opts.limits } : {}),
     masterKey: TEST_MASTER_KEY, lti: lti.client, refTtlSeconds: opts.refTtlSeconds ?? 86400,
     pickerTtlSeconds: opts.pickerTtlSeconds ?? 3600, playTtlSeconds: opts.playTtlSeconds ?? 86400, playerDir: join(dataDir, 'player'),
@@ -396,3 +398,6 @@ export async function formBody(fields: Record<string, string | Buffer>): Promise
   const req = new Request('http://local.invalid/', { method: 'POST', body: form });
   return { payload: Buffer.from(await req.arrayBuffer()), headers: { 'content-type': req.headers.get('content-type')! } };
 }
+
+/** One product registry for unit fixtures; tests can inject another registry. */
+export const TEST_CHANNELS = await loadAppChannelRegistry(createLogger({ service: 'test', write: () => {} }));

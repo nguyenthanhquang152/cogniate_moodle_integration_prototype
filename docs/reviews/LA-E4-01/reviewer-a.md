@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E4-01 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -64,3 +64,32 @@ Round: 1
 - Shutdown order (LA-E4-02, LA-E5-19): `await runner.stop()` before the database closes. The shutdown fallback must allow the runner's grace. The LTI service exits 3 s after a signal today, and Docker kills a container after 10 s by default, while the grace can reach 60 s. When the process dies first, the heartbeat row stays: the next start waits up to 30 s (the crash path), and the runs in flight become uncertain rows.
 - `stop()` aborts `ctx.signal` at once. The outbox should not abort a POST that is in flight (only skip its next step). Otherwise every normal restart with a send in flight makes an uncertain row and one more confirmation send.
 - `runNow` gives `skipped_lease` also when the runner is not active (for example a web process with `APP_JOB_RUNNER=off`). A2's `POST /operator/v1/jobs/:name/run` maps it to `409 JOB_RUNNING`. A2 may want to tell "runner off" apart from "already running".
+
+## Round 2
+
+- Diff: `git diff 1b17ccb 93194ec` (lane `la-r`: `4740b26` item cooling, `3f29f80` instance id and lease limits, `93194ec` states table and store contracts; merged as `06efe56`). These files at `HEAD` are the same as at `93194ec`.
+- References: my round-1 findings above; A1 BD-A1-10 (items 1 and 3) and the new AC-LA-E4-01-11 and -12; BD-A1-14 (D7 sketch).
+- I ran `packages/shared/src/jobs.test.ts` on the host: 24 of 24 pass.
+- Blind review as before.
+- **Verdict (round 2): APPROVE.** The round-1 MINOR and both NITs are closed. New: **0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT.**
+
+### Round-1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E4-01-01 (MINOR) | closed | Both parts of BD-A1-10 are in. (1) The `run` contract now says that a run catches its row errors and moves the row (`jobs.ts` comment on `QueueJob.run`), and LA-E4-02 proves it on the outbox. (2) The backstop now cools the **row**, not the partition. `QueueJob.id(item)` is new, and `cooling` is a map of id to `{until, delayMs}` (`:211`). A throw sets 2 s, then doubles up to 5 min (`:451`); a run that does not throw removes the entry (`:447`). The partition stays open, so the next row of the same platform runs at the next poll. `due` asks for the batch size plus the number of cooled rows (`:413`), so a batch full of cooled rows cannot hide a healthy one. AC-11 tests (controlled clock): `good-1` and `good-2` run while `poison` waits exactly 2, 4, 8 … s up to 300 s, and each throw logs one `failed` line with the class only. A clean run resets the backoff, and so does a new process. A second case covers the full cooled batch. |
+| A-LA-E4-01-02 (NIT) | closed | `instanceId` must match `^[A-Za-z0-9-]{1,64}$` (`:234`), so no SQL `LIKE` wildcard (`_`, `%`) and no `/` can reach a store's owner match. AC-12 test: `app_1` and other forms are refused. |
+| A-LA-E4-01-03 (NIT) | closed | `addQueue` and `addInterval` refuse `leaseMs` above `MAX_TIMER_MS` (`:282`, `:289`), so the `stop()` grace timer can no longer fire at once. New AC-06 cases: `stop()` waits for the longest lease (60 s and 120 s) and stays `stopping` until then. |
+
+### Other changes (checked)
+
+- `skipped_lease` lines now carry `reason`: `runner_not_active`, `already_running` or `lease_held` (`:222`). This answers my round-1 note for A2's `POST /operator/v1/jobs/:name/run`: an operator can now tell "runner off" from "already running". A new contract case shows that a run of this process still blocks a second run after its lease expires.
+- The new states table matches the code paths I checked in round 1.
+- `packages/shared/package.json` exports `./jobs.testkit` (vitest code). It is imported only by tests, and `index.ts` still does not export it.
+
+### New finding
+
+- **A-LA-E4-01-04 (NIT): a cooling entry is removed only by a clean run of that row in this process.**
+  - Where: `packages/shared/src/jobs.ts:211`, `:413`, `:447`.
+  - Problem: when another process moves a cooled row, or an operator fails or deletes it, its entry stays until this process ends. Each entry also adds one row to every `due` request. In a long-lived process with many distinct throwing rows, the poll query grows without limit. This is a backstop path only (the outbox catches its row errors), so the risk is small.
+  - Suggested fix: at each poll, delete expired entries whose id is not in the `due` result, or cap the map (for example 1,000 entries, oldest first out) and keep the extra `due` rows capped too.

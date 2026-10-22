@@ -2,6 +2,7 @@
 // pure functions: the body of `PUT …/platform`, the tool configuration rows, the binding target and the staged create
 // request of a redemption. The common engine (app/redemption.ts) owns every check, the sequencing, the refs and the
 // authority; an adapter never calls the LTI service and never writes the database.
+import type { ChannelRegistry, PlatformSharing } from '@cogniate/channel-kernel';
 import type { Logger, PublicUrls } from '@cogniate/shared';
 import type { LtiClient, LtiProviderProfile } from '../clients/lti-client.ts';
 import type { Connection, ConnectionMethod, ConnectionStatus } from '../domain/connections.ts';
@@ -13,7 +14,7 @@ export type LmsType = 'moodle' | 'canvas' | 'blackboard';
 export const LMS_TYPES: readonly LmsType[] = ['moodle', 'canvas', 'blackboard'];
 
 /** LMS name in texts (app contract §6.1). */
-export type LmsName = 'Moodle' | 'Canvas' | 'Blackboard';
+export type LmsName = string;
 
 /** ADR-011 §11. Derived from the LMS type, never stored. */
 export interface Capabilities {
@@ -30,7 +31,7 @@ export interface ProviderConnection {
   id: string;
   libraryId: string;
   name: string;
-  lms: LmsType;
+  channel: string;
   /** LTI service profile id. */
   profile: string;
   /** Canonical site origin. */
@@ -143,6 +144,7 @@ export interface ProviderAdapter {
   readonly capabilities: Capabilities;
   /** Profile when `POST /app-api/connections` has none. */
   readonly defaultProfile: string;
+  sharingOf(profileId: string): PlatformSharing | null;
   /** `POST /app-api/connections` accepts `serviceUrl` (Canvas). */
   readonly acceptsServiceUrl: boolean;
   /** Site rule 5 refused host suffixes of a profile (`canvas-self-hosted`), else null. */
@@ -178,6 +180,7 @@ export interface RedemptionRequest {
  * also answers a finalized repeat (§4.4, §4.7.2) without a grant check or an LTI call.
  */
 export interface ProviderRouteDeps {
+  channels: ChannelRegistry;
   db: Db;
   urls: PublicUrls;
   masterKey: Buffer;

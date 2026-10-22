@@ -1,3 +1,4 @@
+import { TEST_CHANNELS } from '../testkit.ts';
 // B-M1-01 (app contract §4.7.2): the worker reads the connection state at each send decision, not from the due-row
 // batch. Two interleavings: a suspend commits while an EARLIER row of the batch waits for its POST, and a suspend
 // commits while THIS row waits for its line item lookup. The "operator" writes through a second database connection,
@@ -10,7 +11,7 @@ import { createLogger, encrypt } from '@cogniate/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { LtiClient } from '../clients/lti-client.ts';
 import { LtiServiceError } from '../clients/lti-client.ts';
-import type { LmsType } from '../domain/connections.ts';
+import type { LmsType } from '../providers/types.ts';
 import { createConnection, disableConnection } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { openDb } from '../domain/db.ts';
@@ -42,10 +43,10 @@ function setup() {
 
 function connection(db: Db, lms: LmsType, name: string): string {
   const c = lms === 'moodle'
-    ? createConnection(db, LIB, { name, siteUrl: 'https://moodle.test', method: 'manual' }, null, 0)
+    ? createConnection(db, LIB, { channel: 'moodle', name, siteUrl: 'https://moodle.test', method: 'manual' }, null, 0, TEST_CHANNELS, 'exclusive')
     : lms === 'canvas'
-      ? createConnection(db, LIB, { name, siteUrl: 'https://school-a.canvas.sim.test', method: 'manual', lms, profile: 'canvas-sim-cloud' }, null, 0)
-      : createConnection(db, LIB, { name, siteUrl: 'https://learn-a.blackboard.sim.test', method: 'manual', lms, profile: 'blackboard-sim' }, null, 0);
+      ? createConnection(db, LIB, { name, siteUrl: 'https://school-a.canvas.sim.test', method: 'manual', channel: lms, profile: 'canvas-sim-cloud' }, null, 0, TEST_CHANNELS, 'exclusive')
+      : createConnection(db, LIB, { name, siteUrl: 'https://learn-a.blackboard.sim.test', method: 'manual', channel: lms, profile: 'blackboard-sim' }, null, 0, TEST_CHANNELS, 'exclusive');
   db.prepare("UPDATE connection SET status = 'registered' WHERE id = ?").run(c.id);
   db.prepare("INSERT INTO publication (id, connection_id, course_id, current_version_id, status, created_at, updated_at) VALUES (?, ?, 'crs_w', 'ver_w', 'available', 0, 0)").run(`pub_${name}`, c.id);
   return c.id;
@@ -87,7 +88,7 @@ function fakeLti(hooks: { onPost?: (line: string) => void; onLookup?: () => Arra
 
 function worker(db: Db, lti: LtiClient) {
   const lines: LogLine[] = [];
-  const w = createScoreSyncWorker({ db, lti, logger: createLogger({ service: 'cogniate-app', write: (l) => lines.push(JSON.parse(l) as LogLine) }), masterKey: MASTER, now: () => NOW });
+  const w = createScoreSyncWorker({ channels: TEST_CHANNELS, db, lti, logger: createLogger({ service: 'cogniate-app', write: (l) => lines.push(JSON.parse(l) as LogLine) }), masterKey: MASTER, now: () => NOW });
   return { w, lines };
 }
 
@@ -181,4 +182,33 @@ describe('score sync worker: connection state per send (B-M1-01, app contract §
     expect(row(db, b)).toEqual({ status: 'failed', tries: 4, last_error: 'CONNECTION_DISABLED', send_started_at: null });
     expect(beginSend(db, b, NOW)).toBe('skipped');
   });
+});
+
+it('AC-LA-E1-06-06: disabled zz-test grant rows fail without POST; self rows still send', async () => {
+  const { buildChannelRegistry } = await import('@cogniate/channel-kernel');
+  const manifest = {
+    ...TEST_CHANNELS.channel('moodle')!, id: 'zz-test', names: { text: 'Test LMS', label: 'Test LMS' },
+    registration: [
+      { method: 'dynamic', authority: 'self', profiles: ['zz-self'], defaultProfile: 'zz-self' },
+      { method: 'manual', authority: 'operatorGrant', profiles: ['zz-grant'], defaultProfile: 'zz-grant' },
+    ],
+    lti: { guardedFamilies: [], toolConfiguration: 'none' },
+  };
+  const channels = buildChannelRegistry([{ folder: '/test/zz-test', manifest }], { simulations: true });
+  const { db } = setup();
+  const syncs: string[] = [];
+  for (const [index, method] of (['manual', 'dynamic'] as const).entries()) {
+    const c = createConnection(db, LIB, { name: method, siteUrl: 'https://school.test', channel: 'zz-test', method }, null, 0, channels, 'exclusive');
+    db.prepare("INSERT INTO publication (id, connection_id, course_id, current_version_id, status, created_at, updated_at) VALUES (?, ?, 'crs_w', 'ver_w', 'available', 0, 0)").run(`pub_${method}`, c.id);
+    syncs.push(dueRow(db, c.id, index + 1, { lineItem: `line${index + 1}` }));
+    disableConnection(db, LIB, c.id, NOW);
+    // A mismatched legacy class must not affect a decision made from the stored authority.
+    db.prepare('UPDATE connection SET lms = ? WHERE id = ?').run(method === 'manual' ? 'moodle' : 'canvas', c.id);
+  }
+  const lti = fakeLti({});
+  const w = createScoreSyncWorker({ channels, db, lti: lti.client, logger: createLogger({ service: 'test', write: () => {} }), masterKey: MASTER, now: () => NOW });
+  await w.kick();
+  expect(lti.posts).toEqual(['line2']);
+  expect(row(db, syncs[0]!)).toMatchObject({ status: 'failed', tries: 0, last_error: 'CONNECTION_DISABLED' });
+  expect(row(db, syncs[1]!)).toMatchObject({ status: 'sent', tries: 1, last_error: null });
 });

@@ -7,7 +7,7 @@ import { finish, operatorRuntime } from './operator-runtime.ts';
 const [command, ...rest] = process.argv.slice(2);
 const { values } = parseArgs({ args: rest, options: { connection: { type: 'string' }, note: { type: 'string' } } });
 const usage = 'Usage: app:binding suspend|release --connection <con_id> --note "<evidence reference>"';
-const { db, operator, traceId } = operatorRuntime();
+const { db, operator, traceId } = await operatorRuntime();
 const close = () => db.close();
 if ((command === 'suspend' || command === 'release') && values.connection && values.note !== undefined) {
   finish(await (command === 'suspend' ? operator.suspend(values.connection, values.note, traceId) : operator.release(values.connection, values.note, traceId)), close);

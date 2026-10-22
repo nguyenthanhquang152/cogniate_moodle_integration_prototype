@@ -33,3 +33,20 @@ it('AC-LA-E1-01-02: with one unknown profile, the three baseline entries keep th
   expect(await list()).toBe(baseline);
   expect(t.logs.filter((l) => l.event === 'channel_profile_unknown')).toEqual([expect.objectContaining({ level: 'warn', profile: 'x-new-cloud' })]);
 });
+
+it('BD-A1-11: the HTTP edge accepts lms or channel and rejects unequal aliases before writing', async () => {
+  t = await testApp();
+  const cookie = await t.login(THANH);
+  const create = (alias: { lms?: string; channel?: string }) => t.app.inject({ method: 'POST', url: '/app-api/connections', headers: t.writeHeaders(cookie),
+    payload: { name: 'School', siteUrl: 'https://school.test', method: 'manual', ...alias } });
+  for (const alias of [{ lms: 'moodle' }, { channel: 'moodle' }, { lms: 'moodle', channel: 'moodle' }]) {
+    const answer = await create(alias);
+    expect(answer.statusCode).toBe(201);
+    expect(answer.json()).toMatchObject({ lms: 'moodle', channel: 'moodle', channelName: 'Moodle' });
+  }
+  const before = t.db.prepare('SELECT count(*) AS n FROM connection').get();
+  const refused = await create({ lms: 'moodle', channel: 'canvas' });
+  expect(refused.statusCode).toBe(400);
+  expect(refused.json()).toMatchObject({ details: { message: 'INVALID_REQUEST', field: 'channel' } });
+  expect(t.db.prepare('SELECT count(*) AS n FROM connection').get()).toEqual(before);
+});
