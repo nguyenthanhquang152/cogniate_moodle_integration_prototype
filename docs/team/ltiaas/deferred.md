@@ -32,3 +32,13 @@ Open MINOR and NIT items after round 2. The ones marked "before build" are one-l
 | Q-LAB-21 | MINOR | tasks README :35/:37 name only QA's own projects | A1 | Before build |
 | Q-LAB-22 | NIT | Three evidence labels | A2 | Before build |
 | B-LAB-06 (part) | MINOR | Two cross-account cases stay in LA-E5-13, with a reason | A2 | Accepted by Reviewer-B |
+
+## P4 build
+
+| Id | Severity | Finding | Owner | When |
+| --- | --- | --- | --- | --- |
+| B-LA-E1-01 NITs | NIT | Module-level log set (move to the app instance); AC-02 uses the fake client | K | With LA-E1-02 if it fits |
+| A-E1-01-01 | NIT | Two type-only lines in connections.ts outside "the builder only" | — | Accepted |
+| B-LA-E5-08-02 | NIT | HKDF info prefix comment | S2 | Next S2 task |
+| A-LA-E5-01-01 | NIT | LA-ADR-06 D3 says `stack:up` runs `lti:operator init --if-none`; spec and code run it in `lti-bootstrap.sh` (seed) | A2 (text) | Next A2 edit |
+| A-LA-E5-01-02 | NIT | `stack:reset` leaves the dead `infra/.secrets/lti-operator-key` | S1 (RQ to the owner of `stack-reset.sh`) | Next S1 task |
