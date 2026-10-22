@@ -127,7 +127,7 @@ New agents continue the stopped tasks with retry-context notes (charter-LA §0 m
 | Architect A1 | Claude Opus 5.5 xhigh | `ctx_7a37e7830a62` | ratify hosts.json schema, fitness rule interface, matrix updates, migration numbers |
 | Architect A2 | Claude Opus 5.5 xhigh | `ctx_40535863c72d` | ratify SAVEPOINT audit atomicity; operator-key and e2e-secret doc alignment |
 
-## Wave B1/B2/B3 progress (2026-10-22 18:10Z)
+## Wave B1/B2/B3 progress (2026-10-22 18:55Z)
 
 "Done" = QA PASS on every non-pending AC + Reviewer-A and Reviewer-B APPROVE; "pending" ACs wait for the golden tool or a Docker window (LD-21).
 
@@ -135,39 +135,41 @@ Lead outages (session limit; resumed on another Claude profile each time): about
 
 Docker: host-only. The other run's legacy invocation ran 14:21-15:1xZ; an owner-requested Savoy Docker job follows (40-60 min); then its SIM and M2/T7 windows. The LA window is not confirmed. Protected baseline: 32 volume records.
 
+Model plan (product owner, 18:25Z; charter-LA §0): reviews on Codex GPT-6-Astra xhigh, QA on Antigravity Gemini 4 Argon high, every other role on Claude Code Opus 5.5 xhigh. Running dispatches finished on their model. New Claude Authors: lanes K, S1, R, L2 (new lane, worktree la-l2). New Codex reviewers: CXA1-3 (lens A), CXB1-3 (lens B).
+
 | Task | Lane | State | Evidence |
 | --- | --- | --- | --- |
 | LA-E0-01 | Lead | **done** (AC-04/05 at wave end) | QA-3 R1 PASS |
 | LA-E1-01..06, LA-E1-10 | K, P, L | **done** (Docker / golden ACs pending) | QA PASS; A and B APPROVE |
-| LA-E4-01, LA-E7-10, LA-E7-01, LA-E7-03 | R, QA, S1 | **done** (K1-SIM pending where listed) | QA PASS; A and B APPROVE |
-| LA-E5-04, -07, -10, -19, -03 | S1, S2 | **done** except K1-SIM | A and B APPROVE (last rounds) |
-| LA-E3-01, LA-E3-04 | L | **done** except K1-SIM (QA-4 R1 running) | A and B APPROVE |
-| LD-9 lists LA-IC-12, -16, -17 | QA | **approved** by A and B (NITs to the lead QA) | |
+| LA-E4-01, LA-E4-02, LA-E7-10, LA-E7-01, LA-E7-03, LA-E7-04 | R, QA, S1 | **done** (K1-SIM pending where listed) | QA PASS; A and B APPROVE |
+| LA-E5-03, -04, -05, -07, -09, -10, -19 | S1, S2 | **done** except K1-SIM (LA-E5-09 r3 trace-join check running) | A and B APPROVE (last rounds); QA-2 PASS |
+| LA-E3-01, -02, -04, -06 | L | **done** except K1-SIM | A and B APPROVE |
+| LA-E1-11 | P | A and B APPROVE r2; fix round 2 merged 5b5b3a2 (A-06, A-04); A r3 and QA-3 R3 running | |
+| LD-9 lists LA-IC-12, -16, -17, -18 | QA | 12/16/17 approved by A and B; 18: B APPROVE, A running | |
 | LA-E5-01, -02, -08, -14 | S1, S2, L | reviews APPROVE; K1-SIM pending Docker | |
-| LA-E1-07 | K | fix round part 2 (A1 BD-A1-54 guard) running with LA-E1-08 fix round | QA-3 R1 PASS; A APPROVE; B CHANGES_REQUESTED |
-| LA-E1-08 | K | A and B CHANGES_REQUESTED (MAJORs: P5 toolUrls, Canvas key title); K fix round running | QA-3 R1 PASS |
-| LA-E1-11 | P | B r2 APPROVE; A r2 running | QA-3 R2 PASS |
-| LA-E3-02 | L | A, B APPROVE; QA-4 R1 running | |
-| LA-E3-06 | L | fix round merged `028c30a`; B r2 running | A APPROVE r1 |
-| LA-E4-02 | R | A, B APPROVE | QA-3 R1 PASS |
-| LA-E4-03 | R | merged `a285bdb`; A, B r1 running; QA-3 R1 running | |
-| LA-E5-05 | S1 | A, B APPROVE r1; fix round merged `6ae0ebe` | QA-2 running |
-| LA-E5-06 | L | merged `028c30a`; B running | |
-| LA-E5-09 | S2 | A, B APPROVE r1; fix round merged `3b14a84` | QA-2 running |
-| LA-E5-11 | S1 | merged `586bd01`; A running, B running | QA-2 running |
-| LA-E5-15 | S2 | B APPROVE; A running | QA-2 running |
-| LA-E5-16 | S1 | merged `6ae0ebe`; A running | QA-2 running |
-| LA-E7-02, LA-E7-04, LA-E7-05 | QA-E2E, QA | fix rounds done; final review checks queued | |
-| LA-E5-17 | S1 | Author running (A2 metrics-source ruling pending) | |
-| LA-E3-11 | L | Author running | |
-| LA-E4-05 | R | Author running (with the runner runNow traceId option) | |
+| LA-E1-07, LA-E1-08 | K | fix rounds merged 6270d43; Codex A and B r2 APPROVE (A-LA-E1-07-03 MINOR for the QA-3 fixture); QA-3 R2 running | |
+| LA-E4-03 | R | fix round 1 merged 5f9fd55 (Claude R); Codex A, B r2 running | QA-3 R1 PASS |
+| LA-E4-05 | R | Codex A and B r1 APPROVE (0 findings); QA-3 R1 running | |
+| LA-E5-06 | L | A, B APPROVE r1; fix round running (Claude L: cap race, F5 rule, NITs; RQ-2 L2 files) | |
+| LA-E5-11 | S1 | A, B APPROVE; fix round running (Claude S1) | QA-2 PASS |
+| LA-E5-15 | S2 | **done** except K1-SIM (r2 A, B APPROVE; QA-2 R2 PASS) | |
+| LA-E5-16 | S1 | A CHANGES_REQUESTED (BLOCKER fingerprint target, MAJOR 429; A2 BD-A2-56/57), B APPROVE; fix round running (Claude S1) | QA-2 PASS |
+| LA-E5-17 | S1, L | Codex A CHANGES_REQUESTED (BLOCKER raw path in logs, MAJOR audit count), B CHANGES_REQUESTED (MAJOR); A2 BD-A2-60/61; fix in the S1 round; QA-2 R1 PASS | |
+| LA-E3-11 | L | Codex A, B r1 APPROVE (1 NIT to the L round); QA-4 next | |
+| LA-E3-12 | L | merged a2dfc04; Codex A, B r1 APPROVE (B: 1 MINOR docs follow-up); LA-IC-13 list with the lead QA; QA-4 next | |
+| LA-E1-09, LA-E5-12 | K | LA-E1-09 merged e770ff2 (F1 now 29 hits in 9 files; LA-IC-19); Codex A, B r1 running; LA-E5-12 Author running (Claude K) | |
+| LA-E4-04 | R | after the LA-E4-03 fix round (Claude R) | |
+| LA-E3-13, LA-E5-18 | L2 | merged 84d5679, 1e65040; Codex A and B r1 APPROVE both (0 findings); QA-4 next | |
+| LA-E5-20, LA-E5-21 | S1 | after the S1 fix rounds | |
+| LA-E7-02, LA-E7-05 | QA-E2E | B APPROVE; A r3 / r2 running; QA-E2E to align tests/sim/core/loading.test.mjs with BD-A1-53 (2 tests) | |
 | LA-E0-02/03/04 | QA | LA-E0-03 K0 PASS, K1-SIM pending Docker; LA-E0-04 waits for both reviewers on the LD-1 list | |
+| Waiting for a human decision | — | LA-E3-10 (LA-H4), LA-E4-08 and LA-E3-08 (LA-H22) | plan §6.2 |
 
-LTI migration numbers (Lead, RQ-5): 011 S2 `api_key`; 012 S1 `service_setting` + `registration_session.client_key`; 013 S1 `job_lease`/`job_instance` (LA-E5-19); 014 L (LA-E3-01, platform storage state); 015 L (LA-E3-02, storage_check); 016 S2 (LA-E5-15 service_key epoch); 017 S1 (LA-E5-16 idempotency). App migrations: 013 K, 014 R, 015 S1.
+LTI migration numbers (Lead, RQ-5): 011 S2 `api_key`; 012 S1 `service_setting` + `registration_session.client_key`; 013 S1 `job_lease`/`job_instance` (LA-E5-19); 014 L (LA-E3-01, platform storage state); 015 L (LA-E3-02, storage_check); 016 S2 (LA-E5-15 service_key epoch); 017 S1 (LA-E5-16 idempotency); 018 L (LA-E3-12 trusted audiences); 019 S1 (LA-E5-20 tool_account.auto_rotate, A2 BD-A2-65). App migrations: 013 K, 014 R, 015 S1, 016 R (LA-E4-03 fix round 2, partition pause index, if R chooses the index).
 
 Incident 2026-10-22 10:20Z: integration red on F1 at `b5069f6` (app migration 013 frozen LMS strings); A1 BD-A1-19, lane P fix `e5a687a`, merged `8a1ef2d`. Process fix: the Lead runs the full check on each merge SHA and tells all lanes about a known red line.
 
 
 Incident 2026-10-22 14:1xZ: an early merge of lane K's types-only ports.ts turned K0 red (the kit switched baseline adapter cases on when the file existed); the Lead removed that local merge commit within minutes (no other branch had it). Also, the Lead stopped its own check with a name-pattern pkill that may have stopped other agents' vitest runs on the shared host; rule now: stop only your own job by id.
 
-Integration branch: `d40826d`+; last full check green at `d40826d` (2498 unit, 121 K0, F1 74 hits in 20 files, F5 6 rules); last full ci:local 5/5 PASS at `5b71bc5`. F1 at build start: 677 hits in 80 files.
+Integration branch: `5f9fd55`+; last full check green at `e770ff2` (2700 unit, 252 infra, 121 K0, F1 29 hits in 9 files, F5 6 rules). RQ-2 records: P commit 6894c86 holds one K line in vitest.config.ts (fileURLToPath); S2 LA-E5-09 store/registrations.ts key-provider lines (S2 in B1-B2); L commit c521136 changes one line of lti/service-keys.ts (L2 file in B3; Lead-authorized B-LA-E5-15-05 item while L2 had no session); L commit a6ea71e changes one fixture line of lti/idtoken.test.ts (L2 file, Lead-granted). Flake: infra sqlite-lock-probe (other run's ADR-012 code) failed once each for lanes K and P today; passes on rerun.

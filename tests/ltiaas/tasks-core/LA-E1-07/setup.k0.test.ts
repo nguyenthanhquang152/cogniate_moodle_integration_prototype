@@ -54,6 +54,16 @@ interface LoadedChannel {
 
 interface KernelSurface {
   loadChannelFolders(roots: readonly string[], side: 'lti' | 'app'): Promise<LoadedChannel[]>;
+  buildChannelRegistry(
+    channels: readonly LoadedChannel[],
+    options?: { side?: 'lti' | 'app'; simulations?: boolean },
+  ): unknown;
+  familyGuardVerdict?: (
+    registry: unknown,
+    family: string | null | undefined,
+    profileChannel: string | null | undefined,
+    phase: 'registration' | 'launch',
+  ) => { kind: 'pass' } | { kind: 'refuse' | 'log'; family: string; guardChannel: string };
 }
 
 let clean: RunResult;
@@ -165,10 +175,18 @@ function buildPortContext(channelId: BaselineId, manifest: Record<string, unknow
   return {
     account: { id: 'acc-1', slug: 'cogniate', name: "Thanh's Library" },
     libraryName: "Thanh's Library",
+    toolAccountId: 'cogniate',
     urls: {
       app: 'https://app.cogniate.test:9443',
       lti: 'https://lti.cogniate.test:9443',
       player: 'https://player.cogniate.test:9443',
+    },
+    toolUrls: {
+      login: 'https://lti.cogniate.test:9443/lti/login/cogniate',
+      launch: 'https://lti.cogniate.test:9443/lti/launch/cogniate',
+      keys: 'https://lti.cogniate.test:9443/lti/keys/cogniate',
+      register: 'https://lti.cogniate.test:9443/lti/register/cogniate',
+      ltiOrigin: 'https://lti.cogniate.test:9443',
     },
     siteUrl,
     serviceUrl: siteUrl,
@@ -533,5 +551,120 @@ describe('LA-E1-07 ConnectionSetup port, authority strategies and baseline chann
     }
 
     artifact('e1-07-ac09-f1-deltas.json', `${JSON.stringify({ baseSha, headSha, deltas }, null, 2)}\n`);
+  });
+
+  it('BD-A1-40, BD-A1-54, BD-A1-55: kernel contexts supply toolAccountId/toolUrls, @cogniate/channel-kernel/setup pins pure helpers, and familyGuardVerdict implements the two-phase registration/launch table', async () => {
+    // 1. BD-A1-40: @cogniate/channel-kernel/setup exports the 4 pure setup helpers and P2 toolConfiguration reads ctx.toolUrls.
+    const setupHelperEntry = pathToFileURL(path.join(ROOT, 'packages/channel-kernel/src/setup.ts')).href;
+    const setupHelpers = (await import(setupHelperEntry)) as Record<string, unknown>;
+    expect(typeof setupHelpers.toolName, 'toolName exported from @cogniate/channel-kernel/setup').toBe('function');
+    expect(setupHelpers.PRINTABLE_ID instanceof RegExp, 'PRINTABLE_ID exported').toBe(true);
+    expect(setupHelpers.GRANT_CODE instanceof RegExp, 'GRANT_CODE exported').toBe(true);
+    expect(typeof setupHelpers.parseStrictBody, 'parseStrictBody exported').toBe('function');
+
+    const customToolUrls = {
+      login: 'https://lti-custom.example.test/lti/login/custom-acct',
+      launch: 'https://lti-custom.example.test/lti/launch/custom-acct',
+      keys: 'https://lti-custom.example.test/lti/keys/custom-acct',
+      register: 'https://lti-custom.example.test/lti/register/custom-acct',
+      ltiOrigin: 'https://lti-custom.example.test',
+    };
+    for (const id of BASELINE_IDS) {
+      const entry = loadedById.get(id)!;
+      const setup = unwrapSetup(entry.appAdapter);
+      const ctx = {
+        ...buildPortContext(id, entry.manifest),
+        toolAccountId: 'custom-acct',
+        toolUrls: customToolUrls,
+      };
+      const rows = normalizeRows(setup.toolConfiguration!(ctx));
+      const allValues = rows.map((r) => r.value).join('\n');
+      expect(allValues, `${id}: toolConfiguration uses injected toolUrls.launch`).toContain(customToolUrls.launch);
+      if (id !== 'canvas') {
+        expect(allValues, `${id}: toolConfiguration uses injected toolUrls.login`).toContain(customToolUrls.login);
+        expect(allValues, `${id}: toolConfiguration uses injected toolUrls.keys`).toContain(customToolUrls.keys);
+      }
+    }
+
+    // 2. BD-A1-54 / BD-A1-55: familyGuardVerdict two-phase table ('registration' vs 'launch').
+    expect(typeof kernel.familyGuardVerdict, 'familyGuardVerdict is exported from @cogniate/channel-kernel').toBe(
+      'function',
+    );
+    const verdictFn = kernel.familyGuardVerdict!;
+    const moodleManifest = loadedById.get('moodle')!.manifest as Record<string, unknown>;
+    const regGuardChannel: LoadedChannel = {
+      folder: '/tmp/zz-reg-guard',
+      manifest: {
+        ...moodleManifest,
+        id: 'zz-reg-guard',
+        names: { label: 'ZZ Reg', text: 'ZZ Reg' },
+        card: { ...(moodleManifest.card as Record<string, unknown>), order: 99 },
+        lti: {
+          ...(moodleManifest.lti as Record<string, unknown>),
+          guardedFamilies: [{ family: 'zz-family', level: 'registration' }],
+        },
+        registration: [
+          {
+            method: 'dynamic',
+            profiles: ['zz-reg-profile'],
+            defaultProfile: 'zz-reg-profile',
+            authority: 'operatorGrant',
+          },
+        ],
+      },
+    };
+    const testRegistry = kernel.buildChannelRegistry(
+      [...loadedById.values(), regGuardChannel],
+      { side: 'app', simulations: true },
+    );
+
+    // Pass: absent, empty, unguarded, or own channel.
+    expect(verdictFn(testRegistry, undefined, 'moodle', 'registration')).toEqual({ kind: 'pass' });
+    expect(verdictFn(testRegistry, '', 'moodle', 'launch')).toEqual({ kind: 'pass' });
+    expect(verdictFn(testRegistry, 'moodle', 'moodle', 'registration')).toEqual({ kind: 'pass' });
+    expect(verdictFn(testRegistry, 'canvas', 'canvas', 'registration')).toEqual({ kind: 'pass' });
+    expect(verdictFn(testRegistry, 'canvas', 'canvas', 'launch')).toEqual({ kind: 'pass' });
+    expect(verdictFn(testRegistry, 'zz-family', 'zz-reg-guard', 'registration')).toEqual({ kind: 'pass' });
+    expect(verdictFn(testRegistry, 'zz-family', 'zz-reg-guard', 'launch')).toEqual({ kind: 'pass' });
+
+    // Registration phase: any guard of another channel refuses (both 'launch'-level and 'registration'-level).
+    expect(verdictFn(testRegistry, 'canvas', 'moodle', 'registration')).toEqual({
+      kind: 'refuse',
+      family: 'canvas',
+      guardChannel: 'canvas',
+    });
+    expect(verdictFn(testRegistry, 'zz-family', 'moodle', 'registration')).toEqual({
+      kind: 'refuse',
+      family: 'zz-family',
+      guardChannel: 'zz-reg-guard',
+    });
+    expect(verdictFn(testRegistry, 'zz-family', 'canvas', 'registration')).toEqual({
+      kind: 'refuse',
+      family: 'zz-family',
+      guardChannel: 'zz-reg-guard',
+    });
+
+    // Launch phase: 'launch'-level guard of another channel refuses; 'registration'-level guard refuses only on
+    // MANUAL_SELF_LEGACY_CHANNELS ('moodle'), else logs ('log').
+    expect(verdictFn(testRegistry, 'canvas', 'moodle', 'launch')).toEqual({
+      kind: 'refuse',
+      family: 'canvas',
+      guardChannel: 'canvas',
+    });
+    expect(verdictFn(testRegistry, 'blackboardlearn', 'canvas', 'launch')).toEqual({
+      kind: 'refuse',
+      family: 'blackboardlearn',
+      guardChannel: 'blackboard',
+    });
+    expect(verdictFn(testRegistry, 'zz-family', 'moodle', 'launch')).toEqual({
+      kind: 'refuse',
+      family: 'zz-family',
+      guardChannel: 'zz-reg-guard',
+    });
+    expect(verdictFn(testRegistry, 'zz-family', 'canvas', 'launch')).toEqual({
+      kind: 'log',
+      family: 'zz-family',
+      guardChannel: 'zz-reg-guard',
+    });
   });
 });

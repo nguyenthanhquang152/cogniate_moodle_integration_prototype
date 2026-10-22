@@ -1,13 +1,13 @@
 // The player shell script (app origin, /_player/shell.js): polls GET /app-api/play/{playId}/status every 5 s and
-// shows the status text ("In progress", "Completed — score 100 sent to Moodle", "Preview — no grade is sent").
+// shows the status text ("In progress", "Completed — score 100 sent to {LMS}", "Preview — no grade is sent").
 import type { PlayStatus } from '@cogniate/tracking';
 import { playStatusText } from '@cogniate/tracking';
 import { lmsName } from '../lms-name.ts';
 
 export const POLL_MS = 5000;
 
-/** One poll: the new text, or null (no change on an error). */
-export async function pollOnce(fetchFn: typeof fetch, playId: string, name: 'Moodle' | 'Canvas' | 'Blackboard' = 'Moodle'): Promise<string | null> {
+/** One poll: the new text, or null (no change on an error). `name` is the `{LMS}` text name of the page. */
+export async function pollOnce(fetchFn: typeof fetch, playId: string, name: string): Promise<string | null> {
   try {
     const res = await fetchFn(`/app-api/play/${encodeURIComponent(playId)}/status`, { cache: 'no-store', credentials: 'omit' });
     if (!res.ok) return null;

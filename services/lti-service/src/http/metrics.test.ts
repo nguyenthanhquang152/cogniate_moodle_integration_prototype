@@ -45,7 +45,7 @@ async function setup(profile = 'default', file = ':memory:') {
   });
   const operator = await buildOperatorApp({ db, keys: provider, logger, urls: URLS, now: () => clock.now });
   cleanup.push(async () => { await Promise.all([app.close(), operator.close()]); if (db.isOpen) db.close(); });
-  return { db, clock, provider, app, operator, metrics, logger, lines, apiKey: a.apiKey! };
+  return { db, clock, masterKey, provider, app, operator, metrics, logger, lines, apiKey: a.apiKey! };
 }
 
 const scrape = async (h: Awaited<ReturnType<typeof setup>>) => (await h.operator.inject('/metrics')).body;
@@ -210,5 +210,60 @@ describe('metrics collection', () => {
     expect(text).toContain(`lti_platform_rate_limited_total{platform_id="${platform.id}"} 1\n`);
     expect(text).toContain('lti_job_last_success_timestamp_seconds{job="retention"} 1800000000\n');
     for (const secret of ['private.example', 'learner', 'person@example.test', 'unregistered-path-value']) expect(text).not.toContain(secret);
+  });
+
+  describe('platform observers (BD-A2-52, BD-A2-54)', () => {
+    const platformOn = (h: Awaited<ReturnType<typeof setup>>, name: string, jwksUrl: string, active = true) => createPlatform(h.db, 'cogniate', {
+      issuer: `https://${name}.test`, clientId: name, name, authEndpoint: `https://${name}.test/auth`, tokenEndpoint: `https://${name}.test/token`,
+      jwksUrl, deploymentIds: ['1'], active,
+    });
+    const answer = (status: number, body: unknown) => {
+      const bytes = Buffer.from(JSON.stringify(body));
+      return { status, body: bytes, headers: {}, text: () => bytes.toString(), json: () => JSON.parse(bytes.toString()) as unknown };
+    };
+
+    it('counts token failures and one JWKS failure per waiting verification, for stored platforms only', async () => {
+      const h = await setup();
+      const shared = 'https://shared.test/keys';
+      const [first, second] = [platformOn(h, 'first', shared), platformOn(h, 'second', shared)];
+      await ensureToolKey(h.db, h.provider, 'cogniate');
+      let tokenStatus = 401;
+      const outbound = { ...fakeOutbound(() => []), request: async (url: string) => url === shared ? answer(500, {}) : answer(tokenStatus, { access_token: 'unit', expires_in: 60 }) };
+      const tokens = createTokenClient({ db: h.db, masterKey: h.masterKey, outbound, logger: h.logger, now: () => h.clock.now, onTokenResult: h.metrics.tokenResult });
+      await expect(tokens.getToken(first, ['scope'], 'trace-token-1')).rejects.toThrow(ApiError);
+      tokenStatus = 200;
+      await tokens.getToken(second, ['scope'], 'trace-token-2');
+      const keys = createPlatformKeys(outbound, () => h.clock.now, h.metrics.jwksFetch);
+      // The first call starts the fetch; the second joins it. Each waiting call counts for its own platform.
+      await Promise.allSettled([keys.verify('a.b.c', shared, 'trace-jwks-1', first.id), keys.verify('a.b.c', shared, 'trace-jwks-2', second.id)]);
+      h.clock.now += 61_000;
+      await expect(keys.verify('a.b.c', shared, 'trace-jwks-3', 'unregistered-platform')).rejects.toThrow();
+      h.clock.now += 61_000;
+      await expect(keys.verify('a.b.c', shared, 'trace-jwks-4')).rejects.toThrow();
+      const text = await scrape(h);
+      expect(text).toContain(`lti_platform_token_failures_total{platform_id="${first.id}"} 1\n`);
+      expect(text).not.toContain(`lti_platform_token_failures_total{platform_id="${second.id}"}`);
+      for (const platform of [first, second]) expect(text).toContain(`lti_jwks_fetch_failures_total{platform_id="${platform.id}"} 1\n`);
+      expect(text).not.toContain('unregistered-platform');
+      expect(text.match(/^lti_jwks_fetch_failures_total/gm)).toHaveLength(2);
+    });
+
+    it('reports the cache age at scrape time for every active platform whose JWKS URL has an entry', async () => {
+      const h = await setup();
+      const shared = 'https://shared.test/keys';
+      const [first, second] = [platformOn(h, 'first', shared), platformOn(h, 'second', shared)];
+      const [unfetched, inactive] = [platformOn(h, 'unfetched', 'https://unfetched.test/keys'), platformOn(h, 'inactive', shared, false)];
+      const outbound = { ...fakeOutbound(() => []), request: async () => answer(200, { keys: [] }) };
+      const keys = createPlatformKeys(outbound, () => h.clock.now, h.metrics.jwksFetch);
+      h.metrics.readJwksAges(keys);
+      expect(await scrape(h)).not.toMatch(/^lti_jwks_cache_age_seconds\{/m);
+      // Only the first platform's launch fetches; the second shares the cache entry with no own call.
+      await expect(keys.verify('a.b.c', shared, 'trace-age', first.id)).rejects.toThrow();
+      h.clock.now += 30_000;
+      const text = await scrape(h);
+      expect(text).toContain('# TYPE lti_jwks_cache_age_seconds gauge\n');
+      for (const platform of [first, second]) expect(text).toContain(`lti_jwks_cache_age_seconds{platform_id="${platform.id}"} 30\n`);
+      for (const platform of [unfetched, inactive]) expect(text).not.toContain(platform.id);
+    });
   });
 });

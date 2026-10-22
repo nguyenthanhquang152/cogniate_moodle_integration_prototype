@@ -364,3 +364,61 @@ Reviewer-A A-LA-E5-16-01 (BLOCKER) and -02 (MAJOR), routed in dispatch `ctx_651c
 | BD-A2-57 | A-LA-E5-16-02: a platform `429` is stored and replayed for 24 h with its old `Retry-After`, so a retry never reaches the platform. | **Final = `2xx`, or `4xx` other than `429`.** Every `5xx`, every `429`, and any answer with `Retry-After` is not final: the claim is abandoned, and the replay `Retry-After` branch goes. Checked: the idempotency `409`/`422` come from the hook; `JOB_RUNNING` is operator-only; `401`/`403`/`404` of the target come before the lookup; `PLATFORM_ALREADY_EXISTS`, `DEPLOYMENT_ALREADY_EXISTS`, `INVALID_REQUEST` and `PLATFORM_REJECTED_REQUEST` are final. | LA-ADR-06 D9; contract delta §4.9; LA-E5-16 design notes | My BD-A2-51 text said "4xx" and missed that `429` asks for a retry. Stored `429` records from `6ae0ebe` exist only on test volumes and expire within 24 h. |
 
 Changes for the Lead to route: **S1 (LA-E5-16 fix round):** the target in the fingerprint, the new lookup order, the non-final rule, removing the replay `Retry-After` branch, and the three unit tests in the design notes.
+
+## 30. Round 29: idempotency refusal texts and the app CLI refusal line (LA-E5-16, LA-E5-11, LA-E5-12), 2026-10-23
+
+Reviewer-B B-LA-E5-16-01 and B-LA-E5-11-01 (MINOR), routed in dispatch `ctx_3e116c8ff5b3`. Decisions sent to the Lead first (`msg_e0def9256a7c`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-58 | The idempotency `409` and `422` do not say what to do next. (Provisional: Reviewer-B's texts, with the target in the `422` text.) | **Ratified.** `409 IDEMPOTENCY_IN_PROGRESS` gets `details.retryAfter` (seconds until the 60 s claim ends, at least 1), so `Retry-After` is sent, and the description "A request with this Idempotency-Key is still running. Retry after the time in Retry-After." The `422` description names "another route, path id, target (platform, deployment or course) or body" and "Use a new key for a new request." | contract delta §1.3 (both rows); LA-E5-16 design notes | No conflict with BD-A2-57: the hook produces the `409` and never stores it. |
+| BD-A2-59 | The app CLI refusal lines give only a code; production with no operator list gives `operator_unknown`, which points at the wrong cause. (Provisional: `{reason, message}`, `operators_not_configured`, LA-E5-12 prints the line as it gets it.) | **Ratified.** The existing line keeps `event` and `reason` and adds `message`: one fixed sentence per code, never echoing input. New code `operators_not_configured` (production; no list, or an empty one). The ten codes and their messages are in LA-ADR-07 D4. `app:audit` uses the same shape. LA-E5-12 prints the line unchanged (stderr, exit 1). | LA-ADR-07 D4 "Refusal line of the app CLIs"; LA-E5-11 and LA-E5-12 design notes | Fixed messages keep the line safe to log and easy to test. Every code now names its own fix. |
+
+Changes for the Lead to route: **S1 (LA-E5-16 and LA-E5-11 fix rounds):** the two descriptions and `retryAfter`; the `message` field, the new code and its unit tests. **K (LA-E5-12):** print the policy line unchanged.
+
+## 31. Round 30: audit counted at commit, and the request path in logs (LA-E5-17 review, lane S1), 2026-10-23
+
+Review findings A-/B-LA-E5-17-01 (MAJOR) and A-LA-E5-17-02 (BLOCKER), routed in dispatch `ctx_6769e4895e4c`. Decisions sent to the Lead first (`msg_0080b75fdb6a`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-60 | A committed audit insert inside a caller-owned transaction is never counted. My BD-A2-52 accepted that ("no such route today"), but the `key-rewrap` end event does it. (Provisional: a per-transaction buffer, publish after the outermost commit, discard on rollback.) | **Ratified; my BD-A2-52 exception is removed.** A commit hook `afterCommit(db, fn)` in the shared transaction helper (S1 holds `migrations.ts` by RQ-2): per-scope buffers (merge at `RELEASE`; drop at `ROLLBACK TO` and `ROLLBACK`; run once after the outermost `COMMIT`; at once in autocommit); synchronous callbacks that never throw into the commit path. `insertAuditEvent` registers the count at every insert. | LA-ADR-06 D4 T0, D10 "Metrics"; operability §4.2 "Sources"; LA-E5-17 design notes | I was wrong in BD-A2-52: a product path already commits an event in its own transaction. One hook at the insert counts every path the same way. The app shares the helper (A1 FYI); with no callbacks nothing changes. |
+| BD-A2-61 | `http_request` logs the raw `req.url` path (after `redactPath`, which masks only long segments), so `/lti/login/alice@example.test` reaches the log. (Provisional: the route template, `<unmatched>` for no match.) | **Ratified.** `path` = the matched route template with no ids filled in; `<unmatched>` when no route matches; no query; the tenant stays in `tool_account_id`. Readers checked: base contract §5 says "path (no query)"; the M1 oracle does not read `path`; T1 H7 matches by trace id (the service sends `x-trace-id`). `redactPath` stays in `packages/shared` for the app. | operability §4.1; LA-ADR-06 D10 "Tenant id in logs"; contract delta §6; LA-E5-17 design notes | A template is bounded and holds no personal data; filled-in ids would add nothing that `tool_account_id` does not already hold. A1 FYI: the app's unmatched requests still log `redactPath(raw url)` (`server.ts:107`, `content-host/server.ts:122`); the same rule is recommended there (app contract, A1's call). |
+
+Changes for the Lead to route: **S1 (LA-E5-17 fix round):** the commit hook and its four tests; the route-template path and its two tests. **A1 FYI:** the shared commit hook; the app's unmatched-path log line.
+
+## 32. Round 31: the `app:audit` refusal line (LA-E5-11 fix round, lane S1), 2026-10-23
+
+Routed in dispatch `ctx_da332f36da02`. The Lead's provisional call is ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-62 | (Provisional, S1.) `app:audit` keeps the event `audit_list_refused` and `traceId`, and adds `message` = one fixed sentence per code that never echoes input (no bad flag, no `DATA_DIR` path; the usage line and the default path are in the fixed text); a wrong command gives `arguments_invalid` instead of the usage text as the reason; `--help` prints the usage on stdout with exit 0. | **Ratified.** The six codes and their fixed messages are now in LA-ADR-07 D4 (`arguments_invalid`, `connection_invalid`, `action_invalid`, `limit_invalid`, `since_invalid`, `audit_read_failed`). Reviewer-B's wish to name the bad flag is refused by the BD-A2-59 rule "never echoes input". | LA-ADR-07 D4 (`app:audit list` refusals); LA-E5-11 design notes | BD-A2-59's "same shape" means the `reason` and `message` fields. `app:audit` keeps its own event name and `traceId`, because it is a read command, not the operator policy. |
+
+Changes for the Lead to route: none beyond S1's fix round.
+
+## 33. Round 32: evidence for revoke, and refused events of the app CLIs (LA-E5-12 lane K, LA-E5-11 lane S1), 2026-10-23
+
+K's question and three provisional points, routed in dispatch `ctx_8749e4ef993f`. Decisions sent to the Lead first (`msg_a9aa80ad17c2`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-63 | Q1: `app:grant revoke` takes only `--operator`, but the policy requires evidence for every production command, so a production revoke always fails. (a) A policy input flag (S1), or (b) revoke also takes the evidence flags. (Provisional: (b).) | **Changed to (a).** `OperatorPolicyInput.evidenceRequired?: boolean`, default `true` (fail closed); `false` only for revoke, which skips only the two "missing" checks. Revoke does not parse evidence flags; K drops its interim parse. | LA-ADR-07 D5; LA-E5-11 and LA-E5-12 design notes | D5 lists evidence only for issue, suspend and release. A revoke only removes access (the BD-A2-12 principle), and an emergency revoke must not wait for a ticket reference. |
+| BD-A2-64 | (Provisional.) One `refused` event per refusal after the target is resolved, also for a format error on a known target; none for an unknown target, a usage error or an LTI outage. A stable snake_case `code` per refusal, with the CLI line text unchanged. The policy line printed as given and logged with its event and reason. | **Ratified, with one precision:** a policy refusal never writes an event, even after the target was read (BD-A2-45). | LA-ADR-07 D4 "Audit events of refused CLI runs"; LA-E5-12 design notes | The code list belongs in the app API delta §7 table (A1's file); until A1 adds it, the LA-E5-12 notes hold it. |
+
+Changes for the Lead to route: **S1 (LA-E5-11 fix round):** the `evidenceRequired` input and its two unit tests. **K (LA-E5-12):** revoke with `evidenceRequired: false`, dropping the interim evidence flags. **A1:** the refusal-code list in the app API delta §7.
+
+## 34. Round 33: LA-E5-20 spec gaps (lane S1), 2026-10-23
+
+Six questions from S1, routed in dispatch `ctx_a41d37871369` (provisional: "ok to all six"). Decisions sent to the Lead first (`msg_232fe65ebc42`).
+
+| Id | Question | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-65 | Q1 `autoRotate`: the environment list `SIGNING_KEY_AUTO_ROTATE_ACCOUNTS`, or a stored field? | **Changed to a stored field:** LTI migration `019` `tool_account.auto_rotate` (default `0`); `PATCH /operator/v1/accounts/:id {autoRotate}`; `Account.autoRotate`; an `account.update` event; `409 ACCOUNT_CLOSED` on a closed account. | LA-ADR-06 D2 (column table), D7; contract delta §1.1, §3; operability §2; LA-E5-20 notes | D7 makes it an account setting, like `limits` and `claimPolicy`: changed through the API, audited, no restart. S1 owns the account files in B3. |
+| BD-A2-66 | Q2 `closedRetentionDays`: `CLOSED_ACCOUNT_RETENTION_DAYS`? | **Ratified:** default 30, a whole number ≥ 1, a bad value stops the start, counted from `status_changed_at`. | LA-ADR-06 D2; operability §2 | — |
+| BD-A2-67 | Q3 the purge scope (delete the tenant rows of ten tables; keep the tombstone and the audit rows; a log line; no audit event). | **Scope ratified; changed: one `account.purge` audit event** per purged account (actor `system:account-purge`, `details` = counts by table), in the same transaction. | LA-ADR-06 D2; contract delta §5; security-delta §8; LA-E5-20 notes | The deletion of a tenant's data is the evidence of the LA-H4 retention promise, and audit rows survive the purge. The account lifecycle lives in LA-ADR-06 D2, not LA-ADR-07. |
+| BD-A2-68 | Q4 the rotation job (the route events with actor `system:signing-key-rotation`; `SIGNING_KEY_ROTATE_DAYS` ≥ 8; never forces; respects the lead time). | **Ratified, plus:** it skips accounts that are not `active`. | LA-ADR-06 D7; contract delta §5; operability §2 | Nothing signs for a suspended or closed account. |
+| BD-A2-69 | Q5 `POST /operator/v1/jobs/:name/run` answers (as BD-A2-50; `404` for an unknown name; `key-rewrap` allowed; ISO `lastRunAt`). | **Ratified.** | LA-ADR-06 D11 "On-demand runs"; contract delta §3 | — |
+| BD-A2-70 | Q6 `api-key-expiry`: `api_key_expiring` warn lines and `job_run` counts `{expiring}`; the gauge stays the scrape query. | **Ratified.** | LA-ADR-06 D11 (job row) | Ids only, never a key. |
+
+Changes for the Lead to route: **S1 (LA-E5-20)**: the stored `autoRotate` field (migration `019`, the account PATCH and view), the `account.purge` event, and skipping accounts that are not active; the rest as S1 planned.

@@ -184,6 +184,7 @@ The app CLIs stay shell commands in LA; they do not become clients of an operato
 | `record_dispatch` | info | `dispatch_id`, `reporter`, `status`, `tries`, `phase` | new; for reporters other than `lti-ags` (none in LA) |
 | `dispatch_throttled` | warn | `dispatch_id`, `partition`, `retry_at` | new (`429` handling) |
 | `launch_rejected`, `deep_link_rejected` | warn | `connection_lms` holds the channel id | values widen; names unchanged |
+| `http_request` | info (`debug` for `/healthz`) | `trace_id`, `method`, `path`, `status`, `ms` | changed (BD-A1-62, same rule as the LTI service, A2 BD-A2-61): `path` is the matched route template with no ids filled in and no query, or `<unmatched>` when no route matches; never the raw path, also not after `redactPath`. Both listeners: `app/server.ts` and `content-host/server.ts` |
 
 ## 8a. App metrics (Should, with E5 metrics)
 

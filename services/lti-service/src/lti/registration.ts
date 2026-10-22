@@ -3,7 +3,6 @@
 import type { ProtocolUrls } from './target.ts';
 import type { PrivacyLevel, RegistrationOperation } from '../store/registrations.ts';
 import { isHttpsUrl } from './platform-rules.ts';
-import { launchUri, loginUri } from './target.ts';
 
 export const PRIVACY_LEVELS: readonly PrivacyLevel[] = ['public', 'name_only', 'email_only', 'anonymous'];
 export const DEFAULT_PRIVACY: PrivacyLevel = 'anonymous';
@@ -111,14 +110,14 @@ export function buildRegistrationRequest(input: {
   messages?: RegistrationMessage[];
   scopes?: readonly string[];
 }): Obj {
-  const launch = launchUri(input.protocolUrls);
+  const launch = input.protocolUrls.launch;
   const messages = (input.messages ?? [{ type: 'LtiDeepLinkingRequest', placements: ['ContentArea'] }])
     .map((m) => ({ type: m.type, target_link_uri: m.target_link_uri ?? launch, label: m.label ?? 'Cogniate', ...(m.placements ? { placements: m.placements } : {}) }));
   return {
     application_type: 'web',
     response_types: ['id_token'],
     grant_types: ['implicit', 'client_credentials'],
-    initiate_login_uri: loginUri(input.protocolUrls),
+    initiate_login_uri: input.protocolUrls.login,
     redirect_uris: [launch],
     jwks_uri: input.protocolUrls.keys,
     token_endpoint_auth_method: 'private_key_jwt',

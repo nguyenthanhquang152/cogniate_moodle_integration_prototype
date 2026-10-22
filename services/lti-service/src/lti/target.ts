@@ -1,14 +1,20 @@
-import type { createAccountResolver } from '../accounts/resolver.ts';
+import type { ToolAccount } from '../store/accounts.ts';
 
-export type ProtocolUrls = ReturnType<ReturnType<typeof createAccountResolver>['protocolUrls']>;
-
-/** {PUBLIC_LTI_URL}/lti/launch/{toolAccountId}: the redirect URI and the only allowed launch target. */
-export function launchUri(urls: Pick<ProtocolUrls, 'launch'>): string {
-  return urls.launch;
+/** The protocol URLs of one tool account. Only accounts/resolver.ts builds them (LA-ADR-06 D2, BD-A2-49). */
+export interface ProtocolUrls {
+  /** OIDC login initiation (contract §2.1). */
+  login: string;
+  /** The redirect URI and the only allowed launch target (contract §2.2). */
+  launch: string;
+  /** The tool JWKS (contract §2.3). */
+  keys: string;
+  /** The Dynamic Registration start (contract §2.4). */
+  register: string;
 }
 
-export function loginUri(urls: Pick<ProtocolUrls, 'login'>): string {
-  return urls.login;
+/** The part of the account resolver that protocol code uses. A route group builds one resolver at registration. */
+export interface ProtocolUrlResolver {
+  protocolUrls(account: ToolAccount): ProtocolUrls;
 }
 
 /**
@@ -24,6 +30,6 @@ export function isOwnLaunchTarget(value: unknown, urls: Pick<ProtocolUrls, 'laun
   } catch {
     return false;
   }
-  const base = new URL(launchUri(urls));
+  const base = new URL(urls.launch);
   return u.origin === base.origin && u.pathname === base.pathname && u.hash === '' && u.username === '' && u.password === '';
 }

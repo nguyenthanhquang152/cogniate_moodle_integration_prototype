@@ -108,7 +108,7 @@ function scoreExtensions(body: Record<string, unknown>): Record<string, unknown>
   if (Object.keys(members).length > 8) throw invalid('extensions', 'must have at most 8 URL-keyed members');
   for (const [key, value] of Object.entries(members)) {
     const json = JSON.stringify(value);
-    if (json === undefined || Buffer.byteLength(json, 'utf8') > 4096) throw invalid(key, 'must be at most 4 KB of JSON');
+    if (json === undefined || Buffer.byteLength(json, 'utf8') > 4096) throw invalid(key, 'must serialize to at most 4096 UTF-8 bytes of JSON, including quotes and escapes');
   }
   return members;
 }
@@ -129,7 +129,7 @@ export function parseScore(body: unknown, nowMs: number = Date.now()): ScoreInpu
     if (typeof b.scoreMaximum !== 'number' || !Number.isFinite(b.scoreMaximum) || b.scoreMaximum <= 0) throw invalid('scoreMaximum', 'must be a number > 0');
     out.scoreMaximum = b.scoreMaximum;
   }
-  if (b.scoreGiven !== undefined) {
+  if (b.scoreGiven !== undefined && b.scoreGiven !== null) {
     if (typeof b.scoreGiven !== 'number' || !Number.isFinite(b.scoreGiven) || b.scoreGiven < 0) throw invalid('scoreGiven', 'must be a number >= 0');
     if (out.scoreMaximum === undefined) throw invalid('scoreMaximum', 'is required with scoreGiven');
     out.scoreGiven = b.scoreGiven;

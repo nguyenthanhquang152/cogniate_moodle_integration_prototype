@@ -1,7 +1,8 @@
 import * as shared from '@cogniate/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ProviderProfile } from '../profiles/index.ts';
-import { CLIENT_ID, ISSUER, LAUNCH, URLS, harness, testProfileRegistry } from '../testkit.ts';
+import { CLIENT_ID, ISSUER, LAUNCH, URLS, harness, loginForm, testProfileRegistry } from '../testkit.ts';
+import { updateAccount } from '../store/accounts.ts';
 import { STATE_TTL_MS } from '../store/states.ts';
 
 const state = 'a'.repeat(43);
@@ -96,5 +97,59 @@ describe('platform storage login', () => {
     expect(result.body).not.toContain(loginHint);
     expect(result.body.match(/<script\b/g)).toHaveLength(2);
     expect(result.body).toContain('\\u0026');
+  });
+});
+
+// LA-E5-18 (contract delta §6): login_rejected names the account and the platform only when each is a stored row.
+describe('tenant ids in login_rejected', () => {
+  async function plain() {
+    const h = await harness();
+    close.push(async () => { await h.app.close(); h.db.close(); });
+    const get = (account: string, over: Record<string, string> = {}) => h.app.inject({ method: 'GET', url: `/lti/login/${encodeURIComponent(account)}?${loginForm(over)}` });
+    const rejected = () => {
+      const lines = h.lines.filter((l) => l.event === 'login_rejected');
+      expect(lines).toHaveLength(1);
+      return lines[0]!;
+    };
+    return { h, get, rejected };
+  }
+
+  it.each(['nobody', 'Not-An-Id!'])('a login for an unknown account %s logs no tool_account_id field: the old field set (AC-LA-E5-18-04)', async (account) => {
+    const { get, rejected } = await plain();
+    const res = await get(account);
+    expect(res.statusCode).toBe(404);
+    expect(rejected()).toEqual({
+      ts: expect.any(String), level: 'warn', service: 'lti-service', event: 'login_rejected', trace_id: res.headers['x-trace-id'],
+      code: 'UNKNOWN_TOOL_ACCOUNT', detail: 'unknown_tool_account',
+    });
+  });
+
+  it.each([
+    ['an unknown iss (AC-LA-E5-18-01 at unit level)', { iss: 'https://unknown-lms.test' }, 'UNKNOWN_PLATFORM'],
+    ['a missing login_hint', { login_hint: '' }, 'INVALID_REQUEST'],
+  ])('%s: tool_account_id only, no platform_id field', async (_n, over, code) => {
+    const { get, rejected } = await plain();
+    await get('cogniate', over);
+    const line = rejected();
+    expect(line).toMatchObject({ code, tool_account_id: 'cogniate' });
+    expect(line).not.toHaveProperty('platform_id');
+  });
+
+  it.each([
+    ['an unknown deployment', { lti_deployment_id: 'nine' }, 'UNKNOWN_DEPLOYMENT'],
+    ['a target that is not our launch URL', { target_link_uri: 'https://evil.test/lti/launch/cogniate' }, 'INVALID_TARGET_LINK_URI'],
+  ])('%s after the platform is found: tool_account_id and platform_id', async (_n, over, code) => {
+    const { h, get, rejected } = await plain();
+    await get('cogniate', over);
+    expect(rejected()).toMatchObject({ code, tool_account_id: 'cogniate', platform_id: h.platform.id });
+  });
+
+  it.each(['suspended', 'closed'] as const)('a %s account is a stored row: tool_account_id, no platform_id', async (status) => {
+    const { h, get, rejected } = await plain();
+    updateAccount(h.db, 'cogniate', { status }, h.clock.now);
+    await get('cogniate');
+    const line = rejected();
+    expect(line).toMatchObject({ tool_account_id: 'cogniate' });
+    expect(line).not.toHaveProperty('platform_id');
   });
 });

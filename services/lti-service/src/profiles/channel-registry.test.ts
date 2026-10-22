@@ -4,10 +4,12 @@ import { join } from 'node:path';
 import type { ChannelManifest, LoadedChannel } from '@cogniate/channel-kernel';
 import { PRIVACY_FLOOR_NONE_PROFILES, loadChannelFolders } from '@cogniate/channel-kernel';
 import { describe, expect, it } from 'vitest';
+import { createAccountResolver } from '../accounts/resolver.ts';
 import { CLAIM, check14ProductFamily } from '../lti/checks.ts';
 import { createPlatformKeys } from '../lti/jwks.ts';
 import { handleLaunch } from '../lti/launch.ts';
 import { initiateLogin } from '../lti/login.ts';
+import { getAccount } from '../store/accounts.ts';
 import { createPlatform, updatePlatform } from '../store/platforms.ts';
 import { CLIENT_ID, ISSUER, LAUNCH, URLS, capturingLogger, doLogin, harness, moodleClaims, sign } from '../testkit.ts';
 import { CHANNEL_ROOT, buildProfileRegistry, findProfile, listProfiles, lmsNameOf, lmsNameOfFamily, loadProfileRegistry, profileDefinition, profileEndpoints, profileOfFixedIssuer } from './index.ts';
@@ -172,25 +174,26 @@ it('uses one registry context for profile lookups and login/launch text', async 
   expect(lmsNameOf(null, opts)).toBe('Test default');
   const h = await harness();
   try {
+    const resolver = createAccountResolver(h.db, URLS.lti);
     const params = { iss: 'https://zz.example.test', login_hint: '1', target_link_uri: LAUNCH, client_id: CLIENT_ID };
-    expect(initiateLogin(h.db, URLS, 'absent', params, h.clock.now, opts)).toMatchObject({ ok: false, lms: 'ZZ' });
+    expect(initiateLogin(h.db, resolver, getAccount(h.db, 'absent'), params, h.clock.now, opts)).toMatchObject({ ok: false, lms: 'ZZ' });
     for (const iss of [undefined, 'unreadable', 'https://unknown.example.test']) {
-      expect(initiateLogin(h.db, URLS, 'absent', { iss }, h.clock.now, opts)).toMatchObject({ ok: false, lms: 'Test default' });
+      expect(initiateLogin(h.db, resolver, getAccount(h.db, 'absent'), { iss }, h.clock.now, opts)).toMatchObject({ ok: false, lms: 'Test default' });
     }
     const values = profileEndpoints(profile, {});
     const platform = createPlatform(h.db, 'cogniate', {
       issuer: values.issuer, authEndpoint: values.authenticationEndpoint, tokenEndpoint: values.accesstokenEndpoint, jwksUrl: values.jwksUrl,
       clientId: CLIENT_ID, name: 'Unit platform', active: false, deploymentIds: ['1'], profile: profile.id,
     });
-    expect(initiateLogin(h.db, URLS, 'cogniate', params, h.clock.now, opts)).toMatchObject({ ok: false, code: 'PLATFORM_NOT_ACTIVE', lms: 'ZZ' });
+    expect(initiateLogin(h.db, resolver, getAccount(h.db, 'cogniate'), params, h.clock.now, opts)).toMatchObject({ ok: false, code: 'PLATFORM_NOT_ACTIVE', lms: 'ZZ' });
     updatePlatform(h.db, 'cogniate', platform.id, { active: true });
-    const login = initiateLogin(h.db, URLS, 'cogniate', params, h.clock.now, opts);
+    const login = initiateLogin(h.db, resolver, getAccount(h.db, 'cogniate'), params, h.clock.now, opts);
     expect(login.ok).toBe(true);
     if (!login.ok) throw new Error('login must succeed');
     const result = await handleLaunch({
-      db: h.db, urls: URLS, keys: createPlatformKeys(h.outbound), ltikTtlSeconds: 86400, now: () => h.clock.now,
+      db: h.db, urls: URLS, resolver: createAccountResolver(h.db, URLS.lti), keys: createPlatformKeys(h.outbound), ltikTtlSeconds: 86400, now: () => h.clock.now,
       profiles: opts, logger: capturingLogger().logger,
-    }, 'cogniate', { state: new URL(login.location).searchParams.get('state'), error: 'access_denied' }, undefined, 'registry-unit');
+    }, getAccount(h.db, 'cogniate'), { state: new URL(login.location).searchParams.get('state'), error: 'access_denied' }, undefined, 'registry-unit');
     expect(result).toMatchObject({ ok: false, check: 'oidc_error', lms: 'ZZ' });
   } finally {
     await h.app.close();
@@ -223,9 +226,9 @@ describe('launch privacy floor (BD-A2-21)', () => {
         [CLAIM.toolPlatform]: { product_family_code: profile.productFamily ?? 'moodle' },
       }, Math.floor(h.clock.now / 1000));
       const result = await handleLaunch({
-        db: h.db, urls: URLS, keys: createPlatformKeys(h.outbound), ltikTtlSeconds: 86400, now: () => h.clock.now,
+        db: h.db, urls: URLS, resolver: createAccountResolver(h.db, URLS.lti), keys: createPlatformKeys(h.outbound), ltikTtlSeconds: 86400, now: () => h.clock.now,
         profiles: { simulation: true, registry }, logger: capturingLogger().logger,
-      }, 'cogniate', { state: login.state, id_token: await sign(h.key, claims) }, login.cookie, 'privacy-unit');
+      }, getAccount(h.db, 'cogniate'), { state: login.state, id_token: await sign(h.key, claims) }, login.cookie, 'privacy-unit');
       expect(result.ok).toBe(true);
       const stored = h.db.prepare('SELECT claims FROM launch').get() as { claims: string };
       const kept = JSON.parse(stored.claims) as Record<string, unknown>;
@@ -274,9 +277,9 @@ describe('manifest family guards (AC-03 and AC-04)', () => {
       const login = await doLogin(h, { iss: otherProfile ? platform.issuer : ISSUER });
       const claims = moodleClaims({ iss: platform.issuer, nonce: login.nonce, [CLAIM.toolPlatform]: { product_family_code: 'ZZ' } }, Math.floor(h.clock.now / 1000));
       const result = await handleLaunch({
-        db: h.db, urls: URLS, keys: createPlatformKeys(h.outbound), ltikTtlSeconds: 86400, now: () => h.clock.now,
+        db: h.db, urls: URLS, resolver: createAccountResolver(h.db, URLS.lti), keys: createPlatformKeys(h.outbound), ltikTtlSeconds: 86400, now: () => h.clock.now,
         profiles: { simulation: true, registry }, logger,
-      }, 'cogniate', { state: login.state, id_token: await sign(h.key, claims) }, login.cookie, 'guard-unit');
+      }, getAccount(h.db, 'cogniate'), { state: login.state, id_token: await sign(h.key, claims) }, login.cookie, 'guard-unit');
       const stored = h.db.prepare('SELECT claims FROM launch').all();
       if (otherProfile) {
         expect(result.ok).toBe(true);
