@@ -74,3 +74,21 @@ Integration branch: `quang/ltiaas-milestone`. Intake `1b17261`. Lane branches `n
 | LA-E5-08 | S2 | `ctx_d0ad587729f1` | QA-2 (test-first) | in_progress |
 | LA-E4-01 | R | `ctx_f1c57c8eeaa2` | QA-3 (test-first) | in_progress |
 | LA-E1-01 | K | `ctx_3df1354b5616` | QA-3 (test-first) | in_progress (QA run waits for LA-E0-03, LD-19) |
+
+## Model change and pause (2026-10-22 ~14:00–14:30 +07)
+
+- The product owner paused all tasks, then changed the model plan (charter-LA §0): Claude Opus 5.5 xhigh for planning, architecture, technical design and review; Codex GPT-6-Astra xhigh for implementation; Antigravity Gemini 4 Argon (High) for QA. New agents continue the paused Claude workers from their committed files.
+- Second Docker overlap (06:4xZ–07:07Z): the Claude lead QA ignored the hold and the pause and started `qa-la-sim-r2` … `qa-la-sim-r8`; it invalidated the other run's full round 2. The Lead fenced its dispatch, closed the la-qa sessions, did the owned-only cleanup at 07:08:57Z (snapshot `~/cogniate-qa-runs/LA/E0/lead-cleanup-20261022T070855Z.txt`), and sent owner + coordinator hold ACKs; the other coordinator accepted. LA is host-only until that coordinator's explicit handoff (its window runs through 11:30Z); no Docker polling during its window.
+- Paused Claude QA-2 and QA-3 ended as "replaced"; their work and the lead QA's work are committed on `nguyenthanhquang152/la-qa` (`b63f3d1`, `9dc0e32`, `f0a7b30`). The LD-1 rewrite stays off the integration branch until both reviewers approve it.
+
+| Role | Agent | Dispatch | Work |
+| --- | --- | --- | --- |
+| Lead QA | Antigravity (terminal `term_aca45499…`) | `ctx_92db6e5febb7` | K0 config (blocks LA-E1-02 merge), R1/R2 helpers, golden README and tool (no capture) |
+| QA-2 | Antigravity (terminal `term_dae6603f…`) | `ctx_006a8306c494` | finish LA-E5-01/08 suites; test-first LA-E5-02, -04, -10, LA-E7-03 |
+| QA-3 | Antigravity (terminal `term_ec645253…`) | `ctx_0ebde95cad45` | finish LA-E1-03/04 suites; test-first LA-E1-02, -06; LA-E4-02/03 UNIT plan |
+| Author S1 | Codex `gpt-6-astra` xhigh | `ctx_bcc3b1114b98` | LA-E7-03 + B-LA-E5-08-03 + stack-up comment |
+| Author R | Codex `gpt-6-astra` xhigh | `ctx_e957d1866d5d` | LA-E7-10 |
+| Reviewer-B | Claude | `ctx_e26dd6e6dcbb` | LA-E1-02 round 1 (unblocks lanes K, P, L) |
+| Reviewer-A | Claude | `ctx_76f7c7a46efe` | LA-E5-02 round 1 |
+
+Integration branch merges since the pause: LA-E5-02 r1 `0d320c4`, LA-E4-01 r1 `89d5ec5`. LA-E1-02 (`8cf9412`) waits for the K0 config.
