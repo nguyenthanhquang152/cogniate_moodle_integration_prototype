@@ -1,9 +1,10 @@
-import type { JobInstanceRow, JobLeaseRow, JobRunner, JobStore, Logger } from '@cogniate/shared';
+import type { JobInstanceRow, JobLeaseRow, JobRunner, JobStore, KeyHandle, Logger } from '@cogniate/shared';
 import { createJobRunner } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import { auditRetentionDays, auditRetentionJob } from './audit-retention.ts';
 import { retentionJob } from './retention.ts';
 import { signingKeyCleanupJob } from './signing-key-cleanup.ts';
+import { keyRewrapJob } from './key-rewrap.ts';
 
 /** The runner creates no schema. Migration 013 supplies both tables. Every ownership check is one SQL write. */
 export function createLtiJobStore(db: Db): JobStore {
@@ -42,7 +43,7 @@ export function createLtiJobStore(db: Db): JobStore {
   };
 }
 
-export function createLtiJobRunner(options: { db: Db; logger: Logger; now?: () => number; env?: Record<string, string | undefined> }): JobRunner {
+export function createLtiJobRunner(options: { db: Db; logger: Logger; keys?: KeyHandle; now?: () => number; env?: Record<string, string | undefined> }): JobRunner {
   const env = options.env ?? process.env;
   const auditDays = auditRetentionDays(env.AUDIT_RETENTION_DAYS);
   const runner = createJobRunner({ store: createLtiJobStore(options.db), logger: options.logger,
@@ -50,5 +51,6 @@ export function createLtiJobRunner(options: { db: Db; logger: Logger; now?: () =
   runner.addInterval(retentionJob(options.db));
   runner.addInterval(auditRetentionJob(options.db, auditDays));
   runner.addInterval(signingKeyCleanupJob(options.db));
+  if (options.keys) runner.addInterval(keyRewrapJob(options.db, options.keys));
   return runner;
 }
