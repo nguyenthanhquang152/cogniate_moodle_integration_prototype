@@ -2,7 +2,21 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 15:05 UTC
+## Current checkpoint — 15:18 UTC
+
+The C6/C7 legacy attempt ended at 15:06:57 UTC with ten groups passed, T6 failed and T8 not run.
+AC-T5-36 and AC-T6-07 passed. AC-T6-09 failed while waiting for the wizard registration URL.
+Claude strongly indicates a test focus race; no connection POST occurred, but the lost trace prevents proof of the exact focus sequence.
+Final W4 separately failed from Savoy overlap. All 32 starting volume records are unchanged; own cleanup and the public scan passed.
+
+E-T5R is VOID. The Lead accepted a test-only R3 repair plan covering T6 and analogous M2 keyboard flows in one batch.
+QA owns the test edits. Claude supplies the technical plan; two independent reviews must approve the repair and new launcher identities.
+The same retained Codex executor still owns any product repair. No product change is currently authorized.
+No runtime retry is granted. LTI remains host-only during Savoy's announced 40–60 minute window from 15:06 UTC.
+After review and a new route decision, all twelve legacy groups require a fresh exclusive run before the remaining runtime gates.
+The earlier completion forecasts are withdrawn. Re-estimate after the repair and shared-host return are confirmed.
+
+## Historical checkpoint — 15:05 UTC
 
 This checkpoint supersedes the 14:34 UTC owner and timing entries below.
 

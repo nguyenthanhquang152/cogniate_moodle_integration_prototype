@@ -13,7 +13,30 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 14:18 UTC
+### Current directive — 2026-10-22, 15:18 UTC
+
+The C6/C7 legacy attempt is FAILED. E-T5R is VOID. No further runtime invocation is granted.
+The run lasted 14:21:27–15:06:57 UTC: ten groups passed, T6 failed AC-T6-09, and T8 did not run.
+T5b passed 24 tests, including AC-T5-36 in 14.58 seconds. T6 passed the earlier AC-T6-07 target.
+Final W4 also failed because a Savoy container and volume appeared during the window.
+These are separate failures. The evidence does not establish that Savoy caused the portal failure.
+All 32 starting volume records remain unchanged. Own cleanup and the public secret scan passed.
+Lead verified the 31-entry closure index (22fce60a) and accepted Common QA's failed settlement, msg_6c9a9b84667d.
+The host window is returned. LTI remains host-only during Savoy's announced verification window.
+
+Claude's diagnosis, msg_1b65d708cad6, strongly indicates a test race against the portal's scheduled heading focus.
+No connection POST occurred. The trace and screenshot were lost, so the exact focus sequence is inferred.
+The portal and AC-T6-09 spec bytes did not change between the relevant passing control and this run.
+Lead accepts the bounded R3 plan: QA adds readiness waits and value assertions in AC-T6-09 and analogous M2 keyboard flows.
+Keep keyboard coverage, all existing assertions, test titles and deadlines. No sleeps, retries or product change are authorized.
+QA owns these two test files. The same retained Codex executor remains responsible for any actual product repair.
+Claude records the exact plan in docs/reviews/M3/t6-09-failure-plan.md. Two independent reviews must assess the repair and new launcher identities.
+
+Any renewed bounded evidence route requires a new Lead decision after proof that product and M1 inputs are unchanged.
+The previous failed run fills no required row. All twelve legacy groups still require a fresh exclusive run.
+All real-LMS limits and the no-push rule remain. Historical evidence and reports must stay intact.
+
+### Prior directive — 2026-10-22, 14:18 UTC
 
 Lead accepts E-T5R eligibility for frozen product C6 4008afb and tests C7 620c03d.
 This accepts the bounded evidence route, not runtime results or prototype completion.
