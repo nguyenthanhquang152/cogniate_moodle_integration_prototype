@@ -42,8 +42,12 @@ export function transaction<T>(db: Db, fn: () => T): T {
       db.exec(`RELEASE ${name}`);
       return result;
     } catch (err) {
-      db.exec(`ROLLBACK TO ${name}`);
-      db.exec(`RELEASE ${name}`);
+      try {
+        if (db.isTransaction) {
+          db.exec(`ROLLBACK TO ${name}`);
+          db.exec(`RELEASE ${name}`);
+        }
+      } catch { /* Keep the first error if rollback or release fails (D4 T5). */ }
       throw err;
     }
   }
@@ -54,7 +58,9 @@ export function transaction<T>(db: Db, fn: () => T): T {
     db.exec('COMMIT');
     return result;
   } catch (err) {
-    db.exec('ROLLBACK');
+    try {
+      if (db.isTransaction) db.exec('ROLLBACK');
+    } catch { /* Keep the first error if rollback fails (D4 T5). */ }
     throw err;
   }
 }
