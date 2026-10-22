@@ -130,17 +130,20 @@ describe('LA-E3-01 K0: Platform storage login page and state columns', () => {
       path.join(TARGET_ROOT, 'services/lti-service/src/profiles/index.ts'),
     ).href;
     const profilesMod = (await import(profilesModUrl)) as {
-      profileDefinition: (id: string) => { id: string; platformStorage: unknown } | undefined;
-      listProfiles: (simulationsEnabled?: boolean) => Array<{ id: string }>;
+      profileDefinition: (
+        id: string,
+        opts?: { simulation?: boolean },
+      ) => { id: string; platformStorage: unknown } | undefined;
+      listProfiles: (opts?: { simulation?: boolean }) => Array<{ id: string }>;
     };
 
-    const standard = profilesMod.profileDefinition('standard');
+    const standard = profilesMod.profileDefinition('standard', { simulation: true });
     expect(standard).toBeDefined();
     expect(standard?.platformStorage).toBeNull();
 
     // Design note of LA-E3-01: until LA-E3-02 lands, no baseline profile has a non-null trait (and standard is always null).
-    for (const entry of profilesMod.listProfiles(true)) {
-      const def = profilesMod.profileDefinition(entry.id);
+    for (const entry of profilesMod.listProfiles({ simulation: true })) {
+      const def = profilesMod.profileDefinition(entry.id, { simulation: true });
       if (entry.id === 'standard' || entry.id === 'blackboard' || entry.id === 'blackboard-sim') {
         expect(def?.platformStorage, `${entry.id} platformStorage must be null`).toBeNull();
       }

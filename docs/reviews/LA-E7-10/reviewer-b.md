@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E7-10 review, Reviewer-B (lens: "Can a human team own it?")
 
@@ -91,3 +91,38 @@ The tests are good: a fake `npm` in a temp git repo, and no network. My findings
 
 - A real `npm ci`, `npm audit` and `npm sbom` run (network). QA K0 owns AC-01 to AC-05 on a clean clone.
 - The BD-A1-13 rules (code-file values, whole placeholders, defaults, the PGP form) and their four lane commits; they come after this round.
+
+## Round 2
+
+Verdict for this round: **APPROVE**. This is a bounded re-check of my round-1 MINORs B-LA-E7-10-01, -02, -03 and NITs -04 to -06 against lane R's fix round, `git diff 5b71bc5^1 5b71bc5` (commits `378a75f`, `328d385` (RQ-2, root `package.json`), `43357f1`, `e797811`; the merge message calls it "round 3" of the task). I did not open the other reviewer's file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (new).** All three MINORs and all three NITs are **closed**.
+
+### How I checked
+
+- Scratch clone of `5b71bc5` in a private `/tmp` folder (`--no-hardlinks`, `node_modules` copied; removed after the run). The shared LA worktree did not change.
+- `node --test infra/scripts/ci-local.test.mjs`: **25 of 25 passed**. `tsc --noEmit -p infra/scripts/ci-local/tsconfig.json`: exit 0. `eslint infra/scripts/ci-local`: exit 0.
+- `bash infra/scripts/ci-local.sh` on the real tracked tree, with a fake `npm` whose `run check` fails with one stderr line, and a failing fake `docker` (no network, no stack):
+  - Exit 1. The `check` line says `"result":"fail","reason":"command_failed","log":".tmp/ci/check.log"`, and that log holds the command and its stderr (`lint: probe failure in services/x.ts:3`).
+  - Every `.tmp/ci/*.log` is mode `0600`.
+  - Step 5 passes with `"staleEntries":0`.
+- With one planted fake `ltis_…` value in a new tracked file, step 5 fails with `{file, line: 1, rule: "api_key"}` and `"log":".tmp/ci/secrets.log"`. The log holds the same findings and no value.
+
+### Round-1 findings
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| B-LA-E7-10-01 (MINOR) a failed step shows no detail | **Closed** | `run.mjs` writes each step's child output to `.tmp/ci/<step>.log`. It opens the log with `O_NOFOLLOW`, mode `0600` and `fchmod` (`:116-125`), and adds `log` to the step line when the step does not pass or has stale notes (`:145-150`). Stdout keeps one line per step with no child text. Tests: "keeps stale-entry details in the secret log and prints only their count" and "refuses steps when their private log cannot be created". |
+| B-LA-E7-10-02 (MINOR) no stated way to add an allow-list entry | **Closed** | The header of `ci-local.sh` now gives the procedure: an RQ-1 through the Lead to lane R; which text is hashed (`literalValue()` for `secret_assignment`, the whole match otherwise); a `node -e` one-liner that hashes stdin; no real credentials in an RQ; reword key-shaped review prose instead of adding an exception; re-run after each merge and remove stale entries. The allow list is its own module (`ci-local/allow-list.mjs`). The 21 stale entries are gone. I did not get a helper mode, nor step 5 in `npm run check`; the written procedure is enough for ownership. |
+| B-LA-E7-10-03 (MINOR) scanner in a bash heredoc | **Closed** | `ci-local.sh` is now a 3-line wrapper that runs `infra/scripts/ci-local/run.mjs`. The scanner is in `secret-scan.mjs`, with `// @ts-check`, JSDoc types and a folder `tsconfig.json`. The root `typecheck` runs it (RQ-2). It exports pure functions (`secretKeysOf`, `literalValue`, `scanText`, `secretScan({ root, allowList })`), and the tests call them directly. The assignment pattern is now built from named parts with one comment (`scanText`). |
+| B-LA-E7-10-04 (NIT) generic reasons | **Fixed** | Each entry names its value, for example "SHA-256 pin for infra/scripts/storage-compat.sh.", "Pinned public Playwright 1.56.0 Noble container image digest.", "Single-character fake master key in the logger redaction input." |
+| B-LA-E7-10-05 (NIT) tests tied to real allow-list rows | **Fixed** | The logic test passes its own allow list (`f.scan(allowList)`). The one test that uses real rows ("integration unit-test fakes have exact exceptions…") does so on purpose: it pins those rows. |
+| B-LA-E7-10-06 (NIT) stale notes crowd the step line | **Fixed** | The step line has `staleEntries: <count>`, and the list goes to `.tmp/ci/secrets.log`. |
+
+### Finding
+
+#### B-LA-E7-10-07 — NIT — A step-5 finding does not point to the allow-entry procedure
+
+- **File:** `infra/scripts/ci-local/run.mjs:145-150`; procedure at `infra/scripts/ci-local.sh:3-14`.
+- **Problem:** A developer who gets `{"name":"secrets","result":"fail","findings":[…],"log":".tmp/ci/secrets.log"}` sees where the hit is, but not what to do about it. The procedure (reword review prose, or send an RQ with the exact digest) is only in the header comment of the wrapper. The developer may not open that file, because the CLI entry is `npm run ci:local`.
+- **Suggested fix:** When step 5 fails, write one fixed line into `secrets.log`, for example "To accept a known fake or public value, follow the allow-list procedure in the header of infra/scripts/ci-local.sh." It holds no value or digest, so the output rules hold.

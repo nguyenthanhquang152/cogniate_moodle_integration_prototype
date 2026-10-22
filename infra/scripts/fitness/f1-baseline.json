@@ -43,8 +43,8 @@
   "services/cogniate-app/src/tool-pages/register-texts.ts": 7,
   "services/cogniate-app/src/tool-pages/register.ts": 7,
   "services/cogniate-app/src/worker/score-sync.ts": 1,
-  "services/lti-service/src/http/error-page.ts": 1,
-  "services/lti-service/src/http/routes/registration.ts": 8,
-  "services/lti-service/src/lti/codes.ts": 7,
-  "services/lti-service/src/lti/login.ts": 2
+  "services/lti-service/src/http/error-page.ts": 0,
+  "services/lti-service/src/http/routes/registration.ts": 0,
+  "services/lti-service/src/lti/codes.ts": 0,
+  "services/lti-service/src/lti/login.ts": 0
 }

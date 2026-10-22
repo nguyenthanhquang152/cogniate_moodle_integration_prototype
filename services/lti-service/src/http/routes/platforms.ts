@@ -7,7 +7,7 @@ import { ApiError } from '../../api-errors.ts';
 import { BINDING_REF, DEPLOYMENT_ID, checkPlatformUrls, checkProfileSiteUrl, checkRotation } from '../../lti/platform-rules.ts';
 import type { ProviderProfile } from '../../profiles/index.ts';
 import {
-  fillTemplate, findProfile, isSharedProfile, isStandardProfile, listProfiles, profileDefinition, profileEndpoints, reservedIssuerOrigins, siteRulesFor,
+  fillTemplate, findProfile, isSharedProfile, listProfiles, profileDefinition, profileEndpoints, reservedIssuerOrigins, siteRulesFor,
 } from '../../profiles/index.ts';
 import type { AuditTarget, AuditedRequest } from '../../store/audit.ts';
 import { withAudit } from '../../store/audit.ts';
@@ -42,8 +42,8 @@ const PlatformCreateBase = z.object({
 });
 type CreateBody = z.infer<typeof PlatformCreateBase>;
 
-/** `standard`: the body of §3.9 (unchanged required fields). */
-const StandardCreate = z.object({
+/** Admin-supplied endpoints: the body of §3.9 (unchanged required fields). */
+const AdminCreate = z.object({
   url: url, clientId: z.string().min(1).max(255), name: z.string().min(1).max(255), authenticationEndpoint: url, accesstokenEndpoint: url,
   authConfig: z.object({ method: z.string(), key: z.string().min(1).max(2048) }), deploymentIds: z.array(z.string().min(1).max(255)).min(1).max(100),
 });
@@ -74,7 +74,7 @@ const DeploymentPatch = z.object({
 
 const bad = (field: string) => new ApiError('INVALID_REQUEST', `Invalid field: ${field}.`);
 
-export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext): void {
+export function registerPlatformRoutes(app: FastifyInstance, ctx: Pick<RouteContext, 'db' | 'urls' | 'logger' | 'profiles' | 'now' | 'auth'>): void {
   const ownOrigins = [ctx.urls.lti, ctx.urls.app, ctx.urls.content];
 
   /**
@@ -98,9 +98,9 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
     profile: p.profile, siteUrl: p.siteUrl, serviceUrl: p.serviceUrl, bindingRef: p.bindingRef, deployments: p.deployments.map((d) => deploymentView(p, d)),
   });
 
-  /** §3.9 and §2.4 for `standard`, plus the reserved issuers (§9.4). */
-  function planStandard(raw: CreateBody): NewPlatform {
-    const parsed = StandardCreate.safeParse(raw);
+  /** §3.9 and §2.4 for admin-supplied endpoints, plus the reserved issuers (§9.4). */
+  function planAdmin(raw: CreateBody, profile: ProviderProfile): NewPlatform {
+    const parsed = AdminCreate.safeParse(raw);
     if (!parsed.success) throw invalid(parsed.error);
     if (raw.siteUrl !== undefined) throw bad('siteUrl');
     if (raw.serviceUrl !== undefined) throw bad('serviceUrl');
@@ -112,11 +112,11 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
     return {
       issuer: b.url, clientId: b.clientId, name: b.name, authEndpoint: b.authenticationEndpoint, tokenEndpoint: b.accesstokenEndpoint,
       jwksUrl: b.authConfig.key, deploymentIds: b.deploymentIds, active: raw.active ?? true, productFamilyCode: raw.productFamilyCode ?? null,
-      profile: 'standard', bindingRef: raw.bindingRef ?? null,
+      profile: profile.id, bindingRef: raw.bindingRef ?? null,
     };
   }
 
-  /** §9.4 for every profile other than `standard`: fixed values, site rules, sharing rules. */
+  /** §9.4 for fixed endpoints: fixed values, site rules, sharing rules. */
   function planProvider(b: CreateBody, profile: ProviderProfile): NewPlatform {
     const shared = isSharedProfile(profile);
     if (shared) {
@@ -174,23 +174,24 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
     const { account } = caller;
     return audited(req, caller, 'platform.create', { type: 'platform', id: null }, null, (audit) => {
       const parsed = PlatformCreateBase.safeParse(req.body ?? {});
-      // Keep the §3.9 field error of a standard body (for example a missing url).
+      // Keep the §3.9 field error for admin-supplied endpoints (for example a missing url).
       if (!parsed.success) {
         const raw = (req.body ?? {}) as { profile?: unknown };
-        if (raw.profile === undefined || raw.profile === 'standard') {
-          const std = StandardCreate.safeParse(req.body ?? {});
-          if (!std.success) throw invalid(std.error);
+        const profile = raw.profile === undefined || typeof raw.profile === 'string' ? findProfile(raw.profile ?? 'standard', ctx.profiles) : null;
+        if (profile?.endpoints === 'admin') {
+          const admin = AdminCreate.safeParse(req.body ?? {});
+          if (!admin.success) throw invalid(admin.error);
         }
         throw invalid(parsed.error);
       }
       const b = parsed.data;
       const profile = findProfile(b.profile ?? 'standard', ctx.profiles);
       if (!profile) throw new ApiError('UNKNOWN_PROFILE', `Unknown provider profile: ${b.profile}.`);
-      const plan = isStandardProfile(profile) ? planStandard(b) : planProvider(b, profile);
+      const plan = profile.endpoints === 'admin' ? planAdmin(b, profile) : planProvider(b, profile);
       try {
         const p = audit.change(() => createPlatform(ctx.db, account.id, plan),
           (created) => ({ target: { type: 'platform', id: created.id }, details: { profile: created.profile, active: created.active } }));
-        if (!isStandardProfile(profile)) ctx.logger.info('platform_created', { trace_id: req.traceId, platform_id: p.id, profile: p.profile });
+        if (profile.endpoints !== 'admin') ctx.logger.info('platform_created', { trace_id: req.traceId, platform_id: p.id, profile: p.profile });
         return reply.code(201).send(view(p));
       } catch (err) {
         if (err instanceof SharedPlatformExistsError) throw new ApiError('SHARED_PLATFORM_EXISTS', `This account already has a ${profile.id} platform.`);
@@ -216,7 +217,7 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
       const condition: RefCondition = typeof req.query.ifBindingRef === 'string' ? req.query.ifBindingRef : undefined;
       try {
         audit.change(() => {
-          if (!deletePlatform(ctx.db, account.id, req.params.id, { ifBindingRef: condition, shared: profileDefinition(current.profile)?.sharing === 'shared' })) {
+          if (!deletePlatform(ctx.db, account.id, req.params.id, { ifBindingRef: condition, shared: profileDefinition(current.profile, ctx.profiles)?.sharing === 'shared' })) {
             throw new ApiError('UNREGISTERED_PLATFORM');
           }
         }, () => ({ details: { profile: current.profile } }));
@@ -238,7 +239,7 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
       if (!parsed.success) throw invalid(parsed.error);
       const current = getPlatform(ctx.db, account.id, req.params.id);
       if (!current) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
-      if (parsed.data.deploymentIds !== undefined && profileDefinition(current.profile)?.sharing === 'shared') {
+      if (parsed.data.deploymentIds !== undefined && profileDefinition(current.profile, ctx.profiles)?.sharing === 'shared') {
         throw new ApiError('SHARED_PLATFORM_DEPLOYMENTS');
       }
       checkRotation(parsed.data);
@@ -268,18 +269,18 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
       const b = parsed.data;
       const platform = getPlatform(ctx.db, account.id, req.params.id);
       if (!platform) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
-      const def = profileDefinition(platform.profile);
+      const def = profileDefinition(platform.profile, ctx.profiles);
       const active = b.active ?? true;
       let siteUrl: string | null = null;
       let generation = 0;
-      if (!def || isStandardProfile(def)) {
+      if (!def || def.endpoints === 'admin') {
         if (b.siteUrl !== undefined) throw bad('siteUrl');
       } else if (isSharedProfile(def)) {
         if (b.siteUrl === undefined) throw bad('siteUrl');
         siteUrl = checkProfileSiteUrl('siteUrl', b.siteUrl, siteRulesFor(def, ownOrigins, ctx.profiles));
         generation = active ? 1 : 0;
       } else if (b.siteUrl !== undefined) {
-        // Canvas profiles: absent, or equal to the platform site URL.
+        // Exclusive profiles: absent, or equal to the platform site URL.
         const c = canonicalOrigin(b.siteUrl);
         if (!c.ok || c.origin !== platform.siteUrl) throw new ApiError('INVALID_SITE_URL', 'Invalid field: siteUrl must be the platform site URL.', { details: { rule: 1, field: 'siteUrl' } });
       }
@@ -312,7 +313,7 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
       try {
         d = audit.change(() => {
           const changed = changeDeployment(ctx.db, account.id, req.params.id, req.params.deploymentId, b.ifBindingRef, (cur, platform) => {
-            const def = profileDefinition(platform.profile);
+            const def = profileDefinition(platform.profile, ctx.profiles);
             const shared = def !== null && isSharedProfile(def);
             const newRef = b.bindingRef !== undefined && b.bindingRef !== cur.bindingRef;
             // A new binding of a shared deployment: an activation, or an adoption of an active row with a new ref.
@@ -347,7 +348,7 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
       profiles: listProfiles(ctx.profiles).map((p) => {
         const shared = isSharedProfile(p) ? findSharedPlatform(ctx.db, account.id, p.id) : null;
         return {
-          id: p.id, lms: p.lms, label: p.label, sharing: p.sharing, issuer: p.issuer, authenticationEndpoint: p.authenticationEndpoint,
+          id: p.id, lms: p.lms, channel: p.channel, label: p.label, sharing: p.sharing, issuer: p.issuer, authenticationEndpoint: p.authenticationEndpoint,
           accesstokenEndpoint: p.accesstokenEndpoint, jwksUrl: p.jwksUrl, siteUrlOn: p.siteUrlOn, serviceUrl: p.serviceUrl, simulation: p.simulation,
           sharedPlatform: shared ? { id: shared.id, clientId: shared.clientId, active: shared.active } : null,
         };

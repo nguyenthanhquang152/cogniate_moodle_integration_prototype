@@ -9,11 +9,11 @@ Design: `docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md` (D6, D12), `d
 | --- | --- | --- |
 | `AC-LA-E1-10-01` | `K1-SIM` | `providers-and-texts.k1sim.test.ts` — `GET /api/providers` gives every profile `channel` (`standard` → `moodle`, Canvas profiles → `canvas`, Blackboard profiles → `blackboard`, each simulation profile → its channel), and every other field equals golden G1 (`lms` included: `standard` → `null`, `LA-IC-01`). |
 | `AC-LA-E1-10-02` | `K1-SIM` | `providers-and-texts.k1sim.test.ts` + R1 runner — `POST /api/platforms` runtime create plan (`endpoints: admin` vs `endpoints: fixed`), plus M1 `sim` phase and M2 baseline results per test id. |
-| `AC-LA-E1-10-03` | `UNIT` | Author unit tests (run via `npm run check` / `npx --no-install vitest run --reporter=verbose -t "AC-LA-E1-10-"`). |
+| `AC-LA-E1-10-03` | `UNIT` | Author unit tests (`services/lti-service/src/http/routes/platforms.test.ts > admin and fixed endpoint plans (AC-LA-E1-10-03)`). |
 | `AC-LA-E1-10-04` | `K1-SIM` | `providers-and-texts.k1sim.test.ts` — Golden G4 compare (`G4.json` equal byte for byte to G-BASE `1b17261be97c4701b928fa9dc2fa74c6d23028f6/G4.json`) and live LTI service error and Moodle registration pages. |
-| `AC-LA-E1-10-05` | `UNIT` | Author unit tests (test channel with `names.text: 'your LMS'` renders `"your LMS"` on LTI service error page where Moodle renders `"Moodle"`). |
+| `AC-LA-E1-10-05` + `BD-A1-30` + `BD-A1-31` | `UNIT` + `K0` | Author unit tests (`services/lti-service/src/http/error-page.test.ts > uses a new channel text name in a login error page (AC-LA-E1-10-05)`, `services/lti-service/src/lti/codes.test.ts > reserved-issuer owner names (BD-A1-31)`, `packages/channel-kernel/src/legacy-wire.test.ts > keeps the frozen MOODLE_TOOL_MAY_EXIST text through the public kernel export (BD-A1-30)`) + `providers-and-texts.k0.test.ts`. |
 | `AC-LA-E1-10-06` | `MOODLE-LIVE` | R2-lite on the booked Moodle slot: `T7` × 1 and `T2a`, `T2b`, `T3a`, `T3b`, `T3c`. |
-| `AC-LA-E1-10-07` | `K0` | `providers-and-texts.k0.test.ts` — every core file of `LA-E1-10` has F1 count 0, except names imported from `legacy-wire.ts`. |
+| `AC-LA-E1-10-07` | `K0` | `providers-and-texts.k0.test.ts` — every core file of `LA-E1-10` has F1 count 0, except names imported from `legacy-wire.ts`, plus K0 checks for `channel`/`wireLms`, `BD-A1-30` (`pendingToolText`), and `BD-A1-31` (`Canvas or Blackboard`). |
 
 ## Commands
 
