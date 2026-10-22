@@ -2,7 +2,29 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 14:34 UTC
+## Current checkpoint — 15:05 UTC
+
+This checkpoint supersedes the 14:34 UTC owner and timing entries below.
+
+- Common Gemini QA remains task_6bc986323143 / ctx_c5acede76614. Ten of twelve legacy groups have passed. T6 and T8 are still pending.
+- T5b passed all 24 tests without skips or retries. The previously failing AC-T5-36 passed in 14.58 seconds against its unchanged 60-second deadline.
+- The existing invocation started at 14:21:27 UTC. Its operational reservation now ends at 15:12 UTC. No test deadline changed and no retry was granted.
+- At 15:01:40 UTC, measured step timings suggested final cleanup around 15:11–15:12 UTC, about 50 minutes after launch. The earlier 37–40 minute estimate was too short.
+- Independent Gemini QA is now task_1ba9065e802b / ctx_131f17449322. It is preparing exact-C7 M2/T7 runs and independent Canvas judgments without Docker use.
+- Guide-command captures and their factual errata are committed through 9b93a35. Final runtime and architecture acceptance remain pending.
+
+Savoy requested Docker use from 15:06 UTC for 40–60 minutes under a machine-owner instruction.
+The Lead requested a short deferral until the current LTI run finishes its final W4 comparison.
+That adjustment is not yet acknowledged. No handoff or next LTI runtime grant has been issued.
+Any overlap must remain visible in the isolation result; different ports do not waive the comparison.
+All 32 pre-existing volume records remain protected, including the 22 anonymous volumes Savoy identified as its own.
+
+The earlier 15:46–15:58 UTC runtime forecast no longer applies.
+After legacy acceptance, two Canvas SIM rounds and M2/T7 still need about 48–57 minutes of exclusive runtime, plus handoffs.
+The proposed external window adds 40–60 minutes if confirmed. Final conformance, Docs QA and reviews remain downstream.
+No final completion time is committed until the shared-host sequence is resolved.
+
+## Historical checkpoint — 14:34 UTC
 
 The model-transition owner table and timing below are historical. This checkpoint supersedes them.
 
