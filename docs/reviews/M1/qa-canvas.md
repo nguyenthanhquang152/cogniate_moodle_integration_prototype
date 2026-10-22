@@ -728,3 +728,57 @@ All 17 dependent rows trace back to `g-tamper`. The runner's final coverage chec
 - Not achieved at this candidate: a complete round 1, round 2, the round comparison, legacy, M2 and T7. No Docker window was granted to QA-E2E.
 - `aaa823b`, `9cdd768`, `51a80b5`, `82e2dab`, `55c33a3`, `a784522` and `aff4882` keep their own records. No PASS carries from one candidate to another.
 - Next: the repair session diagnoses `g-tamper`. Any repair goes through a new reviewed freeze. Then both complete rounds run, and QA-E2E runs both judges and the exact row-set check over each round and compares the two rounds.
+
+## 21. Round 15 — candidate C4 `bf09cda`: round 1 complete and Canvas rows PASS; full attempt stopped in round 2 (2026-10-22)
+
+**HOLD. Overall M1 full acceptance is PENDING. No M1 acceptance credit from this section alone.** Round 1 is complete (488/488 PASS) and its 233 Canvas rows pass. Common's full runner stopped in round 2 on an external isolation failure (§21.3). Round 2, the round comparison and legacy are not judged here.
+
+A fresh Claude QA-E2E session wrote this round: `claude-opus-5-5`, xhigh; Orca session `fe5b6a79-3e58-4919-b764-e7ab4cc6ec6a`; task `task_1eabbfbed895`, dispatch `ctx_745cb25fcb7c`. It did not execute rounds 1–14. Their provenance stays as written above.
+
+Candidate product = test `bf09cdad91ca548e1ecbc14428b55180d35d5360` (tests tree `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`). It is C3 `c4c6d04` plus the R5 repair `27e1f61` of the Common-owned `tests/host/storage-rows.mjs` (`fbb99131…`) and its self-test (`edc2d97a…`), the text-only `infra/README.md` clarification and later docs-only commits. `services`, `apps`, `packages` and the root build files equal `9f8ac62`. Canvas, M2, T7 and simulator tests did not change. Lead authority: the dispatch preamble (host only), `msg_6a1f7731232e`, `msg_26da51187107`, `msg_d1f00e6c240b`, `msg_92797f8d189e` (round 1 evidence grant), `msg_f31679702ee3` (round 1 accepted), `msg_972209aa6979` (round 2 stop, hold) and `msg_d3435c5e5e8d` (record round 1 now). Common QA (`ctx_e23ced3dd1fa`) held the only Docker window. This worker executed no `docker` or `docker compose` binary; a PATH stub logged only its own 2-line positive control.
+
+### 21.1 Preparation (host only)
+
+- Evidence root `R` = `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-bf09cda-Kb7OPU3d`, made with `mktemp -d` under umask 077 at 04:08Z. In the preparation inventory (04:13Z), outside `R/source`, folders were 0700 and files 0600, except three 0700 executables (two Docker guard stubs and the wait helper `wait-watch.sh`). At the round 1 closeout there are four: the fourth is `R/private/tmp/wait.sh`, a helper that only waits for Orca inbox messages; it is not evidence logic. `R/source` is 0700; its children come from the umask-022 clone and copy. Inventory: `R/notes/mode-inventory.json` (`lstat` only, no `chmod`).
+- `R/source` is a clean `--no-hardlinks --no-checkout` clone, detached at `bf09cda…`, with 0 status lines, only sample hooks and a disabled push URL. It has no `.env`, root `node_modules`, `.tmp`, `infra` state or artifacts. Non-docs change from C3: `infra/README.md` (text) and the two R5 storage files.
+- Dependency binding: the static import closures of `run-m2.mjs` (7 files), `run-t7.mjs` (2), `storage-docker.mjs`, `lib.mjs`, both `coverage.mjs` files and `storage-inventory.mjs` hold no changed file. The frozen-helper inventory is byte-identical to C3: 488 rows (394/6/6/12/70); Canvas 233 (225 API and 7 browser in `sim`, 1 API in `snapshot-isolated`); M2 64. The expected phase and id list `R/judge/expected-ids-c4.tsv` is byte-identical to C3 (`97e37fa1…`).
+- Test dependencies: `tests/package.json` and `tests/package-lock.json` are byte-identical to C3. The cached C3 `tests/node_modules` was copied with `rsync -a`. All 1,927 entries are identical; all non-optional lock packages are at their lock versions. No install, download or npm call happened.
+- Tools: QA first verified the C3 closeout manifest (`a5a4cb45…`, 106/106) read only. `cp -p` copied the same 37 qualified files; all 37 are byte-identical with the expected hash and mode. Relocated manifests pass: R4 22/22, sink 4/4, boundary 4/4. No tool self-test or host suite was repeated. The old `round-rows.mjs` helper was not copied.
+- Plans: `R/plan/runbook-bf09cda.md` (`73c80fc3…`), `window-commands-bf09cda.md` (`8e344fc8…`) and `judge-commands-bf09cda.md` (`e6219e61…`) are literal derivations of the accepted C3 files (diff `R/notes/plans-c3-c4.diff`, `d5cb8f9f…`). Two rule additions in the judge commands: Git reads of Common's source use `GIT_OPTIONAL_LOCKS=0`, and step 0b is the executed C3 accounting check (each `m1-case-results.json` parse-equal to Common's `round-N-<phase>.json`, run id, abort, timestamps and runner order).
+- Host facts (file hashes only): macOS 27.0.1 arm64; Docker CLI `67827118…`; Compose `1ec06408…`; fixtures HTML `9f04d3ab…` and SCORM `a685744e…`; baseline `219da30b…` (7 records); PID 64140 only observed.
+- Handoff `R/notes/handoff.md` (`3998f911…`) and manifest `R/notes/MANIFEST-host-ready.sha256` (`4e9ef764…`, 84 entries). The Lead verified and accepted them (`msg_6a1f7731232e`). They give no runtime credit.
+- Disclosures (`R/notes/deviations.txt`): D-1, the first plan derivation stopped on its own guard (it matched the new provenance phrase) after it wrote the runbook; v2 confirmed that file byte for byte and wrote the other two. N-1, one redirect to a relative path was refused by the shell before the command ran; nothing was written, and the command ran again with the absolute path.
+
+### 21.2 Independent Canvas judgement (round 1)
+
+Common QA ran the documented full M1 entry from `/Users/quangnguyen/cogniate-qa-runs/qa-common-c4-20261022T0408Z/full-src/source` (HEAD `bf09cda…`, tests tree `8283d90d…`, 0 status lines). The runner started at 05:26:57Z. The judges are the unchanged approved `canvas-judge-round.mjs` (v1) and `canvas-judge-round-v2.mjs` (sink gate). They ran under umask 077 against Common's artifacts, read only, after the Lead's round 1 evidence grant.
+
+| Gate | Result |
+| --- | --- |
+| Phase binding | The five granted folders are `qa-multi-r1-bf09cdad-2026-10-22T05-26-57-277Z` (sim), `…T05-49-50-379Z` (snapshot-isolated), `…T05-51-25-320Z` (snapshot-upgrade), `…T05-53-15-870Z` (migration) and `qa-multi-r1-st-bf09cdad-2026-10-22T05-57-08-327Z` (storage). Each has product = test = `bf09cda…`, provider `all`, run id = folder name and `abort: null`. Identity times 05:49:44.388Z, 05:51:20.960Z, 05:53:11.485Z, 05:57:04.002Z and 06:19:44.633Z are after the runner start and in runner order. Each `m1-case-results.json` equals (parsed JSON) Common's accounting file `round-1-<phase>.json` in `/Users/quangnguyen/cogniate-qa-runs/qa-common-c4-20261022T0408Z/full/tmp/qa-m1-accounting-XdBX6Z/`. No other folder was read. |
+| Round row set (direct, `jq`) | 488 rows in the five phase files: 394/6/6/12/70, 488 distinct ids, 0 SHA mismatches, **488 PASS**. `M1-41.common.c-host-negative` is PASS. The sorted phase and id list is byte-identical to the 488-row list of the four frozen manifests (`97e37fa1…`): 0 duplicates, 0 missing, 0 extra. |
+| Canvas rows (v1, five phases) | **233/233 PASS**: SIM 232 (225 API + 7 browser); snapshot-isolated 1 (`M1-37.canvas.aa`). 0 FAIL, BLOCKED, SKIP or MISSING; no problems and no row notes (one result each, no retries). After the SIM and snapshot-isolated phases, app and LTI health show `default`, `knobs: []` and LTI `simulation_profiles: []`. |
+| Scan records | SIM: 1,300 values, 637 files, 0 hits. snapshot-isolated: 10 / 65 / 0. snapshot-upgrade: 118 / 89 / 0. migration: 38 / 89 / 0. storage: 0 values / 878 files / 0 hits. |
+| Sink gate (AC-M1-12, four cases) | **PASS.** `sink.jsonl` SHA-256 `7e9a2eaa…`: 2 lines. One lifetime `boot-3849e0c32055`, 05:27:41.179Z to 05:49:33.920Z, after the run start and before the identity time. `ags-lineitems`, `ags-lineitem-evil`, `nrps` and `dl-return` each ran once and passed in `21-canvas-protocol.test.ts`; the file interval is 05:27:54.631Z to 05:28:02.193Z. 0 `sink_hit`. |
+| Canvas browser artifacts (AC-M3-07) | The accepted selection rule gives 29 files in 7 folders (15 screenshots, 14 trace zips). 1,315 values from the SIM phase clone: 9 `.env`, 7 secrets-file and 1,299 capture values. 15 screenshots (6 distinct): **0 hits**. QA inspected all 6 distinct screenshots visually: 1 framed embedded page ("Open in a new window"), 1 blank refused third-host frame, 3 player pages "Status: Not started" and 1 "Status: Completed — score 70 sent to Canvas". They show no token, capability or approval input. The 14 trace zips stay private: 120 hits in 7 files, as expected for raw traces. They are named only by location and hash. |
+
+Records in `R` (SHA-256):
+- `notes/grant-r1-msg_92797f8d189e.txt` (`f7659f03…`): the Lead's exact round 1 paths, accounting files and SIM clone.
+- `judge/round1/inputs.sha256` (`c93d2c03…`): input hashes and the accounting comparison. `judge/round1/bind-v2.txt` (`6782320e…`): run id, abort, clone, times and order.
+- `judge/round1/round-direct.txt` (`dfb4b517…`), `judge/round1/id-set.txt` (`2b853f72…`) and `judge/round1/actual-ids.tsv` (`97e37fa1…`, equal to the expected list).
+- `judge/round1/judge-v1.json` (`e765638f…`) and `judge/round1/judge-v2.json` (`a92c2cf0…`).
+- `judge/round1/canvas-browser-targets.json` (`9d8e4247…`), `scan/r1-sim-canvas-browser-scan.json` (`c1374bf6…`, counts only) and `judge/round1/visual-check-r1.txt` (`138adebf…`).
+- `judge/round1/round1-record.txt` (`2d95fde0…`). The Lead verified 54 input bindings, 13 record bindings and 29 browser target hashes and accepted this round 1 judgement as one-round evidence (`msg_f31679702ee3`).
+- Every judge, target and scan stderr file is empty.
+- Disclosure D-2: the first bind record (`inputs.sha256`) prints `runId=null` and `abort=null`, because `m1-identity.json` has no such keys (C3 read them from `summary.json`). The file is kept unchanged. `bind-v2.txt` reads both from each `summary.json`. The accounting and hash lines of the first record are not affected.
+
+### 21.3 Round 2 (not judged)
+
+The Lead reports (`msg_972209aa6979`) that Common's full runner exited 1 at 06:44:53Z. In round 2, SIM passed 394/394 and snapshot-isolated passed 6/6, but the snapshot-isolated `M3-ISOLATION` check failed: the unrelated container `/qa-la-sim-r2-cogniate-app-1` changed during the window, and the strict W4 comparison lists 16 new resources of the LA run. No product or test fault is established. QA-E2E received no round 2 evidence grant. It did not read or judge any round 2 folder, Common's W4 or the cleanup.
+
+### 21.4 Disposition
+
+- Canvas M1 at `bf09cda`: round 1 is complete (488/488 PASS, exact phase and id set, accounting parse-equal), with Canvas rows 233/233 PASS, sink gate PASS and clean screenshots. This is one-round evidence only.
+- **Overall M1 full acceptance: PENDING.** This full attempt stopped in round 2 on external isolation. A second complete round, the round comparison (same per-row result) and the 12 legacy groups are still needed.
+- Not achieved at this candidate: round 2, the round comparison, legacy, M2 and T7. No Docker window was granted to QA-E2E. All 32 live rows stay UNVERIFIED; local Canvas stays DEFERRED.
+- C3 `c4c6d04` and the older candidates keep their own records. No PASS carries from one candidate to another.

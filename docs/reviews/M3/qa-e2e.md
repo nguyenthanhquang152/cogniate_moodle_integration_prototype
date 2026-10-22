@@ -302,3 +302,33 @@ Candidate product = test `c4c6d045b3a132f72bf059d77367d278de9222fa` (tests tree 
 ### 14.3 Next gate
 
 The repair session `ctx_898acbaef3a6` diagnoses `M1-41.common.g-tamper`. Any repair goes through a new reviewed freeze. Then both complete M1 rounds run, with the Canvas judges and the exact row-set check on each round and the round comparison. After the accepted full and legacy gate: M2 (all 64 rows) and T7 (three default runs, the demo pass, four confirmation checks, all 15 AC), each under its own explicit window.
+
+## 15. Round 12 — candidate C4 `bf09cda` (2026-10-22)
+
+**HOLD; overall full acceptance is PENDING.** A fresh QA-E2E session did this round: `claude-opus-5-5`, xhigh; Orca session `fe5b6a79-3e58-4919-b764-e7ab4cc6ec6a`; task `task_1eabbfbed895`, dispatch `ctx_745cb25fcb7c`. It did not execute rounds 1–11. Their results stay at their own SHAs and carry no credit to this candidate.
+
+Candidate product = test `bf09cdad91ca548e1ecbc14428b55180d35d5360` (tests tree `8283d90d…`). It is C3 `c4c6d04` plus the R5 repair `27e1f61` of the Common-owned `tests/host/storage-rows.mjs` and its self-test, the text-only `infra/README.md` clarification and later docs-only commits. Product and build paths equal `9f8ac62`. Canvas, M2, T7 and simulator tests did not change; `tests/e2e` still equals `aff4882`. Lead authority: the dispatch preamble (host only) and `msg_6a1f7731232e`, `msg_26da51187107`, `msg_d1f00e6c240b`, `msg_92797f8d189e`, `msg_f31679702ee3`, `msg_972209aa6979`, `msg_d3435c5e5e8d`. Common QA `ctx_e23ced3dd1fa` held the only Docker window. This worker started no stack, no wake container and no Docker diagnostic. It executed no `docker` or `docker compose` binary; a PATH stub logged only its own 2-line positive control.
+
+### 15.1 Criterion status
+
+| Criterion | Result | Evidence and limit |
+| --- | --- | --- |
+| AC-M3-01 | HOLD (partial) | Common's full run started at 05:26:57Z. Round 1 is complete: SIM 394/394, snapshot-isolated 6/6, snapshot-upgrade 6/6, migration 12/12, storage 70/70, total 488 PASS, same SHA in all five phases. The phase and id set equals the 488 rows of the frozen manifests exactly, and each phase file parse-equals Common's accounting file. Round 1 Canvas rows 233/233 PASS and sink gate PASS ([Canvas QA §21](../M1/qa-canvas.md#21-round-15--candidate-c4-bf09cda-round-1-complete-and-canvas-rows-pass-full-attempt-stopped-in-round-2-2026-10-22)). The Lead reports that the runner exited 1 at 06:44:53Z in round 2: SIM 394/394 and snapshot-isolated 6/6 passed, but `M3-ISOLATION` failed because the unrelated container `/qa-la-sim-r2-cogniate-app-1` changed (16 new LA resources in the strict W4 comparison). No product or test fault is established. QA-E2E did not judge round 2. No round comparison; legacy did not run. |
+| AC-M3-02(a) | NOT RUN | No window. No T7 run, demo pass or confirmation check at this SHA. |
+| AC-M3-02(b) | Other owner | Common QA owns the legacy suites. They did not run. |
+| AC-M3-03 | NOT RUN | No M2 run at this SHA. The 64/64 result at `aff4882` is history only. |
+| AC-M3-04 | NOT RUN (QA-E2E part) | Needs the M2 run. |
+| AC-M3-05 | UNVERIFIED | All 32 live rows stay UNVERIFIED ([live matrix](live.md)). Local Canvas stays DEFERRED: the full and Moodle gates did not pass at this candidate, so no feasibility assessment or startup happened. No sign-up, account, tunnel, public exposure, live-tenant write or Docker Desktop change. |
+| AC-M3-06 | No QA-E2E run evidence | No QA-E2E lane was used. The round 2 isolation failure belongs to Common's lane check (Lead report); QA-E2E did not inspect Common's W4, cleanup or scans. |
+| AC-M3-07 | Partial | Canvas browser artifacts of round 1 SIM: 15 screenshots (6 distinct), 0 hits against 1,315 values, clean visual inspection. The 14 raw trace zips stay private (120 hits in 7 files, expected for raw traces). Runner scan records of all five round 1 phases: 0 hits. The M2 and T7 scans need their runs. |
+
+### 15.2 Prepared (host only; no product credit)
+
+- Evidence root `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-bf09cda-Kb7OPU3d` (`R`), made under umask 077. In the preparation inventory, outside `R/source`, folders were 0700 and files 0600, except three 0700 executables (two Docker guard stubs, the wait helper `wait-watch.sh`). At the round 1 closeout there are four: the fourth is `R/private/tmp/wait.sh`, which only waits for Orca inbox messages and is not evidence logic. Children of `R/source` come from the umask-022 clone and dependency copy. Details: [Canvas QA §21.1](../M1/qa-canvas.md#211-preparation-host-only).
+- The qualified R4, sink-v2 and Common boundary tools are byte-identical copies of the accepted C3 preparation (37/37; C3 closeout manifest 106/106 checked first). No tool self-test, host suite or M2 harness run was repeated. The cached test dependencies were copied after exact package, lock and entry checks (1,927 entries).
+- `R/plan/runbook-bf09cda.md` (`73c80fc3…`) and `R/plan/window-commands-bf09cda.md` (`8e344fc8…`) are literal derivations of the accepted C3 plans. M2 is planned on `qa-e2e-sim-r6` / 8643 / `172.27.0.0/16`, and then T7 on `qa-e2e-m3-r3` / 8543 / `172.31.0.0/16`, strictly in sequence. Each window needs its own G1 and W1–W4; the sampler stays alive through the W4 capture. T7 uses `run-t7.mjs --sha bf09cdad91ca548e1ecbc14428b55180d35d5360 --checkout <new DEST> --runs 3 --demo --check-confirm --keep` inside the approved external ownership wrapper.
+- Handoff `R/notes/handoff.md` (`3998f911…`) and manifest `R/notes/MANIFEST-host-ready.sha256` (`4e9ef764…`): the Lead verified and accepted them (`msg_6a1f7731232e`).
+
+### 15.3 Next gate
+
+Common's full attempt must run again with an exclusive Docker window and no external Docker activity. Then both complete M1 rounds need the Canvas judges, the exact row-set check on each round and the round comparison, and the 12 legacy groups must pass. After the accepted full and legacy gate: M2 (all 64 rows) and T7 (three default runs, the demo pass, four confirmation checks, all 15 AC), each under its own explicit window.
