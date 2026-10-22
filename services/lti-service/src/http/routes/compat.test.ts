@@ -345,6 +345,31 @@ describe('T3c compat routes with real API authorization', () => {
     expect(JSON.parse(String(calls.at(-1)!.req!.body))).toEqual(payload);
   });
 
+  it('keeps URL-keyed line item members on POST, PUT, GET and list (LA-E3-11 AC-05)', async () => {
+    const headers = auth();
+    const extensions = { 'https://platform.test/lineitem': { nested: [1, 'two', true] }, 'https://platform.test/optional': null };
+    const payload = { ...item, ...extensions };
+    const stored = { id: ITEM, ...payload };
+    for (const credential of [headers, await serviceAuth(headers)]) {
+      for (const method of ['POST', 'PUT'] as const) {
+        answer = () => response(201, { id: ITEM, ...JSON.parse(String(calls.at(-1)!.req!.body)), unknown: 'drop this' });
+        const result = await h.app.inject({ method, url: method === 'POST' ? '/api/lineitems' : `/api/lineitems/${enc(ITEM)}`,
+          headers: credential, payload: { ...payload, unknown: 'drop this', 'http://platform.test/extension': 'drop this too' } });
+        expect(result.statusCode).toBe(201);
+        expect(JSON.parse(String(calls.at(-1)!.req!.body))).toEqual(payload);
+        expect(result.json()).toEqual(stored);
+      }
+      answer = () => response(200, { ...stored, unknown: 'drop this', 'http://platform.test/extension': 'drop this too' });
+      const read = await h.app.inject({ url: `/api/lineitems/${enc(ITEM)}`, headers: credential });
+      expect(read.statusCode).toBe(200);
+      expect(read.json()).toEqual(stored);
+      answer = () => response(200, [stored]);
+      const list = await h.app.inject({ url: '/api/lineitems', headers: credential });
+      expect(list.statusCode).toBe(200);
+      expect(list.json()).toEqual({ lineItems: [stored] });
+    }
+  });
+
   it('all writes reject readonly or missing scopes before any outbound attempt', async () => {
     for (const scope of [[AGS_SCOPES.lineitemReadonly], []]) {
       const headers = auth({ [CLAIM.ags]: { lineitems: BASE, scope } });

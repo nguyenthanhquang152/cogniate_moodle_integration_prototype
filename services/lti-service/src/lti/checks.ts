@@ -130,7 +130,7 @@ export function check5IssuerAudience(claims: Claims, platform: Platform): void {
 /** Check 6: the signature is valid with a key of the platform JWKS (refresh, fallback and refetch rules in jwks.ts). */
 export async function check6Signature(keys: PlatformKeys, idToken: string, platform: Platform, traceId: string): Promise<void> {
   try {
-    await keys.verify(idToken, platform.jwksUrl, traceId);
+    await keys.verify(idToken, platform.jwksUrl, traceId, platform.id);
   } catch (err) {
     fail('6', 'INVALID_SIGNATURE', err instanceof PlatformKeyError ? err.detail : 'bad_signature');
   }

@@ -15,7 +15,7 @@ const HTTP_DATE_FORMATS = [
 export function platformRetryAfter(value: string | undefined, now = Date.now()): number {
   const text = value?.trim();
   if (!text) return retryAfterSeconds(undefined);
-  if (/^\d+$/.test(text)) return retryAfterSeconds(Number(text));
+  if (/^\d+$/.test(text)) return retryAfterSeconds(Math.min(3600, Number(text)));
   // Date.parse also accepts values such as "1.5". Only the three HTTP date forms are dates here.
   if (!HTTP_DATE_FORMATS.some((format) => format.test(text))) return retryAfterSeconds(undefined);
   // The old asctime form has no zone; HTTP dates always use GMT.
