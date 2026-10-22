@@ -1,9 +1,9 @@
-Verdict: APPROVE
-Round: 2
+Verdict: CHANGES_REQUESTED
+Round: 3
 
 # LA-DESIGN review: Reviewer-A (lens "Is it right and is it safe?")
 
-Round 1 (below) was CHANGES_REQUESTED at `19476fc`. Round 2 (at the end of this file) is APPROVE at `877d951`: every round-1 BLOCKER and MAJOR is closed, and 5 new MINOR and 1 new NIT stay open.
+Round 1 (below) was CHANGES_REQUESTED at `19476fc`. Round 2 was APPROVE at `877d951`. Round 3 (at the end of this file) is CHANGES_REQUESTED at `88909be`: all round-2 items are closed, but the diff adds one MAJOR (A-LAD-25, the app-edge limit value) and one NIT.
 
 ## Round 1
 
@@ -369,3 +369,51 @@ Three problems block G-DESIGN:
 | Deferred and disputed answers | A-LAD-12 (deferred to P3, with the README §6a proposal): accepted. A-LAD-17 (deferred to the Lead): answered by OC-9; accepted. No answer disputes a finding of mine. |
 | New BLOCKER or MAJOR in the changed text | None found. I checked I-SELF and the staged DR, origin binding rule 7, the soft rate-limit classes, the auth-failure rule, the one-in-flight lease rule, the recovery rule, the `014` fallbacks, the signing-key migration, legacy-blob refusal, the storage-check `Origin` rule, guard levels and `picker_pick`. |
 | No behaviour change for Moodle, Canvas, Blackboard | Holds. New intended items have ids: LA-IC-03 (Moodle DR with the fixed configuration path) and LA-IC-14 (Canvas DR). The baseline JWKS of an upgraded stack is now equal (A-LAD-06). The launch guard of Canvas and Blackboard is unchanged (`LAUNCH_GUARD_CHANNELS`). |
+
+## Round 3
+
+- Design SHA: `88909be` (diff `git diff 877d951 88909be -- docs/architecture/ltiaas`). Inputs: `review-response-R2-A1.md`, `review-response-R2-A2.md`.
+- Scope (bounded): the diff only. Did my round-2 items get fixed, and does the diff add a BLOCKER or MAJOR? Line numbers are at `88909be`. Blind review as before.
+- **Verdict: CHANGES_REQUESTED** for one new MAJOR (A-LAD-25: one number to change). Open: **0 BLOCKER, 1 MAJOR, 0 MINOR, 1 NIT.**
+
+### Main item: the Q-LAD-23 job-runner rule and the A-LAD-03 guarantee
+
+The guarantee **still holds** (`adr/LA-ADR-03-learning-record-core.md:168-172`):
+
+1. **One send in flight per learner.** "At most one in flight per (placement, learner subject, reporter)" is still a condition of the lease `UPDATE` (`:169`), not of the heartbeat. So no restart path can start a second send of the same key while a row has `send_started_at`.
+2. **A waiting runner does nothing.** A runner that finds a fresh heartbeat with another boot id takes no lease and recovers nothing (`:171`, case 2). So it never sends beside a live process.
+3. **No late results.** `lease_owner` = instance id + boot id, and only that owner records a result (`:168`). A process that lost its lease cannot write a late result over the new owner's state.
+4. **Recovery feeds P2.** Recovery runs only in case 1 (the old row is gone, or its heartbeat is 30 s old), and it always sets `delivery_uncertain = 1` (`:172`).
+   - One case remains: a process that was hung for 30 s and then wakes, with its POST still in flight. The P2 confirmation of the next higher row then covers a late remote write (ADR-010 P2), and the woken process cannot record (point 3).
+   - So the ADR-010 rule 5 and P2 guarantees stay as in round 2.
+
+Note (no finding): `stop()` deletes the heartbeat row (`:171`). The text does not say whether this happens before or after the in-flight sends end. If the row goes first and a new process starts during the stop grace time, recovery marks those rows uncertain. That is safe (point 4) but makes one extra confirmation send. Deleting the row after the runner has stopped leasing and its in-flight runs have ended (or after `leaseMs`) avoids that. The Author can do this in the build.
+
+### Status of the round-2 items
+
+| Id | Round-2 severity | Round-3 status | Evidence at `88909be` |
+| --- | --- | --- | --- |
+| A-LAD-19 | MINOR | **Closed** | A registration-level guard refuses a launch on a platform of a `MANUAL_SELF_LEGACY_CHANNELS` channel before any claim is stored (`adr/LA-ADR-01-channel-kernel.md:341`; app delta §5 LMS check; R-LA-1 and security-delta §12 aligned). The `lti-generic` launches keep the log-only rule (the B-LAD-04 goal). |
+| A-LAD-20 | MINOR | **Closed** | The authority switch also writes `lms = 'canvas'`, with a writer test (`adr/LA-ADR-04-refactor-and-migration.md` D4 rules 1 and 5; `data-model.md` §2). |
+| A-LAD-21 | MINOR | **Closed** | `picker_pick.picker_id_hash … ON DELETE CASCADE`, with a retention test (`data-model.md` §5b). |
+| A-LAD-22 | MINOR | **Closed** (as designed), but see A-LAD-25 | The app-edge limit exists (`contracts/cogniate-app-api-delta.md:141`). A2's sentence now cites it. The providers cache is "Could, not built"; I accept that, because the `admin` limit is 600 per minute. |
+| A-LAD-23 | MINOR | **Closed** | `--confirm-foreign-hosts`, with the runbook step and the Q22 wording (`adr/LA-ADR-02-generic-lti-channel.md` D6; app delta §7; `operability.md` §8; LA-ADR-07 D5). |
+| A-LAD-24 | NIT | **Closed** | OC-9 and OC-10 are closed. The app delta §7 sentence cites the decision. New stale row: A-LAD-26. |
+
+### New findings (round 3)
+
+#### A-LAD-25: MAJOR: the new app-edge limit refuses a class launch from one school network
+
+- **File:** `contracts/cogniate-app-api-delta.md:149` (also `:152`).
+- **Problem:** The app-edge bucket on `GET /tool/launch` is 120 per minute with burst 30 per client address. So a class that starts an activity together from one school NAT address gets `429` "Too many launches from your network" for about half of the learners.
+- **Evidence:**
+  - The design's own fact (`adr/LA-ADR-06-service-operability.md:103`): "A school behind one NAT address can start a class of several hundred learners in one minute, so the per-address protocol limit is high". The LTI `protocol` class is 600 per minute, burst 200 (`:93`).
+  - Every learner launch passes through `/tool/launch` once. With 300 learners in one minute, about 150 pass (burst 30 + 120 refill) and about 150 get the `429` page.
+  - Today there is no limit there. So this is a new real-world failure, in the busiest normal case: a class start.
+- **Suggested fix:** Give the app-edge bucket at least the values of the LTI `protocol` class (600 per minute, burst 200), or read the same setting. Keep the order rule (the bucket before the handoff row and before any LTI call). Change the acceptance point to a rate above that value (for example 300 random ltiks in 10 s), and add one point: 300 valid launches from one address in one minute all pass.
+
+#### A-LAD-26: NIT: OC-12 still says "Open"
+
+- **File:** `README.md:358`.
+- **Problem:** OC-12 says "Open", but A2 made the four alignments (a)–(d) in the same commit (`review-response-R2-A2.md`, section "Alignment lines of README §8 OC-12").
+- **Suggested fix:** Close the row with the reference.
