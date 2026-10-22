@@ -13,7 +13,19 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 06:00 UTC
+### Current checkpoint — 2026-10-22, 06:23 UTC
+
+**C4 full round 1 passed all 488 cases. Round 2 is running.** The first round finished at about 06:20:01 UTC after 53 minutes. Results: simulation 394/394, isolated snapshot 6/6, upgrade snapshot 6/6, migration 12/12 and storage 70/70. All 488 unique phase/id pairs match the frozen required set. There are no failures or NOT_APPLICABLE rows; `c-host-negative` passed.
+
+The Lead compared each exact phase result with its current-invocation accounting file under `full/tmp/qa-m1-accounting-XdBX6Z`. Parsed content, C4 product/test bindings, identity hashes and timing order match. All five phase teardowns passed, with no ledger error, kept resource or failed cleanup. Phase secret scans found zero hits. Protected volume records match before and after each phase. Full-window W4 and final evidence closure remain pending after round 2 and legacy.
+
+The storage tamper check passed. Raw records show current operation `288cd9a56f2df56d17068ecebd5421da` was the sole changed backup; the older generation stayed unchanged. Recovery returned 2, both journals became `rollback_failed`, and startup refused with exit 1. All dependent cases passed. Round binding SHA-256: `3da505927d97bfeb39b75079a29724777aa2d8f6f5c59f9d42f45873106a3e40`; independent set file: `97e37fa13352492e73973fa5e1a096b88efb24fc2c823b9f4fa42750b316e9b9`.
+
+Grant `msg_92797f8d189e` supplies Canvas QA `ctx_745cb25fcb7c` the five exact phase paths and accounting bindings for independent review of all 233 Canvas cases. This host-only review overlaps Common round 2. Round 2 is expected around 07:15–07:25 UTC (14:15–14:25 Vietnam) if its duration is similar. This estimate does not cover legacy, fresh M2/T7 or final document gates.
+
+The candidate, full/legacy grant and same fixer remain unchanged. No new repair is queued. LA stays host-only until explicit handoff; its next scheduling update is due by 07:00 UTC. All 32 live rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 06:00 UTC
 
 **C4 full round 1 has 418 PASS in four completed phases.** Simulation passed 394/394; isolated snapshot 6/6; upgrade snapshot 6/6; migration 12/12. The Lead read each result file and checked its unique identifiers and C4 product/test SHAs. These remain partial results until the complete round is bound to this invocation's accounting. No full-round acceptance is recorded yet.
 
