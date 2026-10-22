@@ -13,7 +13,19 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 03:40 UTC
+### Current checkpoint — 2026-10-22, 03:49 UTC
+
+**R5 source is held and committed at `27e1f6102409b3d6b676bc46a28150624450a444`.** Tests tree: `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`. The same fixer `ctx_898acbaef3a6` changed only the two authorized storage harness files. The Lead read the delta and verified both held hashes before committing. Runtime harness SHA-256: `fbb99131ca0dc5673006ee500c0d413d8005298efaee320d7213ecb60016ba85`; self-test: `edc2d97a1753b92c320e020c3bd6f201c476c9dca76eeea29e731911923364f6`. This is a WIP snapshot, not a runtime candidate.
+
+The tamper row now selects the previous database from its own stopped operation. It refuses an ambiguous marker or invalid target before changing a file. It checks that only the intended database changed before recovery. The fake retains the prior committed generation and checks both folder orders. The fixer reports four focused passes, two detected mutants and an old-C3 control that reproduces the order-dependent failure. These reports still need independent review. Final host checks started at 03:47:24 UTC (complete suite, umask 022) and 03:47:30 (affected suite, 077). Both have prelaunch inventories and private npm settings. Expected results are around 04:00 UTC.
+
+Two independent Claude Code Opus 5.5 xhigh reviewers are checking the held source in parallel: A `task_06ff45441eb7` / `ctx_cdb29b018142`; B `task_5ec3f3a1c1c4` / `ctx_153504502fc4`. Requested and effective model settings match. Their final verdicts require the complete host evidence. No Docker window is active. The sole fixer remains active for all repairs.
+
+The failed C3 runtime attempt is closed. Common settled as failed and was released. Canvas reports are committed at `67bd849baa5d545626013a292163dac0a3e3a4fe`; its own failed settlement `msg_11876c6358e6` was accepted and the worker released. The Lead verified all 106 entries in its closeout manifest (`a5a4cb459bfd378515f0864e0af62d9abdc9222c097e2ae7b2dc0206db7dc364`). Its 233 passing Canvas rows remain partial evidence. The full round remains failed at 470 PASS / 18 FAIL.
+
+The remaining gates are unchanged: new diagnostic, two complete rounds, 12 legacy groups, fresh M2/T7, final conformance and guides with independent checks. All 32 live rows remain UNVERIFIED; local Canvas remains DEFERRED. The earlier project completion estimate remains withdrawn. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 03:40 UTC
 
 **C3 full round 1 failed: 470 PASS and 18 FAIL across all 488 required rows.** The Lead verified the exact phase/id set and all five inventories against the new accounting files. Simulation passed 394/394; isolated snapshot 6/6; upgrade snapshot 6/6; migration 12/12. Storage passed 52/70 and failed 18. The runner exited 1 at 03:31:43 UTC. Round 2, the equality check and all 12 legacy groups did not run. The earlier passing diagnostic remains zero-credit history.
 
