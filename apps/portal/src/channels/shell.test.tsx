@@ -1,0 +1,156 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router";
+import { buildChannelRegistry } from "@cogniate/channel-kernel";
+import type { ChannelManifest } from "@cogniate/channel-kernel";
+import { App } from "../App.tsx";
+import type { Connection, LmsProvider } from "../types.ts";
+import { ChannelProvider } from "./context.tsx";
+import { channelRegistry, discoveredChannels } from "./registry.ts";
+import { ManifestWizard } from "./ManifestWizard.tsx";
+import { createPortalSdk } from "../sdk/index.ts";
+
+// This channel has no folder or portal module. The shell must accept only its data.
+const canary: ChannelManifest = {
+  id: "shell-canary", family: "lti13", availability: "preview",
+  names: { text: "Test learning site", label: "Test learning site" },
+  card: { title: "Test learning site", description: "A data-only channel", mark: "T", color: "blue", category: "LMS Publishing", order: 100 },
+  registration: [{ method: "manual", authority: "operatorGrant", profiles: ["shell-test"], defaultProfile: "shell-test" }],
+  capabilities: {}, lti: { guardedFamilies: [], toolConfiguration: "none" },
+  setup: {
+    createFields: [{ key: "siteUrl", label: "Site URL", kind: "origin", required: true }],
+    bindingFields: [{ key: "deploymentId", label: "Deployment ID", kind: "id", required: true }],
+  },
+  texts: { adminSteps: ["Open {LMS} settings."], teacherSteps: ["Select {tool} in {LMS}."], disconnect: "Disconnect {LMS}.", notReady: null },
+};
+const simulation: ChannelManifest = { ...canary, id: "shell-simulation", availability: "simulation-only", card: { ...canary.card, title: "Simulation learning site", order: 101 }, registration: [{ ...canary.registration[0]!, profiles: ["shell-sim"], defaultProfile: "shell-sim" }] };
+const registry = buildChannelRegistry([...discoveredChannels, ...[canary, simulation].map((manifest) => ({ folder: `/channels/${manifest.id}`, manifest }))], { simulations: true });
+function provider(manifest: ChannelManifest): LmsProvider {
+  return {
+    lms: manifest.id, channel: manifest.id, label: manifest.names.label,
+    methods: manifest.registration.map((entry) => entry.method),
+    capabilities: registry.legacyCapabilities(manifest.id),
+    profiles: [...new Set(manifest.registration.flatMap((entry) => entry.profiles))].map((id) => ({ id, label: id, ready: true, simulation: false, clientId: null })),
+  };
+}
+function connection(manifest: ChannelManifest, fields: Partial<Connection> = {}): Connection {
+  return {
+    id: "con_shell", name: "Test connection", siteUrl: "https://learning.test", serviceUrl: "https://learning.test",
+    lms: manifest.id, channel: manifest.id, channelName: manifest.names.text, profile: manifest.registration[0]!.defaultProfile,
+    capabilities: registry.legacyCapabilities(manifest.id), method: manifest.registration[0]!.method, status: "pending",
+    registrationUrl: null, registrationUrlExpiresAt: null, platform: null, lastError: null, webServices: null,
+    createdAt: "2026-10-22T00:00:00Z", lastLaunchAt: null, ...fields,
+  };
+}
+const session = { user: { id: "usr_test", name: "Test", email: "test@example.test", role: "admin" }, library: { id: "lib_test", name: "Library" } };
+const json = (value: unknown) => new Response(JSON.stringify(value), { headers: { "Content-Type": "application/json" } });
+let listed: LmsProvider[];
+let current: Connection;
+const fetchMock = vi.fn();
+beforeEach(() => {
+  listed = registry.channels().map(provider);
+  current = connection(canary);
+  fetchMock.mockReset().mockImplementation(async (url: string) => {
+    if (url === "/app-api/me") return json(session);
+    if (url === "/app-api/lms-providers") return json({ lms: listed });
+    if (url === "/app-api/connections") return json({ connections: [] });
+    if (url === `/app-api/connections/${current.id}`) return json(current);
+    throw new Error(`Unexpected request: ${url}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+});
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+function app(path: string) {
+  return render(<ChannelProvider registry={registry}><MemoryRouter initialEntries={[path]}><App /></MemoryRouter></ChannelProvider>);
+}
+function wizard(manifest: ChannelManifest, existing: Connection | null = null) {
+  return render(<MemoryRouter><ManifestWizard manifest={manifest} provider={provider(manifest)} connection={existing} libraryName="Library" opener="test" onCreated={vi.fn()} onChanged={vi.fn()} sdk={createPortalSdk(vi.fn())} /></MemoryRouter>);
+}
+
+describe("manifest portal shell", () => {
+  it("renders one card for every discovered channel and the data-only channel", async () => {
+    app("/integrations");
+    for (const manifest of registry.channels()) {
+      const card = await screen.findByRole("article", { name: manifest.card.title });
+      expect(within(card).getAllByRole("heading", { name: manifest.card.title })).toHaveLength(1);
+      await waitFor(() => expect(within(card).getByRole("link", { name: "Connect" }).getAttribute("href")).toBe(`/integrations/${manifest.id}/connect`));
+      expect(card.textContent).toContain(manifest.card.description);
+    }
+  });
+  it.each([...channelRegistry.channels(), canary])("renders all four default steps from $id manifest data", (manifest) => {
+    const { container } = wizard(manifest);
+    expect([...container.querySelectorAll("[data-channel-step]")].map((element) => element.getAttribute("data-channel-step"))).toEqual(["show", "collect", "verify", "enable"]);
+    expect(container.textContent).toContain(manifest.texts.adminSteps[0]!.replaceAll("{LMS}", manifest.names.text).replaceAll("{tool}", "Cogniate (Library)"));
+  });
+  it("uses the generic connect route without a portal module and submits manifest fields", async () => {
+    app(`/integrations/${canary.id}/connect`);
+    expect(await screen.findByRole("heading", { name: "Connect Test learning site" })).toBeTruthy();
+    const name = await screen.findByLabelText("Connection name");
+    fireEvent.change(name, { target: { value: "New site" } });
+    fireEvent.change(screen.getByLabelText("Site URL"), { target: { value: "https://new.test" } });
+    fetchMock.mockImplementation(async (url: string, options: RequestInit) => {
+      if (options.method === "POST") return json(current);
+      if (url === "/app-api/me") return json(session);
+      if (url === "/app-api/lms-providers") return json({ lms: listed });
+      if (url === "/app-api/connections") return json({ connections: [current] });
+      return json(current);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await screen.findByRole("heading", { name: "Manage Test learning site" });
+    const call = fetchMock.mock.calls.find(([, options]) => options.method === "POST")!;
+    expect(JSON.parse(call[1].body)).toEqual({ name: "New site", siteUrl: "https://new.test", channel: canary.id, method: "manual", profile: "shell-test" });
+    expect(await screen.findByLabelText("Approval code")).toBeTruthy();
+  });
+  it.each(["/integrations/unknown/connect", "/integrations/unknown/con_shell"])("rejects an unknown channel at %s", async (path) => {
+    app(path);
+    expect(await screen.findByRole("heading", { name: "Page not found" })).toBeTruthy();
+    expect(screen.queryByLabelText("Connection name")).toBeNull();
+  });
+  it("rejects another channel's connection even when its legacy lms field matches", async () => {
+    current = connection(canary, { channel: simulation.id, lms: canary.id });
+    app(`/integrations/${canary.id}/${current.id}`);
+    expect(await screen.findByRole("heading", { name: "Page not found" })).toBeTruthy();
+    expect(screen.queryByText("Verify connection")).toBeNull();
+  });
+  it("uses profile readiness for the standard channel too", async () => {
+    listed = listed.map((entry) => ({ ...entry, profiles: entry.profiles.map((profile) => ({ ...profile, ready: false })) }));
+    app("/integrations");
+    for (const manifest of registry.channels()) {
+      const card = await screen.findByRole("article", { name: manifest.card.title });
+      await waitFor(() => expect(within(card).getByRole("button", { name: "Connect" }).hasAttribute("disabled")).toBe(true));
+      expect(within(card).queryByRole("link", { name: "Connect" })).toBeNull();
+    }
+  });
+  it("hides an unlisted simulation channel's card and rejects its direct route", async () => {
+    listed = listed.filter((entry) => entry.channel !== simulation.id);
+    const view = app("/integrations");
+    const card = await screen.findByRole("article", { name: canary.card.title });
+    await within(card).findByRole("link", { name: "Connect" });
+    expect(screen.queryByRole("article", { name: simulation.card.title })).toBeNull();
+    view.unmount();
+    app(`/integrations/${simulation.id}/connect`);
+    expect(await screen.findByRole("heading", { name: "Page not found" })).toBeTruthy();
+  });
+  it.each(channelRegistry.channels())("selects the verification step from $id authority", (manifest) => {
+    const existing = connection(manifest);
+    wizard(manifest, existing);
+    if (manifest.registration[0]!.authority === "self") {
+      expect(screen.getByText(`The first launch from ${manifest.names.text} verifies this connection.`)).toBeTruthy();
+      expect(screen.queryByLabelText("Approval code")).toBeNull();
+    } else {
+      expect(screen.getByLabelText("Approval code")).toBeTruthy();
+      expect(screen.queryByText(/The first launch/)).toBeNull();
+    }
+  });
+  it("uses stored authority after dynamic registration stages a self connection", () => {
+    const self = channelRegistry.channels().find((manifest) => manifest.registration.some((entry) => entry.method === "dynamic" && entry.authority === "self"))!;
+    wizard(self, connection(self, { method: "dynamic", bindingAuthority: "operatorGrant" }));
+    expect(screen.getByLabelText("Approval code")).toBeTruthy();
+    expect(screen.queryByText(/The first launch/)).toBeNull();
+  });
+  it("keeps the reserved admin-launch authority separate from an operator grant", () => {
+    wizard(canary, connection(canary, { bindingAuthority: "verifiedAdminLaunch" }));
+    expect(screen.getByText("Use the admin launch code to verify this connection.")).toBeTruthy();
+    expect(screen.queryByLabelText("Approval code")).toBeNull();
+  });
+});

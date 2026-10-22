@@ -41,11 +41,12 @@ Secret files (never in git; mode `0600`; mounted read only):
 | `infra/.secrets/lti-api-key.<account>` | app (read at each use) | tool account API key (today) |
 | `infra/.secrets/lti-operator-key` | LTI service container (CLIs) | operator key of the host's operator. `npm run seed` makes it once (`lti:operator init --if-none`); `stack:up` does not |
 | `infra/.secrets/lti/keyring.json` | LTI service | key ring (when used) |
+| `infra/.secrets/lti/lti-operator-key` | LTI service container (CLIs) | a copy of `infra/.secrets/lti-operator-key` that the host wrapper writes atomically at each run (`0600`). A missing original deletes it; `stack:reset` deletes it (BD-A2-34) |
 | `infra/.secrets/operators.json` | app | allowed operator names (production) |
 
 Rules for the secret folders (build ratifications, [build decisions A2](build-decisions-A2.md) BD-A2-02, BD-A2-03):
 
-- `npm run stack:reset` deletes `seed.json`, the API key files and `lti-operator-key` together with the databases. It keeps `.env`, `infra/.certs/` and the key-ring folder `infra/.secrets/lti/`: key material, like the master key in `.env`. To remove a test ring, delete `infra/.secrets/lti/keyring.json` by hand.
+- `npm run stack:reset` deletes `seed.json`, the API key files, `lti-operator-key` and its copy `infra/.secrets/lti/lti-operator-key` together with the databases. It keeps `.env`, `infra/.certs/` and the key-ring folder `infra/.secrets/lti/`: key material, like the master key in `.env`. To remove a test ring, delete `infra/.secrets/lti/keyring.json` by hand.
 - The folder `infra/.secrets/lti/` (mode `0700`) must exist before any `docker compose up`. `npm run stack:up` and the QA runners (`prepare_e2e` in `infra/scripts/lib.sh`) make it. Without it, Docker makes the LTI service mount source as root, and the `e2e` container cannot start (its read-only bind of `infra/.secrets` cannot make the tmpfs mount point).
 - The `e2e` test container sees `infra/.secrets` read only, but never the key ring: an empty tmpfs covers `/repo/infra/.secrets/lti` ([security delta §10](security-delta.md#10-keys-and-secrets), visibility rule). QA writes a test ring only from its host clone (tasks README form (a)). Do not remove the tmpfs line to make the `e2e` container start: make the folder.
 

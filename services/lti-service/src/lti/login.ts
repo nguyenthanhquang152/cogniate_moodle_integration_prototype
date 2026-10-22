@@ -2,7 +2,7 @@ import type { PublicUrls } from '@cogniate/shared';
 import { randomToken, sha256Hex } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import type { LmsName, ProfileOptions } from '../profiles/index.ts';
-import { lmsNameOf, profileOfFixedIssuer } from '../profiles/index.ts';
+import { lmsNameOf, profileDefinition, profileOfFixedIssuer } from '../profiles/index.ts';
 import { getAccount } from '../store/accounts.ts';
 import { findDeployment, findLoginPlatforms } from '../store/platforms.ts';
 import { STATE_TTL_MS, saveState } from '../store/states.ts';
@@ -10,9 +10,10 @@ import { isPlatformUsable, platformLmsName } from './binding.ts';
 import { stateCookieName } from './checks.ts';
 import type { ProtocolErrorCode } from './codes.ts';
 import { isOwnLaunchTarget, launchUri } from './target.ts';
+import { storageLoginPage } from './storage-pages.ts';
 
 export type LoginResult =
-  | { ok: true; location: string; setCookie: string; platformId: string }
+  | { ok: true; location: string; setCookie: string; platformId: string; page?: ReturnType<typeof storageLoginPage> }
   | { ok: false; code: ProtocolErrorCode; /** Safe reason for login_rejected.detail. */ detail: string; /** LMS name of the error page (security §12). */ lms: LmsName };
 
 const str = (v: unknown): string | undefined => (typeof v === 'string' && v !== '' ? v : undefined);
@@ -61,8 +62,12 @@ export function initiateLogin(db: Db, urls: PublicUrls, accountId: string, param
   const state = randomToken();
   const nonce = randomToken();
   const stateHash = sha256Hex(state);
+  const storage = profileDefinition(platform.profile, profiles)?.platformStorage;
+  const candidate = storage?.targetFrame === 'from-login' ? str(params.lti_storage_target) : storage?.targetFrame;
+  const storageTarget = candidate && /^[A-Za-z0-9_-]{1,64}$/.test(candidate) ? candidate : null;
+  const storageOrigin = storageTarget && storage ? (storage.origin === 'authOrigin' ? new URL(platform.authEndpoint).origin : storage.origin) : null;
   saveState(db, {
-    stateHash, toolAccountId: accountId, platformId: platform.id, nonce, targetLinkUri: target, expiresAt: now + STATE_TTL_MS, loginDeploymentId: deploymentId ?? null,
+    stateHash, toolAccountId: accountId, platformId: platform.id, nonce, targetLinkUri: target, expiresAt: now + STATE_TTL_MS, loginDeploymentId: deploymentId ?? null, storageTarget, storageOrigin,
   }, now);
   const auth = new URL(platform.authEndpoint);
   const q: Record<string, string> = {
@@ -73,5 +78,6 @@ export function initiateLogin(db: Db, urls: PublicUrls, accountId: string, param
   };
   for (const [k, v] of Object.entries(q)) auth.searchParams.set(k, v);
   const setCookie = `${stateCookieName(stateHash)}=${state}; Path=/; Max-Age=${STATE_TTL_MS / 1000}; Secure; HttpOnly; SameSite=None; Partitioned`;
-  return { ok: true, location: auth.href, setCookie, platformId: platform.id };
+  const page = storageTarget && storageOrigin ? storageLoginPage({ authUrl: auth.href, state, target: storageTarget, origin: storageOrigin }) : undefined;
+  return { ok: true, location: auth.href, setCookie, platformId: platform.id, ...(page ? { page } : {}) };
 }

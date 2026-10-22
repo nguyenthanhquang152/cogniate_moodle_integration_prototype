@@ -1140,15 +1140,16 @@ describe('supplemental snapshot boundaries and retained cleanup history', () => 
 
   it('an unavailable adapter is refused before parsing and before any provider request', async () => {
     const { submit } = await endpoint('blackboard');
-    const { blackboardProvider } = await import('../providers/blackboard.ts');
-    const parser = blackboardProvider.parsePlatformBody;
+    const { testSetupOf } = await import('../testkit.ts');
+    const blackboardProvider = testSetupOf('blackboard')!;
+    const parser = blackboardProvider.parseBindingBody;
     try {
-      delete blackboardProvider.parsePlatformBody;
+      Reflect.deleteProperty(blackboardProvider, 'parseBindingBody');
       expect(code(await submit({ grantCode: '', unexpected: true }))).toBe('CAPABILITY_NOT_SUPPORTED');
       expect(t.lti.calls).toEqual([]);
       expect(events('grant_attempt_started')).toEqual([]);
     } finally {
-      blackboardProvider.parsePlatformBody = parser!;
+      blackboardProvider.parseBindingBody = parser!;
     }
   });
 
