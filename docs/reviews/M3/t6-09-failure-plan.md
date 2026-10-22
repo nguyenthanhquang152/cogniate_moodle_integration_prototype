@@ -124,3 +124,62 @@ The runtime runs are the real proof. No host-only check can reproduce the browse
 - **Conformance.** My Stage 2 binds only accepted evidence of the final identity.
 
 All 32 real-LMS rows stay UNVERIFIED. Local Canvas stays DEFERRED.
+
+## 9. Appended clarification after C8, both reviews and E-R3 (2026-10-22, about 16:37–16:45 UTC)
+
+Author: Architect, Claude Opus 5.5 xhigh, task `task_f301484bd6be` / dispatch `ctx_422d7f0f0928`, run `run_ebe671ad72a9`. Read-only work: git, file size and SHA-256 checks only. No Docker, browser, test, install or network request.
+This section is append-only. §0–§8 stay the original PROPOSED plan: 13,356 B, SHA-256 `ece4248bad58989f34e76bcde65a513e08069d8620b125373b981e393ba68ff0`. Their status, lost-trace and "9th character" text is historical. This section corrects it. It does not rewrite it.
+
+Inputs: [Reviewer A](t6-09-reviewer-a.md) (30,327 B, `752472f72ef4de6708ec3e7152e88a3da2c844ed3a0abd03ab294b8a5eebfe48`, commit `aaf95ed`); [Reviewer B](t6-09-reviewer-b.md) (22,142 B, `55bb84600eb85bca484d98532b68e70351414662990b36a6b27a557f22bf121a`, commit `27c4ed7`); [E-R3](../../team/r3-evidence-decision-2026-10-22.md) (6,215 B, `eebfa2b4d83935513b1b2b22469b2195b79ea0d550abaa38e6a6705cb620ed55`).
+
+### 9.1 Status now
+
+- C8 `5561e8f72a83de36a68877c6b26ffc8288ade735` (tests tree `65eaefab31ec6800fca06aee50e5e25c95713f8a`) applies §6. C7 → C8 under `tests/**` is the two §6 files, +11/−0 and +22/−0. C8 equals product C6 `4008afb92fe983d52db33442e060210b929966c8` outside `docs/**` and `tests/**` (my `git diff --quiet`, exit 0).
+- Both blind reviewers APPROVE this plan, C8, the v4 launchers and route eligibility, with 0 BLOCKER and 0 MAJOR. Their approval is not runtime acceptance.
+- The Lead accepted E-R3 FOR EXECUTION at `aaf95ed`. That is not runtime acceptance. The §7 runtime row is still open.
+- E-T5R stays VOID. The C6/C7 attempt stays FAILED. The 15:58:56 UTC guard-control run is UNAUTHORIZED/STOPPED; its gate message `msg_2f257a8675cf` is VOID; it gives no row.
+
+### 9.2 Recovered trace (corrects §0 "trace is lost", §2 and §4)
+
+QA recovered the trace of the current failure after §0–§8 were written:
+`/Users/quangnguyen/cogniate-qa-runs/qa-multi-r1-4008afb9-2026-10-22T14-43-55-730Z/tests/acceptance/artifacts/playwright/T6-5-xss-a11y-AC-T6-09-axe-e53e7-focus-returns-to-the-opener/trace.zip`, 9,290,291 B, SHA-256 `5b655b0015331abf48342db9ecce599fd35ca08086cdbf84a014dd99815d9c3c` (I re-checked size and hash at 16:38 UTC).
+The test started at 15:06:15.174 UTC. Reviewer A §3.1 matched the trace wall time to that start to the millisecond. Reviewer B §3 bound the same files and reads 15:06:15.177Z for the trace context. Both bind the current failure. I did not extract the trace again.
+The trace and its screenshot hold dev credentials. Keep them private. In `run-t5`, each pass clears the shared Playwright output folder, so only the final pass keeps browser artifacts. Per-pass output folders are deferred (B-M3-T609-05, E-R3).
+
+Facts that the reviewers read from the trace (Reviewer A §3.2, Reviewer B §3):
+- The typed URL was `https://moodle.test:8443`, from the run environment. `https://moodle.test` (§3) is only the `tests/acceptance/lib/env.ts:16` default.
+- All 24 URL characters were lost, not the characters after the 9th (§4). The URL field was empty at the failure. The name field kept its full value.
+- After the URL keys, one forward Tab reached the name field. That places the lost focus at the `Connect Moodle` heading. The `required` URL field then blocked the native submit, so no `POST /app-api/connections` was sent.
+
+Proof level: the trace directly shows the focus loss. It shows that focus left the URL field after `tabTo` saw it there and before the first URL key. Which Frame callback moved focus (the observer microtask or the animation frame) stays an inference. R3 covers both.
+Course page (§3, §4): the pending animation frame can move focus again only when the course data commits before the first frame after the effect. In the other order, the observer makes the only move. R3 covers both orders (Reviewer A §2).
+
+### 9.3 Final C8 value checks (accepted change from §6.3)
+
+§6.3 asks for `toHaveValue(X)` after each typed value. C8 uses `toHaveValue` for the eight non-secret values. For the three approval codes, C8 uses a safe boolean poll: `expect.poll(() => page.locator(':focus').evaluate((el, code) => el.value === code, grant.code)).toBe(true)` (`tests/e2e/M2/06-keyboard-axe.m2.ts` at C8, the three `expect.poll` lines). It does not use `toHaveValue(grant.code)`.
+The strength is the same: a wrong value or a lost focus fails at the default expect deadline. The failure text does not print the one-time code (AC-M3-07 hygiene). Do not change these checks to `toHaveValue(grant.code)` in a later edit (B-M3-T609-08). C8 also adds a failure message to each settle wait and value check. Both reviewers accepted these differences.
+
+### 9.4 Scope of route condition (b) (corrects §8 "M1")
+
+§8 (b) says "no M1 runner, manifest or spec reads either changed file". As written, this is false (A-T609-01, B-M3-T609-02). At C8, `tests/host/run-m1.mjs:206` runs `run-t5.mjs --tasks T5a,T5b,T6` in `--phase legacy`, and `:168-170` calls `--phase legacy` at the end of `--phase full`.
+Correct scope: no producer of a carried M1 SIM, migration, snapshot or storage row loads either changed file. M1 Vitest collects `acceptance/M1/{owner}/**/*.test.ts`. M1 Playwright matches `M1/**/*.spec.ts`. The condition applies to these producers, not to the whole `run-m1` script.
+So the legacy phase runs the changed T6 spec, and all 12 legacy groups stay fully fresh. E-R3 records this scope.
+
+### 9.5 Product focus findings: MINOR, deferred (replaces the NIT severity in §5)
+
+| Id | Same issue as | Severity now | Problem |
+| --- | --- | --- | --- |
+| AR-M3-T609-01 | B-M3-T609-06 | MINOR, deferred | `CreateConnection.tsx:73` `autoFocus` puts focus in the name field. One frame later, Frame moves it to the heading. Keys typed in that window go to the heading. They are lost with no message. |
+| AR-M3-T609-02 | A-T609-02, B-M3-T609-06 | MINOR, deferred | `App.tsx:243-273`: the observer stays connected until the target exists, and the pending animation frame can repeat the move. On a data route (for example the course page), focus can move to the heading after the data arrives. That can be seconds after the user started to use the keyboard. Keys typed before focus settles can be lost. |
+
+Reason: these are not style issues, so NIT is wrong (charter §5). They are worth a fix and safe to defer, so they are MINOR. The recovered trace shows real key loss at automation speed.
+C8 tests wait for the intended route readiness: the heading focus, then one frame. They do not prove that this product race is gone. After R3, no test detects it (Reviewer B §4.3). A pass of AC-T6-09 or AC-M2-11 proves keyboard operation after the route focus settles. It does not prove that keys typed earlier are kept (Reviewer A §4.6).
+No product repair is authorized now. The retained Codex executor owns any future repair under a separate grant. The §5 "possible future product option" is not a decision and is not validated. A future product focus change must update both `routeFocusSettled` helpers in the same round (A-T609-04).
+Handoff to Docs, through the Lead: list both findings in `docs/human_review/deferred.md` with the user effect above. Do not claim that keys typed before a route's focus settles are kept.
+
+### 9.6 Not changed by this section
+
+- §0–§8, including the PROPOSED label, the lost-trace text, the old inference and the old NIT rows. They stay as history.
+- The failed C6/C7 attempt and every earlier failed or void attempt.
+- Any product, test, criterion, contract, ADR, team or guide file.
+- The runtime proof: §7 last row, under E-R3. Final Architect conformance binds only accepted fresh evidence ([conformance report](../M4/architect-conformance.md)).

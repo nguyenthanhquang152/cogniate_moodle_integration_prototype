@@ -305,3 +305,49 @@ Root `/Users/quangnguyen/cogniate-review-runs/architect-m4-s1-02bResls` (0700; f
 - D-2: I read both tracker-repair reviews in full (the Lead settled blindness). I did not read `tracker-repair-qa.md`.
 - D-3: Two unfiltered `orca orchestration inbox --json` outputs went to `/tmp/arch-m4s` (0600). My filter printed only the rows addressed to me (none). I deleted both files.
 - D-4: I did not touch the untracked `pnpm-workspace.yaml`.
+
+## Round 3, Stage 1 — C8 test repair and E-R3 binding rules (2026-10-22, about 16:37–16:45 UTC)
+
+Author: Architect, Claude Code Opus 5.5 (`claude-opus-5-5`), xhigh. Task `task_f301484bd6be`, dispatch `ctx_422d7f0f0928`, run `run_ebe671ad72a9`. I am independent of QA, the C8 editor, the R1 Author, Docs and both reviewers. The Architect role wrote the R3 plan (task `task_e34f6bb75e2d`), so I do not review C8 as a reviewer. I bind the two blind reviews.
+Authority: this dispatch and [E-R3](../../team/r3-evidence-decision-2026-10-22.md). The held prefix of this report (Round 1 and Round 2 Stage 1, 38,641 B, SHA-256 `18da670bbb6c6f11d052e6d540f50122825a6d81bfdea759947db8b9f42c8f7d`, committed at `0f5a9ba`) is unchanged. This section is append-only.
+
+Stage 1 is host-only. I ran git, size and SHA-256 checks only. I ran no test, build, Docker, browser, install or launcher. I did not open the active legacy run root.
+
+### R3.1 Identities
+
+| Item | Value | Check |
+| --- | --- | --- |
+| Product C6 | `4008afb92fe983d52db33442e060210b929966c8` | Unchanged since Round 2. |
+| Tests C8 | `5561e8f72a83de36a68877c6b26ffc8288ade735`, tests tree `65eaefab31ec6800fca06aee50e5e25c95713f8a` | C6 = C8 outside `docs/**` and `tests/**` (`git diff --quiet`, exit 0). C7 → C8 under `tests/**`: `T6/5-xss-a11y.spec.ts` +11/−0 and `e2e/M2/06-keyboard-axe.m2.ts` +22/−0. HEAD `aaf95ed` = C8 outside `docs/**`. |
+| Reviewer A | `docs/reviews/M3/t6-09-reviewer-a.md`, 30,327 B, `752472f72ef4de6708ec3e7152e88a3da2c844ed3a0abd03ab294b8a5eebfe48`, commit `aaf95ed1a95987ec8d405f1ec74921321e252dab` | APPROVE: plan, C8, v4 launchers, eligibility. 0 BLOCKER, 0 MAJOR. |
+| Reviewer B | `docs/reviews/M3/t6-09-reviewer-b.md`, 22,142 B, `55bb84600eb85bca484d98532b68e70351414662990b36a6b27a557f22bf121a`, commit `27c4ed78125b0a802fc4c2f43bebee06036daed4` | APPROVE, same scope. 0 BLOCKER, 0 MAJOR. |
+| Route | E-R3, 6,215 B, `eebfa2b4d83935513b1b2b22469b2195b79ea0d550abaa38e6a6705cb620ed55` | ACCEPTED FOR EXECUTION, 16:33 UTC. Not runtime acceptance. |
+| V4 indexes | `qa-common-c6-v4-20261022T1554Z/evidence-index-v4-prep.tsv` (90 entries, 11,197 B, `dd1b040f6865033181b886e6f6ed86fd0fdf99f40811c2ce13958e1b4be0aa37`); `evidence-index-v4-addendum.tsv` (clarification, 2 entries, 273 B, `c6a52076be05b6148f4297994863d61973047a09b523ca8d2e2ba8cc470807ad`) | Size, line count and SHA-256 match the dispatch. I did not open the entries. |
+| R3 plan | `docs/reviews/M3/t6-09-failure-plan.md` | Prefix 13,356 B `ece4248b…ff0` unchanged. §9 appended in this stage. |
+
+### R3.2 Reuse of the Round 2 source conformance
+
+C6 → C8 changes no product path. So the Round 2 source results (R2.2, R2.3, R2.8) stay valid at C8 without a new audit. The C7 → C8 delta is tests only. No producer of a carried M1 SIM, migration, snapshot or storage row loads either changed file. The M1 legacy phase runs the changed T6 spec, and `--phase full` calls legacy at its end, so all 12 legacy groups stay fresh (plan §9.4; E-R3 "Correct scope of reuse").
+
+### R3.3 Replacements for the Round 2 binding rules
+
+E-T5R is VOID and the C6/C7 attempt is FAILED. The R2.6 rows V4–V7 and the R2.7 rules stay as history. Stage 2 applies them with these replacements:
+
+- E-T5R → E-R3; C6/C7 → product C6 with tests C8.
+- Required fresh evidence: all 12 legacy groups; two Canvas SIM rounds of 258 rows each (251 non-browser + 7 browser = 26 common + 232 Canvas) with exact per-case equality; an independent 232-row Canvas judgment for each round; all 64 M2 cases and 13 criteria; three T7 runs of 17 passing tests with only the permitted demo-only skip, all 15 criteria, the demo within 180 s and four confirmations; W4, scans and owned cleanup for each window.
+- M2 and T7 run at actual C8. C6 product equivalence is a separate statement.
+- At most 230 non-selected C4 full2 rows may carry, each listed with its original run. Every repeated row uses its fresh result. The one carried Canvas snapshot row stays separate.
+- A 258-row run is not a fresh 488-row run. A 232-row Canvas judgment is not a fresh 233-row judgment.
+- Any fresh failure, unequal rounds or product change voids E-R3. Then final conformance waits for a new Lead decision.
+
+### R3.4 Deferred product findings from the R3 work
+
+AR-M3-T609-01 and AR-M3-T609-02, with A-T609-02 and B-M3-T609-06: MINOR, deferred, no product repair authorized (plan §9.5). Focus can move to the route heading after data arrives, and keys typed before focus settles can be lost. The C8 waits synchronize with the intended route readiness. They do not show that this race is gone.
+AC-T6-09 and AC-M2-11 claim keyboard operation, visible focus, focus return and announced status. They do not bound how soon after a route change a key must be kept (Reviewer A §4.6). So this limit does not fail those criteria. Final Docs must not claim that keys typed before a route's focus settles are kept.
+
+### R3.5 Stage 1 result
+
+- Source conformance at C6/C8: APPROVE, carried from R2.8. Open in source: 0 BLOCKER, 0 MAJOR.
+- AC-M4-06 verdict: PENDING. Stage 2 waits for the Lead's accepted complete fresh runtime and the independent Canvas judgments.
+- No fresh runtime result is accepted at this checkpoint. All 32 real-LMS rows stay UNVERIFIED. Local Canvas stays DEFERRED. No certification, enterprise-readiness or human-approval claim.
+- Disclosures: I read only the two V4 index files (size, lines and hash) and the recovered `trace.zip` (size and hash). I wrote no private evidence file in this stage. I did not touch the untracked `pnpm-workspace.yaml`.
