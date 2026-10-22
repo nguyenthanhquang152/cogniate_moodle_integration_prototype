@@ -1,4 +1,4 @@
-// Small pieces that every provider adapter and the connection routes share (no I/O).
+// Small pieces that every setup adapter and the connection routes share (no I/O).
 import type { PublicUrls } from '@cogniate/shared';
 
 /** The tool account of the app in the LTI service (contract §4.1). */
@@ -19,7 +19,7 @@ export function toolUrls(urls: PublicUrls): { launch: string; login: string; key
   };
 }
 
-/** A value of a strict provider body (app contract §4.4): 1 to 255 printable ASCII characters without spaces. */
+/** A value of a strict binding body (app contract §4.4): 1 to 255 printable ASCII characters without spaces. */
 export const PRINTABLE_ID = /^[\x21-\x7e]{1,255}$/;
 /** An approval code: 43 base64url characters (256 bits). */
 export const GRANT_CODE = /^[A-Za-z0-9_-]{43}$/;

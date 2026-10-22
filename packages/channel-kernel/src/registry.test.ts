@@ -28,6 +28,15 @@ function testManifest(over: Json = {}): Json {
 
 const channel = (manifest: unknown, folder = '/x/zz-test', extra: Partial<LoadedChannel> = {}): LoadedChannel => ({ folder, manifest, ...extra });
 
+it('carries app adapters through discovery without exposing hidden channels', () => {
+  const adapter = { channel: 'zz-test', checkCreate: () => ({ ok: true }) };
+  const loaded = [channel(testManifest({ availability: 'simulation-only' }), '/x/zz-test', { appAdapter: adapter })];
+  expect(buildChannelRegistry(loaded, { simulations: true }).appAdapter('zz-test')).toBe(adapter);
+  expect(buildChannelRegistry(loaded, { simulations: false }).appAdapter('zz-test')).toBeNull();
+  expect(buildChannelRegistry(loaded, { simulations: true }).appAdapter('unknown')).toBeNull();
+  expect(buildChannelRegistry([channel(testManifest())], { simulations: true }).appAdapter('zz-test')).toBeNull();
+});
+
 /** The error of a registry build, or a test failure when the build passes. */
 function failure(channels: LoadedChannel[]): RegistryError {
   try {

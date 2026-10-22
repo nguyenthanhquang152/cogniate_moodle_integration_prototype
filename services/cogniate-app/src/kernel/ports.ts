@@ -9,6 +9,8 @@ import type { MbzBuild } from '../domain/mbz-builds.ts';
 import type { Publication } from '../domain/publications.ts';
 
 export type { LtiProviderProfile } from '../clients/lti-client.ts';
+export type ChannelId = string;
+export type ChannelText = string;
 
 /** The connection fields that an adapter may read. */
 export interface SetupConnection {
@@ -127,9 +129,19 @@ export interface AdminValues {
   tokenAudience?: string;
 }
 
+/** App-only profile metadata; kept equal to the LTI profile traits (BD-A1-29). */
+export interface AppProfileData {
+  sharing: 'exclusive' | 'shared';
+  serviceUrl: boolean;
+  label: string;
+  refusedHostSuffixes?: readonly string[];
+}
+
 /** Pure setup functions. A rejected input is a result value, never a thrown validation error. */
 export interface ConnectionSetup {
   readonly channel: string;
+  readonly profiles: Readonly<Record<string, AppProfileData>>;
+  sharingOf(profileId: string): AppProfileData['sharing'] | null;
   checkCreate(input: { siteUrl: string; serviceUrl?: string; profile: ProfileView }):
     { ok: true; siteUrl: string; serviceUrl: string } | { ok: false; field: string; rule?: number };
   toolConfiguration(ctx: ToolConfigurationContext): ToolRow[];

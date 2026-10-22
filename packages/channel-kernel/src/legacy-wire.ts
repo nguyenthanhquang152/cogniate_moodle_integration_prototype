@@ -63,3 +63,9 @@ export const LEGACY_GRADE_CONFLICT = '(Moodle has a grade with a newer time)';
 
 /** Frozen learner label fallback (BD-A1-27); per-channel copy moves in LA-IC-15. */
 export const LEGACY_LEARNER_HOST = 'Moodle';
+
+/** Frozen manual binding errors (security §2.6, app contract §4). */
+export const LEGACY_SELF_BINDING_TEXT = {
+  collision: 'This Moodle tool is already registered with Cogniate. In Moodle, make a new tool for this library and use its values.',
+  reserved: 'This address belongs to a hosted LMS. Connect it as Canvas or Blackboard.',
+} as const;
