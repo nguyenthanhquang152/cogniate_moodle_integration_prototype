@@ -349,6 +349,7 @@ CAUTION: Do not use `npm run stack:reset` in a drill: it also deletes the seed a
 | One account gets `429` in normal use | `lti_rate_limited_total{class}` | a limit too low for a big class start | Raise the account `limits`. |
 | A library reports a foreign course list | audit events of `platform.*` and `binding_*` | a wrong binding | Suspend and release (§8). |
 | Service does not become ready after a key change | `/readyz` reasons | a key version missing from the ring | Put the version back from escrow (§6.3 CAUTION). |
+| All launches of one platform fail at check 5 with `aud_untrusted` | `launch_check_failed {check: 5, code: INVALID_ISSUER_OR_AUDIENCE, detail: aud_untrusted}` | the LMS sends an extra `aud` value besides the client id (BD-A2-73) | Ask the LMS admin which extra audience the LMS sends, and confirm that it is expected. Then the tenant sets it: `PATCH /api/platforms/<id> {"trustedAudiences": ["<exact value>"]}` (it replaces the list; `[]` clears it). `azp_missing` or `azp_mismatch` cannot be fixed with this list: the LMS must send `azp` = the client id. |
 
 ## 10. Open items
 
