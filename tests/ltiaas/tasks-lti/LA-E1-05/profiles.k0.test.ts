@@ -29,7 +29,17 @@ interface ProfileRecord extends Record<string, unknown> {
   wireLms?: string | null;
   endpoints?: string;
   privacyFloor?: string;
+  listOrder?: number;
   simulation?: boolean;
+}
+
+interface KernelModule {
+  BASELINE_PROFILE_WIRE_LMS?: Record<string, string | null>;
+  PRIVACY_FLOOR_NONE_PROFILES?: readonly string[];
+  loadChannelFolders?: (
+    roots?: readonly string[],
+    target?: 'app' | 'lti',
+  ) => Promise<Array<{ id: string; ltiProfiles?: readonly ProfileRecord[] }>>;
 }
 
 interface ProfilesModule {
@@ -40,12 +50,14 @@ interface ProfilesModule {
 
 // Baseline F1 counts at G-BASE (from infra/scripts/fitness/f1-baseline.json) for the non-channel files of LA-E1-05.
 const GBASE_F1_COUNTS: Record<string, number> = {
+  'packages/channel-kernel/src/profiles.ts': 0,
   'packages/shared/src/config.ts': 0,
   'services/lti-service/src/profiles/blackboard.ts': 21,
   'services/lti-service/src/profiles/canvas.ts': 33,
   'services/lti-service/src/profiles/index.ts': 19,
   'services/lti-service/src/profiles/standard.ts': 2,
   'services/lti-service/src/profiles/types.ts': 2,
+  'services/lti-service/src/lti/binding.ts': 0,
   'services/lti-service/src/lti/checks.ts': 6,
   'services/lti-service/src/lti/claims.ts': 2,
   'services/lti-service/src/lti/launch.ts': 1,
@@ -84,30 +96,17 @@ function withSimEnv<T>(simulationsOn: boolean, fn: () => T): T {
 
 function callListProfiles(mod: ProfilesModule, simulationsOn: boolean): ProfileRecord[] {
   expect(typeof mod.listProfiles, 'listProfiles is exported as a function').toBe('function');
-  return withSimEnv(simulationsOn, () => {
-    const first = mod.listProfiles!(simulationsOn);
-    if (simulationsOn && Array.isArray(first) && !first.some((p) => p.simulation === true)) {
-      const alt = mod.listProfiles!({ simulation: true, includeSimulations: true });
-      if (Array.isArray(alt) && alt.some((p) => p.simulation === true)) return alt;
-    }
-    return first;
-  });
+  return withSimEnv(simulationsOn, () => mod.listProfiles!({ simulation: simulationsOn }));
 }
 
 function callFindProfile(mod: ProfilesModule, id: string, simulationsOn: boolean): ProfileRecord | undefined | null {
   expect(typeof mod.findProfile, 'findProfile is exported as a function').toBe('function');
-  return withSimEnv(simulationsOn, () => {
-    const first = mod.findProfile!(id, simulationsOn);
-    if (simulationsOn && !first) {
-      return mod.findProfile!(id, { simulation: true, includeSimulations: true });
-    }
-    return first;
-  });
+  return withSimEnv(simulationsOn, () => mod.findProfile!(id, { simulation: simulationsOn }));
 }
 
 function callProfileDefinition(mod: ProfilesModule, id: string, simulationsOn = true): ProfileRecord | undefined | null {
   expect(typeof mod.profileDefinition, 'profileDefinition is exported as a function').toBe('function');
-  return withSimEnv(simulationsOn, () => mod.profileDefinition!(id));
+  return withSimEnv(simulationsOn, () => mod.profileDefinition!(id, { simulation: simulationsOn }));
 }
 
 /** Runs F1 in check-one-text mode (`npm run --silent fitness:lms-names -- --stdin --as <asPath>`) in TARGET_ROOT. */
@@ -172,15 +171,57 @@ describe('LA-E1-05 LTI profiles in channel folders (K0)', () => {
       expect(record.privacyFloor, `${expected.id}.privacyFloor`).toBe(wantPrivacyFloor);
       expect(record.wireLms, `${expected.id}.wireLms`).toBe(wantWireLms);
       expect(record.simulation, `${expected.id}.simulation`).toBe(expected.simulation);
+      expect(typeof record.listOrder, `${expected.id}.listOrder is a number`).toBe('number');
+      expect(Number.isInteger(record.listOrder), `${expected.id}.listOrder is an integer`).toBe(true);
 
       traitSummary.push({
         id: expected.id,
         endpoints: record.endpoints,
         privacyFloor: record.privacyFloor,
         wireLms: record.wireLms,
+        listOrder: record.listOrder,
         simulation: record.simulation,
       });
     }
+
+    // 1b. BD-A2-21 / BD-A1-22: PRIVACY_FLOOR_NONE_PROFILES = ['standard'] (frozen), and only 'standard' has privacyFloor: 'none'.
+    const kernelIndex = path.join(TARGET_ROOT, 'packages/channel-kernel/src/index.ts');
+    expect(fs.existsSync(kernelIndex), `packages/channel-kernel/src/index.ts exists in ${TARGET_ROOT}`).toBe(true);
+    const kernelMod = (await import(pathToFileURL(kernelIndex).href)) as KernelModule;
+    expect(kernelMod.PRIVACY_FLOOR_NONE_PROFILES, 'PRIVACY_FLOOR_NONE_PROFILES equals ["standard"]').toEqual([
+      'standard',
+    ]);
+    expect(
+      Object.isFrozen(kernelMod.PRIVACY_FLOOR_NONE_PROFILES),
+      'PRIVACY_FLOOR_NONE_PROFILES is frozen',
+    ).toBe(true);
+    expect(
+      Object.isFrozen(kernelMod.BASELINE_PROFILE_WIRE_LMS),
+      'BASELINE_PROFILE_WIRE_LMS is frozen',
+    ).toBe(true);
+    for (const row of traitSummary) {
+      if (kernelMod.PRIVACY_FLOOR_NONE_PROFILES!.includes(row.id as string)) {
+        expect(row.privacyFloor, `${row.id} privacyFloor is 'none'`).toBe('none');
+      } else {
+        expect(row.privacyFloor, `${row.id} privacyFloor is 'allowlist'`).toBe('allowlist');
+      }
+    }
+
+    // 1c. BD-A1-23: baseline listOrder bound (70 today, across all 8 baseline profiles including simulation profiles).
+    const maxBaselineListOrder = Math.max(...traitSummary.map((r) => Number(r.listOrder)));
+    expect(maxBaselineListOrder, 'maximum baseline listOrder is 70 (BD-A1-23)').toBe(70);
+
+    // 1d. BD-A1-21: ProfileSource is exported by @cogniate/channel-kernel (packages/channel-kernel/src/profiles.ts),
+    // and loadChannelFolders loads each channel's ltiProfiles.
+    const kernelProfilesFile = path.join(TARGET_ROOT, 'packages/channel-kernel/src/profiles.ts');
+    expect(fs.existsSync(kernelProfilesFile), 'packages/channel-kernel/src/profiles.ts exists (BD-A1-21)').toBe(true);
+    expect(typeof kernelMod.loadChannelFolders, 'loadChannelFolders is exported').toBe('function');
+    const loadedFolders = await kernelMod.loadChannelFolders!([path.join(TARGET_ROOT, 'packages/channels')], 'lti');
+    const loadedProfiles = loadedFolders.flatMap((f) => f.ltiProfiles ?? []);
+    expect(
+      loadedProfiles.length,
+      'loadChannelFolders(..., "lti") returns the baseline ProfileSource entries',
+    ).toBeGreaterThanOrEqual(BASELINE_PROFILES.length);
 
     // 2. Simulations ON: all 8 baseline profiles in exact baseline order and values.
     const registered = new Set<string>(BASELINE_LMS);
@@ -222,6 +263,8 @@ describe('LA-E1-05 LTI profiles in channel folders (K0)', () => {
     for (const realProfile of BASELINE_REAL_PROFILES) {
       const foundRealOff = callFindProfile(mod, realProfile.id, false);
       expect(foundRealOff, `simulations off: findProfile('${realProfile.id}') is defined`).toBeDefined();
+      const defRealOff = callProfileDefinition(mod, realProfile.id, false);
+      expect(defRealOff, `simulations off: profileDefinition('${realProfile.id}') is defined`).toBeDefined();
     }
 
     writeArtifact('e1-05-ac02-traits.json', `${JSON.stringify({ traits: traitSummary, countOn: listOn.length, countOff: listOff.length }, null, 2)}\n`);
