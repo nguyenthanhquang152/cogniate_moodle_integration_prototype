@@ -20,6 +20,8 @@ export interface BindContext extends CreateRequestContext { traceId: string }
 export interface AuthorityStrategy {
   bind(c: Connection, adapter: ConnectionSetup, body: unknown, ctx: BindContext): Promise<Connection>;
   disconnect(c: Connection, traceId: string): Promise<void>;
-  suspend(c: Connection, traceId: string): Promise<CleanupLine[]>;
-  release(c: Connection, traceId: string): ReturnType<BindingCleanup['release']>;
+  /** `record` runs inside the transaction of the local change (the audit event of app:binding, LA-ADR-06 D4 rule 4). */
+  suspend(c: Connection, traceId: string, record?: () => void): Promise<CleanupLine[]>;
+  /** `record` runs inside the transaction of the local change, only when the release changes local rows. */
+  release(c: Connection, traceId: string, record?: () => void): ReturnType<BindingCleanup['release']>;
 }
