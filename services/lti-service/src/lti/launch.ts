@@ -3,7 +3,7 @@ import { safeEqual, sha256Hex } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import type { LmsName, ProfileOptions } from '../profiles/index.ts';
 import { lmsNameOf, lmsNameOfFamily } from '../profiles/index.ts';
-import { getAccount } from '../store/accounts.ts';
+import { createAccountResolver } from '../accounts/resolver.ts';
 import type { ToolAccount } from '../store/accounts.ts';
 import type { Platform } from '../store/platforms.ts';
 import { getPlatform, serviceOriginOf, setProductFamilyCode, siteOriginOf } from '../store/platforms.ts';
@@ -84,7 +84,7 @@ function completeLaunch(deps: LaunchDeps, account: ToolAccount, prepared: Prepar
 export function handleStorageCheck(deps: LaunchDeps, accountId: string, form: Record<string, unknown>, origin: string | undefined): LaunchResult {
   const profiles = deps.profiles ?? { simulation: false };
   let lms = lmsNameOf(null, profiles);
-  const account = getAccount(deps.db, accountId);
+  const account = createAccountResolver(deps.db, deps.urls.lti).resolveAccount({ params: { account: accountId } });
   const code = protocolAccountError(account);
   if (code) return { ok: false, check: 'storage', code, detail: code === 'TOOL_ACCOUNT_SUSPENDED' ? 'account_suspended' : 'unknown_tool_account', lms };
   const failure = (code: ProtocolErrorCode, detail: string, stateHash?: string, help?: string): LaunchResult => ({
@@ -110,8 +110,11 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
   const stateHash = typeof state === 'string' && state !== '' ? sha256Hex(state) : null;
   let lms: LmsName = lmsNameOf(null, profiles);
   try {
-    const account = getAccount(deps.db, accountId);
-    if (!account) throw new LaunchCheckError('1', 'INVALID_STATE', 'unknown_tool_account');
+    const resolver = createAccountResolver(deps.db, deps.urls.lti);
+    const account = resolver.resolveAccount({ params: { account: accountId } });
+    const accountError = protocolAccountError(account);
+    if (!account || accountError) return { ok: false, check: '1', code: accountError ?? 'UNKNOWN_TOOL_ACCOUNT', detail: accountError === 'TOOL_ACCOUNT_SUSPENDED' ? 'account_suspended' : 'unknown_tool_account', lms };
+    const protocolUrls = resolver.protocolUrls(account);
     // Checks 1 and 3 (state found and used up in one statement).
     const rec = check1And3State(deps.db, accountId, state, stateHash, now);
     const clearCookie = clearCookieFor(rec.stateHash);
@@ -144,7 +147,7 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
     const deployment = check9Deployment(claims, platform, rec);
     const messageType = check10Message(claims);
     check11Claims(claims, messageType);
-    check12Target(claims, rec, deps.urls, accountId);
+    check12Target(claims, rec, protocolUrls);
     // The site and service origins come from the stored rows, never from a claim (M1 design notes).
     const origins = { site: siteOriginOf(platform, deployment), service: serviceOriginOf(platform, deployment) };
     // Check 13 (profiles other than standard) and check 14 (every profile).
@@ -166,7 +169,7 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
     };
     if (useStorage) {
       const check = createStorageCheck(deps.db, accountId, { stateHash: rec.stateHash, prepared }, now);
-      const page = storageCheckPage({ postUrl: `${deps.urls.lti}/lti/launch/${encodeURIComponent(accountId)}/storage-check`, check, stateHash: rec.stateHash, target: rec.storageTarget!, origin: rec.storageOrigin! });
+      const page = storageCheckPage({ postUrl: `${protocolUrls.launch}/storage-check`, check, stateHash: rec.stateHash, target: rec.storageTarget!, origin: rec.storageOrigin! });
       return { ok: true, kind: 'storage', page, clearCookie };
     }
     return completeLaunch(deps, account, prepared, rec.stateHash, 'cookie', now);

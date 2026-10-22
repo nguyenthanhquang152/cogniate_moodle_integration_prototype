@@ -1,6 +1,7 @@
 // Shared authorization context for the T3a and T3c service routes, and the M1 binding checks of every API call that
 // uses a ltik or a service key (LTI contract §9.14).
 import { ApiError } from '../api-errors.ts';
+import { createAccountResolver } from '../accounts/resolver.ts';
 import { deploymentOf, isPlatformUsable } from '../lti/binding.ts';
 import { CLAIM } from '../lti/checks.ts';
 import { deepLinkingResponse } from '../lti/deep-linking.ts';
@@ -50,6 +51,7 @@ export function agsContext(ctx: Ctx, caller: AuthResult, traceId: string): AgsCo
 
 export async function signedDeepLink(ctx: RouteContext, caller: AuthResult, body: unknown) {
   const platform = platformOf(ctx, caller);
-  const { claims, target } = deepLinkingResponse(caller.launch!, platform, claimObject(body) ?? {}, ctx.urls);
+  const protocolUrls = createAccountResolver(ctx.db, ctx.urls.lti).protocolUrls(caller.account);
+  const { claims, target } = deepLinkingResponse(caller.launch!, platform, claimObject(body) ?? {}, protocolUrls);
   return { message: await signToolJwt(ctx.db, ctx.masterKey, caller.account.id, claims, ctx.now()), target };
 }

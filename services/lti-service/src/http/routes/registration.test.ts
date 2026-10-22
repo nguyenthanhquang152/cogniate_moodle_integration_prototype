@@ -15,6 +15,7 @@ import { getPlatform } from '../../store/platforms.ts';
 import { ensureToolKey } from '../../store/tool-keys.ts';
 import { MASTER_KEY, URLS, capturingLogger, makeKey, sign } from '../../testkit.ts';
 import { buildApp } from '../app.ts';
+import { rateLimiterFor } from '../rate-limit.ts';
 
 const M = 'https://moodle.test';
 const CONFIG_URL = `${M}/mod/lti/openid-configuration.php`;
@@ -31,7 +32,7 @@ async function setup() {
   const b = ensureAccount(db, { id: 'qa-second', name: 'QA second', appUrl: URLS.app });
   await ensureToolKey(db, MASTER_KEY, 'cogniate');
   const moodleKey = await makeKey('moodle-kid');
-  const state = { config: CONFIG as Record<string, unknown>, nextTypeId: 11, clientId: 'client-dyn-1', registrations: [] as Array<{ auth?: string; body: Record<string, unknown> }>, reject: null as null | number,
+  const state = { config: CONFIG as Record<string, unknown>, configurationFetches: 0, nextTypeId: 11, clientId: 'client-dyn-1', registrations: [] as Array<{ auth?: string; body: Record<string, unknown> }>, reject: null as null | number,
     mode: null as null | 'timeout' | 'token_used' | 'server_error' | 'garbage' };
   const res = (status: number, body: unknown): OutboundResponse => {
     const buf = Buffer.from(typeof body === 'string' ? body : JSON.stringify(body));
@@ -43,7 +44,7 @@ async function setup() {
       const u = new URL(url);
       if (u.protocol !== 'https:') throw new OutboundError('not_https', u.hostname, 'only https');
       if (u.hostname === '169.254.169.254') throw new OutboundError('private_ip', u.hostname, 'private');
-      if (url === CONFIG_URL || url.startsWith('https://qa-platform.test/')) return res(200, state.config);
+      if (url === CONFIG_URL || url.startsWith('https://qa-platform.test/')) { state.configurationFetches++; return res(200, state.config); }
       if (url === CONFIG.jwks_uri) return res(200, { keys: [moodleKey.publicJwk] });
       if (url === CONFIG.registration_endpoint) {
         state.registrations.push({ auth: req.headers?.authorization, body: JSON.parse(String(req.body)) as Record<string, unknown> });
@@ -78,6 +79,35 @@ async function setup() {
 const idOf = (location: string) => new URL(location).searchParams.get('registrationId')!;
 
 describe('dynamic registration (contract §2.4, §3.8)', () => {
+  it('enforces the session cap before fetching, per account, and releases capacity on completion and expiry', async () => {
+    const s = await setup();
+    try {
+      rateLimiterFor(s.db, capturingLogger().logger).replaceSettings({
+        registrationSessionsPerAddress: 3, classes: { registration: { ratePerMinute: 100, burst: 100 } },
+      });
+      const ids: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        const r = await s.start(undefined);
+        expect(r.statusCode).toBe(303);
+        ids.push(idOf(String(r.headers.location)));
+      }
+      const refused = await s.start(undefined);
+      expect(refused.statusCode).toBe(409);
+      expect(refused.body).toContain('data-error-code="REGISTRATION_SESSION_LIMIT"');
+      expect(refused.body).toContain('Too many registrations are open. Wait one hour, or finish the open registration in Moodle.');
+      expect(s.state.configurationFetches).toBe(3);
+      expect((await s.start(undefined, {}, 'qa-second')).statusCode).toBe(303);
+      const completed = await s.app.inject({ method: 'POST', url: `/api/registrations/${ids[0]}/complete`, headers: s.bearer(), payload: {} });
+      expect(completed.statusCode).toBe(200);
+      expect(s.db.prepare('SELECT client_key FROM registration_session WHERE id = ?').get(ids[0]!)?.client_key).toBeNull();
+      expect((await s.start(undefined)).statusCode).toBe(303);
+      expect((await s.start(undefined)).statusCode).toBe(409);
+      expect(s.state.configurationFetches).toBe(5);
+      s.clock.now += 3600_001;
+      expect((await s.start(undefined)).statusCode).toBe(303);
+    } finally { await s.app.close(); s.db.close(); }
+  });
+
   it('new: 303 to the app with registrationId and ref only; GET shows the platform data; complete registers and stores the platform', async () => {
     const s = await setup();
     const r = await s.start(await s.regToken({ scope: 'reg', sub: 'new-client' }), { ref: 'qa123' });
