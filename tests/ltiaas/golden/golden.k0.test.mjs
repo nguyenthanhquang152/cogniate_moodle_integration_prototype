@@ -326,9 +326,9 @@ test('LA-IC-15 (LA-E4-03): G3 B-conflict score 409 lastError names the connectio
   }
 });
 
-test('LA-IC-12 (LA-E3-04), LA-IC-13 (LA-E3-12), and LA-IC-17 (BD-A1-41): expected-delta LD-9 records load cleanly with 0 golden and 0 frozen-test changes and valid scan/approval metadata', () => {
+test('LA-IC-12 (LA-E3-04), LA-IC-13 (LA-E3-12), LA-IC-17 (BD-A1-41), and LA-IC-19 (BD-A1-57): expected-delta LD-9 records load cleanly with 0 golden and 0 frozen-test changes and valid scan/approval metadata', () => {
   const base = load(baseDir);
-  for (const id of ['LA-IC-12', 'LA-IC-13', 'LA-IC-17']) {
+  for (const id of ['LA-IC-12', 'LA-IC-13', 'LA-IC-17', 'LA-IC-19']) {
     const delta = loadExpectedDelta(id);
     assert.equal(delta.id, id);
     assert.deepEqual(delta.changes, []);
@@ -353,9 +353,13 @@ test('LA-IC-12 (LA-E3-04), LA-IC-13 (LA-E3-12), and LA-IC-17 (BD-A1-41): expecte
   const ic17 = loadExpectedDelta('LA-IC-17');
   assert.ok(ic17.ld9.scanChecked.some((s) => s.startsWith('tests/ltiaas/golden/capture.golden.ts:194-200')));
   assert.ok(ic17.ld9.scanChecked.some((s) => s.startsWith('tests/acceptance/lib/qa-platform.ts:43')));
+  const ic19 = loadExpectedDelta('LA-IC-19');
+  assert.equal(ic19.ld9.authorUnitTestChanges.length, 1);
+  assert.ok(ic19.ld9.scanChecked.length >= 10);
+  assert.ok(ic19.ld9.scanChecked.some((s) => s.startsWith('tests/acceptance/T5a/6-negative.spec.ts:75-84')));
 
-  // Combined compare of all reviewed LD-9 expected deltas (LA-IC-12, LA-IC-13, LA-IC-15, LA-IC-16, LA-IC-17, LA-IC-18).
-  const allDeltas = ['LA-IC-12', 'LA-IC-13', 'LA-IC-15', 'LA-IC-16', 'LA-IC-17', 'LA-IC-18'].map((id) => loadExpectedDelta(id));
+  // Combined compare of all reviewed LD-9 expected deltas (LA-IC-12, LA-IC-13, LA-IC-15, LA-IC-16, LA-IC-17, LA-IC-18, LA-IC-19).
+  const allDeltas = ['LA-IC-12', 'LA-IC-13', 'LA-IC-15', 'LA-IC-16', 'LA-IC-17', 'LA-IC-18', 'LA-IC-19'].map((id) => loadExpectedDelta(id));
   const candAll = structuredClone(base);
   const baseNonSim = base.G1.acceptance.ltiHealth.outbound_allowlist.filter((h) => !h.endsWith('.sim.test'));
   candAll.G1.acceptance.ltiHealth.outbound_allowlist = [...baseNonSim, ...loadSimAllowlist()];

@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-11 review, Reviewer-B2 (lens: "Can a human team own it?")
 
@@ -78,3 +78,28 @@ My MINOR is about the refusal lines. They are short codes, so a human operator o
 
 - K1-SIM AC-08 (QA, through `docker compose exec`). The M1 migration phase with app migration `015` (QA).
 - Lens-A items: the redaction rules beyond the unit rows, and whether the policy must also check the operator name format.
+
+## Round 2
+
+Reviewer-B: Codex GPT-6-Astra xhigh, same lens B. Verdict: **APPROVE**. Reviewed `75f50c3`, `060c24d`, `f6738ee` and `b93993f` against the task, LA-ADR-07 D4/D5 and BD-A2-59/62/63. Verification used a private `git clone --no-hardlinks` at `c2426eb`. No other reviewer's report was read; no Docker or stack was run.
+
+Counts this round: **0 BLOCKER, 0 MAJOR, 1 MINOR (new), 0 NIT.**
+
+| Prior finding | Result |
+| --- | --- |
+| B-LA-E5-11-01 (MINOR) — refusal lines give no useful next step | **Closed in substance.** Every policy/audit refusal now carries a fixed recovery message. Production with an absent or empty list gives `operators_not_configured`; help exits 0 on stdout without opening a database. Date, limit and database-read errors now give usable instructions. I accept A2's BD-A2-59/62 decision to omit the bad flag and configured path rather than echo input. The five wording differences from the ratified table are recorded separately below. |
+| B-LA-E5-11-02 (NIT) — secret-key regex is hard to maintain | **Closed.** `isAppSecretKey` names the rule; its comment lists the note/code families and says that even an error-valued `details.code` is hidden. It directs maintainers to the event's `code` column. Tests demonstrate that behavior, nested redaction and preservation of `note_present`/`evidence_ref`. |
+
+### B-LA-E5-11-03 — MINOR — The fixed audit refusal texts differ from the ratified table
+
+- **File:** `services/cogniate-app/src/cli/audit.ts:23`; `docs/architecture/ltiaas/adr/LA-ADR-07-security-and-tenancy.md:142`.
+- **Problem:** BD-A2-62 and the task specify the six fixed D4 messages, but five code/test messages use different text. A maintainer now has two conflicting sources for an intentionally fixed interface.
+- **Evidence:** At the same pinned commit, `arguments_invalid`, `action_invalid`, `limit_invalid`, `since_invalid` and `audit_read_failed` differ; only `connection_invalid` agrees. For example, the D4 limit message includes `(default 100)`, but the CLI omits it. D4's read failure starts `The app database could not be opened read-only.`, while the CLI uses a different diagnosis and recovery paragraph. The literal rows in `cli/audit.test.ts` pin the implementation variants, so passing tests do not detect the drift. The codes, safety rule and useful recovery behavior are intact; this is safe to defer.
+- **Suggested fix:** Align the five constants and their literal test expectations with the ratified D4 table, or have A2 explicitly revise that table if the implementation wording is preferred. Keep the no-input-echo rule and the existing event/reason/message/traceId shape.
+
+### Verification and scope
+
+- The focused six-file run across this dispatch passed **109 unit tests**, including all three task suites: audit migration/writer, operator policy and read-only audit CLI. These retain UNIT AC-01 through AC-07 coverage. Root type checking and ESLint on all 13 changed TypeScript files passed.
+- Private mutants removed refusal messages/help, restored the narrower redaction predicate and required evidence even for the new revoke mode. The task suites produced **51 expected assertion failures and 21 passes**; all source mutations were restored. The new literal policy-message rows also guard against echoing operator, evidence, note or file input.
+- BD-A2-63 is narrowly implemented: `evidenceRequired` defaults to true, and false skips only the two missing-evidence checks. Tests retain operator/config checks, validation of supplied evidence, and the default issue behavior. The policy's comment identifies revoke as the sole intended caller.
+- The changes remain in S1's three modules and colocated tests. No forbidden K-owned operator/CLI/domain file, LTI service file, QA-owned test or LMS branch was changed by these four commits. K1-SIM AC-08 and the task's migration/regression gate remain separate QA evidence.

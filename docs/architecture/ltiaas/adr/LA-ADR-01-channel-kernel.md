@@ -138,6 +138,8 @@ export interface ChannelManifest {
     registered?: string;                         // status text of a registered connection; default "Registered" (BD-A1-25)
     registration?: Partial<Record<'UNKNOWN_TOOL_ACCOUNT' | 'INVALID_REQUEST' | 'ISSUER_MISMATCH'
       | 'REGISTRATION_UPDATE_NOT_ALLOWED' | 'UPDATE_NOT_ALLOWED', string>>;  // BD-A1-59: DR help sentences with LMS menu paths
+    errors?: Partial<Record<'SITE_RULE_1' | 'SITE_RULE_5' | 'PLATFORM_IN_USE' | 'DEPLOYMENT_IN_USE'
+      | 'DEPLOYMENT_FIXED', string>>;            // BD-A1-63: portal error texts that name an LMS; else a generic core text
   };
 }
 export interface FieldSpec { key: string; label: string; kind: 'origin' | 'id' | 'grantCode' | 'url' | 'choice'; required: boolean; method?: 'dynamic' | 'manual';
@@ -445,6 +447,7 @@ Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-
 
 - **Rule.** Core code has no channel id, no LMS product name and no LMS-named identifier in code tokens. Core finds channel behaviour only through the registry, capabilities and profile traits.
 - **Allowed exceptions (closed list, reviewed):** `packages/channel-kernel/src/legacy-wire.ts` (frozen wire names and values of [LA-ADR-04 D2](LA-ADR-04-refactor-and-migration.md#decision), also the frozen error codes, the behaviour-class values and the lists `MANUAL_SELF_LEGACY_CHANNELS` and `LAUNCH_GUARD_CHANNELS`); applied SQL migrations (history, ADR-006 checksum rule); `packages/shared/src/config.ts` until step S3. S3 removes `moodle` from `PublicUrls`: no service reads it, and the infra scripts read `PUBLIC_MOODLE_URL` from their own environment (Reviewer-B B-LAD-19). `infra/**` is not core code for this rule ([README §4](../README.md#4-rules-that-keep-core-channel-neutral)).
+- **Frozen names in other core code (BD-A1-64):** core code that needs a frozen wire name (also the portal) imports it from `@cogniate/channel-kernel` (`legacy-wire.ts` exports: constants such as `PUBLICATION_OPTION`, types such as `LegacyCapabilities` and `LegacyPublicationFields`) and uses computed keys or type extension; it never repeats the name. Channel-specific texts are manifest data (`texts.*`, BD-A1-63). There is no second file exception.
 - **Enforcement:** the LMS-name lint with a ratchet, the add-channel gate, and the canary channel. Scope, patterns and baseline: [README §4](../README.md#4-rules-that-keep-core-channel-neutral). QA owns the test design ([`tests/ltiaas/TEST-STRATEGY.md`](../../../../tests/ltiaas/TEST-STRATEGY.md) §3).
 
 ### D11. Wire compatibility

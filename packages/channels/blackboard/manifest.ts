@@ -44,6 +44,12 @@ const manifest = {
     ],
   },
   texts: {
+    // The portal error texts (BD-A1-63; before: apps/portal/src/connect/provider-errors.tsx). Other keys: the generic text.
+    errors: {
+      SITE_RULE_1: 'Enter only the address, for example https://school.instructure.com. No path.',
+      DEPLOYMENT_IN_USE: 'This {LMS} site is already connected to Cogniate.',
+      DEPLOYMENT_FIXED: 'This connection already reserved another {LMS} deployment. Disconnect it, then make a new connection.',
+    },
     // The administrator steps of the portal (apps/portal/src/connect/blackboard/blackboard-steps.json).
     adminSteps: [
       'You need a {LMS} Learn administrator to complete the connection.',

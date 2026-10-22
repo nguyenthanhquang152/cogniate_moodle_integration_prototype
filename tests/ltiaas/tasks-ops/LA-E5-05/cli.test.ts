@@ -348,6 +348,16 @@ it(
       /lti-operator-key/,
       'the single error line names the operator key file (lti-operator-key)',
     );
+    assert.match(
+      failed.stderrLines[0],
+      /ask another operator to issue you a new key\. Only if no operator has a working key, .*--replace-operator-key \(init --replace\)\. This revokes every operator key/,
+      'B-LA-E5-05-04: recovery text gives --replace-operator-key last and warns that it revokes every operator key',
+    );
+    assert.doesNotMatch(
+      failed.stderrLines[0],
+      /safely/,
+      'B-LA-E5-05-04: recovery text does not call --replace-operator-key "safely"',
+    );
 
     // Verify operator key file was restored by the host action and operator API still works.
     const afterAudit = await listAllAudit(operatorKey);

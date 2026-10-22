@@ -65,7 +65,11 @@ interface SimRecord {
 let cogniateKey = '';
 let secondKey = '';
 let simLtik = '';
+let simPlatformId = '';
+let simClientId = '';
+let simDeploymentId = '';
 let lineitemsIdemKey = '';
+let lineitemsBody: Record<string, unknown> = {};
 let sharedTenantIdemKey = '';
 let cogniateIdemPlatformId = '';
 let standardPlatformBody: Record<string, unknown> = {};
@@ -126,24 +130,23 @@ async function formPost(url: string, fields: Record<string, string>, cookie?: st
   });
 }
 
-async function setupCanvasLaunchForLineitems(): Promise<string> {
-  const clientId = `10000${crypto.randomInt(100_000_000, 999_999_999)}`;
-  const deploymentId = `7:e516-${runId}`;
-  const reg = await ltiApi<{ id?: string }>('POST', '/api/platforms', {
-    authorization: auth.bearer(cogniateKey),
-    body: {
-      profile: CANVAS_PROFILE,
-      clientId,
-      name: `QA2 E5-16 Canvas ${runId}`,
-      siteUrl: CANVAS_SITE,
-      deploymentIds: [deploymentId],
-    },
-  });
-  assert.equal(reg.status, 201, 'register canvas-sim-cloud platform for lineitems status');
-  const platformId = String(reg.json?.id ?? '');
-  createdPlatforms.push({ key: cogniateKey, id: platformId });
-
-  const scenarioId = `sc-e516-${runId}`;
+async function launchCanvasScenario({
+  clientId,
+  deploymentId,
+  contextId,
+  resourceLinkId,
+  resource,
+  scenarioId,
+  tokenAnswers,
+}: {
+  clientId: string;
+  deploymentId: string;
+  contextId: string;
+  resourceLinkId: string;
+  resource: string;
+  scenarioId: string;
+  tokenAnswers?: unknown[];
+}): Promise<string> {
   const created = await simControl('/scenarios', 'POST', {
     id: scenarioId,
     provider: CANVAS_PROFILE,
@@ -151,12 +154,13 @@ async function setupCanvasLaunchForLineitems(): Promise<string> {
     deploymentId,
     siteHost: CANVAS_SERVICE_HOST,
     pageHost: CANVAS_PAGE_HOST,
-    contextId: `ctx-e516-${runId}`,
-    resourceLinkId: `rl-e516-${runId}`,
-    resource: `res-e516-${runId}`,
+    contextId,
+    resourceLinkId,
+    resource,
     subject: 'learner-1',
+    ...(tokenAnswers ? { tokenAnswers } : {}),
   });
-  assert.equal(created.status, 201, 'create simulator scenario for lineitems');
+  assert.equal(created.status, 201, `create simulator scenario ${scenarioId}`);
   const rawLogin = (created.json?.login ?? {}) as Record<string, string | null>;
   const loginFields: Record<string, string> = {};
   for (const [k, v] of Object.entries(rawLogin)) {
@@ -181,6 +185,33 @@ async function setupCanvasLaunchForLineitems(): Promise<string> {
   assert.ok(ltik.length > 0, 'ltik present');
   recordSecret('ltik', ltik);
   return ltik;
+}
+
+async function setupCanvasLaunchForLineitems(): Promise<string> {
+  simClientId = `10000${crypto.randomInt(100_000_000, 999_999_999)}`;
+  simDeploymentId = `7:e516-${runId}`;
+  const reg = await ltiApi<{ id?: string }>('POST', '/api/platforms', {
+    authorization: auth.bearer(cogniateKey),
+    body: {
+      profile: CANVAS_PROFILE,
+      clientId: simClientId,
+      name: `QA2 E5-16 Canvas ${runId}`,
+      siteUrl: CANVAS_SITE,
+      deploymentIds: [simDeploymentId, `7:e516-dep2-${runId}`],
+    },
+  });
+  assert.equal(reg.status, 201, 'register canvas-sim-cloud platform for lineitems status');
+  simPlatformId = String(reg.json?.id ?? '');
+  createdPlatforms.push({ key: cogniateKey, id: simPlatformId });
+
+  return launchCanvasScenario({
+    clientId: simClientId,
+    deploymentId: simDeploymentId,
+    contextId: `ctx-e516-${runId}`,
+    resourceLinkId: `rl-e516-${runId}`,
+    resource: `res-e516-${runId}`,
+    scenarioId: `sc-e516-${runId}`,
+  });
 }
 
 beforeAll(async () => {
@@ -222,6 +253,7 @@ it('AC-LA-E5-16-01 Two POST /api/lineitems calls with the same Idempotency-Key a
     resourceId: `res-idem-1-${runId}`,
     tag: 'grade',
   };
+  lineitemsBody = body;
 
   const beforeCursor = (await simRecords()).cursor;
   const first = await ltiIdemApi<{ id?: string; label?: string; scoreMaximum?: number }>('POST', '/api/lineitems', {
@@ -263,9 +295,47 @@ it('AC-LA-E5-16-02 The same key with another body gives 422 IDEMPOTENCY_KEY_REUS
   assert.equal(reused.status, 422, 'reused Idempotency-Key with different body returns 422');
   assert.equal(errorCode(reused), 'IDEMPOTENCY_KEY_REUSED');
   assert.equal(hasErrorShape(reused), true);
+  assert.match(
+    description(reused),
+    /another route, path id, target \(platform, deployment or course\) or body/i,
+    'BD-A2-58: 422 IDEMPOTENCY_KEY_REUSED description names route, path id, target and body',
+  );
 
   const agsCalls = (await simRecords(beforeCursor)).records.filter((r) => r.kind === 'ags');
   assert.equal(agsCalls.length, 0, 'simulator records no second AGS call on 422 IDEMPOTENCY_KEY_REUSED');
+
+  // BD-A2-56: the same Idempotency-Key and body from another course (contextId) or another deployment gives 422.
+  const otherCourseLtik = await launchCanvasScenario({
+    clientId: simClientId,
+    deploymentId: simDeploymentId,
+    contextId: `ctx-e516-other-${runId}`,
+    resourceLinkId: `rl-e516-other-${runId}`,
+    resource: `res-e516-other-${runId}`,
+    scenarioId: `sc-e516-other-${runId}`,
+  });
+  const otherDepLtik = await launchCanvasScenario({
+    clientId: simClientId,
+    deploymentId: `7:e516-dep2-${runId}`,
+    contextId: `ctx-e516-${runId}`,
+    resourceLinkId: `rl-e516-dep2-${runId}`,
+    resource: `res-e516-dep2-${runId}`,
+    scenarioId: `sc-e516-dep2-${runId}`,
+  });
+  const cursorBeforeTargetMismatch = (await simRecords()).cursor;
+  for (const [label, ltik] of [
+    ['another course', otherCourseLtik],
+    ['another deployment', otherDepLtik],
+  ] as const) {
+    const mismatch = await ltiIdemApi('POST', '/api/lineitems', {
+      authorization: auth.ltik(cogniateKey, ltik),
+      idempotencyKey: lineitemsIdemKey,
+      body: lineitemsBody,
+    });
+    assert.equal(mismatch.status, 422, `same key and body from ${label} returns 422 (BD-A2-56)`);
+    assert.equal(errorCode(mismatch), 'IDEMPOTENCY_KEY_REUSED');
+  }
+  const agsAfterMismatch = (await simRecords(cursorBeforeTargetMismatch)).records.filter((r) => r.kind === 'ags');
+  assert.equal(agsAfterMismatch.length, 0, 'simulator records no AGS call when target mismatches (BD-A2-56)');
 });
 
 it('AC-LA-E5-16-03 Two POST /api/platforms calls with the same key and body give the same platform id, and GET /api/platforms lists one platform', async () => {
@@ -419,4 +489,113 @@ it('AC-LA-E5-16-07 A request without the header behaves as before (M1 and T3c cr
   assert.equal(plt2.status, 409, 'duplicate POST /api/platforms without Idempotency-Key returns 409');
   assert.equal(errorCode(plt2), 'PLATFORM_ALREADY_EXISTS');
   assert.equal(hasErrorShape(plt2), true);
+});
+
+it('BD-A2-56 A refused target (deactivated or unknown platform) is never stored or replayed', async () => {
+  assert.ok(simPlatformId && lineitemsIdemKey, 'precondition: AC-01 created lineitems record on simPlatformId');
+
+  // 1. Unknown platform on POST /api/platforms/:id/deployments returns 404 UNREGISTERED_PLATFORM and is not stored.
+  const missingPltRes = await ltiIdemApi('POST', `/api/platforms/plt_unknown_${runId}/deployments`, {
+    authorization: auth.bearer(cogniateKey),
+    idempotencyKey: `idem_missing_plt_${runId}`,
+    body: { deploymentId: `dep-missing-${runId}` },
+  });
+  assert.equal(missingPltRes.status, 404, 'unknown platform returns 404 UNREGISTERED_PLATFORM');
+  assert.equal(errorCode(missingPltRes), 'UNREGISTERED_PLATFORM');
+
+  // 2. Deactivate simPlatformId: replay of lineitemsIdemKey is refused with 403 PLATFORM_NOT_ACTIVE (not replayed),
+  // and a new Idempotency-Key used while inactive is not stored so it succeeds once reactivated.
+  const freshKeyWhileInactive = `idem_inactive_${runId}`;
+  const freshBody = {
+    scoreMaximum: 100,
+    label: `QA2 After Reactivate ${runId}`,
+    resourceId: `res-reactivate-${runId}`,
+  };
+  const offRes = await ltiApi('PATCH', `/api/platforms/${enc(simPlatformId)}`, {
+    authorization: auth.bearer(cogniateKey),
+    body: { active: false },
+  });
+  assert.equal(offRes.status, 200, 'deactivate simPlatformId status 200');
+  try {
+    const replayWhileInactive = await ltiIdemApi('POST', '/api/lineitems', {
+      authorization: auth.ltik(cogniateKey, simLtik),
+      idempotencyKey: lineitemsIdemKey,
+      body: lineitemsBody,
+    });
+    assert.equal(replayWhileInactive.status, 403, 'deactivated platform returns 403 instead of replaying stored 201 (BD-A2-56)');
+    assert.equal(errorCode(replayWhileInactive), 'PLATFORM_NOT_ACTIVE');
+
+    const newWhileInactive = await ltiIdemApi('POST', '/api/lineitems', {
+      authorization: auth.ltik(cogniateKey, simLtik),
+      idempotencyKey: freshKeyWhileInactive,
+      body: freshBody,
+    });
+    assert.equal(newWhileInactive.status, 403, 'create on deactivated platform returns 403 PLATFORM_NOT_ACTIVE');
+    assert.equal(errorCode(newWhileInactive), 'PLATFORM_NOT_ACTIVE');
+  } finally {
+    const onRes = await ltiApi('PATCH', `/api/platforms/${enc(simPlatformId)}`, {
+      authorization: auth.bearer(cogniateKey),
+      body: { active: true },
+    });
+    assert.equal(onRes.status, 200, 'reactivate simPlatformId status 200');
+  }
+
+  const afterReactivate = await ltiIdemApi<{ id?: string }>('POST', '/api/lineitems', {
+    authorization: auth.ltik(cogniateKey, simLtik),
+    idempotencyKey: freshKeyWhileInactive,
+    body: freshBody,
+  });
+  assert.equal(afterReactivate.status, 201, 'refused target was not stored: same key runs and returns 201 after reactivation');
+});
+
+it('BD-A2-57 A platform 429 is not stored, so the retry with the same Idempotency-Key runs and creates the line item', async () => {
+  const clientId429 = `10000${crypto.randomInt(100_000_000, 999_999_999)}`;
+  const dep429 = `7:e516-429-${runId}`;
+  const reg = await ltiApi<{ id?: string }>('POST', '/api/platforms', {
+    authorization: auth.bearer(cogniateKey),
+    body: {
+      profile: CANVAS_PROFILE,
+      clientId: clientId429,
+      name: `QA2 E5-16 429 ${runId}`,
+      siteUrl: CANVAS_SITE,
+      deploymentIds: [dep429],
+    },
+  });
+  assert.equal(reg.status, 201, 'register canvas-sim-cloud platform for 429 test');
+  const plt429Id = String(reg.json?.id ?? '');
+  createdPlatforms.push({ key: cogniateKey, id: plt429Id });
+
+  const ltik429 = await launchCanvasScenario({
+    clientId: clientId429,
+    deploymentId: dep429,
+    contextId: `ctx-e516-429-${runId}`,
+    resourceLinkId: `rl-e516-429-${runId}`,
+    resource: `res-e516-429-${runId}`,
+    scenarioId: `sc-e516-429-${runId}`,
+    tokenAnswers: [{ status: 429, retryAfter: 12 }],
+  });
+
+  const idemKey429 = `idem_429_${runId}`;
+  const body429 = {
+    scoreMaximum: 100,
+    label: `QA2 Retry After 429 ${runId}`,
+    resourceId: `res-429-${runId}`,
+  };
+
+  const first = await ltiIdemApi('POST', '/api/lineitems', {
+    authorization: auth.ltik(cogniateKey, ltik429),
+    idempotencyKey: idemKey429,
+    body: body429,
+  });
+  assert.equal(first.status, 429, 'first call when platform throttles token returns 429');
+  assert.equal(errorCode(first), 'PLATFORM_RATE_LIMITED');
+  assert.equal(first.headers['retry-after'], '12', '429 PLATFORM_RATE_LIMITED carries Retry-After header');
+
+  const retry = await ltiIdemApi<{ id?: string }>('POST', '/api/lineitems', {
+    authorization: auth.ltik(cogniateKey, ltik429),
+    idempotencyKey: idemKey429,
+    body: body429,
+  });
+  assert.equal(retry.status, 201, 'retry with the same Idempotency-Key after 429 runs and returns 201 (BD-A2-57)');
+  assert.equal(typeof retry.json?.id, 'string');
 });

@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-06 review, Reviewer-B (lens: "Can a human team own it?")
 
@@ -55,3 +55,19 @@ My NITs are about how the resolver is passed around.
 ## Not checked
 
 - K1-SIM AC-01 to -07, -10 and K0 AC-08 (QA). The storage-check route's own status gate (LA-E3-02).
+
+## Round 2
+
+Reviewer: Codex GPT-6-Astra, xhigh. Reviewed `a9a7765`, with `13634b9` and `eff1f97` as companion context (merge `0a46ca0`), against the task spec, LA-ADR-06 D2 and plan §6.1. No other reviewer's file was opened.
+
+**Verdict: APPROVE. New findings: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT. All three Round 1 nits are closed.**
+
+| Finding | Result and evidence |
+| --- | --- |
+| B-LA-E5-06-01 | **Closed.** `http/routes/protocol.ts:15` creates the resolver at route registration. Login, launch and storage-check resolve the real request once and pass the account onward. The protocol functions no longer construct resolvers or made-up requests. The registration and service route groups likewise keep their resolver; `http/service-context.ts:53` receives it for the authenticated account's Deep Linking URLs. |
+| B-LA-E5-06-02 | **Closed.** `lti/target.ts:4` declares the four named `ProtocolUrls` fields with their purpose. The small `ProtocolUrlResolver` interface replaces the nested return type. The identity wrappers are removed; callers use `.launch` and `.login`. |
+| B-LA-E5-06-03 | **Closed.** `lti/account-status.ts:14` owns the shared status gate and the page-code/log-detail pair. Its comment explains the separate JWKS rule. Login, launch, storage-check and registration use it. Four unit cases cover active, missing, closed and suspended accounts. |
+
+Verification used a private `git clone --no-hardlinks` at `380d6e4`, with copied dependencies and an unchanged lockfile. The combined L review run passed **232 tests in 13 files**: target, account status, storage check, launch, Deep Linking, registration, protocol/registration/service/compatibility routes, error pages, channel registry and AGS. LTI-service TypeScript passed. The protocol URL fitness suite passed **4 tests**, including the new literal forms and its documented separate-segment limitation. F1 passed (9 files, 29 hits); F5 passed (six rules, zero hits). The target-check UNIT AC-09 remains covered; the refactor preserves its behavior.
+
+The companion registration fix keeps the early no-fetch refusal and adds an atomic cap check after the last await; its six-start test passes. Ownership is lane L plus the explicit RQ-2 grant in `a9a7765` for L2's login, launch and Deep Linking files. Resolver/account/auth/limiter implementation files and app files are unchanged. No new LMS name or out-of-scope protocol behavior was found. K1-SIM acceptance remains QA work; no Docker or stack runner was used. This review edited only its assigned review files.

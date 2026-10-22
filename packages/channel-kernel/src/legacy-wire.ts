@@ -38,6 +38,14 @@ export const PUBLICATION_OPTION = 'createMoodleCourse';
 export const PUBLICATION_EXTENSION_FIELDS: readonly string[] = Object.freeze(['moodleCourse', 'shellStatus', 'shellError']);
 export const EMPTY_PUBLICATION_EXTENSION_FIELDS: Readonly<Record<string, unknown>> = Object.freeze({ moodleCourse: null, shellStatus: null, shellError: null });
 
+/** The frozen extension fields of the publication DTO (app contract §4.7; BD-A1-64), the names of `PUBLICATION_EXTENSION_FIELDS`. */
+export interface LegacyPublicationFields {
+  moodleCourse: { id: number; idnumber: string; url: string } | null;
+  shellStatus: 'created' | 'exists' | 'failed' | null;
+  /** Plain text when `shellStatus` is `failed`, else `null`. */
+  shellError: string | null;
+}
+
 /** Error text and legacy capability names stay byte for byte for the baseline routes. */
 export const EXTENSION_GUARDS = {
   'canvas-configuration': { capability: 'canvasConfiguration', description: 'This connection has no Canvas configuration.' },
