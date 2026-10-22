@@ -11,9 +11,13 @@ export type ChannelText = string;
 
 /** The connection fields that an adapter may read. */
 export interface SetupConnection {
+  /** Connection id. */
   id: string;
+  /** Owning library id. */
   libraryId: string;
+  /** Library-selected connection name. */
   name: string;
+  /** Stored channel id. */
   channel: string;
   /** LTI service profile id. */
   profile: string;
@@ -21,6 +25,7 @@ export interface SetupConnection {
   siteUrl: string;
   /** Canonical service origin (exclusive profile; equals `siteUrl` for self authority and shared profile). */
   serviceUrl: string;
+  /** Current connection lifecycle state. */
   status: 'pending' | 'registered' | 'connected' | 'disabled';
   /** Exclusive platform of the connection (self authority, exclusive profile), else null. */
   ltiPlatformId: string | null;
@@ -28,8 +33,11 @@ export interface SetupConnection {
 
 /** One row of `GET …/tool-configuration` (app contract §4.1, §4.5). */
 export interface ToolRow {
+  /** Stable wire key for this row. */
   key: string;
+  /** Frozen administrator-facing label. */
   label: string;
+  /** Display value derived from the call context. */
   value: string;
 }
 
@@ -65,9 +73,13 @@ export interface ToolConfigurationContext {
 
 /** The values of a strict `PUT …/platform` body (app contract §4.4) or `POST …/deployments` body (§4.7.2). */
 export interface PlatformBodyValues {
+  /** Parsed client id; shared-profile values come from local context. */
   clientId: string;
+  /** Parsed deployment id. */
   deploymentId: string;
+  /** 43-character approval code for operatorGrant; empty for self authority. */
   grantCode: string;
+  /** Explicit endpoints only for an admin-value profile. */
   adminValues?: AdminValues;
 }
 
@@ -78,6 +90,7 @@ export interface PlatformBodyValues {
 export type PlatformBodyResult = { ok: true; values: PlatformBodyValues } | { ok: false; fields: string[]; reason?: 'origin' };
 
 export interface PlatformBodyContext {
+  /** The connection site origin used to check typed endpoint origins. */
   siteUrl: string;
   /** Client id of an existing exclusive platform, for an added deployment. */
   clientId?: string;
@@ -111,8 +124,11 @@ export type BindingTarget =
 
 /** Shared platform of a shared profile (from `GET /api/providers` `sharedPlatform`). */
 export interface SharedPlatformInfo {
+  /** Shared platform id from the provider snapshot. */
   id: string;
+  /** Shared Application ID. */
   clientId: string;
+  /** Whether the shared platform is active. */
   active: boolean;
 }
 
@@ -121,23 +137,37 @@ export interface SharedPlatformInfo {
  * `issuer` is the saved canonical target issuer (already filled for `a site-based issuer`).
  */
 export interface ProfileView {
+  /** LTI service profile id. */
   id: string;
+  /** Issuer pattern or saved issuer, or null when supplied by the administrator. */
   issuer: string | null;
+  /** Exclusive platform or shared deployment ownership. */
   sharing: 'exclusive' | 'shared';
+  /** Whether a separate service origin is supported. */
   serviceUrl: boolean;
+  /** Optional profile login endpoint. */
   authenticationEndpoint?: string | null;
+  /** Optional profile token endpoint, using the LTI service field spelling. */
   accesstokenEndpoint?: string | null;
+  /** Optional profile public-key endpoint. */
   jwksUrl?: string | null;
+  /** Optional shared platform snapshot. */
   sharedPlatform?: SharedPlatformInfo | null;
+  /** Optional LTI service display label. */
   label?: string;
+  /** Whether this profile is for simulation. */
   simulation?: boolean;
+  /** Remote record that stores the site origin. */
   siteUrlOn?: 'platform' | 'deployment' | null;
+  /** Frozen legacy wire channel value, when present. */
   lms?: string | null;
 }
 export type LocalProfileView = Pick<ProfileView, 'id' | 'issuer'> & Partial<ProfileView>;
 
 export interface InitialTargetContext {
+  /** Local connection whose binding is being staged. */
   connection: SetupConnection;
+  /** Validated binding body values. */
   values: PlatformBodyValues;
   /** The local profile view (app contract §4.7.1 "Target": local data only). */
   profile: LocalProfileView;
@@ -165,10 +195,15 @@ export interface CreateRequestContext {
 }
 
 export interface AdminValues {
+  /** Administrator-supplied issuer. */
   issuer: string;
+  /** OIDC authentication endpoint. */
   authenticationEndpoint: string;
+  /** OAuth token endpoint. */
   accessTokenEndpoint: string;
+  /** Platform public-key set endpoint. */
   jwksUrl: string;
+  /** Optional token audience required by an admin-value profile. */
   tokenAudience?: string;
 }
 
@@ -249,7 +284,20 @@ export interface PortContext {
   /** Active key first; public RSA members only. */
   publicToolKeys(): Promise<{ ok: true; keys: PublicJwk[] } | { ok: false }>;
 }
-export interface PublicJwk { kty: string; kid: string; alg: string; use: string; n: string; e: string }
+export interface PublicJwk {
+  /** Public key type; the kernel accepts RSA only. */
+  kty: string;
+  /** Signing-key identifier. */
+  kid: string;
+  /** Signing algorithm. */
+  alg: string;
+  /** Public key use. */
+  use: string;
+  /** RSA modulus in base64url. */
+  n: string;
+  /** RSA exponent in base64url. */
+  e: string;
+}
 export type GuardedClient = OutboundClient;
 
 /** The kernel binds :library_id and, when present, :connection_id. */
@@ -277,43 +325,74 @@ export interface ExtensionRoute {
 }
 /** Read-only publication fields needed by a publish hook. Extension state is read through scoped SQL. */
 export interface PublicationView {
+  /** Publication id. */
   readonly id: string;
+  /** Owning connection id. */
   readonly connectionId: string;
+  /** Published course id. */
   readonly courseId: string;
+  /** Course title for the optional shell. */
   readonly courseTitle: string;
+  /** Course variant for the optional shell. */
   readonly courseVariant: string;
+  /** Course language. */
   readonly courseLang: string;
+  /** Canonical connection site origin. */
   readonly siteUrl: string;
+  /** Stored connection channel id. */
   readonly channel: string;
 }
 /** Version and checked package metadata for a course-version exporter. */
 export interface CourseVersionView {
+  /** Course version id. */
   readonly id: string;
+  /** Owning course id. */
   readonly courseId: string;
+  /** Version number. */
   readonly version: number;
+  /** Validated package format. */
   readonly format: string;
+  /** Inspected package id. */
   readonly packageId: string;
+  /** Course title used in the export. */
   readonly title: string;
+  /** Course variant used in the export. */
   readonly variant: string;
+  /** Course language used in the export. */
   readonly lang: string;
+  /** Checked package digest supplied by the kernel. */
   readonly packageSha256: string;
 }
 /** Frozen build response: times are ISO strings, and downloadUrl is present only for a ready build. */
 export interface ExportBuildView {
+  /** Build id within the current library. */
   readonly buildId: string;
+  /** Exported course id. */
   readonly courseId: string;
+  /** Exported version id. */
   readonly versionId: string;
+  /** Build lifecycle state. */
   readonly status: 'queued' | 'running' | 'ready' | 'failed';
+  /** Current runner step, or null. */
   readonly step: string | null;
+  /** Failure or progress description, or null. */
   readonly reason: string | null;
+  /** Artifact size when known, or null. */
   readonly bytes: number | null;
+  /** Creation time as an ISO string, or null. */
   readonly createdAt: string | null;
+  /** Last update time as an ISO string, or null. */
   readonly updatedAt: string | null;
+  /** Completion time as an ISO string, or null. */
   readonly finishedAt: string | null;
+  /** Frozen download route only when ready, otherwise null. */
   readonly downloadUrl: string | null;
 }
 /** Only exporters receive the confined file queue. */
-export interface ExporterContext extends PortContext { buildQueue: BuildQueue }
+export interface ExporterContext extends PortContext {
+  /** Library-bound queue operations; no filesystem paths are exposed. */
+  buildQueue: BuildQueue;
+}
 export interface BuildQueue {
   /** Atomically write a request; the kernel sets buildId and the configured build knobs. */
   submit(buildId: string, request: Record<string, unknown>): Promise<void>;
@@ -358,8 +437,11 @@ export interface RedemptionRequest {
   libraryId: string;
   /** The path connection. */
   connectionId: string;
+  /** Initial binding or added deployment. */
   purpose: GrantPurpose;
+  /** Validated body values for the redemption. */
   values: PlatformBodyValues;
+  /** Correlation id for the binding attempt. */
   traceId: string;
 }
 
