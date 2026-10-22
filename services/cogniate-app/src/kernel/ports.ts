@@ -55,7 +55,7 @@ export interface PlatformBodyValues {
 }
 
 /** Parse result: the values, or the body keys that are unknown, missing or malformed (`422 INVALID_PLATFORM_VALUES`). */
-export type PlatformBodyResult = { ok: true; values: PlatformBodyValues } | { ok: false; fields: string[] };
+export type PlatformBodyResult = { ok: true; values: PlatformBodyValues } | { ok: false; fields: string[]; reason?: 'origin' };
 
 export interface PlatformBodyContext {
   siteUrl: string;

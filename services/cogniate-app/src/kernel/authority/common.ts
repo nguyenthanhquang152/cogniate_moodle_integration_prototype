@@ -1,3 +1,4 @@
+import type { PlatformBodyResult } from '../ports.ts';
 import type { Logger } from '@cogniate/shared';
 import type { LtiClient, LtiPlatform } from '../../clients/lti-client.ts';
 import { LtiServiceError, ltiErrorFields } from '../../clients/lti-client.ts';
@@ -29,3 +30,10 @@ export async function deactivateOrphan(deps: { db: Db; lti: LtiClient; logger: L
   }
 }
 
+
+/** BD-A1-35: core owns the two frozen descriptions; a channel supplies only a closed reason. */
+export function invalidBindingBody(result: Extract<PlatformBodyResult, { ok: false }>, channelName: string): never {
+  throw new ApiError('INVALID_PLATFORM_VALUES', result.reason === 'origin'
+    ? `The URLs must be https and on the ${channelName} site of this connection.`
+    : 'Some values are missing or not valid.', { details: { fields: result.fields } });
+}

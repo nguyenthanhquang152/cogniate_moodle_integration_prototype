@@ -5,7 +5,7 @@ import { PlatformTakenError, disableConnection, getConnection, markRegistered } 
 import { revokeOpenGrants } from '../../domain/bindings.ts';
 import { transaction } from '../../domain/db.ts';
 import { ApiError } from '../../app/api-errors.ts';
-import { deactivateOrphan, ltiFailure, platformInfo } from './common.ts';
+import { deactivateOrphan, invalidBindingBody, ltiFailure, platformInfo } from './common.ts';
 import type { AuthorityDeps, AuthorityStrategy } from './types.ts';
 
 export function selfAuthority(deps: AuthorityDeps): AuthorityStrategy {
@@ -14,7 +14,7 @@ export function selfAuthority(deps: AuthorityDeps): AuthorityStrategy {
     async bind(c, adapter, body, { libraryName, traceId }) {
       if (c.method !== 'manual') throw new ApiError('CONNECTION_NOT_PENDING', 'Only a pending manual connection takes platform values.');
       const parsed = adapter.parseBindingBody(body, { siteUrl: c.siteUrl, sharedClientId: null, purpose: 'initial' });
-      if (!parsed.ok) throw new ApiError('INVALID_PLATFORM_VALUES', 'Some values are missing or not valid.', { details: { fields: parsed.fields } });
+      if (!parsed.ok) return invalidBindingBody(parsed, deps.channels.textName(c.channel));
       if (!adapter.selfCreate || !parsed.values.adminValues) throw new ApiError('CAPABILITY_NOT_SUPPORTED');
       const v = { ...parsed.values.adminValues, clientId: parsed.values.clientId, deploymentId: parsed.values.deploymentId };
       if (c.status !== 'pending') {

@@ -50,7 +50,7 @@ const setup: ConnectionSetup = {
     if (bad.length) return { ok: false, fields: [...new Set(bad)] };
     const v = values as Record<(typeof PLATFORM_FIELDS)[number], string>;
     const fields = badPlatformFields(ctx.siteUrl, v);
-    if (fields.length) return { ok: false, fields };
+    if (fields.length) return { ok: false, fields, reason: 'origin' };
     return { ok: true, values: { clientId: v.clientId, deploymentId: v.deploymentId, grantCode: '',
       adminValues: { issuer: v.issuer, authenticationEndpoint: v.authenticationEndpoint, accessTokenEndpoint: v.accessTokenEndpoint, jwksUrl: v.jwksUrl } } };
   },

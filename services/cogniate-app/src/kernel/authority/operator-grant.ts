@@ -1,3 +1,4 @@
+import { invalidBindingBody } from './common.ts';
 import { disableConnection, getConnection } from '../../domain/connections.ts';
 import { revokeOpenGrants } from '../../domain/bindings.ts';
 import { transaction } from '../../domain/db.ts';
@@ -15,7 +16,7 @@ export function operatorGrantAuthority(deps: AuthorityDeps): AuthorityStrategy {
     async bind(c, adapter, body, { traceId }) {
       if (!adapter.parseBindingBody || !deps.engine) throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'This connection has no operator approval.', { details: { capability: 'operatorApproval' } });
       const parsed = adapter.parseBindingBody(body, { siteUrl: c.siteUrl, sharedClientId: adapter.sharingOf(c.profile) === 'shared' ? c.snapshot.clientId ?? c.platform?.clientId ?? null : null, purpose: 'initial' });
-      if (!parsed.ok) throw new ApiError('INVALID_PLATFORM_VALUES', 'Some values are missing or not valid.', { details: { fields: parsed.fields } });
+      if (!parsed.ok) return invalidBindingBody(parsed, deps.channels.textName(c.channel));
       return deps.engine.redeem({ libraryId: c.libraryId, connectionId: c.id, purpose: 'initial', values: parsed.values, traceId });
     },
     async disconnect(c, traceId) {

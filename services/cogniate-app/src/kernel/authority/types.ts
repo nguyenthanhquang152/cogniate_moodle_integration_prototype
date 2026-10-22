@@ -1,3 +1,4 @@
+import type { ChannelRegistry } from '@cogniate/channel-kernel';
 import type { Logger } from '@cogniate/shared';
 import type { LtiClient } from '../../clients/lti-client.ts';
 import type { Connection } from '../../domain/connections.ts';
@@ -7,6 +8,7 @@ import type { RedemptionEngine } from '../../app/redemption.ts';
 import type { ConnectionSetup } from '../ports.ts';
 
 export interface AuthorityDeps {
+  channels: ChannelRegistry;
   db: Db;
   lti: LtiClient;
   logger: Logger;
