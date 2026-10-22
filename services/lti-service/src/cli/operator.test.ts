@@ -1,4 +1,8 @@
 // lti:operator init (LA-ADR-06 D3 "Trust bootstrap"): arguments, exit codes and output lines.
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { openDb } from '../db/index.ts';
 import { listAuditEvents } from '../store/audit.ts';
@@ -15,6 +19,21 @@ function init(db: ReturnType<typeof openDb>, args: string[], now = T0) {
 }
 
 describe('parseOperatorArgs', () => {
+  it('prints usage and exits 2 when a symlinked entry point has no arguments', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'operator-link-'));
+    try {
+      const entry = join(dir, 'operator.ts');
+      symlinkSync(new URL('./operator.ts', import.meta.url), entry);
+      const result = spawnSync(process.execPath, [entry], { cwd: dir, encoding: 'utf8', timeout: 10_000 });
+      expect(result.error).toBeUndefined();
+      expect(result.status).toBe(2);
+      expect(result.stdout).toBe('');
+      expect(result.stderr).toContain('Usage: lti:operator init --name <operator>');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('reads init, --name, --if-none and --replace', () => {
     expect(parseOperatorArgs(['init', '--name', 'qa'])).toEqual({ ok: true, mode: 'refuse', name: 'qa' });
     expect(parseOperatorArgs(['init', '--if-none'])).toEqual({ ok: true, mode: 'if-none', name: null });
