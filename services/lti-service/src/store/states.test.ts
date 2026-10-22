@@ -9,14 +9,14 @@ import { createPlatform } from './platforms.ts';
 import { ensureAccount } from './accounts.ts';
 import { consumeState, saveState } from './states.ts';
 
-it('stores and returns storage metadata, defaults old callers to null and keeps state single use (AC-08)', () => {
+it('stores and returns storage metadata or explicit nulls and keeps state single use (AC-08)', () => {
   const db = openDb(':memory:');
   try {
     ensureAccount(db, { id: 'unit', name: 'Unit', appUrl: 'https://app.example.edu' });
     const p = createPlatform(db, 'unit', { issuer: 'https://lms.example.edu', clientId: 'client', name: 'Unit', active: true, authEndpoint: 'https://lms.example.edu/auth', tokenEndpoint: 'https://lms.example.edu/token', jwksUrl: 'https://lms.example.edu/jwks', deploymentIds: ['1'] });
     const base = { toolAccountId: 'unit', platformId: p.id, nonce: 'nonce', targetLinkUri: 'https://tool.example.edu/launch', expiresAt: 200, loginDeploymentId: null };
     saveState(db, { ...base, stateHash: 'storage', storageTarget: '_parent', storageOrigin: 'https://auth.example.edu' }, 100);
-    saveState(db, { ...base, stateHash: 'cookie' }, 100);
+    saveState(db, { ...base, stateHash: 'cookie', storageTarget: null, storageOrigin: null }, 100);
     expect(consumeState(db, 'unit', 'storage', 100)).toMatchObject({ storageTarget: '_parent', storageOrigin: 'https://auth.example.edu' });
     expect(consumeState(db, 'unit', 'storage', 100)).toBeNull();
     expect(consumeState(db, 'unit', 'cookie', 100)).toMatchObject({ storageTarget: null, storageOrigin: null });

@@ -1,4 +1,6 @@
 // Platform storage pages (LA-ADR-05 D1). Request values enter only the escaped JSON block.
+// Flow: login chooses the binding; the page posts lti.put_data; the state row keeps target and origin;
+// the LA-E3-02 launch side reads platform storage only when the state cookie is missing.
 import { randomToken, sha256Hex } from '@cogniate/shared';
 
 export interface StorageLoginData {

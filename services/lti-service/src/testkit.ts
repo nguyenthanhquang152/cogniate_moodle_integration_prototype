@@ -23,14 +23,15 @@ import { ensureToolKey } from './store/tool-keys.ts';
 import type { Platform } from './store/platforms.ts';
 import { createPlatform } from './store/platforms.ts';
 import { CHANNEL_ROOT, buildProfileRegistry } from './profiles/index.ts';
+import type { ProfileOptions } from './profiles/index.ts';
 
 /** New channel and two endpoint plans for unit tests. Baseline channel data stays unchanged. */
-export async function testProfileRegistry(textName = 'your LMS') {
+export async function testProfileRegistry(textName = 'your LMS', platformStorage: ProfileSource['platformStorage'] = null) {
   const loaded = structuredClone(await loadChannelFolders([CHANNEL_ROOT], 'lti'));
   const standard = loaded.find((entry) => (entry.manifest as ChannelManifest).registration.some((method) => method.profiles.includes('standard')))!;
   const manifest = standard.manifest as ChannelManifest;
   const admin = {
-    ...(standard.ltiProfiles![0] as ProfileSource), id: 'zz-admin', label: 'Unit admin', privacyFloor: 'allowlist', listOrder: 100,
+    ...(standard.ltiProfiles![0] as ProfileSource), id: 'zz-admin', label: 'Unit admin', privacyFloor: 'allowlist', listOrder: 100, platformStorage,
   } satisfies ProfileSource;
   delete admin.wireLms;
   const fixed: ProfileSource = {
@@ -129,7 +130,7 @@ export interface Harness {
 }
 
 /** Accounts cogniate + qa-second, one platform of cogniate, and the app. */
-export async function harness(opts: { ltikTtlSeconds?: number; simulationProfiles?: boolean; outbound?: (url: string, init: { method?: string; body?: string; headers?: Record<string, string> }) => { status: number; body: unknown; headers?: Record<string, string> } | undefined } = {}): Promise<Harness> {
+export async function harness(opts: { ltikTtlSeconds?: number; simulationProfiles?: boolean; profiles?: ProfileOptions; outbound?: (url: string, init: { method?: string; body?: string; headers?: Record<string, string> }) => { status: number; body: unknown; headers?: Record<string, string> } | undefined } = {}): Promise<Harness> {
   const db = openDb(':memory:');
   const a = ensureAccount(db, { id: 'cogniate', name: 'Cogniate', appUrl: URLS.app });
   const b = ensureAccount(db, { id: 'qa-second', name: 'QA second', appUrl: URLS.app });
@@ -145,10 +146,11 @@ export async function harness(opts: { ltikTtlSeconds?: number; simulationProfile
   const clock = { now: Date.now() };
   const tokens = createTokenClient({ db, masterKey: MASTER_KEY, outbound, logger, now: () => clock.now });
   const ags = createAgsClient({ outbound, tokens, clock: createScoreClock(() => clock.now), logger });
+  const simulationProfiles = opts.profiles?.simulation ?? opts.simulationProfiles ?? false;
   const app = await buildApp({
     db, urls: URLS, logger, keys: createPlatformKeys(outbound, () => clock.now), ltikTtlSeconds: opts.ltikTtlSeconds ?? 86400,
-    masterKey: MASTER_KEY, ags, nrps: createNrpsClient({ outbound, tokens, logger }), outbound, profile: opts.simulationProfiles ? 'acceptance' : 'default', knobs: [], now: () => clock.now,
-    simulationProfiles: opts.simulationProfiles ?? false,
+    masterKey: MASTER_KEY, ags, nrps: createNrpsClient({ outbound, tokens, logger }), outbound, profile: simulationProfiles ? 'acceptance' : 'default', knobs: [], now: () => clock.now,
+    simulationProfiles, ...(opts.profiles?.registry ? { profileRegistry: opts.profiles.registry } : {}),
   });
   return { db, platform, apiKey: a.apiKey!, otherApiKey: b.apiKey!, key, outbound, lines, clock, app };
 }
