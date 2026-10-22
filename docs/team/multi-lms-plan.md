@@ -13,7 +13,34 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 12:53 UTC
+### Current directive — 2026-10-22, 14:18 UTC
+
+Lead accepts E-T5R eligibility for frozen product C6 4008afb and tests C7 620c03d.
+This accepts the bounded evidence route, not runtime results or prototype completion.
+Independent Gemini host checks passed 1,136 unit tests and 111 infrastructure tests with zero skips; only dist/runtime.js changed.
+The corrected V1 proof in msg_3c34d9795822 records the exact four paths, both C6/C7 README bindings to 958ee5c and the standalone T1 consumer.
+Its primary text hash is cc39c8579421b753b928879a1df1ed4261a36aad40cbe4989e4180aa8c731539. The message's C5 README equality claim is incorrect; the primary table is correct.
+No carried M1 row consumes either README. Standalone T1 is outside the twelve-group legacy campaign.
+Both independent Claude reviews approve R1, R2, both frozen v3 launchers and the exhaustive affected-row mapping: a031116 and a56f443. No BLOCKER or MAJOR is open.
+
+Required fresh coverage is all twelve legacy groups, two existing --phase sim --provider canvas invocations (258 cases each), all 64 M2 cases and three T7 runs.
+All repeated rows must use their fresh results. A new failure, unequal rounds or another product change voids E-T5R.
+The final ledger must bind each reused C4 row and each fresh C6/C7 row separately. A 258-case run is not a new 488-case full run.
+Both historical failed attempts remain FAILED. No C4 result fills a new-candidate runtime row by implication.
+
+Lead defers the nonblocking prototype residuals A-TR-01, A-TR-02/B-M3TR-01, A-TR-04/B-M3TR-02 and B-M3TR-03.
+These cover unverified pagehide behavior for a still-loading document, document retention, WindowProxy cleanup and limits on observation.
+The final Architect and Docs must describe them accurately. No universal document-observation claim or optional product repair is granted.
+B-M3TR-05 uses option (a): each grant names a new, absent run root; QA verifies observer continuity and sample count through the end.
+The frozen launchers stay unchanged. QA owns the disclosed evidence corrections; original reports and indexes remain intact.
+
+Common Gemini task_6bc986323143 / ctx_c5acede76614 receives only one legacy invocation in the separate 14:18–15:05 UTC grant.
+Fresh preflight must match all 32 preceding full volume records and the non-lane boundary before launch. No pruning or automatic retry is allowed.
+Independent Gemini task_709c13882df3 continues host-only guide CLI captures and factual corrections.
+Claude Architect task_e34f6bb75e2d / ctx_d2821ebd6a6b works on the R1 source clarification now; final runtime conformance waits for actual accepted evidence.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 12:53 UTC
 
 The fresh C4/C5 attempt is FAILED and closed at 7a74d2f. Nine groups passed; T5b AC-T5-36 and T6 AC-T6-07 failed; T8 did not run.
 Lead verified the 1,944-entry evidence index, six root entries and unchanged prior index records.
