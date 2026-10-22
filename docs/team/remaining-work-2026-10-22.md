@@ -2,7 +2,25 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 15:55 UTC
+## Current checkpoint — 16:33 UTC
+
+Both independent Claude reviewers approved C8 and the held v4 launchers with no BLOCKER or MAJOR.
+The Lead accepted [E-R3](r3-evidence-decision-2026-10-22.md) for execution. Runtime acceptance remains pending.
+C8 stays `5561e8f`; product stays C6 `4008afb`. All test deadlines and assertions stay unchanged.
+
+- Common Gemini QA: task_0b7729855fc5 / ctx_72afbef88d8c. Preparation is held; wait for each explicit runtime window.
+- Independent Gemini Canvas/M2/T7 QA: task_3ca468cb75c8 / ctx_806443ba13cd. Host-only preparation is active.
+- Both successful review workers are released. Their quota-stopped predecessors remain stopped.
+- Final Claude architecture conformance is next. The retained Codex session owns any product repair and final guide edits.
+
+The accidental guard-control run is UNAUTHORIZED/STOPPED. Its gate message is VOID.
+Cleanup passed, and all 32 original full volume records are unchanged. The run gives no test credit.
+Fresh work remains: all 12 legacy groups, two 258-row Canvas SIM rounds, independent Canvas judgments, M2 and T7.
+The source identity, exact reuse limits, findings and launcher constraints are recorded in the E-R3 decision.
+No fresh runtime has started at this checkpoint. Its explicit grant will record the actual reservation.
+Final conformance, guide completion, Docs QA and two final reviews follow. Real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED.
+
+## Historical checkpoint — 15:55 UTC
 
 C8 is committed at `5561e8f72a83de36a68877c6b26ffc8288ade735`.
 Its tests tree is `65eaefab31ec6800fca06aee50e5e25c95713f8a`.
