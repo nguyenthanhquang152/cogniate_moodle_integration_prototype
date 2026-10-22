@@ -134,9 +134,21 @@ describe('metrics collection', () => {
     expect(text).toMatch(/lti_launch_total\{result="failed",check="[^"]*",tool_account_id=""\} 1/);
     expect(text).not.toContain('unknown-person');
     expect(text).not.toContain('Personal name');
-    expect(h.lines).toContainEqual(expect.objectContaining({ event: 'http_request', path: '/lti/login/cogniate', tool_account_id: 'cogniate' }));
+    expect(h.lines).toContainEqual(expect.objectContaining({ event: 'http_request', path: '/lti/login/:account', tool_account_id: 'cogniate' }));
     await h.app.inject({ url: '/api/platforms', headers: { authorization: `Bearer ${h.apiKey}` } });
     expect(await scrape(h)).toContain('lti_http_requests_total{route_class="admin",status_class="2xx",tool_account_id="cogniate"} 1\n');
+  });
+
+  it('logs the route template as the http_request path, never an unknown, encoded or query value (BD-A2-61)', async () => {
+    const h = await setup();
+    for (const url of ['/lti/login/alice@example.test', '/lti/login/alice%40example.test?email=alice@example.test', '/no/such/alice@example.test']) {
+      await h.app.inject(url);
+    }
+    await h.operator.inject('/operator/v1/accounts/alice@example.test');
+    const lines = h.lines.filter((l) => l.event === 'http_request');
+    expect(lines.map((l) => l.path)).toEqual(['/lti/login/:account', '/lti/login/:account', '<unmatched>', '/operator/v1/accounts/:id']);
+    expect(JSON.stringify(h.lines)).not.toContain('alice');
+    expect(lines.every((l) => l.tool_account_id === undefined)).toBe(true);
   });
 
   it('counts hard refusals and soft excesses even when warnings are sampled', async () => {
