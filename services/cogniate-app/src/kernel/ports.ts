@@ -221,6 +221,10 @@ export interface CourseVersionView {
   readonly version: number;
   readonly format: string;
   readonly packageId: string;
+  readonly title: string;
+  readonly variant: string;
+  readonly lang: string;
+  readonly packageSha256: string;
 }
 /** Frozen build response: times are ISO strings, and downloadUrl is present only for a ready build. */
 export interface ExportBuildView {

@@ -136,7 +136,7 @@ function assertBuildOwner(db: Db, libraryId: string, id: string): void {
   if (!db.prepare(EXPORT_BUILD_SCOPE_SQL).get(id, libraryId)) throw new ApiError('NOT_FOUND');
 }
 
-export function createBuildQueue(db: Db, libraryId: string, root: string, _knobs: { hold: boolean; failAt: string }): BuildQueue {
+export function createBuildQueue(db: Db, libraryId: string, root: string, knobs: { hold: boolean; failAt: string }): BuildQueue {
   return Object.freeze({
     async submit(id: string, request: Record<string, unknown>) {
       assertBuildOwner(db, libraryId, id);
@@ -144,7 +144,7 @@ export function createBuildQueue(db: Db, libraryId: string, root: string, _knobs
       const tmp = join(folder, `${id}.${randomUUID()}.tmp`);
       const file = await open(tmp, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o600);
       try {
-        await file.writeFile(JSON.stringify({ ...request, buildId: id, libraryId }));
+        await file.writeFile(JSON.stringify({ ...request, buildId: id, libraryId, hold: knobs.hold, failAt: knobs.failAt }));
         await file.close();
         await rename(tmp, join(folder, `${id}.json`));
       } catch (error) {
