@@ -52,7 +52,9 @@ const Completed = z.object({ platformId: z.string().min(1), html: z.string() });
 /** One profile of `GET /api/providers` (LTI contract §9.3). */
 const ProviderProfile = z.object({
   id: z.string().min(1),
-  lms: z.enum(['canvas', 'blackboard']).nullable(),
+  // An open set (LA S1, app API delta §2): any value parses. The app ignores a profile that no adapter owns
+  // (providers/index.ts ownedProfiles), so one unknown value does not break the answer.
+  lms: z.string().nullable(),
   label: z.string(),
   sharing: z.enum(['exclusive', 'shared']),
   issuer: z.string().nullable(),
