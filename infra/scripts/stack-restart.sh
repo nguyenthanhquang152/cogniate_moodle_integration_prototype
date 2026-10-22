@@ -10,6 +10,7 @@
 # container keeps its id and start time.
 set -euo pipefail
 source "$(dirname "$0")/lib.sh"
+require_sim_hosts   # use the saved profile; stop before the first compose call
 storage_compat_guard
 storage_lock_acquire "stack:restart $*"
 require_env

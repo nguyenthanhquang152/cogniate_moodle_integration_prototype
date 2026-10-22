@@ -85,6 +85,7 @@ GATE_HOST=lti-gate.test
 # Keep the old hosts until LA-E7-02 supplies the manifest. A bad file must never select this fallback.
 load_sim_hosts() {
   local manifest="$REPO_ROOT/tests/sim/hosts.json" rows kind host
+  SIM_ALIASES=(lms-sim.test); SIM_LTI_HOSTS=(); SIM_HOSTS_ERROR=""
   if [[ ! -e "$manifest" && ! -L "$manifest" ]]; then
     SIM_LTI_HOSTS=(developer.blackboard.sim.test learn-a.blackboard.sim.test learn-b.blackboard.sim.test sso.canvas.sim.test
       school-a.canvas.sim.test school-b.canvas.sim.test canvas-self.sim.test api.canvas-self.sim.test)
@@ -95,7 +96,7 @@ load_sim_hosts() {
     fi
     return 0
   fi
-  if ! rows="$(node - "$manifest" "${STACK_HOSTS[@]}" evil.test qa-platform.test "$GATE_HOST" <<'NODE'
+  if ! rows="$(node - "$manifest" "${STACK_HOSTS[@]}" evil.test qa-platform.test "$GATE_HOST" 2>&1 <<'NODE'
 const fs = require('node:fs');
 const [file, ...reserved] = process.argv.slice(2);
 const fail = (message) => { throw new Error(message); };
@@ -144,6 +145,7 @@ try {
 }
 NODE
 )"; then
+    SIM_HOSTS_ERROR="$rows"
     return 1
   fi
   SIM_ALIASES=(); SIM_LTI_HOSTS=()
@@ -154,7 +156,18 @@ NODE
     esac
   done <<< "$rows"
 }
-load_sim_hosts || exit 1
+# BD-A1-08: loading a bad file gives no provider hosts and does not stop recovery commands.
+if load_sim_hosts; then
+  unset SIM_HOSTS_ERROR_WARNED
+elif [[ "${SIM_HOSTS_ERROR_WARNED:-}" != "$REPO_ROOT:$SIM_HOSTS_ERROR" ]]; then
+  printf '%s\n' "$SIM_HOSTS_ERROR" >&2
+  export SIM_HOSTS_ERROR_WARNED="$REPO_ROOT:$SIM_HOSTS_ERROR"   # one warning across child scripts
+fi
+
+# Only acceptance up/restart refuse a bad manifest. The error line was printed when the file was loaded.
+require_sim_hosts() {
+  [[ "${1:-$ACTIVE_STACK_PROFILE}" != acceptance || -z "$SIM_HOSTS_ERROR" ]]
+}
 
 # JSON is valid YAML. No tracked file changes when a provider adds or removes a host.
 write_sim_compose() {
