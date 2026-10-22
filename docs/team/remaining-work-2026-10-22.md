@@ -2,7 +2,31 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 15:18 UTC
+## Current checkpoint — 15:55 UTC
+
+C8 is committed at `5561e8f72a83de36a68877c6b26ffc8288ade735`.
+Its tests tree is `65eaefab31ec6800fca06aee50e5e25c95713f8a`.
+The R3 repair adds 33 lines across two keyboard test files and removes no C7 lines.
+Tests typechecking passed. The T6 inventory remains 18 tests; M2 remains 64 tests.
+All files outside docs and tests match product C6.
+
+- Common Gemini QA: task_0b7729855fc5 / ctx_72afbef88d8c. Prepare v4 launchers without Docker, then wait for the runtime grant.
+- Claude Reviewer A: task_78835a8bce35 / ctx_cea4b49eec71. Review C8 and v4 independently.
+- Claude Reviewer B: task_ca18cab27865 / ctx_46e72195723f. Review C8 and v4 independently.
+- The R3 Gemini edit task settled successfully. Its terminal is released from that task and available for later independent runtime judgment.
+- The retained Codex session remains the sole executor for any product repair and final guide edits.
+
+The earlier missing-trace statement is superseded. QA recovered the current failed test trace,
+and the Lead checked its test title and 15:06:15.174 UTC start time. The exact callback sequence remains an inference.
+The C6/C7 attempt stays FAILED. E-T5R stays VOID. No new runtime or replacement evidence route is accepted yet.
+Both reviews must finish before the Lead can decide the next route and grant an exclusive host window.
+
+Savoy confirmed cleanup and no further Docker jobs. LA's host-only hold remains recorded.
+All 32 original volume records stay protected. The fresh preflight must compare their full records.
+Required work remains: fresh runtime gates, final architecture conformance, guide completion, independent Docs QA and two final reviews.
+Real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 15:18 UTC
 
 The C6/C7 legacy attempt ended at 15:06:57 UTC with ten groups passed, T6 failed and T8 not run.
 AC-T5-36 and AC-T6-07 passed. AC-T6-09 failed while waiting for the wizard registration URL.
