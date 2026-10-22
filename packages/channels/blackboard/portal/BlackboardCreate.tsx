@@ -1,14 +1,15 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { Link } from "react-router";
-import { api } from "../../api.ts";
-import { useAlive } from "../../hooks.ts";
-import { BLACKBOARD_NOT_READY } from "../../lms.ts";
-import type { Connection, ConnectionCreateBody } from "../../types.ts";
-import { Button, buttonVariants } from "../../ui/button.tsx";
-import { Input, Select } from "../../ui/input.tsx";
-import { ProviderErrorNotice, providerErrorFields } from "../provider-errors.tsx";
-import type { ProviderWizardProps } from "../wizard-types.ts";
+import { Link } from "@cogniate/portal-sdk";
+import { api } from "@cogniate/portal-sdk";
+import { useAlive } from "@cogniate/portal-sdk";
+import manifest from "../manifest.ts";
+const BLACKBOARD_NOT_READY = manifest.texts.notReady.replaceAll("{LMS}", manifest.names.text);
+import type { Connection, ConnectionCreateBody } from "@cogniate/portal-sdk";
+import { Button, buttonVariants } from "@cogniate/portal-sdk";
+import { Input, Select } from "@cogniate/portal-sdk";
+import { ProviderErrorNotice, providerErrorFields } from "@cogniate/portal-sdk";
+import type { ProviderWizardProps } from "@cogniate/portal-sdk";
 
 /** Step 1: connection name and Learn URL; "Blackboard type" only when more than one profile is ready (M2). */
 export function BlackboardCreate({ provider, opener, onCreated }: ProviderWizardProps) {

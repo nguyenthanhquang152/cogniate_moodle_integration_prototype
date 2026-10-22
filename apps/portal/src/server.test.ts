@@ -1,3 +1,4 @@
+// @vitest-environment node
 // Node tests for the small T6 app additions. All data is generated in a temporary store.
 import { afterEach, describe, expect, it } from "vitest";
 import { createHash } from "node:crypto";

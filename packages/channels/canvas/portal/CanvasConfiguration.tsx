@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { canvasConfiguration } from "../../api.ts";
-import type { CanvasConfigurationSnapshot } from "../../types.ts";
-import { CopyButton, ErrorNotice, Loading } from "../../ui.tsx";
-import { Button } from "../../ui/button.tsx";
-import { ToolConfiguration } from "../ToolConfiguration.tsx";
+import { canvasConfiguration } from "@cogniate/portal-sdk";
+import type { CanvasConfigurationSnapshot } from "@cogniate/portal-sdk";
+import { CopyButton, ErrorNotice, Loading } from "@cogniate/portal-sdk";
+import { Button } from "@cogniate/portal-sdk";
+import { ToolConfiguration } from "@cogniate/portal-sdk";
 
 export function CanvasConfiguration({ id }: { id: string }) {
   const [inline, setInline] = useState(false);
