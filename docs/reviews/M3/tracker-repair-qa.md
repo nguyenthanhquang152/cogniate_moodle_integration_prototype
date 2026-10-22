@@ -608,3 +608,31 @@ This compact addendum is appended after byte `125,189` (SHA-256 `f65f0b6484e1d2c
   - Unchanged Playwright title inventories: T6 (`18 tests in 6 files`, SHA-256 `44ec3a04d504969a35886633e27a32bd5dc9d46dc1ad91e72466aba37e690f62`), M2 (`64 tests`, SHA-256 `4fc54d6ed43b3d3b46c7535ca0263d9147f9fa154058b885b4977f55b511fc17`).
   - Guard verification (`validation-summary.json` `b7c2e3efa5ceed36ecc804aadcf21098edf5882c97c9ca326880b75a43addfc7`, `report.md` `784747cac90b6d7b6be0f2c8fe8b9f04636d40cb57cdd690aca97a116b5ef535`, `MANIFEST.sha256` `9a1c4511bdd61722b37f7e2eafcd76f5fcf3fe21edc6a6e6d14fc580cf459e2a`): `allForbiddenFalse = true`.
   - **Scope Limit**: Host-only static/typecheck/inventory validation of the R3 test repair; no runtime `PASS` is claimed, `E-T5R` remains `VOID`, all **32** real-LMS rows remain `UNVERIFIED`, and local Canvas remains `DEFERRED`.
+
+
+---
+
+## 15. Final `C8` (`R3-v2`) Source Bindings, Trace Retention Note & Stage 1 `C8` Host-Only Readiness (2026-10-22)
+
+### 15.1 Initial `R3-v1` (§14.2) vs Final Committed `C8` (`R3-v2`) Test Bindings
+- **§14.2 Scope**: Section 14.2 recorded the initial `R3-v1` implementation (`task_c95630142d55` / `ctx_8d0c51ab2342`, evidence root `/Users/quangnguyen/cogniate-canvas-qa-runs/r3-test-repair-20261022T1537Z`, `MANIFEST.sha256` `9a1c4511bdd61722b37f7e2eafcd76f5fcf3fe21edc6a6e6d14fc580cf459e2a`).
+- **Final Committed `C8` (`R3-v2`)**: Before freezing `C8`, `task_d6caeb684a53` / `ctx_6bdc147b498b` applied the bounded `R3-v2` refinement (replacing the three newly added M2 `toHaveValue(grant.code)` checks with code-free boolean `expect.poll` checks and adding assertion messages to the eight other M2 value checks and both `routeFocusSettled` heading-focus checks), committed at **`C8 = 5561e8f72a83de36a68877c6b26ffc8288ade735`** (root tree `1c61dbf285e5c6d6505c28059d8c2f8e313be613`, `tests` tree `65eaefab31ec6800fca06aee50e5e25c95713f8a`, product tree byte-equal to `C6 = 4008afb92fe983d52db33442e060210b929966c8` outside `docs/**` and `tests/**`):
+  1. `tests/acceptance/T6/5-xss-a11y.spec.ts`: `6,917` B (`d28884e120eea572bfdeead17f0bd7783921cfca1ea53b655b73c1bfe84f3b0b` at `C7`) $\rightarrow$ `7,745` B (`b7d97326b90bb73044751c8019f379199ecd2e76e35b2c3edeae96f9e274db28` at `R3-v1`) $\rightarrow$ **`7,832` B** (SHA-256 **`5701ce97e99166adca51e1e26aef9f73abe946981066d42e47d9e08f1522f17b`** at `C8`), `+11 / -0` lines vs `C7`.
+  2. `tests/e2e/M2/06-keyboard-axe.m2.ts`: `7,569` B (`c0f297ec6c5bb13774c04a5de98b45fd63ce709367e4b162a9cbab265da32b04` at `C7`) $\rightarrow$ `9,031` B (`a149c99498773dbcf766851c6f24dc27b0e573326794d3ebcc76539df5536299` at `R3-v1`) $\rightarrow$ **`9,927` B** (SHA-256 **`c15b15a9bfb3b3fff005e23bea5f31e0231ae8b93da89337f0e31e41e645da3c`** at `C8`), `+22 / -0` lines vs `C7`.
+- **Final `R3-v2` Validation Root**: `/Users/quangnguyen/cogniate-canvas-qa-runs/r3-test-repair-v2-20261022T1544Z` (`0700` dirs, `0600` files):
+  - `MANIFEST.sha256`: `01f46f98bc55400d3b53401d9e577c140ff0abaff160dda6ddc54b45212b7b47` (`7` entries)
+  - `validation-summary.json`: `a0bbfce4e06fae450187817c643a82dabcba5cbc19b9a1f82b2b4ceb9bbf2434` (`tsc_exit=0`, unchanged 18 T6 `44ec3a04…` and 64 M2 `4fc54d6e…` title inventories, `3` code-free approval polls, `0` `toHaveValue(grant.code)` calls)
+  - `diffs/c7-to-r3v2-tests.patch`: `9,582` B, SHA-256 `e1374382cb66fb36e754cc455196b737d337a4965a06e9df603190a2a12b2723` (`2 files changed, 33 insertions(+), 0 deletions(-)`).
+
+### 15.2 Trace Facts & Shared Playwright Output Directory Note (per `E-R3` Decision `aaf95ed1`)
+- **Recovered Trace Facts**: In `V3/legacy-c6` `AC-T6-09` (`trace.zip` `9,290,291` B, SHA-256 `5b655b0015331abf48342db9ecce599fd35ca08086cdbf84a014dd99815d9c3c`, `test.trace` test start `wallTime = 1792681575174` = `2026-10-22T15:06:15.174Z`, `0-trace.trace` browser context `wallTime = 1792681575177` = `2026-10-22T15:06:15.177Z`), the typed URL `urls.moodle` was `"https://moodle.test:8443"` (including port `8443`, `24` characters total); all `24` characters were lost during `call@6947` (`siteUrl` remained `""` in DOM snapshot `739`), while the exact internal callback (`MutationObserver` vs `requestAnimationFrame` in `App.tsx:243-273`) that moved focus remains inferred.
+- **Playwright Output Directory Behavior**: Failure trace locations remain private. Because sequential passes inside `run-t5.mjs` share the Playwright `outputDir` (`tests/acceptance/artifacts/playwright`), each new pass clears that directory; only the final executed pass (`container-T6` in `V3/legacy-c6`) retains its raw browser artifacts in the worktree `outputDir`. Per-pass output directories are deferred.
+
+### 15.3 Stage 1 Host-Only `C8` Readiness Index (`task_3ca468cb75c8` / `ctx_806443ba13cd`)
+- **Prepared Root (`R_C8`)**: `/Users/quangnguyen/cogniate-canvas-qa-runs/verification-5561e8f-c8R3Prep` (`0700` dirs, `0600` files, `0700` scripts)
+  - `notes/MANIFEST-host-ready.sha256`: `d7bbdb75d084bfa20324806b473b49e7273e43c02f44ffd0ebb9ae54f806dc60` (`84` entries, `0` mismatches)
+  - `notes/source-binding.txt`: `e41bd57d0437e9020e26206b1e8d85eb324d2f0bc2b90250229f00ad4b942010` (`HEAD = 5561e8f72a83de36a68877c6b26ffc8288ade735`, `tests` tree `65eaefab31ec6800fca06aee50e5e25c95713f8a`, product tree equal to `C6 = 4008afb92fe983d52db33442e060210b929966c8` outside `docs/**` and `tests/**`)
+  - `plan/runbook-5561e8f.md`: `6d6a2fc76f46db1503c7c3b4d77a8778845f962ff4c07338d18388cf8ad81efc`
+  - `plan/window-commands-5561e8f.md`: `03c309e0513ca0d1f6b0d2481f85c3b0fa3d813714c8a41e1baab3cdd6d2214b`
+  - `plan/judge-commands-5561e8f.md`: `a5ab53ad6e88cc594aaa2ef174e8f93169b3a1939358e62debd6158b2a4cdd89`
+- **Status**: `E-T5R` remains `VOID`; `E-R3` (`docs/team/r3-evidence-decision-2026-10-22.md` at `aaf95ed1a95987ec8d405f1ec74921321e252dab`) is accepted for execution only (no runtime `PASS` is claimed yet; all **32** real-LMS rows remain `UNVERIFIED`; local Canvas remains `DEFERRED`).
