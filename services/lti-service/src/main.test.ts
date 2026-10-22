@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { KeyProviderError, blobKeyVersion, keyProviderFor } from '@cogniate/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LtiService } from './main.ts';
-import { startLtiService } from './main.ts';
+import { createShutdownHandler, SERVICE_EXIT_AFTER_MS, startLtiService } from './main.ts';
 import { ensureAccount } from './store/accounts.ts';
 import { ensureToolKey } from './store/tool-keys.ts';
 import { capturingLogger } from './testkit.ts';
@@ -140,4 +140,49 @@ it('drains a job beyond 3 seconds before closing the database, then the same ins
   expect(service.jobs.state()).toBe('active');
   expect(service.jobs.bootId).not.toBe(boot);
   expect(lines.filter((l) => ['job_instance_wait', 'job_instance_conflict'].includes(String(l.event)))).toEqual([]);
+});
+
+it('BD-A2-31: forces exit 1 only at 70 seconds, after the full runner grace', async () => {
+  vi.useFakeTimers();
+  const { logger, lines } = capturingLogger();
+  const close = vi.fn(() => new Promise<void>(() => {}));
+  const exit = vi.fn();
+  const stop = createShutdownHandler({ close, logger }, exit);
+  expect(SERVICE_EXIT_AFTER_MS).toBe(70_000);
+  stop('SIGTERM');
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(exit).not.toHaveBeenCalled();
+  stop('SIGINT'); // another signal does not reset the deadline or close twice
+  expect(close).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(9_999);
+  expect(lines.filter((line) => line.event === 'service_exit_forced')).toEqual([]);
+  await vi.advanceTimersByTimeAsync(1);
+  expect(exit).toHaveBeenCalledExactlyOnceWith(1);
+  expect(lines.filter((line) => line.event === 'service_exit_forced')).toEqual([
+    expect.objectContaining({ level: 'error', after_ms: 70_000 }),
+  ]);
+});
+
+it('cancels the fallback and exits 0 when close finishes after the runner grace', async () => {
+  vi.useFakeTimers();
+  const { logger, lines } = capturingLogger();
+  let release!: () => void;
+  const closing = new Promise<void>((resolve) => { release = resolve; });
+  const exit = vi.fn();
+  createShutdownHandler({ close: () => closing, logger }, exit)('SIGTERM');
+  await vi.advanceTimersByTimeAsync(65_000);
+  expect(exit).not.toHaveBeenCalled();
+  release(); await vi.advanceTimersByTimeAsync(0);
+  expect(exit).toHaveBeenCalledExactlyOnceWith(0);
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect(exit).toHaveBeenCalledTimes(1);
+  expect(lines.some((line) => line.event === 'service_exit_forced')).toBe(false);
+});
+
+it('exits 1 and cancels the fallback when close rejects', async () => {
+  vi.useFakeTimers();
+  const exit = vi.fn();
+  createShutdownHandler({ close: async () => { throw new Error('close failed'); }, logger: capturingLogger().logger }, exit)('SIGTERM');
+  await vi.advanceTimersByTimeAsync(70_000);
+  expect(exit).toHaveBeenCalledExactlyOnceWith(1);
 });

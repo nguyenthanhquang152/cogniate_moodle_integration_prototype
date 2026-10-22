@@ -119,6 +119,7 @@ services:
     restart: unless-stopped
 
   lti-service:
+    stop_grace_period: 75s  # BD-A2-31: runner grace 60s < service fallback 70s < container 75s
     <<: *node-service
     working_dir: /repo/services/lti-service
     command: ["node", "--watch", "src/main.ts"]
@@ -160,6 +161,7 @@ services:
       start_period: 5s
 
   cogniate-app:
+    stop_grace_period: 75s  # BD-A2-31: let the shared runner drain before a forced stop
     <<: *node-service
     working_dir: /repo/services/cogniate-app
     command: ["node", "--watch", "src/main.ts"]
