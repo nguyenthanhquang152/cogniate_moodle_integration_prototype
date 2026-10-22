@@ -9,9 +9,9 @@ Only the Lead edits this file. Orca Run: `run_06d07dc77faf`. Rules: [charter-LA]
 | P1 Plan | **done** | — | R1–R5 committed; plan v1 `1afdf56`, v1.1 (R2), v1.2 (LA-H21..H24) |
 | P2 Tech design | **done** | **G-DESIGN PASS** | Final design `54e8088`. Reviewer-A APPROVE (R4 at `54e8088`), Reviewer-B APPROVE (R3 at `88909be`), QA PASS (R3 at `88909be`; its last MINOR fixed at `54e8088`). 3 BLOCKER and 15 MAJOR found and closed over 4 rounds. Deferred: [deferred.md](deferred.md). |
 | P3 Breakdown | **done** | **G-BREAKDOWN PASS** | Final breakdown `936f707`: 94 tasks (Must 62, Should 22, Could 10). Reviewer-A APPROVE (R2), Reviewer-B APPROVE (R2), QA PASS (R2). 7 MAJOR found and closed. Open MINORs: [deferred.md](deferred.md). |
-| G-BASE | waiting | — | Blackboard and Canvas run `run_ebe671ad72a9`: product frozen `9f8ac62`, C3 storage diagnostic PASS, full rounds, M3, M4 running (checked 2026-10-22 09:45). See LA-H10. |
-| G-DEV | **waiting for the product owner** | product owner | Decision pack: [G-DEV.md](G-DEV.md) (LA-H1, LA-H10, Docker sharing, concurrency cap) |
-| P4 Build | planned | — | Lanes K, P, R, S1, S2 (LD-10), L, L2 (LD-11), QA, QA-2, QA-3 (LD-13), QA-E2E, Docs; 2 Docker slots (LD-2); rolling starts (LD-15) |
+| G-BASE | **intake done** | — | G-BASE `bd368ff` (B/C HEAD, product = `9f8ac62`); intake merge `1b17261` (LA-E0-01, Lead git-only; QA-3 verifies) |
+| G-DEV | **APPROVED** by the product owner (2026-10-22 11:2x) | product owner | LA-H1 approve; LA-H10 = frozen candidate, merge mode wave-end; Docker by agreed windows; at most 8 active sessions |
+| P4 Build | **in_progress** (wave B1) | — | Lane worktrees `la-k`, `la-s1`, `la-s2`, `la-r`, `la-qa` on `1b17261`; branches `nguyenthanhquang152/la-*` |
 | P5 Verify | planned | task done | QA + Reviewer-A + Reviewer-B in parallel |
 | P6 Integrate | planned | milestone done | Regression, conformance, docs |
 
@@ -33,6 +33,9 @@ Only the Lead edits this file. Orca Run: `run_06d07dc77faf`. Rules: [charter-LA]
 | LA-RB | Design review, lens B | Reviewer-B | R1 CHANGES_REQUESTED: B-LAD-01..08 MAJOR | `ctx_0389f26b369b` | `docs/reviews/LA-DESIGN/reviewer-b.md` |
 
 ## Incidents
+
+- 2026-10-22 04:42Z–04:55Z: the LA lead QA started stack `qa-la-sim-r1` inside the exclusive Docker window of run `run_ebe671ad72a9` (04:18Z–06:20Z), because the Lead's brief allowed one LA stack beside theirs. Their diagnostic rows passed, but their strict boundary check failed and must be repeated (about 27 minutes). The lead QA then hit its session limit, so the Lead did the owned-only cleanup at 04:55:00Z (snapshot `~/cogniate-qa-runs/LA/E0/lead-cleanup-20261022T045458Z.txt`). New rule (agreed with that run's coordinator): LA starts no Docker activity until that run returns a window. Their next scheduling update: by 07:00Z. 05:2xZ: their clean diagnostic passed; their full rounds and legacy groups have a window through 09:30Z, then M2/T7, then the Docker handoff to LA.
+- 2026-10-22 ~11:46–11:55 +07: the Claude account of the LA workers reached its session limit; all active workers (S1, R, K, QA-2, QA-3, lead QA) paused. S2 finished LA-E5-08 before it. The Lead probes every ~10 minutes and wakes each session with one message after the reset.
 
 - 2026-10-22 08:41: a Lead script error (zsh 1-based arrays) sent the Reviewer-B round-2 task to Reviewer-A's session and the QA task to Reviewer-B's session. The Lead fenced both dispatches within about 1 minute and sent cancels. Both reviewers saw the mismatch, asked before they opened any file, and read no other review; the worktree had no changes. New tasks replaced the misrouted ones. Disclosures: Reviewer-A's inbox filter printed two subject lines (no bodies) of messages to other dispatches, neither Reviewer-B content; Reviewer-B read `qa.md` once in round 1 after it wrote its findings (allowed by its retry context).
 
@@ -58,3 +61,16 @@ Only the Lead edits this file. Orca Run: `run_06d07dc77faf`. Rules: [charter-LA]
 ## Session state at G-DEV (2026-10-22)
 
 All LA workers are idle and retained for reuse: A1, A2, Reviewer-A, Reviewer-B, QA (lead). No LA worker is active. Researchers R1–R5 are released. No product code changed; no push.
+
+## P4 build — wave B1 (started 2026-10-22 11:40)
+
+Integration branch: `quang/ltiaas-milestone`. Intake `1b17261`. Lane branches `nguyenthanhquang152/la-<lane>`. Active-session cap: 8.
+
+| Task | Lane | Author dispatch | Tests | Status |
+| --- | --- | --- | --- | --- |
+| LA-E0-01 | Lead (git-only) | — | QA-3 `ctx_a8bd71d6aab9` | intake `1b17261` done; verifying |
+| LA-E0-04, LA-E0-03, LA-E0-02 | QA | — | lead QA `ctx_dc11d8c6d070` | in_progress (Docker shared with run `run_ebe671ad72a9`) |
+| LA-E5-01 | S1 | `ctx_a19acab07af9` | QA-2 `ctx_95ac62d29382` (test-first) | in_progress |
+| LA-E5-08 | S2 | `ctx_d0ad587729f1` | QA-2 (test-first) | in_progress |
+| LA-E4-01 | R | `ctx_f1c57c8eeaa2` | QA-3 (test-first) | in_progress |
+| LA-E1-01 | K | `ctx_3df1354b5616` | QA-3 (test-first) | in_progress (QA run waits for LA-E0-03, LD-19) |

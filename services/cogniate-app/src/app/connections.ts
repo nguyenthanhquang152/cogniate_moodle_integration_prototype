@@ -7,7 +7,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import type { LtiClient, LtiPlatform } from '../clients/lti-client.ts';
 import { LtiServiceError, ltiErrorFields } from '../clients/lti-client.ts';
-import type { Connection, LmsType, PlatformInfo, RefToken } from '../domain/connections.ts';
+import type { Connection, PlatformInfo, RefToken } from '../domain/connections.ts';
 import {
   PlatformTakenError, createConnection, disableConnection, getConnection, listConnections, markRegistered, platformOwner, replaceRef,
 } from '../domain/connections.ts';
@@ -16,7 +16,7 @@ import type { Db } from '../domain/db.ts';
 import { transaction } from '../domain/db.ts';
 import { checkSiteUrl, fixedHostsOf, originHost } from '@cogniate/shared';
 import type { LtiProviderProfile } from '../clients/lti-client.ts';
-import { LMS_TYPES, capabilitiesOf, providerAdapters, providerOf } from '../providers/index.ts';
+import { LMS_TYPES, capabilitiesOf, ownedProfiles, providerAdapters, providerOf } from '../providers/index.ts';
 import type { BindingCleanup } from './binding-cleanup.ts';
 import { activeShared, providerProfiles, snapshotOf } from './binding-targets.ts';
 import type { RedemptionEngine } from './redemption.ts';
@@ -128,8 +128,8 @@ const ConnectionCreate = z.object({
   serviceUrl: z.string().max(2048).optional(),
 });
 
-/** The LMS of a provider profile row (`standard` = Moodle). */
-const lmsOfRow = (p: LtiProviderProfile): LmsType => p.lms ?? 'moodle';
+/** The LMS of a provider profile row (`standard` = Moodle). An open value (LA S1): a row of no adapter matches no LMS. */
+const lmsOfRow = (p: LtiProviderProfile): string => p.lms ?? 'moodle';
 
 const PLATFORM_FIELDS = ['issuer', 'clientId', 'deploymentId', 'authenticationEndpoint', 'accessTokenEndpoint', 'jwksUrl'] as const;
 const PlatformValues = z.object(Object.fromEntries(PLATFORM_FIELDS.map((f) => [f, z.string().trim().min(1).max(2048)])) as Record<(typeof PLATFORM_FIELDS)[number], z.ZodString>);
@@ -168,9 +168,10 @@ export function registerConnectionRoutes(api: FastifyInstance, deps: ConnectionD
 
   api.get('/connections', async (req) => ({ connections: listConnections(db, libraryOf(req).id).map((c) => dto(req, c)) }));
 
-  // M1 (§4.3): LMS types, methods, capabilities and profiles, built from GET /api/providers.
+  // M1 (§4.3): LMS types, methods, capabilities and profiles, built from GET /api/providers. LA S1: only the rows that
+  // an adapter owns (app API delta §2).
   api.get('/lms-providers', async (req) => {
-    const rows = await providerProfiles(lti, req.traceId);
+    const rows = ownedProfiles(await providerProfiles(lti, req.traceId), logger, req.traceId);
     return {
       lms: providerAdapters().map((a) => ({
         lms: a.lms, label: a.label, methods: a.methods, capabilities: a.capabilities,
