@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # LA-DESIGN review, Reviewer-B (lens: "Can a human team own it?")
 
@@ -260,3 +260,28 @@ Re-check at design SHA `877d951` (previous `19476fc`), task LA-RB2. Inputs: `git
 
 - Stale status lines, fix with the next edit: README §8 OC-9 still says "Open: confirm", but the Lead confirmed it (`plan.md:93`). OC-10 says "Open until A2's fix round", but A2's fixes are in `877d951` (`review-response-R1-A2.md`). `data-model.md:298` still tests `artifact_key_kid` under `015`, but the column is in `016` now.
 - The new `ChannelSql` scope check (a statement must contain `:library_id`, `LA-ADR-01:305`) is a guard rail, not a proof. The two-tenant port fixtures of `LA-ADR-07` D1 stay the real control. I will check them at build time, as noted in round 1.
+
+## Round 3
+
+Bounded re-check, task LA-RB3. Design SHA `88909be` (previous `877d951`). I checked only `git diff 877d951 88909be -- docs/architecture/ltiaas` and the response files `review-response-R2-A1.md` and `review-response-R2-A2.md`. I did not open `reviewer-a.md`.
+
+**Verdict: APPROVE.** My two round-2 MINORs are closed, and the diff adds no BLOCKER or MAJOR. Open: 0 BLOCKER, 0 MAJOR, 1 MINOR (B-LAD-15, deferred and accepted), 1 NIT (B-LAD-17(b), deferred and accepted).
+
+| Id | Status | Evidence at `88909be` |
+| --- | --- | --- |
+| B-LAD-20 | **Closed** | (a) The D2 manifest sketch has `storage?: { tables, columns }` with the Moodle values (`ltiaas/adr/LA-ADR-01-channel-kernel.md` D2). (b) `setup.verify` is removed. The shell takes the verify step from the stored `binding_authority`, or before create from the method's authority, so a staged DR shows the approval-code step (D9 "Wizard"). A2 aligned LA-ADR-08 D6 and its K0 row. (c) `PortContext.seal` and `unseal` return `Promise`, like the key provider (D5). |
+| B-LAD-21 | **Closed** | README §6a has a row for `app/operator.ts`, `cli/grant.ts`, `cli/binding.ts` and the new `cli/audit.ts`: lanes K and S, owner K. S delivers the audit-writer module and `cli/audit.ts` as new files, and K's S5 change lands first. |
+| Round-2 notes (stale rows) | **Closed** | README §8 OC-9 and OC-10 are closed with their decisions. `data-model.md` §7 tests `artifact_key_kid` in the `016` row. |
+
+Ownership and simplicity check of the diff:
+
+- **Restart rule of the runners (QA Q-LAD-23).** A boot id per process, and `stop()` deletes the heartbeat row. This is simpler for operators than the round-2 rule: a normal restart keeps today's timing. It adds one column and three unit cases. No finding.
+- **Guard level on Moodle `standard` (Reviewer-A A-LAD-19).** A `registration`-level guard now also refuses a launch on a Moodle `standard` platform. This narrows my B-LAD-04 goal on purpose: live `lti-generic` connections still keep working, and a non-Moodle LMS on the Moodle manual path must move to `lti-generic` before its named channel ships (an add-channel guide step, `LA-ADR-02` D1). I accept this security trade-off. B-LAD-04 stays closed.
+- **`--confirm-foreign-hosts` (A-LAD-23).** Every `brightspace` manual grant now needs this flag, because the D2L token host is not on the issuer host. This is one more operator step, but the CLI marks the hosts and the runbook step exists (`operability.md` §8). No finding.
+- **App-edge limit (A-LAD-22).** One small, clear table (app API delta §5a). Dropping the provider cache keeps the design simpler. No finding.
+
+Notes for P3 and E8 (not findings):
+
+- README §8 OC-12 still says "Open", but A2 aligned items (a)–(d) in this same commit (`review-response-R2-A2.md`, "Alignment lines"). Close it with the next edit.
+- Add-channel guide (F8.1): the new step "move a non-Moodle LMS from the Moodle manual path to `lti-generic` before the named channel ships" needs a way to find those connections. The app connection DTO already has `platform.productFamilyCode` (`docs/architecture/contracts/cogniate-app-api.md:206`), so the guide can give one query or listing: Moodle-channel connections whose platform family is the new channel's guarded family. Also tell the library that the move makes a new connection, so activities of the old connection show "This course is not available" (ADR-011 §12, D-7).
+- Runner conflict (LA-ADR-03 D7 "Instance id"): after `job_instance_conflict`, the web process keeps serving with its runner off for the life of the process. If the other process then stops, no runner sends grades until a restart, and the only signal is the `JobStale` alert, whose app metrics are Should. For the build, consider "keep waiting and log a warning each minute" instead of a permanent stop. Both rules prevent two live runners with one id. The pilot runs one app process, so this is not a finding.
