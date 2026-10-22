@@ -45,11 +45,11 @@ const actionOf = (body: string) => /<p data-error-action>([^<]*)<\/p>/.exec(body
 const toChannel = (connectionId: string, channel: string) => t.db.prepare('UPDATE connection SET channel = ? WHERE id = ?').run(channel, connectionId);
 
 /** A connected Moodle connection with one SCORM publication and one learner launch: the play id. */
-async function played(): Promise<{ connectionId: string; playId: string }> {
+async function played(clientId = 'c1'): Promise<{ connectionId: string; playId: string }> {
   const cookie = await t.login(THANH);
   const c = (await json('POST', '/app-api/connections', cookie, { name: 'Dev Moodle', siteUrl: TEST_URLS.moodle, method: 'manual' })).json();
   const platformId = (await json('PUT', `/app-api/connections/${c.id}/platform`, cookie, {
-    issuer: TEST_URLS.moodle, clientId: 'c1', deploymentId: '1', authenticationEndpoint: `${TEST_URLS.moodle}/a`, accessTokenEndpoint: `${TEST_URLS.moodle}/t`, jwksUrl: `${TEST_URLS.moodle}/k`,
+    issuer: TEST_URLS.moodle, clientId, deploymentId: '1', authenticationEndpoint: `${TEST_URLS.moodle}/a`, accessTokenEndpoint: `${TEST_URLS.moodle}/t`, jwksUrl: `${TEST_URLS.moodle}/k`,
   })).json().platform.id as string;
   const courseId = (await json('POST', '/app-api/courses', cookie, { title: 'Course' })).json().id as string;
   const body = await formBody({ package: makeZip([{ name: 'imsmanifest.xml', data: scormManifest() }, { name: 'index.html', data: '<html><body>sco</body></html>' }]) });
@@ -97,28 +97,28 @@ describe('AC-LA-E1-09-02: player shell and play pages', () => {
 });
 
 describe('AC-LA-E1-09-02: runtime page (content origin)', () => {
-  it('the runtime page carries the channel text name; the 410 text keeps the no-context name (Lead Q4, provisional)', async () => {
+  it('the runtime page and the 410 text name the session\'s channel (LA-IC-19); a Moodle session keeps today\'s bytes', async () => {
     const channels = withTextChannel();
     t = await testApp({ channels });
-    const { connectionId, playId } = await played();
-    toChannel(connectionId, TEXT_CHANNEL);
+    const moodle = await played();
+    const other = await played('c2');
+    toChannel(other.connectionId, TEXT_CHANNEL);
     const app = await contentApp(channels);
-    const token = runtimeTokenFor(TEST_MASTER_KEY, playId);
-    expect((await app.inject({ method: 'GET', url: `/rt/${token}` })).body).toContain('<body data-lms-name="your LMS">');
+    const token = (playId: string) => runtimeTokenFor(TEST_MASTER_KEY, playId);
+    expect((await app.inject({ method: 'GET', url: `/rt/${token(moodle.playId)}` })).body).toContain('<body data-lms-name="Moodle">');
+    expect((await app.inject({ method: 'GET', url: `/rt/${token(other.playId)}` })).body).toContain('<body data-lms-name="your LMS">');
     t.clock.now += 2 * 86_400_000;
-    const expired = await app.inject({ method: 'GET', url: `/rt/${token}/state` });
-    expect([expired.statusCode, expired.json().details.description]).toEqual([410, 'The runtime session expired. Open the activity again in Moodle.']);
-  });
-
-  it('without a channel that owns the standard profile the 410 text says "your LMS"', async () => {
-    const channels = withTextChannel();
-    t = await testApp({ channels });
-    const { connectionId, playId } = await played();
-    toChannel(connectionId, TEXT_CHANNEL);
-    const app = await contentApp(onlyTextChannel());
-    t.clock.now += 2 * 86_400_000;
-    const expired = await app.inject({ method: 'GET', url: `/rt/${runtimeTokenFor(TEST_MASTER_KEY, playId)}/state` });
-    expect([expired.statusCode, expired.json().details.description]).toEqual([410, 'The runtime session expired. Open the activity again in your LMS.']);
+    const state = async (playId: string) => {
+      const r = await app.inject({ method: 'GET', url: `/rt/${token(playId)}/state` });
+      return [r.statusCode, r.json().details.message, r.json().details.description];
+    };
+    expect(await state(moodle.playId)).toEqual([410, 'RUNTIME_EXPIRED', 'The runtime session expired. Open the activity again in Moodle.']);
+    expect(await state(other.playId)).toEqual([410, 'RUNTIME_EXPIRED', 'The runtime session expired. Open the activity again in your LMS.']);
+    const commit = await app.inject({ method: 'POST', url: `/rt/${token(other.playId)}/commit`, payload: {} });
+    expect([commit.statusCode, commit.json().details.description]).toEqual([410, 'The runtime session expired. Open the activity again in your LMS.']);
+    // An unknown token stays 404 on every runtime route.
+    expect((await app.inject({ method: 'GET', url: `/rt/${'x'.repeat(43)}/state` })).statusCode).toBe(404);
+    expect((await app.inject({ method: 'GET', url: `/rt/${token(other.playId)}` })).statusCode).toBe(404);
   });
 });
 
