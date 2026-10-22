@@ -47,7 +47,7 @@ New account fields (operator API only; never in `/api/*` answers except `GET /ap
 | `launchUrl`, `deepLinkingUrl`, `registrationUrl` | https URL | from `PUBLIC_APP_URL` (`cogniate`, unchanged) | https; no user info; no fragment; ≤ 2,048 characters; host not the `PUBLIC_LTI_URL` or `PUBLIC_CONTENT_URL` host |
 | `publicBaseUrl` | https origin or `null` | `null` (path mode) | Reserved for host mode (LG). LA refuses a non-null value with `400 INVALID_REQUEST` (field `publicBaseUrl`). |
 | `limits` | object or `null` | `null` | per-class `{ ratePerMinute, burst }`, classes of §1.4 |
-| `claimPolicy` | object or `null` | `null` = `passthrough` for old accounts; `allowlist` for new accounts | LA-ADR-05 D7 |
+| `claimPolicy` | object or `null` | `null` = `passthrough`, only on accounts from before the column (a stored legacy marker, never an input: `null` in `POST` or `PATCH` gives `400 INVALID_REQUEST`, BD-A2-26); new accounts default to `allowlist` with every `keep` off | LA-ADR-05 D7 |
 | `serviceKeyWriteScope` | `context` \| `resource-link` | `context` | Should, C15 |
 
 Protocol URLs come from one account resolver: in path mode `{PUBLIC_LTI_URL}/lti/{login|launch|keys|register}/{accountId}` (today's values).
