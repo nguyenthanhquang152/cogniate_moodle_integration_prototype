@@ -468,7 +468,10 @@ describe('LA-E7-04 QA verification of fitness checks F1–F5 (K0)', () => {
       expect(r.output).toMatch(expectedRe);
     }
 
-    // BD-A2-22: unchanged attempts.ts passes, but adding a second rowid query in attempts.ts fails
+    // BD-A2-22 / BD-A2-40 / BD-A2-46: unchanged attempts.ts passes, but adding a second rowid query in attempts.ts fails.
+    // After LA-E4-02 (db7333f, BD-A2-40), INLINE_BASELINE has 7 frozen legacy rowid statements (results.ts:49 and
+    // score-syncs.ts:147 removed; results.ts:33 replaced 1:1) and 014_learning_records.sql is in ADAPTER_ALLOW_LIST.
+    // When LA-E1-08 lands (BD-A2-46), the 3 mbz_build entries move 1:1 to packages/channels/moodle/app/builds.ts (count stays 7).
     const attemptsPath = 'services/cogniate-app/src/domain/attempts.ts';
     const attemptsText = git(['show', `HEAD:${attemptsPath}`]);
     expect((await f5Text(attemptsPath, attemptsText)).code, 'unchanged attempts.ts with frozen legacy rowid passes').toBe(0);
@@ -479,6 +482,28 @@ describe('LA-E7-04 QA verification of fitness checks F1–F5 (K0)', () => {
     log.push(`## BD-A2-22 extra rowid in ${attemptsPath}\n${attemptsExtraRowid.output.trim()}`);
     expect(attemptsExtraRowid.code, 'extra rowid in attempts.ts fails').toBe(1);
     expect(attemptsExtraRowid.output).toMatch(/sql-portability.*rowid/i);
+
+    const m014Path = 'services/cogniate-app/src/domain/migrations/014_learning_records.sql';
+    if (fs.existsSync(path.join(ROOT, m014Path))) {
+      const m014Pass = await f5Text(m014Path, git(['show', `HEAD:${m014Path}`]));
+      log.push(`## sql-portability + no-score-sync PASS CONTROL (${m014Path})\n${m014Pass.output.trim()}`);
+      expect(m014Pass.code, '014_learning_records.sql passes via ADAPTER_ALLOW_LIST (BD-A2-40) and no-score-sync backfill allow').toBe(0);
+      const sqlPortabilitySrc = fs.readFileSync(path.join(ROOT, 'infra/scripts/fitness/rules/sql-portability.mjs'), 'utf8');
+      const allRowidFiles = [...sqlPortabilitySrc.matchAll(/file:\s*['"]([^'"]+)['"],\s*form:\s*['"]rowid['"]/g)].map((m) => m[1]);
+      const sqlRowidEntries = allRowidFiles.filter((f) => f.endsWith('.sql'));
+      const tsRowidEntries = allRowidFiles.filter((f) => f.endsWith('.ts'));
+      expect(sqlRowidEntries, 'one adapter allow entry for 014_learning_records.sql (BD-A2-40)').toEqual([m014Path]);
+      expect(tsRowidEntries.length, 'seven frozen legacy rowid entries in INLINE_BASELINE (BD-A2-40, BD-A2-46)').toBe(7);
+      expect(tsRowidEntries.filter((f) => f === 'services/cogniate-app/src/domain/attempts.ts').length).toBe(1);
+      expect(tsRowidEntries.filter((f) => f === 'services/cogniate-app/src/domain/bindings.ts').length).toBe(2);
+      expect(tsRowidEntries.filter((f) => f === 'services/cogniate-app/src/domain/results.ts').length).toBe(1);
+      expect(tsRowidEntries.filter((f) => f === 'services/cogniate-app/src/domain/score-syncs.ts').length).toBe(0);
+      expect(
+        tsRowidEntries.filter(
+          (f) => f === 'services/cogniate-app/src/domain/mbz-builds.ts' || f === 'packages/channels/moodle/app/builds.ts',
+        ).length,
+      ).toBe(3);
+    }
 
     // 2. connection-lms (LA-E1-06, rule N7)
     const connLmsProbes: Array<[string, string]> = [
