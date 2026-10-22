@@ -1,7 +1,7 @@
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { bindKeyProvider, blobKeyVersion, createLocalKeyProvider, encrypt, keyProviderFor } from '@cogniate/shared';
+import { bindKeyProvider, blobKeyVersion, createLocalKeyProvider, encrypt, keyProviderFor, legacyKeyRing } from '@cogniate/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { openDb } from '../db/index.ts';
 import { createPlatform } from '../store/platforms.ts';
@@ -83,6 +83,7 @@ describe('loadKeyProvider', () => {
     const { db } = database();
     // Rows as the code before LA-E5-08 wrote them: crypto.ts encrypt with the master key (no header, no associated data).
     const before = Buffer.alloc(32, 7);
+    bindKeyProvider(before, createLocalKeyProvider(legacyKeyRing(LEGACY)));
     await ensureToolKey(db, before, 'cogniate');
     const jwk = activePrivateJwk(db, before, 'cogniate')!;
     db.prepare("UPDATE tool_key SET private_jwk_encrypted = ? WHERE tool_account_id = 'cogniate'").run(encrypt(LEGACY, JSON.stringify(jwk)));
