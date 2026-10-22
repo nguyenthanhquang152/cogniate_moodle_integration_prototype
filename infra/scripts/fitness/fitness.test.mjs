@@ -230,4 +230,35 @@ describe('F5 adapter and portability internals', () => {
         assert.equal(sqlPortability.check({ path: 'services/lti-service/src/db/migrations/001_new.sql', text }).length, 1);
         assert.deepEqual(sqlPortability.check({ path: 'services/lti-service/src/db/migrations/001_init.sql', text }), []);
     });
+    it('detects blobs, every SQLite date function, randomblob and rowid in new migrations', () => {
+        const expressions = ["X''", "x'00FF'", 'unixepoch()', 'julianday()', "strftime('%s')", 'datetime()', "date('now')", 'time()', "timediff('a', 'b')", 'randomblob(16)', 'rowid'];
+        const text = expressions.map((value) => `SELECT ${value};`).join('\n');
+        for (const path of ['services/lti-service/src/db/migrations/999_next.sql', 'services/example/src/db/migrations/999_next.sql', 'services/cogniate-app/src/domain/migrations/999_next.sql']) {
+            const hits = sqlPortability.check({ path, text });
+            assert.equal(hits.length, expressions.length, path);
+            assert.deepEqual(hits.map(({ line, col }) => [line, col]), expressions.map((_, i) => [i + 1, 8]));
+        }
+    });
+    it('ignores comments and values but detects quoted and qualified SQL identifiers', () => {
+        const path = 'services/lti-service/src/db/migrations/999_next.sql';
+        const text = "-- X'' date() rowid\n/* randomblob(4) */ SELECT 'rowid', 'X''00''', 'date() randomblob(4)', updated_at, date, time, myrandomblob(4), rowid_suffix;";
+        assert.deepEqual(sqlPortability.check({ path, text }), []);
+        const forms = 'SELECT t.ROWID, "rowid", `rowid`, [rowid], "datetime" /* comment */ (), RANDOMBLOB (4);';
+        assert.equal(sqlPortability.check({ path, text: forms }).length, 6);
+    });
+    it('limits adapter exceptions to each exact file and form without waivers', () => {
+        const folder = 'services/lti-service/src/db/migrations/';
+        for (const [file, permitted, forbidden] of [
+            ['009_signing_key_lifecycle.sql', "SELECT unixepoch('subsec'), date('now');", 'SELECT randomblob(4);'],
+            ['011_api_key.sql', 'SELECT hex(randomblob(16));', "SELECT date('now');"],
+        ]) {
+            assert.deepEqual(sqlPortability.check({ path: folder + file, text: permitted }), []);
+            assert.equal(sqlPortability.check({ path: folder + file, text: forbidden }).length, 1);
+            assert.ok(sqlPortability.check({ path: folder + file.replace('.sql', '_other.sql'), text: permitted }).length > 0);
+        }
+        const path = 'services/cogniate-app/src/domain/migrations/013_channel_kernel.sql';
+        assert.equal(sqlPortability.check({ path, text: "-- fitness-allow sql-portability\nSELECT X'';" }).length, 1);
+        const migration = folder + '009_signing_key_lifecycle.sql';
+        assert.deepEqual(sqlPortability.check({ path: migration, text: readFileSync(new URL(`../../../${migration}`, import.meta.url), 'utf8') }), []);
+    });
 });
