@@ -82,20 +82,10 @@ saved_profile() {
 # transport gate (LTI_API_URL, allowlisted for the app only). The default profile sets none of them.
 GATE_HOST=lti-gate.test
 # LA-E7-03: QA owns the manifest. Read it once per source for aliases, SANs and the LTI allowlist.
-# Keep the old hosts until LA-E7-02 supplies the manifest. A bad file must never select this fallback.
+# LA-E7-02 supplies the manifest. A missing file follows the same rules as any other bad file.
 load_sim_hosts() {
   local manifest="$REPO_ROOT/tests/sim/hosts.json" rows kind host
   SIM_ALIASES=(lms-sim.test); SIM_LTI_HOSTS=(); SIM_HOSTS_ERROR=""
-  if [[ ! -e "$manifest" && ! -L "$manifest" ]]; then
-    SIM_LTI_HOSTS=(developer.blackboard.sim.test learn-a.blackboard.sim.test learn-b.blackboard.sim.test sso.canvas.sim.test
-      school-a.canvas.sim.test school-b.canvas.sim.test canvas-self.sim.test api.canvas-self.sim.test)
-    SIM_ALIASES=(lms-sim.test "${SIM_LTI_HOSTS[@]}" canvas.school-a.sim.test)
-    if [[ "${SIM_HOSTS_FALLBACK_WARNED:-}" != "$REPO_ROOT" ]]; then
-      echo "Simulator host manifest tests/sim/hosts.json is absent; using the fixed simulator hosts until LA-E7-02." >&2
-      export SIM_HOSTS_FALLBACK_WARNED="$REPO_ROOT"   # one notice, also across gen-env and gen-certs
-    fi
-    return 0
-  fi
   if ! rows="$(node - "$manifest" "${STACK_HOSTS[@]}" evil.test qa-platform.test "$GATE_HOST" 2>&1 <<'NODE'
 const fs = require('node:fs');
 const [file, ...reserved] = process.argv.slice(2);
