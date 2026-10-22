@@ -78,8 +78,8 @@ export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffe
     lastError: c.lastError ? {
       code: c.lastError.code, ltiCode: c.lastError.ltiCode, traceId: c.lastError.traceId, at: iso(c.lastError.at),
       // The same title and action line as the register page of that code (one text table, register-texts.ts).
-      title: registerErrorText(c.lastError.code, toolName(libraryName))?.title ?? null,
-      action: registerErrorText(c.lastError.code, toolName(libraryName))?.action ?? null,
+      title: registerErrorText(c.lastError.code, toolName(libraryName), channels.textName(c.channel))?.title ?? null,
+      action: registerErrorText(c.lastError.code, toolName(libraryName), channels.textName(c.channel))?.action ?? null,
     } : null,
   };
 }
