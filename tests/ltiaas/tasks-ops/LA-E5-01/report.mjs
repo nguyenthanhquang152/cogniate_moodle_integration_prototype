@@ -4,7 +4,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
-export const QA2_ID = /^(AC-LA-E\d+-\d+-\d+|LA-E\d+-\d+-[A-Z0-9]+)\b/;
+export const QA2_ID = /^(AC-LA-E\d+-\d+-\d+|LA-E\d+-\d+-[A-Z0-9]+|BD-A\d+-\d+[A-Za-z0-9_-]*)\b/;
 
 export function vitestRows(dir) {
   const file = path.join(dir, 'vitest-results.json');
