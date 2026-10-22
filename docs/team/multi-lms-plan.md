@@ -13,7 +13,23 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 11:18 UTC
+### Current directive — 2026-10-22, 11:30 UTC
+
+Both independent source rechecks APPROVE the corrected launcher v2 c53203a2.
+Reviewer-A's report is committed at 7f05e1c; Reviewer-B's report at 90016bd.
+All blocking launcher findings are closed. Product C4 and test-only C5 remain unchanged.
+Common Gemini task_a33056140130 / ctx_574663dd5b1a holds the exact launcher for its own later runtime.
+No Docker grant exists. Savoy VT-2 cleanup and project-level nonoverlap confirmation remain pending.
+Expected runtime duration after host availability is about 95–125 minutes for legacy plus M2/T7; final pack work follows.
+
+Claude static guide Reviewer-A task_514e1319ae47 / ctx_2872987ddaf8 reviews the unchanged fd87bf7 guide text during this wait.
+This checkpoint gives no final prototype approval. Final changed lines and evidence bindings still need review.
+Architect's source checkpoint remains held, with PE-2 now complete. Common QA and Architect wait for their exact next evidence/grant.
+Canvas continuation task_73d57f11a485 remains ready for independent T6/T8 judgment and M2/T7.
+The retained Codex executor remains the only product/Docs repair session.
+All 32 real LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 11:18 UTC
 
 Product C4 and test-only C5 remain unchanged. Both independent source reviews found the T6/T8 patch correct.
 Both requested a launcher correction: its gate message used old lifecycle IDs and described the wrong run/source identity.
