@@ -19,7 +19,7 @@
   "services/cogniate-app/src/app/redemption.ts": 2,
   "services/cogniate-app/src/app/results.ts": 1,
   "services/cogniate-app/src/app/server.ts": 16,
-  "services/cogniate-app/src/content-host/server.ts": 1,
+  "services/cogniate-app/src/content-host/server.ts": 0,
   "services/cogniate-app/src/domain/attempts.ts": 18,
   "services/cogniate-app/src/domain/connections.ts": 15,
   "services/cogniate-app/src/domain/publications.ts": 17,

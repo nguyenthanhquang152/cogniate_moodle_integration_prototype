@@ -84,7 +84,7 @@ export function parseRange(header: string | undefined, size: number): [number, n
 
 const NOT_FOUND_HTML = '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Not found</title></head><body><p>Not found.</p></body></html>';
 
-/** The runtime page. M1: `data-lms-name` on the body for the player texts (Moodle, Canvas or Blackboard). */
+/** The runtime page. `data-lms-name` on the body: the `{LMS}` text name of the player texts (LA-ADR-01 D12). */
 const runtimePage = (lmsName: string): string => `<!doctype html>
 <html lang="en">
 <head>
@@ -177,9 +177,10 @@ export async function buildContentApp(deps: ContentServerDeps): Promise<FastifyI
     if (!s) return 'unknown' as const;
     return s.expiresAt <= now() ? ('expired' as const) : s;
   };
+  // The 410 text keeps its M1 bytes: it names the standard profile's channel, as the pages with no known connection.
   const tokenError = (reply: FastifyReply, kind: 'unknown' | 'expired') => kind === 'unknown'
     ? reply.code(404).send(apiErrorBody(404, 'NOT_FOUND', 'Unknown runtime token.'))
-    : reply.code(410).send(apiErrorBody(410, 'RUNTIME_EXPIRED', 'The runtime session expired. Open the activity again in Moodle.'));
+    : reply.code(410).send(apiErrorBody(410, 'RUNTIME_EXPIRED', `The runtime session expired. Open the activity again in ${deps.channels.textName(null)}.`));
 
   app.get<TokenParams>('/rt/:token', async (req, reply) => {
     const s = sessionOf(req);

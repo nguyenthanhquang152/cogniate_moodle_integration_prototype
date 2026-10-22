@@ -1,11 +1,18 @@
 // LA-E1-09 (LA-ADR-01 D12): the tool pages, the runtime page and the connection texts fill `{LMS}` with the manifest
 // text name. A test channel "your LMS" gets its own name; the Moodle channel keeps today's text byte for byte.
+// Outside src/content-host on purpose: the ADR-008 import fence of that folder also covers its files.
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { ChannelManifest, ChannelRegistry } from '@cogniate/channel-kernel';
 import { buildChannelRegistry } from '@cogniate/channel-kernel';
 import { makeZip, scormManifest } from '@cogniate/package-inspector/testing';
+import { createLogger } from '@cogniate/shared';
+import type { FastifyInstance } from 'fastify';
 import { afterEach, describe, expect, it } from 'vitest';
+import { buildContentApp } from '../content-host/server.ts';
 import type { TestApp } from '../testkit.ts';
-import { TEST_CHANNELS, TEST_URLS, THANH, formBody, launchToken, testApp } from '../testkit.ts';
+import { TEST_CHANNELS, TEST_MASTER_KEY, TEST_URLS, THANH, formBody, launchToken, testApp } from '../testkit.ts';
+import { runtimeTokenFor } from './launch-rules.ts';
 
 const TEXT_CHANNEL = 'zz-text';
 
@@ -24,7 +31,10 @@ const withTextChannel = (name = 'your LMS'): ChannelRegistry => buildChannelRegi
 const onlyTextChannel = (): ChannelRegistry => buildChannelRegistry([{ folder: `/test/${TEXT_CHANNEL}`, manifest: textChannel('your LMS') }], { simulations: true });
 
 let t: TestApp;
+let content: FastifyInstance | undefined;
 afterEach(async () => {
+  await content?.close();
+  content = undefined;
   await t?.app.close();
 });
 
@@ -51,6 +61,15 @@ async function played(): Promise<{ connectionId: string; playId: string }> {
   return { connectionId: c.id as string, playId: /\/play\/(ply_[A-Za-z0-9_-]+)/.exec(String(res.headers.location))![1]! };
 }
 
+async function contentApp(channels: ChannelRegistry): Promise<FastifyInstance> {
+  const playerDir = join(t.dataDir, 'player');
+  mkdirSync(playerDir, { recursive: true });
+  writeFileSync(join(playerDir, 'runtime.js'), 'export {};');
+  content = await buildContentApp({ channels, logger: createLogger({ service: 'cogniate-content', write: () => {} }), urls: TEST_URLS, profile: 'default',
+    knobs: [], outboundAllowlist: [], db: t.db, dataDir: t.dataDir, playerDir, now: () => t.clock.now });
+  return content;
+}
+
 describe('AC-LA-E1-09-02: player shell and play pages', () => {
   it('the shell of a test channel connection names "your LMS"; a Moodle connection keeps today\'s bytes', async () => {
     t = await testApp({ channels: withTextChannel() });
@@ -74,6 +93,32 @@ describe('AC-LA-E1-09-02: player shell and play pages', () => {
     t = await testApp({ channels: onlyTextChannel() });
     const page = await get('/play/ply_unknown');
     expect([page.statusCode, actionOf(page.body)]).toEqual([404, 'This course session does not exist or it expired. Open the activity again in your LMS.']);
+  });
+});
+
+describe('AC-LA-E1-09-02: runtime page (content origin)', () => {
+  it('the runtime page carries the channel text name; the 410 text keeps the no-context name (Lead Q4, provisional)', async () => {
+    const channels = withTextChannel();
+    t = await testApp({ channels });
+    const { connectionId, playId } = await played();
+    toChannel(connectionId, TEXT_CHANNEL);
+    const app = await contentApp(channels);
+    const token = runtimeTokenFor(TEST_MASTER_KEY, playId);
+    expect((await app.inject({ method: 'GET', url: `/rt/${token}` })).body).toContain('<body data-lms-name="your LMS">');
+    t.clock.now += 2 * 86_400_000;
+    const expired = await app.inject({ method: 'GET', url: `/rt/${token}/state` });
+    expect([expired.statusCode, expired.json().details.description]).toEqual([410, 'The runtime session expired. Open the activity again in Moodle.']);
+  });
+
+  it('without a channel that owns the standard profile the 410 text says "your LMS"', async () => {
+    const channels = withTextChannel();
+    t = await testApp({ channels });
+    const { connectionId, playId } = await played();
+    toChannel(connectionId, TEXT_CHANNEL);
+    const app = await contentApp(onlyTextChannel());
+    t.clock.now += 2 * 86_400_000;
+    const expired = await app.inject({ method: 'GET', url: `/rt/${runtimeTokenFor(TEST_MASTER_KEY, playId)}/state` });
+    expect([expired.statusCode, expired.json().details.description]).toEqual([410, 'The runtime session expired. Open the activity again in your LMS.']);
   });
 });
 
