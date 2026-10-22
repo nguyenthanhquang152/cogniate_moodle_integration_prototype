@@ -106,6 +106,7 @@ CREATE INDEX learning_record_learner ON learning_record (placement_id, learner_s
 
 CREATE TABLE record_dispatch (
   id                 TEXT PRIMARY KEY,                -- sync_... for lti-ags (the old score_sync ids)
+  seq                INTEGER NOT NULL,                -- insertion order (A2 BD-A2-40, A1 BD-A1-46): MAX(seq)+1 in the write transaction
   record_id          TEXT NOT NULL REFERENCES learning_record (id),
   reporter           TEXT NOT NULL,                   -- 'lti-ags'
   placement_id       TEXT NOT NULL REFERENCES placement (id),
@@ -132,6 +133,7 @@ CREATE TABLE record_dispatch (
 CREATE INDEX record_dispatch_due ON record_dispatch (status, next_try_at, partition_key);
 CREATE INDEX record_dispatch_learner ON record_dispatch (placement_id, learner_subject, reporter);
 CREATE INDEX record_dispatch_record ON record_dispatch (record_id);
+CREATE UNIQUE INDEX record_dispatch_seq ON record_dispatch (seq);
 
 CREATE TABLE job_instance (                          -- one heartbeat row per runner instance (LA-ADR-03 D7)
   instance_id  TEXT PRIMARY KEY,                      -- JOB_INSTANCE_ID
@@ -149,6 +151,8 @@ CREATE TABLE job_lease (
   last_result  TEXT
 );
 -- Backfill (LA-ADR-04 D5): placement from resource_link; learning_record and record_dispatch from score_sync.
+-- record_dispatch.seq = ROW_NUMBER() OVER (ORDER BY s.created_at, s.rowid) (SQLite-adapter item (d) of LA-ADR-06 D13;
+-- one exact F5 allow entry). New SQL never uses rowid; statements order by created_at, seq.
 ```
 
 | Rule | Detail |
