@@ -54,6 +54,8 @@ export const API_ERRORS = defineErrorTable({
   ACCOUNT_CLOSED: { status: 409, description: 'This tool account is closed and cannot change.' },
   PLATFORM_RATE_LIMITED: { status: 429, description: 'The platform asked us to wait before another request.' },
   RATE_LIMITED: { status: 429, description: 'Too many requests.' },
+  IDEMPOTENCY_KEY_REUSED: { status: 422, description: 'This Idempotency-Key was used for another request.' },
+  IDEMPOTENCY_IN_PROGRESS: { status: 409, description: 'A request with this Idempotency-Key is still running.' },
 });
 
 export type ApiErrorCode = keyof typeof API_ERRORS;

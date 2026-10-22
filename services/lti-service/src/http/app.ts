@@ -6,7 +6,7 @@ import formbody from '@fastify/formbody';
 import type { Knob, Logger, OutboundClient, PublicUrls } from '@cogniate/shared';
 import { ApiErrorBase, redactPath } from '@cogniate/shared';
 import Fastify from 'fastify';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { ApiError, apiErrorBody } from '../api-errors.ts';
 import type { Db } from '../db/index.ts';
 import { PROTOCOL_ERRORS, protocolAction } from '../lti/codes.ts';
@@ -16,6 +16,8 @@ import type { PlatformKeys } from '../lti/jwks.ts';
 import type { AgsClient } from '../platform/ags.ts';
 import type { NrpsClient } from '../platform/nrps.ts';
 import { authenticate } from './auth.ts';
+import type { AuthResult } from './auth.ts';
+import { installIdempotency } from './idempotency.ts';
 import type { RouteContext } from './context.ts';
 import { ERROR_PAGE_HEADERS, renderErrorPage } from './error-page.ts';
 import { retryAfterSeconds, setRetryAfter } from './retry-after.ts';
@@ -123,14 +125,19 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   app.addHook('onClose', async () => proxy.close());
 
   const profiles = { simulation: deps.simulationProfiles ?? false, ...(deps.profileRegistry ? { registry: deps.profileRegistry } : {}) };
+  // The idempotency hook and route share one authentication and one budget charge for this request only.
+  const authenticated = new WeakMap<FastifyRequest, AuthResult>();
   const ctx: RouteContext = {
     db: deps.db, urls: deps.urls, logger: log, keys: deps.keys, ltikTtlSeconds: deps.ltikTtlSeconds, masterKey: deps.masterKey, ags: deps.ags, nrps: deps.nrps, outbound: deps.outbound, now, profiles,
     auth: (req, schemes) => {
+      const cached = authenticated.get(req);
+      if (cached && schemes.includes(cached.scheme)) return cached;
       const result = authenticate(deps.db, req.headers.authorization, schemes, now(), (scheme, code, part) => {
         log.warn('api_auth_failed', { trace_id: req.traceId, scheme, code });
         if (part === 'api_key') recordAuthFailure(limiter, req.ip, req.traceId);
       });
       limiter.check(result.scheme === 'bearer' ? 'admin' : 'api', result.actor.id, result.account, req.traceId);
+      authenticated.set(req, result);
       return result;
     },
     errorPage: (reply, req, code, opts = {}) =>
@@ -157,6 +164,8 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
       if (account) limiter.check(name === 'protocol' ? 'protocol_account' : 'registration_account', account.id, account);
     }
   });
+
+  installIdempotency(app, ctx);
 
   // Health (contract §2.5)
   app.get('/healthz', async () => ({

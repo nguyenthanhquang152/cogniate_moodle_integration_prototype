@@ -77,6 +77,7 @@ it('a missing original stops bootstrap and deletes a stale mounted operator copy
   const result = h.run('--quiet');
   assert.equal(result.status, 1);
   assert.match(result.stderr, /infra\/\.secrets\/lti-operator-key is missing/);
+  assert.match(result.stderr, /--replace-operator-key/);
   assert.equal(result.stderr.trim().split('\n').length, 1);
   assert.equal(fs.existsSync(h.copy), false);
   assert.equal(h.calls().split('src/cli/bootstrap.ts').length, before);
@@ -88,4 +89,23 @@ it('clears a stale copy even when operator initialization fails before bootstrap
   const result = h.run('--quiet');
   assert.equal(result.status, 1);
   assert.equal(fs.existsSync(h.copy), false);
+});
+
+it('explicit operator-key recovery saves both private files and does not pass the flag to bootstrap', () => {
+  const h = fixture(); assert.equal(h.run('--quiet').status, 0);
+  const replacement = `ltio_${'r'.repeat(43)}`;
+  fs.writeFileSync(path.join(h.infra, 'init-output'), `${replacement}\n`);
+  fs.chmodSync(h.original, 0o644);
+  const result = h.run('--replace-operator-key', '--quiet');
+  assert.equal(result.status, 0, result.stderr);
+  for (const file of [h.original, h.copy]) {
+    assert.equal(fs.readFileSync(file, 'utf8'), `${replacement}\n`);
+    assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+    assert.equal(fs.existsSync(`${file}.tmp`), false);
+  }
+  const calls = h.calls().trim().split('\n');
+  assert.match(calls.at(-2), /operator.ts init --replace --name unit/);
+  assert.equal(calls.at(-1).includes('--replace-operator-key'), false);
+  assert.equal(h.calls().includes(replacement), false);
+  assert.equal(result.stdout.includes(replacement), false);
 });

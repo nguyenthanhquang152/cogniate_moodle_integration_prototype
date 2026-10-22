@@ -99,15 +99,34 @@ describe('GET /operator/v1/audit', () => {
     expect(window.events.map((e) => e.target.id)).toEqual(['opk_3', 'opk_1']);
   });
 
+  it('BD-A2-50: filters traceId together with tenant and action and records the read filters', async () => {
+    const h = await operatorHarness();
+    const traceId = 'trace-key-rewrap-1234';
+    for (const [tenant, trace, action] of [
+      ['cogniate', traceId, 'key_provider.rewrap'], ['cogniate', 'another-trace-1234', 'key_provider.rewrap'],
+      ['qa-second', traceId, 'key_provider.rewrap'], ['cogniate', traceId, 'settings.rate_limits'],
+    ]) insertAuditEvent(h.db, {
+      actor: { type: 'system', id: 'key-rewrap' }, toolAccountId: tenant!, traceId: trace!, clientIp: null,
+      action: action!, target: { type: 'key_provider', id: null }, result: 'ok',
+    }, T0);
+    const query = { traceId, toolAccountId: 'cogniate', action: 'key_provider.rewrap' };
+    const response = await call(h, 'GET', `/operator/v1/audit?${new URLSearchParams(query)}`);
+    expect(response.statusCode).toBe(200);
+    expect(response.json().events).toMatchObject([{ traceId, toolAccountId: 'cogniate', action: 'key_provider.rewrap' }]);
+    expect(response.json().events).toHaveLength(1);
+    expect(stored(h).at(-1)).toMatchObject({ action: 'audit.read', details: { query, count: 1 } });
+    expect((await call(h, 'GET', '/operator/v1/audit?traceId=unknown-trace-1234')).json().events).toEqual([]);
+  });
+
   it('refuses a bad query with 400 INVALID_REQUEST naming the field, and records the refused read', async () => {
     const h = await operatorHarness();
-    for (const [query, field] of [['limit=501', 'limit'], ['limit=0', 'limit'], ['since=yesterday', 'since'], ['cursor=bm9wZQ', 'cursor']]) {
+    for (const [query, field] of [['limit=501', 'limit'], ['limit=0', 'limit'], ['since=yesterday', 'since'], ['cursor=bm9wZQ', 'cursor'], ['traceId=bad', 'traceId']]) {
       const res = await call(h, 'GET', `/operator/v1/audit?${query}`);
       expect([query, res.statusCode, res.json().details.description]).toEqual([query, 400, `Invalid field: ${field}.`]);
     }
-    expect(listAuditEvents(h.db, { limit: 10, action: 'audit.read' }).events.map((e) => [e.result, e.code])).toEqual(Array(4).fill(['refused', 'INVALID_REQUEST']));
+    expect(listAuditEvents(h.db, { limit: 10, action: 'audit.read' }).events.map((e) => [e.result, e.code])).toEqual(Array(5).fill(['refused', 'INVALID_REQUEST']));
     expect((await call(h, 'GET', '/operator/v1/audit', undefined, '')).statusCode).toBe(401);
-    expect(listAuditEvents(h.db, { limit: 10, action: 'audit.read' }).events).toHaveLength(4);
+    expect(listAuditEvents(h.db, { limit: 10, action: 'audit.read' }).events).toHaveLength(5);
   });
 
   it('an answer holds no key: secret scan of the read after key changes (AP-06-16, unit part)', async () => {

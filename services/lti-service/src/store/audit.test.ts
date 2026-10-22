@@ -76,6 +76,16 @@ describe('008_audit_event_replace_guard', () => {
 });
 
 describe('insertAuditEvent and listAuditEvents', () => {
+  it('BD-A2-51: retains valid opaque idempotency ids but still redacts credentials and malformed values', () => {
+    expect(JSON.parse(auditDetailsText({ idempotencyKey: 'request-123', apiKey: 'secret' })!))
+      .toEqual({ idempotencyKey: 'request-123', apiKey: '[redacted]' });
+    expect(auditDetailsText({ idempotencyKey: `ltio_${'x'.repeat(43)}` })).not.toContain('x'.repeat(43));
+    expect(auditDetailsText({ idempotencyKey: `ltis_${'x'.repeat(43)}` })).not.toContain('x'.repeat(43));
+    for (const idempotencyKey of ['bad key', 'x'.repeat(65)]) {
+      expect(JSON.parse(auditDetailsText({ idempotencyKey })!).idempotencyKey).toBe('[redacted]');
+    }
+  });
+
   it('stores every field and reads it back; details go through redact()', () => {
     const db = openDb(':memory:');
     const id = insertAuditEvent(db, event({ code: null, details: { fields: ['name'], apiKey: 'ltis_secret', note: `x ltio_${'a'.repeat(43)}` } }), T0);
