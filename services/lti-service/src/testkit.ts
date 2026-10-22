@@ -7,6 +7,8 @@ import { SignJWT, exportJWK, generateKeyPair } from 'jose';
 import type { CryptoKey } from 'jose';
 import type { Logger, OutboundClient, PublicUrls } from '@cogniate/shared';
 import { createLogger } from '@cogniate/shared';
+import type { ChannelManifest, ProfileSource } from '@cogniate/channel-kernel';
+import { loadChannelFolders } from '@cogniate/channel-kernel';
 import type { Db } from './db/index.ts';
 import { openDb } from './db/index.ts';
 import { buildApp } from './http/app.ts';
@@ -20,6 +22,32 @@ import { ensureAccount } from './store/accounts.ts';
 import { ensureToolKey } from './store/tool-keys.ts';
 import type { Platform } from './store/platforms.ts';
 import { createPlatform } from './store/platforms.ts';
+import { CHANNEL_ROOT, buildProfileRegistry } from './profiles/index.ts';
+
+/** New channel and two endpoint plans for unit tests. Baseline channel data stays unchanged. */
+export async function testProfileRegistry(textName = 'your LMS') {
+  const loaded = structuredClone(await loadChannelFolders([CHANNEL_ROOT], 'lti'));
+  const standard = loaded.find((entry) => (entry.manifest as ChannelManifest).registration.some((method) => method.profiles.includes('standard')))!;
+  const manifest = standard.manifest as ChannelManifest;
+  const admin = {
+    ...(standard.ltiProfiles![0] as ProfileSource), id: 'zz-admin', label: 'Unit admin', privacyFloor: 'allowlist', listOrder: 100,
+  } satisfies ProfileSource;
+  delete admin.wireLms;
+  const fixed: ProfileSource = {
+    ...admin, id: 'zz-fixed', label: 'Unit fixed', endpoints: 'fixed', listOrder: 110, siteUrlOn: 'platform',
+    issuer: 'https://fixed.example.edu', authenticationEndpoint: 'https://fixed.example.edu/auth',
+    accesstokenEndpoint: '{siteUrl}/token', jwksUrl: 'https://fixed.example.edu/jwks',
+  };
+  return buildProfileRegistry([...loaded, {
+    folder: '/unit/zz',
+    manifest: {
+      ...manifest, id: 'zz', names: { text: textName, label: 'Unit channel' },
+      registration: [{ method: 'manual', authority: 'operatorGrant', profiles: [admin.id, fixed.id], defaultProfile: admin.id }],
+      lti: { guardedFamilies: [], toolConfiguration: 'none' },
+    },
+    ltiProfiles: [admin, fixed],
+  }]);
+}
 
 // The platform URL is a test fixture only; it is not a public service URL.
 export const URLS: PublicUrls & { moodle: string } = {

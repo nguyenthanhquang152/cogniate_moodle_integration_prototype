@@ -1,5 +1,6 @@
 // Blackboard Learn profiles (ADR-011 §6). One shared platform per tool account: the Cogniate Application ID is the
 // client id of every school; each school is one deployment with its own site URL.
+import type { ProfileSource } from '@cogniate/channel-kernel';
 
 const BLACKBOARD_FLAGS = {
   deepLinkingResponseSub: true, // F-BB-8: Learn needs sub = client id in the Deep Linking response
@@ -27,6 +28,6 @@ const profiles = [
     siteUrlOn: 'deployment', serviceUrl: false, simulation: true, productFamily: 'blackboardlearn',
     flags: BLACKBOARD_FLAGS, sources: ['ADR-011 §6 (simulation copy of blackboard)'],
   },
-] as const;
+] as const satisfies readonly ProfileSource[];
 
 export default profiles;

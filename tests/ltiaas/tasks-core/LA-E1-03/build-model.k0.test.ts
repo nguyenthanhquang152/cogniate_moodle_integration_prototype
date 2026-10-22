@@ -116,25 +116,28 @@ describe('LA-E1-03 build model and F3 (K0)', () => {
     const controls: Array<[string, string, string]> = [
       ['(control 1) manifest.ts imports kernel type', 'packages/channels/canvas/manifest.ts',
         "import type { ChannelManifest } from '@cogniate/channel-kernel';\nexport default { id: 'canvas' } as unknown as ChannelManifest;\n"],
-      ['(control 2) BD-A1-16: app.ts imports its own ./manifest and ./app/x', 'packages/channels/canvas/app.ts',
-        "import manifest from './manifest';\nimport * as helper from './app/x';\nexport default { manifest, helper };\n"],
+      ['(control 2) BD-A1-16: app.ts imports its own ./manifest.ts and ./app/x.ts', 'packages/channels/canvas/app.ts',
+        "import manifest from './manifest.ts';\nimport * as helper from './app/x.ts';\nexport default { manifest, helper };\n"],
       ['(control 3) BD-A2-11: channel app/** uses import type from @cogniate/shared root', 'packages/channels/moodle/app/zz-qa-probe.ts',
         "import type { Logger } from '@cogniate/shared';\nexport type ProbeLogger = Logger;\n"],
       ['(control 4) BD-A2-11: channel app/** imports a value from @cogniate/shared/channel', 'packages/channels/moodle/app/zz-qa-probe.ts',
-        "import { randomId } from '@cogniate/shared/channel';\nexport const id = () => randomId('probe');\n"],
+        "import { canonicalOrigin } from '@cogniate/shared/channel';\nexport const norm = (u: string) => canonicalOrigin(u);\n"],
     ];
     const log: string[] = [];
-    for (const [name, asPath, text] of probes) {
-      const results = await eslintText(asPath, text);
-      log.push(`## ${name} ${asPath}\n${JSON.stringify(results.flatMap((r) => r.messages), null, 2)}`);
-      expect(importErrors(results).length, `${name}: an F3 error at ${asPath}; messages: ${JSON.stringify(results.flatMap((r) => r.messages))}`).toBeGreaterThan(0);
+    try {
+      for (const [name, asPath, text] of probes) {
+        const results = await eslintText(asPath, text);
+        log.push(`## ${name} ${asPath}\n${JSON.stringify(results.flatMap((r) => r.messages), null, 2)}`);
+        expect(importErrors(results).length, `${name}: an F3 error at ${asPath}; messages: ${JSON.stringify(results.flatMap((r) => r.messages))}`).toBeGreaterThan(0);
+      }
+      for (const [name, asPath, text] of controls) {
+        const results = await eslintText(asPath, text);
+        log.push(`## ${name} ${asPath}\n${JSON.stringify(results.flatMap((r) => r.messages), null, 2)}`);
+        expect(importErrors(results), `${name}: allowed at ${asPath}`).toEqual([]);
+      }
+    } finally {
+      artifact('e1-03-ac03-eslint.log', log.join('\n'));
     }
-    for (const [name, asPath, text] of controls) {
-      const results = await eslintText(asPath, text);
-      log.push(`## ${name} ${asPath}\n${JSON.stringify(results.flatMap((r) => r.messages), null, 2)}`);
-      expect(importErrors(results), `${name}: allowed at ${asPath}`).toEqual([]);
-    }
-    artifact('e1-03-ac03-eslint.log', log.join('\n'));
   });
 
   it('AC-LA-E1-03-05: a scratch channel folder is typechecked, linted and tested with no edit of a root build file', async () => {

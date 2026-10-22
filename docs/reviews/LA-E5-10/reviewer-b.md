@@ -1,7 +1,38 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-10 review, Reviewer-B2 (lens: "Can a human team own it?")
+
+## Round 2
+
+Diff: `git diff 36032f3^1 36032f3` (lane S2 fix commits `c0a1f64`, `c60cda4`, `6ef9075`, `3b13658`, `56bad6b`), with A2's BD-A2-23 (409 details) and BD-A2-24 (no active key is not an error). I did not open any reviewer-a file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT.** Both round-1 MINOR findings are **closed**.
+
+How I checked: a scratch clone of `36032f3` (private `/tmp` folder, deleted after the run). `vitest run` on `profiles`, `http/operator/signing-keys.test.ts`, `store/tool-keys-lifecycle.test.ts`, `jobs` and `lti`: **14 files, 197 tests passed**.
+
+### Round-1 findings
+
+| Finding | Status |
+| --- | --- |
+| B-LA-E5-10-01 (MINOR) | **Closed** (BD-A2-23). `KeyError(code, {description?, details?})` passes details to `ApiErrorBase` (`http/key-errors.ts:13-16`). Each 409 now gives the fact to act on: `NOT_PUBLISHED_LONG_ENOUGH {kid, activatableAt}`, `NEXT_EXISTS {kid, publishedAt}` (the waiting key), `WRONG_STATE {kid, keyStatus}`, `ACTIVE {kid}`. The name is `keyStatus`, not `status`, so it does not collide with the HTTP `status` of the body. AC-14 asserts every shape, and asserts that no `Retry-After` header is set. |
+| B-LA-E5-10-02 (MINOR) | **Closed** (BD-A2-24). "No active key" is no longer an error: create makes the key `active` at once (`201 {status: "active"}`), and activate gives `retired: null`. `WRONG_STATE` keeps its one contract meaning. The audit event records `details.status`, and the `retired` log line is skipped when nothing was retired (`signing-keys.ts:67`). |
+| B-LA-E5-10-03 (NIT) | **Closed.** `retire` without `{immediate: true}` says what to send and how a key becomes `retired`, with `details.field: "immediate"`. A test asserts the text. |
+| B-LA-E5-10-04 (NIT) | **Closed.** Each refusal row has a name (`'activate retired'`, `'retire without immediate'`, …), and every `expect` carries it, so a failure names its row. |
+| B-LA-E5-10-05 (NIT) | **Closed in part, accepted.** The tests use `RETIRED_KEEP_MS`, and the migration test has the suggested name ("migration 009 keeps the public set, and the first cleanup clears migrated blobs"). Migration `009` gets no comment. That is correct: `009` is merged, and the migration runner keeps a SHA-256 of each applied file (`packages/shared/src/migrations.ts:69`), so even a comment change would fail on a stack that already applied it. |
+| B-LA-E5-10-06 (NIT) | **Closed** (A2 text). Operability §6.1 step 7 now has the note for the time before LA-E5-19. |
+
+Also in this round: the BD-A2-13 and BD-A2-14 code changes are in. Runtime SQL binds `new Uint8Array(0)` (`store/tool-keys.ts`, `jobs/signing-key-cleanup.ts`), and the tests now assert `typeof(private_jwk_encrypted) = 'blob'` and `length = 0`. The CLI rotation removes a waiting `next` key in the same transaction, and a test proves the rollback. Key generation is now async (`generateKeyPair`), so it does not block the event loop.
+
+### New in this round
+
+#### B-LA-E5-10-07 — NIT — `createNextToolKey` can now create an active key
+
+- **File:** `services/lti-service/src/store/tool-keys.ts:114` (`createNextToolKey`, BD-A2-24).
+- **Problem:** The doc comment is correct ("Publish a waiting key, or activate it at once when the account has no active key"), but the name says `next`. A caller who reads only the name (for example the LA-E5-05 CLI client) can expect `status: "next"` and miss the recovery case.
+- **Suggested fix:** Rename the function to `createToolKey` or `publishToolKey`, or return the status in the name of the result type. The callers are the route and `ensureToolKey`, so the rename is small.
+
+## Round 1
 
 Reviewer: Reviewer-B2, the second lens-B instance (plan LD-22). Diff: `git diff f1f9de8^1 f1f9de8` (the merge of lane S2 for LA-E5-10). Spec: `docs/architecture/ltiaas/tasks/LA-E5-10.md`. Design: LA-ADR-06 D4, D7, D13; contract delta §1.3, §3; operability §6.1; BD-A2-04..08, BD-A2-13, BD-A2-14. I did not open any reviewer-a file. I did not run Docker.
 

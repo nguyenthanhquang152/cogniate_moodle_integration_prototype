@@ -3,6 +3,16 @@ import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
+import { openDb } from '../db/index.ts';
+import { ensureSharedPlatform } from './shared-platform.ts';
+
+it('names the unknown account in the shared-platform CLI error', () => {
+  const db = openDb(':memory:');
+  try {
+    expect(ensureSharedPlatform(db, { simulation: false }, { account: 'missing-tool', profile: 'blackboard', clientId: 'client' }))
+      .toEqual({ ok: false, message: 'Unknown tool account: missing-tool.' });
+  } finally { db.close(); }
+});
 
 it('prints usage and exits 2 when the shared-platform entry point is a symlink with no arguments', () => {
   const dir = mkdtempSync(join(tmpdir(), 'shared-platform-link-'));

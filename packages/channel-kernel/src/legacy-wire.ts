@@ -27,6 +27,9 @@ export const BASELINE_PROFILE_WIRE_LMS: Readonly<Record<string, string | null>> 
   'blackboard-sim': 'blackboard',
 });
 
+/** Load check 7 (BD-A2-21): only these profiles may keep every claim. New entries need an ADR and security review. */
+export const PRIVACY_FLOOR_NONE_PROFILES: readonly string[] = Object.freeze(['standard']);
+
 /** The setup artifact behind the legacy flag `canvasConfiguration` (`setup.artifacts`, D3). */
 export const DEVELOPER_KEY_JSON_ARTIFACT = 'developer-key-json';
 
@@ -69,3 +72,8 @@ export const LEGACY_SELF_BINDING_TEXT = {
   collision: 'This Moodle tool is already registered with Cogniate. In Moodle, make a new tool for this library and use its values.',
   reserved: 'This address belongs to a hosted LMS. Connect it as Canvas or Blackboard.',
 } as const;
+
+/** Frozen clean-up text of MOODLE_TOOL_MAY_EXIST (LA-ADR-01 D12, BD-A1-30). Keep its UI words byte for byte. */
+export function pendingToolText(toolName: string): string {
+  return `Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool '${toolName}', then connect again.`;
+}

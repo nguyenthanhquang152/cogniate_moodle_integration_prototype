@@ -31,7 +31,7 @@ Independence: QA-3 did not read product source, Author notes or reviewer files. 
 
 | Tracked file | Line(s) | Rule | Origin |
 | --- | --- | --- | --- |
-| `docs/reviews/LA-E5-02/reviewer-a.md` | 21 | `api_key` | Reviewer-A prose mention of `ltis_test` |
+| `docs/reviews/LA-E5-02/reviewer-a.md` | 21 | `api_key` | Reviewer-A prose mention of a test API key (`<value>`) |
 | `services/lti-service/src/cli/bootstrap.test.ts` | 28 | `secret_assignment` | `LA-E5-08` unit test |
 | `services/lti-service/src/config.test.ts` | 5 | `secret_assignment` | `LA-E5-01` unit test |
 | `services/lti-service/src/http/routes/platforms-audit.test.ts` | 97 | `api_key` | `LA-E5-02` unit test |

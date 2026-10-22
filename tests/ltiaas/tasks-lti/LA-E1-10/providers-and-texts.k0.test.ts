@@ -205,12 +205,12 @@ describe('LA-E1-10 S3/S7 LTI service providers channel, endpoints call sites and
     try {
       process.env.STACK_PROFILE = 'acceptance';
       process.env.LTI_PROVIDER_SIMULATION = 'on';
-      profilesOn = mod.listProfiles!(true);
+      profilesOn = mod.listProfiles!({ simulation: true });
       const registered = new Set<string>(BASELINE_LMS);
-      checkProfiles(profilesOn, BASELINE_PROFILES, { registered, label: 'K0 listProfiles(true)' });
+      checkProfiles(profilesOn, BASELINE_PROFILES, { registered, label: 'K0 listProfiles({ simulation: true })' });
       for (const expected of BASELINE_PROFILES) {
         const actual = profilesOn.find((p) => p.id === expected.id);
-        const def = mod.profileDefinition!(expected.id);
+        const def = mod.profileDefinition!(expected.id, { simulation: true });
         expect(actual, `listProfiles contains ${expected.id}`).toBeDefined();
         expect(def, `profileDefinition('${expected.id}') is defined`).toBeDefined();
         const channel = actual?.channel ?? def?.channel;

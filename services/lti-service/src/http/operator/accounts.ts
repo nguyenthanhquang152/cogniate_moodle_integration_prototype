@@ -14,11 +14,25 @@ const ListQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(100),
 });
 
+const URL_RULE = 'Use an https URL with no user info, fragment or surrounding spaces, at most 2048 characters, outside the LTI and content hosts.';
+const FIELD_RULES: Record<string, string> = {
+  id: 'Use 1 to 63 lower-case letters, digits or hyphens, starting with a letter or digit.',
+  launchUrl: URL_RULE, deepLinkingUrl: URL_RULE, registrationUrl: URL_RULE,
+  publicBaseUrl: 'Use null; host mode is not available.',
+  status: 'Use active, suspended or closed.',
+  claimPolicy: 'Send an explicit allowlist or passthrough policy with all keep flags; null is only a stored legacy marker.',
+};
+function invalidAccount(error: z.ZodError): ApiError {
+  const field = String(error.issues[0]?.path[0] ?? 'body');
+  const rule = FIELD_RULES[field];
+  return rule ? new ApiError('INVALID_REQUEST', `${invalid(error).description} ${rule}`, { details: { field, rule } }) : invalid(error);
+}
+
 export function registerAccountRoutes(app: FastifyInstance, ctx: OperatorContext): void {
   const toolUrl = toolUrlSchema(ctx.urls);
   const fields = {
     name: z.string().trim().min(1).max(255), launchUrl: toolUrl, deepLinkingUrl: toolUrl, registrationUrl: toolUrl,
-    limits: AccountLimitsSchema.nullable().optional(), claimPolicy: ClaimPolicySchema.nullable().optional(),
+    limits: AccountLimitsSchema.nullable().optional(), claimPolicy: ClaimPolicySchema.optional(),
     publicBaseUrl: z.null().optional(),
   };
   const Create = z.object({ id: z.string().regex(ACCOUNT_ID), ...fields }).strict();
@@ -29,7 +43,7 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: OperatorContext
 
   app.get('/operator/v1/accounts', async (req) => {
     const parsed = ListQuery.safeParse(req.query);
-    if (!parsed.success) throw invalid(parsed.error);
+    if (!parsed.success) throw invalidAccount(parsed.error);
     const { status, cursor, limit } = parsed.data;
     const page = listAccounts(ctx.db, { limit, ...(status ? { status } : {}), ...(cursor ? { cursor } : {}) });
     return { ...page, accounts: page.accounts.map(view) };
@@ -45,7 +59,7 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: OperatorContext
     const accountId = id.success ? id.data.id : null;
     return ctx.audited(req, { action: 'account.create', target: { type: 'account', id: accountId }, toolAccountId: accountId }, async (audit) => {
       const parsed = Create.safeParse(req.body);
-      if (!parsed.success) throw invalid(parsed.error);
+      if (!parsed.success) throw invalidAccount(parsed.error);
       const input = parsed.data;
       if (getAccount(ctx.db, input.id)) throw new ApiError('ACCOUNT_ALREADY_EXISTS');
       const key = await prepareToolKey(ctx.keys, input.id);
@@ -56,19 +70,24 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: OperatorContext
         createFirstToolKey(ctx.db, key, now);
         return created;
       }, () => ({ details: { fields: Object.keys(input), kid: key.kid } }));
+      ctx.logger.info('signing_key_changed', { tool_account_id: account.id, kid: key.kid, status: 'active' });
       return reply.code(201).send(view(account));
     });
   });
 
   app.patch<{ Params: { id: string } }>('/operator/v1/accounts/:id', async (req) => {
-    const current = getAccount(ctx.db, req.params.id);
     const parsed = Patch.safeParse(req.body);
-    const changedStatus = parsed.success && parsed.data.status !== undefined && parsed.data.status !== current?.status;
-    return ctx.audited(req, { action: changedStatus ? 'account.status' : 'account.update',
-      target: { type: 'account', id: req.params.id }, toolAccountId: req.params.id }, (audit) => {
+    return ctx.audited(req, { action: 'account.update',
+      target: { type: 'account', id: req.params.id }, toolAccountId: req.params.id,
+      details: { fields: req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? Object.keys(req.body) : [] } }, (audit) => {
       const writable = requireWritableAccount(ctx.db, req.params.id);
-      if (!parsed.success) throw invalid(parsed.error);
-      const account = audit.change(() => updateAccount(ctx.db, writable.id, parsed.data, ctx.now()), () => ({
+      if (!parsed.success) throw invalidAccount(parsed.error);
+      const { account, changedStatus } = audit.change(() => {
+        const current = requireWritableAccount(ctx.db, writable.id);
+        const account = updateAccount(ctx.db, writable.id, parsed.data, ctx.now());
+        return { account, changedStatus: account.status !== current.status };
+      }, ({ changedStatus }) => ({
+        action: changedStatus ? 'account.status' : 'account.update',
         details: { fields: Object.keys(parsed.data), ...(changedStatus ? { status: parsed.data.status } : {}) },
       }));
       if (changedStatus) ctx.logger.info('account_status_changed', { tool_account_id: account.id, status: account.status, trace_id: req.traceId });

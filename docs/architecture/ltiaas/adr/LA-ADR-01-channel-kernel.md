@@ -134,6 +134,7 @@ export interface ChannelManifest {
   texts: {
     adminSteps: string[]; teacherSteps: string[];
     disconnect: string; notReady: string | null; // all with {LMS}, {tool}, {site} placeholders only
+    registered?: string;                         // status text of a registered connection; default "Registered" (BD-A1-25)
   };
 }
 export interface FieldSpec { key: string; label: string; kind: 'origin' | 'id' | 'grantCode' | 'url' | 'choice'; required: boolean; method?: 'dynamic' | 'manual';
@@ -254,23 +255,32 @@ export interface ConnectionSetup {
   toolConfiguration(ctx: ToolConfigurationContext): ToolRow[]; // show step (unchanged signature)
   // Collect: the strict body of PUT …/platform or POST …/deployments; `adminValues` only for `endpoints: admin` profiles.
   parseBindingBody(body: unknown, ctx: PlatformBodyContext & { purpose: GrantPurpose }):
-    { ok: true; values: PlatformBodyValues & { adminValues?: AdminValues } } | { ok: false; fields: string[] };
+    { ok: true; values: PlatformBodyValues & { adminValues?: AdminValues } } | { ok: false; fields: string[]; reason?: 'origin' };  // BD-A1-35
   // `self` authority with typed values (Moodle six values): the platform create, no grant.
   selfCreate?(values: AdminValues & { deploymentId: string }, ctx: CreateRequestContext): StagedCreate;
   // `operatorGrant` authority (unchanged names): the redemption target and its staged create.
   initialTarget?(ctx: InitialTargetContext): BindingTarget;
   createRequest?(target: BindingTarget, ctx: CreateRequestContext): StagedCreate;
+  // Per-profile app data (BD-A1-29): replaces profileLabel, acceptsServiceUrl and siteRuleSuffixes.
+  readonly profiles: Readonly<Record<string, AppProfileData>>;
   // Optional extension ports P5–P7.
   extensionRoutes?: readonly ExtensionRoute[];
   publishHooks?: readonly PublishHook[];
   packageExporters?: readonly PackageExporter[];
 }
 export interface AdminValues { issuer: string; authenticationEndpoint: string; accessTokenEndpoint: string; jwksUrl: string; tokenAudience?: string }
+export interface AppProfileData {               // plain data per offered profile (BD-A1-29)
+  sharing: 'exclusive' | 'shared'; serviceUrl: boolean;
+  label: string;                               // app-only: the frozen GET /app-api/lms-providers label (for example 'Moodle site')
+  refusedHostSuffixes?: readonly string[];     // site rule 5
+}
 ```
 
-**Contract surface for K0 (build ruling BD-A1-20, [build decisions A1](../build-decisions-A1.md)).** The kit's K-ADAPTER case uses only the names and result shapes of this sketch: `channel`; `checkCreate` → `{ ok: true, siteUrl, serviceUrl }` or `{ ok: false, field, rule? }`; `toolConfiguration` → an array of rows; `parseBindingBody` → `{ ok: true, values }` or `{ ok: false, fields }` (a refusal is a value, never a throw); `selfCreate?`, `initialTarget?`, `createRequest?`; `extensionRoutes?`, `publishHooks?`, `packageExporters?`. Required members, and a missing one fails the case: `channel`, `checkCreate`, `toolConfiguration` and `parseBindingBody` for every channel with `app.ts`; `selfCreate` when a registration entry is `manual` with `self`; `initialTarget` and `createRequest` when an entry has `operatorGrant`; an extension port whose capability is true. Until LA-E1-07 creates `kernel/ports.ts`, the kit relies only on these names, the arity and the result discriminants, not on the context field names.
+**Contract surface for K0 (build ruling BD-A1-20, [build decisions A1](../build-decisions-A1.md)).** The kit's K-ADAPTER case uses only the names and result shapes of this sketch: `channel`; `checkCreate` → `{ ok: true, siteUrl, serviceUrl }` or `{ ok: false, field, rule? }`; `toolConfiguration` → an array of rows; `parseBindingBody` → `{ ok: true, values }` or `{ ok: false, fields, reason? }` (a refusal is a value, never a throw; `reason` is absent or `'origin'`, BD-A1-35); `selfCreate?`, `initialTarget?`, `createRequest?`; `extensionRoutes?`, `publishHooks?`, `packageExporters?`. Required members, and a missing one fails the case: `channel`, `checkCreate`, `toolConfiguration` and `parseBindingBody` for every channel with `app.ts`; `selfCreate` when a registration entry is `manual` with `self`; `initialTarget` and `createRequest` when an entry has `operatorGrant`; an extension port whose capability is true. Until LA-E1-07 creates `kernel/ports.ts`, the kit relies only on these names, the arity and the result discriminants, not on the context field names.
 
-The fields `lms`, `lmsName`, `label`, `methods`, `capabilities`, `defaultProfile`, `acceptsServiceUrl`, `siteRuleSuffixes` and `profileLabel` of `ProviderAdapter` move into the manifest or the profile data. The adapter stays pure (no database, no LTI call), as today (`providers/types.ts:1-4`).
+The fields `lms`, `lmsName`, `label`, `methods`, `capabilities`, `defaultProfile`, `acceptsServiceUrl`, `siteRuleSuffixes` and `profileLabel` of `ProviderAdapter` move into the manifest or the profile data. Refusal texts (BD-A1-35): core owns the `422 INVALID_PLATFORM_VALUES` descriptions. No `reason` gives "Some values are missing or not valid."; `reason: 'origin'` gives "The URLs must be https and on the {LMS} site of this connection." with the channel text name, so the Moodle text stays byte for byte. A channel sets `reason: 'origin'` only for a URL-origin failure and never supplies a text. `profileLabel`, `acceptsServiceUrl` and `siteRuleSuffixes` become the plain-data map `profiles` of the port (BD-A1-29): one entry per offered profile. A unit test keeps `sharing`, `serviceUrl` and `refusedHostSuffixes` equal to the same profile in the channel's `lti-profiles.ts`, and every manifest registration profile has an entry; `label` is app-only. A profile that `GET /api/providers` reports but `profiles` does not list stays ignored (LA-ADR-04 D1 S1). The kernel admin-value adapter gives `sharing: 'exclusive'`, `serviceUrl: false`, the LTI profile label and no suffixes.
+
+**Published ports (BD-A1-28).** `services/cogniate-app/src/kernel/ports.ts` (LA-E1-07) is the reference for the context types: `ToolConfigurationContext { urls, libraryName, sharedClientId }`; `PlatformBodyContext { siteUrl, clientId?, sharedClientId }` with `purpose: GrantPurpose` (`'initial' | 'add_deployment'`); `InitialTargetContext { connection, values, profile, sharedPlatform }`; `CreateRequestContext { libraryName }`; `selfCreate` values add `clientId`. Once the file is on the integration branch, K0 imports these types (`import type`) and fills every required field. The adapter stays pure (no database, no LTI call), as today (`providers/types.ts:1-4`).
 
 `services/cogniate-app/src/kernel/ports.ts` holds every type that these sketches name (`ToolConfigurationContext`, `PlatformBodyContext`, `CreateRequestContext`, `InitialTargetContext`, `StagedCreate`, `BindingTarget`, `GrantPurpose`, `ToolRow`, `ProfileView`, `PlatformBodyValues`, `PortContext`, …). It is a public interface file with no logic: QA may read it and import its types (types only) as soon as step S5 creates it (QA Q-LAD-19).
 
@@ -327,8 +337,13 @@ export interface ChannelUiModule {
   steps?: Partial<Record<'show' | 'collect' | 'verify' | 'enable', ComponentType<ChannelWizardProps>>>;
   TeacherSteps?: ComponentType;                                // shown after publication
   connectionPanels?: ComponentType<{ connection: ConnectionView; sdk: PortalSdk }>[];  // Moodle web services, Canvas JSON
-  coursePanels?: ComponentType<{ course: CourseView; sdk: PortalSdk }>[];             // Moodle .mbz and course shell
+  coursePanels?: ComponentType<{ course: CourseView; version: CourseVersionView | null; onChanged(): void; sdk: PortalSdk }>[]; // Moodle .mbz
+  // BD-A1-25: optional slots; the shell has a default for each and never tests a channel id.
+  publicationPanels?: ComponentType<{ publication: PublicationView; onChanged(): void; sdk: PortalSdk }>[]; // Moodle course shell
+  ConnectionError?: ComponentType<ConnectionErrorProps & { Default: ComponentType<ConnectionErrorProps> }>; // BD-A1-32: renders <Default/> for errors it does not handle
+  ConnectionDetails?: ComponentType<{ connection: ConnectionView; sdk: PortalSdk }>; // replaces the default detail block and its "Open {LMS}" link
 }
+export interface ConnectionErrorProps { connection: ConnectionView; error: ApiErrorView; libraryName: string; sdk: PortalSdk }
 export interface ChannelWizardProps {        // today's ProviderWizardProps (wizard-types.ts:11-18) plus the SDK
   provider: ProviderView; connection: ConnectionView | null; libraryName: string; opener: string;
   onCreated(c: ConnectionView): void; onChanged(c: ConnectionView): void; sdk: PortalSdk;
@@ -338,7 +353,8 @@ export interface PortalSdk {                 // re-exports of today's portal cod
   useApi: typeof useApi; navigate(to: string): void;
   ui: PortalUiKit;                           // Button, Card, Tabs, ErrorNotice, Loading, ConnectionBadge, provider error texts
 }
-// ProviderView, ConnectionView, CourseView = today's DTO types of apps/portal/src/types.ts, re-exported.
+// ProviderView, ConnectionView, CourseView, CourseVersionView, PublicationView, ApiErrorView = today's DTO types of
+// apps/portal/src/types.ts, re-exported.
 ```
 
 S8 first moves the needed helpers into `apps/portal/src/sdk/`, then moves the modules. A module that needs more than the SDK gives an SDK addition in S8, not a deep import.
@@ -393,7 +409,8 @@ Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-
 - **Cards.** The Integrations page shows one card per channel from `manifest.card`, plus the static cards that are not channels (Kajabi, Figma, …, `Integrations.tsx:21-108`). The baseline manifests keep today's title, text, mark and colour.
 - **Routes.** One route pair: `/integrations/:channelId/connect` and `/integrations/:channelId/:connectionId`. An unknown channel id, or a connection of another channel, shows "not found" (app contract §4.2 rule). The app server allowlist uses the same pattern with the registry (`app/portal.ts:29-30`).
 - **Wizard.** The shell renders the four steps of every channel from the manifest: **show** (`GET …/tool-configuration` rows and setup artifacts), **collect** (`setup.createFields`, `setup.bindingFields`), **verify** (from the binding authority: the connection's stored `binding_authority`, or before create the chosen method's authority: `self` → first launch, `operatorGrant` → approval code, `verifiedAdminLaunch` → admin launch code; a staged DR therefore shows the approval code step), **enable** (status and teacher steps). A channel module (P11) may replace one step or add panels. The Moodle, Canvas and Blackboard modules move into their folders with no visible change. A new channel needs no module.
-- **Texts.** Status, disconnect and not-ready texts come from `manifest.texts` with `{LMS}` filled.
+- **Texts.** Status, disconnect and not-ready texts come from `manifest.texts` with `{LMS}` filled (`texts.registered` for the registered status, BD-A1-25). The logo comes from `manifest.card` (`mark`, `color`); no module supplies a logo. Code that needs connection, error or publication context is an optional P11 slot (`ConnectionError`, `ConnectionDetails`, `publicationPanels`, `coursePanels`), each with a shell default. Every slot is a `ComponentType`. When a module gives `ConnectionError`, the shell always renders it and passes its own `DefaultConnectionError` as the prop `Default`; the module renders `<Default {...props} />` for every error that it does not handle (BD-A1-32). No slot result is inspected.
+- **Availability.** The portal discovers every manifest at build time. A `simulation-only` channel gets a card and routes only when `GET /app-api/lms-providers` lists it; `ga` and `preview` channels show at once. A direct route to a `simulation-only` channel waits for the list, then shows "not found" when the channel is absent (BD-A1-26).
 - **Ready rule.** `ready` comes from `GET /app-api/lms-providers` (profile ready) for every channel. The Moodle-only rule `lms === "moodle"` (`Integrations.tsx:157`) goes away; the Moodle profile is always ready, so the result does not change.
 
 ### D10. "No LMS name in core"
@@ -411,6 +428,11 @@ Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-
 ### D12. Texts
 
 Every text that names an LMS uses `{LMS}` with the manifest text name: tool pages, player, `packages/tracking` status texts (`packages/tracking/src/status-text.ts:19`), LTI service error and registration pages, portal texts. The Moodle text name is `Moodle`, so Moodle texts stay byte for byte. Closed name unions (`'Moodle' | 'Canvas' | 'Blackboard'`, 22 lines in 13 files, R3 §1) become `string`.
+
+Build rulings (BD-A1-30, BD-A1-31, [build decisions A1](../build-decisions-A1.md)):
+
+- A text that belongs to a frozen code stays a frozen text, not an `{LMS}` template: `pendingToolText` of `MOODLE_TOOL_MAY_EXIST` (Moodle UI words "Manage tools", "Pending tool") moves byte for byte into `legacy-wire.ts` (LA-ADR-04 D2).
+- A text that lists several LMSs takes the names from data: the `ISSUER_RESERVED` action ("Connect it as Canvas or Blackboard in the Cogniate portal.") names the channels that own the reserved-issuer profiles (the same profiles as `reservedIssuerOrigins`), each once, in profile order (real before simulation, then `listOrder`, then id), joined as "X", "X or Y" or "X, Y or Z". Today this gives "Canvas or Blackboard" byte for byte. It is not derived from `LAUNCH_GUARD_CHANNELS`, which is a different, frozen concept.
 
 ## Alternatives considered
 

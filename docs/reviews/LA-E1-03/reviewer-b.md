@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E1-03 review, Reviewer-B2 (lens: "Can a human team own it?")
 
@@ -82,3 +82,35 @@ The build model is small and uses globs, so a new channel folder needs no edit o
 
 - K0 ACs AC-LA-E1-03-01 to -05 (QA-3 runs them) and the full `npm run check` (I ran its lint, typecheck and unit steps, but not `test:infra` and `test:k0`).
 - Lens-A items: if the fence can be bypassed (for example through symlinks or a non-literal `import()`), and if the import table is complete against D1 for security.
+
+## Round 2
+
+Verdict for this round: **APPROVE**. Reviewer: Reviewer-B (the same lens B as Reviewer-B2 in round 1). This is a bounded re-check of the round-1 MINORs and NITs against lane K's fix commits `a62d912`, `d5749d7`, `1adeafb` and `5263cf6` (`git diff b3af690^1 b3af690`, merged as `b3af690`), with A1 BD-A1-16 and BD-A1-18 and A2 BD-A2-11. I did not open any reviewer-a file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT (new).** All five round-1 MINORs and both NITs are **closed**.
+
+### How I checked
+
+- Scratch clone of `b3af690` in a private `/tmp` folder (`--no-hardlinks`, `node_modules` copied; removed after the run). The shared LA worktree did not change.
+- `vitest run eslint.config.test.ts services/cogniate-app/src/kernel/registry.test.ts packages/shared/src/channel.test.ts`: **3 files, 501 tests passed**.
+- The two round-1 mutations of B-LA-E1-03-04, plus one negative control, on `services/cogniate-app/src/main.ts` (each reverted after its run):
+  - M1, move `createOutboundClient` above the registry load: **9 of 9 pass** (round 1: 6 failed).
+  - M2, add one more top-level `config` read: **9 of 9 pass** (round 1: 7 failed).
+  - M3, swallow the registry error (`.catch(() => undefined)`): **6 of 9 fail**. So the test still catches the real regression.
+
+### Round-1 findings
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| B-LA-E1-03-01 (MINOR) `app.ts` cannot import its own `app/**` and `manifest.ts` | **Closed** (BD-A1-16 item 3) | The `app` row now allows its own manifest and `app/**` files (`eslint.config.js:34`). Test row: `app.ts` imports `./manifest.ts` and `./app/setup.ts` with no message (`eslint.config.test.ts:32`). |
+| B-LA-E1-03-02 (MINOR) F3 fence has no Author test | **Closed** | The new `eslint.config.test.ts` (run by the root Vitest, typechecked by the root `tsconfig.json`) lints real snippets against the real config. It covers each D1 row with allowed imports (`:26-54`) and refused imports (`:62-97`), the closed file kinds (`:56-60`), the `@cogniate/shared` capability fence for every current root export (`:99-112`), the base fence and the runtime-loading ban for every row (`:114-130`), type-position imports both ways (`:132-149`), and the core paths (`:151-168`). A new D1 row now means two new test rows, as round 1 asked. The optional move of the inline rule to its own module was not done. With this test, that is fine. |
+| B-LA-E1-03-03 (MINOR) root tests not typechecked | **Closed** (BD-A1-16 item 4) | `packages/channels/tsconfig.node.json` includes `*/*.ts`. BD-A1-16 item 2 also refuses any root file kind outside the D1 list, so a stray helper at the root fails lint (`refuses unknown file kind helpers.ts`). |
+| B-LA-E1-03-04 (MINOR) start-path test tied to line order and partial config | **Closed** | The test now stops after the whole app listener `build` returns (a wrapper throws `app listener built`), not at the first outbound client. It mocks the builders, not their order, and uses a full typed `AppConfig`, so a new config field is a type error. Mutations M1 and M2 above now pass, and M3 still fails. The `lti-service` pattern (an exported start function) was not adopted. That is acceptable, because the seams no longer depend on the order. |
+| B-LA-E1-03-05 (MINOR) `textName` comments | **Closed** | `packages/channel-kernel/src/registry.ts:60`, `:70` now match the code: `null` → the standard profile's channel; an unknown non-null id → `your LMS`. |
+| B-LA-E1-03-06 (NIT) fence messages | **Fixed** | Each row has its own text, for example "A manifest imports only @cogniate/channel-kernel types.", "App modules import kernel/port/shared types, @cogniate/shared/channel values and their own manifest/app files." (`eslint.config.js:32-38`). The `@cogniate/shared` root and the globals messages point to BD-A2-11. |
+| B-LA-E1-03-07 (NIT) `portal` project comment | **Fixed** (mostly) | `vitest.config.ts:21`: "Channel portal tests run in jsdom without a per-file pragma; JSX uses the automatic React runtime." It says which tests run in the project. The contrast with the `apps/portal` pragma tests is still implicit, but that does not block anything. |
+
+### Also in this diff
+
+- `@cogniate/shared/channel` (BD-A2-11): `packages/shared/src/channel.ts` re-exports only the approved helpers, and `channel.test.ts` pins the exact 23 export names, so a new capability needs an explicit change and review. This is easy to own.
+- Ownership: `packages/shared/{package.json,src/channel.ts,src/channel.test.ts}` are outside the LA-E1-03 file list. BD-A1-18 says that `channel.ts` and its package export "come from the task that A2 names", so the Lead should confirm that this task is that task (or record an RQ line). The root `tsconfig.json` and `vitest.config.ts` lines add only the new root test (K's root build files).

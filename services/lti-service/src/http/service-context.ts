@@ -6,7 +6,7 @@ import { CLAIM } from '../lti/checks.ts';
 import { deepLinkingResponse } from '../lti/deep-linking.ts';
 import { signToolJwt } from '../lti/tool-jwt.ts';
 import type { AgsContext } from '../platform/ags.ts';
-import { isStandardProfile, profileDefinition } from '../profiles/index.ts';
+import { profileDefinition } from '../profiles/index.ts';
 import type { Platform } from '../store/platforms.ts';
 import { getPlatform } from '../store/platforms.ts';
 import type { AuthResult } from './auth.ts';
@@ -36,8 +36,8 @@ export function platformOf(ctx: Ctx, caller: AuthResult): Platform {
   const deployment = deploymentOf(platform, deploymentId);
   if (deployment && deployment.bindingGeneration !== generation) throw unauthorized();
   if (!isPlatformUsable(platform, ctx.profiles)) throw new ApiError('PLATFORM_NOT_ACTIVE');
-  const def = profileDefinition(platform.profile);
-  if (deployment ? !deployment.active : (def !== null && !isStandardProfile(def))) throw new ApiError('DEPLOYMENT_NOT_ACTIVE');
+  const def = profileDefinition(platform.profile, ctx.profiles);
+  if (deployment ? !deployment.active : (def !== null && def.endpoints !== 'admin')) throw new ApiError('DEPLOYMENT_NOT_ACTIVE');
   return platform;
 }
 
