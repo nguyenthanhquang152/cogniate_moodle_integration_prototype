@@ -8,7 +8,8 @@
     "dev": "node --watch src/main.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lti:bootstrap": "bash ../../infra/scripts/lti-bootstrap.sh",
-    "lti:shared-platform": "node src/cli/shared-platform.ts"
+    "lti:shared-platform": "node src/cli/shared-platform.ts",
+    "lti:operator": "node src/cli/operator.ts"
   },
   "dependencies": {
     "@cogniate/shared": "*",

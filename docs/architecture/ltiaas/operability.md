@@ -25,7 +25,7 @@ New and changed settings (all optional unless marked; the base settings stay as 
 | `LTI_MASTER_KEY_FILE`, `APP_MASTER_KEY_FILE` | LTI, app | unset | file forms of the master keys; required form in `production` | LA-ADR-06 D12 |
 | `LTI_RATE_LIMITS` | LTI | built-in table | JSON overrides of the default limits at start; the operator API value (`PATCH /operator/v1/rate-limits`) wins over it | LA-ADR-06 D1 |
 | `TRUSTED_PROXY_CIDRS` | LTI | `proxy` (CIDRs or host names; names resolved every 60 s) | peers whose `X-Forwarded-For` counts; required in `production` | LA-ADR-06 D1 |
-| `SIGNING_KEY_PUBLISH_LEAD_S` | LTI | `86400` (min `600`) | wait between `next` and activation | LA-ADR-06 D7 |
+| `SIGNING_KEY_PUBLISH_LEAD_S` | LTI | `86400` (min `600`) | wait between `next` and activation. Read once at start (`keys/key-config.ts`); a value that is not a whole number ≥ 600 stops the start with one line | LA-ADR-06 D7 |
 | `SIGNING_KEY_ROTATE_DAYS` | LTI | `90` | age limit for the alert and for `autoRotate` accounts | LA-ADR-06 D7 |
 | `AUDIT_RETENTION_DAYS` | both | `400` | audit retention (LA-H4) | LA-ADR-06 D4 |
 | `JOB_INSTANCE_ID` | both | `lti-1`, `app-1` | lease owner of the job runner (with a random boot id per process). A normal restart (stop, then start) keeps today's timing: `stop()` deletes the heartbeat row. After a crash without `stop()`, the new runner waits up to 30 s before its first send, and the web part serves at once. Only a second **live** process with the same id stops its runner (`job_instance_conflict`: a worker process exits 1; the web process keeps serving with its runner off). The rule holds for both runners (LA-ADR-03 D7, Q-LAD-23) | LA-ADR-03 D7 |
@@ -39,9 +39,15 @@ Secret files (never in git; mode `0600`; mounted read only):
 | File | Holder | Content |
 | --- | --- | --- |
 | `infra/.secrets/lti-api-key.<account>` | app (read at each use) | tool account API key (today) |
-| `infra/.secrets/lti-operator-key` | LTI service container (CLIs) | operator key of the host's operator |
+| `infra/.secrets/lti-operator-key` | LTI service container (CLIs) | operator key of the host's operator. `npm run seed` makes it once (`lti:operator init --if-none`); `stack:up` does not |
 | `infra/.secrets/lti/keyring.json` | LTI service | key ring (when used) |
 | `infra/.secrets/operators.json` | app | allowed operator names (production) |
+
+Rules for the secret folders (build ratifications, [build decisions A2](build-decisions-A2.md) BD-A2-02, BD-A2-03):
+
+- `npm run stack:reset` deletes `seed.json`, the API key files and `lti-operator-key` together with the databases. It keeps `.env`, `infra/.certs/` and the key-ring folder `infra/.secrets/lti/`: key material, like the master key in `.env`. To remove a test ring, delete `infra/.secrets/lti/keyring.json` by hand.
+- The folder `infra/.secrets/lti/` (mode `0700`) must exist before any `docker compose up`. `npm run stack:up` and the QA runners (`prepare_e2e` in `infra/scripts/lib.sh`) make it. Without it, Docker makes the LTI service mount source as root, and the `e2e` container cannot start (its read-only bind of `infra/.secrets` cannot make the tmpfs mount point).
+- The `e2e` test container sees `infra/.secrets` read only, but never the key ring: an empty tmpfs covers `/repo/infra/.secrets/lti` ([security delta §10](security-delta.md#10-keys-and-secrets), visibility rule). QA writes a test ring only from its host clone (tasks README form (a)). Do not remove the tmpfs line to make the `e2e` container start: make the folder.
 
 The `production` profile refuses to start when a rule of LA-ADR-06 D12 fails. The log line `config_refused {reason}` names the rule.
 
@@ -206,10 +212,16 @@ Procedure:
 
 Compromise of the active key:
 
-1. Make B (step 1) and activate it with `force: true` at once.
+1. Make B (step 1) and activate it with `force: true` at once. If a `next` key exists already, step 1 gives `409 SIGNING_KEY_NEXT_EXISTS`: activate that key with `force: true` instead, or, if you do not trust it, remove it first (next procedure).
 2. Retire A at once: `POST …/signing-keys/A/retire {immediate: true}`.
 3. Tell the inline-key Canvas admins to paste the new JSON.
 4. Record the incident and the audit event ids.
+
+Compromise of the next key (it is published, but it never signed):
+
+1. Remove it at once: `POST …/signing-keys/<next kid>/retire {immediate: true}`. It leaves the key set at once. No platform loses a valid JWT.
+2. Make a new next key when you need one (step 1 of the procedure).
+3. Record the incident and the audit event id.
 
 ### 6.2 Tool account API key
 
@@ -246,7 +258,7 @@ The Cogniate app follows the same steps when it uses the key provider (Should).
 2. Write it to `infra/.secrets/lti-operator-key`.
 3. Revoke the old key with the new key: `POST /operator/v1/operator-keys/<old id>/revoke`.
 
-Key file lost: run `docker compose exec lti-service npm run lti:operator -- init --replace --name <operator>`. It revokes every operator key and makes a new one (one audit event, actor `system:bootstrap`). Write the new key to `infra/.secrets/lti-operator-key`. (`stack:up` uses `init --if-none`, which changes nothing when a key exists.)
+Key file lost: run `docker compose exec lti-service npm run lti:operator -- init --replace --name <operator>`. It revokes every operator key and makes a new one (one audit event, actor `system:bootstrap`). Write the new key to `infra/.secrets/lti-operator-key`. (`npm run seed` uses `init --if-none`, which changes nothing when a key exists. When the file is missing, seed writes nothing and prints this `--replace` command. `npm run stack:up` makes no operator key.)
 
 ### 6.5 Service keys (incident)
 
@@ -288,7 +300,7 @@ The restore accepts only a backup of the **same** compose project: another `COMP
 6. Record the start and end times (the measured RTO) and the backup age (the RPO of this drill).
 7. Remove the drill copy.
 
-CAUTION: Do not use `npm run stack:reset` in a drill: it also deletes the secret files and `infra/.data/backups/` (`infra/scripts/stack-reset.sh:2-4`).
+CAUTION: Do not use `npm run stack:reset` in a drill: it also deletes the seed and key files (`seed.json`, the API key files, `lti-operator-key`) and `infra/.data/backups/` (`infra/scripts/stack-reset.sh:2-4`). It keeps the key-ring folder `infra/.secrets/lti/` (§2).
 
 ## 8. Tenant operations
 

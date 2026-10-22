@@ -2,16 +2,14 @@ import { describe, expect, it } from 'vitest';
 import { loadPublicUrls } from './config.ts';
 
 const valid = {
-  PUBLIC_MOODLE_URL: 'https://moodle.test',
   PUBLIC_LTI_URL: 'https://lti.cogniate.test',
   PUBLIC_APP_URL: 'https://app.cogniate.test',
   PUBLIC_CONTENT_URL: 'https://content.cogniate-content.test',
 };
 
 describe('loadPublicUrls', () => {
-  it('returns the four origins', () => {
+  it('returns the three service origins without a platform URL', () => {
     expect(loadPublicUrls(valid)).toEqual({
-      moodle: 'https://moodle.test',
       lti: 'https://lti.cogniate.test',
       app: 'https://app.cogniate.test',
       content: 'https://content.cogniate-content.test',
@@ -27,11 +25,11 @@ describe('loadPublicUrls', () => {
   });
 
   it.each([
-    ['http', 'http://moodle.test'],
-    ['trailing slash', 'https://moodle.test/'],
-    ['path', 'https://moodle.test/moodle'],
-    ['not a URL', 'moodle.test'],
+    ['http', 'http://lti.test'],
+    ['trailing slash', 'https://lti.test/'],
+    ['path', 'https://lti.test/platform'],
+    ['not a URL', 'lti.test'],
   ])('rejects %s', (_label, value) => {
-    expect(() => loadPublicUrls({ ...valid, PUBLIC_MOODLE_URL: value })).toThrow(/PUBLIC_MOODLE_URL/);
+    expect(() => loadPublicUrls({ ...valid, PUBLIC_LTI_URL: value })).toThrow(/PUBLIC_LTI_URL/);
   });
 });

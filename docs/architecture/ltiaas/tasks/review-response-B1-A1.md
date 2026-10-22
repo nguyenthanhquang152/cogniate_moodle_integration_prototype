@@ -68,3 +68,14 @@ Status: fix round 1 (task LA-B1b, 2026-10-22). Reviewed SHA: `971f1b1`. Reviews:
 | Data sync with A2-lanes | fixed | `epics.md` §3, §4 | LA-E5-23 depends on LA-E2-01 and LA-E2-02, as in A2-lanes (the B4 window still waits for the B3 gate). No other lane, wave or dependency differs. |
 | Consistency script | run, clean | epics, tasks README, all specs | 48 A1 specs: 4–12 active ACs, labels, numbering, lane and size equal §3; 46 A2 specs: lane and wave equal §3; no broken link; no dependency loop and no dependency on a later wave; 92 DAG nodes, all declared; every matrix cell has one lane per wave (the migration row names one new file per task, RQ-5); the "May edit" lists of all specs give no hot file to a lane that does not own it in the task's wave. |
 
+## 6. Before build (task LA-PRE-A1)
+
+G-DEV approved (LA-H1; LA-H10 = frozen candidate, merge mode `wave-end`). One-line edits from `docs/team/ltiaas/deferred.md` (G-BREAKDOWN table) and one Lead clarification; nothing else changed.
+
+| Id | Severity | Decision | Where | Note |
+| --- | --- | --- | --- | --- |
+| A-LAB-19 | MINOR | fixed | `LA-E4-02.md` AC-04 (3) | The P2 step of the LA-ADR-04 D5 migration test is back: a copied row with `send_started_at` and a pending confirmation gets exactly one confirmation send at least 5 s after the first accepted send, inside its original 24 h window. |
+| A-LAB-22 | NIT | fixed | `tasks/README.md` §2 form (g), command and restore columns | At the end of the drill, the drill project **and the backup folder** are removed (the folder holds secrets). |
+| Q-LAB-21 | MINOR | fixed | `tasks/README.md` §2 "Lanes and stacks" and the forms sentence | Each QA test author uses its own clone and project prefix of TEST-STRATEGY §5.2 v1.4 (QA `qa-la-sim-r`, `qa-la-moodle-r`, `qa-la-st-r`; QA-2 `qa2-la-sim-r`; QA-3 `qa3-la-sim-r`; QA-4 `qa4-la-sim-r`), and every form runs only on the author's own project. §5.2 gives QA-E2E no prefix of its own, so the text names the QA SIM and QA Moodle lanes it runs in. |
+| Lead clarification (LA-E0-01 AC-01) | — | fixed | `LA-E0-01.md` AC-01 | The intake diff check excludes `tests/ltiaas/**` (pathspec `':(exclude)tests/ltiaas/**'` and the words "except `tests/ltiaas/**`"), because LA's own test strategy lives there. |
+

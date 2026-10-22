@@ -131,10 +131,15 @@ services:
       STACK_PROFILE: ${ACTIVE_STACK_PROFILE:-default}   # set by infra/scripts/lib.sh from the saved profile
       # Hosts that may resolve to private addresses (security §9). The acceptance profile adds ",qa-platform.test,evil.test"
       # (ACCEPTANCE_ALLOWLIST_EXTRA, set by infra/scripts/lib.sh from the saved stack profile).
-      # M1, acceptance only: the simulator hosts that the LTI service calls (M3 §3.1).
+      # Acceptance only: lib.sh reads the simulator allowlist from tests/sim/hosts.json (LA-E7-03).
       OUTBOUND_PRIVATE_HOST_ALLOWLIST: ${MOODLE_HOST:-moodle.test}${ACCEPTANCE_ALLOWLIST_EXTRA:-}${ACCEPTANCE_LTI_ALLOWLIST_EXTRA:-}
       # M1 (LTI contract §9.13): the simulation profiles are on only with STACK_PROFILE=acceptance AND this value "on".
       LTI_PROVIDER_SIMULATION: ${ACCEPTANCE_LTI_SIMULATION:-}
+      # LA-ADR-06 D3: the operator listener. Loopback in the default profile; the acceptance profile binds 0.0.0.0
+      # (ACCEPTANCE_OPERATOR_HOST, set by infra/scripts/lib.sh) so the e2e container reaches http://lti-service:4110.
+      # Not published on the host, and the proxy has no route to it in any profile.
+      OPERATOR_HOST: ${ACCEPTANCE_OPERATOR_HOST:-127.0.0.1}
+      OPERATOR_PORT: "4110"
       <<: *public-urls
     volumes:
       - ../package.json:/repo/package.json:ro
@@ -144,6 +149,7 @@ services:
       - ./.certs/root.crt:/certs/root.crt:ro
       - ./.logs:/logs
       - ltidb:/data                            # ADR-012: SQLite only on the project-scoped named volume (never a host bind)
+      - ./.secrets/lti:/run/secrets/lti:ro     # LA-ADR-06 D6: key ring keyring.json (LTI_KEYRING_FILE); no file = LTI_MASTER_KEY
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4100/healthz"]
       interval: 10s
@@ -297,18 +303,8 @@ services:
       - ./.certs/root.crt:/certs/root.crt:ro
       - ./.logs:/logs
     networks:
-      default:
-        aliases:
-          - lms-sim.test
-          - developer.blackboard.sim.test
-          - learn-a.blackboard.sim.test
-          - learn-b.blackboard.sim.test
-          - sso.canvas.sim.test
-          - school-a.canvas.sim.test
-          - school-b.canvas.sim.test
-          - canvas.school-a.sim.test
-          - canvas-self.sim.test
-          - api.canvas-self.sim.test
+      # lib.sh adds the manifest aliases with .tmp/compose.sim-hosts.yaml in acceptance only (LA-E7-03).
+      default: {}
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8080/healthz"]
       interval: 10s
@@ -454,7 +450,8 @@ services:
     # A-T1-03, H8: the repo is READ-ONLY. On top of it:
     #  - /repo/.env is the public part of .env only (.tmp/public.env): no secret is visible.
     #  - infra/.certs is .tmp/public-certs: a copy of the PUBLIC certificates only (no ca.key, no stack.key), read-only.
-    #  - infra/.secrets and infra/.logs are read-only.
+    #  - infra/.secrets and infra/.logs are read-only. infra/.secrets/lti (the LTI key ring, master keys) is hidden by an
+    #    empty tmpfs on top (LA-ADR-06 D6): QA writes the ring from its host clone, never from this container.
     #  - writable: only QA's output folders (git-ignored in tests/.gitignore) and the tests/node_modules volume.
     #    infra/scripts/qa-suite.sh and e2e-run.sh create these folders before the run.
     volumes:
@@ -463,6 +460,10 @@ services:
       - ../.tmp/public-certs:/repo/infra/.certs:ro
       - ./.certs/root.crt:/certs/root.crt:ro
       - ./.secrets:/repo/infra/.secrets:ro
+      - type: tmpfs                            # hides infra/.secrets/lti (keyring.json) from the e2e container
+        target: /repo/infra/.secrets/lti
+        tmpfs:
+          size: 65536
       - ./.logs:/repo/infra/.logs:ro
       - ../tests/acceptance/artifacts:/repo/tests/acceptance/artifacts
       - ../tests/e2e/artifacts:/repo/tests/e2e/artifacts

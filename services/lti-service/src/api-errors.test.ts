@@ -17,6 +17,8 @@ const CONTRACT_1_3: Array<[number, string]> = [
   [409, 'BINDING_REF_MISMATCH'],
   [409, 'PLATFORM_CONFLICT'], [400, 'PLATFORM_REJECTED_REQUEST'], [501, 'NOT_IMPLEMENTED'], [502, 'PLATFORM_ERROR'],
   [504, 'PLATFORM_TIMEOUT'], [500, 'INTERNAL_ERROR'],
+  // LA (contract delta §1.3)
+  [401, 'INVALID_OPERATOR_AUTHORIZATION_HEADER'], [409, 'OPERATOR_KEY_IN_USE'],
 ];
 
 describe('LTI service API codes (contract §1.3)', () => {

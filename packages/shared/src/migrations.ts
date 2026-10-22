@@ -17,15 +17,50 @@ export class MigrationChangedError extends Error {
 
 const sha256 = (text: string): string => createHash('sha256').update(text, 'utf8').digest('hex');
 
-/** Run fn in BEGIN IMMEDIATE ... COMMIT (ROLLBACK on error). */
+let savepoints = 0;
+
+function assertSynchronous(result: unknown): void {
+  if (result !== null && (typeof result === 'object' || typeof result === 'function') &&
+    'then' in result && typeof result.then === 'function') {
+    throw new TypeError('transaction() callback must be synchronous; it returned a thenable');
+  }
+}
+
+/**
+ * Run fn in BEGIN IMMEDIATE ... COMMIT (ROLLBACK on error). Inside an open transaction (a store function called in the
+ * transaction of an audited change, LA-ADR-06 D4), fn runs in a SAVEPOINT instead: RELEASE on success; on error,
+ * ROLLBACK TO and RELEASE, then the error goes to the outer transaction. A thenable result is an error (D4 T2).
+ * Do async work before this call: the guard cannot stop work that the callback already started.
+ */
 export function transaction<T>(db: Db, fn: () => T): T {
+  if (db.isTransaction) {
+    const name = `nested_${++savepoints}`;
+    db.exec(`SAVEPOINT ${name}`);
+    try {
+      const result = fn();
+      assertSynchronous(result);
+      db.exec(`RELEASE ${name}`);
+      return result;
+    } catch (err) {
+      try {
+        if (db.isTransaction) {
+          db.exec(`ROLLBACK TO ${name}`);
+          db.exec(`RELEASE ${name}`);
+        }
+      } catch { /* Keep the first error if rollback or release fails (D4 T5). */ }
+      throw err;
+    }
+  }
   db.exec('BEGIN IMMEDIATE');
   try {
     const result = fn();
+    assertSynchronous(result);
     db.exec('COMMIT');
     return result;
   } catch (err) {
-    db.exec('ROLLBACK');
+    try {
+      if (db.isTransaction) db.exec('ROLLBACK');
+    } catch { /* Keep the first error if rollback fails (D4 T5). */ }
     throw err;
   }
 }

@@ -17,7 +17,7 @@ import { LtiServiceError } from './clients/lti-client.ts';
 import type { StorePaths } from './domain/package-store.ts';
 import { prepareStore } from './domain/package-store.ts';
 
-export const TEST_URLS: PublicUrls = {
+export const TEST_URLS: PublicUrls & { moodle: string } = {
   moodle: 'https://moodle.test',
   lti: 'https://lti.cogniate.test',
   app: 'https://app.cogniate.test',

@@ -97,7 +97,7 @@ function seedStandard(c) {
   c.put(path.join(c.outside, 'target.txt'), 'outside data');
   fs.symlinkSync(c.outside, path.join(c.P, 'linked'));
   for (const f of ['infra/.data/lti-service/lti.db', 'infra/.data/backups/b', 'infra/.data/build-queue/requests/r', 'infra/.data/fixtures/f.zip',
-    'infra/.secrets/seed.json', 'infra/.secrets/app/k', 'infra/.logs/x.jsonl', 'infra/.certs/root.crt']) c.put(c.at(f));
+    'infra/.secrets/seed.json', 'infra/.secrets/lti-operator-key', 'infra/.secrets/app/k', 'infra/.logs/x.jsonl', 'infra/.certs/root.crt']) c.put(c.at(f));
 }
 
 describe('stack:reset keeps a content parent of the host user, empty and 0700 (ADR-012 §15)', () => {
@@ -117,7 +117,7 @@ describe('stack:reset keeps a content parent of the host user, empty and 0700 (A
     assert.equal(Number(after.mode & 0o777n), 0o700, 'P has mode 0700');
     assert.deepEqual(fs.readdirSync(c.P), [], 'P has no entry');
     assert.deepEqual(snapshot(c.outside), outsideBefore, 'the link target is unchanged');
-    for (const f of ['infra/.data/lti-service', 'infra/.data/backups', 'infra/.data/build-queue', 'infra/.secrets/seed.json', 'infra/.secrets/app', 'infra/.logs/x.jsonl']) {
+    for (const f of ['infra/.data/lti-service', 'infra/.data/backups', 'infra/.data/build-queue', 'infra/.secrets/seed.json', 'infra/.secrets/lti-operator-key', 'infra/.secrets/app', 'infra/.logs/x.jsonl']) {
       assert.equal(lstatOrNull(c.at(f)), null, `${f} is removed`);
     }
     for (const [f, hash] of Object.entries(keep)) assert.equal(sha(c.at(f)), hash, `${f} is unchanged`);

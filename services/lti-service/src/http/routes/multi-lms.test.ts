@@ -1,7 +1,8 @@
 // M1 LTI service behaviour (contract §9, ADR-011): profiles, platforms, deployments, binding refs, login and launch
 // changes, claim allowlist, generations and the providers API. Canvas profile DATA is owned by the Canvas
-// implementer; these engine tests use a test copy of the two Canvas rows they need (vi.mock below).
+// implementer; these engine tests select only the two Canvas rows they need (vi.mock below).
 import { createLogger } from '@cogniate/shared';
+import type * as Kernel from '@cogniate/channel-kernel';
 import { decodeJwt } from 'jose';
 import { describe, expect, it, vi } from 'vitest';
 import type { Harness } from '../../testkit.ts';
@@ -13,18 +14,26 @@ import { ensureSharedPlatform } from '../../cli/shared-platform.ts';
 import type { ProtocolErrorCode } from '../../lti/codes.ts';
 import { COOKIE_HELP, protocolAction } from '../../lti/codes.ts';
 
-vi.mock('../../profiles/canvas.ts', () => {
-  const flags = { deepLinkingResponseSub: false, clientAssertionAudArray: false, minimizeClaims: true, serviceOriginCheck: true };
-  const base = { lms: 'canvas', sharing: 'exclusive', siteUrlOn: 'platform', serviceUrl: true, productFamily: 'canvas', flags, sources: ['test'] };
+vi.mock('@cogniate/channel-kernel', async (importOriginal) => {
+  const kernel = await importOriginal<typeof Kernel>();
   return {
-    CANVAS_PROFILES: [
-      { ...base, id: 'canvas-self-hosted', label: 'Canvas, self-hosted (test copy)', simulation: false, issuer: '{siteUrl}',
-        authenticationEndpoint: '{siteUrl}/api/lti/authorize_redirect', accesstokenEndpoint: '{serviceUrl}/login/oauth2/token',
-        jwksUrl: '{siteUrl}/api/lti/security/jwks', refusedHostSuffixes: ['instructure.com', 'canvaslms.com'] },
-      { ...base, id: 'canvas-sim-cloud', label: 'Canvas cloud (test copy)', simulation: true, issuer: 'https://canvas.sim.test',
-        authenticationEndpoint: 'https://sso.canvas.sim.test/api/lti/authorize_redirect', accesstokenEndpoint: '{serviceUrl}/login/oauth2/token',
-        jwksUrl: 'https://sso.canvas.sim.test/api/lti/security/jwks' },
-    ],
+    ...kernel,
+    // Keep the original two-profile engine fixture while the loader also checks manifest references.
+    loadChannelFolders: async (...args: Parameters<typeof kernel.loadChannelFolders>) => {
+      const entries = await kernel.loadChannelFolders(...args);
+      return entries.map((entry) => {
+        const manifest = entry.manifest as Kernel.ChannelManifest;
+        if (manifest.id !== 'canvas') return entry;
+        const ids = ['canvas-self-hosted', 'canvas-sim-cloud'];
+        return {
+          ...entry,
+          manifest: { ...manifest, registration: manifest.registration.map((method) => ({
+            ...method, profiles: ids, defaultProfile: ids[0],
+          })) },
+          ltiProfiles: entry.ltiProfiles?.filter((value) => ids.includes((value as { id: string }).id)),
+        };
+      });
+    },
   };
 });
 

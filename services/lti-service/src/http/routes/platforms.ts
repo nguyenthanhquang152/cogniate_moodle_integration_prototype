@@ -1,6 +1,7 @@
-// Platforms admin API (contract §3.9, Bearer) with the M1 provider profiles (§9.3 to §9.6, §9.15).
+// Platforms admin API (contract §3.9, Bearer) with the M1 provider profiles (§9.3 to §9.6, §9.15). Every change writes
+// one audit event (LA-ADR-06 D4, contract delta §5): ok in the change transaction, or refused after a 4xx.
 import { canonicalOrigin } from '@cogniate/shared';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { ApiError } from '../../api-errors.ts';
 import { BINDING_REF, DEPLOYMENT_ID, checkPlatformUrls, checkProfileSiteUrl, checkRotation } from '../../lti/platform-rules.ts';
@@ -8,12 +9,15 @@ import type { ProviderProfile } from '../../profiles/index.ts';
 import {
   fillTemplate, findProfile, isSharedProfile, isStandardProfile, listProfiles, profileDefinition, profileEndpoints, reservedIssuerOrigins, siteRulesFor,
 } from '../../profiles/index.ts';
+import type { AuditTarget, AuditedRequest } from '../../store/audit.ts';
+import { withAudit } from '../../store/audit.ts';
 import type { DeploymentRecord, NewPlatform, Platform, RefCondition } from '../../store/platforms.ts';
 import {
   BindingRefMismatchError, DeploymentExistsError, PlatformExistsError, SharedPlatformExistsError, SharedPlatformInUseError, UnknownDeploymentError,
   addDeployment, changeDeployment, createPlatform, deletePlatform, findSharedPlatform, getPlatform, listPlatforms, siteOriginOf, updatePlatform,
 } from '../../store/platforms.ts';
 import { activePublicKeyPem } from '../../store/tool-keys.ts';
+import type { AuthResult } from '../auth.ts';
 import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
 
@@ -72,6 +76,15 @@ const bad = (field: string) => new ApiError('INVALID_REQUEST', `Invalid field: $
 
 export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext): void {
   const ownOrigins = [ctx.urls.lti, ctx.urls.app, ctx.urls.content];
+
+  /**
+   * The audit frame of an authenticated tenant change. Authentication supplies the actor and its account.
+   * Client address: the socket address until LA-E5-03 (LA-ADR-06 D1).
+   */
+  const audited = <R>(req: FastifyRequest, caller: AuthResult, action: string, target: AuditTarget, details: Record<string, unknown> | null,
+    body: (audit: AuditedRequest) => Promise<R> | R) => withAudit(ctx.db, ctx.now, {
+    actor: caller.actor, toolAccountId: caller.account.id, traceId: req.traceId, clientIp: req.ip, action, target, details,
+  }, body);
 
   const deploymentView = (p: Platform, d: DeploymentRecord) => ({
     deploymentId: d.deploymentId, siteUrl: siteOriginOf(p, d), active: d.active, bindingGeneration: d.bindingGeneration, bindingRef: d.bindingRef,
@@ -157,30 +170,34 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
   });
 
   app.post('/api/platforms', async (req, reply) => {
-    const { account } = ctx.auth(req, ['bearer']);
-    const parsed = PlatformCreateBase.safeParse(req.body ?? {});
-    // Keep the §3.9 field error of a standard body (for example a missing url).
-    if (!parsed.success) {
-      const raw = (req.body ?? {}) as { profile?: unknown };
-      if (raw.profile === undefined || raw.profile === 'standard') {
-        const std = StandardCreate.safeParse(req.body ?? {});
-        if (!std.success) throw invalid(std.error);
+    const caller = ctx.auth(req, ['bearer']);
+    const { account } = caller;
+    return audited(req, caller, 'platform.create', { type: 'platform', id: null }, null, (audit) => {
+      const parsed = PlatformCreateBase.safeParse(req.body ?? {});
+      // Keep the §3.9 field error of a standard body (for example a missing url).
+      if (!parsed.success) {
+        const raw = (req.body ?? {}) as { profile?: unknown };
+        if (raw.profile === undefined || raw.profile === 'standard') {
+          const std = StandardCreate.safeParse(req.body ?? {});
+          if (!std.success) throw invalid(std.error);
+        }
+        throw invalid(parsed.error);
       }
-      throw invalid(parsed.error);
-    }
-    const b = parsed.data;
-    const profile = findProfile(b.profile ?? 'standard', ctx.profiles);
-    if (!profile) throw new ApiError('UNKNOWN_PROFILE', `Unknown provider profile: ${b.profile}.`);
-    const plan = isStandardProfile(profile) ? planStandard(b) : planProvider(b, profile);
-    try {
-      const p = createPlatform(ctx.db, account.id, plan);
-      if (!isStandardProfile(profile)) ctx.logger.info('platform_created', { trace_id: req.traceId, platform_id: p.id, profile: p.profile });
-      return reply.code(201).send(view(p));
-    } catch (err) {
-      if (err instanceof SharedPlatformExistsError) throw new ApiError('SHARED_PLATFORM_EXISTS', `This account already has a ${profile.id} platform.`);
-      if (err instanceof PlatformExistsError) throw new ApiError('PLATFORM_ALREADY_EXISTS', 'A platform with this issuer and client id exists.');
-      throw err;
-    }
+      const b = parsed.data;
+      const profile = findProfile(b.profile ?? 'standard', ctx.profiles);
+      if (!profile) throw new ApiError('UNKNOWN_PROFILE', `Unknown provider profile: ${b.profile}.`);
+      const plan = isStandardProfile(profile) ? planStandard(b) : planProvider(b, profile);
+      try {
+        const p = audit.change(() => createPlatform(ctx.db, account.id, plan),
+          (created) => ({ target: { type: 'platform', id: created.id }, details: { profile: created.profile, active: created.active } }));
+        if (!isStandardProfile(profile)) ctx.logger.info('platform_created', { trace_id: req.traceId, platform_id: p.id, profile: p.profile });
+        return reply.code(201).send(view(p));
+      } catch (err) {
+        if (err instanceof SharedPlatformExistsError) throw new ApiError('SHARED_PLATFORM_EXISTS', `This account already has a ${profile.id} platform.`);
+        if (err instanceof PlatformExistsError) throw new ApiError('PLATFORM_ALREADY_EXISTS', 'A platform with this issuer and client id exists.');
+        throw err;
+      }
+    });
   });
 
   app.get<{ Params: { id: string } }>('/api/platforms/:id', async (req) => {
@@ -191,113 +208,136 @@ export function registerPlatformRoutes(app: FastifyInstance, ctx: RouteContext):
   });
 
   app.delete<{ Params: { id: string }; Querystring: { ifBindingRef?: string } }>('/api/platforms/:id', async (req, reply) => {
-    const { account } = ctx.auth(req, ['bearer']);
-    const current = getPlatform(ctx.db, account.id, req.params.id);
-    if (!current) throw new ApiError('UNREGISTERED_PLATFORM');
-    const condition: RefCondition = typeof req.query.ifBindingRef === 'string' ? req.query.ifBindingRef : undefined;
-    try {
-      if (!deletePlatform(ctx.db, account.id, req.params.id, { ifBindingRef: condition, shared: profileDefinition(current.profile)?.sharing === 'shared' })) {
-        throw new ApiError('UNREGISTERED_PLATFORM');
+    const caller = ctx.auth(req, ['bearer']);
+    const { account } = caller;
+    return audited(req, caller, 'platform.delete', { type: 'platform', id: req.params.id }, null, (audit) => {
+      const current = getPlatform(ctx.db, account.id, req.params.id);
+      if (!current) throw new ApiError('UNREGISTERED_PLATFORM');
+      const condition: RefCondition = typeof req.query.ifBindingRef === 'string' ? req.query.ifBindingRef : undefined;
+      try {
+        audit.change(() => {
+          if (!deletePlatform(ctx.db, account.id, req.params.id, { ifBindingRef: condition, shared: profileDefinition(current.profile)?.sharing === 'shared' })) {
+            throw new ApiError('UNREGISTERED_PLATFORM');
+          }
+        }, () => ({ details: { profile: current.profile } }));
+      } catch (err) {
+        if (err instanceof BindingRefMismatchError) throw new ApiError('BINDING_REF_MISMATCH');
+        if (err instanceof SharedPlatformInUseError) throw new ApiError('SHARED_PLATFORM_IN_USE');
+        throw err;
       }
-    } catch (err) {
-      if (err instanceof BindingRefMismatchError) throw new ApiError('BINDING_REF_MISMATCH');
-      if (err instanceof SharedPlatformInUseError) throw new ApiError('SHARED_PLATFORM_IN_USE');
-      throw err;
-    }
-    ctx.logger.info('platform_deleted', { trace_id: req.traceId, platform_id: req.params.id });
-    return reply.code(204).send();
+      ctx.logger.info('platform_deleted', { trace_id: req.traceId, platform_id: req.params.id });
+      return reply.code(204).send();
+    });
   });
 
   app.patch<{ Params: { id: string } }>('/api/platforms/:id', async (req) => {
-    const { account } = ctx.auth(req, ['bearer']);
-    const parsed = PlatformPatch.safeParse(req.body ?? {});
-    if (!parsed.success) throw invalid(parsed.error);
-    const current = getPlatform(ctx.db, account.id, req.params.id);
-    if (!current) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
-    if (parsed.data.deploymentIds !== undefined && profileDefinition(current.profile)?.sharing === 'shared') {
-      throw new ApiError('SHARED_PLATFORM_DEPLOYMENTS');
-    }
-    checkRotation(parsed.data);
-    const patch = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined)) as Parameters<typeof updatePlatform>[3];
-    let p: Platform | null;
-    try {
-      p = updatePlatform(ctx.db, account.id, req.params.id, patch);
-    } catch (err) {
-      if (err instanceof BindingRefMismatchError) throw new ApiError('BINDING_REF_MISMATCH');
-      throw err;
-    }
-    if (!p) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
-    return view(p);
+    const caller = ctx.auth(req, ['bearer']);
+    const { account } = caller;
+    return audited(req, caller, 'platform.update', { type: 'platform', id: req.params.id }, null, (audit) => {
+      const parsed = PlatformPatch.safeParse(req.body ?? {});
+      if (!parsed.success) throw invalid(parsed.error);
+      const current = getPlatform(ctx.db, account.id, req.params.id);
+      if (!current) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
+      if (parsed.data.deploymentIds !== undefined && profileDefinition(current.profile)?.sharing === 'shared') {
+        throw new ApiError('SHARED_PLATFORM_DEPLOYMENTS');
+      }
+      checkRotation(parsed.data);
+      const patch = Object.fromEntries(Object.entries(parsed.data).filter(([, v]) => v !== undefined)) as Parameters<typeof updatePlatform>[3];
+      let p: Platform;
+      try {
+        p = audit.change(() => {
+          const updated = updatePlatform(ctx.db, account.id, req.params.id, patch);
+          if (!updated) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
+          return updated;
+        }, () => ({ details: { fields: Object.keys(patch), ...(patch.active !== undefined ? { active: patch.active } : {}) } }));
+      } catch (err) {
+        if (err instanceof BindingRefMismatchError) throw new ApiError('BINDING_REF_MISMATCH');
+        throw err;
+      }
+      return view(p);
+    });
   });
 
   // ---------------------------------------------------------------- deployments (§9.5, §9.6)
   app.post<{ Params: { id: string } }>('/api/platforms/:id/deployments', async (req, reply) => {
-    const { account } = ctx.auth(req, ['bearer']);
-    const parsed = DeploymentCreate.safeParse(req.body ?? {});
-    if (!parsed.success) throw invalid(parsed.error);
-    const b = parsed.data;
-    const platform = getPlatform(ctx.db, account.id, req.params.id);
-    if (!platform) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
-    const def = profileDefinition(platform.profile);
-    const active = b.active ?? true;
-    let siteUrl: string | null = null;
-    let generation = 0;
-    if (!def || isStandardProfile(def)) {
-      if (b.siteUrl !== undefined) throw bad('siteUrl');
-    } else if (isSharedProfile(def)) {
-      if (b.siteUrl === undefined) throw bad('siteUrl');
-      siteUrl = checkProfileSiteUrl('siteUrl', b.siteUrl, siteRulesFor(def, ownOrigins, ctx.profiles));
-      generation = active ? 1 : 0;
-    } else if (b.siteUrl !== undefined) {
-      // Canvas profiles: absent, or equal to the platform site URL.
-      const c = canonicalOrigin(b.siteUrl);
-      if (!c.ok || c.origin !== platform.siteUrl) throw new ApiError('INVALID_SITE_URL', 'Invalid field: siteUrl must be the platform site URL.', { details: { rule: 1, field: 'siteUrl' } });
-    }
-    let d: DeploymentRecord | null;
-    try {
-      d = addDeployment(ctx.db, account.id, platform.id, { deploymentId: b.deploymentId, siteUrl, active, bindingGeneration: generation, bindingRef: b.bindingRef ?? null });
-    } catch (err) {
-      if (err instanceof DeploymentExistsError) throw new ApiError('DEPLOYMENT_ALREADY_EXISTS');
-      throw err;
-    }
-    if (!d) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
-    ctx.logger.info('deployment_added', { trace_id: req.traceId, platform_id: platform.id, deployment_id: d.deploymentId });
-    return reply.code(201).send(deploymentView(getPlatform(ctx.db, account.id, platform.id)!, d));
+    const caller = ctx.auth(req, ['bearer']);
+    const { account } = caller;
+    return audited(req, caller, 'deployment.create', { type: 'deployment', id: null }, { platformId: req.params.id }, (audit) => {
+      const parsed = DeploymentCreate.safeParse(req.body ?? {});
+      if (!parsed.success) throw invalid(parsed.error);
+      const b = parsed.data;
+      const platform = getPlatform(ctx.db, account.id, req.params.id);
+      if (!platform) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
+      const def = profileDefinition(platform.profile);
+      const active = b.active ?? true;
+      let siteUrl: string | null = null;
+      let generation = 0;
+      if (!def || isStandardProfile(def)) {
+        if (b.siteUrl !== undefined) throw bad('siteUrl');
+      } else if (isSharedProfile(def)) {
+        if (b.siteUrl === undefined) throw bad('siteUrl');
+        siteUrl = checkProfileSiteUrl('siteUrl', b.siteUrl, siteRulesFor(def, ownOrigins, ctx.profiles));
+        generation = active ? 1 : 0;
+      } else if (b.siteUrl !== undefined) {
+        // Canvas profiles: absent, or equal to the platform site URL.
+        const c = canonicalOrigin(b.siteUrl);
+        if (!c.ok || c.origin !== platform.siteUrl) throw new ApiError('INVALID_SITE_URL', 'Invalid field: siteUrl must be the platform site URL.', { details: { rule: 1, field: 'siteUrl' } });
+      }
+      let d: DeploymentRecord;
+      try {
+        d = audit.change(() => {
+          const added = addDeployment(ctx.db, account.id, platform.id, { deploymentId: b.deploymentId, siteUrl, active, bindingGeneration: generation, bindingRef: b.bindingRef ?? null });
+          if (!added) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
+          return added;
+        }, (added) => ({ target: { type: 'deployment', id: added.deploymentId }, details: { platformId: platform.id, active: added.active } }));
+      } catch (err) {
+        if (err instanceof DeploymentExistsError) throw new ApiError('DEPLOYMENT_ALREADY_EXISTS');
+        throw err;
+      }
+      ctx.logger.info('deployment_added', { trace_id: req.traceId, platform_id: platform.id, deployment_id: d.deploymentId });
+      return reply.code(201).send(deploymentView(getPlatform(ctx.db, account.id, platform.id)!, d));
+    });
   });
 
   app.patch<{ Params: { id: string; deploymentId: string } }>('/api/platforms/:id/deployments/:deploymentId', async (req) => {
-    const { account } = ctx.auth(req, ['bearer']);
-    const parsed = DeploymentPatch.safeParse(req.body ?? {});
-    if (!parsed.success) throw invalid(parsed.error);
-    const b = parsed.data;
-    if (b.active === undefined && b.bindingRef === undefined) throw new ApiError('INVALID_REQUEST', 'Invalid field: active (send active or bindingRef).');
-    checkRotation(b);
-    let d: DeploymentRecord | null;
-    try {
-      d = changeDeployment(ctx.db, account.id, req.params.id, req.params.deploymentId, b.ifBindingRef, (cur, platform) => {
-        const def = profileDefinition(platform.profile);
-        const shared = def !== null && isSharedProfile(def);
-        const newRef = b.bindingRef !== undefined && b.bindingRef !== cur.bindingRef;
-        // A new binding of a shared deployment: an activation, or an adoption of an active row with a new ref.
-        const newBinding = shared && b.active === true && (!cur.active || newRef);
-        if (b.siteUrl !== undefined && !newBinding) throw bad('siteUrl');
-        const next = { active: cur.active, siteUrl: cur.siteUrl, bindingGeneration: cur.bindingGeneration, bindingRef: b.bindingRef ?? cur.bindingRef };
-        if (b.active === false) next.active = false;
-        else if (newBinding) {
-          next.active = true;
-          next.bindingGeneration = cur.bindingGeneration + 1;
-          if (b.siteUrl !== undefined) next.siteUrl = checkProfileSiteUrl('siteUrl', b.siteUrl, siteRulesFor(def, ownOrigins, ctx.profiles));
-        } else if (b.active === true && !shared) next.active = true;
-        return next;
-      });
-    } catch (err) {
-      if (err instanceof UnknownDeploymentError) throw new ApiError('UNKNOWN_DEPLOYMENT');
-      if (err instanceof BindingRefMismatchError) throw new ApiError('BINDING_REF_MISMATCH');
-      throw err;
-    }
-    if (!d) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
-    ctx.logger.info('deployment_updated', { trace_id: req.traceId, platform_id: req.params.id, deployment_id: d.deploymentId, active: d.active, binding_generation: d.bindingGeneration });
-    return deploymentView(getPlatform(ctx.db, account.id, req.params.id)!, d);
+    const caller = ctx.auth(req, ['bearer']);
+    const { account } = caller;
+    return audited(req, caller, 'deployment.update', { type: 'deployment', id: req.params.deploymentId }, { platformId: req.params.id }, (audit) => {
+      const parsed = DeploymentPatch.safeParse(req.body ?? {});
+      if (!parsed.success) throw invalid(parsed.error);
+      const b = parsed.data;
+      if (b.active === undefined && b.bindingRef === undefined) throw new ApiError('INVALID_REQUEST', 'Invalid field: active (send active or bindingRef).');
+      checkRotation(b);
+      let d: DeploymentRecord;
+      try {
+        d = audit.change(() => {
+          const changed = changeDeployment(ctx.db, account.id, req.params.id, req.params.deploymentId, b.ifBindingRef, (cur, platform) => {
+            const def = profileDefinition(platform.profile);
+            const shared = def !== null && isSharedProfile(def);
+            const newRef = b.bindingRef !== undefined && b.bindingRef !== cur.bindingRef;
+            // A new binding of a shared deployment: an activation, or an adoption of an active row with a new ref.
+            const newBinding = shared && b.active === true && (!cur.active || newRef);
+            if (b.siteUrl !== undefined && !newBinding) throw bad('siteUrl');
+            const next = { active: cur.active, siteUrl: cur.siteUrl, bindingGeneration: cur.bindingGeneration, bindingRef: b.bindingRef ?? cur.bindingRef };
+            if (b.active === false) next.active = false;
+            else if (newBinding) {
+              next.active = true;
+              next.bindingGeneration = cur.bindingGeneration + 1;
+              if (b.siteUrl !== undefined) next.siteUrl = checkProfileSiteUrl('siteUrl', b.siteUrl, siteRulesFor(def, ownOrigins, ctx.profiles));
+            } else if (b.active === true && !shared) next.active = true;
+            return next;
+          });
+          if (!changed) throw new ApiError('UNREGISTERED_PLATFORM', 'Unknown platform id.');
+          return changed;
+        }, (changed) => ({ details: { platformId: req.params.id, fields: Object.keys(b).filter((k) => b[k as keyof typeof b] !== undefined), active: changed.active } }));
+      } catch (err) {
+        if (err instanceof UnknownDeploymentError) throw new ApiError('UNKNOWN_DEPLOYMENT');
+        if (err instanceof BindingRefMismatchError) throw new ApiError('BINDING_REF_MISMATCH');
+        throw err;
+      }
+      ctx.logger.info('deployment_updated', { trace_id: req.traceId, platform_id: req.params.id, deployment_id: d.deploymentId, active: d.active, binding_generation: d.bindingGeneration });
+      return deploymentView(getPlatform(ctx.db, account.id, req.params.id)!, d);
+    });
   });
 
   // ---------------------------------------------------------------- providers (§9.3)
