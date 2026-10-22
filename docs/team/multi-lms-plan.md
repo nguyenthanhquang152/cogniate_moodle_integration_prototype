@@ -13,7 +13,21 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 02:04 UTC
+### Current checkpoint — 2026-10-22, 02:43 UTC
+
+**C3 diagnostic PASS is accepted; the full validation is running.** Migration passed all 12 rows. Storage passed all 70 rows, with no failed or not-applicable row. The six repaired or dependent rows executed their own commands. The 11 recovery checks passed in order. The Lead checked the raw journal, pause, lock, import and restore records. The diagnostic gives zero full acceptance credit.
+
+The runner ran from 02:03:14 to 02:28:42 UTC (25 minutes 28 seconds). Storage took about 21 minutes 21 seconds. Both lane teardowns passed. The strict final comparison and secret scan found no problems. All seven protected volume records and the two anonymous volumes remain unchanged. The diagnostic window returned at 02:32 UTC. Evidence: Common QA root `/Users/quangnguyen/cogniate-qa-runs/qa-common-c3-20261022T0154Z`; index v2 SHA-256 `1418163cc528b276ddfba8dfd0c30b06e5e5a51ec70d9e454c8e773070bdced7`. Of 2,037 entries, 2,036 matched current files; the disclosure file preserves its exact indexed prefix and adds D-3/D-4. The Lead read that append. D-4 records a temporary 0644 copy of a public committed report, since removed. Reports are committed at `93479ce24b91761618779dcf68d4349dc5421cf7`.
+
+**The full run started at 02:40:53 UTC (09:40 Vietnam time).** Grant `msg_686df6631c9d` gives Common QA `ctx_2e9642c8e4be` the exclusive Docker window through 07:00 UTC. It runs two complete 488-row rounds on frozen C3 `c4c6d045b3a132f72bf059d77367d278de9222fa`, then all 12 legacy groups. Lanes remain `qa-multi-r1` and `qa-multi-r1-st`, port 8443, subnet 172.29.0.0/16. W1–W3 passed. W3 SHA-256 `4c479999170a5ffa2fde75f5dfae4e80da874f882e83f9138cd7ec66caaa1e40` binds live time 02:40:50.370Z, bridge `243fcebe290a`, zero containers, nine volumes and unchanged protected records.
+
+A proposed separate source clone crossed the initial grant. The worker had already started from the original clean C3 source, as granted. The Lead chose to continue that single run (`msg_1b0b8d4849c7`, reply `msg_0f5a136ddd36`). The full runner uses a fresh accounting folder for each invocation. Prior diagnostic folders cannot affect its round assertions. Reporting must bind each of the five phase paths to the new accounting file, matching identity, timestamp and result content. It must not use the report helper's global phase ordering. The separate `full-src/source` clone remains unused. No test, tool or acceptance criterion changed.
+
+Canvas QA remains host-only. It will judge the 233 Canvas rows and the complete 488-row set after each round, while the next round runs. Fresh M2 and T7 follow the full and legacy gate. All failures remain with the same Claude fixer `ctx_898acbaef3a6`. Its infrastructure README clarification is committed as WIP at `5a5453ccc7c51f6a48557d74068120019c495b5f`; independent documentation checks must still close A-SI-05/B-SI-09. This changes no executable path in C3.
+
+The conditional completion estimate remains 13:30–14:30 Vietnam time, assuming no new failures. Final conformance, guide updates, independent Docs QA and two reviews remain required. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 02:04 UTC
 
 **The R4 host repair gate is accepted.** The same Claude Code Opus 5.5 xhigh fixer remains `task_d018895ca985` / `ctx_898acbaef3a6`. No replacement repair session was started. Source snapshot `cd731397fa2a5ee660b1b9575f942caec64c2f21` has tests tree `17330479829a6b65e560afc297e2bee6777459dd`. It changes only `tests/host/storage-rows.mjs` and its self-test. Product and build paths still match `9f8ac625443931242edd8da301c3d4f0d3e34290`.
 
