@@ -1,0 +1,37 @@
+{
+  "id": "LA-IC-18",
+  "approval": "docs/reviews/LA-E1-11/qa.md",
+  "ld9": {
+    "epic": "E1 (LA-E1-11, lane P)",
+    "design": [
+      "docs/architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn",
+      "docs/architecture/ltiaas/build-decisions-A1.md (BD-A1-50)",
+      "docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md#d5-app-channel-contract-and-portal-slot-contract"
+    ],
+    "goldenFields": [],
+    "testChanges": [],
+    "frozenTestsTouched": [],
+    "scanChecked": [
+      "tests/e2e/M2/00-blackboard-not-ready.m2.ts:10-49",
+      "tests/e2e/M2/01-cards.m2.ts:19-48",
+      "tests/e2e/M2/02-canvas-wizard.m2.ts:39-145",
+      "tests/e2e/M2/03-blackboard-wizard.m2.ts:37-115",
+      "tests/e2e/M2/04-detail.m2.ts:17-102",
+      "tests/e2e/M2/05-publish-results.m2.ts:10-32",
+      "tests/e2e/M2/06-keyboard-axe.m2.ts:40-114",
+      "tests/e2e/M2/07-sim-scenario.m2.ts:17-29,66-106",
+      "tests/e2e/M2/08-routes.m2.ts:16-115",
+      "tests/e2e/M2/lib/m2.ts:14-34,115-124",
+      "tests/e2e/1-scenario-a.spec.ts:58-75,188-209",
+      "tests/e2e/2-scenario-b.spec.ts:62-78,142-161",
+      "tests/e2e/lib/portal.ts:22-38,109-125",
+      "tests/acceptance/T6/1-integrations.spec.ts:15-88",
+      "tests/acceptance/T6/2-connect.spec.ts:35-100",
+      "tests/acceptance/T6/3-courses.spec.ts:125-146",
+      "tests/acceptance/T6/5-xss-a11y.spec.ts:26-114",
+      "tests/ltiaas/golden/capture.golden.ts:80-176,178-261"
+    ],
+    "scanResult": "0 golden changes and 0 frozen-test changes: (a) PublishDialog names lmsNames[result.lms] / lmsNames[connection.lms] ('Published to Canvas', 'the Canvas content picker'), which is unchanged ('Moodle') for Moodle in U1/U2 (tests/e2e/1-scenario-a.spec.ts, 2-scenario-b.spec.ts, tests/acceptance/T6/3-courses.spec.ts, 5-xss-a11y.spec.ts), while M2 Canvas/Blackboard publish tests (tests/e2e/M2/04-detail.m2.ts:67-92, 05-publish-results.m2.ts:10-32, 07-sim-scenario.m2.ts:17-29) inspect the pre-publish form or wait for the dialog to close on Publish without rendering the course-shell result view; (b) Connect.tsx passes manifest.card.color to IntegrationLogo (Blackboard blue on both Integrations and Connect pages), and no U1/U2 or M2 test asserts the Connect-page logo colour class; (c) IntegrationLogo adds title={name} on the aria-hidden span, and no U1/U2 or M2 selector or assertion checks the logo title attribute; golden capture G1..G4 captures API DTOs, simulator records, and tool pages (/tool/picker/*, /play/*), not portal UI components."
+  },
+  "changes": []
+}

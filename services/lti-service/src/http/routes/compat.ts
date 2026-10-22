@@ -7,6 +7,7 @@ import { ApiError } from '../../api-errors.ts';
 import { CLAIM } from '../../lti/checks.ts';
 import { deepLinkingForm } from '../../lti/deep-linking.ts';
 import type { LineItemInput } from '../../platform/ags.ts';
+import { urlKeyedMembers } from '../../platform/ags.ts';
 import type { RouteContext } from '../context.ts';
 import { checkServiceKeyWriteScope } from '../auth.ts';
 import { agsContext, claimObject, platformOf, signedDeepLink } from '../service-context.ts';
@@ -26,7 +27,7 @@ const MembershipsQuerySchema = z.object({
 const parseItem = (body: unknown): LineItemInput => {
   const parsed = LineItemBody.safeParse(body);
   if (!parsed.success) throw invalid(parsed.error);
-  return parsed.data;
+  return { ...parsed.data, ...urlKeyedMembers(body as Record<string, unknown>) };
 };
 type ItemParams = { Params: { lineItemId: string } };
 

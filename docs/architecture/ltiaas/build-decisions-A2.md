@@ -342,3 +342,25 @@ Changes for the Lead to route:
 - **S1 (LA-E5-17):** the limiter observer, the commit-time audit counter, and the series and label rules; your process grant for the wiring files.
 - **L (RQ-1, one commit):** the two injected observers in the token client and the JWKS cache.
 - **Owner of the platform list route** (suggested: S2 in the LA-E5-15 fix round, reading L's existing store function).
+
+## 28. Round 27: JWKS observer attribution (LA-E5-17 RQ-1, lane L) and the LA-E5-11 AC-06 text, 2026-10-23
+
+Routed in dispatch `ctx_4f9a4b12cd5a`. Decisions sent to the Lead first (`msg_8b37c4565095`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-54 | (Provisional, L's proposal.) `verify(token, jwksUrl, traceId, platformId?)`; the third constructor argument `onJwksFetch` (no-op default); one event attributed to the platform that **starts** the fetch; a cache hit and a caller with no `platformId` emit nothing; `fetchedAt` = the completion time. Open point: platforms that share one JWKS URL share one cache entry. | **Changed.** Failures: one event per verify **call that waited** on a fetch (the starter or a single-flight joiner), with its own `platformId` (same signature). Cache age: **not from events**. A read-only getter `lastSuccessAt(jwksUrl)` on the cache, and at scrape time the age is reported for every stored active platform whose stored URL has an entry. | operability §4.2 "Sources"; LA-E5-17 design notes | A shared URL is the normal case: every Canvas cloud platform uses one fixed JWKS URL. Starter-only attribution would leave most of them without an age series, so the 24 h alert would miss them. Per-waiter events count each launch that hit a failure. |
+| BD-A2-55 | LA-E5-11 Reviewer-B2: the AC-LA-E5-11-06 text ("above 4 KB is refused") is stale against BD-A2-45. | **The text changes; the code does not.** `app/audit.ts:71-75` already stores `{"truncated": true}` above 4 KB after `redact()`. The AC now says so, and that the write succeeds. | LA-E5-11 AC-06 | — |
+
+Changes for the Lead to route: **L (LA-E5-17 RQ-1):** per-waiter events and the `lastSuccessAt` getter. **S1 (LA-E5-17):** the scrape-time age join over stored platforms. No code change for LA-E5-11.
+
+## 29. Round 28: the idempotency target and non-final answers (LA-E5-16 review A, lane S1), 2026-10-23
+
+Reviewer-A A-LA-E5-16-01 (BLOCKER) and -02 (MAJOR), routed in dispatch `ctx_651cae9b6f98`. Decisions sent to the Lead first (`msg_f1ab529ed702`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-56 | A-LA-E5-16-01: on `POST /api/lineitems` the fingerprint has no target (the route takes it from the credential), so the same key and body from two courses replay the first course's line item. The replay also runs before the binding checks. | **The fingerprint carries the resolved target**, by scheme: Bearer = the decoded path parameters; LTIK-AUTH-V2 and SERVICE-AUTH-V1 = `{ platformId, deploymentId, contextId, lineItemsUrl }`. **The lookup runs after the read-only target checks** (account status, platform exists and is active, deployment active, binding generation). A failed check gives its normal refusal, never stored or replayed. | LA-ADR-06 D9 "Build rules"; contract delta §4.9; LA-E5-16 design notes | This makes the BD-A2-51 promise true for credential-scoped routes. A replay must never give a stale success after a platform or deployment was switched off. |
+| BD-A2-57 | A-LA-E5-16-02: a platform `429` is stored and replayed for 24 h with its old `Retry-After`, so a retry never reaches the platform. | **Final = `2xx`, or `4xx` other than `429`.** Every `5xx`, every `429`, and any answer with `Retry-After` is not final: the claim is abandoned, and the replay `Retry-After` branch goes. Checked: the idempotency `409`/`422` come from the hook; `JOB_RUNNING` is operator-only; `401`/`403`/`404` of the target come before the lookup; `PLATFORM_ALREADY_EXISTS`, `DEPLOYMENT_ALREADY_EXISTS`, `INVALID_REQUEST` and `PLATFORM_REJECTED_REQUEST` are final. | LA-ADR-06 D9; contract delta §4.9; LA-E5-16 design notes | My BD-A2-51 text said "4xx" and missed that `429` asks for a retry. Stored `429` records from `6ae0ebe` exist only on test volumes and expire within 24 h. |
+
+Changes for the Lead to route: **S1 (LA-E5-16 fix round):** the target in the fingerprint, the new lookup order, the non-final rule, removing the replay `Retry-After` branch, and the three unit tests in the design notes.

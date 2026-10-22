@@ -57,7 +57,7 @@ async function setup() {
     const who = String(req.headers['x-test-caller']);
     if (who === 'service') {
       if (!schemes.includes('service')) throw new ApiError('INVALID_AUTHORIZATION_HEADER');
-      return { scheme: 'service', account, actor: { type: 'api_key', id: 'bootstrap-cogniate' }, launch: null, serviceKey: { toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', contextId: '2', resourceLinkId: 'rl-3', agsClaim: AGS, nrpsClaim: null, bindingGeneration: 0 } };
+      return { scheme: 'service', serviceKeyHash: 'unit-service-key-hash', account, actor: { type: 'api_key', id: 'bootstrap-cogniate' }, launch: null, serviceKey: { toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', contextId: '2', resourceLinkId: 'rl-3', agsClaim: AGS, nrpsClaim: null, bindingGeneration: 0 } };
     }
     return { scheme: 'ltik', account, actor: { type: 'api_key', id: 'bootstrap-cogniate' }, launch: who === 'dl' ? dlLaunch : rlLaunch, serviceKey: null };
   };
@@ -114,6 +114,22 @@ describe('T3a routes', () => {
     const b = await s.app.inject({ method: 'POST', url: `/api/lineitems/${enc(LINE_ITEM)}/scores`, headers: { 'x-test-caller': 'rl' }, payload: { userId: '5' } });
     expect([b.statusCode, b.json().details.message]).toEqual([400, 'INVALID_REQUEST']);
     expect(s.calls).toEqual([]);
+  });
+
+  it('refuses a ninth extension or a value over 4 KB before any outbound call (LA-E3-11 AC-03)', async () => {
+    const s = await setup();
+    const score = { userId: '5', activityProgress: 'Completed', gradingProgress: 'FullyGraded' };
+    const tooMany = Object.fromEntries(Array.from({ length: 9 }, (_, i) => [`https://platform.test/ext/${i}`, i]));
+    for (const extra of [tooMany, { 'https://platform.test/ext': 'x'.repeat(4095) }, { 'https://platform.test/ext': 'é'.repeat(2048) }]) {
+      for (const caller of ['rl', 'service']) {
+        const r = await s.app.inject({ method: 'POST', url: `/api/lineitems/${enc(LINE_ITEM)}/scores`,
+          headers: { 'x-test-caller': caller }, payload: { ...score, ...extra } });
+        expect([r.statusCode, r.json().details.message]).toEqual([400, 'INVALID_REQUEST']);
+        expect(s.calls).toEqual([]);
+      }
+    }
+    await s.app.close();
+    s.db.close();
   });
 
   it('GET line items, one line item and scores; a bad limit -> 400', async () => {

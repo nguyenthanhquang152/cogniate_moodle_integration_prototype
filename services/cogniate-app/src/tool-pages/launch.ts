@@ -19,7 +19,7 @@ import { createPicker, linkPickToResourceLink } from '../domain/pickers.ts';
 import { checkLaunchConnection } from '../kernel/launch-router.ts';
 export { checkLaunchConnection } from '../kernel/launch-router.ts';
 export type { ConnectionCheck } from '../kernel/launch-router.ts';
-import type { ChannelText as LmsName } from '../kernel/ports.ts';
+import type { ChannelText } from '../kernel/ports.ts';
 import { LTIK, httpsOrigin, publicationFromTarget, runtimeTokenFor, safeReturnUrl } from './launch-rules.ts';
 import { errorPage, handoffRedirectHeaders, toolPageHeaders, withLms } from './page.ts';
 
@@ -67,7 +67,7 @@ const lmsOfToken = (token: LtiIdToken | null, channels: ChannelRegistry): string
 export function registerLaunchPages(app: FastifyInstance, deps: LaunchPageDeps): void {
   const { db, urls, logger: log, lti, masterKey, now, channels } = deps;
 
-  const page = (req: FastifyRequest, reply: FastifyReply, code: LaunchErrorCode, lms: LmsName = channels.textName(null)) => {
+  const page = (req: FastifyRequest, reply: FastifyReply, code: LaunchErrorCode, lms: ChannelText = channels.textName(null)) => {
     const e = LAUNCH_ERRORS[code];
     return reply.code(e.status).headers(toolPageHeaders('error')).send(errorPage(e.heading, code, req.traceId, withLms(e.action, lms)));
   };

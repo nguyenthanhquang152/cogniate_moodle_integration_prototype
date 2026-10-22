@@ -25,13 +25,13 @@ const baseChannelImports = [qaImports, {
   message: 'Channels use kernel ports or the portal SDK, never service or app packages (LA-ADR-01 D1).',
 }];
 const kernelPath = '@cogniate/channel-kernel';
-const appPaths = `${kernelPath}|@cogniate/shared(?:/channel)?|${portPath}|\\.{1,2}/.*`;
+const appPaths = `${kernelPath}(?:/setup)?|@cogniate/shared(?:/channel)?|${portPath}|\\.{1,2}/.*`;
 const portalPaths = `${kernelPath}|@cogniate/portal-sdk|react(?:/.*)?|\\.{1,2}/.*`;
 const testTools = 'vitest(?:/.*)?|@testing-library/(?:react|dom|user-event)(?:/.*)?|node:(?:assert(?:/strict)?|test)';
 const importRows = {
   manifest: { allowed: kernelPath, message: 'A manifest imports only @cogniate/channel-kernel types.' },
   profiles: { allowed: `${kernelPath}|\\./manifest\\.ts`, message: 'LTI profiles import kernel types and their own ./manifest.ts.' },
-  app: { allowed: appPaths, message: 'App modules import kernel/port/shared types, @cogniate/shared/channel values and their own manifest/app files.' },
+  app: { allowed: appPaths, message: 'App modules import kernel/port/shared types, kernel/setup and shared/channel values and their own manifest/app files.' },
   appTest: { allowed: `${appPaths}|${testTools}`, message: 'App tests use the app import API and test tools.' },
   portal: { allowed: portalPaths, message: 'Portal modules import kernel types, React, the portal SDK and their own manifest/portal files.' },
   portalTest: { allowed: `${portalPaths}|${testTools}`, message: 'Portal tests use the portal import API and test tools.' },

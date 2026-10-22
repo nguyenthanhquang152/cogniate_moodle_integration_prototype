@@ -7,6 +7,7 @@ import { ensureAccount } from '../store/accounts.ts';
 import { createPlatform } from '../store/platforms.ts';
 import { ensureToolKey } from '../store/tool-keys.ts';
 import { createTokenClient } from './token-client.ts';
+import type { TokenResultObserver } from './token-client.ts';
 
 const NOW = Date.UTC(2026, 9, 22, 10, 0, 0);
 const databases: Db[] = [];
@@ -18,7 +19,7 @@ function response(status: number, value: unknown, retryAfter?: string): Outbound
   return { status, headers: retryAfter === undefined ? {} : { 'retry-after': retryAfter }, body, text: () => text, json: () => JSON.parse(text) as unknown };
 }
 
-async function setup(answer: OutboundResponse) {
+async function setup(answer: OutboundResponse, onTokenResult?: TokenResultObserver) {
   const db = openDb(':memory:');
   databases.push(db);
   const masterKey = Buffer.alloc(32, 5);
@@ -31,7 +32,7 @@ async function setup(answer: OutboundResponse) {
   const request = vi.fn<OutboundClient['request']>().mockResolvedValue(answer);
   const lines: Array<Record<string, unknown>> = [];
   const logger = createLogger({ service: 'lti-service', dir: '', write: (line) => lines.push(JSON.parse(line)) });
-  const tokens = createTokenClient({ db, masterKey, outbound: { allowlist: [], request }, logger, now: () => NOW });
+  const tokens = createTokenClient({ db, masterKey, outbound: { allowlist: [], request }, logger, now: () => NOW, onTokenResult });
   return { platform, request, lines, tokens };
 }
 
@@ -65,5 +66,53 @@ describe('token client throttle handling', () => {
     await expect(s.tokens.getToken(s.platform, ['scope'], 'trace')).rejects.toMatchObject({ code: 'PLATFORM_ERROR', status: 502 });
     expect(s.request).toHaveBeenCalledTimes(1);
     expect(s.lines.filter((line) => line.event === 'platform_rate_limited')).toEqual([]);
+  });
+});
+
+describe('token result observer (LA-E5-17 RQ-1)', () => {
+  it('reports each shared request once, including every failure, and does not report cache hits', async () => {
+    const observe = vi.fn<TokenResultObserver>();
+    const s = await setup(response(503, ''), observe);
+    const failures = [
+      response(503, ''), response(429, ''), response(403, 'Rate Limit Exceeded'),
+      response(200, 'invalid JSON'), response(200, {}),
+    ];
+    for (const [i, failure] of failures.entries()) {
+      s.request.mockResolvedValue(failure);
+      const results = await Promise.allSettled([
+        s.tokens.getToken(s.platform, ['scope'], 'trace-a'),
+        s.tokens.getToken(s.platform, ['scope'], 'trace-b'),
+      ]);
+      expect(results.map((result) => result.status)).toEqual(['rejected', 'rejected']);
+      expect(observe).toHaveBeenCalledTimes(i + 1);
+      expect(observe).toHaveBeenLastCalledWith({ platformId: s.platform.id, ok: false });
+      expect(s.request).toHaveBeenCalledTimes(i + 1);
+    }
+    s.request.mockRejectedValueOnce(new Error('connection failed'));
+    await expect(s.tokens.getToken(s.platform, ['scope'], 'network')).rejects.toMatchObject({ code: 'PLATFORM_ERROR' });
+    expect(observe).toHaveBeenCalledTimes(failures.length + 1);
+    expect(observe).toHaveBeenLastCalledWith({ platformId: s.platform.id, ok: false });
+
+    s.request.mockResolvedValue(response(200, { access_token: 'token', expires_in: 3600 }));
+    expect(await Promise.all([
+      s.tokens.getToken(s.platform, ['scope'], 'success-a'),
+      s.tokens.getToken(s.platform, ['scope'], 'success-b'),
+    ])).toEqual(['token', 'token']);
+    expect(observe).toHaveBeenCalledTimes(failures.length + 2);
+    expect(observe).toHaveBeenLastCalledWith({ platformId: s.platform.id, ok: true });
+    expect(await s.tokens.getToken(s.platform, ['scope'], 'cached')).toBe('token');
+    expect(observe).toHaveBeenCalledTimes(failures.length + 2);
+    expect(s.request).toHaveBeenCalledTimes(failures.length + 2);
+  });
+
+  it('preserves results with the default observer and with an observer that throws', async () => {
+    for (const observer of [undefined, () => { throw new Error('observer failed'); }]) {
+      const s = await setup(response(200, { access_token: 'token' }), observer);
+      expect(await s.tokens.getToken(s.platform, ['scope'], 'success')).toBe('token');
+      expect(await s.tokens.getToken(s.platform, ['scope'], 'cached')).toBe('token');
+      s.request.mockResolvedValue(response(503, ''));
+      await expect(s.tokens.getToken(s.platform, ['other-scope'], 'failure')).rejects.toMatchObject({ code: 'PLATFORM_ERROR' });
+      expect(s.request).toHaveBeenCalledTimes(2);
+    }
   });
 });

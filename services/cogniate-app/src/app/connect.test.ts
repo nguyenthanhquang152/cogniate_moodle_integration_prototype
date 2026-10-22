@@ -4,7 +4,7 @@ import { LtiServiceError } from '../clients/lti-client.ts';
 import { toolPageHeaders } from '../tool-pages/page.ts';
 import type { TestApp } from '../testkit.ts';
 import { QA_B, TEST_URLS, THANH, formBody, ltiPlatform, testApp } from '../testkit.ts';
-import { toolName } from './connections.ts';
+import { toolName } from '@cogniate/channel-kernel/setup';
 
 let t: TestApp;
 afterEach(async () => {

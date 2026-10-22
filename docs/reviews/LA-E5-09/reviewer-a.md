@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-09 review, lens A ("Is it right and is it safe?")
 
@@ -46,3 +46,30 @@ There is no BLOCKER, no MAJOR and no MINOR finding. The lens-A points pass (see 
 | Ownership | `packages/shared/src/key-provider.ts` (LA-E5-08 file) gets the additive `openWithMetadataSync` and the `legacyBlobsRefused` option that BD-A2-38 asks for. `jobs/index.ts`, `main.ts`, `http/operator/index.ts` and `store/settings.ts` get the RQ-2 lines in S1 files that the dispatch names. |
 
 Note (no finding): the final verification decrypts every present sealed blob in one write transaction. At LTI sizes (signing keys per account, and registration sessions kept 24 h) this is short. A much larger table would need the same batching as the re-seal.
+
+## Round 2
+
+- Diff: `git diff 3b14a84^1 3b14a84` (lane S2, fix round 1; 15 files). The files at `HEAD` are the same as at `3b14a84`. Reviewer: Reviewer-A (same lens A).
+- References: my round-1 NITs above; A2 BD-A2-50 (`503 NOT_READY`, `409 JOB_RUNNING`, `202`); LA-ADR-06 D6.
+- I ran on the host (no Docker): Vitest on `http/operator/key-provider`, `jobs/**`, `keys/**` and `api-errors`: 9 files, 62 tests pass.
+- Blind review as before.
+- **Verdict (round 2): APPROVE.** Both round-1 NITs are closed, and the fix adds no new risk. New: **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+### Round-1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E5-09-01 (NIT) | closed | A held lease now gives `409 JOB_RUNNING` before any start. The check runs once before the audit frame and again inside `audit.change`, so the refused event and the decision come from one read. The `202 { traceId }` call passes `{ traceId: req.traceId }` to `runNow` (test: `toHaveBeenCalledWith('key-rewrap', { traceId })`). The runner side of the trace join is S2's next round, as the dispatch says. Two calls at the same moment can both pass the check, and the second `runNow` then gives `skipped_lease`. BD-A2-50 accepts this race and leaves it to the runbook. |
+| A-LA-E5-09-02 (NIT) | closed | `loadKeyProvider` reads the `key_provider` setting once at start. A damaged row stops the start with `key_provider_setting_invalid`, and the error does not hold the row value (test in `key-config.test.ts`). A row damaged by hand while the service runs still makes each open throw, which is fail-closed. That case is a hand edit of a running database, so I leave it as is. |
+
+### New code, checked
+
+- `503 NOT_READY` (BD-A2-50): when the runner is absent or in any state other than `active` (`idle`, `waiting`, `stopping`, `off`), the route answers `503` with `reasons: ['job_runner_not_active']`, `retryAfter: 30` and the `Retry-After` header. It writes **no** event and calls no `runNow` (five-case test). `409 JOB_RUNNING` writes exactly one refused event and starts no second run, for a lease of this runner or of another one (test).
+- The `run()` split keeps the round-1 safety exactly:
+  - each batch is still one synchronous transaction that checks the stop reason first;
+  - each row is updated by compare-and-set on the old blob, and the plaintext is zeroed in `finally`;
+  - the cursor and the counts move only after a committed batch;
+  - the final verification and the refusal flag share one transaction with the end event.
+
+  So a stop never leaves a half re-sealed blob: a row has either its old blob or a blob of the active version. Only a `complete` outcome sets `legacyBlobsRefused`. An unreadable blob found in the final scan makes the run `failed`, and nothing is refused.
+- `SEALED_COLUMNS` (one inventory): `tool_key.private_jwk_encrypted` (present = `length > 0`) and `registration_session.registration_token_encrypted` (present = `IS NOT NULL`). These are the same predicates as before. The AAD builders give the same `associatedData('lti', table, column, accountId, rowId)` input as the old local functions, so every existing blob still opens. Readiness (`keyVersionsInUse`), the status counts and the re-wrap now read the same list, so a new sealed column cannot be missed by one of them. `createLtiJobRunner` now needs `keys`, so every LTI runner registers `key-rewrap`.

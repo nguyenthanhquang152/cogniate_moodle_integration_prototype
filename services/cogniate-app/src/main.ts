@@ -4,18 +4,14 @@ import type { ChannelRegistry } from '@cogniate/channel-kernel';
 //  - content: PUBLIC_CONTENT_URL (proxy -> :4201): /pkg/*, /rt/*, /_rt/assets/*; a different site, no cookies (T5a)
 //  - worker:  sends score sync rows to the LTI service (T5a; started with the app listener)
 import { join } from 'node:path';
-import { createOutboundClient, knobString, knobValue, portFromEnv, createJobRunner, startService } from '@cogniate/shared';
+import { createOutboundClient, knobString, knobValue, portFromEnv, startService } from '@cogniate/shared';
 import { buildAppApi } from './app/server.ts';
 import { createLtiClient } from './clients/lti-client.ts';
 import { loadConfig } from './config.ts';
 import { CONTENT_SERVICE_NAME, buildContentServer } from './content-host/server.ts';
 import { openDb } from './domain/db.ts';
 import { prepareStore } from './domain/package-store.ts';
-import { retentionJob } from './domain/retention.ts';
-import { createAppJobStore } from './kernel/records/job-store.ts';
-import { createDispatchQueue } from './kernel/records/outbox.ts';
-import { ltiAgsReporter } from './drivers/lti-ags/index.ts';
-import { configureRecordReporters } from './kernel/records/records.ts';
+import { createAppRunner } from './worker-main.ts';
 import { loadAppChannelRegistry } from './kernel/registry.ts';
 import { createShutdownHandler } from './kernel/records/shutdown.ts';
 import type { JobRunner, Logger } from '@cogniate/shared';
@@ -44,11 +40,7 @@ async function startAppService() {
         const outbound = createOutboundClient({ logger: deps.logger, allowlist: deps.outboundAllowlist });
         // The acceptance profile sends the /api/* calls through the transport gate (M3 §3.3, LTI_API_URL).
         const lti = createLtiClient({ outbound, ltiUrl: deps.urls.lti, apiKeyFile: config.ltiApiKeyFile, ...(config.ltiApiUrl ? { apiUrl: config.ltiApiUrl } : {}) });
-        runner = createJobRunner({ store: createAppJobStore(db), logger: deps.logger, instanceId: config.jobInstanceId });
-        const reporters = [ltiAgsReporter({ db, lti, masterKey: config.masterKey, channels })];
-        configureRecordReporters(db, reporters);
-        runner.addQueue(createDispatchQueue(db, reporters));
-        runner.addInterval(retentionJob(db));
+        runner = createAppRunner({ db, config, logger: deps.logger, channels, lti, role: 'web' });
         const app = await buildAppApi({
           channels, db, urls: deps.urls, logger: deps.logger, store, profile: deps.profile, knobs: deps.knobs, outboundAllowlist: deps.outboundAllowlist,
           masterKey: config.masterKey, lti, refTtlSeconds: deps.knobValues.REF_TTL_SECONDS ?? knobValue('REF_TTL_SECONDS'),
