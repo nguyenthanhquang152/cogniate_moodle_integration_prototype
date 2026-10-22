@@ -1,8 +1,8 @@
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { afterEach, describe, it } from 'node:test';
 import { maskComments, repoPath } from './common.mjs';
 import { bannedWords, checkText, compareCounts, parts } from './lms-names.mjs';
@@ -18,6 +18,24 @@ function temp() {
 afterEach(() => {
     for (const folder of scratch.splice(0))
         rmSync(folder, { recursive: true, force: true });
+});
+describe('CLI entry points', () => {
+    for (const [script, label, args, input] of [
+        ['lms-names.mjs', 'F1', ['--stdin', '--as', 'services/example/src/entry-probe.ts'], 'export const moodleX = 1;'],
+        ['channel-diff.mjs', 'F2', ['--channel', 'example', '--paths-from', 'paths.txt'], ''],
+        ['rules.mjs', 'F5', ['--stdin', '--as', 'services/lti-service/src/db/migrations/999_probe.sql'], 'PRAGMA foreign_keys=ON;'],
+    ]) {
+        it(`${label} runs through a symlinked folder and returns its failing result`, () => {
+            const root = temp();
+            const link = join(root, 'fitness');
+            symlinkSync(new URL('./', import.meta.url), link, 'dir');
+            writeFileSync(join(root, 'paths.txt'), 'package.json\n');
+            const result = spawnSync(process.execPath, [join(link, script), ...args], { cwd: root, input, encoding: 'utf8', timeout: 10_000 });
+            assert.ifError(result.error);
+            assert.equal(result.status, 1, result.stderr);
+            assert.ok(result.stdout.includes(`${label} FAIL`), result.stdout);
+        });
+    }
 });
 describe('token scanner internals', () => {
     const path = 'services/example/src/probe.tsx';

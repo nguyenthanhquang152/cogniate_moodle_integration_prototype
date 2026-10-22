@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { extname, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import ts from 'typescript';
-import { APPLIED_MIGRATIONS, ROOT, TEXT_EXTENSIONS, inClass, isMain, isUnitFile, maskComments, position, repoPath, runCli, sourceFiles } from './common.mjs';
+import { APPLIED_MIGRATIONS, ROOT, TEXT_EXTENSIONS, inClass, isUnitFile, maskComments, position, repoPath, runCli, sourceFiles } from './common.mjs';
 
 // BD-A1-07 reserves the planned generic channel before its folder lands.
 const VENDORS = ['moodle', 'canvas', 'instructure', 'blackboard', 'brightspace', 'd2l', 'desire2learn', 'schoology', 'sakai', 'totara', 'lti-generic'];
@@ -134,4 +134,4 @@ export function main() {
   process.exitCode = failed ? 1 : 0;
 }
 
-if (isMain(import.meta.url)) runCli(main);
+if (import.meta.main) runCli(main);

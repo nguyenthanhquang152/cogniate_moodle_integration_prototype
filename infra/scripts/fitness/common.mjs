@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { lstatSync, readFileSync } from 'node:fs';
 import { extname, isAbsolute, matchesGlob, relative, resolve } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 
 export const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 export const TEXT_EXTENSIONS = new Set(['.ts', '.tsx', '.mts', '.js', '.mjs', '.sql', '.json', '.css', '.html']);
@@ -43,10 +43,6 @@ export function sourceFiles(root = ROOT) {
 export function position(text, offset) {
   const before = text.slice(0, offset);
   return { line: before.split('\n').length, col: offset - before.lastIndexOf('\n') };
-}
-
-export function isMain(url) {
-  return process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === url;
 }
 
 export function runCli(main) {

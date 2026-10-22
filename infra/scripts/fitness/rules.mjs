@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
-import { ROOT, isMain, repoPath, trackedFiles } from './common.mjs';
+import { ROOT, repoPath, trackedFiles } from './common.mjs';
 
 function invalid(file, reason) {
   return new Error(`rule_invalid ${file}: ${String(reason).replace(/[\r\n]+/g, ' ')}`);
@@ -69,7 +69,7 @@ export async function main() {
   process.exitCode = count ? 1 : 0;
 }
 
-if (isMain(import.meta.url)) {
+if (import.meta.main) {
   main().catch((error) => {
     console.error(error.message.startsWith('rule_invalid ') ? error.message : invalid('rules.mjs', error.message).message);
     process.exitCode = 2;

@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
-import { ROOT, inClass, isMain, repoPath, runCli } from './common.mjs';
+import { ROOT, inClass, repoPath, runCli } from './common.mjs';
 
 export function classifyPath(path, channel) {
   path = repoPath(path);
@@ -48,4 +48,4 @@ export function main() {
   process.exitCode = failed && !values['report-only'] ? 1 : 0;
 }
 
-if (isMain(import.meta.url)) runCli(main);
+if (import.meta.main) runCli(main);
