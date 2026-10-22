@@ -9,8 +9,7 @@ import { LtiServiceError } from '../clients/lti-client.ts';
 import type { CompleteSnapshot, Connection, ProviderSnapshot } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { getLibrary } from '../domain/libraries.ts';
-import { providerOf } from '../providers/index.ts';
-import type { BindingTarget, GrantPurpose, PlatformBodyValues, SharedPlatformInfo, StagedCreate } from '../providers/types.ts';
+import type { BindingTarget, GrantPurpose, PlatformBodyValues, ProviderAdapter, SharedPlatformInfo, StagedCreate } from '../providers/types.ts';
 import { ApiError } from './api-errors.ts';
 
 /** GET /api/providers through the app (502 LTI_SERVICE_ERROR on failure, app contract §4.3). */
@@ -95,8 +94,7 @@ export interface LocalTarget {
  * Build the target from local data only (no LTI call). `initial` needs the complete snapshot (phase-1 check 4a has
  * passed); `add_deployment` needs the committed platform. Throws the contract ApiError.
  */
-export function localTarget(c: Connection, purpose: GrantPurpose, values: PlatformBodyValues, snapshot: CompleteSnapshot | null): LocalTarget {
-  const adapter = providerOf(c.channel);
+export function localTarget(c: Connection, purpose: GrantPurpose, values: PlatformBodyValues, snapshot: CompleteSnapshot | null, adapter: ProviderAdapter | null): LocalTarget {
   if (c.bindingAuthority !== 'operatorGrant' || !adapter || !adapter.initialTarget || !adapter.createRequest) throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'This connection has no operator approval.', { details: { capability: 'operatorApproval' } });
   const productFamilyCode = c.platform?.productFamilyCode ?? null;
   if (purpose === 'add_deployment') {
@@ -113,8 +111,7 @@ export function localTarget(c: Connection, purpose: GrantPurpose, values: Platfo
 }
 
 /** The S1 call of a committed target, built after the phase-1 commit (the engine adds `active: false` and the ref). */
-export function stagedCall(deps: { db: Db; lti: LtiClient }, c: Connection, target: BindingTarget, traceId: string): (ref: string) => Promise<{ platformId: string }> {
-  const adapter = providerOf(c.channel)!;
+export function stagedCall(deps: { db: Db; lti: LtiClient }, c: Connection, target: BindingTarget, traceId: string, adapter: ProviderAdapter): (ref: string) => Promise<{ platformId: string }> {
   const staged: StagedCreate = adapter.createRequest!(target, { libraryName: getLibrary(deps.db, c.libraryId)?.name ?? '' });
   return async (ref) => {
     if (staged.kind === 'platform') {

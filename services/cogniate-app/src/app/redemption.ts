@@ -102,9 +102,11 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
       // 4. start state
       if (!startState(req.purpose, connection)) throw stateError(req.purpose);
       // 4a. Only initial needs a complete snapshot; old registered rows can add deployments without it.
-      const snapshot = req.purpose === 'initial' ? completeSnapshot(connection, providerOf(connection.channel)!.sharingOf(connection.profile)!) : null;
+      const adapter = providerOf(connection.channel);
+      const sharing = adapter?.sharingOf(connection.profile);
+      const snapshot = req.purpose === 'initial' && sharing ? completeSnapshot(connection, sharing) : null;
       if (req.purpose === 'initial' && !snapshot) return notReady(connection, 'no_snapshot', req.traceId);
-      const resolved = localTarget(connection, req.purpose, req.values, snapshot);
+      const resolved = localTarget(connection, req.purpose, req.values, snapshot, adapter);
       // 5. values
       const target = resolved.target;
       if (grant.channel !== connection.channel || grant.profile !== connection.profile || grant.siteUrl !== connection.siteUrl || grant.serviceUrl !== connection.serviceUrl) {
@@ -169,7 +171,7 @@ export function createRedemptionEngine(deps: RedemptionDeps): RedemptionEngine {
 
   async function runAttempt(c: Connection, attempt: Attempt, grant: Grant, resolved: LocalTarget, traceId: string): Promise<Connection> {
     const target = resolved.target;
-    const create = stagedCall({ db, lti }, c, target, traceId);
+    const create = stagedCall({ db, lti }, c, target, traceId, providerOf(c.channel)!);
     let platformId: string | null = target.kind === 'exclusive_platform' ? target.platformId : target.platformId;
     let activationRef: string | null = null; // ref `a` of a successful S3
     const fail = (err: unknown): never => {
