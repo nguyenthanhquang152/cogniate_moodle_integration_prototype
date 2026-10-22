@@ -1,0 +1,267 @@
+# LA data model changes
+
+Status: v1 (A1, milestone LA P2, 2026-10-22). Base: [`../data-model.md`](../data-model.md) (M1 state). Rules of [ADR-006](../adr/ADR-006-storage.md) stay: plain SQL, one migration file per step, the checksum rule, never edit an applied migration. Plan rule for LA: only **additive** changes (new tables, new nullable or defaulted columns), each with a migration test; no storage-command change (plan §3 E1, LD-3).
+
+## 1. Overview
+
+| Service | Migration | Epic, step | Owner of the design | Content |
+| --- | --- | --- | --- | --- |
+| Cogniate app | `013_channel_kernel.sql` | E1 S4 | A1 ([LA-ADR-04 D4](adr/LA-ADR-04-refactor-and-migration.md#decision)) | `connection.channel`, `connection.binding_authority`, `binding_attempt.target_kind`, `binding_grant.bound_values` |
+| Cogniate app | `014_learning_records.sql` | E4 | A1 ([LA-ADR-03](adr/LA-ADR-03-learning-record-core.md), [LA-ADR-04 D5](adr/LA-ADR-04-refactor-and-migration.md#decision)) | `placement`, `learning_record`, `record_dispatch`, `job_lease`; backfill from `resource_link` and `score_sync` |
+| Cogniate app | `015_app_audit.sql` | E5 (app part) | shape A2 ([LA-ADR-06 D4](adr/LA-ADR-06-service-operability.md)), table A1 | `audit_event`; `connection.artifact_key_kid` (E6) |
+| Cogniate app | `016_connection_health.sql` | E6 (Could) | shape A2 ([LA-ADR-08 D3, D5](adr/LA-ADR-08-onboarding-and-connection-health.md)), table A1 | `connection_event`, `admin_launch_code` |
+| LTI service | `005_…` and later (numbers: P3) | E2-K, E3, E5 | A1 (E2 platform fields), A2 (the rest) | §4 |
+
+The P3 breakdown can merge `015` into another app migration, but each file keeps one epic.
+
+```mermaid
+erDiagram
+    LIBRARY ||--o{ CONNECTION : owns
+    CONNECTION ||--o{ PUBLICATION : offers
+    CONNECTION ||--o{ PLACEMENT : has
+    PUBLICATION ||--o{ PLACEMENT : placed_as
+    PLACEMENT ||--|| RESOURCE_LINK : "LTI row, same id"
+    PLACEMENT ||--o{ ATTEMPT : "tracks (attempt.resource_link_id)"
+    ATTEMPT ||--o{ LEARNING_RECORD : emits
+    LEARNING_RECORD ||--o{ RECORD_DISPATCH : "one per reporter"
+    CONNECTION ||--o{ BINDING_ATTEMPT : "tries (target_kind)"
+    CONNECTION ||--o{ BINDING_GRANT : "approved by (bound_values)"
+    CONNECTION {
+      string channel "LA: channel id, no CHECK"
+      string binding_authority "LA: self, operatorGrant"
+      string lms "frozen legacy column"
+    }
+    SCORE_SYNC {
+      string id "frozen copy after 014"
+    }
+```
+
+## 2. Cogniate app: migration `013` (E1): channel kernel
+
+```sql
+-- 013_channel_kernel.sql (sketch). Forward only, additive. LA-ADR-04 D4.
+ALTER TABLE connection ADD COLUMN channel TEXT;                       -- channel id; NULL only before the backfill below
+ALTER TABLE connection ADD COLUMN binding_authority TEXT
+  CHECK (binding_authority IN ('self', 'operatorGrant', 'verifiedAdminLaunch'));
+UPDATE connection SET channel = lms;
+UPDATE connection SET binding_authority = CASE WHEN lms = 'moodle' THEN 'self' ELSE 'operatorGrant' END;
+
+ALTER TABLE binding_attempt ADD COLUMN target_kind TEXT
+  CHECK (target_kind IN ('exclusive_platform', 'platform_deployment', 'shared_deployment'));
+UPDATE binding_attempt SET target_kind = (
+  SELECT CASE WHEN c.lms = 'blackboard' THEN 'shared_deployment'
+              WHEN binding_attempt.purpose = 'add_deployment' THEN 'platform_deployment'
+              ELSE 'exclusive_platform' END
+  FROM connection c WHERE c.id = binding_attempt.connection_id);
+
+ALTER TABLE binding_grant ADD COLUMN bound_values TEXT;               -- JSON; NULL = only the M1 columns are bound
+CREATE INDEX connection_channel ON connection (library_id, channel);
+```
+
+| Rule | Detail |
+| --- | --- |
+| Writers | `POST /app-api/connections` writes `channel` and `binding_authority` in its insert (from the manifest method). Nothing updates them. Phase 1 of a redemption writes `target_kind` from the adapter's target. `app:grant issue` writes `bound_values` for an admin-value profile ([LA-ADR-02 D6](adr/LA-ADR-02-generic-lti-channel.md#decision)). |
+| `connection.lms` | Frozen. Baseline channels write their id. Other channels write the behaviour class: `moodle` (`self`), `canvas` (`operatorGrant`, exclusive), `blackboard` (`operatorGrant`, shared). Core never reads it ([LA-ADR-04 D4](adr/LA-ADR-04-refactor-and-migration.md#decision) rule 3). |
+| `binding_grant.lms` | Stores the channel id (no CHECK, `011_lms_types.sql:30`). |
+| `bound_values` | `{ "issuer", "authenticationEndpoint", "accessTokenEndpoint", "jwksUrl", "tokenAudience"? }`. Exact text compare at redemption, after the canonical-origin rule for origins. Not secret (ids are not secrets, ADR-011 §1). |
+| Routing | `self`: `lti_platform_id` (unchanged Moodle rule). `operatorGrant`: `approved_deployment` (unchanged). The SQL reads `binding_authority`, not `lms` (today `domain/connections.ts:189,205,209`). |
+| Disabled rule | `binding_authority = 'operatorGrant' AND status = 'disabled'` replaces `con.lms IN ('canvas','blackboard') AND …` (`domain/score-syncs.ts:29`). |
+
+## 3. Cogniate app migration 014 (E4): learning records and job runner
+
+```sql
+-- 014_learning_records.sql (sketch). Forward only, additive. LA-ADR-03, LA-ADR-04 D5.
+CREATE TABLE placement (
+  id             TEXT PRIMARY KEY,                    -- = resource_link.id for LTI (rl_...)
+  connection_id  TEXT NOT NULL REFERENCES connection (id),
+  publication_id TEXT NOT NULL REFERENCES publication (id),
+  external_key   TEXT NOT NULL,                       -- LTI: JSON [deployment_id, context_id, resource_link_id]; context_id may be ""
+  graded         INTEGER NOT NULL DEFAULT 1 CHECK (graded IN (0, 1)),
+  created_at     INTEGER NOT NULL,
+  updated_at     INTEGER NOT NULL,
+  UNIQUE (connection_id, external_key)
+);
+CREATE INDEX placement_publication ON placement (publication_id);
+
+CREATE TABLE learning_record (
+  id                TEXT PRIMARY KEY,                 -- rec_...
+  attempt_id        TEXT NOT NULL REFERENCES attempt (id),
+  placement_id      TEXT NOT NULL REFERENCES placement (id),
+  learner_subject   TEXT NOT NULL,                    -- LTI sub
+  course_version_id TEXT NOT NULL REFERENCES course_version (id),
+  kind              TEXT NOT NULL CHECK (kind IN ('final', 'started', 'progressed', 'submitted')),  -- LA Must: final
+  outcome           TEXT NOT NULL,
+  score_given       REAL,
+  score_maximum     REAL,
+  started_at        INTEGER,                          -- Should
+  submitted_at      INTEGER,                          -- Should
+  occurred_at       INTEGER NOT NULL,
+  created_at        INTEGER NOT NULL
+);
+CREATE INDEX learning_record_learner ON learning_record (placement_id, learner_subject);
+
+CREATE TABLE record_dispatch (
+  id                 TEXT PRIMARY KEY,                -- sync_... for lti-ags (the old score_sync ids)
+  record_id          TEXT NOT NULL REFERENCES learning_record (id),
+  reporter           TEXT NOT NULL,                   -- 'lti-ags'
+  placement_id       TEXT NOT NULL REFERENCES placement (id),
+  learner_subject    TEXT NOT NULL,
+  partition_key      TEXT NOT NULL,                   -- fairness key (lti-ags: LTI platform id)
+  payload            TEXT NOT NULL,                   -- reporter body (lti-ags: AGS score body)
+  score_given        REAL NOT NULL,
+  score_maximum      REAL NOT NULL,
+  status             TEXT NOT NULL CHECK (status IN ('pending', 'sent', 'conflict', 'failed', 'superseded')),
+  tries              INTEGER NOT NULL DEFAULT 0,
+  created_at         INTEGER NOT NULL,
+  next_try_at        INTEGER,
+  not_before         INTEGER,                         -- 429 Retry-After pause of the partition
+  sent_at            INTEGER,
+  last_error         TEXT,
+  resent_at          INTEGER,
+  send_started_at    INTEGER,                         -- P2 in-flight marker
+  delivery_uncertain INTEGER NOT NULL DEFAULT 0 CHECK (delivery_uncertain IN (0, 1)),
+  confirmation_after INTEGER,
+  lease_owner        TEXT,
+  lease_until        INTEGER,
+  updated_at         INTEGER NOT NULL
+);
+CREATE INDEX record_dispatch_due ON record_dispatch (status, next_try_at, partition_key);
+CREATE INDEX record_dispatch_learner ON record_dispatch (placement_id, learner_subject, reporter);
+CREATE INDEX record_dispatch_record ON record_dispatch (record_id);
+
+CREATE TABLE job_lease (
+  name         TEXT PRIMARY KEY,                      -- interval job name
+  owner        TEXT,
+  lease_until  INTEGER,
+  last_run_at  INTEGER,
+  last_result  TEXT
+);
+-- Backfill (LA-ADR-04 D5): placement from resource_link; learning_record and record_dispatch from score_sync.
+```
+
+| Rule | Detail |
+| --- | --- |
+| Placement writer | The launch transaction upserts `resource_link` and `placement` together (same id). A rebind updates `placement.publication_id` with `resource_link.publication_id`. |
+| Empty context | A launch without a context (A2 [LA-ADR-05 D2](adr/LA-ADR-05-lti-advantage-completeness.md)) uses `""` in `external_key` and in `resource_link.context_id`. |
+| `graded` | `1` for every row until A2's ungraded rule ships ([LA-ADR-03 D2](adr/LA-ADR-03-learning-record-core.md#decision)). |
+| Record writer | The commit transaction, in the same transaction as the attempt update ([LA-ADR-03 D3](adr/LA-ADR-03-learning-record-core.md#decision)). Records are never updated or deleted. |
+| Dispatch writer | The outbox create step (best-result rule) in the commit transaction; the outbox engine for every later change. Only the lease owner records a result. |
+| Frozen `score_sync` | After `014` no product SQL reads or writes `score_sync` (a fitness check in `npm run check`). |
+| `gradebook_read` | Unchanged; owned by the `lti-ags` reporter (read-back). |
+| Retention | Unchanged rule ([`../data-model.md` §2.1](../data-model.md#21-retention-a-t4b2-02)): placements, records and dispatches are the record of results and are not deleted. Retention periods are LA-H4. |
+
+## 4. LTI service changes
+
+| Change | Epic | Design | Rule |
+| --- | --- | --- | --- |
+| `platform.client_assertion_aud TEXT` | E2-K | A1 [LA-ADR-02 D2](adr/LA-ADR-02-generic-lti-channel.md#decision) | admin value or DR `authorization_server`; `NULL` = the profile default |
+| `platform.granted_scopes TEXT` (JSON) | E2-K | A1 [LA-ADR-02 D5](adr/LA-ADR-02-generic-lti-channel.md#decision) | the DR response `scope`; `NULL` = today's scope set |
+| `oidc_state.storage_target`, `oidc_state.storage_origin`; table `storage_check` | E3 | A2 [LA-ADR-05 D1](adr/LA-ADR-05-lti-advantage-completeness.md) | platform storage launch |
+| `tool_account.status`, `status_changed_at`, `public_base_url`, `limits`, `claim_policy`, `service_key_write_scope` | E5, E3 | A2 [LA-ADR-06 D2](adr/LA-ADR-06-service-operability.md) | tenant model; claim policy |
+| tables `api_key`, `operator_key`, `audit_event`, `idempotency_record` (Should) | E5 | A2 [LA-ADR-06 D3–D5, D9](adr/LA-ADR-06-service-operability.md) | operator API, keys, audit |
+| `tool_key.published_at`, `activated_at`, `retired_at`, `removed_at` and the state values | E5 | A2 [LA-ADR-06 D7](adr/LA-ADR-06-service-operability.md) | signing-key lifecycle (A-T0-16) |
+| `service_key.derivation_version` | E5 | A2 [LA-ADR-06 D6](adr/LA-ADR-06-service-operability.md) | key provider |
+| table `job_lease` (same shape as §3) | E5 | A1 shape, A2 jobs | job runner ([LA-ADR-03 D7](adr/LA-ADR-03-learning-record-core.md#decision)) |
+
+No LTI service change is needed for a new profile: `platform.profile` has no CHECK (`services/lti-service/src/db/migrations/004_provider_profiles.sql:4`).
+
+## 5. Cogniate app: migration `015` (E5 app part, E6)
+
+```sql
+-- 015_app_audit.sql (sketch). Shape and rules from A2 LA-ADR-06 D4.
+CREATE TABLE audit_event (
+  id              TEXT PRIMARY KEY,                   -- aud_ + 16 random bytes (base64url)
+  ts              INTEGER NOT NULL,                   -- epoch ms
+  actor_type      TEXT NOT NULL,                      -- operator (app:grant, app:binding), system
+  actor_id        TEXT NOT NULL,                      -- the operator name (--operator, else OPERATOR_NAME)
+  library_id      TEXT,                               -- the app tenant, or NULL
+  action          TEXT NOT NULL,                      -- for example grant.issue, grant.revoke, binding.suspend, binding.release
+  target_type     TEXT,
+  target_id       TEXT,
+  result          TEXT NOT NULL CHECK (result IN ('ok', 'refused')),
+  code            TEXT,
+  trace_id        TEXT,
+  details         TEXT                                -- JSON, at most 4 KB, after redact(); never a code, key or token
+);
+CREATE INDEX audit_event_library ON audit_event (library_id, ts);
+CREATE TRIGGER audit_event_append_only BEFORE UPDATE ON audit_event
+  BEGIN SELECT RAISE(ABORT, 'audit_event is append-only'); END;
+
+ALTER TABLE connection ADD COLUMN artifact_key_kid TEXT;   -- E6: key id inside the last exported setup artifact (Canvas inline key)
+```
+
+| Rule | Detail |
+| --- | --- |
+| Tenant column | The app tenant is the library, so the app table has `library_id` where the LTI service table has `tool_account_id`. Every other column and rule is A2's (LA-ADR-06 D4 rules 1–3). |
+| Writers | `app:grant issue`, `revoke`; `app:binding suspend`, `release`: one event per command, in the same transaction as the local change. A grant event never holds the approval code. |
+| `artifact_key_kid` | Written when a setup artifact with an embedded key snapshot is exported (today only the Canvas `jwk=inline` export, app contract §4.6). The connection health view compares it with the active signing key (A2 [LA-ADR-08](adr/LA-ADR-08-onboarding-and-connection-health.md)). Generic name on purpose: core must not have a Canvas-named column. |
+
+## 5a. Cogniate app: migration `016` (E6, Could)
+
+Built only if E6 is in scope. Shape from A2 ([LA-ADR-08](adr/LA-ADR-08-onboarding-and-connection-health.md) D3, D5).
+
+```sql
+-- 016_connection_health.sql (sketch)
+CREATE TABLE connection_event (
+  id            TEXT PRIMARY KEY,                     -- cev_...
+  connection_id TEXT NOT NULL REFERENCES connection (id),
+  library_id    TEXT NOT NULL REFERENCES library (id),
+  kind          TEXT NOT NULL,                        -- launch_refused, deep_link_refused, check, disconnect, suspend
+  code          TEXT,                                 -- for example site_mismatch, lms_mismatch, deployment_not_approved, a check result
+  trace_id      TEXT,
+  at            INTEGER NOT NULL
+);
+CREATE INDEX connection_event_connection ON connection_event (connection_id, at);
+
+CREATE TABLE admin_launch_code (                      -- verified admin launch (D-3), one live code per connection
+  code_hash      TEXT PRIMARY KEY,                    -- SHA-256 of the 80-bit code; the code is shown once in the LMS
+  connection_id  TEXT NOT NULL REFERENCES connection (id),
+  platform_id    TEXT NOT NULL,
+  deployment_id  TEXT NOT NULL,
+  admin_sub_hash TEXT NOT NULL,                       -- SHA-256 of the administrator's sub
+  trace_id       TEXT NOT NULL,
+  created_at     INTEGER NOT NULL,
+  expires_at     INTEGER NOT NULL,                    -- created_at + 30 min
+  used_at        INTEGER
+);
+```
+
+| Rule | Detail |
+| --- | --- |
+| `connection_event` | At most 100 rows per connection and 30 days (retention job; LA-H4). Every portal read includes `library_id`. |
+| `admin_launch_code` | Single use; a newer code of the same connection replaces an unused older one; redemption follows A2's LA-ADR-08 D3 rules. |
+
+**Reserved, not built in LA:** `connection_secret` (library, connection, purpose, version, sealed value, timestamps), the shape of A2's [LA-ADR-07 D3](adr/LA-ADR-07-security-and-tenancy.md). LA keeps the Moodle web services token on `connection.ws_*` (frozen columns; no move), so LB or LF builds the table.
+
+## 6. State machines
+
+**Connection.** Unchanged states and transitions ([`../data-model.md` §3](../data-model.md#3-state-machines)). `registered` is reached by the bind step of the connection's authority strategy: `self` (DR complete or the admin-value create) or `operatorGrant` (phase 2 of a redemption).
+
+**Binding attempt.** Unchanged (`open`, `committed`, `cancelled`, `failed`, `abandoned`; app contract §4.7.1). `target_kind` never changes.
+
+**Record dispatch.** The score sync machine stays. LA adds the lease and the throttle pause; they are not new statuses.
+
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> pending: outbox create (best result)
+    pending --> pending: retryable, throttled (not_before), confirmation due
+    pending --> sent: accepted, required confirmation complete
+    pending --> conflict: conflict (AGS 409)
+    pending --> failed: rejected, local_failure, window end, CONNECTION_DISABLED
+    pending --> superseded: a better row exists
+    failed --> pending: Resend
+    conflict --> pending: Resend
+    note right of pending: a worker holds it only with a live lease (lease_owner, lease_until)
+```
+
+**Interval job lease.** `free` → `held` (owner, `lease_until`) → `free` at the end of a run, or after `lease_until` passes (crash).
+
+## 7. Migration tests (Must)
+
+| Migration | Test |
+| --- | --- |
+| `013` | [LA-ADR-04 D4](adr/LA-ADR-04-refactor-and-migration.md#decision) rule 5 |
+| `014` | [LA-ADR-04 D5](adr/LA-ADR-04-refactor-and-migration.md#decision) "Migration test" |
+| `015` | the trigger refuses an `UPDATE`; old rows of `connection` keep `artifact_key_kid = NULL` |
+| LTI service | each migration from the previous schema; A2 lists the E3 and E5 tests |

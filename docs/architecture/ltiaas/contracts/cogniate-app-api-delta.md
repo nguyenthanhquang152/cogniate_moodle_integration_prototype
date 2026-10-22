@@ -1,0 +1,189 @@
+# Cogniate app API: LA delta
+
+Status: v1 (A1, milestone LA P2, 2026-10-22). Base: [`../../contracts/cogniate-app-api.md`](../../contracts/cogniate-app-api.md) (M1 state). Design: [LA-ADR-01](../adr/LA-ADR-01-channel-kernel.md) (kernel), [LA-ADR-02](../adr/LA-ADR-02-generic-lti-channel.md) (new channels), [LA-ADR-03](../adr/LA-ADR-03-learning-record-core.md) (records), [LA-ADR-04](../adr/LA-ADR-04-refactor-and-migration.md) (compatibility). A2's app-side items (picker cancel, launch without context) come from [LA-ADR-05](../adr/LA-ADR-05-lti-advantage-completeness.md); the LTI service changes are in [lti-service-api-delta](lti-service-api-delta.md).
+
+## 0. Rules
+
+1. **Additive only.** No path, request field, response field, error code or log event of the base contract is removed or renamed. A request without the new fields behaves as in the base contract.
+2. **Frozen names** stay byte for byte ([LA-ADR-04 D2](../adr/LA-ADR-04-refactor-and-migration.md#decision)), also when they name an LMS.
+3. **Open channel set.** Wherever the base contract lists `moodle`, `canvas`, `blackboard` as the only values of `lms`, the value set is now "every channel id of the registry". After E2 the registry has `moodle`, `canvas`, `blackboard`, `lti-generic`, `brightspace`.
+4. **Texts.** Every text that names an LMS uses the manifest text name (`{LMS}`). Moodle texts stay byte for byte.
+
+## 1. Connection DTO (base §4, §4.2)
+
+New fields on every connection answer:
+
+| Field | Type | Rule |
+| --- | --- | --- |
+| `channel` | string | the channel id (`connection.channel`) |
+| `channelName` | string | the manifest text name, for example `Moodle`, `your LMS` |
+| `channelCapabilities` | object | the capability set of the connection: keys are capability ids ([LA-ADR-01 D3](../adr/LA-ADR-01-channel-kernel.md#d3-capability-model)), values are booleans, strings, lists or the method → authority map |
+
+Changed meaning (values unchanged for the baseline channels):
+
+| Field | Rule after LA |
+| --- | --- |
+| `lms` | equals `channel` (an open set). It is never the stored behaviour class. |
+| `capabilities` | the six legacy flags, computed by the legacy projection ([LA-ADR-01 D3](../adr/LA-ADR-01-channel-kernel.md#d3-capability-model)). Same objects as M1 for the baseline channels. |
+| `profile` | default per channel from the manifest method (`lti-generic` → `lti-generic`, `brightspace` → `brightspace`) |
+
+Example (`lti-generic`, registered by an operator grant):
+
+```json
+{
+  "id": "con_...", "name": "School Sakai", "siteUrl": "https://lms.school.edu", "method": "manual", "status": "registered",
+  "lms": "lti-generic", "channel": "lti-generic", "channelName": "your LMS", "profile": "lti-generic", "serviceUrl": "https://lms.school.edu",
+  "capabilities": { "dynamicRegistration": true, "operatorApproval": true, "webServices": false, "courseShell": false, "addDeployment": true, "canvasConfiguration": false },
+  "channelCapabilities": {
+    "registration.dynamic": true, "binding.authority": { "dynamic": "self", "manual": "operatorGrant" },
+    "deployments.multiple": true, "launch.windowHint": true, "records.reporters": ["lti-ags"], "records.readBack": true,
+    "registration.scopes": ["https://purl.imsglobal.org/spec/lti-ags/scope/lineitem", "…"]
+  },
+  "platform": { "id": "plt_...", "issuer": "https://lms.school.edu/sakai", "clientId": "…", "deploymentIds": ["…"], "productFamilyCode": "sakai", "siteUrl": "https://lms.school.edu", "serviceUrl": "https://lms.school.edu" },
+  "registrationUrl": null, "registrationUrlExpiresAt": null, "createdAt": "...", "lastLaunchAt": null, "lastError": null, "webServices": null
+}
+```
+
+## 2. `GET /app-api/lms-providers` (base §4.3)
+
+- One entry per channel of the registry, in registry order ([LA-ADR-01 D4](../adr/LA-ADR-01-channel-kernel.md#decision)). The three baseline entries keep every field and value.
+- A `simulation-only` channel is listed only when the LTI service reports simulations on.
+- New fields per entry: `channel` (= `lms`), `channelName`, `family` (`lti13`), `channelCapabilities` (channel level), `registration`: `[{ method, authority, profiles }]`.
+- A profile row of `GET /api/providers` whose `channel` is not in the app registry is ignored (log `channel_profile_unknown {profile}`, once per process). One unknown profile never breaks the answer (today it does: `services/cogniate-app/src/clients/lti-client.ts:55`, R3 S32).
+
+## 3. Connections (base §4, §4.2, §4.4, §4.7.2)
+
+### 3.1 `POST /app-api/connections`
+
+| Rule | Error |
+| --- | --- |
+| `lms` (or its new alias `channel`) is a channel id of the registry. If both are sent, they must be equal. | `400 INVALID_REQUEST`, `details.field = "lms"` (or `"channel"`) |
+| `method` is a method of the channel manifest | `dynamic` without `registration.dynamic`: `422 CAPABILITY_NOT_SUPPORTED`, `details.capability = "dynamicRegistration"` (frozen value) |
+| `profile` is a profile of that method | `400 INVALID_REQUEST`, `details.field = "profile"` |
+| Admin-value channels other than Moodle (`lti-generic`, `brightspace`): `siteUrl` passes site rules 1–4 | `422 INVALID_SITE_URL`, `details.rule`, `details.field` |
+| Moodle | unchanged (base §4) |
+| Canvas, Blackboard | unchanged (base §4.2) |
+
+The insert writes `channel`, `binding_authority` (from the method) and the frozen `lms` value ([data model §2](../data-model.md#2-cogniate-app-migration-013-e1-channel-kernel)).
+
+### 3.2 `POST /app-api/connections/:id/registration-url`
+
+Allowed for a `pending` connection with `method: dynamic` of any channel with `registration.dynamic` (base: Moodle only). Other cases: `409 CONNECTION_NOT_PENDING` (unchanged code).
+
+### 3.3 `GET /app-api/connections/:id/tool-configuration`
+
+The rows come from the channel adapter. Moodle, Canvas and Blackboard rows are unchanged (base §4.1, §4.5), except A2's intended D-8 change of Moodle row 13 ([LA-ADR-05 D4](../adr/LA-ADR-05-lti-advantage-completeness.md)).
+
+New channels (`key` stable; `label` is human text):
+
+| Channel | Rows (in order) |
+| --- | --- |
+| `lti-generic` | `tool_name`, `login_url` (`{PUBLIC_LTI_URL}/lti/login/cogniate`), `redirect_uri` and `target_link_uri` (`{PUBLIC_LTI_URL}/lti/launch/cogniate`), `jwks_url` (`{PUBLIC_LTI_URL}/lti/keys/cogniate`), `deep_linking_url` (same as the redirect URI), `scopes` (the channel scope set), `privacy` ("Do not send the learner's name or e-mail.") |
+| `brightspace` | `tool_name`, `domain` (host of `PUBLIC_LTI_URL`), `redirect_urls`, `openid_connect_login_url`, `target_link_uri`, `keyset_url`, `extensions` ("Assignment and Grade Services, Deep Linking"), `roles` ("Send institution role"), `privacy` ("Do not send name or e-mail."). The labels follow the D2L "Register Tool" form; they are UNVERIFIED until a live check (R2-2, LA-H3). |
+
+### 3.4 `PUT /app-api/connections/:id/platform`
+
+| Channel | Strict body | LTI step |
+| --- | --- | --- |
+| Moodle, Canvas, Blackboard | unchanged (base §4, §4.4) | unchanged |
+| `lti-generic`, `brightspace` (manual, `operatorGrant`) | `{ issuer, clientId, deploymentId, authenticationEndpoint, accessTokenEndpoint, jwksUrl, tokenAudience?, grantCode }`. `issuer` may have a path; its origin must equal `siteUrl`. | the two-phase redemption (base §4.7.1); S1 `POST /api/platforms { profile, url: issuer, clientId, name, authenticationEndpoint, accesstokenEndpoint, authConfig: { method: "JWK_SET", key: jwksUrl }, clientAssertionAud: tokenAudience, deploymentIds: [deploymentId], active: false, bindingRef }` |
+
+New and changed answers:
+
+| Case | Answer |
+| --- | --- |
+| A bound value differs from the grant (`bound_values`) | `422 GRANT_MISMATCH` (base check 5, extended) |
+| The LTI service answers `PLATFORM_URL_NOT_IN_PROFILE` or `INVALID_SITE_URL` | `422 INVALID_PLATFORM_VALUES` with the field name, or `422 INVALID_SITE_URL` |
+| A finalized repeat (same `clientId`, `deploymentId` and bound values) | `200`, nothing changes (base rule) |
+
+### 3.5 `POST /app-api/connections/:id/deployments`
+
+Guard: capability `deployments.multiple` (Canvas, `lti-generic`, `brightspace`), else `409 CAPABILITY_NOT_SUPPORTED`, `details.capability = "addDeployment"` (frozen value). The rules of base §4.7.2 apply to every channel with the capability.
+
+### 3.6 Extension routes
+
+| Path | Channel | Guard |
+| --- | --- | --- |
+| `GET …/canvas-configuration` (frozen) | canvas | `setup.artifacts` contains `developer-key-json`; else `409 CAPABILITY_NOT_SUPPORTED`, `canvasConfiguration` |
+| `PUT …/web-services` (frozen) | moodle | `siteApi.token`; else `409 CAPABILITY_NOT_SUPPORTED`, `webServices` |
+| `POST /app-api/publications` with `createMoodleCourse` (frozen) | moodle | `publish.createCourse`; else `409 CAPABILITY_NOT_SUPPORTED`, `courseShell` |
+| `…/mbz`, `…/download?kind=mbz` (frozen) | moodle | `export.packages` contains `mbz` (course-version feature, unchanged) |
+| `/app-api/connections/:id/x/:extensionId` (reserved pattern) | a new channel | the capability that the channel declares for the route; no LA channel uses it |
+
+### 3.7 Connection health and self-serve verification (E6, Could)
+
+Design and full rules: A2 [LA-ADR-08](../adr/LA-ADR-08-onboarding-and-connection-health.md). Built only if E6 is in scope.
+
+| Method and path | Request | Success / errors |
+| --- | --- | --- |
+| `POST /app-api/connections/:id/check` | — | `200 { result, checkedAt, details }` after a token probe and a JWKS fetch through the LTI service (`POST /api/platforms/:id/check`, [lti-service-api-delta](lti-service-api-delta.md)); guard: `setup.connectionCheck` |
+| `GET /app-api/connections/:id/health` | — | `200` health view: last launch, last launch refusal, dispatch state, last errors, key state (`keys.artifactKeyKid`, `artifactKeyCurrent`) |
+| `POST /app-api/connections/:id/verify` | `{ code }` | the verified admin launch redemption (authority `verifiedAdminLaunch`); same phase 1 and phase 2 rules as a grant; errors as A2 lists |
+
+## 4. Portal routes (base §4.2)
+
+The app serves the portal for `/integrations/:channelId/connect` and `/integrations/:channelId/:connectionId` when `channelId` is in the registry. The three baseline route pairs are the same URLs. An unknown channel id keeps today's behaviour for unknown paths. A route whose channel is not the connection's channel shows the portal "not found" view (base rule).
+
+## 5. Tool pages (base §6, §6.1)
+
+| Topic | Rule after LA |
+| --- | --- |
+| Launch routing | by the stored `binding_authority` ([LA-ADR-01 D7](../adr/LA-ADR-01-channel-kernel.md#decision)); log reasons unchanged (`deployment_not_approved`, `unknown_platform`) |
+| LMS check | the profile's channel must equal the connection's channel; a signed family guarded by a channel must belong to the connection's channel; log reason `lms_mismatch` (frozen) with `connection_lms` (the channel id) and `family` |
+| Content item `window` | when `launch.windowHint` is true and the platform accepts `window` (base: every non-Moodle LMS) |
+| Embedded page script | when `launch.topLevelContinue` is true (base: Canvas) |
+| `/tool/register` | for every channel with `registration.dynamic`; if the configuration family is guarded by another channel: page `PROVIDER_PROFILE_MISMATCH` ("This is a {LMS} site. Connect it as {LMS} in the Cogniate portal."); `complete` sends the connection's `lti_profile` and the channel scope set |
+| Launch without context | A2 [LA-ADR-05 D2](../adr/LA-ADR-05-lti-advantage-completeness.md): allowed; placement key with context id `""` |
+| Picker cancel, multi-select | A2 [LA-ADR-05 D3](../adr/LA-ADR-05-lti-advantage-completeness.md): `POST /tool/picker/{pickerId}/cancel`; checkboxes only with `content.multiple` |
+| Texts | `{LMS}` from the manifest; the generic channel reads "your LMS" (for example "Open the activity again in your LMS.") |
+
+## 6. Publications, results and records (base §5, §10)
+
+- JSON shapes do not change. `resourceLinkId` is the placement id (same value). `scoreSyncs`, `lastScoreSync`, Resend and the play status read `record_dispatch` rows of reporter `lti-ags` ([LA-ADR-03 D4](../adr/LA-ADR-03-learning-record-core.md#decision)).
+- `POST /app-api/publications/:id/results/refresh` needs `records.readBack`; else `409 CAPABILITY_NOT_SUPPORTED`, `details.capability = "records.readBack"` (new value; no LA channel hits it).
+- A score `409` gives `lastError` "… ({LMS} has a grade with a newer time)"; the Moodle text is unchanged.
+- A2 adds "Not graded in {LMS}" rows for ungraded placements ([LA-ADR-05 D5](../adr/LA-ADR-05-lti-advantage-completeness.md), Should).
+
+## 7. Operator CLI (base §4.8, §4.9)
+
+| Command | Change |
+| --- | --- |
+| `app:grant issue` | Allowed for every connection whose authority is `operatorGrant` (base: `canvas`, `blackboard`). `--purpose add_deployment` needs `deployments.multiple`. New flags for admin-value profiles: `--issuer`, `--auth-url`, `--token-url`, `--jwks-url`, `--token-audience` (required for `endpoints: admin`; refused otherwise). New flag `--operator <name>` (the audit actor; A2 LA-ADR-06 D4 rule 4). |
+| `app:grant revoke`, `list` | unchanged; `list` also prints the bound values |
+| `app:binding suspend`, `release` | unchanged rules; the record kind comes from the stored `target_kind`; `--operator <name>` |
+| Every command | one `audit_event` row ([data model §5](../data-model.md#5-cogniate-app-migration-015-e5-app-part-e6)) |
+
+The CLIs may later become clients of an app operator API; that is not in LA (A2 owns the LTI service operator API).
+
+## 8. Log events (base §12)
+
+| Event | Level | Fields | New or changed |
+| --- | --- | --- | --- |
+| `channel_registry_invalid` | error | `channel`, `reason` | new; the service does not start |
+| `channel_profile_unknown` | warn | `profile` | new |
+| `job_run` | info | `job`, `ms`, `result` (`ok`, `failed`, `skipped_lease`), `counts` | new ([LA-ADR-03 D7](../adr/LA-ADR-03-learning-record-core.md#decision)) |
+| `score_sync` | info | unchanged fields; written for reporter `lti-ags` | unchanged name |
+| `record_dispatch` | info | `dispatch_id`, `reporter`, `status`, `tries`, `phase` | new; for reporters other than `lti-ags` (none in LA) |
+| `dispatch_throttled` | warn | `dispatch_id`, `partition`, `retry_at` | new (`429` handling) |
+| `launch_rejected`, `deep_link_rejected` | warn | `connection_lms` holds the channel id | values widen; names unchanged |
+
+## 8a. App metrics (Should, with E5 metrics)
+
+For the runbook signals of A2's [operability §4.3](../operability.md). Same rules as the LTI service metrics ([LA-ADR-06 D10](../adr/LA-ADR-06-service-operability.md)).
+
+| Item | Rule |
+| --- | --- |
+| Endpoint | `GET /metrics` (OpenMetrics text) and `GET /readyz` on an app operator listener `127.0.0.1:4210`. The proxy does not route it. No session and no tenant data in values. |
+| `app_dispatch_rows` | gauge; labels `reporter`, `status` |
+| `app_dispatch_oldest_pending_seconds` | gauge; label `reporter` |
+| `app_dispatch_sends_total` | counter; labels `reporter`, `outcome` (`accepted`, `conflict`, `rejected`, `retryable`, `throttled`, `local_failure`) |
+| `app_launch_refusals_total` | counter; labels `reason` (`deployment_not_approved`, `site_mismatch`, `lms_mismatch`, `unknown_platform`, …), `channel` |
+| `app_grant_redemptions_total` | counter; label `result` (`committed`, `cancelled`, `failed`) |
+| `app_grant_compensation_failures_total` | counter |
+| `app_job_runs_total`, `app_job_last_success_timestamp_seconds` | as the LTI service job metrics; label `job` (`record-dispatch`, `retention`) |
+
+Label values are data (channel ids, reasons), not code branches, so they do not break the LMS-name rule.
+
+## 9. Errors
+
+No new error code in the app API from A1. Values that widen: `details.field` may be `channel`; `details.capability` may be a capability id for a new guard (§3.6, §6). A2's new page code `PLACEMENT_NOT_GRADED` is in [LA-ADR-05](../adr/LA-ADR-05-lti-advantage-completeness.md).
