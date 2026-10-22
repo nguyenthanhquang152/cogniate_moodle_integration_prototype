@@ -118,8 +118,14 @@ export interface ChannelManifest {
   setup: {                                      // "show, collect, verify, enable" (D9)
     createFields: FieldSpec[];                  // POST /app-api/connections extras (siteUrl, serviceUrl, profile)
     bindingFields: FieldSpec[];                 // PUT …/platform body keys (strict), per method
-    verify: 'firstLaunch' | 'operatorGrant' | 'verifiedAdminLaunch';  // verifiedAdminLaunch is Could (A2 LA-ADR-08 D6)
+    // No verify field: the shell takes the verify step from the binding authority (D9; Reviewer-B B-LAD-20).
     connectionCheck?: boolean;                // the "Check connection" panel (A2 LA-ADR-08 D4, Could)
+  };
+  storage?: {                                   // D5 "Tables": what the channel's app/ SQL may name (Q-LAD-25)
+    tables: string[];                           // Moodle: ['mbz_build']
+    columns: string[];                          // 'table.column'; Moodle: ['connection.ws_token_encrypted', 'connection.ws_site_name',
+                                                //   'connection.ws_release', 'publication.moodle_course_id', 'publication.moodle_course_idnumber',
+                                                //   'publication.shell_status', 'publication.shell_error']
   };
   texts: {
     adminSteps: string[]; teacherSteps: string[];
@@ -272,7 +278,7 @@ export interface PortContext {                 // made by the kernel per call; a
   connectionId: string | null;                 // null for course-version ports (P7)
   sql: ChannelSql;                             // no raw database handle
   outbound: GuardedClient;                     // the shared SSRF-guarded client (security §9)
-  seal(value: string): Uint8Array; unseal(blob: Uint8Array): string;  // the app key provider
+  seal(value: string): Promise<Uint8Array>; unseal(blob: Uint8Array): Promise<string>;  // async, as the key provider (LA-ADR-06 D6)
   logger: Logger; traceId: string; now(): number;
 }
 export interface ChannelSql {                  // the kernel binds :library_id (and :connection_id when not null)
@@ -338,7 +344,7 @@ Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-
 - Each channel's `lti-profiles.ts` exports its profiles. `services/lti-service/src/profiles/index.ts` stays the one profile registry API (`listProfiles`, `findProfile`, `profileDefinition`, …). It reads the profiles from the channel registry instead of three imports (`profiles/index.ts:5-7`).
 - `ProfileLms` (`profiles/types.ts:5`) is replaced by `channel: string` (the owning channel, set by the loader). The driver never compares a channel id.
 - Trait `endpoints: 'admin' | 'fixed'` replaces `isStandardProfile` in rules (R3 S68: `http/routes/platforms.ts:102,165,172-177,245`, `http/service-context.ts:40`). The `standard` id stays the default value for old rows (`store/platforms.ts:98`).
-- **Generic check 14.** Let F be the signed `tool_platform.product_family_code`, lower case. If a channel guards F at the `launch` level, the platform profile must belong to that channel; else `PROVIDER_PROFILE_MISMATCH` with `detail family=F`. A `registration`-level guard is checked only at Dynamic Registration (LA-ADR-02 D5 item 5) and in the app's create step; at launch it only logs `family_guard_mismatch {platform_id, family}` (info) and does not refuse (Reviewer-B B-LAD-04: a new named channel must not break live `lti-generic` or `standard` connections of its LMS). New channels use `registration`; `launch` stays for Canvas and Blackboard (load check 8), where it guards against kind B issuers and the self-hosted Canvas path of ADR-011 §4 rule 4. A change of a guard to `launch` level needs an ADR revision with a move plan for the live connections. A missing F, or an F that no channel guards, passes. Baseline manifests: Canvas guards `canvas` and Blackboard guards `blackboardlearn`, both at the `launch` level; Moodle guards nothing. So the refused set equals today's (`lti/checks.ts:246-251`).
+- **Generic check 14.** Let F be the signed `tool_platform.product_family_code`, lower case. If a channel guards F at the `launch` level, the platform profile must belong to that channel; else `PROVIDER_PROFILE_MISMATCH` with `detail family=F`. A `registration`-level guard is checked at Dynamic Registration (LA-ADR-02 D5 item 5) and in the app's create step. At launch it refuses only a platform whose profile belongs to a channel in `MANUAL_SELF_LEGACY_CHANNELS` (the typed-value `self` path; Reviewer-A A-LAD-19), before any claim is stored; for every other platform it only logs `family_guard_mismatch {platform_id, family}` (info) and does not refuse (Reviewer-B B-LAD-04: a new named channel must not break live `lti-generic` or `standard` connections of its LMS). New channels use `registration`; `launch` stays for Canvas and Blackboard (load check 8), where it guards against kind B issuers and the self-hosted Canvas path of ADR-011 §4 rule 4. A change of a guard to `launch` level needs an ADR revision with a move plan for the live connections. A missing F, or an F that no channel guards, passes. Baseline manifests: Canvas guards `canvas` and Blackboard guards `blackboardlearn`, both at the `launch` level; Moodle guards nothing. So the refused set equals today's (`lti/checks.ts:246-251`).
 - Text names: `lmsNameOf` and `lmsNameOfFamily` (`profiles/index.ts:96-107`) become registry lookups of `names.text`. A profile with no channel text (impossible after load check 2) uses the `standard` channel text, as today.
 - `GET /api/providers` adds the field `channel`. The field `lms` stays frozen. Its value comes from the profile field `wireLms` (QA Q-LAD-17): the baseline profiles keep today's values (`standard`: `null`; Canvas profiles: `canvas`; Blackboard profiles: `blackboard`); a profile without `wireLms` shows its channel id. So no channel name is in core. A2 records the wire change in [lti-service-api-delta](../contracts/lti-service-api-delta.md).
 - New profile traits for E2 (token audience, client assertion `deployment_id`, DR endpoint policy) are in [LA-ADR-02](LA-ADR-02-generic-lti-channel.md).
@@ -379,7 +385,7 @@ Reserved, not built in LA (names only, [terms §5](../terms.md#5-ports-reserved-
 
 - **Cards.** The Integrations page shows one card per channel from `manifest.card`, plus the static cards that are not channels (Kajabi, Figma, …, `Integrations.tsx:21-108`). The baseline manifests keep today's title, text, mark and colour.
 - **Routes.** One route pair: `/integrations/:channelId/connect` and `/integrations/:channelId/:connectionId`. An unknown channel id, or a connection of another channel, shows "not found" (app contract §4.2 rule). The app server allowlist uses the same pattern with the registry (`app/portal.ts:29-30`).
-- **Wizard.** The shell renders the four steps of every channel from the manifest: **show** (`GET …/tool-configuration` rows and setup artifacts), **collect** (`setup.createFields`, `setup.bindingFields`), **verify** (`setup.verify`: first launch or operator grant), **enable** (status and teacher steps). A channel module (P11) may replace one step or add panels. The Moodle, Canvas and Blackboard modules move into their folders with no visible change. A new channel needs no module.
+- **Wizard.** The shell renders the four steps of every channel from the manifest: **show** (`GET …/tool-configuration` rows and setup artifacts), **collect** (`setup.createFields`, `setup.bindingFields`), **verify** (from the binding authority: the connection's stored `binding_authority`, or before create the chosen method's authority: `self` → first launch, `operatorGrant` → approval code, `verifiedAdminLaunch` → admin launch code; a staged DR therefore shows the approval code step), **enable** (status and teacher steps). A channel module (P11) may replace one step or add panels. The Moodle, Canvas and Blackboard modules move into their folders with no visible change. A new channel needs no module.
 - **Texts.** Status, disconnect and not-ready texts come from `manifest.texts` with `{LMS}` filled.
 - **Ready rule.** `ready` comes from `GET /app-api/lms-providers` (profile ready) for every channel. The Moodle-only rule `lms === "moodle"` (`Integrations.tsx:157`) goes away; the Moodle profile is always ready, so the result does not change.
 

@@ -61,7 +61,7 @@ CREATE INDEX connection_channel ON connection (library_id, channel);
 
 | Rule | Detail |
 | --- | --- |
-| Writers | `POST /app-api/connections` writes `channel` and `binding_authority` in its insert (from the manifest method). `channel` never changes. `binding_authority` changes at most once, from `self` to `operatorGrant`, when the Dynamic Registration of a pending connection breaks I-SELF and is staged ([LA-ADR-02 D5](adr/LA-ADR-02-generic-lti-channel.md#decision) item 10). Phase 1 of a redemption writes `target_kind` from the adapter's target. `app:grant issue` writes `bound_values` for an admin-value profile ([LA-ADR-02 D6](adr/LA-ADR-02-generic-lti-channel.md#decision)). |
+| Writers | `POST /app-api/connections` writes `channel` and `binding_authority` in its insert (from the manifest method). `channel` never changes. `binding_authority` changes at most once, from `self` to `operatorGrant`, when the Dynamic Registration of a pending connection breaks I-SELF and is staged ([LA-ADR-02 D5](adr/LA-ADR-02-generic-lti-channel.md#decision) item 10); the same transaction writes `lms = 'canvas'`, so the behaviour class matches (A-LAD-20). Phase 1 of a redemption writes `target_kind` from the adapter's target. `app:grant issue` writes `bound_values` for an admin-value profile ([LA-ADR-02 D6](adr/LA-ADR-02-generic-lti-channel.md#decision)). |
 | `connection.lms` | Frozen. Baseline channels write their id. Other channels write the behaviour class: `moodle` (`self`), `canvas` (`operatorGrant`, exclusive), `blackboard` (`operatorGrant`, shared). Core never reads it ([LA-ADR-04 D4](adr/LA-ADR-04-refactor-and-migration.md#decision) rule 3). |
 | `binding_grant.lms` | Stores the channel id (no CHECK, `011_lms_types.sql:30`). |
 | `bound_values` | `{ "issuer", "authenticationEndpoint", "accessTokenEndpoint", "jwksUrl", "tokenAudience"? }`. Exact text compare at redemption, after the canonical-origin rule for origins. Not secret (ids are not secrets, ADR-011 §1). |
@@ -132,8 +132,9 @@ CREATE INDEX record_dispatch_record ON record_dispatch (record_id);
 
 CREATE TABLE job_instance (                          -- one heartbeat row per runner instance (LA-ADR-03 D7)
   instance_id  TEXT PRIMARY KEY,                      -- JOB_INSTANCE_ID
+  boot_id      TEXT NOT NULL,                         -- random per process; part of lease_owner
   started_at   INTEGER NOT NULL,
-  heartbeat_at INTEGER NOT NULL                       -- a start with the same id and a heartbeat newer than 30 s is refused
+  heartbeat_at INTEGER NOT NULL                       -- stop() deletes the row; a fresh row of another boot id makes a start wait, not exit
 );
 
 CREATE TABLE job_lease (
@@ -170,7 +171,7 @@ CREATE TABLE job_lease (
 | `service_key.derivation_version` (default `legacy`) | E5 | A2 [LA-ADR-06 D6](adr/LA-ADR-06-service-operability.md) | key provider |
 | `service_key.issue_epoch INTEGER NOT NULL DEFAULT 0` | E5 Should | A2 [LA-ADR-06 D8](adr/LA-ADR-06-service-operability.md) | + 1 at each re-issue after a revoke; the HMAC input gets `epoch=<n>` only when `n > 0`, so epoch 0 keeps today's key values |
 | table `service_setting` (`key TEXT PRIMARY KEY`, `value` JSON, `updated_at`, `updated_by`) | E5 Must | A2 [LA-ADR-06 D1](adr/LA-ADR-06-service-operability.md) | one row per setting; LA uses only the key `rate_limits` (set by `PATCH /operator/v1/rate-limits`); no row = the built-in limits |
-| table `job_lease` (same shape as §3) | E5 | A1 shape, A2 jobs | job runner ([LA-ADR-03 D7](adr/LA-ADR-03-learning-record-core.md#decision)) |
+| tables `job_lease` and `job_instance` (same shape as §3) | E5 | A1 shape, A2 jobs | job runner ([LA-ADR-03 D7](adr/LA-ADR-03-learning-record-core.md#decision)); the same restart rule as the app runner (Q-LAD-23) |
 
 No LTI service change is needed for a new profile: `platform.profile` has no CHECK (`services/lti-service/src/db/migrations/004_provider_profiles.sql:4`).
 
@@ -252,7 +253,7 @@ Multi-select Deep Linking (A2 [LA-ADR-05 D3](adr/LA-ADR-05-lti-advantage-complet
 
 ```sql
 CREATE TABLE picker_pick (
-  picker_id_hash   TEXT NOT NULL REFERENCES picker_session (id),
+  picker_id_hash   TEXT NOT NULL REFERENCES picker_session (id) ON DELETE CASCADE,  -- the retention delete of a session removes its picks (A-LAD-21)
   publication_id   TEXT NOT NULL REFERENCES publication (id),
   resource_link_id TEXT REFERENCES resource_link (id),   -- set at the first launch of that pick
   PRIMARY KEY (picker_id_hash, publication_id)
@@ -263,7 +264,7 @@ CREATE TABLE picker_pick (
 | --- | --- |
 | Writer | The picker POST writes one row per picked publication in the transaction that marks the picker used. A single pick also writes `picker_session.publication_id` (unchanged). |
 | Stats | `stats.activities` counts picks from `picker_pick` that no launch has matched yet (today it counts one per session, base data model §2.1). |
-| Retention | A picker session with an unmatched pick stays (the base retention exception), now read from `picker_pick`. |
+| Retention | A picker session with an unmatched pick stays (the base retention exception), now read from `picker_pick`. When the retention job deletes a session, `ON DELETE CASCADE` deletes its picks in the same statement (Reviewer-A A-LAD-21; one retention test: a session whose picks are all matched is deleted without an error). |
 
 ## 6. State machines
 
@@ -293,7 +294,8 @@ stateDiagram-v2
 
 | Migration | Test |
 | --- | --- |
-| `013` | [LA-ADR-04 D4](adr/LA-ADR-04-refactor-and-migration.md#decision) rule 5 |
+| `013` | [LA-ADR-04 D4](adr/LA-ADR-04-refactor-and-migration.md#decision) rules 5 and 6 |
 | `014` | [LA-ADR-04 D5](adr/LA-ADR-04-refactor-and-migration.md#decision) "Migration test" |
-| `015` | the trigger refuses an `UPDATE`; old rows of `connection` keep `artifact_key_kid = NULL` |
+| `015` | the trigger refuses an `UPDATE` of `audit_event` |
+| `016` | old rows of `connection` keep `artifact_key_kid = NULL` (Reviewer-B note) |
 | LTI service | each migration from the previous schema; A2 lists the E3 and E5 tests |

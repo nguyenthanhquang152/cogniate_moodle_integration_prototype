@@ -23,7 +23,7 @@ Inputs: [plan v1 §3 E6](../../../team/ltiaas/plan.md#e6-self-serve-onboarding-a
 | D3 | **Verified admin launch**: a signed LMS administrator Deep Linking launch makes a one-time connection code inside the LMS; the library user redeems it in the portal session. | Could |
 | D4 | **Connection check**: a token probe and a JWKS fetch for one connection, on demand, with a clear result. | Could (recommended first) |
 | D5 | **Connection health view**: last launch, last launch refusal, dispatch state, last errors, key state. | Could |
-| D6 | **Setup verify step** in the manifest gets the values for D3 and D4 (A1 added the fields to LA-ADR-01 D2). | Could |
+| D6 | **Setup verify step**: the portal shell takes it from the binding authority; the manifest keeps only `setup.connectionCheck` for D4 (LA-ADR-01 D2, D9). | Could |
 
 Recommended build order if E6 gets capacity: D4, then D5, then D3. D4 and D5 help support at once and change no authority; D3 changes authority and needs a security review and LA-H24.
 
@@ -144,7 +144,7 @@ Acceptance points (Could):
 
 ### D6. Manifest setup verify step (Could)
 
-The manifest has the fields ([LA-ADR-01 D2](LA-ADR-01-channel-kernel.md#d2-channel-manifest), added by A1): `setup.verify` = `'firstLaunch' | 'operatorGrant' | 'verifiedAdminLaunch'` and the optional flag `setup.connectionCheck`. The portal shell then shows, per channel, the right verify panel: the grant code field, the admin launch instructions with the code field, or the "Check connection" button. Baseline manifests: unchanged values (`firstLaunch` for Moodle, `operatorGrant` for Canvas and Blackboard; no `connectionCheck`), so E1 shows no change. When D3 is built, `verifiedAdminLaunch` also becomes a valid value of `registration[].authority` (today reserved in the manifest type) and of `connection.binding_authority` (the `013` CHECK already allows it, [LA data model §2](../data-model.md#2-cogniate-app-migration-013-e1-channel-kernel)). A manifest that names `verifiedAdminLaunch` while D3 is not built stops the registry load (LA-ADR-07 AP-07-08).
+The manifest has **no** `setup.verify` field: the portal shell takes the verify step from the binding authority ([LA-ADR-01 D2, D9](LA-ADR-01-channel-kernel.md#d2-channel-manifest); B-LAD-20): `self` → first launch, `operatorGrant` → the grant code field, `verifiedAdminLaunch` → the admin launch instructions with the code field. Only the optional flag `setup.connectionCheck` stays in the manifest; it adds the "Check connection" button. Baseline manifests have no `connectionCheck`, and their authorities are today's, so E1 shows no change. When D3 is built, `verifiedAdminLaunch` also becomes a valid value of `registration[].authority` (today reserved in the manifest type) and of `connection.binding_authority` (the `013` CHECK already allows it, [LA data model §2](../data-model.md#2-cogniate-app-migration-013-e1-channel-kernel)). A manifest that names `verifiedAdminLaunch` while D3 is not built stops the registry load (LA-ADR-07 AP-07-08).
 
 Proposed values when E6 is built: `canvas` and `lti-generic` get `connectionCheck: true`; the `canvas` methods (also for the `add_deployment` grant purpose) and the `lti-generic` manual method get `verifiedAdminLaunch` only after LA-H24; `blackboard` keeps `operatorGrant` (D2).
 
@@ -176,7 +176,7 @@ Ownership follows plan LD-5. Every point is Could: QA tests it only if E6 is in 
 | Level | Owner | Tests |
 | --- | --- | --- |
 | Author unit | Author | Code rules: 80-bit code, 30-minute life, single use, a newer code replaces an older one, 5 tries then the 1-hour block (D3 rules 3, 4), with a controlled clock; the role rule of D3 rule 2; the admin-value proof of D3 rule 6; the health field mapping (D5); migration tests of `015` (`artifact_key_kid`) and `016`. |
-| K0 | QA | The `setup.verify` and `setup.connectionCheck` values of every registered channel equal the fixture (D6). |
+| K0 | QA | The `setup.connectionCheck` value and the `binding.authority` map of every registered channel equal the fixture (D6). |
 | SIM-lane acceptance | QA | AP-08-01 to AP-08-10 on the Canvas simulator. |
 | Simulator modules | QA-E2E | Sign an institution administrator role in a Deep Linking launch; make the token endpoint answer `invalid_client` on demand. |
 | Live | QA-E2E | One CANVAS-HOSTED row: the roles of a Canvas account administrator's Deep Linking launch (D2 table). |

@@ -85,11 +85,12 @@ These names stay byte for byte, although they contain an LMS word or an LTI word
 
 Rules:
 
-1. **Writes.** A new connection writes `channel` and `binding_authority` in its insert. `channel` never changes. `binding_authority` changes at most once: from `self` to `operatorGrant`, for a `pending` dynamic connection whose registration breaks the self invariant I-SELF ([LA-ADR-02 D2a, D5 item 10](LA-ADR-02-generic-lti-channel.md#decision)); the change happens in the same transaction that records the staged platform.
+1. **Writes.** A new connection writes `channel` and `binding_authority` in its insert. `channel` never changes. `binding_authority` changes at most once: from `self` to `operatorGrant`, for a `pending` dynamic connection whose registration breaks the self invariant I-SELF ([LA-ADR-02 D2a, D5 item 10](LA-ADR-02-generic-lti-channel.md#decision)); the change happens in the same transaction that records the staged platform, and that transaction also writes `lms = 'canvas'` (the behaviour class of `operatorGrant` with an exclusive platform, rule 2), so the class always matches the authority (Reviewer-A A-LAD-20).
 2. **The frozen `lms` column.** A new connection of a baseline channel writes `lms` = its channel id. A connection of any other channel writes its **behaviour class**: `moodle` for `self`; `canvas` for `operatorGrant` with an exclusive platform; `blackboard` for `operatorGrant` with a shared platform. Reason: the CHECK allows only these values. A missed old read of `lms` then still selects the same authority rules (fail-equivalent, not fail-open).
 3. **Reads.** Core never reads `connection.lms`. The connection repository maps `channel` (never `NULL` after the backfill) and carries one comment rule above the mapping: "never read `connection.lms`; it is a frozen behaviour class" (Reviewer-B B-LAD-17). A fitness check in `npm run check` fails when product SQL outside the repository names `lms` of `connection`.
 4. **`binding_grant.lms`** has no CHECK (`011_lms_types.sql:30`); new grants store the channel id.
-5. **Migration test (Must, plan E1 constraint).** On a copy of every M1 fixture database: after `013`, every row has `channel = lms`, the expected `binding_authority` and `target_kind`; every API answer of the golden set is equal; an `012` build refuses the `013` ledger (ADR-011 §1 fact 4).
+5. **Writer test.** A staged Dynamic Registration of an `lti-generic` connection leaves `binding_authority = 'operatorGrant'` and `lms = 'canvas'` (A-LAD-20).
+6. **Migration test (Must, plan E1 constraint).** On a copy of every M1 fixture database: after `013`, every row has `channel = lms`, the expected `binding_authority` and `target_kind`; every API answer of the golden set is equal; an `012` build refuses the `013` ledger (ADR-011 §1 fact 4).
 
 ### D5. Migration `014_learning_records.sql` (E4)
 

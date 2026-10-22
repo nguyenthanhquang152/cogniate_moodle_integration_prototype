@@ -138,7 +138,7 @@ Acceptance points:
 
 - Production profile: `--evidence-channel` and `--evidence-ref` are required. Default and acceptance profiles: optional (M1 commands unchanged).
 - Storage: the evidence lives in the app audit event of the command ([LA data model §5](../data-model.md#5-cogniate-app-migration-015-e5-app-part-e6), table `audit_event`): `details` holds `evidence_channel`, `evidence_ref` and `note_present: true`, never the note text, because a note can hold personal data. The grant row gets **no** new column (no extra schema change). The note stays where M1 keeps it: `binding_grant.note` for a grant (`services/cogniate-app/src/domain/migrations/011_lms_types.sql:37`); suspend and release log only `note_present` (`services/cogniate-app/src/app/operator.ts:163`).
-- The evidence **policy** (what the operator must check, through which channel) is the human decision Q22. The recommendation stays as in `docs/architecture/open-questions.md:31`.
+- The evidence **policy** (what the operator must check, through which channel) is the human decision Q22. The recommendation stays as in `docs/architecture/open-questions.md:31`, plus one check: for a bound value whose host is not the issuer host, the operator confirms with the LMS administrator that the vendor issued this client id for this issuer at that host, and only then uses `--confirm-foreign-hosts` (LA-ADR-02 D6, A-LAD-23).
 
 Acceptance point:
 
@@ -182,7 +182,7 @@ New residual risks (for `open-questions.md` "Residual risks", through the Lead):
 
 | Id | Risk | Why accepted |
 | --- | --- | --- |
-| R-LA-1 | Moodle manual connect stays `self`: a library that learns a Moodle tool's six values before the rightful library can bind it first. | Unchanged prototype behaviour; the client id is visible only to the Moodle admin and in launches; the rightful library sees `PLATFORM_IN_USE`, and the operator can suspend and release. LA-H23 decides a stronger rule. |
+| R-LA-1 | Moodle manual connect stays `self`: a library that learns a Moodle tool's six values before the rightful library can bind it first. | Unchanged prototype behaviour; the client id is visible only to the Moodle admin and in launches; the rightful library sees `PLATFORM_IN_USE`, and the operator can suspend and release. A launch whose signed family a named channel guards (also at the `registration` level) is refused on a Moodle `standard` platform before any claim is stored, so this path cannot capture another named LMS (LA-ADR-01 D6, A-LAD-19). LA-H23 decides a stronger rule. |
 | R-LA-2 | App operator identity is self-asserted (shell access). | Accountable records now; SSO for operators in LG. |
 | R-LA-3 | Rate limits are per instance (in memory). | One instance in LA and the pilot; a shared store in LG. |
 | R-LA-4 | The storage path stores minimized, signed claims for up to 120 s before the browser binding is proven. | No ltik and no tool access exist before the check; the row is deleted after 10 min. |
@@ -238,7 +238,7 @@ Ownership follows plan LD-5.
 
 | Id | Question | Recommendation | Owner |
 | --- | --- | --- | --- |
-| Q22 | Evidence policy for grants, suspend and release; who may be an operator | As `docs/architecture/open-questions.md:31`; record channel and reference in the new fields | Product + Legal |
+| Q22 | Evidence policy for grants, suspend and release; who may be an operator | As `docs/architecture/open-questions.md:31`; record channel and reference in the new fields; confirm a foreign host with the LMS administrator before `--confirm-foreign-hosts` (A-LAD-23) | Product + Legal |
 | LA-H21 | Operator policy: key life, roles, two-person rule | Named staff; 90-day keys; second operator for account close, forced key activation and binding release (Could) | Product + Security |
 | LA-H23 | Moodle manual connect: keep `self` (R-LA-1), or require a verified admin launch or a grant | Keep `self` for the pilot; move Moodle manual to `verifiedAdminLaunch` when LA-ADR-08 D3 is built | Product + Security |
 | LA-H7 | Tenant model and host model | As plan v1 §6.2 | Product owner |

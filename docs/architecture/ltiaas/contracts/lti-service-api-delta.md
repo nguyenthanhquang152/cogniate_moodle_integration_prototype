@@ -98,7 +98,7 @@ New protocol page codes (security §2.1, §2.2 page rules: code, trace id, one a
 | Class | Routes | Key |
 | --- | --- | --- |
 | `protocol` (hard), `protocol_account` (soft: log and alert, never `429`) | `GET|POST /lti/login/:account`, `POST /lti/launch/:account`, `POST /lti/launch/:account/storage-check` | client address (IPv6: /64); tool account |
-| `registration` (hard), `registration_account` (soft) | `GET /lti/register/:account` | client address; tool account. Plus at most 10 open sessions per client address (`registrationSessionsPerAddress`) |
+| `registration` (hard), `registration_account` (soft) | `GET /lti/register/:account` | client address; tool account. Plus at most 10 open sessions per client address and tool account (`registrationSessionsPerAddress`) |
 | `keys` | `GET /lti/keys/:account` | client address |
 | `api` | `/api/idtoken`, `/api/deeplinking*`, `/api/lineitems*`, `/api/memberships` | API key id |
 | `admin` | every Bearer route | API key id |
@@ -161,7 +161,7 @@ The key list is: the `active` key first, then the `next` key, then `retired` key
 
 ### 2.4 `GET /lti/register/{toolAccountId}` (§2.4)
 
-- Rate limits `registration` and `registration_account` (soft); at most 10 open sessions per client address (`409` page `REGISTRATION_SESSION_LIMIT`, no outbound fetch).
+- Rate limits `registration` and `registration_account` (soft); at most 10 open sessions per client address and tool account (`409` page `REGISTRATION_SESSION_LIMIT`, no outbound fetch).
 - E2 (A1, [LA-ADR-02 D5](../adr/LA-ADR-02-generic-lti-channel.md#d5-generic-dynamic-registration-fixes-must)): the start page applies the loosest Dynamic Registration rule of any profile (`path-prefix` issuer rule; Moodle JWT or opaque Bearer token). `complete` applies the exact rule of the chosen profile (§4.5).
 
 ### 2.5 `GET /healthz` (§2.5) and `GET /readyz` (new, Should)

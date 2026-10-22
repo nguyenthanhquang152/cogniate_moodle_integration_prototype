@@ -28,7 +28,7 @@ New and changed settings (all optional unless marked; the base settings stay as 
 | `SIGNING_KEY_PUBLISH_LEAD_S` | LTI | `86400` (min `600`) | wait between `next` and activation | LA-ADR-06 D7 |
 | `SIGNING_KEY_ROTATE_DAYS` | LTI | `90` | age limit for the alert and for `autoRotate` accounts | LA-ADR-06 D7 |
 | `AUDIT_RETENTION_DAYS` | both | `400` | audit retention (LA-H4) | LA-ADR-06 D4 |
-| `JOB_INSTANCE_ID` | both | `lti-1`, `app-1` | lease owner of the job runner; two live runners with one id refuse to start (`job_instance_conflict`) | LA-ADR-03 D7 |
+| `JOB_INSTANCE_ID` | both | `lti-1`, `app-1` | lease owner of the job runner (with a random boot id per process). A normal restart (stop, then start) keeps today's timing: `stop()` deletes the heartbeat row. After a crash without `stop()`, the new runner waits up to 30 s before its first send, and the web part serves at once. Only a second **live** process with the same id stops its runner (`job_instance_conflict`: a worker process exits 1; the web process keeps serving with its runner off). The rule holds for both runners (LA-ADR-03 D7, Q-LAD-23) | LA-ADR-03 D7 |
 | `APP_JOB_RUNNER` | app | `on` | `off` in the web process when `npm run worker` runs apart; `production` refuses both on | LA-ADR-03 D7 |
 | `OPERATOR_NAME` | app | unset | default actor of `app:grant` and `app:binding` | LA-ADR-07 D4 |
 | `OPERATORS`, `OPERATORS_FILE` | app | unset | allowed operator names (comma list, or a JSON array file); one of them required when a CLI runs with `STACK_PROFILE=production` | LA-ADR-07 D4 |
@@ -293,6 +293,7 @@ WARNING: A backup folder contains secrets in sealed form and is useless without 
 | New tool account (vendor model, LA-H7) | `POST /operator/v1/accounts` with the tool URLs; set `limits` and `claimPolicy`; issue an API key with the needed scopes; give the key and the protocol URLs to the vendor through an approved channel. |
 | Suspend a tool account | `PATCH /operator/v1/accounts/<id> {status: "suspended"}`. Launches show `TOOL_ACCOUNT_SUSPENDED`. Undo with `active`. |
 | Close a tool account | `PATCH … {status: "closed"}` (final). Every key stops at once. The purge job deletes its data after `closedRetentionDays` (Should). |
+| Grant for an admin-value connection with a host off the issuer host | `app:grant issue` marks every bound value whose host is not the issuer host (for example a D2L token host). Before the issue, confirm with the LMS administrator, through the evidence channel, that the vendor issued this client id for this issuer at that host. Then add `--confirm-foreign-hosts`; without it the command exits 1 (LA-ADR-02 D6, A-LAD-23). Record the confirmation in `--evidence-ref`. |
 | Wrong library binding | `app:binding suspend`, then `release` (ADR-011 §4b), with `--operator` and the evidence fields (LA-ADR-07 D5). |
 
 ## 9. Incident first steps
