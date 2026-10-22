@@ -296,7 +296,11 @@ export interface PortContext {                 // made by the kernel per call; a
   outbound: GuardedClient;                     // the shared SSRF-guarded client (security §9)
   seal(value: string): Promise<Uint8Array>; unseal(blob: Uint8Array): Promise<string>;  // async, as the key provider (LA-ADR-06 D6)
   logger: Logger; traceId: string; now(): number;
+  // BD-A1-37 (P5): public values and the public tool keys, for setup artifacts such as the Canvas JSON.
+  urls: PublicUrls; libraryName: string; toolAccountId: string;
+  publicToolKeys(): Promise<{ ok: true; keys: PublicJwk[] } | { ok: false }>;  // public members only, active key first
 }
+export interface PublicJwk { kty: string; kid: string; alg: string; use: string; n: string; e: string }
 export interface ChannelSql {                  // the kernel binds :library_id (and :connection_id when not null)
   get<T>(statement: string, params?: Record<string, unknown>): T | undefined;
   all<T>(statement: string, params?: Record<string, unknown>): T[];
@@ -305,21 +309,33 @@ export interface ChannelSql {                  // the kernel binds :library_id (
 export interface ExtensionRoute {              // P5: mounted under /app-api/connections/:id/
   method: 'GET' | 'PUT' | 'POST'; path: string;              // a frozen legacy path (D8) or `x/<name>`
   capability: CapabilityId; legacyCapabilityName?: string;   // the guard and its frozen details.capability value
-  handle(input: { body: unknown; query: Record<string, string> }, ctx: PortContext): Promise<{ status: number; body: unknown; headers?: Record<string, string> }>;
+  handle(input: { body: unknown; query: Record<string, string> }, ctx: PortContext): Promise<
+    | { status: number; body: unknown; headers?: Record<string, string> }
+    | { error: { status: number; code: string; message: string; details?: Record<string, unknown> } }>;  // BD-A1-37: the kernel renders the standard error body
 }
 export interface PublishHook {                 // P6: runs after POST /app-api/publications
   option: string;                              // the frozen body flag that turns it on (`createMoodleCourse`)
   capability: CapabilityId;                    // publish.createCourse
-  afterPublish(p: PublicationView, ctx: PortContext): Promise<void>;
+  parseOptions(value: unknown): { ok: true; options: unknown } | { ok: false; fields: string[] };  // BD-A1-37: the body flag value, checked before any change
+  afterPublish(p: PublicationView, options: unknown, ctx: PortContext): Promise<void>;
   dtoFields(p: PublicationView, ctx: PortContext): Record<string, unknown>;  // only frozen field names (D8)
 }
 export interface PackageExporter {             // P7: course-version level, no connection
   id: string;                                  // 'mbz'
   formats: readonly string[];                  // ['scorm12']
-  start(v: CourseVersionView, ctx: PortContext): Promise<ExportBuildView>;
-  latest(v: CourseVersionView, ctx: PortContext): ExportBuildView | null;
-  download(v: CourseVersionView, ctx: PortContext): Promise<{ path: string; mediaType: string; filename: string } | null>;
+  start(v: CourseVersionView, ctx: ExporterContext): Promise<ExportBuildView>;
+  latest(v: CourseVersionView, ctx: ExporterContext): Promise<ExportBuildView | null>;   // BD-A1-37: async (refreshes the runner status)
+  download(v: CourseVersionView, ctx: ExporterContext): Promise<{ artifact: string; mediaType: string; filename: string } | null>; // the kernel streams it
 }
+export interface ExporterContext extends PortContext { buildQueue: BuildQueue }
+export interface BuildQueue {                  // BD-A1-37: a kernel service on BUILD_QUEUE_DIR; a channel never sees a path
+  submit(buildId: string, request: Record<string, unknown>): Promise<void>;  // requests/<id>.json, atomic, mode 0600
+  status(buildId: string): Promise<unknown | null>;   // status/<id>.json, parsed, size-capped; null when absent
+  runner(): Promise<unknown | null>;                  // status/runner.json
+}
+// PublicationView, CourseVersionView, ExportBuildView (today's mbz build DTO fields), ProfileView: explicit interfaces
+// in kernel/ports.ts with the fields a channel may read; ports.ts imports types only from @cogniate/channel-kernel and
+// @cogniate/shared, never from domain/**, clients/** or app/** (BD-A1-37, BD-A1-38).
 ```
 
 | Rule | Detail |
@@ -328,6 +344,9 @@ export interface PackageExporter {             // P7: course-version level, no c
 | Tables | Channel SQL may name only the tables and columns that its manifest lists in `storage` (Moodle: `mbz_build`; `connection.ws_*`; `publication.moodle_course_*`, `shell_*`). Fitness check F5 refuses other names in channel SQL. A2's "no database handle" rule (LA-ADR-07 D1) means no raw handle; `ChannelSql` is the bound handle. |
 | DTO fields | A channel cannot add a field to a core DTO in LA. The frozen publication fields `moodleCourse`, `shellStatus`, `shellError` come from the Moodle hook's `dtoFields`; the kernel accepts only names in `legacy-wire.ts`. |
 | Body flags | The kernel publish route parses the frozen flag `createMoodleCourse` (a `legacy-wire.ts` name) and calls the hook whose `option` equals it; a channel without the capability gets the M1 guard (`409 CAPABILITY_NOT_SUPPORTED`, `courseShell`). |
+| Port context values (BD-A1-37) | `urls`, `libraryName` and `toolAccountId` are the values of the call's library. `publicToolKeys()` asks the LTI service for that tool account only and copies only `kty`, `kid`, `alg`, `use`, `n`, `e`; on an LTI error it gives `{ ok: false }`, and the route answers its own frozen error through the `error` result. NOT_FOUND and the capability guard run in the kernel before `handle`. Security review: A2. |
+| Build queue (BD-A1-37) | `buildQueue` exists only on the P7 context. The kernel accepts a build id only when it matches `[A-Za-z0-9_-]{1,64}`, uses only the `requests/`, `status/` and `out/` folders of `BUILD_QUEUE_DIR`, writes only `requests/` (mode `0600`, write then rename), caps the size of a status file before it parses it, and streams `out/<buildId>.<ext>` for `download`. Channel files never import `node:fs` or `node:path` (BD-A1-16). Security review: A2. |
+| Contract file (BD-A1-38) | `kernel/ports.ts` holds only the channel contract, with one doc comment per member and the required rules of BD-A1-20 and BD-A1-28. Kernel-internal types (for example `SetupRouteDeps` with the database, the LTI client and the master key) live in a kernel-internal module that channel files cannot import. Channel files also refuse `eval`, implied eval and `new Function` (lint). |
 
 **Portal module (P11; Reviewer-B B-LAD-02).** Sketch, `apps/portal/src/sdk/index.ts` (alias `@cogniate/portal-sdk`):
 
