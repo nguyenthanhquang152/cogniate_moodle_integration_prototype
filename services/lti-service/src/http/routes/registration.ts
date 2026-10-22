@@ -218,9 +218,9 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
         }
       }
       const config = configOf(session);
-      // LA-E3-06: check explicit and default scopes before claiming the session or sending a request.
+      // An absent list keeps the legacy five-scope request; only an explicit list checks platform support.
       const scopes = body.data.scopes ?? REGISTRATION_SCOPES;
-      if (scopes.some((scope) => !config.scopesSupported.includes(scope))) {
+      if (body.data.scopes?.some((scope) => !config.scopesSupported.includes(scope))) {
         throw new ApiError('INVALID_REQUEST', 'Invalid field: scopes. The platform does not support every requested scope.');
       }
       // M1 (§9.2): a standard platform cannot use a reserved issuer; nothing is sent to the platform.

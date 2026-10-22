@@ -22,7 +22,7 @@ const CONFIG_URL = `${M}/mod/lti/openid-configuration.php`;
 const CONFIG = {
   issuer: M, token_endpoint: `${M}/mod/lti/token.php`, jwks_uri: `${M}/mod/lti/certs.php`, authorization_endpoint: `${M}/mod/lti/auth.php`,
   registration_endpoint: `${M}/mod/lti/openid-registration.php`,
-  scopes_supported: [...REGISTRATION_SCOPES],
+  scopes_supported: ['https://purl.imsglobal.org/spec/lti-ags/scope/score', 'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem'],
   [PLATFORM_CONFIG_CLAIM]: { product_family_code: 'moodle', version: '5.2.4 (Build: 20261005)', messages_supported: [{ type: 'LtiResourceLinkRequest' }, { type: 'LtiDeepLinkingRequest', placements: ['ContentArea'] }] },
 };
 
@@ -170,17 +170,26 @@ describe('dynamic registration (contract §2.4, §3.8)', () => {
     ]);
   });
 
-  it.each([true, false])('checks advertised scopes for an explicit list = %s before sending', async (explicit) => {
+  it('checks advertised scopes for an explicit list before sending', async () => {
     const s = await setup();
     s.state.config = { ...CONFIG, scopes_supported: [REGISTRATION_SCOPES[3]] };
     const id = idOf(String((await s.start(undefined)).headers.location));
-    const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: explicit ? { scopes: [REGISTRATION_SCOPES[0]] } : {} });
+    const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: { scopes: [REGISTRATION_SCOPES[0]] } });
     expect([r.statusCode, r.json().details.message]).toEqual([400, 'INVALID_REQUEST']);
     expect(r.json().details.description).toContain('Invalid field: scopes');
     expect(s.state.registrations).toEqual([]);
     const ok = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: { scopes: [REGISTRATION_SCOPES[3]] } });
     expect(ok.statusCode).toBe(200);
     expect(s.state.registrations.map((call) => call.body.scope)).toEqual([REGISTRATION_SCOPES[3]]);
+  });
+
+  it.each([undefined, [], [REGISTRATION_SCOPES[3]]])('keeps all five default scopes when scopes_supported is %j (B-LA-E3-06-01)', async (scopes_supported) => {
+    const s = await setup();
+    s.state.config = { ...CONFIG, scopes_supported };
+    const id = idOf(String((await s.start(undefined)).headers.location));
+    const r = await s.app.inject({ method: 'POST', url: `/api/registrations/${id}/complete`, headers: s.bearer(), payload: {} });
+    expect(r.statusCode).toBe(200);
+    expect(s.state.registrations.map((call) => call.body.scope)).toEqual([REGISTRATION_SCOPES.join(' ')]);
   });
 
   it('rolls back the platform and session completion if the audit insert fails', async () => {
