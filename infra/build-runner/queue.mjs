@@ -47,9 +47,12 @@ function readRequest(path) {
 function checked(path) {
   let r;
   try { r = JSON.parse(readRequest(path)); } catch { fail('request is not JSON'); }
+  const fields = new Set(['buildId', 'libraryId', 'courseId', 'versionId', 'packageSha256', 'variant', 'lang', 'title', 'hold', 'failAt']);
+  if (!r || typeof r !== 'object' || Array.isArray(r) || Object.keys(r).some((key) => !fields.has(key))) fail('bad request fields');
   const want = (key, re) => { if (typeof r[key] !== 'string' || !re.test(r[key])) fail(`bad field ${key}`); return r[key]; };
   const job = {
     buildId: want('buildId', /^bld_[0-9a-f]{24}$/),
+    libraryId: want('libraryId', /^lib_[A-Za-z0-9_-]{22}$/),
     courseId: want('courseId', /^crs_[A-Za-z0-9_-]{22}$/),
     versionId: want('versionId', /^ver_[A-Za-z0-9_-]{22}$/),
     packageSha256: want('packageSha256', /^[0-9a-f]{64}$/),

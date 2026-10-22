@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 // Unit tests live next to the code, in workspaces and channel folders (allow-list, B-T1-01):
 // git-ignored folders (**/.data, .tmp) and QA's tests/ are never scanned.
 import { defineConfig } from 'vitest/config';
@@ -18,7 +19,7 @@ export default defineConfig({
       {
         // Inheriting would concatenate the root include list and run Node tests a second time in jsdom.
         extends: false,
-        resolve: { alias: { '@cogniate/portal-sdk': new URL('./apps/portal/src/sdk/index.ts', import.meta.url).pathname } },
+        resolve: { alias: { '@cogniate/portal-sdk': fileURLToPath(new URL('./apps/portal/src/sdk/index.ts', import.meta.url)) } },
         // Channel portal tests run in jsdom without a per-file pragma; JSX uses the automatic React runtime.
         test: { name: 'portal', include: portalTests, exclude: excludedPaths, environment: 'jsdom' },
         oxc: { jsx: { runtime: 'automatic' } },

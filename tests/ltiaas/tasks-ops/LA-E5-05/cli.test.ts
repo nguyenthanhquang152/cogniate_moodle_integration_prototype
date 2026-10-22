@@ -40,6 +40,7 @@ interface BootstrapCliSummary {
   kid: string | null;
   hasApiKey: boolean;
   keyFileWritten: boolean;
+  opCopyDeletedOnMissing?: boolean;
   stderrLines: string[];
 }
 
@@ -204,8 +205,11 @@ it(
       },
     );
     assert.equal(extraKeyRes.status, 201, 'issued second active key before --rotate-api-key');
+    const extraKeyId = String(extraKeyRes.json?.id ?? '');
     const secondOldKey = String(extraKeyRes.json?.apiKey ?? '');
     recordSecret('api_key', secondOldKey);
+
+    const beforeIssues = await listAllAudit(operatorKey, { toolAccountId: freshAccount, action: 'api_key.issue' });
 
     const rotated = await runBootstrapCli(freshAccount, freshName, { rotateApiKey: true });
     assert.equal(rotated.cliCode, 0, 'lti:bootstrap --rotate-api-key exits 0');
@@ -228,6 +232,22 @@ it(
 
     const newCheck = await ltiApi('GET', '/api/platforms', { authorization: auth.bearer(newKey) });
     assert.equal(newCheck.status, 200, 'new API key passes GET /api/platforms (200)');
+
+    // BD-A2-33: --rotate-api-key calls POST .../api-keys with revokeOthers: true, writing one api_key.issue event with details.revokedKeyIds.
+    const afterIssues = await listAllAudit(operatorKey, { toolAccountId: freshAccount, action: 'api_key.issue' });
+    assert.equal(
+      afterIssues.events.length,
+      beforeIssues.events.length + 1,
+      '--rotate-api-key wrote one new api_key.issue audit event (BD-A2-33)',
+    );
+    const rotateIssueEvent = afterIssues.events[0];
+    assert.equal(rotateIssueEvent.result, 'ok');
+    assert.equal(actorTag(rotateIssueEvent), `operator:${operatorName}`);
+    const revokedKeyIds = rotateIssueEvent.details?.revokedKeyIds;
+    assert.ok(Array.isArray(revokedKeyIds), 'api_key.issue event has details.revokedKeyIds array (BD-A2-33)');
+    assert.equal((revokedKeyIds as unknown[]).length, 2, 'details.revokedKeyIds lists both previously active keys');
+    assert.ok((revokedKeyIds as string[]).includes(extraKeyId), 'details.revokedKeyIds includes the second active key id');
+
     initialFreshKey = newKey;
   },
 );
@@ -321,6 +341,7 @@ it(
     const unmatchedAccount = `qa2-e505-no-opkey-${runId}`;
     const failed = await runBootstrapCli(unmatchedAccount, 'Should Fail', { renameOperatorKey: true });
     assert.equal(failed.cliCode, 1, 'lti:bootstrap with operator key file renamed exits 1');
+    assert.equal(failed.opCopyDeletedOnMissing, true, 'wrapper deleted infra/.secrets/lti/lti-operator-key copy when original was missing (BD-A2-34)');
     assert.equal(failed.stderrLines.length, 1, `expected 1 error line naming the key file, got: ${JSON.stringify(failed.stderrLines)}`);
     assert.match(
       failed.stderrLines[0],

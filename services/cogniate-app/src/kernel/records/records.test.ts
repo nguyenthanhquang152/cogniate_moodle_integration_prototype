@@ -1,3 +1,6 @@
+import type { RecordReporter } from './types.ts';
+import { configureRecordReporters } from './records.ts';
+import { ltiAgsPolicy } from '../../drivers/lti-ags/index.ts';
 import { describe, expect, it } from 'vitest';
 import type { TrackingProfile } from '@cogniate/package-inspector';
 import { applyCommit, findRuntimeSession } from '../../domain/attempts.ts';
@@ -9,6 +12,7 @@ import { seedAttempt, seedBase, seedLink } from './records.testkit.ts';
 
 function fixture(preview = false, format: 'html' | 'scorm12' = 'scorm12', context = 'context') {
   const db = openDb(':memory:'); seedBase(db); seedLink(db, 'rl', 'con', 'pub', context); upsertPlacement(db, 'rl'); seedAttempt(db, 'user', 'rl', preview);
+  configureRecordReporters(db, [{ ...ltiAgsPolicy, async deliver() { throw new Error('No sends in commit tests'); } }]);
   const profile: TrackingProfile = { format, launchPath: 'index.html', pages: ['index.html', 'page.html'], menuPage: null,
     questionIds: [], masteryScore: 70, minDwellMs: 0 };
   db.prepare('UPDATE course_version SET format = ?, tracking_profile = ?').run(format, JSON.stringify(profile));
@@ -58,4 +62,29 @@ describe('final records', () => {
     try { expect(publicationResults(db, { connectionId: 'con', courseId: 'crs' }, TEST_CHANNELS)[0]!.activity.contextTitle).toBe('—'); }
     finally { db.close(); }
   });
+});
+
+it('B-LA-E4-02-01/02: one registered reporter instance prepares and delivers through the neutral port', async () => {
+  const { createDispatchQueue } = await import('./outbox.ts');
+  const { createLogger } = await import('@cogniate/shared');
+  const { db, commit } = fixture();
+  const delivered: unknown[] = [];
+  const reporter: RecordReporter = { ...ltiAgsPolicy,
+    prepare: () => ({ neutral: 'payload' }), partitionKey: () => 'chosen-partition',
+    async deliver(row, ctx) { delivered.push(row); expect(ctx.beginSend()).toBe('started'); return { kind: 'accepted' }; },
+  };
+  const reporters = [reporter];
+  configureRecordReporters(db, reporters);
+  const job = createDispatchQueue(db, reporters);
+  try {
+    commit({ event: 'finish', cmi: { core: { lesson_status: 'passed', score: { raw: '80', max: '100' } } } });
+    const [item] = await job.due(1000, 10);
+    expect(item?.partitionKey).toBe('chosen-partition');
+    expect(await job.lease(item!, 'a/boot', 61_000, 1000)).toBe(true);
+    await job.run(item!, { instanceId: 'a', bootId: 'boot', leaseOwner: 'a/boot', now: () => 1000,
+      logger: createLogger({ service: 'test', write: () => {} }), signal: new AbortController().signal, traceId: 'trace' });
+    expect(delivered).toEqual([{ id: item!.id, reporter: 'lti-ags', partitionKey: 'chosen-partition', placementId: 'rl',
+      learnerSubject: 'user', payload: { neutral: 'payload' }, tries: 0, createdAt: 1000, retryFrom: 1000, confirmationAfter: null }]);
+    expect(db.prepare('SELECT status FROM record_dispatch WHERE id = ?').get(item!.id)!.status).toBe('sent');
+  } finally { db.close(); }
 });

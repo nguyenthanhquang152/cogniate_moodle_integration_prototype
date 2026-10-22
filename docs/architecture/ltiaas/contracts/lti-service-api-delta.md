@@ -83,10 +83,11 @@ Same body `{ status, error, details: { message, description } }`. Where marked, 
 | 409 | `SIGNING_KEY_NOT_PUBLISHED_LONG_ENOUGH` | Activation before the publish lead time, without `force`. `details`: `kid`, `activatableAt` (ISO 8601: `publishedAt` + lead time) | Must |
 | 409 | `SIGNING_KEY_ACTIVE` | `retire` of the active key. `details`: `kid` | Must |
 | 409 | `SIGNING_KEY_WRONG_STATE` | A signing-key transition that the key's state does not allow: `activate` of a key that is not `next`; `retire` of a `removed` key (LA-ADR-06 D7). Only this meaning: "the account has no active key" is not an error (BD-A2-24, §3). `details`: `kid`, `keyStatus` (the key's current state; not `status`, which is the HTTP status of the body) | Must |
+| 409 | `JOB_RUNNING` | An on-demand job run while another run of that job holds its lease (`POST …/key-provider/rewrap`, `POST /operator/v1/jobs/:name/run`; BD-A2-50) | Must |
 | 409 | `IDEMPOTENCY_IN_PROGRESS` | A request with the same `Idempotency-Key` still runs | Should |
 | 422 | `IDEMPOTENCY_KEY_REUSED` | The same `Idempotency-Key` with another body | Should |
 | 401 | `INVALID_OPERATOR_AUTHORIZATION_HEADER` | Operator listener: no header, another scheme, an unknown, expired or revoked operator key | Must |
-| 503 | `NOT_READY` | `/readyz` and the operator API when the key provider or the database is not ready; `details.reasons` (list of short codes) | Should |
+| 503 | `NOT_READY` | `/readyz` and the operator API when the key provider or the database is not ready; `details.reasons` (list of short codes) Also `POST /operator/v1/key-provider/rewrap` when the job runner is not active (`job_runner_not_active`, BD-A2-50). | Should |
 
 New protocol page codes (security §2.1, §2.2 page rules: code, trace id, one action line):
 
@@ -208,8 +209,8 @@ Listener `OPERATOR_HOST:OPERATOR_PORT` (default `127.0.0.1:4110`; the `acceptanc
 | `POST /operator/v1/accounts/:id/signing-keys/:kid/retire` | `{ immediate: true }` (only valid value in LA) | `200 { kid, status: "removed" }` for a `retired` or a `next` key. `409 SIGNING_KEY_ACTIVE`. `409 SIGNING_KEY_WRONG_STATE` for a `removed` key. Without `immediate: true`: `400 INVALID_REQUEST` (field `immediate`), with the text 'retire needs {"immediate": true} (removes the key at once). A key becomes retired when the next key is activated.' | Must |
 | `POST /operator/v1/accounts/:id/shared-platforms` | `{ profile, clientId, name? }` | `201` platform, or `200` for the same client id (the rules of §9.12 CLI). `409 SHARED_PLATFORM_EXISTS` for another client id. | Must |
 | `GET /operator/v1/key-provider` | — | `200 { kind, activeVersion, versions: [{ id, state, sealedCount, derivedCount }] }` | Must |
-| `POST /operator/v1/key-provider/rewrap` | — | `202 { job: "key-rewrap", traceId }` (runs the on-demand job) | Must |
-| `GET /operator/v1/audit` | query `toolAccountId`, `action`, `actorId`, `since`, `until`, `cursor`, `limit` (≤ 500) | `200 { events: [AuditEvent], next? }`, newest first | Must |
+| `POST /operator/v1/key-provider/rewrap` | — | `202 { job: "key-rewrap", traceId }` (runs the on-demand job). `503 NOT_READY` (`reasons: ["job_runner_not_active"]`, `retryAfter: 30`) when the job runner is not active; `409 JOB_RUNNING` when a run holds the lease; the run uses the request's `traceId` (BD-A2-50). | Must |
+| `GET /operator/v1/audit` | query `toolAccountId`, `action`, `actorId`, `traceId` (BD-A2-50), `since`, `until`, `cursor`, `limit` (≤ 500) | `200 { events: [AuditEvent], next? }`, newest first | Must |
 | `GET /operator/v1/operator-keys` | — | `200 { operatorKeys: [{ id, operator, createdAt, expiresAt, lastUsedAt, revokedAt }] }` | Must |
 | `POST /operator/v1/operator-keys` | `{ operator, expiresAt? }` | `201 { id, operatorKey, operator, expiresAt }` (shown once). Default 90 days; `expiresAt` outside 1 hour to 1 year from now: `400 INVALID_REQUEST` (field `expiresAt`). | Must |
 | `POST /operator/v1/operator-keys/:id/revoke` | — | `200` (an operator cannot revoke the key of its own request: `409 OPERATOR_KEY_IN_USE`) | Must |
@@ -342,7 +343,7 @@ New entries for `lti-generic` and `brightspace` have the base field shape with `
 
 ### 4.9 `Idempotency-Key` (Should)
 
-On `POST /api/lineitems`, `POST /api/platforms`, `POST /api/platforms/:id/deployments`: 1–64 characters `[A-Za-z0-9_-]`. For 24 hours per tool account: the same key with the same body (SHA-256) gives the stored status and body and makes no platform call; another body gives `422 IDEMPOTENCY_KEY_REUSED`; a running request gives `409 IDEMPOTENCY_IN_PROGRESS`.
+On `POST /api/lineitems`, `POST /api/platforms`, `POST /api/platforms/:id/deployments`: 1–64 characters `[A-Za-z0-9_-]`. For 24 hours per tool account: the same key with the same body (SHA-256) gives the stored status and body and makes no platform call; another body gives `422 IDEMPOTENCY_KEY_REUSED`; a running request gives `409 IDEMPOTENCY_IN_PROGRESS`. Details (BD-A2-51): the key is unique per tool account; the fingerprint is the method, the route template, the decoded path parameters and the SHA-256 of canonical JSON of the parsed body (keys sorted, no whitespace; an absent body is `null`); another fingerprint with the same key gives `422`. Only `2xx` and `4xx` answers are replayed; after a `5xx` the key is free again; a `running` record older than 60 s is replaced. On the admin routes a replay, a `409` or a `422` writes one audit event (LA-ADR-06 D9).
 
 ## 5. Audit actions (new)
 

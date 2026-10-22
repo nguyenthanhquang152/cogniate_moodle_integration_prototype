@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 1
+Round: 2
 
 # LA-E7-02 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -63,3 +63,57 @@ Round: 1
 - Every folder under `tests/sim/` except `core` and dot folders is loaded as a module. A future helper folder without `index.mjs` stops the start (fail closed). The README can say this.
 - The "Required … simulator is unavailable" text guesses the module name from the entry id. For `moodle-sim` it says "moodle", but the module is `generic`. This is a text-only issue.
 - All five ACs are K1-SIM and wait for the Docker window. The host-only tests above cover their logic.
+
+## Round 2
+
+- Diff: `git diff f83a00e 0e65ab1 -- tests/sim docs/reviews/LA-E7-02/qa.md`. Commit `0e65ab1` holds the LA-E7-02 round-2 fixes and the LA-E7-05 simulator work (scenario options, the DR platform side). A later commit `19059aa` ("LA-E7-02 round-3 fixes": `server.mjs`, `loading.test.mjs`, `README.md`) is outside this dispatch, and I did not review it. `core/provider.mjs` and `core/runtime.mjs` at `HEAD` are the same as at `0e65ab1`.
+- References: my round-1 findings above; A1 BD-A1-36 and LA-IC-16 (LA-ADR-04 D8); LA-ADR-04 D6; `tests/ltiaas/golden/README.md` §5; AC-LA-E1-05-09.
+- I ran on the host (no Docker):
+  - Simulator self-tests at `0e65ab1` (from `git archive`): baseline set 10/10, all five files 23/23.
+  - `tests/ltiaas/golden/golden.k0.test.mjs`: 11/11 pass, with the LA-IC-16 case.
+  - A probe of the default `/__sim/records` fields at `f83a00e` and at `0e65ab1` (one Blackboard login and one token request, the same inputs).
+- Blind review as before.
+- **Verdict (round 2): CHANGES_REQUESTED.** All three round-1 findings are closed. One new BLOCKER is open, and it comes from the LA-E7-05 part of `0e65ab1`. The LA-E7-02 changes alone (loader, manifest, generic and D2L providers) have no open finding. If the Lead moves A-LA-E7-02-04 to the LA-E7-05 review, read this round as APPROVE for LA-E7-02. New: **1 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+### Round-1 findings
+
+| Id | Status | Evidence |
+| --- | --- | --- |
+| A-LA-E7-02-01 (BLOCKER) | closed (the rule has landed; the K1-SIM proof waits for Docker) | BD-A1-36 chose a rule, not a frozen list: LA-IC-16 in LA-ADR-04 D8. Lead QA added it to the golden compare in `c953275`. `tests/ltiaas/golden/expected/LA-IC-16.json` has rule `sim-hosts-allowlist`: the `.sim.test` entries equal, as a set, the manifest allowlist hosts, and the other entries and the `default` profile stay strict. The K0 test of the rule passes. `tests/ltiaas/tasks-lti/LA-E1-05/profiles.k1sim.test.ts:128-143` (AC-07) now compares with the rule, and the AC text names it. So nothing stays open until "the golden rule lands": it has landed. |
+| A-LA-E7-02-02 (MINOR) | closed | The `qa.md` AC rows now use the spec ids. AC-02 has its own row (the `sakai-sim` scratch module). AC-03 is the generic and Moodle-shaped config. AC-04 is D2L. The six-provider load is a note. The AC-05 row names the direct `lib.sh` check of the committed `tests/sim/hosts.json` (17 aliases, 15 allowlist hosts), which matches my round-1 check. |
+| A-LA-E7-02-03 (NIT) | closed | `runtime.mjs` runs `scenarios.delete(input.id)` before `scenarios.set(...)`, so a re-posted id moves to the newest position. `loading.test.mjs:45-74` posts A, B, then A again with a new `tokenAudience`, and expects A's new value. `tests/sim/README.md` "Scenario Options" lists each option with its default and the newest-scenario rule. |
+
+### New finding
+
+- **A-LA-E7-02-04 (BLOCKER): the default simulator records get new fields, so the golden G2 compare is no longer equal.**
+  - Where (`tests/sim/core/provider.mjs` at `0e65ab1`):
+    - `:134-136`: every `auth` record adds `kid`.
+    - `:192-193`: every successful `token` record adds `status: 200`.
+    - `:343-346`: every `deep-link` record adds `itemCount` and `cancelled`.
+    - `:231`: every `nrps` record adds `status` and `memberCount`.
+  - Problem:
+    - These fields are written on the default path, with no scenario option set.
+    - My probe with the same inputs gives these key lists:
+
+      | Record | `f83a00e` | `0e65ab1` |
+      | --- | --- | --- |
+      | `auth` | `clientId,deploymentId,host,kind,method,path,provider,scenario` | the same plus `kid` |
+      | `token` | `audience,clientId,host,kind,method,path,provider,scopes,tokenRef` | the same plus `status` |
+
+    - G2 stores whole record objects (`tests/ltiaas/golden/capture.golden.ts:165`, filtered by provider only). G-BASE G2 has 30 `auth`, 2 `token` and 2 `deep-link` records without these keys. The drop list does not remove them (`kid` only becomes an id placeholder), and `diff` reports each new key as `added`.
+    - Required outcomes:
+      - AC-LA-E1-05-09: "the golden compare is equal".
+      - LA-ADR-04 D6: "A golden difference or a frozen-test failure without an id is a FAIL".
+      - The LA-E7-02 design note: "Every new behaviour is a scenario option with today's default, so M1, M2 and the simulator self-tests see no change".
+    - The M1 and M2 tests read single record fields, so they still pass. Only the golden gate fails, and it will fail at the next K1-SIM capture.
+  - Suggested fix (LA-E7-05 lane, QA-E2E): keep today's record shape when no option is set.
+    - Add `kid` only when a scenario uses a second key or a key fault.
+    - Add `status` on `token` and `nrps` only for an answer from `tokenAnswers` or `nrpsAnswers`.
+    - Add `itemCount` and `cancelled` only for an LA-E7-05 Deep Linking option or an empty item list.
+    - Add one self-test that pins the default key list of each record kind.
+    - The other route is an A1 LA-IC for additive simulator record fields, but the design note above prefers the first route.
+
+### Notes (no finding)
+
+- For LA-E7-05: the JWKS route now also serves any path that ends with the configured path (`provider.mjs:663`, `path.endsWith(config.jwks.path)`). Also, the key set (`publicKeys`) changes for every scenario of a provider while any one of its scenarios asks for a second key. No M1 test checks a wrong JWKS path today. Both items need a look in the LA-E7-05 review.
+- Every scenario now makes a registration token and adds it to `/__sim/secrets`. The token goes nowhere unless a DR flow runs, so the end-of-run leak scan only gets more values to look for.

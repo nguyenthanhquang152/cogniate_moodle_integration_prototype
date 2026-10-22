@@ -48,7 +48,7 @@ export function Connect() {
         Integrations
       </Link>
       <div className="mt-[26px] mb-[30px] [&_h1]:mt-[7px] [&_h1]:mb-2.5 [&_p:not(.eyebrow)]:text-muted-foreground flex items-center gap-[18px]">
-        <IntegrationLogo large name={manifest.card.title} mark={manifest.card.mark} color={manifest.card.color} />
+        <IntegrationLogo large name={manifest.card.title} mark={manifest.card.mark} icon={manifest.card.icon} color={manifest.card.color} />
         <div>
           <p className="eyebrow mb-[5px] text-[10px] font-semibold tracking-[0.15em] text-[#b3a4c6]">
             LMS PUBLISHING

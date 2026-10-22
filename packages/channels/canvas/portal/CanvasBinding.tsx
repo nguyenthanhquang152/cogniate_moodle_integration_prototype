@@ -1,8 +1,9 @@
+import steps from "./steps.ts";
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { api, idPath } from "@cogniate/portal-sdk";
 import { useAlive } from "@cogniate/portal-sdk";
-import type { AddDeploymentBody, CanvasPlatformBody, Connection } from "@cogniate/portal-sdk";
+import type { AddDeploymentBody, ClientBindingBody, Connection } from "@cogniate/portal-sdk";
 import { Button } from "@cogniate/portal-sdk";
 import { Input } from "@cogniate/portal-sdk";
 import { ProviderErrorNotice, providerErrorFields } from "@cogniate/portal-sdk";
@@ -23,7 +24,7 @@ export function CanvasBinding({ connection, onChanged, addDeployment = false }: 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
-    const body: CanvasPlatformBody | AddDeploymentBody = addDeployment
+    const body: ClientBindingBody | AddDeploymentBody = addDeployment
       ? { deploymentId: deploymentId.trim(), grantCode }
       : { clientId: clientId.trim(), deploymentId: deploymentId.trim(), grantCode };
     // Retain the code only in this one request, including when the request fails.
@@ -59,7 +60,7 @@ export function CanvasBinding({ connection, onChanged, addDeployment = false }: 
       <Input name="grantCode" type="text" required autoComplete="off" spellCheck={false} value={grantCode} onChange={(event) => setGrantCode(event.target.value)}
         aria-invalid={fields.includes("grantCode")} aria-describedby={`canvas-approval-help${fields.includes("grantCode") ? " canvas-binding-error" : ""}`} />
     </label>
-    <p id="canvas-approval-help" className="text-muted-foreground">Ask your Cogniate operator for an approval code. The operator checks the request with your Canvas administrator first. The code works once and expires.</p>
+    <p id="canvas-approval-help" className="text-muted-foreground">{steps.steps[2]!.instructions.join(" ")}</p>
     <div id="canvas-binding-error"><ProviderErrorNotice error={error} /></div>
     <div className="flex flex-wrap items-center gap-3">
       <Button variant="primary" disabled={busy}>{addDeployment ? "Add deployment ID" : "Save"}</Button>

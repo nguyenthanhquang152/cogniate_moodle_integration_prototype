@@ -44,7 +44,7 @@ export interface ChannelManifest {
     label: string;
   };
   /** Integrations page card (D9). `order` sorts the channels (then the id). */
-  card: { title: string; description: string; mark: string; color: string; category: 'LMS Publishing'; order: number };
+  card: { title: string; description: string; mark: string; icon?: 'graduation-cap'; color: string; category: 'LMS Publishing'; order: number };
   /** `simulation-only`: loaded only when simulations are on. */
   availability: 'ga' | 'preview' | 'simulation-only';
   /** Order = portal order. */
@@ -111,7 +111,7 @@ const MANIFEST = z.strictObject({
   family: z.literal('lti13'),
   names: z.strictObject({ text: z.string().min(1), label: z.string().min(1) }),
   card: z.strictObject({
-    title: z.string().min(1), description: z.string().min(1), mark: z.string().min(1), color: z.string().min(1),
+    title: z.string().min(1), description: z.string().min(1), mark: z.string().min(1), icon: z.enum(['graduation-cap']).optional(), color: z.string().min(1),
     category: z.literal('LMS Publishing'), order: z.number().int().nonnegative(),
   }),
   availability: z.enum(['ga', 'preview', 'simulation-only']),
