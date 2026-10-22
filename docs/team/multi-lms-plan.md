@@ -13,7 +13,19 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 04:19 UTC
+### Current checkpoint — 2026-10-22, 04:48 UTC
+
+**C4 diagnostic attempt 1 failed its environment boundary. All 82 functional rows passed.** Migration passed 12/12 and storage passed 70/70. The runner ran from 04:18:22 to 04:45:10 UTC and exited 1 only because strict W4 failed. An unrelated LA stack, `qa-la-sim-r1`, started at 04:42:05 UTC. W4 lists its nine containers, four volumes and one network as new unrelated resources. The protected records and built-in networks remained unchanged. Both owned lanes were cleaned. This attempt gives zero full acceptance credit.
+
+The Lead read the raw tamper records. The target belongs to the current stopped operation, `78d681ed2b9ef0340d3f12ac95b0f432`. Only that database hash changed; the older retained generation stayed unchanged. Recovery returned 2, both journals became `rollback_failed`, and startup refused. The diagnostic has no new source failure. C4 stays frozen at `bf09cdad91ca548e1ecbc14428b55180d35d5360`.
+
+Evidence root: `/Users/quangnguyen/cogniate-qa-runs/qa-common-c4-20261022T0408Z`. Strict W4 SHA-256: `6f809dff42c54bf53a3a88be17fa829205d459d203e01a83207ada1641329fd8`. LA Lead acknowledged the overlap in `msg_55db5ff1f374` and owns cleanup through LA QA `ctx_dc11d8c6d070`. The two Leads agreed that LA starts no Docker work until this run explicitly returns a window. Cleanup confirmation is pending. The next scheduling update to LA is due by 07:00 UTC or when full/legacy finishes, whichever comes first.
+
+Common QA `ctx_e23ced3dd1fa` remains in the same session. It closes the failed attempt and prepares a fresh diagnostic source at `diag2-src/source` with run root `diag2`. Grant `msg_468b98e07a1d` permits host preparation only. A new Docker grant requires external cleanup and verified preparation. The clean `full-src/source` stays unused. No source edits, new host suites or repeated control campaigns are needed. The sole fixer `ctx_898acbaef3a6` remains active, with no repair requested. Canvas QA remains host-ready.
+
+After clean diagnostic acceptance, two complete 488-row rounds, all 12 legacy groups, independent Canvas judgments, fresh M2/T7 and final conformance/documentation gates remain. All 32 live rows stay UNVERIFIED; local Canvas stays DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 04:19 UTC
 
 **The C4 diagnostic is running.** Frozen candidate `bf09cdad91ca548e1ecbc14428b55180d35d5360` has tests tree `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`. Lead grant `msg_2bed4f15a8f7` gives only Common QA `task_ef1d19129419` / `ctx_e23ced3dd1fa` the diagnostic Docker window through 06:20:00 UTC. The runner started at 04:18:22 UTC. It runs migration (12 rows) then conditional storage (70 rows), using lanes `qa-multi-r1` and `qa-multi-r1-st`, port 8443 and subnet 172.29.0.0/16. This diagnostic gives zero full acceptance credit.
 
