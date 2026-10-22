@@ -170,7 +170,7 @@ test('discovers secret names and catches shell, YAML, JSON and export assignment
 
 test('ignores empty values and placeholders outside the names-only example', (t) => {
   const f = fixture(t);
-  const values = ['', '""', "''", '$VALUE', '${VALUE:?required}', '<value>', '"${VALUE}"'];
+  const values = ['', '""', "''", '$VALUE', '${VALUE}', '${VALUE:?required}', '${VALUE?required}', '${VALUE:?need ${OTHER}}', '<value>', '<value with spaces>', '"${VALUE}"'];
   f.put('probe.txt', values.map((value) => `${secretName}=${value}\n`).join(''));
   assert.equal(f.run().status, 0);
   f.put('.env.example', example.replace(`${publicName}=`, `${publicName}=8443`));
@@ -203,6 +203,49 @@ test('non-code files still check bare tokens as values', (t) => {
   const result = f.run();
   assert.equal(result.status, 1);
   assert.deepEqual(result.lines[4].findings.map((hit) => hit.file), ['probe.json', 'probe.sh', 'probe.yaml']);
+});
+
+test('only a whole placeholder is exempt; mixed text is a secret value', (t) => {
+  const f = fixture(t);
+  const values = ['${A}text${B}', '"${A}text${B}"', "'${A}text${B}'", '${A}${B}', '${A:?message}text${B}', '<one>text<two>'];
+  f.put('probe.txt', values.map((value) => `${secretName}=${value}`).join('\n'));
+  f.put('probe.ts', values.slice(1, 3).map((value) => `${secretName}: ${value},`).join('\n'));
+  const result = f.run();
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.lines[4].findings, [
+    ...[1, 2].map((line) => ({ file: 'probe.ts', line, rule: 'secret_assignment' })),
+    ...values.map((_, i) => ({ file: 'probe.txt', line: i + 1, rule: 'secret_assignment' })),
+  ]);
+});
+
+test('all four secret default operators are checked in every file regardless of the left key', (t) => {
+  const f = fixture(t);
+  const extensions = ['ts', 'tsx', 'mts', 'cts', 'js', 'mjs', 'cjs', 'sh', 'yaml', 'md'];
+  const operators = [':-', '-', ':=', '='];
+  for (const extension of extensions) {
+    f.put(`probe.${extension}`, operators.map((operator) => `${publicName}="\${${secretName}${operator}fake-default}"`).join('\n'));
+  }
+  f.put('no-assignment.txt', `use(\`\${${secretName}:-fake-default}\`)`);
+  const result = f.run();
+  assert.equal(result.status, 1);
+  assert.equal(result.lines[4].findings.length, extensions.length * operators.length + 1);
+  for (const extension of extensions) {
+    assert.deepEqual(result.lines[4].findings.filter((hit) => hit.file === `probe.${extension}`),
+      operators.map((_, i) => ({ file: `probe.${extension}`, line: i + 1, rule: 'secret_assignment' })));
+  }
+  assert.ok(!result.stdout.includes('fake-default'));
+});
+
+test('secret defaults apply the empty and whole-placeholder rules to their fallback', (t) => {
+  const f = fixture(t);
+  const values = ['', '""', "''", '$OTHER', '${OTHER}', '${OTHER:?required}', '<unset>'];
+  f.put('probe.sh', values.map((value) => `${secretName}=\${${secretName}:-${value}}`).join('\n'));
+  assert.equal(f.run().status, 0);
+  f.put('probe.sh', `${secretName}=\${${secretName}:-\${OTHER}text}\n${publicName}=\${${secretName}:-\${${secretName}:=fake-nested}}`);
+  const result = f.run();
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.lines[4].findings, [1, 2].map((line) => ({ file: 'probe.sh', line, rule: 'secret_assignment' })));
+  assert.ok(!result.stdout.includes('fake-nested'));
 });
 
 test('fails closed when the secrets section or a tracked file is missing', (t) => {

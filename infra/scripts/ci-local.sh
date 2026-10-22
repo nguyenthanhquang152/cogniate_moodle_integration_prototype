@@ -181,10 +181,44 @@ function secretScan() {
   }
   if (secretKeys.length === 0) return { result: 'fail', reason: 'secret_names_unavailable' };
   // The key list is read from the secrets section at run time. Public keys are out of scope.
-  const assignmentPattern = new RegExp(String.raw`(?<![A-Za-z0-9_])['"]?(${secretKeys.join('|')})['"]?\s*(?:=(?!=|>)|:(?!:))\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\x60(?:\\.|[^\x60\\])*\x60|\$\{[^}]*\}|<[^>]*>|[^\s,;}\]#"'\x60]+)`, 'g');
+  const assignmentPattern = new RegExp(String.raw`(?<![A-Za-z0-9_])['"]?(${secretKeys.join('|')})['"]?\s*(?:=(?!=|>)|:(?!:))\s*`, 'g');
+  const defaultPattern = new RegExp(String.raw`\$\{(${secretKeys.join('|')})(?::[-=]|[-=])`, 'g');
+  const quotedPattern = /^("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)/;
+  // Keep nested placeholders together, both in a bare value and in a shell default.
+  function expansionEnd(text, start) {
+    let depth = 1;
+    for (let i = start + 2; i < text.length; i += 1) {
+      if (text.startsWith('${', i)) { depth += 1; i += 1; }
+      else if (text[i] === '}' && --depth === 0) return i;
+    }
+    return -1;
+  }
+  function readValue(text) {
+    const quoted = text.match(quotedPattern);
+    if (quoted) return quoted[0];
+    let end = 0;
+    while (end < text.length) {
+      if (text.startsWith('${', end)) {
+        const close = expansionEnd(text, end);
+        if (close >= 0) { end = close + 1; continue; }
+      }
+      if (text[end] === '<') {
+        const close = text.indexOf('>', end + 1);
+        if (close >= 0) { end = close + 1; continue; }
+      }
+      if (/[\s,;}\]#"'`]/.test(text[end])) break;
+      end += 1;
+    }
+    return text.slice(0, end);
+  }
   function literal(value) {
-    if (/^["'`]/.test(value)) value = value.slice(1, -1);
-    if (value === '' || /^(?:\$\{.*\}|\$[A-Za-z_][A-Za-z0-9_]*|<.*>)$/.test(value)) return null;
+    if (value.match(quotedPattern)?.[0] === value) value = value.slice(1, -1);
+    if (value === '' || /^(?:\$[A-Za-z_][A-Za-z0-9_]*|<[^<>]*>)$/.test(value)) return null;
+    if (value.startsWith('${') && expansionEnd(value, 0) === value.length - 1) {
+      if (/^\$\{[A-Za-z_][A-Za-z0-9_]*(?:\}|:?\?)/.test(value)) return null;
+      const fallback = [...value.matchAll(defaultPattern)][0];
+      if (fallback?.index === 0) return literal(value.slice(fallback[0].length, -1));
+    }
     return value;
   }
   for (const file of files) {
@@ -215,11 +249,19 @@ function secretScan() {
         for (const match of line.matchAll(assignmentPattern)) {
           // Shell required-value expressions are not assignments.
           if (line.slice(Math.max(0, match.index - 2), match.index) === '${') continue;
+          const token = readValue(line.slice(match.index + match[0].length));
           // BD-A1-13: code expressions are not literal credentials. Check only the first quoted token.
-          if (codeFile && (!/^["'`]/.test(match[2]) || (match[2].startsWith('`') && match[2].includes('${')))) continue;
-          const value = literal(match[2]);
+          if (codeFile && (!quotedPattern.test(token) || (token.startsWith('`') && token.includes('${')))) continue;
+          const value = literal(token);
           if (value !== null) finding(file, index + 1, 'secret_assignment', value);
         }
+      }
+      // Defaults of secret names are values in every file, even without a secret key on the left.
+      for (const match of line.matchAll(defaultPattern)) {
+        const end = expansionEnd(line, match.index);
+        if (end < 0) continue;
+        const value = literal(line.slice(match.index + match[0].length, end));
+        if (value !== null) finding(file, index + 1, 'secret_assignment', value);
       }
     });
   }
