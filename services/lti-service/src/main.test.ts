@@ -108,6 +108,7 @@ it('AC-LA-E5-19-07: the service runs retention exactly at start, 10 and 20 minut
   expect(new Set(runs.map((l) => l.trace_id)).size).toBe(3);
   expect(service.db.prepare("SELECT last_run_at FROM job_lease WHERE name = 'retention'").get()?.last_run_at).toBe(t0 + 20 * 60_000);
   expect(lines.filter((l) => l.event === 'job_run' && l.job === 'signing-key-cleanup')).toHaveLength(1);
+  expect(lines.filter((l) => l.event === 'job_run' && l.job === 'audit-retention')).toHaveLength(1);
   expect(service.db.prepare('SELECT instance_id, role FROM job_instance').all()).toEqual([{ instance_id: 'lti-1', role: 'web' }]);
 });
 

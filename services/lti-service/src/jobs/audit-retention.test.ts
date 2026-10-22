@@ -16,7 +16,7 @@ it('AC-LA-E5-19-03: deletes only events older than the configured retention, wit
       action: 'account.update', target: { type: 'account', id: null }, result: 'ok' }, now - days * DAY_MS + delta);
     db.prepare("INSERT INTO service_setting (key, value) VALUES ('fixture', '{}')").run();
     const job = auditRetentionJob(db, days);
-    expect([job.everyMs, job.runAtStart]).toEqual([DAY_MS, false]);
+    expect([job.everyMs, job.runAtStart]).toEqual([DAY_MS, true]);
     expect(await job.run(ctx)).toEqual({ result: 'ok', counts: { audit_event: 1 } });
     expect(listAuditEvents(db, { limit: 10 }).events.map((e) => e.ts)).toEqual([now - days * DAY_MS + 1, now - days * DAY_MS]);
     expect(db.prepare('SELECT count(*) AS n FROM service_setting').get()?.n).toBe(1);
