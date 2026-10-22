@@ -127,6 +127,31 @@ describe('class policy', () => {
     } finally { h.db.close(); }
   });
 
+  it.each(['api', 'admin', 'operator', 'protocol', 'registration', 'keys', 'auth_failure'] as const)(
+    'BD-A2-30: %s exposes only its allowed budget and joins the first refusal to its trace', (name) => {
+      const h = fixture();
+      try {
+        const limit = { ratePerMinute: 1, burst: 1 };
+        h.limiter.replaceSettings({ classes: { [name]: limit } });
+        const address = ['protocol', 'registration', 'keys', 'auth_failure'].includes(name);
+        const key = address ? '192.0.2.1' : 'key-id';
+        h.limiter.check(name, key, undefined, 'allowed-trace');
+        for (const trace of ['refused-trace', 'later-trace']) {
+          try { h.limiter.check(name, key, undefined, trace); expect.fail('must refuse'); }
+          catch (err) {
+            expect(err).toMatchObject({ details: { retryAfter: 60, limit: address ? { class: name } : { class: name, ...limit } } });
+            expect((err as { details: { limit: unknown } }).details.limit).toEqual(address ? { class: name } : { class: name, ...limit });
+          }
+        }
+        expect(h.lines).toHaveLength(1);
+        expect(h.lines[0]).toMatchObject({ event: 'rate_limited', trace_id: 'refused-trace', class: name,
+          key_kind: address ? 'address' : name === 'operator' ? 'operator_key' : 'api_key',
+          ...(address ? { client_ip: key } : { key_id: key }) });
+        expect(h.lines[0]).not.toHaveProperty(address ? 'key_id' : 'client_ip');
+      } finally { h.db.close(); }
+    },
+  );
+
   it('names the invalid environment setting path and integer rule', () => {
     const db = openDb(':memory:');
     try {

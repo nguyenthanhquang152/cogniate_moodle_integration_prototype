@@ -150,27 +150,28 @@ export class RateLimiter {
     return (ACCOUNT.has(name) ? account?.limits?.[name] : undefined) ?? this.settings.classes?.[name] ?? this.env.classes?.[name] ?? DEFAULT_RATE_LIMITS[name];
   }
 
-  check(name: RateLimitClass, key: string, account?: ToolAccount): void {
-    this.evaluate(name, key, true, account);
+  check(name: RateLimitClass, key: string, account?: ToolAccount, traceId?: string): void {
+    this.evaluate(name, key, true, account, traceId);
   }
 
   /** Refuse a depleted failure bucket without creating or spending one. */
-  refuseIfBlocked(address: string): void {
-    this.evaluate('auth_failure', address, false);
+  refuseIfBlocked(address: string, traceId?: string): void {
+    this.evaluate('auth_failure', address, false, undefined, traceId);
   }
 
-  private evaluate(name: RateLimitClass, key: string, spend: boolean, account?: ToolAccount): void {
-    const result = this.buckets.take(name, ADDRESS.has(name) ? addressKey(key) : key, this.limit(name, account), this.now(), spend);
+  private evaluate(name: RateLimitClass, key: string, spend: boolean, account?: ToolAccount, traceId?: string): void {
+    const limit = this.limit(name, account);
+    const result = this.buckets.take(name, ADDRESS.has(name) ? addressKey(key) : key, limit, this.now(), spend);
     if (result.allowed) return;
     if (result.log) {
       if (SOFT.has(name)) this.logger.warn('rate_limit_soft', { class: name, tool_account_id: key });
       else this.logger.warn('rate_limited', {
-        class: name, key_kind: ADDRESS.has(name) ? 'client_address' : name === 'operator' ? 'operator_key' : 'api_key',
+        class: name, key_kind: ADDRESS.has(name) ? 'address' : name === 'operator' ? 'operator_key' : 'api_key',
         ...(account ? { tool_account_id: account.id } : {}),
-        ...(ADDRESS.has(name) ? { client_ip: clientAddress(key) } : {}), retry_after_s: result.retryAfter,
+        ...(ADDRESS.has(name) ? { client_ip: clientAddress(key) } : { key_id: key }), retry_after_s: result.retryAfter, trace_id: traceId,
       });
     }
-    if (!SOFT.has(name)) throw new ApiError('RATE_LIMITED', `Too many requests. Retry after ${result.retryAfter} s.`, { details: { retryAfter: result.retryAfter } });
+    if (!SOFT.has(name)) throw new ApiError('RATE_LIMITED', `Too many requests. Retry after ${result.retryAfter} s.`, { details: { retryAfter: result.retryAfter, limit: { class: name, ...(ADDRESS.has(name) ? {} : limit) } } });
   }
 }
 
@@ -183,8 +184,8 @@ export function rateLimiterFor(db: Db, logger: Logger, now: () => number = Date.
 }
 
 /** Called only when the API key or operator key fails, never for a bad secondary credential. */
-export function recordAuthFailure(limiter: RateLimiter, address: string): void {
-  limiter.check('auth_failure', address);
+export function recordAuthFailure(limiter: RateLimiter, address: string, traceId?: string): void {
+  limiter.check('auth_failure', address, undefined, traceId);
 }
 
 /**

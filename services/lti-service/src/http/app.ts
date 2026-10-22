@@ -124,9 +124,9 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
     auth: (req, schemes) => {
       const result = authenticate(deps.db, req.headers.authorization, schemes, now(), (scheme, code, part) => {
         log.warn('api_auth_failed', { trace_id: req.traceId, scheme, code });
-        if (part === 'api_key') recordAuthFailure(limiter, req.ip);
+        if (part === 'api_key') recordAuthFailure(limiter, req.ip, req.traceId);
       });
-      limiter.check(result.scheme === 'bearer' ? 'admin' : 'api', result.actor.id, result.account);
+      limiter.check(result.scheme === 'bearer' ? 'admin' : 'api', result.actor.id, result.account, req.traceId);
       return result;
     },
     errorPage: (reply, req, code, opts = {}) =>
@@ -137,10 +137,10 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   // Address budgets use cached settings and run before account/auth database reads.
   app.addHook('onRequest', async (req, reply) => {
     const route = req.routeOptions.url ?? '';
-    if (route.startsWith('/api/')) limiter.refuseIfBlocked(req.ip);
+    if (route.startsWith('/api/')) limiter.refuseIfBlocked(req.ip, req.traceId);
     const name = ADDRESS_ROUTE_CLASSES[route];
     if (!name) return;
-    try { limiter.check(name, req.ip); }
+    try { limiter.check(name, req.ip, undefined, req.traceId); }
     catch (err) {
       // Public JWKS is JSON; protocol and registration use the error page.
       if (!(err instanceof ApiError) || err.code !== 'RATE_LIMITED' || name === 'keys') throw err;
