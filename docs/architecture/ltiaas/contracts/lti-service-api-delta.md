@@ -388,7 +388,7 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `platform_check` | info | `platform_id`, `jwks`, `token` | §2.6 |
 | `config_refused` | error | `reason` | production profile start refusal |
 
-Changed: `http_request`, `api_auth_failed` (when the path names the account), `login_rejected`, `launch_check_failed`, `launch_accepted` get `tool_account_id` when it is known. `launch_check_failed` gets `check: "storage"`. `launch_accepted` gets `binding: "cookie" | "storage"`. `launch_claims_minimized` can appear for every profile (claim policy). No field holds a secret, a token or personal data.
+Changed: `http_request`, `api_auth_failed` (when the path names the account), `login_rejected`, `launch_check_failed`, `launch_accepted` get `tool_account_id` when it is known. `launch_check_failed` gets `check: "storage"`. `launch_accepted` gets `binding: "cookie" | "storage"`. `launch_claims_minimized` can appear for every profile (claim policy). No field holds a secret, a token or personal data. In the LTI service, `http_request.path` is the matched route template (for example `/lti/login/:account`), or the fixed value `<unmatched>` when no route matches; never a raw path value (BD-A2-61; base contract §5 "path (no query)" stays true).
 
 ## 7. Data retention (additions to §6)
 
