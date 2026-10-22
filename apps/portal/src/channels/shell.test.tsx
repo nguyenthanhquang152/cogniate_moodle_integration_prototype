@@ -158,6 +158,7 @@ describe("manifest portal shell", () => {
     app(`/integrations/${id}/connect`);
     expect(await screen.findByLabelText("Connection name")).toBeTruthy();
     expect(await screen.findByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(screen.getByLabelText("Connection name")).toBeTruthy();
     failed = false;
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     const notReady = (manifest.texts.notReady ?? "{LMS} is not set up for this Cogniate service yet. Ask your Cogniate operator.").replaceAll("{LMS}", manifest.names.text);
@@ -178,6 +179,7 @@ describe("manifest portal shell", () => {
     app(`/integrations/${manifest.id}/${current.id}`);
     expect(await screen.findByText("The first launch from Moodle changes the status to Connected.")).toBeTruthy();
     expect(await screen.findByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(screen.getByText("The first launch from Moodle changes the status to Connected.")).toBeTruthy();
   });
   it("uses profile readiness for the standard channel too", async () => {
     listed = listed.map((entry) => ({ ...entry, profiles: entry.profiles.map((profile) => ({ ...profile, ready: false })) }));

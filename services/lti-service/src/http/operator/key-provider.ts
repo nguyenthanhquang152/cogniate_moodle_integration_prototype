@@ -1,6 +1,5 @@
 // LA-ADR-06 D6: status contains version ids and counts only. The shared runner owns the on-demand lease.
 import type { FastifyInstance } from 'fastify';
-import type { JobRunner } from '@cogniate/shared';
 import { ApiError } from '../../api-errors.ts';
 import { KEY_REWRAP_JOB, keyProviderStatus } from '../../jobs/key-rewrap.ts';
 import type { OperatorContext } from './index.ts';
@@ -22,10 +21,8 @@ export function registerKeyProviderRoutes(app: FastifyInstance, ctx: OperatorCon
     requireFreeLease();
     // Record acceptance before starting work. An audit failure must not start a run.
     audit.change(requireFreeLease);
-    // The additive runner option joins request and run traces. Older runners ignore it; the runbook also supports
-    // finding the end event by action and since, so mixed-version deployments can still read the outcome.
-    const trigger: { runNow(name: string, options?: { traceId: string }): ReturnType<JobRunner['runNow']> } = runner;
-    void trigger.runNow(KEY_REWRAP_JOB, { traceId: req.traceId }).catch((err: unknown) => {
+    // The accepted request, job log and end event use one trace id (BD-A2-50).
+    void runner.runNow(KEY_REWRAP_JOB, { traceId: req.traceId }).catch((err: unknown) => {
       ctx.logger.error('key_rewrap_failed', { trace_id: req.traceId, error: err instanceof Error ? err.name : 'Error' });
     });
     return reply.code(202).send({ job: KEY_REWRAP_JOB, traceId: req.traceId });

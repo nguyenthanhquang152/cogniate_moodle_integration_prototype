@@ -353,3 +353,46 @@ Routed in dispatch `ctx_4f9a4b12cd5a`. Decisions sent to the Lead first (`msg_8b
 | BD-A2-55 | LA-E5-11 Reviewer-B2: the AC-LA-E5-11-06 text ("above 4 KB is refused") is stale against BD-A2-45. | **The text changes; the code does not.** `app/audit.ts:71-75` already stores `{"truncated": true}` above 4 KB after `redact()`. The AC now says so, and that the write succeeds. | LA-E5-11 AC-06 | — |
 
 Changes for the Lead to route: **L (LA-E5-17 RQ-1):** per-waiter events and the `lastSuccessAt` getter. **S1 (LA-E5-17):** the scrape-time age join over stored platforms. No code change for LA-E5-11.
+
+## 29. Round 28: the idempotency target and non-final answers (LA-E5-16 review A, lane S1), 2026-10-23
+
+Reviewer-A A-LA-E5-16-01 (BLOCKER) and -02 (MAJOR), routed in dispatch `ctx_651cae9b6f98`. Decisions sent to the Lead first (`msg_f1ab529ed702`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-56 | A-LA-E5-16-01: on `POST /api/lineitems` the fingerprint has no target (the route takes it from the credential), so the same key and body from two courses replay the first course's line item. The replay also runs before the binding checks. | **The fingerprint carries the resolved target**, by scheme: Bearer = the decoded path parameters; LTIK-AUTH-V2 and SERVICE-AUTH-V1 = `{ platformId, deploymentId, contextId, lineItemsUrl }`. **The lookup runs after the read-only target checks** (account status, platform exists and is active, deployment active, binding generation). A failed check gives its normal refusal, never stored or replayed. | LA-ADR-06 D9 "Build rules"; contract delta §4.9; LA-E5-16 design notes | This makes the BD-A2-51 promise true for credential-scoped routes. A replay must never give a stale success after a platform or deployment was switched off. |
+| BD-A2-57 | A-LA-E5-16-02: a platform `429` is stored and replayed for 24 h with its old `Retry-After`, so a retry never reaches the platform. | **Final = `2xx`, or `4xx` other than `429`.** Every `5xx`, every `429`, and any answer with `Retry-After` is not final: the claim is abandoned, and the replay `Retry-After` branch goes. Checked: the idempotency `409`/`422` come from the hook; `JOB_RUNNING` is operator-only; `401`/`403`/`404` of the target come before the lookup; `PLATFORM_ALREADY_EXISTS`, `DEPLOYMENT_ALREADY_EXISTS`, `INVALID_REQUEST` and `PLATFORM_REJECTED_REQUEST` are final. | LA-ADR-06 D9; contract delta §4.9; LA-E5-16 design notes | My BD-A2-51 text said "4xx" and missed that `429` asks for a retry. Stored `429` records from `6ae0ebe` exist only on test volumes and expire within 24 h. |
+
+Changes for the Lead to route: **S1 (LA-E5-16 fix round):** the target in the fingerprint, the new lookup order, the non-final rule, removing the replay `Retry-After` branch, and the three unit tests in the design notes.
+
+## 30. Round 29: idempotency refusal texts and the app CLI refusal line (LA-E5-16, LA-E5-11, LA-E5-12), 2026-10-23
+
+Reviewer-B B-LA-E5-16-01 and B-LA-E5-11-01 (MINOR), routed in dispatch `ctx_3e116c8ff5b3`. Decisions sent to the Lead first (`msg_e0def9256a7c`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-58 | The idempotency `409` and `422` do not say what to do next. (Provisional: Reviewer-B's texts, with the target in the `422` text.) | **Ratified.** `409 IDEMPOTENCY_IN_PROGRESS` gets `details.retryAfter` (seconds until the 60 s claim ends, at least 1), so `Retry-After` is sent, and the description "A request with this Idempotency-Key is still running. Retry after the time in Retry-After." The `422` description names "another route, path id, target (platform, deployment or course) or body" and "Use a new key for a new request." | contract delta §1.3 (both rows); LA-E5-16 design notes | No conflict with BD-A2-57: the hook produces the `409` and never stores it. |
+| BD-A2-59 | The app CLI refusal lines give only a code; production with no operator list gives `operator_unknown`, which points at the wrong cause. (Provisional: `{reason, message}`, `operators_not_configured`, LA-E5-12 prints the line as it gets it.) | **Ratified.** The existing line keeps `event` and `reason` and adds `message`: one fixed sentence per code, never echoing input. New code `operators_not_configured` (production; no list, or an empty one). The ten codes and their messages are in LA-ADR-07 D4. `app:audit` uses the same shape. LA-E5-12 prints the line unchanged (stderr, exit 1). | LA-ADR-07 D4 "Refusal line of the app CLIs"; LA-E5-11 and LA-E5-12 design notes | Fixed messages keep the line safe to log and easy to test. Every code now names its own fix. |
+
+Changes for the Lead to route: **S1 (LA-E5-16 and LA-E5-11 fix rounds):** the two descriptions and `retryAfter`; the `message` field, the new code and its unit tests. **K (LA-E5-12):** print the policy line unchanged.
+
+## 31. Round 30: audit counted at commit, and the request path in logs (LA-E5-17 review, lane S1), 2026-10-23
+
+Review findings A-/B-LA-E5-17-01 (MAJOR) and A-LA-E5-17-02 (BLOCKER), routed in dispatch `ctx_6769e4895e4c`. Decisions sent to the Lead first (`msg_0080b75fdb6a`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-60 | A committed audit insert inside a caller-owned transaction is never counted. My BD-A2-52 accepted that ("no such route today"), but the `key-rewrap` end event does it. (Provisional: a per-transaction buffer, publish after the outermost commit, discard on rollback.) | **Ratified; my BD-A2-52 exception is removed.** A commit hook `afterCommit(db, fn)` in the shared transaction helper (S1 holds `migrations.ts` by RQ-2): per-scope buffers (merge at `RELEASE`; drop at `ROLLBACK TO` and `ROLLBACK`; run once after the outermost `COMMIT`; at once in autocommit); synchronous callbacks that never throw into the commit path. `insertAuditEvent` registers the count at every insert. | LA-ADR-06 D4 T0, D10 "Metrics"; operability §4.2 "Sources"; LA-E5-17 design notes | I was wrong in BD-A2-52: a product path already commits an event in its own transaction. One hook at the insert counts every path the same way. The app shares the helper (A1 FYI); with no callbacks nothing changes. |
+| BD-A2-61 | `http_request` logs the raw `req.url` path (after `redactPath`, which masks only long segments), so `/lti/login/alice@example.test` reaches the log. (Provisional: the route template, `<unmatched>` for no match.) | **Ratified.** `path` = the matched route template with no ids filled in; `<unmatched>` when no route matches; no query; the tenant stays in `tool_account_id`. Readers checked: base contract §5 says "path (no query)"; the M1 oracle does not read `path`; T1 H7 matches by trace id (the service sends `x-trace-id`). `redactPath` stays in `packages/shared` for the app. | operability §4.1; LA-ADR-06 D10 "Tenant id in logs"; contract delta §6; LA-E5-17 design notes | A template is bounded and holds no personal data; filled-in ids would add nothing that `tool_account_id` does not already hold. A1 FYI: the app's unmatched requests still log `redactPath(raw url)` (`server.ts:107`, `content-host/server.ts:122`); the same rule is recommended there (app contract, A1's call). |
+
+Changes for the Lead to route: **S1 (LA-E5-17 fix round):** the commit hook and its four tests; the route-template path and its two tests. **A1 FYI:** the shared commit hook; the app's unmatched-path log line.
+
+## 32. Round 31: the `app:audit` refusal line (LA-E5-11 fix round, lane S1), 2026-10-23
+
+Routed in dispatch `ctx_da332f36da02`. The Lead's provisional call is ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-62 | (Provisional, S1.) `app:audit` keeps the event `audit_list_refused` and `traceId`, and adds `message` = one fixed sentence per code that never echoes input (no bad flag, no `DATA_DIR` path; the usage line and the default path are in the fixed text); a wrong command gives `arguments_invalid` instead of the usage text as the reason; `--help` prints the usage on stdout with exit 0. | **Ratified.** The six codes and their fixed messages are now in LA-ADR-07 D4 (`arguments_invalid`, `connection_invalid`, `action_invalid`, `limit_invalid`, `since_invalid`, `audit_read_failed`). Reviewer-B's wish to name the bad flag is refused by the BD-A2-59 rule "never echoes input". | LA-ADR-07 D4 (`app:audit list` refusals); LA-E5-11 design notes | BD-A2-59's "same shape" means the `reason` and `message` fields. `app:audit` keeps its own event name and `traceId`, because it is a read command, not the operator policy. |
+
+Changes for the Lead to route: none beyond S1's fix round.

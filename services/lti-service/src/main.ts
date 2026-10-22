@@ -9,6 +9,7 @@ import type { Db } from './db/index.ts';
 import { openDb } from './db/index.ts';
 import { buildApp, simulationProfileIds } from './http/app.ts';
 import { buildOperatorApp } from './http/operator/index.ts';
+import { metricsFor } from './http/metrics.ts';
 import { loadKeyProvider } from './keys/key-config.ts';
 import { createPlatformKeys } from './lti/jwks.ts';
 import { createAgsClient } from './platform/ags.ts';
@@ -33,11 +34,12 @@ export interface LtiService {
 /** Start the service (unit tests call it with their own logger; the entry point below adds the signal handlers). */
 export async function startLtiService(options: { logger?: Logger } = {}): Promise<LtiService> {
   const config = loadConfig();
-  const logger = options.logger ?? createLogger({ service: SERVICE });
+  const sink = options.logger ?? createLogger({ service: SERVICE });
+  const db = openDb(join(config.dataDir, 'lti.db'));
+  const logger = metricsFor(db).logger(sink);
   const { active: knobs } = readServiceKnobs(SERVICE);
   for (const knob of knobs) logger.warn('test_knob_active', { name: knob.name, value: knob.value });
 
-  const db = openDb(join(config.dataDir, 'lti.db'));
   // LA-ADR-06 D6: bind the key ring to config.masterKey before the first store call. Every store caller below gets
   // this Buffer, so it seals with the active ring version.
   await loadKeyProvider({ db, logger, masterKey: config.masterKey });

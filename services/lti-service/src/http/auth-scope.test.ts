@@ -37,7 +37,7 @@ describe('service-key write scope and cache (BD-A2-47)', () => {
   it('accepts the claimed lineitem without a GET and leaves other auth/account modes unchanged', async () => {
     const h = fixture();
     await h.check(own);
-    await checkServiceKeyWriteScope(h.ctx, { ...h.caller, scheme: 'ltik', serviceKey: null }, h.ags, `${base}/other`);
+    await checkServiceKeyWriteScope(h.ctx, { scheme: 'ltik', account: h.caller.account, actor: h.caller.actor, launch: null, serviceKey: null }, h.ags, `${base}/other`);
     await checkServiceKeyWriteScope(h.ctx, { ...h.caller, account: { ...h.caller.account, serviceKeyWriteScope: 'context' } }, h.ags, `${base}/other`);
     expect(h.getLineItem).not.toHaveBeenCalled();
   });

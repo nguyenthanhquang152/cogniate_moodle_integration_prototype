@@ -30,6 +30,10 @@ export function createNrpsClient(deps: { outbound: OutboundClient; tokens: Token
   const logger = deps.logger ?? createLogger({ service: 'lti-service' });
   return {
     async listMemberships(ctx: NrpsContext, q: MembershipsQuery) {
+      const versions = ctx.nrpsClaim?.service_versions;
+      if (versions !== undefined && (!Array.isArray(versions) || !versions.includes('2.0'))) {
+        throw new ApiError('SERVICE_NOT_AVAILABLE', 'The launch does not support NRPS 2.0.');
+      }
       const base = ctx.nrpsClaim?.context_memberships_url;
       if (typeof base !== 'string' || !base) throw new ApiError('SERVICE_NOT_AVAILABLE', 'The launch has no NRPS URL.');
       // Check the raw URL before parsing it or asking for a platform token.

@@ -470,6 +470,24 @@ it('AC-LA-E5-09-05 the re-wrap writes one job_run {job: "key-rewrap"} line and t
   assert.ok(jobEndEvent, 'one key_provider.rewrap audit event records the job end with outcome and counts (BD-A2-36/42)');
   assert.notEqual(requestEvent.id, jobEndEvent.id, 'request and job-end audit events are distinct rows');
 
+  // BD-A2-50: the 202 traceId is the traceId of both the request audit event, the job-end audit event, and the job_run log line.
+  assert.equal(requestEvent.traceId, rewrapRequestTraceId, 'request audit event traceId equals 202 traceId (BD-A2-50)');
+  assert.equal(jobEndEvent.traceId, rewrapRequestTraceId, 'job-end audit event traceId equals 202 traceId (BD-A2-50)');
+  assert.equal(
+    runLine.trace_id ?? runLine.traceId,
+    rewrapRequestTraceId,
+    'job_run log line trace_id equals 202 traceId (BD-A2-50)',
+  );
+
+  // Runbook §6.3 step 6: GET /operator/v1/audit?action=key_provider.rewrap&traceId=<traceId> returns both events.
+  const byTrace = await listAudit(operatorKey, {
+    action: 'key_provider.rewrap',
+    traceId: rewrapRequestTraceId,
+    limit: 10,
+  });
+  assert.equal(byTrace.res.status, 200, 'GET /operator/v1/audit?action=key_provider.rewrap&traceId=... returns 200');
+  assert.equal(byTrace.events.length, 2, 'traceId filter returns both the request and job-end key_provider.rewrap events');
+
   // BD-A2-36/42/43: job-end event has result: "ok", code: null, details: { outcome: "complete", rewrapped, skippedChanged, notReached, unreadable, legacyBlobsRefused: true }.
   assert.equal(jobEndEvent.result, 'ok', 'job-end event result is ok (BD-A2-42)');
   assert.equal(jobEndEvent.code, null, 'job-end event code is null (BD-A2-42)');
