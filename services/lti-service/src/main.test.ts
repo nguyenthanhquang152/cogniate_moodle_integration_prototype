@@ -11,6 +11,8 @@ import { startLtiService } from './main.ts';
 import { ensureAccount } from './store/accounts.ts';
 import { ensureToolKey } from './store/tool-keys.ts';
 import { capturingLogger } from './testkit.ts';
+import { openDb } from './db/index.ts';
+import * as signingJobs from './jobs/signing-key-cleanup.ts';
 
 // Fixture keys (test values, not secrets).
 const LEGACY = Buffer.alloc(32, 7).toString('hex');
@@ -21,6 +23,8 @@ let service: LtiService | null = null;
 afterEach(async () => {
   await service?.close();
   service = null;
+  vi.useRealTimers();
+  vi.restoreAllMocks();
   vi.unstubAllEnvs();
   for (const t of temps.splice(0)) rmSync(t, { recursive: true, force: true });
 });
@@ -72,4 +76,67 @@ describe('startLtiService (main.ts)', () => {
     expect(error).toBeInstanceOf(KeyProviderError);
     expect((error as KeyProviderError).code).toBe('key_provider_not_bound');
   });
+});
+
+function jobServiceConfig(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'lti-job-service-'));
+  temps.push(dir);
+  for (const [name, value] of Object.entries({
+    DATA_DIR: dir, LTI_KEYRING_FILE: join(dir, 'absent-keyring.json'), LTI_MASTER_KEY: LEGACY, PORT: '0', OPERATOR_PORT: '0', OPERATOR_HOST: '127.0.0.1',
+    PUBLIC_MOODLE_URL: 'https://moodle.test', PUBLIC_LTI_URL: 'https://lti.cogniate.test', PUBLIC_APP_URL: 'https://app.cogniate.test',
+    PUBLIC_CONTENT_URL: 'https://content.cogniate-content.test', JOB_INSTANCE_ID: 'lti-1', AUDIT_RETENTION_DAYS: '400',
+  })) vi.stubEnv(name, value);
+  return dir;
+}
+async function settleJobs(): Promise<void> {
+  for (let i = 0; i < 5; i++) await new Promise<void>((resolve) => setImmediate(resolve));
+}
+
+it('AC-LA-E5-19-07: the service runs retention exactly at start, 10 and 20 minutes, with one job log per run', async () => {
+  jobServiceConfig();
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+  const t0 = Date.UTC(2026, 9, 22);
+  vi.setSystemTime(t0);
+  const { logger, lines } = capturingLogger();
+  service = await startLtiService({ logger });
+  await settleJobs();
+  expect(service.jobs.state()).toBe('active');
+  await vi.advanceTimersByTimeAsync(25 * 60_000);
+  const runs = lines.filter((l) => l.event === 'job_run' && l.job === 'retention');
+  expect(runs).toHaveLength(3);
+  expect(runs.every((l) => l.result === 'ok')).toBe(true);
+  expect(new Set(runs.map((l) => l.trace_id)).size).toBe(3);
+  expect(service.db.prepare("SELECT last_run_at FROM job_lease WHERE name = 'retention'").get()?.last_run_at).toBe(t0 + 20 * 60_000);
+  expect(lines.filter((l) => l.event === 'job_run' && l.job === 'signing-key-cleanup')).toHaveLength(1);
+  expect(service.db.prepare('SELECT instance_id, role FROM job_instance').all()).toEqual([{ instance_id: 'lti-1', role: 'web' }]);
+});
+
+it('drains a job beyond 3 seconds before closing the database, then the same instance restarts without waiting', async () => {
+  const dir = jobServiceConfig();
+  vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => { release = resolve; });
+  vi.spyOn(signingJobs, 'signingKeyCleanupJob').mockReturnValue({
+    name: 'signing-key-cleanup', everyMs: null, runAtStart: true, leaseMs: 10_000,
+    async run() { await gate; return { result: 'ok' }; },
+  });
+  const { logger, lines } = capturingLogger();
+  service = await startLtiService({ logger });
+  await settleJobs();
+  const boot = service.jobs.bootId;
+  let closed = false;
+  const closing = service.close().then(() => { closed = true; });
+  try {
+    await vi.advanceTimersByTimeAsync(4000);
+    expect(closed).toBe(false);
+    expect(service.db.prepare('SELECT boot_id FROM job_instance').get()?.boot_id).toBe(boot);
+  } finally { release(); await closing; }
+  const inspect = openDb(join(dir, 'lti.db'));
+  try { expect(inspect.prepare('SELECT * FROM job_instance').all()).toEqual([]); }
+  finally { inspect.close(); }
+  service = await startLtiService({ logger });
+  await settleJobs();
+  expect(service.jobs.state()).toBe('active');
+  expect(service.jobs.bootId).not.toBe(boot);
+  expect(lines.filter((l) => ['job_instance_wait', 'job_instance_conflict'].includes(String(l.event)))).toEqual([]);
 });
