@@ -49,7 +49,11 @@ export function createRuntime({ publicLtiUrl, fetchJwks, log = () => {} }) {
       const config = providers.get(input.provider);
       if (!config) throw new Error('Unknown simulator provider');
       if (!/^[A-Za-z0-9._:-]{1,120}$/.test(input.id ?? '')) throw new Error('Scenario id required');
-      if (typeof input.clientId !== 'string' || !input.clientId || typeof input.deploymentId !== 'string') throw new Error('Scenario client and deployment required');
+      if (typeof input.clientId !== 'string' || !input.clientId || typeof input.deploymentId !== 'string' || !input.deploymentId) throw new Error('Scenario client and deployment required');
+      if (config.deploymentFormat === 'uuid' && !input.allowNonUuidDeployment
+        && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(input.deploymentId)) {
+        throw new Error('UUID deployment id required');
+      }
       const site = config.sites.find((s) => s.host === input.siteHost);
       if (!site) throw new Error('Unknown simulator service host');
       const pageHost = input.pageHost ?? input.siteHost;
@@ -63,7 +67,7 @@ export function createRuntime({ publicLtiUrl, fetchJwks, log = () => {} }) {
       };
       scenarios.set(input.id, scenario);
       const fields = {
-        iss: config.issuer, client_id: scenario.clientId, lti_deployment_id: scenario.deploymentId,
+        iss: scenario.issuer ?? config.issuer, client_id: scenario.clientId, lti_deployment_id: scenario.deploymentId,
         login_hint: scenario.loginHint, lti_message_hint: scenario.messageHint,
         target_link_uri: `${runtime.publicLtiUrl}/lti/launch/cogniate?resource=${encodeURIComponent(scenario.resource)}`,
       };
