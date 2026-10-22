@@ -9,10 +9,10 @@ import type { Connection, ConnectionCreateBody } from "@cogniate/portal-sdk";
 import { Button, buttonVariants } from "@cogniate/portal-sdk";
 import { Input, Select } from "@cogniate/portal-sdk";
 import { ProviderErrorNotice, providerErrorFields } from "@cogniate/portal-sdk";
-import type { ProviderWizardProps } from "@cogniate/portal-sdk";
+import type { ChannelWizardProps } from "@cogniate/portal-sdk";
 
 /** Step 1: connection name and Learn URL; "Blackboard type" only when more than one profile is ready (M2). */
-export function BlackboardCreate({ provider, opener, onCreated }: ProviderWizardProps) {
+export function BlackboardCreate({ provider, opener, onCreated }: ChannelWizardProps) {
   const alive = useAlive();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);

@@ -258,15 +258,24 @@ test('LA-IC-16 (BD-A1-36): acceptance.ltiHealth.outbound_allowlist compares .sim
   }
 });
 
-test('LA-IC-17 (BD-A1-41): expected-delta LD-9 record has 0 golden changes and 0 frozen-test changes', () => {
+test('LA-IC-12 (LA-E3-04 service part) and LA-IC-17 (BD-A1-41): expected-delta LD-9 records load cleanly with 0 golden and 0 frozen-test changes', () => {
   const base = load(baseDir);
-  const ic17Delta = loadExpectedDelta('LA-IC-17');
-  assert.equal(ic17Delta.id, 'LA-IC-17');
-  assert.deepEqual(ic17Delta.changes, []);
-  assert.deepEqual(ic17Delta.ld9.goldenFields, []);
-  assert.deepEqual(ic17Delta.ld9.frozenTestsTouched, []);
-  const res = compareCaptures(base, base, [ic17Delta]);
-  assert.equal(res.ok, true);
-  assert.deepEqual(res.differences, []);
-  assert.deepEqual(res.missing, []);
+  for (const id of ['LA-IC-12', 'LA-IC-17']) {
+    const delta = loadExpectedDelta(id);
+    assert.equal(delta.id, id);
+    assert.deepEqual(delta.changes, []);
+    assert.deepEqual(delta.ld9.goldenFields, []);
+    assert.deepEqual(delta.ld9.frozenTestsTouched, []);
+    assert.ok(Array.isArray(delta.ld9.scanChecked) && delta.ld9.scanChecked.length > 0, `${id} scanChecked`);
+    const res = compareCaptures(base, base, [delta]);
+    assert.equal(res.ok, true);
+    assert.deepEqual(res.differences, []);
+    assert.deepEqual(res.missing, []);
+  }
+  const ic12 = loadExpectedDelta('LA-IC-12');
+  assert.equal(ic12.ld9.authorUnitTestChanges.length, 3);
+  assert.deepEqual(ic12.ld9.goldenFieldsPendingAppPart, [
+    'G4.blackboard.pages.picker.text',
+    'G4.canvas.pages.picker.text',
+  ]);
 });

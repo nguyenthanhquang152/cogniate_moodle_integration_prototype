@@ -8,7 +8,8 @@
     "dev": "node --watch src/main.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "app:grant": "node src/cli/grant.ts",
-    "app:binding": "node src/cli/binding.ts"
+    "app:binding": "node src/cli/binding.ts",
+    "app:audit": "node src/cli/audit.ts"
   },
   "dependencies": {
     "@cogniate/channel-kernel": "*",
