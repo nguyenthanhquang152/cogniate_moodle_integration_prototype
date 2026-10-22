@@ -332,3 +332,39 @@ Source: Savoy `msg_962e480b30de` (18:26:36 UTC), relayed exactly in Lead `msg_82
 
 With these two additions the route is concrete. The Lead can decide it in one step. It still needs the explicit E-R4 amendment of §11.4, because Savoy gives no hold, and owner agreement on the schedule.
 All other conditions, checks, row evidence and stop rules of §11.1–§11.4 stay unchanged.
+
+### 11.6 Final assessment after QA's evidence check and Savoy's answers (about 18:44–18:55 UTC)
+
+Inputs: independent QA `msg_54dcc78e93bf` and Savoy `msg_b58be38c7de1`, both relayed by the Lead (`msg_a8b4fd8e7c3e`, `msg_541016b4c791`), and my rules in `msg_32c9129a2fda`. This section replaces the server-row and M2-13 evidence items of §11.2, closes the two open items of §11.5 and corrects one sentence of §11.4. The rest of §11 stays.
+
+1. **Canvas server rows** (M1-09 best and no-score fixtures, M1-16, M1-33): the available evidence is sufficient. QA reconciles the whole-invocation logs, up to teardown: `lms-sim.jsonl`, `lti-service.jsonl` and `cogniate-app.jsonl`. Every score POST maps to an expected step of a positive row, and no unmapped POST or score sync exists. The POST counts per publication are: best rows exactly two (80 and 90); M1-33 rows exactly two (the failed first POST and the POST after Resend); the preview publication and the no-score fixtures none. Each absent event would be an extra POST, so the count proves the absence. No raw simulator body dump is needed.
+2. **Canvas browser rows**: the available trace archives and simulator logs are sufficient.
+3. **M2-13 (corrects §11.2)**: I withdraw the item "held answer before the final check". It cannot exist. At C6 = C8, `useApi` (`apps/portal/src/hooks.ts:10-40`) cleans up at once when the path changes. It sets `active = false`, so a later answer is never stored. It also calls `controller.abort()` and clears the poll timer. So the held Canvas request is aborted and never reaches the app. The required evidence becomes:
+   - the whole-invocation `cogniate-app.jsonl` has exactly one `GET /app-api/connections/<M2-13 Canvas id>`: the page load. A held request that was not aborted would reach the app after its 3 s hold. That hold timer starts before the test's 7 s wait and ends first, so such a GET always shows in the log.
+   - the Blackboard transition GET and one Blackboard poll are logged before the final check (Playwright start plus duration). This shows that the 7 s window was live.
+
+   Together with the unchanged hook, this proves the cancellation path. It does not claim that a late answer arrived. If the log shows a second GET of that path, M2-13 is not resolved for an invocation with foreign work, and that M2 invocation is not accepted. M2 then needs a window without foreign work. This does not block SIM or T7.
+4. **T7 B-T7-01**: the available confirm logs (question, then the echoed "no", then the stop) are sufficient.
+5. **Savoy networks (closes §11.5)**: Savoy creates no Docker network and uses the default bridge. If it ever needs one, it removes it inside the same block and keeps it outside the three lane subnets. Met.
+6. **Chronology (closes §11.5)**: block-level reports are sufficient. Per-action times are not needed, because §11.1 checks find snapshot conflicts by themselves and the §11.2 evidence is required for a whole invocation. Rules:
+   - (a) Each reported block starts at or before its first Docker action. It ends after its last container removal, volume removal and build have finished. It lists every `sto-*` container name and every build.
+   - (b) If any block overlaps the time from W1 start to W4 end, the §11.2 evidence (as corrected here) is required for that invocation. If no block overlaps, and the sampler shows no non-lane name other than our own lane or `cogniate-build-*` names, no extra row evidence is needed.
+   - (c) A non-lane container name in the sampler that matches no reported `sto-*` name is unknown activity and blocks acceptance. Random names from classic (non-BuildKit) builds or from unnamed testcontainers are unknown in this sense.
+   - (d) Savoy's written confirmation that its blocks cover W1–W4 completely arrives before acceptance.
+
+   No `docker events` query, live collector or new tool is used.
+7. **Correction to §11.4**: replace "with owner agreement on the schedule" with: "The Lead decides the execution policy under the existing user authorization. A concurrent run inside the agreed disjoint resources does not reserve the host and does not override Savoy's immediate-access instruction. Owner selection is needed only to give priority to an exclusive reservation." This route claims no reservation.
+
+**Viable phases:**
+- Canvas SIM round 1 and round 2: viable under §11 with items 1, 2 and 6.
+- T7 (three runs, demo and confirmations): viable under §11 with items 4 and 6.
+- M2: viable under §11 with item 3. If an overlapped invocation shows a second Canvas GET for M2-13, M2 needs a window without foreign work.
+
+**Remaining conditions:**
+- the Lead's explicit execution-policy decision, which amends the E-R4 hold clause;
+- one grant per phase;
+- Savoy's completeness confirmation after each invocation;
+- every original check passes as written;
+- the E-R4 rules of no automatic retry and void on a fresh failure.
+
+Product, tests, criteria, deadlines, launchers and tools stay unchanged. AC-M4-06 stays PENDING.
