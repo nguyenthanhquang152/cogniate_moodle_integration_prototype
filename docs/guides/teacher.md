@@ -71,7 +71,7 @@ If a Cogniate user withdraws the course, the activity shows "This course is no l
 
 ## Canvas
 
-Source: commit `e2d58e9` (candidate C = `d3296dd`), 2026-10-22. Status: **draft**. Tags: the [evidence table](../../README.md#evidence-labels) gives the status of each label.
+Draft basis: `82aff91`, 2026-10-22. Candidate under validation: C4 `bf09cda`. Status: **draft**. Final source stamp and approval are pending. Tags: the [evidence table](../../README.md#evidence-labels) gives the status of each label.
 
 NOTE: Nobody has tested these steps on a real Canvas site. Canvas menu names come from provider documentation ([research](../research/multi-lms.md#4-canvas-facts)).
 
@@ -111,7 +111,7 @@ Learners are anonymous: Cogniate gets no names or emails [SIM AC-M1-14]. The por
 
 ## Blackboard Learn
 
-Source: commit `e2d58e9` (candidate C = `d3296dd`), 2026-10-22. Status: **draft**. Tags: the [evidence table](../../README.md#evidence-labels) gives the status of each label.
+Draft basis: `82aff91`, 2026-10-22. Candidate under validation: C4 `bf09cda`. Status: **draft**. Final source stamp and approval are pending. Tags: the [evidence table](../../README.md#evidence-labels) gives the status of each label.
 
 NOTE: Nobody has tested these steps on a real Blackboard site. Learn menu names come from provider documentation ([research](../research/multi-lms.md#3-blackboard-facts)).
 

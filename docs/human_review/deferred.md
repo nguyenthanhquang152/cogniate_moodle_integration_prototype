@@ -103,7 +103,9 @@ Board notes that do not match the review files (for the Lead): the board lists Q
 
 ## Canvas and Blackboard phase (M4)
 
-Source: commit `e2d58e9` (candidate C = `d3296dd`), 2026-10-22. Status: **draft**. The Lead confirmed the accepted deferrals of this phase on 2026-10-22: A-M0-10, the two storage tables, and the two engine and test NITs below. Nothing in this section closes a finding.
+Draft basis: `82aff91`, 2026-10-22. Candidate under validation: C4 `bf09cda`. Status: **draft**. Final source stamp and approval are pending.
+
+The [phase plan](../team/multi-lms-plan.md) records the accepted deferrals below, including the R4/R5 harness findings. This section records those decisions; it closes no finding.
 
 The Moodle list above stays as it was recorded on 2026-10-19.
 
@@ -154,6 +156,11 @@ The [operator guide](../guides/operator.md#3a-accepted-limit-d-12-self-hosted-ca
 | A-SH-08 | NIT | Two read-only checks list a linked folder before an `lstat` guard. They change nothing, and the closure still fails. | Check `lstat` first. |
 | A-SH-09 (= B-HR-09) | NIT | A missing scratch folder gets the text "… is kept", but nothing exists. The phase stop is right. | Give the missing case its own text. |
 | B-HR-10 | NIT | A cleanup note is dropped when the body error is itself a phase abort. No current path reaches it. | Add the note in both branches. |
+| A-SH-10 (= B-HR-11) | MINOR | No committed control distinguishes both app services running from only one. The source uses the correct predicate. ([A](../reviews/M1/storage-harness-reviewer-a.md), [B](../reviews/M1/storage-harness-reviewer-b.md)) | Add a case with one app service stopped and the matching mutant. |
+| A-SH-11 | MINOR | `stopCheck` can accept an earlier stop event for the same point. The current command must still exit 3. R5 binds the `g-tamper` target to the current command's own output, so target selection no longer depends on this check. ([review](../reviews/M1/storage-harness-reviewer-a.md)) | Check the current command's output only. |
+| A-SH-12 | NIT | The kept-file hash assertion can pass when both observed hashes are null. The folder-order and runtime entry checks still apply. ([review](../reviews/M1/storage-harness-reviewer-a.md)) | Require a non-null, 64-hex kept-file hash. |
+| A-SH-13 | NIT | A test name says the target's mode changed, but the case changes another entry's mode. ([review](../reviews/M1/storage-harness-reviewer-a.md)) | Rename the case to name the other entry. |
+| B-HR-12 | NIT | A harness-only timeout stays a failure, but its message does not name the timeout. ([review](../reviews/M1/storage-harness-reviewer-b.md)) | Name the timeout in the failure text. |
 
 ### Not open deferrals (for clarity)
 
@@ -162,7 +169,7 @@ The [operator guide](../guides/operator.md#3a-accepted-limit-d-12-self-hosted-ca
 | Q-R1A-01 | CLOSED. The product repair is at `9f8ac62`. |
 | ADR-012 O-1 | CLOSED (revision 3.6 precision of ADR-012 §4). Do not confuse it with the open R1-A QA O-1 above. It is also not the timing observation O-1 of the storage source review. |
 | M4-8f | Equivalent mutant, not a finding: `O_CREAT` with `O_EXCL` refuses a final link, also without `O_NOFOLLOW`. |
-| A-SI-05, B-SI-09 | The `infra/README.md` wording correction stays open. It belongs to the sole remediation session, not to Docs. |
+| A-SI-05, B-SI-09 | Text correction committed at `5a5453c`: coded refusals, text-only stops, output streams and the `container` field. Independent document closure is pending. |
 | B-M3-05 | Open NIT. Its reviewer says that it needs no deferral entry. |
 | B-M3-06 | An evidence note, dispositioned in the phase plan. The M2 and T7 results stay at their actual `aff4882` SHA; the final M2 run is fresh. |
 | A-M0-11, A-M0-12, B-M0-10 | Text corrections applied (board). Not open. |

@@ -1,6 +1,6 @@
 # Blackboard admin guide: connect a Blackboard Learn site
 
-Source: commit `e2d58e9` (candidate C = `d3296dd`), 2026-10-22. Status: **draft**. Final runtime checks are pending.
+Draft basis: `82aff91`, 2026-10-22. Candidate under validation: C4 `bf09cda`. Status: **draft**. Final source stamp, evidence and approval are pending.
 
 This guide connects one Blackboard Learn site to one Cogniate library. Three people take part:
 

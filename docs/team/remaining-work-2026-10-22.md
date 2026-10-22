@@ -35,3 +35,11 @@ Round 2 storage started at 08:36:44 UTC. Prior storage phases took about 20–23
 - LA and Savoy remain on Docker hold until the Lead's explicit handoff after the final Docker window. Send a scheduling update by 09:15 UTC or earlier full/legacy closure. An update is not a handoff.
 - The proposed legacy-only retry is a contingency for a future concrete failure. No such retry is authorized now.
 - Guide preparation is parallel work. Finalization, independent Docs QA and final approvals retain their real evidence dependencies.
+
+## Guide wording alignment (08:55 UTC)
+
+Codex prepared the nine granted draft paths and held final claims for QA. The Lead then granted one extra row in `infra/README.md`: align `operation_lock_invalid` with the existing operator guide. Stop and escalate; no validated manual recovery procedure exists. Do not remove or move the lock folder. This grant (`msg_ddbd419caeff`) changes prose only. Independent Gemini Docs QA must check the row and the pending A-SI-05/B-SI-09 document findings. Architecture, tests and executable files remain outside this grant.
+
+## Runtime checkpoint (09:03 UTC)
+
+Both full2 rounds passed all 488 unique cases on C4. Round 2 storage closed at 08:58:28 UTC. The Lead checked exact phase/accounting bindings, case equality and raw R4/R5 evidence, then accepted the round in msg_bdb3feab05d2. Independent Canvas round-2 judgment is running under msg_8a7fc83b1a13 while the existing driver runs all 12 legacy groups. Final W4, scans, inventories, cleanup and overall acceptance remain pending. The guide draft has nine changed files plus the one-row infra clarification. Its final claims remain held.

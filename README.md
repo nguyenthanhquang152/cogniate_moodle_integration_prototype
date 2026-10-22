@@ -6,7 +6,11 @@ This prototype publishes Cogniate courses (SCORM 1.2 and HTML) to Moodle with LT
 
 ## Supported LMS
 
-Canvas and Blackboard phase: branch `nguyenthanhquang152/lti-multi-lms`, candidate C = `d3296dd`, 2026-10-22. Final runtime checks on candidate C are pending.
+Canvas and Blackboard phase: branch `nguyenthanhquang152/lti-multi-lms`, 2026-10-22. Documentation remains a **draft**, based on `82aff91`. Final source stamp and approval are pending.
+
+Candidate under validation: C4 `bf09cdad91ca548e1ecbc14428b55180d35d5360`. Tests tree: `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`.
+
+The Lead accepted full2 round 1: 488/488 cases, including independent Canvas judgments for 233/233 cases ([handoff](docs/team/model-transition-2026-10-22.md)). This is one round only. Final acceptance needs the second round, exact case equality, legacy groups, final isolation checks and cleanup. Fresh M2/T7, Architect conformance, independent Docs QA and two final reviews also remain pending.
 
 | LMS | Claim | Evidence label |
 | --- | --- | --- |
@@ -22,11 +26,11 @@ The guides tag each step with one of these labels. This table gives the current 
 
 | Label in a guide | Meaning | Status on 2026-10-22 |
 | --- | --- | --- |
-| `MOODLE-LIVE AC-T7-…` | End-to-end test on the local Moodle 5.2.4 container | PASS in three runs at `c5683f8` and in one run at `aff4882` ([T7 QA](docs/reviews/T7/qa.md#m3-checkpoint-update--final-candidate-aff4882-t7-pass)). Fresh T7 on candidate C: pending. |
-| `MOODLE-LIVE AC-M1-23`, `AC-M1-30` | Upgrade and rollback on the local Moodle container (host runner) | Round 1 PASS at `aaa823b`: 4 and 7 rows ([M1 QA](docs/reviews/M1/qa.md#retry-at-aaa823b-fail-in-round-1-phase-storage-ac-m1-41-2026-10-21)). No full-run credit. Two full rounds on candidate C: pending. |
-| `SIM AC-M2-…` | Portal browser test against a signed simulation (fixed `.sim.test` hosts) | 64 of 64 PASS at `aff4882` ([M2 QA](docs/reviews/M2/qa.md#9-round-8--fifth-frozen-m2-run-at-aff4882-2026-10-20)). Fresh M2 on candidate C: pending. |
-| `SIM AC-M1-…` | API and launch test against a signed simulation | Round 1 PASS at `aaa823b` for every cited row: all 394 `sim` rows and all 12 snapshot rows ([M1 QA](docs/reviews/M1/qa.md#retry-at-aaa823b-fail-in-round-1-phase-storage-ac-m1-41-2026-10-21), [Canvas QA](docs/reviews/M1/qa-canvas.md)). No full-run credit: round 2 and the legacy groups did not run. Two full rounds on candidate C: pending. |
-| `SIM AC-M1-41` | Storage commands (ADR-012) | Round 1 at `aaa823b`: 20 of 70 rows PASS, 50 FAIL. QA found harness defects, not product defects. Candidate C has the repaired harness. Pending. |
+| `MOODLE-LIVE AC-T7-…` | End-to-end test on the local Moodle 5.2.4 container | PASS in three runs at `c5683f8` and in one run at `aff4882` ([T7 QA](docs/reviews/T7/qa.md#m3-checkpoint-update--final-candidate-aff4882-t7-pass)). Fresh T7 on C4: pending. |
+| `MOODLE-LIVE AC-M1-23`, `AC-M1-30` | Upgrade and rollback on the local Moodle container (host runner) | C4 full2 round 1: cited cases PASS within the 12/12 migration results ([Lead checkpoint](docs/team/multi-lms-plan.md)). Final two-round acceptance: pending. |
+| `SIM AC-M2-…` | Portal browser test against a signed simulation (fixed `.sim.test` hosts) | 64 of 64 PASS at `aff4882` ([M2 QA](docs/reviews/M2/qa.md#9-round-8--fifth-frozen-m2-run-at-aff4882-2026-10-20)). Fresh M2 on C4: pending. |
+| `SIM AC-M1-…` | API and launch test against a signed simulation | C4 full2 round 1: 394/394 `sim` rows and 12/12 snapshot rows PASS ([Lead checkpoint](docs/team/multi-lms-plan.md)). Independent Canvas judgment: 233/233 PASS. Final two-round acceptance: pending. |
+| `SIM AC-M1-41` | Storage commands (ADR-012) | C4 full2 round 1: all 72 rows PASS, including 2 migration rows and 70 storage rows ([Lead checkpoint](docs/team/multi-lms-plan.md)). Final acceptance: pending. |
 | `HOST-QA` | Host-only QA with simulated Docker answers | Storage-command QA Round 2 PASS at `9f8ac62` ([report](docs/reviews/M1/storage-command-qa.md)). No runtime credit. |
 | `DOC F-…` | A fact from provider documentation ([research](docs/research/multi-lms.md)) | Proves nothing about our code. |
 | `UNVERIFIED L-…` | A live check on a real LMS ([M3 live matrix](docs/architecture/tasks/M3.md#5-live-check-matrix)) | All 32 rows `UNVERIFIED`. Blockers: B-1, B-2, B-3. |
@@ -36,6 +40,8 @@ The guides tag each step with one of these labels. This table gives the current 
 A tag can name one QA case instead of a criterion, for example `SIM M1-19.canvas.inline-key`. The case has the status of its criterion row above.
 
 `SIM` means a signed simulation of the LMS. It tests our protocol handling, not real LMS behaviour.
+
+Earlier failed attempts and environment deviations remain in [M1 QA](docs/reviews/M1/qa.md) and the [phase plan](docs/team/multi-lms-plan.md). Diagnostic and host-only passes give no full acceptance credit. The 12 legacy groups use their documented fixtures and knobs, followed by default-profile checks with no knobs.
 
 ## Start here
 

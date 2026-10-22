@@ -1,6 +1,6 @@
 # Canvas admin guide: connect a Canvas site
 
-Source: commit `e2d58e9` (candidate C = `d3296dd`), 2026-10-22. Status: **draft**. Final runtime checks are pending.
+Draft basis: `82aff91`, 2026-10-22. Candidate under validation: C4 `bf09cda`. Status: **draft**. Final source stamp, evidence and approval are pending.
 
 This guide connects one Canvas site to one Cogniate library. Three people take part:
 
@@ -62,7 +62,7 @@ Use this only when Canvas cannot reach the Cogniate key URL, for example a local
 2. Write down the key id that the portal shows `[SIM AC-M2-04, AC-M1-19]`.
 3. Copy or download the JSON again `[SIM AC-M2-04]`.
 
-CAUTION: Canvas does not refresh an inline key. After a Cogniate signing key change, Deep Linking and grade return stop for this installation until you paste a new JSON. See [Procedure 6](#procedure-6-after-a-cogniate-key-change-inline-key-only).
+CAUTION: Canvas does not refresh an inline key. After a Cogniate signing key change, Deep Linking and new grade token requests fail until you paste a new JSON. A token that Canvas already issued can still work until it expires. This rotation procedure remains unverified `[L-C14 UNVERIFIED]`. Not yet tested on a real Canvas site. See [Procedure 6](#procedure-6-after-a-cogniate-key-change-inline-key-only).
 
 ## Procedure 3: Install the app and read the deployment ID (Canvas admin)
 

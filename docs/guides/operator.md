@@ -1,6 +1,6 @@
 # Operator guide: Canvas and Blackboard bindings
 
-Source: commit `e2d58e9` (candidate C = `d3296dd`), 2026-10-22. Status: **draft**. Final runtime checks are pending.
+Draft basis: `82aff91`, 2026-10-22. Candidate under validation: C4 `bf09cda`. Status: **draft**. Final source stamp, evidence and approval are pending.
 
 This guide is for Cogniate staff with shell access to the Cogniate app service and the LTI service. Design: [ADR-011](../architecture/adr/ADR-011-multi-lms.md) §4a, §4b and §14, and [ADR-012](../architecture/adr/ADR-012-sqlite-volume-storage.md).
 
@@ -202,7 +202,7 @@ Every storage command takes one lock per checkout. These refusals change no data
 | `operation_lock_invalid` | The lock folder has no valid record. Stop. Do not remove or move the folder. Send the message and the folder name to the engineering owner. The manual recovery procedure is pending Architect and QA validation. |
 | Exit 1 with only a `storage_lock_lost` line | Another command took the lock. The result of your command is not proven safe. The event in `infra/.logs/storage-lock.jsonl` names the other owner. Check the result before you continue. |
 
-NOTE: ADR-012 §7 (A3) gives only one condition for a manual exit: no storage command of this checkout runs. QA tested the refusal, not a manual exit. A wrong manual change can break the lock of a running command.
+NOTE: ADR-012 §7 (A3) requires that no storage command of this checkout runs before any manual exit. This condition is not a recovery procedure. QA tested the refusal, not a manual exit. Stop and escalate `operation_lock_invalid`; do not change the lock folder.
 
 NOTE: Known limits ([deferred](../human_review/deferred.md#canvas-and-blackboard-phase-m4)): a lost lock prints no plain-text sentence on stderr (B-RR-02). Some lock releases log no `storage_lock_released` line (R1-A QA O-1). After another release error, stderr can show a raw `EACCES` text with a path. The lock folder then stays until a later command reclaims it (O-A2).
 

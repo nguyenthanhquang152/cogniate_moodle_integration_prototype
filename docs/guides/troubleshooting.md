@@ -43,7 +43,7 @@ More technical help: [`infra/README.md`](../../infra/README.md#troubleshooting).
 
 ## Canvas and Blackboard
 
-Source: commit `e2d58e9` (candidate C = `d3296dd`), 2026-10-22. Status: **draft**. The last column gives the evidence label; the [evidence table](../../README.md#evidence-labels) gives its status. Nobody has tested these fixes on a real Canvas or Blackboard site.
+Draft basis: `82aff91`, 2026-10-22. Candidate under validation: C4 `bf09cda`. Status: **draft**. Final source stamp and approval are pending. The last column gives the evidence label; the [evidence table](../../README.md#evidence-labels) gives its status. Nobody has tested these fixes on a real Canvas or Blackboard site.
 
 "Operator" means Cogniate staff ([operator guide](operator.md)). The operator reads the service logs in `infra/.logs/`.
 
@@ -83,7 +83,7 @@ Source: commit `e2d58e9` (candidate C = `d3296dd`), 2026-10-22. Status: **draft*
 | A pending grade row turns `failed` with `CONNECTION_DISABLED` | The connection was disconnected or suspended. | Resend is refused. The LMS gets no score from this connection. | `[SIM AC-M1-18, AC-M1-38]` |
 | A Canvas grade row is `failed` after a better score | The assignment allows only one attempt. | Keep "Allowed Attempts" unlimited ([teacher guide](teacher.md#canvas)). | `[SIM AC-M1-33]` |
 
-For storage lock messages (`operation_in_progress`, `storage_writer_active`, `operation_lock_invalid`, `storage_lock_lost`), see the [operator guide](operator.md#43-storage-lock-messages).
+For storage lock messages (`operation_in_progress`, `storage_writer_active`, `operation_lock_invalid`, `storage_lock_lost`), see the [operator guide](operator.md#43-storage-lock-messages). For `operation_lock_invalid`, stop and escalate to the engineering owner. Do not remove or move the lock folder. No manual recovery procedure is approved.
 
 ## End-to-end test
 

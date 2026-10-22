@@ -2,7 +2,9 @@
 
 Source: commit `6932539`, 2026-10-19.
 
-**New: Canvas and Blackboard (draft, 2026-10-22, candidate C = `d3296dd`).** The prototype now also has Canvas and Blackboard support. It is tested against signed simulations only. Nobody has tested it on a real Canvas or Blackboard site, and the final runtime checks are pending.
+**New: Canvas and Blackboard (draft, 2026-10-22, C4 `bf09cda` under validation).** The draft is based on `82aff91`; its final source stamp and approval are pending. The prototype has Canvas and Blackboard support tested against signed simulations only. Not yet tested on a real Canvas site. Not yet tested on a real Blackboard site.
+
+The Lead accepted full2 round 1: 488/488 cases, with an independent 233/233 Canvas judgment ([handoff](../team/model-transition-2026-10-22.md)). Final runtime checks, Architect conformance, independent Docs QA and two final reviews remain pending. All 32 live rows stay `UNVERIFIED`; local Canvas stays deferred.
 
 Open [`canvas-blackboard.html`](canvas-blackboard.html) in a browser (10 minutes, works offline). Then answer Q19 to Q22 in [decisions-needed.md](decisions-needed.md#e-canvas-and-blackboard-decisions). The rest of this page describes the Moodle release.
 

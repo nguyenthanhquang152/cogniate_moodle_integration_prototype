@@ -7,7 +7,7 @@
 <!--
   One self-contained file. No CDN, no web font, no network request, no external file. Open it from disk (file://).
   Owner: Docs. Sources: ADR-011 sections 4, 4a, 4b, 6, 13 and 15; M3 live matrix; README evidence labels.
-  Status: draft. Final runtime checks on candidate C are pending.
+  Status: draft. Candidate C4 is under validation; final source stamp and approval are pending.
 -->
 <style>
   :root {
@@ -80,7 +80,7 @@
   <h1>Canvas and Blackboard at a glance</h1>
   <p class="lead">One shared LTI engine for Moodle, Canvas and Blackboard. Read time: about 10 minutes.</p>
   <p><span class="badge">Draft</span><span class="badge">Signed simulation only</span><span class="badge">All 32 live checks UNVERIFIED</span></p>
-  <p class="lead">Source: commit <code>e2d58e9</code>, candidate C = <code>d3296dd</code>, 2026-10-22. Final runtime checks on candidate C are pending. Nothing here was tested on a real Canvas or Blackboard site.</p>
+  <p class="lead">Draft basis: <code>82aff91</code>, 2026-10-22. Candidate under validation: C4 <code>bf09cda</code>. Final source stamp and approval are pending. Not yet tested on a real Canvas site. Not yet tested on a real Blackboard site.</p>
   <nav aria-label="Sections">
     <ul>
       <li><a href="#tenancy">1. Tenancy</a></li>
@@ -188,15 +188,17 @@
   <table>
     <thead><tr><th scope="col">Evidence</th><th scope="col">Result</th><th scope="col">Status</th></tr></thead>
     <tbody>
-      <tr><td>Portal browser tests, signed simulation (M2)</td><td>64 of 64 PASS at <code>aff4882</code></td><td>Historical. Fresh run on candidate C pending.</td></tr>
-      <tr><td>API and launch tests, signed simulation (M1, round 1)</td><td>All 394 <code>sim</code> rows and 12 snapshot rows PASS at <code>aaa823b</code></td><td>No full-run credit. Two full rounds on candidate C pending.</td></tr>
-      <tr><td>Upgrade and rollback on local Moodle (M1, round 1)</td><td>4 and 7 rows PASS at <code>aaa823b</code></td><td>Pending on candidate C.</td></tr>
-      <tr><td>Storage commands (M1, round 1)</td><td>20 of 70 rows PASS; 50 FAIL from harness defects</td><td>Harness repaired in candidate C. Pending.</td></tr>
-      <tr><td>Moodle end to end (T7)</td><td>PASS at <code>c5683f8</code> and <code>aff4882</code></td><td>Fresh run on candidate C pending.</td></tr>
+      <tr><td>Portal browser tests, signed simulation (M2)</td><td>64 of 64 PASS at <code>aff4882</code></td><td>Historical. Fresh run on C4 pending.</td></tr>
+      <tr><td>API and launch tests, signed simulation (M1, full2 round 1)</td><td>394/394 <code>sim</code> rows and 12/12 snapshot rows PASS at C4 <code>bf09cda</code></td><td>One accepted round. Independent Canvas judgment: 233/233 PASS.</td></tr>
+      <tr><td>Upgrade and rollback on local Moodle (M1, full2 round 1)</td><td>Cited cases PASS within 12/12 migration results at C4</td><td>Final two-round acceptance pending.</td></tr>
+      <tr><td>Storage commands (M1, full2 round 1)</td><td>72/72 rows PASS at C4: 2 migration rows and 70 storage rows</td><td>Final acceptance pending.</td></tr>
+      <tr><td>Moodle end to end (T7)</td><td>PASS at <code>c5683f8</code> and <code>aff4882</code></td><td>Fresh run on C4 pending.</td></tr>
       <tr><td>Real Canvas and Blackboard (live matrix)</td><td>0 of 32 rows run</td><td><strong>UNVERIFIED</strong>.</td></tr>
     </tbody>
   </table>
   </div>
+  <p>The Lead accepted 488/488 cases in full2 round 1 (<a href="../team/model-transition-2026-10-22.md">handoff</a>). Final acceptance needs the second complete round, exact case equality, all 12 legacy groups, final isolation checks and cleanup. Fresh M2/T7, Architect conformance, independent Docs QA and two final reviews remain pending.</p>
+  <p>Earlier failures and environment deviations stay in the <a href="../team/multi-lms-plan.md">phase plan</a>. Diagnostic and host-only passes give no full acceptance credit.</p>
   <div class="two" style="margin-top:14px">
     <div class="box"><h3>Live rows by group</h3>
       <p>Canvas hosted (<code>CANVAS-HOSTED</code>): 13 rows, UNVERIFIED.<br>Canvas local (<code>CANVAS-LOCAL</code>, L-C13): 1 row, deferred and UNVERIFIED.<br>Blackboard (<code>BLACKBOARD-LIVE</code>): 18 rows, UNVERIFIED.</p>

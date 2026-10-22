@@ -125,7 +125,7 @@ These commands hold one lock for the whole command: `stack:up`, `stack:restart`,
 | `operation_in_progress` | Another storage command holds the lock. The command waits up to 120 s, then stops. A lock stays live while any process of its process group runs (for example a Docker client). Wait for it, or end it. |
 | `operation_lock_reentry` | A guarded command started inside another one. Run the commands one after the other. |
 | `storage_writer_active` | A storage container of the project still runs. Wait until it ends, or run `docker stop <name>`. |
-| `operation_lock_invalid` | The lock folder has no valid record for 10 s. Use the manual exit of the operator guide (M4), and only when no storage command of this checkout runs. |
+| `operation_lock_invalid` | The lock folder has no valid record for 10 s. Stop. Do not remove or move the lock folder. No validated manual recovery procedure exists. Send the message and folder name to the engineering owner. See the [operator guide](../docs/guides/operator.md#43-storage-lock-messages). |
 
 - A lock of a command that ended is taken over (`storage_lock_reclaimed`). The old record stays in `.tmp/storage-op.<project>.stale-<runId>/`.
 - Log: `infra/.logs/storage-lock.jsonl`. Self-check without Docker: `bash infra/scripts/storage-oplock.sh selftest`.
