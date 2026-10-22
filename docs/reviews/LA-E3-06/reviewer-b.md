@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E3-06 review, Reviewer-B (lens: "Can a human team own it?")
 
@@ -54,3 +54,19 @@ The code is clear. `scopes` is a typed enum of the five ADR-009 scopes, `buildRe
 ## Not checked
 
 - K1-SIM AC-01, -02, -03, -05, -06 (QA). LA-E3-07 (the app sends the four AGS scopes).
+
+## Round 2
+
+Verdict for this round: **APPROVE**. This is a bounded re-check of my round-1 findings against lane L's commits `0f52458` (default scopes), `af9e8bc` (named unsupported scopes) and `b65c087` (repeated scopes), in merge `028c30a`. I did not open the other reviewer's file. I did not run Docker.
+
+Counts (this round): **0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT (new).** All three round-1 findings are **closed**.
+
+### How I checked
+
+- Scratch clone of `028c30a` (private `/tmp` folder; removed after the run): `vitest run services/lti-service`: 77 files, 968 tests passed. `tsc` and `eslint` on the LTI service: clean.
+
+| Finding | Status | Evidence |
+| --- | --- | --- |
+| B-LA-E3-06-01 (BLOCKER) default scopes checked against `scopes_supported` | **Closed** | `http/routes/registration.ts:221-223`: "An absent list keeps the legacy five-scope request; only an explicit list checks platform support"; `unsupported` is computed from `body.data.scopes` only. The pre-LA two-scope fixture is back (`registration.test.ts:25`), so the old default-complete tests run on the old platform shape again. The new test `keeps all five default scopes when scopes_supported is %j` (`:190`) covers `undefined`, `[]` and one scope, and expects one registration request with all five scopes. That is the required outcome "Absent = the five scopes (as today)". |
+| B-LA-E3-06-02 (MINOR) unnamed missing scopes | **Closed** | `:225`: "Invalid field: scopes. The platform does not support: `<scope>`, `<scope>`.", with `details: { field: 'scopes', unsupported }`. The test (`:174`) checks the text and both details members for two unsupported scopes in a three-scope request. |
+| B-LA-E3-06-03 (NIT) repeated scopes | **Fixed** | `:70`: `.refine(… new Set(scopes).size === scopes.length, 'scopes must not repeat')`; a "repeated scope" row in the refusal table (`:160`). |

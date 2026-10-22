@@ -367,7 +367,7 @@ Build rules (BD-A2-51):
 | Signal | Rule |
 | --- | --- |
 | Tenant id in logs | `http_request`, `api_auth_failed` (when the path names the account), `launch_*`, `login_rejected` and `rate_limited` get `tool_account_id` when it is known; `platform_id` where it is known. Ids only, never personal data. |
-| Metrics | `GET /metrics` on the internal listener, OpenMetrics text. The list is in [operability §4](../operability.md). Labels: route class, status class, `tool_account_id`; `platform_id` only on the JWKS and token failure counters. |
+| Metrics | `GET /metrics` on the internal listener, OpenMetrics text. The list is in [operability §4](../operability.md). Labels: route class, status class, `tool_account_id`; `platform_id` only on the JWKS and token failure counters. Sources and label rules (BD-A2-52): [operability §4.2](../operability.md) "Sources". Each series comes from an observer at the event (the limiter before sampling; the audit writer after the commit; injected platform token and JWKS observers) or from log events, the HTTP hook and store queries. A series with no accurate source is not exposed. Labels hold only stored account ids and stored platform ids. |
 | Readiness | `GET /readyz` on both listeners: `200 {status:"ready"}` or `503 {status:"not_ready", reasons:[…]}`. Checks: `SELECT 1`, every migration applied, `keyProvider.ready()`. Public answer: status only. |
 | Public health | `/healthz` stays as today in the `default` and `acceptance` profiles (T1 tests read its fields). In the `production` profile it answers `{status, service}` only (R4 L-2). |
 

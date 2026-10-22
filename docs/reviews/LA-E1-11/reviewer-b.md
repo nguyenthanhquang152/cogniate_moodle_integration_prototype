@@ -1,7 +1,52 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E1-11 review, Reviewer-B2 (lens: "Can a human team own it?")
+
+## Round 2 (Reviewer-B2)
+
+Diff: `git diff 54da76f^1 54da76f` (lane P round-2 fixes; A1 BD-A1-44, -49, -50, -51). I did not open any reviewer-a file. I did not run Docker.
+
+Round-2 counts: **0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT (new).** All five round-1 findings are closed. The new NIT does not block.
+
+### How I checked (round 2)
+
+- Scratch clone of `54da76f` (private `/tmp` folder, `--no-hardlinks`, `node_modules` copied; deleted after the run).
+  - `vitest run apps/portal packages/channels packages/channel-kernel`: **15 files, 167 tests passed**.
+  - `F1 PASS: 20 files with hits, 74 hits`.
+- Mutations (one at a time, reverted after each):
+  - `ChannelProvider` default back to `new Map()`: 7 shell tests fail. These are the three "routes … through its real module" tests, the three "Open link" tests, and the self-connection test.
+  - `CanvasWizard` always shows `CanvasBinding`: "the real canvas module obeys stored authority …" fails.
+  - `MoodleWizard` chooses its screen by method again: "the real moodle module obeys stored authority …" fails.
+
+### Round-1 findings
+
+| Id | Round-1 severity | Status | Evidence |
+| --- | --- | --- | --- |
+| B-LA-E1-11-01 | MAJOR | Closed | A1 chose option (a) in BD-A1-44. `ChannelProvider` now defaults to `channelModules` (`context.tsx:9`). Each of the three module wizards picks its verify screen with `verificationAuthority(manifest, connection, method)` from the SDK, so the stored `bindingAuthority` wins. New route tests render `App` with the real modules. They assert today's screens (the first-launch text for Moodle `self`, the approval code for Canvas and Blackboard) and that no `[data-channel-step]` renders. They also check that each real module follows a stored authority that differs from its method. The four-step test now runs only on channels without a module `Wizard`, and its name says so. The mutations above show that the tests catch a regression. |
+| B-LA-E1-11-02 | MINOR | Closed | The instruction text has one source, the manifest. `canvas-steps.json` and `blackboard-steps.json` keep only ids, titles and `verified`. The `dynamic` entries of `moodle-steps.json` keep only ids, menu paths and labels. `steps.ts` (Canvas, Blackboard) and `moodleSteps` fill the text with `channelText`. The Canvas and Blackboard tests pin the old text byte for byte ("keeps all pre-move instruction bytes from the manifest"). See the new NIT B-LA-E1-11-06 for the link by position. |
+| B-LA-E1-11-03 | MINOR | Closed | `sdk/index.ts` and `sdk/ui.ts` now use named export lists, in groups with one comment each (API client, hooks, DTO types, UI kit, error helpers, manifest helpers and default wizard parts). `ChannelWizardProps`, `ConnectionErrorProps` and each `ChannelUiModule` slot have a doc comment that says when it renders and what the shell does without it. `Wizard` also says "Must select verification from bindingAuthority". |
+| B-LA-E1-11-04 | NIT | Closed | `ShowStep`, `CollectStep`, `VerifyStep` and `EnableStep` are exported from the SDK as the defaults. A new test shows that a `collect` override can render `CollectStep` and keep the shared form state. |
+| B-LA-E1-11-05 | NIT | Closed | The aliases `ProviderView` and `ProviderWizardProps` are gone, and the wizards use `ChannelWizardProps`. `toolName()` is the one tool-name builder: `channelText` and the Moodle module both use it. `channelOf` keeps the `lms` fallback for the API field, which is correct. |
+
+### Other changes in this merge
+
+The merge also holds the Reviewer-A fixes that A1 ruled: `card.icon` (BD-A1-49, RQ-2 K files), the restored "Open {LMS}" button (BD-A1-50), the `ga`/`preview` fallback when the providers call fails (BD-A1-51, `channelProvider`), and the decoded path guards. Each has a named shell test. I found no change outside these rulings.
+
+### New finding
+
+#### B-LA-E1-11-06 — NIT — The step metadata and the manifest text are linked only by position
+
+- **File:** `packages/channels/canvas/portal/steps.ts:6` and `packages/channels/blackboard/portal/steps.ts:6` (fixed slices of `adminSteps`: `0–2, 2–7, 7–` and `0–2, 2–9, 9–`); `packages/channels/moodle/portal/MoodleSteps.tsx:8` (`metadata.dynamic[index]` uses `adminSteps[index]`); `packages/channels/moodle/manifest.ts:62` (the comment still names the old path `apps/portal/src/connect/moodle-steps.json`).
+- **Problem:** Suppose an author adds a step to a manifest's `adminSteps`:
+  - Canvas and Blackboard: the new step moves into the wrong card. The byte test then fails, but its message is "the text differs", not "change the slice numbers in `steps.ts`".
+  - Moodle: a seventh manifest step is dropped without a test failure, because no test pins the Moodle `dynamic` text against the manifest.
+  - Moodle: a manifest with fewer steps than the JSON gives `undefined` to `channelText`.
+- **Suggested fix:** Put the split into the JSON metadata, for example `"instructions": 2` per step, and compute the slices from it. Add one test per channel that the sum of the counts equals `adminSteps.length` (plus `teacherSteps.length` where it applies). Add the same byte pin for the Moodle `dynamic` text. Correct the path in the manifest comment, in the next K edit.
+
+## Round 1
+
+Round-1 verdict: CHANGES_REQUESTED.
 
 Reviewer: Reviewer-B2, the second lens-B instance (plan LD-22). Diff: `git diff 0d9aeda^1 0d9aeda` (the merge of lane P for LA-E1-11). Spec: `docs/architecture/ltiaas/tasks/LA-E1-11.md`. Design: LA-ADR-01 D1 (build model), D5 (P11 sketch), D9; BD-A1-24, -25, -26, -32. I did not open any reviewer-a file. I did not run Docker.
 
