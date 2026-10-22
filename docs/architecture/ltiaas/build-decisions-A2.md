@@ -260,3 +260,13 @@ Changes for the Lead to route:
 - **R (LA-E4-02):** the `seq` column, its insert, the backfill, and the exact SQL for P.
 - **P:** one F5 commit (delete two baseline entries, replace one, add the `014` migration allow entry).
 - **L (LA-E3-01):** the static page text.
+
+## 21. Round 20: the failed re-wrap outcome without a schema change (LA-E5-09, lane S2), 2026-10-22
+
+S2's follow-up to BD-A2-36, routed in dispatch `ctx_036efe7bc769`. Decision sent to the Lead first (`msg_03636c06cb23`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-42 | (1) `audit_event` of migration `007` has `CHECK (result IN ('ok','refused'))`, so the `failed` result of BD-A2-36 needs a table-rebuild migration (keep the `007`/`008` guards, rows and indexes). Or another form? (2) The meaning and shape of `details.remaining`. | **Changes BD-A2-36.** (1) **No schema change:** a job-end event always has `result: ok` and no `code`; the job outcome is `details.outcome` and an exception class is `details.errorClass`. The `failed` audit result value is withdrawn (S1 removes it from the type if it was added); no migration `017`. (2) **Details shape:** `{ outcome, rewrapped, skippedChanged, notReached, unreadable, unreadableVersions?, stopReason?, errorClass?, legacyBlobsRefused? }`. `failed` = an unreadable row (the run goes on) or an exception. The refusal is stored only for `complete`. No per-version counts in the event; `GET /operator/v1/key-provider` gives that view. | LA-ADR-06 D4 (`result` row), D6 ("Re-wrap"); contract delta §5; LA-E5-09 design notes | A rebuild of the append-only audit table means dropping and re-creating its guards and copying every row. That is an integrity risk and a SQLite-only pattern (D13), for a rare event. Per-version counts for rows that the run did not reach would need extra decryption; `notReached` and `unreadable` are exact without it. The `job_run` log line keeps `result: failed` for alerts. |
+
+Changes for the Lead to route: **S2** builds the details shape. **S1** removes `'failed'` from the audit result type if its RQ-1 commit added it; S1 makes no audit migration. Migration number `016` stays with S2.
