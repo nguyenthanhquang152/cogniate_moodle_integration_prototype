@@ -83,6 +83,11 @@ describe('createCliLogger', () => {
 });
 
 describe('redact', () => {
+  it('redacts storageValue in objects and nested arrays without hiding storage metadata', () => {
+    expect(redact({ storageValue: 'opaque-value', rows: [{ storageValue: 'another-value', storageKey: 'probe-id' }], storageStatus: 'ok' }))
+      .toEqual({ storageValue: '[redacted]', rows: [{ storageValue: '[redacted]', storageKey: '[redacted]' }], storageStatus: 'ok' });
+  });
+
   it('hides secret keys in any spelling and keeps the others', () => {
     expect(redact({
       Authorization: 'Bearer x', ltik: 'a', apiKey: 'b', service_key: 'c', accessToken: 'd', idToken: 'e',

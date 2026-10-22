@@ -250,7 +250,7 @@ In this procedure `k1` is the version in use now. On a stack without a key-ring 
 
 CAUTION: The version `legacy` also derives the existing service keys (LA-ADR-06 D6): its `derivedCount` stays above 0 after the re-wrap. On an existing stack, keep `legacy` in the ring.
 
-CAUTION: Do not remove a version while its `sealedCount` or `derivedCount` is above 0. The service then refuses to become ready (`key_version_missing`).
+CAUTION: Do not remove a version while its `sealedCount` or `derivedCount` is above 0, and only after a complete re-wrap (job end `outcome: complete`; BD-A2-38). The service then refuses to become ready (`key_version_missing`).
 
 The Cogniate app follows the same steps when it uses the key provider (Should).
 

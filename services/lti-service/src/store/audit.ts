@@ -110,6 +110,8 @@ export interface AuditedRequest {
   /**
    * Run the change and insert its `ok` event in one transaction (rule 1). The event of `describe` may use the result,
    * for example the id of a new row. A throw rolls back the change and the event together.
+   * BD-A2-29: a described action must be one of this route's contract actions.
+   * Read current state used to choose that action inside change(), in the same transaction.
    */
   change<T>(fn: () => T, describe?: (result: T) => { action?: string; target?: AuditTarget; details?: Record<string, unknown> | null }): T;
 }
