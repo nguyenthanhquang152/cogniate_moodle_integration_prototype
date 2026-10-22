@@ -1,104 +1,134 @@
-// Canary channel app adapter (LA-E7-01, LA-ADR-01 D5 ports P1 and P2).
-// Pure functions with fixed data; never calls a database or LTI client.
-export interface CanaryToolConfigInput {
-  connectionId?: string;
-  publicAppOrigin?: string;
-  publicLtiOrigin?: string;
-  siteUrl?: string | null;
-}
+// Canary channel app adapter (LA-E7-01, LA-ADR-01 D5 `ConnectionSetup` contract surface, BD-A1-20).
+// Pure functions with fixed data; never uses a database, LTI client, network or process globals (BD-A1-16, BD-A2-11).
 
-export interface CanaryToolConfigRow {
+export interface CanaryToolRow {
   key: string;
   label: string;
   value: string;
 }
 
-function normalizeOrigin(raw: unknown, fieldName: string): string {
-  if (typeof raw !== 'string' || raw.trim().length === 0) {
-    throw new Error(`${fieldName} is required`);
-  }
-  let parsed: URL;
-  try {
-    parsed = new URL(raw);
-  } catch {
-    throw new Error(`${fieldName} must be a valid URL`);
-  }
-  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
-    throw new Error(`${fieldName} must use http or https`);
-  }
-  if (parsed.pathname !== '/' || parsed.search || parsed.hash) {
-    throw new Error(`${fieldName} must be an origin without path, query or hash`);
-  }
-  return parsed.origin;
+export interface CanaryBindingValues {
+  clientId: string;
+  deploymentId: string;
+  grantCode: string;
 }
 
-function assertStrictKeys(body: unknown, allowed: readonly string[]): Record<string, unknown> {
-  if (!body || typeof body !== 'object' || Array.isArray(body)) {
-    throw new Error('Request body must be a JSON object');
-  }
-  const record = body as Record<string, unknown>;
-  for (const key of Object.keys(record)) {
-    if (!allowed.includes(key)) {
-      throw new Error(`Unknown field: ${key}`);
-    }
-  }
-  return record;
+export interface CanaryBindingTarget {
+  kind: 'exclusive_platform';
+  profileId: string;
+  siteUrl: string;
+  clientId: string;
+  deploymentId: string;
 }
+
+export interface CanaryStagedCreate {
+  profileId: string;
+  siteUrl: string;
+  clientId: string;
+  deploymentId: string;
+}
+
+const ALLOWED_BINDING_KEYS = ['clientId', 'deploymentId', 'grantCode'] as const;
 
 const canaryAppAdapter = {
-  id: 'zz-canary',
+  channel: 'zz-canary',
 
-  toolConfiguration(input: CanaryToolConfigInput = {}): { rows: CanaryToolConfigRow[] } {
-    const ltiOrigin = input.publicLtiOrigin ?? 'https://lti.cogniate.test';
-    return {
-      rows: [
-        { key: 'issuer', label: 'Tool URL', value: ltiOrigin },
-        { key: 'loginUrl', label: 'Initiate login URL', value: `${ltiOrigin}/lti/login` },
-        { key: 'launchUrl', label: 'Redirection URI(s)', value: `${ltiOrigin}/lti/launch` },
-        { key: 'jwksUrl', label: 'Public keyset URL', value: `${ltiOrigin}/lti/keys` },
-      ],
-    };
-  },
-
-  stageCreate(body: unknown): {
-    channelId: 'zz-canary';
-    profileId: 'zz-canary-sim';
+  checkCreate(input: {
     siteUrl: string;
-    status: 'pending';
-  } {
-    const record = assertStrictKeys(body, ['siteUrl']);
-    const siteUrl = normalizeOrigin(record.siteUrl, 'siteUrl');
+    serviceUrl?: string;
+    profile: unknown;
+  }): { ok: true; siteUrl: string; serviceUrl: string } | { ok: false; field: string; rule?: number } {
+    if (!input || typeof input.siteUrl !== 'string' || input.siteUrl.trim().length === 0) {
+      return { ok: false, field: 'siteUrl', rule: 1 };
+    }
+    if (input.serviceUrl !== undefined && input.serviceUrl !== '') {
+      return { ok: false, field: 'serviceUrl' };
+    }
+    let parsed: URL;
+    try {
+      parsed = new URL(input.siteUrl);
+    } catch {
+      return { ok: false, field: 'siteUrl', rule: 1 };
+    }
+    if (parsed.protocol !== 'https:' || parsed.pathname !== '/' || parsed.search !== '' || parsed.hash !== '') {
+      return { ok: false, field: 'siteUrl', rule: 1 };
+    }
     return {
-      channelId: 'zz-canary',
-      profileId: 'zz-canary-sim',
-      siteUrl,
-      status: 'pending',
+      ok: true,
+      siteUrl: parsed.origin,
+      serviceUrl: parsed.origin,
     };
   },
 
-  bindingTarget(
+  toolConfiguration(ctx: { publicLtiOrigin?: string; publicAppOrigin?: string } = {}): CanaryToolRow[] {
+    const ltiOrigin =
+      ctx && typeof ctx.publicLtiOrigin === 'string' && ctx.publicLtiOrigin.length > 0
+        ? ctx.publicLtiOrigin
+        : 'https://lti.cogniate.test';
+    return [
+      { key: 'issuer', label: 'Tool URL', value: ltiOrigin },
+      { key: 'loginUrl', label: 'Initiate login URL', value: `${ltiOrigin}/lti/login` },
+      { key: 'launchUrl', label: 'Redirection URI(s)', value: `${ltiOrigin}/lti/launch` },
+      { key: 'jwksUrl', label: 'Public keyset URL', value: `${ltiOrigin}/lti/keys` },
+    ];
+  },
+
+  parseBindingBody(
     body: unknown,
-    staged: { siteUrl?: string } = {},
-  ): {
-    profileId: 'zz-canary-sim';
-    clientId: string;
-    deploymentId: string;
-    grantCode: string;
-    siteUrl: string;
-  } {
-    const record = assertStrictKeys(body, ['clientId', 'deploymentId', 'grantCode']);
-    const clientId = typeof record.clientId === 'string' ? record.clientId.trim() : '';
-    const deploymentId = typeof record.deploymentId === 'string' ? record.deploymentId.trim() : '';
-    const grantCode = typeof record.grantCode === 'string' ? record.grantCode.trim() : '';
-    if (!clientId) throw new Error('clientId is required');
-    if (!deploymentId) throw new Error('deploymentId is required');
-    if (!grantCode) throw new Error('grantCode is required');
+    _ctx?: unknown,
+  ): { ok: true; values: CanaryBindingValues } | { ok: false; fields: string[] } {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) {
+      return { ok: false, fields: ['body'] };
+    }
+    const record = body as Record<string, unknown>;
+    const invalidFields: string[] = [];
+
+    for (const key of Object.keys(record)) {
+      if (!(ALLOWED_BINDING_KEYS as readonly string[]).includes(key)) {
+        invalidFields.push(key);
+      }
+    }
+    for (const reqKey of ALLOWED_BINDING_KEYS) {
+      const val = record[reqKey];
+      if (typeof val !== 'string' || val.trim().length === 0) {
+        if (!invalidFields.includes(reqKey)) invalidFields.push(reqKey);
+      }
+    }
+    if (invalidFields.length > 0) {
+      return { ok: false, fields: invalidFields };
+    }
     return {
-      profileId: 'zz-canary-sim',
-      clientId,
-      deploymentId,
-      grantCode,
-      siteUrl: staged.siteUrl ?? 'https://canary.sim.test',
+      ok: true,
+      values: {
+        clientId: (record.clientId as string).trim(),
+        deploymentId: (record.deploymentId as string).trim(),
+        grantCode: (record.grantCode as string).trim(),
+      },
+    };
+  },
+
+  initialTarget(
+    ctx: {
+      siteUrl?: string;
+      profileId?: string;
+      values?: Partial<CanaryBindingValues>;
+    } = {},
+  ): CanaryBindingTarget {
+    return {
+      kind: 'exclusive_platform',
+      profileId: typeof ctx?.profileId === 'string' ? ctx.profileId : 'zz-canary-sim',
+      siteUrl: typeof ctx?.siteUrl === 'string' ? ctx.siteUrl : 'https://canary.sim.test',
+      clientId: typeof ctx?.values?.clientId === 'string' ? ctx.values.clientId : 'client-canary-1',
+      deploymentId: typeof ctx?.values?.deploymentId === 'string' ? ctx.values.deploymentId : 'dep-canary-1',
+    };
+  },
+
+  createRequest(target: CanaryBindingTarget, _ctx?: unknown): CanaryStagedCreate {
+    return {
+      profileId: target.profileId,
+      siteUrl: target.siteUrl,
+      clientId: target.clientId,
+      deploymentId: target.deploymentId,
     };
   },
 };

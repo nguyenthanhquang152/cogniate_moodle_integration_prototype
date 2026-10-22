@@ -1,7 +1,7 @@
 // LA-E5-03 acceptance (K1-SIM): rate limits per class, soft account buckets, auth_failure, trusted proxy, operator API.
 // Runs in the e2e container on the acceptance profile (QA_TASK=LA-E5-03). One test per K1-SIM AC; each title starts
-// with its AC id. AC-10 is an Author UNIT test.
-// Source: docs/architecture/ltiaas/tasks/LA-E5-03.md; contract delta §1.3, §1.4, §3, §6; LA-ADR-06 D1 (AP-06-01..06, 34, 35).
+// with its AC id. AC-10 and AC-13 are Author UNIT tests.
+// Source: docs/architecture/ltiaas/tasks/LA-E5-03.md; contract delta §1.3, §1.4, §1.6, §3, §6; LA-ADR-06 D1; BD-A2-16..20.
 //
 // Shared state rule (Q-LAB-04): every AC that changes a global rate limit restores it in `finally` with
 // `PATCH /operator/v1/rate-limits {classes: {<class>: null}}`; per-account limits use a fresh account, never `qa-second`.
@@ -54,7 +54,8 @@ interface RateClassEntry {
 
 interface RateLimitsResponse {
   classes: Record<string, RateClassEntry>;
-  registrationSessionsPerAddress?: unknown;
+  registrationSessionsPerAddress?: number;
+  registrationSessionsSource?: 'operator' | 'env' | 'default';
 }
 
 let operatorKey = '';
@@ -338,6 +339,8 @@ it(
     assert.equal(errorCode(sixth), 'RATE_LIMITED', '429 error code is RATE_LIMITED');
     const retryAfter = Number(sixth.headers['retry-after']);
     assert.equal(Number.isInteger(retryAfter) && retryAfter >= 1, true, `Retry-After is whole seconds >= 1 (got ${sixth.headers['retry-after']})`);
+    const bodyRetryAfter = (sixth.json as { details?: { retryAfter?: unknown } })?.details?.retryAfter;
+    assert.equal(bodyRetryAfter, retryAfter, 'details.retryAfter equals Retry-After header (BD-A2-16)');
 
     // A cogniate request in the same second still gives 200 (separate bucket).
     const cogRes = await ltiApi('GET', '/api/idtoken', {
@@ -363,6 +366,8 @@ it(
       assert.match(String(fourth.headers['content-type'] ?? ''), /text\/html/i, '429 login response is text/html');
       assert.match(fourth.body, /data-error-code="RATE_LIMITED"/, '429 HTML page has data-error-code="RATE_LIMITED"');
       assert.equal(fourth.headers['set-cookie'], undefined, '429 HTML page sets no cookie');
+      const pageRetryAfter = Number(fourth.headers['retry-after']);
+      assert.equal(Number.isInteger(pageRetryAfter) && pageRetryAfter >= 1, true, '429 HTML page has Retry-After >= 1 (BD-A2-16)');
     } finally {
       await patchRateLimits({ protocol: null });
     }
@@ -458,6 +463,11 @@ it(
       assert.equal(errorCode(res31), 'RATE_LIMITED', '31st request code is RATE_LIMITED');
       retryAfterSec = Math.max(1, Number(res31.headers['retry-after'] ?? 2));
       assert.equal(Number.isFinite(retryAfterSec) && retryAfterSec >= 1, true, 'Retry-After header >= 1');
+      assert.equal(
+        (res31.json as { details?: { retryAfter?: unknown } })?.details?.retryAfter,
+        Number(res31.headers['retry-after']),
+        '31st request details.retryAfter equals Retry-After header (BD-A2-16)',
+      );
 
       // A request with a valid key from the same address immediately also gets 429.
       const validWhileBlocked = await ltiApi('GET', '/api/platforms', {
@@ -465,6 +475,11 @@ it(
       });
       assert.equal(validWhileBlocked.status, 429, 'valid key from the blocked address gets 429 before Retry-After');
       assert.equal(errorCode(validWhileBlocked), 'RATE_LIMITED', 'blocked valid key code is RATE_LIMITED');
+      assert.equal(
+        (validWhileBlocked.json as { details?: { retryAfter?: unknown } })?.details?.retryAfter,
+        Number(validWhileBlocked.headers['retry-after']),
+        'blocked request details.retryAfter equals Retry-After header (BD-A2-16)',
+      );
 
       // Wait until Retry-After has passed, then verify the valid key passes again (200).
       await sleep(retryAfterSec * 1000 + 300);
@@ -616,15 +631,32 @@ it(
           `${cls}.source is operator, env or default (got ${row.source})`,
         );
       }
+      assert.equal(
+        Number.isInteger(initial.json?.registrationSessionsPerAddress) &&
+          Number(initial.json?.registrationSessionsPerAddress) >= 1 &&
+          Number(initial.json?.registrationSessionsPerAddress) <= 1000,
+        true,
+        'GET /operator/v1/rate-limits includes registrationSessionsPerAddress (1..1000, BD-A2-18)',
+      );
+      assert.equal(
+        ['operator', 'env', 'default'].includes(String(initial.json?.registrationSessionsSource)),
+        true,
+        'GET /operator/v1/rate-limits includes registrationSessionsSource (BD-A2-18)',
+      );
 
-      // Set an operator override on `keys` and verify source becomes "operator".
-      const setOp = await patchRateLimits({ keys: { ratePerMinute: 77, burst: 55 } });
+      // Set an operator override on `keys` and `registrationSessionsPerAddress` and verify source becomes "operator".
+      const setOp = await operatorApi<RateLimitsResponse>('PATCH', '/operator/v1/rate-limits', {
+        authorization: operatorAuth(operatorKey),
+        body: { classes: { keys: { ratePerMinute: 77, burst: 55 } }, registrationSessionsPerAddress: 25 },
+      });
       assert.equal(setOp.status, 200, 'PATCH valid operator override returns 200');
       assert.deepEqual(setOp.json?.classes?.keys, {
         ratePerMinute: 77,
         burst: 55,
         source: 'operator',
       });
+      assert.equal(setOp.json?.registrationSessionsPerAddress, 25, 'registrationSessionsPerAddress updated to 25');
+      assert.equal(setOp.json?.registrationSessionsSource, 'operator', 'registrationSessionsSource is operator');
 
       // Unknown class -> 400 INVALID_REQUEST.
       const badUnknown = await operatorApi('PATCH', '/operator/v1/rate-limits', {
@@ -634,6 +666,21 @@ it(
       assert.equal(badUnknown.status, 400, 'PATCH with unknown class gives 400');
       assert.equal(hasErrorShape(badUnknown), true, 'unknown class 400 error shape');
       assert.equal(errorCode(badUnknown), 'INVALID_REQUEST', 'unknown class code is INVALID_REQUEST');
+
+      // Unknown top-level field or registrationSessionsPerAddress outside 1..1000 -> 400 INVALID_REQUEST (BD-A2-18).
+      for (const badBody of [
+        { unknownTopField: 10 },
+        { registrationSessionsPerAddress: 0 },
+        { registrationSessionsPerAddress: 1001 },
+      ]) {
+        const badCap = await operatorApi('PATCH', '/operator/v1/rate-limits', {
+          authorization: operatorAuth(operatorKey),
+          body: badBody,
+        });
+        assert.equal(badCap.status, 400, `PATCH with ${JSON.stringify(badBody)} gives 400`);
+        assert.equal(hasErrorShape(badCap), true, 'bad top-level / cap 400 error shape');
+        assert.equal(errorCode(badCap), 'INVALID_REQUEST', 'bad top-level / cap code is INVALID_REQUEST');
+      }
 
       // Value below 1 (ratePerMinute: 0 and burst: 0) -> 400 INVALID_REQUEST.
       for (const badVal of [
@@ -660,10 +707,15 @@ it(
         { ratePerMinute: 77, burst: 55, source: 'operator' },
         'rejected PATCH calls left keys rate limit unchanged',
       );
+      assert.equal(afterBad.json?.registrationSessionsPerAddress, 25, 'rejected PATCH calls left cap unchanged');
     } finally {
-      const cleared = await patchRateLimits({ keys: null });
+      const cleared = await operatorApi<RateLimitsResponse>('PATCH', '/operator/v1/rate-limits', {
+        authorization: operatorAuth(operatorKey),
+        body: { classes: { keys: null }, registrationSessionsPerAddress: null },
+      });
       if (cleared.status === 200) {
         assert.notEqual(cleared.json?.classes?.keys?.source, 'operator', 'clearing operator override restores non-operator source');
+        assert.notEqual(cleared.json?.registrationSessionsSource, 'operator', 'clearing cap override restores non-operator source');
       }
     }
   },
@@ -684,8 +736,9 @@ it(
       assert.equal(fourth.status, 429, '4th GET /lti/keys/cogniate gives 429');
       const retryAfter = Number(fourth.headers['retry-after']);
       assert.equal(Number.isInteger(retryAfter) && retryAfter >= 1, true, '429 includes Retry-After >= 1');
-      const parsed = JSON.parse(fourth.body) as { details?: { message?: string } };
+      const parsed = JSON.parse(fourth.body) as { details?: { message?: string; retryAfter?: unknown } };
       assert.equal(parsed.details?.message, 'RATE_LIMITED', '429 body has code RATE_LIMITED');
+      assert.equal(parsed.details?.retryAfter, retryAfter, '429 body details.retryAfter equals Retry-After header (BD-A2-16)');
 
       const health = await httpsRequest(`${urls.lti}/healthz`);
       assert.equal(health.status, 200, 'GET /healthz from the same address still answers 200');
@@ -730,6 +783,11 @@ it(
     assert.equal(errorCode(fourth), 'RATE_LIMITED', '429 error code is RATE_LIMITED');
     const retryAfter = Number(fourth.headers['retry-after']);
     assert.equal(Number.isInteger(retryAfter) && retryAfter >= 1, true, 'Retry-After >= 1');
+    assert.equal(
+      (fourth.json as { details?: { retryAfter?: unknown } })?.details?.retryAfter,
+      retryAfter,
+      '429 body details.retryAfter equals Retry-After header (BD-A2-16)',
+    );
 
     // An `api` class call with the same key still passes (200).
     const apiCall = await ltiApi('GET', '/api/idtoken', {

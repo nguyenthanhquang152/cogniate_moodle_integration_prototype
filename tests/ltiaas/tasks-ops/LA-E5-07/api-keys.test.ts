@@ -1,7 +1,7 @@
 // LA-E5-07 acceptance (K1-SIM): API key lifecycle (scopes, two-key cap, expiry bounds, revoke, audit, account close).
 // Runs in the e2e container on the acceptance profile (QA_TASK=LA-E5-07). One test per K1-SIM AC; each title starts
-// with its AC id. AC-06, AC-09 and AC-10 are Author UNIT tests.
-// Source: docs/architecture/ltiaas/tasks/LA-E5-07.md; contract delta §1.2, §1.3, §3, §5; LA-ADR-06 D5; BD-A2-09, BD-A2-10.
+// with its AC id. AC-06, AC-09, AC-10 and AC-13 are Author UNIT tests.
+// Source: docs/architecture/ltiaas/tasks/LA-E5-07.md; contract delta §1.2, §1.3, §3, §5; LA-ADR-06 D5; BD-A2-09, BD-A2-10, BD-A2-12.
 //
 // Secret rule: no API key, operator key, ltik, or service key is ever put into an assertion message.
 import assert from 'node:assert/strict';
@@ -567,6 +567,17 @@ it(
       assert.equal(typeof k.revokedAt, 'string', `key ${k.id} has non-null revokedAt after account close`);
       assert.equal(Number.isFinite(Date.parse(String(k.revokedAt))), true, `key ${k.id} revokedAt is ISO timestamp`);
     }
+
+    // BD-A2-12: on a closed account, POST .../api-keys gives 409 ACCOUNT_CLOSED, while idempotent revoke stays allowed (200) and keeps the first revokedAt.
+    const firstRevokedAt = closedKeys.find((k) => k.id === k1.json!.id)!.revokedAt;
+    const issueOnClosed = await issueApiKey(accountId, { label: 'closed-issue', scopes: ['launch'] });
+    assert.equal(issueOnClosed.status, 409, 'POST .../api-keys on closed account returns 409');
+    assert.equal(hasErrorShape(issueOnClosed), true, '409 ACCOUNT_CLOSED has standard error shape');
+    assert.equal(errorCode(issueOnClosed), 'ACCOUNT_CLOSED', 'POST .../api-keys on closed account code is ACCOUNT_CLOSED');
+
+    const revokeOnClosed = await revokeApiKey(accountId, k1.json!.id);
+    assert.equal(revokeOnClosed.status, 200, 'idempotent revoke on closed account returns 200');
+    assert.equal(revokeOnClosed.json?.revokedAt, firstRevokedAt, 'idempotent revoke on closed account keeps first revokedAt');
 
     // Both keys now fail authentication with 401.
     for (const rawKey of [k1.json!.apiKey, k2.json!.apiKey]) {
