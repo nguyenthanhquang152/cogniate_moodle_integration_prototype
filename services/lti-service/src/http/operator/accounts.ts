@@ -63,7 +63,8 @@ export function registerAccountRoutes(app: FastifyInstance, ctx: OperatorContext
   app.patch<{ Params: { id: string } }>('/operator/v1/accounts/:id', async (req) => {
     const parsed = Patch.safeParse(req.body);
     return ctx.audited(req, { action: 'account.update',
-      target: { type: 'account', id: req.params.id }, toolAccountId: req.params.id }, (audit) => {
+      target: { type: 'account', id: req.params.id }, toolAccountId: req.params.id,
+      details: { fields: req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? Object.keys(req.body) : [] } }, (audit) => {
       const writable = requireWritableAccount(ctx.db, req.params.id);
       if (!parsed.success) throw invalid(parsed.error);
       const { account, changedStatus } = audit.change(() => {

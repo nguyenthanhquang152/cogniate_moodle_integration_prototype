@@ -161,3 +161,11 @@ it('chooses the PATCH audit action from the state locked by its change transacti
     expect.objectContaining({ action: 'account.update', result: 'ok', details: { fields: ['status'] } }),
   ]);
 });
+
+it('a refused status PATCH keeps account.update and the request field names (BD-A2-29)', async () => {
+  const h = await fixture();
+  await h.create('one');
+  await h.patch('one', { status: 'closed' });
+  expect((await h.patch('one', { status: 'closed' })).statusCode).toBe(409);
+  expect(h.events().find((e) => e.result === 'refused')).toMatchObject({ action: 'account.update', code: 'ACCOUNT_CLOSED', details: { fields: ['status'] } });
+});
