@@ -47,6 +47,34 @@ describe('007_audit_event', () => {
   });
 });
 
+describe('008_audit_event_replace_guard', () => {
+  it('keeps v7 audit rows and refuses both replacement forms without recursive triggers', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lti-mig8-'));
+    temps.push(dir);
+    const v7 = join(dir, 'v7');
+    mkdirSync(v7);
+    for (const f of readdirSync(MIGRATIONS).filter((n) => n < '008')) copyFileSync(join(MIGRATIONS, f), join(v7, f));
+    const file = join(dir, 'lti.db');
+    let db = openSqlite(file, v7);
+    const id = insertAuditEvent(db, event({ details: { original: true } }), T0);
+    const original = listAuditEvents(db, { limit: 10 }).events;
+    db.close();
+    db = openSqlite(file, MIGRATIONS);
+    try {
+      db.exec('PRAGMA recursive_triggers = OFF');
+      expect(listAuditEvents(db, { limit: 10 }).events).toEqual(original);
+      for (const command of ['REPLACE INTO', 'INSERT OR REPLACE INTO']) {
+        expect(() => db.prepare(`${command} audit_event (id, ts, actor_type, actor_id, action, result)
+          VALUES (?, ?, 'operator', 'another-actor', 'platform.delete', 'refused')`).run(id, T0 + 1))
+          .toThrow('audit_event is append-only');
+        expect(listAuditEvents(db, { limit: 10 }).events).toEqual(original);
+      }
+      insertAuditEvent(db, event(), T0 + 2);
+      expect(count(db)).toBe(2);
+    } finally { db.close(); }
+  });
+});
+
 describe('insertAuditEvent and listAuditEvents', () => {
   it('stores every field and reads it back; details go through redact()', () => {
     const db = openDb(':memory:');
