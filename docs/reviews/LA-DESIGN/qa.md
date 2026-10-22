@@ -1,11 +1,53 @@
-Verdict: FAIL
-Round: 2
+Verdict: PASS
+Round: 3
 
 # LA design: QA testability review (G-DESIGN)
 
 Reviewer: QA (dedicated, independent; task LA-QT, retry dispatch `ctx_8ea334f6cd89`). Date: 2026-10-22. Design under review: the 15 files of `docs/architecture/ltiaas/**` at `19476fc9ae7dbb6599ee41a038bbd10fae34b9da`. Checklist: [TEST-STRATEGY §7](../../../tests/ltiaas/TEST-STRATEGY.md) (TD-01 to TD-16). Lead decisions used: plan v1.2 §6.1 LD-1 to LD-8 (`docs/team/ltiaas/plan.md:190-201`). Severity: base charter §5 and TEST-STRATEGY §7 (a Must point without an achievable oracle is MAJOR; a Should or Could gap is MINOR).
 
 Independence: QA did not read `reviewer-a.md` or `reviewer-b.md`. QA read only messages addressed to its own handle. Exposure note: while QA checked a regression question, one `grep` read about 5 lines of LTI service source (`services/lti-service/src/store/registrations.ts`, the `expires_at` field) and listed `services/lti-service/src/store/`. The tasks README §2 does not allow QA to read service source. QA did not use these lines; Q-LAD-20 cites the base contract instead.
+
+## Round 3
+
+Design under review: `88909be46a97273bdf189442a443598148ab5de0` (previous: `877d951`). Scope (bounded): only the diff `877d951..88909be` of `docs/architecture/ltiaas/**`, with `review-response-R2-A1.md` and `review-response-R2-A2.md`. Questions: are the round-2 open items fixed, and does the diff add a BLOCKER or MAJOR? Task LA-QT3, dispatch `ctx_b4e0f5fef5eb`. Independence: QA did not open `reviewer-a.md` or `reviewer-b.md`. QA read only messages addressed to its own handle.
+
+### R3.0 Summary
+
+The MAJOR Q-LAD-23 is closed. Q-LAD-25, Q-LAD-26 and Q-LAD-27 are closed. Q-LAD-24 is only half closed: A2 fixed AP-05-29, but A1's LA-ADR-02 test-impact line still names the old oracle. It stays MINOR, because the correct oracle follows from the rules and from AP-07-11. The diff adds no BLOCKER and no MAJOR.
+
+No Must feature has a missing item (TEST-STRATEGY §7), so the testability verdict is **PASS**.
+
+Open after round 3: **BLOCKER 0, MAJOR 0, MINOR 1 (Q-LAD-24, A1 part), NIT 0.** The MINOR goes to `docs/team/ltiaas/deferred.md` (charter-LA §5) or to the P3 breakdown.
+
+### R3.1 Re-check of the round-2 open items at `88909be`
+
+| Id | Round-2 severity | Response | Status | Evidence at `88909be` |
+| --- | --- | --- | --- | --- |
+| Q-LAD-23 | MAJOR | fixed (A1); aligned (A2) | **Closed** | `adr/LA-ADR-03-learning-record-core.md:171`: random boot id per process; `stop()` from the `SIGTERM` handler deletes the heartbeat row; a start that finds a fresh row of its own id with another boot id waits, and the web part serves at once; `job_instance_conflict` only when that other heartbeat keeps moving (a second live process); "a normal restart (stop, then start) has today's timing"; the same rule for the LTI service runner. `:168`: `lease_owner` includes the boot id, so a process that lost its lease cannot record late. `:172`: recovery runs only in case 1. `:217`: Author unit tests with a controlled clock (clean restart, crash restart, duplicate process). `data-model.md:135`, `:174`; `operability.md:31`. The frozen restart paths are graceful: T5 `p2-app-restart` uses `docker compose stop` (`tests/host/run-t5.mjs:108`), and `lti-restart` and the knob passes use `stack:restart` (`:133`, `:184`), which recreates the container after a `SIGTERM`. So their timing stays as today. |
+| Q-LAD-24 | MINOR | A2 part fixed; A1 part: no row in `review-response-R2-A1.md` | **Still open (A1 part), MINOR** | Fixed: AP-05-29 now expects `PLATFORM_NOT_ACTIVE` (`adr/LA-ADR-05-lti-advantage-completeness.md:234`). Open: `adr/LA-ADR-02-generic-lti-channel.md:168` still says "a launch before the grant gets `deployment_not_approved`" for the inactive staged platform. AP-07-11 (`adr/LA-ADR-07-security-and-tenancy.md:83`), D5 item 10 (inactive) and the base login code (`docs/architecture/security.md:27`) all give `PLATFORM_NOT_ACTIVE`, so QA uses that (TEST-STRATEGY §2.4 K1-REG R6). The P3 AC must not copy the LA-ADR-02 line. A2's note on AP-08-04 is correct: there the staged record is active (LA-ADR-08 D3 rule 1), so `deployment_not_approved` is right. |
+| Q-LAD-25 | MINOR | fixed (A1, with B-LAD-20) | **Closed** | `adr/LA-ADR-01-channel-kernel.md:124`: `storage?: { tables, columns }` with the Moodle values. K0 can check it in the manifest schema, and F5 has its list. |
+| Q-LAD-26 | MINOR | fixed (A2) | **Closed** | `adr/LA-ADR-05-lti-advantage-completeness.md:330`: "README F7.7 makes K2 U1–U4 Must; other K2 checks (F7.9) are Could". |
+| Q-LAD-27 | MINOR | fixed (A2) | **Closed** | The cap is per (client address, tool account): `adr/LA-ADR-06-service-operability.md:103`, `contracts/lti-service-api-delta.md:101`, `:164`, `security-delta.md` §13. AP-06-05 (`adr/LA-ADR-06-service-operability.md:113`) uses a fresh account, a second fresh account as the control, and restores the setting in its clean-up. |
+
+### R3.2 New BLOCKER or MAJOR in the diff
+
+None. QA checked the changed text for testability and for the no-behaviour-change proof:
+
+- **Check 14 on `standard` platforms (A-LAD-19):** a registration-level family is now refused on a Moodle `standard` platform. Only new channels guard at the registration level (`brightspace`: `desire2learn`, E2-N), so no baseline launch changes. QA aligned K1-LAUNCH L4 (TEST-STRATEGY v1.3).
+- **The verify step from the binding authority (B-LAD-20):** the baseline authorities are today's, so M2 shows no change.
+- **`lms = 'canvas'` at the staged switch (A-LAD-20):** this is an Author writer test; there is no wire change.
+- **The app-edge limit (app API delta §5a, Should):** 120 per minute, burst 30 per address on `/tool/launch` and `/tool/deep-link`. All frozen browser launches come from the one `e2e` address. The design gives an escape (`APP_RATE_LIMITS` in the `acceptance` compose), so this is a regression risk only, not a defect. QA records the peak at E0 (TEST-STRATEGY §9.2 item 14).
+- **`--confirm-foreign-hosts`:** an Author test. It touches no frozen command, because M1 grants have no off-origin admin value.
+
+Note for P3 (no finding, Should): the §5a acceptance point needs "a valid launch from another address" (`contracts/cogniate-app-api-delta.md:152`). QA has one client address, so the AC should check a valid launch from the same address after `Retry-After`, or name a second source (TEST-STRATEGY §9.2 item 14).
+
+### R3.3 QA-owned changes in this round
+
+| File | Change |
+| --- | --- |
+| `tests/ltiaas/TEST-STRATEGY.md` v1.3 | §2.4 K1-LAUNCH L4: a registration-level family on a Moodle `standard` platform gives the check 14 refusal before any claim is stored; on other platforms the launch passes and logs `family_guard_mismatch` (A-LAD-19). §9.2 item 14: E0 records the peak rate of `/tool/launch` and `/tool/deep-link` per address; the P3 wording of the §5a acceptance point. |
+
+Still open for P3, unchanged from round 2: README OC-7 (three QA command forms, Lead) and TEST-STRATEGY §9.2 item 11 (K1-CAP C2 for guarded routes that are not built yet, Lead confirms).
 
 ## Round 2
 
