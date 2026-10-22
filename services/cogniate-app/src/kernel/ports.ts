@@ -1,13 +1,7 @@
 // Public app ports (LA-ADR-01 D5). Types only: a channel receives capabilities through PortContext.
 import type { CapabilityId } from '@cogniate/channel-kernel';
 import type { Logger, OutboundClient, PublicUrls } from '@cogniate/shared';
-import type { LtiProviderProfile, NewPlatform, NewProviderPlatform } from '../clients/lti-client.ts';
-import type { ConnectionStatus } from '../domain/connections.ts';
-import type { CourseVersion } from '../domain/courses.ts';
-import type { MbzBuild } from '../domain/mbz-builds.ts';
-import type { Publication } from '../domain/publications.ts';
 
-export type { LtiProviderProfile } from '../clients/lti-client.ts';
 export type ChannelId = string;
 export type ChannelText = string;
 
@@ -23,7 +17,7 @@ export interface SetupConnection {
   siteUrl: string;
   /** Canonical service origin (exclusive profile; equals `siteUrl` for self authority and shared profile). */
   serviceUrl: string;
-  status: ConnectionStatus;
+  status: 'pending' | 'registered' | 'connected' | 'disabled';
   /** Exclusive platform of the connection (self authority, exclusive profile), else null. */
   ltiPlatformId: string | null;
 }
@@ -99,7 +93,20 @@ export interface SharedPlatformInfo {
  * Local view of the connection's profile, built from its provider snapshot inside phase 1 (no LTI call, B-M1-03).
  * `issuer` is the saved canonical target issuer (already filled for `a site-based issuer`).
  */
-export type ProfileView = Pick<LtiProviderProfile, 'id' | 'issuer' | 'sharing' | 'serviceUrl'> & Partial<LtiProviderProfile>;
+export interface ProfileView {
+  id: string;
+  issuer: string | null;
+  sharing: 'exclusive' | 'shared';
+  serviceUrl: boolean;
+  authenticationEndpoint?: string | null;
+  accesstokenEndpoint?: string | null;
+  jwksUrl?: string | null;
+  sharedPlatform?: SharedPlatformInfo | null;
+  label?: string;
+  simulation?: boolean;
+  siteUrlOn?: 'platform' | 'deployment' | null;
+  lms?: string | null;
+}
 export type LocalProfileView = Pick<ProfileView, 'id' | 'issuer'> & Partial<ProfileView>;
 
 export interface InitialTargetContext {
@@ -113,7 +120,12 @@ export interface InitialTargetContext {
 
 /** S1 request without `active` and `bindingRef` (the engine adds `active: false` and the write-ahead ref). */
 export type StagedCreate =
-  | { kind: 'platform'; body: NewPlatform | Omit<NewProviderPlatform, 'active' | 'bindingRef'> }
+  | { kind: 'platform'; body: {
+      url: string; clientId: string; name: string; authenticationEndpoint: string; accesstokenEndpoint: string;
+      authConfig: { method: 'JWK_SET'; key: string }; deploymentIds: string[];
+    } | {
+      profile: string; url?: string; clientId: string; name: string; siteUrl: string; serviceUrl?: string; deploymentIds: string[];
+    } }
   | { kind: 'deployment'; platformId: string; body: { deploymentId: string; siteUrl?: string } };
 
 export interface CreateRequestContext {
@@ -164,7 +176,16 @@ export interface PortContext {
   logger: Logger;
   traceId: string;
   now(): number;
+  /** Public origins, resolved for this call. */
+  urls: PublicUrls;
+  /** The signed-in library name used in setup artifacts. */
+  libraryName: string;
+  /** The tool account selected by the kernel. */
+  toolAccountId: string;
+  /** Active key first; public RSA members only. */
+  publicToolKeys(): Promise<{ ok: true; keys: PublicJwk[] } | { ok: false }>;
 }
+export interface PublicJwk { kty: string; kid: string; alg: string; use: string; n: string; e: string }
 export type GuardedClient = OutboundClient;
 
 /** The kernel binds :library_id and, when present, :connection_id. */
@@ -178,26 +199,67 @@ export interface ExtensionRoute {
   path: string;
   capability: CapabilityId;
   legacyCapabilityName?: string;
-  handle(input: { body: unknown; query: Record<string, string> }, ctx: PortContext): Promise<{
-    status: number; body: unknown; headers?: Record<string, string>;
-  }>;
+  handle(input: { body: unknown; query: Record<string, string> }, ctx: PortContext): Promise<
+    { status: number; body: unknown; headers?: Record<string, string> } |
+    { error: { status: number; code: string; message: string; details?: Record<string, unknown> } }>;
 }
-export type PublicationView = Readonly<Publication>;
-export type CourseVersionView = Readonly<CourseVersion>;
-export type ExportBuildView = Readonly<MbzBuild>;
+/** Read-only publication fields needed by a publish hook. Extension state is read through scoped SQL. */
+export interface PublicationView {
+  readonly id: string;
+  readonly connectionId: string;
+  readonly courseId: string;
+  readonly courseTitle: string;
+  readonly courseVariant: string;
+  readonly courseLang: string;
+  readonly siteUrl: string;
+  readonly channel: string;
+}
+/** Version and checked package metadata for a course-version exporter. */
+export interface CourseVersionView {
+  readonly id: string;
+  readonly courseId: string;
+  readonly version: number;
+  readonly format: string;
+  readonly packageId: string;
+}
+/** Frozen build response: times are ISO strings, and downloadUrl is present only for a ready build. */
+export interface ExportBuildView {
+  readonly buildId: string;
+  readonly courseId: string;
+  readonly versionId: string;
+  readonly status: 'queued' | 'running' | 'ready' | 'failed';
+  readonly step: string | null;
+  readonly reason: string | null;
+  readonly bytes: number | null;
+  readonly createdAt: string | null;
+  readonly updatedAt: string | null;
+  readonly finishedAt: string | null;
+  readonly downloadUrl: string | null;
+}
+/** Only exporters receive the confined file queue. */
+export interface ExporterContext extends PortContext { buildQueue: BuildQueue }
+export interface BuildQueue {
+  /** Atomically write a request; the kernel sets buildId and the configured build knobs. */
+  submit(buildId: string, request: Record<string, unknown>): Promise<void>;
+  /** Read a bounded JSON status file; absent or invalid data is null. */
+  status(buildId: string): Promise<unknown | null>;
+  /** Read the bounded runner heartbeat file. */
+  runner(): Promise<unknown | null>;
+}
 
 export interface PublishHook {
   option: string;
   capability: CapabilityId;
-  afterPublish(publication: PublicationView, ctx: PortContext): Promise<void>;
+  parseOptions(value: unknown): { ok: true; options: unknown } | { ok: false; fields: string[] };
+  afterPublish(publication: PublicationView, options: unknown, ctx: PortContext): Promise<void>;
   dtoFields(publication: PublicationView, ctx: PortContext): Record<string, unknown>;
 }
 export interface PackageExporter {
   id: string;
   formats: readonly string[];
-  start(version: CourseVersionView, ctx: PortContext): Promise<ExportBuildView>;
-  latest(version: CourseVersionView, ctx: PortContext): ExportBuildView | null;
-  download(version: CourseVersionView, ctx: PortContext): Promise<{ path: string; mediaType: string; filename: string } | null>;
+  start(version: CourseVersionView, ctx: ExporterContext): Promise<ExportBuildView>;
+  latest(version: CourseVersionView, ctx: ExporterContext): Promise<ExportBuildView | null>;
+  download(version: CourseVersionView, ctx: ExporterContext): Promise<{ artifact: string; mediaType: string; filename: string } | null>;
 }
 
 export type GrantPurpose = 'initial' | 'add_deployment';

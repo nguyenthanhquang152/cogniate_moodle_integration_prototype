@@ -33,6 +33,25 @@ export const PRIVACY_FLOOR_NONE_PROFILES: readonly string[] = Object.freeze(['st
 /** The setup artifact behind the legacy flag `canvasConfiguration` (`setup.artifacts`, D3). */
 export const DEVELOPER_KEY_JSON_ARTIFACT = 'developer-key-json';
 
+/** Frozen extension request and response fields (LA-ADR-01 D5, D8). */
+export const PUBLICATION_OPTION = 'createMoodleCourse';
+export const PUBLICATION_EXTENSION_FIELDS: readonly string[] = Object.freeze(['moodleCourse', 'shellStatus', 'shellError']);
+export const EMPTY_PUBLICATION_EXTENSION_FIELDS: Readonly<Record<string, unknown>> = Object.freeze({ moodleCourse: null, shellStatus: null, shellError: null });
+
+/** Error text and legacy capability names stay byte for byte for the baseline routes. */
+export const EXTENSION_GUARDS = {
+  'canvas-configuration': { capability: 'canvasConfiguration', description: 'This connection has no Canvas configuration.' },
+  'web-services': { capability: 'webServices', description: 'Only a Moodle connection has web services.' },
+  createMoodleCourse: { capability: 'courseShell', description: 'Only a Moodle connection can create a Moodle course.' },
+} as const;
+
+/** Frozen exporter wire data and its tenant lookup (ADR-007, LA-ADR-01 D8). */
+export const PACKAGE_EXPORT_WIRE: Readonly<Record<string, { extension: string; mediaType: string; filename: (version: number) => string; missing: string; latestMissing: string }>> = Object.freeze({
+  mbz: { extension: 'mbz', mediaType: 'application/vnd.moodle.backup', filename: (version: number) => `cogniate-course-v${version}.mbz`, missing: 'No ready .mbz for this version. Build it first.', latestMissing: 'No .mbz build for this version yet.' },
+});
+export const EXPORT_BUILD_SCOPE_SQL = 'SELECT id FROM mbz_build WHERE id = ? AND library_id = ?';
+export const DOWNLOAD_KIND_DESCRIPTION = 'Use kind=original (the uploaded zip) or kind=mbz (the Moodle backup).';
+
 /** The six M1 capability flags (ADR-011 §11), in their wire order. The connection DTO and the provider list keep them. */
 export interface LegacyCapabilities {
   dynamicRegistration: boolean;
@@ -77,3 +96,6 @@ export const LEGACY_SELF_BINDING_TEXT = {
 export function pendingToolText(toolName: string): string {
   return `Moodle may have saved a Pending tool. In Manage tools, delete the Pending tool '${toolName}', then connect again.`;
 }
+
+/** Array capability member required by each frozen setup route. */
+export const EXTENSION_CAPABILITY_MEMBERS: Readonly<Record<string, string>> = Object.freeze({ 'canvas-configuration': 'developer-key-json' });

@@ -36,7 +36,8 @@ it('AC-03: binds the library and connection on get, all and run, even if paramet
 it('seals and unseals through asynchronous functions without exposing the key or database', async () => {
   const ctx = createPortContext({ db, masterKey: Buffer.alloc(32, 7), now: () => 42,
     logger: createLogger({ service: 'test', write: () => {} }), outbound: {} as OutboundClient,
-  }, 'library-a', null, 'trace');
+      urls: { app: 'https://app.test', lti: 'https://lti.test', content: 'https://content.test' }, lti: { getToolKeys: async () => [] },
+  }, 'library-a', null, 'trace', 'Library A');
   const promise = ctx.seal('secret-token');
   expect(promise).toBeInstanceOf(Promise);
   const sealed = await promise;
