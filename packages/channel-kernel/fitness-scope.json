@@ -15,13 +15,11 @@
       "globs": [
         "packages/channel-kernel/src/legacy-wire.ts",
         "services/cogniate-app/src/domain/migrations/*.sql",
-        "services/lti-service/src/db/migrations/*.sql",
-        "packages/shared/src/config.ts"
+        "services/lti-service/src/db/migrations/*.sql"
       ],
       "notes": {
         "services/cogniate-app/src/domain/migrations/*.sql": "applied SQL migrations only (history, ADR-006)",
-        "services/lti-service/src/db/migrations/*.sql": "applied SQL migrations only (history, ADR-006)",
-        "packages/shared/src/config.ts": "the dev-stack Moodle URL only, until E1 S3 makes it optional"
+        "services/lti-service/src/db/migrations/*.sql": "applied SQL migrations only (history, ADR-006)"
       }
     },
     "sharedBuild": {
