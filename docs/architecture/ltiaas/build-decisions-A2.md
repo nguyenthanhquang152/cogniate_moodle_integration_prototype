@@ -179,3 +179,13 @@ Routed in dispatch `ctx_b32d3cd14ee8`. Item 1 went to the Lead first (`msg_88b87
 | BD-A2-28 | LA-E5-10 Reviewer-B NIT: runbook step 7 (operability §6.1) assumes the `signing-key-cleanup` job runs. | **Note added:** until LA-E5-19 registers the job, a retired key leaves the key set by time, but its sealed private part stays. After the 30 days, `retire {immediate: true}` removes it and clears the private part at once. | operability §6.1 step 7 | Lane S2 cannot edit this file; A2 did it. |
 
 Changes for the Lead to route: **S1 (LA-E5-04 fix)** for BD-A2-25 (the `ensureAccount` URL and name rule, with unit tests: an existing account keeps a `PATCH`-ed `launchUrl` after bootstrap; the name stays without `--name`) and BD-A2-26 (refuse `null` in `POST` and `PATCH`; the comment at the default constant). **L2 (LA-E3-10, later)**: the account-layer reading of BD-A2-26. No QA K1-SIM criterion changes.
+
+## 15. Round 14: the audit action chosen inside the change (LA-E5-04 fix, lane S1), 2026-10-22
+
+Provisional Lead call, routed in dispatch `ctx_f7dd36f8b7a5`. Decision sent to the Lead first (`msg_b72345fa58b5`).
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-29 | (A-LA-E5-04-03.) An outer transaction cannot wrap the async `ctx.audited`, because `transaction()` refuses thenables. So S1 extends `store/audit.ts`: `describe(result)` may return an optional `action`, and the `ok` event uses `extra.action ?? base.action` in the same transaction. Accounts `PATCH` reads the current status inside `audit.change` and describes `account.status` only for a real transition; `account.update` stays the refusal action. Additive; callers unchanged. | **Ratified**, with two rules. (1) The described action is one of the contract delta §5 actions of that route, never free text. (2) The `refused` event keeps the base action, and its `details` name the request fields. General rule added: a choice that depends on the current state is read inside `audit.change`. | LA-ADR-06 D4 T1; contract delta §5 (accounts row) | It keeps T2 (synchronous `describe`) and T3 (one event), and it closes the race of a read before the transaction. A refused request changed nothing, so the base action is the true record; the fields in `details` keep refused close attempts searchable. |
+
+Changes for the Lead to route: none beyond S1's build. S1's unit tests should show: a `PATCH {status: "suspended"}` on an `active` account gives `account.status`; a `PATCH {status: "active"}` on an `active` account (no transition) gives `account.update`; a refused `PATCH` gives `account.update` with the code and the request fields.
