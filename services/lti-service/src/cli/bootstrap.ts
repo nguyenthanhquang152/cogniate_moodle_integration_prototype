@@ -1,7 +1,7 @@
 // Bootstrap through the operator API (LA-ADR-06 D3). The host wrapper saves a new API key once.
 // Prints one JSON line: {account, created, kid, apiKey}; unchanged keys return apiKey: null.
 import { parseArgs } from 'node:util';
-import { cliError, createOperatorClient, OperatorApiError } from './operator-client.ts';
+import { cliError, createOperatorClient, OperatorApiError, OperatorTransportError } from './operator-client.ts';
 import type { OperatorClient } from './operator-client.ts';
 
 export interface BootstrapInput { account: string; name?: string | undefined; rotateApiKey: boolean; rotateSigningKey: boolean }
@@ -12,7 +12,8 @@ interface SigningKey { kid: string; status: 'active' | 'next' | 'retired' | 'rem
 export async function runBootstrap(input: BootstrapInput, client: OperatorClient = createOperatorClient()): Promise<BootstrapResult> {
   const path = `/accounts/${encodeURIComponent(input.account)}`;
   let created = false;
-  try { await client.request('GET', path); }
+  let currentName: string | undefined;
+  try { currentName = (await client.request<{ name: string }>('GET', path)).body.name; }
   catch (error) {
     if (!(error instanceof OperatorApiError) || error.status !== 404 || error.code !== 'NOT_FOUND') throw error;
     const app = process.env.PUBLIC_APP_URL?.replace(/\/$/, '');
@@ -24,16 +25,25 @@ export async function runBootstrap(input: BootstrapInput, client: OperatorClient
     created = true;
   }
   // BD-A2-25: preserve operator URLs and names omitted from this command.
-  if (!created && input.name !== undefined) await client.request('PATCH', path, { name: input.name });
+  if (!created && input.name !== undefined && input.name.trim() !== currentName) await client.request('PATCH', path, { name: input.name });
 
   const { body: { apiKeys } } = await client.request<{ apiKeys: ApiKey[] }>('GET', `${path}/api-keys`);
+  // Mirrors store/api-keys.ts requireApiKeySlot(): not revoked and not expired (LA-ADR-06 D5).
+  // The list API has no active/status field; keep this rule aligned until it does.
   const activeKeys = apiKeys.filter((key) => key.revokedAt === null && (key.expiresAt === null || Date.parse(key.expiresAt) > Date.now()));
   let apiKey: string | null = null;
   if (activeKeys.length === 0 || input.rotateApiKey) {
-    const issued = await client.request<{ apiKey: string }>('POST', `${path}/api-keys`, {
-      label: 'bootstrap', scopes: ['launch', 'admin'], ...(input.rotateApiKey ? { revokeOthers: true } : {}),
-    });
-    apiKey = issued.body.apiKey;
+    try {
+      const issued = await client.request<{ apiKey: string }>('POST', `${path}/api-keys`, {
+        label: 'bootstrap', scopes: ['launch', 'admin'], ...(input.rotateApiKey ? { revokeOthers: true } : {}),
+      });
+      apiKey = issued.body.apiKey;
+    } catch (error) {
+      if (error instanceof OperatorTransportError) {
+        throw new OperatorTransportError(`${error.message} API key issuance or rotation may have committed. Run the same command again with --rotate-api-key to replace the unseen key.`, { cause: error });
+      }
+      throw error;
+    }
   }
 
   const { body: { signingKeys } } = await client.request<{ signingKeys: SigningKey[] }>('GET', `${path}/signing-keys`);

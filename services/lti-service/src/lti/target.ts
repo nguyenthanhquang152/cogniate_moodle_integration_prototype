@@ -1,12 +1,14 @@
-import type { PublicUrls } from '@cogniate/shared';
+import type { createAccountResolver } from '../accounts/resolver.ts';
+
+export type ProtocolUrls = ReturnType<ReturnType<typeof createAccountResolver>['protocolUrls']>;
 
 /** {PUBLIC_LTI_URL}/lti/launch/{toolAccountId}: the redirect URI and the only allowed launch target. */
-export function launchUri(urls: PublicUrls, accountId: string): string {
-  return `${urls.lti}/lti/launch/${encodeURIComponent(accountId)}`;
+export function launchUri(urls: Pick<ProtocolUrls, 'launch'>): string {
+  return urls.launch;
 }
 
-export function loginUri(urls: PublicUrls, accountId: string): string {
-  return `${urls.lti}/lti/login/${encodeURIComponent(accountId)}`;
+export function loginUri(urls: Pick<ProtocolUrls, 'login'>): string {
+  return urls.login;
 }
 
 /**
@@ -14,7 +16,7 @@ export function loginUri(urls: PublicUrls, accountId: string): string {
  * Implemented as "same origin and the exact path", so ".../launch/cogniate-evil" or ".../launch/cogniate/x" fail.
  * A query is allowed (for example ?resource=seed); a fragment or user info is not.
  */
-export function isOwnLaunchTarget(value: unknown, urls: PublicUrls, accountId: string): boolean {
+export function isOwnLaunchTarget(value: unknown, urls: Pick<ProtocolUrls, 'launch'>): boolean {
   if (typeof value !== 'string') return false;
   let u: URL;
   try {
@@ -22,6 +24,6 @@ export function isOwnLaunchTarget(value: unknown, urls: PublicUrls, accountId: s
   } catch {
     return false;
   }
-  const base = new URL(launchUri(urls, accountId));
+  const base = new URL(launchUri(urls));
   return u.origin === base.origin && u.pathname === base.pathname && u.hash === '' && u.username === '' && u.password === '';
 }

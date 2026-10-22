@@ -2,8 +2,9 @@
 // The key provider seals the registration token, bound to its account and session id (LA-ADR-06 D6).
 import { randomBytes } from 'node:crypto';
 import type { KeyHandle } from '@cogniate/shared';
-import { associatedData, blobKeyVersion, keyProviderFor } from '@cogniate/shared';
+import { keyProviderFor } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
+import { REGISTRATION_TOKEN_COLUMN, sealedVersionCounts } from '../keys/sealed-columns.ts';
 
 export type RegistrationOperation = 'new' | 'update';
 export type PrivacyLevel = 'public' | 'name_only' | 'email_only' | 'anonymous';
@@ -21,6 +22,7 @@ export interface RegistrationSession {
   status: 'open' | 'completing' | 'completed';
   platformId: string | null;
   expiresAt: number;
+  clientKey: string | null;
 }
 
 const KEEP_MS = 24 * 3600 * 1000; // contract §6
@@ -28,28 +30,28 @@ const KEEP_MS = 24 * 3600 * 1000; // contract §6
 interface Row {
   id: string; tool_account_id: string; openid_configuration_url: string; registration_token_encrypted: Uint8Array | null;
   platform_configuration: string; operation: RegistrationOperation; existing_platform_id: string | null; privacy_level: PrivacyLevel;
-  passthrough_params: string; status: RegistrationSession['status']; platform_id: string | null; expires_at: number;
+  passthrough_params: string; status: RegistrationSession['status']; platform_id: string | null; expires_at: number; client_key: string | null;
 }
 
-const tokenAad = (accountId: string, id: string) => associatedData('lti', 'registration_session', 'registration_token_encrypted', accountId, id);
+const tokenAad = REGISTRATION_TOKEN_COLUMN.aad;
 
 export function createRegistrationSession(
   db: Db,
   keys: KeyHandle,
-  input: Omit<RegistrationSession, 'id' | 'status' | 'platformId'>,
+  input: Omit<RegistrationSession, 'id' | 'status' | 'platformId' | 'clientKey'> & { clientKey?: string },
   now: number,
 ): RegistrationSession {
   db.prepare('DELETE FROM registration_session WHERE created_at < ?').run(now - KEEP_MS);
-  const session: RegistrationSession = { ...input, id: `reg_${randomBytes(16).toString('base64url')}`, status: 'open', platformId: null };
+  const session: RegistrationSession = { ...input, id: `reg_${randomBytes(16).toString('base64url')}`, status: 'open', platformId: null, clientKey: input.clientKey ?? null };
   const sealedToken = session.registrationToken
     ? keyProviderFor(keys).sealSync(Buffer.from(session.registrationToken, 'utf8'), tokenAad(session.toolAccountId, session.id)).bytes
     : null;
   db.prepare(`INSERT INTO registration_session (id, tool_account_id, openid_configuration_url, registration_token_encrypted, platform_configuration,
-      operation, existing_platform_id, privacy_level, passthrough_params, status, expires_at, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?)`)
+      operation, existing_platform_id, privacy_level, passthrough_params, status, expires_at, created_at, client_key)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)`)
     .run(session.id, session.toolAccountId, session.openidConfigurationUrl, sealedToken,
       JSON.stringify(session.platformConfiguration), session.operation, session.existingPlatformId, session.privacyLevel,
-      JSON.stringify(session.passthrough), session.expiresAt, now);
+      JSON.stringify(session.passthrough), session.expiresAt, now, session.clientKey);
   return session;
 }
 
@@ -64,7 +66,7 @@ export function getRegistrationSession(db: Db, keys: KeyHandle, accountId: strin
       : null,
     platformConfiguration: JSON.parse(row.platform_configuration) as Record<string, unknown>, operation: row.operation,
     existingPlatformId: row.existing_platform_id, privacyLevel: row.privacy_level, passthrough: JSON.parse(row.passthrough_params) as Record<string, string>,
-    status: row.status, platformId: row.platform_id, expiresAt: row.expires_at,
+    status: row.status, platformId: row.platform_id, expiresAt: row.expires_at, clientKey: row.client_key,
   };
 }
 
@@ -79,13 +81,12 @@ export function releaseRegistrationSession(db: Db, accountId: string, id: string
 }
 
 export function completeRegistrationSession(db: Db, accountId: string, id: string, platformId: string, now: number): void {
-  // The registration token is single use: drop the encrypted copy (A-T3b-03).
-  db.prepare("UPDATE registration_session SET status = 'completed', platform_id = ?, completed_at = ?, registration_token_encrypted = NULL WHERE id = ? AND tool_account_id = ?")
+  // Drop the single-use token (A-T3b-03) and the short-lived address key (BD-A2-20).
+  db.prepare("UPDATE registration_session SET status = 'completed', platform_id = ?, completed_at = ?, registration_token_encrypted = NULL, client_key = NULL WHERE id = ? AND tool_account_id = ?")
     .run(platformId, now, id, accountId);
 }
 
 /** Key versions of the stored registration tokens (key provider `ready()`). */
 export function registrationTokenVersions(db: Db): string[] {
-  const rows = db.prepare('SELECT registration_token_encrypted AS blob FROM registration_session WHERE registration_token_encrypted IS NOT NULL').all() as Array<{ blob: Uint8Array }>;
-  return [...new Set(rows.map((r) => blobKeyVersion(r.blob)))];
+  return [...sealedVersionCounts(db, [REGISTRATION_TOKEN_COLUMN]).keys()];
 }

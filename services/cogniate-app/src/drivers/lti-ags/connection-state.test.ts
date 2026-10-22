@@ -1,5 +1,5 @@
-import { seedLegacyDispatch } from '../kernel/records/records.testkit.ts';
-import { TEST_CHANNELS } from '../testkit.ts';
+import { seedLegacyDispatch } from '../../kernel/records/records.testkit.ts';
+import { TEST_CHANNELS } from '../../testkit.ts';
 // B-M1-01 (app contract §4.7.2): the worker reads the connection state at each send decision, not from the due-row
 // batch. Two interleavings: a suspend commits while an EARLIER row of the batch waits for its POST, and a suspend
 // commits while THIS row waits for its line item lookup. The "operator" writes through a second database connection,
@@ -10,16 +10,17 @@ import { join } from 'node:path';
 import type { LogLine } from '@cogniate/shared';
 import { createLogger, encrypt } from '@cogniate/shared';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { LtiClient } from '../clients/lti-client.ts';
-import { LtiServiceError } from '../clients/lti-client.ts';
-import type { ChannelId as LmsType } from '../kernel/ports.ts';
-import { testSetupOf as providerOf } from '../testkit.ts';
-import { createConnection, disableConnection } from '../domain/connections.ts';
-import type { Db } from '../domain/db.ts';
-import { openDb } from '../domain/db.ts';
-import { publicationResults } from '../domain/results.ts';
-import { beginSend } from '../domain/score-syncs.ts';
-import { NO_GRADEBOOK_COLUMN, createScoreSyncWorker } from './score-sync.ts';
+import type { LtiClient } from '../../clients/lti-client.ts';
+import { LtiServiceError } from '../../clients/lti-client.ts';
+import type { ChannelId as LmsType } from '../../kernel/ports.ts';
+import { testSetupOf as providerOf } from '../../testkit.ts';
+import { createConnection, disableConnection } from '../../domain/connections.ts';
+import type { Db } from '../../domain/db.ts';
+import { openDb } from '../../domain/db.ts';
+import { publicationResults } from '../../domain/results.ts';
+import { beginSend } from '../../kernel/records/dispatch-store.ts';
+import { NO_GRADEBOOK_COLUMN } from './index.ts';
+import { createDispatchHarness } from '../../kernel/records/dispatch.testkit.ts';
 
 const MASTER = Buffer.alloc(32, 5);
 const NOW = 1_000_000;
@@ -90,7 +91,7 @@ function fakeLti(hooks: { onPost?: (line: string) => void; onLookup?: () => Arra
 
 function worker(db: Db, lti: LtiClient) {
   const lines: LogLine[] = [];
-  const w = createScoreSyncWorker({ channels: TEST_CHANNELS, db, lti, logger: createLogger({ service: 'cogniate-app', write: (l) => lines.push(JSON.parse(l) as LogLine) }), masterKey: MASTER, now: () => NOW });
+  const w = createDispatchHarness({ channels: TEST_CHANNELS, db, lti, logger: createLogger({ service: 'cogniate-app', write: (l) => lines.push(JSON.parse(l) as LogLine) }), masterKey: MASTER, now: () => NOW });
   return { w, lines };
 }
 
@@ -176,13 +177,14 @@ describe('score sync worker: connection state per send (B-M1-01, app contract §
     const bb = connection(db, 'blackboard', 'bb');
     const a = dueRow(db, bb, 1, { lineItem: 'line1', tries: 4 });
     const b = dueRow(db, bb, 2, { lineItem: 'line2', tries: 4 });
-    expect(beginSend(db, a, NOW)).toBe('started');
+    db.exec("UPDATE record_dispatch SET lease_owner = 'unit/begin'");
+    expect(beginSend(db, a, NOW, 'unit/begin')).toBe('started');
     expect(row(db, a)).toEqual({ status: 'pending', tries: 5, last_error: null, send_started_at: NOW });
-    expect(beginSend(db, a, NOW)).toBe('skipped'); // a send is already in progress
+    expect(beginSend(db, a, NOW, 'unit/begin')).toBe('skipped'); // a send is already in progress
     disableConnection(operator, LIB, bb, NOW);
-    expect(beginSend(db, b, NOW)).toBe('connection_disabled');
+    expect(beginSend(db, b, NOW, 'unit/begin')).toBe('connection_disabled');
     expect(row(db, b)).toEqual({ status: 'failed', tries: 4, last_error: 'CONNECTION_DISABLED', send_started_at: null });
-    expect(beginSend(db, b, NOW)).toBe('skipped');
+    expect(beginSend(db, b, NOW, 'unit/begin')).toBe('skipped');
   });
 });
 
@@ -208,21 +210,21 @@ it('AC-LA-E1-06-06: disabled zz-test grant rows fail without POST; self rows sti
     db.prepare('UPDATE connection SET lms = ? WHERE id = ?').run(method === 'manual' ? 'moodle' : 'canvas', c.id);
   }
   const lti = fakeLti({});
-  const w = createScoreSyncWorker({ channels, db, lti: lti.client, logger: createLogger({ service: 'test', write: () => {} }), masterKey: MASTER, now: () => NOW });
+  const w = createDispatchHarness({ channels, db, lti: lti.client, logger: createLogger({ service: 'test', write: () => {} }), masterKey: MASTER, now: () => NOW });
   await w.kick();
   expect(lti.posts).toEqual(['line2']);
   expect(row(db, syncs[0]!)).toMatchObject({ status: 'failed', tries: 0, last_error: 'CONNECTION_DISABLED' });
   expect(row(db, syncs[1]!)).toMatchObject({ status: 'sent', tries: 1, last_error: null });
 });
 
-// BD-A1-27: these user-visible values stay frozen until LA-IC-15.
-it.each(['moodle', 'canvas', 'blackboard'] as const)('%s keeps the frozen 409 lastError and learner fallback', async (channel) => {
+// LA-IC-15 changes the conflict name only; the learner fallback stays frozen.
+it.each(['moodle', 'canvas', 'blackboard'] as const)('%s uses its 409 name and keeps the frozen learner fallback', async (channel) => {
   const { db } = setup();
   const con = connection(db, channel, 'frozen');
   const sync = dueRow(db, con, 1, { lineItem: 'line1' });
   const lti = fakeLti({ onPost: () => { throw new LtiServiceError(409, 'CONFLICT', 'Newer score.'); } });
   await worker(db, lti.client).w.kick();
-  expect(row(db, sync)?.last_error).toBe('409 CONFLICT: Newer score. (Moodle has a grade with a newer time)');
+  expect(row(db, sync)?.last_error).toBe(`409 CONFLICT: Newer score. (${TEST_CHANNELS.textName(channel)} has a grade with a newer time)`);
   db.prepare('UPDATE connection SET site_url = ? WHERE id = ?').run('invalid site', con);
   expect(publicationResults(db, { connectionId: con, courseId: 'crs_w' }, TEST_CHANNELS)[0]?.learner.label).toBe('Learner u @ Moodle');
 });

@@ -14,9 +14,11 @@ import { prepareStore } from './domain/package-store.ts';
 import { retentionJob } from './domain/retention.ts';
 import { createAppJobStore } from './kernel/records/job-store.ts';
 import { createDispatchQueue } from './kernel/records/outbox.ts';
-import { legacyAgsReporter } from './kernel/records/legacy-reporter.ts';
+import { ltiAgsReporter } from './drivers/lti-ags/index.ts';
+import { configureRecordReporters } from './kernel/records/records.ts';
 import { loadAppChannelRegistry } from './kernel/registry.ts';
-import type { JobRunner } from '@cogniate/shared';
+import { createShutdownHandler } from './kernel/records/shutdown.ts';
+import type { JobRunner, Logger } from '@cogniate/shared';
 
 const APP_SERVICE_NAME = 'cogniate-app';
 async function startAppService() {
@@ -26,6 +28,7 @@ async function startAppService() {
   // The content listener makes score sync rows; the worker (built with the app listener) sends them.
   let runner: JobRunner | null = null;
   let channels: ChannelRegistry;
+  const loggers: Logger[] = [];
 
   const servers = await startService(APP_SERVICE_NAME, [
     {
@@ -33,6 +36,7 @@ async function startAppService() {
       port: portFromEnv('PORT', 4200),
       publicUrl: (u) => u.app,
       build: async (deps) => {
+        loggers.push(deps.logger);
         // LA-ADR-01 D4: the channel registry, by folder discovery of the one product root. A load-check failure logs
         // channel_registry_invalid and stops the start. The same registry is passed to both listeners and the worker.
         channels = await loadAppChannelRegistry(deps.logger);
@@ -41,7 +45,9 @@ async function startAppService() {
         // The acceptance profile sends the /api/* calls through the transport gate (M3 §3.3, LTI_API_URL).
         const lti = createLtiClient({ outbound, ltiUrl: deps.urls.lti, apiKeyFile: config.ltiApiKeyFile, ...(config.ltiApiUrl ? { apiUrl: config.ltiApiUrl } : {}) });
         runner = createJobRunner({ store: createAppJobStore(db), logger: deps.logger, instanceId: config.jobInstanceId });
-        runner.addQueue(createDispatchQueue(db, [legacyAgsReporter({ db, lti, masterKey: config.masterKey })]));
+        const reporters = [ltiAgsReporter({ db, lti, masterKey: config.masterKey, channels })];
+        configureRecordReporters(db, reporters);
+        runner.addQueue(createDispatchQueue(db, reporters));
         runner.addInterval(retentionJob(db));
         const app = await buildAppApi({
           channels, db, urls: deps.urls, logger: deps.logger, store, profile: deps.profile, knobs: deps.knobs, outboundAllowlist: deps.outboundAllowlist,
@@ -62,9 +68,12 @@ async function startAppService() {
       name: CONTENT_SERVICE_NAME,
       port: portFromEnv('CONTENT_PORT', 4201),
       publicUrl: (u) => u.content,
-      build: (deps) => buildContentServer({
-        ...deps, channels, db, dataDir: config.dataDir, playerDir: config.playerDir, onSyncCreated: () => void runner?.kick('record-dispatch'),
-      }),
+      build: (deps) => {
+        loggers.push(deps.logger);
+        return buildContentServer({
+          ...deps, channels, db, dataDir: config.dataDir, playerDir: config.playerDir, onSyncCreated: () => void runner?.kick('record-dispatch'),
+        });
+      },
     },
   ], { handleSignals: false });
   let closing: Promise<void> | undefined;
@@ -76,11 +85,10 @@ async function startAppService() {
     })));
     db.close();
   })();
-  return { close, runner, db, servers };
+  return { close, runner, db, servers, loggers };
 }
 
 const app = await startAppService();
-const stop = () => { void app.close().then(() => process.exit(0), () => process.exit(1)); };
-// The runner owns its lease-based grace period. A 2 s exit timer could interrupt a score POST.
-process.once('SIGTERM', stop);
-process.once('SIGINT', stop);
+const stop = createShutdownHandler(app);
+process.once('SIGTERM', () => stop('SIGTERM'));
+process.once('SIGINT', () => stop('SIGINT'));

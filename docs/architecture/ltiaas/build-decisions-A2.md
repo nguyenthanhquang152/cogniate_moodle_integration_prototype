@@ -318,3 +318,13 @@ Changes for the Lead to route:
 - **S2 (LA-E5-09):** the `503` and `409` checks before `runNow`, and passing the trace id.
 - **A1 / R (shared runner, LA-ADR-03 D7):** the additive `runNow(name, { traceId })` option.
 - **S1:** the `traceId` filter of `GET /operator/v1/audit`.
+
+## 26. Round 25: the Idempotency-Key contract (LA-E5-16, lane S1), 2026-10-22
+
+S1's three open contract points, routed in dispatch `ctx_76073ad82b74`. Decision sent to the Lead first (`msg_084a8a3e4f57`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-51 | (1) Does the route identity include the real `:id` (S1: the decoded platform id plus the route template)? (2) The body hash input: stable JSON key order, `JSON.stringify`, or raw bytes (S1: stable key order)? (3) Which audit event does a cache hit, or a hook-level `409` or `422`, write, since the route's `withAudit` is skipped? | (1) **Ratified, plus:** the key is unique per tool account; the fingerprint is the method, the route template, the decoded path parameters and the body hash; another fingerprint gives `422`. (2) **Ratified:** SHA-256 of canonical JSON of the parsed body (sorted keys, no whitespace, absent body = `null`). (3) **One event per admin request:** a replay mirrors the stored answer (`ok` or `refused`, `details.idempotentReplay: true`, the key); the hook `409`/`422` write one `refused` event with the route's §5 action; `POST /api/lineitems` writes none (an `api`-class route). Plus two safety rules: only `2xx`/`4xx` are stored (a `5xx` frees the key), and a `running` record older than 60 s is replaced. | LA-ADR-06 D9 "Build rules", D4 rule 1; contract delta §4.9; LA-E5-16 design notes | A key bound to the decoded id cannot replay another platform's answer. Canonical JSON avoids false `422`s on reformatting. A mirrored replay event keeps D4 rule 1 exact and shows retries in the trail. Without the stale-record rule, a crash would block a key with `409` for 24 hours. |
+
+Changes for the Lead to route: **S1 (LA-E5-16)**: the fingerprint, the canonical hash, the audit events in the hook, the two safety rules and their unit tests. The migration number and `api-errors.ts` are your process items. The LA-E7-03 hosts point belongs to A1 (README §4b, BD-A1-01).

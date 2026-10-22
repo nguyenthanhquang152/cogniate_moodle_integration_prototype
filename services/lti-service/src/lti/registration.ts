@@ -1,6 +1,6 @@
 // Dynamic registration rules (contract §2.4, §3.8, security §2.4, §2.5, ADR-009). Pure functions: the route
 // (http/routes/registration.ts) does the network calls.
-import type { PublicUrls } from '@cogniate/shared';
+import type { ProtocolUrls } from './target.ts';
 import type { PrivacyLevel, RegistrationOperation } from '../store/registrations.ts';
 import { isHttpsUrl } from './platform-rules.ts';
 import { launchUri, loginUri } from './target.ts';
@@ -105,28 +105,27 @@ export interface RegistrationMessage {
 
 /** The registration request of ADR-009 (sent at `complete` to the platform registration endpoint). */
 export function buildRegistrationRequest(input: {
-  urls: PublicUrls;
-  accountId: string;
+  protocolUrls: ProtocolUrls;
   clientName: string;
   privacyLevel: PrivacyLevel;
   messages?: RegistrationMessage[];
   scopes?: readonly string[];
 }): Obj {
-  const launch = launchUri(input.urls, input.accountId);
+  const launch = launchUri(input.protocolUrls);
   const messages = (input.messages ?? [{ type: 'LtiDeepLinkingRequest', placements: ['ContentArea'] }])
     .map((m) => ({ type: m.type, target_link_uri: m.target_link_uri ?? launch, label: m.label ?? 'Cogniate', ...(m.placements ? { placements: m.placements } : {}) }));
   return {
     application_type: 'web',
     response_types: ['id_token'],
     grant_types: ['implicit', 'client_credentials'],
-    initiate_login_uri: loginUri(input.urls, input.accountId),
+    initiate_login_uri: loginUri(input.protocolUrls),
     redirect_uris: [launch],
-    jwks_uri: `${input.urls.lti}/lti/keys/${encodeURIComponent(input.accountId)}`,
+    jwks_uri: input.protocolUrls.keys,
     token_endpoint_auth_method: 'private_key_jwt',
     client_name: input.clientName,
     scope: (input.scopes ?? REGISTRATION_SCOPES).join(' '),
     [TOOL_CONFIG_CLAIM]: {
-      domain: new URL(input.urls.lti).host,
+      domain: new URL(input.protocolUrls.launch).host,
       target_link_uri: launch,
       claims: claimsFor(input.privacyLevel),
       messages,

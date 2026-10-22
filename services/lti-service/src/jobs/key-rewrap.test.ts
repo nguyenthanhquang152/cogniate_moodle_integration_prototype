@@ -10,7 +10,7 @@ import { createPlatform } from '../store/platforms.ts';
 import { deriveServiceKey, issueServiceKey } from '../store/service-keys.ts';
 import { legacyBlobsRefused } from '../store/settings.ts';
 import { capturingLogger } from '../testkit.ts';
-import { keyProviderStatus, keyRewrapJob } from './key-rewrap.ts';
+import { KEY_REWRAP_BATCH_SIZE, keyProviderStatus, keyRewrapJob } from './key-rewrap.ts';
 
 const T0 = 1_000_000;
 const LEGACY = Buffer.alloc(32, 7);
@@ -69,7 +69,8 @@ describe('key-rewrap', () => {
     let calls = 0;
     const spy = vi.spyOn(h.provider, 'sealSync').mockImplementation((plain, data) => {
       const sealed = seal(plain, data);
-      if (++calls === 100) setImmediate(() => controller.abort());
+      // Last seal of batch one: this task is queued before the job's yield, so the next batch sees the abort.
+      if (++calls === KEY_REWRAP_BATCH_SIZE) setImmediate(() => controller.abort());
       return sealed;
     });
     expect(await h.run(controller)).toEqual({ result: 'ok', counts: { rewrapped: 100, skippedChanged: 0, notReached: 106, unreadable: 0 } });
@@ -179,7 +180,7 @@ describe('key-rewrap', () => {
     let calls = 0;
     let now = T0;
     vi.spyOn(h.provider, 'openWithMetadataSync').mockImplementation((blob, data) => {
-      if (++calls === 3) now = T0 + 50_001;
+      if (++calls === 3) now = T0 + 50_001; // Two batch opens, then the first open of final verification.
       return open(blob, data);
     });
     expect((await h.run(new AbortController(), 60_000, () => now)).result).toBe('ok');
@@ -194,7 +195,8 @@ describe('key-rewrap', () => {
     const seal = h.provider.sealSync;
     let calls = 0;
     vi.spyOn(h.provider, 'sealSync').mockImplementation((plain, data) => {
-      if (++calls === 102) throw new TypeError('fixture-secret-not-for-audit');
+      // Fail at the second row of batch two: its first row must roll back while batch one stays committed.
+      if (++calls === KEY_REWRAP_BATCH_SIZE + 2) throw new TypeError('fixture-secret-not-for-audit');
       return seal(plain, data);
     });
     expect(await h.run()).toEqual({ result: 'failed', counts: { rewrapped: 100, skippedChanged: 0, notReached: 2, unreadable: 0 } });

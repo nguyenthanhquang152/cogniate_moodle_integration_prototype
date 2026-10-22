@@ -5,7 +5,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { createRuntime } from './runtime.mjs';
+import { DR_OPTIONS, LEGACY_SCENARIO_ALIASES, SCENARIO_OPTIONS, createRuntime } from './runtime.mjs';
 import { loadHostManifest, loadProviders } from '../server.mjs';
 
 const SOURCE_DIR = fileURLToPath(new URL('..', import.meta.url));
@@ -352,4 +352,22 @@ test('HARNESS ONLY: committed tests/sim/hosts.json matches all 6 providers and r
   const newestForClient = [...orderRt.scenarios.values()].reverse().find((s) => s.clientId === 'client-order-1');
   assert.equal(newestForClient.id, 'sc-order-a');
   assert.equal(newestForClient.tokenAudience, 'https://aud-reposted.sim.test');
+});
+
+test('HARNESS ONLY: tests/sim/README.md scenario option tables match SCENARIO_OPTIONS, DR_OPTIONS, and LEGACY_SCENARIO_ALIASES in runtime.mjs', () => {
+  const readme = fs.readFileSync(path.join(SOURCE_DIR, 'README.md'), 'utf8');
+  function extractTableColumn(startTag, endTag) {
+    const startIdx = readme.indexOf(startTag);
+    const endIdx = readme.indexOf(endTag);
+    assert.ok(startIdx >= 0 && endIdx > startIdx, `README markers ${startTag}..${endTag} present`);
+    const block = readme.slice(startIdx + startTag.length, endIdx);
+    return [...block.matchAll(/^\|\s*`([^`]+)`\s*\|/gm)].map((m) => m[1]);
+  }
+  const readmeScenarioOpts = extractTableColumn('<!-- SCENARIO_OPTIONS_START -->', '<!-- SCENARIO_OPTIONS_END -->');
+  const readmeDrOpts = extractTableColumn('<!-- DR_OPTIONS_START -->', '<!-- DR_OPTIONS_END -->').map((k) => k.replace(/^dr\./, ''));
+  const readmeLegacyAliases = extractTableColumn('<!-- LEGACY_ALIASES_START -->', '<!-- LEGACY_ALIASES_END -->');
+
+  assert.deepEqual(readmeScenarioOpts, [...SCENARIO_OPTIONS]);
+  assert.deepEqual(readmeDrOpts, [...DR_OPTIONS]);
+  assert.deepEqual(readmeLegacyAliases, Object.keys(LEGACY_SCENARIO_ALIASES));
 });

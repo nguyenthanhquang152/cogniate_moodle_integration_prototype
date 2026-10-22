@@ -1,7 +1,7 @@
 // The audit writer of the LTI service (LA-ADR-06 D4): the only path to the table audit_event. Insert and list only;
 // the table is append only (triggers of migrations 007 and 008), and only the audit-retention job (LA-E5-19) deletes rows.
 // Other lanes call this module; they never write SQL for the table.
-import { ApiErrorBase, randomId, redact } from '@cogniate/shared';
+import { ApiErrorBase, randomId, redact, redactString } from '@cogniate/shared';
 import type { Db } from '../db/index.ts';
 import { transaction } from '../db/index.ts';
 
@@ -52,7 +52,13 @@ export const AUDIT_DETAILS_MAX_BYTES = 4096;
 /** The stored details: redact() first; a text above 4 KB becomes {"truncated":true}. */
 export function auditDetailsText(details: Record<string, unknown> | null | undefined): string | null {
   if (!details) return null;
-  const text = JSON.stringify(redact(details));
+  const safe = redact(details);
+  // BD-A2-51: this key is an opaque client request id, not an authentication key.
+  // Keep value redaction so a credential copied into the header still cannot reach the audit log.
+  if (typeof details.idempotencyKey === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(details.idempotencyKey)) {
+    safe.idempotencyKey = redactString(details.idempotencyKey);
+  }
+  const text = JSON.stringify(safe);
   return Buffer.byteLength(text, 'utf8') <= AUDIT_DETAILS_MAX_BYTES ? text : JSON.stringify({ truncated: true });
 }
 
@@ -75,6 +81,7 @@ export interface AuditFilter {
   toolAccountId?: string;
   action?: string;
   actorId?: string;
+  traceId?: string;
   /** epoch ms, included */
   since?: number;
   /** epoch ms, included */
@@ -91,6 +98,7 @@ export function listAuditEvents(db: Db, filter: AuditFilter): { events: AuditEve
   if (filter.toolAccountId !== undefined) { where.push('tool_account_id = ?'); args.push(filter.toolAccountId); }
   if (filter.action !== undefined) { where.push('action = ?'); args.push(filter.action); }
   if (filter.actorId !== undefined) { where.push('actor_id = ?'); args.push(filter.actorId); }
+  if (filter.traceId !== undefined) { where.push('trace_id = ?'); args.push(filter.traceId); }
   if (filter.since !== undefined) { where.push('ts >= ?'); args.push(filter.since); }
   if (filter.until !== undefined) { where.push('ts <= ?'); args.push(filter.until); }
   if (filter.cursor) { where.push('(ts < ? OR (ts = ? AND id < ?))'); args.push(filter.cursor.ts, filter.cursor.ts, filter.cursor.id); }

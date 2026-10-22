@@ -4,8 +4,8 @@ export {
   isDecimal, isScore, isTime, isTimespan,
 } from './cmi.ts';
 export type { CmiCheck, ScormCmi, ScormInteraction, ScormObjective, ScormScore } from './cmi.ts';
-export { agsScore, agsScoreBody, bestAttempt, finishStatus, improves, isFinal, nextRetryAt, outcomeFromStatus, ratio, resendDecision, syncDecision, syncResult } from './outcome.ts';
-export type { AgsScore, Credit, Outcome, SendAnswer, SyncRow, SyncStatus } from './outcome.ts';
+export { agsScore, agsScoreBody, bestAttempt, finishStatus, improves, isFinal, nextRetryAt, outcomeFromStatus, ratio, resendDecision, syncDecision, dispatchResult } from './outcome.ts';
+export type { AgsScore, Credit, Outcome, DeliveryOutcome, SyncRow, SyncStatus } from './outcome.ts';
 export type { RuntimeState } from './contract.ts';
 export { playStatusText } from './status-text.ts';
 export type { PlayStatus } from './status-text.ts';
