@@ -13,7 +13,19 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 07:50 UTC
+### Current checkpoint — 2026-10-22, 08:19 UTC
+
+**C4 full retry round 1 passed all 488 cases.** The five phases passed 394, 6, 6, 12 and 70 cases. The Lead verified the exact case set, accounting bindings, phase cleanup and raw R4/R5 storage evidence. All results belong to the same full2 invocation at unchanged C4 `bf09cdad91ca548e1ecbc14428b55180d35d5360`. Tests tree remains `8283d90dc669feb72eeb7ec43f5dbf80a156f0d4`.
+
+Independent Canvas QA passed 233/233 cases in round 1. The Lead verified 54 input bindings, 12 report bindings, the new 17-entry manifest and all 29 browser artifact hashes. All 119 frozen earlier index entries remain unchanged. The sink check passed, and shared screenshots contain no detected secrets. Private raw traces remain private. Receipt `msg_7d3f9ba8b68c` accepts only this one-round evidence.
+
+Round 2 started at 08:06:26 UTC and is running. Its estimated finish is 08:55–09:10 UTC (15:55–16:10 Vietnam), based on round 1. The 12 legacy groups follow; their duration is unmeasured. Two complete rounds, equality, legacy, final W4 and cleanup remain required. Fresh M2/T7, Architect conformance, guide finalization, independent Docs QA and two final reviews also remain. No overall completion time is yet supported.
+
+All ten starting volume records remain protected. The exact-nine precondition deviation and the transient Savoy probe remain disclosed in the prior checkpoint. LA and Savoy hold Docker work until an explicit handoff. Their next scheduling update is due by 09:15 UTC or earlier full/legacy closure. That update does not transfer the window.
+
+Canvas disclosure D-4 records a status-message file created with mode 0644 inside private 0700 directories. Its current mode is 0600; the original creation deviation remains recorded. Judgment records are unaffected. Source, tools, criteria and the sole fixer `ctx_898acbaef3a6` are unchanged. No duplicate diagnostic or control run is requested. All 32 live rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 07:50 UTC
 
 **C4 full retry round 1 has 418 PASS in four closed phases.** Simulation passed 394/394; isolated snapshot 6/6; upgrade snapshot 6/6; migration 12/12. The Lead read the result files and checked the counts. The storage phase is running. Full-round accounting and acceptance wait for all 488 cases. The expected first-round result remains 08:05–08:15 UTC (15:05–15:15 Vietnam).
 
