@@ -8,7 +8,7 @@ import { Link } from "react-router";
 import { ArrowUpRight, Plus } from "lucide-react";
 import { useApi } from "./hooks.ts";
 import type { Connection, LmsProvidersResponse } from "./types.ts";
-import { channelOf, channelText, visibleChannels } from "./channels/registry.ts";
+import { channelOf, channelText, visibleChannels, channelProvider } from "./channels/registry.ts";
 import { useChannels } from "./channels/context.tsx";
 import {
   ConnectionBadge,
@@ -135,9 +135,9 @@ export function Integrations() {
             const lms = item.channel;
             const manifest = lms ? registry.channel(lms) : null;
             const newest = lms ? connections.find((connection) => channelOf(connection) === lms) : undefined;
-            const provider = providers.data?.lms.find((entry) => channelOf(entry) === lms);
+            const provider = manifest ? channelProvider(registry, manifest, providers.data?.lms) : undefined;
             const ready = !!provider?.profiles.some((profile) => profile.ready);
-            const notReady = manifest?.texts.notReady && provider && !ready ? channelText(manifest, manifest.texts.notReady) : null;
+            const notReady = manifest && provider && !ready ? channelText(manifest, manifest.texts.notReady ?? "{LMS} is not set up for this Cogniate service yet. Ask your Cogniate operator.") : null;
             return (
             <Card
               as="article"
@@ -150,6 +150,7 @@ export function Integrations() {
                 <IntegrationLogo
                   name={item.name}
                   mark={item.mark}
+                  icon={manifest?.card.icon}
                   color={item.color}
                 />
                 {!lms ? (

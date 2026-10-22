@@ -7,7 +7,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { MemoryRouter } from "@cogniate/portal-sdk";
 import type { Connection, LmsProvider } from "@cogniate/portal-sdk";
 import { BlackboardTeacherSteps, BlackboardWizard } from "./BlackboardWizard.tsx";
-import steps from "./blackboard-steps.json";
+import steps from "./steps.ts";
 
 const capabilities = {
   dynamicRegistration: false, operatorApproval: true, webServices: false,
@@ -149,4 +149,22 @@ it.each(["blackboard"] as const)("shows the neutral readiness title and action a
   expect((screen.getByLabelText("Approval code") as HTMLInputElement).value).toBe("");
   expect(onChanged).not.toHaveBeenCalled();
   expect(fetchMock.mock.calls[0]![0]).toBe(`/app-api/connections/con_${lms}/platform`);
+});
+
+it("keeps all pre-move instruction bytes from the manifest", () => {
+  expect(steps.steps.flatMap((step) => step.instructions)).toEqual([
+  "You need a Blackboard Learn administrator to complete the connection.",
+  "One Learn site is one connection. Enter the address that teachers use.",
+  "In Learn, open Administrator Panel, then LTI Tool Providers, then Register LTI 1.3/Advantage Tool.",
+  "Enter the Client ID below, then select Submit. This first Submit only shows the tool settings. Compare the values that Learn shows with the rows below.",
+  "Set the Tool Status to Approved.",
+  "In Institution Policies, set User Fields to Send to Role in Course only. Do not send Name or Email Address.",
+  "Allow grade service access and Membership Service access.",
+  "Select Submit again at the end of the page. This final Submit adds the tool. Learn does not save the tool without it.",
+  "Copy the Deployment ID that Learn shows. Then come back to Cogniate.",
+  "Ask your Cogniate operator for an approval code. The operator checks the request with your Blackboard administrator first. The code works once and expires.",
+  "Blackboard Ultra: open Course Content, then select +, then Content Market, then Cogniate. Select the course.",
+  "Blackboard Original: open a content area, then Build Content, then Cogniate. Select the course.",
+  "A learner must open the activity from Blackboard. Learners are anonymous: Cogniate gets no names or emails."
+]);
 });

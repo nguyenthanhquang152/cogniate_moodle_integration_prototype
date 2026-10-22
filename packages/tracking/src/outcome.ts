@@ -6,7 +6,7 @@
 //   bestAttempt       the best attempt of a learner and activity (results)
 //   syncDecision      when a score sync row is made; lower pending rows are superseded (rule 5)
 //   resendDecision    when a failed or conflict row may be sent again (rule 10, A-T5b-02)
-//   syncResult        a send answer -> row status and the next try (rules 8, 9)
+//   dispatchResult    a delivery outcome -> row status and the next try (rules 8, 9)
 // Only the learner's best final result is ever sent (A-T5b-02): a lower result never goes to Moodle, whatever the
 // status of the better row (pending, sent, conflict or failed).
 // "Latest result instead of best" (ADR-010 consequence) changes improves, bestAttempt and syncDecision only.
@@ -95,23 +95,22 @@ export function bestAttempt<T extends { outcome: Outcome; scoreGiven: number | n
   return newest(attempts.filter((a) => a.outcome === 'in_progress')) ?? newest(attempts);
 }
 
-/** What happened to one send: an HTTP status of the LTI service (0 = no answer), or a local reason. */
-export type SendAnswer = { http: number } | { local: 'no_gradebook_column' | 'internal_error' };
+/** A reporter translates its transport answer into this neutral result. */
+export type DeliveryOutcome =
+  | { kind: 'accepted' }
+  | { kind: 'conflict' | 'rejected' | 'local_failure'; text: string }
+  | { kind: 'retryable'; text: string; uncertain: boolean }
+  | { kind: 'throttled'; text: string; retryAt: number };
 
-/**
- * ADR-010 rules 8 and 9, app contract §10: 2xx -> sent; 409 -> conflict (no retry); 400, 403, 404, 422 (M1), no gradebook
- * column or a local error -> failed at once (a human can Resend); 401, 5xx, no answer -> retry at 5 s, 30 s,
- * 2 min, 10 min, 30 min, then hourly, until 24 h after `retryFrom` (created or resent), then failed.
- */
-export function syncResult(answer: SendAnswer, tries: number, retryFrom: number, now: number): { status: SyncStatus; nextTryAt: number | null } {
-  if ('local' in answer) return { status: 'failed', nextTryAt: null };
-  const h = answer.http;
-  if (h >= 200 && h < 300) return { status: 'sent', nextTryAt: null };
-  if (h === 409) return { status: 'conflict', nextTryAt: null };
-  // M1 (ADR-011 §9, AC-M1-33): a platform 422 is a permanent refusal too, like 400 and 404.
-  if (h === 400 || h === 403 || h === 404 || h === 422) return { status: 'failed', nextTryAt: null };
-  const next = nextRetryAt(retryFrom, tries, now);
-  return next === null ? { status: 'failed', nextTryAt: null } : { status: 'pending', nextTryAt: next };
+/** ADR-010 retry window and LA-ADR-03 D6/D7. Throttling keeps the existing try count. */
+export function dispatchResult(outcome: DeliveryOutcome, tries: number, retryFrom: number, now: number): { status: SyncStatus; nextTryAt: number | null } {
+  if (outcome.kind === 'accepted') return { status: 'sent', nextTryAt: null };
+  if (outcome.kind === 'conflict') return { status: 'conflict', nextTryAt: null };
+  if (outcome.kind === 'rejected' || outcome.kind === 'local_failure') return { status: 'failed', nextTryAt: null };
+  const backoff = nextRetryAt(retryFrom, Math.max(1, tries), now);
+  const next = outcome.kind === 'throttled' ? Math.max(outcome.retryAt, backoff ?? Infinity) : backoff;
+  return next === null || next > retryFrom + 24 * 3_600_000
+    ? { status: 'failed', nextTryAt: null } : { status: 'pending', nextTryAt: next };
 }
 
 /**

@@ -10,7 +10,7 @@ import { ProviderErrorNotice, providerErrorFields, providerErrorMessage } from "
 import { CanvasBinding } from "./CanvasBinding.tsx";
 import { CanvasConfiguration } from "./CanvasConfiguration.tsx";
 import { CanvasWizard } from "./CanvasWizard.tsx";
-import steps from "./canvas-steps.json";
+import steps from "./steps.ts";
 
 const capabilities = {
   dynamicRegistration: false, operatorApproval: true, webServices: false,
@@ -187,4 +187,23 @@ it("maps every specified provider repair code and site rule without exposing a s
   expect(providerErrorFields(new ApiError(422, { field: "siteUrl", fields: { deploymentId: "invalid" } }))).toEqual(["deploymentId", "siteUrl"]);
   expect(providerErrorMessage(new ApiError(502, { message: "LTI_SERVICE_ERROR" }, "trace-123"))).toBe("Cogniate could not save the connection. Try again. Trace id: trace-123");
   expect(providerErrorMessage(new ApiError(409, { message: "DEPLOYMENT_FIXED" }))).toBe("This connection already reserved another Blackboard deployment. Disconnect it, then make a new connection.");
+});
+
+it("keeps all pre-move instruction bytes from the manifest", () => {
+  expect(steps.steps.flatMap((step) => step.instructions)).toEqual([
+  "You need a Canvas administrator to complete the connection.",
+  "Use one Canvas developer key for this Cogniate library.",
+  "In Canvas, open Admin, select your account, then open Developer Keys.",
+  "Select + Developer Key, then + LTI Key. Copy the settings below and paste the JSON. Do not edit the JSON.",
+  "Save the key and turn it On. Copy its Client ID.",
+  "In the account Settings, open Apps, then View App Configurations. Select + App and choose By Client ID. Enter the Client ID and install Cogniate.",
+  "Open the app's menu and select Deployment Id. Copy the Deployment ID.",
+  "Ask your Cogniate operator for an approval code. The operator checks the request with your Canvas administrator first. The code works once and expires.",
+  "In Canvas, open Assignments, then select + Assignment.",
+  "Set Submission Type to External Tool. Select Find, then Cogniate, and select the course.",
+  "Check that Load This Tool In A New Tab is selected. Cogniate asks Canvas for a new tab.",
+  "Keep Allowed Attempts unlimited. Cogniate can send a better score later.",
+  "Select Save & Publish. The assignment gets 100 points. Learners see it only when the course and the assignment are published.",
+  "A learner must open the activity from Canvas. Learners are anonymous: Cogniate gets no names or emails."
+]);
 });

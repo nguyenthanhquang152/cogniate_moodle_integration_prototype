@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { openDb } from '../db/index.ts';
 import { URLS } from '../testkit.ts';
 import { ensureAccount } from './accounts.ts';
-import { createRegistrationSession, getRegistrationSession, registrationTokenVersions } from './registrations.ts';
+import { completeRegistrationSession, createRegistrationSession, getRegistrationSession, registrationTokenVersions } from './registrations.ts';
 
 // Fixture keys (test values, not secrets).
 const LEGACY = Buffer.alloc(32, 7);
@@ -16,9 +16,10 @@ function setup() {
   ensureAccount(db, { id: 'qa-second', name: 'QA second', appUrl: URLS.app });
   const handle = Buffer.alloc(32, 7);
   bindKeyProvider(handle, createLocalKeyProvider({ active: 'k2', keys: new Map([['legacy', LEGACY], ['k2', K2]]) }));
-  const create = (accountId: string, registrationToken: string | null) => createRegistrationSession(db, handle, {
+  const create = (accountId: string, registrationToken: string | null, clientKey?: string) => createRegistrationSession(db, handle, {
     toolAccountId: accountId, openidConfigurationUrl: 'https://moodle.test/.well-known/openid-configuration', registrationToken,
     platformConfiguration: {}, operation: 'new', existingPlatformId: null, privacyLevel: 'public', passthrough: {}, expiresAt: NOW + 3600_000,
+    ...(clientKey ? { clientKey } : {}),
   }, NOW);
   const tokenBlob = (id: string) => (db.prepare('SELECT registration_token_encrypted AS b FROM registration_session WHERE id = ?').get(id) as { b: Uint8Array | null }).b;
   const setBlob = (id: string, blob: Uint8Array) => db.prepare('UPDATE registration_session SET registration_token_encrypted = ? WHERE id = ?').run(blob, id);
@@ -26,6 +27,16 @@ function setup() {
 }
 
 describe('registration sessions with the key provider (LA-ADR-06 D6)', () => {
+  it('keeps the address key only while the registration is open (BD-A2-20)', () => {
+    const s = setup();
+    const a = s.create('cogniate', 'reg-token', '192.0.2.1');
+    expect(getRegistrationSession(s.db, s.handle, 'cogniate', a.id, NOW)?.clientKey).toBe('192.0.2.1');
+    expect(s.create('qa-second', null).clientKey).toBeNull();
+    completeRegistrationSession(s.db, 'cogniate', a.id, 'plt_completed', NOW);
+    expect(getRegistrationSession(s.db, s.handle, 'cogniate', a.id, NOW)).toMatchObject({ status: 'completed', clientKey: null, registrationToken: null });
+    s.db.close();
+  });
+
   it('the token is sealed with the active version, bound to its row, and opens', () => {
     const s = setup();
     const a = s.create('cogniate', 'reg-token-a');

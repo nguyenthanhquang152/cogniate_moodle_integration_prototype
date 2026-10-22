@@ -4,7 +4,6 @@
   "dynamic": [
     {
       "id": "open-manage-tools",
-      "text": "In Moodle, open Manage tools.",
       "menuPath": [
         "Site administration",
         "Plugins",
@@ -12,12 +11,13 @@
         "External tool",
         "Manage tools"
       ],
-      "labels": ["Manage tools"],
+      "labels": [
+        "Manage tools"
+      ],
       "optional": false
     },
     {
       "id": "paste-registration-url",
-      "text": "Paste the registration URL into the Tool URL field. Click Add LTI Advantage.",
       "menuPath": [
         "Site administration",
         "Plugins",
@@ -25,12 +25,13 @@
         "External tool",
         "Manage tools"
       ],
-      "labels": ["Add LTI Advantage"],
+      "labels": [
+        "Add LTI Advantage"
+      ],
       "optional": false
     },
     {
       "id": "choose-register-new",
-      "text": "If Moodle asks to update an existing tool, click Register as a new external tool. Cogniate refuses an update.",
       "menuPath": [
         "Site administration",
         "Plugins",
@@ -38,12 +39,13 @@
         "External tool",
         "Manage tools"
       ],
-      "labels": ["Register as a new external tool"],
+      "labels": [
+        "Register as a new external tool"
+      ],
       "optional": true
     },
     {
       "id": "confirm-connect",
-      "text": "In the Cogniate panel inside Moodle, check the site and the library. Click Connect. The panel closes.",
       "menuPath": [
         "Site administration",
         "Plugins",
@@ -56,7 +58,6 @@
     },
     {
       "id": "activate-tool",
-      "text": "Find the tool card \"Cogniate ({libraryName})\". It shows Pending. Click Activate.",
       "menuPath": [
         "Site administration",
         "Plugins",
@@ -64,12 +65,14 @@
         "External tool",
         "Manage tools"
       ],
-      "labels": ["Pending", "Activate"],
+      "labels": [
+        "Pending",
+        "Activate"
+      ],
       "optional": false
     },
     {
       "id": "edit-tool-settings",
-      "text": "On the same tool card, click Edit. Set Tool configuration usage to \"Show in activity chooser and as a preconfigured tool\". Set Default launch container to \"New window\". Click Save changes.",
       "menuPath": [
         "Site administration",
         "Plugins",
@@ -99,7 +102,9 @@
         "External tool",
         "Manage tools"
       ],
-      "labels": ["Manage tools"],
+      "labels": [
+        "Manage tools"
+      ],
       "optional": false
     },
     {
@@ -112,7 +117,9 @@
         "External tool",
         "Manage tools"
       ],
-      "labels": ["configure a tool manually"],
+      "labels": [
+        "configure a tool manually"
+      ],
       "optional": false
     },
     {

@@ -29,7 +29,7 @@ async function setup(over: Partial<LaunchRecord> = {}) {
 }
 
 describe('content items (contract §3.2)', () => {
-  const check = (items: unknown, s: Record<string, unknown> = settings) => checkContentItems(items, s, URLS, 'cogniate');
+  const check = (items: unknown, s: Record<string, unknown> = settings) => checkContentItems(items, s, { launch: LAUNCH });
 
   it('keeps the items as sent; adds only the default url of an ltiResourceLink without url', () => {
     expect(check([item])).toEqual([item]);
@@ -72,12 +72,12 @@ describe('content items (contract §3.2)', () => {
 describe('Deep Linking response (security §2.3, AC-T3-08)', () => {
   it('a resource-link launch -> 403 SERVICE_NOT_AVAILABLE', async () => {
     const { launch, platform } = await setup({ messageType: 'LtiResourceLinkRequest', claims: {} });
-    expect(() => deepLinkingResponse(launch, platform, { contentItems: [item] }, URLS)).toThrow(expect.objectContaining({ code: 'SERVICE_NOT_AVAILABLE', status: 403 }));
+    expect(() => deepLinkingResponse(launch, platform, { contentItems: [item] }, { launch: LAUNCH })).toThrow(expect.objectContaining({ code: 'SERVICE_NOT_AVAILABLE', status: 403 }));
   });
 
   it('claims: iss = client id, aud = issuer, nonce, deployment, message type, version, items, data, msg; target = return URL', async () => {
     const { launch, platform } = await setup();
-    const { claims, target } = deepLinkingResponse(launch, platform, { contentItems: [item], options: { message: 'Course added', log: '', errMessage: 'x' } }, URLS);
+    const { claims, target } = deepLinkingResponse(launch, platform, { contentItems: [item], options: { message: 'Course added', log: '', errMessage: 'x' } }, { launch: LAUNCH });
     expect(target).toBe(RETURN_URL);
     expect(claims).toMatchObject({
       iss: CLIENT_ID, aud: ISSUER, [CLAIM.deploymentId]: '1', [CLAIM.messageType]: 'LtiDeepLinkingResponse', [CLAIM.version]: '1.3.0',
@@ -91,7 +91,7 @@ describe('Deep Linking response (security §2.3, AC-T3-08)', () => {
     const { db, launch, platform } = await setup();
     const moodleNow = Date.UTC(2026, 9, 17, 10, 0, 0);
     const toolNow = moodleNow + 2000;
-    const { claims } = deepLinkingResponse(launch, platform, { contentItems: [item] }, URLS);
+    const { claims } = deepLinkingResponse(launch, platform, { contentItems: [item] }, { launch: LAUNCH });
     const jwt = await signToolJwt(db, MASTER_KEY, 'cogniate', claims, toolNow);
     // Moodle verifies with leeway 0 at its own time.
     const { payload, protectedHeader } = await jwtVerify(jwt, createLocalJWKSet({ keys: publicJwks(db, 'cogniate') }), {

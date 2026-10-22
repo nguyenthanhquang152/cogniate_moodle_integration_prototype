@@ -17,16 +17,13 @@ import { CHANNEL_ROOT, buildAppChannelRegistry } from './registry.ts';
 // Stop after the entire app builder returns, before a socket opens. Registry checks do not depend on
 // the order of client/worker construction in that builder, and all config fields have valid values.
 vi.mock('../config.ts', () => ({ loadConfig: () => config }));
-vi.mock('../domain/db.ts', () => ({ openDb: vi.fn() }));
+vi.mock('../domain/db.ts', () => ({ openDb: vi.fn(() => ({})) }));
 vi.mock('../domain/package-store.ts', async (importOriginal) => {
   const original = await importOriginal<typeof PackageStore>();
   return { ...original, prepareStore: vi.fn(async (dir: string) => original.storePaths(dir)) };
 });
 vi.mock('../app/server.ts', () => ({
   buildAppApi: vi.fn(async () => ({ ready: async () => undefined, server: createServer() })),
-}));
-vi.mock('../worker/score-sync.ts', () => ({
-  createScoreSyncWorker: vi.fn(() => ({ start: vi.fn(), stop: vi.fn(), kick: vi.fn() })),
 }));
 vi.mock('@cogniate/shared', async (importOriginal) => {
   const original = await importOriginal<typeof Shared>();

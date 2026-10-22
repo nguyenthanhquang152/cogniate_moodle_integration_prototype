@@ -16,7 +16,7 @@ export type ProtocolErrorCode =
   // M1 (contract §9.2)
   | 'DEPLOYMENT_NOT_ACTIVE' | 'PROVIDER_PROFILE_MISMATCH' | 'SERVICE_ORIGIN_MISMATCH' | 'ISSUER_RESERVED'
   // LA (contract delta §1.3)
-  | 'RATE_LIMITED' | 'TOOL_ACCOUNT_SUSPENDED';
+  | 'RATE_LIMITED' | 'TOOL_ACCOUNT_SUSPENDED' | 'REGISTRATION_SESSION_LIMIT';
 
 const RESTART = 'Start again from {LMS}. If it happens again, give the trace id to your Cogniate admin.';
 
@@ -48,6 +48,7 @@ export const PROTOCOL_ERRORS: Record<ProtocolErrorCode, { status: number; action
   ISSUER_RESERVED: { status: 400, action: 'This address belongs to a hosted LMS. Connect it as {LMS} in the Cogniate portal.' },
   RATE_LIMITED: { status: 429, action: 'Too many requests. Wait one minute, then open the activity again from {LMS}.' },
   TOOL_ACCOUNT_SUSPENDED: { status: 403, action: 'This Cogniate tool is switched off. Ask your Cogniate admin.' },
+  REGISTRATION_SESSION_LIMIT: { status: 409, action: 'Too many registrations are open. Wait one hour, or finish the open registration in {LMS}.' },
 };
 
 /** Fill `{LMS}` in a text template. */

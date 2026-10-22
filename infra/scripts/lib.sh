@@ -393,7 +393,9 @@ build_runner_running() {
 # B-T8-02: report "started" only when the runner really runs: the process is alive and its heartbeat
 # (infra/.data/build-queue/status/runner.json) appears. Its log is JSON lines: infra/.logs/build-runner.jsonl.
 start_build_runner() {
-  mkdir -p "$BUILD_QUEUE_DIR/requests" "$BUILD_QUEUE_DIR/status" "$BUILD_QUEUE_DIR/out" "$BUILD_QUEUE_DIR/hold" "$LOGS_DIR" "$REPO_ROOT/.tmp"
+  mkdir -p -m 700 "$BUILD_QUEUE_DIR/requests" "$BUILD_QUEUE_DIR/status" "$BUILD_QUEUE_DIR/out" "$BUILD_QUEUE_DIR/hold"
+  chmod 700 "$BUILD_QUEUE_DIR" "$BUILD_QUEUE_DIR/requests" "$BUILD_QUEUE_DIR/status" "$BUILD_QUEUE_DIR/out" "$BUILD_QUEUE_DIR/hold"
+  mkdir -p "$LOGS_DIR" "$REPO_ROOT/.tmp"
   if build_runner_running; then return 0; fi
   rm -f "$BUILD_QUEUE_DIR/status/runner.json"
   # ADR-012 §7: the runner gets its OWN process group (set -m for this one job), so it never keeps a storage lock

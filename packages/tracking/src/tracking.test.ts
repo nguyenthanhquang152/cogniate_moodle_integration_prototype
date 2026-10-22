@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  agsScore, agsScoreBody, bestAttempt, checkScormCmi, resendDecision, syncResult, finishStatus, formatTimespan, improves, nextRetryAt, outcomeFromStatus, parseTimespan, playStatusText,
+  agsScore, agsScoreBody, bestAttempt, checkScormCmi, resendDecision, dispatchResult, finishStatus, formatTimespan, improves, nextRetryAt, outcomeFromStatus, parseTimespan, playStatusText,
   sessionMax, syncDecision, totalTime,
 } from './index.ts';
 import type { SyncRow } from './index.ts';
@@ -178,20 +178,16 @@ describe('shell status text', () => {
   });
 });
 
-describe('grade policy in one place (B-T5a-01): syncResult and bestAttempt', () => {
+describe('grade policy in one place (B-T5a-01): dispatchResult and bestAttempt', () => {
   const t0 = 1_000_000;
-  it('send answers -> row status (ADR-010 rules 8, 9; app contract §10)', () => {
-    expect(syncResult({ http: 204 }, 1, t0, t0)).toEqual({ status: 'sent', nextTryAt: null });
-    expect(syncResult({ http: 409 }, 1, t0, t0)).toEqual({ status: 'conflict', nextTryAt: null });
-    for (const http of [400, 403, 404]) expect(syncResult({ http }, 1, t0, t0)).toEqual({ status: 'failed', nextTryAt: null });
-    // M1 (AC-M1-33): a platform 422 is permanent too; 409 stays conflict and a 5xx still retries.
-    expect(syncResult({ http: 422 }, 1, t0, t0)).toEqual({ status: 'failed', nextTryAt: null });
-    expect(syncResult({ http: 503 }, 1, t0, t0).status).toBe('pending');
-    for (const http of [0, 401, 500, 502, 504]) expect(syncResult({ http }, 1, t0, t0)).toEqual({ status: 'pending', nextTryAt: t0 + 5_000 });
-    expect(syncResult({ http: 502 }, 30, t0, t0 + 23.9 * 3_600_000)).toEqual({ status: 'failed', nextTryAt: null }); // 24 h are over
-    expect(syncResult({ local: 'no_gradebook_column' }, 1, t0, t0).status).toBe('failed');
-    expect(syncResult({ local: 'internal_error' }, 1, t0, t0).status).toBe('failed'); // never a send every 2 s
-    expect(syncResult({ http: 502 }, 30, t0 + 23.9 * 3_600_000, t0 + 23.9 * 3_600_000).status).toBe('pending'); // a resend starts a new window
+  it('delivery outcomes -> row status (ADR-010 rules 8, 9; app contract §10)', () => {
+    expect(dispatchResult({ kind: 'accepted' }, 1, t0, t0)).toEqual({ status: 'sent', nextTryAt: null });
+    expect(dispatchResult({ kind: 'conflict', text: '' }, 1, t0, t0)).toEqual({ status: 'conflict', nextTryAt: null });
+    for (const kind of ['rejected', 'local_failure'] as const) expect(dispatchResult({ kind, text: '' }, 1, t0, t0)).toEqual({ status: 'failed', nextTryAt: null });
+    const retryable = { kind: 'retryable', text: '', uncertain: true } as const;
+    expect(dispatchResult(retryable, 1, t0, t0)).toEqual({ status: 'pending', nextTryAt: t0 + 5_000 });
+    expect(dispatchResult(retryable, 30, t0, t0 + 23.9 * 3_600_000)).toEqual({ status: 'failed', nextTryAt: null });
+    expect(dispatchResult(retryable, 30, t0 + 23.9 * 3_600_000, t0 + 23.9 * 3_600_000).status).toBe('pending');
   });
   it('bestAttempt: the final one with the highest score; else the newest in progress; else the newest', () => {
     const a = (outcome: 'passed' | 'failed' | 'in_progress' | 'not_started', scoreGiven: number | null, createdAt: number) => ({ outcome, scoreGiven, scoreMaximum: scoreGiven === null ? null : 100, createdAt });

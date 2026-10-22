@@ -1,3 +1,6 @@
+import { mbzExporter } from './app/exporter.ts';
+import { webServicesRoute } from './app/web-services.ts';
+import { courseShellHook } from './app/course-shell.ts';
 import type { ConnectionSetup, ToolRow } from '../../../services/cogniate-app/src/kernel/ports.ts';
 // Moodle (`standard` profile): unchanged behaviour (app contract §4, §4.1). Dynamic registration and the six-value
 // manual connect stay in app/connections.ts and tool-pages/register.ts; this adapter gives the rows and the data.
@@ -30,7 +33,10 @@ const profiles: ConnectionSetup['profiles'] = {
   standard: { sharing: 'exclusive', serviceUrl: false, label: 'Moodle site' },
 };
 const setup: ConnectionSetup = {
-  channel: 'moodle', profiles,
+  channel: 'moodle',
+  extensionRoutes: [webServicesRoute],
+  publishHooks: [courseShellHook],
+  packageExporters: [mbzExporter], profiles,
   sharingOf: (id) => profiles[id]?.sharing ?? null,
   checkCreate: ({ siteUrl, serviceUrl }) => {
     if (!isHttpsUrl(siteUrl) || new URL(siteUrl).origin !== siteUrl) return { ok: false, field: 'siteUrl' };

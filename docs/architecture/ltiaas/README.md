@@ -146,7 +146,7 @@ There is no CI service in the repo. One script runs the release checks on a clea
 
 ### 4b. Simulator host manifest (F7.4)
 
-`tests/sim/hosts.json` is the one list of simulator host names ([LA-ADR-02 D7](adr/LA-ADR-02-generic-lti-channel.md#decision)). QA-E2E writes it ([LA-E7-02](tasks/LA-E7-02.md)). The infra reads it ([LA-E7-03](tasks/LA-E7-03.md), lane S1), and the simulator reads it. Build ratification BD-A1-01 ([build decisions A1](build-decisions-A1.md)). Example entry (today's Canvas cloud provider):
+`tests/sim/hosts.json` is the one list of simulator host names ([LA-ADR-02 D7](adr/LA-ADR-02-generic-lti-channel.md#decision)). QA-E2E writes it ([LA-E7-02](tasks/LA-E7-02.md)). The infra reads it ([LA-E7-03](tasks/LA-E7-03.md), lane S1), and the simulator reads it. Build ratification BD-A1-01, one rule for both readers BD-A1-53 ([build decisions A1](build-decisions-A1.md)). Example entry (today's Canvas cloud provider):
 
 ```json
 { "version": 1,
@@ -159,15 +159,15 @@ There is no CI service in the repo. One script runs the release checks on a clea
 | Item | Rule |
 | --- | --- |
 | `version` | The integer `1`. |
-| `providers[].id` | The id of one simulator provider (today `blackboard-sim`, `canvas-sim-cloud`, `canvas-sim-self`): a non-empty string, unique, kebab-case by convention. One entry per provider. A module folder `tests/sim/<folder>/` can make more than one provider. |
+| `providers[].id` | The id of one simulator provider (today `blackboard-sim`, `canvas-sim-cloud`, `canvas-sim-self`): required, matches `^[a-z0-9][a-z0-9-]*$`, unique (BD-A1-53). One entry per provider. A module folder `tests/sim/<folder>/` can make more than one provider. |
 | `providers[].aliases` | Every host name of the provider: a compose network alias of `lms-sim` and a SAN of the `acceptance` leaf certificate. Not empty. |
 | `providers[].allowlist` | The hosts that the LTI service may call in the `acceptance` profile (its `OUTBOUND_PRIVATE_HOST_ALLOWLIST`). A subset of `aliases`; can be empty. A host that is only in `aliases` is a browser host (today `canvas.school-a.sim.test`, the Canvas page host of M3). The app allowlist does not change. |
-| Host names | Lower case, DNS form, ending in `.sim.test`. So the file can never add `lms-sim.test`, a stack host (`moodle.test`, `lti.cogniate.test`, …), `evil.test` or another host that is not a simulator host to an allowlist. |
+| Host names | Lower case, DNS form, ending in `.sim.test`. Each host appears at most once in all `aliases` of the file (inside one list and across providers), and each `allowlist` entry appears once (BD-A1-53). So the file can never add `lms-sim.test`, a stack host (`moodle.test`, `lti.cogniate.test`, …), `evil.test` or another host that is not a simulator host to an allowlist. |
 | Control alias | `lms-sim.test` (the `/__sim/*` control API) stays fixed in the infra: always an alias and a SAN, never in an allowlist, never in the file. |
-| Bad file (infra) | An unknown `version`, no `providers` array, an empty or duplicate `id`, a missing or empty `aliases`, a missing `allowlist`, a bad host, or an `allowlist` host that is not in its `aliases`. One output line names the file and the bad entry. A bad file gives **no** simulator host: not a part of the list and not the fixed lists. Then the only simulator name is `lms-sim.test` (alias and SAN), with no allowlist entry. A host that is in the file twice is used once. |
+| Bad file (both readers; BD-A1-53) | An unknown `version`, no `providers` array, a missing, malformed or duplicate `id`, a missing or empty `aliases`, a missing `allowlist`, a bad host, a host that appears twice, or an `allowlist` host that is not in its `aliases`. The infra (`infra/scripts/lib.sh`) and the simulator loader accept and refuse the same files; one shared table test (QA-E2E) proves it. One output line names the file and the bad entry. A bad file gives **no** simulator host: not a part of the list and not the fixed lists. Then the only simulator name is `lms-sim.test` (alias and SAN), with no allowlist entry. |
 | Where a bad file stops a command (BD-A1-08) | A command that starts or recreates containers in the `acceptance` profile stops with exit 1 and the error line, before any compose call: `stack:up` and `stack:restart` with that profile (also when `qa-suite.sh` calls them). Every other command runs and prints the error line once as a warning: every command of the `default` profile, and `stack:down`, `stack:reset`, `stack:logs`, `stack:doctor` and `stack:data-*` in any profile. `gen-certs.sh` does not issue or change the QA leaf while the file is bad (it warns); the stack leaf does not change. So `lib.sh` never exits on the file when it loads. |
-| Fail closed (simulator) | The simulator refuses to start when a loaded provider has no entry, an entry has no loaded provider, or one host is in two providers (it maps each host to one provider). |
-| No file | Until LA-E7-02 commits the file, the infra uses today's fixed lists (8 allowlisted hosts and `canvas.school-a.sim.test`), so LA-E7-03 can land first. When LA-E7-02 is done, S1 removes the fixed lists in its next commit of `infra/scripts/lib.sh`. From then on, a missing file is a bad file (rows above). |
+| Fail closed (simulator) | In addition, the simulator refuses to start when a loaded provider has no entry or an entry has no loaded provider. |
+| No file | The infra fixed lists are gone (S1 removes them, BD-A1-53): a missing file is a bad file (rows above). |
 | Default profile | No simulator host: no alias override and no allowlist entry. A bad or missing file never stops a `default`-profile command. |
 | Order | Output order is file order, then list order. The order has no meaning. |
 

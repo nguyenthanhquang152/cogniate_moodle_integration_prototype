@@ -36,7 +36,8 @@ BUILD_IMAGE=cogniate-build-moodle:v5.2.4
 # org.cogniate.stack=$STACK; the sweep removes only projects with this label (other stacks on this host keep theirs).
 STACK="$COMPOSE_PROJECT_NAME"
 STOPPED_REASON="The Build Runner stopped during the build. Start it again (npm run stack:up) and build again."
-mkdir -p "$QUEUE/requests" "$QUEUE/processing" "$QUEUE/status" "$QUEUE/out" "$QUEUE/hold"
+mkdir -p -m 700 "$QUEUE/requests" "$QUEUE/processing" "$QUEUE/status" "$QUEUE/out" "$QUEUE/hold"
+chmod 700 "$QUEUE" "$QUEUE/requests" "$QUEUE/processing" "$QUEUE/status" "$QUEUE/out" "$QUEUE/hold"
 # The log goes to fd 3 (a copy of stdout): a trap that runs inside a redirected command (for example
 # `bg dcb up ... >/dev/null`) still writes its log lines to the log file.
 exec 3>&1

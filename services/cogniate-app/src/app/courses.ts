@@ -6,10 +6,12 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import type { Course } from '../domain/courses.ts';
 import { createCourse, getCourse, getVersion, latestVersion, listCourses, listVersions } from '../domain/courses.ts';
-import { latestReadyBuild } from '../domain/mbz-builds.ts';
 import { listPublications } from '../domain/publications.ts';
-import { mbzPath } from './mbz.ts';
 import { ApiError } from './api-errors.ts';
+import { DOWNLOAD_KIND_DESCRIPTION, PACKAGE_EXPORT_WIRE } from '@cogniate/channel-kernel';
+import type { ExtensionDeps } from '../kernel/extensions.ts';
+import { exporterOf, exporterContextOf, exportVersionView } from '../kernel/extensions.ts';
+import { openExportArtifact } from '../kernel/port-context.ts';
 import type { UploadDeps } from './upload.ts';
 import { uploadVersion } from './upload.ts';
 import { courseJson, versionJson } from './views.ts';
@@ -26,8 +28,8 @@ type VersionParams = { Params: { courseId: string; versionId: string } };
 
 const notFound = () => new ApiError('NOT_FOUND', 'The course or version does not exist in your library.');
 
-/** buildQueueDir (T8): the Build Runner queue, for download?kind=mbz. */
-export function registerCourseRoutes(api: FastifyInstance, deps: UploadDeps & { buildQueueDir?: string }): void {
+/** Export downloads use the registered course-version exporters. */
+export function registerCourseRoutes(api: FastifyInstance, deps: UploadDeps & { extensions: ExtensionDeps }): void {
   const { db, now } = deps;
   const libraryOf = (req: FastifyRequest): string => req.auth!.signedIn.library.id;
   const courseOf = (req: FastifyRequest<CourseParams>): Course => {
@@ -82,20 +84,23 @@ export function registerCourseRoutes(api: FastifyInstance, deps: UploadDeps & { 
     const course = courseOf(req);
     const version = getVersion(db, course.libraryId, course.id, req.params.versionId);
     if (!version) throw notFound();
-    if (req.query.kind === 'mbz') {
-      // T8: the newest ready Moodle backup of this version (built by the host-side Build Runner).
-      const build = latestReadyBuild(db, course.libraryId, version.id);
-      if (!build || !deps.buildQueueDir) throw new ApiError('NOT_FOUND', 'No ready .mbz for this version. Build it first.');
+    if (req.query.kind !== 'original') {
+      const id = req.query.kind ?? '';
+      const exporter = exporterOf(deps.extensions.channels, id);
+      const wire = PACKAGE_EXPORT_WIRE[id];
+      if (!exporter || !wire) throw new ApiError('INVALID_REQUEST', DOWNLOAD_KIND_DESCRIPTION);
+      if (!deps.extensions.buildQueueDir) throw new ApiError('NOT_FOUND', wire.missing);
+      const result = await exporter.download(exportVersionView(db, course, version), exporterContextOf(deps.extensions, req));
+      if (!result) throw new ApiError('NOT_FOUND', wire.missing);
       try {
-        const file = await open(mbzPath(deps.buildQueueDir, build.id), 'r');
-        return reply.type('application/vnd.moodle.backup').header('content-disposition', `attachment; filename="cogniate-course-v${version.version}.mbz"`)
+        const file = await openExportArtifact(db, course.libraryId, deps.extensions.buildQueueDir, result.artifact, id);
+        return reply.type(wire.mediaType).header('content-disposition', `attachment; filename="${wire.filename(version.version)}"`)
           .send(file.createReadStream());
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'ENOENT') throw notFound();
         throw error;
       }
     }
-    if (req.query.kind !== 'original') throw new ApiError('INVALID_REQUEST', 'Use kind=original (the uploaded zip) or kind=mbz (the Moodle backup).');
     const pkg = db.prepare('SELECT sha256 FROM package WHERE id = ? AND library_id = ?').get(version.packageId, course.libraryId);
     if (!pkg || typeof pkg.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(pkg.sha256)) throw notFound();
     try {

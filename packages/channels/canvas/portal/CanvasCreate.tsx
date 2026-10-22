@@ -7,9 +7,9 @@ import type { Connection, ConnectionCreateBody } from "@cogniate/portal-sdk";
 import { Button, buttonVariants } from "@cogniate/portal-sdk";
 import { Input, Select } from "@cogniate/portal-sdk";
 import { ProviderErrorNotice, providerErrorFields } from "@cogniate/portal-sdk";
-import type { ProviderWizardProps } from "@cogniate/portal-sdk";
+import type { ChannelWizardProps } from "@cogniate/portal-sdk";
 
-export function CanvasCreate({ provider, opener, onCreated }: ProviderWizardProps) {
+export function CanvasCreate({ provider, opener, onCreated }: ChannelWizardProps) {
   const alive = useAlive();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<unknown>(null);

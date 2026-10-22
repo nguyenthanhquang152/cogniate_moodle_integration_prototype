@@ -459,17 +459,30 @@ it('AC-LA-E5-09-05 the re-wrap writes one job_run {job: "key-rewrap"} line and t
     assert.equal(ev.result, 'ok');
   }
 
-  const hasCountsObject = (details: Record<string, unknown> | null): boolean => {
+  const hasJobEndShape = (details: Record<string, unknown> | null): boolean => {
     if (!details || typeof details !== 'object') return false;
-    if (details.counts && typeof details.counts === 'object') {
-      return Object.values(details.counts as Record<string, unknown>).some((v) => typeof v === 'number');
-    }
-    return Object.values(details).some((v) => typeof v === 'number');
+    return typeof details.outcome === 'string' && typeof details.rewrapped === 'number';
   };
 
-  const requestEvent = newRewrapEvents.find((e) => e.actor.type === 'operator' && !hasCountsObject(e.details));
-  const jobEndEvent = newRewrapEvents.find((e) => hasCountsObject(e.details));
+  const requestEvent = newRewrapEvents.find((e) => e.actor.type === 'operator' && !hasJobEndShape(e.details));
+  const jobEndEvent = newRewrapEvents.find((e) => hasJobEndShape(e.details));
   assert.ok(requestEvent, 'one key_provider.rewrap audit event records the operator request');
-  assert.ok(jobEndEvent, 'one key_provider.rewrap audit event records the job end with counts');
+  assert.ok(jobEndEvent, 'one key_provider.rewrap audit event records the job end with outcome and counts (BD-A2-36/42)');
   assert.notEqual(requestEvent.id, jobEndEvent.id, 'request and job-end audit events are distinct rows');
+
+  // BD-A2-36/42/43: job-end event has result: "ok", code: null, details: { outcome: "complete", rewrapped, skippedChanged, notReached, unreadable, legacyBlobsRefused: true }.
+  assert.equal(jobEndEvent.result, 'ok', 'job-end event result is ok (BD-A2-42)');
+  assert.equal(jobEndEvent.code, null, 'job-end event code is null (BD-A2-42)');
+  const endDetails = jobEndEvent.details as Record<string, unknown>;
+  assert.equal(endDetails.outcome, 'complete', 'job-end details.outcome is "complete"');
+  assert.equal(typeof endDetails.rewrapped, 'number', 'job-end details.rewrapped is a number');
+  assert.ok((endDetails.rewrapped as number) >= 2, 'job-end details.rewrapped >= 2');
+  assert.equal(endDetails.skippedChanged, 0, 'job-end details.skippedChanged is 0');
+  assert.equal(endDetails.notReached, 0, 'job-end details.notReached is 0');
+  assert.equal(endDetails.unreadable, 0, 'job-end details.unreadable is 0');
+  assert.equal(
+    endDetails.legacyBlobsRefused,
+    true,
+    'job-end details.legacyBlobsRefused is true when no legacy blob remains (BD-A2-36/43)',
+  );
 });
