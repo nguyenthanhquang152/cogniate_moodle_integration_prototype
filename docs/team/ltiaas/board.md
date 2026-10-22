@@ -92,3 +92,17 @@ Integration branch: `quang/ltiaas-milestone`. Intake `1b17261`. Lane branches `n
 | Reviewer-A | Claude | `ctx_76f7c7a46efe` | LA-E5-02 round 1 |
 
 Integration branch merges since the pause: LA-E5-02 r1 `0d320c4`, LA-E4-01 r1 `89d5ec5`. LA-E1-02 (`8cf9412`) waits for the K0 config.
+
+## PAUSED (product owner, confirmed 2026-10-22 ~14:45 +07)
+
+All LA work is paused. The seven open dispatches are blocked on a "PAUSED" ask; every other LA dispatch is settled and idle. No LA Docker activity (host-only hold; no Docker polling during the other run's window). To resume, the Lead answers each ask with RESUME.
+
+| Session | Agent | Dispatch | PAUSED ask | State at pause |
+| --- | --- | --- | --- | --- |
+| Lead QA | Antigravity | `ctx_92db6e5febb7` | `msg_8a2ef7812930` | K0 config, smoke test and ld1 test written; verify on a clean clone, R1/R2, golden README left |
+| QA-2 | Antigravity | `ctx_006a8306c494` | `msg_23e375f506f4` | reading done; READMEs and new suites left |
+| QA-3 | Antigravity | `ctx_0ebde95cad45` | `msg_583d957d1aea` | reading done; suites left |
+| Author S1 | Codex | `ctx_bcc3b1114b98` | `msg_089a7ea1f4d1` | symlink guard fix + tests and stack-up comment uncommitted; LA-E7-03 wiring, self-check, commits left |
+| Author R | Codex | `ctx_e957d1866d5d` | `msg_a131f8c92925` | reads and npm ci done; implementation left |
+| Reviewer-B | Claude | `ctx_5d8fa2d0cfd3` | `msg_1e3c71090201` | LA-E1-02 diff read; tests run and review file left |
+| Reviewer-A | Claude | `ctx_2ac43aa56dcd` | `msg_c2e407deb4b8` | LA-E5-02 diff read; checks and review file left |
