@@ -78,6 +78,7 @@ describe('seal and open (LA-ADR-06 D6 blob format and associated data)', () => {
     const provider = createLocalKeyProvider(ringOf('k2', { legacy: MASTER, k2: K2 }), { logger });
     const blob = await provider.seal(bytes('private jwk'), AAD);
     expect(text(await provider.open(blob, AAD))).toBe('private jwk');
+    expect(provider.openWithMetadataSync(blob, AAD)).toEqual({ plaintext: bytes('private jwk'), version: 'k2', legacyFormat: false });
     for (const other of [
       associatedData('lti', 'tool_key', 'private_jwk_encrypted', 'qa-second', 'kid-1'),
       associatedData('lti', 'tool_key', 'private_jwk_encrypted', 'cogniate', 'kid-2'),
@@ -134,6 +135,8 @@ describe('seal and open (LA-ADR-06 D6 blob format and associated data)', () => {
     await expect(provider.open(old, AAD)).rejects.toThrow('legacy_refused');
     expect(lines).toEqual(Array.from({ length: 2 }, () => ({ event: 'key_open_failed', fields: { table: 'tool_key', reason: 'legacy_refused' } })));
     expect(text(await provider.open(current, AAD))).toBe('bound value');
+    expect(provider.openWithMetadataSync(current, AAD)).toEqual({ plaintext: bytes('bound value'), version: 'legacy', legacyFormat: false });
+    expect(() => provider.openWithMetadataSync(old, AAD)).toThrow('legacy_refused');
     expect(provider.macSync('service-key', 'legacy', bytes('scope'))).toEqual(derived);
     expect(() => provider.openSync(current, `${AAD}-other`)).toThrow('auth_failed');
   });
@@ -147,6 +150,8 @@ describe('seal and open (LA-ADR-06 D6 blob format and associated data)', () => {
     const blob = Buffer.concat([iv, cipher.getAuthTag(), data]);
     expect(blobKeyVersion(blob)).toBe('k2');
     expect(text(createLocalKeyProvider(ringOf('k2', { legacy: MASTER, k2: K2 })).openSync({ bytes: blob }, AAD))).toBe(plain);
+    expect(createLocalKeyProvider(ringOf('k2', { legacy: MASTER, k2: K2 })).openWithMetadataSync({ bytes: blob }, AAD))
+      .toEqual({ plaintext: bytes(plain), version: 'legacy', legacyFormat: true });
     const refused = createLocalKeyProvider(ringOf('k2', { legacy: MASTER, k2: K2 }), { legacyBlobsRefused: () => true });
     expect(() => refused.openSync({ bytes: blob }, AAD)).toThrow('auth_failed');
   });

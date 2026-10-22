@@ -33,6 +33,8 @@ export interface LocalKeyProvider extends KeyProvider {
   readonly kind: 'local-keyring';
   sealSync(plaintext: Uint8Array, aad: string): SealedBlob;
   openSync(blob: SealedBlob, aad: string): Uint8Array;
+  /** Authenticated metadata for re-wrap: a legacy IV can resemble a valid header. */
+  openWithMetadataSync(blob: SealedBlob, aad: string): { plaintext: Uint8Array; version: string; legacyFormat: boolean };
   macSync(purpose: MacPurpose, version: string, input: Uint8Array): Uint8Array;
 }
 
@@ -190,7 +192,7 @@ export function createLocalKeyProvider(ring: KeyRing, options: LocalKeyProviderO
     }
   }
 
-  function openSync(blob: SealedBlob, aad: string): Uint8Array {
+  function openWithMetadataSync(blob: SealedBlob, aad: string): { plaintext: Uint8Array; version: string; legacyFormat: boolean } {
     const header = parseHeader(blob.bytes);
     let reason: 'version_missing' | 'auth_failed' = 'auth_failed';
     if (header) {
@@ -199,7 +201,7 @@ export function createLocalKeyProvider(ring: KeyRing, options: LocalKeyProviderO
         try {
           const dataKey = gcmOpen(versionKey, header.wrapped, header.head);
           try {
-            return gcmOpen(dataKey, header.value, Buffer.from(aad, 'utf8'));
+            return { plaintext: gcmOpen(dataKey, header.value, Buffer.from(aad, 'utf8')), version: header.version, legacyFormat: false };
           } finally {
             dataKey.fill(0);
           }
@@ -216,10 +218,14 @@ export function createLocalKeyProvider(ring: KeyRing, options: LocalKeyProviderO
     const legacy = keys.get(LEGACY_KEY_VERSION);
     if (!legacy) throw openFailed(aad, header ? reason : 'version_missing');
     try {
-      return gcmOpen(legacy, asBuffer(blob.bytes), null);
+      return { plaintext: gcmOpen(legacy, asBuffer(blob.bytes), null), version: LEGACY_KEY_VERSION, legacyFormat: true };
     } catch {
       throw openFailed(aad, reason);
     }
+  }
+
+  function openSync(blob: SealedBlob, aad: string): Uint8Array {
+    return openWithMetadataSync(blob, aad).plaintext;
   }
 
   function macSync(purpose: MacPurpose, version: string, input: Uint8Array): Uint8Array {
@@ -247,6 +253,7 @@ export function createLocalKeyProvider(ring: KeyRing, options: LocalKeyProviderO
     versions: () => [active, ...[...keys.keys()].filter((id) => id !== active)].map((id) => ({ id, state: id === active ? 'active' : 'decrypt-only' })),
     sealSync,
     openSync,
+    openWithMetadataSync,
     macSync,
   };
 }
