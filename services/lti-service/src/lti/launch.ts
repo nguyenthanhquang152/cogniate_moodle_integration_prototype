@@ -33,11 +33,26 @@ export interface LaunchDeps {
   profiles?: ProfileOptions;
 }
 
-type AcceptedLaunch = { ok: true; kind: 'redirect'; binding: 'cookie' | 'storage'; location: string; clearCookie: string; platformId: string; messageType: string; /** Names removed by the claim allowlist (§9.8). */ removedClaims: string[] };
+/** Tenant ids of a protocol log line (contract delta §6). Each id only when it is known; never an empty string. */
+export interface TenantLogIds {
+  tool_account_id?: string;
+  platform_id?: string;
+}
+
+/**
+ * Known = a stored row (BD-A2-52, the same rule as http_request): the account for every status, and a platform of
+ * that account. A path value that is not a stored account gives no field, so the line does not change.
+ */
+export function tenantLogIds(account: ToolAccount | null, platform: Platform | null = null): TenantLogIds {
+  if (!account) return {};
+  return platform ? { tool_account_id: account.id, platform_id: platform.id } : { tool_account_id: account.id };
+}
+
+type AcceptedLaunch = { ok: true; kind: 'redirect'; binding: 'cookie' | 'storage'; location: string; clearCookie: string; toolAccountId: string; platformId: string; messageType: string; /** Names removed by the claim allowlist (§9.8). */ removedClaims: string[] };
 export type LaunchResult =
   | AcceptedLaunch
   | { ok: true; kind: 'storage'; page: ReturnType<typeof storageCheckPage>; clearCookie: string }
-  | { ok: false; check: string; code: ProtocolErrorCode; detail: string; status?: number; help?: string; oidcError?: string; clearCookie?: string; /** LMS of the page. */ lms: LmsName };
+  | { ok: false; check: string; code: ProtocolErrorCode; detail: string; status?: number; help?: string; oidcError?: string; clearCookie?: string; /** LMS of the page. */ lms: LmsName; /** Ids for launch_check_failed. */ logIds: TenantLogIds };
 
 const clearCookieFor = (stateHash: string) =>
   `${stateCookieName(stateHash)}=; Path=/; Max-Age=0; Secure; HttpOnly; SameSite=None; Partitioned`;
@@ -77,7 +92,7 @@ function completeLaunch(deps: LaunchDeps, account: ToolAccount, prepared: Prepar
   const toolPlatform = prepared.claims[CLAIM.toolPlatform] as { product_family_code?: unknown } | undefined;
   if (toolPlatform && typeof toolPlatform.product_family_code === 'string') setProductFamilyCode(deps.db, prepared.platformId, toolPlatform.product_family_code);
   const toolUrl = prepared.messageType === 'LtiDeepLinkingRequest' ? account.deepLinkingUrl : account.launchUrl;
-  return { ok: true, kind: 'redirect', binding, location: toolRedirect(toolUrl, prepared.claims[CLAIM.targetLinkUri] as string, ltik), clearCookie: clearCookieFor(stateHash), platformId: prepared.platformId, messageType: prepared.messageType, removedClaims };
+  return { ok: true, kind: 'redirect', binding, location: toolRedirect(toolUrl, prepared.claims[CLAIM.targetLinkUri] as string, ltik), clearCookie: clearCookieFor(stateHash), toolAccountId: account.id, platformId: prepared.platformId, messageType: prepared.messageType, removedClaims };
 }
 
 /** Check 2s: first the account and request origin, then the atomic consume, then the state hash compare. */
@@ -85,17 +100,20 @@ export function handleStorageCheck(deps: LaunchDeps, accountId: string, form: Re
   const profiles = deps.profiles ?? { simulation: false };
   let lms = lmsNameOf(null, profiles);
   const account = createAccountResolver(deps.db, deps.urls.lti).resolveAccount({ params: { account: accountId } });
+  let logIds = tenantLogIds(account);
   const code = protocolAccountError(account);
-  if (code) return { ok: false, check: 'storage', code, detail: code === 'TOOL_ACCOUNT_SUSPENDED' ? 'account_suspended' : 'unknown_tool_account', lms };
+  if (code) return { ok: false, check: 'storage', code, detail: code === 'TOOL_ACCOUNT_SUSPENDED' ? 'account_suspended' : 'unknown_tool_account', lms, logIds };
   const failure = (code: ProtocolErrorCode, detail: string, stateHash?: string, help?: string): LaunchResult => ({
-    ok: false, check: 'storage', code, detail, status: 400, lms,
+    ok: false, check: 'storage', code, detail, status: 400, lms, logIds,
     ...(stateHash ? { clearCookie: clearCookieFor(stateHash) } : {}), ...(help ? { help } : {}),
   });
   if (origin !== new URL(deps.urls.lti).origin) return failure('INVALID_STATE', 'storage_origin');
   const now = deps.now();
   const rec = consumeStorageCheck(deps.db, accountId, typeof form.check === 'string' ? form.check : '', now);
   if (!rec) return failure('INVALID_STATE', 'storage_check_unknown_used_or_expired');
-  lms = platformLmsName(getPlatform(deps.db, accountId, rec.prepared.platformId), profiles);
+  const platform = getPlatform(deps.db, accountId, rec.prepared.platformId);
+  lms = platformLmsName(platform, profiles);
+  logIds = tenantLogIds(account, platform);
   const value = typeof form.value === 'string' ? form.value : '';
   if (value === '') return failure('STATE_COOKIE_MISSING', 'storage_empty', rec.stateHash, 'Your browser blocked the Cogniate sign-in in this frame. Open the activity in a new window, or allow cookies for this site.');
   if (!safeEqual(sha256Hex(value), rec.stateHash)) return failure('INVALID_STATE', 'storage_mismatch', rec.stateHash);
@@ -109,20 +127,23 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
   const state = form.state;
   const stateHash = typeof state === 'string' && state !== '' ? sha256Hex(state) : null;
   let lms: LmsName = lmsNameOf(null, profiles);
+  let logIds: TenantLogIds = {};
   try {
     const resolver = createAccountResolver(deps.db, deps.urls.lti);
     const account = resolver.resolveAccount({ params: { account: accountId } });
+    logIds = tenantLogIds(account);
     const accountError = protocolAccountError(account);
-    if (!account || accountError) return { ok: false, check: '1', code: accountError ?? 'UNKNOWN_TOOL_ACCOUNT', detail: accountError === 'TOOL_ACCOUNT_SUSPENDED' ? 'account_suspended' : 'unknown_tool_account', lms };
+    if (!account || accountError) return { ok: false, check: '1', code: accountError ?? 'UNKNOWN_TOOL_ACCOUNT', detail: accountError === 'TOOL_ACCOUNT_SUSPENDED' ? 'account_suspended' : 'unknown_tool_account', lms, logIds };
     const protocolUrls = resolver.protocolUrls(account);
     // Checks 1 and 3 (state found and used up in one statement).
     const rec = check1And3State(deps.db, accountId, state, stateHash, now);
     const clearCookie = clearCookieFor(rec.stateHash);
     const platform = getPlatform(deps.db, accountId, rec.platformId);
     lms = platformLmsName(platform, profiles);
+    logIds = tenantLogIds(account, platform);
     // OIDC error answer (Moodle: invalid_scope, unauthorized_client, access_denied ...): the state is used up.
     if (form.id_token === undefined && typeof form.error === 'string') {
-      return { ok: false, check: 'oidc_error', code: 'PLATFORM_ERROR', detail: `error=${safeWord(form.error)}`, oidcError: form.error.slice(0, 64), clearCookie, lms };
+      return { ok: false, check: 'oidc_error', code: 'PLATFORM_ERROR', detail: `error=${safeWord(form.error)}`, oidcError: form.error.slice(0, 64), clearCookie, lms, logIds };
     }
     // Check 2. Only a missing cookie can fall back to the stored target; a mismatch still fails.
     let useStorage = false;
@@ -131,7 +152,7 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
     } catch (err) {
       if (err instanceof LaunchCheckError && err.code === 'STATE_COOKIE_MISSING') {
         if (rec.storageTarget && rec.storageOrigin) useStorage = true;
-        else return { ok: false, check: err.check, code: err.code, detail: err.detail, help: await cookieHelpFor(deps, form.id_token, platform, traceId), lms };
+        else return { ok: false, check: err.check, code: err.code, detail: err.detail, help: await cookieHelpFor(deps, form.id_token, platform, traceId), lms, logIds };
       } else throw err;
     }
     if (!platform) throw new LaunchCheckError('1', 'INVALID_STATE', 'platform_deleted');
@@ -154,7 +175,7 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
     if (profile.flags.serviceOriginCheck) check13Origins(claims, origins);
     try {
       const family = check14ProductFamily(claims, profile, profiles);
-      if (family !== null) deps.logger.info('family_guard_mismatch', { platform_id: platform.id, family });
+      if (family !== null) deps.logger.info('family_guard_mismatch', { tool_account_id: account.id, platform_id: platform.id, family });
     } catch (err) {
       // The page names the LMS of the signed product family (contract §9.2).
       if (err instanceof LaunchCheckError) lms = lmsNameOfFamily(err.detail.replace('family=', ''), profiles) ?? lms;
@@ -175,7 +196,7 @@ export async function handleLaunch(deps: LaunchDeps, accountId: string, form: Re
     return completeLaunch(deps, account, prepared, rec.stateHash, 'cookie', now);
   } catch (err) {
     if (err instanceof LaunchCheckError) {
-      return { ok: false, check: err.check, code: err.code, detail: err.detail, ...(stateHash ? { clearCookie: clearCookieFor(stateHash) } : {}), lms };
+      return { ok: false, check: err.check, code: err.code, detail: err.detail, ...(stateHash ? { clearCookie: clearCookieFor(stateHash) } : {}), lms, logIds };
     }
     throw err;
   }
