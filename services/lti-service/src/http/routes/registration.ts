@@ -11,7 +11,7 @@ import { transaction } from '../../db/index.ts';
 import type { ProtocolErrorCode } from '../../lti/codes.ts';
 import { withLms } from '../../lti/codes.ts';
 import { PlatformKeyError } from '../../lti/jwks.ts';
-import { protocolAccountError } from '../../lti/launch.ts';
+import { statusGate } from '../../lti/account-status.ts';
 import type { OpenIdConfiguration } from '../../lti/registration.ts';
 import {
   PRIVACY_LEVELS, REGISTRATION_CLOSE_HTML, REGISTRATION_SCOPES, buildRegistrationRequest, operationFromToken, parseOpenIdConfiguration, parseRegistrationResponse, registrationView,
@@ -130,9 +130,9 @@ export function registerRegistrationRoutes(app: FastifyInstance, ctx: RouteConte
       const help = template ? withLms(template, code === 'ISSUER_RESERVED' ? reservedIssuerLmsNames(ctx.profiles) : lms) : undefined;
       return ctx.errorPage(reply, req, code, { heading: HEADING, lms, ...(help ? { help } : {}) });
     };
-    const account = resolver.resolveAccount(req);
-    const accountError = protocolAccountError(account);
-    if (!account || accountError) return page(accountError ?? 'UNKNOWN_TOOL_ACCOUNT', accountError === 'TOOL_ACCOUNT_SUSPENDED' ? 'account_suspended' : 'unknown_tool_account');
+    const gate = statusGate(resolver.resolveAccount(req));
+    if (!gate.ok) return page(gate.code, gate.detail);
+    const { account } = gate;
     const q = RegisterQuery.safeParse(req.query ?? {});
     if (!q.success) return page('INVALID_REQUEST', `query=${q.error.issues[0]?.path.join('.') || 'query'}`);
     // First check: no outbound fetch when the address is already at the cap (LA-ADR-06 D1).

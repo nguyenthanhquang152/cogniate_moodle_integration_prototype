@@ -3,14 +3,14 @@ import { createAccountResolver } from '../accounts/resolver.ts';
 import { openDb } from '../db/index.ts';
 import { ensureAccount } from '../store/accounts.ts';
 import { URLS } from '../testkit.ts';
-import { isOwnLaunchTarget, launchUri } from './target.ts';
+import { isOwnLaunchTarget } from './target.ts';
 
 describe('isOwnLaunchTarget', () => {
   const db = openDb(':memory:');
   const { account } = ensureAccount(db, { id: 'cogniate', name: 'Cogniate', appUrl: URLS.app });
   const protocolUrls = createAccountResolver(db, URLS.lti).protocolUrls(account);
   db.close();
-  const base = launchUri(protocolUrls);
+  const base = protocolUrls.launch;
   it.each([base, `${base}?resource=seed`, `${base}?resource=a&x=1`])('accepts %s', (v) => expect(isOwnLaunchTarget(v, protocolUrls)).toBe(true));
   it.each([
     `${base}-evil`, `${base}/x`, `${base}#f`, 'https://evil.test/lti/launch/cogniate', `${URLS.lti}/lti/launch/qa-second`,

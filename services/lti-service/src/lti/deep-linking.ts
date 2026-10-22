@@ -10,7 +10,7 @@ import type { Platform } from '../store/platforms.ts';
 import { findDeployment, siteOriginOf } from '../store/platforms.ts';
 import { CLAIM } from './checks.ts';
 import { isHttpsUrl } from './platform-rules.ts';
-import { isOwnLaunchTarget, launchUri } from './target.ts';
+import { isOwnLaunchTarget } from './target.ts';
 
 export const DL_CLAIM = {
   contentItems: 'https://purl.imsglobal.org/spec/lti-dl/claim/content_items',
@@ -89,8 +89,8 @@ export function checkContentItems(items: unknown, settings: Obj, urls: Pick<Prot
       return { ...item };
     }
     // ltiaas-0.0.4 tolerance (contract §8 D14): a null resource URL uses the default launch URL.
-    if (item.url === undefined || item.url === null) return { ...item, url: launchUri(urls) };
-    if (!isOwnLaunchTarget(item.url, urls)) throw bad(i, `url must start with ${launchUri(urls)}`);
+    if (item.url === undefined || item.url === null) return { ...item, url: urls.launch };
+    if (!isOwnLaunchTarget(item.url, urls)) throw bad(i, `url must start with ${urls.launch}`);
     return { ...item };
   });
 }
