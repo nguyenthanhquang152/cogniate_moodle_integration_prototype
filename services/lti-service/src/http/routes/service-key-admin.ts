@@ -29,8 +29,10 @@ export function revokeServiceKeyScope(
     if (!getAccount(ctx.db, accountId)) throw new ApiError('NOT_FOUND', 'Unknown tool account.');
     if (!getPlatform(ctx.db, accountId, filter.platformId)) throw new ApiError('UNREGISTERED_PLATFORM');
   };
+  // Check before audit.change so a missing account or platform records a refused event.
   requireScope();
   return audit.change(() => {
+    // Check again while the write transaction holds the lock.
     requireScope();
     // BD-A2-12: removing access is allowed even when the operator targets a closed account.
     return { revoked: revokeScopedServiceKeys(ctx.db, accountId, filter, ctx.now()) };

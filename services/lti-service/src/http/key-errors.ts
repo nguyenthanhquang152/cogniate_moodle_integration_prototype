@@ -4,7 +4,7 @@ import { ApiErrorBase, defineErrorTable } from '@cogniate/shared';
 export const KEY_ERRORS = defineErrorTable({
   API_KEY_SCOPE_MISSING: { status: 403, description: 'The API key does not have the required scope.' },
   API_KEY_LIMIT: { status: 409, description: 'This account already has two active API keys. Revoke one before issuing another.' },
-  SERVICE_KEY_SCOPE: { status: 403, description: 'The service key cannot write to this resource link.' },
+  SERVICE_KEY_SCOPE: { status: 403, description: "This service key can write only the line items of its own resource link (account setting serviceKeyWriteScope: resource-link). Use the service key of a launch from the line item's resource link." },
   NOT_READY: { status: 503, description: 'The service is not ready.' },
   JOB_RUNNING: { status: 409, description: 'The job is already running.' },
   SIGNING_KEY_NEXT_EXISTS: { status: 409, description: 'This account already has a next signing key.' },
