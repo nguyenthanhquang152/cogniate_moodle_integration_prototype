@@ -422,3 +422,18 @@ Six questions from S1, routed in dispatch `ctx_a41d37871369` (provisional: "ok t
 | BD-A2-70 | Q6 `api-key-expiry`: `api_key_expiring` warn lines and `job_run` counts `{expiring}`; the gauge stays the scrape query. | **Ratified.** | LA-ADR-06 D11 (job row) | Ids only, never a key. |
 
 Changes for the Lead to route: **S1 (LA-E5-20)**: the stored `autoRotate` field (migration `019`, the account PATCH and view), the `account.purge` event, and skipping accounts that are not active; the rest as S1 planned.
+
+## 35. Round 34: the AGS preflight before the claim, the exact session cap, `trustedAudiences` docs, 2026-10-23
+
+Routed in dispatch `ctx_1ecaed288113`. The item 1 answer went to the Lead first (`msg_4e1ef7efc041`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-71 | A-LA-E5-16-03 (MAJOR): the idempotency target resolution checks platform and binding but not the AGS permission, so a credential that lost the `lineitem` scope gets an old `201`, and a `403 SERVICE_NOT_AVAILABLE` is stored. (Provisional: L exports one read-only preflight; S1 calls it before the claim.) | **Ratified.** `preflightCreateLineItem(ctx)` in `platform/ags.ts` (L, RQ-1), also used by `createLineItem`. Checks in order: the `lineitems` claim is a string; the base URL exists (both `403 SERVICE_NOT_AVAILABLE`); the URL rule (`400 INVALID_LINE_ITEM_ID`); the scope `lineitem` (`403`). No I/O. It runs after `agsContext` and before the claim; its refusals are never stored. Not the scope in the fingerprint. | LA-ADR-06 D9 "Order"; contract delta §4.9; LA-E5-16 design notes | This is one of the BD-A2-56 read-only target checks. One function for the route and the hook keeps the two from drifting apart. |
+| BD-A2-72 | The BD-A2-20 text ("a small overshoot is accepted") is stale: LA-E5-06's fix round re-checks the cap and inserts in one transaction after the last `await`. S1's comment at `http/rate-limit.ts:201` is stale too. | **Text updated: the cap is exact.** S1 changes the comment in its next commit (a NIT). | LA-ADR-06 D1 (cap paragraph); LA-E5-03 and LA-E5-06 design notes | — |
+| BD-A2-73 | B-LA-E3-12-01: the check-5 refusal `aud_untrusted` and its repair are not documented for operators or tenant developers. Where does it go? | **Three places.** The contract delta `trustedAudiences` row (A2): exact rules (the client id is always allowed; exact case-sensitive match; with more than one `aud`, `azp` = the client id; `PATCH` replaces the list; `[]` clears it) and a `PATCH` example. Operability §9 (A2): a new symptom row with the steps. The tenant-developer guide `docs/guides/troubleshooting.md` (Docs lane, E8): one entry from these two texts. New bound for L: each entry 1–2,048 characters, at most 20 entries, else `400 INVALID_REQUEST`. | contract delta §4.6 (`trustedAudiences` row); operability §9 | The route accepts any list of strings today (`z.array(z.string())`), so the bound is a small follow-up for L (LA-E3-12), not a gate. |
+
+Changes for the Lead to route:
+- **L:** the `preflightCreateLineItem` export (RQ-1 for LA-E5-16); the `trustedAudiences` bound (LA-E3-12 follow-up).
+- **S1:** the preflight call before the claim, with the two unit tests; the stale cap comment.
+- **Docs:** the troubleshooting guide entry.
