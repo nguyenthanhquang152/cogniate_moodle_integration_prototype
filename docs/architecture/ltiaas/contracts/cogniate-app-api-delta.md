@@ -86,7 +86,7 @@ New channels (`key` stable; `label` is human text):
 
 | Channel | Strict body | LTI step |
 | --- | --- | --- |
-| Moodle, Canvas, Blackboard | unchanged (base §4, §4.4) | unchanged |
+| Moodle, Canvas, Blackboard | unchanged (base §4, §4.4), except: Moodle now refuses an unknown body key with `422 INVALID_PLATFORM_VALUES` and the key in `details.fields`, as Canvas and Blackboard do (LA-IC-17) | unchanged |
 | `lti-generic`, `brightspace` (manual, `operatorGrant`) | `{ issuer, clientId, deploymentId, authenticationEndpoint, accessTokenEndpoint, jwksUrl, tokenAudience?, grantCode }`. `issuer` may have a path; its origin must equal `siteUrl`. | the two-phase redemption (base §4.7.1); S1 `POST /api/platforms { profile, url: issuer, clientId, name, authenticationEndpoint, accesstokenEndpoint, authConfig: { method: "JWK_SET", key: jwksUrl }, clientAssertionAud: tokenAudience, deploymentIds: [deploymentId], active: false, bindingRef }` |
 | `lti-generic`, `brightspace` after a **staged** Dynamic Registration (the configuration broke I-SELF, [LA-ADR-02 D5](../adr/LA-ADR-02-generic-lti-channel.md#decision) item 10) | `{ clientId, deploymentId, grantCode }`; the portal pre-fills both ids from the staged platform. The admin values come from the staged platform and must equal the grant's bound values. | the two-phase redemption adopts the staged inactive platform (adoption rule A3) and activates it; no S1 create |
 
