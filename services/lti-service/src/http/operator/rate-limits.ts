@@ -18,7 +18,7 @@ export function registerRateLimitRoutes(app: FastifyInstance, ctx: OperatorConte
         ...Object.keys(parsed.data.classes ?? {}).map((name) => `classes.${name}`),
         ...(parsed.data.registrationSessionsPerAddress !== undefined ? ['registrationSessionsPerAddress'] : []),
       ];
-      return audit.change(() => patchRateLimitSettings(ctx.db, parsed.data), () => ({ details: { fields } }));
+      return audit.change(() => patchRateLimitSettings(ctx.db, parsed.data), () => ({ details: { fields, ...parsed.data } }));
     });
     // Publish only after the transaction and its audit event commit. Address hooks do no database reads.
     ctx.limiter.replaceSettings(settings);

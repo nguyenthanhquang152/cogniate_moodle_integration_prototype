@@ -53,6 +53,8 @@ export interface ChannelRegistry {
   /** The loaded channels, in registry order (`card.order`, then id). */
   channels(): readonly ChannelManifest[];
   channel(id: string): ChannelManifest | null;
+  /** The channel's app.ts default export, or null when absent or not visible. The app owns its port types. */
+  appAdapter(id: string): unknown | null;
   /** The channel whose folder holds the profile, or null. */
   channelOfProfile(profileId: string): string | null;
   /** The channel that guards a product family (any case; generic check 14), or null. */
@@ -140,6 +142,7 @@ function deepFreeze<T>(value: T): T {
 
 interface Checked {
   manifest: ChannelManifest;
+  appAdapter: unknown;
   ltiProfiles: Array<{ id: string; sharing: unknown }> | null;
 }
 
@@ -158,7 +161,7 @@ export function buildChannelRegistry(channels: readonly LoadedChannel[], opts: R
     if (!parsed.ok) throw new RegistryError(name, 1, parsed.problem);
     if (parsed.manifest.id !== name) throw new RegistryError(name, 1, { reason: 'manifest_id_not_folder', detail: `id "${parsed.manifest.id}" in folder "${name}"` });
     if (checked.some((x) => x.manifest.id === name)) throw new RegistryError(name, 1, { reason: 'channel_id_duplicate', detail: `two folders "${name}"` });
-    checked.push({ manifest: parsed.manifest, ltiProfiles: c.ltiProfiles === undefined ? null : c.ltiProfiles.map(profileFacts).filter((p) => p !== null) });
+    checked.push({ manifest: parsed.manifest, appAdapter: c.appAdapter, ltiProfiles: c.ltiProfiles === undefined ? null : c.ltiProfiles.map(profileFacts).filter((p) => p !== null) });
   }
   // Check 2: every profile id belongs to one channel only (its registration lists and, when loaded, its LTI profiles).
   const profileOwner = new Map<string, string>();
@@ -216,6 +219,7 @@ export function buildChannelRegistry(channels: readonly LoadedChannel[], opts: R
     .sort((a, b) => a.manifest.card.order - b.manifest.card.order || (a.manifest.id < b.manifest.id ? -1 : a.manifest.id > b.manifest.id ? 1 : 0));
   const manifests = deepFreeze(visible.map((c) => c.manifest));
   const byId = new Map(manifests.map((m) => [m.id, m]));
+  const appAdapters = new Map(visible.map((c) => [c.manifest.id, c.appAdapter ?? null]));
   const visibleOwner = (owners: Map<string, string>, key: string): string | null => {
     const owner = owners.get(key);
     return owner !== undefined && byId.has(owner) ? owner : null;
@@ -227,6 +231,7 @@ export function buildChannelRegistry(channels: readonly LoadedChannel[], opts: R
   return {
     channels: () => manifests,
     channel: (id) => byId.get(id) ?? null,
+    appAdapter: (id) => appAdapters.get(id) ?? null,
     channelOfProfile: (profileId) => visibleOwner(profileOwner, profileId),
     ownerOfFamily: (family) => visibleOwner(familyOwner, family.toLowerCase()),
     textName: (channelId) => (channelId === null

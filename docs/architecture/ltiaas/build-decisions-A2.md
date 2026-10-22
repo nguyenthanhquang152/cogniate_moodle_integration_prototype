@@ -227,3 +227,46 @@ Changes for the Lead to route:
 - **L (LA-E3-01):** the two AC-06 tests.
 
 No QA K1-SIM criterion changes.
+
+## 19. Round 18: the bounded key re-wrap run (LA-E5-09, lane S2) and the LA-E1-07 channel helpers (lane K), 2026-10-22
+
+Routed in dispatch `ctx_0b48c6aaf499`. Decisions sent to the Lead first (`msg_522b4cb8f44b`), because S2 waited.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-36 | LA-E5-09 item 4: the shared runner has a fixed 60 s lease and no renewal. S2 proposed a bounded run (check the live lease in each batch transaction, yield between batches, stop on the signal or the lease deadline, resume at the next operator call). What are the audit result and details of an interrupted or failed run? Does the job-end event also record `legacyBlobs: refused` (two events, no third)? | **Ratified, with rules:** one synchronous transaction per batch with a compare-and-set update; at least 10 s of lease left and `ctx.signal` not aborted at each batch start; `partial` when stopped; no automatic re-run. **Exactly two events:** the request event and one job-end event (`outcome`, counts, `stopReason`, `legacyBlobsRefused`). The setting is stored in the same transaction as the end event. A failed run: earlier batches stay; its end event has `result: failed` and the error class. | LA-ADR-06 D4 (`result` row), D6 ("Re-wrap", "Legacy refusal"); contract delta §5; LA-E5-09 design notes | It fits the BD-A2-31 stop order: batches take milliseconds and never start late, so the 70 s fallback and the 75 s Docker grace never cut one. `failed` is a new value of the audit result for job-end events only (one line in S1's type). Progress is visible in `GET /operator/v1/key-provider`. |
+| BD-A2-37 | LA-E1-07 Reviewer-B MAJOR: the channel `app.ts` files copy `TOOL_ACCOUNT`, `toolName`, `toolUrls`, `PRINTABLE_ID`, `GRANT_CODE` and `parseStrictBody`. Move them to `@cogniate/shared/channel`? | **No; none goes on that list.** `TOOL_ACCOUNT` and `toolUrls` are configuration and protocol-URL building with one owner, so the kernel passes them in the port context (no hard-coded `'cogniate'` or `/lti/launch/` in channels). `toolName`, `PRINTABLE_ID`, `GRANT_CODE` and `parseStrictBody` belong to the kernel setup contract (one definition, shared with the kernel admin-value adapter). A1 chooses context or a pure kernel value sub-path (LA-ADR-01 D1); a sub-path follows the BD-A2-11 conditions. | security-delta §8 "Channel import fence" | `@cogniate/shared` also serves the LTI service and the content host, so it must not hold the app's channel contract. The grant-code grammar is a security grammar and must have one definition. |
+
+Changes for the Lead to route:
+- **S2 (LA-E5-09):** the bounded run and its tests. **S1 (RQ-1):** the value `failed` in the audit result type, plus your approved settings and wiring requests.
+- **A1:** the import form for the kernel helpers (port context, or a kernel value sub-path under the BD-A2-11 conditions).
+- **K (LA-E1-07 fix round):** move the six helpers after A1's call.
+
+## 20. Round 19: decrypt metadata, port-context security, the `record_dispatch` order, the login page text, 2026-10-22
+
+Routed in dispatch `ctx_cf668b8b25ae`. Decisions sent to the Lead first (`msg_52355f94de85`), because S2 and R waited.
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-38 | LA-E5-09 (S2): a legacy blob whose IV looks like a valid `cgk1` header makes the structural check report the active version, although it opens only through the legacy fallback. S2 proposed `openWithMetadataSync(blob, aad)` (plaintext, authenticated version, `legacyFormat`), with `openSync` and `open` unchanged. | **Ratified**, in its own commit. Re-wrap and the legacy refusal use only authenticated metadata. The `hasBlobHeader` export is dropped. The structural parse stays for counts and readiness, so a version leaves the ring only after a complete re-wrap. | LA-ADR-06 D6 ("Legacy refusal", "Status"); operability §6.3 CAUTION; LA-E5-09 design notes | With a structural check, the refusal could be stored while one legacy blob remains, and that tool key would never open again. One decryption gives both the value and its true form. |
+| BD-A2-39 | A1 BD-A1-37 [A2] points: `publicToolKeys()` copies only `kty`, `kid`, `alg`, `use`, `n`, `e` for the call's library; `buildQueue` checks the build id, uses three fixed folders, writes only `requests/` (`0600`, atomic), caps the status size. Anything missing? | **The points stand; four additions.** (1) **Tenant**: a build id is bound to the submitting library; another library's id gives `404`. (2) No symlinks: regular files only, `O_EXCL` temp then rename, folders `0700`. (3) A status file is untrusted: size cap, strict closed schema, values as data only. (4) `download`: fixed extension list, attachment with `nosniff`. Also for keys: string members only, `kty` `RSA`, the published set only, no cache across libraries. | security-delta §8 new row "Channel port context" | The build runner processes untrusted course packages (security §7), so its files are untrusted input. A build id with no library binding would let one library read another library's build status or package. |
+| BD-A2-40 | LA-E4-02 (R): the frozen `rowid` statements for results and `latestSyncStatus` must now query `record_dispatch`, and the `014` backfill needs `ORDER BY s.rowid` to keep the creation order. | **`record_dispatch` gets `seq` now** (`INTEGER NOT NULL`, unique, `MAX(seq) + 1` in the write transaction; A1 adds it to the data-model `014` sketch). The two moved statements order by `created_at, seq`, and their baseline entries are **deleted**. The `014` backfill sets `seq` with `ROW_NUMBER() OVER (ORDER BY s.created_at, s.rowid)`: listed SQLite-adapter item (d), with an exact F5 allow entry. `results.ts:33` still orders the legacy `attempt` table, so its entry is **replaced one for one** (no growth). The baseline goes from 9 to 7. | LA-ADR-06 D13 rule 2 (item (d), baseline sentence) and item 6 (a) | New LA SQL has no `rowid` (BD-A2-22). `learning_record` needs no `seq`. LG makes `seq` an identity column. |
+| BD-A2-41 | LA-E3-01 Reviewer-B NIT: the platform-storage login page is blank. | **Static text**: visible "Opening the activity. Please wait."; `<noscript>`: "This activity needs JavaScript. Turn on JavaScript in your browser, then open the activity again from your course." No request data in it. | contract delta §2.1 (login page row); LA-E3-01 design notes | A learner with slow or blocked scripts sees a reason and an action. The CSP does not change. |
+
+Changes for the Lead to route:
+- **S2 (LA-E5-09):** `openWithMetadataSync` in its own commit, and the collision unit test.
+- **K (LA-E1-08):** the BD-A2-39 additions, especially the build-id library binding.
+- **A1:** `record_dispatch.seq` in the data-model `014` sketch and the LA-E4-02 spec.
+- **R (LA-E4-02):** the `seq` column, its insert, the backfill, and the exact SQL for P.
+- **P:** one F5 commit (delete two baseline entries, replace one, add the `014` migration allow entry).
+- **L (LA-E3-01):** the static page text.
+
+## 21. Round 20: the failed re-wrap outcome without a schema change (LA-E5-09, lane S2), 2026-10-22
+
+S2's follow-up to BD-A2-36, routed in dispatch `ctx_036efe7bc769`. Decision sent to the Lead first (`msg_03636c06cb23`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-42 | (1) `audit_event` of migration `007` has `CHECK (result IN ('ok','refused'))`, so the `failed` result of BD-A2-36 needs a table-rebuild migration (keep the `007`/`008` guards, rows and indexes). Or another form? (2) The meaning and shape of `details.remaining`. | **Changes BD-A2-36.** (1) **No schema change:** a job-end event always has `result: ok` and no `code`; the job outcome is `details.outcome` and an exception class is `details.errorClass`. The `failed` audit result value is withdrawn (S1 removes it from the type if it was added); no migration `017`. (2) **Details shape:** `{ outcome, rewrapped, skippedChanged, notReached, unreadable, unreadableVersions?, stopReason?, errorClass?, legacyBlobsRefused? }`. `failed` = an unreadable row (the run goes on) or an exception. The refusal is stored only for `complete`. No per-version counts in the event; `GET /operator/v1/key-provider` gives that view. | LA-ADR-06 D4 (`result` row), D6 ("Re-wrap"); contract delta §5; LA-E5-09 design notes | A rebuild of the append-only audit table means dropping and re-creating its guards and copying every row. That is an integrity risk and a SQLite-only pattern (D13), for a rare event. Per-version counts for rows that the run did not reach would need extra decryption; `notReached` and `unreadable` are exact without it. The `job_run` log line keeps `result: failed` for alerts. |
+
+Changes for the Lead to route: **S2** builds the details shape. **S1** removes `'failed'` from the audit result type if its RQ-1 commit added it; S1 makes no audit migration. Migration number `016` stays with S2.

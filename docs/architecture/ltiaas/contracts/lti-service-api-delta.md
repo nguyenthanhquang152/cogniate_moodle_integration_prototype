@@ -134,7 +134,7 @@ New optional input `lti_storage_target` (query or form body; ≤ 64 characters; 
 | Case | Answer |
 | --- | --- |
 | The platform profile has `platformStorage: null`, or it is `from-login` and the login has no `lti_storage_target` | `302` exactly as §2.1 |
-| The profile has `platformStorage` and a target exists (the parameter, or the profile's fixed frame name) | `200 text/html` login page. Headers: `Set-Cookie` (the same state cookie as §2.1), `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, CSP `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'none'; base-uri 'none'`. The page reads its values from one escaped JSON block, sends `lti.put_data` (key `cog_state_<d>`, `<d>` = the first hex digit of the state hash) to the storage origin, waits ≤ 1.5 s, then navigates to the auth URL. The auth URL equals the `Location` that the `302` would have. |
+| The profile has `platformStorage` and a target exists (the parameter, or the profile's fixed frame name) | `200 text/html` login page. Headers: `Set-Cookie` (the same state cookie as §2.1), `Cache-Control: no-store`, `Referrer-Policy: no-referrer`, CSP `default-src 'none'; script-src 'nonce-…'; frame-ancestors https:; form-action 'none'; base-uri 'none'`. The page reads its values from one escaped JSON block, sends `lti.put_data` (key `cog_state_<d>`, `<d>` = the first hex digit of the state hash) to the storage origin, waits ≤ 1.5 s, then navigates to the auth URL. The auth URL equals the `Location` that the `302` would have. Static page text (BD-A2-41; no request data): visible "Opening the activity. Please wait."; in `<noscript>`: "This activity needs JavaScript. Turn on JavaScript in your browser, then open the activity again from your course." |
 
 Rate limit: class `protocol`. Suspended account: §1.5.
 
@@ -362,7 +362,7 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `POST …/api-keys`, `…/revoke` | `api_key.issue`, `api_key.revoke` | `api_key` |
 | `POST …/signing-keys`, `…/activate`, `…/retire` | `signing_key.create`, `signing_key.activate` (`details.forced`), `signing_key.retire` | `signing_key` |
 | `POST …/shared-platforms` | `platform.create_shared` | `platform` |
-| `POST /operator/v1/key-provider/rewrap` | `key_provider.rewrap` (one more event at the job end with counts) | `key_provider` |
+| `POST /operator/v1/key-provider/rewrap` | `key_provider.rewrap` (one more event at the job end, actor `system:key-rewrap`, `result: ok`: `details.outcome` `complete`, `partial` or `failed`, the counts `rewrapped`, `skippedChanged`, `notReached`, `unreadable`, and `legacyBlobsRefused: true` when that run stored the setting; an exception gives `outcome: failed` with `details.errorClass`; BD-A2-36, BD-A2-42) | `key_provider` |
 | `PATCH /operator/v1/rate-limits` | `settings.rate_limits` | `settings` |
 | `POST`, `…/revoke /operator/v1/operator-keys` | `operator_key.issue`, `operator_key.revoke` | `operator_key` |
 | `POST /operator/v1/jobs/:name/run` (Should) | `job.run` | `job` |

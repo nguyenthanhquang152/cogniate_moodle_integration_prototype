@@ -70,7 +70,7 @@ flowchart LR
 | Typecheck | Two configs under `packages/channels/`: `tsconfig.node.json` (`*/*.ts`, that is the root entries and root tests, and `*/app/**`; BD-A1-16) and `tsconfig.portal.json` (`*/manifest.ts`, `*/portal/**`, `jsx`, DOM libraries). The root `npm run typecheck` runs both. |
 | Unit tests | The root `vitest.config.ts` includes `packages/channels/*/**/*.test.{ts,tsx}`; portal-side tests use the portal's jsdom setup by file pattern. |
 | Lint | `eslint.config.js` gets one block per channel glob: the import table below (F3) and the LMS-name rule scope (F1). |
-| Styles and dev server | `apps/portal/src/styles.css` gets `@source "../../../packages/channels/*/portal";` (Tailwind v4 does not scan files outside the portal by itself). `apps/portal/vite.config.ts` gets `server.fs.allow` for `packages/channels` and the alias `@cogniate/portal-sdk` (P11). |
+| Styles and dev server | `apps/portal/src/styles.css` gets `@source "../../../packages/channels/*/portal/**/*.{ts,tsx}";` (the file-glob form, as built in LA-E1-11; the folder form did not scan the moved styles) (Tailwind v4 does not scan files outside the portal by itself). `apps/portal/vite.config.ts` gets `server.fs.allow` for `packages/channels` and the alias `@cogniate/portal-sdk` (P11). |
 | Profile data | Registry load check 7 (D4) validates every profile against one `ProviderProfile` schema with a closed trait set. |
 
 QA probe (with the canary): a type error and a failing unit test in a scratch channel folder each fail `npm run check`.
@@ -81,7 +81,7 @@ Import rules (ESLint `no-restricted-imports`, added in E1 step S2):
 | --- | --- |
 | `packages/channels/*/manifest.ts` | `@cogniate/channel-kernel` types only |
 | `packages/channels/*/lti-profiles.ts` | kernel types, its own `manifest.ts` |
-| `packages/channels/*/app.ts` | kernel types, the app port types (`services/cogniate-app/src/kernel/ports.ts`), values from `@cogniate/shared/channel` and types from `@cogniate/shared` (A2 BD-A2-11; A1 BD-A1-18: the pure helpers, for example the site rules of the Moodle six-value parser), its own `manifest.ts` and its own `app/**` (BD-A1-16, for the P5–P7 handlers of D5). No `fetch`, `WebSocket` or `process`. `app.ts` is pure: no database, no LTI call, no context. An `app/**` module does no work when it loads (no I/O and no timer at top level); its functions get the `PortContext` at call time. |
+| `packages/channels/*/app.ts` | kernel types, the app port types (`services/cogniate-app/src/kernel/ports.ts`), values from the pure kernel setup sub-path `@cogniate/channel-kernel/setup` (`toolName`, `PRINTABLE_ID`, `GRANT_CODE`, `parseStrictBody`; BD-A1-40), values from `@cogniate/shared/channel` and types from `@cogniate/shared` (A2 BD-A2-11; A1 BD-A1-18: the pure helpers, for example the site rules of the Moodle six-value parser), its own `manifest.ts` and its own `app/**` (BD-A1-16, for the P5–P7 handlers of D5). No `fetch`, `WebSocket` or `process`. `app.ts` is pure: no database, no LTI call, no context. An `app/**` module does no work when it loads (no I/O and no timer at top level); its functions get the `PortContext` at call time. |
 | `packages/channels/*/app/**` | the same, and its own files. From `@cogniate/shared`: values only through the allow-list sub-path `@cogniate/shared/channel`, the root only with `import type`, no other sub-path ([security delta §8](../security-delta.md#8-tenant-isolation), channel import fence; BD-A2-11). No `fetch`, `WebSocket` or `process`. Its functions get a `PortContext` (D5) from the kernel at call time. |
 | `packages/channels/*/portal/**` | kernel types, `@cogniate/portal-sdk` (the folder `apps/portal/src/sdk/`, P11), its own manifest, React. Never other portal code. |
 | `apps/portal/src/sdk/**` | portal code (UI kit, API client, hooks, DTO types, error helpers). It is the one portal folder that a channel module may import. |
@@ -296,7 +296,11 @@ export interface PortContext {                 // made by the kernel per call; a
   outbound: GuardedClient;                     // the shared SSRF-guarded client (security §9)
   seal(value: string): Promise<Uint8Array>; unseal(blob: Uint8Array): Promise<string>;  // async, as the key provider (LA-ADR-06 D6)
   logger: Logger; traceId: string; now(): number;
+  // BD-A1-37 (P5): public values and the public tool keys, for setup artifacts such as the Canvas JSON.
+  urls: PublicUrls; libraryName: string; toolAccountId: string;
+  publicToolKeys(): Promise<{ ok: true; keys: PublicJwk[] } | { ok: false }>;  // public members only, active key first
 }
+export interface PublicJwk { kty: string; kid: string; alg: string; use: string; n: string; e: string }
 export interface ChannelSql {                  // the kernel binds :library_id (and :connection_id when not null)
   get<T>(statement: string, params?: Record<string, unknown>): T | undefined;
   all<T>(statement: string, params?: Record<string, unknown>): T[];
@@ -305,21 +309,33 @@ export interface ChannelSql {                  // the kernel binds :library_id (
 export interface ExtensionRoute {              // P5: mounted under /app-api/connections/:id/
   method: 'GET' | 'PUT' | 'POST'; path: string;              // a frozen legacy path (D8) or `x/<name>`
   capability: CapabilityId; legacyCapabilityName?: string;   // the guard and its frozen details.capability value
-  handle(input: { body: unknown; query: Record<string, string> }, ctx: PortContext): Promise<{ status: number; body: unknown; headers?: Record<string, string> }>;
+  handle(input: { body: unknown; query: Record<string, string> }, ctx: PortContext): Promise<
+    | { status: number; body: unknown; headers?: Record<string, string> }
+    | { error: { status: number; code: string; message: string; details?: Record<string, unknown> } }>;  // BD-A1-37: the kernel renders the standard error body
 }
 export interface PublishHook {                 // P6: runs after POST /app-api/publications
   option: string;                              // the frozen body flag that turns it on (`createMoodleCourse`)
   capability: CapabilityId;                    // publish.createCourse
-  afterPublish(p: PublicationView, ctx: PortContext): Promise<void>;
+  parseOptions(value: unknown): { ok: true; options: unknown } | { ok: false; fields: string[] };  // BD-A1-37: the body flag value, checked before any change
+  afterPublish(p: PublicationView, options: unknown, ctx: PortContext): Promise<void>;
   dtoFields(p: PublicationView, ctx: PortContext): Record<string, unknown>;  // only frozen field names (D8)
 }
 export interface PackageExporter {             // P7: course-version level, no connection
   id: string;                                  // 'mbz'
   formats: readonly string[];                  // ['scorm12']
-  start(v: CourseVersionView, ctx: PortContext): Promise<ExportBuildView>;
-  latest(v: CourseVersionView, ctx: PortContext): ExportBuildView | null;
-  download(v: CourseVersionView, ctx: PortContext): Promise<{ path: string; mediaType: string; filename: string } | null>;
+  start(v: CourseVersionView, ctx: ExporterContext): Promise<ExportBuildView>;
+  latest(v: CourseVersionView, ctx: ExporterContext): Promise<ExportBuildView | null>;   // BD-A1-37: async (refreshes the runner status)
+  download(v: CourseVersionView, ctx: ExporterContext): Promise<{ artifact: string; mediaType: string; filename: string } | null>; // the kernel streams it
 }
+export interface ExporterContext extends PortContext { buildQueue: BuildQueue }
+export interface BuildQueue {                  // BD-A1-37: a kernel service on BUILD_QUEUE_DIR; a channel never sees a path
+  submit(buildId: string, request: Record<string, unknown>): Promise<void>;  // requests/<id>.json, atomic, mode 0600
+  status(buildId: string): Promise<unknown | null>;   // status/<id>.json, parsed, size-capped; null when absent
+  runner(): Promise<unknown | null>;                  // status/runner.json
+}
+// PublicationView, CourseVersionView, ExportBuildView (today's mbz build DTO fields), ProfileView: explicit interfaces
+// in kernel/ports.ts with the fields a channel may read; ports.ts imports types only from @cogniate/channel-kernel and
+// @cogniate/shared, never from domain/**, clients/** or app/** (BD-A1-37, BD-A1-38).
 ```
 
 | Rule | Detail |
@@ -328,6 +344,11 @@ export interface PackageExporter {             // P7: course-version level, no c
 | Tables | Channel SQL may name only the tables and columns that its manifest lists in `storage` (Moodle: `mbz_build`; `connection.ws_*`; `publication.moodle_course_*`, `shell_*`). Fitness check F5 refuses other names in channel SQL. A2's "no database handle" rule (LA-ADR-07 D1) means no raw handle; `ChannelSql` is the bound handle. |
 | DTO fields | A channel cannot add a field to a core DTO in LA. The frozen publication fields `moodleCourse`, `shellStatus`, `shellError` come from the Moodle hook's `dtoFields`; the kernel accepts only names in `legacy-wire.ts`. |
 | Body flags | The kernel publish route parses the frozen flag `createMoodleCourse` (a `legacy-wire.ts` name) and calls the hook whose `option` equals it; a channel without the capability gets the M1 guard (`409 CAPABILITY_NOT_SUPPORTED`, `courseShell`). |
+| Port context values (BD-A1-37) | `urls`, `libraryName` and `toolAccountId` are the values of the call's library. `publicToolKeys()` asks the LTI service for that tool account only and copies only `kty`, `kid`, `alg`, `use`, `n`, `e`; on an LTI error it gives `{ ok: false }`, and the route answers its own frozen error through the `error` result. NOT_FOUND and the capability guard run in the kernel before `handle`. Security review: A2. |
+| Build queue (BD-A1-37) | `buildQueue` exists only on the P7 context. The kernel accepts a build id only when it matches `[A-Za-z0-9_-]{1,64}`, uses only the `requests/`, `status/` and `out/` folders of `BUILD_QUEUE_DIR`, writes only `requests/` (mode `0600`, write then rename), caps the size of a status file before it parses it, and streams `out/<buildId>.<ext>` for `download`. Channel files never import `node:fs` or `node:path` (BD-A1-16). Security review: A2. |
+| Contract file (BD-A1-38) | `kernel/ports.ts` holds only the channel contract, with one doc comment per member and the required rules of BD-A1-20 and BD-A1-28. Kernel-internal types (for example `SetupRouteDeps` with the database, the LTI client and the master key) live in a kernel-internal module that channel files cannot import. Channel files also refuse `eval`, implied eval and `new Function` (lint). |
+| Setup helpers (BD-A1-40; A2 BD-A2-37) | Deployment and tenant values come through the contexts, built by the kernel: the P2 contexts (`ToolConfigurationContext`, `CreateRequestContext`) and the P5 `PortContext` carry `toolAccountId` and `toolUrls` (`login`, `launch`, `keys`, `register`, `ltiOrigin`). A channel file holds no tool account id and no protocol path. The pure helpers `toolName`, `PRINTABLE_ID`, `GRANT_CODE` and `parseStrictBody` have one definition in `@cogniate/channel-kernel/setup` (`packages/channel-kernel/src/setup.ts`, package export `./setup`), which the app kernel admin-value adapter uses too. The BD-A2-11 conditions apply: pure, export names pinned by a unit test, a list change is a Reviewer-A item. None of them is on `@cogniate/shared/channel`. |
+| Channel storage (BD-A1-42) | The manifest `storage` list names every table and column that channel SQL touches, also the neutral key columns it scopes or joins on (for example `connection.id`, `library_id`, `site_url`, `updated_at`; `publication.id`, `connection_id`, `updated_at`); no wildcard; F5 `channel-sql-tables` checks it. Core data such as export metadata comes through the explicit views (`CourseVersionView`), never through channel SQL on core course tables. |
 
 **Portal module (P11; Reviewer-B B-LAD-02).** Sketch, `apps/portal/src/sdk/index.ts` (alias `@cogniate/portal-sdk`):
 

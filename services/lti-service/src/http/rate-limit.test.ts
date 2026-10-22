@@ -119,12 +119,45 @@ describe('class policy', () => {
     try {
       h.limiter.replaceSettings({ classes: { auth_failure: { ratePerMinute: 60, burst: 1 } } });
       recordAuthFailure(h.limiter, '192.0.2.1');
-      expect(() => h.limiter.check('auth_failure', '192.0.2.1', undefined, false)).toThrow('RATE_LIMITED');
-      expect(() => h.limiter.check('auth_failure', '192.0.2.2', undefined, false)).not.toThrow();
+      expect(() => h.limiter.refuseIfBlocked('192.0.2.1')).toThrow('RATE_LIMITED');
+      expect(() => h.limiter.refuseIfBlocked('192.0.2.2')).not.toThrow();
       h.clock.now = 1000;
-      expect(() => h.limiter.check('auth_failure', '192.0.2.1', undefined, false)).not.toThrow();
+      expect(() => h.limiter.refuseIfBlocked('192.0.2.1')).not.toThrow();
       expect(() => recordAuthFailure(h.limiter, '192.0.2.1')).not.toThrow();
     } finally { h.db.close(); }
+  });
+
+  it.each(['api', 'admin', 'operator', 'protocol', 'registration', 'keys', 'auth_failure'] as const)(
+    'BD-A2-30: %s exposes only its allowed budget and joins the first refusal to its trace', (name) => {
+      const h = fixture();
+      try {
+        const limit = { ratePerMinute: 1, burst: 1 };
+        h.limiter.replaceSettings({ classes: { [name]: limit } });
+        const address = ['protocol', 'registration', 'keys', 'auth_failure'].includes(name);
+        const key = address ? '192.0.2.1' : 'key-id';
+        h.limiter.check(name, key, undefined, 'allowed-trace');
+        for (const trace of ['refused-trace', 'later-trace']) {
+          try { h.limiter.check(name, key, undefined, trace); expect.fail('must refuse'); }
+          catch (err) {
+            expect(err).toMatchObject({ details: { retryAfter: 60, limit: address ? { class: name } : { class: name, ...limit } } });
+            expect((err as { details: { limit: unknown } }).details.limit).toEqual(address ? { class: name } : { class: name, ...limit });
+          }
+        }
+        expect(h.lines).toHaveLength(1);
+        expect(h.lines[0]).toMatchObject({ event: 'rate_limited', trace_id: 'refused-trace', class: name,
+          key_kind: address ? 'address' : name === 'operator' ? 'operator_key' : 'api_key',
+          ...(address ? { client_ip: key } : { key_id: key }) });
+        expect(h.lines[0]).not.toHaveProperty(address ? 'key_id' : 'client_ip');
+      } finally { h.db.close(); }
+    },
+  );
+
+  it('names the invalid environment setting path and integer rule', () => {
+    const db = openDb(':memory:');
+    try {
+      expect(() => new RateLimiter(db, capturingLogger().logger, Date.now, '{"classes":{"api":{"ratePerMinute":5,"burst":0.5}}}'))
+        .toThrow(/LTI_RATE_LIMITS: classes.api.burst:.*int/);
+    } finally { db.close(); }
   });
 
   it.each(['{', '{"classes":{"unknown":{"ratePerMinute":1,"burst":1}}}', '{"classes":{"api":{"ratePerMinute":0,"burst":1}}}'])(
@@ -170,11 +203,30 @@ describe('trusted proxy addresses', () => {
     } finally { proxy.close(); }
   });
 
+  it('logs each unresolved host once per refresh and recovers within five seconds', async () => {
+    vi.useFakeTimers();
+    const { logger, lines } = capturingLogger();
+    const resolve = vi.fn().mockRejectedValueOnce(new Error('DNS unavailable')).mockResolvedValue([{ address: '192.0.2.1' }]);
+    const proxy = await createTrustedProxy('proxy,proxy', resolve, logger);
+    try {
+      expect(proxy.trust('192.0.2.1')).toBe(false);
+      expect(lines).toEqual([expect.objectContaining({ event: 'trusted_proxy_unresolved', host: 'proxy', level: 'warn' })]);
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(resolve).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(proxy.trust('192.0.2.1')).toBe(true);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(resolve).toHaveBeenCalledTimes(2);
+      expect(lines).toHaveLength(1);
+    } finally { proxy.close(); }
+  });
+
   it('an empty list trusts no forwarded address; bad CIDRs stop startup', async () => {
     const proxy = await createTrustedProxy('');
     expect(proxy.trust('127.0.0.1')).toBe(false);
     proxy.close();
-    await expect(createTrustedProxy('10.0.0.0/33')).rejects.toThrow('TRUSTED_PROXY_CIDRS');
+    await expect(createTrustedProxy('10.0.0.0/8, 192.168.1.1/40')).rejects.toThrow('TRUSTED_PROXY_CIDRS: "192.168.1.1/40" is not a valid CIDR');
+    await expect(createTrustedProxy('proxy, bad@host')).rejects.toThrow('TRUSTED_PROXY_CIDRS: "bad@host" is not a valid address or host name');
     await expect(createTrustedProxy('::/129')).rejects.toThrow('TRUSTED_PROXY_CIDRS');
   });
 });
