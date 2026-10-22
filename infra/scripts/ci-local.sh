@@ -13,7 +13,7 @@ const root = process.cwd();
 const output = path.join(root, '.tmp/ci/sbom.cdx.json');
 const networkError = /\b(?:ENOTFOUND|EAI_AGAIN|EAI_FAIL|ECONNREFUSED|ECONNRESET|ETIMEDOUT|ESOCKETTIMEDOUT|ENETUNREACH|EHOSTUNREACH|ENETDOWN|EHOSTDOWN|ERR_SOCKET_TIMEOUT)\b/;
 const patterns = [
-  ['private_key', /-----BEGIN ((?:[A-Z0-9]+ )*PRIVATE KEY)-----(?:[\s\S]*?-----END \1-----)?/g],
+  ['private_key', /-----BEGIN ((?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?)-----(?:[\s\S]*?-----END \1-----)?/g],
   ['api_key', /ltis_[A-Za-z0-9_-]+/g],
   ['master_key', /(?<![a-fA-F0-9])[a-fA-F0-9]{64}(?![a-fA-F0-9])/g],
 ];

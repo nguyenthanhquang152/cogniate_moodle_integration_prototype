@@ -284,3 +284,20 @@ test('a complete private-key block cannot use an exception for a header search s
   assert.deepEqual(result.lines[4].findings, [{ file: allowed, line: 2, rule: 'private_key' }]);
   assert.ok(!result.stdout.includes('ZmFrZS1rZXktZm9yLXRoZS11bml0LXRlc3Q='));
 });
+
+test('detects PGP private-key blocks and leaves public-key blocks alone', (t) => {
+  const f = fixture(t);
+  const header = ['-----BEGIN PGP', 'PRIVATE KEY BLOCK-----'].join(' ');
+  const block = `${header}\nZmFrZS1wZ3Ata2V5\n${header.replace('BEGIN', 'END')}`;
+  f.put('probe.asc', block.replaceAll('PRIVATE', 'PUBLIC'));
+  assert.equal(f.run().status, 0);
+  f.put('probe.asc', `safe\n${block}`);
+  f.put('docs/header.md', header);
+  const result = f.run();
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.lines[4].findings, [
+    { file: 'docs/header.md', line: 1, rule: 'private_key' },
+    { file: 'probe.asc', line: 2, rule: 'private_key' },
+  ]);
+  assert.ok(!result.stdout.includes('ZmFrZS1wZ3Ata2V5'));
+});
