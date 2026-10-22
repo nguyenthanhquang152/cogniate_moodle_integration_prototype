@@ -176,7 +176,7 @@ export function checkRegistrationSessionCap(db: Db, limiter: RateLimiter, addres
 export type ProxyResolver = (host: string) => Promise<Array<{ address: string }>>;
 
 /** DNS failures remove trust until the next refresh; they never widen the trusted set. */
-export async function createTrustedProxy(value = process.env.TRUSTED_PROXY_CIDRS ?? '', resolve: ProxyResolver = (host) => lookup(host, { all: true })) {
+export async function createTrustedProxy(value = process.env.TRUSTED_PROXY_CIDRS ?? '', resolve: ProxyResolver = (host) => lookup(host, { all: true }), logger?: Logger) {
   const fixed = new BlockList();
   const hosts: string[] = [];
   for (const entry of value.split(/[\s,]+/).filter(Boolean)) {
@@ -187,30 +187,40 @@ export async function createTrustedProxy(value = process.env.TRUSTED_PROXY_CIDRS
       if (prefix === undefined) fixed.addAddress(address!, type);
       else if (extra === undefined && /^\d+$/.test(prefix) && Number(prefix) <= (family === 4 ? 32 : 128)) fixed.addSubnet(address!, Number(prefix), type);
       else throw new Error('TRUSTED_PROXY_CIDRS contains an invalid CIDR');
-    } else if (prefix === undefined && /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(entry)) hosts.push(entry);
+    } else if (prefix === undefined && /^(?=.{1,253}$)[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?$/i.test(entry)) { if (!hosts.includes(entry)) hosts.push(entry); }
     else throw new Error('TRUSTED_PROXY_CIDRS contains an invalid address or host');
   }
   let resolved = new BlockList();
   let closed = false;
   let refreshing: Promise<void> | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let unresolved = false;
   const refresh = (): Promise<void> => {
     refreshing ??= (async () => {
       const next = new BlockList();
       const results = await Promise.allSettled(hosts.map((host) => resolve(host)));
-      for (const result of results) {
-        if (result.status !== 'fulfilled') continue;
-        for (const { address } of result.value) {
-          const family = isIP(address);
-          if (family) next.addAddress(address, family === 4 ? 'ipv4' : 'ipv6');
+      unresolved = false;
+      for (const [index, result] of results.entries()) {
+        const addresses = result.status === 'fulfilled' ? result.value.filter(({ address }) => isIP(address)) : [];
+        if (addresses.length === 0) {
+          unresolved = true;
+          logger?.warn('trusted_proxy_unresolved', { host: hosts[index] });
         }
+        for (const { address } of addresses) next.addAddress(address, isIP(address) === 4 ? 'ipv4' : 'ipv6');
       }
       if (!closed) resolved = next;
-    })().finally(() => { refreshing = undefined; });
+    })().finally(() => {
+      refreshing = undefined;
+      clearTimeout(timer);
+      if (!closed && hosts.length) {
+        // Retry failed lookups promptly while keeping the trusted set closed.
+        timer = setTimeout(() => { void refresh(); }, unresolved ? 5_000 : MINUTE);
+        timer.unref();
+      }
+    });
     return refreshing;
   };
   await refresh();
-  const timer = hosts.length ? setInterval(() => { void refresh(); }, MINUTE) : undefined;
-  timer?.unref();
   return {
     trust: (address: string): boolean => {
       const ip = clientAddress(address);
@@ -218,6 +228,6 @@ export async function createTrustedProxy(value = process.env.TRUSTED_PROXY_CIDRS
       return family !== 0 && (fixed.check(ip, family === 4 ? 'ipv4' : 'ipv6') || resolved.check(ip, family === 4 ? 'ipv4' : 'ipv6'));
     },
     refresh,
-    close: () => { closed = true; clearInterval(timer); },
+    close: () => { closed = true; clearTimeout(timer); },
   };
 }

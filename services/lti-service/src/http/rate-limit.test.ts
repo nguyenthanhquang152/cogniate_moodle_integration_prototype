@@ -170,6 +170,24 @@ describe('trusted proxy addresses', () => {
     } finally { proxy.close(); }
   });
 
+  it('logs each unresolved host once per refresh and recovers within five seconds', async () => {
+    vi.useFakeTimers();
+    const { logger, lines } = capturingLogger();
+    const resolve = vi.fn().mockRejectedValueOnce(new Error('DNS unavailable')).mockResolvedValue([{ address: '192.0.2.1' }]);
+    const proxy = await createTrustedProxy('proxy,proxy', resolve, logger);
+    try {
+      expect(proxy.trust('192.0.2.1')).toBe(false);
+      expect(lines).toEqual([expect.objectContaining({ event: 'trusted_proxy_unresolved', host: 'proxy', level: 'warn' })]);
+      await vi.advanceTimersByTimeAsync(4_999);
+      expect(resolve).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(proxy.trust('192.0.2.1')).toBe(true);
+      await vi.advanceTimersByTimeAsync(5_000);
+      expect(resolve).toHaveBeenCalledTimes(2);
+      expect(lines).toHaveLength(1);
+    } finally { proxy.close(); }
+  });
+
   it('an empty list trusts no forwarded address; bad CIDRs stop startup', async () => {
     const proxy = await createTrustedProxy('');
     expect(proxy.trust('127.0.0.1')).toBe(false);

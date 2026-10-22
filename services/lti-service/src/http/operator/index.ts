@@ -91,7 +91,7 @@ export async function buildOperatorApp(deps: OperatorDeps): Promise<FastifyInsta
   const now = deps.now ?? Date.now;
   const log = deps.logger;
   const limiter = rateLimiterFor(deps.db, log, now);
-  const proxy = await createTrustedProxy();
+  const proxy = await createTrustedProxy(undefined, undefined, log);
   const app = Fastify({ logger: false, bodyLimit: BODY_LIMIT, return503OnClosing: false, trustProxy: proxy.trust });
   installApiBasics(app, log);
   app.addHook('onClose', async () => proxy.close());

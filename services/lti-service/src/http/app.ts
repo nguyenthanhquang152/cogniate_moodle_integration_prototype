@@ -107,7 +107,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   const now = deps.now ?? Date.now;
   const log = deps.logger;
   const limiter = rateLimiterFor(deps.db, log, now);
-  const proxy = await createTrustedProxy();
+  const proxy = await createTrustedProxy(undefined, undefined, log);
   const app = Fastify({
     logger: false, bodyLimit: BODY_LIMIT, maxParamLength: MAX_PARAM_LENGTH, return503OnClosing: false,
     trustProxy: proxy.trust,
