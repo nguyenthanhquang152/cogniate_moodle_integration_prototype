@@ -172,13 +172,14 @@ describe('idempotency on real admin routes (BD-A2-51)', () => {
 });
 
 const lineItems = 'https://lms.example.edu/lineitems';
-interface Course { platformId?: string; deploymentId?: string; contextId?: string; lineitems?: string }
+/** contextId null: a launch with no context claim (its service key stores context id ""). scope: the AGS scopes. */
+interface Course { platformId?: string; deploymentId?: string; contextId?: string | null; lineitems?: string; scope?: string[] }
 function lineItemAuth(h: Harness, course: Course = {}): string {
   const { ltik } = createLaunch(h.db, {
     toolAccountId: 'cogniate', platformId: course.platformId ?? h.platform.id, deploymentId: course.deploymentId ?? '1', messageType: 'LtiResourceLinkRequest',
     claims: moodleClaims({
-      [CLAIM.context]: { id: course.contextId ?? '2', label: 'UNIT' },
-      [CLAIM.ags]: { lineitems: course.lineitems ?? lineItems, scope: Object.values(AGS_SCOPES) },
+      [CLAIM.context]: course.contextId === null ? undefined : { id: course.contextId ?? '2', label: 'UNIT' },
+      [CLAIM.ags]: { lineitems: course.lineitems ?? lineItems, scope: course.scope ?? Object.values(AGS_SCOPES) },
     }),
   }, 3600, h.clock.now);
   return `LTIK-AUTH-V2 ${h.apiKey}:${ltik}`;
@@ -186,7 +187,8 @@ function lineItemAuth(h: Harness, course: Course = {}): string {
 function serviceAuth(h: Harness, course: Course = {}): string {
   const { serviceKey } = issueServiceKey(h.db, createLocalKeyProvider(legacyKeyRing(MASTER_KEY)), {
     toolAccountId: 'cogniate', platformId: course.platformId ?? h.platform.id, deploymentId: course.deploymentId ?? '1',
-    contextId: course.contextId ?? '2', resourceLinkId: '3', agsClaim: { lineitems: course.lineitems ?? lineItems, scope: Object.values(AGS_SCOPES) }, nrpsClaim: null,
+    contextId: course.contextId === null ? '' : course.contextId ?? '2', resourceLinkId: '3',
+    agsClaim: { lineitems: course.lineitems ?? lineItems, scope: course.scope ?? Object.values(AGS_SCOPES) }, nrpsClaim: null,
   }, h.clock.now);
   return `SERVICE-AUTH-V1 ${h.apiKey}:${serviceKey}`;
 }
@@ -256,6 +258,39 @@ describe('line item target (BD-A2-56)', () => {
     expect(count(h)).toBe(1);
   });
 
+  it('BD-A2-71: an ltik or a service key without the lineitem scope gets the current 403, not the stored 201', async () => {
+    const h = await fixture(); const seen = platformCreates(h);
+    const first = await callLineItem(h, lineItemAuth(h));
+    expect(first.statusCode).toBe(201);
+    const readOnly = { scope: [AGS_SCOPES.lineitemReadonly] };
+    // The service key keeps its value; a later launch narrowed its stored scope.
+    for (const authorization of [lineItemAuth(h, readOnly), serviceAuth(h, readOnly)]) {
+      const refused = await callLineItem(h, authorization);
+      expect([refused.statusCode, refused.json().details.message]).toEqual([403, 'SERVICE_NOT_AVAILABLE']);
+    }
+    expect(seen.creates).toBe(1);
+    expect((await callLineItem(h, serviceAuth(h))).body).toBe(first.body);
+  });
+
+  it('BD-A2-71: a refused preflight is never stored, so the authorized retry with the same key reaches the platform', async () => {
+    const h = await fixture(); const seen = platformCreates(h);
+    const refused = await callLineItem(h, serviceAuth(h, { scope: [AGS_SCOPES.lineitemReadonly] }));
+    expect([refused.statusCode, refused.json().details.message]).toEqual([403, 'SERVICE_NOT_AVAILABLE']);
+    expect(count(h)).toBe(0);
+    const created = await callLineItem(h, serviceAuth(h));
+    expect(created.statusCode).toBe(201);
+    expect(seen.creates).toBe(1);
+  });
+
+  it('LA-E3-03: a launch with no context and its service key (context id "") have one fingerprint', async () => {
+    const h = await fixture(); const seen = platformCreates(h);
+    const first = await callLineItem(h, lineItemAuth(h, { contextId: null }));
+    expect(first.statusCode).toBe(201);
+    const replay = await callLineItem(h, serviceAuth(h, { contextId: null }));
+    expect([replay.statusCode, replay.body]).toEqual([201, first.body]);
+    expect(seen.creates).toBe(1);
+  });
+
   it('gives a deactivated platform 403 PLATFORM_NOT_ACTIVE, not a replay, and keeps the stored answer', async () => {
     const h = await fixture(); const seen = platformCreates(h); const authorization = lineItemAuth(h);
     const first = await callLineItem(h, authorization);
@@ -294,4 +329,12 @@ it('stops the start when a selected route template is not registered (B-LA-E5-16
   app.post('/api/v2/lineitems', async () => ({}));
   await expect(app.ready()).rejects.toThrow(
     'Idempotency-Key: no POST route /api/platforms/:id/deployments, /api/lineitems. Update ROUTES in http/idempotency.ts to the new route template.');
+});
+
+it('stops the start when only a path parameter of a selected route is renamed (B-LA-E5-16-02 round 2)', async () => {
+  const app = Fastify();
+  cleanup.push(async () => { await app.close(); });
+  installIdempotency(app, {} as Parameters<typeof installIdempotency>[1]);
+  for (const url of ['/api/platforms', '/api/platforms/:platformId/deployments', '/api/lineitems']) app.post(url, async () => ({}));
+  await expect(app.ready()).rejects.toThrow('Idempotency-Key: no POST route /api/platforms/:id/deployments.');
 });

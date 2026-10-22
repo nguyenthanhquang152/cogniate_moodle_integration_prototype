@@ -18,6 +18,8 @@ export interface ToolAccount {
   limits: AccountLimits | null;
   claimPolicy: ClaimPolicy | null;
   serviceKeyWriteScope: 'context' | 'resource-link';
+  /** LA-ADR-06 D7 scheduled signing-key rotation (BD-A2-65); default false. */
+  autoRotate: boolean;
 }
 
 export type AccountStatus = 'active' | 'suspended' | 'closed';
@@ -31,7 +33,7 @@ export const DEFAULT_CLAIM_POLICY: ClaimPolicy = { mode: 'allowlist', keep: { na
 interface AccountRow {
   id: string; name: string; launch_url: string; deep_linking_url: string; registration_url: string;
   status: AccountStatus; status_changed_at: number; created_at: number; public_base_url: string | null;
-  limits: string | null; claim_policy: string | null; service_key_write_scope: 'context' | 'resource-link';
+  limits: string | null; claim_policy: string | null; service_key_write_scope: 'context' | 'resource-link'; auto_rotate: number;
 }
 
 const toAccount = (r: AccountRow): ToolAccount => ({
@@ -39,7 +41,7 @@ const toAccount = (r: AccountRow): ToolAccount => ({
   status: r.status, statusChangedAt: r.status_changed_at, createdAt: r.created_at, publicBaseUrl: r.public_base_url,
   limits: r.limits === null ? null : JSON.parse(r.limits) as AccountLimits,
   claimPolicy: r.claim_policy === null ? null : JSON.parse(r.claim_policy) as ClaimPolicy,
-  serviceKeyWriteScope: r.service_key_write_scope,
+  serviceKeyWriteScope: r.service_key_write_scope, autoRotate: r.auto_rotate === 1,
 });
 
 export const ACCOUNT_ID = /^[a-z0-9][a-z0-9-]{0,62}$/;
@@ -51,7 +53,9 @@ export interface NewAccount {
   id: string; name: string; launchUrl: string; deepLinkingUrl: string; registrationUrl: string;
   limits?: AccountLimits | null; claimPolicy?: ClaimPolicy | null;
 }
-export type AccountPatch = Partial<Omit<NewAccount, 'id'>> & { status?: AccountStatus; serviceKeyWriteScope?: ToolAccount['serviceKeyWriteScope'] };
+export type AccountPatch = Partial<Omit<NewAccount, 'id'>> & {
+  status?: AccountStatus; serviceKeyWriteScope?: ToolAccount['serviceKeyWriteScope']; autoRotate?: boolean;
+};
 
 /** Call within audit.change when the account, first signing key and audit must commit together. */
 export function createAccount(db: Db, input: NewAccount, now: number): ToolAccount {
@@ -79,11 +83,11 @@ export function updateAccount(db: Db, id: string, patch: AccountPatch, now: numb
     const current = requireWritableAccount(db, id);
     const next = { ...current, ...patch };
     db.prepare(`UPDATE tool_account SET name = ?, launch_url = ?, deep_linking_url = ?, registration_url = ?,
-      status = ?, status_changed_at = ?, limits = ?, claim_policy = ?, service_key_write_scope = ? WHERE id = ?`)
+      status = ?, status_changed_at = ?, limits = ?, claim_policy = ?, service_key_write_scope = ?, auto_rotate = ? WHERE id = ?`)
       .run(next.name, next.launchUrl, next.deepLinkingUrl, next.registrationUrl, next.status,
         next.status === current.status ? current.statusChangedAt : now,
         next.limits === null ? null : JSON.stringify(next.limits), next.claimPolicy === null ? null : JSON.stringify(next.claimPolicy),
-        next.serviceKeyWriteScope, id);
+        next.serviceKeyWriteScope, next.autoRotate ? 1 : 0, id);
     if (next.status === 'closed') {
       revokeAccountApiKeys(db, id, now);
       db.prepare('UPDATE service_key SET revoked_at = ? WHERE tool_account_id = ? AND revoked_at IS NULL').run(now, id);

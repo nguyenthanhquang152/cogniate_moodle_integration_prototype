@@ -1,6 +1,9 @@
+import { isIP } from 'node:net';
 import type { PublicUrls } from '@cogniate/shared';
-import { knobValue, loadPublicUrls, parseAllowlist, portFromEnv } from '@cogniate/shared';
+import { ConfigRefusedError, knobValue, loadPublicUrls, parseAllowlist, portFromEnv, readSecretSetting, readServiceKnobs } from '@cogniate/shared';
 import { simulationEnabled } from './profiles/index.ts';
+
+type Env = Record<string, string | undefined>;
 
 export interface LtiConfig {
   urls: PublicUrls;
@@ -11,10 +14,10 @@ export interface LtiConfig {
   operatorPort: number;
   /** Folder of lti.db (compose: /data = infra/.data/lti-service). */
   dataDir: string;
-  /** AES-256-GCM key for private key material (LTI_MASTER_KEY, 64 hex characters). */
+  /** AES-256-GCM key for private key material (LTI_MASTER_KEY or the file LTI_MASTER_KEY_FILE, 64 hex characters). */
   masterKey: Buffer;
   ltikTtlSeconds: number;
-  /** Compose profile: "default" or "acceptance" (T2b). */
+  /** STACK_PROFILE: "default", "acceptance" (T2b) or "production" (LA-ADR-06 D12). */
   profile: string;
   /** Hosts that may resolve to private addresses (dev: the Moodle host behind the stack proxy). */
   outboundAllowlist: string[];
@@ -22,14 +25,38 @@ export interface LtiConfig {
   simulationProfiles: boolean;
 }
 
-export function loadConfig(env: Record<string, string | undefined> = process.env): LtiConfig {
-  const masterHex = env.LTI_MASTER_KEY ?? '';
-  if (!/^[0-9a-f]{64}$/i.test(masterHex)) throw new Error('LTI_MASTER_KEY must be 64 hex characters (npm run gen-env)');
+/** 127.0.0.0/8, ::1 or localhost: an address that only this host can reach. */
+export function isLoopbackHost(host: string): boolean {
+  const bare = host.replace(/^\[(.*)\]$/, '$1').toLowerCase();
+  return bare === 'localhost' || bare === '::1' || (isIP(bare) === 4 && bare.startsWith('127.'));
+}
+
+/**
+ * LA-ADR-06 D12 (LA-E5-21): the settings that are not safe in the production profile, in this order. The first one
+ * refuses the start: one line config_refused {reason}, exit 1. The default and acceptance profiles skip this check.
+ */
+export function productionRefusal(env: Env, operatorHost: string): string | null {
+  if (readServiceKnobs('lti-service', env).active.length > 0) return 'test_knob_active';
+  if (env.LTI_PROVIDER_SIMULATION === 'on') return 'simulation_on';
+  if (parseAllowlist(env.OUTBOUND_PRIVATE_HOST_ALLOWLIST).length > 0) return 'private_host_allowlist';
+  // Only LTI_MASTER_KEY_FILE or the key-ring file may hold the key.
+  if (env.LTI_MASTER_KEY) return 'master_key_in_env';
+  if (!env.TRUSTED_PROXY_CIDRS?.trim()) return 'no_trusted_proxy';
+  if (!isLoopbackHost(operatorHost)) return 'operator_bind_not_loopback';
+  return null;
+}
+
+export function loadConfig(env: Env = process.env): LtiConfig {
   const profile = env.STACK_PROFILE && env.STACK_PROFILE !== '' ? env.STACK_PROFILE : 'default';
+  const operatorHost = env.OPERATOR_HOST?.trim() || '127.0.0.1';
+  const refusal = profile === 'production' ? productionRefusal(env, operatorHost) : null;
+  if (refusal) throw new ConfigRefusedError(refusal);
+  const masterHex = readSecretSetting(env, 'LTI_MASTER_KEY') ?? '';
+  if (!/^[0-9a-f]{64}$/i.test(masterHex)) throw new Error('LTI_MASTER_KEY must be 64 hex characters (npm run gen-env), or the file LTI_MASTER_KEY_FILE must hold them');
   return {
     urls: loadPublicUrls(env),
     port: portFromEnv('PORT', 4100),
-    operatorHost: env.OPERATOR_HOST?.trim() || '127.0.0.1',
+    operatorHost,
     operatorPort: portFromEnv('OPERATOR_PORT', 4110),
     dataDir: env.DATA_DIR ?? '/data',
     masterKey: Buffer.from(masterHex, 'hex'),
