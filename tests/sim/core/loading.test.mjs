@@ -31,7 +31,47 @@ test('HARNESS ONLY: missing Canvas is a startup error, never an implicit Blackbo
       fs.writeFileSync(badManifestPath, JSON.stringify(data, null, 2));
       return badManifestPath;
     };
+    // Committed tests/sim/hosts.json check (A-LA-E7-02-02):
     const baseManifest = JSON.parse(fs.readFileSync(path.join(source, 'hosts.json'), 'utf8'));
+    const committedManifest = loadHostManifest(path.join(source, 'hosts.json'));
+    const allAliases = committedManifest.providers.flatMap((p) => p.aliases);
+    const allAllowlist = committedManifest.providers.flatMap((p) => p.allowlist);
+    assert.equal(committedManifest.providers.length, 6);
+    assert.equal(allAliases.length, 16);
+    assert.equal(allAllowlist.length, 15);
+    assert.equal(allAliases.includes('canvas.school-a.sim.test'), true);
+    assert.equal(allAllowlist.includes('canvas.school-a.sim.test'), false);
+
+    // Re-posting an existing scenario id moves it to the newest position (A-LA-E7-02-03):
+    const orderRt = runtime();
+    await loadProviders(orderRt, ['blackboard'], { simDir: source });
+    orderRt.scenario({
+      id: 'sc-order-a',
+      provider: 'blackboard-sim',
+      clientId: 'client-order-1',
+      deploymentId: 'dA',
+      siteHost: 'learn-a.blackboard.sim.test',
+      tokenAudience: 'https://aud-first.sim.test',
+    });
+    orderRt.scenario({
+      id: 'sc-order-b',
+      provider: 'blackboard-sim',
+      clientId: 'client-order-1',
+      deploymentId: 'dA',
+      siteHost: 'learn-a.blackboard.sim.test',
+      tokenAudience: 'https://aud-second.sim.test',
+    });
+    orderRt.scenario({
+      id: 'sc-order-a',
+      provider: 'blackboard-sim',
+      clientId: 'client-order-1',
+      deploymentId: 'dA',
+      siteHost: 'learn-a.blackboard.sim.test',
+      tokenAudience: 'https://aud-reposted.sim.test',
+    });
+    const newestForClient = [...orderRt.scenarios.values()].reverse().find((s) => s.clientId === 'client-order-1');
+    assert.equal(newestForClient.id, 'sc-order-a');
+    assert.equal(newestForClient.tokenAudience, 'https://aud-reposted.sim.test');
 
     // Unknown version
     assert.throws(() => loadHostManifest(writeBad({ ...baseManifest, version: 2 })), /Unsupported simulator host manifest version/);
