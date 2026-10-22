@@ -1,6 +1,6 @@
 # LA-ADR-03: Learning-record core, record reporters and the job runner
 
-Status: Proposed (A1, milestone LA P2, 2026-10-22; P4 build ratification BD-A1-10 in D7, [build decisions A1](../build-decisions-A1.md)). Epic: E4 (core Must, extras Should). Terms: [terms §4](../terms.md#4-learning-records). Inputs: [plan v1 §3 E4](../../../team/ltiaas/plan.md), [R3 §7](../../../research/ltiaas/R3-extensibility-audit.md), [R4 §3.7](../../../research/ltiaas/R4-ops-readiness.md), [ADR-010](../../adr/ADR-010-grade-and-completion-policy.md), app contract [§10](../../contracts/cogniate-app-api.md#10-score-sync-worker--t5a-retry-schedule-and-resend-t5b).
+Status: Proposed (A1, milestone LA P2, 2026-10-22; P4 build ratifications BD-A1-10 and BD-A1-14 in D7, [build decisions A1](../build-decisions-A1.md)). Epic: E4 (core Must, extras Should). Terms: [terms §4](../terms.md#4-learning-records). Inputs: [plan v1 §3 E4](../../../team/ltiaas/plan.md), [R3 §7](../../../research/ltiaas/R3-extensibility-audit.md), [R4 §3.7](../../../research/ltiaas/R4-ops-readiness.md), [ADR-010](../../adr/ADR-010-grade-and-completion-policy.md), app contract [§10](../../contracts/cogniate-app-api.md#10-score-sync-worker--t5a-retry-schedule-and-resend-t5b).
 
 ## Context
 
@@ -135,33 +135,64 @@ Known difference A-T9-C01 (5 s retry while the line-item lookup fails) stays as 
 
 ### D7. One job runner for the outbox and the E5 jobs (Must)
 
-Each service has one job runner (shared code in `packages/shared`, new module `jobs`; reason: one interface for E4 and E5). The outbox is one queue job. A2's E5 jobs (retention, key re-wrap, scheduled signing-key rotation) are interval jobs ([LA-ADR-06](LA-ADR-06-service-operability.md)).
+Each service has one job runner (shared code in `packages/shared`, new module `jobs`; reason: one interface for E4 and E5). The runner creates no table: each service implements `JobStore` on its `job_instance` and `job_lease` tables, and each queue job brings its own due, lease, release and recovery statements; the store-contract suite (`jobs.testkit.ts`) checks them (LA-E4-02 for the app, LA-E5-19 for the LTI service). The outbox is one queue job. A2's E5 jobs (retention, key re-wrap, scheduled signing-key rotation) are interval jobs ([LA-ADR-06](LA-ADR-06-service-operability.md)).
 
 ```ts
-// packages/shared/src/jobs.ts (sketch)
+// packages/shared/src/jobs.ts: sketch of the interface built in LA-E4-01 (dba6dd2) plus BD-A1-10 (`id`).
+// The code and its doc comments are the reference; this sketch shows the shape (BD-A1-14, Reviewer-B B-LA-E4-01-06).
+export type Awaitable<T> = T | Promise<T>;            // a store may be sync (node:sqlite) or async (LA-E5-23)
+export type JobRole = 'web' | 'worker';               // JobInstanceRow, JobLeaseRow: the rows of data-model §3
+export interface JobContext {
+  instanceId: string; bootId: string;
+  leaseOwner: string;                                   // instanceId + '/' + bootId; only this owner records a result
+  traceId: string; now(): number; logger: Logger;
+  signal: AbortSignal;                                  // aborts on stop or on a lost instance id
+}
+export interface JobRunResult { result: 'ok' | 'failed'; counts?: Record<string, number> }
+export type RunNowResult = JobRunResult | { result: 'skipped_lease' };
+export interface QueueLimits { parallel: number; perPartition: number; leaseMs: number } // 4, fixed 1, 60 s
+export interface RecoveryScope { mode: 'start' | 'running'; instanceId: string; leaseOwner: string; now: number }
 export interface QueueJob<Item> {
   name: string;                                         // 'record-dispatch'
-  due(now: number, limit: number): Item[];              // rows with status pending, next_try_at <= now, not_before <= now, no live lease
+  due(now: number, limit: number): Awaitable<Item[]>;   // pending, due, no live lease; round-robin over partitions
   partition(item: Item): string;                        // fairness key
   id(item: Item): string;                               // row id; the runner cools a row that throws (BD-A1-10)
-  lease(item: Item, owner: string, until: number): boolean; // conditional update; false = someone else has it
-  run(item: Item, ctx: JobContext): Promise<void>;
-  limits: { parallel: number; perPartition: number; leaseMs: number };
+  lease(item: Item, owner: string, until: number, now: number): Awaitable<boolean>; // one conditional update
+  release(item: Item, owner: string): Awaitable<void>;  // clear the lease when `owner` still holds it
+  recover(scope: RecoveryScope): Awaitable<number>;     // start and running recovery ("Recovery" row)
+  run(item: Item, ctx: JobContext): Promise<void>;      // moves its row ("Row errors" row)
+  limits?: Partial<QueueLimits>;
 }
 export interface IntervalJob {
   name: string;                                         // 'retention', 'audit-retention', 'key-rewrap', 'signing-key-rotation'
   everyMs: number | null;                               // null = on demand only (key-rewrap)
   runAtStart: boolean;                                  // retention: true (today's start-up run)
-  run(ctx: JobContext): Promise<JobRunResult>;          // single-run lease: one row per job name in job_lease
+  leaseMs?: number;                                     // single-run lease (default 60 s); longer than the longest run
+  run(ctx: JobContext): Promise<JobRunResult>;
 }
-export interface JobRunResult { result: 'ok' | 'failed'; counts?: Record<string, number> }
-export interface JobContext { instanceId: string; bootId: string; traceId: string; now(): number; logger: Logger; signal: AbortSignal }
+export interface JobStore {                             // each service implements it on job_instance and job_lease
+  readInstance(instanceId: string): Awaitable<JobInstanceRow | null>;
+  claimInstance(row: { instanceId: string; bootId: string; role: JobRole; now: number }, staleBefore: number): Awaitable<boolean>;
+  heartbeat(instanceId: string, bootId: string, now: number): Awaitable<boolean>;
+  removeInstance(instanceId: string, bootId: string): Awaitable<void>;
+  readJobLease(name: string): Awaitable<JobLeaseRow | null>;   // also for GET /operator/v1/jobs (A2)
+  takeJobLease(name: string, owner: string, now: number, until: number): Awaitable<boolean>;
+  endJobLease(name: string, owner: string, at: number, result: JobRunResult['result']): Awaitable<void>;
+}
 export interface JobRunner {
+  readonly instanceId: string; readonly bootId: string; readonly leaseOwner: string;
   addQueue<Item>(job: QueueJob<Item>): void;
   addInterval(job: IntervalJob): void;
-  runNow(name: string): Promise<JobRunResult | { result: 'skipped_lease' }>; // the on-demand trigger (operator API, A2)
-  start(): void; stop(): Promise<void>;
+  runNow(name: string): Promise<RunNowResult>;          // the on-demand trigger (operator API, A2)
+  kick(name: string): void;                             // poll a queue job now (for example after a new dispatch row)
+  start(): void;
+  stop(): Promise<void>;                                // stop leasing, wait for runs (at most leaseMs), delete the heartbeat row
+  state(): 'idle' | 'waiting' | 'active' | 'stopping' | 'off';
 }
+export function createJobRunner(options: {
+  store: JobStore; logger: Logger; instanceId: string;  // JOB_INSTANCE_ID, ^[A-Za-z0-9-]{1,64}$ (BD-A1-10)
+  role?: 'web' | 'worker'; now?: () => number; pollMs?: number; bootId?: string; onConflict?: () => void;
+}): JobRunner;
 ```
 
 | Rule | Detail |
