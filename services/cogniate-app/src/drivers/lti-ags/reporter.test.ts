@@ -4,7 +4,7 @@ import { createLtiClient, LtiServiceError } from '../../clients/lti-client.ts';
 import { recordsFixture } from '../../kernel/records/records.testkit.ts';
 import type { DeliveryContext, DispatchView } from '../../kernel/records/types.ts';
 import { TEST_CHANNELS } from '../../testkit.ts';
-import { ltiAgsReporter } from './index.ts';
+import { ltiAgsReporter, NO_GRADEBOOK_COLUMN } from './index.ts';
 
 const masterKey = Buffer.alloc(32, 5);
 const now = 100_000;
@@ -72,6 +72,21 @@ describe('AC-LA-E4-03-01: AGS transport mapping', () => {
   it.each([[undefined, 60], ['30', 60], [null, 60], [-1, 1], [0, 1], [1.5, 2], [4000, 3600]])('normalizes Retry-After %s to %s seconds', async (value, seconds) => {
     const f = await fixture(); f.answer(429, 'PLATFORM_RATE_LIMITED', value);
     expect(await f.reporter.deliver(f.row, f.ctx)).toMatchObject({ kind: 'throttled', retryAt: now + Number(seconds) * 1000 });
+  });
+  it('B-LA-E4-03-03: a dispatch whose placement has no resource link fails locally at once', async () => {
+    const f = await fixture();
+    expect(await f.reporter.deliver({ ...f.row, placementId: 'rl_missing' }, f.ctx)).toEqual({ kind: 'local_failure', text: NO_GRADEBOOK_COLUMN });
+    expect(f.beginSend).not.toHaveBeenCalled(); expect(f.calls).toEqual([]);
+  });
+  it('B-LA-E4-03-03: stored texts keep the 300-character limit', async () => {
+    const f = await fixture(); f.answer(409, 'C'.repeat(400));
+    const outcome = await f.reporter.deliver(f.row, f.ctx);
+    expect(outcome).toMatchObject({ kind: 'conflict' });
+    expect(outcome && 'text' in outcome ? outcome.text : '').toBe(`409 ${'C'.repeat(296)}`);
+  });
+  it('B-LA-E4-03-02: the reporter computes the partition of a placement from its LTI platform', async () => {
+    const f = await fixture();
+    expect(f.reporter.partitionKey({ id: 'rl_learner', graded: true })).toBe('platform');
   });
   it('does not POST after beginSend skips, and does not hide unexpected errors as a transport result', async () => {
     const f = await fixture();

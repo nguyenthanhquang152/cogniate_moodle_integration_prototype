@@ -54,8 +54,9 @@ export const API_ERRORS = defineErrorTable({
   ACCOUNT_CLOSED: { status: 409, description: 'This tool account is closed and cannot change.' },
   PLATFORM_RATE_LIMITED: { status: 429, description: 'The platform asked us to wait before another request.' },
   RATE_LIMITED: { status: 429, description: 'Too many requests.' },
-  IDEMPOTENCY_KEY_REUSED: { status: 422, description: 'This Idempotency-Key was used for another request.' },
-  IDEMPOTENCY_IN_PROGRESS: { status: 409, description: 'A request with this Idempotency-Key is still running.' },
+  IDEMPOTENCY_KEY_REUSED: { status: 422, description: 'This Idempotency-Key was used in the last 24 hours for a request with another route, path id, target (platform, deployment or course) or body. Use a new key for a new request.' },
+  // BD-A2-58: details.retryAfter = seconds until the 60 s claim of the running request ends.
+  IDEMPOTENCY_IN_PROGRESS: { status: 409, description: 'A request with this Idempotency-Key is still running. Retry after the time in Retry-After.' },
 });
 
 export type ApiErrorCode = keyof typeof API_ERRORS;

@@ -8,7 +8,10 @@ import { KeyProviderError, blobKeyVersion, keyProviderFor } from '@cogniate/shar
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LtiService } from './main.ts';
 import { createShutdownHandler, SERVICE_EXIT_AFTER_MS, startLtiService } from './main.ts';
+import { AGS_SCOPES } from './platform/ags.ts';
 import { ensureAccount } from './store/accounts.ts';
+import { createPlatform } from './store/platforms.ts';
+import { issueServiceKey } from './store/service-keys.ts';
 import { ensureToolKey } from './store/tool-keys.ts';
 import { capturingLogger } from './testkit.ts';
 import { openDb } from './db/index.ts';
@@ -140,6 +143,31 @@ it('drains a job beyond 3 seconds before closing the database, then the same ins
   expect(service.jobs.state()).toBe('active');
   expect(service.jobs.bootId).not.toBe(boot);
   expect(lines.filter((l) => ['job_instance_wait', 'job_instance_conflict'].includes(String(l.event)))).toEqual([]);
+});
+
+it('BD-A2-52, BD-A2-54: wires the platform observers and the JWKS cache age to the operator /metrics', async () => {
+  jobServiceConfig();
+  service = await startLtiService({ logger: capturingLogger().logger });
+  const { apiKey } = ensureAccount(service.db, { id: 'cogniate', name: 'Cogniate', appUrl: 'https://app.cogniate.test' });
+  await ensureToolKey(service.db, service.config.masterKey, 'cogniate');
+  // A loopback token endpoint: the outbound guard refuses the token request with no network call.
+  const platform = createPlatform(service.db, 'cogniate', {
+    issuer: 'https://127.0.0.1', clientId: 'unit', name: 'Unit', authEndpoint: 'https://127.0.0.1/auth',
+    tokenEndpoint: 'https://127.0.0.1/token', jwksUrl: 'https://127.0.0.1/keys', deploymentIds: ['1'], active: true,
+  });
+  const { serviceKey } = issueServiceKey(service.db, service.config.masterKey, {
+    toolAccountId: 'cogniate', platformId: platform.id, deploymentId: '1', contextId: '2', resourceLinkId: '3',
+    agsClaim: { lineitems: 'https://127.0.0.1/lineitems', scope: Object.values(AGS_SCOPES) }, nrpsClaim: null,
+  }, Date.now());
+  const call = await service.app.inject({ method: 'POST', url: '/api/lineitems',
+    headers: { authorization: `SERVICE-AUTH-V1 ${apiKey}:${serviceKey}` }, payload: { label: 'Unit', scoreMaximum: 10 } });
+  expect(call.statusCode).toBe(502);
+  const text = (await service.operatorApp.inject('/metrics')).body;
+  expect(text).toContain(`lti_platform_token_failures_total{platform_id="${platform.id}"} 1\n`);
+  expect(text).toContain('# TYPE lti_jwks_fetch_failures counter\n');
+  // The age source is attached; the platform has no cache entry yet, so it has no series.
+  expect(text).toContain('# TYPE lti_jwks_cache_age_seconds gauge\n');
+  expect(text).not.toMatch(/^lti_jwks_cache_age_seconds\{/m);
 });
 
 it('BD-A2-31: forces exit 1 only at 70 seconds, after the full runner grace', async () => {

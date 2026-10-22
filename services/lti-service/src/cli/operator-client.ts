@@ -36,7 +36,12 @@ export function createOperatorClient(env: NodeJS.ProcessEnv = process.env): Oper
           redirect: 'error', signal: AbortSignal.timeout(10_000),
         });
       } catch { throw new OperatorTransportError(`Cannot reach the operator API at ${base}. Check that lti-service is running.`); }
-      if (response.status === 401) throw new Error(`Operator key file ${file} was rejected. Put the current operator key in host file infra/.secrets/lti-operator-key and run npm run seed, or run npm run lti:bootstrap -w services/lti-service -- --account <id> --replace-operator-key (init --replace) to save a replacement safely.`);
+      // B-LA-E5-05-04: other operators can still hold valid keys, so the revoke-all step is the last choice.
+      if (response.status === 401) {
+        throw new Error(`Operator key file ${file} was rejected. Put the current operator key in host file infra/.secrets/lti-operator-key and run npm run seed, `
+          + 'or ask another operator to issue you a new key. Only if no operator has a working key, run npm run lti:bootstrap -w services/lti-service -- '
+          + '--account <id> --replace-operator-key (init --replace). This revokes every operator key, also the keys of other operators and scripts.');
+      }
       let data: { details?: { message?: string; description?: string } };
       try { data = await response.json() as typeof data; }
       catch { throw new OperatorTransportError(`Operator API returned an invalid JSON response (HTTP ${response.status}).`); }

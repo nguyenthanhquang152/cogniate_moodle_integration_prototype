@@ -12,8 +12,7 @@ import { openDb, transaction, type Db } from './domain/db.ts';
 import { retentionJob } from './domain/retention.ts';
 import { ltiAgsReporter } from './drivers/lti-ags/index.ts';
 import { createAppJobStore } from './kernel/records/job-store.ts';
-import { createDispatchQueue } from './kernel/records/outbox.ts';
-import { configureRecordReporters } from './kernel/records/records.ts';
+import { registerRecordReporters } from './kernel/records/records.ts';
 import { createShutdownHandler } from './kernel/records/shutdown.ts';
 import { loadAppChannelRegistry } from './kernel/registry.ts';
 
@@ -64,9 +63,8 @@ export function createAppRunner(options: {
     store: roleCheckedStore(db, config, logger, role), logger, instanceId: config.jobInstanceId, role,
     onConflict: () => process.exit(1),
   });
-  const reporters = [ltiAgsReporter({ db, lti, masterKey: config.masterKey, channels })];
-  configureRecordReporters(db, reporters);
-  runner.addQueue(createDispatchQueue(db, reporters));
+  // The one reporter list of the app (kernel/records/types.ts "Add a reporter").
+  runner.addQueue(registerRecordReporters(db, [ltiAgsReporter({ db, lti, masterKey: config.masterKey, channels })]));
   runner.addInterval(retentionJob(db));
   return runner;
 }
