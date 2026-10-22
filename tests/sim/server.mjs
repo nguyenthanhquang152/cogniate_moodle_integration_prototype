@@ -5,8 +5,16 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRuntime, json } from './core/runtime.mjs';
 
-const SIM_HOST_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)*\.sim\.test$/;
+const DNS_LABEL_RE = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
 const PROVIDER_ID_RE = /^[a-z0-9][a-z0-9-]*$/;
+
+export function isSimHost(host) {
+  return typeof host === 'string'
+    && host.length <= 253
+    && host !== 'lms-sim.test'
+    && host.endsWith('.sim.test')
+    && host.split('.').every((label) => DNS_LABEL_RE.test(label));
+}
 
 export function loadHostManifest(manifestPath = fileURLToPath(new URL('./hosts.json', import.meta.url))) {
   let raw;
@@ -31,8 +39,8 @@ export function loadHostManifest(manifestPath = fileURLToPath(new URL('./hosts.j
   if (manifest.version !== 1) {
     throw new Error(`Unsupported simulator host manifest version: ${String(manifest.version)}`);
   }
-  if (!Array.isArray(manifest.providers) || manifest.providers.length === 0) {
-    throw new Error('Simulator host manifest providers must be a non-empty array');
+  if (!Array.isArray(manifest.providers)) {
+    throw new Error('Simulator host manifest providers must be an array');
   }
   const seenIds = new Set();
   const hostOwner = new Map();
@@ -44,7 +52,7 @@ export function loadHostManifest(manifestPath = fileURLToPath(new URL('./hosts.j
     if (entryKeys.some((key) => key !== 'id' && key !== 'aliases' && key !== 'allowlist')) {
       throw new Error(`Simulator host manifest entry has unknown keys: ${entryKeys.filter((k) => k !== 'id' && k !== 'aliases' && k !== 'allowlist').join(', ')}`);
     }
-    if (typeof entry.id !== 'string' || !PROVIDER_ID_RE.test(entry.id)) {
+    if (typeof entry.id !== 'string' || !entry.id.trim() || !PROVIDER_ID_RE.test(entry.id)) {
       throw new Error(`Simulator host manifest entry has invalid id: ${String(entry.id)}`);
     }
     if (seenIds.has(entry.id)) {
@@ -59,13 +67,10 @@ export function loadHostManifest(manifestPath = fileURLToPath(new URL('./hosts.j
     }
     const aliasSet = new Set();
     for (const host of entry.aliases) {
-      if (typeof host !== 'string' || host === 'lms-sim.test' || !SIM_HOST_RE.test(host)) {
+      if (!isSimHost(host)) {
         throw new Error(`Invalid simulator alias host ${String(host)} in ${entry.id}`);
       }
-      if (aliasSet.has(host)) {
-        throw new Error(`Duplicate simulator alias host ${host} in ${entry.id}`);
-      }
-      if (hostOwner.has(host)) {
+      if (hostOwner.has(host) && hostOwner.get(host) !== entry.id) {
         throw new Error(`Duplicate simulator host ${host} across providers ${hostOwner.get(host)} and ${entry.id}`);
       }
       aliasSet.add(host);
@@ -73,17 +78,16 @@ export function loadHostManifest(manifestPath = fileURLToPath(new URL('./hosts.j
     }
     const allowSet = new Set();
     for (const host of entry.allowlist) {
-      if (typeof host !== 'string' || host === 'lms-sim.test' || !SIM_HOST_RE.test(host)) {
+      if (!isSimHost(host)) {
         throw new Error(`Invalid simulator allowlist host ${String(host)} in ${entry.id}`);
-      }
-      if (allowSet.has(host)) {
-        throw new Error(`Duplicate simulator allowlist host ${host} in ${entry.id}`);
       }
       if (!aliasSet.has(host)) {
         throw new Error(`Simulator allowlist host ${host} in ${entry.id} is not in aliases`);
       }
       allowSet.add(host);
     }
+    entry.aliases = [...aliasSet];
+    entry.allowlist = [...allowSet];
   }
   return manifest;
 }
@@ -123,7 +127,7 @@ export async function loadProviders(runtime, selection, options = {}) {
       throw new Error(`Simulator provider ${provider.id} has no hosts`);
     }
     for (const host of provider.hosts) {
-      if (typeof host !== 'string' || host === 'lms-sim.test' || !SIM_HOST_RE.test(host)) {
+      if (!isSimHost(host)) {
         throw new Error(`Invalid simulator host ${String(host)} in provider ${provider.id}`);
       }
       if (providerByHost.has(host) && providerByHost.get(host) !== provider.id) {
@@ -136,17 +140,23 @@ export async function loadProviders(runtime, selection, options = {}) {
       throw new Error(`Unlisted simulator provider ${provider.id}: missing from hosts.json`);
     }
     const providerHosts = [...new Set(provider.hosts)].sort();
-    const entryAliases = [...entry.aliases].sort();
+    const entryAliases = [...new Set(entry.aliases)].sort();
     if (JSON.stringify(providerHosts) !== JSON.stringify(entryAliases)) {
-      throw new Error(`Simulator provider ${provider.id} hosts mismatch with hosts.json aliases`);
+      const missingInManifest = providerHosts.filter((h) => !entryAliases.includes(h));
+      const missingInModule = entryAliases.filter((h) => !providerHosts.includes(h));
+      throw new Error(
+        `Simulator provider ${provider.id} hosts mismatch with hosts.json aliases `
+        + `(missing in hosts.json: [${missingInManifest.join(', ')}]; missing in the module: [${missingInModule.join(', ')}])`,
+      );
     }
   }
   if (selection === undefined) {
     const loadedIds = new Set(providers.map((p) => p.id));
     for (const entry of manifest.providers) {
       if (!loadedIds.has(entry.id)) {
-        const moduleName = entry.id.replace(/-sim(?:-.*)?$/, '');
-        throw new Error(`Required ${moduleName} simulator is unavailable: manifest entry ${entry.id} has no loaded provider`);
+        throw new Error(
+          `Manifest entry ${entry.id} has no loaded provider; a module under tests/sim/<folder>/ must export a provider with id ${entry.id}`,
+        );
       }
     }
   }
