@@ -1,6 +1,8 @@
 // Connections (app contract §4, data-model §2): one Moodle site per connection, per library. Repository: the only SQL
 // for this table. Every lookup takes the library id, except the ref lookup of the register page (the ref is the
 // capability; security §6).
+import { connectionBehaviourClass } from '@cogniate/channel-kernel';
+import type { BindingAuthority, ChannelRegistry, PlatformSharing } from '@cogniate/channel-kernel';
 import { randomId } from '@cogniate/shared';
 import type { Db } from './db.ts';
 
@@ -15,7 +17,6 @@ export interface PlatformInfo {
   productFamilyCode: string | null;
 }
 
-export type LmsType = 'moodle' | 'canvas' | 'blackboard';
 
 /** The last failed connect attempt of a pending connection (B-T4b1-01). Codes only. */
 export interface ConnectError {
@@ -44,7 +45,8 @@ export interface Connection {
   /** T8: a checked web services token exists (never the token itself). */
   webServices: { siteName: string; release: string } | null;
   /** M1 (app contract §4.2): LMS type, LTI profile and the canonical service origin (= siteUrl unless Canvas sets one). */
-  lms: LmsType;
+  channel: string;
+  bindingAuthority: BindingAuthority;
   profile: string;
   serviceUrl: string;
   /** Canvas: the activation ref of the committed binding (history). */
@@ -77,11 +79,10 @@ export interface CompleteSnapshot {
 }
 
 /** App contract §4.7.3: the complete snapshot of a Canvas or Blackboard connection, else null (a partial row counts as missing). */
-export function completeSnapshot(c: Pick<Connection, 'lms' | 'snapshot'>): CompleteSnapshot | null {
+export function completeSnapshot(c: Pick<Connection, 'snapshot'>, sharing: PlatformSharing): CompleteSnapshot | null {
   const { issuer, platformId, clientId } = c.snapshot;
-  if (c.lms === 'canvas') return issuer !== null ? { issuer, platformId: null, clientId: null } : null;
-  if (c.lms === 'blackboard') return issuer !== null && platformId !== null && clientId !== null ? { issuer, platformId, clientId } : null;
-  return null;
+  if (sharing === 'exclusive') return issuer !== null ? { issuer, platformId: null, clientId: null } : null;
+  return issuer !== null && platformId !== null && clientId !== null ? { issuer, platformId, clientId } : null;
 }
 
 const NO_SNAPSHOT: ProviderSnapshot = { issuer: null, platformId: null, clientId: null };
@@ -108,7 +109,7 @@ const toConnection = (r: Record<string, unknown>): Connection => ({
     traceId: String(r.last_error_trace_id), at: Number(r.last_error_at),
   },
   webServices: r.ws_token_encrypted === null || r.ws_token_encrypted === undefined ? null : { siteName: String(r.ws_site_name ?? ''), release: String(r.ws_release ?? '') },
-  lms: (r.lms ?? 'moodle') as LmsType,
+  channel: String(r.channel), bindingAuthority: r.binding_authority as BindingAuthority,
   profile: String(r.lti_profile ?? 'standard'),
   serviceUrl: r.service_url === null || r.service_url === undefined ? String(r.site_url) : String(r.service_url),
   ltiBindingRef: r.lti_binding_ref === null || r.lti_binding_ref === undefined ? null : String(r.lti_binding_ref),
@@ -124,18 +125,26 @@ const toConnection = (r: Record<string, unknown>): Connection => ({
 export function createConnection(
   db: Db,
   libraryId: string,
-  input: { name: string; siteUrl: string; method: ConnectionMethod; lms?: LmsType; profile?: string; serviceUrl?: string | null; snapshot?: ProviderSnapshot },
+  input: { name: string; siteUrl: string; method: ConnectionMethod; channel: string; profile?: string; serviceUrl?: string | null; snapshot?: ProviderSnapshot },
   ref: RefToken | null,
   now: number,
+  channels: ChannelRegistry,
+  sharing: PlatformSharing,
 ): Connection {
+  const registration = channels.channel(input.channel)?.registration.find((r) => r.method === input.method);
+  if (!registration) throw new Error('channel registration method is not offered');
+  const profile = input.profile ?? registration.defaultProfile;
+  if (!registration.profiles.includes(profile)) throw new Error('profile is not offered by this registration method');
   const id = randomId('con_');
   // The snapshot is part of this one INSERT (written once; no UPDATE path exists, app contract §4.7.3).
   const snap = input.snapshot ?? NO_SNAPSHOT;
+  // never read connection.lms; it is a frozen behaviour class
+  const legacyClass = connectionBehaviourClass(input.channel, registration.authority, sharing);
   db.prepare(`INSERT INTO connection (id, library_id, name, site_url, method, status, ref_token_hash, ref_token_encrypted, ref_expires_at, created_at, updated_at,
-      lms, lti_profile, service_url, target_issuer, target_platform_id, target_client_id)
-    VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      lms, channel, binding_authority, lti_profile, service_url, target_issuer, target_platform_id, target_client_id)
+    VALUES (?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(id, libraryId, input.name, input.siteUrl, input.method, ref?.hash ?? null, ref?.encrypted ?? null, ref?.expiresAt ?? null, now, now,
-      input.lms ?? 'moodle', input.profile ?? 'standard', input.serviceUrl ?? null, snap.issuer, snap.platformId, snap.clientId);
+      legacyClass, input.channel, registration.authority, profile, input.serviceUrl ?? null, snap.issuer, snap.platformId, snap.clientId);
   return getConnection(db, libraryId, id)!;
 }
 
@@ -186,7 +195,7 @@ export function markRegistered(db: Db, connectionId: string, platform: PlatformI
  * launches (a disabled one does not). Moodle rule only (app contract §6.1 step 2): use routeLaunch.
  */
 export function findLaunchConnection(db: Db, platformId: string): Connection | undefined {
-  const row = db.prepare("SELECT * FROM connection WHERE lti_platform_id = ? AND lms = 'moodle' AND status IN ('registered', 'connected')").get(platformId);
+  const row = db.prepare("SELECT * FROM connection WHERE lti_platform_id = ? AND binding_authority = 'self' AND status IN ('registered', 'connected')").get(platformId);
   return row ? toConnection(row) : undefined;
 }
 
@@ -202,11 +211,11 @@ export type LaunchRoute =
  */
 export function routeLaunch(db: Db, platformId: string, deploymentId: string): LaunchRoute {
   const approved = db.prepare(`SELECT c.* FROM approved_deployment a JOIN connection c ON c.id = a.connection_id
-    WHERE a.lti_platform_id = ? AND a.deployment_id = ? AND c.lms IN ('canvas', 'blackboard') AND c.status IN ('registered', 'connected')`).get(platformId, deploymentId);
+    WHERE a.lti_platform_id = ? AND a.deployment_id = ? AND c.binding_authority = 'operatorGrant' AND c.status IN ('registered', 'connected')`).get(platformId, deploymentId);
   if (approved) return { ok: true, connection: toConnection(approved) };
-  const moodle = findLaunchConnection(db, platformId);
-  if (moodle) return { ok: true, connection: moodle };
-  const owner = db.prepare("SELECT 1 FROM connection WHERE lti_platform_id = ? AND lms IN ('canvas', 'blackboard')").get(platformId)
+  const self = findLaunchConnection(db, platformId);
+  if (self) return { ok: true, connection: self };
+  const owner = db.prepare("SELECT 1 FROM connection WHERE lti_platform_id = ? AND binding_authority = 'operatorGrant'").get(platformId)
     ?? db.prepare('SELECT 1 FROM connection_deployment WHERE lti_platform_id = ? AND deployment_id = ?').get(platformId, deploymentId);
   return { ok: false, reason: owner ? 'deployment_not_approved' : 'unknown_platform' };
 }

@@ -9,8 +9,7 @@ import { LtiServiceError } from '../clients/lti-client.ts';
 import type { CompleteSnapshot, Connection, ProviderSnapshot } from '../domain/connections.ts';
 import type { Db } from '../domain/db.ts';
 import { getLibrary } from '../domain/libraries.ts';
-import { providerOf } from '../providers/index.ts';
-import type { BindingTarget, GrantPurpose, PlatformBodyValues, SharedPlatformInfo, StagedCreate } from '../providers/types.ts';
+import type { BindingTarget, GrantPurpose, PlatformBodyValues, ProviderAdapter, SharedPlatformInfo, StagedCreate } from '../providers/types.ts';
 import { ApiError } from './api-errors.ts';
 
 /** GET /api/providers through the app (502 LTI_SERVICE_ERROR on failure, app contract §4.3). */
@@ -41,7 +40,7 @@ const filledIssuer = (row: LtiProviderProfile, c: { siteUrl: string; serviceUrl:
  */
 export function snapshotOf(row: LtiProviderProfile, site: { siteUrl: string; serviceUrl: string }): ProviderSnapshot {
   const shared = activeShared(row);
-  return row.lms === 'blackboard'
+  return row.sharing === 'shared'
     ? { issuer: row.issuer, platformId: shared?.id ?? null, clientId: shared?.clientId ?? null }
     : { issuer: filledIssuer(row, site, ''), platformId: null, clientId: null };
 }
@@ -95,9 +94,8 @@ export interface LocalTarget {
  * Build the target from local data only (no LTI call). `initial` needs the complete snapshot (phase-1 check 4a has
  * passed); `add_deployment` needs the committed platform. Throws the contract ApiError.
  */
-export function localTarget(c: Connection, purpose: GrantPurpose, values: PlatformBodyValues, snapshot: CompleteSnapshot | null): LocalTarget {
-  const adapter = providerOf(c.lms);
-  if (c.lms === 'moodle' || !adapter || !adapter.initialTarget || !adapter.createRequest) throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'This connection has no operator approval.', { details: { capability: 'operatorApproval' } });
+export function localTarget(c: Connection, purpose: GrantPurpose, values: PlatformBodyValues, snapshot: CompleteSnapshot | null, adapter: ProviderAdapter | null): LocalTarget {
+  if (c.bindingAuthority !== 'operatorGrant' || !adapter || !adapter.initialTarget || !adapter.createRequest) throw new ApiError('CAPABILITY_NOT_SUPPORTED', 'This connection has no operator approval.', { details: { capability: 'operatorApproval' } });
   const productFamilyCode = c.platform?.productFamilyCode ?? null;
   if (purpose === 'add_deployment') {
     if (!c.ltiPlatformId || !c.platform) throw new ApiError('CONNECTION_NOT_READY');
@@ -105,16 +103,15 @@ export function localTarget(c: Connection, purpose: GrantPurpose, values: Platfo
   }
   if (!snapshot) throw new Error('an initial target needs the complete provider snapshot (check 4a)');
   const target = adapter.initialTarget({
-    connection: c, values, profile: { id: c.profile, lms: c.lms, issuer: snapshot.issuer },
-    sharedPlatform: c.lms === 'blackboard' ? { id: snapshot.platformId!, clientId: snapshot.clientId! } : null,
+    connection: c, values, profile: { id: c.profile, lms: c.channel, issuer: snapshot.issuer },
+    sharedPlatform: adapter.sharingOf(c.profile) === 'shared' ? { id: snapshot.platformId!, clientId: snapshot.clientId! } : null,
   });
   const clientId = target.kind === 'shared_deployment' ? snapshot.clientId! : values.clientId;
   return { target, issuer: snapshot.issuer, clientId, productFamilyCode };
 }
 
 /** The S1 call of a committed target, built after the phase-1 commit (the engine adds `active: false` and the ref). */
-export function stagedCall(deps: { db: Db; lti: LtiClient }, c: Connection, target: BindingTarget, traceId: string): (ref: string) => Promise<{ platformId: string }> {
-  const adapter = providerOf(c.lms)!;
+export function stagedCall(deps: { db: Db; lti: LtiClient }, c: Connection, target: BindingTarget, traceId: string, adapter: ProviderAdapter): (ref: string) => Promise<{ platformId: string }> {
   const staged: StagedCreate = adapter.createRequest!(target, { libraryName: getLibrary(deps.db, c.libraryId)?.name ?? '' });
   return async (ref) => {
     if (staged.kind === 'platform') {

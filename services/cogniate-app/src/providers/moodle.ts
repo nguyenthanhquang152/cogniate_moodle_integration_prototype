@@ -35,6 +35,7 @@ export const moodleProvider: ProviderAdapter = {
   capabilities: { dynamicRegistration: true, operatorApproval: false, webServices: true, courseShell: true, addDeployment: false, canvasConfiguration: false },
   defaultProfile: 'standard',
   acceptsServiceUrl: false,
+  sharingOf: (id) => id === 'standard' ? 'exclusive' : null,
   siteRuleSuffixes: () => null,
   profileLabel: (id) => (id === 'standard' ? 'Moodle site' : null),
   toolConfiguration: (ctx) => moodleToolRows(ctx.urls, ctx.libraryName),

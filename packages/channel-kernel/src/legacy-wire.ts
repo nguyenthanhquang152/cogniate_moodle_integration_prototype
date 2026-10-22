@@ -51,3 +51,9 @@ export function legacyProjection(set: CapabilitySet): LegacyCapabilities {
     canvasConfiguration: set['setup.artifacts'].includes(DEVELOPER_KEY_JSON_ARTIFACT),
   };
 }
+
+/** Frozen database behaviour classes (LA-ADR-04 D4). Channel identity is stored separately. */
+export function connectionBehaviourClass(channel: string, authority: 'self' | 'operatorGrant', sharing: 'exclusive' | 'shared'): 'moodle' | 'canvas' | 'blackboard' {
+  if (channel === 'moodle' || channel === 'canvas' || channel === 'blackboard') return channel;
+  return authority === 'self' ? 'moodle' : sharing === 'shared' ? 'blackboard' : 'canvas';
+}
