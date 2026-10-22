@@ -53,11 +53,11 @@ Round: 1
     - The skip is there for the required form `${KEY:?message}`, which the tree uses.
     - But it also skips the default forms `${KEY:-value}` and `${KEY:=value}`. As a value, `"${KEY:-value}"` and `"${A}value${B}"` also count as placeholders.
     - A default is a common way to write a dev password in compose or shell files.
-  - Evidence: in a temporary repository with `DB_PASS` and `APP_MASTER_KEY` in the secrets section, the scan found only the plain line (the database password key set to a plain word). These lines all passed. They are written here in the form that passes the scan, which is the point of this finding:
-    - `POSTGRES_PASSWORD: ${DB_PASS:-hunter2-dev-password}`
-    - `OTHER: ${DB_PASS:=also-a-value}`
-    - `APP_MASTER_KEY="${APP_MASTER_KEY:-not-hex-but-secret}"`
-    - `DB_PASS="${A}real-secret${B}"`
+  - Evidence: in a temporary repository with `DB_PASS` and `APP_MASTER_KEY` in the secrets section, the scan found only the plain line (the database password key set to a plain word). These four probe lines all passed. Each one had a plain word as its secret value, which this review writes as `<value>`:
+    - a compose key set to the database password key with a `:-` default (`${DB_PASS:-<value>}`);
+    - another key set to the same key with a `:=` default (`${DB_PASS:=<value>}`);
+    - the master-key name set to a quoted `:-` default of itself (`"${APP_MASTER_KEY:-<value>}"`);
+    - the database password key set to a quoted value with a placeholder at each end (`"${A}<value>${B}"`).
   - Why MINOR: rules 1–3 still catch the high-value forms (`ltis_` keys, 64-hex keys, private keys), and the current tree uses only `${KEY:?…}`. README §4a lists "`${…}`" as not a value, so A1 should make the text exact as well.
   - Suggested fix:
     - Not a value: exactly one whole placeholder, `^\$\{[A-Za-z_][A-Za-z0-9_]*(?::?\?[^}]*)?\}$`, `$NAME` or `<…>`.
@@ -69,7 +69,7 @@ Round: 1
   - Suggested fix: before step 5, fail with `worktree_not_clean` when `git status --porcelain --untracked-files=no` is not empty. Or read the index content (`git cat-file --batch` of the `git ls-files -s` blobs).
 - **A-LA-E7-10-04 (NIT): a PGP private key block is not matched.**
   - Where: `infra/scripts/ci-local.sh:16`.
-  - Problem: `-----BEGIN PGP PRIVATE KEY BLOCK-----` has ` BLOCK` before the closing dashes, so the pattern misses it. README §4a says "private key blocks".
+  - Problem: the PGP armor header (the words "BEGIN PGP PRIVATE KEY BLOCK" between two runs of five dashes) has the word `BLOCK` after `PRIVATE KEY`, before the closing dashes, so the pattern misses it. README §4a says "private key blocks".
   - Suggested fix: allow an optional ` BLOCK` (`PRIVATE KEY(?: BLOCK)?-----`), and add one probe.
 
 ## Notes (no finding)
