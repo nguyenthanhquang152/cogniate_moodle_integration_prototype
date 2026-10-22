@@ -43,13 +43,13 @@ function needsConfirmation(db: Db, id: string): boolean {
 
 /**
  * SQL condition: the partition of the row `alias` has a running 429 pause (LA-ADR-03 D7 "429"), that is, one of its
- * pending rows has a `not_before` after now (one `?`). Only pending rows carry a pause, so the `record_dispatch_due`
- * index (status, next_try_at, partition_key) serves the check: the plan is "SEARCH paused USING INDEX
- * record_dispatch_due (status=?)", not a scan of every row ever written (rows are never deleted). A new row takes
- * over the pause of its partition when it is created (`writeFinalRecord`), so a superseded row does not end it.
+ * rows has a `not_before` after now (one `?`). Every status counts: a row that failed at the end of its own 24 h
+ * window, or that a better result superseded, still carries the platform's Retry-After. The partial index
+ * `record_dispatch_pause` (app migration 016) serves the check: the plan is "SEARCH paused USING COVERING INDEX
+ * record_dispatch_pause (partition_key=? AND not_before>?)", not a scan of every row ever written.
  */
 export const partitionPaused = (alias: string): string => `EXISTS (SELECT 1 FROM record_dispatch paused
-  WHERE paused.status = 'pending' AND paused.partition_key = ${alias}.partition_key AND paused.not_before > ?)`;
+  WHERE paused.partition_key = ${alias}.partition_key AND paused.not_before > ?)`;
 
 /** `started`: send the POST now. `skipped`: send nothing (superseded, changed or not due). `connection_disabled`: failed now. */
 export type BeginSend = 'started' | 'skipped' | 'connection_disabled';

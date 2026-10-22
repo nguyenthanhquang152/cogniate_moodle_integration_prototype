@@ -146,10 +146,10 @@ export function createDispatchQueue(db: Db, reporters: readonly RecordReporter[]
           if (outcome.kind === 'throttled') {
             // Undo only this attempt. Earlier uncertainty and the confirmation phase stay intact.
             if (posted) db.prepare('UPDATE record_dispatch SET tries = tries - 1 WHERE id = ?').run(row.id);
-            // Pause every pending row of the partition, this row included (it is still pending unless a better
-            // result superseded it during the POST; that better row is pending and gets the pause).
+            // Pause this row and every pending row of the partition. This row keeps the pause whatever its status
+            // becomes (failed at its window end, or superseded during the POST): partitionPaused reads every row.
             db.prepare(`UPDATE record_dispatch SET not_before = MAX(COALESCE(not_before, 0), ?)
-              WHERE status = 'pending' AND partition_key = ?`).run(outcome.retryAt, row.partitionKey);
+              WHERE id = ? OR (status = 'pending' AND partition_key = ?)`).run(outcome.retryAt, row.id, row.partitionKey);
           }
           return recordSend(db, row, r, ctx.now(), ctx.leaseOwner);
         });
