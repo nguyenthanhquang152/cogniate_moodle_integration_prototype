@@ -25,6 +25,7 @@ export function registerProtocolRoutes(app: FastifyInstance, ctx: RouteContext):
       log.warn('login_rejected', { trace_id: req.traceId, code: result.code, detail: result.detail });
       return ctx.errorPage(reply, req, result.code, { lms: result.lms });
     }
+    if (result.page) return reply.code(result.page.status).headers({ ...result.page.headers, 'set-cookie': result.setCookie }).send(result.page.html);
     return reply.code(302).headers({ location: result.location, 'set-cookie': result.setCookie, 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }).send();
   };
   app.get('/lti/login/:account', login);

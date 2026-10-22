@@ -1,9 +1,11 @@
+import { createPortalSdk } from "@cogniate/portal-sdk";
+import { BlackboardBinding } from "./BlackboardBinding.tsx";
 // @vitest-environment jsdom
 import { createElement as h } from "react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { MemoryRouter } from "react-router";
-import type { Connection, LmsProvider } from "../../types.ts";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { MemoryRouter } from "@cogniate/portal-sdk";
+import type { Connection, LmsProvider } from "@cogniate/portal-sdk";
 import { BlackboardTeacherSteps, BlackboardWizard } from "./BlackboardWizard.tsx";
 import steps from "./blackboard-steps.json";
 
@@ -32,7 +34,7 @@ afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 const field = (label: string, value: string) => fireEvent.change(screen.getByLabelText(label), { target: { value } });
 const wizard = (props: Partial<Parameters<typeof BlackboardWizard>[0]>) => render(h(MemoryRouter, null, h(BlackboardWizard, {
   provider: provider([["blackboard", false], ["blackboard-sim", true]]), connection: null, libraryName: "School", opener: "blackboard-connect",
-  onCreated: vi.fn(), onChanged: vi.fn(), ...props,
+  onCreated: vi.fn(), onChanged: vi.fn(), sdk: createPortalSdk(() => undefined), ...props,
 })));
 
 it("has 4 step data entries, none verified", () => {
@@ -126,4 +128,25 @@ it("step 4: the Ultra and Original teacher steps", () => {
   expect(screen.getByRole("heading", { name: "Add a Cogniate course in Blackboard" })).toBeTruthy();
   expect(screen.getByText(/Content Market/)).toBeTruthy();
   expect(screen.getByText(/Build Content/)).toBeTruthy();
+});
+
+it.each(["blackboard"] as const)("shows the neutral readiness title and action after %s binding fails", async (lms) => {
+  fetchMock.mockResolvedValue(json({ details: { message: "PROVIDER_NOT_READY", traceId: "trace-readiness" } }, 409));
+  const onChanged = vi.fn();
+  const current: Connection = { ...connection, lms, id: `con_${lms}` };
+  render(h(BlackboardBinding, { connection: current, onChanged }));
+  field("Deployment ID", "deployment");
+  field("Approval code", "one-use-code");
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+  const alert = within(await screen.findByRole("alert"));
+  expect(alert.getByText("This LMS setup is not ready in Cogniate.")).toBeTruthy();
+  expect(alert.getByText("Ask your Cogniate operator to check the LMS setup for this connection. The operator tells you to try again later, or to make a new connection.")).toBeTruthy();
+  expect(alert.getByText("Code: PROVIDER_NOT_READY")).toBeTruthy();
+  expect(alert.getByText("Trace id: trace-readiness")).toBeTruthy();
+  expect(alert.queryByText(/Blackboard is not set up/)).toBeNull();
+  expect(screen.getByRole("alert").textContent).not.toContain("one-use-code");
+  expect((screen.getByLabelText("Approval code") as HTMLInputElement).value).toBe("");
+  expect(onChanged).not.toHaveBeenCalled();
+  expect(fetchMock.mock.calls[0]![0]).toBe(`/app-api/connections/con_${lms}/platform`);
 });

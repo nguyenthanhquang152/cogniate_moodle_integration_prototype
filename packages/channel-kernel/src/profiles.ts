@@ -23,6 +23,13 @@ export interface ProfileSource {
   readonly endpoints: 'admin' | 'fixed';
   /** The minimum claim filter; none is limited to PRIVACY_FLOOR_NONE_PROFILES and unknown values must minimize. */
   readonly privacyFloor: 'allowlist' | 'none';
+  /** Client-side storage (LA-ADR-05 D1): absent means null. The registry supplies null for omitted values. */
+  readonly platformStorage?: {
+    /** from-login reads lti_storage_target; otherwise _parent or a frame name, 1 to 64 letters, digits, _ or -. */
+    readonly targetFrame: string;
+    /** authOrigin uses the authentication endpoint origin; otherwise a canonical https origin without a path. */
+    readonly origin: string;
+  } | null;
   /** Frozen compatibility value, allowed only on the baseline profiles. */
   readonly wireLms?: string | null;
   /** Real profiles precede simulations; each group sorts by this integer, then id. New profiles follow the baseline values. */

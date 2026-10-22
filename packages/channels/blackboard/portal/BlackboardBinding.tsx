@@ -1,11 +1,11 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { api, idPath } from "../../api.ts";
-import { useAlive } from "../../hooks.ts";
-import type { BlackboardPlatformBody, Connection } from "../../types.ts";
-import { Button } from "../../ui/button.tsx";
-import { Input } from "../../ui/input.tsx";
-import { ProviderErrorNotice, providerErrorFields } from "../provider-errors.tsx";
+import { api, idPath } from "@cogniate/portal-sdk";
+import { useAlive } from "@cogniate/portal-sdk";
+import type { BlackboardPlatformBody, Connection } from "@cogniate/portal-sdk";
+import { Button } from "@cogniate/portal-sdk";
+import { Input } from "@cogniate/portal-sdk";
+import { ProviderErrorNotice, providerErrorFields } from "@cogniate/portal-sdk";
 import steps from "./blackboard-steps.json";
 
 /** The step 3 instructions (data), shown once: as the help text of the approval code field. */

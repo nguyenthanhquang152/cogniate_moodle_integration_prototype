@@ -1,13 +1,13 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { Link } from "react-router";
-import { api } from "../../api.ts";
-import { useAlive } from "../../hooks.ts";
-import type { Connection, ConnectionCreateBody } from "../../types.ts";
-import { Button, buttonVariants } from "../../ui/button.tsx";
-import { Input, Select } from "../../ui/input.tsx";
-import { ProviderErrorNotice, providerErrorFields } from "../provider-errors.tsx";
-import type { ProviderWizardProps } from "../wizard-types.ts";
+import { Link } from "@cogniate/portal-sdk";
+import { api } from "@cogniate/portal-sdk";
+import { useAlive } from "@cogniate/portal-sdk";
+import type { Connection, ConnectionCreateBody } from "@cogniate/portal-sdk";
+import { Button, buttonVariants } from "@cogniate/portal-sdk";
+import { Input, Select } from "@cogniate/portal-sdk";
+import { ProviderErrorNotice, providerErrorFields } from "@cogniate/portal-sdk";
+import type { ProviderWizardProps } from "@cogniate/portal-sdk";
 
 export function CanvasCreate({ provider, opener, onCreated }: ProviderWizardProps) {
   const alive = useAlive();

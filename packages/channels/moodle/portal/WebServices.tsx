@@ -1,12 +1,12 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { api, idPath } from "../api.ts";
-import type { Connection } from "../types.ts";
-import { ErrorNotice } from "../ui.tsx";
-import { Button } from "../ui/button.tsx";
-import { Card } from "../ui/card.tsx";
-import { Input } from "../ui/input.tsx";
-import { Notice } from "../ui/notice.tsx";
+import { api, idPath } from "@cogniate/portal-sdk";
+import type { Connection } from "@cogniate/portal-sdk";
+import { ErrorNotice } from "@cogniate/portal-sdk";
+import { Button } from "@cogniate/portal-sdk";
+import { Card } from "@cogniate/portal-sdk";
+import { Input } from "@cogniate/portal-sdk";
+import { Notice } from "@cogniate/portal-sdk";
 
 export function WebServices({
   connection,

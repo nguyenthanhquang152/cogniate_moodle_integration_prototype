@@ -7,7 +7,7 @@ import { App, Portal } from "./App.tsx";
 import { Integrations } from "./Integrations.tsx";
 import { PublishDialog } from "./courses/PublishDialog.tsx";
 import { DisconnectDialog } from "./connect/DisconnectDialog.tsx";
-import { BLACKBOARD_NOT_READY } from "./lms.ts";
+const BLACKBOARD_NOT_READY = "Blackboard is not set up for this Cogniate service yet. Ask your Cogniate operator.";
 import type { Connection, Course, Lms, LmsProvidersResponse, Publication, Session } from "./types.ts";
 
 const session: Session = { user: { id: "usr_a", name: "Author", email: "author@example.test", role: "owner" }, library: { id: "lib_a", name: "Library A" } };

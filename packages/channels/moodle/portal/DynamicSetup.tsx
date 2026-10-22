@@ -1,12 +1,12 @@
-import { Notice } from "../ui/notice.tsx";
-import { Button } from "../ui/button.tsx";
-import { Input } from "../ui/input.tsx";
-import { Card } from "../ui/card.tsx";
+import { Notice } from "@cogniate/portal-sdk";
+import { Button } from "@cogniate/portal-sdk";
+import { Input } from "@cogniate/portal-sdk";
+import { Card } from "@cogniate/portal-sdk";
 import { useState } from "react";
-import { Link2 } from "lucide-react";
-import { api, idPath } from "../api.ts";
-import type { Connection } from "../types.ts";
-import { CopyButton, ErrorNotice } from "../ui.tsx";
+import { Link2 } from "@cogniate/portal-sdk";
+import { api, idPath } from "@cogniate/portal-sdk";
+import type { Connection } from "@cogniate/portal-sdk";
+import { CopyButton, ErrorNotice } from "@cogniate/portal-sdk";
 import { MoodleSteps } from "./MoodleSteps.tsx";
 
 export function DynamicSetup({

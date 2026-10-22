@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
-import { Download } from "lucide-react";
-import { api, ApiError, idPath } from "../api.ts";
-import type { MbzBuild } from "../types.ts";
-import { ErrorNotice, Loading } from "../ui.tsx";
-import { Button, buttonVariants } from "../ui/button.tsx";
-import { Notice } from "../ui/notice.tsx";
+import { Download } from "@cogniate/portal-sdk";
+import { api, ApiError, idPath } from "@cogniate/portal-sdk";
+import type { MbzBuild } from "@cogniate/portal-sdk";
+import { ErrorNotice, Loading } from "@cogniate/portal-sdk";
+import { Button, buttonVariants } from "@cogniate/portal-sdk";
+import { Notice } from "@cogniate/portal-sdk";
 
 export function MoodleBackup({
   courseId,

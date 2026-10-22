@@ -59,6 +59,13 @@ interface ProfilesModule {
   listProfiles?: (...args: unknown[]) => ProfileRecord[];
   findProfile?: (id: string, ...rest: unknown[]) => ProfileRecord | undefined | null;
   profileDefinition?: (id: string, ...rest: unknown[]) => ProfileRecord | undefined | null;
+  reservedIssuerOrigins?: (opts?: { simulation?: boolean }) => ReadonlySet<string> | string[];
+}
+
+interface KernelModule {
+  pendingToolText?: (toolName: string) => string;
+  loadChannelFolders?: (roots?: readonly string[], target?: 'app' | 'lti') => Promise<unknown[]>;
+  buildChannelRegistry?: (loaded: unknown[], opts?: { simulations?: boolean }) => { textName: (channelId: string) => string };
 }
 
 function writeArtifact(name: string, content: string): void {
@@ -217,6 +224,41 @@ describe('LA-E1-10 S3/S7 LTI service providers channel, endpoints call sites and
         expect(channel, `${expected.id}.channel`).toBe(EXPECTED_CHANNEL_BY_PROFILE[expected.id]);
         sameBaselineFields(actual!, expected, `K0 ${expected.id}`);
       }
+
+      // 5. BD-A1-30: pendingToolText is frozen in @cogniate/channel-kernel (legacy-wire.ts) and imported in http/routes/registration.ts.
+      const kernelIndex = path.join(TARGET_ROOT, 'packages/channel-kernel/src/index.ts');
+      const kernelMod = (await import(pathToFileURL(kernelIndex).href)) as KernelModule;
+      expect(typeof kernelMod.pendingToolText, 'pendingToolText is exported by @cogniate/channel-kernel (BD-A1-30)').toBe(
+        'function',
+      );
+      const pendingText = kernelMod.pendingToolText!('Cogniate');
+      expect(pendingText.includes('Moodle'), 'pendingToolText keeps frozen Moodle wording (BD-A1-30)').toBe(true);
+      const regRouteText = fs.readFileSync(
+        path.join(TARGET_ROOT, 'services/lti-service/src/http/routes/registration.ts'),
+        'utf8',
+      );
+      expect(
+        regRouteText.includes('pendingToolText') && regRouteText.includes('@cogniate/channel-kernel'),
+        'http/routes/registration.ts imports pendingToolText from @cogniate/channel-kernel (BD-A1-30)',
+      ).toBe(true);
+
+      // 6. BD-A1-31: ISSUER_RESERVED names derived from fixed-issuer profile owners in profile order -> 'Canvas or Blackboard' byte for byte.
+      expect(typeof mod.reservedIssuerOrigins, 'reservedIssuerOrigins is exported').toBe('function');
+      const loadedForReg = await kernelMod.loadChannelFolders!([path.join(TARGET_ROOT, 'packages/channels')], 'lti');
+      const channelReg = kernelMod.buildChannelRegistry!(loadedForReg, { simulations: true });
+      const reservedOwnerNames: string[] = [];
+      for (const p of profilesOn) {
+        const def = mod.profileDefinition!(p.id, { simulation: true });
+        if (def && typeof def.issuer === 'string' && def.issuer.length > 0 && typeof def.channel === 'string') {
+          const textName = channelReg.textName(def.channel);
+          if (!reservedOwnerNames.includes(textName)) {
+            reservedOwnerNames.push(textName);
+          }
+        }
+      }
+      expect(reservedOwnerNames.join(' or '), 'reserved-issuer owner names in profile order (BD-A1-31)').toBe(
+        'Canvas or Blackboard',
+      );
     } finally {
       if (prevStack === undefined) delete process.env.STACK_PROFILE;
       else process.env.STACK_PROFILE = prevStack;

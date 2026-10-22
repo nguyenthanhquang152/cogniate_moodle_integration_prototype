@@ -64,3 +64,4 @@ Open MINOR and NIT items after round 2. The ones marked "before build" are one-l
 | B-LA-E7-10 R2 NIT | NIT | A step-5 finding line does not point to the allow-entry procedure | R | Next R edit of ci-local |
 | B-LA-E1-10-01 | MINOR | DR help texts use {LMS} but still hold Moodle menu paths (registration.ts:37-41, :197; codes.ts:43); a channel cannot fix them from the manifest | A1 (design) then L | Before LA-E2-02 (frozen Moodle texts + generic text, or a manifest restart-path text, as BD-A1-30) |
 | B-LA-E1-10 NITs | NIT | default arguments read the product registry; ISSUER_RESERVED special case in two places; two comments | L | Next L edit |
+| B-LA-E1-06-04..07 + R2 NIT | NIT | open lens-B NITs (fixed texts, error order, main.ts registry, type re-export comment) and the unused _channels parameter of publicationResults (results.ts:85) | K | Next K edit of those files |
