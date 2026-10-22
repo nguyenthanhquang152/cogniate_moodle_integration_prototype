@@ -1,7 +1,7 @@
-// Canary channel manifest (LA-E7-01, LA-ADR-01 D4, TEST-STRATEGY §2.7).
+// Canary channel manifest (LA-E7-01, LA-ADR-01 D1, D2, D4, TEST-STRATEGY §2.7).
 // Loaded only when tests pass `tests/ltiaas/canary` as a second root to `loadChannelFolders`.
 // Never part of the product registry (`packages/channels`).
-import adminValueCanaryManifest from '../zz-canary-admin/manifest.ts';
+import type { ChannelManifest } from '@cogniate/channel-kernel';
 
 const canaryManifest = {
   id: 'zz-canary',
@@ -86,18 +86,17 @@ const canaryManifest = {
   },
   texts: {
     adminSteps: [
-      'Open {LMS} administration and register Cogniate as an LTI 1.3 tool.',
-      'Copy the Client ID and Deployment ID from {LMS} into Cogniate.',
+      'Open {LMS} administration at {site} and register {tool} as an LTI 1.3 tool.',
+      'Copy the Client ID and Deployment ID from {LMS} into {tool}.',
       'Ask your Cogniate operator for an approval code.',
     ],
     teacherSteps: [
-      'In {LMS}, add an External Tool activity and select the Cogniate course.',
+      'In {LMS}, add an External Tool activity and select the {tool} course.',
       'A learner must open the activity from {LMS}.',
     ],
-    disconnect: 'This stops launches through this {LMS} connection.',
-    notReady: '{LMS} is not set up for this Cogniate service yet. Ask your Cogniate operator.',
+    disconnect: 'This stops launches through this {LMS} connection at {site}.',
+    notReady: '{LMS} is not set up for this {tool} service yet. Ask your Cogniate operator.',
   },
-} as const;
+} as const satisfies ChannelManifest;
 
-export { adminValueCanaryManifest };
 export default canaryManifest;
