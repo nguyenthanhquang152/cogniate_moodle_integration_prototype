@@ -173,6 +173,11 @@ export async function ensureToolKey(db: Db, keys: KeyHandle, accountId: string, 
     const current = activeKid(db, accountId);
     if (current && !rotate) return current;
     const now = Date.now();
+    if (rotate) {
+      // Emergency rotation does not trust a waiting key. Remove it in the same transaction as its replacement.
+      const waiting = db.prepare("SELECT kid FROM tool_key WHERE tool_account_id = ? AND status = 'next'").get(accountId) as { kid: string } | undefined;
+      if (waiting) removeToolKey(db, accountId, waiting.kid, now);
+    }
     if (!current) insertKey(db, key, 'active', now);
     else {
       createNextToolKey(db, key, now);

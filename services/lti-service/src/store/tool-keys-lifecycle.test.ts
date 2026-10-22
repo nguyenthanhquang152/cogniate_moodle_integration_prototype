@@ -99,4 +99,35 @@ describe('signing-key lifecycle', () => {
       kid: one, status: 'active', publishedAt: T0, activatedAt: T0, retiredAt: null, removedAt: null,
     }]);
   });
+
+  it('BD-A2-14: emergency rotation removes a waiting key and activates a newly generated key', async () => {
+    const { db, keys, a, next } = await fixture();
+    const b = await next();
+    const oldPublic = db.prepare('SELECT public_jwk FROM tool_key WHERE kid = ?').get(b.kid)?.public_jwk;
+    expect(activePrivateJwk(db, keys, 'cogniate', T0)?.kid).toBe(a);
+    vi.setSystemTime(T0 + 1000);
+    const c = await ensureToolKey(db, keys, 'cogniate', true);
+    expect([a, b.kid]).not.toContain(c);
+    expect(listSigningKeys(db, 'cogniate')).toEqual([
+      { kid: c, status: 'active', publishedAt: T0 + 1000, activatedAt: T0 + 1000, retiredAt: null, removedAt: null },
+      { kid: a, status: 'retired', publishedAt: T0, activatedAt: T0, retiredAt: T0 + 1000, removedAt: null },
+      { ...b, status: 'removed', removedAt: T0 + 1000 },
+    ]);
+    expect(db.prepare('SELECT length(private_jwk_encrypted) AS bytes, public_jwk FROM tool_key WHERE kid = ?').get(b.kid))
+      .toEqual({ bytes: 0, public_jwk: oldPublic });
+    expect(publicJwks(db, 'cogniate', T0 + 1000).map((key) => key.kid)).toEqual([c, a]);
+    expect(activePrivateJwk(db, keys, 'cogniate', T0 + 1000)?.kid).toBe(c);
+  });
+
+  it('an activation failure rolls back waiting-key removal and every other rotation write', async () => {
+    const { db, keys, a, next } = await fixture();
+    const b = await next();
+    const before = db.prepare('SELECT * FROM tool_key ORDER BY kid').all();
+    db.exec(`CREATE TRIGGER unit_fail_activation BEFORE UPDATE OF status ON tool_key
+      WHEN NEW.status = 'active' BEGIN SELECT RAISE(ABORT, 'activation failed'); END`);
+    await expect(ensureToolKey(db, keys, 'cogniate', true)).rejects.toThrow('activation failed');
+    expect(db.prepare('SELECT * FROM tool_key ORDER BY kid').all()).toEqual(before);
+    expect(publicJwks(db, 'cogniate', T0).map((key) => key.kid)).toEqual([a, b.kid]);
+    expect(activePrivateJwk(db, keys, 'cogniate', T0)?.kid).toBe(a);
+  });
 });
