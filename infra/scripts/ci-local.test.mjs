@@ -272,6 +272,29 @@ test('an exact file and value exception permits the known fake, and rejects a ne
   assert.ok(f.run().lines[4].findings.some((hit) => hit.file === 'copied.txt'));
 });
 
+test('integration unit-test fakes have exact exceptions that reject changed values', (t) => {
+  const f = fixture(t);
+  const config = 'services/lti-service/src/config.test.ts';
+  const platforms = 'services/lti-service/src/http/routes/platforms-audit.test.ts';
+  const audit = 'services/lti-service/src/store/audit.test.ts';
+  const wrong = ['ltis', '_wrong'].join('');
+  const redacted = ['ltis', '_secret'].join('');
+  f.put(config, `${secretName}: '0'.repeat(64)`);
+  f.put(platforms, wrong);
+  f.put(audit, redacted);
+  assert.equal(f.run().status, 0);
+  f.put(config, `${secretName}: '1'.repeat(64)`);
+  f.put(platforms, `${wrong}x`);
+  f.put(audit, `${redacted}x`);
+  const result = f.run();
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.lines[4].findings, [
+    { file: config, line: 1, rule: 'secret_assignment' },
+    { file: platforms, line: 1, rule: 'api_key' },
+    { file: audit, line: 1, rule: 'api_key' },
+  ]);
+});
+
 test('a complete private-key block cannot use an exception for a header search string', (t) => {
   const f = fixture(t);
   const allowed = 'tests/acceptance/M1/common/99-logs.test.ts';
