@@ -13,7 +13,23 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current checkpoint — 2026-10-22, 02:43 UTC
+### Current checkpoint — 2026-10-22, 03:40 UTC
+
+**C3 full round 1 failed: 470 PASS and 18 FAIL across all 488 required rows.** The Lead verified the exact phase/id set and all five inventories against the new accounting files. Simulation passed 394/394; isolated snapshot 6/6; upgrade snapshot 6/6; migration 12/12. Storage passed 52/70 and failed 18. The runner exited 1 at 03:31:43 UTC. Round 2, the equality check and all 12 legacy groups did not run. The earlier passing diagnostic remains zero-credit history.
+
+One executed check caused the failure: `g-tamper` expected recovery exit 2 but got 1. Seventeen dependent rows and three fixtures did not run. Raw logs show two previous-generation folders. The harness selected the first folder in listing order, which belonged to the earlier committed operation. It changed that older copy; the current operation's copy stayed intact and recovery correctly rolled back. The diagnostic selected the correct copy only because its random operation identifier sorted first. ADR-012 §8 permits the retained previous generation. The same fixer confirmed the raw evidence and found no product fault in this case.
+
+All five phase teardowns passed. The strict final comparison and secret scan found no problems. All seven protected volume records, both anonymous volumes and the built-in networks remained unchanged. The window returned at 03:34:25 UTC. The report's original approximate return time is preserved as a corrected disclosure. Common reports are committed at `6ebeeb63b03322a08617a51a61ff567326860b5d`. The Lead verified all 5,337 entries in final index `fdab23bac305993320cfe94c09267480db41d4c1d4665e3c82e9d1cc4dfcbbfb` and its 13-entry root index. W4 SHA-256: `bd9135dd010d7ae30b7ceeb0d345241c47cd4bdb8c8b6dcac2f5533b1a4bba47`; scan: `103159f156b6ca3cbd5d46d7e11cd69d593c36aec003ff6e69bdc5a1b8b3cceb`.
+
+Independent Canvas QA found 233/233 Canvas cases passing in the closed simulation and snapshot phases. Its sink, browser scan and visual checks passed. This remains partial evidence and cannot approve the failed full round. The Lead verified the 29 input bindings. Canvas is closing its reports; fresh M2 and T7 did not run. Both runtime QA workers will settle this candidate as failed after their held reports are verified.
+
+**R5 is granted to the same fixer, `task_d018895ca985` / `ctx_898acbaef3a6`, Claude Code Opus 5.5 xhigh.** Grant `msg_f8be5a9636b8` and accepted plan v2 `msg_b72ab04bc19b` permit only `tests/host/storage-rows.mjs`, its self-test and the append-only harness QA report. The tamper target must match the current command's own valid stop operation. The test must prove that only this file changed. The fake must preserve the previous committed generation and exercise both identifier orders. Old/new controls must reproduce and remove the order-dependent failure, execute all 70 rows and detect missing or ineffective tampering. Product code, criteria and other test paths remain fixed. A-SH-11 stays deferred.
+
+The fixer estimates a source hold in 30–40 minutes from the 03:36:54 UTC grant, then about 15 minutes for host checks. Reviewers will overlap held-source review with those checks. The complete 022 host suite and affected 077 suite need prelaunch and post-run inventories and private npm settings before any npm call. Unchanged campaigns need no repeat. No Docker window is active.
+
+The prior project completion estimate is withdrawn. After the repair and two independent approvals, a new candidate still needs the frozen diagnostic, two full rounds, legacy checks, fresh M2/T7 and final conformance/documentation gates. Each full round measured about 51 minutes; legacy duration remains unmeasured. All 32 live LMS rows remain UNVERIFIED, and local Canvas remains DEFERRED. The guide draft and infrastructure README clarification remain pending final approval. No push or main merge is authorized.
+
+### Prior checkpoint — 2026-10-22, 02:43 UTC
 
 **C3 diagnostic PASS is accepted; the full validation is running.** Migration passed all 12 rows. Storage passed all 70 rows, with no failed or not-applicable row. The six repaired or dependent rows executed their own commands. The 11 recovery checks passed in order. The Lead checked the raw journal, pause, lock, import and restore records. The diagnostic gives zero full acceptance credit.
 
