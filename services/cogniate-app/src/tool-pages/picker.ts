@@ -6,7 +6,7 @@ import type { ChannelRegistry } from '@cogniate/channel-kernel';
 import type { Logger, PublicUrls } from '@cogniate/shared';
 import { decrypt } from '@cogniate/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { TOOL_ACCOUNT } from '../app/connections.ts';
+import { TOOL_ACCOUNT } from '../kernel/setup/common.ts';
 import type { ContentItem, LtiClient } from '../clients/lti-client.ts';
 import { LtiServiceError, ltiErrorFields } from '../clients/lti-client.ts';
 import type { Db } from '../domain/db.ts';
@@ -16,7 +16,7 @@ import { claimPicker, clearPickerLtik, getPicker, pickablePublications, releaseP
 import { httpsOrigin } from './launch-rules.ts';
 import { errorPage, escapeHtml, layout, newNonce, toolPageHeaders, withLms } from './page.ts';
 import { getConnectionAnyLibrary } from '../domain/connections.ts';
-import type { ChannelText as LmsName } from '../kernel/ports.ts';
+import type { ChannelText } from '../kernel/ports.ts';
 
 export interface PickerPageDeps {
   channels: ChannelRegistry;
@@ -74,7 +74,7 @@ export function contentItemFor(urls: PublicUrls, publication: { id: string; cour
 export function registerPickerPages(app: FastifyInstance, deps: PickerPageDeps): void {
   const { db, urls, logger: log, lti, masterKey, now } = deps;
 
-  const fail = (req: FastifyRequest, reply: FastifyReply, code: PickerErrorCode, reason?: PickerReason, err?: unknown, lms: LmsName = deps.channels.textName(null)) => {
+  const fail = (req: FastifyRequest, reply: FastifyReply, code: PickerErrorCode, reason?: PickerReason, err?: unknown, lms: ChannelText = deps.channels.textName(null)) => {
     if (reason) log.warn('picker_rejected', { trace_id: req.traceId, reason, ...ltiErrorFields(err) });
     const e = PICKER_ERRORS[code];
     return reply.code(e.status).headers(toolPageHeaders('error')).send(errorPage(HEADING, code, req.traceId, withLms(e.action, lms)));

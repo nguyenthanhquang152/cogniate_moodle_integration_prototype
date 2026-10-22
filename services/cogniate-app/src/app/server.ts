@@ -126,7 +126,7 @@ export async function buildAppApi(deps: AppApiDeps): Promise<FastifyInstance> {
   }));
 
   // The ONE redemption and cleanup engine of every binding (app contract §4.7.1, §4.9).
-  const engine = createRedemptionEngine({ channels: deps.channels, db: deps.db, lti: deps.lti, logger: log, now });
+  const engine = createRedemptionEngine({ urls: deps.urls, channels: deps.channels, db: deps.db, lti: deps.lti, logger: log, now });
   const cleanup = createBindingCleanup({ db: deps.db, lti: deps.lti, logger: log, now });
 
   // Portal API. The hooks of this scope run only for its routes, before the body is read.
