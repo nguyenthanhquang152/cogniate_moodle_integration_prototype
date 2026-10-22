@@ -9,7 +9,8 @@ describe('platform Retry-After (AC-LA-E5-14-06)', () => {
   it.each([
     ['7200', 3600], ['0', 1], ['120', 120], [' 120 ', 120],
     [undefined, 60], ['', 60], ['unreadable', 60], ['1.5', 60], ['-1', 60],
-    ['Infinity', 60], ['90, 120', 60], ['9'.repeat(400), 60],
+    ['Infinity', 60], ['90, 120', 60], ['9'.repeat(400), 3600],
+    ['0'.repeat(400), 1], [`${'0'.repeat(400)}120`, 120],
   ])('normalizes %s to %i seconds', (value, seconds) => {
     expect(platformRetryAfter(value, NOW)).toBe(seconds);
   });

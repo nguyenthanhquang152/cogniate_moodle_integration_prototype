@@ -138,7 +138,20 @@ The audit log (tables `audit_event` in both services) is the record of who chang
 | `lti_job_last_success_timestamp_seconds` | gauge | `job` | stale jobs |
 | `lti_ready` | gauge | — | 1 = ready |
 
-Label rules: no personal data; `platform_id` only on the listed failure metrics; `tool_account_id` is bounded by the account count.
+Label rules: no personal data; `platform_id` only on the listed failure metrics and only a stored platform id; `tool_account_id` only a stored account id (empty for an unknown account or before the account is resolved; never a raw path value), so it is bounded by the account count.
+
+Sources (BD-A2-52; LA-E5-17):
+
+| Metrics | Source |
+| --- | --- |
+| `lti_rate_limited_total` | an observer in the limiter, before the log sampling: every hard refusal and every soft-class excess |
+| `lti_audit_events_total` | the audit writer, after the commit that holds the insert (the outermost transaction of `withAudit`; the autocommit insert of a refused event). A rolled-back insert never counts. Not a table count: retention deletes rows. |
+| `lti_platform_token_failures_total`, `lti_jwks_fetch_failures_total` | injected observers in the platform token client (`onTokenResult({platformId, ok})`) and the JWKS cache (`onJwksFetch({platformId, ok, fetchedAt})`). A JWKS event is emitted once per verify call that waited on a fetch (the starter or a single-flight joiner), with that call's own platform id; a cache hit or a caller with no platform id emits none (BD-A2-54). **Pending instrumentation (LA-E5-17 RQ-1, lane L):** not exposed until that commit lands. |
+| `lti_jwks_cache_age_seconds` | at scrape time, not from events: for each stored active platform, its stored JWKS URL and the cache getter `lastSuccessAt(jwksUrl)` give age = now − last success. Every platform that shares a cache entry (for example every Canvas cloud platform, one fixed URL) gets an accurate age, also when all its own calls were cache hits. No entry yet = no series (BD-A2-54). Pending with the same RQ-1. |
+| `lti_http_*`, `lti_launch_*`, `lti_outbound_*`, `lti_platform_rate_limited_total`, `lti_job_*`, `lti_api_auth_failed_total` | the existing log events and the HTTP hook |
+| key gauges (`lti_signing_key_age_seconds`, `lti_api_key_expires_in_seconds`, `lti_operator_key_expires_in_seconds`, `lti_key_provider_sealed_rows`), `lti_ready` | store queries and the readiness checks at scrape time |
+
+A series with no accurate source is not exposed. It never shows a zero or a placeholder.
 
 ### 4.3 App signals (Should; names and endpoint: A1, [app API delta §8a](contracts/cogniate-app-api-delta.md#8a-app-metrics-should-with-e5-metrics))
 
@@ -271,6 +284,7 @@ Key file lost: run `docker compose exec lti-service npm run lti:operator -- init
 
 ### 6.5 Service keys (incident)
 
+0. Find the platform: `GET /operator/v1/accounts/<id>/platforms`, and match the issuer and the client id that the library gives you (BD-A2-53).
 1. Revoke the keys of the scope: `POST /operator/v1/accounts/<id>/service-keys/revoke {platformId, deploymentId?, contextId?, resourceLinkId?}` (Should).
 2. Tell the library: dispatches of those activities fail with `401` until a learner or teacher launches each activity again; then use Resend on the failed rows.
 
