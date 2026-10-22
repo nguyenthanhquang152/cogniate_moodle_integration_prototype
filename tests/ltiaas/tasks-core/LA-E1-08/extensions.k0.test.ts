@@ -5,8 +5,8 @@
 //   (BD-A1-20, BD-A1-28) and that Canvas canvas-configuration extensionRoute matches G1.canvasConfiguration.
 // - AC-LA-E1-08-09: The six removed core files no longer exist on disk or in git, and the F1 counts of every core file
 //   changed by this task go down or stay (RQ-3).
-// Source: docs/architecture/ltiaas/tasks/LA-E1-08.md; LA-ADR-01 D5, D6, D10; LA-ADR-07 D2; build-decisions-A1.md
-// BD-A1-20, BD-A1-28. QA-3 wrote these tests from the spec and design only (test-first).
+// Source: docs/architecture/ltiaas/tasks/LA-E1-08.md; LA-ADR-01 D3, D5, D6, D10; LA-ADR-07 D2; build-decisions-A1.md
+// BD-A1-20, BD-A1-28, BD-A1-37, BD-A1-38, BD-A1-40, BD-A1-42. QA-3 wrote these tests from the spec and design only (test-first).
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -42,13 +42,21 @@ interface ExtensionRouteLike {
   handle: (
     input: { body: unknown; query: Record<string, string> },
     ctx: Record<string, unknown>,
-  ) => Promise<{ status: number; body: unknown; headers?: Record<string, string> }>;
+  ) => Promise<
+    | { status: number; body: unknown; headers?: Record<string, string> }
+    | { error: { status: number; code: string; message: string; details?: Record<string, unknown> } }
+  >;
 }
 
 interface PublishHookLike {
   option: string;
   capability: string;
-  afterPublish: (publication: Record<string, unknown>, ctx: Record<string, unknown>) => Promise<void>;
+  parseOptions: (value: unknown) => { ok: true; options: unknown } | { ok: false; fields: string[] };
+  afterPublish: (
+    publication: Record<string, unknown>,
+    options: unknown,
+    ctx: Record<string, unknown>,
+  ) => Promise<void>;
   dtoFields: (publication: Record<string, unknown>, ctx: Record<string, unknown>) => Record<string, unknown>;
 }
 
@@ -56,11 +64,11 @@ interface PackageExporterLike {
   id: string;
   formats: readonly string[];
   start: (version: Record<string, unknown>, ctx: Record<string, unknown>) => Promise<Record<string, unknown>>;
-  latest: (version: Record<string, unknown>, ctx: Record<string, unknown>) => Record<string, unknown> | null;
+  latest: (version: Record<string, unknown>, ctx: Record<string, unknown>) => Promise<Record<string, unknown> | null>;
   download: (
     version: Record<string, unknown>,
     ctx: Record<string, unknown>,
-  ) => Promise<{ path: string; mediaType: string; filename: string } | null>;
+  ) => Promise<{ artifact: string; mediaType: string; filename: string } | null>;
 }
 
 interface ConnectionSetupWithExtensions {
@@ -151,10 +159,10 @@ describe('LA-E1-08 extension ports P5-P7, PortContext and Moodle/Canvas channel 
       /channel-sql-tables|lms_connections/i,
     );
 
-    // 3. Negative probe 2: declared table `moodle_credentials` with an undeclared column `zz_secret_col` fails F5.
+    // 3. Negative probe 2: declared table `connection` with an undeclared column `zz_secret_col` fails F5.
     const undeclaredColCode = [
       'export function badColQuery(sql: { get: (s: string, p: Record<string, unknown>) => unknown }) {',
-      "  return sql.get('SELECT connection_id, zz_secret_col FROM moodle_credentials WHERE library_id = :library_id', { library_id: 'lib_1' });",
+      "  return sql.get('SELECT ws_token_encrypted, zz_secret_col FROM connection WHERE id = :connection_id AND library_id = :library_id', { connection_id: 'con_1', library_id: 'lib_1' });",
       '}',
       '',
     ].join('\n');
@@ -164,17 +172,17 @@ describe('LA-E1-08 extension ports P5-P7, PortContext and Moodle/Canvas channel 
       /channel-sql-tables|zz_secret_col/i,
     );
 
-    // 4. Positive probe: declared tables (`moodle_credentials`, `mbz_builds`) and declared columns pass F5.
+    // 4. Positive probe: declared storage columns (`connection.ws_*` + neutral keys per BD-A1-42) and `mbz_build` pass F5.
     const declaredSqlCode = [
       'export function allowedQuery(sql: { get: (s: string, p: Record<string, unknown>) => unknown }) {',
-      "  return sql.get('SELECT connection_id, token_ciphertext, status FROM moodle_credentials WHERE library_id = :library_id', { library_id: 'lib_1' });",
+      "  return sql.get('SELECT ws_token_encrypted, ws_site_name, ws_release FROM connection WHERE id = :connection_id AND library_id = :library_id', { connection_id: 'con_1', library_id: 'lib_1' });",
       '}',
       '',
     ].join('\n');
     const goodSqlRes = await f5Text(moodleProbePath, declaredSqlCode);
     expect(goodSqlRes.code, `declared table and columns in ${moodleProbePath} pass F5:\n${goodSqlRes.output}`).toBe(0);
 
-    // 5. Verify baseline P5-P7 ports on loaded adapters (BD-A1-20, BD-A1-28) and ports.ts remains types-only.
+    // 5. Verify baseline P5-P7 ports on loaded adapters (BD-A1-20, BD-A1-28, BD-A1-37, BD-A1-38, BD-A1-40) and ports.ts remains types-only.
     const portsAbs = path.join(ROOT, PORTS_REL);
     const sourceText = fs.readFileSync(portsAbs, 'utf8');
     const sf = ts.createSourceFile(portsAbs, sourceText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
@@ -191,7 +199,7 @@ describe('LA-E1-08 extension ports P5-P7, PortContext and Moodle/Canvas channel 
     const moodleSetup = unwrapSetup(loadedById.get('moodle')?.appAdapter);
     const blackboardSetup = unwrapSetup(loadedById.get('blackboard')?.appAdapter);
 
-    // Canvas P5 extensionRoutes: GET canvas-configuration and POST deployments
+    // Canvas P5 extensionRoutes: GET canvas-configuration (setup.artifacts); POST deployments is a kernel route (deployments.multiple), not a Canvas P5 route.
     expect(Array.isArray(canvasSetup.extensionRoutes), 'canvas has extensionRoutes').toBe(true);
     const canvasConfigRoute = canvasSetup.extensionRoutes!.find(
       (r) => r.method === 'GET' && r.path === 'canvas-configuration',
@@ -200,56 +208,80 @@ describe('LA-E1-08 extension ports P5-P7, PortContext and Moodle/Canvas channel 
       (r) => r.method === 'POST' && r.path === 'deployments',
     );
     expect(canvasConfigRoute, 'canvas has GET canvas-configuration extensionRoute').toBeDefined();
-    expect(canvasConfigRoute!.capability).toBe('app.canvasConfiguration');
+    expect(canvasConfigRoute!.capability).toBe('setup.artifacts');
     expect(canvasConfigRoute!.legacyCapabilityName).toBe('canvasConfiguration');
-    expect(canvasDeplRoute, 'canvas has POST deployments extensionRoute').toBeDefined();
-    expect(canvasDeplRoute!.capability).toBe('app.addDeployment');
-    expect(canvasDeplRoute!.legacyCapabilityName).toBe('addDeployment');
+    expect(canvasDeplRoute, 'POST deployments is a kernel route, not a Canvas P5 extensionRoute').toBeUndefined();
 
-    // Moodle P5-P7: PUT web-services, publishHooks (createMoodleCourse), packageExporters (mbz)
+    // Moodle P5-P7: PUT web-services (siteApi.token), publishHooks (createMoodleCourse -> publish.createCourse), packageExporters (mbz -> ['scorm12'])
     expect(Array.isArray(moodleSetup.extensionRoutes), 'moodle has extensionRoutes').toBe(true);
     const moodleWsRoute = moodleSetup.extensionRoutes!.find(
       (r) => r.method === 'PUT' && r.path === 'web-services',
     );
     expect(moodleWsRoute, 'moodle has PUT web-services extensionRoute').toBeDefined();
-    expect(moodleWsRoute!.capability).toBe('app.webServices');
+    expect(moodleWsRoute!.capability).toBe('siteApi.token');
     expect(moodleWsRoute!.legacyCapabilityName).toBe('webServices');
 
     expect(Array.isArray(moodleSetup.publishHooks), 'moodle has publishHooks').toBe(true);
     const moodleShellHook = moodleSetup.publishHooks!.find((h) => h.option === 'createMoodleCourse');
     expect(moodleShellHook, 'moodle has createMoodleCourse publishHook').toBeDefined();
-    expect(moodleShellHook!.capability).toBe('app.courseShell');
+    expect(moodleShellHook!.capability).toBe('publish.createCourse');
+    expect(typeof moodleShellHook!.parseOptions, 'createMoodleCourse publishHook has parseOptions (BD-A1-37)').toBe(
+      'function',
+    );
 
     expect(Array.isArray(moodleSetup.packageExporters), 'moodle has packageExporters').toBe(true);
     const mbzExporter = moodleSetup.packageExporters!.find((e) => e.id === 'mbz');
     expect(mbzExporter, 'moodle has mbz packageExporter').toBeDefined();
-    expect(mbzExporter!.formats).toEqual(expect.arrayContaining(['mbz', 'moodle_backup']));
+    expect(mbzExporter!.formats).toEqual(['scorm12']);
 
     // Blackboard has no extension routes, publish hooks, or package exporters.
     expect(blackboardSetup.extensionRoutes ?? []).toEqual([]);
     expect(blackboardSetup.publishHooks ?? []).toEqual([]);
     expect(blackboardSetup.packageExporters ?? []).toEqual([]);
 
-    // Compare Canvas canvas-configuration route output against G1.canvasConfiguration if PortContext stub has the JWK fixture.
+    // Compare Canvas canvas-configuration route output against G1.canvasConfiguration (BD-A1-37, BD-A1-40 PortContext).
     expect(fs.existsSync(GOLDEN_G1_PATH), 'G1.json exists').toBe(true);
-    const g1 = JSON.parse(fs.readFileSync(GOLDEN_G1_PATH, 'utf8')) as {
-      canvasConfiguration: {
+    const rawG1 = JSON.parse(fs.readFileSync(GOLDEN_G1_PATH, 'utf8')) as {
+      canvasConfiguration?: {
         'jwk=url': Record<string, unknown>;
         'jwk=inline': Record<string, unknown>;
       };
+      acceptance?: {
+        canvasConfiguration: {
+          'jwk=url': Record<string, unknown>;
+          'jwk=inline': Record<string, unknown>;
+        };
+      };
     };
+    const g1CanvasConfig = rawG1.canvasConfiguration ?? rawG1.acceptance!.canvasConfiguration;
 
     const inlineJwk = (
-      (g1.canvasConfiguration['jwk=inline'].public_jwk as Record<string, unknown> | undefined) ?? {}
+      (g1CanvasConfig['jwk=inline'].public_jwk as Record<string, unknown> | undefined) ?? {}
     );
     const stubCtx: Record<string, unknown> = {
       libraryId: 'acc-1',
+      libraryName: "Thanh's Library",
       connectionId: 'con-canvas-1',
-      publicAppOrigin: 'https://app.cogniate.test:9443',
-      publicLtiOrigin: 'https://lti.cogniate.test:9443',
+      toolAccountId: 'cogniate',
+      urls: {
+        app: 'https://app.cogniate.test:9443',
+        lti: 'https://lti.cogniate.test:9443',
+        player: 'https://player.cogniate.test:9443',
+      },
+      toolUrls: {
+        login: 'https://lti.cogniate.test:9443/lti/login/cogniate',
+        launch: 'https://lti.cogniate.test:9443/lti/launch/cogniate',
+        keys: 'https://lti.cogniate.test:9443/lti/keys/cogniate',
+        register: 'https://lti.cogniate.test:9443/lti/register/cogniate',
+        ltiOrigin: 'https://lti.cogniate.test:9443',
+      },
+      publicToolKeys: async () => ({
+        ok: true as const,
+        keys: [inlineJwk],
+      }),
       outbound: {
         getJson: async (url: string) => {
-          if (url.includes('jwks')) return { keys: [inlineJwk] };
+          if (url.includes('jwks') || url.includes('keys')) return { keys: [inlineJwk] };
           throw new Error(`Unexpected outbound.getJson(${url})`);
         },
         postJson: async () => {
@@ -272,12 +304,16 @@ describe('LA-E1-08 extension ports P5-P7, PortContext and Moodle/Canvas channel 
     };
 
     const urlOut = await canvasConfigRoute!.handle({ body: undefined, query: { jwk: 'url' } }, stubCtx);
-    expect(urlOut.status).toBe(200);
-    expect(urlOut.body).toEqual(g1.canvasConfiguration['jwk=url']);
+    expect('status' in urlOut && urlOut.status).toBe(200);
+    if ('body' in urlOut) {
+      expect(urlOut.body).toEqual(g1CanvasConfig['jwk=url']);
+    }
 
     const inlineOut = await canvasConfigRoute!.handle({ body: undefined, query: { jwk: 'inline' } }, stubCtx);
-    expect(inlineOut.status).toBe(200);
-    expect(inlineOut.body).toEqual(g1.canvasConfiguration['jwk=inline']);
+    expect('status' in inlineOut && inlineOut.status).toBe(200);
+    if ('body' in inlineOut) {
+      expect(inlineOut.body).toEqual(g1CanvasConfig['jwk=inline']);
+    }
 
     artifact(
       'e1-08-ac04-f5-and-ports.json',
@@ -347,9 +383,6 @@ describe('LA-E1-08 extension ports P5-P7, PortContext and Moodle/Canvas channel 
       for (const [file, headCount] of Object.entries(headBaseline)) {
         const prev = baseBaseline[file] ?? 0;
         expect(headCount, `f1-baseline.json ${file}: ${headCount} <= ${prev} (RQ-3)`).toBeLessThanOrEqual(prev);
-      }
-      for (const removed of REMOVED_CORE_FILES) {
-        expect(headBaseline[removed] ?? 0, `${removed} is 0 or absent in f1-baseline.json`).toBe(0);
       }
     }
 

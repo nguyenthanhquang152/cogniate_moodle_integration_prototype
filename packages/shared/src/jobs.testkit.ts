@@ -34,6 +34,8 @@ export interface ContractRow {
 }
 
 export interface ContractRowState {
+  tries: number;
+  nextTryAt: number | null;
   status: string;
   leaseOwner: string | null;
   leaseUntil: number | null;
@@ -171,6 +173,18 @@ export function describeJobStoreContract(name: string, makeFixture: () => Awaita
       await h.cleanUp();
       vi.useRealTimers();
       await f.close();
+    });
+
+    it('AC-LA-E4-02-04: a late endJobLease from the old owner leaves a newer lease unchanged', async () => {
+      const old = f.store();
+      const newer = f.store();
+      expect(await old.takeJobLease(JOB, 'contract-1/boot-old', T0, T0 + 1000)).toBe(true);
+      expect(await newer.takeJobLease(JOB, 'contract-1/boot-new', T0 + 1000, T0 + 5000)).toBe(true);
+      const leased = await newer.readJobLease(JOB);
+      await old.endJobLease(JOB, 'contract-1/boot-old', T0 + 2000, 'failed');
+      expect(await newer.readJobLease(JOB)).toEqual(leased);
+      await newer.endJobLease(JOB, 'contract-1/boot-new', T0 + 3000, 'ok');
+      expect(await old.readJobLease(JOB)).toMatchObject({ owner: null, leaseUntil: null, lastRunAt: T0 + 3000, lastResult: 'ok' });
     });
 
     it('heartbeat row: a free or 30 s old row can be claimed; heartbeat and delete only by its boot id', async () => {
@@ -444,6 +458,21 @@ export function describeQueueStoreContract(name: string, makeFixture: () => Awai
       await h.cleanUp();
       vi.useRealTimers();
       await f.close();
+    });
+
+    it('AC-LA-E4-02-13: an unexpected remote error moves its row and the next row of its partition is sent', async () => {
+      const bad = await f.addRow({ key: 'bad', partition: 'p1', score: 0.5, nextTryAt: T0 - 2000 });
+      const good = await f.addRow({ key: 'good', partition: 'p1', score: 0.5, nextTryAt: T0 - 1000 });
+      const calls: string[] = [];
+      const runner = h.runner(f.store(), { instanceId: 'contract-1', bootId: 'boot-1' });
+      runner.addQueue(f.queueJob(async (id) => { calls.push(id); if (id === bad) throw new TypeError('unexpected remote error'); }));
+      runner.start();
+      await settle();
+      await advance(JOB_POLL_MS);
+      expect(calls).toEqual([bad, good]);
+      expect(await f.readRow(bad)).toMatchObject({ status: 'pending', tries: 1, sendStartedAt: null, leaseOwner: null });
+      expect((await f.readRow(bad)).nextTryAt).toBeGreaterThan(T0 + JOB_POLL_MS);
+      expect(await f.readRow(good)).toMatchObject({ status: 'sent', tries: 1 });
     });
 
     it('AC-LA-E4-01-01: one conditional update takes the lease; a second taker gets false; another boot id records nothing', async () => {

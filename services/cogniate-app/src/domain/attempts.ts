@@ -6,9 +6,10 @@ import type { PackageFormat, PackageReport, TrackingProfile } from '@cogniate/pa
 import { randomId, sha256Hex } from '@cogniate/shared';
 import type { AgsScore, Credit, Outcome, RuntimeState, ScormCmi } from '@cogniate/tracking';
 import type { HtmlProgress } from '@cogniate/tracking';
-import { agsScore, agsScoreBody, checkHtmlProgress, checkScormCmi, emptyProgress, finishStatus, htmlOutcome, improves, isFinal, outcomeFromStatus, sessionMax, syncDecision, totalTime } from '@cogniate/tracking';
+import { agsScore, checkHtmlProgress, checkScormCmi, emptyProgress, finishStatus, htmlOutcome, improves, isFinal, outcomeFromStatus, sessionMax, totalTime } from '@cogniate/tracking';
 import type { Db } from './db.ts';
 import { transaction } from './db.ts';
+import { writeFinalRecord } from '../kernel/records/records.ts';
 
 export type { Outcome } from '@cogniate/tracking';
 /** Re-exported for the content host (the ADR-008 fence lets it import only domain/attempts*). */
@@ -147,6 +148,7 @@ export interface RuntimeSession {
   profile: TrackingProfile;
   /** M1: the LMS name of the connection (the runtime body `data-lms-name`). */
   lmsName: string;
+  reporterIds: readonly string[];
 }
 
 /** By token hash, expired or not (the caller answers 404 or 410). */
@@ -164,7 +166,7 @@ export function findRuntimeSession(db: Db, runtimeTokenHash: string, channels: C
     attemptId: String(r.attempt_id), resourceLinkId: String(r.resource_link_id), userSub: String(r.user_sub), preview: Number(r.preview) === 1,
     outcome: r.outcome as Outcome, scoreGiven: r.score_given === null ? null : Number(r.score_given), scoreMaximum: r.score_maximum === null ? null : Number(r.score_maximum),
     saved: r.cmi_or_progress === null ? null : JSON.parse(String(r.cmi_or_progress)), format: String(r.format) as PackageFormat,
-    packageId: String(r.package_id), profile: JSON.parse(String(r.tracking_profile)) as TrackingProfile, lmsName: channels.textName(String(r.channel)),
+    packageId: String(r.package_id), profile: JSON.parse(String(r.tracking_profile)) as TrackingProfile, reporterIds: channels.capabilities(String(r.channel))['records.reporters'], lmsName: channels.textName(String(r.channel)),
   };
 }
 
@@ -277,24 +279,10 @@ export function applyCommit(db: Db, s: RuntimeSession, body: unknown, now: numbe
     db.prepare(`UPDATE attempt SET cmi_or_progress = ?, last_seq = MAX(last_seq, ?), outcome = ?, score_given = ?, score_maximum = ?, updated_at = ? WHERE id = ?`)
       .run(JSON.stringify(r.stored), seq, best.outcome, best.score?.scoreGiven ?? null, best.score?.scoreMaximum ?? null, now, s.attemptId);
 
-    const syncId = !s.preview && isFinal(r.outcome) && r.score ? maybeCreateSync(db, s, r.score, now) : null;
+    const syncId = !s.preview && improves(before, { outcome: r.outcome, score: r.score }) && isFinal(r.outcome) && r.score
+      ? writeFinalRecord(db, { attemptId: s.attemptId, placementId: s.resourceLinkId, learnerSubject: s.userSub, outcome: r.outcome, ...r.score }, s.reporterIds, now) : null;
     return { ok: true, event, seq, stale, outcome: best.outcome, scoreGiven: best.score?.scoreGiven ?? null, scoreMaximum: best.score?.scoreMaximum ?? null, syncId };
   });
-}
-
-/** ADR-010 rule 5: a pending row only for a better result of this learner and activity; supersede lower pending rows. */
-function maybeCreateSync(db: Db, s: RuntimeSession, score: AgsScore, now: number): string | null {
-  const rows = db.prepare('SELECT id, status, score_given, score_maximum FROM score_sync WHERE resource_link_id = ? AND user_sub = ?')
-    .all(s.resourceLinkId, s.userSub)
-    .map((r) => ({ id: String(r.id), status: r.status as 'pending', scoreGiven: Number(r.score_given), scoreMaximum: Number(r.score_maximum) }));
-  const decision = syncDecision(score, rows);
-  if (!decision.create) return null;
-  for (const id of decision.supersede) db.prepare("UPDATE score_sync SET status = 'superseded', next_try_at = NULL, updated_at = ? WHERE id = ?").run(now, id);
-  const id = randomId('sync_');
-  db.prepare(`INSERT INTO score_sync (id, attempt_id, resource_link_id, user_sub, payload, score_given, score_maximum, status, tries, created_at, next_try_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', 0, ?, ?, ?)`)
-    .run(id, s.attemptId, s.resourceLinkId, s.userSub, JSON.stringify(agsScoreBody(s.userSub, score)), score.scoreGiven, score.scoreMaximum, now, now, now);
-  return id;
 }
 
 export type { ChannelRegistry } from '@cogniate/channel-kernel';

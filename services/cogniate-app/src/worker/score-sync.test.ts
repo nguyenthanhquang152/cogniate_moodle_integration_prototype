@@ -1,3 +1,4 @@
+import { seedLegacyDispatch } from '../kernel/records/records.testkit.ts';
 import { TEST_CHANNELS } from '../testkit.ts';
 // B-M1-01 (app contract §4.7.2): the worker reads the connection state at each send decision, not from the due-row
 // batch. Two interleavings: a suspend commits while an EARLIER row of the batch waits for its POST, and a suspend
@@ -62,12 +63,11 @@ function dueRow(db: Db, con: string, n: number, opts: { lineItem: string | null;
     .run(`rl_${n}`, con, pub, `r${n}`, opts.lineItem, encrypt(MASTER, 'service-key'));
   db.prepare("INSERT INTO attempt (id, resource_link_id, user_sub, course_version_id, preview, outcome, score_given, score_maximum, created_at, updated_at) VALUES (?, ?, 'u', 'ver_w', 0, 'completed', 7, 10, 0, 0)")
     .run(`att_${n}`, `rl_${n}`);
-  db.prepare("INSERT INTO score_sync (id, attempt_id, resource_link_id, user_sub, payload, score_given, score_maximum, status, tries, created_at, next_try_at, updated_at) VALUES (?, ?, ?, 'u', '{}', 7, 10, 'pending', ?, ?, ?, 0)")
-    .run(`sync_${n}`, `att_${n}`, `rl_${n}`, opts.tries ?? 0, NOW - 1000, opts.nextTryAt ?? NOW - 1000);
+  seedLegacyDispatch(db, { id: `sync_${n}`, attemptId: `att_${n}`, tries: opts.tries ?? 0, createdAt: NOW - 1000, nextTryAt: opts.nextTryAt ?? NOW - 1000 });
   return `sync_${n}`;
 }
 
-const row = (db: Db, id: string) => db.prepare('SELECT status, tries, last_error, send_started_at FROM score_sync WHERE id = ?').get(id);
+const row = (db: Db, id: string) => db.prepare('SELECT status, tries, last_error, send_started_at FROM record_dispatch WHERE id = ?').get(id);
 
 /** A fake LTI client: the given hooks run inside the awaited calls (the suspend interleaves there). */
 function fakeLti(hooks: { onPost?: (line: string) => void; onLookup?: () => Array<{ id: string }> }) {

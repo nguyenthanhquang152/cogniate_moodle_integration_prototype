@@ -74,7 +74,7 @@ describe('013 channel migration', () => {
     expect(rows(db, 'binding_grant')).toEqual(before.grants.map((row) => ({ ...row, bound_values: null })));
     const ledger = rows(db, 'schema_migration');
     expect(ledger.slice(0, before.ledger.length)).toEqual(before.ledger);
-    expect(ledger.at(-1)?.name).toBe('013_channel_kernel.sql');
+    expect(ledger.find((row) => String(row.name).startsWith('013_'))?.name).toBe('013_channel_kernel.sql');
     db.close();
     db = openDb(copy);
     expect(rows(db, 'schema_migration')).toEqual(ledger);
