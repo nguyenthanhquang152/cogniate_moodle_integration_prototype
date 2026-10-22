@@ -60,9 +60,9 @@ function tokenHits(token, words) {
 export function checkText({ path, text }, words = bannedWords()) {
   if (!isF1Path(path) || path === 'packages/channel-kernel/src/legacy-wire.ts') return [];
   const hits = [];
-  const add = (token, offset, identifier = false) => {
+  const add = (token, offset, identifier = false, matchText = token) => {
     if (identifier && WEB_API.has(token)) return;
-    for (const word of tokenHits(token, words)) hits.push({ ...position(text, offset), token, word });
+    for (const word of tokenHits(matchText, words)) hits.push({ ...position(text, offset), token, word });
   };
   if (/\.(?:[jt]sx?|[cm][jt]s|json)$/.test(path)) {
     const kind = path.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
@@ -72,6 +72,10 @@ export function checkText({ path, text }, words = bannedWords()) {
         const parent = node.parent;
         const htmlCanvas = node.text === 'canvas' && (ts.isJsxOpeningElement(parent) || ts.isJsxClosingElement(parent) || ts.isJsxSelfClosingElement(parent)) && parent.tagName === node;
         if (!htmlCanvas) add(node.text, node.getStart(source), true);
+      } else if (ts.isRegularExpressionLiteral(node)) {
+        // BD-A1-15: flags are not pattern text; each escape separates parts.
+        const pattern = node.text.slice(1, node.text.lastIndexOf('/'));
+        add(pattern, node.getStart(source) + 1, false, pattern.replace(/\\[\s\S]/g, ' '));
       } else if (ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node) || ts.isJsxText(node)) {
         add(node.text, node.getStart(source));
       }

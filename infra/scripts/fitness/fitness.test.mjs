@@ -61,9 +61,27 @@ describe('token scanner internals', () => {
         assert.deepEqual(checkText({ path, text: 'const canvaslike = "generic"; const x = "moodler";' }, words), []);
         assert.deepEqual(checkText({ path, text: 'const xD2L = ltiGeneric;' }, words).map((hit) => hit.word), ['d2l', 'lti-generic']);
     });
-    it('uses AST nodes so comments and regular expressions do not become identifiers', () => {
+    it('ignores comments but checks regex patterns and cooked strings at their source positions', () => {
         const text = '// canvas\n/* moodle */\nconst pattern = /canvas/; const value = "can\\u0076as";';
-        assert.deepEqual(checkText({ path, text }, words), [{ line: 3, col: 41, token: 'canvas', word: 'canvas' }]);
+        assert.deepEqual(checkText({ path, text }, words), [
+            { line: 3, col: 18, token: 'canvas', word: 'canvas' },
+            { line: 3, col: 41, token: 'canvas', word: 'canvas' },
+        ]);
+    });
+    it('uses regex escapes as separators and keeps identifier exceptions out of regex patterns', () => {
+        const patterns = [
+            [String.raw`/\.instructure\.com$/`, ['instructure']],
+            [String.raw`/\bcanvas\b/i`, ['canvas']],
+            ['/^(moodle|canvas|blackboard)-/', ['moodle', 'canvas', 'blackboard']],
+            [String.raw`/\dcanvas/`, ['canvas']],
+            [String.raw`/can\wvas/`, []],
+            ['/HTMLCanvasElement/', ['canvas']],
+            ['/canvases/', []],
+        ];
+        for (const [pattern, expected] of patterns) {
+            assert.deepEqual(checkText({ path, text: `const match = ${pattern};` }, [...words, 'instructure', 'blackboard']).map((hit) => hit.word), expected, pattern);
+        }
+        assert.deepEqual(checkText({ path, text: 'const flags = /neutral/gi;' }, ['g', 'i']), []);
     });
     it('visits expressions inside templates and JSX, retaining source positions', () => {
         const text = 'const x = `ok ${createMoodle()} canvas`;\nconst ui = <p title="moodle">canvas {ltiGeneric}</p>;';
