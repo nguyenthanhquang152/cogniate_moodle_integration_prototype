@@ -77,7 +77,6 @@ export interface ChannelManifest {
     teacherSteps: readonly string[];
     disconnect: string;
     notReady: string | null;
-    registered?: string;
   };
 }
 
@@ -138,7 +137,6 @@ const MANIFEST = z.strictObject({
     teacherSteps: z.array(TEXT),
     disconnect: TEXT,
     notReady: TEXT.nullable(),
-    registered: TEXT.default('Registered'),
   }),
 });
 
