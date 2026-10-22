@@ -2,9 +2,9 @@ import { sha256Hex } from '@cogniate/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Db } from '../db/index.ts';
 import { openDb } from '../db/index.ts';
-import { ensureAccount, findAccountByApiKey, getAccount } from './accounts.ts';
+import { ensureAccount, getAccount } from './accounts.ts';
 import {
-  apiKeyExpiryInRange, apiKeyMaxExpiry, findActiveApiKey, getApiKey, issueApiKey, listApiKeys, revokeAccountApiKeys, revokeActiveAccountApiKeys, revokeApiKey,
+  apiKeyExpiryInRange, apiKeyMaxExpiry, useApiKey, getApiKey, issueApiKey, listApiKeys, revokeAccountApiKeys, revokeActiveAccountApiKeys, revokeApiKey,
 } from './api-keys.ts';
 
 const T0 = Date.parse('2026-10-22T10:00:00Z');
@@ -47,7 +47,7 @@ describe('API key store', () => {
     issue();
     expect(() => issue()).toThrow(expect.objectContaining({ code: 'API_KEY_LIMIT' }));
     const afterExpiry = issueApiKey(db, 'one', { label: 'new', scopes: ['launch'], createdBy: 'operator:unit' }, T0 + HOUR);
-    expect(findActiveApiKey(db, a.apiKey, T0 + HOUR)).toBeNull();
+    expect(useApiKey(db, a.apiKey, T0 + HOUR)).toBeNull();
     expect(afterExpiry.record.scopes).toEqual(['launch']);
   });
 
@@ -69,11 +69,11 @@ describe('API key store', () => {
 
   it('the lookup gives one invalid result for unknown, wrong format, revoked and expired credentials', () => {
     const { db, issue } = fixture(); const a = issue('one', T0 + HOUR);
-    expect(findActiveApiKey(db, a.apiKey, T0 + HOUR - 1)?.id).toBe(a.record.id);
-    for (const now of [T0 + HOUR, T0 + HOUR + 1000]) expect(findActiveApiKey(db, a.apiKey, now)).toBeNull();
-    for (const key of ['', `ltio_${a.apiKey.slice(5)}`, `ltis_${'A'.repeat(43)}`, `${a.apiKey}:x`]) expect(findActiveApiKey(db, key, T0)).toBeNull();
+    expect(useApiKey(db, a.apiKey, T0 + HOUR - 1)?.id).toBe(a.record.id);
+    for (const now of [T0 + HOUR, T0 + HOUR + 1000]) expect(useApiKey(db, a.apiKey, now)).toBeNull();
+    for (const key of ['', `ltio_${a.apiKey.slice(5)}`, `ltis_${'A'.repeat(43)}`, `${a.apiKey}:x`]) expect(useApiKey(db, key, T0)).toBeNull();
     revokeApiKey(db, 'one', a.record.id, T0 + 2);
-    expect(findActiveApiKey(db, a.apiKey, T0 + 3)).toBeNull();
+    expect(useApiKey(db, a.apiKey, T0 + 3)).toBeNull();
     expect(revokeApiKey(db, 'one', a.record.id, T0 + 4)?.revokedAt).toBe(T0 + 2);
   });
 
@@ -82,10 +82,10 @@ describe('API key store', () => {
     db.exec(`CREATE TEMP TABLE usage_probe (ts INTEGER);
       CREATE TEMP TRIGGER record_usage AFTER UPDATE OF last_used_at ON api_key BEGIN INSERT INTO usage_probe VALUES (NEW.last_used_at); END`);
     for (const now of [T0, T0 + 1, T0 + 500, T0 + 59_999]) {
-      expect(findActiveApiKey(db, a.apiKey, now)?.lastUsedAt).toBe(T0);
+      expect(useApiKey(db, a.apiKey, now)?.lastUsedAt).toBe(T0);
     }
-    expect(findActiveApiKey(db, a.apiKey, T0 + 60_000)?.lastUsedAt).toBe(T0 + 60_000);
-    expect(findActiveApiKey(db, a.apiKey, T0 + 60_001)?.lastUsedAt).toBe(T0 + 60_000);
+    expect(useApiKey(db, a.apiKey, T0 + 60_000)?.lastUsedAt).toBe(T0 + 60_000);
+    expect(useApiKey(db, a.apiKey, T0 + 60_001)?.lastUsedAt).toBe(T0 + 60_000);
     expect(db.prepare('SELECT ts FROM usage_probe').all()).toEqual([{ ts: T0 }, { ts: T0 + 60_000 }]);
   });
 
@@ -130,9 +130,9 @@ describe('bootstrap API key bridge (BD-A2-10)', () => {
     expect(rotated).toMatchObject({ created: false, apiKey: expect.stringMatching(/^ltis_/) });
     expect(rotated.apiKey).not.toBe(first.apiKey);
     expect(db.prepare('SELECT api_key_hash FROM tool_account WHERE id = ?').get(input.id)?.api_key_hash).toBe(frozen);
-    expect(findAccountByApiKey(db, first.apiKey!)).toBeNull();
-    expect(findActiveApiKey(db, custom.apiKey, T0)).toBeNull();
-    expect(findAccountByApiKey(db, rotated.apiKey!)?.id).toBe(input.id);
+    expect(useApiKey(db, first.apiKey!, T0)).toBeNull();
+    expect(useApiKey(db, custom.apiKey, T0)).toBeNull();
+    expect(useApiKey(db, rotated.apiKey!, T0)?.toolAccountId).toBe(input.id);
     expect(listApiKeys(db, input.id).filter((key) => key.revokedAt === null)).toHaveLength(1);
   });
 
@@ -150,6 +150,6 @@ describe('bootstrap API key bridge (BD-A2-10)', () => {
     fail();
     expect(() => ensureAccount(db, { ...input, name: 'Changed', rotateApiKey: true })).toThrow('unit fault');
     expect(listApiKeys(db, input.id)).toEqual(before);
-    expect(findAccountByApiKey(db, first.apiKey!)?.name).toBe(input.name);
+    expect(getAccount(db, useApiKey(db, first.apiKey!, T0)!.toolAccountId)?.name).toBe(input.name);
   });
 });

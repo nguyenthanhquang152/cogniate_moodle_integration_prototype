@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openSqlite, sha256Hex } from '@cogniate/shared';
 import { expect, it } from 'vitest';
-import { getAccount, findAccountByApiKey } from '../store/accounts.ts';
+import { getAccount } from '../store/accounts.ts';
+import { useApiKey } from '../store/api-keys.ts';
 import { openDb } from '../db/index.ts';
 
 it('AC-LA-E5-04-11: migrates M1 accounts without changing tool URLs, credentials or claim policy', () => {
@@ -23,6 +24,6 @@ it('AC-LA-E5-04-11: migrates M1 accounts without changing tool URLs, credentials
     expect(getAccount(db, 'cogniate')).toEqual({ id: 'cogniate', name: 'Cogniate', launchUrl: 'https://app.test/tool/launch',
       deepLinkingUrl: 'https://app.test/tool/deep-link', registrationUrl: 'https://app.test/tool/register', createdAt: 1234,
       status: 'active', statusChangedAt: 1234, publicBaseUrl: null, limits: null, claimPolicy: null, serviceKeyWriteScope: 'context' });
-    expect(findAccountByApiKey(db, apiKey)?.id).toBe('cogniate');
+    expect(useApiKey(db, apiKey, Date.now())?.toolAccountId).toBe('cogniate');
   } finally { db.close(); rmSync(dir, { recursive: true, force: true }); }
 });
