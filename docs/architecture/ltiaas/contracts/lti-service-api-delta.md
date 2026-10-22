@@ -228,7 +228,7 @@ CLI mapping (same commands, same output lines; the CLIs call the API above):
 | CLI | Calls |
 | --- | --- |
 | `lti:operator init --name <n>` | none: the only direct database write (first operator key) |
-| `lti:bootstrap --account --name [--rotate-api-key] [--rotate-signing-key]` | `POST` or `PATCH /operator/v1/accounts`; `POST …/api-keys` (with `--rotate-api-key`: then revoke every other key); `POST …/signing-keys` + `activate {force: true}` (with `--rotate-signing-key`) |
+| `lti:bootstrap --account --name [--rotate-api-key] [--rotate-signing-key]` | `POST` or `PATCH /operator/v1/accounts`; `POST …/api-keys` (with `--rotate-api-key`: then revoke every other key); `POST …/signing-keys` + `activate {force: true}` (with `--rotate-signing-key`; when a `next` key exists, first `POST …/signing-keys/<next kid>/retire {immediate: true}`; LA-ADR-06 D7 "CLI") |
 | `lti:shared-platform` | `POST /operator/v1/accounts/:id/shared-platforms` |
 
 ## 4. Tenant API (changes to §3 and §9)
