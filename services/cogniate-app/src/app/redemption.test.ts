@@ -372,7 +372,10 @@ describe('redemption faults and races (§4.7.1 outcome table; AC-M1-37 unit leve
     expect((await putCanvas(a, k1, 'dA', g1.code)).status).toBe(502);
     const platform = [...t.lti.platforms.values()].find((p) => p.profile === 'canvas-sim-cloud')!;
     expect(platform.active).toBe(true);
-    expect(code(await putCanvas(a, k2, 'dA', g2.code))).toBe('PLATFORM_IN_USE');
+    const inUse = await putCanvas(a, k2, 'dA', g2.code);
+    // LA-E1-12: the channel text name fills the M1 Canvas text byte for byte.
+    expect([code(inUse), inUse.json.details.description]).toEqual(['PLATFORM_IN_USE',
+      'This Canvas developer key is already connected to Cogniate. Make a new developer key for this library, or ask your Cogniate operator.']);
     expect((await call('DELETE', `/app-api/connections/${k1.id}`, a)).status).toBe(204);
     expect(events('binding_fenced').at(-1)).toMatchObject({ result: 'fenced' });
     const ok = await putCanvas(a, k2, 'dA', g2.code);

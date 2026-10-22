@@ -23,12 +23,14 @@ import { invalid } from '../validation.ts';
 
 const url = z.string().min(1).max(2048);
 const ref = z.string().regex(BINDING_REF, '1 to 64 characters [A-Za-z0-9_-]');
+// BD-A2-73: extra `aud` values of launch check 5, compared exactly (not URLs). 1 to 2,048 characters, at most 20.
+const trustedAudiences = z.array(z.string().min(1).max(2048)).max(20);
 
 /** Every field that a create may have; the per-profile rules below decide which are required or allowed. */
 const PlatformCreateBase = z.object({
   url: url.optional(),
   clientId: z.string().min(1).max(255),
-  trustedAudiences: z.array(z.string()).optional(),
+  trustedAudiences: trustedAudiences.optional(),
   name: z.string().min(1).max(255),
   authenticationEndpoint: url.optional(),
   accesstokenEndpoint: url.optional(),
@@ -50,7 +52,7 @@ const AdminCreate = z.object({
 });
 
 const PlatformPatch = z.object({
-  trustedAudiences: z.array(z.string()).optional(),
+  trustedAudiences: trustedAudiences.optional(),
   name: z.string().min(1).max(255).optional(),
   active: z.boolean().optional(),
   deploymentIds: z.array(z.string().min(1).max(255)).min(1).max(100).optional(),

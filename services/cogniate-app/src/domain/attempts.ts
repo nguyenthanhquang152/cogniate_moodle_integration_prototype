@@ -276,7 +276,7 @@ export function applyCommit(db: Db, s: RuntimeSession, body: unknown, now: numbe
     const current = db.prepare('SELECT last_seq, max_session_time_cs, finished_at, last_cmi FROM play_session WHERE id = ?').get(s.playKey)!;
     const stale = seq <= Number(current.last_seq);
     if (stale && (event === 'commit' || event === 'progress')) return { ok: false, status: 409, code: 'STALE_SEQUENCE', field: 'seq' };
-    const a = db.prepare('SELECT outcome, score_given, score_maximum, cmi_or_progress FROM attempt WHERE id = ?').get(s.attemptId)!;
+    const a = db.prepare('SELECT outcome, score_given, score_maximum, cmi_or_progress, updated_at FROM attempt WHERE id = ?').get(s.attemptId)!;
     const saved = a.cmi_or_progress === null ? null : JSON.parse(String(a.cmi_or_progress));
     // A late SCORM body keeps its session's last accepted CMI (A-T5b-03: never another window's data); with none yet,
     // the body itself is the only data there is.
@@ -295,7 +295,8 @@ export function applyCommit(db: Db, s: RuntimeSession, body: unknown, now: numbe
 
     // Preview attempts write no record (ADR-010 rule 6).
     const syncId = s.preview ? null : writeCommitRecords(db, {
-      attempt: { attemptId: s.attemptId, placementId: s.resourceLinkId, learnerSubject: s.userSub }, state: best,
+      attempt: { attemptId: s.attemptId, placementId: s.resourceLinkId, learnerSubject: s.userSub },
+      before: { ...before, updatedAt: Number(a.updated_at) }, state: best,
       started: a.cmi_or_progress === null, progressed: progressOf(s.format, saved) !== progressOf(s.format, r.stored),
       submitted: !isFinal(before.outcome) && isFinal(best.outcome),
       final: improved && isFinal(r.outcome) && r.score ? { outcome: r.outcome, score: r.score } : null, reporters: s.reporterIds,

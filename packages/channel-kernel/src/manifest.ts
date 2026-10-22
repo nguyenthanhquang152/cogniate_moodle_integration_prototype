@@ -3,7 +3,8 @@
 // the `capabilities` object against the catalog.
 import { z } from 'zod';
 import type { BindingAuthority, CheckProblem, ManifestCapabilities, RegistrationMethod } from './capabilities.ts';
-import { TEXT_PLACEHOLDERS } from './text.ts';
+import { REGISTRATION_TEXT_KEYS, TEXT_PLACEHOLDERS } from './text.ts';
+import type { RegistrationTextKey } from './text.ts';
 
 /** A channel id: also the folder name under `packages/channels/`. */
 export const CHANNEL_ID_PATTERN = /^[a-z][a-z0-9-]{1,31}$/;
@@ -80,6 +81,8 @@ export interface ChannelManifest {
     disconnect: string;
     notReady: string | null;
     registered?: string;
+    /** BD-A1-59: Dynamic Registration help sentences that name LMS menu paths; a missing key gets the core default. */
+    registration?: Readonly<Partial<Record<RegistrationTextKey, string>>>;
   };
 }
 
@@ -148,6 +151,7 @@ const MANIFEST = z.strictObject({
     disconnect: TEXT,
     notReady: TEXT.nullable(),
     registered: TEXT.default('Registered'),
+    registration: z.strictObject(Object.fromEntries(REGISTRATION_TEXT_KEYS.map((key) => [key, TEXT.optional()])) as Record<RegistrationTextKey, z.ZodOptional<typeof TEXT>>).optional(),
   }),
 });
 
