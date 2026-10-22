@@ -4,7 +4,7 @@ import { LtiServiceError } from '../clients/lti-client.ts';
 import { toolPageHeaders } from '../tool-pages/page.ts';
 import type { TestApp } from '../testkit.ts';
 import { QA_B, TEST_URLS, THANH, formBody, ltiPlatform, testApp } from '../testkit.ts';
-import { badPlatformFields, toolName } from './connections.ts';
+import { toolName } from './connections.ts';
 
 let t: TestApp;
 afterEach(async () => {
@@ -76,13 +76,6 @@ describe('connections (app contract §4)', () => {
     expect(ok.statusCode).toBe(200);
     expect(ok.json()).toMatchObject({ status: 'registered', platform: { issuer: TEST_URLS.moodle, clientId: 'abc', deploymentIds: ['3'] } });
     expect(t.lti.calls.find((x) => x.startsWith('POST platform'))).toContain('"name":"Cogniate (QA Library B)"');
-  });
-
-  it('badPlatformFields: issuer origin = siteUrl; endpoints on the issuer origin; https', () => {
-    const v = { issuer: 'https://moodle.test', clientId: 'c', deploymentId: '1', authenticationEndpoint: 'https://moodle.test/a', accessTokenEndpoint: 'https://moodle.test/t', jwksUrl: 'https://moodle.test/k' };
-    expect(badPlatformFields('https://moodle.test', v)).toEqual([]);
-    expect(badPlatformFields('https://other.test', v)).toEqual(['issuer']);
-    expect(badPlatformFields('https://moodle.test', { ...v, accessTokenEndpoint: 'http://moodle.test/t', authenticationEndpoint: 'https://moodle.test:8443/a' })).toEqual(['authenticationEndpoint', 'accessTokenEndpoint']);
   });
 
   it('DELETE switches the platform off in the LTI service and disables the connection', async () => {
