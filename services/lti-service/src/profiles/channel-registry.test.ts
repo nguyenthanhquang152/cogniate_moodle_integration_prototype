@@ -122,6 +122,39 @@ it('keeps every frozen provider-list lms value, including the explicit null', ()
   ]);
 });
 
+describe('new profile listOrder', () => {
+  it.each([0, 50, 70])('refuses %i, including the simulation baseline boundary', (listOrder) => {
+    const extra = extraChannel('zz');
+    firstProfile(extra).listOrder = listOrder;
+    expect(() => buildProfileRegistry([...baselineCopy(), extra])).toThrow(expect.objectContaining({
+      check: 7, reason: 'profile_list_order_invalid', detail: 'profile "zz-platform": listOrder must be greater than baseline maximum 70',
+    }));
+  });
+
+  it('orders new real profiles after the baseline, by listOrder and id, before every simulation', () => {
+    const a = extraChannel('aa');
+    const z = extraChannel('zz');
+    const simulation = extraChannel('xx');
+    firstProfile(simulation).simulation = true;
+    const registry = buildProfileRegistry([...baselineCopy(), z, simulation, a]);
+    expect(listProfiles({ registry, simulation: true }).map((p) => p.id)).toEqual([
+      'standard', 'canvas-cloud-production', 'canvas-cloud-beta', 'canvas-cloud-test', 'canvas-self-hosted', 'blackboard',
+      'aa-platform', 'zz-platform', 'blackboard-sim', 'canvas-sim-cloud', 'xx-platform',
+    ]);
+    expect(findProfile('xx-platform', { registry, simulation: false })).toBeNull();
+  });
+
+  it('derives the boundary from loaded baseline data', () => {
+    const entries = baselineCopy();
+    firstProfile(standardEntry(entries)).listOrder = 200;
+    const extra = extraChannel('zz');
+    firstProfile(extra).listOrder = 200;
+    expect(() => buildProfileRegistry([...entries, extra])).toThrow(expect.objectContaining({ detail: 'profile "zz-platform": listOrder must be greater than baseline maximum 200' }));
+    firstProfile(extra).listOrder = 201;
+    expect(findProfile('zz-platform', { registry: buildProfileRegistry([...entries, extra]), simulation: false })).not.toBeNull();
+  });
+});
+
 it('uses one registry context for profile lookups and login/launch text', async () => {
   const entries = baselineCopy();
   manifestOf(standardEntry(entries)).names.text = 'Test default';
