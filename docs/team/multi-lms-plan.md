@@ -13,16 +13,18 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-22, 19:02 UTC
+### Current directive — 2026-10-22, 19:32 UTC
 
 The Lead accepts [E-R5](r5-evidence-decision-2026-10-22.md) for the remaining shared-host verification.
 It amends E-R4's exclusive-hold requirement. It changes no product, test, assertion, deadline, launcher, tool or acceptance criterion.
 Claude's section 11.6 and independent Gemini's artifact check define the extra evidence required after any attributed foreign activity.
 Savoy's prospective resource boundaries and whole-window completeness confirmation replace a global reservation; no reservation is claimed.
 Each Canvas SIM, M2 and T7 invocation still needs a separate Lead grant. All original checks and the no-retry rules remain.
-Canvas SIM round 1 started at 18:54:44 UTC, grant `msg_3ff504c1cbee`, startup `msg_a4de323a84f4`.
-Its 258-case result and cleanup remain pending. Savoy reported an overlap from 19:01:14 to 19:01:33 UTC.
-Independent Gemini must check the E-R5 extra evidence. Round 2, M2 and T7 remain ungranted.
+Canvas SIM round 1 passed all 258 cases and operational cleanup; Common QA's report is committed at `8d703d6`.
+Final E-R5 acceptance needs corrected independent extra evidence and Savoy's full-window confirmation.
+The independent report's unsupported identifiers and count conflicts are being corrected from frozen logs in the same QA session.
+Round 2 started at 19:23:57 UTC under grant `msg_f8c62bde4938`; startup checks passed.
+M2 and T7 remain ungranted.
 Legacy results remain accepted under E-R4. Historical E-R3 remains VOID.
 Final conformance, guides, independent Docs QA and two blind reviews remain required.
 All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.

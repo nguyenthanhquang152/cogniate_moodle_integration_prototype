@@ -2,7 +2,22 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 19:02 UTC
+## Current checkpoint — 19:32 UTC
+
+Canvas SIM round 1 completed with 258/258 cases PASS: 232 Canvas and 26 common-engine cases.
+Strict W4 comparison, cleanup and secret scans passed. All 32 protected volume records are unchanged.
+The Lead verified the 67-entry index and committed Common QA's results at `8d703d6`.
+Final acceptance remains pending: the independent extra-evidence report has unsupported identifiers and conflicting counts.
+The same independent Gemini session must correct that report from the frozen logs in a new artifact.
+The original report and primary evidence remain unchanged. Savoy's full-window confirmation is also pending.
+
+Canvas SIM round 2 started at 19:23:57 UTC under grant `msg_f8c62bde4938`.
+Its startup checks passed. The result and exact equality with round 1 remain pending.
+M2 and T7 still need separate grants after accepted runtime evidence.
+Final conformance, guide updates, independent Docs QA and two blind reviews remain required.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 19:02 UTC
 
 Canvas SIM round 1 started at 18:54:44 UTC under Common Gemini dispatch `ctx_72afbef88d8c`.
 Grant: `msg_3ff504c1cbee`; startup: `msg_a4de323a84f4`. The unchanged suite has 258 cases.
