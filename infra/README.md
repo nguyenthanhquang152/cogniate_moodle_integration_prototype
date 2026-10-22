@@ -143,7 +143,18 @@ Every `stack:data-*` command first takes the candidate guard and the lock. Then 
 - Exit codes: `0` done; `1` refused before a change, or cancelled or rolled back (verified); `2` not resolved (do not start, keep both volumes, quarantine); `3` stopped by a drill.
 - Drills (QA only, `STORAGE_DRILL=1`): `--stop-after <point>` or `--pause-after <point>` (with `STORAGE_DRILL_PAUSE_SECONDS` from 1 to 300). Points: `prepared-lti`, `prepared`, `staged`, `swap-lti-mid`, `swapped-lti`, `swap-app-mid`, `swapped`, `identity-lti`, `identity-app`, `committed-lti`, and `rollback-mid` (only with `STORAGE_DRILL_FAIL=after-swapped`).
 - Log: `infra/.logs/storage-maintenance.jsonl` (for example `storage_content_check`, `storage_backup`, `storage_recover`, `storage_quarantine`).
-- Every refusal (exit 1, nothing changed) also prints one JSON line `{"event":"storage_refused","ts","command","code",…}` on stdout, next to the human text on stderr. It has the code (for example `pair_mismatch`, `restore_target_state`, `backup_source_not_ok:<state>`, `content_path_unsafe`, `old_layout_container`, `volume_in_use`) and only safe fields: a §6 `state`, an `entry` or `path` relative to its root, the container `name`, `id` and labels. It never holds the message, a raw command output or an absolute host path.
+- A coded refusal (exit 1, nothing changed) prints one JSON line `{"event":"storage_refused","ts","command","code",…}`. Then it prints the human text on stderr.
+  - The JSON line goes to stdout. Exception: the folder refusals `backup_folder_in_checkout` and `backup_folder_not_empty` (backup and quarantine) write it to stderr. So read both streams.
+  - The line has the code, for example `pair_mismatch`, `restore_target_state`, `backup_source_not_ok:<state>`, `content_path_unsafe`, `old_layout_container` or `volume_in_use`.
+  - Its other fields are safe: a §6 `state`, an `entry` or `path` relative to its root, `reasons` (`prepare_failed`), and the lock `runId` (shell helper lines).
+  - For a container, the line has `container` (the name) and `id`. It adds `mount` (`old_layout_container`), or `project`, `service` and the container `state` (`volume_in_use`).
+  - The line never holds the message text, raw command output or an absolute host path.
+- Some safe stops have no code. They print text on stderr only, exit 1 and write no JSON line:
+  - the service-stop check: Docker does not answer, or `cogniate-app` or `lti-service` is not stopped (nothing changed);
+  - the candidate guard: the storage-compatibility override is enabled (nothing changed);
+  - the `stop now:` lines of the old-build wrapper;
+  - a service started during a backup: the folder is marked `INCOMPLETE` and is not a backup;
+  - the quarantine stops (`Quarantine stopped: …`): the text names what was removed and what stays.
 - Backup and the quarantine copy only read the volumes. They do no root step (§4) and switch to the host user at once. An item that the next `stack:up` prepares (the root folder owner or mode, an absent or root-owned mountpoint) is listed as `unprepared` in their output line. An entry that the host user cannot read stops them with `source_unreadable` (exit 1, no manifest; quarantine removes nothing).
 
 WARNING: a restore loses every write after the backup. A backup holds secrets (encrypted rows, hashes): keep it outside the checkout. `stack:reset` is never a recovery step.
