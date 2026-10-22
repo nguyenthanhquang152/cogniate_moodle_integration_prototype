@@ -87,6 +87,38 @@ describe('profile load checks (AC-05 and load check 5)', () => {
     firstProfile(standardEntry(entries)).privacyFloor = 'allowlist';
     expect(findProfile('standard', { registry: buildProfileRegistry(entries), simulation: false })?.privacyFloor).toBe('allowlist');
   });
+
+  it.each([
+    ['privacyFloor', 'unexpected', 'privacyFloor: Invalid option: expected one of "allowlist"|"none"'],
+    ['issuer', 'https://wrong.example.test', 'issuer: Expected null for endpoints "admin".'],
+    ['wireLms', undefined, 'wireLms must be null'],
+    ['wireLms', 'changed', 'wireLms must be null'],
+  ])('names the profile and expected %s value', (field, value, expected) => {
+    const entries = baselineCopy();
+    firstProfile(standardEntry(entries))[field] = value;
+    expect(() => buildProfileRegistry(entries)).toThrow(expect.objectContaining({ check: 7, detail: `profile "standard": ${expected}` }));
+  });
+
+  it('names a new profile when it violates a frozen trait', () => {
+    const extra = extraChannel('zz');
+    firstProfile(extra).wireLms = null;
+    expect(() => buildProfileRegistry([...baselineCopy(), extra])).toThrow(expect.objectContaining({
+      check: 7, detail: 'profile "zz-platform": must omit wireLms for a new profile',
+    }));
+    delete firstProfile(extra).wireLms;
+    firstProfile(extra).privacyFloor = 'none';
+    expect(() => buildProfileRegistry([...baselineCopy(), extra])).toThrow(expect.objectContaining({
+      check: 7, detail: 'profile "zz-platform": privacyFloor must be "allowlist"',
+    }));
+  });
+});
+
+it('keeps every frozen provider-list lms value, including the explicit null', () => {
+  expect(listProfiles({ simulation: true }).map((profile) => [profile.id, profile.lms])).toEqual([
+    ['standard', null],
+    ['canvas-cloud-production', 'canvas'], ['canvas-cloud-beta', 'canvas'], ['canvas-cloud-test', 'canvas'], ['canvas-self-hosted', 'canvas'],
+    ['blackboard', 'blackboard'], ['blackboard-sim', 'blackboard'], ['canvas-sim-cloud', 'canvas'],
+  ]);
 });
 
 describe('launch privacy floor (BD-A2-21)', () => {

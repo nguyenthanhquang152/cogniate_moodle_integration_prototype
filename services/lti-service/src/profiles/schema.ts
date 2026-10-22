@@ -29,7 +29,7 @@ export const profileSourceSchema = z.strictObject({
 }).superRefine((profile, ctx) => {
   for (const field of ['issuer', 'authenticationEndpoint', 'accesstokenEndpoint', 'jwksUrl'] as const) {
     if ((profile[field] === null) !== (profile.endpoints === 'admin')) {
-      ctx.addIssue({ code: 'custom', path: [field], message: 'Endpoint value does not match the endpoints trait.' });
+      ctx.addIssue({ code: 'custom', path: [field], message: profile.endpoints === 'admin' ? 'Expected null for endpoints "admin".' : 'Expected a fixed value or template for endpoints "fixed".' });
     }
   }
 }) satisfies z.ZodType<ProfileSource>;
@@ -38,15 +38,17 @@ export const profileSourceSchema = z.strictObject({
 export function parseProfileSource(value: unknown, channel: string): ProfileSource {
   const parsed = profileSourceSchema.safeParse(value);
   if (!parsed.success) {
+    const id = value !== null && typeof value === 'object' && 'id' in value && typeof value.id === 'string' ? value.id : '<unknown>';
     throw new RegistryError(channel, 7, {
       reason: 'profile_schema_invalid',
-      detail: parsed.error.issues.map((issue) => `${issue.path.join('.') || 'profile'}: ${issue.message}`).join('; '),
+      detail: `profile "${id}": ${parsed.error.issues.map((issue) => `${issue.path.join('.') || 'profile'}: ${issue.message}`).join('; ')}`,
     });
   }
   const baseline = Object.hasOwn(BASELINE_PROFILE_WIRE_LMS, parsed.data.id);
   const hasWireLms = Object.hasOwn(parsed.data, 'wireLms');
   if (baseline ? !hasWireLms || parsed.data.wireLms !== BASELINE_PROFILE_WIRE_LMS[parsed.data.id] : hasWireLms) {
-    throw new RegistryError(channel, 7, { reason: 'profile_wire_lms_invalid', detail: `profile "${parsed.data.id}" must keep its baseline wire value, or omit wireLms for a new profile` });
+    const expected = baseline ? `wireLms must be ${JSON.stringify(BASELINE_PROFILE_WIRE_LMS[parsed.data.id])}` : 'must omit wireLms for a new profile';
+    throw new RegistryError(channel, 7, { reason: 'profile_wire_lms_invalid', detail: `profile "${parsed.data.id}": ${expected}` });
   }
   if (parsed.data.privacyFloor === 'none' && !PRIVACY_FLOOR_NONE_PROFILES.includes(parsed.data.id)) {
     throw new RegistryError(channel, 7, { reason: 'profile_privacy_floor_invalid', detail: `profile "${parsed.data.id}": privacyFloor must be "allowlist"` });
