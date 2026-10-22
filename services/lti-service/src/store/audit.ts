@@ -75,6 +75,7 @@ export interface AuditFilter {
   toolAccountId?: string;
   action?: string;
   actorId?: string;
+  traceId?: string;
   /** epoch ms, included */
   since?: number;
   /** epoch ms, included */
@@ -91,6 +92,7 @@ export function listAuditEvents(db: Db, filter: AuditFilter): { events: AuditEve
   if (filter.toolAccountId !== undefined) { where.push('tool_account_id = ?'); args.push(filter.toolAccountId); }
   if (filter.action !== undefined) { where.push('action = ?'); args.push(filter.action); }
   if (filter.actorId !== undefined) { where.push('actor_id = ?'); args.push(filter.actorId); }
+  if (filter.traceId !== undefined) { where.push('trace_id = ?'); args.push(filter.traceId); }
   if (filter.since !== undefined) { where.push('ts >= ?'); args.push(filter.since); }
   if (filter.until !== undefined) { where.push('ts <= ?'); args.push(filter.until); }
   if (filter.cursor) { where.push('(ts < ? OR (ts = ? AND id < ?))'); args.push(filter.cursor.ts, filter.cursor.ts, filter.cursor.id); }
