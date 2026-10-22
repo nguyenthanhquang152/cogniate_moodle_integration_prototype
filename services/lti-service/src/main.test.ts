@@ -1,6 +1,7 @@
 // The service entry point binds the key ring to the master-key Buffer of every store caller before the first store
 // call (LA-ADR-06 D6; Reviewer-A A-LA-E5-08-01). Both listeners use port 0 here.
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { KeyProviderError, blobKeyVersion, keyProviderFor } from '@cogniate/shared';
@@ -25,6 +26,20 @@ afterEach(async () => {
 });
 
 describe('startLtiService (main.ts)', () => {
+  it('checks startup config through a symlink instead of exiting without starting', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'lti-main-link-'));
+    temps.push(dir);
+    const entry = join(dir, 'main.ts');
+    symlinkSync(new URL('./main.ts', import.meta.url), entry);
+    const result = spawnSync(process.execPath, [entry], {
+      cwd: dir, encoding: 'utf8', timeout: 10_000,
+      env: { ...process.env, LTI_MASTER_KEY: '' },
+    });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('LTI_MASTER_KEY must be 64 hex characters');
+  });
+
   it('with the ring {active: "k2"}, the service master key seals k2 blobs; an unbound copy of the key fails closed', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'lti-main-'));
     temps.push(dir);

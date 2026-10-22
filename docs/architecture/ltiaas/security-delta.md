@@ -9,7 +9,7 @@ How to read: each row is one change to one section of `security.md`. "Keep" mean
 | Change | Detail | Source | Priority |
 | --- | --- | --- | --- |
 | New zone: operator listener | `127.0.0.1:4110` inside the LTI service container. Trusts an operator key only. Not routed by the proxy. The `acceptance` test profile binds it on the stack network for QA; `production` refuses a non-loopback bind. | LA-ADR-06 D3, D12 | Must |
-| New zone: key ring | A read-only `0600` file in the LTI service container (and later the app). Trusted for key material only. Never in a backup of the databases; escrow apart. | LA-ADR-06 D6, D14 | Must |
+| New zone: key ring | A read-only `0600` file in the LTI service container (and later the app). Trusted for key material only. Never in a backup of the databases; escrow apart. Never visible to the `e2e` test container (§10, visibility rule). | LA-ADR-06 D6, D14 | Must |
 | New zone: platform storage frame | A window of the platform on its OIDC auth origin (Canvas: `post_message_forwarding` on `sso.canvaslms.com`). Our pages trust only replies from that origin with the right `message_id`. | LA-ADR-05 D1 | Must |
 | New zone: channel folders | Repo code, reviewed. Loaded at start by folder discovery; a broken folder stops the start. No runtime plugin path. | LA-ADR-01 D1, D4; LA-ADR-07 T1 | Must |
 
@@ -107,6 +107,17 @@ Replaced and new rows of the table:
 | Connection secret (new port, LB/LF) | portal or operator | sealed per (library, connection, purpose); never returned | same |
 | Idempotency record (Should) | API | stored answer body, 24 h, per tool account | same |
 
+**Visibility rule for the test container (A-T1-03 extension, Must).** Build ratification 2026-10-22 ([build decisions A2](build-decisions-A2.md) BD-A2-03; finding A-LA-E5-08-03, fixed by lane S1).
+
+| Rule | Detail |
+| --- | --- |
+| Base (A-T1-03, T1) | The `e2e` container reads the repo read only. It sees only QA's own credentials: the public copy of `.env`, the public certificates, and `infra/.secrets` read only (`seed.json`, the API key files, the operator key file). It sees no master key and no private TLS key. |
+| Key material is hidden | The `e2e` container runs as root, so file mode `0600` does not protect a file in a visible folder. An empty tmpfs covers `/repo/infra/.secrets/lti` in the `e2e` service (`infra/compose.yaml`), on top of the read-only `infra/.secrets` bind. So the key ring is never visible there. |
+| Mount point first | The host folder `infra/.secrets/lti` (mode `0700`) must exist before `docker compose up`: `stack-up.sh` and `prepare_e2e` (`infra/scripts/lib.sh`) make it. The read-only parent bind cannot make the mount point, so a missing folder stops the `e2e` start (fail closed). The fix is to make the folder, never to remove the tmpfs line. |
+| Test rings | QA writes a test key ring only from its host clone (tasks README form (a)), never from the `e2e` container. |
+| New key material | A new key ring or master-key file (for example the app key ring of LA-E5-22, the `*_FILE` secrets of LA-E5-21) goes into a folder that the `e2e` container does not see: `infra/.secrets/lti/` for the LTI service, or a new folder with its own empty tmpfs in the `e2e` service. Each hidden folder has a check in `infra/scripts/compose-e2e-secrets.test.mjs` (`npm run test:infra`). |
+| Visible on purpose | The operator key file stays visible: QA calls the operator listener with it in the `acceptance` profile (LA-ADR-06 D3, AC-LA-E5-01-01). It is a credential of a test stack, like the API key files. |
+
 ## §11 Privacy and logs
 
 | Change | Detail | Source | Priority |
@@ -150,4 +161,5 @@ Loopback listener, own credential, one audit event per call, append-only storage
 | R-LA-5 | The account-wide protocol and registration limits are soft (log and alert only). | A hard account bucket lets any sender block every library; per-address limits stay hard; WAF in LG. | LA-ADR-06 D1 |
 | R-LA-6 | A person who starts a login can carry the storage check to a second browser that they control. | The `Origin` rule stops foreign sites; the rest is the class of residual R2. | LA-ADR-05 D1 |
 | R-LA-7 | On a generic LMS host, a person who can serve a configuration file and a registration endpoint under an issuer path can register that path for their own library. | I-SELF keeps every token request on that host; Moodle needs its fixed configuration path. | LA-ADR-02 D2a; LA-ADR-07 T25 |
+| R-LA-8 | The `e2e` hide rule is a deny list on the `infra/.secrets` bind: a new secret file put straight into `infra/.secrets/` is visible to the `e2e` container until it gets a hidden folder. | Only dev and acceptance stacks have the `e2e` service; the infra test checks every hidden folder; the §10 rule "New key material" names the place for new keys. | §10 visibility rule |
 | R4 (update) | Teacher Deep Linking in Safari | Solved for platforms with platform storage (Canvas first); still open for Moodle 5.2 (no storage target). | LA-ADR-05 D1 |
