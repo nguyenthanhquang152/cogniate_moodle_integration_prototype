@@ -11,6 +11,7 @@ import { ApiError, apiErrorBody } from '../api-errors.ts';
 import type { Db } from '../db/index.ts';
 import { PROTOCOL_ERRORS, protocolAction } from '../lti/codes.ts';
 import { listProfiles } from '../profiles/index.ts';
+import type { ProfileRegistry } from '../profiles/index.ts';
 import type { PlatformKeys } from '../lti/jwks.ts';
 import type { AgsClient } from '../platform/ags.ts';
 import type { NrpsClient } from '../platform/nrps.ts';
@@ -24,6 +25,7 @@ import { registerRegistrationRoutes } from './routes/registration.ts';
 import { registerProtocolRoutes } from './routes/protocol.ts';
 import { registerCompatRoutes } from './routes/compat.ts';
 import { registerServiceRoutes } from './routes/services.ts';
+import { registerServiceKeyAdminRoutes } from './routes/service-key-admin.ts';
 import { getAccount } from '../store/accounts.ts';
 import { ADDRESS_ROUTE_CLASSES, createTrustedProxy, rateLimiterFor, recordAuthFailure } from './rate-limit.ts';
 
@@ -52,6 +54,8 @@ export interface AppDeps {
   outboundAllowlist?: readonly string[];
   /** Simulation profiles on (profile acceptance AND LTI_PROVIDER_SIMULATION=on, contract §9.13). Default off. */
   simulationProfiles?: boolean;
+  /** Optional registry for embedding and unit tests; normal startup uses the loaded channel folders. */
+  profileRegistry?: ProfileRegistry;
   now?: () => number;
 }
 
@@ -118,7 +122,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   installApiBasics(app, log);
   app.addHook('onClose', async () => proxy.close());
 
-  const profiles = { simulation: deps.simulationProfiles ?? false };
+  const profiles = { simulation: deps.simulationProfiles ?? false, ...(deps.profileRegistry ? { registry: deps.profileRegistry } : {}) };
   const ctx: RouteContext = {
     db: deps.db, urls: deps.urls, logger: log, keys: deps.keys, ltikTtlSeconds: deps.ltikTtlSeconds, masterKey: deps.masterKey, ags: deps.ags, nrps: deps.nrps, outbound: deps.outbound, now, profiles,
     auth: (req, schemes) => {
@@ -163,6 +167,7 @@ export async function buildApp(deps: AppDeps): Promise<FastifyInstance> {
   registerProtocolRoutes(app, ctx);
   registerIdTokenRoutes(app, ctx);
   registerServiceRoutes(app, ctx);
+  registerServiceKeyAdminRoutes(app, ctx);
   registerCompatRoutes(app, ctx);
   registerPlatformRoutes(app, ctx);
   registerRegistrationRoutes(app, ctx);

@@ -18,7 +18,7 @@ const platform: Platform = {
   jwksUrl: `${ISSUER}/mod/lti/certs.php`, productFamilyCode: null, active: true, deploymentIds: ['1'],
   profile: 'standard', siteUrl: null, serviceUrl: null, bindingRef: null, deployments: [{ deploymentId: '1', siteUrl: null, active: true, bindingGeneration: 0, bindingRef: null, createdAt: null }],
 };
-const state: StateRecord = { stateHash: 'h', toolAccountId: 'cogniate', platformId: 'plt_1', nonce: 'nonce-1', targetLinkUri: `${LAUNCH}?resource=seed`, expiresAt: 0, loginDeploymentId: null };
+const state: StateRecord = { stateHash: 'h', toolAccountId: 'cogniate', platformId: 'plt_1', nonce: 'nonce-1', targetLinkUri: `${LAUNCH}?resource=seed`, expiresAt: 0, loginDeploymentId: null, storageTarget: null, storageOrigin: null };
 
 function expectFail(fn: () => unknown, check: string, code: string) {
   try {
@@ -38,7 +38,7 @@ describe('checks 1 and 3: state record (single use, same statement)', () => {
     ensureAccount(db, { id: 'other', name: 'O', appUrl: URLS.app });
     const p = createPlatform(db, 'cogniate', { issuer: ISSUER, clientId: CLIENT_ID, name: 'M', authEndpoint: `${ISSUER}/a`, tokenEndpoint: `${ISSUER}/t`, jwksUrl: `${ISSUER}/k`, deploymentIds: ['1'], active: true });
     const now = 1_000_000;
-    saveState(db, { stateHash: sha256Hex('s1'), toolAccountId: 'cogniate', platformId: p.id, nonce: 'n', targetLinkUri: LAUNCH, expiresAt: now + 600_000, loginDeploymentId: null }, now);
+    saveState(db, { stateHash: sha256Hex('s1'), toolAccountId: 'cogniate', platformId: p.id, nonce: 'n', targetLinkUri: LAUNCH, expiresAt: now + 600_000, loginDeploymentId: null, storageTarget: null, storageOrigin: null }, now);
     return { db, now };
   };
 

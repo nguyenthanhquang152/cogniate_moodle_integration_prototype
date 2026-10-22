@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E5-19 review, lens A ("Is it right and is it safe?")
 
@@ -53,3 +53,22 @@ There is no BLOCKER and no MAJOR finding. The four lens-A points pass for the th
 | Migration | `013_job_runner.sql` adds the two tables only. The upgrade test keeps `tool_account` and `api_key` rows byte-equal, checks the column lists, the default `role` and its CHECK (AC-05). |
 | LA-E5-04 follow-up (`bface04`, BD-A2-25) | Bootstrap without `--name` writes no name on an existing account. The test uses a trigger that refuses any name `UPDATE`. A new account still gets its id as the name. |
 | Ownership and "Must not edit" | `packages/shared/src/jobs.ts`, `packages/shared/src/retention.ts`, `store/tool-keys.ts`, `jobs/signing-key-cleanup.ts` and `store/storage-checks.ts` are untouched. `cli/bootstrap.ts` and `store/accounts.ts` are S1 files of the LA-E5-04 follow-up. The migration number is the Lead's (RQ-5). |
+
+## Round 2
+
+- Reviewer: Reviewer-A2 (same session as round 1). Date: 2026-10-22.
+- Diff: `git diff c96c837^1 c96c837` (lane S1 commits `d6886db`, `e2d36c2`, `7ee383f`, `7600b8d`, `d13dcc0`; 9 files). Rulings: A2 BD-A2-31 (stop order) and BD-A2-32 (start run).
+- I ran on the host (no Docker), in a throwaway `git archive c96c837` copy: the job and `main.test.ts` tests give 5 files and 26 passed. I also ran 5 mutants, one per fix.
+- Blind review: I did not open the other reviewer's file.
+- **Round 2 counts: 0 open findings. All three round-1 MINORs are closed.**
+
+| Id | Round 1 | Round 2 result |
+| --- | --- | --- |
+| A-LA-E5-19-01 | MINOR | **Closed (BD-A2-32).** `audit-retention` has `runAtStart: true`, so every start runs it once, then daily. A restart can no longer skip it. The retention days are read once, at runner construction (the job takes `days` as a required argument). Mutant T1 (`runAtStart: false`) fails 2 tests. |
+| A-LA-E5-19-02 | MINOR | **Closed.** A new store test uses two connections to one file: owner A takes the lease, owner B takes it after A's lease ends, then A's late `endJobLease` leaves B's owner, `lease_until` and empty result unchanged, and B's own end records its result. My round-1 mutant (no owner condition in `endJobLease`), now T2, fails this test. |
+| A-LA-E5-19-03 | MINOR | **Closed (BD-A2-31).** The order is fixed: runner grace (60 s, `JOB_LEASE_MS`) < service exit fallback (`SERVICE_EXIT_AFTER_MS` = `JOB_LEASE_MS` + 10 s = 70 s) < container `stop_grace_period: 75s` (on `lti-service` and `cogniate-app`). `createShutdownHandler` runs once per process. The clean path clears the timer and exits 0. A rejected close exits 1. The fallback logs `service_exit_forced {after_ms}` and exits 1. Mutants T3 (the fallback exits 0) and T4 (a 3 s fallback) are each killed. |
+
+Also in this diff:
+- `7ee383f` adds `cleanupStorageChecks` to the `retention` job (one more `retention_cleanup` table, 10-minute rule). This closes AC-LA-E5-19-09 and my LA-E3-02 MINOR A-LA-E3-02-01. Mutant T5 (no call) fails 2 tests.
+- `infra/compose.yaml` passes `AUDIT_RETENTION_DAYS` (default 400) and `JOB_INSTANCE_ID` (default `lti-1`), and `.env.example` documents them as comments only. They are not secrets.
+- Note (no finding): `SERVICE_EXIT_AFTER_MS` uses the default lease. A future job with a longer `leaseMs` would make the runner grace longer than 70 s. The job that adds it should raise both values, following the BD-A2-31 order.

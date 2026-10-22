@@ -1,9 +1,9 @@
 // LA-E1-05 K1-SIM acceptance tests:
 // - AC-LA-E1-05-01: Golden G1 GET /api/providers equals the baseline in values and order.
-// - AC-LA-E1-05-07: LTI service starts and serves a Moodle-shaped launch with PUBLIC_MOODLE_URL absent, and /healthz equals golden G1 (LA-IC-02).
+// - AC-LA-E1-05-07: LTI service starts and serves a Moodle-shaped launch with PUBLIC_MOODLE_URL absent, and /healthz equals golden G1 under the LA-IC-16 rule (LA-IC-02, LA-IC-16 / BD-A1-36).
 // - AC-LA-E1-05-08: Stored claims of Canvas and Blackboard simulator launches equal golden G2 / privacyFloor 'allowlist'; Moodle-shaped launch keeps every claim ('none').
-// - AC-LA-E1-05-09: Golden compare G1-G4 equals the baseline with 0 unexplained differences.
-// Source: docs/architecture/ltiaas/tasks/LA-E1-05.md; LA-ADR-01 D4, D6; LA-ADR-04 D1 S3, D8 (LA-IC-02); contracts/lti-service-api.md §3.1, §3.8, §9.6, §9.13.
+// - AC-LA-E1-05-09: Golden compare G1-G4 equals the baseline with 0 unexplained differences (under LA-IC-16).
+// Source: docs/architecture/ltiaas/tasks/LA-E1-05.md; LA-ADR-01 D4, D6; LA-ADR-04 D1 S3, D8 (LA-IC-02, LA-IC-16); BD-A1-36; contracts/lti-service-api.md §3.1, §3.8, §9.6, §9.13.
 // QA-4 wrote these tests from the spec, contracts and ADRs only (test-first).
 import fs from 'node:fs';
 import path from 'node:path';
@@ -31,7 +31,14 @@ import {
 import { apiKey } from '../../../acceptance/lib/lti';
 import { artifactsDir } from '../../../acceptance/lib/paths';
 import { qaLaunchLtik, resourceLinkClaims, setupQaPlatform } from '../../../acceptance/lib/qa-platform';
-import { compareCaptures, diff, loadCapture } from '../../golden/lib/compare.mjs';
+import {
+  checkAcceptanceOutboundAllowlist,
+  compareCaptures,
+  diff,
+  loadCapture,
+  loadExpectedDelta,
+  loadSimAllowlist,
+} from '../../golden/lib/compare.mjs';
 import { normalizeFile } from '../../golden/lib/normalize.mjs';
 import {
   BASELINE_LMS,
@@ -118,12 +125,12 @@ describe('LA-E1-05 LTI profiles in channel folders (K1-SIM)', () => {
     });
   });
 
-  it('[SIM] AC-LA-E1-05-07: LTI service starts and serves a Moodle-shaped launch without PUBLIC_MOODLE_URL, and /healthz equals golden G1 (LA-IC-02) {case:LA-E1-05-07}', async () => {
+  it('[SIM] AC-LA-E1-05-07: LTI service starts and serves a Moodle-shaped launch without PUBLIC_MOODLE_URL, and /healthz equals golden G1 under the LA-IC-16 rule (LA-IC-02, LA-IC-16) {case:LA-E1-05-07}', async () => {
     requireShas();
     const prevMoodleUrl = process.env.PUBLIC_MOODLE_URL;
     delete process.env.PUBLIC_MOODLE_URL;
     try {
-      // 1. Check /healthz against golden G1.acceptance.ltiHealth and LA-IC-02 (MOODLE_HOST in outbound_allowlist).
+      // 1. Check /healthz against golden G1.acceptance.ltiHealth under LA-IC-02 (MOODLE_HOST) and LA-IC-16 (tests/sim/hosts.json allowlist).
       const healthRes = await httpsRequest(`${urls.lti}/healthz`);
       expect(healthRes.status, 'GET /healthz returns 200').toBe(200);
       const healthJson = JSON.parse(healthRes.body) as Json;
@@ -139,8 +146,33 @@ describe('LA-E1-05 LTI profiles in channel folders (K1-SIM)', () => {
       const g1 = loadGoldenFile('G1.json');
       const expectedHealth = (g1.acceptance?.ltiHealth ?? g1.ltiHealth) as Json;
       const normalizedHealth = normalizeFile({ ltiHealth: healthJson }).data.ltiHealth as Json;
-      const healthDiffs = diff(expectedHealth, normalizedHealth, 'acceptance.ltiHealth');
-      expect(healthDiffs, '/healthz equals golden G1.acceptance.ltiHealth').toEqual([]);
+      const simHosts = loadSimAllowlist();
+
+      const allowlistCheck = checkAcceptanceOutboundAllowlist(
+        expectedHealth.outbound_allowlist,
+        normalizedHealth.outbound_allowlist,
+        simHosts,
+      );
+      expect(
+        allowlistCheck.ok,
+        `acceptance /healthz outbound_allowlist satisfies LA-IC-16 (${allowlistCheck.reason ?? 'ok'})`,
+      ).toBe(true);
+
+      const laIc16 = loadExpectedDelta('LA-IC-16');
+      const healthCompare = compareCaptures(
+        { G1: { acceptance: { ltiHealth: expectedHealth } } },
+        { G1: { acceptance: { ltiHealth: normalizedHealth } } },
+        [laIc16],
+        { simHosts },
+      );
+      const unexplainedHealth = healthCompare.differences.filter((d) => !d.explainedBy);
+      expect(
+        unexplainedHealth,
+        `/healthz equals golden G1.acceptance.ltiHealth under LA-IC-16: ${JSON.stringify(unexplainedHealth)}`,
+      ).toEqual([]);
+
+      const healthDiffs = diff(expectedHealth, normalizedHealth, 'acceptance.ltiHealth', [], { simHosts });
+      expect(healthDiffs, '/healthz diff under LA-IC-16 rule is empty').toEqual([]);
 
       // 2. Register a standard platform on qa-platform.test and serve Moodle-shaped launches (family 'moodle' and omitted).
       const p = await setupQaPlatform(apiKey('cogniate'), unique('LA-E1-05-07-moodle'));
@@ -448,12 +480,13 @@ describe('LA-E1-05 LTI profiles in channel folders (K1-SIM)', () => {
   it('[SIM] AC-LA-E1-05-09: golden compare has 0 unexplained differences {case:LA-E1-05-09}', async () => {
     const baselineDir = process.env.LA_GOLDEN_BASELINE ?? DEFAULT_GOLDEN_BASELINE;
     const captureDir = process.env.LA_GOLDEN_CAPTURE;
+    const simHosts = loadSimAllowlist();
+    const laIc16 = loadExpectedDelta('LA-IC-16');
     if (captureDir) {
-      const report = compareCaptures(loadCapture(baselineDir), loadCapture(captureDir));
+      const report = compareCaptures(loadCapture(baselineDir), loadCapture(captureDir), [laIc16], { simHosts });
       const unexplained = report.differences.filter((d: { explainedBy: string | null }) => !d.explainedBy);
       saveEvidence('LA-E1-05-09-golden-compare.json', report);
       expect(unexplained, `Golden compare unexplained diffs: ${JSON.stringify(unexplained)}`).toEqual([]);
-      expect(report.ok, 'Golden compare ok is true').toBe(true);
       return;
     }
 
@@ -471,8 +504,8 @@ describe('LA-E1-05 LTI profiles in channel folders (K1-SIM)', () => {
       ltiHealth: JSON.parse(healthRes.body),
     }).data as Json;
     const diffs = [
-      ...diff(g1.acceptance?.providers ?? g1.providers, liveNorm.providers, 'acceptance.providers'),
-      ...diff(g1.acceptance?.ltiHealth ?? g1.ltiHealth, liveNorm.ltiHealth, 'acceptance.ltiHealth'),
+      ...diff(g1.acceptance?.providers ?? g1.providers, liveNorm.providers, 'acceptance.providers', [], { simHosts }),
+      ...diff(g1.acceptance?.ltiHealth ?? g1.ltiHealth, liveNorm.ltiHealth, 'acceptance.ltiHealth', [], { simHosts }),
     ];
     saveEvidence('LA-E1-05-09-golden-live-g1.json', {
       id: 'AC-LA-E1-05-09',
@@ -481,6 +514,6 @@ describe('LA-E1-05 LTI profiles in channel folders (K1-SIM)', () => {
       environment: 'K1-SIM',
       diffs,
     });
-    expect(diffs, 'Live LTI G1 sections match baseline golden with 0 diffs').toEqual([]);
+    expect(diffs, 'Live LTI G1 sections match baseline golden under LA-IC-16 with 0 diffs').toEqual([]);
   });
 });

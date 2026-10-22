@@ -37,8 +37,6 @@ describe('content items (contract §3.2)', () => {
   });
 
   it.each([
-    ['no items', []],
-    ['21 items', Array.from({ length: 21 }, () => item)],
     ['not a list', item],
     ['an item that is not an object', ['x']],
     ['an unknown type', [{ ...item, type: 'video' }]],
@@ -52,9 +50,22 @@ describe('content items (contract §3.2)', () => {
     expect(() => check(items)).toThrow(expect.objectContaining({ code: 'INVALID_CONTENT_ITEM', status: 400 }));
   });
 
-  it('two items when accept_multiple is false -> INVALID_CONTENT_ITEM; one item is fine', () => {
+  it('two items when accept_multiple is false -> INVALID_CONTENT_ITEM; zero or one item is fine (AC-03)', () => {
     expect(() => check([item, item], { ...settings, accept_multiple: false })).toThrow(expect.objectContaining({ code: 'INVALID_CONTENT_ITEM' }));
+    expect(check([], { ...settings, accept_multiple: false })).toEqual([]);
     expect(check([item], { ...settings, accept_multiple: false })).toHaveLength(1);
+  });
+
+  it.each([undefined, true, false])('keeps the twenty-item bound with accept_multiple %s (AC-03)', (accept_multiple) => {
+    expect(() => check(Array.from({ length: 21 }, () => item), { ...settings, accept_multiple })).toThrow(expect.objectContaining({ status: 400, code: 'INVALID_CONTENT_ITEM' }));
+    if (accept_multiple !== false) expect(check(Array.from({ length: 20 }, () => item), { ...settings, accept_multiple })).toHaveLength(20);
+  });
+
+  it('allows cancellation and rejects line items only when explicitly refused', () => {
+    expect(check([])).toEqual([]);
+    expect(() => check([item], { ...settings, accept_lineitem: false })).toThrow(expect.objectContaining({ status: 400, code: 'INVALID_CONTENT_ITEM' }));
+    expect(check([{ type: 'ltiResourceLink' }], { ...settings, accept_lineitem: false })).toEqual([{ type: 'ltiResourceLink', url: LAUNCH }]);
+    for (const accept_lineitem of [undefined, true]) expect(check([item], { ...settings, accept_lineitem })).toEqual([item]);
   });
 });
 

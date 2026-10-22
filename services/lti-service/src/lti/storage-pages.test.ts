@@ -27,6 +27,11 @@ function browser(targetName = 'forwarding', topLevel = false, missing = false) {
 }
 
 describe('storage login page (LA-ADR-05 D1 rules 2, 3, 9)', () => {
+  it('shows the static waiting text and JavaScript help (BD-A2-41)', () => {
+    const page = storageLoginPage(input);
+    expect(page.html).toContain('<p>Opening the activity. Please wait.</p>');
+    expect(page.html).toContain('<noscript>This activity needs JavaScript. Turn on JavaScript in your browser, then open the activity again from your course.</noscript>');
+  });
   it('escapes all five JSON characters and keeps request data out of script text (AC-06 builder)', () => {
     const hostile = '</script><script>alert(1)</script>&\u2028\u2029';
     const page = storageLoginPage({ ...input, authUrl: hostile });

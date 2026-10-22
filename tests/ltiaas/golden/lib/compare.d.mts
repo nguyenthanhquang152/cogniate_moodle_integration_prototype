@@ -1,5 +1,6 @@
 export const FILES: readonly ['G1', 'G2', 'G3', 'G4'];
 export const G1_LMS_PROVIDERS_AND_CONNECTIONS: RegExp[];
+export const DEFAULT_SIM_HOSTS_FILE: string;
 
 export interface Difference {
   file?: string;
@@ -14,13 +15,26 @@ export interface ExpectedDeltaChange {
   file: 'G1' | 'G2' | 'G3' | 'G4' | string;
   path: string;
   value?: unknown;
-  rule?: 'present' | 'removed' | 'string' | 'boolean' | 'number' | 'object' | 'array';
+  rule?: 'present' | 'removed' | 'string' | 'boolean' | 'number' | 'object' | 'array' | 'sim-hosts-allowlist';
 }
 
 export interface ExpectedDelta {
   id: string;
   approval?: string;
+  ld9?: Record<string, unknown>;
   changes: ExpectedDeltaChange[];
+}
+
+export interface CompareOptions {
+  simHosts?: string | readonly string[] | { providers?: ReadonlyArray<{ allowlist?: readonly string[] }> };
+}
+
+export interface AllowlistCheckResult {
+  ok: boolean;
+  reason?: string;
+  baseNonSim?: string[];
+  candNonSim?: string[];
+  simHosts?: string[];
 }
 
 export interface CompareResult {
@@ -29,12 +43,21 @@ export interface CompareResult {
   missing: Array<ExpectedDeltaChange & { id: string }>;
 }
 
-export function diff(oldValue: unknown, newValue: unknown, path?: string, out?: Difference[]): Difference[];
+export function loadSimAllowlist(
+  source?: string | readonly string[] | { providers?: ReadonlyArray<{ allowlist?: readonly string[] }> },
+): string[];
+export function checkAcceptanceOutboundAllowlist(
+  baseList: unknown,
+  candList: unknown,
+  simHosts?: string | readonly string[] | { providers?: ReadonlyArray<{ allowlist?: readonly string[] }> },
+): AllowlistCheckResult;
+export function diff(oldValue: unknown, newValue: unknown, path?: string, out?: Difference[], options?: CompareOptions): Difference[];
 export function pathMatches(pattern: string, path: string): boolean;
 export function compareCaptures(
   base: Record<string, unknown>,
   candidate: Record<string, unknown>,
   expected?: ExpectedDelta[],
+  options?: CompareOptions,
 ): CompareResult;
 export function report(result: { differences: Array<Difference & { file: string }>; missing: Array<ExpectedDeltaChange & { id: string }> }): string[];
 export function loadCapture(dir: string): Record<string, unknown>;
