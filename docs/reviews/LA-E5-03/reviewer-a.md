@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # LA-E5-03 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -74,3 +74,29 @@ Other fix items, checked for lens A:
 - **BD-A2-29** is a doc comment only (`store/audit.ts`).
 
 - **NIT note (no change needed):** while a host stays unresolved, `trusted_proxy_unresolved` repeats every 5 s, and no line marks the recovery. A `trusted_proxy_resolved {host}` line would make the recovery visible in the log.
+
+## Round 3 (WE-F1 fix)
+
+- Reviewer: Claude Code Opus 5.5 xhigh (Reviewer-A, Claude session; same lens A).
+- Diff: `git diff ecc19bbc^1 ecc19bbc` (la-s1 `bbb984d6`). It changes `services/lti-service/src/http/rate-limit.ts` (one constant and one comment) and adds one test in `rate-limit.test.ts`.
+- References: A2 BD-A2-108 (WE-F1); `docs/architecture/ltiaas/tasks/LA-E5-03.md` AC-LA-E5-03-14; LA-ADR-06 D1 (the `admin` row now 1,200 / 600); security delta R-LA-9; LA-IC-10 / AP-06-18.
+- I ran these in the private clone at `ecc19bbc`. I deleted the Vitest cache before each run. No Docker.
+  - Vitest on `services/lti-service`: 1327 tests pass.
+  - `npm run test:k0`: 145 tests pass.
+  - `npm run typecheck`: exit 0; ESLint on `http/`: clean.
+  - One mutation check (below).
+- Blind review: I did not open the other reviewer's file.
+- **Counts (this round): 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+| Check | Result |
+| --- | --- |
+| Exactly BD-A2-108 | Yes. The only product change is `DEFAULT_RATE_LIMITS.admin` from `{ ratePerMinute: 600, burst: 200 }` to `{ ratePerMinute: 1200, burst: 600 }`. These do not change: the bucket key (API key id), the mode (hard), the class map of routes, the check order, the `429` answer and its `Retry-After`, and the precedence (account `limits`, then operator setting, then `LTI_RATE_LIMITS`, then the default). No other class moves: `api` stays 1,200 / 300, which A2 shows needs at most 28. No new class, soft mode or special key. |
+| AC-LA-E5-03-14 has a test that fails on the old default | Yes. The new test makes 600 `admin` checks at one instant for one key with no override: the 601st is `RATE_LIMITED` with `details.limit` `{class: "admin", ratePerMinute: 1200, burst: 600}`, another key still passes, and 1 s later (20 tokens) the first key passes again. It checks that `account.limits` is `null`. Mutation check: with the old `600, 200` restored, the test fails (call 201 throws inside the loop; 1 failed, 23 passed). I restored the file. |
+| `429` body and `Retry-After` (LA-ADR-06 D1) | Unchanged code path. The only effect is that `details.limit` now reports the new default values. |
+| Safety | A stolen or runaway API key can now make up to 1,200 admin calls per minute (burst 600), not 600 (burst 200). The class stays hard and per key. Security delta R-LA-9 records the trade-off (the shared first-party key is a platform-wide cap; the operator can raise or lower one account's `limits` at once). The admin routes still need the `admin` scope and audit every change. This is A2's ratified decision with numbers (WE-F1 replay), so I record no finding. |
+
+Note for the lead QA (not a finding on this diff): `tests/ltiaas/baseline/rate-peaks.mjs:28` still models `admin` as 600 / 200. It is an analysis script (no test imports it), so it does not fail. Update it when the baseline is next run, so that the peak report uses the new default.
+
+### Verdict (round 3)
+
+APPROVE for lens A. The fix is exactly BD-A2-108, and AC-14 has a test that fails on the old default. The rate limiter's key, mode, routes, order, answer and precedence are unchanged. QA's rerun of the 9 M1 sim rows on a stack remains.

@@ -1,0 +1,14 @@
+# Review dispatch: Reviewer-A (Codex, same session), one item (LD-9 test-change addendum)
+
+Item 1: LD-9 addendum r1 for the wave-end gate (lead QA; la-qa 5f30f40a, integration c5031ab2): docs/reviews/LA-E7-08/ld9-addendum-r1.md. Three frozen-test changes are proposed, not applied: (1) LA-IC-14 item: tests/acceptance/M1/canvas/11-canvas-platforms.test.ts:247 regex for registrationUrl with a required `?ref=` (WE-F3); (2) LA-IC-22 item (A1 BD-A1-113, LA-ADR-04 D8): tests/acceptance/M1/common/99-logs.test.ts `launch_claims_minimized` fields plus `tool_account_id` (WE-F2); (3) runner change with no assertion change (AC-LA-E7-08-05): tests/host/m1-migration.mjs:332 LTI migration folder src/store/migrations -> src/db/migrations (WE-F5). Context: docs/reviews/LA-E7-08/qa.md §5; A2 BD-A2-108 (build-decisions-A2.md); LA-ADR-04 D8 (LA-IC-14, LA-IC-22) and the LD-9 rule after it.
+Lens A: each hunk is the smallest right change: the LA-IC-14 regex requires the 43-character ref (A2 BD-A2-108); the 99-logs list adds exactly tool_account_id (LA-IC-22) and nothing else changes in that test; the m1-migration.mjs path fix keeps the ledger comparison exact (no assertion is weakened; check what the old fallback did); the prose names only real event names (compare with contract delta §6).
+Read only; no Docker. Write docs/reviews/LA-E7-08/ld9-addendum-r1-reviewer-a.md (Round 1), one verdict for the whole addendum, with per-hunk findings.
+
+Integration worktree rule: read only. Never run npm ci, npm install, git clean, git checkout or git reset there.
+
+# Common rules for LA build-task reviews (Reviewer-A, Reviewer-B)
+
+You continue the dedicated reviewer role of G-DESIGN, G-BREAKDOWN and the earlier build rounds. Lenses: Reviewer-A "Is it right and is it safe?", Reviewer-B "Can a human team own it?" (base charter §1). Review the task diff named in the dispatch against its task spec (docs/architecture/ltiaas/tasks/<task>.md), the design (docs/architecture/ltiaas/**) and plan §6.1. Read the diff with git in the LA integration worktree /Users/quangnguyen/orca/workspaces/cogniate_moodle_integration_prototype/ltiaas-milestone; do not change any file except your review file.
+Write docs/reviews/LA-<task>/<reviewer-a|reviewer-b>.md: first lines "Verdict: APPROVE | CHANGES_REQUESTED" and "Round: n"; findings with id (A-<task>-nn / B-<task>-nn), severity (base charter §5), file:line, problem, evidence, suggested fix. Proportional: small diff, short review. Check: every UNIT AC has a test that would fail on the old behaviour; the "Must not edit" list is respected; no behaviour change outside the spec; no LMS name added to core paths; ownership (matrix §5). Blind review: never open the other reviewer's file. Do not run Docker. Do not commit.
+When done: one worker_done (--outcome succeeded), three-sentence summary with the verdict and counts, --files-modified, --report-path. Then stop. Read only your own messages.
+=== TASK SPEC ===
