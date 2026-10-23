@@ -1,7 +1,18 @@
 Verdict: PASS
-Round: 3
+Round: 4
 
 # LA-E5-16 `Idempotency-Key` on create routes: QA verification
+
+## K1-SIM Docker slot 1 (`4209dcb`, Batch 2 on `qa2-la-sim-r2` & Batch 3 on `qa2-la-sim-r3`)
+
+Tester: QA-2 (Orca task `task_0336155284b2`, dispatch `ctx_c5845e359f4b`, run `run_06d07dc77faf`), 2026-10-23. Verified in SIM slot 1 (`04:41Z–05:29Z`) on a clean `--no-hardlinks` clone of `4209dcb` (product code `77df44e`) in `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch3` (`COMPOSE_PROJECT_NAME=qa2-la-sim-r3`, `PUBLIC_PORT=9443`, `STACK_SUBNET=172.20.0.0/16`).
+
+| AC / Item | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E5-16-01, 02, 03, 05, 07 & BD-A2-56, BD-A2-57, BD-A2-71, BD-A2-75 | PASS (K1-SIM) | `tests/ltiaas/tasks-ops/LA-E5-16/idempotency.test.ts` (8 `K1-SIM` tests: `AC-LA-E5-16-01`, `02`, `03`, `05`, `07`, `BD-A2-56`, `BD-A2-57`, `BD-A2-71` & `BD-A2-75`) | `COMPOSE_PROJECT_NAME=qa2-la-sim-r3 PUBLIC_PORT=9443 STACK_SUBNET=172.20.0.0/16 node tests/ltiaas/tasks-ops/run-batch3.mjs --sha 4209dcb --workdir ~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch3 --replace-tests` | All 8 `K1-SIM` tests pass (`container-LA-E5-16`, `8/8` passed in `1034 ms`; artifacts at `tests/host/artifacts/qa2-la-sim-r3-4209dcb-2026-10-23T05-11-11-546Z`, log `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/logs/batch-3.log`). |
+| AC-LA-E5-16-04, 06 & B-LA-E5-16-02 | PASS (UNIT) | `services/lti-service/src/http/idempotency.test.ts`, `services/lti-service/src/store/idempotency.test.ts` | `npx --no-install vitest run services/lti-service/src/http/idempotency.test.ts services/lti-service/src/store/idempotency.test.ts` | Verified in host-only pre-gate (`host-pregate.log`) and Round 3 below. |
+
+---
 
 ## Round 3 (fix round 2, `97e9f91` at `2a15f5b`)
 

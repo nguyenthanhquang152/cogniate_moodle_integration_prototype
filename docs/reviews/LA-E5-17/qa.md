@@ -1,7 +1,18 @@
 Verdict: PASS
-Round: 2
+Round: 3
 
 # LA-E5-17 Metrics, `/readyz`, production `/healthz`: QA verification
+
+## K1-SIM Docker slot 1 (`4209dcb`, Batch 2 on `qa2-la-sim-r2`)
+
+Tester: QA-2 (Orca task `task_0336155284b2`, dispatch `ctx_c5845e359f4b`, run `run_06d07dc77faf`), 2026-10-23. Verified in SIM slot 1 (`04:41Z–05:29Z`) on a clean `--no-hardlinks` clone of `4209dcb` (product code `77df44e`) in `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch2-r2` (`COMPOSE_PROJECT_NAME=qa2-la-sim-r2`, `PUBLIC_PORT=9443`, `STACK_SUBNET=172.20.0.0/16`).
+
+| AC / Item | Result | Test id | Command | Evidence |
+| --- | --- | --- | --- | --- |
+| AC-LA-E5-17-01, 02, 03, 06, 07 & BD-A2-52, BD-A2-54, BD-A2-61 | PASS (K1-SIM) | `tests/ltiaas/tasks-ops/LA-E5-17/observability.test.ts` (5 `K1-SIM` tests: `AC-LA-E5-17-01`, `02`, `03`, `06`, `07`) | `COMPOSE_PROJECT_NAME=qa2-la-sim-r2 PUBLIC_PORT=9443 STACK_SUBNET=172.20.0.0/16 node tests/ltiaas/tasks-ops/run-batch2.mjs --sha 4209dcb --workdir ~/cogniate-qa-runs/LA/qa2-sim-4209dcb/clone-batch2-r2 --replace-tests` | All 5 `K1-SIM` tests pass (`container-LA-E5-17`, `5/5` passed in `106 ms`; artifacts at `tests/host/artifacts/qa2-la-sim-r2-4209dcb-2026-10-23T05-00-39-765Z`, log `~/cogniate-qa-runs/LA/qa2-sim-4209dcb/logs/batch-2-r2.log`). |
+| AC-LA-E5-17-04, 05 & BD-A2-60 | PASS (UNIT) | `services/lti-service/src/http/metrics.test.ts`, `packages/shared/src/migrations.test.ts` | `npx --no-install vitest run services/lti-service/src/http/metrics.test.ts packages/shared/src/migrations.test.ts` | Verified in host-only pre-gate (`host-pregate.log`) and Round 2 below. |
+
+---
 
 ## Round 2 (lane S1 item 2b `d866441` and `BD-A2-54` join `2477abb` at `2a15f5b`)
 

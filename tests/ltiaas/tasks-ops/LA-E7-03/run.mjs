@@ -119,7 +119,7 @@ function must(label, res) {
     process.stderr.write(`[LA-E7-03] Step failed (${label}), exit ${res.code}\n`);
     if (res.stdout) process.stderr.write(res.stdout + '\n');
     if (res.stderr) process.stderr.write(res.stderr + '\n');
-    process.exit(1);
+    throw new Error(`[LA-E7-03] Step failed (${label}), exit ${res.code}`);
   }
   return res;
 }
@@ -213,6 +213,7 @@ try {
 
   // Phase 1: Default profile (AC-LA-E7-03-03).
   console.log('=== [LA-E7-03] Phase 1: Default profile (AC-LA-E7-03-03) ===');
+  must('gen-env (default)', sh('npm run gen-env', { inherit: true, env: { STACK_PROFILE: undefined } }));
   must('stack:up (default)', sh('npm run stack:up', { inherit: true, env: { STACK_PROFILE: undefined } }));
   must('seed (default)', sh('npm run seed', { inherit: true, env: { STACK_PROFILE: undefined } }));
 
@@ -312,12 +313,15 @@ try {
   must(
     'in-container K1-SIM vitest suite',
     sh(
-      'source infra/scripts/lib.sh && prepare_e2e && dc --profile test run --rm --build e2e vitest run -c /repo/tests/ltiaas/tasks-ops/LA-E7-03/vitest.config.mts',
+      'source infra/scripts/lib.sh && prepare_e2e && dc --profile test run --rm --build -e QA_TASK=LA-E7-03 e2e sh -c "npm ci --prefix tests --no-audit --no-fund && npm --prefix tests run acceptance:api"',
       { inherit: true },
     ),
   );
 
   console.log('=== [LA-E7-03] All K0 and K1-SIM checks passed ===');
+} catch (err) {
+  process.exitCode = 1;
+  throw err;
 } finally {
   fs.rmSync(TEMP_PROVIDER_DIR, { recursive: true, force: true });
   if (hadOriginalManifest && originalManifestRaw !== null) {
@@ -325,4 +329,7 @@ try {
   } else {
     fs.rmSync(MANIFEST_PATH, { force: true });
   }
+  sh('source infra/scripts/lib.sh && dc --profile acceptance --profile test down -v --remove-orphans', {
+    inherit: true,
+  });
 }

@@ -25,13 +25,12 @@ const manifest = {
     },
   ],
   capabilities: {
-    // ADR-009 and the developer key JSON of today (LA-E3-07 changes this list, LA-IC-04).
+    // A2 LA-ADR-05 D4 (LA-E3-07, LA-IC-04): the four AGS scopes, no NRPS scope. The developer key JSON uses this list.
     'registration.scopes': [
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem',
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/score',
-      'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
     ],
     'deployments.multiple': true,
     'setup.artifacts': ['developer-key-json'],
@@ -53,6 +52,11 @@ const manifest = {
       { key: 'clientId', label: 'Client ID', kind: 'id', required: true, method: 'manual' },
       { key: 'deploymentId', label: 'Deployment ID', kind: 'id', required: true, method: 'manual' },
       { key: 'grantCode', label: 'Approval code', kind: 'grantCode', required: true, method: 'manual' },
+      // A staged Dynamic Registration (LA-ADR-05 D6, A1 BD-A1-103): the portal pre-fills both ids from the staged
+      // platform (app API delta §3.4).
+      { key: 'clientId', label: 'Client ID', kind: 'id', required: true, method: 'dynamic' },
+      { key: 'deploymentId', label: 'Deployment ID', kind: 'id', required: true, method: 'dynamic' },
+      { key: 'grantCode', label: 'Approval code', kind: 'grantCode', required: true, method: 'dynamic' },
     ],
   },
   texts: {

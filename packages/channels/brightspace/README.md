@@ -18,7 +18,9 @@ Status: **confirmed** = from a vendor source; **design** = an LA decision; **UNV
 | Defaults are never trusted alone | the portal pre-fills them; the operator grant binds every value, and a value off the issuer host needs `--confirm-foreign-hosts` | LA-ADR-02 D6; LA-ADR-01 D2 (`FieldSpec.default`) | design |
 | Guarded product family | `desire2learn` at the `registration` level: new Dynamic Registrations of the family must use this channel; existing `lti-generic` connections of a D2L site keep working | LA-ADR-02 D1, D4; LA-ADR-01 D6 | **UNVERIFIED**; the first real launch confirms it (R2-2) |
 | Deployments | many per registration (UUIDs), so `deployments.multiple` | R2 §5.4 | confirmed |
-| Registration | `manual` with authority `operatorGrant` (Must). `dynamic` is LA-E2-06 (Should): always staged with a grant, because the D2L token host is off the issuer origin | LA-ADR-02 D2a, D4, D5 item 10 | design; DR token format UNVERIFIED |
+| Registration | `manual` with authority `operatorGrant` (Must). `dynamic` (LA-E2-06, Should) starts with authority `self`. Every real D2L registration is staged by I-SELF: the D2L token host is off the issuer origin. The LTI service makes the platform inactive; `app:grant issue --accept-staged --confirm-foreign-hosts` and the redemption activate it, and the connection authority becomes `operatorGrant`. A configuration with every endpoint on the issuer origin completes active with `self`, as for `lti-generic` (A1 BD-A1-108) | LA-ADR-02 D2a, D4, D5 item 10, D6 | design |
+| Dynamic Registration rules | profile trait `dynamicRegistration: { issuerRule: 'path-prefix', registrationToken: 'opaque-bearer' }`: the configuration URL must start with the issuer followed by `/`; the registration token is used only as a Bearer token | LA-ADR-02 D2, D5 items 1 and 3 | design; D2L token format **UNVERIFIED** |
+| Admin path for Dynamic Registration | Manage Extensibility › LTI Advantage › Register Tool, "Dynamic" ("Standard" is manual) | R2 table 2.1 (D2L Dynamic Registration since 20.21.4) | confirmed in shape |
 | Launch | `launch.windowHint: true` (the hint is sent only when the platform accepts `window`); `launch.topLevelContinue: false` | LA-ADR-02 D4 | D2L opens a link in a frame by default; "Open as External Resource" is per link |
 | Platform storage frame | none (`platformStorage` stays `null`) | LA-E2-05 scope | **UNVERIFIED**: the frame name needs a live check |
 | Score rules | AGS final scores only (ADR-010); a user that cannot get a grade answers `422`, mapped to `rejected` | LA-ADR-02 D4 | third-party |
@@ -29,4 +31,4 @@ Status: **confirmed** = from a vendor source; **design** = an LA decision; **UNV
 
 ## Live status
 
-No live platform was tested. QA uses the D2L simulator provider (LA-E7-02): issuer `https://brightspace.sim.test`, token host `auth.brightspace.sim.test`, an audience that is not the token URL, UUID deployments.
+No live platform was tested. QA uses the D2L simulator provider (LA-E7-02): issuer `https://brightspace.sim.test`, token host `auth.brightspace.sim.test`, an audience that is not the token URL, UUID deployments. For Dynamic Registration, the simulator (LA-E7-05) proves only our side of the flow; the D2L registration token format and the D2L configuration values stay UNVERIFIED until a live check.

@@ -1,6 +1,7 @@
 // The `brightspace` profile (LA-ADR-02 D4): D2L Brightspace with admin values and one issuer per tenant (the site
 // URL). The D2L token host is off the issuer origin (`any-https`), so every binding needs an operator grant that binds
-// each value (D2a, D6). Facts and sources: README.md.
+// each value (D2a, D6). A Dynamic Registration is staged by I-SELF for every real D2L configuration (A1 BD-A1-108).
+// Facts and sources: README.md.
 import type { ProfileSource } from '@cogniate/channel-kernel';
 
 const profiles = [
@@ -12,7 +13,9 @@ const profiles = [
     // UNVERIFIED (R2-2): the first real launch confirms the family. The manifest guards it at the registration level.
     productFamily: 'desire2learn',
     issuerKind: 'per-tenant', endpointOrigins: 'any-https', clientAssertionAud: { value: '{platformValue}', form: 'string' }, assertionDeploymentId: false,
-    // No Dynamic Registration yet (LA-E2-06) and no platform storage until a live check (LA-E2-05 scope).
+    // LA-E2-06 (LA-ADR-02 D2): the configuration URL starts with the issuer; the registration token is used only as a
+    // Bearer token (the D2L token format is UNVERIFIED). No platform storage until a live check (LA-E2-05 scope).
+    dynamicRegistration: { issuerRule: 'path-prefix', registrationToken: 'opaque-bearer' },
     flags: { deepLinkingResponseSub: false, serviceOriginCheck: false },
     sources: ['LA-ADR-02 D4', 'R2 §5.4'],
   },

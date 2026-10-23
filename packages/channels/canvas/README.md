@@ -8,7 +8,7 @@ Canvas LMS with LTI 1.3. The manifest is `manifest.ts`. The LTI profiles move in
 | --- | --- | --- |
 | LTI profiles | `canvas-cloud-production`, `canvas-cloud-beta`, `canvas-cloud-test` (fixed Instructure issuers), `canvas-self-hosted` (`{siteUrl}` issuer); simulation copy `canvas-sim-cloud` | ADR-011 §6 (F-CV-1, -2, -3, -4, -5, -18) |
 | Token endpoint | `{serviceUrl}/login/oauth2/token`; a Canvas platform stores a service URL (default: the site URL) | ADR-011 §6 (F-CV-18) |
-| Registration | manual with a developer key; binds with authority `operatorGrant` | app contract §4.4; ADR-011 §7 |
+| Registration | `manual` with a developer key; `dynamic` (Canvas Dynamic Registration), always staged: the platform stays inactive until the operator grant. Both methods bind with authority `operatorGrant` | app contract §4.4; ADR-011 §7; LA-ADR-05 D6 (LA-IC-14); A1 BD-A1-103 |
 | Several deployments | yes (`deployments.multiple`) | app contract §4.7.2 |
 | Developer key JSON | yes (`setup.artifacts: ['developer-key-json']`) | app contract §4.6 |
 | Guarded product family | `canvas`, at the `launch` level | ADR-011 §4 rule 4, §6 (F-CV-22); LA-ADR-01 D6 |

@@ -151,7 +151,7 @@ async function latestClientAssertionKid(before: Set<string>): Promise<string> {
 
 /** Runs a teacher Deep Linking launch on `cogniate`, signs a Deep Linking response via `/api/deeplinking`, and posts it to the simulator. */
 async function signAndReturnDeepLink(label: string): Promise<{ kid: string; target: string }> {
-  const resource = `qa2-dl-${label}-${runId}`;
+  const resource = `pub_qa2_dl_${label}_${runId}`;
   const dlLaunch = await launch({
     deploymentId: DEPLOYMENT_ID,
     siteHost: SITE_HOST,
@@ -170,6 +170,8 @@ async function signAndReturnDeepLink(label: string): Promise<{ kid: string; targ
           type: 'ltiResourceLink',
           title: `QA2 DL ${label}`,
           url: `${urls.lti}/lti/launch/${ACCOUNT}?resource=${encodeURIComponent(resource)}`,
+          lineItem: { scoreMaximum: 100, label: `QA2 DL ${label}` },
+          window: { targetName: '_blank' },
         },
       ],
     },
@@ -192,7 +194,7 @@ async function signAndReturnDeepLink(label: string): Promise<{ kid: string; targ
 /** Launches a learner session with a specific AGS scope list so its platform token request misses the token cache. */
 async function launchLearnerWithScopes(label: string, scopes: string[]) {
   const resource = `qa2-rl-${label}-${runId}`;
-  const lineitems = `${SITE_URL}/learn/api/public/v1/lti/courses/course-1/lineItems`;
+  const lineitems = `${SITE_URL}/learn/api/v1/lti/courses/course-1/lineItems`;
   const lineitem = `${lineitems}/${encodeURIComponent(resource)}`;
   const launched = await launch({
     deploymentId: DEPLOYMENT_ID,

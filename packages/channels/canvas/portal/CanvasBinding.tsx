@@ -8,14 +8,16 @@ import { Button } from "@cogniate/portal-sdk";
 import { Input } from "@cogniate/portal-sdk";
 import { ProviderErrorNotice, providerErrorFields } from "@cogniate/portal-sdk";
 
-export function CanvasBinding({ connection, onChanged, addDeployment = false }: {
+export function CanvasBinding({ connection, onChanged, addDeployment = false, initial }: {
   connection: Connection;
   onChanged: (connection: Connection) => void;
   addDeployment?: boolean;
+  /** Start values that stay editable: the ids of a staged Dynamic Registration (LA-E3-16). The grant proves them. */
+  initial?: { clientId: string; deploymentId: string };
 }) {
   const alive = useAlive();
-  const [clientId, setClientId] = useState("");
-  const [deploymentId, setDeploymentId] = useState("");
+  const [clientId, setClientId] = useState(initial?.clientId ?? "");
+  const [deploymentId, setDeploymentId] = useState(initial?.deploymentId ?? "");
   const [grantCode, setGrantCode] = useState("");
   const [error, setError] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);

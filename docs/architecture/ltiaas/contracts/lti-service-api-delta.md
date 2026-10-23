@@ -287,8 +287,9 @@ The stored platform gets `grantedScopes` (the scope of the registration response
 - `GET /api/registrations/:registrationId` adds `endpointsOnIssuerOrigin: boolean` (`true` when I-SELF holds for the configuration), so the app can tell the user before `complete` that an operator approval will be needed.
 - `complete` checks I-SELF for the chosen profile before it sends anything. Holds: a new platform is created as today (`autoActivate`, default `true`), and an update keeps its stored `active` value (BD-A1-93). Fails: the platform is created or set **inactive** with the request's `bindingRef` (a staged registration, base §9.15), whatever `autoActivate` says; a missing `bindingRef` gives `400 INVALID_REQUEST` (field `bindingRef`), and nothing is sent or stored.
 - The answer adds `active: boolean`; a staged registration logs `registration_completed {operation, staged: true}`. The app then changes the connection's authority from `self` to `operatorGrant` (A1, LA-ADR-02 D5 item 10), and only the grant redemption activates the platform (`PATCH /api/platforms/:id {active: true, ifBindingRef, bindingRef}`), as for Canvas DR ([LA-ADR-05 D6](../adr/LA-ADR-05-lti-advantage-completeness.md#d6-canvas-dynamic-registration-should-d-1)).
+- Start (`GET /lti/register/:account`, BD-A2-93): before any fetch, a configuration URL that is not https, fails site rules 1–3, or is on a reserved host (a fixed host of any loaded profile) gives the page `PLATFORM_URL_NOT_IN_PROFILE`; nothing is fetched or stored. Every other https URL is fetched (the loosest start rule of any loaded profile, LA-ADR-02 D5), and the profile rules apply at `complete`.
 - The configuration endpoints also follow §4.6.1 rules 1 to 3 (reserved hosts and issuers). So does the audience (`authorization_server`): it is never on a reserved host, staged or active (BD-A2-84).
-- Fixed-endpoint profiles keep their own rule (`issuerRule: profile`): their endpoints must equal the profile values, and the platform is always staged (LA-ADR-05 D6).
+- Fixed-endpoint profiles keep their own rule (`issuerRule: profile`): their endpoints must equal the profile values, and the platform is always staged (LA-ADR-05 D6). Canvas (BD-A2-89): `complete` derives the site origin from the configuration URL origin and the service origin from the token endpoint origin, both checked with the Canvas site rules, and stores them on the staged platform. The operator grant's adoption rule proves them. A configuration URL on a fixed Canvas host is refused until the CANVAS-HOSTED live row. No new `complete` field.
 
 ### 4.6 Platforms (§3.9, §9.4)
 
@@ -367,7 +368,7 @@ One event per authenticated, non-`GET` admin or operator call (`ok` or `refused`
 | `POST …/signing-keys`, `…/activate`, `…/retire` | `signing_key.create`, `signing_key.activate` (`details.forced`), `signing_key.retire` | `signing_key` |
 | `POST …/shared-platforms` | `platform.create_shared` | `platform` |
 | `POST /operator/v1/key-provider/rewrap` | `key_provider.rewrap` (one more event at the job end, actor `system:key-rewrap`, `result: ok`: `details.outcome` `complete`, `partial` or `failed`, the counts `rewrapped`, `skippedChanged`, `notReached`, `unreadable`, and `legacyBlobsRefused: true` when that run stored the setting; an exception gives `outcome: failed` with `details.errorClass`; BD-A2-36, BD-A2-42) | `key_provider` |
-| `PATCH /operator/v1/rate-limits` | `settings.rate_limits` | `settings` |
+| `PATCH /operator/v1/rate-limits` | `settings.rate_limits` | `service_setting` (target id `rate_limits`; BD-A2-92) |
 | `POST`, `…/revoke /operator/v1/operator-keys` | `operator_key.issue`, `operator_key.revoke` | `operator_key` |
 | `POST /operator/v1/jobs/:name/run` (Should) | `job.run` | `job` |
 | `account-purge` job (Should) | `account.purge` (actor `system:account-purge`, `details.counts` = a list of `{table, rows}`; BD-A2-67, BD-A2-82) | `account` |

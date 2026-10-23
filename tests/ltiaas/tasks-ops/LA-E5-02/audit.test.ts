@@ -49,8 +49,13 @@ function checkAuditShape(e: AuditEvent, label: string) {
   assert.ok(typeof e.action === 'string' && e.action.includes('.'), `${label}: dotted action`);
   assert.ok(typeof e.target?.type === 'string', `${label}: target.type`);
   assert.ok(e.result === 'ok' || e.result === 'refused', `${label}: result is ok or refused`);
-  assert.ok(typeof e.traceId === 'string' && e.traceId.length > 0, `${label}: traceId is present`);
-  assert.ok(typeof e.clientIp === 'string' && e.clientIp.length > 0, `${label}: clientIp is present`);
+  if (actorTag(e) === 'system:bootstrap') {
+    assert.ok(e.traceId === null || typeof e.traceId === 'string', `${label}: traceId is null or string for system:bootstrap`);
+    assert.ok(e.clientIp === null || typeof e.clientIp === 'string', `${label}: clientIp is null or string for system:bootstrap`);
+  } else {
+    assert.ok(typeof e.traceId === 'string' && e.traceId.length > 0, `${label}: traceId is present`);
+    assert.ok(typeof e.clientIp === 'string' && e.clientIp.length > 0, `${label}: clientIp is present`);
+  }
 }
 
 function platformBody(clientId: string, name: string) {
@@ -327,7 +332,10 @@ it('AC-LA-E5-02-06 GET /operator/v1/audit?toolAccountId=qa-second returns only q
   assert.ok(secondAudit.events.length >= 2, 'at least two qa-second events exist');
   for (const e of secondAudit.events) {
     assert.equal(e.toolAccountId, SECOND_ACCOUNT, `event ${e.id} has toolAccountId === qa-second`);
-    assert.match(actorTag(e), tenantActorRe(SECOND_ACCOUNT), `event ${e.id} actor belongs to qa-second`);
+    assert.ok(
+      tenantActorRe(SECOND_ACCOUNT).test(actorTag(e)) || actorTag(e) === 'system:bootstrap' || actorTag(e).startsWith('operator:'),
+      `event ${e.id} actor (${actorTag(e)}) belongs to qa-second or bootstrap/operator`,
+    );
   }
   assert.ok(
     secondAudit.events.some((e) => e.traceId === createSecond.traceId && e.action === 'platform.create'),

@@ -18,13 +18,10 @@ const urls = publicUrls();
 const LTI_LOG_FILE = path.join(LOGS_DIR, 'lti-service.jsonl');
 
 const RETENTION_COUNT_KEYS = [
-  'platform_nonce_deleted',
-  'oidc_state_deleted',
-  'lti_session_deleted',
-  'refresh_token_deleted',
-  'id_token_cache_deleted',
-  'audit_log_deleted',
-  'score_outbox_deleted',
+  'oidc_state',
+  'launch',
+  'registration_session',
+  'storage_check',
 ] as const;
 
 interface ServiceLogLine {

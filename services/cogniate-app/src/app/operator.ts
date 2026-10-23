@@ -23,7 +23,7 @@ import { servedByKernel, setupOf } from '../kernel/setup.ts';
 import type { AdminValues } from '../kernel/ports.ts';
 import { PRINTABLE_ID } from '@cogniate/channel-kernel/setup';
 import type { BindingCleanup, CleanupLine } from './binding-cleanup.ts';
-import { BOUND_FIELDS, exclusiveIssuerMatches, foreignHostFields, platformAdminValues, providerProfiles, sharedReadiness, stagedRegistration } from './binding-targets.ts';
+import { BOUND_FIELDS, adminValueStaged, exclusiveIssuerMatches, foreignHostFields, platformAdminValues, providerProfiles, sharedReadiness, stagedRegistration } from './binding-targets.ts';
 import { insertAuditEvent } from './audit.ts';
 import type { AuditTarget } from './audit.ts';
 import { evaluateOperatorPolicy } from './operator-policy.ts';
@@ -172,9 +172,13 @@ export function createOperator(deps: OperatorDeps) {
     // values; every other grant refuses the bound-value flags.
     const adminValueGrant = purpose === 'initial' && servedByKernel(channels, c.channel);
     const typed = Object.fromEntries(Object.entries(input.boundValues ?? {}).filter(([, v]) => v !== undefined)) as TypedBoundValues;
-    const staged = stagedRegistration(c);
+    const staged = purpose === 'initial' && adminValueStaged(channels, c);
+    // A1 BD-A1-107: a staged registration of a fixed-endpoint profile (Canvas) binds no values; the grant checks its ids
+    // against the staged platform.
+    const fixedStaged = purpose === 'initial' && stagedRegistration(c) && !staged;
     if (!adminValueGrant && Object.keys(typed).length > 0) return refuse('bound_values_not_allowed', '--issuer, --auth-url, --token-url, --jwks-url and --token-audience are only for an initial grant of a connection with admin values.');
-    if (input.acceptStaged && !(adminValueGrant && staged)) return refuse('not_staged', '--accept-staged needs a connection with a staged registration.');
+    if (fixedStaged && input.acceptStaged) return refuse('bound_values_not_allowed', 'A staged registration with fixed endpoints binds no values. Issue the grant without --accept-staged.');
+    if (input.acceptStaged && !staged) return refuse('not_staged', '--accept-staged needs a connection with a staged registration.');
     let boundValues: AdminValues | null = null;
     if (adminValueGrant) {
       let row;
@@ -223,6 +227,19 @@ export function createOperator(deps: OperatorDeps) {
       }
       if (sharing === 'exclusive' && !exclusiveIssuerMatches(row, c, snapshot)) {
         return refuse('profile_changed', `The ${channels.textName(c.channel)} profile changed after this connection was made. Make a new connection.`);
+      }
+      if (fixedStaged) {
+        let p;
+        try {
+          p = await lti.getPlatform(c.platform!.id, input.traceId);
+        } catch {
+          return fail('The LTI service did not answer. Nothing was stored.');
+        }
+        if (p.active || p.url !== c.platform!.issuer || p.clientId !== c.platform!.clientId || p.profile !== c.profile || p.siteUrl !== c.siteUrl) {
+          return refuse('staged_values_changed', 'The staged platform changed after the registration. Make a new connection.');
+        }
+        if (input.clientId !== p.clientId) return refuse('client_id_mismatch', '--client-id is not the client id of the staged platform.');
+        if (!p.deploymentIds.includes(input.deploymentId)) return refuse('deployment_mismatch', '--deployment-id is not a deployment of the staged platform.');
       }
       if (sharing === 'shared') {
         const cause = sharedReadiness(row, snapshot);

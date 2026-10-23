@@ -36,7 +36,7 @@ export type { ChannelManifest, CapabilitySet, BindingAuthority } from "@cogniate
 export { fillText } from "@cogniate/channel-kernel";
 export { channelText, toolName } from "../channels/registry.ts";
 export { verificationAuthority, VerificationInstructions } from "../channels/verification.tsx";
-export { ManifestBinding, ShowStep, CollectStep, VerifyStep, EnableStep } from "../channels/ManifestWizard.tsx";
+export { ManifestBinding, ShowStep, CollectStep, VerifyStep, EnableStep, RegistrationUrl, renewRegistrationUrl } from "../channels/ManifestWizard.tsx";
 
 export type ConnectionView = Connection;
 export type CourseView = Course;
