@@ -1,55 +1,129 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import {
-  DEFAULT_WAVE_PASS_RESULTS,
+  computeExpectedCaseList,
   evaluateChannelPassRule,
-  formatKitSummaryMarkdown,
-  loadActiveChannelFixtures,
-  type ExecutedCaseRecord,
-  type PassRuleResult,
-} from '../lib/fixtures';
+  loadSelectedChannelFixtures,
+} from '../lib/fixtures.js';
 import {
-  getKitStateDir,
+  ensureKitRunInitialized,
+  evaluateKitRunPassRule,
+  getActiveKitRunId,
+  isK1SimEnabled,
+  loadWaveEvidenceFromRun,
   readAllExecutedCases,
+  recordExecutedCase,
+  recordRedactedEvidence,
+  runKitCase,
   scanAllLogsAndArtifactsForSecrets,
-} from '../lib/runtime';
+  writeKitRunSummaryArtifacts,
+} from '../lib/runtime.js';
 
-const channels = loadActiveChannelFixtures();
+const runSuite = isK1SimEnabled() ? describe : describe.skip;
+const fixtures = loadSelectedChannelFixtures();
 
-describe('K-HYG secret hygiene and K1 channel pass-rule verification', () => {
-  let leakedSecretCount = 0;
-
-  it('H1: service logs, /__sim/secrets, and run artifacts contain zero leaked tokens, keys, assertions, cookies, or grant codes', async () => {
-    const scan = await scanAllLogsAndArtifactsForSecrets();
-    leakedSecretCount = scan.leakedCount;
-    expect(scan.secretCount).toBeGreaterThan(0);
-    expect(scan.hits, `Secret leak hits: ${JSON.stringify(scan.hits)}`).toEqual([]);
-    expect(scan.ok).toBe(true);
+runSuite('K-HYG: Secret Hygiene & Pass-Rule Verification Suite (runs last)', () => {
+  beforeAll(() => {
+    ensureKitRunInitialized({ channels: fixtures.map((f) => f.id) });
   });
 
-  it('H2: every active channel satisfies the K1 pass rule (zero missing cases, zero extra cases, zero skipped tests, positive and off capabilities covered)', () => {
-    const allExecuted = readAllExecutedCases();
-    const byChannel = new Map<string, ExecutedCaseRecord[]>();
-    const passResults = new Map<string, PassRuleResult>();
-
-    for (const fixture of channels) {
-      const channelRecs = allExecuted.filter((r) => r.channelId === fixture.id);
-      byChannel.set(fixture.id, channelRecs);
-      const result = evaluateChannelPassRule({
-        fixture,
-        executedCases: channelRecs,
-        skippedCount: 0,
-        leakedSecretCount,
-        wavePassResults: DEFAULT_WAVE_PASS_RESULTS,
+  it('[GLOBAL:K-HYG:H1] secret scan across service logs, /__sim/records, and recursive redacted evidence tree finds 0 leaks', async () => {
+    await runKitCase('GLOBAL', 'K-HYG', 'H1', async () => {
+      recordRedactedEvidence('hyg-pre-scan', {
+        suite: 'K-HYG',
+        channels: fixtures.map((f) => f.id),
+        redacted: true,
       });
-      passResults.set(fixture.id, result);
-      expect(result.errors, `Pass rule errors for ${fixture.id}`).toEqual([]);
-      expect(result.ok).toBe(true);
-    }
+      const scan = await scanAllLogsAndArtifactsForSecrets();
+      expect(scan.missingInputs).toEqual([]);
+      expect(scan.secretCount).toBeGreaterThan(0);
+      expect(scan.hits).toEqual([]);
+      expect(scan.leakedCount).toBe(0);
+      expect(scan.ok).toBe(true);
+    });
+  });
 
-    const summaryMd = formatKitSummaryMarkdown(channels, byChannel, passResults);
-    const outPath = path.join(getKitStateDir(), 'k1-kit-summary.md');
-    fs.writeFileSync(outPath, summaryMd, { mode: 0o600 });
+  for (const fixture of fixtures) {
+    it(`[${fixture.id}:K-HYG:H2] pass rule & N/A rule verification: executed cases === expected RUN cases, 0 skips, 0 retries, wave evidence verified`, async () => {
+      const activeRunId = getActiveKitRunId();
+      const h2Id = `${fixture.id}:K-HYG:H2`;
+      const waveEvidence = loadWaveEvidenceFromRun();
+      const currentWaveId = process.env.LA_WAVE_ID ?? waveEvidence.waveId;
+      const priorRecords = readAllExecutedCases();
+      const syntheticRecords = [
+        ...priorRecords,
+        {
+          id: h2Id,
+          channelId: fixture.id,
+          suite: 'K-HYG' as const,
+          code: 'H2',
+          outcome: 'PASS' as const,
+          runId: activeRunId,
+        },
+      ];
+
+      const evalResult = evaluateChannelPassRule({
+        fixture,
+        expectedCases: computeExpectedCaseList(fixture),
+        executedRecords: syntheticRecords,
+        waveEvidence,
+        currentWaveId,
+        expectedRunId: activeRunId,
+      });
+
+      if (!evalResult.ok) {
+        recordExecutedCase({
+          id: h2Id,
+          channelId: fixture.id,
+          suite: 'K-HYG',
+          code: 'H2',
+          outcome: 'FAIL',
+          runId: activeRunId,
+          detail: evalResult.errors.join('; '),
+        });
+      } else {
+        recordExecutedCase({
+          id: h2Id,
+          channelId: fixture.id,
+          suite: 'K-HYG',
+          code: 'H2',
+          outcome: 'PASS',
+          runId: activeRunId,
+        });
+      }
+
+      expect(evalResult.errors).toEqual([]);
+      expect(evalResult.failedCases).toEqual([]);
+      expect(evalResult.duplicateOrRetriedCases).toEqual([]);
+      expect(evalResult.staleRunCases).toEqual([]);
+      expect(evalResult.missingCases).toEqual([]);
+      expect(evalResult.extraCases).toEqual([]);
+      expect(evalResult.illegalNaCases).toEqual([]);
+      expect(evalResult.uncoveredPositiveCapabilities).toEqual([]);
+      expect(evalResult.missingNegativeGuards).toEqual([]);
+      expect(evalResult.skippedCount).toBe(0);
+      expect(evalResult.ok).toBe(true);
+    });
+  }
+
+  it('[GLOBAL:K-HYG:SUMMARY] emits k1-kit-summary.md and k1-kit-summary.json and enforces full-run certification', () => {
+    const activeRunId = getActiveKitRunId();
+    const waveEvidence = loadWaveEvidenceFromRun();
+    const currentWaveId = process.env.LA_WAVE_ID ?? waveEvidence.waveId;
+    const allRecords = readAllExecutedCases();
+
+    const report = evaluateKitRunPassRule({
+      fixtures,
+      executedRecords: allRecords,
+      waveEvidence,
+      currentWaveId,
+      expectedRunId: activeRunId,
+      requireH1: true,
+    });
+
+    // Always write summary artifacts before asserting so failure details are preserved on disk.
+    writeKitRunSummaryArtifacts(report);
+
+    expect(report.globalErrors).toEqual([]);
+    expect(report.ok).toBe(true);
   });
 });

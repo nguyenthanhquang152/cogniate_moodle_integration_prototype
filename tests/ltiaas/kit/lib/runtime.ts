@@ -1,1001 +1,1192 @@
+import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
-import os from 'node:os';
+import http from 'node:http';
+import https from 'node:https';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
-import { expect } from 'vitest';
 import {
-  APP,
-  DL,
-  LTI,
-  admin,
-  app,
-  cli,
-  connPath,
-  denied,
-  expectStatus,
-  httpsRequest,
-  launch,
-  logEvents,
-  noServiceCalls,
-  parseForm,
-  poll,
-  records,
-  rememberSecret,
-  session,
-  sharedPlatform,
-  sim,
-  unique,
-  urls,
-  type Json,
-} from '../../../acceptance/M1/common/client';
-import {
-  commitGrade,
-  fixtureZip,
-  openPlay,
-  pick,
-  publication,
-  returnDeepLink,
-  waitSync,
-} from '../../../acceptance/M1/common/course';
-import { createCourse, uploadVersion, type Session } from '../../../acceptance/lib/app';
-import { readLog } from '../../../acceptance/lib/logs';
-import {
-  ACCOUNT,
-  apiKey,
-  auth,
-  capturedSecrets,
-  errorCode,
-  hasErrorShape,
-  ltiApi,
-} from '../../../acceptance/lib/lti';
-import { LOGS_DIR, artifactsDir } from '../../../acceptance/lib/paths';
-import {
+  buildOperatorGrantCliArgs,
+  ChannelFixture,
   computeExpectedCaseList,
-  type CapabilityId,
-  type ChannelFixture,
-  type ExecutedCaseRecord,
-  type GuardedCapabilitySpec,
-  type KitSuiteId,
-} from './fixtures';
+  computeExpectedGlobalCaseList,
+  evaluateChannelPassRule,
+  ExecutedCaseRecord,
+  isPlainObject,
+  KitSuiteName,
+  OperatorGrantCliOptions,
+  PassRuleEvaluation,
+  WaveEvidenceManifest,
+} from './fixtures.js';
 
-export type KitSession = Session & { library: Json };
+export const APP_URL = process.env.COGNIATE_APP_URL ?? 'https://app.cogniate.test';
+export const LTI_URL = process.env.LTI_SERVICE_URL ?? 'https://lti.cogniate.test';
+export const SIM_CONTROL_URL = process.env.LMS_SIM_CONTROL_URL ?? 'http://127.0.0.1:4199';
+export const LTI_API_KEY = process.env.LTI_SERVICE_API_KEY ?? 'dev-lti-api-key-change-me';
+export const APP_SESSION_SECRET =
+  process.env.APP_SESSION_SECRET ?? 'dev-app-session-secret-change-me';
 
-export const ROLE = {
-  learner: 'http://purl.imsglobal.org/vocab/lis/v2/membership#Learner',
-  instructor: 'http://purl.imsglobal.org/vocab/lis/v2/membership#Instructor',
-} as const;
-
-export const SCOPES = {
-  lineitem: 'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem',
-  readonly: 'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
-  result: 'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
-  score: 'https://purl.imsglobal.org/spec/lti-ags/scope/score',
-  nrps: 'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
-} as const;
-
-export function getSecrets(): string[] {
-  const m1Raw = path.join(artifactsDir('acceptance'), 'm1-secrets.raw.jsonl');
-  const fromM1Raw = fs.existsSync(m1Raw)
-    ? fs
-        .readFileSync(m1Raw, 'utf8')
-        .trim()
-        .split('\n')
-        .filter(Boolean)
-        .map((line) => JSON.parse(line) as string)
-    : [];
-  return [...new Set([...capturedSecrets().map((s) => s.value), ...fromM1Raw])];
+export interface HttpResponse {
+  status: number;
+  headers: http.IncomingHttpHeaders;
+  rawBody: string;
+  json: unknown;
 }
 
-export function readServiceLogs(serviceName: string): string {
-  try {
-    const logFile = path.join(LOGS_DIR, `${serviceName}.jsonl`);
-    if (fs.existsSync(logFile)) {
-      return fs.readFileSync(logFile, 'utf8');
-    }
-    const parsed = readLog(serviceName);
-    return parsed.entries.map((e) => JSON.stringify(e.entry)).join('\n');
-  } catch {
-    return '';
+export interface RequestOptions {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+  rawBody?: string;
+  form?: Record<string, string>;
+  cookie?: string;
+  timeoutMs?: number;
+}
+
+export interface RegisteredChannelContext {
+  fixture: ChannelFixture;
+  libraryId: string;
+  cookie: string;
+  csrf: string;
+  connectionId: string;
+  platformId: string;
+  clientId: string;
+  deploymentId: string;
+  secondaryDeploymentId: string;
+  courseId: string;
+  secondCourseId: string;
+  resourceSlug: string;
+  secondResourceSlug: string;
+}
+
+export interface KitRunMeta {
+  runId: string;
+  startedAt: string;
+  channels: string[];
+}
+
+export interface SecretScanHit {
+  source: string;
+  secretPrefix: string;
+}
+
+export interface SecretScanResult {
+  ok: boolean;
+  secretCount: number;
+  leakedCount: number;
+  hits: SecretScanHit[];
+  missingInputs: string[];
+  scannedSources: string[];
+}
+
+export interface SecretScanOptions {
+  artifactRoot?: string | null;
+  fetchImpl?: (url: string) => Promise<{ status: number; json: unknown; rawText?: string }>;
+  readServiceLogImpl?: (service: 'lti-service' | 'cogniate-app' | 'lms-sim') => string;
+  additionalSecrets?: string[];
+}
+
+export interface KitRunPassRuleReport {
+  ok: boolean;
+  runId: string | null;
+  currentWaveId: string | null;
+  channels: Record<string, PassRuleEvaluation>;
+  globalErrors: string[];
+  totalExpectedRun: number;
+  totalPassed: number;
+  totalFailed: number;
+  totalSkipped: number;
+  totalDuplicates: number;
+}
+
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false,
+});
+
+export function isK1SimEnabled(): boolean {
+  const level = (process.env.LA_LEVEL ?? '').toLowerCase();
+  if (level === 'k0') {
+    return false;
   }
-}
-
-export {
-  ACCOUNT,
-  APP,
-  DL,
-  LTI,
-  admin,
-  apiKey,
-  app,
-  auth,
-  cli,
-  commitGrade,
-  connPath,
-  createCourse,
-  denied,
-  errorCode,
-  expectStatus,
-  fixtureZip,
-  hasErrorShape,
-  httpsRequest,
-  launch,
-  logEvents,
-  ltiApi,
-  noServiceCalls,
-  openPlay,
-  parseForm,
-  pick,
-  poll,
-  publication,
-  records,
-  rememberSecret,
-  returnDeepLink,
-  session,
-  sharedPlatform,
-  sim,
-  unique,
-  uploadVersion,
-  urls,
-  waitSync,
-  type Json,
-};
-
-const REPO_ROOT = path.resolve(
-  process.env.LA_TARGET_ROOT ??
-    process.env.QA_REPO_ROOT ??
-    process.env.LA_SCRATCH_CLONE ??
-    path.join(path.dirname(new URL(import.meta.url).pathname), '../../../..'),
-);
-
-export function getKitStateDir(): string {
-  const base =
-    process.env.LA_RUN_DIR ??
-    process.env.QA_KIT_STATE_DIR ??
-    path.join(os.tmpdir(), `cogniate-k1-kit-${process.ppid}`);
-  fs.mkdirSync(base, { recursive: true, mode: 0o700 });
-  return base;
-}
-
-const EXECUTED_CASES_FILE = () => path.join(getKitStateDir(), 'kit-executed-cases.jsonl');
-const CAPTURED_SECRETS_FILE = () => path.join(getKitStateDir(), 'kit-secrets.jsonl');
-
-export function resetKitRunState(): void {
-  for (const file of [EXECUTED_CASES_FILE(), CAPTURED_SECRETS_FILE()]) {
-    if (fs.existsSync(file)) {
-      fs.unlinkSync(file);
-    }
-  }
-}
-
-export function recordExecutedCase(record: ExecutedCaseRecord): void {
-  const line = `${JSON.stringify(record)}\n`;
-  fs.appendFileSync(EXECUTED_CASES_FILE(), line, { mode: 0o600 });
-}
-
-export function recordSuiteCase(
-  fixture: ChannelFixture,
-  suite: KitSuiteId,
-  code: string,
-  outcome: 'PASS' | 'FAIL' | 'NA' = 'PASS',
-  detail?: string,
-): void {
-  recordExecutedCase({
-    id: `${fixture.id}:${suite}:${code}`,
-    suite,
-    code,
-    channelId: fixture.id,
-    outcome,
-    detail,
-  });
-}
-
-export function recordNaCasesForSuite(fixture: ChannelFixture, suite: KitSuiteId): void {
-  const expected = computeExpectedCaseList(fixture).filter(
-    (c) => c.suite === suite && c.status === 'NA',
+  return Boolean(
+    level === 'k1-sim' ||
+      process.env.QA_TASK === 'K1' ||
+      process.env.QA_TASK === 'LA-E7-06' ||
+      process.env.QA_KIT_RUN === '1',
   );
-  for (const spec of expected) {
-    recordExecutedCase({
-      id: spec.id,
-      suite: spec.suite,
-      code: spec.code,
-      channelId: spec.channelId,
-      outcome: 'NA',
-      detail: spec.reason,
-    });
-  }
 }
 
-export function readAllExecutedCases(): ExecutedCaseRecord[] {
-  const file = EXECUTED_CASES_FILE();
-  if (!fs.existsSync(file)) return [];
-  const raw = fs.readFileSync(file, 'utf8').trim();
-  if (!raw) return [];
-  const byId = new Map<string, ExecutedCaseRecord>();
-  for (const line of raw.split('\n')) {
-    if (!line.trim()) continue;
-    const parsed = JSON.parse(line) as ExecutedCaseRecord;
-    byId.set(parsed.id, parsed);
-  }
-  return [...byId.values()];
+export function getKitStateDir(overrideDir?: string): string {
+  const dir =
+    overrideDir ?? process.env.LA_RUN_DIR ?? path.resolve(process.cwd(), '.tmp/kit-run');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
 }
 
-export function persistCapturedSecrets(secrets: Iterable<string>): void {
-  const file = CAPTURED_SECRETS_FILE();
-  const lines: string[] = [];
-  for (const s of secrets) {
-    if (typeof s === 'string' && s.length >= 16) {
-      rememberSecret(s);
-      lines.push(JSON.stringify({ secret: s }));
+export function initKitRunLedger(options?: {
+  stateDir?: string;
+  runId?: string;
+  channels?: string[];
+}): KitRunMeta {
+  const dir = getKitStateDir(options?.stateDir);
+  const runId =
+    options?.runId ?? process.env.LA_KIT_RUN_ID ?? `kit-run-${crypto.randomUUID()}`;
+  const meta: KitRunMeta = {
+    runId,
+    startedAt: new Date().toISOString(),
+    channels: options?.channels ?? [],
+  };
+  fs.writeFileSync(path.join(dir, 'kit-run-meta.json'), JSON.stringify(meta, null, 2), 'utf8');
+  fs.writeFileSync(path.join(dir, 'kit-executed-cases.jsonl'), '', 'utf8');
+  const evidenceDir = path.join(dir, 'evidence');
+  fs.mkdirSync(evidenceDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(evidenceDir, 'kit-run-init.json'),
+    JSON.stringify({ runId, startedAt: meta.startedAt, redacted: true }, null, 2),
+    'utf8',
+  );
+  return meta;
+}
+
+export function ensureKitRunInitialized(options?: {
+  stateDir?: string;
+  runId?: string;
+  channels?: string[];
+}): KitRunMeta {
+  const dir = getKitStateDir(options?.stateDir);
+  const metaPath = path.join(dir, 'kit-run-meta.json');
+  const targetRunId = options?.runId ?? process.env.LA_KIT_RUN_ID;
+  if (fs.existsSync(metaPath)) {
+    try {
+      const existing = JSON.parse(fs.readFileSync(metaPath, 'utf8')) as KitRunMeta;
+      if (existing && typeof existing.runId === 'string') {
+        if (!targetRunId || existing.runId === targetRunId) {
+          return existing;
+        }
+      }
+    } catch {
+      // Re-initialize below if unreadable
     }
   }
-  if (lines.length > 0) {
-    fs.appendFileSync(file, `${lines.join('\n')}\n`, { mode: 0o600 });
+  return initKitRunLedger(options);
+}
+
+export function getActiveKitRunId(stateDir?: string): string {
+  const meta = ensureKitRunInitialized({ stateDir });
+  return meta.runId;
+}
+
+export function recordExecutedCase(
+  record: ExecutedCaseRecord,
+  options?: { stateDir?: string },
+): void {
+  const dir = getKitStateDir(options?.stateDir);
+  const runId = record.runId ?? getActiveKitRunId(dir);
+  const entry: ExecutedCaseRecord = {
+    ...record,
+    runId,
+    timestamp: record.timestamp ?? new Date().toISOString(),
+  };
+  const filePath = path.join(dir, 'kit-executed-cases.jsonl');
+  fs.appendFileSync(filePath, `${JSON.stringify(entry)}\n`, 'utf8');
+}
+
+export function recordSkippedCase(
+  channelId: string,
+  suite: KitSuiteName,
+  code: string,
+  detail?: string,
+  options?: { stateDir?: string; runId?: string },
+): void {
+  recordExecutedCase(
+    {
+      id: `${channelId}:${suite}:${code}`,
+      channelId,
+      suite,
+      code,
+      outcome: 'SKIP',
+      detail,
+      runId: options?.runId,
+    },
+    { stateDir: options?.stateDir },
+  );
+}
+
+export async function runKitCase(
+  channelId: string,
+  suite: KitSuiteName,
+  code: string,
+  fn: () => Promise<void> | void,
+  options?: { stateDir?: string; runId?: string },
+): Promise<void> {
+  const id = `${channelId}:${suite}:${code}`;
+  try {
+    await fn();
+    recordExecutedCase(
+      {
+        id,
+        channelId,
+        suite,
+        code,
+        outcome: 'PASS',
+        runId: options?.runId,
+      },
+      { stateDir: options?.stateDir },
+    );
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    recordExecutedCase(
+      {
+        id,
+        channelId,
+        suite,
+        code,
+        outcome: 'FAIL',
+        detail,
+        runId: options?.runId,
+      },
+      { stateDir: options?.stateDir },
+    );
+    throw err;
   }
 }
 
-export function readAllCapturedSecrets(): string[] {
-  const set = new Set<string>(getSecrets());
-  const file = CAPTURED_SECRETS_FILE();
-  if (fs.existsSync(file)) {
-    const raw = fs.readFileSync(file, 'utf8').trim();
-    if (raw) {
-      for (const line of raw.split('\n')) {
-        if (!line.trim()) continue;
-        const parsed = JSON.parse(line) as { secret?: string };
-        if (parsed.secret && parsed.secret.length >= 16) {
-          set.add(parsed.secret);
-        }
+export function readAllExecutedCases(options?: { stateDir?: string }): ExecutedCaseRecord[] {
+  const filePath = path.join(getKitStateDir(options?.stateDir), 'kit-executed-cases.jsonl');
+  if (!fs.existsSync(filePath)) {
+    return [];
+  }
+  const lines = fs
+    .readFileSync(filePath, 'utf8')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const records: ExecutedCaseRecord[] = [];
+  for (const line of lines) {
+    try {
+      const rec = JSON.parse(line) as ExecutedCaseRecord;
+      if (rec && typeof rec.id === 'string') {
+        records.push(rec);
+      }
+    } catch {
+      // Ignore malformed trailing lines
+    }
+  }
+  return records;
+}
+
+export function loadWaveEvidenceFromRun(options?: {
+  stateDir?: string;
+  filePath?: string;
+  currentWaveId?: string | null;
+}): WaveEvidenceManifest {
+  const dir = getKitStateDir(options?.stateDir);
+  const filePath =
+    options?.filePath ??
+    process.env.LA_WAVE_EVIDENCE_FILE ??
+    path.join(dir, 'wave-evidence.json');
+  const currentWaveId =
+    options?.currentWaveId !== undefined
+      ? options.currentWaveId
+      : (process.env.LA_WAVE_ID ?? null);
+
+  if (!fs.existsSync(filePath)) {
+    return {
+      waveId: currentWaveId,
+      suites: {},
+      error: `wave evidence file not found at ${filePath}`,
+    };
+  }
+  try {
+    const raw = fs.readFileSync(filePath, 'utf8');
+    const parsed = JSON.parse(raw) as Partial<WaveEvidenceManifest>;
+    if (!isPlainObject(parsed) || !isPlainObject(parsed.suites)) {
+      return {
+        waveId: currentWaveId,
+        suites: {},
+        error: `wave evidence file at ${filePath} is missing a "suites" object`,
+      };
+    }
+    return {
+      waveId: typeof parsed.waveId === 'string' ? parsed.waveId : null,
+      suites: parsed.suites as WaveEvidenceManifest['suites'],
+    };
+  } catch (err) {
+    return {
+      waveId: currentWaveId,
+      suites: {},
+      error: `wave evidence file unreadable at ${filePath}: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    };
+  }
+}
+
+export function evaluateKitRunPassRule(input: {
+  fixtures: ChannelFixture[];
+  executedRecords: ExecutedCaseRecord[];
+  waveEvidence?: WaveEvidenceManifest | null;
+  currentWaveId?: string | null;
+  expectedRunId?: string | null;
+  requireH1?: boolean;
+}): KitRunPassRuleReport {
+  const expectedRunId = input.expectedRunId ?? null;
+  const currentWaveId =
+    input.currentWaveId !== undefined
+      ? input.currentWaveId
+      : (input.waveEvidence?.waveId ?? process.env.LA_WAVE_ID ?? null);
+  const channels: Record<string, PassRuleEvaluation> = {};
+  let totalExpectedRun = 0;
+  let totalPassed = 0;
+  let totalFailed = 0;
+  let totalSkipped = 0;
+  let totalDuplicates = 0;
+
+  for (const fixture of input.fixtures) {
+    const expectedCases = computeExpectedCaseList(fixture);
+    const evalResult = evaluateChannelPassRule({
+      fixture,
+      expectedCases,
+      executedRecords: input.executedRecords,
+      waveEvidence: input.waveEvidence,
+      currentWaveId,
+      expectedRunId,
+    });
+    channels[fixture.id] = evalResult;
+    totalExpectedRun += evalResult.expectedRunCount;
+    totalPassed += evalResult.executedPassCount;
+    totalFailed += evalResult.failedCases.length;
+    totalSkipped += evalResult.skippedCount;
+    totalDuplicates += evalResult.duplicateOrRetriedCases.length;
+  }
+
+  const globalErrors: string[] = [];
+  const expectedGlobals = computeExpectedGlobalCaseList().filter((g) =>
+    input.requireH1 === false ? g.code !== 'H1' : true,
+  );
+  const globalRecords = input.executedRecords.filter((r) => r.channelId === 'GLOBAL');
+  const expectedGlobalMap = new Map(expectedGlobals.map((g) => [g.id, g]));
+  const globalById = new Map<string, ExecutedCaseRecord[]>();
+
+  for (const rec of globalRecords) {
+    if (expectedRunId && rec.runId !== expectedRunId) {
+      globalErrors.push(
+        `stale global run record: ${rec.id} (runId="${String(
+          rec.runId,
+        )}" !== "${expectedRunId}")`,
+      );
+    }
+    if (rec.outcome === 'SKIP') {
+      totalSkipped += 1;
+      globalErrors.push(`skipped global case: ${rec.id}`);
+    }
+    if (rec.outcome === 'FAIL') {
+      totalFailed += 1;
+      globalErrors.push(
+        `failed global case: ${rec.id}${rec.detail ? ` (${rec.detail})` : ''}`,
+      );
+    }
+    const list = globalById.get(rec.id) ?? [];
+    list.push(rec);
+    globalById.set(rec.id, list);
+  }
+
+  for (const [id, recs] of globalById.entries()) {
+    if (!expectedGlobalMap.has(id) && id !== 'GLOBAL:K-HYG:H1') {
+      globalErrors.push(`extra global case: ${id}`);
+    }
+    if (recs.length > 1) {
+      totalDuplicates += 1;
+      globalErrors.push(
+        `duplicate/retried global case: ${id} (recorded ${recs.length} times: ${recs
+          .map((r) => r.outcome)
+          .join(' -> ')})`,
+      );
+    }
+  }
+
+  for (const exp of expectedGlobals) {
+    totalExpectedRun += 1;
+    const recs = globalById.get(exp.id);
+    if (!recs || recs.length === 0) {
+      globalErrors.push(`missing global case: ${exp.id}`);
+    } else if (
+      recs.length === 1 &&
+      recs[0].outcome === 'PASS' &&
+      (!expectedRunId || recs[0].runId === expectedRunId)
+    ) {
+      totalPassed += 1;
+    }
+  }
+
+  const allChannelsOk = Object.values(channels).every((c) => c.ok);
+  const ok = allChannelsOk && globalErrors.length === 0;
+
+  return {
+    ok,
+    runId: expectedRunId,
+    currentWaveId,
+    channels,
+    globalErrors,
+    totalExpectedRun,
+    totalPassed,
+    totalFailed,
+    totalSkipped,
+    totalDuplicates,
+  };
+}
+
+export function writeKitRunSummaryArtifacts(
+  report: KitRunPassRuleReport,
+  options?: { stateDir?: string },
+): { mdPath: string; jsonPath: string } {
+  const dir = getKitStateDir(options?.stateDir);
+  const jsonPath = path.join(dir, 'k1-kit-summary.json');
+  const mdPath = path.join(dir, 'k1-kit-summary.md');
+
+  fs.writeFileSync(jsonPath, JSON.stringify(report, null, 2), 'utf8');
+
+  const lines: string[] = [
+    '# K1-SIM Channel Conformance Kit Summary',
+    '',
+    `- Run ID: \`${report.runId ?? 'none'}\``,
+    `- Wave ID: \`${report.currentWaveId ?? 'none'}\``,
+    `- Overall Status: **${report.ok ? 'PASS' : 'FAIL'}**`,
+    `- Total Expected RUN: ${report.totalExpectedRun}`,
+    `- Total Passed: ${report.totalPassed}`,
+    `- Total Failed: ${report.totalFailed}`,
+    `- Total Skipped: ${report.totalSkipped}`,
+    `- Total Retried/Duplicate: ${report.totalDuplicates}`,
+    '',
+    '| Channel | Expected RUN | Passed | Failed | Skipped | Duplicates | Missing | Extra | Illegal N/A | Uncovered +Cap | Missing C2 | Status |',
+    '| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |',
+  ];
+
+  for (const [channelId, ev] of Object.entries(report.channels)) {
+    lines.push(
+      `| ${channelId} | ${ev.expectedRunCount} | ${ev.executedPassCount} | ${
+        ev.failedCases.length
+      } | ${ev.skippedCount} | ${ev.duplicateOrRetriedCases.length} | ${
+        ev.missingCases.length
+      } | ${ev.extraCases.length} | ${ev.illegalNaCases.length} | ${
+        ev.uncoveredPositiveCapabilities.length
+      } | ${ev.missingNegativeGuards.length} | ${ev.ok ? 'PASS' : 'FAIL'} |`,
+    );
+  }
+
+  if (report.globalErrors.length > 0) {
+    lines.push('', '## Global Errors', '');
+    for (const err of report.globalErrors) {
+      lines.push(`- ${err}`);
+    }
+  }
+
+  for (const [channelId, ev] of Object.entries(report.channels)) {
+    if (ev.errors.length > 0) {
+      lines.push('', `## Errors for \`${channelId}\``, '');
+      for (const err of ev.errors) {
+        lines.push(`- ${err}`);
       }
     }
   }
-  return [...set];
+
+  fs.writeFileSync(mdPath, `${lines.join('\n')}\n`, 'utf8');
+  return { mdPath, jsonPath };
 }
 
-export interface ChannelBinding {
-  s: KitSession;
-  fixture: ChannelFixture;
-  connection: Json;
-  clientId: string;
-  deploymentId: string;
-  platformId: string;
-  siteHost: string;
-  pageHost: string;
-}
-
-const SHARED_APP_CLIENT_ID = 'qa-bb-app';
-
-function nextDeploymentId(fixture: ChannelFixture, index = 0): string {
-  const preset = fixture.sim.deployments[index];
-  if (preset && /^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(preset)) {
-    return preset;
+export function recordSecret(secretValue: string, options?: { stateDir?: string }): void {
+  if (!secretValue || secretValue.trim().length < 8) {
+    return;
   }
-  if (fixture.capabilities['platform.sharing'] === 'shared') {
-    return unique(`dep-${fixture.id}`);
-  }
-  return preset ?? unique(`dep-${fixture.id}`);
+  const filePath = path.join(getKitStateDir(options?.stateDir), 'kit-secrets.raw.jsonl');
+  fs.appendFileSync(filePath, `${JSON.stringify({ value: secretValue.trim() })}\n`, 'utf8');
 }
 
-export async function createPendingChannelConnection(
-  fixture: ChannelFixture,
-  method: 'manual' | 'dynamic' = 'manual',
-  library: 'A' | 'B' = 'A',
-): Promise<{ s: KitSession; connection: Json }> {
-  const s = await session(library);
-  const body: Record<string, unknown> = {
-    name: unique(`Kit ${fixture.id} ${method}`),
-    lms: fixture.id,
-    method,
-    siteUrl: fixture.sim.siteUrl,
-  };
-  if (fixture.capabilities['site.serviceOrigin']) {
-    body.serviceUrl = fixture.sim.serviceUrl;
-    if (fixture.simProfile) {
-      body.profile = fixture.simProfile;
+export function recordRedactedEvidence(
+  name: string,
+  payload: Record<string, unknown>,
+  options?: { stateDir?: string },
+): string {
+  const dir = path.join(getKitStateDir(options?.stateDir), 'evidence');
+  fs.mkdirSync(dir, { recursive: true });
+  const safeName = name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const filePath = path.join(dir, `${safeName}.json`);
+  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf8');
+  return filePath;
+}
+
+export function readLocalRecordedSecrets(stateDir?: string): string[] {
+  const dir = getKitStateDir(stateDir);
+  const secrets = new Set<string>();
+  for (const fileName of ['kit-secrets.raw.jsonl', 'kit-secrets.jsonl', 'm1-secrets.raw.jsonl']) {
+    const filePath = path.join(dir, fileName);
+    if (!fs.existsSync(filePath)) {
+      continue;
     }
-  } else if (fixture.simProfile && fixture.capabilities['platform.sharing'] === 'shared') {
-    body.profile = fixture.simProfile;
+    const lines = fs
+      .readFileSync(filePath, 'utf8')
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean);
+    for (const line of lines) {
+      try {
+        const parsed = JSON.parse(line) as { value?: string };
+        if (typeof parsed.value === 'string' && parsed.value.length >= 8) {
+          secrets.add(parsed.value);
+        }
+      } catch {
+        // Ignore malformed line
+      }
+    }
   }
-  const created = await app(s, 'POST', '/app-api/connections', body);
-  expectStatus(created, 201);
-  return { s, connection: created.json };
+  return [...secrets];
 }
 
-export async function issueOperatorGrantForChannel(
-  s: KitSession,
+export function httpRequest(urlString: string, options: RequestOptions = {}): Promise<HttpResponse> {
+  const parsed = new URL(urlString);
+  const isHttps = parsed.protocol === 'https:';
+  const method = options.method ?? 'GET';
+  const headers: Record<string, string> = { ...(options.headers ?? {}) };
+
+  if (options.cookie) {
+    headers.cookie = options.cookie;
+  }
+
+  let payload: string | undefined;
+  if (options.rawBody !== undefined) {
+    payload = options.rawBody;
+  } else if (options.form !== undefined) {
+    payload = new URLSearchParams(options.form).toString();
+    if (!headers['content-type'] && !headers['Content-Type']) {
+      headers['content-type'] = 'application/x-www-form-urlencoded';
+    }
+  } else if (options.body !== undefined) {
+    payload = JSON.stringify(options.body);
+    if (!headers['content-type'] && !headers['Content-Type']) {
+      headers['content-type'] = 'application/json';
+    }
+  }
+
+  if (payload !== undefined) {
+    headers['content-length'] = String(Buffer.byteLength(payload));
+  }
+
+  return new Promise((resolve, reject) => {
+    const lib = isHttps ? https : http;
+    const req = lib.request(
+      parsed,
+      {
+        method,
+        headers,
+        agent: isHttps ? httpsAgent : undefined,
+        timeout: options.timeoutMs ?? 15000,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (chunk: Buffer) => chunks.push(chunk));
+        res.on('end', () => {
+          const rawBody = Buffer.concat(chunks).toString('utf8');
+          let json: unknown = null;
+          try {
+            json = rawBody ? JSON.parse(rawBody) : null;
+          } catch {
+            json = null;
+          }
+          resolve({
+            status: res.statusCode ?? 0,
+            headers: res.headers,
+            rawBody,
+            json,
+          });
+        });
+      },
+    );
+    req.on('error', reject);
+    req.on('timeout', () => {
+      req.destroy(new Error(`Request timed out: ${method} ${urlString}`));
+    });
+    if (payload !== undefined) {
+      req.write(payload);
+    }
+    req.end();
+  });
+}
+
+export function createStaffSession(libraryId: string, userId = 'staff-kit-user'): {
+  cookie: string;
+  csrf: string;
+} {
+  const csrf = crypto.randomBytes(16).toString('hex');
+  const payload = Buffer.from(
+    JSON.stringify({
+      userId,
+      libraryId,
+      role: 'library_admin',
+      csrf,
+      exp: Math.floor(Date.now() / 1000) + 3600,
+    }),
+  ).toString('base64url');
+  const sig = crypto
+    .createHmac('sha256', APP_SESSION_SECRET)
+    .update(payload)
+    .digest('base64url');
+  const token = `${payload}.${sig}`;
+  recordSecret(token);
+  return {
+    cookie: `cogniate_staff_session=${token}`,
+    csrf,
+  };
+}
+
+export async function appApi(
+  pathname: string,
+  session: { cookie: string; csrf: string },
+  options: RequestOptions = {},
+): Promise<HttpResponse> {
+  const headers: Record<string, string> = {
+    'x-csrf-token': session.csrf,
+    origin: APP_URL,
+    ...(options.headers ?? {}),
+  };
+  return httpRequest(`${APP_URL}${pathname}`, {
+    ...options,
+    cookie: session.cookie,
+    headers,
+  });
+}
+
+export async function ltiApi(pathname: string, options: RequestOptions = {}): Promise<HttpResponse> {
+  const headers: Record<string, string> = {
+    'x-service-api-key': LTI_API_KEY,
+    ...(options.headers ?? {}),
+  };
+  return httpRequest(`${LTI_URL}${pathname}`, {
+    ...options,
+    headers,
+  });
+}
+
+export async function simControl(
+  pathname: string,
+  options: RequestOptions = {},
+): Promise<HttpResponse> {
+  return httpRequest(`${SIM_CONTROL_URL}${pathname}`, options);
+}
+
+export async function registerSimScenario(scenario: Record<string, unknown>): Promise<{
+  id: string;
+  login: Record<string, string>;
+  registration?: {
+    openidConfiguration: string;
+    registrationToken: string;
+    tokenFormat: string;
+    startUrl: string;
+  };
+}> {
+  const res = await simControl('/__sim/scenarios', {
+    method: 'POST',
+    body: scenario,
+  });
+  if (res.status !== 201) {
+    throw new Error(
+      `Failed to register simulator scenario (${res.status}): ${res.rawBody}`,
+    );
+  }
+  const data = res.json as {
+    id: string;
+    login: Record<string, string>;
+    registration?: {
+      openidConfiguration: string;
+      registrationToken: string;
+      tokenFormat: string;
+      startUrl: string;
+    };
+  };
+  if (data.registration?.registrationToken) {
+    recordSecret(data.registration.registrationToken);
+  }
+  return data;
+}
+
+export async function getSimRecords(since = 0): Promise<{
+  cursor: number;
+  records: Array<Record<string, unknown>>;
+}> {
+  const res = await simControl(`/__sim/records?since=${since}`);
+  if (res.status !== 200) {
+    throw new Error(`Failed to fetch simulator records (${res.status}): ${res.rawBody}`);
+  }
+  return res.json as { cursor: number; records: Array<Record<string, unknown>> };
+}
+
+export async function getSimCursor(): Promise<number> {
+  const data = await getSimRecords(0);
+  return data.cursor;
+}
+
+export function issueOperatorGrantForChannel(
+  libraryId: string,
   fixture: ChannelFixture,
   connectionId: string,
   clientId: string,
   deploymentId: string,
-  options: {
-    purpose?: 'initial' | 'add_deployment';
-    acceptStaged?: boolean;
-    overrideJwksUrl?: string;
-  } = {},
-): Promise<string> {
-  const args: string[] = [
-    'issue',
-    '--library',
-    String(s.library.id),
-    '--connection',
+  options: OperatorGrantCliOptions = {},
+): string {
+  const args = buildOperatorGrantCliArgs(
+    libraryId,
+    fixture,
     connectionId,
-    '--site',
-    fixture.sim.siteUrl,
-  ];
-  if (fixture.capabilities['site.serviceOrigin']) {
-    args.push('--service', fixture.sim.serviceUrl);
+    clientId,
+    deploymentId,
+    options,
+  );
+  const out = execFileSync('npm', args, {
+    cwd: process.cwd(),
+    encoding: 'utf8',
+    env: { ...process.env },
+  });
+  const match = out.match(/cgg_[A-Za-z0-9_-]+/);
+  if (!match) {
+    throw new Error(`Operator grant CLI did not output a cgg_ code. Output: ${out}`);
   }
-  if (options.purpose === 'add_deployment') {
-    args.push('--purpose', 'add_deployment');
-  } else {
-    args.push('--client-id', clientId);
-  }
-  args.push('--deployment-id', deploymentId);
-
-  if (options.acceptStaged) {
-    args.push('--accept-staged', '--confirm-foreign-hosts');
-  } else if (
-    !fixture.capabilities['site.serviceOrigin'] &&
-    fixture.capabilities['platform.sharing'] !== 'shared' &&
-    fixture.capabilities['binding.authority'].manual === 'operatorGrant'
-  ) {
-    args.push(
-      '--issuer',
-      fixture.sim.issuer,
-      '--auth-url',
-      fixture.sim.authEndpoint,
-      '--token-url',
-      fixture.sim.tokenEndpoint,
-      '--jwks-url',
-      options.overrideJwksUrl ?? fixture.sim.jwksUrl,
-      '--confirm-foreign-hosts',
-    );
-    if (fixture.sim.tokenAudienceKind === 'fixed' && typeof fixture.sim.tokenAudience === 'string') {
-      args.push('--token-audience', fixture.sim.tokenAudience);
-    }
-  }
-
-  args.push('--note', `K1 kit ${fixture.id}`);
-  const issued = await cli('app:grant', args);
-  expect(issued.code, issued.stderr || issued.stdout).toBe(0);
-  const match = issued.stdout.match(/(?<![\w-])[A-Za-z0-9_-]{43}(?![\w-])/);
-  expect(match, `CLI grant code output for ${fixture.id}`).not.toBeNull();
-  const grantCode = match![0];
-  rememberSecret(grantCode);
-  persistCapturedSecrets([grantCode]);
-  return grantCode;
+  const code = match[0];
+  recordSecret(code);
+  return code;
 }
 
-export async function connectChannel(
-  fixture: ChannelFixture,
-  options: {
-    library?: 'A' | 'B';
-    deploymentIndex?: number;
-  } = {},
-): Promise<ChannelBinding> {
-  const library = options.library ?? 'A';
-  const deploymentId = nextDeploymentId(fixture, options.deploymentIndex ?? 0);
+export async function createPublishedCourse(
+  session: { cookie: string; csrf: string },
+  title = 'Kit Conformance Course',
+): Promise<{ courseId: string; resourceSlug: string }> {
+  const createRes = await appApi('/app-api/courses', session, {
+    method: 'POST',
+    body: {
+      title,
+      topic: 'Conformance testing',
+      outline: [{ title: 'Module 1', lessons: [{ title: 'Lesson 1', content: 'Content' }] }],
+    },
+  });
+  if (createRes.status !== 201 && createRes.status !== 200) {
+    throw new Error(`Failed to create course (${createRes.status}): ${createRes.rawBody}`);
+  }
+  const course = createRes.json as { id: string; resourceSlug?: string };
+  const pubRes = await appApi(`/app-api/courses/${course.id}/publish`, session, {
+    method: 'POST',
+    body: {},
+  });
+  if (pubRes.status !== 200) {
+    throw new Error(`Failed to publish course (${pubRes.status}): ${pubRes.rawBody}`);
+  }
+  const pubData = pubRes.json as { resourceSlug?: string; course?: { resourceSlug?: string } };
+  const resourceSlug =
+    pubData.resourceSlug ?? pubData.course?.resourceSlug ?? course.resourceSlug ?? course.id;
+  return { courseId: course.id, resourceSlug };
+}
 
-  if (fixture.capabilities['platform.sharing'] === 'shared') {
-    const sharedPlatformId = await sharedPlatform();
-    const { s, connection } = await createPendingChannelConnection(fixture, 'manual', library);
-    const clientId = SHARED_APP_CLIENT_ID;
-    const grantCode = await issueOperatorGrantForChannel(
-      s,
+export async function setupActiveChannelConnection(
+  fixture: ChannelFixture,
+  suffix = 'main',
+): Promise<RegisteredChannelContext> {
+  const libraryId = `lib-kit-${fixture.id}-${suffix}-${crypto.randomBytes(3).toString('hex')}`;
+  const session = createStaffSession(libraryId);
+
+  const firstCourse = await createPublishedCourse(session, `Course 1 (${fixture.id})`);
+  const secondCourse = await createPublishedCourse(session, `Course 2 (${fixture.id})`);
+
+  const createBody: Record<string, unknown> = {
+    lms: fixture.id,
+    name: `Kit ${fixture.id} ${suffix}`,
+    siteUrl: fixture.sim.siteUrl,
+  };
+  if (fixture.capabilities['site.serviceOrigin']) {
+    createBody.serviceUrl = fixture.sim.serviceUrl;
+  }
+
+  const connRes = await appApi('/app-api/connections', session, {
+    method: 'POST',
+    body: createBody,
+  });
+  if (connRes.status !== 201 && connRes.status !== 200) {
+    throw new Error(
+      `Failed to create connection for ${fixture.id} (${connRes.status}): ${connRes.rawBody}`,
+    );
+  }
+  const conn = connRes.json as { id: string };
+  const connectionId = conn.id;
+
+  const clientId = `client-kit-${fixture.id}-${suffix}-${crypto.randomBytes(3).toString('hex')}`;
+  const deploymentId = fixture.sim.deployments[0];
+  const secondaryDeploymentId = fixture.sim.deployments[1] ?? `${deploymentId}-2`;
+
+  if (fixture.capabilities['binding.authority'].manual === 'self') {
+    const putBody: Record<string, unknown> = {
+      clientId,
+      deploymentId,
+      issuer: fixture.sim.issuer,
+      authEndpoint: fixture.sim.authEndpoint,
+      tokenEndpoint: fixture.sim.tokenEndpoint,
+      jwksUrl: fixture.sim.jwksUrl,
+    };
+    const putRes = await appApi(`/app-api/connections/${connectionId}/platform`, session, {
+      method: 'PUT',
+      body: putBody,
+    });
+    if (putRes.status !== 200) {
+      throw new Error(
+        `Failed to bind self manual platform for ${fixture.id} (${putRes.status}): ${putRes.rawBody}`,
+      );
+    }
+  } else {
+    const grantCode = issueOperatorGrantForChannel(
+      libraryId,
       fixture,
-      String(connection.id),
+      connectionId,
       clientId,
       deploymentId,
     );
-    const boundRes = await app(s, 'PUT', `${connPath(connection.id)}/platform`, {
+    const putBody: Record<string, unknown> = {
+      clientId,
       deploymentId,
       grantCode,
-    });
-    expectStatus(boundRes, 200);
-    return {
-      s,
-      fixture,
-      connection: boundRes.json,
-      clientId,
-      deploymentId,
-      platformId: String(boundRes.json.platform?.id ?? sharedPlatformId),
-      siteHost: fixture.sim.siteHost,
-      pageHost: fixture.sim.pageHost,
     };
-  }
-
-  if (fixture.capabilities['binding.authority'].manual === 'self') {
-    const { s, connection } = await createPendingChannelConnection(fixture, 'manual', library);
-    const clientId = unique(`kit-${fixture.id}-client`);
-    const boundRes = await app(s, 'PUT', `${connPath(connection.id)}/platform`, {
-      issuer: fixture.sim.issuer,
-      clientId,
-      deploymentId,
-      authenticationEndpoint: fixture.sim.authEndpoint,
-      accessTokenEndpoint: fixture.sim.tokenEndpoint,
-      jwksUrl: fixture.sim.jwksUrl,
+    if (
+      !fixture.capabilities['site.serviceOrigin'] &&
+      fixture.capabilities['platform.sharing'] !== 'shared'
+    ) {
+      putBody.issuer = fixture.sim.issuer;
+      putBody.authEndpoint = fixture.sim.authEndpoint;
+      putBody.tokenEndpoint = fixture.sim.tokenEndpoint;
+      putBody.jwksUrl = fixture.sim.jwksUrl;
+      if (fixture.sim.tokenAudienceKind === 'fixed') {
+        putBody.tokenAudience = Array.isArray(fixture.sim.tokenAudience)
+          ? fixture.sim.tokenAudience[0]
+          : fixture.sim.tokenAudience;
+      }
+    }
+    const putRes = await appApi(`/app-api/connections/${connectionId}/platform`, session, {
+      method: 'PUT',
+      body: putBody,
     });
-    expectStatus(boundRes, 200);
-    return {
-      s,
-      fixture,
-      connection: boundRes.json,
-      clientId,
-      deploymentId,
-      platformId: String(boundRes.json.platform?.id ?? ''),
-      siteHost: fixture.sim.siteHost,
-      pageHost: fixture.sim.pageHost,
-    };
-  }
-
-  // Manual operatorGrant on exclusive platform
-  const { s, connection } = await createPendingChannelConnection(fixture, 'manual', library);
-  const clientId = unique(`kit-${fixture.id}-client`);
-  const grantCode = await issueOperatorGrantForChannel(
-    s,
-    fixture,
-    String(connection.id),
-    clientId,
-    deploymentId,
-  );
-  const redeemBody: Record<string, unknown> = {
-    clientId,
-    deploymentId,
-    grantCode,
-  };
-  if (!fixture.capabilities['site.serviceOrigin']) {
-    redeemBody.issuer = fixture.sim.issuer;
-    redeemBody.authenticationEndpoint = fixture.sim.authEndpoint;
-    redeemBody.accessTokenEndpoint = fixture.sim.tokenEndpoint;
-    redeemBody.jwksUrl = fixture.sim.jwksUrl;
-    if (fixture.sim.tokenAudienceKind === 'fixed' && typeof fixture.sim.tokenAudience === 'string') {
-      redeemBody.tokenAudience = fixture.sim.tokenAudience;
+    if (putRes.status !== 200) {
+      throw new Error(
+        `Failed to redeem operatorGrant platform for ${fixture.id} (${putRes.status}): ${putRes.rawBody}`,
+      );
     }
   }
-  const boundRes = await app(s, 'PUT', `${connPath(connection.id)}/platform`, redeemBody);
-  expectStatus(boundRes, 200);
-  return {
-    s,
-    fixture,
-    connection: boundRes.json,
-    clientId,
-    deploymentId,
-    platformId: String(boundRes.json.platform?.id ?? ''),
-    siteHost: fixture.sim.siteHost,
-    pageHost: fixture.sim.pageHost,
-  };
-}
 
-export async function launchOnChannel(
-  binding: ChannelBinding,
-  overrides: Record<string, unknown> = {},
-) {
-  const res = await launch({
-    provider: binding.fixture.simProvider,
-    clientId: binding.clientId,
-    deploymentId: binding.deploymentId,
-    siteHost: binding.siteHost,
-    pageHost: binding.pageHost,
-    ...overrides,
-  });
-  persistCapturedSecrets(getSecrets());
-  return res;
-}
+  const getConnRes = await appApi(`/app-api/connections/${connectionId}`, session);
+  const fullConn = getConnRes.json as { platformId?: string };
+  const platformId = fullConn.platformId ?? '';
 
-export async function openPlayOnChannel(
-  binding: ChannelBinding,
-  pub: Json,
-  overrides: Record<string, unknown> = {},
-) {
-  const res = await openPlay(binding, pub, {
-    provider: binding.fixture.simProvider,
-    clientId: binding.clientId,
-    deploymentId: binding.deploymentId,
-    siteHost: binding.siteHost,
-    pageHost: binding.pageHost,
-    ...overrides,
-  });
-  persistCapturedSecrets(getSecrets());
-  return res;
-}
-
-export async function openPickerOnChannel(
-  binding: ChannelBinding,
-  overrides: Record<string, unknown> = {},
-) {
-  const dlResult = await launchOnChannel(binding, {
-    messageType: 'LtiDeepLinkingRequest',
-    roles: [ROLE.instructor],
-    ...overrides,
-  });
-  expect(dlResult.response.status).toBe(303);
-  const handoff = await httpsRequest(String(dlResult.response.headers.location));
-  expect(handoff.status).toBe(303);
-  const url = new URL(String(handoff.headers.location), APP).href;
-  const page = await httpsRequest(url);
-  expectStatus(page, 200);
-  return { url, page, result: dlResult };
-}
-
-export async function runDynamicRegistrationHandshake(
-  registrationUrl: string,
-  openidConfiguration: string,
-  registrationToken: string,
-) {
-  rememberSecret(registrationToken);
-  persistCapturedSecrets([registrationToken]);
-  const sep = registrationUrl.includes('?') ? '&' : '?';
-  const startUrl = `${registrationUrl}${sep}openid_configuration=${encodeURIComponent(openidConfiguration)}&registration_token=${encodeURIComponent(registrationToken)}`;
-  const startRes = await httpsRequest(startUrl);
-  expect(startRes.status, `DR start failed: ${startRes.body.slice(0, 300)}`).toBe(303);
-  const confirmUrl = new URL(String(startRes.headers.location ?? ''), APP).href;
-  const confirmGet = await httpsRequest(confirmUrl);
-  expectStatus(confirmGet, 200);
-  const { action, fields } = parseForm(confirmGet.body);
-  const postUrl = new URL(action, confirmUrl).href;
-  const confirmPost = await httpsRequest(postUrl, {
-    method: 'POST',
-    headers: {
-      origin: APP,
-      'content-type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams(fields).toString(),
-  });
-  return { startRes, confirmUrl, confirmGet, postUrl, fields, confirmPost };
-}
-
-export async function runConnectSelfCase(fixture: ChannelFixture): Promise<void> {
-  if (fixture.capabilities['binding.authority'].manual === 'self') {
-    const binding = await connectChannel(fixture);
-    expect(binding.connection.status).toBe('registered');
-    expect(binding.connection.bindingAuthority).toBe('self');
-    return;
-  }
-  // Dynamic self authority (same-origin token host satisfies I-SELF)
-  const { s, connection } = await createPendingChannelConnection(fixture, 'dynamic');
-  const clientId = unique(`kit-r1-dr-${fixture.id}`);
-  const deploymentId = nextDeploymentId(fixture, 0);
-  const scenRes = await sim('/scenarios', 'POST', {
-    id: unique(`scen-r1-${fixture.id}`),
-    provider: fixture.simProvider,
-    clientId,
-    deploymentId,
-    siteHost: fixture.sim.siteHost,
-    pageHost: fixture.sim.pageHost,
-    dr: {
-      tokenHost: fixture.sim.siteHost,
-      authorizationServer: null,
-    },
-  });
-  expectStatus(scenRes, 201);
-  const { openidConfiguration, registrationToken } = scenRes.json.registration;
-  const { confirmPost } = await runDynamicRegistrationHandshake(
-    String(connection.registrationUrl),
-    openidConfiguration,
-    registrationToken,
-  );
-  expectStatus(confirmPost, 200);
-  const updated = await app(s, 'GET', connPath(connection.id));
-  expectStatus(updated, 200);
-  expect(updated.json.status).toBe('registered');
-  expect(updated.json.bindingAuthority).toBe('self');
-}
-
-export async function runConnectOperatorGrantCase(fixture: ChannelFixture): Promise<void> {
-  const { s, connection } = await createPendingChannelConnection(fixture, 'manual');
-  expect(connection.status).toBe('pending');
-  expect(connection.bindingAuthority).toBe('operatorGrant');
-
-  const deploymentId = nextDeploymentId(fixture, 0);
-  const isShared = fixture.capabilities['platform.sharing'] === 'shared';
-  if (isShared) {
-    await sharedPlatform();
-  }
-  const clientId = isShared ? SHARED_APP_CLIENT_ID : unique(`kit-r2-${fixture.id}`);
-  const grantCode = await issueOperatorGrantForChannel(
-    s,
-    fixture,
-    String(connection.id),
-    clientId,
-    deploymentId,
-  );
-
-  // Mismatched value -> 422 GRANT_MISMATCH
-  const badBody: Record<string, unknown> = {
-    deploymentId: `${deploymentId}-mismatch`,
-    grantCode,
-  };
-  if (!isShared) {
-    badBody.clientId = clientId;
-  }
-  if (!fixture.capabilities['site.serviceOrigin'] && !isShared) {
-    badBody.issuer = fixture.sim.issuer;
-    badBody.authenticationEndpoint = fixture.sim.authEndpoint;
-    badBody.accessTokenEndpoint = fixture.sim.tokenEndpoint;
-    badBody.jwksUrl = `${fixture.sim.jwksUrl}?mismatch=1`;
-    if (fixture.sim.tokenAudienceKind === 'fixed' && typeof fixture.sim.tokenAudience === 'string') {
-      badBody.tokenAudience = fixture.sim.tokenAudience;
-    }
-  }
-  const badRes = await app(s, 'PUT', `${connPath(connection.id)}/platform`, badBody);
-  expectStatus(badRes, 422, 'GRANT_MISMATCH');
-
-  // Matching values -> 200 registered
-  const goodBody: Record<string, unknown> = {
-    deploymentId,
-    grantCode,
-  };
-  if (!isShared) {
-    goodBody.clientId = clientId;
-  }
-  if (!fixture.capabilities['site.serviceOrigin'] && !isShared) {
-    goodBody.issuer = fixture.sim.issuer;
-    goodBody.authenticationEndpoint = fixture.sim.authEndpoint;
-    goodBody.accessTokenEndpoint = fixture.sim.tokenEndpoint;
-    goodBody.jwksUrl = fixture.sim.jwksUrl;
-    if (fixture.sim.tokenAudienceKind === 'fixed' && typeof fixture.sim.tokenAudience === 'string') {
-      goodBody.tokenAudience = fixture.sim.tokenAudience;
-    }
-  }
-  const goodRes = await app(s, 'PUT', `${connPath(connection.id)}/platform`, goodBody);
-  expectStatus(goodRes, 200);
-  expect(goodRes.json.status).toBe('registered');
-}
-
-export async function runStagedDynamicRegistrationCase(fixture: ChannelFixture): Promise<void> {
-  const { s, connection } = await createPendingChannelConnection(fixture, 'dynamic');
-  const clientId = unique(`kit-r3-staged-${fixture.id}`);
-  const deploymentId = nextDeploymentId(fixture, 0);
-  const scenRes = await sim('/scenarios', 'POST', {
-    id: unique(`scen-r3-${fixture.id}`),
-    provider: fixture.simProvider,
-    clientId,
-    deploymentId,
-    siteHost: fixture.sim.siteHost,
-    pageHost: fixture.sim.pageHost,
-    dr: {
-      secondTokenHost: true,
-    },
-  });
-  expectStatus(scenRes, 201);
-  const { openidConfiguration, registrationToken } = scenRes.json.registration;
-  const { confirmPost } = await runDynamicRegistrationHandshake(
-    String(connection.registrationUrl),
-    openidConfiguration,
-    registrationToken,
-  );
-  expectStatus(confirmPost, 200);
-
-  const stagedConn = await app(s, 'GET', connPath(connection.id));
-  expectStatus(stagedConn, 200);
-  expect(stagedConn.json.status).toBe('pending');
-  expect(stagedConn.json.bindingAuthority).toBe('operatorGrant');
-  const stagedPlatformId = String(stagedConn.json.platform?.id ?? '');
-  expect(stagedPlatformId).not.toBe('');
-
-  // Launch before grant redemption is refused with PLATFORM_NOT_ACTIVE
-  const preGrantLaunch = await launch({
-    provider: fixture.simProvider,
-    clientId,
-    deploymentId,
-    siteHost: fixture.sim.siteHost,
-    pageHost: fixture.sim.pageHost,
-  });
-  denied(preGrantLaunch.response, 'PLATFORM_NOT_ACTIVE', 403);
-
-  // Issue grant and redeem to activate the staged platform
-  const grantCode = await issueOperatorGrantForChannel(
-    s,
-    fixture,
-    String(connection.id),
-    clientId,
-    deploymentId,
-    { acceptStaged: !fixture.capabilities['site.serviceOrigin'] },
-  );
-  const redeemRes = await app(s, 'PUT', `${connPath(connection.id)}/platform`, {
-    clientId,
-    deploymentId,
-    grantCode,
-  });
-  expectStatus(redeemRes, 200);
-  expect(redeemRes.json.status).toBe('registered');
-  expect(String(redeemRes.json.platform?.id ?? '')).toBe(stagedPlatformId);
-}
-
-export async function runDynamicRegistrationHappyAndNegativeCase(fixture: ChannelFixture): Promise<void> {
-  const { s, connection } = await createPendingChannelConnection(fixture, 'dynamic');
-  const clientId = unique(`kit-r4-dr-${fixture.id}`);
-  const deploymentId = nextDeploymentId(fixture, 0);
-  const scenRes = await sim('/scenarios', 'POST', {
-    id: unique(`scen-r4-${fixture.id}`),
-    provider: fixture.simProvider,
-    clientId,
-    deploymentId,
-    siteHost: fixture.sim.siteHost,
-    pageHost: fixture.sim.pageHost,
-    dr: {
-      tokenHost: fixture.sim.siteHost,
-      authorizationServer: null,
-    },
-  });
-  expectStatus(scenRes, 201);
-  const { openidConfiguration, registrationToken } = scenRes.json.registration;
-
-  // 1. Invalid bearer token "invalid" is rejected on confirmation
-  const badHandshake = await runDynamicRegistrationHandshake(
-    String(connection.registrationUrl),
-    openidConfiguration,
-    'invalid',
-  );
-  expect(badHandshake.confirmPost.status).toBeGreaterThanOrEqual(400);
-
-  // 2. Refresh registration URL and run happy DR
-  const refreshRes = await app(s, 'POST', `${connPath(connection.id)}/registration-url`, {});
-  expectStatus(refreshRes, 200);
-  const freshRegUrl = String(refreshRes.json.registrationUrl);
-  const goodHandshake = await runDynamicRegistrationHandshake(
-    freshRegUrl,
-    openidConfiguration,
-    registrationToken,
-  );
-  expectStatus(goodHandshake.confirmPost, 200);
-
-  // 3. Replaying the same registration URL / confirmation is refused (single-use)
-  const replayPost = await httpsRequest(goodHandshake.postUrl, {
-    method: 'POST',
-    headers: {
-      origin: APP,
-      'content-type': 'application/x-www-form-urlencoded',
-    },
-    body: new URLSearchParams(goodHandshake.fields).toString(),
-  });
-  expect(replayPost.status).toBeGreaterThanOrEqual(400);
-}
-
-export async function runDynamicRegistrationDisabledGuardCase(fixture: ChannelFixture): Promise<void> {
-  const s = await session('A');
-  const cursor = (await records()).cursor;
-  const res = await app(s, 'POST', '/app-api/connections', {
-    name: unique(`Kit R4 guard ${fixture.id}`),
-    lms: fixture.id,
-    method: 'dynamic',
+  recordRedactedEvidence(`connection-${fixture.id}-${suffix}`, {
+    channelId: fixture.id,
+    connectionId,
+    platformId,
     siteUrl: fixture.sim.siteUrl,
+    redacted: true,
   });
-  expectStatus(res, 422, 'CAPABILITY_NOT_SUPPORTED');
-  expect(res.json?.details?.capability).toBe('dynamicRegistration');
-  await noServiceCalls(cursor);
-}
 
-export async function runAddDeploymentCase(fixture: ChannelFixture): Promise<void> {
-  const binding = await connectChannel(fixture, { deploymentIndex: 0 });
-  const secondDeploymentId = nextDeploymentId(fixture, 1);
-  const grantCode = await issueOperatorGrantForChannel(
-    binding.s,
+  return {
     fixture,
-    String(binding.connection.id),
-    binding.clientId,
-    secondDeploymentId,
-    { purpose: 'add_deployment' },
-  );
-  const addRes = await app(binding.s, 'POST', `${connPath(binding.connection.id)}/deployments`, {
-    deploymentId: secondDeploymentId,
-    grantCode,
-  });
-  expectStatus(addRes, 200);
-  expect(addRes.json.platform?.deploymentIds).toContain(secondDeploymentId);
-
-  const pub = await publication(binding, 'scorm12');
-  const secondBinding: ChannelBinding = {
-    ...binding,
-    connection: addRes.json,
-    deploymentId: secondDeploymentId,
+    libraryId,
+    cookie: session.cookie,
+    csrf: session.csrf,
+    connectionId,
+    platformId,
+    clientId,
+    deploymentId,
+    secondaryDeploymentId,
+    courseId: firstCourse.courseId,
+    secondCourseId: secondCourse.courseId,
+    resourceSlug: firstCourse.resourceSlug,
+    secondResourceSlug: secondCourse.resourceSlug,
   };
-  const play = await openPlayOnChannel(secondBinding, pub);
-  expect(play.shell.status).toBe(200);
 }
 
-export async function runConnectionCheckCase(fixture: ChannelFixture): Promise<void> {
-  const binding = await connectChannel(fixture);
-  const scenOk = await sim('/scenarios', 'POST', {
-    id: unique(`scen-r6-ok-${fixture.id}`),
-    provider: fixture.simProvider,
-    clientId: binding.clientId,
-    deploymentId: binding.deploymentId,
-    siteHost: binding.siteHost,
-    pageHost: binding.pageHost,
-  });
-  expectStatus(scenOk, 201);
-
-  const okRes = await app(binding.s, 'POST', `${connPath(binding.connection.id)}/check`, {});
-  expectStatus(okRes, 200);
-  expect(okRes.json).toMatchObject({
-    result: 'ok',
-    details: {
-      jwks: { ok: true },
-      token: { ok: true },
-    },
-  });
-
-  // Separate connection for invalid_client token failure check (avoids 60 s per-connection cooldown)
-  const badBinding = await connectChannel(fixture);
-  const scenBad = await sim('/scenarios', 'POST', {
-    id: unique(`scen-r6-bad-${fixture.id}`),
-    provider: fixture.simProvider,
-    clientId: badBinding.clientId,
-    deploymentId: badBinding.deploymentId,
-    siteHost: badBinding.siteHost,
-    pageHost: badBinding.pageHost,
-    tokenAnswers: [{ status: 400, error: 'invalid_client', persistent: true }],
-  });
-  expectStatus(scenBad, 201);
-
-  const badRes = await app(badBinding.s, 'POST', `${connPath(badBinding.connection.id)}/check`, {});
-  expectStatus(badRes, 200);
-  expect(badRes.json).toMatchObject({
-    result: 'failed',
-    details: {
-      jwks: { ok: true },
-      token: { ok: false, detail: 'invalid_client' },
-    },
-  });
-}
-
-// Guard request payloads are kept in kit/lib/runtime.ts (outside kit/suites/**)
-// so kit/suites/** contains zero LMS/channel tokens (AC-LA-E7-04-07).
-const PUBLISH_SHELL_OPTION_KEY = 'create' + 'Moodle' + 'Course';
-const ARTIFACT_ROUTE_PATH = 'canvas-configuration?jwk=url';
-
-export async function runCapabilityGuardProbe(
-  binding: ChannelBinding,
-  spec: GuardedCapabilitySpec,
-): Promise<void> {
-  const cursor = (await records()).cursor;
-  let res: { status: number; json?: Json; body?: string };
-
-  switch (spec.kind) {
-    case 'deployments': {
-      res = await app(binding.s, 'POST', `${connPath(binding.connection.id)}/deployments`, {
-        deploymentId: unique('dep-guard'),
-      });
-      break;
-    }
-    case 'artifacts': {
-      res = await app(binding.s, 'GET', `${connPath(binding.connection.id)}/${ARTIFACT_ROUTE_PATH}`);
-      break;
-    }
-    case 'siteApi': {
-      res = await app(binding.s, 'PUT', `${connPath(binding.connection.id)}/web-services`, {
-        token: 'guard-probe-token-12345',
-      });
-      break;
-    }
-    case 'createCourse': {
-      const course = await createCourse(binding.s, unique('Kit Cap Guard Course'));
-      const upload = await uploadVersion(binding.s, course.id, fixtureZip('scorm12'));
-      expectStatus(upload, 201);
-      res = await app(binding.s, 'POST', '/app-api/publications', {
-        connectionId: binding.connection.id,
-        courseId: course.id,
-        [PUBLISH_SHELL_OPTION_KEY]: {
-          categoryId: 1,
-          fullname: 'Kit Shell Guard',
-          shortname: unique('ksg'),
-        },
-      });
-      break;
-    }
-    case 'connectionCheck': {
-      res = await app(binding.s, 'POST', `${connPath(binding.connection.id)}/check`, {});
-      break;
-    }
-    case 'ungradedPlacement': {
-      res = await app(binding.s, 'POST', `${connPath(binding.connection.id)}/ungraded`, {});
-      break;
-    }
-  }
-
-  expectStatus(res, 409, 'CAPABILITY_NOT_SUPPORTED');
-  expect(res.json?.details?.capability).toBe(spec.legacyCapability);
-  await noServiceCalls(cursor);
-}
-
-export async function verifySetupArtifactPositiveIfSupported(binding: ChannelBinding): Promise<void> {
-  if (!binding.fixture.capabilities['setup.artifacts'].includes('developer-key-json')) {
-    return;
-  }
-  const res = await app(binding.s, 'GET', `${connPath(binding.connection.id)}/${ARTIFACT_ROUTE_PATH}`);
-  expectStatus(res, 200);
-  expect(typeof res.json?.title).toBe('string');
-}
-
-export async function loadKernelManifestCapabilitiesMap(): Promise<Map<string, Record<CapabilityId, unknown>>> {
-  const kernelEntry = pathToFileURL(path.join(REPO_ROOT, 'packages/channel-kernel/src/index.ts')).href;
-  const kernel = (await import(kernelEntry)) as {
-    loadChannelFolders(
-      roots: readonly string[],
-      side: 'lti' | 'app',
-    ): Promise<
-      Array<{
-        manifest: {
-          id: string;
-          registration: Array<{ defaultProfile: string }>;
-        } & Record<string, unknown>;
-        ltiProfiles?: Array<{ id: string } & Record<string, unknown>>;
-      }>
-    >;
-    computeCapabilities(
-      manifest: Record<string, unknown>,
-      profile?: Record<string, unknown>,
-    ): Record<CapabilityId, unknown>;
+export async function performSimulatorLaunch(
+  ctx: RegisteredChannelContext,
+  scenarioOverrides: Record<string, unknown> = {},
+): Promise<{
+  scenarioId: string;
+  loginRes: HttpResponse;
+  launchRes: HttpResponse;
+  redirectLocation: string;
+  ltik: string;
+  playOrPickerRes?: HttpResponse;
+}> {
+  const scenarioId =
+    (scenarioOverrides.id as string | undefined) ??
+    `sc-${ctx.fixture.id}-${crypto.randomBytes(4).toString('hex')}`;
+  const scenarioInput: Record<string, unknown> = {
+    id: scenarioId,
+    provider: ctx.fixture.simProvider,
+    clientId: ctx.clientId,
+    deploymentId: ctx.deploymentId,
+    siteHost: ctx.fixture.sim.siteHost,
+    pageHost: ctx.fixture.sim.pageHost,
+    resource: ctx.resourceSlug,
+    ...scenarioOverrides,
   };
+  const sc = await registerSimScenario(scenarioInput);
 
-  const channelsRoot = [path.join(REPO_ROOT, 'packages/channels')];
-  const ltiLoaded = await kernel.loadChannelFolders(channelsRoot, 'lti');
-  const appLoaded = await kernel.loadChannelFolders(channelsRoot, 'app');
-
-  const out = new Map<string, Record<CapabilityId, unknown>>();
-  for (const appChan of appLoaded) {
-    const ltiChan = ltiLoaded.find((c) => c.manifest.id === appChan.manifest.id);
-    const defaultProfileId = appChan.manifest.registration[0]?.defaultProfile;
-    const prof =
-      ltiChan?.ltiProfiles?.find((p) => p.id === defaultProfileId) ?? ltiChan?.ltiProfiles?.[0];
-    out.set(appChan.manifest.id, kernel.computeCapabilities(appChan.manifest, prof));
+  const loginRes = await httpRequest(`${LTI_URL}/lti/login/${ctx.libraryId}`, {
+    method: 'POST',
+    form: sc.login,
+  });
+  if (loginRes.status !== 302 && loginRes.status !== 303 && loginRes.status !== 200) {
+    return {
+      scenarioId,
+      loginRes,
+      launchRes: loginRes,
+      redirectLocation: '',
+      ltik: '',
+    };
   }
-  return out;
+
+  let authRedirectUrl = loginRes.headers.location ?? '';
+  if (!authRedirectUrl && loginRes.status === 200) {
+    const match = loginRes.rawBody.match(/https:\/\/[^"'\s<>]+authorize[^"'\s<>]*/i);
+    if (match) {
+      authRedirectUrl = match[0];
+    }
+  }
+  const setCookieHeader = loginRes.headers['set-cookie'] as string | string[] | undefined;
+  const stateCookie = Array.isArray(setCookieHeader)
+    ? setCookieHeader.map((c) => c.split(';')[0]).join('; ')
+    : typeof setCookieHeader === 'string'
+      ? setCookieHeader.split(';')[0]
+      : '';
+
+  const simAuthRes = await httpRequest(authRedirectUrl, {
+    method: 'GET',
+  });
+  const formMatch = simAuthRes.rawBody.match(/name="id_token"\s+value="([^"]+)"/);
+  const stateMatch = simAuthRes.rawBody.match(/name="state"\s+value="([^"]+)"/);
+  if (!formMatch || !stateMatch) {
+    return {
+      scenarioId,
+      loginRes,
+      launchRes: simAuthRes,
+      redirectLocation: '',
+      ltik: '',
+    };
+  }
+  const idToken = formMatch[1];
+  const state = stateMatch[1];
+  recordSecret(idToken);
+
+  const launchRes = await httpRequest(`${LTI_URL}/lti/launch`, {
+    method: 'POST',
+    cookie: stateCookie,
+    form: { id_token: idToken, state },
+  });
+  const redirectLocation = launchRes.headers.location ?? '';
+  let ltik = '';
+  if (redirectLocation) {
+    try {
+      const locUrl = new URL(redirectLocation, APP_URL);
+      ltik = locUrl.searchParams.get('ltik') ?? '';
+      if (ltik) {
+        recordSecret(ltik);
+      }
+    } catch {
+      ltik = '';
+    }
+  }
+
+  let playOrPickerRes: HttpResponse | undefined;
+  if (redirectLocation && (launchRes.status === 302 || launchRes.status === 303)) {
+    const targetUrl = redirectLocation.startsWith('http')
+      ? redirectLocation
+      : `${APP_URL}${redirectLocation}`;
+    playOrPickerRes = await httpRequest(targetUrl, { method: 'GET' });
+  }
+
+  return {
+    scenarioId,
+    loginRes,
+    launchRes,
+    redirectLocation,
+    ltik,
+    playOrPickerRes,
+  };
 }
 
-export interface SecretScanReport {
-  ok: boolean;
-  secretCount: number;
-  leakedCount: number;
-  hits: Array<{ source: string; secretPrefix: string }>;
-}
-
-export async function scanAllLogsAndArtifactsForSecrets(): Promise<SecretScanReport> {
-  const simSecretsRes = await sim('/secrets').catch(() => ({ json: { values: [] } }));
-  const simSecrets = Array.isArray(simSecretsRes.json?.values)
-    ? (simSecretsRes.json.values as string[])
-    : Array.isArray(simSecretsRes.json?.secrets)
-      ? (simSecretsRes.json.secrets as string[])
-      : [];
-  persistCapturedSecrets(simSecrets);
-  persistCapturedSecrets(getSecrets());
-
-  const allSecrets = readAllCapturedSecrets().filter((s) => typeof s === 'string' && s.length >= 16);
-  const sources: Array<{ name: string; content: string }> = [
-    { name: 'service:lti-service', content: readServiceLogs('lti-service') },
-    { name: 'service:cogniate-app', content: readServiceLogs('cogniate-app') },
-    { name: 'service:lms-sim', content: readServiceLogs('lms-sim') },
-  ];
-
+export function readServiceLogs(service: 'lti-service' | 'cogniate-app' | 'lms-sim'): string {
   const runDir = process.env.LA_RUN_DIR;
-  if (runDir && fs.existsSync(runDir)) {
-    for (const entry of fs.readdirSync(runDir, { withFileTypes: true })) {
-      if (!entry.isFile()) continue;
-      if (entry.name === 'kit-secrets.jsonl') continue;
-      const fullPath = path.join(runDir, entry.name);
-      sources.push({
-        name: `artifact:${entry.name}`,
-        content: fs.readFileSync(fullPath, 'utf8'),
-      });
+  if (runDir) {
+    for (const candidate of [
+      path.join(runDir, `${service}.log`),
+      path.join(runDir, 'logs', `${service}.log`),
+    ]) {
+      if (fs.existsSync(candidate)) {
+        return fs.readFileSync(candidate, 'utf8');
+      }
+    }
+  }
+  return '';
+}
+
+const EXCLUDED_ARTIFACT_BASENAMES = new Set([
+  'kit-secrets.raw.jsonl',
+  'kit-secrets.jsonl',
+  'm1-secrets.raw.jsonl',
+  'lti-service.log',
+  'cogniate-app.log',
+  'lms-sim.log',
+]);
+
+export function walkArtifactFiles(rootDir: string): string[] {
+  if (!fs.existsSync(rootDir)) {
+    return [];
+  }
+  const results: string[] = [];
+  const visit = (currentDir: string) => {
+    const entries = fs.readdirSync(currentDir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(currentDir, entry.name);
+      if (entry.isDirectory()) {
+        visit(fullPath);
+      } else if (entry.isFile()) {
+        if (!EXCLUDED_ARTIFACT_BASENAMES.has(entry.name)) {
+          results.push(fullPath);
+        }
+      }
+    }
+  };
+  visit(rootDir);
+  return results.sort();
+}
+
+export async function scanAllLogsAndArtifactsForSecrets(
+  options: SecretScanOptions = {},
+): Promise<SecretScanResult> {
+  const missingInputs: string[] = [];
+  const hits: SecretScanHit[] = [];
+  const sources: Array<{ name: string; content: string }> = [];
+
+  const fetchFn =
+    options.fetchImpl ??
+    (async (url: string) => {
+      const res = await httpRequest(url, { method: 'GET' });
+      return { status: res.status, json: res.json, rawText: res.rawBody };
+    });
+
+  const readLogFn = options.readServiceLogImpl ?? readServiceLogs;
+  const artifactRoot =
+    options.artifactRoot !== undefined
+      ? options.artifactRoot
+      : (process.env.LA_RUN_DIR ?? getKitStateDir());
+
+  // 1. Secret dictionary from /__sim/secrets + local private secret store
+  let simSecrets: string[] = [];
+  try {
+    const simSecretRes = await fetchFn(`${SIM_CONTROL_URL}/__sim/secrets`);
+    if (
+      simSecretRes.status === 200 &&
+      isPlainObject(simSecretRes.json) &&
+      Array.isArray(simSecretRes.json.values)
+    ) {
+      simSecrets = (simSecretRes.json.values as unknown[]).filter(
+        (s): s is string => typeof s === 'string' && s.trim().length >= 8,
+      );
+    } else {
+      missingInputs.push('sim:secrets');
+    }
+  } catch {
+    missingInputs.push('sim:secrets');
+  }
+
+  const localSecrets = artifactRoot ? readLocalRecordedSecrets(artifactRoot) : [];
+  const extraSecrets = (options.additionalSecrets ?? []).filter(
+    (s) => typeof s === 'string' && s.trim().length >= 8,
+  );
+  const allSecrets = [...new Set([...simSecrets, ...localSecrets, ...extraSecrets])];
+  if (allSecrets.length === 0 && !missingInputs.includes('sim:secrets')) {
+    missingInputs.push('sim:secrets');
+  }
+
+  // 2. Service logs (lti-service, cogniate-app, lms-sim)
+  for (const svc of ['lti-service', 'cogniate-app', 'lms-sim'] as const) {
+    let content = '';
+    try {
+      content = readLogFn(svc);
+    } catch {
+      content = '';
+    }
+    if (typeof content !== 'string' || content.trim().length === 0) {
+      missingInputs.push(`service:${svc}`);
+    } else {
+      sources.push({ name: `service:${svc}`, content });
     }
   }
 
-  const hits: Array<{ source: string; secretPrefix: string }> = [];
-  for (const secret of allSecrets) {
-    for (const src of sources) {
+  // 3. Simulator /__sim/records
+  try {
+    const simRecordsRes = await fetchFn(`${SIM_CONTROL_URL}/__sim/records?since=0`);
+    if (
+      simRecordsRes.status === 200 &&
+      isPlainObject(simRecordsRes.json) &&
+      Array.isArray(simRecordsRes.json.records) &&
+      simRecordsRes.json.records.length > 0
+    ) {
+      sources.push({
+        name: 'sim:records',
+        content: JSON.stringify(simRecordsRes.json.records),
+      });
+    } else {
+      missingInputs.push('sim:records');
+    }
+  } catch {
+    missingInputs.push('sim:records');
+  }
+
+  // 4. Redacted evidence tree (recursive walk)
+  if (!artifactRoot || !fs.existsSync(artifactRoot)) {
+    missingInputs.push('artifact:redacted-evidence');
+  } else {
+    const artifactFiles = walkArtifactFiles(artifactRoot);
+    let redactedEvidenceFileCount = 0;
+    for (const fullPath of artifactFiles) {
+      const rel = path.relative(artifactRoot, fullPath);
+      const base = path.basename(fullPath);
+      const content = fs.readFileSync(fullPath, 'utf8');
+      sources.push({ name: `artifact:${rel}`, content });
+      const isInternalLedgerFile =
+        base === 'kit-executed-cases.jsonl' ||
+        base === 'kit-run-meta.json' ||
+        base === 'wave-evidence.json' ||
+        base === 'k1-kit-summary.md' ||
+        base === 'k1-kit-summary.json';
+      if (!isInternalLedgerFile && content.trim().length > 0) {
+        redactedEvidenceFileCount += 1;
+      }
+    }
+    if (redactedEvidenceFileCount === 0) {
+      missingInputs.push('artifact:redacted-evidence');
+    }
+  }
+
+  // Scan every collected source against every secret
+  for (const src of sources) {
+    if (!src.content) {
+      continue;
+    }
+    for (const secret of allSecrets) {
       if (src.content.includes(secret)) {
         hits.push({
           source: src.name,
-          secretPrefix: `${secret.slice(0, 8)}...`,
+          secretPrefix: `${secret.slice(0, 6)}...`,
         });
       }
     }
   }
 
   return {
-    ok: hits.length === 0,
+    ok: missingInputs.length === 0 && hits.length === 0,
     secretCount: allSecrets.length,
     leakedCount: hits.length,
     hits,
+    missingInputs,
+    scannedSources: sources.map((s) => s.name),
   };
 }

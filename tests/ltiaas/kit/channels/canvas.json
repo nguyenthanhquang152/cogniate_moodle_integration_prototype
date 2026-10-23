@@ -63,9 +63,10 @@
     "dlDataMode": "query",
     "dlRequiresSub": false,
     "privacyFloor": "allowlist",
-    "supportsCustomClaims": true,
-    "supportsDynamicRegistrationOnSim": true,
-    "supportsStagedRegistrationOnSim": true
+    "platformStorage": {
+      "frameName": "post_message_forwarding",
+      "allowedOrigin": "https://sso.canvas.sim.test"
+    }
   },
   "sources": {
     "id": "LA-ADR-01 §D3 table (column canvas)",
