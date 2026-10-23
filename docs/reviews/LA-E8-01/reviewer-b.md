@@ -1,5 +1,5 @@
 Verdict: CHANGES_REQUESTED
-Round: 1
+Round: 2
 
 ## Round 1
 
@@ -53,3 +53,32 @@ Reviewer-B: Can a human team own it? Reviewed `bb9f6d7e`, merged as `0f96658d`, 
 - The author diff changes only the permitted new guide. No product code, architecture, other guide or core LMS path changed. There are no UNIT ACs in this documentation task. The QA ownership needed for the kit correction is identified above; integration changes from this review are confined to this file. No other reviewer's file was opened.
 
 Open findings: **0 BLOCKER, 3 MAJOR, 1 MINOR**.
+
+## Round 2
+
+Verdict: **CHANGES_REQUESTED**. Reviewed `4a712bc5`, merged as `5bb7d8f0`. Three findings close; the QA-owned kit prerequisite remains open. No new findings.
+
+| Round-1 finding | Status | Evidence in `docs/guides/ltiaas/add-a-channel.md` |
+| --- | --- | --- |
+| B-LA-E8-01-01 (MAJOR) | Closed | Lines 208–246: the command checks active platforms, matches the family in lower case, labels known matches `AFFECTED` and unknown families `CHECK`, and accepts the ids manually confirmed to be unrelated. The procedure verifies the new connection and the old platform's inactive state. The final empty result is now reachable without deleting history. |
+| B-LA-E8-01-02 (MAJOR) | Closed | Lines 254–300: a complete single-provider template replaces the two-provider copy; test adaptation is explicit. The host-only loader command succeeds with the template and one manifest entry and prints exactly one additional provider id. |
+| B-LA-E8-01-04 (MINOR) | Closed | Lines 332–347: record the starting SHA, commit the intended files, require a clean tree, then run F2 and check that its report lists those files. An empty diff is explicitly not proof of the addition. |
+
+### B-LA-E8-01-03 — MAJOR — Still open: the kit prerequisite has not landed
+
+**File:** `docs/guides/ltiaas/add-a-channel.md:328`, also line 350.
+
+**Problem:** The revised text describes fixture discovery and a passing new-fixture canary, but the reviewed repository still has the fixed-list behavior that caused Round 1's failure.
+
+**Evidence:** At `5bb7d8f075a342c5cc57d453ded732f4df8b65c4`, `tests/ltiaas/kit/lib/fixtures.ts:11` still declares five `ALL_KIT_CHANNEL_IDS`; `resolveSelectedChannelIds()` uses that list for `all` (line 189), and `loadAllChannelFixtures()` iterates it (line 201). `kit.k0.test.ts:51` still requires discovered ids to equal those five ids. The source of the reproduced Round-1 sixth-fixture failure is unchanged. The dispatch says QA-4 is fixing this now, and the guide labels the claim pending QA, but neither is evidence that the dependency has been resolved. No kit tests were rerun this round; the permitted execution scope was the guide's snippets with local fake data only.
+
+**Suggested fix / closure condition:** Land the QA-owned discovery change, include its source/capability checks and `all` selection, and supply the new-fixture canary result. Then update or substantiate the guide's statement and close this finding. Until that happens, describe it as a blocking prerequisite rather than an available passing path. This needs coordination with QA, not a Docs edit to a QA-owned file. The pending K1-SIM verification is a separate, already disclosed item.
+
+### Round-2 verification
+
+- Fresh private `git clone --no-hardlinks` at `/tmp/la-e8-01-r2-review-b-izkmfmrs/repo`, pinned to `5bb7d8f075a342c5cc57d453ded732f4df8b65c4`. No dependency installation, test runner, server listener, Docker, stack or commit.
+- **22/22 snippet cases passed** in bash and zsh: 16 migration-filter cases cover case variants, inactive history, unresolved families, checked unrelated ids, a completed move, an empty account and invalid/error answers; six discovery cases cover the baseline, the exact new template plus one host entry, and rejection when that entry is missing. Both completion cases fail against the old guide filter, as expected. Evidence: `snippet-review.py`, `snippet-review.log`, `snippet-results.json` and `snippet-summary.json` in the clone's parent folder.
+- Checked links resolve; the other-reviewer link was excluded from inspection. The fixed-six simulator self-test is explicitly disclosed and assigned to QA-E2E; it is not the new discovery command, which passed. The guide now keeps K2 changes in a separate QA-E2E task and preserves the author file boundary.
+- The author diff changes only the permitted guide. No product behavior, architecture, other guide or core LMS path changed. No UNIT ACs apply to this documentation task. Round 1 remains intact above; integration changes are limited to this report. No other reviewer's file was opened.
+
+Open findings: **0 BLOCKER, 1 MAJOR (B-LA-E8-01-03), 0 MINOR**.

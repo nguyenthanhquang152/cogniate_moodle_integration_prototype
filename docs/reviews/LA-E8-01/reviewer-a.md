@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 # LA-E8-01 — Reviewer-A
 
@@ -44,3 +44,28 @@ Four findings: **3 BLOCKER, 1 MAJOR, 0 MINOR**.
 - **2/2 private Vitest probes passed**, demonstrating both migration defects with the exact filter and real API responses. The host script reproduced the simulator-copy failure and F2 false pass, with passing single-provider and failing explicit-core-path controls. These are reviewer diagnostics, not a replacement for QA's scratch-branch AC-02 run.
 - Tests ran only in `/tmp/la-reviewer-a-ctx-82756498e9a0`, made with `git clone --no-hardlinks` and its own `npm ci`; its Vitest cache was removed before the run. The clone is clean after removing private probes and restoring temporary edits. Evidence: `/tmp/la-reviewer-a-ctx-82756498e9a0-probes/` (`review-e801.test.ts`, `selector.log`, `host-probes.mjs`, `host-probe-results.json`, `f2-paths.txt`).
 - The fixed-five-channel kit limitation at guide line 269 is already disclosed and remains a separate QA prerequisite; this review does not claim that the sixth-fixture host check passes. **AC-LA-E8-01-02 remains pending QA's simulator run.** No Docker, stack, host stack runner, commit or Reviewer-B file was used. Only this review file was changed in the integration worktree.
+
+
+## Round 2
+
+Reviewer: Codex GPT-6-Astra xhigh, 2026-10-24. Reviewed Docs fix `4a712bc5` (merge `5bb7d8f0`), unchanged at integration `1b1c71f5`. **APPROVE: 0 open BLOCKER, 0 open MAJOR, 1 new MINOR.** All four Round 1 findings are closed.
+
+### Round 1 finding checks
+
+- **A-LA-E8-01-01 — closed.** The list compares both family values in lower case, omits inactive platforms, distinguishes `AFFECTED` from `CHECK`, and gives a reachable completion condition. The move now verifies the new connection and the old platform's `active:false` state. Local fake-data checks of the exact Node snippet confirmed three case variants, an uppercase argument, inactive history, unknown and unrelated families, hand-checked unknowns, and a completed migration with no output. The separate stale-note edge case below does not reopen the original case-folding or inactive-row defects.
+- **A-LA-E8-01-02 — closed.** The new template returns exactly `[createProvider(runtime, newlms)]`, with no copied Moodle provider. Its fields match the provider factory. Step 7 explains how to adapt optional protocol tests and gives the correct full-discovery imports and call; `loadProviders` checks every provider and host entry without starting a server. The expected result includes exactly one new id. This round checked that path statically, within the dispatch's fake-data-only execution limit.
+- **A-LA-E8-01-03 — closed.** Step 10.1 requires committed files and a clean working tree before F2, identifies the starting base, rejects an empty report as proof, and requires the report to list the committed files. This matches the implementation's merge-base-to-HEAD diff.
+- **A-LA-E8-01-04 — closed.** K2 case development is now explicitly a separate QA-E2E task, outside the author path and its file table. The author is no longer told to edit shared browser tests.
+
+### A-LA-E8-01-05 — MINOR — A hand-checked id also hides a newly known affected family
+
+- **File:** `docs/guides/ltiaas/add-a-channel.md:223`.
+- **Problem:** `checked.includes(p.id)` skips the row before examining its current family. A saved hand-check can therefore override newer signed family information on a later list run.
+- **Evidence:** With one active unknown-family platform passed as a checked id, the snippet correctly prints nothing. Keeping that argument and changing the fake API row to `productFamilyCode: "DESIRE2LEARN"` still prints nothing. The service stores the family at each accepted launch, so the information can change between reads. A control that applies the checked-id exception only to the empty-family branch prints `AFFECTED` for the updated row.
+- **Suggested fix:** Skip inactive rows first, always print a matching known family, and suppress `CHECK` only when the still-unknown row is in `checked`. This is nonblocking because the documented procedure permits only ids manually confirmed to be another LMS; the change protects against stale notes without changing that procedure.
+
+### Verification and remaining dependencies
+
+Six local fake-data executions of the exact extracted filter and the restricted-exclusion control passed. Evidence: `/tmp/la-reviewer-a-ctx-7a33b5d7224b-probes/migration-filter.js` and `results.json`. No service, simulator, Docker, stack, package install or commit ran in this round. No Reviewer-B file was opened; only this review file changed in the integration worktree.
+
+The kit discovery/canary claim is expressly pending LA-E7-06 Round 2, and the fixed-six-provider simulator self-test is expressly a QA-owned pending fix. Those changes were not verified here; the checked integration still had the fixed lists. AC-LA-E8-01-02 and the migration procedure's simulator check remain pending QA, as the revised guide says. Only the permitted guide changed, with no product behavior, secret example or new core LMS identifier.
