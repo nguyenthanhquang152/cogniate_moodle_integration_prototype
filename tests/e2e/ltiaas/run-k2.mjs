@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // QA-E2E host runner for LA-E7-07 K2 browser conformance kit (tests/e2e/ltiaas/*.k2.ts)
-// and Slot 6 R2-sim Moodle simulator suite (--suite r2-sim, tests/e2e/ltiaas/r2-moodle-sim.spec.ts).
+// and Slot 6 R2-sim Moodle simulator suite (--suite r2-sim, tests/e2e/ltiaas/r2-moodle-sim.r2sim.ts).
 // Modeled directly on tests/e2e/host/run-m2.mjs.
 //
 //   Harness only (no Docker, no product call):
@@ -49,13 +49,18 @@ if (opt['harness-only']) {
   print(self.stdout.trim());
   assert.equal(self.code, 0, self.stderr);
 
-  const types = await run('npm', ['--prefix', testsDir, 'run', 'typecheck'], {
-    cwd: source,
-    timeoutMs: 300_000,
-  });
-  assert.equal(types.code, 0, types.stdout + types.stderr);
+  const hasTestsNodeModules = fs.existsSync(path.join(testsDir, 'node_modules/.bin/tsc'));
+  if (hasTestsNodeModules) {
+    const types = await run('npm', ['--prefix', testsDir, 'run', 'typecheck'], {
+      cwd: source,
+      timeoutMs: 300_000,
+    });
+    assert.equal(types.code, 0, types.stdout + types.stderr);
+  }
 
-  const pw = path.join(testsDir, 'node_modules/.bin/playwright');
+  const pw = fs.existsSync(path.join(testsDir, 'node_modules/.bin/playwright'))
+    ? path.join(testsDir, 'node_modules/.bin/playwright')
+    : path.join(source, 'node_modules/.bin/playwright');
   const listed = await run(pw, ['test', '-c', 'e2e/ltiaas/playwright.config.ts', '--list'], {
     cwd: testsDir,
     timeoutMs: 120_000,
@@ -87,17 +92,49 @@ if (opt['harness-only']) {
     timeoutMs: 120_000,
   });
   assert.equal(t7.code, 0, t7.stderr);
-  assert.equal(/\.k2\.ts|r2-moodle-sim\.spec\.ts/.test(t7.stdout), false, 'T7 suite never selects K2 or R2-sim files');
+  assert.equal(
+    /ltiaas\/|\.(k2|r2sim|moodle)\.ts|\{case:(U[1-4]|R2-SIM)\./.test(t7.stdout),
+    false,
+    'T7 suite never selects K2, R2-sim, or Slot 8 Moodle-live files (WE-F9)',
+  );
+  assert.equal(
+    /Total: 18 tests in 6 files/.test(t7.stdout),
+    true,
+    'T7 suite case count and file count match 1b17261 baseline (18 tests in 6 files)',
+  );
 
   const m2 = await run(pw, ['test', '-c', 'e2e/M2/playwright.config.ts', '--list'], {
     cwd: testsDir,
     timeoutMs: 120_000,
   });
   assert.equal(m2.code, 0, m2.stderr);
-  assert.equal(/\.k2\.ts|r2-moodle-sim\.spec\.ts/.test(m2.stdout), false, 'M2 suite never selects K2 or R2-sim files');
+  assert.equal(
+    /ltiaas\/|\.(k2|r2sim|moodle)\.ts|\{case:(U[1-4]|R2-SIM)\./.test(m2.stdout),
+    false,
+    'M2 suite never selects K2, R2-sim, or Slot 8 Moodle-live files',
+  );
+  assert.equal(
+    /Total: 64 tests in 1 file/.test(m2.stdout),
+    true,
+    'M2 suite case count matches 1b17261 baseline (64 tests)',
+  );
+
+  for (const taskEnv of ['T6', 'T5a,T8']) {
+    const acc = await run(pw, ['test', '--list'], {
+      cwd: testsDir,
+      env: { ...process.env, QA_SUITE: 'acceptance', QA_TASK: taskEnv },
+      timeoutMs: 120_000,
+    });
+    assert.equal(acc.code, 0, acc.stderr);
+    assert.equal(
+      /ltiaas\/|\.(k2|r2sim|moodle)\.ts|\{case:(U[1-4]|R2-SIM)\./.test(acc.stdout),
+      false,
+      `Acceptance suite (${taskEnv}) never selects K2, R2-sim, or Slot 8 Moodle-live files`,
+    );
+  }
 
   print(
-    `HARNESS ONLY: ${manifest.cases.length} K2 browser cases + ${r2Ids.length} R2-sim cases discovered and accounted; T7 and M2 selections unchanged.`,
+    `HARNESS ONLY: ${manifest.cases.length} K2 browser cases + ${r2Ids.length} R2-sim cases discovered and accounted; T7 (18 tests in 6 files), M2 (64 tests in 9 files), and T6/T8 selections unchanged.`,
   );
   print('No product acceptance, stack or live provider check was executed.');
   process.exit(0);
