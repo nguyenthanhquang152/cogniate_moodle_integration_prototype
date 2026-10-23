@@ -25,13 +25,12 @@ const manifest = {
     },
   ],
   capabilities: {
-    // ADR-009 and the developer key JSON of today (LA-E3-07 changes this list, LA-IC-04).
+    // A2 LA-ADR-05 D4 (LA-E3-07, LA-IC-04): the four AGS scopes, no NRPS scope. The developer key JSON uses this list.
     'registration.scopes': [
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem',
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/score',
-      'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
     ],
     'deployments.multiple': true,
     'setup.artifacts': ['developer-key-json'],

@@ -31,12 +31,12 @@ function expectedExport() {
     description: 'Cogniate courses (SCORM 1.2 and HTML) with grade return.',
     oidc_initiation_url: `${TEST_URLS.lti}/lti/login/cogniate`,
     target_link_uri: launch,
+    // LA-E3-07 (LA-IC-04): the four AGS scopes, no NRPS scope.
     scopes: [
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem',
       'https://purl.imsglobal.org/spec/lti-ags/scope/lineitem.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/result.readonly',
       'https://purl.imsglobal.org/spec/lti-ags/scope/score',
-      'https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly',
     ],
     extensions: [{
       domain: 'lti.cogniate.test', tool_id: 'cogniate', platform: 'canvas.instructure.com', privacy_level: 'anonymous',
