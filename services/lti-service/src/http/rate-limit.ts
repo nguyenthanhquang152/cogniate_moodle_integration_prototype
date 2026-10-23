@@ -18,7 +18,8 @@ export const DEFAULT_RATE_LIMITS: Record<RateLimitClass, RateLimit> = {
   registration_account: { ratePerMinute: 1, burst: 20 },
   keys: { ratePerMinute: 300, burst: 100 },
   api: { ratePerMinute: 1200, burst: 300 },
-  admin: { ratePerMinute: 600, burst: 200 },
+  // BD-A2-108 (WE-F1): the frozen M1 suite runs its admin calls with one first-party API key.
+  admin: { ratePerMinute: 1200, burst: 600 },
   auth_failure: { ratePerMinute: 120, burst: 120 },
   operator: { ratePerMinute: 120, burst: 60 },
 };
