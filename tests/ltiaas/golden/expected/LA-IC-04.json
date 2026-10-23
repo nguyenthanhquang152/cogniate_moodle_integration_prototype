@@ -1,0 +1,73 @@
+{
+  "id": "LA-IC-04",
+  "approval": "docs/reviews/LA-DESIGN/reviewer-a.md, docs/reviews/LA-DESIGN/reviewer-b.md, docs/reviews/LA-BREAKDOWN/reviewer-a.md, docs/reviews/LA-BREAKDOWN/reviewer-b.md, docs/reviews/LA-E3-07/reviewer-a.md, docs/reviews/LA-E3-07/reviewer-b.md",
+  "ld9": {
+    "epic": "E3 (LA-E3-07, lane K, commit a390edb / merged dc98c43)",
+    "design": [
+      "docs/architecture/ltiaas/adr/LA-ADR-04-refactor-and-migration.md#d8-intended-behaviour-changes-ids-la-ic-nn",
+      "docs/architecture/ltiaas/adr/LA-ADR-05-lti-advantage-completeness.md#d4-nrps-scope-and-usage-must",
+      "docs/architecture/ltiaas/adr/LA-ADR-01-channel-kernel.md#d3-capability-catalog-and-legacy-projection-must",
+      "docs/architecture/ltiaas/contracts/cogniate-app-api-delta.md#33-get-app-apiconnectionsidtool-configuration",
+      "docs/architecture/ltiaas/tasks/LA-E3-07.md"
+    ],
+    "goldenFields": [
+      "G1.canvasConfiguration[\"jwk=inline\"].scopes[4]",
+      "G1.canvasConfiguration[\"jwk=url\"].scopes[4]",
+      "G1.toolConfiguration.moodle[12].value"
+    ],
+    "authorUnitTestChanges": [
+      "packages/channels/canvas/app/configuration.test.ts (asserts the 4 AGS scopes in order for jwk=url and jwk=inline, with no NRPS scope)",
+      "packages/channels/moodle/app.test.ts (asserts Moodle manual toolConfiguration row 13 nrps has value 'Do not use this service' and registration.scopes has the 4 AGS scopes)",
+      "services/cogniate-app/src/app/canvas-configuration.test.ts (updates pinned Canvas developer key JSON export to expect the 4 AGS scopes without contextmembership.readonly)",
+      "services/cogniate-app/src/app/connect.test.ts (asserts Moodle Dynamic Registration complete call sends the 4 AGS scopes from the channel capability)"
+    ],
+    "qaTaskTestChanges": [
+      "tests/ltiaas/tasks-core/LA-E3-07/nrps-scopes.k0.test.ts (QA-3 LA-E3-07 K0 + UNIT suite verifying registration.scopes across all 5 channels, Canvas JSON jwk=url and jwk=inline scopes, and Moodle row 13 nrps = 'Do not use this service')",
+      "tests/ltiaas/tasks-core/LA-E3-07/nrps-scopes.k1sim.test.ts (QA-3 LA-E3-07 K1-SIM suite verifying G1 expected delta LA-IC-04, Canvas configuration scopes, Moodle row 13, and Moodle DR 4-scope request)"
+    ],
+    "testChanges": [
+      "tests/ltiaas/golden/expected/LA-IC-04.json",
+      "tests/ltiaas/golden/golden.k0.test.mjs",
+      "tests/ltiaas/tasks-core/LA-E3-07/nrps-scopes.k0.test.ts",
+      "tests/ltiaas/tasks-core/LA-E3-07/nrps-scopes.k1sim.test.ts"
+    ],
+    "frozenTestsTouched": [
+      "tests/acceptance/M1/canvas/31-canvas-grants.test.ts:114-120,154-163 (M1-19.canvas.json and M1-19.canvas.inline-key expected SCOPES array had 5 scopes including https://purl.imsglobal.org/spec/lti-nrps/scope/contextmembership.readonly; now 4 AGS scopes)",
+      "tests/acceptance/M1/common/00-profiles.test.ts:93-108 (M1-19.common.moodle-configuration row 13 ['nrps', \"Use this service to retrieve members' information as per privacy settings\"] -> ['nrps', 'Do not use this service'])",
+      "tests/acceptance/T4b1/1-connect.spec.ts:96-124 (AC-T4-10 Moodle tool-configuration row 13 ['nrps', 'IMS LTI Names and Role Provisioning', \"Use this service to retrieve members' information as per privacy settings\"] -> ['nrps', 'IMS LTI Names and Role Provisioning', 'Do not use this service'])"
+    ],
+    "scanChecked": [
+      "tests/ltiaas/golden/capture.golden.ts:194-221 (captures G1.toolConfiguration.moodle[12] and G1.canvasConfiguration['jwk=url'|'jwk=inline'].scopes)",
+      "tests/ltiaas/golden/1b17261be97c4701b928fa9dc2fa74c6d23028f6/G1.json:303-310,337-344,1406-1410 (only 3 paths in G1-G4 carrying the NRPS scope in Canvas JSON or the Moodle row 13 value; G1.toolConfiguration.blackboard[7] is a manual admin instruction row 'Allow Membership Service access: Yes' in packages/channels/blackboard/app.ts, which LA-E3-07 does not change)",
+      "tests/acceptance/M1/canvas/31-canvas-grants.test.ts:114-168 (M1-19.canvas.json and M1-19.canvas.inline-key compare full expectedCanvasJson including SCOPES — recorded in frozenTestsTouched)",
+      "tests/acceptance/M1/common/00-profiles.test.ts:93-108 (M1-19.common.moodle-configuration compares all 16 [key, value] pairs of Moodle tool-configuration — recorded in frozenTestsTouched)",
+      "tests/acceptance/T4b1/1-connect.spec.ts:58-126 (AC-T4-07..08 Dynamic Registration on Moodle does not inspect ltiservice_memberships on the Moodle tool; AC-T4-10 lines 96-124 compares all 16 [key, label, value] tuples of Moodle tool-configuration — recorded in frozenTestsTouched)",
+      "tests/acceptance/T3b/1-registration.spec.ts:18-95 (AC-T3-01..03 calls lti-service POST /api/registrations/:id/complete directly without body.scopes, so lti-service's 5-scope default AC-LA-E3-06-02 still applies)",
+      "tests/acceptance/T3c/1-endpoints.spec.ts:157-195 (AC-T3-20 tests GET /api/memberships on lti-service using a tool registered by T3b or manual setup with memberships enabled; lti-service /api/memberships is unchanged by LA-E3-07)",
+      "tests/acceptance/T6/2-connect.spec.ts:75-120 (AC-T6-04 checks that the Moodle manual setup table renders 16 rows with Copy buttons and copies row values from the live API response without hardcoding row 13's text)",
+      "tests/e2e/1-scenario-a.spec.ts:58-95 (U1 scenario A connects Moodle via Dynamic Registration and publishes/launches a course without reading NRPS or Moodle tool ltiservice_memberships)",
+      "tests/e2e/2-scenario-b.spec.ts:62-95 (U2 scenario B copies Moodle manual rows by key via readManualRows without asserting row 13's text string)",
+      "tests/e2e/M2/02-canvas-wizard.m2.ts:83-130 (M2-04.rows, M2-04.copy-json, M2-04.download-json compare clipboard/download bytes against live GET /app-api/connections/:id/canvas-configuration, not a hardcoded scope list)",
+      "tests/ltiaas/tasks-lti/LA-E2-02/dynamic-registration.k1sim.test.ts:31-38,150-240 (QA-4 LA-E2-02 K1-SIM calls lti-service POST /api/registrations/:id/complete directly without scopes, testing the lti-service default 5-scope fallback)",
+      "tests/ltiaas/tasks-lti/LA-E3-06/nrps-scopes.k1sim.test.ts:262-360 (QA-4 LA-E3-06 K1-SIM tests lti-service POST /api/registrations/:id/complete both with explicit 4 AGS scopes and with omitted scopes -> 5-scope fallback)"
+    ],
+    "scanResult": "3 golden fields changed in G1 (G1.canvasConfiguration['jwk=inline'].scopes[4] removed, G1.canvasConfiguration['jwk=url'].scopes[4] removed, G1.toolConfiguration.moodle[12].value -> 'Do not use this service') and 3 frozen acceptance tests touched (tests/acceptance/M1/canvas/31-canvas-grants.test.ts:114-120,154-163; tests/acceptance/M1/common/00-profiles.test.ts:93-108; tests/acceptance/T4b1/1-connect.spec.ts:96-124). Direct lti-service Dynamic Registration calls that omit body.scopes (T3b, LA-E2-02, LA-E3-06 AC-02) keep the 5-scope lti-service fallback per AC-LA-E3-06-02, while portal/browser suites (T6, U1, U2, M2) read live API responses rather than hardcoding the NRPS scope or Moodle row 13 text."
+  },
+  "changes": [
+    {
+      "file": "G1",
+      "path": "canvasConfiguration[\"jwk=inline\"].scopes[4]",
+      "rule": "removed"
+    },
+    {
+      "file": "G1",
+      "path": "canvasConfiguration[\"jwk=url\"].scopes[4]",
+      "rule": "removed"
+    },
+    {
+      "file": "G1",
+      "path": "toolConfiguration.moodle[12].value",
+      "value": "Do not use this service"
+    }
+  ]
+}

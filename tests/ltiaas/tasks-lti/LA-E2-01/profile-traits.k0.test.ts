@@ -120,7 +120,16 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
       registrationToken: 'scope-jwt',
     });
 
-    // 2. Canvas cloud profiles + canvas-sim-cloud
+    // 2. Canvas cloud profiles + canvas-sim-cloud (dynamicRegistration is null at E2 and set to issuerRule 'profile' at LA-E3-09)
+    const expectedCanvasDr = {
+      issuerRule: 'profile',
+      registrationToken: 'opaque-bearer',
+      toolConfigurationExtensions: {
+        'https://canvas.instructure.com/lti/privacy_level': 'public',
+        'https://canvas.instructure.com/lti/tool_id': 'cogniate',
+        'https://canvas.instructure.com/lti/registration_config_url': '{configurationUrl}',
+      },
+    };
     const canvasFixedIds = [
       'canvas-cloud-production',
       'canvas-cloud-beta',
@@ -138,7 +147,11 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
         form: 'string',
       });
       expect(def?.assertionDeploymentId, `${id}.assertionDeploymentId`).toBe(false);
-      expect(def?.dynamicRegistration ?? null, `${id}.dynamicRegistration`).toBeNull();
+      if (def?.dynamicRegistration != null) {
+        expect(def.dynamicRegistration, `${id}.dynamicRegistration`).toEqual(expectedCanvasDr);
+      } else {
+        expect(def?.dynamicRegistration ?? null, `${id}.dynamicRegistration`).toBeNull();
+      }
     }
 
     // 3. canvas-self-hosted
@@ -152,7 +165,11 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
       form: 'string',
     });
     expect(canvasSelfHosted?.assertionDeploymentId).toBe(false);
-    expect(canvasSelfHosted?.dynamicRegistration ?? null).toBeNull();
+    if (canvasSelfHosted?.dynamicRegistration != null) {
+      expect(canvasSelfHosted.dynamicRegistration).toEqual(expectedCanvasDr);
+    } else {
+      expect(canvasSelfHosted?.dynamicRegistration ?? null).toBeNull();
+    }
 
     // 4. Blackboard + blackboard-sim
     for (const id of ['blackboard', 'blackboard-sim']) {
