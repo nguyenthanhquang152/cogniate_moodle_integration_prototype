@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 1
+Verdict: APPROVE
+Round: 2
 
 ## Round 1
 
@@ -35,3 +35,16 @@ Reviewer-B: Codex GPT-6-Astra xhigh. Lens: can a human team own it? Reviewed `74
 - Two private diagnostic probes passed and recorded the mixed-registry fetch, public action/log detail and extension-key errors. Negative controls were effective: removing the pre-fetch branch failed the existing AC-05 fixture test; removing request extension insertion failed the builder assertion and all three AP-05-29 route cases. All private edits were restored; the clone has only the intended staged merge and no unstaged changes.
 - Logs and saved probes are under `/tmp/la-e3-09-review-b-3810ab04/`: `focused.log`, `k0.log`, `probes.log`, `probe-results.txt`, `prefetch-negative.log`, `extensions-negative.log`, and the lint/typecheck/fitness logs.
 - AC-01–04 have useful unit support here, but their K1-SIM evidence, pre/post-grant learner launch, M1 simulations, portal companion and hosted Canvas validation remain QA/cut-group work. AC-05 remains open under B-LA-E3-09-01. No live Canvas claim is made.
+
+## Round 2
+
+Reviewed `487c6a3` (merge `3ca7538`) and the LA-IC-14 K0 assertion in `d41b8d2`, at integration snapshot `c362bc3`. **APPROVE: 0 open BLOCKER, 0 MAJOR, 0 MINOR.** Both Round 1 findings are closed; no new finding.
+
+- **B-LA-E3-09-01 — CLOSED.** The route calls the shared `configurationUrlProblem` before the outbound client, independently of loaded admin-value rules. The old fixed-only branch and test registry are gone. The AC-05 route test uses the product registry and checks no outbound calls and no stored sessions for reserved issuer hosts, other reserved hosts, own hosts and invalid host names. My original shared-issuer probe now returns `ISSUER_RESERVED` with the unchanged M1 action and no fetch/session; SSO, beta SSO and an intranet name return `PLATFORM_URL_NOT_IN_PROFILE` with the expected safe log detail. BD-A2-94 and BD-A2-95 refine Round 1's BD-A2-93 requirement: HTTP and IP literals continue to the guarded client; reserved issuer hosts retain the legacy page. The helper, route, error-page and guarded-client tests pass. The stored-session test still proves the defensive `configuration_on_fixed_host` refusal at complete.
+- **B-LA-E3-09-02 — CLOSED.** BD-A1-109 now documents normalized URL text, the root slash, and the query/fragment ban with accepted and refused examples. The loader preserves the member path and nested reason. The original bare-root, query and HTTP-key probes now explain the constraint; the normalized root key passes and its literal `{siteUrl}` value is unchanged. The checked-in diagnostic test checks the actual message.
+
+Verification used a fresh `git clone --no-hardlinks` with its own successful `npm ci`, at `/var/folders/_h/pjt6zzrj46sctnb18tsmbzgw0000gn/T/la-e3-09-r2-review-b-dvl2idp1/repo`. Deleted `node_modules/.vitest-cache` before each Vitest run. **177 focused tests in six files and both private probes passed; all 147 K0 tests passed.** Lint, typecheck, F1 and F5 passed. The six files cover registration helpers/routes, profile traits/Canvas data, error-page text and the real outbound guard. The LA-IC-14 K0 change is limited to the declared Canvas capability flag and its explanatory comment; approved for this task.
+
+Negative controls: bypassing the floor failed the checked-in AC-05 test and private route probe; restoring the old issue formatter failed the checked-in diagnostic test and private schema probe. All temporary edits were restored, and the private checkout is clean. Logs and saved probes are beside that checkout (`focused.log`, `k0.log`, `probes.log`, `probe-results.txt`, `prefetch-negative.log`, `diagnostic-negative.log`, and lint/typecheck/fitness logs).
+
+The fix stays in L-owned files, respects the task's forbidden paths and adds no LMS-specific core branch. No Docker, stack runner, commit or other reviewer's file was used. This closes Reviewer-B's code-review findings; simulator/launch, portal-companion and hosted Canvas evidence remain with QA and the cut group as described in Round 1.
