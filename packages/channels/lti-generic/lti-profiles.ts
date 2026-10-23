@@ -12,8 +12,7 @@ const profiles = [
     dynamicRegistration: { issuerRule: 'path-prefix', registrationToken: 'opaque-bearer' },
     // A2 LA-ADR-05 D1 rule 1a: platform storage with the frame from the login request and the auth origin.
     platformStorage: { targetFrame: 'from-login', origin: 'authOrigin' },
-    // BD-A1-75: the legacy flag stays until LA-E2-02 removes it; it agrees with clientAssertionAud.form.
-    flags: { deepLinkingResponseSub: false, clientAssertionAudArray: false, serviceOriginCheck: false },
+    flags: { deepLinkingResponseSub: false, serviceOriginCheck: false },
     sources: ['LA-ADR-02 D2, D3', 'LA-ADR-05 D1 rule 1a'],
   },
 ] as const satisfies readonly ProfileSource[];

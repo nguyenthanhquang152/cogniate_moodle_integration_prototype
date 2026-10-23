@@ -10,7 +10,7 @@ const profiles = [
     // LA-ADR-02 D2: Moodle has one issuer per site and keeps every endpoint on the issuer origin.
     issuerKind: 'per-tenant', endpointOrigins: 'issuer', clientAssertionAud: { value: '{tokenEndpoint}', form: 'string' }, assertionDeploymentId: false,
     dynamicRegistration: { issuerRule: 'path-prefix', configurationPath: '/mod/lti/openid-configuration.php', registrationToken: 'scope-jwt' },
-    flags: { deepLinkingResponseSub: false, clientAssertionAudArray: false, serviceOriginCheck: false },
+    flags: { deepLinkingResponseSub: false, serviceOriginCheck: false },
     sources: ['security §2.4'],
   },
 ] as const satisfies readonly ProfileSource[];
