@@ -1,5 +1,5 @@
-Verdict: CHANGES_REQUESTED
-Round: 2
+Verdict: APPROVE
+Round: 3
 
 # LA-E4-03 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -83,3 +83,27 @@ All commands ran in `/tmp/la-review-a-e403-6bed80580d66`:
 - Private `kernel/records/reviewer-a-pause-probe.test.ts`: **2 failed** on the reviewed code; **2 passed** with only the old status-independent predicate restored. The reproduction above is the durable evidence; the probe is outside the integration worktree.
 
 The simulator and Moodle acceptance gates remain for QA. Only this review file was changed in the integration worktree.
+
+
+## Round 3
+
+Reviewer: Codex GPT-6-Astra xhigh, lens A. Date: 2026-10-23. **APPROVE: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open.**
+
+Reviewed `1232da6` and `a802807`, merged at `9e4bc18`, against the task, LA-ADR-03 D7 and plan §6.1. Verification used a private `git clone --no-hardlinks` at `ce2a3ba` (`/tmp/la-reviewer-a-ctx-e1c7d3f9bf5b`). No Docker, stack or stack-starting runner ran. No other reviewer's file was opened.
+
+### Finding closed
+
+**A-LA-E4-03-03 closed.** `dispatch-store.ts:51-52` reads a partition's future `not_before` across every status. The throttle transaction in `outbox.ts:144-154` keeps the maximum pause on the source row even if it was superseded during the POST, as well as on pending peers. A failed or superseded carrier therefore remains effective for a later learner or better score; `writeFinalRecord` no longer needs to copy the pause. The owner check still precedes every throttle write, so A-LA-E4-03-02 remains closed.
+
+I reran both Round 2 reproductions with the same times and assertions, adapting only the newer `writeFinalRecord` time argument. Both pass: a carrier created at `100000` fails at `86480000` with `not_before = 86510000`; a new learner and a better result are each blocked by `due`, `lease` and `beginSend`. The Author's two boundary tests also check `86509999` and release through all three gates at exactly `86510000`.
+
+The new partial index in `domain/migrations/017_record_dispatch_pause.sql` covers `(partition_key, not_before)` for non-null pauses. The query-plan test inspects the actual SQL from all three gates and finds `SEARCH paused USING COVERING INDEX record_dispatch_pause (partition_key=? AND not_before>?)`, with no `SCAN paused`. A private upgrade probe applies 017 to a database through 015 containing a failed carrier: all dispatch fields stay equal, the pause stays effective and the covering index is used. This closes A-LA-E4-03-01 without the pending-only restriction that caused -03. The migration is additive and uses the dispatched number 017; earlier migration files are unchanged.
+
+### Verification and scope
+
+- Focused records, AGS driver, results, worker, runtime, embedded-session, LMS-text and tracking suites: **239/239 tests pass in 16 files**. App type check and the four `no-score-sync` fitness tests pass.
+- Private pause probes: **2/2 pass**; private migration-upgrade probe: **1/1 passes**.
+- Three private mutants are detected by assertion failures: restoring the pending-only predicate fails both earlier probes; changing `>` to `>=` fails both exact-deadline cases; omitting the index fails the query-plan assertion. After restoration, the affected records/throttle suites and all seven private probes pass (**27/27**).
+- The diff is limited to the dispatched records changes, their Author unit tests and the new migration. No frozen test, LTI-service file or tracking status-text/html file changes; no LMS name is added to a core path. The existing UNIT AC tests for mapping, read-back, disabled connections and policy refusal pass. The AGS score payload and retry-window failure rule stay unchanged.
+
+Simulator timing/fairness and Moodle acceptance gates remain for QA. Only this review file was changed for this item.
