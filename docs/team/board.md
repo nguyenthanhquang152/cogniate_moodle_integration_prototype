@@ -7,7 +7,12 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 Branch: `nguyenthanhquang152/lti-multi-lms`. Current [phase plan](multi-lms-plan.md).
 The Moodle release below is the completed baseline.
 
-### Host schedule — 2026-10-23, 06:26 UTC
+### Current host status — 2026-10-23, 08:04 UTC
+
+T7 remains NOT RUN/PENDING. The planned slot was unused because no actual LA handoff arrived. LTI made zero Docker calls; the retained Gemini session passed all 90 host-only tool bindings and fresh-path checks.
+The Lead requested a newly confirmed 20-minute window in `msg_ed58480e255f`. The QA runtime attempt settled as externally blocked; the report precision follow-up passed and the same terminal is retained. The one-time reminder has fired and is disabled. [Remaining work](remaining-work-2026-10-22.md) records the conditions to resume.
+
+### Prior host schedule — 2026-10-23, 06:26 UTC
 
 LA confirmed the planned exclusive T7 slot **07:45–08:05 UTC** (`msg_7dcc7a1394ef`). T7 remains NOT RUN. The host-only preparation reminder is at 07:40 UTC.
 Require the actual LA handoff and fresh start grant before Docker; the existing block lasts until 07:45. Return the host by 08:05. [Remaining work](remaining-work-2026-10-22.md) records the full conditions and final host-only steps.

@@ -13,7 +13,15 @@ The earlier push request covered the completed Moodle release. This phase has no
 Work branch: `nguyenthanhquang152/lti-multi-lms`.
 Orca run: `run_ebe671ad72a9`.
 
-### Current directive — 2026-10-23, 06:26 UTC
+### Current directive — 2026-10-23, 08:04 UTC
+
+The planned T7 slot was unused: no actual LA handoff arrived, no preflight/start grant was issued, and LTI made zero Docker calls.
+The same Gemini QA session passed host-only readiness checks and settled the bounded runtime attempt as externally blocked. Its report precision follow-up passed; the terminal is retained. T7 remains NOT RUN/PENDING, with no test failure.
+Await LA's response to `msg_ed58480e255f`: actual stack-down evidence plus a newly confirmed 20-minute window. Do not use or silently extend the original 08:05 deadline.
+The preparation reminder fired and disabled itself. [Remaining work](remaining-work-2026-10-22.md) and [E-R6](r6-independent-verification-2026-10-23.md) record the session recovery and readiness evidence.
+All accepted results, frozen candidates, role boundaries and final gates remain unchanged. No push or main merge is authorized.
+
+### Prior directive — 2026-10-23, 06:26 UTC
 
 LA invited scheduling in `msg_a769094a7cd8` and confirmed the planned exclusive T7 window **07:45–08:05 UTC** in `msg_7dcc7a1394ef`.
 The previous host block still holds until 07:45. Require the actual stack-down handoff, full 32-volume and network records, prelaunch reconciliation and a fresh bounded grant before Docker or T7. Return the host by 08:05; do not launch if safe cleanup cannot fit.

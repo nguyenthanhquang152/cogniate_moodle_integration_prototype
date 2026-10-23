@@ -231,3 +231,14 @@ Use unused `t7-external-preflight-0745` for external preflight after the actual 
 
 The actual LA handoff is still pending at this checkpoint. Lead message `msg_7ddf9c0d59c9` keeps QA on hold. T7 has not run.
 Lead `msg_4b7fbafa4e58` requests a full 20-minute window from the actual handoff if it is delayed beyond 07:49. No extension is assumed; the confirmed return deadline remains 08:05 until LA explicitly changes it.
+
+## T7 attempt settled on external handoff block — 2026-10-23, 08:04 UTC
+
+No actual LA handoff arrived and LTI made zero Docker calls. At about 07:58, the authoritative inbox showed the handoff requests unread. The cause of the coordinator's lack of response is unknown.
+The Lead directed closure in `msg_c785cb571983` at 07:59:23 and notified LA in `msg_95e0396cb18f`. LTI never took the host; it created no stack or runtime process for this attempt.
+QA settled `task_0f19008c5331` / `ctx_992d5721e156` as failed in `msg_85f57a3c0b6b`, solely because the runtime task remains externally blocked. T7 is NOT RUN/PENDING, not a failed T7 test.
+
+The same Gemini session completed the host-only precision follow-up `task_1943471c8497` / `ctx_00abe98b28d2` in `msg_e9d44f927eae`. Normal `worker-start --terminal` succeeded for this follow-up with observed turn start.
+The correction limits the unread-message observation to the actual cutoff, limits C8/C9 equivalence to the verified T7/M2 dependencies, and identifies `5def6e4b` as the preparation checkout rather than the earlier report commit.
+Final `docs/reviews/T7/qa.md`: 55,995 bytes, SHA-256 `2d6fcf7e219d58d1f1a52ce383ad4dae8693da9fdedae3f30549bb108a3517e7`. The Lead verified the complete 51,252-byte committed prefix and 54,700-byte first-appendix prefix unchanged. M3's QA report is unchanged.
+The Lead retained `ctx_00abe98b28d2` with no process action. Await a newly confirmed 20-minute window and actual handoff; then reuse the same QA session with a new authoritative runtime Dispatch. No preflight path, T7 runtime path or BASE32 file was created.

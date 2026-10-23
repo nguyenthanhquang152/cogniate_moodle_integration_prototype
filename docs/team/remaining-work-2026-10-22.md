@@ -2,7 +2,20 @@
 
 Date: 2026-10-22. Claude planning source: `msg_5fc2af236748`, task `task_614f16925d79`, dispatch `ctx_801311c00b5e`. Planning scope completed successfully. This document records the Lead's accepted execution decisions.
 
-## Current checkpoint — 2026-10-23, 06:26 UTC
+## Current checkpoint — 2026-10-23, 08:04 UTC
+
+The planned 07:45–08:05 UTC slot was unused. LA did not deliver the actual host handoff. No preflight or runtime grant was issued, and LTI made zero Docker calls.
+The retained Gemini session passed all 84 original and six repaired-tool binding checks and verified unused T7 output paths. T7 remains NOT RUN/PENDING; this is an external scheduling block, not a failed T7 test.
+QA settled the runtime attempt as externally blocked in `msg_85f57a3c0b6b`. Its report precision follow-up succeeded in `msg_e9d44f927eae`; the Lead verified both preserved prefixes and retained the same terminal. `msg_95e0396cb18f` tells LA that LTI never took the host and has no new stack or runtime process to remove.
+
+Question `msg_ed58480e255f` requests the actual stack-down handoff and a newly confirmed 20-minute exclusive window. The original deadline no longer leaves a safe runtime margin; no extension is assumed.
+At 07:58, the authoritative inbox showed the handoff requests still unread. The reason for the coordinator's lack of response is unknown. Do not infer a quota failure or restart that coordinator.
+The one-time reminder fired and disabled itself. Retain the same prepared QA session; resume only after the actual handoff and a fresh bounded grant. Preserve the unused `t7-external-preflight-0745` and all T7 output paths.
+
+After T7: final Architect conformance/ADR status, guide evidence updates, independent Docs QA, two blind reviews and Lead closure. M1, M2 and legacy results remain accepted and need no repeat.
+All 32 real-LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+## Historical checkpoint — 2026-10-23, 06:26 UTC
 
 LA asked for the remaining LTI host needs in `msg_a769094a7cd8`. The Lead replied in `msg_6e526b30c9e4`; LA accepted the planned exclusive T7 window **07:45–08:05 UTC** in `msg_7dcc7a1394ef`.
 The existing block remains in force through 07:45. The reservation is not a start grant. LA must first return the host with its stack down, the full 32-volume inventory, network inventory and its event-watcher extract.
