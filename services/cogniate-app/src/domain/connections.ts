@@ -194,6 +194,21 @@ export function markRegistered(db: Db, connectionId: string, platform: PlatformI
 }
 
 /**
+ * A staged Dynamic Registration (LA-ADR-02 D5 item 10; A1 BD-A1-90): the configuration broke I-SELF, so the LTI service
+ * made the platform inactive. In ONE statement: the authority changes once from `self` to `operatorGrant`, the frozen
+ * `lms` takes the behaviour class of that authority (LA-ADR-04 D4 rules 1, 2, 5), and the connection keeps the staged
+ * platform (platform_json, target_issuer) for the grant; the registration link stops working. The connection stays
+ * pending. False when the guard (pending, self) does not hold; then nothing changes.
+ */
+export function stageRegistration(db: Db, connectionId: string, channel: string, platform: PlatformInfo, now: number): boolean {
+  const changed = db.prepare(`UPDATE connection SET binding_authority = 'operatorGrant', lms = ?, platform_json = ?, target_issuer = ?, ref_token_hash = NULL,
+    ref_token_encrypted = NULL, ref_expires_at = NULL, last_error_code = NULL, last_error_lti_code = NULL, last_error_trace_id = NULL, last_error_at = NULL,
+    updated_at = ? WHERE id = ? AND status = 'pending' AND binding_authority = 'self'`)
+    .run(connectionBehaviourClass(channel, 'operatorGrant', 'exclusive'), JSON.stringify(platform), platform.issuer, now, connectionId).changes;
+  return Number(changed) === 1;
+}
+
+/**
  * Security §8: at launch, platform.id -> connection -> library. Only a registered or connected connection takes
  * launches (a disabled one does not). Moodle rule only (app contract §6.1 step 2): use routeLaunch.
  */

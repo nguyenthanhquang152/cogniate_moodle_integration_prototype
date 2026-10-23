@@ -361,7 +361,7 @@ The LTI service runs its jobs by itself (LA-ADR-06 D11: each job runs at start, 
    - `503 NOT_READY` (`job_runner_not_active`): the job runner is not active yet, for example just after a restart. Wait `Retry-After` seconds, then do step 2 again.
    - `409 JOB_RUNNING`: a run of that job is in progress. Wait one minute, then do step 3.
    - `404 NOT_FOUND`: the job name is wrong. Use a name from step 1.
-3. Read the result: the LTI service log line `job_run {job, result, counts}` with that `trace_id`, or `lastResult` in step 1. If the service could not start the run after the `202`, the log has `job_run_request_failed {job}` with that trace id: do step 2 again.
+3. Read the result: the LTI service log line `job_run {job, result, counts}` with that `trace_id` (BD-A2-85: the log line is the source; `GET /operator/v1/jobs` is only the list). If the service could not start the run after the `202`, the log has `job_run_request_failed {job}` with that trace id: do step 2 again.
    - `ok`: done. `counts` gives the work of the run.
    - `skipped_lease`: another run held the job. Wait one minute and read step 1 again.
    - `failed`: read the log lines with that trace id. Do step 2 once more. If it fails again, start an incident (§9).

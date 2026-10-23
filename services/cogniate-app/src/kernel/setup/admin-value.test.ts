@@ -80,6 +80,43 @@ describe('AC-LA-E2-03-06: the admin-value strict body', () => {
   });
 });
 
+/** The PUT body of the shared manifest form for a manual lti-generic connection: every input, trimmed (as the wizard sends it). */
+const genericForm = (typed: Record<string, string>) => Object.fromEntries(TEST_CHANNELS.channel('lti-generic')!.setup.bindingFields
+  .filter((f) => !f.method || f.method === 'manual').map((f) => [f.key, (typed[f.key] ?? '').trim()]));
+
+describe('LA-E2-03 fix round 1: blank optional values and filled defaults', () => {
+  const generic = setupOf(TEST_CHANNELS, 'lti-generic')!;
+  const typed = { ...full, issuer: SITE };
+
+  it('B-LA-E2-03-01: the generic form with a blank Token audience parses with no audience; a blank required input stays bad', () => {
+    const body = genericForm(typed);
+    expect(body).toHaveProperty('tokenAudience', '');
+    const parsed = generic.parseBindingBody(body, ctx);
+    expect(parsed).toEqual({ ok: true, values: { clientId: 'client-1', deploymentId: 'dep-1', grantCode: CODE,
+      adminValues: { issuer: SITE, authenticationEndpoint: full.authenticationEndpoint, accessTokenEndpoint: full.accessTokenEndpoint, jwksUrl: full.jwksUrl } } });
+    expect(generic.parseBindingBody({ ...body, tokenAudience: '   ' }, ctx)).toEqual(parsed);
+    const supplied = generic.parseBindingBody(genericForm({ ...typed, tokenAudience: 'https://token.provider.test/aud' }), ctx);
+    expect(supplied.ok && supplied.values.adminValues!.tokenAudience).toBe('https://token.provider.test/aud');
+    // A non-empty bad audience and a blank required input are still refused.
+    expect(generic.parseBindingBody(genericForm({ ...typed, tokenAudience: 'http://token.provider.test/aud' }), ctx)).toEqual({ ok: false, fields: ['tokenAudience'] });
+    expect(generic.parseBindingBody(genericForm({ ...typed, jwksUrl: '' }), ctx)).toEqual({ ok: false, fields: ['jwksUrl'] });
+  });
+
+  it('A-LA-E2-03-02: a malformed FieldSpec.default is refused as the same posted value is; a posted value still replaces it', () => {
+    const cases = [['issuer', 'http://foreign.example.edu/issuer'], ['clientId', 'has spaces'], ['jwksUrl', 'https://keys.example.edu/jwks#fragment'], ['grantCode', 'short']] as const;
+    for (const [key, value] of cases) {
+      const variant = { ...manifest, setup: { ...manifest.setup, bindingFields: [{ key, label: key, kind: 'url', required: true, method: 'manual', default: value }] } } as ChannelManifest;
+      const adapter = adminValueSetup(variant, registry.capabilities('zz-admin'));
+      expect(adapter.parseBindingBody({ ...full, [key]: value }, ctx), key).toEqual({ ok: false, fields: [key] });
+      expect(adapter.parseBindingBody(without([key]), ctx), key).toEqual({ ok: false, fields: [key] });
+      expect(adapter.parseBindingBody(full, ctx).ok, key).toBe(true);
+    }
+    // A valid https default on another origin keeps the origin refusal.
+    const other = { ...manifest, setup: { ...manifest.setup, bindingFields: [{ key: 'issuer', label: 'Issuer', kind: 'url', required: true, method: 'manual', default: 'https://other.school.edu/issuer' }] } } as ChannelManifest;
+    expect(adminValueSetup(other, registry.capabilities('zz-admin')).parseBindingBody(without(['issuer']), ctx)).toEqual({ ok: false, fields: ['issuer'], reason: 'origin' });
+  });
+});
+
 describe('the kernel admin-value adapter (LA-ADR-01 D5)', () => {
   it('offers every manifest profile as an exclusive profile with no service URL and the channel label', () => {
     expect(setup.channel).toBe('zz-admin');
@@ -137,8 +174,12 @@ describe('create rules of a kernel-served channel (app API delta §3.1)', () => 
   let t: TestApp;
   afterEach(async () => { await t?.app.close(); });
 
+  const zzRow = { id: 'zz-admin', lms: 'zz-admin', label: 'ZZ admin platform', sharing: 'exclusive' as const, issuer: null, authenticationEndpoint: null, accesstokenEndpoint: null,
+    jwksUrl: null, siteUrlOn: null, serviceUrl: false, simulation: false, sharedPlatform: null };
+
   it('a dynamic create passes site rules 1–4: an IP literal, localhost or one of our hosts gives 422 INVALID_SITE_URL', async () => {
     t = await testApp({ channels: registry });
+    t.lti.providers.push({ ...zzRow, endpoints: 'admin' });
     const cookie = await t.login(THANH);
     const create = (siteUrl: string) => t.app.inject({ method: 'POST', url: '/app-api/connections', headers: t.writeHeaders(cookie),
       payload: { name: 'School', siteUrl, method: 'dynamic', lms: 'zz-admin' } });
@@ -152,5 +193,24 @@ describe('create rules of a kernel-served channel (app API delta §3.1)', () => 
     // Moodle keeps its M1 rule (no site rules in the self path).
     const moodle = await t.app.inject({ method: 'POST', url: '/app-api/connections', headers: t.writeHeaders(cookie), payload: { name: 'M', siteUrl: TEST_URLS.moodle, method: 'dynamic' } });
     expect(moodle.statusCode).toBe(201);
+  });
+
+  it('BD-A1-79: a profile that the LTI service reports as endpoints: fixed makes the method unavailable; one log line', async () => {
+    t = await testApp({ channels: registry });
+    t.lti.providers.push({ ...zzRow, endpoints: 'fixed' });
+    const cookie = await t.login(THANH);
+    const create = (method: 'dynamic' | 'manual') => t.app.inject({ method: 'POST', url: '/app-api/connections', headers: t.writeHeaders(cookie),
+      payload: { name: 'School', siteUrl: SITE, method, lms: 'zz-admin' } });
+    for (const method of ['dynamic', 'manual'] as const) {
+      const r = await create(method);
+      expect([method, r.statusCode, r.json().details]).toEqual([method, 400, expect.objectContaining({ message: 'INVALID_REQUEST', field: 'profile' })]);
+    }
+    const list = (await t.app.inject({ method: 'GET', url: '/app-api/lms-providers', headers: { cookie } })).json().lms as Array<{ lms: string; profiles: unknown[] }>;
+    expect(list.find((e) => e.lms === 'zz-admin')!.profiles).toEqual([]);
+    expect(list.find((e) => e.lms === 'canvas')!.profiles.length).toBeGreaterThan(0);
+    expect(t.logs.filter((l) => l.event === 'channel_profile_unknown' && l.profile === 'zz-admin')).toEqual([expect.objectContaining({ level: 'warn', reason: 'endpoints_fixed' })]);
+    // A reported admin row is usable again.
+    t.lti.providers.at(-1)!.endpoints = 'admin';
+    expect((await create('manual')).statusCode).toBe(201);
   });
 });

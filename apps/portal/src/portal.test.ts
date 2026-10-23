@@ -25,7 +25,8 @@ import { Integrations } from "./Integrations.tsx";
 import { NewCourse } from "./courses/Courses.tsx";
 import { PublishDialog } from "./courses/PublishDialog.tsx";
 import { ResultTableRow, Results } from "./results/Results.tsx";
-import type { Connection, Course, ResultRow, ToolRow } from "./types.ts";
+import type { Connection, Course, LmsProvider, ResultRow, ToolRow } from "./types.ts";
+import { channelRegistry, visibleChannels } from "./channels/registry.ts";
 
 import type { ComponentType } from "react";
 const moved = import.meta.glob<Record<string, unknown>>("../../../packages/channels/moodle/portal/*.{ts,tsx,json}", { eager: true });
@@ -366,9 +367,10 @@ describe("portal forms and contract states", () => {
       ),
     ).toBeTruthy();
   });
-  it("shows eleven cards, filters them, and shows the newest connection error", async () => {
+  it("shows the static and channel cards, filters them, and shows the newest connection error", async () => {
+    const providers = [{ lms: "moodle", profiles: [{ ready: true }] }] as unknown as LmsProvider[];
     fetchMock.mockImplementation(async (path: string) =>
-      path.endsWith("/lms-providers") ? json({ lms: [{ lms: "moodle", profiles: [{ ready: true }] }] }) : json({
+      path.endsWith("/lms-providers") ? json({ lms: providers }) : json({
         connections: [
           {
             ...connection,
@@ -387,7 +389,13 @@ describe("portal forms and contract states", () => {
     );
     inRouter(h(Integrations));
     await screen.findByRole("link", { name: /Manage/ });
-    expect(screen.getAllByRole("article")).toHaveLength(11);
+    // Open world (plan LD-1): the eight static cards and one card per visible registry channel. The baseline is
+    // eleven cards: the static cards and Moodle, Canvas and Blackboard. A new channel folder adds one card.
+    const staticCards = ["Kajabi", "Figma", "Collins", "Anthropic", "Open AI", "MIT", "Canva", "Loom"];
+    const channelCards = visibleChannels(channelRegistry, providers).map((manifest) => manifest.card.title);
+    expect(channelCards).toEqual(expect.arrayContaining(["Moodle", "Canvas", "Blackboard"]));
+    for (const name of [...staticCards, ...channelCards]) expect(screen.getByRole("article", { name })).toBeTruthy();
+    expect(screen.getAllByRole("article")).toHaveLength(staticCards.length + channelCards.length);
     expect(
       screen.getByText(
         "Go back in Moodle and choose Register as a new external tool.",
@@ -397,7 +405,9 @@ describe("portal forms and contract states", () => {
     await userEvent
       .setup()
       .click(screen.getByRole("tab", { name: "LMS Publishing" }));
-    expect(screen.getAllByRole("article")).toHaveLength(4);
+    // Kajabi and every channel card (baseline: four).
+    for (const name of ["Kajabi", ...channelCards]) expect(screen.getByRole("article", { name })).toBeTruthy();
+    expect(screen.getAllByRole("article")).toHaveLength(1 + channelCards.length);
     expect(
       screen.getByRole("link", { name: /Connect another site/ }),
     ).toBeTruthy();

@@ -464,3 +464,15 @@ Routed in dispatch `ctx_e03f42d6f8fe`. Items 1–4 went to the Lead first (`msg_
 | BD-A2-82 | S1's choices: `account.purge` `details.counts` as a list `[{table, rows}]` (redaction hides object keys that end in `key`); the log line `job_run_request_failed` when `runNow` rejects. | **Ratified.** | LA-ADR-06 D2, D11; contract delta §5, §6; LA-E5-20 notes | A good catch: an object key `api_key` would be redacted. |
 
 Changes for the Lead to route: **S1** (LA-E5-21 fix round): BD-A2-77 to BD-A2-80 with the unit tests in the notes (RQ-2 for the `keys/key-config.ts` lines). **A1 FYI:** the app's `APP_MASTER_KEY_FILE` (LA-E5-22) goes through the same shared `readSecretFile` and `hexKey` rule.
+
+## 38. Round 37: granted scopes before the claim, reserved-host audience, runbook (LA-E2-01/02 lane L, LA-E5-20), 2026-10-23
+
+Routed in dispatch `ctx_d4fafe0eb0e7`. Items 1 and 2 went to the Lead first (`msg_eaceb1e6109f`).
+
+| Id | Item | Decision | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-83 | A-LA-E2-01-02: with `platform.grantedScopes`, a scope that the platform did not grant gives `403` from the token client after the idempotency claim (so it is stored), and `needScope` can pick a scope that was not granted while a granted one would work. | **Yes, before the claim.** `needScope` picks the first wanted scope that is in the launch claim **and** in `grantedScopes` (null = no limit). The preflight's step 4 checks both; else `403 SERVICE_NOT_AVAILABLE` with a fixed text for the claim or the grant. The token-client filter stays as a backstop. | LA-ADR-06 D9; contract delta §4.9; LA-E2-01 and LA-E5-16 notes | A refusal of the current grant is never stored, and a call never asks for an ungranted scope. |
+| BD-A2-84 | A-LA-E2-01-01: a staged admin create accepts `clientAssertionAud` on a reserved host, because the staged exception (A1 BD-A1-82) skips the audience check. | **The reserved-host rule applies to the audience always, staged or active:** rule 2 (https, site rules 2 and 3, not a reserved host), else `400 PLATFORM_URL_NOT_IN_PROFILE`. The staged exception covers only the issuer-origin rule (I-SELF, and "audience = token URL" for active platforms). | LA-ADR-07 A6; security-delta §2.4; contract delta §4.6; LA-E2-01 and LA-E2-02 notes | We sign the client assertion with our key. An audience on a hosted LMS host (for example a Canvas token URL with a client id of ours) would let the holder of a staged platform replay our assertion there; a grant does not make that safe. A1's BD-A1-82 stays as is. |
+| BD-A2-85 | Codex Reviewer-B (LA-E5-20 r2): the job runbook keeps a stale `lastResult` fallback. | **Removed.** Step 3 reads only the `job_run` line with the trace id. | operability §8a | — |
+
+Changes for the Lead to route: **L** (next round): the `needScope` and preflight grant check, and the audience rule-2 check before the staged return, with the tests in the LA-E2-01 notes.
