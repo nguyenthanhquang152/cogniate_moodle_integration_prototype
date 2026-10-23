@@ -14,6 +14,7 @@ import type { Platform } from '../../store/platforms.ts';
 import { findDeployment, getPlatform } from '../../store/platforms.ts';
 import type { RouteContext } from '../context.ts';
 import { invalid } from '../validation.ts';
+import { isKeyList } from './platform-check-keys.ts';
 
 /** One check per platform and deployment per minute (contract delta §2.6). */
 export const CHECK_INTERVAL_MS = 60_000;
@@ -55,15 +56,6 @@ async function checkJwks(ctx: CheckContext, platform: Platform, traceId: string)
     keys = undefined;
   }
   return isKeyList(keys) ? { ok: true, keys: keys.length } : { ok: false, detail: 'invalid_jwks' };
-}
-
-/**
- * A usable key list (A/B BLOCKER of LA-E6-01 r1): at least one entry, and every entry is a JSON object with a `kty`.
- * One bad entry makes the whole set invalid, as for the launch key fetch (lti/jwks.ts), which refuses such a set.
- */
-function isKeyList(keys: unknown): keys is Record<string, unknown>[] {
-  return Array.isArray(keys) && keys.length > 0 && keys.every((key) => key !== null && typeof key === 'object' && !Array.isArray(key)
-    && typeof (key as { kty?: unknown }).kty === 'string' && (key as { kty: string }).kty !== '');
 }
 
 /** The class of a refused token answer: the OAuth error `invalid_client` or `invalid_scope`, else the HTTP status. */

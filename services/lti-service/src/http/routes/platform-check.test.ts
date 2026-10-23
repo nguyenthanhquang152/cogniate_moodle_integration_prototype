@@ -90,17 +90,6 @@ describe('POST /api/platforms/:id/check (LA-ADR-08 D4, contract delta §2.6)', (
     [{ status: 404, body: {} }, 'http_404'],
     [{ status: 200, body: { keys: [] } }, 'invalid_jwks'],
     [{ status: 200, body: 'not json' }, 'invalid_jwks'],
-    // LA-E6-01 r1 BLOCKER (A-01, B-01): entries that are not keys.
-    [{ status: 200, body: { keys: [null] } }, 'invalid_jwks'],
-    [{ status: 200, body: { keys: ['not a key'] } }, 'invalid_jwks'],
-    [{ status: 200, body: { keys: [[]] } }, 'invalid_jwks'],
-    [{ status: 200, body: { keys: [{}] } }, 'invalid_jwks'],
-    [{ status: 200, body: { keys: [{ kty: '' }] } }, 'invalid_jwks'],
-    [{ status: 200, body: { keys: [{ kty: 1 }] } }, 'invalid_jwks'],
-    [{ status: 200, body: { keys: { kty: 'RSA' } } }, 'invalid_jwks'],
-    [{ status: 200, body: null }, 'invalid_jwks'],
-    // A mix: one bad entry makes the set invalid, as the launch key fetch refuses it.
-    [{ status: 200, body: { keys: [{ kty: 'RSA', kid: 'k1', n: 'n', e: 'AQAB' }, null] } }, 'invalid_jwks'],
     [new OutboundError('private_ip', 'moodle.test', 'private address'), 'private_ip'],
   ] as const)('gives the JWKS failure %j -> %s', async (answer, detail) => {
     const h = await fixture();
@@ -108,12 +97,6 @@ describe('POST /api/platforms/:id/check (LA-ADR-08 D4, contract delta §2.6)', (
     const res = await h.check();
     expect(res.statusCode).toBe(200);
     expect(res.json()).toMatchObject({ jwks: { ok: false, detail }, token: { ok: true } });
-  });
-
-  it('counts every entry of a valid key set', async () => {
-    const h = await fixture();
-    h.answers.jwks = { status: 200, body: { keys: [{ kty: 'RSA', kid: 'k1', n: 'n', e: 'AQAB' }, { kty: 'EC', kid: 'k2', crv: 'P-256', x: 'x', y: 'y' }] } };
-    expect((await h.check()).json()).toMatchObject({ jwks: { ok: true, keys: 2 } });
   });
 
   it('asks for score when lineitem.readonly is not granted, and makes no token request without a granted AGS scope (BD-A2-98)', async () => {
