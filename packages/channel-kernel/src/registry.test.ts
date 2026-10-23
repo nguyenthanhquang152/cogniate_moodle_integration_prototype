@@ -160,7 +160,8 @@ describe('registry contents', () => {
     const ids = (r: typeof on) => r.channels().map((m) => m.id);
     expect(ids(off).slice(0, 4)).toEqual(['zz-test', ...BASELINE]);
     expect([ids(off).includes('zz-sim'), ids(on).includes('zz-sim')]).toEqual([false, true]);
-    expect(ids(off)).toEqual(ids(on).filter((id) => id !== 'zz-sim'));
+    // Open world (N10): every simulation-only channel of the product root drops out, not only the fixture.
+    expect(ids(off)).toEqual(ids(on).filter((id) => on.channel(id)?.availability !== 'simulation-only'));
     expect(ids(on)).toEqual(cardOrder(on.channels()));
     expect([off.channelOfProfile('zz-sim'), on.channelOfProfile('zz-sim')]).toEqual([null, 'zz-sim']);
     expect(off.ownerOfFamily('zz')).toBe('zz-test');
