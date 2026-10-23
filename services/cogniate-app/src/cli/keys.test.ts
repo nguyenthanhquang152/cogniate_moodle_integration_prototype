@@ -8,7 +8,7 @@ import { createConnection } from '../domain/connections.ts';
 import { ensureLibrary } from '../domain/libraries.ts';
 import type { TestApp } from '../testkit.ts';
 import { TEST_CHANNELS, TEST_MASTER_KEY, testApp, testSetupOf } from '../testkit.ts';
-import { runKeysCommand } from './keys.ts';
+import { REWRAP_ORDER, runKeysCommand } from './keys.ts';
 
 let t: TestApp | undefined;
 afterEach(async () => { await t?.app.close(); t = undefined; });
@@ -48,8 +48,9 @@ describe('app:keys (LA-E5-22)', () => {
     const { db, run } = await world();
     const done = run(ring('k2'), ['rewrap', '--operator', 'qa-op']);
     expect(done.exitCode).toBe(0);
-    expect(done.lines.slice(0, 3)).toEqual(['Re-wrap: complete. Examined 2, re-wrapped 2, skipped because changed 0, unreadable 0.',
+    expect(done.lines.slice(0, 4)).toEqual(['Re-wrap: complete. Examined 2, re-wrapped 2, skipped because changed 0, unreadable 0.', REWRAP_ORDER,
       'Picker sessions keep their old form until they expire.', 'Trace id: trace-keys']);
+    expect(REWRAP_ORDER).toBe('Order: write the new key ring, restart the app and check /readyz = 200, then run app:keys rewrap.');
     expect(done.lines).toContain('Version k2 (active): 2 sealed values');
     const events = rewrapEvents(db);
     expect(events).toHaveLength(1);
@@ -64,7 +65,7 @@ describe('app:keys (LA-E5-22)', () => {
     const noK1 = createLocalKeyProvider({ active: 'k2', keys: new Map([['legacy', TEST_MASTER_KEY], ['k2', Buffer.alloc(32, 2)]]) });
     const r = run(noK1, ['rewrap']);
     expect(r.exitCode).toBe(1);
-    expect(r.lines.slice(0, 2)).toEqual(['Re-wrap: failed. Examined 2, re-wrapped 1, skipped because changed 0, unreadable 1.',
+    expect(r.lines.slice(0, 3)).toEqual(['Re-wrap: failed. Examined 2, re-wrapped 1, skipped because changed 0, unreadable 1.', REWRAP_ORDER,
       'Unreadable versions: k1. Put each version back into the app key ring, restart the app, and run app:keys rewrap again.']);
     expect(rewrapEvents(db)[0]).toMatchObject({ details: { outcome: 'failed', unreadable: 1, unreadableVersions: ['k1'] } });
   });
@@ -84,6 +85,6 @@ describe('app:keys (LA-E5-22)', () => {
 
   it.each([[[]], [['list']], [['status', 'extra']], [['rewrap', '--evidence-ref', 'x']]])('usage for %j', async (argv) => {
     const { run } = await world();
-    expect(run(ring('k2'), argv)).toEqual({ exitCode: 1, lines: ['Usage: app:keys status [--operator O] | rewrap [--operator O]'] });
+    expect(run(ring('k2'), argv)).toEqual({ exitCode: 1, lines: ['Usage: app:keys status [--operator O] | rewrap [--operator O]', REWRAP_ORDER] });
   });
 });

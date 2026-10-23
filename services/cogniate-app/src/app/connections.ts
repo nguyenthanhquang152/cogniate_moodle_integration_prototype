@@ -3,7 +3,7 @@ import type { ChannelRegistry } from '@cogniate/channel-kernel';
 // or Blackboard site with an operator approval grant (the common redemption engine). Every lookup uses the session
 // user's library: a connection of another library gives 404 NOT_FOUND.
 import { randomToken, sha256Hex } from '@cogniate/shared';
-import { REF_COPY_COLUMN, appAad, openText, sealText } from './sealing.ts';
+import { REF_COPY_COLUMN, appAad, keyVersionUnavailable, openText, sealText } from './sealing.ts';
 import type { Logger, PublicUrls } from '@cogniate/shared';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -56,6 +56,20 @@ export function newRef(masterKey: Buffer, libraryId: string, ttlSeconds: number,
 
 export const registrationUrl = (urls: PublicUrls, ref: string): string => `${toolUrls(urls).register}?ref=${ref}`;
 
+/**
+ * The registration ref of a pending dynamic connection, from its sealed copy. A-LA-E5-22-02: when the app key ring lacks
+ * the copy's key version (or no ring is bound), only this row leaves the URL out (the provider logs key_open_failed);
+ * "Get registration URL" then makes a new ref with the running ring. Any other open failure still fails the answer.
+ */
+function refOf(c: Connection, masterKey: Buffer): string | null {
+  try {
+    return openText(masterKey, c.refTokenEncrypted!, appAad(REF_COPY_COLUMN, c.libraryId, c.refTokenHash ?? ''));
+  } catch (err) {
+    if (keyVersionUnavailable(masterKey, c.refTokenEncrypted!, err)) return null;
+    throw err;
+  }
+}
+
 
 /**
  * The connection DTO (app contract §4, §4.2). `libraryName` fills the tool name into a lastError action line.
@@ -63,7 +77,7 @@ export const registrationUrl = (urls: PublicUrls, ref: string): string => `${too
  * pending staged registration lists the deployments of its staged platform: the portal pre-fills them (app API delta §3.4).
  */
 export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffer, channels: ChannelRegistry, libraryName = '', approvedDeploymentIds?: string[]) {
-  const showRef = c.status === 'pending' && c.method === 'dynamic' && c.refTokenEncrypted !== null;
+  const ref = c.status === 'pending' && c.method === 'dynamic' && c.refTokenEncrypted !== null ? refOf(c, masterKey) : null;
   const platform = c.platform === null ? null : {
     ...c.platform,
     ...(c.bindingAuthority === 'operatorGrant' && approvedDeploymentIds && !(c.status === 'pending' && stagedRegistration(c)) ? { deploymentIds: approvedDeploymentIds } : {}),
@@ -72,8 +86,8 @@ export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffe
   };
   return {
     id: c.id, name: c.name, siteUrl: c.siteUrl, method: c.method, status: c.status,
-    registrationUrl: showRef ? registrationUrl(urls, openText(masterKey, c.refTokenEncrypted!, appAad(REF_COPY_COLUMN, c.libraryId, c.refTokenHash ?? ''))) : null,
-    registrationUrlExpiresAt: showRef ? iso(c.refExpiresAt) : null,
+    registrationUrl: ref !== null ? registrationUrl(urls, ref) : null,
+    registrationUrlExpiresAt: ref !== null ? iso(c.refExpiresAt) : null,
     // M1 (§4.2)
     lms: c.channel, profile: c.profile, serviceUrl: c.serviceUrl, capabilities: channels.legacyCapabilities(c.channel),
     channel: c.channel, channelName: channels.textName(c.channel), bindingAuthority: c.bindingAuthority,

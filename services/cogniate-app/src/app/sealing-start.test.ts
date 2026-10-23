@@ -1,12 +1,13 @@
 // LA-E5-22: the start binding (loadAppKeyProvider) and the re-wrap of app blobs. This file binds a key ring to a
 // handle, so the fail-closed rule of keyProviderFor applies to every other handle here (own module state per file).
-import { createLogger, createLocalKeyProvider, encrypt, type LocalKeyProvider, type LogLine } from '@cogniate/shared';
+import { createCipheriv, randomBytes } from 'node:crypto';
+import { blobKeyVersion, createLogger, createLocalKeyProvider, encrypt, type LocalKeyProvider, type LogLine } from '@cogniate/shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { createConnection } from '../domain/connections.ts';
 import { ensureLibrary } from '../domain/libraries.ts';
 import type { TestApp } from '../testkit.ts';
 import { TEST_CHANNELS, TEST_MASTER_KEY, testApp, testSetupOf } from '../testkit.ts';
-import { REF_COPY_COLUMN, WS_TOKEN_COLUMN, appAad, appSealedVersionCounts, loadAppKeyProvider, openText, rewrapAppBlobs, sealText } from './sealing.ts';
+import { REF_COPY_COLUMN, WS_TOKEN_COLUMN, appAad, appSealedVersionCounts, keyVersionUnavailable, loadAppKeyProvider, openText, rewrapAppBlobs, sealText } from './sealing.ts';
 
 const hex = (byte: number) => Buffer.alloc(32, byte);
 let t: TestApp | undefined;
@@ -43,11 +44,43 @@ describe('loadAppKeyProvider (main.ts, the worker and the operator CLIs call it 
     // A legacy blob of the old master key still opens through the bound ring.
     expect(openText(handle, encrypt(TEST_MASTER_KEY, 'old'), 'app:connection:ws_token_encrypted:lib:row')).toBe('old');
     expect(() => sealText(hex(7), 'value', 'app:connection:ws_token_encrypted:lib:row')).toThrow(/not bound/);
+    // A-LA-E5-22-02: a version that the ring lacks, or an unbound handle, is "unavailable" (an operator fixes the ring);
+    // a value that a ring version should open but does not (moved or corrupted) is not.
+    const thrown = (fn: () => unknown): unknown => { try { fn(); } catch (err) { return err; } return null; };
+    const k9blob = k9.sealSync(Buffer.from('x'), 'app:connection:ws_token_encrypted:lib:row').bytes;
+    expect(keyVersionUnavailable(handle, k9blob, thrown(() => openText(handle, k9blob, 'app:connection:ws_token_encrypted:lib:row')))).toBe(true);
+    expect(keyVersionUnavailable(handle, sealed, thrown(() => openText(handle, sealed, 'app:connection:ws_token_encrypted:lib:other')))).toBe(false);
+    expect(keyVersionUnavailable(hex(7), sealed, thrown(() => openText(hex(7), sealed, 'app:connection:ws_token_encrypted:lib:row')))).toBe(true);
+    expect(keyVersionUnavailable(handle, sealed, new Error('other'))).toBe(false);
   });
 });
 
 describe('rewrapAppBlobs (app:keys rewrap; LA-ADR-06 D6 "Re-wrap")', () => {
   const ring = (active: string, ...versions: string[]) => createLocalKeyProvider({ active, keys: new Map(versions.map((v, i) => [v, v === 'legacy' ? TEST_MASTER_KEY : hex(i + 1)])) });
+
+  /** A legacy blob (master key, no associated data) whose IV reads as a "cgk1" header of the version k2 (A-LA-E5-22-01). */
+  function collidingLegacyBlob(value: string): Buffer {
+    const iv = Buffer.concat([Buffer.from('cgk1', 'ascii'), Buffer.from([2]), Buffer.from('k2', 'ascii'), Buffer.from([0x00, 0x3c]), randomBytes(3)]);
+    const cipher = createCipheriv('aes-256-gcm', TEST_MASTER_KEY, iv, { authTagLength: 16 });
+    const data = Buffer.concat([cipher.update(value, 'utf8'), cipher.final()]);
+    return Buffer.concat([iv, cipher.getAuthTag(), data]);
+  }
+
+  it('A-LA-E5-22-01 (BD-A2-38, BD-A2-91): a legacy blob that looks like a header of the active version is re-sealed, with the same value', async () => {
+    const { db, a, setWs, ws } = await rows();
+    const value = 'w'.repeat(80);
+    const blob = collidingLegacyBlob(value);
+    // The structural header parse names the active version k2; the authenticated metadata says legacy form.
+    expect(blobKeyVersion(blob)).toBe('k2');
+    setWs(a.id, blob);
+    const now = ring('k2', 'legacy', 'k1', 'k2');
+    const aad = appAad(WS_TOKEN_COLUMN, a.libraryId, a.id);
+    expect(now.openWithMetadataSync({ bytes: blob }, aad)).toMatchObject({ version: 'legacy', legacyFormat: true });
+    expect(rewrapAppBlobs(db, now)).toEqual({ examined: 1, rewrapped: 1, skippedChanged: 0, unreadable: 0, unreadableVersions: [] });
+    const after = now.openWithMetadataSync({ bytes: ws(a.id) }, aad);
+    expect([after.version, after.legacyFormat, Buffer.from(after.plaintext).toString('utf8')]).toEqual(['k2', false, value]);
+    expect(rewrapAppBlobs(db, now).rewrapped).toBe(0);
+  });
 
   it('re-seals every old blob with the active version (legacy form too), keeps the values, and a second run does nothing', async () => {
     const { db, a, b, setWs, ws } = await rows();
