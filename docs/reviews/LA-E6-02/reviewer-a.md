@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 ## Round 1
 
@@ -38,3 +38,14 @@ Fresh private clone `/tmp/la-review-a-2ff3c9eff814`, detached at `195930c1`, own
 UNIT AC-06/07/08 have focused tests; the independent policy assertion above would strengthen AC-06. AC-01 remains pending LA-E6-06, and AC-02/03 remain pending LA-E6-05. K1-SIM ACs and M2/T6 regression remain QA gates; host tests are not live-stack evidence. Disconnect/suspend writers are explicitly deferred by BD-A2-100.
 
 No Docker, stack or host stack runner was used. Only this review file was changed in integration; no commit was made.
+
+## Round 2
+
+Reviewed `f9e7961b`, merged as **`52a89e2d`**, against the same task and BD-A2-100 rules. **APPROVE: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT open in lens A.** Both round-1 findings are closed; no new finding.
+
+- **A-LA-E6-02-01 closed:** the guard checks the nested fields used by rendering, rejects null events and object-valued React children, and sends malformed answers to the existing unavailable state. Eleven malformed-answer cases and the complete-answer control pass. Restoring the old shallow guard makes all eleven malformed-answer cases fail.
+- **A-LA-E6-02-02 closed:** the tests independently pin 100 rows and 30 days, use literal policy boundaries, and retain direct and job-driven expiration checks. The previously surviving 31-day mutant now fails the committed test.
+
+The backlog help uses the same capability/status condition as `ConnectionCheck`; it names only the displayed connection name and available grade-error code/time, with no trace-id instruction. The added real-route inline export test checks current, stale and cleared artifact-key states after the LA-E6-05 writer landed. These are host checks; live signing-key activation and the remaining K1-SIM/regression gates stay with QA.
+
+Verification: fresh private clone `/tmp/la-review-a-068ab3a02a44` at `52a89e2d`, own install, Vitest cache cleared before every run. **39/39 tests pass** across the three changed test files; both targeted mutants fail for the intended assertions, and private source changes were restored. The four-file diff respects ownership, adds no LMS-specific core branch and changes no frozen assertion. No Docker, stack, other reviewer's file or commit; only this review file changed in integration.
