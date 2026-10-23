@@ -562,3 +562,13 @@ The Lead's provisional call (option A) on L's conflict between BD-A2-93 and the 
 | BD-A2-94 | (Provisional: option A.) The BD-A2-93 floor as written would (1) break the frozen T3b AC-T3-05 (it waits for the guarded client's `outbound_blocked` on an http URL and on `169.254.169.254`), and (2) refuse a Moodle on a public IP literal, which completes DR today. Option A: the floor refuses before any fetch only host names that fail site rule 2, own hosts (rule 3) and reserved hosts; http and IP literals go on to the guarded client as today. | **Ratified (option A).** It makes BD-A2-93 exact. Every forbidden target still gets no request: http and private IPs are refused by the guarded client before it connects (`outbound_blocked`, `FETCH_FAILED`), and the reserved and own hosts by the floor (`PLATFORM_URL_NOT_IN_PROFILE`). A public-IP Moodle keeps Dynamic Registration. | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5 start bullet; LA-E3-09 AC-05 and notes | Option B would change a frozen baseline (an LA-IC and a QA change) and drop a working case, for a property (no request to a forbidden target) that option A already keeps. |
 
 Changes for the Lead to route: none beyond L's build of option A (already in progress).
+
+## 47. Round 46: the floor keeps the M1 `ISSUER_RESERVED` start page (LA-E3-09 fix round 1, lane L), 2026-10-23
+
+The Lead's provisional call (option Y), routed in dispatch `ctx_e7307e62e227`. Ratified without change, so no status message was needed.
+
+| Id | Lead call | Ratified / changed | Where recorded | Note |
+| --- | --- | --- | --- | --- |
+| BD-A2-95 | (Provisional: option Y.) Every reserved issuer host is a reserved host, so the BD-A2-93 floor would answer `PLATFORM_URL_NOT_IN_PROFILE` first, and the M1 start page `ISSUER_RESERVED` (base contract §9.2, pinned by `lti/codes.test.ts`) could never show again. Y: a reserved **issuer** host gets the M1 `ISSUER_RESERVED` page byte for byte; any other reserved host, an own host or a failing host name gets `PLATFORM_URL_NOT_IN_PROFILE`. The AC-05 example becomes `sso.canvaslms.com` for `PLATFORM_URL_NOT_IN_PROFILE`, and `canvas.instructure.com` shows `ISSUER_RESERVED`. | **Ratified (option Y).** | LA-ADR-05 D6 "Configuration URL"; contract delta §4.5 start bullet; LA-E3-09 AC-05 and notes | Both options refuse before any fetch. Y keeps a frozen M1 page and its action line ("Connect it as Canvas or Blackboard in the Cogniate portal"), which tells the admin the right fix. X would need a contract note and would drop that help. |
+
+Changes for the Lead to route: none beyond L's build of option Y (in progress).
