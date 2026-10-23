@@ -28,6 +28,12 @@ function testManifest(over: Json = {}): Json {
 
 const channel = (manifest: unknown, folder = '/x/zz-test', extra: Partial<LoadedChannel> = {}): LoadedChannel => ({ folder, manifest, ...extra });
 
+/** The baseline channels, in their frozen order (the product root may hold more channels: an open-world list). */
+const BASELINE = ['moodle', 'canvas', 'blackboard'];
+/** The registry order rule: card.order, then id. */
+const cardOrder = (ms: ReadonlyArray<{ id: string; card: { order: number } }>) =>
+  [...ms].sort((a, b) => a.card.order - b.card.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)).map((m) => m.id);
+
 it('carries app adapters through discovery without exposing hidden channels', () => {
   const adapter = { channel: 'zz-test', checkCreate: () => ({ ok: true }) };
   const loaded = [channel(testManifest({ availability: 'simulation-only' }), '/x/zz-test', { appAdapter: adapter })];
@@ -63,9 +69,12 @@ it('accepts only the closed card icon name and keeps mark required', () => {
 });
 
 describe('baseline channels (product root)', () => {
-  it('loads moodle, canvas and blackboard in this order, with the M1 capability objects; lti-generic follows (LA-E2-03)', async () => {
+  it('loads moodle, canvas and blackboard in this order, with the M1 capability objects; every new channel follows (open world)', async () => {
     const registry = buildChannelRegistry(await loadChannelFolders([PRODUCT_ROOT], 'app'), { simulations: false });
-    expect(registry.channels().map((m) => m.id)).toEqual(['moodle', 'canvas', 'blackboard', 'lti-generic']);
+    const ids = registry.channels().map((m) => m.id);
+    expect(ids.slice(0, 3)).toEqual(BASELINE);
+    expect(ids).toEqual(cardOrder(registry.channels()));
+    expect(ids).toContain('lti-generic');
     expect(JSON.stringify(registry.legacyCapabilities('moodle'))).toBe(JSON.stringify(
       { dynamicRegistration: true, operatorApproval: false, webServices: true, courseShell: true, addDeployment: false, canvasConfiguration: false }));
     expect(JSON.stringify(registry.legacyCapabilities('canvas'))).toBe(JSON.stringify(
@@ -148,8 +157,11 @@ describe('registry contents', () => {
     ];
     const off = buildChannelRegistry([...await loadChannelFolders([PRODUCT_ROOT], 'app'), ...extra], { simulations: false });
     const on = buildChannelRegistry([...await loadChannelFolders([PRODUCT_ROOT], 'app'), ...extra], { simulations: true });
-    expect(off.channels().map((m) => m.id)).toEqual(['zz-test', 'moodle', 'canvas', 'blackboard', 'lti-generic']);
-    expect(on.channels().map((m) => m.id)).toEqual(['zz-test', 'moodle', 'canvas', 'blackboard', 'lti-generic', 'zz-sim']);
+    const ids = (r: typeof on) => r.channels().map((m) => m.id);
+    expect(ids(off).slice(0, 4)).toEqual(['zz-test', ...BASELINE]);
+    expect([ids(off).includes('zz-sim'), ids(on).includes('zz-sim')]).toEqual([false, true]);
+    expect(ids(off)).toEqual(ids(on).filter((id) => id !== 'zz-sim'));
+    expect(ids(on)).toEqual(cardOrder(on.channels()));
     expect([off.channelOfProfile('zz-sim'), on.channelOfProfile('zz-sim')]).toEqual([null, 'zz-sim']);
     expect(off.ownerOfFamily('zz')).toBe('zz-test');
   });
@@ -183,9 +195,13 @@ describe('loadChannelFolders (folder discovery)', () => {
     });
     writeFileSync(join(extra, 'notes.txt'), 'not a channel');
     const app = await loadChannelFolders([PRODUCT_ROOT, extra], 'app');
-    expect(app.map((c) => c.folder.split(/[\\/]/).pop())).toEqual(['blackboard', 'canvas', 'lti-generic', 'moodle', 'zz-test']);
-    expect(app[4]).toMatchObject({ folder: join(extra, 'zz-test'), manifest: { id: 'zz-test' }, appAdapter: { kind: 'app' } });
-    expect(app[4]).not.toHaveProperty('ltiProfiles');
+    // The product root first, in name order (open world: any number of channel folders), then the extra root.
+    const product = app.slice(0, -1).map((c) => c.folder.split(/[\\/]/).pop()!);
+    expect(product).toEqual([...product].sort());
+    expect(product).toEqual(expect.arrayContaining([...BASELINE, 'lti-generic']));
+    expect(app.filter((c) => c.folder.startsWith(extra)).map((c) => c.folder)).toEqual([join(extra, 'zz-test')]);
+    expect(app.at(-1)).toMatchObject({ folder: join(extra, 'zz-test'), manifest: { id: 'zz-test' }, appAdapter: { kind: 'app' } });
+    expect(app.at(-1)).not.toHaveProperty('ltiProfiles');
     const lti = await loadChannelFolders([extra], 'lti');
     expect(lti).toEqual([{ folder: join(extra, 'zz-test'), manifest: expect.objectContaining({ id: 'zz-test' }), ltiProfiles: [{ id: 'zz-test', sharing: 'exclusive' }] }]);
     expect(buildChannelRegistry(lti, { simulations: false }).channelOfProfile('zz-test')).toBe('zz-test');

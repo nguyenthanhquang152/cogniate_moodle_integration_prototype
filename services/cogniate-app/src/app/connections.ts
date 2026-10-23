@@ -18,7 +18,7 @@ import { checkSiteUrl, fixedHostsOf, originHost } from '@cogniate/shared';
 import { ownedProfiles, servedByKernel, setupOf } from '../kernel/setup.ts';
 import { usableProfileRow } from '../kernel/setup/admin-value.ts';
 import type { BindingCleanup } from './binding-cleanup.ts';
-import { activeShared, providerProfiles, snapshotOf } from './binding-targets.ts';
+import { activeShared, providerProfiles, snapshotOf, stagedRegistration } from './binding-targets.ts';
 import type { RedemptionEngine } from './redemption.ts';
 import { toolContext, toolUrls } from '../kernel/setup/common.ts';
 import { toolName } from '@cogniate/channel-kernel/setup';
@@ -54,13 +54,14 @@ export const registrationUrl = (urls: PublicUrls, ref: string): string => `${too
 
 /**
  * The connection DTO (app contract §4, §4.2). `libraryName` fills the tool name into a lastError action line.
- * `approvedDeploymentIds`: Canvas and Blackboard list only deployments with a committed approval (connectionDto).
+ * `approvedDeploymentIds`: Canvas and Blackboard list only deployments with a committed approval (connectionDto). A
+ * pending staged registration lists the deployments of its staged platform: the portal pre-fills them (app API delta §3.4).
  */
 export function connectionJson(c: Connection, urls: PublicUrls, masterKey: Buffer, channels: ChannelRegistry, libraryName = '', approvedDeploymentIds?: string[]) {
   const showRef = c.status === 'pending' && c.method === 'dynamic' && c.refTokenEncrypted !== null;
   const platform = c.platform === null ? null : {
     ...c.platform,
-    ...(c.bindingAuthority === 'operatorGrant' && approvedDeploymentIds ? { deploymentIds: approvedDeploymentIds } : {}),
+    ...(c.bindingAuthority === 'operatorGrant' && approvedDeploymentIds && !(c.status === 'pending' && stagedRegistration(c)) ? { deploymentIds: approvedDeploymentIds } : {}),
     // M1: the site and service origins (for Moodle both equal the connection siteUrl).
     siteUrl: c.siteUrl, serviceUrl: c.serviceUrl,
   };

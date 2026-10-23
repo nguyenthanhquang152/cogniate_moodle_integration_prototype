@@ -1,6 +1,7 @@
 // LA-E1-12 (LA-ADR-01 D10, D12): the operator and redemption texts take LMS names from the registry. The baseline
 // channels keep the M1 bytes; a new channel that offers the feature joins the name list (LA-E2-03: lti-generic, with
-// the text name "your LMS"; the Lead's provisional call keeps the list rule, A1 decides on a generic sentence).
+// the text name "your LMS"; the Lead's provisional call keeps the list rule, A1 decides on a generic sentence). The
+// product registry is an open world: its lists are computed from the loaded manifests, not written out.
 import type { ChannelManifest, ChannelRegistry } from '@cogniate/channel-kernel';
 import { buildChannelRegistry } from '@cogniate/channel-kernel';
 import { createLogger } from '@cogniate/shared';
@@ -23,6 +24,18 @@ const zzChannel: ChannelManifest = {
 const withZz = buildChannelRegistry([...TEST_CHANNELS.channels(), zzChannel]
   .map((manifest) => ({ folder: `/test/${manifest.id}`, manifest, appAdapter: TEST_CHANNELS.appAdapter(manifest.id) ?? undefined })), { simulations: true });
 
+/** The baseline channels only: the M1 bytes. */
+const baselineOnly = buildChannelRegistry(TEST_CHANNELS.channels().filter((m) => ['moodle', 'canvas', 'blackboard'].includes(m.id))
+  .map((manifest) => ({ folder: `/test/${manifest.id}`, manifest, appAdapter: TEST_CHANNELS.appAdapter(manifest.id) ?? undefined })), { simulations: true });
+
+/** The text names of the channels with a feature, in registry order. */
+const grantNames = (registry: ChannelRegistry) => registry.channels().filter((m) => m.registration.some((r) => r.authority === 'operatorGrant')).map((m) => m.names.text);
+const multiNames = (registry: ChannelRegistry) => registry.channels().filter((m) => registry.capabilities(m.id)['deployments.multiple']).map((m) => m.names.text);
+/** The names as the sentence joins them ("A, B and C"). */
+const joined = (names: string[], word: 'and' | 'or') => (names.length < 2 ? names.join('') : `${names.slice(0, -1).join(', ')} ${word} ${names.at(-1)}`);
+const grantList = (registry: ChannelRegistry) => joined(grantNames(registry), 'and');
+const multiList = (registry: ChannelRegistry) => joined(multiNames(registry), 'or');
+
 let t: TestApp;
 afterEach(async () => { await t?.app.close(); });
 
@@ -44,19 +57,30 @@ async function setup(channels: ChannelRegistry) {
   return { op, create, input };
 }
 
-it('the issue refusals keep the M1 lines, and lti-generic joins the two lists that name its features', async () => {
-  const { op, create, input } = await setup(TEST_CHANNELS);
+it('the issue refusals keep the M1 lines with the baseline channels', async () => {
+  const { op, create, input } = await setup(baselineOnly);
   const moodle = await create({ name: 'Moodle', siteUrl: TEST_URLS.moodle, method: 'manual' });
   const bb = await create({ name: 'Learn', siteUrl: LEARN_A, method: 'manual', lms: 'blackboard', profile: 'blackboard-sim' });
-  expect((await op.issue(input(moodle))).lines).toEqual(['Approval grants are only for Canvas, Blackboard and your LMS connections.']);
-  expect((await op.issue(input(bb, { purpose: 'add_deployment' }))).lines).toEqual(['An add_deployment grant needs a registered or connected Canvas or your LMS connection.']);
+  expect((await op.issue(input(moodle))).lines).toEqual(['Approval grants are only for Canvas and Blackboard connections.']);
+  expect((await op.issue(input(bb, { purpose: 'add_deployment' }))).lines).toEqual(['An add_deployment grant needs a registered or connected Canvas connection.']);
   expect((await op.issue(input(bb, { serviceUrl: 'https://other.blackboard.sim.test' }))).lines).toEqual(['--service-url is only for Canvas connections.']);
   expect((await op.issue(input(bb, { clientId: 'another-app' }))).lines).toEqual(['--client-id is not the Blackboard Application ID of the shared platform.']);
   expect((await op.suspend(bb.id, 'cleanup', 't')).lines).toContain('Binding: Blackboard: no reservation');
 });
 
+it('with the product channels, every channel that offers the feature joins the two name lists in registry order (lti-generic: "your LMS")', async () => {
+  const { op, create, input } = await setup(TEST_CHANNELS);
+  const moodle = await create({ name: 'Moodle', siteUrl: TEST_URLS.moodle, method: 'manual' });
+  const bb = await create({ name: 'Learn', siteUrl: LEARN_A, method: 'manual', lms: 'blackboard', profile: 'blackboard-sim' });
+  expect([grantNames(TEST_CHANNELS).slice(0, 2), grantNames(TEST_CHANNELS).includes('your LMS')]).toEqual([['Canvas', 'Blackboard'], true]);
+  expect([multiNames(TEST_CHANNELS)[0], multiNames(TEST_CHANNELS).includes('your LMS')]).toEqual(['Canvas', true]);
+  expect((await op.issue(input(moodle))).lines).toEqual([`Approval grants are only for ${grantList(TEST_CHANNELS)} connections.`]);
+  expect((await op.issue(input(bb, { purpose: 'add_deployment' }))).lines).toEqual([`An add_deployment grant needs a registered or connected ${multiList(TEST_CHANNELS)} connection.`]);
+});
+
 it('a new channel with an operator-grant method joins the name list in registry order', async () => {
   const { op, create, input } = await setup(withZz);
   const moodle = await create({ name: 'Moodle', siteUrl: TEST_URLS.moodle, method: 'manual' });
-  expect((await op.issue(input(moodle))).lines).toEqual(['Approval grants are only for Canvas, Blackboard, your LMS and ZZ LMS connections.']);
+  expect(grantNames(withZz)).toContain('ZZ LMS');
+  expect((await op.issue(input(moodle))).lines).toEqual([`Approval grants are only for ${grantList(withZz)} connections.`]);
 });
