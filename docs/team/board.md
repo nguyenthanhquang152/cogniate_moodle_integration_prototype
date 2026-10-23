@@ -7,7 +7,12 @@ Only the Lead edits this file. Task specs live in `docs/architecture/tasks/`. Or
 Branch: `nguyenthanhquang152/lti-multi-lms`. Current [phase plan](multi-lms-plan.md).
 The Moodle release below is the completed baseline.
 
-### Current status — 2026-10-23, 16:43 UTC
+### Current status — 2026-10-23, 16:55 UTC
+
+All runtime gates are accepted. Final Architect conformance is APPROVE, with no open BLOCKER or MAJOR. The narrow prototype ADR status changes are committed at `31f4d0bb`; final QA reports at `351eee07`; final conformance bindings at `253ff824`.
+The same Codex executor is applying the prepared guides. Gemini Docs QA and two blind Claude reviews will check one frozen document revision in parallel. Lead closure follows those results. All 32 live LMS rows remain UNVERIFIED; local Canvas remains DEFERRED. No push or main merge is authorized.
+
+### Prior status — 2026-10-23, 16:43 UTC
 
 T7 is accepted at C10 `97b68af4`. Independent QA passes all 15 criteria, three cycles of 17 tests, the demo and all four confirmation/refusal checks. The required traces and 12 PNGs pass. The strict scan has zero shared hits. Cleanup passes, all 32 complete protected volume records match, and the host was returned at 16:40 UTC. LA confirmed its hold. See [the final E-R8 decision](r8-t7-shared-host-verification-2026-10-23.md#final-t7-acceptance--1643-utc).
 

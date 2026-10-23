@@ -1,6 +1,6 @@
 # Prototype completion audit
 
-Owner: Lead. Updated: 2026-10-23, 16:43 UTC. Overall result: **NOT COMPLETE**.
+Owner: Lead. Updated: 2026-10-23, 16:55 UTC. Overall result: **NOT COMPLETE**.
 
 The active goal is to complete all remaining tasks. This audit uses the approved M1–M4 criteria and charter. Earlier accepted evidence keeps its exact source, test SHA and scope. A missing final verdict is not a pass.
 
@@ -16,7 +16,7 @@ The active goal is to complete all remaining tasks. This audit uses the approved
 | Measured Simplified Technical English; AC-M4-03 | Earlier measured static checks passed. | Measure the final changed text with the established T9 method. |
 | Source references and clean-room text; AC-M4-04 | Earlier static checks passed. | Verify the final changed steps have no copied DataCamp values or unsupported claims. |
 | Offline review page; AC-M4-05 | Earlier desktop/mobile/offline/accessibility checks passed. | Validate the final page, required sections and B-1/B-2/B-3 explanations. |
-| Architect conformance; AC-M4-06 | Source conformance is APPROVE; final AC-M4-06 and conditional ADR status updates remain PENDING. | Final Claude verdict after accepted T7 and the explicit narrow ADR-012 prototype decision. |
+| Architect conformance; AC-M4-06 | Final AC-M4-06 is APPROVE, with no open BLOCKER or MAJOR. The prototype ADR status decision is committed at `31f4d0bb`; final QA bindings at `253ff824`. | Preserve the accepted prototype scope and all stated limits in final guides and checks. |
 | Human decisions; AC-M4-07 | `decisions-needed.md` contains Q19–Q22 and D-1–D-12. Earlier Docs QA checked references but excluded this file from its direct scope. | Include this file read-only in final independent Docs QA and both reviews; verify the actual decisions/defaults against ADR-011. |
 | Self-hosted Canvas recovery limitation; AC-M4-08 | Earlier QA and reviews accepted the D-12 wording and deferral. | Preserve scope, impact, operator order and the statement that prompt redemption does not prevent the race. |
 | Final pack reviews and handover | Earlier static reviews are accepted at their original candidate. | Final independent Gemini Docs verdict, two blind Claude reviews with no open BLOCKER/MAJOR, Lead commits and final board/handover. |
