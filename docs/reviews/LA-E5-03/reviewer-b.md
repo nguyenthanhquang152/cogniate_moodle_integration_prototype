@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 2
+Round: 3
 
 # LA-E5-03 review, Reviewer-B (lens: "Can a human team own it?")
 
@@ -100,3 +100,23 @@ A tool developer who gets a `429` learns how long to wait: the body says "Too ma
 
 - K1-SIM AC-01 to -09, -11, -12 (QA). LA-E5-06 calls the session cap; its end-to-end proof is there.
 - Lens-A depth of the IPv6 parsing and of the trusted-hop choice beyond the unit cases.
+
+## Round 3 (WE-F1 fix)
+
+Reviewer: Codex GPT-6-Astra, xhigh, 2026-10-24. Lens B: can a human team own it? Scope: `git diff ecc19bbc^1 ecc19bbc` (`bbb984d6`), tested at `4e453a7c66b27e2c9cdc221a9ba0d734a68b19fe`. Read the prior B rounds, task spec, BD-A2-108, and the related design and operator guidance. No Reviewer-A file was opened.
+
+**APPROVE: 0 BLOCKER, 0 MAJOR, 0 MINOR, 1 NIT.** Earlier non-blocking notes are outside this focused fix.
+
+The code's admin default agrees with LA-ADR-06 D1, AC-14, the app contract, and security residual R-LA-9: 1,200 requests per minute, burst 600. Operability §2 and the LTI contract point to the same default table and override API. The operator runbook §5.4 gives commands to read the effective value and source, raise it globally or for one account, and remove a global override. The code comment links the change to WE-F1. No special first-party exemption or new limiter behaviour was added.
+
+### B-LA-E5-03-07 — NIT — Make the new test title traceable and exact
+
+**File:** `services/lti-service/src/http/rate-limit.test.ts:70`.
+
+**Problem and evidence:** The test names BD-A2-108 and WE-F1, but not `AC-LA-E5-03-14`; searching this file for the AC id gives no match. Its title says it refills 20 tokens per second, while the assertion makes only one request after advancing one second. That meets AC-14's stated next-request check, but the title promises a stronger assertion.
+
+**Suggested fix:** Prefix the test title with `AC-LA-E5-03-14` and say that the next request passes after one second. Alternatively, retain the refill wording and assert 20 successes followed by refusal at the same timestamp.
+
+Verification used fresh private clone `/tmp/la-review-b-2db03b1f7b2d` with its own `npm ci`; the Vitest cache was deleted before each run. **61 tests passed across four files**: limiter, HTTP rate limits, operator rate limits, and Retry-After. This covers the existing UNIT AC-10/13 and new AC-14. Independently restoring the old rate or old burst made the new test fail. LTI typecheck, lint on both changed files, F1, and whitespace checks passed; both mutations were restored and the clone is clean.
+
+The two-file diff fits the S1 fix routed by BD-A2-108. Protected files are unchanged, and no core LMS name was added. QA must still rerun the nine WE-F1 rows with default limits. No Docker, stack, or commit was used. Only this review file changed in integration.

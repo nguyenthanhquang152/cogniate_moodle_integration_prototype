@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 # LA-E3-16 review: Reviewer-A (lens "Is it right and is it safe?")
 
@@ -36,3 +36,15 @@ AC-04 (K1-SIM, end to end) needs the K fix for BD-A1-106 and LA-E3-09. That is Q
 ### Verdict
 
 APPROVE for lens A. The manual path is byte-identical, which I checked against the tree before this task. The staged form sends exactly the three binding values. No secret is shown. The method choice offers only the methods that the server lists.
+
+
+## Round 2 — BD-A2-106 follow-up
+
+Reviewer: Codex GPT-6-Astra xhigh, 2026-10-24. Reviewed lane P commit `aa351bad0b52d1941df6f658aace8d3f6c0c1619` against BD-A2-106, the updated task spec, LA-ADR-05 D6 and LD-9. **APPROVE: 0 BLOCKER, 0 MAJOR, 0 MINOR, 0 NIT.**
+
+- `canvas-steps.json:33` matches the complete BD-A2-106 string exactly. A structural comparison confirms that this is the only JSON value changed; the other changed file is its existing AC-01 test. Both files are in lane P's allowed scope. No method filter, manifest, service, refusal page, other text or request behavior changes.
+- The sentence correctly states Cogniate's current support limit. D6 leaves hosted Canvas support pending the CANVAS-HOSTED live check; the central configuration hosts are refused and the hosted token host is unverified. It does not say that every possible hosted configuration fails, and both choices remain available as BD-A2-106 requires. Existing E3-09 AC-05 QA evidence supports the pre-fetch refusal boundary.
+- **20/20 Canvas unit tests passed**, including the manual request and AC-05 DOM hashes. With only the JSON restored to the old text, the new AC-01 assertion failed for the missing hosted-Canvas sentence. Restoring the patch made AC-01 and AC-05 pass again (**2/2**). Tests used a fresh `--no-hardlinks` clone at `5261d4da`, its own `npm ci`, and a cleared Vitest cache before each run; temporary changes were then removed.
+- **No frozen M2 or K2 assertion requires the old sentence, so no LA-IC row is needed for this change.** The search covered `tests/**`; the relevant M2 wizard and keyboard checks do not compare this help text. M2's `lib/m2.ts:126` screenshots are recorded artifacts, not snapshot comparisons. K2 `02-u2-wizards.k2.ts:123` and `lib/k2.ts:521` match method-name prefixes, which still match the longer accessible name. The unchanged AC-05 hash check removes the method fieldset before comparing the create DOM.
+
+Evidence logs: `/tmp/la-reviewer-a-ctx-4fa5c7d0454a-canvas.log`, `/tmp/la-reviewer-a-ctx-4fa5c7d0454a-old-text-mutant.log`, `/tmp/la-reviewer-a-ctx-4fa5c7d0454a-restored.log`. No Docker, stack, host stack runner, commit or Reviewer-B file was used. The Lead's merge and the planned wave-end M2/K2 runs remain; this review does not claim those browser runs occurred.

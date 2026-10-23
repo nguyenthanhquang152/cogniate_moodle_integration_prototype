@@ -25,7 +25,7 @@ export const CLASSES = {
   registration_account: { limit: 1, burst: 20, key: 'tool account (soft)', match: (m, p) => CLASSES.registration.match(m, p) },
   keys: { limit: 300, burst: 100, key: 'client address', match: (m, p) => m === 'GET' && /^\/lti\/keys\/[^/]+$/.test(p) },
   api: { limit: 1200, burst: 300, key: 'API key id', match: (m, p, s) => s !== 401 && /^\/api\/(?:idtoken|deeplinking|lineitems|memberships)(?:\/|$)/.test(p) },
-  admin: { limit: 600, burst: 200, key: 'API key id', match: (m, p, s) => s !== 401 && /^\/api\/(?:platforms|registrations|providers)(?:\/|$)/.test(p) },
+  admin: { limit: 1200, burst: 600, key: 'API key id', match: (m, p, s) => s !== 401 && /^\/api\/(?:platforms|registrations|providers)(?:\/|$)/.test(p) },
   auth_failure: { limit: 120, burst: 120, key: 'client address', match: (m, p, s) => s === 401 && /^\/api\//.test(p) },
 };
 /** The account of a protocol, registration or keys path (`/lti/<kind>/<account>`). */

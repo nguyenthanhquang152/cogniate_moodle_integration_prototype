@@ -72,9 +72,7 @@
     "dlDataMode": "claim",
     "dlRequiresSub": false,
     "privacyFloor": "allowlist",
-    "supportsCustomClaims": true,
-    "supportsDynamicRegistrationOnSim": true,
-    "supportsStagedRegistrationOnSim": true
+    "platformStorage": null
   },
   "sources": {
     "id": "LA-ADR-01 §D3 table + LA-ADR-02 §D4 (channel brightspace)",

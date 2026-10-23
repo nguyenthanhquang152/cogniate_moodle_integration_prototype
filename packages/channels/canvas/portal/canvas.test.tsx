@@ -248,7 +248,8 @@ it("AC-LA-E3-16-01: offers the manifest methods at create with the developer key
   const group = within(screen.getByRole("group", { name: "Connection method" }));
   expect(group.getAllByRole("radio").map((radio) => [(radio as HTMLInputElement).value, (radio as HTMLInputElement).checked])).toEqual([["manual", true], ["dynamic", false]]);
   expect(group.getByRole("radio", { name: /^Developer key/ })).toBeTruthy();
-  expect(group.getByText("Copy one registration URL into Canvas. Cogniate gets the Client ID and the Deployment ID.")).toBeTruthy();
+  // BD-A2-106: hosted Canvas uses the developer key.
+  expect(group.getByText("Copy one registration URL into Canvas. Cogniate gets the Client ID and the Deployment ID. For Instructure-hosted Canvas, use Developer key. Cogniate does not support this method there yet.")).toBeTruthy();
   field("Connection name", "School");
   field("Canvas URL", "https://canvas.school.edu");
   field("Canvas type", "canvas-sim-cloud");

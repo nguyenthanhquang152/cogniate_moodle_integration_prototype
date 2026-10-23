@@ -159,7 +159,7 @@ A2's abuse control for random ltiks ([LA-ADR-06 D1](../adr/LA-ADR-06-service-ope
 | Answer | `429` error page `RATE_LIMITED` ("Too many launches from your network. Wait one minute, then open the activity again in {LMS}.") with `Retry-After`; log `rate_limited {class: "tool_handoff", retry_after_s}` at most once per minute per address |
 | Test | Author unit test of the bucket. Acceptance points: (1) 300 valid launches from one address, sent at an even rate within one minute, all pass (no `429`); (2) 400 random ltiks from one address within 10 s give `429` after the bucket is empty (at most 300 pass), and a valid launch from the same address after `Retry-After` works (QA has one client address, TEST-STRATEGY §9.2 item 14). QA records the `/tool/launch` peak rate of the frozen suites at E0 (TEST-STRATEGY §9.2 item 14) |
 
-The 60 s cache of `GET /api/providers` that LA-ADR-06 D1 names is **Could**, not built in LA: the `admin` limit of 600 per minute already covers the provider list, and a cache could show a stale `ready` value to the frozen M1 and M2 checks right after an operator changes the shared platform. A2 changes its sentence (README §8 OC-12).
+The 60 s cache of `GET /api/providers` that LA-ADR-06 D1 names is **Could**, not built in LA: the `admin` limit (1,200 per minute, burst 600; A2 BD-A2-108, LA-ADR-06 D1) already covers the provider list, and a cache could show a stale `ready` value to the frozen M1 and M2 checks right after an operator changes the shared platform. A2 changes its sentence (README §8 OC-12).
 
 ## 6. Publications, results and records (base §5, §10)
 

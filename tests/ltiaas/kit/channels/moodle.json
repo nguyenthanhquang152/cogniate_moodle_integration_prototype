@@ -80,9 +80,7 @@
     "dlDataMode": "claim",
     "dlRequiresSub": false,
     "privacyFloor": "none",
-    "supportsCustomClaims": true,
-    "supportsDynamicRegistrationOnSim": false,
-    "supportsStagedRegistrationOnSim": false
+    "platformStorage": null
   },
   "sources": {
     "id": "LA-ADR-01 §D3 table (column moodle)",
