@@ -683,30 +683,6 @@ function mergeLoaded(appLoaded: readonly LoadedChannel[], ltiLoaded: readonly Lo
   }));
 }
 
-// Transitional compatibility (BD-A1-75): canary profiles omit `flags.clientAssertionAudArray` before lane L removes
-// `clientAssertionAudArray` from `services/lti-service/src/profiles/schema.ts`. Once lane L removes the flag from
-// `schema.ts`, the direct `buildProfileRegistry(merged)` call succeeds untouched.
-function buildProfileRegistryCompat(merged: readonly MergedLoadedChannel[]): ProfileRegistry {
-  try {
-    return buildProfileRegistry(merged);
-  } catch (err) {
-    if (err instanceof RegistryError && err.detail.includes('clientAssertionAudArray')) {
-      const withLegacyFlag = merged.map((c) => ({
-        ...c,
-        ltiProfiles: c.ltiProfiles.map((p) => {
-          const flags = p.flags as Record<string, unknown> | undefined;
-          if (flags && typeof flags === 'object' && !('clientAssertionAudArray' in flags)) {
-            return { ...p, flags: { ...flags, clientAssertionAudArray: false } };
-          }
-          return p;
-        }),
-      }));
-      return buildProfileRegistry(withLegacyFlag);
-    }
-    throw err;
-  }
-}
-
 // Top-level discovery of product channels and canary channels so `describe.each` registers
 // one suite per discovered channel with no test edits when a channel folder is added (AC-LA-E7-01-02).
 const extraNegativeRoot = process.env.LA_K0_EXTRA_ROOT ? [process.env.LA_K0_EXTRA_ROOT] : [];
@@ -716,7 +692,7 @@ const productLtiLoaded = await loadChannelFolders([productRoot], 'lti');
 const productMerged = mergeLoaded(productAppLoaded, productLtiLoaded);
 const productRegistry = buildChannelRegistry(productMerged, { simulations: true });
 const productLiveRegistry = buildChannelRegistry(productMerged, { simulations: false });
-const productProfileRegistry = buildProfileRegistryCompat(productMerged);
+const productProfileRegistry = buildProfileRegistry(productMerged);
 
 const canaryRoots = [productRoot, canaryRoot, ...extraNegativeRoot];
 const combinedAppLoaded = await loadChannelFolders(canaryRoots, 'app');
@@ -724,7 +700,7 @@ const combinedLtiLoaded = await loadChannelFolders(canaryRoots, 'lti');
 const combinedMerged = mergeLoaded(combinedAppLoaded, combinedLtiLoaded);
 const combinedRegistry = buildChannelRegistry(combinedMerged, { simulations: true });
 const combinedLiveRegistry = buildChannelRegistry(combinedMerged, { simulations: false });
-const combinedProfileRegistry = buildProfileRegistryCompat(combinedMerged);
+const combinedProfileRegistry = buildProfileRegistry(combinedMerged);
 
 const productById = new Map(productMerged.map((c) => [c.manifest.id, c]));
 const combinedById = new Map(combinedMerged.map((c) => [c.manifest.id, c]));
@@ -1154,7 +1130,6 @@ function defineChannelContractCases(
   const initialLoaded = initialCtx.loaded;
   const isBaselineChannel = ['moodle', 'canvas', 'blackboard'].includes(channelId);
   const needsAdapter =
-    manifest.setup.connectionCheck === true ||
     manifest.capabilities['siteApi.token'] === true ||
     manifest.capabilities['publish.createCourse'] === true ||
     (Array.isArray(manifest.capabilities['setup.artifacts']) && manifest.capabilities['setup.artifacts'].length > 0) ||
@@ -1177,8 +1152,9 @@ function defineChannelContractCases(
 
       if (!needsAdapter && loaded.appAdapter === undefined) {
         // Admin-value channel without app.ts (e.g. lti-generic with toolConfiguration 'channel', or zz-canary-admin with 'none'; LA-E2-03 AC-05, BD-A1-85).
+        // Connection check is a core route (LA-ADR-08 D4: POST /app-api/connections/:id/check -> LTI POST /api/platforms/:id/check) and uses no ConnectionSetup member.
         const channelCaps = reg.capabilities(channelId);
-        expect(channelCaps['setup.connectionCheck']).toBe(false);
+        expect(channelCaps['setup.connectionCheck']).toBe(Boolean(manifest.setup?.connectionCheck));
         expect(channelCaps['siteApi.token']).toBe(false);
         expect(channelCaps['publish.createCourse']).toBe(false);
         expect(channelCaps['setup.artifacts']).toEqual([]);
