@@ -2,7 +2,7 @@
 
 Evidence basis: `31f4d0bb`, 2026-10-23. Product: C6 `4008afb9`. M1 tests: C9 `9eb504f5`. M2 actual tests: C8 `5561e8f7`. T7 actual tests: C10 `97b68af4`.
 
-Runtime evidence is accepted. Architect conformance is APPROVE. This guide candidate awaits independent QA and two blind reviews. See the [evidence table](../../README.md#evidence-labels).
+Runtime evidence is accepted. Architect conformance is APPROVE. Guide revision 911219b0 passed independent QA and both reviews. See the [evidence table](../../README.md#evidence-labels).
 
 This guide is for Cogniate staff with shell access to the Cogniate app service and the LTI service. Design: [ADR-011](../architecture/adr/ADR-011-multi-lms.md) §4a, §4b and §14, and [ADR-012](../architecture/adr/ADR-012-sqlite-volume-storage.md).
 

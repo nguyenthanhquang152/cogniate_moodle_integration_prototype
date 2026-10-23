@@ -75,7 +75,7 @@ If a Cogniate user withdraws the course, the activity shows "This course is no l
 
 Evidence basis: `31f4d0bb`, 2026-10-23. Product: C6 `4008afb9`. M1 tests: C9 `9eb504f5`. M2 actual tests: C8 `5561e8f7`. T7 actual tests: C10 `97b68af4`.
 
-Runtime evidence is accepted. Architect conformance is APPROVE. This guide candidate awaits independent QA and two blind reviews. See the [evidence table](../../README.md#evidence-labels). Tags: the [evidence table](../../README.md#evidence-labels) gives the status of each label.
+Runtime evidence is accepted. Architect conformance is APPROVE. Guide revision 911219b0 passed independent QA and both reviews. See the [evidence table](../../README.md#evidence-labels). Tags: the [evidence table](../../README.md#evidence-labels) gives the status of each label.
 
 NOTE: Nobody has tested these steps on a real Canvas site. Canvas menu names come from provider documentation ([research](../research/multi-lms.md#4-canvas-facts)).
 
@@ -117,7 +117,7 @@ Learners are anonymous: Cogniate gets no names or emails [SIM AC-M1-14]. The por
 
 Evidence basis: `31f4d0bb`, 2026-10-23. Product: C6 `4008afb9`. M1 tests: C9 `9eb504f5`. M2 actual tests: C8 `5561e8f7`. T7 actual tests: C10 `97b68af4`.
 
-Runtime evidence is accepted. Architect conformance is APPROVE. This guide candidate awaits independent QA and two blind reviews. See the [evidence table](../../README.md#evidence-labels). Tags: the [evidence table](../../README.md#evidence-labels) gives the status of each label.
+Runtime evidence is accepted. Architect conformance is APPROVE. Guide revision 911219b0 passed independent QA and both reviews. See the [evidence table](../../README.md#evidence-labels). Tags: the [evidence table](../../README.md#evidence-labels) gives the status of each label.
 
 NOTE: Nobody has tested these steps on a real Blackboard site. Learn menu names come from provider documentation ([research](../research/multi-lms.md#3-blackboard-facts)).
 

@@ -2,13 +2,13 @@
 
 Source: commit `6932539`, 2026-10-19.
 
-**Canvas and Blackboard: evidence basis `31f4d0bb`, 2026-10-23.** This guide candidate awaits independent QA and two blind reviews. The prototype has Canvas and Blackboard support tested against signed simulations only. Not yet tested on a real Canvas site. Not yet tested on a real Blackboard site.
+**Canvas and Blackboard: evidence basis `31f4d0bb`, 2026-10-23.** Guide revision 911219b0 passed independent QA and both reviews. The prototype has Canvas and Blackboard support tested against signed simulations only. Not yet tested on a real Canvas site. Not yet tested on a real Blackboard site.
 
 M1 passed two equal fresh rounds of 394 cases at C6/C9. Another 94 rows are carried from C4. M2 passed 64 cases, 13 criteria and seven gates at actual C8/C6. The 12 legacy groups produced 304 raw PASS entries. Their per-subrun unique-ID counts sum to 251. This is not a global distinct count.
 
 T7 passed all 15 criteria at actual C10/C6 ([E-R8](../team/r8-t7-shared-host-verification-2026-10-23.md#final-t7-acceptance--1643-utc)). Each of three cycles passed 17 tests, with zero failures and only the permitted demo skip. Demo preparation took 11.45 seconds; both player launches and all four confirmation/refusal checks passed. The failed C8 attempt and its separate failed scan remain history. This was a shared-host result, not an exclusive window.
 
-The [final conformance verdict](../reviews/M4/architect-conformance.md#r76-verdict) is APPROVE for the prototype. The current [G1 checkpoint](decisions-needed.md#g1-storage-design-blocking-design-findings-closed) states the storage limits. Final Docs QA and two blind reviews remain pending. All 32 live rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`. See the [evidence table](../../README.md#evidence-labels) for exact identities and limits.
+The [final conformance verdict](../reviews/M4/architect-conformance.md#r76-verdict) is APPROVE for the prototype. The current [G1 checkpoint](decisions-needed.md#g1-storage-design-blocking-design-findings-closed) states the storage limits. Guide revision 911219b0 passed independent QA and both reviews. All 32 live rows stay `UNVERIFIED`; local Canvas stays `DEFERRED`. See the [evidence table](../../README.md#evidence-labels) for exact identities and limits.
 
 Open [`canvas-blackboard.html`](canvas-blackboard.html) in a browser (10 minutes, works offline). Then answer Q19 to Q22 in [decisions-needed.md](decisions-needed.md#e-canvas-and-blackboard-decisions). The rest of this page describes the Moodle release.
 

@@ -45,7 +45,7 @@ More technical help: [`infra/README.md`](../../infra/README.md#troubleshooting).
 
 Evidence basis: `31f4d0bb`, 2026-10-23. Product: C6 `4008afb9`. M1 tests: C9 `9eb504f5`. M2 actual tests: C8 `5561e8f7`. T7 actual tests: C10 `97b68af4`.
 
-Runtime evidence is accepted. Architect conformance is APPROVE. This guide candidate awaits independent QA and two blind reviews. See the [evidence table](../../README.md#evidence-labels). The last column gives the evidence label; the [evidence table](../../README.md#evidence-labels) gives its status. Nobody has tested these fixes on a real Canvas or Blackboard site.
+Runtime evidence is accepted. Architect conformance is APPROVE. Guide revision 911219b0 passed independent QA and both reviews. See the [evidence table](../../README.md#evidence-labels). The last column gives the evidence label; the [evidence table](../../README.md#evidence-labels) gives its status. Nobody has tested these fixes on a real Canvas or Blackboard site.
 
 "Operator" means Cogniate staff ([operator guide](operator.md)). The operator reads the service logs in `infra/.logs/`.
 

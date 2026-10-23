@@ -6,7 +6,7 @@ This prototype publishes Cogniate courses (SCORM 1.2 and HTML) to Moodle with LT
 
 ## Supported LMS
 
-Canvas and Blackboard phase: evidence basis `31f4d0bb8afdfeee59ce50e558bb58b49ebc5d54`, 2026-10-23. This authored guide candidate awaits independent QA and two blind reviews.
+Canvas and Blackboard phase: evidence basis `31f4d0bb8afdfeee59ce50e558bb58b49ebc5d54`, 2026-10-23. Guide revision 911219b0 passed independent QA and both reviews.
 
 Product: C6 `4008afb92fe983d52db33442e060210b929966c8`. M1 tests: C9 `9eb504f5`. M2 actual tests: C8 `5561e8f7`. Separate carried results: C4 `bf09cda`.
 
@@ -16,7 +16,7 @@ M1 passed two equal fresh rounds of 394 cases at product C6 and tests C9 ([E-R7]
 
 T7 passed all 15 criteria at C10/C6 ([E-R8](docs/team/r8-t7-shared-host-verification-2026-10-23.md#final-t7-acceptance--1643-utc)). Each of three cycles had 17 PASS, zero failures and only the permitted demo skip. Demo preparation took 11.45 seconds; both player launches passed. All four confirmation/refusal checks passed.
 
-The Architect gave final [AC-M4-06 APPROVE](docs/reviews/M4/architect-conformance.md#r76-verdict), with no open BLOCKER or MAJOR. [ADR-011](docs/architecture/adr/ADR-011-multi-lms.md) is accepted for design and prototype conformance. [ADR-012 revisions 3.3–3.7](docs/architecture/adr/ADR-012-sqlite-volume-storage.md) are accepted for the prototype only. The limits and decisions in [G1](docs/human_review/decisions-needed.md#g1-storage-design-blocking-design-findings-closed) still apply. Final guide QA and two blind reviews remain pending.
+The Architect gave final [AC-M4-06 APPROVE](docs/reviews/M4/architect-conformance.md#r76-verdict), with no open BLOCKER or MAJOR. [ADR-011](docs/architecture/adr/ADR-011-multi-lms.md) is accepted for design and prototype conformance. [ADR-012 revisions 3.3–3.7](docs/architecture/adr/ADR-012-sqlite-volume-storage.md) are accepted for the prototype only. The limits and decisions in [G1](docs/human_review/decisions-needed.md#g1-storage-design-blocking-design-findings-closed) still apply. Guide revision 911219b0 passed independent QA and both reviews.
 
 | LMS | Claim | Evidence label |
 | --- | --- | --- |
@@ -84,9 +84,9 @@ QA measured 43 seconds for `e2e:reset` and 8.64 seconds for `demo:prepare` (AC-T
 | --- | --- |
 | [Run the stack](docs/guides/run-the-stack.md) | Start, open, reset and stop the local stack |
 | [Moodle admin](docs/guides/moodle-admin.md) | Connect a Moodle site (automatic or manual) |
-| [Canvas admin](docs/guides/canvas-admin.md) | Connect a Canvas site (draft; not yet tested on a real Canvas site) |
-| [Blackboard admin](docs/guides/blackboard-admin.md) | Connect a Blackboard Learn site (draft; not yet tested on a real Blackboard site) |
-| [Operator](docs/guides/operator.md) | Cogniate staff: approval codes, suspend and release, upgrade and rollback (draft) |
+| [Canvas admin](docs/guides/canvas-admin.md) | Connect a Canvas site (not yet tested on a real Canvas site) |
+| [Blackboard admin](docs/guides/blackboard-admin.md) | Connect a Blackboard Learn site (not yet tested on a real Blackboard site) |
+| [Operator](docs/guides/operator.md) | Cogniate staff: approval codes, suspend and release, upgrade and rollback |
 | [Teacher](docs/guides/teacher.md) | Add a Cogniate course to a Moodle, Canvas or Blackboard course |
 | [Learner view](docs/guides/learner-view.md) | What a learner sees, and what happens when… |
 | [Native channel](docs/guides/native-channel-moodlecloud.md) | Build a Moodle backup or empty course; see the guide for verified scope |

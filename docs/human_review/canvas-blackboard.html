@@ -7,7 +7,7 @@
 <!--
   One self-contained file. No CDN, no web font, no network request, no external file. Open it from disk (file://).
   Owner: Docs. Sources: ADR-011 sections 4, 4a, 4b, 6, 13 and 15; M3 live matrix; README evidence labels.
-  Evidence basis: 31f4d0bb, 2026-10-23. Runtime accepted; final conformance APPROVE. This guide candidate awaits independent QA and two blind reviews.
+  Evidence basis: 31f4d0bb, 2026-10-23. Runtime accepted; final conformance APPROVE. Guide revision 911219b0 passed independent QA and both reviews.
 -->
 <style>
   :root {
@@ -79,8 +79,8 @@
 <header>
   <h1>Canvas and Blackboard at a glance</h1>
   <p class="lead">One shared LTI engine for Moodle, Canvas and Blackboard. Read time: about 10 minutes.</p>
-  <p><span class="badge">Draft</span><span class="badge">Signed simulation only</span><span class="badge">All 32 live checks UNVERIFIED</span></p>
-  <p class="lead">Evidence basis: <code>31f4d0bb</code>, 2026-10-23. Product: C6; M1 tests: C9; M2 actual tests: C8; T7 actual tests: C10 <code>97b68af4</code>. Runtime is accepted; Architect conformance is APPROVE. This guide candidate awaits independent QA and two blind reviews. Not yet tested on a real Canvas site. Not yet tested on a real Blackboard site.</p>
+  <p><span class="badge">Prototype</span><span class="badge">Signed simulation only</span><span class="badge">All 32 live checks UNVERIFIED</span></p>
+  <p class="lead">Evidence basis: <code>31f4d0bb</code>, 2026-10-23. Product: C6; M1 tests: C9; M2 actual tests: C8; T7 actual tests: C10 <code>97b68af4</code>. Runtime is accepted; Architect conformance is APPROVE. Guide revision 911219b0 passed independent QA and both reviews. Not yet tested on a real Canvas site. Not yet tested on a real Blackboard site.</p>
   <nav aria-label="Sections">
     <ul>
       <li><a href="#tenancy">1. Tenancy</a></li>
@@ -199,7 +199,7 @@
   </div>
   <p>The 12 legacy groups produced 304 raw PASS entries. Their per-subrun unique-ID counts sum to 251. This is not a global distinct count. Functional results were accepted despite the failed exclusive-host condition (<a href="../team/r4-evidence-decision-2026-10-22.md">E-R4</a>).</p>
   <p>T7 had zero failures and only the permitted demo skip in each cycle. Demo preparation took 11.45 seconds; both player launches passed. All four confirmation/refusal checks passed. All 51 default tests had no viewport click retries; all 12 required PNGs passed judgment. Keep, teardown and operational closure passed, with all 32 complete protected records unchanged. The strict scan passed with 162 values and zero shared hits.</p>
-  <p>The <a href="../reviews/M4/architect-conformance.md#r76-verdict">final conformance verdict</a> is APPROVE, with no open BLOCKER or MAJOR. ADR-011 is accepted for design and prototype conformance. ADR-012 revisions 3.3–3.7 are accepted for this prototype only. The <a href="decisions-needed.md#g1-storage-design-blocking-design-findings-closed">current G1 checkpoint</a> retains the storage limits. Independent Docs QA and two blind reviews remain pending.</p>
+  <p>The <a href="../reviews/M4/architect-conformance.md#r76-verdict">final conformance verdict</a> is APPROVE, with no open BLOCKER or MAJOR. ADR-011 is accepted for design and prototype conformance. ADR-012 revisions 3.3–3.7 are accepted for this prototype only. The <a href="decisions-needed.md#g1-storage-design-blocking-design-findings-closed">current G1 checkpoint</a> retains the storage limits. Guide revision 911219b0 passed independent QA and both reviews.</p>
   <p>Earlier failures and environment deviations stay in the <a href="../team/multi-lms-plan.md">phase plan</a>. Diagnostic and host-only passes give no full acceptance credit.</p>
   <p>The C8 T7 attempt remains FAILED. One screenshot failure caused seven later failures. Its separate shared-log scan found one redaction failure. C10 contains the reviewed repairs and the accepted new run (<a href="../team/r8-t7-shared-host-verification-2026-10-23.md#final-t7-acceptance--1643-utc">E-R8</a>).</p>
   <p>M2 attempt 3 remains NOT ACCEPTED. Accepted r7 retains the missed prelaunch hold, later bridge reconciliation and limited event query (<a href="../team/r6-independent-verification-2026-10-23.md">E-R6</a>). No check was waived.</p>
