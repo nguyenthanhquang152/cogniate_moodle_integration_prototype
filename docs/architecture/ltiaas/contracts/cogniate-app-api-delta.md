@@ -126,7 +126,7 @@ Design and full rules: A2 [LA-ADR-08](../adr/LA-ADR-08-onboarding-and-connection
 | Method and path | Request | Success / errors |
 | --- | --- | --- |
 | `POST /app-api/connections/:id/check` | — | `200 { result, checkedAt, details }` after a token probe and a JWKS fetch through the LTI service (`POST /api/platforms/:id/check`, [lti-service-api-delta](lti-service-api-delta.md)); guard: `setup.connectionCheck` |
-| `GET /app-api/connections/:id/health` | — | `200` health view: last launch, last launch refusal, dispatch state, last errors, key state (`keys.artifactKeyKid`, `artifactKeyCurrent`) |
+| `GET /app-api/connections/:id/health` | — | `200` health view: last launch, last launch refusal, dispatch state, last errors, key state (`keys.artifactKeyKid`, `artifactKeyCurrent`). Field rules (A2 BD-A2-100, LA-ADR-08 D5 "Build notes"): `keys.nextKid` is `null` in LA (the public JWKS has no key status); `keys.artifactKeyCurrent` is `null`, `true` or `false` (`null` when `artifactKeyKid` is `null` or the active kid cannot be read, else `artifactKeyKid === activeKid`; the portal warns only on `false`); `lastCheck { at, jwks, token }` comes from the newest `check` event (a part that is not in its failed list is `true`); `dispatch.lastError.code` is the `CODE` parsed from the stored reporter text (`"<status> <CODE>: <text>"`) when it matches `[A-Z][A-Z0-9_]*`, else `null`, never free text, with `at` = that row's `updated_at`; `events` = the kept rows (at most 100), newest first. Only ids, codes and public key ids reach the portal |
 | `POST /app-api/connections/:id/verify` | `{ code }` | the verified admin launch redemption (authority `verifiedAdminLaunch`); same phase 1 and phase 2 rules as a grant; errors as A2 lists |
 
 ## 4. Portal routes (base §4.2)
