@@ -45,6 +45,8 @@ Each step or row has a label. The label tells you how QA verified it.
 | `[MOODLE-LIVE AC-M1-23]` | QA ran it on the local Moodle stack in M1 (see the M1 operator guide). |
 | **Pending verification** | No QA row checks it yet. Do not rely on it. |
 
+How the labels were checked: each label names a QA row, and the named test of that row checks the stated behaviour. Some QA reports put an author unit test inside a range of K1-SIM rows (for example `AC-LA-E5-07-01 .. 10`). The QA test file then says that the AC is an author unit test. In that case the label follows the test file: `UNIT`.
+
 NOTE: Every LMS result in LA is a simulator result. No real Canvas, Blackboard, D2L Brightspace or other LMS took part. The LA wave-end gates (M1, M2, T7) run now. This runbook does not cite them.
 
 ### 0.2 Where commands run
@@ -63,28 +65,65 @@ dc() { docker compose -f infra/compose.yaml --env-file .env "$@"; }
 
 # LTI operator API: op METHOD PATH [JSON]. Uses the copy of the operator key in the container.
 op() { dc exec -T lti-service node -e '
-const [method, path, body] = process.argv.slice(1);
-const key = require("node:fs").readFileSync("/run/secrets/lti/lti-operator-key", "utf8").trim();
-const headers = { authorization: "OPERATOR-AUTH-V1 " + key };
-if (body) headers["content-type"] = "application/json";
-fetch("http://127.0.0.1:4110" + path, { method, headers, body })
-  .then(async (r) => { console.log(r.status, await r.text()); if (!r.ok) process.exitCode = 1; });
+const fail = (step, reason) => { console.error("op: " + step + ": " + reason); process.exitCode = 1; };
+const safe = (v) => typeof v === "string" && /^(?!lti[os]_)[A-Za-z][A-Za-z0-9_.]{0,63}$/.test(v);
+(async () => {
+  const [method, path, body] = process.argv.slice(1);
+  let key = "";
+  try { key = require("node:fs").readFileSync("/run/secrets/lti/lti-operator-key", "utf8").trim(); } catch {}
+  if (!/^ltio_[A-Za-z0-9_-]{43}$/.test(key)) return fail("key", "the operator key file is missing or does not hold one operator key");
+  const headers = { authorization: "OPERATOR-AUTH-V1 " + key };
+  if (body) headers["content-type"] = "application/json";
+  let r, text;
+  try { r = await fetch("http://127.0.0.1:4110" + path, { method, headers, body }); } catch { return fail("request", "no answer from the operator listener"); }
+  try { text = await r.text(); } catch { return fail("answer", "the answer could not be read"); }
+  if (r.ok) return console.log(r.status, text);
+  let d = {};
+  try { d = JSON.parse(text).details || {}; } catch {}
+  const out = [r.status];
+  if (safe(d.message)) out.push(d.message);
+  if (safe(d.field)) out.push("field=" + d.field);
+  for (const k of ["fields", "reasons"]) if (Array.isArray(d[k])) out.push(k + "=" + d[k].filter(safe).join(","));
+  if (Number.isInteger(d.retryAfter)) out.push("retryAfter=" + d.retryAfter);
+  console.log(out.join(" ")); process.exitCode = 1;
+})().catch(() => fail("helper", "unexpected error"));
 ' "$@"; }
 
 # Readiness and metrics, no key: probe SERVICE PORT PATH.
 probe() { dc exec -T "$1" node -e '
-fetch("http://127.0.0.1:" + process.argv[1] + process.argv[2])
-  .then(async (r) => { console.log(r.status, await r.text()); if (!r.ok) process.exitCode = 1; });
+const fail = (step, reason) => { console.error("probe: " + step + ": " + reason); process.exitCode = 1; };
+(async () => {
+  let r, text;
+  try { r = await fetch("http://127.0.0.1:" + process.argv[1] + process.argv[2]); } catch { return fail("request", "no answer from the listener"); }
+  try { text = await r.text(); } catch { return fail("answer", "the answer could not be read"); }
+  console.log(r.status, text); if (!r.ok) process.exitCode = 1;
+})().catch(() => fail("helper", "unexpected error"));
 ' "$2" "$3"; }
 
 # LTI tenant API of the tool account cogniate: tenant METHOD PATH [JSON]. Uses the app's API key file.
 tenant() { dc exec -T cogniate-app node -e '
-const [method, path, body] = process.argv.slice(1);
-const key = require("node:fs").readFileSync(process.env.LTI_API_KEY_FILE, "utf8").trim();
-const headers = { authorization: "Bearer " + key };
-if (body) headers["content-type"] = "application/json";
-fetch((process.env.LTI_API_URL || process.env.PUBLIC_LTI_URL) + path, { method, headers, body })
-  .then(async (r) => { console.log(r.status, await r.text()); if (!r.ok) process.exitCode = 1; });
+const fail = (step, reason) => { console.error("tenant: " + step + ": " + reason); process.exitCode = 1; };
+const safe = (v) => typeof v === "string" && /^(?!lti[os]_)[A-Za-z][A-Za-z0-9_.]{0,63}$/.test(v);
+(async () => {
+  const [method, path, body] = process.argv.slice(1);
+  let key = "";
+  try { key = require("node:fs").readFileSync(process.env.LTI_API_KEY_FILE, "utf8").trim(); } catch {}
+  if (!/^ltis_[A-Za-z0-9_-]{43}$/.test(key)) return fail("key", "the API key file is missing or does not hold one API key");
+  const headers = { authorization: "Bearer " + key };
+  if (body) headers["content-type"] = "application/json";
+  let r, text;
+  try { r = await fetch((process.env.LTI_API_URL || process.env.PUBLIC_LTI_URL) + path, { method, headers, body }); } catch { return fail("request", "no answer from the LTI service"); }
+  try { text = await r.text(); } catch { return fail("answer", "the answer could not be read"); }
+  if (r.ok) return console.log(r.status, text);
+  let d = {};
+  try { d = JSON.parse(text).details || {}; } catch {}
+  const out = [r.status];
+  if (safe(d.message)) out.push(d.message);
+  if (safe(d.field)) out.push("field=" + d.field);
+  for (const k of ["fields", "reasons"]) if (Array.isArray(d[k])) out.push(k + "=" + d[k].filter(safe).join(","));
+  if (Number.isInteger(d.retryAfter)) out.push("retryAfter=" + d.retryAfter);
+  console.log(out.join(" ")); process.exitCode = 1;
+})().catch(() => fail("helper", "unexpected error"));
 ' "$@"; }
 ```
 
@@ -95,13 +134,23 @@ fetch((process.env.LTI_API_URL || process.env.PUBLIC_LTI_URL) + path, { method, 
 | `probe` | readiness and metrics; no key | `probe lti-service 4110 /readyz` |
 | `tenant` | LTI tenant API (`/api/*`) of the tool account `cogniate` | `tenant GET /api/platforms/<platform id>` |
 
-Each helper prints the HTTP status and the answer body. It exits 1 when the status is 400 or higher.
+What the helpers print:
+
+| Case | Output | Exit code |
+| --- | --- | --- |
+| The answer status is below 400 | the status and the answer body, for example `202 {"job":"retention","traceId":"…"}` | 0 |
+| The answer status is 400 or higher | one line: the status, the error code and the safe detail fields, for example `409 JOB_RUNNING` or `503 NOT_READY reasons=job_runner_not_active retryAfter=30` | 1 |
+| The helper cannot read a valid key, gets no answer, or cannot read the answer | one line on stderr: the helper, the step and a fixed reason, for example `op: key: the operator key file is missing or does not hold one operator key` | 1 |
+
+Rule: a helper never prints a key, a token or a header value. It checks the key file before it makes a request. It prints no error message of Node or of the server, because such a message can contain the value that caused it. `probe` sends no key; it prints the answer body also for a `503`, because the readiness reasons are in the body.
+
+The answer to an issue request (a new operator key or API key) holds the new key once, by design ([§4.2](#42-give-a-key-to-another-operator), [§6.1](#61-rotate-the-key-of-an-account-no-downtime)). Run such a request where nobody else sees your screen. Do not copy that output into a ticket, a chat or a log.
 
 Facts about the helpers:
 
 - `dc` uses the same arguments as the QA runners (`docker compose -f infra/compose.yaml --env-file .env`, in `tests/ltiaas/tasks-ops/LA-E5-22/run.mjs`).
-- `op`, `probe` and `tenant` are new in this runbook. Pending verification: QA runs them at the runbook check.
-- `op` reads the copy of the operator key in the LTI container, `/run/secrets/lti/lti-operator-key`. `npm run seed` and `npm run lti:bootstrap` write that copy from `infra/.secrets/lti-operator-key` at each run (BD-A2-34). If the copy is missing, run `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name Cogniate` ([§17.4](#174-other-first-steps)). If your key file is lost, see [§4.4](#44-the-operator-key-file-is-lost).
+- `op`, `probe` and `tenant` are new in this runbook. Docs tested them only against a local fake HTTP server, also with damaged key files. Pending verification on a stack: QA runs them at the runbook check.
+- `op` reads the copy of the operator key in the LTI container, `/run/secrets/lti/lti-operator-key`. `npm run seed` and `npm run lti:bootstrap` write that copy from `infra/.secrets/lti-operator-key` at each run (BD-A2-34). If the copy is missing, run `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name Cogniate` ([§17.4](#174-other-first-steps)). If your key file is lost, see [§4.5](#45-the-operator-key-file-is-lost).
 - The proxy has no route to the operator API [SIM E5-01-02]. In the `default` profile, the operator listener binds `127.0.0.1:4110` only [SIM E5-01-04]. So call it only from inside the LTI container, as `op` does.
 
 ## 2. Start, stop and check the stack
@@ -184,7 +233,7 @@ The stack scripts save only `default` or `acceptance` (`infra/scripts/lib.sh`, `
 
 ### 3.1 Settings on the compose stack
 
-`infra/compose.yaml` gives each service a fixed list of settings. A setting that is not in that list does not reach the service on the LA stack. The `--env` option of `npm run stack:restart` accepts registered test knobs only.
+`infra/compose.yaml` gives each service a fixed list of settings and has no `env_file`. A setting that is not in that list does not reach the service on the LA stack; the service uses its default. The `--env` option of `npm run stack:restart` accepts registered test knobs only. Operability §2 has the same note (BD-A2-105).
 
 | Setting | Service | Value on the compose stack | What it does | Evidence |
 | --- | --- | --- | --- | --- |
@@ -208,7 +257,7 @@ Settings that the compose file does not pass. They take effect only in a process
 | `STACK_PROFILE=production` in a CLI process | the app CLI policy ([§10.2](#102-operator-name-and-evidence-flags)) | `[SIM E5-12-01]` |
 | `APP_JOB_RUNNER` | the app web process ([§12.2](#122-cogniate-app-runner-and-worker-mode)) | `[UNIT E4-05-01]` |
 
-Other settings of the design (`LTI_RATE_LIMITS`, `SIGNING_KEY_PUBLISH_LEAD_S`, `SIGNING_KEY_ROTATE_DAYS`, `CLOSED_ACCOUNT_RETENTION_DAYS`, `LTI_MASTER_KEY_FILE`, `APP_MASTER_KEY_FILE`) keep their defaults on the compose stack. For rate limits, use the operator API ([§5.4](#54-rate-limits)).
+Other settings of the design (`LTI_RATE_LIMITS`, `SIGNING_KEY_PUBLISH_LEAD_S`, `SIGNING_KEY_ROTATE_DAYS`, `CLOSED_ACCOUNT_RETENTION_DAYS`, `LTI_MASTER_KEY_FILE`, `APP_MASTER_KEY_FILE`) keep their defaults on the compose stack. In the app, `AUDIT_RETENTION_DAYS` and `JOB_INSTANCE_ID` also keep their defaults; only the LTI service gets them. For rate limits, use the operator API ([§5.4](#54-rate-limits)).
 
 ### 3.2 Secret files and folders
 
@@ -221,7 +270,7 @@ Secret files are never in git. Give each file mode `0600` (or `0400`).
 | `infra/.secrets/lti/keyring.json` | the LTI service | the LTI key ring, when you use one | `[SIM E5-09-02]` |
 | `infra/.secrets/app-keys/keyring.json` | the Cogniate app | the app key ring, when you use one | `[U1 E5-22-01]` |
 | `infra/.secrets/lti-api-key.cogniate` | you (the host) | the API key of the tool account `cogniate` | M1 |
-| `infra/.secrets/app/lti-api-key` | the Cogniate app (`LTI_API_KEY_FILE`) | a copy of the file above. `npm run lti:bootstrap` keeps it equal at each run. | M1 |
+| `infra/.secrets/app/lti-api-key` | the Cogniate app (`LTI_API_KEY_FILE`) | a copy of the file above. `npm run lti:bootstrap` keeps it equal at each run. Do not write the copy by hand (BD-A2-105). The app reads only this copy. | M1 |
 
 Rules:
 
@@ -231,7 +280,7 @@ Rules:
 
 ### 3.3 What `stack:reset` deletes
 
-`npm run stack:reset` deletes the databases, `seed.json`, the API key files, `infra/.secrets/lti-operator-key` and its copy `infra/.secrets/lti/lti-operator-key` (BD-A2-02, BD-A2-03). It keeps `.env`, `infra/.certs/` and the key-ring folder `infra/.secrets/lti/`. To remove a test key ring, delete `infra/.secrets/lti/keyring.json` by hand.
+`npm run stack:reset` deletes the databases, `seed.json`, the API key files and the app copy folder `infra/.secrets/app/`, `infra/.secrets/lti-operator-key` and its copy `infra/.secrets/lti/lti-operator-key` (BD-A2-02, BD-A2-03, BD-A2-105). It keeps `.env`, `infra/.certs/` and the key-ring folder `infra/.secrets/lti/`. To remove a test key ring, delete `infra/.secrets/lti/keyring.json` by hand.
 
 The M1 guide forbids `stack:reset` as a recovery step ([upgrade and rollback](../operator.md#42-rollback)).
 
@@ -269,36 +318,48 @@ An operator key opens the LTI operator API. Its form is `ltio_` and 43 more char
 | `… init --if-none` | if an active key exists: exit 0, the line `operator key exists`, no change | `[SIM E5-01-06]` |
 | `… init --replace --name <operator>` | revokes every operator key and prints one new key | `[SIM E5-01-07]` |
 
-The new key shows only once, as the only line of the output [SIM E5-01-09]. `init` writes one audit event with actor `system:bootstrap` [SIM E5-02-04]. If you run `init` by hand, write the printed key to `infra/.secrets/lti-operator-key` (mode `0600`). Then refresh the copy in the container ([§4.2](#42-give-a-key-to-a-second-operator-or-replace-your-key), step 3).
+The new key shows only once, as the only line of the output [SIM E5-01-09]. `init` writes one audit event with actor `system:bootstrap` [SIM E5-02-04]. If you run `init` by hand, write the printed key to `infra/.secrets/lti-operator-key` (mode `0600`). Then refresh the copy in the container ([§4.3](#43-replace-your-own-key), step 4).
 
-### 4.2 Give a key to a second operator, or replace your key
+### 4.2 Give a key to another operator
 
-1. Issue the new key: `op POST /operator/v1/operator-keys '{"operator":"<name>"}'` [SIM E5-01-09].
+1. Issue the key: `op POST /operator/v1/operator-keys '{"operator":"<their name>"}'` [SIM E5-01-09].
 2. Copy `operatorKey` from the answer. It shows only once [SIM E5-01-09].
-3. For your own key: write it to `infra/.secrets/lti-operator-key` (mode `0600`). Then run `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name Cogniate` to refresh the copy in the container [SIM E5-05-03].
-4. List the keys: `op GET /operator/v1/operator-keys`. The list never shows a key [SIM E5-01-09].
-5. Revoke the old key: `op POST /operator/v1/operator-keys/<old key id>/revoke` [SIM E5-01-10].
+3. Give the key to the other operator through a private channel.
+4. The other operator writes it to the operator key file of their setup, `infra/.secrets/lti-operator-key` (mode `0600`), and runs `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name Cogniate` to refresh the copy in the container.
+5. The other operator checks the key: `op GET /operator/v1/operator-keys` answers `200` [SIM E5-01-01].
+6. Stop here. Your own key stays active. Do not revoke a key in this procedure.
 
-You cannot revoke the key that sends the request: the answer is `409 OPERATOR_KEY_IN_USE` [SIM E5-01-10]. Use the new key for the revoke.
+NOTE: Who may hold an operator key, and how several operators share one stack host, is the human decision LA-H21.
 
-### 4.3 Key life
+### 4.3 Replace your own key
+
+1. Issue a new key for yourself: `op POST /operator/v1/operator-keys '{"operator":"<your name>"}'` [SIM E5-01-09].
+2. Copy `operatorKey` from the answer. It shows only once [SIM E5-01-09].
+3. Write it to `infra/.secrets/lti-operator-key` (mode `0600`).
+4. Run `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name Cogniate`. It issues no new key [SIM E5-05-03], and it copies your key file into the container. The copy step: pending verification on a stack.
+5. Check the new key: `op GET /operator/v1/operator-keys` answers `200` and lists your old and your new key. The list never shows a key value [SIM E5-01-09].
+6. Revoke the old key: `op POST /operator/v1/operator-keys/<old key id>/revoke`. `op` sends the new key now, so this works [SIM E5-01-10].
+
+A key cannot revoke itself: the answer is `409 OPERATOR_KEY_IN_USE` [SIM E5-01-10]. If you get it in step 6, the container copy still holds the old key: do step 4 again.
+
+### 4.4 Key life
 
 - A new key expires after 90 days by default [SIM E5-01-08].
 - `expiresAt` must be from 1 hour to 1 year from now, else `400 INVALID_REQUEST` [SIM E5-01-08].
 - An expired key gives the same `401` as an unknown key [UNIT E5-01-11].
 
-### 4.4 The operator key file is lost
+### 4.5 The operator key file is lost
 
-Use this only when no operator has a working key. Else ask another operator to issue you a key ([§4.2](#42-give-a-key-to-a-second-operator-or-replace-your-key)).
+Use this only when no operator has a working key. Else ask another operator to issue you a key ([§4.2](#42-give-a-key-to-another-operator)).
 
 1. Run `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name Cogniate --replace-operator-key`.
 2. The command runs `init --replace`. It revokes every operator key, also the keys of other operators and scripts [SIM E5-01-07].
 3. It writes the new key to `infra/.secrets/lti-operator-key` and the copy for the container.
-4. Give new keys to the other operators ([§4.2](#42-give-a-key-to-a-second-operator-or-replace-your-key)).
+4. Give new keys to the other operators ([§4.2](#42-give-a-key-to-another-operator)).
 
-Evidence for steps 1 and 3: the wrapper's recovery text and file writes [UNIT E5-05-07]. Pending verification on a stack.
+Without the key file, `lti:bootstrap` stops: exit 1, one line that names the key file, and no database change. The line names `--replace-operator-key` as the last choice and says that it revokes every operator key [SIM E5-05-07] (round 4 row, with B-LA-E5-05-04).
 
-Without the key file, `lti:bootstrap` stops: exit 1, one line that names the key file, and no database change [SIM E5-05-07].
+Steps 1 to 3 as one wrapper run (`--replace-operator-key`): pending verification on a stack. The direct command `init --replace` is verified [SIM E5-01-07].
 
 ## 5. Tool accounts and rate limits
 
@@ -339,7 +400,7 @@ For `cogniate` after a change of `PUBLIC_APP_URL`: `npm run seed` keeps the stor
 | --- | --- | --- | --- |
 | Suspend | `op PATCH /operator/v1/accounts/<id> '{"status":"suspended"}'` | logins, launches and API calls of the account give `403 TOOL_ACCOUNT_SUSPENDED`; its key set stays; other accounts work | `[SIM E5-04-05]`, `[SIM E5-06-01]`, `[SIM E5-06-03]` |
 | Undo a suspend | `op PATCH /operator/v1/accounts/<id> '{"status":"active"}'` | calls work again | `[SIM E5-04-05]` |
-| Close | see the procedure below | every API key stops at once | `[SIM E5-04-08]`, `[SIM E5-07-11]` |
+| Close | see the procedure below | every API key stops at once | `[SIM E5-04-08]`, `[UNIT E5-07-11]` |
 
 Each status change writes one `account.status` audit event [SIM E5-04-06].
 
@@ -348,7 +409,7 @@ Procedure to close an account. A close is final.
 1. Read the account: `op GET /operator/v1/accounts/<id>`.
 2. Check the id and the name with the person who asked for the close.
 3. Run `op PATCH /operator/v1/accounts/<id> '{"status":"closed"}'`. Type the id from step 1. Do not copy a command of another account.
-4. Check the API keys: `op GET /operator/v1/accounts/<id>/api-keys`. Each key has `revokedAt` [SIM E5-07-11].
+4. Check the API keys: `op GET /operator/v1/accounts/<id>/api-keys`. Each key has `revokedAt` [UNIT E5-07-11].
 
 After the close, a later change of the account gives `409 ACCOUNT_CLOSED` [SIM E5-04-08]. The `account-purge` job deletes the account data 30 days after the close [UNIT E5-20-06].
 
@@ -393,8 +454,8 @@ An API key lets a tool back end call `/api/*`. The Cogniate app reads its key fr
 3. Put the key into the tool back end. For `cogniate`:
    1. Write the key to `infra/.secrets/lti-api-key.cogniate` (mode `0600`).
    2. Run `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name Cogniate`. It copies the key file to `infra/.secrets/app/lti-api-key`. The app reads that copy (`LTI_API_KEY_FILE`), not the first file (`infra/scripts/lti-bootstrap.sh`).
-   3. The app reads the copy at each use, so it needs no restart. Pending verification.
-4. List the keys: `op GET /operator/v1/accounts/<id>/api-keys`. Check that `lastUsedAt` of the new key moves. It changes at most once per minute [SIM E5-07-07], [UNIT E5-07-10].
+   3. Do not write the copy by hand. The app reads the copy at each use, so it needs no restart (BD-A2-105). Pending verification on a stack.
+4. List the keys: `op GET /operator/v1/accounts/<id>/api-keys`. Check that `lastUsedAt` of the new key moves [SIM E5-07-07]. It changes at most once per minute [UNIT E5-07-10].
 5. Revoke the old key: `op POST /operator/v1/accounts/<id>/api-keys/<old key id>/revoke` [SIM E5-07-02].
 
 Rules:
@@ -402,7 +463,8 @@ Rules:
 - An account can have two active keys. A third issue gives `409 API_KEY_LIMIT` [SIM E5-07-03].
 - Scopes: `launch` for the launch and service routes; `admin` for the Bearer routes. A missing scope gives `403 API_KEY_SCOPE_MISSING` [SIM E5-07-04].
 - `expiresAt` must be from 1 hour to 2 years from now, else `400 INVALID_REQUEST` [SIM E5-07-05].
-- A revoked or expired key gives the same `401` as an unknown key [SIM E5-07-12].
+- A revoked key gives the same `401` as an unknown key on the Bearer routes [SIM E5-07-02]. The same rule on the LTIK and SERVICE schemes: pending verification (the QA report has no row for AC-LA-E5-07-12 yet).
+- An expired key also gives that `401` [UNIT E5-07-06] (author unit test with a controlled clock).
 - Each issue and revoke writes one audit event with your operator name and no key value [SIM E5-07-08].
 
 ### 6.2 Emergency: a key leaked
@@ -502,22 +564,36 @@ In this procedure `k1` is the version in use now. A stack with no ring file uses
 3. Restart the LTI service: `npm run stack:restart -- lti-service` [SIM E5-09-02].
 4. Check `probe lti-service 4110 /readyz`. Expect `200`.
 5. Check the status: `op GET /operator/v1/key-provider`. `activeVersion` is `k2` [SIM E5-09-02].
-6. Start the re-wrap: `op POST /operator/v1/key-provider/rewrap`. Write down `traceId` [SIM E5-09-03].
+6. Start the re-wrap: `op POST /operator/v1/key-provider/rewrap` [SIM E5-09-03].
 
    | Answer | Meaning | Do this | Evidence |
    | --- | --- | --- | --- |
-   | `202 {job: "key-rewrap", traceId}` | a run started | go to step 7 | `[SIM E5-09-03]` |
-   | `503 NOT_READY` | the job runner is not active yet, for example just after a restart | wait the seconds of `Retry-After` (30), then do step 6 again | `[UNIT E5-09]` (BD-A2-50 row) |
-   | `409 JOB_RUNNING` | a run is in progress | wait one minute, then do step 7 | `[UNIT E5-09]` (BD-A2-50 row) |
+   | `202 {"job":"key-rewrap","traceId":"…"}` | your run started. The `traceId` is the trace of your run. | Write down the `traceId` and the time. Go to step 7. | `[SIM E5-09-03]` |
+   | `503 NOT_READY reasons=job_runner_not_active retryAfter=30` | the job runner is not active yet, for example just after a restart | Wait 30 s. Do step 6 again. | `[UNIT E5-09]` (BD-A2-50 row) |
+   | `409 JOB_RUNNING` | another re-wrap run holds the job. Your request started nothing, and its trace id does not find the other run. | Wait one minute. Do step 6 again. Repeat until the answer is `202`. | `[UNIT E5-09]` (BD-A2-50 row) |
 
-7. Read the outcome: `op GET '/operator/v1/audit?action=key_provider.rewrap&traceId=<traceId>'`. Read the event with actor `system:key-rewrap`, field `details.outcome` [SIM E5-09-05].
+   To see a run that you did not start: `op GET '/operator/v1/audit?action=key_provider.rewrap'` lists the re-wrap events. The end of a run is an event with actor `system:key-rewrap` [SIM E5-09-05].
+
+7. One minute after the `202`, read the events of your run: `op GET '/operator/v1/audit?action=key_provider.rewrap&traceId=<traceId>'`. It lists the event of your request and, when your run has ended, one event with actor `system:key-rewrap` [SIM E5-09-05].
+
+   If there is no `system:key-rewrap` event, read the LTI log lines of your trace id: `grep '"trace_id":"<traceId>"' infra/.logs/lti-service.jsonl`.
+
+   | Log line of your trace id | Meaning | Do this | Evidence |
+   | --- | --- | --- | --- |
+   | `job_run` with `"result":"skipped_lease"` | another run took the job first; your run did nothing | Do step 6 again. | `[UNIT E4-01-07]` |
+   | `key_rewrap_failed` | the run did not start | Do step 6 again. | pending verification (name from `http/operator/key-provider.ts`) |
+   | no line | the run has not ended yet | Wait one more minute and read again. If there is still no line, do step 6 again. Two requests at the same time can skip one run (operability §6.3). | design |
+
+   When the `system:key-rewrap` event is there, read its field `details.outcome`:
 
    | `details.outcome` | Do this | Evidence |
    | --- | --- | --- |
-   | `complete` | check `op GET /operator/v1/key-provider`: `sealedCount` is 0 for every version except `k2`. Go to step 8. | `[SIM E5-09-03]` |
-   | `partial` | the run stopped safely. Do step 6 again until `complete`. | `[UNIT E5-09-06]` |
-   | `failed` with `unreadable` above 0 | a row uses a version that the ring does not have. Put that version back from escrow, restart, and do step 6 again. | `[UNIT E5-09-08]` |
-   | `failed` with `errorClass` | read the LTI log lines with that trace id. Do step 6 once more. If it fails again, start an incident. | `[UNIT E5-09-06]` |
+   | `complete` | Check `op GET /operator/v1/key-provider`: `sealedCount` is 0 for every version except `k2`. Go to step 8. | `[SIM E5-09-03]` |
+   | `partial` | The run stopped safely. Do step 6 again until `complete`. | `[UNIT E5-09-06]` |
+   | `failed` with `unreadable` above 0 | A row uses a version that the ring does not have. Put that version back from escrow, restart, and do step 6 again. | `[UNIT E5-09-08]` |
+   | `failed` with `errorClass` | Read the LTI log lines of that trace id. Do step 6 once more. If it fails again, start an incident. | `[UNIT E5-09-06]` |
+
+   The re-wrap is finished only when two things are true: the `system:key-rewrap` event of your trace id has `outcome: complete`, and `sealedCount` is 0 for every version except the active one [SIM E5-09-03].
 
 8. Make a backup ([§13](#13-backup-and-restore)). Record the key versions in the backup record.
 9. Remove an old version only when its `sealedCount` and `derivedCount` are 0, after a `complete` run. Then restart and check `/readyz` = `200`.
@@ -738,44 +814,49 @@ Each service has one job runner. The LTI runner runs maintenance jobs. The app r
 
 ### 12.1 LTI service jobs
 
-| Job | Interval | What it does |
-| --- | --- | --- |
-| `retention` | 10 minutes | deletes expired protocol rows, also storage-check rows older than 10 minutes |
-| `audit-retention` | 24 hours | deletes audit events older than `AUDIT_RETENTION_DAYS` |
-| `signing-key-cleanup` | 24 hours | removes retired signing keys after 30 days |
-| `key-rewrap` | on demand only | the re-wrap of [§8.1](#81-lti-service-key-ring-and-re-wrap) |
-| `api-key-expiry` | 1 hour | reports API keys that expire soon |
-| `idempotency-cleanup` | 1 hour | deletes `Idempotency-Key` records older than 24 hours |
-| `signing-key-rotation` | 24 hours | rotates the keys of `autoRotate` accounts |
-| `account-purge` | 24 hours | deletes the data of accounts closed 30 days ago |
+| Job | Interval | What it does | Evidence |
+| --- | --- | --- | --- |
+| `retention` | 10 minutes | deletes expired protocol rows, also storage-check rows older than 10 minutes | `[SIM E5-19-01]` (runs at start), `[UNIT E5-19-02]`, `[UNIT E3-02-04]` |
+| `audit-retention` | 24 hours | deletes audit events older than `AUDIT_RETENTION_DAYS` | `[UNIT E5-19-03]` |
+| `signing-key-cleanup` | 24 hours | removes retired signing keys after 30 days | `[UNIT E5-10-11]` |
+| `key-rewrap` | on demand only | the re-wrap of [§8.1](#81-lti-service-key-ring-and-re-wrap) | `[SIM E5-09-03]` |
+| `api-key-expiry` | 1 hour | reports API keys that expire soon | `[UNIT E5-20-04]` |
+| `idempotency-cleanup` | 1 hour | deletes `Idempotency-Key` records older than 24 hours | `[UNIT E5-20-06]` |
+| `signing-key-rotation` | 24 hours | rotates the keys of `autoRotate` accounts | `[UNIT E5-20-05]` |
+| `account-purge` | 24 hours | deletes the data of accounts closed 30 days ago | `[UNIT E5-20-06]` |
 
-`GET /operator/v1/jobs` lists these eight jobs with these intervals [SIM E5-20-01]. Each interval job runs once at the start [SIM E5-20-01]. What each job does: [UNIT E5-19-02] to [UNIT E5-19-07], [UNIT E5-20-04] to [UNIT E5-20-06], [UNIT E5-10-11].
+`GET /operator/v1/jobs` lists these eight jobs with these intervals [SIM E5-20-01]. Each interval job runs once at the start [SIM E5-20-01].
 
 Procedure: read the job state and run one job now.
 
 1. List the jobs: `op GET /operator/v1/jobs`. Each row has `name`, `everyMs` (`null` = on demand only), `lastRunAt` and `lastResult` [SIM E5-20-01].
-2. Run one job: `op POST /operator/v1/jobs/<name>/run`. Write down `traceId` [SIM E5-20-02].
+2. Run one job: `op POST /operator/v1/jobs/<name>/run` [SIM E5-20-02].
 
-   | Answer | Do this | Evidence |
-   | --- | --- | --- |
-   | `202 {job, traceId}` | go to step 3 | `[SIM E5-20-02]` |
-   | `409 JOB_RUNNING` | a run holds the job; wait one minute, then do step 3 | `[UNIT E5-20-03]` |
-   | `404 NOT_FOUND` | the name is wrong; use a name from step 1 | `[UNIT E5-20]` (BD-A2-65 row) |
-   | `503 NOT_READY` | the runner is not active yet; wait 30 s, then do step 2 again | `[UNIT E5-09]` (BD-A2-50 row) |
+   | Answer | Meaning | Do this | Evidence |
+   | --- | --- | --- | --- |
+   | `202 {"job":"<name>","traceId":"…"}` | your run started. The `traceId` is the trace of your run. | Write down the `traceId`. Go to step 3. | `[SIM E5-20-02]` |
+   | `409 JOB_RUNNING` | another run of the job holds it: a timed run or another request. Your request started nothing, and its trace id does not find the other run. | Wait one minute. Do step 2 again. Repeat until the answer is `202`. | `[UNIT E5-20-03]` |
+   | `404 NOT_FOUND` | the job name is wrong | Use a name from step 1. | `[UNIT E5-20]` (BD-A2-65 row) |
+   | `503 NOT_READY reasons=job_runner_not_active retryAfter=30` | the job runner is not active yet, for example just after a restart | Wait 30 s. Do step 2 again. | pending verification for this route (the re-wrap route: `[UNIT E5-09]`) |
 
-3. Read the result in the LTI log: the line `job_run {job, result, counts}` with that trace id [SIM E5-20-02].
+   To see a run that you did not start: `grep '"event":"job_run"' infra/.logs/lti-service.jsonl | grep '"job":"<name>"' | tail -n 3`. It shows the newest runs of the job, each with its time (`ts`) and `result`.
 
-   | `result` | Meaning |
-   | --- | --- |
-   | `ok` | done; `counts` gives the work |
-   | `skipped_lease` | another run held the job; read step 1 again after one minute |
-   | `failed` | read the log lines of that trace id; run once more; if it fails again, start an incident |
+3. One minute after the `202`, read the LTI log lines of your trace id: `grep '"trace_id":"<traceId>"' infra/.logs/lti-service.jsonl` [SIM E5-20-02].
 
-4. For `key-rewrap`, use [§8.1](#81-lti-service-key-ring-and-re-wrap) steps 6 and 7.
+   | Log line of your trace id | Meaning | Do this | Evidence |
+   | --- | --- | --- | --- |
+   | `job_run` with `"result":"ok"` | done; `counts` gives the work of the run | Go to step 4. | `[SIM E5-20-02]` |
+   | `job_run` with `"result":"skipped_lease"` | another run took the job first; your run did nothing | Do step 2 again. | `[UNIT E4-01-07]` |
+   | `job_run` with `"result":"failed"` | the run failed | Read all lines of the trace id. Do step 2 once more. If it fails again, start an incident. | `[UNIT E4-01-08]` |
+   | `job_run_request_failed` | the run did not start | Do step 2 again. | pending verification |
+   | no line | the run has not ended yet | Wait one more minute and read again. If there is still no line, do step 2 again. | design |
 
-Each run request writes one `job.run` audit event [SIM E5-20-02].
+4. The run is finished when your trace id has a `job_run` line with `"result":"ok"` [SIM E5-20-02]. `op GET /operator/v1/jobs` then shows `lastResult: "ok"` for the job.
+5. For `key-rewrap`, use [§8.1](#81-lti-service-key-ring-and-re-wrap) steps 6 and 7 instead.
 
-Read the LTI log with `npm run stack:logs -- lti-service`.
+Each run request writes one `job.run` audit event [SIM E5-20-02]. A refused request also writes one, with `result: refused` [UNIT E5-20-03].
+
+The service writes each log line to its output and to `infra/.logs/lti-service.jsonl` (the app: `infra/.logs/cogniate-app.jsonl`). `npm run stack:logs -- lti-service` follows the output.
 
 ### 12.2 Cogniate app runner and worker mode
 
@@ -894,7 +975,7 @@ Severity: **page** = act now. **ticket** = act within one working day.
 | `SigningKeyOld` | active key older than 90 days (`SIGNING_KEY_ROTATE_DAYS`) | ticket | rotation is due | Start [§7.1](#71-planned-rotation-every-90-days). |
 | `NextKeyWaiting` | a next key older than 7 days | ticket | a rotation did not finish | Finish [§7.1](#71-planned-rotation-every-90-days), or remove the next key ([§7.3](#73-the-next-key-is-compromised)). |
 | `ApiKeyExpiring` | an API key expires within 14 days | ticket | a tool back end will lose access | Rotate it ([§6.1](#61-rotate-the-key-of-an-account-no-downtime)). |
-| `OperatorKeyExpiring` | an operator key expires within 14 days | ticket | an operator will lose access | Issue a new key ([§4.2](#42-give-a-key-to-a-second-operator-or-replace-your-key)). |
+| `OperatorKeyExpiring` | an operator key expires within 14 days | ticket | an operator will lose access | Replace the key ([§4.3](#43-replace-your-own-key)). |
 | `KeyRingNotRewrapped` | `lti_key_provider_sealed_rows` above 0 for a version that is not active, 7 days after a ring change | ticket | the re-wrap did not finish | Run the re-wrap ([§8.1](#81-lti-service-key-ring-and-re-wrap)). |
 | `JobStale` | last success older than 3 × the job interval (interval jobs only, not `record-dispatch`) | ticket | a job does not run | Read the `job_run` lines of that job. Then do [§12.1](#121-lti-service-jobs). |
 | `BackupMissing` | no verified backup within the recovery point objective (RPO) | page | data loss risk | Do [§13.2](#132-backup-procedure). |
@@ -903,29 +984,29 @@ Severity: **page** = act now. **ticket** = act within one working day.
 
 ### 15.2 LTI service metrics
 
-Read them with `probe lti-service 4110 /metrics`.
+Read them with `probe lti-service 4110 /metrics`. QA checked four names on a stack [SIM E5-17-01] and some more in unit tests. A row marked "pending verification" names a metric of the design that no QA row names yet.
 
 | Metric | Meaning | First action | Evidence |
 | --- | --- | --- | --- |
 | `lti_http_requests_total` | requests by route class, status class and account | A high 5xx share: do the `Lti5xxRatio` action. | `[SIM E5-17-01]` |
-| `lti_http_request_duration_seconds` | request time by route class | No alert in the design. Read it when users report slow pages. | `[UNIT E5-17-01]` |
+| `lti_http_request_duration_seconds` | request time by route class | No alert in the design. Read it when users report slow pages. | pending verification |
 | `lti_launch_total` | launches by result and failed check | Many failures: do the `LaunchFailureRatio` action. | `[SIM E5-17-01]` |
-| `lti_launch_binding_total` | launches by state binding: `cookie` or `storage` | No `storage` launches on Canvas while users report blocked cookies: see [§17.3](#173-platform-storage-launches-stop-after-the-storage-check). | `[UNIT E5-17-01]` |
+| `lti_launch_binding_total` | launches by state binding: `cookie` or `storage` | No `storage` launches on Canvas while users report blocked cookies: see [§17.3](#173-platform-storage-launches-stop-after-the-storage-check). | pending verification |
 | `lti_rate_limited_total` | limited requests by class, key kind and mode (`hard`, `soft`) | Do the `RateLimitedSpike` or `ProtocolAccountHigh` action. | `[SIM E5-17-01]` |
-| `lti_api_auth_failed_total` | key failures by scheme and code | Do the `LtikFailureSpike` action. | `[UNIT E5-17-01]` |
-| `lti_outbound_total` | calls to platforms by result (`response`, `blocked`) and reason | Many `blocked`: read the `outbound_blocked` lines for the host. | `[UNIT E5-17-01]` |
-| `lti_outbound_duration_seconds` | time of calls to platforms | No alert in the design. A slow LMS makes launches and grades slow. | `[UNIT E5-17-01]` |
+| `lti_api_auth_failed_total` | key failures by scheme and code | Do the `LtikFailureSpike` action. | pending verification |
+| `lti_outbound_total` | calls to platforms by result (`response`, `blocked`) and reason | Many `blocked`: read the `outbound_blocked` lines for the host. | pending verification |
+| `lti_outbound_duration_seconds` | time of calls to platforms | No alert in the design. A slow LMS makes launches and grades slow. | pending verification |
 | `lti_platform_token_failures_total` | token failures per platform | Do the `PlatformTokenFailing` action. | `[UNIT E5-17]` (BD-A2-52 row) |
-| `lti_platform_rate_limited_total` | LMS throttling per platform | Do the `PlatformThrottled` action. | `[UNIT E5-17-01]` |
+| `lti_platform_rate_limited_total` | LMS throttling per platform | Do the `PlatformThrottled` action. | pending verification |
 | `lti_jwks_fetch_failures_total` | key set fetch failures per platform | Run the connection check ([§16.1](#161-connection-check)). | `[UNIT E5-17]` (BD-A2-54 row) |
 | `lti_jwks_cache_age_seconds` | age of the cached platform key set | Do the `JwksAgeHigh` action. | `[UNIT E5-17]` (BD-A2-54 row) |
-| `lti_signing_key_age_seconds` | age of each signing key, by status | Do the `SigningKeyOld` or `NextKeyWaiting` action. | `[UNIT E5-17-01]` |
-| `lti_api_key_expires_in_seconds` | time to the next API key expiry, per account | Do the `ApiKeyExpiring` action. | `[UNIT E5-17-01]` |
-| `lti_operator_key_expires_in_seconds` | time to the next operator key expiry | Do the `OperatorKeyExpiring` action. | `[UNIT E5-17-01]` |
-| `lti_key_provider_sealed_rows` | sealed rows per key version | Do the `KeyRingNotRewrapped` action. | `[UNIT E5-17-01]` |
+| `lti_signing_key_age_seconds` | age of each signing key, by status | Do the `SigningKeyOld` or `NextKeyWaiting` action. | `[UNIT E5-17]` (round 2 row: key gauges) |
+| `lti_api_key_expires_in_seconds` | time to the next API key expiry, per account | Do the `ApiKeyExpiring` action. | `[UNIT E5-17]` (round 2 row: key gauges) |
+| `lti_operator_key_expires_in_seconds` | time to the next operator key expiry | Do the `OperatorKeyExpiring` action. | `[UNIT E5-17]` (round 2 row: key gauges) |
+| `lti_key_provider_sealed_rows` | sealed rows per key version | Do the `KeyRingNotRewrapped` action. | `[UNIT E5-17]` (round 2 row: key gauges) |
 | `lti_audit_events_total` | committed audit events by action and result | Many `refused` events: read the audit log ([§9.1](#91-lti-service-audit)). | `[UNIT E5-17]` (BD-A2-60 row) |
-| `lti_job_runs_total` | job runs by job and result | Many `failed`: do [§12.1](#121-lti-service-jobs). | `[UNIT E5-17-01]` |
-| `lti_job_last_success_timestamp_seconds` | time of the last good run per job | Do the `JobStale` action. | `[UNIT E5-17-01]` |
+| `lti_job_runs_total` | job runs by job and result | Many `failed`: do [§12.1](#121-lti-service-jobs). | pending verification |
+| `lti_job_last_success_timestamp_seconds` | time of the last good run per job | Do the `JobStale` action. | pending verification |
 | `lti_ready` | 1 = ready, 0 = not ready | Do the `LtiNotReady` action. | `[SIM E5-17-01]` |
 
 ### 15.3 Cogniate app metrics
@@ -969,7 +1050,8 @@ Read the logs with `npm run stack:logs -- lti-service` or `npm run stack:logs --
 | `platform_created`, `deployment_updated`, `platform_deleted` | LTI | a platform change through the tenant API | Check the matching audit event. | pending verification (the audit events: `[SIM E5-02-01]`, `[SIM E5-02-03]`) |
 | `job_run {job, ms, result, counts}` | both | one job run | [§12.1](#121-lti-service-jobs) | `[SIM E5-19-01]`, `[SIM E5-20-02]` |
 | `retention_cleanup` | LTI | rows that the `retention` job deleted, one line per table | none | `[UNIT E5-19-02]` |
-| `job_run_request_failed {job}` | LTI | a run request got `202`, but the run did not start | Run the job again. | pending verification |
+| `job_run_request_failed {job}` | LTI | a run request got `202`, but the run did not start | Run the job again ([§12.1](#121-lti-service-jobs)). | pending verification |
+| `key_rewrap_failed` | LTI | a re-wrap request got `202`, but the run did not start | Start the re-wrap again ([§8.1](#81-lti-service-key-ring-and-re-wrap)). | pending verification (name from the code) |
 | `trusted_proxy_unresolved {host}` | LTI | a host name of `TRUSTED_PROXY_CIDRS` does not resolve | Check the proxy container. | pending verification |
 | `operator_refused` | app | an app CLI policy refusal | [§10.2](#102-operator-name-and-evidence-flags) | `[SIM E5-12-01]` |
 | `launch_rejected {reason}`, `score_sync`, `grant_*`, `binding_*` | app | the M1 events of the launch, the grades, the grants and the bindings | as in M1 | M1 |
@@ -986,13 +1068,13 @@ For a `registered` or `connected` Canvas or LTI 1.3 connection, the portal conne
 | Result | Meaning | Evidence |
 | --- | --- | --- |
 | `ok` | the key set and the token work | `[SIM E6-01-01]` |
-| `failed`, token detail `invalid_client` | the LMS refused the client id | `[SIM E6-01-03]` |
-| `failed`, key set not reachable | Cogniate cannot read the LMS key set | `[SIM E6-01-02]` |
-| `409 CONNECTION_NOT_READY` | the connection is `pending` | `[SIM E6-01-04]` |
+| `failed`, token detail `invalid_client` | the LMS refused the client id | `[SIM E6-01-02]` |
+| `failed`, key set not reachable | Cogniate cannot read the LMS key set | `[UNIT E6-01-02]` |
+| `409 CONNECTION_NOT_READY` | the connection is `pending`, or its platform is staged | `[SIM E6-01-04]` |
 | `409 CAPABILITY_NOT_SUPPORTED` | the channel has no check (Moodle, Blackboard, D2L Brightspace) | `[SIM E6-01-05]` |
-| `429 RATE_LIMITED` | one check per connection per minute | `[SIM E6-01-08]` |
+| `429 RATE_LIMITED` | one check per connection per minute | `[SIM E6-01-03]` |
 
-A check does not change the connection status [SIM E6-01-03]. Each check writes one `platform.check` audit event [SIM E6-01-10].
+A check does not change the connection status [SIM E6-01-02]. Each check writes one `platform.check` audit event [SIM E6-01-10].
 
 Operator form, through the LTI tenant API (the platform must be active): `tenant POST /api/platforms/<platform id>/check '{}'` [SIM E6-01-06]. Get the platform id with `op GET /operator/v1/accounts/cogniate/platforms`. For a shared platform (Blackboard), the answer has `limits: "shared-application"`: the token proves the vendor application, not the school [SIM E6-01-06].
 
@@ -1056,11 +1138,11 @@ Since `02f5d420` (BD-A2-103), the page allows its form to go on to the tool URL 
 | --- | --- | --- | --- | --- |
 | The LTI service does not become ready after a key change | `probe lti-service 4110 /readyz` reasons | a key version is missing from the ring | Put the version back from escrow. Restart. | `[UNIT E5-17-04]` |
 | A service stops at start with `config_refused` | the reason | a `production` rule | [§3.4](#34-production-profile-refusals) | `[SIM E5-21-01]` |
-| `op` fails: the key file is missing | `/run/secrets/lti/lti-operator-key` | no copy in the container | Run `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name Cogniate`. If the host file is lost too, do [§4.4](#44-the-operator-key-file-is-lost). | `[SIM E5-05-03]` |
-| `op` gives `401 INVALID_OPERATOR_AUTHORIZATION_HEADER` | `op GET /operator/v1/operator-keys` from another operator | your key is revoked or expired | Ask another operator for a new key ([§4.2](#42-give-a-key-to-a-second-operator-or-replace-your-key)). | `[SIM E5-01-03]`, `[UNIT E5-01-11]` |
+| `op` fails: the key file is missing | `/run/secrets/lti/lti-operator-key` | no copy in the container | Run `npm run lti:bootstrap -w services/lti-service -- --account cogniate --name Cogniate`. If the host file is lost too, do [§4.5](#45-the-operator-key-file-is-lost). | `[SIM E5-05-03]` |
+| `op` gives `401 INVALID_OPERATOR_AUTHORIZATION_HEADER` | `op GET /operator/v1/operator-keys` from another operator | your key is revoked or expired | Ask another operator for a new key ([§4.2](#42-give-a-key-to-another-operator)). | `[SIM E5-01-03]`, `[UNIT E5-01-11]` |
 | One account gets `429` in normal use | `lti_rate_limited_total{class}` | a limit too low for a big class start | Raise the account `limits` ([§5.4](#54-rate-limits)). | `[SIM E5-03-01]` |
 | Logins and launches of one account give the `403` page `TOOL_ACCOUNT_SUSPENDED` | `op GET /operator/v1/accounts/<id>` | the account is suspended | Undo the suspend if it was a mistake ([§5.3](#53-suspend-or-close-an-account)). | `[SIM E5-06-01]`, `[SIM E5-06-10]` |
-| All launches of one platform fail at check 6 | `lti_jwks_cache_age_seconds`, `outbound_blocked` | the LMS key set is not reachable | Run the connection check. Contact the LMS admin. | `[SIM E6-01-02]` |
+| All launches of one platform fail at check 6 | `lti_jwks_cache_age_seconds`, `outbound_blocked` | the LMS key set is not reachable | Run the connection check. Contact the LMS admin. | `[UNIT E6-01-02]` |
 | A library reports a course list of another library | `platform.*` audit events, `app:audit list` | a wrong binding | Suspend and release ([operator guide §3](../operator.md#3-contain-and-correct-a-binding)). | M1 |
 | Grades do not arrive | `DispatchBacklog`, `PlatformThrottled`, `PlatformTokenFailing` | runner stopped, LMS throttling, or a changed registration | [§12.3](#123-grades-do-not-arrive) | see §12.3 |
 
