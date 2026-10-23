@@ -117,7 +117,7 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
     expect(standard?.dynamicRegistration).toEqual({
       issuerRule: 'path-prefix',
       configurationPath: '/mod/lti/openid-configuration.php',
-      registrationToken: 'moodle-scope-jwt',
+      registrationToken: 'scope-jwt',
     });
 
     // 2. Canvas cloud profiles + canvas-sim-cloud
@@ -138,6 +138,7 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
         form: 'string',
       });
       expect(def?.assertionDeploymentId, `${id}.assertionDeploymentId`).toBe(false);
+      expect(def?.dynamicRegistration ?? null, `${id}.dynamicRegistration`).toBeNull();
     }
 
     // 3. canvas-self-hosted
@@ -151,6 +152,7 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
       form: 'string',
     });
     expect(canvasSelfHosted?.assertionDeploymentId).toBe(false);
+    expect(canvasSelfHosted?.dynamicRegistration ?? null).toBeNull();
 
     // 4. Blackboard + blackboard-sim
     for (const id of ['blackboard', 'blackboard-sim']) {
@@ -164,6 +166,7 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
         form: 'array',
       });
       expect(def?.assertionDeploymentId, `${id}.assertionDeploymentId`).toBe(false);
+      expect(def?.dynamicRegistration ?? null, `${id}.dynamicRegistration`).toBeNull();
     }
   });
 
@@ -250,6 +253,7 @@ describe('LA-E2-01 K0: E2-K profile traits, I-SELF and admin-value platform rule
     const mig = findPlatformE2Migration();
     expect(Boolean(mig), 'E2 platform migration must exist before running unit suite').toBe(true);
 
+    fs.rmSync(path.join(TARGET_ROOT, 'node_modules/.vitest-cache'), { recursive: true, force: true });
     const unitRes = spawnSync(
       'npx',
       [

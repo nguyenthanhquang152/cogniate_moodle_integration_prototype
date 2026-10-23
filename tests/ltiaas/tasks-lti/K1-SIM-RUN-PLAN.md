@@ -2,7 +2,7 @@
 
 ## 1. Scope & Slot Allocation
 
-This runbook consolidates all pending **`K1-SIM`**, `MOODLE-LIVE`-free, and golden-free Docker acceptance tests owned by **QA-4** across lanes `L` and `L2` (`tests/ltiaas/tasks-lti/**`, 13 merged tasks on `main`) so that a single booked SIM Docker window can execute them in four deterministic batches without cross-suite interference.
+This runbook consolidates all pending **`K1-SIM`**, `MOODLE-LIVE`-free, and golden-free Docker acceptance tests owned by **QA-4** across lanes `L` and `L2` (`tests/ltiaas/tasks-lti/**`, 15 merged tasks on `main`) so that a single booked SIM Docker window can execute them in four deterministic batches without cross-suite interference.
 
 - **Owner:** QA-4 (`tests/ltiaas/tasks-lti/**`)
 - **Lanes:** `L` and `L2`
@@ -37,19 +37,20 @@ Suites are ordered by dependency and state isolation:
 | 6 | **Batch 1** (`qa4-la-sim-r1`) | `LA-E3-06` | `L` | `LA-E3-06/nrps-scopes.k1sim.test.ts` | `AC-LA-E3-06-01`, `02`, `03`, `05`, `06` (+ `04` on SIM: Dynamic Registration `complete.scopes` custom list, default 5-scope fallback, unsupported scope `400`, `registration.complete` audit event with `scopes`, `/api/memberships` regression) | Shares `qa4-la-sim-r1`; uses ephemeral local HTTPS mock OpenID config server + simulator | 5 | 2 |
 | 7 | **Batch 1** (`qa4-la-sim-r1`) | `LA-E3-11` | `L` | `LA-E3-11/ags-extras.k1sim.test.ts` | `AC-LA-E3-11-01`, `02`, `04` (+ `03`, `05` on SIM: AGS `submission.startedAt`/`submittedAt`, `scoringUserId`, HTTPS URL-keyed extension members on scores & line items, non-HTTPS drop, 9-key / >4 KB `400 INVALID_REQUEST`) | Shares `qa4-la-sim-r1`; isolated Canvas simulator AGS line items & scores | 4 | 2 |
 | 8 | **Batch 1** (`qa4-la-sim-r1`) | `LA-E3-12` | `L` | `LA-E3-12/small-spec-gaps.k1sim.test.ts` | `AC-LA-E3-12-01`, `02`, `03` (+ `04`, `05` on SIM: `scoreGiven: null` parity with absent `scoreGiven`, NRPS `service_versions: ["1.0"]` -> `403 SERVICE_NOT_AVAILABLE`, `trustedAudiences` on `POST`/`PATCH /api/platforms` & launch check 5) | Shares `qa4-la-sim-r1`; isolated Canvas simulator platforms | 4 | 2 |
-| 9 | **Batch 1** (`qa4-la-sim-r1`) | `LA-E5-18` | `L2` | `LA-E5-18/protocol-tenant-logs.k1sim.test.ts` | `AC-LA-E5-18-01`, `02`, `03` (+ `04`, `05` on SIM: `tool_account_id` and `platform_id` in `login_rejected`, `launch_check_failed`, `launch_claims_minimized`, `launch_accepted`; unknown account `404` omits `tool_account_id`) | Shares `qa4-la-sim-r1` + `docker compose logs lti-service` JSON verification + teardown (~1 min) | 4 | 2 + 1 (down) |
-| 10 | **Batch 2** (`qa4-la-sim-r2`) | `LA-E3-03` | `L2` | `LA-E3-03/launch-without-context.k1sim.test.ts` | `AC-LA-E3-03-01`, `02`, `03`, `04`, `05`, `06` (learner launch without `context` with/without AGS opens `/play/...`, `GET /api/idtoken` `services.serviceKey` & absent `launch.context`, score dispatch to `lineitem` vs `"No gradebook column"`, placement deduplication per deployment, `MISSING_CLAIM` without `sub`) | Fresh `acceptance` stack (`qa4-la-sim-r2`, boot ~4 min cached); exercises `cogniate-app` + `lti-service` end-to-end | 6 | 4 (boot) + 3 |
-| 11 | **Batch 2** (`qa4-la-sim-r2`) | `LA-E5-14` | `L` | `LA-E5-14/throttling.k1sim.test.ts` | `AC-LA-E5-14-01`, `02`, `03`, `04`, `05` (simulator `429` + `Retry-After: 120`, `403 Rate Limit Exceeded` -> `Retry-After: 60`, token `429` without `Retry-After`, memberships `429`, single outbound attempt + `platform_rate_limited` log event) | Shares `qa4-la-sim-r2`; clears `/__sim/faults` in `beforeEach`/`afterAll` + teardown (~1 min) | 5 | 2 + 1 (down) |
-| 12 | **Batch 3** (`qa4-la-sim-r3`) | `LA-E5-06` | `L` | `LA-E5-06/protocol-wiring.k1sim.test.ts` | `AC-LA-E5-06-01`, `02`, `03`, `04`, `05`, `06`, `07`, `10` (operator `PATCH /operator/v1/accounts/cogniate` `suspended`/`closed` status gates on login, launch, register & JWKS; `registrationSessionsPerAddress = 3` cap; Moodle-shaped Dynamic Registration `protocolUrls`) | Dedicated stack (`qa4-la-sim-r3`, boot ~4 min cached) because it mutates `cogniate` account status & session limits; restores in `finally` + teardown (~1 min) | 6 | 4 (boot) + 3 + 1 (down) |
-| 13 | **Batch 4** (`qa4-la-sim-r4`) | `LA-E1-05` | `L` | `LA-E1-05/profiles.k1sim.test.ts` | `AC-LA-E1-05-07`, `AC-LA-E1-05-08` (`lti-service` recreated with `PUBLIC_MOODLE_URL: null` via `.tmp/compose.knobs.yaml` serves Moodle-shaped launch on `standard` and `/healthz` allowlist; Canvas & Blackboard simulator launches enforce `privacyFloor: 'allowlist'` and Moodle-shaped launch keeps `'none'`) | Dedicated stack (`qa4-la-sim-r4`, boot ~4 min cached) because the test writes `.tmp/compose.knobs.yaml` and recreates `lti-service` without `PUBLIC_MOODLE_URL` + teardown (~1 min) | 7 | 4 (boot) + 3 + 1 (down) |
+| 9 | **Batch 1** (`qa4-la-sim-r1`) | `LA-E2-02` | `L` | `LA-E2-02/dynamic-registration.k1sim.test.ts` | `AC-LA-E2-02-02`, `03`, `04`, `05`, `06`, `07`, `09` (generic & staged DR per profile, `endpointsOnIssuerOrigin`, `PLATFORM_NOT_ACTIVE` on staged launch, `PLATFORM_URL_NOT_IN_PROFILE` on fixed-profile host, `PROVIDER_PROFILE_MISMATCH`/Deep Linking/scope checks, `LA-IC-03` `issuer + /mod/lti/openid-configuration.php`) | Shares `qa4-la-sim-r1`; isolated `qa-platform.test` & simulator DR sessions | 5 | 3 |
+| 10 | **Batch 1** (`qa4-la-sim-r1`) | `LA-E5-18` | `L2` | `LA-E5-18/protocol-tenant-logs.k1sim.test.ts` | `AC-LA-E5-18-01`, `02`, `03` (+ `04`, `05` on SIM: `tool_account_id` and `platform_id` in `login_rejected`, `launch_check_failed`, `launch_claims_minimized`, `launch_accepted`; unknown account `404` omits `tool_account_id`) | Shares `qa4-la-sim-r1` + `docker compose logs lti-service` JSON verification + teardown (~1 min) | 4 | 2 + 1 (down) |
+| 11 | **Batch 2** (`qa4-la-sim-r2`) | `LA-E3-03` | `L2` | `LA-E3-03/launch-without-context.k1sim.test.ts` | `AC-LA-E3-03-01`, `02`, `03`, `04`, `05`, `06` (learner launch without `context` with/without AGS opens `/play/...`, `GET /api/idtoken` `services.serviceKey` & absent `launch.context`, score dispatch to `lineitem` vs `"No gradebook column"`, placement deduplication per deployment, `MISSING_CLAIM` without `sub`) | Fresh `acceptance` stack (`qa4-la-sim-r2`, boot ~4 min cached); exercises `cogniate-app` + `lti-service` end-to-end | 6 | 4 (boot) + 3 |
+| 12 | **Batch 2** (`qa4-la-sim-r2`) | `LA-E5-14` | `L` | `LA-E5-14/throttling.k1sim.test.ts` | `AC-LA-E5-14-01`, `02`, `03`, `04`, `05` (simulator `429` + `Retry-After: 120`, `403 Rate Limit Exceeded` -> `Retry-After: 60`, token `429` without `Retry-After`, memberships `429`, single outbound attempt + `platform_rate_limited` log event) | Shares `qa4-la-sim-r2`; clears `/__sim/faults` in `beforeEach`/`afterAll` + teardown (~1 min) | 5 | 2 + 1 (down) |
+| 13 | **Batch 3** (`qa4-la-sim-r3`) | `LA-E5-06` | `L` | `LA-E5-06/protocol-wiring.k1sim.test.ts` | `AC-LA-E5-06-01`, `02`, `03`, `04`, `05`, `06`, `07`, `10` (operator `PATCH /operator/v1/accounts/cogniate` `suspended`/`closed` status gates on login, launch, register & JWKS; `registrationSessionsPerAddress = 3` cap; Moodle-shaped Dynamic Registration `protocolUrls`) | Dedicated stack (`qa4-la-sim-r3`, boot ~4 min cached) because it mutates `cogniate` account status & session limits; restores in `finally` + teardown (~1 min) | 6 | 4 (boot) + 3 + 1 (down) |
+| 14 | **Batch 4** (`qa4-la-sim-r4`) | `LA-E1-05` | `L` | `LA-E1-05/profiles.k1sim.test.ts` | `AC-LA-E1-05-07`, `AC-LA-E1-05-08` (`lti-service` recreated with `PUBLIC_MOODLE_URL: null` via `.tmp/compose.knobs.yaml` serves Moodle-shaped launch on `standard` and `/healthz` allowlist; Canvas & Blackboard simulator launches enforce `privacyFloor: 'allowlist'` and Moodle-shaped launch keeps `'none'`) | Dedicated stack (`qa4-la-sim-r4`, boot ~4 min cached) because the test writes `.tmp/compose.knobs.yaml` and recreates `lti-service` without `PUBLIC_MOODLE_URL` + teardown (~1 min) | 7 | 4 (boot) + 3 + 1 (down) |
 
 ### Summary of Estimated Minutes
 
-- **Batch 1 (`qa4-la-sim-r1`, 9 suites):** **26 minutes** batched (vs 42 minutes standalone)
+- **Batch 1 (`qa4-la-sim-r1`, 10 suites):** **29 minutes** batched (vs 47 minutes standalone)
 - **Batch 2 (`qa4-la-sim-r2`, 2 suites):** **10 minutes** batched (vs 11 minutes standalone)
 - **Batch 3 (`qa4-la-sim-r3`, 1 suite):** **8 minutes** batched (vs 6 minutes standalone)
 - **Batch 4 (`qa4-la-sim-r4`, 1 suite):** **8 minutes** batched (vs 7 minutes standalone)
-- **Total Estimated Time (all 4 batches, 13 suites):** **52 minutes batched** (66 minutes if every suite booted its own stack standalone)
+- **Total Estimated Time (all 4 batches, 14 K1-SIM suites):** **55 minutes batched** (71 minutes if every suite booted its own stack standalone)
 
 ---
 
@@ -66,7 +67,9 @@ Per task brief rules, **`MOODLE-LIVE` rows**, **golden-only (`G1`–`G4` capture
 | `LA-E1-10` | `AC-LA-E1-10-03`, `AC-LA-E1-10-05`, `AC-LA-E1-10-06` | `K2` (`MOODLE-LIVE` / Playwright UI) | Owned by QA-E2E (`tests/e2e/**`); require browser / live Moodle window. |
 | `LA-E3-01` | `AC-LA-E3-01-11` | `K2` (Playwright UI, QA-E2E) | Browser postMessage (`lti.put_data`) flow owned by QA-E2E (`tests/e2e/**`). |
 | `LA-E3-02` | `AC-LA-E3-02-08`, `AC-LA-E3-02-09` | `K2` (Playwright UI, QA-E2E) | Third-party-cookie-blocked Chromium browser storage-check flows owned by QA-E2E (`tests/e2e/**`). |
-| *(Unmerged)* `LA-E2-01` | `AC-LA-E2-01-03`, `AC-LA-E2-01-08` | Golden `G1` & `G2` (`LA-IC-02`) | `LA-E2-01` author code is not yet merged on `f2e340e`, and its `K1-SIM` rows are golden `G1`/`G2` comparisons (`LA-IC-02`). |
+| `LA-E2-01` | `AC-LA-E2-01-03`, `AC-LA-E2-01-08` | Golden `G1` & `G2` (`LA-IC-01`) | Golden `G1`/`G2` comparisons (`LA-IC-01` E2-K trait fields and token requests) require `LA_GOLDEN_CAPTURE=<dir>`. |
+| `LA-E2-01` | `AC-LA-E2-01-10` | `MOODLE-LIVE` (`R2-lite`) | Requires live Moodle (`T7 × 1` and LTI service group). |
+| `LA-E2-02` | `AC-LA-E2-02-08`, `AC-LA-E2-02-09` (golden G4 half) | `MOODLE-LIVE` (`T3b`, `T7 × 1`) & Golden `G4` | Live Moodle DR (`T3b`, `T7 × 1`) requires live Moodle window; Golden `G4` byte-for-byte compare requires `LA_GOLDEN_CAPTURE=<dir>`. |
 
 ---
 
@@ -208,11 +211,14 @@ QA_TASK=LA-E3-11 npm run stack:test 2>&1 | tee "$LOGS/r1-LA-E3-11.log"
 # 9. LA-E3-12 (AC-LA-E3-12-01, 02, 03 + 04, 05 on SIM)
 QA_TASK=LA-E3-12 npm run stack:test 2>&1 | tee "$LOGS/r1-LA-E3-12.log"
 
-# 10. LA-E5-18 (AC-LA-E5-18-01 .. AC-LA-E5-18-05) + lti-service structured log capture
+# 10. LA-E2-02 (AC-LA-E2-02-02 .. AC-LA-E2-02-07, AC-LA-E2-02-09 on SIM)
+QA_TASK=LA-E2-02 npm run stack:test 2>&1 | tee "$LOGS/r1-LA-E2-02.log"
+
+# 11. LA-E5-18 (AC-LA-E5-18-01 .. AC-LA-E5-18-05) + lti-service structured log capture
 QA_TASK=LA-E5-18 npm run stack:test 2>&1 | tee "$LOGS/r1-LA-E5-18.log"
 docker compose -p "$COMPOSE_PROJECT_NAME" logs --no-color lti-service > "$LOGS/r1-lti-service.log"
 
-# 11. Teardown Batch 1
+# 12. Teardown Batch 1
 npm run stack:acceptance:down 2>&1 | tee "$LOGS/r1-stack-down.log"
 ```
 
