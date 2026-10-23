@@ -1,5 +1,5 @@
 Verdict: PASS (host-only K0 + UNIT; K1-SIM pending: Docker window)
-Round: 1
+Round: 2
 
 # LA-E4-07 App metrics and readiness listener (Should): QA verification
 
@@ -36,3 +36,34 @@ Independence: QA-3 authored `tests/ltiaas/tasks-core/LA-E4-07/` from `docs/archi
   - F1 (`fitness:lms-names`): `F1 PASS: 0 files with hits, 0 hits`.
   - F5 (`fitness:rules`): `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits`.
 - **Measured time:** `LA-E4-07` K0 + UNIT suite `105.82s` (`2/2` K0 tests; `2` unit test files / `22/22` unit tests in `8.45s`). `K1-SIM` rows (`AC-02`..`06`) are `pending: Docker window` (Docker slot 4).
+
+## Round 2
+
+Tester: QA-3 (Orca task `task_029beaadd9c2`, dispatch `ctx_3952ce74962a`), 2026-10-23. Scope: Round 2 host-only verification of `8f1ecea` / `5b89f42` (lane R fix round 1 for `B-LA-E4-07-01` / `AC-LA-E4-07-07` refusal reason label grammar `^[a-z][a-z0-9_]{0,63}$`) at integration SHA `e654574`.
+
+Independence: QA-3 authored the Round 2 `AC-LA-E4-07-07` boundary test in `tests/ltiaas/tasks-core/LA-E4-07/app-metrics.k0.test.ts` from `LA-E4-07.md` and `cogniate-app-api-delta.md` §8a without reading product source (`services/**`, `packages/**`, `apps/**`), Author notes or reviewer files (test file `services/cogniate-app/src/app/metrics.test.ts` was inspected solely for the `AppMetrics` test harness constructor signature).
+
+| Item | Value |
+| --- | --- |
+| SHA | `e65457445001a6a6636afbea7c55d66870211737` (integration `e654574`; holds `LA-E4-07` fix round 1 `8f1ecea` / `5b89f42`) |
+| Lane and slot | lane R; no Docker (`HOST-ONLY`; `K1-SIM` rows `AC-02`..`06` remain `pending: Docker window`, slot 4) |
+| Clone | `~/cogniate-qa-runs/LA/run19/clone`: `git clone --no-hardlinks --no-checkout`, detached at `e65457445001a6a6636afbea7c55d66870211737`, push URL `DISABLED`, `npm ci` at root and `tests/`, `node_modules/.vitest-cache` and `node_modules/.vite` deleted before every Vitest run |
+| Environment | macOS arm64, Node 24.21.0, npm 11.19.0 |
+| Artifacts | private run folder `~/cogniate-qa-runs/LA/run19/k0/LA-E4-07/` (umask 077): `vitest.log`, `e4-07-check-clean.log`, `e4-07-unit-by-ac.log`, `e4-07-r2-boundary.json` |
+
+### Round 2 checks (`5b89f42` / `B-LA-E4-07-01` / `AC-LA-E4-07-07`)
+
+| Check | Result | Test id | Evidence |
+| --- | --- | --- | --- |
+| `AC-LA-E4-07-07` (`B-LA-E4-07-01`): launch refusal reason boundary rows (`[a-z][a-z0-9_]{0,63}`) and unknown channel guard | PASS | `app-metrics.k0.test.ts > AC-LA-E4-07-07 Round 2 (B-LA-E4-07-01): launch refusal reason boundary rows` + `services/cogniate-app/src/app/metrics.test.ts > AC-LA-E4-07-07 (B-LA-E4-07-01)` (8 cases) | Verified: hyphen (`"deployment-not-approved"` -> `reason="other"`), 64 chars (`"a" + "0".repeat(63)` -> kept as-is), 65 chars (`"a" + "0".repeat(64)` -> `reason="other"`), leading digit (`"1deployment_not_approved"` -> `reason="other"`), upper case (`"Deployment_Not_Approved"` -> `reason="other"`), empty (`""` -> `reason="other"`), and unknown channel (`"unknown-channel-id"` -> `channel=""`). `e4-07-r2-boundary.json`, `e4-07-unit-by-ac.log` |
+
+### R0 `npm run check` and suite timings at `e654574`
+
+- **R0 `npm run check` (`e4-07-check-clean.log`):**
+  - Vitest (`test:unit`): `192` files; `3,081` passed, `5` skipped.
+  - Infra (`test:infra`, `node --test`): `254` pass, `0` fail.
+  - K0 (`test:k0`): `3` files; `149` passed.
+  - F1 (`fitness:lms-names`): `F1 PASS: 0 files with hits, 0 hits`.
+  - F5 (`fitness:rules`): `F5 PASS: 6 rules (audit-event-delete, channel-sql-tables, connection-lms, no-score-sync, protocol-urls, sql-portability), 0 hits`.
+- **Targeted unit suite (`e4-07-unit-by-ac.log`):** `2` files (`metrics.test.ts`, `worker-main.test.ts`), `30/30` passed (`8.63s`).
+- **Measured time:** `LA-E4-07` K0 + UNIT suite `107.95s` (`3/3` K0 tests passed). `K1-SIM` rows (`AC-02`..`06`) remain `pending: Docker window` (Docker slot 4).
