@@ -1,5 +1,5 @@
 Verdict: APPROVE
-Round: 1
+Round: 2
 
 ## Round 1
 
@@ -26,3 +26,15 @@ The UNIT criteria have relevant coverage: AC-01 checks both methods, default sel
 Verification used `/tmp/la-review-b-15734a340910`, a fresh `git clone --no-hardlinks` with its own `npm ci`; the Vitest cache was removed before every run. **65 tests passed across four files**, covering the Canvas wizard and shared channel shell. Portal and channel-portal typechecks, changed-file ESLint, and F1 passed. The separate staged-renewal probe confirmed the minor issue above.
 
 The changes stay within the assigned Canvas portal scope and the explicitly dispatched shared URL extraction/SDK export. No protected app, service, manifest, or other-channel file changed; no production core LMS name was added. The app fixes under BD-A1-106 and the LA-E3-09 service work are separately assigned and are not treated as missing portal work. K1-SIM, the unchanged M2 manual E2E, and full R0 remain with their assigned verification lanes. No Docker, stack, or commit was used. Only this review file changed in integration.
+
+## Round 2 (BD-A2-106 follow-up)
+
+Reviewer: Codex GPT-6-Astra, xhigh, 2026-10-24. Lens B: can a human team own it? Scope and test pin: `aa351bad0b52d1941df6f658aace8d3f6c0c1619`. Read the prior B round, task spec, BD-A2-106, channel README, and related admin guidance. No Reviewer-A file was opened.
+
+**APPROVE. No new findings.** B-LA-E3-16-01 is outside this copy-only follow-up.
+
+The sentence names the affected deployment, gives the exact alternative choice, **Developer key**, and states that Cogniate does not yet support this method there. It is clear beside the Dynamic Registration radio. It matches the approved wording and the pending quotation in `docs/guides/ltiaas/baseline-admin-changes.md` §2.1. It also agrees with the channel README's developer-key path and its statement that live Canvas rows remain unverified. Both method choices remain available as BD-A2-106 requires.
+
+Verification used fresh private clone `/tmp/la-review-b-fe99586dd62b`, checked out at the unmerged commit, with its own `npm ci` and the Vitest cache deleted before each run. **All 20 Canvas wizard tests passed**, including UNIT AC-01/02/03 and AC-05's manual DOM hashes. Restoring only the parent commit's JSON copy made AC-01 fail on the missing new sentence while AC-05 still passed. The copy was restored and the clone is clean. Channel portal typecheck, test-file lint, and whitespace checks passed.
+
+Only the two assigned Canvas portal files change. Protected paths, request behaviour, and other channels are unchanged; no core LMS name was added. Lead merge and the planned M2/K2 re-gate remain; the guide's pending-verification label can follow that evidence. No Docker, stack, or commit was used. Only this review file changed in integration.
