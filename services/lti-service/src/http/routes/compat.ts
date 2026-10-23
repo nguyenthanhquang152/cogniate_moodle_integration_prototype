@@ -11,7 +11,7 @@ import type { LineItemInput } from '../../platform/ags.ts';
 import { urlKeyedMembers } from '../../platform/ags.ts';
 import type { RouteContext } from '../context.ts';
 import { checkServiceKeyWriteScope } from '../auth.ts';
-import { agsContext, claimObject, platformOf, signedDeepLink } from '../service-context.ts';
+import { agsContext, claimObject, deploymentIdOf, platformOf, signedDeepLink } from '../service-context.ts';
 import { decodeLineItemId, invalid } from '../validation.ts';
 
 const text = z.string().min(1).max(2048);
@@ -68,7 +68,7 @@ export function registerCompatRoutes(app: FastifyInstance, ctx: RouteContext): v
       throw invalid(parsed.error);
     }
     return ctx.nrps.listMemberships({
-      platform, traceId: req.traceId,
+      platform, traceId: req.traceId, deploymentId: deploymentIdOf(caller),
       nrpsClaim: caller.launch ? claimObject(caller.launch.claims[CLAIM.nrps]) : caller.serviceKey?.nrpsClaim ?? null,
     }, parsed.data);
   });
