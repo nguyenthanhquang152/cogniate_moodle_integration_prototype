@@ -3,7 +3,7 @@
 // Each subcase reports the remote record (exists, active, ref) and the app authority separately (evidence JSON).
 import {
   admin, app, assert, cli, connPath, expectStatus, gateEvents, gatePhase, gateReset,
-  httpsRequest, logEvents, m1Test, pause, poll, records, release, service, session, type Json,
+  host, httpsRequest, logEvents, m1Test, pause, poll, records, release, service, session, urls, type Json,
 } from '../common/client';
 import { commitGrade, publication, waitSync } from '../common/course';
 import {
@@ -82,6 +82,14 @@ async function upstream(event: Json, status: number) {
 }
 const revoke = async (grantId: string) => cli('app:grant', ['revoke', '--grant', grantId]);
 
+/** AC-M1-37 dead handler: SIGKILL, so the old process cannot let its held LTI call time out and clear its lease. */
+async function killApp() {
+  assert.equal((await host('m1-restart', { service: 'cogniate-app', mode: 'kill' })).code, 0);
+  await poll(async () => {
+    try { return await httpsRequest(urls.app + '/healthz'); } catch { return { status: 0 }; }
+  }, (r) => r.status === 200, 20_000, 100);
+}
+
 async function scope(id: string, p: { clientId: string; since: number; connection: Json; s: any }, body: () => Promise<void>) {
   await gateReset();
   await watchAll();
@@ -133,7 +141,10 @@ race('c2', 'Canvas initial S3 answer lost: active without approval gives no auth
 race('d', 'dead Canvas handler keeps the lease for 60 s; its late S3 loses to the retry', async (p) => {
   await watchAll('pass', [activateRule('activate', 'hold_before')]);
   const started = Date.now(), first = apply(p).catch(() => null), held = await gatePhase('activate', 'held_before');
-  await restartApp(); await gatePhase('activate', 'caller_gone', 10_000); await first;
+  await killApp(); await gatePhase('activate', 'caller_gone', 10_000);
+  const firstAnswer = await first;
+  assert.notEqual(firstAnswer?.json?.details?.message, 'LTI_SERVICE_ERROR',
+    'BLOCKED: the old handler timed out before the restart killed it');
   leaseWindow(started);
   const refused = await apply(p); leaseWindow(started, Date.now(), true);
   expectStatus(refused, 409, 'GRANT_IN_USE');
@@ -296,7 +307,10 @@ addRace('s-dead', 'a dead Canvas added deployment handler: no authority until th
   const second = canvasDeploymentId(), grant = await addGrant(b, second);
   await watchAll('pass', [{ id: 'activate', method: 'PATCH', pathRegex: addActivate(b, second), action: 'hold_after', times: 1 }]);
   const started = Date.now(), first = addDeployment(b, second, grant).catch(() => null), held = await gatePhase('activate', 'held_after');
-  await restartApp(); await first;
+  await killApp();
+  const firstAnswer = await first;
+  assert.notEqual(firstAnswer?.json?.details?.message, 'LTI_SERVICE_ERROR',
+    'BLOCKED: the old handler timed out before the restart killed it');
   await unapprovedAdded(b, second);
   leaseWindow(started);
   const refused = await addDeployment(b, second, grant); leaseWindow(started, Date.now(), true);

@@ -280,3 +280,97 @@ test('HARNESS ONLY: requests queued before the first controller run once; a requ
   assert.equal(fs.readFileSync(path.join(dir, 'ack-m1-e1.json'), 'utf8'), ack);
   assert.equal(fs.existsSync(path.join(dir, 'ack-m1-e3.json')), false);
 });
+
+test('HARNESS ONLY: AC-M1-37 kill-mode m1-restart runs SIGKILL then guarded restart and enforces service, mode, marker and QA guards', async (t) => {
+  const clone = fs.mkdtempSync(path.join(os.tmpdir(), 'qa-m1-kill-'));
+  const dir = path.join(clone, 'tests/acceptance/artifacts/control');
+  fs.mkdirSync(dir, { recursive: true }); fs.mkdirSync(path.join(clone, '.tmp'));
+  const knobs = path.join(clone, '.tmp/compose.knobs.yaml');
+  const calls = [], saved = new Map();
+  let scripted = [];
+  const r = {
+    CLONE: clone, PROJECT: 'qa-kill-selfcheck', state: { h1Verified: true },
+    STACK_ENV: { COMPOSE_PROJECT_NAME: 'qa-kill-selfcheck', STACK_PROFILE: 'default' },
+    redact: { add: () => {} },
+    saveText: (name, text) => saved.set(name, JSON.parse(text)),
+    record: (...args) => assert.fail(JSON.stringify(args)),
+  };
+  let stop = m1HostControl(r, async (...args) => {
+    calls.push(args);
+    return scripted.shift() ?? { code: 0, stdout: 'ok', stderr: '', durationMs: 1 };
+  });
+  t.after(async () => { await stop(); fs.rmSync(clone, { recursive: true, force: true }); });
+  async function invoke(req) {
+    fs.writeFileSync(path.join(dir, `req-${req.id}.json`), JSON.stringify(req));
+    const ackPath = path.join(dir, `ack-${req.id}.json`), limit = Date.now() + 3000;
+    while (!fs.existsSync(ackPath) && Date.now() < limit) await delay(10);
+    assert.ok(fs.existsSync(ackPath), `Host control completed ${req.id}`);
+    const ack = JSON.parse(fs.readFileSync(ackPath, 'utf8'));
+    return { ack, result: JSON.parse(fs.readFileSync(path.join(dir, ack.out), 'utf8')) };
+  }
+
+  // 1. Sequence and env: SIGKILL cogniate-app first, then guarded stack:restart -- cogniate-app.
+  scripted = [
+    { code: 0, stdout: '', stderr: 'Killing cogniate-app', durationMs: 17 },
+    { code: 0, stdout: 'Restoring defaults for cogniate-app\ncogniate-app is healthy.', stderr: '', durationMs: 240 },
+  ];
+  const ok = await invoke({ id: 'm1-f1', action: 'm1-restart', service: 'cogniate-app', mode: 'kill' });
+  assert.equal(ok.ack.ok, true);
+  assert.equal(ok.result.code, 0);
+  assert.equal(ok.result.durationMs, 257);
+  assert.equal(ok.result.stderr, 'Killing cogniate-app');
+  const lines = ok.result.stdout.split('\n');
+  assert.match(lines[0], /^kill: exit 0, \d{4}-\d{2}-\d{2}T[^\s–]+Z–\d{4}-\d{2}-\d{2}T[^\s–]+Z$/);
+  assert.deepEqual(lines.slice(1), ['Restoring defaults for cogniate-app', 'cogniate-app is healthy.']);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(calls[0], ['docker', [
+    'compose', '-f', 'infra/compose.yaml', '--env-file', '.env',
+    'kill', '-s', 'SIGKILL', 'cogniate-app',
+  ], { cwd: clone, env: r.STACK_ENV, timeoutMs: 30_000 }]);
+  assert.deepEqual(calls[1], ['npm', ['run', 'stack:restart', '--', 'cogniate-app'], {
+    cwd: clone, env: { ...r.STACK_ENV, STACK_PROFILE: 'acceptance' }, timeoutMs: 180_000,
+  }]);
+  assert.equal(saved.get('host-actions/m1-f1.json').durationMs, 257);
+
+  // 2. Failed kill runs no restart.
+  calls.length = 0;
+  scripted = [{ code: 1, stdout: 'kill-out', stderr: 'no such container', durationMs: 19 }];
+  const failedKill = await invoke({ id: 'm1-f2', action: 'm1-restart', service: 'cogniate-app', mode: 'kill' });
+  assert.equal(failedKill.ack.ok, false);
+  assert.equal(failedKill.result.code, 1);
+  assert.equal(failedKill.result.durationMs, 19);
+  assert.equal(failedKill.result.stderr, 'no such container');
+  assert.match(failedKill.result.stdout, /^kill: exit 1, \d{4}-\d{2}-\d{2}T[^\s–]+Z–\d{4}-\d{2}-\d{2}T[^\s–]+Z\nkill-out$/);
+  assert.equal(calls.length, 1, 'Failed kill must not run stack:restart');
+
+  // 3. Invalid service with mode or unknown mode returns code 2 and runs no command.
+  calls.length = 0;
+  for (const [id, payload] of [
+    ['m1-f3', { service: 'lti-service', mode: 'kill' }],
+    ['m1-f4', { service: 'cogniate-app', mode: 'graceful' }],
+    ['m1-f5', { service: 'cogniate-app', mode: '' }],
+    ['m1-f6', { service: 'cogniate-app', mode: null }],
+  ]) {
+    const bad = await invoke({ id, action: 'm1-restart', ...payload });
+    assert.equal(bad.result.code, 2);
+    assert.equal(bad.result.stderr, 'Unknown M1 host action');
+  }
+  assert.equal(calls.length, 0, 'Invalid mode or service runs no command');
+
+  // 4. Storage-compat marker refuses kill-mode m1-restart with no command.
+  fs.writeFileSync(knobs, JSON.stringify({ 'x-cogniate-storage-compat': { formatVersion: 1 } }));
+  const markerRefused = await invoke({ id: 'm1-f7', action: 'm1-restart', service: 'cogniate-app', mode: 'kill' });
+  assert.equal(markerRefused.result.code, 2);
+  assert.match(markerRefused.result.stderr, /storage-compat marker present/);
+  assert.equal(calls.length, 0, 'Compat marker refuses before any command');
+  fs.rmSync(knobs, { force: true });
+
+  // 5. Non-QA project refuses kill-mode m1-restart with no command.
+  await stop();
+  r.PROJECT = 'dev-local';
+  stop = m1HostControl(r, async (...args) => { calls.push(args); return { code: 0, stdout: '', stderr: '', durationMs: 1 }; });
+  const nonQaRefused = await invoke({ id: 'm1-f8', action: 'm1-restart', service: 'cogniate-app', mode: 'kill' });
+  assert.equal(nonQaRefused.result.code, 2);
+  assert.equal(nonQaRefused.result.stderr, 'QA project guard');
+  assert.equal(calls.length, 0, 'Non-QA project runs no command');
+});
