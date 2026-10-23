@@ -234,6 +234,7 @@ R2 facts (R2 §4.2 row "Canvas Dynamic Registration"): Canvas Dynamic Registrati
 | Request | The Canvas folder adds the three Canvas extension members as channel data: privacy level `anonymous`, tool id `cogniate`, vendor name. The scopes are `registration.scopes` (D4). |
 | Authority | The registration creates the Canvas platform **inactive**, with a binding ref of the connection. Launch and grade authority still need the operator grant (`binding.authority` of the Canvas `dynamic` method is `operatorGrant`), or a verified admin launch if [LA-ADR-08](LA-ADR-08-onboarding-and-connection-health.md) D3 is built. D6 removes the JSON paste and the typed client id; it does not remove the ownership proof. |
 | Manifest | Canvas `registration` gets a `dynamic` method with authority `operatorGrant`. Capability `registration.dynamic` becomes true for Canvas. |
+| Portal | (BD-A2-90.) The Canvas wizard offers the method choice at create (developer key, the default, or Dynamic Registration), shows the registration URL instead of the developer key JSON for `dynamic`, and pre-fills the binding form's Client ID and Deployment ID from the staged platform. The manual path does not change. Task LA-E3-16 (lane P), in the same cut group as LA-E3-09 and LA-E3-15: D6 is not "API only". |
 
 Acceptance points (Should):
 
