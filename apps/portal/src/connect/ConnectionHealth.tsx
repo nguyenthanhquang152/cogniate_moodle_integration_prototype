@@ -13,8 +13,22 @@ export const HEALTH_TEXTS = {
   staleKey: "Paste a new {LMS} key JSON.",
   staleKeyHelp: "The key in the key JSON that {LMS} has is not the active Cogniate key. Download the JSON again and paste it into {LMS}.",
   backlog: "Some grades wait more than 1 hour to go to {LMS}.",
-  backlogHelp: "Use Check connection. If the problem stays, give the trace id of an error to your Cogniate operator.",
+  // B-LA-E6-02-01: name only an action that the page has and values that the page shows.
+  backlogCheck: "Select Check connection to test the connection to {LMS}.",
 };
+
+/**
+ * The help of the backlog warning: "Check connection" only when that panel is on the page (the channel has
+ * setup.connectionCheck and the connection is registered or connected), then what to give the operator: the connection
+ * name and the last grade error that the health view shows.
+ */
+export function backlogHelp(health: Health, connection: Pick<Connection, "name">, checkAvailable: boolean, fill: (value: string) => string): string[] {
+  const error = health.dispatch.lastError;
+  const facts = `the connection name "${connection.name}"${error ? ` and the last grade error ${error.code ?? "(no code)"} at ${time(error.at)}` : ""}`;
+  return checkAvailable
+    ? [fill(HEALTH_TEXTS.backlogCheck), `If the grades still wait, give your Cogniate operator ${facts}.`]
+    : [`Give your Cogniate operator ${facts}.`];
+}
 
 /** The warnings of a health answer: a stale key in the setup artifact, and grades that wait more than 1 hour. */
 export function healthWarnings(health: Health, now = Date.now()): ("staleKey" | "backlog")[] {
@@ -25,11 +39,26 @@ export function healthWarnings(health: Health, now = Date.now()): ("staleKey" | 
   ];
 }
 
-/** A health answer has these parts; any other answer counts as "not available" (the page never fails on it). */
-const isHealth = (value: unknown): value is Health => typeof value === "object" && value !== null
-  && typeof (value as Health).dispatch === "object" && (value as Health).dispatch !== null
-  && typeof (value as Health).keys === "object" && (value as Health).keys !== null && Array.isArray((value as Health).events);
-const time = (value: string | null) => value === null ? "none" : new Date(value).toLocaleString();
+// A-LA-E6-02-01, B-LA-E6-02-02: every value that the panel reads is checked, also inside dispatch, keys, the last
+// check and each event; any other answer counts as "not available" (the page never fails on it).
+type Fields = Record<string, unknown>;
+const isObject = (value: unknown): value is Fields => typeof value === "object" && value !== null && !Array.isArray(value);
+const isText = (value: unknown): value is string => typeof value === "string";
+const isTextOrNull = (value: unknown): boolean => value === null || isText(value);
+const isCount = (value: unknown): boolean => typeof value === "number" && Number.isFinite(value);
+const isFlagOrNull = (value: unknown): boolean => value === null || typeof value === "boolean";
+const isCodeAt = (value: unknown, codeKey: string): boolean => isObject(value) && isTextOrNull(value[codeKey]) && isText(value.at);
+export function isHealth(value: unknown): value is Health {
+  if (!isObject(value) || !isText(value.status) || !isTextOrNull(value.lastLaunchAt)) return false;
+  const { dispatch: d, keys: k, lastCheck: c, lastLaunchRefusal: r, events: e } = value;
+  return (r === null || isCodeAt(r, "reason"))
+    && isObject(d) && isCount(d.pending) && isTextOrNull(d.oldestPendingAt) && isTextOrNull(d.lastSentAt) && isCount(d.failedLast24h)
+    && (d.lastError === null || isCodeAt(d.lastError, "code"))
+    && isObject(k) && isTextOrNull(k.activeKid) && isTextOrNull(k.nextKid) && isTextOrNull(k.artifactKeyKid) && isFlagOrNull(k.artifactKeyCurrent)
+    && (c === null || (isObject(c) && isText(c.at) && typeof c.jwks === "boolean" && typeof c.token === "boolean"))
+    && Array.isArray(e) && e.every((event) => isCodeAt(event, "code") && isText((event as Fields).kind));
+}
+function time(value: string | null): string { return value === null ? "none" : new Date(value).toLocaleString(); }
 const passed = (ok: boolean) => ok ? "ok" : "failed";
 
 /**
@@ -46,10 +75,12 @@ export function ConnectionHealth({ connection }: { connection: Connection }) {
   const manifest = registry.channel(channelOf(connection));
   const text = (value: string) => fillText(value, { LMS: manifest?.names.text ?? "your LMS" });
   const warnings = data ? healthWarnings(data) : [];
+  const checkAvailable = !!manifest?.setup.connectionCheck && (connection.status === "registered" || connection.status === "connected");
+  const help = (key: "staleKey" | "backlog", health: Health) => key === "staleKey" ? [text(HEALTH_TEXTS.staleKeyHelp)] : backlogHelp(health, connection, checkAvailable, text);
   return <>
-    {warnings.map((key) => <Notice key={key} variant="warning" data-health-warning={key}>
+    {data && warnings.map((key) => <Notice key={key} variant="warning" data-health-warning={key}>
       <p>{text(HEALTH_TEXTS[key])}</p>
-      <p>{text(HEALTH_TEXTS[`${key}Help`])}</p>
+      {help(key, data).map((line) => <p key={line}>{line}</p>)}
     </Notice>)}
     <details className="rounded-[9px] border border-border p-4 [&_dl]:mt-3 [&_dt]:font-semibold [&_dd]:mb-2 [&_ol]:pl-5" data-connection-health="">
       <summary>Connection health</summary>

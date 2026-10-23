@@ -37,13 +37,15 @@ const event = (code: string, connectionId = 'con', libraryId = 'lib') => ({ conn
 describe('connection events (LA-ADR-08 D5)', () => {
   it('AC-LA-E6-02-06: keeps the newest 100 rows per connection; another connection keeps its own rows', () => {
     const db = database();
+    // A-LA-E6-02-02: the 100 of LA-ADR-08 D5 is written here, not read from the code.
+    expect(CONNECTION_EVENT_LIMIT).toBe(100);
     recordConnectionEvent(db, event('other', 'con_b', 'lib_b'), 1);
-    for (let i = 0; i < CONNECTION_EVENT_LIMIT + 5; i++) recordConnectionEvent(db, event(`code_${i}`), 1000 + i);
+    for (let i = 0; i < 105; i++) recordConnectionEvent(db, event(`code_${i}`), 1000 + i);
     const kept = listConnectionEvents(db, 'lib', 'con');
-    expect(kept).toHaveLength(CONNECTION_EVENT_LIMIT);
+    expect(kept).toHaveLength(100);
     expect(kept[0]).toEqual({ kind: 'launch_refused', code: 'code_104', traceId: 'trace-code_104', at: 1104 });
     expect(kept.at(-1)!.code).toBe('code_5');
-    expect(Number(db.prepare("SELECT COUNT(*) AS n FROM connection_event WHERE connection_id = 'con'").get()!.n)).toBe(CONNECTION_EVENT_LIMIT);
+    expect(Number(db.prepare("SELECT COUNT(*) AS n FROM connection_event WHERE connection_id = 'con'").get()!.n)).toBe(100);
     expect(listConnectionEvents(db, 'lib_b', 'con_b').map((row) => row.code)).toEqual(['other']);
   });
 
@@ -55,13 +57,16 @@ describe('connection events (LA-ADR-08 D5)', () => {
 
   it('AC-LA-E6-02-06: the retention removes rows older than 30 days, also through the app retention job', async () => {
     const db = database();
+    // A-LA-E6-02-02: the 30 days of LA-ADR-08 D5 (LA-H4) are written here, not read from the code.
+    const thirtyDays = 30 * 86_400_000;
+    expect(CONNECTION_EVENT_TTL_MS).toBe(thirtyDays);
     const now = 100 * 86_400_000;
-    recordConnectionEvent(db, event('old'), now - CONNECTION_EVENT_TTL_MS - 1);
-    recordConnectionEvent(db, event('edge'), now - CONNECTION_EVENT_TTL_MS);
+    recordConnectionEvent(db, event('old'), now - thirtyDays - 1);
+    recordConnectionEvent(db, event('edge'), now - thirtyDays);
     recordConnectionEvent(db, event('new'), now - 1000);
     expect(deleteExpiredConnectionEvents(db, now)).toEqual({ table: 'connection_event', deleted: 1 });
     expect(listConnectionEvents(db, 'lib', 'con').map((row) => row.code)).toEqual(['new', 'edge']);
-    recordConnectionEvent(db, event('older'), now - CONNECTION_EVENT_TTL_MS - 5);
+    recordConnectionEvent(db, event('older'), now - thirtyDays - 5);
     const logger = createLogger({ service: 'test', write: () => {} });
     const result = await retentionJob(db).run({ instanceId: 'i', bootId: 'b', leaseOwner: 'i/b', traceId: 't', now: () => now, logger, signal: new AbortController().signal });
     expect(result.counts).toMatchObject({ connection_event: 1 });
