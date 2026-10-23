@@ -261,6 +261,11 @@ await r.main(async () => {
     `dc --profile test run --rm --no-deps --name "$COMPOSE_PROJECT_NAME-qa-${artSub}-$$" --build "\${QA_ENV_ARGS[@]+"\${QA_ENV_ARGS[@]}"}" e2e sh -c ` +
     `'npm ci --prefix tests --no-audit --no-fund && cd tests && ./node_modules/.bin/playwright test -c ${pwConfig}'`;
 
+  const insideM2Canvas =
+    'set -euo pipefail; source infra/scripts/lib.sh; require_running proxy; prepare_e2e; qa_env_args; ' +
+    `dc --profile test run --rm --no-deps --name "$COMPOSE_PROJECT_NAME-qa-m2-canvas-$$" --build "\${QA_ENV_ARGS[@]+"\${QA_ENV_ARGS[@]}"}" e2e sh -c ` +
+    `'cd tests && QA_GREP="M2-03\\\\.profile-labels|M2-03\\\\.valid-default-service|M2-04\\\\.rows|M2-04\\\\.copy-json|M2-05\\\\.success" ./node_modules/.bin/playwright test -c e2e/M2/playwright.config.ts e2e/M2/02-canvas-wizard.m2.ts'`;
+
   const stop = m1HostControl(r);
   let pass;
   try {
@@ -268,6 +273,13 @@ await r.main(async () => {
       env: { ...r.STACK_ENV, QA_PRODUCT_SHA: productSha, QA_TEST_SHA: testSha },
       timeoutMs: 7_200_000,
     });
+    if (suiteMode === 'k2') {
+      const m2Pass = await r.exec('m2-canvas-wizard-pass', 'bash', ['-c', insideM2Canvas], {
+        env: { ...r.STACK_ENV, QA_PRODUCT_SHA: productSha, QA_TEST_SHA: testSha },
+        timeoutMs: 1_800_000,
+      });
+      r.record('LA-E3-16.AC-05', 'M2 Canvas wizard regression (M2-03, M2-04, M2-05)', m2Pass.code === 0 ? 'PASS' : 'FAIL');
+    }
   } finally {
     await stop();
   }

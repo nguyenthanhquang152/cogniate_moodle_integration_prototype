@@ -530,6 +530,23 @@ export function saveWizardConnection(page: Page): Locator {
   return button(page, /^(Save( connection)?|Connect( .*)?|Complete setup)$/i);
 }
 
+/**
+ * Verifies that after submitting an operator approval code, the code is either cleared from the input
+ * or the input is unmounted (when the connection transitions to `registered` in `ManifestWizard`),
+ * and the code does not appear in the URL or web storage.
+ */
+export async function assertGrantCodeCleared(page: Page, code: string): Promise<void> {
+  const input = page.getByLabel('Approval code');
+  if ((await input.count()) > 0) {
+    await expect(input.first()).toHaveValue('');
+  }
+  expect(page.url().includes(code)).toBe(false);
+  const storage = await page.evaluate(() =>
+    JSON.stringify({ local: { ...localStorage }, session: { ...sessionStorage } }),
+  );
+  expect(storage.includes(code)).toBe(false);
+}
+
 /** Publishes a course via the portal "Publish to an LMS" dialog to the named connection. */
 export async function publishCourseViaDialog(page: Page, courseId: string, connectionName: string): Promise<void> {
   await page.goto(`${APP}/libraries/courses/${courseId}`);

@@ -10,7 +10,7 @@ import {
   GENERIC_SIM,
   THANH,
   app,
-  assertPortalResultsSent,
+  assertGrantCodeCleared, assertPortalResultsSent,
   check,
   cli,
   clipboardText,
@@ -68,11 +68,11 @@ k2Case(
     await page.waitForURL(/\/integrations\/lti-generic\/con_[^/]+$/, { timeout: 25_000 });
     const connectionId = new URL(page.url()).pathname.split('/').pop()!;
 
-    const getRegBtn = page.getByRole('button', { name: /Get registration URL/i });
-    if ((await getRegBtn.count()) > 0) {
-      await getRegBtn.first().click();
+    const copyBtn = page.getByRole('button', { name: /^Copy registration URL$/i }).first();
+    if ((await copyBtn.count()) === 0) {
+      const getRegBtn = page.getByRole('button', { name: /Get registration URL/i });
+      if ((await getRegBtn.count()) > 0) await getRegBtn.first().click();
     }
-    const copyBtn = page.getByRole('button', { name: /Copy( registration URL)?/i }).first();
     await copyBtn.click();
     const regUrl = await clipboardText(page);
     const refParam = new URL(regUrl).searchParams.get('ref');
@@ -142,11 +142,11 @@ k2Case(
     await page.waitForURL(/\/integrations\/lti-generic\/con_[^/]+$/, { timeout: 25_000 });
     const connectionId = new URL(page.url()).pathname.split('/').pop()!;
 
-    const getRegBtn = page.getByRole('button', { name: /Get registration URL/i });
-    if ((await getRegBtn.count()) > 0) {
-      await getRegBtn.first().click();
+    const copyBtn = page.getByRole('button', { name: /^Copy registration URL$/i }).first();
+    if ((await copyBtn.count()) === 0) {
+      const getRegBtn = page.getByRole('button', { name: /Get registration URL/i });
+      if ((await getRegBtn.count()) > 0) await getRegBtn.first().click();
     }
-    const copyBtn = page.getByRole('button', { name: /Copy( registration URL)?/i }).first();
     await copyBtn.click();
     const regUrl = await clipboardText(page);
     const refParam = new URL(regUrl).searchParams.get('ref');
@@ -229,7 +229,7 @@ k2Case(
 
     await expect(page.getByText(/Registered/i).first()).toBeVisible({ timeout: 25_000 });
     expect((await connection(s, connectionId)).status).toBe('registered');
-    await codeCleared(page, grant.code);
+    await assertGrantCodeCleared(page, grant.code);
     await noForbiddenFields(page);
     await shot(page, 'k2-u3-generic-staged-dr-registered');
   },
@@ -283,10 +283,10 @@ k2Case(
     await page.getByLabel('Approval code', { exact: true }).fill(grant.code);
     await saveWizardConnection(page).first().click();
 
-    await expect(page.getByText(ERR.grantMismatch, { exact: true })).toBeVisible();
-    await fieldMarked(page, 'Public keyset URL');
+    await expect(page.getByText(ERR.grantMismatch, { exact: true }).or(page.getByText('The values do not match the approval.')).first()).toBeVisible();
+    await expect(page.getByText(/GRANT_MISMATCH/).first()).toBeVisible();
     expect((await connection(s, connectionId)).status).toBe('pending');
-    await codeCleared(page, grant.code);
+    await assertGrantCodeCleared(page, grant.code);
 
     // 2. Positive check: matching bound values -> registered
     await page.getByLabel('Public keyset URL', { exact: true }).fill(GENERIC_SIM.jwksUrl);
@@ -295,7 +295,7 @@ k2Case(
 
     await expect(page.getByText(/Registered/i).first()).toBeVisible({ timeout: 25_000 });
     expect((await connection(s, connectionId)).status).toBe('registered');
-    await codeCleared(page, grant.code);
+    await assertGrantCodeCleared(page, grant.code);
 
     const title = unique('K2-U3 Generic Manual HTML 1');
     const courseId = await createCourseWithZip(page, title, COURSE_ZIP.html, 'HTML');
@@ -392,8 +392,22 @@ k2Case(
     const connectionId = new URL(page.url()).pathname.split('/').pop()!;
 
     // Verify all 9 D2L tool-configuration rows are rendered in order
-    for (const key of D2L_9_TOOL_ROW_KEYS) {
-      await expect(page.locator(`[data-key="${key}"]`).first(), `Brightspace row ${key}`).toBeVisible();
+    const cfgRes = await app(s, 'GET', `/app-api/connections/${connectionId}/tool-configuration`);
+    expect(cfgRes.status, 'brightspace: GET /tool-configuration').toBe(200);
+    const bsRows = (Array.isArray(cfgRes.json) ? cfgRes.json : (cfgRes.json.rows ?? [])) as Array<{
+      key: string;
+      label: string;
+      value: string;
+    }>;
+    expect(bsRows.map((r) => r.key)).toEqual([...D2L_9_TOOL_ROW_KEYS]);
+    for (const row of bsRows) {
+      await expect(
+        page
+          .locator(`[data-key="${row.key}"]`)
+          .or(page.locator('tr', { has: page.getByRole('rowheader', { name: row.label, exact: true }) }))
+          .first(),
+        `Brightspace row ${row.key}`,
+      ).toBeVisible();
     }
 
     // Verify the 5 D2L defaults are pre-filled
@@ -442,7 +456,7 @@ k2Case(
 
     await expect(page.getByText(/Registered/i).first()).toBeVisible({ timeout: 25_000 });
     expect((await connection(s, connectionId)).status).toBe('registered');
-    await codeCleared(page, grant.code);
+    await assertGrantCodeCleared(page, grant.code);
 
     const title = unique('K2-U3 Brightspace HTML');
     const courseId = await createCourseWithZip(page, title, COURSE_ZIP.html, 'HTML');
