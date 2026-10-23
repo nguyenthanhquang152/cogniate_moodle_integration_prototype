@@ -1,5 +1,5 @@
-Verdict: FAIL (Lead review §5, 2026-10-23T18:09:33Z; was PASS)
-Round: 1
+Verdict: FAIL (Slot 3C re-gate §6, 2026-10-23T21:33:35Z; Lead review §5, 2026-10-23T18:09:33Z)
+Round: 2
 
 # LA-E7-08 Wave-End and Final Regression Gates (SIM Lane): QA (Slot 3B on `80133d6b`)
 
@@ -207,3 +207,104 @@ Section 2.2 Item 1 above misattributed the 9 `HTTP 429 RATE_LIMITED` rows in `qa
 | **`WE-F4`** | `7` rows in `M1 sim` (`M1-37.blackboard.{d,o,v5}`, `M1-37.canvas.{d,s-dead,v4,v6}`) | **Lead QA** baseline measured in Slot 7 (`docs/reviews/LA-E0-02/qa.md` §3) → **Author / Lead** (product/shutdown investigation on `80133d6b`) | **OPEN (Baseline Proven on `1b17261`: `7/7 PASS`)** | On `1b17261` (`qalead-la-16`), all `7/7` `M1-37` rows passed (`M1-37.blackboard.d` `62,998.7 ms`, `.o` `63,067.4 ms`, `.v5` `10,788.8 ms`, `M1-37.canvas.d` `63,061.1 ms`, `.s-dead` `62,996.4 ms`, `.v4` `10,259.5 ms`, `.v6` `10,780.4 ms`), and every `M1-37` `m1-restart cogniate-app` completed in **`8,226–8,437 ms`** despite **`40` concurrent `sto-*` container creates** during the `M1-37` window. By contrast, on `80133d6b` (`qalead-la-14`), normal `m1-restart cogniate-app` calls took `6,213–6,402 ms` while all `7` `M1-37` `m1-restart cogniate-app` calls (with an in-flight hanging dead handler) took **`76,318–76,853 ms`** (`+68.1 s`), exceeding the `60 s` lease window. Full 18-row comparison table is in `docs/reviews/LA-E0-02/qa.md` §3. |
 | **`WE-F5`** | `qalead-la-12` (`M1 --phase snapshot-upgrade`): `ERROR` (`FAIL`) and `M1-41.common.j-snapshot` (`NOT RUN`) | **Lead QA** runner path fix (`services/lti-service/src/db/migrations`, confirmed by `BD-A2-108`) + **Reviewer-A & Reviewer-B** (`docs/reviews/LA-E7-08/ld9-addendum-r1.md` Part 1 Hunk 2) | **OPEN (Addendum Part 1 Proposed)** | `tests/host/m1-migration.mjs:332` in `8ad12926` checked `services/lti-service/src/store/migrations` (non-existent) instead of `services/lti-service/src/db/migrations`, falling back to `oldLedger` (`001..004`) when asserting `newLedger['lti-service/lti.db']` (`001..021`) at line 340 and aborting before `M1-41.common.j-snapshot` at line 344. |
 
+
+---
+
+## 6. Re-gate slot 3C (2026-10-23T21:33:35Z)
+
+### 6.1 Slot 3C Context & Gate Source (`src-wave-end-3`)
+
+| Item | Value |
+| --- | --- |
+| Wave-End Candidate SHA (`$WAVE_SHA_3`) | `8fadb828088ffe1b4db02179ab0fa3ab2388a12a` (`tag: la-wave-end-product-3`, `Merge la-s1 a2c99731: LA-E5-19 WE-F4 round 1 (A-LA-E5-19-04: a failed listener close exits 1)`; includes `BD-A2-109` lanes R + S1 stop-order & error-path fixes, `BD-A2-108` `ecc19bbc` `lti-service` `admin` default `1200/min` burst `600`, and `BD-A2-106` `60230165` Canvas wizard help text) |
+| Commit 1 (`$BASE_OVERLAY_SHA_3`) | `e00b9651e29d835e1980732ba7037273f641ac7a` (`tag: la-gate-test-base-c1-3`; `e00b9651:tests` tree `f42d4150b7b11ba2b2e63898ee317e6dea3f9430` identical to `8ad12926:tests`, `0` non-test diff from `8fadb828`) |
+| Commit 2 (`$WAVE_TEST_SHA_3`) | `e46bb27c9487d332f40fcefd4dd880304d1d31f1` (`tag: la-gate-test-3`, `tag: la-gate-test-addendum-r2`; approved 3-file LD-9 Addendum Round 2 on `e00b9651`: `11-canvas-platforms.test.ts`, `99-logs.test.ts`, `tests/host/m1-migration.mjs`, `3 files changed, 3 insertions(+), 3 deletions(-)`, `0` non-test diff from `8fadb828`) |
+| Gate Source Directory | `/Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-3` (`src-wave-end` at `8ad12926` and `src-wave-end-2` at `bf815340` untouched) |
+| Authorized `DOCKER-YES` Window | `2026-10-23T21:00:00Z` to `2026-10-23T22:00:00Z` (`task_7b9c6d8a676f` / `ctx_571e309038b3`); stack up from `21:00:39Z` to `21:32:27Z` (`31.8 min` total; `"lead QA stack down"` sent at `21:32:40Z` in `msg_cff91fd697cf`, `27.5 min` ahead of window end) |
+| Compose Projects & Network | `qalead-la-40`, `qalead-la-41`, `qalead-la-42`, `qalead-la-43` (sequential, one stack at a time); `PUBLIC_PORT=9473`, `STACK_SUBNET=172.23.0.0/16` |
+| Durable Artifacts | `/Users/quangnguyen/cogniate-qa-runs/LA/SLOT3C/` (mode `0700`: `logs/`, `docker-records/`, `artifacts/qalead-la-40..43-*`, `golden-capture-8fadb828088ffe1b4db02179ab0fa3ab2388a12a/`, `golden-capture-8fadb828088ffe1b4db02179ab0fa3ab2388a12a-port9443/`) |
+
+### 6.2 Per-AC Verdict Lines (Slot 3C Re-Gate)
+
+- **`AC-LA-E7-08-01`: `FAIL` (`M2` `64/64 PASS`; `M1 sim` `393/394 PASS`, `1 FAIL` on `M1-08.canvas.login-redirect`)** — `17` of the `18` Slot 3B non-PASS rows in `M1 sim` now `PASS` (`7/7` `WE-F4` `M1-37` rows `PASS`, `8/8` `WE-F1` `blackboard` rows `PASS`, `1/1` `WE-F3` `M1-15.canvas.dynamic-refused` `PASS`, `1/1` `WE-F2` `M1-24.common.event-shapes` `PASS`), and all `64/64` `M2` browser cases `PASS` (`qalead-la-42`). Only `M1-08.canvas.login-redirect` (`21-canvas-protocol.test.ts:19`) fails (`200 !== 302`) because it sends `{ login: { lti_storage_target: 'post_message_forwarding' } }` to `canvas-sim-cloud`, which under `LA-IC-06` (`contracts/lti-service-api-delta.md` §2.1 `:134`, §7 `:425`) returns the `200 text/html` Platform Storage login page rather than `302` (see §6.4 below).
+- **`AC-LA-E7-08-02`: `PASS` (`K1-SIM`)** — All 5 registered channels (`moodle`, `canvas`, `blackboard`, `lti-generic`, `brightspace`) pass `K1-CONF`, `K1-CORE`, `K1-DL`, `K1-AGS`, `K1-NRPS`, and `K1-CAP`.
+- **`AC-LA-E7-08-03`: `PASS` (`K1-SIM`, `qalead-la-43`)** — Candidate golden capture `G1–G4` on `8fadb828088ffe1b4db02179ab0fa3ab2388a12a` (`--test-sha e46bb27c9487d332f40fcefd4dd880304d1d31f1`) passed `9/9` host steps (`129` secret values scanned, `0` hits) and `compare.mjs` against `G-BASE` (`1b17261be97c4701b928fa9dc2fa74c6d23028f6`) with all 13 expected-delta files (`LA-IC-01..21`) exited `0` (`EQUAL: 280 differences (0 not explained), 0 expected changes missing; 30 ms`).
+- **`AC-LA-E7-08-04`: `PASS` (`K1-SIM`, `qalead-la-41` + carried `qalead-la-11` & `qalead-la-13`)** — `qalead-la-41` (`M1 --phase snapshot-upgrade --provider all`) passed `11/11` rows in `summary.json` (`0` `ERROR`, `0` `FAIL`, including `M3-ISOLATION` `PASS`) and **`6/6` manifest rows in `m1-case-results.json`** (`M1-38.common.h1..h5` plus **`M1-41.common.j-snapshot` `PASS`**, closing `WE-F5`), together with `qalead-la-11` (`M1 --phase migration`: `12/12` manifest rows `PASS`) and `qalead-la-13` (`U1-SIM` `LA-E5-08` + `LA-E5-22`: `37/37` assertions `PASS`; `0` SQL migrations changed between `80133d6b` and `8fadb828`).
+- **`AC-LA-E7-08-05`: `PASS` (`K0`)** — `e00b9651e29d835e1980732ba7037273f641ac7a:tests` equals `8ad1292687431b05bad6b5c070ab722e67714526:tests` (`f42d4150b7b11ba2b2e63898ee317e6dea3f9430`), `git diff --stat e00b9651 e46bb27c` shows only the 3 reviewed Round 2 addendum files (`11-canvas-platforms.test.ts`, `99-logs.test.ts`, `tests/host/m1-migration.mjs`, `3 insertions(+), 3 deletions(-)`), and `git diff --exit-code 8fadb828 e46bb27c -- . ':!tests'` is empty (`0` non-test files changed).
+- **`AC-LA-E7-08-06`: `PASS` (`K0`)** — `git -C /Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-3 diff --stat 1b17261be97c4701b928fa9dc2fa74c6d23028f6..8fadb828088ffe1b4db02179ab0fa3ab2388a12a -- infra/scripts/stack-data.sh infra/scripts/stack-data.mjs infra/scripts/storage-compat.sh infra/compat/` is empty (`0` files changed, exit `0`).
+
+### 6.3 Exact Accounting per Run (from `summary.json` `results` and Case Ledgers)
+
+1. **`qalead-la-40` (`M1 --phase sim --provider all`, `SLOT3C/artifacts/qalead-la-40-8fadb828-2026-10-23T21-00-56-592Z/summary.json`, `24.0 min`):**
+   - **Counts in `summary.json` `results`:** `401` total (`398 PASS`, `3 FAIL`): `393` of the `394` `sim` manifest rows `PASS` + `5` host rows `PASS` (`G1-IDENTITY`, `PRE`, `CLONE`, `H1`, `TEARDOWN`) = `398 PASS`; `1` manifest row `FAIL` + `1` aggregate `ERROR` row `FAIL` + `1` foreign-container `M3-ISOLATION` row `FAIL` = `3 FAIL`.
+   - **Manifest Case Results (`m1-case-results.json`):** **`393 PASS`, `1 FAIL`, `0` missing manifest IDs** (`394` wanted, `394` recorded).
+   - **Non-PASS IDs in `summary.json` (`3`):**
+     - `M1-08.canvas.login-redirect` (`FAIL`, notes: `[]`; in `cmd/acceptance-sim.log`: `AssertionError: Expected values to be strictly equal: 200 !== 302` at `acceptance/M1/canvas/21-canvas-protocol.test.ts:19:10`).
+     - `ERROR` (`FAIL`, notes: `["AssertionError [ERR_ASSERTION]: Required case is not PASS: M1-08.canvas.login-redirect (FAIL)\n\n'FAIL' !== 'PASS'\n    at verifyResults (file:///Users/quangnguyen/cogniate-qa-runs/LA/GATE/src-wave-end-3/tests/acceptance/M1/common/coverage.mjs:78:12)..."]`).
+     - `M3-ISOLATION` (`FAIL`, notes: `["containers changed: 2; volumes changed: 3699fa3ac279b6c7a43056170a3ed74bcf5164918f1ce8c27272b7fc5b5da8da, bef0d8cd742376887f0a30dc3da5e15987a838adc7f2df0af4a86ee71da7f13f"]`; teardown note: `"other projects' containers that stopped or restarted: /sto-it-mq-36478ed65b39, /sto-it-6901dc4c7fce (information)"` — see §6.5).
+2. **`qalead-la-41` (`M1 --phase snapshot-upgrade --provider all`, `SLOT3C/artifacts/qalead-la-41-8fadb828-2026-10-23T21-25-31-702Z/summary.json`, `2.1 min`):**
+   - **Counts in `summary.json` `results`:** `11` total (**`11 PASS`, `0 FAIL`**): `G1-IDENTITY`, `PRE`, `CLONE`, `H1`, `M1-38.common.h1`, `M1-38.common.h2`, `M1-38.common.h3`, `M1-38.common.h4`, `M1-38.common.h5`, `M3-ISOLATION`, `TEARDOWN`.
+   - **Manifest Case Results (`m1-case-results.json`):** **`6/6 PASS`, `0` missing manifest IDs** (`M1-38.common.h1` `2,984.9 ms`, `M1-38.common.h2` `4,315.3 ms`, `M1-38.common.h3` `1,138.8 ms`, `M1-38.common.h4` `711.4 ms`, `M1-38.common.h5` `6,997.1 ms`, and host qualification row **`M1-41.common.j-snapshot` `PASS`**).
+   - **Non-PASS IDs:** **`0`** (`[]`).
+3. **`qalead-la-42` (`M2` browser suite, `SLOT3C/artifacts/qalead-la-42-8fadb828-2026-10-23T21-27-37-069Z/summary.json`, `2.8 min`):**
+   - **Counts in `summary.json` `results`:** `71` total (`70 PASS`, `1 FAIL`): **`64/64` `M2` manifest cases `PASS`** (`M2-01`..`M2-13`, `0` missing manifest IDs) + `6` host rows `PASS` (`PRE`, `CLONE`, `H1`, `M2-STACK`, `M3-07-M2`, `TEARDOWN`) = `70 PASS`.
+   - **Non-PASS IDs (`1`):**
+     - `M3-06-M2` (`FAIL`, notes: `["volumes 32 → 34; containers 0 → 2"]` — foreign `sto-*` containers created during `qalead-la-42`; see §6.5).
+4. **`qalead-la-43` (`G1–G4` golden capture & compare, `SLOT3C/artifacts/qalead-la-43-8fadb828-2026-10-23T21-30-25-616Z/summary.json`, `1.8 min`):**
+   - **Counts in `summary.json` `results`:** `9` total (**`9 PASS`, `0 FAIL`**): `PRE`, `CLONE`, `H1`, `GOLDEN-DEFAULT`, `H1`, `GOLDEN-CAPTURE`, `GOLDEN-SECRET-SCAN` (`129` tracked values, `0` hits), `GOLDEN-OUT`, `TEARDOWN`.
+   - **Non-PASS IDs:** **`0`** (`[]`).
+   - **Golden Compare Result (`SLOT3C/logs/qalead-la-43-golden-compare-port-aligned.txt`):**
+     ```text
+     EQUAL: 280 differences (0 not explained), 0 expected changes missing; expected-delta files: LA-IC-01, LA-IC-03, LA-IC-04, LA-IC-12, LA-IC-13, LA-IC-14, LA-IC-15, LA-IC-16, LA-IC-17, LA-IC-18, LA-IC-19, LA-IC-20, LA-IC-21; 30 ms
+     ```
+     (Raw `:9473` compare in `qalead-la-43-golden-compare-raw.txt` has `0` missing expected changes and only the `35` `:9443` → `:9473` `PUBLIC_PORT` URL strings in `G1`/`G2`.)
+
+### 6.4 The 18 `WE` Rows in Slot 3C (`8fadb828`, `qalead-la-40`) vs Slot 7 Baseline (`1b17261`, `qalead-la-16`) and Slot 3B (`80133d6b`, `qalead-la-14`)
+
+- **Summary of the 18 `WE` Rows in Slot 3C (`qalead-la-40`):** **`17/18 PASS`, `1/18 FAIL` (`M1-08.canvas.login-redirect`)**.
+  - **`WE-F4` (`7/7 PASS` — CLOSED):** All `7` `M1-37` dead-handler restart-lease rows passed (`62.95–63.22 s` for the 60-second lease rows `.d`, `.o`, `.s-dead`, and `10.98–11.44 s` for `.v4`, `.v5`, `.v6`). Every `M1-37` `m1-restart cogniate-app` call completed in **`9,375–9,685 ms` (`9.4–9.7 s`)** (down from `76,318–76,853 ms` in Slot 3B and matching Slot 7's `8,226–8,437 ms` baseline; normal `m1-restart cogniate-app` calls without a hanging handler took `6,196–6,438 ms`).
+  - **`WE-F1` (`8/8` `blackboard` rows `PASS`, `0` `rate_limited` events in `lti-service.jsonl` — Rate-Limit Fix Confirmed):** After `BD-A2-108` (`ecc19bbc`: `lti-service` `admin` default `1200/min`, burst `600`), `lti-service.jsonl` recorded **`0` `rate_limited` events** during the entire `qalead-la-40` run, and all `8` `blackboard` rows in `20-protocol.test.ts` passed (`18.2–55.5 ms`).
+  - **`WE-F3` (`1/1 PASS` — CLOSED):** `M1-15.canvas.dynamic-refused` passed in `32.5 ms` with Addendum Hunk 1 (`LA-IC-14`).
+  - **`WE-F2` (`1/1 PASS` — CLOSED):** `M1-24.common.event-shapes` passed in `12.0 ms` with Addendum Hunk 3 (`LA-IC-22`).
+  - **`WE-F5` (`6/6 PASS` in `qalead-la-41` — CLOSED):** `M1-38.common.h1..h5` and `M1-41.common.j-snapshot` all passed with Addendum Hunk 2.
+  - **Why `M1-08.canvas.login-redirect` Failed (`200 !== 302` — `LA-IC-06`, Not `WE-F1`):**
+    - In Slot 3B (§2.2 & §5.3), `M1-08.canvas.login-redirect` (`acceptance/M1/canvas/21-canvas-protocol.test.ts:16-35`) was grouped under `WE-F1` because it was the first test in `21-canvas-protocol.test.ts` immediately after the 8 `429 RATE_LIMITED` tests in `20-protocol.test.ts`.
+    - In fact, `21-canvas-protocol.test.ts:18` calls:
+      `const started = await canvasLaunch(p, {}, { login: { lti_storage_target: 'post_message_forwarding' } });`
+      `assert.equal(started.login.status, 302);`
+    - On `1b17261` (`G-BASE`), `lti-service` did not implement LTI Platform Storage, so it ignored `lti_storage_target` and returned `302`.
+    - Under **`LA-IC-06`** (`docs/architecture/ltiaas/contracts/lti-service-api-delta.md` §2.1 `:129-135` and §7 `:425`, implemented in `LA-E2-04` and enabled on `canvas-sim-cloud` in `LA-E3-03` / `LA-IC-15`), when a platform profile has `platformStorage` (`from-login` on Canvas) and `lti_storage_target` is present in the `/lti/login/{toolAccountId}` request (`post_message_forwarding` matches `[A-Za-z0-9_-]`), `POST /lti/login/cogniate` returns the **`200 text/html` Platform Storage intermediate login page** (with the same `Set-Cookie: __Host-lti_state_...` and the auth URL in its escaped JSON script block) instead of `302`. All other `49/50` tests in `21-canvas-protocol.test.ts` omit `lti_storage_target` (`CANVAS_LOGIN` only sends `canvas_environment` and `canvas_region`), so they receive `302` and pass.
+
+| # | Case ID (`7` `M1-37` rows first) | Slot 7 (`1b17261`, `qalead-la-16`) Status & Duration | Slot 7 `m1-restart cogniate-app` (`ms`, artifact) | Slot 3B (`80133d6b`, `qalead-la-14`) Status & Duration | Slot 3B `m1-restart cogniate-app` (`ms`, artifact) | **Slot 3C (`8fadb828`, `qalead-la-40`) Status & Duration** | **Slot 3C `m1-restart cogniate-app` (`ms`, artifact)** |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | `M1-37.blackboard.d` | `PASS` (`62,998.7 ms`) | `8,392 ms` (`m1-d5a4ddc14586.json`) | `FAIL` (`77,003.5 ms`) | `76,429 ms` (`m1-9a190ef0d726.json`) | **`PASS` (`62,948.9 ms`)** | **`9,516 ms`** (`m1-a2b7fe6060ea.json`, `21:13:05.235Z`) |
+| 2 | `M1-37.blackboard.o` | `PASS` (`63,067.4 ms`) | `8,294 ms` (`m1-2cfabeb0fe08.json`) | `FAIL` (`77,492.7 ms`) | `76,351 ms` (`m1-6d371ad44e68.json`) | **`PASS` (`63,221.7 ms`)** | **`9,685 ms`** (`m1-5382096a8b2a.json`, `21:14:29.144Z`) |
+| 3 | `M1-37.blackboard.v5` | `PASS` (`10,788.8 ms`) | `8,371 ms` (`m1-534d19bfe5be.json`) | `FAIL` / `BLOCKED` (`77,449.9 ms`) | `76,853 ms` (`m1-4b36a29d522d.json`) | **`PASS` (`11,104.8 ms`)** | **`9,377 ms`** (`m1-c7e979b6b559.json`, `21:15:46.068Z`) |
+| 4 | `M1-37.canvas.d` | `PASS` (`63,061.1 ms`) | `8,226 ms` (`m1-532fa86964a5.json`) | `FAIL` / `BLOCKED` (`77,387.7 ms`) | `76,437 ms` (`m1-ba7ac967cb00.json`) | **`PASS` (`63,026.0 ms`)** | **`9,514 ms`** (`m1-4185396c1bdd.json`, `21:17:35.382Z`) |
+| 5 | `M1-37.canvas.s-dead` | `PASS` (`62,996.4 ms`) | `8,437 ms` (`m1-e3dbfb6533a8.json`) | `FAIL` / `BLOCKED` (`77,704.9 ms`) | `76,512 ms` (`m1-56e59cc651d4.json`) | **`PASS` (`63,166.1 ms`)** | **`9,465 ms`** (`m1-2cf679c69043.json`, `21:18:56.928Z`) |
+| 6 | `M1-37.canvas.v4` | `PASS` (`10,259.5 ms`) | `8,341 ms` (`m1-03be2999f957.json`) | `FAIL` / `BLOCKED` (`77,691.3 ms`) | `76,318 ms` (`m1-abd93a536c38.json`) | **`PASS` (`10,982.0 ms`)** | **`9,453 ms`** (`m1-bf42acb389ae.json`, `21:19:08.451Z`) |
+| 7 | `M1-37.canvas.v6` | `PASS` (`10,780.4 ms`) | `8,420 ms` (`m1-6736bebf8e84.json`) | `FAIL` / `BLOCKED` (`77,883.3 ms`) | `76,454 ms` (`m1-c03690f0cf0d.json`) | **`PASS` (`11,443.7 ms`)** | **`9,375 ms`** (`m1-a361c4c58530.json`, `21:20:01.748Z`) |
+| 8 | `M1-13.blackboard.inactive` | `PASS` (`75.7 ms`) | N/A | `FAIL` (`14.1 ms`, `429`) | N/A | **`PASS` (`55.5 ms`)** | N/A |
+| 9 | `M1-25.blackboard.site-metadata` | `PASS` (`22.5 ms`) | N/A | `FAIL` (`7.1 ms`, `429`) | N/A | **`PASS` (`18.2 ms`)** | N/A |
+| 10 | `M1-14.blackboard.claims` | `PASS` (`22.0 ms`) | N/A | `FAIL` (`5.8 ms`, `429`) | N/A | **`PASS` (`21.4 ms`)** | N/A |
+| 11 | `M1-36.blackboard.origin` | `PASS` (`44.0 ms`) | N/A | `FAIL` (`4.5 ms`, `429`) | N/A | **`PASS` (`39.4 ms`)** | N/A |
+| 12 | `M1-36.blackboard.path` | `PASS` (`32.0 ms`) | N/A | `FAIL` (`4.1 ms`, `429`) | N/A | **`PASS` (`30.9 ms`)** | N/A |
+| 13 | `M1-36.blackboard.query` | `PASS` (`38.2 ms`) | N/A | `FAIL` (`4.8 ms`, `429`) | N/A | **`PASS` (`35.8 ms`)** | N/A |
+| 14 | `M1-36.blackboard.encoded-dot` | `PASS` (`33.0 ms`) | N/A | `FAIL` (`4.3 ms`, `429`) | N/A | **`PASS` (`28.4 ms`)** | N/A |
+| 15 | `M1-36.blackboard.encoded-slash` | `PASS` (`29.4 ms`) | N/A | `FAIL` (`4.2 ms`, `429`) | N/A | **`PASS` (`30.5 ms`)** | N/A |
+| 16 | `M1-15.canvas.dynamic-refused` | `PASS` (`32.3 ms`) | N/A | `FAIL` (`31.8 ms`, `WE-F3`) | N/A | **`PASS` (`32.5 ms`)** | N/A |
+| 17 | `M1-08.canvas.login-redirect` | `PASS` (`28.3 ms`) | N/A | `FAIL` (`16.4 ms`, `200 !== 302`) | N/A | **`FAIL` (`22.3 ms`, `200 !== 302`, `LA-IC-06`)** | N/A |
+| 18 | `M1-24.common.event-shapes` | `PASS` (`12.1 ms`) | N/A | `FAIL` (`19.2 ms`, `WE-F2`) | N/A | **`PASS` (`12.0 ms`)** | N/A |
+
+### 6.5 `M3` Global-State Environment Notes (`TEST-STRATEGY.md` §5.4) & Slot 3C Docker Boundary Records
+
+- **External `sto-*` (Savoy) Activity During Slot 3C (`21:00:39Z–21:32:27Z`):** Our read-only `docker events` watcher (`SLOT3C/docker-records/docker-events-watch.jsonl`) recorded **`248` `sto-*` container creates** during Slot 3C (`100%` of all non-`qalead-la-*` container events), each mounting an ephemeral 64-hex anonymous volume. QA never touched any `sto-*` container or volume (`before-sto-containers.txt`: `sto-it-mq-4325342edc76`, `sto-it-a5eb08d3d5e1`; `after-sto-containers.txt`: `sto-it-mq-5ec224d5bc7d`, `sto-it-cf2bec29e75d`).
+- **Per-Run `M3` Global-State Rows Explained by `sto-*`:**
+  1. `qalead-la-40` `M3-ISOLATION` (`FAIL`): `"containers changed: 2; volumes changed: 3699fa3ac279b6c7a43056170a3ed74bcf5164918f1ce8c27272b7fc5b5da8da, bef0d8cd742376887f0a30dc3da5e15987a838adc7f2df0af4a86ee71da7f13f"` — caused by `/sto-it-mq-36478ed65b39` and `/sto-it-6901dc4c7fce` and their 2 anonymous volumes rotating during `qalead-la-40`.
+  2. `qalead-la-41` `M3-ISOLATION`: **`PASS`**.
+  3. `qalead-la-42` `M3-06-M2` (`FAIL`): `"volumes 32 → 34; containers 0 → 2"` — caused by 2 `sto-it-*` containers and their 2 anonymous volumes starting during `qalead-la-42`.
+- **32 Protected Persistent Volume `inspect` & Boundary Verification (`SLOT3C/docker-records/`):**
+  - `before-non-sto-containers.txt`: `0`; `after-non-sto-containers.txt`: `0` (`0` `qalead-la-*` containers, volumes, or networks remaining).
+  - `before-networks.txt` vs `after-networks.txt`: `3` (`bridge`, `host`, `none`).
+  - `before-volumes-inspect.json` (`21:00:39Z`) vs `after-volumes-inspect.json` (`21:32:27Z`): All **`32/32` protected persistent volumes** are **100% byte-identical in `docker volume inspect` JSON**.
+  - `host-ps-watcher.log` (sampled every `10 s` from `21:00:51Z` to `21:32:25Z`) confirmed at most one `qalead-la-<n>` project ran at any time.
