@@ -132,6 +132,7 @@ New agents continue the stopped tasks with retry-context notes (charter-LA §0 m
 "Done" = QA PASS on every non-pending AC + Reviewer-A and Reviewer-B APPROVE; "pending" ACs wait for the golden tool or a Docker window (LD-21).
 
 Lead outages (session limit; resumed on another Claude profile each time): about 10:35-13:53Z and 15:45-18:02Z. Workers that needed an answer waited (lane K ended one dispatch 'failed' on an unanswered design ask); no work was lost; the run coordinator was re-bound with `run-use` after each restart. The other run asked LA to confirm its host-only hold for 16:38-17:23Z: confirmed (no LA Docker command; all LA reports say no Docker use).
+- 2026-10-22 20:13Z: the Blackboard and Canvas run released its standing host-only hold on LA (msg_8451370d9f2a): no LTI runtime or host reservation is active; all 32 protected volume records unchanged; do not infer ownership of or remove their resources; future windows are coordinated explicitly. LA Docker use starts by Lead grant (charter-LA §0): one QA stack at a time. Third Lead outage: about 19:31Z to 01:33Z (session restart); workers that finished waited; S1 resumed on its own.
 
 Docker: host-only. The other run's legacy invocation ran 14:21-15:1xZ; an owner-requested Savoy Docker job follows (40-60 min); then its SIM and M2/T7 windows. The LA window is not confirmed. Protected baseline: 32 volume records.
 
