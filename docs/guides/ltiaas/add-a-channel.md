@@ -220,10 +220,10 @@ Procedure:
    const [family, ...checked] = process.argv.slice(1);
    const t = require("node:fs").readFileSync(0, "utf8");
    for (const p of JSON.parse(t.slice(t.indexOf(" ") + 1)).platforms) {
-     if (p.active !== true || checked.includes(p.id)) continue;
+     if (p.active !== true) continue;
      const f = typeof p.productFamilyCode === "string" ? p.productFamilyCode.toLowerCase() : "";
      if (f === family.toLowerCase()) console.log("AFFECTED", p.id, p.url, p.productFamilyCode);
-     else if (f === "") console.log("CHECK", p.id, p.url, "(no family yet)");
+     else if (f === "" && !checked.includes(p.id)) console.log("CHECK", p.id, p.url, "(no family yet)");
    }
    ' '<family code>'
    ```
@@ -232,7 +232,7 @@ Procedure:
    - `CHECK`: an active platform with no family yet.
 2. For each `CHECK` line, ask its library which LMS it is.
    - If it is your LMS, treat it as `AFFECTED`.
-   - If it is not, write down its platform id. You pass it to the list later as an extra argument.
+   - If it is not, write down its platform id. You pass it to the list later as an extra argument. A checked id hides only a `CHECK` line (a platform with no family yet). If that platform later signs your family, the list shows it as `AFFECTED` again.
 3. For each `AFFECTED` platform:
    1. Ask the library to connect the LMS again with the card **LTI 1.3** ([LTI 1.3 admin guide](lti-generic-admin.md)).
    2. Check that the new connection works: its status is `connected` after a launch.
@@ -319,13 +319,17 @@ QA then starts the stack with `STACK_PROFILE=acceptance npm run stack:up` in a b
 
 ## Step 9: Add the kit fixture (`tests/ltiaas/kit/channels/<id>.json`)
 
-1. Copy `tests/ltiaas/kit/channels/brightspace.json`.
-2. Set `id`, `simProvider` (`<id>-sim`), `simProfile`, every capability value, `notBuilt`, `expect.legacyFlags`, `expect.toolConfigurationKeys` and the `sim` values.
+Follow the [kit README §2](../../../tests/ltiaas/kit/README.md#2-how-to-certify-a-new-channel-one-fixture-file-zero-suite-edits):
+
+1. Copy `tests/ltiaas/kit/channels/brightspace.json` (or `lti-generic.json`) to `tests/ltiaas/kit/channels/<id>.json`.
+2. Set `id`, `simProvider` (`<id>-sim`), `simProfile`, all 17 capability values, `coveredBy` (normally `{}` for a new channel), `notBuilt`, `expect.legacyFlags`, `expect.toolConfigurationKeys` and the `sim` values.
 3. Name the design source of every value in `source` and `sources` [UNIT E7-06-07].
+
+You add one file. You edit no suite and no shared channel list: the kit loader finds every `<id>.json` in `tests/ltiaas/kit/channels/`, and the shipped fixture audit accepts five or more fixtures. With `QA_KIT_CHANNELS` unset or `all`, a run selects every fixture that it finds. QA's K0 canary proves this with a sixth fixture in a temporary folder [UNIT E7-06] (rounds 2 and 3, row `B-LA-E7-06-06`).
 
 The kit computes the list of expected cases from the fixture before a run. A missing case or an extra case fails the run [UNIT E7-06-02].
 
-The kit finds every fixture in `tests/ltiaas/kit/channels/` by discovery, and a K0 canary proves that a new fixture is found. You edit no other kit file. Pending QA (LA-E7-06 round 2).
+Pending QA: with a sixth fixture in the real folder, one kit host test still fails. The canary test ("B-LA-E7-06-06 / LA-E8-01: open-world channel discovery …" in `tests/ltiaas/kit/kit.k0.test.ts`) copies every real fixture, adds its canary and expects exactly six (`expected 7 to be 6`). The other 12 kit host tests pass. Docs ran this on the host at a head that holds `af36ad31` and reported it to QA (LA-E7-06 round 3 reviews).
 
 ## Step 10: Run the checks
 
@@ -347,8 +351,8 @@ If you run F2 before the commit, it prints `F2 PASS: core = 0, paths = 0`. That 
 | F2 add-channel gate (after 10.1) | `npm run fitness:channel-diff -- --base <the SHA or branch of 10.1 step 1> --channel <id>` | one line per committed file: `channel:<id>` for the channel folder, `sim` for `tests/sim/**`, `tests` for the kit fixture, `docs` for docs; the last line is `F2 PASS: core = 0, paths = <n>`, with `<n>` equal to the number of files that you committed | `[UNIT E2-05-01]`, `[UNIT E2-06-01]` |
 | K0 contract suite | `npm run test:k0` | pass, with your channel loaded and no kernel edit | `[UNIT E2-05-03]` |
 | Simulator discovery (host only) | the command of step 7, item 5 | the existing provider ids and one new id `<id>-sim` | pending verification (Docs ran it in a scratch copy only) |
-| Kit host check | `LA_LEVEL=k0 npx --no-install vitest run --config tests/ltiaas/kit/vitest.config.mts` | pass, with your fixture discovered | `[UNIT E7-06-02]`, `[UNIT E7-06-07]`; the new fixture: pending QA (LA-E7-06 round 2) |
-| K1 kit on the simulator (QA, in a booked Docker window, inside the `e2e` container) | `QA_TASK=K1 QA_KIT_CHANNELS=<id> npm run acceptance:api` | every applicable case passes; a case is N/A only when its capability is off and its guard case passed | pending QA SIM (AC-LA-E7-06-01, AC-LA-E7-06-03, AC-LA-E7-06-04). The full kit passed for `brightspace` on the D2L simulator [SIM E2-05-10]. |
+| Kit host check | `LA_LEVEL=k0 npx --no-install vitest run --config tests/ltiaas/kit/vitest.config.mts` | pass, with your fixture discovered and its sources audited | `[UNIT E7-06-02]`, `[UNIT E7-06-07]`; with a sixth real fixture: pending QA (step 9) |
+| K1 kit on the simulator (QA, in a booked Docker window, inside the `e2e` container) | `LA_RUN_DIR=/tmp/kit-run QA_KIT_CHANNELS=<id> QA_TASK=K1 node tests/acceptance/run-api.mjs` (kit README §3) | every applicable case passes; a case is N/A only when its capability is off and its guard case passed | pending QA SIM (AC-LA-E7-06-01, AC-LA-E7-06-03, AC-LA-E7-06-04). The full kit passed for `brightspace` on the D2L simulator [SIM E2-05-10]. |
 
 F2 notes:
 
