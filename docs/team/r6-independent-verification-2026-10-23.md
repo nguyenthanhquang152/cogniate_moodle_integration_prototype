@@ -113,3 +113,26 @@ The Lead permits only host-side scan and evidence capture in `msg_1431eb6e25d4`,
 The two original inline binder schema mistakes were not reached. Their separate correction is evidence capture, not a runtime PASS.
 The grant is closed. The LA window is returned in `msg_25d757ac168b`; its complete-window confirmation remains pending.
 T7 remains ungranted. The next runtime decision waits for Claude's assessment of the monitor finding.
+
+## Monitor repair decision — 2026-10-23, 03:02 UTC
+
+The Lead accepts Claude's §13 plan at `5c8f2dc`: attempt 3 stays monitor FAIL and M2 NOT ACCEPTED.
+Its 64 functional results remain supporting history. One fresh M2 run is required after the private monitor repair and focused independent review.
+Independent Gemini `ctx_8449a3df3e54` owns the repair in the new `tools/lane-watch-r4` directory under `msg_71a79a38b36b`.
+The old 37 tools, 84-entry manifest and failed runtime files remain untouched. C8, C9, product code and `storage-docker.mjs` stay unchanged.
+T7 uses the repaired private monitor too. M1 and legacy have no dependency on it.
+
+Claude reviewer `ctx_6d532ec82e2c` found LW-R-01 in the proposed error classification (`msg_0e6a8d7219bb`).
+The Lead accepts its bounded amendment in `msg_30bbc088a7ab` and `msg_8ba7ddcd0876`:
+before a final network-inspect failure, permit the preceding container bulk failure and only its single-container `no such` failures that `listLane` already tolerates.
+All other failures remain closed. The known-owned ledger condition and exactly one successful confirmatory listing with the id absent still apply.
+The new tests cover that sequence, identical one-network bulk/single argv, and failed bulk stdout with a planted environment value.
+Error evidence keeps argv, exit and stderr privately; it never retains stdout. No general retry loop or public stderr is permitted.
+
+The M2 rerun needs unused paths for every output, observer, stop file, clone and artifact selection. It cannot reuse attempt 3's files.
+The repaired files, mock self-test results and exact invocation changes need the focused review before any grant.
+All other E-R6 controls stay in force. No runtime is authorized by this repair decision.
+
+The corrected failed-run closure is `notes/m2-attempt3-capture-and-closure-report-v2.json`, 34,569 bytes, SHA-256 `b6042aca77df856e56daa8aa6a4c7393fbc8b4b9d50a1a6faa02f8084901051a`.
+The Lead verified all 59 nested file bindings. It discloses overwritten intermediate derived reports, the corrected metadata and the inferred cause.
+The original runtime files are unchanged. No reconstructed report is called an original.
